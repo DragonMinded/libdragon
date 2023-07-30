@@ -3,14 +3,20 @@
 
 #include <rspq.h>
 #include <rspq_constants.h>
+#include <rdp.h>
+#include <rdpq_constants.h>
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
+#define ASSERT_TOO_MANY_NOPS         0xF002
 
 static void test_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 {
     switch (assert_code) {
         case ASSERT_GP_BACKWARD:
             printf("GP moved backward\n");
+            break;
+        case ASSERT_TOO_MANY_NOPS:
+            printf("Trying to send too many NOPs (%ld)\n", state->gpr[4]);
             break;
         default:
             printf("Unknown assert\n");
@@ -84,6 +90,16 @@ void rspq_test_high(uint32_t value)
 void rspq_test_reset_log(void)
 {
     rspq_write(test_ovl_id, 0x7);
+}
+
+void rspq_test_send_rdp(uint32_t value)
+{
+    rdpq_write(1, test_ovl_id, 0xA, 0, value);
+}
+
+void rspq_test_send_rdp_nops(int num_nops)
+{
+    rdpq_write(num_nops, test_ovl_id, 0xB, num_nops);
 }
 
 void rspq_test_big_out(void *dest)
@@ -193,9 +209,9 @@ void test_rspq_signal(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
     
-    rspq_signal(SP_WSTATUS_SET_SIG0 | SP_WSTATUS_SET_SIG1);
+    rspq_signal(SP_WSTATUS_SET_SIG0);
 
-    TEST_RSPQ_EPILOG(SP_STATUS_SIG0 | SP_STATUS_SIG1, rspq_timeout);
+    TEST_RSPQ_EPILOG(SP_STATUS_SIG0, rspq_timeout);
 }
 
 void test_rspq_high_load(TestContext *ctx)
@@ -743,4 +759,120 @@ void test_rspq_big_command(TestContext *ctx)
     }
     
     ASSERT_EQUAL_MEM((uint8_t*)output, (uint8_t*)expected, 128, "Output does not match!");
+}
+
+void test_rspq_rdp_dynamic(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+
+    const uint32_t count = 0x80;
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        rspq_test_send_rdp(i);
+    }
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+
+    extern void *rspq_rdp_dynamic_buffers[2];
+
+    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_dynamic_buffers[0]), "DP_START does not match!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_dynamic_buffers[0]) + count * 8, "DP_END does not match!");
+
+    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
+
+    for (uint64_t i = 0; i < count; i++)
+    {
+        ASSERT_EQUAL_HEX(rdp_buf[i], i, "Wrong command at idx: %llx", i);
+    }
+}
+
+void test_rspq_rdp_dynamic_switch(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+
+    const uint32_t full_count = RDPQ_DYNAMIC_BUFFER_SIZE / 8;
+    const uint32_t extra_count = 8;
+    const uint32_t count = full_count + extra_count;
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        rspq_test_send_rdp(i);
+    }
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+
+    extern void *rspq_rdp_dynamic_buffers[2];
+
+    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_dynamic_buffers[1]), "DP_START does not match!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_dynamic_buffers[1]) + extra_count * 8, "DP_END does not match!");
+
+    uint64_t *rdp_buf0 = (uint64_t*)rspq_rdp_dynamic_buffers[0];
+    uint64_t *rdp_buf1 = (uint64_t*)rspq_rdp_dynamic_buffers[1];
+
+    for (uint64_t i = 0; i < full_count; i++)
+    {
+        ASSERT_EQUAL_HEX(rdp_buf0[i], i, "Wrong command at idx: %llx", i);
+    }
+
+    for (uint64_t i = 0; i < extra_count; i++)
+    {
+        ASSERT_EQUAL_HEX(rdp_buf1[i], i + full_count, "Wrong command at idx: %llx", i);
+    }
+}
+
+
+void test_rspq_deferred_call(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+
+    int num_call_expected = 0;
+    int num_call_found = 0;
+
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+    int value = 0;
+
+    void cb1(void* expectedp) {
+        ++num_call_found;
+        int exp = (int)expectedp;
+        volatile uint64_t cur_counter = actual_sum[0];
+        data_cache_hit_writeback_invalidate(actual_sum, 16);
+        ASSERT(cur_counter >= exp, "invalid sequence for deferred call (expected %d, got %d)", exp, (int)cur_counter);
+    }
+
+    rspq_test_reset();
+
+    SRAND(123);
+    for (int i=0;i<1000;i++) {
+        switch (RANDN(8)) {
+        case 0: case 1: case 2: {
+            rspq_test_4(1); value+=1;
+        }   break;
+        case 3: {
+            rspq_test_output(actual_sum);
+            rspq_syncpoint_new_cb(cb1, (void*)value);
+            num_call_expected++;
+        }   break;
+        case 4: case 5: {
+            int count = RANDN(RSPQ_DRAM_LOWPRI_BUFFER_SIZE / 16);
+            for (int j=0;j<count;j++)
+                rspq_noop();
+        }   break;
+        case 6: case 7: {
+            rspq_flush();
+        }
+        }
+        if (ctx->result == TEST_FAILED)
+            return;
+    }
+
+    rspq_wait();
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    ASSERT_EQUAL_UNSIGNED(num_call_found, num_call_expected, "invalid number of deferred calls");
 }

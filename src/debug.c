@@ -3,25 +3,30 @@
  * @brief Debugging Support
  */
 
-#include <libdragon.h>
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include "console.h"
+#include "debug.h"
 #include "regsinternal.h"
 #include "system.h"
+#include "n64types.h"
+#include "n64sys.h"
+#include "dma.h"
+#include "backtrace.h"
 #include "usb.h"
 #include "utils.h"
+#include "libcart/cart.h"
+#include "interrupt.h"
+#include "backtrace.h"
+#include "exception_internal.h"
 #include "fatfs/ff.h"
 #include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
-
-// SD implementations
-#include "debug_sdfs_ed64.c"
-#include "debug_sdfs_64drive.c"
-#include "debug_sdfs_sc64.c"
 
 /**
  * @defgroup debug Debugging Support
@@ -69,6 +74,8 @@ static char sdfs_logic_drive[3] = { 0 };
 /** @brief debug writer functions (USB, SD, IS64) */
 static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
 
+/** @brief internal backtrace printing function */
+void __debug_backtrace(FILE *out, bool skip_exception);
 
 /*********************************************************************
  * Log writers
@@ -124,7 +131,15 @@ static void usblog_write(const uint8_t *data, int len)
 
 static void sdlog_write(const uint8_t *data, int len)
 {
+	// Avoid reentrant calls. If the SD card code for any reason generates
+	// an exception, the exception handler will try to log more, which would
+	// cause reentrant calls, that might corrupt the filesystem.
+	static bool in_write = false;
+	if (in_write) return;
+
+	in_write = true;
 	fwrite(data, 1, len, sdlog_file);
+	in_write = false;
 }
 
 /*********************************************************************
@@ -140,6 +155,7 @@ typedef struct
 	DSTATUS (*disk_initialize)(void);
 	DSTATUS (*disk_status)(void);
 	DRESULT (*disk_read)(BYTE* buff, LBA_t sector, UINT count);
+	DRESULT (*disk_read_sdram)(BYTE* buff, LBA_t sector, UINT count);
 	DRESULT (*disk_write)(const BYTE* buff, LBA_t sector, UINT count);
 	DRESULT (*disk_ioctl)(BYTE cmd, void* buff);
 } fat_disk_t;
@@ -162,13 +178,19 @@ DSTATUS disk_status(BYTE pdrv)
 
 DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 {
-	if (fat_disks[pdrv].disk_read)
+	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
+	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
+	if (fat_disks[pdrv].disk_read && PhysicalAddr(buff) < 0x00800000)
 		return fat_disks[pdrv].disk_read(buff, sector, count);
+	if (fat_disks[pdrv].disk_read_sdram && io_accessible(PhysicalAddr(buff)))
+		return fat_disks[pdrv].disk_read_sdram(buff, sector, count);
 	return RES_PARERR;
 }
 
 DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 {
+	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
+	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
 	if (fat_disks[pdrv].disk_write)
 		return fat_disks[pdrv].disk_write(buff, sector, count);
 	return RES_PARERR;
@@ -179,6 +201,27 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 	if (fat_disks[pdrv].disk_ioctl)
 		return fat_disks[pdrv].disk_ioctl(cmd, buff);
 	return RES_PARERR;
+}
+
+DWORD get_fattime(void)
+{
+	time_t t = time(NULL);
+	if (t == -1) {
+		return (DWORD)(
+			(FF_NORTC_YEAR - 1980) << 25 |
+			FF_NORTC_MON << 21 |
+			FF_NORTC_MDAY << 16
+		);
+	}
+  	struct tm tm = *localtime(&t);
+	return (DWORD)(
+		(tm.tm_year - 80) << 25 |
+		(tm.tm_mon + 1) << 21 |
+		tm.tm_mday << 16 |
+		tm.tm_hour << 11 |
+		tm.tm_min << 5 |
+		(tm.tm_sec >> 1)
+	);
 }
 
 /** @endcond */
@@ -198,30 +241,33 @@ static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
 	}
 }
 
-static fat_disk_t fat_disk_everdrive =
+static DSTATUS fat_disk_initialize_sd(void)
 {
-	fat_disk_initialize_everdrive,
-	fat_disk_status_default,
-	fat_disk_read_everdrive,
-	fat_disk_write_everdrive,
-	fat_disk_ioctl_default
-};
+	return cart_card_init() ? STA_NOINIT : 0;
+}
 
-static fat_disk_t fat_disk_64drive =
+static DRESULT fat_disk_read_sd(BYTE* buff, LBA_t sector, UINT count)
 {
-	fat_disk_initialize_64drive,
-	fat_disk_status_default,
-	fat_disk_read_64drive,
-	fat_disk_write_64drive,
-	fat_disk_ioctl_default
-};
+	return cart_card_rd_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+}
 
-static fat_disk_t fat_disk_sc64 =
+static DRESULT fat_disk_read_sdram_sd(BYTE* buff, LBA_t sector, UINT count)
 {
-	fat_disk_initialize_sc64,
+	return cart_card_rd_cart(PhysicalAddr(buff), sector, count) ? RES_ERROR : RES_OK;
+}
+
+static DRESULT fat_disk_write_sd(const BYTE* buff, LBA_t sector, UINT count)
+{
+	return cart_card_wr_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+}
+
+static fat_disk_t fat_disk_sd =
+{
+	fat_disk_initialize_sd,
 	fat_disk_status_default,
-	fat_disk_read_sc64,
-	fat_disk_write_sc64,
+	fat_disk_read_sd,
+	fat_disk_read_sdram_sd,
+	fat_disk_write_sd,
 	fat_disk_ioctl_default
 };
 
@@ -376,6 +422,23 @@ static filesystem_t fat_fs = {
 
 
 
+/** Initialize the SD stack just once */
+static bool sd_initialize_once(void) {
+	static bool once = false;
+	static bool ok = false;
+	if (!once)
+	{
+		once = true;
+		if (!sys_bbplayer())
+			ok = cart_init() >= 0;
+		else
+			/* 64drive autodetection makes iQue player crash; disable SD
+			   support altogether for now. */
+			ok = false;
+	}
+	return ok;
+}
+
 /** Initialize the USB stack just once */
 static bool usb_initialize_once(void) {
 	static bool once = false;
@@ -458,23 +521,10 @@ bool debug_init_sdlog(const char *fn, const char *openfmt)
 
 bool debug_init_sdfs(const char *prefix, int npart)
 {
-	if (!usb_initialize_once())
+	if (!sd_initialize_once())
 		return false;
 
-	switch (usb_getcart())
-	{
-	case CART_64DRIVE:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_64drive;
-		break;
-	case CART_EVERDRIVE:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_everdrive;
-		break;
-	case CART_SC64:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_sc64;
-		break;
-	default:
-		return false;
-	}
+	fat_disks[FAT_VOLUME_SD] = fat_disk_sd;
 
 	if (npart >= 0) {
 		sdfs_logic_drive[0] = '0' + npart;
@@ -508,6 +558,8 @@ void debug_close_sdfs(void)
 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
 {
+	disable_interrupts();
+
 	// As first step, immediately print the assertion on stderr. This is
 	// very likely to succeed as it should not cause any further allocations
 	// and we would display the assertion immediately on logs.
@@ -528,36 +580,12 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 		fprintf(stderr, "\n");
 	}
 
-	// Now try to initialize the console. This might fail in extreme conditions
-	// like memory full (display_init might fail), which will create an
-	// endless loop of assertions / crashes. It would be nice to introduce
-	// an "emergency console" to use in these cases that displays on a fixed
-	// framebuffer at a fixed memory address without using malloc.
-	console_close();
-	console_init();
-	console_set_debug(false);
-	console_set_render_mode(RENDER_MANUAL);
+	fprintf(stderr, "\n");
 
-	// Print the assertion again to the console.
-	fprintf(stdout,
-		"ASSERTION FAILED: %s\n"
-		"file \"%s\", line %d%s%s\n",
-		failedexpr, file, line,
-		func ? ", function: " : "", func ? func : "");
-
-	if (msg)
-	{
-		va_list args;
-
-		va_start(args, msg);
-		vfprintf(stdout, msg, args);
-		va_end(args);
-
-		fprintf(stdout, "\n");
-	}
-
-	console_render();
-	abort();
+	va_list args;
+	va_start(args, msg);
+	__inspector_assertion(failedexpr, msg, args);
+	va_end(args);
 }
 
 /** @brief Assertion function that is registered into system.c at startup */
@@ -597,4 +625,29 @@ void debug_hexdump(const void *vbuf, int size)
             debugf("|\n");
         }
     }
+}
+
+void __debug_backtrace(FILE *out, bool skip_exception)
+{
+	void *bt[32];
+	int n = backtrace(bt, 32);
+
+	fprintf(out, "Backtrace:\n");
+	void cb(void *data, backtrace_frame_t *frame)
+	{
+		if (skip_exception) {
+			skip_exception = strstr(frame->func, "<EXCEPTION HANDLER>") == NULL;
+			return;
+		}
+		FILE *out = (FILE *)data;
+		fprintf(out, "    ");
+		backtrace_frame_print(frame, out);
+		fprintf(out, "\n");
+	}
+	backtrace_symbols_cb(bt, n, 0, cb, out);
+}
+
+void debug_backtrace(void)
+{
+	__debug_backtrace(stderr, false);
 }

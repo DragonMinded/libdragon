@@ -24,6 +24,7 @@ typedef struct {
 
 typedef void (*TestFunc)(TestContext *ctx);
 
+#define ABS(n) ((n) < 0 ? -(n) : (n))
 #define PPCAT2(n,x) n ## x
 #define PPCAT(n,x) PPCAT2(n,x)
 
@@ -123,6 +124,31 @@ static uint32_t rand(void) {
 	} \
 })
 
+// ASSERT_EQUAL_FLAOT(a, b, msg): fail the test if a!=b (and log a/b as float values)
+#define ASSERT_EQUAL_FLOAT(_a, _b, msg, ...) ({ \
+	float a = _a; float b = _b; \
+	if (a != b) { \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%f != %f)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+// ASSERT_EQUAL_STR(a, b, msg): fail the test if a!=b (and log a & b as strings)
+#define ASSERT_EQUAL_STR(_a, _b, msg, ...) ({ \
+	const char* a = _a; const char* b = _b; \
+	if (strcmp(a, b)) { \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%s != %s)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+
 void hexdump(char *out, const uint8_t *buf, int buflen, int start, int count) {
 	for (int i=start;i<start+count;i++) {
 		if (i >= 0 && i < buflen) {
@@ -178,7 +204,16 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_dma.c"
 #include "test_cop1.c"
 #include "test_constructors.c"
+#include "test_backtrace.c"
 #include "test_rspq.c"
+#include "test_rdpq.c"
+#include "test_rdpq_tri.c"
+#include "test_rdpq_tex.c"
+#include "test_rdpq_attach.c"
+#include "test_rdpq_sprite.c"
+#include "test_mpeg1.c"
+#include "test_gl.c"
+#include "test_dl.c"
 
 /**********************************************************************
  * MAIN
@@ -200,12 +235,14 @@ static const struct Testsuite
 	uint32_t flags;
 } tests[] = {
 	TEST_FUNC(test_exception,                  5, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_constructors,               0, TEST_FLAGS_NONE),
+	TEST_FUNC(test_exception_syscall,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_constructors,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ticks,                      0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_timer_ticks,              292, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_timer_oneshot,            596, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_slow_callback,     1468, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_continuous,         688, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_continuous_short,   554, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_mixed,             1467, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_context,            186, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_disabled_start,     733, TEST_FLAGS_RESET_COUNT),
@@ -217,7 +254,14 @@ static const struct Testsuite
 	TEST_FUNC(test_cache_invalidate,        1763, TEST_FLAGS_NONE),
 	TEST_FUNC(test_debug_sdfs,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
-	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_analyze,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_basic,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_fp,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception_leaf,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception_fp,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_invalidptr,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_single,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_multiple,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_rapid,           0, TEST_FLAGS_NO_BENCHMARK),
@@ -237,6 +281,66 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_highpri_multiple,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_overlay,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_big_command,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_rdp_dynamic,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_rdp_dynamic_switch,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_deferred_call,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_rspqwait,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_clear,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_dynamic,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_passthrough_big,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_coalescing,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_contiguous,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_dynamic,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_change_other_modes,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_setfillcolor,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_setscissor,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_texturerect,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_fillrect,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address_offset, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_syncfull_cb,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_syncfull_resume,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_autosync,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_automode,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_blender,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_blender_memory,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fog,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_antialias,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_alphacompare,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_freeze,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_freeze_stack,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mipmap,                0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_autotmem,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_autotmem_reuse,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_texrect_passthrough,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_triangle,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_triangle_w1,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_attach_clear,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_attach_stack,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_upload,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_upload_multi,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_blit_normal,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_multi_i4,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_sprite_upload,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_sprite_lod,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_block_dequant,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_block_predict,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_clear,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_draw_arrays,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_draw_elements,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_texture_completeness,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_list,					   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_cull,					   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_syms,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dladdr,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_relocs,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_imports,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dlsym_rtld_default,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dlclose,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_ctors,           0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

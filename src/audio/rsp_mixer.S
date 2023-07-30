@@ -260,7 +260,7 @@ CHANNEL_BUFFER:  .dcb.w (MAX_SAMPLES_PER_LOOP * MAX_CHANNELS)
 	.align 4  # for human visual debugging, 3 would be sufficient (for DMA)
 OUTPUT_AREA:     .dcb.w MAX_SAMPLES_PER_LOOP*2
 
-	.text
+	.text 1
 
 	# Number of samples that will be processed in the current loop.
 	#define num_samples     k1

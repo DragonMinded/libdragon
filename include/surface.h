@@ -37,12 +37,11 @@
  * a portion of the original surface:
  * 
  * @code{.c}
- *      surface_t *fb;
- *      while (fb = display_lock()) ;  // wait for a framebuffer to be ready
+ *      surface_t *fb = display_get();  // wait for a framebuffer to be ready
  *      
  *      // Attach the RDP to the top 40 rows of the framebuffer
  *      surface_t fbtop = surface_make_sub(fb, 0, 0, 320, 40);
- *      rdp_attach(&fbtop);
+ *      rdpq_attach(&fbtop);
  * @endcode
  * 
  * Surfaces created by #surface_make_sub don't need to be freed as they
@@ -54,6 +53,8 @@
 #define __LIBDRAGON_SURFACE_H
 
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,7 +151,7 @@ typedef struct surface_s
  * to the caller to handle its lifetime.
  * 
  * If you plan to use this format as RDP framebuffer, make sure that the provided buffer
- * respects the required alignment of 64 bytes, otherwise #rdp_attach will fail.
+ * respects the required alignment of 64 bytes, otherwise #rdpq_attach will fail.
  * 
  * @param[in] buffer    Pointer to the memory buffer
  * @param[in] format    Pixel format
@@ -200,7 +201,7 @@ inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t
  * not needed anymore.
  * 
  * A surface allocated via #surface_alloc can be used as a RDP frame buffer
- * (passed to #rdp_attach) because it is guaranteed to have the required
+ * (passed to #rdpq_attach) because it is guaranteed to have the required
  * alignment of 64 bytes, provided it is using one of the formats supported by
  * RDP as a framebuffer target (`FMT_RGBA32`, `FMT_RGBA16` or `FMT_I8`).
  *
@@ -251,6 +252,17 @@ void surface_free(surface_t *surface);
 inline tex_format_t surface_get_format(const surface_t *surface)
 {
     return (tex_format_t)(surface->flags & SURFACE_FLAGS_TEXFORMAT);
+}
+
+/**
+ * @brief Checks whether this surface owns the buffer that it contains.
+ * 
+ * @param[in] surface   Surface
+ * @return              True if this surface owns the buffer; false otherwise
+ */
+inline bool surface_has_owned_buffer(const surface_t *surface)
+{
+    return surface->buffer != NULL && surface->flags & SURFACE_FLAGS_OWNEDBUFFER;
 }
 
 #ifdef __cplusplus

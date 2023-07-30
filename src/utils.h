@@ -27,7 +27,7 @@
 
 /**	@brief Absolute number */
 #define ABS(x) ({ \
-	typedef(x) _x = x; \
+	typeof(x) _x = x; \
 	(_x < 0 ? -_x : _x); \
 })
 

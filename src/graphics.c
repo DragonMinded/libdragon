@@ -6,10 +6,13 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
+#include <stdio.h>
 #include "display.h"
 #include "graphics.h"
+#include "sprite.h"
 #include "font.h"
 #include "surface.h"
+#include "sprite_internal.h"
 
 /**
  * @defgroup graphics 2D Graphics
@@ -23,7 +26,7 @@
  * in terms of sprite size.
  *
  * Code wishing to draw to the screen should first acquire a display context
- * using #display_lock.  Once the display context is acquired, code may draw to
+ * using #display_get.  Once the display context is acquired, code may draw to
  * the context using any of the graphics functions present.  Wherever practical,
  * two versions of graphics functions are available: a transparent variety and
  * a non-transparent variety.  Code that wishes to display sprites without
@@ -116,6 +119,9 @@ static uint32_t b_color = 0x00000000;
  * This is exactly the same as calling `graphics_convert_color(RGBA32(r,g,b,a))`.
  * Refer to #graphics_convert_color for more information.
  *
+ * @deprecated By switching to the rdpq API, this function should not be required
+ * anymore. Use #RGBA32 or #RGBA16 instead. Please avoid using it in new code if possible.
+ *
  * @param[in] r
  *            8-bit red value
  * @param[in] g
@@ -154,6 +160,9 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
  * in BOTH the lower 16 bits and the upper 16 bits. In general, this is not necessary.
  * However, for drawing with the old deprecated RDP API (in particular,
  * rdp_set_primitive_color), this is still required.
+ * 
+ * @deprecated By switching to the rdpq API, this function should not be required
+ * anymore. Please avoid using it in new code if possible.
  * 
  * @param[in] color
  *            A color structure representing an RGBA color
@@ -683,7 +692,7 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     int depth = display_get_bitdepth();
 
     // setting default font if none was set previously
-    if( sprite_font.sprite == NULL || depth != sprite_font.sprite->bitdepth )
+    if( sprite_font.sprite == NULL || depth*8 != TEX_FORMAT_BITDEPTH(sprite_get_format(sprite_font.sprite)) )
     {
         graphics_set_default_font();
     }
@@ -874,6 +883,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
     /* Sanity checking */
     if( disp == 0 ) { return; }
     if( sprite == 0 ) { return; }
+    __sprite_upgrade(sprite);
 
     /* For spritemaps */
     int tx = x;
@@ -945,7 +955,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
     int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));
 
     /* Only display sprite if it matches the bitdepth */
-    if( depth == 16 && sprite->bitdepth == 2 )
+    if( depth == 16 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 16 )
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
         uint16_t *sp_data = (uint16_t *)sprite->data;
@@ -960,7 +970,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
             }
         }
     }
-    else if( depth == 32 && sprite->bitdepth == 4 )
+    else if( depth == 32 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 32 )
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
         uint32_t *sp_data = (uint32_t *)sprite->data;
@@ -1045,7 +1055,8 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
     /* Sanity checking */
     if( disp == 0 ) { return; }
     if( sprite == 0 ) { return; }
-    
+    __sprite_upgrade(sprite);
+
     /* For spritemaps */
     int tx = x;
     int ty = y;
@@ -1116,7 +1127,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
     int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));
 
     /* Only display sprite if it matches the bitdepth */
-    if( depth == 16 && sprite->bitdepth == 2 )
+    if( depth == 16 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 16 )
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
         uint16_t *sp_data = (uint16_t *)sprite->data;
@@ -1135,7 +1146,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
             }
         }
     }
-    else if( depth == 32 && sprite->bitdepth == 4 )
+    else if( depth == 32 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 32 )
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
         uint32_t *sp_data = (uint32_t *)sprite->data;

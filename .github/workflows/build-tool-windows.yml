@@ -17,7 +17,6 @@ jobs:
         with:
           msystem: ${{matrix.sys}}
           install: >-
-            mingw-w64-${{ matrix.arch }}-libpng
             base-devel
             mingw-w64-${{ matrix.arch }}-toolchain
           update: true

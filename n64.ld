@@ -1,19 +1,10 @@
 /* ========================================================================
  *
- * n64ld.x
+ * n64.ld -- Libdragon linker script
  *
- * GNU Linker script for building an image that is set up for the N64
- * but still has the data factored into sections.  It is not directly
- * runnable, and it contains the debug info if available.  It will need
- * a 'loader' to perform the final stage of transformation to produce
- * a raw image.
- *
- * Copyright (c) 1999 Ground Zero Development, All rights reserved.
- * Developed by Frank Somers <frank@g0dev.com>
- * Modifications by hcs (halleyscometsoftware@hotmail.com)
- *
- * $Header: /afs/icequake.net/users/nemesis/n64/sf/asdf/n64dev/lib/alt-libn64/n64ld.x,v 1.2 2006-08-11 15:54:11 halleyscometsw Exp $
- *
+ * Originally based on n64ld.x, developed by Frank Somers <frank@g0dev.com>,
+ * with modifications by hcs (halleyscometsoftware@hotmail.com),
+ * released under the Unlicense.
  * ========================================================================
  */
 
@@ -133,7 +124,12 @@ SECTIONS {
         . = ALIGN(8);
     } > mem
 
+    . = ALIGN(8);
     __data_end = .;
+
+    /* Here the ROM is finished. The rest is just in RAM */
+    . = ALIGN(8);
+    __rom_end = .;
 
     .sbss (NOLOAD) : {
          __bss_start = .;
@@ -157,7 +153,8 @@ SECTIONS {
     } > mem
 
     . = ALIGN(8);
-    __rom_end = .;
+    
+
 
     /* Deprecated */
     end = .;

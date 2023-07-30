@@ -1101,7 +1101,7 @@ makeLsInstructionQuad store, laneAsByte, stv, 0b01011
 /** @brief Store Unsigned Packed from Vector Register */
 makeLsInstructionDouble store, lane, suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
-makeLsInstructionQuad store, byte, swv, 0b00111
+makeLsInstructionQuad store, byte, swv, 0b01010
 
 .macro mxc2 opcode, reg, vreg, element
     .ifgt (\element >> 4)
@@ -1341,6 +1341,33 @@ makeMxc2Op mfc2, 0x0
 .endm
 
 ##################################################
+# emux
+##################################################
+
+.macro emux reg, code
+    .word (0<<26) | (0x36 << 0) | (\reg << 21) | (\reg << 16) | (\code << 6)
+.endm
+
+.macro emux_trace_start
+    emux 0, 0x20
+.endm
+
+.macro emux_trace_stop
+    emux 0, 0x20
+.endm
+
+.macro emux_trace_count num_insn
+    .set noat
+    li $1, \num_insn
+    emux 1, 0x21
+    .set at
+.endm
+
+.macro emux_breakpoint
+    emux 0, 0x10
+.endm
+
+##################################################
 # Other psuedo-ops
 ##################################################
 
@@ -1537,6 +1564,12 @@ makeMxc2Op mfc2, 0x0
     .endm
     .macro assert_lt v0, v1, code
         bge \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
+    .macro assert_le v0, v1, code
+        bgt \v0, \v1, assertion_failed
         .set noat
         lui $1, \code
         .set at

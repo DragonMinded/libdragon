@@ -1,5 +1,5 @@
-all: audioplayer cpptest ctest dfsdemo mixertest mptest mputest rspqdemo spritemap test timers vrutest vtest ucodetest eepromfstest
-clean: audioplayer-clean cpptest-clean ctest-clean dfsdemo-clean mixertest-clean mptest-clean mputest-clean rspqdemo-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean eepromfstest-clean
+all: audioplayer cpptest ctest dfsdemo fontdemo gldemo mixertest mptest mputest rdpqdemo rspqdemo spritemap test timers vrutest vtest pixelshader eepromfstest overlays 
+clean: audioplayer-clean cpptest-clean ctest-clean dfsdemo-clean fontdemo-clean gldemo-clean mixertest-clean mptest-clean mputest-clean rdpqdemo-clean rspqdemo-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean pixelshader-clean eepromfstest-clean overlays-clean
 
 audioplayer:
 	$(MAKE) -C audioplayer
@@ -17,7 +17,8 @@ ctest-clean:
 	$(MAKE) -C ctest clean
 
 dfsdemo:
-	$(MAKE) -C dfsdemo
+#	Commented for now, because it requires mikmod
+#	$(MAKE) -C dfsdemo
 dfsdemo-clean:
 	$(MAKE) -C dfsdemo clean
 
@@ -25,6 +26,16 @@ eepromfstest:
 	$(MAKE) -C eepromfstest
 eepromfstest-clean:
 	$(MAKE) -C eepromfstest clean
+
+fontdemo:
+	$(MAKE) -C fontdemo
+fontdemo-clean:
+	$(MAKE) -C fontdemo clean
+
+gldemo:
+	$(MAKE) -C gldemo
+gldemo-clean:
+	$(MAKE) -C gldemo clean
 
 mixertest:
 	$(MAKE) -C mixertest
@@ -40,6 +51,16 @@ mputest:
 	$(MAKE) -C mputest
 mputest-clean:
 	$(MAKE) -C mputest clean
+
+overlays:
+	$(MAKE) -C overlays
+overlays-clean:
+	$(MAKE) -C overlays clean
+    
+rdpqdemo:
+	$(MAKE) -C rdpqdemo
+rdpqdemo-clean:
+	$(MAKE) -C rdpqdemo clean
 
 rspqdemo:
 	$(MAKE) -C rspqdemo
@@ -76,10 +97,10 @@ vtest:
 vtest-clean:
 	$(MAKE) -C vtest clean
 
-ucodetest:
-	$(MAKE) -C ucodetest
-ucodetest-clean:
-	$(MAKE) -C ucodetest clean
+pixelshader:
+	$(MAKE) -C pixelshader
+pixelshader-clean:
+	$(MAKE) -C pixelshader clean
 
-.PHONY: audioplayer audioplayer-clean cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean mixertest mixertest-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
-.PHONY: rspqdemo rspqdemo-clean test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean ucodetest ucodetest-clean eepromfstest eepromfstest-clean
+.PHONY: audioplayer audioplayer-clean cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean fontdemo fontdemo-clean gldemo gldemo-clean mixertest mixertest-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
+.PHONY: rdpqdemo rdpqdemo-clean rspqdemo rspqdemo-clean test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean pixelshader pixelshader-clean eepromfstest eepromfstest-clean overlays overlays-clean

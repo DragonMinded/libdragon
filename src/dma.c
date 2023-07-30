@@ -3,7 +3,11 @@
  * @brief DMA Controller
  * @ingroup dma
  */
-#include "libdragon.h"
+#include <stdbool.h>
+#include "n64types.h"
+#include "n64sys.h"
+#include "interrupt.h"
+#include "debug.h"
 #include "regsinternal.h"
 
 /**
@@ -12,13 +16,13 @@
  * @brief DMA functionality for transfers between cartridge space and RDRAM
  *
  * The DMA controller is responsible for handling block and word accesses from
- * the catridge domain.  Because of the nature of the catridge interface, code
- * cannot use memcpy or standard pointer accesses on memory mapped to the catridge.
+ * the cartridge domain.  Because of the nature of the cartridge interface, code
+ * cannot use memcpy or standard pointer accesses on memory mapped to the cartridge.
  * Consequently, the peripheral interface (PI) provides a DMA controller for
  * accessing data.
  *
  * The DMA controller requires no initialization.  Using #dma_read and #dma_write
- * will allow reading from the cartridge and writing to the catridge respectively
+ * will allow reading from the cartridge and writing to the cartridge respectively
  * in block mode.  #io_read and #io_write will allow a single 32-bit integer to
  * be read from or written to the cartridge.  These are especially useful for
  * manipulating registers on a cartridge such as a gameshark.  Code should never
@@ -280,7 +284,7 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
     uint32_t ram_address = (uint32_t)ram;
 
     assert(len > 0);
-    assert(((ram_address ^ pi_address) & 1) == 0); 
+    assert(((ram_address ^ pi_address) & 1) == 0); (void)ram_address;
 
     disable_interrupts();
 
@@ -345,7 +349,6 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
     // we need to write the last odd byte ourselves, and we do that with a 32-bit
     // unaligned transfer (LWL/LWR + SWL/SWR).
     if ((len & 1) != 0 && len >= 0x7F) {
-        typedef uint32_t u_uint32_t __attribute__((aligned(1)));
         *(u_uint32_t*)(ram+len-4) = __io_read32u(rom+len-4);
         len -= 3;
     }

@@ -65,7 +65,7 @@ int main(void)
         static display_context_t disp = 0;
 
         /* Grab a render buffer */
-        while( !(disp = display_lock()) );
+        disp = display_get();
        
         /*Fill the screen */
         graphics_fill_screen( disp, 0 );

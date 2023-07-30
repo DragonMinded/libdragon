@@ -76,8 +76,10 @@ extern "C" {
  *
  * Supported development cartridges:
  *
- *   * 64drive (rev 1 or 2)
- *   * Everdrive64 (models supporting 3.0.x OSes)
+ *   * 64Drive HW1 and HW2
+ *   * EverDrive-64 V1, V2, V2.5, V3, X7 and X5
+ *   * ED64Plus / Super 64
+ *   * SC64
  *
  * @note This feature works only if DEBUG_FEATURE_FILE_SD is also
  * activated.
@@ -105,8 +107,10 @@ extern "C" {
  *
  * Supported development cartridges:
  *
- *   * 64drive (rev 1 or 2)
- *   * Everdrive64 (models supporting 3.0.x OSes)
+ *   * 64Drive HW1 and HW2
+ *   * EverDrive-64 V1, V2, V2.5, V3, X7 and X5
+ *   * ED64Plus / Super 64
+ *   * SC64
  *
  */
 #define DEBUG_FEATURE_FILE_SD       (1 << 3)
@@ -222,6 +226,22 @@ extern "C" {
  * @param[in] size 		Size of the buffer in bytes
  */
 void debug_hexdump(const void *buffer, int size);
+
+/**
+ * @brief Dump a backtrace (call stack) via #debugf
+ * 
+ * This function will dump the current call stack to the debugging channel. It is
+ * useful to understand where the program is currently executing, and to understand
+ * the context of an error.
+ * 
+ * The implementation of this function relies on the lower level #backtrace and
+ * #backtrace_symbols functions, which are implemented in libdragon itself via
+ * a symbol table embedded in the ROM. See #backtrace_symbols for more information.
+ * 
+ * @see #backtrace
+ * @see #backtrace_symbols
+ */
+void debug_backtrace(void);
 
 /** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)

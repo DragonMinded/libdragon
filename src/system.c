@@ -7,17 +7,17 @@
 #include <_syslist.h>
 #include <limits.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/times.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <malloc.h>
 #include <time.h>
 #include "system.h"
 #include "n64sys.h"
-
-#undef errno
 
 /** 
  * @defgroup system newlib Interface Hooks
@@ -92,11 +92,6 @@
  * @brief Environment variables
  */
 char *__env[1] = { 0 };
-
-/**
- * @brief Definition of errno, as it's defined as extern across stdlib
- */
-int errno __attribute__((weak));
 
 /**
  * @brief Assert function pointer (initialized at startup)
@@ -209,7 +204,7 @@ static void __memcpy( char * const a, const char * const b, int len )
  * @param[in] in
  *            String to duplicate
  *
- * @return Pointer to newly allocate memory containing a copy of the input string
+ * @return Pointer to newly allocated memory containing a copy of the input string
  */
 static char *__strdup( const char * const in )
 {
@@ -222,7 +217,7 @@ static char *__strdup( const char * const in )
 }
 
 /**
- * @brief Simple iplementation of strncmp
+ * @brief Simple implementation of strncmp
  *
  * @note We can't link against regular libraries, so this is reimplemented
  *
@@ -234,6 +229,8 @@ static char *__strdup( const char * const in )
  *            Number of relevant characters.  Specify -1 for infinite
  *
  * @return 0 if the two strings match or nonzero otherwise
+ * 
+ * @note different from the standard strncmp
  */
 static int __strncmp( const char * const a, const char * const b, int len )
 {
@@ -266,6 +263,8 @@ static int __strncmp( const char * const a, const char * const b, int len )
  *            Second string to compare against
  *
  * @return 0 if the two strings match or nonzero otherwise
+ * 
+ * @note different from the standard strcmp
  */
 static int __strcmp( const char * const a, const char * const b )
 {
@@ -640,11 +639,7 @@ int execve( char *name, char **argv, char **env )
  */
 void _exit( int rc )
 {
-    /* Default stub just causes a divide by 0 exception.  */
-    int x = rc / INT_MAX;
-    x = 4 / x;
-
-    /* Convince GCC that this function never returns.  */
+    /* Loop infinitely. */
     for( ;; );
 }
 
@@ -847,12 +842,12 @@ int lseek( int file, int ptr, int dir )
  *            File name of the file to open
  * @param[in] flags
  *            Flags specifying open flags, such as binary, append.
- * @param[in] mode
- *            Mode of the file.
+ * @param[in] ... mode
+ *            Mode of the file (currently ignored).
  *
  * @return File handle to refer to this file on success, or a negative value on error.
  */
-int open( char *file, int flags, int mode )
+int open( const char *file, int flags, ... )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( file );
 
@@ -869,6 +864,17 @@ int open( char *file, int flags, int mode )
         return -1;
     }
 
+    /* Use this to get the mode argument if needed (for O_CREAT and O_TMPFILE). */
+    if(0)
+    {
+        __attribute__((unused)) int mode;
+        va_list ap;
+
+        va_start (ap, flags);
+        mode = va_arg (ap, int);
+        va_end (ap);
+    }
+
     /* Do we have room for a new file? */
     for( int i = 0; i < MAX_OPEN_HANDLES; i++ )
     {
@@ -879,11 +885,20 @@ int open( char *file, int flags, int mode )
 
             if( mapping < 0 )
             {
-                errno = ENOMEM;
+                errno = EINVAL;
                 return -1;
             }
- 
-            void *ptr = fs->open( file + __strlen( filesystems[mapping].prefix ), flags );
+
+            /* Clear errno so we can check whether the fs->open() call sets it. 
+               This is for backward compatibility, because we used not to require
+               errno to be set. */
+            errno = 0;
+
+            /* Cast away const from the file name.
+               open used to mistakenly take a char* instead of a const char*,
+               and we don't want to break existing code for filesystem_t.open,
+               so filesystem_t.open still takes char* */
+            void *ptr = fs->open( (char *)( file + __strlen( filesystems[mapping].prefix ) ), flags );
 
             if( ptr )
             {
@@ -898,14 +913,15 @@ int open( char *file, int flags, int mode )
             else
             {
                 /* Couldn't open for some reason */
-                errno = EPERM;
+                if( errno == 0 )
+                    errno = ENOENT;
                 return -1;
             }
         }
     }
 
     /* No file handles available */
-    errno = ENOMEM;
+    errno = ENFILE;
     return -1;
 }
 
@@ -993,7 +1009,7 @@ int readlink( const char *path, char *buf, size_t bufsize )
  * @param[in] incr
  *            The amount of memory needed in bytes
  *
- * @return A pointer to the memory or null on error allocating.
+ * @return A pointer to the memory or ((void*)-1) on error allocating.
  */
 void *sbrk( int incr )
 {
@@ -1038,7 +1054,7 @@ void *sbrk( int incr )
 int stat( const char *file, struct stat *st )
 {
     /* Dirty hack, open read only */
-    int fd = open( (char *)file, 0, 777 );
+    int fd = open( (char *)file, O_RDONLY );
 
     if( fd > 0 )
     {

@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "surface.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -27,7 +28,7 @@
  * mode for displaying 2D, 3D and software graphics.  To set up video on the N64,
  * code should call #display_init with the appropriate options.  Once the display
  * has been set, a surface can be requested from the display subsystem using
- * #display_lock.  To draw to the acquired surface, code should use functions
+ * #display_get.  To draw to the acquired surface, code should use functions
  * present in the @ref graphics and the @ref rdp modules.  Once drawing to a surface
  * is complete, the rendered graphic can be displayed to the screen using 
  * #display_show.  Once code has finished rendering all graphics, #display_close can 
@@ -129,7 +130,7 @@ extern "C" {
  * software or hardware.
  *
  * @param[in] res
- *            The requested resolution. Use eiter one of the pre-defined
+ *            The requested resolution. Use either one of the pre-defined
  *            resolution (such as #RESOLUTION_320x240) or define a custom one.
  * @param[in] bit
  *            The requested bit depth (#DEPTH_16_BPP or #DEPTH_32_BPP)
@@ -152,36 +153,44 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 void display_close();
 
 /**
- * @brief Lock a display buffer for rendering
+ * @brief Get a display buffer for rendering
  *
- * Grab a surface that is safe for drawing.  If none is available
- * then this will return 0, without blocking. 
+ * Grab a surface that is safe for drawing, spin-waiting until one is
+ * available.
  * 
- * When you are done drawing on the buffer, use #display_show to unlock
- * the surface and schedule the buffer to be displayed on the screen during
- * next vblank.
+ * When you are done drawing on the buffer, use #display_show to schedule
+ * the buffer to be displayed on the screen during next vblank.
  * 
- * It is possible to lock more than a display buffer at the same time, for
+ * It is possible to get more than a display buffer at the same time, for
  * instance to begin working on a new frame while the previous one is still
  * being rendered in parallel through RDP. It is important to notice that
- * surfaces will always be shown on the screen in locking order,
+ * surfaces will always be shown on the screen in the order they were gotten,
  * irrespective of the order #display_show is called.
- *
- * @return A valid surface to render to or NULL if none is available.
+ * 
+ * @return A valid surface to render to.
  */
-surface_t* display_lock(void);
+surface_t* display_get(void);
 
 /**
- * @brief Display a previously locked buffer
- *
- * Display a previously-locked surface to the screen on the next vblank. The
- * surface should be locked via #display_lock.
+ * @brief Try getting a display surface
  * 
- * This function does not accept any arbitrary surface, but only those returned
- * by #display_lock.
+ * This is similar to #display_get, but it does not block if no
+ * display is available and return NULL instead.
+ * 
+ * @return A valid surface to render to or NULL if none is available.
+ */
+surface_t* display_try_get(void);
+
+/**
+ * @brief Display a buffer on the screen
+ *
+ * Display a surface to the screen on the next vblank. 
+ * 
+ * Notice that this function does not accept any arbitrary surface, but only
+ * those returned by #display_get, which are owned by the display module.
  * 
  * @param[in] surf
- *            A surface to show (previously retrieved using #display_lock)
+ *            A surface to show (previously retrieved using #display_get)
  */
 void display_show(surface_t* surf);
 
@@ -204,6 +213,14 @@ uint32_t display_get_bitdepth(void);
  * @brief Get the currently configured number of buffers
  */
 uint32_t display_get_num_buffers(void);
+
+
+/** @cond */
+__attribute__((deprecated("use display_get or display_try_get instead")))
+static inline surface_t* display_lock(void) {
+    return display_try_get();
+}
+/** @endcond */
 
 #ifdef __cplusplus
 }

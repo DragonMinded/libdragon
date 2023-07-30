@@ -23,7 +23,9 @@ enum
     /** @brief Reset exception */
     EXCEPTION_TYPE_RESET,
     /** @brief Critical exception */
-    EXCEPTION_TYPE_CRITICAL
+    EXCEPTION_TYPE_CRITICAL,
+    /** @brief Syscall exception*/
+    EXCEPTION_TYPE_SYSCALL,
 };
 
 /**
@@ -102,23 +104,8 @@ typedef struct
     /** @brief String information of exception */
     const char* info;
     /** @brief Registers at point of exception */
-    volatile reg_block_t* regs;
+    reg_block_t* regs;
 } exception_t;
-
-
-/** 
- * @brief Guaranteed length of the reset time.
- * 
- * This is the guaranteed length of the reset time, that is the time
- * that goes between the user pressing the reset button, and the CPU actually
- * resetting. See #exception_reset_time for more details.
- * 
- * @note The general knowledge about this is that the reset time should be
- *       500 ms. Testing on different consoles show that, while most seem to
- *       reset after 500 ms, a few EU models reset after 200ms. So we define
- *       the timer shorter for greater compatibility.
- */
-#define RESET_TIME_LENGTH      TICKS_FROM_MS(200)
 
 /** @} */
 
@@ -126,11 +113,30 @@ typedef struct
 extern "C" {
 #endif
 
-void register_exception_handler( void (*cb)(exception_t *) );
+/** 
+ * @brief Generic exception handler
+ * 
+ * This is the type of a handler that can be registered using #register_exception_handler.
+ * It is associated to all unhandled exceptions that are not otherwise handled by libdragon.
+ * 
+ * @param exc Exception information
+ */
+typedef void (*exception_handler_t)(exception_t *exc);
+
+/** 
+ * @brief Syscall handler
+ * 
+ * This is the type of a handler of a syscall exception.
+ * 
+ * @param exc Exception information
+ * @param code Syscall code
+ */
+typedef void (*syscall_handler_t)(exception_t *exc, uint32_t code);
+
+exception_handler_t register_exception_handler( exception_handler_t cb );
 void exception_default_handler( exception_t* ex );
 
-void register_reset_handler( void (*cb)(void) );
-uint32_t exception_reset_time( void );
+void register_syscall_handler( syscall_handler_t cb, uint32_t first_code, uint32_t last_code );
 
 #ifdef __cplusplus
 }

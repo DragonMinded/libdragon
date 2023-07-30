@@ -10,20 +10,23 @@ if [[ -z ${N64_INST-} ]]; then
   exit 1
 fi
 
-if [[ $OSTYPE == 'darwin'* ]]; then
-  if command -v brew >/dev/null; then
-    brew install libpng
-    CFLAGS="-I$(brew --prefix)/include"
-    LDFLAGS="-L$(brew --prefix)/lib"
+if [[ $OSTYPE == 'msys' ]]; then
+  if [ "${MSYSTEM:-}" != "MINGW64" ]; then
+    # We only support building host tools via mingw-x64 at the moment, so
+    # enforce that to help users during installation.
+    echo This script must be run from the \"MSYS2 MinGW x64\" shell
+    echo Plase open that shell and run it again from there
+    exit 1
   fi
 fi
 
-CFLAGS=${CFLAGS:-}; export CFLAGS
-LDFLAGS=${LDFLAGS:-}; export LDFLAGS
-
 makeWithParams(){
+  make -j"${JOBS}" "$@"
+}
+
+sudoMakeWithParams(){
   make -j"${JOBS}" "$@" || \
-    sudo env N64_INST="$N64_INST" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
+    sudo env N64_INST="$N64_INST" \
       make -j"${JOBS}" "$@"
 }
 
@@ -31,25 +34,11 @@ makeWithParams(){
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
-# Specify where to get libmikmod from and where to put it
-LIBMIKMOD_REPO=https://github.com/networkfusion/libmikmod.git
-LIBMIKMOD_COMMIT=738b1e8b11b470360b1b919680d1d88429d9d174
-LIBMIKMOD_DIR=/tmp/libmikmod
-
 # Clean, build, and install libdragon + tools
+sudoMakeWithParams install-mk
 makeWithParams clobber
-makeWithParams install tools-install
-
-# Remove the cloned libmikmod repo if it already exists
-[ -d "$LIBMIKMOD_DIR" ] && rm -Rf $LIBMIKMOD_DIR
-# Clone, compile, and install libmikmod
-git clone $LIBMIKMOD_REPO $LIBMIKMOD_DIR
-pushd $LIBMIKMOD_DIR/n64
-git checkout $LIBMIKMOD_COMMIT
-makeWithParams
-makeWithParams install
-popd
-rm -Rf $LIBMIKMOD_DIR
+makeWithParams libdragon tools
+sudoMakeWithParams install tools-install
 
 # Build examples and tests - libdragon must be already installed at this point,
 # so first clobber the build to make sure that everything works against the
@@ -57,3 +46,6 @@ rm -Rf $LIBMIKMOD_DIR
 makeWithParams clobber
 makeWithParams examples
 makeWithParams test
+
+echo
+echo Libdragon built successfully!

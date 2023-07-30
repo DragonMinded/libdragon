@@ -330,3 +330,25 @@ void test_exception(TestContext *ctx) {
 #undef ASSERT_REG_FP_HANDLER
 #undef ASSERT_REG_GP_HANDLER
 #undef ASSERT_REG
+
+
+static volatile bool tsh_called = true;
+static volatile uint32_t tsh_code = 0;
+
+void test_syscall_handler(exception_t *exc, uint32_t code) {
+    tsh_called = true;
+    tsh_code = code;
+}
+
+void test_exception_syscall(TestContext *ctx) {
+    static bool registered = false;
+    if (!registered) {
+        register_syscall_handler(test_syscall_handler, 0x0F100, 0x0F10F);
+        registered = false;
+    }
+
+    tsh_called = false;
+    asm volatile ("syscall 0x0F108");
+    ASSERT_EQUAL_SIGNED(tsh_called, true, "Syscall handler not called");
+    ASSERT_EQUAL_HEX(tsh_code, 0x0F108, "Syscall handler called with wrong code");
+}

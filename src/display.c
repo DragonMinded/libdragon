@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "debug.h"
 #include "surface.h"
+#include "rsp.h"
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
@@ -192,7 +193,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     disable_interrupts();
 
     /* Minimum is two buffers. */
-    __buffers = MAX(2, MIN(NUM_BUFFERS, num_buffers));
+    __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
 
     if( res.interlaced )
@@ -232,12 +233,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     switch( aa )
     {
         case ANTIALIAS_OFF:
-            /* Disabling antialias hits a hardware bug on NTSC consoles on
-               low resolutions (see issue #66). We do not know the exact
-               horizontal scale minimum, but among libdragon's supported
-               resolutions the bug appears on 256x240x16 and 320x240x16. It would
-               work on PAL consoles, but we think users are better served by
-               prohibiting it altogether. 
+            /* Disabling antialias hits a hardware bug on NTSC consoles when
+               the horizontal resolution is 320 or lower (see issue #66).
+               It would work on PAL consoles, but we think users are better
+               served by prohibiting it altogether.
 
                For people that absolutely need this on PAL consoles, it can
                be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
@@ -375,7 +374,7 @@ void display_close()
     enable_interrupts();
 }
 
-surface_t* display_lock(void)
+surface_t* display_try_get(void)
 {
     surface_t* retval = NULL;
     int next;
@@ -385,19 +384,39 @@ surface_t* display_lock(void)
 
     /* Calculate index of next display context to draw on. We need
        to find the first buffer which is not being drawn upon nor
-       being ready to be displayed. */
-    for (next = buffer_next(now_showing); next != now_showing; next = buffer_next(next)) {
+       being ready to be displayed.
+
+       Notice that the loop is always executed once, so it also works
+       in the case of a single display buffer, though it at least
+       wait for that buffer to be shown. */
+    next = buffer_next(now_showing);
+    do {
         if (((drawing_mask | ready_mask) & (1 << next)) == 0)  {
             retval = &surfaces[next];
             drawing_mask |= 1 << next;
             break;
         }
-    }
+        next = buffer_next(next);
+    } while (next != now_showing);
 
     enable_interrupts();
 
     /* Possibility of returning nothing, or a valid display context */
     return retval;
+}
+
+surface_t* display_get(void)
+{
+    // Wait until a buffer is available. We use a RSP_WAIT_LOOP as
+    // it is common for display to become ready again after RSP+RDP
+    // have finished processing the previous frame's commands.
+    surface_t* disp;
+    RSP_WAIT_LOOP(200) {
+         if ((disp = display_try_get())) {
+             break;
+         }
+    }
+    return disp;
 }
 
 void display_show( surface_t* surf )
@@ -435,7 +454,7 @@ void display_show( surface_t* surf )
  * internally.
  *
  * @param[in] disp
- *            A display context retrieved using #display_lock
+ *            A display context retrieved using #display_get
  */
 void display_show_force( display_context_t disp )
 {
