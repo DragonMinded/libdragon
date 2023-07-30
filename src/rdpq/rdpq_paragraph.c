@@ -142,7 +142,7 @@ static bool paragraph_wrap(int wrapchar, float *xcur, float *ycur)
     return true;
 }
 
-int rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
+void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
 {
     // We're skipping the current line, so this span isn't useful
     if (builder.skip_current_line) return;
