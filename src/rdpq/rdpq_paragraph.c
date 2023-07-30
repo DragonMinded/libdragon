@@ -74,12 +74,15 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
         memset(layout, 0, sizeof(*layout));
         layout->capacity = initial_chars;
     }
+    if (parms && parms->wrap)
+        assertf(parms->width, "wrapping modes require a width");
+    assertf(parms->width >= 0, "width must be positive");
+    assertf(parms->height >= 0, "height must be positive");
+
     builder.layout = layout;
-    builder.font_id = initial_font_id;
-    builder.font = rdpq_text_get_font(initial_font_id);
-    assertf(builder.font, "font %d not registered", initial_font_id);
     builder.xscale = 1.0f;
     builder.yscale = 1.0f;
+    rdpq_paragraph_builder_font(initial_font_id);
     // start at center of pixel so that all rounds are to nearest
     builder.x = 0.5f + builder.parms->indent;
     builder.y = 0.5f + builder.parms->height ? builder.font->ascent : 0;
@@ -93,7 +96,12 @@ void rdpq_paragraph_builder_font(uint8_t font_id)
     builder.must_sort |= builder.font_id > font_id;
     builder.font_id = font_id;
     builder.font = rdpq_text_get_font(font_id);
+    assertf(builder.font, "font %d not registered", font_id);
     builder.style_id = 0;
+
+    if (builder.parms->wrap == WRAP_ELLIPSES)
+        assertf(builder.font->ellipsis_glyph && builder.font->ellipsis_reps, 
+            "ellipses wrap mode requires an ellipses glyph to be specified in the font");
 }
 
 void rdpq_paragraph_builder_style(uint8_t style_id)
@@ -212,7 +220,49 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                     }
                     builder.layout->nchars -= 1;
                     // fallthrough!
-                case WRAP_ELLIPSES:
+                case WRAP_ELLIPSES: {
+                    const rdpq_font_t *wfnt = fnt;
+
+                    // Go backward in the string until we find a good position
+                    // where to put the ellipsis.
+                    float ellipsis_x = 0;
+                    int wrapchar = builder.layout->nchars-1;
+                    rdpq_paragraph_char_t *wrapch = &builder.layout->chars[wrapchar];
+                    while (wrapchar > builder.ch_line_start) {
+                        wfnt = rdpq_text_get_font(wrapch[-1].font_id);
+
+                        // Compute the advance of the previous characters and calculate the position
+                        // at which we could put the ellipsis. This may be different from wrapch[0].x
+                        // because of whitespaces between wrapch[-1] and wrapch[0].
+                        float prev_advance;
+                        __rdpq_font_glyph_metrics(wfnt, wrapch[-1].glyph, &prev_advance, NULL, NULL, NULL, NULL);
+                        ellipsis_x = wrapch[-1].x * 0.25f + prev_advance * builder.xscale;
+
+                        // Check if we can put the ellipsis here
+                        if (ellipsis_x + wfnt->ellipsis_width < parms->width)
+                            break;
+
+                        wrapchar -= 1;
+                        wrapch -= 1;
+                    }
+
+                    uint8_t ellipsis_sort_key;
+                    __rdpq_font_glyph_metrics(wfnt, wfnt->ellipsis_glyph, NULL, NULL, NULL, NULL, &ellipsis_sort_key);
+
+                    uint8_t wrap_font_id = wrapch[-1].font_id, wrap_style_id = wrapch[-1].style_id;
+
+                    for (int i=0; i<wfnt->ellipsis_reps; i++) {
+                        builder.layout->chars[wrapchar+i] = (rdpq_paragraph_char_t) {
+                            .font_id = wrap_font_id,
+                            .style_id = wrap_style_id,
+                            .sort_key = ellipsis_sort_key,
+                            .glyph = wfnt->ellipsis_glyph,
+                            .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale) * 4,
+                            .y = wrapch[-1].y,
+                        };
+                    }
+                    builder.layout->nchars = wrapchar + fnt->ellipsis_reps;
+                }   // fallthrough!
                 case WRAP_NONE:
                     // The text doesn't fit on this line anymore.
                     // Skip the rest of the line, including the rest of this span,

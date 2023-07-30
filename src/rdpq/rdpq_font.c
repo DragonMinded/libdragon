@@ -11,6 +11,7 @@
 #include "rdpq_tex.h"
 #include "rdpq_sprite.h"
 #include "rdpq_font.h"
+#include "rdpq_text.h"
 #include "rdpq_paragraph.h"
 #include "rdpq_font_internal.h"
 #include "asset.h"
@@ -33,6 +34,7 @@ static struct draw_ctx_s {
     float x;
     float y;
     float xscale, yscale;
+    color_t color;
 } draw_ctx;
 
 static void recalc_style(style_t *s)
@@ -57,7 +59,7 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
     assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
     assertf(memcmp(fnt->magic, FONT_MAGIC_LOADED, 3), "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
     assertf(!memcmp(fnt->magic, FONT_MAGIC, 3), "invalid font data (magic: %c%c%c)", fnt->magic[0], fnt->magic[1], fnt->magic[2]);
-    assertf(fnt->version == 3, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
+    assertf(fnt->version == 4, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
@@ -525,35 +527,6 @@ void rdpq_font_printf(rdpq_font_t *fnt, const rdpq_parparms_t *parms, const char
     rdpq_font_printn(fnt, buf, n, parms);
 }
 #endif
-
-void rdpq_font_position(float x, float y)
-{
-    draw_ctx.x = x;
-    draw_ctx.y = y;
-}
-
-void rdpq_font_begin(color_t color)
-{
-    rdpq_mode_begin();
-        rdpq_set_mode_standard();
-        rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (0,0,0,TEX0)));
-        rdpq_mode_alphacompare(1);
-        rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
-        rdpq_set_prim_color(color);
-    rdpq_mode_end();
-    draw_ctx = (struct draw_ctx_s){ .xscale = 1, .yscale = 1 };
-}
-
-void rdpq_font_scale(float xscale, float yscale)
-{
-    draw_ctx.xscale = xscale;
-    draw_ctx.yscale = yscale;
-}
-
-void rdpq_font_end(void)
-{
-}
-
 
 // extern inline void rdpq_font_print(rdpq_font_t *fnt, const char *text, const rdpq_parparms_t *parms);
 extern inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *sort_key);

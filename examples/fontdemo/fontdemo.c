@@ -1,5 +1,7 @@
 #include <libdragon.h>
 
+#define MAX(a,b) ((a)>(b)?(a):(b))
+
 enum {
     FONT_PACIFICO = 1,
     FONT_ZEROVELOCITY = 2,
@@ -155,6 +157,8 @@ int main()
         if (keys.c[0].C_down) { box_height -= 2; }
         if (keys.c[0].C_left) { box_width += 2; }
         if (keys.c[0].C_right) { box_width -= 2; }
+        box_height = MAX(1, box_height);
+        box_width = MAX(1, box_width);
 
         surface_t *screen = display_get();
 

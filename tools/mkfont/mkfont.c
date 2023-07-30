@@ -34,6 +34,8 @@ bool flag_kerning = true;
 int flag_point_size = 12;
 int *flag_ranges = NULL;
 const char *n64_inst = NULL;
+int flag_ellipsis_cp = 0x002E;
+int flag_ellipsis_repeats = 3;
 
 void print_args( char * name )
 {
@@ -44,6 +46,7 @@ void print_args( char * name )
     fprintf(stderr, "   -o/--output <dir>         Specify output directory (default: .)\n");
     fprintf(stderr, "   -v/--verbose              Verbose output\n");
     fprintf(stderr, "   --no-kerning              Do not export kerning information\n");
+    fprintf(stderr, "   --ellipsis <cp>,<reps>    Select glyph and repetitions to use for ellipsis (default: 2E,3) \n");
     fprintf(stderr, "   -c/--compress <level>     Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "   -d/--debug                Dump also debug images\n");
     fprintf(stderr, "\n");
@@ -78,6 +81,10 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     w32(out, fnt->descent);
     w32(out, fnt->line_gap);
     w32(out, fnt->space_width);
+    w16(out, fnt->ellipsis_width);
+    w16(out, fnt->ellipsis_glyph);
+    w16(out, fnt->ellipsis_reps);
+    w16(out, fnt->ellipsis_advance);
     w32(out, fnt->num_ranges);
     w32(out, fnt->num_glyphs);
     w32(out, fnt->num_atlases);
@@ -172,6 +179,20 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
 
 void n64font_addrange(rdpq_font_t *fnt, int first, int last)
 {
+    // Check that the range does not overlap an existing one
+    for (int i=0;i<fnt->num_ranges;i++)
+    {
+        if (first >= fnt->ranges[i].first_codepoint && first < fnt->ranges[i].first_codepoint + fnt->ranges[i].num_codepoints)
+        {
+            fprintf(stderr, "Error: range 0x%04x-0x%04x overlaps with existing range 0x%04x-0x%04x\n", first, last, fnt->ranges[i].first_codepoint, fnt->ranges[i].first_codepoint + fnt->ranges[i].num_codepoints - 1);
+            exit(1);
+        }
+        if (last >= fnt->ranges[i].first_codepoint && last < fnt->ranges[i].first_codepoint + fnt->ranges[i].num_codepoints)
+        {
+            fprintf(stderr, "Error: range 0x%04x-0x%04x overlaps with existing range 0x%04x-0x%04x\n", first, last, fnt->ranges[i].first_codepoint, fnt->ranges[i].first_codepoint + fnt->ranges[i].num_codepoints - 1);
+            exit(1);
+        }
+    }
     fnt->ranges = realloc(fnt->ranges, (fnt->num_ranges + 1) * sizeof(range_t));
     fnt->ranges[fnt->num_ranges].first_codepoint = first;
     fnt->ranges[fnt->num_ranges].num_codepoints = last - first + 1;
@@ -270,11 +291,41 @@ void n64font_addkerning(rdpq_font_t *fnt, int g1, int g2, int kerning)
     fnt->num_kerning++;
 }
 
+void n64font_add_ellipsis(rdpq_font_t *fnt, int ellipsis_cp, int ellipsis_repeats)
+{
+    int ellipsis_glyph = n64font_glyph(fnt, ellipsis_cp);
+    if (ellipsis_glyph < 0) {
+        fprintf(stderr, "Error: ellipsis codepoint 0x%04x not found in font\n", ellipsis_cp);
+        exit(1);
+    }
+
+    // Calculate length of ellipsis string
+    glyph_t *g = &fnt->glyphs[ellipsis_glyph];
+    float ellipsis_width = g->xadvance * (1.0f / 64.0f);
+    
+    if (g->kerning_lo) {
+        for (int i = g->kerning_lo; i <= g->kerning_hi; i++) {
+            if (fnt->kerning[i].glyph2 == ellipsis_glyph) {
+                ellipsis_width += fnt->kerning[i].kerning * fnt->point_size / 127.0f;
+                break;
+            }
+        }
+    }
+
+    fnt->ellipsis_advance = ellipsis_width + 0.5f;
+    ellipsis_width *= 2;
+    ellipsis_width += g->xoff2;
+    
+    fnt->ellipsis_width = ellipsis_width + 0.5f;
+    fnt->ellipsis_reps = ellipsis_repeats;
+    fnt->ellipsis_glyph = ellipsis_glyph;
+}
+
 rdpq_font_t* n64font_alloc(int point_size, int ascent, int descent, int line_gap, int space_width)
 {
     rdpq_font_t *fnt = calloc(1, sizeof(rdpq_font_t));
     memcpy(fnt->magic, FONT_MAGIC, 3);
-    fnt->version = 3;
+    fnt->version = 4;
     fnt->point_size = point_size;
     fnt->ascent = ascent;
     fnt->descent = descent;
@@ -356,7 +407,6 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
     int ascent, descent, line_gap; int space_width;
     stbtt_GetFontVMetrics(&info, &ascent, &descent, &line_gap);
     stbtt_GetCodepointHMetrics(&info, ' ', &space_width, NULL);
-    printf("Font metrics: ascent=%.1f descent=%.1f line_gap=%.1f space_width=%.1f\n", ascent*font_scale, descent*font_scale, line_gap*font_scale, space_width*font_scale);
 
     int w = 128, h = 64;  // maximum size for a I4 texture
     unsigned char *pixels = malloc(w * h);
@@ -396,7 +446,7 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
             // Not all of them will fit, so we need to figure out which ones did.
             stbtt_pack_context spc;
             stbtt_PackBegin(&spc, pixels, w, h, 0, 1, NULL);
-            stbtt_PackSetSkipMissingCodepoints(&spc, 0);
+            stbtt_PackSetSkipMissingCodepoints(&spc, 1);
             stbtt_PackFontRanges(&spc, indata, 0, &range, 1);
             stbtt_PackEnd(&spc);
 
@@ -540,6 +590,9 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
             fprintf(stderr, "built kerning table (%d entries)\n", font->num_kerning);
     }
 
+    if (flag_ellipsis_repeats > 0)
+        n64font_add_ellipsis(font, flag_ellipsis_cp, flag_ellipsis_repeats);
+
     // Write output file
     FILE *out = fopen(outfn, "wb");
     if (!out) {
@@ -601,6 +654,19 @@ int main(int argc, char *argv[])
                 }
                 arrpush(flag_ranges, r0);
                 arrpush(flag_ranges, r1);
+            } else if (!strcmp(argv[i], "--ellipsis")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                int cp, repeats;
+                char extra;
+                if (sscanf(argv[i], "%x,%d%c", &cp, &repeats, &extra) != 2) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                flag_ellipsis_cp = cp;
+                flag_ellipsis_repeats = repeats;
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
                 // Optional compression level
                 if (i+1 < argc && argv[i+1][1] == 0) {

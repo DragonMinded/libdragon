@@ -144,14 +144,16 @@
 extern "C" {
 #endif
 
+///@cond
 struct rdpq_font_s;
 typedef struct rdpq_font_s rdpq_font_t;
+///@endcond
 
 /** 
  * @brief Print formatting parameters: wrapping modes 
  * 
  * These modes take effect on each line that doesn't fit the width provided
- * in #rdpq_parparms_t. If no width is specified, the text is never wrapped,
+ * in #rdpq_textparms_t. If no width is specified, the text is never wrapped,
  * not even on the border of the screen.
  */
 typedef enum {
@@ -199,14 +201,6 @@ typedef struct rdpq_textparms_s {
  * for layout and render. If @p font_id is already registered, this function
  * will fail by asserting.
  * 
- * A #text_font_t is a generic "interface" for a font. This text engine
- * doesn't provide itself any font or a way to create and load them. If you
- * have your own font format, you can create a #text_font_t that wraps it
- * by providing the required callbacks and information. 
- * 
- * In libdragon, there is currently only one font implementation: #rdpq_font_t,
- * part of the rdpq graphics library.
- * 
  * @param font_id      Font ID
  * @param font         Font to register
  */
@@ -224,7 +218,7 @@ const rdpq_font_t *rdpq_text_get_font(uint8_t font_id);
  * @brief Layout and render a text in a single call.
  * 
  * This function accepts UTF-8 encoded text. It will layout the text according
- * to the parameters provided in #rdpq_parparms_t, and then render it at the
+ * to the parameters provided in #rdpq_textparms_t, and then render it at the
  * specified coordinates. 
  * 
  * The text is layout and rendered using the specified font by default (using
@@ -276,7 +270,7 @@ int rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t font_id, float x0, f
 /**
  * @brief Layout and render a formatted text in a single call.
  * 
- * This function is similar to #rdpq_font_print, but it accepts a printf-like
+ * This function is similar to #rdpq_text_print, but it accepts a printf-like
  * format string. The format string is expected to be UTF-8 encoded.
  * 
  * @param parms         Layout parameters
@@ -294,7 +288,7 @@ int rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, f
 /**
  * @brief Layout and render a text in a single call.
  * 
- * This function is similar to #rdpq_font_print, but it accepts a UTF-8 encoded,
+ * This function is similar to #rdpq_text_print, but it accepts a UTF-8 encoded,
  * NULL-terminated string.
  * 
  * @param parms         Layout parameters
