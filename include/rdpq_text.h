@@ -59,6 +59,8 @@
  *  * #rdpq_text_print: print a text which is provided as a 0-terminated string.
  *  * #rdpq_text_printf: print a text using a printf-like format string.
  * 
+ * ## Wrapping lines
+ * 
  * To draw longer texts that don't fit in a single line, you can use the
  * advanced layout rules provided by #rdpq_textparms_t. For instance, this
  * will draw a text with a maximum width of 200 pixels, and will perform
@@ -67,12 +69,67 @@
  * @code{.c}
  *          char *text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
  * 
- *          rdpq_text_print(&(text_parms_t) {
+ *          rdpq_text_print(&(rdpq_textparms_t) {
  *              .width = 200,       // maximum width of the paragraph
  *              .wrap = WRAP_WORD   // wrap at word boundaries
  *          }, FONT_ARIAL, 20, 20, text);
  * @endcode{.c}
  * 
+ * There are four wrapping modes available:
+ * 
+ *  * #WRAP_NONE: don't wrap lines, just truncate them (if necessary)
+ *  * #WRAP_ELLIPSES: don't wrap lines, truncate them and add ellipsis ("...").
+ *    The exact sequence of glyphs to use as ellipsis can be specified while
+ *    building the font via mkfont, with the option --ellipsis.
+ *  * #WRAP_CHAR: wrap lines at character boundaries.
+ *  * #WRAP_WORD: wrap lines at word boundaries.
+ * 
+ * Wrapping modes require a maximum width to be specified in the parameters,
+ * otherwise the layout engine will not know where to wrap the text.
+ * 
+ * Print functions will also respect embedded newlines (\n); in this case,
+ * specifying a width is not required.
+ * 
+ * ## Multi-style text
+ * 
+ * It is possible to change font and/or style within a text using escape codes.
+ * Escape codes are sequences of the form:
+ * 
+ *   $xx        Select font "xx", where "xx" is the hexadecimal ID of the font
+ *              For instance, $04 will switch to font 4. The current style
+ *              is reset to 0.
+ *   ^xx        Switch to style "xx" of the current font, where "xx" is the
+ *              hexadecimal ID of the style. For instance, ^02 will switch to
+ *              style 2. A "style" is an font-dependent rendering style, which
+ *              can be anything (a color, a faux-italic variant, etc.). The styles
+ *              available for each font can be configured via #rdpq_font_style.
+ * 
+ * See also #rdpq_font_printn for more information.
+ * 
+ * Example 4: multi-color text
+ * 
+ * @code{.c}
+ *      rdpq_font_style(font, 0, (rdpq_fontstyle_t){ 
+ *          .color = .RGBA32(255, 255, 255, 255),
+ *      });
+ *      rdpq_font_style(font, 1, (rdpq_fontstyle_t){ 
+ *          .color = .RGBA32(255, 0, 0, 255),
+ *      });
+ *      rdpq_font_style(font, 2, (rdpq_fontstyle_t){ 
+ *          .color = .RGBA32(0, 255, 0, 255),
+ *      });
+ *      rdpq_font_style(font, 3, (rdpq_fontstyle_t){ 
+ *          .color = .RGBA32(0, 0, 255, 255),
+ *      });
+ *      rdpq_font_style(font, 4, (rdpq_fontstyle_t){ 
+ *          .color = .RGBA32(255, 0, 255, 255),
+ *      });
+ * 
+ *      rdpq_text_print(NULL, FONT_ARIAL, 20, 20, 
+ *          "Hello, ^01world^00! ^02This^00 is ^03a^00 ^04test^00.");
+ * @endcode{.c}
+ * 
+ * ## Other examples
  * 
  * Example 3: draw the text with a transparent box behind it
  * 
@@ -107,30 +164,6 @@
  *          rdpq_text_layout_free(layout);
  * @endcode{.c}
  *
- * Example 4: multi-color text
- * 
- * @code{.c}
- * 
- *      rdpq_font_style(font, 0, (rdpq_fontstyle_t){ 
- *          .color = .RGBA32(255, 255, 255, 255),
- *      });
- *      rdpq_font_style(font, 1, (rdpq_fontstyle_t){ 
- *          .color = .RGBA32(255, 0, 0, 255),
- *      });
- *      rdpq_font_style(font, 2, (rdpq_fontstyle_t){ 
- *          .color = .RGBA32(0, 255, 0, 255),
- *      });
- *      rdpq_font_style(font, 3, (rdpq_fontstyle_t){ 
- *          .color = .RGBA32(0, 0, 255, 255),
- *      });
- *      rdpq_font_style(font, 4, (rdpq_fontstyle_t){ 
- *          .color = .RGBA32(255, 0, 255, 255),
- *      });
- * 
- *      rdpq_text_print(NULL, FONT_ARIAL, 20, 20, 
- *          "Hello, ^01world^00! ^02This^00 is ^03a^00 ^04test^00.");
- * @endcode{.c}
- * 
  */
 
 
