@@ -104,7 +104,7 @@
  *              can be anything (a color, a faux-italic variant, etc.). The styles
  *              available for each font can be configured via #rdpq_font_style.
  * 
- * See also #rdpq_font_printn for more information.
+ * See also #rdpq_text_printn for more information.
  * 
  * Example 4: multi-color text
  * 
