@@ -88,7 +88,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     rdpq_paragraph_builder_font(initial_font_id);
     // start at center of pixel so that all rounds are to nearest
     builder.x = 0.5f + builder.parms->indent;
-    builder.y = 0.5f + builder.parms->height ? builder.font->ascent : 0;
+    builder.y = 0.5f + (builder.parms->height ? builder.font->ascent : 0);
     builder.skip_current_line = rdpq_paragraph_builder_full();
     builder.layout->nlines = 1;
     builder.ch_last_space = -1;
