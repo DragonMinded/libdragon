@@ -192,8 +192,8 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
         }
 
         // Draw the glyph
-        float x = x0 + ch->x + g->xoff;
-        float y = y0 + ch->y + g->yoff;
+        float x = x0 + (ch->x + g->xoff);
+        float y = y0 + (ch->y + g->yoff);
         int width = g->xoff2 - g->xoff;
         int height = g->yoff2 - g->yoff;
 
