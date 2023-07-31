@@ -1367,6 +1367,59 @@ makeMxc2Op mfc2, 0x0
     emux 0, 0x10
 .endm
 
+.macro emux_log_string str
+    .data
+__emux_log_string.\@: .asciiz "\str"
+    .previous
+    .set noat
+    la $1, __emux_log_string.\@
+    emux 1, 0x31
+    .set at
+.endm
+
+.macro __emux_dump_gpr_rec reg0, regs:vararg
+    hexGeneralRegisters
+    .set gpr_mask, gpr_mask + (1 << hex.\reg0)
+    .ifnb \regs
+        __emux_dump_gpr_rec \regs
+    .endif
+.endm
+
+.macro emux_dump_gpr regs:vararg
+    .ifb \regs
+        .set gpr_mask, 0xFFFFFFFF
+    .else
+        .set gpr_mask, 0
+        __emux_dump_gpr_rec \regs
+    .endif
+    .set noat
+    li $1, gpr_mask
+    emux 1, 0x40
+    .set at
+.endm
+
+.macro __emux_dump_vpr_rec reg0, regs:vararg
+    hexRegisters
+    .set vpr_mask, vpr_mask + (1 << \reg0)
+    .ifnb \regs
+        __emux_dump_vpr_rec \regs
+    .endif
+.endm
+
+.macro emux_dump_vpr regs:vararg
+    .ifb \regs
+        .set vpr_mask, 0xFFFFFFFF
+    .else
+        .set vpr_mask, 0
+        __emux_dump_vpr_rec \regs
+    .endif
+    .set noat
+    li $1, vpr_mask
+    emux 1, 0x42
+    .set at
+.endm
+
+
 ##################################################
 # Other psuedo-ops
 ##################################################
