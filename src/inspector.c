@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include "display.h"
 #include "debug.h"
 #include "controller.h"
 #include "exception_internal.h"

@@ -57,6 +57,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtra
 			 $(BUILD_DIR)/rdpq/rdpq_rect.o $(BUILD_DIR)/rdpq/rdpq_mode.o \
 			 $(BUILD_DIR)/rdpq/rdpq_sprite.o $(BUILD_DIR)/rdpq/rdpq_tex.o \
 			 $(BUILD_DIR)/rdpq/rdpq_attach.o $(BUILD_DIR)/rdpq/rdpq_font.o \
+			 $(BUILD_DIR)/rdpq/rdpq_text.o $(BUILD_DIR)/rdpq/rdpq_paragraph.o \
 			 $(BUILD_DIR)/surface.o $(BUILD_DIR)/GL/gl.o \
 			 $(BUILD_DIR)/GL/lighting.o $(BUILD_DIR)/GL/matrix.o \
 			 $(BUILD_DIR)/GL/primitive.o $(BUILD_DIR)/GL/query.o \
@@ -162,6 +163,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rdpq_tex.h $(INSTALLDIR)/mips64-elf/include/rdpq_tex.h
 	install -Cv -m 0644 include/rdpq_sprite.h $(INSTALLDIR)/mips64-elf/include/rdpq_sprite.h
 	install -Cv -m 0644 include/rdpq_font.h $(INSTALLDIR)/mips64-elf/include/rdpq_font.h
+	install -Cv -m 0644 include/rdpq_text.h $(INSTALLDIR)/mips64-elf/include/rdpq_text.h
+	install -Cv -m 0644 include/rdpq_paragraph.h $(INSTALLDIR)/mips64-elf/include/rdpq_paragraph.h
 	install -Cv -m 0644 include/rdpq_debug.h $(INSTALLDIR)/mips64-elf/include/rdpq_debug.h
 	install -Cv -m 0644 include/rdpq_macros.h $(INSTALLDIR)/mips64-elf/include/rdpq_macros.h
 	install -Cv -m 0644 include/rdpq_constants.h $(INSTALLDIR)/mips64-elf/include/rdpq_constants.h

@@ -1,5 +1,8 @@
 INSTALLDIR = $(N64_INST)
-CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-error=unknown-pragmas -Wno-unused-result -I../../include
+CFLAGS += -std=gnu99 -O2 -Wall -Werror -I../../include
+CFLAGS += -Wno-error=deprecated-declarations -Wno-typedef-redefinition
+CFLAGS += -Wno-error=unknown-pragmas -Wno-unused-result 
+
 all: mkfont
 
 mkfont:
