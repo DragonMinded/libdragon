@@ -1419,6 +1419,41 @@ __emux_log_string.\@: .asciiz "\str"
     .set at
 .endm
 
+.macro __emux_dump_cop0_rec reg0, regs:vararg
+    .set cop0reg.$0,   0
+    .set cop0reg.$1,   1
+    .set cop0reg.$2,   2
+    .set cop0reg.$3,   3
+    .set cop0reg.$4,   4
+    .set cop0reg.$5,   5
+    .set cop0reg.$6,   6
+    .set cop0reg.$7,   7
+    .set cop0reg.$8,   8
+    .set cop0reg.$9,   9
+    .set cop0reg.$10,  10
+    .set cop0reg.$11,  11
+    .set cop0reg.$12,  12
+    .set cop0reg.$13,  13
+    .set cop0reg.$14,  14
+    .set cop0reg.$15,  15
+    .set cop0_mask, cop0_mask + (1 << cop0reg.\reg0)
+    .ifnb \regs
+        __emux_dump_cop0_rec \regs
+    .endif
+.endm
+
+.macro emux_dump_cop0 regs:vararg
+    .ifb \regs
+        .set cop0_mask, 0xFFFFFFFF
+    .else
+        .set cop0_mask, 0
+        __emux_dump_cop0_rec \regs
+    .endif
+    .set noat
+    li $1, cop0_mask
+    emux 1, 0x41
+    .set at
+.endm
 
 ##################################################
 # Other psuedo-ops
