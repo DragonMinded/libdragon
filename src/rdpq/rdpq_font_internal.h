@@ -91,14 +91,14 @@ typedef struct rdpq_font_s {
  */
 int16_t __rdpq_font_glyph(const rdpq_font_t *font, uint32_t codepoint);
 
-inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *sort_key)
+inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *atlas_id)
 {
     glyph_t *g = &fnt->glyphs[index];
     if (xadvance) *xadvance = g->xadvance * (1.0f / 64.0f);
     if (xoff) *xoff = g->xoff;
     if (xoff2) *xoff2 = g->xoff2;
     if (has_kerning) *has_kerning = g->kerning_lo != 0;
-    if (sort_key) *sort_key = g->natlas;
+    if (atlas_id) *atlas_id = g->natlas;
 }
 
 float __rdpq_font_kerning(const rdpq_font_t *font, int16_t glyph1, int16_t glyph2);

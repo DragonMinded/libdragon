@@ -25,29 +25,18 @@ typedef struct rdpq_textparms_s rdpq_textparms_t;
 typedef struct __attribute__((packed)) rdpq_paragraph_char_s {
     union {
         struct __attribute__((packed)) {
-            uint8_t font_id;     ///< Font ID
-            uint8_t sort_key;    ///< Sort key for glyph (atlas)
-            uint8_t style_id;    ///< Style ID
-            uint8_t zero;        ///< Padding
+            uint8_t font_id   : 8;     ///< Font ID
+            uint8_t atlas_id  : 8;     ///< Atlas ID
+            uint8_t style_id  : 8;     ///< Style ID
+            int x             : 12;    ///< Y position
+            int y             : 12;    ///< X position
+            int16_t glyph     : 16;    ///< Glyph index
         };
-        uint32_t fsg;
+        uint32_t sort_key;
     };
-    int16_t glyph;       ///< Glyph index
-    struct {
-    int16_t x : 15;           ///< X position of the glyph
-    uint8_t drawn : 1;
-
-    };
-    int16_t y;           ///< Y position of the glyph
-    int16_t pad;
 } rdpq_paragraph_char_t;
 
-// _Static_assert(sizeof(rdpq_paragraph_char_t) == 8, "rdpq_paragraph_char_t is not packed");
-_Static_assert(offsetof(rdpq_paragraph_char_t, font_id)  == 0, "rdpq_paragraph_char_t is not packed");
-_Static_assert(offsetof(rdpq_paragraph_char_t, style_id) == 2, "rdpq_paragraph_char_t is not packed");
-_Static_assert(offsetof(rdpq_paragraph_char_t, sort_key) == 1, "rdpq_paragraph_char_t is not packed");
-// _Static_assert(offsetof(rdpq_paragraph_char_t, zero) == 3, "rdpq_paragraph_char_t is not packed");
-// _Static_assert(offsetof(rdpq_paragraph_char_t, glyph)    == 2, "rdpq_paragraph_char_t is not packed");
+_Static_assert(sizeof(rdpq_paragraph_char_t) == 8, "rdpq_paragraph_char_t is not packed");
 
 /**
  * @brief A paragraph of text, fully laid out
@@ -96,7 +85,7 @@ typedef struct {
  * a paragraph, multiple lines could be truncated and thus shown only partially).
  * 
  * @param parms             Layout parameters
- * @param font_id           Font ID to use to render the text (at least initially;
+ * @param initial_font_id   Font ID to use to render the text (at least initially;
  *                          it can modified via escape codes). See #rdpq_text_printn
  *                          for more details.
  * @param utf8_text         Text to render, in UTF-8 encoding.
@@ -104,7 +93,7 @@ typedef struct {
  *                          of bytes consumed in the input.
  * @return                  Calculated layout. Free it with #rdpq_paragraph_free when not needed anymore.
  */
-rdpq_paragraph_t* rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t font_id, 
+rdpq_paragraph_t* rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, 
     const char *utf8_text, int *nbytes);
 
 /**

@@ -65,21 +65,24 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
 {
     assertf(initial_font_id > 0, "invalid usage of font ID 0 (reserved)");
 
-    static const rdpq_textparms_t empty_parms = {0};
     memset(&builder, 0, sizeof(builder));
+
+    if (parms) {
+        if (parms->wrap) assertf(parms->width, "wrapping modes require a width");
+        assertf(parms->width >= 0, "width must be positive");
+        assertf(parms->height >= 0, "height must be positive");
+    }
+    static const rdpq_textparms_t empty_parms = {0};
     builder.parms = parms ? parms : &empty_parms;
+
     if (!layout) {
         const int initial_chars = 256;
         layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * initial_chars);
         memset(layout, 0, sizeof(*layout));
         layout->capacity = initial_chars;
     }
-    if (parms && parms->wrap)
-        assertf(parms->width, "wrapping modes require a width");
-    assertf(parms->width >= 0, "width must be positive");
-    assertf(parms->height >= 0, "height must be positive");
-
     builder.layout = layout;
+
     builder.xscale = 1.0f;
     builder.yscale = 1.0f;
     rdpq_paragraph_builder_font(initial_font_id);
@@ -133,13 +136,13 @@ static bool paragraph_wrap(int wrapchar, float *xcur, float *ycur)
     rdpq_paragraph_char_t *end = &builder.layout->chars[builder.layout->nchars];
 
     // Calculate wrap translation
-    float offx = builder.x - ch[0].x * 0.25f;
-    float offy = builder.y - ch[0].y * 0.25f;
+    float offx = builder.x - ch[0].x;
+    float offy = builder.y - ch[0].y;
 
     // Translate all the characters between wrapchar and the end
     while (ch < end) {
-        ch->x += offx * 4;
-        ch->y += offy * 4;
+        ch->x += offx;
+        ch->y += offy;
         ++ch;
     }
 
@@ -174,17 +177,17 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
         if (index < 0) index = UTF8_DECODE_NEXT();
         if (UNLIKELY(index < 0)) continue;
 
-        float xadvance; int8_t xoff2; bool has_kerning; uint8_t sort_key;
-        __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &sort_key);
+        float xadvance; int8_t xoff2; bool has_kerning; uint8_t atlas_id;
+        __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &atlas_id);
 
         if (!is_space) {
             builder.layout->chars[builder.layout->nchars++] = (rdpq_paragraph_char_t) {
                 .font_id = builder.font_id,
+                .atlas_id = atlas_id,
                 .style_id = builder.style_id,
-                .sort_key = sort_key,
                 .glyph = index,
-                .x = xcur*4,
-                .y = ycur*4,
+                .x = xcur,
+                .y = ycur,
             };
         } else {       
             builder.ch_last_space = builder.layout->nchars;
@@ -236,7 +239,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                         // because of whitespaces between wrapch[-1] and wrapch[0].
                         float prev_advance;
                         __rdpq_font_glyph_metrics(wfnt, wrapch[-1].glyph, &prev_advance, NULL, NULL, NULL, NULL);
-                        ellipsis_x = wrapch[-1].x * 0.25f + prev_advance * builder.xscale;
+                        ellipsis_x = wrapch[-1].x + prev_advance * builder.xscale;
 
                         // Check if we can put the ellipsis here
                         if (ellipsis_x + wfnt->ellipsis_width < parms->width)
@@ -246,18 +249,17 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                         wrapch -= 1;
                     }
 
-                    uint8_t ellipsis_sort_key;
-                    __rdpq_font_glyph_metrics(wfnt, wfnt->ellipsis_glyph, NULL, NULL, NULL, NULL, &ellipsis_sort_key);
+                    uint8_t ellipsis_atlas_id;
+                    __rdpq_font_glyph_metrics(wfnt, wfnt->ellipsis_glyph, NULL, NULL, NULL, NULL, &ellipsis_atlas_id);
 
                     uint8_t wrap_font_id = wrapch[-1].font_id, wrap_style_id = wrapch[-1].style_id;
-
                     for (int i=0; i<wfnt->ellipsis_reps; i++) {
                         builder.layout->chars[wrapchar+i] = (rdpq_paragraph_char_t) {
                             .font_id = wrap_font_id,
+                            .atlas_id = ellipsis_atlas_id,
                             .style_id = wrap_style_id,
-                            .sort_key = ellipsis_sort_key,
                             .glyph = wfnt->ellipsis_glyph,
-                            .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale) * 4,
+                            .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale),
                             .y = wrapch[-1].y,
                         };
                     }
@@ -307,15 +309,15 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
         __rdpq_font_glyph_metrics(fnt1, ch1->glyph, NULL, NULL,    &off_x1, NULL, NULL);
 
         // Compute absolute x0/x1 in the paragraph
-        float x0 = ch0->x * 0.25f + off_x0 * builder.xscale;
-        float x1 = ch1->x * 0.25f + off_x1 * builder.xscale;
+        float x0 = ch0->x + off_x0 * builder.xscale;
+        float x1 = ch1->x + off_x1 * builder.xscale;
 
         // Do right/center alignment of the row (and adjust extents)
         if (UNLIKELY(builder.parms->width && builder.parms->align)) {
             float offset = builder.parms->width - (x1 - x0);
             if (builder.parms->align == ALIGN_CENTER) offset *= 0.5f;
 
-            int16_t offset_fx = offset * 4;
+            int16_t offset_fx = offset;
             for (rdpq_paragraph_char_t *ch = ch0; ch <= ch1; ++ch)
                 ch->x += offset_fx;
             x0 += offset;
@@ -330,7 +332,7 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
     builder.ch_line_start = ch_newline;
 }
 
-void rdpq_paragraph_builder_newline()
+void rdpq_paragraph_builder_newline(void)
 {
     __rdpq_paragraph_builder_newline(builder.layout->nchars);
 }
@@ -339,10 +341,10 @@ void rdpq_paragraph_builder_newline()
 static int char_compare(const void *a, const void *b)
 {
     const rdpq_paragraph_char_t *ca = a, *cb = b;
-    return (ca->fsg & 0xFFFFFF00) - (cb->fsg & 0xFFFFFF00);
+    return (ca->sort_key & 0xFFFFFF00) - (cb->sort_key & 0xFFFFFF00);
 }
 
-void insertion_sort_char_array(rdpq_paragraph_char_t *chars, int nchars)
+static void insertion_sort_char_array(rdpq_paragraph_char_t *chars, int nchars)
 {
     for (int i = 1; i < nchars; ++i) {
         rdpq_paragraph_char_t tmp = chars[i];
@@ -355,16 +357,11 @@ void insertion_sort_char_array(rdpq_paragraph_char_t *chars, int nchars)
     }
 }
 
-void __rdpq_paragraph_builder_optimize(void)
-{
-    builder.must_sort = true;
-}
-
 rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
 {
     // Update bounding box (vertically)
-    float y0 = builder.layout->chars[0].y * 0.25f - builder.font->ascent;
-    float y1 = builder.layout->chars[builder.layout->nchars-1].y * 0.25f - builder.font->descent + builder.font->line_gap + 1;
+    float y0 = builder.layout->chars[0].y - builder.font->ascent;
+    float y1 = builder.layout->chars[builder.layout->nchars-1].y - builder.font->descent + builder.font->line_gap + 1;
 
     if (UNLIKELY(builder.parms->height && builder.parms->valign)) {
         float offset = builder.parms->height - (y1 - y0);
@@ -380,19 +377,18 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
     builder.layout->bbox[3] = y1;
 
     // Sort the chars by font/style/glyph
-    if (builder.must_sort || 1) {
-        if (builder.layout->nchars < 48) {
-            insertion_sort_char_array(builder.layout->chars, builder.layout->nchars);
-        } else {
-            qsort(builder.layout->chars, builder.layout->nchars, sizeof(rdpq_paragraph_char_t),
-                char_compare);
-        }
+    if (builder.layout->nchars < 48) {
+        // For small sizes, use insertion sort as it's faster
+        insertion_sort_char_array(builder.layout->chars, builder.layout->nchars);
+    } else {
+        qsort(builder.layout->chars, builder.layout->nchars, sizeof(rdpq_paragraph_char_t),
+            char_compare);
     }
 
     // Make sure there is always a terminator.
     assertf(builder.layout->nchars < builder.layout->capacity,
         "paragraph too long (%d/%d chars)", builder.layout->nchars, builder.layout->capacity);
-    builder.layout->chars[builder.layout->nchars].fsg = 0;
+    builder.layout->chars[builder.layout->nchars].sort_key = 0;
 
     return builder.layout;
 }
@@ -406,7 +402,7 @@ static uint8_t must_hex_digit(uint8_t ch, bool *error)
     return 0;
 }
 
-rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes, rdpq_paragraph_t *layout, bool optimize)
+rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes, rdpq_paragraph_t *layout)
 {
     rdpq_paragraph_builder_begin(parms, initial_font_id, layout);
 
@@ -464,14 +460,12 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
     if (buf != span)
         rdpq_paragraph_builder_span(span, buf - span);
     *nbytes = buf - utf8_text;
-    if (optimize)
-        __rdpq_paragraph_builder_optimize();
     return rdpq_paragraph_builder_end();
 }
 
 rdpq_paragraph_t* rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes)
 {
-    return __rdpq_paragraph_build(parms, initial_font_id, utf8_text, nbytes, NULL, true);
+    return __rdpq_paragraph_build(parms, initial_font_id, utf8_text, nbytes, NULL);
 }
 
 void rdpq_paragraph_render(const rdpq_paragraph_t *layout, float x0, float y0)
@@ -494,4 +488,18 @@ void rdpq_paragraph_free(rdpq_paragraph_t *layout)
     memset(layout, 0, sizeof(*layout));
     #endif
     free(layout);
+}
+
+__attribute__((constructor))
+void __rdpq_paragraph_char_check_bitfield(void)
+{
+    // Check that the layout of the bitfield is the one we expect.
+    // If this ever changes across GCC versions, we want to detect this: if the
+    // sort key isn't made of font_id/atlas_id/style_id in this order, performance
+    // will silently decrease a lot.
+    rdpq_paragraph_char_t ch = {0};
+    ch.font_id = 0xAA;
+    ch.atlas_id = 0xBB;
+    ch.style_id = 0xCC;
+    assert((ch.sort_key & 0xFFFFFF00) == 0xAABBCC00);
 }
