@@ -724,6 +724,7 @@ int main(int argc, char *argv[])
         if (strcasestr(infn, ".ttf") || strcasestr(infn, ".otf")) {
             ret = convert_ttf(infn, outfn, flag_point_size, flag_ranges);
         } else if (strcasestr(infn, ".fnt")) {
+            fprintf(stderr, "Error: BMFont support is incomplete.\n"); exit(1);
             compression = 0;
             ret = convert_bmfont(infn, outfn);
         } else {
