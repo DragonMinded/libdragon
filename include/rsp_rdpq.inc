@@ -637,7 +637,8 @@ rdpq_update_finish:
 rdpq_update_fillcopy:
     # We are in copy/fill mode. It is sufficient to emit a SET_OTHER_MODES
     # to configure it.
-    move a0, som_hi
+    or a0, som_hi, 0xFF000000
+    xor a0, 0xFF000000 ^ 0xEF000000
     move a1, som_lo
     jal_and_j RDPQ_Write8, RDPQ_Finalize
 
