@@ -28,15 +28,6 @@ _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(font, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(font)))
 
-/** @brief Drawing context */
-static struct draw_ctx_s {
-    atlas_t *last_atlas;
-    float x;
-    float y;
-    float xscale, yscale;
-    color_t color;
-} draw_ctx;
-
 static void recalc_style(style_t *s)
 {
     if (s->block)
@@ -174,9 +165,6 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     int cur_atlas = -1;
     int cur_style = -1;
 
-    draw_ctx.xscale = 1.0f;
-    draw_ctx.yscale = 1.0f;
-
     const rdpq_paragraph_char_t *ch = chars;
     while (ch->font_id == font_id) {
         const glyph_t *g = &fnt->glyphs[ch->glyph];
@@ -194,18 +182,15 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
         // Draw the glyph
         float x = x0 + (ch->x + g->xoff);
         float y = y0 + (ch->y + g->yoff);
-        int width = g->xoff2 - g->xoff;
-        int height = g->yoff2 - g->yoff;
+        int width = (g->xoff2 - g->xoff + 1);
+        int height = (g->yoff2 - g->yoff + 1);
 
         rdpq_texture_rectangle_raw(TILE0,
             x, y, x+width, y+height,
             g->s, g->t, 1, 1);
 
         // rdpq_texture_rectangle_scaled(TILE0, 
-        //     draw_ctx.x + g->xoff * draw_ctx.xscale + x,
-        //     draw_ctx.y + g->yoff * draw_ctx.yscale + y,
-        //     draw_ctx.x + g->xoff2 * draw_ctx.xscale + x,
-        //     draw_ctx.y + g->yoff2 * draw_ctx.yscale + y,
+        //     x, y, x + width * draw_ctx.xscale, y + height * draw_ctx.yscale,
         //     g->s, g->t, g->s + width, g->t + height);
 
         ch++;
