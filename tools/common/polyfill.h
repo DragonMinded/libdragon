@@ -105,6 +105,24 @@ FILE *mingw_tmpfile(void) {
     return NULL;
 }
 
+char* strcasestr(const char* haystack, const char* needle)
+{
+    size_t needle_len = strlen(needle);
+    size_t haystack_len = strlen(haystack);
+    size_t i;
+
+    if (needle_len > haystack_len)
+        return NULL;
+
+    for (i = 0; i <= haystack_len - needle_len; i++)
+    {
+        if (strncasecmp(haystack + i, needle, needle_len) == 0)
+            return (char*)(haystack + i);
+    }
+
+    return NULL;
+}
+
 #endif
 
 #endif

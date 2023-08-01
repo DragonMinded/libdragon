@@ -27,6 +27,7 @@
 #include "../common/binout.h"
 #include "../common/subprocess.h"
 #include "../common/utils.h"
+#include "../common/polyfill.h"
 
 int flag_verbose = 0;
 bool flag_debug = false;
