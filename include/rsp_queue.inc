@@ -25,11 +25,11 @@
 #    At the end of each command function, you need to hand control
 #    back over to the queue engine.
 # 4. In the body of the function, respect the following rules with 
-#    repsects to register usage:
+#    respects to register usage:
 #    * The first 4 arguments of the function will be passed in
 #      registers a0-a3. If your command needs more, you can use
 #      the CMD_ADDR macro to fetch them (they are in DMEM but
-#      needs to be read). You can reuse a0-a3 as you wish in the
+#      need to be read). You can reuse a0-a3 as you wish in the
 #      function body.
 #    * "ra" regiser will point to RSPQ_Loop, which is the return point.
 #      You can use "jr ra" to go back to the main loop, or simply
@@ -38,7 +38,7 @@
 #      need to use it, you must save and restore its value
 #      before jumping back to RSPQ_Loop.
 #    * "$v00" register (alias: vzero) is initialized with 0. It is
-#      used by the vcopy macro and is in general useful to have it
+#      used by the vcopy macro and is in general useful to have
 #      around, but you can reuse it if you wish and there is no
 #      need to restore it: the main loop will always zero it before
 #      calling each command.
@@ -46,10 +46,10 @@
 #      all powers of two (from 2 to 32768). The single elements are
 #      also aliased using "KNN" macros (eg: K16 is vshift.e3). In addition
 #      to being often useful in many calculations, they are also used
-#      by the vector shifts macros defined in rsp.inc (vsll, vsra, vsrl).
+#      by the vector shift macros defined in rsp.inc (vsll, vsra, vsrl).
 #      If you want, you can clobber these registers (obviously the macros
 #      will not work anymore), and there is no need to restore them:
-#      the main loop will always zero it before calling each command.
+#      the main loop will always initialize them before calling each command.
 # 5. This is how to use DMEM:
 #    * The bss segment is useful to define empty space to use as buffers
 #      (eg: to store data read via DMA). NOTE: contrary to C, the bss
@@ -63,7 +63,7 @@
 #      state using RSPQ_BeginSavedState and RSPQ_EndSavedState.
 #      The save state is preserved across all calls to the overlay,
 #      that is across different commands. This is the only part of
-#      the data segement that you should considered writable.
+#      the data segement that you should consider writable.
 #      NOTE: make sure to put at least one data directive that emits
 #      a non-zero amount of bytes between them. If your overlay
 #      doesn't need any data to be persisted, then use
