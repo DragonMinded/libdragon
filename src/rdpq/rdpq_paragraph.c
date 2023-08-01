@@ -90,7 +90,6 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     builder.x = 0.5f + builder.parms->indent;
     builder.y = 0.5f + (builder.parms->height ? builder.font->ascent : 0);
     builder.skip_current_line = rdpq_paragraph_builder_full();
-    builder.layout->nlines = 1;
     builder.ch_last_space = -1;
 }
 
@@ -325,8 +324,9 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
         }
 
         // Update bounding box
-        if (builder.layout->bbox[0] > x0) builder.layout->bbox[0] = x0;
-        if (builder.layout->bbox[2] < x1) builder.layout->bbox[2] = x1;
+        bool first_line = builder.layout->nlines == 1;
+        if (first_line || builder.layout->bbox[0] > x0) builder.layout->bbox[0] = x0;
+        if (first_line || builder.layout->bbox[2] < x1) builder.layout->bbox[2] = x1;
     }
 
     builder.ch_line_start = ch_newline;
@@ -359,6 +359,11 @@ static void insertion_sort_char_array(rdpq_paragraph_char_t *chars, int nchars)
 
 rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
 {
+    // Check if we need to terminate the current line (to calculate alignment,
+    // bounding box, etc.).
+    if (builder.ch_line_start != builder.layout->nchars)
+        __rdpq_paragraph_builder_newline(builder.layout->nchars);
+
     // Update bounding box (vertically)
     float y0 = builder.layout->chars[0].y - builder.font->ascent;
     float y1 = builder.layout->chars[builder.layout->nchars-1].y - builder.font->descent + builder.font->line_gap + 1;
