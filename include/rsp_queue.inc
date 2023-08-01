@@ -335,6 +335,12 @@ RDPQ_DEBUG:                  .byte 0
 # End of RDPQ shared state
 ################################################################
 
+#if RSPQ_PROFILE
+RSPQ_PROFILE_CUR_SLOT:        .long 0
+RSPQ_PROFILE_DATA:            .ds.b (RSPQ_PROFILE_SLOT_SIZE * RSPQ_PROFILE_SLOT_COUNT)
+RSPQ_PROFILE_START_TIME:      .long 0
+#endif
+
 # Index (not ID!) of the current overlay, as byte offset in the descriptor array
 RSPQ_CURRENT_OVL:             .half 0
 
@@ -431,6 +437,24 @@ RSPQ_Loop:
     #define cmd_index t5    // referenced in rspq_assert_invalid_overlay
     #define cmd_desc  t6
 
+    #if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    lw s0, %lo(RSPQ_PROFILE_CUR_SLOT)
+    lw t1, %lo(RSPQ_PROFILE_START_TIME)
+    bltz s0, 1f
+    li ovl_index, 0
+    subu t0, t1
+    # We need to mask the difference because the RDP clock wraps around at 24 bits
+    and t0, 0xFFFFFF
+    lw t2, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
+    lw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    add t0, t2
+    addi t1, 1
+    sw t0, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
+    sw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+1:
+    #endif
+
     jal RSPQ_CheckHighpri
     li t0, 0
 
@@ -523,6 +547,18 @@ rspq_execute_command:
     # Jump to command. Set ra to the loop function, so that commands can 
     # either do "j RSPQ_Loop" or "jr ra" (or a tail call) to get back to the main loop
     sll cmd_desc, 2
+
+    #if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    bnez a0, 1f
+    srl t1, ovl_index, 1
+    # Write samples of opcode 0 to a special slot ("Idle")
+    li t1, RSPQ_PROFILE_IDLE_SLOT*RSPQ_PROFILE_SLOT_SIZE
+1:
+    sw t1, %lo(RSPQ_PROFILE_CUR_SLOT)
+    sw t0, %lo(RSPQ_PROFILE_START_TIME)
+    #endif
+
     jr cmd_desc
     li ra, %lo(RSPQ_Loop)
 

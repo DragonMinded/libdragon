@@ -189,6 +189,7 @@
 #include "rspq.h"
 #include "rspq_internal.h"
 #include "rspq_constants.h"
+#include "rspq_profile.h"
 #include "rdp.h"
 #include "rdpq_constants.h"
 #include "rdpq/rdpq_internal.h"
@@ -204,12 +205,14 @@
 #include <malloc.h>
 
 
+/// @cond
 // Make sure that RSPQ_CMD_WRITE_STATUS and RSPQ_CMD_TEST_WRITE_STATUS have
 // an even ID number. This is a small trick used to save one opcode in
 // rsp_queue.S (see cmd_write_status there for an explanation).
-/// @cond
 _Static_assert((RSPQ_CMD_WRITE_STATUS & 1) == 0);
 _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
+
+_Static_assert(RSPQ_PROFILE_SLOT_SIZE == sizeof(rspq_profile_slot_t));
 /// @endcond
 
 /** @brief Smaller version of rspq_write that writes to an arbitrary pointer */
@@ -621,6 +624,10 @@ void rspq_init(void)
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;
+
+    #if RSPQ_PROFILE
+    rspq_data.rspq_profile_cur_slot = -1;
+    #endif
     
     // Init syncpoints
     rspq_syncpoints_genid = 0;
@@ -1409,6 +1416,99 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }
 
+#if RSPQ_PROFILE
+static uint64_t profile_total_ticks[RSPQ_PROFILE_SLOT_COUNT];
+static uint64_t profile_sample_counts[RSPQ_PROFILE_SLOT_COUNT];
+static uint64_t profile_frame_count;
+
+static rspq_profile_slot_t profile_slots_buffer[RSPQ_PROFILE_SLOT_COUNT+1] __attribute__((aligned(16)));
+
+#define PROFILE_DATA_DMEM_ADDRESS (RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, rspq_profile_slots))
+
+static void rspq_profile_reset_dmem()
+{
+    static rspq_profile_slot_t zeroes[RSPQ_PROFILE_SLOT_COUNT] = {0};
+    rspq_dma_to_dmem(PROFILE_DATA_DMEM_ADDRESS, zeroes, sizeof(zeroes), false);
+}
+
+void rspq_profile_reset()
+{
+    memset(profile_total_ticks, 0, sizeof(profile_total_ticks));
+    memset(profile_sample_counts, 0, sizeof(profile_sample_counts));
+    profile_frame_count = 0;
+}
+
+void rspq_profile_start()
+{
+    rspq_profile_reset();
+    rspq_profile_reset_dmem();
+}
+
+void rspq_profile_stop()
+{
+    // Nothing to be done for now
+}
+
+static void rspq_profile_accumulate()
+{
+    for (size_t i = 0; i < RSPQ_PROFILE_SLOT_COUNT; i++)
+    {
+        profile_total_ticks[i] += profile_slots_buffer[i].total_ticks;
+        profile_sample_counts[i] += profile_slots_buffer[i].sample_count;
+    }
+
+    profile_frame_count++;
+}
+
+void rspq_profile_next_frame()
+{
+    data_cache_hit_invalidate(profile_slots_buffer, sizeof(profile_slots_buffer));
+    rspq_dma_to_rdram(profile_slots_buffer, PROFILE_DATA_DMEM_ADDRESS, sizeof(profile_slots_buffer), false);
+    rspq_call_deferred(rspq_profile_accumulate, NULL);
+    rspq_profile_reset_dmem();
+}
+
+static void rspq_profile_dump_overlay(size_t index, const char *name)
+{
+    uint64_t mean = profile_total_ticks[index] / profile_frame_count;
+    uint64_t mean_us = (mean * 1000000ULL) / RCP_FREQUENCY;
+
+    debugf("%-20s %10llu %10lluus\n", 
+        name,
+        profile_sample_counts[index] / profile_frame_count,
+        mean_us);
+}
+
+void rspq_profile_dump()
+{
+    debugf("RSPQ Profiler - Recorded %llu frames\n", profile_frame_count);
+
+    if (profile_frame_count == 0)
+        return;
+
+    debugf("%-20s %10s %12s\n", "Overlay", "Cnt/Frame", "Avg/Frame");
+	debugf("--------------------------------------------\n");
+
+    rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_SLOT, "idle");
+    rspq_profile_dump_overlay(0, "builtin");
+
+    for (size_t i = 1; i < RSPQ_MAX_OVERLAY_COUNT; i++)
+    {
+        if (rspq_overlay_ucodes[i] == NULL)
+            continue;
+
+        rspq_profile_dump_overlay(i, rspq_overlay_ucodes[i]->name);
+    }
+
+    debugf("\n");
+}
+#else
+void rspq_profile_start(void) { }
+void rspq_profile_stop(void) { }
+void rspq_profile_reset(void) { }
+void rspq_profile_next_frame(void) { }
+void rspq_profile_dump(void) { }
+#endif
 
 /* Extern inline instantiations. */
 extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size);

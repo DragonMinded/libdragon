@@ -2,6 +2,7 @@
 #define __RSPQ_INTERNAL
 
 #define RSPQ_DEBUG                     1
+#define RSPQ_PROFILE                   0
 
 #define RSPQ_DRAM_LOWPRI_BUFFER_SIZE   0x200   ///< Size of each RSPQ RDRAM buffer for lowpri queue (in 32-bit words)
 #define RSPQ_DRAM_HIGHPRI_BUFFER_SIZE  0x80    ///< Size of each RSPQ RDRAM buffer for highpri queue (in 32-bit words)
@@ -65,5 +66,9 @@
 
 /** Debug marker in DMEM to check that C and Assembly have the same DMEM layout */
 #define RSPQ_DEBUG_MARKER            0xABCD0123
+
+#define RSPQ_PROFILE_SLOT_SIZE     8
+#define RSPQ_PROFILE_SLOT_COUNT    (RSPQ_MAX_OVERLAY_COUNT + 1)
+#define RSPQ_PROFILE_IDLE_SLOT     RSPQ_MAX_OVERLAY_COUNT
 
 #endif
