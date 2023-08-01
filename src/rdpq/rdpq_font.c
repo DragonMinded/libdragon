@@ -168,15 +168,14 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     const rdpq_paragraph_char_t *ch = chars;
     while (ch->font_id == font_id) {
         const glyph_t *g = &fnt->glyphs[ch->glyph];
-        if (UNLIKELY(g->natlas != cur_atlas)) {
-            rspq_block_run(fnt->atlases[g->natlas].up);
-            cur_atlas = g->natlas;
-        }
-
         if (UNLIKELY(ch->style_id != cur_style)) {
             assertf(fnt->styles[ch->style_id].block, "style %d not defined in this font", ch->style_id);
             rspq_block_run(fnt->styles[ch->style_id].block);
             cur_style = ch->style_id;
+        }
+        if (UNLIKELY(g->natlas != cur_atlas)) {
+            rspq_block_run(fnt->atlases[g->natlas].up);
+            cur_atlas = g->natlas;
         }
 
         // Draw the glyph
