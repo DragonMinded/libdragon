@@ -232,11 +232,11 @@ typedef struct rsp_queue_s {
     uint8_t rdp_syncfull_ongoing;        ///< True if a SYNC_FULL is currently ongoing
     uint8_t rdpq_debug;                  ///< Debug mode flag
     uint8_t __padding0;
-    #if RSPQ_PROFILE
+#if RSPQ_PROFILE
     uint32_t rspq_profile_cur_slot;
     rspq_profile_slot_t rspq_profile_slots[RSPQ_PROFILE_SLOT_COUNT];
     uint32_t rspq_profile_start_time;
-    #endif
+#endif
     int16_t current_ovl;                 ///< Current overlay index
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 

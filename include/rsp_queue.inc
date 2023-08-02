@@ -437,7 +437,7 @@ RSPQ_Loop:
     #define cmd_index t5    // referenced in rspq_assert_invalid_overlay
     #define cmd_desc  t6
 
-    #if RSPQ_PROFILE
+#if RSPQ_PROFILE
     mfc0 t0, COP0_DP_CLOCK
     lw s0, %lo(RSPQ_PROFILE_CUR_SLOT)
     lw t1, %lo(RSPQ_PROFILE_START_TIME)
@@ -445,15 +445,12 @@ RSPQ_Loop:
     li ovl_index, 0
     subu t0, t1
     # We need to mask the difference because the RDP clock wraps around at 24 bits
-    and t0, 0xFFFFFF
-    lw t2, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
-    lw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
-    add t0, t2
-    addi t1, 1
-    sw t0, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
-    sw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    lui t1, 0xFF
+    ori t1, 0xFFFF
+    jal RSPQ_ProfileAccumulate
+    and t0, t1
 1:
-    #endif
+#endif
 
     jal RSPQ_CheckHighpri
     li t0, 0
@@ -548,7 +545,7 @@ rspq_execute_command:
     # either do "j RSPQ_Loop" or "jr ra" (or a tail call) to get back to the main loop
     sll cmd_desc, 2
 
-    #if RSPQ_PROFILE
+#if RSPQ_PROFILE
     mfc0 t0, COP0_DP_CLOCK
     bnez a0, 1f
     srl t1, ovl_index, 1
@@ -557,7 +554,7 @@ rspq_execute_command:
 1:
     sw t1, %lo(RSPQ_PROFILE_CUR_SLOT)
     sw t0, %lo(RSPQ_PROFILE_START_TIME)
-    #endif
+#endif
 
     jr cmd_desc
     li ra, %lo(RSPQ_Loop)
@@ -839,15 +836,58 @@ RSPQCmd_RdpWaitIdle:
     li t3, DP_STATUS_BUSY
 
 RSPQ_RdpWait:
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+#endif
     mfc0 t2, COP0_DP_STATUS
 1:
     # Wait for selected RDP status bits to become 0.
     and t1, t2, t3
     bnez t1, 1b
     mfc0 t2, COP0_DP_STATUS
+#if RSPQ_PROFILE
+    # Measure the time we have been waiting for the RDP and save it to the special "RDP idle" slot.
+    # Also, subtract this time from the sample that is currently being recorded by adding it to the current start time.
+    mfc0 t1, COP0_DP_CLOCK
+
+    # If DP_STATUS_BUSY is set we are waiting for a FULL_SYNC. Divert this to yet another special slot.
+    andi t2, t3, DP_STATUS_BUSY
+    bnez t2, 1f
+    li s0, RSPQ_PROFILE_IDLE_SYNC_SLOT*RSPQ_PROFILE_SLOT_SIZE
+    li s0, RSPQ_PROFILE_IDLE_RDP_SLOT*RSPQ_PROFILE_SLOT_SIZE
+1:
+    lw t2, %lo(RSPQ_PROFILE_START_TIME)
+    subu t1, t0
+    and t0, t1, 0xFFFFFF
+    # Masking the updated start time is not necessary here because that will happen in RSPQ_Loop anyway
+    add t2, t0
+    j RSPQ_ProfileAccumulate
+    sw t2, %lo(RSPQ_PROFILE_START_TIME)
+#else
     jr ra
     nop
+#endif
     .endfunc
+
+#if RSPQ_PROFILE
+    #############################################################
+    # RSPQ_ProfileAccumulate
+    # 
+    # ARGS:
+    #   t0: Sampled time
+    #   s0: Slot offset
+    #############################################################
+    .func RSPQ_ProfileAccumulate
+RSPQ_ProfileAccumulate:
+    lw t2, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
+    lw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    add t0, t2
+    addi t1, 1
+    sw t0, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
+    jr ra
+    sw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    .endfunc
+#endif
 
 #include <rsp_dma.inc>
 #include <rsp_assert.inc>

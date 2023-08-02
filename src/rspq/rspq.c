@@ -625,9 +625,9 @@ void rspq_init(void)
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;
 
-    #if RSPQ_PROFILE
+#if RSPQ_PROFILE
     rspq_data.rspq_profile_cur_slot = -1;
-    #endif
+#endif
     
     // Init syncpoints
     rspq_syncpoints_genid = 0;
@@ -1421,7 +1421,7 @@ static uint64_t profile_total_ticks[RSPQ_PROFILE_SLOT_COUNT];
 static uint64_t profile_sample_counts[RSPQ_PROFILE_SLOT_COUNT];
 static uint64_t profile_frame_count;
 
-static rspq_profile_slot_t profile_slots_buffer[RSPQ_PROFILE_SLOT_COUNT+1] __attribute__((aligned(16)));
+static rspq_profile_slot_t profile_slots_buffer[RSPQ_PROFILE_SLOT_COUNT] __attribute__((aligned(16)));
 
 #define PROFILE_DATA_DMEM_ADDRESS (RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, rspq_profile_slots))
 
@@ -1489,7 +1489,9 @@ void rspq_profile_dump()
     debugf("%-20s %10s %12s\n", "Overlay", "Cnt/Frame", "Avg/Frame");
 	debugf("--------------------------------------------\n");
 
-    rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_SLOT, "idle");
+    rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_SLOT, "idle (CPU)");
+    rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_RDP_SLOT, "idle (RDP)");
+    rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_SYNC_SLOT, "idle (SYNC)");
     rspq_profile_dump_overlay(0, "builtin");
 
     for (size_t i = 1; i < RSPQ_MAX_OVERLAY_COUNT; i++)
