@@ -204,6 +204,9 @@ typedef struct rspq_overlay_tables_s {
     rspq_overlay_t overlay_descriptors[RSPQ_MAX_OVERLAY_COUNT];
 } rspq_overlay_tables_t;
 
+/**
+ * @brief RSP profiling data for a single overlay.
+ */
 typedef struct rspq_profile_slot_s {
     uint32_t total_ticks;
     uint32_t sample_count;
