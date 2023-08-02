@@ -94,15 +94,15 @@ void convert(char *infn, char *outfn1) {
 		return;
 	}
 
-	if (strcmp(ext, ".wav") == 0 || strcmp(ext, ".WAV") == 0) {
+	if (strcasecmp(ext, ".wav") == 0 || strcasecmp(ext, ".aiff") == 0) {
 		char *outfn = changeext(outfn1, ".wav64");
 		wav_convert(infn, outfn);
 		free(outfn);
-	} else if (strcmp(ext, ".xm") == 0 || strcmp(ext, ".XM") == 0) {
+	} else if (strcasecmp(ext, ".xm") == 0) {
 		char *outfn = changeext(outfn1, ".xm64");
 		xm_convert(infn, outfn);
 		free(outfn);
-	} else if (strcmp(ext, ".ym") == 0 || strcmp(ext, ".YM") == 0) {
+	} else if (strcasecmp(ext, ".ym") == 0) {
 		char *outfn = changeext(outfn1, ".ym64");
 		ym_convert(infn, outfn);
 		free(outfn);
