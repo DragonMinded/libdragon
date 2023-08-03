@@ -338,6 +338,8 @@ RDPQ_DEBUG:                  .byte 0
 #if RSPQ_PROFILE
 RSPQ_PROFILE_CUR_SLOT:        .long 0
 RSPQ_PROFILE_DATA:            .ds.b (RSPQ_PROFILE_SLOT_SIZE * RSPQ_PROFILE_SLOT_COUNT)
+RSPQ_PROFILE_FRAME_LAST:      .long 0
+RSPQ_PROFILE_FRAME_TIME:      .long 0
 RSPQ_PROFILE_START_TIME:      .long 0
 #endif
 
@@ -362,6 +364,9 @@ RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24
 RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
 RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
+#if RSPQ_PROFILE
+RSPQ_DefineCommand RSPQCmd_ProfileFrame,    4     # 0x0C
+#endif
 
     .align 3
 #if RSPQ_DEBUG
@@ -870,6 +875,17 @@ RSPQ_RdpWait:
     .endfunc
 
 #if RSPQ_PROFILE
+    .func RSPQCmd_ProfileFrame
+RSPQCmd_ProfileFrame:
+    mfc0 t0, COP0_DP_CLOCK
+    lw t1, %lo(RSPQ_PROFILE_FRAME_LAST)
+    subu t2, t0, t1
+    and t2, 0xFFFFFF
+    sw t0, %lo(RSPQ_PROFILE_FRAME_LAST)
+    jr ra
+    sw t2, %lo(RSPQ_PROFILE_FRAME_TIME)
+    .endfunc
+
     #############################################################
     # RSPQ_ProfileAccumulate
     # 

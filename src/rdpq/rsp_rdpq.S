@@ -490,8 +490,21 @@ RDPQCmd_SyncFull:
     #  * any pending RSP interrupt for checkpoint has been processed by the CPU.
     # We need to wait for checkpoints so that we can fetch the correct checkpoint ID,
     # which in turn is necessary for implementing rdpq_call_deferred.
+#if RSPQ_PROFILE
+    mfc0 t1, COP0_DP_CLOCK
+#endif
     jal SpStatusWait
     li t2, SP_STATUS_SIG_RDPSYNCFULL | SP_STATUS_SIG_SYNCPOINT
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    lw t2, %lo(RSPQ_PROFILE_START_TIME)
+    li s0, RSPQ_PROFILE_RDPQ_SYNC_SLOT*RSPQ_PROFILE_SLOT_SIZE
+    subu t0, t1
+    and t0, 0xFFFFFF
+    add t2, t0
+    jal RSPQ_ProfileAccumulate
+    sw t2, %lo(RSPQ_PROFILE_START_TIME)
+#endif
 
     # Fetch the current syncpoint ID and put it into the state
     lw s0, %lo(RDPQ_RDRAM_SYNCPOINT_ADDR)
