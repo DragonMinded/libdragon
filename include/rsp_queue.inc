@@ -448,12 +448,8 @@ RSPQ_Loop:
     lw t1, %lo(RSPQ_PROFILE_START_TIME)
     bltz s0, 1f
     li ovl_index, 0
-    subu t0, t1
-    # We need to mask the difference because the RDP clock wraps around at 24 bits
-    lui t1, 0xFF
-    ori t1, 0xFFFF
     jal RSPQ_ProfileAccumulate
-    and t0, t1
+    subu t0, t1
 1:
 #endif
 
@@ -487,6 +483,10 @@ RSPQ_Loop:
     beq ovl_index, t1, rspq_overlay_loaded
     lhu t0, %lo(_ovl_data_start) + 0x2
 
+#if RSPQ_PROFILE
+    mfc0 t3, COP0_DP_CLOCK
+#endif
+
     # Save current overlay state
     lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x8 (t1)
     jal DMAOutAsync
@@ -506,6 +506,13 @@ RSPQ_Loop:
 
     # Remember loaded overlay
     sh ovl_index, %lo(RSPQ_CURRENT_OVL)
+
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    subu t0, t3
+    jal RSPQ_ProfileAccumulate
+    li s0, RSPQ_PROFILE_OVL_SWITCH_SLOT*RSPQ_PROFILE_SLOT_SIZE
+#endif
 
 rspq_overlay_loaded:
     # Subtract the command base to determine the final offset into the command table.
@@ -897,6 +904,8 @@ RSPQCmd_ProfileFrame:
 RSPQ_ProfileAccumulate:
     lw t2, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
     lw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    # We need to mask the time because the RDP clock wraps around at 24 bits
+    and t0, 0xFFFFFF
     add t0, t2
     addi t1, 1
     sw t0, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)

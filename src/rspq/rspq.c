@@ -1489,7 +1489,7 @@ static void rspq_profile_dump_overlay(size_t index, uint64_t frame_avg, const ch
     char buf[64];
     sprintf(buf, "%3.2f%%", relative);
 
-    debugf("%-20s %10llu %10lluus %10s\n",
+    debugf("%-25s %10llu %10lluus %10s\n",
         name,
         profile_sample_counts[index] / profile_frame_count,
         mean_us,
@@ -1514,14 +1514,15 @@ void rspq_profile_dump()
 
     float overhead_relative = PERCENT(overhead_avg, frame_avg);
 
-    debugf("%-20s %10s %12s %10s\n", "Overlay", "Cnt/Frame", "Avg/Frame", "Rel/Frame");
-	debugf("-------------------------------------------------------\n");
+    debugf("%-25s %10s %12s %10s\n", "Slot", "Cnt/Frame", "Avg/Frame", "Rel/Frame");
+	debugf("------------------------------------------------------------\n");
 
     rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_SLOT, frame_avg, "idle (CPU)");
     rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_RDP_SLOT, frame_avg, "idle (RDP)");
     rspq_profile_dump_overlay(RSPQ_PROFILE_IDLE_SYNC_SLOT, frame_avg, "idle (FULL_SYNC)");
     rspq_profile_dump_overlay(RSPQ_PROFILE_RDPQ_SYNC_SLOT, frame_avg, "idle (RDPQCmd_SyncFull)");
-    rspq_profile_dump_overlay(RSPQ_PROFILE_BUILTIN_SLOT, frame_avg, "builtin");
+    rspq_profile_dump_overlay(RSPQ_PROFILE_OVL_SWITCH_SLOT, frame_avg, "overlay switching");
+    rspq_profile_dump_overlay(RSPQ_PROFILE_BUILTIN_SLOT, frame_avg, "builtin commands");
 
     for (size_t i = 1; i < RSPQ_MAX_OVERLAY_COUNT; i++)
     {
@@ -1531,7 +1532,7 @@ void rspq_profile_dump()
         rspq_profile_dump_overlay(i, frame_avg, rspq_overlay_ucodes[i]->name);
     }
 
-	debugf("-------------------------------------------------------\n");
+	debugf("------------------------------------------------------------\n");
     debugf("Profiled frames:    %12lld\n", profile_frame_count);
     debugf("Frames per second:  %12.1f\n", (float)RCP_FREQUENCY/(float)frame_avg);
     debugf("Average frame time: %10lldus\n", frame_avg_us);
