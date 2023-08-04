@@ -149,8 +149,6 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	wav64_t *wav = (wav64_t*)ctx;
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->ext;
 
-	debugf("vadpcm_read: wpos=%d wlen=%d seeking=%d\n", wpos, wlen, seeking);
-
 	if (seeking) {
 		if (wpos == 0) {
 			memset(&vhead->state, 0, sizeof(vhead->state));
