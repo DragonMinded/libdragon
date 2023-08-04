@@ -71,6 +71,7 @@ void usage(void) {
 	printf("   -v / --verbose            Verbose mode\n");
 	printf("\n");
 	printf("WAV options:\n");
+	printf("   --wav-compress <0|1>      Enable compression (0:none, 1:vadpcm)\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
 	printf("\n");
@@ -218,6 +219,16 @@ int main(int argc, char *argv[]) {
 					return 1;
 				}
 				flag_wav_looping = true;
+			} else if (!strcmp(argv[i], "--wav-compress")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --wav-compress\n");
+					return 1;
+				}
+				flag_wav_compress = atoi(argv[i]);
+				if (flag_wav_compress < 0 || flag_wav_compress > 1) {
+					fprintf(stderr, "invalid argument for --wav-compress: %s\n", argv[i]);
+					return 1;
+				}
 			} else if (!strcmp(argv[i], "--ym-compress")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --ym-compress\n");
