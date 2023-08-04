@@ -28,7 +28,7 @@
 /** @brief Profile of DMA usage by WAV64, used for debugging purposes. */
 int64_t __wav64_profile_dma = 0;
 
-// Library error codes.
+/** @brief VADPCM decoding errors */
 typedef enum {
     // No error (success). Equal to 0.
     kVADPCMErrNone,
@@ -62,7 +62,7 @@ static int vadpcm_clamp16(int x) {
     return x;
 }
 
-vadpcm_error vadpcm_decode(int predictor_count, int order,
+static vadpcm_error vadpcm_decode(int predictor_count, int order,
                            const wav64_vadpcm_vector_t *restrict codebook,
                            wav64_vadpcm_vector_t *restrict state,
                            size_t frame_count, int16_t *restrict dest,
@@ -125,7 +125,6 @@ vadpcm_error vadpcm_decode(int predictor_count, int order,
     return 0;
 }
 
-
 void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps) {
 	uint32_t rom_addr = base_rom_addr + (wpos << bps);
 	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
@@ -155,10 +154,10 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	if (seeking) {
 		if (wpos == 0) {
 			memset(&vhead->state, 0, sizeof(vhead->state));
-			vhead->rom_addr = wav->rom_addr;
+			vhead->current_rom_addr = wav->rom_addr;
 		} else {
 			memcpy(&vhead->state, &vhead->loop_state, sizeof(vhead->state));
-			vhead->rom_addr = wav->rom_addr + wav->wave.loop_len / 16 * 9;
+			vhead->current_rom_addr = wav->rom_addr + wav->wave.loop_len / 16 * 9;
 		}
 	}
 
@@ -166,13 +165,13 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		uint8_t buf[18] alignas(8);
 
 		data_cache_hit_writeback_invalidate(buf, sizeof(buf));
-		dma_read(buf, vhead->rom_addr, sizeof(buf));
+		dma_read(buf, vhead->current_rom_addr, sizeof(buf));
 
 		int16_t *dest = (int16_t*)samplebuffer_append(sbuf, 32);
 		vadpcm_error err = vadpcm_decode(vhead->npredictors, vhead->order, vhead->codebook, &vhead->state, 2, dest, buf);
 		assertf(err == 0, "VADPCM decoding error: %d\n", err);
 
-		vhead->rom_addr += sizeof(buf);
+		vhead->current_rom_addr += sizeof(buf);
 		wlen -= 32;
 	}
 }
