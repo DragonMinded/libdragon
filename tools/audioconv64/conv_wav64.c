@@ -124,7 +124,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		enum { kPREDICTORS = 4 };
 
 		int nframes = cnt / kVADPCMFrameSampleCount;
-		void *scratch = alloca(vadpcm_encode_scratch_size(nframes));
+		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		struct vadpcm_vector *codebook = alloca(kPREDICTORS * kVADPCMEncodeOrder * sizeof(struct vadpcm_vector));
 		struct vadpcm_params parms = { .predictor_count = kPREDICTORS };
 		void *dest = malloc(nframes * kVADPCMFrameByteSize);
@@ -148,6 +148,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		w32_at(out, wstart_offset, ftell(out));
 		fwrite(dest, nframes, kVADPCMFrameByteSize, out);
 		free(dest);
+		free(scratch);
 	} break;
 	}
 
