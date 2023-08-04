@@ -4,6 +4,7 @@
 #define WAV64_ID            "WV64"
 #define WAV64_FILE_VERSION  2
 #define WAV64_FORMAT_RAW    0
+#define WAV64_FORMAT_VADPCM 1
 
 /** @brief Header of a WAV64 file. */
 typedef struct __attribute__((packed)) {
@@ -19,6 +20,23 @@ typedef struct __attribute__((packed)) {
 } wav64_header_t;
 
 _Static_assert(sizeof(wav64_header_t) == 24, "invalid wav64_header size");
+
+typedef struct __attribute__((aligned(8))) {
+	int16_t v[8];
+} wav64_vadpcm_vector_t;
+
+/** @brief Header of a WAV64 file. */
+typedef struct __attribute__((packed, aligned(8))) {
+	int8_t npredictors;
+	int8_t order;
+	int16_t padding;
+	uint32_t rom_addr;
+	wav64_vadpcm_vector_t loop_state;
+	wav64_vadpcm_vector_t state;
+	wav64_vadpcm_vector_t codebook[];
+} wav64_header_vadpcm_t;
+
+
 
 typedef struct samplebuffer_s samplebuffer_t;
 
