@@ -1353,7 +1353,7 @@ makeMxc2Op mfc2, 0x0
 .endm
 
 .macro emux_trace_stop
-    emux 0, 0x20
+    emux 0, 0x22
 .endm
 
 .macro emux_trace_count num_insn
