@@ -7,11 +7,14 @@
 #include "wav64.h"
 #include "wav64internal.h"
 #include "mixer.h"
+#include "mixer_internal.h"
 #include "dragonfs.h"
 #include "n64sys.h"
 #include "dma.h"
 #include "samplebuffer.h"
 #include "debug.h"
+#include "utils.h"
+#include "rspq.h"
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
@@ -19,6 +22,9 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdalign.h>
+
+/** @brief Set to 1 to use the refernece C decode for VADPCM */
+#define VADPCM_REFERENCE_DECODER     0
 
 /** ID of a standard WAV file */
 #define WAV_RIFF_ID   "RIFF"
@@ -28,6 +34,7 @@
 /** @brief Profile of DMA usage by WAV64, used for debugging purposes. */
 int64_t __wav64_profile_dma = 0;
 
+#if VADPCM_REFERENCE_DECODER
 /** @brief VADPCM decoding errors */
 typedef enum {
     // No error (success). Equal to 0.
@@ -62,6 +69,7 @@ static int vadpcm_clamp16(int x) {
     return x;
 }
 
+__attribute__((unused))
 static vadpcm_error vadpcm_decode(int predictor_count, int order,
                            const wav64_vadpcm_vector_t *restrict codebook,
                            wav64_vadpcm_vector_t *restrict state,
@@ -124,6 +132,20 @@ static vadpcm_error vadpcm_decode(int predictor_count, int order,
     }
     return 0;
 }
+#else
+
+static inline void rsp_vadpcm_decompress(void *input, int16_t *output, int nframes, 
+	wav64_vadpcm_vector_t *state, wav64_vadpcm_vector_t *codebook)
+{
+	assert(nframes > 0 && nframes <= 256);
+	rspq_write(__mixer_overlay_id, 0x1,
+		PhysicalAddr(input), 
+		PhysicalAddr(output) | (nframes-1) << 24,
+		PhysicalAddr(state),
+		PhysicalAddr(codebook));
+}
+
+#endif /* VADPCM_REFERENCE_DECODER */
 
 void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps) {
 	uint32_t rom_addr = base_rom_addr + (wpos << bps);
@@ -154,24 +176,49 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			memset(&vhead->state, 0, sizeof(vhead->state));
 			vhead->current_rom_addr = wav->rom_addr;
 		} else {
+			assertf(wpos == wav->wave.len - wav->wave.loop_len,
+				"wav64: seeking to %x not supported (%x %x)\n", wpos, wav->wave.len, wav->wave.loop_len);
 			memcpy(&vhead->state, &vhead->loop_state, sizeof(vhead->state));
-			vhead->current_rom_addr = wav->rom_addr + wav->wave.loop_len / 16 * 9;
+			vhead->current_rom_addr = wav->rom_addr + (wav->wave.len - wav->wave.loop_len) / 16 * 9;
 		}
 	}
 
+	wlen = ROUND_UP(wlen, 32);
+	if (wlen == 0) return;
+
+	bool highpri = false;
 	while (wlen > 0) {
-		uint8_t buf[18] alignas(8);
+		int nframes = wlen / 16;
+		assert(nframes <= 256);
+		nframes = MIN(nframes, 256);
 
-		data_cache_hit_writeback_invalidate(buf, sizeof(buf));
-		dma_read(buf, vhead->current_rom_addr, sizeof(buf));
+		int16_t *dest = (int16_t*)samplebuffer_append(sbuf, nframes*16);
 
-		int16_t *dest = (int16_t*)samplebuffer_append(sbuf, 32);
-		vadpcm_error err = vadpcm_decode(vhead->npredictors, vhead->order, vhead->codebook, &vhead->state, 2, dest, buf);
+		assert((nframes & 1) == 0);
+		dma_read(dest + wlen - 9*nframes/2, vhead->current_rom_addr, 9*nframes);
+
+		#if VADPCM_REFERENCE_DECODER
+		vadpcm_error err = vadpcm_decode(
+			vhead->npredictors, vhead->order, vhead->codebook, &vhead->state,
+			nframes, dest, dest + wlen - 9*nframes/2);
 		assertf(err == 0, "VADPCM decoding error: %d\n", err);
+		#else
+		// Switch to highpri as late as possible
+		if (!highpri) {
+			rspq_highpri_begin();
+			highpri = true;
+		}
+		rsp_vadpcm_decompress(dest + wlen - 9*nframes/2, dest, nframes, 
+			&vhead->state, vhead->codebook);
+		#endif
 
-		vhead->current_rom_addr += sizeof(buf);
-		wlen -= 32;
+		vhead->current_rom_addr += 9*nframes;
+		wlen -= 16*nframes;
+		dest += 16*nframes;
 	}
+
+	if (highpri)
+		rspq_highpri_end();
 }
 
 void wav64_open(wav64_t *wav, const char *fn) {

@@ -174,7 +174,8 @@
 	.data
 
 	RSPQ_BeginOverlayHeader
-		RSPQ_DefineCommand command_exec, 16
+		RSPQ_DefineCommand command_exec, 16				# 0x0
+		RSPQ_DefineCommand VADPCM_Decompress, 16		# 0x1
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -203,6 +204,9 @@ BANNER1:    .ascii " Coded by Rasky "
 XVOL_L:                   .dcb.w MAX_CHANNELS
 XVOL_R:                   .dcb.w MAX_CHANNELS
 	RSPQ_EndSavedState
+
+	.align 4
+IDENTITY:  .half  1<<11,1<<11,1<<11,1<<11, 1<<11,1<<11,1<<11,1<<11
 
 	.bss
 
@@ -1131,3 +1135,202 @@ Mix8Loop:
 	jr ra
 	ssv v_out_r.e0, -2,s4
 	.endfunc
+
+
+	#undef v_zero       
+	#undef v_xvol_l_0   
+	#undef v_xvol_r_0   
+	#undef v_xvol_l_1   
+	#undef v_xvol_r_1   
+	#undef v_xvol_l_2   
+	#undef v_xvol_r_2   
+	#undef v_xvol_l_3   
+	#undef v_xvol_r_3   
+	#undef v_chvol_l_0  
+	#undef v_chvol_r_0  
+	#undef v_chvol_l_1  
+	#undef v_chvol_r_1  
+	#undef v_chvol_l_2  
+	#undef v_chvol_r_2  
+	#undef v_chvol_l_3  
+	#undef v_chvol_r_3  
+	#undef v_shift8     
+	#undef v_shift      
+	#undef v_const1
+	#undef k_0000
+	#undef k_8000
+
+
+############################################################################
+# VADPCM decompressor
+############################################################################
+
+	########################################
+	# VADPCM_Decompress
+	#
+	# Args:
+	#   a0: pointer to input buffer
+	#   a1: pointer to output buffer (+ numframes-1 in MSB)
+	#   a2: pointer to state buffer
+	#   a3: pointer to codebook
+	#
+	########################################
+
+#define VADPCM_ORDER_SHIFT    1
+#define VADPCM_ORDER          (1<<VADPCM_ORDER_SHIFT)
+
+	# VADPCM State and Codebook
+#define VADPCM_CODEBOOK_SIZE  8
+
+#define BSS_BASE	     CHANNEL_BUFFER
+#define VADPCM_STATE	 (BSS_BASE+0)
+#define VADPCM_CODEBOOK  (BSS_BASE+16)
+
+#define scaling    t8
+#define predictor  t7
+#define nframes    t6
+
+#define vstate  $v01
+#define vscale  $v02
+#define vstatel $v03
+#define pred0   $v06
+#define pred1   $v07
+#define pred1a  $v08
+#define pred1b  $v09
+#define pred1c  $v10
+#define pred1d  $v11
+#define pred1e  $v12
+#define pred1f  $v13
+#define pred1g  $v14
+#define pred1h  $v15
+#define vres0    $v16
+#define vres1    $v17
+#define v____ 	$v29
+
+	.func VADPCM_Decompress
+VADPCM_Decompress:
+	li s4, %lo(VADPCM_CODEBOOK)
+	move s0, a3
+	jal DMAIn
+	li t0, DMA_SIZE(VADPCM_CODEBOOK_SIZE*16, 1)
+
+	li s4, %lo(VADPCM_STATE)
+	move s0, a2
+	jal DMAIn
+	li t0, DMA_SIZE(16, 1)
+
+	li s1, %lo(VADPCM_STATE)
+	li s2, %lo(IDENTITY)
+	lqv vstate, 0,s1
+
+	vxor pred1a, pred1a
+	vxor pred1b, pred1b
+	vxor pred1c, pred1c
+	vxor pred1d, pred1d
+	vxor pred1e, pred1e
+	vxor pred1f, pred1f
+	vxor pred1g, pred1g
+	vxor pred1h, pred1h
+
+	srl nframes, a1, 24
+	addiu nframes, 1
+
+VADPCM_DecompressLoop:
+	# Fetch input frames
+	move s0, a0
+	li s3, %lo(OUTPUT_AREA)
+	li s4, %lo(OUTPUT_AREA)
+	jal DMAIn
+	li t0, DMA_SIZE(9+8, 1)
+	addiu a0, 9
+
+	# Decompress 2 frames
+	lbu t0, 0(s4)
+	addiu s4, 1
+	srl scaling, t0, 4
+	li t1, 1
+	sllv scaling, t1, scaling
+	mtc2 scaling, vscale.e0
+
+	andi predictor, t0, 0xF
+	sll predictor, VADPCM_ORDER_SHIFT + 4    # multipley by order + sizeof(vector)
+	addiu predictor, %lo(VADPCM_CODEBOOK)    # add base address
+	
+	# Decode residuals
+	lpv vres0, 0,s4
+	lpv vres1, 0,s4
+
+	vsra8 vres0, vres0, 12             # 4bit unpacking
+	vsll vres1, vres1, 4
+	vsra8 vres1, vres1, 12
+	vmudh vres0, vscale.e0
+	vmudh vres1, vscale.e0
+
+	# Load state and predictors (ORDER=2)
+	ltv pred1a.e0,    0,s2          # Load diagonal of ones into pred1a..pred1h
+	lqv pred0.e0,  0x00,predictor
+	lqv pred1.e0,  0x10,predictor
+	lqv pred1a.e1, 0x10,predictor
+	lqv pred1b.e2, 0x10,predictor
+	lqv pred1c.e3, 0x10,predictor
+	lqv pred1d.e4, 0x10,predictor
+	lqv pred1e.e5, 0x10,predictor
+	lqv pred1f.e6, 0x10,predictor
+	lqv pred1g.e7, 0x10,predictor
+
+	vmudh v____,  pred0,  vstate.e6
+	vmadh v____,  pred1,  vstate.e7
+	vmadh v____,  pred1a, vres0.e0
+	vmadh v____,  pred1b, vres1.e0
+	vmadh v____,  pred1c, vres0.e1
+	vmadh v____,  pred1d, vres1.e1
+	vmadh v____,  pred1e, vres0.e2
+	vmadh v____,  pred1f, vres1.e2
+	vmadh v____,  pred1g, vres0.e3
+	vmadh v____,  pred1h, vres1.e3
+	vsar  vstatel, COP2_ACC_MD
+	vsar  vstate, COP2_ACC_HI
+	vmudn v____, vstatel, vshift.e2
+	vmadh vstate, vstate, vshift.e2
+
+	sqv vstate, 0x00,s3
+
+	vmudh v____,  pred0,  vstate.e6
+	vmadh v____,  pred1,  vstate.e7
+	vmadh v____,  pred1a, vres0.e4
+	vmadh v____,  pred1b, vres1.e4
+	vmadh v____,  pred1c, vres0.e5
+	vmadh v____,  pred1d, vres1.e5
+	vmadh v____,  pred1e, vres0.e6
+	vmadh v____,  pred1f, vres1.e6
+	vmadh v____,  pred1g, vres0.e7
+	vmadh vstate, pred1h, vres1.e7
+	vsar  vstatel, COP2_ACC_MD
+	vsar  vstate, COP2_ACC_HI
+	vmudn v____, vstatel, vshift.e2
+	vmadh vstate, vstate, vshift.e2
+
+	sqv vstate, 0x10,s3
+
+	move s4, s3
+	move s0, a1
+	jal DMAOut
+	li t0, DMA_SIZE(32, 1)
+	addiu a1, 32
+
+	addiu nframes, -1
+	bgtz nframes, VADPCM_DecompressLoop
+	nop
+
+	# Save back state
+	sqv vstate, 0x00,s1
+	move s4, s1
+	move s0, a2
+	jal DMAOut
+	li t0, DMA_SIZE(16, 1)
+
+	j RSPQ_Loop
+	nop
+
+	.endfunc
+
