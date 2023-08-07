@@ -113,7 +113,7 @@ elf_info_t *elf_info_init(const char *filename)
 void elf_info_free(elf_info_t *elf_info)
 {
     //Close attached file
-    if(!elf_info->file) {
+    if(elf_info->file) {
         fclose(elf_info->file);
     }
     //Free symbol arrays
