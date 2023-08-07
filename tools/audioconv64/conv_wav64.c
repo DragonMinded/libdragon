@@ -24,11 +24,6 @@ int wav_convert(const char *infn, const char *outfn) {
 		fprintf(stderr, "Converting: %s => %s (%d bits, %d Hz, %d channels, %s)\n", infn, outfn,
 			wav.bitsPerSample, wav.sampleRate, wav.channels, flag_wav_compress ? "vadpcm" : "raw");
 
-	if (flag_wav_compress == 1 && wav.channels != 1) {
-		fprintf(stderr, "ERROR: VADPCM compression only support mono files\n");
-		return 1;
-	}
-
 	// Decode the samples as 16bit big-endian. This will decode everything including
 	// compressed formats so that we're able to read any kind of WAV file, though
 	// it will end up as an uncompressed file.
@@ -114,32 +109,33 @@ int wav_convert(const char *infn, const char *outfn) {
 	} break;
 
 	case 1: { // vadpcm
-		if ((cnt / wav.channels) % kVADPCMFrameSampleCount) {
-			int newcnt = (cnt / wav.channels + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount * wav.channels;
-			samples = realloc(samples, newcnt * sizeof(int16_t));
-			memset(samples + cnt, 0, (newcnt - cnt) * sizeof(int16_t));
+		if (cnt % kVADPCMFrameSampleCount) {
+			int newcnt = (cnt + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
+			samples = realloc(samples, newcnt * wav.channels * sizeof(int16_t));
+			memset(samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
 			cnt = newcnt;
 		}
 
 		enum { kPREDICTORS = 4 };
 
+		assert(cnt % kVADPCMFrameSampleCount == 0);
 		int nframes = cnt / kVADPCMFrameSampleCount;
 		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		struct vadpcm_vector *codebook = alloca(kPREDICTORS * kVADPCMEncodeOrder * wav.channels * sizeof(struct vadpcm_vector));
 		struct vadpcm_params parms = { .predictor_count = kPREDICTORS };
-		void *dest = malloc(nframes * kVADPCMFrameByteSize);
+		void *dest = malloc(nframes * kVADPCMFrameByteSize * wav.channels);
 		
-		int16_t *schan = malloc(cnt / wav.channels * sizeof(int16_t));;
+		int16_t *schan = malloc(cnt * sizeof(int16_t));
 		uint8_t *destchan = dest;
-		for (int i=0;i<wav.channels;i++) {
-			for (int j=0;j<cnt;j+=wav.channels)
-				schan[j/wav.channels] = samples[j+i];
-			vadpcm_error err = vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes / wav.channels, destchan, schan, scratch);
+		for (int i=0; i<wav.channels; i++) {
+			for (int j=0; j<cnt; j++)
+				schan[j] = samples[i + j*wav.channels];
+			vadpcm_error err = vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
 			if (err != 0) {
 				fprintf(stderr, "VADPCM encoding error: %s\n", vadpcm_error_name(err));
 				return 1;
 			}
-			destchan += nframes / wav.channels * kVADPCMFrameByteSize;
+			destchan += nframes * kVADPCMFrameByteSize;
 		}
 
 		struct vadpcm_vector state = {0};
@@ -157,7 +153,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		w32_at(out, wstart_offset, ftell(out));
 		for (int i=0;i<nframes;i++) {
 			for (int j=0;j<wav.channels;j++)
-				fwrite(dest + (j * (nframes / wav.channels) + i) * kVADPCMFrameByteSize, 1, kVADPCMFrameByteSize, out);
+				fwrite(dest + (j * nframes + i) * kVADPCMFrameByteSize, 1, kVADPCMFrameByteSize, out);
 		}
 		free(dest);
 		free(scratch);

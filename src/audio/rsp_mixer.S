@@ -1214,6 +1214,8 @@ VADPCM_STATE:    	.space 16*2   # state, left/right
 #define input_aligned       s6
 #define next_input_aligned  s7
 #define stereo_toggle       k1
+#define input_incr     		v0
+#define output_incr    		v1
 
 #define vscale  $v01
 #define vstatef $v02
@@ -1275,20 +1277,28 @@ VADPCM_Decompress:
 	addiu nframes, 1
 
 	li dmem_input, %lo(VADPCM_INPUT)
+	li input_incr, 9
 	li dmem_output, %lo(VADPCM_OUTPUT)
+	li output_incr, 32
 
+	bgez a2, VADPCM_FetchFirstFrame
+	move stereo_toggle, a2
+
+	# If the waveform is stereo, double increments
+	sll input_incr, 1
+	sll output_incr, 1
+
+VADPCM_FetchFirstFrame:
 	# Fetch the first frame. Wait for the transfer to finish
 	move s4, dmem_input
 	move s0, a0
 	jal DMAIn
-	li t0, DMA_SIZE(9, 1)
-	addiu a0, 9
-
-	lqv vstate1, 0x00,dmem_state
-	lqv vstate3, 0x10,dmem_state
+	addiu t0, input_incr, -1
+	add a0, input_incr
 
 	move next_input_aligned, s4
-	move stereo_toggle, a2	
+	lqv vstate1, 0x00,dmem_state
+	lqv vstate3, 0x10,dmem_state
 
 	##################################################################
 
@@ -1302,11 +1312,11 @@ VADPCM_DecompressLoop:
 	xori dmem_input, 32   # swap
 	mtc0 dmem_input, COP0_DMA_SPADDR
 	mtc0 a0, COP0_DMA_RAMADDR
-	li t0, DMA_SIZE(9, 1)
+	addiu t0, input_incr, -1
 	mtc0 t0, COP0_DMA_READ
 	andi t0, a0, 7
 	add next_input_aligned, dmem_input, t0
-	addiu a0, 9
+	add a0, input_incr
 
 VADPCM_DecompressMono:
 	# Read from input: control byte, plus residuals
@@ -1387,43 +1397,47 @@ VADPCM_DecompressMono:
 	# Stereo deinterleave
 	addiu dmem_output, -64
 
+	lqv vstate0, 0x00,dmem_output
+	lqv vstate1, 0x10,dmem_output
+	lqv vstate2, 0x20,dmem_output
+	lqv vstate3, 0x30,dmem_output
 VADPCM_InterleaveStereo:
-	lqv vstate1, 0x00,dmem_output
-	lqv vstate3, 0x20,dmem_output
-	ssv vstate1.e0, 0x00,dmem_output
-	ssv vstate3.e0, 0x02,dmem_output
-	ssv vstate1.e1, 0x04,dmem_output
-	ssv vstate3.e1, 0x06,dmem_output
-	ssv vstate1.e2, 0x08,dmem_output
-	ssv vstate3.e2, 0x0A,dmem_output
-	ssv vstate1.e3, 0x0C,dmem_output
-	ssv vstate3.e3, 0x0E,dmem_output
+	ssv vstate0.e0, 0x00,dmem_output
+	ssv vstate2.e0, 0x02,dmem_output
+	ssv vstate0.e1, 0x04,dmem_output
+	ssv vstate2.e1, 0x06,dmem_output
+	ssv vstate0.e2, 0x08,dmem_output
+	ssv vstate2.e2, 0x0A,dmem_output
+	ssv vstate0.e3, 0x0C,dmem_output
+	ssv vstate2.e3, 0x0E,dmem_output
 
-	ssv vstate1.e4, 0x10,dmem_output
-	ssv vstate3.e4, 0x12,dmem_output
-	ssv vstate1.e5, 0x14,dmem_output
-	ssv vstate3.e5, 0x16,dmem_output
-	ssv vstate1.e6, 0x18,dmem_output
-	ssv vstate3.e6, 0x1A,dmem_output
-	ssv vstate1.e7, 0x1C,dmem_output
-	ssv vstate3.e7, 0x1E,dmem_output
+	ssv vstate0.e4, 0x10,dmem_output
+	ssv vstate2.e4, 0x12,dmem_output
+	ssv vstate0.e5, 0x14,dmem_output
+	ssv vstate2.e5, 0x16,dmem_output
+	ssv vstate0.e6, 0x18,dmem_output
+	ssv vstate2.e6, 0x1A,dmem_output
+	ssv vstate0.e7, 0x1C,dmem_output
+	ssv vstate2.e7, 0x1E,dmem_output
 
-	addiu dmem_output, 0x10
+	vcopy vstate0, vstate1
+	vcopy vstate2, vstate3
+	addiu dmem_output, 0x20
 	bltz stereo_toggle, VADPCM_InterleaveStereo 
 	xor stereo_toggle, a2
-	addiu dmem_output, -0x20
+	addiu dmem_output, -0x40
 
 	# Write output into RDRAM (async)
 VADPCM_Output:
 	mfc0 t0, COP0_DMA_FULL
 	bnez t0, VADPCM_Output
-	li t0, DMA_SIZE(32, 1)
+	addiu t0, output_incr, -1
 
 	mtc0 dmem_output, COP0_DMA_SPADDR
 	mtc0 a1, COP0_DMA_RAMADDR
 	mtc0 t0, COP0_DMA_WRITE 
 
-	addiu a1, 32
+	add a1, output_incr
 	xori dmem_output, 128   # swap
 
 	addiu nframes, -1
@@ -1431,8 +1445,6 @@ VADPCM_Output:
 	nop
 
 	##################################################################
-
-	emux_trace_stop
 
 	# Save back state
 	sqv vstate1, 0x00,dmem_state
