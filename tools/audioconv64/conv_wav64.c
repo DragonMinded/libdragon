@@ -114,8 +114,8 @@ int wav_convert(const char *infn, const char *outfn) {
 	} break;
 
 	case 1: { // vadpcm
-		if (cnt % kVADPCMFrameSampleCount) {
-			int newcnt = (cnt + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
+		if ((cnt / wav.channels) % kVADPCMFrameSampleCount) {
+			int newcnt = (cnt / wav.channels + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount * wav.channels;
 			samples = realloc(samples, newcnt * sizeof(int16_t));
 			memset(samples + cnt, 0, (newcnt - cnt) * sizeof(int16_t));
 			cnt = newcnt;
@@ -125,14 +125,21 @@ int wav_convert(const char *infn, const char *outfn) {
 
 		int nframes = cnt / kVADPCMFrameSampleCount;
 		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
-		struct vadpcm_vector *codebook = alloca(kPREDICTORS * kVADPCMEncodeOrder * sizeof(struct vadpcm_vector));
+		struct vadpcm_vector *codebook = alloca(kPREDICTORS * kVADPCMEncodeOrder * wav.channels * sizeof(struct vadpcm_vector));
 		struct vadpcm_params parms = { .predictor_count = kPREDICTORS };
 		void *dest = malloc(nframes * kVADPCMFrameByteSize);
-
-		vadpcm_error err = vadpcm_encode(&parms, codebook, nframes, dest, samples, scratch);
-		if (err != 0) {
-			fprintf(stderr, "VADPCM encoding error: %s\n", vadpcm_error_name(err));
-			return 1;
+		
+		int16_t *schan = malloc(cnt / wav.channels * sizeof(int16_t));;
+		uint8_t *destchan = dest;
+		for (int i=0;i<wav.channels;i++) {
+			for (int j=0;j<cnt;j+=wav.channels)
+				schan[j/wav.channels] = samples[j+i];
+			vadpcm_error err = vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes / wav.channels, destchan, schan, scratch);
+			if (err != 0) {
+				fprintf(stderr, "VADPCM encoding error: %s\n", vadpcm_error_name(err));
+				return 1;
+			}
+			destchan += nframes / wav.channels * kVADPCMFrameByteSize;
 		}
 
 		struct vadpcm_vector state = {0};
@@ -140,13 +147,18 @@ int wav_convert(const char *infn, const char *outfn) {
 		w8(out, kVADPCMEncodeOrder);
 		w16(out, 0); // padding
 		w32(out, 0); // padding
-		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // TBC: loop_state
+		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // TBC: loop_state[0]
+		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // TBC: loop_state[1]
 		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // state
-		for (int i=0; i<kPREDICTORS * kVADPCMEncodeOrder; i++)    // codebook
+		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // state
+		for (int i=0; i<kPREDICTORS * kVADPCMEncodeOrder * wav.channels; i++)    // codebook
 			for (int j=0; j<8; j++)
 				w16(out, codebook[i].v[j]);
 		w32_at(out, wstart_offset, ftell(out));
-		fwrite(dest, nframes, kVADPCMFrameByteSize, out);
+		for (int i=0;i<nframes;i++) {
+			for (int j=0;j<wav.channels;j++)
+				fwrite(dest + (j * (nframes / wav.channels) + i) * kVADPCMFrameByteSize, 1, kVADPCMFrameByteSize, out);
+		}
 		free(dest);
 		free(scratch);
 	} break;

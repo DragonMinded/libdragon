@@ -134,14 +134,18 @@ static vadpcm_error vadpcm_decode(int predictor_count, int order,
 }
 #else
 
-static inline void rsp_vadpcm_decompress(void *input, int16_t *output, int nframes, 
+static inline void rsp_vadpcm_decompress(void *input, int16_t *output, bool stereo, int nframes, 
 	wav64_vadpcm_vector_t *state, wav64_vadpcm_vector_t *codebook)
 {
 	assert(nframes > 0 && nframes <= 256);
+	if (stereo) {
+		assert(nframes % 2 == 0);
+		nframes /= 2;
+	}
 	rspq_write(__mixer_overlay_id, 0x1,
 		PhysicalAddr(input), 
 		PhysicalAddr(output) | (nframes-1) << 24,
-		PhysicalAddr(state),
+		PhysicalAddr(state)  | (stereo ? 1 : 0) << 31,
 		PhysicalAddr(codebook));
 }
 
@@ -208,7 +212,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			rspq_highpri_begin();
 			highpri = true;
 		}
-		rsp_vadpcm_decompress(dest + wlen - 9*nframes/2, dest, nframes, 
+		rsp_vadpcm_decompress(dest + wlen - 9*nframes/2, dest, wav->wave.channels==2, nframes, 
 			&vhead->state, vhead->codebook);
 		#endif
 

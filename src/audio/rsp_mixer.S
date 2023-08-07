@@ -1171,12 +1171,12 @@ Mix8Loop:
 	# Args:
 	#   a0: pointer to input buffer
 	#   a1: pointer to output buffer (+ numframes-1 in MSB)
-	#   a2: pointer to state buffer
+	#   a2: pointer to state buffer  (+ bit 31 set if stereo)
 	#   a3: pointer to codebook
 	#
 	########################################
 
-#define VADPCM_PROFILING      0
+#define VADPCM_PROFILING      1
 
 #define VADPCM_ORDER_SHIFT    1
 #define VADPCM_ORDER          (1<<VADPCM_ORDER_SHIFT)
@@ -1186,31 +1186,37 @@ Mix8Loop:
 
 	.section .bssovl1
 
-VADPCM_STATE:    	.space 16*2
+					.align 8
 VADPCM_CODEBOOK:   	.space VADPCM_CODEBOOK_SIZE*16*2
 
 	# Over-align double-buffers so that we can swap with a single xor
-	.align 8
+					.align 8
 VADPCM_OUTPUT:      .space 32,32   # 1 frame, left / right, buffer 0
 					.space 32,32   # 1 frame, left / right, buffer 1
-	.align 8
+
+					.align 8
 VADPCM_INPUT:		.space 9,9     # 1 frame, left / right, buffer 0
 					.align 5
 					.space 9,9     # 1 frame, left / right, buffer 1
+
+					.align 5
+VADPCM_STATE:    	.space 16*2   # state, left/right
 
 	.text
 
 #define scaling    			t8
 #define predictor  			t7
 #define nframes    			t6
+#define dmem_state          s1
+#define dmem_codebook       s2
 #define dmem_output         s3
 #define dmem_input          s5
 #define input_aligned       s6
 #define next_input_aligned  s7
+#define stereo_toggle       k1
 
-#define vstate  $v01
-#define vscale  $v02
-#define vstatel $v03
+#define vscale  $v01
+#define vstatef $v02
 #define pred0   $v06
 #define pred1   $v07
 #define pred1a  $v08
@@ -1223,6 +1229,12 @@ VADPCM_INPUT:		.space 9,9     # 1 frame, left / right, buffer 0
 #define pred1h  $v15
 #define vres0    $v16
 #define vres1    $v17
+
+#define vstate0 $v18
+#define vstate1 $v19
+#define vstate2 $v20
+#define vstate3 $v21
+
 #define v____ 	$v29
 
 	.func VADPCM_Decompress
@@ -1231,20 +1243,23 @@ VADPCM_Decompress:
 	mfc0 k0, COP0_DP_CLOCK
 	#endif
 
-	li s4, %lo(VADPCM_CODEBOOK)
+	li dmem_codebook, %lo(VADPCM_CODEBOOK)
+	li dmem_state, %lo(VADPCM_STATE)
+
+	# Fetch the codebook
+	move s4, dmem_codebook
 	move s0, a3
-	jal DMAIn
-	li t0, DMA_SIZE(VADPCM_CODEBOOK_SIZE*16, 1)
+	jal DMAInAsync
+	li t0, DMA_SIZE(VADPCM_CODEBOOK_SIZE*16*2, 1)
 
-	li s4, %lo(VADPCM_STATE)
+	# Fetch the state
+	move s4, dmem_state
 	move s0, a2
-	jal DMAIn
-	li t0, DMA_SIZE(16, 1)
+	jal DMAInAsync
+	li t0, DMA_SIZE(16*2, 1)
 
-	li s1, %lo(VADPCM_STATE)
-	li s2, %lo(IDENTITY)
-	lqv vstate, 0,s1
-
+	# Create an identity matrix in pred1a-pred1h, zeroing the whole
+	# matrix, and then loading the identity in the diagonal
 	vxor pred1a, pred1a
 	vxor pred1b, pred1b
 	vxor pred1c, pred1c
@@ -1253,7 +1268,8 @@ VADPCM_Decompress:
 	vxor pred1f, pred1f
 	vxor pred1g, pred1g
 	vxor pred1h, pred1h
-	ltv pred1a.e0,    0,s2          # Load diagonal of ones into pred1a..pred1h
+	li s0, %lo(IDENTITY)
+	ltv pred1a.e0,    0,s0
 
 	srl nframes, a1, 24
 	addiu nframes, 1
@@ -1261,12 +1277,18 @@ VADPCM_Decompress:
 	li dmem_input, %lo(VADPCM_INPUT)
 	li dmem_output, %lo(VADPCM_OUTPUT)
 
+	# Fetch the first frame. Wait for the transfer to finish
 	move s4, dmem_input
 	move s0, a0
 	jal DMAIn
 	li t0, DMA_SIZE(9, 1)
 	addiu a0, 9
+
+	lqv vstate1, 0x00,dmem_state
+	lqv vstate3, 0x10,dmem_state
+
 	move next_input_aligned, s4
+	move stereo_toggle, a2	
 
 	##################################################################
 
@@ -1286,6 +1308,7 @@ VADPCM_DecompressLoop:
 	add next_input_aligned, dmem_input, t0
 	addiu a0, 9
 
+VADPCM_DecompressMono:
 	# Read from input: control byte, plus residuals
 	lbu t0, 0(input_aligned)
 	addiu input_aligned, 1
@@ -1301,7 +1324,7 @@ VADPCM_DecompressLoop:
 	# Process control byte: compute predictors address
 	andi predictor, t0, 0xF
 	sll predictor, VADPCM_ORDER_SHIFT + 4    # multiply by order + sizeof(vector)
-	addiu predictor, %lo(VADPCM_CODEBOOK)    # add base address
+	add predictor, dmem_codebook              
 	
 	vsra8 vres0, vres0, 12             # 4bit unpacking
 	vsll vres1, vres1, 4
@@ -1320,8 +1343,8 @@ VADPCM_DecompressLoop:
 	lqv pred1f.e6, 0x10,predictor
 	lqv pred1g.e7, 0x10,predictor
 
-	vmudh v____,  pred0,  vstate.e6
-	vmadh v____,  pred1,  vstate.e7
+	vmudh v____,  pred0,  vstate1.e6
+	vmadh v____,  pred1,  vstate1.e7
 	vmadh v____,  pred1a, vres0.e0
 	vmadh v____,  pred1b, vres1.e0
 	vmadh v____,  pred1c, vres0.e1
@@ -1330,15 +1353,13 @@ VADPCM_DecompressLoop:
 	vmadh v____,  pred1f, vres1.e2
 	vmadh v____,  pred1g, vres0.e3
 	vmadh v____,  pred1h, vres1.e3
-	vsar  vstatel, COP2_ACC_MD
-	vsar  vstate, COP2_ACC_HI
-	vmudn v____, vstatel, vshift.e2
-	vmadh vstate, vstate, vshift.e2
+	vsar  vstatef, COP2_ACC_MD
+	vsar  vstate0, COP2_ACC_HI
+	vmudn v____, vstatef, vshift.e2
+	vmadh vstate0, vstate0, vshift.e2
 
-	sqv vstate, 0x00,dmem_output
-
-	vmudh v____,  pred0,  vstate.e6
-	vmadh v____,  pred1,  vstate.e7
+	vmudh v____,  pred0,  vstate0.e6
+	vmadh v____,  pred1,  vstate0.e7
 	vmadh v____,  pred1a, vres0.e4
 	vmadh v____,  pred1b, vres1.e4
 	vmadh v____,  pred1c, vres0.e5
@@ -1346,17 +1367,56 @@ VADPCM_DecompressLoop:
 	vmadh v____,  pred1e, vres0.e6
 	vmadh v____,  pred1f, vres1.e6
 	vmadh v____,  pred1g, vres0.e7
-	vmadh vstate, pred1h, vres1.e7
-	vsar  vstatel, COP2_ACC_MD
-	vsar  vstate, COP2_ACC_HI
-	vmudn v____, vstatel, vshift.e2
-	vmadh vstate, vstate, vshift.e2
+	vmadh v____,  pred1h, vres1.e7
+	vsar  vstatef, COP2_ACC_MD
+	vsar  vstate1, COP2_ACC_HI
+	vmudn v____, vstatef, vshift.e2
+	vmadh vstate1, vstate1, vshift.e2
 
-	sqv vstate, 0x10,dmem_output
+	sqv vstate0, 0x00,dmem_output
+	bgez a2, VADPCM_Output
+	sqv vstate1, 0x10,dmem_output
+
+	vcopy vstate1, vstate3
+	xori dmem_codebook, VADPCM_CODEBOOK_SIZE*16
+	addiu input_aligned, 8
+	addiu dmem_output, 32
+	bltz stereo_toggle, VADPCM_DecompressMono
+	xor stereo_toggle, a2
+
+	# Stereo deinterleave
+	addiu dmem_output, -64
+
+VADPCM_InterleaveStereo:
+	lqv vstate1, 0x00,dmem_output
+	lqv vstate3, 0x20,dmem_output
+	ssv vstate1.e0, 0x00,dmem_output
+	ssv vstate3.e0, 0x02,dmem_output
+	ssv vstate1.e1, 0x04,dmem_output
+	ssv vstate3.e1, 0x06,dmem_output
+	ssv vstate1.e2, 0x08,dmem_output
+	ssv vstate3.e2, 0x0A,dmem_output
+	ssv vstate1.e3, 0x0C,dmem_output
+	ssv vstate3.e3, 0x0E,dmem_output
+
+	ssv vstate1.e4, 0x10,dmem_output
+	ssv vstate3.e4, 0x12,dmem_output
+	ssv vstate1.e5, 0x14,dmem_output
+	ssv vstate3.e5, 0x16,dmem_output
+	ssv vstate1.e6, 0x18,dmem_output
+	ssv vstate3.e6, 0x1A,dmem_output
+	ssv vstate1.e7, 0x1C,dmem_output
+	ssv vstate3.e7, 0x1E,dmem_output
+
+	addiu dmem_output, 0x10
+	bltz stereo_toggle, VADPCM_InterleaveStereo 
+	xor stereo_toggle, a2
+	addiu dmem_output, -0x20
 
 	# Write output into RDRAM (async)
-1:	mfc0 t0, COP0_DMA_FULL
-	bnez t0, 1b
+VADPCM_Output:
+	mfc0 t0, COP0_DMA_FULL
+	bnez t0, VADPCM_Output
 	li t0, DMA_SIZE(32, 1)
 
 	mtc0 dmem_output, COP0_DMA_SPADDR
@@ -1372,12 +1432,15 @@ VADPCM_DecompressLoop:
 
 	##################################################################
 
+	emux_trace_stop
+
 	# Save back state
-	sqv vstate, 0x00,s1
-	move s4, s1
+	sqv vstate1, 0x00,dmem_state
+	sqv vstate3, 0x10,dmem_state
+	move s4, dmem_state
 	move s0, a2
 	jal DMAOutAsync
-	li t0, DMA_SIZE(16, 1)
+	li t0, DMA_SIZE(32, 1)
 
 	#if VADPCM_PROFILING
 	mfc0 k1, COP0_DP_CLOCK

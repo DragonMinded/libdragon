@@ -32,8 +32,8 @@ typedef struct __attribute__((packed, aligned(8))) {
 	int8_t order;						///< Order of the predictors
 	int16_t padding;					///< Padding				
 	uint32_t current_rom_addr;			///< Current address in ROM
-	wav64_vadpcm_vector_t loop_state;	///< State at the loop point
-	wav64_vadpcm_vector_t state;		///< Current decompression state
+	wav64_vadpcm_vector_t loop_state[2];///< State at the loop point
+	wav64_vadpcm_vector_t state[2];		///< Current decompression state
 	wav64_vadpcm_vector_t codebook[];	///< Codebook of the predictors
 } wav64_header_vadpcm_t;
 
