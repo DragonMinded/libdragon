@@ -1176,19 +1176,37 @@ Mix8Loop:
 	#
 	########################################
 
+#define VADPCM_PROFILING      0
+
 #define VADPCM_ORDER_SHIFT    1
 #define VADPCM_ORDER          (1<<VADPCM_ORDER_SHIFT)
 
 	# VADPCM State and Codebook
 #define VADPCM_CODEBOOK_SIZE  8
 
-#define BSS_BASE	     CHANNEL_BUFFER
-#define VADPCM_STATE	 (BSS_BASE+0)
-#define VADPCM_CODEBOOK  (BSS_BASE+16)
+	.section .bssovl1
 
-#define scaling    t8
-#define predictor  t7
-#define nframes    t6
+VADPCM_STATE:    	.space 16*2
+VADPCM_CODEBOOK:   	.space VADPCM_CODEBOOK_SIZE*16*2
+
+	# Over-align double-buffers so that we can swap with a single xor
+	.align 8
+VADPCM_OUTPUT:      .space 32,32   # 1 frame, left / right, buffer 0
+					.space 32,32   # 1 frame, left / right, buffer 1
+	.align 8
+VADPCM_INPUT:		.space 9,9     # 1 frame, left / right, buffer 0
+					.align 5
+					.space 9,9     # 1 frame, left / right, buffer 1
+
+	.text
+
+#define scaling    			t8
+#define predictor  			t7
+#define nframes    			t6
+#define dmem_output         s3
+#define dmem_input          s5
+#define input_aligned       s6
+#define next_input_aligned  s7
 
 #define vstate  $v01
 #define vscale  $v02
@@ -1209,6 +1227,10 @@ Mix8Loop:
 
 	.func VADPCM_Decompress
 VADPCM_Decompress:
+	#if VADPCM_PROFILING
+	mfc0 k0, COP0_DP_CLOCK
+	#endif
+
 	li s4, %lo(VADPCM_CODEBOOK)
 	move s0, a3
 	jal DMAIn
@@ -1231,35 +1253,56 @@ VADPCM_Decompress:
 	vxor pred1f, pred1f
 	vxor pred1g, pred1g
 	vxor pred1h, pred1h
+	ltv pred1a.e0,    0,s2          # Load diagonal of ones into pred1a..pred1h
 
 	srl nframes, a1, 24
 	addiu nframes, 1
 
-VADPCM_DecompressLoop:
-	# Fetch input frames
+	li dmem_input, %lo(VADPCM_INPUT)
+	li dmem_output, %lo(VADPCM_OUTPUT)
+
+	move s4, dmem_input
 	move s0, a0
-	li s3, %lo(OUTPUT_AREA)
-	li s4, %lo(OUTPUT_AREA)
 	jal DMAIn
-	li t0, DMA_SIZE(9+8, 1)
+	li t0, DMA_SIZE(9, 1)
+	addiu a0, 9
+	move next_input_aligned, s4
+
+	##################################################################
+
+VADPCM_DecompressLoop:
+	# Start fetching next input buffer (async)
+	mfc0 t0, COP0_DMA_FULL
+	bnez t0, VADPCM_DecompressLoop
+	move input_aligned, next_input_aligned
+
+	# Run next DMA in background
+	xori dmem_input, 32   # swap
+	mtc0 dmem_input, COP0_DMA_SPADDR
+	mtc0 a0, COP0_DMA_RAMADDR
+	li t0, DMA_SIZE(9, 1)
+	mtc0 t0, COP0_DMA_READ
+	andi t0, a0, 7
+	add next_input_aligned, dmem_input, t0
 	addiu a0, 9
 
-	# Decompress 2 frames
-	lbu t0, 0(s4)
-	addiu s4, 1
-	srl scaling, t0, 4
+	# Read from input: control byte, plus residuals
+	lbu t0, 0(input_aligned)
+	addiu input_aligned, 1
+	lpv vres0, 0,input_aligned
+	lpv vres1, 0,input_aligned
+
+	# Process control byte: scaling
 	li t1, 1
+	srl scaling, t0, 4
 	sllv scaling, t1, scaling
 	mtc2 scaling, vscale.e0
 
+	# Process control byte: compute predictors address
 	andi predictor, t0, 0xF
-	sll predictor, VADPCM_ORDER_SHIFT + 4    # multipley by order + sizeof(vector)
+	sll predictor, VADPCM_ORDER_SHIFT + 4    # multiply by order + sizeof(vector)
 	addiu predictor, %lo(VADPCM_CODEBOOK)    # add base address
 	
-	# Decode residuals
-	lpv vres0, 0,s4
-	lpv vres1, 0,s4
-
 	vsra8 vres0, vres0, 12             # 4bit unpacking
 	vsll vres1, vres1, 4
 	vsra8 vres1, vres1, 12
@@ -1267,7 +1310,6 @@ VADPCM_DecompressLoop:
 	vmudh vres1, vscale.e0
 
 	# Load state and predictors (ORDER=2)
-	ltv pred1a.e0,    0,s2          # Load diagonal of ones into pred1a..pred1h
 	lqv pred0.e0,  0x00,predictor
 	lqv pred1.e0,  0x10,predictor
 	lqv pred1a.e1, 0x10,predictor
@@ -1293,7 +1335,7 @@ VADPCM_DecompressLoop:
 	vmudn v____, vstatel, vshift.e2
 	vmadh vstate, vstate, vshift.e2
 
-	sqv vstate, 0x00,s3
+	sqv vstate, 0x00,dmem_output
 
 	vmudh v____,  pred0,  vstate.e6
 	vmadh v____,  pred1,  vstate.e7
@@ -1310,24 +1352,42 @@ VADPCM_DecompressLoop:
 	vmudn v____, vstatel, vshift.e2
 	vmadh vstate, vstate, vshift.e2
 
-	sqv vstate, 0x10,s3
+	sqv vstate, 0x10,dmem_output
 
-	move s4, s3
-	move s0, a1
-	jal DMAOut
+	# Write output into RDRAM (async)
+1:	mfc0 t0, COP0_DMA_FULL
+	bnez t0, 1b
 	li t0, DMA_SIZE(32, 1)
+
+	mtc0 dmem_output, COP0_DMA_SPADDR
+	mtc0 a1, COP0_DMA_RAMADDR
+	mtc0 t0, COP0_DMA_WRITE 
+
 	addiu a1, 32
+	xori dmem_output, 128   # swap
 
 	addiu nframes, -1
 	bgtz nframes, VADPCM_DecompressLoop
 	nop
 
+	##################################################################
+
 	# Save back state
 	sqv vstate, 0x00,s1
 	move s4, s1
 	move s0, a2
-	jal DMAOut
+	jal DMAOutAsync
 	li t0, DMA_SIZE(16, 1)
+
+	#if VADPCM_PROFILING
+	mfc0 k1, COP0_DP_CLOCK
+	subu k1, k1, k0
+	and k1, k1, 0x00FFFFFF
+	emux_log_string "VADPCM_Decompress:\n"
+	emux_dump_gpr k1
+	li k0, 4096-4
+	sw k1, 0(k0)
+	#endif
 
 	j RSPQ_Loop
 	nop
