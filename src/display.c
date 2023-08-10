@@ -182,7 +182,7 @@ static void __display_callback()
     __write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
 }
 
-void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa )
+void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
 {
     uint32_t registers[REGISTER_COUNT];
     uint32_t tv_type = get_tv_type();
@@ -229,10 +229,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             break;
     }
 
-    switch( aa )
+    switch( filters )
     {
-        case ANTIALIAS_OFF:
-            /* Disabling antialias hits a hardware bug on NTSC consoles when
+        case FILTERS_DISABLED:
+            /* Disabling filters hits a hardware bug on NTSC consoles when
                the horizontal resolution is 320 or lower (see issue #66).
                It would work on PAL consoles, but we think users are better
                served by prohibiting it altogether.
@@ -243,8 +243,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             if ( bit == DEPTH_16_BPP )
             {
                 assertf(res.width > 320,
-                    "ANTIALIAS_OFF is not supported by the hardware for widths <= 320.\n"
-                    "Please use ANTIALIAS_RESAMPLE instead.");
+                    "FILTERS_DISABLED is not supported by the hardware for widths <= 320.\n"
+                    "Please use FILTERS_RESAMPLE instead.");
             }
 
             /* Set AA off flag */
@@ -253,28 +253,27 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             /* Dither filter should not be enabled with this AA mode
                as it will cause ugly vertical streaks */
             break;
-        case ANTIALIAS_RESAMPLE:
-            /* Set AA on resample as well as divot on */
-            control |= 0x210;
+        case FILTERS_RESAMPLE:
+            /* Set AA on resample */
+            control |= 0x200;
 
             /* Dither filter should not be enabled with this AA mode
                as it will cause ugly vertical streaks */
             break;
-        case ANTIALIAS_RESAMPLE_FETCH_NEEDED:
+        case FILTERS_RESAMPLE_ANTIALIAS:
             /* Set AA on resample and fetch as well as divot on */
             control |= 0x110;
-
-            /* Enable dither filter in 16bpp mode to give gradients
-               a slightly smoother look */
-            if ( bit == DEPTH_16_BPP ) { control |= 0x10000; }
+            
+            /* Dither filter should not be enabled with this AA mode
+               as it will cause ugly vertical streaks */            
             break;
-        case ANTIALIAS_RESAMPLE_FETCH_ALWAYS:
-            /* Set AA on resample always and fetch as well as divot on */
-            control |= 0x010;
-
+        case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
+            /* Set AA on resample always and fetch as well as divot on 
+            (only on 16bpp mode, act as FILTERS_RESAMPLE_ANTIALIAS on 32bpp) */
             /* Enable dither filter in 16bpp mode to give gradients
                a slightly smoother look */
-            if ( bit == DEPTH_16_BPP ) { control |= 0x10000; }
+            if ( bit == DEPTH_16_BPP ) control |= 0x10010; 
+            else control |= 0x110;
             break;
     }
 
