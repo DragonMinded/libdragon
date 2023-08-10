@@ -110,13 +110,16 @@ void __rdpq_clear_z(const uint16_t *z)
     // keep the previous scissor rect. This is probably expected by the user
     // for symmetry with rdpq_clear that does respect the scissor rect.
     uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
-    rdpq_attach(surf_z, NULL);
+    attach(surf_z, NULL, false, false);
         rdpq_mode_push();
             __rdpq_set_mode_fill();
             if (z) rdpq_set_fill_color(color_from_packed16(*z));
             rdpq_fill_rectangle(0, 0, surf_z->width, surf_z->height);
         rdpq_mode_pop();
-    rdpq_detach();
+    // Use detach instead of rdpq_detach to avoid issuing a full sync here.
+    // TODO: Once we've proven that the RDP doesn't require a full sync for reusing an offscreen framebuffer as a texture, 
+    //       remove the full sync from rdpq_detach and change this back (don't forget the call to "attach" above).
+    detach();
     rdpq_config_set(old_cfg);
 }
 
