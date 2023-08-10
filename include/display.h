@@ -119,6 +119,7 @@ typedef enum
     FILTERS_RESAMPLE_ANTIALIAS_DEDITHER
 } filter_options_t;
 
+///@cond
 /** 
  * @brief Display anti-aliasing options (DEPRECATED: Use #filter_options_t instead)
  * 
@@ -145,6 +146,8 @@ typedef filter_options_t antialias_t;
  * @see #filter_options_t
  */
 #define ANTIALIAS_RESAMPLE_FETCH_ALWAYS FILTERS_RESAMPLE_ANTIALIAS_DEDITHER
+
+///@endcond
 
 /** 
  * @brief Display context (DEPRECATED: Use #surface_t instead)
