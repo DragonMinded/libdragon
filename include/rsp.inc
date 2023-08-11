@@ -1419,6 +1419,19 @@ __emux_log_string.\@: .asciiz "\str"
     .set at
 .endm
 
+.macro emux_dump_vpr_accum regs:vararg
+    .ifb \regs
+        .set vpr_mask, 0xFFFFFFFF
+    .else
+        .set vpr_mask, 0
+        __emux_dump_vpr_rec \regs
+    .endif
+    .set noat
+    li $1, vpr_mask
+    emux 1, 0x46
+    .set at
+.endm
+
 .macro __emux_dump_cop0_rec reg0, regs:vararg
     .set cop0reg.$0,   0
     .set cop0reg.$1,   1
