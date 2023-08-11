@@ -14,6 +14,7 @@
 #include "rdpq_text.h"
 #include "rdpq_paragraph.h"
 #include "rdpq_font_internal.h"
+#include "rdpq_internal.h"
 #include "asset.h"
 #include "fmath.h"
 
@@ -46,6 +47,7 @@ static void recalc_style(style_t *s)
 
 rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
 {
+    assertf(__rdpq_inited, "rdpq_init() must be called before loading a font");
     rdpq_font_t *fnt = buf;
     assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
     assertf(memcmp(fnt->magic, FONT_MAGIC_LOADED, 3), "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
