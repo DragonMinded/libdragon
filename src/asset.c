@@ -71,6 +71,7 @@ void *asset_load(const char *fn, int *sz)
         case 2: {
             size = header.orig_size;
             s = memalign(16, size);
+            assertf(s, "asset_load: out of memory");
             int n = decompress_lz5h_full(f, s, size); (void)n;
             assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
         }   break;
@@ -88,6 +89,7 @@ void *asset_load(const char *fn, int *sz)
             }
 
             s = memalign(16, bufsize);
+            assertf(s, "asset_load: out of memory");
             int n;
 
             #ifdef N64
