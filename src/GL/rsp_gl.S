@@ -165,8 +165,6 @@ GLCmd_GetValue:
     #   a1: The texture's RDRAM address
     ########################################
 GLCmd_BindTexture:
-    # Always reset uploaded texture when binding
-    sw zero, %lo(GL_STATE_UPLOADED_TEX)
     srl t3, a0, 16
     andi t3, 0xFC
     lw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
@@ -182,6 +180,8 @@ GLCmd_BindTexture:
     jal DMAIn
     move s0, a1
 
+    # Always reset uploaded texture when binding
+    sw zero, %lo(GL_STATE_UPLOADED_TEX)
     j RSPQ_Loop
     sw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
 
