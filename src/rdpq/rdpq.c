@@ -653,6 +653,7 @@ void __rdpq_block_begin()
 void __rdpq_block_next_buffer(void)
 {
     struct rdpq_block_state_s *st = &rdpq_block_state;
+    assertf(__rdpq_inited, "a rdpq command was issued during block recording, but rdpq_init() hasn't been called yet");
 
     if (st->pending_wptr) {
         st->wptr = st->pending_wptr;
