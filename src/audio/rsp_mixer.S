@@ -1176,7 +1176,7 @@ Mix8Loop:
 	#
 	########################################
 
-#define VADPCM_PROFILING      1
+#define VADPCM_PROFILING      0
 
 #define VADPCM_ORDER_SHIFT    1
 #define VADPCM_ORDER          (1<<VADPCM_ORDER_SHIFT)
