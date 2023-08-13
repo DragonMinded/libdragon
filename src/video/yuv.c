@@ -318,18 +318,21 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
     // 2048.
     rdpq_set_tile(TILE6, FMT_I8,   2048,      0, NULL);
 
+    surface_t yp = surface_make_placeholder_linear(1, FMT_I8, width, height);
+    surface_t uvp = surface_make_placeholder_linear(2, FMT_IA16, width/2, height/2);
+
     void ltd_yuv2(rdpq_tile_t tile, const surface_t *_, int s0, int t0, int s1, int t1, 
         void (*draw_cb)(rdpq_tile_t tile, int s0, int t0, int s1, int t1), bool filtering)
     {
         for (int y=t0; y<t1; y+=2) {
             // Load two Y lines with a single LOAD_BLOCK, from the surface configured
             // in lookup block 1. Notice that we will not byteswap the second line.
-            rdpq_set_texture_image_raw(1, 0, FMT_I8, width, height);
+            rdpq_set_texture_image(&yp);
             rdpq_load_block_fx(TILE6, 0, y, width*2, 0);
 
             // Load one UV line two times, with two LOAD_BLOCK commands, from the
             // surface configured in lookup block 2. subsequent offsets in TMEM.
-            rdpq_set_texture_image_raw(2, 0, FMT_IA16, width/2, height/2);
+            rdpq_set_texture_image(&uvp);
             rdpq_load_block_fx(TILE4, 0, y/2, width, 0);
             rdpq_load_block_fx(TILE5, 0, y/2, width, 0);
 

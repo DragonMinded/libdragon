@@ -201,7 +201,7 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
         assertf(ROUND_UP(tload->tex->width, 2) % 4 == 0, "Internal Error: invalid width for LOAD_BLOCK (%d)", tload->tex->width);
-        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/4, tload->tex->height);
+        rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/4, tload->tex->height);
         rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, NULL);
         rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
@@ -225,7 +225,7 @@ static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
-        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/2, tload->tex->height);
+        rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/2, tload->tex->height);
         rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, NULL);
         rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
@@ -248,7 +248,7 @@ static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
         // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
-        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), fmt, tload->tex->width, tload->tex->height);
+        rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), fmt, tload->tex->width, tload->tex->height);
         rdpq_set_tile(tile_internal, fmt, tload->tmem_addr, 0, NULL);
         rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch,  &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
@@ -267,7 +267,7 @@ static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t
 {
     rdpq_tile_t tile_internal = (tload->tile + 1) & 7;
     if (tload->load_mode != TEX_LOAD_TILE) {
-        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_I8, tload->tex->stride, tload->tex->height);
+        rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), FMT_I8, tload->tex->stride, tload->tex->height);
         rdpq_set_tile(tile_internal, FMT_I8, tload->tmem_addr, tload->rect.tmem_pitch, NULL);
         rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_TILE;

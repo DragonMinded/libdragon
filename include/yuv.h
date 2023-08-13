@@ -367,9 +367,9 @@ void yuv_blitter_free(yuv_blitter_t *blitter);
  * 
  * For more information on how to use this function, see #rdpq_tex_blit.
  * 
- * @param yp 			Pointer to the Y plane
- * @param up 			Pointer to the U plane
- * @param vp 			Pointer to the V plane
+ * @param yp 			Pointer to the Y plane (must be #FMT_I8)
+ * @param up 			Pointer to the U plane (must be #FMT_I8)
+ * @param vp 			Pointer to the V plane (must be #FMT_I8)
  * @param x0 		    X coordinate where to blit the frame
  * @param y0            Y coordinate where to blit the frame
  * @param parms         Optional blitting parameters (see #rdpq_blitparms_t)
