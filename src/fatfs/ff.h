@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------/
-/  FatFs - Generic FAT Filesystem module  R0.15                               /
+/  FatFs - Generic FAT Filesystem module  R0.15  w/patch2                     /
 /-----------------------------------------------------------------------------/
 /
 / Copyright (C) 2022, ChaN, all right reserved.
