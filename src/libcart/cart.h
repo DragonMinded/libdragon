@@ -15,10 +15,6 @@
 extern "C" {
 #endif
 
-/* PI BSD configuration */
-extern uint32_t cart_dom1;
-extern uint32_t cart_dom2;
-
 /* Size of cartridge SDRAM */
 extern uint32_t cart_size;
 
@@ -30,10 +26,11 @@ extern int cart_init(void);
 /* Close the cartridge interface */
 extern int cart_exit(void);
 
+/* Swap high and low bytes per 16-bit word when reading into SDRAM */
+extern char cart_card_byteswap;
+
 /* Initialize card */
 extern int cart_card_init(void);
-/* Swap high and low bytes per 16-bit word when reading into SDRAM */
-extern int cart_card_byteswap(int flag);
 /* Read sectors from card to system RDRAM */
 extern int cart_card_rd_dram(void *dram, uint32_t lba, uint32_t count);
 /* Read sectors from card to cartridge SDRAM */

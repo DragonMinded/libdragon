@@ -35,6 +35,8 @@ uint32_t __cart_dom2;
 
 uint32_t cart_size;
 
+char cart_card_byteswap;
+
 static void __cart_acs_get(void)
 {
     /* Save PI BSD configuration and reconfigure */
@@ -372,19 +374,6 @@ int cart_card_wr_cart(uint32_t cart, uint32_t lba, uint32_t count)
     return card_wr_cart[cart_type](cart, lba, count);
 }
 
-int cart_card_byteswap(int flag)
-{
-    static int (*const card_byteswap[CART_MAX])(int flag) =
-    {
-        ci_card_byteswap,
-        edx_card_byteswap,
-        ed_card_byteswap,
-        sc_card_byteswap,
-    };
-    if (cart_type < 0) return -1;
-    return card_byteswap[cart_type](flag);
-}
-
 #define CI_BASE_REG             0x18000000
 
 #define CI_BUFFER_REG           (CI_BASE_REG+0x0000)
@@ -499,6 +488,11 @@ int ci_card_rd_cart(uint32_t cart, uint32_t lba, uint32_t count)
 {
     __cart_acs_get();
     __ci_sync();
+    if (cart_card_byteswap)
+    {
+        io_write(CI_COMMAND_REG, CI_BYTESWAP_ON);
+        __ci_sync();
+    }
     io_write(CI_LBA_REG, lba);
     io_write(CI_LENGTH_REG, count);
     io_write(CI_SDRAM_ADDR_REG, (cart & 0xFFFFFFF) >> 1);
@@ -509,7 +503,14 @@ int ci_card_rd_cart(uint32_t cart, uint32_t lba, uint32_t count)
         __ci_sync();
         io_write(CI_COMMAND_REG, CI_SD_RESET);
         __ci_sync();
+        io_write(CI_COMMAND_REG, CI_BYTESWAP_OFF);
+        __ci_sync();
         CART_ABORT();
+    }
+    if (cart_card_byteswap)
+    {
+        io_write(CI_COMMAND_REG, CI_BYTESWAP_OFF);
+        __ci_sync();
     }
     __cart_acs_rel();
     return 0;
@@ -564,16 +565,6 @@ int ci_card_wr_cart(uint32_t cart, uint32_t lba, uint32_t count)
         __ci_sync();
         CART_ABORT();
     }
-    __cart_acs_rel();
-    return 0;
-}
-
-int ci_card_byteswap(int flag)
-{
-    __cart_acs_get();
-    __ci_sync();
-    io_write(CI_COMMAND_REG, flag ? CI_BYTESWAP_ON : CI_BYTESWAP_OFF);
-    __ci_sync();
     __cart_acs_rel();
     return 0;
 }
@@ -855,12 +846,24 @@ int edx_card_rd_cart(uint32_t cart, uint32_t lba, uint32_t count)
     if (!__sd_flag) lba *= 512;
     /* CMD18: READ_MULTIPLE_BLOCK */
     if (__edx_sd_cmd(CMD18, lba) < 0) CART_ABORT();
+    if (cart_card_byteswap)
+    {
+        io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_ON|EDX_CFG_BYTESWAP);
+    }
     io_write(EDX_DMA_ADDR_REG, cart & 0x3FFFFFF);
     io_write(EDX_DMA_LEN_REG, count);
     __edx_sd_mode(EDX_SD_DAT_RD, EDX_SD_DAT_16b);
     while ((resp = io_read(EDX_DMA_STA_REG)) & EDX_DMA_STA_BUSY)
     {
-        if (resp & EDX_DMA_STA_ERROR) CART_ABORT();
+        if (resp & EDX_DMA_STA_ERROR)
+        {
+            io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_ON);
+            CART_ABORT();
+        }
+    }
+    if (cart_card_byteswap)
+    {
+        io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_ON);
     }
     if (__edx_sd_close()) CART_ABORT();
     __cart_acs_rel();
@@ -974,16 +977,6 @@ int edx_card_wr_cart(uint32_t cart, uint32_t lba, uint32_t count)
         cart += 512;
     }
     if (__edx_sd_close()) CART_ABORT();
-    __cart_acs_rel();
-    return 0;
-}
-
-int edx_card_byteswap(int flag)
-{
-    __cart_acs_get();
-    io_write(EDX_SYS_CFG_REG, flag ?
-        (EDX_CFG_SDRAM_ON|EDX_CFG_BYTESWAP) : (EDX_CFG_SDRAM_ON)
-    );
     __cart_acs_rel();
     return 0;
 }
@@ -1371,13 +1364,25 @@ int ed_card_rd_cart(uint32_t cart, uint32_t lba, uint32_t count)
     }
     else
     {
+        if (cart_card_byteswap)
+        {
+            io_write(ED_CFG_REG, ED_CFG_SDRAM_ON|ED_CFG_BYTESWAP);
+        }
         __ed_sd_mode(ED_SD_DAT_RD, ED_SD_DAT_8b);
         io_write(ED_DMA_LEN_REG, count-1);
         io_write(ED_DMA_ADDR_REG, (cart & 0x3FFFFFF) >> 11);
         io_write(ED_DMA_CFG_REG, ED_DMA_SD_TO_RAM);
         while ((resp = io_read(ED_STATUS_REG)) & ED_STATE_DMA_BUSY)
         {
-            if (resp & ED_STATE_DMA_TOUT) CART_ABORT();
+            if (resp & ED_STATE_DMA_TOUT)
+            {
+                io_write(ED_CFG_REG, ED_CFG_SDRAM_ON);
+                CART_ABORT();
+            }
+        }
+        if (cart_card_byteswap)
+        {
+            io_write(ED_CFG_REG, ED_CFG_SDRAM_ON);
         }
     }
     if (__ed_sd_close(1)) CART_ABORT();
@@ -1539,16 +1544,6 @@ int ed_card_wr_cart(uint32_t cart, uint32_t lba, uint32_t count)
         cart += 512;
     }
     if (__ed_sd_close(__sd_type)) CART_ABORT();
-    __cart_acs_rel();
-    return 0;
-}
-
-int ed_card_byteswap(int flag)
-{
-    __cart_acs_get();
-    io_write(ED_CFG_REG, flag ?
-        (ED_CFG_SDRAM_ON|ED_CFG_BYTESWAP) : (ED_CFG_SDRAM_ON)
-    );
     __cart_acs_rel();
     return 0;
 }
@@ -1721,6 +1716,12 @@ int sc_card_rd_cart(uint32_t cart, uint32_t lba, uint32_t count)
 {
     __cart_acs_get();
     __sc_sync();
+    if (cart_card_byteswap)
+    {
+        io_write(SC_DATA1_REG, SC_SD_BYTESWAP_ON);
+        io_write(SC_COMMAND_REG, SC_SD_OP);
+        if (__sc_sync()) CART_ABORT();
+    }
     io_write(SC_DATA0_REG, lba);
     io_write(SC_COMMAND_REG, SC_SD_SECTOR_SET);
     if (__sc_sync()) CART_ABORT();
@@ -1728,6 +1729,12 @@ int sc_card_rd_cart(uint32_t cart, uint32_t lba, uint32_t count)
     io_write(SC_DATA1_REG, count);
     io_write(SC_COMMAND_REG, SC_SD_READ);
     if (__sc_sync()) CART_ABORT();
+    if (cart_card_byteswap)
+    {
+        io_write(SC_DATA1_REG, SC_SD_BYTESWAP_OFF);
+        io_write(SC_COMMAND_REG, SC_SD_OP);
+        if (__sc_sync()) CART_ABORT();
+    }
     __cart_acs_rel();
     return 0;
 }
@@ -1780,17 +1787,6 @@ int sc_card_wr_cart(uint32_t cart, uint32_t lba, uint32_t count)
     io_write(SC_DATA0_REG, cart);
     io_write(SC_DATA1_REG, count);
     io_write(SC_COMMAND_REG, SC_SD_WRITE);
-    if (__sc_sync()) CART_ABORT();
-    __cart_acs_rel();
-    return 0;
-}
-
-int sc_card_byteswap(int flag)
-{
-    __cart_acs_get();
-    __sc_sync();
-    io_write(SC_DATA1_REG, flag ? SC_SD_BYTESWAP_ON : SC_SD_BYTESWAP_OFF);
-    io_write(SC_COMMAND_REG, SC_SD_OP);
     if (__sc_sync()) CART_ABORT();
     __cart_acs_rel();
     return 0;
