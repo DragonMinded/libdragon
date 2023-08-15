@@ -30,15 +30,15 @@ __attribute__((aligned(16))) static uint64_t __cart_buf[512/8];
 
 static uint32_t __cart_dom1_rel;
 static uint32_t __cart_dom2_rel;
-uint32_t cart_dom1;
-uint32_t cart_dom2;
+uint32_t __cart_dom1;
+uint32_t __cart_dom2;
 
 uint32_t cart_size;
 
 static void __cart_acs_get(void)
 {
     /* Save PI BSD configuration and reconfigure */
-    if (cart_dom1)
+    if (__cart_dom1)
     {
         __cart_dom1_rel =
             IO_READ(PI_BSD_DOM1_LAT_REG) <<  0 |
@@ -46,12 +46,12 @@ static void __cart_acs_get(void)
             IO_READ(PI_BSD_DOM1_PGS_REG) << 16 |
             IO_READ(PI_BSD_DOM1_RLS_REG) << 20 |
             1 << 31;
-        IO_WRITE(PI_BSD_DOM1_LAT_REG, cart_dom1 >>  0);
-        IO_WRITE(PI_BSD_DOM1_PWD_REG, cart_dom1 >>  8);
-        IO_WRITE(PI_BSD_DOM1_PGS_REG, cart_dom1 >> 16);
-        IO_WRITE(PI_BSD_DOM1_RLS_REG, cart_dom1 >> 20);
+        IO_WRITE(PI_BSD_DOM1_LAT_REG, __cart_dom1 >>  0);
+        IO_WRITE(PI_BSD_DOM1_PWD_REG, __cart_dom1 >>  8);
+        IO_WRITE(PI_BSD_DOM1_PGS_REG, __cart_dom1 >> 16);
+        IO_WRITE(PI_BSD_DOM1_RLS_REG, __cart_dom1 >> 20);
     }
-    if (cart_dom2)
+    if (__cart_dom2)
     {
         __cart_dom2_rel =
             IO_READ(PI_BSD_DOM2_LAT_REG) <<  0 |
@@ -59,10 +59,10 @@ static void __cart_acs_get(void)
             IO_READ(PI_BSD_DOM2_PGS_REG) << 16 |
             IO_READ(PI_BSD_DOM2_RLS_REG) << 20 |
             1 << 31;
-        IO_WRITE(PI_BSD_DOM2_LAT_REG, cart_dom2 >>  0);
-        IO_WRITE(PI_BSD_DOM2_PWD_REG, cart_dom2 >>  8);
-        IO_WRITE(PI_BSD_DOM2_PGS_REG, cart_dom2 >> 16);
-        IO_WRITE(PI_BSD_DOM2_RLS_REG, cart_dom2 >> 20);
+        IO_WRITE(PI_BSD_DOM2_LAT_REG, __cart_dom2 >>  0);
+        IO_WRITE(PI_BSD_DOM2_PWD_REG, __cart_dom2 >>  8);
+        IO_WRITE(PI_BSD_DOM2_PGS_REG, __cart_dom2 >> 16);
+        IO_WRITE(PI_BSD_DOM2_RLS_REG, __cart_dom2 >> 20);
     }
 }
 
@@ -263,13 +263,14 @@ int cart_init(void)
     };
     int i;
     int result;
-    if (!cart_dom1)
+    if (!__cart_dom1)
     {
-        cart_dom1 = 0x8030FFFF;
+        __cart_dom1 = 0x8030FFFF;
         __cart_acs_get();
-        cart_dom1 = io_read(0x10000000);
+        __cart_dom1 = io_read(0x10000000);
         __cart_acs_rel();
     }
+    if (!__cart_dom2) __cart_dom2 = __cart_dom1;
     if (cart_type < 0)
     {
         for (i = 0; i < CART_MAX; i++)
@@ -436,12 +437,12 @@ int ci_init(void)
 {
     __cart_acs_get();
     if (io_read(CI_MAGIC_REG) != CI_MAGIC) CART_ABORT();
-    cart_size = 0x4000000; /* 64 MiB */
     __ci_sync();
     io_write(CI_COMMAND_REG, CI_CARTROM_WR_ON);
     __ci_sync();
     io_write(CI_COMMAND_REG, CI_BYTESWAP_OFF);
     __ci_sync();
+    cart_size = 0x4000000; /* 64 MiB */
     __cart_acs_rel();
     return 0;
 }
@@ -631,17 +632,12 @@ int ci_card_byteswap(int flag)
 
 int edx_init(void)
 {
-    uint32_t dom1 = cart_dom1;
-    cart_dom1 = 0x80370C04;
     __cart_acs_get();
     io_write(EDX_KEY_REG, EDX_KEY);
-    if (io_read(EDX_EDID_REG) >> 16 != 0xED64)
-    {
-        cart_dom1 = dom1;
-        CART_ABORT();
-    }
-    cart_size = 0x4000000; /* 64 MiB */
+    if (io_read(EDX_EDID_REG) >> 16 != 0xED64) CART_ABORT();
     io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_ON);
+    __cart_dom1 = 0x80370C04;
+    cart_size = 0x4000000; /* 64 MiB */
     __cart_acs_rel();
     return 0;
 }
@@ -1064,16 +1060,12 @@ int edx_card_byteswap(int flag)
 int ed_init(void)
 {
     uint32_t ver;
-    uint32_t dom2 = cart_dom2;
-    cart_dom2 = 0x80370404;
     __cart_acs_get();
     io_write(ED_KEY_REG, ED_KEY);
     ver = io_read(ED_VER_REG) & 0xFFFF;
-    if (ver < 0x100 || ver >= 0x400)
-    {
-        cart_dom2 = dom2;
-        CART_ABORT();
-    }
+    if (ver < 0x100 || ver >= 0x400) CART_ABORT();
+    io_write(ED_CFG_REG, ED_CFG_SDRAM_ON);
+    __cart_dom2 = 0x80370404;
     /* V1/V2/V2.5 do not have physical SRAM on board */
     /* The end of SDRAM is used for SRAM or FlashRAM save types */
     if (ver < 0x300)
@@ -1094,7 +1086,6 @@ int ed_init(void)
             cart_size = 0x4000000; /* 64 MiB */
         }
     }
-    io_write(ED_CFG_REG, ED_CFG_SDRAM_ON);
     __cart_acs_rel();
     return 0;
 }
@@ -1620,6 +1611,10 @@ int sc_init(void)
     io_write(SC_KEY_REG, SC_KEY_OCK);
     if (io_read(SC_IDENTIFIER_REG) != SC_IDENTIFIER) CART_ABORT();
     __sc_sync();
+    io_write(SC_DATA0_REG, SC_CFG_ROM_WRITE);
+    io_write(SC_DATA1_REG, 1);
+    io_write(SC_COMMAND_REG, SC_CONFIG_SET);
+    __sc_sync();
     /* SC64 uses SDRAM for 64DD */
     io_write(SC_DATA0_REG, SC_CFG_DD_MODE);
     io_write(SC_COMMAND_REG, SC_CONFIG_GET);
@@ -1652,10 +1647,6 @@ int sc_init(void)
             cart_size = 0x4000000; /* 64 MiB */
         }
     }
-    io_write(SC_DATA0_REG, SC_CFG_ROM_WRITE);
-    io_write(SC_DATA1_REG, 1);
-    io_write(SC_COMMAND_REG, SC_CONFIG_SET);
-    __sc_sync();
     __cart_acs_rel();
     return 0;
 }

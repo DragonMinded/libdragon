@@ -19,11 +19,11 @@ extern "C" {
 extern uint32_t cart_dom1;
 extern uint32_t cart_dom2;
 
-/* Cartridge type */
-extern int cart_type;
-
 /* Size of cartridge SDRAM */
 extern uint32_t cart_size;
+
+/* Cartridge type */
+extern int cart_type;
 
 /* Detect cartridge and initialize it */
 extern int cart_init(void);
