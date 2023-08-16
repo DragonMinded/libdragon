@@ -947,6 +947,10 @@ static void lazy_validate_rendertarget(void) {
         VALIDATE_WARN(rdp.clip.y1 <= rdp.col.height,
             "drawing command with scissor rectangle (Y1=%d) outside of color buffer (H=%d)", rdp.clip.y1, rdp.col.height);
     }
+    if (rdp.som.cycle_type == 2) {
+        VALIDATE_CRASH((rdp.clip.x1 - rdp.clip.x0) % 4 == 0,
+            "drawing command in COPY mode with scissor rectangle whose width (%d) is not a multiple of 4", rdp.clip.x1 - rdp.clip.x0);
+    }
 }
 
 /** @brief True if the current CC uses the TEX1 slot aka the second texture */
@@ -998,6 +1002,9 @@ static void lazy_validate_rendermode(void) {
             int size = BITS(rdp.last_col_data, 51, 52);
             VALIDATE_CRASH_SOM(size != 3, "COPY mode not supported on 32-bit framebuffers");   
         }
+        VALIDATE_ERR_SOM(!rdp.som.z.cmp, "Z buffer compare is enabled but is not supported in COPY mode");
+        VALIDATE_ERR_SOM(!rdp.som.z.upd || rdp.som.z.prim, "Z buffer write is enabled but is not supported in COPY mode");
+        VALIDATE_ERR_SOM(!rdp.som.tex.persp, "perspective correction is not supported in COPY mode");
         return;
     }
 
@@ -1422,6 +1429,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         rdp.last_som = &buf[0];
         rdp.last_som_data = buf[0];
         rdp.mode_changed = true;
+        rdp.rendertarget_changed = true; // revalidate clipping extents on render target (cycle mode mught be changed)
         break;
     case 0x3C: // SET_COMBINE
         validate_busy_pipe();
