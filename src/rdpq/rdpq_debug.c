@@ -492,7 +492,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
     case 0x2C: fprintf(out, "SET_CONVERT      k0=%d k1=%d k2=%d k3=%d k4=%d k5=%d\n",
                             BITS(buf[0], 45, 53), BITS(buf[0], 36, 44), BITS(buf[0], 27, 35), BITS(buf[0], 18, 26), BITS(buf[0], 9, 17), BITS(buf[0], 0, 8)); return;
     case 0x2D: fprintf(out, "SET_SCISSOR      xy=(%.2f,%.2f)-(%.2f,%.2f)",
-                            BITS(buf[0], 32, 43)*FX(2), BITS(buf[0], 44, 55)*FX(2), BITS(buf[0], 12, 23)*FX(2), BITS(buf[0], 0, 11)*FX(2));
+                            BITS(buf[0], 44, 55)*FX(2), BITS(buf[0], 32, 43)*FX(2), BITS(buf[0], 12, 23)*FX(2), BITS(buf[0], 0, 11)*FX(2));
                             if(BITS(buf[0], 25, 25)) fprintf(out, " field=%s", BITS(buf[0], 24, 24) ? "odd" : "even");
                             fprintf(out, "\n"); return;
     case 0x36: fprintf(out, "FILL_RECT        xy=(%.2f,%.2f)-(%.2f,%.2f)\n",
