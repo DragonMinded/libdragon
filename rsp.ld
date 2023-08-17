@@ -41,9 +41,23 @@ SECTIONS
 
     . = ALIGN(8);
 
-    .bss  : { 
-        KEEP(*(.bss))
-        *(.bss.*)
+    OVERLAY : {
+        .bss { 
+            KEEP(*(.bss))
+            *(.bss.*)
+        } 
+        .bssovl1 { 
+            KEEP(*(.bssovl1))
+            *(.bssovl1.*)
+        } 
+        .bssovl2 { 
+            KEEP(*(.bssovl2))
+            *(.bssovl2.*)
+        } 
+        .bssovl3 { 
+            KEEP(*(.bssovl3))
+            *(.bssovl3.*)
+        } 
     } > ram_data AT > rom_dmem
 
     /DISCARD/ : { *(.MIPS.abiflags) }

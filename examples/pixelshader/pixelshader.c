@@ -71,6 +71,8 @@ int main(void) {
     sprite_t* bkg = sprite_load("rom:/background.sprite");
     sprite_t* flare1 = sprite_load("rom:/flare1.sprite");
     rdpq_font_t *font = rdpq_font_load("rom:/encode.font64");
+    enum { MYFONT = 1 };
+    rdpq_text_register_font(MYFONT, font);
 
     surface_t bkgsurf = sprite_get_pixels(bkg);
     surface_t flrsurf = sprite_get_pixels(flare1);
@@ -91,10 +93,7 @@ int main(void) {
         // Draw help text on the top of the screen
         rdpq_set_mode_fill(RGBA32(0,0,0,0));
         rdpq_fill_rectangle(0, 0, screen->width, 30);
-        rdpq_font_begin(RGBA32(255, 255, 255, 255));
-            rdpq_font_position(40, 20);
-            rdpq_font_printf(font, "Additive blending with %s (press A to toggle) -- %d us", use_rdp ? "RDP" : "RSP", TIMER_MICROS(last_frame));
-        rdpq_font_end();
+        rdpq_text_printf(NULL, MYFONT, 40, 20, "Additive blending with %s (press A to toggle) -- %d us", use_rdp ? "RDP" : "RSP", TIMER_MICROS(last_frame));
         
         // Draw the background
         rdpq_set_mode_copy(true);

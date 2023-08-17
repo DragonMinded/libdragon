@@ -34,6 +34,8 @@ typedef struct {
 
 	/** @brief Absolute ROM address of WAV64 */
 	uint32_t rom_addr;
+
+	void *ext;               ///< Pointer to extended data (internal use)
 } wav64_t;
 
 /** @brief Open a WAV64 file for playback.
@@ -60,6 +62,14 @@ void wav64_set_loop(wav64_t *wav, bool loop);
  * @param   ch          Channel of the mixer to use for playback.
  */
 void wav64_play(wav64_t *wav, int ch);
+
+
+/**
+ * @brief Close a WAV64 file.
+ * 
+ * @param wav 			Pointer to wav64_t structure
+ */
+void 	wav64_close(wav64_t *wav);
 
 #ifdef __cplusplus
 }

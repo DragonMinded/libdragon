@@ -25,11 +25,11 @@
 #    At the end of each command function, you need to hand control
 #    back over to the queue engine.
 # 4. In the body of the function, respect the following rules with 
-#    repsects to register usage:
+#    respects to register usage:
 #    * The first 4 arguments of the function will be passed in
 #      registers a0-a3. If your command needs more, you can use
 #      the CMD_ADDR macro to fetch them (they are in DMEM but
-#      needs to be read). You can reuse a0-a3 as you wish in the
+#      need to be read). You can reuse a0-a3 as you wish in the
 #      function body.
 #    * "ra" regiser will point to RSPQ_Loop, which is the return point.
 #      You can use "jr ra" to go back to the main loop, or simply
@@ -38,7 +38,7 @@
 #      need to use it, you must save and restore its value
 #      before jumping back to RSPQ_Loop.
 #    * "$v00" register (alias: vzero) is initialized with 0. It is
-#      used by the vcopy macro and is in general useful to have it
+#      used by the vcopy macro and is in general useful to have
 #      around, but you can reuse it if you wish and there is no
 #      need to restore it: the main loop will always zero it before
 #      calling each command.
@@ -46,10 +46,10 @@
 #      all powers of two (from 2 to 32768). The single elements are
 #      also aliased using "KNN" macros (eg: K16 is vshift.e3). In addition
 #      to being often useful in many calculations, they are also used
-#      by the vector shifts macros defined in rsp.inc (vsll, vsra, vsrl).
+#      by the vector shift macros defined in rsp.inc (vsll, vsra, vsrl).
 #      If you want, you can clobber these registers (obviously the macros
 #      will not work anymore), and there is no need to restore them:
-#      the main loop will always zero it before calling each command.
+#      the main loop will always initialize them before calling each command.
 # 5. This is how to use DMEM:
 #    * The bss segment is useful to define empty space to use as buffers
 #      (eg: to store data read via DMA). NOTE: contrary to C, the bss
@@ -63,7 +63,7 @@
 #      state using RSPQ_BeginSavedState and RSPQ_EndSavedState.
 #      The save state is preserved across all calls to the overlay,
 #      that is across different commands. This is the only part of
-#      the data segement that you should considered writable.
+#      the data segement that you should consider writable.
 #      NOTE: make sure to put at least one data directive that emits
 #      a non-zero amount of bytes between them. If your overlay
 #      doesn't need any data to be persisted, then use
@@ -335,6 +335,14 @@ RDPQ_DEBUG:                  .byte 0
 # End of RDPQ shared state
 ################################################################
 
+#if RSPQ_PROFILE
+RSPQ_PROFILE_CUR_SLOT:        .long 0
+RSPQ_PROFILE_DATA:            .ds.b (RSPQ_PROFILE_SLOT_SIZE * RSPQ_PROFILE_SLOT_COUNT)
+RSPQ_PROFILE_FRAME_LAST:      .long 0
+RSPQ_PROFILE_FRAME_TIME:      .long 0
+RSPQ_PROFILE_START_TIME:      .long 0
+#endif
+
 # Index (not ID!) of the current overlay, as byte offset in the descriptor array
 RSPQ_CURRENT_OVL:             .half 0
 
@@ -356,6 +364,9 @@ RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24
 RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
 RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
+#if RSPQ_PROFILE
+RSPQ_DefineCommand RSPQCmd_ProfileFrame,    4     # 0x0C
+#endif
 
     .align 3
 #if RSPQ_DEBUG
@@ -431,6 +442,17 @@ RSPQ_Loop:
     #define cmd_index t5    // referenced in rspq_assert_invalid_overlay
     #define cmd_desc  t6
 
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    lw s0, %lo(RSPQ_PROFILE_CUR_SLOT)
+    lw t1, %lo(RSPQ_PROFILE_START_TIME)
+    bltz s0, 1f
+    li ovl_index, 0
+    jal RSPQ_ProfileAccumulate
+    subu t0, t1
+1:
+#endif
+
     jal RSPQ_CheckHighpri
     li t0, 0
 
@@ -461,6 +483,10 @@ RSPQ_Loop:
     beq ovl_index, t1, rspq_overlay_loaded
     lhu t0, %lo(_ovl_data_start) + 0x2
 
+#if RSPQ_PROFILE
+    mfc0 t3, COP0_DP_CLOCK
+#endif
+
     # Save current overlay state
     lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x8 (t1)
     jal DMAOutAsync
@@ -480,6 +506,13 @@ RSPQ_Loop:
 
     # Remember loaded overlay
     sh ovl_index, %lo(RSPQ_CURRENT_OVL)
+
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    subu t0, t3
+    jal RSPQ_ProfileAccumulate
+    li s0, RSPQ_PROFILE_OVL_SWITCH_SLOT*RSPQ_PROFILE_SLOT_SIZE
+#endif
 
 rspq_overlay_loaded:
     # Subtract the command base to determine the final offset into the command table.
@@ -523,6 +556,18 @@ rspq_execute_command:
     # Jump to command. Set ra to the loop function, so that commands can 
     # either do "j RSPQ_Loop" or "jr ra" (or a tail call) to get back to the main loop
     sll cmd_desc, 2
+
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    bnez a0, 1f
+    srl t1, ovl_index, 1
+    # Write samples of opcode 0 to a special slot ("Idle")
+    li t1, RSPQ_PROFILE_IDLE_SLOT*RSPQ_PROFILE_SLOT_SIZE
+1:
+    sw t1, %lo(RSPQ_PROFILE_CUR_SLOT)
+    sw t0, %lo(RSPQ_PROFILE_START_TIME)
+#endif
+
     jr cmd_desc
     li ra, %lo(RSPQ_Loop)
 
@@ -803,15 +848,71 @@ RSPQCmd_RdpWaitIdle:
     li t3, DP_STATUS_BUSY
 
 RSPQ_RdpWait:
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+#endif
     mfc0 t2, COP0_DP_STATUS
 1:
     # Wait for selected RDP status bits to become 0.
     and t1, t2, t3
     bnez t1, 1b
     mfc0 t2, COP0_DP_STATUS
+#if RSPQ_PROFILE
+    # Measure the time we have been waiting for the RDP and save it to the special "RDP idle" slot.
+    # Also, subtract this time from the sample that is currently being recorded by adding it to the current start time.
+    mfc0 t1, COP0_DP_CLOCK
+
+    # If DP_STATUS_BUSY is set we are waiting for a FULL_SYNC. Divert this to yet another special slot.
+    andi t2, t3, DP_STATUS_BUSY
+    bnez t2, 1f
+    li s0, RSPQ_PROFILE_IDLE_SYNC_SLOT*RSPQ_PROFILE_SLOT_SIZE
+    li s0, RSPQ_PROFILE_IDLE_RDP_SLOT*RSPQ_PROFILE_SLOT_SIZE
+1:
+    lw t2, %lo(RSPQ_PROFILE_START_TIME)
+    subu t1, t0
+    and t0, t1, 0xFFFFFF
+    # Masking the updated start time is not necessary here because that will happen in RSPQ_Loop anyway
+    add t2, t0
+    j RSPQ_ProfileAccumulate
+    sw t2, %lo(RSPQ_PROFILE_START_TIME)
+#else
     jr ra
     nop
+#endif
     .endfunc
+
+#if RSPQ_PROFILE
+    .func RSPQCmd_ProfileFrame
+RSPQCmd_ProfileFrame:
+    mfc0 t0, COP0_DP_CLOCK
+    lw t1, %lo(RSPQ_PROFILE_FRAME_LAST)
+    subu t2, t0, t1
+    and t2, 0xFFFFFF
+    sw t0, %lo(RSPQ_PROFILE_FRAME_LAST)
+    jr ra
+    sw t2, %lo(RSPQ_PROFILE_FRAME_TIME)
+    .endfunc
+
+    #############################################################
+    # RSPQ_ProfileAccumulate
+    # 
+    # ARGS:
+    #   t0: Sampled time
+    #   s0: Slot offset
+    #############################################################
+    .func RSPQ_ProfileAccumulate
+RSPQ_ProfileAccumulate:
+    lw t2, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
+    lw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    # We need to mask the time because the RDP clock wraps around at 24 bits
+    and t0, 0xFFFFFF
+    add t0, t2
+    addi t1, 1
+    sw t0, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
+    jr ra
+    sw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    .endfunc
+#endif
 
 #include <rsp_dma.inc>
 #include <rsp_assert.inc>

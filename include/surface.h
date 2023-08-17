@@ -116,8 +116,9 @@ typedef enum {
 /** @brief Return the name of the texture format as a string (for debugging purposes) */
 const char* tex_format_name(tex_format_t fmt);
 
-#define SURFACE_FLAGS_TEXFORMAT    0x1F   ///< Pixel format of the surface
-#define SURFACE_FLAGS_OWNEDBUFFER  0x20   ///< Set if the buffer must be freed
+#define SURFACE_FLAGS_TEXFORMAT    0x001F   ///< Pixel format of the surface
+#define SURFACE_FLAGS_OWNEDBUFFER  0x0020   ///< Set if the buffer must be freed
+#define SURFACE_FLAGS_TEXINDEX     0x0F00   ///< Placeholder for rdpq lookup table
 
 /**
  * @brief A surface buffer for graphics
@@ -264,6 +265,73 @@ inline bool surface_has_owned_buffer(const surface_t *surface)
 {
     return surface->buffer != NULL && surface->flags & SURFACE_FLAGS_OWNEDBUFFER;
 }
+
+/**
+ * @brief Create a placeholder surface, that can be used during rdpq block recording.
+ * 
+ * When recording a rspq block (via #rspq_block_begin / #rspq_block_end) it might
+ * be useful sometimes to issue draw commands that refer to a surface, but
+ * allowing the actual surface to change later at any time.
+ * 
+ * See #rdpq_set_lookup_address for more information.
+ * 
+ * @note A placeholder surface holds a NULL pointer to the actual bytes. Make sure
+ *       not to use it anywhere else but with rdpq.
+ * 
+ * @param index     Index that will be used to lookup the surface at playback time
+ * @param format    Pixel format
+ * @param width     Width of the surface in pixels
+ * @param height    Height of the surface in pixels
+ * @param stride    Stride of the surface in bytes
+ * @return surface_t    The initialized placeholder surface
+ * 
+ * @see #surface_make_placeholder_linear
+ * @see #rdpq_set_lookup_address
+ */
+inline surface_t surface_make_placeholder(int index, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride) {
+    return (surface_t){
+        .flags = format | (index << 8),
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .buffer = NULL,
+    };
+}
+
+/**
+ * @brief Create a linear placeholder surface, that can be used during rdpq block recording.
+ * 
+ * This function is similar to #surface_make_placeholder, but it creates
+ * a surface that is linearly mapped with no per-line padding or extraneous data.
+ * (so the stride is automatically deduced from the width).
+ * 
+ * @param index     Index that will be used to lookup the surface at playback time
+ * @param format    Pixel format
+ * @param width     Width of the surface in pixels
+ * @param height    Height of the surface in pixels
+ * @return surface_t    The initialized placeholder surface
+ * 
+ * @see #surface_make_placeholder
+ */
+inline surface_t surface_make_placeholder_linear(int index, tex_format_t format, uint32_t width, uint32_t height) {
+    return surface_make_placeholder(index, format, width, height, TEX_FORMAT_PIX2BYTES(format, width));
+}
+
+/**
+ * @brief Returns the lookup index of a placeholder surface
+ * 
+ * If ths surface is a placeholder, this function returns the associated lookup
+ * index that will be used to retrieve the actual surface at playback time.
+ * Otherwise, if it is a normal surface, this function will return 0.
+ * 
+ * @param surface   Placeholder surface
+ * @return int      The lookup index of the placeholder surface, or 0 if it is a normal surface
+ */
+inline int surface_get_placeholder_index(const surface_t *surface)
+{
+    return (surface->flags >> 8) & 0xF;
+}
+
 
 #ifdef __cplusplus
 }

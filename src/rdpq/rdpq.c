@@ -653,6 +653,7 @@ void __rdpq_block_begin()
 void __rdpq_block_next_buffer(void)
 {
     struct rdpq_block_state_s *st = &rdpq_block_state;
+    assertf(__rdpq_inited, "a rdpq command was issued during block recording, but rdpq_init() hasn't been called yet");
 
     if (st->pending_wptr) {
         st->wptr = st->pending_wptr;
@@ -1034,7 +1035,7 @@ void rdpq_set_texture_image(const surface_t *surface)
     int misalign = PhysicalAddr(surface->buffer) & 15; (void)misalign;
     assertf(misalign == 0 || misalign >= 8 || TEX_FORMAT_BITDEPTH(fmt) == 4,
         "texture buffer address %p is misaligned and can cause RDP crashes; please use 8-bytes alignment", surface->buffer);
-    rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), fmt, 
+    rdpq_set_texture_image_raw(surface_get_placeholder_index(surface), PhysicalAddr(surface->buffer), fmt, 
         TEX_FORMAT_BYTES2PIX(fmt, surface->stride), surface->height);
 }
 

@@ -3,12 +3,15 @@
  * @brief Audio Subsystem
  * @ingroup audio
  */
+#include "audio.h"
+#include "regsinternal.h"
+#include "interrupt.h"
+#include "n64sys.h"
+#include "utils.h"
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
-#include "libdragon.h"
-#include "regsinternal.h"
-#include "n64sys.h"
+#include <stdint.h>
 
 /**
  * @defgroup audio Audio Subsystem
@@ -535,6 +538,62 @@ volatile int audio_can_write()
     /* check for empty buffer */
     int next = (now_writing + 1) % _num_buf;
     return (buf_full & (1<<next)) ? 0 : 1;
+}
+
+/**
+ * @brief Push a chunk of audio data (high-level function)
+ * 
+ * This function is an easy-to-use, higher level alternative to all
+ * the audio_write* functions. It pushes audio samples into output
+ * hiding the complexity required to match the fixed-size audio buffers.
+ * 
+ * The function accepts a @p buffer of stereo interleaved audio samples;
+ * @p nsamples is the number of samples in the buffer. The function will
+ * push the samples into output as much as possible.
+ * 
+ * If @p blocking is true, it will stop and wait until all samples have
+ * been pushed into output. If @p blocking is false, it will stop as soon
+ * as there are no more free buffers to push samples into, and will return
+ * the number of pushed samples. It is up to the caller to then take care
+ * of this and later try to call audio_push again with the remaining samples.
+ * 
+ * @note You CANNOT mixmatch this function with the other audio_write* functions,
+ *       and viceversa. If you decide to use audio_push, use it exclusively to
+ *       push the audio.
+ * 
+ * @param buffer        Buffer containing stereo samples to be played
+ * @param nsamples      Number of stereo samples in the buffer
+ * @param blocking      If true, wait until all samples have been pushed
+ * @return int          Number of samples pushed into output
+ */
+int audio_push(const short *buffer, int nsamples, bool blocking)
+{
+    static short *dst = NULL;
+    static int dst_sz = 0;
+    int written = 0;
+
+    while (nsamples > 0 && (blocking || dst || audio_can_write())) {
+        if (!dst) {
+            dst = audio_write_begin();
+            dst_sz = audio_get_buffer_length();
+        }
+
+        int ns = MIN(nsamples, dst_sz);
+        memcpy(dst, buffer, ns*2*sizeof(short));
+
+        buffer += ns*2;
+        dst += ns*2;
+        nsamples -= ns;
+        dst_sz -= ns;
+        written += ns;
+
+        if (dst_sz == 0) {
+            audio_write_end();
+            dst = NULL;
+        }
+    }
+
+    return written;
 }
 
 /**

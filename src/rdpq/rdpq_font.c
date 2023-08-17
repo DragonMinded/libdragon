@@ -11,8 +11,16 @@
 #include "rdpq_tex.h"
 #include "rdpq_sprite.h"
 #include "rdpq_font.h"
+#include "rdpq_text.h"
+#include "rdpq_paragraph.h"
 #include "rdpq_font_internal.h"
+#include "rdpq_internal.h"
 #include "asset.h"
+#include "fmath.h"
+
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+
+#define MAX_STYLES   256
 
 _Static_assert(sizeof(glyph_t) == 16, "glyph_t size is wrong");
 _Static_assert(sizeof(atlas_t) == 12, "atlas_t size is wrong");
@@ -21,34 +29,35 @@ _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(font, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(font)))
 
-/** @brief Drawing context */
-static struct draw_ctx_s {
-    atlas_t *last_atlas;
-    float x;
-    float y;
-    float xscale, yscale;
-} draw_ctx;
-
-static void atlas_activate(atlas_t *atlas)
+static void recalc_style(style_t *s)
 {
-    if (draw_ctx.last_atlas != atlas) {
-        rspq_block_run(atlas->up);
-        draw_ctx.last_atlas = atlas;
-    }
+    if (s->block)
+        rdpq_call_deferred((void (*)(void*))rspq_block_free, s->block);
+
+    rspq_block_begin();
+        rdpq_mode_begin();
+            rdpq_set_mode_standard();
+            rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (0,0,0,TEX0)));
+            rdpq_mode_alphacompare(1);
+            rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+            rdpq_set_prim_color(s->color);
+        rdpq_mode_end();
+    s->block = rspq_block_end();
 }
 
 rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
 {
+    assertf(__rdpq_inited, "rdpq_init() must be called before loading a font");
     rdpq_font_t *fnt = buf;
     assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
-    if(fnt->magic == FONT_MAGIC_LOADED) {
-        assertf(0, "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
-    }
-    assertf(fnt->magic == FONT_MAGIC_V0, "invalid font data (magic: %08lx)", fnt->magic);
+    assertf(memcmp(fnt->magic, FONT_MAGIC_LOADED, 3), "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
+    assertf(!memcmp(fnt->magic, FONT_MAGIC, 3), "invalid font data (magic: %c%c%c)", fnt->magic[0], fnt->magic[1], fnt->magic[2]);
+    assertf(fnt->version == 4, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
     fnt->kerning = PTR_DECODE(fnt, fnt->kerning);
+    fnt->styles = PTR_DECODE(fnt, fnt->styles);
     for (int i = 0; i < fnt->num_atlases; i++) {
         void *buf = PTR_DECODE(fnt, fnt->atlases[i].sprite);
         fnt->atlases[i].sprite = sprite_load_buf(buf, fnt->atlases[i].size);
@@ -57,7 +66,9 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
         fnt->atlases[i].up = rspq_block_end();
         debugf("Loaded atlas %d: %dx%d %s\n", i, fnt->atlases[i].sprite->width, fnt->atlases[i].sprite->height, tex_format_name(sprite_get_format(fnt->atlases[i].sprite)));
     }
-    fnt->magic = FONT_MAGIC_LOADED;
+    for (int i = 0; i < fnt->num_styles; i++)
+        recalc_style(&fnt->styles[i]);
+    memcpy(fnt->magic, FONT_MAGIC_LOADED, 3);
     data_cache_hit_writeback(fnt, sz);
     return fnt;
 }
@@ -67,7 +78,7 @@ rdpq_font_t* rdpq_font_load(const char *fn)
     int sz;
     void *buf = asset_load(fn, &sz);
     rdpq_font_t *fnt = rdpq_font_load_buf(buf, sz);
-    fnt->magic = FONT_MAGIC_OWNED;
+    memcpy(fnt->magic, FONT_MAGIC_OWNED, 3);
     return fnt;
 }
 
@@ -78,18 +89,26 @@ static void font_unload(rdpq_font_t *fnt)
         rspq_block_free(fnt->atlases[i].up); fnt->atlases[i].up = NULL;
         fnt->atlases[i].sprite = PTR_ENCODE(fnt, fnt->atlases[i].sprite);
     }
+    for (int i = 0; i < MAX_STYLES; i++) {
+        if (fnt->styles[i].block) {
+            rspq_block_free(fnt->styles[i].block);
+            fnt->styles[i].block = NULL;
+        }
+    }
     fnt->ranges = PTR_ENCODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_ENCODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_ENCODE(fnt, fnt->atlases);
     fnt->kerning = PTR_ENCODE(fnt, fnt->kerning);
-    fnt->magic = FONT_MAGIC_V0;
+    fnt->styles = PTR_ENCODE(fnt, fnt->styles);
+    memcpy(fnt->magic, FONT_MAGIC, 3);
 }
 
 void rdpq_font_free(rdpq_font_t *fnt)
 {
-    uint32_t magic = fnt->magic;
+    bool owned = memcmp(fnt->magic, FONT_MAGIC_OWNED, 3) == 0;
     font_unload(fnt);
-    if(magic == FONT_MAGIC_OWNED) {
+
+    if (owned) {
         #ifndef NDEBUG
         // To help debugging, zero the font structure
         memset(fnt, 0, sizeof(rdpq_font_t));
@@ -99,176 +118,87 @@ void rdpq_font_free(rdpq_font_t *fnt)
     }
 }
 
-
-static uint32_t utf8_decode(const char **str)
+int16_t __rdpq_font_glyph(const rdpq_font_t *fnt, uint32_t codepoint)
 {
-    const uint8_t *s = (const uint8_t*)*str;
-    uint32_t c = *s++;
-    if (c < 0x80) {
-        *str = (const char*)s;
-        return c;
-    }
-    if (c < 0xC0) {
-        *str = (const char*)s;
-        return 0xFFFD;
-    }
-    if (c < 0xE0) {
-        c = ((c & 0x1F) << 6) | (*s++ & 0x3F);
-        *str = (const char*)s;
-        return c;
-    }
-    if (c < 0xF0) {
-        c = ((c & 0x0F) << 12); c |= ((*s++ & 0x3F) << 6); c |= (*s++ & 0x3F);
-        *str = (const char*)s;
-        return c;
-    }
-    if (c < 0xF8) {
-        c = ((c & 0x07) << 18); c |= ((*s++ & 0x3F) << 12); c |= ((*s++ & 0x3F) << 6); c |= (*s++ & 0x3F);
-        *str = (const char*)s;
-        return c;
-    }
-    *str = (const char*)s;
-    return 0xFFFD;
-}
-
-void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
-{
-    int16_t *glyphs = alloca(nch * sizeof(int16_t));
-    int n = 0;
-    const char* text_end = text + nch;
-
-    // Decode UTF-8 text into glyph indices. We do this in one pass
-    // and store the glyph indices to avoid redoing the decoding for
-    // multiple atlases.
-    while (text < text_end) {
-        // Decode one Unicode codepoint from UTF-8
-        uint32_t codepoint = *text > 0 ? *text++ : utf8_decode(&text);
-
-        // Search for the range that contains this codepoint (if any)
-        for (int i = 0; i < fnt->num_ranges; i++) {
-            range_t *r = &fnt->ranges[i];
-            if (codepoint >= r->first_codepoint && codepoint < r->first_codepoint + r->num_codepoints) {
-                glyphs[n++] = r->first_glyph + codepoint - r->first_codepoint;
-                break;
-            }
+    // Search for the range that contains this codepoint (if any)
+    for (int i = 0; i < fnt->num_ranges; i++) {
+        range_t *r = &fnt->ranges[i];
+        if (codepoint >= r->first_codepoint && codepoint < r->first_codepoint + r->num_codepoints) {
+            return r->first_glyph + codepoint - r->first_codepoint;
         }
     }
+    return -1;
+}
 
-    // Allocate an array that will hold the X position of each glyph.
-    // We will fill this lazily in the first pass in the loop below.
-    float *xpos = alloca((n+1) * sizeof(float));
-    xpos[0] = 0.5f;  // start at center of pixel so that all rounds are to nearest
-    bool first_loop = true;
+float __rdpq_font_kerning(const rdpq_font_t *fnt, int16_t glyph1, int16_t glyph2)
+{
+    glyph_t *g = &fnt->glyphs[glyph1];
+    float kerning_scale = fnt->point_size / 127.0f;
 
-    float advance_scale = draw_ctx.xscale * (1.0f / 64.0f);
-    float kerning_scale = draw_ctx.xscale * (fnt->point_size / 127.0f);
+    // Do a binary search in the kerning table to look for the next glyph
+    int l = g->kerning_lo, r = g->kerning_hi;
+    while (l <= r) {
+        int m = (l + r) / 2;
+        if (fnt->kerning[m].glyph2 == glyph2) {
+            // Found the kerning value
+            return fnt->kerning[m].kerning * kerning_scale;
+        }
+        if (fnt->kerning[m].glyph2 < glyph2)
+            l = m + 1;
+        else
+            r = m - 1;
+    }
 
-    // Go through all the glyphs multiple times, one per atlas. Each time,
-    // start from the first undrawn glyph, activate its atlas, and then draw
-    // all the glyphs in the same atlas. Repeat until all the glyphs are drawn.
-    int j = 0;
-    while (j >= 0) {
-        // Activate the atlas of the first undrawn glyph
-        int a = fnt->glyphs[glyphs[j]].natlas;
-        atlas_t *atlas = &fnt->atlases[a];
-        atlas_activate(atlas);
+    return 0;
+}
 
-        // Go through all the glyphs till the end, and draw the ones that are
-        // part of the current atlas
-        int first_undrawn = -1;
-        for (int i = j; i < n; i++) {
-            // If this glyph was already drawn, skip it
-            if (glyphs[i] < 0)
-                continue;
-            glyph_t *g = &fnt->glyphs[glyphs[i]];
+void rdpq_font_style(rdpq_font_t *fnt, uint8_t style_id, const rdpq_fontstyle_t *style)
+{
+    // NOTE: fnt->num_styles refer to how many styles have been defined at
+    // mkfont time. The font always contain room for 256 styles (all zeroed).
+    style_t *s = &fnt->styles[style_id];
+    s->color = style->color;
+    recalc_style(s);
+}
 
-            // If this is the first loop, compute the X position of the glyph
-            if (first_loop) {
-                xpos[i+1] = xpos[i] + g->xadvance * advance_scale;
+int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char_t *chars, float x0, float y0)
+{
+    uint8_t font_id = chars[0].font_id;
+    int cur_atlas = -1;
+    int cur_style = -1;
 
-                // Check if there is kerning information for this glyph
-                if (g->kerning_lo && i < n-1) {
-                    // Do a binary search in the kerning table to look for the next glyph
-                    int l = g->kerning_lo, r = g->kerning_hi;
-                    int next = glyphs[i+1];
-                    while (l <= r) {
-                        int m = (l + r) / 2;
-                        if (fnt->kerning[m].glyph2 == next) {
-                            // Found the kerning value: add it to the X position
-                            xpos[i+1] += fnt->kerning[m].kerning * kerning_scale;
-                            break;
-                        }
-                        if (fnt->kerning[m].glyph2 < next)
-                            l = m + 1;
-                        else
-                            r = m - 1;
-                    }
-                }
-            }
-
-            // If this glyph is not part of the current atlas, skip it. If it's
-            // the first undrawn glyph, remember it.
-            if (g->natlas != a) {
-                if (first_undrawn < 0) first_undrawn = i;
-                continue;
-            }
-
-            // Draw the glyph
-            int width = g->xoff2 - g->xoff;
-            int height = g->yoff2 - g->yoff;
-            rdpq_texture_rectangle_scaled(TILE0, 
-                draw_ctx.x + g->xoff * draw_ctx.xscale + xpos[i],
-                draw_ctx.y + g->yoff * draw_ctx.yscale,
-                draw_ctx.x + g->xoff2 * draw_ctx.xscale + xpos[i],
-                draw_ctx.y + g->yoff2 * draw_ctx.yscale,
-                g->s, g->t, g->s + width, g->t + height);
-
-            // Mark the glyph as drawn
-            glyphs[i] = -1;
+    const rdpq_paragraph_char_t *ch = chars;
+    while (ch->font_id == font_id) {
+        const glyph_t *g = &fnt->glyphs[ch->glyph];
+        if (UNLIKELY(ch->style_id != cur_style)) {
+            assertf(fnt->styles[ch->style_id].block, "style %d not defined in this font", ch->style_id);
+            rspq_block_run(fnt->styles[ch->style_id].block);
+            cur_style = ch->style_id;
+        }
+        if (UNLIKELY(g->natlas != cur_atlas)) {
+            rspq_block_run(fnt->atlases[g->natlas].up);
+            cur_atlas = g->natlas;
         }
 
-        j = first_undrawn;
-        first_loop = false;
+        // Draw the glyph
+        float x = x0 + (ch->x + g->xoff);
+        float y = y0 + (ch->y + g->yoff);
+        int width = (g->xoff2 - g->xoff + 1);
+        int height = (g->yoff2 - g->yoff + 1);
+
+        rdpq_texture_rectangle_raw(TILE0,
+            x, y, x+width, y+height,
+            g->s, g->t, 1, 1);
+
+        // rdpq_texture_rectangle_scaled(TILE0, 
+        //     x, y, x + width * draw_ctx.xscale, y + height * draw_ctx.yscale,
+        //     g->s, g->t, g->s + width, g->t + height);
+
+        ch++;
     }
+
+    return ch - chars;
 }
 
-void rdpq_font_printf(rdpq_font_t *fnt, const char *fmt, ...)
-{
-    char buf[256];
-    va_list va;
-    va_start(va, fmt);
-    int n = vsnprintf(buf, sizeof(buf), fmt, va);
-    va_end(va);
-    rdpq_font_printn(fnt, buf, n);
-}
-
-void rdpq_font_position(float x, float y)
-{
-    draw_ctx.x = x;
-    draw_ctx.y = y;
-}
-
-void rdpq_font_begin(color_t color)
-{
-    rdpq_mode_begin();
-        rdpq_set_mode_standard();
-        rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (0,0,0,TEX0)));
-        rdpq_mode_alphacompare(1);
-        rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
-        rdpq_set_prim_color(color);
-    rdpq_mode_end();
-    draw_ctx = (struct draw_ctx_s){ .xscale = 1, .yscale = 1 };
-}
-
-void rdpq_font_scale(float xscale, float yscale)
-{
-    draw_ctx.xscale = xscale;
-    draw_ctx.yscale = yscale;
-}
-
-void rdpq_font_end(void)
-{
-}
-
-
-extern inline void rdpq_font_print(rdpq_font_t *fnt, const char *text);
+// extern inline void rdpq_font_print(rdpq_font_t *fnt, const char *text, const rdpq_parparms_t *parms);
+extern inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *sort_key);

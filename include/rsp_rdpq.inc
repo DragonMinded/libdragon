@@ -70,8 +70,6 @@ RDPQ_Send:
     #endif
     sub rspq_cmd_size, s3, s4
     beqz rspq_cmd_size, JrRa   # Exit if s3==s4 (0 byte transfer)
-    add t0, rspq_cmd_size, -1
-
     move ra2, ra
 
     # Fetch current pointer in RDRAM where to write the RDP command
@@ -124,6 +122,7 @@ do_dma:
     # RSPQCmd_RdpAppendBuffer (see above). For both, we need to prepare
     # rdram_next (aka a0) with the updated pointer to RDRAM that will be 
     # written to DP_END to run the newly written commands.
+    add t0, rspq_cmd_size, -1
     jal DMAOut
     add rdram_next, rdram_cur, rspq_cmd_size
 
@@ -637,7 +636,8 @@ rdpq_update_finish:
 rdpq_update_fillcopy:
     # We are in copy/fill mode. It is sufficient to emit a SET_OTHER_MODES
     # to configure it.
-    move a0, som_hi
+    or a0, som_hi, 0xFF000000
+    xor a0, 0xFF000000 ^ 0xEF000000
     move a1, som_lo
     jal_and_j RDPQ_Write8, RDPQ_Finalize
 

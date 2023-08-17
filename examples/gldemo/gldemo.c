@@ -2,6 +2,7 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/gl_integration.h>
+#include <rspq_profile.h>
 #include <malloc.h>
 #include <math.h>
 
@@ -21,6 +22,8 @@ static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
 static camera_t camera;
 static surface_t zbuffer;
+
+static uint64_t frames = 0;
 
 static GLuint textures[4];
 
@@ -185,6 +188,13 @@ void render()
     gl_context_end();
 
     rdpq_detach_show();
+
+    rspq_profile_next_frame();
+
+    if (((frames++) % 60) == 0) {
+        rspq_profile_dump();
+        rspq_profile_reset();
+    }
 }
 
 int main()
@@ -207,6 +217,8 @@ int main()
     setup();
 
     controller_init();
+
+    rspq_profile_start();
 
 #if !DEBUG_RDP
     while (1)

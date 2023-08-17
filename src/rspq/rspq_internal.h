@@ -140,6 +140,13 @@ enum {
      * commands appended in the current buffer to be sent to RDP.
      */
     RSPQ_CMD_RDP_APPEND_BUFFER = 0x0B,
+
+#if RSPQ_PROFILE
+    /**
+     * @brief RSPQ Command: measure the total time the current frame has taken
+     */
+    RSPQ_CMD_PROFILE_FRAME     = 0x0C,
+#endif
 };
 
 /** @brief Write an internal command to the RSP queue */
@@ -205,6 +212,23 @@ typedef struct rspq_overlay_tables_s {
 } rspq_overlay_tables_t;
 
 /**
+ * @brief RSP profiling data for a single overlay.
+ */
+typedef struct rspq_profile_slot_dmem_s {
+    uint32_t total_ticks;
+    uint32_t sample_count;
+} rspq_profile_slot_dmem_t __attribute__((aligned(8)));
+
+/**
+ * @brief RSP profiling data.
+ */
+typedef struct rspq_profile_data_dmem_s {
+    rspq_profile_slot_dmem_t slots[RSPQ_PROFILE_SLOT_COUNT];
+    uint32_t frame_last;
+    uint32_t frame_time;
+} rspq_profile_data_dmem_t;
+
+/**
  * @brief RSP Queue data in DMEM.
  * 
  * This structure is defined by rsp_queue.S, and represents the
@@ -227,6 +251,11 @@ typedef struct rsp_queue_s {
     uint8_t rdp_syncfull_ongoing;        ///< True if a SYNC_FULL is currently ongoing
     uint8_t rdpq_debug;                  ///< Debug mode flag
     uint8_t __padding0;
+#if RSPQ_PROFILE
+    uint32_t rspq_profile_cur_slot;
+    rspq_profile_data_dmem_t rspq_profile_data;
+    uint32_t rspq_profile_start_time;
+#endif
     int16_t current_ovl;                 ///< Current overlay index
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 

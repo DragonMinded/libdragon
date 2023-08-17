@@ -1279,21 +1279,26 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
  * an index into the lookup table. The caller of the block will then store
  * the actual buffer pointers in the table, before playing back the block.
  * 
- * The rdpq functions that can optionally load an address from the table are
- * #rdpq_set_color_image_raw, #rdpq_set_z_image_raw and #rdpq_set_texture_image_raw.
+ * While recording, you can create a placeholder surface via #surface_make_placeholder or
+ * #surface_make_placeholder_linear that is just an "index" into the lookup
+ * table.
  * 
  * @code{.c}
+ *      // Create placeholder surfaces with indices 3 and 4
+ *      surface_t tex1 = surface_make_placeholder_linear(3, FMT_RGBA16, 32, 32);
+ *      surface_t tex2 = surface_make_placeholder_linear(4, FMT_RGBA16, 32, 32);
+ * 
  *      // Start recording a block.
  *      rspq_block_begin();
  *      rdpq_set_mode_standard();
  *      
  *      // Load texture from lookup table (slot 3) and draw it to the screen
- *      rdpq_set_texture_image_raw(3, 0, FMT_RGBA16, 32, 32, 32*2);
+ *      rdpq_set_texture_image(&tex1);
  *      rdpq_load_tile(0, 0, 32, 32);
  *      rdpq_texture_rectangle(0, 0, 32, 32);
  *      
  *      // Load texture from lookup table (slot 4) and draw it to the screen
- *      rdpq_set_texture_image_raw(3, 0, FMT_RGBA16, 32, 32, 32*2);
+ *      rdpq_set_texture_image(&tex2);
  *      rdpq_load_tile(0, 0, 32, 32);
  *      rdpq_texture_rectangle(32, 0, 64, 32);
  * 
@@ -1301,9 +1306,9 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
  * 
  *      [...]
  *
- *      // Set two textures into the the lookup table and call the block
- *      rdpq_set_lookup_address(3, tex1.buffer);
- *      rdpq_set_lookup_address(4, tex2.buffer);
+ *      // Set two real textures into the the lookup table and call the block
+ *      rdpq_set_lookup_address(3, robot->buffer);
+ *      rdpq_set_lookup_address(4, dragon->buffer);
  *      rspq_block_run(bl);
  * @endcode
  * 

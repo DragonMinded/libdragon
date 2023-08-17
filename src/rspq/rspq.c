@@ -189,6 +189,7 @@
 #include "rspq.h"
 #include "rspq_internal.h"
 #include "rspq_constants.h"
+#include "rspq_profile.h"
 #include "rdp.h"
 #include "rdpq_constants.h"
 #include "rdpq/rdpq_internal.h"
@@ -204,12 +205,14 @@
 #include <malloc.h>
 
 
+/// @cond
 // Make sure that RSPQ_CMD_WRITE_STATUS and RSPQ_CMD_TEST_WRITE_STATUS have
 // an even ID number. This is a small trick used to save one opcode in
 // rsp_queue.S (see cmd_write_status there for an explanation).
-/// @cond
 _Static_assert((RSPQ_CMD_WRITE_STATUS & 1) == 0);
 _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
+
+_Static_assert(RSPQ_PROFILE_SLOT_SIZE == sizeof(rspq_profile_slot_dmem_t));
 /// @endcond
 
 /** @brief Smaller version of rspq_write that writes to an arbitrary pointer */
@@ -386,7 +389,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x160 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? (RSPQ_PROFILE ? 0x1E8 : 0x160) : 0x100;
 
     int ovl_idx; const char *ovl_name; uint8_t ovl_id;
     rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
@@ -621,6 +624,10 @@ void rspq_init(void)
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;
+
+#if RSPQ_PROFILE
+    rspq_data.rspq_profile_cur_slot = -1;
+#endif
     
     // Init syncpoints
     rspq_syncpoints_genid = 0;
@@ -1409,6 +1416,145 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }
 
+#if RSPQ_PROFILE
+static rspq_profile_data_t profile_data;
+
+static struct {
+    rspq_profile_data_dmem_t data;
+    uint64_t padding;
+} __attribute__((aligned(16))) profile_buffer;
+
+#define PROFILE_DATA_DMEM_ADDRESS (RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, rspq_profile_data))
+
+static void rspq_profile_reset_dmem(bool full)
+{
+    static rspq_profile_data_dmem_t zeroes = {0};
+    uint32_t size = full ? sizeof(zeroes) : sizeof(zeroes.slots);
+    rspq_dma_to_dmem(PROFILE_DATA_DMEM_ADDRESS, &zeroes, size, false);
+}
+
+void rspq_profile_reset()
+{
+    rspq_int_write(RSPQ_CMD_PROFILE_FRAME);
+    memset(&profile_data, 0, sizeof(profile_data));
+
+    profile_data.slots[RSPQ_PROFILE_IDLE_SLOT].name = "idle (CPU)";
+    profile_data.slots[RSPQ_PROFILE_IDLE_RDP_SLOT].name = "idle (RDP)";
+    profile_data.slots[RSPQ_PROFILE_IDLE_SYNC_SLOT].name = "idle (FULL_SYNC)";
+    profile_data.slots[RSPQ_PROFILE_RDPQ_SYNC_SLOT].name = "idle (RDPQCmd_SyncFull)";
+    profile_data.slots[RSPQ_PROFILE_OVL_SWITCH_SLOT].name = "overlay switching";
+    profile_data.slots[RSPQ_PROFILE_BUILTIN_SLOT].name = "builtin commands";
+
+    for (size_t i = 1; i < RSPQ_MAX_OVERLAY_COUNT; i++)
+    {
+        if (rspq_overlay_ucodes[i] == NULL)
+            continue;
+
+        profile_data.slots[i].name = rspq_overlay_ucodes[i]->name;
+    }
+}
+
+void rspq_profile_start()
+{
+    rspq_profile_reset_dmem(true);
+    rspq_profile_reset();
+}
+
+void rspq_profile_stop()
+{
+    // Nothing to be done for now
+}
+
+static void rspq_profile_accumulate()
+{
+    for (size_t i = 0; i < RSPQ_PROFILE_SLOT_COUNT; i++)
+    {
+        profile_data.slots[i].total_ticks += profile_buffer.data.slots[i].total_ticks;
+        profile_data.slots[i].sample_count += profile_buffer.data.slots[i].sample_count;
+    }
+
+    profile_data.total_ticks += profile_buffer.data.frame_time;
+    profile_data.frame_count++;
+}
+
+void rspq_profile_next_frame()
+{
+    rspq_int_write(RSPQ_CMD_PROFILE_FRAME);
+    data_cache_hit_invalidate(&profile_buffer, sizeof(profile_buffer));
+    rspq_dma_to_rdram(&profile_buffer, PROFILE_DATA_DMEM_ADDRESS, sizeof(profile_buffer), false);
+    rspq_call_deferred(rspq_profile_accumulate, NULL);
+    rspq_profile_reset_dmem(false);
+}
+
+#define RCP_TICKS_TO_USECS(ticks) (((ticks) * 1000000ULL) / RCP_FREQUENCY)
+#define PERCENT(fraction, total) ((total) > 0 ? (float)(fraction) * 100.0f / (float)(total) : 0.0f)
+
+static void rspq_profile_dump_overlay(size_t index, uint64_t frame_avg, const char *name)
+{
+    uint64_t mean = profile_data.slots[index].total_ticks / profile_data.frame_count;
+    uint64_t mean_us = RCP_TICKS_TO_USECS(mean);
+    float relative = PERCENT(mean, frame_avg);
+
+    char buf[64];
+    sprintf(buf, "%3.2f%%", relative);
+
+    debugf("%-25s %10llu %10lluus %10s\n",
+        name,
+        profile_data.slots[index].sample_count / profile_data.frame_count,
+        mean_us,
+        buf);
+}
+
+void rspq_profile_dump()
+{
+    if (profile_data.frame_count == 0)
+        return;
+
+    uint64_t frame_avg = profile_data.total_ticks / profile_data.frame_count;
+    uint64_t frame_avg_us = RCP_TICKS_TO_USECS(frame_avg);
+
+    uint64_t counted_time = 0;
+    for (size_t i = 0; i < RSPQ_PROFILE_SLOT_COUNT; i++) counted_time += profile_data.slots[i].total_ticks;
+    
+    // The counted time could be slightly larger than the total time due to various measurement errors
+    uint64_t overhead_time = profile_data.total_ticks > counted_time ? profile_data.total_ticks - counted_time : 0;
+    uint64_t overhead_avg = overhead_time / profile_data.frame_count;
+    uint64_t overhead_us = RCP_TICKS_TO_USECS(overhead_avg);
+
+    float overhead_relative = PERCENT(overhead_avg, frame_avg);
+
+    debugf("%-25s %10s %12s %10s\n", "Slot", "Cnt/Frame", "Avg/Frame", "Rel/Frame");
+	debugf("------------------------------------------------------------\n");
+
+    for (size_t i = 0; i < RSPQ_PROFILE_SLOT_COUNT; i++)
+    {
+        if (profile_data.slots[i].name == NULL)
+            continue;
+
+        rspq_profile_dump_overlay(i, frame_avg, profile_data.slots[i].name);
+    }
+
+	debugf("------------------------------------------------------------\n");
+    debugf("Profiled frames:    %12lld\n", profile_data.frame_count);
+    debugf("Frames per second:  %12.1f\n", (float)RCP_FREQUENCY/(float)frame_avg);
+    debugf("Average frame time: %10lldus\n", frame_avg_us);
+    debugf("Unrecorded time:    %10lldus (%2.2f%%)\n", overhead_us, overhead_relative);
+    debugf("\n");
+}
+
+void rspq_profile_get_data(rspq_profile_data_t *data)
+{
+    memcpy(data, &profile_data, sizeof(profile_data));
+}
+
+#else
+void rspq_profile_start(void) { }
+void rspq_profile_stop(void) { }
+void rspq_profile_reset(void) { }
+void rspq_profile_next_frame(void) { }
+void rspq_profile_dump(void) { }
+void rspq_profile_get_data(rspq_profile_data_t *data) { }
+#endif
 
 /* Extern inline instantiations. */
 extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size);

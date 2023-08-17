@@ -8,7 +8,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "surface.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -37,7 +36,6 @@
  */
 
 ///@cond
-struct surface_s;
 typedef struct surface_s surface_t;
 ///@endcond
 

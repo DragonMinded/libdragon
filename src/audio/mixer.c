@@ -5,6 +5,7 @@
  */
 
 #include "mixer.h"
+#include "mixer_internal.h"
 #include "regsinternal.h"
 #include "utils.h"
 #include "rsp.h"
@@ -173,7 +174,7 @@ static struct {
 /** @brief Count of ticks spent in mixer RSP, used for debugging purposes. */
 int64_t __mixer_profile_rsp = 0;
 
-static uint32_t __mixer_overlay_id;
+uint32_t __mixer_overlay_id;
 
 static inline int mixer_initialized(void) { return Mixer.num_channels != 0; }
 
@@ -549,6 +550,8 @@ static void mixer_exec(int32_t *out, int num_samples) {
 					tracef("mixer_poll: wrapping sample buffer loop: sbuf->wpos:%x len:%x\n", sbuf->wpos, len);
 					samplebuffer_discard(sbuf, wpos);
 					sbuf->wpos = waveform_wrap_wpos(sbuf->wpos, len, loop_len);
+					if (sbuf->wnext >= 0)
+						sbuf->wnext = sbuf->wpos + sbuf->widx;
 					int wpos2 = waveform_wrap_wpos(wpos, len, loop_len);
 					ch->pos -= (int64_t)(wpos-wpos2) << bps_fx64;
 					wpos = wpos2;
@@ -650,7 +653,6 @@ static void mixer_exec(int32_t *out, int num_samples) {
 	}
 
 	uint32_t t0 = TICKS_READ();
-
 	rspq_highpri_begin();
 	rspq_write(__mixer_overlay_id, 0,
 		(((uint32_t)MIXER_FX16(gvol)) & 0xFFFF),
