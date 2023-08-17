@@ -948,8 +948,12 @@ static void lazy_validate_rendertarget(void) {
             "drawing command with scissor rectangle (Y1=%d) outside of color buffer (H=%d)", rdp.clip.y1, rdp.col.height);
     }
     if (rdp.som.cycle_type == 2) {
-        VALIDATE_CRASH((x1 - rdp.clip.x0) % 4 == 0,
-            "drawing command in COPY mode with scissor rectangle whose width (%d) is not a multiple of 4", x1 - rdp.clip.x0);
+        VALIDATE_CRASH(rdp.clip.x0  == 0,
+            "drawing command in COPY mode: scissor left bound (%d) must be zero", rdp.clip.x0);
+    }
+    if (rdp.som.cycle_type == 3) {
+        VALIDATE_ERR(rdp.clip.x0 % 4 == 0,
+            "drawing command in FILL mode: scissor rectangle x0 (%d) must be a multiple of 4", rdp.clip.x0);
     }
 }
 
