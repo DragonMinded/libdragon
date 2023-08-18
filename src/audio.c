@@ -252,9 +252,14 @@ void audio_init(const int frequency, int numbuffers)
         numbuffers = sizeof(buf_full) * 8;
     }
 
-    /* Remember frequency */
-    AI_regs->dacrate = ((2 * clockrate / frequency) + 1) / 2 - 1;
-    AI_regs->samplesize = 15;
+    /* Calculate DAC dacrate and sample size */
+    int dacrate = ((2 * clockrate / frequency) + 1) / 2;
+    /* Sample size must be less than or equal to dacrate divided by 66 and not exceed 16 */
+    int samplesize = MIN(dacrate / 66, 16);
+
+    /* Setup DAC parameters */
+    AI_regs->dacrate = dacrate - 1;
+    AI_regs->samplesize = samplesize - 1;
 
     /* Real frequency */
     _frequency = 2 * clockrate / ((2 * clockrate / frequency) + 1);
@@ -289,6 +294,7 @@ void audio_init(const int frequency, int numbuffers)
 
     /* Set up ring buffer pointers */
     now_playing = 0;
+    playing_queue = 0;
     now_empty = 0;
     now_writing = 0;
     buf_full = 0;
@@ -325,6 +331,11 @@ void audio_close()
 {
     set_AI_interrupt(0);
     unregister_AI_handler(audio_callback);
+
+    /* Stop audio DMA and clocks */
+    AI_regs->control = 0;
+    AI_regs->dacrate = 0;
+    AI_regs->samplesize = 0;
 
     if(buffers)
     {
