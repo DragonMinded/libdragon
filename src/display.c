@@ -84,6 +84,8 @@ static uint32_t __bitdepth;
 static uint32_t __width;
 /** @brief Currently active video height (calculated) */
 static uint32_t __height;
+/** @brief Currently active video interlace mode */
+static interlace_mode_t __interlace_mode = INTERLACE_OFF;
 /** @brief Number of active buffers */
 static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
@@ -173,11 +175,14 @@ static void __display_callback()
     bool interlaced = reg_base[0] & (1<<6);
 
     /* Check if the next buffer is ready to be displayed, otherwise just
-       leave up the current frame */
-    int next = buffer_next(now_showing);
-    if (ready_mask & (1 << next)) {
-        now_showing = next;
-        ready_mask &= ~(1 << next);
+       leave up the current frame. If full interlace mode is selected
+       then don't update the buffer until two fields were displayed. */
+    if (!(__interlace_mode == INTERLACE_FULL && field)) {
+        int next = buffer_next(now_showing);
+        if (ready_mask & (1 << next)) {
+            now_showing = next;
+            ready_mask &= ~(1 << next);
+        }
     }
 
     __write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
@@ -196,7 +201,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
 
-    if( res.interlaced )
+    if( res.interlaced != INTERLACE_OFF )
     {
         /* Serrate on to stop vertical jitter */
         control |= 0x40;
@@ -303,6 +308,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __width = res.width;
     __height = res.height;
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
+    __interlace_mode = res.interlaced;
 
     surfaces = malloc(sizeof(surface_t) * __buffers);
 
