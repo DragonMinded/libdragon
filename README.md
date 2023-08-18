@@ -1,5 +1,10 @@
 # Libdragon
 
+<p align="center">
+<img src="https://user-images.githubusercontent.com/127010686/256988697-8fe1bdcf-a21b-42d0-b383-502eaf048b50.png#gh-dark-mode-only" width="400">
+<img src="https://user-images.githubusercontent.com/127010686/256988620-1167a1e7-6773-4a67-97d4-d251c12ef8ba.png#gh-light-mode-only" width="400">
+</p>
+
 [![Build](https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml/badge.svg?branch=trunk)](https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml)
 
 ## Welcome to libdragon
