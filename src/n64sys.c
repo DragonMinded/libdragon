@@ -110,7 +110,8 @@ void __data_cache_hit_invalidate(volatile void * addr, unsigned long length)
 /**
  * @brief Force a data cache writeback invalidate over a memory region
  *
- * Use this to force cached memory to be written to RDRAM and then cache updated.
+ * Use this to force cached memory to be written to RDRAM
+ * and then invalidate the corresponding cache lines.
  *
  * @param[in] addr
  *            Pointer to memory in question

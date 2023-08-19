@@ -28,7 +28,7 @@ inthandler:
 # So we keep 0-31 empty, and we start saving GPRs from 32, and then FPR. See
 # the other macros to see the actual layout.
 #
-# *NOTE*: this layout is also exposed in C via regblock_t in exception.h
+# *NOTE*: this layout is also exposed in C via reg_block_t in exception.h
 # Please keep in sync!
 #define EXC_STACK_SIZE (544+32)
 #define STACK_GPR      32
