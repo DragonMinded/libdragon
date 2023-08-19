@@ -149,12 +149,20 @@ static void __wait_for_vblank()
     while( reg_base[4] != 2 ) {  }
 }
 
-/** @brief Return true if VI is active (H_VIDEO != 0) */
+/** @brief Return true if VI is sending a video signal (16-bit or 32-bit color set) */
 static inline bool __is_vi_active()
 {
     volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
-    return (reg_base[9] != 0);
+    return (reg_base[0] & 0x03) >= 2;
+}
+
+/** @brief Set active image width to 0, which keeps VI signal active but only sending a blank image */
+static inline void __set_vi_blank_image()
+{
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+
+    reg_base[9] = 0;
 }
 
 /**
@@ -353,11 +361,12 @@ void display_close()
     __width = 0;
     __height = 0;
 
-    // If display is active, wait for vblank before touching the registers
+    /* If display is active, wait for vblank before touching the registers */
     if( __is_vi_active() ) { __wait_for_vblank(); }
 
-    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
-    reg_base[9] = 0;
+    /* Set blank VI image mode before clearing framebuffer address register
+       so that garbage will not be shown on screen */
+    __set_vi_blank_image();
     __write_dram_register( 0 );
 
     if( surfaces )
