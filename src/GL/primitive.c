@@ -260,7 +260,7 @@ void gl_reset_vertex_cache()
 
 bool gl_check_vertex_cache(uint32_t id, uint8_t *cache_index, bool lock)
 {
-    const uint32_t INFINITE_AGE = 0xFFFFFFFF;
+    const uint32_t INFINITE_AGE = 0xFFFFFFFF; // infinitely recent
 
     bool miss = true;
 

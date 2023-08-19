@@ -36,7 +36,7 @@ _start:
 	li t0, 0x7C0000
 
 .Lset_sp:
-	li t1, 0x7FFFFFF0
+	li t1, 0x80000000 - 0x10	/* sp = KSEG0 + memsize - 0x10 */
 	addu sp,t0,t1				/* init stack */
 	la gp, _gp					/* init data pointer */
 	li v0, 8
