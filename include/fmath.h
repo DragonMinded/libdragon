@@ -201,7 +201,7 @@ float fm_atan2f(float y, float x);
     // which is then intrinsified by the compiler.
     #define fmodf(x, y)   ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? fmodf(x,y) : fm_fmodf(x,y))
     #define sinf(x)       (__builtin_constant_p(x) ? sinf(x) : fm_sinf(x))
-    #define cosf(x)       (__builtin_constant_p(x) ? cosf(x) : fm_sinf(x))
+    #define cosf(x)       (__builtin_constant_p(x) ? cosf(x) : fm_cosf(x))
     #define atan2f(y, x)  ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? atan2f(y, x) : fm_atan2f(y, x))
 #endif
 
