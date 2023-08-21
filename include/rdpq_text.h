@@ -151,10 +151,10 @@
  *          rdpq_set_fog_color(RGBA32(255, 255, 255, 128));
  *          rdpq_mode_blender(RDPQ_BLEND_MULTIPLY_CONST);
  *          rdpq_fill_rectangle(
- *              x0 - margin - layout->bbox[0],
- *              y0 - margin - layout->bbox[1],
- *              x0 + margin + layout->bbox[2],
- *              y0 + margin + layout->bbox[3]
+ *              x0 - margin - layout->bbox.x0,
+ *              y0 - margin - layout->bbox.y0,
+ *              x0 + margin + layout->bbox.x1,
+ *              y0 + margin + layout->bbox.y1
  *          );
  * 
  *          // Render the text
@@ -236,6 +236,8 @@ typedef struct rdpq_textparms_s {
  * 
  * @param font_id      Font ID
  * @param font         Font to register
+ * 
+ * @note Font ID 0 is reserved and cannot be used.
  */
 void rdpq_text_register_font(uint8_t font_id, const rdpq_font_t *font);
 
@@ -285,7 +287,8 @@ const rdpq_font_t *rdpq_text_get_font(uint8_t font_id);
  * 
  * @param parms         Layout parameters (see #rdpq_textparms_t)
  * @param font_id       Font ID to use to render the text (at least initially;
- *                      it can modified via escape codes).
+ *                      it can modified via escape codes). The initial style
+ *                      will be style 0.
  * @param x0            X coordinate where to start rendering the text (baseline)
  * @param y0            Y coordinate where to start rendering the text (baseline)
  * @param utf8_text     Text to render, in UTF-8 encoding. Does not need to be
@@ -308,7 +311,8 @@ int rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t font_id, float x0, f
  * 
  * @param parms         Layout parameters
  * @param font_id       Font ID to use to render the text (at least initially;
- *                      it can modified via escape codes).
+ *                      it can modified via escape codes). The initial style
+ *                      will be style 0.
  * @param x0            X coordinate where to start rendering the text
  * @param y0            Y coordinate where to start rendering the text
  * @param utf8_fmt      Format string, in UTF-8 encoding
@@ -326,7 +330,8 @@ int rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, f
  * 
  * @param parms         Layout parameters
  * @param font_id       Font ID to use to render the text (at least initially;
- *                      it can modified via escape codes).
+ *                      it can modified via escape codes). The initial style
+ *                      will be style 0.
  * @param x0            X coordinate where to start rendering the text
  * @param y0            Y coordinate where to start rendering the text
  * @param utf8_text     Text to render, in UTF-8 encoding, NULL terminated.

@@ -325,8 +325,8 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
 
         // Update bounding box
         bool first_line = builder.layout->nlines == 1;
-        if (first_line || builder.layout->bbox[0] > x0) builder.layout->bbox[0] = x0;
-        if (first_line || builder.layout->bbox[2] < x1) builder.layout->bbox[2] = x1;
+        if (first_line || builder.layout->bbox.x0 > x0) builder.layout->bbox.x0 = x0;
+        if (first_line || builder.layout->bbox.x1 < x1) builder.layout->bbox.x1 = x1;
     }
 
     builder.ch_line_start = ch_newline;
@@ -378,8 +378,8 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
         y1 += offset;
     }
 
-    builder.layout->bbox[1] = y0;
-    builder.layout->bbox[3] = y1;
+    builder.layout->bbox.y0 = y0;
+    builder.layout->bbox.y1 = y1;
 
     // Sort the chars by font/style/glyph
     if (builder.layout->nchars < 48) {

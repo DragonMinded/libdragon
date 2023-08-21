@@ -51,7 +51,12 @@ _Static_assert(sizeof(rdpq_paragraph_char_t) == 8, "rdpq_paragraph_char_t is not
  * To render it, use #rdpq_paragraph_render. To free it, use #rdpq_paragraph_free.
  */
 typedef struct {
-    float bbox[4];                   ///< Bounding box of the text (x0, y0, x1, y1), relative to the drawing position
+    struct {
+        float x0;                    ///< Top-left corner (X coord) of the bounding box, relative to drawing position
+        float y0;                    ///< Top-left corner (Y coord) of the bounding box, relative to drawing position
+        float x1;                    ///< Bottom-right corner (X coord) of the bounding box, relative to drawing position
+        float y1;                    ///< Bottom-right corner (Y coord) of the bounding box, relative to drawing position
+    } bbox;                          ///< Bounding box of the text, relative to the drawing position
     int nlines;                      ///< Number of lines of the text
     int nchars;                      ///< Total number of chars in this layout
     int capacity;                    ///< Capacity of the chars array
