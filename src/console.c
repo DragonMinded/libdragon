@@ -197,7 +197,7 @@ void console_init()
 /**
  * @brief Close the console
  *
- * Free the console system.  This will clean up any dynamic memry that was in
+ * Free the console system.  This will clean up any dynamic memory that was in
  * use.
  */
 void console_close()
