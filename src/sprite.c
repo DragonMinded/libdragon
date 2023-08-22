@@ -216,3 +216,5 @@ bool sprite_fits_tmem(sprite_t *sprite)
     
     return (sx->flags & SPRITE_FLAG_FITS_TMEM) != 0;
 }
+
+extern inline tex_format_t sprite_get_format(sprite_t *sprite);
