@@ -7,9 +7,9 @@
 typedef struct surface_s surface_t;
 typedef struct sprite_s sprite_t;
 typedef struct rdpq_texparms_s rdpq_texparms_t;
-typedef enum   rdpq_dither_s rdpq_dither_t;
 
 #include <GL/gl_enums.h>
+#include <rdpq_mode.h>
 
 #define _GL_UNSUPPORTED(func) _Static_assert(0, #func " is not supported!")
 
