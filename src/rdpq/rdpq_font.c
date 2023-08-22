@@ -37,7 +37,7 @@ static void recalc_style(style_t *s)
     rspq_block_begin();
         rdpq_mode_begin();
             rdpq_set_mode_standard();
-            rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (0,0,0,TEX0)));
+            rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (TEX0,0,PRIM,0)));
             rdpq_mode_alphacompare(1);
             rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
             rdpq_set_prim_color(s->color);
