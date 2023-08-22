@@ -32,7 +32,7 @@ fontdemo.z64: N64_ROM_TITLE="RDPQ Font Demo"
 fontdemo.z64: $(BUILD_DIR)/fontdemo.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) fontdemo.z64
+	rm -rf $(BUILD_DIR) filesystem fontdemo.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 

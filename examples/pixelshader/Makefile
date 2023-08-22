@@ -33,7 +33,7 @@ pixelshader.z64: N64_ROM_TITLE="Pixel Shader Demo"
 pixelshader.z64: $(BUILD_DIR)/pixelshader.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) pixelshader.z64
+	rm -rf $(BUILD_DIR) filesystem pixelshader.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 

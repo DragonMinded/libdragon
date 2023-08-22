@@ -32,7 +32,7 @@ overlays_scene.z64: N64_ROM_TITLE="Actor Overlay Demo"
 overlays_scene.z64: $(BUILD_DIR)/overlays_scene.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) $(DSO_LIST) overlays_scene.z64
+	rm -rf $(BUILD_DIR) filesystem $(DSO_LIST) overlays_scene.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 -include $(wildcard $(BUILD_DIR)/scene/*.d)
