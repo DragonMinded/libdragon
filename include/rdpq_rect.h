@@ -178,6 +178,58 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
         _carg(dsdy, 0xFFFF, 16) | _carg(dtdx, 0xFFFF, 0),
         AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
 }
+
+__attribute__((always_inline))
+inline void __rdpq_texture_rectangle_flip_inline(rdpq_tile_t tile,
+    int32_t x0, int32_t y0, int32_t x1, int32_t y1,
+    int32_t s0, int32_t t0)
+{
+    if (UNLIKELY(x1 == x0 || y1 == y0)) return;
+    int32_t dsdy = 1<<10, dtdx = 1<<10;
+
+    if (UNLIKELY(x0 > x1)) {
+        int32_t tmp = x0; x0 = x1; x1 = tmp;
+        x0 += 4; x1 += 4;
+        t0 += (x1 - x0 - 4) << 3;
+        dtdx = -dtdx;
+    }
+    if (UNLIKELY(y0 > y1)) {
+        int32_t tmp = y0; y0 = y1; y1 = tmp;
+        y0 += 4; y1 += 4;
+        s0 += (y1 - y0 - 4) << 3;
+        dsdy = -dsdy;
+    }
+    if (UNLIKELY(x0 < 0)) {
+        t0 -= (x0 * dtdx) >> 7;
+        x0 = 0;
+        if (UNLIKELY(x0 >= x1)) return;
+    }
+    if (UNLIKELY(y0 < 0)) {
+        s0 -= (y0 * dsdy) >> 7;
+        y0 = 0;
+        if (UNLIKELY(y0 >= y1)) return;
+    }
+    if (UNLIKELY(x1 > 1024*4-1)) {
+        x1 = 1024*4-1;
+        if (UNLIKELY(x0 >= x1)) return;
+    }
+    if (UNLIKELY(y1 > 1024*4-1)) {
+        y1 = 1024*4-1;
+        if (UNLIKELY(y0 >= y1)) return;
+    }
+
+    __rdpq_texture_rectangle_flip_raw_fx(tile, x0, y0, x1, y1, s0, t0, dsdy, dtdx);
+}
+
+inline void __rdpq_texture_rectangle_flip_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s, int32_t t)
+{
+    if (__builtin_constant_p(x0) && __builtin_constant_p(y0) && __builtin_constant_p(x1) && __builtin_constant_p(y1)) {
+        __rdpq_texture_rectangle_flip_inline(tile, x0, y0, x1, y1, s, t);
+    } else {
+        extern void __rdpq_texture_rectangle_flip_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0);
+        __rdpq_texture_rectangle_flip_offline(tile, x0, y0, x1, y1, s, t);
+    }
+}
 #undef UNLIKELY
 /// @endcond
 
@@ -358,6 +410,8 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
 #define rdpq_texture_rectangle_raw(tile, x0, y0, x1, y1, s0, t0, dsdx, dtdy) \
     __rdpq_texture_rectangle_raw_fx(tile, (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (dsdx)*1024, (dtdy)*1024)
 
+#define rdpq_texture_rectangle_flip(tile, x0, y0, x1, y1, s, t) \
+    __rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32)
 
 /**
  * @brief Draw a textured flipped rectangle (RDP command: TEXTURE_RECTANGLE_FLIP)
@@ -385,7 +439,7 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * @hideinitializer
  */
 #define rdpq_texture_rectangle_flip_raw(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \
-    rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
+    rdpq_texture_rectangle_flip_raw_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
 })
 
 
