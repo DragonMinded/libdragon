@@ -9,12 +9,12 @@
 #include <string.h>
 #include "regsinternal.h"
 #include "n64sys.h"
+#include "vi.h"
 #include "display.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "debug.h"
 #include "surface.h"
-#include "vi.h"
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
