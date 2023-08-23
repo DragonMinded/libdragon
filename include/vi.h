@@ -34,36 +34,36 @@ typedef struct vi_config_s{
     vi_register_t regs[VI_REGISTERS_COUNT];
 } vi_config_t;
 
-volatile vi_register_t* VI_REGISTERS  =  ((volatile vi_register_t*)VI_REGISTERS_ADDR);
+volatile vi_register_t* VI_REGISTERS    =  ((volatile vi_register_t*)VI_REGISTERS_ADDR);
 /** @brief VI Index register of controlling general display filters/bitdepth configuration */
-#define VI_CTRL        (&VI_REGISTERS[0])
+volatile vi_register_t* VI_CTRL         =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[0];
 /** @brief VI Index register of RDRAM base address of the video output Frame Buffer. This can be changed as needed to implement double or triple buffering. */
-#define VI_ORIGIN       (&VI_REGISTERS[1])
+volatile vi_register_t* VI_ORIGIN       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[1];
 /** @brief VI Index register of width in pixels of the frame buffer. */
-#define VI_WIDTH        (&VI_REGISTERS[2])
+volatile vi_register_t* VI_WIDTH        =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[2];
 /** @brief VI Index register of vertical interrupt. */
-#define VI_V_INTR       (&VI_REGISTERS[3])
+volatile vi_register_t* VI_V_INTR       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[3];
 /** @brief VI Index register of the current half line, sampled once per line. */
-#define VI_V_CURRENT    (&VI_REGISTERS[4])
+volatile vi_register_t* VI_V_CURRENT    =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[4];
 /** @brief VI Index register of sync/burst values */
-#define VI_BURST        (&VI_REGISTERS[5])
+volatile vi_register_t* VI_BURST        =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[5];
 /** @brief VI Index register of total visible and non-visible lines. 
  * This should match either NTSC (non-interlaced: 0x20D, interlaced: 0x20C) or PAL (non-interlaced: 0x271, interlaced: 0x270) */
-#define VI_V_SYNC       (&VI_REGISTERS[6])
+volatile vi_register_t* VI_V_SYNC       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[6];
 /** @brief VI Index register of total width of a line */
-#define VI_H_SYNC       (&VI_REGISTERS[7])
+volatile vi_register_t* VI_H_SYNC       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[7];
 /** @brief VI Index register of an alternate scanline length for one scanline during vsync. */
-#define VI_H_SYNC_LEAP  (&VI_REGISTERS[8])
+volatile vi_register_t* VI_H_SYNC_LEAP  =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[8];
 /** @brief VI Index register of start/end of the active video image, in screen pixels */
-#define VI_H_VIDEO      (&VI_REGISTERS[9])
+volatile vi_register_t* VI_H_VIDEO      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[9];
 /** @brief VI Index register of start/end of the active video image, in screen half-lines. */
-#define VI_V_VIDEO      (&VI_REGISTERS[10])
+volatile vi_register_t* VI_V_VIDEO      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[10];
 /** @brief VI Index register of start/end of the color burst enable, in half-lines. */
-#define VI_V_BURST      (&VI_REGISTERS[11])
+volatile vi_register_t* VI_V_BURST      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[11];
 /** @brief VI Index register of horizontal subpixel offset and 1/horizontal scale up factor. */
-#define VI_X_SCALE      (&VI_REGISTERS[12])
+volatile vi_register_t* VI_X_SCALE      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[12];
 /** @brief VI Index register of vertical subpixel offset and 1/vertical scale up factor. */
-#define VI_Y_SCALE      (&VI_REGISTERS[13])
+volatile vi_register_t* VI_Y_SCALE      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[13];
 
 /** @brief VI register by index (0-13)*/
 #define VI_TO_REGISTER(index) ((index >= 0 && index <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
