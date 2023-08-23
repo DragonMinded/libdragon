@@ -55,8 +55,8 @@ static void __display_callback()
 {
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
-    bool field = (*vi_register(VI_V_CURRENT)) & 1;
-    bool interlaced = (*vi_register(VI_CTRL)) & (VI_CTRL_SERRATE);
+    bool field = (*VI_V_CURRENT) & 1;
+    bool interlaced = (*VI_CTRL) & (VI_CTRL_SERRATE);
 
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame */
@@ -71,7 +71,6 @@ static void __display_callback()
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
 {
-    vi_config_t config;
     uint32_t tv_type = get_tv_type();
     uint32_t control = !sys_bbplayer()? VI_PIXEL_ADVANCE_DEFAULT : VI_PIXEL_ADVANCE_BBPLAYER;
 
@@ -88,17 +87,17 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         control |= VI_CTRL_SERRATE;
     }
 
-    /* Copy over to temporary for extra initializations */
-    config = vi_config_presets[res.interlaced][tv_type];
+    /* Copy over extra initializations */
+    vi_write_config(&vi_config_presets[res.interlaced][tv_type]);
 
     /* Figure out control register based on input given */
     switch( bit )
     {
         case DEPTH_16_BPP:
-            control |= VI_CTRL_TYPE_16_BIT;
+            control |= VI_CTRL_TYPE_16_BPP;
             break;
         case DEPTH_32_BPP:
-            control |= VI_CTRL_TYPE_32_BIT;
+            control |= VI_CTRL_TYPE_32_BPP;
             break;
     }
 
@@ -182,7 +181,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     }
 
     /* Set the control register in our template */
-    config.regs[VI_CTRL] = control;
+    vi_write_safe(VI_CTRL, control);
 
     /* Calculate width and scale registers */
     assertf(res.width > 0 && res.width <= 800, "invalid width");
@@ -195,9 +194,9 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         assertf(res.width % 2 == 0, "width must be divisible by 2 for 32-bit depth");
     }
-    config.regs[VI_WIDTH] = res.width;
-    config.regs[VI_X_SCALE] = ( 1024*res.width + 320 ) / 640;
-    config.regs[VI_Y_SCALE] = ( 1024*res.height + 120 ) / 240;
+    vi_write_safe(VI_WIDTH, res.width);
+    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
+    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(res.height));
 
     /* Set up the display */
     __width = res.width;
@@ -229,8 +228,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
        to avoid confusing the VI chip with in-frame modifications. */
     if ( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    config.regs[VI_ORIGIN] = PhysicalAddr(__safe_buffer[0]);
-    vi_configure_registers(&config);
+    vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
 
     enable_interrupts();
 
@@ -257,7 +255,7 @@ void display_close()
     // If display is active, wait for vblank before touching the registers
     if( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    *vi_register(VI_H_VIDEO) = 0;
+    vi_write_safe(VI_H_VIDEO, 0);
     vi_write_dram_register( 0 );
 
     if( surfaces )
