@@ -231,9 +231,16 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     switch( filters )
     {
+        /* Libdragon uses preconfigured modes for enabling certain 
+        combinations of VI filters due to a large number of wrong/invalid configurations 
+        with very strict conditions, and to simplify the options for the user.
+        Like for example antialiasing requiring resampling; dedithering not working with 
+        resampling, unless always fetching; always enabling divot filter under AA etc.
+        The cases below provide all possible configurations that are deemed useful. */
+
         case FILTERS_DISABLED:
-            /* Disabling filters hits a hardware bug on NTSC consoles when
-               the horizontal resolution is 320 or lower (see issue #66).
+            /* Disabling resampling (AA_MODE = 0x3) on 16bpp hits a hardware bug on NTSC 
+               consoles when the horizontal resolution is 320 or lower (see issue #66).
                It would work on PAL consoles, but we think users are better
                served by prohibiting it altogether.
 
@@ -250,8 +257,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             /* Set AA off flag */
             control |= 0x300;
 
-            /* Dither filter should not be enabled with this AA mode
-               as it will cause ugly vertical streaks */
             break;
         case FILTERS_RESAMPLE:
             /* Set AA on resample */
@@ -260,16 +265,28 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             /* Dither filter should not be enabled with this AA mode
                as it will cause ugly vertical streaks */
             break;
+        case FILTERS_DEDITHER:
+            /* Set AA off flag and dedither on 
+            (only on 16bpp mode, act as FILTERS_DISABLED on 32bpp) */
+            if ( bit == DEPTH_16_BPP ) {
+                // Assert on width (see FILTERS_DISABLED)
+                assertf(res.width > 320,
+                    "FILTERS_DEDITHER is not supported by the hardware for widths <= 320.\n"
+                    "Please use FILTERS_RESAMPLE instead.");
+                control |= 0x10300;
+            }
+            else control |= 0x300;
+
+            break;
         case FILTERS_RESAMPLE_ANTIALIAS:
             /* Set AA on resample and fetch as well as divot on */
             control |= 0x110;
-            
-            /* Dither filter should not be enabled with this AA mode
-               as it will cause ugly vertical streaks */            
+
             break;
         case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
-            /* Set AA on resample always and fetch as well as divot on 
+            /* Set AA on resample always and fetch as well as dedither on 
             (only on 16bpp mode, act as FILTERS_RESAMPLE_ANTIALIAS on 32bpp) */
+
             /* Enable dither filter in 16bpp mode to give gradients
                a slightly smoother look */
             if ( bit == DEPTH_16_BPP ) control |= 0x10010; 

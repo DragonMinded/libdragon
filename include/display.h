@@ -98,7 +98,16 @@ typedef enum
     GAMMA_CORRECT_DITHER
 } gamma_t;
 
-/** @brief Valid display filter options */
+/** @brief Valid display filter options.
+ * 
+ * Libdragon uses preconfigured options for enabling certain 
+ * combinations of Video Interface filters due to a large number of wrong/invalid configurations 
+ * with very strict conditions, and to simplify the options for the user.
+ * 
+ * Like for example antialiasing requiring resampling; dedithering not working with 
+ * resampling, unless always fetching; always enabling divot filter under AA etc.
+ * 
+ * The options below provide all possible configurations that are deemed useful in development. */
 typedef enum
 {
     /** @brief All display filters are disabled */
@@ -108,6 +117,8 @@ typedef enum
      * (which is always NTSC 640x480 or PAL 640x512). 
      * This option enables a bilinear interpolation that can be used during this resize. */
     FILTERS_RESAMPLE,
+    /** @brief Reconstruct a 32-bit output from dithered 16-bit framebuffer. */
+    FILTERS_DEDITHER,
     /** @brief Resize the output image with a bilinear filter (see #FILTERS_RESAMPLE). 
      * Add a video interface anti-aliasing pass with a divot filter. 
      * To be able to see correct anti-aliased output, this display filter must be enabled,
