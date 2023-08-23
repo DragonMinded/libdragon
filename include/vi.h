@@ -114,20 +114,20 @@ static const vi_config_t vi_config_presets[2][3] = {
 #define VI_TV_TYPES_INTERLACE 3
 
 /** Under VI_CTRL */
-#define VI_DEDITHER_FILTER_ENABLE           1<<16
-#define VI_PIXEL_ADVANCE_DEFAULT            0b0011 << 12
-#define VI_PIXEL_ADVANCE_BBPLAYER           0b0001 << 12
-#define VI_AA_MODE_NONE                     0b11 << 8
-#define VI_AA_MODE_RESAMPLE                 0b10 << 8
-#define VI_AA_MODE_RESAMPLE_FETCH_NEEDED    0b01 << 8
-#define VI_AA_MODE_RESAMPLE_FETCH_ALWAYS    0b00 << 8
-#define VI_CTRL_SERRATE                     1<<6
-#define VI_DIVOT_ENABLE                     1<<4
-#define VI_GAMMA_ENABLE                     1<<3
-#define VI_GAMMA_DITHER_ENABLE              1<<2
-#define VI_CTRL_TYPE_32_BIT                 0b11
-#define VI_CTRL_TYPE_16_BIT                 0b10
-#define VI_CTRL_TYPE_BLANK                  0b00
+#define VI_DEDITHER_FILTER_ENABLE           (1<<16)
+#define VI_PIXEL_ADVANCE_DEFAULT            (0b0011 << 12)
+#define VI_PIXEL_ADVANCE_BBPLAYER           (0b0001 << 12)
+#define VI_AA_MODE_NONE                     (0b11 << 8)
+#define VI_AA_MODE_RESAMPLE                 (0b10 << 8)
+#define VI_AA_MODE_RESAMPLE_FETCH_NEEDED    (0b01 << 8)
+#define VI_AA_MODE_RESAMPLE_FETCH_ALWAYS    (0b00 << 8)
+#define VI_CTRL_SERRATE                     (1<<6)
+#define VI_DIVOT_ENABLE                     (1<<4)
+#define VI_GAMMA_ENABLE                     (1<<3)
+#define VI_GAMMA_DITHER_ENABLE              (1<<2)
+#define VI_CTRL_TYPE_32_BIT                 (0b11)
+#define VI_CTRL_TYPE_16_BIT                 (0b10)
+#define VI_CTRL_TYPE_BLANK                  (0b00)
 
 /** Under VI_ORIGIN  */
 #define VI_ORIGIN_SET(value)      ((value & 0xFFFFFF) << 0)

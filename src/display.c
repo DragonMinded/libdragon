@@ -166,7 +166,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             break;
         case FILTERS_RESAMPLE_ANTIALIAS:
             /* Set AA on resample and fetch as well as divot on */
-            control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED;
+            control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
 
             break;
         case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
@@ -176,8 +176,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             /* Enable dither filter in 16bpp mode to give gradients
                a slightly smoother look */
             if ( bit == DEPTH_16_BPP ) 
-                 control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DEDITHER_FILTER_ENABLE; 
-            else control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED;
+                 control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DEDITHER_FILTER_ENABLE | VI_DIVOT_ENABLE; 
+            else control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
             break;
     }
 
