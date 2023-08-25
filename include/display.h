@@ -89,26 +89,76 @@ typedef enum
 /** @brief Valid gamma correction settings */
 typedef enum
 {
-    /** @brief Uncorrected gamma */
+    /** @brief Uncorrected gamma, should be used by default and with assets built by libdragon tools */
     GAMMA_NONE,
-    /** @brief Corrected gamma */
+    /** @brief Corrected gamma, should be used on a 32-bit framebuffer
+     * only when assets have been produced in linear color space and accurate blending is important */
     GAMMA_CORRECT,
-    /** @brief Corrected gamma with hardware dither */
+    /** @brief Corrected gamma with hardware dithered output */
     GAMMA_CORRECT_DITHER
 } gamma_t;
 
-/** @brief Valid antialiasing settings */
+/** @brief Valid display filter options.
+ * 
+ * Libdragon uses preconfigured options for enabling certain 
+ * combinations of Video Interface filters due to a large number of wrong/invalid configurations 
+ * with very strict conditions, and to simplify the options for the user.
+ * 
+ * Like for example antialiasing requiring resampling; dedithering not working with 
+ * resampling, unless always fetching; always enabling divot filter under AA etc.
+ * 
+ * The options below provide all possible configurations that are deemed useful in development. */
 typedef enum
 {
-    /** @brief No anti-aliasing */
-    ANTIALIAS_OFF,
-    /** @brief Resampling anti-aliasing */
-    ANTIALIAS_RESAMPLE,
-    /** @brief Anti-aliasing and resampling with fetch-on-need */
-    ANTIALIAS_RESAMPLE_FETCH_NEEDED,
-    /** @brief Anti-aliasing and resampling with fetch-always */
-    ANTIALIAS_RESAMPLE_FETCH_ALWAYS
-} antialias_t;
+    /** @brief All display filters are disabled */
+    FILTERS_DISABLED,
+    /** @brief Resize the output image with a bilinear filter. 
+     * In general, VI is in charge of resizing the framebuffer to fit the TV resolution 
+     * (which is always NTSC 640x480 or PAL 640x512). 
+     * This option enables a bilinear interpolation that can be used during this resize. */
+    FILTERS_RESAMPLE,
+    /** @brief Reconstruct a 32-bit output from dithered 16-bit framebuffer. */
+    FILTERS_DEDITHER,
+    /** @brief Resize the output image with a bilinear filter (see #FILTERS_RESAMPLE). 
+     * Add a video interface anti-aliasing pass with a divot filter. 
+     * To be able to see correct anti-aliased output, this display filter must be enabled,
+     * along with anti-aliased rendering of surfaces. */
+    FILTERS_RESAMPLE_ANTIALIAS,
+    /** @brief Resize the output image with a bilinear filter (see #FILTERS_RESAMPLE). 
+     * Add a video interface anti-aliasing pass with a divot filter (see #FILTERS_RESAMPLE_ANTIALIAS).
+     * Reconstruct a 32-bit output from dithered 16-bit framebuffer. */
+    FILTERS_RESAMPLE_ANTIALIAS_DEDITHER
+} filter_options_t;
+
+///@cond
+/** 
+ * @brief Display anti-aliasing options (DEPRECATED: Use #filter_options_t instead)
+ * 
+ * @see #filter_options_t
+ */
+typedef filter_options_t antialias_t;
+/** @brief Display no anti-aliasing (DEPRECATED: Use #FILTERS_DISABLED instead)
+ * 
+ * @see #filter_options_t
+ */
+#define ANTIALIAS_OFF                   FILTERS_DISABLED
+/** @brief Display resampling anti-aliasing (DEPRECATED: Use #FILTERS_RESAMPLE instead)
+ * 
+ * @see #filter_options_t
+ */
+#define ANTIALIAS_RESAMPLE              FILTERS_RESAMPLE
+/** @brief Display anti-aliasing and resampling with fetch-on-need (DEPRECATED: Use #FILTERS_RESAMPLE_ANTIALIAS instead)
+ * 
+ * @see #filter_options_t
+ */
+#define ANTIALIAS_RESAMPLE_FETCH_NEEDED FILTERS_RESAMPLE_ANTIALIAS
+/** @brief Display anti-aliasing and resampling with fetch-always (DEPRECATED: Use #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER instead)
+ * 
+ * @see #filter_options_t
+ */
+#define ANTIALIAS_RESAMPLE_FETCH_ALWAYS FILTERS_RESAMPLE_ANTIALIAS_DEDITHER
+
+///@endcond
 
 /** 
  * @brief Display context (DEPRECATED: Use #surface_t instead)
@@ -139,10 +189,10 @@ extern "C" {
  *            so that slowdowns don't impact too much.
  * @param[in] gamma
  *            The requested gamma setting
- * @param[in] aa
- *            The requested anti-aliasing setting
+ * @param[in] filters
+ *            The requested display filtering options, see #filter_options_t
  */
-void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa );
+void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters );
 
 /**
  * @brief Close the display

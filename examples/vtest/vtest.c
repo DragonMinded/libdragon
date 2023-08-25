@@ -103,7 +103,7 @@ void delay(int cnt)
 void init_n64(void)
 {
     /* Initialize peripherals */
-    display_init( RESOLUTION_320x240, DEPTH_32_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+    display_init( RESOLUTION_320x240, DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE );
 
     register_VI_handler(vblCallback);
 
@@ -203,7 +203,7 @@ int main(void)
 				res++;
 				res %= 6;
 				display_close();
-				display_init(mode[res], DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+				display_init(mode[res], DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 			}
 		}
 

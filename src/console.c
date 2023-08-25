@@ -178,7 +178,7 @@ void console_init()
 {
     /* In case they initialized the display already */
     display_close();
-    display_init( RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+    display_init( RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE );
 
     render_buffer = malloc(CONSOLE_SIZE);
 
