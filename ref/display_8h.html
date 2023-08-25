@@ -106,19 +106,23 @@ Enumerations</h2></td></tr>
  }</td></tr>
 <tr class="memdesc:ga35f19c13bdc2076bd91416021036e439"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid gamma correction settings.  <a href="group__display.html#ga35f19c13bdc2076bd91416021036e439">More...</a><br /></td></tr>
 <tr class="separator:ga35f19c13bdc2076bd91416021036e439"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab854c9b99a752c70a3f2dc97b79d7d7b"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> { <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7bab0b2a1d0b13ec281bd0285d815e1f405">ANTIALIAS_OFF</a>
-, <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7ba6d98afc0f4b2beeb9101799283e1c455">ANTIALIAS_RESAMPLE</a>
-, <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7ba94eb226cb79d15f7ca2754f9f6e33e3b">ANTIALIAS_RESAMPLE_FETCH_NEEDED</a>
-, <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7ba35585588ccb0025ef31016bd236b47ec">ANTIALIAS_RESAMPLE_FETCH_ALWAYS</a>
+<tr class="memitem:ga44577780f71aa45486b189f27499e7a1"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga44577780f71aa45486b189f27499e7a1">filter_options_t</a> { <br />
+&#160;&#160;<a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1ab6051558cec1085b8d052b08e69688f0">FILTERS_DISABLED</a>
+, <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1aa0aeba12435b176cafd2ca13402796a5">FILTERS_RESAMPLE</a>
+, <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1a8cef20b356b89e9386718e38eefb4014">FILTERS_DEDITHER</a>
+, <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1a1844170f316890da24d1252b17b2ebf8">FILTERS_RESAMPLE_ANTIALIAS</a>
+, <br />
+&#160;&#160;<a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1a07f415ee1a7f2a98c8047d02ba528193">FILTERS_RESAMPLE_ANTIALIAS_DEDITHER</a>
+<br />
  }</td></tr>
-<tr class="memdesc:gab854c9b99a752c70a3f2dc97b79d7d7b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid antialiasing settings.  <a href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">More...</a><br /></td></tr>
-<tr class="separator:gab854c9b99a752c70a3f2dc97b79d7d7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memdesc:ga44577780f71aa45486b189f27499e7a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid display filter options.  <a href="group__display.html#ga44577780f71aa45486b189f27499e7a1">More...</a><br /></td></tr>
+<tr class="separator:ga44577780f71aa45486b189f27499e7a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">display_init</a> (<a class="el" href="group__display.html#structresolution__t">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> aa)</td></tr>
-<tr class="memdesc:gac3446a497399d2c8d90e6a51a53b45c8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the display to a particular resolution and bit depth.  <a href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">More...</a><br /></td></tr>
-<tr class="separator:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga1763c553f071d40c4bd18cee77ae98a1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1">display_init</a> (<a class="el" href="group__display.html#structresolution__t">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#ga44577780f71aa45486b189f27499e7a1">filter_options_t</a> filters)</td></tr>
+<tr class="memdesc:ga1763c553f071d40c4bd18cee77ae98a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the display to a particular resolution and bit depth.  <a href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1">More...</a><br /></td></tr>
+<tr class="separator:ga1763c553f071d40c4bd18cee77ae98a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">display_close</a> ()</td></tr>
 <tr class="memdesc:ga21c0b315e346cb1d1e4566688aa03e36"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close the display.  <a href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">More...</a><br /></td></tr>
 <tr class="separator:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -177,7 +181,7 @@ const <a class="el" href="group__display.html#structresolution__t">resolution_t<
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Aug 19 2023 16:05:17 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Aug 25 2023 12:45:19 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['sgb_5fsupport_5ftype_0',['sgb_support_type',['../tpak_8h.html#a65a36b9bf504ca51cd9b616a61fe75af',1,'tpak.h']]],
-  ['sync_5ft_1',['sync_t',['../group__rdp.html#gaa2dbbcba64b87654ad46b6ceb1187c9d',1,'rdp.h']]]
+  ['tex_5fformat_5ft_0',['tex_format_t',['../surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1',1,'surface.h']]],
+  ['tv_5ftype_5ft_1',['tv_type_t',['../group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09',1,'n64sys.h']]]
 ];

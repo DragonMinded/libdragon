@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['mirror_5ft_0',['mirror_t',['../group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0',1,'rdp.h']]]
+  ['rtc_5ftype_5ft_0',['rtc_type_t',['../group__rtc.html#gaf4e6e809a36c78b63cd09260d3a5f561',1,'rtc.c']]]
 ];

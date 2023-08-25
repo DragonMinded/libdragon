@@ -66,6 +66,7 @@ $(function() {
 <a href="#groups">Modules</a> &#124;
 <a href="#files">Files</a> &#124;
 <a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a> &#124;
@@ -94,15 +95,225 @@ Files</h2></td></tr>
 <tr class="memitem:display_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="display_8c.html">display.c</a></td></tr>
 <tr class="memdesc:display_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display Subsystem. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:vi_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="vi_8h.html">vi.h</a></td></tr>
+<tr class="memdesc:vi_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Video Interface Subsystem. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:display_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="display_8h.html">display.h</a></td></tr>
 <tr class="memdesc:display_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display Subsystem. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
 Data Structures</h2></td></tr>
+<tr class="memitem:structvi__config__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#structvi__config__t">vi_config_t</a></td></tr>
+<tr class="memdesc:structvi__config__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Video Interface register structure.  <a href="group__display.html#structvi__config__t">More...</a><br /></td></tr>
+<tr class="separator:structvi__config__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:structresolution__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#structresolution__t">resolution_t</a></td></tr>
 <tr class="memdesc:structresolution__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Video resolution structure.  <a href="group__display.html#structresolution__t">More...</a><br /></td></tr>
 <tr class="separator:structresolution__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:ga5fb349bc4848ee0561e5f8cf9f378bc4"><td class="memItemLeft" align="right" valign="top"><a id="ga5fb349bc4848ee0561e5f8cf9f378bc4" name="ga5fb349bc4848ee0561e5f8cf9f378bc4"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_REGISTERS_ADDR</b>&#160;&#160;&#160;0xA4400000</td></tr>
+<tr class="memdesc:ga5fb349bc4848ee0561e5f8cf9f378bc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register uncached location in memory of VI. <br /></td></tr>
+<tr class="separator:ga5fb349bc4848ee0561e5f8cf9f378bc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac7718da7b3464bf6dbb9834c7b40b23b"><td class="memItemLeft" align="right" valign="top"><a id="gac7718da7b3464bf6dbb9834c7b40b23b" name="gac7718da7b3464bf6dbb9834c7b40b23b"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_REGISTERS_COUNT</b>&#160;&#160;&#160;14</td></tr>
+<tr class="memdesc:gac7718da7b3464bf6dbb9834c7b40b23b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of useful 32-bit registers at the register base. <br /></td></tr>
+<tr class="separator:gac7718da7b3464bf6dbb9834c7b40b23b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga73308d68931291e58f925d766973a7de"><td class="memItemLeft" align="right" valign="top"><a id="ga73308d68931291e58f925d766973a7de" name="ga73308d68931291e58f925d766973a7de"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_REGISTERS</b>&#160;&#160;&#160;((volatile uint32_t*)<a class="el" href="group__display.html#ga5fb349bc4848ee0561e5f8cf9f378bc4">VI_REGISTERS_ADDR</a>)</td></tr>
+<tr class="memdesc:ga73308d68931291e58f925d766973a7de"><td class="mdescLeft">&#160;</td><td class="mdescRight">Base pointer to hardware Video interface registers that control various aspects of VI configuration. Shouldn't be used by itself, use VI_ registers to get/set their values. <br /></td></tr>
+<tr class="separator:ga73308d68931291e58f925d766973a7de"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gacab10aa55a444464f3ccad6e5b9041c0"><td class="memItemLeft" align="right" valign="top"><a id="gacab10aa55a444464f3ccad6e5b9041c0" name="gacab10aa55a444464f3ccad6e5b9041c0"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_CTRL</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[0])</td></tr>
+<tr class="memdesc:gacab10aa55a444464f3ccad6e5b9041c0"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of controlling general display filters/bitdepth configuration. <br /></td></tr>
+<tr class="separator:gacab10aa55a444464f3ccad6e5b9041c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gace200f1f9be9fb68123937dcb2df98b4"><td class="memItemLeft" align="right" valign="top"><a id="gace200f1f9be9fb68123937dcb2df98b4" name="gace200f1f9be9fb68123937dcb2df98b4"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_ORIGIN</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[1])</td></tr>
+<tr class="memdesc:gace200f1f9be9fb68123937dcb2df98b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of RDRAM base address of the video output Frame Buffer. This can be changed as needed to implement double or triple buffering. <br /></td></tr>
+<tr class="separator:gace200f1f9be9fb68123937dcb2df98b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga728b739692d1ef62ad1e2da08f7c1ce6"><td class="memItemLeft" align="right" valign="top"><a id="ga728b739692d1ef62ad1e2da08f7c1ce6" name="ga728b739692d1ef62ad1e2da08f7c1ce6"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_WIDTH</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[2])</td></tr>
+<tr class="memdesc:ga728b739692d1ef62ad1e2da08f7c1ce6"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of width in pixels of the frame buffer. <br /></td></tr>
+<tr class="separator:ga728b739692d1ef62ad1e2da08f7c1ce6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2977599fdc3266c42772448e7b945454"><td class="memItemLeft" align="right" valign="top"><a id="ga2977599fdc3266c42772448e7b945454" name="ga2977599fdc3266c42772448e7b945454"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_V_INTR</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[3])</td></tr>
+<tr class="memdesc:ga2977599fdc3266c42772448e7b945454"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of vertical interrupt. <br /></td></tr>
+<tr class="separator:ga2977599fdc3266c42772448e7b945454"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga16bc5ae507d709c59a485f70576f3d61"><td class="memItemLeft" align="right" valign="top"><a id="ga16bc5ae507d709c59a485f70576f3d61" name="ga16bc5ae507d709c59a485f70576f3d61"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_V_CURRENT</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[4])</td></tr>
+<tr class="memdesc:ga16bc5ae507d709c59a485f70576f3d61"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of the current half line, sampled once per line. <br /></td></tr>
+<tr class="separator:ga16bc5ae507d709c59a485f70576f3d61"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gacd595928e081c662e12a4f91d3ab41cd"><td class="memItemLeft" align="right" valign="top"><a id="gacd595928e081c662e12a4f91d3ab41cd" name="gacd595928e081c662e12a4f91d3ab41cd"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_BURST</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[5])</td></tr>
+<tr class="memdesc:gacd595928e081c662e12a4f91d3ab41cd"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of sync/burst values. <br /></td></tr>
+<tr class="separator:gacd595928e081c662e12a4f91d3ab41cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga73af014e31d5cfea1987019a45c2330d"><td class="memItemLeft" align="right" valign="top"><a id="ga73af014e31d5cfea1987019a45c2330d" name="ga73af014e31d5cfea1987019a45c2330d"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_V_SYNC</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[6])</td></tr>
+<tr class="memdesc:ga73af014e31d5cfea1987019a45c2330d"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of total visible and non-visible lines. This should match either NTSC (non-interlaced: 0x20D, interlaced: 0x20C) or PAL (non-interlaced: 0x271, interlaced: 0x270) <br /></td></tr>
+<tr class="separator:ga73af014e31d5cfea1987019a45c2330d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga32847b936af53c43838beb02563bb042"><td class="memItemLeft" align="right" valign="top"><a id="ga32847b936af53c43838beb02563bb042" name="ga32847b936af53c43838beb02563bb042"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_H_SYNC</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[7])</td></tr>
+<tr class="memdesc:ga32847b936af53c43838beb02563bb042"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of total width of a line. <br /></td></tr>
+<tr class="separator:ga32847b936af53c43838beb02563bb042"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaef698431c280f61579413962958c5d09"><td class="memItemLeft" align="right" valign="top"><a id="gaef698431c280f61579413962958c5d09" name="gaef698431c280f61579413962958c5d09"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_H_SYNC_LEAP</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[8])</td></tr>
+<tr class="memdesc:gaef698431c280f61579413962958c5d09"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of an alternate scanline length for one scanline during vsync. <br /></td></tr>
+<tr class="separator:gaef698431c280f61579413962958c5d09"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4fdfe01146bf398147d2c032fd5bcffa"><td class="memItemLeft" align="right" valign="top"><a id="ga4fdfe01146bf398147d2c032fd5bcffa" name="ga4fdfe01146bf398147d2c032fd5bcffa"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_H_VIDEO</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[9])</td></tr>
+<tr class="memdesc:ga4fdfe01146bf398147d2c032fd5bcffa"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of start/end of the active video image, in screen pixels. <br /></td></tr>
+<tr class="separator:ga4fdfe01146bf398147d2c032fd5bcffa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2edd7ecb7f5d66aba0ff535b4e532950"><td class="memItemLeft" align="right" valign="top"><a id="ga2edd7ecb7f5d66aba0ff535b4e532950" name="ga2edd7ecb7f5d66aba0ff535b4e532950"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_V_VIDEO</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[10])</td></tr>
+<tr class="memdesc:ga2edd7ecb7f5d66aba0ff535b4e532950"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of start/end of the active video image, in screen half-lines. <br /></td></tr>
+<tr class="separator:ga2edd7ecb7f5d66aba0ff535b4e532950"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae9b80225812813166885eb903595cdcf"><td class="memItemLeft" align="right" valign="top"><a id="gae9b80225812813166885eb903595cdcf" name="gae9b80225812813166885eb903595cdcf"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_V_BURST</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[11])</td></tr>
+<tr class="memdesc:gae9b80225812813166885eb903595cdcf"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of start/end of the color burst enable, in half-lines. <br /></td></tr>
+<tr class="separator:gae9b80225812813166885eb903595cdcf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga189c19a4cd0a662f9d6ad9d4ef9ed997"><td class="memItemLeft" align="right" valign="top"><a id="ga189c19a4cd0a662f9d6ad9d4ef9ed997" name="ga189c19a4cd0a662f9d6ad9d4ef9ed997"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_X_SCALE</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[12])</td></tr>
+<tr class="memdesc:ga189c19a4cd0a662f9d6ad9d4ef9ed997"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of horizontal subpixel offset and 1/horizontal scale up factor. <br /></td></tr>
+<tr class="separator:ga189c19a4cd0a662f9d6ad9d4ef9ed997"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4932c352d22aa0f3f6551641d3060d8a"><td class="memItemLeft" align="right" valign="top"><a id="ga4932c352d22aa0f3f6551641d3060d8a" name="ga4932c352d22aa0f3f6551641d3060d8a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_Y_SCALE</b>&#160;&#160;&#160;(&amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[13])</td></tr>
+<tr class="memdesc:ga4932c352d22aa0f3f6551641d3060d8a"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI Index register of vertical subpixel offset and 1/vertical scale up factor. <br /></td></tr>
+<tr class="separator:ga4932c352d22aa0f3f6551641d3060d8a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0ff82d0c612fad6e48250c01fe6c74ca"><td class="memItemLeft" align="right" valign="top"><a id="ga0ff82d0c612fad6e48250c01fe6c74ca" name="ga0ff82d0c612fad6e48250c01fe6c74ca"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_TO_REGISTER</b>(index)&#160;&#160;&#160;(((index) &gt;= 0 &amp;&amp; (index) &lt;= <a class="el" href="group__display.html#gac7718da7b3464bf6dbb9834c7b40b23b">VI_REGISTERS_COUNT</a>)? &amp;<a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>[index] : NULL)</td></tr>
+<tr class="memdesc:ga0ff82d0c612fad6e48250c01fe6c74ca"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI register by index (0-13) <br /></td></tr>
+<tr class="separator:ga0ff82d0c612fad6e48250c01fe6c74ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga278ff0ac3968098cee2b337dde30d89a"><td class="memItemLeft" align="right" valign="top"><a id="ga278ff0ac3968098cee2b337dde30d89a" name="ga278ff0ac3968098cee2b337dde30d89a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_TO_INDEX</b>(reg)&#160;&#160;&#160;((reg) - <a class="el" href="group__display.html#ga73308d68931291e58f925d766973a7de">VI_REGISTERS</a>)</td></tr>
+<tr class="memdesc:ga278ff0ac3968098cee2b337dde30d89a"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI index from register. <br /></td></tr>
+<tr class="separator:ga278ff0ac3968098cee2b337dde30d89a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga229f5d8b34fe1df30f96d369c876c721"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga229f5d8b34fe1df30f96d369c876c721">VI_DEDITHER_FILTER_ENABLE</a>&#160;&#160;&#160;(1&lt;&lt;16)</td></tr>
+<tr class="memdesc:ga229f5d8b34fe1df30f96d369c876c721"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: enable dedither filter.  <a href="group__display.html#ga229f5d8b34fe1df30f96d369c876c721">More...</a><br /></td></tr>
+<tr class="separator:ga229f5d8b34fe1df30f96d369c876c721"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga02f0684f1174c52469ef9acba6eff1de"><td class="memItemLeft" align="right" valign="top"><a id="ga02f0684f1174c52469ef9acba6eff1de" name="ga02f0684f1174c52469ef9acba6eff1de"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_PIXEL_ADVANCE_DEFAULT</b>&#160;&#160;&#160;(0b0011 &lt;&lt; 12)</td></tr>
+<tr class="memdesc:ga02f0684f1174c52469ef9acba6eff1de"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: default value for pixel advance. <br /></td></tr>
+<tr class="separator:ga02f0684f1174c52469ef9acba6eff1de"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaef4ae3f24eb04477693ada26ed3b91ae"><td class="memItemLeft" align="right" valign="top"><a id="gaef4ae3f24eb04477693ada26ed3b91ae" name="gaef4ae3f24eb04477693ada26ed3b91ae"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_PIXEL_ADVANCE_BBPLAYER</b>&#160;&#160;&#160;(0b0001 &lt;&lt; 12)</td></tr>
+<tr class="memdesc:gaef4ae3f24eb04477693ada26ed3b91ae"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: default value for pixel advance on iQue. <br /></td></tr>
+<tr class="separator:gaef4ae3f24eb04477693ada26ed3b91ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga19b3ca54e0bb0f0e794ecd84b6be7a74"><td class="memItemLeft" align="right" valign="top"><a id="ga19b3ca54e0bb0f0e794ecd84b6be7a74" name="ga19b3ca54e0bb0f0e794ecd84b6be7a74"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_AA_MODE_NONE</b>&#160;&#160;&#160;(0b11 &lt;&lt; 8)</td></tr>
+<tr class="memdesc:ga19b3ca54e0bb0f0e794ecd84b6be7a74"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: disable AA / resamp. <br /></td></tr>
+<tr class="separator:ga19b3ca54e0bb0f0e794ecd84b6be7a74"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae9a2875d6a499b276d0cf8a2923bc1bf"><td class="memItemLeft" align="right" valign="top"><a id="gae9a2875d6a499b276d0cf8a2923bc1bf" name="gae9a2875d6a499b276d0cf8a2923bc1bf"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_AA_MODE_RESAMPLE</b>&#160;&#160;&#160;(0b10 &lt;&lt; 8)</td></tr>
+<tr class="memdesc:gae9a2875d6a499b276d0cf8a2923bc1bf"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: disable AA / enable resamp. <br /></td></tr>
+<tr class="separator:gae9a2875d6a499b276d0cf8a2923bc1bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3fe3df8651c5c22b500df8cc1861d9d4"><td class="memItemLeft" align="right" valign="top"><a id="ga3fe3df8651c5c22b500df8cc1861d9d4" name="ga3fe3df8651c5c22b500df8cc1861d9d4"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_AA_MODE_RESAMPLE_FETCH_NEEDED</b>&#160;&#160;&#160;(0b01 &lt;&lt; 8)</td></tr>
+<tr class="memdesc:ga3fe3df8651c5c22b500df8cc1861d9d4"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: enable AA / enable resamp, fetch pixels when needed. <br /></td></tr>
+<tr class="separator:ga3fe3df8651c5c22b500df8cc1861d9d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga910664a746b55d9c47c5e9ffaeb03050"><td class="memItemLeft" align="right" valign="top"><a id="ga910664a746b55d9c47c5e9ffaeb03050" name="ga910664a746b55d9c47c5e9ffaeb03050"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_AA_MODE_RESAMPLE_FETCH_ALWAYS</b>&#160;&#160;&#160;(0b00 &lt;&lt; 8)</td></tr>
+<tr class="memdesc:ga910664a746b55d9c47c5e9ffaeb03050"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: enable AA / enable resamp, fetch pixels always. <br /></td></tr>
+<tr class="separator:ga910664a746b55d9c47c5e9ffaeb03050"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2123177221007cade10ebff5e0edbca0"><td class="memItemLeft" align="right" valign="top"><a id="ga2123177221007cade10ebff5e0edbca0" name="ga2123177221007cade10ebff5e0edbca0"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_CTRL_SERRATE</b>&#160;&#160;&#160;(1&lt;&lt;6)</td></tr>
+<tr class="memdesc:ga2123177221007cade10ebff5e0edbca0"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: enable interlaced output. <br /></td></tr>
+<tr class="separator:ga2123177221007cade10ebff5e0edbca0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga554f571cf694458e8ed3d6803a8e469e"><td class="memItemLeft" align="right" valign="top"><a id="ga554f571cf694458e8ed3d6803a8e469e" name="ga554f571cf694458e8ed3d6803a8e469e"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_DIVOT_ENABLE</b>&#160;&#160;&#160;(1&lt;&lt;4)</td></tr>
+<tr class="memdesc:ga554f571cf694458e8ed3d6803a8e469e"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: enable divot filter (fixes 1 pixel holes after AA). <br /></td></tr>
+<tr class="separator:ga554f571cf694458e8ed3d6803a8e469e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga663107ef195657cd7e45729608fdc099"><td class="memItemLeft" align="right" valign="top"><a id="ga663107ef195657cd7e45729608fdc099" name="ga663107ef195657cd7e45729608fdc099"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_GAMMA_ENABLE</b>&#160;&#160;&#160;(1&lt;&lt;3)</td></tr>
+<tr class="memdesc:ga663107ef195657cd7e45729608fdc099"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: enable gamma correction filter. <br /></td></tr>
+<tr class="separator:ga663107ef195657cd7e45729608fdc099"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga804c1744ba8684388500fb06647523ea"><td class="memItemLeft" align="right" valign="top"><a id="ga804c1744ba8684388500fb06647523ea" name="ga804c1744ba8684388500fb06647523ea"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_GAMMA_DITHER_ENABLE</b>&#160;&#160;&#160;(1&lt;&lt;2)</td></tr>
+<tr class="memdesc:ga804c1744ba8684388500fb06647523ea"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: enable gamma correction filter and hardware dither the least significant color bit on output. <br /></td></tr>
+<tr class="separator:ga804c1744ba8684388500fb06647523ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6941fccd143aaecc72acf633109a2b2a"><td class="memItemLeft" align="right" valign="top"><a id="ga6941fccd143aaecc72acf633109a2b2a" name="ga6941fccd143aaecc72acf633109a2b2a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_CTRL_TYPE_32_BPP</b>&#160;&#160;&#160;(0b11)</td></tr>
+<tr class="memdesc:ga6941fccd143aaecc72acf633109a2b2a"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: set the framebuffer source as 32-bit. <br /></td></tr>
+<tr class="separator:ga6941fccd143aaecc72acf633109a2b2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf42ae21cb71fd6fcaab3ea0ed2cfc62a"><td class="memItemLeft" align="right" valign="top"><a id="gaf42ae21cb71fd6fcaab3ea0ed2cfc62a" name="gaf42ae21cb71fd6fcaab3ea0ed2cfc62a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_CTRL_TYPE_16_BPP</b>&#160;&#160;&#160;(0b10)</td></tr>
+<tr class="memdesc:gaf42ae21cb71fd6fcaab3ea0ed2cfc62a"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: set the framebuffer source as 16-bit (5-5-5-3). <br /></td></tr>
+<tr class="separator:gaf42ae21cb71fd6fcaab3ea0ed2cfc62a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga052f2698812bb3ade078f6e3cfe370ad"><td class="memItemLeft" align="right" valign="top"><a id="ga052f2698812bb3ade078f6e3cfe370ad" name="ga052f2698812bb3ade078f6e3cfe370ad"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_CTRL_TYPE_BLANK</b>&#160;&#160;&#160;(0b00)</td></tr>
+<tr class="memdesc:ga052f2698812bb3ade078f6e3cfe370ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_CTRL Register setting: set the framebuffer source as blank (no data and no sync, TV screens will either show static or nothing). <br /></td></tr>
+<tr class="separator:ga052f2698812bb3ade078f6e3cfe370ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gadc1f52223310eed81da724a6b39dc65b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gadc1f52223310eed81da724a6b39dc65b">VI_ORIGIN_SET</a>(value)&#160;&#160;&#160;((value &amp; 0xFFFFFF) &lt;&lt; 0)</td></tr>
+<tr class="memdesc:gadc1f52223310eed81da724a6b39dc65b"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_ORIGIN Register: set the address of a framebuffer.  <a href="group__display.html#gadc1f52223310eed81da724a6b39dc65b">More...</a><br /></td></tr>
+<tr class="separator:gadc1f52223310eed81da724a6b39dc65b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaeae7910fce3a0792d5ea51c3a9ac2cec"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gaeae7910fce3a0792d5ea51c3a9ac2cec">VI_WIDTH_SET</a>(value)&#160;&#160;&#160;((value &amp; 0xFFF) &lt;&lt; 0)</td></tr>
+<tr class="memdesc:gaeae7910fce3a0792d5ea51c3a9ac2cec"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_ORIGIN Register: set the width of a framebuffer.  <a href="group__display.html#gaeae7910fce3a0792d5ea51c3a9ac2cec">More...</a><br /></td></tr>
+<tr class="separator:gaeae7910fce3a0792d5ea51c3a9ac2cec"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga770a441b8eac8f84b33bf3258055a935"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga770a441b8eac8f84b33bf3258055a935">VI_V_CURRENT_VBLANK</a>&#160;&#160;&#160;2</td></tr>
+<tr class="memdesc:ga770a441b8eac8f84b33bf3258055a935"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_V_CURRENT Register: default value for vblank begin line.  <a href="group__display.html#ga770a441b8eac8f84b33bf3258055a935">More...</a><br /></td></tr>
+<tr class="separator:ga770a441b8eac8f84b33bf3258055a935"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad42069619bbafac81d72f6d15d948de2"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gad42069619bbafac81d72f6d15d948de2">VI_V_INTR_SET</a>(value)&#160;&#160;&#160;((value &amp; 0x3FF) &lt;&lt; 0)</td></tr>
+<tr class="memdesc:gad42069619bbafac81d72f6d15d948de2"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_V_INTR Register: set value for vertical interrupt.  <a href="group__display.html#gad42069619bbafac81d72f6d15d948de2">More...</a><br /></td></tr>
+<tr class="separator:gad42069619bbafac81d72f6d15d948de2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga57ca7d4d442bd7bdb71d2c698994f919"><td class="memItemLeft" align="right" valign="top"><a id="ga57ca7d4d442bd7bdb71d2c698994f919" name="ga57ca7d4d442bd7bdb71d2c698994f919"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_V_INTR_DEFAULT</b>&#160;&#160;&#160;0x3FF</td></tr>
+<tr class="memdesc:ga57ca7d4d442bd7bdb71d2c698994f919"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_V_INTR Register: default value for vertical interrupt. <br /></td></tr>
+<tr class="separator:ga57ca7d4d442bd7bdb71d2c698994f919"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga49a637f54fcd6e1a0c7392d737262d14"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga49a637f54fcd6e1a0c7392d737262d14">VI_BURST_START</a>(value)&#160;&#160;&#160;((value &amp; 0x3F) &lt;&lt; 20)</td></tr>
+<tr class="memdesc:ga49a637f54fcd6e1a0c7392d737262d14"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: set start of color burst in pixels from hsync.  <a href="group__display.html#ga49a637f54fcd6e1a0c7392d737262d14">More...</a><br /></td></tr>
+<tr class="separator:ga49a637f54fcd6e1a0c7392d737262d14"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaacf526b8cd8ec7dba15012248d9e46c8"><td class="memItemLeft" align="right" valign="top"><a id="gaacf526b8cd8ec7dba15012248d9e46c8" name="gaacf526b8cd8ec7dba15012248d9e46c8"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_VSYNC_WIDTH</b>(value)&#160;&#160;&#160;((value &amp; 0x7)  &lt;&lt; 16)</td></tr>
+<tr class="memdesc:gaacf526b8cd8ec7dba15012248d9e46c8"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: set vertical sync width in half lines. <br /></td></tr>
+<tr class="separator:gaacf526b8cd8ec7dba15012248d9e46c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2b7188d4dfeab951c65e20c92f8cb989"><td class="memItemLeft" align="right" valign="top"><a id="ga2b7188d4dfeab951c65e20c92f8cb989" name="ga2b7188d4dfeab951c65e20c92f8cb989"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_BURST_WIDTH</b>(value)&#160;&#160;&#160;((value &amp; 0xFF) &lt;&lt; 8)</td></tr>
+<tr class="memdesc:ga2b7188d4dfeab951c65e20c92f8cb989"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: set color burst width in pixels. <br /></td></tr>
+<tr class="separator:ga2b7188d4dfeab951c65e20c92f8cb989"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab634c835b497ad3ca1cf8324fff17bda"><td class="memItemLeft" align="right" valign="top"><a id="gab634c835b497ad3ca1cf8324fff17bda" name="gab634c835b497ad3ca1cf8324fff17bda"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_HSYNC_WIDTH</b>(value)&#160;&#160;&#160;((value &amp; 0xFF) &lt;&lt; 0)</td></tr>
+<tr class="memdesc:gab634c835b497ad3ca1cf8324fff17bda"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: set horizontal sync width in pixels. <br /></td></tr>
+<tr class="separator:gab634c835b497ad3ca1cf8324fff17bda"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga5567226f7ca13615b29220098130377a"><td class="memItemLeft" align="right" valign="top"><a id="ga5567226f7ca13615b29220098130377a" name="ga5567226f7ca13615b29220098130377a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_BURST_START_NTSC</b>&#160;&#160;&#160;62</td></tr>
+<tr class="memdesc:ga5567226f7ca13615b29220098130377a"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: NTSC default start of color burst in pixels from hsync. <br /></td></tr>
+<tr class="separator:ga5567226f7ca13615b29220098130377a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4cf7e3d64d30a22c32b2ee1a0d73d264"><td class="memItemLeft" align="right" valign="top"><a id="ga4cf7e3d64d30a22c32b2ee1a0d73d264" name="ga4cf7e3d64d30a22c32b2ee1a0d73d264"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_VSYNC_WIDTH_NTSC</b>&#160;&#160;&#160;5</td></tr>
+<tr class="memdesc:ga4cf7e3d64d30a22c32b2ee1a0d73d264"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: NTSC default vertical sync width in half lines. <br /></td></tr>
+<tr class="separator:ga4cf7e3d64d30a22c32b2ee1a0d73d264"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa82804b4f1c6989e7467184812325e7c"><td class="memItemLeft" align="right" valign="top"><a id="gaa82804b4f1c6989e7467184812325e7c" name="gaa82804b4f1c6989e7467184812325e7c"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_BURST_WIDTH_NTSC</b>&#160;&#160;&#160;34</td></tr>
+<tr class="memdesc:gaa82804b4f1c6989e7467184812325e7c"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: NTSC default color burst width in pixels. <br /></td></tr>
+<tr class="separator:gaa82804b4f1c6989e7467184812325e7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae703b436db06bc61a28884cef0e6a286"><td class="memItemLeft" align="right" valign="top"><a id="gae703b436db06bc61a28884cef0e6a286" name="gae703b436db06bc61a28884cef0e6a286"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_HSYNC_WIDTH_NTSC</b>&#160;&#160;&#160;57</td></tr>
+<tr class="memdesc:gae703b436db06bc61a28884cef0e6a286"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: NTSC default horizontal sync width in pixels. <br /></td></tr>
+<tr class="separator:gae703b436db06bc61a28884cef0e6a286"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga7a7924c3410f24ba4aba65a334edef37"><td class="memItemLeft" align="right" valign="top"><a id="ga7a7924c3410f24ba4aba65a334edef37" name="ga7a7924c3410f24ba4aba65a334edef37"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_BURST_START_PAL</b>&#160;&#160;&#160;64</td></tr>
+<tr class="memdesc:ga7a7924c3410f24ba4aba65a334edef37"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: PAL default start of color burst in pixels from hsync. <br /></td></tr>
+<tr class="separator:ga7a7924c3410f24ba4aba65a334edef37"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga5b30a890a52e47117757f78806bb355d"><td class="memItemLeft" align="right" valign="top"><a id="ga5b30a890a52e47117757f78806bb355d" name="ga5b30a890a52e47117757f78806bb355d"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_VSYNC_WIDTH_PAL</b>&#160;&#160;&#160;4</td></tr>
+<tr class="memdesc:ga5b30a890a52e47117757f78806bb355d"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: PAL default vertical sync width in half lines. <br /></td></tr>
+<tr class="separator:ga5b30a890a52e47117757f78806bb355d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga37dca118da988c7ec372f3e5394781e1"><td class="memItemLeft" align="right" valign="top"><a id="ga37dca118da988c7ec372f3e5394781e1" name="ga37dca118da988c7ec372f3e5394781e1"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_BURST_WIDTH_PAL</b>&#160;&#160;&#160;35</td></tr>
+<tr class="memdesc:ga37dca118da988c7ec372f3e5394781e1"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: PAL default color burst width in pixels. <br  />
+ <br /></td></tr>
+<tr class="separator:ga37dca118da988c7ec372f3e5394781e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2b3feec9f1aec91a6861e58b122ec10d"><td class="memItemLeft" align="right" valign="top"><a id="ga2b3feec9f1aec91a6861e58b122ec10d" name="ga2b3feec9f1aec91a6861e58b122ec10d"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VI_HSYNC_WIDTH_PAL</b>&#160;&#160;&#160;58</td></tr>
+<tr class="memdesc:ga2b3feec9f1aec91a6861e58b122ec10d"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_BURST Register: PAL default horizontal sync width in pixels. <br /></td></tr>
+<tr class="separator:ga2b3feec9f1aec91a6861e58b122ec10d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac1e9963eb22593c077a562ce662fe85d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac1e9963eb22593c077a562ce662fe85d">VI_X_SCALE_SET</a>(value)&#160;&#160;&#160;(( 1024*(value) + 320 ) / 640)</td></tr>
+<tr class="memdesc:gac1e9963eb22593c077a562ce662fe85d"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format)  <a href="group__display.html#gac1e9963eb22593c077a562ce662fe85d">More...</a><br /></td></tr>
+<tr class="separator:gac1e9963eb22593c077a562ce662fe85d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0e6a2caf5dbfdcc516bfea8d0d3eb14b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga0e6a2caf5dbfdcc516bfea8d0d3eb14b">VI_Y_SCALE_SET</a>(value)&#160;&#160;&#160;(( 1024*(value) + 120 ) / 240)</td></tr>
+<tr class="memdesc:ga0e6a2caf5dbfdcc516bfea8d0d3eb14b"><td class="mdescLeft">&#160;</td><td class="mdescRight">VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format)  <a href="group__display.html#ga0e6a2caf5dbfdcc516bfea8d0d3eb14b">More...</a><br /></td></tr>
+<tr class="separator:ga0e6a2caf5dbfdcc516bfea8d0d3eb14b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
@@ -123,19 +334,29 @@ Enumerations</h2></td></tr>
  }</td></tr>
 <tr class="memdesc:ga35f19c13bdc2076bd91416021036e439"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid gamma correction settings.  <a href="group__display.html#ga35f19c13bdc2076bd91416021036e439">More...</a><br /></td></tr>
 <tr class="separator:ga35f19c13bdc2076bd91416021036e439"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab854c9b99a752c70a3f2dc97b79d7d7b"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> { <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7bab0b2a1d0b13ec281bd0285d815e1f405">ANTIALIAS_OFF</a>
-, <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7ba6d98afc0f4b2beeb9101799283e1c455">ANTIALIAS_RESAMPLE</a>
-, <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7ba94eb226cb79d15f7ca2754f9f6e33e3b">ANTIALIAS_RESAMPLE_FETCH_NEEDED</a>
-, <a class="el" href="group__display.html#ggab854c9b99a752c70a3f2dc97b79d7d7ba35585588ccb0025ef31016bd236b47ec">ANTIALIAS_RESAMPLE_FETCH_ALWAYS</a>
+<tr class="memitem:ga44577780f71aa45486b189f27499e7a1"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga44577780f71aa45486b189f27499e7a1">filter_options_t</a> { <br />
+&#160;&#160;<a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1ab6051558cec1085b8d052b08e69688f0">FILTERS_DISABLED</a>
+, <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1aa0aeba12435b176cafd2ca13402796a5">FILTERS_RESAMPLE</a>
+, <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1a8cef20b356b89e9386718e38eefb4014">FILTERS_DEDITHER</a>
+, <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1a1844170f316890da24d1252b17b2ebf8">FILTERS_RESAMPLE_ANTIALIAS</a>
+, <br />
+&#160;&#160;<a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1a07f415ee1a7f2a98c8047d02ba528193">FILTERS_RESAMPLE_ANTIALIAS_DEDITHER</a>
+<br />
  }</td></tr>
-<tr class="memdesc:gab854c9b99a752c70a3f2dc97b79d7d7b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid antialiasing settings.  <a href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">More...</a><br /></td></tr>
-<tr class="separator:gab854c9b99a752c70a3f2dc97b79d7d7b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memdesc:ga44577780f71aa45486b189f27499e7a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid display filter options.  <a href="group__display.html#ga44577780f71aa45486b189f27499e7a1">More...</a><br /></td></tr>
+<tr class="separator:ga44577780f71aa45486b189f27499e7a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">display_init</a> (<a class="el" href="group__display.html#structresolution__t">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> aa)</td></tr>
-<tr class="memdesc:gac3446a497399d2c8d90e6a51a53b45c8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the display to a particular resolution and bit depth.  <a href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">More...</a><br /></td></tr>
-<tr class="separator:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga63c36f09c3c333e7b98ae87728a0294e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga63c36f09c3c333e7b98ae87728a0294e">vi_write_safe</a> (volatile uint32_t *reg, uint32_t value)</td></tr>
+<tr class="memdesc:ga63c36f09c3c333e7b98ae87728a0294e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a set of video registers to the VI.  <a href="group__display.html#ga63c36f09c3c333e7b98ae87728a0294e">More...</a><br /></td></tr>
+<tr class="separator:ga63c36f09c3c333e7b98ae87728a0294e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4ea824b2e1bf1a5ecda800172e3b2bf7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga4ea824b2e1bf1a5ecda800172e3b2bf7">vi_write_config</a> (const <a class="el" href="group__display.html#structvi__config__t">vi_config_t</a> *config)</td></tr>
+<tr class="memdesc:ga4ea824b2e1bf1a5ecda800172e3b2bf7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a set of video registers to the VI.  <a href="group__display.html#ga4ea824b2e1bf1a5ecda800172e3b2bf7">More...</a><br /></td></tr>
+<tr class="separator:ga4ea824b2e1bf1a5ecda800172e3b2bf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga1763c553f071d40c4bd18cee77ae98a1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1">display_init</a> (<a class="el" href="group__display.html#structresolution__t">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#ga44577780f71aa45486b189f27499e7a1">filter_options_t</a> filters)</td></tr>
+<tr class="memdesc:ga1763c553f071d40c4bd18cee77ae98a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the display to a particular resolution and bit depth.  <a href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1">More...</a><br /></td></tr>
+<tr class="separator:ga1763c553f071d40c4bd18cee77ae98a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">display_close</a> ()</td></tr>
 <tr class="memdesc:ga21c0b315e346cb1d1e4566688aa03e36"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close the display.  <a href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">More...</a><br /></td></tr>
 <tr class="separator:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -192,8 +413,33 @@ const <a class="el" href="group__display.html#structresolution__t">resolution_t<
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Video interface system for configuring video output modes and displaying rendered graphics. </p>
 <p >The display subsystem handles interfacing with the video interface (VI) and the hardware rasterizer (RDP) to allow software and hardware graphics operations. It consists of the <a class="el" href="group__display.html">Display Subsystem</a>, the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. A separate module, the <a class="el" href="group__console.html">Console Support</a>, provides a rudimentary console for developers. Only the display subsystem or the console can be used at the same time. However, commands to draw console text to the display subsystem are available.</p>
-<p >The display subsystem module is responsible for initializing the proper video mode for displaying 2D, 3D and software graphics. To set up video on the N64, code should call <a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8" title="Initialize the display to a particular resolution and bit depth.">display_init</a> with the appropriate options. Once the display has been set, a surface can be requested from the display subsystem using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>. To draw to the acquired surface, code should use functions present in the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. Once drawing to a surface is complete, the rendered graphic can be displayed to the screen using <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a>. Once code has finished rendering all graphics, <a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36" title="Close the display.">display_close</a> can be used to shut down the display subsystem. </p>
+<p >The display subsystem module is responsible for initializing the proper video mode for displaying 2D, 3D and software graphics. To set up video on the N64, code should call <a class="el" href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1" title="Initialize the display to a particular resolution and bit depth.">display_init</a> with the appropriate options. Once the display has been set, a surface can be requested from the display subsystem using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>. To draw to the acquired surface, code should use functions present in the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. Once drawing to a surface is complete, the rendered graphic can be displayed to the screen using <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a>. Once code has finished rendering all graphics, <a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36" title="Close the display.">display_close</a> can be used to shut down the display subsystem. </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
+<a name="structvi__config__t" id="structvi__config__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structvi__config__t">&#9670;&nbsp;</a></span>vi_config_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct vi_config_t</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p >Video Interface register structure. </p>
+<p >Whenever trying to configure VI registers, this struct and its index definitions below can be very useful in writing comprehensive and verbose code. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="a0db40347f432553ed00f36701b41bd3c" name="a0db40347f432553ed00f36701b41bd3c"></a>uint32_t</td>
+<td class="fieldname">
+regs[<a class="el" href="group__display.html#gac7718da7b3464bf6dbb9834c7b40b23b">VI_REGISTERS_COUNT</a>]</td>
+<td class="fielddoc">
+</td></tr>
+</table>
+
+</div>
+</div>
 <a name="structresolution__t" id="structresolution__t"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structresolution__t">&#9670;&nbsp;</a></span>resolution_t</h2>
 
@@ -228,6 +474,174 @@ interlaced</td>
 <td class="fielddoc">
 True if interlaced mode enabled. </td></tr>
 </table>
+
+</div>
+</div>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="ga229f5d8b34fe1df30f96d369c876c721" name="ga229f5d8b34fe1df30f96d369c876c721"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga229f5d8b34fe1df30f96d369c876c721">&#9670;&nbsp;</a></span>VI_DEDITHER_FILTER_ENABLE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_DEDITHER_FILTER_ENABLE&#160;&#160;&#160;(1&lt;&lt;16)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_CTRL Register setting: enable dedither filter. </p>
+<p >Under VI_CTRL </p>
+
+</div>
+</div>
+<a id="gadc1f52223310eed81da724a6b39dc65b" name="gadc1f52223310eed81da724a6b39dc65b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gadc1f52223310eed81da724a6b39dc65b">&#9670;&nbsp;</a></span>VI_ORIGIN_SET</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_ORIGIN_SET</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">value</td><td>)</td>
+          <td>&#160;&#160;&#160;((value &amp; 0xFFFFFF) &lt;&lt; 0)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_ORIGIN Register: set the address of a framebuffer. </p>
+<p >Under VI_ORIGIN <br  />
+ </p>
+
+</div>
+</div>
+<a id="gaeae7910fce3a0792d5ea51c3a9ac2cec" name="gaeae7910fce3a0792d5ea51c3a9ac2cec"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaeae7910fce3a0792d5ea51c3a9ac2cec">&#9670;&nbsp;</a></span>VI_WIDTH_SET</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_WIDTH_SET</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">value</td><td>)</td>
+          <td>&#160;&#160;&#160;((value &amp; 0xFFF) &lt;&lt; 0)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_ORIGIN Register: set the width of a framebuffer. </p>
+<p >Under VI_WIDTH <br  />
+ </p>
+
+</div>
+</div>
+<a id="ga770a441b8eac8f84b33bf3258055a935" name="ga770a441b8eac8f84b33bf3258055a935"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga770a441b8eac8f84b33bf3258055a935">&#9670;&nbsp;</a></span>VI_V_CURRENT_VBLANK</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_V_CURRENT_VBLANK&#160;&#160;&#160;2</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_V_CURRENT Register: default value for vblank begin line. </p>
+<p >Under VI_V_CURRENT <br  />
+ </p>
+
+</div>
+</div>
+<a id="gad42069619bbafac81d72f6d15d948de2" name="gad42069619bbafac81d72f6d15d948de2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad42069619bbafac81d72f6d15d948de2">&#9670;&nbsp;</a></span>VI_V_INTR_SET</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_V_INTR_SET</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">value</td><td>)</td>
+          <td>&#160;&#160;&#160;((value &amp; 0x3FF) &lt;&lt; 0)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_V_INTR Register: set value for vertical interrupt. </p>
+<p >Under VI_V_INTR <br  />
+ </p>
+
+</div>
+</div>
+<a id="ga49a637f54fcd6e1a0c7392d737262d14" name="ga49a637f54fcd6e1a0c7392d737262d14"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga49a637f54fcd6e1a0c7392d737262d14">&#9670;&nbsp;</a></span>VI_BURST_START</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_BURST_START</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">value</td><td>)</td>
+          <td>&#160;&#160;&#160;((value &amp; 0x3F) &lt;&lt; 20)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_BURST Register: set start of color burst in pixels from hsync. </p>
+<p >Under VI_BURST <br  />
+ </p>
+
+</div>
+</div>
+<a id="gac1e9963eb22593c077a562ce662fe85d" name="gac1e9963eb22593c077a562ce662fe85d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac1e9963eb22593c077a562ce662fe85d">&#9670;&nbsp;</a></span>VI_X_SCALE_SET</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_X_SCALE_SET</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">value</td><td>)</td>
+          <td>&#160;&#160;&#160;(( 1024*(value) + 320 ) / 640)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) </p>
+<p >Under VI_X_SCALE <br  />
+ </p>
+
+</div>
+</div>
+<a id="ga0e6a2caf5dbfdcc516bfea8d0d3eb14b" name="ga0e6a2caf5dbfdcc516bfea8d0d3eb14b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0e6a2caf5dbfdcc516bfea8d0d3eb14b">&#9670;&nbsp;</a></span>VI_Y_SCALE_SET</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VI_Y_SCALE_SET</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">value</td><td>)</td>
+          <td>&#160;&#160;&#160;(( 1024*(value) + 120 ) / 240)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) </p>
+<p >Under VI_Y_SCALE <br  />
+ </p>
 
 </div>
 </div>
@@ -286,45 +700,129 @@ True if interlaced mode enabled. </td></tr>
 
 <p>Valid gamma correction settings. </p>
 <table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="gga35f19c13bdc2076bd91416021036e439a93441449f3f926aa87eeddef2faec6a2" name="gga35f19c13bdc2076bd91416021036e439a93441449f3f926aa87eeddef2faec6a2"></a>GAMMA_NONE&#160;</td><td class="fielddoc"><p >Uncorrected gamma. </p>
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="gga35f19c13bdc2076bd91416021036e439a93441449f3f926aa87eeddef2faec6a2" name="gga35f19c13bdc2076bd91416021036e439a93441449f3f926aa87eeddef2faec6a2"></a>GAMMA_NONE&#160;</td><td class="fielddoc"><p >Uncorrected gamma, should be used by default and with assets built by libdragon tools. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="gga35f19c13bdc2076bd91416021036e439a8185179fe454e1ca98bfe0cbd5227edf" name="gga35f19c13bdc2076bd91416021036e439a8185179fe454e1ca98bfe0cbd5227edf"></a>GAMMA_CORRECT&#160;</td><td class="fielddoc"><p >Corrected gamma. </p>
+<tr><td class="fieldname"><a id="gga35f19c13bdc2076bd91416021036e439a8185179fe454e1ca98bfe0cbd5227edf" name="gga35f19c13bdc2076bd91416021036e439a8185179fe454e1ca98bfe0cbd5227edf"></a>GAMMA_CORRECT&#160;</td><td class="fielddoc"><p >Corrected gamma, should be used on a 32-bit framebuffer only when assets have been produced in linear color space and accurate blending is important. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="gga35f19c13bdc2076bd91416021036e439a1460e16edaee7518fa12b01341915ddc" name="gga35f19c13bdc2076bd91416021036e439a1460e16edaee7518fa12b01341915ddc"></a>GAMMA_CORRECT_DITHER&#160;</td><td class="fielddoc"><p >Corrected gamma with hardware dither. </p>
+<tr><td class="fieldname"><a id="gga35f19c13bdc2076bd91416021036e439a1460e16edaee7518fa12b01341915ddc" name="gga35f19c13bdc2076bd91416021036e439a1460e16edaee7518fa12b01341915ddc"></a>GAMMA_CORRECT_DITHER&#160;</td><td class="fielddoc"><p >Corrected gamma with hardware dithered output. </p>
 </td></tr>
 </table>
 
 </div>
 </div>
-<a id="gab854c9b99a752c70a3f2dc97b79d7d7b" name="gab854c9b99a752c70a3f2dc97b79d7d7b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab854c9b99a752c70a3f2dc97b79d7d7b">&#9670;&nbsp;</a></span>antialias_t</h2>
+<a id="ga44577780f71aa45486b189f27499e7a1" name="ga44577780f71aa45486b189f27499e7a1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga44577780f71aa45486b189f27499e7a1">&#9670;&nbsp;</a></span>filter_options_t</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">enum <a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a></td>
+          <td class="memname">enum <a class="el" href="group__display.html#ga44577780f71aa45486b189f27499e7a1">filter_options_t</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Valid antialiasing settings. </p>
+<p>Valid display filter options. </p>
+<p >Libdragon uses preconfigured options for enabling certain combinations of Video Interface filters due to a large number of wrong/invalid configurations with very strict conditions, and to simplify the options for the user.</p>
+<p >Like for example antialiasing requiring resampling; dedithering not working with resampling, unless always fetching; always enabling divot filter under AA etc.</p>
+<p >The options below provide all possible configurations that are deemed useful in development. </p>
 <table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ggab854c9b99a752c70a3f2dc97b79d7d7bab0b2a1d0b13ec281bd0285d815e1f405" name="ggab854c9b99a752c70a3f2dc97b79d7d7bab0b2a1d0b13ec281bd0285d815e1f405"></a>ANTIALIAS_OFF&#160;</td><td class="fielddoc"><p >No anti-aliasing. </p>
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="gga44577780f71aa45486b189f27499e7a1ab6051558cec1085b8d052b08e69688f0" name="gga44577780f71aa45486b189f27499e7a1ab6051558cec1085b8d052b08e69688f0"></a>FILTERS_DISABLED&#160;</td><td class="fielddoc"><p >All display filters are disabled. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="ggab854c9b99a752c70a3f2dc97b79d7d7ba6d98afc0f4b2beeb9101799283e1c455" name="ggab854c9b99a752c70a3f2dc97b79d7d7ba6d98afc0f4b2beeb9101799283e1c455"></a>ANTIALIAS_RESAMPLE&#160;</td><td class="fielddoc"><p >Resampling anti-aliasing. </p>
+<tr><td class="fieldname"><a id="gga44577780f71aa45486b189f27499e7a1aa0aeba12435b176cafd2ca13402796a5" name="gga44577780f71aa45486b189f27499e7a1aa0aeba12435b176cafd2ca13402796a5"></a>FILTERS_RESAMPLE&#160;</td><td class="fielddoc"><p >Resize the output image with a bilinear filter. In general, VI is in charge of resizing the framebuffer to fit the TV resolution (which is always NTSC 640x480 or PAL 640x512). This option enables a bilinear interpolation that can be used during this resize. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="ggab854c9b99a752c70a3f2dc97b79d7d7ba94eb226cb79d15f7ca2754f9f6e33e3b" name="ggab854c9b99a752c70a3f2dc97b79d7d7ba94eb226cb79d15f7ca2754f9f6e33e3b"></a>ANTIALIAS_RESAMPLE_FETCH_NEEDED&#160;</td><td class="fielddoc"><p >Anti-aliasing and resampling with fetch-on-need. </p>
+<tr><td class="fieldname"><a id="gga44577780f71aa45486b189f27499e7a1a8cef20b356b89e9386718e38eefb4014" name="gga44577780f71aa45486b189f27499e7a1a8cef20b356b89e9386718e38eefb4014"></a>FILTERS_DEDITHER&#160;</td><td class="fielddoc"><p >Reconstruct a 32-bit output from dithered 16-bit framebuffer. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="ggab854c9b99a752c70a3f2dc97b79d7d7ba35585588ccb0025ef31016bd236b47ec" name="ggab854c9b99a752c70a3f2dc97b79d7d7ba35585588ccb0025ef31016bd236b47ec"></a>ANTIALIAS_RESAMPLE_FETCH_ALWAYS&#160;</td><td class="fielddoc"><p >Anti-aliasing and resampling with fetch-always. </p>
+<tr><td class="fieldname"><a id="gga44577780f71aa45486b189f27499e7a1a1844170f316890da24d1252b17b2ebf8" name="gga44577780f71aa45486b189f27499e7a1a1844170f316890da24d1252b17b2ebf8"></a>FILTERS_RESAMPLE_ANTIALIAS&#160;</td><td class="fielddoc"><p >Resize the output image with a bilinear filter (see <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1aa0aeba12435b176cafd2ca13402796a5" title="Resize the output image with a bilinear filter. In general, VI is in charge of resizing the framebuff...">FILTERS_RESAMPLE</a>). Add a video interface anti-aliasing pass with a divot filter. To be able to see correct anti-aliased output, this display filter must be enabled, along with anti-aliased rendering of surfaces. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="gga44577780f71aa45486b189f27499e7a1a07f415ee1a7f2a98c8047d02ba528193" name="gga44577780f71aa45486b189f27499e7a1a07f415ee1a7f2a98c8047d02ba528193"></a>FILTERS_RESAMPLE_ANTIALIAS_DEDITHER&#160;</td><td class="fielddoc"><p >Resize the output image with a bilinear filter (see <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1aa0aeba12435b176cafd2ca13402796a5" title="Resize the output image with a bilinear filter. In general, VI is in charge of resizing the framebuff...">FILTERS_RESAMPLE</a>). Add a video interface anti-aliasing pass with a divot filter (see <a class="el" href="group__display.html#gga44577780f71aa45486b189f27499e7a1a1844170f316890da24d1252b17b2ebf8" title="Resize the output image with a bilinear filter (see FILTERS_RESAMPLE). Add a video interface anti-ali...">FILTERS_RESAMPLE_ANTIALIAS</a>). Reconstruct a 32-bit output from dithered 16-bit framebuffer. </p>
 </td></tr>
 </table>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="gac3446a497399d2c8d90e6a51a53b45c8" name="gac3446a497399d2c8d90e6a51a53b45c8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac3446a497399d2c8d90e6a51a53b45c8">&#9670;&nbsp;</a></span>display_init()</h2>
+<a id="ga63c36f09c3c333e7b98ae87728a0294e" name="ga63c36f09c3c333e7b98ae87728a0294e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga63c36f09c3c333e7b98ae87728a0294e">&#9670;&nbsp;</a></span>vi_write_safe()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void vi_write_safe </td>
+          <td>(</td>
+          <td class="paramtype">volatile uint32_t *&#160;</td>
+          <td class="paramname"><em>reg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Write a set of video registers to the VI. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">reg</td><td>A pointer to a register to be written </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">value</td><td>Value to be written to the register </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga4ea824b2e1bf1a5ecda800172e3b2bf7" name="ga4ea824b2e1bf1a5ecda800172e3b2bf7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4ea824b2e1bf1a5ecda800172e3b2bf7">&#9670;&nbsp;</a></span>vi_write_config()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void vi_write_config </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="group__display.html#structvi__config__t">vi_config_t</a> *&#160;</td>
+          <td class="paramname"><em>config</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Write a set of video registers to the VI. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">config</td><td>A pointer to a set of register values to be written </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga1763c553f071d40c4bd18cee77ae98a1" name="ga1763c553f071d40c4bd18cee77ae98a1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga1763c553f071d40c4bd18cee77ae98a1">&#9670;&nbsp;</a></span>display_init()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -356,8 +854,8 @@ True if interlaced mode enabled. </td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a>&#160;</td>
-          <td class="paramname"><em>aa</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="group__display.html#ga44577780f71aa45486b189f27499e7a1">filter_options_t</a>&#160;</td>
+          <td class="paramname"><em>filters</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -375,7 +873,7 @@ True if interlaced mode enabled. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bit</td><td>The requested bit depth (<a class="el" href="group__display.html#ggae2079fcb0e8b0f846f002f25d0c73ffbabf331dc6d78bf9d2fb2b893a365f01d5" title="16 bits per pixel (5-5-5-1)">DEPTH_16_BPP</a> or <a class="el" href="group__display.html#ggae2079fcb0e8b0f846f002f25d0c73ffba4a6b7a72647d1f86f2215daf4d177e29" title="32 bits per pixel (8-8-8-8)">DEPTH_32_BPP</a>) </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">num_buffers</td><td>Number of buffers, usually 2 or 3, but can be more. Triple buffering is recommended in case the application cannot hold a steady full framerate, so that slowdowns don't impact too much. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">gamma</td><td>The requested gamma setting </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">aa</td><td>The requested anti-aliasing setting </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">filters</td><td>The requested display filtering options, see <a class="el" href="group__display.html#ga44577780f71aa45486b189f27499e7a1" title="Valid display filter options.">filter_options_t</a> </td></tr>
   </table>
   </dd>
 </dl>
@@ -457,7 +955,7 @@ True if interlaced mode enabled. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Aug 19 2023 16:05:18 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Aug 25 2023 12:45:20 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -1,9 +1,9 @@
 var searchData=
 [
-  ['sgb_5fenhanced_0',['SGB_ENHANCED',['../tpak_8h.html#a65a36b9bf504ca51cd9b616a61fe75afa89d9f2399cee9f63c7c2b0225a9c4c11',1,'tpak.h']]],
-  ['sgb_5fnot_5fenhanced_1',['SGB_NOT_ENHANCED',['../tpak_8h.html#a65a36b9bf504ca51cd9b616a61fe75afa9fd96c7c94db63ead48d322e86395e9f',1,'tpak.h']]],
-  ['sync_5ffull_2',['SYNC_FULL',['../group__rdp.html#ggaa2dbbcba64b87654ad46b6ceb1187c9da80215ce5b4bbb76fa553d94ae67500a0',1,'rdp.h']]],
-  ['sync_5fload_3',['SYNC_LOAD',['../group__rdp.html#ggaa2dbbcba64b87654ad46b6ceb1187c9da6ca16c8ba3d00e4dbcc8a593c2982020',1,'rdp.h']]],
-  ['sync_5fpipe_4',['SYNC_PIPE',['../group__rdp.html#ggaa2dbbcba64b87654ad46b6ceb1187c9da54a70dd119e72ec8288d90fdf9525944',1,'rdp.h']]],
-  ['sync_5ftile_5',['SYNC_TILE',['../group__rdp.html#ggaa2dbbcba64b87654ad46b6ceb1187c9dabeb588ca9e33ffa895d6e019c0a9cdfe',1,'rdp.h']]]
+  ['tv_5fmpal_0',['TV_MPAL',['../group__n64sys.html#gga7f74bd3e9215d217f484cb5441a04e09a18303db5564bcb8858b073fd71299266',1,'n64sys.h']]],
+  ['tv_5fntsc_1',['TV_NTSC',['../group__n64sys.html#gga7f74bd3e9215d217f484cb5441a04e09aa448059c396de3096b7f2cb91213effb',1,'n64sys.h']]],
+  ['tv_5fpal_2',['TV_PAL',['../group__n64sys.html#gga7f74bd3e9215d217f484cb5441a04e09a848a03bb41e5831799bcddab1e084d77',1,'n64sys.h']]],
+  ['type_5fany_3',['TYPE_ANY',['../group__dfs.html#gga99fb83031ce9923c84392b4e92f956b5af173f42b16daa16262e56c2e12fb11b3',1,'dragonfs.c']]],
+  ['type_5fdir_4',['TYPE_DIR',['../group__dfs.html#gga99fb83031ce9923c84392b4e92f956b5a5b5f3036729530d8011e6f1ea2207aac',1,'dragonfs.c']]],
+  ['type_5ffile_5',['TYPE_FILE',['../group__dfs.html#gga99fb83031ce9923c84392b4e92f956b5a30351c278162a6e7dbdb10570ae8782e',1,'dragonfs.c']]]
 ];

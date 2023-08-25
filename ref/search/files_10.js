@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['xm64_2ec_0',['xm64.c',['../xm64_8c.html',1,'']]],
-  ['xm64_2eh_1',['xm64.h',['../xm64_8h.html',1,'']]]
+  ['wav64_2ec_0',['wav64.c',['../wav64_8c.html',1,'']]],
+  ['wav64_2eh_1',['wav64.h',['../wav64_8h.html',1,'']]]
 ];
