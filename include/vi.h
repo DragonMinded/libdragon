@@ -69,7 +69,7 @@ volatile vi_register_t* VI_Y_SCALE      =  &((volatile vi_register_t*)VI_REGISTE
 #define VI_TO_REGISTER(index) (((index) >= 0 && (index) <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
 
 /** @brief VI index from register */
-#define VI_TO_INDEX(reg) ((reg - VI_REGISTERS));
+#define VI_TO_INDEX(reg) ((reg) - VI_REGISTERS)
 
 /**
  * @name Video Mode Register Presets
