@@ -7,9 +7,9 @@ static sprite_t *ball_sprite;
 static sprite_t *net_sprite;
 static rspq_block_t* background_block;
 
+static xm64player_t sfx_music;
 static wav64_t sfx_hit;
 static wav64_t sfx_halt;
-static wav64_t sfx_music;
 static wav64_t sfx_win;
 
 enum {
@@ -466,16 +466,16 @@ int main()
     rdpq_init();
 
 	audio_init(44100, 4);
-	mixer_init(8);
+	mixer_init(20);
 
 	wav64_open(&sfx_hit, "rom:/hit.wav64");
 	wav64_open(&sfx_halt, "rom:/halt.wav64");
 	wav64_open(&sfx_win, "rom:/win.wav64");
 
-	wav64_open(&sfx_music, "rom:/music.wav64");
-	wav64_set_loop(&sfx_music, true);
-    mixer_ch_set_vol(CHANNEL_MUSIC, 0.55f, 0.55f);
-    wav64_play(&sfx_music, CHANNEL_MUSIC);
+    xm64player_open(&sfx_music, "rom:/autang.xm64");
+    xm64player_set_loop(&sfx_music, true);
+    xm64player_set_vol(&sfx_music, 0.55);
+    xm64player_play(&sfx_music, CHANNEL_MUSIC);
 
     background_sprite = sprite_load("rom:/background.sprite");
 
