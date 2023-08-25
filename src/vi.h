@@ -16,8 +16,6 @@
  * @{
  */
 
-typedef uint32_t vi_register_t;
-
 /** @brief Register uncached location in memory of VI */
 #define VI_REGISTERS_ADDR       0xA4400000
 /** @brief Number of useful 32-bit registers at the register base */
@@ -31,39 +29,39 @@ typedef uint32_t vi_register_t;
  * in writing comprehensive and verbose code.
  */
 typedef struct vi_config_s{
-    vi_register_t regs[VI_REGISTERS_COUNT];
+    uint32_t regs[VI_REGISTERS_COUNT];
 } vi_config_t;
 
-volatile vi_register_t* VI_REGISTERS    =  ((volatile vi_register_t*)VI_REGISTERS_ADDR);
+#define VI_REGISTERS      ((volatile uint32_t*)VI_REGISTERS_ADDR)
 /** @brief VI Index register of controlling general display filters/bitdepth configuration */
-volatile vi_register_t* VI_CTRL         =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[0];
+#define VI_CTRL           (&VI_REGISTERS[0])
 /** @brief VI Index register of RDRAM base address of the video output Frame Buffer. This can be changed as needed to implement double or triple buffering. */
-volatile vi_register_t* VI_ORIGIN       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[1];
+#define VI_ORIGIN         (&VI_REGISTERS[1])
 /** @brief VI Index register of width in pixels of the frame buffer. */
-volatile vi_register_t* VI_WIDTH        =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[2];
+#define VI_WIDTH          (&VI_REGISTERS[2])
 /** @brief VI Index register of vertical interrupt. */
-volatile vi_register_t* VI_V_INTR       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[3];
+#define VI_V_INTR         (&VI_REGISTERS[3])
 /** @brief VI Index register of the current half line, sampled once per line. */
-volatile vi_register_t* VI_V_CURRENT    =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[4];
+#define VI_V_CURRENT      (&VI_REGISTERS[4])
 /** @brief VI Index register of sync/burst values */
-volatile vi_register_t* VI_BURST        =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[5];
+#define VI_BURST          (&VI_REGISTERS[5])
 /** @brief VI Index register of total visible and non-visible lines. 
  * This should match either NTSC (non-interlaced: 0x20D, interlaced: 0x20C) or PAL (non-interlaced: 0x271, interlaced: 0x270) */
-volatile vi_register_t* VI_V_SYNC       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[6];
+#define VI_V_SYNC         (&VI_REGISTERS[6])
 /** @brief VI Index register of total width of a line */
-volatile vi_register_t* VI_H_SYNC       =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[7];
+#define VI_H_SYNC         (&VI_REGISTERS[7])
 /** @brief VI Index register of an alternate scanline length for one scanline during vsync. */
-volatile vi_register_t* VI_H_SYNC_LEAP  =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[8];
+#define VI_H_SYNC_LEAP    (&VI_REGISTERS[8])
 /** @brief VI Index register of start/end of the active video image, in screen pixels */
-volatile vi_register_t* VI_H_VIDEO      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[9];
+#define VI_H_VIDEO        (&VI_REGISTERS[9])
 /** @brief VI Index register of start/end of the active video image, in screen half-lines. */
-volatile vi_register_t* VI_V_VIDEO      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[10];
+#define VI_V_VIDEO        (&VI_REGISTERS[10])
 /** @brief VI Index register of start/end of the color burst enable, in half-lines. */
-volatile vi_register_t* VI_V_BURST      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[11];
+#define VI_V_BURST        (&VI_REGISTERS[11])
 /** @brief VI Index register of horizontal subpixel offset and 1/horizontal scale up factor. */
-volatile vi_register_t* VI_X_SCALE      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[12];
+#define VI_X_SCALE        (&VI_REGISTERS[12])
 /** @brief VI Index register of vertical subpixel offset and 1/vertical scale up factor. */
-volatile vi_register_t* VI_Y_SCALE      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[13];
+#define VI_Y_SCALE        (&VI_REGISTERS[13])
 
 /** @brief VI register by index (0-13)*/
 #define VI_TO_REGISTER(index) (((index) >= 0 && (index) <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
@@ -173,7 +171,7 @@ static const vi_config_t vi_config_presets[2][3] = {
  * @param[in] value
  *            Value to be written to the register
  */
-inline void vi_write_safe(volatile vi_register_t *reg, uint32_t value){
+inline void vi_write_safe(volatile uint32_t *reg, uint32_t value){
     assert(reg); /* This should never happen */
     *reg = value;
     MEMORY_BARRIER();
