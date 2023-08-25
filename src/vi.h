@@ -32,6 +32,8 @@ typedef struct vi_config_s{
     uint32_t regs[VI_REGISTERS_COUNT];
 } vi_config_t;
 
+/** @brief Base pointer to hardware Video interface registers that control various aspects of VI configuration.
+ * Shouldn't be used by itself, use VI_ registers to get/set their values. */
 #define VI_REGISTERS      ((volatile uint32_t*)VI_REGISTERS_ADDR)
 /** @brief VI Index register of controlling general display filters/bitdepth configuration */
 #define VI_CTRL           (&VI_REGISTERS[0])
