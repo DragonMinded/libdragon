@@ -113,54 +113,88 @@ static const vi_config_t vi_config_presets[2][3] = {
 };
 
 /** Under VI_CTRL */
+
+/** @brief VI_CTRL Register setting: enable dedither filter. */
 #define VI_DEDITHER_FILTER_ENABLE           (1<<16)
+/** @brief VI_CTRL Register setting: default value for pixel advance. */
 #define VI_PIXEL_ADVANCE_DEFAULT            (0b0011 << 12)
+/** @brief VI_CTRL Register setting: default value for pixel advance on iQue. */
 #define VI_PIXEL_ADVANCE_BBPLAYER           (0b0001 << 12)
+/** @brief VI_CTRL Register setting: disable AA / resamp. */
 #define VI_AA_MODE_NONE                     (0b11 << 8)
+/** @brief VI_CTRL Register setting: disable AA / enable resamp. */
 #define VI_AA_MODE_RESAMPLE                 (0b10 << 8)
+/** @brief VI_CTRL Register setting: enable AA / enable resamp, fetch pixels when needed. */
 #define VI_AA_MODE_RESAMPLE_FETCH_NEEDED    (0b01 << 8)
+/** @brief VI_CTRL Register setting: enable AA / enable resamp, fetch pixels always. */
 #define VI_AA_MODE_RESAMPLE_FETCH_ALWAYS    (0b00 << 8)
+/** @brief VI_CTRL Register setting: enable interlaced output. */
 #define VI_CTRL_SERRATE                     (1<<6)
+/** @brief VI_CTRL Register setting: enable divot filter (fixes 1 pixel holes after AA). */
 #define VI_DIVOT_ENABLE                     (1<<4)
+/** @brief VI_CTRL Register setting: enable gamma correction filter. */
 #define VI_GAMMA_ENABLE                     (1<<3)
+/** @brief VI_CTRL Register setting: enable gamma correction filter and hardware dither the least significant color bit on output. */
 #define VI_GAMMA_DITHER_ENABLE              (1<<2)
+/** @brief VI_CTRL Register setting: set the framebuffer source as 32-bit. */
 #define VI_CTRL_TYPE_32_BPP                 (0b11)
+/** @brief VI_CTRL Register setting: set the framebuffer source as 16-bit (5-5-5-3). */
 #define VI_CTRL_TYPE_16_BPP                 (0b10)
+/** @brief VI_CTRL Register setting: set the framebuffer source as blank (no data and no sync, TV screens will either show static or nothing). */
 #define VI_CTRL_TYPE_BLANK                  (0b00)
 
 /** Under VI_ORIGIN  */
+/** @brief VI_ORIGIN Register: set the address of a framebuffer. */
 #define VI_ORIGIN_SET(value)                ((value & 0xFFFFFF) << 0)
 
 /** Under VI_WIDTH   */
+/** @brief VI_ORIGIN Register: set the width of a framebuffer. */
 #define VI_WIDTH_SET(value)                 ((value & 0xFFF) << 0)
 
 /** Under VI_V_CURRENT  */
+/** @brief VI_V_CURRENT Register: default value for vblank begin line. */
 #define VI_V_CURRENT_VBLANK                 2
 
 /** Under VI_V_INTR    */
+/** @brief VI_V_INTR Register: set value for vertical interrupt. */
 #define VI_V_INTR_SET(value)                ((value & 0x3FF) << 0)
+/** @brief VI_V_INTR Register: default value for vertical interrupt. */
 #define VI_V_INTR_DEFAULT                   0x3FF
 
 /** Under VI_BURST     */
+/** @brief VI_BURST Register: set start of color burst in pixels from hsync. */
 #define VI_BURST_START(value)               ((value & 0x3F) << 20)
+/** @brief VI_BURST Register: set vertical sync width in half lines. */
 #define VI_VSYNC_WIDTH(value)               ((value & 0x7)  << 16)
+/** @brief VI_BURST Register: set color burst width in pixels. */
 #define VI_BURST_WIDTH(value)               ((value & 0xFF) << 8)
+/** @brief VI_BURST Register: set horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH(value)               ((value & 0xFF) << 0)
 
+/** @brief VI_BURST Register: NTSC default start of color burst in pixels from hsync. */
 #define VI_BURST_START_NTSC                 62
+/** @brief VI_BURST Register: NTSC default vertical sync width in half lines. */
 #define VI_VSYNC_WIDTH_NTSC                 5
+/** @brief VI_BURST Register: NTSC default color burst width in pixels. */
 #define VI_BURST_WIDTH_NTSC                 34
+/** @brief VI_BURST Register: NTSC default horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH_NTSC                 57
 
+/** @brief VI_BURST Register: PAL default start of color burst in pixels from hsync. */
 #define VI_BURST_START_PAL                  64
+/** @brief VI_BURST Register: PAL default vertical sync width in half lines. */
 #define VI_VSYNC_WIDTH_PAL                  4
+/** @brief VI_BURST Register: PAL default color burst width in pixels.  */
 #define VI_BURST_WIDTH_PAL                  35
+/** @brief VI_BURST Register: PAL default horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH_PAL                  58
 
 /**  Under VI_X_SCALE   */
+/** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */
 #define VI_X_SCALE_SET(value)               (( 1024*(value) + 320 ) / 640)
 
 /**  Under VI_Y_SCALE   */
+/** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
 #define VI_Y_SCALE_SET(value)               (( 1024*(value) + 120 ) / 240)
 
 /**
