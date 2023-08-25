@@ -66,7 +66,7 @@ volatile vi_register_t* VI_X_SCALE      =  &((volatile vi_register_t*)VI_REGISTE
 volatile vi_register_t* VI_Y_SCALE      =  &((volatile vi_register_t*)VI_REGISTERS_ADDR)[13];
 
 /** @brief VI register by index (0-13)*/
-#define VI_TO_REGISTER(index) ((index >= 0 && index <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
+#define VI_TO_REGISTER(index) (((index) >= 0 && (index) <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
 
 /** @brief VI index from register */
 #define VI_TO_INDEX(reg) ((reg - VI_REGISTERS));
