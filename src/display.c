@@ -184,8 +184,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     vi_write_safe(VI_CTRL, control);
 
     /* Calculate width and scale registers */
-    assertf(res.width > 0 && res.width <= 800, "invalid width");
-    assertf(res.height > 0 && res.height <= 600, "invalid height");
+    assertf(res.width > 0, "nonpositive width");
+    assertf(res.height > 0, "nonpositive height");
+    assertf(res.width <= 800, "invalid width");
+    assertf(res.height <= 720, "heights > 720 are buggy on hardware");
     if( bit == DEPTH_16_BPP )
     {
         assertf(res.width % 4 == 0, "width must be divisible by 4 for 16-bit depth");
