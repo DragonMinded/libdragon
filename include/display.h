@@ -92,7 +92,7 @@ typedef enum
     /** @brief Uncorrected gamma, should be used by default and with assets built by libdragon tools */
     GAMMA_NONE,
     /** @brief Corrected gamma, should be used on a 32-bit framebuffer
-     * only if linear color space and accurate blending is important */
+     * only when assets have been produced in linear color space and accurate blending is important */
     GAMMA_CORRECT,
     /** @brief Corrected gamma with hardware dithered output */
     GAMMA_CORRECT_DITHER
