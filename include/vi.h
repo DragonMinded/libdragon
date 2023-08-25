@@ -160,7 +160,7 @@ static const vi_config_t vi_config_presets[2][3] = {
 #define VI_HSYNC_WIDTH_PAL                  58
 
 /**  Under VI_X_SCALE   */
-#define VI_X_SCALE_SET(value)               (( 1024*value + 320 ) / 640)
+#define VI_X_SCALE_SET(value)               (( 1024*(value) + 320 ) / 640)
 
 /**  Under VI_Y_SCALE   */
 #define VI_Y_SCALE_SET(value)               (( 1024*value + 120 ) / 240)
