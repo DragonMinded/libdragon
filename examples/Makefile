@@ -1,10 +1,15 @@
-all: audioplayer cpptest ctest dfsdemo fontdemo gldemo mixertest mptest mputest rdpqdemo rspqdemo spritemap test timers vrutest vtest pixelshader eepromfstest overlays 
-clean: audioplayer-clean cpptest-clean ctest-clean dfsdemo-clean fontdemo-clean gldemo-clean mixertest-clean mptest-clean mputest-clean rdpqdemo-clean rspqdemo-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean pixelshader-clean eepromfstest-clean overlays-clean
+all: audioplayer brew_volley cpptest ctest dfsdemo fontdemo gldemo mixertest mptest mputest rdpqdemo rspqdemo spritemap test timers vrutest vtest pixelshader eepromfstest overlays 
+clean: audioplayer-clean brew_volley-clean cpptest-clean ctest-clean dfsdemo-clean fontdemo-clean gldemo-clean mixertest-clean mptest-clean mputest-clean rdpqdemo-clean rspqdemo-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean pixelshader-clean eepromfstest-clean overlays-clean
 
 audioplayer:
 	$(MAKE) -C audioplayer
 audioplayer-clean:
 	$(MAKE) -C audioplayer clean
+
+brew_volley:
+	$(MAKE) -C brew-volley
+brew_volley-clean:
+	$(MAKE) -C brew-volley clean
 
 cpptest:
 	$(MAKE) -C cpptest
