@@ -259,7 +259,7 @@ static inline void vi_wait_for_vblank()
 /** @brief Return true if VI is sending a video signal (16-bit or 32-bit color set) */
 static inline bool vi_is_active()
 {
-    return ((*VI_CTRL & VI_CTRL_TYPE) > VI_CTRL_TYPE_BLANK? true : false);
+    return (*VI_CTRL & VI_CTRL_TYPE) != VI_CTRL_TYPE_BLANK;
 }
 
 /** @brief Set active image width to 0, which keeps VI signal active but only sending a blank image */
