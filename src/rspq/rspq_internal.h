@@ -224,8 +224,10 @@ typedef struct rspq_profile_slot_dmem_s {
  */
 typedef struct rspq_profile_data_dmem_s {
     rspq_profile_slot_dmem_t slots[RSPQ_PROFILE_SLOT_COUNT];
-    uint32_t frame_last;
     uint32_t frame_time;
+    uint32_t busy_time;
+    uint32_t frame_last;
+    uint32_t busy_last;
 } rspq_profile_data_dmem_t;
 
 /**

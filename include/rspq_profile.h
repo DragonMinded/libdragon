@@ -18,6 +18,7 @@ typedef struct rspq_profile_slot_s {
 typedef struct rspq_profile_data_s {
     rspq_profile_slot_t slots[RSPQ_PROFILE_SLOT_COUNT];     ///< The list of slots
     uint64_t total_ticks;                                   ///< The total elapsed rcp ticks since the last reset
+    uint64_t rdp_busy_ticks;                                ///< The accumulated ticks sampled from DP_BUSY
     uint64_t frame_count;                                   ///< The number of recorded frames since the last reset
 } rspq_profile_data_t;
 

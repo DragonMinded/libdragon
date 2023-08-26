@@ -1421,7 +1421,6 @@ static rspq_profile_data_t profile_data;
 
 static struct {
     rspq_profile_data_dmem_t data;
-    uint64_t padding;
 } __attribute__((aligned(16))) profile_buffer;
 
 #define PROFILE_DATA_DMEM_ADDRESS (RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, rspq_profile_data))
@@ -1474,6 +1473,7 @@ static void rspq_profile_accumulate()
     }
 
     profile_data.total_ticks += profile_buffer.data.frame_time;
+    profile_data.rdp_busy_ticks += profile_buffer.data.busy_time;
     profile_data.frame_count++;
 }
 
@@ -1523,6 +1523,10 @@ void rspq_profile_dump()
 
     float overhead_relative = PERCENT(overhead_avg, frame_avg);
 
+    uint64_t rdp_busy_avg = profile_data.rdp_busy_ticks / profile_data.frame_count;
+    uint64_t rdp_busy_us = RCP_TICKS_TO_USECS(rdp_busy_avg);
+    float rdp_utilisation = PERCENT(rdp_busy_avg, frame_avg);
+
     debugf("%-25s %10s %12s %10s\n", "Slot", "Cnt/Frame", "Avg/Frame", "Rel/Frame");
 	debugf("------------------------------------------------------------\n");
 
@@ -1538,6 +1542,7 @@ void rspq_profile_dump()
     debugf("Profiled frames:    %12lld\n", profile_data.frame_count);
     debugf("Frames per second:  %12.1f\n", (float)RCP_FREQUENCY/(float)frame_avg);
     debugf("Average frame time: %10lldus\n", frame_avg_us);
+    debugf("RDP busy time:      %10lldus (%2.2f%%)\n", rdp_busy_us, rdp_utilisation);
     debugf("Unrecorded time:    %10lldus (%2.2f%%)\n", overhead_us, overhead_relative);
     debugf("\n");
 }

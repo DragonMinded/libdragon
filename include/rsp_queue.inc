@@ -338,8 +338,10 @@ RDPQ_DEBUG:                  .byte 0
 #if RSPQ_PROFILE
 RSPQ_PROFILE_CUR_SLOT:        .long 0
 RSPQ_PROFILE_DATA:            .ds.b (RSPQ_PROFILE_SLOT_SIZE * RSPQ_PROFILE_SLOT_COUNT)
-RSPQ_PROFILE_FRAME_LAST:      .long 0
 RSPQ_PROFILE_FRAME_TIME:      .long 0
+RSPQ_PROFILE_BUSY_TIME:       .long 0
+RSPQ_PROFILE_FRAME_LAST:      .long 0
+RSPQ_PROFILE_BUSY_LAST:       .long 0
 RSPQ_PROFILE_START_TIME:      .long 0
 #endif
 
@@ -889,12 +891,18 @@ RSPQ_RdpWait:
     .func RSPQCmd_ProfileFrame
 RSPQCmd_ProfileFrame:
     mfc0 t0, COP0_DP_CLOCK
+    mfc0 t3, COP0_DP_BUSY
     lw t1, %lo(RSPQ_PROFILE_FRAME_LAST)
+    lw t4, %lo(RSPQ_PROFILE_BUSY_LAST)
     subu t2, t0, t1
+    subu t5, t3, t4
     and t2, 0xFFFFFF
+    and t5, 0xFFFFFF
     sw t0, %lo(RSPQ_PROFILE_FRAME_LAST)
-    jr ra
     sw t2, %lo(RSPQ_PROFILE_FRAME_TIME)
+    sw t3, %lo(RSPQ_PROFILE_BUSY_LAST)
+    jr ra
+    sw t5, %lo(RSPQ_PROFILE_BUSY_TIME)
     .endfunc
 
     #############################################################
