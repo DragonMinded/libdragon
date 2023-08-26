@@ -450,6 +450,10 @@ RSPQ_Loop:
     li ovl_index, 0
     jal RSPQ_ProfileAccumulate
     subu t0, t1
+    # Reset the current slot so we don't end up accumulating to it again. 
+    # This could happen if highpri mode is entered right after this.
+    li s0, -1
+    sw s0, %lo(RSPQ_PROFILE_CUR_SLOT)
 1:
 #endif
 
