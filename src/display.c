@@ -254,10 +254,10 @@ void display_close()
     __width = 0;
     __height = 0;
 
-    // If display is active, wait for vblank before touching the registers
+    /* If display is active, wait for vblank before touching the registers */
     if( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    vi_write_safe(VI_H_VIDEO, 0);
+    vi_set_blank_image();
     vi_write_dram_register( 0 );
 
     if( surfaces )
