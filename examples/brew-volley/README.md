@@ -8,7 +8,7 @@ This example shows how one can easily build a simple game with unstable Libdrago
 
 # Assets attributions
 
-Music: Be Chillin' by Alexander Nakarada ["(www.serpentsoundstudios.com)"](http://www.serpentsoundstudios.com) Licensed under ["Creative Commons: By Attribution 4.0 License"](http://creativecommons.org/licenses/by/4.0/)
+Music: [Autang](https://modarchive.org/index.php?request=view_by_moduleid&query=167849) by JAM is licensed under Public Domain.
 
 Background: ["Coconut tree near shore within mountain range" by Elizeu Dias](https://unsplash.com/photos/RN6ts8IZ4_0) Licensed under Unsplash license.
 
