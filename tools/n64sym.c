@@ -150,13 +150,14 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         // it means that we're done.
         int n = getline(&line_buf, &line_buf_size, addr2line_r);
         if (strncmp(line_buf, "0xffffffff", 10) == 0) break;
+        n--;
         if (line_buf[n-1] == '\r') n--; // Remove trailing \r (Windows)
 
         // If the function of name is longer than 64 bytes, truncate it. This also
         // avoid paradoxically long function names like in C++ that can even be
         // several thousands of characters long.
-        char *func = strndup(line_buf, MIN(n-1, flag_max_sym_len));
-        if (n-1 > flag_max_sym_len) strcpy(&func[flag_max_sym_len-3], "...");
+        char *func = strndup(line_buf, MIN(n, flag_max_sym_len));
+        if (n > flag_max_sym_len) strcpy(&func[flag_max_sym_len-3], "...");
 
         // Second line is the file name and line number
         getline(&line_buf, &line_buf_size, addr2line_r);
