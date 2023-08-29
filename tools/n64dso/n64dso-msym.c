@@ -113,6 +113,9 @@ void get_export_syms(char *infn)
             //Remove line terminator
             size_t linebuf_len = strlen(line_buf);
             line_buf[linebuf_len-1] = 0;
+            if(line_buf[linebuf_len-2] == '\r') {
+                line_buf[linebuf_len-2] = 0;
+            }
             char *sym_name = &bind_ptr[20]; //Get symbol name pointer
             size_t sym_value = strtoull(&line_buf[8], NULL, 16); //Read symbol value
             //Read symbol size
