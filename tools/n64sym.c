@@ -149,6 +149,7 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         // it means that we're done.
         int n = getline(&line_buf, &line_buf_size, addr2line_r);
         if (strncmp(line_buf, "0x00000000", 10) == 0) break;
+        if (line_buf[n-1] == '\r') n--; // Remove trailing \r (Windows)
 
         // If the function of name is longer than 64 bytes, truncate it. This also
         // avoid paradoxically long function names like in C++ that can even be
