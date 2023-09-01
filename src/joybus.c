@@ -1,11 +1,17 @@
 /**
  * @file joybus.c
  * @brief Joybus Subsystem
- * @ingroup lowlevel
+ * @ingroup joybus
  */
 
+#include <assert.h>
 #include <string.h>
-#include "libdragon.h"
+
+#include "debug.h"
+#include "interrupt.h"
+#include "joybus.h"
+#include "joybus_internal.h"
+#include "n64sys.h"
 #include "regsinternal.h"
 
 /**
@@ -85,9 +91,17 @@ typedef struct {
 } joybus_msg_t;
 
 #define MAX_JOYBUS_MSGS            8    ///< Maximum number of pending joybus messages
+
+/**
+ * @anchor JOYBUS_STATE
+ * @name Joybus internal state machine values
+ * 
+ * @{
+ */
 #define JOYBUS_STATE_IDLE          0    ///< Joybus state: idle (no pending messages)
 #define JOYBUS_STATE_SENDING       1    ///< JoyBus state: sending a message to PIF
 #define JOYBUS_STATE_RECEIVING     2    ///< JoyBus state: receiving a reply from PIF
+/** @} */ /* JOYBUS_STATE */
 
 /** @brief Joybus temporary output buffer */
 static uint64_t joybus_outbuf[JOYBUS_BLOCK_DWORDS] __attribute__((aligned(16)));
