@@ -7,7 +7,7 @@
 #include "controller.h"
 #include "interrupt.h"
 #include "joybus.h"
-#include "joybusinternal.h"
+#include "joybus_internal.h"
 #include "debug.h"
 #include <string.h>
 #include <stdbool.h>
