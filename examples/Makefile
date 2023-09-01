@@ -1,4 +1,4 @@
-EXAMPLES = audioplayer cpptest ctest dfsdemo eepromfstest mixertest mptest mputest rspqdemo spritemap test timers vrutest vtest ucodetest
+EXAMPLES = audioplayer cpptest ctest eepromfstest mixertest mptest mputest rspqdemo spritemap test timers vrutest vtest ucodetest
 
 # Populated by evaluating the EXAMPLE_template macro for each example
 all:
