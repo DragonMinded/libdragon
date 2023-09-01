@@ -2,7 +2,7 @@
  * @file joypad_accessory.h
  * @author Christopher Bonhage (me@christopherbonhage.com)
  * @brief Joypad accessory
- * @ingroup joypad 
+ * @ingroup joypad
  */
 
 #ifndef __JOYPAD_ACCESSORY_H
@@ -10,22 +10,24 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <libdragon.h>
 
-#include "joybus_n64_accessory.h"
+#include "joybus_n64_accessory_internal.h"
 #include "joypad.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "timer.h"
 
 /**
  * @addtogroup joypad
  * @{
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** @brief Number of times to retry accessory commands. */
 #define JOYPAD_ACCESSORY_RETRY_LIMIT 2
 
+/** @brief Joypad accessory states enumeration */
 typedef enum
 {
     JOYPAD_ACCESSORY_STATE_IDLE = 0,
@@ -58,22 +60,27 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_DATA_WRITE,
 } joypad_accessory_state_t;
 
+/** @brief Is Joypad accessory currently in detection state? */
 #define joypad_accessory_state_is_detecting(state) \
     ((state) >= JOYPAD_ACCESSORY_STATE_DETECT_INIT && \
      (state) <= JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ)
 
+/** @brief Is Joypad accessory currently in Transfer Pak enabling state? */
 #define joypad_accessory_state_is_transfer_enabling(state) \
     ((state) >= JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WRITE && \
      (state) <= JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_STATUS_READ)
 
+/** @brief Is Joypad accessory currently in Transfer Pak loading state? */
 #define joypad_accessory_state_is_transfer_loading(state) \
     ((state) >= JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_STATUS_READ && \
      (state) <= JOYPAD_ACCESSORY_STATE_TRANSFER_LOAD_DATA_READ)
 
+/** @brief Is Joypad accessory currently in Transfer Pak storing state? */
 #define joypad_accessory_state_is_transfer_storing(state) \
     ((state) >= JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_STATUS_READ && \
      (state) <= JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_DATA_WRITE)
 
+/** @brief Joypad accessory errors enumeration */
 typedef enum
 {
     JOYPAD_ACCESSORY_ERROR_PENDING = -1,
@@ -84,6 +91,7 @@ typedef enum
     JOYPAD_ACCESSORY_ERROR_UNKNOWN,
 } joypad_accessory_error_t;
 
+/** @brief Joypad N64 Transfer Pak I/O operation state */
 typedef struct
 {
     uint8_t *start;
@@ -94,13 +102,14 @@ typedef struct
     uint16_t tpak_addr;
 } joypad_n64_transfer_pak_io_t;
 
+/** @brief Joypad accessory structure */
 typedef struct joypad_accessory_s
 {
     uint8_t status;
     joypad_accessory_type_t type;
     joypad_accessory_state_t state;
     joypad_accessory_error_t error;
-    size_t retries;
+    unsigned retries;
     timer_link_t *transfer_pak_wait_timer;
     joybus_n64_transfer_pak_status_t transfer_pak_status;
     joypad_n64_transfer_pak_io_t transfer_pak_io;

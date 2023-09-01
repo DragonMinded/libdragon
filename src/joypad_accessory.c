@@ -7,13 +7,10 @@
  */
 
 #include <string.h>
-#include <libdragon.h>
 
-#include "joybus_n64_accessory.h"
-#include "joypad_accessory.h"
+#include "debug.h"
 #include "joypad_internal.h"
 
-static void joypad_n64_transfer_pak_wait_timer_callback(int ovfl, void *ctx);
 static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_n64_transfer_pak_enable_read_callback(uint64_t *out_dwords, void *ctx);
@@ -22,8 +19,25 @@ static void joypad_n64_transfer_pak_load_read_callback(uint64_t *out_dwords, voi
 static void joypad_n64_transfer_pak_load_write_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_n64_transfer_pak_store_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_n64_transfer_pak_store_write_callback(uint64_t *out_dwords, void *ctx);
+static void joypad_n64_transfer_pak_wait_timer_callback(int ovfl, void *ctx);
 
-static bool joypad_accessory_read_crc_error_check(
+/**
+ * @addtogroup joypad
+ * @{
+ */
+
+/**
+ * @brief Determine whether the accessory read command was successful. Retry if necessary.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param[in] recv_cmd Joybus "N64 Accessory Read" command output
+ * @param[in] retry_callback Callback to use if the command needs to be retried.
+ * @param[in,out] retry_ctx Context to pass to the retry callback.
+ * 
+ * @retval true The accessory read command failed
+ * @retval false The accessory read command succeeded
+ */
+static bool joypad_accessory_check_read_crc_error(
     joypad_port_t port,
     const joybus_cmd_n64_accessory_read_port_t *recv_cmd,
     joybus_callback_t retry_callback,
@@ -32,16 +46,16 @@ static bool joypad_accessory_read_crc_error_check(
 {
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
-    int crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
+    int crc_status = joybus_n64_accessory_compare_data_crc(recv_cmd->data, recv_cmd->data_crc);
     switch (crc_status)
     {
-        case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK:
+        case JOYBUS_N64_ACCESSORY_IO_STATUS_OK:
         {
             // Read operation was successful!
             accessory->error = JOYPAD_ACCESSORY_ERROR_NONE;
             return false;
         }
-        case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK:
+        case JOYBUS_N64_ACCESSORY_IO_STATUS_NO_PAK:
         {
             // Accessory is no longer connected!
             device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
@@ -52,7 +66,7 @@ static bool joypad_accessory_read_crc_error_check(
             accessory->error = JOYPAD_ACCESSORY_ERROR_ABSENT;
             return true;
         }
-        case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_MISMATCH:
+        case JOYBUS_N64_ACCESSORY_IO_STATUS_BAD_CRC:
         {
             size_t retries = accessory->retries;
             if (retries < JOYPAD_ACCESSORY_RETRY_LIMIT)
@@ -87,6 +101,17 @@ static bool joypad_accessory_read_crc_error_check(
     }
 }
 
+/**
+ * @brief Determine whether the accessory write command was successful. Retry if necessary.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param[in] recv_cmd Joybus "N64 Accessory Write" command output
+ * @param[in] retry_callback Callback to use if the command needs to be retried.
+ * @param[in,out] retry_ctx Context to pass to the retry callback.
+ * 
+ * @retval true The accessory write command failed
+ * @retval false The accessory write command succeeded
+ */
 static bool joypad_accessory_write_crc_error_check(
     joypad_port_t port,
     const joybus_cmd_n64_accessory_write_port_t *recv_cmd,
@@ -96,17 +121,17 @@ static bool joypad_accessory_write_crc_error_check(
 {
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
-    int crc_status = joybus_n64_accessory_data_crc_compare(recv_cmd->data, recv_cmd->data_crc);
+    int crc_status = joybus_n64_accessory_compare_data_crc(recv_cmd->data, recv_cmd->data_crc);
     switch (crc_status)
     {
-        case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_OK:
+        case JOYBUS_N64_ACCESSORY_IO_STATUS_OK:
         {
             // Write operation was successful!
             // Intentionally preserve accessory status in this case
             accessory->error = JOYPAD_ACCESSORY_ERROR_NONE;
             return false;
         }
-        case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_NO_PAK:
+        case JOYBUS_N64_ACCESSORY_IO_STATUS_NO_PAK:
         {
             // Accessory is no longer connected!
             device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
@@ -117,7 +142,7 @@ static bool joypad_accessory_write_crc_error_check(
             accessory->error = JOYPAD_ACCESSORY_ERROR_ABSENT;
             return true;
         }
-        case JOYBUS_N64_ACCESSORY_DATA_CRC_STATUS_MISMATCH:
+        case JOYBUS_N64_ACCESSORY_IO_STATUS_BAD_CRC:
         {
             size_t retries = accessory->retries;
             if (retries < JOYPAD_ACCESSORY_RETRY_LIMIT)
@@ -153,10 +178,14 @@ static bool joypad_accessory_write_crc_error_check(
     }
 }
 
-
+/**
+ * @brief Initialize the Transfer Pak wait timer if necessary.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ */
 void joypad_n64_transfer_pak_wait_timer_init(joypad_port_t port)
 {
-    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     // Ensure there is a disabled timer ready to restart:
     if (!accessory->transfer_pak_wait_timer)
@@ -170,6 +199,12 @@ void joypad_n64_transfer_pak_wait_timer_init(joypad_port_t port)
     }
 }
 
+/**
+ * @brief Callback for the Transfer Pak wait timer.
+ * 
+ * @param ovfl Timer overflow ticks
+ * @param[in,out] ctx Opaque pointer to the Transfer Pak wait timer context
+ */
 static void joypad_n64_transfer_pak_wait_timer_callback(int ovfl, void *ctx)
 {
     joypad_port_t port = (joypad_port_t)ctx;
@@ -199,6 +234,12 @@ static void joypad_n64_transfer_pak_wait_timer_callback(int ovfl, void *ctx)
     }
 }
 
+/**
+ * @brief Callback for the accessory read commands used by #joypad_accessory_detect_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
@@ -206,12 +247,15 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_detecting(state)) return;
+    if (!joypad_accessory_state_is_detecting(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     uint8_t write_data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
     const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_accessory_detect_read_callback;
-    if (joypad_accessory_read_crc_error_check(port, recv_cmd, retry_callback, ctx))
+    if (joypad_accessory_check_read_crc_error(port, recv_cmd, retry_callback, ctx))
     {
         return; // Accessory communication error!
     }
@@ -314,13 +358,22 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
     }
 }
 
+/**
+ * @brief Callback for the accessory write commands used by #joypad_accessory_detect_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
     joypad_port_t port = (joypad_port_t)ctx;
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_detecting(state)) return;
+    if (!joypad_accessory_state_is_detecting(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_accessory_detect_write_callback;
@@ -398,27 +451,29 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
 
 /**
  * @brief Detect which accessory is inserted in an N64 controller.
- * 
- * Step 1: Ensure Transfer Pak is turned off
- * Step 2A: Overwrite "label" area to detect Controller Pak
- * Step 2B: Read back the "label" area to detect Controller Pak
- * Step 3A: Write probe value to detect Rumble Pak
- * Step 3B: Read probe value to detect Rumble Pak
- * Step 4A: Write probe value to detect Transfer Pak
- * Step 4B: Read probe value to detect Transfer Pak
- * Step 4C: Write probe value to turn off Transfer Pak
- * Step 5A: Write probe value to detect Snap Station
- * Step 5B: Read probe value to detect Snap Station
- * 
- * @param[in] port Which controller port to detect the accessory on
+ *
+ * * Step 1: Ensure Transfer Pak is turned off
+ * * Step 2A: Overwrite "label" area to detect Controller Pak
+ * * Step 2B: Read back the "label" area to detect Controller Pak
+ * * Step 3A: Write probe value to detect Rumble Pak
+ * * Step 3B: Read probe value to detect Rumble Pak
+ * * Step 4A: Write probe value to detect Transfer Pak
+ * * Step 4B: Read probe value to detect Transfer Pak
+ * * Step 4C: Write probe value to turn off Transfer Pak
+ * * Step 5A: Write probe value to detect Snap Station
+ * * Step 5B: Read probe value to detect Snap Station
+ *
+ * @param port Joypad port to detect the accessory on (#joypad_port_t)
  */
 void joypad_accessory_detect_async(joypad_port_t port)
 {
-    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     // Ensure Transfer Pak wait timer has been initialized
     if (!accessory->transfer_pak_wait_timer)
+    {
         joypad_n64_transfer_pak_wait_timer_init(port);
+    }
     // Don't interrupt other accessory operations if they are still running
     if (accessory->state == JOYPAD_ACCESSORY_STATE_IDLE)
     {
@@ -435,13 +490,22 @@ void joypad_accessory_detect_async(joypad_port_t port)
     }
 }
 
+/**
+ * @brief Callback for the accessory write commands used by #joypad_n64_rumble_pak_motor_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_n64_rumble_pak_motor_write_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
     joypad_port_t port = (joypad_port_t)ctx;
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     joypad_accessory_state_t state = accessory->state;
-    if (state != JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE) return;
+    if (state != JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE)
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_n64_rumble_pak_motor_write_callback;
@@ -451,6 +515,12 @@ static void joypad_n64_rumble_pak_motor_write_callback(uint64_t *out_dwords, voi
     }
 }
 
+/**
+ * @brief Turn the Rumble Pak motor on or off for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param active Whether the motor should be on (true) or off (false)
+ */
 void joypad_n64_rumble_pak_motor_async(joypad_port_t port, bool active)
 {
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
@@ -467,17 +537,26 @@ void joypad_n64_rumble_pak_motor_async(joypad_port_t port, bool active)
     );
 }
 
+/**
+ * @brief Callback for the accessory read commands used by #joypad_n64_transfer_pak_enable_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_n64_transfer_pak_enable_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
     joypad_port_t port = (joypad_port_t)ctx;
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_transfer_enabling(state)) return;
+    if (!joypad_accessory_state_is_transfer_enabling(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_n64_transfer_pak_enable_read_callback;
-    if (joypad_accessory_read_crc_error_check(port, recv_cmd, retry_callback, ctx))
+    if (joypad_accessory_check_read_crc_error(port, recv_cmd, retry_callback, ctx))
     {
         return; // Accessory communication error!
     }
@@ -488,13 +567,22 @@ static void joypad_n64_transfer_pak_enable_read_callback(uint64_t *out_dwords, v
     }
 }
 
+/**
+ * @brief Callback for the accessory write commands used by #joypad_n64_transfer_pak_enable_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_n64_transfer_pak_enable_write_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
     joypad_port_t port = (joypad_port_t)ctx;
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_transfer_enabling(state)) return;
+    if (!joypad_accessory_state_is_transfer_enabling(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_n64_transfer_pak_enable_write_callback;
@@ -526,11 +614,17 @@ static void joypad_n64_transfer_pak_enable_write_callback(uint64_t *out_dwords, 
     }
 }
 
+/**
+ * @brief Enable or disable the Transfer Pak for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param enabled Whether the Transfer Pak should be enabled (true) or disabled (false)
+ */
 void joypad_n64_transfer_pak_enable_async(joypad_port_t port, bool enabled)
 {
-    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
-    
+
     // Turn the Transfer Pak on or off with magic probe values
     uint8_t probe_value = enabled
         ? JOYBUS_N64_ACCESSORY_PROBE_TRANSFER_PAK_ON
@@ -548,6 +642,12 @@ void joypad_n64_transfer_pak_enable_async(joypad_port_t port, bool enabled)
     );
 }
 
+/**
+ * @brief Callback for the accessory read commands used by #joypad_n64_transfer_pak_load_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_n64_transfer_pak_load_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
@@ -555,11 +655,14 @@ static void joypad_n64_transfer_pak_load_read_callback(uint64_t *out_dwords, voi
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     volatile joypad_n64_transfer_pak_io_t *io = &accessory->transfer_pak_io;
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_transfer_loading(state)) return;
+    if (!joypad_accessory_state_is_transfer_loading(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_n64_transfer_pak_load_read_callback;
-    if (joypad_accessory_read_crc_error_check(port, recv_cmd, retry_callback, ctx))
+    if (joypad_accessory_check_read_crc_error(port, recv_cmd, retry_callback, ctx))
     {
         return; // Accessory communication error!
     }
@@ -640,13 +743,22 @@ static void joypad_n64_transfer_pak_load_read_callback(uint64_t *out_dwords, voi
     }
 }
 
+/**
+ * @brief Callback for the accessory write commands used by #joypad_n64_transfer_pak_load_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_n64_transfer_pak_load_write_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
     joypad_port_t port = (joypad_port_t)ctx;
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_transfer_loading(state)) return;
+    if (!joypad_accessory_state_is_transfer_loading(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_n64_transfer_pak_load_write_callback;
@@ -666,9 +778,17 @@ static void joypad_n64_transfer_pak_load_write_callback(uint64_t *out_dwords, vo
     }
 }
 
+/**
+ * @brief Load data from the GB cartridge inserted in a Transfer Pak.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param cart_addr Starting address in the GB cartridge to load from.
+ * @param[out] dst Destination buffer to load cartridge data into. 
+ * @param len Number of bytes to load (must be a multiple of 32).
+ */
 void joypad_n64_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, void *dst, size_t len)
 {
-    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    ASSERT_JOYPAD_PORT_VALID(port);
     assert(cart_addr % JOYBUS_N64_ACCESSORY_DATA_SIZE == 0);
     assert(len % JOYBUS_N64_ACCESSORY_DATA_SIZE == 0);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
@@ -694,6 +814,12 @@ void joypad_n64_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, 
     );
 }
 
+/**
+ * @brief Callback for the accessory read commands used by #joypad_n64_transfer_pak_store_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_n64_transfer_pak_store_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
@@ -701,11 +827,14 @@ static void joypad_n64_transfer_pak_store_read_callback(uint64_t *out_dwords, vo
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     volatile joypad_n64_transfer_pak_io_t *io = &accessory->transfer_pak_io;
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_transfer_storing(state)) return;
+    if (!joypad_accessory_state_is_transfer_storing(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_n64_transfer_pak_store_read_callback;
-    if (joypad_accessory_read_crc_error_check(port, recv_cmd, retry_callback, ctx))
+    if (joypad_accessory_check_read_crc_error(port, recv_cmd, retry_callback, ctx))
     {
         return; // Accessory communication error!
     }
@@ -740,6 +869,12 @@ static void joypad_n64_transfer_pak_store_read_callback(uint64_t *out_dwords, vo
     }
 }
 
+/**
+ * @brief Callback for the accessory write commands used by #joypad_n64_transfer_pak_store_async.
+ * 
+ * @param out_dwords Joybus output block
+ * @param ctx Opaque pointer used to pass the Joypad port number
+ */
 static void joypad_n64_transfer_pak_store_write_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
@@ -747,7 +882,10 @@ static void joypad_n64_transfer_pak_store_write_callback(uint64_t *out_dwords, v
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     volatile joypad_n64_transfer_pak_io_t *io = &accessory->transfer_pak_io;
     joypad_accessory_state_t state = accessory->state;
-    if (!joypad_accessory_state_is_transfer_storing(state)) return;
+    if (!joypad_accessory_state_is_transfer_storing(state))
+    {
+        return; // Unexpected accessory state!
+    }
 
     const joybus_cmd_n64_accessory_write_port_t *recv_cmd = (void *)&out_bytes[port];
     joybus_callback_t retry_callback = joypad_n64_transfer_pak_store_write_callback;
@@ -813,9 +951,17 @@ static void joypad_n64_transfer_pak_store_write_callback(uint64_t *out_dwords, v
     }
 }
 
+/**
+ * @brief Store data on the GB cartridge inserted in a Transfer Pak.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param cart_addr Starting address in the GB cartridge to store into.
+ * @param[in] src Source buffer of data to store on GB cartridge. 
+ * @param len Number of bytes to store (must be a multiple of 32).
+ */
 void joypad_n64_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr, void *src, size_t len)
 {
-    ASSERT_JOYBUS_CONTROLLER_PORT_VALID(port);
+    ASSERT_JOYPAD_PORT_VALID(port);
     assert(cart_addr % JOYBUS_N64_ACCESSORY_DATA_SIZE == 0);
     assert(len % JOYBUS_N64_ACCESSORY_DATA_SIZE == 0);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
@@ -840,3 +986,5 @@ void joypad_n64_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr,
         joypad_n64_transfer_pak_store_read_callback, (void *)port
     );
 }
+
+/** @} */ /* joypad */

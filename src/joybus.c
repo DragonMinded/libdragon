@@ -16,7 +16,7 @@
 
 /**
  * @defgroup joybus Joybus Subsystem
- * @ingroup lowlevel
+ * @ingroup peripherals
  * @brief Joybus peripheral interface.
  *
  * The Joybus subsystem is in charge of communication with all controllers,
@@ -86,7 +86,7 @@ static void * const PIF_RAM = (void *)0x1fc007c0;
  */
 typedef struct {
     uint64_t input[JOYBUS_BLOCK_DWORDS] __attribute__((aligned(16)));  ///< input message
-    void (*callback)(uint64_t *output, void *ctx);                     ///< callback for completion
+    joybus_callback_t callback;                                        ///< callback for completion
     void *context;                                                     ///< callback context
 } joybus_msg_t;
 
@@ -262,7 +262,7 @@ static void si_interrupt(void) {
  * @param[in]   ctx         Context opaque pointer to pass to the callback.
  *                          Can be NULL if no context is required.
  */
-void joybus_exec_async(const void * input, void (*callback)(uint64_t *output, void *ctx), void *ctx)
+void joybus_exec_async(const void * input, joybus_callback_t callback, void *ctx)
 {
     // Make sure that the task queue is not full. If it is, just assert for now.
     // It is not easy to understand what we should do when the queue is full;
