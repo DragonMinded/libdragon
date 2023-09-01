@@ -4,11 +4,14 @@
  * @ingroup joybus
  */
 
+#include <assert.h>
 #include <string.h>
 
-#include "libdragon.h"
-
+#include "debug.h"
+#include "interrupt.h"
+#include "joybus.h"
 #include "joybus_internal.h"
+#include "n64sys.h"
 #include "regsinternal.h"
 
 /**
