@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.4"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>libdragon: joybusinternal.h Source File</title>
+<title>libdragon: joybus_internal.h Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -66,20 +66,23 @@ $(function() {
 </div>
 </div><!-- top -->
 <div class="header">
-  <div class="headertitle"><div class="title">joybusinternal.h</div></div>
+  <div class="headertitle"><div class="title">joybus_internal.h</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span><span class="preprocessor">#ifndef __LIBDRAGON_JOYBUSINTERNAL_H</span></div>
-<div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="preprocessor">#define __LIBDRAGON_JOYBUSINTERNAL_H</span></div>
-<div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span> </div>
-<div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a>(<span class="keyword">const</span> <span class="keywordtype">void</span> * input, <span class="keywordtype">void</span> (*callback)(uint64_t *output, <span class="keywordtype">void</span> *ctx), <span class="keywordtype">void</span> *ctx);</div>
-<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span> </div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#endif</span></div>
-<div class="ttc" id="agroup__joybus_html_ga67a0b9a8881c8ca94d35be1db9e6030f"><div class="ttname"><a href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a></div><div class="ttdeci">void joybus_exec_async(const void *input, void(*callback)(uint64_t *output, void *ctx), void *ctx)</div><div class="ttdoc">Execute an asynchronous joybus message.</div><div class="ttdef"><b>Definition:</b> joybus.c:251</div></div>
+<a href="joybus__internal_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#ifndef __LIBDRAGON_JOYBUS_INTERNAL_H</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#define __LIBDRAGON_JOYBUS_INTERNAL_H</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span> </div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a>(<span class="keyword">const</span> <span class="keywordtype">void</span> * input, <span class="keywordtype">void</span> (*callback)(uint64_t *output, <span class="keywordtype">void</span> *ctx), <span class="keywordtype">void</span> *ctx);</div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span> </div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="agroup__joybus_html_ga67a0b9a8881c8ca94d35be1db9e6030f"><div class="ttname"><a href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a></div><div class="ttdeci">void joybus_exec_async(const void *input, void(*callback)(uint64_t *output, void *ctx), void *ctx)</div><div class="ttdoc">Execute an asynchronous joybus message.</div><div class="ttdef"><b>Definition:</b> joybus.c:265</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Aug 27 2023 21:27:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Sep 1 2023 23:17:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

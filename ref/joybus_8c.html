@@ -70,7 +70,7 @@ $(function() {
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
-  <div class="headertitle"><div class="title">joybus.c File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__lowlevel.html">Low Level Hardware Interfaces</a></div></div></div>
+  <div class="headertitle"><div class="title">joybus.c File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__lowlevel.html">Low Level Hardware Interfaces</a> &raquo; <a class="el" href="group__joybus.html">Joybus Subsystem</a></div></div></div>
 </div><!--header-->
 <div class="contents">
 
@@ -93,6 +93,18 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_JOYBUS_MSGS</b>&#160;&#160;&#160;8</td></tr>
 <tr class="memdesc:ga42220dfa963618e170f0c794440a02c7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of pending joybus messages. <br /></td></tr>
 <tr class="separator:ga42220dfa963618e170f0c794440a02c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr><td colspan="2"><div class="groupHeader">SI status register bit definitions</div></td></tr>
+<tr class="memitem:gaa522bd708d3dd1df64a630a520db3b4c"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SI_STATUS_DMA_BUSY</b>&#160;&#160;&#160;( 1 &lt;&lt; 0 )</td></tr>
+<tr class="memdesc:gaa522bd708d3dd1df64a630a520db3b4c"><td class="mdescLeft">&#160;</td><td class="mdescRight">SI DMA busy. <br /></td></tr>
+<tr class="separator:gaa522bd708d3dd1df64a630a520db3b4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga986a6408fb27f36259cfdc11ddbf6096"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SI_STATUS_IO_BUSY</b>&#160;&#160;&#160;( 1 &lt;&lt; 1 )</td></tr>
+<tr class="memdesc:ga986a6408fb27f36259cfdc11ddbf6096"><td class="mdescLeft">&#160;</td><td class="mdescRight">SI IO busy. <br /></td></tr>
+<tr class="separator:ga986a6408fb27f36259cfdc11ddbf6096"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr><td colspan="2"><div class="groupHeader">Joybus internal state machine values</div></td></tr>
+<tr><td colspan="2"><div class="groupText"><p ><a class="anchor" id="JOYBUS_STATE"></a></p>
+</div></td></tr>
 <tr class="memitem:ga21c70d0510a908f2a582a5724eefe097"><td class="memItemLeft" align="right" valign="top">
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_STATE_IDLE</b>&#160;&#160;&#160;0</td></tr>
 <tr class="memdesc:ga21c70d0510a908f2a582a5724eefe097"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus state: idle (no pending messages) <br /></td></tr>
@@ -105,15 +117,6 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_STATE_RECEIVING</b>&#160;&#160;&#160;2</td></tr>
 <tr class="memdesc:gab2e6c7129176653478cb02a5161292cc"><td class="mdescLeft">&#160;</td><td class="mdescRight">JoyBus state: receiving a reply from PIF. <br /></td></tr>
 <tr class="separator:gab2e6c7129176653478cb02a5161292cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr><td colspan="2"><div class="groupHeader">SI status register bit definitions</div></td></tr>
-<tr class="memitem:gaa522bd708d3dd1df64a630a520db3b4c"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SI_STATUS_DMA_BUSY</b>&#160;&#160;&#160;( 1 &lt;&lt; 0 )</td></tr>
-<tr class="memdesc:gaa522bd708d3dd1df64a630a520db3b4c"><td class="mdescLeft">&#160;</td><td class="mdescRight">SI DMA busy. <br /></td></tr>
-<tr class="separator:gaa522bd708d3dd1df64a630a520db3b4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga986a6408fb27f36259cfdc11ddbf6096"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SI_STATUS_IO_BUSY</b>&#160;&#160;&#160;( 1 &lt;&lt; 1 )</td></tr>
-<tr class="memdesc:ga986a6408fb27f36259cfdc11ddbf6096"><td class="mdescLeft">&#160;</td><td class="mdescRight">SI IO busy. <br /></td></tr>
-<tr class="separator:ga986a6408fb27f36259cfdc11ddbf6096"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -133,7 +136,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (vo
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Aug 27 2023 21:27:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Sep 1 2023 23:17:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
