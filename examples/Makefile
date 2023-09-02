@@ -1,11 +1,14 @@
 EXAMPLES += audioplayer
 EXAMPLES += brew-volley
+#EXAMPLES += compression # Disabled due to missing assets
 EXAMPLES += cpptest
 EXAMPLES += ctest
+EXAMPLES += customfont
 #EXAMPLES += dfsdemo # Disabled for now because it requires libmikmod
 EXAMPLES += eepromfstest
 EXAMPLES += fontdemo
 EXAMPLES += gldemo
+EXAMPLES += loadspritefromsd
 EXAMPLES += mixertest
 EXAMPLES += mptest
 EXAMPLES += mputest
@@ -13,9 +16,11 @@ EXAMPLES += overlays
 EXAMPLES += pixelshader
 EXAMPLES += rdpqdemo
 EXAMPLES += rspqdemo
+EXAMPLES += rtctest
 EXAMPLES += spritemap
 EXAMPLES += test
 EXAMPLES += timers
+#EXAMPLES += videoplayer # Disabled due to missing assets
 EXAMPLES += vrutest
 EXAMPLES += vtest
 
