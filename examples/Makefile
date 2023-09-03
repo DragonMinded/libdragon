@@ -1,111 +1,41 @@
-all: audioplayer brew_volley cpptest ctest dfsdemo fontdemo gldemo mixertest mptest mputest rdpqdemo rspqdemo spritemap test timers vrutest vtest pixelshader eepromfstest overlays 
-clean: audioplayer-clean brew_volley-clean cpptest-clean ctest-clean dfsdemo-clean fontdemo-clean gldemo-clean mixertest-clean mptest-clean mputest-clean rdpqdemo-clean rspqdemo-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean pixelshader-clean eepromfstest-clean overlays-clean
+EXAMPLES += audioplayer
+EXAMPLES += brew-volley
+#EXAMPLES += compression # Disabled due to missing assets
+EXAMPLES += cpptest
+EXAMPLES += ctest
+EXAMPLES += customfont
+#EXAMPLES += dfsdemo # Disabled for now because it requires libmikmod
+EXAMPLES += eepromfstest
+EXAMPLES += fontdemo
+EXAMPLES += gldemo
+EXAMPLES += loadspritefromsd
+EXAMPLES += mixertest
+EXAMPLES += mptest
+EXAMPLES += mputest
+EXAMPLES += overlays
+EXAMPLES += pixelshader
+EXAMPLES += rdpqdemo
+EXAMPLES += rspqdemo
+EXAMPLES += rtctest
+EXAMPLES += spritemap
+EXAMPLES += test
+EXAMPLES += timers
+#EXAMPLES += videoplayer # Disabled due to missing assets
+EXAMPLES += vrutest
+EXAMPLES += vtest
 
-audioplayer:
-	$(MAKE) -C audioplayer
-audioplayer-clean:
-	$(MAKE) -C audioplayer clean
+# Populated by evaluating the EXAMPLE_template macro for each example
+all:
+clean:
 
-brew_volley:
-	$(MAKE) -C brew-volley
-brew_volley-clean:
-	$(MAKE) -C brew-volley clean
+define EXAMPLE_template =
+$(1):
+	$$(MAKE) -C $(1)
+$(1)-clean:
+	$$(MAKE) -C $(1) clean
+all: $(1)
+clean: $(1)-clean
+.PHONY: $(1) $(1)-clean
+endef
 
-cpptest:
-	$(MAKE) -C cpptest
-cpptest-clean:
-	$(MAKE) -C cpptest clean
-
-ctest:
-	$(MAKE) -C ctest
-ctest-clean:
-	$(MAKE) -C ctest clean
-
-dfsdemo:
-#	Commented for now, because it requires mikmod
-#	$(MAKE) -C dfsdemo
-dfsdemo-clean:
-	$(MAKE) -C dfsdemo clean
-
-eepromfstest:
-	$(MAKE) -C eepromfstest
-eepromfstest-clean:
-	$(MAKE) -C eepromfstest clean
-
-fontdemo:
-	$(MAKE) -C fontdemo
-fontdemo-clean:
-	$(MAKE) -C fontdemo clean
-
-gldemo:
-	$(MAKE) -C gldemo
-gldemo-clean:
-	$(MAKE) -C gldemo clean
-
-mixertest:
-	$(MAKE) -C mixertest
-mixertest-clean:
-	$(MAKE) -C mixertest clean
-
-mptest:
-	$(MAKE) -C mptest
-mptest-clean:
-	$(MAKE) -C mptest clean
-
-mputest:
-	$(MAKE) -C mputest
-mputest-clean:
-	$(MAKE) -C mputest clean
-
-overlays:
-	$(MAKE) -C overlays
-overlays-clean:
-	$(MAKE) -C overlays clean
-    
-rdpqdemo:
-	$(MAKE) -C rdpqdemo
-rdpqdemo-clean:
-	$(MAKE) -C rdpqdemo clean
-
-rspqdemo:
-	$(MAKE) -C rspqdemo
-rspqdemo-clean:
-	$(MAKE) -C rspqdemo clean
-
-rtctest:
-	$(MAKE) -C rtctest
-rtctest-clean:
-	$(MAKE) -C rtctest clean
-
-spritemap:
-	$(MAKE) -C spritemap
-spritemap-clean:
-	$(MAKE) -C spritemap clean
-
-test:
-	$(MAKE) -C test
-test-clean:
-	$(MAKE) -C test clean
-
-timers:
-	$(MAKE) -C timers
-timers-clean:
-	$(MAKE) -C timers clean
-
-vrutest:
-	$(MAKE) -C vrutest
-vrutest-clean:
-	$(MAKE) -C vrutest clean
-
-vtest:
-	$(MAKE) -C vtest
-vtest-clean:
-	$(MAKE) -C vtest clean
-
-pixelshader:
-	$(MAKE) -C pixelshader
-pixelshader-clean:
-	$(MAKE) -C pixelshader clean
-
-.PHONY: audioplayer audioplayer-clean cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean fontdemo fontdemo-clean gldemo gldemo-clean mixertest mixertest-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
-.PHONY: rdpqdemo rdpqdemo-clean rspqdemo rspqdemo-clean test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean pixelshader pixelshader-clean eepromfstest eepromfstest-clean overlays overlays-clean
+$(foreach example,$(EXAMPLES),$(eval $(call EXAMPLE_template,$(example))))

@@ -6,6 +6,8 @@
 #ifndef __LIBDRAGON_INTERRUPT_H
 #define __LIBDRAGON_INTERRUPT_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
