@@ -1,0 +1,2 @@
+Libdragon is an open-source SDK for Nintendo 64.
+It aims for a complete N64 programming experience while providing programmers with modern approach to programming and debugging.

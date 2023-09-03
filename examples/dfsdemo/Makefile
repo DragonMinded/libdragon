@@ -7,8 +7,6 @@ include $(N64_INST)/include/n64.mk
 OBJS = $(BUILD_DIR)/dfsdemo.o
 
 dfsdemo.z64: N64_ROM_TITLE = "DragonFS Demo"
-dfsdemo.z64: N64_CFLAGS += -I$(N64_ROOTDIR)/include
-dfsdemo.z64: N64_LDFLAGS += -L$(N64_ROOTDIR)/lib -lmikmod
 dfsdemo.z64: $(BUILD_DIR)/dfsdemo.dfs
 
 $(BUILD_DIR)/dfsdemo.dfs: $(wildcard filesystem/*)
