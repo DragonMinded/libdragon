@@ -385,7 +385,7 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * @hideinitializer
  */
 #define rdpq_texture_rectangle_flip_raw(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \
-    rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
+    rdpq_texture_rectangle_flip_raw_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
 })
 
 
