@@ -251,6 +251,9 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * limit to them. On the contrary, S and T coordinates have a specific range
  * (-1024..1024).
  * 
+ * When x0 > x1 or y0 > y1, the rectangle is drawn flipped (mirrored) on either
+ * axis (or both, which basically rotates it by 180° instead). 
+ * 
  * Before calling this function, make sure to also configure an appropriate
  * render mode. It is possible to use the fast copy mode (#rdpq_set_mode_copy) with
  * this function, assuming that advanced blending or color combiner capabilities
