@@ -149,7 +149,7 @@ static void __wait_for_vblank()
 {
     volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
-    while( reg_base[4] != 2 ) {  }
+    while( (reg_base[4] & ~1) != 2 ) {  }
 }
 
 /** @brief Return true if VI is sending a video signal (16-bit or 32-bit color set) */
