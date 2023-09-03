@@ -158,7 +158,7 @@ typedef enum rdpq_filter_s {
  * algorithm tries to recover color depth precision by averaging lower bits
  * in neighborhood pixels, and reducing the small noise created by dithering.
  * #display_init currently activates it by default on all 16-bit display modes,
- * if passed #ANTIALIAS_RESAMPLE_FETCH_NEEDED or #ANTIALIAS_RESAMPLE_FETCH_ALWAYS.
+ * if passed #FILTERS_DEDITHER or #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER.
  * 
  * If you are using an emulator, make sure it correctly emulates the VI
  * dither filter to judge the quality of the final image. For instance,
@@ -367,14 +367,14 @@ void rdpq_set_mode_yuv(bool bilinear);
  *     performed as a post-processing filter by VI.
  * 
  * This function activates both kinds of antialias, but to display correctly
- * the second type, make sure that you did not pass #ANTIALIAS_OFF to
- * #display_init.
+ * the second type, make sure that you did pass #FILTERS_RESAMPLE_ANTIALIAS or
+ * #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER to #display_init.
  * 
  * On the other hand, if you want to make sure that no antialias is performed,
  * disable antialias with `rdpq_mode_antialias(false)` (which is the default
  * for #rdpq_set_mode_standard), and that will make sure that the VI will not
  * do anything to the image, even if #display_init was called with
- * #ANTIALIAS_RESAMPLE.
+ * #FILTERS_RESAMPLE_ANTIALIAS or #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER.
  *
  * @note Antialiasing internally uses the blender unit. If you already
  *       configured a formula via #rdpq_mode_blender, antialias will just
