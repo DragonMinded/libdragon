@@ -1,6 +1,8 @@
 #ifndef __LIBDRAGON_MODEL64_INTERNAL_H
 #define __LIBDRAGON_MODEL64_INTERNAL_H
 
+typedef float model64_mtx_t[4][4];
+
 /** @brief model64 file magic header */
 #define MODEL64_MAGIC           0x4D444C48 // "MDLH"
 /** @brief model64 loaded model buffer magic */
@@ -34,21 +36,54 @@ typedef struct primitive_s {
     void *indices;                  ///< Pointer to the first index value. If NULL, indices are not used
 } primitive_t;
 
-/** @brief A mesh that is made up of multiple primitives (part of #model64_t) */
+typedef struct node_transform_s {
+    float pos[3];
+    float rot[4];
+    float scale[3];
+    float mtx[16];
+} node_transform_t;
+
+typedef struct mesh_transform_state_s {
+    node_transform_t transform;
+    float world_mtx[16];
+} node_transform_state_t;
+
+/** @brief A node of the model */
 typedef struct mesh_s {
     uint32_t num_primitives;        ///< Number of primitives
     primitive_t *primitives;        ///< Pointer to the first primitive
 } mesh_t;
 
+/** @brief A node of the model */
+typedef struct model64_node_s {
+    char *name;
+    mesh_t *mesh;
+    node_transform_t initial_transform;
+    struct model64_node_s *parent;
+    uint32_t num_children;
+    struct model64_node_s **children;
+} model64_node_t;
+
 /** @brief A model64 file containing a model */
-typedef struct model64_s {
+typedef struct model64_data_s {
     uint32_t magic;                 ///< Magic header (MODEL64_MAGIC)
+    uint32_t ref_count;
     uint32_t version;               ///< Version of this file
     uint32_t header_size;           ///< Size of the header in bytes
     uint32_t mesh_size;             ///< Size of a mesh header in bytes
     uint32_t primitive_size;        ///< Size of a primitive header in bytes
-    uint32_t num_meshes;            ///< Number of meshes
-    mesh_t *meshes;                 ///< Pointer to the first mesh
+    uint32_t node_size;             ///< Size of a node in bytes
+    uint32_t num_nodes;             ///< Number of nodes
+    model64_node_t *nodes;          ///< Pointer to the first node
+    model64_node_t *root_node;
+    uint32_t num_meshes;
+    mesh_t *meshes;
+} model64_data_t;
+
+/** @brief A model64 instance */
+typedef struct model64_s {
+    model64_data_t *data;
+    node_transform_state_t *transforms;
 } model64_t;
 
 #endif

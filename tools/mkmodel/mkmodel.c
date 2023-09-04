@@ -65,9 +65,9 @@ void print_args( char * name )
     fprintf(stderr, "\n");
 }
 
-model64_t* model64_alloc()
+model64_data_t* model64_alloc()
 {
-    model64_t *model = calloc(1, sizeof(model64_t));
+    model64_data_t *model = calloc(1, sizeof(model64_data_t));
     model->magic = MODEL64_MAGIC;
     model->version = MODEL64_VERSION;
     model->header_size = HEADER_SIZE;
@@ -94,7 +94,7 @@ void mesh_free(mesh_t *mesh)
     if (mesh->primitives) free(mesh->primitives);
 }
 
-void model64_free(model64_t *model)
+void model64_free(model64_data_t *model)
 {
     for (size_t i = 0; i < model->num_meshes; i++)
         mesh_free(&model->meshes[i]);
@@ -150,7 +150,7 @@ void indices_write(FILE *out, uint32_t type, void *data, uint32_t count)
     }
 }
 
-void model64_write(model64_t *model, FILE *out)
+void model64_write(model64_data_t *model, FILE *out)
 {
     // Write header
     int header_start = ftell(out);
@@ -552,7 +552,7 @@ int convert(const char *infn, const char *outfn)
 
     cgltf_load_buffers(&options, data, infn);
 
-    model64_t *model = model64_alloc();
+    model64_data_t *model = model64_alloc();
 
     if (data->meshes_count <= 0) {
         fprintf(stderr, "Error: input file contains no meshes\n");
