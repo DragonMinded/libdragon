@@ -55,13 +55,20 @@ typedef struct mesh_s {
 } mesh_t;
 
 /** @brief A node of the model */
+typedef struct model64_skin_s {
+    uint32_t num_joints;        ///< Number of joints
+    uint32_t *joints;           ///< Pointer to the first joint index
+} model64_skin_t;
+
+/** @brief A node of the model */
 typedef struct model64_node_s {
     char *name;
     mesh_t *mesh;
+    model64_skin_t *skin;
     node_transform_t initial_transform;
-    struct model64_node_s *parent;
+    uint32_t parent;
     uint32_t num_children;
-    struct model64_node_s **children;
+    uint32_t *children;
 } model64_node_t;
 
 /** @brief A model64 file containing a model */
@@ -75,7 +82,7 @@ typedef struct model64_data_s {
     uint32_t node_size;             ///< Size of a node in bytes
     uint32_t num_nodes;             ///< Number of nodes
     model64_node_t *nodes;          ///< Pointer to the first node
-    model64_node_t *root_node;
+    uint32_t root_node;
     uint32_t num_meshes;
     mesh_t *meshes;
 } model64_data_t;

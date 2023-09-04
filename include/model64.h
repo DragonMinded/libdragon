@@ -99,11 +99,11 @@ void model64_draw(model64_t *model);
 void model64_draw_mesh(mesh_t *mesh);
 
 /**
- * @brief Draw a single mesh.
+ * @brief Draw a single node.
  * 
- * This will draw all of the given mesh's primitives.
+ * This will draw a single mesh node.
  */
-void model64_draw_mesh(mesh_t *mesh);
+void model64_draw_node(model64_t *model, model64_node_t *node);
 
 /**
  * @brief Draw a single primitive.

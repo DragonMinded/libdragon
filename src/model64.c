@@ -20,7 +20,6 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
     }
     assertf(model->magic == MODEL64_MAGIC, "invalid model data (magic: %08lx)", model->magic);
     model->nodes = PTR_DECODE(model, model->nodes);
-    model->root_node = PTR_DECODE(model, model->root_node);
     model->meshes = PTR_DECODE(model, model->meshes);
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
@@ -29,12 +28,9 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
             model->nodes[i].name = PTR_DECODE(model, model->nodes[i].name);
         }
         model->nodes[i].mesh = PTR_DECODE(model, model->nodes[i].mesh);
-        model->nodes[i].parent = PTR_DECODE(model, model->nodes[i].parent);
         model->nodes[i].children = PTR_DECODE(model, model->nodes[i].children);
-        for(uint32_t j=0; j<model->nodes[i].num_children; j++)
-        {
-            model->nodes[i].children[j] = PTR_DECODE(model, model->nodes[i].children[j]);
-        }
+        model->nodes[i].skin = PTR_DECODE(model, model->nodes[i].skin);
+        model->nodes[i].skin->joints = PTR_DECODE(model, model->nodes[i].skin->joints);
     }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
@@ -63,7 +59,8 @@ static size_t get_model_instance_size(model64_data_t *model_data)
 
 static void mtx_multiply(float src1[16], float src2[16], float dst[16])
 {
-    for(int i=0; i<4; i++) {
+    for(int i=0; i<4; i++)
+    {
         dst[i] = src1[0] * src2[i] + src1[1] * src2[i+4] + src1[2] * src2[i+8] + src1[3] * src2[i+12];
         dst[i+4] = src1[4] * src2[i] + src1[5] * src2[i+4] + src1[6] * src2[i+8] + src1[7] * src2[i+12];
         dst[i+8] = src1[8] * src2[i] + src1[7] * src2[i+4] + src1[10] * src2[i+8] + src1[11] * src2[i+12];
@@ -73,7 +70,8 @@ static void mtx_multiply(float src1[16], float src2[16], float dst[16])
 
 static void mtx_copy(float src[16], float dst[16])
 {
-    for(int i=0; i<16; i++) {
+    for(int i=0; i<16; i++)
+    {
         dst[i] = src[i];
     }
 }
@@ -114,34 +112,29 @@ static void transform_calc_matrix(node_transform_t *transform)
     transform->mtx[15] = 1.f;
 }
 
-static uint32_t get_node_idx(model64_t *model, model64_node_t *node)
+static void calc_node_local_matrix(model64_t *model, uint32_t node)
 {
-    return node-model->data->nodes;
+    transform_calc_matrix(&model->transforms[node].transform);
 }
 
-static void calc_node_local_matrix(model64_t *model, model64_node_t *node)
+static void calc_node_world_matrix(model64_t *model, uint32_t node)
 {
-    transform_calc_matrix(&model->transforms[get_node_idx(model, node)].transform);
-}
-
-static void calc_node_world_matrix(model64_t *model, model64_node_t *node)
-{
-    uint32_t node_idx = get_node_idx(model, node);
-    node_transform_state_t *xform = &model->transforms[node_idx];
-    if(node->parent) {
-        uint32_t parent_idx = get_node_idx(model, node->parent);
-        node_transform_state_t *parent_xform = &model->transforms[parent_idx];
+    model64_node_t *node_ptr = model64_get_node(model, node);
+    node_transform_state_t *xform = &model->transforms[node];
+    if(node != model->data->root_node) {
+        node_transform_state_t *parent_xform = &model->transforms[node_ptr->parent];
         mtx_multiply(parent_xform->world_mtx, xform->transform.mtx, xform->world_mtx);
     } else {
         mtx_copy(xform->transform.mtx, xform->world_mtx);
     }
     
-    for(uint32_t i=0; i<node->num_children; i++) {
-        calc_node_world_matrix(model, node->children[i]);
+    for(uint32_t i=0; i<node_ptr->num_children; i++)
+    {
+        calc_node_world_matrix(model, node_ptr->children[i]);
     }
 }
 
-static void calc_node_matrices(model64_t *model, model64_node_t *node)
+static void calc_node_matrices(model64_t *model, uint32_t node)
 {
     calc_node_local_matrix(model, node);
     calc_node_world_matrix(model, node);
@@ -189,12 +182,9 @@ static void unload_model_data(model64_data_t *model)
 {
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
-        for(uint32_t j=0; j<model->nodes[i].num_children; j++)
-        {
-            model->nodes[i].children[j] = PTR_ENCODE(model, model->nodes[i].children[j]);
-        }
         model->nodes[i].children = PTR_ENCODE(model, model->nodes[i].children);
-        model->nodes[i].parent = PTR_ENCODE(model, model->nodes[i].parent);
+        model->nodes[i].skin->joints = PTR_ENCODE(model, model->nodes[i].skin->joints);
+        model->nodes[i].skin = PTR_ENCODE(model, model->nodes[i].skin);
         model->nodes[i].mesh = PTR_ENCODE(model, model->nodes[i].mesh);
         if(model->nodes[i].name)
         {
@@ -215,6 +205,7 @@ static void unload_model_data(model64_data_t *model)
         }
         model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
     }
+    model->nodes = PTR_ENCODE(model, model->nodes);
     model->meshes = PTR_ENCODE(model, model->meshes);
     if(model->magic == MODEL64_MAGIC_OWNED) {
         #ifndef NDEBUG
@@ -228,7 +219,8 @@ static void unload_model_data(model64_data_t *model)
 
 void model64_free(model64_t *model)
 {
-    if(--model->data->ref_count == 0) {
+    if(--model->data->ref_count == 0)
+    {
         unload_model_data(model->data);
     }
     free(model);
@@ -256,13 +248,20 @@ model64_node_t *model64_get_node(model64_t *model, uint32_t node_index)
 
 model64_node_t *model64_search_node(model64_t *model, const char *name)
 {
-    for(uint32_t i=0; i<model->data->num_nodes; i++) {
+    for(uint32_t i=0; i<model->data->num_nodes; i++)
+    {
         char *node_name = model->data->nodes[i].name;
-        if(node_name && !strcmp(node_name, name)) {
+        if(node_name && !strcmp(node_name, name))
+        {
             return &model->data->nodes[i];
         }
     }
     return NULL;
+}
+
+static uint32_t get_node_idx(model64_t *model, model64_node_t *node)
+{
+    return node-model->data->nodes;
 }
 
 void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float y, float z)
@@ -273,7 +272,7 @@ void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float
     dst[0] = x;
     dst[1] = y;
     dst[2] = z;
-    calc_node_matrices(model, node);
+    calc_node_matrices(model, node_idx);
 }
 
 void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float y, float z)
@@ -300,7 +299,7 @@ void model64_set_node_rot_quat(model64_t *model, model64_node_t *node, float x, 
     dst[1] = y;
     dst[2] = z;
     dst[3] = w;
-    calc_node_matrices(model, node);
+    calc_node_matrices(model, node_idx);
 }
 
 void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, float y, float z)
@@ -311,7 +310,7 @@ void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, flo
     dst[0] = x;
     dst[1] = y;
     dst[2] = z;
-    calc_node_matrices(model, node);
+    calc_node_matrices(model, node_idx);
 }
 
 void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float dst[16])
@@ -389,21 +388,40 @@ void model64_draw_mesh(mesh_t *mesh)
     }
 }
 
-void model64_draw_node(model64_node_t *node)
+void model64_draw_node(model64_t *model, model64_node_t *node)
 {
+    uint32_t node_idx = get_node_idx(model, node);
+    assertf(node_idx < model->data->num_nodes, "Drawing invalid node.");
     if(node->mesh)
     {
-        model64_draw_mesh(node->mesh);
+        if(node->skin)
+        {
+            glMatrixMode(GL_MATRIX_PALETTE_ARB);
+            for(uint32_t i=0; i<node->skin->num_joints; i++)
+            {
+                glCurrentPaletteMatrixARB(i);
+                //glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
+                glMultMatrixf(model->transforms[node->skin->joints[i]].world_mtx);
+            }
+            glEnable(GL_MATRIX_PALETTE_ARB);
+            model64_draw_mesh(node->mesh);
+            glDisable(GL_MATRIX_PALETTE_ARB);
+            glMatrixMode(GL_MODELVIEW);
+        }
+        else
+        {
+            glPushMatrix();
+            glMultMatrixf(model->transforms[node_idx].world_mtx);
+            model64_draw_mesh(node->mesh);
+            glPopMatrix();
+        }
     }
 }
 
 void model64_draw(model64_t *model)
 {
-    glPushMatrix();
     for (uint32_t i = 0; i < model64_get_node_count(model); i++)
     {
-        glMultMatrixf(model->transforms[i].world_mtx);
-        model64_draw_node(model64_get_node(model, i));
-        glPopMatrix();
+        model64_draw_node(model, model64_get_node(model, i));
     }
 }
