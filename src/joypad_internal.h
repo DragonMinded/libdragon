@@ -93,6 +93,8 @@ extern volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
 
+joypad_inputs_t joypad_read_n64_inputs_sync(joypad_port_t port);
+
 #ifdef __cplusplus
 }
 #endif

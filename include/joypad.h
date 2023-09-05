@@ -383,8 +383,6 @@ typedef enum
     JOYPAD_8WAY_DOWN_RIGHT = 7,
 } joypad_8way_t;
 
-joypad_inputs_t joypad_read_n64_inputs_sync(joypad_port_t port);
-
 void joypad_init(void);
 void joypad_close(void);
 void joypad_identify_sync(bool reset);
