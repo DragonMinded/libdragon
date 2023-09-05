@@ -212,6 +212,28 @@ typedef uint16_t joybus_identifier_t;
 
 void joybus_exec( const void * inblock, void * outblock );
 
+/**
+ * @brief Sends a Joybus command to notify N64Digital of the current Game ID.
+ * 
+ * This function is mostly intended to be used by flashcart menu software.
+ * 
+ * @see https://gitlab.com/pixelfx-public/n64-game-id#n64-game-id-per-game-settings-for-n64digital
+ * 
+ * @param rom_check_code ROM check code (ROM header bytes 0x10-0x17)
+ * @param media_format Media category code (ROM header byte 0x3B)
+ * @param region_code Region code (ROM header byte 0x3E)
+ */
+void joybus_send_game_id(uint64_t rom_check_code, uint8_t media_format, uint8_t region_code);
+
+/**
+ * @brief Sends a Joybus command to clear the current Game ID.
+ * 
+ * This function is mostly intended to be used by flashcart menu software.
+ * 
+ * @see https://gitlab.com/pixelfx-public/n64-game-id#special-ids
+ */
+static inline void joybus_clear_game_id(void) { joybus_send_game_id(0, 0, 0); }
+
 #ifdef __cplusplus
 }
 #endif

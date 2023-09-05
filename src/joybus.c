@@ -10,6 +10,7 @@
 #include "debug.h"
 #include "interrupt.h"
 #include "joybus.h"
+#include "joybus_commands.h"
 #include "joybus_internal.h"
 #include "n64sys.h"
 #include "regsinternal.h"
@@ -325,6 +326,30 @@ void joybus_exec( const void * input, void * output )
         }
         enable_interrupts();
     }
+}
+
+void joybus_send_game_id(uint64_t rom_check_code, uint8_t media_format, uint8_t region_code)
+{
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    size_t i = 0;
+
+    const joybus_cmd_n64_game_id_t send_cmd = {
+        .send_len = sizeof(send_cmd.send_bytes),
+        .recv_len = sizeof(send_cmd.recv_bytes),
+        .command = JOYBUS_COMMAND_ID_N64_GAME_ID,
+        .rom_check_code = rom_check_code,
+        .media_format = media_format,
+        .region_code = region_code,
+    };
+    memcpy(&input[i], &send_cmd, sizeof(send_cmd));
+    i += sizeof(send_cmd);
+
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+
+    // This is a fire-and-forget command with no expected response
+    joybus_exec_async(input, NULL, NULL);
 }
 
 /** @} */ /* joybus */

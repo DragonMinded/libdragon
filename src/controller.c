@@ -353,6 +353,8 @@ struct controller_data get_keys_pressed( void )
  *             The parameter bytes to send with the command
  * @param[out] in
  *             The result bytes returned by the operation
+ * 
+ * @deprecated Use #joybus_exec instead
  */
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
 {

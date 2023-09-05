@@ -21,8 +21,6 @@
 extern "C" {
 #endif
 
-void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
-
 /*****************************************************************************
  * Deprecated API
  * 
@@ -242,6 +240,9 @@ typedef struct controller_origin_data
     /** @brief Array of GameCube controller origin data for each controller port. */
     struct SI_origdat_gc gc[4];
 } SI_controllers_origin_t;
+
+__attribute__((deprecated("use joybus_exec instead")))
+void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
 
 __attribute__((deprecated("use joypad_read_n64_inputs_sync instead")))
 void controller_read( struct controller_data * data );

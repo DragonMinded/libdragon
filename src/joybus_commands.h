@@ -105,6 +105,13 @@
 #define JOYBUS_COMMAND_ID_64GB_LINK_CABLE_WRITE       0x14
 /** @brief "GBA Link Cable Write" Joybus command identifier. */
 #define JOYBUS_COMMAND_ID_GBA_LINK_CABLE_WRITE        0x15
+/**
+ * @brief "N64 Game ID" Joybus command identifier.
+ * 
+ * Used by the N64Digital by PixelFX to allow per-game settings.
+ * @see https://gitlab.com/pixelfx-public/n64-game-id#how-to-integrate-on-n64
+ */
+#define JOYBUS_COMMAND_ID_N64_GAME_ID                 0x1D
 /** @brief "GameCube Controller Read" Joybus command identifier. */
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ         0x40
 /** @brief "GameCube Controller Read Origins" Joybus command identifier. */
@@ -315,6 +322,55 @@ typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
  * @see #JOYBUS_COMMAND_ID_RESET
  */
 typedef joybus_cmd_identify_port_t joybus_cmd_reset_port_t;
+
+/**
+ * @brief "N64 Game ID" Joybus command structure.
+ * 
+ * @see #JOYBUS_COMMAND_ID_N64_GAME_ID
+ */
+typedef struct __attribute__((packed)) joybus_cmd_n64_game_id_s
+{
+    /** @brief Length of send data in bytes. (0x0A) */
+    uint8_t send_len;
+    /** @brief Length of recv data in bytes. (0x01) */
+    uint8_t recv_len;
+    /// @cond
+    union
+    {
+    /// @endcond
+        /** @brief Raw send_data bytes. */
+        uint8_t send_bytes[0x0B];
+        /// @cond
+        struct __attribute__((__packed__))
+        {
+        /// @endcond
+            /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_GAME_ID) */
+            uint8_t command;
+            /** @brief ROM check code (ROM header bytes 0x10-0x17).
+             * 
+             * 64-bit check code calculated on 1 Mbyte of ROM contents starting from offset 0x1000.
+             * 
+             * Sometimes these 8 bytes are referred to as "CRC HI/LO" or "CRC1/2".
+             */
+            uint64_t rom_check_code;
+            /** @brief Media category code (ROM header byte 0x3B) */
+            uint8_t media_format;
+            /** @brief Region code (ROM header byte 0x3E) */
+            uint8_t region_code;
+        /// @cond
+        };
+        /// @endcond
+    /// @cond
+    };
+    /// @endcond
+    /**
+     * @brief Raw recv_data bytes (unused)
+     * 
+     * As per PixelFX's documentation, N64Digital does not respond to this command.
+     * N64Digital only acts as a bus sniffer.
+     */
+    uint8_t recv_bytes[0x01];
+} joybus_cmd_n64_game_id_t;
 
 /**
  * @brief "N64 Controller Read" Joybus command structure.
