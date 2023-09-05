@@ -34,7 +34,7 @@ extern "C" {
 /** 
  * @brief Size of a Joybus N64 accessory read/write payload in bytes. 
  */
-#define JOYBUS_N64_ACCESSORY_DATA_SIZE  32
+#define JOYBUS_ACCESSORY_DATA_SIZE  32
 /** @} */ /* JOYBUS_PAYLOAD_SIZES */
 
 /**
@@ -169,27 +169,27 @@ typedef uint16_t joybus_identifier_t;
 /**
  * @brief Joybus identify status byte mask for N64 accessory presence values.
  */
-#define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_MASK         0x03
+#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK             0x03
 /**
  * @brief Joybus identify status for an N64 controller that does not support accessories.
  * 
  * Some third-party controllers incorrectly use this status to mean absence of an accessory.
- * Therefore, this value is treated as a synonym for JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_ABSENT.
+ * Therefore, this value is treated as a synonym for JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT.
  */
-#define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_UNSUPPORTED  0x00
+#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED      0x00
 /**
  * @brief Joybus identify status for an N64 controller with an accessory present.
  */
-#define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT      0x01
+#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT          0x01
 /**
  * @brief Joybus identify status for an N64 controller with no accessory present.
  */
-#define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_ABSENT       0x02
+#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT           0x02
 /**
  * @brief Joybus identify status for an N64 controller with an accessory present
  * that has changed since it was last identified.
  */
-#define JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED      0x03
+#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED          0x03
 /**
  * @brief Joybus identify status bit for a VRU/VRS that is initialized and ready.
  */

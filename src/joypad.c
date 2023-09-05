@@ -413,18 +413,18 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
         {
             device->style = JOYPAD_STYLE_N64;
             uint8_t prev_accessory_status = accessory->status;
-            uint8_t accessory_status = recv_cmd->status & JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_MASK;
+            uint8_t accessory_status = recv_cmd->status & JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK;
             // Work-around third-party controllers that don't correctly report accessory status
             bool accessory_absent = (
-                accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_ABSENT ||
-                accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_UNSUPPORTED
+                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT ||
+                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED
             );
             bool accessory_changed = (
-                accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED ||
+                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED ||
                 (
-                    accessory_status == JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT &&
-                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_PRESENT &&
-                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_N64_ACCESSORY_CHANGED
+                    accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
+                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
+                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED
                 )
             );
             if (accessory_absent || accessory_changed)
@@ -952,7 +952,7 @@ void joypad_set_rumble_active(joypad_port_t port, bool active)
     joypad_rumble_method_t rumble_method = device->rumble_method;
     if (rumble_method == JOYPAD_RUMBLE_METHOD_N64_RUMBLE_PAK)
     {
-        joypad_n64_rumble_pak_motor_async(port, active);
+        joypad_rumble_pak_toggle_async(port, active);
     }
     else if (rumble_method == JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER)
     {

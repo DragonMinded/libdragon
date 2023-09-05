@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 #include "joybus.h"
-#include "joybus_n64_accessory.h"
+#include "joybus_accessory.h"
 #include "joypad.h"
 
 /**
@@ -341,12 +341,12 @@ static inline int get_dpad_direction( int controller )
  * @retval -2 if there was no mempak present in the controller
  * @retval -3 if the mempak returned invalid data
  * 
- * @deprecated Use #joybus_n64_accessory_read_sync instead.
+ * @deprecated Use #joybus_accessory_read_sync instead.
  */
-__attribute__((deprecated("use joybus_n64_accessory_read_sync instead")))
+__attribute__((deprecated("use joybus_accessory_read_sync instead")))
 static inline int read_mempak_address( int controller, uint16_t address, uint8_t *data )
 {
-    return joybus_n64_accessory_read_sync((joypad_port_t) controller, address, data);
+    return joybus_accessory_read_sync((joypad_port_t) controller, address, data);
 }
 
 /**
@@ -366,12 +366,12 @@ static inline int read_mempak_address( int controller, uint16_t address, uint8_t
  * @retval -2 if there was no mempak present in the controller
  * @retval -3 if the mempak returned invalid data
  * 
- * @deprecated Use #joybus_n64_accessory_write_sync instead.
+ * @deprecated Use #joybus_accessory_write_sync instead.
  */
-__attribute__((deprecated("use joybus_n64_accessory_write_sync instead")))
+__attribute__((deprecated("use joybus_accessory_write_sync instead")))
 static inline int write_mempak_address( int controller, uint16_t address, uint8_t *data )
 {
-    return joybus_n64_accessory_write_sync((joypad_port_t) controller, address, data);
+    return joybus_accessory_write_sync((joypad_port_t) controller, address, data);
 }
 
 /**

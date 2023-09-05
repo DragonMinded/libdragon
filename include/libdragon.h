@@ -31,7 +31,7 @@
 #include "console.h"
 #include "debug.h"
 #include "joybus.h"
-#include "joybus_n64_accessory.h"
+#include "joybus_accessory.h"
 #include "joypad.h"
 #include "controller.h"
 #include "rtc.h"

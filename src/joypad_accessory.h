@@ -1,17 +1,17 @@
 /**
  * @file joypad_accessory.h
  * @author Christopher Bonhage (me@christopherbonhage.com)
- * @brief Joypad accessory
+ * @brief Joypad accessory helpers
  * @ingroup joypad
  */
 
-#ifndef __JOYPAD_ACCESSORY_H
-#define __JOYPAD_ACCESSORY_H
+#ifndef __LIBDRAGON_JOYPAD_ACCESSORY_H
+#define __LIBDRAGON_JOYPAD_ACCESSORY_H
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include "joybus_n64_accessory_internal.h"
+#include "joybus_accessory_internal.h"
 #include "joypad.h"
 #include "timer.h"
 
@@ -100,7 +100,7 @@ typedef struct
     uint8_t bank;
     uint16_t cart_addr;
     uint16_t tpak_addr;
-} joypad_n64_transfer_pak_io_t;
+} joypad_transfer_pak_io_t;
 
 /** @brief Joypad accessory structure */
 typedef struct joypad_accessory_s
@@ -111,8 +111,8 @@ typedef struct joypad_accessory_s
     joypad_accessory_error_t error;
     unsigned retries;
     timer_link_t *transfer_pak_wait_timer;
-    joybus_n64_transfer_pak_status_t transfer_pak_status;
-    joypad_n64_transfer_pak_io_t transfer_pak_io;
+    joybus_transfer_pak_status_t transfer_pak_status;
+    joypad_transfer_pak_io_t transfer_pak_io;
 } joypad_accessory_t;
 
 joypad_accessory_type_t joypad_get_accessory_type(joypad_port_t port);
@@ -121,10 +121,10 @@ int joypad_get_accessory_error(joypad_port_t port);
 uint8_t joypad_get_accessory_transfer_pak_status(joypad_port_t port);
 
 void joypad_accessory_detect_async(joypad_port_t port);
-void joypad_n64_rumble_pak_motor_async(joypad_port_t port, bool active);
-void joypad_n64_transfer_pak_enable_async(joypad_port_t port, bool enabled);
-void joypad_n64_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, void *dst, size_t len);
-void joypad_n64_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr, void *src, size_t len);
+void joypad_rumble_pak_toggle_async(joypad_port_t port, bool active);
+void joypad_transfer_pak_enable_async(joypad_port_t port, bool enabled);
+void joypad_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, void *dst, size_t len);
+void joypad_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr, void *src, size_t len);
 
 #ifdef __cplusplus
 }

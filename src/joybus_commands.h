@@ -5,8 +5,8 @@
  * @ingroup joybus_commands
  */
 
-#ifndef __JOYBUS_COMMANDS_H
-#define __JOYBUS_COMMANDS_H
+#ifndef __LIBDRAGON_JOYBUS_COMMANDS_H
+#define __LIBDRAGON_JOYBUS_COMMANDS_H
 
 #include <assert.h>
 #include <stdbool.h>
@@ -170,7 +170,7 @@ typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_read_port_s
         {
         /// @endcond
             /** @brief 32-byte payload of data read from the accessory. */
-            uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+            uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE];
             /** @brief CRC8 checksum of the data for verification. */
             uint8_t data_crc;
         /// @cond
@@ -225,7 +225,7 @@ typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_write_port_s
             /** @brief Accessory address with 5-bit checksum. */
             uint16_t addr_checksum;
             /** @brief 32-byte payload of data to write to the accessory. */
-            uint8_t data[JOYBUS_N64_ACCESSORY_DATA_SIZE];
+            uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE];
         /// @cond
         };
         /// @endcond

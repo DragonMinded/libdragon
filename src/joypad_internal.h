@@ -5,8 +5,8 @@
  * @ingroup joypad
  */
 
-#ifndef __JOYPAD_INTERNAL_H
-#define __JOYPAD_INTERNAL_H
+#ifndef __LIBDRAGON_JOYPAD_INTERNAL_H
+#define __LIBDRAGON_JOYPAD_INTERNAL_H
 
 #include <stddef.h>
 #include <stdint.h>

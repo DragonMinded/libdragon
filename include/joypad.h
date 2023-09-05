@@ -5,8 +5,8 @@
  * @ingroup joypad
  */
 
-#ifndef __JOYPAD_H
-#define __JOYPAD_H
+#ifndef __LIBDRAGON_JOYPAD_H
+#define __LIBDRAGON_JOYPAD_H
 
 #include <assert.h>
 #include <stdbool.h>
