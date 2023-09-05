@@ -87,7 +87,6 @@ int main(void)
     timer_init();
     joypad_init();
     debug_init_isviewer();
-    display_init(RESOLUTION_320x240, DEPTH_32_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
     console_init();
     console_set_render_mode(RENDER_MANUAL);
     console_set_debug(false);
