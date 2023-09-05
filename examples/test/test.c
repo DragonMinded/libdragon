@@ -38,7 +38,7 @@ sprite_t *read_sprite( const char * const spritename )
 int main(void)
 {
     /* Initialize peripherals */
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+    display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
     dfs_init( DFS_DEFAULT_LOCATION );
     controller_init();
 
@@ -127,7 +127,7 @@ int main(void)
             display_close();
 
             res = RESOLUTION_640x480;
-            display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
         }
 
         if( keys.c[0].down )
@@ -135,7 +135,7 @@ int main(void)
             display_close();
 
             res = RESOLUTION_320x240;
-            display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
         }
 
         if( keys.c[0].left )
@@ -143,7 +143,7 @@ int main(void)
             display_close();
 
             bit = DEPTH_16_BPP;
-            display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
         }
 
         if( keys.c[0].right )
@@ -151,7 +151,7 @@ int main(void)
             display_close();
 
             bit = DEPTH_32_BPP;
-            display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
         }
     }
 }

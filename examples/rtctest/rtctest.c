@@ -210,7 +210,7 @@ void update_joystick_directions( void )
 
 int main(void)
 {
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+    display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
     controller_init();
     timer_init();
 

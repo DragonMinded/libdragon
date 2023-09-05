@@ -9,6 +9,7 @@
 #include <string.h>
 #include "regsinternal.h"
 #include "n64sys.h"
+#include "vi.h"
 #include "display.h"
 #include "interrupt.h"
 #include "utils.h"
@@ -19,63 +20,6 @@
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
 
-/** @brief Register location in memory of VI */
-#define REGISTER_BASE       0xA4400000
-/** @brief Number of 32-bit registers at the register base */
-#define REGISTER_COUNT      14
-
-/** 
- * @brief Return the uncached memory address of a cached address
- *
- * @param[in] x 
- *            The cached address
- *
- * @return The uncached address
- */
-#define UNCACHED_ADDR(x)    ((void *)(((uint32_t)(x)) | 0xA0000000))
-
-/**
- * @name Video Mode Register Presets
- * @brief Presets to use when setting a particular video mode
- * @{
- */
-static const uint32_t ntsc_p[] = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000000, 0x00000000 };
-static const uint32_t pal_p[] = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x00000000, 0x00000000 };
-static const uint32_t mpal_p[] = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000000, 0x00000000 };
-static const uint32_t ntsc_i[] = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
-    0x00000000, 0x00000000 };
-static const uint32_t pal_i[] = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
-    0x00000000, 0x00000000 };
-static const uint32_t mpal_i[] = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
-    0x00000000, 0x00000000 };
-/** @} */
-
-/** @brief Register initial value array */
-static const uint32_t * const reg_values[] = {
-    pal_p, ntsc_p, mpal_p,
-    pal_i, ntsc_i, mpal_i,
-};
 
 static surface_t *surfaces;
 /** @brief Currently active bit depth */
@@ -106,81 +50,16 @@ static inline int buffer_next(int idx) {
 }
 
 /**
- * @brief Write a set of video registers to the VI
- *
- * @param[in] registers
- *            A pointer to a set of register values to be written
- */
-static void __write_registers( uint32_t const * const registers )
-{
-    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
-
-    /* This should never happen */
-    if( !registers ) { return; }
-
-    /* Just straight copy */
-    for( int i = 0; i < REGISTER_COUNT; i++ )
-    {
-        /* Don't clear interrupts */
-        if( i == 3 ) { continue; }
-        if( i == 4 ) { continue; }
-
-        reg_base[i] = registers[i];
-        MEMORY_BARRIER();
-    }
-}
-
-/**
- * @brief Update the framebuffer pointer in the VI
- *
- * @param[in] dram_val
- *            The new framebuffer to use for display.  Should be aligned and uncached.
- */
-static void __write_dram_register( void const * const dram_val )
-{
-    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
-
-    reg_base[1] = PhysicalAddr(dram_val);
-    MEMORY_BARRIER();
-}
-
-/** @brief Wait until entering the vblank period */
-static void __wait_for_vblank()
-{
-    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
-
-    while( reg_base[4] != 2 ) {  }
-}
-
-/** @brief Return true if VI is sending a video signal (16-bit or 32-bit color set) */
-static inline bool __is_vi_active()
-{
-    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
-
-    return (reg_base[0] & 0x03) >= 2;
-}
-
-/** @brief Set active image width to 0, which keeps VI signal active but only sending a blank image */
-static inline void __set_vi_blank_image()
-{
-    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
-
-    reg_base[9] = 0;
-}
-
-/**
  * @brief Interrupt handler for vertical blank
  *
  * If there is another frame to display, display the frame
  */
 static void __display_callback()
 {
-    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
-
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
-    bool field = reg_base[4] & 1;
-    bool interlaced = reg_base[0] & (1<<6);
+    bool field = (*VI_V_CURRENT) & 1;
+    bool interlaced = (*VI_CTRL) & (VI_CTRL_SERRATE);
 
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame. If full interlace mode is selected
@@ -193,14 +72,13 @@ static void __display_callback()
         }
     }
 
-    __write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
+    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
 }
 
-void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa )
+void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
 {
-    uint32_t registers[REGISTER_COUNT];
     uint32_t tv_type = get_tv_type();
-    uint32_t control = !sys_bbplayer() ? 0x3000 : 0x1000;
+    uint32_t control = !sys_bbplayer()? VI_PIXEL_ADVANCE_DEFAULT : VI_PIXEL_ADVANCE_BBPLAYER;
 
     /* Can't have the video interrupt happening here */
     disable_interrupts();
@@ -212,21 +90,20 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     if( res.interlaced != INTERLACE_OFF )
     {
         /* Serrate on to stop vertical jitter */
-        control |= 0x40;
-        tv_type += 3;
+        control |= VI_CTRL_SERRATE;
     }
 
-    /* Copy over to temporary for extra initializations */
-    memcpy( registers, reg_values[tv_type], sizeof( uint32_t ) * REGISTER_COUNT );
+    /* Copy over extra initializations */
+    vi_write_config(&vi_config_presets[res.interlaced][tv_type]);
 
     /* Figure out control register based on input given */
     switch( bit )
     {
         case DEPTH_16_BPP:
-            control |= 0x2;
+            control |= VI_CTRL_TYPE_16_BPP;
             break;
         case DEPTH_32_BPP:
-            control |= 0x3;
+            control |= VI_CTRL_TYPE_32_BPP;
             break;
     }
 
@@ -236,18 +113,25 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             /* Nothing to set here */
             break;
         case GAMMA_CORRECT:
-            control |= 0x8;
+            control |= VI_GAMMA_ENABLE;
             break;
         case GAMMA_CORRECT_DITHER:
-            control |= 0xC;
-            break;
+            control |= VI_GAMMA_ENABLE | VI_GAMMA_DITHER_ENABLE;
+            break;  
     }
 
-    switch( aa )
+    switch( filters )
     {
-        case ANTIALIAS_OFF:
-            /* Disabling antialias hits a hardware bug on NTSC consoles when
-               the horizontal resolution is 320 or lower (see issue #66).
+        /* Libdragon uses preconfigured modes for enabling certain 
+        combinations of VI filters due to a large number of wrong/invalid configurations 
+        with very strict conditions, and to simplify the options for the user.
+        Like for example antialiasing requiring resampling; dedithering not working with 
+        resampling, unless always fetching; always enabling divot filter under AA etc.
+        The cases below provide all possible configurations that are deemed useful. */
+
+        case FILTERS_DISABLED:
+            /* Disabling resampling (AA_MODE = 0x3) on 16bpp hits a hardware bug on NTSC 
+               consoles when the horizontal resolution is 320 or lower (see issue #66).
                It would work on PAL consoles, but we think users are better
                served by prohibiting it altogether.
 
@@ -257,43 +141,53 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             if ( bit == DEPTH_16_BPP )
             {
                 assertf(res.width > 320,
-                    "ANTIALIAS_OFF is not supported by the hardware for widths <= 320.\n"
-                    "Please use ANTIALIAS_RESAMPLE instead.");
+                    "FILTERS_DISABLED is not supported by the hardware for widths <= 320.\n"
+                    "Please use FILTERS_RESAMPLE instead.");
             }
 
             /* Set AA off flag */
-            control |= 0x300;
+            control |= VI_AA_MODE_NONE;
+
+            break;
+        case FILTERS_RESAMPLE:
+            /* Set AA on resample */
+            control |= VI_AA_MODE_RESAMPLE;
 
             /* Dither filter should not be enabled with this AA mode
                as it will cause ugly vertical streaks */
             break;
-        case ANTIALIAS_RESAMPLE:
-            /* Set AA on resample as well as divot on */
-            control |= 0x210;
+        case FILTERS_DEDITHER:
+            /* Set AA off flag and dedither on 
+            (only on 16bpp mode, act as FILTERS_DISABLED on 32bpp) */
+            if ( bit == DEPTH_16_BPP ) {
+                // Assert on width (see FILTERS_DISABLED)
+                assertf(res.width > 320,
+                    "FILTERS_DEDITHER is not supported by the hardware for widths <= 320.\n"
+                    "Please use FILTERS_RESAMPLE instead.");
+                control |= VI_AA_MODE_NONE | VI_DEDITHER_FILTER_ENABLE;
+            }
+            else control |= VI_AA_MODE_NONE;
 
-            /* Dither filter should not be enabled with this AA mode
-               as it will cause ugly vertical streaks */
             break;
-        case ANTIALIAS_RESAMPLE_FETCH_NEEDED:
+        case FILTERS_RESAMPLE_ANTIALIAS:
             /* Set AA on resample and fetch as well as divot on */
-            control |= 0x110;
+            control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
 
-            /* Enable dither filter in 16bpp mode to give gradients
-               a slightly smoother look */
-            if ( bit == DEPTH_16_BPP ) { control |= 0x10000; }
             break;
-        case ANTIALIAS_RESAMPLE_FETCH_ALWAYS:
-            /* Set AA on resample always and fetch as well as divot on */
-            control |= 0x010;
+        case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
+            /* Set AA on resample always and fetch as well as dedither on 
+            (only on 16bpp mode, act as FILTERS_RESAMPLE_ANTIALIAS on 32bpp) */
 
             /* Enable dither filter in 16bpp mode to give gradients
                a slightly smoother look */
-            if ( bit == DEPTH_16_BPP ) { control |= 0x10000; }
+            if ( bit == DEPTH_16_BPP ) 
+                 control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DEDITHER_FILTER_ENABLE | VI_DIVOT_ENABLE; 
+            else control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
             break;
     }
 
     /* Set the control register in our template */
-    registers[0] = control;
+    vi_write_safe(VI_CTRL, control);
 
     /* Calculate width and scale registers */
     assertf(res.width > 0, "nonpositive width");
@@ -308,9 +202,9 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         assertf(res.width % 2 == 0, "width must be divisible by 2 for 32-bit depth");
     }
-    registers[2] = res.width;
-    registers[12] = ( 1024*res.width + 320 ) / 640;
-    registers[13] = ( 1024*res.height + 120 ) / 240;
+    vi_write_safe(VI_WIDTH, res.width);
+    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
+    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(res.height));
 
     /* Set up the display */
     __width = res.width;
@@ -341,16 +235,15 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     /* Show our screen normally. If display is already active, do that during vblank
        to avoid confusing the VI chip with in-frame modifications. */
-    if ( __is_vi_active() ) { __wait_for_vblank(); }
+    if ( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    registers[1] = PhysicalAddr(__safe_buffer[0]);
-    __write_registers( registers );
+    vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
 
     enable_interrupts();
 
     /* Set which line to call back on in order to flip screens */
     register_VI_handler( __display_callback );
-    set_VI_interrupt( 1, 0x2 );
+    set_VI_interrupt( 1, VI_V_CURRENT_VBLANK );
 }
 
 void display_close()
@@ -369,12 +262,10 @@ void display_close()
     __height = 0;
 
     /* If display is active, wait for vblank before touching the registers */
-    if( __is_vi_active() ) { __wait_for_vblank(); }
+    if( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    /* Set blank VI image mode before clearing framebuffer address register
-       so that garbage will not be shown on screen */
-    __set_vi_blank_image();
-    __write_dram_register( 0 );
+    vi_set_blank_image();
+    vi_write_dram_register( 0 );
 
     if( surfaces )
     {
