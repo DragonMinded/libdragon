@@ -13,9 +13,9 @@
  * @brief Managed mempak interface.
  *
  * The mempak system is a subsystem of the @ref controller.  Before attempting to
- * read from or write to a mempak, be sure you have initialized the controller system
- * with #controller_init and verified that you have a mempak in the correct controller
- * using #identify_accessory.
+ * read from or write to a mempak, be sure you have initialized the Joypad subsystem
+ * with #joypad_init and verified that you have a mempak in the correct controller
+ * using #joypad_get_accessory_type.
  *
  * To read and write to the mempak in an organized way compatible with official software,
  * first check that the mempak is valid using #validate_mempak.  If the mempack is

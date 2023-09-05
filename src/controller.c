@@ -16,53 +16,69 @@
  * @defgroup controller Controller Subsystem
  * @ingroup libdragon
  * @brief Controller and accessory interface.
- *
- * The controller subsystem is in charge of communication with all controllers 
- * and accessories plugged into the N64 controller ports. The controller subsystem
- * leverages the @ref joybus "Joybus Subsystem" to provide controller data and
- * interface with accessories such as the Controller Pak, Rumble Pak, Transfer Pak,
- * and the Voice-Recognition Unit.
- *
- * Code wishing to communicate with a controller or an accessory should first call
- * #controller_init. The controller subsystem performs an automatic background
- * scanning of all controllers, in an efficient way, saving the current status
- * in a local cache. Alternatively, it is possible to execute direct, blocking
- * controller I/O reads, though they might be quite slow.
  * 
- * To read the controller status from this cache, call #controller_scan once per
- * frame (or whenever you want to perform the reading), and then call #get_keys_down,
- * #get_keys_up, #get_keys_held and #get_keys_pressed, that will return the
- * status of all keys relative to the previous inspection. #get_dpad_direction will
- * return a number signifying the polar direction that the D-Pad is being
- * pressed in.
+ * @deprecated This module is now deprecated.
+ *             Please use the @ref joypad "Joypad Subsystem" instead.
  *
- * To perform direct reads to the controllers, call #controller_read.  This will
- * return a structure consisting of all button states on all controllers currently
- * inserted. Note that this function takes about 10% of a frame's worth of time.
- *
- * Controllers can be enumerated with 
- * #get_controllers_present.  Similarly, accessories can be enumerated with
- * #get_accessories_present and #identify_accessory.
- *
- * To enable or disable rumbling on a controller, use #rumble_start and #rumble_stop.
- * These functions will turn rumble on and off at full speed respectively, so if
- * different rumble effects are desired, consider using the @ref timer for accurate
- * timing.
- *
- * A mempak attached to a controller can be treated in one of two ways: as a raw binary
- * string, or as a formatted mempak with notes.  The former allows storage of any
- * data as long as it fits, in any format convenient to the coder, but destroys any
- * non-homebrew data on the mempak.  The latter is recommended as it is completely
- * compatible with official N64 games, though it allows less data to be stored due to
- * filesystem overhead.  To read and write raw sectors, use #read_mempak_address and
- * #write_mempak_address.  The @ref mempak handles reading and writing from the mempak
- * in a way compatible with official games.
+ * This module contains an old API to communicate with controllers and accessories.
+ * The API had several deficiencies, notably implementing partial support for
+ * GameCube controllers, but only supporting asynchronous reading of N64 controllers.
+ * It has been deprecated in favor of the @ref joypad "Joypad Subsystem", which
+ * offers full support for both N64 and GameCube controllers, and implements
+ * asynchronous detection of controller port devices and accessories.
+ * 
+ * All controller subsystem functions are now implemented as thin compatibility shims
+ * that call the corresponding @ref joypad "Joypad Subsystem" functions. They will
+ * continue to work just as before, but there will be no further work on them.
+ * The functions have all been explicitly marked as deprecated, and will generate a
+ * warning at compile time. The warning suggests the alternative Joypad API to use
+ * instead. In most cases, the change should be straightforward.
  *
  * @{
  */
 
+/**************************************
+ *  DEPRECATED FUNCTIONS 
+ **************************************/
+
+///@cond
+
 /**
- * @brief Read the controller button status for all controllers
+ * @brief Assign Joypad buttons to a controller data structure.
+ * 
+ * @param port Joypad port number (0-3)
+ * @param[out] out Destination controller data structure
+ * @param[in] buttons Joypad buttons data structure
+ */
+static inline void controller_data_from_joypad_buttons(
+    int port,
+    struct controller_data *out,
+    const joypad_buttons_t *buttons
+)
+{
+    struct SI_condat * c = &out->c[port];
+    struct SI_condat_gc * gc = &out->gc[port];
+
+    gc->a = c->A = buttons->a;
+    gc->b = c->B = buttons->b;
+    gc->z = c->Z = buttons->z;
+    gc->start = c->start = buttons->start;
+    gc->up = c->up = buttons->d_up;
+    gc->down = c->down = buttons->d_down;
+    gc->left = c->left = buttons->d_left;
+    gc->right = c->right = buttons->d_right;
+    gc->x = buttons->x;
+    gc->y = buttons->y;
+    gc->l = c->L = buttons->l;
+    gc->r = c->R = buttons->r;
+    c->C_up = buttons->c_up;
+    c->C_down = buttons->c_down;
+    c->C_left = buttons->c_left;
+    c->C_right = buttons->c_right;
+}
+
+/**
+ * @brief Read the controller button status for all N64 controllers
  *
  * Read the controller button status immediately and return results to data.
  * 
@@ -72,7 +88,8 @@
  * @param[out] output
  *             Structure to place the returned controller button status
  * 
- * @deprecated Use #joypad_read_n64_inputs_sync instead.
+ * @deprecated Use the @ref joypad "Joypad subsystem" instead of reading
+ *             N64 controller inputs directly.
  */
 void controller_read( struct controller_data * output )
 {
@@ -178,6 +195,59 @@ void controller_read_gc_origin( struct controller_origin_data * outdata )
 }
 
 /**
+ * @brief Execute a raw PIF command
+ *
+ * Send an arbitrary command to a controller and receive arbitrary data back
+ *
+ * @param[in]  controller
+ *             The controller (0-3) to send the command to
+ * @param[in]  command
+ *             The command byte to send
+ * @param[in]  bytesout
+ *             The number of parameter bytes the command requires
+ * @param[in]  bytesin
+ *             The number of result bytes expected
+ * @param[in]  out
+ *             The parameter bytes to send with the command
+ * @param[out] in
+ *             The result bytes returned by the operation
+ * 
+ * @deprecated Use #joybus_send_command instead
+ */
+void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
+{
+    joybus_send_command(controller, command, bytesout, bytesin, out, in);
+}
+
+/** 
+ * @brief Initialize the controller subsystem.
+ * 
+ * After initialization, the controllers will be scanned automatically in
+ * background one time per frame. You can access the last scanned status
+ * using #get_keys_down, #get_keys_up, #get_keys_held #get_keys_pressed,
+ * and #get_dpad_direction.
+ * 
+ * @deprecated Use #joypad_init instead.
+ */
+void controller_init( void ) { joypad_init(); }
+
+/**
+ * @brief Fetch the current controller state.
+ * 
+ * This function must be called once per frame, or any time we want to update
+ * the state of the controllers. After calling this function, you can use
+ * #get_keys_down, #get_keys_up, #get_keys_held, #get_keys_pressed and
+ * #get_dpad_direction to inspect the controller state.
+ * 
+ * This function is very fast. In fact, controllers are read in background
+ * asynchronously under interrupt, so this function just synchronizes the
+ * internal state.
+ * 
+ * @deprecated Use #joypad_scan instead.
+ */
+void controller_scan( void ) { joypad_scan(); }
+
+/**
  * @brief Get keys that were pressed since the last inspection
  *
  * Return keys pressed since last detection. This returns a standard
@@ -196,22 +266,7 @@ struct controller_data get_keys_down( void )
     JOYPAD_PORT_FOREACH (port)
     {
         buttons = joypad_get_buttons_pressed(port);
-        ret.gc[port].a = ret.c[port].A = buttons.a;
-        ret.gc[port].b = ret.c[port].B = buttons.b;
-        ret.gc[port].z = ret.c[port].Z = buttons.z;
-        ret.gc[port].start = ret.c[port].start = buttons.start;
-        ret.gc[port].up = ret.c[port].up = buttons.d_up;
-        ret.gc[port].down = ret.c[port].down = buttons.d_down;
-        ret.gc[port].left = ret.c[port].left = buttons.d_left;
-        ret.gc[port].right = ret.c[port].right = buttons.d_right;
-        ret.gc[port].x = buttons.x;
-        ret.gc[port].y = buttons.y;
-        ret.gc[port].l = ret.c[port].L = buttons.l;
-        ret.gc[port].r = ret.c[port].R = buttons.r;
-        ret.c[port].C_up = buttons.c_up;
-        ret.c[port].C_down = buttons.c_down;
-        ret.c[port].C_left = buttons.c_left;
-        ret.c[port].C_right = buttons.c_right;
+        controller_data_from_joypad_buttons(port, &ret, &buttons);
     }
 
     return ret;
@@ -236,22 +291,7 @@ struct controller_data get_keys_up( void )
     JOYPAD_PORT_FOREACH (port)
     {
         buttons = joypad_get_buttons_released(port);
-        ret.gc[port].a = ret.c[port].A = buttons.a;
-        ret.gc[port].b = ret.c[port].B = buttons.b;
-        ret.gc[port].z = ret.c[port].Z = buttons.z;
-        ret.gc[port].start = ret.c[port].start = buttons.start;
-        ret.gc[port].up = ret.c[port].up = buttons.d_up;
-        ret.gc[port].down = ret.c[port].down = buttons.d_down;
-        ret.gc[port].left = ret.c[port].left = buttons.d_left;
-        ret.gc[port].right = ret.c[port].right = buttons.d_right;
-        ret.gc[port].x = buttons.x;
-        ret.gc[port].y = buttons.y;
-        ret.gc[port].l = ret.c[port].L = buttons.l;
-        ret.gc[port].r = ret.c[port].R = buttons.r;
-        ret.c[port].C_up = buttons.c_up;
-        ret.c[port].C_down = buttons.c_down;
-        ret.c[port].C_left = buttons.c_left;
-        ret.c[port].C_right = buttons.c_right;
+        controller_data_from_joypad_buttons(port, &ret, &buttons);
     }
 
     return ret;
@@ -276,22 +316,7 @@ struct controller_data get_keys_held( void )
     JOYPAD_PORT_FOREACH (port)
     {
         buttons = joypad_get_buttons_held(port);
-        ret.gc[port].a = ret.c[port].A = buttons.a;
-        ret.gc[port].b = ret.c[port].B = buttons.b;
-        ret.gc[port].z = ret.c[port].Z = buttons.z;
-        ret.gc[port].start = ret.c[port].start = buttons.start;
-        ret.gc[port].up = ret.c[port].up = buttons.d_up;
-        ret.gc[port].down = ret.c[port].down = buttons.d_down;
-        ret.gc[port].left = ret.c[port].left = buttons.d_left;
-        ret.gc[port].right = ret.c[port].right = buttons.d_right;
-        ret.gc[port].x = buttons.x;
-        ret.gc[port].y = buttons.y;
-        ret.gc[port].l = ret.c[port].L = buttons.l;
-        ret.gc[port].r = ret.c[port].R = buttons.r;
-        ret.c[port].C_up = buttons.c_up;
-        ret.c[port].C_down = buttons.c_down;
-        ret.c[port].C_left = buttons.c_left;
-        ret.c[port].C_right = buttons.c_right;
+        controller_data_from_joypad_buttons(port, &ret, &buttons);
     }
 
     return ret;
@@ -315,25 +340,29 @@ struct controller_data get_keys_pressed( void )
     JOYPAD_PORT_FOREACH (port)
     {
         buttons = joypad_get_buttons(port);
-        ret.gc[port].a = ret.c[port].A = buttons.a;
-        ret.gc[port].b = ret.c[port].B = buttons.b;
-        ret.gc[port].z = ret.c[port].Z = buttons.z;
-        ret.gc[port].start = ret.c[port].start = buttons.start;
-        ret.gc[port].up = ret.c[port].up = buttons.d_up;
-        ret.gc[port].down = ret.c[port].down = buttons.d_down;
-        ret.gc[port].left = ret.c[port].left = buttons.d_left;
-        ret.gc[port].right = ret.c[port].right = buttons.d_right;
-        ret.gc[port].x = buttons.x;
-        ret.gc[port].y = buttons.y;
-        ret.gc[port].l = ret.c[port].L = buttons.l;
-        ret.gc[port].r = ret.c[port].R = buttons.r;
-        ret.c[port].C_up = buttons.c_up;
-        ret.c[port].C_down = buttons.c_down;
-        ret.c[port].C_left = buttons.c_left;
-        ret.c[port].C_right = buttons.c_right;
+        controller_data_from_joypad_buttons(port, &ret, &buttons);
     }
 
     return ret;
+}
+
+/**
+ * @brief Return the DPAD calculated direction
+ *
+ * Return the direction of the DPAD specified in controller.  Follows standard
+ * polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc...  Returns -1 when
+ * not pressed.
+ *
+ * @param[in] controller
+ *            The controller (0-3) to inspect
+ *
+ * @return A value 0-7 to represent which direction is held, or -1 when not pressed
+ * 
+ * @deprecated Use #joypad_get_dpad_direction instead.
+ */
+int get_dpad_direction( int controller )
+{
+    return joypad_get_dpad_direction((joypad_port_t) controller);
 }
 
 /**
@@ -349,14 +378,12 @@ struct controller_data get_keys_pressed( void )
  */
 int get_controllers_present( void )
 {
-    int ret = 0;
-
-    if ( joypad_is_connected(JOYPAD_PORT_1) ) { ret |= CONTROLLER_1_INSERTED; }
-    if ( joypad_is_connected(JOYPAD_PORT_2) ) { ret |= CONTROLLER_2_INSERTED; }
-    if ( joypad_is_connected(JOYPAD_PORT_3) ) { ret |= CONTROLLER_3_INSERTED; }
-    if ( joypad_is_connected(JOYPAD_PORT_4) ) { ret |= CONTROLLER_4_INSERTED; }
-
-    return ret;
+    return (
+        (joypad_is_connected(JOYPAD_PORT_1) ? CONTROLLER_1_INSERTED : 0) |
+        (joypad_is_connected(JOYPAD_PORT_2) ? CONTROLLER_2_INSERTED : 0) |
+        (joypad_is_connected(JOYPAD_PORT_3) ? CONTROLLER_3_INSERTED : 0) |
+        (joypad_is_connected(JOYPAD_PORT_4) ? CONTROLLER_4_INSERTED : 0)
+    );
 }
 
 /**
@@ -375,14 +402,12 @@ int get_controllers_present( void )
  */
 int get_accessories_present(struct controller_data *out)
 {
-    int ret = 0;
-
-    if ( joypad_get_accessory_type(JOYPAD_PORT_1) ) { ret |= CONTROLLER_1_INSERTED; }
-    if ( joypad_get_accessory_type(JOYPAD_PORT_2) ) { ret |= CONTROLLER_2_INSERTED; }
-    if ( joypad_get_accessory_type(JOYPAD_PORT_3) ) { ret |= CONTROLLER_3_INSERTED; }
-    if ( joypad_get_accessory_type(JOYPAD_PORT_4) ) { ret |= CONTROLLER_4_INSERTED; }
-
-    return ret;
+    return (
+        (joypad_get_accessory_type(JOYPAD_PORT_1) ? CONTROLLER_1_INSERTED : 0) |
+        (joypad_get_accessory_type(JOYPAD_PORT_2) ? CONTROLLER_2_INSERTED : 0) |
+        (joypad_get_accessory_type(JOYPAD_PORT_3) ? CONTROLLER_3_INSERTED : 0) |
+        (joypad_get_accessory_type(JOYPAD_PORT_4) ? CONTROLLER_4_INSERTED : 0)
+    );
 }
 
 /**
@@ -404,21 +429,102 @@ int get_accessories_present(struct controller_data *out)
  */
 int identify_accessory( int controller )
 {
-    if ( joypad_get_identifier(controller) == JOYBUS_IDENTIFIER_N64_VOICE_RECOGNITION )
+    switch ( joypad_get_identifier(controller) )
     {
-        return ACCESSORY_VRU;
-    }
-    switch ( joypad_get_accessory_type(controller) )
-    {
-        case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
-            return ACCESSORY_MEMPAK;
-        case JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK:
-            return ACCESSORY_RUMBLEPAK;
-        case JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK:
-            return ACCESSORY_TRANSFERPAK;
+        case JOYBUS_IDENTIFIER_N64_CONTROLLER:
+            switch ( joypad_get_accessory_type(controller) )
+            {
+                case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
+                    return ACCESSORY_MEMPAK;
+                case JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK:
+                    return ACCESSORY_RUMBLEPAK;
+                case JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK:
+                    return ACCESSORY_TRANSFERPAK;
+                default:
+                    return ACCESSORY_NONE;
+            }
+        case JOYBUS_IDENTIFIER_N64_VOICE_RECOGNITION:
+            return ACCESSORY_VRU;
         default:
             return ACCESSORY_NONE;
     }
 }
+
+/**
+ * @brief Read a chunk of data from a mempak
+ *
+ * Given a controller and an address, read 32 bytes from a mempak and
+ * return them in data.
+ *
+ * @param[in]  controller
+ *             Which controller to read the data from (0-3)
+ * @param[in]  address
+ *             A 32 byte aligned offset to read from on the mempak
+ * @param[out] data
+ *             Buffer to place 32 bytes of data read from the mempak
+ *
+ * @retval 0  if reading was successful
+ * @retval -1 if the controller was out of range
+ * @retval -2 if there was no mempak present in the controller
+ * @retval -3 if the mempak returned invalid data
+ * 
+ * @deprecated Use #joybus_accessory_read_sync instead.
+ */
+int read_mempak_address( int controller, uint16_t address, uint8_t *data )
+{
+    return joybus_accessory_read_sync((joypad_port_t) controller, address, data);
+}
+
+/**
+ * @brief Write a chunk of data to a mempak
+ *
+ * Given a controller and an address, write 32 bytes to a mempak from data.
+ *
+ * @param[in]  controller
+ *             Which controller to write the data to (0-3)
+ * @param[in]  address
+ *             A 32 byte aligned offset to write to on the mempak
+ * @param[out] data
+ *             Buffer to source 32 bytes of data to write to the mempak
+ *
+ * @retval 0  if writing was successful
+ * @retval -1 if the controller was out of range
+ * @retval -2 if there was no mempak present in the controller
+ * @retval -3 if the mempak returned invalid data
+ * 
+ * @deprecated Use #joybus_accessory_write_sync instead.
+ */
+int write_mempak_address( int controller, uint16_t address, uint8_t *data )
+{
+    return joybus_accessory_write_sync((joypad_port_t) controller, address, data);
+}
+
+/**
+ * @brief Turn rumble on for a particular controller
+ *
+ * @param[in] controller
+ *            The controller (0-3) who's rumblepak should activate
+ * 
+ * @deprecated Use #joypad_set_rumble_active instead.
+ */
+void rumble_start( int controller )
+{
+    joypad_set_rumble_active((joypad_port_t) controller, true);
+}
+
+/**
+ * @brief Turn rumble off for a particular controller
+ *
+ * @param[in] controller
+ *            The controller (0-3) who's rumblepak should deactivate
+ * 
+ * @deprecated Use #joypad_set_rumble_active instead.
+ */
+void rumble_stop( int controller )
+{
+    joypad_set_rumble_active((joypad_port_t) controller, false);
+}
+
+///@endcond
 
 /** @} */ /* controller */
