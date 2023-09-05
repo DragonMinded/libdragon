@@ -352,4 +352,6 @@ void joybus_send_game_id(uint64_t rom_check_code, uint8_t media_format, uint8_t 
     joybus_exec_async(input, NULL, NULL);
 }
 
+void joybus_clear_game_id(void) { joybus_send_game_id(0, 0, 0); }
+
 /** @} */ /* joybus */
