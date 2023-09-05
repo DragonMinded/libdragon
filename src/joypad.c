@@ -973,7 +973,7 @@ joypad_buttons_t joypad_get_buttons(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    return joypad_devices_cold[port].current.buttons;
+    return joypad_devices_cold[port].current.__buttons;
 }
 
 /**
@@ -988,8 +988,8 @@ joypad_buttons_t joypad_get_buttons_pressed(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    const uint16_t current = joypad_devices_cold[port].current.buttons.raw;
-    const uint16_t previous = joypad_devices_cold[port].previous.buttons.raw;
+    const uint16_t current = joypad_devices_cold[port].current.__buttons.raw;
+    const uint16_t previous = joypad_devices_cold[port].previous.__buttons.raw;
     return (joypad_buttons_t){ .raw = current & ~previous };
 }
 
@@ -1005,8 +1005,8 @@ joypad_buttons_t joypad_get_buttons_released(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    const uint16_t current = joypad_devices_cold[port].current.buttons.raw;
-    const uint16_t previous = joypad_devices_cold[port].previous.buttons.raw;
+    const uint16_t current = joypad_devices_cold[port].current.__buttons.raw;
+    const uint16_t previous = joypad_devices_cold[port].previous.__buttons.raw;
     return (joypad_buttons_t){ .raw = ~(current & previous) };
 }
 
@@ -1022,8 +1022,8 @@ joypad_buttons_t joypad_get_buttons_held(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    const uint16_t current = joypad_devices_cold[port].current.buttons.raw;
-    const uint16_t previous = joypad_devices_cold[port].previous.buttons.raw;
+    const uint16_t current = joypad_devices_cold[port].current.__buttons.raw;
+    const uint16_t previous = joypad_devices_cold[port].previous.__buttons.raw;
     return (joypad_buttons_t){ .raw = current & previous };
 }
 

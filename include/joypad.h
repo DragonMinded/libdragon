@@ -176,9 +176,8 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     union
     {
     /// @endcond
-        /** @brief Structure containing the state of all buttons. */
-        joypad_buttons_t buttons;
         /// @cond
+        joypad_buttons_t __buttons;
         struct __attribute__((packed))
         {
         /// @endcond

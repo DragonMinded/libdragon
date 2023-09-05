@@ -526,7 +526,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
         while (1) {
             // Read controller using joypad_read_n64_inputs_sync, that works also when
             // the interrupts are disabled and when joypad_init has not been called.
-            joypad_buttons_t key_new = joypad_read_n64_inputs_sync(JOYPAD_PORT_1).buttons;
+            joypad_buttons_t key_new = joypad_read_n64_inputs_sync(JOYPAD_PORT_1).__buttons;
             if (key_new.raw != key_old.raw) {
                 key_pressed = (joypad_buttons_t){ .raw = key_new.raw & ~key_old.raw };
                 key_old = key_new;
