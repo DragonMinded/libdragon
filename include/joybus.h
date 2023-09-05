@@ -213,6 +213,25 @@ typedef uint16_t joybus_identifier_t;
 void joybus_exec( const void * inblock, void * outblock );
 
 /**
+ * @brief Executes a Joybus command on the given port.
+ * 
+ * @param port Joybus port (0-4).
+ * @param command_id Joybus command identifier.
+ * @param send_len Number of bytes in the send payload (not including command ID).
+ * @param recv_len Number of bytes in the recieve payload.
+ * @param send_data Buffer of send_len bytes to send in the Joybus command.
+ * @param recv_data Buffer of recv_len bytes to receive from the Joybus reply.
+ */
+void joybus_send_command(
+    int port,
+    uint8_t command_id,
+    uint8_t send_len,
+    uint8_t recv_len,
+    const uint8_t *send_data,
+    uint8_t *recv_data
+);
+
+/**
  * @brief Sends a Joybus command to notify N64Digital of the current Game ID.
  * 
  * This function is mostly intended to be used by flashcart menu software.

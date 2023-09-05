@@ -328,6 +328,38 @@ void joybus_exec( const void * input, void * output )
     }
 }
 
+void joybus_send_command(
+    int port,
+    uint8_t command_id,
+    uint8_t send_len,
+    uint8_t recv_len,
+    const uint8_t *send_data,
+    uint8_t *recv_data
+)
+{
+    assertf((port >= 0) && (port < JOYBUS_PORT_COUNT), "Invalid Joybus port");
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
+    size_t i = port;
+    // Set the command metadata
+    input[i++] = send_len + 1; // Add a byte for the command ID
+    input[i++] = recv_len;
+    input[i++] = command_id;
+    // Copy the send_data into the input buffer
+    memcpy( &input[i], send_data, send_len );
+    i += send_len;
+    // Fill the recv_data with 0xFF
+    memset( &input[i], 0xFF, recv_len );
+    i += recv_len;
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+    // Execute the Joybus operation
+    joybus_exec(input, output);
+    // Copy recv_data from the output buffer
+    memcpy( recv_data, &output[i - recv_len], recv_len );
+}
+
 void joybus_send_game_id(uint64_t rom_check_code, uint8_t media_format, uint8_t region_code)
 {
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};

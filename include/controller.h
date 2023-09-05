@@ -241,8 +241,11 @@ typedef struct controller_origin_data
     struct SI_origdat_gc gc[4];
 } SI_controllers_origin_t;
 
-__attribute__((deprecated("use joybus_exec instead")))
-void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
+__attribute__((deprecated("use joybus_send_command instead")))
+static inline void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
+{
+    joybus_send_command(controller, command, bytesout, bytesin, out, in);
+}
 
 __attribute__((deprecated("use joypad_read_n64_inputs_sync instead")))
 void controller_read( struct controller_data * data );

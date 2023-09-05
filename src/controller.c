@@ -337,47 +337,6 @@ struct controller_data get_keys_pressed( void )
 }
 
 /**
- * @brief Execute a raw PIF command
- *
- * Send an arbitrary command to a controller and receive arbitrary data back
- *
- * @param[in]  controller
- *             The controller (0-3) to send the command to
- * @param[in]  command
- *             The command byte to send
- * @param[in]  bytesout
- *             The number of parameter bytes the command requires
- * @param[in]  bytesin
- *             The number of result bytes expected
- * @param[in]  out
- *             The parameter bytes to send with the command
- * @param[out] in
- *             The result bytes returned by the operation
- * 
- * @deprecated Use #joybus_exec instead
- */
-void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
-{
-    unsigned long long SI_debug[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-    unsigned long long SI_read_controllers_block[8] = { 0, 0, 0, 0, 0, 0, 0, 1 };
-    uint8_t *data = (uint8_t *)SI_read_controllers_block;
-
-    // Room for command itself
-    data[controller + 0] = bytesout + 1;
-    data[controller + 1] = bytesin;
-    data[controller + 2] = command;
-
-    memcpy( &data[controller + 3], out, bytesout );
-    memset( &data[controller + 3 + bytesout], 0xFF, bytesin );
-    data[controller + 3 + bytesout + bytesin] = 0xFE;
-
-    joybus_exec(SI_read_controllers_block,SI_debug);
-
-    data = (uint8_t *)SI_debug;
-    memcpy( in, &data[controller + 3 + bytesout], bytesin );
-}
-
-/**
  * @brief Return a bitmask representing which controllers are present
  *
  * Queries the controller interface and returns a bitmask specifying which
