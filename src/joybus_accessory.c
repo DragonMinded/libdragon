@@ -259,6 +259,10 @@ int joybus_accessory_write_sync(
     memcpy(&input[i + data_offset], data, sizeof(send_cmd.data));
     i += sizeof(send_cmd);
 
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+
     // Execute and wait for the Joybus operation
     joybus_exec(input, output);
     const joybus_cmd_n64_accessory_write_port_t *recv_cmd =
