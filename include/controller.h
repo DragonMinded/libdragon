@@ -244,10 +244,10 @@ typedef struct controller_origin_data
 
 /// @cond
 
-__attribute__((deprecated("use joybus_send_command instead")))
+__attribute__((deprecated("use joybus_exec_command instead")))
 static inline void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
 {
-    joybus_send_command(controller, command, bytesout, bytesin, out, in);
+    joybus_exec_command(controller, command, bytesout, bytesin, out, in);
 }
 
 __attribute__((deprecated("use joypad_read_n64_inputs_sync instead")))

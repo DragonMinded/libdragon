@@ -212,11 +212,11 @@ void controller_read_gc_origin( struct controller_origin_data * outdata )
  * @param[out] in
  *             The result bytes returned by the operation
  * 
- * @deprecated Use #joybus_send_command instead
+ * @deprecated Use #joybus_exec_command instead
  */
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
 {
-    joybus_send_command(controller, command, bytesout, bytesin, out, in);
+    joybus_exec_command(controller, command, bytesout, bytesin, out, in);
 }
 
 /** 

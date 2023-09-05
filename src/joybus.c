@@ -328,7 +328,7 @@ void joybus_exec( const void * input, void * output )
     }
 }
 
-void joybus_send_command(
+void joybus_exec_command(
     int port,
     uint8_t command_id,
     uint8_t send_len,

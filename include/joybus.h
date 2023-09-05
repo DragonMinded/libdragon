@@ -222,7 +222,7 @@ void joybus_exec( const void * inblock, void * outblock );
  * @param send_data Buffer of send_len bytes to send in the Joybus command.
  * @param recv_data Buffer of recv_len bytes to receive from the Joybus reply.
  */
-void joybus_send_command(
+void joybus_exec_command(
     int port,
     uint8_t command_id,
     uint8_t send_len,
