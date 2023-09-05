@@ -8,7 +8,6 @@
 #ifndef __LIBDRAGON_JOYPAD_H
 #define __LIBDRAGON_JOYPAD_H
 
-#include <assert.h>
 #include <stdbool.h>
 
 #include "joybus.h"
@@ -37,10 +36,6 @@ typedef enum
 
 /** @brief Count of Joypad ports */
 #define JOYPAD_PORT_COUNT 4
-
-/** @brief Convenience macro to validate a Joypad port number */
-#define ASSERT_JOYPAD_PORT_VALID(port) \
-    assert((port) >= 0 && (port) < JOYPAD_PORT_COUNT)
 
 /** @brief Convenience macro to iterate through all Joypad ports */
 #define JOYPAD_PORT_FOREACH(iterator_token) \

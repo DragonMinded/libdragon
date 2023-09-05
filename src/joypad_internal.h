@@ -8,6 +8,7 @@
 #ifndef __LIBDRAGON_JOYPAD_INTERNAL_H
 #define __LIBDRAGON_JOYPAD_INTERNAL_H
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -22,6 +23,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** @brief Convenience macro to validate a Joypad port number */
+#define ASSERT_JOYPAD_PORT_VALID(port) \
+    assert((port) >= 0 && (port) < JOYPAD_PORT_COUNT)
 
 /** @brief Joypad rumble methods enumeration. */
 typedef enum
