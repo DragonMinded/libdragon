@@ -96,13 +96,6 @@ static volatile uint8_t joypad_identify_input_valid = false;
 /** @brief Cached Joybus input block for identifying all Joypads. */
 static volatile uint8_t joypad_identify_input[JOYBUS_BLOCK_SIZE] = {0};
 
-/**
- * @brief Number of times the Joypads have been read by #joypad_read_async.
- * 
- * Used to optimize #joypad_scan by skipping the scan if the Joypads have
- * not been read since the last time it was called.
- */
-static volatile uint64_t joypad_read_count = 0;
 /** @brief Are we in the middle of reading the Joypads? */
 static volatile bool joypad_read_pending = false;
 /** @brief Is the cached Joybus input block for reading Joypads valid? */
@@ -505,7 +498,6 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
 {
     memcpy((void *)joypad_read_output, out_dwords, JOYBUS_BLOCK_SIZE);
     joypad_read_pending = false;
-    joypad_read_count++;
 }
 
 /**
@@ -723,11 +715,6 @@ void joypad_read_sync(void)
 void joypad_scan(void)
 {
     ASSERT_JOYPAD_INITIALIZED();
-    // Bail early if the joypads have not been read since last call
-    static uint64_t prev_read_count = 0;
-    uint64_t read_count = joypad_read_count;
-    if (prev_read_count == read_count) { return; }
-    prev_read_count = read_count;
 
     uint8_t output[JOYBUS_BLOCK_SIZE];
     joypad_gcn_origin_t origins[JOYPAD_PORT_COUNT];
