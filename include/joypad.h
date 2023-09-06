@@ -17,7 +17,6 @@
  * @ingroup peripherals
  * @brief Joypad abstraction interface.
  *
- * The Joypad subsystem is the successor to the LibDragon Controller subsystem.
  * The Joypad subsystem is in charge of communication with the controller ports
  * and provides a common interface to support a variety of input devices:
  *
