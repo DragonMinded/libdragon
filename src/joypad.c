@@ -37,7 +37,7 @@
  * @{
  */
 /** @brief Timer ticks when the Joypads were last identified. */
-static volatile int64_t joypad_identify_last_ticks = 0;
+static volatile uint32_t joypad_identify_last_ticks = 0;
 /** @brief Are we in the middle of identifying the Joypads? */
 static volatile bool joypad_identify_pending = false;
 /** @brief Is the cached Joybus input block for identifying Joypads valid? */
@@ -392,7 +392,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
     }
 
     if (devices_changed) joypad_read_input_valid = false;
-    joypad_identify_last_ticks = timer_ticks();
+    joypad_identify_last_ticks = TICKS_READ();
     joypad_identify_pending = false;
 }
 
@@ -530,7 +530,8 @@ static void joypad_read_async(void)
 static void joypad_vi_interrupt_callback(void)
 {
     joypad_read_async();
-    if (joypad_identify_last_ticks + JOYPAD_IDENTIFY_INTERVAL_TICKS < timer_ticks())
+    int32_t ticks_since_identify = TICKS_SINCE(joypad_identify_last_ticks);
+    if (ticks_since_identify > JOYPAD_IDENTIFY_INTERVAL_TICKS)
     {
         joypad_identify_async(false);
     }
@@ -555,13 +556,18 @@ void joypad_init(void)
     // Initialize the timer subsystem (or increment its refcount)
     timer_init();
 
+    // Reset all Joypad devices to initial state
     JOYPAD_PORT_FOREACH (port)
     {
         joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
     }
-    register_VI_handler(joypad_vi_interrupt_callback);
+
+    // Ensure the Joypads are ready immediately after init returns
     joypad_identify_sync(true);
     joypad_read_sync();
+
+    // Update the Joypads on VI interrupt
+    register_VI_handler(joypad_vi_interrupt_callback);
 }
 
 void joypad_close(void)
@@ -569,6 +575,7 @@ void joypad_close(void)
     // Do nothing if there are still dangling references.
 	if (--joypad_init_refcount > 0) { return; }
 
+    // Stop updating the Joypads on VI interrupt
     unregister_VI_handler(joypad_vi_interrupt_callback);
     
     // Decrement the timer subsystem refcount (possibly closing it)
