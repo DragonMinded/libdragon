@@ -114,6 +114,8 @@ void setup()
     glFogf(GL_FOG_END, 20);
     glFogfv(GL_FOG_COLOR, environment_color);
 
+    glEnable(GL_MULTISAMPLE_ARB);
+
     glGenTextures(4, textures);
 
     #if 0
@@ -204,7 +206,7 @@ int main()
     
     dfs_init(DFS_DEFAULT_LOCATION);
 
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE_ANTIALIAS_DEDITHER);
 
     rdpq_init();
     gl_init();

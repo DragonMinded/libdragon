@@ -86,15 +86,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Minimum is two buffers. */
     __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
-
-    if( res.interlaced != INTERLACE_OFF )
-    {
-        /* Serrate on to stop vertical jitter */
-        control |= VI_CTRL_SERRATE;
-    }
+    bool serrate = res.interlaced != INTERLACE_OFF;
+    /* Serrate on to stop vertical jitter */
+    if(serrate) control |= VI_CTRL_SERRATE;
 
     /* Copy over extra initializations */
-    vi_write_config(&vi_config_presets[res.interlaced][tv_type]);
+    vi_write_config(&vi_config_presets[serrate][tv_type]);
 
     /* Figure out control register based on input given */
     switch( bit )
