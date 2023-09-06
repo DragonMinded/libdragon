@@ -142,50 +142,22 @@ extern "C" {
  */
 typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_read_port_s
 {
-    /** @brief Length of send data in bytes. (0x03) */
-    uint8_t send_len;
-    /** @brief Length of recv data in bytes. (0x21) */
-    uint8_t recv_len;
-    /// @cond
-    union
+    /** @brief "N64 Accessory Read" command send data */
+    struct __attribute__((packed))
     {
-    /// @endcond
-        /** @brief Raw send_data bytes. */
-        uint8_t send_bytes[0x03];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_ACCESSORY_READ) */
-            uint8_t command;
-            /** @brief Accessory address with 5-bit checksum. */
-            uint16_t addr_checksum;
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
-    /// @cond
-    union
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_ACCESSORY_READ) */
+        uint8_t command;
+        /** @brief Accessory address with 5-bit checksum. */
+        uint16_t addr_checksum;
+    } send;
+    /** @brief "N64 Accessory Read" command receive data */
+    struct __attribute__((packed))
     {
-    /// @endcond
-        /** @brief Raw recv_data bytes. */
-        uint8_t recv_bytes[0x21];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            /** @brief 32-byte payload of data read from the accessory. */
-            uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE];
-            /** @brief CRC8 checksum of the data for verification. */
-            uint8_t data_crc;
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
+        /** @brief 32-byte payload of data read from the accessory. */
+        uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE];
+        /** @brief CRC8 checksum of the data for verification. */
+        uint8_t data_crc;
+    } recv;
 } joybus_cmd_n64_accessory_read_port_t;
 
 /**
@@ -213,43 +185,23 @@ typedef joybus_cmd_n64_accessory_read_port_t joybus_cmd_gba_link_cable_read_port
  */
 typedef struct __attribute__((packed)) joybus_cmd_n64_accessory_write_port_s
 {
-    /** @brief Length of send data in bytes. (0x23) */
-    uint8_t send_len;
-    /** @brief Length of recv data in bytes. (0x01) */
-    uint8_t recv_len;
-    /// @cond
-    union
+    /** @brief "N64 Accessory Write" command send data */
+    struct __attribute__((packed))
     {
-    /// @endcond
-        /** @brief Raw send_data bytes. */
-        uint8_t send_bytes[0x23];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE) */
-            uint8_t command;
-            /** @brief Accessory address with 5-bit checksum. */
-            uint16_t addr_checksum;
-            /** @brief 32-byte payload of data to write to the accessory. */
-            uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE];
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
-    /// @cond
-    union
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE) */
+        uint8_t command;
+        /** @brief Accessory address with 5-bit checksum. */
+        uint16_t addr_checksum;
+        /** @brief 32-byte payload of data to write to the accessory. */
+        uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE];
+
+    } send;
+    /** @brief "N64 Accessory Write" command receive data */
+    struct __attribute__((packed))
     {
-    /// @endcond
-        /** @brief Raw recv_data bytes. */
-        uint8_t recv_bytes[0x01];
         /** @brief CRC8 checksum of the written data for verification. */
         uint8_t data_crc;
-    /// @cond
-    };
-    /// @endcond
+    } recv;
 } joybus_cmd_n64_accessory_write_port_t;
 
 /**
@@ -277,41 +229,20 @@ typedef joybus_cmd_n64_accessory_write_port_t joybus_cmd_gba_link_cable_write_po
  */
 typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
 {
-    /** @brief Length of send data in bytes. (0x01) */
-    uint8_t send_len;
-    /** @brief Length of recv data in bytes. (0x03) */
-    uint8_t recv_len;
-    /// @cond
-    union
+    /** @brief "Identify" command send data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw send_data bytes. */
-        uint8_t send_bytes[0x01];
         /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_IDENTIFY) */
         uint8_t command;
-    /// @cond
-    };
-    /// @endcond
-    /// @cond
-    union
+    } send;
+    /** @brief "Identify" command receive data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw recv_data bytes. */
-        uint8_t recv_bytes[0x03];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            /** @brief Joybus device identifier */
-            uint16_t identifier;
-            /** @brief Joybus device status byte */
-            uint8_t status;
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
+        /** @brief Joybus device identifier */
+        uint16_t identifier;
+        /** @brief Joybus device status byte */
+        uint8_t status;
+    } recv;
 } joybus_cmd_identify_port_t;
 
 /**
@@ -330,46 +261,30 @@ typedef joybus_cmd_identify_port_t joybus_cmd_reset_port_t;
  */
 typedef struct __attribute__((packed)) joybus_cmd_n64_game_id_s
 {
-    /** @brief Length of send data in bytes. (0x0A) */
-    uint8_t send_len;
-    /** @brief Length of recv data in bytes. (0x01) */
-    uint8_t recv_len;
-    /// @cond
-    union
+    /** @brief "N64 Game ID" command send data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw send_data bytes. */
-        uint8_t send_bytes[0x0B];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_GAME_ID) */
-            uint8_t command;
-            /** @brief ROM check code (ROM header bytes 0x10-0x17).
-             * 
-             * 64-bit check code calculated on 1 Mbyte of ROM contents starting from offset 0x1000.
-             * 
-             * Sometimes these 8 bytes are referred to as "CRC HI/LO" or "CRC1/2".
-             */
-            uint64_t rom_check_code;
-            /** @brief Media category code (ROM header byte 0x3B) */
-            uint8_t media_format;
-            /** @brief Region code (ROM header byte 0x3E) */
-            uint8_t region_code;
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_GAME_ID) */
+        uint8_t command;
+        /** @brief ROM check code (ROM header bytes 0x10-0x17).
+         * 
+         * 64-bit check code calculated on 1 Mbyte of ROM contents starting from offset 0x1000.
+         * 
+         * Sometimes these 8 bytes are referred to as "CRC HI/LO" or "CRC1/2".
+         */
+        uint64_t rom_check_code;
+        /** @brief Media category code (ROM header byte 0x3B) */
+        uint8_t media_format;
+        /** @brief Region code (ROM header byte 0x3E) */
+        uint8_t region_code;
+    } send;
     /**
-     * @brief Raw recv_data bytes (unused)
+     * @brief (unused)
      * 
      * As per PixelFX's documentation, N64Digital does not respond to this command.
      * N64Digital only acts as a bus sniffer.
      */
-    uint8_t recv_bytes[0x01];
+    uint8_t recv;
 } joybus_cmd_n64_game_id_t;
 
 /**
@@ -379,55 +294,34 @@ typedef struct __attribute__((packed)) joybus_cmd_n64_game_id_s
  */
 typedef struct __attribute__((packed)) joybus_cmd_n64_controller_read_port_s
 {
-    /** @brief Length of send data in bytes. (0x01) */
-    uint8_t send_len;
-    /** @brief Length of recv data in bytes. (0x04) */
-    uint8_t recv_len;
-    /// @cond
-    union
+    /** @brief "N64 Controller Read" command send data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw send_data bytes. */
-        uint8_t send_bytes[0x01];
         /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_CONTROLLER_READ) */
         uint8_t command;
-    /// @cond
-    };
-    /// @endcond
-    /// @cond
-    union
+    } send;
+    /** @brief "N64 Controller Read" command receive data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw recv_data bytes. */
-        uint8_t recv_bytes[0x04];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            unsigned a : 1;       ///< A button.
-            unsigned b : 1;       ///< B button.
-            unsigned z : 1;       ///< Z button.
-            unsigned start : 1;   ///< Start button.
-            unsigned d_up : 1;    ///< D-Pad up.
-            unsigned d_down : 1;  ///< D-Pad down.
-            unsigned d_left : 1;  ///< D-Pad left.
-            unsigned d_right : 1; ///< D-Pad right.
-            unsigned reset : 1;   ///< Reset flag.
-            unsigned : 1;         ///< Unused padding.
-            unsigned l : 1;       ///< L shoulder button.
-            unsigned r : 1;       ///< R shoulder button.
-            unsigned c_up : 1;    ///< C-Pad up.
-            unsigned c_down : 1;  ///< C-Pad down.
-            unsigned c_left : 1;  ///< C-Pad left.
-            unsigned c_right : 1; ///< C-Pad right.
-            signed stick_x : 8;   ///< Analog stick X-axis.
-            signed stick_y : 8;   ///< Analog stick Y-axis.
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
+        unsigned a       : 1; ///< A button.
+        unsigned b       : 1; ///< B button.
+        unsigned z       : 1; ///< Z button.
+        unsigned start   : 1; ///< Start button.
+        unsigned d_up    : 1; ///< D-Pad up.
+        unsigned d_down  : 1; ///< D-Pad down.
+        unsigned d_left  : 1; ///< D-Pad left.
+        unsigned d_right : 1; ///< D-Pad right.
+        unsigned reset   : 1; ///< Reset flag.
+        unsigned         : 1; ///< Unused padding.
+        unsigned l       : 1; ///< L shoulder button.
+        unsigned r       : 1; ///< R shoulder button.
+        unsigned c_up    : 1; ///< C-Pad up.
+        unsigned c_down  : 1; ///< C-Pad down.
+        unsigned c_left  : 1; ///< C-Pad left.
+        unsigned c_right : 1; ///< C-Pad right.
+        signed   stick_x : 8; ///< Analog stick X-axis.
+        signed   stick_y : 8; ///< Analog stick Y-axis.
+    } recv;
 } joybus_cmd_n64_controller_read_port_t;
 
 /**
@@ -437,69 +331,41 @@ typedef struct __attribute__((packed)) joybus_cmd_n64_controller_read_port_s
  */
 typedef struct __attribute__((packed)) joybus_cmd_gcn_controller_read_port_s
 {
-    /** @brief Length of send data in bytes. (0x03) */
-    uint8_t send_len;
-    /** @brief Length of recv data in bytes. (0x08) */
-    uint8_t recv_len;
-    /// @cond
-    union
+    /** @brief "GameCube Controller Read" command send data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw send_data bytes. */
-        uint8_t send_bytes[0x03];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ) */
-            uint8_t command;
-            /** @brief GameCube controller mode (0-3) */
-            uint8_t mode;
-            /** @brief Rumble motor control */
-            uint8_t rumble;
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
-    /// @cond
-    union
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ) */
+        uint8_t command;
+        /** @brief GameCube controller mode (0-3) */
+        uint8_t mode;
+        /** @brief Rumble motor control */
+        uint8_t rumble;
+    } send;
+    /** @brief "GameCube Controller Read" command receive data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw recv_data bytes. */
-        uint8_t recv_bytes[0x08];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            unsigned : 2;              ///< Unused padding.
-            unsigned check_origin : 1; ///< Origin check flag.
-            unsigned start : 1;        ///< Start button.
-            unsigned y : 1;            ///< Y button.
-            unsigned x : 1;            ///< X button.
-            unsigned b : 1;            ///< B button.
-            unsigned a : 1;            ///< A button.
-            unsigned use_origin : 1;   ///< Origin use flag.
-            unsigned l : 1;            ///< L button.
-            unsigned r : 1;            ///< R button.
-            unsigned z : 1;            ///< Z button.
-            unsigned d_up : 1;         ///< D-Pad up.
-            unsigned d_down : 1;       ///< D-Pad down.
-            unsigned d_right : 1;      ///< D-Pad right.
-            unsigned d_left : 1;       ///< D-Pad left.
-            unsigned stick_x : 8;      ///< Analog stick X-axis.
-            unsigned stick_y : 8;      ///< Analog stick Y-axis.
-            unsigned cstick_x : 8;     ///< Analog C-Stick X-axis.
-            unsigned cstick_y : 8;     ///< Analog C-Stick Y-axis.
-            unsigned analog_l : 8;     ///< Analog L trigger.
-            unsigned analog_r : 8;     ///< Analog R trigger.
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
+        unsigned              : 2; ///< Unused padding.
+        unsigned check_origin : 1; ///< Origin check flag.
+        unsigned start        : 1; ///< Start button.
+        unsigned y            : 1; ///< Y button.
+        unsigned x            : 1; ///< X button.
+        unsigned b            : 1; ///< B button.
+        unsigned a            : 1; ///< A button.
+        unsigned use_origin   : 1; ///< Origin use flag.
+        unsigned l            : 1; ///< L button.
+        unsigned r            : 1; ///< R button.
+        unsigned z            : 1; ///< Z button.
+        unsigned d_up         : 1; ///< D-Pad up.
+        unsigned d_down       : 1; ///< D-Pad down.
+        unsigned d_right      : 1; ///< D-Pad right.
+        unsigned d_left       : 1; ///< D-Pad left.
+        unsigned stick_x      : 8; ///< Analog stick X-axis.
+        unsigned stick_y      : 8; ///< Analog stick Y-axis.
+        unsigned cstick_x     : 8; ///< Analog C-Stick X-axis.
+        unsigned cstick_y     : 8; ///< Analog C-Stick Y-axis.
+        unsigned analog_l     : 8; ///< Analog L trigger.
+        unsigned analog_r     : 8; ///< Analog R trigger.
+    } recv;
 } joybus_cmd_gcn_controller_read_port_t;
 
 /**
@@ -509,60 +375,39 @@ typedef struct __attribute__((packed)) joybus_cmd_gcn_controller_read_port_s
  */
 typedef struct __attribute__((packed)) joybus_cmd_gcn_controller_read_long_port_s
 {
-    /** @brief Length of send data in bytes. (0x01) */
-    uint8_t send_len;
-    /** @brief Length of recv data in bytes. (0x0A) */
-    uint8_t recv_len;
-    /// @cond
-    union
+    /** @brief "GameCube Controller Long Read" command send data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw send_data bytes */
-        uint8_t send_bytes[0x01];
         /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ_LONG) */
         uint8_t command;
-    /// @cond
-    };
-    /// @endcond
-    /// @cond
-    union
+    } send;
+    /** @brief "GameCube Controller Long Read" command receive data */
+    struct __attribute__((__packed__))
     {
-    /// @endcond
-        /** @brief Raw recv_data bytes */
-        uint8_t recv_bytes[0x0A];
-        /// @cond
-        struct __attribute__((__packed__))
-        {
-        /// @endcond
-            unsigned : 2;              ///< Unused padding.
-            unsigned check_origin : 1; ///< Check origin flag.
-            unsigned start : 1;        ///< Start button.
-            unsigned y : 1;            ///< Y button.
-            unsigned x : 1;            ///< X button.
-            unsigned b : 1;            ///< B button.
-            unsigned a : 1;            ///< A button.
-            unsigned use_origin : 1;   ///< Use origin flag.
-            unsigned l : 1;            ///< L button.
-            unsigned r : 1;            ///< R button.
-            unsigned z : 1;            ///< Z button.
-            unsigned d_up : 1;         ///< D-Pad up.
-            unsigned d_down : 1;       ///< D-Pad down.
-            unsigned d_right : 1;      ///< D-Pad right.
-            unsigned d_left : 1;       ///< D-Pad left.
-            unsigned stick_x : 8;      ///< Analog stick X-axis.
-            unsigned stick_y : 8;      ///< Analog stick Y-axis.
-            unsigned cstick_x : 8;     ///< Analog C-Stick X-axis.
-            unsigned cstick_y : 8;     ///< Analog C-Stick Y-axis.
-            unsigned analog_l : 8;     ///< Analog L trigger.
-            unsigned analog_r : 8;     ///< Analog R trigger.
-            unsigned analog_a : 8;     ///< Analog A button.
-            unsigned analog_b : 8;     ///< Analog B button.
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
+        unsigned              : 2; ///< Unused padding.
+        unsigned check_origin : 1; ///< Check origin flag.
+        unsigned start        : 1; ///< Start button.
+        unsigned y            : 1; ///< Y button.
+        unsigned x            : 1; ///< X button.
+        unsigned b            : 1; ///< B button.
+        unsigned a            : 1; ///< A button.
+        unsigned use_origin   : 1; ///< Use origin flag.
+        unsigned l            : 1; ///< L button.
+        unsigned r            : 1; ///< R button.
+        unsigned z            : 1; ///< Z button.
+        unsigned d_up         : 1; ///< D-Pad up.
+        unsigned d_down       : 1; ///< D-Pad down.
+        unsigned d_right      : 1; ///< D-Pad right.
+        unsigned d_left       : 1; ///< D-Pad left.
+        unsigned stick_x      : 8; ///< Analog stick X-axis.
+        unsigned stick_y      : 8; ///< Analog stick Y-axis.
+        unsigned cstick_x     : 8; ///< Analog C-Stick X-axis.
+        unsigned cstick_y     : 8; ///< Analog C-Stick Y-axis.
+        unsigned analog_l     : 8; ///< Analog L trigger.
+        unsigned analog_r     : 8; ///< Analog R trigger.
+        unsigned analog_a     : 8; ///< Analog A button.
+        unsigned analog_b     : 8; ///< Analog B button.
+    } recv;
 } joybus_cmd_gcn_controller_read_long_port_t;
 
 /**

@@ -328,7 +328,7 @@ void joybus_exec( const void * input, void * output )
     }
 }
 
-void joybus_exec_command(
+void joybus_exec_raw_command(
     int port,
     uint8_t command_id,
     uint8_t send_len,
@@ -337,7 +337,7 @@ void joybus_exec_command(
     uint8_t *recv_data
 )
 {
-    assertf((port >= 0) && (port < JOYBUS_PORT_COUNT), "Invalid Joybus port");
+    assertf((port >= 0) && (port < JOYBUS_PORT_COUNT), "Invalid Joybus port %d", port);
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
     uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
     size_t i = port;
@@ -347,10 +347,7 @@ void joybus_exec_command(
     input[i++] = command_id;
     // Copy the send_data into the input buffer
     memcpy( &input[i], send_data, send_len );
-    i += send_len;
-    // Fill the recv_data with 0xFF
-    memset( &input[i], 0xFF, recv_len );
-    i += recv_len;
+    i += send_len + recv_len;
     // Close out the Joybus operation block
     input[i] = 0xFE;
     input[sizeof(input) - 1] = 0x01;
@@ -363,27 +360,26 @@ void joybus_exec_command(
 void joybus_send_game_id(uint64_t rom_check_code, uint8_t media_format, uint8_t region_code)
 {
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
-    size_t i = 0;
-
-    const joybus_cmd_n64_game_id_t send_cmd = {
-        .send_len = sizeof(send_cmd.send_bytes),
-        .recv_len = sizeof(send_cmd.recv_bytes),
+    const joybus_cmd_n64_game_id_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_GAME_ID,
         .rom_check_code = rom_check_code,
         .media_format = media_format,
         .region_code = region_code,
-    };
-    memcpy(&input[i], &send_cmd, sizeof(send_cmd));
-    i += sizeof(send_cmd);
-
+    } };
+    size_t i = 0;
+    // Set the command metadata
+    input[i++] = sizeof(cmd.send);
+    input[i++] = sizeof(cmd.recv);
+    // Copy the send_data into the input buffer
+    memcpy(&input[i], &cmd, sizeof(cmd));
+    i += sizeof(cmd);
     // Close out the Joybus operation block
     input[i] = 0xFE;
     input[sizeof(input) - 1] = 0x01;
-
     // This is a fire-and-forget command with no expected response
     joybus_exec_async(input, NULL, NULL);
 }
 
-void joybus_clear_game_id(void) { joybus_send_game_id(0, 0, 0); }
+void joybus_clear_game_id( void ) { joybus_send_game_id(0, 0, 0); }
 
 /** @} */ /* joybus */

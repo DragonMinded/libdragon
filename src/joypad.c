@@ -159,42 +159,42 @@ static void joypad_device_reset(joypad_port_t port, joybus_identifier_t identifi
 /**
  * @brief Convert a "N64 Controller Read" command response to Joypad inputs.
  * 
- * @param[in] recv_cmd "N64 Controller Read" command response.
+ * @param[in] cmd "N64 Controller Read" command response.
  * @return Joypad inputs structure (#joypad_inputs_t).
  */
 static joypad_inputs_t joypad_inputs_from_n64_controller_read(
-    const joybus_cmd_n64_controller_read_port_t *recv_cmd
+    const joybus_cmd_n64_controller_read_port_t *cmd
 )
 {
     // Emulate analog C-stick based on digital C-buttons
-    int c_x_direction = recv_cmd->c_right - recv_cmd->c_left;
-    int c_y_direction = recv_cmd->c_down - recv_cmd->c_up;
+    int c_x_direction = cmd->recv.c_right - cmd->recv.c_left;
+    int c_y_direction = cmd->recv.c_down - cmd->recv.c_up;
     int cstick_x = c_x_direction * JOYPAD_RANGE_GCN_CSTICK_MAX;
     int cstick_y = c_y_direction * JOYPAD_RANGE_GCN_CSTICK_MAX;
 
     // Emulate analog triggers based on digital shoulder buttons
-    int analog_l = recv_cmd->l ? JOYPAD_RANGE_GCN_TRIGGER_MAX : 0;
-    int analog_r = recv_cmd->r ? JOYPAD_RANGE_GCN_TRIGGER_MAX : 0;
+    int analog_l = cmd->recv.l ? JOYPAD_RANGE_GCN_TRIGGER_MAX : 0;
+    int analog_r = cmd->recv.r ? JOYPAD_RANGE_GCN_TRIGGER_MAX : 0;
 
     return (joypad_inputs_t){
-        .a = recv_cmd->a,
-        .b = recv_cmd->b,
-        .z = recv_cmd->z,
-        .start = recv_cmd->start,
-        .d_up = recv_cmd->d_up,
-        .d_down = recv_cmd->d_down,
-        .d_left = recv_cmd->d_left,
-        .d_right = recv_cmd->d_right,
+        .a = cmd->recv.a,
+        .b = cmd->recv.b,
+        .z = cmd->recv.z,
+        .start = cmd->recv.start,
+        .d_up = cmd->recv.d_up,
+        .d_down = cmd->recv.d_down,
+        .d_left = cmd->recv.d_left,
+        .d_right = cmd->recv.d_right,
         .y = 0,
         .x = 0,
-        .l = recv_cmd->l,
-        .r = recv_cmd->r,
-        .c_up = recv_cmd->c_up,
-        .c_down = recv_cmd->c_down,
-        .c_left = recv_cmd->c_left,
-        .c_right = recv_cmd->c_right,
-        .stick_x = recv_cmd->stick_x,
-        .stick_y = recv_cmd->stick_y,
+        .l = cmd->recv.l,
+        .r = cmd->recv.r,
+        .c_up = cmd->recv.c_up,
+        .c_down = cmd->recv.c_down,
+        .c_left = cmd->recv.c_left,
+        .c_right = cmd->recv.c_right,
+        .stick_x = cmd->recv.stick_x,
+        .stick_y = cmd->recv.stick_y,
         .cstick_x = cstick_x,
         .cstick_y = cstick_y,
         .analog_l = analog_l,
@@ -205,12 +205,12 @@ static joypad_inputs_t joypad_inputs_from_n64_controller_read(
 /**
  * @brief Convert a "GameCube Controller Read" command response to Joypad inputs.
  * 
- * @param[in] recv_cmd "GameCube Controller Read" command response.
+ * @param[in] cmd "GameCube Controller Read" command response.
  * @param[in] origin Pointer to GameCube controller origin structure (or NULL for defaults).
  * @return Joypad inputs structure (#joypad_inputs_t).
  */
 static joypad_inputs_t joypad_inputs_from_gcn_controller_read(
-    const joybus_cmd_gcn_controller_read_port_t *recv_cmd, 
+    const joybus_cmd_gcn_controller_read_port_t *cmd, 
     const joypad_gcn_origin_t *origin
 )
 {
@@ -222,26 +222,26 @@ static joypad_inputs_t joypad_inputs_from_gcn_controller_read(
     static const int cstick_threshold = JOYPAD_RANGE_GCN_CSTICK_MAX / 2;
 
     // Bias the analog values with the corresponding origin
-    int stick_x = CLAMP_ANALOG_STICK(recv_cmd->stick_x - origin->stick_x);
-    int stick_y = CLAMP_ANALOG_STICK(recv_cmd->stick_y - origin->stick_y);
-    int cstick_x = CLAMP_ANALOG_STICK(recv_cmd->cstick_x - origin->cstick_x);
-    int cstick_y = CLAMP_ANALOG_STICK(recv_cmd->cstick_y - origin->cstick_y);
-    int analog_l = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_l - origin->analog_l);
-    int analog_r = CLAMP_ANALOG_TRIGGER(recv_cmd->analog_r - origin->analog_r);
+    int stick_x = CLAMP_ANALOG_STICK(cmd->recv.stick_x - origin->stick_x);
+    int stick_y = CLAMP_ANALOG_STICK(cmd->recv.stick_y - origin->stick_y);
+    int cstick_x = CLAMP_ANALOG_STICK(cmd->recv.cstick_x - origin->cstick_x);
+    int cstick_y = CLAMP_ANALOG_STICK(cmd->recv.cstick_y - origin->cstick_y);
+    int analog_l = CLAMP_ANALOG_TRIGGER(cmd->recv.analog_l - origin->analog_l);
+    int analog_r = CLAMP_ANALOG_TRIGGER(cmd->recv.analog_r - origin->analog_r);
 
     return (joypad_inputs_t){
-        .a = recv_cmd->a,
-        .b = recv_cmd->b,
-        .z = recv_cmd->z,
-        .start = recv_cmd->start,
-        .d_up    = recv_cmd->d_up,
-        .d_down  = recv_cmd->d_down,
-        .d_left  = recv_cmd->d_left,
-        .d_right = recv_cmd->d_right,
-        .y = recv_cmd->y,
-        .x = recv_cmd->x,
-        .l = recv_cmd->l,
-        .r = recv_cmd->r,
+        .a = cmd->recv.a,
+        .b = cmd->recv.b,
+        .z = cmd->recv.z,
+        .start = cmd->recv.start,
+        .d_up    = cmd->recv.d_up,
+        .d_down  = cmd->recv.d_down,
+        .d_left  = cmd->recv.d_left,
+        .d_right = cmd->recv.d_right,
+        .y = cmd->recv.y,
+        .x = cmd->recv.x,
+        .l = cmd->recv.l,
+        .r = cmd->recv.r,
         .c_up    = cstick_y > +cstick_threshold,
         .c_down  = cstick_y < -cstick_threshold,
         .c_left  = cstick_x < -cstick_threshold,
@@ -268,12 +268,13 @@ static void joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active)
     if (joypad_read_input_valid)
     {
         // Set rumble active flag on cached GameCube controller read command
-        size_t cmd_offset = joypad_read_input_offsets[port];
-        joybus_cmd_gcn_controller_read_port_t *read_cmd;
-        read_cmd = (void *)&joypad_read_input[cmd_offset];
-        assert(read_cmd->send_len == sizeof(read_cmd->send_bytes));
-        assert(read_cmd->command == JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ);
-        read_cmd->rumble = active;
+        const size_t cmd_offset = joypad_read_input_offsets[port];
+        const size_t send_len_offset = cmd_offset + JOYBUS_COMMAND_OFFSET_SEND_LEN;
+        joybus_cmd_gcn_controller_read_port_t *cmd;
+        assert(joypad_read_input[send_len_offset] == sizeof(cmd->send));
+        cmd = (void *)&joypad_read_input[cmd_offset + JOYBUS_COMMAND_METADATA_SIZE];
+        assert(cmd->send.command == JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ);
+        cmd->send.rumble = active;
     }
 }
 
@@ -286,7 +287,7 @@ static void joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active)
 static void joypad_gcn_origin_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
-    const joybus_cmd_gcn_controller_origin_port_t *recv_cmd;
+    const joybus_cmd_gcn_controller_origin_port_t *cmd;
     size_t i = 0;
 
     JOYPAD_PORT_FOREACH (port)
@@ -300,20 +301,20 @@ static void joypad_gcn_origin_callback(uint64_t *out_dwords, void *ctx)
         else if (joypad_devices_hot[port].style != JOYPAD_STYLE_GCN)
         {
             // Skip this port
-            i += sizeof(*recv_cmd);
+            i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
         }
         else
         {
-            recv_cmd = (void *)&out_bytes[i];
-            i += sizeof(*recv_cmd);
+            cmd = (void *)&out_bytes[i + JOYBUS_COMMAND_METADATA_SIZE];
+            i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
 
             joypad_origins_hot[port] = (joypad_gcn_origin_t){
-                .stick_x = recv_cmd->stick_x,
-                .stick_y = recv_cmd->stick_y,
-                .cstick_x = recv_cmd->cstick_x,
-                .cstick_y = recv_cmd->cstick_y,
-                .analog_l = recv_cmd->analog_l,
-                .analog_r = recv_cmd->analog_r,
+                .stick_x = cmd->recv.stick_x,
+                .stick_y = cmd->recv.stick_y,
+                .cstick_x = cmd->recv.cstick_x,
+                .cstick_y = cmd->recv.cstick_y,
+                .analog_l = cmd->recv.analog_l,
+                .analog_r = cmd->recv.analog_r,
             };
         }
     }
@@ -333,21 +334,22 @@ static void joypad_gcn_origin_check_async(void)
     uint8_t * const input = (void *)joypad_gcn_origin_input;
     if (!joypad_gcn_origin_input_valid)
     {
-        const joybus_cmd_gcn_controller_origin_port_t send_cmd = {
-            .send_len = sizeof(send_cmd.send_bytes),
-            .recv_len = sizeof(send_cmd.recv_bytes),
+        const joybus_cmd_gcn_controller_origin_port_t cmd = { .send = {
             .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_ORIGIN,
-        };
-        const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
+        }};
+        const size_t recv_offset = offsetof(typeof(cmd), recv);
         size_t i = 0;
 
         // Populate the Joybus commands on each port
         memset(input, 0, JOYBUS_BLOCK_SIZE);
         JOYPAD_PORT_FOREACH (port)
         {
+            // Set the command metadata
+            input[i++] = sizeof(cmd.send);
+            input[i++] = sizeof(cmd.recv);
             // Micro-optimization: Minimize copy length
-            memcpy(&input[i], &send_cmd, recv_offset);
-            i += sizeof(send_cmd);
+            memcpy(&input[i], &cmd, recv_offset);
+            i += sizeof(cmd);
         }
 
         // Close out the Joybus operation block
@@ -369,7 +371,7 @@ static void joypad_gcn_origin_check_async(void)
 static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
-    const joybus_cmd_identify_port_t *recv_cmd;
+    const joybus_cmd_identify_port_t *cmd;
     volatile joypad_device_hot_t *device;
     volatile joypad_accessory_t *accessory;
     bool devices_changed = false;
@@ -379,10 +381,10 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
     {
         device = &joypad_devices_hot[port];
         accessory = &joypad_accessories_hot[port];
-        recv_cmd = (void *)&out_bytes[i];
-        i += sizeof(*recv_cmd);
+        cmd = (void *)&out_bytes[i + JOYBUS_COMMAND_METADATA_SIZE];
+        i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
 
-        joybus_identifier_t identifier = recv_cmd->identifier;
+        joybus_identifier_t identifier = cmd->recv.identifier;
         if (joypad_identifiers_hot[port] != identifier)
         {
             // The identifier has changed; reset device state
@@ -406,7 +408,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
         {
             device->style = JOYPAD_STYLE_N64;
             uint8_t prev_accessory_status = accessory->status;
-            uint8_t accessory_status = recv_cmd->status & JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK;
+            uint8_t accessory_status = cmd->recv.status & JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK;
             // Work-around third-party controllers that don't correctly report accessory status
             bool accessory_absent = (
                 accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT ||
@@ -460,21 +462,22 @@ static void joypad_identify_async(bool reset)
     // Reset invalidates the cached input block
     if (!joypad_identify_input_valid || reset)
     {
-        const joybus_cmd_identify_port_t send_cmd = {
-            .send_len = sizeof(send_cmd.send_bytes),
-            .recv_len = sizeof(send_cmd.recv_bytes),
+        const joybus_cmd_identify_port_t cmd = { .send = {
             .command = reset ? JOYBUS_COMMAND_ID_RESET : JOYBUS_COMMAND_ID_IDENTIFY,
-        };
-        const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
+        } };
+        const size_t recv_offset = offsetof(typeof(cmd), recv);
         size_t i = 0;
 
         // Populate the Joybus commands on each port
         memset(input, 0, JOYBUS_BLOCK_SIZE);
         JOYPAD_PORT_FOREACH (port)
         {
+            // Set the command metadata
+            input[i++] = sizeof(cmd.send);
+            input[i++] = sizeof(cmd.recv);
             // Micro-optimization: Minimize copy length
-            memcpy(&input[i], &send_cmd, recv_offset);
-            i += sizeof(send_cmd);
+            memcpy(&input[i], &cmd, recv_offset);
+            i += sizeof(cmd);
         }
 
         // Close out the Joybus operation block
@@ -526,32 +529,34 @@ static void joypad_read_async(void)
 
              if (device->style == JOYPAD_STYLE_GCN)
             {
-                const joybus_cmd_gcn_controller_read_port_t send_cmd = {
-                    .send_len = sizeof(send_cmd.send_bytes),
-                    .recv_len = sizeof(send_cmd.recv_bytes),
+                const joybus_cmd_gcn_controller_read_port_t cmd = { .send = {
                     .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ,
                     .mode = 3, // Most-compatible analog mode
                     .rumble = device->rumble_active,
-                };
+                } };
+                // Set the command metadata
+                input[i++] = sizeof(cmd.send);
+                input[i++] = sizeof(cmd.recv);
                 // Micro-optimization: Minimize copy length
-                const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
-                memcpy(&input[i], &send_cmd, recv_offset);
-                i += sizeof(send_cmd);
+                const size_t recv_offset = offsetof(typeof(cmd), recv);
+                memcpy(&input[i], &cmd, recv_offset);
+                i += sizeof(cmd);
             }
             else if (
                 identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER ||
                 identifier == JOYBUS_IDENTIFIER_N64_MOUSE
             )
             {
-                const joybus_cmd_n64_controller_read_port_t send_cmd = {
-                    .send_len = sizeof(send_cmd.send_bytes),
-                    .recv_len = sizeof(send_cmd.recv_bytes),
+                const joybus_cmd_n64_controller_read_port_t cmd = { .send = {
                     .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
-                };
+                } };
+                // Set the command metadata
+                input[i++] = sizeof(cmd.send);
+                input[i++] = sizeof(cmd.recv);
                 // Micro-optimization: Minimize copy length
-                const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
-                memcpy(&input[i], &send_cmd, recv_offset);
-                i += sizeof(send_cmd);
+                const size_t recv_offset = offsetof(typeof(cmd), recv);
+                memcpy(&input[i], &cmd, recv_offset);
+                i += sizeof(cmd);
             }
             else
             {
@@ -597,29 +602,13 @@ static void joypad_vi_interrupt_callback(void)
  */
 joypad_inputs_t joypad_read_n64_inputs_sync(joypad_port_t port)
 {
-    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
-    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
-    size_t i = port;
 
-    const joybus_cmd_n64_controller_read_port_t send_cmd = {
-        .send_len = sizeof(send_cmd.send_bytes),
-        .recv_len = sizeof(send_cmd.recv_bytes),
+    joybus_cmd_n64_controller_read_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
-    };
-    // Micro-optimization: Minimize copy length
-    const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
-    memcpy(&input[i], &send_cmd, recv_offset);
-    i += sizeof(send_cmd);
+    } };
+    joybus_cmd_exec(port, cmd);
 
-    // Close out the Joybus operation block
-    input[i] = 0xFE;
-    input[sizeof(input) - 1] = 0x01;
-
-    joybus_exec(input, output);
-    const joybus_cmd_n64_controller_read_port_t *recv_cmd =
-        (void *)&output[port];
-
-    return joypad_inputs_from_n64_controller_read(recv_cmd);
+    return joypad_inputs_from_n64_controller_read(&cmd);
 }
 
 /**
@@ -753,9 +742,9 @@ void joypad_scan(void)
 
         if (command_id == JOYBUS_COMMAND_ID_N64_CONTROLLER_READ)
         {
-            const joybus_cmd_n64_controller_read_port_t *recv_cmd;
-            recv_cmd = (void *)&output[i];
-            i += sizeof(*recv_cmd);
+            const joybus_cmd_n64_controller_read_port_t *cmd;
+            cmd = (void *)&output[i + JOYBUS_COMMAND_METADATA_SIZE];
+            i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
 
             // N64 Mouse uses the same read command as a Controller
             if (identifiers[port] == JOYBUS_IDENTIFIER_N64_MOUSE)
@@ -768,20 +757,20 @@ void joypad_scan(void)
             }
 
             device->previous = device->current;
-            device->current = joypad_inputs_from_n64_controller_read(recv_cmd);
+            device->current = joypad_inputs_from_n64_controller_read(cmd);
         }
         else if (command_id == JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ)
         {
             // Normalize GameCube controller read response
-            const joybus_cmd_gcn_controller_read_port_t *recv_cmd;
-            recv_cmd = (void *)&output[i];
-            i += sizeof(*recv_cmd);
+            const joybus_cmd_gcn_controller_read_port_t *cmd;
+            cmd = (void *)&output[i + JOYBUS_COMMAND_METADATA_SIZE];
+            i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
 
-            if (recv_cmd->check_origin) check_origins = true;
+            if (cmd->recv.check_origin) { check_origins = true; }
 
             device->style = JOYPAD_STYLE_GCN;
             device->previous = device->current;
-            device->current = joypad_inputs_from_gcn_controller_read(recv_cmd, &origins[port]);
+            device->current = joypad_inputs_from_gcn_controller_read(cmd, &origins[port]);
         }
         else
         {

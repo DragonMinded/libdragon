@@ -213,16 +213,34 @@ typedef uint16_t joybus_identifier_t;
 void joybus_exec( const void * inblock, void * outblock );
 
 /**
- * @brief Executes a Joybus command on the given port.
+ * @brief Executes a Joybus command synchronously on the given port.
  * 
- * @param port Joybus port (0-4).
- * @param command_id Joybus command identifier.
- * @param send_len Number of bytes in the send payload (not including command ID).
- * @param recv_len Number of bytes in the recieve payload.
- * @param send_data Buffer of send_len bytes to send in the Joybus command.
- * @param recv_data Buffer of recv_len bytes to receive from the Joybus reply.
+ * This function is not a stable feature of the libdragon API and should be
+ * considered experimental!
+ * 
+ * The usage of this function will likely change as a result of the ongoing
+ * effort to integrate the multitasking kernel with asynchronous operations.
+ * 
+ * @note This function is slow: it blocks until the command completes.
+ *       Calling this function multiple times per frame may cause
+ *       audio and video stuttering.
+ * 
+ * @param      port
+ *             The Joybus port (0-4) to send the command to.
+ * @param      command_id
+ *             Joybus command identifier. See @ref JOYBUS_COMMAND_ID.
+ * @param      send_len
+ *             Number of bytes in the send payload
+ *             (not including command ID).
+ * @param      recv_len
+ *             Number of bytes in the recieve payload.
+ * @param[in]  send_data
+ *             Buffer of send_len bytes to send to the Joybus device
+ *             (not including command ID byte).
+ * @param[out] recv_data
+ *             Buffer of recv_len bytes for reply from the Joybus device.
  */
-void joybus_exec_command(
+void joybus_exec_raw_command(
     int port,
     uint8_t command_id,
     uint8_t send_len,

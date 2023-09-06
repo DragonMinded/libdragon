@@ -121,23 +121,22 @@ void joybus_accessory_read_async(
 )
 {
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
-    size_t i = port;
-
-    const joybus_cmd_n64_accessory_read_port_t send_cmd = {
-        .send_len = sizeof(send_cmd.send_bytes),
-        .recv_len = sizeof(send_cmd.recv_bytes),
+    joybus_cmd_n64_accessory_read_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_READ,
         .addr_checksum = joybus_accessory_calculate_addr_checksum(addr),
-    };
+    } };
+    size_t i = port;
+    // Set the command metadata
+    input[i++] = sizeof(cmd.send);
+    input[i++] = sizeof(cmd.recv);
     // Micro-optimization: Minimize copy length
-    const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
-    memcpy(&input[i], &send_cmd, recv_offset);
-    i += sizeof(send_cmd);
-
+    const size_t recv_offset = offsetof(typeof(cmd), recv);
+    memcpy(&input[i], &cmd.send, recv_offset);
+    i += sizeof(cmd);
     // Close out the Joybus operation block
     input[i] = 0xFE;
     input[sizeof(input) - 1] = 0x01;
-
+    // Execute the Joybus operation asynchronously
     joybus_exec_async(input, callback, ctx);
 }
 
@@ -159,24 +158,23 @@ void joybus_accessory_write_async(
 )
 {
     uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
-    size_t i = port;
-
-    const joybus_cmd_n64_accessory_write_port_t send_cmd = {
-        .send_len = sizeof(send_cmd.send_bytes),
-        .recv_len = sizeof(send_cmd.recv_bytes),
+    joybus_cmd_n64_accessory_write_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
         .addr_checksum = joybus_accessory_calculate_addr_checksum(addr),
-    };
+    } };
+    size_t i = port;
+    // Set the command metadata
+    input[i++] = sizeof(cmd.send);
+    input[i++] = sizeof(cmd.recv);
     // Micro-optimization: Minimize copy length
-    const size_t data_offset = offsetof(typeof(send_cmd), data);
-    memcpy(&input[i], &send_cmd, data_offset);
-    memcpy(&input[i + data_offset], data, sizeof(send_cmd.data));
-    i += sizeof(send_cmd);
-
+    const size_t data_offset = offsetof(typeof(cmd.send), data);
+    memcpy(&input[i], &cmd.send, data_offset);
+    memcpy(&input[i + data_offset], data, sizeof(cmd.send.data));
+    i += sizeof(cmd);
     // Close out the Joybus operation block
     input[i] = 0xFE;
     input[sizeof(input) - 1] = 0x01;
-
+    // Execute the Joybus operation asynchronously
     joybus_exec_async(input, callback, ctx);
 }
 
@@ -191,39 +189,18 @@ void joybus_accessory_write_async(
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK No accessory is present.
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data was not read successfully.
  */
-int joybus_accessory_read_sync(
-    int port,
-    uint16_t addr,
-    uint8_t *data
-)
+int joybus_accessory_read_sync(int port, uint16_t addr, uint8_t *data)
 {
-    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
-    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
-    size_t i = port;
-
-    const joybus_cmd_n64_accessory_read_port_t send_cmd = {
-        .send_len = sizeof(send_cmd.send_bytes),
-        .recv_len = sizeof(send_cmd.recv_bytes),
+    joybus_cmd_n64_accessory_read_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_READ,
         .addr_checksum = joybus_accessory_calculate_addr_checksum(addr),
-    };
-    // Micro-optimization: Minimize copy length
-    const size_t recv_offset = offsetof(typeof(send_cmd), recv_bytes);
-    memcpy(&input[i], &send_cmd, recv_offset);
-    i += sizeof(send_cmd);
-
-    // Close out the Joybus operation block
-    input[i] = 0xFE;
-    input[sizeof(input) - 1] = 0x01;
-
-    // Execute and wait for the Joybus operation
-    joybus_exec(input, output);
-    const joybus_cmd_n64_accessory_read_port_t *recv_cmd =
-        (void *)&output[port];
-
-    // Copy the data and check the CRC to see if the read was successful
-    memcpy(data, recv_cmd->data, sizeof(recv_cmd->data));
-    return joybus_accessory_compare_data_crc(data, recv_cmd->data_crc);
+    } };
+    // Execute the command
+    joybus_cmd_exec(port, cmd);
+    // Copy the data from the command receive buffer
+    memcpy(data, cmd.recv.data, sizeof(cmd.recv.data));
+    // Check the CRC against the data to see if the read was successful
+    return joybus_accessory_compare_data_crc(data, cmd.recv.data_crc);
 }
 
 /**
@@ -237,39 +214,18 @@ int joybus_accessory_read_sync(
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK No accessory is present.
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data was not written successfully.
  */
-int joybus_accessory_write_sync(
-    int port,
-    uint16_t addr,
-    const uint8_t *data
-)
+int joybus_accessory_write_sync(int port, uint16_t addr, const uint8_t *data)
 {
-    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
-    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
-    size_t i = port;
-
-    const joybus_cmd_n64_accessory_write_port_t send_cmd = {
-        .send_len = sizeof(send_cmd.send_bytes),
-        .recv_len = sizeof(send_cmd.recv_bytes),
+    joybus_cmd_n64_accessory_write_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
         .addr_checksum = joybus_accessory_calculate_addr_checksum(addr),
-    };
-    // Micro-optimization: Minimize copy length
-    const size_t data_offset = offsetof(typeof(send_cmd), data);
-    memcpy(&input[i], &send_cmd, data_offset);
-    memcpy(&input[i + data_offset], data, sizeof(send_cmd.data));
-    i += sizeof(send_cmd);
-
-    // Close out the Joybus operation block
-    input[i] = 0xFE;
-    input[sizeof(input) - 1] = 0x01;
-
-    // Execute and wait for the Joybus operation
-    joybus_exec(input, output);
-    const joybus_cmd_n64_accessory_write_port_t *recv_cmd =
-        (void *)&output[port];
-    
+    } };
+    // Copy the data to the command send buffer
+    memcpy(cmd.send.data, data, sizeof(cmd.send.data));
+    // Execute the command
+    joybus_cmd_exec(port, cmd);
     // Check the data CRC to see if the write was successful
-    return joybus_accessory_compare_data_crc(data, recv_cmd->data_crc);
+    return joybus_accessory_compare_data_crc(data, cmd.recv.data_crc);
 }
 
 /** @} */ /* joybus */
