@@ -14,58 +14,7 @@
 #include "joypad_internal.h"
 
 /**
- * @defgroup joypad Joypad Subsystem
- * @ingroup peripherals
- * @brief Joypad abstraction interface.
- *
- * The Joypad subsystem is the successor to the LibDragon Controller subsystem.
- * The Joypad subsystem is in charge of communication with the controller ports
- * and provides a common interface to support a variety of input devices:
- *
- * * Nintendo 64 controller
- * * Nintendo 64 mouse
- * * GameCube controller (with a passive adapter)
- *
- * To use a Joypad, the developer must first call #joypad_init. Once initialized,
- * The Joypad subsystem will automatically identify and read all connected input
- * devices once per frame.
- *
- * To refer to individual ports, use the #joypad_port_t enumeration values.
- * To iterate across all ports, use the #JOYPAD_PORT_FOREACH macro.
- *
- * To read the controllers, first call #joypad_scan once per frame to process
- * the input data. #joypad_get_style will return which "style" of device is
- * connected to a port (#joypad_style_t). #joypad_get_inputs will return the
- * buttons and analog input state for a given controller port.
- *
- * Developers can determine whether the input device is capable of rumble by
- * calling #joypad_get_rumble_supported and then starting/stopping the rumble
- * motor by calling #joypad_set_rumble_active.
- *
- * The Joypad subsystem will automatically detect which accessory is connected
- * to Nintendo 64 controllers. Call #joypad_get_accessory_type to determine
- * which accessory was detected.
- *
- * For advanced use-cases, a developer can determine exactly which type of
- * input device is connected by calling #joypad_get_identifier, which will
- * return the 16-bit device identifier value from the Joybus "Info" response.
- * 
- * To read digital button state for a Joypad device:
- * * #joypad_get_buttons
- * * #joypad_get_buttons_pressed
- * * #joypad_get_buttons_released
- * * #joypad_get_buttons_held
- * 
- * To read 8-way directional state for a Joypad device:
- * * #joypad_get_stick_direction
- * * #joypad_get_dpad_direction
- * * #joypad_get_c_direction
- * 
- * To read analog directions as digital inputs for a Joypad device:
- * * #joypad_get_axis_pressed
- * * #joypad_get_axis_released
- * * #joypad_get_axis_held
- * 
+ * @addtogroup joypad
  * @{
  */
 
