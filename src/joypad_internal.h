@@ -93,7 +93,46 @@ extern volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
 
+/**
+ * @brief Synchronously read the inputs from a Nintendo 64 controller.
+ * 
+ * This function is intended for use in situations where interrupts may
+ * be disabled or where joypad_init may not have been called.
+ * 
+ * @note This function is slow: it blocks for about 10% of a frame.
+ *       To avoid this performance hit, use the managed function in
+ *       the Joypad subsystem instead: #joypad_get_inputs
+ * 
+ * @param port Joypad port (#joypad_port_t) to read from.
+ * @return Joypad inputs structure (#joypad_inputs_t)
+ */
 joypad_inputs_t joypad_read_n64_inputs_sync(joypad_port_t port);
+
+/**
+ * @brief Get the Joypad accessory state for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad accessory state enumeration value 
+ */
+int joypad_get_accessory_state(joypad_port_t port);
+
+/**
+ * @brief Get the Joypad accessory error for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @return Joypad accessory error enumeration value 
+ */
+int joypad_get_accessory_error(joypad_port_t port);
+
+/**
+ * @brief Get the Transfer Pak status byte for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Transfer Pak status byte 
+ */
+uint8_t joypad_get_accessory_transfer_pak_status(joypad_port_t port);
 
 #ifdef __cplusplus
 }

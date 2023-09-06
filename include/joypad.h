@@ -382,32 +382,231 @@ typedef enum
     JOYPAD_8WAY_DOWN_RIGHT = 7,
 } joypad_8way_t;
 
+/**
+ * @brief Initialize the Joypad subsystem.
+ * 
+ * Starts reading Joypads during VI interrupt.
+ */
 void joypad_init(void);
+
+/**
+ * @brief Close the Joypad subsystem.
+ * 
+ * Stops reading Joypads during VI interrupt.
+ */
 void joypad_close(void);
+
+/**
+ * @brief Identify Joypads and wait for completion.
+ * 
+ * @param reset Whether to reset the devices.
+ */
 void joypad_identify_sync(bool reset);
+
+/**
+ * @brief Read Joypad inputs and wait for completion.
+ * 
+ * Implicitly scans the read inputs to save you a step.
+ */
 void joypad_read_sync(void);
+
+/**
+ * @brief Fetch the current Joypad input state.
+ * 
+ * This function must be called once per frame, or any time after the
+ * Joypads have been read. After calling this function, you can read
+ * the Joypad state using the following functions:
+ * 
+ * * #joypad_get_inputs
+ * * #joypad_get_buttons
+ * * #joypad_get_buttons_pressed
+ * * #joypad_get_buttons_released
+ * * #joypad_get_buttons_held
+ * * #joypad_get_dpad_direction
+ * * #joypad_get_c_direction
+ * * #joypad_get_stick_direction
+ * * #joypad_get_axis_pressed
+ * * #joypad_get_axis_released
+ * * #joypad_get_axis_held
+ * 
+ * This function is very fast. In fact, joypads are read in background
+ * asynchronously under interrupt, so this function just synchronizes the
+ * internal state.
+ */
 void joypad_scan(void);
 
+/**
+ * @brief Whether a Joybus device is plugged in to a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @retval true A Joybus device is connected to the Joypad port.
+ * @retval false Nothing is connected to the Joypad port.
+ */
 bool joypad_is_connected(joypad_port_t port);
+
+/**
+ * @brief Get the Joybus device identifier for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joybus device identifier (#joybus_identifier_t)
+ */
 joybus_identifier_t joypad_get_identifier(joypad_port_t port);
+
+/**
+ * @brief Get the Joypad style for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad style enumeration value (#joypad_style_t)
+ */
 joypad_style_t joypad_get_style(joypad_port_t port);
+
+/**
+ * @brief Get the Joypad accessory type for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad accessory type enumeration value (#joypad_accessory_type_t)
+ */
 joypad_accessory_type_t joypad_get_accessory_type(joypad_port_t port);
+
+/**
+ * @brief Is rumble supported for a Joypad port?
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Whether rumble is supported
+ */
 bool joypad_get_rumble_supported(joypad_port_t port);
+
+/**
+ * @brief Is rumble active for a Joypad port?
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Whether rumble is active
+ */
 bool joypad_get_rumble_active(joypad_port_t port);
+
+/**
+ * @brief Activate or deactivate rumble on a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param active Whether rumble should be active
+ */
 void joypad_set_rumble_active(joypad_port_t port, bool active);
 
+/**
+ * @brief Get the current Joypad inputs state for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad inputs structure (#joypad_inputs_t)
+ */
 joypad_inputs_t joypad_get_inputs(joypad_port_t port);
+
+/**
+ * @brief Get the current Joypad buttons state for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad buttons structure (#joypad_buttons_t)
+ */
 joypad_buttons_t joypad_get_buttons(joypad_port_t port);
+
+/**
+ * @brief Get the Joypad buttons that were pressed since the last
+ *        time Joypads were read for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad buttons structure (#joypad_buttons_t)
+ */
 joypad_buttons_t joypad_get_buttons_pressed(joypad_port_t port);
+
+/**
+ * @brief Get the Joypad buttons that were released since the last
+ *        time Joypads were read for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad buttons structure (#joypad_buttons_t)
+ */
 joypad_buttons_t joypad_get_buttons_released(joypad_port_t port);
+
+/**
+ * @brief Get the Joypad buttons that are held down since the last
+ *        time Joypads were read for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad buttons structure (#joypad_buttons_t)
+ */
 joypad_buttons_t joypad_get_buttons_held(joypad_port_t port);
 
+/**
+ * @brief Get the 8-way direction for a Joypad port's analog stick.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad 8-way direction enumeration value (#joypad_8way_t)
+ */
 joypad_8way_t joypad_get_stick_direction(joypad_port_t port);
+
+/**
+ * @brief Get the 8-way direction for a Joypad port's D-pad.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad 8-way direction enumeration value (#joypad_8way_t)
+ */
 joypad_8way_t joypad_get_dpad_direction(joypad_port_t port);
+
+/**
+ * @brief Get the 8-way direction for a Joypad port's C-buttons.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad 8-way direction enumeration value (#joypad_8way_t)
+ */
 joypad_8way_t joypad_get_c_direction(joypad_port_t port);
 
+/**
+ * @brief Get the direction of a "press" of an axis on a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param axis Joypad axis enumeration value (#joypad_axis_t)
+ * 
+ * @retval +1 Axis is pressed in the positive direction
+ * @retval -1 Axis is pressed in the negative direction
+ * @retval  0 Axis is not pressed
+ */
 int joypad_get_axis_pressed(joypad_port_t port, joypad_axis_t axis);
+
+/**
+ * @brief Get the direction of a "release" of an axis on a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param axis Joypad axis enumeration value (#joypad_axis_t)
+ * 
+ * @retval +1 Axis was released in the positive direction
+ * @retval -1 Axis was released in the negative direction
+ * @retval  0 Axis is not released
+ */
 int joypad_get_axis_released(joypad_port_t port, joypad_axis_t axis);
+
+/**
+ * @brief Get the direction that an axis is held on a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param axis Joypad axis enumeration value (#joypad_axis_t)
+ * 
+ * @retval +1 Axis is being held in the positive direction
+ * @retval -1 Axis is being held in the negative direction
+ * @retval  0 Axis is not being held
+ */
 int joypad_get_axis_held(joypad_port_t port, joypad_axis_t axis);
 
 #ifdef __cplusplus
