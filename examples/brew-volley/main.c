@@ -453,7 +453,7 @@ int main()
     debug_init_isviewer();
     debug_init_usblog();
 
-    display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
+    display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_DEDITHER);
 
     controller_init();
     timer_init();

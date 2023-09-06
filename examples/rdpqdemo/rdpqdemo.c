@@ -101,7 +101,7 @@ int main()
     debug_init_isviewer();
     debug_init_usblog();
 
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 
     controller_init();
     timer_init();
