@@ -363,6 +363,7 @@ uint32_t model64_write_meshes(model64_data_t *model, uint32_t offset, FILE *out)
             uint32_t mtx_index_data_ofs = normal_data_ofs+attribute_get_data_size(&primitive->normal);
             uint32_t index_ofs = mtx_index_data_ofs+attribute_get_data_size(&primitive->mtx_index);
             index_ofs += (index_ofs-data_ofs)*(primitive->num_vertices-1);
+            index_ofs = ROUND_UP(index_ofs, 4); //Fix for misaligned indices
             attribute_write(out, &primitive->position, data_ofs);
             attribute_write(out, &primitive->color, color_data_ofs);
             attribute_write(out, &primitive->texcoord, texcoord_data_ofs);
