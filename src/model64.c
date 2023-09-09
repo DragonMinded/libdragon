@@ -320,7 +320,7 @@ void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float
 void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float y, float z)
 {
     float cr = cosf(x * 0.5);
-    float sr = sinf(y * 0.5);
+    float sr = sinf(x * 0.5);
     float cp = cosf(y * 0.5);
     float sp = sinf(y * 0.5);
     float cy = cosf(z * 0.5);

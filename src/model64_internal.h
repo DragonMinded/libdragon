@@ -1,8 +1,6 @@
 #ifndef __LIBDRAGON_MODEL64_INTERNAL_H
 #define __LIBDRAGON_MODEL64_INTERNAL_H
 
-typedef float model64_mtx_t[4][4];
-
 /** @brief model64 file magic header */
 #define MODEL64_MAGIC           0x4D444C48 // "MDLH"
 /** @brief model64 loaded model buffer magic */
