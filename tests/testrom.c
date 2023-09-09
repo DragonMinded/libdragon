@@ -58,7 +58,7 @@ typedef void (*TestFunc)(TestContext *ctx);
 
 // Fair and fast random generation (using xorshift32, with explicit seed)
 static uint32_t rand_state = 1;
-static uint32_t rand(void) {
+static uint32_t myrand(void) {
 	uint32_t x = rand_state;
 	x ^= x << 13;
 	x ^= x >> 7;
@@ -72,8 +72,8 @@ static uint32_t rand(void) {
 // RANDN(n): generate a random number from 0 to n-1
 #define RANDN(n) ({ \
 	__builtin_constant_p((n)) ? \
-		(rand()%(n)) : \
-		(uint32_t)(((uint64_t)rand() * (n)) >> 32); \
+		(myrand()%(n)) : \
+		(uint32_t)(((uint64_t)myrand() * (n)) >> 32); \
 })
 
 // ASSERT(cond, msg): fail the test if the condition is false (with log message)
