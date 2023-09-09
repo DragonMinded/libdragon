@@ -65,7 +65,7 @@ typedef struct model64_node_s {
     char *name;
     mesh_t *mesh;
     model64_skin_t *skin;
-    node_transform_t initial_transform;
+    node_transform_t transform;
     uint32_t parent;
     uint32_t num_children;
     uint32_t *children;
@@ -80,9 +80,12 @@ typedef struct model64_data_s {
     uint32_t mesh_size;             ///< Size of a mesh header in bytes
     uint32_t primitive_size;        ///< Size of a primitive header in bytes
     uint32_t node_size;             ///< Size of a node in bytes
+    uint32_t skin_size;             ///< Size of a skin in bytes
     uint32_t num_nodes;             ///< Number of nodes
     model64_node_t *nodes;          ///< Pointer to the first node
     uint32_t root_node;
+    uint32_t num_skins;
+    model64_skin_t *skins;
     uint32_t num_meshes;
     mesh_t *meshes;
 } model64_data_t;
