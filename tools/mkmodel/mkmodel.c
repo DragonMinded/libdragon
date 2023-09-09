@@ -780,6 +780,7 @@ int convert(const char *infn, const char *outfn)
         cgltf_node_transform_local(&data->nodes[i], model->nodes[i].transform.mtx);
     }
     if(data->scene->nodes_count > 1) {
+        //Generate a node for grouping the scene
         model->root_node = data->nodes_count;
         model->nodes[model->root_node].num_children = data->scene->nodes_count;
         model->nodes[model->root_node].children = calloc(data->scene->nodes_count, sizeof(uint32_t));
@@ -795,7 +796,10 @@ int convert(const char *infn, const char *outfn)
         model->nodes[model->root_node].transform.mtx[10] = 1.0f;
         model->nodes[model->root_node].transform.mtx[15] = 1.0f;
         make_node_idx_list(data, data->scene->nodes, data->scene->nodes_count, &model->nodes[model->root_node].children);
-        
+        //Reassign parent nodes of scene nodes to generated node
+        for(uint32_t i=0; i<data->scene->nodes_count; i++) {
+            model->nodes[cgltf_node_index(data, data->scene->nodes[i])].parent = model->root_node;
+        }
     } else {
         model->root_node = cgltf_node_index(data, data->scene->nodes[0]);
     }

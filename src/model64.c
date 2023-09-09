@@ -452,6 +452,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
         }
         else
         {
+            glMatrixMode(GL_MODELVIEW);
             glPushMatrix();
             glMultMatrixf(model->transforms[node_idx].world_mtx);
             model64_draw_mesh(node->mesh);
