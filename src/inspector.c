@@ -1,3 +1,4 @@
+#ifndef NDEBUG
 #include "graphics.h"
 #include "display.h"
 #include "debug.h"
@@ -583,3 +584,4 @@ void __inspector_init(void) {
     }
     register_syscall_handler(handler, 0x00001, 0x00002);
 }
+#endif /* NDBUEG */
