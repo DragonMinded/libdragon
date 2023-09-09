@@ -329,14 +329,14 @@ uint32_t model64_write_nodes(model64_data_t *model, uint32_t offset, FILE *out)
         w32(out, model->nodes[i].num_children);
         w32(out, data_ofs);
         assert(ftell(out)-(offset+(i*NODE_SIZE)) == NODE_SIZE);
-        fseek(out, data_ofs, SEEK_SET);
+        fseek(out, offset+data_ofs, SEEK_SET);
         for(uint32_t j=0; j<model->nodes[i].num_children; j++) {
             w32(out, model->nodes[i].children[j]);
         }
         data_ofs += 4*model->nodes[i].num_children;
         if(model->nodes[i].name) {
             uint32_t name_len = strlen(model->nodes[i].name)+1;
-            fseek(out, name_ofs, SEEK_SET);
+            fseek(out, offset+name_ofs, SEEK_SET);
             fwrite(model->nodes[i].name, strlen(model->nodes[i].name)+1, 1, out);
             name_ofs += name_len;   
         }
@@ -656,10 +656,11 @@ int convert_mesh(cgltf_mesh *in_mesh, mesh_t *out_mesh)
 
 void make_node_idx_list(cgltf_data *data, cgltf_node **node_list, cgltf_size num_nodes, uint32_t **idx_list)
 {
-    *idx_list = calloc(num_nodes, sizeof(uint32_t));
+    uint32_t *list = calloc(num_nodes, sizeof(uint32_t));
     for(size_t i=0; i<num_nodes; i++) {
-        *idx_list[i] = cgltf_node_index(data, node_list[i]);
+        list[i] = cgltf_node_index(data, node_list[i]);
     }
+    *idx_list = list;
 }
 
 int convert(const char *infn, const char *outfn)
