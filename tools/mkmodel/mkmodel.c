@@ -673,7 +673,11 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
     }
     else
     {
+        uint32_t mtxindex_orig_size = attrs[4]->size;
         simplify_mtx_index_buffer(attrs[4], &weight_attr, out_primitive->num_vertices);
+        for(int i=0; i<ATTRIBUTE_COUNT; i++) {
+            attrs[i]->stride -= mtxindex_orig_size-1;
+        }
     }
 
     // Convert index data if present
@@ -825,8 +829,8 @@ int convert(const char *infn, const char *outfn)
     for(size_t i=0; i<data->skins_count; i++) {
         model->skins[i].num_joints = data->skins[i].joints_count;
         if(data->skins[i].joints_count > 24) {
-            fprintf(stderr, "Found %zd joints in skin %zd.\n", data->skins[i].joints_count, i);
-            fprintf(stderr, "A maximum of 24 joints are allowed in a skin.\n");
+            fprintf(stderr, "Error: Found %zd joints in skin %zd.\n", data->skins[i].joints_count, i);
+            fprintf(stderr, "Error: A maximum of 24 joints are allowed in a skin.\n");
             goto error;
         }
         make_node_idx_list(data, data->skins[i].joints, data->skins[i].joints_count, &model->skins[i].joints);
