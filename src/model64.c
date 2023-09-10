@@ -442,7 +442,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
             for(uint32_t i=0; i<node->skin->num_joints; i++)
             {
                 glCurrentPaletteMatrixARB(i);
-                //glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
+                glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
                 glMultMatrixf(model->transforms[node->skin->joints[i]].world_mtx);
             }
             glEnable(GL_MATRIX_PALETTE_ARB);

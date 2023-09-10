@@ -97,6 +97,7 @@ typedef enum {
     GL_CMD_PRE_INIT_PIPE    = 0xD,
     GL_CMD_PRE_INIT_PIPE_TEX= 0xE,
     GL_CMD_SET_PALETTE_IDX  = 0xF,
+    GL_CMD_MATRIX_COPY      = 0x10,
 } gl_command_t;
 
 typedef enum {

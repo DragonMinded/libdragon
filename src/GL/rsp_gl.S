@@ -22,6 +22,7 @@
         RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0xD
         RSPQ_DefineCommand GLCmd_PreInitPipeTex,4   # 0xE
         RSPQ_DefineCommand GLCmd_SetPalettePtr, 4   # 0xF
+        RSPQ_DefineCommand GLCmd_MatrixCopy,    8   # 0x10
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -328,6 +329,7 @@ GLCmd_MatrixLoad:
     sll dst, mtx_index, 6
     addiu dst, %lo(GL_MATRICES)
 
+GL_MatrixCopyMultiplyImpl:
     # Load the right hand side matrix from command parameters (misaligned)
     lqv vrhs01_i, 0x00,rhs
     lrv vrhs01_i, 0x10,rhs
@@ -348,6 +350,16 @@ GLCmd_MatrixLoad:
     j GL_MatrixMarkDirty
     move ra, ra2
 
+GLCmd_MatrixCopy:
+    sll rhs, a1, 6
+    jal GL_GetMatrixIndex
+    addiu rhs, %lo(GL_MATRICES)
+    sll dst, mtx_index, 6
+    addiu dst, %lo(GL_MATRICES)
+    j GL_MatrixCopyMultiplyImpl
+    li multiply, 0
+    
+    
 GL_UpdateScissor:
     lhu a1, %lo(GL_STATE_FB_SIZE) + 0x0
     lhu t7, %lo(GL_STATE_FB_SIZE) + 0x2

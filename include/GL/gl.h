@@ -321,6 +321,8 @@ void glPopMatrix(void);
 
 void glCurrentPaletteMatrixARB(GLint index);
 
+void glCopyMatrixN64(GLenum source);
+
 /* Texture coordinate generation */
 
 void glTexGeni(GLenum coord, GLenum pname, GLint param);

@@ -382,3 +382,29 @@ void glPopMatrix(void)
 
     gl_write(GL_CMD_MATRIX_POP);
 }
+
+void glCopyMatrixN64(GLenum source)
+{
+    switch(source)
+    {
+        case GL_MODELVIEW:
+            gl_write(GL_CMD_MATRIX_COPY, 0);
+            break;
+            
+        case GL_PROJECTION:
+            gl_write(GL_CMD_MATRIX_COPY, 1);
+            break;
+            
+        case GL_TEXTURE:
+            gl_write(GL_CMD_MATRIX_COPY, 2);
+            break;
+            
+        case GL_MATRIX_PALETTE_ARB:
+            gl_write(GL_CMD_MATRIX_COPY, 3);
+            break;
+            
+        default:
+            gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid matrix source", source);
+            break;
+    }
+}
