@@ -58,21 +58,23 @@ void skinned_model_transform()
 void render_skinned(const camera_t *camera, float animation)
 {
     rdpq_debug_log_msg("Skinned");
-
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    camera_transform(camera);
+    skinned_model_transform();
     // Set bone transforms. Note that because there is no matrix stack in palette mode, we need
     // to apply the camera transform and model transform as well for each bone.
     glMatrixMode(GL_MATRIX_PALETTE_ARB);
 
     // Set transform of first bone
     glCurrentPaletteMatrixARB(0);
-    camera_transform(camera);
-    skinned_model_transform();
+    glCopyMatrixN64(GL_MODELVIEW);
     glRotatef(sinf(animation*0.1f)*45, 0, 0, 1);
 
     // Set transform of second bone
     glCurrentPaletteMatrixARB(1);
-    camera_transform(camera);
-    skinned_model_transform();
+    glCopyMatrixN64(GL_MODELVIEW);
     glRotatef(-sinf(animation*0.1f)*45, 0, 0, 1);
 
     glMatrixMode(GL_MODELVIEW);
