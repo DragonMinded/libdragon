@@ -53,9 +53,15 @@ typedef struct mesh_s {
 } mesh_t;
 
 /** @brief A node of the model */
+typedef struct model64_joint_s {
+    uint32_t node_idx;              ///< Index of relevant node
+    float inverse_bind_mtx[16];
+} model64_joint_t;
+
+/** @brief A node of the model */
 typedef struct model64_skin_s {
     uint32_t num_joints;        ///< Number of joints
-    uint32_t *joints;           ///< Pointer to the first joint index
+    model64_joint_t *joints;    ///< Pointer to the first joint index
 } model64_skin_t;
 
 /** @brief A node of the model */

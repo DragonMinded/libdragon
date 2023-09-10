@@ -237,6 +237,13 @@ uint32_t get_skin_index(model64_data_t *model, model64_skin_t *skin)
     return skin-(model->skins);
 }
 
+void write_matrix(float *mtx, FILE *out)
+{
+    for(int i=0; i<16; i++) {
+        wf32(out, mtx[i]);
+    }
+}
+
 uint32_t model64_write_header(model64_data_t *model, FILE *out, struct model_offsets *offsets)
 {
     fseek(out, 0, SEEK_SET);
@@ -270,9 +277,10 @@ uint32_t model64_write_skins(model64_data_t *model, uint32_t offset, FILE *out)
         assert(ftell(out)-(offset+(i*SKIN_SIZE)) == SKIN_SIZE);
         fseek(out, offset+data_ofs, SEEK_SET);
         for(uint32_t j=0; j<model->skins[i].num_joints; j++) {
-            w32(out, model->skins[i].joints[j]);
+            w32(out, model->skins[i].joints[j].node_idx);
+            write_matrix(model->skins[i].joints[j].inverse_bind_mtx, out);
         }
-        data_ofs += 4*model->skins[i].num_joints;
+        data_ofs += 68*model->skins[i].num_joints;
     }
     return offset+data_ofs;
 }
@@ -306,9 +314,7 @@ void write_node_transform(node_transform_t *transform, FILE *out)
     for(int i=0; i<3; i++) {
         wf32(out, transform->scale[i]);
     }
-    for(int i=0; i<16; i++) {
-        wf32(out, transform->mtx[i]);
-    }
+    write_matrix(transform->mtx, out);
 }
 
 uint32_t model64_write_nodes(model64_data_t *model, uint32_t offset, FILE *out)
@@ -830,13 +836,47 @@ int convert(const char *infn, const char *outfn)
     model->num_skins = data->skins_count;
     model->skins = calloc(data->skins_count, sizeof(model64_skin_t));
     for(size_t i=0; i<data->skins_count; i++) {
-        model->skins[i].num_joints = data->skins[i].joints_count;
+        if(data->skins[i].joints_count == 0) {
+            continue;
+        }
         if(data->skins[i].joints_count > 24) {
             fprintf(stderr, "Error: Found %zd joints in skin %zd.\n", data->skins[i].joints_count, i);
             fprintf(stderr, "Error: A maximum of 24 joints are allowed in a skin.\n");
             goto error;
         }
-        make_node_idx_list(data, data->skins[i].joints, data->skins[i].joints_count, &model->skins[i].joints);
+        model->skins[i].num_joints = data->skins[i].joints_count;
+        model->skins[i].joints = calloc(data->skins[i].joints_count, sizeof(model64_joint_t));
+        cgltf_accessor *ibm_accessor = data->skins[i].inverse_bind_matrices;
+        float *ibm_buffer = NULL;
+        if(!ibm_accessor) {
+            size_t num_components = cgltf_num_components(ibm_accessor->type);
+            size_t num_values = num_components * ibm_accessor->count;
+            ibm_buffer = malloc(sizeof(float) * num_values);
+
+            // Convert all data to floats (because cgltf provides this very convenient function)
+            // TODO: More sophisticated conversion that doesn't always use floats as intermediate values
+            //       Might not be worth it since the majority of tools will probably only export floats anyway?
+            if (cgltf_accessor_unpack_floats(ibm_accessor, ibm_buffer, num_values) == 0) {
+                fprintf(stderr, "Error: failed reading attribute data\n");
+                free(ibm_buffer);
+                return 1;
+            }
+        }
+        
+        for(uint32_t j=0; j<model->skins[i].num_joints; j++) {
+            model->skins[i].joints[j].node_idx = cgltf_node_index(data, data->skins[i].joints[j]);
+            if(ibm_buffer) {
+                memcpy(model->skins[i].joints[j].inverse_bind_mtx, &ibm_buffer[j*16], sizeof(float)*16);
+            } else {
+                model->skins[i].joints[j].inverse_bind_mtx[0] = 1.0f;
+                model->skins[i].joints[j].inverse_bind_mtx[5] = 1.0f;
+                model->skins[i].joints[j].inverse_bind_mtx[10] = 1.0f;
+                model->skins[i].joints[j].inverse_bind_mtx[15] = 1.0f;
+            }
+        }
+        if(ibm_buffer) {
+            free(ibm_buffer);
+        }
     }
     // Convert nodes
     model->num_nodes = data->nodes_count;
