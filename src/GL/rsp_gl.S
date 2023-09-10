@@ -351,6 +351,7 @@ GL_MatrixCopyMultiplyImpl:
     move ra, ra2
 
 GLCmd_MatrixCopy:
+    move ra2, ra
     sll rhs, a1, 6
     jal GL_GetMatrixIndex
     addiu rhs, %lo(GL_MATRICES)
