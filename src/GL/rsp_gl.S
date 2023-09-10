@@ -22,7 +22,7 @@
         RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0xD
         RSPQ_DefineCommand GLCmd_PreInitPipeTex,4   # 0xE
         RSPQ_DefineCommand GLCmd_SetPalettePtr, 4   # 0xF
-        RSPQ_DefineCommand GLCmd_MatrixCopy,    8   # 0x10
+        RSPQ_DefineCommand GLCmd_MatrixCopy,    4   # 0x10
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -351,8 +351,18 @@ GL_MatrixCopyMultiplyImpl:
     move ra, ra2
 
 GLCmd_MatrixCopy:
+    #############################################################
+    # GLCmd_SetFlag
+    #
+    # Sets or clears a flag
+    #
+    # ARGS:
+    #   a0: Bit 31..24: Command id
+    #       Bit 1..0: Source Matrix
+    #############################################################
     move ra2, ra
-    sll rhs, a1, 6
+    andi a0, a0, 0x3
+    sll rhs, a0, 6
     jal GL_GetMatrixIndex
     addiu rhs, %lo(GL_MATRICES)
     sll dst, mtx_index, 6
