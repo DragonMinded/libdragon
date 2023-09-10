@@ -23,7 +23,7 @@ int main(void) {
 	debug_init_isviewer();
 	debug_init_usblog();
 
-	display_init(RESOLUTION_320x240, DEPTH_32_BPP, NUM_DISPLAY, GAMMA_NONE, ANTIALIAS_OFF);
+	display_init(RESOLUTION_320x240, DEPTH_32_BPP, NUM_DISPLAY, GAMMA_NONE, FILTERS_DISABLED);
 	dfs_init(DFS_DEFAULT_LOCATION);
 	rdpq_init();
 
