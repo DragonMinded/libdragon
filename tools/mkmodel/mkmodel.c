@@ -675,8 +675,11 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
     {
         uint32_t mtxindex_orig_size = attrs[4]->size;
         simplify_mtx_index_buffer(attrs[4], &weight_attr, out_primitive->num_vertices);
-        for(int i=0; i<ATTRIBUTE_COUNT; i++) {
-            attrs[i]->stride -= mtxindex_orig_size-1;
+        if(attrs[4]->pointer && attrs[4]->size > 0)
+        {
+            for(int i=0; i<ATTRIBUTE_COUNT; i++) {
+                attrs[i]->stride -= mtxindex_orig_size-1;
+            }
         }
     }
 
