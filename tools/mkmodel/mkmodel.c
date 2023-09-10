@@ -510,7 +510,7 @@ int is_rigid_skinned(attribute_t *mtx_index_attr, uint32_t num_vertices)
             }
         }
     }
-    return 0;
+    return 1;
 }
 
 void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, uint32_t num_vertices)
