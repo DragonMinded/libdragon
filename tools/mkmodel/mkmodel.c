@@ -492,6 +492,44 @@ void convert_index_u32(uint32_t *dst, cgltf_uint *src, size_t count)
     for (size_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
+int is_rigid_skinned(attribute_t *mtx_index_attr, uint32_t num_vertices)
+{
+    if(!mtx_index_attr->pointer || mtx_index_attr->size == 0)
+    {
+        return 1;
+    }
+    uint8_t *data = mtx_index_attr->pointer;
+    for(uint32_t i=0; i<num_vertices; i++)
+    {
+        uint8_t *buffer = &data[i*mtx_index_attr->size];
+        for(uint32_t j=0; j<mtx_index_attr->size; j++)
+        {
+            if(buffer[j] != buffer[0])
+            {
+                return 0;
+            }
+        }
+    }
+    return 0;
+}
+
+void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, uint32_t num_vertices)
+{
+    if(!mtx_index_attr->pointer || mtx_index_attr->size == 0)
+    {
+        return;
+    }
+    uint8_t *new_buffer = calloc(num_vertices, 1);
+    uint8_t *old_buffer = mtx_index_attr->pointer;
+    for(uint32_t i=0; i<num_vertices; i++)
+    {
+        new_buffer[i] = old_buffer[i*mtx_index_attr->size];
+    }
+    free(mtx_index_attr->pointer);
+    mtx_index_attr->pointer = new_buffer;
+    mtx_index_attr->size = 1;
+}
+
 int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
 {
     // Matches the values of GL_TRIANGLES, GL_TRIANGLE_STRIPS etc. exactly so just copy it over
@@ -583,6 +621,16 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
     {
         if (attrs[i]->size == 0) continue;
         attrs[i]->stride = stride;
+    }
+    
+    if(!is_rigid_skinned(attrs[4], out_primitive->num_vertices))
+    {
+        fprintf(stderr, "Error: Model is not rigidly skinned\n");
+        return 1;
+    }
+    else
+    {
+        simplify_mtx_index_buffer(attrs[4], out_primitive->num_vertices);
     }
 
     // Convert index data if present
