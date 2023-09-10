@@ -477,6 +477,11 @@ void convert_mtx_index(uint8_t *dst, float *value, size_t size)
     for (size_t i = 0; i < size; i++) dst[i] = value[i];
 }
 
+void convert_weights(float *dst, float *value, size_t size)
+{
+    for (size_t i = 0; i < size; i++) dst[i] = value[i];
+}
+
 void convert_index_u8(uint8_t *dst, cgltf_uint *src, size_t count)
 {
     for (size_t i = 0; i < count; i++) dst[i] = src[i];
@@ -492,28 +497,33 @@ void convert_index_u32(uint32_t *dst, cgltf_uint *src, size_t count)
     for (size_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-int is_rigid_skinned(attribute_t *mtx_index_attr, uint32_t num_vertices)
+int is_rigid_skinned(attribute_t *weight_attr, uint32_t num_vertices)
 {
-    if(!mtx_index_attr->pointer || mtx_index_attr->size == 0)
+    if(!weight_attr->pointer || weight_attr->size == 0)
     {
         return 1;
     }
-    uint8_t *data = mtx_index_attr->pointer;
+    float *data = weight_attr->pointer;
     for(uint32_t i=0; i<num_vertices; i++)
     {
-        uint8_t *buffer = &data[i*mtx_index_attr->size];
-        for(uint32_t j=0; j<mtx_index_attr->size; j++)
+        float *buffer = &data[i*weight_attr->size];
+        uint32_t num_used_weights = 0;
+        for(uint32_t j=0; j<weight_attr->size; j++)
         {
-            if(buffer[j] != buffer[0])
+            if(buffer[j] != 0)
             {
-                return 0;
+                num_used_weights++;
             }
+        }
+        if(num_used_weights > 1)
+        {
+            return 0;
         }
     }
     return 1;
 }
 
-void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, uint32_t num_vertices)
+void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, attribute_t *weight_attr, uint32_t num_vertices)
 {
     if(!mtx_index_attr->pointer || mtx_index_attr->size == 0)
     {
@@ -521,9 +531,19 @@ void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, uint32_t num_vertice
     }
     uint8_t *new_buffer = calloc(num_vertices, 1);
     uint8_t *old_buffer = mtx_index_attr->pointer;
+    float *weight_buffer = weight_attr->pointer;
     for(uint32_t i=0; i<num_vertices; i++)
     {
-        new_buffer[i] = old_buffer[i*mtx_index_attr->size];
+        uint32_t max_weight_idx = 0;
+        float *weights = &weight_buffer[i*weight_attr->size];
+        for(uint32_t i=0; i<weight_attr->size; i++)
+        {
+            if(weights[i] > weights[max_weight_idx])
+            {
+                max_weight_idx = i;
+            }
+        }
+        new_buffer[i] = old_buffer[(i*mtx_index_attr->size)+max_weight_idx];
     }
     free(mtx_index_attr->pointer);
     mtx_index_attr->pointer = new_buffer;
@@ -554,7 +574,8 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
         (component_convert_func_t)convert_normal,
         (component_convert_func_t)convert_mtx_index
     };
-
+    
+    attribute_t weight_attr = {};
     attribute_t *attrs[] = {
         &out_primitive->position,
         &out_primitive->color,
@@ -564,7 +585,8 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
     };
 
     cgltf_attribute *attr_map[ATTRIBUTE_COUNT] = {NULL};
-
+    cgltf_attribute *gltf_weight_attr = NULL;
+    
     // Search for attributes that we need
     for (size_t i = 0; i < in_primitive->attributes_count; i++)
     {
@@ -586,6 +608,11 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
         case cgltf_attribute_type_joints:
             attr_map[4] = attr;
             break;
+            
+        case cgltf_attribute_type_weights:
+            gltf_weight_attr = attr;
+            break;
+            
         default:
             continue;
         }
@@ -622,15 +649,31 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
         if (attrs[i]->size == 0) continue;
         attrs[i]->stride = stride;
     }
+    if(gltf_weight_attr)
+    {
+        weight_attr.size = cgltf_num_components(gltf_weight_attr->data->type);
+        
+        if (weight_attr.size != 0)
+        {
+            weight_attr.type = GL_FLOAT;
+
+            if (convert_attribute_data(gltf_weight_attr->data, &weight_attr, (component_convert_func_t)convert_weights) != 0) {
+                fprintf(stderr, "Error: failed converting data of attribute %d\n", gltf_weight_attr->index);
+                return 1;
+            }
+        }
+        
+    }
     
-    if(!is_rigid_skinned(attrs[4], out_primitive->num_vertices))
+    if(!is_rigid_skinned(&weight_attr, out_primitive->num_vertices))
     {
         fprintf(stderr, "Error: Model is not rigidly skinned\n");
+        free(weight_attr.pointer);
         return 1;
     }
     else
     {
-        simplify_mtx_index_buffer(attrs[4], out_primitive->num_vertices);
+        simplify_mtx_index_buffer(attrs[4], &weight_attr, out_primitive->num_vertices);
     }
 
     // Convert index data if present
@@ -671,6 +714,7 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
         if (cgltf_accessor_unpack_indices(in_indices, temp_indices, in_indices->count) == 0) {
             fprintf(stderr, "Error: failed reading index data\n");
             free(temp_indices);
+            free(weight_attr.pointer);
             return 1;
         }
 
@@ -679,7 +723,7 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
 
         free(temp_indices);
     }
-
+    free(weight_attr.pointer);
     return 0;
 }
 
