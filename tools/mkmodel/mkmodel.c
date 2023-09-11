@@ -897,6 +897,8 @@ int convert(const char *infn, const char *outfn)
         }
         if(data->nodes[i].parent) {
             model->nodes[i].parent = cgltf_node_index(data, data->nodes[i].parent);
+        } else {
+            model->nodes[i].parent = data->nodes_count;
         }
         model->nodes[i].num_children = data->nodes[i].children_count;
         if(data->nodes[i].children_count > 0) {
@@ -921,6 +923,7 @@ int convert(const char *infn, const char *outfn)
     if(data->scene->nodes_count > 1) {
         //Generate a node for grouping the scene
         model->root_node = data->nodes_count;
+        model->nodes[model->root_node].parent = model->num_nodes;
         model->nodes[model->root_node].num_children = data->scene->nodes_count;
         model->nodes[model->root_node].children = calloc(data->scene->nodes_count, sizeof(uint32_t));
         //Initialize rotation to identity quaternion

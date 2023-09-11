@@ -78,15 +78,27 @@ static size_t get_model_instance_size(model64_data_t *model_data)
     return sizeof(model64_t)+(model_data->num_nodes*sizeof(node_transform_state_t));
 }
 
-static void mtx_multiply(float src1[16], float src2[16], float dst[16])
+static void multiply_node_mtx(float parent[16], float child[16])
 {
-    for(int i=0; i<4; i++)
+    
+    for (int i = 0; i < 4; ++i)
     {
-        dst[i] = src1[0] * src2[i] + src1[1] * src2[i+4] + src1[2] * src2[i+8] + src1[3] * src2[i+12];
-        dst[i+4] = src1[4] * src2[i] + src1[5] * src2[i+4] + src1[6] * src2[i+8] + src1[7] * src2[i+12];
-        dst[i+8] = src1[8] * src2[i] + src1[7] * src2[i+4] + src1[10] * src2[i+8] + src1[11] * src2[i+12];
-        dst[i+12] = src1[12] * src2[i] + src1[9] * src2[i+4] + src1[14] * src2[i+8] + src1[15] * src2[i+12];
+        float l0 = child[i * 4 + 0];
+        float l1 = child[i * 4 + 1];
+        float l2 = child[i * 4 + 2];
+
+        float r0 = l0 * parent[0] + l1 * parent[4] + l2 * parent[8];
+        float r1 = l0 * parent[1] + l1 * parent[5] + l2 * parent[9];
+        float r2 = l0 * parent[2] + l1 * parent[6] + l2 * parent[10];
+
+        child[i * 4 + 0] = r0;
+        child[i * 4 + 1] = r1;
+        child[i * 4 + 2] = r2;
     }
+
+    child[12] += parent[12];
+    child[13] += parent[13];
+    child[14] += parent[14];
 }
 
 static void mtx_copy(float src[16], float dst[16])
@@ -142,31 +154,30 @@ static void calc_node_world_matrix(model64_t *model, uint32_t node)
 {
     model64_node_t *node_ptr = model64_get_node(model, node);
     node_transform_state_t *xform = &model->transforms[node];
-    if(node != model->data->root_node) {
-        node_transform_state_t *parent_xform = &model->transforms[node_ptr->parent];
-        mtx_multiply(parent_xform->world_mtx, xform->transform.mtx, xform->world_mtx);
-    } else {
-        mtx_copy(xform->transform.mtx, xform->world_mtx);
-    }
+    mtx_copy(xform->transform.mtx, xform->world_mtx);
+    uint32_t parent_node = node_ptr->parent;
     
-    for(uint32_t i=0; i<node_ptr->num_children; i++)
-    {
-        calc_node_world_matrix(model, node_ptr->children[i]);
+    while(parent_node != model->data->num_nodes) {
+        model64_node_t *parent_ptr = model64_get_node(model, parent_node);
+        node_transform_state_t *parent_xform = &model->transforms[parent_node];
+        multiply_node_mtx(parent_xform->transform.mtx, xform->world_mtx);
+        parent_node = parent_ptr->parent;
     }
 }
-
-static void calc_node_matrices(model64_t *model, uint32_t node)
+static void update_node_matrices(model64_t *model)
 {
-    calc_node_local_matrix(model, node);
-    calc_node_world_matrix(model, node);
+    for(uint32_t i=0; i<model->data->num_nodes; i++) {
+        calc_node_world_matrix(model, i);
+    }
 }
 
 static void init_model_transforms(model64_t *model)
 {
     for(uint32_t i=0; i<model->data->num_nodes; i++) {
         model->transforms[i].transform = model->data->nodes[i].transform;
+        calc_node_local_matrix(model, i);
     }
-    calc_node_world_matrix(model, model->data->root_node);
+    update_node_matrices(model);
 }
 
 static model64_t *make_model_instance(model64_data_t *model_data)
@@ -314,7 +325,8 @@ void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float
     dst[0] = x;
     dst[1] = y;
     dst[2] = z;
-    calc_node_matrices(model, node_idx);
+    calc_node_local_matrix(model, node_idx);
+    update_node_matrices(model);
 }
 
 void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float y, float z)
@@ -341,7 +353,8 @@ void model64_set_node_rot_quat(model64_t *model, model64_node_t *node, float x, 
     dst[1] = y;
     dst[2] = z;
     dst[3] = w;
-    calc_node_matrices(model, node_idx);
+    calc_node_local_matrix(model, node_idx);
+    update_node_matrices(model);
 }
 
 void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, float y, float z)
@@ -352,7 +365,8 @@ void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, flo
     dst[0] = x;
     dst[1] = y;
     dst[2] = z;
-    calc_node_matrices(model, node_idx);
+    calc_node_local_matrix(model, node_idx);
+    update_node_matrices(model);
 }
 
 void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float dst[16])
@@ -443,8 +457,8 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
             {
                 glCurrentPaletteMatrixARB(i);
                 glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
-                glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
                 glMultMatrixf(model->transforms[node->skin->joints[i].node_idx].world_mtx);
+                glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
             }
             glEnable(GL_MATRIX_PALETTE_ARB);
             model64_draw_mesh(node->mesh);
