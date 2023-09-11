@@ -139,6 +139,117 @@ kf_twiddle_2:
     #undef vtmp3f
 
 #######################################################################
+# KF_BFLY2 - 2-point FFT butterfly
+#######################################################################
+
+    # 0x5a82 is QCONST16(0.7071067812f, 15); negative is 0xa57e
+    #define KF_BFLY2_CONST1  \
+        .half 0x7fff, 0x0000, 0x5a82, 0xa57e, 0x0000, 0x8000, 0xa57e, 0xa57e
+    #define KF_BFLY2_CONST2  \
+        .half 0x0000, 0x7fff, 0x5a82, 0x5a82, 0x7fff, 0x0000, 0x5a82, 0xa57e
+
+    #define vfh     $v01
+    #define vfl     $v02
+    #define vgh     $v03
+    #define vgl     $v04
+    #define vtmph   $v05
+    #define vtmpl   $v06
+    #define v___    $v07
+
+    .func kf_bfly2
+kf_bfly2:
+    assert_eq fM, 4, 0x8500
+
+    li t0, 0x5555
+    ctc2 t0, COP2_CTRL_VCC
+    addiu fN, -1
+
+    lqv vtwiddle1,    0x00,fTW
+    lqv vtwiddle1inv, 0x10,fTW
+
+kf_bfly2_loop:
+    llv vfh.e0, 0x00,fZ
+    llv vfl.e0, 0x04,fZ
+    llv vfh.e2, 0x08,fZ
+    llv vfl.e2, 0x0C,fZ
+    llv vfh.e4, 0x10,fZ
+    llv vfl.e4, 0x14,fZ
+    llv vfh.e6, 0x18,fZ
+    llv vfl.e6, 0x1C,fZ
+
+    llv vgh.e0, 0x20,fZ
+    llv vgl.e0, 0x24,fZ
+    llv vgh.e2, 0x28,fZ
+    llv vgl.e2, 0x2C,fZ
+    llv vgh.e4, 0x30,fZ
+    llv vgl.e4, 0x34,fZ
+    llv vgh.e6, 0x38,fZ
+    llv vgl.e6, 0x3C,fZ
+
+    vaddc vgl, vgl
+    vadd  vgh, vgh
+
+    # tw    = 1    0     tw             tw              0    -1        -tw             -tw
+    # twinv = 0    1     tw            -tw              1     0         tw             -tw
+    # vtmp = vg0r vg0i  (vg1r+vg1i)*tw (vg1r-vg1i)*tw  vg2i -vg2r  (vg3i-vg3r)*tw  (-vg3i-vg3r)*tw
+    #
+    vmudm v___, vtwiddle1inv, vgl.q1
+    vmadh v___, vtwiddle1inv, vgh.q1
+    vmadm v___, vtwiddle1,    vgl.q0
+    vmadh v___, vtwiddle1,    vgh.q0
+    vsar vtmpl, COP2_ACC_MD
+    vsar vtmph, COP2_ACC_HI
+
+    # C_SUB( Fout2[0] ,  Fout[0] , t );
+    # C_SUB( Fout2[1] ,  Fout[1] , t );
+    # C_SUB( Fout2[2] ,  Fout[2] , t );
+    # C_SUB( Fout2[3] ,  Fout[3] , t );
+    vsubc vgl, vfl, vtmpl
+    vsub  vgh, vfh, vtmph
+
+    # C_ADDTO( Fout[0] ,  t );
+    # C_ADDTO( Fout[1] ,  t );
+    # C_ADDTO( Fout[2] ,  t );
+    # C_ADDTO( Fout[3] ,  t );
+    vaddc vfl, vtmpl
+    vadd  vfh, vtmph
+
+    slv vfh.e0, 0x00,fZ
+    slv vfl.e0, 0x04,fZ
+    slv vfh.e2, 0x08,fZ
+    slv vfl.e2, 0x0C,fZ
+    slv vfh.e4, 0x10,fZ
+    slv vfl.e4, 0x14,fZ
+    slv vfh.e6, 0x18,fZ
+    slv vfl.e6, 0x1C,fZ
+
+    slv vgh.e0, 0x20,fZ
+    slv vgl.e0, 0x24,fZ
+    slv vgh.e2, 0x28,fZ
+    slv vgl.e2, 0x2C,fZ
+    slv vgh.e4, 0x30,fZ
+    slv vgl.e4, 0x34,fZ
+    slv vgh.e6, 0x38,fZ
+    slv vgl.e6, 0x3C,fZ
+
+    addiu fZ, 0x40
+    bgtz fN, kf_bfly2_loop
+    addiu fN, -1
+
+    jr ra
+    nop
+
+    .endfunc
+
+    #undef vfh  
+    #undef vfl  
+    #undef vgh  
+    #undef vgl  
+    #undef vtmph
+    #undef vtmpl
+    #undef v___
+
+#######################################################################
 # KF_BFLY3 - 3-point FFT butterfly
 #######################################################################
 
@@ -174,16 +285,16 @@ kf_twiddle_2:
               __KF_BFLY_FSTRIDE_CPX(stride*6, N)
 
     #define KF_BFLY3_TWINCR1(stride, N)  \
-        .half __KF_BFLY_FSTRIDE_CPX(stride*4, N), \
-              __KF_BFLY_FSTRIDE_CPX(stride*4, N), \
-              __KF_BFLY_FSTRIDE_CPX(stride*4, N), \
-              __KF_BFLY_FSTRIDE_CPX(stride*4, N)
+        .half __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+              __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+              __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+              __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N)
 
     #define KF_BFLY3_TWINCR2(stride, N)  \
-        .half __KF_BFLY_FSTRIDE_CPX(stride*8, N), \
-              __KF_BFLY_FSTRIDE_CPX(stride*8, N), \
-              __KF_BFLY_FSTRIDE_CPX(stride*8, N), \
-              __KF_BFLY_FSTRIDE_CPX(stride*8, N)
+        .half __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+              __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+              __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+              __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N)
 
     #define fZ0   s0
     #define fZm   s1
@@ -520,6 +631,76 @@ kf_bfly4_m1_loop:
 
     .endfunc
 
+    #undef vidx0i
+    #undef vidx0f
+    #undef vidx1i
+    #undef vidx1f
+    #undef vidx2i
+    #undef vidx2f
+    #undef vidx3i
+    #undef vidx3f
+
+    #undef vtmp1i
+    #undef vtmp1f
+    #undef vtmp2i
+    #undef vtmp2f
+    #undef vtmp3i
+    #undef vtmp3f
+
+#######################################################################
+# KF_BFLY4 - 4-point FFT butterfly (generic case)
+#######################################################################
+
+    #define fZ0   s0
+    #define fZm   s1
+    #define fZm2  s2
+    #define fZm3  s3
+
+    # f0r f0i f1r f1i f2r f2i f3r f3i    # 6
+    # 16 su, 1 / loop
+
+    # f0r f0i f1r f1i -- -- -- --
+    # f2r f2i f3r f3i -- -- -- --
+    # 32 su / 2 loop  
+
+
+
+
+
+    .func kf_bfly4
+kf_bfly4:
+#if 0
+    # This function is harder to parallelize efficiently because there are
+    # 3 complex muls / twiddles per loop plus the fourh complex number, so it
+    # doesn't align well to vector sizes.
+    
+    2 CMUL => 12
+    4 ADD/SUB
+    8 reverse + ADD/SUB reversed
+    3 ADD/SUB straight
+
+
+vx   f0 s0
+vy   s1 s2
+     ------
+
+vx-vy =  (f0-s1)  (s0-s2)
+            s5      s4
+
+vx+vy =  (f0+s1)  (s0+s2)
+
+    s5 = f0 - s1
+    s4 = s0 - s2
+    f2 = f0 + s1 - (s0 + s2)
+    f0 = f0 + s1 + (s0 + s2)
+
+#endif
+
+    jr ra
+    nop
+
+    .endfunc
+
 
 
 #######################################################################
@@ -698,58 +879,6 @@ kf_bfly5_loop:
     # vtwiddle2inv:     tw3i tw3r -- --    tw4r -tw4i -- --
     vmudh vtwiddle1inv, vk1m1.h0
     vmudh vtwiddle2inv, vk1m1.h0
-
-
-/*
-#define C_MUL(m,a,b) \
-    do{ (m).r = (a).r*(b).r - (a).i*(b).i;\
-        (m).i = (a).r*(b).i + (a).i*(b).r; }while(0)
-
-f0  =  s0r s0i -- -- s0r s0i -- --
-
-
-fr.q0        =   f1r  f1r   NEXT  --  f2r  f2r  NEXT --
-twiddl1      =  tw1r tw1i            tw2i tw2r
-
-fi.q1        =   f1i  f1i   NEXT --   f2i  f2i 
-twiddle1inv  = -tw1i tw1r           -tw2r tw2i
-
-
-s12   =   s1r  s1i              s2i  s2r
-s43   =   s4r  s4i              s3i  s3r
--
-s78   =   s7r  s7i              s8i  s8r
-+
-s109  =   s10r s10i             s9i  s9r
-
-
-    5r  11r         11i  5i  
-
-    s0r s0r         s0i  s0i 
-  +    
-    s7r s7r         s8i  s8i 
-  * yar ybr         yar  ybr 
-  +    
-    s8r s8r         s7i  s7i 
-    ybr yar         ybr  yar 
-  
-
-    6r   12r        12i    6i  
-                             
-    s10i s10i       s9r    s9r 
-    yai  -ybi       -yai   -ybi 
-                                 
-    s9i   s9i       s10r   s10r 
-    ybi   yai        ybi   -yai 
-
-
-
-f0  =  s0r -- -- --  s0i -- -- --
-s78=   s7r s7i       s8i s8r
-s87=   s8i s8r       s8r s7i
-
-
-*/
 
     # C_MUL(scratch[1] ,*Fout1, tw[u*fstride]);
     # C_MUL(scratch[2] ,*Fout2, tw[2*u*fstride]);
@@ -952,407 +1081,56 @@ s87=   s8i s8r       s8r s7i
 
 
 
+/*
+TO BE REMOVED once comments in bfly5 are done
 
 
+#define C_MUL(m,a,b) \
+    do{ (m).r = (a).r*(b).r - (a).i*(b).i;\
+        (m).i = (a).r*(b).i + (a).i*(b).r; }while(0)
 
+f0  =  s0r s0i -- -- s0r s0i -- --
 
 
+fr.q0        =   f1r  f1r   NEXT  --  f2r  f2r  NEXT --
+twiddl1      =  tw1r tw1i            tw2i tw2r
 
+fi.q1        =   f1i  f1i   NEXT --   f2i  f2i 
+twiddle1inv  = -tw1i tw1r           -tw2r tw2i
 
 
+s12   =   s1r  s1i              s2i  s2r
+s43   =   s4r  s4i              s3i  s3r
+-
+s78   =   s7r  s7i              s8i  s8r
++
+s109  =   s10r s10i             s9i  s9r
 
 
+    5r  11r         11i  5i  
 
+    s0r s0r         s0i  s0i 
+  +    
+    s7r s7r         s8i  s8i 
+  * yar ybr         yar  ybr 
+  +    
+    s8r s8r         s7i  s7i 
+    ybr yar         ybr  yar 
+  
 
+    6r   12r        12i    6i  
+                             
+    s10i s10i       s9r    s9r 
+    yai  -ybi       -yai   -ybi 
+                                 
+    s9i   s9i       s10r   s10r 
+    ybi   yai        ybi   -yai 
 
 
 
+f0  =  s0r -- -- --  s0i -- -- --
+s78=   s7r s7i       s8i s8r
+s87=   s8i s8r       s8r s7i
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-
-    .data
-
-    .align 4
-KF_BFLY2_CONSTS: 
-    .half 0x5a82            # QCONST16(0.7071067812f, 15)
-    .half 0xffff            # -1
-    .half 0
-    .half 0
-    .half 0
-    .half 0
-    .half 0
-    .half 0
-
-    .text 
-
-    #define vconst2    $v28
-    #define vconst1    $v29
-
-    #define vidx21i    $v19
-    #define vidx21f    $v20
-    #define vidx20i    $v21
-    #define vidx20f    $v22
-    #define vidx22i    $v23
-    #define vidx22f    $v24
-    #define vidx23i    $v25
-    #define vidx23f    $v26
-
-kf_bfly2:
-    assert_eq M, 4, 0x8500
-    addiu N, -8
-
-    li t0, KF_BFLY2_CONSTS
-    lqv vconst1, 0,t0
-    vcopy vconst2, vconst1.e(1)
-
-    # I0 I1 I2 I3  I4 I5 I6 I7
-    # R0 R1 R2 R3  R4 R5 R6 R7
-
-
-kf_bfly2_loop:
-    #   t = Fout2[0];
-    #   C_SUB( Fout2[0] ,  Fout[0] , t );
-    #   C_ADDTO( Fout[0] ,  t );
-
-    llv vidx0i.e0, 0x00,ZH
-    llv vidx0f.e0, 0x00,ZL
-    llv vidx0i.e2, 0x20,ZH
-    llv vidx0f.e2, 0x20,ZL
-    llv vidx0i.e4, 0x40,ZH
-    llv vidx0f.e4, 0x40,ZL
-    llv vidx0i.e6, 0x60,ZH
-    llv vidx0f.e6, 0x60,ZL
-
-    llv vtmp1i.e0, 0x10,ZH
-    llv vtmp1f.e0, 0x10,ZL
-    llv vtmp1i.e2, 0x30,ZH
-    llv vtmp1f.e2, 0x30,ZL
-    llv vtmp1i.e4, 0x50,ZH
-    llv vtmp1f.e4, 0x50,ZL
-    llv vtmp1i.e6, 0x70,ZH
-    llv vtmp1f.e6, 0x70,ZL
-
-    vsubc vidx20f, vidx0f, vtmp1f
-    vsub  vidx20i, vidx0i, vtmp1i
-
-    vaddc vidx0f, vtmp1f
-    vadd  vidx0i, vtmp1i
-
-    #  t.r = S_MUL(ADD32_ovflw(Fout2[1].r, Fout2[1].i), tw);
-    #  t.i = S_MUL(SUB32_ovflw(Fout2[1].i, Fout2[1].r), tw);
-    #  C_SUB( Fout2[1] ,  Fout[1] , t );
-    #  C_ADDTO( Fout[1] ,  t );
-
-    llv vidx1i.e0, 0x04,ZH
-    llv vidx1f.e0, 0x04,ZL
-    llv vidx1i.e2, 0x24,ZH
-    llv vidx1f.e2, 0x24,ZL
-    llv vidx1i.e4, 0x44,ZH
-    llv vidx1f.e4, 0x44,ZL
-    llv vidx1i.e6, 0x64,ZH
-    llv vidx1f.e6, 0x64,ZL
-
-    llv vidx21i.e0, 0x14,ZH
-    llv vidx21f.e0, 0x14,ZL
-    llv vidx21i.e2, 0x34,ZH
-    llv vidx21f.e2, 0x34,ZL
-    llv vidx21i.e4, 0x54,ZH
-    llv vidx21f.e4, 0x54,ZL
-    llv vidx21i.e6, 0x74,ZH
-    llv vidx21f.e6, 0x74,ZL
-
-    vaddc vtmp1f, vidx21f, vidx21f.q1
-    vadd vcarry1, vzero, vzero
-    vaddc vtmp1i, vidx21i, vidx21i.q1
-
-    vsubc vtmp2f, vidx21f, vidx21f.q1
-    vsub vcarry2, vzero, vzero
-    vsubc vtmp2i, vidx21i, vidx21i.q1
-
-    vaddc vtmp1i, vcarry1
-    vsubc vtmp2i, vcarry2
-
-    vmrg vtmp1f, vtmp1f, vtmp2f.q0
-    vmrg vtmp1i, vtmp1i, vtmp2i.q0
-
-    vmudn vtmp1f, vconst1.e0
-    vmadh vtmp1i, vconst1.e0
-
-    vsubc vidx21f, vidx1f, vtmp1f
-    vsub  vidx21i, vidx1i, vtmp1i
-
-    vaddc vidx1f, vtmp1f
-    vadd  vidx1i, vtmp1i
-
-    #  t.r = Fout2[2].i;
-    #  t.i = -Fout2[2].r;
-    #  C_SUB( Fout2[2] ,  Fout[2] , t );
-    #  C_ADDTO( Fout[2] ,  t );
-
-    llv vidx22i.e0, 0x18,ZH
-    llv vidx22f.e0, 0x18,ZL
-    llv vidx22i.e2, 0x38,ZH
-    llv vidx22f.e2, 0x38,ZL
-    llv vidx22i.e4, 0x58,ZH
-    llv vidx22f.e4, 0x58,ZL
-    llv vidx22i.e6, 0x78,ZH
-    llv vidx22f.e6, 0x78,ZL
-
-    llv vidx2i.e0, 0x08,ZH
-    llv vidx2f.e0, 0x08,ZL
-    llv vidx2i.e2, 0x28,ZH
-    llv vidx2f.e2, 0x28,ZL
-    llv vidx2i.e4, 0x48,ZH
-    llv vidx2f.e4, 0x48,ZL
-    llv vidx2i.e6, 0x68,ZH
-    llv vidx2f.e6, 0x68,ZL
-
-    vmudh vtmp1f, vconst2, vidx22f.q1
-    vmudh vtmp1i, vconst2, vidx22i.q1
-    vmrg vtmp1f, vtmp1f, vidx22f.q0
-    vmrg vtmp1i, vtmp1i, vidx22i.q0
-
-    vsubc vidx22f, vidx2f, vtmp1f
-    vsub  vidx22i, vidx2i, vtmp1i
-
-    vaddc vidx2f, vtmp1f
-    vadd  vidx2i, vtmp1i
-
-    #  t.r = S_MUL(SUB32_ovflw(Fout2[3].i, Fout2[3].r), tw);
-    #  t.i = S_MUL(NEG32_ovflw(ADD32_ovflw(Fout2[3].i, Fout2[3].r)), tw);
-    #  C_SUB( Fout2[3] ,  Fout[3] , t );
-    #  C_ADDTO( Fout[3] ,  t );
-
-    llv vidx23i.e0, 0x1C,ZH
-    llv vidx23f.e0, 0x1C,ZL
-    llv vidx23i.e2, 0x3C,ZH
-    llv vidx23f.e2, 0x3C,ZL
-    llv vidx23i.e4, 0x5C,ZH
-    llv vidx23f.e4, 0x5C,ZL
-    llv vidx23i.e6, 0x7C,ZH
-    llv vidx23f.e6, 0x7C,ZL
-
-    llv vidx3i.e0, 0x0C,ZH
-    llv vidx3f.e0, 0x0C,ZL
-    llv vidx3i.e2, 0x2C,ZH
-    llv vidx3f.e2, 0x2C,ZL
-    llv vidx3i.e4, 0x4C,ZH
-    llv vidx3f.e4, 0x4C,ZL
-    llv vidx3i.e6, 0x6C,ZH
-    llv vidx3f.e6, 0x6C,ZL
-
-    vaddc vtmp1f, vidx23f, vidx23f.q1
-    vadd vcarry1, vzero, vzero
-    vaddc vtmp1i, vidx23i, vidx23i.q1
-
-    vsubc vtmp2f, vidx23f, vidx23f.q1
-    vsub vcarry2, vzero, vzero
-    vsubc vtmp2i, vidx23i, vidx23i.q1
-
-    vaddc vtmp1i, vcarry1
-    vsubc vtmp2i, vcarry2
-
-    vsubc vtmp1f, vzero, vtmp1f
-    vsub vcarry1, vzero, vzero
-    vsubc vtmp1i, vzero, vtmp1i
-    vsubc vtmp1i, vcarry1
-
-    vmrg vtmp1f, vtmp2f, vtmp1f.q0
-    vmrg vtmp1i, vtmp2i, vtmp1i.q0
-
-    vmudn vtmp1f, vconst1.e0
-    vmadh vtmp1i, vconst1.e0
-
-    vsubc vidx21f, vidx1f, vtmp1f
-    vsub  vidx21i, vidx1i, vtmp1i
-
-    vaddc vidx1f, vtmp1f
-    vadd  vidx1i, vtmp1i
-
-    slv vidx0i.e0, 0x00,ZH
-    slv vidx0f.e0, 0x00,ZL
-    slv vidx0i.e2, 0x20,ZH
-    slv vidx0f.e2, 0x20,ZL
-    slv vidx0i.e4, 0x40,ZH
-    slv vidx0f.e4, 0x40,ZL
-    slv vidx0i.e6, 0x60,ZH
-    slv vidx0f.e6, 0x60,ZL
-
-    slv vtmp1i.e0, 0x10,ZH
-    slv vtmp1f.e0, 0x10,ZL
-    slv vtmp1i.e2, 0x30,ZH
-    slv vtmp1f.e2, 0x30,ZL
-    slv vtmp1i.e4, 0x50,ZH
-    slv vtmp1f.e4, 0x50,ZL
-    slv vtmp1i.e6, 0x70,ZH
-    slv vtmp1f.e6, 0x70,ZL
-
-    slv vidx1i.e0, 0x04,ZH
-    slv vidx1f.e0, 0x04,ZL
-    slv vidx1i.e2, 0x24,ZH
-    slv vidx1f.e2, 0x24,ZL
-    slv vidx1i.e4, 0x44,ZH
-    slv vidx1f.e4, 0x44,ZL
-    slv vidx1i.e6, 0x64,ZH
-    slv vidx1f.e6, 0x64,ZL
-
-    slv vidx21i.e0, 0x14,ZH
-    slv vidx21f.e0, 0x14,ZL
-    slv vidx21i.e2, 0x34,ZH
-    slv vidx21f.e2, 0x34,ZL
-    slv vidx21i.e4, 0x54,ZH
-    slv vidx21f.e4, 0x54,ZL
-    slv vidx21i.e6, 0x74,ZH
-    slv vidx21f.e6, 0x74,ZL
-
-    slv vidx22f.e0, 0x18,ZL
-    slv vidx22i.e2, 0x38,ZH
-    slv vidx22f.e2, 0x38,ZL
-    slv vidx22i.e4, 0x58,ZH
-    slv vidx22f.e4, 0x58,ZL
-    slv vidx22i.e6, 0x78,ZH
-    slv vidx22f.e6, 0x78,ZL
-
-    slv vidx2i.e0, 0x08,ZH
-    slv vidx2f.e0, 0x08,ZL
-    slv vidx2i.e2, 0x28,ZH
-    slv vidx2f.e2, 0x28,ZL
-    slv vidx2i.e4, 0x48,ZH
-    slv vidx2f.e4, 0x48,ZL
-    slv vidx2i.e6, 0x68,ZH
-    slv vidx2f.e6, 0x68,ZL
-
-    slv vidx23i.e0, 0x1C,ZH
-    slv vidx23f.e0, 0x1C,ZL
-    slv vidx23i.e2, 0x3C,ZH
-    slv vidx23f.e2, 0x3C,ZL
-    slv vidx23i.e4, 0x5C,ZH
-    slv vidx23f.e4, 0x5C,ZL
-    slv vidx23i.e6, 0x7C,ZH
-    slv vidx23f.e6, 0x7C,ZL
-
-    slv vidx3i.e0, 0x0C,ZH
-    slv vidx3f.e0, 0x0C,ZL
-    slv vidx3i.e2, 0x2C,ZH
-    slv vidx3f.e2, 0x2C,ZL
-    slv vidx3i.e4, 0x4C,ZH
-    slv vidx3f.e4, 0x4C,ZL
-    slv vidx3i.e6, 0x6C,ZH
-    slv vidx3f.e6, 0x6C,ZL
-
-    addiu ZH, 0x80
-    addiu ZL, 0x80
-    bgtz N, kf_bfly2_loop
-    addiu N, -8
-
-    jr ra
-    nop
-    .endfunc
-#endif
+*/

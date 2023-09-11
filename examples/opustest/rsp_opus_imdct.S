@@ -599,11 +599,23 @@ OPUS_imdct_fft_1920_3:
 
     .align 4
 FFT_1920_0_BEGIN:
+FFT_1920_0_BFLY2:
+    KF_BFLY2_CONST1
+    KF_BFLY2_CONST2
 FFT_1920_0_BFLY3:
     KF_BFLY3_TWIDDLE1(5, 480)
     KF_BFLY3_TWIDDLE2(5, 480)
-    KF_BFLY3_TWINCR1(20, 480)
+    KF_BFLY3_TWINCR1(5, 480)
     KF_BFLY3_TWINCR2(5, 480)
+FFT_1920_0_BFLY5:
+    KF_BFLY5_TWIDDLE1(1, 480)
+    KF_BFLY5_TWIDDLE2(1, 480)
+    KF_BFLY5_TWINCR1(1, 480)
+    KF_BFLY5_TWINCR2(1, 480)
+    KF_BFLY5_CONST1
+    KF_BFLY5_CONST2
+    KF_BFLY5_CONST3
+    KF_BFLY5_CONST4
 FFT_1920_0_END:
 
     .text
@@ -614,25 +626,47 @@ OPUS_imdct_fft_1920_0:
     li s4, %lo(IMDCT_TMP)
     andi s4, 0xFFF
     jal DMAIn
-    li t0, DMA_SIZE(0xC0, 1)
+    li t0, DMA_SIZE(0xE0, 1)
 
     # kf_bfly4(stride=120, m=1, N=120, mm=4);
     li fZ, %lo(IMDCT_DATA)
     jal kf_bfly4_m1
     li fN, 120
 
-    # kf_bfly2(fout, 4, 60);
-    # kf_bfly4(fout, 15, st, 8, 15, 32);
+    # kf_bfly2(fout, m=4, N=60);
+    li fZ, %lo(IMDCT_DATA)
+    li fTW, %lo(IMDCT_TMP)+0
+    li fM, 4
+    jal kf_bfly2
+    li fN, 60
+
+
+    # kf_bfly4(stride=15, m=8, N=15, mm=32);
+    li fZ, %lo(IMDCT_DATA)
+    li fTW, %lo(IMDCT_TMP)+0
+    li fM, 8
+    li fmm, 32
+    jal kf_bfly4
+    li fN, 15
+
+    j OPUS_imdct_fft_end
+    nop
 
     # kf_bfly3(stride=5, m=32, N=5, mm=96);
     li fZ, %lo(IMDCT_DATA)
-    li fTW, %lo(IMDCT_TMP)+0
+    li fTW, %lo(IMDCT_TMP)+0x20
     li fN, 5
     li fmm, 96
     jal kf_bfly3
     li fM, 32
 
     # kf_bfly5(stride=1, m=96, N=1, mm=1);
+    li fZ, %lo(IMDCT_DATA)
+    li fTW, %lo(IMDCT_TMP)+0x60
+    li fN, 1
+    li fmm, 1
+    jal kf_bfly5
+    li fM, 96
 
     j OPUS_imdct_fft_end
     nop
