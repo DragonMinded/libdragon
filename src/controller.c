@@ -503,11 +503,11 @@ int identify_accessory( int controller )
  * @retval -2 if there was no mempak present in the controller
  * @retval -3 if the mempak returned invalid data
  * 
- * @deprecated Use #joybus_accessory_read_sync instead.
+ * @deprecated Use #joybus_accessory_read instead.
  */
 int read_mempak_address( int controller, uint16_t address, uint8_t *data )
 {
-    return joybus_accessory_read_sync((joypad_port_t) controller, address, data);
+    return joybus_accessory_read((joypad_port_t) controller, address, data);
 }
 
 /**
@@ -527,11 +527,11 @@ int read_mempak_address( int controller, uint16_t address, uint8_t *data )
  * @retval -2 if there was no mempak present in the controller
  * @retval -3 if the mempak returned invalid data
  * 
- * @deprecated Use #joybus_accessory_write_sync instead.
+ * @deprecated Use #joybus_accessory_write instead.
  */
 int write_mempak_address( int controller, uint16_t address, uint8_t *data )
 {
-    return joybus_accessory_write_sync((joypad_port_t) controller, address, data);
+    return joybus_accessory_write((joypad_port_t) controller, address, data);
 }
 
 /**

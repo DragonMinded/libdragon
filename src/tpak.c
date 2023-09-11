@@ -86,7 +86,7 @@ int tpak_set_value(int controller, uint16_t address, uint8_t value)
 {
     uint8_t block[TPAK_BLOCK_SIZE];
     memset(block, value, TPAK_BLOCK_SIZE);
-    return joybus_accessory_write_sync(controller, address, block);
+    return joybus_accessory_write(controller, address, block);
 }
 
 /**
@@ -176,7 +176,7 @@ int tpak_set_bank(int controller, int bank)
 uint8_t tpak_get_status(int controller)
 {
     uint8_t block[TPAK_BLOCK_SIZE];
-    joybus_accessory_read_sync(controller, TPAK_ADDRESS_STATUS, block);
+    joybus_accessory_read(controller, TPAK_ADDRESS_STATUS, block);
 
     return block[0];
 }
@@ -245,7 +245,7 @@ int tpak_write(int controller, uint16_t address, uint8_t* data, uint16_t size)
             adjusted_address = TPAK_ADDRESS_DATA;
         }
 
-        joybus_accessory_write_sync(controller, adjusted_address, cursor);
+        joybus_accessory_write(controller, adjusted_address, cursor);
         address += TPAK_BLOCK_SIZE;
         cursor += TPAK_BLOCK_SIZE;
         adjusted_address += TPAK_BLOCK_SIZE;
@@ -295,7 +295,7 @@ int tpak_read(int controller, uint16_t address, uint8_t* buffer, uint16_t size)
             adjusted_address = TPAK_ADDRESS_DATA;
         }
 
-        joybus_accessory_read_sync(controller, adjusted_address, cursor);
+        joybus_accessory_read(controller, adjusted_address, cursor);
         address += TPAK_BLOCK_SIZE;
         cursor += TPAK_BLOCK_SIZE;
         adjusted_address += TPAK_BLOCK_SIZE;

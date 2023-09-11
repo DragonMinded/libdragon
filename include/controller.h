@@ -293,10 +293,10 @@ int identify_accessory( int controller );
 __attribute__((deprecated("use joypad_get_dpad_direction instead")))
 int get_dpad_direction( int controller );
 
-__attribute__((deprecated("use joybus_accessory_read_sync instead")))
+__attribute__((deprecated("use joybus_accessory_read instead")))
 int read_mempak_address( int controller, uint16_t address, uint8_t *data );
 
-__attribute__((deprecated("use joybus_accessory_write_sync instead")))
+__attribute__((deprecated("use joybus_accessory_write instead")))
 int write_mempak_address( int controller, uint16_t address, uint8_t *data );
 
 __attribute__((deprecated("use joypad_set_rumble_active instead")))

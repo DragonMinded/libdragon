@@ -178,18 +178,7 @@ void joybus_accessory_write_async(
     joybus_exec_async(input, callback, ctx);
 }
 
-/**
- * @brief Synchronously perform a Joybus N64 accessory read command.
- * 
- * @param port The controller port of the accessory to read from.
- * @param addr The accessory address to start reading from.
- * @param[out] data The 32 bytes of data that was read from the accessory.
- *
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_OK The data was read successfully.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK No accessory is present.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data was not read successfully.
- */
-int joybus_accessory_read_sync(int port, uint16_t addr, uint8_t *data)
+int joybus_accessory_read(int port, uint16_t addr, uint8_t *data)
 {
     joybus_cmd_n64_accessory_read_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_READ,
@@ -203,18 +192,7 @@ int joybus_accessory_read_sync(int port, uint16_t addr, uint8_t *data)
     return joybus_accessory_compare_data_crc(data, cmd.recv.data_crc);
 }
 
-/**
- * @brief Synchronously perform a Joybus N64 accessory write command.
- * 
- * @param port The controller port of the accessory to write to.
- * @param addr The accessory address to start writing to.
- * @param[in] data The 32 bytes of data to write to the accessory.
- *
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_OK The data was written successfully.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK No accessory is present.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data was not written successfully.
- */
-int joybus_accessory_write_sync(int port, uint16_t addr, const uint8_t *data)
+int joybus_accessory_write(int port, uint16_t addr, const uint8_t *data)
 {
     joybus_cmd_n64_accessory_write_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
