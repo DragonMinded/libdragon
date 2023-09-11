@@ -48,7 +48,9 @@ uint16_t joybus_accessory_calculate_addr_checksum(uint16_t addr)
 /**
  * @brief Calculates the CRC8 checksum for a Joybus N64 accessory read/write data block.
  * 
- * Uses a standard CRC8 algorithm with a seed of 0x00 and a polynomial of 0x85.
+ * Uses a CRC8 algorithm with a seed of 0x00 and a polynomial of 0x85.
+ * 
+ * This implementation has been tuned for optimal performance.
  * 
  * @param[in] data The 32-byte accessory read/write data block
  * 
@@ -56,25 +58,23 @@ uint16_t joybus_accessory_calculate_addr_checksum(uint16_t addr)
  */
 uint8_t joybus_accessory_calculate_data_crc(const uint8_t *data)
 {
-    uint8_t ret = 0;
-    for (int i = 0; i <= JOYBUS_ACCESSORY_DATA_SIZE; i++)
+    unsigned int crc = 0;
+
+    for (int i = 0; i < JOYBUS_ACCESSORY_DATA_SIZE; i++)
     {
-        for (int j = 7; j >= 0; j--)
-        {
-            int tmp = 0;
-            if (ret & 0x80)
-            {
-                tmp = 0x85;
-            }
-            ret <<= 1;
-            if (i < JOYBUS_ACCESSORY_DATA_SIZE && data[i] & (0x01 << j))
-            {
-                ret |= 0x1;
-            }
-            ret ^= tmp;
-        }
+        unsigned int x = crc ^ data[i];
+        crc = 0;
+        if (x & 0x80) { crc ^= 0x89; }
+        if (x & 0x40) { crc ^= 0x86; }
+        if (x & 0x20) { crc ^= 0x43; }
+        if (x & 0x10) { crc ^= 0xE3; }
+        if (x & 0x08) { crc ^= 0xB3; }
+        if (x & 0x04) { crc ^= 0x9B; }
+        if (x & 0x02) { crc ^= 0x8F; }
+        if (x & 0x01) { crc ^= 0x85; }
     }
-    return ret;
+
+    return crc;
 }
 
 /**
