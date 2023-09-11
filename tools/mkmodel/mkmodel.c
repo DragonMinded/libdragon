@@ -848,7 +848,7 @@ int convert(const char *infn, const char *outfn)
         model->skins[i].joints = calloc(data->skins[i].joints_count, sizeof(model64_joint_t));
         cgltf_accessor *ibm_accessor = data->skins[i].inverse_bind_matrices;
         float *ibm_buffer = NULL;
-        if(!ibm_accessor) {
+        if(ibm_accessor) {
             size_t num_components = cgltf_num_components(ibm_accessor->type);
             size_t num_values = num_components * ibm_accessor->count;
             ibm_buffer = malloc(sizeof(float) * num_values);
