@@ -31,7 +31,7 @@
  * To refer to individual ports, use the #joypad_port_t enumeration values.
  * To iterate across all ports, use the #JOYPAD_PORT_FOREACH macro.
  *
- * To read the controllers, first call #joypad_scan once per frame to process
+ * To read the controllers, first call #joypad_poll once per frame to process
  * the input data. #joypad_get_style will return which "style" of device is
  * connected to a port (#joypad_style_t). #joypad_get_inputs will return the
  * buttons and analog input state for a given controller port.
@@ -483,7 +483,7 @@ void joypad_read_sync(void);
  * asynchronously under interrupt, so this function just synchronizes the
  * internal state.
  */
-void joypad_scan(void);
+void joypad_poll(void);
 
 /**
  * @brief Whether a Joybus device is plugged in to a Joypad port.

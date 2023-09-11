@@ -266,7 +266,7 @@ void controller_read_gc_origin( struct controller_origin_data * data);
 __attribute__((deprecated("use joypad_init instead")))
 void controller_init( void );
 
-__attribute__((deprecated("use joypad_scan instead")))
+__attribute__((deprecated("use joypad_poll instead")))
 void controller_scan( void );
 
 __attribute__((deprecated("use joypad_get_buttons_pressed instead")))

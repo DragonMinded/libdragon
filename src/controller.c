@@ -278,9 +278,9 @@ void controller_init( void ) { joypad_init(); }
  * asynchronously under interrupt, so this function just synchronizes the
  * internal state.
  * 
- * @deprecated Use #joypad_scan instead.
+ * @deprecated Use #joypad_poll instead.
  */
-void controller_scan( void ) { joypad_scan(); }
+void controller_scan( void ) { joypad_poll(); }
 
 /**
  * @brief Get keys that were pressed since the last inspection

@@ -97,7 +97,7 @@ int main(void)
 
         printf("LibDragon Joypad Subsystem Test\n\n");
 
-        joypad_scan();
+        joypad_poll();
 
         JOYPAD_PORT_FOREACH (port)
         {

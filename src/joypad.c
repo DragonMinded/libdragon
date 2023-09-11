@@ -598,10 +598,10 @@ void joypad_read_sync(void)
     ASSERT_JOYPAD_INITIALIZED();
     joypad_read_async();
     while (joypad_read_pending) { /* Spinlock */ }
-    joypad_scan();
+    joypad_poll();
 }
 
-void joypad_scan(void)
+void joypad_poll(void)
 {
     ASSERT_JOYPAD_INITIALIZED();
 
