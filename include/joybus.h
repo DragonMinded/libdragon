@@ -6,8 +6,10 @@
 #ifndef __LIBDRAGON_JOYBUS_H
 #define __LIBDRAGON_JOYBUS_H
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 /**
  * @addtogroup joybus
@@ -213,7 +215,16 @@ typedef uint16_t joybus_identifier_t;
 void joybus_exec( const void * inblock, void * outblock );
 
 /**
- * @brief Executes a Joybus command synchronously on the given port.
+ * @brief Execute a Joybus command synchronously on the given port.
+ * 
+ * For convenience, there is a #joybus_exec_cmd_struct macro that uses the
+ * send and recv fields of a command struct to call this function with the
+ * proper send_len and recv_len arguments.
+ * 
+ * This function only sends a single command to a single port. For sending
+ * a command to multiple ports simultaneously, use #joybus_exec instead.
+ * 
+ * For reading controllers, use the @ref joypad "Joypad Subsystem" instead.
  * 
  * This function is not a stable feature of the libdragon API and should be
  * considered experimental!
@@ -227,27 +238,78 @@ void joybus_exec( const void * inblock, void * outblock );
  * 
  * @param      port
  *             The Joybus port (0-4) to send the command to.
- * @param      command_id
- *             Joybus command identifier. See @ref JOYBUS_COMMAND_ID.
  * @param      send_len
- *             Number of bytes in the send payload
- *             (not including command ID).
+ *             Number of bytes in the send_data request payload
+ *             (including the command ID).
  * @param      recv_len
- *             Number of bytes in the recieve payload.
+ *             Number of bytes in the recv_data response payload.
  * @param[in]  send_data
  *             Buffer of send_len bytes to send to the Joybus device
- *             (not including command ID byte).
+ *             (including the command ID byte).
  * @param[out] recv_data
- *             Buffer of recv_len bytes for reply from the Joybus device.
+ *             Buffer of recv_len bytes for the reply from the Joybus device.
  */
-void joybus_exec_raw_command(
+inline void joybus_exec_cmd(
     int port,
-    uint8_t command_id,
-    uint8_t send_len,
-    uint8_t recv_len,
-    const uint8_t *send_data,
-    uint8_t *recv_data
-);
+    size_t send_len,
+    size_t recv_len,
+    const void *send_data,
+    void *recv_data
+)
+{
+    // Validate the desired Joybus port offset
+    assert((port >= 0) && (port < JOYBUS_PORT_COUNT));
+    // Ensure the send_len and recv_len fit in the Joybus operation block
+    assert((port + send_len + recv_len) < (JOYBUS_BLOCK_SIZE - 4));
+    // Allocate the Joybus operation block input and output buffers
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
+    // Skip commands on ports before the desired port offset
+    size_t i = port;
+    // Set the command metadata
+    input[i++] = send_len;
+    input[i++] = recv_len;
+    // Copy the send_data into the input buffer
+    memcpy(&input[i], send_data, send_len);
+    i += send_len + recv_len;
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+    // Execute the Joybus operation synchronously
+    joybus_exec(input, output);
+    // Copy recv_data from the output buffer
+    memcpy(recv_data, &output[i - recv_len], recv_len);
+}
+
+/**
+ * @brief Execute a Joybus command struct synchronously.
+ * 
+ * This macro is a convenience wrapper around #joybus_exec_cmd
+ * that uses the send and recv fields of the struct to set the
+ * proper arguments.
+ * 
+ * This is not a stable feature of the libdragon API and should
+ * be considered experimental!
+ * 
+ * The usage of this macro will likely change as a result of the
+ * ongoing effort to integrate the multitasking kernel with
+ * asynchronous operations.
+ * 
+ * @note This operation is slow: it blocks until the command completes.
+ *       Calling this multiple times per frame may cause audio and video
+ *       stuttering.
+ * 
+ * @param         port The Joybus port to execute the command on.
+ * @param[in,out] cmd The command struct to execute with.
+ */
+#define joybus_exec_cmd_struct(port, cmd) \
+    joybus_exec_cmd(                      \
+        port,                             \
+        sizeof(cmd.send),                 \
+        sizeof(cmd.recv),                 \
+        (void *)&cmd.send,                \
+        (void *)&cmd.recv                 \
+    )
 
 /**
  * @brief Sends a Joybus command to notify N64Digital of the current Game ID.

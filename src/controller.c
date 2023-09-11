@@ -195,28 +195,63 @@ void controller_read_gc_origin( struct controller_origin_data * outdata )
 }
 
 /**
- * @brief Execute a raw PIF command
+ * @brief Executes a Joybus command synchronously on the given port.
  *
- * Send an arbitrary command to a controller and receive arbitrary data back
- *
- * @param[in]  controller
- *             The controller (0-3) to send the command to
- * @param[in]  command
- *             The command byte to send
- * @param[in]  bytesout
- *             The number of parameter bytes the command requires
- * @param[in]  bytesin
- *             The number of result bytes expected
- * @param[in]  out
- *             The parameter bytes to send with the command
- * @param[out] in
- *             The result bytes returned by the operation
+ * This function is not a stable feature of the libdragon API and should be
+ * considered experimental!
  * 
- * @deprecated Use #joybus_exec_raw_command instead
+ * The usage of this function will likely change as a result of the ongoing
+ * effort to integrate the multitasking kernel with asynchronous operations.
+ * 
+ * @note This function is slow: it blocks until the command completes.
+ *       Calling this function multiple times per frame may cause
+ *       audio and video stuttering.
+ * 
+ * @param      port
+ *             The Joybus port (0-4) to send the command to.
+ * @param      command_id
+ *             Joybus command identifier. See @ref JOYBUS_COMMAND_ID.
+ * @param      send_len
+ *             Number of bytes in the send payload
+ *             (not including command ID).
+ * @param      recv_len
+ *             Number of bytes in the recieve payload.
+ * @param[in]  send_data
+ *             Buffer of send_len bytes to send to the Joybus device
+ *             (not including command ID byte).
+ * @param[out] recv_data
+ *             Buffer of recv_len bytes for reply from the Joybus device.
+ * 
+ * @deprecated Use #joybus_exec_cmd instead
  */
-void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
+void execute_raw_command(
+    int controller,
+    uint8_t command_id,
+    size_t send_len,
+    size_t recv_len,
+    const void *send_data,
+    void *recv_data
+)
 {
-    joybus_exec_raw_command(controller, command, bytesout, bytesin, out, in);
+    assert((controller >= 0) && (controller < JOYBUS_PORT_COUNT));
+    assert((controller + send_len + recv_len) < (JOYBUS_BLOCK_SIZE - 5));
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    uint8_t output[JOYBUS_BLOCK_SIZE] = {0};
+    size_t i = controller;
+    // Set the command metadata
+    input[i++] = send_len + 1; // Add a byte for the command ID
+    input[i++] = recv_len;
+    input[i++] = command_id;
+    // Copy the send_data into the input buffer
+    memcpy( &input[i], send_data, send_len );
+    i += send_len + recv_len;
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+    // Execute the Joybus operation
+    joybus_exec(input, output);
+    // Copy recv_data from the output buffer
+    memcpy(recv_data, &output[i - recv_len], recv_len);
 }
 
 /** 

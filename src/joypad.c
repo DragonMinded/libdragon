@@ -543,7 +543,7 @@ joypad_inputs_t joypad_read_n64_inputs_sync(joypad_port_t port)
     joybus_cmd_n64_controller_read_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
     } };
-    joybus_cmd_exec(port, cmd);
+    joybus_exec_cmd_struct(port, cmd);
 
     return joypad_inputs_from_n64_controller_read(&cmd);
 }

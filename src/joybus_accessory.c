@@ -196,7 +196,7 @@ int joybus_accessory_read_sync(int port, uint16_t addr, uint8_t *data)
         .addr_checksum = joybus_accessory_calculate_addr_checksum(addr),
     } };
     // Execute the command
-    joybus_cmd_exec(port, cmd);
+    joybus_exec_cmd_struct(port, cmd);
     // Copy the data from the command receive buffer
     memcpy(data, cmd.recv.data, sizeof(cmd.recv.data));
     // Check the CRC against the data to see if the read was successful
@@ -223,7 +223,7 @@ int joybus_accessory_write_sync(int port, uint16_t addr, const uint8_t *data)
     // Copy the data to the command send buffer
     memcpy(cmd.send.data, data, sizeof(cmd.send.data));
     // Execute the command
-    joybus_cmd_exec(port, cmd);
+    joybus_exec_cmd_struct(port, cmd);
     // Check the data CRC to see if the write was successful
     return joybus_accessory_compare_data_crc(data, cmd.recv.data_crc);
 }
