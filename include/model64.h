@@ -22,6 +22,7 @@ typedef struct model64_node_s model64_node_t;
 model64_t *model64_load(const char *fn);
 model64_t *model64_load_buf(void *buf, int sz);
 void model64_free(model64_t *model);
+model64_t *model64_clone(model64_t *model);
 
 /**
  * @brief Return the number of meshes in this model.
