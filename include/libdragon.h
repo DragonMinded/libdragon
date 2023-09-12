@@ -32,6 +32,7 @@
 #include "debug.h"
 #include "joybus.h"
 #include "joybus_accessory.h"
+#include "pixelfx.h"
 #include "joypad.h"
 #include "controller.h"
 #include "rtc.h"

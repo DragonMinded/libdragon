@@ -106,12 +106,12 @@
 /** @brief "GBA Link Cable Write" Joybus command identifier. */
 #define JOYBUS_COMMAND_ID_GBA_LINK_CABLE_WRITE        0x15
 /**
- * @brief "N64 Game ID" Joybus command identifier.
+ * @brief "PixelFX N64 Game ID" Joybus command identifier.
  * 
- * Used by the N64Digital by PixelFX to allow per-game settings.
+ * Used by PixelFX's N64Digital and Retro GEM console mods for per-game settings.
  * @see https://gitlab.com/pixelfx-public/n64-game-id#how-to-integrate-on-n64
  */
-#define JOYBUS_COMMAND_ID_N64_GAME_ID                 0x1D
+#define JOYBUS_COMMAND_ID_PIXELFX_N64_GAME_ID         0x1D
 /** @brief "GameCube Controller Read" Joybus command identifier. */
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ         0x40
 /** @brief "GameCube Controller Read Origins" Joybus command identifier. */
@@ -255,22 +255,22 @@ typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
 typedef joybus_cmd_identify_port_t joybus_cmd_reset_port_t;
 
 /**
- * @brief "N64 Game ID" Joybus command structure.
+ * @brief "PixelFX N64 Game ID" Joybus command structure.
  * 
- * @see #JOYBUS_COMMAND_ID_N64_GAME_ID
+ * @see #JOYBUS_COMMAND_ID_PIXELFX_N64_GAME_ID
  */
-typedef struct __attribute__((packed)) joybus_cmd_n64_game_id_s
+typedef struct __attribute__((packed)) joybus_cmd_pixelfx_n64_game_id_s
 {
-    /** @brief "N64 Game ID" command send data */
+    /** @brief "PixelFX N64 Game ID" command send data */
     struct __attribute__((__packed__))
     {
-        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_N64_GAME_ID) */
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_PIXELFX_N64_GAME_ID) */
         uint8_t command;
         /** @brief ROM check code (ROM header bytes 0x10-0x17).
          * 
          * 64-bit check code calculated on 1 Mbyte of ROM contents starting from offset 0x1000.
          * 
-         * Sometimes these 8 bytes are referred to as "CRC HI/LO" or "CRC1/2".
+         * Sometimes these 8 bytes are incorrectly referred to as "CRC HI/LO" or "CRC1/2".
          */
         uint64_t rom_check_code;
         /** @brief Media category code (ROM header byte 0x3B) */
@@ -285,7 +285,7 @@ typedef struct __attribute__((packed)) joybus_cmd_n64_game_id_s
      * N64Digital only acts as a bus sniffer.
      */
     uint8_t recv;
-} joybus_cmd_n64_game_id_t;
+} joybus_cmd_pixelfx_n64_game_id_t;
 
 /**
  * @brief "N64 Controller Read" Joybus command structure.
