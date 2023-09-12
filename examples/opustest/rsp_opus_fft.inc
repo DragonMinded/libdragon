@@ -516,21 +516,21 @@ kf_bfly3_loop:
 # KF_BFLY4 - 4-point FFT butterfly (M=1 simple case)
 #######################################################################
 
-    #define vidx0i     $v01
-    #define vidx0f     $v02
-    #define vidx1i     $v03
-    #define vidx1f     $v04
-    #define vidx2i     $v05
-    #define vidx2f     $v06
-    #define vidx3i     $v07
-    #define vidx3f     $v08
+    #define vidx0h     $v01
+    #define vidx0l     $v02
+    #define vidx1h     $v03
+    #define vidx1l     $v04
+    #define vidx2h     $v05
+    #define vidx2l     $v06
+    #define vidx3h     $v07
+    #define vidx3l     $v08
 
-    #define vtmp1i     $v09
-    #define vtmp1f     $v10
-    #define vtmp2i     $v11
-    #define vtmp2f     $v12
-    #define vtmp3i     $v13
-    #define vtmp3f     $v14
+    #define vtmp1h     $v09
+    #define vtmp1l     $v10
+    #define vtmp2h     $v11
+    #define vtmp2l     $v12
+    #define vtmp3h     $v13
+    #define vtmp3l     $v14
 
     .func kf_bfly4_m1
 kf_bfly4_m1:
@@ -541,85 +541,89 @@ kf_bfly4_m1:
     # Process 2 iterations at a time. We need 16+16 SU for memory transfers
     # and we only have ~20 VUs to do, so this seems like a good compromise.
 kf_bfly4_m1_loop:
-    llv vidx0i.e0, 0x00,fZ
-    llv vidx0f.e0, 0x04,fZ
-    llv vidx0i.e2, 0x20,fZ
-    llv vidx0f.e2, 0x24,fZ
+    # vidx0:  f0r f0i -- --   -- -- -- --
+    # vidx1:  f1r f1i -- --   -- -- -- --
+    # vidx2:  f2r f2i -- --   -- -- -- --
+    # vidx3:  f3r f3i -- --   -- -- -- --
+    llv vidx0h.e0, 0x00,fZ
+    llv vidx0l.e0, 0x04,fZ
+    llv vidx0h.e2, 0x20,fZ
+    llv vidx0l.e2, 0x24,fZ
 
-    llv vidx1i.e0, 0x08,fZ
-    llv vidx1f.e0, 0x0C,fZ
-    llv vidx1i.e2, 0x28,fZ
-    llv vidx1f.e2, 0x2C,fZ
+    llv vidx1h.e0, 0x08,fZ
+    llv vidx1l.e0, 0x0C,fZ
+    llv vidx1h.e2, 0x28,fZ
+    llv vidx1l.e2, 0x2C,fZ
 
-    llv vidx2i.e0, 0x10,fZ
-    llv vidx2f.e0, 0x14,fZ
-    llv vidx2i.e2, 0x30,fZ
-    llv vidx2f.e2, 0x34,fZ
+    llv vidx2h.e0, 0x10,fZ
+    llv vidx2l.e0, 0x14,fZ
+    llv vidx2h.e2, 0x30,fZ
+    llv vidx2l.e2, 0x34,fZ
 
-    llv vidx3i.e0, 0x18,fZ
-    llv vidx3f.e0, 0x1C,fZ
-    llv vidx3i.e2, 0x38,fZ
-    llv vidx3f.e2, 0x3C,fZ
+    llv vidx3h.e0, 0x18,fZ
+    llv vidx3l.e0, 0x1C,fZ
+    llv vidx3h.e2, 0x38,fZ
+    llv vidx3l.e2, 0x3C,fZ
 
     # C_SUB( scratch0 , *Fout, Fout[2] );
-    vsubc vtmp1f, vidx0f, vidx2f
-    vsub  vtmp1i, vidx0i, vidx2i
+    vsubc vtmp1l, vidx0l, vidx2l
+    vsub  vtmp1h, vidx0h, vidx2h
 
     # C_ADDTO(*Fout, Fout[2]);
-    vaddc vidx0f, vidx2f
-    vadd  vidx0i, vidx2i
+    vaddc vidx0l, vidx2l
+    vadd  vidx0h, vidx2h
 
     # C_ADD( scratch1 , Fout[1] , Fout[3] );
-    vaddc vtmp2f, vidx1f, vidx3f
-    vadd  vtmp2i, vidx1i, vidx3i
+    vaddc vtmp2l, vidx1l, vidx3l
+    vadd  vtmp2h, vidx1h, vidx3h
 
     # C_SUB( Fout[2], *Fout, scratch1 );
-    vsubc vidx2f, vidx0f, vtmp2f
-    vsub  vidx2i, vidx0i, vtmp2i
+    vsubc vidx2l, vidx0l, vtmp2l
+    vsub  vidx2h, vidx0h, vtmp2h
 
     # C_ADDTO( *Fout , scratch1 );
-    vaddc vidx0f, vtmp2f
-    vadd  vidx0i, vtmp2i
+    vaddc vidx0l, vtmp2l
+    vadd  vidx0h, vtmp2h
 
     # C_SUB( scratch1 , Fout[1] , Fout[3] );
-    vsubc vtmp2f, vidx1f, vidx3f
-    vsub  vtmp2i, vidx1i, vidx3i
+    vsubc vtmp2l, vidx1l, vidx3l
+    vsub  vtmp2h, vidx1h, vidx3h
 
     # Invert scratch2 real/imag and change sign of imag
-    vsubc vtmp3f, vzero, vtmp2f.q1
-    vsub  vtmp3i, vzero, vtmp2i.q1
-    vmrg  vtmp2f, vtmp3f, vtmp2f.q0
-    vmrg  vtmp2i, vtmp3i, vtmp2i.q0
+    vsubc vtmp3l, vzero, vtmp2l.q1
+    vsub  vtmp3h, vzero, vtmp2h.q1
+    vmrg  vtmp2l, vtmp3l, vtmp2l.q0
+    vmrg  vtmp2h, vtmp3h, vtmp2h.q0
 
     # Fout[1].r = ADD32_ovflw(scratch0.r, scratch1.i);
     # Fout[1].i = SUB32_ovflw(scratch0.i, scratch1.r);
-    vsubc vidx1f, vtmp1f, vtmp2f
-    vsub  vidx1i, vtmp1i, vtmp2i
+    vsubc vidx1l, vtmp1l, vtmp2l
+    vsub  vidx1h, vtmp1h, vtmp2h
 
     # Fout[3].r = SUB32_ovflw(scratch0.r, scratch1.i);
     # Fout[3].i = ADD32_ovflw(scratch0.i, scratch1.r);
-    vaddc vidx3f, vtmp1f, vtmp2f
-    vadd  vidx3i, vtmp1i, vtmp2i
+    vaddc vidx3l, vtmp1l, vtmp2l
+    vadd  vidx3h, vtmp1h, vtmp2h
 
-    slv vidx0i.e0, 0x00,fZ
-    slv vidx0f.e0, 0x04,fZ
-    slv vidx0i.e2, 0x20,fZ
-    slv vidx0f.e2, 0x24,fZ
+    slv vidx0h.e0, 0x00,fZ
+    slv vidx0l.e0, 0x04,fZ
+    slv vidx0h.e2, 0x20,fZ
+    slv vidx0l.e2, 0x24,fZ
 
-    slv vidx1i.e0, 0x08,fZ
-    slv vidx1f.e0, 0x0C,fZ
-    slv vidx1i.e2, 0x28,fZ
-    slv vidx1f.e2, 0x2C,fZ
+    slv vidx1h.e0, 0x08,fZ
+    slv vidx1l.e0, 0x0C,fZ
+    slv vidx1h.e2, 0x28,fZ
+    slv vidx1l.e2, 0x2C,fZ
 
-    slv vidx2i.e0, 0x10,fZ
-    slv vidx2f.e0, 0x14,fZ
-    slv vidx2i.e2, 0x30,fZ
-    slv vidx2f.e2, 0x34,fZ
+    slv vidx2h.e0, 0x10,fZ
+    slv vidx2l.e0, 0x14,fZ
+    slv vidx2h.e2, 0x30,fZ
+    slv vidx2l.e2, 0x34,fZ
 
-    slv vidx3i.e0, 0x18,fZ
-    slv vidx3f.e0, 0x1C,fZ
-    slv vidx3i.e2, 0x38,fZ
-    slv vidx3f.e2, 0x3C,fZ
+    slv vidx3h.e0, 0x18,fZ
+    slv vidx3l.e0, 0x1C,fZ
+    slv vidx3h.e2, 0x38,fZ
+    slv vidx3l.e2, 0x3C,fZ
 
     addiu fZ, 0x40
 
