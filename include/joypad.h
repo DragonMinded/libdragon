@@ -447,20 +447,6 @@ void joypad_init(void);
 void joypad_close(void);
 
 /**
- * @brief Identify Joypads and wait for completion.
- * 
- * @param reset Whether to reset the devices.
- */
-void joypad_identify_sync(bool reset);
-
-/**
- * @brief Read Joypad inputs and wait for completion.
- * 
- * Implicitly scans the read inputs to save you a step.
- */
-void joypad_read_sync(void);
-
-/**
  * @brief Fetch the current Joypad input state.
  * 
  * This function must be called once per frame, or any time after the

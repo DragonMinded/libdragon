@@ -85,12 +85,12 @@ static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
 /** @} */ /* joypad_cold_state */
 
 /**
- * @brief Reset the state of a Joypad device.
+ * @brief Reinitialize the state of a Joypad device when its identifier changes.
  * 
- * @param port Joypad port to reset.
+ * @param port Joypad port to reinitialize.
  * @param identifier New Joypad identifier for the port.
  */
-static void joypad_device_reset(joypad_port_t port, joybus_identifier_t identifier)
+static void joypad_device_changed(joypad_port_t port, joybus_identifier_t identifier)
 {
     timer_link_t *timer = joypad_accessories_hot[port].transfer_pak_wait_timer;
     if (timer) { stop_timer(timer); }
@@ -336,8 +336,8 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
         joybus_identifier_t identifier = cmd->recv.identifier;
         if (joypad_identifiers_hot[port] != identifier)
         {
-            // The identifier has changed; reset device state
-            joypad_device_reset(port, identifier);
+            // The identifier has changed; reinitialize device state
+            joypad_device_changed(port, identifier);
             devices_changed = true;
         }
 
@@ -537,7 +537,34 @@ static void joypad_vi_interrupt_callback(void)
     }
 }
 
-joypad_inputs_t joypad_read_n64_inputs_sync(joypad_port_t port)
+/**
+ * @brief Re-identify and reset all Joypads and wait for completion.
+ */
+static void joypad_reset(void)
+{
+    ASSERT_JOYPAD_INITIALIZED();
+    // Wait for pending identify/reset operation to resolve
+    while (joypad_identify_pending) { /* Spinlock */ }
+    // Enqueue this identify/reset operation
+    joypad_identify_async(true);
+    // Wait for the operation to finish
+    while (joypad_identify_pending) { /* Spinlock */ }
+}
+
+/**
+ * @brief Read Joypad inputs and wait for completion.
+ * 
+ * Implicitly scans the read inputs to save you a step.
+ */
+static void joypad_read(void)
+{
+    ASSERT_JOYPAD_INITIALIZED();
+    joypad_read_async();
+    while (joypad_read_pending) { /* Spinlock */ }
+    joypad_poll();
+}
+
+joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port)
 {
 
     joybus_cmd_n64_controller_read_port_t cmd = { .send = {
@@ -556,15 +583,15 @@ void joypad_init(void)
     // Initialize the timer subsystem (or increment its refcount)
     timer_init();
 
-    // Reset all Joypad devices to initial state
+    // Reinitialize all Joypad devices to unknown state
     JOYPAD_PORT_FOREACH (port)
     {
-        joypad_device_reset(port, JOYBUS_IDENTIFIER_UNKNOWN);
+        joypad_device_changed(port, JOYBUS_IDENTIFIER_UNKNOWN);
     }
 
     // Ensure the Joypads are ready immediately after init returns
-    joypad_identify_sync(true);
-    joypad_read_sync();
+    joypad_identify(true);
+    joypad_read();
 
     // Update the Joypads on VI interrupt
     register_VI_handler(joypad_vi_interrupt_callback);
@@ -580,25 +607,6 @@ void joypad_close(void)
     
     // Decrement the timer subsystem refcount (possibly closing it)
     timer_close();
-}
-
-void joypad_identify_sync(bool reset)
-{
-    ASSERT_JOYPAD_INITIALIZED();
-    // Wait for pending identify/reset operation to resolve
-    while (joypad_identify_pending) { /* Spinlock */ }
-    // Enqueue this identify/reset operation
-    joypad_identify_async(reset);
-    // Wait for the operation to finish
-    while (joypad_identify_pending) { /* Spinlock */ }
-}
-
-void joypad_read_sync(void)
-{
-    ASSERT_JOYPAD_INITIALIZED();
-    joypad_read_async();
-    while (joypad_read_pending) { /* Spinlock */ }
-    joypad_poll();
 }
 
 void joypad_poll(void)

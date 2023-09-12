@@ -94,19 +94,19 @@ extern volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
 
 /**
- * @brief Synchronously read the inputs from a Nintendo 64 controller.
+ * @brief Read the inputs from a Nintendo 64 controller synchronously.
  * 
  * This function is intended for use in situations where interrupts may
  * be disabled or where joypad_init may not have been called.
  * 
  * @note This function is slow: it blocks for about 10% of a frame.
  *       To avoid this performance hit, use the managed function in
- *       the Joypad subsystem instead: #joypad_get_inputs
+ *       the Joypad subsystem instead if possible: #joypad_get_inputs
  * 
  * @param port Joypad port (#joypad_port_t) to read from.
  * @return Joypad inputs structure (#joypad_inputs_t)
  */
-joypad_inputs_t joypad_read_n64_inputs_sync(joypad_port_t port);
+joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port);
 
 /**
  * @brief Get the Joypad accessory state for a Joypad port.

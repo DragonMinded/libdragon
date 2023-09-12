@@ -254,7 +254,7 @@ void execute_raw_command(
     void *recv_data
 );
 
-__attribute__((deprecated("use joypad_read_n64_inputs_sync instead")))
+__attribute__((deprecated("use joypad_read_n64_inputs instead")))
 void controller_read( struct controller_data * data );
 
 __attribute__((deprecated("use joypad_get_inputs instead")))
