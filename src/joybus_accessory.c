@@ -14,16 +14,6 @@
  * @{
  */
 
-/**
- * @brief Applies the checksum to a Joybus N64 accessory read/write address.
- * 
- * When reading or writing a particular address on the accessory, the command
- * will send the top 11 bits of a 16 bit address, plus a 5 bit checksum.
- * 
- * @param addr The address to calculate the checksum for.
- * 
- * @return The address with the checksum applied.
- */
 uint16_t joybus_accessory_calculate_addr_checksum(uint16_t addr)
 {
     static const uint16_t xor_table[16] = {
@@ -45,17 +35,6 @@ uint16_t joybus_accessory_calculate_addr_checksum(uint16_t addr)
     return addr | checksum;
 }
 
-/**
- * @brief Calculates the CRC8 checksum for a Joybus N64 accessory read/write data block.
- * 
- * Uses a CRC8 algorithm with a seed of 0x00 and a polynomial of 0x85.
- * 
- * This implementation has been tuned for optimal performance.
- * 
- * @param[in] data The 32-byte accessory read/write data block
- * 
- * @return The calculated CRC8 checksum for the data block 
- */
 uint8_t joybus_accessory_calculate_data_crc(const uint8_t *data)
 {
     unsigned int crc = 0;
@@ -77,17 +56,6 @@ uint8_t joybus_accessory_calculate_data_crc(const uint8_t *data)
     return crc;
 }
 
-/**
- * @brief Calculates the CRC8 checksum for an accessory read/write data block and
- * compares it against the provided checksum.
- * 
- * @param[in] data The 32-byte accessory read/write data block
- * @param data_crc The CRC8 checksum to compare against
- * 
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_OK The checksums match.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK The checksum indicates that no accessory is present.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data checksum does not match the provided checksum.
- */
 joybus_accessory_io_status_t joybus_accessory_compare_data_crc(
     const uint8_t *data,
     uint8_t data_crc
@@ -105,14 +73,6 @@ joybus_accessory_io_status_t joybus_accessory_compare_data_crc(
     return JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC;
 }
 
-/**
- * @brief Asynchronously perform a Joybus N64 accessory read command.
- * 
- * @param port The controller port of the accessory to read from.
- * @param addr The accessory address to read from.
- * @param callback A function pointer to call when the operation completes.
- * @param ctx A user data pointer to pass into the callback function.
- */
 void joybus_accessory_read_async(
     int port,
     uint16_t addr,
@@ -140,15 +100,6 @@ void joybus_accessory_read_async(
     joybus_exec_async(input, callback, ctx);
 }
 
-/**
- * @brief Asynchronously perform a Joybus N64 accessory write command.
- * 
- * @param port The controller port of the accessory to write to.
- * @param addr The accessory address to write to.
- * @param[in] data The data to write to the accessory.
- * @param callback A function pointer to call when the operation completes.
- * @param ctx A user data pointer to pass into the callback function.
- */
 void joybus_accessory_write_async(
     int port,
     uint16_t addr,

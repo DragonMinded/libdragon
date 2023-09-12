@@ -737,7 +737,7 @@ int joypad_get_accessory_error(joypad_port_t port)
     return joypad_accessories_hot[port].error;
 }
 
-uint8_t joypad_get_accessory_transfer_pak_status(joypad_port_t port)
+uint8_t joypad_get_transfer_pak_status(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);

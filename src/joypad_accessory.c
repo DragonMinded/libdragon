@@ -451,22 +451,6 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
     }
 }
 
-/**
- * @brief Detect which accessory is inserted in an N64 controller.
- *
- * * Step 1: Ensure Transfer Pak is turned off
- * * Step 2A: Overwrite "label" area to detect Controller Pak
- * * Step 2B: Read back the "label" area to detect Controller Pak
- * * Step 3A: Write probe value to detect Rumble Pak
- * * Step 3B: Read probe value to detect Rumble Pak
- * * Step 4A: Write probe value to detect Transfer Pak
- * * Step 4B: Read probe value to detect Transfer Pak
- * * Step 4C: Write probe value to turn off Transfer Pak
- * * Step 5A: Write probe value to detect Snap Station
- * * Step 5B: Read probe value to detect Snap Station
- *
- * @param port Joypad port to detect the accessory on (#joypad_port_t)
- */
 void joypad_accessory_detect_async(joypad_port_t port)
 {
     ASSERT_JOYPAD_PORT_VALID(port);
@@ -518,12 +502,6 @@ static void joypad_rumble_pak_motor_write_callback(uint64_t *out_dwords, void *c
     }
 }
 
-/**
- * @brief Turn the Rumble Pak motor on or off for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * @param active Whether the motor should be on (true) or off (false)
- */
 void joypad_rumble_pak_toggle_async(joypad_port_t port, bool active)
 {
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
@@ -619,12 +597,6 @@ static void joypad_transfer_pak_enable_write_callback(uint64_t *out_dwords, void
     }
 }
 
-/**
- * @brief Enable or disable the Transfer Pak for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * @param enabled Whether the Transfer Pak should be enabled (true) or disabled (false)
- */
 void joypad_transfer_pak_enable_async(joypad_port_t port, bool enabled)
 {
     ASSERT_JOYPAD_PORT_VALID(port);
@@ -785,14 +757,6 @@ static void joypad_transfer_pak_load_write_callback(uint64_t *out_dwords, void *
     }
 }
 
-/**
- * @brief Load data from the GB cartridge inserted in a Transfer Pak.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * @param cart_addr Starting address in the GB cartridge to load from.
- * @param[out] dst Destination buffer to load cartridge data into. 
- * @param len Number of bytes to load (must be a multiple of 32).
- */
 void joypad_transfer_pak_load_async(joypad_port_t port, uint16_t cart_addr, void *dst, size_t len)
 {
     ASSERT_JOYPAD_PORT_VALID(port);
@@ -960,14 +924,6 @@ static void joypad_transfer_pak_store_write_callback(uint64_t *out_dwords, void 
     }
 }
 
-/**
- * @brief Store data on the GB cartridge inserted in a Transfer Pak.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * @param cart_addr Starting address in the GB cartridge to store into.
- * @param[in] src Source buffer of data to store on GB cartridge. 
- * @param len Number of bytes to store (must be a multiple of 32).
- */
 void joypad_transfer_pak_store_async(joypad_port_t port, uint16_t cart_addr, void *src, size_t len)
 {
     ASSERT_JOYPAD_PORT_VALID(port);

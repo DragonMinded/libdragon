@@ -125,15 +125,6 @@ int joypad_get_accessory_state(joypad_port_t port);
  */
 int joypad_get_accessory_error(joypad_port_t port);
 
-/**
- * @brief Get the Transfer Pak status byte for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * 
- * @return Transfer Pak status byte 
- */
-uint8_t joypad_get_accessory_transfer_pak_status(joypad_port_t port);
-
 #ifdef __cplusplus
 }
 #endif
