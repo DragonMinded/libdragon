@@ -157,6 +157,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -468,9 +469,13 @@ void rsp_read_data(void* data, unsigned long size, unsigned int dmem_offset);
  * 
  * @see #rsp_crashf
  */
+#ifndef NDEBUG
 #define rsp_crash()  ({ \
     __rsp_crash(__FILE__, __LINE__, __func__, NULL); \
-}) 
+})
+#else
+#define rsp_crash() abort()
+#endif
 
 /**
  * @brief Abort the program showing a RSP crash screen with a symptom message.
@@ -487,9 +492,13 @@ void rsp_read_data(void* data, unsigned long size, unsigned int dmem_offset);
  * 
  * @see #rsp_crash
  */
+#ifndef NDEBUG
 #define rsp_crashf(msg, ...) ({ \
     __rsp_crash(__FILE__, __LINE__, __func__, msg, ##__VA_ARGS__); \
 })
+#else
+#define rsp_crashf(msg, ...) abort()
+#endif
 
 /**
  * @brief Create a loop that waits for some condition that is related to RSP,
@@ -549,9 +558,13 @@ void run_ucode(void) {
 // Internal function used by rsp_crash and rsp_crashf. These are not part
 // of the public API of rsp.h. Do not call them directly.
 /// @cond
+#ifndef NDEBUG
 void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
    __attribute__((noreturn, format(printf, 4, 5)));
 void __rsp_check_assert(const char *file, int line, const char *func);
+#else
+static inline void __rsp_check_assert(const char *file, int line, const char *func) {}
+#endif
 /// @endcond
 
 #ifdef __cplusplus

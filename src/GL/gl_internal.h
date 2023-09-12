@@ -808,6 +808,7 @@ inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t
         return attribs->mtx_index;
     default:
         assert(0);
+        return NULL;
     }
 }
 

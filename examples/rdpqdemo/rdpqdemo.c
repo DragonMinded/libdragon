@@ -21,7 +21,7 @@ static object_t objects[NUM_OBJECTS];
 
 // Fair and fast random generation (using xorshift32, with explicit seed)
 static uint32_t rand_state = 1;
-static uint32_t rand(void) {
+static uint32_t myrand(void) {
 	uint32_t x = rand_state;
 	x ^= x << 13;
 	x ^= x >> 7;
@@ -32,8 +32,8 @@ static uint32_t rand(void) {
 // RANDN(n): generate a random number from 0 to n-1
 #define RANDN(n) ({ \
 	__builtin_constant_p((n)) ? \
-		(rand()%(n)) : \
-		(uint32_t)(((uint64_t)rand() * (n)) >> 32); \
+		(myrand()%(n)) : \
+		(uint32_t)(((uint64_t)myrand() * (n)) >> 32); \
 })
 
 static int32_t obj_max_x;
@@ -101,7 +101,7 @@ int main()
     debug_init_isviewer();
     debug_init_usblog();
 
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 
     controller_init();
     timer_init();

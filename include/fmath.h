@@ -170,10 +170,22 @@ float fm_sinf_approx(float x, int approx);
 /**
  * @brief Faster version of cosf.
  * 
- * @see dragon_sinf for considerations on why and how to use this functions
+ * @see #fm_sinf for considerations on why and how to use this functions
  *      instead of the standard sinf.
  */
 float fm_cosf(float x);
+
+/**
+ * @brief Faster version of sincosf.
+ * 
+ * Similar to #fm_sinf and #fm_cosf, but calculates both sinf and cosf
+ * for the same angle.
+ * 
+ * @param x    The angle in radians
+ * @param sin  The pointer to the variable that will contain the sine
+ * @param cos  The pointer to the variable that will contain the cosine
+ */
+void fm_sincosf(float x, float *sin, float *cos);
 
 /**
  * @brief Faster version of atan2f.
@@ -199,10 +211,11 @@ float fm_atan2f(float y, float x);
     // we expect that to be resolved at compile-time with the maximum accuracy,
     // so it's important to generate code that calls the standard C function
     // which is then intrinsified by the compiler.
-    #define fmodf(x, y)   ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? fmodf(x,y) : fm_fmodf(x,y))
-    #define sinf(x)       (__builtin_constant_p(x) ? sinf(x) : fm_sinf(x))
-    #define cosf(x)       (__builtin_constant_p(x) ? cosf(x) : fm_cosf(x))
-    #define atan2f(y, x)  ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? atan2f(y, x) : fm_atan2f(y, x))
+    #define fmodf(x, y)     ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? fmodf(x,y) : fm_fmodf(x,y))
+    #define sinf(x)         (__builtin_constant_p(x) ? sinf(x) : fm_sinf(x))
+    #define cosf(x)         (__builtin_constant_p(x) ? cosf(x) : fm_cosf(x))
+    #define sincosf(x,s,c)  (__builtin_constant_p(x) ? sincosf(x,s,c) : fm_sincosf(x,s,c))
+    #define atan2f(y, x)    ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? atan2f(y, x) : fm_atan2f(y, x))
 #endif
 
 #ifdef __cplusplus

@@ -19,7 +19,8 @@
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
-
+/** @brief Number of past frames used to evaluate FPS */
+#define FPS_WINDOW          32
 
 static surface_t *surfaces;
 /** @brief Currently active bit depth */
@@ -40,6 +41,12 @@ static int now_showing = -1;
 static uint32_t drawing_mask = 0;
 /** @brief Bitmask of surfaces that are ready to be shown */
 static volatile uint32_t ready_mask = 0;
+/** @brief Window of absolute times at which previous frames were shown */
+static uint32_t frame_times[FPS_WINDOW];
+/** @brief Current index into the frame times window */
+static int frame_times_index = 0;
+/** @brief Current duration of the frame window (time elapsed for FPS_WINDOW frames) */
+static uint32_t frame_times_duration;
 
 /** @brief Get the next buffer index (with wraparound) */
 static inline int buffer_next(int idx) {
@@ -86,15 +93,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Minimum is two buffers. */
     __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
-
-    if( res.interlaced != INTERLACE_OFF )
-    {
-        /* Serrate on to stop vertical jitter */
-        control |= VI_CTRL_SERRATE;
-    }
+    bool serrate = res.interlaced != INTERLACE_OFF;
+    /* Serrate on to stop vertical jitter */
+    if(serrate) control |= VI_CTRL_SERRATE;
 
     /* Copy over extra initializations */
-    vi_write_config(&vi_config_presets[res.interlaced][tv_type]);
+    vi_write_config(&vi_config_presets[serrate][tv_type]);
 
     /* Figure out control register based on input given */
     switch( bit )
@@ -349,6 +353,16 @@ void display_show( surface_t* surf )
     drawing_mask &= ~(1 << i);
     ready_mask |= 1 << i;
 
+    /* Record the time at which this frame was (asked to be) shown */
+    uint32_t old_ticks = frame_times[frame_times_index];
+    uint32_t now = get_ticks();
+    if (old_ticks)
+        frame_times_duration = TICKS_DISTANCE(old_ticks, now);
+    frame_times[frame_times_index] = now;
+    frame_times_index++;
+    if (frame_times_index == FPS_WINDOW)
+        frame_times_index = 0;
+
     enable_interrupts();
 }
 
@@ -373,22 +387,28 @@ void display_show_force( display_context_t disp )
     enable_interrupts();
 }
 
-uint32_t display_get_width()
+uint32_t display_get_width(void)
 {
     return __width;
 }
 
-uint32_t display_get_height()
+uint32_t display_get_height(void)
 {
     return __height;
 }
 
-uint32_t display_get_bitdepth()
+uint32_t display_get_bitdepth(void)
 {
     return __bitdepth;
 }
 
-uint32_t display_get_num_buffers()
+uint32_t display_get_num_buffers(void)
 {
     return __buffers;
+}
+
+float display_get_fps(void)
+{
+    if (!frame_times_duration) return 0;
+    return (float)(FPS_WINDOW * TICKS_PER_SECOND) / frame_times_duration;
 }
