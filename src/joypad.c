@@ -590,7 +590,7 @@ void joypad_init(void)
     }
 
     // Ensure the Joypads are ready immediately after init returns
-    joypad_identify(true);
+    joypad_reset();
     joypad_read();
 
     // Update the Joypads on VI interrupt
