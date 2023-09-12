@@ -43,7 +43,7 @@ uint32_t model64_get_node_count(model64_t *model);
 /**
  * @brief Return the node at the specified index.
  */
-model64_node_t *model64_get_node(model64_t *model, uint32_t mesh_index);
+model64_node_t *model64_get_node(model64_t *model, uint32_t node_index);
 
 /**
  * @brief Return the first node with the specified name in the model.

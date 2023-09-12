@@ -352,19 +352,17 @@ GL_MatrixCopyMultiplyImpl:
 
 GLCmd_MatrixCopy:
     #############################################################
-    # GLCmd_SetFlag
+    # GLCmd_MatrixCopy
     #
-    # Sets or clears a flag
+    # Copies from 1 modelview stack to another
     #
     # ARGS:
     #   a0: Bit 31..24: Command id
-    #       Bit 1..0: Source Matrix
+    #       Bit 7..6: Source Matrix
     #############################################################
     move ra2, ra
-    andi a0, a0, 0x3
-    sll rhs, a0, 6
     jal GL_GetMatrixIndex
-    addiu rhs, %lo(GL_MATRICES)
+    addiu rhs, a0, %lo(GL_MATRICES)
     sll dst, mtx_index, 6
     addiu dst, %lo(GL_MATRICES)
     j GL_MatrixCopyMultiplyImpl

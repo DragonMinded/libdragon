@@ -101,12 +101,9 @@ static void multiply_node_mtx(float parent[16], float child[16])
     child[14] += parent[14];
 }
 
-static void mtx_copy(float src[16], float dst[16])
+static void mtx_copy(float dst[16], float src[16])
 {
-    for(int i=0; i<16; i++)
-    {
-        dst[i] = src[i];
-    }
+	memcpy(dst, src, 16*sizeof(float));
 }
 
 static void transform_calc_matrix(node_transform_t *transform)
@@ -154,7 +151,7 @@ static void calc_node_world_matrix(model64_t *model, uint32_t node)
 {
     model64_node_t *node_ptr = model64_get_node(model, node);
     node_transform_state_t *xform = &model->transforms[node];
-    mtx_copy(xform->transform.mtx, xform->world_mtx);
+    mtx_copy(xform->world_mtx, xform->transform.mtx);
     uint32_t parent_node = node_ptr->parent;
     
     while(parent_node != model->data->num_nodes) {
@@ -314,7 +311,7 @@ model64_node_t *model64_search_node(model64_t *model, const char *name)
 
 static uint32_t get_node_idx(model64_t *model, model64_node_t *node)
 {
-    return node-model->data->nodes;
+    return node - model->data->nodes;
 }
 
 void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float y, float z)
@@ -372,8 +369,8 @@ void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, flo
 void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float dst[16])
 {
     uint32_t node_idx = get_node_idx(model, node);
-    assertf(node_idx < model->data->num_nodes, "Setting scale of invalid node.");
-    mtx_copy(model->transforms[node_idx].world_mtx, dst);
+    assertf(node_idx < model->data->num_nodes, "Grabbing world matrix of invalid node.");
+    mtx_copy(dst, model->transforms[node_idx].world_mtx);
 }
 
 uint32_t model64_get_primitive_count(mesh_t *mesh)

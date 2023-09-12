@@ -411,5 +411,5 @@ void glCopyMatrixN64(GLenum source)
     }
     memcpy(state.current_matrix, gl_matrix_stack_get_matrix(matrix_stack), sizeof(gl_matrix_t));
     gl_mark_matrix_target_dirty();
-    gl_write(GL_CMD_MATRIX_COPY, src_id);
+    gl_write(GL_CMD_MATRIX_COPY, src_id << 6);
 }

@@ -857,9 +857,9 @@ int convert(const char *infn, const char *outfn)
             // TODO: More sophisticated conversion that doesn't always use floats as intermediate values
             //       Might not be worth it since the majority of tools will probably only export floats anyway?
             if (cgltf_accessor_unpack_floats(ibm_accessor, ibm_buffer, num_values) == 0) {
-                fprintf(stderr, "Error: failed reading attribute data\n");
+                fprintf(stderr, "Error: failed reading inverse bind matrices.\n");
                 free(ibm_buffer);
-                return 1;
+                goto error;
             }
         }
         
