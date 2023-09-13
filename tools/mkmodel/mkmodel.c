@@ -797,18 +797,6 @@ int convert(const char *infn, const char *outfn)
         fprintf(stderr, "Error: input file contains no meshes\n");
         goto error;
     }
-    if (data->nodes_count <= 0) {
-        fprintf(stderr, "Error: input file contains no nodes\n");
-        goto error;
-    }
-    if (!data->scene) {
-        fprintf(stderr, "Error: input file has no default scene\n");
-        goto error;
-    }
-    if (data->scene->nodes_count <= 0) {
-        fprintf(stderr, "Error: input file has no root node in default scene\n");
-        goto error;
-    }
     
     // Convert meshes
     model->num_meshes = data->meshes_count;
@@ -834,48 +822,50 @@ int convert(const char *infn, const char *outfn)
     }
     // Convert skins
     model->num_skins = data->skins_count;
-    model->skins = calloc(data->skins_count, sizeof(model64_skin_t));
-    for(size_t i=0; i<data->skins_count; i++) {
-        if(data->skins[i].joints_count == 0) {
-            continue;
-        }
-        if(data->skins[i].joints_count > 24) {
-            fprintf(stderr, "Error: Found %zd joints in skin %zd.\n", data->skins[i].joints_count, i);
-            fprintf(stderr, "Error: A maximum of 24 joints are allowed in a skin.\n");
-            goto error;
-        }
-        model->skins[i].num_joints = data->skins[i].joints_count;
-        model->skins[i].joints = calloc(data->skins[i].joints_count, sizeof(model64_joint_t));
-        cgltf_accessor *ibm_accessor = data->skins[i].inverse_bind_matrices;
-        float *ibm_buffer = NULL;
-        if(ibm_accessor) {
-            size_t num_components = cgltf_num_components(ibm_accessor->type);
-            size_t num_values = num_components * ibm_accessor->count;
-            ibm_buffer = malloc(sizeof(float) * num_values);
-
-            // Convert all data to floats (because cgltf provides this very convenient function)
-            // TODO: More sophisticated conversion that doesn't always use floats as intermediate values
-            //       Might not be worth it since the majority of tools will probably only export floats anyway?
-            if (cgltf_accessor_unpack_floats(ibm_accessor, ibm_buffer, num_values) == 0) {
-                fprintf(stderr, "Error: failed reading inverse bind matrices.\n");
-                free(ibm_buffer);
+    if(model->num_skins != 0) {
+        model->skins = calloc(data->skins_count, sizeof(model64_skin_t));
+        for(size_t i=0; i<data->skins_count; i++) {
+            if(data->skins[i].joints_count == 0) {
+                continue;
+            }
+            if(data->skins[i].joints_count > 24) {
+                fprintf(stderr, "Error: Found %zd joints in skin %zd.\n", data->skins[i].joints_count, i);
+                fprintf(stderr, "Error: A maximum of 24 joints are allowed in a skin.\n");
                 goto error;
             }
-        }
-        
-        for(uint32_t j=0; j<model->skins[i].num_joints; j++) {
-            model->skins[i].joints[j].node_idx = cgltf_node_index(data, data->skins[i].joints[j]);
-            if(ibm_buffer) {
-                memcpy(model->skins[i].joints[j].inverse_bind_mtx, &ibm_buffer[j*16], sizeof(float)*16);
-            } else {
-                model->skins[i].joints[j].inverse_bind_mtx[0] = 1.0f;
-                model->skins[i].joints[j].inverse_bind_mtx[5] = 1.0f;
-                model->skins[i].joints[j].inverse_bind_mtx[10] = 1.0f;
-                model->skins[i].joints[j].inverse_bind_mtx[15] = 1.0f;
+            model->skins[i].num_joints = data->skins[i].joints_count;
+            model->skins[i].joints = calloc(data->skins[i].joints_count, sizeof(model64_joint_t));
+            cgltf_accessor *ibm_accessor = data->skins[i].inverse_bind_matrices;
+            float *ibm_buffer = NULL;
+            if(ibm_accessor) {
+                size_t num_components = cgltf_num_components(ibm_accessor->type);
+                size_t num_values = num_components * ibm_accessor->count;
+                ibm_buffer = malloc(sizeof(float) * num_values);
+
+                // Convert all data to floats (because cgltf provides this very convenient function)
+                // TODO: More sophisticated conversion that doesn't always use floats as intermediate values
+                //       Might not be worth it since the majority of tools will probably only export floats anyway?
+                if (cgltf_accessor_unpack_floats(ibm_accessor, ibm_buffer, num_values) == 0) {
+                    fprintf(stderr, "Error: failed reading inverse bind matrices.\n");
+                    free(ibm_buffer);
+                    goto error;
+                }
             }
-        }
-        if(ibm_buffer) {
-            free(ibm_buffer);
+            
+            for(uint32_t j=0; j<model->skins[i].num_joints; j++) {
+                model->skins[i].joints[j].node_idx = cgltf_node_index(data, data->skins[i].joints[j]);
+                if(ibm_buffer) {
+                    memcpy(model->skins[i].joints[j].inverse_bind_mtx, &ibm_buffer[j*16], sizeof(float)*16);
+                } else {
+                    model->skins[i].joints[j].inverse_bind_mtx[0] = 1.0f;
+                    model->skins[i].joints[j].inverse_bind_mtx[5] = 1.0f;
+                    model->skins[i].joints[j].inverse_bind_mtx[10] = 1.0f;
+                    model->skins[i].joints[j].inverse_bind_mtx[15] = 1.0f;
+                }
+            }
+            if(ibm_buffer) {
+                free(ibm_buffer);
+            }
         }
     }
     // Convert nodes
@@ -884,66 +874,68 @@ int convert(const char *infn, const char *outfn)
     if(data->scene->nodes_count > 1) {
         model->num_nodes++;
     }
-    model->nodes = calloc(model->num_nodes, sizeof(model64_node_t));
-    for(size_t i=0; i<data->nodes_count; i++) {
-        if(data->nodes[i].name && data->nodes[i].name[0] != '\0') {
-            model->nodes[i].name = strdup(data->nodes[i].name);
+    if(model->num_nodes != 0) {
+        model->nodes = calloc(model->num_nodes, sizeof(model64_node_t));
+        for(size_t i=0; i<data->nodes_count; i++) {
+            if(data->nodes[i].name && data->nodes[i].name[0] != '\0') {
+                model->nodes[i].name = strdup(data->nodes[i].name);
+            }
+            if(data->nodes[i].mesh) {
+                model->nodes[i].mesh = &model->meshes[cgltf_mesh_index(data, data->nodes[i].mesh)];
+            }
+            if(data->nodes[i].skin) {
+                model->nodes[i].skin = &model->skins[cgltf_skin_index(data, data->nodes[i].skin)];
+            }
+            if(data->nodes[i].parent) {
+                model->nodes[i].parent = cgltf_node_index(data, data->nodes[i].parent);
+            } else {
+                model->nodes[i].parent = data->nodes_count;
+            }
+            model->nodes[i].num_children = data->nodes[i].children_count;
+            if(data->nodes[i].children_count > 0) {
+                make_node_idx_list(data, data->nodes[i].children, data->nodes[i].children_count, &model->nodes[i].children);
+            }
+            //Copy translation
+            model->nodes[i].transform.pos[0] = data->nodes[i].translation[0];
+            model->nodes[i].transform.pos[1] = data->nodes[i].translation[1];
+            model->nodes[i].transform.pos[2] = data->nodes[i].translation[2];
+            //Copy rotation
+            model->nodes[i].transform.rot[0] = data->nodes[i].rotation[0];
+            model->nodes[i].transform.rot[1] = data->nodes[i].rotation[1];
+            model->nodes[i].transform.rot[2] = data->nodes[i].rotation[2];
+            model->nodes[i].transform.rot[3] = data->nodes[i].rotation[3];
+            //Copy scale
+            model->nodes[i].transform.scale[0] = data->nodes[i].scale[0];
+            model->nodes[i].transform.scale[1] = data->nodes[i].scale[1];
+            model->nodes[i].transform.scale[2] = data->nodes[i].scale[2];
+            //Set local transform
+            cgltf_node_transform_local(&data->nodes[i], model->nodes[i].transform.mtx);
         }
-        if(data->nodes[i].mesh) {
-            model->nodes[i].mesh = &model->meshes[cgltf_mesh_index(data, data->nodes[i].mesh)];
-        }
-        if(data->nodes[i].skin) {
-            model->nodes[i].skin = &model->skins[cgltf_skin_index(data, data->nodes[i].skin)];
-        }
-        if(data->nodes[i].parent) {
-            model->nodes[i].parent = cgltf_node_index(data, data->nodes[i].parent);
+        if(data->scene->nodes_count > 1) {
+            //Generate a node for grouping the scene
+            model->root_node = data->nodes_count;
+            model->nodes[model->root_node].parent = model->num_nodes;
+            model->nodes[model->root_node].num_children = data->scene->nodes_count;
+            model->nodes[model->root_node].children = calloc(data->scene->nodes_count, sizeof(uint32_t));
+            //Initialize rotation to identity quaternion
+            model->nodes[model->root_node].transform.rot[3] = 1.0f;
+            //Initialize scale to default
+            model->nodes[model->root_node].transform.scale[0] = 1.0f;
+            model->nodes[model->root_node].transform.scale[1] = 1.0f;
+            model->nodes[model->root_node].transform.scale[2] = 1.0f;
+            //Initialize local matrix to identity
+            model->nodes[model->root_node].transform.mtx[0] = 1.0f;
+            model->nodes[model->root_node].transform.mtx[5] = 1.0f;
+            model->nodes[model->root_node].transform.mtx[10] = 1.0f;
+            model->nodes[model->root_node].transform.mtx[15] = 1.0f;
+            make_node_idx_list(data, data->scene->nodes, data->scene->nodes_count, &model->nodes[model->root_node].children);
+            //Reassign parent nodes of scene nodes to generated node
+            for(uint32_t i=0; i<data->scene->nodes_count; i++) {
+                model->nodes[cgltf_node_index(data, data->scene->nodes[i])].parent = model->root_node;
+            }
         } else {
-            model->nodes[i].parent = data->nodes_count;
+            model->root_node = cgltf_node_index(data, data->scene->nodes[0]);
         }
-        model->nodes[i].num_children = data->nodes[i].children_count;
-        if(data->nodes[i].children_count > 0) {
-            make_node_idx_list(data, data->nodes[i].children, data->nodes[i].children_count, &model->nodes[i].children);
-        }
-        //Copy translation
-        model->nodes[i].transform.pos[0] = data->nodes[i].translation[0];
-        model->nodes[i].transform.pos[1] = data->nodes[i].translation[1];
-        model->nodes[i].transform.pos[2] = data->nodes[i].translation[2];
-        //Copy rotation
-        model->nodes[i].transform.rot[0] = data->nodes[i].rotation[0];
-        model->nodes[i].transform.rot[1] = data->nodes[i].rotation[1];
-        model->nodes[i].transform.rot[2] = data->nodes[i].rotation[2];
-        model->nodes[i].transform.rot[3] = data->nodes[i].rotation[3];
-        //Copy scale
-        model->nodes[i].transform.scale[0] = data->nodes[i].scale[0];
-        model->nodes[i].transform.scale[1] = data->nodes[i].scale[1];
-        model->nodes[i].transform.scale[2] = data->nodes[i].scale[2];
-        //Set local transform
-        cgltf_node_transform_local(&data->nodes[i], model->nodes[i].transform.mtx);
-    }
-    if(data->scene->nodes_count > 1) {
-        //Generate a node for grouping the scene
-        model->root_node = data->nodes_count;
-        model->nodes[model->root_node].parent = model->num_nodes;
-        model->nodes[model->root_node].num_children = data->scene->nodes_count;
-        model->nodes[model->root_node].children = calloc(data->scene->nodes_count, sizeof(uint32_t));
-        //Initialize rotation to identity quaternion
-        model->nodes[model->root_node].transform.rot[3] = 1.0f;
-        //Initialize scale to default
-        model->nodes[model->root_node].transform.scale[0] = 1.0f;
-        model->nodes[model->root_node].transform.scale[1] = 1.0f;
-        model->nodes[model->root_node].transform.scale[2] = 1.0f;
-        //Initialize local matrix to identity
-        model->nodes[model->root_node].transform.mtx[0] = 1.0f;
-        model->nodes[model->root_node].transform.mtx[5] = 1.0f;
-        model->nodes[model->root_node].transform.mtx[10] = 1.0f;
-        model->nodes[model->root_node].transform.mtx[15] = 1.0f;
-        make_node_idx_list(data, data->scene->nodes, data->scene->nodes_count, &model->nodes[model->root_node].children);
-        //Reassign parent nodes of scene nodes to generated node
-        for(uint32_t i=0; i<data->scene->nodes_count; i++) {
-            model->nodes[cgltf_node_index(data, data->scene->nodes[i])].parent = model->root_node;
-        }
-    } else {
-        model->root_node = cgltf_node_index(data, data->scene->nodes[0]);
     }
     
 
