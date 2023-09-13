@@ -11,7 +11,7 @@
 
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
-int flag_wav_compress = 0;
+int flag_wav_compress = 1;
 
 int wav_convert(const char *infn, const char *outfn) {
 	drwav wav;
