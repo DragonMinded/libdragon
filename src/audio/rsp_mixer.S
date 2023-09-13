@@ -1429,7 +1429,11 @@ VADPCM_InterleaveStereo:
 
 	# Write output into RDRAM (async)
 VADPCM_Output:
-	mfc0 t0, COP0_DMA_FULL
+	# FIXME: this should work with COP0_DMA_FULL but it doesn't on real hardware (it cause cracks).
+	# Not sure why that happens: at any time we should have max one DMA in and one DMA out pending/running,
+	# so there shouldn't be any contention. Maybe there is something I don't understand about how
+	# the DMA engine works?
+	mfc0 t0, COP0_DMA_BUSY
 	bnez t0, VADPCM_Output
 	addiu t0, output_incr, -1
 
@@ -1438,7 +1442,7 @@ VADPCM_Output:
 	mtc0 t0, COP0_DMA_WRITE 
 
 	add a1, output_incr
-	xori dmem_output, 128   # swap
+	xori dmem_output, 64   # swap
 
 	addiu nframes, -1
 	bgtz nframes, VADPCM_DecompressLoop
