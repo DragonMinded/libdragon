@@ -897,6 +897,13 @@ int joypad_get_axis_held(joypad_port_t port, joypad_axis_t axis)
     return 0;
 }
 
+/**
+ * @brief Get the 8-way direction for a Joypad port's analog stick.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * 
+ * @return Joypad 8-way direction enumeration value (#joypad_8way_t)
+ */
 static joypad_8way_t joypad_get_stick_direction(joypad_port_t port)
 {
     int x = 0, y = 0, x_threshold = 0, y_threshold = 0;
