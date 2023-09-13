@@ -71,7 +71,7 @@ void usage(void) {
 	printf("   -v / --verbose            Verbose mode\n");
 	printf("\n");
 	printf("WAV options:\n");
-	printf("   --wav-compress <0|1>      Enable compression (0:none, 1:vadpcm)\n");
+	printf("   --wav-compress <0|1>      Enable compression: 0=none, 1=vadpcm (default)\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
 	printf("\n");
