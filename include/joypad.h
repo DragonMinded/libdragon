@@ -100,18 +100,30 @@ typedef enum
     JOYPAD_STYLE_NONE = 0,
     /**
      * @brief Nintendo 64 Joypad Style.
-     *
-     * The N64 controller has fewer and different buttons than
-     * a GameCube controller: no X or Y buttons, no analog triggers,
-     * and four C-directional buttons instead of an analog C-stick.
+     * 
+     * A standard N64 controller, which has an analog stick,
+     * directional pad, start button, L & R shoulder buttons,
+     * a Z trigger, A & B face buttons, and a C-directional pad.
+     * 
+     * For convenience, the N64 style will coarsely simulate
+     * certain GameCube controller inputs:
+     * 
+     * * C-directional pad maps to the C-stick.
+     * * L & R shoulder buttons map to the analog triggers.
      */
     JOYPAD_STYLE_N64,
     /**
      * @brief GameCube Joypad Style.
+     * 
+     * A standard GameCube controller, which is supported on N64
+     * when using a passive adapter to convert the plug.
      *
      * The GameCube controller has more and different buttons
      * than a Nintendo 64 controller: X & Y buttons, analog
      * L & R triggers, and an analog C-stick instead of buttons.
+     * 
+     * For convenience, the GameCube style will coarsely simulate
+     * the C-directional pad using C-stick inputs.
      */
     JOYPAD_STYLE_GCN,
     /**
@@ -302,7 +314,17 @@ typedef struct __attribute__((packed)) joypad_inputs_s
      * 
      * For well-worn N64 controllers, the range may be as low as (-60, +60).
      * 
+     * On startup, an N64 controller will report its current stick position
+     * as (0, 0). To reset the origin on an N64 controller, hold the L & R
+     * shoulder buttons and the start button for several seconds with the
+     * analog stick in a neutral position.
+     * 
      * For GameCube controllers, this value will be relative to its origin.
+     * The Joypad subsystem will automatically read the origins of GameCube
+     * controllers and account for them when resolving the analog inputs.
+     * To reset the origin on a GameCube controller, hold the X & Y buttons
+     * and the start button for several seconds with the analog inputs in
+     * neutral positions.
      */
     int8_t stick_x;
     /**
@@ -312,7 +334,17 @@ typedef struct __attribute__((packed)) joypad_inputs_s
      * 
      * For well-worn N64 controllers, the range may be as low as (-60, +60).
      * 
+     * On startup, an N64 controller will report its current stick position
+     * as (0, 0). To reset the origin on an N64 controller, hold the L & R
+     * shoulder buttons and the start button for several seconds with the
+     * analog stick in a neutral position.
+     * 
      * For GameCube controllers, this value will be relative to its origin.
+     * The Joypad subsystem will automatically read the origins of GameCube
+     * controllers and account for them when resolving the analog inputs.
+     * To reset the origin on a GameCube controller, hold the X & Y buttons
+     * and the start button for several seconds with the analog inputs in
+     * neutral positions.
      */
     int8_t stick_y;
     /**
@@ -320,10 +352,15 @@ typedef struct __attribute__((packed)) joypad_inputs_s
      * 
      * On real controllers the range of this axis is roughly (-76, +76).
      * 
-     * For GameCube controllers, this value will be relative to its origin.
-     * 
      * For N64 controllers, this value will be emulated based on the
      * digital C-Left and C-Right button values (-76=C-Left, +76=C-Right).
+     * 
+     * For GameCube controllers, this value will be relative to its origin.
+     * The Joypad subsystem will automatically read the origins of GameCube
+     * controllers and account for them when resolving the analog inputs.
+     * To reset the origin on a GameCube controller, hold the X & Y buttons
+     * and the start button for several seconds with the analog inputs in
+     * neutral positions.
      */
     int8_t cstick_x;
     /**
@@ -331,10 +368,15 @@ typedef struct __attribute__((packed)) joypad_inputs_s
      * 
      * On real controllers the range of this axis is roughly (-76, +76).
      * 
-     * The value will be relative to the corresponding origin.
-     * 
      * For N64 controllers, this value will be emulated based on the
      * digital C-Up and C-Down button values (-76=C-Down, +76=C-Up).
+     * 
+     * For GameCube controllers, this value will be relative to its origin.
+     * The Joypad subsystem will automatically read the origins of GameCube
+     * controllers and account for them when resolving the analog inputs.
+     * To reset the origin on a GameCube controller, hold the X & Y buttons
+     * and the start button for several seconds with the analog inputs in
+     * neutral positions.
      */
     int8_t cstick_y;
     /**
@@ -343,10 +385,15 @@ typedef struct __attribute__((packed)) joypad_inputs_s
      * This value will be close to zero when no pressure is applied,
      * and close to 200 when full pressure is applied.
      * 
-     * For GameCube controllers, this value will be relative to its origin.
-     * 
      * For N64 controllers, this value will be emulated based on the
      * digital L trigger button value (0=unpressed, 200=pressed).
+     * 
+     * For GameCube controllers, this value will be relative to its origin.
+     * The Joypad subsystem will automatically read the origins of GameCube
+     * controllers and account for them when resolving the analog inputs.
+     * To reset the origin on a GameCube controller, hold the X & Y buttons
+     * and the start button for several seconds with the analog inputs in
+     * neutral positions.
      */
     uint8_t analog_l;
     /**
@@ -355,10 +402,15 @@ typedef struct __attribute__((packed)) joypad_inputs_s
      * This value will be close to zero when no pressure is applied,
      * and close to 200 when full pressure is applied.
      * 
-     * For GameCube controllers, this value will be relative to its origin.
-     * 
      * For N64 controllers, this value will be emulated based on the
      * digital R trigger button value (0=unpressed, 200=pressed).
+     * 
+     * For GameCube controllers, this value will be relative to its origin.
+     * The Joypad subsystem will automatically read the origins of GameCube
+     * controllers and account for them when resolving the analog inputs.
+     * To reset the origin on a GameCube controller, hold the X & Y buttons
+     * and the start button for several seconds with the analog inputs in
+     * neutral positions.
      */
     uint8_t analog_r;
 } joypad_inputs_t;
