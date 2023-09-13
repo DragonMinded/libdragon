@@ -290,7 +290,7 @@ int get_accessories_present( struct controller_data * data );
 __attribute__((deprecated("use joypad_get_accessory_type instead")))
 int identify_accessory( int controller );
 
-__attribute__((deprecated("use joypad_get_dpad_direction instead")))
+__attribute__((deprecated("use joypad_get_direction instead")))
 int get_dpad_direction( int controller );
 
 __attribute__((deprecated("use joybus_accessory_read instead")))

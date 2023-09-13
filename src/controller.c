@@ -393,11 +393,11 @@ struct controller_data get_keys_pressed( void )
  *
  * @return A value 0-7 to represent which direction is held, or -1 when not pressed
  * 
- * @deprecated Use #joypad_get_dpad_direction instead.
+ * @deprecated Use #joypad_get_direction instead.
  */
 int get_dpad_direction( int controller )
 {
-    return joypad_get_dpad_direction((joypad_port_t) controller);
+    return joypad_get_direction((joypad_port_t) controller, JOYPAD_2D_DPAD);
 }
 
 /**

@@ -39,6 +39,21 @@ typedef enum
     JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER,
 } joypad_rumble_method_t;
 
+/**
+ * @anchor JOYPAD_RAW_2D
+ * @name Joypad raw 2D byte bitmasks
+ * @{
+ */
+/** @brief Joypad raw 2D right bitmask */
+#define JOYPAD_RAW_2D_RIGHT (1<<0)
+/** @brief Joypad raw 2D left bitmask */
+#define JOYPAD_RAW_2D_LEFT  (1<<1)
+/** @brief Joypad raw 2D down bitmask */
+#define JOYPAD_RAW_2D_DOWN  (1<<2)
+/** @brief Joypad raw 2D up bitmask */
+#define JOYPAD_RAW_2D_UP    (1<<3)
+/** @} */
+
 /** @brief Joypad GameCube controller origins structure. */
 typedef struct joypad_gcn_origin_s
 {

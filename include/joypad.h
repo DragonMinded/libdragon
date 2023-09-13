@@ -55,9 +55,7 @@
  * * #joypad_get_buttons_held
  * 
  * To read 8-way directional state for a Joypad device:
- * * #joypad_get_stick_direction
- * * #joypad_get_dpad_direction
- * * #joypad_get_c_direction
+ * * #joypad_get_direction
  * 
  * To read analog directions as digital inputs for a Joypad device:
  * * #joypad_get_axis_pressed
@@ -409,6 +407,27 @@ typedef enum
     JOYPAD_AXIS_ANALOG_R = offsetof(joypad_inputs_t, analog_r),
 } joypad_axis_t;
 
+/**
+ * @brief Joypad 2D axes enumeration.
+ * 
+ * These values are used to select one or more 2D input axes.
+ */
+typedef enum
+{
+    /** @brief Analog stick 2D axes. */
+    JOYPAD_2D_STICK = (1 << 0),
+    /** @brief D-Pad 2D axes. */
+    JOYPAD_2D_DPAD  = (1 << 1),
+    /** @brief C buttons 2D axes.*/
+    JOYPAD_2D_C     = (1 << 2),
+    /** @brief Left-Hand 2D axes: Analog stick or D-Pad. */
+    JOYPAD_2D_LH    = (JOYPAD_2D_STICK | JOYPAD_2D_DPAD),
+    /** @brief Right-Hand 2D axes: Analog stick or C buttons. */
+    JOYPAD_2D_RH    = (JOYPAD_2D_STICK | JOYPAD_2D_C),
+    /** @brief Any 2D axes: Analog stick, D-Pad, or C buttons. */
+    JOYPAD_2D_ANY   = (JOYPAD_2D_STICK | JOYPAD_2D_DPAD | JOYPAD_2D_C),
+} joypad_2d_t;
+
 /** @brief Joypad 8-way directional enumeration */
 typedef enum
 {
@@ -458,9 +477,7 @@ void joypad_close(void);
  * * #joypad_get_buttons_pressed
  * * #joypad_get_buttons_released
  * * #joypad_get_buttons_held
- * * #joypad_get_dpad_direction
- * * #joypad_get_c_direction
- * * #joypad_get_stick_direction
+ * * #joypad_get_direction
  * * #joypad_get_axis_pressed
  * * #joypad_get_axis_released
  * * #joypad_get_axis_held
@@ -583,31 +600,13 @@ joypad_buttons_t joypad_get_buttons_released(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_held(joypad_port_t port);
 
 /**
- * @brief Get the 8-way direction for a Joypad port's analog stick.
+ * @brief Get the 8-way direction for a Joypad port's directional axes.
  * 
  * @param port Joypad port number (#joypad_port_t)
- * 
- * @return Joypad 8-way direction enumeration value (#joypad_8way_t)
+ * @param axes 2D axes enumeration value (#joypad_2d_t)
+ * @return Joypad 8-way direction enumeration value (#joypad_8way_t) 
  */
-joypad_8way_t joypad_get_stick_direction(joypad_port_t port);
-
-/**
- * @brief Get the 8-way direction for a Joypad port's D-pad.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * 
- * @return Joypad 8-way direction enumeration value (#joypad_8way_t)
- */
-joypad_8way_t joypad_get_dpad_direction(joypad_port_t port);
-
-/**
- * @brief Get the 8-way direction for a Joypad port's C-buttons.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * 
- * @return Joypad 8-way direction enumeration value (#joypad_8way_t)
- */
-joypad_8way_t joypad_get_c_direction(joypad_port_t port);
+joypad_8way_t joypad_get_direction(joypad_port_t port, joypad_2d_t axes);
 
 /**
  * @brief Get the direction of a "press" of an axis on a Joypad port.

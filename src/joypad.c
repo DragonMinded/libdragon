@@ -818,35 +818,6 @@ joypad_buttons_t joypad_get_buttons_held(joypad_port_t port)
     return (joypad_buttons_t){ .raw = current & previous };
 }
 
-
-joypad_8way_t joypad_get_dpad_direction(joypad_port_t port)
-{
-    joypad_buttons_t buttons = joypad_get_buttons(port);
-    if ( buttons.d_up && buttons.d_left )    { return JOYPAD_8WAY_UP_LEFT; }
-    if ( buttons.d_up && buttons.d_right )   { return JOYPAD_8WAY_UP_RIGHT; }
-    if ( buttons.d_down && buttons.d_left )  { return JOYPAD_8WAY_DOWN_LEFT; }
-    if ( buttons.d_down && buttons.d_right ) { return JOYPAD_8WAY_DOWN_RIGHT; }
-    if ( buttons.d_right )                   { return JOYPAD_8WAY_RIGHT; }
-    if ( buttons.d_up )                      { return JOYPAD_8WAY_UP; }
-    if ( buttons.d_left )                    { return JOYPAD_8WAY_LEFT; }
-    if ( buttons.d_down )                    { return JOYPAD_8WAY_DOWN; }
-    return JOYPAD_8WAY_NONE;
-}
-
-joypad_8way_t joypad_get_c_direction(joypad_port_t port)
-{
-    joypad_buttons_t buttons = joypad_get_buttons(port);
-    if ( buttons.c_up && buttons.c_left )    { return JOYPAD_8WAY_UP_LEFT; }
-    if ( buttons.c_up && buttons.c_right )   { return JOYPAD_8WAY_UP_RIGHT; }
-    if ( buttons.c_down && buttons.c_left )  { return JOYPAD_8WAY_DOWN_LEFT; }
-    if ( buttons.c_down && buttons.c_right ) { return JOYPAD_8WAY_DOWN_RIGHT; }
-    if ( buttons.c_right )                   { return JOYPAD_8WAY_RIGHT; }
-    if ( buttons.c_up )                      { return JOYPAD_8WAY_UP; }
-    if ( buttons.c_left )                    { return JOYPAD_8WAY_LEFT; }
-    if ( buttons.c_down )                    { return JOYPAD_8WAY_DOWN; }
-    return JOYPAD_8WAY_NONE;
-}
-
 /**
  * @brief Get the analog values for a Joypad port's axis.
  * 
@@ -899,22 +870,6 @@ static void joypad_get_axis_values(
     }
 }
 
-joypad_8way_t joypad_get_stick_direction(joypad_port_t port)
-{
-    int x = 0, y = 0, x_threshold = 0, y_threshold = 0;
-    joypad_get_axis_values(port, JOYPAD_AXIS_STICK_X, &x, NULL, &x_threshold);
-    joypad_get_axis_values(port, JOYPAD_AXIS_STICK_Y, &y, NULL, &y_threshold);
-    if ( y > +y_threshold && x < -x_threshold ) { return JOYPAD_8WAY_UP_LEFT; }
-    if ( y > +y_threshold && x > +x_threshold ) { return JOYPAD_8WAY_UP_RIGHT; }
-    if ( y < -y_threshold && x < -x_threshold ) { return JOYPAD_8WAY_DOWN_LEFT; }
-    if ( y < -y_threshold && x > +x_threshold ) { return JOYPAD_8WAY_DOWN_RIGHT; }
-    if ( x > +x_threshold )                     { return JOYPAD_8WAY_RIGHT; }
-    if ( y > +y_threshold )                     { return JOYPAD_8WAY_UP; }
-    if ( x < -x_threshold )                     { return JOYPAD_8WAY_LEFT; }
-    if ( y < -y_threshold )                     { return JOYPAD_8WAY_DOWN; }
-    return JOYPAD_8WAY_NONE;
-}
-
 int joypad_get_axis_pressed(joypad_port_t port, joypad_axis_t axis)
 {
     int current = 0, previous = 0, threshold = 0;
@@ -940,6 +895,69 @@ int joypad_get_axis_held(joypad_port_t port, joypad_axis_t axis)
     if ( current > +threshold && previous > +threshold ) { return +1; }
     if ( current < -threshold && previous < -threshold ) { return -1; }
     return 0;
+}
+
+static joypad_8way_t joypad_get_stick_direction(joypad_port_t port)
+{
+    int x = 0, y = 0, x_threshold = 0, y_threshold = 0;
+    joypad_get_axis_values(port, JOYPAD_AXIS_STICK_X, &x, NULL, &x_threshold);
+    joypad_get_axis_values(port, JOYPAD_AXIS_STICK_Y, &y, NULL, &y_threshold);
+    if ( y > +y_threshold && x < -x_threshold ) { return JOYPAD_8WAY_UP_LEFT; }
+    if ( y > +y_threshold && x > +x_threshold ) { return JOYPAD_8WAY_UP_RIGHT; }
+    if ( y < -y_threshold && x < -x_threshold ) { return JOYPAD_8WAY_DOWN_LEFT; }
+    if ( y < -y_threshold && x > +x_threshold ) { return JOYPAD_8WAY_DOWN_RIGHT; }
+    if ( x > +x_threshold )                     { return JOYPAD_8WAY_RIGHT; }
+    if ( y > +y_threshold )                     { return JOYPAD_8WAY_UP; }
+    if ( x < -x_threshold )                     { return JOYPAD_8WAY_LEFT; }
+    if ( y < -y_threshold )                     { return JOYPAD_8WAY_DOWN; }
+    return JOYPAD_8WAY_NONE;
+}
+
+/**
+ * @brief Convert a bitfield of up/down/left/right bits into an 8-way direction.
+ * 
+ * @param raw2d #JOYPAD_RAW_2D bitfield
+ * @return Joypad 8-way direction enumeration value (#joypad_8way_t) 
+ */
+static joypad_8way_t joypad_raw2d_to_8way(unsigned raw2d)
+{
+    switch (raw2d)
+    {
+        case JOYPAD_RAW_2D_UP   | JOYPAD_RAW_2D_LEFT:  return JOYPAD_8WAY_UP_LEFT;
+        case JOYPAD_RAW_2D_UP   | JOYPAD_RAW_2D_RIGHT: return JOYPAD_8WAY_UP_RIGHT;
+        case JOYPAD_RAW_2D_DOWN | JOYPAD_RAW_2D_LEFT:  return JOYPAD_8WAY_DOWN_LEFT;
+        case JOYPAD_RAW_2D_DOWN | JOYPAD_RAW_2D_RIGHT: return JOYPAD_8WAY_DOWN_RIGHT;
+        case JOYPAD_RAW_2D_RIGHT:                      return JOYPAD_8WAY_RIGHT;
+        case JOYPAD_RAW_2D_UP:                         return JOYPAD_8WAY_UP;
+        case JOYPAD_RAW_2D_LEFT:                       return JOYPAD_8WAY_LEFT;
+        case JOYPAD_RAW_2D_DOWN:                       return JOYPAD_8WAY_DOWN;
+        default:                                       return JOYPAD_8WAY_NONE;
+    }
+}
+
+joypad_8way_t joypad_get_direction(joypad_port_t port, joypad_2d_t axes)
+{
+    joypad_8way_t dir;
+    if (axes & JOYPAD_2D_STICK)
+    {
+        dir = joypad_get_stick_direction(port);
+        if (dir != JOYPAD_8WAY_NONE) { return dir; }
+    }
+    if (axes & JOYPAD_2D_DPAD)
+    {
+        // Convert D-Pad up/down/left/right into a #JOYPAD_RAW_2D bitfield
+        const unsigned raw2d = (joypad_get_buttons(port).raw & 0x0F00) >> 8;
+        dir = joypad_raw2d_to_8way(raw2d);
+        if (dir != JOYPAD_8WAY_NONE) { return dir; }
+    }
+    if (axes & JOYPAD_2D_C)
+    {
+        // Convert C-up/down/left/right into a #JOYPAD_RAW_2D bitfield
+        const unsigned raw2d = joypad_get_buttons(port).raw & 0x000F;
+        dir = joypad_raw2d_to_8way(raw2d);
+        if (dir != JOYPAD_8WAY_NONE) { return dir; }
+    }
+    return JOYPAD_8WAY_NONE;
 }
 
 /** @} */ /* joypad */
