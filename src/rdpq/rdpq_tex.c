@@ -201,7 +201,7 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
         assertf(ROUND_UP(tload->tex->width, 2) % 4 == 0, "Internal Error: invalid width for LOAD_BLOCK (%d)", tload->tex->width);
-        rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/4, tload->tex->height);
+        rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), FMT_RGBA16, (tload->tex->width+1)/4, tload->tex->height);
         rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, NULL);
         rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
