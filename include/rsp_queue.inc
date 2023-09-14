@@ -230,22 +230,23 @@ _RSPQ_SAVED_STATE_END:
 
 # We also define direct access to small constants as they can be useful in some
 # calculations.
-#define K1       vshift,e(7)
-#define K2       vshift,e(6)
-#define K4       vshift,e(5)
-#define K8       vshift,e(4)
-#define K16      vshift,e(3)
-#define K32      vshift,e(2)
-#define K64      vshift,e(1)
-#define K128     vshift,e(0)
-#define K256     vshift8,e(7)
-#define K512     vshift8,e(6)
-#define K1024    vshift8,e(5)
-#define K2048    vshift8,e(4)
-#define K4096    vshift8,e(3)
-#define K8192    vshift8,e(2)
-#define K16384   vshift8,e(1)
-#define KM32768  vshift8,e(0)    // note: this is actually -32768 for most arithmetic operations
+#define K1       vshift.e7
+#define K2       vshift.e6
+#define K4       vshift.e5
+#define K8       vshift.e4
+#define K16      vshift.e3
+#define K32      vshift.e2
+#define K64      vshift.e1
+#define K128     vshift.e0
+#define K256     vshift8.e7
+#define K512     vshift8.e6
+#define K1024    vshift8.e5
+#define K2048    vshift8.e4
+#define K4096    vshift8.e3
+#define K8192    vshift8.e2
+#define K16384   vshift8.e1
+#define K32768   vshift8.e0
+#define KM32768  vshift8.e0    // note: this is actually -32768 for most arithmetic operations
 
 
 ########################################################
