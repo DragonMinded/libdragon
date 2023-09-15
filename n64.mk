@@ -102,7 +102,12 @@ RSPASFLAGS+=-MMD
 %.dfs:
 	@mkdir -p $(dir $@)
 	@echo "    [DFS] $@"
-	$(N64_MKDFS) $@ $(<D) >/dev/null
+	set -e; \
+	MKDFSROOT="$(shell python3 -c 'import os.path; print( os.path.commonpath( """$^""".split() ) ) ')"; \
+	if [ -z "$$MKDFSROOT" ]; then \
+		echo "Error creating filesystem: DFS files must share a common root directory"; exit 1; \
+	fi; \
+	$(N64_MKDFS) $@ "$$MKDFSROOT" >/dev/null
 
 # Assembly rule. We use .S for both RSP and MIPS assembly code, and we differentiate
 # using the prefix of the filename: if it starts with "rsp", it is RSP ucode, otherwise

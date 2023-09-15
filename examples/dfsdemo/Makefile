@@ -9,6 +9,7 @@ OBJS = $(BUILD_DIR)/dfsdemo.o
 dfsdemo.z64: N64_ROM_TITLE = "DragonFS Demo"
 dfsdemo.z64: $(BUILD_DIR)/dfsdemo.dfs
 
+$(BUILD_DIR)/dfsdemo.dfs: filesystem/a_directory/a_file.txt
 $(BUILD_DIR)/dfsdemo.dfs: $(wildcard filesystem/*)
 $(BUILD_DIR)/dfsdemo.elf: $(OBJS)
 
