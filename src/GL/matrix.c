@@ -382,3 +382,34 @@ void glPopMatrix(void)
 
     gl_write(GL_CMD_MATRIX_POP);
 }
+
+void glCopyMatrixN64(GLenum source)
+{
+    if (!gl_ensure_no_immediate()) return;
+    int src_id;
+    gl_matrix_stack_t *matrix_stack;
+    switch(source)
+    {
+        case GL_MODELVIEW:
+            src_id = 0;
+            matrix_stack = &state.modelview_stack;
+            break;
+            
+        case GL_PROJECTION:
+            src_id = 1;
+            matrix_stack = &state.projection_stack;
+            break;
+            
+        case GL_TEXTURE:
+            src_id = 2;
+            matrix_stack = &state.texture_stack;
+            break;
+            
+        default:
+            gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid matrix source for copying matrices", source);
+            break;
+    }
+    memcpy(state.current_matrix, gl_matrix_stack_get_matrix(matrix_stack), sizeof(gl_matrix_t));
+    gl_mark_matrix_target_dirty();
+    gl_write(GL_CMD_MATRIX_COPY, src_id << 6);
+}
