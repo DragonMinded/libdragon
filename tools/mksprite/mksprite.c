@@ -760,7 +760,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     int height = spr->images[0].height / 2;
     
     uint8_t *best_rgb_img = NULL;
-    int best_rgb_w, best_rgb_h;
+    int best_rgb_w = 0, best_rgb_h = 0;
     float best_err = 999999;
     float best_ifactor = 0;
     uint8_t *best_i_img = malloc(width * height);
