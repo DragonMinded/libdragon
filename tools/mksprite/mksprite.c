@@ -709,7 +709,7 @@ error:
     return false;
 }
 
-static uint8_t ihq_calc_best_i8(float ifactor, uint8_t r0, uint8_t g0, uint8_t b0, uint8_t r, uint8_t g, uint8_t b, float *err) {
+static uint8_t ihq_calc_best_i4(float ifactor, uint8_t r0, uint8_t g0, uint8_t b0, uint8_t r, uint8_t g, uint8_t b, float *err) {
     // Compute Y (luma) for r0,g0,b0
     float y0 = 0.299f*r0 + 0.587f*g0 + 0.114f*b0;
 
@@ -721,7 +721,7 @@ static uint8_t ihq_calc_best_i8(float ifactor, uint8_t r0, uint8_t g0, uint8_t b
     // will give the closest value to y0.
     uint8_t best_i = 0;
     float best_err = 999999;
-    for (int i=0; i<256; i++) {
+    for (int i=0; i<256; i+=16) {
         float ii = i*ifactor;
         float y = 0.299f*(int)(rf+ii) + 0.587f*(int)(gf+ii) + 0.114f*(int)(bf+ii);
         float err = fabsf(y-y0);
@@ -753,11 +753,12 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
         return false;
     }
 
+    int width = spr->images[0].width;
+    int height = spr->images[0].height;
+
     // Calculate a first 2x2 mipmap
-    uint8_t *img22 = image_shrink_box(spr->images[0].image, spr->images[0].width, spr->images[0].height, true, true);
+    uint8_t *img22 = image_shrink_box(spr->images[0].image, width, height, true, true);
     uint8_t *img42 = NULL, *img24 = NULL;
-    int width = spr->images[0].width / 2;
-    int height = spr->images[0].height / 2;
     
     uint8_t *best_rgb_img = NULL;
     int best_rgb_w = 0, best_rgb_h = 0;
@@ -769,13 +770,13 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     for (int dir=0; dir<2; dir++) {
         uint8_t *img; int iw, ih;
         if (dir == 0) {
-            if (spr->images[0].width % 4) continue;
-            img42 = image_shrink_box(img22, width, height, true, false);
-            img = img42; iw = width/2; ih = height;
+            if (width % 4) continue;
+            img42 = image_shrink_box(img22, width/2, height/2, true, false);
+            img = img42; iw = width/4; ih = height/2;
         } else {
-            if (spr->images[0].height % 4) continue;
-            img24 = image_shrink_box(img22, width, height, false, true);
-            img = img24; iw = width; ih = height/2;
+            if (height % 4) continue;
+            img24 = image_shrink_box(img22, width/2, height/2, false, true);
+            img = img24; iw = width/2; ih = height/4;
         }
 
         float wstep = (float)iw / width;
@@ -792,9 +793,9 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
                 float yyf = yy - yy0;
 
                 for (int x=0; x<width; x++) {
-                    uint8_t r0 = img22[(y*width + x)*4 + 0];
-                    uint8_t g0 = img22[(y*width + x)*4 + 1];
-                    uint8_t b0 = img22[(y*width + x)*4 + 2];
+                    uint8_t r0 = spr->images[0].image[(y*width + x)*4 + 0];
+                    uint8_t g0 = spr->images[0].image[(y*width + x)*4 + 1];
+                    uint8_t b0 = spr->images[0].image[(y*width + x)*4 + 2];
 
                     float xx = x * wstep;
                     int xx0 = (int)xx;
@@ -823,7 +824,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
                     uint8_t b = (uint8_t)(bm0 * (1-xxf) * (1-yyf) + bm1 * xxf * (1-yyf) + bm2 * (1-xxf) * yyf + bm3 * xxf * yyf);
 
                     float err;
-                    uint8_t i = ihq_calc_best_i8(ifactor, r0, g0, b0, r, g, b, &err);
+                    uint8_t i = ihq_calc_best_i4(ifactor, r0, g0, b0, r, g, b, &err);
                     i_img[y*width + x] = i;
                     // if (x==16 && y==0) {
                     //     printf("IHQ: (%d,%d): %d %d %d -> %d %d %d\n", x, y, r0, g0, b0, r, g, b);
@@ -842,6 +843,8 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
                 best_rgb_img = img;
                 SWAP(best_i_img, i_img);
             }
+            // if (flag_verbose)
+            //     fprintf(stderr, "IHQ: factor=%.1f mse=%f\n", ifactor, mse);
         }
     }
 
@@ -849,7 +852,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     spr->detail.blend_factor = best_ifactor;
     spr->detail.enabled = true;
     spr->detail.use_main_tex = false;
-    spr->images[7].fmt = FMT_I8;
+    spr->images[7].fmt = FMT_I4;
     spr->images[7].image = best_i_img;
     spr->images[7].width = width;
     spr->images[7].height = height;
@@ -861,7 +864,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     spr->images[0].height = best_rgb_h;
 
     if (flag_verbose)
-        fprintf(stderr, "computed IHQ planes (rgb:%dx%d, factor=%.1f)\n", best_rgb_w, best_rgb_h, best_ifactor);
+        fprintf(stderr, "computed IHQ planes (rgb:%dx%d, factor=%.1f, rmsd=%.4f)\n", best_rgb_w, best_rgb_h, best_ifactor, best_err);
 
     if (img22 && img22 != best_rgb_img) free(img22);
     if (img42 && img42 != best_rgb_img) free(img42);
