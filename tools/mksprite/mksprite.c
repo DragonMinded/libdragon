@@ -27,7 +27,8 @@
 #include "surface.h"
 #include "sprite.h"
 
-#define FMT_ZBUF   64
+#define FMT_ZBUF   (64 + 0)
+#define FMT_IHQ    (64 + 1)
 
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
@@ -47,6 +48,7 @@ const char* tex_format_name(tex_format_t fmt) {
     case FMT_IA8: return "IA8";
     case FMT_IA4: return "IA4";
     case FMT_ZBUF: return "ZBUF";
+    case FMT_IHQ: return "IHQ";
     default: assert(0); return ""; // should not happen
     }
 }
@@ -62,6 +64,7 @@ tex_format_t tex_format_from_name(const char *name) {
     if (!strcasecmp(name, "I4"))     return FMT_I4;
     if (!strcasecmp(name, "IA4"))    return FMT_IA4;
     if (!strcasecmp(name, "ZBUF"))   return FMT_ZBUF;
+    if (!strcasecmp(name, "IHQ"))    return FMT_IHQ;
     return FMT_NONE;
 }
 
@@ -341,7 +344,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     // Setup the info_raw structure with the desired pixel conversion,
     // depending on the output format.
     switch ((int)fmt) {
-    case FMT_RGBA32: case FMT_RGBA16:
+    case FMT_RGBA32: case FMT_RGBA16: case FMT_IHQ:
         // PNG does not support RGBA555 (aka RGBA16), so just convert
         // to 32-bit version we will downscale later.
         state.info_raw.colortype = LCT_RGBA;
@@ -496,13 +499,44 @@ bool spritemaker_fit_tmem(spritemaker_t *spr, int *out_tmem_usage)
     return tmem_usage <= 4096;
 }
 
+static uint8_t *image_shrink_box(uint8_t *src, int width, int height, bool half_w, bool half_h) {
+    int new_width = half_w ? width/2 : width;
+    int new_height = half_h ? height/2 : height;
+    uint8_t *imgdst = malloc(new_width * new_height * 4);
+    int wstep = half_w ? 8 : 4;
+    for (int y=0; y<new_height; y++) {
+        uint8_t *src1, *src2, *src3, *src4;
+        if (half_h) {
+            src1 = src + y*2*width*4;
+            src2 = src1 + width*4;
+        } else {
+            src1 = src2 = src + y*width*4;
+        }
+        if (half_w) {
+            src3 = src1 + 4;
+            src4 = src2 + 4;
+        } else {
+            src3 = src4 = src1;
+        }
+        uint8_t *dst = imgdst + y*new_width*4;
+        for (int x=0; x<new_width; x++) {
+            dst[0] = (src1[0] + src3[0] + src2[0] + src4[0]) / 4;
+            dst[1] = (src1[1] + src3[1] + src2[1] + src4[1]) / 4;
+            dst[2] = (src1[2] + src3[2] + src2[2] + src4[2]) / 4;
+            dst[3] = (src1[3] + src3[3] + src2[3] + src4[3]) / 4;
+            dst += 4; src1 += wstep; src2 += wstep; src3 += wstep; src4 += wstep;
+        }
+    }
+    return imgdst;
+}
+
 bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     // Calculate mipmap levels
     assert(algo == MIPMAP_ALGO_BOX);
 
     int tmem_usage;
     if (!spritemaker_fit_tmem(spr, &tmem_usage)) {
-        fprintf(stderr, "WARNING: image does not fit in TMEM, no mipmaps will be calculated\n");
+        fprintf(stderr, "WARNING: image does not fit in TMEM (%d), no mipmaps will be calculated\n", tmem_usage);
         // Continue execution anyway
         // TODO: maybe abort?
         return true;
@@ -673,6 +707,166 @@ bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, i
 error:
     exq_free(exq);
     return false;
+}
+
+static uint8_t ihq_calc_best_i8(float ifactor, uint8_t r0, uint8_t g0, uint8_t b0, uint8_t r, uint8_t g, uint8_t b, float *err) {
+    // Compute Y (luma) for r0,g0,b0
+    float y0 = 0.299f*r0 + 0.587f*g0 + 0.114f*b0;
+
+    float rf = r*(1-ifactor);
+    float gf = g*(1-ifactor);
+    float bf = b*(1-ifactor);
+
+    // Calculate the best I value that, when added to r,g,b, and converted to Y,
+    // will give the closest value to y0.
+    uint8_t best_i = 0;
+    float best_err = 999999;
+    for (int i=0; i<256; i++) {
+        float ii = i*ifactor;
+        float y = 0.299f*(int)(rf+ii) + 0.587f*(int)(gf+ii) + 0.114f*(int)(bf+ii);
+        float err = fabsf(y-y0);
+        if (err < best_err) {
+            best_err = err;
+            best_i = i;
+        }
+    }
+    *err = best_err;
+    return best_i;
+}
+
+bool spritemaker_convert_ihq(spritemaker_t *spr) {
+    // A IHQ image fakes doubling the available TMEM. So check whether the TMEM
+    // usage as RGBA16 is lower than 8192 bytes, otherwise it doesn't fit.
+    if (calc_tmem_usage(FMT_RGBA16, spr->images[0].width, spr->images[0].height) > 8192) {
+        fprintf(stderr, "ERROR: image too big for IHQ mode (max is 64x64, or 128x32, or similar)\n");
+        return false;
+    }
+
+    if (spr->images[0].width % 2 || spr->images[0].height % 2) {
+        fprintf(stderr, "ERROR: both width or height must be a multiple of 2 for IHQ mode\n");
+        return false;
+    }
+
+    // Since we need to shrink the image up to 4, check that it's a multiple of 4 on either W or H
+    if (spr->images[0].width % 4 != 0 && spr->images[0].height % 4 != 0) {
+        fprintf(stderr, "ERROR: either width or height must be a multiple of 4 for IHQ mode\n");
+        return false;
+    }
+
+    // Calculate a first 2x2 mipmap
+    uint8_t *img22 = image_shrink_box(spr->images[0].image, spr->images[0].width, spr->images[0].height, true, true);
+    uint8_t *img42 = NULL, *img24 = NULL;
+    int width = spr->images[0].width / 2;
+    int height = spr->images[0].height / 2;
+    
+    uint8_t *best_rgb_img = NULL;
+    int best_rgb_w, best_rgb_h;
+    float best_err = 999999;
+    float best_ifactor = 0;
+    uint8_t *best_i_img = malloc(width * height);
+    uint8_t *i_img = malloc(width * height);
+
+    for (int dir=0; dir<2; dir++) {
+        uint8_t *img; int iw, ih;
+        if (dir == 0) {
+            if (spr->images[0].width % 4) continue;
+            img42 = image_shrink_box(img22, width, height, true, false);
+            img = img42; iw = width/2; ih = height;
+        } else {
+            if (spr->images[0].height % 4) continue;
+            img24 = image_shrink_box(img22, width, height, false, true);
+            img = img24; iw = width; ih = height/2;
+        }
+
+        float wstep = (float)iw / width;
+        float hstep = (float)ih / height;
+
+        for (int factor=1; factor<=8; factor++) {
+            float ifactor = 0.1f * factor;
+            float mse = 0;
+
+            for (int y=0; y<height; y++) {
+                float yy = y * hstep;
+                int yy0 = (int)yy;
+                int yy1 = yy0+1;
+                float yyf = yy - yy0;
+
+                for (int x=0; x<width; x++) {
+                    uint8_t r0 = img22[(y*width + x)*4 + 0];
+                    uint8_t g0 = img22[(y*width + x)*4 + 1];
+                    uint8_t b0 = img22[(y*width + x)*4 + 2];
+
+                    float xx = x * wstep;
+                    int xx0 = (int)xx;
+                    int xx1 = xx0+1;
+                    float xxf = xx - xx0;
+
+                    uint8_t rm0 = img[(yy0*iw + xx0)*4 + 0];
+                    uint8_t gm0 = img[(yy0*iw + xx0)*4 + 1];
+                    uint8_t bm0 = img[(yy0*iw + xx0)*4 + 2];
+
+                    uint8_t rm1 = img[(yy0*iw + xx1)*4 + 0];
+                    uint8_t gm1 = img[(yy0*iw + xx1)*4 + 1];
+                    uint8_t bm1 = img[(yy0*iw + xx1)*4 + 2];
+
+                    uint8_t rm2 = img[(yy1*iw + xx0)*4 + 0];
+                    uint8_t gm2 = img[(yy1*iw + xx0)*4 + 1];
+                    uint8_t bm2 = img[(yy1*iw + xx0)*4 + 2];
+
+                    uint8_t rm3 = img[(yy1*iw + xx1)*4 + 0];
+                    uint8_t gm3 = img[(yy1*iw + xx1)*4 + 1];
+                    uint8_t bm3 = img[(yy1*iw + xx1)*4 + 2];
+
+                    // Bilinear interpolate
+                    uint8_t r = (uint8_t)(rm0 * (1-xxf) * (1-yyf) + rm1 * xxf * (1-yyf) + rm2 * (1-xxf) * yyf + rm3 * xxf * yyf);
+                    uint8_t g = (uint8_t)(gm0 * (1-xxf) * (1-yyf) + gm1 * xxf * (1-yyf) + gm2 * (1-xxf) * yyf + gm3 * xxf * yyf);
+                    uint8_t b = (uint8_t)(bm0 * (1-xxf) * (1-yyf) + bm1 * xxf * (1-yyf) + bm2 * (1-xxf) * yyf + bm3 * xxf * yyf);
+
+                    float err;
+                    uint8_t i = ihq_calc_best_i8(ifactor, r0, g0, b0, r, g, b, &err);
+                    i_img[y*width + x] = i;
+                    // if (x==16 && y==0) {
+                    //     printf("IHQ: (%d,%d): %d %d %d -> %d %d %d\n", x, y, r0, g0, b0, r, g, b);
+                    //     printf("IHQ: i=%d err=%f rgb=(%d,%d,%d)\n", i, err, (int)(r*(1-ifactor)+i*ifactor), (int)(g*(1-ifactor)+i*ifactor), (int)(b*(1-ifactor)+i*ifactor));
+                    // }
+                    mse += err*err;
+                }
+            }
+
+            mse = sqrtf(mse / (width * height));
+            if (mse < best_err) {
+                best_err = mse;
+                best_ifactor = ifactor;
+                best_rgb_w = iw;
+                best_rgb_h = ih;
+                best_rgb_img = img;
+                SWAP(best_i_img, i_img);
+            }
+        }
+    }
+
+    // We computed the best IHQ image, now copy it as detail texture
+    spr->detail.blend_factor = best_ifactor;
+    spr->detail.enabled = true;
+    spr->detail.use_main_tex = false;
+    spr->images[7].fmt = FMT_I8;
+    spr->images[7].image = best_i_img;
+    spr->images[7].width = width;
+    spr->images[7].height = height;
+
+    // Put the halved image as first image
+    spr->images[0].fmt = FMT_RGBA16;
+    spr->images[0].image = best_rgb_img;
+    spr->images[0].width = best_rgb_w;
+    spr->images[0].height = best_rgb_h;
+
+    if (flag_verbose)
+        fprintf(stderr, "computed IHQ planes (rgb:%dx%d, factor=%.1f)\n", best_rgb_w, best_rgb_h, best_ifactor);
+
+    if (img22 && img22 != best_rgb_img) free(img22);
+    if (img42 && img42 != best_rgb_img) free(img42);
+    free(i_img);
+    return true;
 }
 
 bool spritemaker_write(spritemaker_t *spr) {
@@ -973,18 +1167,25 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         spr.detail.texparms.t = spr.detail.texparms.s;
     }
 
+    int mipmap_algo = pm->mipmap_algo;
+
     // Load the PNG, passing the desired output format (or FMT_NONE if autodetect).
     if (!spritemaker_load_png(&spr, pm->outfmt))
         goto error;
 
-    if (spr.detail.enabled && !spr.detail.use_main_tex) {
+    if (pm->outfmt == FMT_IHQ) {
+        if (!spritemaker_convert_ihq(&spr))
+            goto error;
+        // Compute mipmaps for IHQ
+        mipmap_algo = MIPMAP_ALGO_BOX;
+    } else if (spr.detail.enabled && !spr.detail.use_main_tex) {
         // Load the detail PNG, passing the desired output format (or FMT_NONE if autodetect).
         if (!spritemaker_load_detail_png(&spr, pm->detail.outfmt))
             goto error;
     }
 
     // Calculate mipmap levels, if requested
-    if (pm->mipmap_algo != MIPMAP_ALGO_NONE) {
+    if (mipmap_algo != MIPMAP_ALGO_NONE) {
         switch (spr.images[0].ct) {
         case LCT_PALETTE: {
             // Mipmap generation of indexed image. In this case, we want to
@@ -996,7 +1197,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
 
             // Expand to RGBA, calc lods, and quantize with the original palette
             if (!spritemaker_expand_rgba(&spr)
-                || !spritemaker_calc_lods(&spr, pm->mipmap_algo)
+                || !spritemaker_calc_lods(&spr, mipmap_algo)
                 || !spritemaker_quantize(&spr, orig_palette.colors[0], fmt_colors, pm->dither_algo))
                 goto error;
 
@@ -1009,7 +1210,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         }   break;
 
         default:
-            if (!spritemaker_calc_lods(&spr, pm->mipmap_algo))
+            if (!spritemaker_calc_lods(&spr, mipmap_algo))
                 goto error;
             break;
         }
