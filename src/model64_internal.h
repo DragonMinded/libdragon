@@ -34,21 +34,73 @@ typedef struct primitive_s {
     void *indices;                  ///< Pointer to the first index value. If NULL, indices are not used
 } primitive_t;
 
-/** @brief A mesh that is made up of multiple primitives (part of #model64_t) */
+/** @brief Transform of a node of a model */
+typedef struct node_transform_s {
+    float pos[3];       ///< Position of a node
+    float rot[4];       ///< Rotation of a node (quaternion)
+    float scale[3];     ///< Scale of a node
+    float mtx[16];      ///< Matrix of a node
+} node_transform_t;
+
+/** @brief Transform state of a node of a model */
+
+typedef struct node_transform_state_s {
+    node_transform_t transform;     ///< Current transform state for a node
+    float world_mtx[16];            ///< World matrix for a node
+} node_transform_state_t;
+
+/** @brief A mesh of the model */
 typedef struct mesh_s {
     uint32_t num_primitives;        ///< Number of primitives
     primitive_t *primitives;        ///< Pointer to the first primitive
 } mesh_t;
 
+/** @brief A joint of the model */
+typedef struct model64_joint_s {
+    uint32_t node_idx;              ///< Index of node joint is attached to
+    float inverse_bind_mtx[16];     ///< Inverse bind matrix of joint
+} model64_joint_t;
+
+/** @brief A skin of the model */
+typedef struct model64_skin_s {
+    uint32_t num_joints;        ///< Number of joints
+    model64_joint_t *joints;    ///< Pointer to the first joint
+} model64_skin_t;
+
+/** @brief A node of the model */
+typedef struct model64_node_s {
+    char *name;                     ///< Name of a node
+    mesh_t *mesh;                   ///< Mesh a node refers to
+    model64_skin_t *skin;           ///< Skin a node refers to
+    node_transform_t transform;     ///< Initial transform of a node
+    uint32_t parent;                ///< Index of parent node
+    uint32_t num_children;          ///< Number of children nodes
+    uint32_t *children;             ///< List of children node indices
+} model64_node_t;
+
 /** @brief A model64 file containing a model */
+typedef struct model64_data_s {
+    uint32_t magic;             ///< Magic header (MODEL64_MAGIC)
+    uint32_t ref_count;         ///< Number of times model data is used
+    uint32_t version;           ///< Version of this file
+    uint32_t header_size;       ///< Size of the header in bytes
+    uint32_t mesh_size;         ///< Size of a mesh header in bytes
+    uint32_t primitive_size;    ///< Size of a primitive header in bytes
+    uint32_t node_size;         ///< Size of a node in bytes
+    uint32_t skin_size;         ///< Size of a skin in bytes
+    uint32_t num_nodes;         ///< Number of nodes
+    model64_node_t *nodes;      ///< Pointer to the first node
+    uint32_t root_node;         ///< Root node of the model
+    uint32_t num_skins;         ///< Number of skins
+    model64_skin_t *skins;      ///< Pointer to the first skin
+    uint32_t num_meshes;        ///< Number of meshes
+    mesh_t *meshes;             ///< Pointer to the first mesh
+} model64_data_t;
+
+/** @brief A model64 instance */
 typedef struct model64_s {
-    uint32_t magic;                 ///< Magic header (MODEL64_MAGIC)
-    uint32_t version;               ///< Version of this file
-    uint32_t header_size;           ///< Size of the header in bytes
-    uint32_t mesh_size;             ///< Size of a mesh header in bytes
-    uint32_t primitive_size;        ///< Size of a primitive header in bytes
-    uint32_t num_meshes;            ///< Number of meshes
-    mesh_t *meshes;                 ///< Pointer to the first mesh
+    model64_data_t *data;                   ///< Pointer to the model data this instance refers to
+    node_transform_state_t *transforms;     ///< List of transforms for each bone in a model instance
 } model64_t;
 
 #endif

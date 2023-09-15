@@ -16,9 +16,13 @@ typedef struct mesh_s mesh_t;
 struct primitive_s;
 typedef struct primitive_s primitive_t;
 
+struct model64_node_s;
+typedef struct model64_node_s model64_node_t;
+
 model64_t *model64_load(const char *fn);
 model64_t *model64_load_buf(void *buf, int sz);
 void model64_free(model64_t *model);
+model64_t *model64_clone(model64_t *model);
 
 /**
  * @brief Return the number of meshes in this model.
@@ -29,6 +33,47 @@ uint32_t model64_get_mesh_count(model64_t *model);
  * @brief Return the mesh at the specified index.
  */
 mesh_t *model64_get_mesh(model64_t *model, uint32_t mesh_index);
+
+
+/**
+ * @brief Return the number of nodes in this model.
+ */
+uint32_t model64_get_node_count(model64_t *model);
+
+/**
+ * @brief Return the node at the specified index.
+ */
+model64_node_t *model64_get_node(model64_t *model, uint32_t node_index);
+
+/**
+ * @brief Return the first node with the specified name in the model.
+ */
+model64_node_t *model64_search_node(model64_t *model, const char *name);
+
+/**
+ * @brief Sets the position of a node in a model relative to its parent.
+ */
+void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float y, float z);
+
+/**
+ * @brief Sets the rotation of a node in a model relative to its parent in the form of an euler angle (ZYX rotation order) in radians.
+ */
+void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float y, float z);
+
+/**
+ * @brief Sets the rotation of a node in a model relative to its parent in the form of a quaternion.
+ */
+void model64_set_node_rot_quat(model64_t *model, model64_node_t *node, float x, float y, float z, float w);
+
+/**
+ * @brief Sets the scale of a node in a model relative to its parent.
+ */
+void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, float y, float z);
+
+/**
+ * @brief Gets the transformation matrix between a model's root node and a node in a model.
+ */
+void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float dst[16]);
 
 /**
  * @brief Return the number of primitives in this mesh.
@@ -43,7 +88,7 @@ primitive_t *model64_get_primitive(mesh_t *mesh, uint32_t primitive_index);
 /**
  * @brief Draw an entire model.
  * 
- * This will draw all primitives of all meshes that are contained the given model.
+ * This will draw all nodes that are contained in the given model while applying the relevant node matrices.
  */
 void model64_draw(model64_t *model);
 
@@ -53,6 +98,13 @@ void model64_draw(model64_t *model);
  * This will draw all of the given mesh's primitives.
  */
 void model64_draw_mesh(mesh_t *mesh);
+
+/**
+ * @brief Draw a single node.
+ * 
+ * This will draw a single mesh node.
+ */
+void model64_draw_node(model64_t *model, model64_node_t *node);
 
 /**
  * @brief Draw a single primitive.
