@@ -13,9 +13,9 @@
  * @brief Managed mempak interface.
  *
  * The mempak system is a subsystem of the @ref controller.  Before attempting to
- * read from or write to a mempak, be sure you have initialized the controller system
- * with #controller_init and verified that you have a mempak in the correct controller
- * using #identify_accessory.
+ * read from or write to a mempak, be sure you have initialized the Joypad subsystem
+ * with #joypad_init and verified that you have a mempak in the correct controller
+ * using #joypad_get_accessory_type.
  *
  * To read and write to the mempak in an organized way compatible with official software,
  * first check that the mempak is valid using #validate_mempak.  If the mempack is
@@ -70,7 +70,7 @@ int read_mempak_sector( int controller, int sector, uint8_t *sector_data )
     /* Sectors are 256 bytes, a mempak reads 32 bytes at a time */
     for( int i = 0; i < 8; i++ )
     {
-        if( read_mempak_address( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
+        if( joybus_accessory_read( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
         {
             /* Failed to read a block */
             return -2;
@@ -105,7 +105,7 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
     /* Sectors are 256 bytes, a mempak writes 32 bytes at a time */
     for( int i = 0; i < 8; i++ )
     {
-        if( write_mempak_address( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
+        if( joybus_accessory_write( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
         {
             /* Failed to read a block */
             return -2;
@@ -768,7 +768,7 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
 
     /* Entries are spread across two sectors, but we can luckly grab just one
        with a single mempak read */
-    if( read_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry * 32), data ) )
+    if( joybus_accessory_read( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry * 32), data ) )
     {
         /* Couldn't read note database */
         return -2;
@@ -1097,7 +1097,7 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
     {
         entry_structure_t tmp_entry;
 
-        if( read_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (i * 32), tmp_data ) )
+        if( joybus_accessory_read( controller, (3 * MEMPAK_BLOCK_SIZE) + (i * 32), tmp_data ) )
         {
             /* Couldn't read note database */
             return -2;
@@ -1140,7 +1140,7 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
     __write_note( entry, tmp_data );
 
     /* Store entry to empty slot on mempak */
-    if( write_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), tmp_data ) )
+    if( joybus_accessory_write( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), tmp_data ) )
     {
         /* Couldn't update note database */
         return -2;
@@ -1177,7 +1177,7 @@ int delete_mempak_entry( int controller, entry_structure_t *entry )
     if( entry->inode < BLOCK_VALID_FIRST || entry->inode > BLOCK_VALID_LAST ) { return -1; }
 
     /* Ensure that the entry passed in matches what's on the mempak */
-    if( read_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
+    if( joybus_accessory_read( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
     {
         /* Couldn't read note database */
         return -2;
@@ -1197,7 +1197,7 @@ int delete_mempak_entry( int controller, entry_structure_t *entry )
 
     /* The entry matches, so blank it */
     memset( data, 0, 32 );
-    if( write_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
+    if( joybus_accessory_write( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
     {
         /* Couldn't update note database */
         return -2;

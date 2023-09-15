@@ -8,6 +8,7 @@ EXAMPLES += customfont
 EXAMPLES += eepromfstest
 EXAMPLES += fontdemo
 EXAMPLES += gldemo
+EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
 EXAMPLES += mixertest
 EXAMPLES += mptest
