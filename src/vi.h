@@ -8,8 +8,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "regsinternal.h"
-#include "n64sys.h"
 
 /**
  * @addtogroup display
@@ -31,6 +29,26 @@
 typedef struct vi_config_s{
     uint32_t regs[VI_REGISTERS_COUNT];
 } vi_config_t;
+
+/**
+ * @brief Video Interface borders structure
+ *
+ * This structure contains how thick should the borders around a framebuffer be in pixels.
+ * The pixels assume VI scale (640x240/480 NTSC or 640x288/576 PAL).
+ * They can be of different sizes and the framebuffer will be scaled to fit under them
+ * For example when shown on CRT monitors, one can add borders around a framebuffer so
+ * that the whole image could be seen on the monitor. 
+ * 
+ * Or if no borders are applied, 
+ * the output will use the whole NSTC/PAL region space for showing a framebuffer, useful
+ * for accurate emulators and LCD TV's.
+ */
+typedef struct vi_borders_s{
+    uint32_t left, right, up, down;
+} vi_borders_t;
+
+#define VI_BORDERS_NONE (vi_borders_t){0, 0, 0, 0};
+#define VI_BORDERS_CRT  (vi_borders_t){27, 27, 27, 27};
 
 /** @brief Base pointer to hardware Video interface registers that control various aspects of VI configuration.
  * Shouldn't be used by itself, use VI_ registers to get/set their values. */
@@ -79,33 +97,34 @@ typedef struct vi_config_s{
 static const vi_config_t vi_ntsc_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x0c150c15, 0x006502f3, 0x00250205, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_p =  {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
+    0x0c6f0c6e, 0x00790307, 0x005f023f, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x0c190c1a, 0x006502f3, 0x00250205, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_ntsc_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
+    0x0c150c15, 0x006502f3, 0x00230203, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
+    0x0c6f0c6e, 0x00790307, 0x005d023d, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
+    0x0c1c0c1c, 0x006502f3, 0x00230203, 0x000b0202,
     0x00000000, 0x00000000 }};
+
 /** @} */
 
 /** @brief Register initial value array */
@@ -197,9 +216,17 @@ static const vi_config_t vi_config_presets[2][3] = {
 /** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */
 #define VI_X_SCALE_SET(value)               (( 1024*(value) + 320 ) / 640)
 
+/**  Under VI_X_SCALE   */
+/** @brief VI_X_OFFSET Register: Horizontal subpixel offset (value is converted to 2.10 format) */
+#define VI_X_OFFSET_SET(value)              ((( 1024*(value)) & 0xFFFF) << 16)
+
 /**  Under VI_Y_SCALE   */
 /** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
 #define VI_Y_SCALE_SET(value)               (( 1024*(value) + 120 ) / 240)
+
+
+/** @brief VI_SCALE Registers: set 1/horizontal scale up factor (value is converted to 2.10 format) */
+#define VI_SCALE_FROMTO(from,to)            (( 1024*(from) + (to/2) ) / (to))
 
 /**
  * @brief Write a set of video registers to the VI
@@ -213,6 +240,49 @@ inline void vi_write_safe(volatile uint32_t *reg, uint32_t value){
     assert(reg); /* This should never happen */
     *reg = value;
     MEMORY_BARRIER();
+}
+
+
+/**
+ * @brief Write a set of video registers to the VI 
+ * to configure display position, scale and bordering.
+ *
+ * @param[in] width
+ *            Width of the framebuffer to display
+ * @param[in] height
+ *            Height of the framebuffer to display
+ * @param[in] serrate
+ *            Is serrate interlacing enabled for this display
+ * @param[in] borders
+ *            Minimum border size around the framebuffer
+ */
+static inline void vi_write_display(uint32_t width, uint32_t height, bool serrate, vi_borders_t borders){
+    uint32_t tv_type = get_tv_type();
+    const vi_config_t* config = &vi_config_presets[serrate][tv_type];
+
+    uint16_t h_start, h_end, v_start, v_end;
+    {
+        // Get a borderless video config for the type of TV output we have
+        uint32_t h_video = config->regs[VI_TO_INDEX(VI_H_VIDEO)];
+        uint32_t v_video = config->regs[VI_TO_INDEX(VI_V_VIDEO)];
+        // Extract values out of the config
+        h_start = (h_video >> 16) & 0x3FF;
+        h_end   =  h_video        & 0x3FF;
+        v_start = (v_video >> 16) & 0x3FF;
+        v_end   =  v_video        & 0x3FF;
+    }
+
+    // Add minimum borders
+    h_start += borders.left;
+    h_end   -= borders.right;
+    v_start += borders.up;
+    v_end   -= borders.down;
+
+    // Scale and set the boundaries of the framebuffer to fit bordered layout
+    vi_write_safe(VI_X_SCALE, VI_X_OFFSET_SET(2) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));
+    vi_write_safe(VI_Y_SCALE, (uint16_t)VI_SCALE_FROMTO((float)height, (float)(240 - (borders.up + borders.down) / 2)));
+    vi_write_safe(VI_H_VIDEO, (h_start << 16) | (h_end));
+    vi_write_safe(VI_V_VIDEO, (v_start << 16) | (v_end));
 }
 
 /**
@@ -263,7 +333,7 @@ static inline bool vi_is_active()
 }
 
 /** @brief Set active image width to 0, which keeps VI signal active but only sending a blank image */
-static inline void vi_set_blank_image()
+static inline void vi_write_image_is_blank()
 {
     vi_write_safe(VI_H_VIDEO, 0);
 }

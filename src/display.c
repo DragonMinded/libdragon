@@ -79,7 +79,7 @@ static void __display_callback()
         }
     }
 
-    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
+    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - (__width / 80 * __bitdepth));
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -206,9 +206,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         assertf(res.width % 2 == 0, "width must be divisible by 2 for 32-bit depth");
     }
+
+    vi_borders_t         borders = VI_BORDERS_NONE;
+    if(res.crt_borders)  borders = VI_BORDERS_CRT;
+
     vi_write_safe(VI_WIDTH, res.width);
-    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
-    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(res.height));
+    vi_write_display(res.width, res.height, serrate, borders);
 
     /* Set up the display */
     __width = res.width;
@@ -268,7 +271,7 @@ void display_close()
     /* If display is active, wait for vblank before touching the registers */
     if( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    vi_set_blank_image();
+    vi_write_image_is_blank();
     vi_write_dram_register( 0 );
 
     if( surfaces )
