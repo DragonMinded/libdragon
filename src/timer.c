@@ -39,8 +39,11 @@
  * @{
  */
 
+/** @brief Refcount of #timer_init vs #timer_close calls. */
+static int timer_init_refcount = 0;
+
 /** @brief Internal linked list of timers */
-static timer_link_t *TI_timers = 0;
+static timer_link_t *TI_timers = NULL;
 
 /** @brief Higher-part of 64-bit tick counter */
 volatile uint32_t ticks64_high;
@@ -222,9 +225,17 @@ static void timer_overflow_callback(int ovfl)
  *
  * Do not modify the COP0 ticks counter after calling this function. Doing so
  * will impede functionality of the timer module.
+ * 
+ * The timer subsystem tracks the number of times #timer_init is called
+ * and will only initialize the subsystem on the first call. This reference
+ * count also applies to #timer_close, which will only close the subsystem
+ * if it is called the same number of times as #timer_init.
  */
 void timer_init(void)
 {
+	// Just increment the refcount if already initialized.
+	if (timer_init_refcount++ > 0) { return; }
+
 	assertf(!TI_timers, "timer module already initialized");
 	/* Create first timer for overflows: expires when counter is 0 and
 	 * has a period of 2**32. */
@@ -516,9 +527,16 @@ void delete_timer(timer_link_t *timer)
  * This function will ensure all recurring timers are deleted from the list 
  * before closing.  One-shot timers that have expired will need to be
  * manually deleted with #delete_timer.
+ * 
+ * The timer subsystem tracks the number of times #timer_init is called
+ * and will only close the subsystem if #timer_close is called the same
+ * number of times.
  */
 void timer_close(void)
 {
+	// Do nothing if there are still dangling references.
+	if (--timer_init_refcount > 0) { return; }
+
 	assertf(TI_timers, "timer module not initialized");
 	disable_interrupts();
 	

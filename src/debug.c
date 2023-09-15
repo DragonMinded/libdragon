@@ -2,7 +2,7 @@
  * @file debug.c
  * @brief Debugging Support
  */
-
+#ifndef NDEBUG
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
@@ -651,3 +651,12 @@ void debug_backtrace(void)
 {
 	__debug_backtrace(stderr, false);
 }
+#else
+
+#include <stdlib.h>
+
+void debug_assert_func(...) {
+	abort();
+}
+
+#endif

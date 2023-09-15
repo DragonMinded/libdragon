@@ -100,7 +100,7 @@ int main()
     debug_init_isviewer();
     debug_init_usblog();
     //Init rendering
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     rdpq_init();
     rdpq_debug_start();
     scr_width = display_get_width();

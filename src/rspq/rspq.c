@@ -754,6 +754,7 @@ static uint32_t rspq_overlay_get_command_count(rspq_overlay_header_t *header)
     }
 
     assertf(0, "Overlays can only define up to %d commands!", RSPQ_MAX_OVERLAY_COMMAND_COUNT);
+    return 0;
 }
 
 static uint32_t rspq_find_new_overlay_index(void)

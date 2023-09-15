@@ -400,7 +400,7 @@ int main(void) {
 	debug_init_isviewer();
 	debug_init_usblog();
 
-	display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+	display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 	dfs_init(DFS_DEFAULT_LOCATION);
 
 	char sbuf[1024];

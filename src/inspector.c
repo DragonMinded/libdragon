@@ -1,3 +1,4 @@
+#ifndef NDEBUG
 #include "graphics.h"
 #include "display.h"
 #include "debug.h"
@@ -447,7 +448,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
     in_inspector = true;
 
 	display_close();
-	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
 	enum Page {
 		PAGE_EXCEPTION,
@@ -583,3 +584,4 @@ void __inspector_init(void) {
     }
     register_syscall_handler(handler, 0x00001, 0x00002);
 }
+#endif /* NDBUEG */

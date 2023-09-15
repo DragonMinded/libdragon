@@ -20,7 +20,7 @@ _Static_assert((SOM_SAMPLE_BILINEAR >> 32) >> BILINEAR_TEX_OFFSET_SHIFT == HALF_
 _Static_assert(TEX_FLAG_DETAIL << TEX_DETAIL_SHIFT == SOM_TEXTURE_DETAIL >> 32);
 
 extern gl_state_t state;
-inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
+static inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
 
 void gl_texture_set_min_filter(gl_texture_object_t *obj, uint32_t offset, GLenum param);
 
@@ -1170,7 +1170,7 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
     return true;
 }
 
-inline float wrap_mode_to_repeats(GLenum wrap_mode)
+static inline float wrap_mode_to_repeats(GLenum wrap_mode)
 {
     switch (wrap_mode) {
     case GL_REPEAT:
@@ -1182,7 +1182,7 @@ inline float wrap_mode_to_repeats(GLenum wrap_mode)
     }
 }
 
-inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms)
+static inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms)
 {
     *parms = (rdpq_texparms_t){
         .s.scale_log = level,

@@ -165,14 +165,14 @@ void test_rdpq_tex_upload(TestContext *ctx) {
                 if (sub) surf = surface_make_sub(&surf_full, 0, 0, tex_width-sub, tex_width-sub); 
 
                 // Blit the surface to the framebuffer, and verify the result
-                for (int off = 0; off < 3; off++) {
-                    LOG("      off: %d\n", off);
+                for (int off = 0; off < 9; off++) {
+                    LOG("      off: %d,%d\n", off%3, off/3);
                     surface_clear(&fb, 0);
 
                     if (off == 0)
                         rdpq_tex_upload(TILE2,&surf, NULL);
                     else
-                        rdpq_tex_upload_sub(TILE2,&surf, NULL, off, off, surf.width, surf.width);
+                        rdpq_tex_upload_sub(TILE2,&surf, NULL, off%3, off/3, surf.width, surf.width);
                     rdpq_texture_rectangle(TILE2, 
                         5, 5, 5+surf.width-off, 5+surf.width-off,
                         off, off);

@@ -49,6 +49,12 @@ float fm_cosf(float x) {
     return fm_sinf(half_pi_hi - x);
 }
 
+void fm_sincosf(float x, float *sin, float *cos) {
+    float y = fm_sinf_approx(x, 0);
+    *sin = y;
+    *cos = sqrtf(1.0f - y * y);
+}
+
 float fm_atan2f(float y, float x) {
     // Approximation of atan2f using a polynomial minmax approximation in [0,1]
     // calculated via the Remez algorithm (https://math.stackexchange.com/a/1105038).

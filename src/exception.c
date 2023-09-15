@@ -202,6 +202,7 @@ void __exception_dump_fpr(exception_t* ex, void (*cb)(void *arg, const char *reg
 	}
 }
 
+#ifndef NDEBUG
 static void debug_exception(exception_t* ex) {
 	debugf("\n\n******* CPU EXCEPTION *******\n");
 	__exception_dump_header(stderr, ex);
@@ -225,6 +226,7 @@ static void debug_exception(exception_t* ex) {
 		debugf("\n");
 	}
 }
+#endif
 
 /**
  * @brief Default exception handler.
@@ -234,6 +236,7 @@ static void debug_exception(exception_t* ex) {
  * of all GPR/FPR registers. It then calls abort() to abort execution.
  */
 void exception_default_handler(exception_t* ex) {
+	#ifndef NDEBUG
 	static bool backtrace_exception = false;
 
 	// Write immediately as much data as we can to the debug spew. This is the
@@ -250,6 +253,7 @@ void exception_default_handler(exception_t* ex) {
 
 	// Run the inspector
 	__inspector_exception(ex);
+	#endif
 
 	abort();
 }
