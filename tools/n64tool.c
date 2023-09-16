@@ -62,6 +62,8 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 #define TITLE_OFFSET 0x20
 #define TITLE_SIZE   20
 
+#define REGION_OFFSET 0x3E
+
 #define STATUS_OK       0
 #define STATUS_ERROR    1
 #define STATUS_BADUSAGE 2
@@ -109,6 +111,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
 	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header.\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
+	fprintf(stderr, "\t-R, --region <reg>     Specify ROM region (default: 'E' - North America).\n");
 	fprintf(stderr, "\t-T, --toc              Create a table of contents file after the first binary.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "File flags (to be used between files):\n");
@@ -247,6 +250,7 @@ int main(int argc, char *argv[])
 	char title[TITLE_SIZE + 1] = { 0, };
 	bool create_toc = false;
 	size_t toc_offset = 0;
+	char region = 'E';
 
 
 	if(argc <= 1)
@@ -467,6 +471,25 @@ int main(int argc, char *argv[])
 			memcpy(title, title_arg, title_len);
 			continue;
 		}
+		if(check_flag(arg, "-R", "--region"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to region flag\n\n");
+				return print_usage(argv[0]);
+			}
+
+			const char * region_arg = argv[i++];
+			if (strlen(region_arg) != 1)
+			{
+				fprintf(stderr, "ERROR: Region must be a single character\n\n");
+				return print_usage(argv[0]);
+			}
+
+			region = region_arg[0];
+			continue;
+		}
 
 		/* Argument is not a flag; treat it as an input file */
 
@@ -600,6 +623,10 @@ int main(int argc, char *argv[])
 	/* Set title in header */
 	fseek(write_file, TITLE_OFFSET, SEEK_SET);
 	fwrite(title, 1, TITLE_SIZE, write_file);
+
+	/* Set region in header */
+	fseek(write_file, REGION_OFFSET, SEEK_SET);
+	fwrite(&region, 1, 1, write_file);
 
 	/* Write table of contents */
 	if(create_toc)
