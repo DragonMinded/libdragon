@@ -78,24 +78,24 @@ typedef struct {
 #define FULLSCREEN  ((float) 4 / 3)  /// Display letterbox aspect ratio of 4:3
 #define WIDESCREEN  ((float) 16 / 9) /// Display letterbox aspect ratio of 16:9
 
-#define BORDERS_NONE (false) /// Apply no borders to the screen display, recommended for emulators and LCD TV's
-#define BORDERS_CRT (true)   /// Apply standard borders to the screen display, recommended for CRT TV's to midigate overscan
+#define BORDERLESS  (false)  /// Apply no borders to the screen display, recommended for emulators and LCD TV's
+#define BORDER_CRT  (true)   /// Apply standard borders to the screen display, recommended for CRT TV's to midigate overscan
 
 ///@cond
 #define const static const /* fool doxygen to document these static members */
 ///@endcond
 /** @brief 256x240 mode */
-const resolution_t RESOLUTION_256x240 = {256, 240, INTERLACE_OFF,  FULLSCREEN, BORDERS_NONE};
+const resolution_t RESOLUTION_256x240 = {256, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
 /** @brief 320x240 mode */
-const resolution_t RESOLUTION_320x240 = {320, 240, INTERLACE_OFF,  FULLSCREEN, BORDERS_NONE};
+const resolution_t RESOLUTION_320x240 = {320, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
 /** @brief 512x240 mode, high-res progressive */
-const resolution_t RESOLUTION_512x240 = {512, 240, INTERLACE_OFF,  FULLSCREEN, BORDERS_NONE};
+const resolution_t RESOLUTION_512x240 = {512, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
 /** @brief 640x240 mode, high-res progressive */
-const resolution_t RESOLUTION_640x240 = {640, 240, INTERLACE_OFF,  FULLSCREEN, BORDERS_NONE};
+const resolution_t RESOLUTION_640x240 = {640, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
 /** @brief 512x480 mode, interlaced */
-const resolution_t RESOLUTION_512x480 = {512, 480, INTERLACE_HALF, FULLSCREEN, BORDERS_NONE};
+const resolution_t RESOLUTION_512x480 = {512, 480, INTERLACE_HALF, FULLSCREEN, BORDERLESS};
 /** @brief 640x480 mode, interlaced */
-const resolution_t RESOLUTION_640x480 = {640, 480, INTERLACE_HALF, FULLSCREEN, BORDERS_NONE};
+const resolution_t RESOLUTION_640x480 = {640, 480, INTERLACE_HALF, FULLSCREEN, BORDERLESS};
 #undef const
 
 /** @brief Valid bit depths */
