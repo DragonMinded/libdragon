@@ -292,12 +292,16 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
             uint16_t v_arborder = (v_size - (v_size * factor)) / 2;
             v_start += v_arborder;
             v_end -= v_arborder;
+            borders.up += v_arborder;
+            borders.down += v_arborder;
         }
         else {
             float factor = aspect / viaspect; // Get a horizontal scale factor in range (0.0;1.0)
             uint16_t h_arborder = (h_size - (h_size * factor)) / 2;
             h_start += h_arborder;
             h_end -= h_arborder;
+            borders.left += h_arborder;
+            borders.right += h_arborder;
         }
     }
 
