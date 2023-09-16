@@ -57,20 +57,17 @@ static inline void controller_data_from_joypad_buttons(
 )
 {
     struct SI_condat * c = &out->c[port];
-    struct SI_condat_gc * gc = &out->gc[port];
 
-    gc->a = c->A = buttons->a;
-    gc->b = c->B = buttons->b;
-    gc->z = c->Z = buttons->z;
-    gc->start = c->start = buttons->start;
-    gc->up = c->up = buttons->d_up;
-    gc->down = c->down = buttons->d_down;
-    gc->left = c->left = buttons->d_left;
-    gc->right = c->right = buttons->d_right;
-    gc->x = buttons->x;
-    gc->y = buttons->y;
-    gc->l = c->L = buttons->l;
-    gc->r = c->R = buttons->r;
+    c->A = buttons->a;
+    c->B = buttons->b;
+    c->Z = buttons->z;
+    c->start = buttons->start;
+    c->up = buttons->d_up;
+    c->down = buttons->d_down;
+    c->left = buttons->d_left;
+    c->right = buttons->d_right;
+    c->L = buttons->l;
+    c->R = buttons->r;
     c->C_up = buttons->c_up;
     c->C_down = buttons->c_down;
     c->C_left = buttons->c_left;
@@ -365,7 +362,7 @@ struct controller_data get_keys_held( void )
  *
  * @return A structure representing which buttons were pressed
  * 
- * @deprecated Use #joypad_get_buttons instead
+ * @deprecated Use #joypad_get_inputs instead
  */
 struct controller_data get_keys_pressed( void )
 {
@@ -374,8 +371,11 @@ struct controller_data get_keys_pressed( void )
 
     JOYPAD_PORT_FOREACH (port)
     {
-        buttons = joypad_get_buttons(port);
+        inputs = joypad_get_inputs(port);
+        buttons = inputs.__buttons;
         controller_data_from_joypad_buttons(port, &ret, &buttons);
+        ret.c[port].x = inputs.stick_x;
+        ret.c[port].y = inputs.stick_y;
     }
 
     return ret;

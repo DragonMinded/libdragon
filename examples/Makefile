@@ -1,6 +1,7 @@
 EXAMPLES += audioplayer
 EXAMPLES += brew-volley
 #EXAMPLES += compression # Disabled due to missing assets
+EXAMPLES += controllertest
 EXAMPLES += cpptest
 EXAMPLES += ctest
 EXAMPLES += customfont
