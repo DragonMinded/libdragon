@@ -48,7 +48,7 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
         parms = &parms_builtin;
 
     // Check for detail texture
-    sprite_detail_t detail; rdpq_texparms_t detailtexparms;
+    sprite_detail_t detail; rdpq_texparms_t detailtexparms = {0};
     surface_t detailsurf = sprite_get_detail_pixels(sprite, &detail, &detailtexparms);
     bool use_detail = detailsurf.buffer != NULL;
 
@@ -64,8 +64,10 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
         rdpq_set_detail_factor(factor);
 
         // Setup the texparms for the detail texture
-        detailtexparms.s.translate += parms->s.translate * (1 << (parms->s.scale_log - detailtexparms.s.scale_log));
-        detailtexparms.t.translate += parms->t.translate * (1 << (parms->t.scale_log - detailtexparms.t.scale_log));
+        if (parms) {
+            detailtexparms.s.translate += parms->s.translate * (1 << (parms->s.scale_log - detailtexparms.s.scale_log));
+            detailtexparms.t.translate += parms->t.translate * (1 << (parms->t.scale_log - detailtexparms.t.scale_log));
+        }
 
         // Upload the detail texture if necessary or reuse the main texture
         if(detail.use_main_tex){
