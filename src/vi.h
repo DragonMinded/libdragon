@@ -253,10 +253,13 @@ inline void vi_write_safe(volatile uint32_t *reg, uint32_t value){
  *            Height of the framebuffer to display
  * @param[in] serrate
  *            Is serrate interlacing enabled for this display
+ * @param[in] aspect
+ *            Letterbox aspect ratio of the framebuffer within the borders
+ *            (<=0 if this calculation needs to be skipped, stretching the framebuffer)
  * @param[in] borders
  *            Minimum border size around the framebuffer
  */
-static inline void vi_write_display(uint32_t width, uint32_t height, bool serrate, vi_borders_t borders){
+static inline void vi_write_display(uint32_t width, uint32_t height, bool serrate, float aspect, vi_borders_t borders){
     uint32_t tv_type = get_tv_type();
     const vi_config_t* config = &vi_config_presets[serrate][tv_type];
 
@@ -277,6 +280,26 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
     h_end   -= borders.right;
     v_start += borders.up;
     v_end   -= borders.down;
+
+    // Add aspect ratio borders
+    if(aspect > 0) {
+        float h_size, v_size;
+        h_size = h_end - h_start;
+        v_size = v_end - v_start;
+        float viaspect = h_size / v_size;
+        if(aspect > viaspect){
+            float factor = viaspect / aspect; // Get a vertical scale factor in range (0.0;1.0)
+            uint16_t v_arborder = (v_size - (v_size * factor)) / 2;
+            v_start += v_arborder;
+            v_end -= v_arborder;
+        }
+        else {
+            float factor = aspect / viaspect; // Get a horizontal scale factor in range (0.0;1.0)
+            uint16_t h_arborder = (h_size - (h_size * factor)) / 2;
+            h_start += h_arborder;
+            h_end -= h_arborder;
+        }
+    }
 
     // Scale and set the boundaries of the framebuffer to fit bordered layout
     vi_write_safe(VI_X_SCALE, VI_X_OFFSET_SET(2) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));

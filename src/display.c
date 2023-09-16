@@ -211,7 +211,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     if(res.crt_borders)  borders = VI_BORDERS_CRT;
 
     vi_write_safe(VI_WIDTH, res.width);
-    vi_write_display(res.width, res.height, serrate, borders);
+    vi_write_display(res.width, res.height, serrate, res.aspect_ratio, borders);
 
     /* Set up the display */
     __width = res.width;
