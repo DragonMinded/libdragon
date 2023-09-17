@@ -366,6 +366,7 @@ struct controller_data get_keys_held( void )
  */
 struct controller_data get_keys_pressed( void )
 {
+    joypad_inputs_t inputs;
     joypad_buttons_t buttons;
     struct controller_data ret = { 0 };
 
