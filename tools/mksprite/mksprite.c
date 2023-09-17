@@ -711,25 +711,40 @@ error:
 
 static uint8_t ihq_calc_best_i4(float ifactor, uint8_t r0, uint8_t g0, uint8_t b0, uint8_t r, uint8_t g, uint8_t b, float *err) {
     // Compute Y (luma) for r0,g0,b0
-    float y0 = 0.299f*r0 + 0.587f*g0 + 0.114f*b0;
+    float y0 = 0.299f*r0    + 0.587f*g0   + 0.114f*b0;
+    float u0 = -0.14713f*r0 - 0.28886f*g0 + 0.436f*b0;
+    float v0 = 0.615f*r0    - 0.51499f*g0 - 0.10001f*b0;
 
     float rf = r*(1-ifactor);
     float gf = g*(1-ifactor);
     float bf = b*(1-ifactor);
 
     // Calculate the best I value that, when added to r,g,b, and converted to Y,
-    // will give the closest value to y0.
+    // will give the closest value to (y0, u0, v0).
     uint8_t best_i = 0;
     float best_err = 999999;
     for (int i=0; i<256; i+=16) {
         float ii = i*ifactor;
-        float y = 0.299f*(int)(rf+ii) + 0.587f*(int)(gf+ii) + 0.114f*(int)(bf+ii);
-        float err = fabsf(y-y0);
+        int ri = rf+ii;
+        int gi = gf+ii;
+        int bi = bf+ii;
+
+        float y = 0.299f*ri     + 0.587f*gi   + 0.114f*bi;
+        float u = -0.14713f*ri  - 0.28886f*gi + 0.436f*bi;
+        float v = 0.615f*ri     - 0.51499f*gi - 0.10001f*bi;
+
+        float ydiff = y-y0;
+        float udiff = u-u0;
+        float vdiff = v-v0;
+
+        float err = ydiff*ydiff + udiff*udiff + vdiff*vdiff;
+
         if (err < best_err) {
             best_err = err;
             best_i = i;
         }
     }
+
     *err = best_err;
     return best_i;
 }
@@ -835,7 +850,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
                     //     printf("IHQ: (%d,%d): %d %d %d -> %d %d %d\n", x, y, r0, g0, b0, r, g, b);
                     //     printf("IHQ: i=%d err=%f rgb=(%d,%d,%d)\n", i, err, (int)(r*(1-ifactor)+i*ifactor), (int)(g*(1-ifactor)+i*ifactor), (int)(b*(1-ifactor)+i*ifactor));
                     // }
-                    mse += err*err;
+                    mse += err;
                 }
             }
 
