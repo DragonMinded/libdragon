@@ -124,7 +124,7 @@ static const vi_config_t vi_pal_i = {.regs = {
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006602f6, 0x00220204, 0x000b0204,
+    0x0c1c0c1c, 0x006602f6, 0x00220204, 0x000b0202,
     0x00000000, 0x00000000 }};
 
 /** @} */
