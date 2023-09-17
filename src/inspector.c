@@ -2,7 +2,8 @@
 #include "graphics.h"
 #include "display.h"
 #include "debug.h"
-#include "controller.h"
+#include "joypad.h"
+#include "joypad_internal.h"
 #include "exception_internal.h"
 #include "system.h"
 #include "utils.h"
@@ -328,8 +329,8 @@ static void inspector_page_gpr(surface_t *disp, exception_t* ex) {
     __exception_dump_gpr(ex, cb, NULL);
 }
 
-static void inspector_page_fpr(surface_t *disp, exception_t* ex, struct controller_data *key_pressed) {
-    if (key_pressed->c[0].A)
+static void inspector_page_fpr(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
+    if (key_pressed->a)
         fpr_show_mode = (fpr_show_mode + 1) % 3;
 
     title(fpr_show_mode == 0 ? "CPU Floating Point Registers (Hex)" :
@@ -345,19 +346,19 @@ static void inspector_page_fpr(surface_t *disp, exception_t* ex, struct controll
     __exception_dump_fpr(ex, cb, NULL);
 }
 
-static void inspector_page_disasm(surface_t *disp, exception_t* ex, struct controller_data *key_pressed) {
-    if (key_pressed->c[0].up && disasm_bt_idx > 0) {        
+static void inspector_page_disasm(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
+    if (key_pressed->d_up && disasm_bt_idx > 0) {        
         disasm_bt_idx--;
         disasm_offset = 0;
     }
-    if (key_pressed->c[0].down && disasm_bt_idx < disasm_max_frames-1) {
+    if (key_pressed->d_down && disasm_bt_idx < disasm_max_frames-1) {
         disasm_bt_idx++;
         disasm_offset = 0;
     }
-    if (key_pressed->c[0].C_up) {
+    if (key_pressed->c_up) {
         disasm_offset -= 4*6;
     }
-    if (key_pressed->c[0].C_down) {
+    if (key_pressed->c_down) {
         disasm_offset += 4*6;
     }
 
@@ -419,14 +420,14 @@ static void inspector_page_disasm(surface_t *disp, exception_t* ex, struct contr
     }
 }
 
-static void inspector_page_modules(surface_t *disp, exception_t* ex, struct controller_data *key_pressed)
+static void inspector_page_modules(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
 {
     dl_module_t *curr_module = __dl_list_head;
     size_t module_idx = 0;
-    if(key_pressed->c[0].up && module_offset > 0) {
+    if(key_pressed->d_up && module_offset > 0) {
         module_offset--;
     }
-    if(key_pressed->c[0].down && module_offset+18 < __dl_num_loaded_modules) {
+    if(key_pressed->d_down && module_offset+18 < __dl_num_loaded_modules) {
         module_offset++;
     }
     title("Loaded modules");
@@ -462,11 +463,11 @@ static void inspector(exception_t* ex, enum Mode mode) {
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
     static bool backtrace = false;
-    struct controller_data key_old = {0};
-    struct controller_data key_pressed = {0};
+    joypad_buttons_t key_old = {0};
+    joypad_buttons_t key_pressed = {0};
 	enum Page page = PAGE_EXCEPTION;
 	while (1) {
-        if (key_pressed.c[0].Z || key_pressed.c[0].R) {
+        if (key_pressed.z || key_pressed.r) {
             //Do page wrapping logic from left
             if(page == PAGE_COUNT-1) {
                 page = 0;
@@ -474,7 +475,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
                 page++;
             }
         }
-        if (key_pressed.c[0].L) {
+        if (key_pressed.l) {
             //Do page wrapping logic from right
             if(page == 0) {
                 page = PAGE_COUNT-1;
@@ -524,12 +525,11 @@ static void inspector(exception_t* ex, enum Mode mode) {
 
         // Loop until a keypress
         while (1) {
-            // Read controller using controller_read, that works also when the
-            // interrupts are disabled and when controller_init has not been called.
-            struct controller_data key_new;
-            controller_read(&key_new);
-            if (key_new.c->data != key_old.c->data) {
-                key_pressed.c->data = key_new.c->data & ~key_old.c->data;
+            // Read controller using #joypad_read_n64_inputs, which works also when
+            // the interrupts are disabled and when #joypad_init has not been called.
+            joypad_buttons_t key_new = joypad_read_n64_inputs(JOYPAD_PORT_1).__buttons;
+            if (key_new.raw != key_old.raw) {
+                key_pressed = (joypad_buttons_t){ .raw = key_new.raw & ~key_old.raw };
                 key_old = key_new;
 	            break;
             };
