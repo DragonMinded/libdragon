@@ -60,9 +60,12 @@ typedef enum {
  * You can either use one of the pre-defined aspect ratios to either have a fullscreen display output
  * or a letterbox widescreen of some sort
  */
-#define RES_FULLSCREEN  ((float) 4 / 3)  /// Display letterbox aspect ratio of 4:3
-#define RES_WIDESCREEN  ((float) 16 / 9) /// Display letterbox aspect ratio of 16:9
-#define RES_ULTRAWIDESCREEN  ((float) 2 / 1) /// Display letterbox aspect ratio of 2:1
+/** @brief Display letterbox aspect ratio of 4:3 */
+#define RES_FULLSCREEN  ((float) 4 / 3)
+/** @brief Display letterbox aspect ratio of 16:9 */
+#define RES_WIDESCREEN  ((float) 16 / 9)
+/** @brief Display letterbox aspect ratio of 2:1 */
+#define RES_ULTRAWIDESCREEN  ((float) 2 / 1)
 
 /**
  * Video border definitions
@@ -74,8 +77,12 @@ typedef enum {
  * the output will use the whole NSTC/PAL region space for showing a framebuffer, useful
  * for accurate emulators and LCD TV's.
  */
-#define RES_BORDERLESS  (false)  /// Apply no borders to the screen display, recommended for emulators and LCD TV's
-#define RES_BORDER_CRT  (true)   /// Apply standard borders to the screen display, recommended for CRT TV's to midigate overscan
+/** @brief No borders are applied, 
+ * the output will use the whole NSTC/PAL region space for showing a framebuffer */
+#define RES_BORDERLESS  (false)
+/** @brief Add borders around a framebuffer so
+ * that the whole image could be seen on the CRT monitor */
+#define RES_BORDER_CRT  (true)
 
 /**
  * @brief Video resolution structure

@@ -48,7 +48,11 @@ typedef struct vi_borders_s{
     float left, right, up, down;
 } vi_borders_t;
 
+/** @brief No borders are applied, 
+ * the output will use the whole NSTC/PAL region space for showing a framebuffer */
 #define VI_BORDERS_NONE (vi_borders_t){0, 0, 0, 0};
+/** @brief Add borders around a framebuffer so
+ * that the whole image could be seen on the CRT monitor */
 #define VI_BORDERS_CRT  (vi_borders_t){26, 26, 26, 26};
 
 /** @brief Base pointer to hardware Video interface registers that control various aspects of VI configuration.
