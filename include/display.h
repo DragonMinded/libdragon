@@ -47,12 +47,35 @@ typedef struct surface_s surface_t;
 /** @brief Valid interlace modes */
 typedef enum {
     /** @brief Video output is not interlaced */
-    INTERLACE_OFF,
+    RES_INTERLACE_OFF,
     /** @brief Video output is interlaced and buffer is swapped on odd and even fields */
-    INTERLACE_HALF,
+    RES_INTERLACE_HALF,
     /** @brief Video output is interlaced and buffer is swapped only on even fields */
-    INTERLACE_FULL,
+    RES_INTERLACE_FULL,
 } interlace_mode_t;
+
+/**
+ * Video aspect ratio definitions
+ *
+ * You can either use one of the pre-defined aspect ratios to either have a fullscreen display output
+ * or a letterbox widescreen of some sort
+ */
+#define RES_FULLSCREEN  ((float) 4 / 3)  /// Display letterbox aspect ratio of 4:3
+#define RES_WIDESCREEN  ((float) 16 / 9) /// Display letterbox aspect ratio of 16:9
+#define RES_ULTRAWIDESCREEN  ((float) 2 / 1) /// Display letterbox aspect ratio of 2:1
+
+/**
+ * Video border definitions
+ *
+ * For example when shown on CRT monitors, one can add borders around a framebuffer so
+ * that the whole image could be seen on the monitor. 
+ * 
+ * Or if no borders are applied, 
+ * the output will use the whole NSTC/PAL region space for showing a framebuffer, useful
+ * for accurate emulators and LCD TV's.
+ */
+#define RES_BORDERLESS  (false)  /// Apply no borders to the screen display, recommended for emulators and LCD TV's
+#define RES_BORDER_CRT  (true)   /// Apply standard borders to the screen display, recommended for CRT TV's to midigate overscan
 
 /**
  * @brief Video resolution structure
@@ -75,27 +98,21 @@ typedef struct {
     bool    crt_borders;
 } resolution_t;
 
-#define FULLSCREEN  ((float) 4 / 3)  /// Display letterbox aspect ratio of 4:3
-#define WIDESCREEN  ((float) 16 / 9) /// Display letterbox aspect ratio of 16:9
-
-#define BORDERLESS  (false)  /// Apply no borders to the screen display, recommended for emulators and LCD TV's
-#define BORDER_CRT  (true)   /// Apply standard borders to the screen display, recommended for CRT TV's to midigate overscan
-
 ///@cond
 #define const static const /* fool doxygen to document these static members */
 ///@endcond
 /** @brief 256x240 mode */
-const resolution_t RESOLUTION_256x240 = {256, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
+const resolution_t RESOLUTION_256x240 = {256, 240, RES_INTERLACE_OFF,  RES_FULLSCREEN, RES_BORDERLESS};
 /** @brief 320x240 mode */
-const resolution_t RESOLUTION_320x240 = {320, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
+const resolution_t RESOLUTION_320x240 = {320, 240, RES_INTERLACE_OFF,  RES_FULLSCREEN, RES_BORDERLESS};
 /** @brief 512x240 mode, high-res progressive */
-const resolution_t RESOLUTION_512x240 = {512, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
+const resolution_t RESOLUTION_512x240 = {512, 240, RES_INTERLACE_OFF,  RES_FULLSCREEN, RES_BORDERLESS};
 /** @brief 640x240 mode, high-res progressive */
-const resolution_t RESOLUTION_640x240 = {640, 240, INTERLACE_OFF,  FULLSCREEN, BORDERLESS};
+const resolution_t RESOLUTION_640x240 = {640, 240, RES_INTERLACE_OFF,  RES_FULLSCREEN, RES_BORDERLESS};
 /** @brief 512x480 mode, interlaced */
-const resolution_t RESOLUTION_512x480 = {512, 480, INTERLACE_HALF, FULLSCREEN, BORDERLESS};
+const resolution_t RESOLUTION_512x480 = {512, 480, RES_INTERLACE_HALF, RES_FULLSCREEN, RES_BORDERLESS};
 /** @brief 640x480 mode, interlaced */
-const resolution_t RESOLUTION_640x480 = {640, 480, INTERLACE_HALF, FULLSCREEN, BORDERLESS};
+const resolution_t RESOLUTION_640x480 = {640, 480, RES_INTERLACE_HALF, RES_FULLSCREEN, RES_BORDERLESS};
 #undef const
 
 /** @brief Valid bit depths */

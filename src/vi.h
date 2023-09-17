@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <math.h>
 
 /**
  * @addtogroup display
@@ -44,11 +45,11 @@ typedef struct vi_config_s{
  * for accurate emulators and LCD TV's.
  */
 typedef struct vi_borders_s{
-    uint32_t left, right, up, down;
+    float left, right, up, down;
 } vi_borders_t;
 
 #define VI_BORDERS_NONE (vi_borders_t){0, 0, 0, 0};
-#define VI_BORDERS_CRT  (vi_borders_t){27, 27, 27, 27};
+#define VI_BORDERS_CRT  (vi_borders_t){26, 26, 26, 26};
 
 /** @brief Base pointer to hardware Video interface registers that control various aspects of VI configuration.
  * Shouldn't be used by itself, use VI_ registers to get/set their values. */
@@ -97,32 +98,33 @@ typedef struct vi_borders_s{
 static const vi_config_t vi_ntsc_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006502f3, 0x00250205, 0x000e0204,
+    0x0c150c15, 0x006502f6, 0x00230205, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_p =  {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00790307, 0x005f023f, 0x0009026b,
+    0x0c6f0c6e, 0x0079030C, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006502f3, 0x00250205, 0x000e0204,
+    0x0c190c1a, 0x006502f6, 0x00230205, 0x000e0204,
     0x00000000, 0x00000000 }};
+
 static const vi_config_t vi_ntsc_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006502f3, 0x00230203, 0x000e0204,
+    0x0c150c15, 0x006602f6, 0x00220204, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00790307, 0x005d023d, 0x0009026b,
+    0x0c6f0c6e, 0x0079030C, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006502f3, 0x00230203, 0x000b0202,
+    0x0c1c0c1c, 0x006602f6, 0x00220204, 0x000b0204,
     0x00000000, 0x00000000 }};
 
 /** @} */
@@ -216,20 +218,18 @@ static const vi_config_t vi_config_presets[2][3] = {
 /** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */
 #define VI_X_SCALE_SET(value)               (( 1024*(value) + 320 ) / 640)
 
-/**  Under VI_X_SCALE   */
-/** @brief VI_X_OFFSET Register: Horizontal subpixel offset (value is converted to 2.10 format) */
-#define VI_X_OFFSET_SET(value)              ((( 1024*(value)) & 0xFFFF) << 16)
-
 /**  Under VI_Y_SCALE   */
 /** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
 #define VI_Y_SCALE_SET(value)               (( 1024*(value) + 120 ) / 240)
 
-
 /** @brief VI_SCALE Registers: set 1/horizontal scale up factor (value is converted to 2.10 format) */
 #define VI_SCALE_FROMTO(from,to)            (( 1024*(from) + (to/2) ) / (to))
 
+/** @brief VI_OFFSET Registers: Horizontal subpixel offset (value is converted to 2.10 format) */
+#define VI_OFFSET_SET(value)              (((int)( 1024*(value)) & 0xFFFF) << 16)
+
 /**
- * @brief Write a set of video registers to the VI
+ * @brief Write a register value to the Video Interface in a VBLANK period (unfinished)
  *
  * @param[in] reg
  *            A pointer to a register to be written
@@ -242,6 +242,37 @@ inline void vi_write_safe(volatile uint32_t *reg, uint32_t value){
     MEMORY_BARRIER();
 }
 
+/**
+ * @brief Write a register value to the Video Interface in a VI immediately
+ *
+ * @param[in] reg
+ *            A pointer to a register to be written
+ * @param[in] value
+ *            Value to be written to the register
+ */
+inline void vi_write(volatile uint32_t *reg, uint32_t value){
+    assert(reg); /* This should never happen */
+    *reg = value;
+    MEMORY_BARRIER();
+}
+
+
+/**
+ * @brief Return the amount of pixels an output framebuffer 
+ * needs to be offset to the right due to inherit VI offset bug
+ * Function equations are linear approximations for now.
+ *
+ * @param[in] width
+ *            Width of the framebuffer
+ * @param[in] bordersize
+ *            Size of VI borders around the framebuffer
+ */
+inline float vi_h_fix_get_pixeloffset(int width, float bordersize){
+    float borderoffset = (float)(0.012f*(float)bordersize);
+    float widthoffset = (float)(0.010f*(float)width) + 3;
+    if(width == 640) widthoffset = 11;
+    return borderoffset + widthoffset;
+}
 
 /**
  * @brief Write a set of video registers to the VI 
@@ -284,32 +315,46 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
     // Add aspect ratio borders
     if(aspect > 0) {
         float h_size, v_size;
-        h_size = h_end - h_start;
-        v_size = v_end - v_start;
-        float viaspect = h_size / v_size;
+        h_size = 640 - borders.left - borders.right;
+        v_size = 480 - borders.up - borders.down;
+        float viaspect = h_size / v_size; // Calculate the VI aspect ratio after applying minumum borders
         if(aspect > viaspect){
             float factor = viaspect / aspect; // Get a vertical scale factor in range (0.0;1.0)
-            uint16_t v_arborder = (v_size - (v_size * factor)) / 2;
+            float v_arborder = (v_size - (v_size * factor)) / 2;
             v_start += v_arborder;
-            v_end -= v_arborder;
+            v_end -= v_arborder + 1;
             borders.up += v_arborder;
             borders.down += v_arborder;
         }
         else {
             float factor = aspect / viaspect; // Get a horizontal scale factor in range (0.0;1.0)
-            uint16_t h_arborder = (h_size - (h_size * factor)) / 2;
+            float h_arborder = (h_size - (h_size * factor)) / 2;
             h_start += h_arborder;
-            h_end -= h_arborder;
+            h_end -= h_arborder + 1;
             borders.left += h_arborder;
             borders.right += h_arborder;
         }
     }
 
+    // Miscellaneous edge-case fixes
+    float v_borders = (float)borders.up + borders.down;
+    float v_offset = 0; // Should be used for subpixel precision, but it's not straightforward, so leave it as 0 for now
+    if(height < 480) v_end-=4; // V fix, only with borders
+
+    float offset = (vi_h_fix_get_pixeloffset(width, borders.left + borders.right)); // Get the overall needed offset for H fix (Coarse offset is set in the H_ORIGIN)
+    int h_offset = (int)((float)4 - ((float)offset - (((int)offset / 4) * 4))); // Calculate the precise offset for H fix
+    if(borders.left > 0 || borders.right > 0) h_end-=2; // Another H fix, only with borders
+
     // Scale and set the boundaries of the framebuffer to fit bordered layout
-    vi_write_safe(VI_X_SCALE, VI_X_OFFSET_SET(2) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));
-    vi_write_safe(VI_Y_SCALE, (uint16_t)VI_SCALE_FROMTO((float)height, (float)(240 - (borders.up + borders.down) / 2)));
-    vi_write_safe(VI_H_VIDEO, (h_start << 16) | (h_end));
-    vi_write_safe(VI_V_VIDEO, (v_start << 16) | (v_end));
+    vi_write(VI_X_SCALE, /* mandatory H fix */ VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));
+    
+    if(tv_type == TV_PAL) // If display outputs a PAL signal, use 288 line scaling instead of 240
+         vi_write(VI_Y_SCALE, VI_OFFSET_SET((v_offset)) | (uint16_t)VI_SCALE_FROMTO((float)height, ((float)288 - (v_borders) / 2)));
+    else vi_write(VI_Y_SCALE, VI_OFFSET_SET((v_offset)) | (uint16_t)VI_SCALE_FROMTO((float)height, ((float)240 - (v_borders) / 2)));
+
+    // Finally write the dimentions of the output
+    vi_write(VI_H_VIDEO, (h_start << 16) | (h_end));
+    vi_write(VI_V_VIDEO, (v_start << 16) | (v_end));
 }
 
 /**

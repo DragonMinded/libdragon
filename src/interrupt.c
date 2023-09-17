@@ -6,6 +6,7 @@
 #include <malloc.h>
 #include "libdragon.h"
 #include "regsinternal.h"
+#include "vi.h"
 
 /**
  * @defgroup interrupt Interrupt Controller
@@ -136,8 +137,6 @@ typedef struct callback_link
 static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa4500000;
 /** @brief Static structure to address MI registers */
 static volatile struct MI_regs_s * const MI_regs = (struct MI_regs_s *)0xa4300000;
-/** @brief Static structure to address VI registers */
-static volatile struct VI_regs_s * const VI_regs = (struct VI_regs_s *)0xa4400000;
 /** @brief Static structure to address PI registers */
 static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)0xa4600000;
 /** @brief Static structure to address SI registers */
@@ -298,7 +297,7 @@ void __MI_handler(void)
     if( status & MI_INTR_VI )
     {
         /* Clear interrupt */
-    	VI_regs->cur_line=VI_regs->cur_line;
+        vi_write(VI_V_CURRENT, *VI_V_CURRENT);
 
     	__call_callback(VI_callback);
     }
@@ -689,7 +688,7 @@ void set_VI_interrupt(int active, unsigned long line)
     if( active )
     {
     	MI_regs->mask=MI_MASK_SET_VI;
-	    VI_regs->v_int=line;
+        vi_write(VI_V_INTR, line);
     }
     else
     {

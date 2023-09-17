@@ -30,7 +30,9 @@ static uint32_t __width;
 /** @brief Currently active video height (calculated) */
 static uint32_t __height;
 /** @brief Currently active video interlace mode */
-static interlace_mode_t __interlace_mode = INTERLACE_OFF;
+static interlace_mode_t __interlace_mode = RES_INTERLACE_OFF;
+/** @brief Current VI display borders of the output */
+static vi_borders_t __borders;
 /** @brief Number of active buffers */
 static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
@@ -71,7 +73,7 @@ static void __display_callback()
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame. If full interlace mode is selected
        then don't update the buffer until two fields were displayed. */
-    if (!(__interlace_mode == INTERLACE_FULL && field)) {
+    if (!(__interlace_mode == RES_INTERLACE_FULL && field)) {
         int next = buffer_next(now_showing);
         if (ready_mask & (1 << next)) {
             now_showing = next;
@@ -79,7 +81,7 @@ static void __display_callback()
         }
     }
 
-    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - (__width / 80 * __bitdepth));
+    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - ((((int)vi_h_fix_get_pixeloffset(__width, __borders.left + __borders.right) / 4) * 4) * __bitdepth));
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -93,7 +95,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Minimum is two buffers. */
     __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
-    bool serrate = res.interlaced != INTERLACE_OFF;
+    bool serrate = res.interlaced != RES_INTERLACE_OFF;
     /* Serrate on to stop vertical jitter */
     if(serrate) control |= VI_CTRL_SERRATE;
 
@@ -134,21 +136,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         The cases below provide all possible configurations that are deemed useful. */
 
         case FILTERS_DISABLED:
-            /* Disabling resampling (AA_MODE = 0x3) on 16bpp hits a hardware bug on NTSC 
-               consoles when the horizontal resolution is 320 or lower (see issue #66).
-               It would work on PAL consoles, but we think users are better
-               served by prohibiting it altogether.
-
-               For people that absolutely need this on PAL consoles, it can
-               be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
-               after the display_init call. */
-            if ( bit == DEPTH_16_BPP )
-            {
-                assertf(res.width > 320,
-                    "FILTERS_DISABLED is not supported by the hardware for widths <= 320.\n"
-                    "Please use FILTERS_RESAMPLE instead.");
-            }
-
             /* Set AA off flag */
             control |= VI_AA_MODE_NONE;
 
@@ -164,10 +151,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             /* Set AA off flag and dedither on 
             (only on 16bpp mode, act as FILTERS_DISABLED on 32bpp) */
             if ( bit == DEPTH_16_BPP ) {
-                // Assert on width (see FILTERS_DISABLED)
-                assertf(res.width > 320,
-                    "FILTERS_DEDITHER is not supported by the hardware for widths <= 320.\n"
-                    "Please use FILTERS_RESAMPLE instead.");
                 control |= VI_AA_MODE_NONE | VI_DEDITHER_FILTER_ENABLE;
             }
             else control |= VI_AA_MODE_NONE;
@@ -191,7 +174,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     }
 
     /* Set the control register in our template */
-    vi_write_safe(VI_CTRL, control);
+    vi_write(VI_CTRL, control);
 
     /* Calculate width and scale registers */
     assertf(res.width > 0, "nonpositive width");
@@ -209,9 +192,29 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     vi_borders_t         borders = VI_BORDERS_NONE;
     if(res.crt_borders)  borders = VI_BORDERS_CRT;
+    __borders = borders;
 
-    vi_write_safe(VI_WIDTH, res.width);
+    vi_write(VI_WIDTH, res.width);
     vi_write_display(res.width, res.height, serrate, res.aspect_ratio, borders);
+
+    /* Disabling resampling (AA_MODE = 0x3) on 16bpp hits a hardware bug on NTSC 
+       consoles when the X_SCALE is 0x200 or lower (see issue #66).
+       It would work on PAL consoles, but we think users are better
+       served by prohibiting it altogether.
+
+       For people that absolutely need this on PAL consoles, it can
+       be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
+       after the display_init call. */
+    if ( bit == DEPTH_16_BPP ){
+        if(filters == FILTERS_DISABLED)
+            assertf((*VI_X_SCALE & 0xFFF) > 0x200,
+            "FILTERS_DISABLED is not supported by the hardware for widths <= 320 without borders.\n"
+            "Please use FILTERS_RESAMPLE instead.");
+        if(filters == FILTERS_DEDITHER)
+            assertf((*VI_X_SCALE & 0xFFF) > 0x200,
+            "FILTERS_DEDITHER is not supported by the hardware for widths <= 320 without borders.\n"
+            "Please use FILTERS_RESAMPLE instead.");
+    }
 
     /* Set up the display */
     __width = res.width;
@@ -244,7 +247,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
        to avoid confusing the VI chip with in-frame modifications. */
     if ( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
+    vi_write(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
 
     enable_interrupts();
 
