@@ -62,17 +62,17 @@ void print_joypad_inputs(joypad_inputs_t inputs)
     );
     printf(
         "D-U:%d D-D:%d D-L:%d D-R:%d C-U:%d C-D:%d C-L:%d C-R:%d\n",
-        inputs.d_up, inputs.d_down,
-        inputs.d_left, inputs.d_right,
-        inputs.c_up, inputs.c_down,
-        inputs.c_left, inputs.c_right
+        inputs.btn.d_up, inputs.btn.d_down,
+        inputs.btn.d_left, inputs.btn.d_right,
+        inputs.btn.c_up, inputs.btn.c_down,
+        inputs.btn.c_left, inputs.btn.c_right
     );
     printf(
         "A:%d B:%d X:%d Y:%d L:%d R:%d Z:%d Start:%d\n",
-        inputs.a, inputs.b,
-        inputs.x, inputs.y,
-        inputs.l, inputs.r,
-        inputs.z, inputs.start
+        inputs.btn.a, inputs.btn.b,
+        inputs.btn.x, inputs.btn.y,
+        inputs.btn.l, inputs.btn.r,
+        inputs.btn.z, inputs.btn.start
     );
 }
 
@@ -109,11 +109,11 @@ int main(void)
 
             if (rumble_supported)
             {
-                if (inputs.a && !rumble_active)
+                if (inputs.btn.a && !rumble_active)
                 {
                     joypad_set_rumble_active(port, true);
                 }
-                else if (!inputs.a && rumble_active)
+                else if (!inputs.btn.a && rumble_active)
                 {
                     joypad_set_rumble_active(port, false);
                 }

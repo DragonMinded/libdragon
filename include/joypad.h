@@ -232,81 +232,10 @@ typedef union joypad_buttons_u
 /** @brief Joypad Inputs Unified State Structure */
 typedef struct __attribute__((packed)) joypad_inputs_s
 {
-    /// @cond
-    union
-    {
-    /// @endcond
-        /// @cond
-        joypad_buttons_t __buttons;
-        struct __attribute__((packed))
-        {
-        /// @endcond
-            /** @brief State of the A button */
-            unsigned a : 1;
-            /** @brief State of the B button */
-            unsigned b : 1;
-            /** @brief State of the Z button */
-            unsigned z : 1;
-            /** @brief State of the Start button */
-            unsigned start : 1;
-            /** @brief State of the D-Pad Up button */
-            unsigned d_up : 1;
-            /** @brief State of the D-Pad Down button */
-            unsigned d_down : 1;
-            /** @brief State of the D-Pad Left button */
-            unsigned d_left : 1;
-            /** @brief State of the D-Pad Right button */
-            unsigned d_right : 1;
-            /**
-             * @brief State of the Y button.
-             * 
-             * This input only exists on GameCube controllers.
-             */
-            unsigned y : 1;
-            /**
-             * @brief State of the X button.
-             * 
-             * This input only exists on GameCube controllers.
-             */
-            unsigned x : 1;
-            /** @brief State of the digital L trigger */
-            unsigned l : 1;
-            /** @brief State of the digital R trigger */
-            unsigned r : 1;
-            /**
-             * @brief State of the C-Up button.
-             * 
-             * For GameCube controllers, the value will be
-             * emulated based on the C-Stick Y axis position.
-             */
-            unsigned c_up : 1;
-            /**
-             * @brief State of the C-Down button.
-             * 
-             * For GameCube controllers, the value will be
-             * emulated based on the C-Stick Y axis position.
-             */
-            unsigned c_down : 1;
-            /**
-             * @brief State of the C-Left button.
-             * 
-             * For GameCube controllers, the value will be
-             * emulated based on the C-Stick X axis position.
-             */
-            unsigned c_left : 1;
-            /**
-             * @brief State of the C-Right button.
-             * 
-             * For GameCube controllers, the value will be
-             * emulated based on the C-Stick X axis position.
-             */
-            unsigned c_right : 1;
-        /// @cond
-        };
-        /// @endcond
-    /// @cond
-    };
-    /// @endcond
+    /**
+     * @brief Structure containing digital button inputs state.
+     */
+    joypad_buttons_t btn;
     /**
      * @brief Position of the analog joystick X axis. (-127, +127)
      * 

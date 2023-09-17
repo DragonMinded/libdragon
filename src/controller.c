@@ -373,7 +373,7 @@ struct controller_data get_keys_pressed( void )
     JOYPAD_PORT_FOREACH (port)
     {
         inputs = joypad_get_inputs(port);
-        buttons = inputs.__buttons;
+        buttons = inputs.btn;
         controller_data_from_joypad_buttons(port, &ret, &buttons);
         ret.c[port].x = inputs.stick_x;
         ret.c[port].y = inputs.stick_y;
