@@ -126,22 +126,24 @@ static joypad_inputs_t joypad_inputs_from_n64_controller_read(
     int analog_r = cmd->recv.r ? JOYPAD_RANGE_GCN_TRIGGER_MAX : 0;
 
     return (joypad_inputs_t){
-        .a = cmd->recv.a,
-        .b = cmd->recv.b,
-        .z = cmd->recv.z,
-        .start = cmd->recv.start,
-        .d_up = cmd->recv.d_up,
-        .d_down = cmd->recv.d_down,
-        .d_left = cmd->recv.d_left,
-        .d_right = cmd->recv.d_right,
-        .y = 0,
-        .x = 0,
-        .l = cmd->recv.l,
-        .r = cmd->recv.r,
-        .c_up = cmd->recv.c_up,
-        .c_down = cmd->recv.c_down,
-        .c_left = cmd->recv.c_left,
-        .c_right = cmd->recv.c_right,
+        .btn = {
+            .a = cmd->recv.a,
+            .b = cmd->recv.b,
+            .z = cmd->recv.z,
+            .start = cmd->recv.start,
+            .d_up = cmd->recv.d_up,
+            .d_down = cmd->recv.d_down,
+            .d_left = cmd->recv.d_left,
+            .d_right = cmd->recv.d_right,
+            .y = 0,
+            .x = 0,
+            .l = cmd->recv.l,
+            .r = cmd->recv.r,
+            .c_up = cmd->recv.c_up,
+            .c_down = cmd->recv.c_down,
+            .c_left = cmd->recv.c_left,
+            .c_right = cmd->recv.c_right,
+        },
         .stick_x = cmd->recv.stick_x,
         .stick_y = cmd->recv.stick_y,
         .cstick_x = cstick_x,
@@ -179,22 +181,24 @@ static joypad_inputs_t joypad_inputs_from_gcn_controller_read(
     int analog_r = CLAMP_ANALOG_TRIGGER(cmd->recv.analog_r - origin->analog_r);
 
     return (joypad_inputs_t){
-        .a = cmd->recv.a,
-        .b = cmd->recv.b,
-        .z = cmd->recv.z,
-        .start = cmd->recv.start,
-        .d_up    = cmd->recv.d_up,
-        .d_down  = cmd->recv.d_down,
-        .d_left  = cmd->recv.d_left,
-        .d_right = cmd->recv.d_right,
-        .y = cmd->recv.y,
-        .x = cmd->recv.x,
-        .l = cmd->recv.l,
-        .r = cmd->recv.r,
-        .c_up    = cstick_y > +cstick_threshold,
-        .c_down  = cstick_y < -cstick_threshold,
-        .c_left  = cstick_x < -cstick_threshold,
-        .c_right = cstick_x > +cstick_threshold,
+        .btn = {
+            .a = cmd->recv.a,
+            .b = cmd->recv.b,
+            .z = cmd->recv.z,
+            .start = cmd->recv.start,
+            .d_up    = cmd->recv.d_up,
+            .d_down  = cmd->recv.d_down,
+            .d_left  = cmd->recv.d_left,
+            .d_right = cmd->recv.d_right,
+            .y = cmd->recv.y,
+            .x = cmd->recv.x,
+            .l = cmd->recv.l,
+            .r = cmd->recv.r,
+            .c_up    = cstick_y > +cstick_threshold,
+            .c_down  = cstick_y < -cstick_threshold,
+            .c_left  = cstick_x < -cstick_threshold,
+            .c_right = cstick_x > +cstick_threshold,
+        },
         .stick_x = stick_x,
         .stick_y = stick_y,
         .cstick_x = cstick_x,
@@ -788,15 +792,15 @@ joypad_buttons_t joypad_get_buttons(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    return joypad_devices_cold[port].current.__buttons;
+    return joypad_devices_cold[port].current.btn;
 }
 
 joypad_buttons_t joypad_get_buttons_pressed(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    const uint16_t current = joypad_devices_cold[port].current.__buttons.raw;
-    const uint16_t previous = joypad_devices_cold[port].previous.__buttons.raw;
+    const uint16_t current = joypad_devices_cold[port].current.btn.raw;
+    const uint16_t previous = joypad_devices_cold[port].previous.btn.raw;
     return (joypad_buttons_t){ .raw = current & ~previous };
 }
 
@@ -804,8 +808,8 @@ joypad_buttons_t joypad_get_buttons_released(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    const uint16_t current = joypad_devices_cold[port].current.__buttons.raw;
-    const uint16_t previous = joypad_devices_cold[port].previous.__buttons.raw;
+    const uint16_t current = joypad_devices_cold[port].current.btn.raw;
+    const uint16_t previous = joypad_devices_cold[port].previous.btn.raw;
     return (joypad_buttons_t){ .raw = ~(current & previous) };
 }
 
@@ -813,8 +817,8 @@ joypad_buttons_t joypad_get_buttons_held(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    const uint16_t current = joypad_devices_cold[port].current.__buttons.raw;
-    const uint16_t previous = joypad_devices_cold[port].previous.__buttons.raw;
+    const uint16_t current = joypad_devices_cold[port].current.btn.raw;
+    const uint16_t previous = joypad_devices_cold[port].previous.btn.raw;
     return (joypad_buttons_t){ .raw = current & previous };
 }
 
