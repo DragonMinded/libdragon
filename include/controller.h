@@ -278,7 +278,7 @@ struct controller_data get_keys_up( void );
 __attribute__((deprecated("use joypad_get_buttons_held instead")))
 struct controller_data get_keys_held( void );
 
-__attribute__((deprecated("use joypad_get_buttons instead")))
+__attribute__((deprecated("use joypad_get_inputs instead")))
 struct controller_data get_keys_pressed( void );
 
 __attribute__((deprecated("use joypad_get_identifier instead")))
