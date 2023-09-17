@@ -735,6 +735,11 @@ static uint8_t ihq_calc_best_i4(float ifactor, uint8_t r0, uint8_t g0, uint8_t b
 }
 
 bool spritemaker_convert_ihq(spritemaker_t *spr) {
+    if (spr->detail.enabled || spr->detail.texparms.defined) {
+        fprintf(stderr, "ERROR: detail textures are not supported in IHQ mode\n");
+        return false;
+    }
+
     // A IHQ image fakes doubling the available TMEM. So check whether the TMEM
     // usage as RGBA16 is lower than 8192 bytes, otherwise it doesn't fit.
     if (calc_tmem_usage(FMT_RGBA16, spr->images[0].width, spr->images[0].height) > 8192) {
@@ -862,6 +867,23 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     spr->images[0].image = best_rgb_img;
     spr->images[0].width = best_rgb_w;
     spr->images[0].height = best_rgb_h;
+
+    // Copy initial texparms into detail texparms, so that detail will follow
+    // the same mirror/wrap settings.
+    spr->detail.texparms.defined = true;
+    spr->detail.texparms.s = spr->texparms.s;
+    spr->detail.texparms.t = spr->texparms.t;
+
+    // Enable embedded texparms for main texture. Add 1,1 to scale because
+    // it's at least twice smaller, and then another 1 for the direction where
+    // it's four times smaller.
+    spr->texparms.defined = true;
+    spr->texparms.s.scale += 1;
+    spr->texparms.t.scale += 1;
+    if (best_rgb_w == width/4)
+        spr->texparms.s.scale += 1;
+    else
+        spr->texparms.t.scale += 1;
 
     if (flag_verbose)
         fprintf(stderr, "computed IHQ planes (rgb:%dx%d, factor=%.1f, rmsd=%.4f)\n", best_rgb_w, best_rgb_h, best_ifactor, best_err);
@@ -1176,7 +1198,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     if (!spritemaker_load_png(&spr, pm->outfmt))
         goto error;
 
-    if (pm->outfmt == FMT_IHQ) {
+    if (spr.images[0].fmt == FMT_IHQ) {
         if (!spritemaker_convert_ihq(&spr))
             goto error;
         // Compute mipmaps for IHQ
