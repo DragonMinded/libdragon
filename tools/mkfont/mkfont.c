@@ -24,6 +24,7 @@
 #include "../common/assetcomp.h"
 #include "../common/assetcomp.c"
 
+#include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/subprocess.h"
 #include "../common/utils.h"

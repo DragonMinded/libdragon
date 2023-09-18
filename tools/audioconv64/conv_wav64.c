@@ -7,6 +7,7 @@
 #include "vadpcm/encode.c"
 #include "vadpcm/error.c"
 
+#include "../common/binout.c"
 #include "../common/binout.h"
 
 bool flag_wav_looping = false;
