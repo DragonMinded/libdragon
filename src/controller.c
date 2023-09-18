@@ -292,6 +292,7 @@ void controller_scan( void ) { joypad_poll(); }
  */
 struct controller_data get_keys_down( void )
 {
+    joypad_inputs_t inputs;
     joypad_buttons_t buttons;
     struct controller_data ret = { 0 };
 
@@ -299,6 +300,11 @@ struct controller_data get_keys_down( void )
     {
         buttons = joypad_get_buttons_pressed(port);
         controller_data_from_joypad_buttons(port, &ret, &buttons);
+        // COMPATIBILITY HACK: Always use the current analog stick values.
+        // It's not "correct", but it's less-surprising than any alternative.
+        inputs = joypad_get_inputs(port);
+        ret.c[port].x = inputs.stick_x;
+        ret.c[port].y = inputs.stick_y;
     }
 
     return ret;
@@ -317,6 +323,7 @@ struct controller_data get_keys_down( void )
  */
 struct controller_data get_keys_up( void )
 {
+    joypad_inputs_t inputs;
     joypad_buttons_t buttons;
     struct controller_data ret = { 0 };
 
@@ -324,6 +331,11 @@ struct controller_data get_keys_up( void )
     {
         buttons = joypad_get_buttons_released(port);
         controller_data_from_joypad_buttons(port, &ret, &buttons);
+        // COMPATIBILITY HACK: Always use the current analog stick values.
+        // It's not "correct", but it's less-surprising than any alternative.
+        inputs = joypad_get_inputs(port);
+        ret.c[port].x = inputs.stick_x;
+        ret.c[port].y = inputs.stick_y;
     }
 
     return ret;
@@ -342,6 +354,7 @@ struct controller_data get_keys_up( void )
  */
 struct controller_data get_keys_held( void )
 {
+    joypad_inputs_t inputs;
     joypad_buttons_t buttons;
     struct controller_data ret = { 0 };
 
@@ -349,6 +362,11 @@ struct controller_data get_keys_held( void )
     {
         buttons = joypad_get_buttons_held(port);
         controller_data_from_joypad_buttons(port, &ret, &buttons);
+        // COMPATIBILITY HACK: Always use the current analog stick values.
+        // It's not "correct", but it's less-surprising than any alternative.
+        inputs = joypad_get_inputs(port);
+        ret.c[port].x = inputs.stick_x;
+        ret.c[port].y = inputs.stick_y;
     }
 
     return ret;
