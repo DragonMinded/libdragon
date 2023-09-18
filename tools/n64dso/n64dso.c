@@ -6,6 +6,7 @@
 #include <string.h>
 #include <assert.h>
 #include <sys/stat.h>
+#include "../common/binout.c"
 #include "../common/binout.h"
 
 #define STB_DS_IMPLEMENTATION

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
+#include "../common/binout.c"
 #include "../common/binout.h"
 
 #include "../../include/GL/gl_enums.h"

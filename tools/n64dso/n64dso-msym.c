@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include "../common/subprocess.h"
 #include "../common/polyfill.h"
+#include "../common/binout.c"
 #include "../common/binout.h"
 
 #define STBDS_NO_SHORT_NAMES

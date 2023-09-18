@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../common/binout.c"
 #include "../common/assetcomp.h"
 
 bool flag_verbose = false;

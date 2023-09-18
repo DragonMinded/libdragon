@@ -13,6 +13,8 @@
 #include "common/utils.h"
 #include "common/binout.h"
 
+#include "common/binout.c"
+
 bool flag_verbose = false;
 int flag_max_sym_len = 64;
 bool flag_inlines = true;
