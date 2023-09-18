@@ -107,7 +107,7 @@ static const vi_config_t vi_ntsc_p = {.regs = {
 static const vi_config_t vi_pal_p =  {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x0079030C, 0x002D026D, 0x0009026b,
+    0x0c6f0c6e, 0x007A030D, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
@@ -123,7 +123,7 @@ static const vi_config_t vi_ntsc_i = {.regs = {
 static const vi_config_t vi_pal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x0079030C, 0x002D026D, 0x0009026b,
+    0x0c6f0c6e, 0x007A030D, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
@@ -273,8 +273,8 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
  */
 inline float vi_h_fix_get_pixeloffset(int width, float bordersize){
     float borderoffset = (float)(0.012f*(float)bordersize);
-    float widthoffset = (float)(0.010f*(float)width) + 3;
-    if(width == 640) widthoffset = 11;
+    float widthoffset = (float)(0.010f*(float)width) + 4;
+    if(width == 640) widthoffset = 10;
     return borderoffset + widthoffset;
 }
 

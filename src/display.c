@@ -192,6 +192,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     vi_borders_t         borders = VI_BORDERS_NONE;
     if(res.crt_borders)  borders = VI_BORDERS_CRT;
+
+    // Fix this specific case so that the most common resolution of 320x240 16bpp wouldn't crash without resampling filter
+    // Users can obtain a sharper image by disabling that filter
+    if(bit == DEPTH_16_BPP && res.width == 320 && (FILTERS_DISABLED || FILTERS_DEDITHER) && !res.crt_borders)
+        borders.right++;
+
     __borders = borders;
 
     vi_write(VI_WIDTH, res.width);
@@ -208,11 +214,11 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     if ( bit == DEPTH_16_BPP ){
         if(filters == FILTERS_DISABLED)
             assertf((*VI_X_SCALE & 0xFFF) > 0x200,
-            "FILTERS_DISABLED is not supported by the hardware for widths <= 320 without borders.\n"
+            "FILTERS_DISABLED is not supported by the hardware for widths < 320 without borders.\n"
             "Please use FILTERS_RESAMPLE instead.");
         if(filters == FILTERS_DEDITHER)
             assertf((*VI_X_SCALE & 0xFFF) > 0x200,
-            "FILTERS_DEDITHER is not supported by the hardware for widths <= 320 without borders.\n"
+            "FILTERS_DEDITHER is not supported by the hardware for widths < 320 without borders.\n"
             "Please use FILTERS_RESAMPLE instead.");
     }
 
