@@ -250,28 +250,28 @@ void model64_write_header(model64_data_t *model, FILE *out)
     w32(out, model->node_size);
     w32(out, model->skin_size);
     w32(out, model->num_nodes);
-	w32_placeholder_named(out, "nodes");
+	w32_placeholderf(out, "nodes");
     w32(out, model->root_node);
     w32(out, model->num_skins);
-	w32_placeholder_named(out, "skins");
+	w32_placeholderf(out, "skins");
     w32(out, model->num_meshes);
-	w32_placeholder_named(out, "meshes");
+	w32_placeholderf(out, "meshes");
     assert(ftell(out)-start_ofs == HEADER_SIZE);
 }
 
 void model64_write_skins(model64_data_t *model, FILE *out)
 {
 	walign(out, 4);
-	placeholder_register(out, "skins");
+	placeholder_set(out, "skins");
     for(uint32_t i=0; i<model->num_skins; i++) {
 		int skin_ofs = ftell(out);
-		placeholder_registerf(out, "skin%d", i);
+		placeholder_set(out, "skin%d", i);
         w32(out, model->skins[i].num_joints);
 		w32_placeholderf(out, "skin%d_joints", i);
 		assert(ftell(out)-skin_ofs == SKIN_SIZE);
     }
 	for(uint32_t i=0; i<model->num_skins; i++) {
-		placeholder_registerf(out, "skin%d_joints", i);
+		placeholder_set(out, "skin%d_joints", i);
 		for(uint32_t j=0; j<model->skins[i].num_joints; j++) {
 			w32(out, model->skins[i].joints[j].node_idx);
 			write_matrix(model->skins[i].joints[j].inverse_bind_mtx, out);
@@ -335,12 +335,12 @@ void model64_write_node(model64_data_t *model, FILE *out, uint32_t index)
 void model64_write_nodes(model64_data_t *model, FILE *out)
 {
 	walign(out, 4);
-	placeholder_register(out, "nodes");
+	placeholder_set(out, "nodes");
     for(uint32_t i=0; i<model->num_nodes; i++) {
 		model64_write_node(model, out, i);
     }
 	for(uint32_t i=0; i<model->num_nodes; i++) {
-		placeholder_registerf(out, "node%d_children", i);
+		placeholder_set(out, "node%d_children", i);
 		for(uint32_t j=0; j<model->nodes[i].num_children; j++) {
             w32(out, model->nodes[i].children[j]);
         }
@@ -348,7 +348,7 @@ void model64_write_nodes(model64_data_t *model, FILE *out)
 	for(uint32_t i=0; i<model->num_nodes; i++)
 	{
 		if(model->nodes[i].name) {
-			placeholder_registerf(out, "node%d_name", i);
+			placeholder_set(out, "node%d_name", i);
 			fwrite(model->nodes[i].name, strlen(model->nodes[i].name)+1, 1, out);
 		}
 	}
@@ -357,16 +357,16 @@ void model64_write_nodes(model64_data_t *model, FILE *out)
 void model64_write_meshes(model64_data_t *model, FILE *out)
 {
 	walign(out, 4);
-	placeholder_register(out, "meshes");
+	placeholder_set(out, "meshes");
     for(uint32_t i=0; i<model->num_meshes; i++) {
         int start_ofs = ftell(out);
-		placeholder_registerf(out, "mesh%d", i);
+		placeholder_set(out, "mesh%d", i);
         w32(out, model->meshes[i].num_primitives);
 		w32_placeholderf(out, "mesh%d_primitives", i);
         assert(ftell(out)-start_ofs == MESH_SIZE);
     }
 	for(uint32_t i=0; i<model->num_meshes; i++) {
-		placeholder_registerf(out, "mesh%d_primitives", i);
+		placeholder_set(out, "mesh%d_primitives", i);
 		for(uint32_t j=0; j<model->meshes[i].num_primitives; j++) {
             primitive_t *primitive = &model->meshes[i].primitives[j];
             int start_ofs = ftell(out);
@@ -392,30 +392,30 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
 			primitive_t *primitive = &model->meshes[i].primitives[j];
 			for (size_t k = 0; k < primitive->num_vertices; k++) {
 				if(primitive->position.pointer && k == 0) {
-					placeholder_registerf(out, "mesh%d_primitive%d_position", i, j);
+					placeholder_set(out, "mesh%d_primitive%d_position", i, j);
 				}
 				vertex_write(out, &primitive->position, k);
 				if(primitive->color.pointer && k == 0) {
-					placeholder_registerf(out, "mesh%d_primitive%d_color", i, j);
+					placeholder_set(out, "mesh%d_primitive%d_color", i, j);
 				}
 				vertex_write(out, &primitive->color, k);
 				if(primitive->texcoord.pointer && k == 0) {
-					placeholder_registerf(out, "mesh%d_primitive%d_texcoord", i, j);
+					placeholder_set(out, "mesh%d_primitive%d_texcoord", i, j);
 				}
 				vertex_write(out, &primitive->texcoord, k);
 				if(primitive->normal.pointer && k == 0) {
-					placeholder_registerf(out, "mesh%d_primitive%d_normal", i, j);
+					placeholder_set(out, "mesh%d_primitive%d_normal", i, j);
 				}
 				vertex_write(out, &primitive->normal, k);
 				if(primitive->mtx_index.pointer && k == 0) {
-					placeholder_registerf(out, "mesh%d_primitive%d_mtx_index", i, j);
+					placeholder_set(out, "mesh%d_primitive%d_mtx_index", i, j);
 				}
 				vertex_write(out, &primitive->mtx_index, k);
 				
 			}
 			if(primitive->num_indices > 0) {
 				walign(out, 4);
-				placeholder_registerf(out, "mesh%d_primitive%d_index", i, j);
+				placeholder_set(out, "mesh%d_primitive%d_index", i, j);
 				indices_write(out, primitive->index_type, primitive->indices, primitive->num_indices);
 			}
 		}

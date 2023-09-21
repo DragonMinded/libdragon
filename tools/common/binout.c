@@ -75,7 +75,7 @@ struct placeholder_data *__placeholder_get_data(const char *name)
 	return &placeholder_hash[index].value;
 }
 
-void placeholder_register(FILE *file, const char *name)
+void __placeholder_make(FILE *file, const char *name)
 {
 	if(placeholder_hash == NULL) {
 		stbds_sh_new_arena(placeholder_hash);
@@ -88,23 +88,23 @@ void placeholder_register(FILE *file, const char *name)
 	stbds_arrfree(data->pending_offsets);
 }
 
-void placeholder_registervf(FILE *file, const char *format, va_list arg)
+void placeholder_setv(FILE *file, const char *format, va_list arg)
 {
 	char *name = NULL;
 	vasprintf(&name, format, arg);
-	placeholder_register(file, name);
+	__placeholder_make(file, name);
 	free(name);
 }
 
-void placeholder_registerf(FILE *file, const char *format, ...)
+void placeholder_set(FILE *file, const char *format, ...)
 {
 	va_list args;
 	va_start(args, format);
-	placeholder_registervf(file, format, args);
+	placeholder_setv(file, format, args);
 	va_end(args);
 }
 
-void w32_placeholder_named(FILE *file, const char *name)
+void __w32_placeholder_named(FILE *file, const char *name)
 {
 	if(placeholder_hash == NULL) {
 		stbds_sh_new_arena(placeholder_hash);
@@ -122,7 +122,7 @@ void w32_placeholdervf(FILE *file, const char *format, va_list arg)
 {
 	char *name = NULL;
 	vasprintf(&name, format, arg);
-	w32_placeholder_named(file, name);
+	__w32_placeholder_named(file, name);
 	free(name);
 }
 
