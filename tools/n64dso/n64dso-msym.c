@@ -11,10 +11,6 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 
-#define STBDS_NO_SHORT_NAMES
-#define STB_DS_IMPLEMENTATION
-#include "../common/stb_ds.h"
-
 //DSO Symbol Table Internals
 #include "../../src/dso_format.h"
 

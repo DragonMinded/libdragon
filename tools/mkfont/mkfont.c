@@ -7,8 +7,6 @@
 #include "../../include/surface.h"
 #include "../../src/rdpq/rdpq_font_internal.h"
 
-#define STB_DS_IMPLEMENTATION
-#include "../common/stb_ds.h"
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "stb_rect_pack.h"
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -418,11 +416,11 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
     // Map from N64 glyph index to TTF glyph index
     typedef struct { int key; int value; } glyphmap_t;
     glyphmap_t *glyph_indices = NULL;
-    hmdefault(glyph_indices, -1);
+    stbds_hmdefault(glyph_indices, -1);
 
     // Go through all the ranges
     int nimg = 0;
-    for (int r=0; r<arrlen(ranges); r+=2) {
+    for (int r=0; r<stbds_arrlen(ranges); r+=2) {
         if (flag_verbose)
             fprintf(stderr, "processing codepoint range: %04X - %04X\n", ranges[r], ranges[r+1]);
         n64font_addrange(font, ranges[r], ranges[r+1]);
@@ -430,16 +428,16 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
         // Create an array with all the codepoints for this range
         int *cprange = NULL;
         for (int p=ranges[r]; p <= ranges[r+1]; p++)
-            arrpush(cprange, p);
+            stbds_arrpush(cprange, p);
 
         // Go through all the codepoints in this range, until we process them all
-        while (arrlen(cprange) > 0) {
+        while (stbds_arrlen(cprange) > 0) {
             memset(pixels, 0, w*h);
 
             stbtt_pack_range range = {
                 .font_size = STBTT_POINT_SIZE(point_size),
                 .array_of_unicode_codepoints = cprange,
-                .num_chars = arrlen(cprange),
+                .num_chars = stbds_arrlen(cprange),
                 .h_oversample = 1, .v_oversample = 1,
             };
             range.chardata_for_range = malloc(sizeof(stbtt_packedchar) * range.num_chars);
@@ -484,10 +482,10 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
                     // Update the glyph index map
                     int ttf_gidx = stbtt_FindGlyphIndex(&info, range.array_of_unicode_codepoints[i]);
                     assert(ttf_gidx >= 0);
-                    hmput(glyph_indices, gidx, ttf_gidx);
+                    stbds_hmput(glyph_indices, gidx, ttf_gidx);
                 } else {
                     // If the glyph wasn't packed, add it to an array of codepoints to process in the next image
-                    arrpush(newrange, range.array_of_unicode_codepoints[i]);
+                    stbds_arrpush(newrange, range.array_of_unicode_codepoints[i]);
                 }
             }
 
@@ -503,16 +501,16 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
                 image_compact(pixels, &rw, &rh, w);
                 n64font_addatlas(font, pixels, rw, rh, w);
                 if (flag_verbose)
-                    fprintf(stderr, "created atlas %d: %d x %d pixels (%d glyphs left)\n", nimg, rw, rh, (int)arrlen(newrange));
+                    fprintf(stderr, "created atlas %d: %d x %d pixels (%d glyphs left)\n", nimg, rw, rh, (int)stbds_arrlen(newrange));
                 nimg++;
             } else {
                 // No glyph were added even if the image is empty. It means
                 // that all of these are not available in the current font, so let's
                 // just skip them.
-                arrfree(newrange);
+                stbds_arrfree(newrange);
             }
 
-            arrfree(cprange);
+            stbds_arrfree(cprange);
             cprange = newrange;
         }
     }
@@ -545,7 +543,7 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
             for (int i=0;i<num_codepoints;i++) {
                 // First glyph index
                 int gidx1 = (i >= range->num_codepoints) ? ascii_range_start+i-range->num_codepoints : range->first_glyph + i;
-                int ttf_idx1 = hmget(glyph_indices, gidx1);
+                int ttf_idx1 = stbds_hmget(glyph_indices, gidx1);
                 if (ttf_idx1 < 0) continue;
                 glyph_t *g = &font->glyphs[gidx1];
 
@@ -554,7 +552,7 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges
                 for (int j=0; j<num_codepoints; j++) {
                     // Second glyph index
                     int gidx2 = (j >= range->num_codepoints) ? ascii_range_start+j-range->num_codepoints : range->first_glyph + j;
-                    int ttf_idx2 = hmget(glyph_indices, gidx2);
+                    int ttf_idx2 = stbds_hmget(glyph_indices, gidx2);
                     if (ttf_idx2 < 0) continue;
 
                     // Extract kerning between the two glyphs from the TTF file
@@ -654,8 +652,8 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     return 1;
                 }
-                arrpush(flag_ranges, r0);
-                arrpush(flag_ranges, r1);
+                stbds_arrpush(flag_ranges, r0);
+                stbds_arrpush(flag_ranges, r1);
             } else if (!strcmp(argv[i], "--ellipsis")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -704,8 +702,8 @@ int main(int argc, char *argv[])
 
         if (!flag_ranges) {
             // Default range (ASCII)
-            arrpush(flag_ranges, 0x20);
-            arrpush(flag_ranges, 0x7F);
+            stbds_arrpush(flag_ranges, 0x20);
+            stbds_arrpush(flag_ranges, 0x7F);
         }
 
         // Find n64 tool directory

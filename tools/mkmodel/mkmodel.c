@@ -38,12 +38,6 @@ typedef void (*index_convert_func_t)(void*,cgltf_uint*,size_t);
 
 int flag_verbose = 0;
 
-struct model_offsets {
-    uint32_t nodes;
-    uint32_t skins;
-    uint32_t meshes;
-};
-
 uint32_t get_type_size(uint32_t type)
 {
     switch (type) {
@@ -148,16 +142,15 @@ void model64_free(model64_data_t *model)
     free(model);
 }
 
-void attribute_write(FILE *out, attribute_t *attr, uint32_t data_ofs)
+void attribute_write(FILE *out, attribute_t *attr, const char *name_format, ...)
 {
+	va_list args;
+	va_start(args, name_format);
     w32(out, attr->size);
     w32(out, attr->type);
     w32(out, attr->stride);
-    if(attr->pointer) {
-        w32(out, data_ofs);
-    } else {
-        w32(out, 0);
-    }
+	w32_placeholdervf(out, name_format, args);
+	va_end(args);
 }
 
 uint32_t attribute_get_data_size(attribute_t *attr)
@@ -224,18 +217,18 @@ void indices_write(FILE *out, uint32_t type, void *data, uint32_t count)
 
 uint32_t get_mesh_index(model64_data_t *model, mesh_t *mesh)
 {
-    if(!mesh) {
-        return model->num_meshes;
-    }
-    return mesh-(model->meshes);
+	assert(mesh);
+	uint32_t index = mesh-(model->meshes);
+	assert(index < model->num_meshes);
+    return index;
 }
 
 uint32_t get_skin_index(model64_data_t *model, model64_skin_t *skin)
 {
-    if(!skin) {
-        return model->num_skins;
-    }
-    return skin-(model->skins);
+	assert(skin);
+	uint32_t index = skin-(model->skins);
+	assert(index < model->num_skins);
+    return index;
 }
 
 void write_matrix(float *mtx, FILE *out)
@@ -245,9 +238,9 @@ void write_matrix(float *mtx, FILE *out)
     }
 }
 
-uint32_t model64_write_header(model64_data_t *model, FILE *out, struct model_offsets *offsets)
+void model64_write_header(model64_data_t *model, FILE *out)
 {
-    fseek(out, 0, SEEK_SET);
+	int start_ofs = ftell(out);
     w32(out, model->magic);
     w32(out, 0);
     w32(out, model->version);
@@ -257,33 +250,33 @@ uint32_t model64_write_header(model64_data_t *model, FILE *out, struct model_off
     w32(out, model->node_size);
     w32(out, model->skin_size);
     w32(out, model->num_nodes);
-    w32(out, offsets->nodes);
+	w32_placeholderf(out, "nodes");
     w32(out, model->root_node);
     w32(out, model->num_skins);
-    w32(out, offsets->skins);
+	w32_placeholderf(out, "skins");
     w32(out, model->num_meshes);
-    w32(out, offsets->meshes);
-    uint32_t end_ofs = ftell(out);
-    assert(end_ofs == HEADER_SIZE);
-    return end_ofs;
+	w32_placeholderf(out, "meshes");
+    assert(ftell(out)-start_ofs == HEADER_SIZE);
 }
 
-uint32_t model64_write_skins(model64_data_t *model, uint32_t offset, FILE *out)
+void model64_write_skins(model64_data_t *model, FILE *out)
 {
-    uint32_t data_ofs = SKIN_SIZE*model->num_skins;
+	walign(out, 4);
+	placeholder_set(out, "skins");
     for(uint32_t i=0; i<model->num_skins; i++) {
-        fseek(out, offset+(i*SKIN_SIZE), SEEK_SET);
+		int skin_ofs = ftell(out);
+		placeholder_set(out, "skin%d", i);
         w32(out, model->skins[i].num_joints);
-        w32(out, data_ofs);
-        assert(ftell(out)-(offset+(i*SKIN_SIZE)) == SKIN_SIZE);
-        fseek(out, offset+data_ofs, SEEK_SET);
-        for(uint32_t j=0; j<model->skins[i].num_joints; j++) {
-            w32(out, model->skins[i].joints[j].node_idx);
-            write_matrix(model->skins[i].joints[j].inverse_bind_mtx, out);
-        }
-        data_ofs += 68*model->skins[i].num_joints;
+		w32_placeholderf(out, "skin%d_joints", i);
+		assert(ftell(out)-skin_ofs == SKIN_SIZE);
     }
-    return offset+data_ofs;
+	for(uint32_t i=0; i<model->num_skins; i++) {
+		placeholder_set(out, "skin%d_joints", i);
+		for(uint32_t j=0; j<model->skins[i].num_joints; j++) {
+			w32(out, model->skins[i].joints[j].node_idx);
+			write_matrix(model->skins[i].joints[j].inverse_bind_mtx, out);
+		}
+	}
 }
 
 uint32_t model64_get_node_children_total(model64_data_t *model)
@@ -318,109 +311,126 @@ void write_node_transform(node_transform_t *transform, FILE *out)
     write_matrix(transform->mtx, out);
 }
 
-uint32_t model64_write_nodes(model64_data_t *model, uint32_t offset, FILE *out)
+void model64_write_node(model64_data_t *model, FILE *out, uint32_t index)
 {
-    uint32_t data_ofs = NODE_SIZE*model->num_nodes;
-    uint32_t name_ofs = data_ofs+(4*model64_get_node_children_total(model));
-    for(uint32_t i=0; i<model->num_nodes; i++) {
-        fseek(out, offset+(i*NODE_SIZE), SEEK_SET);
-        if(model->nodes[i].name) {
-            w32(out, name_ofs);
-        } else {
-            w32(out, 0);
-        }
-        w32(out, get_mesh_index(model, model->nodes[i].mesh));
-        w32(out, get_skin_index(model, model->nodes[i].skin));
-        write_node_transform(&model->nodes[i].transform, out);
-        w32(out, model->nodes[i].parent);
-        w32(out, model->nodes[i].num_children);
-        w32(out, data_ofs);
-        assert(ftell(out)-(offset+(i*NODE_SIZE)) == NODE_SIZE);
-        fseek(out, offset+data_ofs, SEEK_SET);
-        for(uint32_t j=0; j<model->nodes[i].num_children; j++) {
-            w32(out, model->nodes[i].children[j]);
-        }
-        data_ofs += 4*model->nodes[i].num_children;
-        if(model->nodes[i].name) {
-            uint32_t name_len = strlen(model->nodes[i].name)+1;
-            fseek(out, offset+name_ofs, SEEK_SET);
-            fwrite(model->nodes[i].name, strlen(model->nodes[i].name)+1, 1, out);
-            name_ofs += name_len;   
-        }
-    }
-    return offset+name_ofs;
+	int start_ofs = ftell(out);
+	w32_placeholderf(out, "node%d_name", index);
+	if(model->nodes[index].mesh) {
+		w32_placeholderf(out, "mesh%d", get_mesh_index(model, model->nodes[index].mesh));
+	} else {
+		w32(out, 0);
+	}
+	if(model->nodes[index].skin) {
+		w32_placeholderf(out, "skin%d", get_skin_index(model, model->nodes[index].skin));
+	} else {
+		w32(out, 0);
+	}
+	write_node_transform(&model->nodes[index].transform, out);
+	w32(out, model->nodes[index].parent);
+	w32(out, model->nodes[index].num_children);
+	w32_placeholderf(out, "node%d_children", index);
+	assert(ftell(out)-start_ofs == NODE_SIZE);
 }
 
-uint32_t model64_write_meshes(model64_data_t *model, uint32_t offset, FILE *out)
+void model64_write_nodes(model64_data_t *model, FILE *out)
 {
-    uint32_t primitive_ofs = MESH_SIZE*model->num_meshes;
-    uint32_t data_ofs = primitive_ofs+(PRIMITIVE_SIZE*model64_get_primitive_total(model));
+	walign(out, 4);
+	placeholder_set(out, "nodes");
+    for(uint32_t i=0; i<model->num_nodes; i++) {
+		model64_write_node(model, out, i);
+    }
+	for(uint32_t i=0; i<model->num_nodes; i++) {
+		placeholder_set(out, "node%d_children", i);
+		for(uint32_t j=0; j<model->nodes[i].num_children; j++) {
+            w32(out, model->nodes[i].children[j]);
+        }
+	}
+	for(uint32_t i=0; i<model->num_nodes; i++)
+	{
+		if(model->nodes[i].name) {
+			placeholder_set(out, "node%d_name", i);
+			fwrite(model->nodes[i].name, strlen(model->nodes[i].name)+1, 1, out);
+		}
+	}
+}
+
+void model64_write_meshes(model64_data_t *model, FILE *out)
+{
+	walign(out, 4);
+	placeholder_set(out, "meshes");
     for(uint32_t i=0; i<model->num_meshes; i++) {
-        fseek(out, offset+(i*MESH_SIZE), SEEK_SET);
+        int start_ofs = ftell(out);
+		placeholder_set(out, "mesh%d", i);
         w32(out, model->meshes[i].num_primitives);
-        w32(out, primitive_ofs);
-        assert(ftell(out)-(offset+(i*MESH_SIZE)) == MESH_SIZE);
-        for(uint32_t j=0; j<model->meshes[i].num_primitives; j++) {
+		w32_placeholderf(out, "mesh%d_primitives", i);
+        assert(ftell(out)-start_ofs == MESH_SIZE);
+    }
+	for(uint32_t i=0; i<model->num_meshes; i++) {
+		placeholder_set(out, "mesh%d_primitives", i);
+		for(uint32_t j=0; j<model->meshes[i].num_primitives; j++) {
             primitive_t *primitive = &model->meshes[i].primitives[j];
-            fseek(out, offset+primitive_ofs, SEEK_SET);
+            int start_ofs = ftell(out);
             w32(out, primitive->mode);
-            uint32_t color_data_ofs = data_ofs+attribute_get_data_size(&primitive->position);
-            uint32_t texcoord_data_ofs = color_data_ofs+attribute_get_data_size(&primitive->color);
-            uint32_t normal_data_ofs = texcoord_data_ofs+attribute_get_data_size(&primitive->texcoord);
-            uint32_t mtx_index_data_ofs = normal_data_ofs+attribute_get_data_size(&primitive->normal);
-            uint32_t index_ofs = mtx_index_data_ofs+attribute_get_data_size(&primitive->mtx_index);
-            index_ofs += (index_ofs-data_ofs)*(primitive->num_vertices-1);
-            index_ofs = ROUND_UP(index_ofs, 4); //Fix for misaligned indices
-            attribute_write(out, &primitive->position, data_ofs);
-            attribute_write(out, &primitive->color, color_data_ofs);
-            attribute_write(out, &primitive->texcoord, texcoord_data_ofs);
-            attribute_write(out, &primitive->normal, normal_data_ofs);
-            attribute_write(out, &primitive->mtx_index, mtx_index_data_ofs);
+			
+			attribute_write(out, &primitive->position, "mesh%d_primitive%d_position", i, j);
+			attribute_write(out, &primitive->color, "mesh%d_primitive%d_color", i, j);
+			attribute_write(out, &primitive->texcoord, "mesh%d_primitive%d_texcoord", i, j);
+			attribute_write(out, &primitive->normal, "mesh%d_primitive%d_normal", i, j);
+			attribute_write(out, &primitive->mtx_index, "mesh%d_primitive%d_mtx_index", i, j);
             
             w32(out, primitive->vertex_precision);
             w32(out, primitive->texcoord_precision);
             w32(out, primitive->index_type);
             w32(out, primitive->num_vertices);
             w32(out, primitive->num_indices);
-            w32(out, index_ofs);
-            assert(ftell(out)-(offset+primitive_ofs) == PRIMITIVE_SIZE);
-            // Interleave vertex attributes while writing
-            // TODO: Make this configurable?
-            fseek(out, offset+data_ofs, SEEK_SET);
-            for (size_t k = 0; k < primitive->num_vertices; k++)
-            {
-                vertex_write(out, &primitive->position, k);
-                vertex_write(out, &primitive->color, k);
-                vertex_write(out, &primitive->texcoord, k);
-                vertex_write(out, &primitive->normal, k);
-                vertex_write(out, &primitive->mtx_index, k);
-            }
-            fseek(out, offset+index_ofs, SEEK_SET);
-            indices_write(out, primitive->index_type, primitive->indices, primitive->num_indices);
-            
-            primitive_ofs += PRIMITIVE_SIZE;
-            data_ofs = index_ofs+indices_get_data_size(primitive->index_type, primitive->num_indices);
+			w32_placeholderf(out, "mesh%d_primitive%d_index", i, j);
+            assert(ftell(out)-start_ofs == PRIMITIVE_SIZE);
         }
-    }
-    return offset+data_ofs;
+	}
+	for(uint32_t i=0; i<model->num_meshes; i++) {
+		for(uint32_t j=0; j<model->meshes[i].num_primitives; j++) {
+			primitive_t *primitive = &model->meshes[i].primitives[j];
+			for (size_t k = 0; k < primitive->num_vertices; k++) {
+				if(primitive->position.pointer && k == 0) {
+					placeholder_set(out, "mesh%d_primitive%d_position", i, j);
+				}
+				vertex_write(out, &primitive->position, k);
+				if(primitive->color.pointer && k == 0) {
+					placeholder_set(out, "mesh%d_primitive%d_color", i, j);
+				}
+				vertex_write(out, &primitive->color, k);
+				if(primitive->texcoord.pointer && k == 0) {
+					placeholder_set(out, "mesh%d_primitive%d_texcoord", i, j);
+				}
+				vertex_write(out, &primitive->texcoord, k);
+				if(primitive->normal.pointer && k == 0) {
+					placeholder_set(out, "mesh%d_primitive%d_normal", i, j);
+				}
+				vertex_write(out, &primitive->normal, k);
+				if(primitive->mtx_index.pointer && k == 0) {
+					placeholder_set(out, "mesh%d_primitive%d_mtx_index", i, j);
+				}
+				vertex_write(out, &primitive->mtx_index, k);
+				
+			}
+			if(primitive->num_indices > 0) {
+				walign(out, 4);
+				placeholder_set(out, "mesh%d_primitive%d_index", i, j);
+				indices_write(out, primitive->index_type, primitive->indices, primitive->num_indices);
+			}
+		}
+	}
 }
 
 void model64_write(model64_data_t *model, FILE *out)
 {
-    struct model_offsets offsets = {};
-    model64_write_header(model, out, &offsets);
-    offsets.meshes = HEADER_SIZE;
-    offsets.nodes = ROUND_UP(model64_write_meshes(model, offsets.meshes, out), 4);
-    offsets.skins = ROUND_UP(model64_write_nodes(model, offsets.nodes, out), 4);
-    if(model->skins)
-    {
-        model64_write_skins(model, offsets.skins, out);
+    model64_write_header(model, out);
+	model64_write_meshes(model, out);
+    model64_write_nodes(model, out);
+    if(model->skins) {
+        model64_write_skins(model, out);
     }
-    else
-    {
-        offsets.skins = 0;
-    }
-    model64_write_header(model, out, &offsets);
+	placeholder_clear();
 }
 
 int convert_attribute_data(cgltf_accessor *accessor, attribute_t *attr, component_convert_func_t convert_func)
