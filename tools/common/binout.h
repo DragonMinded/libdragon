@@ -9,8 +9,17 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 #define BITCAST_F2I(f)   ({ uint32_t __i; memcpy(&__i, &(f), 4); __i; })
+
+void placeholder_register(FILE *file, const char *name);
+void placeholder_registervf(FILE *file, const char *format, va_list arg);
+void placeholder_registerf(FILE *file, const char *format, ...);
+void placeholder_add(FILE *file, const char *name);
+void placeholder_addvf(FILE *file, const char *format, va_list arg);
+void placeholder_addf(FILE *file, const char *format, ...);
+void placeholder_clear();
 
 void w8(FILE *f, uint8_t v);
 void w16(FILE *f, uint16_t v);

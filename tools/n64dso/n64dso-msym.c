@@ -11,7 +11,6 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 
-#define STBDS_NO_SHORT_NAMES
 #define STB_DS_IMPLEMENTATION
 #include "../common/stb_ds.h"
 
@@ -56,7 +55,7 @@ void add_export_sym(const char *name, uint32_t value, uint32_t size)
     sym.name = strdup(name);
     sym.value = value;
     sym.info = size & 0x3FFFFFFF;
-    stbds_arrput(export_syms, sym);
+    arrput(export_syms, sym);
 }
 
 int dso_sym_compare(const void *a, const void *b)
@@ -176,7 +175,7 @@ void write_msym(char *outfn)
     mainexe_sym_info_t sym_info;
     sym_info.magic = DSO_MAINEXE_SYM_DATA_MAGIC;
     sym_info.size = 0;
-    sym_info.num_syms =  stbds_arrlenu(export_syms);
+    sym_info.num_syms =  arrlenu(export_syms);
     write_mainexe_sym_info(&sym_info, out_file);
     //Write symbol table
     sym_info.size = dso_write_symbols(export_syms, sym_info.num_syms, sizeof(mainexe_sym_info_t), out_file);
@@ -190,7 +189,7 @@ void process(char *infn, char *outfn)
 {
     get_export_syms(infn);
     verbose("Sorting exported symbols from ELF");
-    qsort(export_syms, stbds_arrlenu(export_syms), sizeof(dso_sym_t), dso_sym_compare);
+    qsort(export_syms, arrlenu(export_syms), sizeof(dso_sym_t), dso_sym_compare);
     verbose("Writing output file %s\n", outfn);
     write_msym(outfn);
 }

@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
-#define STBDS_NO_SHORT_NAMES
 #define STB_DS_IMPLEMENTATION
 #include "common/stb_ds.h"
 
@@ -50,26 +49,26 @@ struct { char *key; int value; } *string_hash = NULL;
 int stringtable_add(char *word)
 {
     if (!string_hash) {
-        stbds_sh_new_arena(string_hash);
-        stbds_shdefault(string_hash, -1);
+        sh_new_arena(string_hash);
+        shdefault(string_hash, -1);
     }
 
     int word_len = strlen(word);
     if (stringtable) {
-        int pos = stbds_shget(string_hash, word);
+        int pos = shget(string_hash, word);
         if (pos >= 0)
             return pos;
     }
 
     // Append the word (without the trailing \0)
-    int idx = stbds_arraddnindex(stringtable, word_len);
+    int idx = arraddnindex(stringtable, word_len);
     memcpy(stringtable + idx, word, word_len);
 
     // Add all prefixes to the hash
     for (int i = word_len; i >= 2; --i) {
         char ch = word[i];
         word[i] = 0;
-        stbds_shput(string_hash, word, idx);
+        shput(string_hash, word, idx);
         word[i] = ch;
     }
     return idx;
@@ -168,8 +167,8 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         int line = atoi(colon + 1);
 
         // Add the callsite to the list
-        stbds_arrput(symtable, ((struct symtable_s) {
-            .uuid = stbds_arrlen(symtable),
+        arrput(symtable, ((struct symtable_s) {
+            .uuid = arrlen(symtable),
             .addr = addr,
             .func = func,
             .file = file,
@@ -180,7 +179,7 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         at_least_one = true;
     }
     assert(at_least_one);
-    symtable[stbds_arrlen(symtable)-1].is_inline = false;
+    symtable[arrlen(symtable)-1].is_inline = false;
 
     // Read and skip the two remaining lines (function and file position)
     // that refers to the dummy 0x0 address
@@ -222,7 +221,7 @@ void elf_find_callsites(const char *elf)
 void compute_function_offsets(void)
 {
     uint32_t func_addr = 0;
-    for (int i=0; i<stbds_arrlen(symtable); i++) {
+    for (int i=0; i<arrlen(symtable); i++) {
         struct symtable_s *s = &symtable[i];
         if (s->is_func) {
             func_addr = s->addr;
@@ -261,20 +260,20 @@ void process(const char *infn, const char *outfn)
     // First, find all functions and call sites. We do this by disassembling
     // the ELF file and grepping it.
     elf_find_callsites(infn);
-    verbose("Found %d callsites\n", stbds_arrlen(symtable));
+    verbose("Found %d callsites\n", arrlen(symtable));
 
     // Sort the symbole table by symbol length. We want longer symbols
     // to go in first, so that shorter symbols can be found as substrings.
     // We sort by function name rather than file name, because we expect
     // substrings to match more in functions.
     verbose("Sorting symbol table...\n");
-    qsort(symtable, stbds_arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_func);
+    qsort(symtable, arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_func);
 
     // Go through the symbol table and build the string table
     verbose("Creating string table...\n");
-    for (int i=0; i < stbds_arrlen(symtable); i++) {
+    for (int i=0; i < arrlen(symtable); i++) {
         if (i % 5000 == 0)
-            verbose("  %d/%d\n", i, stbds_arrlen(symtable));
+            verbose("  %d/%d\n", i, arrlen(symtable));
         struct symtable_s *sym = &symtable[i];
         if (sym->func)
             sym->func_sidx = stringtable_add(sym->func);
@@ -287,7 +286,7 @@ void process(const char *infn, const char *outfn)
     }
 
     // Sort the symbol table by address
-    qsort(symtable, stbds_arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_addr);
+    qsort(symtable, arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_addr);
 
     // Fill in the function offset field in the entries in the symbol table.
     verbose("Computing function offsets...\n");
@@ -305,16 +304,16 @@ void process(const char *infn, const char *outfn)
     fwrite("SYMT", 4, 1, out);
     w32(out, 2); // Version
     int addrtable_off = w32_placeholder(out);
-    w32(out, stbds_arrlen(symtable));
+    w32(out, arrlen(symtable));
     int symtable_off = w32_placeholder(out);
-    w32(out, stbds_arrlen(symtable));
+    w32(out, arrlen(symtable));
     int stringtable_off = w32_placeholder(out);
-    w32(out, stbds_arrlen(stringtable));
+    w32(out, arrlen(stringtable));
 
     // Write address table. This is a sequence of 32-bit addresses.
     walign(out, 16);
     w32_at(out, addrtable_off, ftell(out));
-    for (int i=0; i < stbds_arrlen(symtable); i++) {
+    for (int i=0; i < arrlen(symtable); i++) {
         struct symtable_s *sym = &symtable[i];
         w32(out, sym->addr | (sym->is_func ? 0x1 : 0) | (sym->is_inline ? 0x2 : 0));
     }
@@ -322,7 +321,7 @@ void process(const char *infn, const char *outfn)
     // Write symbol table. See symtable_entry_t in backtrace.c for the layout.
     walign(out, 16);
     w32_at(out, symtable_off, ftell(out));
-    for (int i=0; i < stbds_arrlen(symtable); i++) {
+    for (int i=0; i < arrlen(symtable); i++) {
         struct symtable_s *sym = &symtable[i];
         w32(out, sym->func_sidx);
         w32(out, sym->file_sidx);
@@ -334,7 +333,7 @@ void process(const char *infn, const char *outfn)
 
     walign(out, 16);
     w32_at(out, stringtable_off, ftell(out));
-    fwrite(stringtable, stbds_arrlen(stringtable), 1, out);
+    fwrite(stringtable, arrlen(stringtable), 1, out);
     fclose(out);
 }
 

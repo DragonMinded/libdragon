@@ -721,8 +721,6 @@ template<class T> static T * stbds_shmode_func_wrapper(T *, size_t elemsize, int
 #define stbds_shmode_func_wrapper(t,e,m)  stbds_shmode_func(e,m)
 #endif
 
-#endif // INCLUDE_STB_DS_H
-
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1615,6 +1613,8 @@ void stbds_strreset(stbds_string_arena *a)
 }
 
 #endif
+
+#endif // INCLUDE_STB_DS_H
 
 //////////////////////////////////////////////////////////////////////////////
 //
