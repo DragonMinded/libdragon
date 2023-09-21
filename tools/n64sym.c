@@ -4,10 +4,6 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
-#define STBDS_NO_SHORT_NAMES
-#define STB_DS_IMPLEMENTATION
-#include "common/stb_ds.h"
-
 #include "common/subprocess.h"
 #include "common/polyfill.h"
 #include "common/utils.h"

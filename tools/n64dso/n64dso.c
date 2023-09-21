@@ -9,10 +9,6 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 
-#define STBDS_NO_SHORT_NAMES
-#define STB_DS_IMPLEMENTATION
-#include "../common/stb_ds.h"
-
 // Compression library
 #include "../common/assetcomp.h"
 #include "../common/assetcomp.c"
