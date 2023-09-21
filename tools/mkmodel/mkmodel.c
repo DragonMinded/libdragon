@@ -149,7 +149,7 @@ void attribute_write(FILE *out, attribute_t *attr, const char *name_format, ...)
     w32(out, attr->size);
     w32(out, attr->type);
     w32(out, attr->stride);
-	placeholder_addvf(out, name_format, args);
+	w32_placeholdervf(out, name_format, args);
 	va_end(args);
 }
 
@@ -250,12 +250,12 @@ void model64_write_header(model64_data_t *model, FILE *out)
     w32(out, model->node_size);
     w32(out, model->skin_size);
     w32(out, model->num_nodes);
-	placeholder_add(out, "nodes");
+	w32_placeholder_named(out, "nodes");
     w32(out, model->root_node);
     w32(out, model->num_skins);
-	placeholder_add(out, "skins");
+	w32_placeholder_named(out, "skins");
     w32(out, model->num_meshes);
-	placeholder_add(out, "meshes");
+	w32_placeholder_named(out, "meshes");
     assert(ftell(out)-start_ofs == HEADER_SIZE);
 }
 
@@ -267,7 +267,7 @@ void model64_write_skins(model64_data_t *model, FILE *out)
 		int skin_ofs = ftell(out);
 		placeholder_registerf(out, "skin%d", i);
         w32(out, model->skins[i].num_joints);
-		placeholder_addf(out, "skin%d_joints", i);
+		w32_placeholderf(out, "skin%d_joints", i);
 		assert(ftell(out)-skin_ofs == SKIN_SIZE);
     }
 	for(uint32_t i=0; i<model->num_skins; i++) {
@@ -314,21 +314,21 @@ void write_node_transform(node_transform_t *transform, FILE *out)
 void model64_write_node(model64_data_t *model, FILE *out, uint32_t index)
 {
 	int start_ofs = ftell(out);
-	placeholder_addf(out, "node%d_name", index);
+	w32_placeholderf(out, "node%d_name", index);
 	if(model->nodes[index].mesh) {
-		placeholder_addf(out, "mesh%d", get_mesh_index(model, model->nodes[index].mesh));
+		w32_placeholderf(out, "mesh%d", get_mesh_index(model, model->nodes[index].mesh));
 	} else {
 		w32(out, 0);
 	}
 	if(model->nodes[index].skin) {
-		placeholder_addf(out, "skin%d", get_skin_index(model, model->nodes[index].skin));
+		w32_placeholderf(out, "skin%d", get_skin_index(model, model->nodes[index].skin));
 	} else {
 		w32(out, 0);
 	}
 	write_node_transform(&model->nodes[index].transform, out);
 	w32(out, model->nodes[index].parent);
 	w32(out, model->nodes[index].num_children);
-	placeholder_addf(out, "node%d_children", index);
+	w32_placeholderf(out, "node%d_children", index);
 	assert(ftell(out)-start_ofs == NODE_SIZE);
 }
 
@@ -362,7 +362,7 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
         int start_ofs = ftell(out);
 		placeholder_registerf(out, "mesh%d", i);
         w32(out, model->meshes[i].num_primitives);
-		placeholder_addf(out, "mesh%d_primitives", i);
+		w32_placeholderf(out, "mesh%d_primitives", i);
         assert(ftell(out)-start_ofs == MESH_SIZE);
     }
 	for(uint32_t i=0; i<model->num_meshes; i++) {
@@ -383,7 +383,7 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
             w32(out, primitive->index_type);
             w32(out, primitive->num_vertices);
             w32(out, primitive->num_indices);
-			placeholder_addf(out, "mesh%d_primitive%d_index", i, j);
+			w32_placeholderf(out, "mesh%d_primitive%d_index", i, j);
             assert(ftell(out)-start_ofs == PRIMITIVE_SIZE);
         }
 	}

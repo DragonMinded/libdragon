@@ -16,9 +16,9 @@
 void placeholder_register(FILE *file, const char *name);
 void placeholder_registervf(FILE *file, const char *format, va_list arg);
 void placeholder_registerf(FILE *file, const char *format, ...);
-void placeholder_add(FILE *file, const char *name);
-void placeholder_addvf(FILE *file, const char *format, va_list arg);
-void placeholder_addf(FILE *file, const char *format, ...);
+void w32_placeholder_named(FILE *file, const char *name);
+void w32_placeholdervf(FILE *file, const char *format, va_list arg);
+void w32_placeholderf(FILE *file, const char *format, ...);
 void placeholder_clear();
 
 void w8(FILE *f, uint8_t v);

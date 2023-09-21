@@ -721,6 +721,8 @@ template<class T> static T * stbds_shmode_func_wrapper(T *, size_t elemsize, int
 #define stbds_shmode_func_wrapper(t,e,m)  stbds_shmode_func(e,m)
 #endif
 
+#endif // INCLUDE_STB_DS_H
+
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -728,6 +730,8 @@ template<class T> static T * stbds_shmode_func_wrapper(T *, size_t elemsize, int
 //
 
 #ifdef STB_DS_IMPLEMENTATION
+#ifndef INCLUDE_STB_DS_IMPLEMENTATION
+#define INCLUDE_STB_DS_IMPLEMENTATION
 #include <assert.h>
 #include <string.h>
 
@@ -1612,9 +1616,8 @@ void stbds_strreset(stbds_string_arena *a)
   memset(a, 0, sizeof(*a));
 }
 
+#endif // INCLUDE_STB_DS_IMPLEMENTATION
 #endif
-
-#endif // INCLUDE_STB_DS_H
 
 //////////////////////////////////////////////////////////////////////////////
 //
