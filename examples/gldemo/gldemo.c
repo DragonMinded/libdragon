@@ -218,7 +218,7 @@ int main()
 
     setup();
 
-    controller_init();
+    joypad_init();
 
     rspq_profile_start();
 
@@ -226,28 +226,28 @@ int main()
     while (1)
 #endif
     {
-        controller_scan();
-        struct controller_data pressed = get_keys_pressed();
-        struct controller_data down = get_keys_down();
+        joypad_poll();
+        joypad_buttons_t pressed = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+        joypad_inputs_t inputs = joypad_get_inputs(JOYPAD_PORT_1);
 
-        if (pressed.c[0].A) {
+        if (pressed.a) {
             animation++;
         }
 
-        if (pressed.c[0].B) {
+        if (pressed.b) {
             animation--;
         }
 
-        if (down.c[0].start) {
+        if (pressed.start) {
             debugf("%ld\n", animation);
         }
 
-        if (down.c[0].R) {
+        if (pressed.r) {
             shade_model = shade_model == GL_SMOOTH ? GL_FLAT : GL_SMOOTH;
             glShadeModel(shade_model);
         }
 
-        if (down.c[0].L) {
+        if (pressed.l) {
             fog_enabled = !fog_enabled;
             if (fog_enabled) {
                 glEnable(GL_FOG);
@@ -256,7 +256,7 @@ int main()
             }
         }
 
-        if (down.c[0].C_up) {
+        if (pressed.c_up) {
             if (sphere_rings < SPHERE_MAX_RINGS) {
                 sphere_rings++;
             }
@@ -268,7 +268,7 @@ int main()
             make_sphere_mesh();
         }
 
-        if (down.c[0].C_down) {
+        if (pressed.c_down) {
             if (sphere_rings > SPHERE_MIN_RINGS) {
                 sphere_rings--;
             }
@@ -280,12 +280,12 @@ int main()
             make_sphere_mesh();
         }
 
-        if (down.c[0].C_right) {
+        if (pressed.c_right) {
             texture_index = (texture_index + 1) % 4;
         }
 
-        float y = pressed.c[0].y / 128.f;
-        float x = pressed.c[0].x / 128.f;
+        float y = inputs.stick_y / 128.f;
+        float x = inputs.stick_x / 128.f;
         float mag = x*x + y*y;
 
         if (fabsf(mag) > 0.01f) {
