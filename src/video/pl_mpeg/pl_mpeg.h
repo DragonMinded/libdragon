@@ -3473,41 +3473,59 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	// Decode AC coefficients (+DC for non-intra)
 	PROFILE_START(PS_MPEG_MB_DECODE_AC, 0);
 	plm_buffer_has(self->buffer, 64*24);
-	int level = 0;
 	while (TRUE) {
-		int run = 0;
-		PROFILE_START(PS_MPEG_MB_DECODE_AC_VLC, 0);
-		uint16_t coeff = plm_video_decode_dct_coeff(self->buffer);
-		// uint16_t coeff = plm_buffer_read_vlc_uint(self->buffer, PLM_VIDEO_DCT_COEFF);
-		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_VLC, 0);
+		static const uint16_t qtable0[128] __attribute__((aligned(16))) = { 0,0,0,0,65535,65535,65535,65535,49666,49666,51457,51457,49156,49156,51201,51201,42753,42753,42753,42753,42497,42497,42497,42497,41218,41218,41218,41218,42241,42241,42241,42241,60673,57350,60417,60161,58114,57603,57349,59905,32771,32771,32771,32771,32771,32771,32771,32771,33793,33793,33793,33793,33793,33793,33793,33793,33537,33537,33537,33537,33537,33537,33537,33537,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641 };
+		static const uint16_t qtables1[256] __attribute__((aligned(16))) = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 57618, 57617, 57616, 57615, 58883, 61442, 61186, 60930, 60674, 60418, 60162, 65281, 65025, 64769, 64513, 64257, 49192, 49192, 49191, 49191, 49190, 49190, 49189, 49189, 49188, 49188, 49187, 49187, 49186, 49186, 49185, 49185, 49184, 49184, 49422, 49422, 49421, 49421, 49420, 49420, 49419, 49419, 49418, 49418, 49417, 49417, 49416, 49416, 40991, 40991, 40991, 40991, 40990, 40990, 40990, 40990, 40989, 40989, 40989, 40989, 40988, 40988, 40988, 40988, 40987, 40987, 40987, 40987, 40986, 40986, 40986, 40986, 40985, 40985, 40985, 40985, 40984, 40984, 40984, 40984, 40983, 40983, 40983, 40983, 40982, 40982, 40982, 40982, 40981, 40981, 40981, 40981, 40980, 40980, 40980, 40980, 40979, 40979, 40979, 40979, 40978, 40978, 40978, 40978, 40977, 40977, 40977, 40977, 40976, 40976, 40976, 40976, 35330, 35330, 35330, 35330, 35330, 35330, 35330, 35330, 35074, 35074, 35074, 35074, 35074, 35074, 35074, 35074, 34051, 34051, 34051, 34051, 34051, 34051, 34051, 34051, 33540, 33540, 33540, 33540, 33540, 33540, 33540, 33540, 33285, 33285, 33285, 33285, 33285, 33285, 33285, 33285, 33031, 33031, 33031, 33031, 33031, 33031, 33031, 33031, 33030, 33030, 33030, 33030, 33030, 33030, 33030, 33030, 32783, 32783, 32783, 32783, 32783, 32783, 32783, 32783, 32782, 32782, 32782, 32782, 32782, 32782, 32782, 32782, 32781, 32781, 32781, 32781, 32781, 32781, 32781, 32781, 32780, 32780, 32780, 32780, 32780, 32780, 32780, 32780, 39425, 39425, 39425, 39425, 39425, 39425, 39425, 39425, 39169, 39169, 39169, 39169, 39169, 39169, 39169, 39169, 38913, 38913, 38913, 38913, 38913, 38913, 38913, 38913, 38657, 38657, 38657, 38657, 38657, 38657, 38657, 38657, 38401, 38401, 38401, 38401, 38401, 38401, 38401, 38401 };
+		static const uint16_t qtables2[16] __attribute__((aligned(16))) = { 24587, 26626, 25603, 24586, 25092, 26370, 29953, 29697, 24585, 29441, 29185, 24837, 25347, 24584, 26114, 28929 };
+		static const uint16_t qtables34[2][4] __attribute__((aligned(16))) = { {12289, 9474, 8199, 8707}, {8452, 12033, 11777, 9218} };
+		static const uint16_t *tbl[4] = { qtables1, qtables2, qtables34[0], qtables34[1] };
+		static const uint8_t shift[4] = { 0,4,6,6 };
 
-		PROFILE_START(PS_MPEG_MB_DECODE_AC_CODE, 0);
-		uint64_t bits = plm_buffer_showbits(self->buffer);
+		int level = 0;
+		int run = 0;
+		unsigned int coeff;
+
+		uint64_t bits = plm_buffer_showbits2(self->buffer);
 		#define readbits(n) ({ uint64_t val = bits>>(64-n); bits <<= n; self->buffer->bit_index += n; val; })
 
-		if ((coeff == 0x0001) && (n > 0) && (readbits(1) == 0)) {
-			// end_of_block
-			break;
-		}
-		if (coeff == 0xffff) {
-			// escape
-			run = readbits(6);
-			level = readbits(8);
-			if (level == 0) {
-				level = readbits(8);
-			}
-			else if (level == 128) {
-				level = readbits(8) - 256;
-			}
-			else if (level > 128) {
-				level = level - 256;
-			}
-		}
-		else {
-			run = coeff >> 8;
-			level = coeff & 0xff;
+		if (bits>>63 == 1) { 
+			readbits(1);
+			if ((n > 0) && (readbits(1) == 0))
+				break;
+			run = 0;
+			level = 1;
 			if (readbits(1)) {
 				level = -level;
+			}
+		} else {
+			unsigned int bit0 = (bits>>56) & 0xff;
+			if (bit0 >= 4) {
+				coeff = qtable0[bit0];
+			} else {
+				unsigned int bit1 = (bits >> 48) & 0xff;
+				coeff = tbl[bit0][bit1 >> shift[bit0]];
+				readbits(8);
+				if (coeff == 0xffff) __builtin_unreachable();
+			}
+			if (coeff == 0xffff) {
+				readbits(6);
+				run = readbits(6);
+				level = readbits(8);
+				if (level == 0) {
+					level = readbits(8);
+				} else if (level == 128) {
+					level = readbits(8) - 256;
+				} else if (level > 128) {
+					level = level - 256;
+				}
+			} else {
+				readbits((coeff >> 13) + 1);
+				coeff &= 0x1fff;			
+				run = coeff >> 8;
+				level = coeff & 0xff;
+				if (readbits(1)) {
+					level = -level;
+				}
 			}
 		}
 
@@ -3516,8 +3534,6 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 			fprintf(stderr, "INVALID AC COEFF\n");
 			return; // invalid
 		}
-		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_CODE, 0);
-		PROFILE_START(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
 
 		if (RSP_MODE < 2) {
 			int de_zig_zagged = PLM_VIDEO_ZIG_ZAG[n];
@@ -3546,7 +3562,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 			rsp_mpeg1_block_coeff(n, level);
 		}
 		n++;
-		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
+		// PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
 	}
 	PROFILE_STOP(PS_MPEG_MB_DECODE_AC, 0);
 
