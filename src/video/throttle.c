@@ -1,5 +1,6 @@
 #include "throttle.h"
 #include "n64sys.h"
+#include "timer.h"
 #include <memory.h>
 
 #if 0
@@ -35,14 +36,14 @@ int throttle_wait(void) {
 
 	if (!TICKS_BEFORE(now, next)) {
 		// We're coming late to this frame, it took too long to process.
-		LOGF("throttle: frame too slow (%lu Kcycles)\n", TICKS_DISTANCE(prev, now)/1024);
+		LOGF("throttle: frame too slow (%lu us)\n", TIMER_MICROS(TICKS_DISTANCE(prev, now)));
 
 		// If the application cannot frameskip, reset the clock to
 		// the current time, so that we allow a full time slice for next frame.
 		if (!Throttle.can_frameskip)
 			Throttle.clock_fx16 = (int64_t)now << 16;
 
-		return -TICKS_DISTANCE(prev, now)/1024;
+		return -TIMER_MICROS(TICKS_DISTANCE(prev, now));
 	}
 
 	// We are on time for the current frame. See if we need to throttle
