@@ -26,45 +26,37 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
         model->skins = PTR_DECODE(model, model->skins);
         for(uint32_t i=0; i<model->num_skins; i++)
         {
-            model->skins[i].joints = PTR_DECODE(model->skins, model->skins[i].joints);
+            model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
         }
     }
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
         if(model->nodes[i].name)
         {
-            model->nodes[i].name = PTR_DECODE(model->nodes, model->nodes[i].name);
+            model->nodes[i].name = PTR_DECODE(model, model->nodes[i].name);
         }
-        if((uint32_t)model->nodes[i].mesh != model->num_meshes)
+        if(model->nodes[i].mesh)
         {
-            model->nodes[i].mesh = &model->meshes[(uint32_t)model->nodes[i].mesh];
+            model->nodes[i].mesh = PTR_DECODE(model, model->nodes[i].mesh);
         }
-        else
+        model->nodes[i].children = PTR_DECODE(model, model->nodes[i].children);
+		if(model->nodes[i].skin)
         {
-            model->nodes[i].mesh = NULL;
-        }
-        model->nodes[i].children = PTR_DECODE(model->nodes, model->nodes[i].children);
-        if((uint32_t)model->nodes[i].skin != model->num_skins)
-        {
-            model->nodes[i].skin = &model->skins[(uint32_t)model->nodes[i].skin];
-        }
-        else
-        {
-            model->nodes[i].skin = NULL;
+            model->nodes[i].skin = PTR_DECODE(model, model->nodes[i].skin);
         }
     }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
-        model->meshes[i].primitives = PTR_DECODE(model->meshes, model->meshes[i].primitives);
+        model->meshes[i].primitives = PTR_DECODE(model, model->meshes[i].primitives);
         for (uint32_t j = 0; j < model->meshes[i].num_primitives; j++)
         {
             primitive_t *primitive = &model->meshes[i].primitives[j];
-            primitive->position.pointer = PTR_DECODE(model->meshes, primitive->position.pointer);
-            primitive->color.pointer = PTR_DECODE(model->meshes, primitive->color.pointer);
-            primitive->texcoord.pointer = PTR_DECODE(model->meshes, primitive->texcoord.pointer);
-            primitive->normal.pointer = PTR_DECODE(model->meshes, primitive->normal.pointer);
-            primitive->mtx_index.pointer = PTR_DECODE(model->meshes, primitive->mtx_index.pointer);
-            primitive->indices = PTR_DECODE(model->meshes, primitive->indices);
+            primitive->position.pointer = PTR_DECODE(model, primitive->position.pointer);
+            primitive->color.pointer = PTR_DECODE(model, primitive->color.pointer);
+            primitive->texcoord.pointer = PTR_DECODE(model, primitive->texcoord.pointer);
+            primitive->normal.pointer = PTR_DECODE(model, primitive->normal.pointer);
+            primitive->mtx_index.pointer = PTR_DECODE(model, primitive->mtx_index.pointer);
+            primitive->indices = PTR_DECODE(model, primitive->indices);
         }
     }
     model->magic = MODEL64_MAGIC_LOADED;
@@ -211,26 +203,18 @@ static void unload_model_data(model64_data_t *model)
 {
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
-        model->nodes[i].children = PTR_ENCODE(model->nodes, model->nodes[i].children);
+        model->nodes[i].children = PTR_ENCODE(model, model->nodes[i].children);
         if(model->nodes[i].skin)
         {
-            model->nodes[i].skin = (model64_skin_t *)(model->nodes[i].skin-model->skins);
-        }
-        else
-        {
-            model->nodes[i].skin = (model64_skin_t *)model->num_skins;
+            model->nodes[i].skin = PTR_ENCODE(model, model->nodes[i].skin);
         }
         if(model->nodes[i].mesh)
         {
-            model->nodes[i].mesh = (mesh_t *)(model->nodes[i].mesh-model->meshes);
-        }
-        else
-        {
-            model->nodes[i].mesh = (mesh_t *)(model->num_meshes);
+            model->nodes[i].mesh = PTR_ENCODE(model, model->nodes[i].mesh);
         }
         if(model->nodes[i].name)
         {
-            model->nodes[i].name = PTR_ENCODE(model->nodes, model->nodes[i].name);
+            model->nodes[i].name = PTR_ENCODE(model, model->nodes[i].name);
         }
     }
     for (uint32_t i = 0; i < model->num_meshes; i++)
@@ -238,14 +222,14 @@ static void unload_model_data(model64_data_t *model)
         for (uint32_t j = 0; j < model->meshes[i].num_primitives; j++)
         {
             primitive_t *primitive = &model->meshes[i].primitives[j];
-            primitive->position.pointer = PTR_ENCODE(model->meshes, primitive->position.pointer);
-            primitive->color.pointer = PTR_ENCODE(model->meshes, primitive->color.pointer);
-            primitive->texcoord.pointer = PTR_ENCODE(model->meshes, primitive->texcoord.pointer);
-            primitive->normal.pointer = PTR_ENCODE(model->meshes, primitive->normal.pointer);
-            primitive->mtx_index.pointer = PTR_ENCODE(model->meshes, primitive->mtx_index.pointer);
-            primitive->indices = PTR_ENCODE(model->meshes, primitive->indices);
+            primitive->position.pointer = PTR_ENCODE(model, primitive->position.pointer);
+            primitive->color.pointer = PTR_ENCODE(model, primitive->color.pointer);
+            primitive->texcoord.pointer = PTR_ENCODE(model, primitive->texcoord.pointer);
+            primitive->normal.pointer = PTR_ENCODE(model, primitive->normal.pointer);
+            primitive->mtx_index.pointer = PTR_ENCODE(model, primitive->mtx_index.pointer);
+            primitive->indices = PTR_ENCODE(model, primitive->indices);
         }
-        model->meshes[i].primitives = PTR_ENCODE(model->meshes, model->meshes[i].primitives);
+        model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
     }
     model->nodes = PTR_ENCODE(model, model->nodes);
     model->meshes = PTR_ENCODE(model, model->meshes);
@@ -253,7 +237,7 @@ static void unload_model_data(model64_data_t *model)
     {
         for(uint32_t i=0; i<model->num_skins; i++)
         {
-            model->skins[i].joints = PTR_ENCODE(model->skins, model->skins[i].joints);
+            model->skins[i].joints = PTR_ENCODE(model, model->skins[i].joints);
         }
         model->skins = PTR_ENCODE(model, model->skins);
     }

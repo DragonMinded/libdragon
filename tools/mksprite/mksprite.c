@@ -1280,6 +1280,9 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         }
     }
 
+    // Legacy support for old mksprite usage
+    if (pm->hslices) spr.hslices = pm->hslices;
+    if (pm->vslices) spr.vslices = pm->vslices;
     // Autodetection of optimal slice size. TODO: this could be improved
     // by calculating actual memory occupation of each slice, to minimize the
     // number of TMEM loads.

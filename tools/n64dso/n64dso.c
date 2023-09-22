@@ -9,9 +9,6 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 
-#define STB_DS_IMPLEMENTATION
-#include "../common/stb_ds.h"
-
 // Compression library
 #include "../common/assetcomp.h"
 #include "../common/assetcomp.c"
@@ -118,9 +115,9 @@ void elf_info_free(elf_info_t *elf_info)
         fclose(elf_info->file);
     }
     //Free symbol arrays
-    arrfree(elf_info->import_syms);
-    arrfree(elf_info->export_syms);
-    arrfree(elf_info->syms);
+    stbds_arrfree(elf_info->import_syms);
+    stbds_arrfree(elf_info->export_syms);
+    stbds_arrfree(elf_info->syms);
     free(elf_info->load_seg.data);
     free(elf_info->strtab); //Free string table
     free(elf_info);
@@ -336,7 +333,7 @@ bool elf_sym_get_all(elf_info_t *elf_info)
                 sym.info = elf_sym.st_info;
                 sym.other = elf_sym.st_other;
                 sym.section = elf_sym.st_shndx;
-                arrpush(elf_info->syms, sym);
+                stbds_arrpush(elf_info->syms, sym);
             }
         }
     }
@@ -353,24 +350,24 @@ int elf_sym_compare(const void *a, const void *b)
 
 void elf_sym_collect(elf_info_t *elf_info)
 {
-    for(size_t i=0; i<arrlenu(elf_info->syms); i++) {
+    for(size_t i=0; i<stbds_arrlenu(elf_info->syms); i++) {
         //Skip local symbols
         if(ELF32_ST_BIND(elf_info->syms[i].info) == STB_LOCAL) {
             continue;
         }
         if(elf_info->syms[i].section == SHN_UNDEF) {
             //Push to import symbols list
-            arrpush(elf_info->import_syms, &elf_info->syms[i]);
+            stbds_arrpush(elf_info->import_syms, &elf_info->syms[i]);
         } else {
             //Push to export symbol list if visible
             if(ELF32_ST_VISIBILITY(elf_info->syms[i].other) == STV_DEFAULT) {
-                arrpush(elf_info->export_syms, &elf_info->syms[i]);
+                stbds_arrpush(elf_info->export_syms, &elf_info->syms[i]);
             }
         }
     }
     //Sort collected symbols by name
-    qsort(elf_info->export_syms, arrlenu(elf_info->export_syms), sizeof(elf_symbol_t *), elf_sym_compare);
-    qsort(elf_info->import_syms, arrlenu(elf_info->import_syms), sizeof(elf_symbol_t *), elf_sym_compare);
+    qsort(elf_info->export_syms, stbds_arrlenu(elf_info->export_syms), sizeof(elf_symbol_t *), elf_sym_compare);
+    qsort(elf_info->import_syms, stbds_arrlenu(elf_info->import_syms), sizeof(elf_symbol_t *), elf_sym_compare);
 }
 
 bool elf_reloc_read(FILE *file, Elf32_Shdr *reloc_section, uint32_t reloc_index, Elf32_Rel *reloc)
@@ -426,8 +423,8 @@ void dso_module_free(dso_module_t *module)
 void dso_build_symbols(dso_module_t *module, elf_info_t *elf_info)
 {
     //Calculate symbol counts
-    module->num_import_syms = arrlenu(elf_info->import_syms);
-    module->num_syms = 1+module->num_import_syms+arrlenu(elf_info->export_syms);
+    module->num_import_syms = stbds_arrlenu(elf_info->import_syms);
+    module->num_syms = 1+module->num_import_syms+stbds_arrlenu(elf_info->export_syms);
     module->syms = malloc(module->num_syms*sizeof(dso_sym_t)); //Allocate symbols
     module->syms[0] = (dso_sym_t){ "", 0, 0 }; //Build dummy symbols
     //Build import symbols
@@ -444,7 +441,7 @@ void dso_build_symbols(dso_module_t *module, elf_info_t *elf_info)
         module->syms[i+1] = sym; //Write new symbol
     }
     //Build export symbols
-    for(uint32_t i=0; i<arrlenu(elf_info->export_syms); i++) {
+    for(uint32_t i=0; i<stbds_arrlenu(elf_info->export_syms); i++) {
         dso_sym_t sym;
         //Copy symbol properties
         sym.name = elf_info->export_syms[i]->name;
@@ -482,7 +479,7 @@ uint32_t dso_translate_reloc_symbol_idx(elf_info_t *elf_info, uint32_t sym_idx)
     elf_symbol_t *search_sym_ptr = &search_sym;
     search_sym_ptr->name = elf_info->syms[sym_idx].name; //Set symbol name for search key
     //Do symbol search
-    elf_symbol_t **result = bsearch(&search_sym_ptr, elf_info->import_syms, arrlenu(elf_info->import_syms), sizeof(elf_symbol_t *), elf_sym_compare);
+    elf_symbol_t **result = bsearch(&search_sym_ptr, elf_info->import_syms, stbds_arrlenu(elf_info->import_syms), sizeof(elf_symbol_t *), elf_sym_compare);
     //Failed symbol searches assume symbol 0
     if(!result) {
         return 0;
