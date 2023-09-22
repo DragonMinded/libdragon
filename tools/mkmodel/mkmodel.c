@@ -33,6 +33,8 @@
 #define VERTEX_PRECISION    5
 #define TEXCOORD_PRECISION  8
 
+#define RSP_PRECISION       (1.0f/65536.0f)
+
 typedef void (*component_convert_func_t)(void*,float*,size_t);
 typedef void (*index_convert_func_t)(void*,cgltf_uint*,size_t);
 
@@ -234,7 +236,7 @@ uint32_t get_skin_index(model64_data_t *model, model64_skin_t *skin)
 void write_matrix(float *mtx, FILE *out)
 {
     for(int i=0; i<16; i++) {
-        wf32(out, mtx[i]);
+        wf32approx(out, mtx[i], RSP_PRECISION);
     }
 }
 
@@ -300,13 +302,13 @@ uint32_t model64_get_primitive_total(model64_data_t *model)
 void write_node_transform(node_transform_t *transform, FILE *out)
 {
     for(int i=0; i<3; i++) {
-        wf32(out, transform->pos[i]);
+        wf32approx(out, transform->pos[i], RSP_PRECISION);
     }
     for(int i=0; i<4; i++) {
-        wf32(out, transform->rot[i]);
+        wf32approx(out, transform->rot[i], RSP_PRECISION);
     }
     for(int i=0; i<3; i++) {
-        wf32(out, transform->scale[i]);
+        wf32approx(out, transform->scale[i], RSP_PRECISION);
     }
     write_matrix(transform->mtx, out);
 }

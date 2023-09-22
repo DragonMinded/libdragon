@@ -10,8 +10,9 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <math.h>
 
-#define BITCAST_F2I(f)   ({ uint32_t __i; memcpy(&__i, &(f), 4); __i; })
+#define BITCAST_F2I(f)   ({ uint32_t __i; float __f = (f); memcpy(&__i, &(__f), 4); __i; })
 
 void placeholder_setv(FILE *file, const char *format, va_list arg);
 void placeholder_set(FILE *file, const char *format, ...);
@@ -21,6 +22,7 @@ void w8(FILE *f, uint8_t v);
 void w16(FILE *f, uint16_t v);
 void w32(FILE *f, uint32_t v);
 #define wf32(f, v) w32(f, BITCAST_F2I(v))
+#define wf32approx(f, v, prec) wf32(f, roundf((v)/(prec))*(prec))
 
 int w32_placeholder(FILE *f);
 void w32_placeholdervf(FILE *file, const char *format, va_list arg);
