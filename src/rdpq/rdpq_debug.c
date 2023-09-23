@@ -104,7 +104,7 @@ typedef struct {
     bool blend, read, aa;
     struct { uint8_t mode; bool color, sel_alpha, mul_alpha; } cvg;
     struct { uint8_t mode; bool upd, cmp, prim; } z;
-    struct { bool enable, dither; } alphacmp;
+    struct { bool enable, noise; } alphacmp;
     struct { bool fog, freeze, bl2; } rdpqx;     // rdpq extensions
     ///@endcond
 } setothermodes_t;
@@ -440,7 +440,7 @@ static inline setothermodes_t decode_som(uint64_t som) {
         .blend = BIT(som, 14), .read = BIT(som, 6), .aa = BIT(som, 3),
         .cvg = { .mode = BITS(som, 8, 9), .color = BIT(som, 7), .mul_alpha = BIT(som, 12), .sel_alpha=BIT(som, 13) },
         .z = { .mode = BITS(som, 10, 11), .upd = BIT(som, 5), .cmp = BIT(som, 4), .prim = BIT(som, 2) },
-        .alphacmp = { .enable = BIT(som, 0), .dither = BIT(som, 1) },
+        .alphacmp = { .enable = BIT(som, 0), .noise = BIT(som, 1) },
         .rdpqx = { .fog = BIT(som, 32), .freeze = BIT(som, 33), .bl2 = BIT(som, 15) },
     };
 }
@@ -550,7 +550,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         FLAG(som.aa, "aa"); FLAG(som.read, "read"); FLAG(som.blend, "blend");
         FLAG(som.chromakey, "chroma_key"); FLAG(som.atomic, "atomic");
 
-        if(som.alphacmp.enable) fprintf(out, " alpha_compare%s", som.alphacmp.dither ? "[dither]" : "");
+        if(som.alphacmp.enable) fprintf(out, " alpha_compare%s", som.alphacmp.noise ? "[noise]" : "");
         if((som.cycle_type < 2) && (som.dither.rgb != 3 || som.dither.alpha != 3)) fprintf(out, " dither=[%s,%s]", rgbdither[som.dither.rgb], alphadither[som.dither.alpha]);
         if(som.cvg.mode || som.cvg.color || som.cvg.sel_alpha || som.cvg.mul_alpha) {
             fprintf(out, " cvg=["); FLAG_RESET();
@@ -1071,9 +1071,20 @@ static void lazy_validate_rendermode(void) {
         VALIDATE_ERR_CC(ccs[0].rgb.mul != 7,
             "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
-            "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
+            "in 2cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
+        VALIDATE_WARN_CC(ccs[1].rgb.mul != 11 && ccs[1].alpha.suba != 4 && ccs[1].alpha.subb != 4 && ccs[1].alpha.mul != 4 && ccs[1].alpha.add != 4,
+            "in 2cycle mode, the SHADE_ALPHA slot is shifted by one pixel in the second cycle because of a hardware bug");
+        if (rdp.som.alphacmp.enable && !rdp.som.alphacmp.noise) {
+            bool cc1_passthrough = (ccs[1].alpha.mul == 7 && ccs[1].alpha.add == 0);  // (any-any)*0+combined
+            VALIDATE_ERR_CC(cc1_passthrough,
+                "in 2cycle mode, alpha compare is broken if the second alpha combiner cycle is not a passthrough because of a hardware bug");
+            VALIDATE_WARN_CC(!cc1_passthrough,
+                "in 2cycle mode, alpha compare is often shifted by one pixel because of a hardware bug");
+        }
         VALIDATE_ERR_SOM((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
-            "in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent");
+            "in 2cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent");
+        VALIDATE_ERR_SOM(b0->a != 1,
+            "in 2cycle mode, the first pass of the blender cannot access MEMORY_RGB");
     }
 }
 

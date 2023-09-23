@@ -1,6 +1,7 @@
 EXAMPLES += audioplayer
 EXAMPLES += brew-volley
 #EXAMPLES += compression # Disabled due to missing assets
+EXAMPLES += controllertest
 EXAMPLES += cpptest
 EXAMPLES += ctest
 EXAMPLES += customfont
@@ -8,6 +9,7 @@ EXAMPLES += customfont
 EXAMPLES += eepromfstest
 EXAMPLES += fontdemo
 EXAMPLES += gldemo
+EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
 EXAMPLES += mixertest
 EXAMPLES += mptest

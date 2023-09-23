@@ -26,24 +26,25 @@ typedef struct rdpq_texparms_s rdpq_texparms_t;
 #define GL_N64_reduced_aliasing         1
 #define GL_N64_interpenetrating         1
 #define GL_N64_dither_mode              1
+#define GL_N64_copy_matrix              1
 
 /* Data types */
 
-typedef uint8_t	    GLboolean;
-typedef int8_t	    GLbyte;
-typedef uint8_t	    GLubyte;
+typedef uint8_t     GLboolean;
+typedef int8_t      GLbyte;
+typedef uint8_t     GLubyte;
 typedef int16_t     GLshort;
-typedef uint16_t	GLushort;
+typedef uint16_t    GLushort;
 typedef int32_t     GLint;
-typedef uint32_t	GLuint;
+typedef uint32_t    GLuint;
 typedef uint32_t    GLsizei;
-typedef uint32_t	GLenum;
-typedef uint32_t	GLbitfield;
-typedef float	    GLfloat;
-typedef float	    GLclampf;
-typedef double	    GLdouble;
-typedef double	    GLclampd;
-typedef void	    GLvoid;
+typedef uint32_t    GLenum;
+typedef uint32_t    GLbitfield;
+typedef float       GLfloat;
+typedef float       GLclampf;
+typedef double      GLdouble;
+typedef double      GLclampd;
+typedef void        GLvoid;
 
 typedef intptr_t    GLintptrARB;
 typedef size_t      GLsizeiptrARB;
@@ -320,6 +321,8 @@ void glPushMatrix(void);
 void glPopMatrix(void);
 
 void glCurrentPaletteMatrixARB(GLint index);
+
+void glCopyMatrixN64(GLenum source);
 
 /* Texture coordinate generation */
 

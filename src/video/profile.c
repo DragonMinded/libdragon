@@ -1,6 +1,7 @@
 #include "profile.h"
 #include "debug.h"
 #include "n64sys.h"
+#include "timer.h"
 #include <memory.h>
 #include <stdio.h>
 
@@ -45,7 +46,7 @@ static void stats(ProfileSlot slot, uint64_t frame_avg, uint32_t *mean, float *p
 }
 
 void profile_dump(void) {
-	debugf("%-14s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Cum");
+	debugf("%-14s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Perc");
 	debugf("----------------------------------\n");
 
 	uint64_t frame_avg = total_time / frames;
@@ -55,9 +56,9 @@ void profile_dump(void) {
 	uint32_t mean; float partial; \
 	stats(slot, frame_avg, &mean, &partial); \
 	sprintf(buf, "%2.1f", partial); \
-	debugf("%-25s %4llu %6ld %5s%%\n", name, \
+	debugf("%-25s %4llu %6d %5s%%\n", name, \
 		 slot_total_count[slot] / frames, \
-		 mean/SCALE_RESULTS, \
+		 TIMER_MICROS(mean), \
 		 buf); \
 })
 
@@ -83,6 +84,6 @@ void profile_dump(void) {
 	debugf("----------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg);
-	debugf("Average frame time:   %4lld\n", frame_avg/SCALE_RESULTS);
-	debugf("Target frame time:    %4d\n", TICKS_PER_SECOND/24/SCALE_RESULTS);
+	debugf("Average frame time:   %4d\n", TIMER_MICROS(frame_avg));
+	debugf("Target frame time:    %4d\n", TIMER_MICROS(TICKS_PER_SECOND/45));
 }

@@ -1403,4 +1403,20 @@ int dfs_init(uint32_t base_fs_loc)
     return DFS_ESUCCESS;
 }
 
+/**
+ * @brief Convert DFS error code into an error string
+ */
+const char *dfs_strerror(int error)
+{
+    switch (error) {
+    case DFS_ESUCCESS:   return "Success";
+    case DFS_EBADFS:     return "Bad filesystem";
+    case DFS_ENOFILE:    return "File not found";
+    case DFS_EBADINPUT:  return "Invalid argument";
+    case DFS_ENFILE:     return "No free file handles";
+    case DFS_EBADHANDLE: return "Bad file handle";
+    default:             return "Unknown error";
+    }
+}
+
 /** @} */

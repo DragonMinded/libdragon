@@ -8,15 +8,35 @@
 
 #include <stdint.h>
 
+#include "joybus.h"
+#include "joybus_accessory.h"
+#include "joypad.h"
+
 /**
  * @addtogroup controller
  * @{
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*****************************************************************************
+ * Deprecated API
+ * 
+ * The following API is deprecated and will be removed in the future.
+ * This API is being kept for compatibility with existing code. The
+ * implementation is now based on the Joypad Subsystem, which fixes
+ * several deficiencies and implements first-class support for GameCube
+ * controllers. The Controller Subsystem will emit deprecation warnings
+ * when used and suggest replacement functions and data structures.
+ ****************************************************************************/
+
 /**
  * @name Bitmasks for controller status
- * @see #get_controllers_present
- * @see #get_accessories_present    
+ * 
+ * @deprecated Use #joypad_is_connected instead.
+ * 
  * @{
  */
 /** @brief Controller 1 Inserted */
@@ -31,7 +51,9 @@
 
 /**
  * @name Accessory ID Values
- * @see #identify_accessory
+ * 
+ * @deprecated Use #joypad_accessory_type_t instead.
+ * 
  * @{
  */
 /** @brief No accessory present */
@@ -48,6 +70,9 @@
 
 /**
  * @name SI Error Values
+ * 
+ * @deprecated These values are no longer used. They will be removed in the future.
+ * 
  * @{
  */
 /** @brief No error occured */
@@ -62,6 +87,10 @@
  * @brief SI Nintendo 64 controller data
  * 
  * Data structure for Joybus response to `0x01` (Read N64 controller state) command.
+ * 
+ * @deprecated The @ref joypad "Joypad Subsystem" now automatically normalizes
+ *             Nintendo 64 and GameCube controller inputs. This structure is no
+ *             longer needed. Use #joypad_inputs_t instead.
  */
 typedef struct SI_condat
 {
@@ -123,6 +152,10 @@ typedef struct SI_condat
  * @brief SI GameCube controller data.
  * 
  * Data structure for Joybus response to `0x40` (Read GC controller state) command.
+ * 
+ * @deprecated The @ref joypad "Joypad Subsystem" now automatically normalizes
+ *             Nintendo 64 and GameCube controller inputs. This structure is no
+ *             longer needed. Use #joypad_inputs_t instead.
  */
 typedef struct SI_condat_gc
 {
@@ -165,6 +198,9 @@ typedef struct SI_condat_gc
  * @brief SI GameCube controller origin data.
  * 
  * Data structure for Joybus response to `0x41` (Read GC controller origin) command.
+ * 
+ * @deprecated The @ref joypad "Joypad Subsystem" now handles GameCube controller
+ *             origins automatically. This structure is no longer needed.
  */
 struct SI_origdat_gc {
     struct SI_condat_gc data;
@@ -177,6 +213,10 @@ struct SI_origdat_gc {
  * 
  * When reading N64 controller state, only the `c` member array will be populated.
  * When reading GC controller state, only the `gc` member array will be populated.
+ * 
+ * @deprecated The @ref joypad "Joypad Subsystem" now automatically normalizes
+ *             Nintendo 64 and GameCube controller inputs. This structure is no
+ *             longer needed. Use #joypad_inputs_t instead.
  */
 typedef struct controller_data
 {
@@ -186,35 +226,86 @@ typedef struct controller_data
     struct SI_condat_gc gc[4];
 } SI_controllers_state_t;
 
-/** @brief SI GameCube controller origin data for all controller ports. */
+/**
+ * @brief SI GameCube controller origin data for all controller ports.
+ * 
+ * @deprecated The @ref joypad "Joypad Subsystem" now handles GameCube controller
+ *             origins automatically. This structure is no longer needed.
+ */
 typedef struct controller_origin_data
 {
     /** @brief Array of GameCube controller origin data for each controller port. */
     struct SI_origdat_gc gc[4];
 } SI_controllers_origin_t;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/**************************************
+ *  DEPRECATED FUNCTIONS 
+ **************************************/
 
-void controller_init( void );
+/// @cond
+
+__attribute__((deprecated("use joybus_exec_cmd instead")))
+void execute_raw_command(
+    int controller,
+    uint8_t command_id,
+    size_t send_len,
+    size_t recv_len,
+    const void *send_data,
+    void *recv_data
+);
+
+__attribute__((deprecated("use joypad_read_n64_inputs instead")))
 void controller_read( struct controller_data * data );
+
+__attribute__((deprecated("use joypad_get_inputs instead")))
 void controller_read_gc( struct controller_data * data, const uint8_t rumble[4] );
+
+__attribute__((deprecated("use joypad subsystem instead")))
 void controller_read_gc_origin( struct controller_origin_data * data);
-int get_controllers_present( void );
-int get_accessories_present( struct controller_data * data );
+
+__attribute__((deprecated("use joypad_init instead")))
+void controller_init( void );
+
+__attribute__((deprecated("use joypad_poll instead")))
 void controller_scan( void );
+
+__attribute__((deprecated("use joypad_get_buttons_pressed instead")))
 struct controller_data get_keys_down( void );
+
+__attribute__((deprecated("use joypad_get_buttons_released instead")))
 struct controller_data get_keys_up( void );
+
+__attribute__((deprecated("use joypad_get_buttons_held instead")))
 struct controller_data get_keys_held( void );
+
+__attribute__((deprecated("use joypad_get_inputs instead")))
 struct controller_data get_keys_pressed( void );
-int get_dpad_direction( int controller );
-int read_mempak_address( int controller, uint16_t address, uint8_t *data );
-int write_mempak_address( int controller, uint16_t address, uint8_t *data );
+
+__attribute__((deprecated("use joypad_get_identifier instead")))
+int get_controllers_present( void );
+
+__attribute__((deprecated("use joypad_get_accessory_type instead")))
+int get_accessories_present( struct controller_data * data );
+
+__attribute__((deprecated("use joypad_get_accessory_type instead")))
 int identify_accessory( int controller );
+
+__attribute__((deprecated("use joypad_get_direction instead")))
+int get_dpad_direction( int controller );
+
+__attribute__((deprecated("use joybus_accessory_read instead")))
+int read_mempak_address( int controller, uint16_t address, uint8_t *data );
+
+__attribute__((deprecated("use joybus_accessory_write instead")))
+int write_mempak_address( int controller, uint16_t address, uint8_t *data );
+
+__attribute__((deprecated("use joypad_set_rumble_active instead")))
 void rumble_start( int controller );
+
+__attribute__((deprecated("use joypad_set_rumble_active instead")))
 void rumble_stop( int controller );
-void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
+
+/// @endcond
 
 #ifdef __cplusplus
 }
