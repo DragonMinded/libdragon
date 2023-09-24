@@ -26,6 +26,7 @@
 #define C1_ENABLE_OVERFLOW          0x00000200         ///< Enable overflow exception
 #define C1_ENABLE_DIV_BY_0          0x00000400         ///< Enable division by zero exception
 #define C1_ENABLE_INVALID_OP        0x00000800         ///< Enable invalid operation exception
+#define C1_ENABLE_MASK              0x00000F80         ///< Mask for all enable bits
 
 #define C1_CAUSE_INEXACT_OP         0x00001000         ///< Triggered inexact operation exception
 #define C1_CAUSE_UNDERFLOW          0x00002000         ///< Triggered underflow exception
@@ -33,6 +34,7 @@
 #define C1_CAUSE_DIV_BY_0           0x00008000         ///< Triggered division by zero exception
 #define C1_CAUSE_INVALID_OP         0x00010000         ///< Triggered invalid operation exception
 #define C1_CAUSE_NOT_IMPLEMENTED    0x00020000         ///< Triggered not implemented exception
+#define C1_CAUSE_MASK               0x0003F000         ///< Mask for all cause bits
 
 #define C1_FCR31_FS                 (1<<24)            ///< Flush denormals to zero/min
 
