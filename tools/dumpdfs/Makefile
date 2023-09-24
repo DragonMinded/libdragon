@@ -4,6 +4,8 @@ CFLAGS = -std=gnu99 -O2 -Wall -Wno-unused-result -Wno-pointer-to-int-cast -Wno-i
 all: dumpdfs
 
 dumpdfs: dumpdfs.c
+	@echo "    [TOOL] dumpdfs"
+	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@ 
 
 install: dumpdfs
 	install -m 0755 dumpdfs $(INSTALLDIR)/bin
