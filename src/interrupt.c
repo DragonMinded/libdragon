@@ -170,8 +170,6 @@ static void (*__prenmi_handlers[MAX_RESET_HANDLERS])(void);
 /** @brief Tick at which the pre-NMI was triggered */
 static uint32_t __prenmi_tick;
 
-static int last_cart_interrupt_count = 0;
-
 /** 
  * @brief Call each callback in a linked list of callbacks
  *
@@ -344,6 +342,7 @@ void __CART_handler(void)
        to do so, the console freezes because the interrupt will retrigger
        continuously. Since a freeze is always bad for debugging, try to 
        detect it, and show a proper assertion screen. */
+    static int last_cart_interrupt_count = 0;
     if (!(C0_CAUSE() & C0_INTERRUPT_CART))
         last_cart_interrupt_count = 0;
     else
