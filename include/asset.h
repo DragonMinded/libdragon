@@ -43,6 +43,26 @@
  * If you know that the file will never be compressed and you absolutely need
  * to freely seek, simply use the standard fopen() function.
  * 
+ * ## Asset compression
+ * 
+ * To compress your own data files, you can use the mkasset tool.
+ * 
+ * There are currently two compression levels:
+ * 
+ * * Level 1: this is based on LZ4 by Yann Collet. It is extremely fast and
+ *   produce reasonable compression ratios. It is so fast at decompression
+ *   that our implementation is typically faster at loading and decompressing
+ *   a compressed asset, rather than loading it uncompressed. Libdragon tools
+ *   will compress at level 1 by default.
+ * * Level 2: this is based on LZH5 by Haruhiko Okumura, part of the LHA archiver.
+ *   It is slower than LZ4, but it produces better compression ratios. It has
+ *   been measured to beat gzip/zlib for small files like those typically used
+ *   on N64. Level 2 should be selected if there is a necessity to squeeze data
+ *   at the maximum ratio, at the expense of loading speed.
+ * 
+ * To minimize text siz and RAM usage, only the decompression code for level 1
+ * is compiled by default. If you need to use level 2, you must call
+ * #asset_init_compression(2).
  */
 
 #include <stdio.h>
@@ -95,8 +115,8 @@ extern "C" {
  * If the file was compressed using the mkasset tool, it will be
  * automatically uncompressed.
  * 
- * @param fn        Filename to load (including filesystem prefix)
- * @param sz        Pointer to an integer where the size of the file will be stored
+ * @param fn        Filename to load (including filesystem prefix, eg: "rom:/foo.dat")
+ * @param sz        If not NULL, this will be filed with the uncompressed size of the loaded file
  * @return void*    Pointer to the loaded file (must be freed with free() when done)
  */
 void *asset_load(const char *fn, int *sz);
@@ -108,12 +128,18 @@ void *asset_load(const char *fn, int *sz);
  * If the file was compressed using the mkasset tool, it will be
  * automatically uncompressed as it is being read.
  * 
- * Note that since the file can be optionally compressed, the returned
- * FILE* cannot be rewinded. It must be read sequentially, or seeked forward.
- * Seeking backward is not supported.
+ * Note that since the file might be compressed, the returned
+ * FILE* cannot be rewinded, nor seeked backward, as that would be impossible
+ * to do efficiently on a compressed file. Seeking forward is supported and is
+ * simulated by reading (decompressing) and discarding data.
  * 
- * @param fn        Filename to open (including filesystem prefix)
- * @param sz        If not NULL, pointer to an integer where the size of the file will be stored
+ * This behavior of the returned file is enforced also for non compressed
+ * assets, so that the code is ready to switch to compressed assets if
+ * required. If you need random access to an uncompressed file, simply use
+ * the standard fopen() function.
+ * 
+ * @param fn        Filename to load (including filesystem prefix, eg: "rom:/foo.dat")
+ * @param sz        If not NULL, this will be filed with the uncompressed size of the loaded file
  * @return FILE*    FILE pointer to use with standard C functions (fread, fclose)
  */
 FILE *asset_fopen(const char *fn, int *sz);
