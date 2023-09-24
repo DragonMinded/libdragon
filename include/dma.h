@@ -12,6 +12,12 @@
 extern "C" {
 #endif
 
+#define PI_DRAM_ADDR    ((volatile uint32_t*)0xA4600000)  ///< PI DMA: DRAM address register
+#define PI_CART_ADDR    ((volatile uint32_t*)0xA4600004)  ///< PI DMA: cartridge address register
+#define PI_RD_LEN       ((volatile uint32_t*)0xA4600008)  ///< PI DMA: read length register
+#define PI_WR_LEN       ((volatile uint32_t*)0xA460000C)  ///< PI DMA: write length register
+#define PI_STATUS       ((volatile uint32_t*)0xA4600010)  ///< PI: status register
+
 void dma_write_raw_async(const void *ram_address, unsigned long pi_address, unsigned long len);
 void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len);
 
