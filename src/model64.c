@@ -226,13 +226,13 @@ model64_t *model64_load(const char *fn)
 
 model64_t *model64_create(model64_data_t *data)
 {
+    data->ref_count++;
     return make_model_instance(data);
 }
 
 model64_t *model64_clone(model64_t *model)
 {
-    model->data->ref_count++;
-    return make_model_instance(model->data);
+    return model64_create(model->data);
 }
 
 static void unload_model_data(model64_data_t *model)
