@@ -10,6 +10,9 @@ extern "C" {
 struct model64_s;
 typedef struct model64_s model64_t;
 
+struct model64_data_s;
+typedef struct model64_data_s model64_data_t;
+
 struct mesh_s;
 typedef struct mesh_s mesh_t;
 
@@ -19,9 +22,13 @@ typedef struct primitive_s primitive_t;
 struct model64_node_s;
 typedef struct model64_node_s model64_node_t;
 
+model64_data_t *model64_load_data(const char *fn);
+model64_data_t *model64_load_data_buf(void *buf, int sz);
 model64_t *model64_load(const char *fn);
 model64_t *model64_load_buf(void *buf, int sz);
+void model64_free_data(model64_data_t *data);
 void model64_free(model64_t *model);
+model64_t *model64_create(model64_data_t *data);
 model64_t *model64_clone(model64_t *model);
 
 /**

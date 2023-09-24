@@ -53,7 +53,7 @@ typedef struct gltf_anim_channel_s {
 } gltf_anim_channel_t;
 
 float flag_anim_fps = 30.0f;
-int flag_anim_stream = 0;
+int flag_anim_stream = 1;
 int flag_verbose = 0;
 
 uint32_t get_type_size(uint32_t type)
@@ -89,7 +89,7 @@ void print_args( char * name )
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -o/--output <dir>       Specify output directory (default: .)\n");
-    fprintf(stderr, "   --anim-stream           Split animation data into separate file to allow streaming.\n");
+    fprintf(stderr, "   --anim-no-stream        Output animation data for not streaming.\n");
     fprintf(stderr, "   --anim-fps <value>      Frame rate of the animation (default: 30.0)\n");
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
     fprintf(stderr, "\n");
@@ -1404,8 +1404,8 @@ int convert(const char *infn, const char *outfn)
                 goto error;
             }
         }
+        model->stream_buf_size = get_anim_stream_buf_size(model);
     }
-    model->stream_buf_size = get_anim_stream_buf_size(model);
     
     // Write output file
     FILE *out = fopen(outfn, "wb");
@@ -1414,7 +1414,7 @@ int convert(const char *infn, const char *outfn)
         goto error;
     }
     FILE *anim_out = NULL;
-    if(flag_anim_stream) {
+    if(flag_anim_stream && model->num_anims > 0) {
         char *animfn = NULL;
         asprintf(&animfn, "%s.anim", outfn);
         anim_out = fopen(animfn, "wb");
@@ -1460,8 +1460,8 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 outdir = argv[i];
-            } else if (!strcmp(argv[i], "--anim-stream")) {
-                flag_anim_stream = 1;
+            } else if (!strcmp(argv[i], "--anim-no-stream")) {
+                flag_anim_stream = 0;
             } else if (!strcmp(argv[i], "--anim-fps")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
