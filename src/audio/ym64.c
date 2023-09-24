@@ -103,8 +103,7 @@ static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bo
 void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t *info) {
 	memset(player, 0, sizeof(*player));
 
-	player->f = fopen(fn, "rb");
-	assertf(player->f != NULL, "Cannot open file: %s", fn);
+	player->f = must_fopen(fn);
 
 	int offset = 0;
 	int _ymread(void *buf, int sz) {
