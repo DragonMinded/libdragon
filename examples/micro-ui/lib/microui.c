@@ -1,4 +1,3 @@
-// dear imgui, v1.90 WIP
 /*
 ** Copyright (c) 2020 rxi
 **
