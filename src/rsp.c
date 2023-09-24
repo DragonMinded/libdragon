@@ -39,7 +39,9 @@ static void __SP_DMA_wait(void)
 
 static void rsp_interrupt(void)
 {
+    #ifndef NDEBUG
     __rsp_check_assert(__FILE__, __LINE__, __func__);
+    #endif
 }
 
 void rsp_init(void)
@@ -168,6 +170,7 @@ void rsp_run(void)
     rsp_wait();
 }
 
+#ifndef NDEBUG
 /// @cond
 // Check if the RSP has hit an internal assert, and call rsp_crash if so.
 // This function is invoked by #RSP_WAIT_LOOP while waiting for the RSP
@@ -194,7 +197,9 @@ void __rsp_check_assert(const char *file, int line, const char *func)
     }
 }
 /// @endcond
+#endif /* NDEBUG */
 
+#ifndef NDEBUG
 /// @cond
 // RSP crash handler implementation
 __attribute__((noreturn, format(printf, 4, 5)))
@@ -403,5 +408,6 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     abort();
 }
 /// @endcond
+#endif /* NDEBUG */
 
 extern inline void rsp_run_async(void);

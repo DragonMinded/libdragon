@@ -544,6 +544,7 @@ void __inspector_cppexception(const char *exctype, const char *what) {
     __builtin_unreachable();    
 }
 
+#ifndef NDEBUG
 __attribute__((constructor))
 void __inspector_init(void) {
     // Register SYSCALL 0x1 for assertion failures
@@ -553,3 +554,4 @@ void __inspector_init(void) {
     }
     register_syscall_handler(handler, 0x00001, 0x00002);
 }
+#endif
