@@ -75,13 +75,13 @@ struct placeholder_data *__placeholder_get_data(const char *name)
 	return &placeholder_hash[index].value;
 }
 
-void __placeholder_make(FILE *file, const char *name)
+void __placeholder_make(FILE *file, int offset, const char *name)
 {
 	if(placeholder_hash == NULL) {
 		stbds_sh_new_arena(placeholder_hash);
 	}
 	struct placeholder_data *data = __placeholder_get_data(name);
-	data->offset = ftell(file);
+	data->offset = offset;
 	for(size_t i=0; i<stbds_arrlenu(data->pending_offsets); i++) {
 		w32_at(file, data->pending_offsets[i], data->offset);
 	}
@@ -92,7 +92,7 @@ void placeholder_setv(FILE *file, const char *format, va_list arg)
 {
 	char *name = NULL;
 	vasprintf(&name, format, arg);
-	__placeholder_make(file, name);
+	__placeholder_make(file, ftell(file), name);
 	free(name);
 }
 
@@ -103,6 +103,23 @@ void placeholder_set(FILE *file, const char *format, ...)
 	placeholder_setv(file, format, args);
 	va_end(args);
 }
+
+void placeholder_setv_offset(FILE *file, int offset, const char *format, va_list arg)
+{
+	char *name = NULL;
+	vasprintf(&name, format, arg);
+	__placeholder_make(file, offset, name);
+	free(name);
+}
+
+void placeholder_set_offset(FILE *file, int offset, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	placeholder_setv_offset(file, offset, format, args);
+	va_end(args);
+}
+
 
 void __w32_placeholder_named(FILE *file, const char *name)
 {
@@ -133,7 +150,6 @@ void w32_placeholderf(FILE *file, const char *format, ...)
 	w32_placeholdervf(file, format, args);
 	va_end(args);
 }
-
 
 void placeholder_clear()
 {

@@ -21,14 +21,12 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
     assertf(model->magic == MODEL64_MAGIC, "invalid model data (magic: %08lx)", model->magic);
     model->nodes = PTR_DECODE(model, model->nodes);
     model->meshes = PTR_DECODE(model, model->meshes);
-    if(model->skins)
-    {
-        model->skins = PTR_DECODE(model, model->skins);
-        for(uint32_t i=0; i<model->num_skins; i++)
-        {
-            model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
-        }
-    }
+	model->skins = PTR_DECODE(model, model->skins);
+	model->anims = PTR_DECODE(model, model->anims);
+	for(uint32_t i=0; i<model->num_skins; i++)
+	{
+		model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
+	}
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
         if(model->nodes[i].name)
@@ -59,6 +57,18 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
             primitive->indices = PTR_DECODE(model, primitive->indices);
         }
     }
+	for (uint32_t i = 0; i < model->num_anims; i++)
+	{
+		if(model->anims[i].name)
+        {
+            model->anims[i].name = PTR_DECODE(model, model->anims[i].name);
+        }
+		model->anims[i].channels = PTR_DECODE(model, model->anims[i].channels);
+		if(model->stream_buf_size == 0)
+		{
+			model->anims[i].data = PTR_DECODE(model, model->anims[i].data);
+		}
+	}
     model->magic = MODEL64_MAGIC_LOADED;
     model->ref_count = 1;
     data_cache_hit_writeback(model, sz);
@@ -231,16 +241,26 @@ static void unload_model_data(model64_data_t *model)
         }
         model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
     }
-    model->nodes = PTR_ENCODE(model, model->nodes);
-    model->meshes = PTR_ENCODE(model, model->meshes);
-    if(model->skins)
-    {
-        for(uint32_t i=0; i<model->num_skins; i++)
+	for(uint32_t i=0; i<model->num_skins; i++)
+	{
+		model->skins[i].joints = PTR_ENCODE(model, model->skins[i].joints);
+	}
+	for (uint32_t i = 0; i < model->num_anims; i++)
+	{
+		if(model->anims[i].name)
         {
-            model->skins[i].joints = PTR_ENCODE(model, model->skins[i].joints);
+            model->anims[i].name = PTR_ENCODE(model, model->anims[i].name);
         }
-        model->skins = PTR_ENCODE(model, model->skins);
-    }
+		model->anims[i].channels = PTR_ENCODE(model, model->anims[i].channels);
+		if(model->stream_buf_size == 0)
+		{
+			model->anims[i].data = PTR_ENCODE(model, model->anims[i].data);
+		}
+	}
+	model->nodes = PTR_ENCODE(model, model->nodes);
+    model->meshes = PTR_ENCODE(model, model->meshes);
+	model->skins = PTR_ENCODE(model, model->skins);
+	model->anims = PTR_ENCODE(model, model->anims);
     if(model->magic == MODEL64_MAGIC_OWNED) {
         #ifndef NDEBUG
         // To help debugging, zero the model data structure
