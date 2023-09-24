@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include "libdragon.h"
 #include "system.h"
 #include "dfsinternal.h"
@@ -14,6 +15,7 @@
 
 /**
  * @defgroup dfs DragonFS
+ * @ingroup asset
  * @brief DragonFS filesystem implementation and newlib hooks.
  *
  * DragonFS is a read only ROM filesystem for the N64.  It provides an interface
@@ -38,9 +40,15 @@
  * simultaneously.
  *
  * When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix.
- * Files can be accessed either with standard POSIX functions and the 'rom:/' prefix or
- * with DFS API calls and no prefix.  Files can be opened using both sets of API calls
- * simultaneously as long as no more than four files are open at any one time.
+ * Files can be accessed either with standard POSIX functions (open, fopen) using the 'rom:/'
+ * prefix or the lower-level DFS API calls without prefix. In most cases, it is not necessary
+ * to use the DFS API directly, given that the standard C functions are more comprehensive.
+ * Files can be opened using both sets of API calls simultaneously as long as no more than
+ * four files are open at any one time.
+ * 
+ * DragonFS does not support file compression; if you want to compress your assets,
+ * use the asset API (#asset_load / #asset_fopen).
+ * 
  * @{
  */
 
@@ -766,7 +774,7 @@ int dfs_open(const char * const path)
 
     if(!file)
     {
-        return DFS_ENOMEM;        
+        return DFS_ENFILE;        
     }
 
     /* Try to find file */
@@ -1130,8 +1138,17 @@ static void *__open( char *name, int flags )
 
     /* We disregard flags here */
     int handle = dfs_open( name );
-    if (handle <= 0)
+    if (handle <= 0) {
+        switch (handle) {
+        case DFS_EBADINPUT:  errno = EINVAL; break;
+        case DFS_ENOFILE:    errno = ENOENT; break;
+        case DFS_EBADFS:     errno = ENODEV; break;
+        case DFS_ENFILE:     errno = ENFILE; break;
+        case DFS_EBADHANDLE: errno = EBADF;  break;
+        default:             errno = EPERM;  break;
+        }
         return NULL;
+    }
     return (void *)handle;
 }
 
@@ -1384,6 +1401,22 @@ int dfs_init(uint32_t base_fs_loc)
     attach_filesystem( "rom:/", &dragon_fs );
 
     return DFS_ESUCCESS;
+}
+
+/**
+ * @brief Convert DFS error code into an error string
+ */
+const char *dfs_strerror(int error)
+{
+    switch (error) {
+    case DFS_ESUCCESS:   return "Success";
+    case DFS_EBADFS:     return "Bad filesystem";
+    case DFS_ENOFILE:    return "File not found";
+    case DFS_EBADINPUT:  return "Invalid argument";
+    case DFS_ENFILE:     return "No free file handles";
+    case DFS_EBADHANDLE: return "Bad file handle";
+    default:             return "Unknown error";
+    }
 }
 
 /** @} */
