@@ -6,6 +6,8 @@
 #ifndef __LIBDRAGON_REGSINTERNAL_H
 #define __LIBDRAGON_REGSINTERNAL_H
 
+#include <stdint.h>
+
 /**
  * @defgroup lowlevel Low Level Hardware Interfaces
  * @ingroup libdragon
