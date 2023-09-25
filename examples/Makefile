@@ -23,7 +23,7 @@ EXAMPLES += rtctest
 EXAMPLES += spritemap
 EXAMPLES += test
 EXAMPLES += timers
-#EXAMPLES += videoplayer # Disabled due to missing assets
+EXAMPLES += videoplayer
 EXAMPLES += vrutest
 EXAMPLES += vtest
 
