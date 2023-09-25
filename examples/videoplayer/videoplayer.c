@@ -32,15 +32,15 @@ int main(void) {
 
 	// Check if the movie is present in the filesystem, so that we can provide
 	// a specific error message
-	FILE *f = fopen("rom:/caminandes.m1v", "rb");
-	assertf(f, "Movie not found -- please run download_sample_movie.sh to download the sample movie\n");
+	FILE *f = fopen("rom:/movie.m1v", "rb");
+	assertf(f, "Movie not found!\nInstall wget and ffmpeg to download and encode the sample movie\n");
 	fclose(f);
 
 	mpeg2_t mp2;
-	mpeg2_open(&mp2, "rom:/caminandes.m1v");
+	mpeg2_open(&mp2, "rom:/movie.m1v");
 
 	wav64_t music;
-	wav64_open(&music, "caminandes.wav64");
+	wav64_open(&music, "movie.wav64");
 
 	float fps = mpeg2_get_framerate(&mp2);
 	throttle_init(fps, 0, 8);
