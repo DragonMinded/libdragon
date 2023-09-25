@@ -164,7 +164,7 @@ void game_update()
     // Fixed, static window
     if (mu_begin_window_ex(&mu_ctx, "Bar", mu_rect(0, display_get_height() -16, 320, 16), MU_OPT_NOTITLE | MU_OPT_NORESIZE | MU_OPT_NOSCROLL | MU_OPT_NOCLOSE)) {
         mu_layout_begin_column(&mu_ctx);
-        mu_layout_row(&mu_ctx, 3, (int[]) { 48, 48, 100, 130 }, 0);
+        mu_layout_row(&mu_ctx, 4, (int[]) { 48, 48, 92, 130 }, 0);
 
         if(!cube_cont->open) {
             if(mu_button(&mu_ctx, "3D-Cube"))cube_cont->open = true;
