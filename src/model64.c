@@ -211,7 +211,7 @@ model64_data_t *model64_load_data(const char *fn)
         assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: models with streamed animations must be stored in ROM (rom:/)", fn);
         char anim_name[strlen(fn)+6];
         sprintf(anim_name, "%s.anim", fn);
-        data->anim_data_handle = (void *)dfs_rom_addr(anim_name);
+        data->anim_data_handle = (void *)dfs_rom_addr(anim_name+5);
     }
     return data;
 }
