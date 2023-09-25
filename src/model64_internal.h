@@ -1,6 +1,9 @@
 #ifndef __LIBDRAGON_MODEL64_INTERNAL_H
 #define __LIBDRAGON_MODEL64_INTERNAL_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
 /** @brief model64 file magic header */
 #define MODEL64_MAGIC           0x4D444C48 // "MDLH"
 /** @brief model64 loaded model buffer magic */
@@ -83,13 +86,13 @@ typedef struct model64_node_s {
 } model64_node_t;
 
 typedef struct model64_anim_s {
-	char *name;						///< Name of the animation
-	float frame_rate;				///< Frame rate of the animation
-	uint32_t num_frames;			///< Number of frames in animation
-	uint32_t frame_size;	        ///< Size of animation data for each frame
-	void *data;					    ///< Pointer to animation data
-	uint32_t *channels;				///< Top 2 bits: target component; lowest 30 bits: target node
-	uint32_t num_channels;			///< Number of nodes targeted by animation
+    char *name;                     ///< Name of the animation
+    float frame_rate;               ///< Frame rate of the animation
+    uint32_t num_frames;            ///< Number of frames in animation
+    uint32_t frame_size;            ///< Size of animation data for each frame
+    void *data;                     ///< Pointer to animation data
+    uint32_t *channels;             ///< Top 2 bits: target component; lowest 30 bits: target node
+    uint32_t num_channels;          ///< Number of nodes targeted by animation
 } model64_anim_t;
 
 /** @brief A model64 file containing a model */
@@ -110,19 +113,28 @@ typedef struct model64_data_s {
     model64_skin_t *skins;      ///< Pointer to the first skin
     uint32_t num_meshes;        ///< Number of meshes
     mesh_t *meshes;             ///< Pointer to the first mesh
-	uint32_t num_anims;			///< Number of animations
-	model64_anim_t *anims;		///< Pointer to first animation
-	uint32_t stream_buf_size;	///< Size of streaming buffer for animation (0 means animations are not streamed)
-	void *anim_data_handle;		///< Handle for animation data
+    uint32_t num_anims;         ///< Number of animations
+    model64_anim_t *anims;      ///< Pointer to first animation
+    uint32_t stream_buf_size;   ///< Size of streaming buffer for animation (0 means animations are not streamed)
+    void *anim_data_handle;     ///< Handle for animation data
 } model64_data_t;
 
 /** @brief A model64 instance */
 typedef struct model64_s {
     model64_data_t *data;                   ///< Pointer to the model data this instance refers to
     node_transform_state_t *transforms;     ///< List of transforms for each bone in a model instance
-	int32_t anim_index;						///< Index of playing animation
-	float time;								///< Time of GLTF model
-	float *anim_stream_buf[2];				///< Pointer to streaming buffers for animation
+    uint32_t anim_index;                    ///< Index of playing animation (-1 for none)
+    float anim_time;                        ///< Time of GLTF model
+    bool anim_loop;                         ///< Whether this animation is looping
+    bool anim_running;                      ///< Whether the animation is paused
+    float anim_speed;                       ///< Speed of animation
+    float *anim_stream_buf[2];              ///< Pointer to streaming buffers for animation
 } model64_t;
+
+typedef struct anim_buf_info_s {
+    void *curr_buf;
+    void *next_buf;
+    float time;
+} anim_buf_info_t;
 
 #endif

@@ -2,6 +2,7 @@
 #define __LIBDRAGON_MODEL64_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -118,6 +119,13 @@ void model64_draw_node(model64_t *model, model64_node_t *node);
  */
 void model64_draw_primitive(primitive_t *primitive);
 
+void model64_anim_play(model64_t *model, const char *anim, bool running, float start_time);
+float model64_anim_get_time(model64_t *model, const char *anim);
+float model64_anim_set_time(model64_t *model, const char *anim, float time);
+float model64_anim_set_speed(model64_t *model, const char *anim, float speed);
+bool model64_anim_set_loop(model64_t *model, const char *anim, bool loop);
+void model64_anim_pause(model64_t *model, const char *anim, bool paused);
+void model64_update(model64_t *model, float dt);
 #ifdef __cplusplus
 }
 #endif
