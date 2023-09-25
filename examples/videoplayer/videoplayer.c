@@ -1,7 +1,7 @@
 #include <libdragon.h>
 #include "../../src/video/profile.h"
 
-#define NUM_DISPLAY   4
+#define NUM_DISPLAY   8
 
 void audio_poll(void) {	
 	if (audio_can_write()) {    	
@@ -30,16 +30,22 @@ int main(void) {
 	audio_init(44100, 4);
 	mixer_init(8);
 
-	mpeg2_t mp2;
-	mpeg2_open(&mp2, "rom:/bbb.m1v");
+	// Check if the movie is present in the filesystem, so that we can provide
+	// a specific error message
+	FILE *f = fopen("rom:/caminandes.m1v", "rb");
+	assertf(f, "Movie not found -- please run download_sample_movie.sh to download the sample movie\n");
+	fclose(f);
 
-	// wav64_t music;
-	// wav64_open(&music, "bbb.wav64");
+	mpeg2_t mp2;
+	mpeg2_open(&mp2, "rom:/caminandes.m1v");
+
+	wav64_t music;
+	wav64_open(&music, "caminandes.wav64");
 
 	float fps = mpeg2_get_framerate(&mp2);
 	throttle_init(fps, 0, 8);
 
-	// mixer_ch_play(0, &music.wave);
+	mixer_ch_play(0, &music.wave);
 
 	debugf("start\n");
 	int nframes = 0;
