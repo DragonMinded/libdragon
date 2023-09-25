@@ -595,13 +595,13 @@ static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info)
     if(model->anim_time < 0) {
         curr_data_idx = next_data_idx = 0;
         buf_info->time = 0;
-    } else if(model->anim_time > anim_duration) {
+    } else if(model->anim_time > anim_duration-(1/curr_anim->frame_rate)) {
         curr_data_idx = next_data_idx = curr_anim->num_frames-1;
         buf_info->time = 0;
     } else {
-        curr_data_idx = model->anim_time/curr_anim->frame_rate;
+        curr_data_idx = model->anim_time*curr_anim->frame_rate;
         next_data_idx = curr_data_idx+1;
-        buf_info->time = (model->anim_time-(curr_data_idx*curr_anim->frame_rate))*curr_anim->frame_rate;
+        buf_info->time = (model->anim_time-(curr_data_idx/curr_anim->frame_rate))*curr_anim->frame_rate;
     }
     if(model->data->stream_buf_size > 0) {
         uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
