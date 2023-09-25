@@ -11,6 +11,7 @@ EXAMPLES += fontdemo
 EXAMPLES += gldemo
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
+EXAMPLES += micro-ui
 EXAMPLES += mixertest
 EXAMPLES += mptest
 EXAMPLES += mputest
