@@ -632,27 +632,26 @@ static void vec_lerp(float *out, float *in1, float *in2, size_t count, float tim
     }
 }
 
+static void vec_normalize(float *vec, size_t count)
+{
+    float mag2 = 0.0f;
+    for(size_t i=0; i<count; i++) {
+        mag2 += vec[i]*vec[i];
+    }
+    float scale = 1.0f/sqrtf(mag2);
+    for(size_t i=0; i<count; i++) {
+        mag2 *= scale;
+    }
+}
+
 static void quat_lerp(float *out, float *in1, float *in2, float time)
 {
-    float cosTheta = (in1[0]*in2[0])+(in1[1]*in2[1])+(in1[2]*in2[2])+(in1[3]*in2[3]);
-    if(fabs(cosTheta) >= 1.0f) {
-        memcpy(out, in1, 4*sizeof(float));
-        return;
+    float dot = (in1[0]*in2[0])+(in1[1]*in2[1])+(in1[2]*in2[2])+(in1[3]*in2[3]);
+    float out_scale  = (dot >= 0) ? 1.0f : -1.0f;
+    for(size_t i=0; i<4; i++) {
+        out[i] = ((1-time)*in1[i])+(out_scale*time*in2[i]);
     }
-    float alpha = acosf(fabsf(cosTheta));
-    float sign = 1;
-    if(cosTheta < 0) {
-        sign = -1;
-    }
-    if(sqrtf(1-(cosTheta*cosTheta)) < 0.001f) {
-        vec_lerp(out, in1, in2, 4, time);
-        return;
-    }
-    for(int i=0; i<4; i++) {
-        float outvk = (sinf(alpha*(1-time))/sinf(alpha))*in1[i];
-        float outvk_next = sign*(sinf(alpha*time)/sinf(alpha))*in2[i];
-        out[i] = outvk+outvk_next;
-    }
+    vec_normalize(out, 4);
 }
 
 static void calc_anim_pose(model64_t *model)
