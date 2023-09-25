@@ -1259,7 +1259,7 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
         out_anim->channels[i] = (component << 30)|channels[i].node_index;
     }
     out_anim->frame_rate = flag_anim_fps;
-    out_anim->num_frames = ceil(max_time*flag_anim_fps);
+    out_anim->num_frames = ceil(max_time*flag_anim_fps)+1;
     for(size_t i=0; i<in_anim->channels_count; i++) {
         if(flag_verbose) {
             printf("Sampling animation channel %zd\n", i);
