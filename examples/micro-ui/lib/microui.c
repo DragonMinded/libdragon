@@ -518,14 +518,13 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
 
   cmd = mu_push_command(ctx, MU_COMMAND_ICON, sizeof(mu_IconCommand));
   cmd->icon.id = id;
-  cmd->icon.tex = NULL;
   cmd->icon.rect = rect;
   cmd->icon.color = color;
   /* reset clipping if it was set */
   if (clipped) { mu_set_clip(ctx, unclipped_rect); }
 }
 
-void mu_draw_texture(mu_Context *ctx, const void* tex, mu_Rect rect, mu_Color color) {
+void mu_draw_surface(mu_Context *ctx, const void* surf, mu_Rect rect) {
   mu_Command *cmd;
   /* do clip command if the rect isn't fully contained within the cliprect */
   int clipped = mu_check_clip(ctx, rect);
@@ -533,11 +532,24 @@ void mu_draw_texture(mu_Context *ctx, const void* tex, mu_Rect rect, mu_Color co
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
   /* do icon command */
 
-  cmd = mu_push_command(ctx, MU_COMMAND_ICON, sizeof(mu_IconCommand));
-  cmd->icon.id = 0;
-  cmd->icon.tex = tex;
-  cmd->icon.rect = rect;
-  cmd->icon.color = color;
+  cmd = mu_push_command(ctx, MU_COMMAND_SURFACE, sizeof(mu_SurfaceCommand));
+  cmd->surface.surface = surf;
+  cmd->surface.rect = rect;
+  /* reset clipping if it was set */
+  if (clipped) { mu_set_clip(ctx, unclipped_rect); }
+}
+
+void mu_draw_sprite(mu_Context *ctx, const void* sprite, mu_Rect rect) {
+  mu_Command *cmd;
+  /* do clip command if the rect isn't fully contained within the cliprect */
+  int clipped = mu_check_clip(ctx, rect);
+  if (clipped == MU_CLIP_ALL ) { return; }
+  if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
+  /* do icon command */
+
+  cmd = mu_push_command(ctx, MU_COMMAND_SPRITE, sizeof(mu_SpriteCommand));
+  cmd->sprite.sprite = sprite;
+  cmd->sprite.rect = rect;
   /* reset clipping if it was set */
   if (clipped) { mu_set_clip(ctx, unclipped_rect); }
 }

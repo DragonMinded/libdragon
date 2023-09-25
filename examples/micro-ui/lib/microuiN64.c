@@ -17,7 +17,6 @@ static joypad_port_t joypad_index = 0;
 
 static float mouse_pos_raw[2] = {40,40};
 static int mouse_pos[2] = {40,40};
-static bool mouse_down_left = false;
 static bool cursor_active = true;
 static float cursor_speed = 0.025f;
 static float n64_mouse_speed = 200.0f;
@@ -57,7 +56,7 @@ void mu64_init(joypad_port_t joypad_idx, uint8_t font_idx)
   mu_ctx._style.padding = 1;
   mu_ctx._style.title_height = 12;
   mu_ctx._style.spacing = 1;
-  mu_ctx._style.indent = 16;
+  mu_ctx._style.indent = 6;
   mu_ctx._style.thumb_size = 8;
   mu_ctx._style.colors[MU_COLOR_TITLEBG] = (mu_Color){0x1c, 0x4f, 0x97, 0xFF};
   mu_ctx._style.colors[MU_COLOR_BORDER]  = (mu_Color){0x10, 0x10, 0x10, 0xFF};
@@ -68,13 +67,14 @@ void mu64_init(joypad_port_t joypad_idx, uint8_t font_idx)
 
 void mu64_start_frame()
 {
-  joypad_buttons_t btn = joypad_get_buttons_pressed(joypad_index);
-  if(btn.l) {
+  joypad_buttons_t btn_press = joypad_get_buttons_pressed(joypad_index);
+  if(btn_press.l) {
     cursor_active = !cursor_active;
   }
 
   if(cursor_active) {
     joypad_inputs_t mouse = joypad_get_inputs(joypad_index);
+    joypad_buttons_t btn_release = joypad_get_buttons_released(joypad_index);
 
     float delta_x = (float)(mouse.stick_x);
     float delta_y = (float)(mouse.stick_y);
@@ -96,14 +96,10 @@ void mu64_start_frame()
     mouse_pos[0] = (int)mouse_pos_raw[0];
     mouse_pos[1] = (int)mouse_pos_raw[1];
 
-    bool new_mouse_down = mouse.btn.a;
-    if(mouse_down_left != new_mouse_down) {
-      if(new_mouse_down) {
-        mu_input_mousedown(&mu_ctx, mouse_pos[0], mouse_pos[1], MU_MOUSE_LEFT);
-      } else {
-        mu_input_mouseup(&mu_ctx, mouse_pos[0], mouse_pos[1], MU_MOUSE_LEFT);
-      }
-      mouse_down_left = new_mouse_down;
+    if(btn_press.a) {
+      mu_input_mousedown(&mu_ctx, mouse_pos[0], mouse_pos[1], MU_MOUSE_LEFT);
+    } else if(btn_release.a) {
+      mu_input_mouseup(&mu_ctx, mouse_pos[0], mouse_pos[1], MU_MOUSE_LEFT);
     } else {
       mu_input_mousemove(&mu_ctx, mouse_pos[0], mouse_pos[1]);
     }
@@ -146,21 +142,43 @@ void mu64_draw()
       break;
 
       case MU_COMMAND_ICON:
-        rdpq_set_mode_standard();
-        rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
-
         if(cmd->icon.id > 0) {
+          rdpq_set_mode_standard();
+          rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
           tile_param.s0 = (cmd->icon.id-1) * TILE_WIDTH;
           rdpq_sprite_blit(sprite, cmd->icon.rect.x, cmd->icon.rect.y, &tile_param);
-        } else if(cmd->icon.tex) {
-          surface_t *surface = (surface_t*)cmd->icon.tex;
+        }
+      break;
+
+      case MU_COMMAND_SURFACE:
+        if(cmd->surface.surface) {
+          rdpq_set_mode_standard();
+          rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+
+          surface_t *surface = (surface_t*)cmd->surface.surface;
           rdpq_blitparms_t blitParam = { 
             .width = surface->width,
             .height = surface->height,
-            .scale_x = (float)cmd->icon.rect.w / (float)surface->width,
-            .scale_y = (float)cmd->icon.rect.h / (float)surface->height,
+            .scale_x = (float)cmd->surface.rect.w / (float)surface->width,
+            .scale_y = (float)cmd->surface.rect.h / (float)surface->height,
           };
-          rdpq_tex_blit(cmd->icon.tex, cmd->icon.rect.x, cmd->icon.rect.y, &blitParam);
+          rdpq_tex_blit(surface, cmd->surface.rect.x, cmd->surface.rect.y, &blitParam);
+        }
+      break;
+
+       case MU_COMMAND_SPRITE:
+        if(cmd->surface.surface) {
+          rdpq_set_mode_standard();
+          rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+
+          sprite_t *sprite = (sprite_t*)cmd->sprite.sprite;
+          rdpq_blitparms_t blitParam = { 
+            .width = sprite->width,
+            .height = sprite->height,
+            .scale_x = (float)cmd->sprite.rect.w / (float)sprite->width,
+            .scale_y = (float)cmd->sprite.rect.h / (float)sprite->height,
+          };
+          rdpq_sprite_blit(sprite, cmd->sprite.rect.x, cmd->sprite.rect.y, &blitParam);
         }
       break;
 
@@ -184,7 +202,7 @@ void mu64_draw()
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
 
     tile_param.s0 = (MU_ICON_MAX-1) * TILE_WIDTH;
-    tile_param.scale_x = mouse_down_left ? 0.8f : 1.0f;
+    tile_param.scale_x = mu_ctx.mouse_down ? 0.8f : 1.0f;
     tile_param.scale_y = tile_param.scale_x;
     rdpq_sprite_blit(sprite, mouse_pos_raw[0], mouse_pos_raw[1], &tile_param);
     tile_param.scale_x = 1.0f;
