@@ -17,6 +17,8 @@
 #define ANIM_COMPONENT_ROT 1
 #define ANIM_COMPONENT_SCALE 2
 
+#define MAX_ACTIVE_ANIMS 3
+
 /** @brief Parameters for a single vertex attribute (part of #primitive_t) */
 typedef struct attribute_s {
     uint32_t size;                  ///< Number of components per vertex. If 0, this attribute is not defined
@@ -119,16 +121,20 @@ typedef struct model64_data_s {
     void *anim_data_handle;     ///< Handle for animation data
 } model64_data_t;
 
+typedef struct anim_state_s {
+    int32_t index;
+    float time;
+    bool loop;
+    bool paused;
+    float speed;
+    void *stream_buf[2];
+} anim_state_t;
+
 /** @brief A model64 instance */
 typedef struct model64_s {
-    model64_data_t *data;                   ///< Pointer to the model data this instance refers to
-    node_transform_state_t *transforms;     ///< List of transforms for each bone in a model instance
-    uint32_t anim_index;                    ///< Index of playing animation (-1 for none)
-    float anim_time;                        ///< Time of GLTF model
-    bool anim_loop;                         ///< Whether this animation is looping
-    bool anim_running;                      ///< Whether the animation is paused
-    float anim_speed;                       ///< Speed of animation
-    float *anim_stream_buf[2];              ///< Pointer to streaming buffers for animation
+    model64_data_t *data;                           ///< Pointer to the model data this instance refers to
+    node_transform_state_t *transforms;             ///< List of transforms for each bone in a model instance
+    anim_state_t active_anims[MAX_ACTIVE_ANIMS];    ///< List of active animations
 } model64_t;
 
 typedef struct anim_buf_info_s {

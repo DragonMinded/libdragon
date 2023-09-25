@@ -119,13 +119,13 @@ void model64_draw_node(model64_t *model, model64_node_t *node);
  */
 void model64_draw_primitive(primitive_t *primitive);
 
-void model64_anim_play(model64_t *model, const char *anim, bool running, float start_time);
+int model64_anim_play(model64_t *model, const char *anim, bool running, float start_time);
 float model64_anim_get_length(model64_t *model, const char *anim);
-float model64_anim_get_time(model64_t *model, const char *anim);
-float model64_anim_set_time(model64_t *model, const char *anim, float time);
-float model64_anim_set_speed(model64_t *model, const char *anim, float speed);
-bool model64_anim_set_loop(model64_t *model, const char *anim, bool loop);
-void model64_anim_pause(model64_t *model, const char *anim, bool paused);
+float model64_anim_get_time(model64_t *model, int anim_id);
+float model64_anim_set_time(model64_t *model, int anim_id, float time);
+float model64_anim_set_speed(model64_t *model, int anim_id, float speed);
+bool model64_anim_set_loop(model64_t *model, int anim_id, bool loop);
+bool model64_anim_set_pause(model64_t *model, int anim_id, bool paused);
 void model64_update(model64_t *model, float dt);
 #ifdef __cplusplus
 }

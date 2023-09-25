@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "fmath.h"
 #include "n64sys.h"
 #include "GL/gl.h"
 #include "dragonfs.h"
@@ -187,10 +188,10 @@ static model64_t *make_model_instance(model64_data_t *model_data)
     instance->data = model_data;
     instance->transforms = (node_transform_state_t *)&instance[1];
     init_model_transforms(instance);
-    instance->anim_speed = 1.0f;
-    if(model_data->stream_buf_size > 0) {
-        instance->anim_stream_buf[0] = malloc_uncached(model_data->stream_buf_size);
-        instance->anim_stream_buf[1] = malloc_uncached(model_data->stream_buf_size);
+    for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
+        instance->active_anims[i].index = -1;
+        instance->active_anims[i].paused = true;
+        instance->active_anims[i].speed = 1.0f;
     }
     return instance;
 }
@@ -311,9 +312,11 @@ void model64_free_data(model64_data_t *data)
 
 void model64_free(model64_t *model)
 {
-    if(model->data->stream_buf_size > 0) {
-        free_uncached(model->anim_stream_buf[0]);
-        free_uncached(model->anim_stream_buf[1]);
+    for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
+        if(model->active_anims[i].stream_buf[0]) {
+            free_uncached(model->active_anims[i].stream_buf[0]);
+            free_uncached(model->active_anims[i].stream_buf[1]);
+        }
     }
     model64_free_data(model->data);
     free(model);
@@ -371,12 +374,10 @@ void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float
 
 void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float y, float z)
 {
-    float cr = cosf(x * 0.5);
-    float sr = sinf(x * 0.5);
-    float cp = cosf(y * 0.5);
-    float sp = sinf(y * 0.5);
-    float cy = cosf(z * 0.5);
-    float sy = sinf(z * 0.5);
+    float cr, sr, cp, sp, cy, sy;
+    fm_sincosf(x*0.5f, &sr, &cr);
+    fm_sincosf(y*0.5f, &sp, &cp);
+    fm_sincosf(z*0.5f, &sy, &cy);
     float w = cr * cp * cy + sr * sp * sy;
     x = sr * cp * cy - cr * sp * sy;
     y = cr * sp * cy + sr * cp * sy;
@@ -537,15 +538,45 @@ static int32_t search_anim_index(model64_t *model, const char *name)
     return -1;
 }
 
-void model64_anim_play(model64_t *model, const char *anim, bool running, float start_time)
+static int search_free_anim(model64_t *model)
 {
+    for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
+        if(model->active_anims[i].index == -1) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static bool is_animid_valid(model64_t *model, int id)
+{
+    return (id >= 0) && (id < MAX_ACTIVE_ANIMS) && model->active_anims[id].index != -1;
+}
+
+int model64_anim_play(model64_t *model, const char *anim, bool paused, float start_time)
+{
+    int slot = search_free_anim(model);
+    if(slot == -1) {
+        return -1;
+    }
     int32_t anim_index = search_anim_index(model, anim);
     assertf(anim_index != -1, "Invalid animation name");
-    model->anim_index = anim_index;
-    model->anim_running = running;
-    model->anim_time = start_time;
-    model->anim_loop = false;
-    model->anim_speed = 1.0f;
+    if(model->data->stream_buf_size != 0 && !model->active_anims[slot].stream_buf[0]) {
+        model->active_anims[slot].stream_buf[0] = malloc_uncached(model->data->stream_buf_size);
+        model->active_anims[slot].stream_buf[1] = malloc_uncached(model->data->stream_buf_size);
+    }
+    model->active_anims[slot].index = anim_index;
+    model->active_anims[slot].paused = paused;
+    model->active_anims[slot].time = start_time;
+    model->active_anims[slot].loop = false;
+    model->active_anims[slot].speed = 1.0f;
+    return slot;
+}
+
+void model64_anim_stop(model64_t *model, int anim_id)
+{
+    assertf(is_animid_valid(model, anim_id), "Invalid animation ID");
+    model->active_anims[anim_id].index = -1;
 }
 
 float model64_anim_get_length(model64_t *model, const char *anim)
@@ -556,68 +587,71 @@ float model64_anim_get_length(model64_t *model, const char *anim)
     return curr_anim->num_frames/curr_anim->frame_rate;
 }
 
-float model64_anim_get_time(model64_t *model, const char *anim)
+float model64_anim_get_time(model64_t *model, int anim_id)
 {
-    return model->anim_time;
+    assertf(is_animid_valid(model, anim_id), "Invalid animation ID");
+    return model->active_anims[anim_id].time;
 }
 
-float model64_anim_set_time(model64_t *model, const char *anim, float time)
+float model64_anim_set_time(model64_t *model, int anim_id, float time)
 {
-    float old_time = model->anim_time;
-    model->anim_time = time;
+    assertf(is_animid_valid(model, anim_id), "Invalid animation ID");
+    float old_time = model->active_anims[anim_id].time;
+    model->active_anims[anim_id].time = time;
     return old_time;
 }
 
-float model64_anim_set_speed(model64_t *model, const char *anim, float speed)
+float model64_anim_set_speed(model64_t *model, int anim_id, float speed)
 {
-    float old_speed = model->anim_speed; 
-    model->anim_speed = speed;
+    assertf(is_animid_valid(model, anim_id), "Invalid animation ID");
+    float old_speed = model->active_anims[anim_id].speed; 
+    model->active_anims[anim_id].speed = speed;
     return old_speed;
 }
 
-bool model64_anim_set_loop(model64_t *model, const char *anim, bool loop)
+bool model64_anim_set_loop(model64_t *model, int anim_id, bool loop)
 {
-    bool old_loop = model->anim_loop; 
-    model->anim_loop = loop;
+    assertf(is_animid_valid(model, anim_id), "Invalid animation ID");
+    bool old_loop = model->active_anims[anim_id].loop; 
+    model->active_anims[anim_id].loop = loop;
     return old_loop;
 }
 
-void model64_anim_pause(model64_t *model, const char *anim, bool paused)
+bool model64_anim_set_pause(model64_t *model, int anim_id, bool paused)
 {
-    float time = model64_anim_get_time(model, anim);
-    float speed = model->anim_speed;
-    bool loop = model->anim_loop;
-    model64_anim_play(model, anim, !paused, time);
-    model->anim_speed = speed;
-    model->anim_loop = loop;
+    assertf(is_animid_valid(model, anim_id), "Invalid animation ID");
+    bool old_pause = model->active_anims[anim_id].paused;
+    model->active_anims[anim_id].paused = paused;
+    return old_pause;
 }
 
-static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info)
+static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info, int anim_slot)
 {
-    model64_anim_t *curr_anim = &model->data->anims[model->anim_index];
+    anim_state_t *anim_slot_ptr = &model->active_anims[anim_slot];
+    model64_anim_t *curr_anim = &model->data->anims[anim_slot_ptr->index];
     float anim_duration = curr_anim->num_frames/curr_anim->frame_rate;
     uint32_t curr_data_idx;
     uint32_t next_data_idx;
     uint32_t frame_size = curr_anim->frame_size;
     
-    if(model->anim_time < 0) {
+    if(anim_slot_ptr->time < 0) {
         curr_data_idx = next_data_idx = 0;
         buf_info->time = 0;
-    } else if(model->anim_time > anim_duration-(1/curr_anim->frame_rate)) {
+    } else if(anim_slot_ptr->time > anim_duration-(1/curr_anim->frame_rate)) {
         curr_data_idx = next_data_idx = curr_anim->num_frames-1;
         buf_info->time = 0;
     } else {
-        curr_data_idx = model->anim_time*curr_anim->frame_rate;
+        curr_data_idx = anim_slot_ptr->time*curr_anim->frame_rate;
         next_data_idx = curr_data_idx+1;
-        buf_info->time = (model->anim_time-(curr_data_idx/curr_anim->frame_rate))*curr_anim->frame_rate;
+        buf_info->time = (anim_slot_ptr->time-(curr_data_idx/curr_anim->frame_rate))*curr_anim->frame_rate;
     }
     if(model->data->stream_buf_size > 0) {
         uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
         rom_addr += (uint32_t)curr_anim->data;
-        dma_read(model->anim_stream_buf[0], rom_addr+(curr_data_idx*frame_size), frame_size);
-        buf_info->curr_buf = model->anim_stream_buf[0];
-        dma_read(model->anim_stream_buf[1], rom_addr+(next_data_idx*frame_size), frame_size);
-        buf_info->next_buf = model->anim_stream_buf[1];
+        dma_read(anim_slot_ptr->stream_buf[0], rom_addr+(curr_data_idx*frame_size), frame_size);
+        buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
+        dma_read(anim_slot_ptr->stream_buf[1], rom_addr+(next_data_idx*frame_size), frame_size);
+        buf_info->next_buf = anim_slot_ptr->stream_buf[1];
     } else {
         uint8_t *buf_base = curr_anim->data;
         buf_info->curr_buf = &buf_base[curr_data_idx*frame_size];
@@ -654,11 +688,11 @@ static void quat_lerp(float *out, float *in1, float *in2, float time)
     vec_normalize(out, 4);
 }
 
-static void calc_anim_pose(model64_t *model)
+static void calc_anim_pose(model64_t *model, int anim_slot)
 {
-    model64_anim_t *curr_anim = &model->data->anims[model->anim_index];
+    model64_anim_t *curr_anim = &model->data->anims[model->active_anims[anim_slot].index];
     anim_buf_info_t anim_buf_info;
-    read_model_anim_buf(model, &anim_buf_info);
+    read_model_anim_buf(model, &anim_buf_info, anim_slot);
     uint8_t *curr_buf = anim_buf_info.curr_buf;
     uint8_t *next_buf = anim_buf_info.next_buf;
     for(uint32_t i=0; i<curr_anim->num_channels; i++) {
@@ -690,19 +724,19 @@ static void calc_anim_pose(model64_t *model)
 
 void model64_update(model64_t *model, float dt)
 {
-    if(!model->anim_running || model->anim_speed == 0) {
-        return;
-    }
-    model->anim_time += dt*model->anim_speed;
-    if(model->anim_loop) {
-        model64_anim_t *curr_anim = &model->data->anims[model->anim_index];
-        float anim_duration = curr_anim->num_frames/curr_anim->frame_rate;
-        if(model->anim_time <= 0) {
-            model->anim_time += anim_duration;
+    for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
+        if(model->active_anims[i].index == -1 || model->active_anims[i].paused || model->active_anims[i].speed == 0) {
+            continue;
         }
-        if(model->anim_time >= anim_duration) {
-            model->anim_time -= anim_duration;
+        model->active_anims[i].time += model->active_anims[i].speed*dt;
+        if(model->active_anims[i].loop) {
+            model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i].index];
+            float anim_duration = curr_anim->num_frames/curr_anim->frame_rate;
+            model->active_anims[i].time = fm_fmodf(model->active_anims[i].time, anim_duration);
+            if(model->active_anims[i].time < 0) {
+                model->active_anims[i].time += anim_duration;
+            }
         }
+        calc_anim_pose(model, i);
     }
-    calc_anim_pose(model);
 }
