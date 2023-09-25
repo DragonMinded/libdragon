@@ -1029,12 +1029,16 @@ void lerp_vector(float *out, float *in1, float *in2, size_t num_elements, float 
 void slerp_vector(float *out, float *in1, float *in2, float time)
 {
     float cosTheta = (in1[0]*in2[0])+(in1[1]*in2[1])+(in1[2]*in2[2])+(in1[3]*in2[3]);
+    if(fabs(cosTheta) >= 1.0f) {
+        memcpy(out, in1, 4*sizeof(float));
+        return;
+    }
     float alpha = acosf(fabsf(cosTheta));
     float sign = 1;
     if(cosTheta < 0) {
         sign = -1;
     }
-    if(fabsf(alpha) < 0.001f) {
+    if(sqrtf(1-(cosTheta*cosTheta)) < 0.001f) {
         lerp_vector(out, in1, in2, 4, time);
         return;
     }
