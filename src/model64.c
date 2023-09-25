@@ -683,7 +683,7 @@ static void calc_anim_pose(model64_t *model)
 
 void model64_update(model64_t *model, float dt)
 {
-    if(!model->anim_running) {
+    if(!model->anim_running || model->anim_speed == 0) {
         return;
     }
     model->anim_time += dt*model->anim_speed;
