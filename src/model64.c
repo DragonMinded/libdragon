@@ -548,6 +548,14 @@ void model64_anim_play(model64_t *model, const char *anim, bool running, float s
     model->anim_speed = 1.0f;
 }
 
+float model64_anim_get_length(model64_t *model, const char *anim)
+{
+    int32_t anim_index = search_anim_index(model, anim);
+    assertf(anim_index != -1, "Invalid animation name");
+    model64_anim_t *curr_anim = &model->data->anims[anim_index];
+    return curr_anim->num_frames/curr_anim->frame_rate;
+}
+
 float model64_anim_get_time(model64_t *model, const char *anim)
 {
     return model->anim_time;
