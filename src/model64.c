@@ -584,7 +584,7 @@ float model64_anim_get_length(model64_t *model, const char *anim)
     int32_t anim_index = search_anim_index(model, anim);
     assertf(anim_index != -1, "Invalid animation name");
     model64_anim_t *curr_anim = &model->data->anims[anim_index];
-    return curr_anim->num_frames/curr_anim->frame_rate;
+    return (float)curr_anim->num_frames/curr_anim->frame_rate;
 }
 
 float model64_anim_get_time(model64_t *model, int anim_id)
@@ -629,7 +629,6 @@ static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info, int
 {
     anim_state_t *anim_slot_ptr = &model->active_anims[anim_slot];
     model64_anim_t *curr_anim = &model->data->anims[anim_slot_ptr->index];
-    float anim_duration = curr_anim->num_frames/curr_anim->frame_rate;
     uint32_t curr_data_idx;
     uint32_t next_data_idx;
     uint32_t frame_size = curr_anim->frame_size;
@@ -637,13 +636,13 @@ static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info, int
     if(anim_slot_ptr->time < 0) {
         curr_data_idx = next_data_idx = 0;
         buf_info->time = 0;
-    } else if(anim_slot_ptr->time > anim_duration-(1/curr_anim->frame_rate)) {
+    } else if(anim_slot_ptr->time*curr_anim->frame_rate >= curr_anim->num_frames-1) {
         curr_data_idx = next_data_idx = curr_anim->num_frames-1;
         buf_info->time = 0;
     } else {
         curr_data_idx = anim_slot_ptr->time*curr_anim->frame_rate;
         next_data_idx = curr_data_idx+1;
-        buf_info->time = (anim_slot_ptr->time-(curr_data_idx/curr_anim->frame_rate))*curr_anim->frame_rate;
+        buf_info->time = (anim_slot_ptr->time-((float)curr_data_idx/curr_anim->frame_rate))*curr_anim->frame_rate;
     }
     if(model->data->stream_buf_size > 0) {
         uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
@@ -731,7 +730,7 @@ void model64_update(model64_t *model, float dt)
         model->active_anims[i].time += model->active_anims[i].speed*dt;
         if(model->active_anims[i].loop) {
             model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i].index];
-            float anim_duration = curr_anim->num_frames/curr_anim->frame_rate;
+            float anim_duration = (float)curr_anim->num_frames/curr_anim->frame_rate;
             model->active_anims[i].time = fm_fmodf(model->active_anims[i].time, anim_duration);
             if(model->active_anims[i].time < 0) {
                 model->active_anims[i].time += anim_duration;
