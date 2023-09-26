@@ -87,6 +87,7 @@ typedef struct model64_node_s {
     uint32_t *children;             ///< List of children node indices
 } model64_node_t;
 
+/** @brief An animation of a model */
 typedef struct model64_anim_s {
     char *name;                     ///< Name of the animation
     float frame_rate;               ///< Frame rate of the animation
@@ -121,13 +122,14 @@ typedef struct model64_data_s {
     void *anim_data_handle;     ///< Handle for animation data
 } model64_data_t;
 
+/** @brief State of an active animation */
 typedef struct anim_state_s {
-    int32_t index;
-    float time;
-    bool loop;
-    bool paused;
-    float speed;
-    void *stream_buf[2];
+    int32_t index;          ///< Index of animation playing
+    float time;             ///< Current time of animation
+    bool loop;              ///< Whether this animation loops
+    bool paused;            ///< Whether this animation is active
+    float speed;            ///< The speed of an animation
+    void *stream_buf[2];    ///< Buffers for streaming animation
 } anim_state_t;
 
 /** @brief A model64 instance */
@@ -137,10 +139,11 @@ typedef struct model64_s {
     anim_state_t active_anims[MAX_ACTIVE_ANIMS];    ///< List of active animations
 } model64_t;
 
+/** @brief State of an active animation */
 typedef struct anim_buf_info_s {
-    void *curr_buf;
-    void *next_buf;
-    float time;
+    void *curr_buf;     ///< Data buffer for current frame
+    void *next_buf;     ///< Data buffer for next frame
+    float time;         ///< Interpolation factor between current and next frame
 } anim_buf_info_t;
 
 #endif
