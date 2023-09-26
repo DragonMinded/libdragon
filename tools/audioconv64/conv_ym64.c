@@ -15,9 +15,11 @@
 #define assertf(x, ...) assert(x)
 #define memalign(a, b) malloc(b)
 
-#include "../../src/audio/lzh5.h"   // LZH5 decompression
-#include "lzh5_compress.h"          // LZH5 compression
-#include "lzh5_compress.c"
+#include "../../src/compress/lzh5_internal.h"  // LZH5 decompression
+#include "../../src/compress/lzh5.c"
+#include "../common/lzh5_compress.h"           // LZH5 compression
+#include "../common/lzh5_compress.c"
+#include <stdalign.h>
 
 
 bool flag_ym_compress = false;
@@ -152,7 +154,7 @@ int ym_convert(const char *infn, const char *outfn) {
 
         // Initialize LHA decompression, and read back the now uncompressed header.
         // Decompression is performed via a minimal version of
-        // https://github.com/fragglet/lhasa, stored in lz5h.h.
+        // https://github.com/fragglet/lhasa, stored in lzh5.h.
         fseek(ym_f, head[0]+2, SEEK_SET);
         ym_compressed = true;
         decompress_lzh5_init(ym_decoder, ym_f);

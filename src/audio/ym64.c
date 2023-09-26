@@ -6,13 +6,15 @@
 
 #include "ym64.h"
 #include "ay8910.h"
-#include "lzh5.h"
+#include "../compress/lzh5_internal.h"
 #include "samplebuffer.h"
 #include "debug.h"
+#include "asset_internal.h"
 #include "utils.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <malloc.h>
 
 /** @brief Header of a YM5 file */
 typedef struct __attribute__((packed)) {
@@ -31,11 +33,6 @@ static int ymread(ym64player_t *player, void *buf, int sz) {
 	if (player->decoder)
 		return decompress_lzh5_read(player->decoder, buf, sz);
 	return fread(buf, 1, sz, player->f);
-}
-
-static unsigned int lha_callback(void *buf, size_t buf_len, void *user_data) {
-	FILE* f = (FILE*)user_data;
-	return fread(buf, 1, buf_len, f);
 }
 
 static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
