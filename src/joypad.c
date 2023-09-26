@@ -810,7 +810,7 @@ joypad_buttons_t joypad_get_buttons_released(joypad_port_t port)
     ASSERT_JOYPAD_PORT_VALID(port);
     const uint16_t current = joypad_devices_cold[port].current.btn.raw;
     const uint16_t previous = joypad_devices_cold[port].previous.btn.raw;
-    return (joypad_buttons_t){ .raw = ~(current & previous) };
+    return (joypad_buttons_t){ .raw = ~current & previous };
 }
 
 joypad_buttons_t joypad_get_buttons_held(joypad_port_t port)

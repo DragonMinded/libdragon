@@ -11,6 +11,7 @@ EXAMPLES += fontdemo
 EXAMPLES += gldemo
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
+EXAMPLES += micro-ui
 EXAMPLES += mixertest
 EXAMPLES += mptest
 EXAMPLES += mputest
@@ -22,7 +23,7 @@ EXAMPLES += rtctest
 EXAMPLES += spritemap
 EXAMPLES += test
 EXAMPLES += timers
-#EXAMPLES += videoplayer # Disabled due to missing assets
+EXAMPLES += videoplayer
 EXAMPLES += vrutest
 EXAMPLES += vtest
 
