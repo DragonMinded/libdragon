@@ -569,6 +569,7 @@ int model64_anim_play(model64_t *model, const char *anim, bool paused, float sta
     model->active_anims[slot].paused = paused;
     model->active_anims[slot].time = start_time;
     model->active_anims[slot].loop = false;
+    model->active_anims[slot].new_pose = true;
     model->active_anims[slot].speed = 1.0f;
     return slot;
 }
@@ -724,6 +725,10 @@ void model64_update(model64_t *model, float dt)
 {
     for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
         if(model->active_anims[i].index == -1 || model->active_anims[i].paused || model->active_anims[i].speed == 0) {
+            if(model->active_anims[i].index != -1 && model->active_anims[i].new_pose) {
+                calc_anim_pose(model, i);
+            }
+            model->active_anims[i].new_pose = false;
             continue;
         }
         model->active_anims[i].time += model->active_anims[i].speed*dt;
@@ -734,6 +739,7 @@ void model64_update(model64_t *model, float dt)
                 model->active_anims[i].time += curr_anim->duration;
             }
         }
+        model->active_anims[i].new_pose = false;
         calc_anim_pose(model, i);
     }
 }

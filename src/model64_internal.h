@@ -127,6 +127,7 @@ typedef struct model64_data_s {
 typedef struct anim_state_s {
     int32_t index;          ///< Index of animation playing
     float time;             ///< Current time of animation
+    bool new_pose;          ///< Whether this animation needs to recalculate a pose
     bool loop;              ///< Whether this animation loops
     bool paused;            ///< Whether this animation is active
     float speed;            ///< The speed of an animation
