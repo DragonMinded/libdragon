@@ -47,9 +47,46 @@
 
 #include <stdio.h>
 
+#ifdef N64
+#include "debug.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Enable a non-default compression level
+ * 
+ * This function must be called if any asset that will be loaded use
+ * a non-default compression level. The default compression level is 1,
+ * for which no initialization is required.
+ * 
+ * Currently, only level 2 requires initialization. If you have any assets
+ * compressed with level 2, you must call this function before loading them.
+ * 
+ * @code{.c}
+ *      asset_init_compression(2); 
+ * 
+ *      // Load an asset that might use level 2 compression
+ *      sprite_t *hero = sprite_load("rom:/hero.sprite");
+ * @endcode
+ * 
+ * @param level     Compression level to initialize
+ * 
+ * @see #asset_load
+ * @hideinitializer
+ */
+#define asset_init_compression(level) ({ \
+    switch (level) { \
+    case 1: break; \
+    case 2: { \
+        extern void __asset_init_compression_lvl2(void); \
+        __asset_init_compression_lvl2(); \
+    } break; \
+    default: assertf(0, "Unsupported compression level: %d", level); \
+    } \
+})
 
 /**
  * @brief Load an asset file (possibly uncompressing it)

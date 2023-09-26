@@ -7,6 +7,13 @@
 #include "ringbuf_internal.h"
 #include "../utils.h"
 
+#ifdef N64
+#include <malloc.h>
+#include "debug.h"
+#include "dragonfs.h"
+#include "n64sys.h"
+#endif
+
 #define MIN_MATCH_SIZE  4
 #define MIN_OFFSET 1
 #define MAX_OFFSET 0xffff
@@ -168,6 +175,55 @@ int decompress_lz4_full_mem(const unsigned char *pInBlock, int nBlockSize, unsig
    }
 
    return (int)(pCurOutData - pOutData);
+}
+
+void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
+{
+   int bufsize = size + LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size);
+   int cmp_offset = bufsize - cmp_size;
+   if (cmp_offset & 1) {
+         cmp_offset++;
+         bufsize++;
+   }
+   if (bufsize & 15) {
+         // In case we need to call invalidate (see below), we need an aligned buffer
+         bufsize += 16 - (bufsize & 15);
+   }
+
+   void *s = memalign(16, bufsize);
+   assertf(s, "asset_load: out of memory");
+   int n;
+
+   #ifdef N64
+   if (fn && strncmp(fn, "rom:/", 5) == 0) {
+         // Invalid the portion of the buffer where we are going to load
+         // the compressed data. This is needed in case the buffer returned
+         // by memalign happens to be in cached already.
+         int align_cmp_offset = cmp_offset & ~15;
+         data_cache_hit_invalidate(s+align_cmp_offset, bufsize-align_cmp_offset);
+
+         // Loading from ROM. This is a common enough situation that we want to optimize it.
+         // Start an asynchronous DMA transfer, so that we can start decompressing as the
+         // data flows in.
+         uint32_t addr = dfs_rom_addr(fn+5) & 0x1FFFFFFF;
+         dma_read_async(s+cmp_offset, addr+16, cmp_size);
+
+         // Run the decompression racing with the DMA.
+         n = decompress_lz4_full_mem(s+cmp_offset, cmp_size, s, size, true); (void)n;
+   #else
+   if (false) {
+   #endif
+   } else {
+         // Standard loading via stdio. We have to wait for the whole file to be read.
+         fread(s+cmp_offset, 1, cmp_size, fp);
+
+         // Run the decompression.
+         n = decompress_lz4_full_mem(s+cmp_offset, cmp_size, s, size, false); (void)n;
+   }
+   assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
+   void *ptr = realloc(s, size); (void)ptr;
+   assertf(s == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
+   return ptr;
 }
 
 /**
