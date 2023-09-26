@@ -510,6 +510,7 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     for(uint32_t i=0; i<model->num_anims; i++) {
         w32_placeholderf(out, "anim%d_name", i);
         wf32(out, model->anims[i].frame_rate);
+        wf32(out, model->anims[i].duration);
         w32(out, model->anims[i].num_frames);
         w32(out, model->anims[i].frame_size);
         w32_placeholderf(out, "anim%d_data", i);
@@ -1259,6 +1260,7 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
         out_anim->channels[i] = (component << 30)|channels[i].node_index;
     }
     out_anim->frame_rate = flag_anim_fps;
+    out_anim->duration = max_time;
     out_anim->num_frames = ceil(max_time*flag_anim_fps)+1;
     for(size_t i=0; i<in_anim->channels_count; i++) {
         if(flag_verbose) {

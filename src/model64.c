@@ -583,8 +583,7 @@ float model64_anim_get_length(model64_t *model, const char *anim)
 {
     int32_t anim_index = search_anim_index(model, anim);
     assertf(anim_index != -1, "Invalid animation name");
-    model64_anim_t *curr_anim = &model->data->anims[anim_index];
-    return (float)curr_anim->num_frames/curr_anim->frame_rate;
+    return (float)model->data->anims[anim_index].duration;
 }
 
 float model64_anim_get_time(model64_t *model, int anim_id)
@@ -730,10 +729,9 @@ void model64_update(model64_t *model, float dt)
         model->active_anims[i].time += model->active_anims[i].speed*dt;
         if(model->active_anims[i].loop) {
             model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i].index];
-            float anim_duration = (float)curr_anim->num_frames/curr_anim->frame_rate;
-            model->active_anims[i].time = fm_fmodf(model->active_anims[i].time, anim_duration);
+            model->active_anims[i].time = fm_fmodf(model->active_anims[i].time, curr_anim->duration);
             if(model->active_anims[i].time < 0) {
-                model->active_anims[i].time += anim_duration;
+                model->active_anims[i].time += curr_anim->duration;
             }
         }
         calc_anim_pose(model, i);

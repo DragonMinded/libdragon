@@ -91,6 +91,7 @@ typedef struct model64_node_s {
 typedef struct model64_anim_s {
     char *name;                     ///< Name of the animation
     float frame_rate;               ///< Frame rate of the animation
+    float duration;                 ///< Duration of animation
     uint32_t num_frames;            ///< Number of frames in animation
     uint32_t frame_size;            ///< Size of animation data for each frame
     void *data;                     ///< Pointer to animation data
