@@ -3,6 +3,7 @@ include $(N64_INST)/include/n64.mk
 
 MOVIE_FILE=caminandes.ogv
 MOVIE_URL=https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.ogv
+DFS_FILES=filesystem/movie.m1v filesystem/movie.wav64
 
 src = videoplayer.c
 
@@ -14,7 +15,7 @@ videoplayer.z64: $(BUILD_DIR)/videoplayer.dfs
 $(BUILD_DIR)/videoplayer.elf: $(src:%.c=$(BUILD_DIR)/%.o)
 
 # If the movie file could not be encoded, build the ROM without it.
-$(BUILD_DIR)/videoplayer.dfs: filesystem/movie.m1v filesystem/movie.wav64
+$(BUILD_DIR)/videoplayer.dfs: $(DFS_FILES)
 	if [ ! -s "$<" ]; then rm -f "$<" ; fi
 	$(N64_MKDFS) "$@" filesystem >/dev/null
 
@@ -57,19 +58,21 @@ movie.wav: $(MOVIE_FILE)
 		touch "$@" ; \
 	fi
 
-# Download the movie file if wget or curl is available
+# Download the movie file if wget or curl is available and it isn't already downloaded
 $(MOVIE_FILE):
-	if command -v wget ; then \
-		wget -O "$@" "$(MOVIE_URL)"  ; \
-	elif command -v curl ; then \
-		curl -Lo "$@" "$(MOVIE_URL)" ; \
-	else \
-		echo "videoplayer: Skipping sample movie download because wget or curl are not installed" ; \
-		touch "$@" ; \
+	if [ ! -e "$@" ]; then \
+		if command -v wget ; then \
+			wget -O "$@" "$(MOVIE_URL)"  ; \
+		elif command -v curl ; then \
+			curl -Lo "$@" "$(MOVIE_URL)" ; \
+		else \
+			echo "videoplayer: Skipping sample movie download because wget or curl are not installed" ; \
+			touch "$@" ; \
+		fi ; \
 	fi
 
 clean:
-	rm -rf $(BUILD_DIR) $(MOVIE_FILE) *.wav filesystem videoplayer.z64
+	rm -rf $(BUILD_DIR) $(MOVIE_FILE) $(DFS_FILES) movie.wav videoplayer.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
