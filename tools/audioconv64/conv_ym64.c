@@ -12,9 +12,13 @@
  *
  */
 
+#define assertf(x, ...) assert(x)
+#define memalign(a, b) malloc(b)
+
 #include "../../src/audio/lzh5.h"   // LZH5 decompression
 #include "lzh5_compress.h"          // LZH5 compression
 #include "lzh5_compress.c"
+
 
 bool flag_ym_compress = false;
 
@@ -46,15 +50,11 @@ _Static_assert(sizeof(ym5header) == 22, "invalid ym5header size");
 
 static FILE *ym_f;
 static bool ym_compressed;
-static LHANewDecoder ym_decoder;
-
-static size_t lha_callback(void *buf, size_t buf_len, void *user_data) {
-    return fread(buf, 1, buf_len, ym_f);
-}
+static uint8_t alignas(8) ym_decoder[DECOMPRESS_LZH5_STATE_SIZE];
 
 static void ymread(void *buf, int sz) {
     if (ym_compressed) {
-        lha_lh_new_read(&ym_decoder, buf, sz);
+        decompress_lzh5_read(ym_decoder, buf, sz);
         return;
     }
     fread(buf, 1, sz, ym_f);
@@ -155,7 +155,7 @@ int ym_convert(const char *infn, const char *outfn) {
         // https://github.com/fragglet/lhasa, stored in lz5h.h.
         fseek(ym_f, head[0]+2, SEEK_SET);
         ym_compressed = true;
-        lha_lh_new_init(&ym_decoder, lha_callback, NULL);
+        decompress_lzh5_init(ym_decoder, ym_f);
         ymread(head, 12);
     }
 

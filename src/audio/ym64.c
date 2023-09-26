@@ -29,7 +29,7 @@ _Static_assert(sizeof(ym5header) == 22, "invalid header size");
 
 static int ymread(ym64player_t *player, void *buf, int sz) {
 	if (player->decoder)
-		return lha_lh_new_read(player->decoder, buf, sz);
+		return decompress_lzh5_read(player->decoder, buf, sz);
 	return fread(buf, 1, sz, player->f);
 }
 
@@ -128,9 +128,9 @@ void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t
 
 		// Initialize decompressor and re-read the header (this time, it will
 		// be decompressed and we should find a valid YM header).
-		player->decoder = (LHANewDecoder*)malloc(sizeof(LHANewDecoder));
+		player->decoder = malloc(DECOMPRESS_LZH5_STATE_SIZE);
 		offset = 0;
-		lha_lh_new_init(player->decoder, lha_callback, (void*)player->f);
+		decompress_lzh5_init(player->decoder, player->f);
 		_ymread(head, 12);
 	}
 
