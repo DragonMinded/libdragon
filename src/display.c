@@ -81,7 +81,8 @@ static void __display_callback()
         }
     }
 
-    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - ((((int)vi_h_fix_get_pixeloffset(__width, __borders.left + __borders.right) / 4) * 4) * __bitdepth));
+    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - (((((int)vi_h_fix_get_pixeloffset(__width, __borders.left + __borders.right) + 4) / 4) * 4) * __bitdepth));
+}
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -192,11 +193,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     vi_borders_t         borders = VI_BORDERS_NONE;
     if(res.crt_borders)  borders = VI_BORDERS_CRT;
+    //if(res.aspect_ratio == RES_FULLSCREEN) res.aspect_ratio = -1;
 
-    // Fix this specific case so that the most common resolution of 320x240 16bpp wouldn't crash without resampling filter
+    // Fix this specific case so that the most common resolution of 320x240 16bpp wouldn't crash without a resampling filter
     // Users can obtain a sharper image by disabling that filter
-    if(bit == DEPTH_16_BPP && res.width == 320 && (FILTERS_DISABLED || FILTERS_DEDITHER) && !res.crt_borders)
-        borders.right++;
+    //if(bit == DEPTH_16_BPP && res.width == 320 && (FILTERS_DISABLED || FILTERS_DEDITHER) && !res.crt_borders)
+    //    borders.right++;
 
     __borders = borders;
 

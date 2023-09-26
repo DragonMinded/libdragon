@@ -6,10 +6,12 @@
 #ifndef __LIBDRAGON_VI_H
 #define __LIBDRAGON_VI_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <math.h>
-
+#include <assert.h>
+#include "n64sys.h"
 /**
  * @addtogroup display
  * @{
@@ -102,33 +104,33 @@ typedef struct vi_borders_s{
 static const vi_config_t vi_ntsc_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006502f6, 0x00230205, 0x000e0204,
+    0x0c150c15, 0x006402f6, 0x00230205, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_p =  {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x007A030D, 0x002D026D, 0x0009026b,
+    0x0c6f0c6e, 0x00780305, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006502f6, 0x00230205, 0x000e0204,
+    0x0c190c1a, 0x006402f6, 0x00230205, 0x000e0204,
     0x00000000, 0x00000000 }};
 
 static const vi_config_t vi_ntsc_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006602f6, 0x00220204, 0x000e0204,
+    0x0c150c15, 0x006402f6, 0x00220204, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x007A030D, 0x002D026D, 0x0009026b,
+    0x0c6f0c6e, 0x00780305, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006602f6, 0x00220204, 0x000b0202,
+    0x0c1c0c1c, 0x006402f6, 0x00220204, 0x000b0202,
     0x00000000, 0x00000000 }};
 
 /** @} */
@@ -263,8 +265,7 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
 
 /**
  * @brief Return the amount of pixels an output framebuffer 
- * needs to be offset to the right due to inherit VI offset bug
- * Function equations are linear approximations for now.
+ * needs to be offset to the right due to inherit VI offset bug.
  *
  * @param[in] width
  *            Width of the framebuffer
@@ -272,10 +273,7 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
  *            Size of VI borders around the framebuffer
  */
 inline float vi_h_fix_get_pixeloffset(int width, float bordersize){
-    float borderoffset = (float)(0.012f*(float)bordersize);
-    float widthoffset = (float)(0.010f*(float)width) + 4;
-    if(width == 640) widthoffset = 10;
-    return borderoffset + widthoffset;
+    return (7.99f*(float)width)/(640.0f - bordersize);  
 }
 
 /**
@@ -343,11 +341,11 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
     // Miscellaneous edge-case fixes
     float v_borders = (float)borders.up + borders.down;
     float v_offset = 0; // Should be used for subpixel precision, but it's not straightforward, so leave it as 0 for now
-    if(height < 480) v_end-=4; // V fix, only with borders
+    v_end-=4; // V fix, only with borders
 
     float offset = (vi_h_fix_get_pixeloffset(width, borders.left + borders.right)); // Get the overall needed offset for H fix (Coarse offset is set in the H_ORIGIN)
-    int h_offset = (int)((float)4 - ((float)offset - (((int)offset / 4) * 4))); // Calculate the precise offset for H fix
-    if(borders.left > 0 || borders.right > 0) h_end-=2; // Another H fix, only with borders
+    float h_offset = ((float)4 - ((float)offset - (((int)offset / 4) * 4))); // Calculate the precise offset for H fix
+    if(borders.left > 0 || borders.right > 0) h_end-=3; // Another H fix, only with borders
 
     // Scale and set the boundaries of the framebuffer to fit bordered layout
     vi_write(VI_X_SCALE, /* mandatory H fix */ VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));
