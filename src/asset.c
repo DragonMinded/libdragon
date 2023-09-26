@@ -20,6 +20,31 @@
 #define assertf(x, ...) assert(x)
 #endif
 
+/** 
+ * @brief Compression algorithms
+ * 
+ * Only level 1 (LZ4) is always initialized. The other algorithm (LZH5)
+ * must be initialized manually via #asset_init_compression.
+ */
+static asset_compression_t algos[2] = {
+    {
+        .state_size = DECOMPRESS_LZ4_STATE_SIZE,
+        .decompress_init = decompress_lz4_init,
+        .decompress_read = decompress_lz4_read,
+        .decompress_full = decompress_lz4_full,
+    }
+};
+
+void __asset_init_compression_lvl2(void)
+{
+    algos[1] = (asset_compression_t){
+        .state_size = DECOMPRESS_LZH5_STATE_SIZE,
+        .decompress_init = decompress_lzh5_init,
+        .decompress_read = decompress_lzh5_read,
+        .decompress_full = decompress_lzh5_full,
+    };
+}
+
 FILE *must_fopen(const char *fn)
 {
     FILE *f = fopen(fn, "rb");
@@ -67,65 +92,13 @@ void *asset_load(const char *fn, int *sz)
         header.orig_size = __builtin_bswap32(header.orig_size);
         #endif
 
-        switch (header.algo) {
-        case 2: {
-            size = header.orig_size;
-            s = memalign(16, size);
-            assertf(s, "asset_load: out of memory");
-            int n = decompress_lz5h_full(f, s, size); (void)n;
-            assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
-        }   break;
-        case 1: {
-            size = header.orig_size;
-            int bufsize = size + LZ4_DECOMPRESS_INPLACE_MARGIN(header.cmp_size);
-            int cmp_offset = bufsize - header.cmp_size;
-            if (cmp_offset & 1) {
-                cmp_offset++;
-                bufsize++;
-            }
-            if (bufsize & 15) {
-                // In case we need to call invalidate (see below), we need an aligned buffer
-                bufsize += 16 - (bufsize & 15);
-            }
+        assertf(header.algo >= 1 || header.algo <= 2,
+            "unsupported compression algorithm: %d", header.algo);
+        assertf(algos[header.algo-1].decompress_full, 
+            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
 
-            s = memalign(16, bufsize);
-            assertf(s, "asset_load: out of memory");
-            int n;
-
-            #ifdef N64
-            if (strncmp(fn, "rom:/", 5) == 0) {
-                // Invalid the portion of the buffer where we are going to load
-                // the compressed data. This is needed in case the buffer returned
-                // by memalign happens to be in cached already.
-                int align_cmp_offset = cmp_offset & ~15;
-                data_cache_hit_invalidate(s+align_cmp_offset, bufsize-align_cmp_offset);
-
-                // Loading from ROM. This is a common enough situation that we want to optimize it.
-                // Start an asynchronous DMA transfer, so that we can start decompressing as the
-                // data flows in.
-                uint32_t addr = dfs_rom_addr(fn+5) & 0x1FFFFFFF;
-                dma_read_async(s+cmp_offset, addr+16, header.cmp_size);
-
-                // Run the decompression racing with the DMA.
-                n = decompress_lz4_full_mem(s+cmp_offset, header.cmp_size, s, size, true); (void)n;
-            #else
-            if (false) {
-            #endif
-            } else {
-                // Standard loading via stdio. We have to wait for the whole file to be read.
-                fread(s+cmp_offset, 1, header.cmp_size, f);
-
-                // Run the decompression.
-                n = decompress_lz4_full_mem(s+cmp_offset, header.cmp_size, s, size, false); (void)n;
-            }
-            assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
-            void *ptr = realloc(s, size); (void)ptr;
-            assertf(s == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
-        }   break;
-        default:
-            assertf(0, "asset: unsupported compression algorithm: %d", header.algo);
-            return NULL;
-        }        
+        size = header.orig_size;
+        s = algos[header.algo-1].decompress_full(fn, f, header.cmp_size, size);
     } else {
         // Allocate a buffer big enough to hold the file.
         // We force a 16-byte alignment for the buffer so that it's cacheline aligned.
@@ -184,20 +157,20 @@ typedef struct  {
     bool seeked;
     ssize_t (*read)(void *state, void *buf, size_t len);
     uint8_t state[] alignas(8);
-} cookie_lha_t;
+} cookie_cmp_t;
 
-static int readfn_lha(void *c, char *buf, int sz)
+static int readfn_cmp(void *c, char *buf, int sz)
 {
-    cookie_lha_t *cookie = (cookie_lha_t*)c;
+    cookie_cmp_t *cookie = (cookie_cmp_t*)c;
     assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");
     int n = cookie->read(cookie->state, (uint8_t*)buf, sz);
     cookie->pos += n;
     return n;
 }
 
-static fpos_t seekfn_lha(void *c, fpos_t pos, int whence)
+static fpos_t seekfn_cmp(void *c, fpos_t pos, int whence)
 {
-    cookie_lha_t *cookie = (cookie_lha_t*)c;
+    cookie_cmp_t *cookie = (cookie_cmp_t*)c;
 
     // SEEK_CUR with pos=0 is used as ftell()
     if (whence == SEEK_CUR && pos == 0)
@@ -210,9 +183,9 @@ static fpos_t seekfn_lha(void *c, fpos_t pos, int whence)
     return -1;
 }
 
-static int closefn_lha(void *c)
+static int closefn_cmp(void *c)
 {
-    cookie_lha_t *cookie = (cookie_lha_t*)c;
+    cookie_cmp_t *cookie = (cookie_cmp_t*)c;
     fclose(cookie->fp); cookie->fp = NULL;
     free(cookie);
     return 0;
@@ -242,28 +215,22 @@ FILE *asset_fopen(const char *fn, int *sz)
             header.orig_size = __builtin_bswap32(header.orig_size);
         }
 
-        cookie_lha_t *cookie;
-        switch (header.algo) {
-        case 1:
-            cookie = malloc(sizeof(cookie_lha_t) + DECOMPRESS_LZ4_STATE_SIZE);
-            decompress_lz4_init(cookie->state, f);
-            cookie->read = decompress_lz4_read;
-            break;
-        case 2:
-            cookie = malloc(sizeof(cookie_lha_t) + DECOMPRESS_LZ5H_STATE_SIZE);
-            decompress_lz5h_init(cookie->state, f);
-            cookie->read = decompress_lz5h_read;
-            break;
-        default:
-            assertf(0, "unsupported compression algorithm: %d", header.algo);
-            return NULL;
-        }
+        cookie_cmp_t *cookie;
+
+        assertf(header.algo >= 1 || header.algo <= 2,
+            "unsupported compression algorithm: %d", header.algo);
+        assertf(algos[header.algo-1].decompress_init, 
+            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
+
+        cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size);
+        cookie->read = algos[header.algo-1].decompress_read;
+        algos[header.algo-1].decompress_init(cookie->state, f);
 
         cookie->fp = f;
         cookie->pos = 0;
         cookie->seeked = false;
         if (sz) *sz = header.orig_size;
-        return funopen(cookie, readfn_lha, NULL, seekfn_lha, closefn_lha);
+        return funopen(cookie, readfn_cmp, NULL, seekfn_cmp, closefn_cmp);
     }
 
     // Not compressed. Return a wrapped FILE* without the seeking capability,

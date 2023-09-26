@@ -14,6 +14,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 ///@cond
 typedef struct sprite_s sprite_t;
 typedef struct rdpq_texparms_s rdpq_texparms_t;
@@ -115,5 +119,9 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
  * @param parms     Parameters for the blit operation (or NULL for default)
  */
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

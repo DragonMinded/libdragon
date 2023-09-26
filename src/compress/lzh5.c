@@ -10,6 +10,13 @@
 
 #include "lzh5_internal.h"
 
+#ifdef N64
+#include <malloc.h>
+#include "debug.h"
+#else
+#include <stdlib.h>
+#endif
+
 //////////////////////// bit_stream_reader.c
 
 /*
@@ -1137,28 +1144,34 @@ end:
  * Libdragon API
  *************************************************/
 
-_Static_assert(sizeof(LHANewDecoderPartial) == DECOMPRESS_LZ5H_STATE_SIZE, "LZH5 state size is wrong");
+_Static_assert(sizeof(LHANewDecoderPartial) == DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
 
-void decompress_lz5h_init(void *state, FILE *fp)
+void decompress_lzh5_init(void *state, FILE *fp)
 {
 	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
 	lha_lh_new_init_partial(decoder, fp);
 }
 
-ssize_t decompress_lz5h_read(void *state, void *buf, size_t len)
+ssize_t decompress_lzh5_read(void *state, void *buf, size_t len)
 {
 	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
 	return lha_lh_new_read_partial(decoder, buf, len);
 }
 
-int decompress_lz5h_pos(void *state) {
+int decompress_lzh5_pos(void *state) {
 	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
 	return decoder->decoded_bytes;
 }
 
-size_t decompress_lz5h_full(FILE *fp, void *buf, size_t len)
+void* decompress_lzh5_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
 {
+	void *s = memalign(16, size);
+	assertf(s, "asset_load: out of memory");
+
 	LHANewDecoder decoder;
 	lha_lh_new_init(&decoder, fp);
-	return lha_lh_new_read_full(&decoder, buf, len);
+	int n = lha_lh_new_read_full(&decoder, s, size); (void)n;
+	assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
+
+	return s;
 }
