@@ -81,7 +81,9 @@ static void __display_callback()
         }
     }
 
-    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - (((((int)vi_h_fix_get_pixeloffset(__width, __borders.left + __borders.right) + 4) / 4) * 4) * __bitdepth));
+    int vi_offset; float vi_presoffset;
+    vi_h_fix_get_pixeloffset(__width, __borders.left + __borders.right, &vi_offset, &vi_presoffset);
+    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - vi_offset * __bitdepth);
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -236,13 +238,13 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
         tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
-        surfaces[i] = surface_alloc(format, __width, __height + 4); // Also add some redundancy for the VI output, so that it doesn't display garbage at the end
+        surfaces[i] = surface_alloc(format, __width, __height + 2); // Also add some redundancy for the VI output, so that it doesn't display garbage at the end
         surfaces[i].height = __height; // For the frontend, use correct resolution values;
         __safe_buffer[i] = surfaces[i].buffer;
         assert(__safe_buffer[i] != NULL);
 
         /* Baseline is blank */
-        memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
+        memset( __safe_buffer[i], 0, __width * (__height+2) * __bitdepth );
     }
 
     /* Set the first buffer as the displaying buffer */

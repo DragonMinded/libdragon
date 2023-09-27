@@ -37,7 +37,7 @@ typedef struct vi_config_s{
  * @brief Video Interface borders structure
  *
  * This structure contains how thick should the borders around a framebuffer be in pixels.
- * The pixels assume VI scale (640x240/480 NTSC or 640x288/576 PAL).
+ * The pixels assume VI scale (640x480 NTSC or 640x576 PAL).
  * They can be of different sizes and the framebuffer will be scaled to fit under them
  * For example when shown on CRT monitors, one can add borders around a framebuffer so
  * that the whole image could be seen on the monitor. 
@@ -49,6 +49,11 @@ typedef struct vi_config_s{
 typedef struct vi_borders_s{
     float left, right, up, down;
 } vi_borders_t;
+
+#define ROUND_UP(n, d) ({ \
+    typeof(n) _n = n; typeof(d) _d = d; \
+    (((_n) + (_d) - 1) / (_d) * (_d)); \
+})
 
 /** @brief No borders are applied, 
  * the output will use the whole NSTC/PAL region space for showing a framebuffer */
@@ -270,10 +275,21 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
  * @param[in] width
  *            Width of the framebuffer
  * @param[in] bordersize
- *            Size of VI borders around the framebuffer
+ *            Size of VI borders in dots around the framebuffer
+ * @param[in] coarse
+ *            Pixel offset output with "coarse" precision rounded up to nearest 4 pixels
+ * @param[in] precise
+ *            Pixel precise offset within 4 pixels range
  */
-inline float vi_h_fix_get_pixeloffset(int width, float bordersize){
-    return (3.99f*(float)width)/(640.0f - bordersize);  
+inline void vi_h_fix_get_pixeloffset(int width, float bordersize, int *coarse, float *precise){
+    const int FX10 = 1<<10;
+    const int VI_HIDDEN_DOTS = 4;
+    int offset_fx10 = (VI_HIDDEN_DOTS * width * FX10) / (640 - bordersize); // TV standards on the N64 always output 640 dots
+    float offset = offset_fx10 / (float)FX10;
+
+    assert(coarse && precise);
+    *coarse = ROUND_UP((int)ceilf(offset), 4); // VI_BUFFER must be aligned to 4 pixels
+    *precise = *coarse - offset;
 }
 
 /**
@@ -342,14 +358,14 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
     float v_borders = borders.up + borders.down;
     float v_offset = 0; // Should be used for subpixel precision, but it's not straightforward, so leave it as 0 for now
 
-    float offset = (vi_h_fix_get_pixeloffset(width, borders.left + borders.right)); // Get the overall needed offset for H fix (Coarse offset is set in the H_ORIGIN)
-    float h_offset = (4.0f - (offset - (((int)offset / 4) * 4))); // Calculate the precise offset for H fix
-    if(borders.right > 0) h_end -= 3; // Another H fix, only with borders
+    float h_offset; int vi_addroffet;
+    (vi_h_fix_get_pixeloffset(width, borders.left + borders.right, &vi_addroffet, &h_offset)); // Get the precise needed offset for H fix (Coarse offset is set in the H_ORIGIN)
+    h_end -= 4; // Another H fix, only with borders
 
     // Scale and set the boundaries of the framebuffer to fit bordered layout 
     // 645 is a crutch fix for overscanning the framebuffer to fix inconsistencies between parallel-RDP and the hardware
-    // (horizontally it affect the image least because with resampling its going to be blurry anyway)
-    vi_write(VI_X_SCALE, /* mandatory H fix */ VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(645 - borders.left - borders.right)));
+    // (horizontally it will affect the image least because with resampling its going to be blurry anyway)
+    vi_write(VI_X_SCALE, /* mandatory H fix */ VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));
     
     if(tv_type == TV_PAL) // If display outputs a PAL signal, use 288 line scaling instead of 240
          vi_write(VI_Y_SCALE, VI_OFFSET_SET((v_offset)) | (uint16_t)VI_SCALE_FROMTO((float)height, ((float)288 - (v_borders) / 2)));
