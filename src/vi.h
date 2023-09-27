@@ -12,6 +12,7 @@
 #include <math.h>
 #include <assert.h>
 #include "n64sys.h"
+#include "utils.h"
 /**
  * @addtogroup display
  * @{
@@ -49,11 +50,6 @@ typedef struct vi_config_s{
 typedef struct vi_borders_s{
     float left, right, up, down;
 } vi_borders_t;
-
-#define ROUND_UP(n, d) ({ \
-    typeof(n) _n = n; typeof(d) _d = d; \
-    (((_n) + (_d) - 1) / (_d) * (_d)); \
-})
 
 /** @brief No borders are applied, 
  * the output will use the whole NSTC/PAL region space for showing a framebuffer */
