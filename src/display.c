@@ -83,7 +83,6 @@ static void __display_callback()
 
     vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - (((((int)vi_h_fix_get_pixeloffset(__width, __borders.left + __borders.right) + 4) / 4) * 4) * __bitdepth));
 }
-}
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
 {
