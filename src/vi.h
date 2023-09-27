@@ -109,7 +109,7 @@ static const vi_config_t vi_ntsc_p = {.regs = {
 static const vi_config_t vi_pal_p =  {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00780305, 0x002D026D, 0x0009026b,
+    0x0c6f0c6e, 0x0078030A, 0x002D026F, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
@@ -125,7 +125,7 @@ static const vi_config_t vi_ntsc_i = {.regs = {
 static const vi_config_t vi_pal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00780305, 0x002D026D, 0x0009026b,
+    0x0c6f0c6e, 0x0078030A, 0x002D026F, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
@@ -273,7 +273,7 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
  *            Size of VI borders around the framebuffer
  */
 inline float vi_h_fix_get_pixeloffset(int width, float bordersize){
-    return (7.99f*(float)width)/(640.0f - bordersize);  
+    return (3.99f*(float)width)/(640.0f - bordersize);  
 }
 
 /**
@@ -339,16 +339,17 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
     }
 
     // Miscellaneous edge-case fixes
-    float v_borders = (float)borders.up + borders.down;
+    float v_borders = borders.up + borders.down;
     float v_offset = 0; // Should be used for subpixel precision, but it's not straightforward, so leave it as 0 for now
-    v_end-=4; // V fix, only with borders
 
     float offset = (vi_h_fix_get_pixeloffset(width, borders.left + borders.right)); // Get the overall needed offset for H fix (Coarse offset is set in the H_ORIGIN)
-    float h_offset = ((float)4 - ((float)offset - (((int)offset / 4) * 4))); // Calculate the precise offset for H fix
-    if(borders.left > 0 || borders.right > 0) h_end-=3; // Another H fix, only with borders
+    float h_offset = (4.0f - (offset - (((int)offset / 4) * 4))); // Calculate the precise offset for H fix
+    if(borders.right > 0) h_end -= 3; // Another H fix, only with borders
 
-    // Scale and set the boundaries of the framebuffer to fit bordered layout
-    vi_write(VI_X_SCALE, /* mandatory H fix */ VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));
+    // Scale and set the boundaries of the framebuffer to fit bordered layout 
+    // 645 is a crutch fix for overscanning the framebuffer to fix inconsistencies between parallel-RDP and the hardware
+    // (horizontally it affect the image least because with resampling its going to be blurry anyway)
+    vi_write(VI_X_SCALE, /* mandatory H fix */ VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(645 - borders.left - borders.right)));
     
     if(tv_type == TV_PAL) // If display outputs a PAL signal, use 288 line scaling instead of 240
          vi_write(VI_Y_SCALE, VI_OFFSET_SET((v_offset)) | (uint16_t)VI_SCALE_FROMTO((float)height, ((float)288 - (v_borders) / 2)));
