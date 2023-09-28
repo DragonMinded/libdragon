@@ -81,8 +81,12 @@ static void __display_callback()
         }
     }
 
+    uint32_t vi_h_video = *VI_H_VIDEO;
+    int display_width = (vi_h_video & 0xFFFF) - (vi_h_video >> 16);
+    display_width -= 4; // hidden dots right (FIXME)
+
     int vi_offset; float vi_presoffset;
-    vi_h_fix_get_pixeloffset(__width, __borders.left + __borders.right, &vi_offset, &vi_presoffset);
+    vi_h_fix_get_pixeloffset(__width, display_width, &vi_offset, &vi_presoffset);
     vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - vi_offset * __bitdepth);
 }
 

@@ -13,6 +13,7 @@
 #include <assert.h>
 #include "n64sys.h"
 #include "utils.h"
+#include "debug.h"
 /**
  * @addtogroup display
  * @{
@@ -230,7 +231,7 @@ static const vi_config_t vi_config_presets[2][3] = {
 #define VI_Y_SCALE_SET(value)               (( 1024*(value) + 120 ) / 240)
 
 /** @brief VI_SCALE Registers: set 1/horizontal scale up factor (value is converted to 2.10 format) */
-#define VI_SCALE_FROMTO(from,to)            (( 1024*(from) + (to/2) ) / (to))
+#define VI_SCALE_FROMTO(from,to)            (( 1024*(from) + (to)/2 ) / (to))
 
 /** @brief VI_OFFSET Registers: Horizontal subpixel offset (value is converted to 2.10 format) */
 #define VI_OFFSET_SET(value)              (((int)( 1024*(value)) & 0xFFFF) << 16)
@@ -277,10 +278,10 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
  * @param[in] precise
  *            Pixel precise offset within 4 pixels range
  */
-inline void vi_h_fix_get_pixeloffset(int width, float bordersize, int *coarse, float *precise){
+inline void vi_h_fix_get_pixeloffset(int fb_width, int display_width, int *coarse, float *precise){
     const int FX10 = 1<<10;
-    const int VI_HIDDEN_DOTS = 4;
-    int offset_fx10 = (VI_HIDDEN_DOTS * width * FX10) / (640 - bordersize); // TV standards on the N64 always output 640 dots
+    const int VI_HIDDEN_DOTS_LEFT = 4;
+    int offset_fx10 = (VI_HIDDEN_DOTS_LEFT * fb_width * FX10) / display_width; // TV standards on the N64 always output 640 dots
     float offset = offset_fx10 / (float)FX10;
 
     assert(coarse && precise);
@@ -304,9 +305,10 @@ inline void vi_h_fix_get_pixeloffset(int width, float bordersize, int *coarse, f
  * @param[in] borders
  *            Minimum border size around the framebuffer
  */
-static inline void vi_write_display(uint32_t width, uint32_t height, bool serrate, float aspect, vi_borders_t borders){
+static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool serrate, float aspect, vi_borders_t borders){
     uint32_t tv_type = get_tv_type();
     const vi_config_t* config = &vi_config_presets[serrate][tv_type];
+    const int VI_HIDDEN_DOTS_RIGHT = 4;
 
     uint16_t h_start, h_end, v_start, v_end;
     {
@@ -318,6 +320,10 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
         h_end   =  h_video        & 0x3FF;
         v_start = (v_video >> 16) & 0x3FF;
         v_end   =  v_video        & 0x3FF;
+        #if 0
+        debugf("initial: h_start=%d h_end=%d display_width=%d\n", h_start, h_end, h_end - h_start);
+        debugf("initial: v_start=%d v_end=%d display_height=%d\n", v_start, v_end, v_end - v_start);
+        #endif
     }
 
     // Add minimum borders
@@ -326,50 +332,57 @@ static inline void vi_write_display(uint32_t width, uint32_t height, bool serrat
     v_start += borders.up;
     v_end   -= borders.down;
 
+    // Remove hidden dots from the right border. This makes sure the whole calculation
+    // is made as if the display width is smaller, but we will add them back only
+    // when reprogramming the register.
+    h_end -= VI_HIDDEN_DOTS_RIGHT;
+
+    // Calculate the active area of display
+    int display_width = h_end - h_start;
+    int display_height = v_end - v_start;
+
     // Add aspect ratio borders
     if(aspect > 0) {
-        float h_size, v_size;
-        h_size = 640 - borders.left - borders.right;
-        v_size = 480 - borders.up - borders.down;
-        float viaspect = h_size / v_size; // Calculate the VI aspect ratio after applying minumum borders
+        float viaspect = display_width / display_height; // Calculate the VI aspect ratio after applying minumum borders
         if(aspect > viaspect){
             float factor = viaspect / aspect; // Get a vertical scale factor in range (0.0;1.0)
-            float v_arborder = (v_size - (v_size * factor)) / 2;
+            float v_arborder = (display_height - (display_height * factor)) / 2;
             v_start += v_arborder;
             v_end -= v_arborder + 1;
-            borders.up += v_arborder;
-            borders.down += v_arborder;
-        }
-        else {
+        } else {
             float factor = aspect / viaspect; // Get a horizontal scale factor in range (0.0;1.0)
-            float h_arborder = (h_size - (h_size * factor)) / 2;
+            float h_arborder = (display_width - (display_width * factor)) / 2;
             h_start += h_arborder;
             h_end -= h_arborder + 1;
-            borders.left += h_arborder;
-            borders.right += h_arborder;
         }
+
+        // Update after aspect ratio changes
+        display_width = h_end - h_start;
+        display_height = v_end - v_start;
     }
 
     // Miscellaneous edge-case fixes
-    float v_borders = borders.up + borders.down;
     float v_offset = 0; // Should be used for subpixel precision, but it's not straightforward, so leave it as 0 for now
 
     float h_offset; int vi_addroffet;
-    (vi_h_fix_get_pixeloffset(width, borders.left + borders.right, &vi_addroffet, &h_offset)); // Get the precise needed offset for H fix (Coarse offset is set in the H_ORIGIN)
-    h_end -= 4; // Another H fix, only with borders
+    vi_h_fix_get_pixeloffset(fb_width, display_width, &vi_addroffet, &h_offset); // Get the precise needed offset for H fix (Coarse offset is set in the H_ORIGIN)
+
+    #if 0
+    float hscale = ((float)fb_width + .5f) / (float)display_width;
+    debugf("fb_width=%ld display_width=%d coarse=%d precise=%f\n", fb_width, display_width, vi_addroffet, h_offset);
+    debugf("hscale=%f last_pixel=%.2f\n", hscale, h_offset + (display_width-1) * hscale);
+    #endif
 
     // Scale and set the boundaries of the framebuffer to fit bordered layout 
-    // 645 is a crutch fix for overscanning the framebuffer to fix inconsistencies between parallel-RDP and the hardware
-    // (horizontally it will affect the image least because with resampling its going to be blurry anyway)
-    vi_write(VI_X_SCALE, /* mandatory H fix */ VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO((float)width, (float)(640 - borders.left - borders.right)));
-    
-    if(tv_type == TV_PAL) // If display outputs a PAL signal, use 288 line scaling instead of 240
-         vi_write(VI_Y_SCALE, VI_OFFSET_SET((v_offset)) | (uint16_t)VI_SCALE_FROMTO((float)height, ((float)288 - (v_borders) / 2)));
-    else vi_write(VI_Y_SCALE, VI_OFFSET_SET((v_offset)) | (uint16_t)VI_SCALE_FROMTO((float)height, ((float)240 - (v_borders) / 2)));
+    vi_write(VI_X_SCALE, VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO(fb_width, display_width));
+    vi_write(VI_Y_SCALE, VI_OFFSET_SET(v_offset) | (uint16_t)VI_SCALE_FROMTO(fb_height,display_height/2));
 
     // Finally write the dimentions of the output
-    vi_write(VI_H_VIDEO, (h_start << 16) | (h_end));
+    vi_write(VI_H_VIDEO, (h_start << 16) | (h_end + VI_HIDDEN_DOTS_RIGHT));
     vi_write(VI_V_VIDEO, (v_start << 16) | (v_end));
+
+    assert(display_width == (h_end - h_start));  // make sure we kept the state coherent until the end
+    assert(display_height == (v_end - v_start));
 }
 
 /**
