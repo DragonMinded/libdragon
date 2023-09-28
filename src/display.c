@@ -82,12 +82,10 @@ static void __display_callback()
     }
 
     uint32_t vi_h_video = *VI_H_VIDEO;
-    int display_width = (vi_h_video & 0xFFFF) - (vi_h_video >> 16);
-    display_width -= 4; // hidden dots right (FIXME)
-
-    int vi_offset; float vi_presoffset;
-    vi_h_fix_get_pixeloffset(__width, display_width, &vi_offset, &vi_presoffset);
-    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - vi_offset * __bitdepth);
+    int h_end = vi_h_video & 0xFFFF;
+    int h_start = vi_h_video >> 16;
+    vi_resparms_t resparms = vi_calc_resparms(__width, h_start, h_end);
+    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - resparms.vi_origin_offset * __bitdepth);
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -431,3 +429,5 @@ float display_get_fps(void)
     if (!frame_times_duration) return 0;
     return (float)(FPS_WINDOW * TICKS_PER_SECOND) / frame_times_duration;
 }
+
+extern inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end);

@@ -264,6 +264,26 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
     MEMORY_BARRIER();
 }
 
+// VI has a hardware bug that causes it to throw away (= display black) the fist 8 dots
+// and the last 7 dots of the active display area. Notice that within these dots, 
+// VI consider the area still active, so the X counter is incremented and the framebuffer
+// sampled, but the output is then discarded.
+// We need to account for this when calculating the resolution parameters because we
+// don't want to crop our framebuffer, but rather display it correctly skipping the
+// hidden dots.
+#define VI_HIDDEN_DOTS_LEFT     8       ///< Black dots on the left side of the display area
+#define VI_HIDDEN_DOTS_RIGHT    7       ///< Black dots on the right side of the display area
+
+#define VI_ORIGIN_ALIGN         4       ///< VI_ORIGIN must be aligned to 4 pixels
+
+typedef struct {
+    int fb_width;               ///< Width of the framebuffer (pixels)
+    int h_start;                ///< Start of the active video image (dots)
+    int h_end;                  ///< End of the active video image (dots)
+    int vi_origin_offset;       ///< Offset to apply to VI_ORIGIN (pixels)
+    int x_offset_fx10;          ///< Initial X counter (2.10)
+    int x_scale_fx10;           ///< X counter increment (2.10)
+} vi_resparms_t;
 
 /**
  * @brief Return the amount of pixels an output framebuffer 
@@ -278,15 +298,76 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
  * @param[in] precise
  *            Pixel precise offset within 4 pixels range
  */
-inline void vi_h_fix_get_pixeloffset(int fb_width, int display_width, int *coarse, float *precise){
+inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end) {
     const int FX10 = 1<<10;
-    const int VI_HIDDEN_DOTS_LEFT = 4;
-    int offset_fx10 = (VI_HIDDEN_DOTS_LEFT * fb_width * FX10) / display_width; // TV standards on the N64 always output 640 dots
-    float offset = offset_fx10 / (float)FX10;
+    vi_resparms_t resparms = { .fb_width = fb_width, .h_start = h_start, .h_end = h_end };
 
-    assert(coarse && precise);
-    *coarse = ROUND_UP((int)ceilf(offset), 4); // VI_BUFFER must be aligned to 4 pixels
-    *precise = *coarse - offset;
+    // Calculate the width of the active display area. Immediately remove
+    // the right dots from it, as those can be safely be ignored for the rest
+    // of the calculations.
+    int display_width = h_end - h_start - VI_HIDDEN_DOTS_RIGHT;
+
+    // Calculate the first "theoretical" XSCALE value
+    resparms.x_scale_fx10 = (fb_width * FX10) / display_width;
+
+    // Calculate how many pixels in the framebuffer would be invisible
+    // because of the hidden dots. We will need move the framebuffer right
+    // by this amount to avoid any cropping.
+    int offset_fx10 = VI_HIDDEN_DOTS_LEFT * resparms.x_scale_fx10;
+
+    // To move the framebuffer out of the hidden area, we can combine both
+    // VI_ORIGIN (that can be offset in steps by 4 pixels because of alignment
+    // constraints) and X_OFFSET, which is a fractional value in 2.10 format
+    // so in the range [0..4). 
+    resparms.vi_origin_offset = ROUND_UP(offset_fx10, VI_ORIGIN_ALIGN*FX10) / FX10;
+    resparms.x_offset_fx10 = resparms.vi_origin_offset*FX10 - offset_fx10;
+    #if 0
+    debugf("fb_width=%d display_width=%d coarse=%d precise=%f\n", fb_width, display_width, resparms.vi_origin_offset, resparms.x_offset_fx10/1024.0f);
+    #endif
+
+    // Now adjust the XSCALE. This is the trickiest part. We previously calculated
+    // fb_width/display_width but we now want a slightly different value that make
+    // sure that the last pixel of the framebuffer is as centered as possible.
+    // In fact, when resampling is active, unfortunately the VI will interpolate
+    // between the last pixel and the whatever garbage is after it (usually, the first
+    // pixel of next line). So we want the VI X value for the last pixel to be
+    // as close as possible to fb_width-1, and without going over it to avoid
+    // bleeding garbage in.
+    // FIXME: this is only correct in case of resampling.
+    resparms.x_scale_fx10 = (((resparms.fb_width-1) + resparms.vi_origin_offset)*FX10 - resparms.x_offset_fx10) / (display_width-1);
+
+    // Let's now check the VI X value for the first and last framebuffer pixel, with the new
+    // XSCALE we just computed
+    int first_pixel_fx10 = resparms.x_offset_fx10 + VI_HIDDEN_DOTS_LEFT * resparms.x_scale_fx10 - resparms.vi_origin_offset*FX10;
+    int last_pixel_fx10 =  resparms.x_offset_fx10 + (display_width-1)   * resparms.x_scale_fx10 - resparms.vi_origin_offset*FX10;
+    #if 0
+    debugf("hscale=%f first_pixel=%.2f last_pixel=%.2f\n", 
+        resparms.x_scale_fx10/1024.0f, first_pixel_fx10/10240.f, last_pixel_fx10/1024.f);
+    #endif
+
+    // The goal was to made them as close as possible to 0 and fb_width-1, respectively,
+    // while staying *within* the framebuffer.
+    // Let's extract the approximation error
+    int first_pixel_error = first_pixel_fx10 - 0;
+    int last_pixel_error  = (resparms.fb_width-1)*FX10 - last_pixel_fx10;
+
+    // If we did our computations correctly, both of these should be positive,
+    // which means that neither of them will interpolate with a garbage value
+    // before/after the framebuffer.
+    assert(first_pixel_error >= 0 && last_pixel_error >= 0);
+
+    // As a last step, we want to rebalance the error between the first and last pixel
+    // so that we minimize the error on both sides.
+    resparms.x_offset_fx10 += (last_pixel_error - first_pixel_error) / 2;
+
+    #if 0
+    debugf("precise2=%f first_pixel=%.2f last_pixel=%.2f\n", 
+        resparms.x_offset_fx10/1024.f, 
+        (resparms.x_offset_fx10 + VI_HIDDEN_DOTS_LEFT*resparms.x_scale_fx10)/1024.0f - resparms.vi_origin_offset, 
+        (resparms.x_offset_fx10 + (display_width-1) * resparms.x_scale_fx10)/1024.0f - resparms.vi_origin_offset);
+    #endif
+
+    return resparms;
 }
 
 /**
@@ -308,7 +389,6 @@ inline void vi_h_fix_get_pixeloffset(int fb_width, int display_width, int *coars
 static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool serrate, float aspect, vi_borders_t borders){
     uint32_t tv_type = get_tv_type();
     const vi_config_t* config = &vi_config_presets[serrate][tv_type];
-    const int VI_HIDDEN_DOTS_RIGHT = 4;
 
     uint16_t h_start, h_end, v_start, v_end;
     {
@@ -320,10 +400,6 @@ static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool 
         h_end   =  h_video        & 0x3FF;
         v_start = (v_video >> 16) & 0x3FF;
         v_end   =  v_video        & 0x3FF;
-        #if 0
-        debugf("initial: h_start=%d h_end=%d display_width=%d\n", h_start, h_end, h_end - h_start);
-        debugf("initial: v_start=%d v_end=%d display_height=%d\n", v_start, v_end, v_end - v_start);
-        #endif
     }
 
     // Add minimum borders
@@ -332,13 +408,8 @@ static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool 
     v_start += borders.up;
     v_end   -= borders.down;
 
-    // Remove hidden dots from the right border. This makes sure the whole calculation
-    // is made as if the display width is smaller, but we will add them back only
-    // when reprogramming the register.
-    h_end -= VI_HIDDEN_DOTS_RIGHT;
-
     // Calculate the active area of display
-    int display_width = h_end - h_start;
+    int display_width = h_end - h_start - VI_HIDDEN_DOTS_LEFT - VI_HIDDEN_DOTS_RIGHT;
     int display_height = v_end - v_start;
 
     // Add aspect ratio borders
@@ -348,41 +419,26 @@ static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool 
             float factor = viaspect / aspect; // Get a vertical scale factor in range (0.0;1.0)
             float v_arborder = (display_height - (display_height * factor)) / 2;
             v_start += v_arborder;
-            v_end -= v_arborder + 1;
+            v_end -= v_arborder;
         } else {
             float factor = aspect / viaspect; // Get a horizontal scale factor in range (0.0;1.0)
             float h_arborder = (display_width - (display_width * factor)) / 2;
             h_start += h_arborder;
-            h_end -= h_arborder + 1;
+            h_end -= h_arborder;
         }
-
-        // Update after aspect ratio changes
-        display_width = h_end - h_start;
-        display_height = v_end - v_start;
     }
 
     // Miscellaneous edge-case fixes
     float v_offset = 0; // Should be used for subpixel precision, but it's not straightforward, so leave it as 0 for now
-
-    float h_offset; int vi_addroffet;
-    vi_h_fix_get_pixeloffset(fb_width, display_width, &vi_addroffet, &h_offset); // Get the precise needed offset for H fix (Coarse offset is set in the H_ORIGIN)
-
-    #if 0
-    float hscale = ((float)fb_width + .5f) / (float)display_width;
-    debugf("fb_width=%ld display_width=%d coarse=%d precise=%f\n", fb_width, display_width, vi_addroffet, h_offset);
-    debugf("hscale=%f last_pixel=%.2f\n", hscale, h_offset + (display_width-1) * hscale);
-    #endif
+    vi_resparms_t resparms = vi_calc_resparms(fb_width, h_start, h_end);
 
     // Scale and set the boundaries of the framebuffer to fit bordered layout 
-    vi_write(VI_X_SCALE, VI_OFFSET_SET(h_offset) | (uint16_t)VI_SCALE_FROMTO(fb_width, display_width));
+    vi_write(VI_X_SCALE, (resparms.x_offset_fx10 << 16) | resparms.x_scale_fx10);
     vi_write(VI_Y_SCALE, VI_OFFSET_SET(v_offset) | (uint16_t)VI_SCALE_FROMTO(fb_height,display_height/2));
 
     // Finally write the dimentions of the output
-    vi_write(VI_H_VIDEO, (h_start << 16) | (h_end + VI_HIDDEN_DOTS_RIGHT));
+    vi_write(VI_H_VIDEO, (resparms.h_start << 16) | resparms.h_end);
     vi_write(VI_V_VIDEO, (v_start << 16) | (v_end));
-
-    assert(display_width == (h_end - h_start));  // make sure we kept the state coherent until the end
-    assert(display_height == (v_end - v_start));
 }
 
 /**
