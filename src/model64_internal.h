@@ -17,7 +17,7 @@
 #define ANIM_COMPONENT_ROT 1
 #define ANIM_COMPONENT_SCALE 2
 
-#define MAX_ACTIVE_ANIMS 3
+#define MAX_ACTIVE_ANIMS 4
 
 /** @brief Parameters for a single vertex attribute (part of #primitive_t) */
 typedef struct attribute_s {
