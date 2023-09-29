@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['mi_5fregs_5ft_0',['MI_regs_t',['../group__lowlevel.html#structMI__regs__t',1,'']]],
-  ['mixer_5fchannel_5ft_1',['mixer_channel_t',['../mixer_8c.html#structmixer__channel__t',1,'']]],
-  ['mixer_5fevent_5ft_2',['mixer_event_t',['../mixer_8c.html#structmixer__event__t',1,'']]]
+  ['lz4dec_5ffaststate_5ft_0',['lz4dec_faststate_t',['../structlz4dec__faststate__t.html',1,'']]],
+  ['lz4dec_5fstate_5ft_1',['lz4dec_state_t',['../structlz4dec__state__t.html',1,'']]]
 ];

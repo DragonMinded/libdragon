@@ -69,7 +69,7 @@ $(function() {
   <div class="summary">
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
-  <div class="headertitle"><div class="title">dragonfs.h File Reference<div class="ingroups"><a class="el" href="group__dfs.html">DragonFS</a></div></div></div>
+  <div class="headertitle"><div class="title">dragonfs.h File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__asset.html">Asset Subsystem</a> &raquo; <a class="el" href="group__dfs.html">DragonFS</a></div></div></div>
 </div><!--header-->
 <div class="contents">
 
@@ -114,10 +114,10 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_EBADFS</b>&#160;&#160;&#160;-3</td></tr>
 <tr class="memdesc:ga536bec7130d9388a356c133a497f33c9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Bad filesystem. <br /></td></tr>
 <tr class="separator:ga536bec7130d9388a356c133a497f33c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae99e7138e20452a61e12a2cac46b9b49"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_ENOMEM</b>&#160;&#160;&#160;-4</td></tr>
-<tr class="memdesc:gae99e7138e20452a61e12a2cac46b9b49"><td class="mdescLeft">&#160;</td><td class="mdescRight">No memory for operation. <br /></td></tr>
-<tr class="separator:gae99e7138e20452a61e12a2cac46b9b49"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga46a37c8e682a4f9b9c379a86e404cb65"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_ENFILE</b>&#160;&#160;&#160;-4</td></tr>
+<tr class="memdesc:ga46a37c8e682a4f9b9c379a86e404cb65"><td class="mdescLeft">&#160;</td><td class="mdescRight">Too many open files. <br /></td></tr>
+<tr class="separator:ga46a37c8e682a4f9b9c379a86e404cb65"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga04d1fa223eec6ec3a9ae0c30b0196589"><td class="memItemLeft" align="right" valign="top">
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_EBADHANDLE</b>&#160;&#160;&#160;-5</td></tr>
 <tr class="memdesc:ga04d1fa223eec6ec3a9ae0c30b0196589"><td class="mdescLeft">&#160;</td><td class="mdescRight">Invalid file handle. <br /></td></tr>
@@ -175,13 +175,17 @@ Functions</h2></td></tr>
 <tr class="memitem:ga8b526624aebcf3d93a825edeb1ae4e63"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#ga8b526624aebcf3d93a825edeb1ae4e63">dfs_rom_addr</a> (const char *path)</td></tr>
 <tr class="memdesc:ga8b526624aebcf3d93a825edeb1ae4e63"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the physical address of a file (in ROM space)  <a href="group__dfs.html#ga8b526624aebcf3d93a825edeb1ae4e63">More...</a><br /></td></tr>
 <tr class="separator:ga8b526624aebcf3d93a825edeb1ae4e63"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab45d1919e34900b565922ca14b12088d"><td class="memItemLeft" align="right" valign="top">
+const char *&#160;</td><td class="memItemRight" valign="bottom"><b>dfs_strerror</b> (int error)</td></tr>
+<tr class="memdesc:gab45d1919e34900b565922ca14b12088d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert DFS error code into an error string. <br /></td></tr>
+<tr class="separator:gab45d1919e34900b565922ca14b12088d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >DragonFS. </p>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 4 2023 15:26:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Sep 29 2023 12:10:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

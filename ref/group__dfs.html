@@ -68,7 +68,7 @@ $(function() {
 <a href="#define-members">Macros</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
-  <div class="headertitle"><div class="title">DragonFS</div></div>
+  <div class="headertitle"><div class="title">DragonFS<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__asset.html">Asset Subsystem</a></div></div></div>
 </div><!--header-->
 <div class="contents">
 
@@ -189,6 +189,10 @@ Functions</h2></td></tr>
 <tr class="memitem:ga7ca0762367965bd8a6dbbe07b7ad3022"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#ga7ca0762367965bd8a6dbbe07b7ad3022">dfs_init</a> (uint32_t base_fs_loc)</td></tr>
 <tr class="memdesc:ga7ca0762367965bd8a6dbbe07b7ad3022"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the filesystem.  <a href="group__dfs.html#ga7ca0762367965bd8a6dbbe07b7ad3022">More...</a><br /></td></tr>
 <tr class="separator:ga7ca0762367965bd8a6dbbe07b7ad3022"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab45d1919e34900b565922ca14b12088d"><td class="memItemLeft" align="right" valign="top"><a id="gab45d1919e34900b565922ca14b12088d" name="gab45d1919e34900b565922ca14b12088d"></a>
+const char *&#160;</td><td class="memItemRight" valign="bottom"><b>dfs_strerror</b> (int error)</td></tr>
+<tr class="memdesc:gab45d1919e34900b565922ca14b12088d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert DFS error code into an error string. <br /></td></tr>
+<tr class="separator:gab45d1919e34900b565922ca14b12088d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader">DragonFS Return values</h2></td></tr>
 <tr class="memitem:ga22544ba337d1670f3269157e43519c0b"><td class="memItemLeft" align="right" valign="top"><a id="ga22544ba337d1670f3269157e43519c0b" name="ga22544ba337d1670f3269157e43519c0b"></a>
@@ -207,10 +211,10 @@ Functions</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_EBADFS</b>&#160;&#160;&#160;-3</td></tr>
 <tr class="memdesc:ga536bec7130d9388a356c133a497f33c9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Bad filesystem. <br /></td></tr>
 <tr class="separator:ga536bec7130d9388a356c133a497f33c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae99e7138e20452a61e12a2cac46b9b49"><td class="memItemLeft" align="right" valign="top"><a id="gae99e7138e20452a61e12a2cac46b9b49" name="gae99e7138e20452a61e12a2cac46b9b49"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_ENOMEM</b>&#160;&#160;&#160;-4</td></tr>
-<tr class="memdesc:gae99e7138e20452a61e12a2cac46b9b49"><td class="mdescLeft">&#160;</td><td class="mdescRight">No memory for operation. <br /></td></tr>
-<tr class="separator:gae99e7138e20452a61e12a2cac46b9b49"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga46a37c8e682a4f9b9c379a86e404cb65"><td class="memItemLeft" align="right" valign="top"><a id="ga46a37c8e682a4f9b9c379a86e404cb65" name="ga46a37c8e682a4f9b9c379a86e404cb65"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_ENFILE</b>&#160;&#160;&#160;-4</td></tr>
+<tr class="memdesc:ga46a37c8e682a4f9b9c379a86e404cb65"><td class="mdescLeft">&#160;</td><td class="mdescRight">Too many open files. <br /></td></tr>
+<tr class="separator:ga46a37c8e682a4f9b9c379a86e404cb65"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga04d1fa223eec6ec3a9ae0c30b0196589"><td class="memItemLeft" align="right" valign="top"><a id="ga04d1fa223eec6ec3a9ae0c30b0196589" name="ga04d1fa223eec6ec3a9ae0c30b0196589"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>DFS_EBADHANDLE</b>&#160;&#160;&#160;-5</td></tr>
 <tr class="memdesc:ga04d1fa223eec6ec3a9ae0c30b0196589"><td class="mdescLeft">&#160;</td><td class="mdescRight">Invalid file handle. <br /></td></tr>
@@ -236,7 +240,8 @@ Functions</h2></td></tr>
 <p >The filesystem can be generated using 'mkdfs' which is included in the 'tools' directory of libdragon. Due to the read-only nature, DFS does not support empty files or empty directories. Attempting to create a filesystem with either of these using 'mkdfs' will result in an error. If a filesystem contains either empty files or empty directories, the result of manipulating the filesystem is undefined.</p>
 <p >DragonFS does not support writing, renaming or symlinking of files. It supports only file and directory types.</p>
 <p >DFS files have a maximum size of 256 MiB. Directories can have an unlimited number of files in them. Each token (separated by a / in the path) can be 243 characters maximum. Directories can be 100 levels deep at maximum. There can be 4 files open simultaneously.</p>
-<p >When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix. Files can be accessed either with standard POSIX functions and the 'rom:/' prefix or with DFS API calls and no prefix. Files can be opened using both sets of API calls simultaneously as long as no more than four files are open at any one time. </p>
+<p >When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix. Files can be accessed either with standard POSIX functions (open, fopen) using the 'rom:/' prefix or the lower-level DFS API calls without prefix. In most cases, it is not necessary to use the DFS API directly, given that the standard C functions are more comprehensive. Files can be opened using both sets of API calls simultaneously as long as no more than four files are open at any one time.</p>
+<p >DragonFS does not support file compression; if you want to compress your assets, use the asset API (<a class="el" href="asset_8h.html#abfc5939446d9920b884df034e89428a9" title="Load an asset file (possibly uncompressing it)">asset_load</a> / <a class="el" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509" title="Open an asset file for reading (with transparent decompression)">asset_fopen</a>). </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structdirectory__entry" id="structdirectory__entry"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structdirectory__entry">&#9670;&nbsp;</a></span>directory_entry</h2>
@@ -837,7 +842,7 @@ The offset within the filesystem where the file is stored. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 4 2023 15:26:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Sep 29 2023 12:10:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

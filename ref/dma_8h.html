@@ -67,6 +67,7 @@ $(function() {
 </div><!-- top -->
 <div class="header">
   <div class="summary">
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">dma.h File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__lowlevel.html">Low Level Hardware Interfaces</a> &raquo; <a class="el" href="group__dma.html">DMA Controller</a></div></div></div>
 </div><!--header-->
@@ -77,6 +78,29 @@ $(function() {
 
 <p><a href="dma_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:aa18917e3e33e3a61f7ce5632e8cc15eb"><td class="memItemLeft" align="right" valign="top"><a id="aa18917e3e33e3a61f7ce5632e8cc15eb" name="aa18917e3e33e3a61f7ce5632e8cc15eb"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>PI_DRAM_ADDR</b>&#160;&#160;&#160;((volatile uint32_t*)0xA4600000)</td></tr>
+<tr class="memdesc:aa18917e3e33e3a61f7ce5632e8cc15eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">PI DMA: DRAM address register. <br /></td></tr>
+<tr class="separator:aa18917e3e33e3a61f7ce5632e8cc15eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6cd13d43fe8799f8d51a61c8126ef2fc"><td class="memItemLeft" align="right" valign="top"><a id="a6cd13d43fe8799f8d51a61c8126ef2fc" name="a6cd13d43fe8799f8d51a61c8126ef2fc"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>PI_CART_ADDR</b>&#160;&#160;&#160;((volatile uint32_t*)0xA4600004)</td></tr>
+<tr class="memdesc:a6cd13d43fe8799f8d51a61c8126ef2fc"><td class="mdescLeft">&#160;</td><td class="mdescRight">PI DMA: cartridge address register. <br /></td></tr>
+<tr class="separator:a6cd13d43fe8799f8d51a61c8126ef2fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9b7271ee52d161475477be5f0642ce47"><td class="memItemLeft" align="right" valign="top"><a id="a9b7271ee52d161475477be5f0642ce47" name="a9b7271ee52d161475477be5f0642ce47"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>PI_RD_LEN</b>&#160;&#160;&#160;((volatile uint32_t*)0xA4600008)</td></tr>
+<tr class="memdesc:a9b7271ee52d161475477be5f0642ce47"><td class="mdescLeft">&#160;</td><td class="mdescRight">PI DMA: read length register. <br /></td></tr>
+<tr class="separator:a9b7271ee52d161475477be5f0642ce47"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a454492300a2a5a3e2ba79fbd82c04944"><td class="memItemLeft" align="right" valign="top"><a id="a454492300a2a5a3e2ba79fbd82c04944" name="a454492300a2a5a3e2ba79fbd82c04944"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>PI_WR_LEN</b>&#160;&#160;&#160;((volatile uint32_t*)0xA460000C)</td></tr>
+<tr class="memdesc:a454492300a2a5a3e2ba79fbd82c04944"><td class="mdescLeft">&#160;</td><td class="mdescRight">PI DMA: write length register. <br /></td></tr>
+<tr class="separator:a454492300a2a5a3e2ba79fbd82c04944"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8e1a75ccdd135238f74249425a242ae5"><td class="memItemLeft" align="right" valign="top"><a id="a8e1a75ccdd135238f74249425a242ae5" name="a8e1a75ccdd135238f74249425a242ae5"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>PI_STATUS</b>&#160;&#160;&#160;((volatile uint32_t*)0xA4600010)</td></tr>
+<tr class="memdesc:a8e1a75ccdd135238f74249425a242ae5"><td class="mdescLeft">&#160;</td><td class="mdescRight">PI: status register. <br /></td></tr>
+<tr class="separator:a8e1a75ccdd135238f74249425a242ae5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ga2cade71044285df66fb11e4187b8a09d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dma.html#ga2cade71044285df66fb11e4187b8a09d">dma_write_raw_async</a> (const void *ram_address, unsigned long pi_address, unsigned long len)</td></tr>
@@ -116,7 +140,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>dma_wait</b> (void)</
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 4 2023 15:26:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Sep 29 2023 12:10:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

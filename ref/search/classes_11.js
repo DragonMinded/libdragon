@@ -1,5 +1,5 @@
 var searchData=
 [
-  ['vi_5fconfig_5ft_0',['vi_config_t',['../group__display.html#structvi__config__t',1,'']]],
-  ['vi_5fregs_5ft_1',['VI_regs_t',['../group__lowlevel.html#structVI__regs__t',1,'']]]
+  ['timer_5flink_5ft_0',['timer_link_t',['../group__timer.html#structtimer__link__t',1,'']]],
+  ['timer_5flink_5ft_2e_5f_5funnamed20_5f_5f_1',['timer_link_t.__unnamed20__',['../group__timer.html#uniontimer__link__t_8____unnamed20____',1,'']]]
 ];

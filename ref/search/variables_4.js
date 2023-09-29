@@ -7,11 +7,14 @@ var searchData=
   ['data_5fend_4',['data_end',['../structrsp__ucode__t.html#aa8dab65f79da7a820769f7a6e9ba69ae',1,'rsp_ucode_t']]],
   ['data_5fsize_5',['data_size',['../rspq_8c.html#ae1297acf518013982275cf0fc9d55213',1,'rspq_overlay_t']]],
   ['day_6',['day',['../group__rtc.html#abcae6772be689db12a9a97451b9accb7',1,'rtc_time_t']]],
-  ['decoder_7',['decoder',['../ym64_8h.html#a4a4fba21853dbea6f5a99c5af07224cb',1,'ym64player_t']]],
-  ['destination_5fcode_8',['destination_code',['../tpak_8h.html#a00a88388538792b386dfadb75decbaf1',1,'gameboy_cartridge_header']]],
-  ['dmem_9',['dmem',['../rsp_8h.html#a828abbd16a038db42094df8831602934',1,'rsp_snapshot_t']]],
-  ['dom1_5flatency_10',['dom1_latency',['../group__lowlevel.html#a0879372fbf44dfa7a81c304909a1b910',1,'PI_regs_t']]],
-  ['dom1_5fpulse_5fwidth_11',['dom1_pulse_width',['../group__lowlevel.html#a31dcc75804223b3af9d5303a52abd7f1',1,'PI_regs_t']]],
-  ['dp_5fcallback_12',['DP_callback',['../group__interrupt.html#ga5d91906f92df789296192c5b4b0ba072',1,'interrupt.c']]],
-  ['dram_5faddr_13',['DRAM_addr',['../group__lowlevel.html#ab2e4d926b99faddaa5a7716f74ce5185',1,'SI_regs_t::DRAM_addr()'],['../group__lowlevel.html#a1785954c779d289d08208e30b44d0482',1,'SP_regs_t::DRAM_addr()']]]
+  ['decoder_7',['decoder',['../ym64_8h.html#a8db7f89e32ed6be0460dd7b3c338d11b',1,'ym64player_t']]],
+  ['decompress_5ffull_8',['decompress_full',['../structasset__compression__t.html#a568ba04687e1e257ef31c0ee538a30b2',1,'asset_compression_t']]],
+  ['decompress_5finit_9',['decompress_init',['../structasset__compression__t.html#a2033ca56819e45edbdb19b3b7176d7f8',1,'asset_compression_t']]],
+  ['decompress_5fread_10',['decompress_read',['../structasset__compression__t.html#a62bbd6d445526848be269e11bbcc8e20',1,'asset_compression_t']]],
+  ['destination_5fcode_11',['destination_code',['../tpak_8h.html#a00a88388538792b386dfadb75decbaf1',1,'gameboy_cartridge_header']]],
+  ['dmem_12',['dmem',['../rsp_8h.html#a828abbd16a038db42094df8831602934',1,'rsp_snapshot_t']]],
+  ['dom1_5flatency_13',['dom1_latency',['../group__lowlevel.html#a0879372fbf44dfa7a81c304909a1b910',1,'PI_regs_t']]],
+  ['dom1_5fpulse_5fwidth_14',['dom1_pulse_width',['../group__lowlevel.html#a31dcc75804223b3af9d5303a52abd7f1',1,'PI_regs_t']]],
+  ['dp_5fcallback_15',['DP_callback',['../group__interrupt.html#ga5d91906f92df789296192c5b4b0ba072',1,'interrupt.c']]],
+  ['dram_5faddr_16',['DRAM_addr',['../group__lowlevel.html#ab2e4d926b99faddaa5a7716f74ce5185',1,'SI_regs_t::DRAM_addr()'],['../group__lowlevel.html#a1785954c779d289d08208e30b44d0482',1,'SP_regs_t::DRAM_addr()']]]
 ];

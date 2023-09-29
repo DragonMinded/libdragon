@@ -7,7 +7,7 @@ var searchData=
   ['vaccum_4',['vaccum',['../rsp_8h.html#a0a922c0b0bd1e4a58a389d53125d5bd3',1,'rsp_snapshot_t']]],
   ['valid_5',['valid',['../group__mempak.html#ac6f84c97a7f4614d2a89463baa8874be',1,'entry_structure_t']]],
   ['vendor_6',['vendor',['../group__mempak.html#a4e65c83bc81eb966642da54ae8c885f5',1,'entry_structure_t']]],
-  ['version_7',['version',['../backtrace_8c.html#a49df133ec55445f03fd42411feafd66c',1,'symtable_header_t::version()'],['../group__lowlevel.html#afd8c6c5c941763964cdb3db04d731923',1,'MI_regs_t::version()'],['../structwav64__header__t.html#a41f089df9c3a1121a13adeecca288596',1,'wav64_header_t::version()']]],
+  ['version_7',['version',['../structasset__header__t.html#a27a6d9b3639eee4a44c290b23e90ae95',1,'asset_header_t::version()'],['../backtrace_8c.html#a49df133ec55445f03fd42411feafd66c',1,'symtable_header_t::version()'],['../group__lowlevel.html#afd8c6c5c941763964cdb3db04d731923',1,'MI_regs_t::version()'],['../structwav64__header__t.html#a41f089df9c3a1121a13adeecca288596',1,'wav64_header_t::version()']]],
   ['version_5fnumber_8',['version_number',['../tpak_8h.html#ab742ef846978b3ffe4a313374479c0b8',1,'gameboy_cartridge_header']]],
   ['vi_5fcallback_9',['VI_callback',['../group__interrupt.html#gae53298ee0d7e09b763c88bce13f41d58',1,'interrupt.c']]],
   ['vol_10',['vol',['../structAYEnvelope.html#abc79941d9d5d3d5c9f22f0b4d97cdffa',1,'AYEnvelope']]],

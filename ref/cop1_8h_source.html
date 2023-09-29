@@ -85,31 +85,33 @@ $(function() {
 <div class="line"><a id="l00026" name="l00026"></a><span class="lineno"><a class="line" href="group__n64sys.html#gac7db1d00d5950c69cdcc1927eaa19147">   26</a></span><span class="preprocessor">#define C1_ENABLE_OVERFLOW          0x00000200         </span></div>
 <div class="line"><a id="l00027" name="l00027"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga7a9b250dbec3cbd3f2143e9757a65467">   27</a></span><span class="preprocessor">#define C1_ENABLE_DIV_BY_0          0x00000400         </span></div>
 <div class="line"><a id="l00028" name="l00028"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga6ff39bd710730a8b87f1ac2b552cbcb0">   28</a></span><span class="preprocessor">#define C1_ENABLE_INVALID_OP        0x00000800         </span></div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span> </div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga238f18753e527278da527b5f9c27d366">   30</a></span><span class="preprocessor">#define C1_CAUSE_INEXACT_OP         0x00001000         </span></div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga343536da77d54ddef60310c1221ea017">   31</a></span><span class="preprocessor">#define C1_CAUSE_UNDERFLOW          0x00002000         </span></div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno"><a class="line" href="group__n64sys.html#gae4faa6db2dcd5a29fe4a2076973bf851">   32</a></span><span class="preprocessor">#define C1_CAUSE_OVERFLOW           0x00004000         </span></div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno"><a class="line" href="group__n64sys.html#gafb393a21a2e6a53afe9e719b91b445af">   33</a></span><span class="preprocessor">#define C1_CAUSE_DIV_BY_0           0x00008000         </span></div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga1ce81d8eb4eb52edd14b0d0a72af590b">   34</a></span><span class="preprocessor">#define C1_CAUSE_INVALID_OP         0x00010000         </span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga38cb6567427a29005e6e26ffad360b99">   35</a></span><span class="preprocessor">#define C1_CAUSE_NOT_IMPLEMENTED    0x00020000         </span></div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga920f17acde0b8103c5f3b1be01d4e58a">   37</a></span><span class="preprocessor">#define C1_FCR31_FS                 (1&lt;&lt;24)            </span></div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga330f336617630139290b8655da136bfc">   29</a></span><span class="preprocessor">#define C1_ENABLE_MASK              0x00000F80         </span></div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span> </div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga238f18753e527278da527b5f9c27d366">   31</a></span><span class="preprocessor">#define C1_CAUSE_INEXACT_OP         0x00001000         </span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga343536da77d54ddef60310c1221ea017">   32</a></span><span class="preprocessor">#define C1_CAUSE_UNDERFLOW          0x00002000         </span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno"><a class="line" href="group__n64sys.html#gae4faa6db2dcd5a29fe4a2076973bf851">   33</a></span><span class="preprocessor">#define C1_CAUSE_OVERFLOW           0x00004000         </span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno"><a class="line" href="group__n64sys.html#gafb393a21a2e6a53afe9e719b91b445af">   34</a></span><span class="preprocessor">#define C1_CAUSE_DIV_BY_0           0x00008000         </span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga1ce81d8eb4eb52edd14b0d0a72af590b">   35</a></span><span class="preprocessor">#define C1_CAUSE_INVALID_OP         0x00010000         </span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga38cb6567427a29005e6e26ffad360b99">   36</a></span><span class="preprocessor">#define C1_CAUSE_NOT_IMPLEMENTED    0x00020000         </span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga27897cffaf436801297fa3e7b1e36f43">   37</a></span><span class="preprocessor">#define C1_CAUSE_MASK               0x0003F000         </span></div>
 <div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga758229d53dff85ac6a47956d61e96d4d">   44</a></span><span class="preprocessor">#define C1_FCR31() ({ \</span></div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="preprocessor">    uint32_t x; \</span></div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="preprocessor">    asm volatile(&quot;cfc1 %0,$f31&quot;</span>:&quot;=r&quot;(x)); \</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span>    x; \</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span>})</div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span> </div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno"><a class="line" href="group__n64sys.html#gab48e93eec5c113af76e9592b5a3042f1">   51</a></span><span class="preprocessor">#define C1_WRITE_FCR31(x) ({ \</span></div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="preprocessor">    asm volatile(&quot;ctc1 %0,$f31&quot;</span>::&quot;r&quot;(x)); \</div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span>})</div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span> </div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga920f17acde0b8103c5f3b1be01d4e58a">   39</a></span><span class="preprocessor">#define C1_FCR31_FS                 (1&lt;&lt;24)            </span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span> </div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga758229d53dff85ac6a47956d61e96d4d">   46</a></span><span class="preprocessor">#define C1_FCR31() ({ \</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="preprocessor">    uint32_t x; \</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="preprocessor">    asm volatile(&quot;cfc1 %0,$f31&quot;</span>:&quot;=r&quot;(x)); \</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span>    x; \</div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span>})</div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span> </div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno"><a class="line" href="group__n64sys.html#gab48e93eec5c113af76e9592b5a3042f1">   53</a></span><span class="preprocessor">#define C1_WRITE_FCR31(x) ({ \</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="preprocessor">    asm volatile(&quot;ctc1 %0,$f31&quot;</span>::&quot;r&quot;(x)); \</div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span>})</div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span> </div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="preprocessor">#endif</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 4 2023 15:26:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Sep 29 2023 12:10:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
