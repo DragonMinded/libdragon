@@ -4,14 +4,16 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MODEL64_ANIM_SLOT_0 0
-#define MODEL64_ANIM_SLOT_1 1
-#define MODEL64_ANIM_SLOT_2 2
-#define MODEL64_ANIM_SLOT_3 3
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef enum {
+    MODEL64_ANIM_SLOT_0 = 0,
+    MODEL64_ANIM_SLOT_1 = 1,
+    MODEL64_ANIM_SLOT_2 = 2,
+    MODEL64_ANIM_SLOT_3 = 3
+} model64_anim_slot_t;
 
 struct model64_s;
 typedef struct model64_s model64_t;
@@ -124,14 +126,14 @@ void model64_draw_node(model64_t *model, model64_node_t *node);
  */
 void model64_draw_primitive(primitive_t *primitive);
 
-void model64_anim_play(model64_t *model, const char *anim, int slot, bool paused, float start_time);
-void model64_anim_stop(model64_t *model, int slot);
+void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t slot, bool paused, float start_time);
+void model64_anim_stop(model64_t *model, model64_anim_slot_t slot);
 float model64_anim_get_length(model64_t *model, const char *anim);
-float model64_anim_get_time(model64_t *model, int slot);
-float model64_anim_set_time(model64_t *model, int slot, float time);
-float model64_anim_set_speed(model64_t *model, int slot, float speed);
-bool model64_anim_set_loop(model64_t *model, int slot, bool loop);
-bool model64_anim_set_pause(model64_t *model, int slot, bool paused);
+float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot);
+float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float time);
+float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed);
+bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop);
+bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool paused);
 void model64_update(model64_t *model, float dt);
 #ifdef __cplusplus
 }

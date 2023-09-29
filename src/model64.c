@@ -538,12 +538,12 @@ static int32_t search_anim_index(model64_t *model, const char *name)
     return -1;
 }
 
-static bool is_animid_valid(int id)
+static bool is_anim_slot_valid(model64_anim_slot_t slot)
 {
-    return (id >= 0) && (id < MAX_ACTIVE_ANIMS);
+    return (slot >= 0) && (slot < MAX_ACTIVE_ANIMS);
 }
 
-void model64_anim_play(model64_t *model, const char *anim, int slot, bool paused, float start_time)
+void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t slot, bool paused, float start_time)
 {
     int32_t anim_index = search_anim_index(model, anim);
     assertf(anim_index != -1, "Invalid animation name");
@@ -559,9 +559,9 @@ void model64_anim_play(model64_t *model, const char *anim, int slot, bool paused
     model->active_anims[slot].speed = 1.0f;
 }
 
-void model64_anim_stop(model64_t *model, int slot)
+void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
 {
-    assertf(is_animid_valid(slot), "Invalid animation ID");
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
     model->active_anims[slot].index = -1;
 }
 
@@ -572,39 +572,39 @@ float model64_anim_get_length(model64_t *model, const char *anim)
     return (float)model->data->anims[anim_index].duration;
 }
 
-float model64_anim_get_time(model64_t *model, int slot)
+float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
 {
-    assertf(is_animid_valid(slot), "Invalid animation ID");
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
     return model->active_anims[slot].time;
 }
 
-float model64_anim_set_time(model64_t *model, int slot, float time)
+float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float time)
 {
-    assertf(is_animid_valid(slot), "Invalid animation ID");
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
     float old_time = model->active_anims[slot].time;
     model->active_anims[slot].time = time;
     return old_time;
 }
 
-float model64_anim_set_speed(model64_t *model, int slot, float speed)
+float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed)
 {
-    assertf(is_animid_valid(slot), "Invalid animation ID");
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
     float old_speed = model->active_anims[slot].speed; 
     model->active_anims[slot].speed = speed;
     return old_speed;
 }
 
-bool model64_anim_set_loop(model64_t *model, int slot, bool loop)
+bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop)
 {
-    assertf(is_animid_valid(slot), "Invalid animation ID");
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
     bool old_loop = model->active_anims[slot].loop; 
     model->active_anims[slot].loop = loop;
     return old_loop;
 }
 
-bool model64_anim_set_pause(model64_t *model, int slot, bool paused)
+bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool paused)
 {
-    assertf(is_animid_valid(slot), "Invalid animation ID");
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
     bool old_pause = model->active_anims[slot].paused;
     model->active_anims[slot].paused = paused;
     return old_pause;
