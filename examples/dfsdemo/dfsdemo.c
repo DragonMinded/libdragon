@@ -1,17 +1,12 @@
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
 #include <libdragon.h>
-#include <mikmod.h>
 
 #define MAX_LIST            20
-
-// Hint linker on it is OK to put these on .data section
-// This is ugly, there must be a better way?
-MIKMODAPI extern UWORD md_mode __attribute__((section (".data")));
-MIKMODAPI extern UWORD md_mixfreq __attribute__((section (".data")));
 
 typedef struct
 {
@@ -216,24 +211,11 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
 
 int main(void)
 {
-    /* Initialize audio and video */
-    audio_init(44100,2);
+    /* Initialize video */
     console_init();
 
     /* Initialize key detection */
     controller_init();
-
-    MikMod_RegisterAllDrivers();
-    MikMod_RegisterAllLoaders();
-
-    md_mode |= DMODE_16BITS;
-    md_mode |= DMODE_SOFT_MUSIC;
-    md_mode |= DMODE_SOFT_SNDFX;
-    //md_mode |= DMODE_STEREO;
-                                            
-    md_mixfreq = audio_get_frequency();
-
-    MikMod_Init("");
 
     if(dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS)
     {
@@ -274,80 +256,58 @@ int main(void)
 
             if(keys.c[0].C_right && list[cursor].type == DT_REG)
             {
-                /* Module playing loop */
-                MODULE *module = NULL;
-
                 /* Concatenate to make file */
                 char path[512];
 
                 strcpy( path, dir );
                 strcat( path, list[cursor].filename );
 
-                module = Player_Load(path, 256, 0);
-                
-                /* Ensure that first part of module doesn't get cut off */
-                audio_write_silence();
-                audio_write_silence();
+                FILE* f;
+                f = fopen(path, "r");
+                if (f == NULL) {
+                    printf("Failed to open %s\n", path);
+                } else {
+                    printf("Hold A to scroll\n");
+                    char buf[1024];
+                    size_t nread;
+                    while ((nread = fread(buf, sizeof(buf[0]), sizeof(buf) - 1, f)) != 0) {
+                        buf[nread] = '\0';
+                        char* s = buf;
+                        while (s != NULL) {
+                            char* s_next_line = strchr(s, '\n');
+                            if (s_next_line == NULL) {
+                                printf("%s", s);
+                                s = NULL;
+                            } else {
+                                printf("%.*s\n", s_next_line - s, s);
+                                console_render();
+                                s = s_next_line + 1;
 
-                if(module)
-                {
-                    char c = '-';
-                    int sw = 0;
-
-                    Player_Start(module);
-
-                    while(1)
-                    {
-                        if(sw == 5)
-                        {
-                            console_clear();
-                            display_dir(list, cursor, page, MAX_LIST, count);
-
-                            sw = 0;
-                            switch(c)
-                            {
-                                case '-':
-                                    c = '\\';
-                                    break;
-                                case '\\':
-                                    c = '|';
-                                    break;
-                                case '|':
-                                    c = '/';
-                                    break;
-                                case '/':
-                                    c = '-';
-                                    break;
+                                wait_ms(100);
+                                controller_scan();
+                                while (!get_keys_pressed().c[0].A) {
+                                    wait_ms(10);
+                                    controller_scan();
+                                }
                             }
-    
-                            printf("\n\n\n%c Playing module", c);                        
-                            console_render();
-                        }
-                        else
-                        {
-                            sw++;
-                        }
-
-                        MikMod_Update();
-
-                        controller_scan();
-                        struct controller_data keys = get_keys_down();
-
-                        if(keys.c[0].C_left || !Player_Active())
-                        {
-                            /* End playback */
-                            audio_write_silence();
-                            audio_write_silence();
-                            audio_write_silence();
-                            audio_write_silence();
-
-                            break;
                         }
                     }
-                
-                    Player_Stop();
-                    Player_Free(module);
+                    if (ferror(f)) {
+                        printf("Error while reading %s\n", path);
+                    }
+
+                    fclose(f);
                 }
+
+                printf("Press B to quit\n");
+                console_render();
+                controller_scan();
+                while (!get_keys_down().c[0].B) {
+                    wait_ms(10);
+                    controller_scan();
+                }
+
+                continue;
             }
 
             if(keys.c[0].L)

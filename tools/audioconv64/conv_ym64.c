@@ -154,7 +154,7 @@ int ym_convert(const char *infn, const char *outfn) {
 
         // Initialize LHA decompression, and read back the now uncompressed header.
         // Decompression is performed via a minimal version of
-        // https://github.com/fragglet/lhasa, stored in lz5h.h.
+        // https://github.com/fragglet/lhasa, stored in lzh5.h.
         fseek(ym_f, head[0]+2, SEEK_SET);
         ym_compressed = true;
         decompress_lzh5_init(ym_decoder, ym_f);
