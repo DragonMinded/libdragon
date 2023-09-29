@@ -84,6 +84,10 @@ static void __display_callback()
     uint32_t vi_h_video = *VI_H_VIDEO;
     int h_end = vi_h_video & 0xFFFF;
     int h_start = vi_h_video >> 16;
+    /*  For a perfect VI output we need to shift where the framebuffer starts VI_HIDDEN_DOTS_LEFT dots.
+        This is due to VI starting late when sampling the framebuffer.
+        This is partially done in the vi_write_display, but for the coarse precision we need to offset the 
+        VI_ORIGIN address in multiples of 4 pixels. */
     vi_resparms_t resparms = vi_calc_resparms(__width, h_start, h_end);
     vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - resparms.vi_origin_offset * __bitdepth);
 }
@@ -205,7 +209,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __borders = borders;
 
     vi_write(VI_WIDTH, res.width);
-    vi_write_display(res.width, res.height, serrate, res.aspect_ratio, borders);
+    vi_write_display(res.width, res.height, serrate, res.aspect_ratio / RES_FULLSCREEN, borders);
 
     /* Disabling resampling (AA_MODE = 0x3) on 16bpp hits a hardware bug on NTSC 
        consoles when the X_SCALE is 0x200 or lower (see issue #66).

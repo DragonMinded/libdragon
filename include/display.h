@@ -97,7 +97,9 @@ typedef struct {
     int32_t height;
     /** @brief Interlace mode */
     interlace_mode_t interlaced;
-    /** @brief Letterbox screen aspect ratio (black borders) */
+    /** @brief Letterbox (black borders) screen aspect ratio
+     * For example, use #RES_WIDESCREEN when you want your screen 
+     * to be displayed in 16:9 on a fullscreen monitor. */
     float   aspect_ratio;
     /** @brief Additional borders to prevent overscan on CRT TV's.
      * This will help display the whole screen when viewed on a CRT.

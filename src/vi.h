@@ -38,8 +38,8 @@ typedef struct vi_config_s{
 /**
  * @brief Video Interface borders structure
  *
- * This structure contains how thick should the borders around a framebuffer be in pixels.
- * The pixels assume VI scale (640x480 NTSC or 640x576 PAL).
+ * This structure contains how thick should the borders around a framebuffer be in dots.
+ * The dots assume VI scale (640x480 NTSC or 640x576 PAL).
  * They can be of different sizes and the framebuffer will be scaled to fit under them
  * For example when shown on CRT monitors, one can add borders around a framebuffer so
  * that the whole image could be seen on the monitor. 
@@ -106,33 +106,33 @@ typedef struct vi_borders_s{
 static const vi_config_t vi_ntsc_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006402f6, 0x00230205, 0x000e0204,
+    0x0c150c15, 0x006402f6, 0x00230203, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_p =  {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x0078030A, 0x002D026F, 0x0009026b,
+    0x0c6f0c6e, 0x0078030A, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006402f6, 0x00230205, 0x000e0204,
+    0x0c190c1a, 0x006402f6, 0x00230203, 0x000e0204,
     0x00000000, 0x00000000 }};
 
 static const vi_config_t vi_ntsc_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006402f6, 0x00220204, 0x000e0204,
+    0x0c150c15, 0x006402f6, 0x00220202, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x0078030A, 0x002D026F, 0x0009026b,
+    0x0c6f0c6e, 0x0078030A, 0x002D026D, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006402f6, 0x00220204, 0x000b0202,
+    0x0c1c0c1c, 0x006402f6, 0x00220202, 0x000b0202,
     0x00000000, 0x00000000 }};
 
 /** @} */
@@ -276,6 +276,13 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value){
 
 #define VI_ORIGIN_ALIGN         4       ///< VI_ORIGIN must be aligned to 4 pixels
 
+/**
+ * @brief Video Interface scaling and positioning of the output sampling
+ *
+ * Whenever trying to configure VI registers and calculating precise 
+ * transformations, this struct can be very useful in writing comprehensive 
+ * and verbose code.
+ */
 typedef struct {
     int fb_width;               ///< Width of the framebuffer (pixels)
     int h_start;                ///< Start of the active video image (dots)
@@ -286,17 +293,16 @@ typedef struct {
 } vi_resparms_t;
 
 /**
- * @brief Return the amount of pixels an output framebuffer 
- * needs to be offset to the right due to inherit VI offset bug.
+ * @brief Return the transformation configuration an output framebuffer 
+ * needs to use for a perfect output and midigate a inherit VI offset bug.
  *
- * @param[in] width
- *            Width of the framebuffer
- * @param[in] bordersize
- *            Size of VI borders in dots around the framebuffer
- * @param[in] coarse
- *            Pixel offset output with "coarse" precision rounded up to nearest 4 pixels
- * @param[in] precise
- *            Pixel precise offset within 4 pixels range
+ * @param[in] fb_width
+ *            Width of the framebuffer in pixels
+ * @param[in] h_start
+ *            Where the VI starts to sample the framebuffer in dots
+ * @param[in] h_end
+ *            Where the VI stops to sample the framebuffer in dots
+ * @return    The transformation configuration needed for the precise output
  */
 inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end) {
     const int FX10 = 1<<10;
@@ -374,17 +380,17 @@ inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end) {
  * @brief Write a set of video registers to the VI 
  * to configure display position, scale and bordering.
  *
- * @param[in] width
- *            Width of the framebuffer to display
- * @param[in] height
- *            Height of the framebuffer to display
+ * @param[in] fb_width
+ *            Width of the framebuffer to display in pixels
+ * @param[in] fb_height
+ *            Height of the framebuffer to display in pixels
  * @param[in] serrate
  *            Is serrate interlacing enabled for this display
  * @param[in] aspect
- *            Letterbox aspect ratio of the framebuffer within the borders
+ *            Pixel aspect ratio of the framebuffer within the borders
  *            (<=0 if this calculation needs to be skipped, stretching the framebuffer)
  * @param[in] borders
- *            Minimum border size around the framebuffer
+ *            Minimum border size in dots around the framebuffer
  */
 static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool serrate, float aspect, vi_borders_t borders){
     uint32_t tv_type = get_tv_type();
