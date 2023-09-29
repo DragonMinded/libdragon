@@ -75,6 +75,9 @@
 extern "C" {
 #endif
 
+/// @private
+extern void __asset_init_compression_lvl2(void);
+
 /**
  * @brief Enable a non-default compression level
  * 
@@ -100,10 +103,7 @@ extern "C" {
 #define asset_init_compression(level) ({ \
     switch (level) { \
     case 1: break; \
-    case 2: { \
-        extern void __asset_init_compression_lvl2(void); \
-        __asset_init_compression_lvl2(); \
-    } break; \
+    case 2: __asset_init_compression_lvl2(); break; \
     default: assertf(0, "Unsupported compression level: %d", level); \
     } \
 })
