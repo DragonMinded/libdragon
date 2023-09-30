@@ -89,7 +89,7 @@ void print_args( char * name )
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -o/--output <dir>       Specify output directory (default: .)\n");
-    fprintf(stderr, "   --anim-no-stream        Output animation data for not streaming.\n");
+    fprintf(stderr, "   --anim-no-stream        Disable animation streaming\n");
     fprintf(stderr, "   --anim-fps <value>      Frame rate of the animation (default: 30.0)\n");
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
     fprintf(stderr, "\n");

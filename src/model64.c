@@ -11,6 +11,13 @@
 #include "asset.h"
 #include "debug.h"
 
+/** @brief State of an active animation */
+typedef struct anim_buf_info_s {
+    void *curr_buf;     ///< Data buffer for current frame
+    void *next_buf;     ///< Data buffer for next frame
+    float time;         ///< Interpolation factor between current and next frame
+} anim_buf_info_t;
+
 #define PTR_DECODE(model, ptr)    ((void*)(((uint8_t*)(model)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(model, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(model)))
 
@@ -314,8 +321,8 @@ void model64_free(model64_t *model)
 {
     for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
         if(model->active_anims[i].stream_buf[0]) {
-            free_uncached(model->active_anims[i].stream_buf[0]);
-            free_uncached(model->active_anims[i].stream_buf[1]);
+            free(model->active_anims[i].stream_buf[0]);
+            free(model->active_anims[i].stream_buf[1]);
         }
     }
     model64_free_data(model->data);
@@ -546,10 +553,10 @@ static bool is_anim_slot_valid(model64_anim_slot_t slot)
 void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t slot, bool paused, float start_time)
 {
     int32_t anim_index = search_anim_index(model, anim);
-    assertf(anim_index != -1, "Invalid animation name");
+    assertf(anim_index != -1, "Animation %s was not found\n", anim);
     if(model->data->stream_buf_size != 0 && !model->active_anims[slot].stream_buf[0]) {
-        model->active_anims[slot].stream_buf[0] = malloc_uncached(model->data->stream_buf_size);
-        model->active_anims[slot].stream_buf[1] = malloc_uncached(model->data->stream_buf_size);
+        model->active_anims[slot].stream_buf[0] = malloc(model->data->stream_buf_size);
+        model->active_anims[slot].stream_buf[1] = malloc(model->data->stream_buf_size);
     }
     model->active_anims[slot].index = anim_index;
     model->active_anims[slot].paused = paused;
@@ -568,7 +575,7 @@ void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
 float model64_anim_get_length(model64_t *model, const char *anim)
 {
     int32_t anim_index = search_anim_index(model, anim);
-    assertf(anim_index != -1, "Invalid animation name");
+    assertf(anim_index != -1, "Animation %s was not found\n", anim);
     return (float)model->data->anims[anim_index].duration;
 }
 
@@ -632,8 +639,10 @@ static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info, int
     if(model->data->stream_buf_size > 0) {
         uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
         rom_addr += (uint32_t)curr_anim->data;
+        data_cache_hit_writeback_invalidate(anim_slot_ptr->stream_buf[0], frame_size);
         dma_read(anim_slot_ptr->stream_buf[0], rom_addr+(curr_data_idx*frame_size), frame_size);
         buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
+        data_cache_hit_writeback_invalidate(anim_slot_ptr->stream_buf[1], frame_size);
         dma_read(anim_slot_ptr->stream_buf[1], rom_addr+(next_data_idx*frame_size), frame_size);
         buf_info->next_buf = anim_slot_ptr->stream_buf[1];
     } else {

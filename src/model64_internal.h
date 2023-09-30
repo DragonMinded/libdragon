@@ -141,11 +141,4 @@ typedef struct model64_s {
     anim_state_t active_anims[MAX_ACTIVE_ANIMS];    ///< List of active animations
 } model64_t;
 
-/** @brief State of an active animation */
-typedef struct anim_buf_info_s {
-    void *curr_buf;     ///< Data buffer for current frame
-    void *next_buf;     ///< Data buffer for next frame
-    float time;         ///< Interpolation factor between current and next frame
-} anim_buf_info_t;
-
 #endif
