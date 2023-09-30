@@ -200,14 +200,14 @@ static model64_t *make_model_instance(model64_data_t *model_data)
     return instance;
 }
 
-model64_data_t *model64_load_data_buf(void *buf, int sz)
+static model64_data_t *load_model64_data_buf(void *buf, int sz)
 {
     model64_data_t *data = load_model_data_buf(buf, sz);
     assertf(data->stream_buf_size == 0, "Streaming animations not supported when loading model from buffer");
     return data;
 }
 
-model64_data_t *model64_load_data(const char *fn)
+static model64_data_t *load_model64_data(const char *fn)
 {
     int sz;
     void *buf = asset_load(fn, &sz);
@@ -223,25 +223,23 @@ model64_data_t *model64_load_data(const char *fn)
 
 model64_t *model64_load_buf(void *buf, int sz)
 {
-    model64_data_t *data = model64_load_data_buf(buf, sz);
-    return model64_create(data);
-}
-
-model64_t *model64_load(const char *fn)
-{
-    model64_data_t *data = model64_load_data(fn);
-    return model64_create(data);
-}
-
-model64_t *model64_create(model64_data_t *data)
-{
+    model64_data_t *data = load_model64_data_buf(buf, sz);
     data->ref_count++;
     return make_model_instance(data);
 }
 
+model64_t *model64_load(const char *fn)
+{
+    model64_data_t *data = load_model64_data(fn);
+    data->ref_count++;
+    return make_model_instance(data);
+}
+
+
 model64_t *model64_clone(model64_t *model)
 {
-    return model64_create(model->data);
+    model->data->ref_count++;
+    return make_model_instance(model->data);
 }
 
 static void unload_model_data(model64_data_t *model)
@@ -306,7 +304,7 @@ static void unload_model_data(model64_data_t *model)
     }
 }
 
-void model64_free_data(model64_data_t *data)
+static void free_model64_data(model64_data_t *data)
 {
     if(--data->ref_count == 0)
     {
@@ -321,7 +319,7 @@ void model64_free(model64_t *model)
             free(model->active_anims[i]);
         }
     }
-    model64_free_data(model->data);
+    free_model64_data(model->data);
     free(model);
 }
 
