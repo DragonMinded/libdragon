@@ -132,13 +132,14 @@ typedef struct anim_state_s {
     bool paused;            ///< Whether this animation is active
     float speed;            ///< The speed of an animation
     void *stream_buf[2];    ///< Buffers for streaming animation
+    void *stream_buf_base;  ///< Base of streaming buffer
 } anim_state_t;
 
 /** @brief A model64 instance */
 typedef struct model64_s {
     model64_data_t *data;                           ///< Pointer to the model data this instance refers to
     node_transform_state_t *transforms;             ///< List of transforms for each bone in a model instance
-    anim_state_t active_anims[MAX_ACTIVE_ANIMS];    ///< List of active animations
+    anim_state_t *active_anims[MAX_ACTIVE_ANIMS];   ///< List of active animations
 } model64_t;
 
 #endif
