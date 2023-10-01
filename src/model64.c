@@ -541,9 +541,6 @@ static int32_t search_anim_index(model64_t *model, const char *name)
 
 static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
 {
-    if(model->active_anims[slot]) {
-        return;
-    }
     uint32_t state_size = ROUND_UP(sizeof(anim_state_t), 16);
     uint32_t stream_buf_size = ROUND_UP(model->data->stream_buf_size, 16);
     anim_state_t *anim_state = memalign(16, state_size+(2*stream_buf_size));
@@ -567,7 +564,9 @@ void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t s
 {
     int32_t anim_index = search_anim_index(model, anim);
     assertf(anim_index != -1, "Animation %s was not found\n", anim);
-    alloc_anim_slot(model, slot);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
     model->active_anims[slot]->index = anim_index;
     model->active_anims[slot]->paused = paused;
     model->active_anims[slot]->time = start_time;
@@ -581,7 +580,9 @@ void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t s
 void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
-    alloc_anim_slot(model, slot);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
     model->active_anims[slot]->index = -1;
 }
 
@@ -595,14 +596,18 @@ float model64_anim_get_length(model64_t *model, const char *anim)
 float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
-    alloc_anim_slot(model, slot);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
     return model->active_anims[slot]->time;
 }
 
 float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float time)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
-    alloc_anim_slot(model, slot);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
     float old_time = model->active_anims[slot]->time;
     model->active_anims[slot]->time = time;
     return old_time;
@@ -611,7 +616,9 @@ float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float ti
 float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
-    alloc_anim_slot(model, slot);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
     float old_speed = model->active_anims[slot]->speed; 
     model->active_anims[slot]->speed = speed;
     return old_speed;
@@ -620,7 +627,9 @@ float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float s
 bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
-    alloc_anim_slot(model, slot);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
     bool old_loop = model->active_anims[slot]->loop; 
     model->active_anims[slot]->loop = loop;
     return old_loop;
@@ -629,7 +638,9 @@ bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop
 bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool paused)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
-    alloc_anim_slot(model, slot);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
     bool old_pause = model->active_anims[slot]->paused;
     model->active_anims[slot]->paused = paused;
     return old_pause;
