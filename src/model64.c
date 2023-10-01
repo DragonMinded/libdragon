@@ -548,9 +548,9 @@ static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
     uint32_t stream_buf_size = ROUND_UP(model->data->stream_buf_size, 16);
     anim_state_t *anim_state = memalign(16, state_size+(2*stream_buf_size));
     memset(anim_state, 0, state_size+(2*stream_buf_size));
-    anim_state->stream_buf_base = PTR_DECODE(anim_state, state_size);
-    anim_state->stream_buf[0] = anim_state->stream_buf_base;
-    anim_state->stream_buf[1] = PTR_DECODE(anim_state->stream_buf[0], stream_buf_size);
+    void *stream_buf = PTR_DECODE(anim_state, state_size);
+    anim_state->stream_buf[0] = stream_buf;
+    anim_state->stream_buf[1] = PTR_DECODE(stream_buf, stream_buf_size);
     anim_state->index = -1;
     anim_state->paused = true;
     anim_state->speed = 1.0f;
@@ -573,6 +573,8 @@ void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t s
     model->active_anims[slot]->time = start_time;
     model->active_anims[slot]->loop = false;
     model->active_anims[slot]->new_pose = true;
+    model->active_anims[slot]->swap_stream_buf = false;
+    model->active_anims[slot]->prev_frame = 0;
     model->active_anims[slot]->speed = 1.0f;
 }
 
@@ -653,19 +655,49 @@ static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info, int
         buf_info->time = (anim_slot_ptr->time-((float)curr_frame/curr_anim->frame_rate))*curr_anim->frame_rate;
     }
     if(model->data->stream_buf_size > 0) {
+        uint32_t prev_frame = anim_slot_ptr->prev_frame;
         uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
         rom_addr += (uint32_t)curr_anim->data;
-        data_cache_hit_writeback_invalidate(anim_slot_ptr->stream_buf[0], frame_size);
-        dma_read(anim_slot_ptr->stream_buf[0], rom_addr+(curr_frame*frame_size), frame_size);
-        buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
-        data_cache_hit_writeback_invalidate(anim_slot_ptr->stream_buf[1], frame_size);
-        dma_read(anim_slot_ptr->stream_buf[1], rom_addr+(next_frame*frame_size), frame_size);
-        buf_info->next_buf = anim_slot_ptr->stream_buf[1];
+        bool read_curr, read_next;
+        if(!anim_slot_ptr->new_pose && ((curr_frame == prev_frame+1) || (curr_frame == prev_frame-1) || (curr_frame == prev_frame))) {
+            bool new_frame = curr_frame != prev_frame;
+            bool play_backwards = anim_slot_ptr->speed < 0;
+            bool swap_stream_buf = anim_slot_ptr->swap_stream_buf;
+            bool swapped_buf = (swap_stream_buf ^ play_backwards) ^ new_frame;
+
+            read_curr = new_frame && play_backwards;
+            read_next = new_frame && !play_backwards;
+            if(!swapped_buf) {
+                buf_info->curr_buf = anim_slot_ptr->stream_buf[1];
+                buf_info->next_buf = anim_slot_ptr->stream_buf[0];
+            } else {
+                buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
+                buf_info->next_buf = anim_slot_ptr->stream_buf[1];
+            }
+            if(new_frame) {
+                anim_slot_ptr->swap_stream_buf = !swap_stream_buf;
+            }
+        } else {
+            read_curr = read_next = true;
+            buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
+            buf_info->next_buf = anim_slot_ptr->stream_buf[1];
+            anim_slot_ptr->swap_stream_buf = false;
+            
+        }
+        if(read_curr) {
+            data_cache_hit_writeback_invalidate(buf_info->curr_buf, frame_size);
+            dma_read(buf_info->curr_buf, rom_addr+(curr_frame*frame_size), frame_size);
+        }
+        if(read_next) {
+            data_cache_hit_writeback_invalidate(buf_info->next_buf, frame_size);
+            dma_read(buf_info->next_buf, rom_addr+(next_frame*frame_size), frame_size);
+        }
     } else {
         uint8_t *buf_base = curr_anim->data;
         buf_info->curr_buf = &buf_base[curr_frame*frame_size];
         buf_info->next_buf = &buf_base[next_frame*frame_size];
     }
+    anim_slot_ptr->prev_frame = curr_frame;
 }
 
 static void vec_lerp(float *out, float *in1, float *in2, size_t count, float time)
@@ -728,7 +760,7 @@ static void calc_anim_pose(model64_t *model, int anim_slot)
         curr_buf += data_size;
         next_buf += data_size;
     }
-    update_node_matrices(model);
+    model->active_anims[anim_slot]->new_pose = false;
 }
 
 void model64_update(model64_t *model, float dt)
@@ -741,7 +773,6 @@ void model64_update(model64_t *model, float dt)
             if(model->active_anims[i]->index != -1 && model->active_anims[i]->new_pose) {
                 calc_anim_pose(model, i);
             }
-            model->active_anims[i]->new_pose = false;
             continue;
         }
         model->active_anims[i]->time += model->active_anims[i]->speed*dt;
@@ -752,7 +783,7 @@ void model64_update(model64_t *model, float dt)
                 model->active_anims[i]->time += curr_anim->duration;
             }
         }
-        model->active_anims[i]->new_pose = false;
         calc_anim_pose(model, i);
     }
+    update_node_matrices(model);
 }

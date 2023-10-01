@@ -127,12 +127,13 @@ typedef struct model64_data_s {
 typedef struct anim_state_s {
     int32_t index;          ///< Index of animation playing
     float time;             ///< Current time of animation
+    bool swap_stream_buf;   ///< Swap Stream Buffers
     bool new_pose;          ///< Whether this animation needs to recalculate a pose
     bool loop;              ///< Whether this animation loops
     bool paused;            ///< Whether this animation is active
+    uint32_t prev_frame;    ///< Previous frame of animation that played
     float speed;            ///< The speed of an animation
     void *stream_buf[2];    ///< Buffers for streaming animation
-    void *stream_buf_base;  ///< Base of streaming buffer
 } anim_state_t;
 
 /** @brief A model64 instance */
