@@ -151,6 +151,8 @@ static const vi_config_t vi_config_presets[2][3] = {
 #define VI_PIXEL_ADVANCE_DEFAULT            (0b0011 << 12)
 /** @brief VI_CTRL Register setting: default value for pixel advance on iQue. */
 #define VI_PIXEL_ADVANCE_BBPLAYER           (0b0001 << 12)
+/** @brief VI_CTRL Register setting: AA / resamp mask */
+#define VI_AA_MODE_MASK                     (0b11 << 8)
 /** @brief VI_CTRL Register setting: disable AA / resamp. */
 #define VI_AA_MODE_NONE                     (0b11 << 8)
 /** @brief VI_CTRL Register setting: disable AA / enable resamp. */
@@ -304,7 +306,7 @@ typedef struct {
  *            Where the VI stops to sample the framebuffer in dots
  * @return    The transformation configuration needed for the precise output
  */
-inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end) {
+inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end, bool resample) {
     const int FX10 = 1<<10;
     vi_resparms_t resparms = { .fb_width = fb_width, .h_start = h_start, .h_end = h_end };
 
@@ -331,17 +333,26 @@ inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end) {
     debugf("fb_width=%d display_width=%d coarse=%d precise=%f\n", fb_width, display_width, resparms.vi_origin_offset, resparms.x_offset_fx10/1024.0f);
     #endif
 
-    // Now adjust the XSCALE. This is the trickiest part. We previously calculated
+    // Now let's calculate the final XSCALE. We previously calculated
     // fb_width/display_width but we now want a slightly different value that make
     // sure that the last pixel of the framebuffer is as centered as possible.
+    // In case there is no resampling, this can be done by simply dividing the
+    // framebuffer width by the display width, taking into account the offsets
+    // we just calculated. We can ceil the result to go as far as possible into
+    // the last pixel.
+    if (!resample) {
+        resparms.x_scale_fx10 = ((resparms.fb_width + resparms.vi_origin_offset)*FX10 - resparms.x_offset_fx10 + FX10 - 1) / display_width;
+        return resparms;
+    }
+
+    // If there's resampling, this is the trickiest part. 
     // In fact, when resampling is active, unfortunately the VI will interpolate
     // between the last pixel and the whatever garbage is after it (usually, the first
     // pixel of next line). So we want the VI X value for the last pixel to be
     // as close as possible to fb_width-1, and without going over it to avoid
     // bleeding garbage in.
-    // FIXME: this is only correct in case of resampling.
     resparms.x_scale_fx10 = (((resparms.fb_width-1) + resparms.vi_origin_offset)*FX10 - resparms.x_offset_fx10) / (display_width-1);
-
+    
     // Let's now check the VI X value for the first and last framebuffer pixel, with the new
     // XSCALE we just computed
     int first_pixel_fx10 = resparms.x_offset_fx10 + VI_HIDDEN_DOTS_LEFT * resparms.x_scale_fx10 - resparms.vi_origin_offset*FX10;
@@ -386,13 +397,15 @@ inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end) {
  *            Height of the framebuffer to display in pixels
  * @param[in] serrate
  *            Is serrate interlacing enabled for this display
+ * @param[in] resample
+ *            True if resampling is enabled, false if it's disabled
  * @param[in] aspect
  *            Pixel aspect ratio of the framebuffer within the borders
  *            (<=0 if this calculation needs to be skipped, stretching the framebuffer)
  * @param[in] borders
  *            Minimum border size in dots around the framebuffer
  */
-static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool serrate, float aspect, vi_borders_t borders){
+static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool serrate, bool resample, float aspect, vi_borders_t borders){
     uint32_t tv_type = get_tv_type();
     const vi_config_t* config = &vi_config_presets[serrate][tv_type];
 
@@ -436,7 +449,7 @@ static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool 
 
     // Miscellaneous edge-case fixes
     float v_offset = 0; // Should be used for subpixel precision, but it's not straightforward, so leave it as 0 for now
-    vi_resparms_t resparms = vi_calc_resparms(fb_width, h_start, h_end);
+    vi_resparms_t resparms = vi_calc_resparms(fb_width, h_start, h_end, resample);
 
     // Scale and set the boundaries of the framebuffer to fit bordered layout 
     vi_write(VI_X_SCALE, (resparms.x_offset_fx10 << 16) | resparms.x_scale_fx10);

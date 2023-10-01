@@ -68,7 +68,9 @@ static void __display_callback()
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
     bool field = (*VI_V_CURRENT) & 1;
-    bool interlaced = (*VI_CTRL) & (VI_CTRL_SERRATE);
+    uint32_t vi_ctrl = *VI_CTRL;
+    bool interlaced = vi_ctrl & VI_CTRL_SERRATE;
+    bool resampling = (vi_ctrl & VI_AA_MODE_MASK) != VI_AA_MODE_NONE;
 
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame. If full interlace mode is selected
@@ -88,7 +90,7 @@ static void __display_callback()
         This is due to VI starting late when sampling the framebuffer.
         This is partially done in the vi_write_display, but for the coarse precision we need to offset the 
         VI_ORIGIN address in multiples of 4 pixels. */
-    vi_resparms_t resparms = vi_calc_resparms(__width, h_start, h_end);
+    vi_resparms_t resparms = vi_calc_resparms(__width, h_start, h_end, resampling);
     vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0) - resparms.vi_origin_offset * __bitdepth);
 }
 
@@ -209,7 +211,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __borders = borders;
 
     vi_write(VI_WIDTH, res.width);
-    vi_write_display(res.width, res.height, serrate, res.aspect_ratio / RES_FULLSCREEN, borders);
+    vi_write_display(res.width, res.height, serrate, filters != FILTERS_DISABLED, res.aspect_ratio / RES_FULLSCREEN, borders);
 
     /* Disabling resampling (AA_MODE = 0x3) on 16bpp hits a hardware bug on NTSC 
        consoles when the X_SCALE is 0x200 or lower (see issue #66).
@@ -434,4 +436,4 @@ float display_get_fps(void)
     return (float)(FPS_WINDOW * TICKS_PER_SECOND) / frame_times_duration;
 }
 
-extern inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end);
+extern inline vi_resparms_t vi_calc_resparms(int fb_width, int h_start, int h_end, bool resampling);
