@@ -127,7 +127,7 @@ float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float ti
 float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed);
 bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop);
 bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool paused);
-void model64_update(model64_t *model, float dt);
+void model64_update(model64_t *model, float deltatime);
 #ifdef __cplusplus
 }
 #endif

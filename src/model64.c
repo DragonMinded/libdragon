@@ -774,7 +774,7 @@ static void calc_anim_pose(model64_t *model, int anim_slot)
     model->active_anims[anim_slot]->new_pose = false;
 }
 
-void model64_update(model64_t *model, float dt)
+void model64_update(model64_t *model, float deltatime)
 {
     for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
         if(!model->active_anims[i]) {
@@ -786,7 +786,7 @@ void model64_update(model64_t *model, float dt)
             }
             continue;
         }
-        model->active_anims[i]->time += model->active_anims[i]->speed*dt;
+        model->active_anims[i]->time += model->active_anims[i]->speed*deltatime;
         if(model->active_anims[i]->loop) {
             model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i]->index];
             model->active_anims[i]->time = fm_fmodf(model->active_anims[i]->time, curr_anim->duration);
