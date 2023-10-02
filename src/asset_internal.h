@@ -18,6 +18,20 @@ typedef struct {
 
 _Static_assert(sizeof(asset_header_t) == 16, "invalid sizeof(asset_header_t)");
 
+/** @brief A decompression algorithm used by the asset library */
+typedef struct {
+    int state_size;     ///< Size of the decompression state
+
+    /** @brief Initialize the decompression state */
+    void (*decompress_init)(void *state, FILE *fp);
+    /** @brief Partially read a decompressed file from a state */
+    ssize_t (*decompress_read)(void *state, void *buf, size_t len);
+
+    /** @brief Decompress a full file in one go */
+    void* (*decompress_full)(const char *fn, FILE *fp, size_t cmp_size, size_t len);
+} asset_compression_t;
+
+
 FILE *must_fopen(const char *fn);
 
 #endif

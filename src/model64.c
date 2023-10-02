@@ -1,12 +1,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <malloc.h>
+#include "fmath.h"
 #include "n64sys.h"
 #include "GL/gl.h"
+#include "dragonfs.h"
+#include "dma.h"
 #include "model64.h"
 #include "model64_internal.h"
 #include "asset.h"
 #include "debug.h"
+#include "utils.h"
+
+/** @brief State of an active animation */
+typedef struct anim_buf_info_s {
+    void *curr_buf;     ///< Data buffer for current frame
+    void *next_buf;     ///< Data buffer for next frame
+    float time;         ///< Interpolation factor between current and next frame
+} anim_buf_info_t;
 
 #define PTR_DECODE(model, ptr)    ((void*)(((uint8_t*)(model)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(model, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(model)))
@@ -21,13 +33,11 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
     assertf(model->magic == MODEL64_MAGIC, "invalid model data (magic: %08lx)", model->magic);
     model->nodes = PTR_DECODE(model, model->nodes);
     model->meshes = PTR_DECODE(model, model->meshes);
-    if(model->skins)
+    model->skins = PTR_DECODE(model, model->skins);
+    model->anims = PTR_DECODE(model, model->anims);
+    for(uint32_t i=0; i<model->num_skins; i++)
     {
-        model->skins = PTR_DECODE(model, model->skins);
-        for(uint32_t i=0; i<model->num_skins; i++)
-        {
-            model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
-        }
+        model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
     }
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
@@ -40,7 +50,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
             model->nodes[i].mesh = PTR_DECODE(model, model->nodes[i].mesh);
         }
         model->nodes[i].children = PTR_DECODE(model, model->nodes[i].children);
-		if(model->nodes[i].skin)
+        if(model->nodes[i].skin)
         {
             model->nodes[i].skin = PTR_DECODE(model, model->nodes[i].skin);
         }
@@ -57,6 +67,18 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
             primitive->normal.pointer = PTR_DECODE(model, primitive->normal.pointer);
             primitive->mtx_index.pointer = PTR_DECODE(model, primitive->mtx_index.pointer);
             primitive->indices = PTR_DECODE(model, primitive->indices);
+        }
+    }
+    for (uint32_t i = 0; i < model->num_anims; i++)
+    {
+        if(model->anims[i].name)
+        {
+            model->anims[i].name = PTR_DECODE(model, model->anims[i].name);
+        }
+        model->anims[i].channels = PTR_DECODE(model, model->anims[i].channels);
+        if(model->stream_buf_size == 0)
+        {
+            model->anims[i].data = PTR_DECODE(model, model->anims[i].data);
         }
     }
     model->magic = MODEL64_MAGIC_LOADED;
@@ -95,7 +117,7 @@ static void multiply_node_mtx(float parent[16], float child[16])
 
 static void mtx_copy(float dst[16], float src[16])
 {
-	memcpy(dst, src, 16*sizeof(float));
+    memcpy(dst, src, 16*sizeof(float));
 }
 
 static void transform_calc_matrix(node_transform_t *transform)
@@ -178,20 +200,41 @@ static model64_t *make_model_instance(model64_data_t *model_data)
     return instance;
 }
 
-model64_t *model64_load_buf(void *buf, int sz)
+static model64_data_t *load_model64_data_buf(void *buf, int sz)
 {
     model64_data_t *data = load_model_data_buf(buf, sz);
+    assertf(data->stream_buf_size == 0, "Streaming animations not supported when loading model from buffer");
+    return data;
+}
+
+static model64_data_t *load_model64_data(const char *fn)
+{
+    int sz;
+    void *buf = asset_load(fn, &sz);
+    model64_data_t *data = load_model_data_buf(buf, sz);
+    if(data->stream_buf_size != 0) {
+        assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: models with streamed animations must be stored in ROM (rom:/)", fn);
+        char anim_name[strlen(fn)+6];
+        sprintf(anim_name, "%s.anim", fn);
+        data->anim_data_handle = (void *)dfs_rom_addr(anim_name+5);
+    }
+    return data;
+}
+
+model64_t *model64_load_buf(void *buf, int sz)
+{
+    model64_data_t *data = load_model64_data_buf(buf, sz);
+    data->ref_count++;
     return make_model_instance(data);
 }
 
 model64_t *model64_load(const char *fn)
 {
-    int sz;
-    void *buf = asset_load(fn, &sz);
-    model64_t *model = model64_load_buf(buf, sz);
-    model->data->magic = MODEL64_MAGIC_OWNED;
-    return model;
+    model64_data_t *data = load_model64_data(fn);
+    data->ref_count++;
+    return make_model_instance(data);
 }
+
 
 model64_t *model64_clone(model64_t *model)
 {
@@ -231,16 +274,26 @@ static void unload_model_data(model64_data_t *model)
         }
         model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
     }
+    for(uint32_t i=0; i<model->num_skins; i++)
+    {
+        model->skins[i].joints = PTR_ENCODE(model, model->skins[i].joints);
+    }
+    for (uint32_t i = 0; i < model->num_anims; i++)
+    {
+        if(model->anims[i].name)
+        {
+            model->anims[i].name = PTR_ENCODE(model, model->anims[i].name);
+        }
+        model->anims[i].channels = PTR_ENCODE(model, model->anims[i].channels);
+        if(model->stream_buf_size == 0)
+        {
+            model->anims[i].data = PTR_ENCODE(model, model->anims[i].data);
+        }
+    }
     model->nodes = PTR_ENCODE(model, model->nodes);
     model->meshes = PTR_ENCODE(model, model->meshes);
-    if(model->skins)
-    {
-        for(uint32_t i=0; i<model->num_skins; i++)
-        {
-            model->skins[i].joints = PTR_ENCODE(model, model->skins[i].joints);
-        }
-        model->skins = PTR_ENCODE(model, model->skins);
-    }
+    model->skins = PTR_ENCODE(model, model->skins);
+    model->anims = PTR_ENCODE(model, model->anims);
     if(model->magic == MODEL64_MAGIC_OWNED) {
         #ifndef NDEBUG
         // To help debugging, zero the model data structure
@@ -251,12 +304,22 @@ static void unload_model_data(model64_data_t *model)
     }
 }
 
+static void free_model64_data(model64_data_t *data)
+{
+    if(--data->ref_count == 0)
+    {
+        unload_model_data(data);
+    }
+}
+
 void model64_free(model64_t *model)
 {
-    if(--model->data->ref_count == 0)
-    {
-        unload_model_data(model->data);
+    for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
+        if(model->active_anims[i]) {
+            free(model->active_anims[i]);
+        }
     }
+    free_model64_data(model->data);
     free(model);
 }
 
@@ -312,12 +375,10 @@ void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float
 
 void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float y, float z)
 {
-    float cr = cosf(x * 0.5);
-    float sr = sinf(x * 0.5);
-    float cp = cosf(y * 0.5);
-    float sp = sinf(y * 0.5);
-    float cy = cosf(z * 0.5);
-    float sy = sinf(z * 0.5);
+    float cr, sr, cp, sp, cy, sy;
+    fm_sincosf(x*0.5f, &sr, &cr);
+    fm_sincosf(y*0.5f, &sp, &cp);
+    fm_sincosf(z*0.5f, &sy, &cy);
     float w = cr * cp * cy + sr * sp * sy;
     x = sr * cp * cy - cr * sp * sy;
     y = cr * sp * cy + sr * cp * sy;
@@ -463,4 +524,277 @@ void model64_draw(model64_t *model)
     {
         model64_draw_node(model, model64_get_node(model, i));
     }
+}
+
+static int32_t search_anim_index(model64_t *model, const char *name)
+{
+    if(!name) {
+        return -1;
+    }
+    for(uint32_t i=0; i<model->data->num_anims; i++) {
+        if(model->data->anims[i].name && !strcmp(name, model->data->anims[i].name)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
+{
+    uint32_t state_size = ROUND_UP(sizeof(anim_state_t), 16);
+    uint32_t stream_buf_size = ROUND_UP(model->data->stream_buf_size, 16);
+    anim_state_t *anim_state = memalign(16, state_size+(2*stream_buf_size));
+    memset(anim_state, 0, state_size+(2*stream_buf_size));
+    void *stream_buf = PTR_DECODE(anim_state, state_size);
+    anim_state->stream_buf[0] = stream_buf;
+    anim_state->stream_buf[1] = PTR_DECODE(stream_buf, stream_buf_size);
+    anim_state->index = -1;
+    anim_state->paused = true;
+    anim_state->speed = 1.0f;
+    model->active_anims[slot] = anim_state;
+}
+
+
+static bool is_anim_slot_valid(model64_anim_slot_t slot)
+{
+    return (slot >= 0) && (slot < MAX_ACTIVE_ANIMS);
+}
+
+void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t slot, bool paused, float start_time)
+{
+    int32_t anim_index = search_anim_index(model, anim);
+    assertf(anim_index != -1, "Animation %s was not found\n", anim);
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
+    model->active_anims[slot]->index = anim_index;
+    model->active_anims[slot]->paused = paused;
+    model->active_anims[slot]->time = start_time;
+    model->active_anims[slot]->loop = false;
+    model->active_anims[slot]->new_pose = true;
+    model->active_anims[slot]->swap_stream_buf = false;
+    model->active_anims[slot]->prev_frame = 0;
+    model->active_anims[slot]->speed = 1.0f;
+}
+
+void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
+{
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
+    model->active_anims[slot]->index = -1;
+}
+
+float model64_anim_get_length(model64_t *model, const char *anim)
+{
+    int32_t anim_index = search_anim_index(model, anim);
+    assertf(anim_index != -1, "Animation %s was not found\n", anim);
+    return (float)model->data->anims[anim_index].duration;
+}
+
+float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
+{
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
+    return model->active_anims[slot]->time;
+}
+
+float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float time)
+{
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
+    float old_time = model->active_anims[slot]->time;
+    model->active_anims[slot]->time = time;
+    return old_time;
+}
+
+float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed)
+{
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
+    float old_speed = model->active_anims[slot]->speed; 
+    model->active_anims[slot]->speed = speed;
+    return old_speed;
+}
+
+bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop)
+{
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
+    bool old_loop = model->active_anims[slot]->loop; 
+    model->active_anims[slot]->loop = loop;
+    return old_loop;
+}
+
+bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool paused)
+{
+    assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    if(!model->active_anims[slot]) {
+        alloc_anim_slot(model, slot);
+    }
+    bool old_pause = model->active_anims[slot]->paused;
+    model->active_anims[slot]->paused = paused;
+    return old_pause;
+}
+
+static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info, int anim_slot)
+{
+    anim_state_t *anim_slot_ptr = model->active_anims[anim_slot];
+    model64_anim_t *curr_anim = &model->data->anims[anim_slot_ptr->index];
+    uint32_t curr_frame;
+    uint32_t next_frame;
+    uint32_t frame_size = curr_anim->frame_size;
+    
+    if(anim_slot_ptr->time < 0) {
+        curr_frame = next_frame = 0;
+        buf_info->time = 0;
+    } else if(anim_slot_ptr->time*curr_anim->frame_rate >= curr_anim->num_frames-1) {
+        curr_frame = next_frame = curr_anim->num_frames-1;
+        buf_info->time = 0;
+    } else {
+        curr_frame = anim_slot_ptr->time*curr_anim->frame_rate;
+        next_frame = curr_frame+1;
+        buf_info->time = (anim_slot_ptr->time-((float)curr_frame/curr_anim->frame_rate))*curr_anim->frame_rate;
+    }
+    if(model->data->stream_buf_size > 0) {
+        uint32_t prev_frame = anim_slot_ptr->prev_frame;
+        uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
+        rom_addr += (uint32_t)curr_anim->data;
+        bool read_curr, read_next;
+        if(!anim_slot_ptr->new_pose && ((curr_frame == prev_frame+1) || (curr_frame == prev_frame-1) || (curr_frame == prev_frame))) {
+            bool new_frame = curr_frame != prev_frame;
+            bool play_backwards = anim_slot_ptr->speed < 0;
+            bool swap_stream_buf = anim_slot_ptr->swap_stream_buf;
+            bool swapped_buf = (swap_stream_buf ^ play_backwards) ^ new_frame;
+
+            read_curr = new_frame && play_backwards;
+            read_next = new_frame && !play_backwards;
+            if(!swapped_buf) {
+                buf_info->curr_buf = anim_slot_ptr->stream_buf[1];
+                buf_info->next_buf = anim_slot_ptr->stream_buf[0];
+            } else {
+                buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
+                buf_info->next_buf = anim_slot_ptr->stream_buf[1];
+            }
+            if(new_frame) {
+                anim_slot_ptr->swap_stream_buf = !swap_stream_buf;
+            }
+        } else {
+            read_curr = read_next = true;
+            buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
+            buf_info->next_buf = anim_slot_ptr->stream_buf[1];
+            anim_slot_ptr->swap_stream_buf = false;
+            
+        }
+        if(read_curr) {
+            data_cache_hit_writeback_invalidate(buf_info->curr_buf, frame_size);
+            dma_read(buf_info->curr_buf, rom_addr+(curr_frame*frame_size), frame_size);
+        }
+        if(read_next) {
+            data_cache_hit_writeback_invalidate(buf_info->next_buf, frame_size);
+            dma_read(buf_info->next_buf, rom_addr+(next_frame*frame_size), frame_size);
+        }
+    } else {
+        uint8_t *buf_base = curr_anim->data;
+        buf_info->curr_buf = &buf_base[curr_frame*frame_size];
+        buf_info->next_buf = &buf_base[next_frame*frame_size];
+    }
+    anim_slot_ptr->prev_frame = curr_frame;
+}
+
+static void vec_lerp(float *out, float *in1, float *in2, size_t count, float time)
+{
+    for(size_t i=0; i<count; i++) {
+        out[i] = ((1-time)*in1[i])+(time*in2[i]);
+    }
+}
+
+static void vec_normalize(float *vec, size_t count)
+{
+    float mag2 = 0.0f;
+    for(size_t i=0; i<count; i++) {
+        mag2 += vec[i]*vec[i];
+    }
+    float scale = 1.0f/sqrtf(mag2);
+    for(size_t i=0; i<count; i++) {
+        mag2 *= scale;
+    }
+}
+
+static void quat_lerp(float *out, float *in1, float *in2, float time)
+{
+    float dot = (in1[0]*in2[0])+(in1[1]*in2[1])+(in1[2]*in2[2])+(in1[3]*in2[3]);
+    float out_scale  = (dot >= 0) ? 1.0f : -1.0f;
+    for(size_t i=0; i<4; i++) {
+        out[i] = ((1-time)*in1[i])+(out_scale*time*in2[i]);
+    }
+    vec_normalize(out, 4);
+}
+
+static void calc_anim_pose(model64_t *model, int anim_slot)
+{
+    model64_anim_t *curr_anim = &model->data->anims[model->active_anims[anim_slot]->index];
+    anim_buf_info_t anim_buf_info;
+    read_model_anim_buf(model, &anim_buf_info, anim_slot);
+    uint8_t *curr_buf = anim_buf_info.curr_buf;
+    uint8_t *next_buf = anim_buf_info.next_buf;
+    for(uint32_t i=0; i<curr_anim->num_channels; i++) {
+        uint32_t data_size = 0;
+        uint32_t component = curr_anim->channels[i] >> 30;
+        uint32_t node_index = curr_anim->channels[i] & 0x3FFFFFFF;
+        switch(component) {
+            case ANIM_COMPONENT_POS:
+                vec_lerp(model->transforms[node_index].transform.pos, (float *)curr_buf, (float *)next_buf, 3, anim_buf_info.time);
+                data_size = 3*sizeof(float); 
+                break;
+                
+            case ANIM_COMPONENT_ROT:
+                quat_lerp(model->transforms[node_index].transform.rot, (float *)curr_buf, (float *)next_buf, anim_buf_info.time);
+                data_size = 4*sizeof(float); 
+                break;
+                
+            case ANIM_COMPONENT_SCALE:
+                vec_lerp(model->transforms[node_index].transform.scale, (float *)curr_buf, (float *)next_buf, 3, anim_buf_info.time);
+                data_size = 3*sizeof(float); 
+                break;
+        }
+        calc_node_local_matrix(model, node_index);
+        curr_buf += data_size;
+        next_buf += data_size;
+    }
+    model->active_anims[anim_slot]->new_pose = false;
+}
+
+void model64_update(model64_t *model, float deltatime)
+{
+    for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
+        if(!model->active_anims[i]) {
+            continue;
+        }
+        if(model->active_anims[i]->index == -1 || model->active_anims[i]->paused || model->active_anims[i]->speed == 0) {
+            if(model->active_anims[i]->index != -1 && model->active_anims[i]->new_pose) {
+                calc_anim_pose(model, i);
+            }
+            continue;
+        }
+        model->active_anims[i]->time += model->active_anims[i]->speed*deltatime;
+        if(model->active_anims[i]->loop) {
+            model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i]->index];
+            model->active_anims[i]->time = fm_fmodf(model->active_anims[i]->time, curr_anim->duration);
+            if(model->active_anims[i]->time < 0) {
+                model->active_anims[i]->time += curr_anim->duration;
+            }
+        }
+        calc_anim_pose(model, i);
+    }
+    update_node_matrices(model);
 }

@@ -23,9 +23,9 @@ void __ringbuf_copy(decompress_ringbuf_t *ringbuf, int copy_offset, uint8_t *dst
     int ringbuf_copy_pos = (ringbuf->ringbuf_pos - copy_offset) & (RING_BUFFER_SIZE-1);
     int dst_pos = 0;
     while (count > 0) {
-		int wn = count;
+        int wn = count;
         wn = wn < RING_BUFFER_SIZE - ringbuf_copy_pos     ? wn : RING_BUFFER_SIZE - ringbuf_copy_pos;
-		wn = wn < RING_BUFFER_SIZE - ringbuf->ringbuf_pos ? wn : RING_BUFFER_SIZE - ringbuf->ringbuf_pos;
+        wn = wn < RING_BUFFER_SIZE - ringbuf->ringbuf_pos ? wn : RING_BUFFER_SIZE - ringbuf->ringbuf_pos;
         count -= wn;
 
         // Check if there's an overlap in the ring buffer between read and write pos, in which

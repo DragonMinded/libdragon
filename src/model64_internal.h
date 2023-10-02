@@ -1,6 +1,9 @@
 #ifndef __LIBDRAGON_MODEL64_INTERNAL_H
 #define __LIBDRAGON_MODEL64_INTERNAL_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
 /** @brief model64 file magic header */
 #define MODEL64_MAGIC           0x4D444C48 // "MDLH"
 /** @brief model64 loaded model buffer magic */
@@ -9,6 +12,12 @@
 #define MODEL64_MAGIC_OWNED     0x4D444C4F // "MDLO"
 /** @brief Current version of model64 */
 #define MODEL64_VERSION         1
+
+#define ANIM_COMPONENT_POS 0
+#define ANIM_COMPONENT_ROT 1
+#define ANIM_COMPONENT_SCALE 2
+
+#define MAX_ACTIVE_ANIMS 4
 
 /** @brief Parameters for a single vertex attribute (part of #primitive_t) */
 typedef struct attribute_s {
@@ -78,6 +87,18 @@ typedef struct model64_node_s {
     uint32_t *children;             ///< List of children node indices
 } model64_node_t;
 
+/** @brief An animation of a model */
+typedef struct model64_anim_s {
+    char *name;                     ///< Name of the animation
+    float frame_rate;               ///< Frame rate of the animation
+    float duration;                 ///< Duration of animation
+    uint32_t num_frames;            ///< Number of frames in animation
+    uint32_t frame_size;            ///< Size of animation data for each frame
+    void *data;                     ///< Pointer to animation data
+    uint32_t *channels;             ///< Top 2 bits: target component; lowest 30 bits: target node
+    uint32_t num_channels;          ///< Number of nodes targeted by animation
+} model64_anim_t;
+
 /** @brief A model64 file containing a model */
 typedef struct model64_data_s {
     uint32_t magic;             ///< Magic header (MODEL64_MAGIC)
@@ -88,6 +109,7 @@ typedef struct model64_data_s {
     uint32_t primitive_size;    ///< Size of a primitive header in bytes
     uint32_t node_size;         ///< Size of a node in bytes
     uint32_t skin_size;         ///< Size of a skin in bytes
+    uint32_t anim_size;         ///< Size of an animation in bytes
     uint32_t num_nodes;         ///< Number of nodes
     model64_node_t *nodes;      ///< Pointer to the first node
     uint32_t root_node;         ///< Root node of the model
@@ -95,12 +117,30 @@ typedef struct model64_data_s {
     model64_skin_t *skins;      ///< Pointer to the first skin
     uint32_t num_meshes;        ///< Number of meshes
     mesh_t *meshes;             ///< Pointer to the first mesh
+    uint32_t num_anims;         ///< Number of animations
+    model64_anim_t *anims;      ///< Pointer to first animation
+    uint32_t stream_buf_size;   ///< Size of streaming buffer for animation (0 means animations are not streamed)
+    void *anim_data_handle;     ///< Handle for animation data
 } model64_data_t;
+
+/** @brief State of an active animation */
+typedef struct anim_state_s {
+    int32_t index;          ///< Index of animation playing
+    float time;             ///< Current time of animation
+    bool swap_stream_buf;   ///< Swap Stream Buffers
+    bool new_pose;          ///< Whether this animation needs to recalculate a pose
+    bool loop;              ///< Whether this animation loops
+    bool paused;            ///< Whether this animation is active
+    uint32_t prev_frame;    ///< Previous frame of animation that played
+    float speed;            ///< The speed of an animation
+    void *stream_buf[2];    ///< Buffers for streaming animation
+} anim_state_t;
 
 /** @brief A model64 instance */
 typedef struct model64_s {
-    model64_data_t *data;                   ///< Pointer to the model data this instance refers to
-    node_transform_state_t *transforms;     ///< List of transforms for each bone in a model instance
+    model64_data_t *data;                           ///< Pointer to the model data this instance refers to
+    node_transform_state_t *transforms;             ///< List of transforms for each bone in a model instance
+    anim_state_t *active_anims[MAX_ACTIVE_ANIMS];   ///< List of active animations
 } model64_t;
 
 #endif

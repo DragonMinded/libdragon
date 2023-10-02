@@ -63,6 +63,6 @@ int decompress_lz4_full_mem(const unsigned char *src, int src_size,
 
 void decompress_lz4_init(void *state, FILE *fp);
 ssize_t decompress_lz4_read(void *state, void *buf, size_t len);
-
+void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size);
 
 #endif

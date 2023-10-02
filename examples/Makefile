@@ -11,6 +11,7 @@ EXAMPLES += fontdemo
 EXAMPLES += gldemo
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
+EXAMPLES += micro-ui
 EXAMPLES += mixertest
 EXAMPLES += mptest
 EXAMPLES += mputest
@@ -22,21 +23,19 @@ EXAMPLES += rtctest
 EXAMPLES += spritemap
 EXAMPLES += test
 EXAMPLES += timers
-#EXAMPLES += videoplayer # Disabled due to missing assets
+EXAMPLES += videoplayer
 EXAMPLES += vrutest
 EXAMPLES += vtest
 
-# Populated by evaluating the EXAMPLE_template macro for each example
-all:
-clean:
+all: $(EXAMPLES)
+clean: $(foreach example,$(EXAMPLES),$(example)-clean)
+.PHONY: all clean
 
-define EXAMPLE_template =
+define EXAMPLE_template
 $(1):
 	$$(MAKE) -C $(1)
 $(1)-clean:
 	$$(MAKE) -C $(1) clean
-all: $(1)
-clean: $(1)-clean
 .PHONY: $(1) $(1)-clean
 endef
 

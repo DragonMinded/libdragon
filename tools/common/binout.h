@@ -16,6 +16,8 @@
 
 void placeholder_setv(FILE *file, const char *format, va_list arg);
 void placeholder_set(FILE *file, const char *format, ...);
+void placeholder_setv_offset(FILE *file, int offset, const char *format, va_list arg);
+void placeholder_set_offset(FILE *file, int offset, const char *format, ...);
 void placeholder_clear();
 
 void w8(FILE *f, uint8_t v);
