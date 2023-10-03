@@ -470,18 +470,37 @@ GL_TnL:
     llv vfog_i, 0,s1
     llv vfog_f, 4,s1
 
-    # Compute -abs(veyepos.z).
+    # Note that the GL spec says the correct formula is
+    #   f = (fog_end - abs(veyepos.z)) / (fog_end - fog_start)
+    # And the final fogged color is calculated as
+    #   C = f * Ci + (1 - f) * Cf
+    # Where Ci is the incoming fragment color and Cf is the fog color.
+    
+    # However, there is a problem with translating this formula directly to a blender configuration:
+    #   RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
+    # This would mean that a shade alpha of 1 represents "no fog" and a value of 0 is "full fog".
+    # Because shade alpha is internally an 8 bit fixed point value (0-255), it's not possible to represent
+    # a value of 1.0 exactly, only just below it. This leads to triangles that are completely outside of
+    # the fog area to still be tinted slightly with the fog color.
+
+    # To avoid this, we turn the formula around, so that shade alpha 0 (which is exactly representable)
+    # corresponds to "no fog".
+    # This means we have to compute 1-f instead of f. If we rearrange the formula, we get
+    #   (abs(veyepos.z) - fog_start) / (fog_end - fog_start)
+    # instead.
+
+    # Compute abs(veyepos.z).
     # abs(veyepos.z) is an approximation for the distance between the
     # vertex and the origin in eye space, as recommended by the GL spec.
     vsubc vtmp, vzero, veyepos.e2
-    vlt vtmp, veyepos.e2
+    vge vtmp, veyepos.e2
 
-    # vtmp.e0 = fog_end - abs(veyepos.z)
-    # Note that fog_end might be negative. In practice this would
+    # vtmp.e0 = abs(veyepos.z) - fog_start
+    # Note that fog_start might be negative. In practice this would
     # rarely be the case, but it is not forbidden by the GL spec.
-    vaddc vtmp, vfog_i.e1
+    vsubc vtmp, vfog_i.e1
 
-    # vtmp.e0 = (fog_end - abs(veyepos.z)) / (fog_end - fog_start)
+    # vtmp.e0 = (abs(veyepos.z) - fog_start) / (fog_end - fog_start)
     # The factor is premultiplied so that combined with VTX_SHIFT
     # the product will be in 1.15 precision and saturated to 0x7FFF.
     vmudm v___, vtmp, vfog_f.e0

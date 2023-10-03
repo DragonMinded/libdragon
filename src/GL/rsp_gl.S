@@ -743,7 +743,7 @@ gl_matrix_palette_loop:
     andi t0, state_flags, FLAG_FOG
     beqz t0, 1f
     sltu t2, zero, t0
-    li t0, RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA)) | SOM_BLENDING
+    li t0, RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)) | SOM_BLENDING
 1:
     sw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0x0
     or modes0, t2

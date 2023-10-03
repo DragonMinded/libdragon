@@ -90,7 +90,7 @@ void gl_update_fog()
     float fog_diff = state.fog_end - state.fog_start;
     // start == end is undefined, so disable fog by setting the factor to 0
     state.fog_factor = fabsf(fog_diff) < FLT_MIN ? 0.0f : 1.0f / fog_diff;
-    state.fog_offset = state.fog_end;
+    state.fog_offset = state.fog_start;
 
     // Convert to s15.16 and premultiply with 1.15 conversion factor
     int32_t factor_fx = state.fog_factor * (1<<(16 + 7 + (8 - VTX_SHIFT)));
