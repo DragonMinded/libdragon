@@ -49,20 +49,14 @@ void draw_skinned()
     glDisable(GL_MATRIX_PALETTE_ARB);
 }
 
-void skinned_model_transform()
-{
-    glTranslatef(0, 3, -6);
-    glScalef(2, 2, 2);
-}
-
 void render_skinned(const camera_t *camera, float animation)
 {
     rdpq_debug_log_msg("Skinned");
+    glPushMatrix();
     
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    camera_transform(camera);
-    skinned_model_transform();
+    glTranslatef(0, 3, -6);
+    glScalef(2, 2, 2);
+
     // Set bone transforms. Note that because there is no matrix stack in palette mode, we need
     // to apply the camera transform and model transform as well for each bone.
     glMatrixMode(GL_MATRIX_PALETTE_ARB);
@@ -82,6 +76,8 @@ void render_skinned(const camera_t *camera, float animation)
     glDisable(GL_CULL_FACE);
     draw_skinned();
     glEnable(GL_CULL_FACE);
+
+    glPopMatrix();
 }
 
 #endif
