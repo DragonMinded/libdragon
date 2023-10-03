@@ -433,7 +433,7 @@ static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool 
 
     // Add aspect ratio borders
     if(aspect > 0) {
-        float viaspect = display_width / display_height; // Calculate the VI aspect ratio after applying minumum borders
+        float viaspect = (float)display_width / (float)display_height; // Calculate the VI aspect ratio after applying minumum borders
         if(aspect > viaspect){
             float factor = viaspect / aspect; // Get a vertical scale factor in range (0.0;1.0)
             float v_arborder = (display_height - (display_height * factor)) / 2;
@@ -445,6 +445,7 @@ static inline void vi_write_display(uint32_t fb_width, uint32_t fb_height, bool 
             h_start += h_arborder;
             h_end -= h_arborder;
         }
+        display_height = v_end - v_start; // Get the new display height for scaling
     }
 
     // Miscellaneous edge-case fixes

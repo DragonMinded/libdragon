@@ -211,7 +211,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __borders = borders;
 
     vi_write(VI_WIDTH, res.width);
-    vi_write_display(res.width, res.height, serrate, filters != FILTERS_DISABLED, res.aspect_ratio / RES_FULLSCREEN, borders);
+    vi_write_display(res.width, res.height, serrate, (filters != FILTERS_DISABLED && filters != FILTERS_DEDITHER), res.aspect_ratio, borders);
 
     /* Disabling resampling (AA_MODE = 0x3) on 16bpp hits a hardware bug on NTSC 
        consoles when the X_SCALE is 0x200 or lower (see issue #66).
