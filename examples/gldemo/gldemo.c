@@ -228,13 +228,14 @@ int main()
     {
         joypad_poll();
         joypad_buttons_t pressed = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+        joypad_buttons_t held = joypad_get_buttons_held(JOYPAD_PORT_1);
         joypad_inputs_t inputs = joypad_get_inputs(JOYPAD_PORT_1);
 
-        if (pressed.a) {
+        if (held.a) {
             animation++;
         }
 
-        if (pressed.b) {
+        if (held.b) {
             animation--;
         }
 
