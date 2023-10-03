@@ -526,7 +526,7 @@ GLCmd_PreInitPipe:
     #define mtx_rhs     s6
     #define mtx_dst     s7
 
-    and t0, state_flags, FLAG_MATRIX_PALETTE
+    andi t0, state_flags, FLAG_MATRIX_PALETTE
     beqz t0, 1f
     lw s0, %lo(GL_STATE_PALETTE_PTR)
 
@@ -623,21 +623,12 @@ gl_matrix_palette_loop:
     li active_tex, %lo(GL_BOUND_TEXTURE_1D)
     move active_tex, zero
 1:
-    #define has_depth   t1
-    #define has_tex     t3
     #define tri_cmd     t4
-    # TODO: Optimize this by rearranging GL state flags
-    and has_depth, state_flags, FLAG_DEPTH_TEST
-    and has_tex, state_flags, FLAG_TEXTURE_ACTIVE
-    sll has_depth, TRICMD_ATTR_SHIFT_Z
-    srl has_tex, TRICMD_ATTR_SHIFT_TEX
-
-    or tri_cmd, has_depth, has_tex
+    srl tri_cmd, state_flags, TRICMD_ATTR_SHIFT
+    andi tri_cmd, TRICMD_ATTR_MASK
     ori tri_cmd, 0xCC00
     sh tri_cmd, %lo(GL_TRI_CMD)
 
-    #undef has_depth
-    #undef has_tex
     #undef tri_cmd
 
     # Check if eye space transformation is needed in T&L
@@ -665,8 +656,8 @@ gl_matrix_palette_loop:
 1:
 
     # Depth mask
-    andi t0, state_flags, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
-    xori t0, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
+    and t0, state_flags, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
+    xor t0, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
     sltu t0, 1
     sll t0, SOM_Z_WRITE_SHIFT
     or modes1, t0
@@ -674,7 +665,7 @@ gl_matrix_palette_loop:
     #define depth_func t3
 
     # Depth test
-    andi t0, state_flags, FLAG_DEPTH_TEST
+    and t0, state_flags, FLAG_DEPTH_TEST
     beqz t0, 1f
     lhu depth_func, %lo(GL_STATE_DEPTH_FUNC)
     xori t1, depth_func, GL_ALWAYS
@@ -755,10 +746,10 @@ gl_matrix_palette_loop:
     li t4, GL_REPLACE
     bne t3, t4, 1f
     nop
-    ori t5, 0x2
+    ori t5, COMBINER_FLAG_REPLACE
 1:
-    and t0, state_flags, FLAG_TEXTURE_ACTIVE
-    srl t0, TEX_ACTIVE_COMBINER_SHIFT
+    srl t0, state_flags, TEX_ACTIVE_COMBINER_SHIFT
+    andi t0, COMBINER_FLAG_TEXTURE
     or t5, t0
 
     sll t5, 3

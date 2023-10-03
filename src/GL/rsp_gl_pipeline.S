@@ -113,7 +113,7 @@ GL_HandleMatrixPalette:
     #define mtx_index   v1
     #define state_flags t5
     #define mtx_pointer s1
-    and t0, state_flags, FLAG_MATRIX_PALETTE
+    andi t0, state_flags, FLAG_MATRIX_PALETTE
     beqz t0, JrRa
     lw t0, %lo(GL_LOADED_MTX_INDEX) - 0xC(mtx_pointer)
 
@@ -394,7 +394,7 @@ GL_TnL:
     ldv vrgba.e0, PRIM_VTX_R, vtx     # R + G + B + A
     ldv vrgba.e4, PRIM_VTX_R, vtx     # R + G + B + A
 
-    and t0, state_flags, FLAG_NEED_EYE_SPACE
+    andi t0, state_flags, FLAG_NEED_EYE_SPACE
     beqz t0, 2f
     li s4, %lo(GL_MATRIX_MODELVIEW)
 
@@ -456,7 +456,7 @@ GL_TnL:
 
 2:
 
-    and t0, state_flags, FLAG_LIGHTING
+    andi t0, state_flags, FLAG_LIGHTING
     bnez t0, GL_VtxLighting
     li ra, %lo(1f)
 1:

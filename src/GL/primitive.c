@@ -9,8 +9,10 @@
 #include <malloc.h>
 #include <string.h>
 
-_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST << TRICMD_ATTR_SHIFT_Z)) == (RDPQ_CMD_TRI_ZBUF << 8));
-_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_TEXTURE_ACTIVE >> TRICMD_ATTR_SHIFT_TEX)) == (RDPQ_CMD_TRI_TEX << 8));
+_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST     >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_ZBUF << 8));
+_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_TEXTURE_ACTIVE >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_TEX  << 8));
+_Static_assert(((RDPQ_CMD_TRI << 8) | TRICMD_ATTR_MASK) == (RDPQ_CMD_TRI_TEX_ZBUF << 8));
+_Static_assert(((FLAG_DEPTH_TEST | FLAG_TEXTURE_ACTIVE) >> TRICMD_ATTR_SHIFT) == TRICMD_ATTR_MASK);
 
 extern gl_state_t state;
 
