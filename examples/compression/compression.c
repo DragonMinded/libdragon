@@ -84,6 +84,7 @@ int main(void) {
     console_init();
     console_set_debug(true);
     dfs_init(DFS_DEFAULT_LOCATION);
+    asset_init_compression(2);
 
 	char sbuf[1024];
 	strcpy(sbuf, "rom:/");
