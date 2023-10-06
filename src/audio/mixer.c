@@ -295,8 +295,8 @@ void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
 	/// @endcond
 
 	mixer_ch_set_vol(ch,
-		fl*KFn + c*KCn - sl*KBn - sr*KBn,
-		fr*KFn + c*KCn + sl*KBn + sr*KBn
+		fl*KFn + c*KCn - sl*KAn - sr*KBn,
+		fr*KFn + c*KCn + sl*KBn + sr*KAn
 	);
 }
 
