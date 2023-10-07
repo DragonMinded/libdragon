@@ -321,7 +321,7 @@ ssize_t decompress_lz4_read(void *state, void *buf, size_t len)
          buf += n;
          len -= n;
          st.lit_len -= n;
-         if (st.lit_len)
+         if (st.lit_len || lz4->eof)
             break;
          st.match_off = lz4_readbyte(lz4);
          st.match_off |= ((uint16_t)lz4_readbyte(lz4)) << 8;
