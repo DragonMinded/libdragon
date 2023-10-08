@@ -61,16 +61,15 @@ GL_ClipTriangle:
     #define vdot_f          $v05
     #define vdiff_i         $v06
     #define vdiff_f         $v07
-    #define va_i            $v08
-    #define va_f            $v09
-    #define vpos_i          $v10
-    #define vpos_f          $v11
-    #define vattr0          $v12
-    #define vattr1          $v13
-    #define voff0           $v14
-    #define voff1           $v15
-    #define vcache0         $v16
-    #define vcache1         $v17
+    #define va_f            $v08
+    #define vpos_i          $v09
+    #define vpos_f          $v10
+    #define vattr0          $v11
+    #define vattr1          $v12
+    #define voff0           $v13
+    #define voff1           $v14
+    #define vcache0         $v15
+    #define vcache1         $v16
     #define v__             $v29
 
     move ra2, ra
@@ -173,7 +172,7 @@ gl_clip_no_swap:
     luv vattr0.e0,  SCREEN_VTX_RGBA   ,p0
     llv vattr0.e4,  SCREEN_VTX_S      ,p0
 
-    # vattr0: r1  g1  b1  a1  s1  t1
+    # vattr1: r1  g1  b1  a1  s1  t1
     luv vattr1.e0,  SCREEN_VTX_RGBA   ,p1
     llv vattr1.e4,  SCREEN_VTX_S      ,p1
 
@@ -182,8 +181,8 @@ gl_clip_no_swap:
     # Add the values from the "used slots map" to the cache offsets
     # After this, each lane will contain the offset of its corresponding cache slot,
     # but only if the slot is not used. If it is used, it will contain some large value.
-    vadd vcache0, voff0
-    vadd vcache1, voff1
+    vaddc vcache0, voff0
+    vaddc vcache1, voff1
 
     # Look for the smallest value, which will end up in vcache.e0
     # Because used slots are marked as large values, they will never be found.
@@ -230,39 +229,32 @@ gl_clip_no_swap:
     # 1 / (d0 - d1)
     vrcph v__.e0,  vdiff_i.e0
     vrcpl va_f.e0, vdiff_f.e0
-    vrcph va_i.e0, vzero.e0
 
     # a = d0 / (d0 - d1)
-    vmudl v__,  va_f, vdot_f.e0
-    vmadm v__,  va_i, vdot_f.e0
-    vmadn va_f, va_f, vdot_i.e0
-    vmadh va_i, va_i, vdot_i.e0
+    vmudm v__,  va_f, vdot_f.e0
+    vmadh va_f, va_f, vdot_i.e0
 
     # Account for right shift introduced by vrcp
     vmudn va_f, va_f, K2
-    vmadh va_i, va_i, K2
 
     # p1 - p0
     vsubc vint_f, vpos_f
     vsub  vint_i, vpos_i
     # attr1 - attr0
-    vsub  vattr1, vattr0
-
-    # a * (p1 - p0)
-    vmudl v__,    vint_f, va_f.e0
-    vmadm v__,    vint_i, va_f.e0
-    vmadn vint_f, vint_f, va_i.e0
-    vmadh vint_i, vint_i, va_i.e0
-    # a * (attr1 - attr0)
-    vmudm v__,    vattr1, va_f.e0
-    vmadh vattr1, vattr1, va_i.e0
+    vsubc vattr1, vattr0
 
     # Result of linear interpolation:
     # p0 + a * (p1 - p0)
-    vaddc vint_f, vpos_f
-    vadd  vint_i, vpos_i
+    vmudl v__,    vint_f, va_f.e0
+    vmadm v__,    vint_i, va_f.e0
+    vmadn vint_f, vpos_f, K1
+    vmadh vint_i, vpos_i, K1
+
+    # a * (attr1 - attr0)
+    vmudm vattr1, vattr1, va_f.e0
+
     # attr0 + a * (attr1 - attr0)
-    vadd  vattr0, vattr1
+    vaddc vattr0, vattr1
 
     # Store results
     sdv vint_i.e0,  SCREEN_VTX_CS_POSi,intersection
@@ -357,7 +349,6 @@ gl_clip_finalize_loop:
     #undef vdot_f
     #undef vdiff_i
     #undef vdiff_f
-    #undef va_i
     #undef va_f
     #undef vint_i
     #undef vint_f
