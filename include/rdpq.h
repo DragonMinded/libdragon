@@ -289,6 +289,9 @@ typedef struct {
 extern "C" {
 #endif
 
+/// @private
+extern void __rdpq_set_scissor(uint32_t, uint32_t);
+
 /**
  * @brief Initialize the RDPQ library.
  * 
@@ -449,7 +452,6 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * @see #rdpq_set_color_image
  */
 #define rdpq_set_scissor(x0, y0, x1, y1) ({ \
-    extern void __rdpq_set_scissor(uint32_t, uint32_t); \
     int32_t x0fx = (x0)*4; \
     int32_t y0fx = (y0)*4; \
     int32_t x1fx = (x1)*4; \
