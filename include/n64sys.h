@@ -217,6 +217,18 @@ void wait_ticks( unsigned long wait );
 void wait_ms( unsigned long wait_ms );
 
 /**
+ * @brief Force a complete halt of all processors
+ *
+ * @note It should occur whenever a reset has been triggered 
+ * and its past its RESET_TIME_LENGTH grace time period.
+ * This function will shut down the RSP and the CPU, blank the VI.
+ * Eventually the RDP will flush and complete its work as well.
+ * The system will recover after a reset or power cycle.
+ * 
+ */
+void die();
+
+/**
  * @brief Force a data cache invalidate over a memory region
  *
  * Use this to force the N64 to update cache from RDRAM.

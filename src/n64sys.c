@@ -8,6 +8,11 @@
 #include <assert.h>
 #include <malloc.h>
 #include "n64sys.h"
+#include "regsinternal.h"
+#include "interrupt.h"
+#include "vi.h"
+#include "rsp.h"
+#include "rdp.h"
 #include "utils.h"
 
 /**
@@ -350,6 +355,29 @@ void wait_ticks( unsigned long wait )
 void wait_ms( unsigned long wait_ms )
 {
     wait_ticks(TICKS_FROM_MS(wait_ms));
+}
+
+/**
+ * @brief Force a complete halt of all processors
+ *
+ * @note It should occur whenever a reset has been triggered 
+ * and its past its RESET_TIME_LENGTH grace time period.
+ * This function will shut down the RSP and the CPU, blank the VI.
+ * Eventually the RDP will flush and complete its work as well.
+ * The system will recover after a reset or power cycle.
+ * 
+ */
+__attribute__((noreturn)) void die(){
+    // Halt the RSP
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+    // Flush the RDP
+    *DP_STATUS = DP_WSTATUS_SET_FLUSH | DP_WSTATUS_SET_FREEZE;
+    // Shut the video off
+    *VI_CTRL = *VI_CTRL & (~VI_CTRL_TYPE);
+    // Can't have any interrupts here
+    disable_interrupts();
+    // Spin infinitely
+    while(true){};
 }
 
 
