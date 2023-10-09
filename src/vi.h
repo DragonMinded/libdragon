@@ -194,9 +194,9 @@ static const vi_config_t vi_config_presets[2][3] = {
 #define VI_HSYNC_WIDTH_PAL                  58
 
 /** @brief VI period for showing one NTSC and MPAL picture in ms. */
-#define VI_PERIOD_NTSC_MPAL                 (1000/60)
+#define VI_PERIOD_NTSC_MPAL                 ((float)1000/60)
 /** @brief VI period for showing one PAL picture in ms. */
-#define VI_PERIOD_PAL                       (1000/50)
+#define VI_PERIOD_PAL                       ((float)1000/50)
 
 /**  Under VI_X_SCALE   */
 /** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */

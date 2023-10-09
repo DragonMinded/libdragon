@@ -5,6 +5,7 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <malloc.h>
 #include "n64sys.h"
@@ -367,17 +368,18 @@ void wait_ms( unsigned long wait_ms )
  * The system will recover after a reset or power cycle.
  * 
  */
-__attribute__((noreturn)) void die(){
+__attribute__((noreturn)) void die(void){
+    // Can't have any interrupts here
+    disable_interrupts();
     // Halt the RSP
     *SP_STATUS = SP_WSTATUS_SET_HALT;
     // Flush the RDP
     *DP_STATUS = DP_WSTATUS_SET_FLUSH | DP_WSTATUS_SET_FREEZE;
+    *DP_STATUS = DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
     // Shut the video off
     *VI_CTRL = *VI_CTRL & (~VI_CTRL_TYPE);
-    // Can't have any interrupts here
-    disable_interrupts();
-    // Spin infinitely
-    while(true){};
+    // Terminate the CPU execution
+    abort();
 }
 
 

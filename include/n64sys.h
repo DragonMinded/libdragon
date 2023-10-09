@@ -226,7 +226,7 @@ void wait_ms( unsigned long wait_ms );
  * The system will recover after a reset or power cycle.
  * 
  */
-void die();
+void die(void);
 
 /**
  * @brief Force a data cache invalidate over a memory region
