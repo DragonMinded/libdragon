@@ -70,7 +70,7 @@ static void __display_callback()
         TICKS_FROM_MS(VI_PERIOD_PAL) : 
         TICKS_FROM_MS(VI_PERIOD_NTSC_MPAL);
 
-    if(exception_reset_time() + next_call >= RESET_TIME_LENGTH) halt();
+    if(exception_reset_time() + next_call >= RESET_TIME_LENGTH) die();
 
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
