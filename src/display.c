@@ -47,6 +47,8 @@ static uint32_t frame_times[FPS_WINDOW];
 static int frame_times_index = 0;
 /** @brief Current duration of the frame window (time elapsed for FPS_WINDOW frames) */
 static uint32_t frame_times_duration;
+/** @brief Auto detected TV region for display */
+static uint32_t __tv_type;
 
 /** @brief Get the next buffer index (with wraparound) */
 static inline int buffer_next(int idx) {
@@ -63,6 +65,13 @@ static inline int buffer_next(int idx) {
  */
 static void __display_callback()
 {
+    // If a reset has occured and its the last VI interrupt before RESET_TIME_LENGTH grace period, stop all work and exit
+    uint32_t next_call = __tv_type == TV_PAL? 
+        TICKS_FROM_MS(VI_PERIOD_PAL) : 
+        TICKS_FROM_MS(VI_PERIOD_NTSC_MPAL);
+
+    if(exception_reset_time() + next_call >= RESET_TIME_LENGTH) die();
+
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
     bool field = (*VI_V_CURRENT) & 1;
@@ -84,7 +93,7 @@ static void __display_callback()
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
 {
-    uint32_t tv_type = get_tv_type();
+    __tv_type = get_tv_type();
     uint32_t control = !sys_bbplayer()? VI_PIXEL_ADVANCE_DEFAULT : VI_PIXEL_ADVANCE_BBPLAYER;
 
     /* Can't have the video interrupt happening here */
@@ -98,7 +107,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     if(serrate) control |= VI_CTRL_SERRATE;
 
     /* Copy over extra initializations */
-    vi_write_config(&vi_config_presets[serrate][tv_type]);
+    vi_write_config(&vi_config_presets[serrate][__tv_type]);
 
     /* Figure out control register based on input given */
     switch( bit )
