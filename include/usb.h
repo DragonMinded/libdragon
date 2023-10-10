@@ -20,11 +20,12 @@
     #define CART_SC64      3
     
     // Data types defintions
-    #define DATATYPE_TEXT       0x01
-    #define DATATYPE_RAWBINARY  0x02
-    #define DATATYPE_HEADER     0x03
-    #define DATATYPE_SCREENSHOT 0x04
-    #define DATATYPE_HEARTBEAT  0x05
+    #define DATATYPE_TEXT        0x01
+    #define DATATYPE_RAWBINARY   0x02
+    #define DATATYPE_HEADER      0x03
+    #define DATATYPE_SCREENSHOT  0x04
+    #define DATATYPE_HEARTBEAT   0x05
+    #define DATATYPE_RDBPACKET   0x06
     
     
     /*********************************
@@ -32,8 +33,8 @@
     *********************************/
     
     // Use these to conveniently read the header from usb_poll()
-    #define USBHEADER_GETTYPE(header) ((header & 0xFF000000) >> 24)
-    #define USBHEADER_GETSIZE(header) ((header & 0x00FFFFFF))
+    #define USBHEADER_GETTYPE(header) (((header) & 0xFF000000) >> 24)
+    #define USBHEADER_GETSIZE(header) (((header) & 0x00FFFFFF))
     
     
     /*********************************
@@ -46,7 +47,7 @@
         @return 1 if the USB initialization was successful, 0 if not
     ==============================*/
     
-    extern char usb_initialize();
+    extern char usb_initialize(void);
     
     
     /*==============================
@@ -55,7 +56,7 @@
         @return The CART macro that corresponds to the identified flashcart
     ==============================*/
     
-    extern char usb_getcart();
+    extern char usb_getcart(void);
     
     
     /*==============================
@@ -77,7 +78,7 @@
         @return The data header, or 0
     ==============================*/
     
-    extern unsigned long usb_poll();
+    extern unsigned long usb_poll(void);
     
     
     /*==============================
@@ -113,7 +114,7 @@
         Purges the incoming USB data
     ==============================*/
     
-    extern void usb_purge();
+    extern void usb_purge(void);
 
 
     /*==============================
@@ -122,7 +123,7 @@
         @return 1 if the USB timed out, 0 if not
     ==============================*/
 
-    extern char usb_timedout();
+    extern char usb_timedout(void);
 
 
     /*==============================
@@ -134,6 +135,6 @@
         version.
     ==============================*/
 
-    extern void usb_sendheartbeat();
+    extern void usb_sendheartbeat(void);
 
 #endif
