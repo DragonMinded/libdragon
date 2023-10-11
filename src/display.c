@@ -364,7 +364,7 @@ void display_show( surface_t* surf )
 
     /* Record the time at which this frame was (asked to be) shown */
     uint32_t old_ticks = frame_times[frame_times_index];
-    uint32_t now = get_ticks();
+    uint32_t now = TICKS_READ();
     if (old_ticks)
         frame_times_duration = TICKS_DISTANCE(old_ticks, now);
     frame_times[frame_times_index] = now;

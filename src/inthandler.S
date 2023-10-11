@@ -201,6 +201,12 @@ interrupt:
 	# a single variable will suffice.
 	sw sp, interrupt_exception_frame
 
+	# Update the 64-bit tick counter. We do this every interrupt so that the
+	# counter is always valid, even if it is not called for more than 99 seconds
+	# (during which the 32-bit counter would overflow).
+	jal get_ticks
+	nop
+
 	/* check for "pre-NMI" (reset) */
 	andi t0, cause, 0x1000
 	beqz t0, notprenmi

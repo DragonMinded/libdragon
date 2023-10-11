@@ -39,6 +39,12 @@
  */
 int __bbplayer = 0;
 
+/** @brief Last tick at which the 64-bit counter was updated */
+static uint32_t ticks64_base_tick;
+
+/** @brief Last value of the 64-bit counter */
+static uint64_t ticks64_base;
+
 /** @brief Return true if we are running on a iQue player */
 bool sys_bbplayer(void) {
     return __bbplayer != 0;
@@ -333,26 +339,31 @@ tv_type_t get_tv_type()
     return *((uint32_t *) TV_TYPE_LOC);
 }
 
-/**
- * @brief Spin wait until the number of ticks have elapsed
- *
- * @param[in] wait
- *            Number of ticks to wait
- *            Maximum accepted value is 0xFFFFFFFF ticks
- */
+uint64_t get_ticks(void)
+{
+	uint32_t now = TICKS_READ();
+	uint32_t prev = ticks64_base_tick;
+	ticks64_base_tick = now;
+	ticks64_base += now - prev;
+	return ticks64_base;
+}
+
+uint64_t get_ticks_us(void)
+{
+    return TICKS_TO_US(get_ticks());
+}
+
+uint64_t get_ticks_ms(void)
+{
+    return TICKS_TO_MS(get_ticks());
+}
+
 void wait_ticks( unsigned long wait )
 {
     unsigned int initial_tick = TICKS_READ();
     while( TICKS_READ() - initial_tick < wait );
 }
 
-/**
- * @brief Spin wait until the number of milliseconds have elapsed
- *
- * @param[in] wait_ms
- *            Number of milliseconds to wait
- *            Maximum accepted value is 91625 ms
- */
 void wait_ms( unsigned long wait_ms )
 {
     wait_ticks(TICKS_FROM_MS(wait_ms));
@@ -425,8 +436,6 @@ __attribute__((constructor)) void __init_cop1()
 /** @} */
 
 /* Inline instantiations */
-extern inline volatile unsigned long get_ticks(void);
-extern inline volatile unsigned long get_ticks_ms(void);
 extern inline uint8_t mem_read8(uint64_t vaddr);
 extern inline uint16_t mem_read16(uint64_t vaddr);
 extern inline uint32_t mem_read32(uint64_t vaddr);

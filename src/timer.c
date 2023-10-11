@@ -45,12 +45,6 @@ static int timer_init_refcount = 0;
 /** @brief Internal linked list of timers */
 static timer_link_t *TI_timers = NULL;
 
-/** @brief Higher-part of 64-bit tick counter */
-volatile uint32_t ticks64_high;
-
-/** @brief Time at which interrupts were disabled */
-extern volatile uint32_t interrupt_disabled_tick;
-
 /** @brief Timer callback expects a context parameter */
 #define TF_CONTEXT     0x20
 
@@ -205,18 +199,6 @@ static void timer_poll(void)
 }
 
 /**
- * @brief Timer callback overflow function
- *
- * This function is the callback of the internal overflow timer, which
- * is configured by timer_init() and is used to create a 64-bit timer
- * accessed by timer_ticks().
- */
-static void timer_overflow_callback(int ovfl)
-{
-	ticks64_high++;
-}
-
-/**
  * @brief Initialize the timer subsystem
  *
  * This function will reset the COP0 ticks counter to 0. Even if you
@@ -236,28 +218,9 @@ void timer_init(void)
 	// Just increment the refcount if already initialized.
 	if (timer_init_refcount++ > 0) { return; }
 
-	assertf(!TI_timers, "timer module already initialized");
-	/* Create first timer for overflows: expires when counter is 0 and
-	 * has a period of 2**32. */
-	timer_link_t *timer = malloc(sizeof(timer_link_t));
-	if (timer)
-	{
-		timer->left = 0;
-		timer->set = 0;
-		timer->flags = TF_CONTINUOUS | TF_OVERFLOW;
-		timer->callback = timer_overflow_callback;
-		timer->ctx = NULL;
-		timer->next = NULL;
-
-		TI_timers = timer;
-	}
-
-	/* Reset the count and compare registers. Avoid to accidentally trigger
-	   an interrupt by setting count to 1 and compare to 0. Also enable
-	   timer interrupts in COP0. */
+	// Reset the compare register and enable timer interrupts in COP0.
+	// Do not write the COUNT register to avoid interfering with get_ticks().
 	disable_interrupts();
-	ticks64_high = 0;
-	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
 	set_TI_interrupt(1);
 	register_TI_handler(timer_poll);
@@ -281,7 +244,7 @@ void timer_init(void)
  */
 timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
@@ -325,7 +288,7 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
  */
 timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
@@ -368,7 +331,7 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
  */
 void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t callback)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -410,7 +373,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
  */
 void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -476,7 +439,7 @@ void stop_timer(timer_link_t *timer)
 	timer_link_t *head;
 	timer_link_t *last = 0;
 
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -513,7 +476,7 @@ void stop_timer(timer_link_t *timer)
  */
 void delete_timer(timer_link_t *timer)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		stop_timer(timer);
@@ -534,10 +497,11 @@ void delete_timer(timer_link_t *timer)
  */
 void timer_close(void)
 {
+	assertf(timer_init_refcount > 0, "timer module not initialized");
+
 	// Do nothing if there are still dangling references.
 	if (--timer_init_refcount > 0) { return; }
 
-	assertf(TI_timers, "timer module not initialized");
 	disable_interrupts();
 	
 	/* Disable generation of timer interrupt. */
@@ -574,40 +538,8 @@ void timer_close(void)
  */
 long long timer_ticks(void)
 {
-	uint32_t low, high;
-	assertf(TI_timers, "timer module not initialized");
-
-	/* Check whether interrupts are enabled or not. We need a different strategy
-	 * to account for race conditions. */
-	if (C0_STATUS() & C0_STATUS_IE) {
-		/* Read the hardware counter twice, and fetch the high part counter
-		 * in between. In the unlikely case that the counter overflows exactly
-		 * during the sequence, it means that there's a race condition and
-		 * we can't really know whether high and low are coherent -- but in
-		 * that case, we just repeat the sequence again to avoid the ambiguity. */
-		uint32_t pre;
-		do {
-			pre = TICKS_READ();
-			MEMORY_BARRIER();
-			high = ticks64_high;
-			MEMORY_BARRIER();
-			low = TICKS_READ();
-		} while ((int32_t)pre < 0 && (int32_t)low >= 0);
-
-	} else {
-		/* Interrupts are currently disabled. If they've been disabled for more
-		 * than 2**32 ticks, it's game over because we can't know how many times
-		 * the counter has overflown.
-		 * So assuming they were disabled for not too long, check whether there
-		 * was a counter overflow between now and when they were disabled. 
-		 * If there was, increment high. */
-		low = TICKS_READ();
-		high = ticks64_high;
-		if (interrupt_disabled_tick > low)
-			high++;
-	}
-
-	return ((uint64_t)high << 32) + low;
+	assertf(timer_init_refcount > 0, "timer module not initialized");
+	return get_ticks();
 }
 
 /** @} */
