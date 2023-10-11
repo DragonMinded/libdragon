@@ -385,7 +385,7 @@ static u32 usb_timeout_start(void)
 #ifndef LIBDRAGON
     return osGetCount();
 #else
-    return get_ticks();
+    return TICKS_READ();
 #endif
 }
 
@@ -404,7 +404,7 @@ static char usb_timeout_check(u32 start_ticks, u32 duration)
     u64 current_ticks = (u64)osGetCount();
     u64 timeout_ticks = OS_USEC_TO_CYCLES((u64)duration * 1000);
 #else
-    u64 current_ticks = (u64)get_ticks();
+    u64 current_ticks = (u64)TICKS_READ();
     u64 timeout_ticks = (u64)TICKS_FROM_MS(duration);
 #endif
     if (current_ticks < start_ticks)
