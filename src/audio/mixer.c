@@ -750,3 +750,13 @@ void mixer_poll(int16_t *out16, int num_samples) {
 		}
 	}
 }
+
+void mixer_try_play()
+{
+    if (audio_can_write())
+    {
+        short *buf = audio_write_begin();
+        mixer_poll(buf, audio_get_buffer_length());
+        audio_write_end();
+    }
+}

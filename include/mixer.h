@@ -358,6 +358,18 @@ void mixer_unthrottle(void);
 void mixer_poll(int16_t *out, int nsamples);
 
 /**
+ * @brief Request the mixer to try and write audio samples to be played,
+ * if possible.
+ * 
+ * This function is a user helper for asking the mixer and audio subsystems
+ * to play audio during a game frame. You should call this function many times
+ * during one frame (eg. during the render step or after processing each game
+ * object) as many times as necessary. Not polling the audio subsystem often
+ * enough will result in audio stutter. 
+ */
+void mixer_try_play();
+
+/**
  * @brief Callback invoked by mixer_poll at a specified time
  * 
  * A MixerEvent is a callback that is invoked during mixer_poll at a specified
