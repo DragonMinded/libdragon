@@ -10,9 +10,15 @@
 
 #include "lzh5_internal.h"
 
+#define NEW_IMPL    1
+
 #ifdef N64
 #include <malloc.h>
 #include "debug.h"
+#include "dma.h"
+#include "utils.h"
+#include "n64sys.h"
+#include "dragonfs.h"
 #else
 #include <stdlib.h>
 #endif
@@ -53,12 +59,15 @@ typedef struct {
 	// File pointer to read from.
 
 	FILE *fp;
+	uint32_t rom_addr;
 
 	// Internal cache of bytes read from the input stream.
 
-	uint8_t buf[128] __attribute__((aligned(8)));
-	int buf_idx;
+	uint8_t buf[2][128] __attribute__((aligned(16)));
+	uint8_t *buf_ptr, *buf_end;
 	int buf_size;
+	int cur_buf;
+	int buf_idx;
 
 	// Bits from the input stream that are waiting to be read.
 
@@ -69,25 +78,30 @@ typedef struct {
 
 // Initialize bit stream reader structure.
 
-static void bit_stream_reader_init(BitStreamReader *reader, FILE *fp)
+static void bit_stream_reader_init(BitStreamReader *reader, FILE *fp, uint32_t rom_addr)
 {
+	memset(reader, 0, sizeof(BitStreamReader));
 	reader->fp = fp;
-	reader->buf_idx = 0;
-	reader->buf_size = 0;
-	reader->bits = 0;
-	reader->bit_buffer = 0;
+	reader->rom_addr = rom_addr;
+	reader->cur_buf = 1;
+
+	if (reader->rom_addr) {
+		data_cache_hit_invalidate(reader->buf[reader->cur_buf^1], sizeof(reader->buf[0]));
+		dma_read_raw_async(reader->buf[reader->cur_buf^1], reader->rom_addr, sizeof(reader->buf[0]));
+		reader->rom_addr += sizeof(reader->buf[0]);
+	}
 }
 
 // Refill the bit buffer with other 64 bits from the input stream.
-
+#if NEW_IMPL == 0
 static int refill_bits(BitStreamReader *reader)
 {
 	if (reader->buf_idx >= reader->buf_size) {
-		reader->buf_size = fread(reader->buf, 1, sizeof(reader->buf), reader->fp);
+		reader->buf_size = fread(reader->buf[0], 1, sizeof(reader->buf[0]), reader->fp);
 		reader->buf_idx = 0;
 	}
 
-	reader->bit_buffer = *(uint64_t*)(&reader->buf[reader->buf_idx]);
+	reader->bit_buffer = *(uint64_t*)(&reader->buf[0][reader->buf_idx]);
 	if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 		reader->bit_buffer = __builtin_bswap64(reader->bit_buffer);
 	reader->bits = (reader->buf_size - reader->buf_idx) * 8;
@@ -96,7 +110,41 @@ static int refill_bits(BitStreamReader *reader)
 	reader->buf_idx += 8;
 	return reader->buf_size > 0;
 }
+#else
 
+static void refill_bits_fetch(BitStreamReader *reader)
+{
+	reader->cur_buf ^= 1;
+	if (reader->rom_addr) {
+		data_cache_hit_invalidate(reader->buf[reader->cur_buf^1], sizeof(reader->buf[0]));
+		dma_read_raw_async(reader->buf[reader->cur_buf^1], reader->rom_addr, sizeof(reader->buf[0]));
+		reader->rom_addr += sizeof(reader->buf[0]);
+		reader->buf_size = sizeof(reader->buf[0]);
+	} else {
+		reader->buf_size = fread(reader->buf[reader->cur_buf], 1, sizeof(reader->buf[0]), reader->fp);
+	}
+	reader->buf_ptr = reader->buf[reader->cur_buf];
+	reader->buf_end = reader->buf[reader->cur_buf] + reader->buf_size;
+}
+
+static int refill_bits(BitStreamReader *reader)
+{
+	if (__builtin_expect(reader->buf_ptr >= reader->buf_end, 0)) {
+		refill_bits_fetch(reader);
+	}
+
+	uint64_t w = *(uint32_t*)reader->buf_ptr;
+	if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+		w = __builtin_bswap32(w);
+	reader->buf_ptr += 4;
+	reader->bit_buffer |= w << (32 - reader->bits);
+	reader->bits += 32;
+	assert(reader->bits <= 64);
+	return reader->buf_size > 0;
+}
+#endif
+
+#if NEW_IMPL == 0
 // Internal continuation of read_bits
 // Returns -1 for failure.
 
@@ -131,12 +179,13 @@ static int read_bits(BitStreamReader *reader,
 
 // Read a bit from the input stream.
 // Returns -1 for failure.
+__attribute__((used))
 static int read_bit(BitStreamReader *reader)
 {
 	return read_bits(reader, 1);
 }
 
-
+__attribute__((used))
 static uint64_t peek_bits(BitStreamReader *reader, int *n)
 {
 	*n = reader->bits;
@@ -155,7 +204,40 @@ static int skip_bits(BitStreamReader *reader, int n)
 	return 0;
 }
 
+#else
 
+static inline void fill_bits(BitStreamReader *reader, int n)
+{
+	reader->bit_buffer <<= n;
+	reader->bits -= n;
+	assert(reader->bits >= 0);
+	if (__builtin_expect(reader->bits <= 32, 0)) {
+		refill_bits(reader);
+	}
+}
+
+static int peek_bits(BitStreamReader *reader,
+                     unsigned int n)
+{
+	return reader->bit_buffer >> (64 - n);
+}
+
+static int read_bits(BitStreamReader *reader,
+                     unsigned int n)
+{
+	int result = peek_bits(reader, n);
+	fill_bits(reader, n);
+	return result;
+}
+
+static int end_bits(BitStreamReader *reader)
+{
+	return reader->buf_size == 0;
+}
+
+#endif
+
+#if NEW_IMPL == 0
 //////////////////////// tree_decode.c
 typedef uint16_t TreeElement;
 
@@ -420,6 +502,284 @@ static int read_from_tree(BitStreamReader *reader, TreeElement *tree)
 	return (int) (code & ~TREE_NODE_LEAF);
 }
 
+#else
+#define LZHUFF5_DICBIT      13      /* 2^13 =  8KB sliding dictionary */
+#define MAX_DICBIT			LZHUFF5_DICBIT
+#define MAXMATCH            256 /* formerly F (not more than UCHAR_MAX + 1) */
+#define THRESHOLD           3   /* choose optimal value */
+
+#define NP          (MAX_DICBIT + 1)
+#define NT          (sizeof(uint16_t)*8 + 3)
+#define NC          (255 + MAXMATCH + 2 - THRESHOLD)
+
+#define PBIT        4       /* smallest integer such that (1 << PBIT) > * NP */
+#define TBIT        5       /* smallest integer such that (1 << TBIT) > * NT */
+#define CBIT        9       /* smallest integer such that (1 << CBIT) > * NC */
+
+/*      #if NT > NP #define NPT NT #else #define NPT NP #endif  */
+#define NPT         0x80
+
+#define C_TABLE_BITS    8
+#define PT_TABLE_BITS   8
+
+typedef struct {
+	uint16_t left[2 * NC - 1], right[2 * NC - 1];
+	uint16_t c_table[1<<C_TABLE_BITS];
+	uint16_t pt_table[1<<PT_TABLE_BITS];
+	unsigned char  c_len[NC];
+	unsigned char  pt_len[NPT];
+	int blocksize;
+
+	BitStreamReader *reader;
+} HuffDecoder;
+
+
+static void make_table(
+	HuffDecoder 	*hd,
+    short           nchar,
+    unsigned char   bitlen[],
+    short           tablebits,
+    unsigned short  table[])
+{
+    unsigned short  count[17];  /* count of bitlen */
+    unsigned short  weight[17]; /* 0x10000ul >> bitlen */
+    unsigned short  start[17];  /* first code of bitlen */
+    unsigned short  total;
+    unsigned int    i, l;
+    int             j, k, m, n, avail;
+    unsigned short *p;
+
+    avail = nchar;
+
+    /* initialize */
+    for (i = 1; i <= 16; i++) {
+        count[i] = 0;
+        weight[i] = 1 << (16 - i);
+    }
+
+    /* count */
+    for (i = 0; i < nchar; i++) {
+        if (bitlen[i] > 16) {
+            /* CVE-2006-4335 */
+            assertf(0, "Bad table (case a)");
+        }
+        else
+            count[bitlen[i]]++;
+    }
+
+    /* calculate first code */
+    total = 0;
+    for (i = 1; i <= 16; i++) {
+        start[i] = total;
+        total += weight[i] * count[i];
+    }
+    if ((total & 0xffff) != 0 || tablebits > 16) { /* 16 for weight below */
+        assertf(0, "make_table(): Bad table (case b)");
+    }
+
+    /* shift data for make table. */
+    m = 16 - tablebits;
+    for (i = 1; i <= tablebits; i++) {
+        start[i] >>= m;
+        weight[i] >>= m;
+    }
+
+    /* initialize */
+    j = start[tablebits + 1] >> m;
+    k = MIN(1 << tablebits, 4096);
+    if (j != 0)
+        for (i = j; i < k; i++)
+            table[i] = 0;
+
+    /* create table and tree */
+    for (j = 0; j < nchar; j++) {
+        k = bitlen[j];
+        if (k == 0)
+            continue;
+        l = start[k] + weight[k];
+        if (k <= tablebits) {
+            /* code in table */
+            l = MIN(l, 4096);
+            for (i = start[k]; i < l; i++)
+                table[i] = j;
+        }
+        else {
+            /* code not in table */
+            i = start[k];
+            if ((i >> m) > 4096) {
+                /* CVE-2006-4337 */
+                assertf(0, "Bad table (case c)");
+            }
+            p = &table[i >> m];
+            i <<= tablebits;
+            n = k - tablebits;
+            /* make tree (n length) */
+            while (--n >= 0) {
+                if (*p == 0) {
+                    hd->right[avail] = hd->left[avail] = 0;
+                    *p = avail++;
+                }
+                if (i & 0x8000)
+                    p = &hd->right[*p];
+                else
+                    p = &hd->left[*p];
+                i <<= 1;
+            }
+            *p = j;
+        }
+        start[k] = l;
+    }
+}
+
+#define endbits()   end_bits(hd->reader)
+#define getbits(n)  read_bits(hd->reader, n)
+#define peekbits(n) peek_bits(hd->reader, n)
+#define fillbuf(n)	fill_bits(hd->reader, n)
+
+static void read_pt_len(HuffDecoder *hd, short nn, short nbit, short i_special)
+{
+    int           i, c, n;
+
+    n = getbits(nbit);
+    if (n == 0) {
+        c = getbits(nbit);
+        for (i = 0; i < nn; i++)
+            hd->pt_len[i] = 0;
+        for (i = 0; i < (1<<PT_TABLE_BITS); i++)
+            hd->pt_table[i] = c;
+    }
+    else {
+        i = 0;
+        while (i < MIN(n, NPT)) {
+            c = peekbits(3);
+            if (c != 7)
+                fillbuf(3);
+            else {
+                uint64_t mask = 1ull << (64 - 4);
+                while (mask & hd->reader->bit_buffer) {
+                    mask >>= 1;
+                    c++;
+                }
+                fillbuf(c - 3);
+            }
+
+            hd->pt_len[i++] = c;
+            if (i == i_special) {
+                c = getbits(2);
+                while (--c >= 0 && i < NPT)
+                    hd->pt_len[i++] = 0;
+            }
+        }
+        while (i < nn)
+            hd->pt_len[i++] = 0;
+        make_table(hd, nn, hd->pt_len, PT_TABLE_BITS, hd->pt_table);
+    }
+}
+
+static void read_c_len(HuffDecoder *hd)
+{
+    short i, c, n;
+
+    n = getbits(CBIT);
+    if (n == 0) {
+        c = getbits(CBIT);
+        for (i = 0; i < NC; i++)
+            hd->c_len[i] = 0;
+        for (i = 0; i < (1<<C_TABLE_BITS); i++)
+            hd->c_table[i] = c;
+    } else {
+        i = 0;
+        while (i < MIN(n,NC)) {
+			c = hd->pt_table[peekbits(PT_TABLE_BITS)];
+            if (c >= NT) {
+                uint64_t mask = 1ull << (64 - PT_TABLE_BITS - 1);
+                do {
+                    if (hd->reader->bit_buffer & mask)
+                        c = hd->right[c];
+                    else
+                        c = hd->left[c];
+                    mask >>= 1;
+					// assert(mask || c != left[c]);
+                } while (c >= NT);
+            }
+            fillbuf(hd->pt_len[c]);
+            if (c <= 2) {
+                if (c == 0)
+                    c = 1;
+                else if (c == 1)
+                    c = getbits(4) + 3;
+                else
+                    c = getbits(CBIT) + 20;
+                while (--c >= 0)
+                    hd->c_len[i++] = 0;
+            }
+            else
+                hd->c_len[i++] = c - 2;
+        }
+        while (i < NC)
+            hd->c_len[i++] = 0;
+        make_table(hd, NC, hd->c_len, C_TABLE_BITS, hd->c_table);
+    }
+}
+
+static uint16_t decode_huff8(HuffDecoder *hd, uint16_t *table, uint8_t *len, int ne)
+{
+    uint16_t j = table[peekbits(8)];
+    if (j >= ne) {
+        uint64_t mask = 1ull << (64 - 8 - 1);
+        do {
+            if (hd->reader->bit_buffer & mask)
+                j = hd->right[j];
+            else
+                j = hd->left[j];
+            mask >>= 1;
+			// assert(mask || j != left[j]);
+        } while (j >= ne);
+    }
+    fillbuf(len[j]);
+	return j;
+}
+
+static bool decode_new_block(HuffDecoder *hd)
+{
+	hd->blocksize = getbits(16);
+	if (endbits()) {
+		hd->blocksize = 0;
+		return false;
+	}
+	read_pt_len(hd, NT, TBIT, 3);
+	read_c_len(hd);
+	read_pt_len(hd, NP, PBIT, -1);
+	return true;
+}
+
+static inline int decode_c_st1(HuffDecoder *hd)
+{
+    if (hd->blocksize == 0) {
+		if (!decode_new_block(hd))
+			return -1;
+    }
+    hd->blocksize--;
+	return decode_huff8(hd, hd->c_table, hd->c_len, NC);
+}
+
+static inline unsigned short decode_p_st1(HuffDecoder *hd)
+{
+	uint16_t j = decode_huff8(hd, hd->pt_table, hd->pt_len, NP);
+    if (__builtin_expect(j > 1, 1))
+        j = (1 << (j - 1)) + getbits(j - 1);
+    return j;
+}
+
+static void decode_start_st1(HuffDecoder *hd, BitStreamReader *reader)
+{
+    memset(hd, 0, sizeof(*hd));
+	hd->reader = reader;
+	refill_bits(hd->reader);
+}
+
+
+#endif
 
 
 
@@ -529,6 +889,7 @@ typedef struct _LHANewDecoder {
 
 	BitStreamReader bit_stream_reader;
 
+#if NEW_IMPL == 0
 	// Number of commands remaining before we start a new block.
 
 	unsigned int block_remaining;
@@ -542,6 +903,9 @@ typedef struct _LHANewDecoder {
 	// encode the temp-table, which is bigger; hence the size.
 
 	TreeElement offset_tree[MAX_TEMP_CODES * 2];
+#else
+	HuffDecoder huff;
+#endif
 } LHANewDecoder;
 
 
@@ -572,27 +936,29 @@ static void init_ring_buffer(LHANewDecoderPartial *decoder)
 	decoder->ringbuf_copy_count = 0;
 }
 
-static int lha_lh_new_init(LHANewDecoder *decoder, FILE *fp)
+static int lha_lh_new_init(LHANewDecoder *decoder, FILE *fp, uint32_t rom_addr)
 {
 	// Initialize input stream reader.
 
-	bit_stream_reader_init(&decoder->bit_stream_reader, fp);
+	bit_stream_reader_init(&decoder->bit_stream_reader, fp, rom_addr);
 
+#if NEW_IMPL == 0
 	// First read starts the first block.
 
 	decoder->block_remaining = 0;
 
 	// Initialize tree tables to a known state.
-
 	init_tree(decoder->code_tree, NUM_CODES * 2);
 	init_tree(decoder->offset_tree, MAX_TEMP_CODES * 2);
-
+#else
+	decode_start_st1(&decoder->huff, &decoder->bit_stream_reader);
+#endif
 	return 1;
 }
 
 static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp)
 {
-	lha_lh_new_init(&decoder->decoder, fp);
+	lha_lh_new_init(&decoder->decoder, fp, 0);
 
 	// Initialize data structures.
 
@@ -603,6 +969,7 @@ static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp)
 	return 1;
 }
 
+#if NEW_IMPL == 0
 // Read a length value - this is normally a value in the 0-7 range, but
 // sometimes can be longer.
 
@@ -953,7 +1320,7 @@ static int read_offset_code(LHANewDecoder *decoder)
 		return result + (1 << (bits - 1));
 	}
 }
-
+#endif
 // Add a byte value to the output stream.
 
 static void output_byte(LHANewDecoderPartial *decoder, uint8_t *buf,
@@ -971,8 +1338,11 @@ static void output_byte(LHANewDecoderPartial *decoder, uint8_t *buf,
 static void set_copy_from_history(LHANewDecoderPartial *decoder, size_t count)
 {
 	int offset;
-
+	#if NEW_IMPL == 0
 	offset = read_offset_code(&decoder->decoder);
+	#else
+	offset = decode_p_st1(&decoder->decoder.huff);
+	#endif
 
 	if (offset < 0) {
 		return;
@@ -991,6 +1361,7 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 {
 	size_t result = 0;
 	int code;
+	if (!buf) goto end;
 
 	while (sz > 0) {
 		if (decoder->ringbuf_copy_count > 0) {
@@ -1049,7 +1420,7 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 			continue;
 		}
 
-
+	#if NEW_IMPL == 0
 		// Start of new block?
 		while (decoder->decoder.block_remaining == 0) {
 			if (!start_new_block(&decoder->decoder)) {
@@ -1062,9 +1433,12 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 		// Read next command from input stream.
 
 		code = read_code(&decoder->decoder);
+	#else
+		code = decode_c_st1(&decoder->decoder.huff);
+	#endif
 
 		if (code < 0) {
-			return 0;
+			break;
 		}
 
 		// The code may be either a literal byte value or a copy command.
@@ -1086,8 +1460,11 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 {
 	uint8_t *buf_orig = buf;
 	int code;
+	
+	if (buf == NULL) goto end;
 
 	while (sz > 0) {
+	#if NEW_IMPL == 0
 		// Start of new block?
 		while (decoder->block_remaining == 0) {
 			if (!start_new_block(decoder)) {
@@ -1098,6 +1475,10 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 
 		// Read next command from input stream.
 		code = read_code(decoder);
+	#else
+		code = decode_c_st1(&decoder->huff);
+	#endif
+		static int debug=0; debug++;
 
 		if (code < 0) {
 			return 0;
@@ -1109,7 +1490,11 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 			sz--;
 		} else {
 			int count = code - 256 + COPY_THRESHOLD;
+			#if NEW_IMPL == 0
 			int offset = read_offset_code(decoder);
+			#else
+			int offset = decode_p_st1(&decoder->huff);
+			#endif
 
 			if (offset < 0) {
 				return 0;
@@ -1144,7 +1529,7 @@ end:
  * Libdragon API
  *************************************************/
 
-_Static_assert(sizeof(LHANewDecoderPartial) == DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
+_Static_assert(sizeof(LHANewDecoderPartial) <= DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
 
 void decompress_lzh5_init(void *state, FILE *fp)
 {
@@ -1168,8 +1553,13 @@ void* decompress_lzh5_full(const char *fn, FILE *fp, size_t cmp_size, size_t siz
 	void *s = memalign(16, size);
 	assertf(s, "asset_load: out of memory");
 
+	uint32_t rom_addr = 0;
+	if (strncmp(fn, "rom:/", 5) == 0) {
+		rom_addr = (dfs_rom_addr(fn+5) & 0x1fffffff) + ftell(fp);
+	}
+
 	LHANewDecoder decoder;
-	lha_lh_new_init(&decoder, fp);
+	lha_lh_new_init(&decoder, fp, rom_addr);
 	int n = lha_lh_new_read_full(&decoder, s, size); (void)n;
 	assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
 
