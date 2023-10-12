@@ -1289,22 +1289,18 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     // Legacy support for old mksprite usage
     if (pm->hslices) spr.hslices = pm->hslices;
     if (pm->vslices) spr.vslices = pm->vslices;
-    // Autodetection of optimal slice size. TODO: this could be improved
-    // by calculating actual memory occupation of each slice, to minimize the
-    // number of TMEM loads.
+    // Autodetection of optimal slice size. NOTE: we currently don't
+    // use this in rdpq. rdpq_tex does its own from-scratch calculation,
+    // but we could skip some runtime work by doing the same here.
     if (pm->tilew) spr.hslices = spr.images[0].width / pm->tilew;
     if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
     if (!spr.hslices) {
         spr.hslices = spr.images[0].width / 16;
         if (!spr.hslices) spr.hslices = 1;
-        if (flag_verbose)
-            fprintf(stderr, "auto detected hslices: %d (w=%d/%d)\n", spr.hslices, spr.images[0].width, spr.images[0].width/spr.hslices);
     }
     if (!spr.vslices) {
         spr.vslices = spr.images[0].height / 16;
         if (!spr.vslices) spr.vslices = 1;
-        if (flag_verbose)
-            fprintf(stderr, "auto detected vslices: %d (w=%d/%d)\n", spr.vslices, spr.images[0].height, spr.images[0].height/spr.vslices);
     }
 
     // Write the sprite
