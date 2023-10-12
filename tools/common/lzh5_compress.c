@@ -1271,3 +1271,10 @@ lzh5_encode(FILE *in, FILE *out, unsigned int *out_crc, unsigned int *out_csize,
     if (out_dsize) *out_dsize = count;
     if (out_crc) *out_crc = crc;
 }
+
+#undef MAX_DICBIT
+#undef MAXMATCH
+#undef NT
+#undef NC
+#undef PBIT
+#undef TBIT
