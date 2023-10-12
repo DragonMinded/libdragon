@@ -1280,6 +1280,12 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         }
     }
 
+    // Dump TMEM usage
+    if (flag_verbose) {
+        int tmem_usage; spritemaker_fit_tmem(&spr, &tmem_usage);
+        fprintf(stderr, "TMEM required: %d bytes\n", tmem_usage);
+    }
+
     // Legacy support for old mksprite usage
     if (pm->hslices) spr.hslices = pm->hslices;
     if (pm->vslices) spr.vslices = pm->vslices;
