@@ -149,8 +149,8 @@ typedef struct {
 	uint16_t left[2 * NC - 1], right[2 * NC - 1];
 	uint16_t c_table[1<<C_TABLE_BITS];
 	uint16_t pt_table[1<<PT_TABLE_BITS];
-	unsigned char  c_len[NC];
-	unsigned char  pt_len[NPT];
+	uint8_t c_len[NC];
+	uint8_t pt_len[NPT];
 	int blocksize;
 
 	BitStreamReader *reader;
@@ -366,7 +366,7 @@ static bool decode_new_block(HuffDecoder *hd)
 	return true;
 }
 
-static inline int decode_c_st1(HuffDecoder *hd)
+static inline int huff_decode_code(HuffDecoder *hd)
 {
     if (hd->blocksize == 0) {
 		if (!decode_new_block(hd))
@@ -376,7 +376,7 @@ static inline int decode_c_st1(HuffDecoder *hd)
 	return decode_huff8(hd, hd->c_table, hd->c_len, NC);
 }
 
-static inline unsigned short decode_p_st1(HuffDecoder *hd)
+static inline unsigned short huff_decode_offset(HuffDecoder *hd)
 {
 	uint16_t j = decode_huff8(hd, hd->pt_table, hd->pt_len, NP);
     if (__builtin_expect(j > 1, 1))
@@ -384,7 +384,7 @@ static inline unsigned short decode_p_st1(HuffDecoder *hd)
     return j;
 }
 
-static void decode_start_st1(HuffDecoder *hd, BitStreamReader *reader)
+static void huff_decode_init(HuffDecoder *hd, BitStreamReader *reader)
 {
     memset(hd, 0, sizeof(*hd));
 	hd->reader = reader;
@@ -423,7 +423,7 @@ static int lha_lh_new_init(LHANewDecoder *decoder, FILE *fp, uint32_t rom_addr)
 	// Initialize input stream reader.
 	bit_stream_reader_init(&decoder->bit_stream_reader, fp, rom_addr);
 
-	decode_start_st1(&decoder->huff, &decoder->bit_stream_reader);
+	huff_decode_init(&decoder->huff, &decoder->bit_stream_reader);
 	return 1;
 }
 
@@ -456,7 +456,7 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 			continue;
 		}
 
-		code = decode_c_st1(&decoder->decoder.huff);
+		code = huff_decode_code(&decoder->decoder.huff);
 		if (code < 0) {
 			break;
 		}
@@ -466,7 +466,7 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 			__ringbuf_writebyte(&decoder->ringbuf, code);
 			sz--;
 		} else {
-			int offset = decode_p_st1(&decoder->decoder.huff);
+			int offset = huff_decode_offset(&decoder->decoder.huff);
 			if (offset < 0) {
 				assert(0);
 				break;
@@ -489,7 +489,7 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 	if (buf == NULL) goto end;
 
 	while (sz > 0) {
-		code = decode_c_st1(&decoder->huff);
+		code = huff_decode_code(&decoder->huff);
 		if (code < 0) {
 			return 0;
 		}
@@ -500,7 +500,7 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 			sz--;
 		} else {
 			int count = code - 256 + COPY_THRESHOLD;
-			int offset = decode_p_st1(&decoder->huff);
+			int offset = huff_decode_offset(&decoder->huff);
 			if (offset < 0) {
 				return 0;
 			}
@@ -534,7 +534,7 @@ end:
  * Libdragon API
  *************************************************/
 
-_Static_assert(sizeof(LHANewDecoderPartial) <= DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
+_Static_assert(sizeof(LHANewDecoderPartial) == DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
 
 void decompress_lzh5_init(void *state, FILE *fp)
 {
