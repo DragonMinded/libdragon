@@ -1,14 +1,9 @@
 // Decoder for algorithm -lh5- of the LZH family.
-// This code comes from https://github.com/fragglet/lhasa
-// and has been turned into a single file header with only
-// the -lh5- algo.
-// This was also modified to allow for full streaming decompression
-// (up to 1 byte at a time). Before, the code would decompress one
-// internal LHA block at a time, writing a non predictable number of 
-// bytes in the output buffer.
-// This file is ISC Licensed.
+// This code is adapted from https://github.com/jca02266/lha
+// and has been turned into a single file with the -lh5- algo.
 
 #include "lzh5_internal.h"
+#include "ringbuf_internal.h"
 
 #ifdef N64
 #include <malloc.h>
@@ -86,6 +81,7 @@ static void refill_bits_fetch(BitStreamReader *reader)
 	reader->buf_end = reader->buf[reader->cur_buf] + reader->buf_size;
 }
 
+__attribute__((noinline))
 static int refill_bits(BitStreamReader *reader)
 {
 	if (__builtin_expect(reader->buf_ptr >= reader->buf_end, 0)) {
@@ -112,14 +108,12 @@ static inline void fill_bits(BitStreamReader *reader, int n)
 	}
 }
 
-static int peek_bits(BitStreamReader *reader,
-                     unsigned int n)
+static int peek_bits(BitStreamReader *reader, int n)
 {
 	return reader->bit_buffer >> (64 - n);
 }
 
-static int read_bits(BitStreamReader *reader,
-                     unsigned int n)
+static int read_bits(BitStreamReader *reader, int n)
 {
 	int result = peek_bits(reader, n);
 	fill_bits(reader, n);
@@ -163,20 +157,15 @@ typedef struct {
 } HuffDecoder;
 
 
-static void make_table(
-	HuffDecoder 	*hd,
-    short           nchar,
-    unsigned char   bitlen[],
-    short           tablebits,
-    unsigned short  table[])
+static void make_table(HuffDecoder 	*hd, int nchar, uint8_t *bitlen, int tablebits, uint16_t* table)
 {
-    unsigned short  count[17];  /* count of bitlen */
-    unsigned short  weight[17]; /* 0x10000ul >> bitlen */
-    unsigned short  start[17];  /* first code of bitlen */
-    unsigned short  total;
-    unsigned int    i, l;
-    int             j, k, m, n, avail;
-    unsigned short *p;
+    uint16_t count[17];  /* count of bitlen */
+    uint16_t weight[17]; /* 0x10000ul >> bitlen */
+    uint16_t start[17];  /* first code of bitlen */
+    uint16_t total;
+    unsigned int i, l;
+    int j, k, m, n, avail;
+    uint16_t *p;
 
     avail = nchar;
 
@@ -262,7 +251,7 @@ static void make_table(
 
 static void read_pt_len(HuffDecoder *hd, short nn, short nbit, short i_special)
 {
-    int           i, c, n;
+    int i, c, n;
 
     n = read_bits(hd->reader, nbit);
     if (n == 0) {
@@ -302,7 +291,7 @@ static void read_pt_len(HuffDecoder *hd, short nn, short nbit, short i_special)
 
 static void read_c_len(HuffDecoder *hd)
 {
-    short i, c, n;
+    int i, c, n;
 
     n = read_bits(hd->reader, CBIT);
     if (n == 0) {
@@ -404,52 +393,24 @@ static void decode_start_st1(HuffDecoder *hd, BitStreamReader *reader)
 
 
 // 16 KiB history ring buffer:
-
 #define HISTORY_BITS    14   /* 2^14 = 16384 */
 
 // Threshold for copying. The first copy code starts from here.
-
 #define COPY_THRESHOLD       3 /* bytes */
 
-// Ring buffer containing history has a size that is a power of two.
-// The number of bits is specified.
-
-#define RING_BUFFER_SIZE     (1 << HISTORY_BITS)
-
-// Required size of the output buffer.  At most, a single call to read()
-// might result in a copy of the entire ring buffer.
-
-#define OUTPUT_BUFFER_SIZE   RING_BUFFER_SIZE
-
-// Number of different command codes. 0-255 range are literal byte
-// values, while higher values indicate copy from history.
-
-#define NUM_CODES            510
-
-// Number of possible codes in the "temporary table" used to encode the
-// codes table.
-
-#define MAX_TEMP_CODES       20
-
 typedef struct _LHANewDecoder {
-	// Input bit stream.
-
 	BitStreamReader bit_stream_reader;
 
 	HuffDecoder huff;
 } LHANewDecoder;
 
-
 typedef struct _LHANewDecoderPartial {
 	// Decoder
-
 	LHANewDecoder decoder;
 
 	// Ring buffer of past data.  Used for position-based copies.
-
-	uint8_t ringbuf[RING_BUFFER_SIZE];
-	unsigned int ringbuf_pos;
-	int ringbuf_copy_pos;
+	decompress_ringbuf_t ringbuf;
+	int ringbuf_copy_offset;
 	int ringbuf_copy_count;
 
 	int decoded_bytes;
@@ -457,20 +418,9 @@ typedef struct _LHANewDecoderPartial {
 } LHANewDecoderPartial;
 
 
-// Initialize the history ring buffer.
-
-static void init_ring_buffer(LHANewDecoderPartial *decoder)
-{
-	memset(decoder->ringbuf, ' ', RING_BUFFER_SIZE);
-	decoder->ringbuf_pos = 0;
-	decoder->ringbuf_copy_pos = 0;
-	decoder->ringbuf_copy_count = 0;
-}
-
 static int lha_lh_new_init(LHANewDecoder *decoder, FILE *fp, uint32_t rom_addr)
 {
 	// Initialize input stream reader.
-
 	bit_stream_reader_init(&decoder->bit_stream_reader, fp, rom_addr);
 
 	decode_start_st1(&decoder->huff, &decoder->bit_stream_reader);
@@ -482,127 +432,53 @@ static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp)
 	lha_lh_new_init(&decoder->decoder, fp, 0);
 
 	// Initialize data structures.
-
-	init_ring_buffer(decoder);
+	__ringbuf_init(&decoder->ringbuf);
+	decoder->ringbuf_copy_offset = 0;
+	decoder->ringbuf_copy_count = 0;
 
 	decoder->decoded_bytes = 0;
 
 	return 1;
 }
 
-// Add a byte value to the output stream.
-
-static void output_byte(LHANewDecoderPartial *decoder, uint8_t *buf,
-                        size_t *buf_len, uint8_t b)
-{
-	if (buf) buf[*buf_len] = b;
-	++*buf_len;
-
-	decoder->ringbuf[decoder->ringbuf_pos] = b;
-	decoder->ringbuf_pos = (decoder->ringbuf_pos + 1) % RING_BUFFER_SIZE;
-}
-
-// Copy a block from the history buffer.
-
-static void set_copy_from_history(LHANewDecoderPartial *decoder, size_t count)
-{
-	int offset = decode_p_st1(&decoder->decoder.huff);
-
-	if (offset < 0) {
-		return;
-	}
-
-	decoder->ringbuf_copy_pos = decoder->ringbuf_pos + RING_BUFFER_SIZE - (unsigned int) offset - 1;
-	while (decoder->ringbuf_copy_pos < 0)
-		decoder->ringbuf_copy_pos += RING_BUFFER_SIZE;
-	while (decoder->ringbuf_copy_pos >= RING_BUFFER_SIZE)
-		decoder->ringbuf_copy_pos -= RING_BUFFER_SIZE;
-
-	decoder->ringbuf_copy_count = count;
-}
-
 static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *buf, int sz)
 {
-	size_t result = 0;
+	uint8_t *buf_orig = buf;
 	int code;
-	if (!buf) goto end;
 
 	while (sz > 0) {
 		if (decoder->ringbuf_copy_count > 0) {
-			// Calculate number of bytes that we can copy in sequence without reaching the end of a buffer
-			int wn = sz < decoder->ringbuf_copy_count ? sz : decoder->ringbuf_copy_count;
-			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_copy_pos ? wn : RING_BUFFER_SIZE - decoder->ringbuf_copy_pos;
-			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_pos      ? wn : RING_BUFFER_SIZE - decoder->ringbuf_pos;
-
-			if (!buf) {
-				// If buf is NULL, we're just skipping data
-				decoder->ringbuf_pos += wn;
-				decoder->ringbuf_copy_count -= wn;
-				decoder->ringbuf_copy_pos += wn;
-				sz -= wn;
-				result += wn;
-				decoder->ringbuf_copy_pos %= RING_BUFFER_SIZE;
-				decoder->ringbuf_pos %= RING_BUFFER_SIZE;
-				continue;
-			}
-
-			// Check if there's an overlap in the ring buffer between read and write pos, in which
-			// case we need to copy byte by byte.
-			if (decoder->ringbuf_pos < decoder->ringbuf_copy_pos || 
-			    decoder->ringbuf_pos > decoder->ringbuf_copy_pos+7) {
-				while (wn >= 8) {
-					// Copy 8 bytes at at time, using a unaligned memory access (LDL/LDR/SDL/SDR)
-					typedef uint64_t u_uint64_t __attribute__((aligned(1)));
-					uint64_t value = *(u_uint64_t*)&decoder->ringbuf[decoder->ringbuf_copy_pos];
-					*(u_uint64_t*)&buf[result] = value;
-					*(u_uint64_t*)&decoder->ringbuf[decoder->ringbuf_pos] = value;
-
-					decoder->ringbuf_copy_pos += 8;
-					decoder->ringbuf_pos += 8;
-					decoder->ringbuf_copy_count -= 8;
-					result += 8;
-					sz -= 8;
-					wn -= 8;
-				}
-			}
-
-			// Finish copying the remaining bytes
-			while (wn > 0) {
-				uint8_t value = decoder->ringbuf[decoder->ringbuf_copy_pos];
-				buf[result] = value;
-				decoder->ringbuf[decoder->ringbuf_pos] = value;
-
-				decoder->ringbuf_copy_pos += 1;
-				decoder->ringbuf_pos += 1;
-				decoder->ringbuf_copy_count -= 1;
-				result += 1;
-				sz -= 1;
-				wn -= 1;
-			}
-			decoder->ringbuf_copy_pos %= RING_BUFFER_SIZE;
-			decoder->ringbuf_pos %= RING_BUFFER_SIZE;
+			int wn = MIN(sz, decoder->ringbuf_copy_count);
+			__ringbuf_copy(&decoder->ringbuf, decoder->ringbuf_copy_offset, buf, wn);
+			sz -= wn;
+			if(buf) buf += wn;
+			decoder->ringbuf_copy_count -= wn;
 			continue;
 		}
 
 		code = decode_c_st1(&decoder->decoder.huff);
-
 		if (code < 0) {
 			break;
 		}
 
-		// The code may be either a literal byte value or a copy command.
-
 		if (code < 256) {
-			output_byte(decoder, buf, &result, (uint8_t) code);
+			if (buf) *buf++ = code;
+			__ringbuf_writebyte(&decoder->ringbuf, code);
 			sz--;
 		} else {
-			set_copy_from_history(decoder, code - 256 + COPY_THRESHOLD);
+			int offset = decode_p_st1(&decoder->decoder.huff);
+			if (offset < 0) {
+				assert(0);
+				break;
+			}
+
+			decoder->ringbuf_copy_offset = offset + 1;
+			decoder->ringbuf_copy_count = code - 256 + COPY_THRESHOLD;
 		}
 	}
 
-end:
-	decoder->decoded_bytes += result;
-	return result;
+	decoder->decoded_bytes += buf - buf_orig;
+	return buf - buf_orig;
 }
 
 static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
@@ -614,7 +490,6 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 
 	while (sz > 0) {
 		code = decode_c_st1(&decoder->huff);
-
 		if (code < 0) {
 			return 0;
 		}
@@ -626,7 +501,6 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 		} else {
 			int count = code - 256 + COPY_THRESHOLD;
 			int offset = decode_p_st1(&decoder->huff);
-
 			if (offset < 0) {
 				return 0;
 			}

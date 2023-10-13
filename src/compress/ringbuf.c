@@ -36,7 +36,7 @@ void __ringbuf_copy(decompress_ringbuf_t *ringbuf, int copy_offset, uint8_t *dst
                 // Copy 8 bytes at at time, using a unaligned memory access (LDL/LDR/SDL/SDR)
                 typedef uint64_t u_uint64_t __attribute__((aligned(1)));
                 uint64_t value = *(u_uint64_t*)&ringbuf->ringbuf[ringbuf_copy_pos];
-                *(u_uint64_t*)&dst[dst_pos] = value;
+                if(dst) *(u_uint64_t*)&dst[dst_pos] = value;
                 *(u_uint64_t*)&ringbuf->ringbuf[ringbuf->ringbuf_pos] = value;
 
                 ringbuf_copy_pos += 8;
@@ -49,7 +49,7 @@ void __ringbuf_copy(decompress_ringbuf_t *ringbuf, int copy_offset, uint8_t *dst
         // Finish copying the remaining bytes
         while (wn > 0) {
             uint8_t value = ringbuf->ringbuf[ringbuf_copy_pos];
-            dst[dst_pos] = value;
+            if(dst) dst[dst_pos] = value;
             ringbuf->ringbuf[ringbuf->ringbuf_pos] = value;
 
             ringbuf_copy_pos += 1;
