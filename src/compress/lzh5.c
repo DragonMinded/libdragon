@@ -126,31 +126,30 @@ static int end_bits(BitStreamReader *reader)
 }
 
 
-#define LZHUFF5_DICBIT      13      /* 2^13 =  8KB sliding dictionary */
-#define MAX_DICBIT			LZHUFF5_DICBIT
-#define MAXMATCH            256 /* formerly F (not more than UCHAR_MAX + 1) */
-#define THRESHOLD           3   /* choose optimal value */
+#define LZH5_DICBIT         13  /* 2^13 =  8KB sliding dictionary */
+#define LZH5_MAXMATCH       256 /* formerly F (not more than UCHAR_MAX + 1) */
+#define LZH5_THRESHOLD      3   /* choose optimal value */
 
-#define NP          (MAX_DICBIT + 1)
-#define NT          (sizeof(uint16_t)*8 + 3)
-#define NC          (255 + MAXMATCH + 2 - THRESHOLD)
+#define LZH5_NP          (LZH5_DICBIT + 1)
+#define LZH5_NT          (sizeof(uint16_t)*8 + 3)
+#define LZH5_NC          (255 + LZH5_MAXMATCH + 2 - LZH5_THRESHOLD)
 
-#define PBIT        4       /* smallest integer such that (1 << PBIT) > * NP */
-#define TBIT        5       /* smallest integer such that (1 << TBIT) > * NT */
-#define CBIT        9       /* smallest integer such that (1 << CBIT) > * NC */
+#define LZH5_PBIT        4       /* smallest integer such that (1 << PBIT) > * NP */
+#define LZH5_TBIT        5       /* smallest integer such that (1 << TBIT) > * NT */
+#define LZH5_CBIT        9       /* smallest integer such that (1 << CBIT) > * NC */
 
 /*      #if NT > NP #define NPT NT #else #define NPT NP #endif  */
-#define NPT         0x80
+#define LZH5_NPT         0x80
 
 #define C_TABLE_BITS    8
 #define PT_TABLE_BITS   8
 
 typedef struct {
-	uint16_t left[2 * NC - 1], right[2 * NC - 1];
+	uint16_t left[2 * LZH5_NC - 1], right[2 * LZH5_NC - 1];
 	uint16_t c_table[1<<C_TABLE_BITS];
 	uint16_t pt_table[1<<PT_TABLE_BITS];
-	uint8_t c_len[NC];
-	uint8_t pt_len[NPT];
+	uint8_t c_len[LZH5_NC];
+	uint8_t pt_len[LZH5_NPT];
 	int blocksize;
 
 	BitStreamReader *reader;
@@ -263,7 +262,7 @@ static void read_pt_len(HuffDecoder *hd, short nn, short nbit, short i_special)
     }
     else {
         i = 0;
-        while (i < MIN(n, NPT)) {
+        while (i < MIN(n, LZH5_NPT)) {
             c = peek_bits(hd->reader, 3);
             if (c != 7)
                 fill_bits(hd->reader, 3);
@@ -279,7 +278,7 @@ static void read_pt_len(HuffDecoder *hd, short nn, short nbit, short i_special)
             hd->pt_len[i++] = c;
             if (i == i_special) {
                 c = read_bits(hd->reader, 2);
-                while (--c >= 0 && i < NPT)
+                while (--c >= 0 && i < LZH5_NPT)
                     hd->pt_len[i++] = 0;
             }
         }
@@ -293,18 +292,18 @@ static void read_c_len(HuffDecoder *hd)
 {
     int i, c, n;
 
-    n = read_bits(hd->reader, CBIT);
+    n = read_bits(hd->reader, LZH5_CBIT);
     if (n == 0) {
-        c = read_bits(hd->reader, CBIT);
-        for (i = 0; i < NC; i++)
+        c = read_bits(hd->reader, LZH5_CBIT);
+        for (i = 0; i < LZH5_NC; i++)
             hd->c_len[i] = 0;
         for (i = 0; i < (1<<C_TABLE_BITS); i++)
             hd->c_table[i] = c;
     } else {
         i = 0;
-        while (i < MIN(n,NC)) {
+        while (i < MIN(n,LZH5_NC)) {
 			c = hd->pt_table[peek_bits(hd->reader, PT_TABLE_BITS)];
-            if (c >= NT) {
+            if (c >= LZH5_NT) {
                 uint64_t mask = 1ull << (64 - PT_TABLE_BITS - 1);
                 do {
                     if (hd->reader->bit_buffer & mask)
@@ -313,7 +312,7 @@ static void read_c_len(HuffDecoder *hd)
                         c = hd->left[c];
                     mask >>= 1;
 					// assert(mask || c != left[c]);
-                } while (c >= NT);
+                } while (c >= LZH5_NT);
             }
             fill_bits(hd->reader, hd->pt_len[c]);
             if (c <= 2) {
@@ -322,16 +321,16 @@ static void read_c_len(HuffDecoder *hd)
                 else if (c == 1)
                     c = read_bits(hd->reader, 4) + 3;
                 else
-                    c = read_bits(hd->reader, CBIT) + 20;
+                    c = read_bits(hd->reader, LZH5_CBIT) + 20;
                 while (--c >= 0)
                     hd->c_len[i++] = 0;
             }
             else
                 hd->c_len[i++] = c - 2;
         }
-        while (i < NC)
+        while (i < LZH5_NC)
             hd->c_len[i++] = 0;
-        make_table(hd, NC, hd->c_len, C_TABLE_BITS, hd->c_table);
+        make_table(hd, LZH5_NC, hd->c_len, C_TABLE_BITS, hd->c_table);
     }
 }
 
@@ -360,9 +359,9 @@ static bool decode_new_block(HuffDecoder *hd)
 		hd->blocksize = 0;
 		return false;
 	}
-	read_pt_len(hd, NT, TBIT, 3);
+	read_pt_len(hd, LZH5_NT, LZH5_TBIT, 3);
 	read_c_len(hd);
-	read_pt_len(hd, NP, PBIT, -1);
+	read_pt_len(hd, LZH5_NP, LZH5_PBIT, -1);
 	return true;
 }
 
@@ -373,12 +372,12 @@ static inline int huff_decode_code(HuffDecoder *hd)
 			return -1;
     }
     hd->blocksize--;
-	return decode_huff8(hd, hd->c_table, hd->c_len, NC);
+	return decode_huff8(hd, hd->c_table, hd->c_len, LZH5_NC);
 }
 
 static inline unsigned short huff_decode_offset(HuffDecoder *hd)
 {
-	uint16_t j = decode_huff8(hd, hd->pt_table, hd->pt_len, NP);
+	uint16_t j = decode_huff8(hd, hd->pt_table, hd->pt_len, LZH5_NP);
     if (__builtin_expect(j > 1, 1))
         j = (1 << (j - 1)) + read_bits(hd->reader, j - 1);
     return j;
@@ -394,9 +393,6 @@ static void huff_decode_init(HuffDecoder *hd, BitStreamReader *reader)
 
 // 16 KiB history ring buffer:
 #define HISTORY_BITS    14   /* 2^14 = 16384 */
-
-// Threshold for copying. The first copy code starts from here.
-#define COPY_THRESHOLD       3 /* bytes */
 
 typedef struct _LHANewDecoder {
 	BitStreamReader bit_stream_reader;
@@ -473,7 +469,7 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 			}
 
 			decoder->ringbuf_copy_offset = offset + 1;
-			decoder->ringbuf_copy_count = code - 256 + COPY_THRESHOLD;
+			decoder->ringbuf_copy_count = code - 256 + LZH5_THRESHOLD;
 		}
 	}
 
@@ -499,7 +495,7 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 			*buf++ = (uint8_t) code;
 			sz--;
 		} else {
-			int count = code - 256 + COPY_THRESHOLD;
+			int count = code - 256 + LZH5_THRESHOLD;
 			int offset = huff_decode_offset(&decoder->huff);
 			if (offset < 0) {
 				return 0;
@@ -534,7 +530,7 @@ end:
  * Libdragon API
  *************************************************/
 
-_Static_assert(sizeof(LHANewDecoderPartial) == DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
+_Static_assert(sizeof(LHANewDecoderPartial) <= DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
 
 void decompress_lzh5_init(void *state, FILE *fp)
 {
