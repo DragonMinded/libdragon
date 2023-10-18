@@ -1524,7 +1524,7 @@ int main(int argc, char *argv[])
             if (compression) {
                 struct stat st_decomp = {0}, st_comp = {0};
                 stat(outfn, &st_decomp);
-                asset_compress(outfn, outfn, compression);
+                asset_compress(outfn, outfn, compression, 0);
                 stat(outfn, &st_comp);
                 if (flag_verbose)
                     printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,

@@ -15,9 +15,6 @@
 #endif
 
 #define MIN_MATCH_SIZE  4
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
-#define HISTORY_SIZE 65536
 #define LITERALS_RUN_LEN 15
 #define MATCH_RUN_LEN 15
 
@@ -283,7 +280,7 @@ static void lz4_read(lz4dec_state_t *lz4, void *buf, size_t len)
    }
 }
 
-void decompress_lz4_init(void *state, FILE *fp)
+void decompress_lz4_init(void *state, FILE *fp, int winsize)
 {
    lz4dec_state_t *lz4 = (lz4dec_state_t*)state;
    lz4->fp = fp;
@@ -291,7 +288,7 @@ void decompress_lz4_init(void *state, FILE *fp)
    lz4->buf_idx = 0;
    lz4->buf_size = 0;
    memset(&lz4->st, 0, sizeof(lz4->st));
-   __ringbuf_init(&lz4->ringbuf);
+   __ringbuf_init(&lz4->ringbuf, state+sizeof(lz4dec_state_t), winsize);
 }
 
 ssize_t decompress_lz4_read(void *state, void *buf, size_t len)
