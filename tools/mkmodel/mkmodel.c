@@ -73,6 +73,16 @@ typedef struct gltf_anim_channel_s {
     size_t node_index;
 } gltf_anim_channel_t;
 
+typedef struct ordered_keyframe_s {
+    size_t orig_index;
+    model64_keyframe_t keyframe;
+} ordered_keyframe_t;
+
+typedef struct ordered_keyframe_array_s {
+    uint32_t count;
+    ordered_keyframe_t *data;
+} ordered_keyframe_array_t;
+
 int flag_anim_stream = 1;
 float flag_anim_fps = 30.0f;
 int flag_verbose = 0;
@@ -1449,67 +1459,78 @@ void quantize_quaternion(uint16_t *out, float *in)
     out[2] = (quantized_axes[1] << 15)|quantized_axes[2];
 }
 
-void add_anim_keyframe(model64_anim_t *anim, gltf_anim_channel_t *src_channel, size_t index, size_t track)
+void add_anim_keyframe(model64_anim_t *anim, ordered_keyframe_array_t *dst, gltf_anim_channel_t *src_channel, size_t index, size_t track)
 {
-    anim->num_keyframes++;
-    anim->keyframes = realloc(anim->keyframes, anim->num_keyframes*sizeof(model64_keyframe_t));
+    dst->count++;
+    dst->data = realloc(dst->data, dst->count*sizeof(ordered_keyframe_t));
     gltf_keyframe_t *keyframe = &src_channel->samples.keyframes[index];
-    model64_keyframe_t *out_keyframe = &anim->keyframes[anim->num_keyframes-1];
-    out_keyframe->time = keyframe->time_req;
-    out_keyframe->track = track;
+    ordered_keyframe_t *out_keyframe = &dst->data[dst->count-1];
+    out_keyframe->keyframe.time = keyframe->time_req;
+    out_keyframe->keyframe.track = track;
     switch(src_channel->target_path) {
         case cgltf_animation_path_type_translation:
-            calc_normalized_u16(out_keyframe->data, keyframe->data, 3, anim->pos_min, anim->pos_max);
+            calc_normalized_u16(out_keyframe->keyframe.data, keyframe->data, 3, anim->pos_min, anim->pos_max);
             break;
             
         case cgltf_animation_path_type_rotation:
-            quantize_quaternion(out_keyframe->data, keyframe->data);
+            quantize_quaternion(out_keyframe->keyframe.data, keyframe->data);
             break;
             
         case cgltf_animation_path_type_scale:
-            calc_normalized_u16(out_keyframe->data, keyframe->data, 3, anim->scale_min, anim->scale_max);
+            calc_normalized_u16(out_keyframe->keyframe.data, keyframe->data, 3, anim->scale_min, anim->scale_max);
             break;
             
         default:
-            out_keyframe->data[0] = 0x8000;
-            out_keyframe->data[1] = 0x8000;
-            out_keyframe->data[2] = 0x8000;
+            out_keyframe->keyframe.data[0] = 0x8000;
+            out_keyframe->keyframe.data[1] = 0x8000;
+            out_keyframe->keyframe.data[2] = 0x8000;
             break;
     }
+    out_keyframe->orig_index = dst->count-1;
 }
 
 int compare_anim_keyframe(const void *a, const void *b)
 {
-    model64_keyframe_t *keyframe_a = (model64_keyframe_t *)a;
-    model64_keyframe_t *keyframe_b = (model64_keyframe_t *)b;
-    if(keyframe_a->time < keyframe_b->time) {
+    ordered_keyframe_t *keyframe_a = (ordered_keyframe_t *)a;
+    ordered_keyframe_t *keyframe_b = (ordered_keyframe_t *)b;
+    if(keyframe_a->keyframe.time < keyframe_b->keyframe.time) {
         return -1;
-    } else if(keyframe_a->time > keyframe_b->time) {
+    } else if(keyframe_a->keyframe.time > keyframe_b->keyframe.time) {
         return 1;
     } else {
-        return keyframe_a->track-keyframe_b->track;
+        int track_diff = keyframe_a->keyframe.track-keyframe_b->keyframe.track;
+        if(track_diff != 0) {
+            return track_diff;
+        }
+        return keyframe_a->orig_index-keyframe_b->orig_index;
     }
 }
 
-void sort_anim_keyframes(model64_anim_t *anim)
+void sort_anim_keyframes(model64_anim_t *anim, ordered_keyframe_array_t *keyframes)
 {
-    qsort(anim->keyframes, anim->num_keyframes, sizeof(model64_keyframe_t), compare_anim_keyframe);
+    qsort(keyframes->data, keyframes->count, sizeof(ordered_keyframe_t), compare_anim_keyframe);
+    anim->keyframes = calloc(keyframes->count, sizeof(model64_keyframe_t));
+    anim->num_keyframes = keyframes->count;
+    for(size_t i=0; i<keyframes->count; i++) {
+        anim->keyframes[i] = keyframes->data[i].keyframe;
+    }
 }
 
 void anim_build_keyframes(cgltf_data *data, gltf_anim_channel_t *channels, size_t num_channels, model64_anim_t *out_anim)
 {
     uint32_t num_tracks = 0;
+    ordered_keyframe_array_t keyframes = {0};
     for(size_t i=0; i<num_channels; i++) {
         if(!gltf_channel_can_remove(data, &channels[i])) {
-            add_anim_keyframe(out_anim, &channels[i], 0, num_tracks);
+            add_anim_keyframe(out_anim, &keyframes, &channels[i], 0, num_tracks);
             for(size_t j=0; j<channels[i].samples.num_keyframes; j++) {
-                add_anim_keyframe(out_anim, &channels[i], j, num_tracks);
+                add_anim_keyframe(out_anim, &keyframes, &channels[i], j, num_tracks);
             }
-            add_anim_keyframe(out_anim, &channels[i], channels[i].samples.num_keyframes-1, num_tracks);
+            add_anim_keyframe(out_anim, &keyframes, &channels[i], channels[i].samples.num_keyframes-1, num_tracks);
             num_tracks++;
         }
     }
-    sort_anim_keyframes(out_anim);
+    sort_anim_keyframes(out_anim, &keyframes);
 }
 
 int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t *out_anim)
