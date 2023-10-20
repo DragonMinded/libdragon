@@ -63,6 +63,7 @@ typedef struct gltf_anim_channel_s {
     float *output;
     float output_min[4];
     float output_max[4];
+    float max_error;
     gltf_keyframe_samples_t samples;
     size_t out_count;
     size_t out_num_components;
@@ -1124,6 +1125,23 @@ int read_anim_channel(cgltf_data *data, cgltf_animation_channel *in_channel, glt
             }
         }
     }
+    switch(out_channel->target_path) {
+        case cgltf_animation_path_type_translation:
+            out_channel->max_error = 0.001f;
+            break;
+            
+        case cgltf_animation_path_type_rotation:
+            out_channel->max_error = 0.0001f;
+            break;
+            
+        case cgltf_animation_path_type_scale:
+            out_channel->max_error = 0.001f;
+            break;
+            
+        default:
+            out_channel->max_error = 0;
+            break;
+    }
     return 0;
 }
 
@@ -1321,7 +1339,7 @@ void make_anim_channel_samples(gltf_anim_channel_t *channel, float duration)
         sample_anim_channel(channel, duration, sample);
         add_anim_sample(&channel->samples, duration, sample, num_components);
     }
-    while(calc_min_midpoint_error(channel, &removed_point) < 0.0001f && removed_point != -1) {
+    while(calc_min_midpoint_error(channel, &removed_point) < channel->max_error && removed_point != -1) {
         if(flag_verbose) {
             printf("Removing animation frame %zd\n", (size_t)(channel->samples.keyframes[removed_point].time*flag_anim_fps));
         }
