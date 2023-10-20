@@ -1229,7 +1229,11 @@ void add_anim_sample(gltf_keyframe_samples_t *samples, float time, float *data, 
 
 void remove_anim_sample(gltf_keyframe_samples_t *samples, size_t index)
 {
-    memmove(&samples->keyframes[index], &samples->keyframes[index+1], sizeof(gltf_keyframe_t)); 
+    if(index >= samples->num_keyframes-1) {
+        samples->num_keyframes--;
+        return;
+    }
+    memmove(&samples->keyframes[index], &samples->keyframes[index+1], (samples->num_keyframes-index-1)*sizeof(gltf_keyframe_t)); 
     samples->num_keyframes--;
 }
 
@@ -1266,7 +1270,13 @@ void approx_removed_keyframe(gltf_anim_channel_t *channel, float *out, int keyfr
     gltf_keyframe_t *frame2 = &channel->samples.keyframes[get_sample_index(channel, keyframe-1)];
     gltf_keyframe_t *frame3 = &channel->samples.keyframes[get_sample_index(channel, keyframe+1)];
     gltf_keyframe_t *frame4  = &channel->samples.keyframes[get_sample_index(channel, keyframe+2)];
-    catmull_calc_vec(frame1->data, frame2->data, frame3->data, frame4->data, out, 0.5f, channel->out_num_components);
+    gltf_keyframe_t *frame_removed = &channel->samples.keyframes[get_sample_index(channel, keyframe)];
+    float frame_dt = frame3->time-frame2->time;
+    float weight = 0;
+    if(frame_dt != 0) {
+        weight = (frame_removed->time-frame2->time)/frame_dt;
+    }
+    catmull_calc_vec(frame1->data, frame2->data, frame3->data, frame4->data, out, weight, channel->out_num_components);
     if(channel->target_path == cgltf_animation_path_type_rotation) {
         normalize_vector(out, 4);
     }
@@ -1312,6 +1322,9 @@ void make_anim_channel_samples(gltf_anim_channel_t *channel, float duration)
         add_anim_sample(&channel->samples, duration, sample, num_components);
     }
     while(calc_min_midpoint_error(channel, &removed_point) < 0.0001f && removed_point != -1) {
+        if(flag_verbose) {
+            printf("Removing animation frame %zd\n", (size_t)(channel->samples.keyframes[removed_point].time*flag_anim_fps));
+        }
         remove_anim_sample(&channel->samples, removed_point);
     }
     for(size_t i=0; i<channel->samples.num_keyframes-2; i++) {
