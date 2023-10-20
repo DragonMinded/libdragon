@@ -87,16 +87,24 @@ typedef struct model64_node_s {
     uint32_t *children;             ///< List of children node indices
 } model64_node_t;
 
+typedef struct model64_keyframe_s {
+    float time;
+    uint16_t track;
+    uint16_t data[3];
+} model64_keyframe_t;
+
 /** @brief An animation of a model */
 typedef struct model64_anim_s {
     char *name;                     ///< Name of the animation
-    float frame_rate;               ///< Frame rate of the animation
+    float pos_min;
+    float pos_max;
+    float scale_min;
+    float scale_max;
     float duration;                 ///< Duration of animation
-    uint32_t num_frames;            ///< Number of frames in animation
-    uint32_t frame_size;            ///< Size of animation data for each frame
-    void *data;                     ///< Pointer to animation data
-    uint32_t *channels;             ///< Top 2 bits: target component; lowest 30 bits: target node
-    uint32_t num_channels;          ///< Number of nodes targeted by animation
+    uint32_t num_keyframes;         ///< Number of keyframes in animation
+    model64_keyframe_t *keyframes;  ///< Pointer to animation keyframes
+    uint32_t num_tracks;            ///< Number of tracks targeted by animation
+    uint16_t *tracks;               ///< Top 2 bits: target component; lowest 14 bits: target node
 } model64_anim_t;
 
 /** @brief A model64 file containing a model */
@@ -119,21 +127,21 @@ typedef struct model64_data_s {
     mesh_t *meshes;             ///< Pointer to the first mesh
     uint32_t num_anims;         ///< Number of animations
     model64_anim_t *anims;      ///< Pointer to first animation
-    uint32_t stream_buf_size;   ///< Size of streaming buffer for animation (0 means animations are not streamed)
-    void *anim_data_handle;     ///< Handle for animation data
+    uint32_t max_tracks;        ///< Maximum number of tracks for animation
+    void *anim_data_handle;     ///< Handle for animation data (0 means animations are not streamed)
 } model64_data_t;
 
 /** @brief State of an active animation */
 typedef struct anim_state_s {
-    int32_t index;          ///< Index of animation playing
-    float time;             ///< Current time of animation
-    bool swap_stream_buf;   ///< Swap Stream Buffers
-    bool new_pose;          ///< Whether this animation needs to recalculate a pose
-    bool loop;              ///< Whether this animation loops
-    bool paused;            ///< Whether this animation is active
-    uint32_t prev_frame;    ///< Previous frame of animation that played
-    float speed;            ///< The speed of an animation
-    void *stream_buf[2];    ///< Buffers for streaming animation
+    int32_t index;                  ///< Index of animation playing
+    float time;                     ///< Current time of animation
+    bool new_pose;                  ///< Whether this animation needs to recalculate a pose
+    bool loop;                      ///< Whether this animation loops
+    bool paused;                    ///< Whether this animation is active
+    float speed;                    ///< The speed of an animation
+    int frame_idx;                  ///< Index of next keyframe to read
+    int *buf_idx;                   ///< Index of buffer for each track
+    model64_keyframe_t *frames;     ///< Buffer for keyframes
 } anim_state_t;
 
 /** @brief A model64 instance */

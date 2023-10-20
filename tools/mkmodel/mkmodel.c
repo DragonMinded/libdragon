@@ -27,7 +27,7 @@
 // Update these when changing code that writes to the output file
 // IMPORTANT: Do not attempt to move these values to a header that is shared by mkmodel and runtime code!
 //            These values must reflect what the tool actually outputs.
-#define HEADER_SIZE         80
+#define HEADER_SIZE         76
 #define MESH_SIZE           8
 #define PRIMITIVE_SIZE      108
 #define NODE_SIZE           128
@@ -42,13 +42,28 @@
 
 #define RSP_PRECISION       (1.0f/65536.0f)
 
+#define MIN_KEYFRAME_DT (1.0f/80.0f)
+
 typedef void (*component_convert_func_t)(void*,float*,size_t);
 typedef void (*index_convert_func_t)(void*,cgltf_uint*,size_t);
+
+typedef struct gltf_keyframe_s {
+    float time;
+    float time_req;
+    float data[4];
+} gltf_keyframe_t;
+
+typedef struct gltf_keyframe_samples_s {
+    gltf_keyframe_t *keyframes;
+    size_t num_keyframes;
+} gltf_keyframe_samples_t;
 
 typedef struct gltf_anim_channel_s {
     float *time;
     float *output;
-    float *sampled_output;
+    float output_min[4];
+    float output_max[4];
+    gltf_keyframe_samples_t samples;
     size_t out_count;
     size_t out_num_components;
     size_t num_keyframes;
@@ -57,8 +72,8 @@ typedef struct gltf_anim_channel_s {
     size_t node_index;
 } gltf_anim_channel_t;
 
-float flag_anim_fps = 30.0f;
 int flag_anim_stream = 1;
+float flag_anim_fps = 30.0f;
 int flag_verbose = 0;
 
 uint32_t get_type_size(uint32_t type)
@@ -150,11 +165,11 @@ void anim_free(model64_anim_t *anim)
     if(anim->name) {
         free(anim->name);
     }
-    if(anim->data) {
-        free(anim->data);
+    if(anim->keyframes) {
+        free(anim->keyframes);
     }
-    if(anim->channels) {
-        free(anim->channels);
+    if(anim->tracks) {
+        free(anim->tracks);
     }
 }
 
@@ -305,8 +320,11 @@ void model64_write_header(model64_data_t *model, FILE *out)
     w32_placeholderf(out, "meshes");
     w32(out, model->num_anims);
     w32_placeholderf(out, "anims");
-    w32(out, model->stream_buf_size);
-    w32(out, 0);
+    if(flag_anim_stream) {
+        w32(out, 1);
+    } else {
+        w32(out, 0);
+    }
     assert(ftell(out)-start_ofs == HEADER_SIZE);
 }
 
@@ -475,34 +493,12 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
 
 void model64_write_anim_data(model64_anim_t *anim, FILE *out)
 {
-    uint8_t *data = anim->data;
-    for(uint32_t i=0; i<anim->num_frames; i++) {
-        for(uint32_t j=0; j<anim->num_channels; j++) {
-            float *float_data = (float *)data;
-            switch(anim->channels[j] >> 30) {
-                case ANIM_COMPONENT_POS:
-                    wf32approx(out, float_data[0], RSP_PRECISION);
-                    wf32approx(out, float_data[1], RSP_PRECISION);
-                    wf32approx(out, float_data[2], RSP_PRECISION);
-                    data += 3*sizeof(float);
-                    break;
-                    
-                case ANIM_COMPONENT_ROT:
-                    wf32approx(out, float_data[0], RSP_PRECISION);
-                    wf32approx(out, float_data[1], RSP_PRECISION);
-                    wf32approx(out, float_data[2], RSP_PRECISION);
-                    wf32approx(out, float_data[3], RSP_PRECISION);
-                    data += 4*sizeof(float);
-                    break;
-                    
-                case ANIM_COMPONENT_SCALE:
-                    wf32approx(out, float_data[0], RSP_PRECISION);
-                    wf32approx(out, float_data[1], RSP_PRECISION);
-                    wf32approx(out, float_data[2], RSP_PRECISION);
-                    data += 3*sizeof(float);
-                    break;
-            }
-        }
+    for(uint32_t i=0; i<anim->num_keyframes; i++) {
+        wf32(out, anim->keyframes[i].time);
+        w16(out, anim->keyframes[i].track);
+        w16(out, anim->keyframes[i].data[0]);
+        w16(out, anim->keyframes[i].data[1]);
+        w16(out, anim->keyframes[i].data[2]);
     }
 }
 
@@ -515,18 +511,20 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     placeholder_set(out, "anims");
     for(uint32_t i=0; i<model->num_anims; i++) {
         w32_placeholderf(out, "anim%d_name", i);
-        wf32(out, model->anims[i].frame_rate);
+        wf32approx(out, model->anims[i].pos_min, RSP_PRECISION);
+        wf32approx(out, model->anims[i].pos_max, RSP_PRECISION);
+        wf32approx(out, model->anims[i].scale_min, RSP_PRECISION);
+        wf32approx(out, model->anims[i].scale_max, RSP_PRECISION);
         wf32(out, model->anims[i].duration);
-        w32(out, model->anims[i].num_frames);
-        w32(out, model->anims[i].frame_size);
-        w32_placeholderf(out, "anim%d_data", i);
-        w32_placeholderf(out, "anim%d_channels", i);
-        w32(out, model->anims[i].num_channels);
+        w32(out, model->anims[i].num_keyframes);
+        w32_placeholderf(out, "anim%d_keyframes", i);
+        w32(out, model->anims[i].num_tracks);
+        w32_placeholderf(out, "anim%d_tracks", i);
     }
     for(uint32_t i=0; i<model->num_anims; i++) {
-        placeholder_set(out, "anim%d_channels", i);
-        for(uint32_t j=0; j<model->anims[i].num_channels; j++) {
-            w32(out, model->anims[i].channels[j]);
+        placeholder_set(out, "anim%d_tracks", i);
+        for(uint32_t j=0; j<model->anims[i].num_tracks; j++) {
+            w16(out, model->anims[i].tracks[j]);
         }
     }
     for(uint32_t i=0; i<model->num_anims; i++) {
@@ -1100,7 +1098,74 @@ int read_anim_channel(cgltf_data *data, cgltf_animation_channel *in_channel, glt
         fprintf(stderr, "Error: failed reading channel output accessor.\n");
         return 1;
     }
+    out_channel->output_min[0] = FLT_MAX;
+    out_channel->output_min[1] = FLT_MAX;
+    out_channel->output_min[2] = FLT_MAX;
+    out_channel->output_min[3] = FLT_MAX;
+    out_channel->output_max[0] = -FLT_MAX;
+    out_channel->output_max[1] = -FLT_MAX;
+    out_channel->output_max[2] = -FLT_MAX;
+    out_channel->output_max[3] = -FLT_MAX;
+    size_t channel_pitch = out_channel->out_num_components;
+    size_t out_read_offset;
+    if(out_channel->interpolation == cgltf_interpolation_type_cubic_spline) {
+        out_read_offset = out_channel->out_num_components;
+        channel_pitch *= 3;
+    } else {
+        out_read_offset = 0;
+    }
+    for(size_t i=0; i<out_channel->num_keyframes; i++) {
+        for(size_t j=0; j<out_channel->out_num_components; j++) {
+            if(out_channel->output_min[j] >= out_channel->output[(i*channel_pitch)+j+out_read_offset]) {
+                out_channel->output_min[j] = out_channel->output[(i*channel_pitch)+j+out_read_offset];
+            }
+            if(out_channel->output_max[j] < out_channel->output[(i*channel_pitch)+j+out_read_offset]) {
+                out_channel->output_max[j] = out_channel->output[(i*channel_pitch)+j+out_read_offset];
+            }
+        }
+    }
     return 0;
+}
+
+bool gltf_channel_can_remove(cgltf_data *gltf_data, gltf_anim_channel_t *channel)
+{
+    cgltf_node *node = &gltf_data->nodes[channel->node_index];
+    float *node_xform = NULL;
+    switch(channel->target_path) {
+        case cgltf_animation_path_type_translation:
+            node_xform = node->translation;
+            break;
+            
+        case cgltf_animation_path_type_rotation:
+            node_xform = node->rotation;
+            break;
+            
+        case cgltf_animation_path_type_scale:
+            node_xform = node->scale;
+            break;
+            
+        default:
+            node_xform = NULL;
+            break;
+    }
+    if(!node_xform) {
+        return true;
+    }
+    size_t channel_pitch = channel->out_num_components*channel->out_count;
+    size_t channel_offset = 0;
+    if(channel->interpolation == cgltf_interpolation_type_cubic_spline) {
+        channel_offset = channel->out_num_components;
+    }
+    for(size_t i=0; i<channel->num_keyframes; i++) {
+        float *data = &channel->output[(i*channel_pitch)+channel_offset];
+        for(size_t j=0; j<channel->out_num_components; j++) {
+            if(fabsf(data[j]-node_xform[j]) > 0.5f*RSP_PRECISION) {
+                return false;
+            }
+        }
+        
+    }
+    return true;
 }
 
 void sample_anim_channel(gltf_anim_channel_t *channel, float time, float *out)
@@ -1154,15 +1219,106 @@ void sample_anim_channel(gltf_anim_channel_t *channel, float time, float *out)
     }
 }
 
-void make_anim_channel_samples(gltf_anim_channel_t *channel, float fps, uint32_t num_frames)
+void add_anim_sample(gltf_keyframe_samples_t *samples, float time, float *data, float num_components)
 {
-    float sample[16] = {0};
-    size_t num_components = channel->out_num_components;
-    channel->sampled_output = calloc(num_frames, sizeof(float)*num_components);
-    for(size_t i=0; i<num_frames; i++) {
-        sample_anim_channel(channel, (float)i/fps, sample);
-        memcpy(&channel->sampled_output[i*num_components], sample, num_components*sizeof(float));
+    samples->num_keyframes++;
+    samples->keyframes = realloc(samples->keyframes, sizeof(gltf_keyframe_t)*samples->num_keyframes);
+    memcpy(&samples->keyframes[samples->num_keyframes-1].data, data, num_components*sizeof(float)); 
+    samples->keyframes[samples->num_keyframes-1].time = time;
+}
+
+void remove_anim_sample(gltf_keyframe_samples_t *samples, size_t index)
+{
+    memmove(&samples->keyframes[index], &samples->keyframes[index+1], sizeof(gltf_keyframe_t)); 
+    samples->num_keyframes--;
+}
+
+float catmull_calc(float p1, float p2, float p3, float p4, float t)
+{
+    float a = (-1*p1  +3*p2 -3*p3 + 1*p4) * t*t*t;
+    float b = ( 2*p1  -5*p2 +4*p3 - 1*p4) * t*t;
+    float c = (  -p1        +  p3)        * t;
+    float d = 2*p2;
+    return 0.5f * (a+b+c+d);
+}
+
+void catmull_calc_vec(float *p1, float *p2, float *p3, float *p4, float *out, float t, int num_values)
+{
+    for(int i=0; i<num_values; i++) {
+        out[i] = catmull_calc(p1[i], p2[i], p3[i], p4[i], t);
     }
+}
+
+int get_sample_index(gltf_anim_channel_t *channel, int raw_index)
+{
+    if(raw_index < 0) {
+        return 0;
+    }
+    if(raw_index >= channel->samples.num_keyframes) {
+        return channel->samples.num_keyframes-1;
+    }
+    return raw_index;
+}
+
+void approx_removed_keyframe(gltf_anim_channel_t *channel, float *out, int keyframe)
+{
+    gltf_keyframe_t *frame1 = &channel->samples.keyframes[get_sample_index(channel, keyframe-2)];
+    gltf_keyframe_t *frame2 = &channel->samples.keyframes[get_sample_index(channel, keyframe-1)];
+    gltf_keyframe_t *frame3 = &channel->samples.keyframes[get_sample_index(channel, keyframe+1)];
+    gltf_keyframe_t *frame4  = &channel->samples.keyframes[get_sample_index(channel, keyframe+2)];
+    catmull_calc_vec(frame1->data, frame2->data, frame3->data, frame4->data, out, 0.5f, channel->out_num_components);
+    if(channel->target_path == cgltf_animation_path_type_rotation) {
+        normalize_vector(out, 4);
+    }
+}
+
+float calc_min_midpoint_error(gltf_anim_channel_t *channel, int *removed_point)
+{
+    float sample[4] = {0};
+    float approx_sample[4] = {0};
+    float min_error = FLT_MAX;
+    for(size_t i=1; i<channel->samples.num_keyframes-1; i++) {
+        memcpy(sample, channel->samples.keyframes[i].data, channel->out_num_components*sizeof(float));
+        approx_removed_keyframe(channel, approx_sample, i);
+        float mse_error  = 0.0f;
+        for(int j=0; j<channel->out_num_components; j++) {
+            float error = (sample[j]-approx_sample[j])*(sample[j]-approx_sample[j]);
+            mse_error += error;
+        }
+        mse_error /= channel->out_num_components;
+        if(mse_error < min_error) {
+            min_error = mse_error;
+            *removed_point = i;
+        }
+    }
+    if(min_error == FLT_MAX) {
+        *removed_point = -1;
+    }
+    return min_error;
+}
+
+void make_anim_channel_samples(gltf_anim_channel_t *channel, float duration)
+{
+    float sample[4] = {0};
+    int removed_point;
+    size_t num_components = channel->out_num_components;
+    for(size_t i=0; i<(size_t)floorf(duration*flag_anim_fps); i++) {
+        float time = ((float)i)/flag_anim_fps;
+        sample_anim_channel(channel, time, sample);
+        add_anim_sample(&channel->samples, time, sample, num_components);
+    }
+    if(fmodf(duration, 1.0f/flag_anim_fps) != 0) {
+        sample_anim_channel(channel, duration, sample);
+        add_anim_sample(&channel->samples, duration, sample, num_components);
+    }
+    while(calc_min_midpoint_error(channel, &removed_point) < 0.0001f && removed_point != -1) {
+        remove_anim_sample(&channel->samples, removed_point);
+    }
+    for(size_t i=0; i<channel->samples.num_keyframes-2; i++) {
+        channel->samples.keyframes[i+2].time_req = channel->samples.keyframes[i].time;
+    }
+    channel->samples.keyframes[0].time_req = 0;
+    channel->samples.keyframes[1].time_req = 0;
 }
 
 void delete_gltf_anim_channel(gltf_anim_channel_t *channel)
@@ -1173,8 +1329,8 @@ void delete_gltf_anim_channel(gltf_anim_channel_t *channel)
     if(channel->output) {
         free(channel->output);
     }
-    if(channel->sampled_output) {
-        free(channel->sampled_output);
+    if(channel->samples.keyframes) {
+        free(channel->samples.keyframes);
     }
 }
 
@@ -1186,41 +1342,143 @@ void delete_gltf_anim_channel_array(gltf_anim_channel_t *channels, size_t num_ch
     free(channels);
 }
 
-uint32_t get_frame_size(gltf_anim_channel_t *channels, size_t num_channels)
+bool anim_build_tracks(cgltf_data *data, gltf_anim_channel_t *channels, size_t num_channels, model64_anim_t *out_anim)
 {
-    uint32_t frame_size = 0;
     for(size_t i=0; i<num_channels; i++) {
-        frame_size += channels[i].out_num_components*sizeof(float);
-    }
-    return frame_size;
-}
-
-void make_anim_data(model64_anim_t *out_anim, gltf_anim_channel_t *channels, size_t num_channels)
-{
-    out_anim->frame_size = get_frame_size(channels, num_channels);
-    out_anim->data = calloc(out_anim->num_frames, out_anim->frame_size);
-    uint8_t *dst = out_anim->data;
-    for(uint32_t i=0; i<out_anim->num_frames; i++) {
-        for(size_t j=0; j<num_channels; j++) {
-            size_t data_size = 0;
-            size_t num_components = channels[j].out_num_components;
-            switch(out_anim->channels[j] >> 30) {
-                case ANIM_COMPONENT_POS:
-                    data_size = 3*sizeof(float);
+        if(!gltf_channel_can_remove(data, &channels[i])) {
+            out_anim->tracks = realloc(out_anim->tracks, sizeof(uint16_t)*(out_anim->num_tracks+1));
+            uint32_t component;
+            switch(channels[i].target_path) {
+                case cgltf_animation_path_type_translation:
+                    component = ANIM_COMPONENT_POS;
                     break;
                     
-                case ANIM_COMPONENT_ROT:
-                    data_size = 4*sizeof(float);
+                case cgltf_animation_path_type_rotation:
+                    component = ANIM_COMPONENT_ROT;
                     break;
                     
-                case ANIM_COMPONENT_SCALE:
-                    data_size = 3*sizeof(float);
+                case cgltf_animation_path_type_scale:
+                    component = ANIM_COMPONENT_SCALE;
                     break;
+                    
+                default:
+                    fprintf(stderr, "Error: invalid animation channel target path %d\n", channels[i].target_path);
+                    return false;
             }
-            memcpy(dst, &channels[j].sampled_output[i*num_components], data_size);
-            dst += data_size;
+            out_anim->tracks[out_anim->num_tracks++] = (component << 14)|channels[i].node_index;
         }
     }
+    return true;
+}
+
+void calc_normalized_u16(uint16_t *out, float *in, size_t count, float min, float max)
+{
+    for(size_t i=0; i<count; i++) {
+        if(fabsf(max-min) < 0.5f*RSP_PRECISION) {
+            out[i] = ((in[i]-min)*(65535.0f/(max-min)))+0.5f;
+        } else {
+            out[i] = 0x7FFF;
+        }
+    }
+}
+
+void quantize_quaternion(uint16_t *out, float *in)
+{
+    float max_axis_value = -1.0f;
+    int max_axis = 0;
+    int max_axis_sign = -1;
+    float stored_axes[3];
+    uint16_t quantized_axes[3];
+    for(size_t i=0; i<4; i++) {
+        float input = in[i];
+        float abs_input = fabsf(input);
+        
+        if(abs_input > max_axis_value) {
+            max_axis_value = input;
+            if(input < 0) {
+                max_axis_sign = -1;
+            } else {
+                max_axis_sign = 1;
+            }
+            max_axis = i;
+        }
+    }
+    size_t axis_num = 0;
+    for(size_t i=0; i<4; i++) {
+        if(i != max_axis) {
+            stored_axes[axis_num++] = in[i]*max_axis_sign;
+        }
+    }
+    for(size_t i=0; i<3; i++) {
+        quantized_axes[i] = ((stored_axes[i]-0.70710678f)*23169.767f)+0.5f;
+        quantized_axes[i] &= 0x7FFF;
+    }
+    out[0] = (max_axis_sign << 13)|(quantized_axes[0] >> 2);
+    out[1] = (quantized_axes[0] << 14)|(quantized_axes[1] >> 1);
+    out[2] = (quantized_axes[1] << 15)|quantized_axes[2];
+}
+
+void add_anim_keyframe(model64_anim_t *anim, gltf_anim_channel_t *src_channel, size_t index, size_t track)
+{
+    anim->num_keyframes++;
+    anim->keyframes = realloc(anim->keyframes, anim->num_keyframes*sizeof(model64_keyframe_t));
+    gltf_keyframe_t *keyframe = &src_channel->samples.keyframes[index];
+    model64_keyframe_t *out_keyframe = &anim->keyframes[anim->num_keyframes-1];
+    out_keyframe->time = keyframe->time_req;
+    out_keyframe->track = track;
+    switch(src_channel->target_path) {
+        case cgltf_animation_path_type_translation:
+            calc_normalized_u16(out_keyframe->data, keyframe->data, 3, anim->pos_min, anim->pos_max);
+            break;
+            
+        case cgltf_animation_path_type_rotation:
+            quantize_quaternion(out_keyframe->data, keyframe->data);
+            break;
+            
+        case cgltf_animation_path_type_scale:
+            calc_normalized_u16(out_keyframe->data, keyframe->data, 3, anim->scale_min, anim->scale_max);
+            break;
+            
+        default:
+            out_keyframe->data[0] = 0x8000;
+            out_keyframe->data[1] = 0x8000;
+            out_keyframe->data[2] = 0x8000;
+            break;
+    }
+}
+
+int compare_anim_keyframe(const void *a, const void *b)
+{
+    model64_keyframe_t *keyframe_a = (model64_keyframe_t *)a;
+    model64_keyframe_t *keyframe_b = (model64_keyframe_t *)b;
+    if(keyframe_a->time < keyframe_b->time) {
+        return -1;
+    } else if(keyframe_a->time > keyframe_b->time) {
+        return 1;
+    } else {
+        return keyframe_a->track-keyframe_b->track;
+    }
+}
+
+void sort_anim_keyframes(model64_anim_t *anim)
+{
+    qsort(anim->keyframes, anim->num_keyframes, sizeof(model64_keyframe_t), compare_anim_keyframe);
+}
+
+void anim_build_keyframes(cgltf_data *data, gltf_anim_channel_t *channels, size_t num_channels, model64_anim_t *out_anim)
+{
+    uint32_t num_tracks = 0;
+    for(size_t i=0; i<num_channels; i++) {
+        if(!gltf_channel_can_remove(data, &channels[i])) {
+            add_anim_keyframe(out_anim, &channels[i], 0, num_tracks);
+            for(size_t j=0; j<channels[i].samples.num_keyframes; j++) {
+                add_anim_keyframe(out_anim, &channels[i], j, num_tracks);
+            }
+            add_anim_keyframe(out_anim, &channels[i], channels[i].samples.num_keyframes-1, num_tracks);
+            num_tracks++;
+        }
+    }
+    sort_anim_keyframes(out_anim);
 }
 
 int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t *out_anim)
@@ -1242,39 +1500,52 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
             max_time = channels[i].time[channels[i].num_keyframes-1];
         }
     }
-    out_anim->num_channels = in_anim->channels_count;
-    out_anim->channels = calloc(out_anim->num_channels, sizeof(uint32_t));
-    for(uint32_t i=0; i<out_anim->num_channels; i++) {
-        uint32_t component;
-        switch(channels[i].target_path) {
-            case cgltf_animation_path_type_translation:
-                component = ANIM_COMPONENT_POS;
-                break;
-                
-            case cgltf_animation_path_type_rotation:
-                component = ANIM_COMPONENT_ROT;
-                break;
-                
-            case cgltf_animation_path_type_scale:
-                component = ANIM_COMPONENT_SCALE;
-                break;
-                
-            default:
-                fprintf(stderr, "Error: invalid animation channel target path %d\n", channels[i].target_path);
-                goto error;
-        }
-        out_anim->channels[i] = (component << 30)|channels[i].node_index;
+    out_anim->pos_min = FLT_MAX;
+    out_anim->pos_max = -FLT_MAX;
+    out_anim->scale_min = FLT_MAX;
+    out_anim->scale_max = -FLT_MAX;
+    if(flag_verbose) {
+        printf("Calculating range for position and scale of animation\n");
     }
-    out_anim->frame_rate = flag_anim_fps;
+    for(uint32_t i=0; i<in_anim->channels_count; i++) {
+        if(channels[i].target_path == cgltf_animation_path_type_translation) {
+            for(size_t j=0; j<3; j++) {
+                if(channels[i].output_min[j] < out_anim->pos_min) {
+                    out_anim->pos_min = channels[i].output_min[j];
+                }
+                if(channels[i].output_max[j] > out_anim->pos_min) {
+                    out_anim->pos_max = channels[i].output_max[j];
+                }
+            }
+        } else if(channels[i].target_path == cgltf_animation_path_type_scale) {
+            for(size_t j=0; j<3; j++) {
+                if(channels[i].output_min[j] < out_anim->scale_min) {
+                    out_anim->scale_min = channels[i].output_min[j];
+                }
+                if(channels[i].output_max[j] > out_anim->scale_max) {
+                    out_anim->scale_max = channels[i].output_max[j];
+                }
+            }
+        }
+    }
     out_anim->duration = max_time;
-    out_anim->num_frames = ceil(max_time*flag_anim_fps)+1;
     for(size_t i=0; i<in_anim->channels_count; i++) {
         if(flag_verbose) {
             printf("Sampling animation channel %zd\n", i);
         }
-        make_anim_channel_samples(&channels[i], flag_anim_fps, out_anim->num_frames);
+        make_anim_channel_samples(&channels[i], max_time);
     }
-    make_anim_data(out_anim, channels, in_anim->channels_count);
+    if(flag_verbose) {
+        printf("Building animation tracks\n");
+    }
+    if(!anim_build_tracks(data, channels, in_anim->channels_count, out_anim)) {
+        fprintf(stderr, "Error: Failed to build tracks\n");
+        goto error;
+    }
+    if(flag_verbose) {
+        printf("Building animation keyframes\n");
+    }
+    anim_build_keyframes(data, channels, in_anim->channels_count, out_anim);
     
     delete_gltf_anim_channel_array(channels, in_anim->channels_count);
     return 0;
@@ -1284,17 +1555,15 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
     return 1;
 }
 
-uint32_t get_anim_stream_buf_size(model64_data_t *model)
+uint32_t get_anim_max_tracks(model64_data_t *model)
 {
-    uint32_t size = 0;
-    if(flag_anim_stream) {
-        for(uint32_t i=0; i<model->num_anims; i++) {
-            if(model->anims[i].frame_size >= size) {
-                size = model->anims[i].frame_size;
-            }
+    uint32_t num_tracks = 0;
+    for(uint32_t i=0; i<model->num_anims; i++) {
+        if(model->anims[i].num_tracks >= num_tracks) {
+            num_tracks = model->anims[i].num_tracks;
         }
     }
-    return size;
+    return num_tracks;
 }
 
 int convert(const char *infn, const char *outfn)
@@ -1416,7 +1685,7 @@ int convert(const char *infn, const char *outfn)
                 goto error;
             }
         }
-        model->stream_buf_size = get_anim_stream_buf_size(model);
+        model->max_tracks = get_anim_max_tracks(model);
     }
     
     // Write output file
@@ -1453,7 +1722,7 @@ int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     bool error = false;
-    int compression = DEFAULT_COMPRESSION;
+    int compression = 0;
 
     if (argc < 2) {
         print_args(argv[0]);
