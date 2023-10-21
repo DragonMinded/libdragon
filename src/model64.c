@@ -818,7 +818,12 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         if(anim_state->time > time_next) {
             weight = 1.0f;
         } else {
-            weight = (anim_state->time-time)/(time_next-time);
+            if(anim_state->time < time) {
+                weight = 0.0f;
+            } else {
+                weight = (anim_state->time-time)/(time_next-time);
+            }
+            
         }
         float *out;
         size_t out_count;
