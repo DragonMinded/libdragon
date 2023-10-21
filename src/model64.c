@@ -814,25 +814,35 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         float time = anim_state->frames[(i*4)+((1+anim_state->buf_idx[i]) % 4)].time;
         float time_next = anim_state->frames[(i*4)+((2+anim_state->buf_idx[i]) % 4)].time;
         float weight = (anim_state->time-time)/(time_next-time);
+        float *out;
+        size_t out_count;
         switch(component) {
             case ANIM_COMPONENT_POS:
-                catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], 
-                    &decoded_values[2][0], &decoded_values[3][0], model->transforms[node].transform.pos, weight, 3);
+                out = model->transforms[node].transform.pos;
+                out_count = 3;
+                
                 break;
                 
             case ANIM_COMPONENT_ROT:
-                catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], 
-                    &decoded_values[2][0], &decoded_values[3][0], model->transforms[node].transform.rot, weight, 4);
-                vec_normalize(model->transforms[node].transform.rot, 4);
+                out = model->transforms[node].transform.rot;
+                out_count = 4;
                 break;
                 
             case ANIM_COMPONENT_SCALE:
-                catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], 
-                    &decoded_values[2][0], &decoded_values[3][0], model->transforms[node].transform.scale, weight, 4);
+                out = model->transforms[node].transform.scale;
+                out_count = 3;
                 break;
               
             default:
+                out = NULL;
                 break;
+        }
+        if(out == NULL) {
+            continue;
+        }
+        catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], &decoded_values[2][0], &decoded_values[3][0], out, weight, out_count);
+        if(component == ANIM_COMPONENT_ROT) {
+            vec_normalize(out, 4);
         }
     }
 }

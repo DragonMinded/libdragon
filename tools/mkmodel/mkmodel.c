@@ -1417,7 +1417,7 @@ bool anim_build_tracks(cgltf_data *data, gltf_anim_channel_t *channels, size_t n
 void calc_normalized_u16(uint16_t *out, float *in, size_t count, float min, float max)
 {
     for(size_t i=0; i<count; i++) {
-        if(fabsf(max-min) < 0.5f*RSP_PRECISION) {
+        if(fabsf(max-min) > 0.5f*RSP_PRECISION) {
             out[i] = ((in[i]-min)*(65535.0f/(max-min)))+0.5f;
         } else {
             out[i] = 0x7FFF;
