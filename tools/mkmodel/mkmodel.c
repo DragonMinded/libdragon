@@ -1152,7 +1152,7 @@ int read_anim_channel(cgltf_data *data, cgltf_animation_channel *in_channel, glt
             break;
             
         case cgltf_animation_path_type_rotation:
-            out_channel->max_error = 0.0001f;
+            out_channel->max_error = 0.00001f;
             break;
             
         case cgltf_animation_path_type_scale:
