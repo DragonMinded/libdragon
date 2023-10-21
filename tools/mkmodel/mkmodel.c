@@ -1568,7 +1568,7 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
                 if(channels[i].output_min[j] < out_anim->pos_min) {
                     out_anim->pos_min = channels[i].output_min[j];
                 }
-                if(channels[i].output_max[j] > out_anim->pos_min) {
+                if(channels[i].output_max[j] > out_anim->pos_max) {
                     out_anim->pos_max = channels[i].output_max[j];
                 }
             }

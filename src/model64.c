@@ -813,7 +813,12 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         }
         float time = anim_state->frames[(i*4)+((1+anim_state->buf_idx[i]) % 4)].time;
         float time_next = anim_state->frames[(i*4)+((2+anim_state->buf_idx[i]) % 4)].time;
-        float weight = (anim_state->time-time)/(time_next-time);
+        float weight;
+        if(anim_state->time > time_next) {
+            weight = 1.0f;
+        } else {
+            weight = (anim_state->time-time)/(time_next-time);
+        }
         float *out;
         size_t out_count;
         switch(component) {
@@ -858,6 +863,7 @@ void model64_update(model64_t *model, float deltatime)
             if(model->active_anims[i]->index != -1 && model->active_anims[i]->invalid_pose) {
                 init_keyframes(model, i);
                 fetch_needed_keyframes(model, i);
+                calc_anim_pose(model, i);
                 model->active_anims[i]->invalid_pose = false;
             }
             continue;
