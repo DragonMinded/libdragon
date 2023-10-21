@@ -860,7 +860,9 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         } else {
             catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], &decoded_values[2][0], &decoded_values[3][0], out, weight, out_count);
         }
-        calc_node_local_matrix(model, node);
+        if(i == curr_anim->num_tracks-1 || (curr_anim->tracks[i+1] & 0x3FFF) != node) {
+            calc_node_local_matrix(model, node);
+        }
     }
 }
 

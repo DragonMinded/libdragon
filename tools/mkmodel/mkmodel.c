@@ -1548,6 +1548,19 @@ void anim_build_keyframes(cgltf_data *data, gltf_anim_channel_t *channels, size_
     sort_anim_keyframes(out_anim, &keyframes);
 }
 
+int cmp_anim_channel_node(const void *a, const void *b)
+{
+    gltf_anim_channel_t *channel_a = (gltf_anim_channel_t *)a;
+    gltf_anim_channel_t *channel_b = (gltf_anim_channel_t *)b;
+    if(channel_a->node_index < channel_b->node_index) {
+        return -1;
+    } else if(channel_a->node_index > channel_b->node_index) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
 int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t *out_anim)
 {
     gltf_anim_channel_t *channels = calloc(in_anim->channels_count, sizeof(gltf_anim_channel_t));
@@ -1567,6 +1580,7 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
             max_time = channels[i].time[channels[i].num_keyframes-1];
         }
     }
+    qsort(channels, in_anim->channels_count, sizeof(gltf_anim_channel_t), cmp_anim_channel_node);
     out_anim->pos_f1 = FLT_MAX;
     out_anim->pos_f2 = -FLT_MAX;
     out_anim->scale_f1 = FLT_MAX;
