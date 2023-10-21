@@ -506,6 +506,7 @@ void model64_write_anim_data(model64_anim_t *anim, FILE *out)
 {
     for(uint32_t i=0; i<anim->num_keyframes; i++) {
         wf32(out, anim->keyframes[i].time);
+        wf32(out, anim->keyframes[i].time_req);
         w16(out, anim->keyframes[i].track);
         w16(out, anim->keyframes[i].data[0]);
         w16(out, anim->keyframes[i].data[1]);
@@ -1465,7 +1466,8 @@ void add_anim_keyframe(model64_anim_t *anim, ordered_keyframe_array_t *dst, gltf
     dst->data = realloc(dst->data, dst->count*sizeof(ordered_keyframe_t));
     gltf_keyframe_t *keyframe = &src_channel->samples.keyframes[index];
     ordered_keyframe_t *out_keyframe = &dst->data[dst->count-1];
-    out_keyframe->keyframe.time = keyframe->time_req;
+    out_keyframe->keyframe.time = keyframe->time;
+    out_keyframe->keyframe.time_req = keyframe->time_req;
     out_keyframe->keyframe.track = track;
     switch(src_channel->target_path) {
         case cgltf_animation_path_type_translation:
@@ -1493,9 +1495,9 @@ int compare_anim_keyframe(const void *a, const void *b)
 {
     ordered_keyframe_t *keyframe_a = (ordered_keyframe_t *)a;
     ordered_keyframe_t *keyframe_b = (ordered_keyframe_t *)b;
-    if(keyframe_a->keyframe.time < keyframe_b->keyframe.time) {
+    if(keyframe_a->keyframe.time_req < keyframe_b->keyframe.time_req) {
         return -1;
-    } else if(keyframe_a->keyframe.time > keyframe_b->keyframe.time) {
+    } else if(keyframe_a->keyframe.time_req > keyframe_b->keyframe.time_req) {
         return 1;
     } else {
         int track_diff = keyframe_a->keyframe.track-keyframe_b->keyframe.track;

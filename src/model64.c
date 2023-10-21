@@ -75,10 +75,10 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
         {
             model->anims[i].name = PTR_DECODE(model, model->anims[i].name);
         }
-        model->anims[i].channels = PTR_DECODE(model, model->anims[i].channels);
-        if(model->stream_buf_size == 0)
+        model->anims[i].tracks = PTR_DECODE(model, model->anims[i].tracks);
+        if(!model->anim_data_handle)
         {
-            model->anims[i].data = PTR_DECODE(model, model->anims[i].data);
+            model->anims[i].keyframes = PTR_DECODE(model, model->anims[i].keyframes);
         }
     }
     model->magic = MODEL64_MAGIC_LOADED;
@@ -203,7 +203,7 @@ static model64_t *make_model_instance(model64_data_t *model_data)
 static model64_data_t *load_model64_data_buf(void *buf, int sz)
 {
     model64_data_t *data = load_model_data_buf(buf, sz);
-    assertf(data->stream_buf_size == 0, "Streaming animations not supported when loading model from buffer");
+    assertf(!data->anim_data_handle, "Streaming animations not supported when loading model from buffer");
     return data;
 }
 
@@ -212,7 +212,7 @@ static model64_data_t *load_model64_data(const char *fn)
     int sz;
     void *buf = asset_load(fn, &sz);
     model64_data_t *data = load_model_data_buf(buf, sz);
-    if(data->stream_buf_size != 0) {
+    if(!data->anim_data_handle) {
         assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: models with streamed animations must be stored in ROM (rom:/)", fn);
         char anim_name[strlen(fn)+6];
         sprintf(anim_name, "%s.anim", fn);
@@ -284,10 +284,10 @@ static void unload_model_data(model64_data_t *model)
         {
             model->anims[i].name = PTR_ENCODE(model, model->anims[i].name);
         }
-        model->anims[i].channels = PTR_ENCODE(model, model->anims[i].channels);
-        if(model->stream_buf_size == 0)
+        model->anims[i].tracks = PTR_ENCODE(model, model->anims[i].tracks);
+        if(!model->anim_data_handle)
         {
-            model->anims[i].data = PTR_ENCODE(model, model->anims[i].data);
+            model->anims[i].keyframes = PTR_ENCODE(model, model->anims[i].keyframes);
         }
     }
     model->nodes = PTR_ENCODE(model, model->nodes);
@@ -541,13 +541,15 @@ static int32_t search_anim_index(model64_t *model, const char *name)
 
 static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
 {
-    uint32_t state_size = ROUND_UP(sizeof(anim_state_t), 16);
-    uint32_t stream_buf_size = ROUND_UP(model->data->stream_buf_size, 16);
-    anim_state_t *anim_state = memalign(16, state_size+(2*stream_buf_size));
-    memset(anim_state, 0, state_size+(2*stream_buf_size));
-    void *stream_buf = PTR_DECODE(anim_state, state_size);
-    anim_state->stream_buf[0] = stream_buf;
-    anim_state->stream_buf[1] = PTR_DECODE(stream_buf, stream_buf_size);
+    uint32_t state_size = sizeof(anim_state_t);
+    uint32_t num_tracks = model->data->max_tracks;
+    state_size += (num_tracks*4)*sizeof(model64_keyframe_t);
+    state_size += sizeof(model64_keyframe_t);
+    state_size += num_tracks;
+    anim_state_t *anim_state = calloc(1, state_size);
+    anim_state->frames = PTR_DECODE(anim_state, sizeof(anim_state_t));
+    anim_state->waiting_frame = PTR_DECODE(anim_state->frames, (num_tracks*4)*sizeof(model64_keyframe_t));
+    anim_state->buf_idx = PTR_DECODE(anim_state->waiting_frame, sizeof(model64_keyframe_t));
     anim_state->index = -1;
     anim_state->paused = true;
     anim_state->speed = 1.0f;
@@ -571,9 +573,8 @@ void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t s
     model->active_anims[slot]->paused = paused;
     model->active_anims[slot]->time = start_time;
     model->active_anims[slot]->loop = false;
-    model->active_anims[slot]->new_pose = true;
-    model->active_anims[slot]->swap_stream_buf = false;
-    model->active_anims[slot]->prev_frame = 0;
+    model->active_anims[slot]->invalid_pose = true;
+    model->active_anims[slot]->prev_waiting_frame = false;
     model->active_anims[slot]->speed = 1.0f;
 }
 
@@ -616,6 +617,7 @@ float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float ti
 float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    assertf(speed >= 0, "Speed cannot be negative");
     if(!model->active_anims[slot]) {
         alloc_anim_slot(model, slot);
     }
@@ -646,75 +648,19 @@ bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool pau
     return old_pause;
 }
 
-static void read_model_anim_buf(model64_t *model, anim_buf_info_t *buf_info, int anim_slot)
+static float catmull_calc(float p1, float p2, float p3, float p4, float t)
 {
-    anim_state_t *anim_slot_ptr = model->active_anims[anim_slot];
-    model64_anim_t *curr_anim = &model->data->anims[anim_slot_ptr->index];
-    uint32_t curr_frame;
-    uint32_t next_frame;
-    uint32_t frame_size = curr_anim->frame_size;
-    
-    if(anim_slot_ptr->time < 0) {
-        curr_frame = next_frame = 0;
-        buf_info->time = 0;
-    } else if(anim_slot_ptr->time*curr_anim->frame_rate >= curr_anim->num_frames-1) {
-        curr_frame = next_frame = curr_anim->num_frames-1;
-        buf_info->time = 0;
-    } else {
-        curr_frame = anim_slot_ptr->time*curr_anim->frame_rate;
-        next_frame = curr_frame+1;
-        buf_info->time = (anim_slot_ptr->time-((float)curr_frame/curr_anim->frame_rate))*curr_anim->frame_rate;
-    }
-    if(model->data->stream_buf_size > 0) {
-        uint32_t prev_frame = anim_slot_ptr->prev_frame;
-        uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
-        rom_addr += (uint32_t)curr_anim->data;
-        bool read_curr, read_next;
-        if(!anim_slot_ptr->new_pose && ((curr_frame == prev_frame+1) || (curr_frame == prev_frame-1) || (curr_frame == prev_frame))) {
-            bool new_frame = curr_frame != prev_frame;
-            bool play_backwards = anim_slot_ptr->speed < 0;
-            bool swap_stream_buf = anim_slot_ptr->swap_stream_buf;
-            bool swapped_buf = (swap_stream_buf ^ play_backwards) ^ new_frame;
-
-            read_curr = new_frame && play_backwards;
-            read_next = new_frame && !play_backwards;
-            if(!swapped_buf) {
-                buf_info->curr_buf = anim_slot_ptr->stream_buf[1];
-                buf_info->next_buf = anim_slot_ptr->stream_buf[0];
-            } else {
-                buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
-                buf_info->next_buf = anim_slot_ptr->stream_buf[1];
-            }
-            if(new_frame) {
-                anim_slot_ptr->swap_stream_buf = !swap_stream_buf;
-            }
-        } else {
-            read_curr = read_next = true;
-            buf_info->curr_buf = anim_slot_ptr->stream_buf[0];
-            buf_info->next_buf = anim_slot_ptr->stream_buf[1];
-            anim_slot_ptr->swap_stream_buf = false;
-            
-        }
-        if(read_curr) {
-            data_cache_hit_writeback_invalidate(buf_info->curr_buf, frame_size);
-            dma_read(buf_info->curr_buf, rom_addr+(curr_frame*frame_size), frame_size);
-        }
-        if(read_next) {
-            data_cache_hit_writeback_invalidate(buf_info->next_buf, frame_size);
-            dma_read(buf_info->next_buf, rom_addr+(next_frame*frame_size), frame_size);
-        }
-    } else {
-        uint8_t *buf_base = curr_anim->data;
-        buf_info->curr_buf = &buf_base[curr_frame*frame_size];
-        buf_info->next_buf = &buf_base[next_frame*frame_size];
-    }
-    anim_slot_ptr->prev_frame = curr_frame;
+    float a = (-1*p1  +3*p2 -3*p3 + 1*p4) * t*t*t;
+    float b = ( 2*p1  -5*p2 +4*p3 - 1*p4) * t*t;
+    float c = (  -p1        +  p3)        * t;
+    float d = 2*p2;
+    return 0.5f * (a+b+c+d);
 }
 
-static void vec_lerp(float *out, float *in1, float *in2, size_t count, float time)
+static void catmull_calc_vec(float *p1, float *p2, float *p3, float *p4, float *out, float t, int num_values)
 {
-    for(size_t i=0; i<count; i++) {
-        out[i] = ((1-time)*in1[i])+(time*in2[i]);
+    for(int i=0; i<num_values; i++) {
+        out[i] = catmull_calc(p1[i], p2[i], p3[i], p4[i], t);
     }
 }
 
@@ -730,48 +676,160 @@ static void vec_normalize(float *vec, size_t count)
     }
 }
 
-static void quat_lerp(float *out, float *in1, float *in2, float time)
+static void decode_normalized_u16(uint16_t *in, float *out, size_t count, float min, float max)
 {
-    float dot = (in1[0]*in2[0])+(in1[1]*in2[1])+(in1[2]*in2[2])+(in1[3]*in2[3]);
-    float out_scale  = (dot >= 0) ? 1.0f : -1.0f;
-    for(size_t i=0; i<4; i++) {
-        out[i] = ((1-time)*in1[i])+(out_scale*time*in2[i]);
+    for(size_t i=0; i<count; i++) {
+        out[i] = ((in[i]/65535.0f)*(max-min))+min;
     }
-    vec_normalize(out, 4);
 }
 
-static void calc_anim_pose(model64_t *model, int anim_slot)
+static void decode_quaternion(uint16_t *in, float *out)
 {
-    model64_anim_t *curr_anim = &model->data->anims[model->active_anims[anim_slot]->index];
-    anim_buf_info_t anim_buf_info;
-    read_model_anim_buf(model, &anim_buf_info, anim_slot);
-    uint8_t *curr_buf = anim_buf_info.curr_buf;
-    uint8_t *next_buf = anim_buf_info.next_buf;
-    for(uint32_t i=0; i<curr_anim->num_channels; i++) {
-        uint32_t data_size = 0;
-        uint32_t component = curr_anim->channels[i] >> 30;
-        uint32_t node_index = curr_anim->channels[i] & 0x3FFFFFFF;
+    uint16_t values[3];
+    int max_component;
+    values[0] = ((in[0] & 0x1FFF) << 2)|(in[1] >> 14);
+    values[1] = ((in[1] & 0x3FFF) << 1)|(in[2] >> 15);
+    values[2] = in[2] & 0x7FFF;
+    max_component = (in[0] & 0x6000) >> 13;
+    float decoded_values[3];
+    for(size_t i=0; i<3; i++) {
+        decoded_values[i] = (values[i]*0.000043159689f)-0.70710678f;
+    }
+    float derived_component = sqrtf(1.0f-(decoded_values[0]*decoded_values[0])-(decoded_values[1]*decoded_values[1])-(decoded_values[2]*decoded_values[2]));
+    int src_component = 0;
+    for(size_t i=0; i<4; i++) {
+        if(i == max_component) {
+            out[i] = derived_component;
+        } else {
+            out[i] = decoded_values[src_component];
+            src_component++;
+        }
+    }
+}
+
+static void copy_waiting_frame(model64_t *model, model64_anim_slot_t anim_slot)
+{
+    anim_state_t *anim_state = model->active_anims[anim_slot];
+    uint16_t track = anim_state->waiting_frame->track;
+    uint8_t buffer = anim_state->buf_idx[track];
+    memcpy(&anim_state->frames[(track*4)+buffer], anim_state->waiting_frame, sizeof(model64_keyframe_t));
+    anim_state->buf_idx[track] = (buffer+1)%4;
+}
+
+static void read_waiting_frame(model64_t *model, model64_anim_slot_t anim_slot)
+{
+    anim_state_t *anim_state = model->active_anims[anim_slot];
+    model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
+    if(anim_state->prev_waiting_frame) {
+        copy_waiting_frame(model, anim_slot);
+    } else {
+        anim_state->prev_waiting_frame = true;
+    }
+    if(model->data->anim_data_handle) {
+        uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
+        rom_addr += (uint32_t)curr_anim->keyframes;
+        rom_addr += anim_state->frame_idx*sizeof(model64_keyframe_t);
+        data_cache_hit_writeback_invalidate(anim_state->waiting_frame, sizeof(model64_keyframe_t));
+        dma_read(anim_state->waiting_frame, rom_addr, sizeof(model64_keyframe_t));
+    } else {
+        memcpy(anim_state->waiting_frame, &curr_anim->keyframes[anim_state->frame_idx], sizeof(model64_keyframe_t));
+    }
+    anim_state->frame_idx++;
+}
+
+static void init_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
+{
+    anim_state_t *anim_state = model->active_anims[anim_slot];
+    model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
+    uint32_t num_tracks = curr_anim->num_tracks;
+    uint32_t frame_buf_size = (num_tracks*4)*sizeof(model64_keyframe_t);
+    if(model->data->anim_data_handle) {
+        uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
+        rom_addr += (uint32_t)curr_anim->keyframes;
+        data_cache_hit_writeback_invalidate(anim_state->frames, frame_buf_size);
+        dma_read(anim_state->frames, rom_addr, frame_buf_size);
+    } else {
+        memcpy(anim_state->frames, curr_anim->keyframes, frame_buf_size);
+    }
+    for(uint32_t i=0; i<num_tracks; i++) {
+        anim_state->buf_idx[i] = 0;
+    }
+    anim_state->frame_idx = num_tracks*4;
+    if(anim_state->frame_idx >= curr_anim->num_keyframes) {
+        memcpy(anim_state->waiting_frame, &anim_state->frames[(num_tracks*4)-1], frame_buf_size);
+        anim_state->frame_idx = curr_anim->num_keyframes-1;
+    } else {
+        read_waiting_frame(model, anim_slot);
+    }
+    
+}
+
+static void fetch_needed_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
+{
+    anim_state_t *anim_state = model->active_anims[anim_slot];
+    model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
+    if(anim_state->frame_idx >= curr_anim->num_keyframes-1) {
+        return;
+    }
+    while(anim_state->waiting_frame->time_req < anim_state->time) {
+        read_waiting_frame(model, anim_slot);
+        if(anim_state->frame_idx >= curr_anim->num_keyframes-1) {
+            return;
+        }
+    }
+}
+
+static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
+{
+    anim_state_t *anim_state = model->active_anims[anim_slot];
+    model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
+    float decoded_values[4][4];
+    for(uint32_t i=0; i<curr_anim->num_tracks; i++) {
+        uint32_t component = curr_anim->tracks[i] >> 14;
+        uint16_t node = curr_anim->tracks[i] & 0x3FFF;
+        for(uint32_t j=0; j<4; j++) {
+            model64_keyframe_t *frame = &anim_state->frames[(i*4)+((j+anim_state->buf_idx[i]) % 4)];
+            switch(component) {
+                case ANIM_COMPONENT_POS:
+                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->pos_min, curr_anim->pos_max);
+                    break;
+                    
+                case ANIM_COMPONENT_ROT:
+                    decode_quaternion(frame->data, &decoded_values[j][0]);
+                    break;
+                    
+                case ANIM_COMPONENT_SCALE:
+                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->scale_min, curr_anim->scale_max);
+                    break;
+                  
+                default:
+                    break;
+            }
+        }
+        float time = anim_state->frames[(i*4)+((1+anim_state->buf_idx[i]) % 4)].time;
+        float time_next = anim_state->frames[(i*4)+((2+anim_state->buf_idx[i]) % 4)].time;
+        float weight = (anim_state->time-time)/(time_next-time);
         switch(component) {
             case ANIM_COMPONENT_POS:
-                vec_lerp(model->transforms[node_index].transform.pos, (float *)curr_buf, (float *)next_buf, 3, anim_buf_info.time);
-                data_size = 3*sizeof(float); 
+                catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], 
+                    &decoded_values[2][0], &decoded_values[3][0], model->transforms[node].transform.pos, weight, 3);
                 break;
                 
             case ANIM_COMPONENT_ROT:
-                quat_lerp(model->transforms[node_index].transform.rot, (float *)curr_buf, (float *)next_buf, anim_buf_info.time);
-                data_size = 4*sizeof(float); 
+                catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], 
+                    &decoded_values[2][0], &decoded_values[3][0], model->transforms[node].transform.rot, weight, 4);
+                vec_normalize(model->transforms[node].transform.rot, 4);
                 break;
                 
             case ANIM_COMPONENT_SCALE:
-                vec_lerp(model->transforms[node_index].transform.scale, (float *)curr_buf, (float *)next_buf, 3, anim_buf_info.time);
-                data_size = 3*sizeof(float); 
+                catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], 
+                    &decoded_values[2][0], &decoded_values[3][0], model->transforms[node].transform.scale, weight, 4);
+                break;
+              
+            default:
                 break;
         }
-        calc_node_local_matrix(model, node_index);
-        curr_buf += data_size;
-        next_buf += data_size;
     }
-    model->active_anims[anim_slot]->new_pose = false;
 }
 
 void model64_update(model64_t *model, float deltatime)
@@ -781,19 +839,27 @@ void model64_update(model64_t *model, float deltatime)
             continue;
         }
         if(model->active_anims[i]->index == -1 || model->active_anims[i]->paused || model->active_anims[i]->speed == 0) {
-            if(model->active_anims[i]->index != -1 && model->active_anims[i]->new_pose) {
-                calc_anim_pose(model, i);
+            if(model->active_anims[i]->index != -1 && model->active_anims[i]->invalid_pose) {
+                init_keyframes(model, i);
+                fetch_needed_keyframes(model, i);
+                model->active_anims[i]->invalid_pose = false;
             }
             continue;
         }
         model->active_anims[i]->time += model->active_anims[i]->speed*deltatime;
         if(model->active_anims[i]->loop) {
             model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i]->index];
-            model->active_anims[i]->time = fm_fmodf(model->active_anims[i]->time, curr_anim->duration);
-            if(model->active_anims[i]->time < 0) {
-                model->active_anims[i]->time += curr_anim->duration;
+            if(model->active_anims[i]->time >= curr_anim->duration) {
+                model->active_anims[i]->time -= curr_anim->duration;
+                model->active_anims[i]->invalid_pose = true;
+                
             }
         }
+        if(model->active_anims[i]->invalid_pose) {
+            init_keyframes(model, i);
+            model->active_anims[i]->invalid_pose = false;
+        }
+        fetch_needed_keyframes(model, i);
         calc_anim_pose(model, i);
     }
     update_node_matrices(model);
