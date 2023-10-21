@@ -87,20 +87,21 @@ typedef struct model64_node_s {
     uint32_t *children;             ///< List of children node indices
 } model64_node_t;
 
+/** @brief A keyframe of an animation */
 typedef struct model64_keyframe_s {
-    float time;
-    float time_req;
-    uint16_t track;
-    uint16_t data[3];
+    float time;         ///< Time of keyframe
+    float time_req;     ///< Time keyframe was requested
+    uint16_t track;     ///< Track keyframe applies to
+    uint16_t data[3];   ///< Data for keyframe
 } model64_keyframe_t;
 
 /** @brief An animation of a model */
 typedef struct model64_anim_s {
     char *name;                     ///< Name of the animation
-    float pos_min;
-    float pos_max;
-    float scale_min;
-    float scale_max;
+    float pos_min;                  ///< Minimum position of animation
+    float pos_max;                  ///< Maximum position of animation
+    float scale_min;                ///< Minimum scale of animation
+    float scale_max;                ///< Maximum scale of animation
     float duration;                 ///< Duration of animation
     uint32_t num_keyframes;         ///< Number of keyframes in animation
     model64_keyframe_t *keyframes;  ///< Pointer to animation keyframes
