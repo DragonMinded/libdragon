@@ -844,6 +844,7 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         if(component == ANIM_COMPONENT_ROT) {
             vec_normalize(out, 4);
         }
+        calc_node_local_matrix(model, node);
     }
 }
 
