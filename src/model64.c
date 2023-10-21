@@ -768,8 +768,8 @@ static void init_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
     anim_state->frame_idx = num_tracks*4;
     anim_state->prev_waiting_frame = false;
     if(anim_state->frame_idx >= curr_anim->num_keyframes) {
-        memcpy(anim_state->waiting_frame, &anim_state->frames[(num_tracks*4)-1], frame_buf_size);
-        anim_state->frame_idx = curr_anim->num_keyframes-1;
+        memcpy(anim_state->waiting_frame, &anim_state->frames[curr_anim->num_keyframes-1], frame_buf_size);
+        anim_state->frame_idx = curr_anim->num_keyframes;
     } else {
         read_waiting_frame(model, anim_slot);
     }
@@ -780,14 +780,11 @@ static void fetch_needed_keyframes(model64_t *model, model64_anim_slot_t anim_sl
 {
     anim_state_t *anim_state = model->active_anims[anim_slot];
     model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
-    if(anim_state->frame_idx >= curr_anim->num_keyframes-1) {
-        return;
-    }
     while(anim_state->waiting_frame->time_req < anim_state->time) {
-        read_waiting_frame(model, anim_slot);
-        if(anim_state->frame_idx >= curr_anim->num_keyframes-1) {
+        if(anim_state->frame_idx >= curr_anim->num_keyframes) {
             return;
         }
+        read_waiting_frame(model, anim_slot);
     }
 }
 
