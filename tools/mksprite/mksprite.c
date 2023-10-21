@@ -1280,25 +1280,27 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         }
     }
 
+    // Dump TMEM usage
+    if (flag_verbose) {
+        int tmem_usage; spritemaker_fit_tmem(&spr, &tmem_usage);
+        fprintf(stderr, "TMEM required: %d bytes\n", tmem_usage);
+    }
+
     // Legacy support for old mksprite usage
     if (pm->hslices) spr.hslices = pm->hslices;
     if (pm->vslices) spr.vslices = pm->vslices;
-    // Autodetection of optimal slice size. TODO: this could be improved
-    // by calculating actual memory occupation of each slice, to minimize the
-    // number of TMEM loads.
+    // Autodetection of optimal slice size. NOTE: we currently don't
+    // use this in rdpq. rdpq_tex does its own from-scratch calculation,
+    // but we could skip some runtime work by doing the same here.
     if (pm->tilew) spr.hslices = spr.images[0].width / pm->tilew;
     if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
     if (!spr.hslices) {
         spr.hslices = spr.images[0].width / 16;
         if (!spr.hslices) spr.hslices = 1;
-        if (flag_verbose)
-            fprintf(stderr, "auto detected hslices: %d (w=%d/%d)\n", spr.hslices, spr.images[0].width, spr.images[0].width/spr.hslices);
     }
     if (!spr.vslices) {
         spr.vslices = spr.images[0].height / 16;
         if (!spr.vslices) spr.vslices = 1;
-        if (flag_verbose)
-            fprintf(stderr, "auto detected vslices: %d (w=%d/%d)\n", spr.vslices, spr.images[0].height, spr.images[0].height/spr.vslices);
     }
 
     // Write the sprite
@@ -1594,7 +1596,7 @@ int main(int argc, char *argv[])
             if (compression) {
                 struct stat st_decomp = {0}, st_comp = {0};
                 stat(outfn, &st_decomp);
-                asset_compress(outfn, outfn, compression);
+                asset_compress(outfn, outfn, compression, 0);
                 stat(outfn, &st_comp);
                 if (flag_verbose)
                     fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,

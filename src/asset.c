@@ -222,9 +222,10 @@ FILE *asset_fopen(const char *fn, int *sz)
         assertf(algos[header.algo-1].decompress_init, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
 
-        cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size);
+        int winsize = asset_winsize_from_flags(header.flags);
+        cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);
         cookie->read = algos[header.algo-1].decompress_read;
-        algos[header.algo-1].decompress_init(cookie->state, f);
+        algos[header.algo-1].decompress_init(cookie->state, f, winsize);
 
         cookie->fp = f;
         cookie->pos = 0;

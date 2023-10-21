@@ -5,9 +5,15 @@
  */
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <malloc.h>
 #include "n64sys.h"
+#include "regsinternal.h"
+#include "interrupt.h"
+#include "vi.h"
+#include "rsp.h"
+#include "rdp.h"
 #include "utils.h"
 
 /**
@@ -32,6 +38,12 @@
  * @brief Indicates whether we are running on a vanilla N64 or a iQue player
  */
 int __bbplayer = 0;
+
+/** @brief Last tick at which the 64-bit counter was updated */
+static uint32_t ticks64_base_tick;
+
+/** @brief Last value of the 64-bit counter */
+static uint64_t ticks64_base;
 
 /** @brief Return true if we are running on a iQue player */
 bool sys_bbplayer(void) {
@@ -327,29 +339,58 @@ tv_type_t get_tv_type()
     return *((uint32_t *) TV_TYPE_LOC);
 }
 
-/**
- * @brief Spin wait until the number of ticks have elapsed
- *
- * @param[in] wait
- *            Number of ticks to wait
- *            Maximum accepted value is 0xFFFFFFFF ticks
- */
+uint64_t get_ticks(void)
+{
+	uint32_t now = TICKS_READ();
+	uint32_t prev = ticks64_base_tick;
+	ticks64_base_tick = now;
+	ticks64_base += now - prev;
+	return ticks64_base;
+}
+
+uint64_t get_ticks_us(void)
+{
+    return TICKS_TO_US(get_ticks());
+}
+
+uint64_t get_ticks_ms(void)
+{
+    return TICKS_TO_MS(get_ticks());
+}
+
 void wait_ticks( unsigned long wait )
 {
     unsigned int initial_tick = TICKS_READ();
     while( TICKS_READ() - initial_tick < wait );
 }
 
-/**
- * @brief Spin wait until the number of milliseconds have elapsed
- *
- * @param[in] wait_ms
- *            Number of milliseconds to wait
- *            Maximum accepted value is 91625 ms
- */
 void wait_ms( unsigned long wait_ms )
 {
     wait_ticks(TICKS_FROM_MS(wait_ms));
+}
+
+/**
+ * @brief Force a complete halt of all processors
+ *
+ * @note It should occur whenever a reset has been triggered 
+ * and its past its RESET_TIME_LENGTH grace time period.
+ * This function will shut down the RSP and the CPU, blank the VI.
+ * Eventually the RDP will flush and complete its work as well.
+ * The system will recover after a reset or power cycle.
+ * 
+ */
+__attribute__((noreturn)) void die(void){
+    // Can't have any interrupts here
+    disable_interrupts();
+    // Halt the RSP
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+    // Flush the RDP
+    *DP_STATUS = DP_WSTATUS_SET_FLUSH | DP_WSTATUS_SET_FREEZE;
+    *DP_STATUS = DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
+    // Shut the video off
+    *VI_CTRL = *VI_CTRL & (~VI_CTRL_TYPE);
+    // Terminate the CPU execution
+    abort();
 }
 
 
@@ -395,8 +436,6 @@ __attribute__((constructor)) void __init_cop1()
 /** @} */
 
 /* Inline instantiations */
-extern inline volatile unsigned long get_ticks(void);
-extern inline volatile unsigned long get_ticks_ms(void);
 extern inline uint8_t mem_read8(uint64_t vaddr);
 extern inline uint16_t mem_read16(uint64_t vaddr);
 extern inline uint32_t mem_read32(uint64_t vaddr);

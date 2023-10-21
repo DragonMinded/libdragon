@@ -14,9 +14,10 @@ extern "C" {
  * Note that this can still be allocated on the stack, as the stack size
  * configured by libdragon is 64KB.
  */
-#define DECOMPRESS_LZH5_STATE_SIZE    18688
+#define DECOMPRESS_LZH5_STATE_SIZE            (6096+16)
+#define DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE   (8192)
 
-void decompress_lzh5_init(void *state, FILE *fp);
+void decompress_lzh5_init(void *state, FILE *fp, int winsize);
 ssize_t decompress_lzh5_read(void *state, void *buf, size_t len);
 int decompress_lzh5_pos(void *state);
 

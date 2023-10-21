@@ -16,19 +16,19 @@ all: compression.z64
 filesystem/%.c0: assets/%
 	@mkdir -p $(dir $@)/c0
 	@echo "    [MKASSET] $@"
-	$(N64_BINDIR)/mkasset -c 0 -o filesystem/c0 $<
+	$(N64_BINDIR)/mkasset -c 0 -w 256 -o filesystem/c0 $<
 	mv "filesystem/c0/$(notdir $<)" "$@"
 
 filesystem/%.c1: assets/%	
 	@mkdir -p $(dir $@)/c1
 	@echo "    [MKASSET] $@"
-	$(N64_BINDIR)/mkasset -c 1 -o filesystem/c1 $<
+	$(N64_BINDIR)/mkasset -c 1 -w 256 -o filesystem/c1 $<
 	mv "filesystem/c1/$(notdir $<)" "$@"
 
 filesystem/%.c2: assets/%
 	@mkdir -p $(dir $@)/c2
 	@echo "    [MKASSET] $@"
-	$(N64_BINDIR)/mkasset -c 2 -o filesystem/c2 $<
+	$(N64_BINDIR)/mkasset -c 2 -w 256 -o filesystem/c2 $<
 	mv "filesystem/c2/$(notdir $<)" "$@"
 
 $(BUILD_DIR)/compression.dfs: $(assets_conv)

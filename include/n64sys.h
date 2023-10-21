@@ -6,6 +6,7 @@
 #ifndef __LIBDRAGON_N64SYS_H
 #define __LIBDRAGON_N64SYS_H
 
+#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <assert.h>
@@ -134,15 +135,23 @@ extern char __bss_end[];
 #define MEMORY_BARRIER() asm volatile ("" : : : "memory")
 
 /**
- * @brief Returns the COP0 register $9 (count).
+ * @brief Returns the 32-bit hardware tick counter
  *
- * The coprocessor 0 (system control coprocessor - COP0) register $9 is
- * incremented at "half maximum instruction issue rate" which is the processor
- * clock speed (93.75MHz) divided by two. (also see TICKS_PER_SECOND) It will
- * always produce a 32-bit unsigned value which overflows back to zero in
- * 91.625 seconds. The counter will increment irrespective of instructions
- * actually being executed. This macro is for reading that value.
- * Do not use for comparison without special handling.
+ * This macro returns the current value of the hardware tick counter,
+ * present in the CPU coprocessor 0. The counter increments at half of the
+ * processor clock speed (see #TICKS_PER_SECOND), and overflows every
+ * 91.625 seconds.
+ * 
+ * It is fine to use this hardware counter for measuring small time intervals,
+ * as long as #TICKS_DISTANCE or #TICKS_BEFORE are used to compare different
+ * counter reads, as those macros correctly handle overflows.
+ * 
+ * Most users might find more convenient to use #get_ticks(), a similar function
+ * that returns a 64-bit counter with the same frequency that never overflows.
+ * 
+ * @see #TICKS_BEFORE
+ * @see #TICKS_DISTANCE
+ * @see #get_ticks
  */
 #define TICKS_READ() C0_COUNT()
 
@@ -154,7 +163,7 @@ extern char __bss_end[];
 #define TICKS_PER_SECOND (CPU_FREQUENCY/2)
 
 /**
- * @brief The signed difference of time between "from" and "to".
+ * @brief Calculate the time passed between two ticks
  *
  * If "from" is before "to", the distance in time is positive,
  * otherwise it is negative.
@@ -168,16 +177,36 @@ extern char __bss_end[];
  * @brief Returns true if "t1" is before "t2".
  *
  * This is similar to t1 < t2, but it correctly handles timer overflows
- * which are very frequent. Notice that the N64 counter overflows every
+ * which are very frequent. Notice that the hardware counter overflows every
  * ~91 seconds, so it's not possible to compare times that are more than
  * ~45 seconds apart.
+ * 
+ * Use #get_ticks() to get a 64-bit counter that never overflows.
+ * 
+ * @see #get_ticks
  */
 #define TICKS_BEFORE(t1, t2) ({ TICKS_DISTANCE(t1, t2) > 0; })
 
 /**
- * @brief Returns equivalent count ticks for the given millis.
+ * @brief Returns equivalent count ticks for the given milliseconds.
  */
-#define TICKS_FROM_MS(val) ((uint32_t)((val) * (TICKS_PER_SECOND / 1000)))
+#define TICKS_FROM_MS(val) (((val) * (TICKS_PER_SECOND / 1000)))
+
+/**
+ * @brief Returns equivalent count ticks for the given microseconds.
+ */
+#define TICKS_FROM_US(val) (((val) * (8 * TICKS_PER_SECOND / 1000000) / 8)
+
+/**
+ * @brief Returns equivalent count ticks for the given microseconds.
+ */
+#define TICKS_TO_US(val) (((val) * 8 / (8 * TICKS_PER_SECOND / 1000000)))
+
+/**
+ * @brief Returns equivalent count ticks for the given microseconds.
+ */
+#define TICKS_TO_MS(val) (((val) / (TICKS_PER_SECOND / 1000)))
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -187,34 +216,66 @@ bool sys_bbplayer(void);
 
 int sys_get_boot_cic();
 void sys_set_boot_cic(int bc);
+
 /**
  * @brief Read the number of ticks since system startup
  *
- * @note Also see the TICKS_READ macro
+ * The frequency of this counter is #TICKS_PER_SECOND. The counter will
+ * never overflow, being a 64-bit number.
  *
  * @return The number of ticks since system startup
  */
-inline volatile unsigned long get_ticks(void)
-{
-    return TICKS_READ();
-}
+uint64_t get_ticks(void);
+
+/**
+ * @brief Read the number of microseconds since system startup
+ *
+ * This is similar to #get_ticks, but converts the result in integer
+ * microseconds for convenience.
+ * 
+ * @return The number of microseconds since system startup
+ */
+uint64_t get_ticks_us(void);
 
 /**
  * @brief Read the number of millisecounds since system startup
- *
- * @note It will wrap back to 0 after about 91.6 seconds.
- * Also see the TICKS_READ macro. Do not use for comparison
- * without special handling.
- *
+ * 
+ * This is similar to #get_ticks, but converts the result in integer
+ * milliseconds for convenience.
+ * 
  * @return The number of millisecounds since system startup
  */
-inline volatile unsigned long get_ticks_ms(void)
-{
-    return TICKS_READ() / (TICKS_PER_SECOND / 1000);
-}
+uint64_t get_ticks_ms(void);
 
+/**
+ * @brief Spin wait until the number of ticks have elapsed
+ *
+ * @param[in] wait
+ *            Number of ticks to wait
+ *            Maximum accepted value is 0xFFFFFFFF ticks
+ */
 void wait_ticks( unsigned long wait );
+
+/**
+ * @brief Spin wait until the number of milliseconds have elapsed
+ *
+ * @param[in] wait_ms
+ *            Number of milliseconds to wait
+ *            Maximum accepted value is 91625 ms
+ */
 void wait_ms( unsigned long wait_ms );
+
+/**
+ * @brief Force a complete halt of all processors
+ *
+ * @note It should occur whenever a reset has been triggered 
+ * and its past its RESET_TIME_LENGTH grace time period.
+ * This function will shut down the RSP and the CPU, blank the VI.
+ * Eventually the RDP will flush and complete its work as well.
+ * The system will recover after a reset or power cycle.
+ * 
+ */
+void die(void);
 
 /**
  * @brief Force a data cache invalidate over a memory region

@@ -17,6 +17,7 @@
 
 #include "../../src/compress/lzh5_internal.h"  // LZH5 decompression
 #include "../../src/compress/lzh5.c"
+#include "../../src/compress/ringbuf.c"
 #include "../common/lzh5_compress.h"           // LZH5 compression
 #include "../common/lzh5_compress.c"
 #include <stdalign.h>
@@ -157,7 +158,7 @@ int ym_convert(const char *infn, const char *outfn) {
         // https://github.com/fragglet/lhasa, stored in lzh5.h.
         fseek(ym_f, head[0]+2, SEEK_SET);
         ym_compressed = true;
-        decompress_lzh5_init(ym_decoder, ym_f);
+        decompress_lzh5_init(ym_decoder, ym_f, DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE);
         ymread(head, 12);
     }
 

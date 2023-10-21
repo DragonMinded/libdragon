@@ -26,7 +26,7 @@ https://github.com/buu342/N64-UNFLoader
 #define DEBUG_ADDRESS (0x04000000 - DEBUG_ADDRESS_SIZE) // Put the debug area at the 64MB - DEBUG_ADDRESS_SIZE area in ROM space
 
 // Data header related
-#define USBHEADER_CREATE(type, left) (((type<<24) | (left & 0x00FFFFFF)))
+#define USBHEADER_CREATE(type, left) ((((type)<<24) | ((left) & 0x00FFFFFF)))
 
 // Protocol related
 #define USBPROTOCOL_VERSION 2
@@ -233,8 +233,8 @@ static void usb_sc64_read(void);
 
 // Function pointers
 void (*funcPointer_write)(int datatype, const void* data, int size);
-u32  (*funcPointer_poll)();
-void (*funcPointer_read)();
+u32  (*funcPointer_poll)(void);
+void (*funcPointer_read)(void);
 
 // USB globals
 static s8 usb_cart = CART_NONE;
@@ -335,7 +335,7 @@ static inline void usb_dma_read(void *ram_address, u32 pi_address, size_t size)
             osPiRawStartDma(OS_READ, pi_address, ram_address, size);
         #else
             osPiStartDma(&dmaIOMessageBuf, OS_MESG_PRI_NORMAL, OS_READ, pi_address, ram_address, size, &dmaMessageQ);
-            osRecvMesg(&dmaMessageQ, NULL, OS_MESG_BLOCK);
+            while (osRecvMesg(&dmaMessageQ, NULL, OS_MESG_NOBLOCK) != 0);
         #endif
     #else
         data_cache_hit_writeback_invalidate(ram_address, size);
@@ -385,7 +385,7 @@ static u32 usb_timeout_start(void)
 #ifndef LIBDRAGON
     return osGetCount();
 #else
-    return get_ticks();
+    return TICKS_READ();
 #endif
 }
 
@@ -404,7 +404,7 @@ static char usb_timeout_check(u32 start_ticks, u32 duration)
     u64 current_ticks = (u64)osGetCount();
     u64 timeout_ticks = OS_USEC_TO_CYCLES((u64)duration * 1000);
 #else
-    u64 current_ticks = (u64)get_ticks();
+    u64 current_ticks = (u64)TICKS_READ();
     u64 timeout_ticks = (u64)TICKS_FROM_MS(duration);
 #endif
     if (current_ticks < start_ticks)
@@ -651,7 +651,7 @@ void usb_read(void* buffer, int nbytes)
         }
         
         // Copy from the USB buffer to the supplied buffer
-        memcpy(buffer+read, usb_buffer+copystart, block);
+        memcpy((void*)(((u32)buffer)+read), usb_buffer+copystart, block);
         
         // Increment/decrement all our counters
         read += block;
@@ -729,7 +729,7 @@ char usb_timedout()
     version.
 ==============================*/
 
-void usb_sendheartbeat()
+void usb_sendheartbeat(void)
 {
     u8 buffer[4];
 
@@ -921,7 +921,7 @@ static u32 usb_64drive_cui_read(u32 offset)
 
 static void usb_64drive_write(int datatype, const void* data, int size)
 {
-    int left = size;
+    s32 left = size;
     u32 pi_address = D64_BASE + DEBUG_ADDRESS;
 
     // Return if previous transfer timed out
@@ -942,16 +942,16 @@ static void usb_64drive_write(int datatype, const void* data, int size)
 
         // Copy data to PI DMA aligned buffer
         memcpy(usb_buffer, data, block);
-
-        // If the data was not 32-bit aligned, pad the buffer
-        while (block % 4)
+        
+        // Pad the buffer with zeroes if it wasn't 4 byte aligned
+        while (block%4)
             usb_buffer[block++] = 0;
 
         // Copy block of data from RDRAM to SDRAM
         usb_dma_write(usb_buffer, pi_address, ALIGN(block, 2));
 
         // Update pointers and variables
-        data += block;
+        data = (void*)(((u32)data) + block);
         left -= block;
         pi_address += block;
     }
@@ -1153,7 +1153,10 @@ static void usb_everdrive_write(int datatype, const void* data, int size)
         // Set USB to write mode with the new address and wait for USB to end (or stop if it times out)
         usb_io_write(ED_REG_USBCFG, ED_USBMODE_WR | baddr);
         if (usb_everdrive_usbbusy())
+        {
+            usb_didtimeout = TRUE;
             return;
+        }
         
         // Keep track of what we've read so far
         left -= block;
@@ -1173,10 +1176,10 @@ static void usb_everdrive_write(int datatype, const void* data, int size)
 
 static u32 usb_everdrive_poll(void)
 {
-    int   len;
-    int   offset = 0;
-    char  buffaligned[32];
-    char* buff = (char*)OS_DCACHE_ROUNDUP_ADDR(buffaligned);
+    int len;
+    int offset = 0;
+    unsigned char  buffaligned[32];
+    unsigned char* buff = (unsigned char*)OS_DCACHE_ROUNDUP_ADDR(buffaligned);
     
     // Wait for the USB to be ready
     if (usb_everdrive_usbbusy())
@@ -1192,8 +1195,8 @@ static u32 usb_everdrive_poll(void)
         return 0;
         
     // Store information about the incoming data
-    usb_datatype = (int)buff[4];
-    usb_datasize = (int)buff[5]<<16 | (int)buff[6]<<8 | (int)buff[7]<<0;
+    usb_datatype = buff[4];
+    usb_datasize = (buff[5] << 16) | (buff[6] << 8) | (buff[7] << 0);
     usb_dataleft = usb_datasize;
     usb_readblock = -1;
     
@@ -1360,7 +1363,7 @@ static void usb_sc64_write(int datatype, const void* data, int size)
         usb_dma_write(usb_buffer, pi_address, ALIGN(block, 2));
 
         // Update pointers and variables
-        data += block;
+        data = (void*)(((u32)data) + block);
         left -= block;
         pi_address += block;
     }

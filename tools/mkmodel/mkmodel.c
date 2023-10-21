@@ -6,6 +6,11 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 
+// Compression library
+#include <sys/stat.h>
+#include "../common/assetcomp.h"
+#include "../common/assetcomp.c"
+
 #include "../../include/GL/gl_enums.h"
 #include "../../src/model64_internal.h"
 
@@ -91,6 +96,7 @@ void print_args( char * name )
     fprintf(stderr, "   -o/--output <dir>       Specify output directory (default: .)\n");
     fprintf(stderr, "   --anim-no-stream        Disable animation streaming\n");
     fprintf(stderr, "   --anim-fps <value>      Frame rate of the animation (default: 30.0)\n");
+    fprintf(stderr, "   -c/--compress <level>   Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
     fprintf(stderr, "\n");
 }
@@ -1311,6 +1317,12 @@ int convert(const char *infn, const char *outfn)
         return 1;
     }
 
+    if (strstr(data->asset.generator, "Blender") && strstr(data->asset.generator, "v3.4.50")) {
+        fprintf(stderr, "Error: Blender version v3.4.1 has buggy glTF export (vertex colors are wrong).\nPlease upgrade Blender and export the model again.\n");
+        cgltf_free(data);
+        return 1;
+    }
+
     cgltf_load_buffers(&options, data, infn);
 
     model64_data_t *model = model64_alloc();
@@ -1447,6 +1459,7 @@ int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     bool error = false;
+    int compression = DEFAULT_COMPRESSION;
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -1460,6 +1473,20 @@ int main(int argc, char *argv[])
                 return 0;
             } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
                 flag_verbose++;
+            } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                char extra;
+                if (sscanf(argv[i], "%d%c", &compression, &extra) != 1) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                if (compression < 0 || compression > MAX_COMPRESSION) {
+                    fprintf(stderr, "invalid compression level: %d\n", compression);
+                    return 1;
+                }
             } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -1499,6 +1526,18 @@ int main(int argc, char *argv[])
         if (convert(infn, outfn) != 0) {
             error = true;
         }
+        if (!error) {
+            if (compression) {
+                struct stat st_decomp = {0}, st_comp = {0};
+                stat(outfn, &st_decomp);
+                asset_compress(outfn, outfn, compression, 0);
+                stat(outfn, &st_comp);
+                if (flag_verbose)
+                    printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
+                    (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
+            }
+        }
+
         free(outfn);
     }
 

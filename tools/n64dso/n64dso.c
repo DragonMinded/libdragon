@@ -751,7 +751,9 @@ int main(int argc, char *argv[])
             //Compress this file
             struct stat st_decomp = {0}, st_comp = {0};
             stat(outfn, &st_decomp);
-            asset_compress(outfn, outfn, DEFAULT_COMPRESSION);
+            //DSO files are loaded via asset_fopen(), so force a smaller window size
+            //so that we don't use too much memory at runtime.
+            asset_compress(outfn, outfn, DEFAULT_COMPRESSION, 4*1024);
             stat(outfn, &st_comp);
             if (verbose_flag)
                 printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,

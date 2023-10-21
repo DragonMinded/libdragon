@@ -59,9 +59,9 @@ int decompress_lz4_full_mem(const unsigned char *src, int src_size,
     unsigned char *dst, int dst_size, bool dma_race);
 
 
-#define DECOMPRESS_LZ4_STATE_SIZE  (16552)
+#define DECOMPRESS_LZ4_STATE_SIZE  176
 
-void decompress_lz4_init(void *state, FILE *fp);
+void decompress_lz4_init(void *state, FILE *fp, int winsize);
 ssize_t decompress_lz4_read(void *state, void *buf, size_t len);
 void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size);
 
