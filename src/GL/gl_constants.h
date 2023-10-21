@@ -120,7 +120,7 @@
 
 #define LOAD_TILE 7
 
-#define GUARD_BAND_FACTOR 4
+#define GUARD_BAND_FACTOR 2
 
 #define ASSERT_INVALID_VTX_ID   0x2001
 
