@@ -697,17 +697,17 @@ static void decode_quaternion(uint16_t *in, float *out)
 {
     uint16_t values[3];
     int max_component;
-    values[0] = ((in[0] & 0x1FFF) << 2)|(in[1] >> 14);
-    values[1] = ((in[1] & 0x3FFF) << 1)|(in[2] >> 15);
+    values[0] = in[0] & 0x7FFF;
+    values[1] = in[1] & 0x7FFF;
     values[2] = in[2] & 0x7FFF;
-    max_component = (in[0] & 0x6000) >> 13;
+    max_component = (in[0]>>15) | (in[1]>>15<<1);
     float decoded_values[3];
     for(size_t i=0; i<3; i++) {
         decoded_values[i] = (values[i]*0.000043159689f)-0.70710678f;
     }
-    float sign = (in[0] & 0x8000) ? -1 : 1;
+    int16_t sign = (int16_t)in[2];;
     float mag2_decoded = (decoded_values[0]*decoded_values[0])+(decoded_values[1]*decoded_values[1])+(decoded_values[2]*decoded_values[2]);
-    float derived_component = sign*sqrtf(1.0f-mag2_decoded);
+    float derived_component = copysignf(sqrtf(1.0f - mag2_decoded), (float)sign);
     int src_component = 0;
     for(size_t i=0; i<4; i++) {
         if(i == max_component) {

@@ -1466,9 +1466,9 @@ void quantize_quaternion(uint16_t *out, float *in)
         quantized_axes[i] = ((stored_axes[i]+0.70710678f)*23169.767f)+0.5f;
         quantized_axes[i] &= 0x7FFF;
     }
-    out[0] = (max_axis_sign << 15)|(max_axis << 13)|(quantized_axes[0] >> 2);
-    out[1] = (quantized_axes[0] << 14)|(quantized_axes[1] >> 1);
-    out[2] = (quantized_axes[1] << 15)|quantized_axes[2];
+    out[0] = (max_axis << 15)|quantized_axes[0];
+    out[1] = ((max_axis & 0x2) << 14)|quantized_axes[1];
+    out[2] = (max_axis_sign << 15)|quantized_axes[2];
 }
 
 void add_anim_keyframe(model64_anim_t *anim, ordered_keyframe_array_t *dst, gltf_anim_channel_t *src_channel, size_t index, size_t track)
