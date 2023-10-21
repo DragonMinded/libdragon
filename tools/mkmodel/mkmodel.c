@@ -1453,7 +1453,7 @@ void quantize_quaternion(uint16_t *out, float *in)
         }
     }
     for(size_t i=0; i<3; i++) {
-        quantized_axes[i] = ((stored_axes[i]-0.70710678f)*23169.767f)+0.5f;
+        quantized_axes[i] = ((stored_axes[i]+0.70710678f)*23169.767f)+0.5f;
         quantized_axes[i] &= 0x7FFF;
     }
     out[0] = (max_axis_sign << 13)|(quantized_axes[0] >> 2);
