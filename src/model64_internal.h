@@ -143,7 +143,6 @@ typedef struct anim_state_s {
     bool prev_waiting_frame;            ///< Whether there is a previous waiting frame
     float speed;                        ///< The speed of an animation
     int frame_idx;                      ///< Index of next keyframe to read
-    uint8_t *buf_idx;                   ///< Index of buffer for each track
     model64_keyframe_t *frames;         ///< Buffer for keyframes
     model64_keyframe_t *waiting_frame;  ///< Buffer for keyframe waiting to be copied
 } anim_state_t;

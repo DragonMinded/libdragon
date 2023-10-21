@@ -545,11 +545,9 @@ static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
     uint32_t num_tracks = model->data->max_tracks;
     state_size += (num_tracks*4)*sizeof(model64_keyframe_t);
     state_size += sizeof(model64_keyframe_t);
-    state_size += num_tracks;
     anim_state_t *anim_state = calloc(1, state_size);
     anim_state->frames = PTR_DECODE(anim_state, sizeof(anim_state_t));
     anim_state->waiting_frame = PTR_DECODE(anim_state->frames, (num_tracks*4)*sizeof(model64_keyframe_t));
-    anim_state->buf_idx = PTR_DECODE(anim_state->waiting_frame, sizeof(model64_keyframe_t));
     anim_state->index = -1;
     anim_state->paused = true;
     anim_state->speed = 1.0f;
@@ -725,9 +723,10 @@ static void copy_waiting_frame(model64_t *model, model64_anim_slot_t anim_slot)
 {
     anim_state_t *anim_state = model->active_anims[anim_slot];
     uint16_t track = anim_state->waiting_frame->track;
-    uint8_t buffer = anim_state->buf_idx[track];
-    memcpy(&anim_state->frames[(track*4)+buffer], anim_state->waiting_frame, sizeof(model64_keyframe_t));
-    anim_state->buf_idx[track] = (buffer+1)%4;
+    anim_state->frames[track*4] = anim_state->frames[(track*4)+1];
+    anim_state->frames[(track*4)+1] = anim_state->frames[(track*4)+2];
+    anim_state->frames[(track*4)+2] = anim_state->frames[(track*4)+3];
+    anim_state->frames[(track*4)+3] = *anim_state->waiting_frame;
 }
 
 static void read_waiting_frame(model64_t *model, model64_anim_slot_t anim_slot)
@@ -765,9 +764,6 @@ static void init_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
     } else {
         memcpy(anim_state->frames, curr_anim->keyframes, frame_buf_size);
     }
-    for(uint32_t i=0; i<num_tracks; i++) {
-        anim_state->buf_idx[i] = 0;
-    }
     anim_state->frame_idx = num_tracks*4;
     anim_state->prev_waiting_frame = false;
     if(anim_state->frame_idx >= curr_anim->num_keyframes) {
@@ -800,8 +796,7 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         uint32_t component = curr_anim->tracks[i] >> 14;
         uint16_t node = curr_anim->tracks[i] & 0x3FFF;
         for(uint32_t j=0; j<4; j++) {
-            int index = (i*4)+((j+anim_state->buf_idx[i]) % 4);
-            model64_keyframe_t *frame = &anim_state->frames[index];
+            model64_keyframe_t *frame = &anim_state->frames[(i*4)+j];
             switch(component) {
                 case ANIM_COMPONENT_POS:
                     decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->pos_min, curr_anim->pos_max);
@@ -822,8 +817,8 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
                     break;
             }
         }
-        float time = anim_state->frames[(i*4)+((1+anim_state->buf_idx[i]) % 4)].time;
-        float time_next = anim_state->frames[(i*4)+((2+anim_state->buf_idx[i]) % 4)].time;
+        float time = anim_state->frames[(i*4)+1].time;
+        float time_next = anim_state->frames[(i*4)+2].time;
         float weight;
         if(anim_state->time > time_next) {
             weight = 1.0f;
