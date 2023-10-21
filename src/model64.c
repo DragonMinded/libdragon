@@ -610,6 +610,9 @@ float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float ti
         alloc_anim_slot(model, slot);
     }
     float old_time = model->active_anims[slot]->time;
+    if(time < old_time) {
+        model->active_anims[slot]->invalid_pose = true;
+    }
     model->active_anims[slot]->time = time;
     return old_time;
 }
