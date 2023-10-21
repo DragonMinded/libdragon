@@ -212,7 +212,7 @@ static model64_data_t *load_model64_data(const char *fn)
     int sz;
     void *buf = asset_load(fn, &sz);
     model64_data_t *data = load_model_data_buf(buf, sz);
-    if(!data->anim_data_handle) {
+    if(data->anim_data_handle) {
         assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: models with streamed animations must be stored in ROM (rom:/)", fn);
         char anim_name[strlen(fn)+6];
         sprintf(anim_name, "%s.anim", fn);
