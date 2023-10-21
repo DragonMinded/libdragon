@@ -1793,7 +1793,7 @@ int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     bool error = false;
-    int compression = 0;
+    int compression = DEFAULT_COMPRESSION;
 
     if (argc < 2) {
         print_args(argv[0]);
