@@ -695,7 +695,8 @@ static void decode_quaternion(uint16_t *in, float *out)
     for(size_t i=0; i<3; i++) {
         decoded_values[i] = (values[i]*0.000043159689f)-0.70710678f;
     }
-    float derived_component = sqrtf(1.0f-(decoded_values[0]*decoded_values[0])-(decoded_values[1]*decoded_values[1])-(decoded_values[2]*decoded_values[2]));
+    float mag2_decoded = (decoded_values[0]*decoded_values[0])+(decoded_values[1]*decoded_values[1])+(decoded_values[2]*decoded_values[2]);
+    float derived_component = sqrtf(1.0f-mag2_decoded);
     int src_component = 0;
     for(size_t i=0; i<4; i++) {
         if(i == max_component) {
@@ -788,10 +789,12 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         uint32_t component = curr_anim->tracks[i] >> 14;
         uint16_t node = curr_anim->tracks[i] & 0x3FFF;
         for(uint32_t j=0; j<4; j++) {
-            model64_keyframe_t *frame = &anim_state->frames[(i*4)+((j+anim_state->buf_idx[i]) % 4)];
+            int index = (i*4)+((j+anim_state->buf_idx[i]) % 4);
+            model64_keyframe_t *frame = &anim_state->frames[index];
             switch(component) {
                 case ANIM_COMPONENT_POS:
                     decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->pos_min, curr_anim->pos_max);
+                    decoded_values[j][3] = 0.0f;
                     break;
                     
                 case ANIM_COMPONENT_ROT:
@@ -800,9 +803,11 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
                     
                 case ANIM_COMPONENT_SCALE:
                     decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->scale_min, curr_anim->scale_max);
+                    decoded_values[j][3] = 0.0f;
                     break;
                   
                 default:
+                    decoded_values[j][0] = decoded_values[j][1] = decoded_values[j][2] = decoded_values[j][3] = 0.0f;
                     break;
             }
         }

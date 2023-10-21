@@ -27,7 +27,7 @@
 // Update these when changing code that writes to the output file
 // IMPORTANT: Do not attempt to move these values to a header that is shared by mkmodel and runtime code!
 //            These values must reflect what the tool actually outputs.
-#define HEADER_SIZE         76
+#define HEADER_SIZE         80
 #define MESH_SIZE           8
 #define PRIMITIVE_SIZE      108
 #define NODE_SIZE           128
@@ -331,6 +331,7 @@ void model64_write_header(model64_data_t *model, FILE *out)
     w32_placeholderf(out, "meshes");
     w32(out, model->num_anims);
     w32_placeholderf(out, "anims");
+    w32(out, model->max_tracks);
     if(flag_anim_stream) {
         w32(out, 1);
     } else {
