@@ -61,15 +61,16 @@ GL_ClipTriangle:
     #define vdot_f          $v05
     #define vdiff_i         $v06
     #define vdiff_f         $v07
-    #define va_f            $v08
-    #define vpos_i          $v09
-    #define vpos_f          $v10
-    #define vattr0          $v11
-    #define vattr1          $v12
-    #define voff0           $v13
-    #define voff1           $v14
-    #define vcache0         $v15
-    #define vcache1         $v16
+    #define va_i            $v08
+    #define va_f            $v09
+    #define vpos_i          $v10
+    #define vpos_f          $v11
+    #define vattr0          $v12
+    #define vattr1          $v13
+    #define voff0           $v14
+    #define voff1           $v15
+    #define vcache0         $v16
+    #define vcache1         $v17
     #define v__             $v29
 
     move ra2, ra
@@ -229,10 +230,19 @@ gl_clip_no_swap:
     # 1 / (d0 - d1)
     vrcph v__.e0,  vdiff_i.e0
     vrcpl va_f.e0, vdiff_f.e0
+    vrcph va_i.e0, vzero.e0
 
     # a = d0 / (d0 - d1)
-    vmudm v__,  va_f, vdot_f.e0
-    vmadh va_f, va_f, vdot_i.e0
+    vmudl v__,  va_f, vdot_f.e0
+    vmadm v__,  va_i, vdot_f.e0
+    vmadn va_f, va_f, vdot_i.e0
+
+    # Prepare 0x7FFF in va_i.e0
+    vsubc va_i, vshift8, K1
+
+    # a = min(a, 1)
+    vge  v__,  va_f, vzero
+    vmrg va_f, va_f, va_i.e0
 
     # Account for right shift introduced by vrcp
     vmudn va_f, va_f, K2
