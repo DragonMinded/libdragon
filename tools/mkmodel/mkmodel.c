@@ -24,6 +24,8 @@
 })
 #define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
 
+#define ANIM_MAX_FPS 60.0f
+
 // Update these when changing code that writes to the output file
 // IMPORTANT: Do not attempt to move these values to a header that is shared by mkmodel and runtime code!
 //            These values must reflect what the tool actually outputs.
@@ -84,7 +86,6 @@ typedef struct ordered_keyframe_array_s {
 } ordered_keyframe_array_t;
 
 int flag_anim_stream = 1;
-float flag_anim_fps = 30.0f;
 int flag_verbose = 0;
 
 uint32_t get_type_size(uint32_t type)
@@ -121,7 +122,6 @@ void print_args( char * name )
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -o/--output <dir>       Specify output directory (default: .)\n");
     fprintf(stderr, "   --anim-no-stream        Disable animation streaming\n");
-    fprintf(stderr, "   --anim-fps <value>      Frame rate of the animation (default: 30.0)\n");
     fprintf(stderr, "   -c/--compress <level>   Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
     fprintf(stderr, "\n");
@@ -1352,18 +1352,18 @@ void make_anim_channel_samples(gltf_anim_channel_t *channel, float duration)
     float sample[4] = {0};
     int removed_point;
     size_t num_components = channel->out_num_components;
-    for(size_t i=0; i<(size_t)floorf(duration*flag_anim_fps); i++) {
-        float time = ((float)i)/flag_anim_fps;
+    for(size_t i=0; i<(size_t)floorf(duration*ANIM_MAX_FPS); i++) {
+        float time = ((float)i)/ANIM_MAX_FPS;
         sample_anim_channel(channel, time, sample);
         add_anim_sample(&channel->samples, time, sample, num_components);
     }
-    if(fmodf(duration, 1.0f/flag_anim_fps) != 0) {
+    if(fmodf(duration, 1.0f/ANIM_MAX_FPS) != 0) {
         sample_anim_channel(channel, duration, sample);
         add_anim_sample(&channel->samples, duration, sample, num_components);
     }
     while(calc_min_midpoint_error(channel, &removed_point) < channel->max_error && removed_point != -1) {
         if(flag_verbose) {
-            printf("Removing animation frame %zd\n", (size_t)(channel->samples.keyframes[removed_point].time*flag_anim_fps));
+            printf("Removing animation frame %zd\n", (size_t)(channel->samples.keyframes[removed_point].time*ANIM_MAX_FPS));
         }
         remove_anim_sample(&channel->samples, removed_point);
     }
@@ -1829,16 +1829,6 @@ int main(int argc, char *argv[])
                 outdir = argv[i];
             } else if (!strcmp(argv[i], "--anim-no-stream")) {
                 flag_anim_stream = 0;
-            } else if (!strcmp(argv[i], "--anim-fps")) {
-                if (++i == argc) {
-                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
-                    return 1;
-                }
-                char extra;
-                if (sscanf(argv[i], "%f%c", &flag_anim_fps, &extra) != 1) {
-                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
-                    return 1;
-                }
             } else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
