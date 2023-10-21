@@ -695,8 +695,9 @@ static void decode_quaternion(uint16_t *in, float *out)
     for(size_t i=0; i<3; i++) {
         decoded_values[i] = (values[i]*0.000043159689f)-0.70710678f;
     }
+    float sign = (in[0] & 0x8000) ? -1 : 1;
     float mag2_decoded = (decoded_values[0]*decoded_values[0])+(decoded_values[1]*decoded_values[1])+(decoded_values[2]*decoded_values[2]);
-    float derived_component = sqrtf(1.0f-mag2_decoded);
+    float derived_component = sign*sqrtf(1.0f-mag2_decoded);
     int src_component = 0;
     for(size_t i=0; i<4; i++) {
         if(i == max_component) {
@@ -825,7 +826,6 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
             case ANIM_COMPONENT_POS:
                 out = model->transforms[node].transform.pos;
                 out_count = 3;
-                
                 break;
                 
             case ANIM_COMPONENT_ROT:
