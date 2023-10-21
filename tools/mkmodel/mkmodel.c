@@ -1437,7 +1437,7 @@ void quantize_quaternion(uint16_t *out, float *in)
         float abs_input = fabsf(input);
         
         if(abs_input > max_axis_value) {
-            max_axis_value = input;
+            max_axis_value = abs_input;
             if(input < 0) {
                 max_axis_sign = 1;
             } else {
