@@ -675,6 +675,15 @@ static void vec_normalize(float *vec, size_t count)
         mag2 *= scale;
     }
 }
+static void quat_lerp(float *out, float *in1, float *in2, float time)
+{
+    float dot = (in1[0]*in2[0])+(in1[1]*in2[1])+(in1[2]*in2[2])+(in1[3]*in2[3]);
+    float out_scale  = (dot >= 0) ? 1.0f : -1.0f;
+    for(size_t i=0; i<4; i++) {
+        out[i] = ((1-time)*in1[i])+(out_scale*time*in2[i]);
+    }
+    vec_normalize(out, 4);
+}
 
 static void decode_normalized_u16(uint16_t *in, float *out, size_t count, float min, float max)
 {
@@ -851,9 +860,10 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         if(out == NULL) {
             continue;
         }
-        catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], &decoded_values[2][0], &decoded_values[3][0], out, weight, out_count);
         if(component == ANIM_COMPONENT_ROT) {
-            vec_normalize(out, 4);
+            quat_lerp(out, &decoded_values[1][0], &decoded_values[2][0], weight);
+        } else {
+            catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], &decoded_values[2][0], &decoded_values[3][0], out, weight, out_count);
         }
         calc_node_local_matrix(model, node);
     }

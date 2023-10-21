@@ -1036,12 +1036,21 @@ void normalize_vector(float *vec, size_t num_elements)
     }
 }
 
-
 void lerp_vector(float *out, float *in1, float *in2, size_t num_elements, float time)
 {
     for(size_t i=0; i<num_elements; i++) {
         out[i] = ((1-time)*in1[i])+(time*in2[i]);
     }
+}
+
+void lerp_quat(float *out, float *in1, float *in2, float time)
+{
+    float dot = (in1[0]*in2[0])+(in1[1]*in2[1])+(in1[2]*in2[2])+(in1[3]*in2[3]);
+    float out_scale  = (dot >= 0) ? 1.0f : -1.0f;
+    for(size_t i=0; i<4; i++) {
+        out[i] = ((1-time)*in1[i])+(out_scale*time*in2[i]);
+    }
+    normalize_vector(out, 4);
 }
 
 void slerp_vector(float *out, float *in1, float *in2, float time)
@@ -1306,9 +1315,10 @@ void approx_removed_keyframe(gltf_anim_channel_t *channel, float *out, int keyfr
     if(frame_dt != 0) {
         weight = (frame_removed->time-frame2->time)/frame_dt;
     }
-    catmull_calc_vec(frame1->data, frame2->data, frame3->data, frame4->data, out, weight, channel->out_num_components);
     if(channel->target_path == cgltf_animation_path_type_rotation) {
-        normalize_vector(out, 4);
+        lerp_quat(out, frame2->data, frame3->data, weight);
+    } else {
+        catmull_calc_vec(frame1->data, frame2->data, frame3->data, frame4->data, out, weight, channel->out_num_components);
     }
 }
 
