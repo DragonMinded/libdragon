@@ -98,10 +98,10 @@ typedef struct model64_keyframe_s {
 /** @brief An animation of a model */
 typedef struct model64_anim_s {
     char *name;                     ///< Name of the animation
-    float pos_min;                  ///< Minimum position of animation
-    float pos_max;                  ///< Maximum position of animation
-    float scale_min;                ///< Minimum scale of animation
-    float scale_max;                ///< Maximum scale of animation
+    float pos_f1;                   ///< Scale of position components of animation
+    float pos_f2;                   ///< Minimum position of animation
+    float scale_f1;                 ///< Scale of scale components of animation
+    float scale_f2;                 ///< Minimum scale of animation
     float duration;                 ///< Duration of animation
     uint32_t num_keyframes;         ///< Number of keyframes in animation
     model64_keyframe_t *keyframes;  ///< Pointer to animation keyframes

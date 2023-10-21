@@ -524,10 +524,12 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     placeholder_set(out, "anims");
     for(uint32_t i=0; i<model->num_anims; i++) {
         w32_placeholderf(out, "anim%d_name", i);
-        wf32approx(out, model->anims[i].pos_min, RSP_PRECISION);
-        wf32approx(out, model->anims[i].pos_max, RSP_PRECISION);
-        wf32approx(out, model->anims[i].scale_min, RSP_PRECISION);
-        wf32approx(out, model->anims[i].scale_max, RSP_PRECISION);
+        float pos_scale = (model->anims[i].pos_f2-model->anims[i].pos_f1)/65535.0f;
+        float scale_scale = (model->anims[i].scale_f2-model->anims[i].scale_f1)/65535.0f;
+        wf32approx(out, pos_scale, RSP_PRECISION/65535.0f);
+        wf32approx(out, model->anims[i].pos_f1, RSP_PRECISION);
+        wf32approx(out, scale_scale, RSP_PRECISION/65535.0f);
+        wf32approx(out, model->anims[i].scale_f1, RSP_PRECISION);
         wf32(out, model->anims[i].duration);
         w32(out, model->anims[i].num_keyframes);
         w32_placeholderf(out, "anim%d_keyframes", i);
@@ -1482,7 +1484,7 @@ void add_anim_keyframe(model64_anim_t *anim, ordered_keyframe_array_t *dst, gltf
     out_keyframe->keyframe.track = track;
     switch(src_channel->target_path) {
         case cgltf_animation_path_type_translation:
-            calc_normalized_u16(out_keyframe->keyframe.data, keyframe->data, 3, anim->pos_min, anim->pos_max);
+            calc_normalized_u16(out_keyframe->keyframe.data, keyframe->data, 3, anim->pos_f1, anim->pos_f2);
             break;
             
         case cgltf_animation_path_type_rotation:
@@ -1490,7 +1492,7 @@ void add_anim_keyframe(model64_anim_t *anim, ordered_keyframe_array_t *dst, gltf
             break;
             
         case cgltf_animation_path_type_scale:
-            calc_normalized_u16(out_keyframe->keyframe.data, keyframe->data, 3, anim->scale_min, anim->scale_max);
+            calc_normalized_u16(out_keyframe->keyframe.data, keyframe->data, 3, anim->scale_f1, anim->scale_f2);
             break;
             
         default:
@@ -1565,30 +1567,30 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
             max_time = channels[i].time[channels[i].num_keyframes-1];
         }
     }
-    out_anim->pos_min = FLT_MAX;
-    out_anim->pos_max = -FLT_MAX;
-    out_anim->scale_min = FLT_MAX;
-    out_anim->scale_max = -FLT_MAX;
+    out_anim->pos_f1 = FLT_MAX;
+    out_anim->pos_f2 = -FLT_MAX;
+    out_anim->scale_f1 = FLT_MAX;
+    out_anim->scale_f2 = -FLT_MAX;
     if(flag_verbose) {
         printf("Calculating range for position and scale of animation\n");
     }
     for(uint32_t i=0; i<in_anim->channels_count; i++) {
         if(channels[i].target_path == cgltf_animation_path_type_translation) {
             for(size_t j=0; j<3; j++) {
-                if(channels[i].output_min[j] < out_anim->pos_min) {
-                    out_anim->pos_min = channels[i].output_min[j];
+                if(channels[i].output_min[j] < out_anim->pos_f1) {
+                    out_anim->pos_f1 = channels[i].output_min[j];
                 }
-                if(channels[i].output_max[j] > out_anim->pos_max) {
-                    out_anim->pos_max = channels[i].output_max[j];
+                if(channels[i].output_max[j] > out_anim->pos_f2) {
+                    out_anim->pos_f2 = channels[i].output_max[j];
                 }
             }
         } else if(channels[i].target_path == cgltf_animation_path_type_scale) {
             for(size_t j=0; j<3; j++) {
-                if(channels[i].output_min[j] < out_anim->scale_min) {
-                    out_anim->scale_min = channels[i].output_min[j];
+                if(channels[i].output_min[j] < out_anim->scale_f1) {
+                    out_anim->scale_f1 = channels[i].output_min[j];
                 }
-                if(channels[i].output_max[j] > out_anim->scale_max) {
-                    out_anim->scale_max = channels[i].output_max[j];
+                if(channels[i].output_max[j] > out_anim->scale_f2) {
+                    out_anim->scale_f2 = channels[i].output_max[j];
                 }
             }
         }

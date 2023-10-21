@@ -686,10 +686,10 @@ static void quat_lerp(float *out, float *in1, float *in2, float time)
     vec_normalize(out, 4);
 }
 
-static void decode_normalized_u16(uint16_t *in, float *out, size_t count, float min, float max)
+static void decode_normalized_u16(uint16_t *in, float *out, size_t count, float f1, float f2)
 {
     for(size_t i=0; i<count; i++) {
-        out[i] = ((in[i]/65535.0f)*(max-min))+min;
+        out[i] = (in[i]*f1)+f2;
     }
 }
 
@@ -799,7 +799,7 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
             model64_keyframe_t *frame = &anim_state->frames[(i*4)+j];
             switch(component) {
                 case ANIM_COMPONENT_POS:
-                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->pos_min, curr_anim->pos_max);
+                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->pos_f1, curr_anim->pos_f2);
                     decoded_values[j][3] = 0.0f;
                     break;
                     
@@ -808,7 +808,7 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
                     break;
                     
                 case ANIM_COMPONENT_SCALE:
-                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->scale_min, curr_anim->scale_max);
+                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->scale_f1, curr_anim->scale_f2);
                     decoded_values[j][3] = 0.0f;
                     break;
                   
