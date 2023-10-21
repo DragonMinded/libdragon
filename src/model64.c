@@ -757,6 +757,7 @@ static void init_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
         anim_state->buf_idx[i] = 0;
     }
     anim_state->frame_idx = num_tracks*4;
+    anim_state->prev_waiting_frame = false;
     if(anim_state->frame_idx >= curr_anim->num_keyframes) {
         memcpy(anim_state->waiting_frame, &anim_state->frames[(num_tracks*4)-1], frame_buf_size);
         anim_state->frame_idx = curr_anim->num_keyframes-1;
