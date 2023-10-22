@@ -142,7 +142,7 @@ static int handle_open_count;
  * 
  * Filenos are created as bitfields containing a few fields. 
  * 
- * They contain the indices required to access the handle in #handle_map:
+ * They contain the indices required to access the handle in handle_map:
  * the bucket index  and the position within the bucket where the handle is.
  * 
  * They also contain the filesystem index, so that we always know which
