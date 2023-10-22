@@ -121,30 +121,47 @@ typedef struct
     filesystem_t *fs;
 } fs_mapping_t;
 
-/**
- * @brief Filesystem open handle structure
- *
- * This is used to look up the correct filesystem function to call
- * when working with an open file handle
+/** @brief Extract bits from word */
+#define BITS(v, b, e)  ((unsigned int)(v) << (31-(e)) >> (31-(e)+(b))) 
+
+/** @brief Number of buckets file handles are divided into */
+#define HANDLE_MAX_BUCKETS         32
+/** @brief Size of each bucket of file handles */
+#define HANDLE_BUCKET_SIZE         32
+
+/** @brief First bucket of file handles (allocated statically) */
+static void *handle_first_bucket[HANDLE_BUCKET_SIZE];
+/** @brief Array of buckets of file handles */
+static void **handle_map[HANDLE_MAX_BUCKETS] = { handle_first_bucket };
+/** @brief Number of allocated handle buckets (start from 1, as the first one is allocated statically) */
+static int handle_buckets_count = 1;    
+/** @brief Number of open handles */
+static int handle_open_count;
+
+/** @brief Create a fileno.
+ * 
+ * Filenos are created as bitfields containing a few fields. 
+ * 
+ * They contain the indices required to access the handle in #handle_map:
+ * the bucket index  and the position within the bucket where the handle is.
+ * 
+ * They also contain the filesystem index, so that we always know which
+ * filesystem use to operate on the handle. Notice that the index is stored
+ * 1-based instead of 0-based, so that the special filenos 1,2,3 (used for
+ * stdin, stdout and stderr by C standard libraries) will never conflict
+ * with a fileno made by FILENO_MAKE.
  */
-typedef struct
-{
-    /** @brief Index into `filesystems` array. */
-    int fs_mapping;
-    /** @brief The handle assigned to this open file as returned by the 
-     *         filesystem code called to handle the open operation.  Will
-     *         be passed to all subsequent file operations on the file. */
-    void *handle;
-    /** @brief The handle assigned by the filesystem code that will be returned
-     *         to newlib.  All subsequent newlib calls will use this handle which
-     *         will be used to look up the internal reference. */
-    int fileno;
-} fs_handle_t;
+#define FILENO_MAKE( bkt_idx, bkt_pos, fs_index )   ( (bkt_pos) | ((bkt_idx) << 5) | (((fs_index)+1) << 11) )
+
+/** @brief Extract the filesystem index from a fileno */
+#define FILENO_GET_FS_INDEX( fileno )               ((int)BITS( (fileno), 11, 14 ) - 1)
+/** @brief Extract the bucket index from a fileno */
+#define FILENO_GET_BUCKET_IDX( fileno )             BITS( (fileno),  5, 10 )
+/** @brief Extract the bucket position from a fileno */
+#define FILENO_GET_BUCKET_POS( fileno )             BITS( (fileno),  0,  4 )
 
 /** @brief Array of filesystems registered */
 static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
-/** @brief Array of open handles tracked */
-static fs_handle_t handles[MAX_OPEN_HANDLES] = { { 0 } };
 /** @brief Current stdio hook structure */
 static stdio_t stdio_hooks = { 0 };
 /** @brief Function to provide the current time */
@@ -272,24 +289,31 @@ static int __strcmp( const char * const a, const char * const b )
 }
 
 /**
- * @brief Return a unique filesystem handle
- *
- * @return A unique 32-bit value usable as a filesystem handle
+ * @brief Simple implementation of rand()
+ * 
+ * @param state         Random state
+ * @return uint32_t     New random value
  */
-static int __get_new_handle()
+static uint32_t __rand( uint32_t *state )
 {
-    /* Start past STDIN, STDOUT, STDERR file handles */
-    static int handle = 3;
-    int newhandle;
+	uint32_t x = *state;
+	x ^= x << 13;
+	x ^= x >> 7;
+	x ^= x << 5;
+	return *state = x;
+}
 
-    disable_interrupts();
-
-    /* Always give out a nonzero handle unique to the system */
-    newhandle = handle++;
-
-    enable_interrupts();
-
-    return newhandle;
+/**
+ * @brief Generate a random number in range [0..n[
+ * 
+ * @param state         Random state
+ * @param n             Upper bound (exclusive)
+ * @return uint32_t     Random number
+ */
+static inline uint32_t __randn( uint32_t *state, int n )
+{
+    if(__builtin_constant_p( n )) return __rand( state ) % n;
+    return ((uint64_t)__rand( state ) * n) >> 32;
 }
 
 /**
@@ -405,15 +429,6 @@ int detach_filesystem( const char * const prefix )
         {
             if( __strcmp( filesystems[i].prefix, prefix ) == 0 )
             {
-                /* We found the filesystem, now go through and close every open file handle */
-                for( int j = 0; j < MAX_OPEN_HANDLES; j++ )
-                {
-                    if( handles[j].fileno > 0 && handles[j].fs_mapping == i )
-                    {
-                        close( handles[j].fileno );
-                    }
-                }
-
                 /* Now free the memory associated with the prefix and zero out the filesystem */
                 free( filesystems[i].prefix );
                 filesystems[i].prefix = 0;
@@ -428,6 +443,62 @@ int detach_filesystem( const char * const prefix )
     /* Couldn't find the filesystem to free */
     errno = EPERM;
     return -2;
+}
+
+/**
+ * @brief Allocate a new fileno for the given handle
+ * 
+ * @param handle        Filesystem handle
+ * @param fs_index      Filesystem index
+ * @return int          New fileno, or -1 if it cannot be allocated (errno will be set)
+ */
+static int __allocate_fileno( void *handle, int fs_index )
+{
+    /* Allocate whenever the handle map is full at 75% to avoid wasting too
+     * much time looking for an empty ID. */
+    if( !handle_buckets_count || 
+        (handle_buckets_count < HANDLE_MAX_BUCKETS &&
+         handle_open_count + (handle_open_count>>2) > handle_buckets_count * HANDLE_BUCKET_SIZE) )
+    {
+        void *mem = calloc( HANDLE_BUCKET_SIZE, sizeof( void* ) );
+        if( !mem ) 
+        {
+            errno = ENOMEM;
+            return -1;
+        }
+        handle_map[handle_buckets_count++] = mem;
+    }
+
+    /* Select a random bucket and a random initial position. This should
+     * help finding an empty slot fast enough. Use the handle pointer
+     * as seed; avoid using C0_COUNT because aggressively changing fileno
+     * might cause some headaches during debugging sessions. */
+    uint32_t rand_state = (uint32_t)handle ^ (uint32_t)fs_index;
+    uint32_t bkt_idx = handle_buckets_count > 1 ? __randn( &rand_state, handle_buckets_count ) : 0;
+    uint32_t bkt_pos = __randn( &rand_state, HANDLE_BUCKET_SIZE );
+
+    /* Go through all buckets and positions and look for an empty slot. */
+    for (int i=0; i<handle_buckets_count; i++)
+    {
+        for (int j=0; j<HANDLE_BUCKET_SIZE; j++)
+        {
+            if (handle_map[bkt_idx][bkt_pos] == 0)
+            {
+                handle_map[bkt_idx][bkt_pos] = handle;
+                handle_open_count++;
+                return FILENO_MAKE( bkt_idx, bkt_pos, fs_index );
+            }
+            bkt_pos = (bkt_pos+1) % HANDLE_BUCKET_SIZE;
+        }
+
+        bkt_idx++;
+        if (bkt_idx == handle_buckets_count)
+            bkt_idx = 0;
+    }
+
+    /* All slots are full. Set ENFILE and return error */
+    errno = ENFILE;
+    return -1;
 }
 
 /**
@@ -448,17 +519,14 @@ static filesystem_t *__get_fs_pointer_by_handle( int fileno )
         return 0;
     }
 
-    for( int i = 0; i < MAX_OPEN_HANDLES; i++ )
+    int fs_index = FILENO_GET_FS_INDEX( fileno );
+
+    if ( fs_index < 0 || fs_index >= MAX_FILESYSTEMS || filesystems[fs_index].fs == NULL )
     {
-        if( handles[i].fileno == fileno )
-        {
-            /* Found it */
-            return filesystems[handles[i].fs_mapping].fs;
-        }
+        return 0;
     }
 
-    /* Couldn't find it */
-    return 0;
+    return filesystems[fs_index].fs;
 }
 
 /**
@@ -522,9 +590,9 @@ static filesystem_t *__get_fs_pointer_by_name( const char * const name )
  * @param[in] fileno
  *            File handle
  *
- * @return The internal file handle to be passed to the filesystem function or null if not found.
+ * @return The pointer to the handle map slot containing the handle
  */
-static void *__get_fs_handle( int fileno )
+static void **__get_fs_handle( int fileno )
 {
     /* Invalid */
     if( fileno <= 0 )
@@ -532,17 +600,16 @@ static void *__get_fs_handle( int fileno )
         return 0;
     }
 
-    for( int i = 0; i < MAX_OPEN_HANDLES; i++ )
+    int bkt_idx = FILENO_GET_BUCKET_IDX( fileno );
+    int bkt_pos = FILENO_GET_BUCKET_POS( fileno );
+    
+    if ( bkt_idx >= handle_buckets_count || bkt_pos >= HANDLE_BUCKET_SIZE ||
+         handle_map[bkt_idx][bkt_pos] == 0 )
     {
-        if( handles[i].fileno == fileno )
-        {
-            /* Found it */
-            return handles[i].handle;
-        }
+        return 0;
     }
 
-    /* Couldn't find it */
-    return 0;
+    return &handle_map[bkt_idx][bkt_pos];
 }
 
 /**
@@ -569,31 +636,19 @@ int chown( const char *path, uid_t owner, gid_t group )
 /**
  * @brief Close a file
  *
- * @param[in] fildes
+ * @param[in] fileno
  *            File handle of the file to close
  *
  * @return 0 on success or a negative value on error.
  */
-int close( int fildes )
+int close( int fileno )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( fildes );
-    void *handle = __get_fs_handle( fildes );
+    filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
 
     if( fs == 0 )
     {
         errno = EINVAL;
         return -1;
-    }
-
-    /* Free the open file handle */
-    for( int i = 0; i < MAX_OPEN_HANDLES; i++)
-    {
-        if( handles[i].fileno == fildes )
-        {
-            handles[i].fs_mapping = 0;
-            handles[i].handle = NULL;
-            handles[i].fileno = 0;
-        }
     }
 
     if( fs->close == 0 )
@@ -602,6 +657,21 @@ int close( int fildes )
         errno = ENOSYS;
         return -1;
     }
+
+    void **handle_ptr = __get_fs_handle( fileno );
+
+    if( handle_ptr == 0 ) 
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    /* Access the filesystem handle */
+    void *handle = *handle_ptr;
+
+    /* Clear the map slot */
+    *handle_ptr = 0;
+    handle_open_count--;
 
     /* Tell the filesystem to close the file */
     return fs->close( handle );
@@ -660,26 +730,31 @@ int fork( void )
 /**
  * @brief Return stats on an open file handle
  *
- * @param[in]  fildes
+ * @param[in]  fileno
  *             File handle
  * @param[out] st
  *             Pointer to stat struct to be filled
  *
  * @return 0 on success or a negative value on error.
  */
-int fstat( int fildes, struct stat *st )
+int fstat( int fileno, struct stat *st )
 {
     if( st == NULL )
     {
         errno = EINVAL;
         return -1;
     }
+    else if ( fileno < 3 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
     else
     {
-        filesystem_t *fs = __get_fs_pointer_by_handle( fildes );
-        void *handle = __get_fs_handle( fildes );
+        filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+        void **handle_ptr = __get_fs_handle( fileno );
 
-        if( fs == 0 )
+        if( fs == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
@@ -692,7 +767,7 @@ int fstat( int fildes, struct stat *st )
             return -1;
         }
 
-        return fs->fstat( handle, st );
+        return fs->fstat( *handle_ptr, st );
     }
 }
 
@@ -817,9 +892,9 @@ int link( char *existing, char *new )
 int lseek( int file, int ptr, int dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_handle( file );
-    void *handle = __get_fs_handle( file );
+    void **handle_ptr = __get_fs_handle( file );
 
-    if( fs == 0 )
+    if( fs == 0 || handle_ptr == 0 )
     {
         errno = EINVAL;
         return -1;
@@ -832,7 +907,7 @@ int lseek( int file, int ptr, int dir )
         return -1;
     }
 
-    return fs->lseek( handle, ptr, dir );
+    return fs->lseek( *handle_ptr, ptr, dir );
 }
 
 /**
@@ -875,61 +950,40 @@ int open( const char *file, int flags, ... )
         va_end (ap);
     }
 
-    /* Do we have room for a new file? */
-    for( int i = 0; i < MAX_OPEN_HANDLES; i++ )
+    /* Search the filesystem associated with this file */
+    int fs_index = __get_fs_link_by_name( file );
+
+    if( fs_index < 0 )
     {
-        if( handles[i].fileno == 0 )
-        {
-            /* Yes, we have room, try the open */
-            int mapping = __get_fs_link_by_name( file );
-
-            if( mapping < 0 )
-            {
-                errno = EINVAL;
-                return -1;
-            }
-
-            /* Clear errno so we can check whether the fs->open() call sets it. 
-               This is for backward compatibility, because we used not to require
-               errno to be set. */
-            errno = 0;
-
-            /* Cast away const from the file name.
-               open used to mistakenly take a char* instead of a const char*,
-               and we don't want to break existing code for filesystem_t.open,
-               so filesystem_t.open still takes char* */
-            void *ptr = fs->open( (char *)( file + __strlen( filesystems[mapping].prefix ) ), flags );
-
-            if( ptr )
-            {
-                /* Create new internal handle */
-                handles[i].fileno = __get_new_handle();
-                handles[i].handle = ptr;
-                handles[i].fs_mapping = mapping;
-
-                /* Return our own handle */
-                return handles[i].fileno;
-            }
-            else
-            {
-                /* Couldn't open for some reason */
-                if( errno == 0 )
-                    errno = ENOENT;
-                return -1;
-            }
-        }
+        errno = EINVAL;
+        return -1;
     }
 
-    /* No file handles available */
-    errno = ENFILE;
+    /* Clear errno so we can check whether the fs->open() call sets it. 
+        This is for backward compatibility, because we used not to require
+        errno to be set. */
+    errno = 0;
+
+    /* Use the old open() call that will cause an additional allocation */
+    void *handle = fs->open( (char *)( file + __strlen( filesystems[fs_index].prefix ) ), flags );
+
+    if( handle )
+    {
+        return __allocate_fileno( handle, fs_index );
+    }
+
+    /* Couldn't open for some reason */
+    if( errno == 0 )
+        errno = ENOENT;
+
     return -1;
 }
 
 /**
  * @brief Read data from a file
  *
- * @param[in]  file
- *             File handle
+ * @param[in]  fileno
+ *             Fileno for this file
  * @param[out] ptr
  *             Data pointer to read data to
  * @param[in]  len
@@ -937,9 +991,9 @@ int open( const char *file, int flags, ... )
  *
  * @return Actual number of bytes read or a negative value on error.
  */
-int read( int file, char *ptr, int len )
+int read( int fileno, char *ptr, int len )
 {
-    if( file == STDIN_FILENO )
+    if( fileno == STDIN_FILENO )
     {
         if( stdio_hooks.stdin_read )
         {
@@ -952,8 +1006,8 @@ int read( int file, char *ptr, int len )
             return -1;
         }
     }
-    else if( file == STDOUT_FILENO ||
-             file == STDERR_FILENO )
+    else if( fileno == STDOUT_FILENO ||
+             fileno == STDERR_FILENO )
     {
         /* Can't read from output buffers */
         errno = EBADF;
@@ -962,10 +1016,10 @@ int read( int file, char *ptr, int len )
     else
     {
         /* Read from file */
-        filesystem_t *fs = __get_fs_pointer_by_handle( file );
-        void *handle = __get_fs_handle( file );
+        filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+        void **handle_ptr = __get_fs_handle( fileno );
 
-        if( fs == 0 )
+        if( fs == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
@@ -978,7 +1032,7 @@ int read( int file, char *ptr, int len )
             return -1;
         }
 
-        return fs->read( handle, (uint8_t *)ptr, len );
+        return fs->read( *handle_ptr, (uint8_t *)ptr, len );
     }
 }
 
@@ -1200,9 +1254,9 @@ int write( int file, char *ptr, int len )
     {
         /* Filesystem write */
         filesystem_t *fs = __get_fs_pointer_by_handle( file );
-        void *handle = __get_fs_handle( file );
+        void **handle_ptr = __get_fs_handle( file );
 
-        if( fs == 0 )
+        if( fs == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
@@ -1215,7 +1269,7 @@ int write( int file, char *ptr, int len )
             return -1;
         }
 
-        return fs->write( handle, (uint8_t *)ptr, len );
+        return fs->write( *handle_ptr, (uint8_t *)ptr, len );
     }
 }
 
