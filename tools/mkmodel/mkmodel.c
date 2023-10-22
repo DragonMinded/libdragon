@@ -1422,6 +1422,10 @@ bool anim_build_tracks(cgltf_data *data, gltf_anim_channel_t *channels, size_t n
                     return false;
             }
             out_anim->tracks[out_anim->num_tracks++] = (component << 14)|channels[i].node_index;
+        } else {
+            if(flag_verbose) {
+                printf("Excluding animation channel %zd from animation tracks\n", i);
+            }
         }
     }
     return true;
@@ -1569,10 +1573,10 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
     if(in_anim->name && in_anim->name[0] != '\0') {
         out_anim->name = strdup(in_anim->name);
     }
+    if(flag_verbose) {
+        printf("Reading animation channels\n");
+    }
     for(size_t i=0; i<in_anim->channels_count; i++) {
-        if(flag_verbose) {
-            printf("Converting animation channel %zd\n", i);
-        }
         if(read_anim_channel(data, &in_anim->channels[i], &channels[i]) != 0) {
             fprintf(stderr, "Error: failed converting animation channel %zd\n", i);
             goto error;
@@ -1586,9 +1590,6 @@ int convert_animation(cgltf_data *data, cgltf_animation *in_anim, model64_anim_t
     out_anim->pos_f2 = -FLT_MAX;
     out_anim->scale_f1 = FLT_MAX;
     out_anim->scale_f2 = -FLT_MAX;
-    if(flag_verbose) {
-        printf("Calculating range for position and scale of animation\n");
-    }
     for(uint32_t i=0; i<in_anim->channels_count; i++) {
         if(channels[i].target_path == cgltf_animation_path_type_translation) {
             for(size_t j=0; j<3; j++) {
