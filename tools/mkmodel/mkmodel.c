@@ -1363,11 +1363,12 @@ void make_anim_channel_samples(gltf_anim_channel_t *channel, float duration)
         sample_anim_channel(channel, duration, sample);
         add_anim_sample(&channel->samples, duration, sample, num_components);
     }
+    size_t start_keyframes = channel->samples.num_keyframes;
     while(calc_min_midpoint_error(channel, &removed_point) < channel->max_error && removed_point != -1) {
-        if(flag_verbose) {
-            printf("Removing animation frame %zd\n", (size_t)(channel->samples.keyframes[removed_point].time*ANIM_MAX_FPS));
-        }
         remove_anim_sample(&channel->samples, removed_point);
+    }
+    if(flag_verbose) {
+        printf("Reduced %zd keyframes to %zd keyframes.\n", start_keyframes, channel->samples.num_keyframes);
     }
     for(size_t i=0; i<channel->samples.num_keyframes-2; i++) {
         channel->samples.keyframes[i+2].time_req = channel->samples.keyframes[i].time;
