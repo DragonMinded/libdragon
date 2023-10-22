@@ -150,6 +150,11 @@ static int handle_open_count;
  * 1-based instead of 0-based, so that the special filenos 1,2,3 (used for
  * stdin, stdout and stderr by C standard libraries) will never conflict
  * with a fileno made by FILENO_MAKE.
+ * 
+ * @note POSIX does not specify any specific limit for filenos returned by
+ *       open(), besides that they need to be non-negative integers. Newlib
+ *       stores them into a 16-bit signed integer though, so we are actually
+ *       limited to 15 bits for them.
  */
 #define FILENO_MAKE( bkt_idx, bkt_pos, fs_index )   ( (bkt_pos) | ((bkt_idx) << 5) | (((fs_index)+1) << 11) )
 
