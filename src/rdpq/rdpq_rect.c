@@ -64,11 +64,16 @@ void __rdpq_texture_rectangle_scaled_offline(rdpq_tile_t tile, int32_t x0, int32
     __rdpq_texture_rectangle_scaled_inline(tile, x0, y0, x1, y1, s0, t0, s1, t1);
 }
 
+void __rdpq_texture_rectangle_flip_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0) {
+    __rdpq_texture_rectangle_flip_inline(tile, x0, y0, x1, y1, s0, t0);
+}
+
 extern inline void __rdpq_fill_rectangle_inline(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
 extern inline void __rdpq_fill_rectangle_fx(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
 extern inline void __rdpq_texture_rectangle_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s, int32_t t);
 extern inline void __rdpq_texture_rectangle_scaled_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1);
 extern inline void __rdpq_texture_rectangle_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t s0, uint16_t t0, int16_t dsdx, int16_t dtdy);
+extern inline void __rdpq_texture_rectangle_flip_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s, int32_t t);
 extern inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdy, int16_t dtdx);
 extern inline void __rdpq_texture_rectangle_inline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0);
 extern inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1);
