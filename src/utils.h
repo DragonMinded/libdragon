@@ -37,4 +37,9 @@
 /** @brief Type-safe bitcast from integer to float */
 #define I2F(i)   ({ float __f; memcpy(&__f, &(i), 4); __f; })
 
+/** @brief Hint for the compiler that the condition is likely to happen */
+#define LIKELY(cond)  	__builtin_expect(!!(cond), 1)
+/** @brief Hint for the compiler that the condition is unlikely to happen */
+#define UNLIKELY(cond)  __builtin_expect(!!(cond), 0)
+
 #endif
