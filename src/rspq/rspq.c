@@ -1374,10 +1374,7 @@ void rspq_wait(void)
         // in the case the RDP is still pointing to a static buffer (after a block
         // is just finished). This allows the user to safely free the static buffer
         // after rspq_wait(), as intuition would suggest.
-        void *rdp_buf = rspq_rdp_dynamic_buffers[0];
-        void *rdp_buf_end = rdp_buf + RDPQ_DYNAMIC_BUFFER_SIZE;
-        rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 
-            PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf_end));
+        rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 0, 0, 0);
     }
     
     // Wait until RSP has finished processing the queue
