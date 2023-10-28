@@ -336,7 +336,7 @@ tv_type_t get_tv_type();
 /** @brief Reset types */
 typedef enum {
     RESET_COLD = 0,  ///< Cold reset (power on)
-    RESET_NMI = 1,   ///< Warm reset (reset button)
+    RESET_WARM = 1,  ///< Warm reset (reset button)
 } reset_type_t;
 
 /** 
