@@ -326,6 +326,9 @@ bool is_memory_expanded()
 
 /** @brief Memory location to read which determines the TV type. */
 #define TV_TYPE_LOC  0x80000300
+/** @brief Memory location to read which determines the reset type. */
+#define RESET_TYPE_LOC  0x8000030C
+
 
 /**
  * @brief Is system NTSC/PAL/MPAL
@@ -337,6 +340,11 @@ bool is_memory_expanded()
 tv_type_t get_tv_type() 
 {
     return *((uint32_t *) TV_TYPE_LOC);
+}
+
+reset_type_t sys_reset_type(void)
+{
+    return *((uint32_t *) RESET_TYPE_LOC);
 }
 
 uint64_t get_ticks(void)

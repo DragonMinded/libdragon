@@ -333,6 +333,24 @@ typedef enum {
 
 tv_type_t get_tv_type();
 
+/** @brief Reset types */
+typedef enum {
+    RESET_COLD = 0,  ///< Cold reset (power on)
+    RESET_NMI = 1,   ///< Warm reset (reset button)
+} reset_type_t;
+
+/** 
+ * @brief Get reset type
+ * 
+ * This function returns the reset type, that can be used to differentiate
+ * a cold boot from a warm boot (that is, after pressing the reset button).
+ * 
+ * For instance, a game might want to skip mandatory intros (eg: logos)
+ * on a warm boot.
+ */
+reset_type_t sys_reset_type(void);
+
+
 /**
  * @name 64-bit address space access
  * @brief Functions to access the full 64-bit address space
