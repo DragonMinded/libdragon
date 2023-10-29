@@ -116,6 +116,7 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 			fprintf(out, "FPU status: %08lX [", C1_FCR31());
 			if (fcr31 & C1_CAUSE_INEXACT_OP) fprintf(out, "%sINEXACT", space), space=" ";
 			if (fcr31 & C1_CAUSE_OVERFLOW) fprintf(out, "%sOVERFLOW", space), space=" ";
+			if (fcr31 & C1_CAUSE_UNDERFLOW) fprintf(out, "%sUNDERFLOW", space), space=" ";
 			if (fcr31 & C1_CAUSE_DIV_BY_0) fprintf(out, "%sDIV0", space), space=" ";
 			if (fcr31 & C1_CAUSE_INVALID_OP) fprintf(out, "%sINVALID", space), space=" ";
 			if (fcr31 & C1_CAUSE_NOT_IMPLEMENTED) fprintf(out, "%sNOTIMPL", space), space=" ";
