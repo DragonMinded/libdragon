@@ -421,9 +421,16 @@ __attribute__((constructor)) void __init_cop1()
                C1_CAUSE_INVALID_OP);
 
 #ifndef NDEBUG
-    /* Enable FPU exceptions that can help programmers avoid bugs in their code. */
+    /** 
+     * Enable FPU exceptions that can help programmers avoid bugs in their code. 
+     * Underflow exceptions are not enabled because they are triggered whenever
+     * a denormalized float is generated, *even if* the FS bit is set (see below).
+     * So basically having the underflow exception enabled seems to be useless
+     * unless also the underflow (and the inexact) exceptions are off.
+     * Notice that underflows can happen also with library code such as
+     * tanf(BITCAST_I2F(0x3f490fdb)) (0.785398185253).
+     */
     fcr31 |= C1_ENABLE_OVERFLOW | 
-             C1_ENABLE_UNDERFLOW | 
              C1_ENABLE_DIV_BY_0 | 
              C1_ENABLE_INVALID_OP;
 #endif
