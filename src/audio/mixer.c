@@ -490,8 +490,15 @@ static void mixer_exec(int32_t *out, int num_samples) {
 			int len = ch->len >> bps_fx64;
 			int loop_len = ch->loop_len >> bps_fx64;
 			int wpos = ch->pos >> bps_fx64;
-			int wlast = (ch->pos + ch->step*(num_samples-1)) >> bps_fx64;
-			int wlen = wlast-wpos+1;
+			// Calculate how many samples we need to have available for this
+			// frame. We used to calculate the last sample as ch->step * (num_samples+1),
+			// but in the unlikely case the playing rate is much higher than the
+			// mixing rate, this might cause a seek in the waveform (eg: if we play
+			// one sample every 10, we don't want to cause a seek forward by 9,
+			// between the last sample of this frame and the first sample of
+			// next frame).
+			int wnext = (ch->pos + ch->step*num_samples) >> bps_fx64;
+			int wlen = MAX(wnext - wpos, 1);
 			assertf(wlen >= 0, "channel %d: wpos overflow", i);
 			tracef("ch:%d wpos:%x wlen:%x len:%x loop_len:%x sbuf_size:%x\n", i, wpos, wlen, len, loop_len, sbuf->size);
 
