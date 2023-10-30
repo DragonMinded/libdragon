@@ -75,6 +75,12 @@ void *asset_load(const char *fn, int *sz)
 {
     uint8_t *s; int size;
     FILE *f = must_fopen(fn);
+
+    // Disable buffering. This is optimal both for the no-compression case
+    // (where we just read the whole file in one go, so we want to avoid
+    // extra memory copies), and for the compressed case (where each
+    // compression algorithm implements its own logic of optimized buffering).
+    setvbuf(f, NULL, _IONBF, 0);
    
     // Check if file is compressed
     asset_header_t header;
