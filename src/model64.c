@@ -13,13 +13,6 @@
 #include "debug.h"
 #include "utils.h"
 
-/** @brief State of an active animation */
-typedef struct anim_buf_info_s {
-    void *curr_buf;     ///< Data buffer for current frame
-    void *next_buf;     ///< Data buffer for next frame
-    float time;         ///< Interpolation factor between current and next frame
-} anim_buf_info_t;
-
 #define PTR_DECODE(model, ptr)    ((void*)(((uint8_t*)(model)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(model, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(model)))
 
@@ -705,7 +698,7 @@ static void decode_quaternion(uint16_t *in, float *out)
     for(size_t i=0; i<3; i++) {
         decoded_values[i] = (values[i]*0.000043159689f)-0.70710678f;
     }
-    int16_t sign = (int16_t)in[2];;
+    int16_t sign = (int16_t)in[2];
     float mag2_decoded = (decoded_values[0]*decoded_values[0])+(decoded_values[1]*decoded_values[1])+(decoded_values[2]*decoded_values[2]);
     float derived_component = copysignf(sqrtf(1.0f - mag2_decoded), (float)sign);
     int src_component = 0;
