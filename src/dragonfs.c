@@ -925,13 +925,17 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
      */
     if (LIKELY(!(((uint32_t)buf ^ (uint32_t)file->loc) & 1)))
     {
+        /* Calculate ROM address. NOTE: do this before invalidation,
+         * in case the file object is false-sharing the buffer. */
+        uint32_t rom_address = file->cart_start_loc + file->loc;
+
         /* 16-byte alignment: we can simply invalidate the buffer. */
         if ((((uint32_t)buf | to_read) & 15) == 0)
             data_cache_hit_invalidate(buf, to_read);
         else
             data_cache_hit_writeback_invalidate(buf, to_read);
 
-        dma_read(buf, file->cart_start_loc + file->loc, to_read);
+        dma_read(buf, rom_address, to_read);
 
         file->loc += to_read;
         return to_read;
