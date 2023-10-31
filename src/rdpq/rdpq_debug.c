@@ -1022,6 +1022,14 @@ static void lazy_validate_rendermode(void) {
     bool has_bl1 = b1->p || b1->a || b1->q || b1->b;
     VALIDATE_WARN_SOM(rdp.som.blend || rdp.som.aa || !(has_bl0 || has_bl1),
         "blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled");
+    if (rdp.som.cycle_type == 1) { // 2cyc
+        VALIDATE_ERR_SOM((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
+            "in 2cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent");
+        VALIDATE_ERR_SOM(b0->a != 1,
+            "in 2cycle mode, the first pass of the blender cannot access MEMORY_RGB");
+        VALIDATE_WARN_SOM(b1->a != 2,
+            "in 2cycle mode, the second pass of the blender will use a SHADE_ALPHA value shifted by one pixel because of a hardware bug");
+    }
 
     // Validate other SOM states
     if (!rdp.som.tex.lod) {
@@ -1072,8 +1080,6 @@ static void lazy_validate_rendermode(void) {
             "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
             "in 2cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
-        VALIDATE_WARN_CC(ccs[1].rgb.mul != 11 && ccs[1].alpha.suba != 4 && ccs[1].alpha.subb != 4 && ccs[1].alpha.mul != 4 && ccs[1].alpha.add != 4,
-            "in 2cycle mode, the SHADE_ALPHA slot is shifted by one pixel in the second cycle because of a hardware bug");
         if (rdp.som.alphacmp.enable && !rdp.som.alphacmp.noise) {
             bool cc1_passthrough = (ccs[1].alpha.mul == 7 && ccs[1].alpha.add == 0);  // (any-any)*0+combined
             VALIDATE_ERR_CC(cc1_passthrough,
@@ -1081,10 +1087,6 @@ static void lazy_validate_rendermode(void) {
             VALIDATE_WARN_CC(!cc1_passthrough,
                 "in 2cycle mode, alpha compare is often shifted by one pixel because of a hardware bug");
         }
-        VALIDATE_ERR_SOM((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
-            "in 2cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent");
-        VALIDATE_ERR_SOM(b0->a != 1,
-            "in 2cycle mode, the first pass of the blender cannot access MEMORY_RGB");
     }
 }
 
