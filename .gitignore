@@ -16,6 +16,11 @@ website/ref/
 
 ## Generated assets
 examples/fontdemo/filesystem/*.font64
+examples/micro-ui/filesystem/*.sprite
+examples/micro-ui/filesystem/*.font64
+examples/videoplayer/movie.wav
+examples/videoplayer/caminandes.ogv
+examples/videoplayer/filesystem/*.wav64
 tests/filesystem/*.sprite
 
 ## OSX junk
