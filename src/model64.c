@@ -798,16 +798,14 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         }
         float time = anim_state->frames[(i*4)+1].time;
         float time_next = anim_state->frames[(i*4)+2].time;
-        float weight;
-        if(anim_state->time > time_next) {
+        float weight = (anim_state->time-time)/(time_next-time);
+        //Clamp weight to maximum of 1.0f
+        if(weight > 1.0f) {
             weight = 1.0f;
-        } else {
-            if(anim_state->time < time) {
-                weight = 0.0f;
-            } else {
-                weight = (anim_state->time-time)/(time_next-time);
-            }
-            
+        }
+        //Clamp weight to minimum of 0.0f
+        if(weight < 0.0f) {
+            weight = 0.0f;
         }
         float *out;
         size_t out_count;
@@ -860,13 +858,14 @@ void model64_update(model64_t *model, float deltatime)
             }
             continue;
         }
+        model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i]->index];
         model->active_anims[i]->time += model->active_anims[i]->speed*deltatime;
-        if(model->active_anims[i]->loop) {
-            model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i]->index];
-            if(model->active_anims[i]->time >= curr_anim->duration) {
+        if(model->active_anims[i]->time >= curr_anim->duration) {
+            if(model->active_anims[i]->loop) {
                 model->active_anims[i]->time -= curr_anim->duration;
                 model->active_anims[i]->invalid_pose = true;
-                
+            } else {
+                model->active_anims[i]->paused = true;
             }
         }
         if(model->active_anims[i]->invalid_pose) {
