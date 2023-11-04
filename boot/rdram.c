@@ -24,14 +24,14 @@
 #define RI_WERROR							((volatile uint32_t*)0xA470001C)
 
 // Memory map exposed by RI to the CPU
-#define RDRAM                               ((uint32_t*)0xA0000000)
+#define RDRAM                               ((void*)0xA0000000)
 #define RDRAM_REGS                          ((volatile uint32_t*)0xA3F00000)
 #define RDRAM_REGS_BROADCAST                ((volatile uint32_t*)0xA3F80000)
 
 #define RI_CONFIG_AUTO_CALIBRATION			0x40
 #define RI_SELECT_RX_TX						0x14
-#define RI_MODE_CLOCK_RX                    0x8
-#define RI_MODE_CLOCK_TX                    0x4
+#define RI_MODE_CLOCK_TX                    0x8
+#define RI_MODE_CLOCK_RX                    0x4
 #define RI_MODE_RESET						0x0
 #define RI_MODE_STANDARD					(0x2 | RI_MODE_CLOCK_RX | RI_MODE_CLOCK_TX)
 
@@ -114,6 +114,20 @@ static void rdram_reg_w_deviceid(int chip_id, uint16_t new_chip_id)
     rdram_reg_w(chip_id, RDRAM_REG_DEVICE_ID, value);
 }
 
+static void rdram_reg_w_delay(int chip_id, uint32_t delay)
+{
+    // Delay register uses the special MI "init mode" that basically repeats
+    // the same word multiple times with a burst write to RDRAM chips. This is
+    // probably required because RI doesn't have configurable delay timings, so
+    // a burst is the best way to make sure the value does get written at boot.
+    // After the corect value is written, RI and RDRAM match the timings, so
+    // everything should work fine.
+    // NOTE: MI init mode auto-resets itself after the first write, so there's
+    // not need to explicitly clear it.
+    *MI_MODE = MI_WMODE_SET_INIT_MODE | MI_WMODE_LENGTH(0x10);
+    rdram_reg_w(chip_id, RDRAM_REG_DELAY, delay);
+}
+
 /** 
  * Write the RDRAM mode register. This is mainly used to write the current (I) value
  * in manual/auto mode, so this helper function just allows to do that, with some
@@ -147,7 +161,7 @@ static void rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
     rdram_reg_w(nchip, RDRAM_REG_MODE, value);
 }
 
-static float memory_test(uint32_t *vaddr) {
+static float memory_test(volatile uint32_t *vaddr) {
     enum { NUM_TESTS = 10 };
 
     float accuracy = 0.0f;
@@ -157,7 +171,7 @@ static float memory_test(uint32_t *vaddr) {
         vaddr[1] = 0xFFFFFFFF;
 
         // Read back one byte and count number of set bits
-        uint8_t b0 = ((uint8_t*)vaddr)[5];
+        volatile uint8_t b0 = ((volatile uint8_t*)vaddr)[5];
         while (b0) {
             if (b0 & 1) accuracy += 1.0f;
             b0 >>= 1;
@@ -228,34 +242,35 @@ void rdram_init(void)
     *RI_MODE = RI_MODE_RESET;    wait(0x100);
     *RI_MODE = RI_MODE_STANDARD; wait(0x100);
 
-    // Configure MI to init mode, so that we can talk to RDRAM chips
-    // TODO: confirm that legth=16 means we can talk up to 16 chips, by lowering this
-    // and checking what happens.
-    *MI_MODE = MI_WMODE_SET_INIT_MODE | MI_WMODE_LENGTH(0x10);
-    debugf("rdram_init: MI_MODE: ", *MI_MODE);
-
     // Initialize chips
     rdram_reg_init();
-    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_DELAY,     byteswap32(0x18082838));
-    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_REF_ROW,   byteswap32(0x00000000));
-    //rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_DEVICE_ID, byteswap32(0x80000000)); // (same as below)
-    rdram_reg_w_deviceid(RDRAM_BROADCAST, 16);  // FIXME: shouldn't this be 32?
+    rdram_reg_w_delay(RDRAM_BROADCAST, byteswap32(0x18082838));
 
     // All chips are now configured with the same chip ID (32). We now change the ID of
     // the first one to 0, so that we can begin addressing it separately. Notice that this
     // works because when using non-broadcast mode, only the first chip that matches the ID
     // receives the command, even if there are multiple chips with the same ID.
-    rdram_reg_w_deviceid(32, 0);
-
+    enum { INITIAL_COMMON_ID = 32 };  // FIXME: why this must be 32? Smaller values don't seem to work
+    rdram_reg_w_deviceid(RDRAM_BROADCAST, INITIAL_COMMON_ID);
+    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 0);
     rdram_calibrate_current(0, RDRAM);
-
-    #if 0
-    rdram_reg_w_mode(RDRAM_BROADCAST, true, 0x20); // auto current mode, max current
-    uint32_t manu[8];
+    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 2);
+    rdram_calibrate_current(2, RDRAM + 2*1024*1024);
+    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 4);
+    rdram_calibrate_current(4, RDRAM + 4*1024*1024);
+    
+    #if 1
+    //rdram_reg_w_mode(RDRAM_BROADCAST, true, 0x20); // auto current mode, max current
+    uint32_t manu[8], devtype[8];
     for (int i=0; i<8; i++) {
         manu[i] = rdram_reg_r(i, RDRAM_REG_DEVICE_MANUFACTURER);
+        devtype[i] = rdram_reg_r(i, RDRAM_REG_DEVICE_TYPE);
     }
     debugf("rdram_init: manufacturer: ", manu[0], manu[1], manu[2], manu[3], manu[4], manu[5], manu[6], manu[7]);
+    debugf("rdram_init: device type: ", devtype[0], devtype[1], devtype[2], devtype[3], devtype[4], devtype[5], devtype[6], devtype[7]);
+    // debugf("rdram_init: chip 0: manufacturer:");
+    // static const char *manufacturers[] = { "<unknown>", "?", "?", "?", "?", "NEC", "?", "?" };
+    // debugf(manufacturers[manu[0] >> 16]);
     #endif
 
     debugf("rdram_init: done");
