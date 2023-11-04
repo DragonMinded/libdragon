@@ -1341,9 +1341,8 @@ void make_anim_channel_samples(gltf_anim_channel_t *channel, float duration)
     int removed_point;
     size_t num_components = channel->out_num_components;
     size_t num_frames = floorf(duration*ANIM_MAX_FPS);
-    float frame_duration = duration/num_frames;
     for(size_t i=0; i<num_frames+1; i++) {
-        float time = i*frame_duration;
+        float time = (duration*i)/num_frames;
         sample_anim_channel(channel, time, sample);
         add_anim_sample(&channel->samples, time, sample, num_components);
     }
