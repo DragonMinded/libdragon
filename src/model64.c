@@ -538,11 +538,11 @@ static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
 {
     uint32_t state_size = sizeof(anim_state_t);
     uint32_t num_tracks = model->data->max_tracks;
-    state_size += (num_tracks*4)*sizeof(model64_keyframe_t);
+    state_size += (num_tracks*4)*sizeof(decoded_keyframe_t);
     state_size += sizeof(model64_keyframe_t);
     anim_state_t *anim_state = calloc(1, state_size);
     anim_state->frames = PTR_DECODE(anim_state, sizeof(anim_state_t));
-    anim_state->waiting_frame = PTR_DECODE(anim_state->frames, (num_tracks*4)*sizeof(model64_keyframe_t));
+    anim_state->curr_frame = PTR_DECODE(anim_state->frames, (num_tracks*4)*sizeof(decoded_keyframe_t));
     anim_state->index = -1;
     anim_state->paused = true;
     anim_state->speed = 1.0f;
@@ -698,35 +698,61 @@ static void decode_quaternion(uint16_t *in, float *out)
     }
 }
 
-static void copy_waiting_frame(model64_t *model, model64_anim_slot_t anim_slot)
+static void decode_cur_keyframe(model64_t *model, model64_anim_slot_t anim_slot)
 {
     anim_state_t *anim_state = model->active_anims[anim_slot];
-    uint16_t track = anim_state->waiting_frame->track;
+    model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
+    uint16_t track = anim_state->curr_frame->track;
+    decoded_keyframe_t keyframe;
+    keyframe.time = anim_state->curr_frame->time;
+    switch(curr_anim->tracks[track] >> 14) {
+        case ANIM_COMPONENT_POS:
+            decode_normalized_u16(anim_state->curr_frame->data, keyframe.data, 3, curr_anim->pos_f1, curr_anim->pos_f2);
+            keyframe.data[3] = 0.0f;
+            break;
+            
+        case ANIM_COMPONENT_ROT:
+            decode_quaternion(anim_state->curr_frame->data, keyframe.data);
+            break;
+            
+        case ANIM_COMPONENT_SCALE:
+            decode_normalized_u16(anim_state->curr_frame->data, keyframe.data, 3, curr_anim->scale_f1, curr_anim->scale_f2);
+            keyframe.data[3] = 0.0f;
+            break;
+          
+        default:
+            keyframe.data[0] = keyframe.data[1] = keyframe.data[2] = keyframe.data[3] = 0.0f;
+            break;
+    }
     anim_state->frames[track*4] = anim_state->frames[(track*4)+1];
     anim_state->frames[(track*4)+1] = anim_state->frames[(track*4)+2];
     anim_state->frames[(track*4)+2] = anim_state->frames[(track*4)+3];
-    anim_state->frames[(track*4)+3] = *anim_state->waiting_frame;
+    anim_state->frames[(track*4)+3] = keyframe;
 }
 
-static void read_waiting_frame(model64_t *model, model64_anim_slot_t anim_slot)
+static bool read_keyframe(model64_t *model, model64_anim_slot_t anim_slot)
 {
     anim_state_t *anim_state = model->active_anims[anim_slot];
     model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
     if(anim_state->prev_waiting_frame) {
-        copy_waiting_frame(model, anim_slot);
+        decode_cur_keyframe(model, anim_slot);
     } else {
         anim_state->prev_waiting_frame = true;
+    }
+    if(anim_state->frame_idx >= curr_anim->num_keyframes) {
+        return false;
     }
     if(model->data->anim_data_handle) {
         uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
         rom_addr += (uint32_t)curr_anim->keyframes;
         rom_addr += anim_state->frame_idx*sizeof(model64_keyframe_t);
-        data_cache_hit_writeback_invalidate(anim_state->waiting_frame, sizeof(model64_keyframe_t));
-        dma_read(anim_state->waiting_frame, rom_addr, sizeof(model64_keyframe_t));
+        data_cache_hit_writeback_invalidate(anim_state->curr_frame, sizeof(model64_keyframe_t));
+        dma_read(anim_state->curr_frame, rom_addr, sizeof(model64_keyframe_t));
     } else {
-        memcpy(anim_state->waiting_frame, &curr_anim->keyframes[anim_state->frame_idx], sizeof(model64_keyframe_t));
+        memcpy(anim_state->curr_frame, &curr_anim->keyframes[anim_state->frame_idx], sizeof(model64_keyframe_t));
     }
     anim_state->frame_idx++;
+    return true;
 }
 
 static void init_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
@@ -734,35 +760,20 @@ static void init_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
     anim_state_t *anim_state = model->active_anims[anim_slot];
     model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
     uint32_t num_tracks = curr_anim->num_tracks;
-    uint32_t frame_buf_size = (num_tracks*4)*sizeof(model64_keyframe_t);
-    if(model->data->anim_data_handle) {
-        uint32_t rom_addr = (uint32_t)model->data->anim_data_handle;
-        rom_addr += (uint32_t)curr_anim->keyframes;
-        data_cache_hit_writeback_invalidate(anim_state->frames, frame_buf_size);
-        dma_read(anim_state->frames, rom_addr, frame_buf_size);
-    } else {
-        memcpy(anim_state->frames, curr_anim->keyframes, frame_buf_size);
-    }
-    anim_state->frame_idx = num_tracks*4;
+    anim_state->frame_idx = 0;
     anim_state->prev_waiting_frame = false;
-    if(anim_state->frame_idx >= curr_anim->num_keyframes) {
-        memcpy(anim_state->waiting_frame, &anim_state->frames[curr_anim->num_keyframes-1], frame_buf_size);
-        anim_state->frame_idx = curr_anim->num_keyframes;
-    } else {
-        read_waiting_frame(model, anim_slot);
+    for(size_t i=0; i<(num_tracks*4)+1; i++) {
+        read_keyframe(model, anim_slot);
     }
-    
 }
 
 static void fetch_needed_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
 {
     anim_state_t *anim_state = model->active_anims[anim_slot];
-    model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
-    while(anim_state->waiting_frame->time_req < anim_state->time) {
-        if(anim_state->frame_idx >= curr_anim->num_keyframes) {
+    while(anim_state->curr_frame->time_req < anim_state->time) {
+        if(!read_keyframe(model, anim_slot)) {
             return;
         }
-        read_waiting_frame(model, anim_slot);
     }
 }
 
@@ -770,35 +781,13 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
 {
     anim_state_t *anim_state = model->active_anims[anim_slot];
     model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
-    float decoded_values[4][4];
     for(uint32_t i=0; i<curr_anim->num_tracks; i++) {
+        decoded_keyframe_t *curr_frame = &anim_state->frames[i*4];
         uint32_t component = curr_anim->tracks[i] >> 14;
         uint16_t node = curr_anim->tracks[i] & 0x3FFF;
-        for(uint32_t j=0; j<4; j++) {
-            model64_keyframe_t *frame = &anim_state->frames[(i*4)+j];
-            switch(component) {
-                case ANIM_COMPONENT_POS:
-                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->pos_f1, curr_anim->pos_f2);
-                    decoded_values[j][3] = 0.0f;
-                    break;
-                    
-                case ANIM_COMPONENT_ROT:
-                    decode_quaternion(frame->data, &decoded_values[j][0]);
-                    break;
-                    
-                case ANIM_COMPONENT_SCALE:
-                    decode_normalized_u16(frame->data, &decoded_values[j][0], 3, curr_anim->scale_f1, curr_anim->scale_f2);
-                    decoded_values[j][3] = 0.0f;
-                    break;
-                  
-                default:
-                    decoded_values[j][0] = decoded_values[j][1] = decoded_values[j][2] = decoded_values[j][3] = 0.0f;
-                    break;
-            }
-        }
-        float time = anim_state->frames[(i*4)+1].time;
-        float time_next = anim_state->frames[(i*4)+2].time;
-        float weight = (anim_state->time-time)/(time_next-time);
+        float time = curr_frame[1].time;
+        float time_next = curr_frame[2].time;
+        float weight = (time == time_next) ? 0 : (anim_state->time-time)/(time_next-time);
         //Clamp weight to maximum of 1.0f
         if(weight > 1.0f) {
             weight = 1.0f;
@@ -833,9 +822,9 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
             continue;
         }
         if(component == ANIM_COMPONENT_ROT) {
-            quat_lerp(out, &decoded_values[1][0], &decoded_values[2][0], weight);
+            quat_lerp(out, curr_frame[1].data, curr_frame[2].data, weight);
         } else {
-            catmull_calc_vec(&decoded_values[0][0], &decoded_values[1][0], &decoded_values[2][0], &decoded_values[3][0], out, weight, out_count);
+            catmull_calc_vec(curr_frame[0].data, curr_frame[1].data, curr_frame[2].data, curr_frame[3].data, out, weight, out_count);
         }
         if(i == curr_anim->num_tracks-1 || (curr_anim->tracks[i+1] & 0x3FFF) != node) {
             calc_node_local_matrix(model, node);

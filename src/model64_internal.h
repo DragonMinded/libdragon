@@ -133,6 +133,11 @@ typedef struct model64_data_s {
     void *anim_data_handle;     ///< Handle for animation data (0 means animations are not streamed)
 } model64_data_t;
 
+typedef struct decoded_keyframe_s {
+    float time;
+    float data[4];
+} decoded_keyframe_t;
+
 /** @brief State of an active animation */
 typedef struct anim_state_s {
     int32_t index;                      ///< Index of animation playing
@@ -142,9 +147,9 @@ typedef struct anim_state_s {
     bool paused;                        ///< Whether this animation is active
     bool prev_waiting_frame;            ///< Whether there is a previous waiting frame
     float speed;                        ///< The speed of an animation
-    int frame_idx;                      ///< Index of next keyframe to read
-    model64_keyframe_t *frames;         ///< Buffer for keyframes
-    model64_keyframe_t *waiting_frame;  ///< Buffer for keyframe waiting to be copied
+    uint32_t frame_idx;                 ///< Index of next keyframe to read
+    decoded_keyframe_t *frames;         ///< Buffer for decoded keyframes
+    model64_keyframe_t *curr_frame;     ///< Buffer for keyframe waiting to be copied
 } anim_state_t;
 
 /** @brief A model64 instance */
