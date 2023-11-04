@@ -133,9 +133,10 @@ typedef struct model64_data_s {
     void *anim_data_handle;     ///< Handle for animation data (0 means animations are not streamed)
 } model64_data_t;
 
+/** @brief Decoded data for a keyframe */
 typedef struct decoded_keyframe_s {
-    float time;
-    float data[4];
+    float time;     ///< Time of keyframe
+    float data[4];  ///< Data for keyframe
 } decoded_keyframe_t;
 
 /** @brief State of an active animation */
