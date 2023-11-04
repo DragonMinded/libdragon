@@ -1340,14 +1340,12 @@ void make_anim_channel_samples(gltf_anim_channel_t *channel, float duration)
     float sample[4] = {0};
     int removed_point;
     size_t num_components = channel->out_num_components;
-    for(size_t i=0; i<(size_t)floorf(duration*ANIM_MAX_FPS); i++) {
-        float time = ((float)i)/ANIM_MAX_FPS;
+    size_t num_frames = floorf(duration*ANIM_MAX_FPS);
+    float frame_duration = duration/num_frames;
+    for(size_t i=0; i<num_frames+1; i++) {
+        float time = i*frame_duration;
         sample_anim_channel(channel, time, sample);
         add_anim_sample(&channel->samples, time, sample, num_components);
-    }
-    if(fmodf(duration, 1.0f/ANIM_MAX_FPS) != 0) {
-        sample_anim_channel(channel, duration, sample);
-        add_anim_sample(&channel->samples, duration, sample, num_components);
     }
     size_t start_keyframes = channel->samples.num_keyframes;
     while(calc_min_midpoint_error(channel, &removed_point) < channel->max_error && removed_point != -1) {
