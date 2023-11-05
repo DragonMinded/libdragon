@@ -109,6 +109,10 @@ gl_clip_plane_loop:
     move t1, in_list
 
     # Swap in and out lists
+
+    # If the out list is empty from the last iteration, 
+    # the triangle has no visible points and we are done
+    beqz out_count, gl_clip_return
     move in_list, out_list
     move out_list, t1
     move in_count, out_count
@@ -138,7 +142,7 @@ gl_clip_edge_loop:
     beqz t0, gl_clip_no_intersection
     move p0, cur_vtx
 
-    # Swap the two points if necessary to make intersecion calculation consistent
+    # Swap the two points if necessary to make intersection calculation consistent
     # This will make sure p0 is always inside and p1 is always outside
     bnez prev_flag, gl_clip_no_swap
     move p1, prev_vtx
@@ -328,6 +332,7 @@ gl_clip_finalize_loop:
     blt cache_vtx, cache_end, gl_clip_finalize_loop
     addi cache_vtx, SCREEN_VTX_SIZE
 
+gl_clip_return:
     # Done!
     jr ra2
     add s2, out_list, out_count
