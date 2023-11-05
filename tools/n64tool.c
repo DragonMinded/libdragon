@@ -250,7 +250,12 @@ int main(int argc, char *argv[])
 	char title[TITLE_SIZE + 1] = { 0, };
 	bool create_toc = false;
 	size_t toc_offset = 0;
-	char region = 'E';
+
+	// Some flashcarts (at least Everdrive X7) seem to automatically set the TV type based on the region field.
+	// As a result, some users might not be able to play the ROM because their TV or capture device doesn't 
+	// support either PAL or NTSC. If the field is 0, the flashcart seems to not overwrite the console's region,
+	// so we use it as default.
+	char region = 0;
 
 
 	if(argc <= 1)
