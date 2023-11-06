@@ -792,14 +792,7 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
         float time = curr_frame[1].time;
         float time_next = curr_frame[2].time;
         float weight = (time == time_next) ? 0 : (anim_state->time-time)/(time_next-time);
-        //Clamp weight to maximum of 1.0f
-        if(weight > 1.0f) {
-            weight = 1.0f;
-        }
-        //Clamp weight to minimum of 0.0f
-        if(weight < 0.0f) {
-            weight = 0.0f;
-        }
+        assert(weight <= 1.0f && weight >= 0.0f);
         float *out;
         size_t out_count;
         switch(component) {
