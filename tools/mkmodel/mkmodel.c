@@ -1530,6 +1530,7 @@ void anim_build_keyframes(cgltf_data *data, gltf_anim_channel_t *channels, size_
                 add_anim_keyframe(out_anim, &keyframes, &channels[i], j, num_tracks);
             }
             add_anim_keyframe(out_anim, &keyframes, &channels[i], channels[i].samples.num_keyframes-1, num_tracks);
+            keyframes.data[keyframes.count-1].keyframe.time_req = channels[i].samples.keyframes[channels[i].samples.num_keyframes-2].time;
             num_tracks++;
         }
     }
