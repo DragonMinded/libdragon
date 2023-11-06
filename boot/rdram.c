@@ -63,7 +63,7 @@ typedef enum {
 
 #define BIT(x, n)           (((x) >> (n)) & 1)
 #define BITS(x, b, e)       (((x) >> (b)) & ((1 << ((e)-(b)+1))-1))
-#define BITSWAP5(x)         (BIT(x,0)<<4) | (BIT(x,1)<<3) | (BIT(x,2)<<2) | (BIT(x,3)<<1) | (BIT(x,4)<<0)
+#define BITSWAP5(x)         ((BIT(x,0)<<4) | (BIT(x,1)<<3) | (BIT(x,2)<<2) | (BIT(x,3)<<1) | (BIT(x,4)<<0))
 
 // Create a RDRAM_REG_DELAY value from the individual timings
 #define RDRAM_REG_DELAY_MAKE(write, ack, read, ackwin) \
