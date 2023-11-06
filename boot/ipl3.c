@@ -6,8 +6,6 @@
 #include "debug.h"
 #include "rdram.h"
 
-#include "rdram.c"
-
 #if 0
 void memtest(int memsize)
 {

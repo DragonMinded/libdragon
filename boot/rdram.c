@@ -2,6 +2,7 @@
 #include "debug.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /** 
  * Change to 1 to activate support for obsolete HW1 RCP.

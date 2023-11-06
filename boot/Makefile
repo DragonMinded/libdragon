@@ -26,7 +26,7 @@ build/%.o: %.c
 	mkdir -p build
 	$(N64_CC) -c $(N64_CFLAGS) -o $@ $<
 
-build/ipl3.bin: ipl3.ld build/ipl3.o build/minidragon.o build/loader.o build/debug.o
+build/ipl3.bin: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
 	$(N64_LD) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
 	$(N64_SIZE) -G build/ipl3.elf
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.bin
