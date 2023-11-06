@@ -3,12 +3,14 @@ OUTPUT_ARCH (mips)
 EXTERN (_start)
 ENTRY (_start)
 
-__ipl3_text_start  = 0xA4000040;
+__ipl3_text_start   = 0xA4000040;
+__ipl3_stage2_start = 0x807FF000;
 
 MEMORY
 {
     dmem : ORIGIN = 0xA4000040, LENGTH = 4088
     imem : ORIGIN = 0xA4001000, LENGTH = 2048
+    rdram : ORIGIN = 0x807FF000, LENGTH = 4096
 }
 
 SECTIONS {
@@ -20,11 +22,16 @@ SECTIONS {
         . = ALIGN(16);
         __text_start = .;
         *(.text)
+        *(.text.*)
         *(.data)
         *(.rodata)
         *(.rodata.*)
         __text_end  = .;
     } > dmem
+
+    .text __ipl3_stage2_start : {
+        *(.ipl3.stage2)
+    } > rdram
 
     .ipl3section : {
         . = ALIGN(4);    
