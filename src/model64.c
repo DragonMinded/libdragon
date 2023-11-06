@@ -735,11 +735,14 @@ static bool read_keyframe(model64_t *model, model64_anim_slot_t anim_slot)
     anim_state_t *anim_state = model->active_anims[anim_slot];
     model64_anim_t *curr_anim = &model->data->anims[anim_state->index];
     if(anim_state->prev_waiting_frame) {
-        decode_cur_keyframe(model, anim_slot);
+        if(!anim_state->done_decoding) {
+            decode_cur_keyframe(model, anim_slot);
+        }
     } else {
         anim_state->prev_waiting_frame = true;
     }
     if(anim_state->frame_idx >= curr_anim->num_keyframes) {
+        anim_state->done_decoding = true;
         return false;
     }
     if(model->data->anim_data_handle) {
@@ -762,6 +765,7 @@ static void init_keyframes(model64_t *model, model64_anim_slot_t anim_slot)
     uint32_t num_tracks = curr_anim->num_tracks;
     anim_state->frame_idx = 0;
     anim_state->prev_waiting_frame = false;
+    anim_state->done_decoding = false;
     for(size_t i=0; i<(num_tracks*4)+1; i++) {
         read_keyframe(model, anim_slot);
     }

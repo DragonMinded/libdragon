@@ -147,6 +147,7 @@ typedef struct anim_state_s {
     bool loop;                          ///< Whether this animation loops
     bool paused;                        ///< Whether this animation is active
     bool prev_waiting_frame;            ///< Whether there is a previous waiting frame
+    bool done_decoding;                 ///< Whether there are more keyframes to read
     float speed;                        ///< The speed of an animation
     uint32_t frame_idx;                 ///< Index of next keyframe to read
     decoded_keyframe_t *frames;         ///< Buffer for decoded keyframes
