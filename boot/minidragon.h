@@ -1,4 +1,12 @@
 
+#define MEMORY_BARRIER()    asm volatile ("" : : : "memory")
+
+#undef assert
+#define assert(x)           ({ if (!(x)) { debugf("ASSERTION FAILED: " #x); abort(); } })
+#define assertf(x, ...)     ({ if (!(x)) { debugf(#x); debugf(__VA_ARGS__); abort(); } })
+
+#define fabsf(x)           __builtin_fabsf(x)
+
 #define PI_STATUS          ((volatile uint32_t*)0xA4600010)
 #define PI_STATUS_DMA_BUSY ( 1 << 0 )
 #define PI_STATUS_IO_BUSY  ( 1 << 1 )
@@ -6,6 +14,12 @@
 #define SI_STATUS          ((volatile uint32_t*)0xA4800018)
 #define SI_STATUS_DMA_BUSY ( 1 << 0 )
 #define SI_STATUS_IO_BUSY  ( 1 << 1 )
+
+__attribute__((noreturn))
+static void abort(void)
+{
+    while(1) {}
+}
 
 __attribute__((noinline))
 static void io_write(uint32_t vaddrx, uint32_t value)

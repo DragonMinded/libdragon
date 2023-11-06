@@ -7,11 +7,11 @@
 #define SUPPORT_HW1   0
 
 #define MI_MODE                             ((volatile uint32_t*)0xA4300000)
-#define MI_WMODE_CLEAR_INIT_MODE            0x80
-#define MI_WMODE_SET_INIT_MODE              0x100
-#define MI_WMODE_LENGTH(n)                  ((n)-1)
-#define MI_WMODE_SET_RDRAM_REG_MODE         0x2000
-#define MI_WMODE_CLEAR_RDRAM_REG_MODE       0x1000
+#define MI_WMODE_CLEAR_REPEAT_MOD           0x80
+#define MI_WMODE_SET_REPEAT_MODE            0x100
+#define MI_WMODE_REPEAT_LENGTH(n)           ((n)-1)
+#define MI_WMODE_SET_UPPER_MODE             0x2000
+#define MI_WMODE_CLEAR_UPPER_MODE           0x1000
 #define MI_VERSION                          ((volatile uint32_t*)0xA4300004)
 
 #define RI_MODE								((volatile uint32_t*)0xA4700000)
@@ -35,6 +35,10 @@
 #define RI_MODE_RESET						0x0
 #define RI_MODE_STANDARD					(0x2 | RI_MODE_CLOCK_RX | RI_MODE_CLOCK_TX)
 
+// Maximum number of DeviceID value that we can configure a chip with.
+// IDs >= 512 are technically valid, but registers can't be accessed anymore.
+#define RDRAM_MAX_DEVICE_ID                 511
+
 #define RDRAM_BROADCAST                     -1
 typedef enum {
     RDRAM_REG_DEVICE_TYPE = 0,              // Read-only register which describes RDRAM configuration
@@ -52,6 +56,9 @@ typedef enum {
     RDRAM_REG_ROW = 128,                    // Address of currently sensed row in each bank
 } rdram_reg_t;
 
+// Create a RDRAM_REG_DELAY value from the individual timings
+#define RDRAM_REG_DELAY_MAKE(write, ack, read, ackwin) \
+    (((write) & 0xF) << (24+3)) | (((ack) & 0xF) << (16+3)) | (((read) & 0xF) << (8+3)) | (((ackwin) & 0xF) << (0+3))
 
 static void rdram_dump_regs(void)
 {
@@ -71,16 +78,6 @@ static uint32_t mi_version_io(void)  { return (*MI_VERSION >>  0) & 0xFF; }
 
 register uint32_t rdram_reg_stride_shift asm("k0");
 
-static void rdram_reg_init(void) {
-    // On RI v1, registers are 0x200 bytes apart
-    uint32_t version = SUPPORT_HW1 ? mi_version_io() : 2;
-    debugf("rdram_reg_init: IO version ", version);
-    switch (version) {
-    case 1:  rdram_reg_stride_shift =  9-2; break;
-    default: rdram_reg_stride_shift = 10-2; break;
-    }
-}
-
 static void rdram_reg_w(int chip_id, rdram_reg_t reg, uint32_t value)
 {
     // RDRAM registers are physically little-endian. Swap them on write, so that
@@ -90,6 +87,7 @@ static void rdram_reg_w(int chip_id, rdram_reg_t reg, uint32_t value)
         RDRAM_REGS_BROADCAST[reg] = value;
         debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS_BROADCAST[reg]), value);
     } else {
+        assert(chip_id < 512);
         RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg] = value;
         debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg]), value);
     }
@@ -97,35 +95,49 @@ static void rdram_reg_w(int chip_id, rdram_reg_t reg, uint32_t value)
 
 static uint32_t rdram_reg_r(int chip_id, rdram_reg_t reg)
 {
-    *MI_MODE = MI_WMODE_SET_RDRAM_REG_MODE;
+    MEMORY_BARRIER();
+    if (reg & 1) *MI_MODE = MI_WMODE_SET_UPPER_MODE;
     uint32_t value = RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg];
-    *MI_MODE = MI_WMODE_CLEAR_RDRAM_REG_MODE;
+    if (reg & 1) *MI_MODE = MI_WMODE_CLEAR_UPPER_MODE;
+    MEMORY_BARRIER();
     return byteswap32(value);
 }
+
+static void rdram_reg_init(void) {
+    // On RI v1, registers are 0x200 bytes apart
+    uint32_t version = SUPPORT_HW1 ? mi_version_io() : 2;
+    debugf("rdram_reg_init: IO version ", version);
+    switch (version) {
+    case 1:  rdram_reg_stride_shift =  9-2; break;
+    default: rdram_reg_stride_shift = 10-2; break;
+    }
+
+    // We must initialize the Delay timing register before accessing any other register.
+    // This is tricky before RI hardcodes the write delay to 1 cycle, but the RDRAM
+    // chips default to 4, so writing the Delay register is a chicken-egg problem.
+    // The solution here is to use the special "MI repeat mode" where the same
+    // written value is repeated N times. On top of that, we need to also half-rotate
+    // the value because the initial Delay of 4 put it out-of-phase
+    uint32_t delay = RDRAM_REG_DELAY_MAKE(1, 3, 7, 5);
+
+    // Rotate the value to allow for out-of-phase write
+    delay = (delay >> 16) | (delay << 16);
+
+    // Activate MI repeat mode and write the value to all chips (via broadcast)
+    *MI_MODE = MI_WMODE_SET_REPEAT_MODE | MI_WMODE_REPEAT_LENGTH(16);
+    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_DELAY, delay);
+}
+
 
 static void rdram_reg_w_deviceid(int chip_id, uint16_t new_chip_id)
 {   
     uint32_t value = 0;
 
-    value |= ((new_chip_id >>  0) & 0x03F) <<  3;   // Bits 0..5
+    value |= ((new_chip_id >>  0) & 0x03F) <<  2;   // Bits 0..5
     value |= ((new_chip_id >>  6) & 0x1FF) << 15;   // Bits 6..14
     value |= ((new_chip_id >> 15) & 0x001) << 31;   // Bit  15
 
     rdram_reg_w(chip_id, RDRAM_REG_DEVICE_ID, value);
-}
-
-static void rdram_reg_w_delay(int chip_id, uint32_t delay)
-{
-    // Delay register uses the special MI "init mode" that basically repeats
-    // the same word multiple times with a burst write to RDRAM chips. This is
-    // probably required because RI doesn't have configurable delay timings, so
-    // a burst is the best way to make sure the value does get written at boot.
-    // After the corect value is written, RI and RDRAM match the timings, so
-    // everything should work fine.
-    // NOTE: MI init mode auto-resets itself after the first write, so there's
-    // not need to explicitly clear it.
-    *MI_MODE = MI_WMODE_SET_INIT_MODE | MI_WMODE_LENGTH(0x10);
-    rdram_reg_w(chip_id, RDRAM_REG_DELAY, delay);
 }
 
 /** 
@@ -161,6 +173,26 @@ static void rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
     rdram_reg_w(nchip, RDRAM_REG_MODE, value);
 }
 
+static void rdram_reg_r_mode(int nchip, int *cci)
+{
+    uint32_t value = rdram_reg_r(nchip, RDRAM_REG_MODE);
+
+    if (cci) {
+        uint8_t cc0 = (value >> 30) &  1;
+        uint8_t cc1 = (value >> 21) &  2;
+        uint8_t cc2 = (value >> 12) &  4;
+        uint8_t cc3 = (value >> 28) &  8;
+        uint8_t cc4 = (value >> 19) & 16;
+        uint8_t cc5 = (value >> 10) & 32;
+        *cci = (cc0 | cc1 | cc2 | cc3 | cc4 | cc5);
+    }
+}
+
+// static void rdram_reg_w_delay(int chip_id, uint32_t value)
+// {
+//     rdram_reg_w(chip_id, RDRAM_REG_DELAY, value);
+// }
+
 static float memory_test(volatile uint32_t *vaddr) {
     enum { NUM_TESTS = 10 };
 
@@ -180,10 +212,11 @@ static float memory_test(volatile uint32_t *vaddr) {
     return accuracy * (1.0f / (NUM_TESTS * 8));
 }
 
-void rdram_calibrate_current(uint16_t chip_id, uint32_t *vaddr)
+void rdram_calibrate_current(uint16_t chip_id)
 {
     float weighted_sum = 0.0f;
     float prev_accuracy = 0.0f;
+    uint32_t *vaddr = RDRAM + chip_id * 1024 * 1024;
 
     for (int cc=0; cc<64; cc++) {
         // Go through all possible current values, in ascending order, in "manual" mode.
@@ -199,8 +232,34 @@ void rdram_calibrate_current(uint16_t chip_id, uint32_t *vaddr)
         if (accuracy >= 1.0f) break;
     }
 
-    int target_cc = weighted_sum * 2.2f + 0.5f;
+    int target_cc = weighted_sum * 2.2f + 0.5f; (void)target_cc;
     debugf("rdram_calibrate_current: target_cc ", target_cc);
+
+    // Now we want to configure the automatic mode. Unfortunately, the cc values
+    // written in automatic mode have a different scale compared to manual mode.
+    float minerr = 0;
+    int mincc = 0;
+    for (int cc=0; cc<64; cc++) {
+        // Write the CC value in automatic mode.
+        rdram_reg_w_mode(chip_id, true, cc);
+
+        // Read the CC value 
+        int cc_readback = 0;
+        rdram_reg_r_mode(chip_id, &cc_readback);
+        rdram_reg_r_mode(chip_id, &cc_readback);
+
+        float ccf = cc_readback;
+        float err = fabsf(ccf - target_cc);
+        if (cc == 0 || err < minerr) {
+            minerr = err;
+            mincc = cc;
+        }
+    }
+
+    debugf("rdram_calibrate_current: ", mincc, (uint32_t)(minerr * 0x3F));
+
+    // Write the CC value in automatic mode.
+    rdram_reg_w_mode(chip_id, true, mincc);
 }
 
 void rdram_init(void)
@@ -211,55 +270,44 @@ void rdram_init(void)
     // Check if it's already initialized (after reset)
     if (*RI_SELECT) return;
 
-    // Start current calibration. Quoting the datasheet:
-    //    The Rambus Channel output driveers are open-drain current sinks.
-    //    They are designed to sink the amount of current required to provide the
-    //    proper voltage swing on a terminated transmission line (the Channel) with
-    //    a characteristic impedance that may vary from system to system.
-    //    In order to work with all systems variations, the output drivers have
-    //    been designed to be calibrated for each system. Each output
-    //    driver is constructed from six binary weighted transistors that are
-    //    driven in combination to provide the desired output current.
-    //    Because the drive current of the individual transistors will vary
-    //    from RAC to RAC, and because the drive current will change with voltage
-    //    and temperature, internal calibration circuitry is provided to
-    //    help set and maintain constant current output over time.
-
-    debugf("rdram_init: autocalibrate current");
+    // Start current calibration. This is necessary to ensure the RAC outputs
+    // the correct current value to talk to RDRAM chips.
+    debugf("rdram_init: autocalibrate RAC output current");
     *RI_CONFIG = RI_CONFIG_AUTO_CALIBRATION;   // Turn on the RI auto current calibration
-    wait(0x10000);          // Wait for propagation
-    *RI_CURRENT_LOAD = 0;   // (?) Load the value calibrated by RI into the RAMDAC (any value here will do)
+    wait(0x10000);                             // Wait for calibration
+    *RI_CURRENT_LOAD = 0;                      // Apply the calibrated value
     
     // Activate communication with RDRAM chips. We can't do this before current calibration
     // as the chips might not be able to communicate correctly if the current is wrong.
     *RI_SELECT = RI_SELECT_RX_TX;
 
-    // Now that we can read back from the chips, we can read the calibrated current
-    debugf("\tCalibrated current: ", *RI_CURRENT_LOAD);
-
-    // Reset chips
-    debugf("rdram_init: reset chips");
+    // Reset chips. After the reset, all chips are turned off (DE=0 in MODE), and
+    // mapped to device ID 0.
+    debugf("rdram_init: reset RDRAM chips");
     *RI_MODE = RI_MODE_RESET;    wait(0x100);
     *RI_MODE = RI_MODE_STANDARD; wait(0x100);
 
-    // Initialize chips
+    // Initialize RDRAM register access
     rdram_reg_init();
-    rdram_reg_w_delay(RDRAM_BROADCAST, byteswap32(0x18082838));
 
     // All chips are now configured with the same chip ID (32). We now change the ID of
     // the first one to 0, so that we can begin addressing it separately. Notice that this
     // works because when using non-broadcast mode, only the first chip that matches the ID
     // receives the command, even if there are multiple chips with the same ID.
-    enum { INITIAL_COMMON_ID = 32 };  // FIXME: why this must be 32? Smaller values don't seem to work
+    enum { INITIAL_COMMON_ID = RDRAM_MAX_DEVICE_ID };
+
     rdram_reg_w_deviceid(RDRAM_BROADCAST, INITIAL_COMMON_ID);
+    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_REF_ROW, 0);
     rdram_reg_w_deviceid(INITIAL_COMMON_ID, 0);
-    rdram_calibrate_current(0, RDRAM);
+    rdram_calibrate_current(0);
     rdram_reg_w_deviceid(INITIAL_COMMON_ID, 2);
-    rdram_calibrate_current(2, RDRAM + 2*1024*1024);
+    rdram_calibrate_current(2);
     rdram_reg_w_deviceid(INITIAL_COMMON_ID, 4);
-    rdram_calibrate_current(4, RDRAM + 4*1024*1024);
+    rdram_calibrate_current(4);
+    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 6);
+    rdram_calibrate_current(6);
     
-    #if 1
+    #if DEBUG
     //rdram_reg_w_mode(RDRAM_BROADCAST, true, 0x20); // auto current mode, max current
     uint32_t manu[8], devtype[8];
     for (int i=0; i<8; i++) {
