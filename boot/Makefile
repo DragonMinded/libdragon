@@ -6,6 +6,7 @@ N64_CC = $(N64_GCCPREFIX_TRIPLET)gcc
 N64_LD = $(N64_GCCPREFIX_TRIPLET)ld
 N64_OBJCOPY = $(N64_GCCPREFIX_TRIPLET)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX_TRIPLET)objdump
+N64_SIZE = $(N64_GCCPREFIX_TRIPLET)size
 
 N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
 
@@ -27,6 +28,7 @@ build/ipl3.o: ipl3.c
 
 build/ipl3.bin: build/ipl3.o ipl3.ld
 	$(N64_LD) $(N64_LDFLAGS) -o build/ipl3.elf build/ipl3.o
+	$(N64_SIZE) -G build/ipl3.elf
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.bin
 
 ipl3.z64: build/ipl3.bin boot_signed.z64

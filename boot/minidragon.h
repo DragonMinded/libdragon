@@ -5,6 +5,7 @@
 #define assert(x)           ({ if (!(x)) { debugf("ASSERTION FAILED: " #x); abort(); } })
 #define assertf(x, ...)     ({ if (!(x)) { debugf(#x); debugf(__VA_ARGS__); abort(); } })
 
+#define abs(x)             __builtin_abs(x)
 #define fabsf(x)           __builtin_fabsf(x)
 
 #define PI_STATUS          ((volatile uint32_t*)0xA4600010)

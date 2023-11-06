@@ -24,7 +24,7 @@
 #define RI_WERROR							((volatile uint32_t*)0xA470001C)
 
 // Memory map exposed by RI to the CPU
-#define RDRAM                               ((void*)0xA0000000)
+#define RDRAM                               ((volatile void*)0xA0000000)
 #define RDRAM_REGS                          ((volatile uint32_t*)0xA3F00000)
 #define RDRAM_REGS_BROADCAST                ((volatile uint32_t*)0xA3F80000)
 
@@ -34,6 +34,11 @@
 #define RI_MODE_CLOCK_RX                    0x4
 #define RI_MODE_RESET						0x0
 #define RI_MODE_STANDARD					(0x2 | RI_MODE_CLOCK_RX | RI_MODE_CLOCK_TX)
+#define RI_REFRESH_CLEANDELAY(x)            ((x) & 0xFF)
+#define RI_REFRESH_DIRTYDELAY(x)            (((x) & 0xFF) << 8)
+#define RI_REFRESH_AUTO                     (1<<17)
+#define RI_REFRESH_OPTIMIZE                 (1<<18)
+#define RI_REFRESH_MULTIBANK(x)             (((x) & 0xF) << 19)
 
 // Maximum number of DeviceID value that we can configure a chip with.
 // IDs >= 512 are technically valid, but registers can't be accessed anymore.
@@ -56,9 +61,43 @@ typedef enum {
     RDRAM_REG_ROW = 128,                    // Address of currently sensed row in each bank
 } rdram_reg_t;
 
+#define BIT(x, n)           (((x) >> (n)) & 1)
+#define BITS(x, b, e)       (((x) >> (b)) & ((1 << ((e)-(b)+1))-1))
+#define BITSWAP5(x)         (BIT(x,0)<<4) | (BIT(x,1)<<3) | (BIT(x,2)<<2) | (BIT(x,3)<<1) | (BIT(x,4)<<0)
+
 // Create a RDRAM_REG_DELAY value from the individual timings
 #define RDRAM_REG_DELAY_MAKE(write, ack, read, ackwin) \
     (((write) & 0xF) << (24+3)) | (((ack) & 0xF) << (16+3)) | (((read) & 0xF) << (8+3)) | (((ackwin) & 0xF) << (0+3))
+
+// Create a RDRAM_REG_RASINTERVAL value from individual timings
+#define RDRAM_REG_RASINTERVAL_MAKE(row_precharge, row_sense, row_imp_restore, row_exp_restore) \
+    (BITSWAP5(row_precharge) | (BITSWAP5(row_sense) << 8) | (BITSWAP5(row_imp_restore) << 16) | (BITSWAP5(row_exp_restore) << 24))
+    
+enum {
+    MANUFACTURER_TOSHIBA = 0x2,
+    MANUFACTURER_FUJITSU = 0x3,
+    MANUFACTURER_NEC = 0x5,
+    MANUFACTURER_HITACHI = 0x7,
+    MANUFACTURER_OKI = 0x9,
+    MANUFACTURER_LG = 0xA,
+    MANUFACTURER_SAMSUNG = 0x10,
+    MANUFACTURER_HYNDAI = 0x13,
+} RDRAM_MANUFACTURERS;
+
+typedef struct {
+    int manu;              // Manufacturer company
+    int code;              // Internal product ID (assigned by the company)
+} rdram_reg_manufacturer_t;
+
+typedef struct {
+    int version;
+    int type;
+    int row_bits;
+    int bank_bits;
+    int col_bits;
+    int ninth_bit;
+    int low_latency;
+} rdram_reg_devicetype_t;
 
 static void rdram_dump_regs(void)
 {
@@ -85,11 +124,11 @@ static void rdram_reg_w(int chip_id, rdram_reg_t reg, uint32_t value)
     value = byteswap32(value);
     if (chip_id < 0) {
         RDRAM_REGS_BROADCAST[reg] = value;
-        debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS_BROADCAST[reg]), value);
+        // debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS_BROADCAST[reg]), value);
     } else {
         assert(chip_id < 512);
         RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg] = value;
-        debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg]), value);
+        // debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg]), value);
     }
 }
 
@@ -188,10 +227,28 @@ static void rdram_reg_r_mode(int nchip, int *cci)
     }
 }
 
-// static void rdram_reg_w_delay(int chip_id, uint32_t value)
-// {
-//     rdram_reg_w(chip_id, RDRAM_REG_DELAY, value);
-// }
+static rdram_reg_manufacturer_t rdram_reg_r_manufacturer(int nchip)
+{
+    uint32_t value = rdram_reg_r(nchip, RDRAM_REG_DEVICE_MANUFACTURER);
+    return (rdram_reg_manufacturer_t){
+        .manu = BITS(value, 16, 31),
+        .code = BITS(value,  0, 15),
+    };
+}
+
+static rdram_reg_devicetype_t rdram_reg_r_devicetype(int nchip)
+{
+    uint32_t value = rdram_reg_r(nchip, RDRAM_REG_DEVICE_TYPE);
+    return (rdram_reg_devicetype_t){
+        .version = BITS(value, 28, 31),
+        .type = BITS(value, 24, 27),
+        .row_bits = BITS(value, 8, 11),
+        .bank_bits = BITS(value, 12, 15),
+        .col_bits = BITS(value, 4, 7),
+        .ninth_bit = BIT(value, 2),
+        .low_latency = BIT(value, 0),
+    };
+}
 
 static float memory_test(volatile uint32_t *vaddr) {
     enum { NUM_TESTS = 10 };
@@ -212,11 +269,11 @@ static float memory_test(volatile uint32_t *vaddr) {
     return accuracy * (1.0f / (NUM_TESTS * 8));
 }
 
-void rdram_calibrate_current(uint16_t chip_id)
+int rdram_calibrate_current(uint16_t chip_id)
 {
     float weighted_sum = 0.0f;
     float prev_accuracy = 0.0f;
-    uint32_t *vaddr = RDRAM + chip_id * 1024 * 1024;
+    volatile uint32_t *vaddr = RDRAM + chip_id * 1024 * 1024;
 
     for (int cc=0; cc<64; cc++) {
         // Go through all possible current values, in ascending order, in "manual" mode.
@@ -225,20 +282,22 @@ void rdram_calibrate_current(uint16_t chip_id)
         // Perform a memory test to check how stable the RDRAM is at this current level.
         // Calculate a weighted sum between the different current levels.
         float accuracy = memory_test(vaddr);
-        debugf("rdram_calibrate_current: accuracy ", cc, (uint32_t)(accuracy * 255));
+        //debugf("rdram_calibrate_current: accuracy ", cc, (uint32_t)(accuracy * 255));
         weighted_sum += (accuracy - prev_accuracy) * cc;
 
         // Stop once we reach full accuracy.
         if (accuracy >= 1.0f) break;
     }
 
-    int target_cc = weighted_sum * 2.2f + 0.5f; (void)target_cc;
-    debugf("rdram_calibrate_current: target_cc ", target_cc);
+    int target_cc = weighted_sum * 2.2f + 0.5f;
+    if (!target_cc)
+        return 0;
+    // debugf("rdram_calibrate_current: target_cc ", target_cc);
 
     // Now we want to configure the automatic mode. Unfortunately, the cc values
     // written in automatic mode have a different scale compared to manual mode.
-    float minerr = 0;
-    int mincc = 0;
+    int minerr = 0;
+    int autocc = 0;
     for (int cc=0; cc<64; cc++) {
         // Write the CC value in automatic mode.
         rdram_reg_w_mode(chip_id, true, cc);
@@ -248,18 +307,15 @@ void rdram_calibrate_current(uint16_t chip_id)
         rdram_reg_r_mode(chip_id, &cc_readback);
         rdram_reg_r_mode(chip_id, &cc_readback);
 
-        float ccf = cc_readback;
-        float err = fabsf(ccf - target_cc);
+        int err = abs(cc_readback - target_cc);
         if (cc == 0 || err < minerr) {
             minerr = err;
-            mincc = cc;
+            autocc = cc;
         }
     }
 
-    debugf("rdram_calibrate_current: ", mincc, (uint32_t)(minerr * 0x3F));
-
-    // Write the CC value in automatic mode.
-    rdram_reg_w_mode(chip_id, true, mincc);
+    // debugf("rdram_calibrate_current: auto_cc ", autocc, minerr);
+    return autocc;
 }
 
 void rdram_init(void)
@@ -290,36 +346,111 @@ void rdram_init(void)
     // Initialize RDRAM register access
     rdram_reg_init();
 
-    // All chips are now configured with the same chip ID (32). We now change the ID of
-    // the first one to 0, so that we can begin addressing it separately. Notice that this
-    // works because when using non-broadcast mode, only the first chip that matches the ID
-    // receives the command, even if there are multiple chips with the same ID.
-    enum { INITIAL_COMMON_ID = RDRAM_MAX_DEVICE_ID };
-
-    rdram_reg_w_deviceid(RDRAM_BROADCAST, INITIAL_COMMON_ID);
+    // Follow the init procedure specified in the datasheet.
+    // First, put all of them to a fixed high ID (we use RDRAM_MAX_DEVICE_ID).
+    enum { 
+        INITIAL_ID = RDRAM_MAX_DEVICE_ID,
+        INVALID_ID = RDRAM_MAX_DEVICE_ID - 2,
+    };
+    rdram_reg_w_deviceid(RDRAM_BROADCAST, INITIAL_ID);
     rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_REF_ROW, 0);
-    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 0);
-    rdram_calibrate_current(0);
-    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 2);
-    rdram_calibrate_current(2);
-    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 4);
-    rdram_calibrate_current(4);
-    rdram_reg_w_deviceid(INITIAL_COMMON_ID, 6);
-    rdram_calibrate_current(6);
-    
-    #if DEBUG
-    //rdram_reg_w_mode(RDRAM_BROADCAST, true, 0x20); // auto current mode, max current
-    uint32_t manu[8], devtype[8];
-    for (int i=0; i<8; i++) {
-        manu[i] = rdram_reg_r(i, RDRAM_REG_DEVICE_MANUFACTURER);
-        devtype[i] = rdram_reg_r(i, RDRAM_REG_DEVICE_TYPE);
+
+    // Initialization loop
+    int total_memory = 0;
+    int chip_id = 0; 
+    while (1) {
+        // Change the device ID to chip_id, which is our progressive ID. All chips
+        // now are mapped to INITIAL_ID, but only the first one in the chain will
+        // actually catch this non-broadcast command and change its ID. We use
+        // this trick to configure one chip at a time.
+        rdram_reg_w_deviceid(INITIAL_ID, chip_id);
+
+        // Calibrate the chip current. Do 
+        enum { NUM_CALIBRATION_ATTEMPTS = 4 };
+        int weighted_cc = 0;
+        for (int i=0; i<NUM_CALIBRATION_ATTEMPTS; i++) {
+            int cc = rdram_calibrate_current(chip_id);
+            if (!cc) break;
+            weighted_cc += cc;
+        }
+        if (!weighted_cc) {
+            // Current calibration failed, we assume there are no more chips in the bus
+            break;
+        }
+        int target_cc = weighted_cc / NUM_CALIBRATION_ATTEMPTS;
+        rdram_reg_w_mode(chip_id, true, target_cc);
+   
+        // Now that we have calibrated the output current of the chip, we are able
+        // to actually read data from it. Read the manufacturer code and the device type.
+        rdram_reg_devicetype_t t = rdram_reg_r_devicetype(chip_id);
+
+        // Check that the chip matches the expected geometry. Notice that we only
+        // support 2 MiB chips at this point, as there are no known commercial units
+        // with 1 MiB chips (also Nintendo IPL3 is broken for 1 MiB chips anyway).
+        // Notice also that "4 MiB chips" are actually two different 2 MiB chips
+        // in the same package, so we actually see them as two different chips.
+        if (t.bank_bits != 1 || t.row_bits != 9 || t.col_bits != 0xB || t.ninth_bit != 1) {
+            debugf("error: invalid geometry: ", t.version, t.type, t.row_bits, t.bank_bits, t.col_bits, t.ninth_bit, t.low_latency);
+            rdram_reg_w_deviceid(chip_id, INVALID_ID);
+            break;
+        }
+
+        // Read the manufacturer to configure the timing
+        rdram_reg_manufacturer_t m = rdram_reg_r_manufacturer(chip_id);
+
+        uint32_t ras_interval;
+        switch (m.manu) {
+            case MANUFACTURER_NEC:
+                // From NEC datasheet
+                ras_interval = RDRAM_REG_RASINTERVAL_MAKE(1, 7, 10, 4);
+                break;
+            case MANUFACTURER_OKI:
+                // From OKI datasheet
+                ras_interval = RDRAM_REG_RASINTERVAL_MAKE(2, 6,  9, 4);
+                break;
+            default:
+                // For anything else, use the low latency bit to try to configure
+                // the correct RAS intervals
+                if (t.low_latency)
+                    ras_interval = RDRAM_REG_RASINTERVAL_MAKE(1, 7, 10, 4);
+                else
+                    ras_interval = RDRAM_REG_RASINTERVAL_MAKE(2, 6,  9, 4);            
+                break;
+        }
+        rdram_reg_w(chip_id, RDRAM_REG_RAS_INTERVAL, ras_interval);
+
+        // Touch each bank of RDRAM to "settle timing circuits". We need to touch
+        // memory every 512 KiB, so it's 4 iterations for 2 MiB chips.
+        for (int bank=0; bank<4; bank++) {
+            volatile uint32_t *ptr = RDRAM + chip_id * 1024 * 1024 + bank * 512 * 1024;
+            (void)ptr[0]; (void)ptr[1];
+        }
+
+        debugf("Chip: ", chip_id);
+        debugf("    Manufacturer: ", m.manu);
+        debugf("    Geometry: ", t.bank_bits, t.row_bits, t.col_bits);
+        debugf("    Current: ", target_cc);
+        debugf("    RAS: ", ras_interval);
+
+        // The chip has been configured and mapped. Now go to the next chip.
+        // 2 MiB chips must be mapped at even addresses (as they cover two
+        // 1-MiB areas), so increase chip-id by 2
+        chip_id += 2;
+        total_memory += 2*1024*1024;
     }
-    debugf("rdram_init: manufacturer: ", manu[0], manu[1], manu[2], manu[3], manu[4], manu[5], manu[6], manu[7]);
-    debugf("rdram_init: device type: ", devtype[0], devtype[1], devtype[2], devtype[3], devtype[4], devtype[5], devtype[6], devtype[7]);
-    // debugf("rdram_init: chip 0: manufacturer:");
-    // static const char *manufacturers[] = { "<unknown>", "?", "?", "?", "?", "NEC", "?", "?" };
-    // debugf(manufacturers[manu[0] >> 16]);
-    #endif
+
+    debugf("Total memory: ", total_memory);
+
+    // Setup now the RI refresh register, so that RDRAM chips get refreshed
+    // at each HSYNC.
+    // This register contains a bitmask that indicates which RDRAM chips are
+    // multibank (aka 2 MiB). The bitmask has only 4 bits, so we can only
+    // configure 4 chips (which is enough for 4x2MiB = 8MiB total RDRAM).
+    // Since we only support 2 MiB chips anyway, we fill the bitmask with 1s
+    // corresponding to the number of chips that were found.
+    int refresh_multibanks = (1 << (chip_id >> 1)) - 1;
+    *RI_REFRESH = RI_REFRESH_AUTO | RI_REFRESH_OPTIMIZE | RI_REFRESH_CLEANDELAY(52) | RI_REFRESH_DIRTYDELAY(54) | RI_REFRESH_MULTIBANK(refresh_multibanks);
+    (void)*RI_REFRESH; // A dummy read seems necessary
 
     debugf("rdram_init: done");
     rdram_dump_regs();
