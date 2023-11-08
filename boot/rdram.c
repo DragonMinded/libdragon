@@ -420,10 +420,6 @@ int rdram_init(void)
                 // From NEC datasheet
                 ras_interval = RDRAM_REG_RASINTERVAL_MAKE(1, 7, 10, 4);
                 break;
-            case MANUFACTURER_OKI:
-                // From OKI datasheet
-                ras_interval = RDRAM_REG_RASINTERVAL_MAKE(2, 6,  9, 4);
-                break;
             default:
                 // For anything else, use the low latency bit to try to configure
                 // the correct RAS intervals
