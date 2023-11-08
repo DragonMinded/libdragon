@@ -36,7 +36,7 @@
 #define PRIMITIVE_SIZE      108
 #define NODE_SIZE           128
 #define SKIN_SIZE           8
-#define ANIM_SIZE           28
+#define ANIM_SIZE           40
 
 
 #define ATTRIBUTE_COUNT     5
@@ -525,6 +525,7 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     walign(out, 4);
     placeholder_set(out, "anims");
     for(uint32_t i=0; i<model->num_anims; i++) {
+        int start_ofs = ftell(out);
         w32_placeholderf(out, "anim%d_name", i);
         float pos_scale = (model->anims[i].pos_f2-model->anims[i].pos_f1)/65535.0f;
         float scale_scale = (model->anims[i].scale_f2-model->anims[i].scale_f1)/65535.0f;
@@ -537,6 +538,7 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
         w32_placeholderf(out, "anim%d_keyframes", i);
         w32(out, model->anims[i].num_tracks);
         w32_placeholderf(out, "anim%d_tracks", i);
+        assert(ftell(out)-start_ofs == ANIM_SIZE);
     }
     for(uint32_t i=0; i<model->num_anims; i++) {
         placeholder_set(out, "anim%d_tracks", i);
@@ -553,7 +555,7 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     }
     for(uint32_t i=0; i<model->num_anims; i++) {
         walign(anim_out, 4);
-        placeholder_set_offset(out, ftell(anim_out), "anim%d_data", i);
+        placeholder_set_offset(out, ftell(anim_out), "anim%d_keyframes", i);
         model64_write_anim_data(&model->anims[i], anim_out);
     }
 }
@@ -662,7 +664,7 @@ int is_rigid_skinned(attribute_t *weight_attr, uint32_t num_vertices)
         uint32_t num_used_weights = 0;
         for(uint32_t j=0; j<weight_attr->size; j++)
         {
-            if(buffer[j] != 0)
+            if(buffer[j] > 0.1f)
             {
                 num_used_weights++;
             }
