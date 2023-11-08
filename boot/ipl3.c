@@ -5,6 +5,7 @@
 #include "minidragon.h"
 #include "debug.h"
 #include "rdram.h"
+#include "loader.h"
 
 #if 0
 void memtest(int memsize)
@@ -46,6 +47,21 @@ void memtest(int memsize)
 }
 #endif
 
+typedef struct {
+    uint32_t memory_size;
+    uint32_t tv_type;
+    uint32_t reset_type;
+} bootinfo_t;
+
+extern int __stage2_size;
+
+static inline void rsp_clear_imem_async(void)
+{
+    *SP_RSP_ADDR = 0x1000; // IMEM
+    *SP_DRAM_ADDR = 8*1024*1024; // RDRAM addresses >8 MiB always return 0
+    *SP_RD_LEN = 4096-1;
+}
+
 __attribute__((noreturn, section(".boot")))
 void _start(void)
 {
@@ -55,6 +71,11 @@ void _start(void)
     register uint32_t ipl2_romSeed   asm ("s6"); (void)ipl2_romSeed;
     register uint32_t ipl2_version   asm ("s7"); (void)ipl2_version;
 
+    // Clear IMEM (contains IPL2). We don't need it anymore, and we can 
+    // instead use IMEM as a zero-buffer for RSP DMA.
+    // Also, we put our bss in IMEM.
+    rsp_clear_imem_async();
+
     usb_init();
     debugf("Libdragon IPL3");
     
@@ -62,14 +83,29 @@ void _start(void)
     C0_WRITE_COUNT(0);
     C0_WRITE_COMPARE(0);
 
+
     int memsize = rdram_init(); (void)memsize;
+
+    // Clear D/I-cache, useful after warm boot. Maybe not useful for cold
+    // boots, but the manual says that the cache state is invalid at boot,
+    // so a reset won't hurt.
     cop0_clear_cache();
 
-    si_write(0x7FC, 0x8);  // PIF boot terminator
+    // Fill boot information at fixed RDRAM address
+    bootinfo_t *bootinfo = (bootinfo_t*)0x80000000;
+    bootinfo->memory_size = memsize;
+    bootinfo->tv_type = ipl2_tvType;
+    bootinfo->reset_type = ipl2_resetType;
 
     // Perform a memtest
     // memtest(memsize);
 
-    debugf("IPL3 done");
-    while(1) {}
+    // Copy the IPL3 stage2 (loader.c) from DMEM to the end of RDRAM.
+    extern uint32_t __stage2_start[];
+    int stage2_size = (int)&__stage2_size;
+    void *rdram_stage2 = (void*)0x80000000 + memsize - stage2_size;
+    rsp_dma_to_rdram(__stage2_start, rdram_stage2, stage2_size);
+
+    // Jump to stage 2 in RDRAM.
+    goto *rdram_stage2;
 }

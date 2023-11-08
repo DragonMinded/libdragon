@@ -8,6 +8,10 @@
 #include "pputils.h"
 
 void usb_init(void);
+
+#if STAGE2
+__attribute__((far))
+#endif
 void _usb_print(int ssize, const char *string, int nargs, ...);
 
 #define debugf(s, ...)   _usb_print(__builtin_strlen(s), s "    ", __COUNT_VARARGS(__VA_ARGS__), ##__VA_ARGS__)

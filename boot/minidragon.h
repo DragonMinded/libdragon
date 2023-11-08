@@ -29,6 +29,13 @@
 #define INDEX_STORE_TAG_I              	BUILD_CACHE_OP(INDEX_STORE_TAG,CACHE_I)
 #define INDEX_STORE_TAG_D               BUILD_CACHE_OP(INDEX_STORE_TAG,CACHE_D)
 
+#define SP_RSP_ADDR     ((volatile uint32_t*)0xa4040000)
+#define SP_DRAM_ADDR    ((volatile uint32_t*)0xa4040004)
+#define SP_RD_LEN       ((volatile uint32_t*)0xa4040008)
+#define SP_WR_LEN       ((volatile uint32_t*)0xa404000c)
+#define SP_DMA_BUSY     ((volatile uint32_t*)0xa4040018)
+
+
 #define cache_op(addr, op, linesize, length) ({ \
     { \
         void *cur = (void*)((unsigned long)addr & ~(linesize-1)); \
@@ -77,6 +84,14 @@ static inline uint32_t __byteswap32(uint32_t x)
     y |= (x << 8) & 0xff0000;
     y |= (x << 24) & 0xff000000;
     return y;
+}
+
+static inline void rsp_dma_to_rdram(void* dmem, void *rdram, int size)
+{
+    *SP_RSP_ADDR = (uint32_t)dmem;
+    *SP_DRAM_ADDR = (uint32_t)rdram;
+    *SP_WR_LEN = size-1;
+    while (*SP_DMA_BUSY) {}
 }
 
 #define byteswap32(x) (__builtin_constant_p(x) ? __builtin_bswap32(x) : __byteswap32(x))
