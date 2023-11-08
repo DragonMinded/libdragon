@@ -833,6 +833,7 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
 
 void model64_update(model64_t *model, float deltatime)
 {
+    assertf(deltatime >= 0, "Delta time must not be negative");
     for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
         if(!model->active_anims[i]) {
             continue;
@@ -854,7 +855,9 @@ void model64_update(model64_t *model, float deltatime)
         model->active_anims[i]->time += model->active_anims[i]->speed*deltatime;
         if(model->active_anims[i]->time >= curr_anim->duration) {
             if(model->active_anims[i]->loop) {
-                model->active_anims[i]->time -= curr_anim->duration;
+                while(model->active_anims[i]->time >= curr_anim->duration) {
+                    model->active_anims[i]->time -= curr_anim->duration;
+                }
                 model->active_anims[i]->invalid_pose = true;
             } else {
                 model->active_anims[i]->time = curr_anim->duration;
