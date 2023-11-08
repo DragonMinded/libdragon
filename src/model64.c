@@ -559,6 +559,7 @@ void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t s
 {
     int32_t anim_index = search_anim_index(model, anim);
     assertf(anim_index != -1, "Animation %s was not found\n", anim);
+    assertf(start_time >= 0, "Start time must be strictly non-negative");
     if(!model->active_anims[slot]) {
         alloc_anim_slot(model, slot);
     }
@@ -599,6 +600,7 @@ float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
 float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float time)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
+    assertf(time >= 0, "Time must be strictly non-negative");
     if(!model->active_anims[slot]) {
         alloc_anim_slot(model, slot);
     }
@@ -837,6 +839,10 @@ void model64_update(model64_t *model, float deltatime)
         }
         if(model->active_anims[i]->index == -1 || model->active_anims[i]->paused || model->active_anims[i]->speed == 0) {
             if(model->active_anims[i]->index != -1 && model->active_anims[i]->invalid_pose) {
+                model64_anim_t *curr_anim = &model->data->anims[model->active_anims[i]->index];
+                if(model->active_anims[i]->time >= curr_anim->duration) {
+                    model->active_anims[i]->time = curr_anim->duration;
+                }
                 init_keyframes(model, i);
                 fetch_needed_keyframes(model, i);
                 calc_anim_pose(model, i);
@@ -851,6 +857,7 @@ void model64_update(model64_t *model, float deltatime)
                 model->active_anims[i]->time -= curr_anim->duration;
                 model->active_anims[i]->invalid_pose = true;
             } else {
+                model->active_anims[i]->time = curr_anim->duration;
                 model->active_anims[i]->paused = true;
             }
         }
