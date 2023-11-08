@@ -855,7 +855,7 @@ void model64_update(model64_t *model, float deltatime)
         model->active_anims[i]->time += model->active_anims[i]->speed*deltatime;
         if(model->active_anims[i]->time >= curr_anim->duration) {
             if(model->active_anims[i]->loop) {
-                while(model->active_anims[i]->time > curr_anim->duration) {
+                while(model->active_anims[i]->time >= curr_anim->duration) {
                     model->active_anims[i]->time -= curr_anim->duration;
                 }
                 model->active_anims[i]->invalid_pose = true;
