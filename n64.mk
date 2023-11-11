@@ -53,17 +53,12 @@ N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings -I$(N64_INCLUDEDI
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
-N64_DSO_EXTRA_CFLAGS = -mno-gpopt
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
 N64_TOOLFLAGS += $(if $(N64_ROM_REGION),--region $(N64_ROM_REGION))
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_REGIONFREE),--regionfree)
-
-ifeq ($(DSO_HIDE_SYMBOLS),1)
-N64_DSO_EXTRA_CFLAGS += -fvisibility=hidden
-endif
 
 ifeq ($(D),1)
 CFLAGS+=-g3
@@ -183,8 +178,8 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.dso: CXX=$(N64_CXX)
 %.dso: AS=$(N64_AS)
 %.dso: LD=$(N64_LD)
-%.dso: CFLAGS+=$(N64_CFLAGS) $(N64_DSO_EXTRA_CFLAGS)
-%.dso: CXXFLAGS+=$(N64_CXXFLAGS) $(N64_DSO_EXTRA_CFLAGS)
+%.dso: CFLAGS+=$(N64_CFLAGS) -mno-gpopt $(DSO_CFLAGS)
+%.dso: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt $(DSO_CXXFLAGS)
 %.dso: ASFLAGS+=$(N64_ASFLAGS)
 %.dso: RSPASFLAGS+=$(N64_RSPASFLAGS)
 
@@ -196,9 +191,9 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	$(N64_LD) $(N64_DSOLDFLAGS) -Map=$(basename $(DSO_ELF)).map -o $(DSO_ELF) $(filter %.o, $^)
 	$(N64_SIZE) -G $(DSO_ELF)
 ifneq ($(DSO_UNCOMPRESSED),1)
-	$(N64_DSO) -o $(dir $@) -c $(DSO_ELF)
-else
 	$(N64_DSO) -o $(dir $@) $(DSO_ELF)
+else
+	$(N64_DSO) -o $(dir $@) -c 0 $(DSO_ELF)
 endif
 	$(N64_SYM) $(DSO_ELF) $@.sym
 	
