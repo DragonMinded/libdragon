@@ -1,4 +1,5 @@
 BUILD_DIR=build
+DSO_UNCOMPRESSED=1 #Store DSOs uncompressed for easier analysis of output
 include $(N64_INST)/include/n64.mk
 
 all: testrom.z64 testrom_emu.z64

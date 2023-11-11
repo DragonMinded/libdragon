@@ -111,11 +111,11 @@ static void remove_module(dl_module_t *module)
 	__dl_num_loaded_modules--; //Remove one loaded module
 }
 
-static void fixup_sym_names(dso_sym_t *syms, uint32_t num_syms)
+static void fixup_sym_names(dso_sym_t *syms, uint8_t *name_base, uint32_t num_syms)
 {
     //Fixup symbol name pointers
     for(uint32_t i=0; i<num_syms; i++) {
-        syms[i].name = PTR_DECODE(syms, syms[i].name);
+        syms[i].name = PTR_DECODE(name_base, syms[i].name);
     }
 }
 
@@ -144,7 +144,7 @@ static void load_mainexe_sym_table()
     dma_wait();
     //Fixup main executable symbol table
     mainexe_sym_count = mainexe_sym_info.num_syms;
-    fixup_sym_names(mainexe_sym_table, mainexe_sym_count);
+    fixup_sym_names(mainexe_sym_table, (uint8_t *)mainexe_sym_table, mainexe_sym_count);
 }
 
 static int sym_compare(const void *arg1, const void *arg2)
@@ -174,7 +174,7 @@ static dso_sym_t *search_module_next_sym(dl_module_t *from, const char *name)
         //Search only symbol tables with symbols exposed
         if(curr->mode & RTLD_GLOBAL) {
             //Search through module symbol table
-            dso_sym_t *symbol = search_module_exports(curr->module, name);
+            dso_sym_t *symbol = search_module_exports(curr, name);
             if(symbol) {
                 //Found symbol in module symbol table
                 return symbol;
@@ -345,7 +345,9 @@ static void link_module(dso_module_t *module)
     module->syms = PTR_DECODE(module, module->syms);
     module->relocs = PTR_DECODE(module, module->relocs);
     module->prog_base = PTR_DECODE(module, module->prog_base);
-    fixup_sym_names(module->syms, module->num_syms);
+    module->src_elf = PTR_DECODE(module, module->src_elf);
+    module->filename = PTR_DECODE(module, module->filename);
+    fixup_sym_names(module->syms, (uint8_t *)module, module->num_syms);
     resolve_syms(module);
     relocate_module(module);
     flush_module(module);
@@ -353,12 +355,11 @@ static void link_module(dso_module_t *module)
 
 static void start_module(dl_module_t *handle)
 {
-    dso_module_t *module = handle->module;
-    dso_sym_t *eh_frame_begin = search_module_exports(module, "__EH_FRAME_BEGIN__");
+    dso_sym_t *eh_frame_begin = search_module_exports(handle, "__EH_FRAME_BEGIN__");
     if(eh_frame_begin) {
         __register_frame_info((void *)eh_frame_begin->value, handle->ehframe_obj);
     }
-    dso_sym_t *ctor_list = search_module_exports(module, "__CTOR_LIST__");
+    dso_sym_t *ctor_list = search_module_exports(handle, "__CTOR_LIST__");
     if(ctor_list) {
         func_ptr *curr = (func_ptr *)ctor_list->value;
         while(*curr) {
@@ -374,8 +375,8 @@ static dl_module_t *lookup_module(const void *addr)
     dl_module_t *curr = __dl_list_head;
     while(curr) {
         //Get module address range
-        void *min_addr = curr->module->prog_base;
-        void *max_addr = PTR_DECODE(min_addr, curr->module->prog_size);
+        void *min_addr = curr->prog_base;
+        void *max_addr = PTR_DECODE(min_addr, curr->prog_size);
         if(addr >= min_addr && addr < max_addr) {
             //Address is inside module
             return curr;
@@ -390,6 +391,7 @@ void *dlopen(const char *filename, int mode)
 {
     dl_module_t *handle;
     assertf(strncmp(filename, "rom:/", 5) == 0, "Cannot open %s: dlopen only supports files in ROM (rom:/)", filename);
+    assertf(strlen(filename) <= 255, "dlopen only supports filenames with no more than 255 characters");
     handle = search_module_filename(filename);
     if(mode & ~(RTLD_GLOBAL|RTLD_NODELETE|RTLD_NOLOAD)) {
         output_error("invalid mode for dlopen()");
@@ -403,59 +405,22 @@ void *dlopen(const char *filename, int mode)
     }
     if(handle) {
         //Increment use count
-        handle->use_count++;
+        handle->ref_count++;
     } else {
-        dso_load_info_t load_info;
-        size_t module_size;
-        //Open asset file
-        FILE *file = asset_fopen(filename, NULL);
-        fread(&load_info, sizeof(dso_load_info_t), 1, file); //Read load info
-        //Verify DSO file
-        assertf(load_info.magic == DSO_MAGIC, "Invalid DSO file");
-        //Calculate module size
-        module_size = load_info.size+load_info.extra_mem;
-        //Calculate loaded file size
-        size_t alloc_size = sizeof(dl_module_t);
-        //Add room for filename including additional .sym extension and null terminator
-        size_t filename_len = strlen(filename);
-        alloc_size += filename_len+5;
-        //Add room for module
-        alloc_size = ROUND_UP(alloc_size, load_info.mem_align);
-        alloc_size += module_size;
-		//Allocate everything in 1 chunk (using memalign is requiring more than 8-byte alignment)
-		if(load_info.mem_align > 8) {
-			handle = memalign(load_info.mem_align, alloc_size); 
-		} else {
-			handle = malloc(alloc_size);
-		}
-        //Initialize handle
-        handle->prev = handle->next = NULL; //Initialize module links to NULL
-        //Initialize well known module parameters
+        handle = asset_load(filename, NULL);
+        assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
+        link_module(handle);
         handle->mode = mode;
-        handle->module_size = module_size;
-        //Initialize pointer fields
-        handle->filename = PTR_DECODE(handle, sizeof(dl_module_t)); //Filename is after handle data
-        handle->module = PTR_DECODE(handle, alloc_size-module_size); //Module is at end of allocation
-        //Read module
-        memset(handle->module, 0, module_size);
-        fread(handle->module, load_info.size, 1, file);
-        fclose(file);
-        //Copy filename to structure
-        strcpy(handle->filename, filename);
-        //Try finding symbol file in ROM
-        strcpy(&handle->filename[filename_len], ".sym");
-        //Calculate physical address of ROM file
-        handle->debugsym_romaddr = dfs_rom_addr(handle->filename+5) & 0x1FFFFFFF;
-        if(handle->debugsym_romaddr == 0) {
+        sprintf(handle->filename, "%s.sym", filename+5);
+        handle->sym_romofs = dfs_rom_addr(handle->filename) & 0x1FFFFFFF;
+        if(handle->sym_romofs == 0) {
             //Warn if symbol file was not found in ROM
             debugf("Could not find module symbol file %s.\n", handle->filename);
             debugf("Will not get symbolic backtraces through this module.\n");
         }
-        handle->filename[filename_len] = 0; //Re-add filename terminator in right spot
-        //Link module
-        link_module(handle->module);
+        strcpy(handle->filename, filename);
         //Add module handle to list
-        handle->use_count = 1;
+        handle->ref_count = 1;
 		__dl_lookup_module = lookup_module;
         insert_module(handle);
         //Start running module
@@ -484,7 +449,7 @@ void *dlsym(void *handle, const char *symbol)
 {
     dso_sym_t *symbol_info;
     if(handle == RTLD_DEFAULT) {
-        //RTLD_DEFAULT searched through global symbols
+        //RTLD_DEFAULT searches through global symbols
         symbol_info = search_global_sym(symbol);
     } else if(handle == RTLD_NEXT) {
         //RTLD_NEXT starts searching at module dlsym was called from
@@ -499,7 +464,7 @@ void *dlsym(void *handle, const char *symbol)
         //Search module symbol table
         dl_module_t *module = handle;
         assertf(is_valid_module(module), "dlsym called on invalid handle");
-        symbol_info = search_module_exports(module->module, symbol);
+        symbol_info = search_module_exports(module, symbol);
     }
     //Output error if symbol is not found
     if(!symbol_info) {
@@ -513,8 +478,8 @@ void *dlsym(void *handle, const char *symbol)
 static bool is_module_referenced(dl_module_t *module)
 {
     //Address range for this module
-    void *min_addr = module->module->prog_base;
-    void *max_addr = PTR_DECODE(min_addr, module->module->prog_size);
+    void *min_addr = module->prog_base;
+    void *max_addr = PTR_DECODE(min_addr, module->prog_size);
     //Iterate over modules
     dl_module_t *curr = __dl_list_head;
     while(curr) {
@@ -524,8 +489,8 @@ static bool is_module_referenced(dl_module_t *module)
             continue;
         }
         //Search through imports referencing this module
-        for(uint32_t i=0; i<curr->module->num_import_syms; i++) {
-            void *addr = (void *)curr->module->syms[i+1].value;
+        for(uint32_t i=0; i<curr->num_import_syms; i++) {
+            void *addr = (void *)curr->syms[i+1].value;
             if(addr >= min_addr && addr < max_addr) {
                 //Found external symbol referencing this module
                 return true;
@@ -539,14 +504,13 @@ static bool is_module_referenced(dl_module_t *module)
 
 static void end_module(dl_module_t *module)
 {
-    dso_module_t *module_data = module->module;
     //Call atexit destructors for this module
-    dso_sym_t *dso_handle = search_module_exports(module_data, "__dso_handle");
+    dso_sym_t *dso_handle = search_module_exports(module, "__dso_handle");
     if(dso_handle) {
         __cxa_finalize((void *)dso_handle->value);
     }
     //Run destructors for this module
-    dso_sym_t *dtor_list = search_module_exports(module_data, "__DTOR_LIST__");
+    dso_sym_t *dtor_list = search_module_exports(module, "__DTOR_LIST__");
     if(dtor_list) {
         func_ptr *curr = (func_ptr *)dtor_list->value;
         while(*curr) {
@@ -555,7 +519,7 @@ static void end_module(dl_module_t *module)
         }
     }
     //Deregister exception frames for this module
-    dso_sym_t *eh_frame_begin = search_module_exports(module_data, "__EH_FRAME_BEGIN__");
+    dso_sym_t *eh_frame_begin = search_module_exports(module, "__EH_FRAME_BEGIN__");
     if(eh_frame_begin) {
         __register_frame_info((void *)eh_frame_begin->value, module->ehframe_obj);
     }
@@ -577,7 +541,7 @@ static void close_unused_modules()
     while(curr) {
         dl_module_t *next = curr->next; //Find next module before being removed
         //Close module if 0 uses remain and module is not referenced
-        if(curr->use_count == 0 && !is_module_referenced(curr)) {
+        if(curr->ref_count == 0 && !is_module_referenced(curr)) {
             close_module(curr);
         }
         curr = next; //Iterate to next module
@@ -597,11 +561,11 @@ int dlclose(void *handle)
         return 0;
     }
     //Decrease use count to minimum of 0
-    if(module->use_count > 0) {
-        --module->use_count;
+    if(module->ref_count > 0) {
+        --module->ref_count;
     }
     //Close this module if possible
-    if(module->use_count == 0 && !is_module_referenced(module)) {
+    if(module->ref_count == 0 && !is_module_referenced(module)) {
         close_module(module);
     }
     //Close any modules that are now unused
@@ -623,14 +587,14 @@ int dladdr(const void *addr, Dl_info *info)
     }
     //Initialize shared object properties
     info->dli_fname = module->filename;
-    info->dli_fbase = module->module;
+    info->dli_fbase = module;
     //Initialize symbol properties to NULL
     info->dli_sname = NULL;
     info->dli_saddr = NULL;
     //Iterate over export symbols
-    uint32_t first_export_sym = module->module->num_import_syms+1;
-    for(uint32_t i=0; i<module->module->num_syms-first_export_sym; i++) {
-        dso_sym_t *sym = &module->module->syms[first_export_sym+i];
+    uint32_t first_export_sym = module->num_import_syms+1;
+    for(uint32_t i=0; i<module->num_syms-first_export_sym; i++) {
+        dso_sym_t *sym = &module->syms[first_export_sym+i];
         //Calculate symbol address range
         void *sym_min = (void *)sym->value;
         uint32_t sym_size = sym->info & 0x3FFFFFFF;

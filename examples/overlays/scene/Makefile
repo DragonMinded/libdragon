@@ -1,4 +1,6 @@
 BUILD_DIR=build
+DSO_UNCOMPRESSED=1 #Store DSOs uncompressed for easier analysis of output
+DSO_HIDE_SYMBOLS=1 #Hide symbols by default in DSOs
 include $(N64_INST)/include/n64.mk
 
 main_SRC = overlays_scene.cpp scene.cpp

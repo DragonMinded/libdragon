@@ -432,8 +432,8 @@ static void inspector_page_modules(surface_t *disp, exception_t* ex, joypad_butt
     title("Loaded modules");
     while(curr_module) {
         if(module_idx >= module_offset && module_idx < module_offset+18) {
-            void *module_min = curr_module->module->prog_base;
-            void *module_max = ((uint8_t *)module_min)+curr_module->module->prog_size;
+            void *module_min = curr_module->prog_base;
+            void *module_max = ((uint8_t *)module_min)+curr_module->prog_size;
             printf("%s (%p-%p)\n", curr_module->filename, module_min, module_max);
         }
         curr_module = curr_module->next;

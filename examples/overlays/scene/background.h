@@ -3,7 +3,7 @@
 
 #include <libdragon.h>
 
-class Background {
+class __attribute__((__visibility__("default"))) Background {
 public:
     Background();
     ~Background();
