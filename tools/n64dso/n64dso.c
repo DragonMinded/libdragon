@@ -682,7 +682,7 @@ bool convert(char *infn, char *outfn)
 
 int main(int argc, char *argv[])
 {
-    bool compression = false;
+    int compression = DEFAULT_COMPRESSION;
     char *outdir = ".";
     if(argc < 2) {
         //Print usage if too few arguments are passed
@@ -709,9 +709,20 @@ int main(int argc, char *argv[])
                 }
                 outdir = argv[i];
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
-                //Set up for compression
-                compression = true;
-            } else {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                char extra;
+                if (sscanf(argv[i], "%d%c", &compression, &extra) != 1) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                if (compression < 0 || compression > MAX_COMPRESSION) {
+                    fprintf(stderr, "invalid compression level: %d\n", compression);
+                    return 1;
+                }
+            }  else {
                 //Complain about invalid flag
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
@@ -731,11 +742,11 @@ int main(int argc, char *argv[])
         if(!convert(infn, outfn)) {
             return 1;
         }
-        if(compression) {
+        if(compression != 0) {
             //Compress this file
             struct stat st_decomp = {0}, st_comp = {0};
             stat(outfn, &st_decomp);
-            asset_compress(outfn, outfn, DEFAULT_COMPRESSION, 0);
+            asset_compress(outfn, outfn, compression, 0);
             stat(outfn, &st_comp);
             if (verbose_flag)
                 printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,

@@ -82,6 +82,7 @@ int main(int argc, char **argv)
         print_args(argv[0]);
         return 1;
     }
+    asset_init_compression(2);
     for(int i=1; i<argc; i++) {
         if(argv[i][0] == '-') {
             if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {

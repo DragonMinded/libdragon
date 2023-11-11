@@ -1,5 +1,6 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
+DSO_COMPRESS_LEVEL ?= 1
 N64_DFS_OFFSET ?= 1M # Override this to offset where the DFS file will be located inside the ROM
 
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
@@ -190,11 +191,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	@echo "    [DSO] $@"
 	$(N64_LD) $(N64_DSOLDFLAGS) -Map=$(basename $(DSO_ELF)).map -o $(DSO_ELF) $(filter %.o, $^)
 	$(N64_SIZE) -G $(DSO_ELF)
-ifneq ($(DSO_UNCOMPRESSED),1)
-	$(N64_DSO) -o $(dir $@) $(DSO_ELF)
-else
-	$(N64_DSO) -o $(dir $@) -c $(DSO_ELF)
-endif
+	$(N64_DSO) -o $(dir $@) -c $(DSO_COMPRESS_LEVEL) $(DSO_ELF)
 	$(N64_SYM) $(DSO_ELF) $@.sym
 	
 %.externs:

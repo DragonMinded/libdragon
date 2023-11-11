@@ -1,5 +1,5 @@
 BUILD_DIR=build
-DSO_UNCOMPRESSED=1 #Store DSOs uncompressed for easier analysis of output
+DSO_COMPRESS_LEVEL=0 #Store DSOs uncompressed for easier analysis of output
 DSO_CXXFLAGS=-fvisibility=hidden #Hide symbols in DSOs
 include $(N64_INST)/include/n64.mk
 
