@@ -9,6 +9,13 @@
 /** @brief Main executable symbol table magic */
 #define DSO_MAINEXE_SYM_DATA_MAGIC 0x4D53594D //'MSYM'
 
+/** @brief Offset of syms member of dso_module_t on N64 */
+#define DSO_SYMS_OFS 0x18
+/** @brief Offset of num_import_syms member of dso_module_t on N64 */
+#define DSO_NUM_IMPORT_SYMS_OFS 0x20
+/** @brief Size of dso_sym_t on N64 */
+#define DSO_SYM_SIZE 0xC
+
 /** @brief DSO symbol */
 typedef struct dso_sym_s {
     char *name;         ///< Name of symbol

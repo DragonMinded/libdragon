@@ -45,12 +45,13 @@ uint32_t read_buf_u32(void *buf)
 	return (temp[0] << 24)|(temp[1] << 16)|(temp[2] << 8)|temp[3];
 }
 
-void write_externs(dso_file_sym_t *dso_sym_table, uint32_t num_externs, FILE *out_file)
+void write_externs(uint8_t *dso_sym_table, uint8_t *name_base, uint32_t num_externs, FILE *out_file)
 {
-	uint8_t *name_base = (uint8_t *)dso_sym_table;
+    dso_sym_table += DSO_SYM_SIZE;
 	//Iterate through each external symbol and output their name to out_file
-	for(uint32_t i=1; i<num_externs+1; i++) {
-		fprintf(out_file, "EXTERN(%s)\n", name_base+read_buf_u32(&dso_sym_table[i].name_ofs));
+	for(uint32_t i=0; i<num_externs; i++) {
+		fprintf(out_file, "EXTERN(%s)\n", name_base+read_buf_u32(dso_sym_table));
+        dso_sym_table += DSO_SYM_SIZE;
 	}
 }
 
@@ -62,20 +63,13 @@ void process(const char *infn, FILE *out_file)
 	uint8_t *data = asset_load(infn, &sz);
 	uint8_t *orig_data = data;
 	//Do basic sanity checks on DSO file
-	dso_load_info_t *load_info = (dso_load_info_t *)data;
-	if(sz < 4 || read_buf_u32(&load_info->magic) != DSO_MAGIC) {
-		fprintf(stderr, "File is not a valid DSO file");
-		exit(1);
-	}
-	if(sz < sizeof(dso_load_info_t) || read_buf_u32(&load_info->size) != sz-16) {
-		fprintf(stderr, "File is not a valid DSO file");
+	if(sz < 84 || read_buf_u32(data) != DSO_MAGIC) {
+		fprintf(stderr, "File is not a valid DSO file\n");
 		exit(1);
 	}
 	//Write data externs
-	data += sizeof(dso_load_info_t);
-	dso_file_module_t *file_module = (dso_file_module_t *)data;
 	verbose("Writing external symbols in DSO to output file");
-	write_externs((dso_file_sym_t *)(data+read_buf_u32(&file_module->syms_ofs)), read_buf_u32(&file_module->num_import_syms), out_file);
+	write_externs(data+read_buf_u32(data+DSO_SYMS_OFS), data, read_buf_u32(data+DSO_NUM_IMPORT_SYMS_OFS), out_file);
 	//Free DSO file data
 	free(orig_data);
 }
