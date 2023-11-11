@@ -187,7 +187,7 @@ void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size
          bufsize += 16 - (bufsize & 15);
    }
 
-   void *s = memalign(16, bufsize);
+   void *s = memalign(32, bufsize);
    assertf(s, "asset_load: out of memory");
    int n;
 
