@@ -18,7 +18,7 @@ N64_CFLAGS += -mabi=32  # Can't compile for 64bit ABI because DMEM/IMEM don't su
 
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
-N64_LDFLAGS = -g -Tipl3.ld -Map=build/ipl3.map --wrap __do_global_ctors #-gc-sections
+N64_LDFLAGS = -Wl,-Tipl3.ld -Wl,-Map=build/ipl3.map
 
 all: ipl3.z64
 
@@ -27,7 +27,7 @@ build/%.o: %.c
 	$(N64_CC) -c $(N64_CFLAGS) -o $@ $<
 
 build/ipl3.bin: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
-	$(N64_LD) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
+	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
 	$(N64_SIZE) -G build/ipl3.elf
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.bin
 
