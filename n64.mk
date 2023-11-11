@@ -193,7 +193,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 ifneq ($(DSO_UNCOMPRESSED),1)
 	$(N64_DSO) -o $(dir $@) $(DSO_ELF)
 else
-	$(N64_DSO) -o $(dir $@) -c 0 $(DSO_ELF)
+	$(N64_DSO) -o $(dir $@) -c $(DSO_ELF)
 endif
 	$(N64_SYM) $(DSO_ELF) $@.sym
 	
