@@ -12,14 +12,6 @@
  */
 #define SUPPORT_HW1   0
 
-#define MI_MODE                             ((volatile uint32_t*)0xA4300000)
-#define MI_WMODE_CLEAR_REPEAT_MOD           0x80
-#define MI_WMODE_SET_REPEAT_MODE            0x100
-#define MI_WMODE_REPEAT_LENGTH(n)           ((n)-1)
-#define MI_WMODE_SET_UPPER_MODE             0x2000
-#define MI_WMODE_CLEAR_UPPER_MODE           0x1000
-#define MI_VERSION                          ((volatile uint32_t*)0xA4300004)
-
 #define RI_MODE								((volatile uint32_t*)0xA4700000)
 #define RI_CONFIG							((volatile uint32_t*)0xA4700004)
 #define RI_CURRENT_LOAD						((volatile uint32_t*)0xA4700008)

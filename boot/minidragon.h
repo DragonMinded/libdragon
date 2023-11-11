@@ -33,8 +33,73 @@
 #define SP_DRAM_ADDR    ((volatile uint32_t*)0xa4040004)
 #define SP_RD_LEN       ((volatile uint32_t*)0xa4040008)
 #define SP_WR_LEN       ((volatile uint32_t*)0xa404000c)
+#define SP_STATUS       ((volatile uint32_t*)0xa4040010)
 #define SP_DMA_BUSY     ((volatile uint32_t*)0xa4040018)
+#define SP_PC           ((volatile uint32_t*)0xa4080000)
 
+#define SP_WSTATUS_CLEAR_HALT        0x00001   ///< SP_STATUS write mask: clear #SP_STATUS_HALTED bit
+#define SP_WSTATUS_SET_HALT          0x00002   ///< SP_STATUS write mask: set #SP_STATUS_HALTED bit
+#define SP_WSTATUS_CLEAR_BROKE       0x00004   ///< SP_STATUS write mask: clear BROKE bit
+#define SP_WSTATUS_CLEAR_INTR        0x00008   ///< SP_STATUS write mask: clear INTR bit
+#define SP_WSTATUS_SET_INTR          0x00010   ///< SP_STATUS write mask: set HALT bit
+#define SP_WSTATUS_CLEAR_SSTEP       0x00020   ///< SP_STATUS write mask: clear SSTEP bit
+#define SP_WSTATUS_SET_SSTEP         0x00040   ///< SP_STATUS write mask: set SSTEP bit
+#define SP_WSTATUS_CLEAR_INTR_BREAK  0x00080   ///< SP_STATUS write mask: clear #SP_STATUS_INTERRUPT_ON_BREAK bit
+#define SP_WSTATUS_SET_INTR_BREAK    0x00100   ///< SP_STATUS write mask: set SSTEP bit
+#define SP_WSTATUS_CLEAR_SIG0        0x00200   ///< SP_STATUS write mask: clear SIG0 bit
+#define SP_WSTATUS_SET_SIG0          0x00400   ///< SP_STATUS write mask: set SIG0 bit
+#define SP_WSTATUS_CLEAR_SIG1        0x00800   ///< SP_STATUS write mask: clear SIG1 bit
+#define SP_WSTATUS_SET_SIG1          0x01000   ///< SP_STATUS write mask: set SIG1 bit
+#define SP_WSTATUS_CLEAR_SIG2        0x02000   ///< SP_STATUS write mask: clear SIG2 bit
+#define SP_WSTATUS_SET_SIG2          0x04000   ///< SP_STATUS write mask: set SIG2 bit
+#define SP_WSTATUS_CLEAR_SIG3        0x08000   ///< SP_STATUS write mask: clear SIG3 bit
+#define SP_WSTATUS_SET_SIG3          0x10000   ///< SP_STATUS write mask: set SIG3 bit
+#define SP_WSTATUS_CLEAR_SIG4        0x20000   ///< SP_STATUS write mask: clear SIG4 bit
+#define SP_WSTATUS_SET_SIG4          0x40000   ///< SP_STATUS write mask: set SIG4 bit
+#define SP_WSTATUS_CLEAR_SIG5        0x80000   ///< SP_STATUS write mask: clear SIG5 bit
+#define SP_WSTATUS_SET_SIG5          0x100000  ///< SP_STATUS write mask: set SIG5 bit
+#define SP_WSTATUS_CLEAR_SIG6        0x200000  ///< SP_STATUS write mask: clear SIG6 bit
+#define SP_WSTATUS_SET_SIG6          0x400000  ///< SP_STATUS write mask: set SIG6 bit
+#define SP_WSTATUS_CLEAR_SIG7        0x800000  ///< SP_STATUS write mask: clear SIG7 bit
+#define SP_WSTATUS_SET_SIG7          0x1000000 ///< SP_STATUS write mask: set SIG7 bit
+
+
+#define PI_DRAM_ADDR    ((volatile uint32_t*)0xA4600000)  ///< PI DMA: DRAM address register
+#define PI_CART_ADDR    ((volatile uint32_t*)0xA4600004)  ///< PI DMA: cartridge address register
+#define PI_RD_LEN       ((volatile uint32_t*)0xA4600008)  ///< PI DMA: read length register
+#define PI_WR_LEN       ((volatile uint32_t*)0xA460000C)  ///< PI DMA: write length register
+#define PI_STATUS       ((volatile uint32_t*)0xA4600010)  ///< PI: status register
+
+#define MI_MODE                             ((volatile uint32_t*)0xA4300000)
+#define MI_WMODE_CLEAR_REPEAT_MOD           0x80
+#define MI_WMODE_SET_REPEAT_MODE            0x100
+#define MI_WMODE_REPEAT_LENGTH(n)           ((n)-1)
+#define MI_WMODE_SET_UPPER_MODE             0x2000
+#define MI_WMODE_CLEAR_UPPER_MODE           0x1000
+#define MI_VERSION                          ((volatile uint32_t*)0xA4300004)
+#define MI_INTERRUPT                        ((volatile uint32_t*)0xA4300008)
+#define MI_WINTERRUPT_CLR_SP                0x0001
+#define MI_WINTERRUPT_SET_SP                0x0002
+#define MI_WINTERRUPT_CLR_SI                0x0004
+#define MI_WINTERRUPT_SET_SI                0x0008
+#define MI_WINTERRUPT_CLR_AI                0x0010
+#define MI_WINTERRUPT_SET_AI                0x0020
+#define MI_WINTERRUPT_CLR_VI                0x0040
+#define MI_WINTERRUPT_SET_VI                0x0080
+#define MI_WINTERRUPT_CLR_PI                0x0100
+#define MI_WINTERRUPT_SET_PI                0x0200
+#define MI_WINTERRUPT_CLR_DP                0x0400
+#define MI_WINTERRUPT_SET_DP                0x0800
+
+#define AI_STATUS                           ((volatile uint32_t*)0xA450000C)
+
+#define PI_CLEAR_INTERRUPT                  0x02
+#define SI_CLEAR_INTERRUPT                  0
+#define SP_CLEAR_INTERRUPT                  0x08
+#define DP_CLEAR_INTERRUPT                  0x0800
+#define AI_CLEAR_INTERRUPT                  0
+
+#define UncachedAddr(x)                     ((void*)((uint32_t)(x) | 0x20000000))
 
 #define cache_op(addr, op, linesize, length) ({ \
     { \
@@ -44,6 +109,11 @@
             asm ("\tcache %0,(%1)\n"::"i" (op), "r" (cur+i)); \
     } \
 })
+
+static inline void data_cache_hit_writeback_invalidate(volatile void * addr, unsigned long length)
+{
+    cache_op(addr, 0x15, 16, length);
+}   
 
 static inline void cop0_clear_cache(void)
 {

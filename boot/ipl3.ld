@@ -17,13 +17,18 @@ SECTIONS {
     */
     .text __ipl3_text_start  : {
         . = ALIGN(16);
+        LONG(0x3C1DA400); /* lui $sp, 0xA400 */
+        LONG(0x37BD2000); /* ori $sp, 0x2000 */
         *(.boot)
+        . = ALIGN(16);
+        *(.banner)
         build/ipl3.o       (.text .text.* .data .rodata .rodata.*)
         build/rdram.o      (.text .text.* .data .rodata .rodata.*)
         build/minidragon.o (.text .text.* .data .rodata .rodata.*)
         build/debug.o      (.text .text.* .data .rodata .rodata.*)
         . = ALIGN(8);
         __stage2_start = .;
+        KEEP(build/loader.o(.text.loader))
         KEEP(build/loader.o(.text .text.*))
         KEEP(build/loader.o(.data .data.* .rodata .rodata.*))
         . = ALIGN(8);

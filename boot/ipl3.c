@@ -1,11 +1,13 @@
 #include <stdint.h>
 #include <stdbool.h>
-#include "n64sys.h"
 #include "cop0.h"
 #include "minidragon.h"
 #include "debug.h"
 #include "rdram.h"
 #include "loader.h"
+
+__attribute__((section(".banner"), used))
+const char banner[32] = " Libdragon IPL3 " " Coded by Rasky ";
 
 #if 0
 void memtest(int memsize)
@@ -53,8 +55,6 @@ typedef struct {
     uint32_t reset_type;
 } bootinfo_t;
 
-extern int __stage2_size;
-
 static inline void rsp_clear_imem_async(void)
 {
     *SP_RSP_ADDR = 0x1000; // IMEM
@@ -82,9 +82,10 @@ void _start(void)
     C0_WRITE_CR(0);
     C0_WRITE_COUNT(0);
     C0_WRITE_COMPARE(0);
-
+	//C0_WRITE_WATCHLO(0);
 
     int memsize = rdram_init(); (void)memsize;
+    memsize = 8*1024*1024; // FIXME: remove this (helps emulators for now)
 
     // Clear D/I-cache, useful after warm boot. Maybe not useful for cold
     // boots, but the manual says that the cache state is invalid at boot,
@@ -92,20 +93,28 @@ void _start(void)
     cop0_clear_cache();
 
     // Fill boot information at fixed RDRAM address
+    #if 0
     bootinfo_t *bootinfo = (bootinfo_t*)0x80000000;
     bootinfo->memory_size = memsize;
     bootinfo->tv_type = ipl2_tvType;
     bootinfo->reset_type = ipl2_resetType;
+    #endif
+    *(uint32_t*)0x80000300 = ipl2_tvType; // FIXME: remove this
+    *(uint32_t*)0x8000030C = ipl2_resetType; // FIXME: remove this
+    *(uint32_t*)0x80000318 = memsize; // FIXME: remove this
+    data_cache_hit_writeback_invalidate((void*)0x80000300, 0x20);
 
     // Perform a memtest
     // memtest(memsize);
 
     // Copy the IPL3 stage2 (loader.c) from DMEM to the end of RDRAM.
-    extern uint32_t __stage2_start[];
+    extern uint32_t __stage2_start[]; extern int __stage2_size;
     int stage2_size = (int)&__stage2_size;
     void *rdram_stage2 = (void*)0x80000000 + memsize - stage2_size;
     rsp_dma_to_rdram(__stage2_start, rdram_stage2, stage2_size);
 
     // Jump to stage 2 in RDRAM.
+    MEMORY_BARRIER();
+    asm("move $sp, %0"::"r"(rdram_stage2-8));
     goto *rdram_stage2;
 }
