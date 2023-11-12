@@ -34,10 +34,10 @@
  * @{
  */
 
-/**
- * @brief Indicates whether we are running on a vanilla N64 or a iQue player
- */
-int __bbplayer = 0;
+int __boot_memsize;        /** @brief Memory size as detected by IPL3 */
+int __boot_tvtype;         /** @brief TV type as detected by IPL3 */
+int __boot_resettype;      /** @brief Reset type as detected by IPL3 */
+int __boot_consoletype;    /** @brief Console type as detected by IPL3 */
 
 /** @brief Last tick at which the 64-bit counter was updated */
 static uint32_t ticks64_base_tick;
@@ -47,38 +47,7 @@ static uint64_t ticks64_base;
 
 /** @brief Return true if we are running on a iQue player */
 bool sys_bbplayer(void) {
-    return __bbplayer != 0;
-}
-
-/** 
- * @brief Boot CIC 
- *
- * Defaults to 6102.
- */
-int __bootcic = 6102;
-
-/**
- * @brief Return the boot CIC
- *
- * @return The boot CIC as an integer
- */
-int sys_get_boot_cic()
-{
-    return __bootcic;
-}
-
-/**
- * @brief Set the boot CIC
- *
- * This function will set the boot CIC.  If the value isn't in the range
- * of 6102-6106, the boot CIC is set to the default of 6102.
- *
- * @param[in] bc
- *            Boot CIC value
- */
-void sys_set_boot_cic(int bc)
-{
-    __bootcic = ( (bc >= 6102) && (bc <= 6106) ) ? bc : 6102;
+    return __boot_consoletype != 0;
 }
 
 /**
@@ -295,18 +264,7 @@ void free_uncached(void *buf)
  */
 int get_memory_size()
 {
-    if (sys_bbplayer()) {
-        /* On iQue, memory allocated to the game can be decided by the OS.
-           Even if the memory is allocated as 8 MiB, the top part handles
-           save states (emulation of EEPROM/Flash/SRAM), so we should avoid
-           writing there anyway. See also entrypoint.S which sets up the
-           stack with the same logic. */
-        int size = (*(int*)0xA0000318);
-        if (size == 0x800000)
-            size = 0x7C0000;
-        return size;
-    } 
-    return (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
+    return __boot_memsize;
 }
 
 /**
@@ -324,11 +282,6 @@ bool is_memory_expanded()
     return get_memory_size() >= 0x7C0000;
 }
 
-/** @brief Memory location to read which determines the TV type. */
-#define TV_TYPE_LOC  0x80000300
-/** @brief Memory location to read which determines the reset type. */
-#define RESET_TYPE_LOC  0x8000030C
-
 
 /**
  * @brief Is system NTSC/PAL/MPAL
@@ -339,12 +292,12 @@ bool is_memory_expanded()
  */
 tv_type_t get_tv_type() 
 {
-    return *((uint32_t *) TV_TYPE_LOC);
+    return __boot_tvtype;
 }
 
 reset_type_t sys_reset_type(void)
 {
-    return *((uint32_t *) RESET_TYPE_LOC);
+    return __boot_resettype;
 }
 
 uint64_t get_ticks(void)

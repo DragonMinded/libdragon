@@ -21,17 +21,17 @@
 /**
  * @brief Indicates whether we are running on a vanilla N64 or a iQue player
  */
-extern int __bbplayer;
+extern int __boot_consoletype;
 
 /**
  * @brief Frequency of the RCP
  */
-#define RCP_FREQUENCY    (__bbplayer ? 96000000 : 62500000)
+#define RCP_FREQUENCY    (__boot_consoletype ? 96000000 : 62500000)
 
 /**
  * @brief Frequency of the MIPS R4300 CPU
  */
-#define CPU_FREQUENCY    (__bbplayer ? 144000000 : 93750000)
+#define CPU_FREQUENCY    (__boot_consoletype ? 144000000 : 93750000)
 
 /**
  * @brief void pointer to cached and non-mapped memory start address
@@ -213,9 +213,6 @@ extern "C" {
 #endif
 
 bool sys_bbplayer(void);
-
-int sys_get_boot_cic();
-void sys_set_boot_cic(int bc);
 
 /**
  * @brief Read the number of ticks since system startup

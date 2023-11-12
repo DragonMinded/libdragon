@@ -4,6 +4,10 @@
 #include <stdint.h>
 
 #define MEMORY_BARRIER()    asm volatile ("" : : : "memory")
+#define C0_WRITE_CAUSE(x)   asm volatile("mtc0 %0,$13"::"r"(x))
+#define C0_WRITE_COUNT(x)   asm volatile("mtc0 %0,$9"::"r"(x))
+#define C0_WRITE_COMPARE(x) asm volatile("mtc0 %0,$11"::"r"(x))
+#define C0_WRITE_WATCHLO(x) asm volatile("mtc0 %0,$18"::"r"(x))
 
 #undef assert
 #define assert(x)           ({ if (!(x)) { debugf("ASSERTION FAILED: " #x); abort(); } })

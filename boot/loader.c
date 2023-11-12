@@ -43,9 +43,9 @@ static void rsp_clear_dmem_async(void)
 
 static inline void rsp_clear_imem_async(void)
 {
-    *SP_RSP_ADDR = 0x1000; // IMEM
+    *SP_RSP_ADDR = 0x1000 + 16; // IMEM (skip first 16 bytes which contain bootflags)
     *SP_DRAM_ADDR = 8*1024*1024; // RDRAM addresses >8 MiB always return 0
-    *SP_RD_LEN = 4096-1;
+    *SP_RD_LEN = 4096-16-1;
 }
 
 static void fast_bzero(void *mem, int size)
@@ -119,11 +119,14 @@ void loader(void)
         abort();
     }
 
+    // Read program headers offset and number. Allocate space in the stack
+    // for them.
     uint32_t phoff = io_read32(elf_header + 0x1C);
     int phnum = io_read16(elf_header + 0x2C);
     uint32_t *phdr = __builtin_alloca(0x20 * phnum);
     data_cache_hit_writeback_invalidate(phdr, 0x20 * phnum);
 
+    // Load all the program headers
     pi_read_async((void*)phdr, elf_header + phoff, 0x20 * phnum);
     pi_wait();
 
@@ -134,14 +137,6 @@ void loader(void)
         uint32_t vaddr = phdr[2];
         uint32_t size = phdr[4];
         uint32_t memsize = phdr[5];
-
-        if (vaddr < 0x80000400) {
-            int skip = 0x80000400 - vaddr;
-            vaddr += skip;
-            offset += skip;
-            if (size) size -= skip;
-            if (memsize) memsize -= skip;
-        }
 
         debugf("Segment ", i, phdr[0], offset, vaddr, size, memsize);
         if (size) pi_read_async((void*)vaddr, elf_header + offset, size);
