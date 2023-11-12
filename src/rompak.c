@@ -66,8 +66,6 @@ uint32_t rompak_search_ext(const char *ext)
         }
     }
 
-    debugf("TOC FOUND\n");
-
     header_t header;
     data_cache_hit_writeback_invalidate(&header, sizeof(header_t));
     dma_read(&header, toc_addr, sizeof(header_t));
