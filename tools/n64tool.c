@@ -511,6 +511,7 @@ int main(int argc, char *argv[])
 			   compatibility, we still consider the header to always be 4096 bytes, and
 			   just offset from there. */
 			total_bytes_written += header_size - 4096;
+			header_size = 4096;
 
 			/* Leave space for the table, if asked to do so. */
 			if(create_toc && !toc_offset)
