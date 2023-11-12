@@ -98,7 +98,7 @@ void print_args(char *name)
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose                Verbose output\n");
     fprintf(stderr, "   -o/--output <dir>           Specify output directory (default: .)\n");
-    fprintf(stderr, "   -c/--compress               Compress output\n");
+    fprintf(stderr, "   -c/--compress <level> Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "\n");
 }
 
