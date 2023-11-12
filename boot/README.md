@@ -38,7 +38,7 @@ are two possible ways:
    Makefile of your game using n64.mk. This will tell
    n64.mk to use the custom header instead of the default
    one.
- * Run `make install_dev`. This will modify the source code
+ * Run `make install-dev`. This will modify the source code
    of n64tool to embed this new IPL3 with it by default.
    You then need to rebuild and install n64tool (run
    `make install` in the `tools` directory), and then you

@@ -40,7 +40,7 @@ ipl3_dev.z64: build/ipl3.bin boot_signed.z64
 ipl3_unsigned.z64: build/ipl3.bin
 	cp build/ipl3.bin ipl3_unsigned.z64
 
-install_dev: ipl3_dev.z64
+install-dev: ipl3_dev.z64
 	xxd -i ipl3_dev.z64 >../tools/ipl3.h
 
 run: ipl3.z64
