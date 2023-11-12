@@ -1,4 +1,4 @@
-== Libdragon IPL3 ==
+## Libdragon IPL3
 
 This directory contains the source code of libdragon's IPL3,
 an open source bootcode required to be shipped in each ROM to
@@ -14,7 +14,7 @@ used. See "boot.asm" for more information. The signed
 trampoline is committed as "boot_signed.z64" and
 used automatically by the Makefile.
 
-=== Building IPL3 ===
+### Building IPL3
 
 To build the standard libdragon IPL3, simply run:
 
