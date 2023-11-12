@@ -55,11 +55,12 @@ typedef struct {
     uint32_t console_type;
 } bootinfo_t;
 
-static inline void rsp_clear_imem_async(void)
+static inline void rsp_clear_imem(void)
 {
     *SP_RSP_ADDR = 0x1000; // IMEM
     *SP_DRAM_ADDR = 8*1024*1024; // RDRAM addresses >8 MiB always return 0
     *SP_RD_LEN = 4096-1;
+    while (*SP_DMA_BUSY) {}
 }
 
 __attribute__((noreturn, section(".boot")))
@@ -77,7 +78,7 @@ void _start(void)
     // Clear IMEM (contains IPL2). We don't need it anymore, and we can 
     // instead use IMEM as a zero-buffer for RSP DMA.
     // Also, we put our bss in IMEM.
-    rsp_clear_imem_async();
+    rsp_clear_imem();
 
     usb_init();
     debugf("Libdragon IPL3");
