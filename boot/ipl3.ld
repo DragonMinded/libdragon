@@ -3,11 +3,11 @@ OUTPUT_ARCH (mips)
 EXTERN (_start)
 ENTRY (_start)
 
-__ipl3_text_start   = 0xA4000040;
+__ipl3_text_start   = 0xA4000000;
 
 MEMORY
 {
-    dmem : ORIGIN = 0xA4000040, LENGTH = 4088
+    dmem : ORIGIN = 0xA4000000, LENGTH = 4096
     imem : ORIGIN = 0xA4001000, LENGTH = 2048
 }
 
@@ -16,7 +16,8 @@ SECTIONS {
     * the first byte of the cart domain in cached, unmapped memory
     */
     .text __ipl3_text_start  : {
-        . = ALIGN(16);
+        LONG(0x80371240); /* PI DOM1 default configuration */
+        . = ALIGN(64);
         LONG(0x3C1DA400); /* lui $sp, 0xA400 */
         LONG(0x37BD2000); /* ori $sp, 0x2000 */
         *(.boot)

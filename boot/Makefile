@@ -23,7 +23,7 @@ N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
 N64_LDFLAGS = -Wl,-Tipl3.ld -Wl,-Map=build/ipl3.map
 
-all: ipl3.z64
+all: ipl3_dev.z64 ipl3_unsigned.z64
 
 build/%.o: %.c
 	mkdir -p build
@@ -34,12 +34,14 @@ build/ipl3.bin: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/load
 	$(N64_SIZE) -G build/ipl3.elf
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.bin
 
-ipl3.z64: build/ipl3.bin boot_signed.z64
-	dd if=/dev/zero of=build/pad.bin bs=1 count=64 >/dev/null 2>&1
-	cat boot_signed.z64 build/pad.bin build/ipl3.bin >ipl3.z64
+ipl3_dev.z64: build/ipl3.bin boot_signed.z64
+	cat boot_signed.z64 build/ipl3.bin >ipl3_dev.z64
 
-install: ipl3.z64
-	xxd -i ipl3.z64 >../tools/ipl3.h
+ipl3_unsigned.z64: build/ipl3.bin
+	cp build/ipl3.bin ipl3_unsigned.z64
+
+install_dev: ipl3_dev.z64
+	xxd -i ipl3_dev.z64 >../tools/ipl3.h
 
 run: ipl3.z64
 	g64drive upload --autocic=false ipl3.z64 && g64drive cic 6102 && g64drive debug
