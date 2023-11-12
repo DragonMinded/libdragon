@@ -56,8 +56,6 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 #define PAD_ALIGN    16384
 
 #define WRITE_SIZE   (1024 * 1024)
-#define HEADER_SIZE  0x1000          // Size of the header (which includes IPL3)
-#define MIN_SIZE     0x100000        // Minimum size of a ROM after header (mandated by IPL3)
 
 #define TITLE_OFFSET 0x20
 #define TITLE_SIZE   20
@@ -69,7 +67,7 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 #define STATUS_BADUSAGE 2
 
 #define TOC_SIZE         1024
-#define TOC_ALIGN        8            // This must match the ALIGN directive in the linker script before __rom_end
+#define TOC_ALIGN        16
 #define TOC_ENTRY_SIZE   64
 #define TOC_MAX_ENTRIES  ((TOC_SIZE - 16) / 64)
 
@@ -102,7 +100,7 @@ _Static_assert(sizeof(toc) <= TOC_SIZE, "invalid table size");
 
 int print_usage(const char * prog_name)
 {
-	fprintf(stderr, "Usage: %s [flags] <file> [[file-flags] <file> ...]\n\n", prog_name);
+	fprintf(stderr, "Usage: %s [flags] [file-flags] <file> [[file-flags] <file> ...]\n\n", prog_name);
 	fprintf(stderr, "This program creates an N64 ROM from a header and a list of files,\n");
 	fprintf(stderr, "the first being an Nintendo 64 binary and the rest arbitrary data.\n");
 	fprintf(stderr, "\n");
@@ -112,9 +110,9 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header.\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
 	fprintf(stderr, "\t-R, --region <reg>     Specify ROM region (default: 'E' - North America).\n");
-	fprintf(stderr, "\t-T, --toc              Create a table of contents file after the first binary.\n");
+	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "File flags (to be used between files):\n");
+	fprintf(stderr, "File flags (to be used before each file):\n");
 	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (minimum: 4).\n");
 	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 4-byte aligned.\n");
 	fprintf(stderr, "\n");
@@ -249,6 +247,8 @@ int main(int argc, char *argv[])
 	char title[TITLE_SIZE + 1] = { 0, };
 	bool create_toc = false;
 	size_t toc_offset = 0;
+	int header_size = 0;
+	int align_next = 0;
 
 	// Some flashcarts (at least Everdrive X7) seem to automatically set the TV type based on the region field.
 	// As a result, some users might not be able to play the ROM because their TV or capture device doesn't 
@@ -334,12 +334,6 @@ int main(int argc, char *argv[])
 
 			ssize_t size = parse_bytes(argv[i++]);
 
-			if(size < MIN_SIZE)
-			{
-				/* Invalid size */
-				fprintf(stderr, "ERROR: Invalid size argument: %s; must be at least %d bytes\nSmaller ROMs have compatibility problems with some flashcarts or emulators.\n", argv[i-1], MIN_SIZE);
-				return print_usage(argv[0]);
-			}
 			if (size % 4 != 0)
 			{
 				/* Invalid size */
@@ -420,12 +414,6 @@ int main(int argc, char *argv[])
 				return print_usage(argv[0]);
 			}
 
-			if(!total_bytes_written)
-			{
-				fprintf(stderr, "ERROR: The first file cannot have an alignment\n\n");
-				return print_usage(argv[0]);
-			}
-
 			if(i >= argc)
 			{
 				/* Expected another argument */
@@ -440,18 +428,7 @@ int main(int argc, char *argv[])
 				return print_usage(argv[0]);
 			}
 
-			if (total_bytes_written % align)
-			{
-				ssize_t num_zeros = align - (total_bytes_written % align);
-
-				if(output_zeros(write_file, num_zeros))
-				{
-					fprintf(stderr, "ERROR: Invalid alignment %d to seek to in %s!\n", align, output);
-					return STATUS_ERROR;
-				}
-
-				total_bytes_written += num_zeros;
-			}
+			align_next = align;
 			continue;
 		}
 		if(check_flag(arg, "-t", "--title"))
@@ -520,13 +497,53 @@ int main(int argc, char *argv[])
 			atexit(remove_tmp_file);
 
 			/* Copy over the ROM header */
-			ssize_t bytes_copied = copy_file(write_file, header);
+			header_size = copy_file(write_file, header);
 
-			if(bytes_copied != HEADER_SIZE)
+			if(header_size < 0x100)
 			{
-				fprintf(stderr, "ERROR: Unable to copy ROM header from '%s' to '%s'\n", header, output);
+				fprintf(stderr, "ERROR: Header file '%s' is too small (minimum is 4096 bytes)\n", header);
 				return STATUS_ERROR;
 			}
+
+			/* HACK. Unfortunately, n64tool handles both --align and --offset with respect
+			   to file positions/sizes *excluding* the header. The header used to be of
+			   fixed size (4096 bytes), but that's now just a minimum. For full backward
+			   compatibility, we still consider the header to always be 4096 bytes, and
+			   just offset from there. */
+			total_bytes_written += header_size - 4096;
+
+			/* Leave space for the table, if asked to do so. */
+			if(create_toc && !toc_offset)
+			{
+				if (total_bytes_written % TOC_ALIGN)
+				{
+					ssize_t num_zeros = TOC_ALIGN - (total_bytes_written % TOC_ALIGN);
+					output_zeros(write_file, num_zeros);
+					total_bytes_written += num_zeros;
+				}
+
+				toc_offset = ftell(write_file);
+				output_zeros(write_file, TOC_SIZE);
+				total_bytes_written += TOC_SIZE;
+			}
+		}
+
+		if (align_next)
+		{
+			if (total_bytes_written % align_next)
+			{
+				ssize_t num_zeros = align_next - (total_bytes_written % align_next);
+
+				if(output_zeros(write_file, num_zeros))
+				{
+					fprintf(stderr, "ERROR: Invalid alignment %d to seek to in %s!\n", align_next, output);
+					return STATUS_ERROR;
+				}
+
+				total_bytes_written += num_zeros;
+			}
+
+			align_next = 0;
 		}
 
 		size_t offset = ftell(write_file);
@@ -564,21 +581,6 @@ int main(int argc, char *argv[])
 
 		/* Keep track to be sure we align properly when they request a memory alignment */
 		total_bytes_written += bytes_copied;
-
-		/* Leave space for the table, if asked to do so. */
-		if(create_toc && !toc_offset)
-		{	
-			if (total_bytes_written % TOC_ALIGN)
-			{
-				ssize_t num_zeros = TOC_ALIGN - (total_bytes_written % TOC_ALIGN);
-				output_zeros(write_file, num_zeros);
-				total_bytes_written += num_zeros;
-			}
-
-			toc_offset = ftell(write_file);
-			output_zeros(write_file, TOC_SIZE);
-			total_bytes_written += TOC_SIZE;
-		}
 	}
 
 	if(!total_bytes_written)
@@ -601,7 +603,7 @@ int main(int argc, char *argv[])
 		   size that is padded to the correct alignment. Notice that this variable
 		   declares the size WITHOUT header, but the padding refers to the final
 		   ROM and so it must be calculated with the header. */
-		declared_size = ROUND_UP(MIN_SIZE+HEADER_SIZE, PAD_ALIGN)-HEADER_SIZE;
+		declared_size = ROUND_UP(header_size, PAD_ALIGN)-header_size;
 	}
 	if(declared_size > total_bytes_written)
 	{
@@ -613,10 +615,10 @@ int main(int argc, char *argv[])
 			return print_usage(argv[0]);
 		}
 	}
-	else if(((total_bytes_written+HEADER_SIZE) % PAD_ALIGN) != 0)
+	else if(((total_bytes_written+header_size) % PAD_ALIGN) != 0)
 	{
 		/* Pad size as required. */
-		ssize_t num_zeros = PAD_ALIGN - ((total_bytes_written+HEADER_SIZE) % PAD_ALIGN);
+		ssize_t num_zeros = PAD_ALIGN - ((total_bytes_written+header_size) % PAD_ALIGN);
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, total_bytes_written+num_zeros);

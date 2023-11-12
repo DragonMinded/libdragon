@@ -3,6 +3,7 @@
 #include "loader.h"
 #include "minidragon.h"
 #include "debug.h"
+#include <stdbool.h>
 
 #define ELF_MAGIC 0x7F454C46
 
@@ -100,20 +101,26 @@ void loader(void)
 {
     debugf("Hello from RDRAM ", __builtin_frame_address(0));
 
-    // Search for the ELF header
+    // Search for the ELF header. We search for a 256-byte aligned header
+    // starting at offset 0x1000 in the ROM area (after the IPL3).
+    // We search for a bit but not forever -- it doesn't help anyone a ROM
+    // that starts after 2 minutes.
     uint32_t elf_header = 0x10001000;
-    if (io_read32(elf_header) != ELF_MAGIC) {
-        // During IPL3 development, we use a signed trampoline, so the ELF
-        // file might be offset by 0x1000.
-        elf_header += 0x1000;
-        if (io_read32(elf_header) != ELF_MAGIC) {
-            debugf("ELF header not found");
-            abort();
+    bool found_elf = false;
+    for (int i=0; i<1024; i++) {
+        if (io_read32(elf_header) == ELF_MAGIC) {
+            found_elf = true;
+            break;
         }
+        elf_header += 0x100;
+    }
+    if (!found_elf) {
+        debugf("ELF header not found");
+        abort();
     }
 
     uint32_t phoff = io_read32(elf_header + 0x1C);
-    int phnum = io_read16(elf_header + 0x2C);    
+    int phnum = io_read16(elf_header + 0x2C);
     uint32_t *phdr = __builtin_alloca(0x20 * phnum);
     data_cache_hit_writeback_invalidate(phdr, 0x20 * phnum);
 
