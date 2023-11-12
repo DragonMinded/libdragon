@@ -112,7 +112,7 @@ void *asset_load(const char *fn, int *sz)
         // matters, at least we guarantee that. 
         fseek(f, 0, SEEK_END);
         size = ftell(f);
-        s = memalign(32, size);
+        s = memalign(ASSET_ALIGNMENT, size);
 
         fseek(f, 0, SEEK_SET);
         fread(s, 1, size, f);
