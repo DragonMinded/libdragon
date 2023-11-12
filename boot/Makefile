@@ -41,7 +41,7 @@ ipl3_unsigned.z64: build/ipl3.bin
 	cp build/ipl3.bin ipl3_unsigned.z64
 
 install-dev: ipl3_dev.z64
-	xxd -i ipl3_dev.z64 >../tools/ipl3.h
+	xxd -i -n default_ipl3 ipl3_dev.z64 >../tools/ipl3.h
 
 run: ipl3.z64
 	g64drive upload --autocic=false ipl3.z64 && g64drive cic 6102 && g64drive debug

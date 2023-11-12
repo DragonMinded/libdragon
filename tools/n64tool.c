@@ -506,8 +506,8 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				header_size = sizeof(ipl3_z64);
-				fwrite(ipl3_z64, 1, header_size, write_file);
+				header_size = sizeof(default_ipl3);
+				fwrite(default_ipl3, 1, header_size, write_file);
 			}
 
 			if(header_size < 0x100)
