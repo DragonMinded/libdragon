@@ -124,10 +124,7 @@ static void load_mainexe_sym_table()
     mainexe_sym_info_t __attribute__((aligned(8))) mainexe_sym_info;
     //Search for main executable symbol table
     uint32_t rom_addr = rompak_search_ext(".msym");
-    if(rom_addr == 0) {
-        debugf("Main executable symbol table missing\n");
-        return;
-    }
+    assertf(rom_addr != 0, "Main executable symbol table not found");
     //Read header for main executable symbol table
     data_cache_hit_writeback_invalidate(&mainexe_sym_info, sizeof(mainexe_sym_info));
     dma_read_raw_async(&mainexe_sym_info, rom_addr, sizeof(mainexe_sym_info));

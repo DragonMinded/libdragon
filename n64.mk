@@ -88,14 +88,18 @@ RSPASFLAGS+=-MMD
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
 	$(N64_SYM) $< $<.sym
-	$(N64_DSOMSYM) $< $<.msym
 	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8 $<.msym; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8; \
 	else \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8 $<.msym --align 16 "$$DFS_FILE"; \
+		MSYM_FILE="$(filter %.msym, $^)"; \
+		if [ -z "$$MSYM_FILE" ]; then \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 16 "$$DFS_FILE"; \
+		else \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
+		fi \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
@@ -198,6 +202,10 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	@echo "    [DSOEXTERN] $@"
 	$(N64_DSOEXTERN) -o $@ $^ 
 	
+%.msym: %.elf
+	@echo "    [MSYM] $@"
+	$(N64_DSOMSYM) $< $@
+    
 ifneq ($(V),1)
 .SILENT:
 endif

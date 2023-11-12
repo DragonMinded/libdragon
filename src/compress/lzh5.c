@@ -4,6 +4,7 @@
 
 #include "lzh5_internal.h"
 #include "ringbuf_internal.h"
+#include "../asset_internal.h"
 
 #ifdef N64
 #include <malloc.h>
