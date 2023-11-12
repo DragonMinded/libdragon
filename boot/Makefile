@@ -39,7 +39,7 @@ ipl3.z64: build/ipl3.bin boot_signed.z64
 	cat boot_signed.z64 build/pad.bin build/ipl3.bin >ipl3.z64
 
 install: ipl3.z64
-	cp ipl3.z64 ../header
+	xxd -i ipl3.z64 >../tools/ipl3.h
 
 run: ipl3.z64
 	g64drive upload --autocic=false ipl3.z64 && g64drive cic 6102 && g64drive debug

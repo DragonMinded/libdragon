@@ -28,6 +28,9 @@
 #include <sys/errno.h>
 #endif
 
+// Default header to use if none is specified
+#include "ipl3.h"
+
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
@@ -107,7 +110,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "General flags (to be used before any file):\n");
 	fprintf(stderr, "\t-t, --title <title>    Title of ROM (max %d characters).\n", TITLE_SIZE);
 	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
-	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header.\n");
+	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header (default: use libdragon IPL3).\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
 	fprintf(stderr, "\t-R, --region <reg>     Specify ROM region (default: 'E' - North America).\n");
 	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
@@ -360,9 +363,9 @@ int main(int argc, char *argv[])
 		}
 		if(check_flag(arg, "-s", "--offset"))
 		{
-			if(!header || !output)
+			if(!output)
 			{
-				fprintf(stderr, "ERROR: Need header and output flags before offset\n\n");
+				fprintf(stderr, "ERROR: Need output flag before offset\n\n");
 				return print_usage(argv[0]);
 			}
 
@@ -408,9 +411,9 @@ int main(int argc, char *argv[])
 		}
 		if(check_flag(arg, "-a", "--align"))
 		{
-			if(!header || !output)
+			if(!output)
 			{
-				fprintf(stderr, "ERROR: Need header and output flags before alignment\n\n");
+				fprintf(stderr, "ERROR: Need output flag before alignment\n\n");
 				return print_usage(argv[0]);
 			}
 
@@ -475,9 +478,9 @@ int main(int argc, char *argv[])
 		/* Argument is not a flag; treat it as an input file */
 
 		/* Can't copy input file unless header and output set */
-		if(!header || !output)
+		if(!output)
 		{
-			fprintf(stderr, "ERROR: Need header and output before first file\n\n");
+			fprintf(stderr, "ERROR: Need output flag before first file\n\n");
 			return print_usage(argv[0]);
 		}
 
@@ -497,7 +500,15 @@ int main(int argc, char *argv[])
 			atexit(remove_tmp_file);
 
 			/* Copy over the ROM header */
-			header_size = copy_file(write_file, header);
+			if (header)
+			{
+				header_size = copy_file(write_file, header);
+			}
+			else
+			{
+				header_size = sizeof(ipl3_z64);
+				fwrite(ipl3_z64, 1, header_size, write_file);
+			}
 
 			if(header_size < 0x100)
 			{

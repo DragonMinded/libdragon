@@ -15,7 +15,6 @@ N64_ROOTDIR = $(N64_INST)
 N64_BINDIR = $(N64_ROOTDIR)/bin
 N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
 N64_LIBDIR = $(N64_ROOTDIR)/mips64-elf/lib
-N64_HEADERPATH = $(N64_LIBDIR)/header
 N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/mips64-elf-
 
 COMMA:=,
@@ -31,7 +30,6 @@ N64_SIZE = $(N64_GCCPREFIX_TRIPLET)size
 N64_NM = $(N64_GCCPREFIX_TRIPLET)nm
 N64_STRIP = $(N64_GCCPREFIX_TRIPLET)strip
 
-N64_CHKSUM = $(N64_BINDIR)/chksum64
 N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
 N64_MKDFS = $(N64_BINDIR)/mkdfs
 N64_TOOL = $(N64_BINDIR)/n64tool
@@ -56,7 +54,7 @@ N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
 
-N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
+N64_TOOLFLAGS = --title $(N64_ROM_TITLE)
 N64_TOOLFLAGS += $(if $(N64_ROM_REGION),--region $(N64_ROM_REGION))
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
@@ -106,7 +104,6 @@ RSPASFLAGS+=-MMD
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
 	fi
-	$(N64_CHKSUM) $@ >/dev/null
 
 %.v64: %.z64
 	@echo "    [V64] $@"
