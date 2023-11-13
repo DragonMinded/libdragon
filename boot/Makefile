@@ -1,3 +1,7 @@
+ifneq ($(V),1)
+.SILENT:
+endif
+
 SOURCE_DIR=.
 
 N64_GCCPREFIX ?= $(N64_INST)
@@ -26,25 +30,29 @@ N64_LDFLAGS = -Wl,-Tipl3.ld -Wl,-Map=build/ipl3.map
 all: ipl3_dev.z64 ipl3_unsigned.z64
 
 build/%.o: %.c
+	@echo "    [CC] $@"
 	mkdir -p build
 	$(N64_CC) -c $(N64_CFLAGS) -o $@ $<
 
 build/ipl3.z64: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
+	@echo "    [Z64] $@"
 	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
 	$(N64_SIZE) -G build/ipl3.elf
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.z64
 	head -c 64 build/ipl3.z64 >build/ipl3.header
 
-ipl3_dev.z64: build/ipl3.z64 boot_signed.z64
-	cat build/ipl3.header        >ipl3_dev.z64
-	tail -c +65 boot_signed.z64 >>ipl3_dev.z64
-	cat ique.bin                >>ipl3_dev.z64
-	tail -c +65 build/ipl3.z64  >>ipl3_dev.z64
+ipl3_dev.z64: build/ipl3.z64
+	@echo "    [IPL3] $@"
+	cat build/ipl3.header                       >ipl3_dev.z64
+	tail -c +65 trampolines/boot_signed.z64     >>ipl3_dev.z64
+	cat trampolines/ique.bin                    >>ipl3_dev.z64
+	tail -c +65 build/ipl3.z64                  >>ipl3_dev.z64
 
 ipl3_unsigned.z64: build/ipl3.z64
-	cat build/ipl3.z64 	 >ipl3_unsigned.z64
-	truncate -s 4096      ipl3_unsigned.z64
-	cat ique.bin 		>>ipl3_unsigned.z64
+	@echo "    [IPL3] $@"
+	cat build/ipl3.z64               >ipl3_unsigned.z64
+	truncate -s 4096                  ipl3_unsigned.z64
+	cat trampolines/ique.bin        >>ipl3_unsigned.z64
 
 install-dev: ipl3_dev.z64
 	xxd -i -n default_ipl3 ipl3_dev.z64 >../tools/ipl3.h
@@ -52,13 +60,9 @@ install-dev: ipl3_dev.z64
 run: ipl3.z64
 	g64drive upload --autocic=false ipl3.z64 && g64drive cic 6102 && g64drive debug
 
-disasm: build/ipl3.bin
+disasm: build/ipl3.elf
 	$(N64_OBJDUMP) -D build/ipl3.elf
-
-log:
-	g64drive download -b rom -o 0x3000000 -s 2048 log.txt && cat log.txt
 
 -include $(wildcard build/*.d)
 
 .PHONY: all disasm run
-
