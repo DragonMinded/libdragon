@@ -34,10 +34,10 @@
  * @{
  */
 
-int __boot_memsize;        /** @brief Memory size as detected by IPL3 */
-int __boot_tvtype;         /** @brief TV type as detected by IPL3 */
-int __boot_resettype;      /** @brief Reset type as detected by IPL3 */
-int __boot_consoletype;    /** @brief Console type as detected by IPL3 */
+int __boot_memsize;        ///< Memory size as detected by IPL3
+int __boot_tvtype;         ///< TV type as detected by IPL3
+int __boot_resettype;      ///< Reset type as detected by IPL3 
+int __boot_consoletype;    ///< Console type as detected by IPL3
 
 /** @brief Last tick at which the 64-bit counter was updated */
 static uint32_t ticks64_base_tick;
