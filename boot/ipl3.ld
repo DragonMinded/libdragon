@@ -17,8 +17,6 @@ SECTIONS {
     */
     .text __ipl3_text_start  : {
         *(.header)
-        LONG(0x3C1DA400); /* lui $sp, 0xA400 */
-        LONG(0x37BD2000); /* ori $sp, 0x2000 */
         *(.boot)
         . = ALIGN(16);
         *(.banner)
