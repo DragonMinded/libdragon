@@ -33,7 +33,6 @@ SECTIONS {
         KEEP(build/loader.o(.data .data.* .rodata .rodata.*))
         . = ALIGN(8);
         __stage2_end = .;
-        . = 0x1000;
     } > dmem
 
     __stage2_size = __stage2_end - __stage2_start;

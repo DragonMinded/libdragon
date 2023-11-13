@@ -43,6 +43,7 @@ ipl3_dev.z64: build/ipl3.z64 boot_signed.z64
 
 ipl3_unsigned.z64: build/ipl3.z64
 	cat build/ipl3.z64 	 >ipl3_unsigned.z64
+	truncate -s 4096      ipl3_unsigned.z64
 	cat ique.bin 		>>ipl3_unsigned.z64
 
 install-dev: ipl3_dev.z64
