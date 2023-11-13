@@ -15,7 +15,7 @@ typedef struct {
 
 void __ringbuf_init(decompress_ringbuf_t *ringbuf, uint8_t *buf, int winsize);
 
-inline void __ringbuf_writebyte(decompress_ringbuf_t *ringbuf, uint8_t byte)
+static inline void __ringbuf_writebyte(decompress_ringbuf_t *ringbuf, uint8_t byte)
 {
     ringbuf->ringbuf[ringbuf->ringbuf_pos++] = byte;
     ringbuf->ringbuf_pos &= ringbuf->ringbuf_size-1;
