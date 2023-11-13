@@ -1,3 +1,29 @@
+/**
+ * @file ipl3.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief IPL3 Bootcode
+ * 
+ * Layout of ROM
+ * 
+ * Production layout:
+ * 0x0000 - HEADER
+ * 0x0040 - IPL3
+ * 0x1000 - iQue Trampoline (load IPL3 to DMEM, jump back to it)
+ * 0x1040 - Rompak TOC
+ * ...... - Main ELF file
+ * ...... - Other Rompak files (.sym file, .dfs file, etc.)
+ * 
+ * Development layout:
+ * 0x0000 - HEADER
+ * 0x0040 - Signed IPL3 Trampoline
+ * 0x1000 - iQue Trampoline (load IPL3 to DMEM, jump back to it)
+ * 0x1040 - IPL3 development version (unsigned)
+ * 0x2000 - Rompak TOC
+ * ...... - Main ELF file
+ * ...... - Other Rompak files (.sym file, .dfs file, etc.)
+ * 
+ */
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "minidragon.h"
@@ -7,6 +33,34 @@
 
 __attribute__((section(".banner"), used))
 const char banner[32] = " Libdragon IPL3 " " Coded by Rasky ";
+
+typedef struct __attribute__((packed)) {
+    uint32_t pi_dom1_config;
+    uint32_t clock_rate;
+    uint32_t boot_address;
+    uint32_t sdk_version;
+    uint64_t checksum;
+    uint64_t reserved1;
+    char title[20];
+    char reserved2[7];
+    uint32_t gamecode;
+    uint8_t rom_version;
+} rom_header_t;
+
+_Static_assert(sizeof(rom_header_t) == 64, "invalid sizeof(rom_header_t)");
+
+__attribute__((section(".header"), used))
+const rom_header_t header = {
+    // Standard PI DOM1 config
+    .pi_dom1_config = 0x80371240,
+    // Our IPL3 does not use directly this field. We do set it
+    // mainly for iQue, so that the special iQue trampoline is run,
+    // which jumps to our IPL3.
+    .boot_address = 0x80000400,
+    // Default title name
+    .title = "Libdragon           ",
+};
+
 
 #if 0
 void memtest(int memsize)

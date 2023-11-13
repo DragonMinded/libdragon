@@ -29,16 +29,21 @@ build/%.o: %.c
 	mkdir -p build
 	$(N64_CC) -c $(N64_CFLAGS) -o $@ $<
 
-build/ipl3.bin: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
+build/ipl3.z64: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
 	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
 	$(N64_SIZE) -G build/ipl3.elf
-	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.bin
+	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.z64
+	head -c 64 build/ipl3.z64 >build/ipl3.header
 
-ipl3_dev.z64: build/ipl3.bin boot_signed.z64
-	cat boot_signed.z64 build/ipl3.bin >ipl3_dev.z64
+ipl3_dev.z64: build/ipl3.z64 boot_signed.z64
+	cat build/ipl3.header        >ipl3_dev.z64
+	tail -c +65 boot_signed.z64 >>ipl3_dev.z64
+	cat ique.bin                >>ipl3_dev.z64
+	tail -c +65 build/ipl3.z64  >>ipl3_dev.z64
 
-ipl3_unsigned.z64: build/ipl3.bin
-	cp build/ipl3.bin ipl3_unsigned.z64
+ipl3_unsigned.z64: build/ipl3.z64
+	cat build/ipl3.z64 	 >ipl3_unsigned.z64
+	cat ique.bin 		>>ipl3_unsigned.z64
 
 install-dev: ipl3_dev.z64
 	xxd -i -n default_ipl3 ipl3_dev.z64 >../tools/ipl3.h

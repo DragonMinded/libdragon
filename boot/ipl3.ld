@@ -16,8 +16,7 @@ SECTIONS {
     * the first byte of the cart domain in cached, unmapped memory
     */
     .text __ipl3_text_start  : {
-        LONG(0x80371240); /* PI DOM1 default configuration */
-        . = ALIGN(64);
+        *(.header)
         LONG(0x3C1DA400); /* lui $sp, 0xA400 */
         LONG(0x37BD2000); /* ori $sp, 0x2000 */
         *(.boot)
@@ -34,6 +33,7 @@ SECTIONS {
         KEEP(build/loader.o(.data .data.* .rodata .rodata.*))
         . = ALIGN(8);
         __stage2_end = .;
+        . = 0x1000;
     } > dmem
 
     __stage2_size = __stage2_end - __stage2_start;
