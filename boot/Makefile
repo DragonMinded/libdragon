@@ -25,7 +25,7 @@ N64_CFLAGS += -mabi=32  # Can't compile for 64bit ABI because DMEM/IMEM don't su
 
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
-N64_LDFLAGS = -Wl,-Tipl3.ld -Wl,-Map=build/ipl3.map
+N64_LDFLAGS = -Wl,-Tipl3.ld -Wl,-Map=build/ipl3.map -Wl,--gc-sections
 
 all: ipl3_dev.z64 ipl3_unsigned.z64
 

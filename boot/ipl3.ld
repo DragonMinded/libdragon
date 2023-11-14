@@ -16,10 +16,10 @@ SECTIONS {
     * the first byte of the cart domain in cached, unmapped memory
     */
     .text __ipl3_text_start  : {
-        *(.header)
-        *(.boot)
+        KEEP(*(.header))
+        KEEP(*(.boot))
         . = ALIGN(16);
-        *(.banner)
+        KEEP(*(.banner))
         build/ipl3.o       (.text .text.* .data .rodata .rodata.*)
         build/rdram.o      (.text .text.* .data .rodata .rodata.*)
         build/minidragon.o (.text .text.* .data .rodata .rodata.*)
