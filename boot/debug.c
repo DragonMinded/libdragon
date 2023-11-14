@@ -16,6 +16,7 @@ volatile uint32_t *s8_register asm ("s8");
 
 #define DATATYPE_TEXT       0x01
 #define DEBUG_ADDRESS       (0xB3000000)
+#define IQUE_DEBUG_ADDRESS  (0x807C0000)
 
 #define D64_CIBASE_ADDRESS 0xB8000000
 
@@ -75,7 +76,8 @@ static void usb_flush(int size)
 __attribute__((noinline))
 void _usb_print(int ssize, const char *string, int nargs, ...)
 {
-    uint32_t addr = DEBUG_ADDRESS;
+    static uint32_t ique_addr = IQUE_DEBUG_ADDRESS;
+    uint32_t addr = DEBUG == 2 ? ique_addr : DEBUG_ADDRESS;
     uint32_t *s = (uint32_t*)string;
     for (; ssize > 0; ssize -= 4, addr += 4)
         io_write(addr, *s++);
@@ -101,14 +103,19 @@ void _usb_print(int ssize, const char *string, int nargs, ...)
     }
 
     io_write(addr, 0x2020200A), addr += 4;
-    usb_flush(addr - DEBUG_ADDRESS);
+    if (DEBUG == 1)
+        usb_flush(addr - DEBUG_ADDRESS);
+    if (DEBUG == 2)
+        ique_addr = addr;
 }
 
 void usb_init(void)
 {
-    usb_64drive_setwritable(true);
-    for (int i = 0; i < 0x1000; i += 4)
-        io_write(DEBUG_ADDRESS + i, 0);
+    if (DEBUG == 1) {
+        usb_64drive_setwritable(true);
+        for (int i = 0; i < 0x1000; i += 4)
+            io_write(DEBUG_ADDRESS + i, 0);
+    }
 }
 
 #endif
