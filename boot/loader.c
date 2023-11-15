@@ -1,5 +1,3 @@
-#define STAGE2 1
-
 #include "loader.h"
 #include "minidragon.h"
 #include "debug.h"
