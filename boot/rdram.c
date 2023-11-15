@@ -370,8 +370,10 @@ int rdram_init(void)
         if (!(rdram_reg_r(chip_id, RDRAM_REG_MODE) & (1<<1)))
             break;
 
-        // Calibrate the chip current. Do 4 attempts and get the average
-        enum { NUM_CALIBRATION_ATTEMPTS = 4 };
+        // Calibrate the chip current. n64brew suggests to do 4 attempts here
+        // but our tests seem to indicate that results are really stable and
+        // a single attempt seems enough.
+        enum { NUM_CALIBRATION_ATTEMPTS = 1 };
         int weighted_cc = 0;
         for (int i=0; i<NUM_CALIBRATION_ATTEMPTS; i++) {
             int cc = rdram_calibrate_current(chip_id);
