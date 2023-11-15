@@ -130,8 +130,6 @@ static inline void cop0_clear_cache(void)
 __attribute__((noreturn))
 void abort(void);
 
-void io_write(uint32_t vaddrx, uint32_t value);
-
 static inline uint32_t io_read(uint32_t vaddrx)
 {
     while (*PI_STATUS & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY)) {}

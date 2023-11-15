@@ -47,6 +47,9 @@ volatile uint32_t *s8_register asm ("s8");
 #define D64_CI_BUSY  0x10
 #define D64_CI_WRITE 0x20
 
+__attribute__((far))
+extern void io_write(uint32_t vaddrx, uint32_t value);
+
 static void usb_64drive_wait(void)
 {
     while ((io_read(D64_CIBASE_ADDRESS + D64_REGISTER_STATUS) >> 8) & D64_CI_BUSY) {}
