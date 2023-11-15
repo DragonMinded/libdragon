@@ -300,6 +300,8 @@ static int rdram_calibrate_current(uint16_t chip_id)
             minerr = err;
             autocc = cc;
         }
+        if (cc_readback > target_cc)
+            break;
     }
 
     // debugf("rdram_calibrate_current: auto_cc ", autocc, minerr);
