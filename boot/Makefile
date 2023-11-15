@@ -38,7 +38,7 @@ build/%.o: %.c
 build/ipl3.z64: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
 	@echo "    [Z64] $@"
 	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
-	$(N64_READELF) --wide --sections build/ipl3.elf
+	$(N64_READELF) --wide --sections build/ipl3.elf | grep .text
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.z64
 	head -c 64 build/ipl3.z64 >build/ipl3.header
 
