@@ -282,6 +282,7 @@ static int rdram_calibrate_current(uint16_t chip_id)
 
         // Stop once we reach full accuracy.
         if (accuracy >= 1.0f) break;
+        prev_accuracy = accuracy;
     }
 
     int target_cc = weighted_sum * 2.2f + 0.5f;
