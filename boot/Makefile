@@ -25,37 +25,43 @@ N64_CFLAGS += -mabi=32 -mgp32 -mfp32 -msingle-float # Can't compile for 64bit AB
 #N64_CFLAGS += -flto
 
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
+N64_ASFLAGS =  -mabi=32 -mgp32 -mfp32 -msingle-float
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
-N64_LDFLAGS = -Wl,-Tipl3.ld -Wl,-Map=build/ipl3.map -Wl,--gc-sections
+N64_LDFLAGS = -Wl,-T$(IPL3_LDSCRIPT) -Wl,-Map=build/ipl3.map -Wl,--gc-sections
 
-all: ipl3_dev.z64 ipl3_unsigned.z64
+OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/boot_trampoline.o build/ique_trampoline.o
+
+ifeq ($(PROD),1)
+N64_CFLAGS += -DNDEBUG
+IPL3_LDSCRIPT=ipl3_prod.ld
+all: ipl3_prod.z64
+else
+OBJS += build/debug.o 
+IPL3_LDSCRIPT=ipl3_dev.ld
+all: ipl3_dev.z64
+install: ipl3_dev.z64
+endif
 
 build/%.o: %.c
 	@echo "    [CC] $@"
-	mkdir -p build
+	@mkdir -p build
 	$(N64_CC) -c $(N64_CFLAGS) -o $@ $<
 
-build/ipl3.z64: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
+build/%.o: %.S
+	@echo "    [AS] $@"
+	@mkdir -p build
+	$(N64_CC) -c $(N64_ASFLAGS) -o $@ $<
+
+%.z64: build/ipl3.elf
 	@echo "    [Z64] $@"
-	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
-	$(N64_READELF) --wide --sections build/ipl3.elf | grep .text
-	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.z64
-	head -c 64 build/ipl3.z64 >build/ipl3.header
+	$(N64_OBJCOPY) -O binary $< $@
 
-ipl3_dev.z64: build/ipl3.z64
-	@echo "    [IPL3] $@"
-	cat build/ipl3.header                       >ipl3_dev.z64
-	tail -c +65 trampolines/boot_signed.z64     >>ipl3_dev.z64
-	cat trampolines/ique.bin                    >>ipl3_dev.z64
-	tail -c +65 build/ipl3.z64                  >>ipl3_dev.z64
+build/ipl3.elf: $(IPL3_LDSCRIPT) $(OBJS)
+	@echo "    [LD] $@"
+	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o $@ $(filter %.o,$^)
+	$(N64_READELF) --wide --sections $@ | grep .text
 
-ipl3_unsigned.z64: build/ipl3.z64
-	@echo "    [IPL3] $@"
-	cat build/ipl3.z64               >ipl3_unsigned.z64
-	truncate -s 4096                  ipl3_unsigned.z64
-	cat trampolines/ique.bin        >>ipl3_unsigned.z64
-
-install-dev: ipl3_dev.z64
+install:
 	xxd -i -n default_ipl3 ipl3_dev.z64 >../tools/ipl3.h
 
 run: ipl3.z64

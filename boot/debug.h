@@ -1,9 +1,9 @@
 #ifndef BOOT_DEBUG_H
 #define BOOT_DEBUG_H
 
-#define DEBUG       1   // 0: disabled, 1:n64, 2:ique
+#ifndef NDEBUG
 
-#if DEBUG
+#define DEBUG 1
 
 #include "pputils.h"
 

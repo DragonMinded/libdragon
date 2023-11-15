@@ -5,14 +5,19 @@ ENTRY (_start)
 
 MEMORY
 {
+    rom  : ORIGIN = 0xB0000000, LENGTH = 65536
     dmem : ORIGIN = 0xA4000000, LENGTH = 4096
     imem : ORIGIN = 0xA4001000, LENGTH = 2048
-    rom  : ORIGIN = 0xB0002000, LENGTH = 16384
 }
 
 SECTIONS {
-    .text.dmem 0xA4000000 : {
+    .text.prologue 0xB0000000 : {
         KEEP(*(.header))
+        KEEP(*(.text.boot_trampoline))
+        KEEP(*(.text.ique_trampoline))
+    } > rom
+
+    .text.dmem 0xA4000040 : AT ( 0xB0001040 ) {
         KEEP(*(.boot))
         . = ALIGN(16);
         KEEP(*(.banner))
@@ -30,11 +35,11 @@ SECTIONS {
 
     __stage2_size = __stage2_end - __stage2_start;
 
-    .text.rom 0xB0001000 + SIZEOF ( .text.dmem ) : AT ( ADDR( .text.dmem ) + SIZEOF( .text.dmem ) ) {
+    .text.rom 0xB0001040 + SIZEOF ( .text.dmem ) : {
         build/debug.o      (.text .text.* .data)
         *(.rodata)
         *(.rodata.*)
-    }
+    } > rom
 
     . = ALIGN(4);
     .bss : {
