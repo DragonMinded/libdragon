@@ -290,6 +290,7 @@ static int rdram_calibrate_current(uint16_t chip_id)
 
         // Read the CC value 
         int cc_readback = 0;
+        wait(0x100);
         rdram_reg_r_mode(chip_id, NULL);
         rdram_reg_r_mode(chip_id, &cc_readback);
 
