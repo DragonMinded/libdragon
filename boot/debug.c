@@ -1,3 +1,34 @@
+/**
+ * @file debug.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief IPL3 debugging module
+ * 
+ * This module implements a simple debugging interface for IPL3. The debugging
+ * messages are forward to both ISViewer (for emulators), and USB for the
+ * 64drive and the SummerCart64.
+ * 
+ * In production mode, the debug code is not linked at all. In general,
+ * the ROM production layout does not even allow to link the debug code
+ * as the space available (4 KiB) would not be enough.
+ * 
+ * In development mode, the debug code is linked but it is not loaded into DMEM.
+ * In fact, the linker script setups relocations so that IPL3 calls debugging
+ * code directly into ROM (by jumping into the cartridge space at 0xB0000000).
+ * Running code directly from ROM is in fact possible, though it is very slow,
+ * but this is not a big problem. This allows us to link "as much" debugging
+ * support code as we want, without worrying about the 4 KiB limit.
+ * 
+ * When running code from ROM, the CPU fetches each opcode via PI. This means
+ * that it is not possible to *write* to PI while running code from ROM,
+ * because subsequent reads are not correctly synchronized (given that PI
+ * writes are asynchronous). Writing to flashcart registers requires writing
+ * to the PI space; to workaround this, the debugging code calls a io_write
+ * function (defined in minidragon.c) which is instead loaded in DMEM as part
+ * of the IPL3 code. This is the only debugging-related function stored in
+ * DMEM with the rest of IPL3, but it's very little (only a handful of
+ * instructions).
+ */
+
 #include "debug.h"
 
 #if DEBUG
@@ -11,8 +42,6 @@
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
 })
-
-volatile uint32_t *s8_register asm ("s8");
 
 #define DATATYPE_TEXT       0x01
 #define DEBUG_ADDRESS       (0xB3000000)
@@ -47,6 +76,8 @@ volatile uint32_t *s8_register asm ("s8");
 #define D64_CI_BUSY  0x10
 #define D64_CI_WRITE 0x20
 
+// Call io_write (defined in minidragon.c) which is in DMEM with the rest of IPL3.
+// Since debugging code is instead run directly from ROM, we need a far call.
 __attribute__((far))
 extern void io_write(uint32_t vaddrx, uint32_t value);
 
@@ -76,7 +107,6 @@ static void usb_flush(int size)
     usb_64drive_waitidle();
 }
 
-__attribute__((noinline))
 void _usb_print(int ssize, const char *string, int nargs, ...)
 {
     static uint32_t ique_addr = IQUE_DEBUG_ADDRESS;
