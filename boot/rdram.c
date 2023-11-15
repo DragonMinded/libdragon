@@ -196,12 +196,11 @@ static void rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
     enum { 
         FR = 1 << 12,
         CURRENT_CONTROL_AUTO = 1 << 7, // Set auto current mode
-        CURRENT_CONTROL_MULT = 0, // 1 << 6, // ?
         AUTO_SKIP = 1 << 2, // ?
         DEVICE_EN = 1 << 1, // Enable direct chip configuration (even without broadcast)
     };
 
-    uint32_t value = DEVICE_EN | AUTO_SKIP | CURRENT_CONTROL_MULT | FR;
+    uint32_t value = DEVICE_EN | AUTO_SKIP | FR;
     if (auto_current) value |= CURRENT_CONTROL_AUTO;
     value |= cctable[cc];
 
