@@ -11,6 +11,7 @@ N64_LD = $(N64_GCCPREFIX_TRIPLET)ld
 N64_OBJCOPY = $(N64_GCCPREFIX_TRIPLET)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX_TRIPLET)objdump
 N64_SIZE = $(N64_GCCPREFIX_TRIPLET)size
+N64_READELF = $(N64_GCCPREFIX_TRIPLET)readelf
 
 N64_ROOTDIR = $(N64_INST)
 N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
@@ -37,7 +38,7 @@ build/%.o: %.c
 build/ipl3.z64: ipl3.ld build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/debug.o
 	@echo "    [Z64] $@"
 	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o build/ipl3.elf $(filter %.o,$^)
-	$(N64_SIZE) -G build/ipl3.elf
+	$(N64_READELF) --wide --sections build/ipl3.elf
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.z64
 	head -c 64 build/ipl3.z64 >build/ipl3.header
 
