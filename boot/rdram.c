@@ -163,6 +163,21 @@ static void rdram_reg_w_deviceid(int chip_id, uint16_t new_chip_id)
     rdram_reg_w(chip_id, RDRAM_REG_DEVICE_ID, value);
 }
 
+static void rdram_reg_r_mode(int nchip, int *cci)
+{
+    uint32_t value = rdram_reg_r(nchip, RDRAM_REG_MODE);
+
+    if (cci) {
+        uint8_t cc0 = (value >> 30) &  1;
+        uint8_t cc1 = (value >> 21) &  2;
+        uint8_t cc2 = (value >> 12) &  4;
+        uint8_t cc3 = (value >> 28) &  8;
+        uint8_t cc4 = (value >> 19) & 16;
+        uint8_t cc5 = (value >> 10) & 32;
+        *cci = (cc0 | cc1 | cc2 | cc3 | cc4 | cc5);
+    }
+}
+
 /** 
  * Write the RDRAM mode register. This is mainly used to write the current (I) value
  * in manual/auto mode, so this helper function just allows to do that, with some
@@ -179,7 +194,7 @@ static void rdram_reg_w_deviceid(int chip_id, uint16_t new_chip_id)
 #define CCVALUE8(cc) CCVALUE(cc), CCVALUE(cc+1), CCVALUE(cc+2), CCVALUE(cc+3), CCVALUE(cc+4), CCVALUE(cc+5), CCVALUE(cc+6), CCVALUE(cc+7)
 static const uint32_t cctable[0x40] = { CCVALUE8(0), CCVALUE8(8), CCVALUE8(16), CCVALUE8(24), CCVALUE8(32), CCVALUE8(40), CCVALUE8(48), CCVALUE8(56) };
 
-static void rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
+static int rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
 {
     uint8_t cc = cci ^ 0x3F;   // invert bits to non inverted value
     enum { 
@@ -194,21 +209,21 @@ static void rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
     value |= cctable[cc];
 
     rdram_reg_w(nchip, RDRAM_REG_MODE, value);
-}
 
-static void rdram_reg_r_mode(int nchip, int *cci)
-{
-    uint32_t value = rdram_reg_r(nchip, RDRAM_REG_MODE);
-
-    if (cci) {
-        uint8_t cc0 = (value >> 30) &  1;
-        uint8_t cc1 = (value >> 21) &  2;
-        uint8_t cc2 = (value >> 12) &  4;
-        uint8_t cc3 = (value >> 28) &  8;
-        uint8_t cc4 = (value >> 19) & 16;
-        uint8_t cc5 = (value >> 10) & 32;
-        *cci = (cc0 | cc1 | cc2 | cc3 | cc4 | cc5);
+    if (auto_current) {
+        // After setting auto mode, it is necessary to wait a little bit and then
+        // poll the mode register two times to stabilize and readback the actual
+        // current value. It seems that it's necessary to do this or some (RI's?)
+        // internal state machine is stalled. This is still quite mysterious
+        // as the CURRENT_CONTROL_AUTO (1<<7) is not part of any Rambus datasheet...
+        int cc_read;
+        wait(0x100);
+        rdram_reg_r_mode(nchip, NULL);
+        rdram_reg_r_mode(nchip, &cc_read);
+        return cc_read;
     }
+
+    return cc;
 }
 
 static rdram_reg_manufacturer_t rdram_reg_r_manufacturer(int nchip)
@@ -286,13 +301,7 @@ static int rdram_calibrate_current(uint16_t chip_id)
     int autocc = 0;
     for (int cc=0; cc<64; cc++) {
         // Write the CC value in automatic mode.
-        rdram_reg_w_mode(chip_id, true, cc);
-
-        // Read the CC value 
-        int cc_readback = 0;
-        wait(0x100);
-        rdram_reg_r_mode(chip_id, NULL);
-        rdram_reg_r_mode(chip_id, &cc_readback);
+        int cc_readback = rdram_reg_w_mode(chip_id, true, cc);
 
         // debugf("rdram_calibrate_current: auto ", cc, cc_readback);
         int err = abs(cc_readback - target_cc);
