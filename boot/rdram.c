@@ -97,17 +97,6 @@ typedef struct {
     int low_latency;
 } rdram_reg_devicetype_t;
 
-static void rdram_dump_regs(void)
-{
-    debugf("\tMI_MODE: ", *MI_MODE);
-    debugf("\tMI_VERSION: ", *MI_VERSION);
-    debugf("\tRI_MODE: ", *RI_MODE);
-    debugf("\tRI_CONFIG: ", *RI_CONFIG);
-    debugf("\tRI_CURRENT_LOAD: ", *RI_CURRENT_LOAD);
-    debugf("\tRI_SELECT: ", *RI_SELECT);
-    debugf("\tRI_LATENCY: ", *RI_LATENCY);
-}
-
 static uint32_t mi_version_io(void)  { return (*MI_VERSION >>  0) & 0xFF; }
 
 register uint32_t rdram_reg_stride_shift asm("k0");
@@ -285,6 +274,7 @@ static int rdram_calibrate_current(uint16_t chip_id)
         prev_accuracy = accuracy;
     }
 
+    // debugf("rdram_calibrate_current: weighted sum ", (int)weighted_sum);
     int target_cc = weighted_sum * 2.2f + 0.5f;
     if (!target_cc)
         return 0;
@@ -303,6 +293,7 @@ static int rdram_calibrate_current(uint16_t chip_id)
         rdram_reg_r_mode(chip_id, NULL);
         rdram_reg_r_mode(chip_id, &cc_readback);
 
+        // debugf("rdram_calibrate_current: auto ", cc, cc_readback);
         int err = abs(cc_readback - target_cc);
         if (cc == 0 || err < minerr) {
             minerr = err;
@@ -316,9 +307,6 @@ static int rdram_calibrate_current(uint16_t chip_id)
 
 int rdram_init(void)
 {
-    debugf("rdram_init: start");
-    rdram_dump_regs();
-
     // Check if it's already initialized (after reset)
     if (*RI_SELECT) {
         return 8*1024*1024; // FIXME?
@@ -326,7 +314,6 @@ int rdram_init(void)
 
     // Start current calibration. This is necessary to ensure the RAC outputs
     // the correct current value to talk to RDRAM chips.
-    debugf("rdram_init: autocalibrate RAC output current");
     *RI_CONFIG = RI_CONFIG_AUTO_CALIBRATION;   // Turn on the RI auto current calibration
     wait(0x10000);                             // Wait for calibration
     *RI_CURRENT_LOAD = 0;                      // Apply the calibrated value
@@ -337,7 +324,6 @@ int rdram_init(void)
 
     // Reset chips. After the reset, all chips are turned off (DE=0 in MODE), and
     // mapped to device ID 0.
-    debugf("rdram_init: reset RDRAM chips");
     *RI_MODE = RI_MODE_RESET;    wait(0x100);
     *RI_MODE = RI_MODE_STANDARD; wait(0x100);
 
@@ -381,7 +367,7 @@ int rdram_init(void)
             weighted_cc += cc;
         }
         if (!weighted_cc) {
-            // debugf("error: current calibration failed for chip_id ", chip_id);
+            debugf("error: current calibration failed for chip_id ", chip_id);
             rdram_reg_w_deviceid(chip_id, INVALID_ID);
             break;
         }
@@ -398,7 +384,7 @@ int rdram_init(void)
         // Notice also that "4 MiB chips" are actually two different 2 MiB chips
         // in the same package, so we actually see them as two different chips.
         if (t.bank_bits != 1 || t.row_bits != 9 || t.col_bits != 0xB || t.ninth_bit != 1) {
-            // debugf("error: invalid geometry: ", t.version, t.type, t.row_bits, t.bank_bits, t.col_bits, t.ninth_bit, t.low_latency);
+            debugf("error: invalid geometry: ", t.version, t.type, t.row_bits, t.bank_bits, t.col_bits, t.ninth_bit, t.low_latency);
             rdram_reg_w_deviceid(chip_id, INVALID_ID);
             break;
         }
@@ -430,11 +416,11 @@ int rdram_init(void)
             ptr[0]=0; ptr[1]=0;
         }
 
-        // debugf("Chip: ", chip_id);
-        // debugf("    Manufacturer: ", m.manu);
-        // debugf("    Geometry: ", t.bank_bits, t.row_bits, t.col_bits);
-        // debugf("    Current: ", target_cc);
-        // debugf("    RAS: ", ras_interval);
+        debugf("Chip: ", chip_id);
+        debugf("\tManufacturer: ", m.manu);
+        debugf("\tGeometry: ", t.bank_bits, t.row_bits, t.col_bits);
+        debugf("\tCurrent: ", target_cc);
+        debugf("\tRAS: ", ras_interval);
 
         // The chip has been configured and mapped. Now go to the next chip.
         // 2 MiB chips must be mapped at even addresses (as they cover two
@@ -455,8 +441,6 @@ int rdram_init(void)
     int refresh_multibanks = (1 << (chip_id >> 1)) - 1;
     *RI_REFRESH = RI_REFRESH_AUTO | RI_REFRESH_OPTIMIZE | RI_REFRESH_CLEANDELAY(52) | RI_REFRESH_DIRTYDELAY(54) | RI_REFRESH_MULTIBANK(refresh_multibanks);
     (void)*RI_REFRESH; // A dummy read seems necessary
-    debugf("RI_REFRESH = ", *RI_REFRESH);
 
-    debugf("rdram_init: done");
     return total_memory;
 }
