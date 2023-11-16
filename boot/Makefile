@@ -37,7 +37,6 @@ IPL3_ROM=ipl3_prod.z64
 IPL3_LDSCRIPT=ipl3_prod.ld
 else
 OBJS += build/debug.o build/boot_trampoline.o 
-N64_CFLAGS += -DNDEBUG
 IPL3_ROM=ipl3_dev.z64
 IPL3_LDSCRIPT=ipl3_dev.ld
 endif
