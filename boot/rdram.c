@@ -319,7 +319,18 @@ int rdram_init(void)
 {
     // Check if it's already initialized (after reset)
     if (*RI_SELECT) {
-        return 8*1024*1024; // FIXME?
+        // We assume the RAM is already laid out. Try to check how much memory
+        // is present in the system
+        int total_memory = 0;
+        for (int chip_id=0; chip_id<8; chip_id+=2) {
+            volatile uint32_t *ptr = RDRAM + chip_id * 1024 * 1024;
+            ptr[0]=0;
+            ptr[0]=0x12345678;
+            if (ptr[0] != 0x12345678) break;
+            total_memory += 2*1024*1024;
+        }
+        debugf("Total memory: ", total_memory);
+        return total_memory;
     }
 
     // Start current calibration. This is necessary to ensure the RAC outputs
