@@ -69,5 +69,5 @@ IPL3Trampoline:
 
     # Magic value to "sign" this trampoline, forcing a IPL2 checksum match
     # This has been bruteforced via the ipl3hasher GPU cracker.
-    # Many thanks to Danukeru for donating the GPU time.
+    # Many thanks to Danukeru and the n64brew community for donating the GPU time.
     .quad 0x00030e413340ba87
