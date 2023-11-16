@@ -26,7 +26,10 @@ SECTIONS {
         KEEP(build/loader.o(.data .data.*))
         . = ALIGN(8);
         __stage2_end = .;
-        . = ALIGN(4096);
+    } > dmem
+
+    .text.signature 0xA4000FF8 : {
+        QUAD(0x0000000000000000);
     } > dmem
 
     __stage2_size = __stage2_end - __stage2_start;
