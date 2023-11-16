@@ -23,13 +23,13 @@ To build the standard libdragon IPL3, simply run:
 ```
 
 Make sure you have libdragon toolchain installed first,
-as required for standard libdragon development. This
-will generate two files:
+as required for standard libdragon development. 
 
- * ipl3_dev.z64. This is the development version, which
-   contains the signed trampoline.
- * ipl3_unsigned.z64. This is production version, without
-   trampoline. It will not work as-is because it not signed.
+This will create a file called `ipl3_dev.z64` that contains
+the development version of IPL3. Thanks to a special signed
+trampoline, this version can immediately be tested with
+emulators and on real hardware, and contains full debug
+support (logging).
 
 To test the newly built development version of IPL3, there
 are two possible ways:
@@ -38,9 +38,30 @@ are two possible ways:
    Makefile of your game using n64.mk. This will tell
    n64.mk to use the custom header instead of the default
    one.
- * Run `make install-dev`. This will modify the source code
+ * Run `make install`. This will modify the source code
    of n64tool to embed this new IPL3 with it by default.
-   You then need to rebuild and install n64tool (run
+   You then need to rebuild and install `n64tool` (run
    `make install` in the `tools` directory), and then you
    can finally rebuild your own ROM, that will use the
    updated file.
+
+
+### Building IPL3 (production version)
+
+Building the production version of IPL3 can be done by running
+the same Makefile with a different option:
+
+```
+    $ make clean      # make sure to rebuild from scratch
+    $ make PROD=1
+```
+
+This will create a file called `ipl3_prod.z64`. This contains the
+non-debug version of IPL3. This version must be correctly signed
+before being usable on real hardware and on accurate emulators.
+To sign the ROM, the best option is to perform GPU cracking using
+[ipl3hasher](https://github.com/awygle/ipl3hasher).
+
+After you have correctly signed the ROM, you can follow the same
+instructions above to use it: you can either set `N64_ROM_HEADER`,
+or run `make install PROD=1` to embed it into `n64tool`.

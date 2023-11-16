@@ -33,14 +33,16 @@ OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/ique_t
 
 ifeq ($(PROD),1)
 N64_CFLAGS += -DNDEBUG
+IPL3_ROM=ipl3_prod.z64
 IPL3_LDSCRIPT=ipl3_prod.ld
-all: ipl3_prod.z64
 else
 OBJS += build/debug.o build/boot_trampoline.o 
+N64_CFLAGS += -DNDEBUG
+IPL3_ROM=ipl3_dev.z64
 IPL3_LDSCRIPT=ipl3_dev.ld
-all: ipl3_dev.z64
-install: ipl3_dev.z64
 endif
+
+all: $(IPL3_ROM)
 
 build/%.o: %.c
 	@echo "    [CC] $@"
@@ -61,14 +63,17 @@ build/ipl3.elf: $(IPL3_LDSCRIPT) $(OBJS)
 	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o $@ $(filter %.o,$^)
 	$(N64_READELF) --wide --sections $@ | grep .text
 
-install:
-	xxd -i -n default_ipl3 ipl3_dev.z64 >../tools/ipl3.h
+install: $(IPL3_ROM)
+	xxd -i -n default_ipl3 $< >../tools/ipl3.h
 
 run: ipl3.z64
 	g64drive upload --autocic=false ipl3.z64 && g64drive cic 6102 && g64drive debug
 
 disasm: build/ipl3.elf
 	$(N64_OBJDUMP) -D build/ipl3.elf
+
+clean:
+	rm -rf build ipl3_dev.z64 ipl3_prod.z64
 
 -include $(wildcard build/*.d)
 
