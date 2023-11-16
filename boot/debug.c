@@ -77,6 +77,23 @@
 
 #define D64_MAGIC 0x55444556
 
+#define SC64_DEBUG_ADDRESS 0xBFFE0000
+
+#define SC64_REGISTER_STATUS_CMD 0xBFFF0000
+#define SC64_REGISTER_DATA0      0xBFFF0004
+#define SC64_REGISTER_DATA1      0xBFFF0008
+#define SC64_REGISTER_IDENTIFIER 0xBFFF000C
+#define SC64_REGISTER_KEY        0xBFFF0010
+
+#define SC64_STATUS_CMD_BUSY (1 << 31)
+
+#define SC64_CMD_USB_WRITE        'M'
+#define SC64_CMD_USB_WRITE_STATUS 'U'
+
+#define SC64_USB_WRITE_STATUS_BUSY (1 << 31)
+
+#define SC64_IDENTIFIER 0x53437632
+
 #define IQUE_DEBUG_ADDRESS  (0x807C0000)
 
 #define ISVIEWER_WRITE_LEN       (0xB3FF0014)
@@ -86,7 +103,7 @@
 
 #define DEBUG_PIPE_ISVIEWER        1
 #define DEBUG_PIPE_64DRIVE         2
-#define DEBUG_PIPE_SC64            3   // to be implemented
+#define DEBUG_PIPE_SC64            3
 #define DEBUG_PIPE_IQUE            4
 
 static uint32_t debug_pipe = 0;
@@ -123,6 +140,20 @@ static void usb_64drive_setwritable(bool enable)
     usb_64drive_wait();
 }
 
+static bool usb_sc64_waitidle()
+{
+    int count = 0;
+    uint32_t status;
+    do {
+        if (count++ > 256)
+            return false;
+        io_write(SC64_REGISTER_STATUS_CMD, SC64_CMD_USB_WRITE_STATUS);
+        while (io_read(SC64_REGISTER_STATUS_CMD) & SC64_STATUS_CMD_BUSY);
+        status = io_read(SC64_REGISTER_DATA0);
+    } while (status & SC64_USB_WRITE_STATUS_BUSY);
+    return true;
+}
+
 static uint32_t usb_print_begin(void)
 {
     switch (debug_pipe) {
@@ -131,6 +162,8 @@ static uint32_t usb_print_begin(void)
     case DEBUG_PIPE_64DRIVE:
         usb_64drive_setwritable(true);
         return D64_DEBUG_ADDRESS;
+    case DEBUG_PIPE_SC64:
+        return SC64_DEBUG_ADDRESS;
     case DEBUG_PIPE_IQUE:
         return ique_addr;
     default:
@@ -152,6 +185,14 @@ static void usb_print_end(int nbytes)
         // If we can't flush the USB buffer, there's probably no host
         // application, so it's useless to try to print more.
         if (!usb_64drive_waitidle())
+            debug_pipe = 0;
+        return;
+    case DEBUG_PIPE_SC64:
+        io_write(SC64_REGISTER_DATA0, SC64_DEBUG_ADDRESS);
+        io_write(SC64_REGISTER_DATA1, (nbytes & 0xFFFFFF) | (DATATYPE_TEXT << 24));
+        io_write(SC64_REGISTER_STATUS_CMD, SC64_CMD_USB_WRITE);
+        while (io_read(SC64_REGISTER_STATUS_CMD) & SC64_STATUS_CMD_BUSY);
+        if (!usb_sc64_waitidle())
             debug_pipe = 0;
         return;
     case DEBUG_PIPE_IQUE:
@@ -204,6 +245,12 @@ static int usb_detect(void)
 
     if (io_read(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC) == D64_MAGIC)
         return DEBUG_PIPE_64DRIVE;
+
+    io_write(SC64_REGISTER_KEY, 0x00000000);
+    io_write(SC64_REGISTER_KEY, 0x5F554E4C);
+    io_write(SC64_REGISTER_KEY, 0x4F434B5F);
+    if (io_read(SC64_REGISTER_IDENTIFIER) == SC64_IDENTIFIER)
+        return DEBUG_PIPE_SC64;
 
     io_write(ISVIEWER_BUFFER, 0x12345678);
     if (io_read(ISVIEWER_BUFFER) == 0x12345678)
