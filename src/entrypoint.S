@@ -17,12 +17,12 @@ _start:
 	mtc0 v0,C0_SR
 	mtc0 $0,C0_CAUSE
 
-	/* Copy other bootcode flags, stored in IMEM */
+	/* Copy other bootcode flags, stored in DMEM */
 	lui v0, 0xA400
-	lw t0, 0x1000(v0)
-	lw t1, 0x1004(v0)
-	lw t2, 0x1008(v0)
-	lw t3, 0x100C(v0)
+	lw t0, 0x0000(v0)
+	lw t1, 0x0004(v0)
+	lw t2, 0x0008(v0)
+	lw t3, 0x000C(v0)
 	sw t0, %gprel(__boot_memsize)(gp)
 	sw t1, %gprel(__boot_tvtype)(gp)
 	sw t2, %gprel(__boot_resettype)(gp)

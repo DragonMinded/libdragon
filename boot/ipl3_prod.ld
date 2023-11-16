@@ -19,6 +19,7 @@ SECTIONS {
         build/ipl3.o       (.text .text.* .data .rodata .rodata.*)
         build/rdram.o      (.text .text.* .data .rodata .rodata.*)
         build/minidragon.o (.text .text.* .data .rodata .rodata.*)
+        *(.bss)
         . = ALIGN(8);
         __stage2_start = .;
         KEEP(build/loader.o(.text.loader))
@@ -37,11 +38,6 @@ SECTIONS {
     .text.rom 0xB0001000  : AT ( ADDR( .text.dmem ) + SIZEOF( .text.dmem ) ) {
         KEEP(*(.text.ique_trampoline))
     } > rom
-
-    . = ALIGN(4);
-    .bss : {
-        *(.bss)
-    } > imem
 
     /DISCARD/ : { *(.MIPS.abiflags) }
 }

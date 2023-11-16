@@ -24,6 +24,7 @@ SECTIONS {
         build/ipl3.o       (.text .text.* .data)
         build/rdram.o      (.text .text.* .data)
         build/minidragon.o (.text .text.* .data)
+        *(.bss)
         . = ALIGN(8);
         __stage2_start = .;
         KEEP(build/loader.o(.text.loader))
@@ -40,11 +41,6 @@ SECTIONS {
         *(.rodata)
         *(.rodata.*)
     } > rom
-
-    . = ALIGN(4);
-    .bss : {
-        *(.bss)
-    } > imem
 
     /DISCARD/ : { *(.MIPS.abiflags) }
 }

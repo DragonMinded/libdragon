@@ -34,16 +34,16 @@ static uint16_t io_read16(uint32_t vaddrx)
 
 static void rsp_clear_dmem_async(void)
 {
-    *SP_RSP_ADDR = 0x0000;
+    *SP_RSP_ADDR = 0x0000+0x10; // IMEM (skip first 16 bytes which contain bootflags)
     *SP_DRAM_ADDR = 8*1024*1024;
-    *SP_RD_LEN = 4096-1;
+    *SP_RD_LEN = 4096-16-1;
 }
 
 static inline void rsp_clear_imem_async(void)
 {
-    *SP_RSP_ADDR = 0x1000 + 16; // IMEM (skip first 16 bytes which contain bootflags)
+    *SP_RSP_ADDR = 0x1000;
     *SP_DRAM_ADDR = 8*1024*1024; // RDRAM addresses >8 MiB always return 0
-    *SP_RD_LEN = 4096-16-1;
+    *SP_RD_LEN = 4096-1;
 }
 
 static void fast_bzero(void *mem, int size)
@@ -73,10 +73,6 @@ static void rcp_reset(void)
                  SP_WSTATUS_CLEAR_SIG4 | SP_WSTATUS_CLEAR_SIG5 | 
                  SP_WSTATUS_CLEAR_SIG6 | SP_WSTATUS_CLEAR_SIG7;
     *SP_PC = 0;
-
-    // Clear DMEM / IMEM.
-    rsp_clear_dmem_async();
-    rsp_clear_imem_async();
     
     *MI_INTERRUPT = MI_WINTERRUPT_CLR_SP | MI_WINTERRUPT_CLR_SI | MI_WINTERRUPT_CLR_AI | MI_WINTERRUPT_CLR_VI | MI_WINTERRUPT_CLR_PI | MI_WINTERRUPT_CLR_DP;
     *PI_STATUS = PI_CLEAR_INTERRUPT;
@@ -98,6 +94,10 @@ __attribute__((used))
 void loader(void)
 {
     debugf("Hello from RDRAM ", __builtin_frame_address(0));
+
+    // Clear IMEM (it was used for the stack in the first stage, but it's not
+    // needed anymore).
+    rsp_clear_imem_async();
 
     // Search for the ELF header. We search for a 256-byte aligned header
     // starting at offset 0x1000 in the ROM area (after the IPL3).
@@ -145,6 +145,12 @@ void loader(void)
 
     rcp_reset();
     pif_terminate_boot();
+
+    // Clear DMEM (leave only the boot flags area intact). Notice that we can't
+    // call debugf anymore after this, because a small piece of debugging code
+    // (io_write) is in DMEM, so it can't be used anymore.
+   rsp_clear_dmem_async();
+   #undef debugf
 
     // Jump to the entry point
     goto *entrypoint;

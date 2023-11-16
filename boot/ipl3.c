@@ -165,10 +165,10 @@ void _start(void)
     // so a reset won't hurt.
     cop0_clear_cache();
 
-    // Fill boot information at beginning of IMEM. The rest of IMEM has been
+    // Fill boot information at beginning of DMEM. The rest of IMEM has been
     // cleared by now anyway. Notice that we also store BSS in IMEM, so the
     // linker script reserves initial part to boot information.
-    bootinfo_t *bootinfo = (bootinfo_t*)0xA4001000;
+    bootinfo_t *bootinfo = (bootinfo_t*)0xA4000000;
     bootinfo->memory_size = memsize;
     bootinfo->tv_type = ipl2_tvType;
     bootinfo->reset_type = ipl2_resetType;
