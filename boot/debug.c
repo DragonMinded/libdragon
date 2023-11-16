@@ -31,6 +31,7 @@
 
 #include "debug.h"
 
+#ifndef NDEBUG
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -289,3 +290,5 @@ void usb_init(void)
     }   break;
     }
 }
+
+#endif /* NDEBUG */
