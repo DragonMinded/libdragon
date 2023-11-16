@@ -90,7 +90,7 @@
 #define DEBUG_PIPE_IQUE            4
 
 static uint32_t debug_pipe = 0;
-static uint32_t ique_addr = IQUE_DEBUG_ADDRESS;
+static uint32_t ique_addr = 0;
 
 
 // Call io_write (defined in minidragon.c) which is in DMEM with the rest of IPL3.
@@ -145,6 +145,7 @@ static void usb_print_end(int nbytes)
         usb_64drive_waitidle();
         return;
     case DEBUG_PIPE_IQUE:
+        // Increment the pointer. We just hope that it's big enough
         ique_addr += nbytes;
         return;
     }
@@ -208,10 +209,26 @@ void usb_init(void)
     // Pipe-specific initializations
     switch (debug_pipe) {
     case DEBUG_PIPE_64DRIVE:
+        // Clear the debug buffer
         usb_64drive_setwritable(true);
         for (int i = 0; i < 0x1000; i += 4)
             io_write(D64_DEBUG_ADDRESS + i, 0);
         usb_64drive_setwritable(false);
         break;
+    case DEBUG_PIPE_IQUE: {
+        // For iQue, we store the debugging strings into the save area.
+        // iQue "emulates" EEPROM, Flash, SRAM with buffers in RAM where the data
+        // must be written (games were recompiled with a modified version of the
+        // SDK that stored data there). The addresses for such buffers (if configured)
+        // are stored in RAM (remember that iQue does not use RDRAM, and RAM
+        // is already initialized when our IPL3 runs).
+        ique_addr = *(uint32_t*)0x8000035C;                 // eeprom emulation
+        if (!ique_addr) ique_addr = *(uint32_t*)0x80000364; // flash emulation
+        if (!ique_addr) ique_addr = *(uint32_t*)0x8000036C; // sram emulation
+
+        // If save emulation support is not enabled for this ROM, we can't log
+        if (!ique_addr) 
+            debug_pipe = 0;
+    }   break;
     }
 }
