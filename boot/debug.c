@@ -31,7 +31,6 @@
 
 #include "debug.h"
 
-#if DEBUG
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -44,8 +43,7 @@
 })
 
 #define DATATYPE_TEXT       0x01
-#define DEBUG_ADDRESS       (0xB3000000)
-#define IQUE_DEBUG_ADDRESS  (0x807C0000)
+#define D64_DEBUG_ADDRESS   (0xB3000000)
 
 #define D64_CIBASE_ADDRESS 0xB8000000
 
@@ -54,6 +52,7 @@
 #define D64_REGISTER_LBA     0x00000210
 #define D64_REGISTER_LENGTH  0x00000218
 #define D64_REGISTER_RESULT  0x00000220
+#define D64_REGISTER_MAGIC   0x000002EC
 
 #define D64_REGISTER_USBCOMSTAT 0x00000400
 #define D64_REGISTER_USBP0R0    0x00000404
@@ -75,6 +74,24 @@
 #define D64_CI_IDLE  0x00
 #define D64_CI_BUSY  0x10
 #define D64_CI_WRITE 0x20
+
+#define D64_MAGIC 0x55444236
+
+#define IQUE_DEBUG_ADDRESS  (0x807C0000)
+
+#define ISVIEWER_WRITE_LEN       (0xB3FF0014)
+#define ISVIEWER_BUFFER          (0xB3FF0020)
+#define ISVIEWER_BUFFER_LEN      0x00000200
+
+
+#define DEBUG_PIPE_ISVIEWER        1
+#define DEBUG_PIPE_64DRIVE         2
+#define DEBUG_PIPE_SC64            3   // to be implemented
+#define DEBUG_PIPE_IQUE            4
+
+static uint32_t debug_pipe = 0;
+static uint32_t ique_addr = IQUE_DEBUG_ADDRESS;
+
 
 // Call io_write (defined in minidragon.c) which is in DMEM with the rest of IPL3.
 // Since debugging code is instead run directly from ROM, we need a far call.
@@ -99,18 +116,46 @@ static void usb_64drive_setwritable(bool enable)
     usb_64drive_wait();
 }
 
-static void usb_flush(int size)
+static uint32_t usb_print_begin(void)
 {
-    io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP0R0, (DEBUG_ADDRESS) >> 1);
-    io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP1R1, (size & 0xFFFFFF) | (DATATYPE_TEXT << 24));
-    io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT, D64_COMMAND_WRITE);
-    usb_64drive_waitidle();
+    switch (debug_pipe) {
+    case DEBUG_PIPE_ISVIEWER:
+        return ISVIEWER_BUFFER;
+    case DEBUG_PIPE_64DRIVE:
+        return D64_DEBUG_ADDRESS;
+    case DEBUG_PIPE_IQUE:
+        return ique_addr;
+    default:
+        return 0;
+    }
 }
+
+static void usb_print_end(int nbytes)
+{
+    switch (debug_pipe) {
+    case DEBUG_PIPE_ISVIEWER:
+        io_write(ISVIEWER_WRITE_LEN, nbytes);
+        return;
+    case DEBUG_PIPE_64DRIVE:
+        io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP0R0, (D64_DEBUG_ADDRESS) >> 1);
+        io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP1R1, (nbytes & 0xFFFFFF) | (DATATYPE_TEXT << 24));
+        io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT, D64_COMMAND_WRITE);
+        usb_64drive_waitidle();
+        return;
+    case DEBUG_PIPE_IQUE:
+        ique_addr += nbytes;
+        return;
+    }
+    __builtin_unreachable();
+}
+
 
 void _usb_print(int ssize, const char *string, int nargs, ...)
 {
-    static uint32_t ique_addr = IQUE_DEBUG_ADDRESS;
-    uint32_t addr = DEBUG == 2 ? ique_addr : DEBUG_ADDRESS;
+    uint32_t addr_start = usb_print_begin();
+    if (!addr_start) return;
+    uint32_t addr = addr_start;
+
     uint32_t *s = (uint32_t*)string;
     for (; ssize > 0; ssize -= 4, addr += 4)
         io_write(addr, *s++);
@@ -136,19 +181,35 @@ void _usb_print(int ssize, const char *string, int nargs, ...)
     }
 
     io_write(addr, 0x2020200A), addr += 4;
-    if (DEBUG == 1)
-        usb_flush(addr - DEBUG_ADDRESS);
-    if (DEBUG == 2)
-        ique_addr = addr;
+    usb_print_end(addr - addr_start);
 }
+
+static int usb_detect(void)
+{
+	io_write(ISVIEWER_BUFFER, 0x12345678);
+	if (io_read(ISVIEWER_BUFFER) == 0x12345678)
+        return DEBUG_PIPE_ISVIEWER;
+
+    if (io_read(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC) == D64_MAGIC)
+        return DEBUG_PIPE_64DRIVE;
+
+    if ((*MI_VERSION & 0xF0) == 0xB0)
+        return DEBUG_PIPE_IQUE;
+    
+    return 0;
+}
+
 
 void usb_init(void)
 {
-    if (DEBUG == 1) {
+    debug_pipe = usb_detect();
+
+    // Pipe-specific initializations
+    switch (debug_pipe) {
+    case DEBUG_PIPE_64DRIVE:
         usb_64drive_setwritable(true);
         for (int i = 0; i < 0x1000; i += 4)
-            io_write(DEBUG_ADDRESS + i, 0);
+            io_write(D64_DEBUG_ADDRESS + i, 0);
+        break;
     }
 }
-
-#endif
