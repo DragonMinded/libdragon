@@ -75,7 +75,7 @@
 #define D64_CI_BUSY  0x10
 #define D64_CI_WRITE 0x20
 
-#define D64_MAGIC 0x55444236
+#define D64_MAGIC 0x55444556
 
 #define IQUE_DEBUG_ADDRESS  (0x807C0000)
 
@@ -122,6 +122,7 @@ static uint32_t usb_print_begin(void)
     case DEBUG_PIPE_ISVIEWER:
         return ISVIEWER_BUFFER;
     case DEBUG_PIPE_64DRIVE:
+        usb_64drive_setwritable(true);
         return D64_DEBUG_ADDRESS;
     case DEBUG_PIPE_IQUE:
         return ique_addr;
@@ -137,6 +138,7 @@ static void usb_print_end(int nbytes)
         io_write(ISVIEWER_WRITE_LEN, nbytes);
         return;
     case DEBUG_PIPE_64DRIVE:
+        usb_64drive_setwritable(false);
         io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP0R0, (D64_DEBUG_ADDRESS) >> 1);
         io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP1R1, (nbytes & 0xFFFFFF) | (DATATYPE_TEXT << 24));
         io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT, D64_COMMAND_WRITE);
@@ -186,19 +188,18 @@ void _usb_print(int ssize, const char *string, int nargs, ...)
 
 static int usb_detect(void)
 {
-	io_write(ISVIEWER_BUFFER, 0x12345678);
-	if (io_read(ISVIEWER_BUFFER) == 0x12345678)
-        return DEBUG_PIPE_ISVIEWER;
+    if ((*MI_VERSION & 0xF0) == 0xB0)
+        return DEBUG_PIPE_IQUE;
 
     if (io_read(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC) == D64_MAGIC)
         return DEBUG_PIPE_64DRIVE;
 
-    if ((*MI_VERSION & 0xF0) == 0xB0)
-        return DEBUG_PIPE_IQUE;
-    
+    io_write(ISVIEWER_BUFFER, 0x12345678);
+    if (io_read(ISVIEWER_BUFFER) == 0x12345678)
+        return DEBUG_PIPE_ISVIEWER;
+   
     return 0;
 }
-
 
 void usb_init(void)
 {
@@ -210,6 +211,7 @@ void usb_init(void)
         usb_64drive_setwritable(true);
         for (int i = 0; i < 0x1000; i += 4)
             io_write(D64_DEBUG_ADDRESS + i, 0);
+        usb_64drive_setwritable(false);
         break;
     }
 }
