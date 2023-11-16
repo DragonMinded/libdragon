@@ -191,8 +191,6 @@ static void rdram_reg_r_mode(int nchip, int *cci)
  */
 
 #define CCVALUE(cc) ((BIT(cc,0)<<30) | (BIT(cc,1)<<22) | (BIT(cc,2)<<14) | (BIT(cc,3)<<31) | (BIT(cc,4)<<23) | (BIT(cc,5)<<15))
-#define CCVALUE8(cc) CCVALUE(cc), CCVALUE(cc+1), CCVALUE(cc+2), CCVALUE(cc+3), CCVALUE(cc+4), CCVALUE(cc+5), CCVALUE(cc+6), CCVALUE(cc+7)
-static const uint32_t cctable[0x40] = { CCVALUE8(0), CCVALUE8(8), CCVALUE8(16), CCVALUE8(24), CCVALUE8(32), CCVALUE8(40), CCVALUE8(48), CCVALUE8(56) };
 
 static int rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
 {
@@ -206,7 +204,7 @@ static int rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
 
     uint32_t value = DEVICE_EN | AUTO_SKIP | FR;
     if (auto_current) value |= CURRENT_CONTROL_AUTO;
-    value |= cctable[cc];
+    value |= CCVALUE(cc);
 
     rdram_reg_w(nchip, RDRAM_REG_MODE, value);
 
