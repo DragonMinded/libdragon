@@ -9,9 +9,15 @@
 #define C0_WRITE_COMPARE(x) asm volatile("mtc0 %0,$11"::"r"(x))
 #define C0_WRITE_WATCHLO(x) asm volatile("mtc0 %0,$18"::"r"(x))
 
+#ifndef NDEBUG
 #undef assert
 #define assert(x)           ({ if (!(x)) { debugf("ASSERTION FAILED: " #x); abort(); } })
 #define assertf(x, ...)     ({ if (!(x)) { debugf(#x); debugf(__VA_ARGS__); abort(); } })
+#else
+#undef assert
+#define assert(x)           ({  })
+#define assertf(x, ...)     ({  })
+#endif
 
 #define abs(x)             __builtin_abs(x)
 #define fabsf(x)           __builtin_fabsf(x)
@@ -128,7 +134,10 @@ static inline void cop0_clear_cache(void)
 }
 
 __attribute__((noreturn))
-void abort(void);
+static inline void abort(void)
+{
+    while(1) {}
+}
 
 static inline uint32_t io_read(uint32_t vaddrx)
 {
