@@ -103,9 +103,16 @@ static void usb_64drive_wait(void)
     while ((io_read(D64_CIBASE_ADDRESS + D64_REGISTER_STATUS) >> 8) & D64_CI_BUSY) {}
 }
 
-static void usb_64drive_waitidle()
+static bool usb_64drive_waitidle()
 {
-    while (((io_read(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT) >> 4) & D64_USB_BUSY) != D64_USB_IDLE) {}
+    int count = 0;
+    while (((io_read(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT) >> 4) & D64_USB_BUSY) != D64_USB_IDLE) {
+        // Check for timeout. A very little time is necessary as we are
+        // running from ROM so the CPU is extremely slow in looping.
+        if (count++ > 1024)
+            return false;
+    }
+    return true;
 }
 
 static void usb_64drive_setwritable(bool enable)
@@ -142,7 +149,10 @@ static void usb_print_end(int nbytes)
         io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP0R0, (D64_DEBUG_ADDRESS) >> 1);
         io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP1R1, (nbytes & 0xFFFFFF) | (DATATYPE_TEXT << 24));
         io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT, D64_COMMAND_WRITE);
-        usb_64drive_waitidle();
+        // If we can't flush the USB buffer, there's probably no host
+        // application, so it's useless to try to print more.
+        if (!usb_64drive_waitidle())
+            debug_pipe = 0;
         return;
     case DEBUG_PIPE_IQUE:
         // Increment the pointer. We just hope that it's big enough
