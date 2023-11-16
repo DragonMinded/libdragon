@@ -109,6 +109,8 @@ typedef struct {
     uint32_t console_type;
 } bootinfo_t;
 
+_Static_assert(sizeof(bootinfo_t) == 16, "invalid sizeof(bootinfo_t)");
+
 static inline void rsp_clear_imem(void)
 {
     *SP_RSP_ADDR = 0x1000; // IMEM
@@ -145,7 +147,6 @@ void _start(void)
     int memsize;
     if (!bbplayer) {
         memsize = rdram_init();
-        memsize = 8*1024*1024; // FIXME: remove this (helps emulators for now)
     } else {
         // iQue OS put the memory size in a special location. This is the
         // amount of memory that the OS has assigned to the application, so it
@@ -165,7 +166,8 @@ void _start(void)
     cop0_clear_cache();
 
     // Fill boot information at beginning of IMEM. The rest of IMEM has been
-    // cleared by now anyway.
+    // cleared by now anyway. Notice that we also store BSS in IMEM, so the
+    // linker script reserves initial part to boot information.
     bootinfo_t *bootinfo = (bootinfo_t*)0xA4001000;
     bootinfo->memory_size = memsize;
     bootinfo->tv_type = ipl2_tvType;
