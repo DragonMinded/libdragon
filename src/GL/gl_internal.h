@@ -548,7 +548,7 @@ typedef struct {
     uint32_t uploaded_tex;
     uint32_t clear_color;
     uint32_t clear_depth;
-    uint32_t palette_ptr;
+    uint32_t palette_index;
     uint32_t dither_mode;
     uint16_t fb_size[2];
     uint16_t depth_func;
@@ -557,6 +557,7 @@ typedef struct {
     uint16_t blend_dst;
     uint16_t tex_env_mode;
     uint8_t alpha_ref;
+    uint8_t palette_dirty[PALETTE_DIRTY_FLAGS_SIZE];
 } __attribute__((aligned(8), packed)) gl_server_state_t;
 
 _Static_assert((offsetof(gl_server_state_t, bound_textures) & 0x7) == 0, "Bound textures must be aligned to 8 bytes in server state");
@@ -853,9 +854,9 @@ inline void gl_set_current_mtx_index(GLubyte *index)
     }
 }
 
-inline void gl_set_palette_ptr(const gl_matrix_srv_t *palette_ptr)
+inline void gl_set_palette_idx(uint32_t index)
 {
-    gl_write(GL_CMD_SET_PALETTE_IDX, PhysicalAddr(palette_ptr));
+    gl_write(GL_CMD_SET_PALETTE_IDX, index * sizeof(gl_matrix_srv_t));
 }
 
 inline void gl_pre_init_pipe(GLenum primitive_mode)

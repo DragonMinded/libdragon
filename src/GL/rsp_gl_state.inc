@@ -22,7 +22,12 @@ GL_STATE:
         GL_CUR_TEX_COORDS:  .half   0,0,0,0
         GL_CUR_NORMAL:      .byte   0,0,0
         GL_CUR_MTX_INDEX:   .byte   0
-    GL_MATRIX_POINTERS:     .word   0,0,0,0,0
+    GL_MATRIX_POINTERS:     
+        GL_MODELVIEW_PTR:       .word   0
+        GL_PROJECTION_PTR:      .word   0
+        GL_TEXTURE_PTR:         .word   0
+        GL_PALETTE_PTR:         .word   0
+        GL_MVP_PTR:             .word   0
     GL_LOADED_MTX_INDEX:    .word   0,0
     GL_STATE_FLAGS:         .word   0
     GL_STATE_FOG_PARAMS:    .half   0,0,0,0

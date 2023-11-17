@@ -105,7 +105,7 @@ GLCmd_SetLong:
     # Args:
     #   v1 = Matrix index
     #   t5 = State flags
-    #   s0 = Matrix pointer offset
+    #   s1 = Matrix pointer offset
     #
     ########################################
     .func GL_HandleMatrixPalette

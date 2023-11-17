@@ -21,7 +21,7 @@
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68  # 0xC
         RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0xD
         RSPQ_DefineCommand GLCmd_PreInitPipeTex,4   # 0xE
-        RSPQ_DefineCommand GLCmd_SetPalettePtr, 4   # 0xF
+        RSPQ_DefineCommand GLCmd_SetPaletteIdx, 4   # 0xF
         RSPQ_DefineCommand GLCmd_MatrixCopy,    4   # 0x10
     RSPQ_EndOverlayHeader
 
@@ -40,7 +40,7 @@
     GL_STATE_UPLOADED_TEX:  .word   0
     GL_STATE_FILL_COLOR:    .word   0
     GL_STATE_FILL_DEPTH:    .word   0
-    GL_STATE_PALETTE_PTR:   .word   0
+    GL_STATE_PALETTE_INDEX: .word   0
     GL_STATE_DITHER_MODE:   .word   0
     GL_STATE_FB_SIZE:       .half   0, 0
     GL_STATE_DEPTH_FUNC:    .half   0
@@ -49,6 +49,7 @@
     GL_STATE_BLEND_DST:     .half   0
     GL_STATE_TEX_ENV_MODE:  .half   0
     GL_STATE_ALPHA_REF:     .byte   0
+    GL_STATE_PALETTE_DIRTY: .ds.b   PALETTE_DIRTY_FLAGS_SIZE
     RSPQ_EndSavedState
 
 COMBINER_TABLE:
@@ -242,11 +243,34 @@ GLCmd_SetLightPos:
     #undef vmtx3_i
     #undef vmtx3_f
 
-# ARGS: t1: matrix index
+    #############################################################
+    # GL_MatrixMarkDirty
+    #
+    # ARGS:
+    #   t1: Matrix index
+    #############################################################
+    .func GL_MatrixMarkDirty
 GL_MatrixMarkDirty:
-    #define mtx_index   t1
-    #define flag        t8
-    #define cur_flags   t9
+    #define mtx_index       t1
+    #define flag_offset     s7
+    #define flag_shift      t6
+    #define palette_index   t7
+    #define flag            t8
+    #define cur_flags       t9
+    bne mtx_index, PALETTE_MATRIX_INDEX, 1f
+    lw palette_index, %lo(GL_STATE_PALETTE_INDEX)
+
+    li flag, 1
+    srl palette_index, 6
+    srl flag_offset, palette_index, 3
+    lbu cur_flags, %lo(GL_STATE_PALETTE_DIRTY)(flag_offset)
+    and flag_shift, palette_index, 0x7
+    sllv flag, flag, flag_shift
+    or cur_flags, flag
+    jr ra
+    sb cur_flags, %lo(GL_STATE_PALETTE_DIRTY)(flag_offset)
+
+1:
     lw cur_flags, %lo(GL_STATE_FLAGS)
     # mark final matrix as dirty if modelview or projection matrix was changed
     blt mtx_index, (GL_TEXTURE & 0xF), 1f
@@ -257,14 +281,18 @@ GL_MatrixMarkDirty:
     jr ra
     sw cur_flags, %lo(GL_STATE_FLAGS)
     #undef mtx_index
+    #undef flag_offset
+    #undef flag_shift
+    #undef palette_index
     #undef flag
     #undef cur_flags
+    .endfunc
 
 GL_GetMatrixIndex:
     lbu t0, %lo(GL_STATE_MATRIX_MODE) + 1
     andi t1, t0, GL_MATRIX_PALETTE_ARB
     bnez t1, JrRa
-    li t1, 3
+    li t1, PALETTE_MATRIX_INDEX
     jr ra
     move t1, t0
 
@@ -494,18 +522,20 @@ GL_UpdateTextureObjects:
     li t0, DMA_SIZE(TEXTURE_OBJECT_SIZE, 1)
     jal_and_j DMAOut, RSPQ_Loop
 
-    .func GLCmd_SetPalettePtr
-GLCmd_SetPalettePtr:
-    lw s0, %lo(GL_STATE_PALETTE_PTR)
+    .func GLCmd_SetPaletteIdx
+GLCmd_SetPaletteIdx:
+    lw s0, %lo(GL_STATE_PALETTE_INDEX)
+    lw t3, %lo(GL_PALETTE_PTR)
     and a0, 0xFFFFFF
     beq a0, s0, JrRa
-    sw a0, %lo(GL_STATE_PALETTE_PTR)
+    sw a0, %lo(GL_STATE_PALETTE_INDEX)
 
+    add s0, t3
     li s4, %lo(GL_MATRIX_PALETTE)
     jal DMAOutAsync
     li t0, DMA_SIZE(MATRIX_SIZE, 1)
 
-    move s0, a0
+    add s0, a0, t3
     jal_and_j DMAIn, RSPQ_Loop
     .endfunc
 
@@ -521,41 +551,63 @@ GLCmd_PreInitPipe:
 
     # Update matrix if required
 
-    #define mtx_dirty   t1
-    #define mtx_lhs     s5
-    #define mtx_rhs     s6
-    #define mtx_dst     s7
-
     andi t0, state_flags, FLAG_MATRIX_PALETTE
     beqz t0, 1f
-    lw s0, %lo(GL_STATE_PALETTE_PTR)
+    li v1, 1
+
+    #define mtx_dirty       t1
+    #define mtx_offset      t3
+    #define palette_size    t4
+    #define palette_index   t5
+    #define dirty_flags     t6
+    #define cur_flag        t7
+    #define palette_dram    s1
+    #define mvp_dram        s2
+    #define flag_offset     s3
+    #define mtx_lhs         s5
+    #define mtx_rhs         s6
+    #define mtx_dst         s7
+
+    lw palette_dram, %lo(GL_PALETTE_PTR)
+    lw palette_index, %lo(GL_STATE_PALETTE_INDEX)
 
     # Write back current palette matrix to the palette storage
     li s4, %lo(GL_MATRIX_PALETTE)
-    jal DMAOutAsync
     li t0, DMA_SIZE(MATRIX_SIZE, 1)
+    jal DMAOutAsync
+    add s0, palette_dram, palette_index
 
-    lw s1, %lo(GL_MATRIX_POINTERS) + 0x0C
-    lw s2, %lo(GL_MATRIX_POINTERS) + 0x10
+    lw mvp_dram, %lo(GL_MVP_PTR)
     li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
     li mtx_rhs, %lo(GL_MATRIX_PALETTE)
     li mtx_dst, %lo(GL_MATRIX_MVP)
-    li t3, 0
-    li t4, MATRIX_SIZE * MATRIX_PALETTE_SIZE
+    li palette_index, 0
+    li palette_size, MATRIX_PALETTE_SIZE
 
-    # TODO: Keep dirty flags for the palette matrices
     # TODO: Load projection matrix into vector regs only once
 gl_matrix_palette_loop:
-    beq t3, t4, 2f
+    beq palette_index, palette_size, 2f
+    srl flag_offset, palette_index, 3
+
+    lbu dirty_flags, %lo(GL_STATE_PALETTE_DIRTY)(flag_offset)
+    and cur_flag, palette_index, 0x7
+    sllv cur_flag, v1, cur_flag
+    and mtx_dirty, dirty_flags, cur_flag
+    sll mtx_offset, palette_index, 6
+    beqz mtx_dirty, gl_matrix_palette_loop
+    addi palette_index, 1
+
+    xor dirty_flags, mtx_dirty
+    sb dirty_flags, %lo(GL_STATE_PALETTE_DIRTY)(flag_offset)
+
     move s4, mtx_rhs
     jal DMAIn
-    add s0, s1, t3
+    add s0, palette_dram, mtx_offset
 
     jal GL_MtxMult
     move s4, mtx_dst
 
-    add s0, s2, t3
-    addi t3, MATRIX_SIZE
+    add s0, mvp_dram, mtx_offset
     jal_and_j DMAOutAsync, gl_matrix_palette_loop
     
 1:
@@ -568,6 +620,14 @@ gl_matrix_palette_loop:
     and state_flags, ~FLAG_FINAL_MTX_DIRTY
 
     #undef mtx_dirty
+    #undef mtx_offset
+    #undef palette_size
+    #undef palette_index
+    #undef dirty_flags
+    #undef cur_flag
+    #undef palette_dram
+    #undef mvp_dram
+    #undef flag_offset
     #undef mtx_lhs
     #undef mtx_rhs
     #undef mtx_dst

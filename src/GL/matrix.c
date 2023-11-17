@@ -162,7 +162,7 @@ void glCurrentPaletteMatrixARB(GLint index)
 
     state.current_palette_matrix = index;
     gl_update_current_matrix_stack();
-    gl_set_palette_ptr(state.matrix_palette + index);
+    gl_set_palette_idx(index);
 }
 
 static inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)

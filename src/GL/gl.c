@@ -99,7 +99,6 @@ void gl_init()
     server_state->matrix_pointers[2] = PhysicalAddr(state.matrix_stacks[2]);
     server_state->matrix_pointers[3] = PhysicalAddr(state.matrix_palette);
     server_state->matrix_pointers[4] = PhysicalAddr(state.matrix_palette + MATRIX_PALETTE_SIZE);
-    server_state->palette_ptr = PhysicalAddr(state.matrix_palette);
     server_state->loaded_mtx_index[0] = -1;
     server_state->loaded_mtx_index[1] = -1;
 
@@ -521,7 +520,7 @@ extern inline void gl_update(gl_update_func_t update_func);
 extern inline void gl_get_value(void *dst, uint32_t offset, uint32_t size);
 extern inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture);
 extern inline void gl_update_texture_completeness(uint32_t offset);
-extern inline void gl_set_palette_ptr(const gl_matrix_srv_t *palette_ptr);
+extern inline void gl_set_palette_idx(uint32_t index);
 extern inline void gl_set_current_color(GLfloat *color);
 extern inline void gl_set_current_texcoords(GLfloat *texcoords);
 extern inline void gl_set_current_normal(GLfloat *normal);

@@ -158,6 +158,9 @@
 
 #define RDPQ_TEXTURING_MASK ((SOM_SAMPLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK)>>32)
 
+#define PALETTE_MATRIX_INDEX    3
+
+#define PALETTE_DIRTY_FLAGS_SIZE    ((MATRIX_PALETTE_SIZE+7)>>3)
 
 #define PRIM_VTX_CS_POSi           0     // X, Y, Z, W (all 32-bit)
 #define PRIM_VTX_CS_POSf           8     // X, Y, Z, W (all 32-bit)
