@@ -7,7 +7,7 @@
 #define PALETTE_STACK_SIZE    1
 
 #define VERTEX_UNIT_COUNT     1
-#define MATRIX_PALETTE_SIZE   24
+#define MATRIX_PALETTE_SIZE   32
 
 #define VERTEX_CACHE_SIZE     32
 
