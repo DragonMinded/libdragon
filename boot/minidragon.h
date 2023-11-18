@@ -45,6 +45,7 @@
 #define SP_WR_LEN       ((volatile uint32_t*)0xa404000c)
 #define SP_STATUS       ((volatile uint32_t*)0xa4040010)
 #define SP_DMA_BUSY     ((volatile uint32_t*)0xa4040018)
+#define SP_SEMAPHORE    ((volatile uint32_t*)0xa404001c)
 #define SP_PC           ((volatile uint32_t*)0xa4080000)
 
 #define SP_WSTATUS_CLEAR_HALT        0x00001   ///< SP_STATUS write mask: clear #SP_STATUS_HALTED bit
