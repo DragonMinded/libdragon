@@ -35,7 +35,7 @@ SECTIONS {
 
     __stage2_size = __stage2_end - __stage2_start;
 
-    .text.rom 0xB0001000  : AT ( ADDR( .text.dmem ) + SIZEOF( .text.dmem ) ) {
+    .text.rom 0xB0001000  : AT ( 0xA4001000 ) {
         KEEP(*(.text.ique_trampoline))
     } > rom
 
