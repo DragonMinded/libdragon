@@ -4,9 +4,16 @@ endif
 
 SOURCE_DIR=.
 
+ifeq ($(shell uname -s),Darwin)
+	SED=gsed
+else
+	SED=sed
+endif
+
 N64_GCCPREFIX ?= $(N64_INST)
 N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/mips64-elf-
 N64_CC = $(N64_GCCPREFIX_TRIPLET)gcc
+N64_AS = $(N64_GCCPREFIX_TRIPLET)as
 N64_LD = $(N64_GCCPREFIX_TRIPLET)ld
 N64_OBJCOPY = $(N64_GCCPREFIX_TRIPLET)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX_TRIPLET)objdump
@@ -25,7 +32,7 @@ N64_CFLAGS += -mabi=32 -mgp32 -mfp32 -msingle-float # Can't compile for 64bit AB
 #N64_CFLAGS += -flto
 
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
-N64_ASFLAGS =  -mabi=32 -mgp32 -mfp32 -msingle-float
+N64_ASFLAGS =  -mabi=32 -mgp32 -mfp32 -msingle-float -G0
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
 N64_LDFLAGS = -Wl,-T$(IPL3_LDSCRIPT) -Wl,-Map=build/ipl3.map -Wl,--gc-sections
 
@@ -46,7 +53,14 @@ all: $(IPL3_ROM)
 build/%.o: %.c
 	@echo "    [CC] $@"
 	@mkdir -p build
-	$(N64_CC) -c $(N64_CFLAGS) -o $@ $<
+# Compile relocatable code. We need this for stage 2 which is relocated to RDRAM,
+# but in general it won't hurt for boot code. GCC MIPS doesn't have a way to do
+# this simple transformation so we do it ourselves by replacing jal/j with bal/b
+# on the assembly output of the compiler.
+	$(N64_CC) -S -c $(N64_CFLAGS) -o $@.s $<
+	$(SED) -i 's/\bjal\b/bal/g' $@.s
+	$(SED) -i 's/\bj\b/b/g' $@.s
+	$(N64_AS) $(N64_ASFLAGS) -o $@ $@.s
 
 build/%.o: %.S
 	@echo "    [AS] $@"
