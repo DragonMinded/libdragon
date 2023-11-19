@@ -107,12 +107,12 @@ void *asset_load(const char *fn, int *sz)
         s = algos[header.algo-1].decompress_full(fn, f, header.cmp_size, size);
     } else {
         // Allocate a buffer big enough to hold the file.
-        // We force a 16-byte alignment for the buffer so that it's cacheline aligned.
+        // We force a 32-byte alignment for the buffer so that it's aligned to instruction cache lines.
         // This might or might not be useful, but if a binary file is laid out so that it
         // matters, at least we guarantee that. 
         fseek(f, 0, SEEK_END);
         size = ftell(f);
-        s = memalign(16, size);
+        s = memalign(ASSET_ALIGNMENT, size);
 
         fseek(f, 0, SEEK_SET);
         fread(s, 1, size, f);

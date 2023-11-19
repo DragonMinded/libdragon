@@ -40,8 +40,6 @@ void print_args(const char *name)
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
-    fprintf(stderr, "   -a/--all                Export all global symbols from input ELF\n");
-    fprintf(stderr, "   -i/--imports <file>     Specify list of imported symbols\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
 }
@@ -126,31 +124,17 @@ void get_export_syms(char *infn)
     subprocess_terminate(&subp);
 }
 
-uint32_t dso_write_symbols(dso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
+void dso_write_symbols(dso_sym_t *syms, size_t num_syms, FILE *out_file)
 {
-    uint32_t name_ofs = num_syms*sizeof(dso_file_sym_t);
-    for(uint32_t i=0; i<num_syms; i++) {
-        dso_file_sym_t file_sym;
-        size_t name_data_len = strlen(syms[i].name)+1;
-        file_sym.name_ofs = name_ofs;
-        file_sym.value = syms[i].value;
-        file_sym.info = syms[i].info;
-        //Write symbol
-        fseek(out_file, base_ofs+(i*sizeof(dso_file_sym_t)), SEEK_SET);
-        w32(out_file, file_sym.name_ofs);
-        w32(out_file, file_sym.value);
-        w32(out_file, file_sym.info);
-        //Write symbol name
-        fseek(out_file, base_ofs+name_ofs, SEEK_SET);
-        fwrite(syms[i].name, name_data_len, 1, out_file);
-        name_ofs += name_data_len;
+    for(size_t i=0; i<num_syms; i++) {
+        w32_placeholderf(out_file, "symbol%zu", i);
+        w32(out_file, syms[i].value);
+        w32(out_file, syms[i].info);
     }
-    //Pad file to next 2-byte boundary
-    if(name_ofs % 2) {
-        w8(out_file, 0);
-        name_ofs++;
+    for(size_t i=0; i<num_syms; i++) {
+        placeholder_set_offset(out_file, ftell(out_file)-sizeof(mainexe_sym_info_t), "symbol%zu", i);
+        fwrite(syms[i].name, 1, strlen(syms[i].name)+1, out_file);
     }
-    return base_ofs+name_ofs;
 }
 
 void write_mainexe_sym_info(mainexe_sym_info_t *header, FILE *out_file)
@@ -168,16 +152,17 @@ void write_msym(char *outfn)
         fprintf(stderr, "Cannot create file: %s\n", outfn);
         exit(1);
     }
-    //Initialize main symbol table info
+    //Initialize main executable symbol table info
     mainexe_sym_info_t sym_info;
     sym_info.magic = DSO_MAINEXE_SYM_DATA_MAGIC;
     sym_info.size = 0;
     sym_info.num_syms =  stbds_arrlenu(export_syms);
     write_mainexe_sym_info(&sym_info, out_file);
     //Write symbol table
-    sym_info.size = dso_write_symbols(export_syms, sym_info.num_syms, sizeof(mainexe_sym_info_t), out_file);
+    dso_write_symbols(export_syms, sym_info.num_syms, out_file);
+    walign(out_file, 2);
     //Correct output size
-    sym_info.size -= sizeof(mainexe_sym_info_t);
+    sym_info.size = ftell(out_file)-sizeof(mainexe_sym_info_t);
     write_mainexe_sym_info(&sym_info, out_file);
     fclose(out_file);
 }

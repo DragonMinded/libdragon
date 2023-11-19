@@ -1,4 +1,5 @@
 BUILD_DIR=build
+DSO_COMPRESS_LEVEL=0
 include $(N64_INST)/include/n64.mk
 
 all: testrom.z64 testrom_emu.z64
@@ -29,11 +30,11 @@ filesystem/%.sprite: assets/%.png
 
 $(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(OBJS) $(MAIN_ELF_EXTERNS) $(ASSETS)
 testrom.z64: N64_ROM_TITLE="Libdragon Test ROM"
-testrom.z64: $(BUILD_DIR)/testrom.dfs
+testrom.z64: $(BUILD_DIR)/testrom.dfs $(BUILD_DIR)/testrom.msym
 
 $(BUILD_DIR)/testrom_emu.elf: $(BUILD_DIR)/testrom_emu.o $(OBJS) $(MAIN_ELF_EXTERNS) $(ASSETS)
 testrom_emu.z64: N64_ROM_TITLE="Libdragon Test ROM"
-testrom_emu.z64: $(BUILD_DIR)/testrom.dfs
+testrom_emu.z64: $(BUILD_DIR)/testrom.dfs $(BUILD_DIR)/testrom_emu.msym
 
 $(BUILD_DIR)/testrom_emu.o: $(SOURCE_DIR)/testrom.c
 	@mkdir -p $(dir $@)
@@ -41,6 +42,9 @@ $(BUILD_DIR)/testrom_emu.o: $(SOURCE_DIR)/testrom.c
 	$(CC) -c $(CFLAGS) -DIN_EMULATOR=1 -o $@ $<
 
 ${BUILD_DIR}/rsp_test.o: IS_OVERLAY=1
+
+$(BUILD_DIR)/testrom_emu.msym: $(BUILD_DIR)/testrom_emu.elf
+$(BUILD_DIR)/testrom.msym: $(BUILD_DIR)/testrom.elf
 
 $(MAIN_ELF_EXTERNS): $(DSO_LIST)
 filesystem/dl_test_syms.dso: $(BUILD_DIR)/dl_test_syms.o

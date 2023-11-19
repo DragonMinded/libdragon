@@ -4,18 +4,7 @@
 #include <stdbool.h>
 #include "dso_format.h"
 
-/** @brief Loaded module data */
-typedef struct dl_module_s {
-    struct dl_module_s *prev;   ///< Previous loaded dynamic library
-    struct dl_module_s *next;   ///< Next loaded dynamic library
-    dso_module_t *module;       ///< DSO file
-    size_t module_size;         ///< DSO size
-    uint32_t debugsym_romaddr;  ///< Debug symbol data rom address
-    char *filename;             ///< Dynamic library filename
-    size_t use_count;           ///< Dynamic library reference count
-    uint32_t ehframe_obj[6];    ///< Exception frame object
-    int mode;                   ///< Dynamic library flags
-} dl_module_t;
+typedef dso_module_t dl_module_t;
 
 /** @brief Generic function pointer */
 typedef void (*func_ptr)();

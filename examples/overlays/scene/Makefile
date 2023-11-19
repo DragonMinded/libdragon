@@ -1,4 +1,6 @@
 BUILD_DIR=build
+DSO_COMPRESS_LEVEL=0 #Store DSOs uncompressed for easier analysis of output
+DSO_CXXFLAGS=-fvisibility=hidden #Hide symbols in DSOs
 include $(N64_INST)/include/n64.mk
 
 main_SRC = overlays_scene.cpp scene.cpp
@@ -28,8 +30,10 @@ filesystem/scene_common.dso: $(scene_common_SRC:%.cpp=$(BUILD_DIR)/%.o)
 filesystem/scene/bg_test.dso: $(bgtest_SRC:%.cpp=$(BUILD_DIR)/%.o)
 filesystem/scene/sprite_test.dso: $(spritetest_SRC:%.cpp=$(BUILD_DIR)/%.o)
 
+$(BUILD_DIR)/overlays_scene.msym: $(BUILD_DIR)/overlays_scene.elf
+
 overlays_scene.z64: N64_ROM_TITLE="Actor Overlay Demo"
-overlays_scene.z64: $(BUILD_DIR)/overlays_scene.dfs 
+overlays_scene.z64: $(BUILD_DIR)/overlays_scene.dfs $(BUILD_DIR)/overlays_scene.msym
 
 clean:
 	rm -rf $(BUILD_DIR) filesystem $(DSO_LIST) overlays_scene.z64

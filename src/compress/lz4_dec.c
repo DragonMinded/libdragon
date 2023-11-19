@@ -6,6 +6,7 @@
 #include "lz4_dec_internal.h"
 #include "ringbuf_internal.h"
 #include "../utils.h"
+#include "../asset_internal.h"
 
 #ifdef N64
 #include <malloc.h>
@@ -187,7 +188,7 @@ void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size
          bufsize += 16 - (bufsize & 15);
    }
 
-   void *s = memalign(16, bufsize);
+   void *s = memalign(ASSET_ALIGNMENT, bufsize);
    assertf(s, "asset_load: out of memory");
    int n;
 

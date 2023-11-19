@@ -3,7 +3,7 @@
 
 #include <libdragon.h>
 
-class Sprite {
+class __attribute__((__visibility__("default"))) Sprite {
 public:
     Sprite();
     virtual ~Sprite();

@@ -1,5 +1,6 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
+DSO_COMPRESS_LEVEL ?= 1
 N64_DFS_OFFSET ?= 1M # Override this to offset where the DFS file will be located inside the ROM
 
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
@@ -87,14 +88,18 @@ RSPASFLAGS+=-MMD
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
 	$(N64_SYM) $< $<.sym
-	$(N64_DSOMSYM) $< $<.msym
 	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8 $<.msym; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8; \
 	else \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8 $<.msym --align 16 "$$DFS_FILE"; \
+		MSYM_FILE="$(filter %.msym, $^)"; \
+		if [ -z "$$MSYM_FILE" ]; then \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 16 "$$DFS_FILE"; \
+		else \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
+		fi \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
@@ -178,8 +183,8 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.dso: CXX=$(N64_CXX)
 %.dso: AS=$(N64_AS)
 %.dso: LD=$(N64_LD)
-%.dso: CFLAGS+=$(N64_CFLAGS) -mno-gpopt
-%.dso: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt
+%.dso: CFLAGS+=$(N64_CFLAGS) -mno-gpopt $(DSO_CFLAGS)
+%.dso: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt $(DSO_CXXFLAGS)
 %.dso: ASFLAGS+=$(N64_ASFLAGS)
 %.dso: RSPASFLAGS+=$(N64_RSPASFLAGS)
 
@@ -190,13 +195,17 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	@echo "    [DSO] $@"
 	$(N64_LD) $(N64_DSOLDFLAGS) -Map=$(basename $(DSO_ELF)).map -o $(DSO_ELF) $(filter %.o, $^)
 	$(N64_SIZE) -G $(DSO_ELF)
-	$(N64_DSO) -o $(dir $@) -c $(DSO_ELF)
+	$(N64_DSO) -o $(dir $@) -c $(DSO_COMPRESS_LEVEL) $(DSO_ELF)
 	$(N64_SYM) $(DSO_ELF) $@.sym
 	
 %.externs:
 	@echo "    [DSOEXTERN] $@"
 	$(N64_DSOEXTERN) -o $@ $^ 
 	
+%.msym: %.elf
+	@echo "    [MSYM] $@"
+	$(N64_DSOMSYM) $< $@
+    
 ifneq ($(V),1)
 .SILENT:
 endif

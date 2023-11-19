@@ -14,6 +14,7 @@
 #define ASSET_FLAG_WINSIZE_64K      0x0005  ///< 64 KiB window size
 #define ASSET_FLAG_WINSIZE_128K     0x0006  ///< 128 KiB window size
 #define ASSET_FLAG_WINSIZE_256K     0x0007  ///< 256 KiB window size
+#define ASSET_ALIGNMENT             32
 
 __attribute__((used))
 static inline int asset_winsize_from_flags(uint16_t flags) {

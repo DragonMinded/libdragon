@@ -9,19 +9,19 @@
 /** @brief Main executable symbol table magic */
 #define DSO_MAINEXE_SYM_DATA_MAGIC 0x4D53594D //'MSYM'
 
+/** @brief Offset of syms member of dso_module_t on N64 */
+#define DSO_SYMS_OFS 0x18
+/** @brief Offset of num_import_syms member of dso_module_t on N64 */
+#define DSO_NUM_IMPORT_SYMS_OFS 0x20
+/** @brief Size of dso_sym_t on N64 */
+#define DSO_SYM_SIZE 0xC
+
 /** @brief DSO symbol */
 typedef struct dso_sym_s {
     char *name;         ///< Name of symbol
-    uintptr_t value;    ///< Pointer to symbol
+    uint32_t value;     ///< Pointer to symbol
     uint32_t info;      ///< Top bit: absolute flag;  Next bit: weak flag; lowest 30 bits: size
 } dso_sym_t;
-
-/** @brief DSO file symbol */
-typedef struct dso_file_sym_s {
-    uint32_t name_ofs;  ///< Offset of name of symbol relative to first entry of symbol table
-    uint32_t value;     ///< Value of symbol
-    uint32_t info;      ///< Top bit: absolute flag; Next bit: weak flag; lowest 30 bits: size
-} dso_file_sym_t;
 
 /** @brief DSO relocation */
 typedef struct dso_reloc_s {
@@ -29,8 +29,14 @@ typedef struct dso_reloc_s {
     uint32_t info;          ///< Top 8 bits: type; lowest 24 bits: symbol index
 } dso_reloc_t;
 
-/** @brief DSO module */
+/** @brief DSO module data */
 typedef struct dso_module_s {
+    uint32_t magic;             ///< Magic number
+    struct dso_module_s *prev;  ///< Previous loaded dynamic library
+    struct dso_module_s *next;  ///< Next loaded dynamic library
+    uint32_t ref_count;         ///< Dynamic library reference count
+    char *src_elf;              ///< Path to Source ELF
+    char *filename;             ///< Filename data
     dso_sym_t *syms;            ///< Symbols array
     uint32_t num_syms;          ///< Number of symbols (includes dummy symbol at start of array)
     uint32_t num_import_syms;   ///< Number of symbols imported
@@ -38,26 +44,10 @@ typedef struct dso_module_s {
     uint32_t num_relocs;        ///< Number of relocations
     void *prog_base;            ///< Pointer to program memory image
     uint32_t prog_size;         ///< Size of program memory image
+    uint32_t ehframe_obj[6];    ///< Exception frame object
+    uint32_t sym_romofs;        ///< Debug symbol data rom address
+    uint32_t mode;              ///< Dynamic library flags
 } dso_module_t;
-
-/** @brief DSO file module */
-typedef struct dso_file_module_s {
-    uint32_t syms_ofs;          ///< Offset to symbols array
-    uint32_t num_syms;          ///< Number of symbols (includes dummy symbol at start of array)
-    uint32_t num_import_syms;   ///< Number of symbols imported
-    uint32_t relocs_ofs;        ///< Offset to relocation array
-    uint32_t num_relocs;        ///< Number of relocations
-    uint32_t prog_ofs;          ///< Offset to program memory image (must be at end of file)
-    uint32_t prog_size;         ///< Size of program memory image
-} dso_file_module_t;
-
-/** @brief Information to load DSO */
-typedef struct dso_load_info_s {
-    uint32_t magic;         ///< Magic number
-    uint32_t size;          ///< File size excluding this struct
-    uint32_t extra_mem;     ///< Size of extra memory needed for file
-    uint32_t mem_align;     ///< Required memory alignment
-} dso_load_info_t;
 
 /** @brief Information to load main executable symbol table */
 typedef struct mainexe_sym_info_s {

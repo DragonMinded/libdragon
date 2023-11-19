@@ -205,8 +205,8 @@ static symtable_header_t symt_open(void *addr) {
 		}
 		if(module) {
 			//Read module SYMT
-			SYMT_ROM = module->debugsym_romaddr;
-			addrtable_base = (uint32_t)module->module->prog_base;
+			SYMT_ROM = module->sym_romofs;
+			addrtable_base = (uint32_t)module->prog_base;
 		} else {
 			SYMT_ROM = 0;
 			addrtable_base = 0;
