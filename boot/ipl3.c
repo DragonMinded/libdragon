@@ -29,6 +29,7 @@
 #include "minidragon.h"
 #include "debug.h"
 #include "rdram.h"
+#include "entropy.h"
 #include "loader.h"
 
 __attribute__((section(".banner"), used))
@@ -104,9 +105,9 @@ void memtest(int memsize)
 
 typedef struct {
     uint32_t memory_size;
-    uint32_t tv_type;
-    uint32_t reset_type;
-    uint32_t console_type;
+    uint32_t entropy;
+    uint32_t flags;
+    uint32_t padding;
 } bootinfo_t;
 
 _Static_assert(sizeof(bootinfo_t) == 16, "invalid sizeof(bootinfo_t)");
@@ -136,9 +137,11 @@ void _start(void)
     // Also, we put our bss in IMEM.
     rsp_clear_imem();
 
+    entropy_init();
     usb_init();
     debugf("Libdragon IPL3");
     
+    entropy_add(C0_COUNT());
     C0_WRITE_CAUSE(0);
     C0_WRITE_COUNT(0);
     C0_WRITE_COMPARE(0);
@@ -170,9 +173,8 @@ void _start(void)
     // linker script reserves initial part to boot information.
     bootinfo_t *bootinfo = (bootinfo_t*)0xA4000000;
     bootinfo->memory_size = memsize;
-    bootinfo->tv_type = ipl2_tvType;
-    bootinfo->reset_type = ipl2_resetType;
-    bootinfo->console_type = bbplayer;
+    bootinfo->flags = (ipl2_tvType << 16) | (ipl2_resetType << 8) | (bbplayer ? 1 : 0);
+    bootinfo->padding = 0;
 
     // Perform a memtest
     // memtest(memsize);

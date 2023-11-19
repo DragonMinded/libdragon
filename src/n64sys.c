@@ -35,6 +35,7 @@
  */
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
+int __boot_entropy;        ///< Entropy as provided by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3

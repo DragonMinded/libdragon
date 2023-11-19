@@ -24,6 +24,7 @@ SECTIONS {
         build/ipl3.o       (.text .text.* .data)
         build/rdram.o      (.text .text.* .data)
         build/minidragon.o (.text .text.* .data)
+        build/entropy.o    (.text .text.* .data)
         *(.bss)
         . = ALIGN(8);
         __stage2_start = .;

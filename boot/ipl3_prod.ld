@@ -19,6 +19,7 @@ SECTIONS {
         build/ipl3.o       (.text .text.* .data .rodata .rodata.*)
         build/rdram.o      (.text .text.* .data .rodata .rodata.*)
         build/minidragon.o (.text .text.* .data .rodata .rodata.*)
+        build/entropy.o    (.text .text.* .data .rodata .rodata.*)
         *(.bss)
         . = ALIGN(8);
         __stage2_start = .;

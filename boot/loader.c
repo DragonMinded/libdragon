@@ -3,6 +3,9 @@
 #include "debug.h"
 #include <stdbool.h>
 
+#define ENTROPY_FAR
+#include "entropy.h"
+
 #define ELF_MAGIC 0x7F454C46
 
 static void pi_read_async(void *dram_addr, uint32_t cart_addr, uint32_t len)
@@ -15,6 +18,10 @@ static void pi_read_async(void *dram_addr, uint32_t cart_addr, uint32_t len)
 static void pi_wait(void)
 {
     while (*PI_STATUS & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY)) {}
+    // PI timings are subject to small oscillations. We consider those as
+    // entropy, so fetching C0_COUNT after a PI DMA is finished is a good
+    // way to add more entropy.
+    entropy_add(C0_COUNT());
 }
 
 static uint32_t io_read32(uint32_t vaddrx)
@@ -144,14 +151,21 @@ void loader(void)
     }
     void *entrypoint = (void*)io_read32(elf_header + 0x18);
 
+    // Reset the RCP hardware
     rcp_reset();
-    pif_terminate_boot();
+
+    // Write the accumulated entropy to the pool
+    *(uint32_t*)0xA4000004 = entropy_get();
+    debugf("Boot flags: ", *(uint32_t*)0xA4000000, *(uint32_t*)0xA4000004, *(uint32_t*)0xA4000008, *(uint32_t*)0xA400000C);
 
     // Clear DMEM (leave only the boot flags area intact). Notice that we can't
     // call debugf anymore after this, because a small piece of debugging code
     // (io_write) is in DMEM, so it can't be used anymore.
    rsp_clear_dmem_async();
    #undef debugf
+
+    // Notify the PIF that the boot process is finished
+    pif_terminate_boot();
 
     // Jump to the entry point
     goto *entrypoint;

@@ -8,6 +8,11 @@
 #define C0_WRITE_COUNT(x)   asm volatile("mtc0 %0,$9"::"r"(x))
 #define C0_WRITE_COMPARE(x) asm volatile("mtc0 %0,$11"::"r"(x))
 #define C0_WRITE_WATCHLO(x) asm volatile("mtc0 %0,$18"::"r"(x))
+#define C0_COUNT() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$9":"=r"(x)); \
+    x; \
+})
 
 #ifndef NDEBUG
 #undef assert

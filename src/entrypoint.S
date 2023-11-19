@@ -21,15 +21,17 @@ _start:
 	lui v0, 0xA400
 	lw t0, 0x0000(v0)
 	lw t1, 0x0004(v0)
-	lw t2, 0x0008(v0)
-	lw t3, 0x000C(v0)
 	sw t0, %gprel(__boot_memsize)(gp)
-	sw t1, %gprel(__boot_tvtype)(gp)
-	sw t2, %gprel(__boot_resettype)(gp)
-	sw t3, %gprel(__boot_consoletype)(gp)
-
+	sw t1, %gprel(__boot_entropy)(gp)
 	/* Setup SP using memory size */
 	addu sp, t0, 0x80000000 - 0x10		/* sp = KSEG0 + memsize - 0x10 */
+
+	lbu t0, 0x0008(v0)
+	lbu t1, 0x0009(v0)
+	lbu t2, 0x000A(v0)
+	sw t0, %gprel(__boot_tvtype)(gp)
+	sw t1, %gprel(__boot_resettype)(gp)
+	sw t2, %gprel(__boot_consoletype)(gp)
 
 	/* load interrupt vector */
 	la t0,intvector

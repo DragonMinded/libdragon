@@ -1,5 +1,6 @@
 #include "minidragon.h"
 #include "debug.h"
+#include "entropy.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -263,6 +264,12 @@ static float memory_test(volatile uint32_t *vaddr) {
             b0 >>= 1;
         }
     }
+
+    // In case of non-zero accuracy, some bits were decayed and others might not.
+    // This random pattern is a good source of entropy.
+    if (accuracy > 0)
+        entropy_add(vaddr[1]);
+
     return accuracy * (1.0f / (NUM_TESTS * 8));
 }
 
