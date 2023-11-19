@@ -94,9 +94,11 @@ extern "C" {
  * This enum defines the pixel formats that can be used for #surface_t buffers.
  * The list corresponds to the pixel formats that the RDP can use as textures.
  * 
- * Notice that only some of those can be used by RDP as framebuffer (specifically,
- * #FMT_RGBA16, #FMT_RGBA32 and #FMT_CI8). Moreover, the CPU-based graphics library
- * graphics.h only accepts surfaces in either #FMT_RGBA16 or #FMT_RGBA32 as target buffers.
+ * @note Some of these formats can be used by RDP as framebuffer (specifically,
+ * #FMT_RGBA16, #FMT_RGBA32 and #FMT_CI8). 
+ * @warning the CPU-based graphics library
+ * graphics.h only accepts surfaces in either #FMT_RGBA16 or #FMT_RGBA32 as 
+ * target buffers, and does not assert.
  */
 typedef enum {
     FMT_NONE   = 0,                        ///< Placeholder for no format defined
