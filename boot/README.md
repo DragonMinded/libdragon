@@ -18,6 +18,8 @@ used (see "boot.asm" for more information).
    ELF segments are loaded in RDRAM and then the entrypoint is called.
  * Very fast. Boots a 350 KiB ELF file in ~165ms (cold boot) or ~71ms (warm boot).
    This is respectively 3 times and 4 times faster than Nintendo's IPL3.
+ * ROMs can now be of any size (even smaller than 1 MiB), and no header checksum
+   is required.
  * Entropy collection. During the boot process, some entropy is collected
    and made available to the running application in the form of a "true random"
    32-bit integer. This can be used to seed a pseudo random number generator.
