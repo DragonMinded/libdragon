@@ -14,6 +14,12 @@
     x; \
 })
 
+#define C0_TAGLO() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$28":"=r"(x)); \
+    x; \
+})
+
 #ifndef NDEBUG
 #undef assert
 #define assert(x)           ({ if (!(x)) { debugf("ASSERTION FAILED: " #x); abort(); } })
@@ -38,11 +44,17 @@
 #define CACHE_I		            0
 #define CACHE_D		            1
 #define INDEX_INVALIDATE		0
+#define INDEX_LOAD_TAG			1
 #define INDEX_STORE_TAG			2
+#define INDEX_CREATE_DIRTY      3
 #define BUILD_CACHE_OP(o,c)		(((o) << 2) | (c))
 #define INDEX_WRITEBACK_INVALIDATE_D	BUILD_CACHE_OP(INDEX_INVALIDATE,CACHE_D)
 #define INDEX_STORE_TAG_I              	BUILD_CACHE_OP(INDEX_STORE_TAG,CACHE_I)
 #define INDEX_STORE_TAG_D               BUILD_CACHE_OP(INDEX_STORE_TAG,CACHE_D)
+#define INDEX_LOAD_TAG_I              	BUILD_CACHE_OP(INDEX_LOAD_TAG,CACHE_I)
+#define INDEX_LOAD_TAG_D                BUILD_CACHE_OP(INDEX_LOAD_TAG,CACHE_D)
+#define INDEX_CREATE_DIRTY_D            BUILD_CACHE_OP(INDEX_CREATE_DIRTY,CACHE_D)
+
 
 #define SP_RSP_ADDR     ((volatile uint32_t*)0xa4040000)
 #define SP_DRAM_ADDR    ((volatile uint32_t*)0xa4040004)
