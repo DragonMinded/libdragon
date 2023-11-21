@@ -18,6 +18,7 @@ SECTIONS {
     } > rom
 
     .text.dmem 0xA4000040 : AT ( 0xB0001040 ) {
+        LONG(0x3044d236);  /* special dummy opcode to simplify hash cracking; this is not needed in dev mode, but we keep it in case it matters */
         KEEP(*(.boot))
         . = ALIGN(16);
         KEEP(*(.banner))

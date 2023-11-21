@@ -13,6 +13,7 @@ MEMORY
 SECTIONS {
     .text.dmem 0xA4000000 : {
         KEEP(*(.header))
+        LONG(0x3044d236);  /* special dummy opcode to simplify hash cracking */
         KEEP(*(.boot))
         . = ALIGN(16);
         KEEP(*(.banner))
