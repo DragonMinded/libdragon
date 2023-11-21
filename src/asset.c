@@ -1,6 +1,6 @@
 #include "asset.h"
 #include "asset_internal.h"
-#include "compress/lzh5_internal.h"
+#include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +26,7 @@
  * Only level 1 (LZ4) is always initialized. The other algorithm (LZH5)
  * must be initialized manually via #asset_init_compression.
  */
-static asset_compression_t algos[2] = {
+static asset_compression_t algos[3] = {
     {
         .state_size = DECOMPRESS_LZ4_STATE_SIZE,
         .decompress_init = decompress_lz4_init,
@@ -37,11 +37,11 @@ static asset_compression_t algos[2] = {
 
 void __asset_init_compression_lvl2(void)
 {
-    algos[1] = (asset_compression_t){
-        .state_size = DECOMPRESS_LZH5_STATE_SIZE,
-        .decompress_init = decompress_lzh5_init,
-        .decompress_read = decompress_lzh5_read,
-        .decompress_full = decompress_lzh5_full,
+    algos[2] = (asset_compression_t){
+        .state_size = DECOMPRESS_APLIB_STATE_SIZE,
+        .decompress_init = decompress_aplib_init,
+        .decompress_read = decompress_aplib_read,
+        .decompress_full = decompress_aplib_full,
     };
 }
 

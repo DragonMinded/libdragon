@@ -4,11 +4,13 @@
 #include <stdint.h>
 
 #include "../common/binout.h"
-#include "../common/lzh5_compress.c"
+#include "../common/aplib_compress.c"
+#undef SWAP
+#undef MIN_MATCH_SIZE
 #undef MIN
 #undef MAX
 #include "../../src/asset.c"
-#include "../../src/compress/lzh5.c"
+#include "../../src/compress/aplib_dec.c"
 #include "../../src/compress/lz4_dec.c"
 #include "../../src/compress/ringbuf.c"
 #undef MIN
@@ -84,40 +86,32 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         fwrite(data, 1, sz, out);
         fclose(out);
     }   break;
-    case 2: { // lzh5
-        // lzh5 has a fixed 8 KiB window at the moment, so we ignore any winsize
-        // that can come from the caller.
-        winsize = 8*1024;
-
-        char *tmpfn = NULL;
-        asprintf(&tmpfn, "%s.tmp", outfn);
-        FILE *out = fopen(tmpfn, "wb");
-        if (!out) {
-            fprintf(stderr, "error opening output file: %s\n", tmpfn);
-            return 1;
+    case 2: { // aplib
+        if (winsize == 0) {
+            winsize = 256*1024;
+            while (insize < winsize && winsize > 2*1024)
+                winsize /= 2;
         }
-        fwrite(data, 1, sz, out);
-        fclose(out);
+    
+        apultra_stats stats;
+        int max_cmp_size = apultra_get_max_compressed_size(sz);
+        void *output = calloc(1, max_cmp_size);  // note: apultra.c clears the buffer, not sure why
+        int cmp_size = apultra_compress(data, output, sz, max_cmp_size, 
+            0,          // flags
+            winsize,    // window size
+            0,          // dictionary size
+            NULL,       // progress callback
+            &stats);
 
-        in = fopen(tmpfn, "rb");
-        out = fopen(outfn, "wb");
+        FILE *out = fopen(outfn, "wb");
         fwrite("DCA2", 1, 4, out);
-        w16(out, 2); // algo
+        w16(out, 3); // algo
         w16(out, asset_winsize_to_flags(winsize)); // flags
-        int w_cmp_size = w32_placeholder(out); // cmp_size
-        int w_dec_size = w32_placeholder(out); // dec_size
-
-        unsigned int crc, dsize, csize;
-        lzh5_init(LZHUFF5_METHOD_NUM);
-        lzh5_encode(in, out, &crc, &csize, &dsize);
-
-        w32_at(out, w_cmp_size, csize);
-        w32_at(out, w_dec_size, dsize);
-
-        fclose(in);
+        w32(out, cmp_size); // cmp_size
+        w32(out, sz); // dec_size
+        fwrite(output, 1, cmp_size, out);
         fclose(out);
-        remove(tmpfn);
-        free(tmpfn);
+        free(output);
     }   break;
     case 1: { // lz4hc
         // Default for LZ4HC is 8 KiB, which makes sense given the little
