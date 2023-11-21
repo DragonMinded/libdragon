@@ -103,12 +103,19 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
             NULL,       // progress callback
             &stats);
 
+        int inplace_margin = stats.safe_dist + cmp_size - sz;
+
+        // add 8 because the assembly decompressor does up to 8 out-of-bounds writes,
+        // that could overwrite the input data,
+        inplace_margin += 8; 
+
         FILE *out = fopen(outfn, "wb");
-        fwrite("DCA2", 1, 4, out);
+        fwrite("DCA3", 1, 4, out);
         w16(out, 3); // algo
-        w16(out, asset_winsize_to_flags(winsize)); // flags
+        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
         w32(out, cmp_size); // cmp_size
         w32(out, sz); // dec_size
+        w32(out, inplace_margin); // inplace margin
         fwrite(output, 1, cmp_size, out);
         fclose(out);
         free(output);
@@ -142,11 +149,12 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         assert(cmp_size <= cmp_max_size);
 
         FILE *out = fopen(outfn, "wb");
-        fwrite("DCA2", 1, 4, out);
+        fwrite("DCA3", 1, 4, out);
         w16(out, 1); // algo
-        w16(out, asset_winsize_to_flags(winsize)); // flags
+        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
         w32(out, cmp_size); // cmp_size
         w32(out, sz); // dec_size
+        w32(out, LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size)); // inplace margin
         fwrite(output, 1, cmp_size, out);
         fclose(out);
         free(output);

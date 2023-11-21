@@ -6,17 +6,12 @@
 #include "dma.h"
 #include "dragonfs.h"
 #include "debug.h"
+#include <malloc.h>
 #endif
 #include "../utils.h"
+#include "../asset_internal.h"
 #include "aplib_dec_internal.h"
 #include "ringbuf_internal.h"
-
-/** @brief Set to 0 to disable assembly implementation of the full decoder */
-#ifdef N64
-#define DECOMPRESS_FULL_USE_ASM             1
-#else
-#define DECOMPRESS_FULL_USE_ASM             0
-#endif
 
 #define MINMATCH3_OFFSET 1280
 #define MINMATCH4_OFFSET 32000
@@ -114,7 +109,6 @@ static void decompress_init(aplib_decompressor_t *d, FILE *f, uint32_t rom_addr)
     #endif
 }
 
-#if !DECOMPRESS_FULL_USE_ASM
 static int decompress_full(aplib_decompressor_t *d, uint8_t *out)
 {
     uint8_t *out_orig = out;
@@ -202,7 +196,6 @@ static int decompress_full(aplib_decompressor_t *d, uint8_t *out)
     // fprintf(stderr, "return %x\n", out - out_orig);
     return out - out_orig;
 }
-#endif
 
 __attribute__((used))
 static int decompress_aplib_partial(aplib_decompressor_t *d, uint8_t *out, int len)
@@ -306,37 +299,24 @@ ssize_t decompress_aplib_read(void *state, void *buf, size_t len)
 
 void* decompress_aplib_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
 {
-	uint32_t rom_addr = 0;
+    uint32_t rom_addr = 0;
     #ifdef N64
 	if (strncmp(fn, "rom:/", 5) == 0) {
 		rom_addr = (dfs_rom_addr(fn+5) & 0x1fffffff) + ftell(fp);
 	}
     #endif
-
-    #if !DECOMPRESS_FULL_USE_ASM
-    void *buf = malloc(size + 8);
+    void *buf = memalign(ASSET_ALIGNMENT, size + 8);
     aplib_decompressor_t d;
     decompress_init(&d, fp, rom_addr);
     int sz = decompress_full(&d, buf); (void)sz;
     buf = realloc(buf, size);
-    #else
-    void *buf = malloc(size+8);
-    void *inbuf = malloc(cmp_size);
-    data_cache_hit_writeback_invalidate(inbuf, cmp_size);
-
-    if (rom_addr) {
-        dma_read_async(inbuf, rom_addr, cmp_size);
-	} else {
-        fread(inbuf, 1, cmp_size, fp);
-    }
-
-    extern int decompress_aplib_full_fast(void*, void*);
-    int sz = decompress_aplib_full_fast(inbuf, buf);
-    free(inbuf);
-    buf = realloc(buf, size);
-    #endif
-
-    // aplib stream never includes the trailing 0s
-    assert(sz == size);
     return buf;
 }
+
+#ifdef N64
+int decompress_aplib_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size)
+{
+    extern int decompress_aplib_full_fast(const void*, void*);
+    return decompress_aplib_full_fast(in, out);
+}
+#endif
