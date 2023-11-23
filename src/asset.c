@@ -37,7 +37,7 @@ static asset_compression_t algos[3] = {
 
 void __asset_init_compression_lvl2(void)
 {
-    algos[2] = (asset_compression_t){
+    algos[1] = (asset_compression_t){
         .state_size = DECOMPRESS_APLIB_STATE_SIZE,
         .decompress_init = decompress_aplib_init,
         .decompress_read = decompress_aplib_read,
