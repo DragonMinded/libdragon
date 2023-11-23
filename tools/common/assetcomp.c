@@ -104,11 +104,6 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
             &stats);
 
         int inplace_margin = stats.safe_dist + cmp_size - sz;
-
-        // add 8 because the assembly decompressor does up to 8 out-of-bounds writes,
-        // that could overwrite the input data,
-        inplace_margin += 8; 
-
         FILE *out = fopen(outfn, "wb");
         fwrite("DCA3", 1, 4, out);
         w16(out, 3); // algo

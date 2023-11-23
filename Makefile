@@ -35,7 +35,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtra
 			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
 			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
 			 $(BUILD_DIR)/console.o $(BUILD_DIR)/asset.o \
-			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/ringbuf.o \
+			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/lz4_dec_fast.o $(BUILD_DIR)/compress/ringbuf.o \
 			 $(BUILD_DIR)/compress/aplib_dec_fast.o $(BUILD_DIR)/compress/aplib_dec.o \
 			 $(BUILD_DIR)/joybus.o $(BUILD_DIR)/joybus_accessory.o $(BUILD_DIR)/pixelfx.o \
 			 $(BUILD_DIR)/joypad.o $(BUILD_DIR)/joypad_accessory.o \
