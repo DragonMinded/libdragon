@@ -43,7 +43,6 @@
     .set noreorder
 
 decompress_shrinkler_full_fast:
-    tne $ra,$ra,0x10
     addiu $t1, $sp, -16
     addiu $sp, $sp, -ROUND_UP(NUM_CONTEXTS*2, 8)-16
     move $t0, $sp
@@ -63,6 +62,7 @@ decompress_shrinkler_full_fast:
      li intervalsize, 0x8000
 
 .Lloop:
+    li $v0, 0
     bal .Llzdecode
      addiu ctx, $sp, CONTEXT_KIND*2
     bnez $v0, .Lmatch
@@ -71,39 +71,34 @@ decompress_shrinkler_full_fast:
 .Lliteral:
     li prev_match, 0
     li lit_len, 7
-    li $v1, 1
+    li $v0, 1
 .Lliteral_loop:
-    addiu ctx, $v1, 1
-    sll ctx, 1
+    sll $v0, 1
+    addiu ctx, $v0, 2
     bal .Llzdecode
      addu ctx, $sp
-    sll $v1, 1
-    or $v1, $v0
     bnez lit_len, .Lliteral_loop
      addiu lit_len, -1
 
-    tne $ra,$ra,0x10
-    sb $v1, 0(outbuf)
+    sb $v0, 0(outbuf)
     b .Lloop
      addiu outbuf, 1
 
 .Lmatch:
-    tne $ra,$ra,0x10
     addiu ctx, $sp, CONTEXT_REPEATED*2
     bgezal prev_match, .Llzdecode
      li $v0, 0
     sll $v0, 31
     addiu ctx, $sp, CONTEXT_GROUP_OFFSET*2
     bgezal $v0, .Llzdecode_number
-     addiu $v1, match_off, 2
-    addiu $v1, -2
-    beqz $v1, .Lend
-     move match_off, $v1
+     addiu $v0, match_off, 2
+    addiu $v0, -2
+    beqz $v0, .Lend
+     move match_off, $v0
     bal .Llzdecode_number
      addiu ctx, $sp, CONTEXT_GROUP_LENGTH*2
-    move match_len, $v1
+    move match_len, $v0
     li prev_match, 1<<31
-    tne $ra,$ra,0x10
     blt match_off, match_len, .Lmatch1_loop_check   # check if we can do 8-byte copy
      sub $v0, outbuf, match_off                 # calculate start of match
 .Lmatch8_loop:                                  # 8-byte copy loop
@@ -158,9 +153,9 @@ decompress_shrinkler_full_fast:
 # Input:
 #  * ctx: first context to use
 # Output:
-#  * $v1: decoded number
+#  * $v0: decoded number
 # Destroy:
-#  * $t0, $t1, $v0 (through .Llzdecode)
+#  * $t0, $t1
 #  * num_len ($t7) (aliased with all other len variables)
 #
 ###################################################
@@ -169,19 +164,19 @@ decompress_shrinkler_full_fast:
     move ra2, $ra
     li num_len, 0
 .Llzdecode_number_len:
+    li $v0, 0
     bal .Llzdecode
      addiu ctx, 2*2
     bnez $v0, .Llzdecode_number_len
      addiu num_len, 1
-    li $v1, 1
+    li $v0, 1
     addiu ctx, -1*2
 .Llzdecode_number_value:
+    sll $v0, 1
     bal .Llzdecode
      addiu num_len, -1
-    sll $v1, 1
-    addiu ctx, -2*2
     bnez num_len, .Llzdecode_number_value
-     or $v1, $v0
+     addiu ctx, -2*2
 .Llzdecode_number_end:
     jr ra2
      nop
@@ -192,8 +187,10 @@ decompress_shrinkler_full_fast:
 #
 # Input: 
 #   * ctx: context to use
+#   * $v0: value to modify
 # Return:
-#   * $v0: decoded bit (0 or 1)
+#   * $v0: set last bit to 1 if dcoded bit is 1,
+#          otherwise leave it unchanged
 # Destroy:
 #   * $t0, $t1
 ###################################################
@@ -230,14 +227,13 @@ decompress_shrinkler_full_fast:
     addiu $t0, (0xffff >> ADJUST_SHIFT)
     sh $t0, 0(ctx)
     jr $ra
-     li $v0, 1
+     ori $v0, 1
 
 .Llzdecode_prob_false:
     sub intervalsize, $t1
     dsll $t1, $t1, 48
     dsubu intervalvalue, $t1
     sub $t0, $at
-    sh $t0, 0(ctx)
     jr $ra
-     li $v0, 0
+     sh $t0, 0(ctx)
     .set at
