@@ -13,6 +13,7 @@ all:
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 %.a:
 	@echo "    [AR] $@"
+	rm -f $@
 	$(AR) rcs $@ $^
 
 common-clean:
