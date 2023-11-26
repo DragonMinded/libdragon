@@ -46,7 +46,6 @@ EXE = $(if $(findstring Windows,$(OS)),.exe,)
 
 define TOOL_template
 .PHONY: $(1)-install $(1)-clean
-$(1)_TEST = ciao
 $(1)_DIR ?= $$(dir $$(firstword $$($(1)_OBJS)))
 $(1)_BIN ?= $$($(1)_DIR)$(1)$(EXE)
 ifneq ($$($(1)_DIR),./)
