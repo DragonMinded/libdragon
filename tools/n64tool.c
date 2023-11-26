@@ -193,7 +193,6 @@ ssize_t output_zeros(FILE * dest, ssize_t amount)
 		return -1;
 	}
 
-	int i;
 	while (amount > 0) {
 		int sz = amount;
 		if (sz > sizeof(zero))

@@ -1,82 +1,70 @@
 INSTALLDIR ?= $(N64_INST)
+CFLAGS   += -std=gnu11 -O2 -Wall -Werror -Wno-unused-result -I../include -MMD
+CXXFLAGS += -std=c++11 -O2 -Wall -Werror -Wno-unused-result -MMD
+LDFLAGS   = 
 
-all: chksum64 dumpdfs ed64romconfig mkdfs mksprite mkfont mkasset mkmodel n64dso n64tool n64sym audioconv64 rdpvalidate
+all:
 
-.PHONY: install
-install: all
+%.o: %.c
+	@echo "    [CC] $@"
+	$(CC) $(CFLAGS) -c -o $@ $<
+%.o: %.cpp
+	@echo "    [CXX] $@"
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+%.a:
+	@echo "    [AR] $@"
+	$(AR) rcs $@ $^
+
+common-clean:
+	rm -f common/*.o common/*.a common/*.d
+common/assetcomp.a: common/assetcomp.o common/lz4_compress.o \
+				    common/aplib_compress.o common/shrinkler_compress.o
+
+-include $(wildcard common/*.d)
+
+mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
+mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
+mkfont_OBJS = mkfont/mkfont.o common/assetcomp.a
+mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a
+n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
+n64dso-extern_OBJS = n64dso/n64dso-extern.o
+n64dso-msym_OBJS = n64dso/n64dso-msym.o
+audioconv64_OBJS = audioconv64/audioconv64.o
+rdpvalidate_OBJS = rdpvalidate/rdpvalidate.o
+mkdfs_OBJS = mkdfs/mkdfs.o
+dumpdfs_OBJS = dumpdfs/dumpdfs.o
+n64tool_OBJS = n64tool.o
+n64sym_OBJS = n64sym.o
+ed64romconfig_OBJS = ed64romconfig.o
+chksum64_OBJS = chksum64.o
+
+TOOLS = n64tool n64sym ed64romconfig chksum64 audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate
+
+# Define a variable that has value ".exe" on Windows and "" on other platforms
+EXE = $(if $(findstring Windows,$(OS)),.exe,)
+
+define TOOL_template
+.PHONY: $(1)-install $(1)-clean
+$(1)_TEST = ciao
+$(1)_DIR ?= $$(dir $$(firstword $$($(1)_OBJS)))
+$(1)_BIN ?= $$($(1)_DIR)$(1)$(EXE)
+ifneq ($$($(1)_DIR),./)
+.PHONY: $(1)
+$(1): $$($(1)_BIN)
+endif
+$$($(1)_BIN): $$($(1)_OBJS)
+	@echo "    [TOOL] $(1)"
+	$(CXX) $(LDFLAGS) -o $$@ $$^
+$(1)-install: $$($(1)_BIN)
 	mkdir -p $(INSTALLDIR)/bin
-	install -m 0755 chksum64 ed64romconfig n64tool n64sym $(INSTALLDIR)/bin
-	$(MAKE) -C dumpdfs install
-	$(MAKE) -C mkdfs install
-	$(MAKE) -C mksprite install
-	$(MAKE) -C mkfont install
-	$(MAKE) -C mkasset install
-	$(MAKE) -C mkmodel install
-	$(MAKE) -C n64dso install
-	$(MAKE) -C audioconv64 install
-	$(MAKE) -C rdpvalidate install
+	install -m 0755 $$($(1)_BIN) $(INSTALLDIR)/bin
+$(1)-clean:
+	rm -f $$($(1)_BIN) $$($(1)_DIR)/*.o $$($(1)_DIR)/*.d
+-include $(wildcard $(1)/*.d)
+endef
 
-.PHONY: clean
-clean:
-	rm -rf chksum64 ed64romconfig n64tool n64sym
-	$(MAKE) -C dumpdfs clean
-	$(MAKE) -C mkdfs clean
-	$(MAKE) -C mksprite clean
-	$(MAKE) -C mkfont clean
-	$(MAKE) -C mkasset clean
-	$(MAKE) -C mkmodel clean
-	$(MAKE) -C n64dso clean
-	$(MAKE) -C audioconv64 clean
-	$(MAKE) -C rdpvalidate clean
-
-chksum64: chksum64.c
-	@echo "    [TOOL] chksum64"
-	gcc -o chksum64 chksum64.c
-
-n64tool: n64tool.c
-	@echo "    [TOOL] n64tool"
-	gcc -o n64tool n64tool.c
-
-n64sym: n64sym.c
-	@echo "    [TOOL] n64sym"
-	gcc -std=gnu99 -O2 -Wall -o n64sym n64sym.c
-
-ed64romconfig: ed64romconfig.c
-	@echo "    [TOOL] ed64romconfig"
-	gcc -o ed64romconfig ed64romconfig.c
-
-.PHONY: dumpdfs
-dumpdfs:
-	$(MAKE) -C dumpdfs
-
-.PHONY: mkdfs
-mkdfs:
-	$(MAKE) -C mkdfs
-
-.PHONY: mksprite
-mksprite:
-	$(MAKE) -C mksprite
-
-.PHONY: mkfont
-mkfont:
-	$(MAKE) -C mkfont
-
-.PHONY: mkasset
-mkasset:
-	$(MAKE) -C mkasset
-
-.PHONY: mkmodel
-mkmodel:
-	$(MAKE) -C mkmodel
-
-.PHONY: n64dso
-n64dso:
-	$(MAKE) -C n64dso
-	
-.PHONY: audioconv64
-audioconv64:
-	$(MAKE) -C audioconv64
-
-.PHONY: rdpvalidate
-rdpvalidate:
-	$(MAKE) -C rdpvalidate
+$(foreach tool,$(TOOLS),$(eval $(call TOOL_template,$(tool))))
+all: $(TOOLS)
+install: $(foreach tool,$(TOOLS),$(tool)-install)
+clean: $(foreach tool,$(TOOLS),$(tool)-clean) common-clean
+.PHONY: all install clean

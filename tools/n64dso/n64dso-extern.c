@@ -10,6 +10,7 @@
 #include "../../src/compress/aplib_dec.c"
 #include "../../src/compress/lz4_dec.c"
 #include "../../src/compress/ringbuf.c"
+#include "../../src/compress/shrinkler_dec.c"
 
 //DSO Format Internals
 #include "../../src/dso_format.h"

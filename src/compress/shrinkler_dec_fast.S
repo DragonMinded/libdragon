@@ -55,18 +55,16 @@ decompress_shrinkler_full_fast:
      addiu $t0, 8
 
     move ra3, $ra
-    ldl intervalvalue, 0(inbuf)
-    ldr intervalvalue, 7(inbuf)
-    addiu inbuf, 7
-    dsrl intervalvalue, 8
-    dsll intervalvalue, 7
+    lwu intervalvalue, 0(inbuf)
+    addiu inbuf, 4
+    dsll intervalvalue, 31
     li nbits, 1
     b .Lliteral
      li intervalsize, 0x8000
 
 .Lloop:
     bal .Llzdecode
-     li ctx, CONTEXT_KIND
+     addiu ctx, $sp, CONTEXT_KIND*2
     bnez $v0, .Lmatch
      nop
 
@@ -75,8 +73,10 @@ decompress_shrinkler_full_fast:
     li lit_len, 7
     li $v1, 1
 .Lliteral_loop:
+    addiu ctx, $v1, 1
+    sll ctx, 1
     bal .Llzdecode
-     addiu ctx, $v1, 1
+     addu ctx, $sp
     sll $v1, 1
     or $v1, $v0
     bnez lit_len, .Lliteral_loop
@@ -89,18 +89,18 @@ decompress_shrinkler_full_fast:
 
 .Lmatch:
     tne $ra,$ra,0x10
-    li ctx, CONTEXT_REPEATED
+    addiu ctx, $sp, CONTEXT_REPEATED*2
     bgezal prev_match, .Llzdecode
      li $v0, 0
     sll $v0, 31
-    li ctx, CONTEXT_GROUP_OFFSET
+    addiu ctx, $sp, CONTEXT_GROUP_OFFSET*2
     bgezal $v0, .Llzdecode_number
      addiu $v1, match_off, 2
     addiu $v1, -2
     beqz $v1, .Lend
      move match_off, $v1
     bal .Llzdecode_number
-     li ctx, CONTEXT_GROUP_LENGTH
+     addiu ctx, $sp, CONTEXT_GROUP_LENGTH*2
     move match_len, $v1
     li prev_match, 1<<31
     tne $ra,$ra,0x10
@@ -170,16 +170,16 @@ decompress_shrinkler_full_fast:
     li num_len, 0
 .Llzdecode_number_len:
     bal .Llzdecode
-     addiu ctx, 2
+     addiu ctx, 2*2
     bnez $v0, .Llzdecode_number_len
      addiu num_len, 1
     li $v1, 1
-    addiu ctx, -1
+    addiu ctx, -1*2
 .Llzdecode_number_value:
     bal .Llzdecode
      addiu num_len, -1
     sll $v1, 1
-    addiu ctx, -2
+    addiu ctx, -2*2
     bnez num_len, .Llzdecode_number_value
      or $v1, $v0
 .Llzdecode_number_end:
@@ -198,32 +198,28 @@ decompress_shrinkler_full_fast:
 #   * $t0, $t1
 ###################################################
 
+    .set noat
 .Llzdecode:
     sll intervalsize, 16
     bltz intervalsize, .Llzdecode_prob
-     sll $v0, ctx, 1
+     lhu $t0, 0(ctx)
 .Llzdecode_bit_loop:
     bnez nbits, .Llzdecode_next_bit
      addiu nbits, -1
-    lbu $t0, 0(inbuf)
-    addiu inbuf, 1
-    or intervalvalue, $t0
-    li nbits, 7
+    lwu $at, 0(inbuf)
+    addiu inbuf, 4
+    or intervalvalue, $at
+    li nbits, 31
 .Llzdecode_next_bit:     
     sll intervalsize, 1
     bgez intervalsize, .Llzdecode_bit_loop
      dsll intervalvalue, 1
 .Llzdecode_prob:
-    addu $v0, $sp
-    lhu $t0, 0($v0)
-    srl intervalsize, 16
-
-    .set noat
-    multu intervalsize, $t0
-    mflo $t1
-    srl $t1, 16
-
     dsrl $at, intervalvalue, 48
+    multu intervalsize, $t0
+    srl intervalsize, 16
+    mfhi $t1
+
     sub $at, $t1
     bgez $at, .Llzdecode_prob_false
      srl $at, $t0, ADJUST_SHIFT
@@ -232,7 +228,7 @@ decompress_shrinkler_full_fast:
     move intervalsize, $t1
     sub $t0, $at
     addiu $t0, (0xffff >> ADJUST_SHIFT)
-    sh $t0, 0($v0)
+    sh $t0, 0(ctx)
     jr $ra
      li $v0, 1
 
@@ -241,7 +237,7 @@ decompress_shrinkler_full_fast:
     dsll $t1, $t1, 48
     dsubu intervalvalue, $t1
     sub $t0, $at
-    sh $t0, 0($v0)
+    sh $t0, 0(ctx)
     jr $ra
      li $v0, 0
     .set at

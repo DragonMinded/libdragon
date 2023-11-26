@@ -61,9 +61,9 @@ static void shr_decode_init(shrinkler_ctx_t *ctx, uint8_t *src) {
     ctx->cur_byte = 0;
 
     // Adjust for 64-bit values
-    for (int i=0;i<7;i++)
+    for (int i=0;i<4;i++)
         ctx->intervalvalue = (ctx->intervalvalue << 8) | *ctx->src++;
-    ctx->intervalvalue <<= 7;
+    ctx->intervalvalue <<= 31;
     ctx->bits_left = 1;
     ctx->intervalsize = 0x8000;
 }
@@ -71,8 +71,9 @@ static void shr_decode_init(shrinkler_ctx_t *ctx, uint8_t *src) {
 static inline int shr_decode_bit(shrinkler_ctx_t *ctx, int context_index) {
     while ((ctx->intervalsize < 0x8000)) {
         if (unlikely(ctx->bits_left == 0)) {
-            ctx->intervalvalue |= *ctx->src++;
-            ctx->bits_left = 8;
+            ctx->intervalvalue |= *(uint32_t*)ctx->src;
+            ctx->src += 4;
+            ctx->bits_left = 32;
         }
         ctx->bits_left -= 1;
         ctx->intervalsize <<= 1;
@@ -82,26 +83,6 @@ static inline int shr_decode_bit(shrinkler_ctx_t *ctx, int context_index) {
     unsigned prob = ctx->contexts[context_index];
     unsigned intervalvalue = ctx->intervalvalue >> 48;
     unsigned threshold = (ctx->intervalsize * prob) >> 16;
-    // debugf("idx: %x, prob: %x, intervalsize: %x intervalvalue: %llx, threshold: %x, bit: %d\n", context_index, prob, ctx->intervalsize, ctx->intervalvalue, threshold, intervalvalue < threshold);
-
-// idx: 2, prob: 8000, intervalsize: 8000 intervalvalue: 7f6defe9ef05f580, threshold: 4000, bit: 0
-// idx: 3, prob: 8000, intervalsize: 8000 intervalvalue: 7edbdfd3de0beb00, threshold: 4000, bit: 0
-// idx: 5, prob: 8000, intervalsize: 8000 intervalvalue: 7db7bfa7bc17d7f4, threshold: 4000, bit: 0
-// idx: 9, prob: 8000, intervalsize: 8000 intervalvalue: 7b6f7f4f782fafe8, threshold: 4000, bit: 0
-// idx: 11, prob: 8000, intervalsize: 8000 intervalvalue: 76defe9ef05f5fd0, threshold: 4000, bit: 0
-// idx: 21, prob: 8000, intervalsize: 8000 intervalvalue: 6dbdfd3de0bebfa0, threshold: 4000, bit: 0
-// idx: 41, prob: 8000, intervalsize: 8000 intervalvalue: 5b7bfa7bc17d7f40, threshold: 4000, bit: 0
-// idx: 81, prob: 8000, intervalsize: 8000 intervalvalue: 36f7f4f782fafe80, threshold: 4000, bit: 1
-
-// idx: 1, prob: 8000, intervalsize: 8000 intervalvalue: 6defe9ef05f5fd00, threshold: 4000, bit: 0
-// idx: 2, prob: 7800, intervalsize: 8000 intervalvalue: 5bdfd3de0bebfa00, threshold: 3c00, bit: 0
-// idx: 3, prob: 7800, intervalsize: 8800 intervalvalue: 3fbfa7bc17d7f5ba, threshold: 3fc0, bit: 1
-// idx: 6, prob: 8000, intervalsize: ff00 intervalvalue: fefe9ef05f5fd6e8, threshold: 7f80, bit: 0
-// idx: b, prob: 8000, intervalsize: ff00 intervalvalue: fefd3de0bebfadd0, threshold: 7f80, bit: 0
-// idx: 15, prob: 8000, intervalsize: ff00 intervalvalue: fefa7bc17d7f5ba0, threshold: 7f80, bit: 0
-// idx: 29, prob: 8000, intervalsize: ff00 intervalvalue: fef4f782fafeb740, threshold: 7f80, bit: 0
-// idx: 51, prob: 8000, intervalsize: ff00 intervalvalue: fee9ef05f5fd6e80, threshold: 7f80, bit: 0
-// idx: a1, prob: 8000, intervalsize: ff00 intervalvalue: fed3de0bebfadd00, threshold: 7f80, bit: 0
 
     if (intervalvalue >= threshold) {
         // Zero
@@ -207,11 +188,13 @@ void* decompress_shrinkler_full(const char *fn, FILE *fp, size_t cmp_size, size_
     return out;
 }
 
-#include "dma.h"
+#ifdef N64
 int decompress_shrinkler_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size)
 {
+    extern void dma_wait(void);
     dma_wait();
     extern void* decompress_shrinkler_full_fast(const uint8_t* in, uint8_t *out);
     uint8_t *outend = decompress_shrinkler_full_fast(in, out);
     return outend - out;
 }
+#endif

@@ -3,9 +3,9 @@
 
 /** @brief Set to 0 to disable assembly implementation of the full decoder */
 #ifdef N64
-#define DECOMPRESS_FULL_USE_ASM             1
+#define DECOMPRESS_APLIB_FULL_USE_ASM             1
 #else
-#define DECOMPRESS_FULL_USE_ASM             0
+#define DECOMPRESS_APLIB_FULL_USE_ASM             0
 #endif
 
 #include <stdio.h>
@@ -15,7 +15,7 @@
 void decompress_aplib_init(void *state, FILE *fp, int winsize);
 ssize_t decompress_aplib_read(void *state, void *buf, size_t len);
 
-#if DECOMPRESS_FULL_USE_ASM
+#if DECOMPRESS_APLIB_FULL_USE_ASM
 int decompress_aplib_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size);
 #else
 void* decompress_aplib_full(const char *fn, FILE *fp, size_t cmp_size, size_t size);

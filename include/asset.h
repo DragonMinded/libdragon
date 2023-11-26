@@ -104,6 +104,7 @@ extern void __asset_init_compression_lvl2(void);
     switch (level) { \
     case 1: break; \
     case 2: __asset_init_compression_lvl2(); break; \
+    case 3: __asset_init_compression_lvl3(); break; \
     default: assertf(0, "Unsupported compression level: %d", level); \
     } \
 })

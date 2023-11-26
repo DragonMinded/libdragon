@@ -2,6 +2,7 @@
 #include "asset_internal.h"
 #include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
+#include "compress/shrinkler_dec_internal.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -41,10 +42,21 @@ void __asset_init_compression_lvl2(void)
         .state_size = DECOMPRESS_APLIB_STATE_SIZE,
         .decompress_init = decompress_aplib_init,
         .decompress_read = decompress_aplib_read,
-        #if DECOMPRESS_FULL_USE_ASM
+        #if DECOMPRESS_APLIB_FULL_USE_ASM
         .decompress_full_inplace = decompress_aplib_full_inplace,
         #else
         .decompress_full = decompress_aplib_full,
+        #endif
+    };
+}
+
+void __asset_init_compression_lvl3(void)
+{
+    algos[2] = (asset_compression_t){
+        #if DECOMPRESS_SHRINKLER_FULL_USE_ASM
+        .decompress_full_inplace = decompress_shrinkler_full_inplace,
+        #else
+        .decompress_full = decompress_shrinkler_full,
         #endif
     };
 }
@@ -83,7 +95,9 @@ static void* decompress_inplace(asset_compression_t *algo, const char *fn, FILE 
 
     int bufsize = size + margin;
     int cmp_offset = bufsize - cmp_size;
-    if (cmp_offset & 1) {
+    // Align the source buffer to 4 bytes, so that we can use 32-bit loads (required by shrinkler).
+    // Notice that we need at least 2-byte alignment anyway, for DMA.
+    while (cmp_offset & 3) {
         cmp_offset++;
         bufsize++;
     }
@@ -156,7 +170,7 @@ void *asset_load(const char *fn, int *sz)
         header.inplace_margin = __builtin_bswap32(header.inplace_margin);
         #endif
 
-        assertf(header.algo >= 1 || header.algo <= 2,
+        assertf(header.algo >= 1 || header.algo <= 3,
             "unsupported compression algorithm: %d", header.algo);
         assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);

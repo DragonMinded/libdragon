@@ -3,29 +3,23 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "../common/binout.h"
-#include "../common/aplib_compress.c"
+#include "binout.h"
+#include "aplib_compress.h"
+#include "shrinkler_compress.h"
 #undef SWAP
 #undef MIN_MATCH_SIZE
 #undef MIN
 #undef MAX
 #include "../../src/asset.c"
 #include "../../src/compress/aplib_dec.c"
+#include "../../src/compress/shrinkler_dec.c"
 #include "../../src/compress/lz4_dec.c"
 #include "../../src/compress/ringbuf.c"
 #undef MIN
 #undef MAX
 #undef LZ4_DECOMPRESS_INPLACE_MARGIN
 
-static int lz4_distance_max = 16384;
-
-#ifndef LZ4_SRC_INCLUDED
-#define LZ4_DISTANCE_MAX lz4_distance_max
-#include "../common/lz4.c"
-#endif
-#include "../common/lz4hc.c"
-#undef MIN
-#undef MAX
+#include "lz4_compress.h"
 
 /**
  * @brief Compress or recompress a file in the libdragon asset format.
@@ -43,6 +37,7 @@ static int lz4_distance_max = 16384;
 bool asset_compress(const char *infn, const char *outfn, int compression, int winsize)
 {
     asset_init_compression(2);
+    asset_init_compression(3);
 
     // Make sure the file exists before calling asset_load,
     // which would just assert.
@@ -85,6 +80,22 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         }
         fwrite(data, 1, sz, out);
         fclose(out);
+    }   break;
+    case 3: { // shrinkler
+        winsize = 256*1024; // FIXME
+        int cmp_size; int inplace_margin;
+        uint8_t *output = shrinkler_compress(data, sz, 3, &cmp_size, &inplace_margin);
+
+        FILE *out = fopen(outfn, "wb");
+        fwrite("DCA3", 1, 4, out);
+        w16(out, 3); // algo
+        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
+        w32(out, cmp_size); // cmp_size
+        w32(out, sz); // dec_size
+        w32(out, inplace_margin); // inplace margin
+        fwrite(output, 1, cmp_size, out);
+        fclose(out);
+        free(output);
     }   break;
     case 2: { // aplib
         if (winsize == 0) {
