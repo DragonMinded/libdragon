@@ -1,6 +1,6 @@
 INSTALLDIR ?= $(N64_INST)
-CFLAGS   += -std=gnu11 -O2 -Wall -Werror -Wno-unused-result -I../include -MMD
-CXXFLAGS += -std=c++11 -O2 -Wall -Werror -Wno-unused-result -MMD
+CFLAGS   += -std=gnu11 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-error=sign-compare -I../include -MMD
+CXXFLAGS += -std=c++11 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-error=sign-compare -MMD
 LDFLAGS   = 
 
 all:

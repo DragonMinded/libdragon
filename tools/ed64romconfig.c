@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on EverDrive!\n");
 	}
 
-	uint8_t config = save_type | (force_rtc ? 1 : 0) + (region_free ? 2 : 0);
+	uint8_t config = save_type | (force_rtc ? 1 : 0) | (region_free ? 2 : 0);
 
 	const char cart_id[CART_ID_SIZE] = {'E', 'D'};
 	fseek(write_file, CART_ID_OFFSET, SEEK_SET);
