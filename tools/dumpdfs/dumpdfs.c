@@ -804,6 +804,11 @@ int main( int argc, char *argv[] )
             }
             
             int fl = dfs_open( argv[3] );
+            if (fl < 0)
+            {
+                fprintf(stderr, "File %s not found\n", argv[3]);
+                return -1;
+            }
             uint8_t *data = malloc( dfs_size( fl ) );
 
             dfs_read( data, 1, dfs_size( fl ), fl );
@@ -840,6 +845,11 @@ int main( int argc, char *argv[] )
             dfs_read( &unused, 1, 4, nu );
             
             int fl = dfs_open( argv[3] );
+            if (fl < 0)
+            {
+                fprintf(stderr, "File %s not found\n", argv[3]);
+                return -1;
+            }
             uint8_t *data = malloc( dfs_size( fl ) );
 
             dfs_read( data, 1, dfs_size( fl ), fl );
