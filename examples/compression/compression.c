@@ -133,6 +133,7 @@ int main(void) {
     console_set_debug(true);
     dfs_init(DFS_DEFAULT_LOCATION);
     asset_init_compression(2);
+    asset_init_compression(3);
 
     char sbuf[1024];
     strcpy(sbuf, "rom:/");
