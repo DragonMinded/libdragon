@@ -804,7 +804,7 @@ int main( int argc, char *argv[] )
             }
             
             int fl = dfs_open( argv[3] );
-            uint8_t *data = malloc( (size_t)dfs_size( fl ) );
+            uint8_t *data = malloc( dfs_size( fl ) );
 
             dfs_read( data, 1, dfs_size( fl ), fl );
             fwrite( data, 1, dfs_size( fl ), stdout );
@@ -840,7 +840,7 @@ int main( int argc, char *argv[] )
             dfs_read( &unused, 1, 4, nu );
             
             int fl = dfs_open( argv[3] );
-            uint8_t *data = malloc( (size_t)dfs_size( fl ) );
+            uint8_t *data = malloc( dfs_size( fl ) );
 
             dfs_read( data, 1, dfs_size( fl ), fl );
             fwrite( data, 1, dfs_size( fl ), stdout );
