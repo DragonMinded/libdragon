@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "dragonfs.h"
 #include "dfsinternal.h"
 
@@ -809,10 +810,12 @@ int main( int argc, char *argv[] )
                 fprintf(stderr, "File %s not found\n", argv[3]);
                 return -1;
             }
-            uint8_t *data = malloc( dfs_size( fl ) );
+            int sz = dfs_size( fl );
+            assert( sz >= 0 );
+            uint8_t *data = malloc( sz );
 
-            dfs_read( data, 1, dfs_size( fl ), fl );
-            fwrite( data, 1, dfs_size( fl ), stdout );
+            dfs_read( data, 1, sz, fl );
+            fwrite( data, 1, sz, stdout );
             dfs_close( fl );
 
             free( filesystem );
@@ -850,10 +853,12 @@ int main( int argc, char *argv[] )
                 fprintf(stderr, "File %s not found\n", argv[3]);
                 return -1;
             }
-            uint8_t *data = malloc( dfs_size( fl ) );
+            int sz = dfs_size( fl );
+            assert( sz >= 0 );
+            uint8_t *data = malloc( sz );
 
-            dfs_read( data, 1, dfs_size( fl ), fl );
-            fwrite( data, 1, dfs_size( fl ), stdout );
+            dfs_read( data, 1, sz, fl );
+            fwrite( data, 1, sz, stdout );
             dfs_close( fl );
             dfs_close( nu );
 
