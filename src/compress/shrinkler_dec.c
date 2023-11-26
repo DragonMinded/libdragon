@@ -32,21 +32,20 @@
 #define CONTEXT_GROUP_OFFSET 2
 #define CONTEXT_GROUP_LENGTH 3
 
+/** @brief Decompressor state (for assembly) */
 typedef struct {
-    uint16_t contexts[NUM_CONTEXTS];
+    uint16_t contexts[NUM_CONTEXTS];    ///< Probability contexts
 } shrinkler_asm_state_t;
 
+/** @brief Decompressor state (for C) */
 typedef struct {
-    uint16_t contexts[NUM_CONTEXTS];
-    unsigned intervalsize;
-    uint64_t intervalvalue;
-    unsigned uncertainty;
+    uint16_t contexts[NUM_CONTEXTS];    ///< Probability contexts
+    unsigned intervalsize;              ///< Current interval size
+    uint64_t intervalvalue;             ///< Current interval value
+    int parity_mask;                    ///< Mask for parity of bytes
 
-    int parity_mask;
-
-    uint8_t *src; 
-    uint32_t cur_byte;
-    int bits_left;
+    uint8_t *src;                       ///< Pointer to the input data
+    int bits_left;                      ///< Number of bits left in the interval
 } shrinkler_ctx_t;
 
 static void shr_decode_init(shrinkler_ctx_t *ctx, uint8_t *src) {
@@ -55,10 +54,8 @@ static void shr_decode_init(shrinkler_ctx_t *ctx, uint8_t *src) {
     
     ctx->intervalsize = 1;
     ctx->intervalvalue = 0;
-    ctx->uncertainty = 1;
     ctx->src = src;
     ctx->bits_left = 0;
-    ctx->cur_byte = 0;
 
     // Adjust for 64-bit values
     for (int i=0;i<4;i++)
