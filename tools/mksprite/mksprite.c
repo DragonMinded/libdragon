@@ -22,7 +22,6 @@
 
 // Compression library
 #include "../common/assetcomp.h"
-#include "../common/assetcomp.c"
 
 // Bring in tex_format_t definition
 #include "surface.h"
@@ -31,6 +30,7 @@
 #define FMT_ZBUF   (64 + 0)
 #define FMT_IHQ    (64 + 1)
 
+#define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \

@@ -9,7 +9,6 @@
 // Compression library
 #include <sys/stat.h>
 #include "../common/assetcomp.h"
-#include "../common/assetcomp.c"
 
 #include "../../include/GL/gl_enums.h"
 #include "../../src/model64_internal.h"

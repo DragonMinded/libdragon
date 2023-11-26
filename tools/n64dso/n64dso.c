@@ -12,7 +12,6 @@
 
 // Compression library
 #include "../common/assetcomp.h"
-#include "../common/assetcomp.c"
 
 //Macros copied from utils.h in libdragon src directory
 #define ROUND_UP(n, d) ({ \
