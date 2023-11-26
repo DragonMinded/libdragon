@@ -68,3 +68,7 @@ all: $(TOOLS)
 install: $(foreach tool,$(TOOLS),$(tool)-install)
 clean: $(foreach tool,$(TOOLS),$(tool)-clean) common-clean
 .PHONY: all install clean
+
+ifneq ($(V),1)
+.SILENT:
+endif
