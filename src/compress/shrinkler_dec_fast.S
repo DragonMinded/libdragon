@@ -58,25 +58,25 @@ decompress_shrinkler_full_fast:
     addiu inbuf, 4
     dsll intervalvalue, 31
     li nbits, 1
+    li intervalsize, 0x8000
     b .Lliteral
-     li intervalsize, 0x8000
+     li $v0, 1
 
 .Lloop:
-    li $v0, 0
+    li $v0, 0     
     bal .Llzdecode
      addiu ctx, $sp, CONTEXT_KIND*2
     bnez $v0, .Lmatch
-     nop
+     xori $v0, 1
 
 .Lliteral:
     li prev_match, 0
     li lit_len, 7
-    li $v0, 1
+    addiu $v1, $sp, 2
 .Lliteral_loop:
     sll $v0, 1
-    addiu ctx, $v0, 2
     bal .Llzdecode
-     addu ctx, $sp
+     addu ctx, $v1, $v0
     bnez lit_len, .Lliteral_loop
      addiu lit_len, -1
 
@@ -85,9 +85,8 @@ decompress_shrinkler_full_fast:
      addiu outbuf, 1
 
 .Lmatch:
-    addiu ctx, $sp, CONTEXT_REPEATED*2
     bgezal prev_match, .Llzdecode
-     li $v0, 0
+     addiu ctx, $sp, CONTEXT_REPEATED*2 
     sll $v0, 31
     addiu ctx, $sp, CONTEXT_GROUP_OFFSET*2
     bgezal $v0, .Llzdecode_number
