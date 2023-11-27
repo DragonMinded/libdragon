@@ -26,9 +26,9 @@ _start:
 	/* Setup SP using memory size */
 	addu sp, t0, 0x80000000 - 0x10		/* sp = KSEG0 + memsize - 0x10 */
 
-	lbu t0, 0x0008(v0)
-	lbu t1, 0x0009(v0)
-	lbu t2, 0x000A(v0)
+	lbu t0, 0x0009(v0)
+	lbu t1, 0x000A(v0)
+	lbu t2, 0x000B(v0)
 	sw t0, %gprel(__boot_tvtype)(gp)
 	sw t1, %gprel(__boot_resettype)(gp)
 	sw t2, %gprel(__boot_consoletype)(gp)
