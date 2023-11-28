@@ -321,7 +321,7 @@ bool elf_compress(char *infn, char *outfn, int compression)
         elf->phdrs[i].p_memsz  = elf->phdrs[i].p_filesz;
         elf->phdrs[i].p_filesz = outsize;
         elf->phdrs[i].p_flags |= PF_COMPRESSED;
-        elf->phdrs[i].p_paddr = elf->phdrs[i].p_paddr;
+        elf->phdrs[i].p_paddr = elf->phdrs[i].p_vaddr;
         elf->phdrs[i].p_vaddr = elf->phdrs[i].p_paddr + elf->phdrs[i].p_memsz - elf->phdrs[i].p_filesz + margin;
 
         // Update the body pointer
