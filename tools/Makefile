@@ -36,9 +36,10 @@ mkdfs_OBJS = mkdfs/mkdfs.o
 dumpdfs_OBJS = dumpdfs/dumpdfs.o
 n64tool_OBJS = n64tool.o
 n64sym_OBJS = n64sym.o
+n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 ed64romconfig_OBJS = ed64romconfig.o
 
-TOOLS = n64tool n64sym ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate
+TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)
