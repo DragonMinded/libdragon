@@ -316,7 +316,7 @@ void* decompress_aplib_full(const char *fn, FILE *fp, size_t cmp_size, size_t si
 #ifdef N64
 int decompress_aplib_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size)
 {
-    extern int decompress_aplib_full_fast(const void*, void*);
-    return decompress_aplib_full_fast(in, out);
+    extern int decompress_aplib_full_fast(const void*, int, void*);
+    return decompress_aplib_full_fast(in, cmp_size, out);
 }
 #endif

@@ -33,6 +33,7 @@
     .set noreorder
 
 decompress_lz4_full_fast:
+    add $a1, $a0                                # calculate end of input buffer
     move ra3, $ra
     move outbuf_orig, outbuf
     li dma_ptr, 0x80000000                      # initialize dma_ptr to force a first check

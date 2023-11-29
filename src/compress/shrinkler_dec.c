@@ -188,8 +188,7 @@ void* decompress_shrinkler_full(const char *fn, FILE *fp, size_t cmp_size, size_
 #ifdef N64
 int decompress_shrinkler_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size)
 {
-    extern void* decompress_shrinkler_full_fast(const uint8_t* in, uint8_t *out);
-    uint8_t *outend = decompress_shrinkler_full_fast(in, out);
-    return outend - out;
+    extern int decompress_shrinkler_full_fast(const uint8_t* in, int insize, uint8_t *out);
+    return decompress_shrinkler_full_fast(in, cmp_size, out);
 }
 #endif

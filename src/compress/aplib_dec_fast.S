@@ -3,7 +3,7 @@
 #define PI_DRAM_ADDR        0xA4600000
 
 #define inbuf       $a0
-#define outbuf      $a1
+#define outbuf      $a2
 #define nlit        $t2
 #define cc          $t3
 #define cc_count    $t4
@@ -12,7 +12,7 @@
 #define outbuf_orig $t7
 #define dma_ptr     $t8
 
-#define ra2         $a2
+#define ra2         $a1
 #define ra3         $a3
 
 # Read one bit from CC, and jump to target if it matches

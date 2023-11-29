@@ -93,8 +93,8 @@ static void wait_dma(const void *pIn) {
  */
 int decompress_lz4_full_inplace(const unsigned char *pInBlock, size_t nBlockSize, unsigned char *pOutData, size_t nBlockMaxSize) {
 #ifdef N64
-   extern int decompress_lz4_full_fast(const void *inbuf, const void *inbuf_end, void *outbuf);
-   return decompress_lz4_full_fast(pInBlock, pInBlock+nBlockSize, pOutData);
+   extern int decompress_lz4_full_fast(const void *inbuf, int insize, void *outbuf);
+   return decompress_lz4_full_fast(pInBlock, nBlockSize, pOutData);
 #else
    const unsigned char *pInBlockEnd = pInBlock + nBlockSize;
    unsigned char *pCurOutData = pOutData;

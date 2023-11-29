@@ -7,7 +7,7 @@
 ##############################################
 
 #define inbuf           $a0
-#define outbuf          $a1
+#define outbuf          $a2
 
 #define intervalsize    $t2   
 #define intervalvalue   $t3
@@ -18,8 +18,9 @@
 #define match_len       $t7
 #define num_len         $t7
 #define ctx             $t8
+#define outbuf_orig     $t9
 
-#define ra2             $a2
+#define ra2             $a1
 #define ra3             $a3
 
 #define ROUND_UP(n,d)   (((n) + (d) - 1) / (d) * (d))
@@ -43,6 +44,7 @@
     .set noreorder
 
 decompress_shrinkler_full_fast:
+    move outbuf_orig, outbuf
     addiu $t1, $sp, -16
     addiu $sp, $sp, -ROUND_UP(NUM_CONTEXTS*2, 8)-16
     move $t0, $sp
@@ -141,9 +143,9 @@ decompress_shrinkler_full_fast:
      nop
 
 .Lend:
-    move $v0, $a1
+    addiu $sp, $sp, ROUND_UP(NUM_CONTEXTS*2, 8)+16
     jr ra3
-     addiu $sp, $sp, ROUND_UP(NUM_CONTEXTS*2, 8)+16
+     sub $v0, outbuf, outbuf_orig
 
 ###################################################
 # Function: .Llzdecode_number
