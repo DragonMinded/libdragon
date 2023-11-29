@@ -21,6 +21,18 @@ common-clean:
 common/assetcomp.a: common/assetcomp.o common/lz4_compress.o \
 				    common/aplib_compress.o common/shrinkler_compress.o
 
+DECOMP_STUBS=common/mips_decomp_l1.bin common/mips_decomp_l2.bin common/mips_decomp_l3.bin
+
+common/mips_decomp_l1.bin: ../src/compress/lz4_dec_fast.S
+common/mips_decomp_l2.bin: ../src/compress/aplib_dec_fast.S
+common/mips_decomp_l3.bin: ../src/compress/shrinkler_dec_fast.S
+
+$(DECOMP_STUBS):
+	@echo "    [MIPS] $@"
+	$(N64_INST)/bin/mips64-elf-gcc -c -o $@.o $<
+	$(N64_INST)/bin/mips64-elf-objcopy -O binary $@.o $@
+	rm $@.o
+
 -include $(wildcard common/*.d)
 
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
@@ -36,8 +48,9 @@ mkdfs_OBJS = mkdfs/mkdfs.o
 dumpdfs_OBJS = dumpdfs/dumpdfs.o
 n64tool_OBJS = n64tool.o
 n64sym_OBJS = n64sym.o
-n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 ed64romconfig_OBJS = ed64romconfig.o
+n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
+n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
 TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate
 
@@ -60,7 +73,7 @@ $(1)-install: $$($(1)_BIN)
 	install -m 0755 $$($(1)_BIN) $(INSTALLDIR)/bin
 $(1)-clean:
 	rm -f $$($(1)_BIN) $$($(1)_DIR)/*.o $$($(1)_DIR)/*.d
--include $(wildcard $(1)/*.d)
+-include $$(wildcard $$($(1)_DIR)/*.d)
 endef
 
 $(foreach tool,$(TOOLS),$(eval $(call TOOL_template,$(tool))))

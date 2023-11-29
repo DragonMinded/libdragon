@@ -60,7 +60,9 @@ the following rules:
    - Byte 9: TV type (0:PAL, 1:NTSC, 2:MPAL)
    - Byte 10: Reset type (0:cold, 1:warm)
    - Byte 11: Console type (0:n64, 1:iQue)
-   - Byte 12..15: reserved
+   - Byte 12..13: Offset of the ELF header in ROM, in 256-byte pages. Multiply
+     by 256 to obtain the byte offset.
+   - Byte 14..15: reserved
 
 If something doesn't work, try using the development version of IPL3
 (ipl3_dev.z64), that will log warnings and errors on both emulators and

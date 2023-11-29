@@ -6,7 +6,17 @@
 #define ENTROPY_FAR
 #include "entropy.h"
 
-#define ELF_MAGIC 0x7F454C46
+// Like alloca(), but return a cache-aligned address so that it can
+// be safely invalidated without false sharing with stack variables.
+#define alloca_aligned(size)  ({ \
+    void *ptr = __builtin_alloca((size)+16); \
+    ptr += -(uint32_t)ptr & 15; \
+})
+
+#define ELF_MAGIC           0x7F454C46
+#define PT_LOAD             0x1
+#define PT_N64_DECOMP       0x64E36341
+#define PF_N64_COMPRESSED   0x1000
 
 static void pi_read_async(void *dram_addr, uint32_t cart_addr, uint32_t len)
 {
@@ -37,6 +47,13 @@ static uint16_t io_read16(uint32_t vaddrx)
     if (!(vaddrx & 2))
         value >>= 16;
     return value;
+}
+
+__attribute__((noinline))
+static uint8_t io_read8(uint32_t vaddrx)
+{
+    uint32_t value = io_read32(vaddrx & ~3);
+    return value >> ((~vaddrx & 3)*8);
 }
 
 static void rsp_clear_dmem_async(void)
@@ -121,33 +138,82 @@ void loader(void)
         elf_header += 0x100;
     }
     if (!found_elf) {
-        debugf("ELF header not found");
+        debugf("ELF header not found: make sure it is 256-byte aligned");
         abort();
     }
+
+    // Store the ELF offset in the boot flags
+    *(uint32_t*)0xA400000C = elf_header << 8;
 
     // Read program headers offset and number. Allocate space in the stack
     // for them.
     uint32_t phoff = io_read32(elf_header + 0x1C);
     int phnum = io_read16(elf_header + 0x2C);
-    uint32_t *phdr = __builtin_alloca(0x20 * phnum);
+    uint32_t *phdr = alloca_aligned(0x20 * phnum);
     data_cache_hit_writeback_invalidate(phdr, 0x20 * phnum);
 
     // Load all the program headers
     pi_read_async((void*)phdr, elf_header + phoff, 0x20 * phnum);
     pi_wait();
 
+    // Decompression function (if any)
+    int (*decomp)(void *inbuf, int size, void *outbuf) = 0;
+
     // Load the program segments
     for (int i=0; i<phnum; i++, phdr+=0x20/4) {
-        if (phdr[0] != 1) continue; // PT_LOAD
         uint32_t offset = phdr[1];
         uint32_t vaddr = phdr[2];
+        uint32_t paddr = phdr[3];
         uint32_t size = phdr[4];
         uint32_t memsize = phdr[5];
+        uint32_t flags = phdr[6];
 
-        debugf("Segment ", i, phdr[0], offset, vaddr, size, memsize);
-        if (size) pi_read_async((void*)vaddr, elf_header + offset, size);
-        if (memsize) fast_bzero((void*)(vaddr + size), memsize - size);
-        if (size) pi_wait();
+        if (phdr[0] == PT_N64_DECOMP) {
+            // If this segment contains the decompression function, load it
+            // in RDRAM (allocating memory via alloca()).
+            decomp = alloca_aligned(size);
+            data_cache_hit_writeback_invalidate(decomp, size);
+            vaddr = (uint32_t)decomp;
+        } else if (phdr[0] != PT_LOAD) {
+            continue;
+        }
+
+        // Make sure we can do PI DMA
+        assertf((vaddr % 8) == 0, "segment %d: vaddr is not 8-byte aligned: %08x", i, vaddr);
+        assertf((offset % 2) == 0, "segment %d: file offset is not 2-byte aligned: %08x", i, offset);
+
+        debugf("Segment ", i, phdr[0], offset, vaddr, size, memsize, flags);
+        if (size)
+            pi_read_async((void*)vaddr, elf_header + offset, size);
+
+        if (flags & PF_N64_COMPRESSED) {
+            //if (!decomp) fatal("INVALID COMPRESSED ELF");
+
+            // Decompress the segment. paddr contains the output pointer, where
+            // decompressed data must be written. Notice that we can do this while
+            // the DMA is running because decompression functions are supposed to
+            // do DMA racing (either that, or just wait for the DMA to finish themselves).
+            int dec_size = decomp((void*)vaddr, size, (void*)paddr);
+
+            // Adjust variables for the bzero below, now pointing to the
+            // decompressed data.
+            vaddr = paddr;
+            size = dec_size;
+
+            // Invalidate the cache for the decompressed data. This is required
+            // because of the absence of coherency with instruction cache --
+            // if we jump there before the cache is flushed, the processor won't
+            // see the data.
+            data_cache_hit_writeback_invalidate((void*)vaddr, size);
+        }
+
+        // Clear the rest of the segment in RDRAM (if any).
+        if (memsize)
+            fast_bzero((void*)(vaddr + size), memsize - size);
+        
+        // Wait for the DMA to finish. If we decompressed the data, it's already
+        if (size)
+            pi_wait();
     }
     void *entrypoint = (void*)io_read32(elf_header + 0x18);
 
@@ -161,8 +227,8 @@ void loader(void)
     // Clear DMEM (leave only the boot flags area intact). Notice that we can't
     // call debugf anymore after this, because a small piece of debugging code
     // (io_write) is in DMEM, so it can't be used anymore.
-   rsp_clear_dmem_async();
-   #undef debugf
+    rsp_clear_dmem_async();
+    #undef debugf
 
     // Notify the PIF that the boot process is finished
     pif_terminate_boot();

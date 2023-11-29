@@ -9,17 +9,36 @@
 #include "../common/assetcomp.h"
 #include "../common/mips_elf.h"
 
-#define PF_COMPRESSED   0x80000000
+#define INCBIN_SILENCE_BITCODE_WARNING
+#define INCBIN_STYLE INCBIN_STYLE_SNAKE
+#define INCBIN_PREFIX g_
+#include "../common/incbin.h"
+
+INCBIN(mips_decomp_l1, "common/mips_decomp_l1.bin");
+INCBIN(mips_decomp_l2, "common/mips_decomp_l2.bin");
+INCBIN(mips_decomp_l3, "common/mips_decomp_l3.bin");
+
+struct decomp_s {
+    const uint8_t *data;
+    uint32_t size;
+} decompressors[MAX_COMPRESSION+1];
+
+#define PT_MIPS_REGINFO     0x70000000
+#define PT_MIPS_RTPROC      0x70000001
+#define PT_MIPS_OPTIONS     0x70000002
+#define PT_MIPS_ABIFLAGS    0x70000003
+
+#define PT_N64              (PT_LOOS + 0x4e36340)
+#define PT_N64_DECOMP       (PT_N64  + 1)
+
+#define PF_N64_COMPRESSED   0x1000
 
 int flag_verbose = 0;
-bool flag_keep_sections = false;
 
 typedef struct {
     Elf32_Ehdr header;
     Elf32_Phdr *phdrs;
-    Elf32_Shdr *shdrs;
     uint8_t **phdr_body;
-    uint8_t **shdr_body;
 } elf_t;
 
 static uint32_t bswap32(uint32_t ptr)
@@ -58,7 +77,6 @@ void print_args(char *name)
     fprintf(stderr, "   -v/--verbose                Verbose output\n");
     fprintf(stderr, "   -o/--output <dir>           Specify output directory (default: .)\n");
     fprintf(stderr, "   -c/--compress <level>       Compression level (default: %d)\n", DEFAULT_COMPRESSION);
-    fprintf(stderr, "   -k/--keep-sections          Keep all sections. (default: strip them away)\n");
     fprintf(stderr, "\n");
 }
 
@@ -91,33 +109,35 @@ static void phdr_bswap(Elf32_Phdr *phdr)
     phdr->p_align  = bswap32(phdr->p_align);
 }
 
-static void shdr_bswap(Elf32_Shdr *shdr)
+const char *elf_phtype_to_str(uint32_t type)
 {
-    shdr->sh_name      = bswap32(shdr->sh_name);
-    shdr->sh_type      = bswap32(shdr->sh_type);
-    shdr->sh_flags     = bswap32(shdr->sh_flags);
-    shdr->sh_addr      = bswap32(shdr->sh_addr);
-    shdr->sh_offset    = bswap32(shdr->sh_offset);
-    shdr->sh_size      = bswap32(shdr->sh_size);
-    shdr->sh_link      = bswap32(shdr->sh_link);
-    shdr->sh_info      = bswap32(shdr->sh_info);
-    shdr->sh_addralign = bswap32(shdr->sh_addralign);
-    shdr->sh_entsize   = bswap32(shdr->sh_entsize);
+    switch (type) {
+    case PT_NULL:           return "PT_NULL";
+    case PT_LOAD:           return "PT_LOAD";
+    case PT_DYNAMIC:        return "PT_DYNAMIC";
+    case PT_INTERP:         return "PT_INTERP";
+    case PT_NOTE:           return "PT_NOTE";
+    case PT_SHLIB:          return "PT_SHLIB";
+    case PT_PHDR:           return "PT_PHDR";
+    case PT_TLS:            return "PT_TLS";
+    case PT_GNU_EH_FRAME:   return "PT_GNU_EH_FRAME";
+    case PT_GNU_STACK:      return "PT_GNU_STACK";
+    case PT_GNU_RELRO:      return "PT_GNU_RELRO";
+    case PT_MIPS_REGINFO:   return "PT_MIPS_REGINFO";
+    case PT_MIPS_RTPROC:    return "PT_MIPS_RTPROC";
+    case PT_MIPS_OPTIONS:   return "PT_MIPS_OPTIONS";
+    case PT_MIPS_ABIFLAGS:  return "PT_MIPS_ABIFLAGS";
+    default:                return "UNKNOWN";
+    }
 }
 
 void elf_free(elf_t *elf)
 {
     if (elf && elf->phdrs) free(elf->phdrs);
-    if (elf && elf->shdrs) free(elf->shdrs);
     if (elf && elf->phdr_body) {
         for (int i = 0; i < elf->header.e_phnum; i++)
             if (elf->phdr_body[i]) free(elf->phdr_body[i]);
         free(elf->phdr_body);
-    }
-    if (elf && elf->shdr_body) {
-        for (int i = 0; i < elf->header.e_shnum; i++)
-            if (elf->shdr_body[i]) free(elf->shdr_body[i]);
-        free(elf->shdr_body);
     }
     if (elf) free(elf);
 }
@@ -182,28 +202,6 @@ elf_t* elf_load(const char *infn)
         }
     }
 
-    // Read section headers
-    if (elf->header.e_shnum) {
-        elf->shdrs = calloc(elf->header.e_shnum, sizeof(Elf32_Shdr));
-        fseek(in, elf->header.e_shoff, SEEK_SET);
-        if (fread(elf->shdrs, sizeof(Elf32_Shdr), elf->header.e_shnum, in) != elf->header.e_shnum) {
-            fprintf(stderr, "error reading section headers\n");
-            goto error;
-        }
-        for (int i = 0; i < elf->header.e_shnum; i++)
-            shdr_bswap(&elf->shdrs[i]);
-        // Read section header body
-        elf->shdr_body = calloc(elf->header.e_shnum, sizeof(uint8_t*));
-        for (int i = 0; i < elf->header.e_shnum; i++) {
-            elf->shdr_body[i] = calloc(elf->shdrs[i].sh_size, sizeof(uint8_t));
-            fseek(in, elf->shdrs[i].sh_offset, SEEK_SET);
-            if (fread(elf->shdr_body[i], sizeof(uint8_t), elf->shdrs[i].sh_size, in) != elf->shdrs[i].sh_size) {
-                fprintf(stderr, "error reading section header body\n");
-                goto error;
-            }
-        }
-    }
-
     fclose(in);
     return elf;
 
@@ -221,24 +219,20 @@ bool elf_write(elf_t *elf, const char *outfn)
         return false;
     }
 
+    // Remove all section offsets from file (that were not read)
+    elf->header.e_shnum = 0;
+    elf->header.e_shoff = 0;
+    elf->header.e_shstrndx = 0;
+
     // Update file offsets
     int body_off = sizeof(elf->header);
     if (elf->header.e_phnum) {
         elf->header.e_phoff = body_off;
         body_off += elf->header.e_phnum * sizeof(Elf32_Phdr);
     }
-    if (elf->header.e_shnum) {
-        elf->header.e_shoff = body_off;
-        body_off += elf->header.e_shnum * sizeof(Elf32_Shdr);
-    }
     for (int i = 0; i < elf->header.e_phnum; i++) {
         elf->phdrs[i].p_offset = body_off;
         body_off += elf->phdrs[i].p_filesz;
-        body_off = (body_off + 7) & ~7;
-    }
-    for (int i = 0; i < elf->header.e_shnum; i++) {
-        elf->shdrs[i].sh_offset = body_off;
-        body_off += elf->shdrs[i].sh_size;
         body_off = (body_off + 7) & ~7;
     }
     
@@ -255,14 +249,6 @@ bool elf_write(elf_t *elf, const char *outfn)
         for (int i = 0; i < elf->header.e_phnum; i++)
             phdr_bswap(&elf->phdrs[i]);
     }
-    // Write section headers
-    if (elf->header.e_shnum) {
-        for (int i = 0; i < elf->header.e_shnum; i++)
-            shdr_bswap(&elf->shdrs[i]);
-        fwrite(elf->shdrs, sizeof(Elf32_Shdr), elf->header.e_shnum, out);
-        for (int i = 0; i < elf->header.e_shnum; i++)
-            shdr_bswap(&elf->shdrs[i]);
-    }
 
     // Write program header body
     for (int i = 0; i < elf->header.e_phnum; i++) {
@@ -275,22 +261,11 @@ bool elf_write(elf_t *elf, const char *outfn)
         }
     }
 
-    // Write section header body
-    for (int i = 0; i < elf->header.e_shnum; i++) {
-        fwrite(elf->shdr_body[i], sizeof(uint8_t), elf->shdrs[i].sh_size, out);
-        // roundup position to 8
-        int pos = ftell(out);
-        while (pos & 7) {
-            fputc(0, out);
-            pos++;
-        }
-    }
-
     fclose(out);
     return true;
 }
 
-bool elf_compress(char *infn, char *outfn, int compression)
+bool process(char *infn, char *outfn, int compression)
 {
     elf_t *elf = elf_load(infn);
     if (!elf) {
@@ -298,49 +273,79 @@ bool elf_compress(char *infn, char *outfn, int compression)
         return false;
     }
 
-    // Compress program header loadable sections
-    for (int i = 0; i < elf->header.e_phnum; i++) {
-        if (elf->phdrs[i].p_type != PT_LOAD) continue;
-        verbose("Compressing program header %d\n", i);
-
-        uint8_t *outbuf; int outsize; int winsize = 0; int margin;
-        asset_compress_mem(compression,
-            elf->phdr_body[i], elf->phdrs[i].p_filesz,
-            &outbuf, &outsize,
-            &winsize, &margin);
-
-        verbose("  %d => %d [margin=%d]\n", elf->phdrs[i].p_filesz, outsize, margin);
-        
-        // If the compressed size is larger than the original, don't compress
-        if (outsize >= elf->phdrs[i].p_filesz) {
-            free(outbuf);
-            continue;
+    // Remove all program headers which are not loadable
+    int i = 0;
+    while (i < elf->header.e_phnum) {
+        if (elf->phdrs[i].p_type != PT_LOAD) {
+            verbose("Removing program header %d (type: %s)\n", i, elf_phtype_to_str(elf->phdrs[i].p_type));
+            free(elf->phdr_body[i]);
+            for (int j = i; j < elf->header.e_phnum - 1; j++) {
+                elf->phdrs[j] = elf->phdrs[j+1];
+                elf->phdr_body[j] = elf->phdr_body[j+1];
+            }
+            elf->header.e_phnum--;
+        } else {
+            i++;
         }
-
-        // Update program header
-        elf->phdrs[i].p_memsz  = elf->phdrs[i].p_filesz;
-        elf->phdrs[i].p_filesz = outsize;
-        elf->phdrs[i].p_flags |= PF_COMPRESSED;
-        elf->phdrs[i].p_paddr = elf->phdrs[i].p_vaddr;
-        elf->phdrs[i].p_vaddr = elf->phdrs[i].p_paddr + elf->phdrs[i].p_memsz - elf->phdrs[i].p_filesz + margin;
-
-        // Update the body pointer
-        free(elf->phdr_body[i]);
-        elf->phdr_body[i] = outbuf;
     }
 
-    if (!flag_keep_sections) {
-        // Remove all sections
-        for (int i = 0; i < elf->header.e_shnum; i++) {
-            free(elf->shdr_body[i]);
+    // Compress program header loadable sections
+    if (compression > 0) {
+        for (int i = 0; i < elf->header.e_phnum; i++) {
+            if (elf->phdrs[i].p_filesz == 0) continue;
+            if (elf->phdrs[i].p_flags & PF_N64_COMPRESSED) {
+                fprintf(stderr, "error: already compressed program header %d\n", i);
+                return false;
+            }
+
+            verbose("Compressing program header %d\n", i);
+
+            int dec_size = elf->phdrs[i].p_filesz;
+            uint8_t *outbuf; int cmp_size; int winsize = 0; int margin;
+            asset_compress_mem(compression,
+                elf->phdr_body[i], dec_size,
+                &outbuf, &cmp_size,
+                &winsize, &margin);
+
+            verbose("  %d => %d [margin=%d]\n", elf->phdrs[i].p_filesz, cmp_size, margin);
+            
+            // If the compressed size is larger than the original, don't compress
+            if (cmp_size >= dec_size) {
+                free(outbuf);
+                continue;
+            }
+
+            // Update program header
+            elf->phdrs[i].p_filesz = cmp_size;
+            elf->phdrs[i].p_flags |= PF_N64_COMPRESSED;
+            elf->phdrs[i].p_paddr = elf->phdrs[i].p_vaddr;
+
+            // Make sure the compressed data is aligned to 8 bytes
+            int cmp_offset = dec_size - cmp_size + margin;
+            if (cmp_offset & 7) cmp_offset = (cmp_offset + 7) & ~7;
+            elf->phdrs[i].p_vaddr = elf->phdrs[i].p_paddr + cmp_offset;
+
+            // Update the body pointer
+            free(elf->phdr_body[i]);
+            elf->phdr_body[i] = outbuf;
         }
-        free(elf->shdr_body);
-        elf->shdr_body = NULL;
-        free(elf->shdrs);
-        elf->shdrs = NULL;
-        elf->header.e_shoff = 0;
-        elf->header.e_shnum = 0;
-        elf->header.e_shstrndx = 0;
+
+        // Add a new program header for the decompressor
+        struct decomp_s *dec = &decompressors[compression];
+        elf->header.e_phnum++;
+        elf->phdrs = realloc(elf->phdrs, elf->header.e_phnum * sizeof(Elf32_Phdr));
+        elf->phdr_body = realloc(elf->phdr_body, elf->header.e_phnum * sizeof(uint8_t*));
+        for (int i = elf->header.e_phnum - 1; i > 0; i--) {
+            elf->phdrs[i] = elf->phdrs[i-1];
+            elf->phdr_body[i] = elf->phdr_body[i-1];
+        }
+        memset(&elf->phdrs[0], 0, sizeof(Elf32_Phdr));
+        elf->phdrs[0].p_type   = PT_N64_DECOMP;
+        elf->phdrs[0].p_filesz = dec->size;
+        elf->phdrs[0].p_flags  = PF_R | PF_X;
+        elf->phdrs[0].p_align  = 8;
+        elf->phdr_body[0] = malloc(dec->size);
+        memcpy(elf->phdr_body[0], dec->data, dec->size);
     }
 
     elf_write(elf, outfn);
@@ -357,6 +362,14 @@ int main(int argc, char *argv[])
         print_args(argv[0]);
         return 1;
     }
+
+    decompressors[1].data = g_mips_decomp_l1_data;
+    decompressors[1].size = g_mips_decomp_l1_size;
+    decompressors[2].data = g_mips_decomp_l2_data;
+    decompressors[2].size = g_mips_decomp_l2_size;
+    decompressors[3].data = g_mips_decomp_l3_data;
+    decompressors[3].size = g_mips_decomp_l3_size;
+
     for(int i=1; i<argc; i++) {
         char *infn;
         char *outfn;
@@ -390,9 +403,6 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid compression level: %d\n", compression);
                     return 1;
                 }
-            } else if (!strcmp(argv[i], "-k") || !strcmp(argv[i], "--keep-sections")) {
-                //Keep all sections
-                flag_keep_sections = true;    
             } else {
                 //Complain about invalid flag
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
@@ -410,7 +420,7 @@ int main(int argc, char *argv[])
         if (flag_verbose)
             printf("Compressing: %s => %s [algo=%d]\n", infn, outfn, compression);
 
-        if (!elf_compress(infn, outfn, compression)) {
+        if (!process(infn, outfn, compression)) {
             return 1;
         }
 
