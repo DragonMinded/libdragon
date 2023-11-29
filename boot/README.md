@@ -45,6 +45,9 @@ the following rules:
    file is 256-byte aligned. IPL3 will linearly scan the ROM searching
    for the ELF file, so the closest the file is to the top of the
    ROM, the fastest it will boot.
+   * The ELF file can have multiple PT_LOAD segments, all of them will be loaded.
+   * The virtual address of loadable segments must be 8-byte aligned.
+   * The file offset of loadable segments must be 2-byte aligned.
  * IPL3 does not read or care about the 64-byte header of the ROM. Feel
    free to change it at your please.
  * IPL3 passes some boot flags to the application in DMEM. This is different
@@ -59,6 +62,9 @@ the following rules:
    - Byte 11: Console type (0:n64, 1:iQue)
    - Byte 12..15: reserved
 
+If something doesn't work, try using the development version of IPL3
+(ipl3_dev.z64), that will log warnings and errors on both emulators and
+flashcarts. This should help you understand the problem.
 
 ### Building IPL3
 
