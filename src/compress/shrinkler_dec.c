@@ -17,6 +17,12 @@
 #define unlikely(x)     (x)
 #endif
 
+#if defined(__LITTLE_ENDIAN__)
+#define read32be(ptr) __builtin_bswap32(*(uint32_t*)(ptr))
+#else
+#define read32be(ptr) (*(uint32_t*)(ptr))
+#endif
+
 #define ADJUST_SHIFT 4
 
 #define NUM_SINGLE_CONTEXTS 1
@@ -67,7 +73,7 @@ static void shr_decode_init(shrinkler_ctx_t *ctx, uint8_t *src) {
 static inline int shr_decode_bit(shrinkler_ctx_t *ctx, int context_index) {
     while ((ctx->intervalsize < 0x8000)) {
         if (unlikely(ctx->bits_left == 0)) {
-            ctx->intervalvalue |= *(uint32_t*)ctx->src;
+            ctx->intervalvalue |= read32be(ctx->src);
             ctx->src += 4;
             ctx->bits_left = 32;
         }
