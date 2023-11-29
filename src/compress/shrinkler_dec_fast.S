@@ -19,8 +19,10 @@
 #define num_len         $t7
 #define ctx             $t8
 #define outbuf_orig     $t9
+#define parity          $v1
 
 #define ra2             $a1
+#define lit_ctx         $a1
 #define ra3             $a3
 
 #define ROUND_UP(n,d)   (((n) + (d) - 1) / (d) * (d))
@@ -61,27 +63,29 @@ decompress_shrinkler_full_fast:
     dsll intervalvalue, 31
     li nbits, 1
     li intervalsize, 0x8000
+    li parity, CONTEXT_KIND*2
     b .Lliteral
      li $v0, 1
 
 .Lloop:
-    li $v0, 0     
+    li $v0, 0
     bal .Llzdecode
-     addiu ctx, $sp, CONTEXT_KIND*2
+     addu ctx, parity, $sp
     bnez $v0, .Lmatch
      xori $v0, 1
 
 .Lliteral:
     li prev_match, 0
     li lit_len, 7
-    addiu $v1, $sp, 2
+    addu lit_ctx, parity, $sp
 .Lliteral_loop:
     sll $v0, 1
     bal .Llzdecode
-     addu ctx, $v1, $v0
+     addu ctx, lit_ctx, $v0
     bnez lit_len, .Lliteral_loop
      addiu lit_len, -1
 
+    xori parity, 0x200
     sb $v0, 0(outbuf)
     b .Lloop
      addiu outbuf, 1
@@ -99,6 +103,9 @@ decompress_shrinkler_full_fast:
     bal .Llzdecode_number
      addiu ctx, $sp, CONTEXT_GROUP_LENGTH*2
     move match_len, $v0
+    andi $t0, match_len, 1
+    sll $t0, 9
+    xor parity, $t0
     li prev_match, 1<<31
     blt match_off, match_len, .Lmatch1_loop_check   # check if we can do 8-byte copy
      sub $v0, outbuf, match_off                 # calculate start of match

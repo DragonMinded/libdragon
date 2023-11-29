@@ -42,7 +42,6 @@ typedef struct {
     uint16_t contexts[NUM_CONTEXTS];    ///< Probability contexts
     unsigned intervalsize;              ///< Current interval size
     uint64_t intervalvalue;             ///< Current interval value
-    int parity_mask;                    ///< Mask for parity of bytes
 
     uint8_t *src;                       ///< Pointer to the input data
     int bits_left;                      ///< Number of bits left in the interval
@@ -121,11 +120,13 @@ static inline int lzDecodeNumber(shrinkler_ctx_t *ctx, int context_group) {
     return shr_decode_number(ctx, NUM_SINGLE_CONTEXTS + (context_group << 8));
 }
 
-uint8_t* shr_unpack(uint8_t *dst, uint8_t *src)
+int shr_unpack(uint8_t *dst, uint8_t *src)
 {
+    const int parity_mask = 1;
+
+    uint8_t *dst_start = dst;
     shrinkler_ctx_t ctx;
     shr_decode_init(&ctx, src);
-    ctx.parity_mask = 0;
 
     bool ref = false;
     bool prev_was_ref = false;
@@ -155,7 +156,7 @@ uint8_t* shr_unpack(uint8_t *dst, uint8_t *src)
                 dst++;
             }
         } else {
-            int parity = 0; //pos & ctx.parity_mask;
+            int parity = (dst - dst_start) & parity_mask;
             int context = 1;
             for (int i = 7 ; i >= 0 ; i--) {
                 int bit = lzDecode(&ctx, (parity << 8) | context);
@@ -165,11 +166,11 @@ uint8_t* shr_unpack(uint8_t *dst, uint8_t *src)
             *dst++ = lit;
             prev_was_ref = false;
         }
-        int parity = 0; //pos & ctx.parity_mask;
+        int parity = (dst - dst_start) & parity_mask;
         ref = lzDecode(&ctx, CONTEXT_KIND + (parity << 8));
     }
     
-    return dst;
+    return dst - dst_start;
 }
 
 void* decompress_shrinkler_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
@@ -179,8 +180,8 @@ void* decompress_shrinkler_full(const char *fn, FILE *fp, size_t cmp_size, size_
 
     void *out = malloc(size);
     if (!out) return 0;
-    void *out_end = shr_unpack(out, in);
-    assertf(out_end - out == size, "Shrinkler size:%d exp:%d", out_end - out, size);
+    int dec_size = shr_unpack(out, in);
+    assertf(dec_size == size, "Shrinkler size:%d exp:%d", dec_size, size);
     free(in);
     return out;
 }

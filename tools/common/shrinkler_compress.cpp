@@ -9,7 +9,7 @@ uint8_t *shrinkler_compress(const uint8_t *input, int dec_size, int level, int *
 {
     int references = 100000;
 	PackParams params;
-	params.parity_context = 0;
+	params.parity_context = 0x1;
 	params.iterations = level;
 	params.length_margin = level;
 	params.skip_length = level*1000;
