@@ -6,7 +6,6 @@ ENTRY (_start)
 MEMORY
 {
     dmem : ORIGIN = 0xA4000000, LENGTH = 4096
-    imem : ORIGIN = 0xA4001010, LENGTH = 2032   /* First 16 bytes: boot information */
     rom  : ORIGIN = 0xB0001000, LENGTH = 16384
 }
 

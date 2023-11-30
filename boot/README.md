@@ -16,10 +16,14 @@ used (see "boot.asm" for more information).
 
  * Searches and loads an ELF file appended to it. All loadable
    ELF segments are loaded in RDRAM and then the entrypoint is called.
+ * Support for compressed ELFs. Using some special ELF flags (see below),
+   it is possible to compress an ELF file and provide a decompression
+   function (stored in the ELF as well), that IPL3 will know how to invoke.
  * Very fast. Boots a 350 KiB ELF file in ~165ms (cold boot) or ~71ms (warm boot).
    This is respectively 3 times and 4 times faster than Nintendo's IPL3.
  * ROMs can now be of any size (even smaller than 1 MiB), and no header checksum
    is required.
+ * The RDRAM is cleared before booting, in both cold and warm boot.
  * Entropy collection. During the boot process, some entropy is collected
    and made available to the running application in the form of a "true random"
    32-bit integer. This can be used to seed a pseudo random number generator.
@@ -48,6 +52,8 @@ the following rules:
    * The ELF file can have multiple PT_LOAD segments, all of them will be loaded.
    * The virtual address of loadable segments must be 8-byte aligned.
    * The file offset of loadable segments must be 2-byte aligned.
+   * No segment should try to load itself into the last 64 KiB of RDRAM,
+     as those are reserved to IPL3 itself.
  * IPL3 does not read or care about the 64-byte header of the ROM. Feel
    free to change it at your please.
  * IPL3 passes some boot flags to the application in DMEM. This is different
@@ -131,3 +137,75 @@ through the following channels:
  * ISViewer, as implemented by emulators like Ares
  * On iQue, logs are written in the save area. Make sure to allocate
    a save type to the ROM (eg: SRAM), and then dump its contents.
+
+### ELF compression
+
+IPL3 supports a custom ELF compression format, that can be used to
+squeeze ROMs even more. 
+
+For libdragon applications, everything is supported via n64.mk and the standard
+Makefile; by default, ELF files are compressed with libdragon "level 1"
+compression (LZ4 at the time of writing), which is normally so fast that even
+speeds up loading compared to an uncompressed file.
+
+If you want to build your own ELF compressed format, written without
+libdragon, the easiest option is to use libdragon's n64elfcompress tool
+(which has no dependencies with the rest of libdragon). The tool will
+compress ELF files using one of libdragon's builtin compression
+algorithms, as specified on the command line, and the resulting file will
+be loadable by IPL3.
+
+NOTE: at the moment of writing, n64elfcompress discards all sections in the
+ELF file. If your application require sections to be available at runtime,
+then you will need to handle compression in some other means (or modify
+n64elfcompress).
+
+#### Format details
+
+A compressed ELF contains one or more segments which are made of compressed data.
+The corresponding program header follows some special interpretation of some fields:
+
+* `p_vaddr`: this must contain the address in RAM where the compressed
+  segment will be loaded.
+* `p_paddr`: this must contain the address in RAM where the uncompressed
+  segment will be loader. Notice that it's up to the compressor tool to
+  make sure that `p_vaddr` and `p_paddr` do not conflict.
+* `p_filesz`: this must contain the size of the compressed segment.
+* `p_memsz`: like in a standard header, this contains the size of the
+  (decompressed) segment in RDRAM, plus some optional trailing space that
+  will be cleared (normally used for bss).
+* `p_flags`: in addition to the usual `PF_READ` and `PF_EXECUTE` flag, the
+  compressed segment must also be marked with the flag `PF_N64_COMPRESSED` (0x1000).
+
+Notice that IPL3 reserves the last 64 KiB of RAM to itself for execution. Do not
+step on that area with ELF segments.
+
+The compression algorithm is not known by IPL3, for maximum flexibility and
+to be future proof. Instead, the ELF file is expected to also carry a
+decompression function. The decompression function must be stored in a separate
+segment. The program header for it must contain one the following values
+in the `p_type` field:
+
+ * `PT_N64_DECOMP` (0x64e36341): the decompression function will be loaded 
+   at the address specified by the `p_vaddr` field. It is up to the compressor
+   to make sure this address does not conflict with the segments being
+   decompressed. If `p_vaddr` is 0, the decompression function will be
+   loaded within the IPL3 reserved region (last 64 Kib of RDRAM); since the
+   exact address is not known (and might also depend on the available RAM
+   in the system), the decompression function has to be fully relocatable.
+
+The expected API of the decompression function is the following:
+
+```C
+// Decompress the data provided in the input buffer into the output buffer.
+// input_size contains the size of the input buffer, that might be needed
+// to some algorithms to terminate correctly.
+//
+// decompress() must return the number of decompressed bytes.
+//
+// NOTE: this function is called while the data in the input buffer
+// is being asynchronously loaded via PI DMA. If you need the whole
+// buffer to be fully loaded before starting decompression, make sure
+// to wait for the end of the current PI DMA transfer.
+int decompress(const uint8_t* input, int input_size, uint8_t *output);
+```
