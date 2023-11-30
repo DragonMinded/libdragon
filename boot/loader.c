@@ -63,12 +63,6 @@ static void rsp_clear_dmem_async(void)
     *SP_RD_LEN = 4096-16-1;
 }
 
-static inline void rsp_clear_imem_async(void)
-{
-    *SP_RSP_ADDR = 0x1000;
-    *SP_DRAM_ADDR = 8*1024*1024; // RDRAM addresses >8 MiB always return 0
-    *SP_RD_LEN = 4096-1;
-}
 
 static void fast_bzero(void *mem, int size)
 {
@@ -119,10 +113,6 @@ __attribute__((used))
 void loader(void)
 {
     debugf("Hello from RDRAM ", __builtin_frame_address(0));
-
-    // Clear IMEM (it was used for the stack in the first stage, but it's not
-    // needed anymore).
-    rsp_clear_imem_async();
 
     // Search for the ELF header. We search for a 256-byte aligned header
     // starting at offset 0x1000 in the ROM area (after the IPL3).
