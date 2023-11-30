@@ -35,6 +35,14 @@
 __attribute__((section(".banner"), used))
 const char banner[32] = " Libdragon IPL3 " " Coded by Rasky ";
 
+// These register contains boot flags passed by IPL2. Define them globally
+// during the first stage of IPL3, so that the registers are not reused.
+register uint32_t ipl2_romType   asm ("s3");
+register uint32_t ipl2_tvType    asm ("s4");
+register uint32_t ipl2_resetType asm ("s5");
+register uint32_t ipl2_romSeed   asm ("s6");
+register uint32_t ipl2_version   asm ("s7");
+
 typedef struct __attribute__((packed)) {
     uint32_t pi_dom1_config;
     uint32_t clock_rate;
@@ -120,21 +128,55 @@ static inline void rsp_clear_imem(void)
     while (*SP_DMA_BUSY) {}
 }
 
+// Clear memory using RSP DMA. We use IMEM as source address, which
+// was cleared in rsp_clear_imem(). The size can be anything up to 1 MiB,
+// since the DMA would just wrap around in IMEM.
+static void rsp_bzero_async(uint32_t rdram, int size)
+{
+    while (*SP_DMA_FULL) {}
+    *SP_RSP_ADDR = 0x1000;
+    *SP_DRAM_ADDR = rdram;
+    *SP_WR_LEN = size-1;
+}
+
+// Callback for rdram_init. We use this to clear the memory banks
+// as soon as they are initialized. We use RSP DMA to do this which
+// is very quick (~2.5 ms for 1 MiB), and we do that in background
+// anyway. RSP DMA allows max 1 MiB per transfer, so we need to
+// schedule two transfers for each bank.
+static void mem_bank_init(int chip_id, bool last)
+{
+    // If this is the last memory bank, don't do anything.
+    // We keep the RSP DMA idle to be able to quickly load
+    // the loader into it. We will clear this later.
+    if (last)
+        return;
+
+    // If we are doing a warm boot, skip the first 0x400 bytes
+    // of RAM (on the first chip, because it historically contains
+    // some boot flags that some existing code might expect to stay there.
+    // For instance, the Everdrive menu expects 0x80000318 to still
+    // contain the RDRAM size after a warm boot, and we need to comply
+    // with this even if Everdrive itself doesn't use this IPL3 (but
+    // might boot a game that does, and that game shouldn't clear
+    // 0x80000318).
+    uint32_t base = chip_id*1024*1024;
+    if (chip_id == 0 && ipl2_resetType != 0)
+        rsp_bzero_async(base+0x400,       1024*1024-0x400);
+    else
+        rsp_bzero_async(base,             1024*1024);
+    
+    rsp_bzero_async(base + 1024*1024, 1024*1024);
+}
+
 __attribute__((noreturn, section(".boot")))
 void _start(void)
 {
-    register uint32_t ipl2_romType   asm ("s3"); (void)ipl2_romType;
-    register uint32_t ipl2_tvType    asm ("s4"); (void)ipl2_tvType;
-    register uint32_t ipl2_resetType asm ("s5"); (void)ipl2_resetType;
-    register uint32_t ipl2_romSeed   asm ("s6"); (void)ipl2_romSeed;
-    register uint32_t ipl2_version   asm ("s7"); (void)ipl2_version;
-
     // Check if we're running on iQue
     bool bbplayer = (*MI_VERSION & 0xF0) == 0xB0;
 
     // Clear IMEM (contains IPL2). We don't need it anymore, and we can 
     // instead use IMEM as a zero-buffer for RSP DMA.
-    // Also, we put our bss in IMEM.
     rsp_clear_imem();
 
     entropy_init();
@@ -149,7 +191,7 @@ void _start(void)
 
     int memsize;
     if (!bbplayer) {
-        memsize = rdram_init();
+        memsize = rdram_init(mem_bank_init);
     } else {
         // iQue OS put the memory size in a special location. This is the
         // amount of memory that the OS has assigned to the application, so it
@@ -184,6 +226,14 @@ void _start(void)
     int stage2_size = (int)&__stage2_size;
     void *rdram_stage2 = (void*)0x80000000 + memsize - stage2_size;
     rsp_dma_to_rdram(__stage2_start, rdram_stage2, stage2_size);
+
+    // Clear the last 2 MiB of RDRAM. This is where the loader was just
+    // copied, so make sure not to step over the the loader itself.
+    // NOTE: this wouldn't be necessary if we played games with cache, but
+    // that would be largely emulator unfriendly, and it seems not worth to
+    // break most emulators for a minor performance gain.
+    rsp_bzero_async(memsize-2*1024*1024, 1024*1024);
+    rsp_bzero_async(memsize-1*1024*1024, 1024*1024-LOADER_RESERVED_SIZE);
 
     // Jump to stage 2 in RDRAM.
     MEMORY_BARRIER();

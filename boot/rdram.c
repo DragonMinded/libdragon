@@ -322,14 +322,14 @@ static int rdram_calibrate_current(uint16_t chip_id)
     return autocc;
 }
 
-int rdram_init(void)
+int rdram_init(void (*bank_found)(int chip_id, bool last))
 {
     // Check if it's already initialized (after reset)
     if (*RI_SELECT) {
         // We assume the RAM is already laid out. Try to check how much memory
         // is present in the system
-        int total_memory = 0;
-        for (int chip_id=0; chip_id<8; chip_id+=2) {
+        int total_memory = 0, chip_id = 0;
+        for (chip_id=0; chip_id<8; chip_id+=2) {
             volatile uint32_t *ptr = RDRAM + chip_id * 1024 * 1024;
             ptr[0]=0;
             ptr[0]=0x12345678;
@@ -337,6 +337,8 @@ int rdram_init(void)
             total_memory += 2*1024*1024;
         }
         debugf("Total memory: ", total_memory);
+        for (int i=0; i<chip_id; i+=2)
+            bank_found(i, i+2 >= chip_id);
         return total_memory;
     }
 
@@ -383,8 +385,11 @@ int rdram_init(void)
 
         // Check if the DE bit was turned on. If it's not, a chip is not present
         // and we can abort the initialization loop.
-        if (!(rdram_reg_r(chip_id, RDRAM_REG_MODE) & (1<<1)))
+        if (!(rdram_reg_r(chip_id, RDRAM_REG_MODE) & (1<<1))) {
+            bank_found(chip_id-2, true);
             break;
+        }
+        bank_found(chip_id-2, false);
 
         // Calibrate the chip current. n64brew suggests to do 4 attempts here
         // but our tests seem to indicate that results are really stable and

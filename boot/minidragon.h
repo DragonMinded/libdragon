@@ -61,6 +61,7 @@
 #define SP_RD_LEN       ((volatile uint32_t*)0xa4040008)
 #define SP_WR_LEN       ((volatile uint32_t*)0xa404000c)
 #define SP_STATUS       ((volatile uint32_t*)0xa4040010)
+#define SP_DMA_FULL     ((volatile uint32_t*)0xa4040014)
 #define SP_DMA_BUSY     ((volatile uint32_t*)0xa4040018)
 #define SP_SEMAPHORE    ((volatile uint32_t*)0xa404001c)
 #define SP_PC           ((volatile uint32_t*)0xa4080000)
@@ -187,6 +188,7 @@ static inline uint32_t __byteswap32(uint32_t x)
 
 static inline void rsp_dma_to_rdram(void* dmem, void *rdram, int size)
 {
+    while (*SP_DMA_FULL) {}
     *SP_RSP_ADDR = (uint32_t)dmem;
     *SP_DRAM_ADDR = (uint32_t)rdram;
     *SP_WR_LEN = size-1;
