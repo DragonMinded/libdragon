@@ -3,7 +3,8 @@
 #
 #  This decompressor implements the following variant of Shrinkler:
 #    * Forward decoding
-#    * No parity
+#    * Parity mask: 1. This has been tested to provide
+#      the best compression ratio on average.
 ##############################################
 
 #define inbuf           $a0
