@@ -1046,28 +1046,33 @@ void rspq_highpri_begin(void)
 
     rspq_switch_context(&highpri);
 
-    // If we're continuing on the same buffer another highpri sequence,
-    // try to skip the highpri epilog and jump to the buffer continuation.
-    // This is a small performance gain (the RSP doesn't need to exit and re-enter
-    // the highpri mode) but it also allows to enqueue more than one highpri
-    // sequence, since we only have a single SIG_HIGHPRI_REQUESTED and there
-    // would be no way to tell the RSP "there are 3 sequences pending, so exit
-    // and re-enter three times".
-    // 
-    // To skip the epilog we write single atomic words over  the epilog,
-    // changing it with a JUMP to the buffer continuation. This operation
-    // is completely safe because the RSP either see the memory before the
-    // change (it sees the epilog) or after the change (it sees the new JUMP).
-    // 
-    // In the first case, it will run the epilog and then reenter the highpri
-    // mode soon (as we're turning on SIG_HIGHPRI_REQUESTED anyway). In the 
-    // second case, it's going to see the JUMP, skip the epilog and continue.
-    // The SIG_HIGHPRI_REQUESTED bit will be set but this function, and reset
-    // at the beginning of the new segment, but it doesn't matter at this point.
-    if (rspq_cur_pointer[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
-        volatile uint32_t *epilog = rspq_cur_pointer-4;
-        rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
-        rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
+    // Check if we're not at the beginning of the buffer. This avoids doing
+    // OOB reads in the next check.
+    if (rspq_cur_pointer != rspq_ctx->buffers[rspq_ctx->buf_idx]) {
+
+        // If we're continuing on the same buffer another highpri sequence,
+        // try to skip the highpri epilog and jump to the buffer continuation.
+        // This is a small performance gain (the RSP doesn't need to exit and re-enter
+        // the highpri mode) but it also allows to enqueue more than one highpri
+        // sequence, since we only have a single SIG_HIGHPRI_REQUESTED and there
+        // would be no way to tell the RSP "there are 3 sequences pending, so exit
+        // and re-enter three times".
+        // 
+        // To skip the epilog we write single atomic words over  the epilog,
+        // changing it with a JUMP to the buffer continuation. This operation
+        // is completely safe because the RSP either see the memory before the
+        // change (it sees the epilog) or after the change (it sees the new JUMP).
+        // 
+        // In the first case, it will run the epilog and then reenter the highpri
+        // mode soon (as we're turning on SIG_HIGHPRI_REQUESTED anyway). In the 
+        // second case, it's going to see the JUMP, skip the epilog and continue.
+        // The SIG_HIGHPRI_REQUESTED bit will be set but this function, and reset
+        // at the beginning of the new segment, but it doesn't matter at this point.
+        if (rspq_cur_pointer[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
+            volatile uint32_t *epilog = rspq_cur_pointer-4;
+            rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
+            rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
+        }
     }
 
     // Clear SIG_HIGHPRI_REQUESTED and set SIG_HIGHPRI_RUNNING. This is normally done
