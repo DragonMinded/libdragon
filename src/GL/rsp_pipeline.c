@@ -445,7 +445,7 @@ static void gl_update_vertex_cmd_size(const gl_array_t *arrays)
     #define OVL_HEADER_SIZE 8
     #define CMD_DESC_SIZE   2
 
-    uint16_t *cmd_descriptor = (uint16_t*)(rsp_gl_pipeline_ovl_header + OVL_HEADER_SIZE + GLP_CMD_SET_PRIM_VTX*CMD_DESC_SIZE);
+    uint16_t *cmd_descriptor = (uint16_t*)UncachedAddr(rsp_gl_pipeline_ovl_header + OVL_HEADER_SIZE + GLP_CMD_SET_PRIM_VTX*CMD_DESC_SIZE);
 
     uint16_t patched_cmd_descriptor = (*cmd_descriptor & 0x3FF) | ((vtx_cmd_size & 0xFC) << 8);
 
