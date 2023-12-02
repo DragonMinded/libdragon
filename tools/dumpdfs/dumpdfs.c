@@ -12,6 +12,12 @@
 #define SWAPLONG(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
 #endif
 
+struct directory_entry root_dirent = {
+    .next_entry = SWAPLONG(ROOT_NEXT_ENTRY),
+    .flags = SWAPLONG(ROOT_FLAGS),
+    .path = ROOT_PATH,
+};
+
 /* Directory walking flags */
 enum
 {
@@ -729,8 +735,8 @@ void usage(void)
 {
     printf("dumpdfs - Dump the contents of a Dragon FS\n\n");
     printf("Usage:\n");
-    printf("   dumpdfs -l file.dfs -- List contents\n");
-    printf("   dumpdfs -e file.dfs file -- Extract single file to stdout\n");
+    printf("   dumpdfs -l <file.dfs|file.z64> -- List contents\n");
+    printf("   dumpdfs -e <file.dfs|file.z64> file -- Extract single file to stdout\n");
 }
 
 int main( int argc, char *argv[] )
@@ -767,7 +773,19 @@ int main( int argc, char *argv[] )
             fread( filesystem, 1, lSize, fp );
             fclose( fp );
 
-            if (dfs_init_pc( filesystem, 1 ) != DFS_ESUCCESS)
+            int offset = 0;
+            if (strstr(argv[2], ".z64"))
+            {
+                void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
+                if (!fs)
+                {
+                    fprintf(stderr, "cannot find DragonFS in ROM\n");
+                    return -1;
+                }
+                offset = fs - filesystem;
+            }
+
+            if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)
             {
                 fprintf(stderr, "Invalid DragonFS filesystem\n");
                 return -1;
@@ -798,7 +816,19 @@ int main( int argc, char *argv[] )
             fread( filesystem, 1, lSize, fp );
             fclose( fp );
 
-            if (dfs_init_pc( filesystem, 1 ) != DFS_ESUCCESS)
+            int offset = 0;
+            if (strstr(argv[2], ".z64"))
+            {
+                void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
+                if (!fs)
+                {
+                    fprintf(stderr, "cannot find DragonFS in ROM\n");
+                    return -1;
+                }
+                offset = fs - filesystem;
+            }
+
+            if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)
             {
                 fprintf(stderr, "Invalid DragonFS filesystem\n");
                 return -1;
