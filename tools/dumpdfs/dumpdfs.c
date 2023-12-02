@@ -5,6 +5,7 @@
 #include <assert.h>
 #include "dragonfs.h"
 #include "dfsinternal.h"
+#include "../common/polyfill.h"
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define SWAPLONG(i) (i)
