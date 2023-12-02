@@ -66,43 +66,6 @@ typedef struct MI_regs_s {
 } MI_regs_t;
 
 /**
- * @brief Register definition for the VI interface
- * @ingroup lowlevel
- */
-typedef struct VI_regs_s {
-    /** @brief VI control register.  Sets up various rasterization modes */
-    uint32_t control;
-    /** @brief Pointer to uncached buffer in memory to rasterize */
-    void * framebuffer;
-    /** @brief Width of the buffer in pixels */
-    uint32_t width;
-    /** @brief Vertical interrupt control register.  Controls which horizontal
-     *         line must be hit to generate a VI interrupt
-     */
-    uint32_t v_int;
-    /** @brief Current vertical line counter. */
-    uint32_t cur_line;
-    /** @brief Timing generation register for PAL/NTSC signals */
-    uint32_t timing;
-    /** @brief Number of lines per frame */
-    uint32_t v_sync;
-    /** @brief Number of pixels in line and leap pattern */
-    uint32_t h_sync;
-    /** @brief Number of pixels in line, set identically to h_sync */
-    uint32_t h_sync2;
-    /** @brief Beginning and end of video horizontally */
-    uint32_t h_limits;
-    /** @brief Beginning and end of video vertically */
-    uint32_t v_limits;
-    /** @brief Beginning and end of color burst in vertical lines */
-    uint32_t color_burst;
-    /** @brief Horizontal scaling factor from buffer to screen */
-    uint32_t h_scale;
-    /** @brief Vertical scaling factor from buffer to screen */
-    uint32_t v_scale;
-} VI_regs_t;
-
-/**
  * @brief Register definition for the PI interface
  * @ingroup lowlevel
  */
