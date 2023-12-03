@@ -330,7 +330,7 @@ volatile int __rspq_syncpoints_done  __attribute__((aligned(8)));
 static bool rspq_is_running;
 
 /** @brief Dummy state used for overlay 0 */
-static uint64_t dummy_overlay_state;
+static uint64_t dummy_overlay_state[2];
 
 /** @brief Deferred calls: head of list */
 rspq_deferred_call_t *__rspq_defcalls_head;
@@ -621,8 +621,8 @@ void rspq_init(void)
     rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
     rspq_data.rspq_rdp_current = rspq_data.rspq_rdp_buffers[0];
     rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_buffers[0] + RDPQ_DYNAMIC_BUFFER_SIZE;
-    rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
-    rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
+    rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(dummy_overlay_state);
+    rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t)*2;
     rspq_data.current_ovl = 0;
 
 #if RSPQ_PROFILE
