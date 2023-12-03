@@ -252,14 +252,24 @@ void audio_init(const int frequency, int numbuffers)
         numbuffers = sizeof(buf_full) * 8;
     }
 
-    /* Calculate DAC dacrate and sample size */
+    /* Calculate DAC dacrate. This is based on the VI clock rate (as the VI clock
+       is also used for the AI output), divided by the requested frequency,
+       rounding up. */
     int dacrate = ((2 * clockrate / frequency) + 1) / 2;
-    /* Sample size must be less than or equal to dacrate divided by 66 and not exceed 16 */
-    int samplesize = MIN(dacrate / 66, 16);
+    /* Bitrate is the half period for each bit of the sample. We need to send
+       32 bits, so 64 periods, but the datasheet of the DAC suggests to allow
+       for 66 periods instead. So calculate the bitrate as dacrate / 66. We can
+       truncate because a shorter period won't hurt anyway. */
+    int bitrate = dacrate / 66;
+    /* For high output frequency, the bitrate calculated this way might be
+       slower than the slowest supported one (16 -- there are only 4 bits
+       available in the register). So cap it: in fact, shifting the 64 bits
+       faster into the DAC won't hurt. */
+    if (bitrate > 16) bitrate = 16;
 
     /* Setup DAC parameters */
     AI_regs->dacrate = dacrate - 1;
-    AI_regs->samplesize = samplesize - 1;
+    AI_regs->bitrate = bitrate - 1;
 
     /* Real frequency */
     _frequency = 2 * clockrate / ((2 * clockrate / frequency) + 1);
@@ -335,7 +345,7 @@ void audio_close()
     /* Stop audio DMA and clocks */
     AI_regs->control = 0;
     AI_regs->dacrate = 0;
-    AI_regs->samplesize = 0;
+    AI_regs->bitrate = 0;
 
     if(buffers)
     {
