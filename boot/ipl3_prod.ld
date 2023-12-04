@@ -13,7 +13,8 @@ SECTIONS {
     .text.dmem 0xA4000000 : {
         KEEP(*(.header))
         LONG(0x3044d236);  /* special dummy opcode to simplify hash cracking */
-        KEEP(*(.boot))
+        KEEP(*(.stage1.pre))
+        KEEP(*(.stage1))
         . = ALIGN(16);
         KEEP(*(.banner))
         build/ipl3.o       (.text .text.* .data .rodata .rodata.*)

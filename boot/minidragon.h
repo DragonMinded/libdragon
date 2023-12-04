@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+typedef uint64_t u_uint64_t __attribute__((aligned(1)));
+
 #define MEMORY_BARRIER()    asm volatile ("" : : : "memory")
 #define C0_WRITE_CAUSE(x)   asm volatile("mtc0 %0,$13"::"r"(x))
 #define C0_WRITE_COUNT(x)   asm volatile("mtc0 %0,$9"::"r"(x))
@@ -65,6 +67,8 @@
 #define SP_DMA_BUSY     ((volatile uint32_t*)0xa4040018)
 #define SP_SEMAPHORE    ((volatile uint32_t*)0xa404001c)
 #define SP_PC           ((volatile uint32_t*)0xa4080000)
+#define SP_DMEM         ((uint32_t*)0xa4000000)
+#define SP_IMEM         ((uint32_t*)0xa4001000)
 
 #define SP_WSTATUS_CLEAR_HALT        0x00001   ///< SP_STATUS write mask: clear #SP_STATUS_HALTED bit
 #define SP_WSTATUS_SET_HALT          0x00002   ///< SP_STATUS write mask: set #SP_STATUS_HALTED bit
@@ -139,10 +143,34 @@
     } \
 })
 
+/** @brief Round n up to the next multiple of d */
+#define ROUND_UP(n, d) ({ \
+	typeof(n) _n = n; typeof(d) _d = d; \
+	(((_n) + (_d) - 1) / (_d) * (_d)); \
+})
+
+#define cache_op2(addr, op, linesize, length) ({ \
+    void *end = (void*)(ROUND_UP(((uint32_t)addr) + length - 1, linesize)); \
+    do { \
+        asm ("\tcache %0,(%1)\n"::"i" (op), "r" (addr)); \
+        addr += linesize; \
+    } while (addr < end); \
+})
+
+static inline void data_cache_hit_invalidate(volatile void * addr, unsigned long length)
+{
+    cache_op(addr, 0x11, 16, length);
+}   
+
 static inline void data_cache_hit_writeback_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(addr, 0x15, 16, length);
 }   
+
+static inline void data_cache_writeback_invalidate_all(void)
+{
+    cache_op((void*)0x80000000, INDEX_WRITEBACK_INVALIDATE_D, 0x10, 0x2000);
+}
 
 static inline void cop0_clear_cache(void)
 {
@@ -174,6 +202,12 @@ static inline void si_write(uint32_t offset, uint32_t value)
     volatile uint32_t *vaddr = (volatile uint32_t *)(0xBFC00000 + offset);
     while (*SI_STATUS & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY)) {}
     *vaddr = value;
+}
+
+static inline void si_wait(void)
+{
+    while (*SI_STATUS & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY)) {}
+    *SI_STATUS = SI_CLEAR_INTERRUPT;
 }
 
 // Missing from libgcc

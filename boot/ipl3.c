@@ -120,23 +120,46 @@ typedef struct {
 
 _Static_assert(sizeof(bootinfo_t) == 16, "invalid sizeof(bootinfo_t)");
 
-static inline void rsp_clear_imem(void)
+void rsp_clear_mem(uint32_t mem, unsigned int size)
 {
-    *SP_RSP_ADDR = 0x1000; // IMEM
-    *SP_DRAM_ADDR = 8*1024*1024; // RDRAM addresses >8 MiB always return 0
-    *SP_RD_LEN = 4096-1;
     while (*SP_DMA_BUSY) {}
+    uint32_t *ptr = (uint32_t*)mem;
+    uint32_t *ptr_end = (uint32_t*)(mem + size);
+    while (ptr < ptr_end)
+        *ptr++ = 0;
+ 
+    // *SP_RSP_ADDR = 0x1000; // IMEM
+    // *SP_DRAM_ADDR = 8*1024*1024 + 0x2000; // Most RDRAM addresses >8 MiB always return 0
+    // *SP_RD_LEN = 4096-1;
+    // while (*SP_DMA_BUSY) {}
+}
+
+static void bzero8(void *mem)
+{
+    asm ("sdl $0, 0(%0); sdr $0, 7(%0);" :: "r"(mem));
 }
 
 // Clear memory using RSP DMA. We use IMEM as source address, which
 // was cleared in rsp_clear_imem(). The size can be anything up to 1 MiB,
 // since the DMA would just wrap around in IMEM.
-static void rsp_bzero_async(uint32_t rdram, int size)
+void rsp_bzero_async(uint32_t rdram, int size)
 {
-    while (*SP_DMA_FULL) {}
-    *SP_RSP_ADDR = 0x1000;
-    *SP_DRAM_ADDR = rdram;
-    *SP_WR_LEN = size-1;
+    // Use RSP DMA which is fast, but only allows for 8-byte alignment.
+    // Data outside of the 8-byte alignment is cleared using the CPU,
+    // using uncached writes so that they behave exactly the same as RSP DMA would.
+    rdram |= 0xA0000000;
+    bzero8((void*)rdram);
+    bzero8((void*)(rdram + size - 8));
+    rdram += 8;
+    size -= 8;
+    while (size > 0) {
+        int sz = size > 1024*1024 ? 1024*1024 : size;
+        while (*SP_DMA_FULL) {}
+        *SP_RSP_ADDR = 0x1000;
+        *SP_DRAM_ADDR = rdram; // this is automatically rounded down
+        *SP_WR_LEN = sz-1;   // this is automatically rounded up
+        size -= sz;
+    }
 }
 
 // Callback for rdram_init. We use this to clear the memory banks
@@ -152,6 +175,9 @@ static void mem_bank_init(int chip_id, bool last)
     if (last)
         return;
 
+    uint32_t base = chip_id*1024*1024;
+    int size = 2*1024*1024;
+
     // If we are doing a warm boot, skip the first 0x400 bytes
     // of RAM (on the first chip, because it historically contains
     // some boot flags that some existing code might expect to stay there.
@@ -160,24 +186,31 @@ static void mem_bank_init(int chip_id, bool last)
     // with this even if Everdrive itself doesn't use this IPL3 (but
     // might boot a game that does, and that game shouldn't clear
     // 0x80000318).
-    uint32_t base = chip_id*1024*1024;
-    if (chip_id == 0 && ipl2_resetType != 0)
-        rsp_bzero_async(base+0x400,       1024*1024-0x400);
-    else
-        rsp_bzero_async(base,             1024*1024);
-    
-    rsp_bzero_async(base + 1024*1024, 1024*1024);
+    if (chip_id == 0 && ipl2_resetType != 0) {
+        base += 0x400;
+        size -= 0x400;
+    }
+    rsp_bzero_async(base, size);
 }
 
-__attribute__((noreturn, section(".boot")))
-void _start(void)
+// This function is placed by the linker script immediately below the stage1()
+// function. We just change the stack pointer here, as very first thing.
+__attribute__((noreturn, section(".stage1.pre")))
+void stage1pre(void)
 {
-    // Check if we're running on iQue
-    bool bbplayer = (*MI_VERSION & 0xF0) == 0xB0;
+    // Move the stack to the data cache. Notice that RAM is not initialized
+    // yet but we don't care: if sp points to a cached location, it will
+    // just use the cache for that.
+    asm ("li $sp, %0"::"i"(STACK1_TOP));
+    __builtin_unreachable(); // avoid function epilog, we don't need it
+}
 
-    // Clear IMEM (contains IPL2). We don't need it anymore, and we can 
+__attribute__((noreturn, section(".stage1")))
+void stage1(void)
+{
+    // Clear IMEM (contains IPL2). We don't need it anymore, and we can
     // instead use IMEM as a zero-buffer for RSP DMA.
-    rsp_clear_imem();
+    rsp_clear_mem((uint32_t)SP_IMEM, 4096);
 
     entropy_init();
     usb_init();
@@ -190,6 +223,7 @@ void _start(void)
 	C0_WRITE_WATCHLO(0);
 
     int memsize;
+    bool bbplayer = (*MI_VERSION & 0xF0) == 0xB0;
     if (!bbplayer) {
         memsize = rdram_init(mem_bank_init);
     } else {
@@ -224,7 +258,7 @@ void _start(void)
     // Copy the IPL3 stage2 (loader.c) from DMEM to the end of RDRAM.
     extern uint32_t __stage2_start[]; extern int __stage2_size;
     int stage2_size = (int)&__stage2_size;
-    void *rdram_stage2 = (void*)0x80000000 + memsize - stage2_size;
+    void *rdram_stage2 = LOADER_BASE(memsize, stage2_size);
     rsp_dma_to_rdram(__stage2_start, rdram_stage2, stage2_size);
 
     // Clear the last 2 MiB of RDRAM. This is where the loader was just
@@ -232,11 +266,10 @@ void _start(void)
     // NOTE: this wouldn't be necessary if we played games with cache, but
     // that would be largely emulator unfriendly, and it seems not worth to
     // break most emulators for a minor performance gain.
-    rsp_bzero_async(memsize-2*1024*1024, 1024*1024);
-    rsp_bzero_async(memsize-1*1024*1024, 1024*1024-LOADER_RESERVED_SIZE);
+    rsp_bzero_async(memsize-2*1024*1024, 2*1024*1024-TOTAL_RESERVED_SIZE);
 
     // Jump to stage 2 in RDRAM.
     MEMORY_BARRIER();
-    asm("move $sp, %0"::"r"(rdram_stage2-8));
+    asm("move $sp, %0"::"r"(STACK2_TOP(memsize, stage2_size)));
     goto *rdram_stage2;
 }

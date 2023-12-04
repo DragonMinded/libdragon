@@ -386,10 +386,15 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         // Check if the DE bit was turned on. If it's not, a chip is not present
         // and we can abort the initialization loop.
         if (!(rdram_reg_r(chip_id, RDRAM_REG_MODE) & (1<<1))) {
-            bank_found(chip_id-2, true);
+            if (chip_id)
+                bank_found(chip_id-2, true);
             break;
         }
-        bank_found(chip_id-2, false);
+
+        // Call the callback on the previous chip (if this is not the first),
+        // now that we know if it's the last one or not.
+        if (chip_id)
+            bank_found(chip_id-2, false);
 
         // Calibrate the chip current. n64brew suggests to do 4 attempts here
         // but our tests seem to indicate that results are really stable and
@@ -448,14 +453,15 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         // memory every 512 KiB, so it's 4 iterations for 2 MiB chips.
         for (int bank=0; bank<4; bank++) {
             volatile uint32_t *ptr = RDRAM + chip_id * 1024 * 1024 + bank * 512 * 1024;
-            ptr[0]=0; ptr[1]=0;
+            // ptr[2]=0; ptr[3]=0;
+            (void)ptr[0]; (void)ptr[1];
         }
 
-        debugf("Chip: ", chip_id);
-        debugf("\tManufacturer: ", m.manu);
-        debugf("\tGeometry: ", t.bank_bits, t.row_bits, t.col_bits);
-        debugf("\tCurrent: ", target_cc);
-        debugf("\tRAS: ", ras_interval);
+        // debugf("Chip: ", chip_id);
+        // debugf("\tManufacturer: ", m.manu);
+        // debugf("\tGeometry: ", t.bank_bits, t.row_bits, t.col_bits);
+        // debugf("\tCurrent: ", target_cc);
+        // debugf("\tRAS: ", ras_interval);
 
         // The chip has been configured and mapped. Now go to the next chip.
         // 2 MiB chips must be mapped at even addresses (as they cover two

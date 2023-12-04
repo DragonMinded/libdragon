@@ -3,8 +3,6 @@
 
 #ifndef NDEBUG
 
-#define DEBUG 1
-
 #include "pputils.h"
 
 __attribute__((far))

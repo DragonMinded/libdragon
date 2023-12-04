@@ -18,7 +18,8 @@ SECTIONS {
 
     .text.dmem 0xA4000040 : AT ( 0xB0001040 ) {
         LONG(0x3044d236);  /* special dummy opcode to simplify hash cracking; this is not needed in dev mode, but we keep it in case it matters */
-        KEEP(*(.boot))
+        KEEP(*(.stage1.pre))
+        KEEP(*(.stage1))
         . = ALIGN(16);
         KEEP(*(.banner))
         build/ipl3.o       (.text .text.* .data)
