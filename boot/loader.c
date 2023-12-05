@@ -266,12 +266,12 @@ void loader(void)
             // Clear the range of memory [vaddr, vaddr+size] which lies outside
             // of the range [paddr, paddr+dec_size]. That is, any compressed
             // data leftover (which was not overwritten by decompressed data).
-            // uint32_t paddr_end = paddr + dec_size;
-            // uint32_t vaddr_end = vaddr + size;
-            // if (vaddr < paddr)
-            //     fast_bzero_range((void*)vaddr, (void*)MIN(vaddr_end, paddr));
-            // else if (vaddr_end > paddr_end)
-            //     fast_bzero_range((void*)MAX(vaddr, paddr_end), (void*)vaddr_end);
+            uint32_t paddr_end = paddr + dec_size;
+            uint32_t vaddr_end = vaddr + size;
+            if (vaddr < paddr)
+                fast_bzero_range((void*)vaddr, (void*)MIN(vaddr_end, paddr));
+            else if (vaddr_end > paddr_end)
+                fast_bzero_range((void*)MAX(vaddr, paddr_end), (void*)vaddr_end);
         }
 
         // Wait for the DMA to finish.
