@@ -421,3 +421,5 @@ float display_get_fps(void)
     if (!frame_times_duration) return 0;
     return (float)(FPS_WINDOW * TICKS_PER_SECOND) / frame_times_duration;
 }
+
+extern inline void vi_write_config(const vi_config_t* config);

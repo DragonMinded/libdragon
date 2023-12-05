@@ -186,7 +186,7 @@ void* decompress_shrinkler_full(const char *fn, FILE *fp, size_t cmp_size, size_
 
     void *out = malloc(size);
     if (!out) return 0;
-    int dec_size = shr_unpack(out, in);
+    int dec_size = shr_unpack(out, in); (void)dec_size;
     assertf(dec_size == size, "Shrinkler size:%d exp:%d", dec_size, size);
     free(in);
     return out;
