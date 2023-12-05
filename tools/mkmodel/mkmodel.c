@@ -1654,7 +1654,7 @@ int convert(const char *infn, const char *outfn)
         return 1;
     }
 
-    if (strstr(data->asset.generator, "Blender") && strstr(data->asset.generator, "v3.4.50")) {
+    if (data->asset.generator && strstr(data->asset.generator, "Blender") && strstr(data->asset.generator, "v3.4.50")) {
         fprintf(stderr, "Error: Blender version v3.4.1 has buggy glTF export (vertex colors are wrong).\nPlease upgrade Blender and export the model again.\n");
         cgltf_free(data);
         return 1;
