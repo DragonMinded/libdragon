@@ -345,7 +345,7 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
     // Start current calibration. This is necessary to ensure the RAC outputs
     // the correct current value to talk to RDRAM chips.
     *RI_CONFIG = RI_CONFIG_AUTO_CALIBRATION;   // Turn on the RI auto current calibration
-    wait(0x10000);                             // Wait for calibration
+    wait(0x100);                               // Wait for calibration
     *RI_CURRENT_LOAD = 0;                      // Apply the calibrated value
     
     // Activate communication with RDRAM chips. We can't do this before current calibration
