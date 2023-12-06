@@ -47,6 +47,7 @@ public:
 			return false;
 		}
 		pos += 1;
+		updateMargin();
 		return true;
 	}
 
@@ -69,6 +70,7 @@ public:
 			}
 		}
 		pos += length;
+		updateMargin();
 		return true;
 	}
 
@@ -79,11 +81,17 @@ public:
 	void read(int index) {
 		// Another byte of compresed data read
 		if ((index & (read_size - 1)) == 0) {
-			int margin = pos - compressed_read_count * read_size;
-			if (margin > front_overlap_margin) {
-				front_overlap_margin = margin;
-			}
-			compressed_read_count += 1;
+			compressed_read_count += read_size;
+			if (compressed_read_count > data_length)
+				compressed_read_count = data_length;
+			updateMargin();
+		}
+	}
+
+	void updateMargin(void) {
+		int margin = pos - compressed_read_count;
+		if (margin > front_overlap_margin) {
+			front_overlap_margin = margin;
 		}
 	}
 };
