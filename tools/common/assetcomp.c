@@ -147,6 +147,9 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         winsize = 256*1024; // FIXME
         int cmp_size; int inplace_margin;
         uint8_t *output = shrinkler_compress(data, sz, 3, &cmp_size, &inplace_margin);
+        // Shrinkler seems to return negative margin values because we asked to
+        // verify using 4 byte reads. Just clamp to zero.
+        inplace_margin = inplace_margin > 0 ? inplace_margin : 0;
 
         FILE *out = fopen(outfn, "wb");
         fwrite("DCA3", 1, 4, out);
