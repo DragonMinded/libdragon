@@ -259,7 +259,14 @@ void stage1(void)
     extern uint32_t __stage2_start[]; extern int __stage2_size;
     int stage2_size = (int)&__stage2_size;
     void *rdram_stage2 = LOADER_BASE(memsize, stage2_size);
+    #ifdef PROD
     rsp_dma_to_rdram(__stage2_start, rdram_stage2, stage2_size);
+    #else
+    *PI_DRAM_ADDR = (uint32_t)rdram_stage2;
+    *PI_CART_ADDR = (uint32_t)__stage2_start - 0xA0000000;
+    *PI_WR_LEN = stage2_size-1;
+    while (*PI_STATUS & 1) {}
+    #endif
 
     // Clear the last 2 MiB of RDRAM. This is where the loader was just
     // copied, so make sure not to step over the the loader itself.

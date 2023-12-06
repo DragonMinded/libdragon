@@ -28,17 +28,17 @@ SECTIONS {
         build/entropy.o    (.text .text.* .data)
         *(.bss)
         . = ALIGN(8);
+    } > dmem
+
+    __stage2_size = __stage2_end - __stage2_start;
+
+    .text.rom 0xB0001040 + SIZEOF ( .text.dmem ) : {
         __stage2_start = .;
         KEEP(build/loader.o(.text.loader))
         KEEP(build/loader.o(.text .text.*))
         KEEP(build/loader.o(.data .data.*))
         . = ALIGN(8);
         __stage2_end = .;
-    } > dmem
-
-    __stage2_size = __stage2_end - __stage2_start;
-
-    .text.rom 0xB0001040 + SIZEOF ( .text.dmem ) : {
         build/debug.o      (.text .text.* .data)
         *(.rodata)
         *(.rodata.*)

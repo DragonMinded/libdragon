@@ -39,7 +39,7 @@ N64_LDFLAGS = -Wl,-T$(IPL3_LDSCRIPT) -Wl,-Map=build/ipl3.map -Wl,--gc-sections
 OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/ique_trampoline.o build/entropy.o
 
 ifeq ($(PROD),1)
-N64_CFLAGS += -DNDEBUG
+N64_CFLAGS += -DNDEBUG -DPROD
 IPL3_ROM=ipl3_prod.z64
 IPL3_LDSCRIPT=ipl3_prod.ld
 else
