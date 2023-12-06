@@ -83,7 +83,8 @@ public: //rasky
 
 		// Verify data
 		bool error = false;
-		LZVerifier verifier(0, &data[0], data.size(), data.size(), 1);
+		//rasky: we do 4-at-atime reads in decompressor, so use 4 here too
+		LZVerifier verifier(0, &data[0], data.size(), data.size(), 4);
 		decoder.reset();
 		decoder.setListener(&verifier);
 		if (!lzd.decode(verifier)) {
