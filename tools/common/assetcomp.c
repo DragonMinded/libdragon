@@ -76,7 +76,9 @@ void asset_compress_mem(int compression, const uint8_t *data, int sz, uint8_t **
         *winsize = 256*1024; // FIXME
         int inplace_margin;
         *output = shrinkler_compress(data, sz, 3, cmp_size, &inplace_margin);
-        *margin = inplace_margin;
+        // Shrinkler seems to return negative margin values because we asked to
+        // verify using 4 byte reads. Just clamp to zero.
+        *margin = inplace_margin > 0 ? inplace_margin : 0;
     }   break;
     default:
         assert(0);

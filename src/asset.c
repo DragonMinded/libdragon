@@ -89,6 +89,9 @@ FILE *must_fopen(const char *fn)
 
 static void* decompress_inplace(asset_compression_t *algo, const char *fn, FILE *fp, size_t cmp_size, size_t size, int margin)
 {
+    // Consistency check on input data
+    assert(margin >= 0);
+
     // add 8 because the assembly decompressors do writes up to 8 bytes out-of-bounds,
     // that could overwrite the input data.
     margin += 8;
