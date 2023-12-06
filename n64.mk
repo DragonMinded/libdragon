@@ -8,6 +8,7 @@ N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram76
 N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
 N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
+N64_ROM_ELFCOMPRESS = 1 # Set compression level of ELF file in ROM
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
@@ -34,6 +35,7 @@ N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
 N64_MKDFS = $(N64_BINDIR)/mkdfs
 N64_TOOL = $(N64_BINDIR)/n64tool
 N64_SYM = $(N64_BINDIR)/n64sym
+N64_ELFCOMPRESS = $(N64_BINDIR)/n64elfcompress
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
@@ -90,6 +92,7 @@ RSPASFLAGS+=-MMD
 	$(N64_SYM) $< $<.sym
 	cp $< $<.stripped
 	$(N64_STRIP) -s $<.stripped
+	$(N64_ELFCOMPRESS) -o $(dir $<) -c $(N64_ROM_ELFCOMPRESS) $<.stripped
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
