@@ -457,11 +457,11 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
             (void)ptr[0]; (void)ptr[1];
         }
 
-        // debugf("Chip: ", chip_id);
-        // debugf("\tManufacturer: ", m.manu);
-        // debugf("\tGeometry: ", t.bank_bits, t.row_bits, t.col_bits);
-        // debugf("\tCurrent: ", target_cc);
-        // debugf("\tRAS: ", ras_interval);
+        debugf("Chip: ", chip_id);
+        debugf("\tManufacturer: ", m.manu);
+        debugf("\tGeometry: ", t.bank_bits, t.row_bits, t.col_bits);
+        debugf("\tCurrent: ", target_cc);
+        debugf("\tRAS: ", ras_interval);
 
         // The chip has been configured and mapped. Now go to the next chip.
         // 2 MiB chips must be mapped at even addresses (as they cover two
