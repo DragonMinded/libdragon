@@ -13,18 +13,23 @@ OUTPUT_ARCH (mips)
 EXTERN (_start)
 ENTRY (_start)
 
-
-/* Start address of code is 1K up in cached, unmapped RAM (KSEG0). We have
-* to be at least this far up in order to not interfere with the cart
-* boot code which is copying it down from the cart
-*/
-__libdragon_text_start  = 0x80000400;
+PHDRS
+{
+    irq PT_LOAD AT ( 0x80000000 );
+    main PT_LOAD AT ( 0x80000400 );
+}
 
 SECTIONS {
+    .intvectors 0x80000000 : {
+        . = ALIGN(32);
+        KEEP(*(.intvectors))
+        __intvectors_end = .;
+    } :irq
+
     /* The text section carries the app code and its relocation addr is
     * the first byte of the cart domain in cached, unmapped memory
     */
-    .text __libdragon_text_start : AT(0x0) {
+    .text 0x80000400 : {
         *(.boot)
         . = ALIGN(16);
         __text_start = .;
@@ -35,15 +40,15 @@ SECTIONS {
         *(.gnu.linkonce.t.*)
         . = ALIGN(16);
         __text_end  = .;
-    }
+    } :main
 
    .eh_frame_hdr : { *(.eh_frame_hdr) }
    .eh_frame : { 
 		__EH_FRAME_BEGIN__ = .; /* Define symbol for accessing eh_frame section */
 		KEEP (*(.eh_frame)) 
 	}
-   .gcc_except_table : { *(.gcc_except_table*) }
-   .jcr : { KEEP (*(.jcr)) }
+   .gcc_except_table : { *(.gcc_except_table*) } 
+   .jcr : { KEEP (*(.jcr)) } 
 
     .rodata : {
         *(.rdata)
@@ -125,7 +130,7 @@ SECTIONS {
     . = ALIGN(8);
     __rom_end = .;
 
-    .sbss (NOLOAD) : {
+    .sbss : {
          __bss_start = .;
         *(.sbss)
         *(.sbss.*)
@@ -137,7 +142,7 @@ SECTIONS {
     /* Small data END */
 
     . = ALIGN(8);
-    .bss (NOLOAD) : {
+    .bss : {
         *(.bss)
         *(.bss*)
         *(.gnu.linkonce.b.*)
@@ -147,8 +152,6 @@ SECTIONS {
     }
 
     . = ALIGN(8);
-    
-
 
     /* Deprecated */
     end = .;
