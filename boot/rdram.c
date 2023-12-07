@@ -1,3 +1,15 @@
+/**
+ * @file ipl3.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief RDRAM initialization module
+ * 
+ * This module contains the RDRAM initialization process. The process is quite
+ * convoluted and is based mainly on the Rambus RDRAM datasheets and the
+ * information found on the n64brew wiki, plus direct experimentation. 
+ * 
+ * Please follows the comments in rdram_init() to have an overview of the
+ * process.
+ */
 #include "minidragon.h"
 #include "debug.h"
 #include "entropy.h"

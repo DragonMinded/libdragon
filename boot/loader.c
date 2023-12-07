@@ -1,3 +1,29 @@
+/**
+ * @file loader.c
+ * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @brief IPL3: Stage 2 (ELF loader)
+ * 
+ * This module implements the second stage of the loader, which is responsible
+ * of searching and loading the ELF file embedded in the ROM, and jumping
+ * to the entrypoint.
+ * 
+ * This stage runs from "high RDRAM", that is, it is placed at the end of RDRAM.
+ * The code is compiled to be relocatable via a trick in the Makefile, so that
+ * it can be placed at dynamic addresses (though normally only two would be
+ * possible: either near 4 MiB or 8 MiB).
+ * 
+ * The tasks performed by this stage are:
+ * 
+ *  * Find the ELF file in ROM.
+ *  * Load the ELF file in memory (PT_LOAD segments).
+ *  * Optionally decompress the ELF file (using the decompression function
+ *    stored in the ELF file itself).
+ *  * Reset the RCP hardware (SP, DP, MI, PI, SI, AI).
+ *  * Finalize the entropy accumulator and store it in the boot flags.
+ *  * Notify the PIF that the boot process is finished.
+ *  * Clear DMEM (except the boot flags area).
+ *  * Jump to the entrypoint.
+ */
 #include "loader.h"
 #include "minidragon.h"
 #include "debug.h"

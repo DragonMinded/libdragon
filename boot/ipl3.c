@@ -1,9 +1,37 @@
 /**
  * @file ipl3.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @brief IPL3 Bootcode
+ * @brief IPL3: Stage 1 (RDRAM initialization)
+ * 
+ * This file contains the first stage of the IPL3 boot code. The second stage
+ * is stored in loader.c.
+ * 
+ * The goal of this task is to perform RDRAM initialization. At the point at
+ * which it runs, in fact, RDRAM is not inizialized yet (at least after a cold
+ * boot), so it cannot be used. The RDRAM inizialization is a complex task
+ * that is detailed in rdram.c.
+ * 
+ * In addition to performing the initialization (see rdram.c), this stage also
+ * clears the RDRAM to zero. This is not strictly necessary, but it is useful
+ * to avoid having garbage in memory, which sometimes can cause a different
+ * of behaviors with emulators (which will instead initialize memory to zero).
+ * 
+ * To efficiently clear memory, we use RSP DMA which is the most efficient
+ * way available. We use IMEM as a zero-buffer, and we clear memory in
+ * background as RDRAM chips are configured, while the rest of the IPL3 code
+ * is running and configuring the next chips.
+ * 
+ * After RAM is inizialized, we copy the second stage of IPL3 (loader.c) from
+ * DMEM to the end of RDRAM, and jump to it to continue with the execution.
+ * This is done mainly because running from RDRAM is faster than from DMEM,
+ * so there is no reason in staying in DMEM after RDRAM is available.
  * 
  * Layout of ROM
+ * =============
+ * 
+ * The following tables detail how a standard libdragon ROM using this IPL3
+ * boot code is laid out. There are two different layouts, depending on whether
+ * we are using the production or development IPL3.
  * 
  * Production layout:
  * 0x0000 - HEADER
@@ -22,6 +50,24 @@
  * ...... - Main ELF file
  * ...... - Other Rompak files (.sym file, .dfs file, etc.)
  * 
+ * 
+ * The ROM header is a 64-byte structure that contains information about the
+ * ROM. It is not used by IPL3 itself, and is normally just advisory (that is,
+ * might be used by flashcart menus to identify a game, provide the game tile,
+ * etc.).
+ * 
+ * The signed IPL3 trampoline is a small piece of code that is used to load
+ * the development IPL3 from the flashcart. During development, it is unconvenient
+ * to sign each built of IPL3, so the trampoline (coded and signed just once)
+ * just allow to load an unsigned IPL3 from offset 0x1040 into DMEM.
+ * 
+ * The iQue trampoline, stored at 0x1000, is a small piece of code that just
+ * loads IPL3 (offset 0x40) into DMEM and jumps to it. It is used only on iQue
+ * because the iQue OS tries to skip IPL3 execution and just load a flat binary
+ * into RAM and running it (this was done because iQue doesn't use RDRAM chips
+ * anywhere, so existing IPL3 code wouldn't work there, nor it is necessary).
+ * In our case, since IPL3 Stage 2 has important loading logic we need to
+ * preserve (ELF parsing, decompression, etc.) we absolutely need to run it.
  */
 
 #include <stdint.h>
