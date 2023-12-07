@@ -21,7 +21,7 @@
 #define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
 
 //ELF structs
-#include "mips_elf.h"
+#include "../common/mips_elf.h"
 
 typedef struct elf_symbol_s {
     char *name;
@@ -53,8 +53,6 @@ typedef struct elf_info_s {
 
 //DSO Format Internals
 #include "../../src/dso_format.h"
-
-#include "mips_elf.h"
 
 bool verbose_flag = false;
 

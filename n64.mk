@@ -8,6 +8,7 @@ N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram76
 N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
 N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
+N64_ROM_ELFCOMPRESS = 1 # Set compression level of ELF file in ROM
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
@@ -15,7 +16,6 @@ N64_ROOTDIR = $(N64_INST)
 N64_BINDIR = $(N64_ROOTDIR)/bin
 N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
 N64_LIBDIR = $(N64_ROOTDIR)/mips64-elf/lib
-N64_HEADERPATH = $(N64_LIBDIR)/header
 N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/mips64-elf-
 
 COMMA:=,
@@ -29,12 +29,13 @@ N64_OBJCOPY = $(N64_GCCPREFIX_TRIPLET)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX_TRIPLET)objdump
 N64_SIZE = $(N64_GCCPREFIX_TRIPLET)size
 N64_NM = $(N64_GCCPREFIX_TRIPLET)nm
+N64_STRIP = $(N64_GCCPREFIX_TRIPLET)strip
 
-N64_CHKSUM = $(N64_BINDIR)/chksum64
 N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
 N64_MKDFS = $(N64_BINDIR)/mkdfs
 N64_TOOL = $(N64_BINDIR)/n64tool
 N64_SYM = $(N64_BINDIR)/n64sym
+N64_ELFCOMPRESS = $(N64_BINDIR)/n64elfcompress
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
@@ -55,7 +56,8 @@ N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
 
-N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
+N64_TOOLFLAGS = --title $(N64_ROM_TITLE)
+N64_TOOLFLAGS += $(if $(N64_ROM_HEADER),--header $(N64_ROM_HEADER))
 N64_TOOLFLAGS += $(if $(N64_ROM_REGION),--region $(N64_ROM_REGION))
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
@@ -88,23 +90,24 @@ RSPASFLAGS+=-MMD
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
 	$(N64_SYM) $< $<.sym
-	$(N64_OBJCOPY) -O binary $< $<.bin
+	cp $< $<.stripped
+	$(N64_STRIP) -s $<.stripped
+	$(N64_ELFCOMPRESS) -o $(dir $<) -c $(N64_ROM_ELFCOMPRESS) $<.stripped
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8; \
 	else \
 		MSYM_FILE="$(filter %.msym, $^)"; \
 		if [ -z "$$MSYM_FILE" ]; then \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 16 "$$DFS_FILE"; \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 16 "$$DFS_FILE"; \
 		else \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
 		fi \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
 	fi
-	$(N64_CHKSUM) $@ >/dev/null
 
 %.v64: %.z64
 	@echo "    [V64] $@"

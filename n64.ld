@@ -13,24 +13,18 @@ OUTPUT_ARCH (mips)
 EXTERN (_start)
 ENTRY (_start)
 
-__kseg0_start = 0x80000000;
 
 /* Start address of code is 1K up in cached, unmapped RAM (KSEG0). We have
 * to be at least this far up in order to not interfere with the cart
 * boot code which is copying it down from the cart
 */
-__libdragon_text_start  = __kseg0_start + 0x400;
-
-MEMORY
-{
-    mem : ORIGIN = __kseg0_start, LENGTH = 4M
-}
+__libdragon_text_start  = 0x80000400;
 
 SECTIONS {
     /* The text section carries the app code and its relocation addr is
     * the first byte of the cart domain in cached, unmapped memory
     */
-    .text __libdragon_text_start  : {
+    .text __libdragon_text_start : AT(0x0) {
         *(.boot)
         . = ALIGN(16);
         __text_start = .;
@@ -41,15 +35,15 @@ SECTIONS {
         *(.gnu.linkonce.t.*)
         . = ALIGN(16);
         __text_end  = .;
-    } > mem
+    }
 
-   .eh_frame_hdr : { *(.eh_frame_hdr) } > mem
+   .eh_frame_hdr : { *(.eh_frame_hdr) }
    .eh_frame : { 
 		__EH_FRAME_BEGIN__ = .; /* Define symbol for accessing eh_frame section */
 		KEEP (*(.eh_frame)) 
-	} > mem
-   .gcc_except_table : { *(.gcc_except_table*) } > mem
-   .jcr : { KEEP (*(.jcr)) } > mem
+	}
+   .gcc_except_table : { *(.gcc_except_table*) }
+   .jcr : { KEEP (*(.jcr)) }
 
     .rodata : {
         *(.rdata)
@@ -57,7 +51,7 @@ SECTIONS {
         *(.rodata.*)
         *(.gnu.linkonce.r.*)
         . = ALIGN(8);
-    } > mem
+    }
 
     /* This is important to keep __CTOR_END__ consistent */
     . = ALIGN(4);
@@ -83,7 +77,7 @@ SECTIONS {
 
         here, and g++ seem to insert it at __CTOR_END__ */
         __CTOR_END__ = .;
-    } > mem
+    }
 
     . = ALIGN(8);
 
@@ -103,7 +97,7 @@ SECTIONS {
         *(.data.*)
         *(.gnu.linkonce.d.*)
         . = ALIGN(8);
-    } > mem
+    }
 
     /* Small data START */
 
@@ -113,16 +107,16 @@ SECTIONS {
         *(.sdata.*)
         *(.gnu.linkonce.s.*)
         . = ALIGN(8);
-    } > mem
+    }
 
     .lit8 : {
         *(.lit8)
         . = ALIGN(8);
-    } > mem
+    }
     .lit4 : {
         *(.lit4)
         . = ALIGN(8);
-    } > mem
+    }
 
     . = ALIGN(8);
     __data_end = .;
@@ -138,7 +132,7 @@ SECTIONS {
         *(.gnu.linkonce.sb.*)
         *(.scommon)
         *(.scommon.*)
-    } > mem
+    }
 
     /* Small data END */
 
@@ -150,7 +144,7 @@ SECTIONS {
         *(COMMON)
         . = ALIGN(8);
          __bss_end = .;
-    } > mem
+    }
 
     . = ALIGN(8);
     
