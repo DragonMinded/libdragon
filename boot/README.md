@@ -6,12 +6,6 @@ perform the final phases of hardware initializations
 (specifically, RDRAM initialization and configuration) and
 actually loading the main binary and run it.
 
-Being the last stage of Nintendo 64's secure boot sequence,
-IPL3 must be signed with a cryptographic hash that is currently
-still expensive to compute (through GPU bruteforcing). As
-a workaround to help development, a pre-signed "trampoline" is
-used (see "boot.asm" for more information).
-
 ### IPL3 features
 
  * Searches and loads an ELF file appended to it. All loadable
@@ -19,14 +13,28 @@ used (see "boot.asm" for more information).
  * Support for compressed ELFs. Using some special ELF flags (see below),
    it is possible to compress an ELF file and provide a decompression
    function (stored in the ELF as well), that IPL3 will know how to invoke.
- * Very fast. Boots a 350 KiB ELF file in ~165ms (cold boot) or ~71ms (warm boot).
-   This is respectively 3 times and 4 times faster than Nintendo's IPL3.
+ * Very fast. Boots a 350 KiB ELF file in ~100ms (cold boot) or ~71ms (warm boot),
+   thanks also to the compression support that actually speeds up loading
+   (it goes at ~125ms if uncompressed). This is almost 5 times
+   faster (cold boot) and 4 times faster (warm boot) than Nintendo's IPL3.
  * ROMs can now be of any size (even smaller than 1 MiB), and no header checksum
-   is required.
- * The RDRAM is cleared before booting, in both cold and warm boot.
+   is required. Smaller ROMs are faster to upload especially for developers
+   using slower flashcarts and SD cards.
+ * The RDRAM is cleared before booting, in both cold and warm boot. This helps
+   reducing one common source of difference behavior between emulators and
+   real hardware, in case the software accesses uninitialized memory.
  * Entropy collection. During the boot process, some entropy is collected
    and made available to the running application in the form of a "true random"
    32-bit integer. This can be used to seed a pseudo random number generator.
+ * Development version available for easy and fast development cycle: using
+   a pre-signed trampoline, it is not required to sign the binary at every change.
+   Moreover, the development version isn't severely size limited and in fact
+   also links a minmal debugging library that allows to log both via USB
+   in flashcarts and in emulators.
+ * Beautiful visual error screens in case the ELF file is not found or is not
+   compatible. The error screen is minimal for size constraint, make sure
+   to always use the development version and look at the logging available
+   via USB and 
  * Support for iQue. With a trampoline trick, this IPL3 also works on the iQue
    console which normally skips IPL3.
  * Written in C code, with comments. Even though the code is extremely
@@ -36,7 +44,8 @@ used (see "boot.asm" for more information).
 ### Using IPL3
 
 Libdragon uses this IPL3 by default: it is embedded in the n64tool
-application used to build ROMs. Normally, this is done by n64.mk.
+application used to build ROMs. Normally, this is done via n64.mk. So there is
+nothing specific to do: standard libdragon applications will use this by default.
 
 To use this IPL3 with your own programming environment, please follow
 the following rules:
@@ -75,6 +84,10 @@ If something doesn't work, try using the development version of IPL3
 flashcarts. This should help you understand the problem.
 
 ### Building IPL3
+
+Standalone, pre-built binaries are available in the `bin` directory. Both
+the development version (`ipl3_dev.z64`) and the production version
+(`ipl3_prod.z64`) are signed for CIC 6102, which is the most common one.
 
 To build the standard libdragon IPL3, simply run:
 
@@ -141,24 +154,29 @@ through the following channels:
 ### ELF compression
 
 IPL3 supports a custom ELF compression format, that can be used to
-squeeze ROMs even more. 
+squeeze ROMs even more. For maximum flexibility and customization, the
+compressed ELF must bring its own decompression code; IPL3 will load the
+decompression code (stored in a special segment), and then will use it
+to decompress the rest of the segments. IPL3 itself does not ship
+any compression algorithm.
 
-For libdragon applications, everything is supported via n64.mk and the standard
+For libdragon applications, everything is supported via `n64.mk` and the standard
 Makefile; by default, ELF files are compressed with libdragon "level 1"
 compression (LZ4 at the time of writing), which is normally so fast that even
-speeds up loading compared to an uncompressed file.
+speeds up loading compared to an uncompressed file. If you want to change
+the compression level, you can set `N64_ROM_ELFCOMPRESS` to the compression
+level in your `Makefile` (eg: `N64_ROM_ELFCOMPRESS=3`) .
 
-If you want to build your own ELF compressed format, written without
-libdragon, the easiest option is to use libdragon's n64elfcompress tool
-(which has no dependencies with the rest of libdragon). The tool will
-compress ELF files using one of libdragon's builtin compression
-algorithms, as specified on the command line, and the resulting file will
-be loadable by IPL3.
+If you want to compress your own ELF, written without libdragon, the easiest
+option is to use libdragon's `n64elfcompress` tool (which has no dependencies
+with the rest of libdragon). The tool will compress ELF files using one of
+libdragon's builtin compression algorithms, as specified on the command line,
+and the resulting file will be loadable by IPL3.
 
-NOTE: at the moment of writing, n64elfcompress discards all sections in the
+NOTE: at the moment of writing, `n64elfcompress` discards all sections in the
 ELF file. If your application require sections to be available at runtime,
 then you will need to handle compression in some other means (or modify
-n64elfcompress).
+`n64elfcompress`).
 
 #### Format details
 
@@ -180,11 +198,8 @@ The corresponding program header follows some special interpretation of some fie
 Notice that IPL3 reserves the last 64 KiB of RAM to itself for execution. Do not
 step on that area with ELF segments.
 
-The compression algorithm is not known by IPL3, for maximum flexibility and
-to be future proof. Instead, the ELF file is expected to also carry a
-decompression function. The decompression function must be stored in a separate
-segment. The program header for it must contain one the following values
-in the `p_type` field:
+The decompression function must be stored in a separate segment. The program
+header for it must contain one the following values in the `p_type` field:
 
  * `PT_N64_DECOMP` (0x64e36341): the decompression function will be loaded 
    at the address specified by the `p_vaddr` field. It is up to the compressor
