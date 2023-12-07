@@ -68,7 +68,7 @@ endif
 $$($(1)_BIN): $$($(1)_OBJS)
 	@echo "    [TOOL] $(1)"
 	$(CXX) $(LDFLAGS) -o $$@ $$^
-$(1)-install: $$($(1)_BIN)
+$(1)-install: $(1)
 	mkdir -p $(INSTALLDIR)/bin
 	install -m 0755 $$($(1)_BIN) $(INSTALLDIR)/bin
 $(1)-clean:
