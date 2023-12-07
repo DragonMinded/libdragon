@@ -154,26 +154,34 @@ static const char MSG_ELF_OFFSET_NOT_ALIGNED[] = {
 
 #undef _
 
-
+__attribute__((noreturn))
 static void fatal(const char *str)
 {
 #if 1
 #define FATAL_TEXT  1
 #if FATAL_TEXT
 #endif
-    static const uint32_t vi_pal_p[] =  {
-        0x00003202, 0xa0100000, 0x00000140, 0x00000002,
-        0x00000008, 0x0404233a, 0x00000271, 0x00150c69,
-        0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-        0x00000200, 0x00000400 };
-    static volatile uint32_t *VI_REGS = (uint32_t*)0xA4400000;
+    static const uint32_t vi_regs_p[3][7] =  {
+    {   /* PAL */   0x0404233a, 0x00000271, 0x00150c69,
+        0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b },
+    {   /* NTSC */  0x03e52239, 0x0000020d, 0x00000c15,
+        0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204 },
+    {   /* MPAL */  0x04651e39, 0x0000020d, 0x00040c11,
+        0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204 },
+    };
 
     #define RGBA(r,g,b,a)   (((r)<<11) | ((g)<<6) | ((b)<<1) | (a))
     #define RGBA32(rgba32)  RGBA((((rgba32)>>19) & 0x1F), (((rgba32)>>11) & 0x1F), ((rgba32>>3) & 0x1F), (((rgba32)>>31) & 1))
 
     uint16_t *fb_base = (uint16_t*)0xA0100000;
+    volatile uint32_t* regs = (uint32_t*)0xA4400000;
+    regs[1] = (uint32_t)fb_base;
     for (int i=0; i<320*240; i++) 
         fb_base[i] = RGBA32(0xCB2B40);
+
+    regs[2] = 320;
+    regs[12] = 0x200;
+    regs[13] = 0x400;
 
 #if FATAL_TEXT
     const int RES_WIDTH = 320;
@@ -201,9 +209,11 @@ static void fatal(const char *str)
     }
 
 #endif
+    int tv_type = io_read8(0xA4400009);
     #pragma GCC unroll 0
-    for (int reg=13; reg>=0; reg--)
-        VI_REGS[reg] = vi_pal_p[reg];
+    for (int reg=0; reg<7; reg++)
+        regs[reg+5] = vi_regs_p[tv_type][reg];
+    regs[0] = 0x3202;
 #endif
     abort();
 }
