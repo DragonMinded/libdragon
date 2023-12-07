@@ -40,11 +40,11 @@ OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/ique_t
 
 ifeq ($(PROD),1)
 N64_CFLAGS += -DNDEBUG -DPROD
-IPL3_ROM=ipl3_prod.z64
+IPL3_ROM=bin/ipl3_prod.z64
 IPL3_LDSCRIPT=ipl3_prod.ld
 else
 OBJS += build/debug.o build/boot_trampoline.o 
-IPL3_ROM=ipl3_dev.z64
+IPL3_ROM=bin/ipl3_dev.z64
 IPL3_LDSCRIPT=ipl3_dev.ld
 endif
 
@@ -86,7 +86,7 @@ disasm: build/ipl3.elf
 	$(N64_OBJDUMP) -D build/ipl3.elf
 
 clean:
-	rm -rf build ipl3_dev.z64 ipl3_prod.z64
+	rm -rf build bin/ipl3_dev.z64 bin/ipl3_prod.z64
 
 -include $(wildcard build/*.d)
 
