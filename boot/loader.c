@@ -236,10 +236,11 @@ static void fatal(const char *str)
 
 #endif
     int tv_type = io_read8(0xA4400009);
+    bool ique = io_read8(0xA440000B);
     #pragma GCC unroll 0
     for (int reg=0; reg<7; reg++)
         regs[reg+5] = vi_regs_p[tv_type][reg];
-    regs[0] = 0x3202;
+    regs[0] = ique ? 0x1202 : 0x3202;
 #endif
     abort();
 }
