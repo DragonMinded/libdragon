@@ -205,6 +205,7 @@ void rsp_bzero_async(uint32_t rdram, int size)
         *SP_DRAM_ADDR = rdram; // this is automatically rounded down
         *SP_WR_LEN = sz-1;   // this is automatically rounded up
         size -= sz;
+        rdram += sz;
     }
 }
 
