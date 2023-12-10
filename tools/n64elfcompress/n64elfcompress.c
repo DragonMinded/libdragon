@@ -307,12 +307,23 @@ bool process(char *infn, char *outfn, int compression)
                 &outbuf, &cmp_size,
                 &winsize, &margin);
 
+            // Assembly decompressors can corrupt up to 8 bytes after the current
+            // write pointer, so add 8 bytes of safety.
+            margin += 8;
+
             verbose("  %d => %d [margin=%d]\n", elf->phdrs[i].p_filesz, cmp_size, margin);
             
             // If the compressed size is larger than the original, don't compress
             if (cmp_size >= dec_size) {
                 free(outbuf);
                 continue;
+            }
+
+            // Compress size must be even because of PI DMA constraints
+            if (cmp_size & 1) {
+                cmp_size++;
+                outbuf = realloc(outbuf, cmp_size);
+                outbuf[cmp_size-1] = 0;
             }
 
             // Update program header
