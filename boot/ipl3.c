@@ -195,6 +195,8 @@ void rsp_bzero_async(uint32_t rdram, int size)
     // using uncached writes so that they behave exactly the same as RSP DMA would.
     rdram |= 0xA0000000;
     bzero8((void*)rdram);
+    if (size <= 8)
+        return;
     bzero8((void*)(rdram + size - 8));
     rdram += 8;
     size -= 8;
