@@ -178,6 +178,16 @@ static const char MSG_ELF_OFFSET_NOT_ALIGNED[] = {
     _('A'), _('L'), _('I'), _('G'), _('N'), _('E'), _('D'), 0
 };
 
+// "ELF SIZE NOT MULTIPLE OF 2"
+__attribute__((aligned(1)))
+static const char MSG_ELF_SIZE_NOT_EVEN[] = {
+    _('E'), _('L'), _('F'), _(' '),
+    _('S'), _('I'), _('Z'), _('E'), _(' '),
+    _('N'), _('O'), _('T'), _(' '),
+    _('M'), _('U'), _('L'), _('T'), _('I'), _('P'), _('L'), _('E'), _(' '),
+    _('O'), _('F'), _(' '), _('2'), 0
+};
+
 #undef _
 
 __attribute__((noreturn))
@@ -323,6 +333,10 @@ void loader(void)
         if ((offset % 2) != 0) {
             debugf("ELF: file offset is not 2-byte aligned in segment");
             fatal(MSG_ELF_OFFSET_NOT_ALIGNED);
+        }
+        if ((size % 2) != 0) {
+            debugf("ELF: size is not multiple of 2 in segment");
+            fatal(MSG_ELF_SIZE_NOT_EVEN);
         }
 
         debugf("Segment ", i, phdr[0], offset, vaddr, size, flags);
