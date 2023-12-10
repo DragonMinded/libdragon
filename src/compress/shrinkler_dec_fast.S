@@ -28,6 +28,11 @@
 
 #define ROUND_UP(n,d)   (((n) + (d) - 1) / (d) * (d))
 
+#define DMA_RACE_MARGIN             16
+#define PI_REGS             0xA4600000
+#define PI_STATUS                 0x10
+#define PI_DRAM_ADDR              0x00
+
 #define ADJUST_SHIFT                4
 #define NUM_SINGLE_CONTEXTS         1
 #define NUM_CONTEXT_GROUPS          4
@@ -57,8 +62,21 @@ decompress_shrinkler_full_fast:
     sw $t2, 4($t0)
     blt $t0, $t1, .Linit_contexts_loop
      addiu $t0, 8
-
-    move ra3, $ra
+    # For Shrinkler, we don't do real DMA racing becuase the algorithm
+    # is so slow that PI DMA is always faster. The only real risk is
+    # at the very beginning: if this code is already in cache, we might
+    # fetch the first word before the DMA has written it. So we just
+    # wait for the DMA to write a little bit, and then we start decoding.
+    li $t2, PI_REGS
+.Lwaitdma_loop:
+    lw $t0, PI_STATUS($t2)
+    andi $t0, 1
+    beqz $t0, .Linitial_setup
+    lw $t1, PI_DRAM_ADDR($t2)
+    addu $t1, 0x80000000 - DMA_RACE_MARGIN
+    blt $t1, inbuf, .Lwaitdma_loop
+.Linitial_setup:
+     move ra3, $ra
     lwu intervalvalue, 0(inbuf)
     addiu inbuf, 4
     dsll intervalvalue, 31
