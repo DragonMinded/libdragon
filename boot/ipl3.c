@@ -273,7 +273,6 @@ void stage1(void)
     bool bbplayer = (*MI_VERSION & 0xF0) == 0xB0;
     if (!bbplayer) {
         memsize = rdram_init(mem_bank_init);
-        memsize = 8<<20;
     } else {
         // iQue OS put the memory size in a special location. This is the
         // amount of memory that the OS has assigned to the application, so it
