@@ -256,7 +256,7 @@ static void fatal(const char *str)
 }
 
 __attribute__((used))
-void loader(void)
+void stage2(void)
 {
     debugf("Hello from RDRAM ", __builtin_frame_address(0));
 

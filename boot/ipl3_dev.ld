@@ -10,6 +10,8 @@ MEMORY
 }
 
 SECTIONS {
+    /DISCARD/ : { *(.MIPS.abiflags) }
+
     .text.prologue 0xB0000000 : {
         KEEP(*(.header))
         KEEP(*(.text.boot_trampoline))
@@ -34,7 +36,7 @@ SECTIONS {
 
     .text.rom 0xB0001040 + SIZEOF ( .text.dmem ) : {
         __stage2_start = .;
-        KEEP(build/loader.o(.text.loader))
+        KEEP(build/loader.o(.text.stage2))
         KEEP(build/loader.o(.text .text.*))
         KEEP(build/loader.o(.data .data.*))
         . = ALIGN(8);
@@ -43,6 +45,4 @@ SECTIONS {
         *(.rodata)
         *(.rodata.*)
     } > rom
-
-    /DISCARD/ : { *(.MIPS.abiflags) }
 }

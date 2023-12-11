@@ -10,6 +10,8 @@ MEMORY
 }
 
 SECTIONS {
+    /DISCARD/ : { *(.MIPS.abiflags) }
+
     .text.dmem 0xA4000000 : {
         KEEP(*(.header))
         LONG(0x3044d236);  /* special dummy opcode to simplify hash cracking */
@@ -22,13 +24,6 @@ SECTIONS {
         build/minidragon.o (.text .text.* .data .rodata .rodata.*)
         build/entropy.o    (.text .text.* .data .rodata .rodata.*)
         *(.bss)
-        . = ALIGN(8);
-        __stage2_start = .;
-        KEEP(build/loader.o(.text.loader))
-        KEEP(build/loader.o(.text .text.* .rodata .rodata.*))
-        KEEP(build/loader.o(.data .data.*))
-        . = ALIGN(8);
-        __stage2_end = .;
     } > dmem
 
     .text.signature 0xA4000FF8 : {
@@ -39,7 +34,13 @@ SECTIONS {
 
     .text.rom 0xB0001000  : AT ( 0xA4001000 ) {
         KEEP(*(.text.ique_trampoline))
+        KEEP(build/loader.o(.text.stage3))
+        . = ALIGN(8);
+        __stage2_start = .;
+        KEEP(build/loader.o(.text.stage2))
+        KEEP(build/loader.o(.text .text.* .rodata .rodata.*))
+        KEEP(build/loader.o(.data .data.*))
+        . = ALIGN(8);
+        __stage2_end = .;
     } > rom
-
-    /DISCARD/ : { *(.MIPS.abiflags) }
 }
