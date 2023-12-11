@@ -19,7 +19,16 @@ jobs:
           install: >-
             base-devel
             mingw-w64-${{ matrix.arch }}-toolchain
+            unzip
           update: true
+
+      - name: Download and extract latest toolchain
+        shell: msys2 {0}
+        run: |
+          curl -Lo gcc-toolchain-mips64-win64.zip https://github.com/DragonMinded/libdragon/releases/download/toolchain-continuous-prerelease/gcc-toolchain-mips64-win64.zip
+          unzip gcc-toolchain-mips64-win64.zip -d gcc-toolchain-mips64
+          rm -f gcc-toolchain-mips64-win64.zip
+          echo "N64_INST=$(pwd)/gcc-toolchain-mips64" >>$GITHUB_ENV
 
       - uses: actions/checkout@v3
         with:
