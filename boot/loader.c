@@ -52,6 +52,11 @@ __attribute__((far))
 extern void rsp_clear_mem(uint32_t mem, int size);
 __attribute__((far))
 extern void rsp_bzero_async(uint32_t rdram, int size);
+__attribute__((far))
+extern void cop0_clear_cache(void);
+
+__attribute__((far, noreturn))
+void stage3(uint32_t entrypoint);
 
 static void pi_read_async(void *dram_addr, uint32_t cart_addr, uint32_t len)
 {
@@ -256,7 +261,7 @@ static void fatal(const char *str)
 }
 
 __attribute__((used))
-void loader(void)
+void stage2(void)
 {
     debugf("Hello from RDRAM ", __builtin_frame_address(0));
 
@@ -267,11 +272,10 @@ void loader(void)
 
     // Search for the ELF header. We search for a 256-byte aligned header
     // starting at offset 0x1000 in the ROM area (after the IPL3).
-    // We search for a bit but not forever -- it doesn't help anyone a ROM
-    // that starts after 2 minutes.
+    // We search for 64 MiB of ROM space (takes only a couple of seconds)
     uint32_t elf_header = 0x10001000;
     bool found_elf = false;
-    for (int i=0; i<1024; i++) {
+    for (int i=0; i<64*1024*1024/256; i++) {
         if (io_read32(elf_header) == ELF_MAGIC) {
             found_elf = true;
             break;
@@ -291,6 +295,7 @@ void loader(void)
     // for them.
     uint32_t phoff = io_read32(elf_header + 0x1C);
     int phnum = io_read16(elf_header + 0x2C);
+    uint32_t entrypoint = io_read32(elf_header + 0x18);
     uint32_t *phdr = alloca_aligned(0x20 * phnum);
     data_cache_hit_writeback_invalidate(phdr, 0x20 * phnum);
 
@@ -375,7 +380,6 @@ void loader(void)
         // Wait for the DMA to finish.
         pi_wait();
     }
-    void *entrypoint = (void*)io_read32(elf_header + 0x18);
 
     // Reset the RCP hardware
     rcp_reset();
@@ -384,20 +388,40 @@ void loader(void)
     *(uint32_t*)0xA4000004 = entropy_get();
     debugf("Boot flags: ", *(uint32_t*)0xA4000000, *(uint32_t*)0xA4000004, *(uint32_t*)0xA4000008, *(uint32_t*)0xA400000C);
 
+    // Jump to the ROM finish function
+    stage3(entrypoint);
+}
+
+// This is the last stage of IPL3. It runs directly from ROM so that we are
+// free of cleaning up our breadcrumbs in both DMEM and RDRAM.
+__attribute__((far, noreturn))
+void stage3(uint32_t entrypoint)
+{
     // Notify the PIF that the boot process is finished. This will take a while
     // so start it in background.
     pif_terminate_boot();
 
+    // Reset the CPU cache, so that the application starts from a pristine state
+    cop0_clear_cache();
+
+    // Read memory size from boot flags
+    int memsize = *(volatile uint32_t*)0xA4000000;
+
     // Clear DMEM (leave only the boot flags area intact). Notice that we can't
     // call debugf anymore after this, because a small piece of debugging code
     // (io_write) is in DMEM, so it can't be used anymore.
-    rsp_clear_mem(0xA4000010, 4096-16);
-    #undef debugf
+    while (*SP_DMA_FULL) {}
+    *SP_RSP_ADDR = 0xA4001000;
+    *SP_DRAM_ADDR = memsize - TOTAL_RESERVED_SIZE;
+    *SP_WR_LEN = TOTAL_RESERVED_SIZE;
+    while (*SP_DMA_FULL) {}
+    *SP_RSP_ADDR = 0xA4000010;
+    *SP_DRAM_ADDR = 0x00802000;  // Area > 8 MiB which is guaranteed to be empty
+    *SP_RD_LEN = 4096-16-1;
 
     // Wait until the PIF is done. This will also clear the interrupt, so that
     // we don't leave the interrupt pending when we go to the entrypoint.
     si_wait();
 
-    // Jump to the entry point
-    goto *entrypoint;
+    goto *(void*)entrypoint;
 }

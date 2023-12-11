@@ -218,12 +218,6 @@ void rsp_bzero_async(uint32_t rdram, int size)
 // schedule two transfers for each bank.
 static void mem_bank_init(int chip_id, bool last)
 {
-    // If this is the last memory bank, don't do anything.
-    // We keep the RSP DMA idle to be able to quickly load
-    // the loader into it. We will clear this later.
-    if (last)
-        return;
-
     uint32_t base = chip_id*1024*1024;
     int size = 2*1024*1024;
 
@@ -238,6 +232,10 @@ static void mem_bank_init(int chip_id, bool last)
     if (chip_id == 0 && ipl2_resetType != 0) {
         base += 0x400;
         size -= 0x400;
+    } else if (last) {
+        // If this is the last chip, we skip the last portion of RDRAM where
+        // we store the stage2
+        size -= TOTAL_RESERVED_SIZE;
     }
     rsp_bzero_async(base, size);
 }
@@ -275,6 +273,7 @@ void stage1(void)
     bool bbplayer = (*MI_VERSION & 0xF0) == 0xB0;
     if (!bbplayer) {
         memsize = rdram_init(mem_bank_init);
+        memsize = 8<<20;
     } else {
         // iQue OS put the memory size in a special location. This is the
         // amount of memory that the OS has assigned to the application, so it
@@ -287,6 +286,14 @@ void stage1(void)
         if (memsize == 0x800000)
             memsize = 0x7C0000;
     }
+
+    // Copy the IPL3 stage2 (loader.c) from ROM to the end of RDRAM.
+    extern uint32_t __stage2_start[]; extern int __stage2_size;
+    int stage2_size = (int)&__stage2_size;
+    void *rdram_stage2 = LOADER_BASE(memsize, stage2_size);
+    *PI_DRAM_ADDR = (uint32_t)rdram_stage2;
+    *PI_CART_ADDR = (uint32_t)__stage2_start - 0xA0000000;
+    *PI_WR_LEN = stage2_size-1;
 
     // Clear D/I-cache, useful after warm boot. Maybe not useful for cold
     // boots, but the manual says that the cache state is invalid at boot,
@@ -301,28 +308,7 @@ void stage1(void)
     bootinfo->flags = (ipl2_tvType << 16) | (ipl2_resetType << 8) | (bbplayer ? 1 : 0);
     bootinfo->padding = 0;
 
-    // Perform a memtest
-    // memtest(memsize);
-
-    // Copy the IPL3 stage2 (loader.c) from DMEM to the end of RDRAM.
-    extern uint32_t __stage2_start[]; extern int __stage2_size;
-    int stage2_size = (int)&__stage2_size;
-    void *rdram_stage2 = LOADER_BASE(memsize, stage2_size);
-    #ifdef PROD
-    rsp_dma_to_rdram(__stage2_start, rdram_stage2, stage2_size);
-    #else
-    *PI_DRAM_ADDR = (uint32_t)rdram_stage2;
-    *PI_CART_ADDR = (uint32_t)__stage2_start - 0xA0000000;
-    *PI_WR_LEN = stage2_size-1;
     while (*PI_STATUS & 1) {}
-    #endif
-
-    // Clear the last 2 MiB of RDRAM. This is where the loader was just
-    // copied, so make sure not to step over the the loader itself.
-    // NOTE: this wouldn't be necessary if we played games with cache, but
-    // that would be largely emulator unfriendly, and it seems not worth to
-    // break most emulators for a minor performance gain.
-    rsp_bzero_async(memsize-2*1024*1024, 2*1024*1024-TOTAL_RESERVED_SIZE);
 
     // Jump to stage 2 in RDRAM.
     MEMORY_BARRIER();
