@@ -267,11 +267,10 @@ void stage2(void)
 
     // Search for the ELF header. We search for a 256-byte aligned header
     // starting at offset 0x1000 in the ROM area (after the IPL3).
-    // We search for a bit but not forever -- it doesn't help anyone a ROM
-    // that starts after 2 minutes.
+    // We search for 64 MiB of ROM space (takes only a couple of seconds)
     uint32_t elf_header = 0x10001000;
     bool found_elf = false;
-    for (int i=0; i<1024; i++) {
+    for (int i=0; i<64*1024*1024/256; i++) {
         if (io_read32(elf_header) == ELF_MAGIC) {
             found_elf = true;
             break;
