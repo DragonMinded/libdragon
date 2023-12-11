@@ -19,6 +19,7 @@ jobs:
           install: >-
             base-devel
             mingw-w64-${{ matrix.arch }}-toolchain
+            unzip
           update: true
 
       - uses: actions/checkout@v4
