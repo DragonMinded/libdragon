@@ -21,7 +21,7 @@ jobs:
             mingw-w64-${{ matrix.arch }}-toolchain
           update: true
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
 
