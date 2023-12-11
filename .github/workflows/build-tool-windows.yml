@@ -19,7 +19,6 @@ jobs:
           install: >-
             base-devel
             mingw-w64-${{ matrix.arch }}-toolchain
-            unzip
           update: true
 
       - uses: actions/checkout@v4
@@ -29,9 +28,9 @@ jobs:
       - name: Download and extract latest toolchain
         shell: msys2 {0}
         run: |
-          curl -o gcc-toolchain-mips64-win64.zip https://github.com/DragonMinded/libdragon/releases/download/toolchain-continuous-prerelease/gcc-toolchain-mips64-win64.zip
-          unzip gcc-toolchain-mips64-win64.zip -d "gcc-toolchain-mips64"
-          rm -f gcc-toolchain-mips64-win64.zip
+          curl -o "gcc-toolchain-mips64-win64.zip" https://github.com/DragonMinded/libdragon/releases/download/toolchain-continuous-prerelease/gcc-toolchain-mips64-win64.zip
+          tar -zxvf "gcc-toolchain-mips64-win64.zip"
+          rm -f "gcc-toolchain-mips64-win64.zip"
 
 
       - name: Correct MSYS2 pthread.h to allow static libraries (otherwise you would need to use a lib DLL, rather than it being built into the EXE.)
