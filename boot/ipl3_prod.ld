@@ -39,6 +39,8 @@ SECTIONS {
         KEEP(build/loader.o(.text.stage3))
         . = ALIGN(8);
         __stage2_start = .;
+        LONG(__stage2_end - __stage2_start);
+        LONG(0);
         KEEP(build/loader.o(.text.stage2))
         KEEP(build/loader.o(.text .text.* .rodata .rodata.*))
         KEEP(build/loader.o(.data .data.*))

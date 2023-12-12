@@ -287,11 +287,15 @@ void stage1(void)
     }
 
     // Copy the IPL3 stage2 (loader.c) from ROM to the end of RDRAM.
-    extern uint32_t __stage2_start[]; extern int __stage2_size;
-    int stage2_size = (int)&__stage2_size;
+    extern uint32_t __stage2_start[];
+    uint32_t stage2_start = (uint32_t)__stage2_start;
+    int stage2_size = io_read(stage2_start);
+    stage2_start += 8;
+    debugf("stage2 ", stage2_start, stage2_size);
+
     void *rdram_stage2 = LOADER_BASE(memsize, stage2_size);
     *PI_DRAM_ADDR = (uint32_t)rdram_stage2;
-    *PI_CART_ADDR = (uint32_t)__stage2_start - 0xA0000000;
+    *PI_CART_ADDR = (uint32_t)stage2_start - 0xA0000000;
     *PI_WR_LEN = stage2_size-1;
 
     // Clear D/I-cache, useful after warm boot. Maybe not useful for cold
