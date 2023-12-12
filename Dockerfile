@@ -2,7 +2,7 @@
 # V0 - Use this comment to force a re-build without changing the contents
 
 # Stage 1 - Build the toolchain
-FROM ubuntu:latest
+FROM ubuntu:22.04
 ARG N64_INST=/n64_toolchain
 ENV N64_INST=${N64_INST}
 
@@ -19,7 +19,7 @@ RUN ./build-toolchain.sh
 RUN rm -rf ${N64_INST}/share/locale/*
 
 # Stage 2 - Prepare minimal image
-FROM ubuntu:latest
+FROM ubuntu:22.04
 ARG N64_INST=/n64_toolchain
 ENV N64_INST=${N64_INST}
 ENV PATH="${N64_INST}/bin:$PATH"
