@@ -41,6 +41,24 @@ actually loading the main binary and run it.
    low-level, care has been taken to make sure it is easily hackable
    (no hidden assumptions, no dependency on weird corner cases of GCC codegen).
 
+### ChangeLog
+
+(for each version, the md5 of ipl3_prod.z64 is reported)
+
+r2 (8eb4192531d365fe3607be973f2f4eb0)
+* Fix silly bug that prevented half of RDRAM from being cleared
+* Fix bug causing last bytes of decompressed data to be overwritten with zeros
+* Fix error screen display on iQue
+* Production build now it's bigger than 4 KiB, to avoid too many constraints
+  that reduced development flexibility
+* ELF file is now searched through up to 64 MiB
+* Instruction and Data Cache are fully reset before jumping to the entrypoint
+* High 32 KiB of RDRAM are now cleared before jumping to the entrypoint
+
+r1 (d240dee9f218e48edffa16ab24249ecf)
+* First release
+
+
 ### Using IPL3
 
 Libdragon uses this IPL3 by default: it is embedded in the n64tool
