@@ -27,13 +27,15 @@ SECTIONS {
     } > dmem
 
     .text.signature 0xA4000FF8 : {
-        QUAD(0x0000000000000000);
+        QUAD(0x0000BD2B4EA72F09);
     } > dmem
 
     __stage2_size = __stage2_end - __stage2_start;
 
-    .text.rom 0xB0001000  : AT ( 0xA4001000 ) {
+    .text.ique 0xB0001000  : AT ( 0xA4001000 ) {
         KEEP(*(.text.ique_trampoline))
+    }
+    .text.stage23 0xB0001040  : AT ( 0xA4001040 ) {
         KEEP(build/loader.o(.text.stage3))
         . = ALIGN(8);
         __stage2_start = .;
