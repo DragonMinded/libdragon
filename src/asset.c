@@ -304,8 +304,10 @@ FILE *asset_fopen(const char *fn, int *sz)
 
         assertf(header.algo >= 1 || header.algo <= 2,
             "unsupported compression algorithm: %d", header.algo);
-        assertf(algos[header.algo-1].decompress_init, 
+        assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
+        assertf(algos[header.algo-1].decompress_init, 
+            "asset: compression level %d does not currently support asset_fopen()", header.algo);
 
         int winsize = asset_winsize_from_flags(header.flags);
         cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);
