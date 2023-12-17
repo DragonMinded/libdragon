@@ -126,6 +126,15 @@ typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 
 #define AI_STATUS                           ((volatile uint32_t*)0xA450000C)
 
+#define RI_MODE								((volatile uint32_t*)0xA4700000)
+#define RI_CONFIG							((volatile uint32_t*)0xA4700004)
+#define RI_CURRENT_LOAD						((volatile uint32_t*)0xA4700008)
+#define RI_SELECT							((volatile uint32_t*)0xA470000C)
+#define RI_REFRESH							((volatile uint32_t*)0xA4700010)
+#define RI_LATENCY							((volatile uint32_t*)0xA4700014)
+#define RI_ERROR							((volatile uint32_t*)0xA4700018)
+#define RI_BANK_STATUS						((volatile uint32_t*)0xA470001C)
+
 #define PI_CLEAR_INTERRUPT                  0x02
 #define SI_CLEAR_INTERRUPT                  0
 #define SP_CLEAR_INTERRUPT                  0x08

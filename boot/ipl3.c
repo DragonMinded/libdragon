@@ -221,18 +221,7 @@ static void mem_bank_init(int chip_id, bool last)
     uint32_t base = chip_id*1024*1024;
     int size = 2*1024*1024;
 
-    // If we are doing a warm boot, skip the first 0x400 bytes
-    // of RAM (on the first chip, because it historically contains
-    // some boot flags that some existing code might expect to stay there.
-    // For instance, the Everdrive menu expects 0x80000318 to still
-    // contain the RDRAM size after a warm boot, and we need to comply
-    // with this even if Everdrive itself doesn't use this IPL3 (but
-    // might boot a game that does, and that game shouldn't clear
-    // 0x80000318).
-    if (chip_id == 0 && ipl2_resetType != 0) {
-        base += 0x400;
-        size -= 0x400;
-    } else if (last) {
+    if (last) {
         // If this is the last chip, we skip the last portion of RDRAM where
         // we store the stage2
         size -= TOTAL_RESERVED_SIZE;
@@ -271,20 +260,46 @@ void stage1(void)
 
     int memsize;
     bool bbplayer = (*MI_VERSION & 0xF0) == 0xB0;
-    if (!bbplayer) {
+
+    if (!bbplayer && *RI_SELECT == 0) {
         memsize = rdram_init(mem_bank_init);
     } else {
-        // iQue OS put the memory size in a special location. This is the
-        // amount of memory that the OS has assigned to the application, so it
-        // could be less than the physical total memory. Anyway, it's the value
-        // we should use and pass along.
-        memsize = *(uint32_t*)0xA0000318;
+        if (bbplayer) {
+            // iQue OS put the memory size in a special location. This is the
+            // amount of memory that the OS has assigned to the application, so it
+            // could be less than the physical total memory. Anyway, it's the value
+            // we should use and pass along.
+            memsize = *(uint32_t*)0xA0000318;
 
-        // Notice that even if 8 MiB were allocated, the top of the memory is
-        // in-use by save state emulation, so we shouldn't access it anyway.
-        if (memsize == 0x800000)
-            memsize = 0x7C0000;
+            // Notice that even if 8 MiB were allocated, the top of the memory is
+            // in-use by save state emulation, so we shouldn't access it anyway.
+            if (memsize == 0x800000)
+                memsize = 0x7C0000;
+        } else {
+            // On warm boots, 
+            int chip_id = 0;
+            memsize = 0;
+            for (chip_id=0; chip_id<8; chip_id+=2) {
+                volatile uint32_t *ptr = (void*)0xA0000000 + chip_id * 1024 * 1024;
+                ptr[0]=0;
+                ptr[0]=0x12345678;
+                if (ptr[0] != 0x12345678) break;
+                memsize += 2*1024*1024;
+            }
+        }
+
+        // Clear memory. Skip the first 0x400 bytes of RAM because it
+        // historically contains some boot flags that some existing code
+        // might expect to stay there.
+        // For instance, the Everdrive menu expects 0x80000318 to still
+        // contain the RDRAM size after a warm boot, and we need to comply
+        // with this even if Everdrive itself doesn't use this IPL3 (but
+        // might boot a game that does, and that game shouldn't clear
+        // 0x80000318).
+        rsp_bzero_async(0xA0000400, memsize-0x400-TOTAL_RESERVED_SIZE);
     }
+
+    debugf("Total memory: ", memsize);
 
     // Copy the IPL3 stage2 (loader.c) from ROM to the end of RDRAM.
     extern uint32_t __stage2_start[];

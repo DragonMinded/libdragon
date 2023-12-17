@@ -25,15 +25,6 @@
  */
 #define SUPPORT_HW1   0
 
-#define RI_MODE								((volatile uint32_t*)0xA4700000)
-#define RI_CONFIG							((volatile uint32_t*)0xA4700004)
-#define RI_CURRENT_LOAD						((volatile uint32_t*)0xA4700008)
-#define RI_SELECT							((volatile uint32_t*)0xA470000C)
-#define RI_REFRESH							((volatile uint32_t*)0xA4700010)
-#define RI_LATENCY							((volatile uint32_t*)0xA4700014)
-#define RI_ERROR							((volatile uint32_t*)0xA4700018)
-#define RI_BANK_STATUS						((volatile uint32_t*)0xA470001C)
-
 // Memory map exposed by RI to the CPU
 #define RDRAM                               ((volatile void*)0xA0000000)
 #define RDRAM_REGS                          ((volatile uint32_t*)0xA3F00000)
@@ -336,24 +327,6 @@ static int rdram_calibrate_current(uint16_t chip_id)
 
 int rdram_init(void (*bank_found)(int chip_id, bool last))
 {
-    // Check if it's already initialized (after reset)
-    if (*RI_SELECT) {
-        // We assume the RAM is already laid out. Try to check how much memory
-        // is present in the system
-        int total_memory = 0, chip_id = 0;
-        for (chip_id=0; chip_id<8; chip_id+=2) {
-            volatile uint32_t *ptr = RDRAM + chip_id * 1024 * 1024;
-            ptr[0]=0;
-            ptr[0]=0x12345678;
-            if (ptr[0] != 0x12345678) break;
-            total_memory += 2*1024*1024;
-        }
-        debugf("Total memory: ", total_memory);
-        for (int i=0; i<chip_id; i+=2)
-            bank_found(i, i+2 >= chip_id);
-        return total_memory;
-    }
-
     // Start current calibration. This is necessary to ensure the RAC outputs
     // the correct current value to talk to RDRAM chips.
     *RI_CONFIG = RI_CONFIG_AUTO_CALIBRATION;   // Turn on the RI auto current calibration
@@ -481,8 +454,6 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         chip_id += 2;
         total_memory += 2*1024*1024;
     }
-
-    debugf("Total memory: ", total_memory);
 
     // Setup now the RI refresh register, so that RDRAM chips get refreshed
     // at each HSYNC.
