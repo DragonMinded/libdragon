@@ -24,7 +24,7 @@
 
 static uint32_t rotl(uint32_t x, int k)
 {
-    return (x << k) | (x >> (~k & 31));
+    return (x << k) | (x >> (-k & 31));
 }
 
 void entropy_add(uint32_t k)
