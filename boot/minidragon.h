@@ -111,6 +111,7 @@ typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 #define MI_WMODE_CLEAR_UPPER_MODE           0x1000
 #define MI_VERSION                          ((volatile uint32_t*)0xA4300004)
 #define MI_INTERRUPT                        ((volatile uint32_t*)0xA4300008)
+#define MI_IQUE_RNG                         ((volatile uint32_t*)0xA430002C)
 #define MI_WINTERRUPT_CLR_SP                0x0001
 #define MI_WINTERRUPT_SET_SP                0x0002
 #define MI_WINTERRUPT_CLR_SI                0x0004

@@ -275,6 +275,12 @@ void stage1(void)
             // in-use by save state emulation, so we shouldn't access it anyway.
             if (memsize == 0x800000)
                 memsize = 0x7C0000;
+
+            // iQue has a hardware RNG. Use that to fetch 32 bits of entropy
+            uint32_t rng = 0;
+            for (int i=0;i<32;i++)
+                rng = (rng << 1) | (*MI_IQUE_RNG & 1);
+            entropy_add(rng);
         } else {
             // On warm boots, 
             int chip_id = 0;
