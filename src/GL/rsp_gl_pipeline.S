@@ -616,8 +616,8 @@ GL_TnL:
 
     # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
     vmudn v___,  vstrq_f, vtexsize
-    vmadh vstrq, vstrq_i, vtexsize
-    vsub  vstrq, vtexoffset
+    vmadh v___,  vstrq_i, vtexsize
+    vmadh vstrq, vtexoffset, K1
 
     #undef vinvq_i
     #undef vinvq_f

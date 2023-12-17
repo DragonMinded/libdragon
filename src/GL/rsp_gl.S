@@ -848,9 +848,13 @@ gl_skipcombinerblender:
 
     # If bilinear sampling is active, texture coords need to be offset by half a texel,
     # which is 0x10 in s10.5
+    lh t3, %lo(GL_STATE_TEX_SIZE) + 2
     sll t1, t2, TEX_BILINEAR_OFFSET_SHIFT
+    neg t1, t1
+    sra t3, 1
+    sub t3, t1, t3
     sh t1, %lo(GL_STATE_TEX_OFFSET) + 0
-    sh t1, %lo(GL_STATE_TEX_OFFSET) + 2
+    sh t3, %lo(GL_STATE_TEX_OFFSET) + 2
 
     beqz t5, 1f
     sll t2, TEX_BILINEAR_SHIFT
@@ -956,6 +960,7 @@ GLCmd_PreInitPipeTex:
     lh t1, IMAGE_HEIGHT_OFFSET(active_tex)
     sll t0, TEX_COORD_SHIFT
     sll t1, TEX_COORD_SHIFT
+    neg t1, t1
     sh t0, %lo(GL_STATE_TEX_SIZE) + 0
     sh t1, %lo(GL_STATE_TEX_SIZE) + 2
 
