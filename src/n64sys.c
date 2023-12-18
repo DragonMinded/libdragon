@@ -35,7 +35,7 @@
  */
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
-int __boot_entropy;        ///< Entropy as provided by IPL3
+uint32_t __boot_entropy;   ///< Entropy as provided by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
@@ -301,6 +301,11 @@ reset_type_t sys_reset_type(void)
     return __boot_resettype;
 }
 
+uint32_t sys_get_entropy(void)
+{
+    return __boot_entropy;
+}
+
 uint64_t get_ticks(void)
 {
 	uint32_t now = TICKS_READ();
@@ -341,7 +346,8 @@ void wait_ms( unsigned long wait_ms )
  * The system will recover after a reset or power cycle.
  * 
  */
-__attribute__((noreturn)) void die(void){
+void die(void)
+{
     // Can't have any interrupts here
     disable_interrupts();
     // Halt the RSP
@@ -355,12 +361,11 @@ __attribute__((noreturn)) void die(void){
     abort();
 }
 
-
 /**
  * @brief Initialize COP1 with default settings that prevent undesirable exceptions.
  *
  */
-__attribute__((constructor)) void __init_cop1()
+__attribute__((constructor)) void __init_cop1(void)
 {
     /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();
