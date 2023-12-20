@@ -6,7 +6,16 @@
 #ifndef __LIBDRAGON_GRAPHICS_H
 #define __LIBDRAGON_GRAPHICS_H
 
-#include "display.h"
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+///@cond
+typedef struct surface_s surface_t;
+typedef struct sprite_s sprite_t;
+///@endcond
 
 /**
  * @addtogroup graphics
@@ -57,37 +66,6 @@ inline color_t color_from_packed16(uint16_t c) {
 inline color_t color_from_packed32(uint32_t c) {
     return (color_t){ .r=(c>>24)&0xFF, .g=(c>>16)&0xFF, .b=(c>>8)&0xFF, .a=c&0xFF };
 }
-
-/** @brief Sprite structure */
-typedef struct
-{
-    /** @brief Width in pixels */
-    uint16_t width;
-    /** @brief Height in pixels */
-    uint16_t height;
-    /** 
-     * @brief Bit depth expressed in bytes
-     *
-     * A 32 bit sprite would have a value of '4' here
-     */
-    uint8_t bitdepth;
-    /** 
-     * @brief Sprite format
-     * @note Currently unused
-     */
-    uint8_t format;
-    /** @brief Number of horizontal slices for spritemaps */
-    uint8_t hslices;
-    /** @brief Number of vertical slices for spritemaps */
-    uint8_t vslices;
-
-    /** @brief Start of graphics data */
-    uint32_t data[0];
-} sprite_t;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 uint32_t graphics_make_color( int r, int g, int b, int a );
 uint32_t graphics_convert_color( color_t color );
