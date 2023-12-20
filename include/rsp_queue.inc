@@ -191,6 +191,14 @@ _RSPQ_SAVED_STATE_END:
 #define K32      vshift,e(2)
 #define K64      vshift,e(1)
 #define K128     vshift,e(0)
+#define K256     vshift8,e(7)
+#define K512     vshift8,e(6)
+#define K1024    vshift8,e(5)
+#define K2048    vshift8,e(4)
+#define K4096    vshift8,e(3)
+#define K8192    vshift8,e(2)
+#define K16384   vshift8,e(1)
+#define KM32768  vshift8,e(0)    // note: this is actually -32768 for most arithmetic operations
 
 
 ########################################################
