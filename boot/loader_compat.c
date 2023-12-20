@@ -61,7 +61,6 @@ void stage2(void)
 __attribute__((far, noreturn))
 void stage3(uint32_t entrypoint)
 {
-    asm("tne $0, $0, 0x10");
     // Read memory size from boot flags
     int memsize = *(volatile uint32_t*)0x80000318;
 
