@@ -54,6 +54,8 @@
 #define __LIBDRAGON_SURFACE_H
 
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -253,6 +255,16 @@ inline tex_format_t surface_get_format(const surface_t *surface)
     return (tex_format_t)(surface->flags & SURFACE_FLAGS_TEXFORMAT);
 }
 
+/**
+ * @brief Checks whether this surface owns the buffer that it contains.
+ * 
+ * @param[in] surface   Surface
+ * @return              True if this surface owns the buffer; false otherwise
+ */
+inline bool surface_has_owned_buffer(const surface_t *surface)
+{
+    return surface->buffer != NULL && surface->flags & SURFACE_FLAGS_OWNEDBUFFER;
+}
 #ifdef __cplusplus
 }
 #endif
