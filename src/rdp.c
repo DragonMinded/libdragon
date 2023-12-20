@@ -6,7 +6,12 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
-#include "libdragon.h"
+#include "n64sys.h"
+#include "interrupt.h"
+#include "display.h"
+#include "rdp.h"
+#include "sprite.h"
+#include "debug.h"
 
 /**
  * @defgroup rdp Hardware Display Interface
@@ -457,14 +462,18 @@ void rdp_enable_texture_copy( void )
  */
 static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int sl, int tl, int sh, int th )
 {
+    int bitdepth = TEX_FORMAT_BITDEPTH(sprite_get_format(sprite));
+    assertf( bitdepth == 2 || bitdepth == 4, "unsupported bitdepth (%d) for sprite", bitdepth );
+    bitdepth /= 8;
+
     /* Invalidate data associated with sprite in cache */
     if( flush_strategy == FLUSH_STRATEGY_AUTOMATIC )
     {
-        data_cache_hit_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
+        data_cache_hit_writeback_invalidate( sprite->data, sprite->width * sprite->height * bitdepth );
     }
 
     /* Point the RDP at the actual sprite data */
-    __rdp_ringbuffer_queue( 0xFD000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (sprite->width - 1) );
+    __rdp_ringbuffer_queue( 0xFD000000 | ((bitdepth == 2) ? 0x00100000 : 0x00180000) | (sprite->width - 1) );
     __rdp_ringbuffer_queue( (uint32_t)sprite->data );
     __rdp_ringbuffer_send();
 
@@ -482,8 +491,8 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     int round_amount = (real_width % 8) ? 1 : 0;
 
     /* Instruct the RDP to copy the sprite data out */
-    __rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | 
-                                       (((((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF) << 9) | ((texloc / 8) & 0x1FF) );
+    __rdp_ringbuffer_queue( 0xF5000000 | ((bitdepth == 2) ? 0x00100000 : 0x00180000) | 
+                                       (((((real_width / 8) + round_amount) * bitdepth) & 0x1FF) << 9) | ((texloc / 8) & 0x1FF) );
     __rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled != MIRROR_DISABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
     __rdp_ringbuffer_send();
 
@@ -501,7 +510,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     cache[texslot & 0x7].real_height = real_height;
     
     /* Return the amount of texture memory consumed by this texture */
-    return ((real_width / 8) + round_amount) * 8 * real_height * sprite->bitdepth;
+    return ((real_width / 8) + round_amount) * 8 * real_height * bitdepth;
 }
 
 /**

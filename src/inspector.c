@@ -8,6 +8,7 @@
 #include "backtrace_internal.h"
 #include "cop0.h"
 #include "n64sys.h"
+#include "display.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
