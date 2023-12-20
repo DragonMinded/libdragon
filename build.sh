@@ -18,12 +18,13 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   fi
 fi
 
-CFLAGS=${CFLAGS:-}; export CFLAGS
-LDFLAGS=${LDFLAGS:-}; export LDFLAGS
-
 makeWithParams(){
+  make -j"${JOBS}" "$@"
+}
+
+sudoMakeWithParams(){
   make -j"${JOBS}" "$@" || \
-    sudo env N64_INST="$N64_INST" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
+    sudo env N64_INST="$N64_INST" \
       make -j"${JOBS}" "$@"
 }
 
@@ -32,8 +33,10 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # Clean, build, and install libdragon + tools
+sudoMakeWithParams install-mk
 makeWithParams clobber
-makeWithParams install tools-install
+makeWithParams libdragon tools
+sudoMakeWithParams install tools-install
 
 # Build examples and tests - libdragon must be already installed at this point,
 # so first clobber the build to make sure that everything works against the
@@ -41,3 +44,6 @@ makeWithParams install tools-install
 makeWithParams clobber
 makeWithParams examples
 makeWithParams test
+
+echo
+echo Libdragon built successfully!
