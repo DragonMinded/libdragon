@@ -10,14 +10,6 @@ if [[ -z ${N64_INST-} ]]; then
   exit 1
 fi
 
-if [[ $OSTYPE == 'darwin'* ]]; then
-  if command -v brew >/dev/null; then
-    brew install libpng
-    CFLAGS="-I$(brew --prefix)/include"
-    LDFLAGS="-L$(brew --prefix)/lib"
-  fi
-fi
-
 makeWithParams(){
   make -j"${JOBS}" "$@"
 }
