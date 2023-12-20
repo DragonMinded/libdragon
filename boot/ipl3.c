@@ -327,10 +327,20 @@ void stage1(void)
     // Fill boot information at beginning of DMEM. The rest of IMEM has been
     // cleared by now anyway. Notice that we also store BSS in IMEM, so the
     // linker script reserves initial part to boot information.
+#ifndef COMPAT
     bootinfo_t *bootinfo = (bootinfo_t*)0xA4000000;
     bootinfo->memory_size = memsize;
     bootinfo->flags = (ipl2_tvType << 16) | (ipl2_resetType << 8) | (bbplayer ? 1 : 0);
     bootinfo->padding = 0;
+#else
+    *(volatile uint32_t *)0x80000300 = ipl2_tvType;
+    *(volatile uint32_t *)0x80000304 = ipl2_romType;
+    *(volatile uint32_t *)0x80000308 = ipl2_romType ? 0x06000000 : 0x10000000;
+    *(volatile uint32_t *)0x8000030C = ipl2_resetType;
+    *(volatile uint32_t *)0x80000314 = ipl2_version;
+    *(volatile uint32_t *)0x80000318 = memsize;
+    data_cache_hit_writeback_invalidate((void*)0x80000300, 0x20);
+#endif
 
     while (*PI_STATUS & 1) {}
 

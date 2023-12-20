@@ -37,6 +37,9 @@ actually loading the main binary and run it.
    via USB and 
  * Support for iQue. With a trampoline trick, this IPL3 also works on the iQue
    console which normally skips IPL3.
+ * Compat build: a special compatibility build is available to make it easier
+   to adapt to old build systems producing a flat file (so that no ELF is
+   required).
  * Written in C code, with comments. Even though the code is extremely
    low-level, care has been taken to make sure it is easily hackable
    (no hidden assumptions, no dependency on weird corner cases of GCC codegen).
@@ -61,8 +64,8 @@ r1 (d240dee9f218e48edffa16ab24249ecf)
 
 ### Using IPL3
 
-Libdragon uses this IPL3 by default: it is embedded in the n64tool
-application used to build ROMs. Normally, this is done via n64.mk. So there is
+Libdragon uses this IPL3 by default: it is embedded in the `n64tool`
+application used to build ROMs. Normally, this is done via `n64.mk`. So there is
 nothing specific to do: standard libdragon applications will use this by default.
 
 To use this IPL3 with your own programming environment, please follow
@@ -98,14 +101,43 @@ the following rules:
    - Byte 14..15: reserved
 
 If something doesn't work, try using the development version of IPL3
-(ipl3_dev.z64), that will log warnings and errors on both emulators and
+(`ipl3_dev.z64`), that will log warnings and errors on both emulators and
 flashcarts. This should help you understand the problem.
+
+### Using IPL3 in compatibility mode
+
+IPL3 also supports a "compatibility mode" (`ipl3_compat.z64`) that is meant to be easier to plug into existing homebrew applications with minimal modifications
+to the build system. The differences are:
+
+ * Instead of using a ELF, IPL3 will load 1 MiB (by default) of a flat binary
+   from address 0x10001000 in ROM to the entrypoint address specified in the
+   header at offset 0x8. This is the historical behavior of official IPL3s.
+ * Boot flags will be passed in low RDRAM using the following layout:
+   * 0x80000300: TV type
+   * 0x8000030C: Reset type
+   * 0x80000318: memory size
+ * As a special feature, IPL3 will look at the word offset 0x10 in the header 
+   to see how much to load from ROM. If the word is 0 or the value is too big
+   (bigger than the available memory), it will default to 1 MiB.
+
+Just like the standard IPL3 builds, this build will also clear the whole RDRAM,
+and no checksum will be verified, so there is no need to calculate one and put
+it into the header. Since no checksum is required, also ROMs using this build
+can be of any size, even smaller than 1 MiB.
+
+This build does not support debugging / logging, and no error screen will
+ever be shown. It will either boot, or crash.
+
+Note that this build is still designed for homebrew productions. It is not
+meant to be a replacement for software not designed for it, such as
+old commercial games.
 
 ### Building IPL3
 
 Standalone, pre-built binaries are available in the `bin` directory. Both
-the development version (`ipl3_dev.z64`) and the production version
-(`ipl3_prod.z64`) are signed for CIC 6102, which is the most common one.
+the development version (`ipl3_dev.z64`), the production version
+(`ipl3_prod.z64`) and the compatibility version (`ipl3_compat.z64`) are signed
+for CIC 6102, which is the most common one.
 
 To build the standard libdragon IPL3, simply run:
 
@@ -156,6 +188,21 @@ To sign the ROM, the best option is to perform GPU cracking using
 After you have correctly signed the ROM, you can follow the same
 instructions above to use it: you can either set `N64_ROM_HEADER`,
 or run `make install PROD=1` to embed it into `n64tool`.
+
+
+### Building IPL3 (compatibility version)
+
+Building the production version of IPL3 can be done by running
+the same Makefile with a different option:
+
+```
+    $ make clean      # make sure to rebuild from scratch
+    $ make COMPAT=1
+```
+
+Just like the production version, this version must be correctly signed 
+before being usable on real hardware and accurate emulators.
+
 
 ### Debugging
 

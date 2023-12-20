@@ -239,6 +239,24 @@ static inline void rsp_dma_to_rdram(void* dmem, void *rdram, int size)
     while (*SP_DMA_BUSY) {}
 }
 
+static inline void rcp_reset(void)
+{
+    *SP_STATUS = SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_HALT | SP_WSTATUS_CLEAR_INTR | 
+                 SP_WSTATUS_CLEAR_SIG0 | SP_WSTATUS_CLEAR_SIG1 | 
+                 SP_WSTATUS_CLEAR_SIG2 | SP_WSTATUS_CLEAR_SIG3 | 
+                 SP_WSTATUS_CLEAR_SIG4 | SP_WSTATUS_CLEAR_SIG5 | 
+                 SP_WSTATUS_CLEAR_SIG6 | SP_WSTATUS_CLEAR_SIG7;
+    *SP_PC = 0;
+    *SP_SEMAPHORE = 0;
+    
+    *MI_INTERRUPT = MI_WINTERRUPT_CLR_SP | MI_WINTERRUPT_CLR_SI | MI_WINTERRUPT_CLR_AI | MI_WINTERRUPT_CLR_VI | MI_WINTERRUPT_CLR_PI | MI_WINTERRUPT_CLR_DP;
+    *PI_STATUS = PI_CLEAR_INTERRUPT;
+    *SI_STATUS = SI_CLEAR_INTERRUPT;
+    *AI_STATUS = AI_CLEAR_INTERRUPT;
+    *MI_MODE = DP_CLEAR_INTERRUPT;
+}
+
+
 #define byteswap32(x) (__builtin_constant_p(x) ? __builtin_bswap32(x) : __byteswap32(x))
 
 #endif

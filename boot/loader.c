@@ -104,23 +104,6 @@ static void fast_bzero_range(void *mem, void *mem_end)
     rsp_bzero_async((uint32_t)mem, size);
 }
 
-static void rcp_reset(void)
-{
-    *SP_STATUS = SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_HALT | SP_WSTATUS_CLEAR_INTR | 
-                 SP_WSTATUS_CLEAR_SIG0 | SP_WSTATUS_CLEAR_SIG1 | 
-                 SP_WSTATUS_CLEAR_SIG2 | SP_WSTATUS_CLEAR_SIG3 | 
-                 SP_WSTATUS_CLEAR_SIG4 | SP_WSTATUS_CLEAR_SIG5 | 
-                 SP_WSTATUS_CLEAR_SIG6 | SP_WSTATUS_CLEAR_SIG7;
-    *SP_PC = 0;
-    *SP_SEMAPHORE = 0;
-    
-    *MI_INTERRUPT = MI_WINTERRUPT_CLR_SP | MI_WINTERRUPT_CLR_SI | MI_WINTERRUPT_CLR_AI | MI_WINTERRUPT_CLR_VI | MI_WINTERRUPT_CLR_PI | MI_WINTERRUPT_CLR_DP;
-    *PI_STATUS = PI_CLEAR_INTERRUPT;
-    *SI_STATUS = SI_CLEAR_INTERRUPT;
-    *AI_STATUS = AI_CLEAR_INTERRUPT;
-    *MI_MODE = DP_CLEAR_INTERRUPT;
-}
-
 static void pif_terminate_boot(void)
 {
     // Inform PIF that the boot process is finished. If this is not written,

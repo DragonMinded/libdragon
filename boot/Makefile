@@ -36,14 +36,20 @@ N64_ASFLAGS =  -mabi=32 -mgp32 -mfp32 -msingle-float -G0
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
 N64_LDFLAGS = -Wl,-T$(IPL3_LDSCRIPT) -Wl,-Map=build/ipl3.map -Wl,--gc-sections
 
-OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/loader.o build/ique_trampoline.o build/entropy.o
+OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/ique_trampoline.o build/entropy.o
 
 ifeq ($(PROD),1)
-N64_CFLAGS += -DNDEBUG -DPROD
+OBJS += build/loader.o 
+N64_CFLAGS += -DNDEBUG
 IPL3_ROM=bin/ipl3_prod.z64
 IPL3_LDSCRIPT=ipl3_prod.ld
+else ifeq ($(COMPAT),1)
+N64_CFLAGS += -DNDEBUG -DCOMPAT
+OBJS += build/loader_compat.o 
+IPL3_ROM=bin/ipl3_compat.z64
+IPL3_LDSCRIPT=ipl3_compat.ld
 else
-OBJS += build/debug.o build/boot_trampoline.o 
+OBJS += build/loader.o build/debug.o build/boot_trampoline.o 
 IPL3_ROM=bin/ipl3_dev.z64
 IPL3_LDSCRIPT=ipl3_dev.ld
 endif
