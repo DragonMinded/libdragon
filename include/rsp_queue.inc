@@ -175,6 +175,12 @@ _RSPQ_SAVED_STATE_END:
 #define vshift   $v30
 #define vshift8  $v31
 
+# vcopy macro: copy one vector register to another. This requires
+# vzero to be initialized to zero, which is true within rspq.
+.macro vcopy dest, source
+    vor \dest, vzero, \source
+.endm
+
 # We also define direct access to small constants as they can be useful in some
 # calculations.
 #define K1       vshift,e(7)
