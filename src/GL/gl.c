@@ -242,7 +242,7 @@ void gl_set_flag2(GLenum target, bool value)
         state.fog = value;
         break;
     case GL_MULTISAMPLE_ARB:
-        gl_set_flag(GL_UPDATE_NONE, FLAG_MULTISAMPLE, value);
+        gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_MULTISAMPLE, value);
         break;
     case GL_TEXTURE_1D:
         gl_set_flag(GL_UPDATE_NONE, FLAG_TEXTURE_1D, value);

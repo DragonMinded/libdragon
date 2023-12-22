@@ -71,14 +71,14 @@
 
 #define FLAG_DITHER             (1 << 0)
 #define FLAG_BLEND              (1 << 1)
-#define FLAG_DEPTH_MASK         (1 << 2)
-#define FLAG_ALPHA_TEST         (1 << 3)
-#define FLAG_FOG                (1 << 4)
-#define FLAG_MULTISAMPLE        (1 << 5)
-#define FLAG_SCISSOR_TEST       (1 << 6)
-#define FLAG_TEXTURE_1D         (1 << 7)
-#define FLAG_TEXTURE_2D         (1 << 8)
-#define FLAG_CULL_FACE          (1 << 9)
+#define FLAG_ALPHA_TEST         (1 << 2)
+#define FLAG_FOG                (1 << 3)
+#define FLAG_SCISSOR_TEST       (1 << 4)
+#define FLAG_TEXTURE_1D         (1 << 5)
+#define FLAG_TEXTURE_2D         (1 << 6)
+#define FLAG_CULL_FACE          (1 << 7)
+#define FLAG_TEX_GEN_LINEAR     (1 << 8)
+#define FLAG_TEX_GEN_SPHERICAL  (1 << 9)
 #define FLAG_LIGHTING           (1 << 10)
 #define FLAG_COLOR_MATERIAL     (1 << 11)
 #define FLAG_NORMALIZE          (1 << 12)
@@ -87,8 +87,8 @@
 #define FLAG_TEX_MATRIX         (1 << 15)
 #define FLAG_DEPTH_TEST         (1 << 16)
 #define FLAG_TEXTURE_ACTIVE     (1 << 17)
-#define FLAG_FINAL_MTX_DIRTY    (1 << 18)
-#define FLAG_LIGHT_LOCAL        (1 << 19)
+#define FLAG_DEPTH_MASK         (1 << 18)
+#define FLAG_FINAL_MTX_DIRTY    (1 << 19)
 #define FLAG_LIGHT0             (1 << 20)
 #define FLAG_LIGHT1             (1 << 21)
 #define FLAG_LIGHT2             (1 << 22)
@@ -105,6 +105,7 @@
 #define FLAG2_USE_RDPQ_MATERIAL  (1 << 0)
 #define FLAG2_USE_RDPQ_TEXTURING (1 << 1)
 #define FLAG2_REDUCED_ALIASING   (1 << 2)
+#define FLAG2_MULTISAMPLE        (1 << 3)
 
 #define TEX_FLAG_COMPLETE       (1 << 0)
 #define TEX_FLAG_UPLOAD_DIRTY   (1 << 1)
@@ -149,7 +150,9 @@
 
 #define LIGHT0_SHIFT            20
 
-#define TEX_GEN_S_SHIFT         28
+#define TEX_GEN_S_SHIFT                 28
+#define TEX_GEN_LINEAR_FLAG_SHIFT       8
+#define TEX_GEN_SPHERICAL_FLAG_SHIFT    9
 
 #define NEED_EYE_SPACE_SHIFT    13
 

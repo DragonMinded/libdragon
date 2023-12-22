@@ -84,15 +84,6 @@ bool gl_can_use_rsp_pipeline()
         return false;
     }
 
-    // Tex gen is not implemented
-    for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
-    {
-        if (state.tex_gen[i].enabled && state.tex_gen[i].mode == GL_SPHERE_MAP) {
-            WARN_CPU_REQUIRED("sphere map texture coordinate generation");
-            return false;
-        }
-    }
-
     if (state.lighting) {
         // Flat shading is not implemented
         if (state.shade_model == GL_FLAT) {

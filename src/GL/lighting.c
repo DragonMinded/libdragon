@@ -731,7 +731,6 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
 
 void gl_set_light_model_local_viewer(bool param)
 {
-    gl_set_flag(GL_UPDATE_NONE, FLAG_LIGHT_LOCAL, param);
     state.light_model_local_viewer = param;
 }
 
