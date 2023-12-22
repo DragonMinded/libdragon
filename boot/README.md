@@ -48,6 +48,13 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r3 (415c937a90ceee6f99d3d8a84edb42d3)
+* Add new ipl3_compat build for maximum backward compatibility and easy of
+  integration in existing codebases.
+* Fix iQue support by correctly clearing the whole RDRAM there as well
+* Add support to iQue hardware RNG as entropy source
+* Internal changes to allow in the future to change stage2 without resigning
+
 r2 (8eb4192531d365fe3607be973f2f4eb0)
 * Fix silly bug that prevented half of RDRAM from being cleared
 * Fix bug causing last bytes of decompressed data to be overwritten with zeros
