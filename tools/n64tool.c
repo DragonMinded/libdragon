@@ -52,6 +52,8 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 //    tools like UNFloader and g64drive work around this bug by padding ROMs,
 //    but others (like the official one) don't. So it's better in general to
 //    pad to 512 bytes.
+//	* EverDrive64 also requires ROMs to be transferred in blocks of 512 bytes,
+//    which means that the ROM has to be padded.
 //  * iQue player only allows loading ROMs which are multiple of 16 KiB in size.
 //  
 // To allow the maximum compatibility, we pad to 16 KiB by default. Users can still
