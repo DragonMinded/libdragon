@@ -34,7 +34,7 @@ actually loading the main binary and run it.
  * Beautiful visual error screens in case the ELF file is not found or is not
    compatible. The error screen is minimal for size constraint, make sure
    to always use the development version and look at the logging available
-   via USB and 
+   via USB and/or ISViewer.
  * Support for iQue. With a trampoline trick, this IPL3 also works on the iQue
    console which normally skips IPL3.
  * Compat build: a special compatibility build is available to make it easier
