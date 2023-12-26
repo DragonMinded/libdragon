@@ -430,6 +430,8 @@
 
 #define GL_MAX_TEXTURE_SIZE                             0x0D33
 
+#define GL_TEXTURE_FLIP_T_N64                           0x6020
+
 #define GL_FOG                                          0x0B60
 #define GL_FOG_INDEX                                    0x0B61
 #define GL_FOG_DENSITY                                  0x0B62

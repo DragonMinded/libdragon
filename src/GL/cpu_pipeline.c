@@ -363,7 +363,7 @@ static void gl_vertex_t_l(gl_vtx_t *vtx)
         gl_calc_texture_coords(vtx->texcoord, vtx->obj_attributes.texcoord, vtx->obj_attributes.position, eye_pos, eye_normal);
 
         vtx->texcoord[0] = vtx->texcoord[0] * state.prim_tex_width;
-        vtx->texcoord[1] = (1.f - vtx->texcoord[1]) * state.prim_tex_height;
+        vtx->texcoord[1] = (state.tex_flip_t ? vtx->texcoord[1] : 1.f - vtx->texcoord[1]) * state.prim_tex_height;
 
         if (state.prim_bilinear) {
             vtx->texcoord[0] -= 0.5f;

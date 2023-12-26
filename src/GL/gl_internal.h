@@ -377,6 +377,7 @@ typedef struct {
     bool color_material;
     bool normalize;
     bool matrix_palette_enabled;
+    bool tex_flip_t;
 
     GLenum cull_face_mode;
     GLenum front_face;

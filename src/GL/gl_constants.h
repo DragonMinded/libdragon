@@ -106,6 +106,7 @@
 #define FLAG2_USE_RDPQ_TEXTURING (1 << 1)
 #define FLAG2_REDUCED_ALIASING   (1 << 2)
 #define FLAG2_MULTISAMPLE        (1 << 3)
+#define FLAG2_TEX_FLIP_T         (1 << 4)
 
 #define TEX_FLAG_COMPLETE       (1 << 0)
 #define TEX_FLAG_UPLOAD_DIRTY   (1 << 1)

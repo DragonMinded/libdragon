@@ -27,6 +27,7 @@ typedef struct rdpq_texparms_s rdpq_texparms_t;
 #define GL_N64_interpenetrating         1
 #define GL_N64_dither_mode              1
 #define GL_N64_copy_matrix              1
+#define GL_N64_texture_flip             1
 
 /* Data types */
 

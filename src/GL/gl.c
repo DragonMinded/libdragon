@@ -294,6 +294,10 @@ void gl_set_flag2(GLenum target, bool value)
         gl_set_flag(GL_UPDATE_NONE, FLAG_MATRIX_PALETTE, value);
         state.matrix_palette_enabled = value;
         break;
+    case GL_TEXTURE_FLIP_T_N64:
+        gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_TEX_FLIP_T, value);
+        state.tex_flip_t = value;
+        break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:
     case GL_CLIP_PLANE2:
