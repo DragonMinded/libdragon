@@ -6,7 +6,7 @@
 #include "rdpq_macros.h"
 #include "rspq.h"
 
-_Static_assert(FLAG_MULTISAMPLE >> MULTISAMPLE_FLAG_SHIFT == SOM_AA_ENABLE);
+_Static_assert(FLAG2_MULTISAMPLE == SOM_AA_ENABLE);
 _Static_assert(FLAG2_REDUCED_ALIASING == (SOMX_AA_REDUCED>>32));
 _Static_assert(FLAG_BLEND << ZMODE_BLEND_FLAG_SHIFT == SOM_ZMODE_TRANSPARENT);
 _Static_assert(FLAG_TEXTURE_ACTIVE == (1 << TEXTURE_ACTIVE_SHIFT));

@@ -105,7 +105,7 @@ GLCmd_SetLong:
     # Args:
     #   v1 = Matrix index
     #   t5 = State flags
-    #   s0 = Matrix pointer offset
+    #   s1 = Matrix pointer offset
     #
     ########################################
     .func GL_HandleMatrixPalette
@@ -526,21 +526,14 @@ GL_TnL:
     llv vtexsize.s,   0,s1
     llv vtexoffset.s, 4,s1
 
-    #define vplanes_s_i $v09
-    #define vplanes_s_f $v10
-    #define vplanes_t_i $v11
-    #define vplanes_t_f $v12
-    #define vplanes_r_i $v13
-    #define vplanes_r_f $v14
-    #define vplanes_q_i $v15
-    #define vplanes_q_f $v16
-    #define vobjlin     $v17
-    #define veyelin     $v18
-    #define vmodes      $v19
+    #define vmodes      $v09
+    #define vobjlin     $v10
+    #define veyelin     $v11
+    #define vsphmap     $v12
 
     srl t0, state_flags, TEX_GEN_S_SHIFT
     andi t0, 0xF
-    beqz t0, 1f
+    beqz t0, 2f
     ldv vobjpos.e4,  0,tmp_ptr
 
     # Fill VCC with enable-flags
@@ -549,9 +542,23 @@ GL_TnL:
     ctc2 t0, COP2_CTRL_VCC
 
     li s1, %lo(GL_TEX_GEN)
+    
+    #define vplanes_s_i $v13
+    #define vplanes_s_f $v14
+    #define vplanes_t_i $v15
+    #define vplanes_t_f $v16
+    #define vplanes_r_i $v17
+    #define vplanes_r_f $v18
+    #define vplanes_q_i $v19
+    #define vplanes_q_f $v20
 
     lqv vmodes,       TEX_GEN_MODE_OFFSET,         s1
     lqv vplanes_s_i,  TEX_GEN_INTEGER_OFFSET+0x00, s1
+    # Check if linear tex gen is active for any coordinate
+    andi t0, state_flags, FLAG_TEX_GEN_LINEAR
+    beqz t0, 1f
+    # Select which coords to enable based on the enable-flags that were loaded into VCC above
+    vmrg vmodes, vmodes, vzero
     lqv vplanes_s_f,  TEX_GEN_FRACTION_OFFSET+0x00,s1
     lqv vplanes_t_i,  TEX_GEN_INTEGER_OFFSET+0x10, s1
     lqv vplanes_t_f,  TEX_GEN_FRACTION_OFFSET+0x10,s1
@@ -559,9 +566,6 @@ GL_TnL:
     lqv vplanes_r_f,  TEX_GEN_FRACTION_OFFSET+0x20,s1
     lqv vplanes_q_i,  TEX_GEN_INTEGER_OFFSET+0x30, s1
     lqv vplanes_q_f,  TEX_GEN_FRACTION_OFFSET+0x30,s1
-
-    # Select which coords to enable based on the enable-flags that were loaded into VCC above
-    vmrg vmodes, vmodes, vzero
 
     vmudn v___,    vplanes_s_f, vobjpos.h0
     vmadh v___,    vplanes_s_i, vobjpos.h0
@@ -574,12 +578,7 @@ GL_TnL:
 
     sdv vobjlin.e4, 0,tmp_ptr
     ldv veyelin.e0, 0,tmp_ptr
-
-    veq  v___,    vmodes,  vmodes.e4
-    vmrg vstrq, vobjlin, vstrq
-    veq  v___,    vmodes,  vmodes.e5
-    vmrg vstrq, veyelin, vstrq
-
+    
     #undef vplanes_s_i
     #undef vplanes_s_f
     #undef vplanes_t_i
@@ -588,11 +587,105 @@ GL_TnL:
     #undef vplanes_r_f
     #undef vplanes_q_i
     #undef vplanes_q_f
+
+1:
+    #define vsqdist_i   $v13
+    #define vsqdist_f   $v14
+    #define vtmp_i      $v15
+    #define vtmp_f      $v16
+    #define vinvdist_i  $v17
+    #define vinvdist_f  $v18
+    #define veposnorm   $v19
+    #define vdot        $v20
+    #define refl_i      $v21
+    #define refl_f      $v22
+
+    # Check if spherical tex gen is enabled for any coordinate
+    andi t0, state_flags, FLAG_TEX_GEN_SPHERICAL
+    beqz t0, 1f
+    # veposnorm = normalize(veyepos)
+    vmudh v___, veyepos, veyepos
+    vsar  vsqdist_f, COP2_ACC_MD
+    vsar  vsqdist_i, COP2_ACC_HI
+    vaddc vtmp_f, vsqdist_f, vsqdist_f.h1
+    vadd  vtmp_i, vsqdist_i, vsqdist_i.h1
+    vaddc vsqdist_f, vtmp_f, vsqdist_f.h2
+    vadd  vsqdist_i, vtmp_i, vsqdist_i.h2
+
+    vrsqh v___.e0,       vsqdist_i.e0
+    vrsql vinvdist_f.e0, vsqdist_f.e0
+    vrsqh vinvdist_i.e0, vzero.e0
+
+    vmudm v___,      veyepos, vinvdist_f.e0
+    vmadh veposnorm, veyepos, vinvdist_i.e0
+
+    # vdot = dot(veposnorm, veyenormal)
+    vmulf vdot, veposnorm, veyenormal
+    vaddc vtmp_f, vdot, vdot.h1
+    vaddc vdot, vtmp_f, vdot.h2
+
+    # negate
+    vsubc vdot, vzero, vdot
+
+    vcopy vtmp_i, vzero
+    vmov vtmp_i.e2, K16384
+
+    # refl = veposnorm - 2 * vdot * veyenormal + (0, 0, 1)
+    vmulf v___, veyenormal, vdot.e0
+    vmacf v___, veyenormal, vdot.e0 # Add twice to account for multiplication by 2
+    vmadh v___, veposnorm, K1
+    vmadh v___, vtmp_i, K2
+
+    vsar refl_f, COP2_ACC_MD
+    vsar refl_i, COP2_ACC_HI
+
+    # m = 1 / 2 * sqrt(dot(refl, refl))
+    vmudl v___,   refl_f, refl_f
+    vmadm v___,   refl_i, refl_f
+    vmadn vsqdist_f, refl_f, refl_i
+    vmadh vsqdist_i, refl_i, refl_i
+
+    vaddc vtmp_f, vsqdist_f, vsqdist_f.h1
+    vadd  vtmp_i, vsqdist_i, vsqdist_i.h1
+    vaddc vsqdist_f, vtmp_f, vsqdist_f.h2
+    vadd  vsqdist_i, vtmp_i, vsqdist_i.h2
+
+    vaddc vtmp_i, vzero, K128
+
+    vrsqh v___.e0,       vsqdist_i.e0
+    vrsql vinvdist_f.e0, vsqdist_f.e0
+    vrsqh vinvdist_i.e0, vzero.e0
+
+    # vshmap = refl * m + 0.5
+    vmudh v___,    vtmp_i, K1
+    vmadl v___,    refl_f, vinvdist_f.e0
+    vmadm v___,    refl_i, vinvdist_f.e0
+    vmadn v___,    refl_f, vinvdist_i.e0
+    vmadh vsphmap, refl_i, vinvdist_i.e0
+
+1:
+    veq  v___,  vmodes,  vmodes.e4
+    vmrg vstrq, vobjlin, vstrq
+    veq  v___,  vmodes,  vmodes.e5
+    vmrg vstrq, veyelin, vstrq
+    veq  v___,  vmodes,  vmodes.e6
+    vmrg vstrq, vsphmap, vstrq
+
+    #undef vsqdist_i
+    #undef vsqdist_f
+    #undef vtmp_i
+    #undef vtmp_f
+    #undef vinvdist_i
+    #undef vinvdist_f
+    #undef veposnorm
+    #undef vdot
+    #undef refl_i
+    #undef refl_f
     #undef vobjlin
     #undef veyelin
     #undef vmodes
 
-1:
+2:
     #define vinvq_i $v26
     #define vinvq_f $v27
     #define vstrq_i $v28
@@ -609,15 +702,18 @@ GL_TnL:
     vrcpl vinvq_f.q, vstrq_f.q
     vrcph vinvq_i.q, vzero.e0
 
-    vmudl v___,    vstrq_i, vinvq_f.q
+    vmudl v___,    vstrq_f, vinvq_f.q
     vmadm v___,    vstrq_i, vinvq_f.q
     vmadn vstrq_f, vstrq_f, vinvq_i.q
     vmadh vstrq_i, vstrq_i, vinvq_i.q
 
+    # vmudm vstrq_i, vstrq, K256 # >> 8
+    # vmadl vstrq_f, vzero, vzero
+
     # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
     vmudn v___,  vstrq_f, vtexsize
-    vmadh vstrq, vstrq_i, vtexsize
-    vsub  vstrq, vtexoffset
+    vmadh v___,  vstrq_i, vtexsize
+    vmadh vstrq, vtexoffset, K1
 
     #undef vinvq_i
     #undef vinvq_f

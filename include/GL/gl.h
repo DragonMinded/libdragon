@@ -27,6 +27,7 @@ typedef struct rdpq_texparms_s rdpq_texparms_t;
 #define GL_N64_interpenetrating         1
 #define GL_N64_dither_mode              1
 #define GL_N64_copy_matrix              1
+#define GL_N64_texture_flip             1
 
 /* Data types */
 
@@ -469,6 +470,8 @@ void glTexEnvf(GLenum target, GLenum pname, GLfloat param);
 void glTexEnviv(GLenum target, GLenum pname, const GLint *params);
 void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params);
 
+GLboolean glIsTexture(GLuint texture);
+
 /* Fog */
 
 void glFogi(GLenum pname, GLint param);
@@ -605,8 +608,6 @@ void glHint(GLenum target, GLenum hint);
 
 /* Queries */
 
-// TODO
-
 void glGetBooleanv(GLenum value, GLboolean *data);
 void glGetIntegerv(GLenum value, GLint *data);
 void glGetFloatv(GLenum value, GLfloat *data);
@@ -614,43 +615,31 @@ void glGetDoublev(GLenum value, GLdouble *data);
 
 GLboolean glIsEnabled(GLenum value);
 
-void glGetClipPlane(GLenum plane, GLdouble *eqn);
-
-void glGetLightiv(GLenum light, GLenum value, GLint *data);
-void glGetLightfv(GLenum light, GLenum value, GLfloat *data);
-
-void glGetMaterialiv(GLenum face, GLenum value, GLint *data);
-void glGetMaterialfv(GLenum face, GLenum value, GLfloat *data);
-
-void glGetTexEnviv(GLenum env, GLenum value, GLint *data);
-void glGetTexEnvfv(GLenum env, GLenum value, GLfloat *data);
-
-void glGetTexGeniv(GLenum coord, GLenum value, GLint *data);
-void glGetTexGenfv(GLenum coord, GLenum value, GLfloat *data);
-
-void glGetTexParameteriv(GLenum target, GLenum value, GLint *data);
-void glGetTexParameterfv(GLenum target, GLenum value, GLfloat *data);
-
-void glGetTexLevelParameteriv(GLenum target, GLint lod, GLenum value, GLint *data);
-void glGetTexLevelParameterfv(GLenum target, GLint lod, GLenum value, GLfloat *data);
-
-void glGetPixelMapusv(GLenum map, GLushort *data);
-void glGetPixelMapuiv(GLenum map, GLuint *data);
-void glGetPixelMapfv(GLenum map, GLfloat *data);
-
-void glGetMapiv(GLenum map, GLenum value, GLint *data);
-void glGetMapfv(GLenum map, GLenum value, GLfloat *data);
-void glGetMapdv(GLenum map, GLenum value, GLdouble *data);
-
-void glGetTexImage(GLenum tex, GLint lod, GLenum format, GLenum type, GLvoid *img);
-
-GLboolean glIsTexture(GLuint texture);
-
-void glGetPolygonStipple(GLvoid *pattern);
-
 void glGetPointerv(GLenum pname, GLvoid **params);
 
 GLubyte *glGetString(GLenum name);
+
+#define glGetClipPlane(plane, eqn) _GL_UNSUPPORTED(glGetClipPlane)
+#define glGetLightiv(light, value, data) _GL_UNSUPPORTED(glGetLightiv)
+#define glGetLightfv(light, value, data) _GL_UNSUPPORTED(glGetLightfv)
+#define glGetMaterialiv(face, value, data) _GL_UNSUPPORTED(glGetMaterialiv)
+#define glGetMaterialfv(face, value, data) _GL_UNSUPPORTED(glGetMaterialfv)
+#define glGetTexEnviv(env, value, data) _GL_UNSUPPORTED(glGetTexEnviv)
+#define glGetTexEnvfv(env, value, data) _GL_UNSUPPORTED(glGetTexEnvfv)
+#define glGetTexGeniv(coord, value, data) _GL_UNSUPPORTED(glGetTexGeniv)
+#define glGetTexGenfv(coord, value, data) _GL_UNSUPPORTED(glGetTexGenfv)
+#define glGetTexParameteriv(target, value, data) _GL_UNSUPPORTED(glGetTexParameteriv)
+#define glGetTexParameterfv(target, value, data) _GL_UNSUPPORTED(glGetTexParameterfv)
+#define glGetTexLevelParameteriv(target, lod, value, data) _GL_UNSUPPORTED(glGetTexLevelParameteriv)
+#define glGetTexLevelParameterfv(target, lod, value, data) _GL_UNSUPPORTED(glGetTexLevelParameterfv)
+#define glGetPixelMapusv(map, data) _GL_UNSUPPORTED(glGetPixelMapusv)
+#define glGetPixelMapuiv(map, data) _GL_UNSUPPORTED(glGetPixelMapuiv)
+#define glGetPixelMapfv(map, data) _GL_UNSUPPORTED(glGetPixelMapfv)
+#define glGetTexImage(tex, lod, format, type, img) _GL_UNSUPPORTED(glGetTexImage)
+#define glGetMapiv(map, value, data) _GL_UNSUPPORTED(glGetMapiv)
+#define glGetMapfv(map, value, data) _GL_UNSUPPORTED(glGetMapfv)
+#define glGetMapdv(map, value, data) _GL_UNSUPPORTED(glGetMapdv)
+#define glGetPolygonStipple(pattern) _GL_UNSUPPORTED(glGetPolygonStipple)
 
 /* Attribute stack */
 
