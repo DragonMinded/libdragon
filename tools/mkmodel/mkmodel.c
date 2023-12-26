@@ -11,6 +11,7 @@
 #include "../common/assetcomp.h"
 
 #include "../../include/GL/gl_enums.h"
+#include "../../src/GL/gl_constants.h"
 #include "../../src/model64_internal.h"
 #include "../../src/model64_catmull.h"
 
@@ -984,13 +985,13 @@ void convert_root_node(cgltf_scene *scene, cgltf_data *data, model64_data_t *mod
 
 int convert_skin(cgltf_data *data, cgltf_skin *in_skin, model64_skin_t *out_skin)
 {
-    if(in_skin->joints_count > 24) {
+    if(in_skin->joints_count > MATRIX_PALETTE_SIZE) {
         if (in_skin->name != NULL) {
             fprintf(stderr, "Error: Found %zd joints in skin %s.\n", in_skin->joints_count, in_skin->name);
         } else {
             fprintf(stderr, "Error: Found %zd joints in skin %zd.\n", in_skin->joints_count, cgltf_skin_index(data, in_skin));
         }
-        fprintf(stderr, "Error: A maximum of 24 joints are allowed in a skin.\n");
+        fprintf(stderr, "Error: A maximum of %d joints are allowed in a skin.\n", MATRIX_PALETTE_SIZE);
         return 1;
     }
     out_skin->num_joints = in_skin->joints_count;

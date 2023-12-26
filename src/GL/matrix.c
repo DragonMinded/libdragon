@@ -162,7 +162,7 @@ void glCurrentPaletteMatrixARB(GLint index)
 
     state.current_palette_matrix = index;
     gl_update_current_matrix_stack();
-    gl_set_palette_ptr(state.matrix_palette + index);
+    gl_set_palette_idx(index);
 }
 
 static inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)
@@ -190,7 +190,7 @@ static inline void gl_matrix_write(rspq_write_t *w, const GLfloat *m)
     write_shorts(w, fraction, 16);
 }
 
-static inline void gl_matrix_load(const GLfloat *m, bool multiply)
+static inline void gl_matrix_load_rsp(const GLfloat *m, bool multiply)
 {
     rspq_write_t w = rspq_write_begin(gl_overlay_id, GL_CMD_MATRIX_LOAD, 17);
     rspq_write_arg(&w, multiply ? 1 : 0);
@@ -211,40 +211,58 @@ static void gl_mark_matrix_target_dirty()
     }
 }
 
+void gl_load_matrix(const GLfloat *m)
+{
+    memcpy(state.current_matrix, m, sizeof(gl_matrix_t));
+    gl_mark_matrix_target_dirty();
+    gl_matrix_load_rsp(m, false);
+}
+
 void glLoadMatrixf(const GLfloat *m)
 {
     if (!gl_ensure_no_immediate()) return;
-    
-    memcpy(state.current_matrix, m, sizeof(gl_matrix_t));
-    gl_mark_matrix_target_dirty();
-    gl_matrix_load(m, false);
+    gl_load_matrix(m);
 }
 
 void glLoadMatrixd(const GLdouble *m)
 {
     if (!gl_ensure_no_immediate()) return;
-    
+
+    GLfloat tmp[16];
     for (size_t i = 0; i < 16; i++)
     {
-        state.current_matrix->m[i/4][i%4] = m[i];
+        tmp[i] = m[i];
     }
+    gl_load_matrix(tmp);
+}
+
+void gl_mult_matrix(const GLfloat *m)
+{
+    gl_matrix_t tmp = *state.current_matrix;
+    gl_matrix_mult_full(state.current_matrix, &tmp, (gl_matrix_t*)m);
     gl_mark_matrix_target_dirty();
 
-    gl_matrix_load(state.current_matrix->m[0], false);
+    gl_matrix_load_rsp(m, true);
 }
 
 void glMultMatrixf(const GLfloat *m)
 {
     if (!gl_ensure_no_immediate()) return;
-    
-    gl_matrix_t tmp = *state.current_matrix;
-    gl_matrix_mult_full(state.current_matrix, &tmp, (gl_matrix_t*)m);
-    gl_mark_matrix_target_dirty();
-
-    gl_matrix_load(m, true);
+    gl_mult_matrix(m);
 }
 
-void glMultMatrixd(const GLdouble *m);
+void glMultMatrixd(const GLdouble *m)
+{
+    if (!gl_ensure_no_immediate()) return;
+
+    GLfloat tmp[16];
+    for (size_t i = 0; i < 16; i++)
+    {
+        tmp[i] = m[i];
+    }
+    
+    gl_mult_matrix(tmp);
+}
 
 void glLoadIdentity(void)
 {
@@ -257,13 +275,11 @@ void glLoadIdentity(void)
         {0,0,0,1},
     }};
 
-    glLoadMatrixf(identity.m[0]);
+    gl_load_matrix(identity.m[0]);
 }
 
-void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
+void gl_rotate(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 {
-    if (!gl_ensure_no_immediate()) return;
-    
     float a = angle * (M_PI / 180.0f);
     float c = cosf(a);
     float s = sinf(a);
@@ -281,14 +297,23 @@ void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
         {0.f,        0.f,        0.f,        1.f},
     }};
 
-    glMultMatrixf(rotation.m[0]);
+    gl_mult_matrix(rotation.m[0]);
 }
-void glRotated(GLdouble angle, GLdouble x, GLdouble y, GLdouble z);
 
-void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
+void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 {
     if (!gl_ensure_no_immediate()) return;
-    
+    gl_rotate(angle, x, y, z);
+}
+
+void glRotated(GLdouble angle, GLdouble x, GLdouble y, GLdouble z)
+{
+    if (!gl_ensure_no_immediate()) return;
+    gl_rotate(angle, x, y, z);
+}
+
+void gl_translate(GLfloat x, GLfloat y, GLfloat z)
+{
     gl_matrix_t translation = (gl_matrix_t){ .m={
         {1.f, 0.f, 0.f, 0.f},
         {0.f, 1.f, 0.f, 0.f},
@@ -296,14 +321,23 @@ void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
         {x,   y,   z,   1.f},
     }};
 
-    glMultMatrixf(translation.m[0]);
+    gl_mult_matrix(translation.m[0]);
 }
-void glTranslated(GLdouble x, GLdouble y, GLdouble z);
 
-void glScalef(GLfloat x, GLfloat y, GLfloat z)
+void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
     if (!gl_ensure_no_immediate()) return;
-    
+    gl_translate(x, y, z);
+}
+
+void glTranslated(GLdouble x, GLdouble y, GLdouble z)
+{
+    if (!gl_ensure_no_immediate()) return;
+    gl_translate(x, y, z);
+}
+
+void gl_scale(GLfloat x, GLfloat y, GLfloat z)
+{
     gl_matrix_t scale = (gl_matrix_t){ .m={
         {x,   0.f, 0.f, 0.f},
         {0.f, y,   0.f, 0.f},
@@ -311,9 +345,20 @@ void glScalef(GLfloat x, GLfloat y, GLfloat z)
         {0.f, 0.f, 0.f, 1.f},
     }};
 
-    glMultMatrixf(scale.m[0]);
+    gl_mult_matrix(scale.m[0]);
 }
-void glScaled(GLdouble x, GLdouble y, GLdouble z);
+
+void glScalef(GLfloat x, GLfloat y, GLfloat z)
+{
+    if (!gl_ensure_no_immediate()) return;
+    gl_scale(x, y, z);
+}
+
+void glScaled(GLdouble x, GLdouble y, GLdouble z)
+{
+    if (!gl_ensure_no_immediate()) return;
+    gl_scale(x, y, z);
+}
 
 void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
 {
@@ -326,7 +371,7 @@ void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdou
         {0.f,         0.f,           -(2*f*n)/(f-n), 0.f},
     }};
 
-    glMultMatrixf(frustum.m[0]);
+    gl_mult_matrix(frustum.m[0]);
 }
 
 void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
@@ -340,7 +385,7 @@ void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdoubl
         {-(r+l)/(r-l), -(t+b)/(t-b), -(f+n)/(f-n), 1.f},
     }};
 
-    glMultMatrixf(ortho.m[0]);
+    gl_mult_matrix(ortho.m[0]);
 }
 
 void glPushMatrix(void)
