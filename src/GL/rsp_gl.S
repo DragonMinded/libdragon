@@ -881,7 +881,7 @@ gl_skipcombinerblender:
     lh t6, %lo(GL_STATE_TEX_SIZE) + 2
     sll t1, t2, TEX_BILINEAR_OFFSET_SHIFT
     neg t1, t1
-    bnez t7, 1f
+    beqz t7, 1f
     sh t1, %lo(GL_STATE_TEX_OFFSET) + 0
     sra t6, 1
     sub t1, t6
@@ -993,7 +993,7 @@ GLCmd_PreInitPipeTex:
     sll t0, TEX_COORD_SHIFT
     sll t1, TEX_COORD_SHIFT
     andi t2, state_flags2, FLAG2_TEX_FLIP_T
-    bnez t2, 1f
+    beqz t2, 1f
     sh t0, %lo(GL_STATE_TEX_SIZE) + 0
     neg t1, t1
 1:
