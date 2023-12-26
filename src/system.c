@@ -30,13 +30,10 @@
  * are mostly stubs that allow homebrew applications to compile.
  *
  * The sbrk function is responsible for allowing newlib to find the next chunk
- * of free space for use with malloc calls.  This is made somewhat complicated
- * on the N64 by the fact that precompiled code doesn't know in advance if
- * expanded memory is available.  libdragon attempts to determine if this additional
- * memory is available and return accordingly but can only do so if it knows what
- * type of CIC/bootcode was used.  If you are using a 6102, this has been set for
- * you already.  If you are using a 6105 for some reason, you will need to use
- * #sys_set_boot_cic to notify libdragon or malloc will not work properly!
+ * of free space for use with malloc calls. The size of the available heap is
+ * computed using the memory size computed by the boot code (IPL3), and available
+ * via #get_memory_size(), which is normally either 4 MiB or 8 MiB if the expansion
+ * pak is available.
  *
  * libdragon has defined a custom callback structure for filesystems to use.
  * Providing relevant hooks for calls that your filesystem supports and passing
@@ -99,7 +96,6 @@ char *__env[1] = { 0 };
 void (*__assert_func_ptr)(const char *file, int line, const char *func, const char *failedexpr) = 0;
 
 /* Externs from libdragon */
-extern int __bootcic;
 extern void enable_interrupts();
 extern void disable_interrupts();
 

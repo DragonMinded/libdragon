@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     return 1;
                 }
-                if (compression < 0 || compression > 2) {
+                if (compression < 0 || compression > MAX_COMPRESSION) {
                     fprintf(stderr, "invalid compression algorithm: %d\n", compression);
                     return 1;
                 }

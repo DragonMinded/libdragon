@@ -167,7 +167,7 @@ static struct {
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
 
-	rsp_mixer_settings_t ucode_settings __attribute__((aligned(8)));
+	rsp_mixer_settings_t ucode_settings __attribute__((aligned(16)));
 
 } Mixer;
 
@@ -180,6 +180,7 @@ static inline int mixer_initialized(void) { return Mixer.num_channels != 0; }
 
 void mixer_init(int num_channels) {
 	memset(&Mixer, 0, sizeof(Mixer));
+	data_cache_hit_writeback_invalidate(&Mixer.ucode_settings, sizeof(Mixer.ucode_settings));
 
 	Mixer.num_channels = num_channels;
 	Mixer.sample_rate = audio_get_frequency();  // actual sample rate obtained via DAC clock

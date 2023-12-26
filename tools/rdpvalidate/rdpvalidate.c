@@ -4,6 +4,7 @@
 #include <string.h>
 #include "rdpq_debug.h"
 #include "../../src/rdpq/rdpq_debug_internal.h"
+#include "../../src/rdpq/rdpq_debug.c"
 
 void usage(void) {
     printf("rdpvalidate -- RDP validation tool\n");

@@ -17,11 +17,6 @@
  * the @ref display.  System timers are handled by the @ref timer.
  * Low level interfaces such as interrupts, caching operations, exceptions and 
  * the DMA controller are handled by the @ref lowlevel.
- *
- * libdragon makes every effort to be self-sufficient and self-configured.  However,
- * when operating in unexpected environments such as with a non-6102 CIC, additional
- * setup may be required.  Please see the documentation for #sys_set_boot_cic to
- * inform libdragon of a nonstandard CIC.
  */
 
 /* Easy include wrapper */

@@ -3,27 +3,87 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "../common/binout.h"
-#include "../common/lzh5_compress.c"
+#include "binout.h"
+#include "aplib_compress.h"
+#include "shrinkler_compress.h"
+#undef SWAP
+#undef MIN_MATCH_SIZE
 #undef MIN
 #undef MAX
 #include "../../src/asset.c"
-#include "../../src/compress/lzh5.c"
+#include "../../src/compress/aplib_dec.c"
+#include "../../src/compress/shrinkler_dec.c"
 #include "../../src/compress/lz4_dec.c"
 #include "../../src/compress/ringbuf.c"
 #undef MIN
 #undef MAX
 #undef LZ4_DECOMPRESS_INPLACE_MARGIN
 
-static int lz4_distance_max = 16384;
+#include "lz4_compress.h"
 
-#ifndef LZ4_SRC_INCLUDED
-#define LZ4_DISTANCE_MAX lz4_distance_max
-#include "../common/lz4.c"
-#endif
-#include "../common/lz4hc.c"
-#undef MIN
-#undef MAX
+void asset_compress_mem(int compression, const uint8_t *data, int sz, uint8_t **output, int *cmp_size, int *winsize, int *margin)
+{
+    switch (compression) {
+    case 1: { // lz4hc
+        // Default for LZ4HC is 8 KiB, which makes sense given the little
+        // data cache of VR4300 to improve decompression speed.
+        if (*winsize == 0) {
+            *winsize = 8*1024;
+            while (sz < *winsize && *winsize > 2*1024)
+                *winsize /= 2;
+        }
+
+        // The actual max distance of the LZ4 format is 64KiB-1, make sure we
+        // don't go over that.
+        if (*winsize > 64*1024) *winsize = 64*1024;
+        lz4_distance_max = *winsize;
+        if (lz4_distance_max > 65535) lz4_distance_max = 65535;
+
+        int cmp_max_size = LZ4_COMPRESSBOUND(sz);
+        *output = malloc(cmp_max_size);
+
+        // Compress the file. Use compression level LZ4HC_CLEVEL_MAX and
+        // "favor decompression speed", as we prefer to leave a bit of
+        // compression ratio on the table in exchange for faster decompression.
+        LZ4_streamHC_t* state = LZ4_createStreamHC();
+        LZ4_setCompressionLevel(state, LZ4HC_CLEVEL_MAX);
+        LZ4_favorDecompressionSpeed(state, 1);
+        *cmp_size = LZ4_compress_HC_continue(state, (char*)data, (char*)*output, sz, cmp_max_size);
+        LZ4_freeStreamHC(state);
+        assert(*cmp_size <= cmp_max_size);
+        *margin = LZ4_DECOMPRESS_INPLACE_MARGIN(*cmp_size);
+    }   break;
+    case 2: { // aplib
+        if (*winsize == 0) {
+            *winsize = 256*1024;
+            while (sz < *winsize && *winsize > 2*1024)
+                *winsize /= 2;
+        }
+    
+        apultra_stats stats;
+        int max_cmp_size = apultra_get_max_compressed_size(sz);
+        *output = calloc(1, max_cmp_size);  // note: apultra.c clears the buffer, not sure why
+        *cmp_size = apultra_compress(data, *output, sz, max_cmp_size, 
+            0,          // flags
+            *winsize,    // window size
+            0,          // dictionary size
+            NULL,       // progress callback
+            &stats);
+
+        *margin = stats.safe_dist + *cmp_size - sz;
+    }   break;
+    case 3: { // shrinkler
+        *winsize = 256*1024; // FIXME
+        int inplace_margin;
+        *output = shrinkler_compress(data, sz, 3, cmp_size, &inplace_margin);
+        // Shrinkler seems to return negative margin values because we asked to
+        // verify using 4 byte reads. Just clamp to zero.
+        *margin = inplace_margin > 0 ? inplace_margin : 0;
+    }   break;
+    default:
+        assert(0);
+    }  
+}
 
 /**
  * @brief Compress or recompress a file in the libdragon asset format.
@@ -41,17 +101,15 @@ static int lz4_distance_max = 16384;
 bool asset_compress(const char *infn, const char *outfn, int compression, int winsize)
 {
     asset_init_compression(2);
+    asset_init_compression(3);
 
     // Make sure the file exists before calling asset_load,
     // which would just assert.
-    int insize = 0;
     FILE *in = fopen(infn, "rb");
     if (!in) {
         fprintf(stderr, "error opening input file: %s\n", infn);
         return false;
     }
-    fseek(in, 0, SEEK_END);
-    insize = ftell(in);
     fclose(in);
 
     if (winsize && asset_winsize_to_flags(winsize) < 0) {
@@ -60,20 +118,21 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         return false;
     }
 
-    // The caller specified a certain window size. We can still silently decrease it
-    // if the file is smaller, as there is no functional difference and we can save
-    // some RAM at decompression time.
-    if (winsize) {
-        while (insize < winsize && winsize > 2*1024)
-            winsize /= 2;
-    }
-
     // Load the file. This will transparently decompresses it if it was compressed,
     // so that this function can be used to also recompress an already compressed
     // file.
     int sz;
     uint8_t *data = asset_load(infn, &sz);
 
+    // The caller specified a certain window size. We can still silently decrease it
+    // if the file is smaller, as there is no functional difference and we can save
+    // some RAM at decompression time.
+    if (winsize) {
+        while (sz < winsize && winsize > 2*1024)
+            winsize /= 2;
+    }
+
+    // FIXME: use asset_compress_mem() instead of duplicating the code here
     switch (compression) {
     case 0: { // none
         FILE *out = fopen(outfn, "wb");
@@ -84,47 +143,60 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         fwrite(data, 1, sz, out);
         fclose(out);
     }   break;
-    case 2: { // lzh5
-        // lzh5 has a fixed 8 KiB window at the moment, so we ignore any winsize
-        // that can come from the caller.
-        winsize = 8*1024;
+    case 3: { // shrinkler
+        winsize = 256*1024; // FIXME
+        int cmp_size; int inplace_margin;
+        uint8_t *output = shrinkler_compress(data, sz, 3, &cmp_size, &inplace_margin);
+        // Shrinkler seems to return negative margin values because we asked to
+        // verify using 4 byte reads. Just clamp to zero.
+        inplace_margin = inplace_margin > 0 ? inplace_margin : 0;
 
-        char *tmpfn = NULL;
-        asprintf(&tmpfn, "%s.tmp", outfn);
-        FILE *out = fopen(tmpfn, "wb");
-        if (!out) {
-            fprintf(stderr, "error opening output file: %s\n", tmpfn);
-            return 1;
+        FILE *out = fopen(outfn, "wb");
+        fwrite("DCA3", 1, 4, out);
+        w16(out, 3); // algo
+        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
+        w32(out, cmp_size); // cmp_size
+        w32(out, sz); // dec_size
+        w32(out, inplace_margin); // inplace margin
+        fwrite(output, 1, cmp_size, out);
+        fclose(out);
+        free(output);
+    }   break;
+    case 2: { // aplib
+        if (winsize == 0) {
+            winsize = 256*1024;
+            while (sz < winsize && winsize > 2*1024)
+                winsize /= 2;
         }
-        fwrite(data, 1, sz, out);
-        fclose(out);
+    
+        apultra_stats stats;
+        int max_cmp_size = apultra_get_max_compressed_size(sz);
+        void *output = calloc(1, max_cmp_size);  // note: apultra.c clears the buffer, not sure why
+        int cmp_size = apultra_compress(data, output, sz, max_cmp_size, 
+            0,          // flags
+            winsize,    // window size
+            0,          // dictionary size
+            NULL,       // progress callback
+            &stats);
 
-        in = fopen(tmpfn, "rb");
-        out = fopen(outfn, "wb");
-        fwrite("DCA2", 1, 4, out);
+        int inplace_margin = stats.safe_dist + cmp_size - sz;
+        FILE *out = fopen(outfn, "wb");
+        fwrite("DCA3", 1, 4, out);
         w16(out, 2); // algo
-        w16(out, asset_winsize_to_flags(winsize)); // flags
-        int w_cmp_size = w32_placeholder(out); // cmp_size
-        int w_dec_size = w32_placeholder(out); // dec_size
-
-        unsigned int crc, dsize, csize;
-        lzh5_init(LZHUFF5_METHOD_NUM);
-        lzh5_encode(in, out, &crc, &csize, &dsize);
-
-        w32_at(out, w_cmp_size, csize);
-        w32_at(out, w_dec_size, dsize);
-
-        fclose(in);
+        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
+        w32(out, cmp_size); // cmp_size
+        w32(out, sz); // dec_size
+        w32(out, inplace_margin); // inplace margin
+        fwrite(output, 1, cmp_size, out);
         fclose(out);
-        remove(tmpfn);
-        free(tmpfn);
+        free(output);
     }   break;
     case 1: { // lz4hc
         // Default for LZ4HC is 8 KiB, which makes sense given the little
         // data cache of VR4300 to improve decompression speed.
         if (winsize == 0) {
             winsize = 8*1024;
-            while (insize < winsize && winsize > 2*1024)
+            while (sz < winsize && winsize > 2*1024)
                 winsize /= 2;
         }
 
@@ -148,11 +220,12 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         assert(cmp_size <= cmp_max_size);
 
         FILE *out = fopen(outfn, "wb");
-        fwrite("DCA2", 1, 4, out);
+        fwrite("DCA3", 1, 4, out);
         w16(out, 1); // algo
-        w16(out, asset_winsize_to_flags(winsize)); // flags
+        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
         w32(out, cmp_size); // cmp_size
         w32(out, sz); // dec_size
+        w32(out, LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size)); // inplace margin
         fwrite(output, 1, cmp_size, out);
         fclose(out);
         free(output);

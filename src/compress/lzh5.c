@@ -4,6 +4,7 @@
 
 #include "lzh5_internal.h"
 #include "ringbuf_internal.h"
+#include "../asset_internal.h"
 
 #ifdef N64
 #include <malloc.h>
@@ -551,7 +552,7 @@ int decompress_lzh5_pos(void *state) {
 
 void* decompress_lzh5_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
 {
-	void *s = memalign(16, size);
+	void *s = memalign(ASSET_ALIGNMENT, size);
 	assertf(s, "asset_load: out of memory");
 
 	uint32_t rom_addr = 0;

@@ -19,11 +19,20 @@ jobs:
           install: >-
             base-devel
             mingw-w64-${{ matrix.arch }}-toolchain
+            unzip
           update: true
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
+
+      - name: Download and extract latest toolchain
+        shell: msys2 {0}
+        run: |
+          curl -Lo gcc-toolchain-mips64-win64.zip https://github.com/DragonMinded/libdragon/releases/download/toolchain-continuous-prerelease/gcc-toolchain-mips64-win64.zip
+          unzip gcc-toolchain-mips64-win64.zip -d gcc-toolchain-mips64
+          rm -f gcc-toolchain-mips64-win64.zip
+
 
       - name: Correct MSYS2 pthread.h to allow static libraries (otherwise you would need to use a lib DLL, rather than it being built into the EXE.)
         shell: msys2 {0}
@@ -33,7 +42,7 @@ jobs:
       - name: Build ${{ matrix.build }}
         shell: msys2 {0}
         run: |
-          make ${{ matrix.build }}
+          N64_INST=$(pwd)/gcc-toolchain-mips64 make ${{ matrix.build }}
 
       - name: "Upload ${{ matrix.build }} executables"
         uses: actions/upload-artifact@v3

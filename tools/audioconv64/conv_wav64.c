@@ -10,9 +10,23 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 
+#define ENABLE_SINC_BEST_CONVERTER
+#define PACKAGE "libsamplerage"
+#define VERSION "0.1.9"
+#include "libsamplerate/samplerate.h"
+#include "libsamplerate/samplerate.c"
+#include "libsamplerate/src_sinc.c"
+#include "libsamplerate/src_zoh.c"
+#include "libsamplerate/src_linear.c"
+#undef PACKAGE
+#undef VERSION
+#undef MIN
+#undef MAX
+
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
+int flag_wav_resample = 0;
 
 int wav_convert(const char *infn, const char *outfn) {
 	drwav wav;
@@ -32,6 +46,60 @@ int wav_convert(const char *infn, const char *outfn) {
 	size_t cnt = drwav_read_pcm_frames_s16le(&wav, wav.totalPCMFrameCount, samples);
 	if (cnt != wav.totalPCMFrameCount) {
 		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, wav.totalPCMFrameCount, cnt);
+	}
+
+	// When converting to opus, default to 48 kHz.
+	if (flag_wav_compress == 3 && wav.sampleRate != 48000) {
+		if (flag_verbose)
+			fprintf(stderr, "  opus only supports 48 kHz, forcing resample\n");
+		flag_wav_resample = 48000;
+	}
+
+	// Do sample rate conversion if requested
+	if (flag_wav_resample && wav.sampleRate != flag_wav_resample) {
+		if (flag_verbose)
+			fprintf(stderr, "  resampling to %d Hz\n", flag_wav_resample);
+
+		// Convert input samples to float
+		float *fsamples_in = malloc(cnt * wav.channels * sizeof(float));
+		src_short_to_float_array(samples, fsamples_in, cnt * wav.channels);
+
+		// Allocate output buffer, estimating the size based on the ratio.
+		// We add some margin because we are not sure of rounding errors.
+		int newcnt = cnt * flag_wav_resample / wav.sampleRate + 16;
+		float *fsamples_out = malloc(newcnt * wav.channels * sizeof(float));
+
+		// Do the conversion
+		SRC_DATA data = {
+			.data_in = fsamples_in,
+			.input_frames = cnt,
+			.data_out = fsamples_out,
+			.output_frames = newcnt,
+			.src_ratio = (double)flag_wav_resample / wav.sampleRate,
+		};
+		int err = src_simple(&data, SRC_SINC_BEST_QUALITY, wav.channels);
+		if (err != 0) {
+			fprintf(stderr, "ERROR: %s: resampling failed: %s\n", infn, src_strerror(err));
+			free(fsamples_in);
+			free(fsamples_out);
+			free(samples);
+			drwav_uninit(&wav);
+			return 1;
+		}
+
+		// Extract the number of samples generated, and convert back to 16-bit
+		cnt = data.output_frames_gen;
+		samples = realloc(samples, cnt * wav.channels * sizeof(int16_t));
+		src_float_to_short_array(fsamples_out, samples, cnt * wav.channels);
+
+		free(fsamples_in);
+		free(fsamples_out);
+
+		// Update wav.sampleRate as it will be used later
+		wav.sampleRate = flag_wav_resample;
+
+		// Update also the loop offset to the new sample rate
+		flag_wav_looping_offset = flag_wav_looping_offset * flag_wav_resample / wav.sampleRate;
 	}
 
 	// Keep 8 bits file if original is 8 bit, otherwise expand to 16 bit.
@@ -126,6 +194,9 @@ int wav_convert(const char *infn, const char *outfn) {
 		struct vadpcm_params parms = { .predictor_count = kPREDICTORS };
 		void *dest = malloc(nframes * kVADPCMFrameByteSize * wav.channels);
 		
+		if (flag_verbose)
+			fprintf(stderr, "  compressing into VADPCM format (%d frames)\n", nframes);
+
 		int16_t *schan = malloc(cnt * sizeof(int16_t));
 		uint8_t *destchan = dest;
 		for (int i=0; i<wav.channels; i++) {

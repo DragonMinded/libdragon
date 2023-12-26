@@ -239,6 +239,14 @@
 })
 
 /**
+ * @brief Write the COP0 WATCHLO register
+ * 
+ * This register is used during watchpoint programming. It allows to trigger
+ * an exception when a memory access occurs on a specific memory location.
+ */
+#define C0_WRITE_WATCHLO(x) asm volatile("mtc0 %0,$18"::"r"(x))
+
+/**
  * @brief Write the COP0 WIRED register
  * 
  * This register is used during TLB programming. It allows to partition TLB

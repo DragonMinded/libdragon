@@ -31,6 +31,6 @@ namespace SceneMgr {
     static SceneBase *new_scene() { \
         return new class_name(); \
     } \
-    SceneNewFunc new_func = new_scene;
+    SceneNewFunc __attribute__((__visibility__("default"))) new_func = new_scene;
     
 #endif

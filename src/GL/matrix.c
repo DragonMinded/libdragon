@@ -452,7 +452,7 @@ void glCopyMatrixN64(GLenum source)
             
         default:
             gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid matrix source for copying matrices", source);
-            break;
+            return;
     }
     memcpy(state.current_matrix, gl_matrix_stack_get_matrix(matrix_stack), sizeof(gl_matrix_t));
     gl_mark_matrix_target_dirty();

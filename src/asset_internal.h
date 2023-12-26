@@ -14,6 +14,8 @@
 #define ASSET_FLAG_WINSIZE_64K      0x0005  ///< 64 KiB window size
 #define ASSET_FLAG_WINSIZE_128K     0x0006  ///< 128 KiB window size
 #define ASSET_FLAG_WINSIZE_256K     0x0007  ///< 256 KiB window size
+#define ASSET_FLAG_INPLACE          0x0100  ///< Decompress in-place
+#define ASSET_ALIGNMENT             32
 
 __attribute__((used))
 static inline int asset_winsize_from_flags(uint16_t flags) {
@@ -45,9 +47,10 @@ typedef struct {
     uint16_t flags;         ///< Flags
     uint32_t cmp_size;      ///< Compressed size in bytes
     uint32_t orig_size;     ///< Original size in bytes
+    uint32_t inplace_margin; ///< Margin for in-place decompression
 } asset_header_t;
 
-_Static_assert(sizeof(asset_header_t) == 16, "invalid sizeof(asset_header_t)");
+_Static_assert(sizeof(asset_header_t) == 20, "invalid sizeof(asset_header_t)");
 
 /** @brief A decompression algorithm used by the asset library */
 typedef struct {
@@ -61,6 +64,9 @@ typedef struct {
 
     /** @brief Decompress a full file in one go */
     void* (*decompress_full)(const char *fn, FILE *fp, size_t cmp_size, size_t len);
+
+    /** @brief Decompress a full file in-place */
+    int (*decompress_full_inplace)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);
 } asset_compression_t;
 
 

@@ -133,8 +133,7 @@ int main(void) {
     console_set_debug(true);
     dfs_init(DFS_DEFAULT_LOCATION);
     asset_init_compression(2);
-
-    asset_init_compression(2);
+    asset_init_compression(3);
 
     char sbuf[1024];
     strcpy(sbuf, "rom:/");
@@ -153,25 +152,26 @@ int main(void) {
     qsort(cmpfiles, num_files, sizeof(char *), sort_name);
 
     printf("Decompression benchmark: %d files\n", num_files);
-    printf("%-28s: %-4s | %-7s | %-5s | %-5s\n", "File", "KiB", "Ratio", "Full", "Partial");
+    if (true) {
+        printf("%-28s: %-4s | %-7s | %-5s | %-5s\n", "File", "KiB", "Ratio", "Full", "Partial");
+        for (int i=0; i<num_files; i++) {
+            char *fn = cmpfiles[i];
+            int cmp_size = file_size(fn);
 
-    for (int i=0; i<num_files; i++) {
-        char *fn = cmpfiles[i];
-        int cmp_size = file_size(fn);
+            // if (strendswith(fn, ".c0")) level = 0;
+            // if (strendswith(fn, ".c1")) level = 1;
+            // if (strendswith(fn, ".c2")) level = 2;
+            // if (strendswith(fn, ".c3")) level = 3;
 
-        // if (strendswith(fn, ".c0")) level = 0;
-        // if (strendswith(fn, ".c1")) level = 1;
-        // if (strendswith(fn, ".c2")) level = 2;
-        // if (strendswith(fn, ".c3")) level = 3;
+            benchmark b = run_bench(fn);
+            float ratio = (float)cmp_size * 100.0f / (float)b.size;
 
-        benchmark b = run_bench(fn);
-        float ratio = (float)cmp_size * 100.0f / (float)b.size;
-
-        printf("%-28s: %4d | %6.1f%% | %5.1f | %5.1f\n", fn+5, b.size/1024, ratio, b.full_us / 1000.0f, b.partial_us / 1000.0f);
-        // debugf("CRC %08lx %08lx\n", b.full_crc, b.partial_crc);
-        if (b.full_crc != b.partial_crc) {
-            debugf("CRC mismatch\n");
-            return 1;
+            printf("%-28s: %4d | %6.1f%% | %5.1f | %5.1f\n", fn+5, b.size/1024, ratio, b.full_us / 1000.0f, b.partial_us / 1000.0f);
+            // debugf("CRC %08lx %08lx\n", b.full_crc, b.partial_crc);
+            if (b.full_crc != b.partial_crc) {
+                debugf("CRC mismatch %08lx\n", b.full_crc);
+                return 1;
+            }
         }
     }
 }

@@ -1,7 +1,8 @@
 #include "asset.h"
 #include "asset_internal.h"
-#include "compress/lzh5_internal.h"
+#include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
+#include "compress/shrinkler_dec_internal.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -26,22 +27,37 @@
  * Only level 1 (LZ4) is always initialized. The other algorithm (LZH5)
  * must be initialized manually via #asset_init_compression.
  */
-static asset_compression_t algos[2] = {
+static asset_compression_t algos[3] = {
     {
         .state_size = DECOMPRESS_LZ4_STATE_SIZE,
         .decompress_init = decompress_lz4_init,
         .decompress_read = decompress_lz4_read,
-        .decompress_full = decompress_lz4_full,
+        .decompress_full_inplace = decompress_lz4_full_inplace,
     }
 };
 
 void __asset_init_compression_lvl2(void)
 {
     algos[1] = (asset_compression_t){
-        .state_size = DECOMPRESS_LZH5_STATE_SIZE,
-        .decompress_init = decompress_lzh5_init,
-        .decompress_read = decompress_lzh5_read,
-        .decompress_full = decompress_lzh5_full,
+        .state_size = DECOMPRESS_APLIB_STATE_SIZE,
+        .decompress_init = decompress_aplib_init,
+        .decompress_read = decompress_aplib_read,
+        #if DECOMPRESS_APLIB_FULL_USE_ASM
+        .decompress_full_inplace = decompress_aplib_full_inplace,
+        #else
+        .decompress_full = decompress_aplib_full,
+        #endif
+    };
+}
+
+void __asset_init_compression_lvl3(void)
+{
+    algos[2] = (asset_compression_t){
+        #if DECOMPRESS_SHRINKLER_FULL_USE_ASM
+        .decompress_full_inplace = decompress_shrinkler_full_inplace,
+        #else
+        .decompress_full = decompress_shrinkler_full,
+        #endif
     };
 }
 
@@ -71,6 +87,64 @@ FILE *must_fopen(const char *fn)
     return f;
 }
 
+static void* decompress_inplace(asset_compression_t *algo, const char *fn, FILE *fp, size_t cmp_size, size_t size, int margin)
+{
+    // Consistency check on input data
+    assert(margin >= 0);
+
+    // add 8 because the assembly decompressors do writes up to 8 bytes out-of-bounds,
+    // that could overwrite the input data.
+    margin += 8;
+
+    int bufsize = size + margin;
+    int cmp_offset = bufsize - cmp_size;
+    // Align the source buffer to 4 bytes, so that we can use 32-bit loads (required by shrinkler).
+    // Notice that we need at least 2-byte alignment anyway, for DMA.
+    while (cmp_offset & 3) {
+        cmp_offset++;
+        bufsize++;
+    }
+    if (bufsize & 15) {
+        // In case we need to call invalidate (see below), we need an aligned buffer
+        bufsize += 16 - (bufsize & 15);
+    }
+
+    void *s = memalign(ASSET_ALIGNMENT, bufsize);
+    assertf(s, "asset_load: out of memory");
+    int n;
+
+    #ifdef N64
+    if (fn && strncmp(fn, "rom:/", 5) == 0) {
+        // Invalid the portion of the buffer where we are going to load
+        // the compressed data. This is needed in case the buffer returned
+        // by memalign happens to be in cached already.
+        int align_cmp_offset = cmp_offset & ~15;
+        data_cache_hit_invalidate(s+align_cmp_offset, bufsize-align_cmp_offset);
+
+        // Loading from ROM. This is a common enough situation that we want to optimize it.
+        // Start an asynchronous DMA transfer, so that we can start decompressing as the
+        // data flows in.
+        uint32_t addr = dfs_rom_addr(fn+5) & 0x1FFFFFFF;
+        dma_read_async(s+cmp_offset, addr+sizeof(asset_header_t), cmp_size);
+
+        // Run the decompression racing with the DMA.
+        n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
+    #else
+    if (false) {
+    #endif
+    } else {
+        // Standard loading via stdio. We have to wait for the whole file to be read.
+        fread(s+cmp_offset, 1, cmp_size, fp);
+
+        // Run the decompression.
+        n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
+    }
+    assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
+    void *ptr = realloc(s, size); (void)ptr;
+    assertf(s == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
+    return ptr;
+}
+
 void *asset_load(const char *fn, int *sz)
 {
     uint8_t *s; int size;
@@ -86,7 +160,7 @@ void *asset_load(const char *fn, int *sz)
     asset_header_t header;
     fread(&header, 1, sizeof(asset_header_t), f);
     if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
-        if (header.version != '2') {
+        if (header.version != '3') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
             return NULL;
         }
@@ -96,23 +170,27 @@ void *asset_load(const char *fn, int *sz)
         header.flags = __builtin_bswap16(header.flags);
         header.cmp_size = __builtin_bswap32(header.cmp_size);
         header.orig_size = __builtin_bswap32(header.orig_size);
+        header.inplace_margin = __builtin_bswap32(header.inplace_margin);
         #endif
 
-        assertf(header.algo >= 1 || header.algo <= 2,
+        assertf(header.algo >= 1 || header.algo <= 3,
             "unsupported compression algorithm: %d", header.algo);
-        assertf(algos[header.algo-1].decompress_full, 
+        assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
 
         size = header.orig_size;
-        s = algos[header.algo-1].decompress_full(fn, f, header.cmp_size, size);
+        if ((header.flags & ASSET_FLAG_INPLACE) && algos[header.algo-1].decompress_full_inplace)
+            s = decompress_inplace(&algos[header.algo-1], fn, f, header.cmp_size, size, header.inplace_margin);
+        else
+            s = algos[header.algo-1].decompress_full(fn, f, header.cmp_size, size);
     } else {
         // Allocate a buffer big enough to hold the file.
-        // We force a 16-byte alignment for the buffer so that it's cacheline aligned.
+        // We force a 32-byte alignment for the buffer so that it's aligned to instruction cache lines.
         // This might or might not be useful, but if a binary file is laid out so that it
         // matters, at least we guarantee that. 
         fseek(f, 0, SEEK_END);
         size = ftell(f);
-        s = memalign(16, size);
+        s = memalign(ASSET_ALIGNMENT, size);
 
         fseek(f, 0, SEEK_SET);
         fread(s, 1, size, f);
@@ -209,7 +287,7 @@ FILE *asset_fopen(const char *fn, int *sz)
     asset_header_t header;
     fread(&header, 1, sizeof(asset_header_t), f);
     if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
-        if (header.version != '2') {
+        if (header.version != '3') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
             return NULL;
         }
@@ -219,14 +297,17 @@ FILE *asset_fopen(const char *fn, int *sz)
             header.flags = __builtin_bswap16(header.flags);
             header.cmp_size = __builtin_bswap32(header.cmp_size);
             header.orig_size = __builtin_bswap32(header.orig_size);
+            header.inplace_margin = __builtin_bswap32(header.inplace_margin);
         }
 
         cookie_cmp_t *cookie;
 
         assertf(header.algo >= 1 || header.algo <= 2,
             "unsupported compression algorithm: %d", header.algo);
-        assertf(algos[header.algo-1].decompress_init, 
+        assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
+        assertf(algos[header.algo-1].decompress_init, 
+            "asset: compression level %d does not currently support asset_fopen()", header.algo);
 
         int winsize = asset_winsize_from_flags(header.flags);
         cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);

@@ -222,7 +222,7 @@ static void joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active)
     {
         // Set rumble active flag on cached GameCube controller read command
         const size_t cmd_offset = joypad_read_input_offsets[port];
-        const size_t send_len_offset = cmd_offset + JOYBUS_COMMAND_OFFSET_SEND_LEN;
+        const size_t send_len_offset = cmd_offset + JOYBUS_COMMAND_OFFSET_SEND_LEN; (void)send_len_offset;
         joybus_cmd_gcn_controller_read_port_t *cmd;
         assert(joypad_read_input[send_len_offset] == sizeof(cmd->send));
         cmd = (void *)&joypad_read_input[cmd_offset + JOYBUS_COMMAND_METADATA_SIZE];
