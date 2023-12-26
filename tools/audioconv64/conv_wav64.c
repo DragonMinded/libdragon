@@ -11,7 +11,7 @@
 #include "../common/binout.h"
 
 #define ENABLE_SINC_BEST_CONVERTER
-#define PACKAGE "libsamplerage"
+#define PACKAGE "libsamplerate"
 #define VERSION "0.1.9"
 #include "libsamplerate/samplerate.h"
 #include "libsamplerate/samplerate.c"
@@ -23,12 +23,20 @@
 #undef MIN
 #undef MAX
 
+#include "libopus.c"
+
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
 int flag_wav_resample = 0;
 
 int wav_convert(const char *infn, const char *outfn) {
+	if (flag_verbose) {
+		const char *compr[4] = { "raw", "vadpcm", "raw", "opus" };
+		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, compr[flag_wav_compress]);
+	}
+
+	bool failed = false;
 	drwav wav;
 	if (!drwav_init_file(&wav, infn, NULL)) {
 		fprintf(stderr, "ERROR: %s: not a valid WAV/RIFF/AIFF file\n", infn);
@@ -36,8 +44,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	}
 
 	if (flag_verbose)
-		fprintf(stderr, "Converting: %s => %s (%d bits, %d Hz, %d channels, %s)\n", infn, outfn,
-			wav.bitsPerSample, wav.sampleRate, wav.channels, flag_wav_compress ? "vadpcm" : "raw");
+		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
 
 	// Decode the samples as 16bit big-endian. This will decode everything including
 	// compressed formats so that we're able to read any kind of WAV file, though
@@ -48,11 +55,22 @@ int wav_convert(const char *infn, const char *outfn) {
 		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, wav.totalPCMFrameCount, cnt);
 	}
 
-	// When converting to opus, default to 48 kHz.
-	if (flag_wav_compress == 3 && wav.sampleRate != 48000) {
+	int wavOriginalSampleRate = wav.sampleRate;
+
+	// When compressing with opus, we need to resample to 32 Khz. Whatever value
+	// was selected by the user, we force it to 32 Khz.
+	if (flag_wav_compress == 3) {
+		const int OPUS_SAMPLE_RATE = 32000;
 		if (flag_verbose)
-			fprintf(stderr, "  opus only supports 48 kHz, forcing resample\n");
-		flag_wav_resample = 48000;
+			fprintf(stderr, "  opus only supports %d kHz, forcing resample\n", OPUS_SAMPLE_RATE/1000);
+
+		// If the user asked to resample to a certain sample rate, keep that in
+		// mind for later when we will calculate th opus output bitrate.
+		// Basically --wav-resample becomes a way to tune the bitrate,
+		// but resampling is always done to OPUS_SAMPLE_RATE.
+		if (flag_wav_resample)
+			wavOriginalSampleRate = flag_wav_resample;
+		flag_wav_resample = OPUS_SAMPLE_RATE;
 	}
 
 	// Do sample rate conversion if requested
@@ -103,9 +121,9 @@ int wav_convert(const char *infn, const char *outfn) {
 	}
 
 	// Keep 8 bits file if original is 8 bit, otherwise expand to 16 bit.
-	// Compressed waveforms always expand to 16
+	// Compressed waveforms always expand to 16 (both vadpcm and opus only supports 16 bits)
 	int nbits = wav.bitsPerSample == 8 ? 8 : 16;
-	if (flag_wav_compress == 1)
+	if (flag_wav_compress != 0)
 		nbits = 16;
 
 	int loop_len = flag_wav_looping ? cnt - flag_wav_looping_offset : 0;
@@ -119,6 +137,15 @@ int wav_convert(const char *infn, const char *outfn) {
 		// We shorten the loop by 1 sample which shouldn't matter.
 		fprintf(stderr, "WARNING: %s: invalid looping size: %d\n", infn, loop_len);
 		loop_len -= 1;
+	}
+
+	if (flag_wav_compress == 3) {
+		if (wav.sampleRate != 48000 && wav.sampleRate != 32000) {
+			fprintf(stderr, "ERROR: %s: libdragon opus player only supports 32 Khz or 48 kHz\n", infn);
+			free(samples);
+			drwav_uninit(&wav);
+			return 1;
+		}
 	}
 
 	FILE *out = fopen(outfn, "wb");
@@ -230,10 +257,144 @@ int wav_convert(const char *infn, const char *outfn) {
 		free(dest);
 		free(scratch);
 	} break;
+
+	case 3: { // opus
+		w32_at(out, wstart_offset, ftell(out));
+
+		// Frame size: for now this is hardcoded to frames of 20ms, which is the
+		// maximum support by celt and also the best for quality.
+		// 48 Khz => 960 samples
+		// 32 Khz => 640 samples
+		const int FRAMES_PER_SECOND = 50;
+		int frame_size = wav.sampleRate / FRAMES_PER_SECOND;
+		int err = OPUS_OK;
+
+		OpusCustomMode *custom_mode = opus_custom_mode_create(
+			wav.sampleRate, frame_size, &err);
+		if (err != OPUS_OK) {
+			fprintf(stderr, "ERROR: %s: cannot create opus custom mode: %s\n", infn, opus_strerror(err));
+			failed = true; goto end;
+		}
+
+		OpusCustomEncoder *enc = opus_custom_encoder_create(
+				custom_mode, wav.channels, &err);
+		if (err != OPUS_OK) {
+			opus_custom_mode_destroy(custom_mode);
+			fprintf(stderr, "ERROR: %s: cannot create opus encoder: %s\n", infn, opus_strerror(err));
+			failed = true; goto end;
+		}
+
+		// Automatic bitrate calculation for "good quality". This is the same
+		// algorithm libopus selects when setting OPUS_AUTO bitrate.
+		int bitrate_bps = 60*FRAMES_PER_SECOND + wavOriginalSampleRate * wav.channels;
+		fprintf(stderr, "  opus bitrate: %d bps\n", bitrate_bps);
+
+		// Configure opus encoder. We use VBR as it provides the best
+		// compression/quality balance and we don't have specific constraints
+		// there. We select the maximum algorithmic complexity to get the best quality.
+		opus_custom_encoder_ctl(enc, OPUS_SET_BITRATE(bitrate_bps));
+		opus_custom_encoder_ctl(enc, OPUS_SET_BANDWIDTH(OPUS_AUTO));
+		opus_custom_encoder_ctl(enc, OPUS_SET_VBR(1));
+		opus_custom_encoder_ctl(enc, OPUS_SET_VBR_CONSTRAINT(0));
+		opus_custom_encoder_ctl(enc, OPUS_SET_COMPLEXITY(10));
+		opus_custom_encoder_ctl(enc, OPUS_SET_INBAND_FEC(0));
+		opus_custom_encoder_ctl(enc, OPUS_SET_FORCE_CHANNELS(OPUS_AUTO));
+		opus_custom_encoder_ctl(enc, OPUS_SET_DTX(0));
+		opus_custom_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(0));
+		opus_custom_encoder_ctl(enc, OPUS_SET_LSB_DEPTH(16));
+
+		// Pad input samples with zeros, rounding to frame size
+		int newcnt = (cnt + frame_size - 1) / frame_size * frame_size;
+		samples = realloc(samples, newcnt * wav.channels * sizeof(int16_t));
+		memset(samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
+		
+		int out_max_size = bitrate_bps/8; // overestimation
+		uint8_t *out_buffer = malloc(out_max_size);
+		for (int i=0; i<newcnt; i+=frame_size) {
+			int nb = opus_custom_encode(enc, samples + i*wav.channels, frame_size, out_buffer, out_max_size);
+			if (nb < 0) {
+				fprintf(stderr, "ERROR: %s: opus encoding failed: %s\n", infn, opus_strerror(nb));
+				failed = true;
+				break;
+			}
+
+			w16(out, nb);
+			fwrite(out_buffer, 1, nb, out);
+		}
+		
+		free(out_buffer);
+		opus_custom_encoder_destroy(enc);
+
+		if (true) {
+			fclose(out);
+			out = fopen(outfn, "rb");
+			fseek(out, 24, SEEK_SET);
+
+			OpusCustomDecoder *dec = opus_custom_decoder_create(
+					custom_mode, wav.channels, &err);
+			if (err != OPUS_OK) {
+				opus_custom_mode_destroy(custom_mode);
+				fprintf(stderr, "ERROR: %s: cannot create opus decoder: %s\n", infn, opus_strerror(err));
+				failed = true; goto end;
+			}
+
+			// Decode the whole file to check for errors
+			int16_t *out_samples = malloc(newcnt * wav.channels * sizeof(int16_t));
+			int outcnt = 0;
+			for (int i=0; i<newcnt; i+=frame_size) {
+				int nb = fgetc(out) << 8;
+				nb |= fgetc(out);
+				if (nb < 0) {
+					fprintf(stderr, "ERROR: %s: opus decoding failed: %s\n", infn, opus_strerror(nb));
+					failed = true;
+					break;
+				}
+
+				uint8_t in_samples[nb];
+				fread(in_samples, 1, nb, out);
+
+				int ret = opus_custom_decode(dec, in_samples, nb, out_samples + outcnt*wav.channels, frame_size);
+				if (ret < 0) {
+					fprintf(stderr, "ERROR: %s: opus decoding failed: %s\n", infn, opus_strerror(ret));
+					failed = true;
+					break;
+				}
+				outcnt += frame_size;
+			}
+
+			// Save decoded samples into WAV file
+			if (!failed) {
+				drwav_data_format fmt = {
+					.container = drwav_container_riff,
+					.format = DR_WAVE_FORMAT_PCM,
+					.channels = wav.channels,
+					.sampleRate = wav.sampleRate,
+					.bitsPerSample = 16,
+				};
+				drwav wav2;
+				char* wav2fn = changeext(outfn, ".opus.wav");
+				if (!drwav_init_file_write(&wav2, wav2fn, &fmt, NULL)) {
+					fprintf(stderr, "ERROR: %s: cannot create WAV file\n", outfn);
+					failed = true;
+				} else {
+					drwav_write_pcm_frames(&wav2, outcnt, out_samples);
+					drwav_uninit(&wav2);
+				}
+				free(wav2fn);
+			}
+		}
+
+		opus_custom_mode_destroy(custom_mode);
+	} break;
 	}
 
+end:
 	fclose(out);
 	free(samples);
 	drwav_uninit(&wav);
+	if (failed) {
+		remove(outfn);
+		return 1;
+	}
 	return 0;
 }
