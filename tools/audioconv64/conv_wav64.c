@@ -29,6 +29,7 @@ bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
 int flag_wav_resample = 0;
+bool flag_wav_mono = false;
 
 int wav_convert(const char *infn, const char *outfn) {
 	if (flag_verbose) {
@@ -53,6 +54,31 @@ int wav_convert(const char *infn, const char *outfn) {
 	size_t cnt = drwav_read_pcm_frames_s16le(&wav, wav.totalPCMFrameCount, samples);
 	if (cnt != wav.totalPCMFrameCount) {
 		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, wav.totalPCMFrameCount, cnt);
+	}
+
+	// Check if the user requested conversion to mono
+	if (flag_wav_mono && wav.channels == 2) {
+		if (flag_verbose)
+			fprintf(stderr, "  converting to mono\n");
+
+		// Allocate a new buffer for the mono samples
+		int16_t *mono_samples = malloc(cnt * sizeof(int16_t));
+
+		// Convert to mono
+		int16_t *sptr = samples;
+		int16_t *dptr = mono_samples;
+		for (int i=0;i<cnt;i++) {
+			int32_t v = *sptr + *(sptr+1);
+			v /= 2;
+			*dptr = v;
+			sptr += 2;
+			dptr++;
+		}
+
+		// Replace the samples buffer with the mono one
+		free(samples);
+		samples = mono_samples;
+		wav.channels = 1;
 	}
 
 	int wavOriginalSampleRate = wav.sampleRate;

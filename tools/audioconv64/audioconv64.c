@@ -72,6 +72,7 @@ void usage(void) {
 	printf("   -v / --verbose            Verbose mode\n");
 	printf("\n");
 	printf("WAV options:\n");
+	printf("   --wav-mono				 Force mono output\n");
 	printf("   --wav-resample <N>        Resample to a different sample rate\n");
 	printf("   --wav-compress <0|1|3>    Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
