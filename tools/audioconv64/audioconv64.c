@@ -71,6 +71,7 @@ void usage(void) {
 	printf("   -v / --verbose            Verbose mode\n");
 	printf("\n");
 	printf("WAV options:\n");
+	printf("   --wav-mono				 Force mono output\n");
 	printf("   --wav-resample <N>        Resample to a different sample rate\n");
 	printf("   --wav-compress <0|1>      Enable compression: 0=none, 1=vadpcm (default)\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
@@ -223,6 +224,8 @@ int main(int argc, char *argv[]) {
 					return 1;
 				}
 				flag_wav_looping = true;
+			} else if (!strcmp(argv[i], "--wav-mono")) {
+				flag_wav_mono = true;
 			} else if (!strcmp(argv[i], "--wav-compress")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --wav-compress\n");
