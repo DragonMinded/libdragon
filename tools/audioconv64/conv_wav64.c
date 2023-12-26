@@ -48,13 +48,6 @@ int wav_convert(const char *infn, const char *outfn) {
 		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, wav.totalPCMFrameCount, cnt);
 	}
 
-	// When converting to opus, default to 48 kHz.
-	if (flag_wav_compress == 3 && wav.sampleRate != 48000) {
-		if (flag_verbose)
-			fprintf(stderr, "  opus only supports 48 kHz, forcing resample\n");
-		flag_wav_resample = 48000;
-	}
-
 	// Do sample rate conversion if requested
 	if (flag_wav_resample && wav.sampleRate != flag_wav_resample) {
 		if (flag_verbose)
