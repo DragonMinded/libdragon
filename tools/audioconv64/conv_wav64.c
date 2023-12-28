@@ -165,15 +165,6 @@ int wav_convert(const char *infn, const char *outfn) {
 		loop_len -= 1;
 	}
 
-	if (flag_wav_compress == 3) {
-		if (wav.sampleRate != 48000 && wav.sampleRate != 32000) {
-			fprintf(stderr, "ERROR: %s: libdragon opus player only supports 32 Khz or 48 kHz\n", infn);
-			free(samples);
-			drwav_uninit(&wav);
-			return 1;
-		}
-	}
-
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {
 		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
@@ -285,8 +276,6 @@ int wav_convert(const char *infn, const char *outfn) {
 	} break;
 
 	case 3: { // opus
-		w32_at(out, wstart_offset, ftell(out));
-
 		// Frame size: for now this is hardcoded to frames of 20ms, which is the
 		// maximum support by celt and also the best for quality.
 		// 48 Khz => 960 samples
@@ -315,6 +304,12 @@ int wav_convert(const char *infn, const char *outfn) {
 		int bitrate_bps = 60*FRAMES_PER_SECOND + wavOriginalSampleRate * wav.channels;
 		fprintf(stderr, "  opus bitrate: %d bps\n", bitrate_bps);
 
+		// Write extended header
+		w32(out, frame_size);
+		uint32_t max_cmp_size_pos = w32_placeholder(out);  // max compressed frame size
+		w32(out, bitrate_bps);
+		w32_at(out, wstart_offset, ftell(out));
+
 		// Configure opus encoder. We use VBR as it provides the best
 		// compression/quality balance and we don't have specific constraints
 		// there. We select the maximum algorithmic complexity to get the best quality.
@@ -334,6 +329,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		samples = realloc(samples, newcnt * wav.channels * sizeof(int16_t));
 		memset(samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
 		
+		int max_nb = 0;
 		int out_max_size = bitrate_bps/8; // overestimation
 		uint8_t *out_buffer = malloc(out_max_size);
 		for (int i=0; i<newcnt; i+=frame_size) {
@@ -346,7 +342,12 @@ int wav_convert(const char *infn, const char *outfn) {
 
 			w16(out, nb);
 			fwrite(out_buffer, 1, nb, out);
+			if (nb > max_nb)
+				max_nb = nb;
+			walign(out, 2);	// make sure frames are 2-byte aligned
 		}
+
+		w32_at(out, max_cmp_size_pos, max_nb); // write maxixum compressed frame size
 		
 		free(out_buffer);
 		opus_custom_encoder_destroy(enc);
@@ -354,7 +355,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		if (true) {
 			fclose(out);
 			out = fopen(outfn, "rb");
-			fseek(out, 24, SEEK_SET);
+			fseek(out, 36, SEEK_SET);
 
 			OpusCustomDecoder *dec = opus_custom_decoder_create(
 					custom_mode, wav.channels, &err);
@@ -378,6 +379,7 @@ int wav_convert(const char *infn, const char *outfn) {
 
 				uint8_t in_samples[nb];
 				fread(in_samples, 1, nb, out);
+				if (nb & 1) fgetc(out); // align to 2-byte boundary
 
 				int ret = opus_custom_decode(dec, in_samples, nb, out_samples + outcnt*wav.channels, frame_size);
 				if (ret < 0) {
