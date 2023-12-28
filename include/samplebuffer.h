@@ -240,6 +240,25 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
 void* samplebuffer_append(samplebuffer_t *buf, int wlen);
 
 /**
+ * @brief Remove the a specified number of samples from the tail of the buffer.
+ * 
+ * This function removes the last \a wlen samples from the buffer. It can be
+ * used to revert the behavior of a #samplebuffer_append call, if the data
+ * written to the buffer was too much.
+ * 
+ * A common situation is an implementation of a waveform codec with fixed
+ * audio frames. The last frame at the end of the waveform will likely need
+ * to be truncated, but the compressor would have likely padded it with zeros
+ * to make it the same size as the others. In this case, at playing time,
+ * it is possible to call #samplebuffer_append to append the whole frame,
+ * but then remove the unneeded padding with a call to #samplebuffer_undo.
+ * 
+ * @param buf       Sample buffer
+ * @param wlen      Number of samples to remove
+ */
+void samplebuffer_undo(samplebuffer_t *buf, int wlen);
+
+/**
  * Discard all samples from the buffer that come before a specified
  * absolute waveform position.
  * 
