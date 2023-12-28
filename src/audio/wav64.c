@@ -6,6 +6,7 @@
 
 #include "wav64.h"
 #include "wav64internal.h"
+#include "wav64_opus_internal.h"
 #include "mixer.h"
 #include "mixer_internal.h"
 #include "dragonfs.h"
@@ -271,6 +272,15 @@ void wav64_open(wav64_t *wav, const char *fn) {
 	assertf(head.version == WAV64_FILE_VERSION, "wav64 %s: invalid version: %02x\n",
 		fn, head.version);
 
+	wav->wave.name = fn;
+	wav->wave.channels = head.channels;
+	wav->wave.bits = head.nbits;
+	wav->wave.frequency = head.freq;
+	wav->wave.len = head.len;
+	wav->wave.loop_len = head.loop_len; 
+	wav->rom_addr = dfs_rom_addr(fn) + head.start_offset;
+	wav->format = head.format;
+
 	switch (head.format) {
 	case WAV64_FORMAT_RAW:
 		wav->wave.read = waveform_read;
@@ -292,18 +302,15 @@ void wav64_open(wav64_t *wav, const char *fn) {
 		assertf(head.loop_len == 0 || head.loop_len % 16 == 0, 
 			"wav64 %s: invalid loop length: %ld\n", fn, head.loop_len);
 	}	break;
+
+	case WAV64_FORMAT_OPUS: {
+		wav64_opus_init(wav, fh);
+	}	break;
 	
 	default:
 		assertf(0, "wav64 %s: invalid format: %02x\n", fn, head.format);
 	}
 
-	wav->wave.name = fn;
-	wav->wave.channels = head.channels;
-	wav->wave.bits = head.nbits;
-	wav->wave.frequency = head.freq;
-	wav->wave.len = head.len;
-	wav->wave.loop_len = head.loop_len; 
-	wav->rom_addr = dfs_rom_addr(fn) + head.start_offset;
 	dfs_close(fh);
 	debugf("wav64 %s: %d-bit %.1fHz %dch %d samples (loop: %d)\n",
 		fn, wav->wave.bits, wav->wave.frequency, wav->wave.channels, wav->wave.len, wav->wave.loop_len);
@@ -331,7 +338,14 @@ void wav64_set_loop(wav64_t *wav, bool loop) {
 void wav64_close(wav64_t *wav)
 {
 	if (wav->ext) {
-		free_uncached(wav->ext);
+		switch (wav->format) {
+		case WAV64_FORMAT_VADPCM:
+			free_uncached(wav->ext);
+			break;
+		case WAV64_FORMAT_OPUS:
+			wav64_opus_close(wav);
+			break;
+		}
 		wav->ext = NULL;
 	}
 }
