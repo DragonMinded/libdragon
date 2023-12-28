@@ -23,7 +23,7 @@
 #undef MIN
 #undef MAX
 
-#include "libopus.c"
+#include "../../src/audio/libopus.c"
 
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
