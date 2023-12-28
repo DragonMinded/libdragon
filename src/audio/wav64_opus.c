@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <malloc.h>
+#include <stdalign.h>
 #include "wav64.h"
 #include "wav64internal.h"
 #include "samplebuffer.h"
@@ -46,7 +47,9 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
 		}
 	}
 
-    uint8_t *buf = alloca_aligned(16, st->xhead.max_cmp_frame_size);
+    // Allocate stack buffer for reading compressed data. Align it to cacheline
+    // to avoid any false sharing.
+    uint8_t buf[st->xhead.max_cmp_frame_size] alignas(16);
 
     // rspq_highpri_begin();
     while (wlen > 0) {
