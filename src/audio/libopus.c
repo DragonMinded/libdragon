@@ -1,8 +1,10 @@
-
-#pragma GCC diagnostic push
-
-// Compiling libopus seems to trigger this warning that we can safely ignore.
-#pragma GCC diagnostic ignored "-Wnonnull-compare"
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wtautological-compare"
+#else
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wnonnull-compare"
+#endif
 
 // Activate support for CELT custom modes. We have pregenerated the two common
 // custom modes in static_modes_fixed.h, but we are going to allow for runtime
@@ -36,6 +38,10 @@
 #include "opus/vq.c"
 #include "opus/quant_bands.c"
 
-#pragma GCC diagnostic pop
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#else
+    #pragma GCC diagnostic pop
+#endif
 #undef MIN
 #undef MAX
