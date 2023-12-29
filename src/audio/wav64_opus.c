@@ -1,3 +1,33 @@
+/**
+ * @file wav64_opus.c
+ * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @brief Support for opus-compressed WAV64 files
+ * 
+ * Opus notes
+ * ----------
+ * This section details how the Opus format is used in wav64. Opus is made
+ * by a mix of two different coders: CELT and SILK. CELT is used for larger
+ * frames and is more apt for music, while SILK is used for smaller frames
+ * and is more apt for speech. Our N64 implementation only uses CELT. In 
+ * fact, the whole Opus layer (which is a framing layer) is not used at all.
+ * 
+ * A WAV64 file compressed with Opus contains a sequence of raw CELT frames.
+ * Since CELT requires framing (that is, the length of the compressed frame
+ * must be known in advance), a very simple framing is used: each frame is
+ * preceded by a 16-bit integer that contains the compressed length of the
+ * frame itself. Moreover, frames are forced to be 2-byte aligned, so that
+ * they're easier to read them via DMA.
+ * 
+ * At the API level, we use the opus_custom API which is a CELT-only API
+ * that allows to implement custom "modes". A "mode" is the configuration
+ * of the codec, in terms of sample rate and frame size. Standard CELT only
+ * supports 48kHz with frames of some specific length (from 2.5ms to 60ms
+ * in various steps). For N64, we want to flexibility of experimenting with
+ * different sample rates and frame sizes. For instance, currently the
+ * implementation defaults to 32 Khz and 20ms frames (640 samples per frame),
+ * which seems a good compromise between quality and performance.
+ */
+
 #include <stdint.h>
 #include <assert.h>
 #include <malloc.h>
