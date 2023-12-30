@@ -142,6 +142,9 @@ kf_twiddle_2:
 # KF_BFLY2 - 2-point FFT butterfly
 #######################################################################
 
+    #.section .textovl1
+    #.org 0x800
+
     # 0x5a82 is QCONST16(0.7071067812f, 15); negative is 0xa57e
     #define KF_BFLY2_CONST1  \
         .half 0x7fff, 0x0000, 0x5a82, 0xa57e, 0x0000, 0x8000, 0xa57e, 0xa57e
@@ -248,6 +251,8 @@ kf_bfly2_loop:
     #undef vtmph
     #undef vtmpl
     #undef v___
+
+    .text
 
 #######################################################################
 # KF_BFLY3 - 3-point FFT butterfly
@@ -516,6 +521,25 @@ kf_bfly3_loop:
 # KF_BFLY4 - 4-point FFT butterfly (M=1 simple case)
 #######################################################################
 
+    #define KF_BFLY4_TWIDDLE1(stride, N)  \
+        .half 0, 0, 0, 0, \
+              __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+              __KF_BFLY_FSTRIDE_CPX(stride*1, N)
+    #define KF_BFLY4_TWIDDLE2(stride, N)  \
+        .half __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+              __KF_BFLY_FSTRIDE_CPX(stride*2, N), \
+              __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+              __KF_BFLY_FSTRIDE_CPX(stride*3, N)
+    #define KF_BFLY4_TWINCR1(stride, N)  \
+        .half 0, 0, 0, 0 \
+              __KF_ANGLE16_COS(stride*1, N), __KF_ANGLE16_COS(stride*1, N), \
+              __KF_ANGLE16_COS(stride*1, N), __KF_ANGLE16_COS(stride*1, N)
+    #define KF_BFLY4_TWINCR2(stride, N)  \
+        .half __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
+              __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
+              __KF_ANGLE16_COS(stride*3, N), __KF_ANGLE16_COS(stride*3, N), \
+              __KF_ANGLE16_COS(stride*3, N), __KF_ANGLE16_COS(stride*3, N)
+
     #define vidx0h     $v01
     #define vidx0l     $v02
     #define vidx1h     $v03
@@ -532,38 +556,97 @@ kf_bfly3_loop:
     #define vtmp3h     $v13
     #define vtmp3l     $v14
 
-    .func kf_bfly4_m1
+    #define v___       $v15
+    #define tmp        s5
+    #define j_idx      t8
+
+    .func kf_bfly4
+kf_bfly4:
 kf_bfly4_m1:
+    move ra2, ra
+    addiu tmp, fTW, 0x40
+
     addiu fN, -2
     li t0, 0x5555
     ctc2 t0, COP2_CTRL_VCC
 
+    sll fmm, 3
+    sll fM, 3
+
+kf_bfly4_outer_loop:
+    move s0, fZ
+    addu s1, s0, fM
+    addu s2, s1, fM
+    addu s3, s2, fM
+    lqv vtwidx1,  0x00,fTW
+    lqv vtwidx2,  0x10,fTW
+
+    srl j_idx, fM, 3
+
     # Process 2 iterations at a time. We need 16+16 SU for memory transfers
     # and we only have ~20 VUs to do, so this seems like a good compromise.
 kf_bfly4_m1_loop:
+    # vidx0:  f0r f0i -- --   f1r f1i -- --
+    # vidx2:  f2r f2i -- --   f3r f3i -- --
+    llv vidx0h.e0, 0x00,s0
+    llv vidx0l.e0, 0x04,s0
+    llv vidx0h.e2, 0x08,s0
+    llv vidx0l.e2, 0x0C,s0
+
+    llv vidx0h.e4, 0x00,s1
+    llv vidx0l.e4, 0x04,s1
+    llv vidx0h.e6, 0x08,s1
+    llv vidx0l.e6, 0x0C,s1
+
+    llv vidx2h.e0, 0x00,s2
+    llv vidx2l.e0, 0x04,s2
+    llv vidx2h.e2, 0x08,s2
+    llv vidx2l.e2, 0x0C,s2
+
+    llv vidx2h.e4, 0x00,s3
+    llv vidx2l.e4, 0x04,s3
+    llv vidx2h.e6, 0x08,s3
+    llv vidx2l.e6, 0x0C,s3
+
+    jal kf_twiddle_2
+    nop
+
+    # C_MUL(scratch[0],Fout[m] , *tw1 );
+    vmudm v___,  vtwiddle1,    vidx0l.q0
+    vmadh v___,  vtwiddle1,    vidx0h.q0
+    vmadm v___,  vtwiddle1inv, vidx0l.q1
+    vmadh v___,  vtwiddle1inv, vidx0h.q1
+    vsar  vidx1l, COP2_ACC_MD
+    vsar  vidx1h, COP2_ACC_HI
+
+    # C_MUL(scratch[1],Fout[m2] , *tw2 );
+    # C_MUL(scratch[2],Fout[m3] , *tw3 );
+    vmudm v___,  vtwiddle2,    vidx2l.q0
+    vmadh v___,  vtwiddle2,    vidx2h.q0
+    vmadm v___,  vtwiddle2inv, vidx2l.q1
+    vmadh v___,  vtwiddle2inv, vidx2h.q1
+    vsar  vidx2l, COP2_ACC_MD
+    vsar  vidx2h, COP2_ACC_HI
+
+    # Recover 1 bit of precision lost after CMUL
+    vaddc vidx1l, vidx1l
+    vadd  vidx1h, vidx1h
+    vaddc vidx2l, vidx2l
+    vadd  vidx2h, vidx2h
+
+    # Rotate the vectors
     # vidx0:  f0r f0i -- --   -- -- -- --
-    # vidx1:  f1r f1i -- --   -- -- -- --
-    # vidx2:  f2r f2i -- --   -- -- -- --
-    # vidx3:  f3r f3i -- --   -- -- -- --
-    llv vidx0h.e0, 0x00,fZ
-    llv vidx0l.e0, 0x04,fZ
-    llv vidx0h.e2, 0x20,fZ
-    llv vidx0l.e2, 0x24,fZ
-
-    llv vidx1h.e0, 0x08,fZ
-    llv vidx1l.e0, 0x0C,fZ
-    llv vidx1h.e2, 0x28,fZ
-    llv vidx1l.e2, 0x2C,fZ
-
-    llv vidx2h.e0, 0x10,fZ
-    llv vidx2l.e0, 0x14,fZ
-    llv vidx2h.e2, 0x30,fZ
-    llv vidx2l.e2, 0x34,fZ
-
-    llv vidx3h.e0, 0x18,fZ
-    llv vidx3l.e0, 0x1C,fZ
-    llv vidx3h.e2, 0x38,fZ
-    llv vidx3l.e2, 0x3C,fZ
+    # vidx1:  s1r s1i -- --   -- -- -- --
+    # vidx2:  s2r s2i -- --   s3r s3i -- --
+    # vidx3:  s3r s3i -- --   -- -- -- --
+    sqv vidx1h.e4, 0x00,tmp
+    sqv vidx1l.e4, 0x10,tmp
+    sqv vidx2h.e4, 0x20,tmp
+    sqv vidx2l.e4, 0x30,tmp
+    lqv vidx1h.e0, 0x00,tmp
+    lqv vidx1l.e0, 0x10,tmp
+    lqv vidx3h.e0, 0x20,tmp
+    lqv vidx3l.e0, 0x30,tmp
 
     # C_SUB( scratch0 , *Fout, Fout[2] );
     vsubc vtmp1l, vidx0l, vidx2l
@@ -605,32 +688,35 @@ kf_bfly4_m1_loop:
     vaddc vidx3l, vtmp1l, vtmp2l
     vadd  vidx3h, vtmp1h, vtmp2h
 
-    slv vidx0h.e0, 0x00,fZ
-    slv vidx0l.e0, 0x04,fZ
-    slv vidx0h.e2, 0x20,fZ
-    slv vidx0l.e2, 0x24,fZ
+    slv vidx0h.e0, 0x00,s0
+    slv vidx0l.e0, 0x04,s0
+    slv vidx0h.e2, 0x08,s0
+    slv vidx0l.e2, 0x0C,s0
 
-    slv vidx1h.e0, 0x08,fZ
-    slv vidx1l.e0, 0x0C,fZ
-    slv vidx1h.e2, 0x28,fZ
-    slv vidx1l.e2, 0x2C,fZ
+    slv vidx1h.e0, 0x00,s1
+    slv vidx1l.e0, 0x04,s1
+    slv vidx1h.e2, 0x08,s1
+    slv vidx1l.e2, 0x0C,s1
 
-    slv vidx2h.e0, 0x10,fZ
-    slv vidx2l.e0, 0x14,fZ
-    slv vidx2h.e2, 0x30,fZ
-    slv vidx2l.e2, 0x34,fZ
+    slv vidx2h.e0, 0x00,s2
+    slv vidx2l.e0, 0x04,s2
+    slv vidx2h.e2, 0x08,s2
+    slv vidx2l.e2, 0x0C,s2
 
-    slv vidx3h.e0, 0x18,fZ
-    slv vidx3l.e0, 0x1C,fZ
-    slv vidx3h.e2, 0x38,fZ
-    slv vidx3l.e2, 0x3C,fZ
+    slv vidx3h.e0, 0x00,s3
+    slv vidx3l.e0, 0x04,s3
+    slv vidx3h.e2, 0x08,s3
+    slv vidx3l.e2, 0x0C,s3
 
-    addiu fZ, 0x40
+    addiu s0, 0x10
+    addiu s1, 0x10
+    addiu s2, 0x10
+    addiu s3, 0x10
 
     bgtz fN, kf_bfly4_m1_loop
     addiu fN, -2
 
-    jr ra
+    jr ra2
     nop
 
     .endfunc
@@ -650,6 +736,9 @@ kf_bfly4_m1_loop:
     #undef vtmp2f
     #undef vtmp3i
     #undef vtmp3f
+    #undef v___ 
+
+    #undef tmp
 
 #######################################################################
 # KF_BFLY4 - 4-point FFT butterfly (generic case)
@@ -666,14 +755,10 @@ kf_bfly4_m1_loop:
     # f0r f0i f1r f1i -- -- -- --
     # f2r f2i f3r f3i -- -- -- --
     # 32 su / 2 loop  
-
-
-
-
+#if 0
 
     .func kf_bfly4
 kf_bfly4:
-#if 0
     # This function is harder to parallelize efficiently because there are
     # 3 complex muls / twiddles per loop plus the fourh complex number, so it
     # doesn't align well to vector sizes.
@@ -698,12 +783,12 @@ vx+vy =  (f0+s1)  (s0+s2)
     f2 = f0 + s1 - (s0 + s2)
     f0 = f0 + s1 + (s0 + s2)
 
-#endif
 
     jr ra
     nop
 
     .endfunc
+#endif
 
 
 

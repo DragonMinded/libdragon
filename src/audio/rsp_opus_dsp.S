@@ -372,7 +372,6 @@ OPUS_comb_result_loop:
 
     .func OPUS_comb_filter_const
 OPUS_comb_filter_const:
-OPUS_comb_filter_dual:
 
 #define RSP_OPUS_COMB_DUAL 0
 #include "rsp_opus_comb.inc"
@@ -396,7 +395,6 @@ OPUS_comb_filter_dual:
     #       16..31: g12
     #
     ##############################################
-#if 0
     .func OPUS_comb_filter_dual
 OPUS_comb_filter_dual:
 
@@ -405,7 +403,6 @@ OPUS_comb_filter_dual:
 #undef RSP_OPUS_COMB_DUAL
 
     .endfunc
-#endif
 
 ###################################################################
 # EMPHASIS FILTER
