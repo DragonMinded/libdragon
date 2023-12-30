@@ -260,9 +260,7 @@ static void deemphasis_stereo_simple(celt_sig *in[], opus_val16 *pcm, int N, con
 }
 #endif
 
-#ifndef RESYNTH
-static
-#endif
+__attribute__((used))
 void deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef,
       celt_sig *mem, int accum)
 {
@@ -1171,7 +1169,11 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    } while (++c<2);
    st->rng = dec->rng;
 
+   #if RSP_DEEMPHASIS
+   rsp_opus_deemphasis(out_syn, pcm, N, CC, st->downsample, mode->preemph, st->preemph_memD, accum);
+   #else
    deemphasis(out_syn, pcm, N, CC, st->downsample, mode->preemph, st->preemph_memD, accum);
+   #endif
    st->loss_duration = 0;
    RESTORE_STACK;
    if (ec_tell(dec) > 8*len)

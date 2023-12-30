@@ -6,11 +6,8 @@
     #pragma GCC diagnostic ignored "-Wnonnull-compare"
 #endif
 
-// Activate fixed point mode on N64. Floating point works as well in its
-// reference implementation, but our RSP-accelerated version requires
-// fixed point.
 #ifdef N64
-#define FIXED_POINT
+#include "libopus_internal.h"
 #endif
 
 // Activate support for CELT custom modes. We have pregenerated the two common

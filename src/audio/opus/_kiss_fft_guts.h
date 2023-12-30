@@ -26,8 +26,12 @@
 #ifndef KISS_FFT_GUTS_H
 #define KISS_FFT_GUTS_H
 
+#ifndef MIN
 #define MIN(a,b) ((a)<(b) ? (a):(b))
+#endif
+#ifndef MAX
 #define MAX(a,b) ((a)>(b) ? (a):(b))
+#endif
 
 /* kiss_fft.h
    defines kiss_fft_scalar as either short or a float type

@@ -136,6 +136,8 @@ void wav64_opus_init(wav64_t *wav, int fh) {
     wav->ext = state;
     wav->wave.read = waveform_opus_read;
     wav->wave.ctx = wav;
+
+    rsp_opus_init();
 }
 
 void wav64_opus_close(wav64_t *wav) {
