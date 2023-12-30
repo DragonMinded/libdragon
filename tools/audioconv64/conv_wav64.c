@@ -30,6 +30,7 @@ int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
 int flag_wav_resample = 0;
 bool flag_wav_mono = false;
+const int OPUS_SAMPLE_RATE = 48000;
 
 int wav_convert(const char *infn, const char *outfn) {
 	if (flag_verbose) {
@@ -86,7 +87,6 @@ int wav_convert(const char *infn, const char *outfn) {
 	// When compressing with opus, we need to resample to 32 Khz. Whatever value
 	// was selected by the user, we force it to 32 Khz.
 	if (flag_wav_compress == 3) {
-		const int OPUS_SAMPLE_RATE = 32000;
 		if (flag_verbose)
 			fprintf(stderr, "  opus only supports %d kHz, forcing resample\n", OPUS_SAMPLE_RATE/1000);
 
