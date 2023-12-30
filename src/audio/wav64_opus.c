@@ -100,7 +100,8 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
         int16_t *out = samplebuffer_append(sbuf, st->xhead.frame_size);
 
         int err = opus_custom_decode(st->dec, buf, nb, out, st->xhead.frame_size);
-        assertf(err == st->xhead.frame_size, "opus decode error: %s", opus_strerror(err));
+        assertf(err > 0, "opus decode error: %s", opus_strerror(err));
+        assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
 
         wpos += st->xhead.frame_size;
         wlen -= st->xhead.frame_size;
