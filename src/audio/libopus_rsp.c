@@ -25,6 +25,16 @@ void rsp_opus_init(void)
     }
 }
 
+static void rsp_cmd_deemphasis(int32_t *inch0, int32_t *inch1, int16_t *out, int32_t state[2], int nn, int downsample)
+{
+    rspq_write(0x8<<28, 0x0, 
+        PhysicalAddr(inch0),
+        PhysicalAddr(inch1) | (downsample<<24),
+        PhysicalAddr(out)   | ((nn/4-1) << 24),
+        PhysicalAddr(state)
+    );
+}
+
 /*******************************************************************************
  * Emphasis filter
  * RSP version of deemphasis() in celt_decoder.c
@@ -78,11 +88,7 @@ void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int down
       assertf(nn % 8 == 0, "nn:%d", nn);
       int nnO = nn * C / downsample;
 
-      rspq_write(0x8<<28, 0x0, 
-         PhysicalAddr(incur[0]), 
-         (C>1 ? PhysicalAddr(incur[1]) : 0) | (downsample<<24),
-         PhysicalAddr(pcmcur) | ((nn/4-1) << 24),
-         PhysicalAddr(mem));
+      rsp_cmd_deemphasis(incur[0], (C>1 ? incur[1] : 0), pcmcur, mem, nn, downsample);
 
       incur[0] += nn;
       if (C>1) incur[1] += nn;
