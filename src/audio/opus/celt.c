@@ -209,7 +209,10 @@ void comb_filter(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
          {QCONST16(0.4638671875f, 15), QCONST16(0.2680664062f, 15), QCONST16(0.f, 15)},
          {QCONST16(0.7998046875f, 15), QCONST16(0.1000976562f, 15), QCONST16(0.f, 15)}};
 
+   #ifdef N64
+   // In decoding mode, we always work in-place
    assert(x==y);
+   #endif
    if (g0==0 && g1==0)
    {
       /* OPT: Happens to work without the OPUS_MOVE(), but only because the current encoder already copies x to y */
