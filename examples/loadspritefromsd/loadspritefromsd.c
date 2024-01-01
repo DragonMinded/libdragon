@@ -69,7 +69,7 @@ int main(void) {
 	/* Initialize peripherals */
 	display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 	dfs_init(DFS_DEFAULT_LOCATION);
-	controller_init();
+	joypad_init();
 
 	/* This will initialize the SD filesystem using 'sd:/' to identify it */
 	/* This path has to be the same used by the sprites when loading */
@@ -83,11 +83,7 @@ int main(void) {
 
 	/* Main loop test */
 	while (1) {
-		static display_context_t disp = 0;
-
-		/* Grab a render buffer */
-		while (!(disp = display_lock()))
-			;
+		surface_t* disp = display_get();
 
 		/* Clear the screen */
 		graphics_fill_screen(disp, 0);
@@ -106,10 +102,10 @@ int main(void) {
 		display_show(disp);
 
 		/* Do we need to change the sprite? */
-		controller_scan();
-		struct controller_data keys = get_keys_down();
+		joypad_poll();
+		joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-		if (keys.c[0].start) {
+		if (keys.start) {
 			/* Load the next sprite */
 			const int id = (cur_sprite + 1) % MAX_SPRITES;
 			load_sprite(id);

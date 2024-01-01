@@ -36,22 +36,22 @@
 #define EDIT_NONE  0x0000
 
 /* SCREEN_WIDTH_GUIDE:                 "----------------------------------------" */
-static const char * MISSING_MESSAGE  = "     Real-time clock not detected.      ";
-static const char * HELP_1_MESSAGE   = "     Double-check the settings for      ";
-static const char * HELP_2_MESSAGE   = "      your emulator or flash cart.      ";
-static const char * PROBING_MESSAGE  = "     Probing the real-time clock...     "; 
-static const char * RUNNING_MESSAGE  = "       Reading time from the RTC:       ";
-static const char * PAUSED_MESSAGE   = "      Adjust the current date/time:     ";
-static const char * WRITING_MESSAGE  = "          Setting the clock...          ";
-static const char * RTC_DATE_FORMAT  = "            YYYY-MM-DD (DoW)            ";
-static const char * RTC_TIME_FORMAT  = "                HH:MM:SS                ";
-static const char * ADJUST_MESSAGE   = "      Press A to adjust date/time       ";
-static const char * CONFIRM_MESSAGE  = "        Press A to write to RTC         ";
-static const char * RETEST_MESSAGE   = "      Press B to re-run write test      ";
-static const char * NOSTATUS_MESSAGE = "         RTC status test failed!        ";
-static const char * NOWRITE_MESSAGE  = "         RTC write test failed!         ";
+static const char* MISSING_MESSAGE  = "     Real-time clock not detected.      ";
+static const char* HELP_1_MESSAGE   = "     Double-check the settings for      ";
+static const char* HELP_2_MESSAGE   = "      your emulator or flash cart.      ";
+static const char* PROBING_MESSAGE  = "     Probing the real-time clock...     "; 
+static const char* RUNNING_MESSAGE  = "       Reading time from the RTC:       ";
+static const char* PAUSED_MESSAGE   = "      Adjust the current date/time:     ";
+static const char* WRITING_MESSAGE  = "          Setting the clock...          ";
+static const char* RTC_DATE_FORMAT  = "            YYYY-MM-DD (DoW)            ";
+static const char* RTC_TIME_FORMAT  = "                HH:MM:SS                ";
+static const char* ADJUST_MESSAGE   = "      Press A to adjust date/time       ";
+static const char* CONFIRM_MESSAGE  = "        Press A to write to RTC         ";
+static const char* RETEST_MESSAGE   = "      Press B to re-run write test      ";
+static const char* NOSTATUS_MESSAGE = "         RTC status test failed!        ";
+static const char* NOWRITE_MESSAGE  = "         RTC write test failed!         ";
 
-static const char * const DAYS_OF_WEEK[7] =
+static const char* const DAYS_OF_WEEK[7] =
     { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
 static char year[sizeof("YYYY")];
@@ -62,14 +62,12 @@ static char hour[sizeof("HH")];
 static char min[sizeof("MM")];
 static char sec[sizeof("SS")];
 
-static const char * line1_text;
-static const char * line4_text;
+static const char* line1_text;
+static const char* line4_text;
 
-static const resolution_t res = RESOLUTION_320x240;
-static const bitdepth_t bit = DEPTH_32_BPP;
-static display_context_t disp = 0;
-static struct controller_data keys_pressed;
-static struct controller_data keys_down;
+static surface_t* disp = 0;
+static joypad_inputs_t pad_inputs;
+static joypad_buttons_t pad_pressed;
 static int8_t joystick_x_direction = 0;
 static rtc_time_t rtc_time;
 static bool rtc_writable;
@@ -88,7 +86,7 @@ int wrap( int val, int min, int max )
     return val;
 }
 
-void adjust_rtc_time( rtc_time_t * t, int incr )
+void adjust_rtc_time( rtc_time_t* t, int incr )
 {
     uint8_t expected_day = 0;
     switch( edit_mode )
@@ -185,33 +183,33 @@ void run_rtc_write_test( void )
 void update_joystick_directions( void )
 {
     /* Treat the X direction as a d-pad single button press */
-    if( (keys_pressed.c[0].x < -JOYSTICK_DEAD_ZONE) )
+    if( (pad_inputs.stick_x < -JOYSTICK_DEAD_ZONE) )
     {
-        if( joystick_x_direction == 0 ) keys_down.c[0].left = true;
+        if( joystick_x_direction == 0 ) pad_pressed.d_left = true;
         joystick_x_direction = -1;
     }
-    else if ( keys_pressed.c[0].x > +JOYSTICK_DEAD_ZONE )
+    else if ( pad_inputs.stick_x > +JOYSTICK_DEAD_ZONE )
     {
-        if( joystick_x_direction == 0 ) keys_down.c[0].right = true;
+        if( joystick_x_direction == 0 ) pad_pressed.d_right = true;
         joystick_x_direction = +1;
     }
     else joystick_x_direction = 0;
 
     /* Treat the Y direction as a d-pad button hold */
-    if( keys_pressed.c[0].y > +JOYSTICK_DEAD_ZONE )
+    if( pad_inputs.stick_y > +JOYSTICK_DEAD_ZONE )
     {
-        keys_pressed.c[0].up = true;
+        pad_inputs.btn.d_up = true;
     }
-    else if ( keys_pressed.c[0].y < -JOYSTICK_DEAD_ZONE )
+    else if ( pad_inputs.stick_y < -JOYSTICK_DEAD_ZONE )
     {
-        keys_pressed.c[0].down = true;
+        pad_inputs.btn.d_down = true;
     }
 }
 
 int main(void)
 {
-    display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
-    controller_init();
+    display_init( RESOLUTION_320x240, DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE );
+    joypad_init();
     timer_init();
 
     if( !rtc_init() )
@@ -268,13 +266,13 @@ int main(void)
 
         display_show(disp);
        
-        controller_scan();
-        keys_pressed = get_keys_pressed();
-        keys_down = get_keys_down();
+        joypad_poll();
+        pad_inputs = joypad_get_inputs(JOYPAD_PORT_1);
+        pad_pressed = joypad_get_buttons_pressed(JOYPAD_PORT_1);
         update_joystick_directions();
 
         /* Toggle edit mode */
-        if( rtc_writable && keys_down.c[0].A )
+        if( rtc_writable && pad_pressed.a )
         {
             if( edit_mode )
             {
@@ -288,7 +286,7 @@ int main(void)
             }
         }
 
-        if( !edit_mode && keys_down.c[0].B )
+        if( !edit_mode && pad_pressed.b )
         {
             run_rtc_write_test();
         }
@@ -296,25 +294,25 @@ int main(void)
         if( edit_mode )
         {
             /* Move between fields */
-            if( keys_down.c[0].left )
+            if( pad_pressed.d_left )
             {
                 edit_mode = edit_mode << 1;
                 if( edit_mode > EDIT_YEAR ) edit_mode = EDIT_SEC;
             }
-            else if( keys_down.c[0].right )
+            else if( pad_pressed.d_right )
             {
                 edit_mode = edit_mode >> 1;
                 if( edit_mode < EDIT_SEC ) edit_mode = EDIT_YEAR;
             }
 
             /* Adjust date/time */
-            if( keys_pressed.c[0].up )
+            if( pad_inputs.btn.d_up )
             {
                 adjust_rtc_time( &rtc_time, +1 );
                 /* Add a delay so you can just hold the direction */
                 wait_ms( 100 );
             }
-            else if( keys_pressed.c[0].down )
+            else if( pad_inputs.btn.d_down )
             {
                 adjust_rtc_time( &rtc_time, -1 );
                 /* Add a delay so you can just hold the direction */

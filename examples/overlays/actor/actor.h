@@ -7,7 +7,7 @@
 struct actor_s;
 
 typedef void (*init_func_t)(struct actor_s *);
-typedef bool (*update_func_t)(struct actor_s *, struct controller_data);
+typedef bool (*update_func_t)(struct actor_s *, joypad_buttons_t);
 
 typedef struct actor_s {
     void *ovl_handle;

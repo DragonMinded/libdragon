@@ -5,18 +5,31 @@
 #include <time.h>
 #include <libdragon.h>
 
-char *format_type( int accessory )
+char* format_type(joypad_accessory_type_t accessory)
 {
-    switch( accessory )
+    switch(accessory)
     {
-        case ACCESSORY_RUMBLEPAK:
+        case JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK:
             return "(rumble)";
-        case ACCESSORY_MEMPAK:
-            return "(memory)";
+        case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
+            return "(controller pak)";
+        case JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK:
+            return "(transfer)";
+        case JOYPAD_ACCESSORY_TYPE_BIO_SENSOR:
+            return "(bio sensor)";
+        case JOYPAD_ACCESSORY_TYPE_SNAP_STATION:
+            return "(snap station)";
+
+        #if 0
+        //  VRU is not implemented in joypad module; can't check for it
         case ACCESSORY_VRU:
             return "(vru)";
+        #endif
+        
+        case JOYPAD_ACCESSORY_TYPE_UNKNOWN:
+            return "(unknown)";
         default:
-            return "(none)";
+            return "(unspecified)";
     }
 }
 
@@ -24,7 +37,7 @@ int main(void)
 {
     /* Initialize peripherals */
     console_init();
-    controller_init();
+    joypad_init();
     timer_init();
     rtc_init();
 
@@ -42,46 +55,37 @@ int main(void)
         console_clear();
 
         /* To do initialize routines */
-        controller_scan();
+        joypad_poll();
 
-        struct controller_data keys = get_keys_down();
+        joypad_buttons_t pressed;
 
-        for( int i = 0; i < 4; i++ )
+        JOYPAD_PORT_FOREACH (port)
         {
-            if( keys.c[i].A )
+            pressed = joypad_get_buttons_pressed(port);
+            if (pressed.a)
             {
-                rumble_start( i );
+                joypad_set_rumble_active(port, true);
             }
 
-            if( keys.c[i].B )
+            if (pressed.a)
             {
-                rumble_stop( i );
+                joypad_set_rumble_active(port, false);
             }
 
-            if( keys.c[i].Z )
+            if (pressed.z)
             {
-                press = read_mempak_address( i, 0x0000, data );
+                press = joybus_accessory_read(port, 0x0000, data);
             }
+
+            printf("Controller %i %spresent\n", (int) (port + 1), (joypad_is_connected(port)) ? "" : "not ");
         }
 
-        int controllers = get_controllers_present();
-
-        printf( "Controller 1 %spresent\n", (controllers & CONTROLLER_1_INSERTED) ? "" : "not " );
-        printf( "Controller 2 %spresent\n", (controllers & CONTROLLER_2_INSERTED) ? "" : "not " );
-        printf( "Controller 3 %spresent\n", (controllers & CONTROLLER_3_INSERTED) ? "" : "not " );
-        printf( "Controller 4 %spresent\n", (controllers & CONTROLLER_4_INSERTED) ? "" : "not " );
-
-        struct controller_data output;
-        int accessories = get_accessories_present( &output );
-
-        printf( "Accessory 1 %spresent %s\n", (accessories & CONTROLLER_1_INSERTED) ? "" : "not ", 
-                                              (accessories & CONTROLLER_1_INSERTED) ? format_type( identify_accessory( 0 ) ) : "" );
-        printf( "Accessory 2 %spresent %s\n", (accessories & CONTROLLER_2_INSERTED) ? "" : "not ",
-                                              (accessories & CONTROLLER_2_INSERTED) ? format_type( identify_accessory( 1 ) ) : "" );
-        printf( "Accessory 3 %spresent %s\n", (accessories & CONTROLLER_3_INSERTED) ? "" : "not ",
-                                              (accessories & CONTROLLER_3_INSERTED) ? format_type( identify_accessory( 2 ) ) : "" );
-        printf( "Accessory 4 %spresent %s\n", (accessories & CONTROLLER_4_INSERTED) ? "" : "not ",
-                                              (accessories & CONTROLLER_4_INSERTED) ? format_type( identify_accessory( 3 ) ) : "" );
+        JOYPAD_PORT_FOREACH (port)
+        {
+            joypad_accessory_type_t accessory = joypad_get_accessory_type(port);
+            printf("Accessory %i %spresent %s\n", (int) (port + 1), (accessory == JOYPAD_ACCESSORY_TYPE_NONE) ? "not " : "", 
+                                              (accessory == JOYPAD_ACCESSORY_TYPE_NONE) ? "" : format_type(accessory));
+        }
 
         printf("\n%d\n\n", testv++ );
 
