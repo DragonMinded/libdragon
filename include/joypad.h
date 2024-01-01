@@ -239,9 +239,12 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     /**
      * @brief Position of the analog joystick X axis. (-127, +127)
      * 
-     * On real controllers the range of this axis is roughly (-100, +100).
+     * On OEM N64 controllers with analog sticks in good condition,
+     * the range of this axis is roughly (-85, +85).
      * 
-     * For well-worn N64 controllers, the range may be as low as (-60, +60).
+     * On well-worn N64 controllers, the range may be as low as (-60, +60).
+     * 
+     * On real GameCube controllers, the range is roughly (-100, +100).
      * 
      * On startup, an N64 controller will report its current stick position
      * as (0, 0). To reset the origin on an N64 controller, hold the L & R
@@ -259,9 +262,12 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     /**
      * @brief Position of the analog joystick Y axis. (-127, +127)
      * 
-     * On real controllers the range of this axis is roughly (-100, +100).
+     * On OEM N64 controllers with analog sticks in good condition,
+     * the range of this axis is roughly (-85, +85).
      * 
-     * For well-worn N64 controllers, the range may be as low as (-60, +60).
+     * On well-worn N64 controllers, the range may be as low as (-60, +60).
+     * 
+     * On real GameCube controllers, the range is roughly (-100, +100).
      * 
      * On startup, an N64 controller will report its current stick position
      * as (0, 0). To reset the origin on an N64 controller, hold the L & R
@@ -279,7 +285,7 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     /**
      * @brief Position of the analog "C-Stick" X axis. (-127, +127)
      * 
-     * On real controllers the range of this axis is roughly (-76, +76).
+     * On real controllers, the range of this axis is roughly (-76, +76).
      * 
      * For N64 controllers, this value will be emulated based on the
      * digital C-Left and C-Right button values (-76=C-Left, +76=C-Right).
@@ -295,7 +301,7 @@ typedef struct __attribute__((packed)) joypad_inputs_s
     /**
      * @brief Position of the analog "C-Stick" Y axis. (-127, +127)
      * 
-     * On real controllers the range of this axis is roughly (-76, +76).
+     * On real controllers, the range of this axis is roughly (-76, +76).
      * 
      * For N64 controllers, this value will be emulated based on the
      * digital C-Up and C-Down button values (-76=C-Down, +76=C-Up).
