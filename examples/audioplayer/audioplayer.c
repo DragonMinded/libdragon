@@ -78,10 +78,10 @@ enum Page page_intro(void) {
 	display_show(disp);
 
 	while (1) {
-		controller_scan();
-		struct controller_data ckeys = get_keys_down();
+		joypad_poll();
+		joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-		if (ckeys.c[0].start) {
+		if (ckeys.start) {
 			return PAGE_MENU;
 		}
 	}
@@ -145,19 +145,19 @@ enum Page page_menu(void) {
 	display_show(disp);
 
 	while (1) {
-		controller_scan();
-		struct controller_data ckeys = get_keys_down();
+		joypad_poll();
+		joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-		if (ckeys.c[0].up)      { menu_sel -= 1; break; }
-		if (ckeys.c[0].down)    { menu_sel += 1; break; }
-		if (ckeys.c[0].left)    { menu_sel -= COL_ROWS; break; }
-		if (ckeys.c[0].right)   { menu_sel += COL_ROWS; break; }
-		if (ckeys.c[0].C_up)    { menu_sel = 0; break; }
-		if (ckeys.c[0].C_down)  { menu_sel = num_songs-1; break; }
-		if (ckeys.c[0].C_left)  { menu_sel -= COL_ROWS*NUM_COLUMNS; break; }
-		if (ckeys.c[0].C_right) { menu_sel += COL_ROWS*NUM_COLUMNS; break; }
+		if (ckeys.d_up)      { menu_sel -= 1; break; }
+		if (ckeys.d_down)    { menu_sel += 1; break; }
+		if (ckeys.d_left)    { menu_sel -= COL_ROWS; break; }
+		if (ckeys.d_right)   { menu_sel += COL_ROWS; break; }
+		if (ckeys.c_up)    { menu_sel = 0; break; }
+		if (ckeys.c_down)  { menu_sel = num_songs-1; break; }
+		if (ckeys.c_left)  { menu_sel -= COL_ROWS*NUM_COLUMNS; break; }
+		if (ckeys.c_right) { menu_sel += COL_ROWS*NUM_COLUMNS; break; }
 
-		if (ckeys.c[0].A) {
+		if (ckeys.a) {
 			cur_rom = songfiles[menu_sel];
 			chselect = 0;
 			return PAGE_SONG;
@@ -333,47 +333,47 @@ enum Page page_song(void) {
 			}
 			first_loop = false;
 
-			controller_scan();
-			struct controller_data ckeys = get_keys_down();
-			if (ckeys.c[0].left || ckeys.c[0].right) {
+			joypad_poll();
+			joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+			if (ckeys.d_left || ckeys.d_right) {
 				if (song_type == SONG_XM) {				
 					int patidx;
 					xm64player_tell(&xm, &patidx, NULL, NULL);
-					if (ckeys.c[0].left && patidx > 0) patidx--;
-					if (ckeys.c[0].right && patidx < xm_get_module_length(xm.ctx)-1) patidx++;
+					if (ckeys.d_left && patidx > 0) patidx--;
+					if (ckeys.d_right && patidx < xm_get_module_length(xm.ctx)-1) patidx++;
 					xm64player_seek(&xm, patidx, 0, 0);
 					break;
 				} else if (song_type == SONG_YM && !ym.decoder) {
 					int pos, len;
 					ym64player_duration(&ym, &len, NULL);
 					ym64player_tell(&ym, &pos, NULL);
-					if (ckeys.c[0].left && pos >= 0x200) pos -= 0x200;
-					if (ckeys.c[0].right && pos <= len-0x200) pos += 0x200;
+					if (ckeys.d_left && pos >= 0x200) pos -= 0x200;
+					if (ckeys.d_right && pos <= len-0x200) pos += 0x200;
 					ym64player_seek(&ym, pos);
 					break;
 				}
 			}
 
 			if (song_type == SONG_XM) {			
-				if (ckeys.c[0].up && screen_first_inst > 0) {
+				if (ckeys.d_up && screen_first_inst > 0) {
 					screen_first_inst--;
 					break;
 				}
-				if (ckeys.c[0].down && screen_first_inst < xm.ctx->module.num_instruments-1) {
+				if (ckeys.d_down && screen_first_inst < xm.ctx->module.num_instruments-1) {
 					screen_first_inst++;
 					break;
 				}
 			}
 
-			if (ckeys.c[0].C_left && chselect > 0) { chselect--; break; }
-			if (ckeys.c[0].C_right && chselect < song_channels-1) { chselect++; break; }
-			if (ckeys.c[0].C_down) {
+			if (ckeys.c_left && chselect > 0) { chselect--; break; }
+			if (ckeys.c_right && chselect < song_channels-1) { chselect++; break; }
+			if (ckeys.c_down) {
 				mute[chselect] = !mute[chselect];
 				if (song_type == SONG_XM)
 					xm_mute_channel(xm.ctx, chselect+1, mute[chselect]);
 				break;
 			}
-			if (ckeys.c[0].C_up) { 
+			if (ckeys.c_up) { 
 				mute[chselect] = !mute[chselect];
 				for (int i=0;i<song_channels;i++) {
 					if (i != chselect)
@@ -384,7 +384,7 @@ enum Page page_song(void) {
 				break;
 			}
 
-			if (ckeys.c[0].B) {
+			if (ckeys.b) {
 				if (song_type == SONG_XM)
 					xm64player_close(&xm);
 				else
@@ -396,7 +396,7 @@ enum Page page_song(void) {
 }
 
 int main(void) {
-	controller_init();
+	joypad_init();
 	debug_init_isviewer();
 	debug_init_usblog();
 

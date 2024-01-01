@@ -8,7 +8,7 @@
 int main(void) {
 	debug_init_usblog();
 	debug_init_isviewer();
-	controller_init();
+	joypad_init();
 	display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 
 	int ret = dfs_init(DFS_DEFAULT_LOCATION);
@@ -47,17 +47,17 @@ int main(void) {
 		graphics_draw_text(disp, 50, 140, "Music courtesy of MishtaLu / indiegamemusic.com");
 		display_show(disp);
 
-		controller_scan();
-		struct controller_data ckeys = get_keys_down();
+		joypad_poll();
+		joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-		if (ckeys.c[0].A) {
+		if (ckeys.a) {
 			wav64_play(&sfx_cannon, CHANNEL_SFX1);
 		}
-		if (ckeys.c[0].B) {
+		if (ckeys.b) {
 			wav64_play(&sfx_laser, CHANNEL_SFX2);
 			mixer_ch_set_vol(CHANNEL_SFX2, 0.25f, 0.25f);
 		}
-		if (ckeys.c[0].Z) {
+		if (ckeys.z) {
 			music = !music;
 			if (music) {
 				wav64_play(&sfx_monosample, CHANNEL_MUSIC);
@@ -66,27 +66,23 @@ int main(void) {
 			else
 				mixer_ch_stop(CHANNEL_MUSIC);
 		}
-		if (music && music_frequency >= 8000 && ckeys.c[0].L) {
+		if (music && music_frequency >= 8000 && ckeys.l) {
 			music_frequency /= 1.1;
 			mixer_ch_set_freq(CHANNEL_MUSIC, music_frequency);
 		}
-		if (music && music_frequency*1.1 <= 128000 && ckeys.c[0].R) {
+		if (music && music_frequency*1.1 <= 128000 && ckeys.r) {
 			music_frequency *= 1.1;
 			mixer_ch_set_freq(CHANNEL_MUSIC, music_frequency);
 		}
 
-		ckeys = get_keys_up();
+		ckeys = joypad_get_buttons_released(JOYPAD_PORT_1);
 
-		if (ckeys.c[0].B) {
+		if (ckeys.b) {
 			mixer_ch_stop(CHANNEL_SFX2);
 		}
 
 		// Check whether one audio buffer is ready, otherwise wait for next
 		// frame to perform mixing.
-		if (audio_can_write()) {    	
-			short *buf = audio_write_begin();
-			mixer_poll(buf, audio_get_buffer_length());
-			audio_write_end();
-		}
+		mixer_try_play();
 	}
 }

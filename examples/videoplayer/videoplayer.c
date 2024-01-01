@@ -19,7 +19,7 @@ void video_poll(void) {
 }
 
 int main(void) {
-	controller_init();
+	joypad_init();
 	debug_init_isviewer();
 	debug_init_usblog();
 

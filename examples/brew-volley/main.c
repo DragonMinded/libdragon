@@ -1,4 +1,4 @@
-#include "libdragon.h"
+#include <libdragon.h>
 #include <math.h>
 
 static sprite_t *background_sprite;
@@ -455,7 +455,7 @@ int main()
 
     display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_DEDITHER);
 
-    controller_init();
+    joypad_init();
     timer_init();
 
     uint32_t display_width = display_get_width();
@@ -518,46 +518,38 @@ int main()
     countdown = INITIAL_COUNTDOWN;
     startTime = get_ticks_ms();
 
-    controller_scan();
-    int controllers = get_controllers_present();
-
     int cur_frame = 0;
     while (1)
     {
         update(0);
         render(cur_frame);
-
-        controller_scan();
-        struct controller_data pressed = get_keys_pressed();
+        joypad_poll();
 
         if (in_play()) {
             for (uint32_t i = 0; i < NUM_BLOBS; i++)
             {
-                if ((i == 0 && (controllers & CONTROLLER_1_INSERTED)) || (i == 1 && (controllers & CONTROLLER_2_INSERTED))) {
+                if (joypad_is_connected((joypad_port_t) i)) {
+                    joypad_buttons_t buttons = joypad_get_buttons((joypad_port_t) i);
                     object_t *obj = &blobs[i];
-                    if ((pressed.c[i].up || pressed.c[i].A || pressed.c[i].B) && (obj_max_y - fabs(obj->y) - brew_sprite->height) < POSITION_EPSILON) {
+
+                    if ((buttons.d_up || buttons.a || buttons.b) && (obj_max_y - fabs(obj->y) - brew_sprite->height) < POSITION_EPSILON) {
                         obj->dy = -6;
                     }
 
-                    if (pressed.c[i].left) {
+                    if (buttons.d_left) {
                         obj->dx = -6;
                     }
 
-                    if (pressed.c[i].right) {
+                    if (buttons.d_right) {
                         obj->dx = 6;
                     }
-
                 }
             }
         }
 
-		// Check whether one audio buffer is ready, otherwise wait for next
-		// frame to perform mixing.
-		if (audio_can_write()) {
-			short *buf = audio_write_begin();
-			mixer_poll(buf, audio_get_buffer_length());
-			audio_write_end();
-		}
+        // Check whether one audio buffer is ready, otherwise wait for next
+        // frame to perform mixing.
+        mixer_try_play();
 
         cur_frame++;
     }

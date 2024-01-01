@@ -64,7 +64,7 @@ int main(void) {
     debug_init_usblog();
     display_init(RESOLUTION_640x480, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
     dfs_init(DFS_DEFAULT_LOCATION);
-    controller_init();
+    joypad_init();
     rdpq_init();
     rdpq_debug_start();
 
@@ -132,9 +132,9 @@ int main(void) {
         rspq_wait();
         last_frame = TICKS_READ() - cur_frame;
 
-        controller_scan();
-        struct controller_data keys = get_keys_down();
-        if (keys.c[0].A) {
+        joypad_poll();
+        joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+        if (keys.a) {
             use_rdp = !use_rdp;
         }
     }

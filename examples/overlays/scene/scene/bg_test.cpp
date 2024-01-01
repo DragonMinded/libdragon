@@ -22,14 +22,14 @@ BGTest::~BGTest()
 
 void BGTest::UpdateZoom()
 {
-    struct controller_data cont_data = get_keys_held();
+    joypad_buttons_t cont_data = joypad_get_buttons_held(JOYPAD_PORT_1);
     //Calculate next zoom (exponential)
     float new_zoom = m_zoom;
-    if(cont_data.c[0].L) {
+    if(cont_data.l) {
         //Zoom out
         new_zoom *= ZOOM_SPEED;
     }
-    if(cont_data.c[0].R) {
+    if(cont_data.r) {
         //Zoom in
         new_zoom /= ZOOM_SPEED;
     }
@@ -46,10 +46,10 @@ void BGTest::UpdateZoom()
 
 void BGTest::UpdatePos()
 {
-    struct controller_data cont_data = get_keys_held();
+    joypad_inputs_t cont_data = joypad_get_inputs(JOYPAD_PORT_1);
     //Move by analog stick position
-    int8_t stick_x = cont_data.c[0].x;
-    int8_t stick_y = cont_data.c[0].y;
+    int8_t stick_x = cont_data.stick_x;
+    int8_t stick_y = cont_data.stick_y;
     if(abs(stick_x) >= STICK_DEADZONE) {
         m_pos_x += stick_x*MOVE_SPEED/m_zoom;
     }
@@ -60,8 +60,8 @@ void BGTest::UpdatePos()
 
 void BGTest::UpdateCenterPos()
 {
-    struct controller_data cont_data = get_keys_held();
-    if(cont_data.c[0].C_up) {
+    joypad_buttons_t cont_data = joypad_get_buttons_held(JOYPAD_PORT_1);
+    if(cont_data.c_up) {
         //Move center position up
         m_center_pos_y -= CENTER_MOVE_SPEED;
         m_pos_y -= CENTER_MOVE_SPEED/m_zoom;
@@ -69,7 +69,7 @@ void BGTest::UpdateCenterPos()
             m_center_pos_y = CENTER_MARGIN_H;
         }
     }
-    if(cont_data.c[0].C_down) {
+    if(cont_data.c_down) {
         //Move center position down
         m_center_pos_y += CENTER_MOVE_SPEED;
         m_pos_y += CENTER_MOVE_SPEED/m_zoom;
@@ -77,7 +77,7 @@ void BGTest::UpdateCenterPos()
             m_center_pos_y = display_get_height()-CENTER_MARGIN_H;
         }
     }
-    if(cont_data.c[0].C_left) {
+    if(cont_data.c_left) {
         //Move center position left
         m_center_pos_x -= CENTER_MOVE_SPEED;
         m_pos_x -= CENTER_MOVE_SPEED/m_zoom;
@@ -85,7 +85,7 @@ void BGTest::UpdateCenterPos()
             m_center_pos_x = CENTER_MARGIN_W;
         }
     }
-    if(cont_data.c[0].C_right) {
+    if(cont_data.c_right) {
         //Move center position right
         m_center_pos_x += CENTER_MOVE_SPEED;
         m_pos_x += CENTER_MOVE_SPEED/m_zoom;
@@ -108,8 +108,8 @@ void BGTest::UpdateBackground()
 void BGTest::Update()
 {
     //Load next scene if start is pressed
-    struct controller_data cont_data = get_keys_down();
-    if(cont_data.c[0].start) {
+    joypad_buttons_t cont_data = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+    if(cont_data.start) {
         SceneMgr::SetNextScene("sprite_test");
         return;
     }

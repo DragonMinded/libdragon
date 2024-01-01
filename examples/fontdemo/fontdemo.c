@@ -82,7 +82,7 @@ int main()
 {
     debug_init_isviewer();
     debug_init_usblog();
-    controller_init();
+    joypad_init();
 
     dfs_init(DFS_DEFAULT_LOCATION);
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
@@ -151,12 +151,12 @@ int main()
             }
         }
 
-        controller_scan();
-        struct controller_data keys = get_keys_held();
-        if (keys.c[0].C_up) { box_height += 2; }
-        if (keys.c[0].C_down) { box_height -= 2; }
-        if (keys.c[0].C_left) { box_width += 2; }
-        if (keys.c[0].C_right) { box_width -= 2; }
+        joypad_poll();
+        joypad_buttons_t keys = joypad_get_buttons_held(JOYPAD_PORT_1);
+        if (keys.c_up) { box_height += 2; }
+        if (keys.c_down) { box_height -= 2; }
+        if (keys.c_left) { box_width += 2; }
+        if (keys.c_right) { box_width -= 2; }
         box_height = MAX(1, box_height);
         box_width = MAX(1, box_width);
 
