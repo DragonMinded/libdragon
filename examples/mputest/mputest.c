@@ -8,7 +8,7 @@ int main(void)
 {
     /* Initialize peripherals */
     console_init();
-    controller_init();
+    joypad_init();
 
     console_set_render_mode(RENDER_MANUAL);
 
@@ -20,289 +20,278 @@ int main(void)
                     "Press B to format mempak.\n\n"
                     "Press L to read first valid entry.\n\n"
                     "Press R to write a new entry.\n\n"
-                    "Press S to delete first valid entry.\n\n" );
+                    "Press Start to delete first valid entry.\n\n" );
     
     console_render();
 
     /* Main loop test */
-    while(1) 
+    while (1) 
     {
         /* To do initialize routines */
-        controller_scan();
+        joypad_poll();
 
-        struct controller_data keys = get_keys_down();
-
-        for( int i = 0; i < 4; i++ )
+        JOYPAD_PORT_FOREACH(port)
         {
-            if( keys.c[i].err == ERROR_NONE )
+            joypad_buttons_t keys = joypad_get_buttons_pressed(port);
+
+            if (keys.a)
             {
-                if( keys.c[i].A )
+                /* Make sure they don't have a rumble pak inserted instead */
+                switch (joypad_get_accessory_type(port))
                 {
-                    console_clear();
-
-                    /* Read accessories present, throwing away return.  If we don't do this, then
-                       initialization routines in the identify_accessory() call will fail once we
-                       remove and insert a new accessory while running */
-                    struct controller_data output;
-                    get_accessories_present( &output );
-
-                    /* Make sure they don't have a rumble pak inserted instead */
-                    switch( identify_accessory( i ) )
+                    case JOYPAD_ACCESSORY_TYPE_NONE:
+                        printf("No accessory inserted!");
+                        break;
+                    case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
                     {
-                        case ACCESSORY_NONE:
-                            printf( "No accessory inserted!" );
-                            break;
-                        case ACCESSORY_MEMPAK:
+                        int err;
+                        if ((err = validate_mempak(port)))
                         {
-                            int err;
-                            if( (err = validate_mempak( i )) )
+                            if (err == -3)
                             {
-                                if( err == -3 )
-                                {
-                                    printf( "Mempak is not formatted!" );
-                                }
-                                else
-                                {
-                                    printf( "Mempak bad or removed during read!" );
-                                }
+                                printf( "Mempak is not formatted!" );
                             }
                             else
                             {
-                                for( int j = 0; j < 16; j++ )
-                                {
-                                    entry_structure_t entry;
-
-                                    get_mempak_entry( i, j, &entry );
-
-                                    if( entry.valid )
-                                    {
-                                        printf( "%s - %d blocks\n", entry.name, entry.blocks );
-                                    }
-                                    else
-                                    {
-                                        printf( "(EMPTY)\n" );
-                                    }
-                                }
-
-                                printf( "\nFree space: %d blocks", get_mempak_free_space( i ) );
+                                printf( "Mempak bad or removed during read!" );
                             }
-
-                            break;
                         }
-                        case ACCESSORY_RUMBLEPAK:
-                            printf( "Cannot read data off of rumblepak!" );
-                            break;
-                    }
-
-                    console_render();
-                }
-                else if( keys.c[i].B )
-                {
-                    console_clear();
-
-                    /* Make sure they don't have a rumble pak inserted instead */
-                    switch( identify_accessory( i ) )
-                    {
-                        case ACCESSORY_NONE:
-                            printf( "No accessory inserted!" );
-                            break;
-                        case ACCESSORY_MEMPAK:
-                            if( format_mempak( i ) )
-                            {
-                                printf( "Error formatting mempak!" );
-                            }
-                            else
-                            {
-                                printf( "Memory card formatted!" );
-                            }
-
-                            break;
-                        case ACCESSORY_RUMBLEPAK:
-                            printf( "Cannot format rumblepak!" );
-                            break;
-                    }
-
-                    console_render();
-                }
-                else if( keys.c[i].L )
-                {
-                    console_clear();
-
-                    /* Make sure they don't have a rumble pak inserted instead */
-                    switch( identify_accessory( i ) )
-                    {
-                        case ACCESSORY_NONE:
-                            printf( "No accessory inserted!" );
-                            break;
-                        case ACCESSORY_MEMPAK:
+                        else
                         {
-                            int err;
-                            if( (err = validate_mempak( i )) )
+                            for (int j = 0; j < 16; j++)
                             {
-                                if( err == -3 )
+                                entry_structure_t entry;
+
+                                get_mempak_entry(port, j, &entry);
+
+                                if (entry.valid)
                                 {
-                                    printf( "Mempak is not formatted!" );
+                                    printf("%s - %d blocks\n", entry.name, entry.blocks);
                                 }
                                 else
                                 {
-                                    printf( "Mempak bad or removed during read!" );
+                                    printf("(EMPTY)\n");
                                 }
+                            }
+
+                            printf( "\nFree space: %d blocks", get_mempak_free_space(port ) );
+                        }
+
+                        break;
+                    }
+                    default:
+                        printf( "Cannot read data from this accessory!" );
+                        break;
+                }
+
+                console_render();
+            }
+            else if (keys.b)
+            {
+                console_clear();
+
+                /* Make sure they don't have a rumble pak inserted instead */
+                switch (joypad_get_accessory_type(port))
+                {
+                    case JOYPAD_ACCESSORY_TYPE_NONE:
+                        printf("No accessory inserted!");
+                        break;
+                    case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
+                        if (format_mempak(port))
+                        {
+                            printf( "Error formatting mempak!" );
+                        }
+                        else
+                        {
+                            printf( "Memory card formatted!" );
+                        }
+
+                        break;
+                    default:
+                        printf("Cannot format this accessory!");
+                        break;
+                }
+
+                console_render();
+            }
+            else if (keys.l)
+            {
+                console_clear();
+
+                /* Make sure they don't have a rumble pak inserted instead */
+                switch (joypad_get_accessory_type(port))
+                {
+                    case JOYPAD_ACCESSORY_TYPE_NONE:
+                        printf("No accessory inserted!");
+                        break;
+                    case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
+                    {
+                        int err;
+                        if ((err = validate_mempak(port)))
+                        {
+                            if (err == -3)
+                            {
+                                printf( "Mempak is not formatted!" );
                             }
                             else
                             {
-                                for( int j = 0; j < 16; j++ )
+                                printf( "Mempak bad or removed during read!" );
+                            }
+                        }
+                        else
+                        {
+                            for (int j = 0; j < 16; j++ )
+                            {
+                                entry_structure_t entry;
+
+                                get_mempak_entry(port, j, &entry);
+
+                                if (entry.valid)
                                 {
-                                    entry_structure_t entry;
+                                    uint8_t *data = malloc( entry.blocks * MEMPAK_BLOCK_SIZE );
 
-                                    get_mempak_entry( i, j, &entry );
+                                    printf( "Reading %s - %d blocks\n", entry.name, entry.blocks);
+                                    printf( "Return: %d\n", read_mempak_entry_data(port, &entry, data));
 
-                                    if( entry.valid )
+                                    int new = 0;
+                                    for (int k = 0; k < (12 * 12); k++)
                                     {
-                                        uint8_t *data = malloc( entry.blocks * MEMPAK_BLOCK_SIZE );
+                                        printf( "%02X", data[k] );
 
-                                        printf( "Reading %s - %d blocks\n", entry.name, entry.blocks );
-                                        printf( "Return: %d\n", read_mempak_entry_data( i, &entry, data ) );
-
-                                        int new = 0;
-                                        for( int k = 0; k < (12 * 12); k++ )
-                                        {
-                                            printf( "%02X", data[k] );
-
-                                            new++;
-                                            if( new == 12 ) 
-                                            { 
-                                                printf( "\n" ); new = 0; 
-                                            }
+                                        new++;
+                                        if (new == 12) 
+                                        { 
+                                            printf( "\n" ); new = 0; 
                                         }
-
-                                        free( data );
-                                        break;
                                     }
+
+                                    free(data);
+                                    break;
                                 }
                             }
-
-                            break;
                         }
-                        case ACCESSORY_RUMBLEPAK:
-                            printf( "Cannot erase data off of rumblepak!" );
-                            break;
+
+                        break;
                     }
-
-                    console_render();
+                    default:
+                        printf("Cannot read data from this accessory!");
+                        break;
                 }
-                else if( keys.c[i].R )
-                {
-                    console_clear();
 
-                    /* Make sure they don't have a rumble pak inserted instead */
-                    switch( identify_accessory( i ) )
+                console_render();
+            }
+            else if (keys.r)
+            {
+                console_clear();
+
+                /* Make sure they don't have a rumble pak inserted instead */
+                switch (joypad_get_accessory_type(port))
+                {
+                    case JOYPAD_ACCESSORY_TYPE_NONE:
+                        printf("No accessory inserted!");
+                        break;
+                    case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
                     {
-                        case ACCESSORY_NONE:
-                            printf( "No accessory inserted!" );
-                            break;
-                        case ACCESSORY_MEMPAK:
+                        int err;
+                        if ((err = validate_mempak(port)))
                         {
-                            int err;
-                            if( (err = validate_mempak( i )) )
+                            if (err == -3)
                             {
-                                if( err == -3 )
-                                {
-                                    printf( "Mempak is not formatted!" );
-                                }
-                                else
-                                {
-                                    printf( "Mempak bad or removed during write!" );
-                                }
+                                printf( "Mempak is not formatted!" );
                             }
                             else
                             {
-                                for( int j = 0; j < 16; j++ )
+                                printf( "Mempak bad or removed during write!" );
+                            }
+                        }
+                        else
+                        {
+                            for (int j = 0; j < 16; j++)
+                            {
+                                entry_structure_t entry;
+
+                                get_mempak_entry(port, j, &entry);
+
+                                if (!entry.valid)
                                 {
-                                    entry_structure_t entry;
-
-                                    get_mempak_entry( i, j, &entry );
-
-                                    if( !entry.valid )
+                                    uint8_t *data = malloc( MEMPAK_BLOCK_SIZE );
+                                    for (int k = 0; k < MEMPAK_BLOCK_SIZE; k++)
                                     {
-                                        uint8_t *data = malloc( MEMPAK_BLOCK_SIZE );
-                                        for( int k = 0; k < MEMPAK_BLOCK_SIZE; k++ )
-                                        {
-                                            data[k] = k & 0xFF;
-                                        }
-
-                                        strcpy( entry.name, "TEST ENTRY.Z" );
-                                        entry.blocks = 1;
-                                        entry.region = 0x45;
-
-                                        printf( "Writing %s - %d blocks\n", entry.name, entry.blocks );
-                                        printf( "Return: %d\n", write_mempak_entry_data( i, &entry, data ) );
-
-                                        free( data );
-                                        break;
+                                        data[k] = k & 0xFF;
                                     }
+
+                                    strcpy( entry.name, "TEST ENTRY.Z" );
+                                    entry.blocks = 1;
+                                    entry.region = 0x45;
+
+                                    printf( "Writing %s - %d blocks\n", entry.name, entry.blocks);
+                                    printf( "Return: %d\n", write_mempak_entry_data(port, &entry, data));
+
+                                    free(data);
+                                    break;
                                 }
                             }
-
-                            break;
                         }
-                        case ACCESSORY_RUMBLEPAK:
-                            printf( "Cannot erase data off of rumblepak!" );
-                            break;
+
+                        break;
                     }
-
-                    console_render();
+                    default:
+                        printf("Cannot write data to this accessory!");
+                        break;
                 }
-                else if( keys.c[i].start )
-                {
-                    console_clear();
 
-                    /* Make sure they don't have a rumble pak inserted instead */
-                    switch( identify_accessory( i ) )
+                console_render();
+            }
+            else if (keys.start)
+            {
+                console_clear();
+
+                /* Make sure they don't have a rumble pak inserted instead */
+                switch (joypad_get_accessory_type(port))
+                {
+                    case JOYPAD_ACCESSORY_TYPE_NONE:
+                        printf("No accessory inserted!");
+                        break;
+                    case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
                     {
-                        case ACCESSORY_NONE:
-                            printf( "No accessory inserted!" );
-                            break;
-                        case ACCESSORY_MEMPAK:
+                        int err;
+                        if ((err = validate_mempak(port)))
                         {
-                            int err;
-                            if( (err = validate_mempak( i )) )
+                            if (err == -3)
                             {
-                                if( err == -3 )
-                                {
-                                    printf( "Mempak is not formatted!" );
-                                }
-                                else
-                                {
-                                    printf( "Mempak bad or removed during erase!" );
-                                }
+                                printf( "Mempak is not formatted!" );
                             }
                             else
                             {
-                                for( int j = 0; j < 16; j++ )
+                                printf( "Mempak bad or removed during erase!" );
+                            }
+                        }
+                        else
+                        {
+                            for (int j = 0; j < 16; j++)
+                            {
+                                entry_structure_t entry;
+
+                                get_mempak_entry(port, j, &entry);
+
+                                if (entry.valid)
                                 {
-                                    entry_structure_t entry;
+                                    printf( "Deleting %s - %d blocks\n", entry.name, entry.blocks);
+                                    printf( "Return: %d\n", delete_mempak_entry(port, &entry));
 
-                                    get_mempak_entry( i, j, &entry );
-
-                                    if( entry.valid )
-                                    {
-                                        printf( "Deleting %s - %d blocks\n", entry.name, entry.blocks );
-                                        printf( "Return: %d\n", delete_mempak_entry( i, &entry ) );
-
-                                        break;
-                                    }
+                                    break;
                                 }
                             }
-
-                            break;
                         }
-                        case ACCESSORY_RUMBLEPAK:
-                            printf( "Cannot erase data off of rumblepak!" );
-                            break;
-                    }
 
-                    console_render();
+                        break;
+                    }
+                    default:
+                        printf("Cannot erase data from this accessory!");
+                        break;
                 }
+
+                console_render();
             }
         }
     }

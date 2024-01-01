@@ -15,7 +15,7 @@
 
     #define console_init() ({ __debug_init_cpp(); console_init(); })
     #define dfs_init(a) ({ __debug_init_cpp(); dfs_init(a);})
-    #define controller_init() ({ __debug_init_cpp(); controller_init(); })
+    #define joypad_init() ({ __debug_init_cpp(); joypad_init(); })
     #define timer_init() ({ __debug_init_cpp(); timer_init(); })
     #define display_init(a,b,c,d,e) ({ __debug_init_cpp(); display_init(a,b,c,d,e); })
     #define debug_init_isviewer() ({ __debug_init_cpp(); debug_init_isviewer(); })

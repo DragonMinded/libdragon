@@ -103,7 +103,7 @@ int main()
 
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 
-    controller_init();
+    joypad_init();
     timer_init();
 
     uint32_t display_width = display_get_width();
@@ -181,14 +181,14 @@ int main()
     {
         render(cur_frame);
 
-        controller_scan();
-        struct controller_data ckeys = get_keys_down();
+        joypad_poll();
+        joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-        if (ckeys.c[0].C_up && num_objs < NUM_OBJECTS) {
+        if (ckeys.c_up && num_objs < NUM_OBJECTS) {
             ++num_objs;
         }
 
-        if (ckeys.c[0].C_down && num_objs > 1) {
+        if (ckeys.c_down && num_objs > 1) {
             --num_objs;
         }
 

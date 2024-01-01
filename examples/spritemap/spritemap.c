@@ -18,8 +18,8 @@ int main(void)
     /* Initialize peripherals */
     display_init( RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE );
     dfs_init( DFS_DEFAULT_LOCATION );
-    rdp_init();
-    controller_init();
+    rdpq_init();
+    joypad_init();
     timer_init();
 
     /* Read in single sprite */
@@ -44,10 +44,7 @@ int main(void)
     /* Main loop test */
     while(1) 
     {
-        static display_context_t disp = 0;
-
-        /* Grab a render buffer */
-        while( !(disp = display_lock()) );
+        surface_t* disp = display_get();
        
         /*Fill the screen */
         graphics_fill_screen( disp, 0xFFFFFFFF );
@@ -77,22 +74,18 @@ int main(void)
             case 1:
             {
                 /* Hardware spritemap test */
+                /* This example demonstrates drawing sprites using the RDP module which involves
+                   lower-level functions controlling the RDP (including manually making sure that
+                   textures you draw can fit into TMEM).
+
+                   For drawing using the higher-level RDPQ module, take a look at the rdpqdemo example. */
                 graphics_draw_text( disp, 20, 20, "Hardware spritemap test" );
 
-                /* Assure RDP is ready for new commands */
-                rdp_sync( SYNC_PIPE );
+                /* Enable transparent sprite display instead of solid color fill */
+                rdpq_set_mode_copy(true);
 
-                /* Remove any clipping windows */
-                rdp_set_default_clipping();
-
-                /* Enable sprite display instead of solid color fill */
-                rdp_enable_texture_copy();
-
-                /* Attach RDP to display */
-                rdp_attach( disp );
-                    
-                /* Ensure the RDP is ready to receive sprites */
-                rdp_sync( SYNC_PIPE );
+                /* Attach RDP to display; pass NULL as Z-buffer since we don't need it */
+                rdpq_attach( disp, NULL );
 
                 /* Load the sprite into texture slot 0, at the beginning of memory, without mirroring */
                 rdp_load_texture( 0, 0, MIRROR_DISABLED, plane );
@@ -104,9 +97,6 @@ int main(void)
                    all four pieces of this sprite individually in order to use the RDP at all */
                 for( int i = 0; i < 4; i++ )
                 {
-                    /* Ensure the RDP is ready to receive sprites */
-                    rdp_sync( SYNC_PIPE );
-
                     /* Load the sprite into texture slot 0, at the beginning of memory, without mirroring */
                     rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, mudkip, i );
                 
@@ -114,17 +104,11 @@ int main(void)
                     rdp_draw_sprite( 0, 50 + (20 * (i % 2)), 50 + (20 * (i / 2)), MIRROR_DISABLED );
                 }
 
-                /* Ensure the RDP is ready to receive sprites */
-                rdp_sync( SYNC_PIPE );
-
                 /* Load the sprite into texture slot 0, at the beginning of memory, without mirroring */
                 rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, earthbound, ((animcounter / 15) & 1) ? 1: 0 );
                 
                 /* Display walking NESS animation */
                 rdp_draw_sprite( 0, 20, 100, MIRROR_DISABLED );
-
-                /* Ensure the RDP is ready to receive sprites */
-                rdp_sync( SYNC_PIPE );
 
                 /* Load the sprite into texture slot 0, at the beginning of memory, without mirroring */
                 rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, earthbound, ((animcounter / 8) & 0x7) * 2 );
@@ -133,7 +117,7 @@ int main(void)
                 rdp_draw_sprite( 0, 50, 100, MIRROR_DISABLED );
 
                 /* Inform the RDP we are finished drawing and that any pending operations should be flushed */
-                rdp_detach();
+                rdpq_detach_wait();
 
                 break;
             }
@@ -143,10 +127,10 @@ int main(void)
         display_show(disp);
 
         /* Do we need to switch video displays? */
-        controller_scan();
-        struct controller_data keys = get_keys_down();
+        joypad_poll();
+        joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-        if( keys.c[0].A )
+        if( keys.a )
         {
             /* Lazy switching */
             mode = 1 - mode;

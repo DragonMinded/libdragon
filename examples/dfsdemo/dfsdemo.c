@@ -215,7 +215,7 @@ int main(void)
     console_init();
 
     /* Initialize key detection */
-    controller_init();
+    joypad_init();
 
     if(dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS)
     {
@@ -239,22 +239,22 @@ int main(void)
             display_dir(list, cursor, page, MAX_LIST, count);
             console_render();
 
-            controller_scan();
-            struct controller_data keys = get_keys_down();
+            joypad_poll();
+            joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-            if(keys.c[0].up)
+            if(keys.d_up)
             {
                 cursor--;
                 new_scroll_pos(&cursor, &page, MAX_LIST, count);
             }
 
-            if(keys.c[0].down)
+            if(keys.d_down)
             {
                 cursor++;
                 new_scroll_pos(&cursor, &page, MAX_LIST, count);
             }
 
-            if(keys.c[0].C_right && list[cursor].type == DT_REG)
+            if(keys.c_right && list[cursor].type == DT_REG)
             {
                 /* Concatenate to make file */
                 char path[512];
@@ -284,10 +284,10 @@ int main(void)
                                 s = s_next_line + 1;
 
                                 wait_ms(100);
-                                controller_scan();
-                                while (!get_keys_pressed().c[0].A) {
+                                joypad_poll();
+                                while (!joypad_get_buttons(JOYPAD_PORT_1).a) {
                                     wait_ms(10);
-                                    controller_scan();
+                                    joypad_poll();
                                 }
                             }
                         }
@@ -301,16 +301,16 @@ int main(void)
 
                 printf("Press B to quit\n");
                 console_render();
-                controller_scan();
-                while (!get_keys_down().c[0].B) {
+                joypad_poll();
+                while (!joypad_get_buttons(JOYPAD_PORT_1).b) {
                     wait_ms(10);
-                    controller_scan();
+                    joypad_poll();
                 }
 
                 continue;
             }
 
-            if(keys.c[0].L)
+            if(keys.l)
             {
                 /* Open the SD card */
                 strcpy( dir, "sd://" );
@@ -323,7 +323,7 @@ int main(void)
                 cursor = 0;
             }
 
-            if(keys.c[0].R)
+            if(keys.r)
             {
                 /* Open the ROM FS card */
                 strcpy( dir, "rom://" );
@@ -336,7 +336,7 @@ int main(void)
                 cursor = 0;
             }
 
-            if(keys.c[0].A && list[cursor].type == DT_DIR)
+            if(keys.a && list[cursor].type == DT_DIR)
             {
                 /* Change directories */
                 chdir(list[cursor].filename);
@@ -349,7 +349,7 @@ int main(void)
                 cursor = 0;
             }
 
-            if(keys.c[0].B)
+            if(keys.b)
             {
                 /* Up! */
                 chdir("..");
