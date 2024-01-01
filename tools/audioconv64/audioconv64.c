@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 
 bool flag_verbose = false;
+bool flag_debug = false;
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	#define LE32_TO_HOST(i) __builtin_bswap32(i)
@@ -70,6 +71,7 @@ void usage(void) {
 	printf("Global options:\n");
 	printf("   -o / --output <dir>       Specify output directory\n");
 	printf("   -v / --verbose            Verbose mode\n");
+	printf("   -d / --debug              Dump uncompressed files in output directory for debugging\n");
 	printf("\n");
 	printf("WAV options:\n");
 	printf("   --wav-mono				 Force mono output\n");
@@ -201,6 +203,8 @@ int main(int argc, char *argv[]) {
 					return 1;
 				}
 				outdir = argv[i];
+			} else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
+				flag_debug = true;
 			} else if (!strcmp(argv[i], "--wav-loop")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --wav-loop\n");

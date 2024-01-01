@@ -302,7 +302,8 @@ int wav_convert(const char *infn, const char *outfn) {
 		// Automatic bitrate calculation for "good quality". This is the same
 		// algorithm libopus selects when setting OPUS_AUTO bitrate.
 		int bitrate_bps = 60*FRAMES_PER_SECOND + wavOriginalSampleRate * wav.channels;
-		fprintf(stderr, "  opus bitrate: %d bps\n", bitrate_bps);
+		if (flag_verbose)
+			fprintf(stderr, "  opus bitrate: %d bps\n", bitrate_bps);
 
 		// Write extended header
 		w32(out, frame_size);
@@ -352,16 +353,21 @@ int wav_convert(const char *infn, const char *outfn) {
 		free(out_buffer);
 		opus_custom_encoder_destroy(enc);
 
-		if (true) {
+		if (flag_debug) {
 			fclose(out);
+
+			char* wav2fn = changeext(outfn, ".opus.wav");
+			if (flag_verbose)
+				fprintf(stderr, "  writing uncompressed file %s\n", wav2fn);
+
 			out = fopen(outfn, "rb");
 			fseek(out, 36, SEEK_SET);
-
 			OpusCustomDecoder *dec = opus_custom_decoder_create(
 					custom_mode, wav.channels, &err);
 			if (err != OPUS_OK) {
 				opus_custom_mode_destroy(custom_mode);
 				fprintf(stderr, "ERROR: %s: cannot create opus decoder: %s\n", infn, opus_strerror(err));
+				free(wav2fn);
 				failed = true; goto end;
 			}
 
@@ -400,7 +406,6 @@ int wav_convert(const char *infn, const char *outfn) {
 					.bitsPerSample = 16,
 				};
 				drwav wav2;
-				char* wav2fn = changeext(outfn, ".opus.wav");
 				if (!drwav_init_file_write(&wav2, wav2fn, &fmt, NULL)) {
 					fprintf(stderr, "ERROR: %s: cannot create WAV file\n", outfn);
 					failed = true;
@@ -408,8 +413,9 @@ int wav_convert(const char *infn, const char *outfn) {
 					drwav_write_pcm_frames(&wav2, outcnt, out_samples);
 					drwav_uninit(&wav2);
 				}
-				free(wav2fn);
 			}
+			
+			free(wav2fn);
 		}
 
 		opus_custom_mode_destroy(custom_mode);
