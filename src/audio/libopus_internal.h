@@ -20,6 +20,7 @@
 #include "opus/arch.h"
 #include "opus/os_support.h"
 #include "opus/opus_custom.h"
+#include "opus/mdct.h"
 
 #ifdef N64
 
@@ -40,6 +41,9 @@ void rsp_opus_comb_filter_dual(opus_val32 *y, opus_val32 *x, int T0, int T1, int
 
 void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef,
       celt_sig *mem, int accum);
+
+void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_scalar * OPUS_RESTRICT out,
+      const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int arch);
 
 #endif
 

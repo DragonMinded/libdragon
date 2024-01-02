@@ -15,6 +15,8 @@
 DEFINE_RSP_UCODE(rsp_opus_dsp);
 DEFINE_RSP_UCODE(rsp_opus_imdct);
 
+static void fft_init(void);
+
 void rsp_opus_init(void)
 {
     static bool init = false;
@@ -22,6 +24,7 @@ void rsp_opus_init(void)
         rspq_init();
         rspq_overlay_register_static(&rsp_opus_dsp, 0x8<<28);
         rspq_overlay_register_static(&rsp_opus_imdct, 0x9<<28);
+        fft_init();
         init = true;
     }
 }
@@ -72,6 +75,267 @@ static void rsp_cmd_comb_result(opus_val32 *x, int i_idx, int nsamples)
       (i_idx<<16) | nsamples);
 }
 
+
+/*******************************************************************************
+ * IMDCT (and FFT)
+ *******************************************************************************/
+
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly2);
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly3);
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly4);
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly4m1);
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly5);
+
+typedef struct {
+    uint16_t consts[8][8];      // Up to 8 vector constants
+    uint32_t next_pass_rdram;   // Pointer to next pass in RDRAM (or 0 if it's the last)
+    uint32_t func_rdram;        // Address of the butterfly function in RDRAM (overlay)
+    uint32_t stride, m, n, mm;  // Parameters for the butterfly function
+} opus_fft_pass_t;
+
+
+#define __KF_ANGLE16_COS(i, N)             (((i) * (65536-1) / N) & 0xFFFF)
+#define __KF_ANGLE16_SIN(i, N)             ((__KF_ANGLE16_COS(i, N) + 0x4000) & 0xFFFF)
+#define __KF_BFLY_FSTRIDE_CPX(stride, N)   __KF_ANGLE16_COS(stride, N), __KF_ANGLE16_SIN(stride, N)
+
+#define KF_BFLY2_CONST1  \
+          { 0x7fff, 0x0000, 0x5a82, 0xa57e, 0x0000, 0x8000, 0xa57e, 0xa57e }
+#define KF_BFLY2_CONST2  \
+          { 0x0000, 0x7fff, 0x5a82, 0x5a82, 0x7fff, 0x0000, 0x5a82, 0xa57e }
+
+#define KF_BFLY3_TWIDDLE1(stride, N)  \
+          { __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*1, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*2, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*3, N) }
+
+#define KF_BFLY3_TWIDDLE2(stride, N)  \
+          { __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*2, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*4, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*6, N) }
+
+#define KF_BFLY3_TWINCR1(stride, N)  \
+          { __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+            __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+            __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+            __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N) }
+
+#define KF_BFLY3_TWINCR2(stride, N)  \
+          { __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+            __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+            __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+            __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N) }
+
+#define KF_BFLY4_TWIDDLE1(stride, N)  \
+          { 0, 0, 0, 0, \
+            __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*1, N) }
+#define KF_BFLY4_TWIDDLE2(stride, N)  \
+          { __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*2, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*0, N), \
+            __KF_BFLY_FSTRIDE_CPX(stride*3, N) }
+#define KF_BFLY4_TWINCR1(stride, N)  \
+          { 0, 0, 0, 0, \
+            __KF_ANGLE16_COS(stride*1, N), __KF_ANGLE16_COS(stride*1, N), \
+            __KF_ANGLE16_COS(stride*1, N), __KF_ANGLE16_COS(stride*1, N) }
+#define KF_BFLY4_TWINCR2(stride, N)  \
+          { __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
+            __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
+            __KF_ANGLE16_COS(stride*3, N), __KF_ANGLE16_COS(stride*3, N), \
+            __KF_ANGLE16_COS(stride*3, N), __KF_ANGLE16_COS(stride*3, N) }
+
+#define KF_BFLY5_TWIDDLE1(stride, N)  \
+          {   __KF_ANGLE16_COS(stride*0, N), __KF_ANGLE16_SIN(stride*0, N), \
+            __KF_ANGLE16_COS(stride*1, N), __KF_ANGLE16_SIN(stride*1, N), \
+            __KF_ANGLE16_SIN(stride*0, N), __KF_ANGLE16_COS(stride*0, N), \
+            __KF_ANGLE16_SIN(stride*2, N), __KF_ANGLE16_COS(stride*2, N) }
+
+#define KF_BFLY5_TWIDDLE2(stride, N)  \
+          {   __KF_ANGLE16_COS(stride*0, N), __KF_ANGLE16_SIN(stride*0, N), \
+            __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_SIN(stride*4, N), \
+            __KF_ANGLE16_SIN(stride*0, N), __KF_ANGLE16_COS(stride*0, N), \
+            __KF_ANGLE16_SIN(stride*3, N), __KF_ANGLE16_COS(stride*3, N) }
+
+#define KF_BFLY5_TWINCR1(stride, N)  \
+          { __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
+            __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
+            __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+            __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N) }
+
+#define KF_BFLY5_TWINCR2(stride, N)  \
+          { __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+            __KF_ANGLE16_COS(stride*8, N), __KF_ANGLE16_COS(stride*8, N), \
+            __KF_ANGLE16_COS(stride*6, N), __KF_ANGLE16_COS(stride*6, N), \
+            __KF_ANGLE16_COS(stride*6, N), __KF_ANGLE16_COS(stride*6, N) }
+
+#define KF_BFLY5_YAR  (10126)
+#define KF_BFLY5_YAI (-31164)
+#define KF_BFLY5_YBR (-26510)
+#define KF_BFLY5_YBI (-19261)
+
+#define KF_BFLY5_CONST1 \
+          { KF_BFLY5_YAR, KF_BFLY5_YBR, KF_BFLY5_YAR, KF_BFLY5_YBR, \
+            KF_BFLY5_YAR, KF_BFLY5_YBR, KF_BFLY5_YAR, KF_BFLY5_YBR }
+#define KF_BFLY5_CONST2 \
+          { KF_BFLY5_YBR, KF_BFLY5_YAR, KF_BFLY5_YBR, KF_BFLY5_YAR, \
+            KF_BFLY5_YBR, KF_BFLY5_YAR, KF_BFLY5_YBR, KF_BFLY5_YAR }
+#define KF_BFLY5_CONST3 \
+          { KF_BFLY5_YAI, -KF_BFLY5_YBI, KF_BFLY5_YAI, -KF_BFLY5_YBI, \
+            -KF_BFLY5_YAI, -KF_BFLY5_YBI, -KF_BFLY5_YAI, -KF_BFLY5_YBI }
+#define KF_BFLY5_CONST4 \
+          { KF_BFLY5_YBI, KF_BFLY5_YAI, KF_BFLY5_YBI, KF_BFLY5_YAI, \
+            KF_BFLY5_YBI, -KF_BFLY5_YAI, KF_BFLY5_YBI, -KF_BFLY5_YAI }
+
+
+#define KF_BFLY2(stride, N) \
+    .func_rdram = PhysicalAddr(rsp_opus_fft_bfly2.code), \
+    .consts = { \
+        KF_BFLY2_CONST1, \
+        KF_BFLY2_CONST2, \
+    }
+
+#define KF_BFLY3(stride, N) \
+    .func_rdram = PhysicalAddr(rsp_opus_fft_bfly3.code), \
+    .consts = { \
+        KF_BFLY3_TWIDDLE1(stride, N), \
+        KF_BFLY3_TWIDDLE2(stride, N), \
+        KF_BFLY3_TWINCR1(stride, N), \
+        KF_BFLY3_TWINCR2(stride, N), \
+    }
+
+#define KF_BFLY4M1(stride, N)  \
+    .func_rdram = PhysicalAddr(rsp_opus_fft_bfly4m1.code), \
+    .consts = {}
+
+#define KF_BFLY4(stride, N) \
+    .func_rdram = PhysicalAddr(rsp_opus_fft_bfly4.code), \
+    .consts = { \
+        KF_BFLY4_TWIDDLE1(stride, N), \
+        KF_BFLY4_TWIDDLE2(stride, N), \
+        KF_BFLY4_TWINCR1(stride, N), \
+        KF_BFLY4_TWINCR2(stride, N), \
+    }
+
+#define KF_BFLY5(stride, N) \
+    .func_rdram = PhysicalAddr(rsp_opus_fft_bfly5.code), \
+    .consts = { \
+        KF_BFLY5_TWIDDLE1(stride, N), \
+        KF_BFLY5_TWIDDLE2(stride, N), \
+        KF_BFLY5_TWINCR1(stride, N), \
+        KF_BFLY5_TWINCR2(stride, N), \
+        KF_BFLY5_CONST1, \
+        KF_BFLY5_CONST2, \
+        KF_BFLY5_CONST3, \
+        KF_BFLY5_CONST4, \
+    }
+         
+
+static opus_fft_pass_t fft_60[3];
+static opus_fft_pass_t fft_480[5];
+
+static void fft_init(void) {
+    const int MAX_FFT_OVERLAY_SIZE = 0x400;
+
+    assert(rsp_opus_fft_bfly2.code_end - (void*)rsp_opus_fft_bfly2.code <= MAX_FFT_OVERLAY_SIZE);
+    assert(rsp_opus_fft_bfly3.code_end - (void*)rsp_opus_fft_bfly3.code <= MAX_FFT_OVERLAY_SIZE);
+    assert(rsp_opus_fft_bfly4m1.code_end - (void*)rsp_opus_fft_bfly4m1.code <= MAX_FFT_OVERLAY_SIZE);
+    assert(rsp_opus_fft_bfly5.code_end - (void*)rsp_opus_fft_bfly5.code <= MAX_FFT_OVERLAY_SIZE);
+
+    fft_60[0] = (opus_fft_pass_t){
+        KF_BFLY4M1(120, 480),
+        .stride = 120, .m = 1, .n = 15, .mm = 4,
+        .next_pass_rdram = PhysicalAddr(&fft_60[1]),
+    };
+    fft_60[1] = (opus_fft_pass_t){
+        KF_BFLY3(40, 480),
+        .stride = 40, .m = 4, .n = 5, .mm = 12,
+        .next_pass_rdram = PhysicalAddr(&fft_60[2]),
+    };
+    fft_60[2] = (opus_fft_pass_t){
+        KF_BFLY5(8, 480),
+        .stride = 8, .m = 12, .n = 1, .mm = 1,
+        .next_pass_rdram = 0,
+    };
+
+    fft_480[0] = (opus_fft_pass_t){
+        KF_BFLY4M1(120, 480),
+        .stride = 120, .m = 1, .n = 120, .mm = 4,
+        .next_pass_rdram = PhysicalAddr(&fft_480[1]),
+    };
+    fft_480[1] = (opus_fft_pass_t){
+        KF_BFLY2(4, 480),
+        .stride = 0, .m = 4, .n = 60, .mm = 0,
+        .next_pass_rdram = PhysicalAddr(&fft_480[2]),
+    };
+    fft_480[2] = (opus_fft_pass_t){
+        KF_BFLY4(15, 480),
+        .stride = 15, .m = 8, .n = 15, .mm = 32,
+        .next_pass_rdram = 0,
+    };
+
+    data_cache_hit_writeback_invalidate(fft_60, sizeof(fft_60));
+    data_cache_hit_writeback_invalidate(fft_480, sizeof(fft_480));
+}
+
+void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_scalar * OPUS_RESTRICT out,
+      const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int arch)
+{
+    clt_mdct_backward_c(l, in, out, window, overlap, shift, stride, arch);
+    data_cache_hit_writeback_invalidate(out, l->n*2*sizeof(kiss_fft_scalar));
+
+    static int count = 0;
+    if (++count != 17) return;
+    assert(l->kfft[shift]->nfft == 480);
+
+    int N = l->n >> shift;
+    int N2 = N>>1;
+    int N4 = N>>2;
+
+    // Workram layout:
+    // 0-3840:      temporary buffer holding up to 1920 FFT values (after deinterleaving)
+    // 3840-7936:   DMEM backup
+    // 7936-11520:  Output values for debugging purposes
+    static uint8_t *rsp_workram = NULL;
+    if (!rsp_workram) rsp_workram = malloc_uncached(3840+4096+960*4);
+
+    data_cache_hit_writeback_invalidate(in, N2*4*stride);
+
+    assertf(PhysicalAddr(in) % 8 == 0, "in=%p", in);
+    assert(PhysicalAddr(l->kfft[shift]->bitrev) % 8 == 0);
+    debugf("RSP_IMDCT: N=%d N4=%d stride=%d shift=%d fft_60=%p\n", l->n, N4, stride, shift, fft_60);
+    rspq_write(0x9<<28, 0x0,
+        PhysicalAddr(in),
+        (l->n-1) | ((stride-1)<<12) | (shift<<16),
+        PhysicalAddr(rsp_workram),
+        PhysicalAddr(l->kfft[shift]->bitrev),
+        PhysicalAddr(fft_480)
+    );
+    rspq_wait();
+
+    debugf("RSP STEP 2 %p:\n", rsp_workram);
+    uint16_t *debug = malloc_uncached(N4*2*4);
+    uint16_t *workram = (uint16_t*)(rsp_workram+3840+4096);
+    for (int i=0;i<N4;i++) {
+        debug[i*4+0] = workram[i*4+0];
+        debug[i*4+1] = workram[i*4+2];
+        debug[i*4+2] = workram[i*4+1];
+        debug[i*4+3] = workram[i*4+3];
+    }
+    debug_hexdump(debug, N4*2*4);
+    debugf("REF: %p\n", in);
+    debug_hexdump(out+(overlap>>1), N4*2*4);
+
+    float error = 0;
+    int32_t *workram32 = (int32_t*)debug;
+    for (int i=0;i<N4*2;i++) {
+        float diff = fabsf(workram32[i] - (int32_t)(out+(overlap>>1))[i]);
+        error += diff*diff;
+    }
+    debugf("RMSD: %f\n", sqrtf(error / N4*2) / (1<<12));
+    while(1) {}
+}
 
 /*******************************************************************************
  * Comb filter

@@ -6,7 +6,7 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand OPUS_imdct, 16                # 0x0
+        RSPQ_DefineCommand OPUS_imdct, 20                # 0x0
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -21,6 +21,7 @@ DUMMY:    .long 0
     #define B            k0
     #define N            k1
     #define SHIFT        fp
+    #define fft_steps_rdram    s6
 
     #define vtwidx1      $v27
     #define vtwidx2      $v28
@@ -30,7 +31,7 @@ DUMMY:    .long 0
 
     .align 4
 TWIDDLE_CONST1: .half 0         # used to store twiddle angle increment
-                .half 0         # used to store %lo(IMDC_DATA)
+                .half 0         # used to store %lo(IMDCT_DATA)
                 .half 0xb226    # B constant
                 .half 0         # empty slot
                 .half 0x1b92    # C constant
@@ -530,150 +531,6 @@ OPUS_imdct_prerot_step2_loop_exit:
 #include "rsp_opus_fft.inc"
 
     ############################################################################
-    # OPUS_imdct_fft_1920_0: unrolled PFA FFT
-    #   * N=1920, shift=3
-    ############################################################################
-
-    .data
-
-    .align 4
-FFT_1920_3_BEGIN:
-FFT_1920_3_BFLY3:
-    KF_BFLY3_TWIDDLE1(40, 480)
-    KF_BFLY3_TWIDDLE2(40, 480)
-    KF_BFLY3_TWINCR1(40, 480)
-    KF_BFLY3_TWINCR2(40, 480)
-FFT_1920_3_BFLY5:
-    KF_BFLY5_TWIDDLE1(8, 480)
-    KF_BFLY5_TWIDDLE2(8, 480)
-    KF_BFLY5_TWINCR1(8, 480)
-    KF_BFLY5_TWINCR2(8, 480)
-    KF_BFLY5_CONST1
-    KF_BFLY5_CONST2
-    KF_BFLY5_CONST3
-    KF_BFLY5_CONST4
-FFT_1920_3_END:
-
-    .text
-
-    .func OPUS_imdct_fft_1920_3
-OPUS_imdct_fft_1920_3:
-    addiu s0, a2, %lo(FFT_1920_3_BEGIN)+3840
-    li s4, %lo(IMDCT_TMP)
-    andi s4, 0xFFF
-    jal DMAIn
-    li t0, DMA_SIZE(0xC0, 1)
-
-    # kf_bfly4(stride=120, m=1, N=15, mm=4);
-    li fZ, %lo(IMDCT_DATA)
-    jal kf_bfly4_m1
-    li fN, 15
-
-    # kf_bfly3(stride=40, m=4, N=5, mm=12);
-    li fZ, %lo(IMDCT_DATA)
-    li fTW, %lo(IMDCT_TMP)+0
-    li fN, 5
-    li fmm, 12
-    jal kf_bfly3
-    li fM, 4
-
-    # kf_bfly5(fout, stride=8, m=12, N=1, mm=1);
-    li fZ, %lo(IMDCT_DATA)
-    li fTW, %lo(IMDCT_TMP)+0x40
-    li fN, 1
-    li fmm, 1
-    jal kf_bfly5
-    li fM, 12
-
-    j OPUS_imdct_fft_end
-    nop
-
-    .endfunc
-
-    ############################################################################
-    # OPUS_imdct_fft_1920_0: unrolled PFA FFT
-    #   * N=1920, shift=0
-    ############################################################################
-
-    .data
-
-    .align 4
-FFT_1920_0_BEGIN:
-FFT_1920_0_BFLY2:
-    KF_BFLY2_CONST1
-    KF_BFLY2_CONST2
-FFT_1920_0_BFLY3:
-    KF_BFLY3_TWIDDLE1(5, 480)
-    KF_BFLY3_TWIDDLE2(5, 480)
-    KF_BFLY3_TWINCR1(5, 480)
-    KF_BFLY3_TWINCR2(5, 480)
-FFT_1920_0_BFLY5:
-    KF_BFLY5_TWIDDLE1(1, 480)
-    KF_BFLY5_TWIDDLE2(1, 480)
-    KF_BFLY5_TWINCR1(1, 480)
-    KF_BFLY5_TWINCR2(1, 480)
-    KF_BFLY5_CONST1
-    KF_BFLY5_CONST2
-    KF_BFLY5_CONST3
-    KF_BFLY5_CONST4
-FFT_1920_0_END:
-
-    .text
-
-    .func OPUS_imdct_fft_1920_0
-OPUS_imdct_fft_1920_0:
-    addiu s0, a2, %lo(FFT_1920_0_BEGIN)+3840
-    li s4, %lo(IMDCT_TMP)
-    andi s4, 0xFFF
-    jal DMAIn
-    li t0, DMA_SIZE(0xE0, 1)
-
-    # kf_bfly4(stride=120, m=1, N=120, mm=4);
-    li fZ, %lo(IMDCT_DATA)
-    jal kf_bfly4_m1
-    li fN, 120
-
-    # kf_bfly2(fout, m=4, N=60);
-    li fZ, %lo(IMDCT_DATA)
-    li fTW, %lo(IMDCT_TMP)+0
-    li fM, 4
-    jal kf_bfly2
-    li fN, 60
-
-
-    # kf_bfly4(stride=15, m=8, N=15, mm=32);
-    li fZ, %lo(IMDCT_DATA)
-    li fTW, %lo(IMDCT_TMP)+0
-    li fM, 8
-    li fmm, 32
-    jal kf_bfly4
-    li fN, 15
-
-    j OPUS_imdct_fft_end
-    nop
-
-    # kf_bfly3(stride=5, m=32, N=5, mm=96);
-    li fZ, %lo(IMDCT_DATA)
-    li fTW, %lo(IMDCT_TMP)+0x20
-    li fN, 5
-    li fmm, 96
-    jal kf_bfly3
-    li fM, 32
-
-    # kf_bfly5(stride=1, m=96, N=1, mm=1);
-    li fZ, %lo(IMDCT_DATA)
-    li fTW, %lo(IMDCT_TMP)+0x60
-    li fN, 1
-    li fmm, 1
-    jal kf_bfly5
-    li fM, 96
-
-    j OPUS_imdct_fft_end
-    nop
-
-    .endfunc
-
-    ############################################################################
     # OPUS_imdct
     #
     # Input values:
@@ -685,12 +542,14 @@ OPUS_imdct_fft_1920_0:
     #               log2(B), but for genericity it is left as separate argument.
     #   a2:  0..23: RDRAM work buffer (must be 1920+4096 bytes)
     #   a3:  0..23: RDRAM Bitrev array
-    #
+    #     :  0..23: RDRAM pointer to FFT steps table
     #
     ############################################################################
 
     .func OPUS_imdct
 OPUS_imdct:
+    lw fft_steps_rdram, CMD_ADDR(16, 20)
+
     # Backup DMEM. We are going to need the whole DMEM, so let's backup
     # common data, and we will restore it later.
     # FIXME: try using _ovl_data_start as number of bytes. We probably don't
@@ -722,6 +581,7 @@ OPUS_imdct:
 
     # Setup twiddle parameters for N=1920 and N=240
     # FIXME: compute these in C and pass them to RSP
+    emux_breakpoint
     beq N, 1920, OPUS_imdct_setup_1920
     nop
     beq N, 240, OPUS_imdct_setup_240
@@ -740,6 +600,11 @@ OPUS_imdct_setup_240:
     lqv vtwidx1, 0x20,t1
     
 OPUS_imdct_start:
+    # From now on, we assume that DMEM contains only two buffers:
+    #  IMDCT_DATA: holding all the values/samples for the IMDCT
+    #  IMDCT_TMP:  holding instructions for the current FFT step.
+    # We can't load from DMEM anymore other constants.
+
     # Do deinterleaving of input data. The value will be fetched
     # from RDRAM, deinterleaved, and then moved again to RDRAM into the
     # work buffer.
@@ -755,13 +620,45 @@ OPUS_imdct_band:
     jal OPUS_imdct_prerot_step2
     move t6, a2
 
-    # All the values are now in DMEM, ready for the FFT.
-    li t0, 1920
-    beq N, t0, OPUS_imdct_fft_1920_0
-    li t0, 240
-    beq N, t0, OPUS_imdct_fft_1920_3
+    # Fetch first step of the cmd table
+    move s0, fft_steps_rdram
+OPUS_imdct_fft_loop:
+    emux_breakpoint
+    li s4, %lo(IMDCT_TMP)
+    andi s4, 0xFFF
+    jal DMAIn
+    li t0, DMA_SIZE(152, 1)
+
+    # First the current FFT function overlay
+    li s1, %lo(IMDCT_TMP)
+    andi s1, 0xFFF
+    lw s0, 132(s1)            # FFT function pointer in RDRAM
+    li s4, %lo(FFT_OVERLAY_FUNC)
+    jal DMAIn
+    li t0, DMA_SIZE(0x400, 1)
+
+    # Load the arguments and run the overlay
+    li fZ, %lo(IMDCT_DATA)
+    li fTW, %lo(IMDCT_TMP)
+    lw fM, 140(s1)
+    lw fN, 144(s1)
+    jal FFT_OVERLAY_FUNC
+    lw fmm, 148(s1)
+
+    # Check if there's another step
+    li s1, %lo(IMDCT_TMP)
+    andi s1, 0xFFF
+    lw s0, 128(s1)
+    bnez s0, OPUS_imdct_fft_loop
     nop
-    assert 0x8555
+
+    # # All the values are now in DMEM, ready for the FFT.
+    # li t0, 1920
+    # beq N, t0, OPUS_imdct_fft_1920_0
+    # li t0, 240
+    # beq N, t0, OPUS_imdct_fft_1920_3
+    # nop
+    # xassert 0x8555
 
 OPUS_imdct_fft_end:
     # Now do the post-rotation and deshuffling.
@@ -943,3 +840,8 @@ OPUS_test_twiddle:
     .endfunc
 
 #endif
+
+# Reserve space for FFT overlay functions
+    .align 4
+FFT_OVERLAY_FUNC:
+    .space 0x400
