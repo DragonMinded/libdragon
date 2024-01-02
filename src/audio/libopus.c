@@ -1,3 +1,5 @@
+#include "libopus_internal.h"
+
 #ifdef __clang__
     #pragma clang diagnostic push
     #pragma clang diagnostic ignored "-Wtautological-compare"
@@ -5,21 +7,6 @@
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wnonnull-compare"
 #endif
-
-#ifdef N64
-#include "libopus_internal.h"
-#endif
-
-// Activate support for CELT custom modes. We have pregenerated the two common
-// custom modes in static_modes_fixed.h, but we are going to allow for runtime
-// mode generation as well for now.
-#define CUSTOM_MODES
-//#define CUSTOM_MODES_ONLY          /* Disable runtime custom mode generation */
-
-// Some config macros, since we don't run configure
-#define USE_ALLOCA
-#define HAVE_LRINTF
-#define HAVE_LRINT
 
 // Bring opus in
 #include "opus/opus_custom.h"

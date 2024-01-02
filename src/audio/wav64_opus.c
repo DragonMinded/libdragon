@@ -41,7 +41,7 @@
 #include "n64sys.h"
 #include "rspq.h"
 
-#include "libopus.c"
+#include "libopus_internal.h"
 
 typedef struct {
     uint32_t frame_size;
