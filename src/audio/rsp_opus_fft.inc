@@ -125,13 +125,13 @@
               __KF_BFLY_FSTRIDE_CPX(stride*3, N)
     #define KF_BFLY4_TWINCR1(stride, N)  \
         .half 0, 0, 0, 0, \
-              __KF_ANGLE16_COS(stride*1, N), __KF_ANGLE16_COS(stride*1, N), \
-              __KF_ANGLE16_COS(stride*1, N), __KF_ANGLE16_COS(stride*1, N)
-    #define KF_BFLY4_TWINCR2(stride, N)  \
-        .half __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
               __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N), \
-              __KF_ANGLE16_COS(stride*3, N), __KF_ANGLE16_COS(stride*3, N), \
-              __KF_ANGLE16_COS(stride*3, N), __KF_ANGLE16_COS(stride*3, N)
+              __KF_ANGLE16_COS(stride*2, N), __KF_ANGLE16_COS(stride*2, N)
+    #define KF_BFLY4_TWINCR2(stride, N)  \
+        .half __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+              __KF_ANGLE16_COS(stride*4, N), __KF_ANGLE16_COS(stride*4, N), \
+              __KF_ANGLE16_COS(stride*6, N), __KF_ANGLE16_COS(stride*6, N), \
+              __KF_ANGLE16_COS(stride*6, N), __KF_ANGLE16_COS(stride*6, N)
 
 
 #######################################################################

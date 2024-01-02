@@ -581,7 +581,6 @@ OPUS_imdct:
 
     # Setup twiddle parameters for N=1920 and N=240
     # FIXME: compute these in C and pass them to RSP
-    emux_breakpoint
     beq N, 1920, OPUS_imdct_setup_1920
     nop
     beq N, 240, OPUS_imdct_setup_240
@@ -623,7 +622,6 @@ OPUS_imdct_band:
     # Fetch first step of the cmd table
     move s0, fft_steps_rdram
 OPUS_imdct_fft_loop:
-    emux_breakpoint
     li s4, %lo(IMDCT_TMP)
     andi s4, 0xFFF
     jal DMAIn
