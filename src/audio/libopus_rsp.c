@@ -272,6 +272,16 @@ static void fft_init(void) {
     fft_480[2] = (opus_fft_pass_t){
         KF_BFLY4(15, 480),
         .stride = 15, .m = 8, .n = 15, .mm = 32,
+        .next_pass_rdram = PhysicalAddr(&fft_480[3]),
+    };
+    fft_480[3] = (opus_fft_pass_t){
+        KF_BFLY3(5, 480),
+        .stride = 5, .m = 32, .n = 5, .mm = 96,
+        .next_pass_rdram = PhysicalAddr(&fft_480[4]),
+    };
+    fft_480[4] = (opus_fft_pass_t){
+        KF_BFLY5(1, 480),
+        .stride = 1, .m = 96, .n = 1, .mm = 1,
         .next_pass_rdram = 0,
     };
 
