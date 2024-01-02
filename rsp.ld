@@ -30,6 +30,7 @@ MEMORY
 SECTIONS
 {
     .text : { 
+        _start = .;
         KEEP(*(.text))
         *(.text.*)
     } > ram_text AT > rom_imem
