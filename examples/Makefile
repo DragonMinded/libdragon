@@ -6,7 +6,7 @@ clean: $(foreach example,$(EXAMPLES),$(example)-clean)
 
 define EXAMPLE_template
 $(1):
-ifdef $(BASE_DIR)
+ifdef BASE_DIR
 	$$(MAKE) -C $(1) SOURCE_DIR=$(BASE_DIR)/$(1)
 else
 	$$(MAKE) -C $(1)
