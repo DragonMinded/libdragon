@@ -381,7 +381,7 @@ void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdoubl
     gl_matrix_t ortho = (gl_matrix_t){ .m={
         {2.0f/(r-l),   0.f,          0.f,          0.f},
         {0.f,          2.0f/(t-b),   0.f,          0.f},
-        {0.f,          0.f,          2.0f/(f-n),   0.f},
+        {0.f,          0.f,          -2.0f/(f-n),  0.f},
         {-(r+l)/(r-l), -(t+b)/(t-b), -(f+n)/(f-n), 1.f},
     }};
 
