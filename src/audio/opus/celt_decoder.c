@@ -372,7 +372,6 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
 {
    int c, i;
    int M;
-   int b;
    int B;
    int N, NB;
    int shift;
