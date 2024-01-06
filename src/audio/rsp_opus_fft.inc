@@ -45,12 +45,12 @@
 
 #include <rsp.inc>
 
-    #define fmm  t7
-    #define fM   t8
-    #define fN   t9
-    #define fZ   s7
-    #define fTW  t6
-    #define fK   t5
+    #define fmm                 t7
+    #define fM                  t8
+    #define fN                  t9
+    #define fZ                  s7
+    #define fTW                 t6
+    #define fK                  t5
 
 #######################################################################
 # KF_BFLY2 - 2-point FFT butterfly

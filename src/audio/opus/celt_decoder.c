@@ -406,10 +406,8 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
       /* Store a temporary copy in the output buffer because the IMDCT destroys its input. */
       freq2 = out_syn[1]+overlap/2;
       OPUS_COPY(freq2, freq, N);
-      for (b=0;b<B;b++)
-         clt_mdct_backward(&mode->mdct, &freq2[b], out_syn[0]+NB*b, mode->window, overlap, shift, B, arch);
-      for (b=0;b<B;b++)
-         clt_mdct_backward(&mode->mdct, &freq[b], out_syn[1]+NB*b, mode->window, overlap, shift, B, arch);
+      clt_mdct_backward_multiband(&mode->mdct, freq2, out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
+      clt_mdct_backward_multiband(&mode->mdct, freq,  out_syn[1], mode->window, overlap, shift, B, B, NB, arch);
    } else if (CC==1&&C==2)
    {
       /* Downmixing a stereo stream to mono */
@@ -422,23 +420,23 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
             downsample, silence);
       for (i=0;i<N;i++)
          freq[i] = ADD32(HALF32(freq[i]), HALF32(freq2[i]));
-      for (b=0;b<B;b++)
-         clt_mdct_backward(&mode->mdct, &freq[b], out_syn[0]+NB*b, mode->window, overlap, shift, B, arch);
+      clt_mdct_backward_multiband(&mode->mdct, freq, out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
    } else {
       /* Normal case (mono or stereo) */
       c=0; do {
          denormalise_bands(mode, X+c*N, freq, oldBandE+c*nbEBands, start, effEnd, M,
                downsample, silence);
-         for (b=0;b<B;b++)
-            clt_mdct_backward(&mode->mdct, &freq[b], out_syn[c]+NB*b, mode->window, overlap, shift, B, arch);
+         clt_mdct_backward_multiband(&mode->mdct, freq, out_syn[c], mode->window, overlap, shift, B, B, NB, arch);
       } while (++c<CC);
    }
    /* Saturate IMDCT output so that we can't overflow in the pitch postfilter
       or in the */
+   #if !RSP_IMDCT
    c=0; do {
       for (i=0;i<N;i++)
          out_syn[c][i] = SATURATE(out_syn[c][i], SIG_SAT);
    } while (++c<CC);
+   #endif
    RESTORE_STACK;
 }
 
@@ -481,6 +479,7 @@ static void tf_decode(int start, int end, int isTransient, int *tf_res, int LM, 
    }
 }
 
+#ifndef N64
 static int celt_plc_pitch_search(celt_sig *decode_mem[2], int C, int arch)
 {
    int pitch_index;
@@ -814,6 +813,7 @@ static void celt_decode_lost(CELTDecoder * OPUS_RESTRICT st, int N, int LM)
 
    RESTORE_STACK;
 }
+#endif /* N64 */
 
 int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *data,
       int len, opus_val16 * OPUS_RESTRICT pcm, int frame_size, ec_dec *dec, int accum)
@@ -931,6 +931,10 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    if (effEnd > mode->effEBands)
       effEnd = mode->effEBands;
 
+#ifdef N64
+   // We don't need lost packet support on N64
+   assert(data != NULL && len > 1);
+#else
    if (data == NULL || len<=1)
    {
       celt_decode_lost(st, N, LM);
@@ -938,6 +942,7 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
       RESTORE_STACK;
       return frame_size/st->downsample;
    }
+#endif
 
    /* Check if there are at least two packets received consecutively before
     * turning on the pitch-based PLC */

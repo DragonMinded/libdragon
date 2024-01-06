@@ -15,4 +15,5 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/audio/rsp_opus_fft_bfly3.o \
 	$(BUILD_DIR)/audio/rsp_opus_fft_bfly4m1.o \
 	$(BUILD_DIR)/audio/rsp_opus_fft_bfly4.o \
-	$(BUILD_DIR)/audio/rsp_opus_fft_bfly5.o
+	$(BUILD_DIR)/audio/rsp_opus_fft_bfly5.o \
+	$(BUILD_DIR)/audio/rsp_opus_fft_postrot.o

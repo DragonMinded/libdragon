@@ -28,7 +28,7 @@ DUMMY: .long 0
     #define vtmp3l     $v14
 
     #define v___       $v15
-    #define tmp        s5
+    #define tmp        t3
     #define j_idx      t4
 
     .func kf_bfly4
@@ -63,7 +63,7 @@ kf_bfly4_loop:
     llv vidx0l.e2, 0x0C,s0
 
     llv vidx0h.e4, 0x00,s1
-    llv vidx0l.e4, 0x04,s1
+    llv vidx0l.e4, 0x04,s1  
     llv vidx0h.e6, 0x08,s1
     llv vidx0l.e6, 0x0C,s1
 
@@ -157,7 +157,6 @@ kf_bfly4_loop:
     vaddc vidx3l, vtmp1l, vtmp3l
     vadd  vidx3h, vtmp1h, vtmp3h
 
-    emux_breakpoint
     slv vidx0h.e0, 0x00,s0
     slv vidx0l.e0, 0x04,s0
     slv vidx0h.e2, 0x08,s0

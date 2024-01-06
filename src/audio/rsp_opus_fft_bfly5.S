@@ -42,7 +42,7 @@ DUMMY: .long 0
     #define vs612l      $v14  // reuse vs109
     #define vk1m1       $v11  // reuse vs78
 
-    #define tmp         s5
+    #define tmp         t3
     #define k           t4
 
 kf_bfly5:

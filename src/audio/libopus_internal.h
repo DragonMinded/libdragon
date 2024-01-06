@@ -43,7 +43,7 @@ void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int down
       celt_sig *mem, int accum);
 
 void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_scalar * OPUS_RESTRICT out,
-      const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int arch);
+      const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int B, int NB, int arch);
 
 #endif
 

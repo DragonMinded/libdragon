@@ -85,6 +85,7 @@ DEFINE_RSP_UCODE(rsp_opus_fft_bfly3);
 DEFINE_RSP_UCODE(rsp_opus_fft_bfly4);
 DEFINE_RSP_UCODE(rsp_opus_fft_bfly4m1);
 DEFINE_RSP_UCODE(rsp_opus_fft_bfly5);
+DEFINE_RSP_UCODE(rsp_opus_fft_postrot);
 
 typedef struct {
     uint16_t consts[8][8];      // Up to 8 vector constants
@@ -94,7 +95,7 @@ typedef struct {
 } opus_fft_pass_t;
 
 
-#define __KF_ANGLE16_COS(i, N)             (((i) * (65536-1) / N) & 0xFFFF)
+#define __KF_ANGLE16_COS(i, N)             (((i) * (65536-1) / (N)) & 0xFFFF)
 #define __KF_ANGLE16_SIN(i, N)             ((__KF_ANGLE16_COS(i, N) + 0x4000) & 0xFFFF)
 #define __KF_BFLY_FSTRIDE_CPX(stride, N)   __KF_ANGLE16_COS(stride, N), __KF_ANGLE16_SIN(stride, N)
 
@@ -230,18 +231,43 @@ typedef struct {
         KF_BFLY5_CONST3, \
         KF_BFLY5_CONST4, \
     }
-         
 
-static opus_fft_pass_t fft_60[3];
-static opus_fft_pass_t fft_480[5];
+#define KF_POSTROT_TWIDDLE1(N)  \
+          { __KF_BFLY_FSTRIDE_CPX(0, N), \
+            __KF_BFLY_FSTRIDE_CPX(1, N), \
+            __KF_BFLY_FSTRIDE_CPX(2, N), \
+            __KF_BFLY_FSTRIDE_CPX(3, N) }
+
+#define KF_POSTROT_TWIDDLE2(N)  \
+          { __KF_BFLY_FSTRIDE_CPX(N/4+0, N), \
+            __KF_BFLY_FSTRIDE_CPX(N/4-1, N), \
+            __KF_BFLY_FSTRIDE_CPX(N/4-2, N), \
+            __KF_BFLY_FSTRIDE_CPX(N/4-3, N) }
+
+#define KF_POSTROT_TWINCR1(N)  \
+          { __KF_ANGLE16_COS(4, N), __KF_ANGLE16_COS(4, N), \
+            __KF_ANGLE16_COS(4, N), __KF_ANGLE16_COS(4, N), \
+            __KF_ANGLE16_COS(4, N), __KF_ANGLE16_COS(4, N), \
+            __KF_ANGLE16_COS(4, N), __KF_ANGLE16_COS(4, N) }
+
+#define KF_POSTROT_TWINCR2(N)  \
+          { -__KF_ANGLE16_COS(4, N), -__KF_ANGLE16_COS(4, N), \
+            -__KF_ANGLE16_COS(4, N), -__KF_ANGLE16_COS(4, N), \
+            -__KF_ANGLE16_COS(4, N), -__KF_ANGLE16_COS(4, N), \
+            -__KF_ANGLE16_COS(4, N), -__KF_ANGLE16_COS(4, N) }
+
+
+static opus_fft_pass_t fft_60[4];
+static opus_fft_pass_t fft_480[6];
 
 static void fft_init(void) {
     const int MAX_FFT_OVERLAY_SIZE = 0x400;
 
-    assert(rsp_opus_fft_bfly2.code_end - (void*)rsp_opus_fft_bfly2.code <= MAX_FFT_OVERLAY_SIZE);
-    assert(rsp_opus_fft_bfly3.code_end - (void*)rsp_opus_fft_bfly3.code <= MAX_FFT_OVERLAY_SIZE);
+    assert(rsp_opus_fft_bfly2.code_end   - (void*)rsp_opus_fft_bfly2.code   <= MAX_FFT_OVERLAY_SIZE);
+    assert(rsp_opus_fft_bfly3.code_end   - (void*)rsp_opus_fft_bfly3.code   <= MAX_FFT_OVERLAY_SIZE);
     assert(rsp_opus_fft_bfly4m1.code_end - (void*)rsp_opus_fft_bfly4m1.code <= MAX_FFT_OVERLAY_SIZE);
-    assert(rsp_opus_fft_bfly5.code_end - (void*)rsp_opus_fft_bfly5.code <= MAX_FFT_OVERLAY_SIZE);
+    assert(rsp_opus_fft_bfly5.code_end   - (void*)rsp_opus_fft_bfly5.code   <= MAX_FFT_OVERLAY_SIZE);
+    assert(rsp_opus_fft_postrot.code_end - (void*)rsp_opus_fft_postrot.code <= MAX_FFT_OVERLAY_SIZE);
 
     fft_60[0] = (opus_fft_pass_t){
         KF_BFLY4M1(120, 480),
@@ -256,6 +282,17 @@ static void fft_init(void) {
     fft_60[2] = (opus_fft_pass_t){
         KF_BFLY5(8, 480),
         .stride = 8, .m = 12, .n = 1, .mm = 1,
+        .next_pass_rdram = PhysicalAddr(&fft_60[3]),
+    };
+    fft_60[3] = (opus_fft_pass_t){
+        .consts = {
+            KF_POSTROT_TWIDDLE1(240),
+            KF_POSTROT_TWIDDLE2(240),
+            KF_POSTROT_TWINCR1(240),
+            KF_POSTROT_TWINCR2(240),
+        },
+        .func_rdram = PhysicalAddr(rsp_opus_fft_postrot.code),
+        .n = 120,
         .next_pass_rdram = 0,
     };
 
@@ -282,6 +319,17 @@ static void fft_init(void) {
     fft_480[4] = (opus_fft_pass_t){
         KF_BFLY5(1, 480),
         .stride = 1, .m = 96, .n = 1, .mm = 1,
+        .next_pass_rdram = PhysicalAddr(&fft_480[5]),
+    };
+    fft_480[5] = (opus_fft_pass_t){
+        .consts = {
+            KF_POSTROT_TWIDDLE1(1920),
+            KF_POSTROT_TWIDDLE2(1920),
+            KF_POSTROT_TWINCR1(1920),
+            KF_POSTROT_TWINCR2(1920),
+        },
+        .func_rdram = PhysicalAddr(rsp_opus_fft_postrot.code),
+        .n = 960,
         .next_pass_rdram = 0,
     };
 
@@ -290,61 +338,74 @@ static void fft_init(void) {
 }
 
 void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_scalar * OPUS_RESTRICT out,
-      const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int arch)
+      const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int B, int NB, int arch)
 {
-    clt_mdct_backward_c(l, in, out, window, overlap, shift, stride, arch);
-    data_cache_hit_writeback_invalidate(out, l->n*2*sizeof(kiss_fft_scalar));
-
-    static int count = 0;
-    if (++count != 17) return;
-    assert(l->kfft[shift]->nfft == 480);
+    #define COMPARE_MDCT_REFERENCE 0
 
     int N = l->n >> shift;
-    int N2 = N>>1;
-    int N4 = N>>2;
+
+    // debugf("rsp_clt_mdct_backward: N=%d(nfft=%d) shift=%d stride=%d B=%d NB=%d\n", N, l->kfft[shift]->nfft, shift, stride, B, NB);
 
     // Workram layout:
     // 0-3840:      temporary buffer holding up to 1920 FFT values (after deinterleaving)
     // 3840-7936:   DMEM backup
-    // 7936-11520:  Output values for debugging purposes
     static uint8_t *rsp_workram = NULL;
-    if (!rsp_workram) rsp_workram = malloc_uncached(3840+4096+960*4);
+    if (!rsp_workram) rsp_workram = malloc_uncached(3840+4096);
 
-    data_cache_hit_writeback_invalidate(in, N2*4*stride);
-
+    data_cache_hit_writeback_invalidate(out, N*2*stride); // FIXME: maybe *stride is wrong? 
+    data_cache_hit_writeback_invalidate(in, N*2*stride); // FIXME: maybe *stride is wrong?
     assertf(PhysicalAddr(in) % 8 == 0, "in=%p", in);
     assert(PhysicalAddr(l->kfft[shift]->bitrev) % 8 == 0);
-    debugf("RSP_IMDCT: N=%d N4=%d stride=%d shift=%d fft_60=%p\n", l->n, N4, stride, shift, fft_60);
     rspq_write(0x9<<28, 0x0,
         PhysicalAddr(in),
         (l->n-1) | ((stride-1)<<12) | (shift<<16),
         PhysicalAddr(rsp_workram),
         PhysicalAddr(l->kfft[shift]->bitrev),
-        PhysicalAddr(fft_480)
+        PhysicalAddr(l->kfft[shift]->nfft == 480 ? fft_480 : fft_60),
+        PhysicalAddr(out+(overlap>>1))
     );
+
+    #if COMPARE_MDCT_REFERENCE
     rspq_wait();
 
-    debugf("RSP STEP 2 %p:\n", rsp_workram);
+    static kiss_fft_scalar *ref_out = NULL;
+    if (!ref_out) ref_out = malloc_uncached(960*sizeof(kiss_fft_scalar) + overlap);
+    for (int b=0;b<B;b++) {
+        clt_mdct_backward_c(l, &in[b], ref_out+NB*b, window, overlap, shift, stride, arch);
+    }      
+    // clt_mdct_backward_c(l, in, out, window, overlap, shift, stride, arch);
+    // data_cache_hit_writeback_invalidate(out, l->n*2*sizeof(kiss_fft_scalar));
+
+    int N4 = l->n >> 2;
     uint16_t *debug = malloc_uncached(N4*2*4);
-    uint16_t *workram = (uint16_t*)(rsp_workram+3840+4096);
-    for (int i=0;i<N4;i++) {
-        debug[i*4+0] = workram[i*4+0];
-        debug[i*4+1] = workram[i*4+2];
-        debug[i*4+2] = workram[i*4+1];
-        debug[i*4+3] = workram[i*4+3];
+    uint16_t *workram = (uint16_t*)(out+(overlap>>1));
+    if (false) {
+        for (int i=0;i<N4;i++) {
+            debug[i*4+0] = workram[i*4+0];
+            debug[i*4+1] = workram[i*4+2];
+            debug[i*4+2] = workram[i*4+1];
+            debug[i*4+3] = workram[i*4+3];
+        }
+    } else {
+        memcpy(debug, workram, N4*2*4);
     }
-    debug_hexdump(debug, N4*2*4);
-    debugf("REF: %p\n", in);
-    debug_hexdump(out+(overlap>>1), N4*2*4);
+
+    // debugf("RSP: %p\n", in);
+    // debug_hexdump(debug, N4*2*4);
+    // debugf("REF: %p\n", in);
+    // debug_hexdump(out+(overlap>>1), N4*2*4);
 
     float error = 0;
     int32_t *workram32 = (int32_t*)debug;
     for (int i=0;i<N4*2;i++) {
-        float diff = fabsf(workram32[i] - (int32_t)(out+(overlap>>1))[i]);
+        float diff = fabsf(workram32[i] - (int32_t)(ref_out+(overlap>>1))[i]);
+        // if (diff > 16<<12) {
+        //     debugf("ERROR: %d: %f\n", i, diff / (1<<12));
+        // }
         error += diff*diff;
     }
     debugf("RMSD: %f\n", sqrtf(error / N4*2) / (1<<12));
-    while(1) {}
+    #endif
 }
 
 /*******************************************************************************

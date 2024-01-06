@@ -119,7 +119,7 @@
     assert_eq t0, 0, 0x8101
     #endif
 
-    D(emux_breakpoint)
+    #D(emux_breakpoint)
     li t1, 0x4000
     mtc2 t1, vgains.e3
     mtc2 gains_01, vgains.e0
@@ -161,7 +161,7 @@
     # SINGLE: 39 cycles / 8 samples
     # DUAL:   71 cycles / 8 samples
 1:
-    emux_breakpoint
+    #emux_breakpoint
     #D(emux_log_string "loop\n")
 
     # Store previous loop result.

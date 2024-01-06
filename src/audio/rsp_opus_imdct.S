@@ -6,7 +6,7 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand OPUS_imdct, 20                # 0x0
+        RSPQ_DefineCommand OPUS_imdct, 24                # 0x0
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -18,10 +18,11 @@
 DUMMY:    .long 0
     RSPQ_EndSavedState
 
-    #define B            k0
-    #define N            k1
-    #define SHIFT        fp
-    #define fft_steps_rdram    s6
+    #define B                   k0
+    #define N                   k1
+    #define SHIFT               fp
+    #define fft_steps_rdram     s6
+    #define imdct_out_rdram     s5
 
     #define vtwidx1      $v27
     #define vtwidx2      $v28
@@ -33,7 +34,7 @@ DUMMY:    .long 0
 TWIDDLE_CONST1: .half 0         # used to store twiddle angle increment
                 .half 0         # used to store %lo(IMDCT_DATA)
                 .half 0xb226    # B constant
-                .half 0         # empty slot
+                .half 0         # used in bfly3/postrot
                 .half 0x1b92    # C constant
                 .half 0x4000    # Sine offset (only for 360° cosine variant)
                 .half 0x4010    # D1 constant
@@ -66,12 +67,17 @@ IMDCT_TMP:   .space COMPACT_CHUNK*4
     #
     #   A0 A1 B0 B1 C0 C1 D0 D1 A2 A3 B2 B3 ....
     #
-    # Moreover, in addition to pre-interleaving, we also "rotate" the data in
-    # preparation for FFT. So we consider the data as if the odd-indexed values
-    # are in reverse order. For instance, if there are 64 samples per band
-    # (A0..A63, B0..B63, etc.), we treat the input data as thus:
+    # We want to deinterleave it, that is separate each band. For instance,
+    # when there are 64 samples per band, we want our output to be:
     #
-    #   A0 A63 B0 B63 C0 C63 D0 D63 A2 A61 B2 B61 .... A62 A1 B62 B1 C62 C1 D62 D1
+    #   A0 A1 A2 ... A63 B0 B1 B2 ... B63 ...
+    #
+    # Moreover, in addition to de-interleaving, we also "rotate" the data. This
+    # is a common "pre-rotation" step necessary to implement IMDCT via a FFT.
+    # After this rotation, odd-indexed values are reverse ordered in each band.
+    # So basically the actual ouput will be:
+    #
+    #   A0 A63 A2 A61 ... A60 A3 A62 A1 B0 B63 ....
     #
     ############################################################################
     #
@@ -81,6 +87,7 @@ IMDCT_TMP:   .space COMPACT_CHUNK*4
     #
     ############################################################################
 
+    #define chunk_left      t5
     #define out_rdram       t6
     #define in_rdram        a0
     #define in_dmem1        s1
@@ -159,6 +166,7 @@ OPUS_imdct_prerot_compact_chunk:
     nop
     li chunk, COMPACT_CHUNK
 1:  sub samples, chunk
+    move chunk_left, chunk
 
     # Deinterelave and rotate hot-loop. To strike a balance between SU and VU,
     # we read each 32-bit value via llv, and then we swizzle it into high/low
@@ -185,20 +193,20 @@ OPUS_imdct_prerot_compact_loop:
     llv vin2.e6, 0,in_dmem2;        vmov vinf.e6, vprev2.e5
     subu in_dmem2, in_dmem_step;    vmov vinf.e7, vprev2.e7
 
-    addiu chunk, -8
+    addiu chunk_left, -8
     addiu out_dmem, 0x20
 
     sqv vini, -0x20,out_dmem;       vcopy vprev1, vin1
     sqv vinf, -0x10,out_dmem;       vcopy vprev2, vin2
 
-    bgtz chunk, OPUS_imdct_prerot_compact_loop
+    bgtz chunk_left, OPUS_imdct_prerot_compact_loop
     nop
 
     mtc0 out_rdram, COP0_DMA_RAMADDR
     li out_dmem, %lo(IMDCT_TMP)
     andi out_dmem, 0xFFF
     mtc0 out_dmem, COP0_DMA_SPADDR
-    li t0, COMPACT_CHUNK*4  # FIXME
+    sll t0, chunk, 2
     addu out_rdram, t0
     addiu t0, -1
     mtc0 t0, COP0_DMA_WRITE
@@ -543,12 +551,14 @@ OPUS_imdct_prerot_step2_loop_exit:
     #   a2:  0..23: RDRAM work buffer (must be 1920+4096 bytes)
     #   a3:  0..23: RDRAM Bitrev array
     #     :  0..23: RDRAM pointer to FFT steps table
+    #     :  0..23. RDRAM pointer to ouput buffer
     #
     ############################################################################
 
     .func OPUS_imdct
 OPUS_imdct:
-    lw fft_steps_rdram, CMD_ADDR(16, 20)
+    lw fft_steps_rdram, CMD_ADDR(16, 24)
+    lw imdct_out_rdram, CMD_ADDR(20, 24)
 
     # Backup DMEM. We are going to need the whole DMEM, so let's backup
     # common data, and we will restore it later.
@@ -611,13 +621,18 @@ OPUS_imdct_start:
     jal OPUS_imdct_prerot_compact
     move t6, a2
 
+    # Since we all input values have been fetched and processed into the
+    # temporary buffer, repurpose a0 to point to the temporary buffer, and
+    # advance for each processed band
+    move a0, a2
+
 OPUS_imdct_band:
     # Fetch the data from RDRAM work buffer for the current band, and finish
     # pre-rotation by applying bitrev order and multiplying with twiddles.
     # The data is now kept in DMEM as it's ready for the FFT.
     move t7, a3
     jal OPUS_imdct_prerot_step2
-    move t6, a2
+    move t6, a0
 
     # Fetch first step of the cmd table
     move s0, fft_steps_rdram
@@ -650,25 +665,23 @@ OPUS_imdct_fft_loop:
     bnez s0, OPUS_imdct_fft_loop
     nop
 
-    # # All the values are now in DMEM, ready for the FFT.
-    # li t0, 1920
-    # beq N, t0, OPUS_imdct_fft_1920_0
-    # li t0, 240
-    # beq N, t0, OPUS_imdct_fft_1920_3
-    # nop
-    # xassert 0x8555
-
 OPUS_imdct_fft_end:
-    # Now do the post-rotation and deshuffling.
-    #jal OPUS_imdct_postrot
-    nop
-
-    #### DEBUG
-    addiu s0, a2, 3840+4096
+    # DMA final 32-bit samples into output buffer
+    move s0, imdct_out_rdram
     li s4, %lo(IMDCT_DATA)
+    sll t0, N, 1
     jal DMAOut
-    li t0, IMDCT_MAX_VALUES*4 - 1
-    #### DEBUG
+    addiu t0, -1
+
+    # Calculate updated pointers for input and output buffers
+    sll t0, N, 1
+    addu a0, t0
+    addu imdct_out_rdram, t0
+
+    # Check if there's another band to process
+    addiu B, -1
+    bnez B, OPUS_imdct_band
+    nop
 
     # Restore DMEM and exit
     addiu s0, a2, 3840
@@ -677,18 +690,6 @@ OPUS_imdct_fft_end:
     jal_and_j DMAIn, RSPQ_Loop
 
     .endfunc
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -801,7 +802,6 @@ TWIDDLE_CONST2: .half 2,-2, 2,-2, 2,-2, 2,-2
     .func OPUS_test_twiddle
 OPUS_test_twiddle:
 
-    emux_breakpoint
     li t0, 0x5f3a
     mtc2 t0, vx.e0
     li t0, 0xa55c
