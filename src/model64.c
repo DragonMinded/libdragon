@@ -77,7 +77,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
         }
     }
     model->magic = MODEL64_MAGIC_LOADED;
-    model->ref_count = 1;
+    model->ref_count = 0;
     data_cache_hit_writeback(model, sz);
     return model;
 }
