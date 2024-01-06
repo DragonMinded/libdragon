@@ -37,6 +37,7 @@
 #include "os_support.h"
 #include "mdct.h"
 #include <math.h>
+#include <assert.h>
 #include "celt.h"
 #include "pitch.h"
 #include "bands.h"
