@@ -7,6 +7,7 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand OPUS_imdct, 24                # 0x0
+        RSPQ_DefineCommand OPUS_window, 8                # 0x1
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -50,7 +51,6 @@ TWIDDLE_IV_240: .half 0x0044, 0x0266, 0x0489, 0x06ab, 0x08cd, 0x0aef, 0x0d11, 0x
     .align 4
 IMDCT_DATA:  .space IMDCT_MAX_VALUES*4
 IMDCT_TMP:   .space COMPACT_CHUNK*4
-
 
     .text
 
@@ -691,21 +691,162 @@ OPUS_imdct_fft_end:
 
     .endfunc
 
+    .section .bssovl2
+
+#define MAX_WINDOW_SIZE     120
+
+    .align 4
+WND_BUFFER: .space MAX_WINDOW_SIZE*4*2
+WND_COEEFS: .space MAX_WINDOW_SIZE*2*2
+
+    .text
+
+    ############################################################################
+    # OPUS_window
+    #
+    # Input values:
+    #   a0: 0..23:  RDRAM pointer to input/output buffer
+    #   a1: 0..23:  RDRAM pointer to window coefficients
+    #       24..27: Window size in 32-bit samples
+    #
+    ############################################################################
+
+    #define dmem_left     s3
+    #define dmem_right    s5
+    #define wnd_left      s6
+    #define wnd_right     s7
+    #define num_bytes     t8
+
+    #define vin0          $v01
+    #define vin1          $v02
+    #define vin2          $v03
+    #define vin3          $v04
+    #define vxl           $v05
+    #define vxh           $v06
+    #define vyl           $v07
+    #define vyh           $v08
+    #define vwina         $v09
+    #define vwinb         $v10
+    #define vwinan        $v11
+    #define voutxl        $v12
+    #define voutxh        $v13
+    #define voutyl        $v14
+    #define voutyh        $v15
+
+    .func OPUS_window
+OPUS_window:
+    srl N, a1, 24
+
+    sll num_bytes, N, 2
+    li dmem_left, %lo(WND_BUFFER)
+    addu dmem_right, dmem_left, num_bytes
+
+    move s0, a0
+    li s4, %lo(WND_BUFFER)
+    jal DMAIn
+    addiu t0, num_bytes, -1
+
+    # Fetch window coefficients
+    # 16-bit coefficients, but doubled in size 
+    # (with mirrored version for backward scanning)
+    li wnd_left, %lo(WND_COEEFS)
+    sll t0, N, 2
+    addu wnd_right, wnd_left, t0
+    move s0, a1
+    li s4, %lo(WND_COEEFS)
+    jal DMAIn
+    addiu t0, -1
+
+    # Initialize VCC flags for vmrg
+    li t0, 0x5555
+    ctc2 t0, COP2_CTRL_VCC
 
 
+    # Processing: 16 32-bit values at a time
+    # SU: 12 loads, 10 stores, 4 incrs, 2 loop-related = 28
+    # VU: 6 swizzle, 1 preproc, 16 macs, 6 swizzle = 29
 
+    .align 3
+OPUS_window_loop:
+    lqv vin0, 0x00,dmem_left        # H0 L0 H1 L1  H2 L2 H3 L3
+    lqv vin1, 0x10,dmem_left        # H4 L4 H5 L5  H6 L6 H7 L7
 
+    llv vin2.e0, -0x04,dmem_right
+    llv vin2.e2, -0x08,dmem_right
+    llv vin2.e4, -0x0C,dmem_right
+    llv vin2.e6, -0x10,dmem_right
+    llv vin3.e0, -0x14,dmem_right
+    llv vin3.e2, -0x18,dmem_right
+    llv vin3.e4, -0x1C,dmem_right
+    llv vin3.e6, -0x20,dmem_right
 
+    lqv vwina, 0x00,wnd_left
+    lqv vwinb, -0x10,wnd_right
 
+    vcopy vxl, vin0.q1              # L0 L0 L1 L1  L2 L2 L3 L3
+    vmrg vxh, vin0, vin1.q0         # H0 H4 H1 H5  H2 H6 H3 H7
+    vmrg vxl, vxl,  vin1.q1         # L0 L4 L1 L5  L2 L6 L3 L7
 
+    vcopy vyl, vin2.q1              # L0 L0 L1 L1  L2 L2 L3 L3
+    vmrg vyh, vin2, vin3.q0         # H0 H4 H1 H5  H2 H6 H3 H7
+    vmrg vyl, vyl,  vin3.q1         # L0 L4 L1 L5  L2 L6 L3 L7
 
+    vsubc vwinan, vzero, vwina
 
+    vmudm voutxl, vwina, vxl
+    vmadh voutxl, vwina, vxh
+    vmadm voutxl, vwinb, vyl
+    vmadh voutxl, vwinb, vyh
+    vsar voutxl, COP2_ACC_MD
+    vsar voutxh, COP2_ACC_HI
 
+    vmudm voutyl, vwinan, vyl
+    vmadh voutyl, vwinan, vyh
+    vmadm voutyl, vwinb, vxl
+    vmadh voutyl, vwinb, vxh
+    vsar voutyl, COP2_ACC_MD
+    vsar voutyh, COP2_ACC_HI
 
+    vaddc voutxl, voutxl
+    vadd  voutxh, voutxh
+    vaddc voutyl, voutyl
+    vadd  voutyh, voutyh
 
+    vmrg vxh, voutxh, voutxl.q0     # H0 L0 H1 L1  H2 L2 H3 L3
+    vcopy vxl, voutxh.q1            # H4 H4 H5 H5  H6 H6 H7 H7
+    vmrg vxl, voutxl
 
+    vmrg vyh, voutyh, voutyl.q0     # H0 L0 H1 L1  H2 L2 H3 L3
+    vcopy vyl, voutyh.q1            # H4 H4 H5 H5  H6 H6 H7 H7
+    vmrg vyl, voutyl
 
+    sqv vyh, 0x00,dmem_left
+    sqv vyl, 0x10,dmem_left
 
+    slv vxh.e0, -0x04,dmem_right
+    slv vxh.e2, -0x08,dmem_right
+    slv vxh.e4, -0x0C,dmem_right
+    slv vxh.e6, -0x10,dmem_right
+    slv vxl.e0, -0x14,dmem_right
+    slv vxl.e2, -0x18,dmem_right
+    slv vxl.e4, -0x1C,dmem_right
+    slv vxl.e6, -0x20,dmem_right
+
+    addiu dmem_left, 0x20
+    addiu dmem_right, -0x20
+    addiu wnd_left, 0x10
+    addiu wnd_right, -0x10
+
+    addiu N, -16
+    bgtz N, OPUS_window_loop
+    nop
+
+    move s0, a0
+    li s4, %lo(WND_BUFFER)
+    addiu t0, num_bytes, -1
+    jal_and_j DMAOut, RSPQ_Loop
+
+    .endfunc
 
 
 
