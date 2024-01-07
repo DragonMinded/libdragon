@@ -133,7 +133,7 @@ OPUS_imdct_prerot_compact:
     li s4, %lo(IMDCT_DATA)
 
 OPUS_imdct_prerot_compact_band:
-    sll t0, cur_band, 3
+    sll t0, cur_band, 2
     addiu in_dmem1, t0, %lo(IMDCT_DATA)
     addiu in_dmem2, t0, %lo(IMDCT_DATA)
     srl t0, N, 1      # N/2
