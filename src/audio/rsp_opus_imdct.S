@@ -8,6 +8,7 @@
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand OPUS_imdct, 24                # 0x0
         RSPQ_DefineCommand OPUS_window, 8                # 0x1
+        RSPQ_DefineCommand OPUS_memmove, 12              # 0x2
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -532,27 +533,67 @@ OPUS_window_loop:
     .endfunc
 
 
+    .section .bssovl3
 
+#define MOVE_BUFFER_SIZE    3072
 
+MOVE_BUFFER: .space MOVE_BUFFER_SIZE
 
+    .text
 
+    ############################################################################
+    # OPUS_memmove
+    #
+    # This is called at the beginning of the opus frame. Put it in the first
+    # opus overlay being used.
+    #
+    # Notice that this is not a generic memmove: we handle the simplified case
+    # that we need: data is moved backward into the output buffer, and it's ok
+    # to move a few bytes more if they're not 8 bytes aligned.
+    #
+    # Input values:
+    #   a0: 0..23:  RDRAM pointer to destination data
+    #   a1: 0..23:  RDRAM pointer to source data
+    #   a2:         Number of bytes word to move
+    #
+    ############################################################################
 
+    .func OPUS_memmove
+OPUS_memmove:
+    emux_breakpoint
+    #if RSPQ_DEBUG
+    andi t0, a0, 7
+    assert_eq t0, 0, 0x8509
+    andi t0, a1, 7
+    assert_eq t0, 0, 0x8509
+    #endif
 
+OPUS_memmove_loop:
+    move t4, a2
+    ble t4, MOVE_BUFFER_SIZE, 1f
+    nop
+    li t4, MOVE_BUFFER_SIZE
+1:
+    move s0, a1
+    li s4, %lo(MOVE_BUFFER)
+    jal DMAIn
+    addiu t0, t4, -1
 
+    move s0, a0
+    li s4, %lo(MOVE_BUFFER)
+    jal DMAOut
+    addiu t0, t4, -1
 
+    addu a0, t4
+    addu a1, t4
+    addiu a2, -MOVE_BUFFER_SIZE
+    bgtz a2, OPUS_memmove_loop
+    nop
 
+    j RSPQ_Loop
+    nop
 
-
-
-
-
-
-
-
-
-
-
-
+    .endfunc
 
 
 

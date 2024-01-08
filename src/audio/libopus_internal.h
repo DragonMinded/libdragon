@@ -45,6 +45,8 @@ void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int down
 void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_scalar * OPUS_RESTRICT out,
       const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int B, int NB, int arch);
 
+void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len);
+
 #endif
 
 #endif

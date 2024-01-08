@@ -1135,7 +1135,11 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    // quant_all_bands which is the bulk of CPU work right now. This allows
    // a previous frame's RSP tasks to finish in background.
    c=0; do {
+      #ifdef N64
+      rsp_opus_memmove(decode_mem[c], decode_mem[c]+N, DECODE_BUFFER_SIZE-N+overlap/2);
+      #else
       OPUS_MOVE(decode_mem[c], decode_mem[c]+N, DECODE_BUFFER_SIZE-N+overlap/2);
+      #endif
    } while (++c<CC);
 #endif
    celt_synthesis(mode, X, out_syn, oldBandE, start, effEnd,

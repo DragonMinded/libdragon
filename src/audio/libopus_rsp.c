@@ -75,6 +75,23 @@ static void rsp_cmd_comb_result(opus_val32 *x, int i_idx, int nsamples)
       (i_idx<<16) | nsamples);
 }
 
+static void rsp_cmd_memmove(int32_t *dst, int32_t *src, int nsamples)
+{
+   rspq_write(0x9<<28, 0x2,
+      PhysicalAddr(dst),
+      PhysicalAddr(src),
+      nsamples*4);
+}
+
+
+/*******************************************************************************
+ * Memmove
+ *******************************************************************************/
+
+void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len) {
+    rsp_cmd_memmove(dst, src, len);
+    rspq_flush();
+}
 
 /*******************************************************************************
  * IMDCT (and FFT)
