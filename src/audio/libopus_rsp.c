@@ -386,8 +386,8 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
     // data_cache_hit_writeback_invalidate(out, l->n*2*sizeof(kiss_fft_scalar));
     #endif
 
-    // debugf("rsp_clt_mdct_backward: in=%p-%p N=%d(nfft=%d) shift=%d stride=%d B=%d NB=%d\n", 
-    //     in, in+N/2*stride-1, N, l->kfft[shift]->nfft, shift, stride, B, NB);
+    // debugf("rsp_clt_mdct_backward: in=%p-%p out=%p N=%d(nfft=%d) shift=%d stride=%d B=%d NB=%d\n", 
+    //     in, in+N/2*stride-1, out, N, l->kfft[shift]->nfft, shift, stride, B, NB);
 
     // Workram layout:
     // 0-3840:      temporary buffer holding up to 1920 FFT values (after deinterleaving)
@@ -449,6 +449,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
             (overlap << 24) | PhysicalAddr(rsp_window)
         );
     }
+    rspq_flush();
 
     #if COMPARE_MDCT_REFERENCE
     rspq_wait();
