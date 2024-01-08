@@ -103,9 +103,6 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
         assertf(err > 0, "opus decode error: %s", opus_strerror(err));
         assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
 
-        // FIXME: this is a hack to avoid audio glitches until we finish porting
-        rspq_wait();
-
         wpos += st->xhead.frame_size;
         wlen -= st->xhead.frame_size;
         if (wpos > wav->wave.len) {
