@@ -25,7 +25,7 @@
 #ifdef N64
 
 // Activate RSP-specific optimizations.
-#define RSP_IMDCT           0
+#define RSP_IMDCT           1
 #define RSP_COMB_FILTER     1
 #define RSP_DEEMPHASIS      1
 
