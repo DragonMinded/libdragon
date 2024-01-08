@@ -385,14 +385,19 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
    M = 1<<LM;
 
    #ifdef N64
-   static celt_sig *freq = 0; static int freq_N = 0;
+   static celt_sig *freq[2] = {0}; static int freq_N = 0;
    if (freq_N < N) {
-      freq = realloc(freq, N * sizeof(celt_sig));
+      freq[0] = realloc(freq[0], N * 2 * sizeof(celt_sig));
+      freq[1] = freq[0] + N;
       freq_N = N;
    }
    #else
-   VARDECL(celt_sig, freq);
-   ALLOC(freq, N, celt_sig); /**< Interleaved signal MDCTs */
+   // Note that libopus is smarter than this and only use one buffer. We need
+   // two because we want the RSP to process data in background, so to keep
+   // the code more aligned, we dumb down the PC version as well.
+   VARDECL(celt_sig, freq[2]);
+   ALLOC(freq[0], N, celt_sig); /**< Interleaved signal MDCTs */
+   ALLOC(freq[1], N, celt_sig); /**< Interleaved signal MDCTs */
    #endif
 
    if (isTransient)
@@ -409,33 +414,26 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
    if (CC==2&&C==1)
    {
       /* Copying a mono streams to two channels */
-      celt_sig *freq2;
-      denormalise_bands(mode, X, freq, oldBandE, start, effEnd, M,
+      denormalise_bands(mode, X, freq[0], oldBandE, start, effEnd, M,
             downsample, silence);
-      /* Store a temporary copy in the output buffer because the IMDCT destroys its input. */
-      freq2 = out_syn[1]+overlap/2;
-      OPUS_COPY(freq2, freq, N);
-      clt_mdct_backward_multiband(&mode->mdct, freq2, out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
-      clt_mdct_backward_multiband(&mode->mdct, freq,  out_syn[1], mode->window, overlap, shift, B, B, NB, arch);
+      clt_mdct_backward_multiband(&mode->mdct, freq[0], out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
+      clt_mdct_backward_multiband(&mode->mdct, freq[0], out_syn[1], mode->window, overlap, shift, B, B, NB, arch);
    } else if (CC==1&&C==2)
    {
       /* Downmixing a stereo stream to mono */
-      celt_sig *freq2;
-      freq2 = out_syn[0]+overlap/2;
-      denormalise_bands(mode, X, freq, oldBandE, start, effEnd, M,
+      denormalise_bands(mode, X, freq[0], oldBandE, start, effEnd, M,
             downsample, silence);
-      /* Use the output buffer as temp array before downmixing. */
-      denormalise_bands(mode, X+N, freq2, oldBandE+nbEBands, start, effEnd, M,
+      denormalise_bands(mode, X+N, freq[1], oldBandE+nbEBands, start, effEnd, M,
             downsample, silence);
       for (i=0;i<N;i++)
-         freq[i] = ADD32(HALF32(freq[i]), HALF32(freq2[i]));
-      clt_mdct_backward_multiband(&mode->mdct, freq, out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
+         freq[0][i] = ADD32(HALF32(freq[0][i]), HALF32(freq[1][i]));
+      clt_mdct_backward_multiband(&mode->mdct, freq[0], out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
    } else {
       /* Normal case (mono or stereo) */
       c=0; do {
-         denormalise_bands(mode, X+c*N, freq, oldBandE+c*nbEBands, start, effEnd, M,
+         denormalise_bands(mode, X+c*N, freq[c], oldBandE+c*nbEBands, start, effEnd, M,
                downsample, silence);
-         clt_mdct_backward_multiband(&mode->mdct, freq, out_syn[c], mode->window, overlap, shift, B, B, NB, arch);
+         clt_mdct_backward_multiband(&mode->mdct, freq[c], out_syn[c], mode->window, overlap, shift, B, B, NB, arch);
       } while (++c<CC);
    }
    /* Saturate IMDCT output so that we can't overflow in the pitch postfilter
