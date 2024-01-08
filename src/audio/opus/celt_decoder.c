@@ -1194,6 +1194,12 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
       return OPUS_INTERNAL_ERROR;
    if(ec_get_error(dec))
       st->error = 1;
+
+   // FIXME: this is a hack to avoid audio glitches until we finish porting
+   #ifdef N64
+   rspq_wait();
+   #endif
+
    return frame_size/st->downsample;
 }
 
