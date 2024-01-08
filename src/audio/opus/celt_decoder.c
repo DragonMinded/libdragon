@@ -27,6 +27,12 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifdef N64
+#include <libdragon.h>
+#else
+#define debugf(...)
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
