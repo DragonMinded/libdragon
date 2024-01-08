@@ -1086,9 +1086,11 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
 
    unquant_fine_energy(mode, start, end, oldBandE, fine_quant, dec, C);
 
+#ifdef NORM_ALIASING_HACK
    c=0; do {
       OPUS_MOVE(decode_mem[c], decode_mem[c]+N, DECODE_BUFFER_SIZE-N+overlap/2);
    } while (++c<CC);
+#endif
 
    /* Decode fixed codebook */
    ALLOC(collapse_masks, C*nbEBands, unsigned char);
@@ -1124,6 +1126,18 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
          oldBandE[i] = -QCONST16(28.f,DB_SHIFT);
    }
 
+   #ifdef N64
+   rspq_highpri_begin();
+   #endif
+
+#ifndef NORM_ALIASING_HACK
+   // We want to do this memmove as late as possible, specifically after
+   // quant_all_bands which is the bulk of CPU work right now. This allows
+   // a previous frame's RSP tasks to finish in background.
+   c=0; do {
+      OPUS_MOVE(decode_mem[c], decode_mem[c]+N, DECODE_BUFFER_SIZE-N+overlap/2);
+   } while (++c<CC);
+#endif
    celt_synthesis(mode, X, out_syn, oldBandE, start, effEnd,
                   C, CC, isTransient, LM, st->downsample, silence, st->arch);
 
@@ -1197,9 +1211,8 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    if(ec_get_error(dec))
       st->error = 1;
 
-   // FIXME: this is a hack to avoid audio glitches until we finish porting
    #ifdef N64
-   rspq_wait();
+   rspq_highpri_end();
    #endif
 
    return frame_size/st->downsample;
