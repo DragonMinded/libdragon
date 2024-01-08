@@ -719,6 +719,10 @@ static void compute_theta(struct band_ctx *ctx, struct split_ctx *sctx,
    const celt_ener *bandE;
 
    encode = ctx->encode;
+   #ifdef N64
+   assert(!encode);
+   if (encode) abort(); // remove encoding codepaths
+   #endif
    m = ctx->m;
    i = ctx->i;
    intensity = ctx->intensity;
@@ -911,6 +915,10 @@ static unsigned quant_band_n1(struct band_ctx *ctx, celt_norm *X, celt_norm *Y,
    ec_ctx *ec;
 
    encode = ctx->encode;
+   #ifdef N64
+   assert(!encode);
+   if (encode) abort(); // remove encoding codepaths
+   #endif
    ec = ctx->ec;
 
    stereo = Y != NULL;
@@ -960,6 +968,10 @@ static unsigned quant_partition(struct band_ctx *ctx, celt_norm *X,
    ec_ctx *ec;
 
    encode = ctx->encode;
+   #ifdef N64
+   assert(!encode);
+   if (encode) abort(); // remove encoding codepaths
+   #endif
    m = ctx->m;
    i = ctx->i;
    spread = ctx->spread;
@@ -1124,6 +1136,10 @@ static unsigned quant_band(struct band_ctx *ctx, celt_norm *X,
    int tf_change;
 
    encode = ctx->encode;
+   #ifdef N64
+   assert(!encode);
+   if (encode) abort(); // remove encoding codepaths
+   #endif
    tf_change = ctx->tf_change;
 
    longBlocks = B0==1;
@@ -1250,6 +1266,10 @@ static unsigned quant_band_stereo(struct band_ctx *ctx, celt_norm *X, celt_norm 
    ec_ctx *ec;
 
    encode = ctx->encode;
+   #ifdef N64
+   assert(!encode);
+   if (encode) abort(); // remove encoding codepaths
+   #endif
    ec = ctx->ec;
 
    /* Special case for one sample */
