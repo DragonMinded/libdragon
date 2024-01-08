@@ -931,6 +931,10 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    N = M*mode->shortMdctSize;
    c=0; do {
       decode_mem[c] = st->_decode_mem + c*(DECODE_BUFFER_SIZE+overlap);
+      #ifdef N64
+      data_cache_hit_writeback_invalidate(decode_mem[c], (DECODE_BUFFER_SIZE+overlap)*sizeof(celt_sig));
+      decode_mem[c] = UncachedAddr(decode_mem[c]);
+      #endif
       out_syn[c] = decode_mem[c]+DECODE_BUFFER_SIZE-N;
    } while (++c<CC);
 
