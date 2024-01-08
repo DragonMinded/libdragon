@@ -377,14 +377,23 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
    int shift;
    int nbEBands;
    int overlap;
-   VARDECL(celt_sig, freq);
    SAVE_STACK;
 
    overlap = mode->overlap;
    nbEBands = mode->nbEBands;
    N = mode->shortMdctSize<<LM;
-   ALLOC(freq, N, celt_sig); /**< Interleaved signal MDCTs */
    M = 1<<LM;
+
+   #ifdef N64
+   static celt_sig *freq = 0; static int freq_N = 0;
+   if (freq_N < N) {
+      freq = realloc(freq, N * sizeof(celt_sig));
+      freq_N = N;
+   }
+   #else
+   VARDECL(celt_sig, freq);
+   ALLOC(freq, N, celt_sig); /**< Interleaved signal MDCTs */
+   #endif
 
    if (isTransient)
    {
