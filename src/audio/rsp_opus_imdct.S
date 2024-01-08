@@ -505,12 +505,16 @@ OPUS_window_loop:
     vmrg vyl, voutyl
 
     sqv vyh, 0x00,dmem_left
-    sqv vyl, 0x10,dmem_left
-
     slv vxh.e0, -0x04,dmem_right
     slv vxh.e2, -0x08,dmem_right
     slv vxh.e4, -0x0C,dmem_right
     slv vxh.e6, -0x10,dmem_right
+
+    addiu N, -8
+    blez N, OPUS_window_exit
+    nop
+
+    sqv vyl, 0x10,dmem_left
     slv vxl.e0, -0x14,dmem_right
     slv vxl.e2, -0x18,dmem_right
     slv vxl.e4, -0x1C,dmem_right
@@ -521,10 +525,11 @@ OPUS_window_loop:
     addiu wnd_left, 0x10
     addiu wnd_right, -0x10
 
-    addiu N, -16
+    addiu N, -8
     bgtz N, OPUS_window_loop
     nop
 
+OPUS_window_exit:
     move s0, a0
     li s4, %lo(WND_BUFFER)
     addiu t0, num_bytes, -1
