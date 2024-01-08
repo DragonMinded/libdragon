@@ -40,6 +40,7 @@
 #include "dma.h"
 #include "n64sys.h"
 #include "rspq.h"
+#include "utils.h"
 
 #include "libopus_internal.h"
 
@@ -80,9 +81,14 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     // Allocate stack buffer for reading compressed data. Align it to cacheline
     // to avoid any false sharing.
     uint8_t buf[st->xhead.max_cmp_frame_size] alignas(16);
+    int nframes = DIVIDE_CEIL(wlen, st->xhead.frame_size);
 
-    // rspq_highpri_begin();
-    while (wlen > 0) {
+    // Make space for the decoded samples. Call samplebuffer_append once as we
+    // use RSP in background, and each call to the function might trigger a
+    // memmove of internal samples.
+    int16_t *out = samplebuffer_append(sbuf, st->xhead.frame_size*nframes);
+
+    for (int i=0; i<nframes; i++) {
         // Read frame size
         int nb = io_read16(st->current_rom_addr);
         assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %d (%ld)", nb, st->xhead.max_cmp_frame_size);
@@ -97,12 +103,11 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
             st->current_rom_addr += 1;
 
         // Decode frame
-        int16_t *out = samplebuffer_append(sbuf, st->xhead.frame_size);
-
         int err = opus_custom_decode(st->dec, buf, nb, out, st->xhead.frame_size);
         assertf(err > 0, "opus decode error: %s", opus_strerror(err));
         assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
 
+        out += st->xhead.frame_size * 2;
         wpos += st->xhead.frame_size;
         wlen -= st->xhead.frame_size;
         if (wpos > wav->wave.len) {
@@ -111,7 +116,6 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
             samplebuffer_undo(sbuf, wpos - wav->wave.len);
         }
     }
-    // rspq_highpri_end();
 }
 
 void wav64_opus_init(wav64_t *wav, int fh) {
