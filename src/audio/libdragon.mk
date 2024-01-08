@@ -11,6 +11,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/audio/libopus_rsp.o \
 	$(BUILD_DIR)/audio/rsp_opus_dsp.o \
 	$(BUILD_DIR)/audio/rsp_opus_imdct.o \
+	$(BUILD_DIR)/audio/rsp_opus_fft_prerot.o \
 	$(BUILD_DIR)/audio/rsp_opus_fft_bfly2.o \
 	$(BUILD_DIR)/audio/rsp_opus_fft_bfly3.o \
 	$(BUILD_DIR)/audio/rsp_opus_fft_bfly4m1.o \

@@ -80,6 +80,7 @@ static void rsp_cmd_comb_result(opus_val32 *x, int i_idx, int nsamples)
  * IMDCT (and FFT)
  *******************************************************************************/
 
+DEFINE_RSP_UCODE(rsp_opus_fft_prerot);
 DEFINE_RSP_UCODE(rsp_opus_fft_bfly2);
 DEFINE_RSP_UCODE(rsp_opus_fft_bfly3);
 DEFINE_RSP_UCODE(rsp_opus_fft_bfly4);
@@ -256,9 +257,19 @@ typedef struct {
             -__KF_ANGLE16_COS(4, N), -__KF_ANGLE16_COS(4, N), \
             -__KF_ANGLE16_COS(4, N), -__KF_ANGLE16_COS(4, N) }
 
+#define KF_PREROT_TWIDDLE_480() \
+    { 0x0009, 0x004d, 0x0091, 0x00d5, 0x011a, 0x015e, 0x01a2, 0x01e6 }
+#define KF_PREROT_TWINCR_480() \
+    { 0x222 }
 
-static opus_fft_pass_t fft_60[4];
-static opus_fft_pass_t fft_480[6];
+#define KF_PREROT_TWIDDLE_60() \
+    { 0x0044, 0x0266, 0x0489, 0x06ab, 0x08cd, 0x0aef, 0x0d11, 0x0f33 }
+#define KF_PREROT_TWINCR_60() \
+    { 0x1111 }
+
+
+static opus_fft_pass_t fft_60[5];
+static opus_fft_pass_t fft_480[7];
 
 static void fft_init(void) {
     const int MAX_FFT_OVERLAY_SIZE = 0x400;
@@ -270,21 +281,29 @@ static void fft_init(void) {
     assert(rsp_opus_fft_postrot.code_end - (void*)rsp_opus_fft_postrot.code <= MAX_FFT_OVERLAY_SIZE);
 
     fft_60[0] = (opus_fft_pass_t){
-        KF_BFLY4M1(120, 480),
-        .stride = 120, .m = 1, .n = 15, .mm = 4,
+        .consts = {
+            KF_PREROT_TWIDDLE_60(),
+            KF_PREROT_TWINCR_60(),
+        },
+        .func_rdram = PhysicalAddr(rsp_opus_fft_prerot.code),
         .next_pass_rdram = PhysicalAddr(&fft_60[1]),
     };
     fft_60[1] = (opus_fft_pass_t){
-        KF_BFLY3(40, 480),
-        .stride = 40, .m = 4, .n = 5, .mm = 12,
+        KF_BFLY4M1(120, 480),
+        .stride = 120, .m = 1, .n = 15, .mm = 4,
         .next_pass_rdram = PhysicalAddr(&fft_60[2]),
     };
     fft_60[2] = (opus_fft_pass_t){
-        KF_BFLY5(8, 480),
-        .stride = 8, .m = 12, .n = 1, .mm = 1,
+        KF_BFLY3(40, 480),
+        .stride = 40, .m = 4, .n = 5, .mm = 12,
         .next_pass_rdram = PhysicalAddr(&fft_60[3]),
     };
     fft_60[3] = (opus_fft_pass_t){
+        KF_BFLY5(8, 480),
+        .stride = 8, .m = 12, .n = 1, .mm = 1,
+        .next_pass_rdram = PhysicalAddr(&fft_60[4]),
+    };
+    fft_60[4] = (opus_fft_pass_t){
         .consts = {
             KF_POSTROT_TWIDDLE1(240),
             KF_POSTROT_TWIDDLE2(240),
@@ -297,31 +316,39 @@ static void fft_init(void) {
     };
 
     fft_480[0] = (opus_fft_pass_t){
-        KF_BFLY4M1(120, 480),
-        .stride = 120, .m = 1, .n = 120, .mm = 4,
+        .consts = {
+            KF_PREROT_TWIDDLE_480(),
+            KF_PREROT_TWINCR_480(),
+        },
+        .func_rdram = PhysicalAddr(rsp_opus_fft_prerot.code),
         .next_pass_rdram = PhysicalAddr(&fft_480[1]),
     };
     fft_480[1] = (opus_fft_pass_t){
-        KF_BFLY2(4, 480),
-        .stride = 0, .m = 4, .n = 60, .mm = 0,
+        KF_BFLY4M1(120, 480),
+        .stride = 120, .m = 1, .n = 120, .mm = 4,
         .next_pass_rdram = PhysicalAddr(&fft_480[2]),
     };
     fft_480[2] = (opus_fft_pass_t){
-        KF_BFLY4(15, 480),
-        .stride = 15, .m = 8, .n = 15, .mm = 32,
+        KF_BFLY2(4, 480),
+        .stride = 0, .m = 4, .n = 60, .mm = 0,
         .next_pass_rdram = PhysicalAddr(&fft_480[3]),
     };
     fft_480[3] = (opus_fft_pass_t){
-        KF_BFLY3(5, 480),
-        .stride = 5, .m = 32, .n = 5, .mm = 96,
+        KF_BFLY4(15, 480),
+        .stride = 15, .m = 8, .n = 15, .mm = 32,
         .next_pass_rdram = PhysicalAddr(&fft_480[4]),
     };
     fft_480[4] = (opus_fft_pass_t){
-        KF_BFLY5(1, 480),
-        .stride = 1, .m = 96, .n = 1, .mm = 1,
+        KF_BFLY3(5, 480),
+        .stride = 5, .m = 32, .n = 5, .mm = 96,
         .next_pass_rdram = PhysicalAddr(&fft_480[5]),
     };
     fft_480[5] = (opus_fft_pass_t){
+        KF_BFLY5(1, 480),
+        .stride = 1, .m = 96, .n = 1, .mm = 1,
+        .next_pass_rdram = PhysicalAddr(&fft_480[6]),
+    };
+    fft_480[6] = (opus_fft_pass_t){
         .consts = {
             KF_POSTROT_TWIDDLE1(1920),
             KF_POSTROT_TWIDDLE2(1920),
@@ -344,7 +371,23 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
 
     int N = l->n >> shift;
 
-    // debugf("rsp_clt_mdct_backward: N=%d(nfft=%d) shift=%d stride=%d B=%d NB=%d\n", N, l->kfft[shift]->nfft, shift, stride, B, NB);
+    #if COMPARE_MDCT_REFERENCE
+    static kiss_fft_scalar *ref_out = NULL;
+    if (!ref_out) ref_out = malloc_uncached((960+overlap)*sizeof(kiss_fft_scalar));
+    memcpy(ref_out, out, (960+overlap)*sizeof(kiss_fft_scalar));
+    debugf("ref impl\n");
+    debug_hexdump(ref_out, 64);
+    for (int b=0;b<B;b++) {
+        clt_mdct_backward_c(l, &in[b], ref_out+NB*b, window, overlap, shift, stride, arch);
+    }
+    debugf("ref impl finish\n");
+    debug_hexdump(ref_out, 64);
+    // clt_mdct_backward_c(l, in, out, window, overlap, shift, stride, arch);
+    // data_cache_hit_writeback_invalidate(out, l->n*2*sizeof(kiss_fft_scalar));
+    #endif
+
+    // debugf("rsp_clt_mdct_backward: in=%p-%p N=%d(nfft=%d) shift=%d stride=%d B=%d NB=%d\n", 
+    //     in, in+N/2*stride-1, N, l->kfft[shift]->nfft, shift, stride, B, NB);
 
     // Workram layout:
     // 0-3840:      temporary buffer holding up to 1920 FFT values (after deinterleaving)
@@ -352,7 +395,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
     static uint8_t *rsp_workram = NULL;
     if (!rsp_workram) rsp_workram = malloc_uncached(3840+4096);
 
-    data_cache_hit_writeback_invalidate(out, N*2*stride); // FIXME: maybe *stride is wrong? 
+    data_cache_hit_writeback_invalidate(out, N*2*stride+overlap*2); // FIXME: maybe *stride is wrong? 
     data_cache_hit_writeback_invalidate(in, N*2*stride); // FIXME: maybe *stride is wrong?
     assertf(PhysicalAddr(in) % 8 == 0, "in=%p", in);
     assert(PhysicalAddr(l->kfft[shift]->bitrev) % 8 == 0);
@@ -365,20 +408,55 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
         PhysicalAddr(out+(overlap>>1))
     );
 
+    static int16_t *rsp_window = NULL;
+    if (!rsp_window) {
+        // RSP window function requires values to be swizzled according to
+        // a specific pattern for optimization reasons
+        rsp_window = malloc_uncached(overlap * 2 * sizeof(int16_t));
+        assert((overlap % 8) == 0);
+        for (int i=0;i<overlap;i+=8) {
+            rsp_window[i+0] = window[i+0];
+            rsp_window[i+1] = window[i+4];
+            rsp_window[i+2] = window[i+1];
+            rsp_window[i+3] = window[i+5];
+            rsp_window[i+4] = window[i+2];
+            rsp_window[i+5] = window[i+6];
+            rsp_window[i+6] = window[i+3];
+            rsp_window[i+7] = window[i+7];
+        }
+        for (int i=0;i<overlap;i+=8) {
+            rsp_window[overlap+i+7] = window[i+0];
+            rsp_window[overlap+i+6] = window[i+4];
+            rsp_window[overlap+i+5] = window[i+1];
+            rsp_window[overlap+i+4] = window[i+5];
+            rsp_window[overlap+i+3] = window[i+2];
+            rsp_window[overlap+i+2] = window[i+6];
+            rsp_window[overlap+i+1] = window[i+3];
+            rsp_window[overlap+i+0] = window[i+7];
+        }
+        // debugf("Window: %p\n", rsp_window);
+        // debug_hexdump(rsp_window, 64);
+    }
+    
+    // rspq_wait();
+    // debugf("Overlap area: %p\n", out);
+    // debug_hexdump(out, overlap*4);
+
+    assert(overlap < 256);
+    for (int b=0; b<B; b++) {
+        rspq_write(0x9<<28, 0x1,
+            PhysicalAddr(out+NB*b),
+            (overlap << 24) | PhysicalAddr(rsp_window)
+        );
+    }
+
     #if COMPARE_MDCT_REFERENCE
     rspq_wait();
 
-    static kiss_fft_scalar *ref_out = NULL;
-    if (!ref_out) ref_out = malloc_uncached(960*sizeof(kiss_fft_scalar) + overlap);
-    for (int b=0;b<B;b++) {
-        clt_mdct_backward_c(l, &in[b], ref_out+NB*b, window, overlap, shift, stride, arch);
-    }      
-    // clt_mdct_backward_c(l, in, out, window, overlap, shift, stride, arch);
-    // data_cache_hit_writeback_invalidate(out, l->n*2*sizeof(kiss_fft_scalar));
-
+    int check_offset =  (overlap>>1);
     int N4 = l->n >> 2;
     uint16_t *debug = malloc_uncached(N4*2*4);
-    uint16_t *workram = (uint16_t*)(out+(overlap>>1));
+    uint16_t *workram = (uint16_t*)(out+check_offset);
     if (false) {
         for (int i=0;i<N4;i++) {
             debug[i*4+0] = workram[i*4+0];
@@ -390,18 +468,20 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
         memcpy(debug, workram, N4*2*4);
     }
 
-    // debugf("RSP: %p\n", in);
-    // debug_hexdump(debug, N4*2*4);
-    // debugf("REF: %p\n", in);
-    // debug_hexdump(out+(overlap>>1), N4*2*4);
+    debugf("RSP: %p\n", in);
+    debug_hexdump(debug, N4*2*4);
+    debugf("REF: %p\n", in);
+    debug_hexdump(ref_out+check_offset, N4*2*4);
 
     float error = 0;
     int32_t *workram32 = (int32_t*)debug;
     for (int i=0;i<N4*2;i++) {
-        float diff = fabsf(workram32[i] - (int32_t)(ref_out+(overlap>>1))[i]);
-        // if (diff > 16<<12) {
-        //     debugf("ERROR: %d: %f\n", i, diff / (1<<12));
-        // }
+        int32_t rsp = workram32[i];
+        int32_t ref = (ref_out+check_offset)[i];
+        float diff = fabsf(rsp - ref);
+        if (diff > 16<<12) {
+            debugf("ERROR: 0x%x: %f (%lx - %lx)\n", i*4, diff / (1<<12), rsp, ref);
+        }
         error += diff*diff;
     }
     debugf("RMSD: %f\n", sqrtf(error / N4*2) / (1<<12));
@@ -652,9 +732,11 @@ void rsp_opus_comb_filter_dual(opus_val32 *y, opus_val32 *x, int T0, int T1, int
         }
     #endif
 
+    #if !RSP_IMDCT
     data_cache_hit_writeback_invalidate(x-T0-2, (N+5)*sizeof(opus_val32));
     data_cache_hit_writeback_invalidate(x-T1-2, (N+5)*sizeof(opus_val32));
     data_cache_hit_writeback_invalidate(x, N*sizeof(opus_val32)); 
+    #endif
     // debugf("OVERLAP INPUT: T0:%d T1:%d\n", T0, T1);
 
     // Calculate the best DMEM layout for this filter
