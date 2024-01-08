@@ -35,6 +35,7 @@ typedef struct {
 	/** @brief Absolute ROM address of WAV64 */
 	uint32_t rom_addr;
 
+	int format;			     ///< Internal format of the file
 	void *ext;               ///< Pointer to extended data (internal use)
 } wav64_t;
 

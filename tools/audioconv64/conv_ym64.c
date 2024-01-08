@@ -12,7 +12,9 @@
  *
  */
 
+#ifndef assertf
 #define assertf(x, ...) assert(x)
+#endif
 #define memalign(a, b) malloc(b)
 
 #include "../../src/compress/lzh5_internal.h"  // LZH5 decompression

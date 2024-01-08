@@ -5,6 +5,7 @@
 #define WAV64_FILE_VERSION  2
 #define WAV64_FORMAT_RAW    0
 #define WAV64_FORMAT_VADPCM 1
+#define WAV64_FORMAT_OPUS   3
 
 /** @brief Header of a WAV64 file. */
 typedef struct __attribute__((packed)) {

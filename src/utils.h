@@ -19,6 +19,12 @@
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
 })
 
+/** @brief Round n down to the previous multiple of d */
+#define ROUND_DOWN(n, d) ({ \
+    typeof(n) _n = n; typeof(d) _d = d; \
+    ((_n >= 0) ? ((_n) / (_d) * (_d)) : -(((-_n + (_d) - 1) / (_d)) * (_d))); \
+})
+
 /** @brief Return the ceil of n/d */
 #define DIVIDE_CEIL(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \

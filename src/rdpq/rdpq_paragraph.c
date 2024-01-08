@@ -424,7 +424,7 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
             } else {
                 bool error = false;
                 uint8_t font_id = must_hex_digit(buf[1], &error) << 4 | must_hex_digit(buf[2], &error);
-                assertf(!error, "invalid font id: %c%c at position %d", buf[1], buf[2], buf-utf8_text);
+                assertf(!error, "invalid font id: %c%c at position %d (font id must be two hex digits)", buf[1], buf[2], buf-utf8_text);
                 assertf(font_id > 0, "invalid usage of font ID 0 (reserved)");
                 rdpq_paragraph_builder_font(font_id);
                 span = buf + 3;
@@ -441,7 +441,7 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
             } else {
                 bool error = false;
                 uint8_t style_id = must_hex_digit(buf[1], &error) << 4 | must_hex_digit(buf[2], &error);
-                assertf(!error, "invalid style id: %c%c at position %d", buf[1], buf[2], buf-utf8_text);
+                assertf(!error, "invalid style id: %c%c at position %d (font id must be two hex digits)", buf[1], buf[2], buf-utf8_text);
                 rdpq_paragraph_builder_style(style_id);
                 span = buf + 3;
                 buf = span;

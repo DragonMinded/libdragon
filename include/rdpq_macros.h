@@ -835,10 +835,21 @@ typedef uint32_t rdpq_blender_t;
  * 
  * Refer to #RDPQ_BLENDER for information on how to build a blender formula.
  * 
- * Notice that in the second pass, `IN_RGB` is not available, and you can
- * instead use `CYCLE1_RGB` to refer to the output of the first cycle.
- * `IN_ALPHA` is still available (as the blender does not produce a alpha
- * output, so the input alpha is available also in the second pass):
+ * In two-passes mode, there are a few differences and gotchas in the way the formula
+ * must be constructed:
+ * 
+ * * In the first pass, `B` must be `INV_MUX_ALPHA` (any other value is invalid
+ *   and will result in a compile-time error).
+ * * In the first pass, `MEMORY_RGB` is not available.
+ * * In the second pass, `IN_RGB` is not available, but you can
+ *   instead use `CYCLE1_RGB` to refer to the output of the first cycle.
+ *   `IN_ALPHA` is still available (as the blender does not produce a alpha
+ *   output, so the input alpha is available also in the second pass).
+ * * In the second pass, because of a hardware bug, `SHADE_ALPHA` will actually
+ *   refer to the alpha color of the *next* pixel in the scanline (the pixel
+ *   to the right). On the last pixel of the triangle in each scanline, the
+ *   value read as `SHADE_ALPHA` is mostly undefined. Given this hardware bug,
+ *   avoid using `SHADE_ALPHA` in the second pass if possible.
  * 
  * @see #RDPQ_BLENDER
  * @see #rdpq_mode_blender

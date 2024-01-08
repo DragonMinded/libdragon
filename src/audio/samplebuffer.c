@@ -82,8 +82,9 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		// Flush the buffer and decode from scratch.
 		// Normally this is because of seeking, but might
 		// also be just because we discarded all the contents
-		// of the buffer, so be use to set seeking only if
+		// of the buffer, so be sure to set seeking only if
 		// the position is different from what we expected.
+		tracef("samplebuffer_get: flushing buffer: buf->widx=%x buf->wpos=%x buf->wnext=%x\n", buf->widx, buf->wpos, buf->wnext);
 		bool seeking = wpos != buf->wnext;	
 		samplebuffer_flush(buf);
 		buf->wpos = wpos;
@@ -113,6 +114,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		// If the existing samples are not enough, read the missing
 		// through the callback.
 		if (reuse < *wlen) {
+			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
 			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
 			buf->wv_read(buf->wv_ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
 			buf->wnext = buf->wpos + buf->widx;
@@ -170,6 +172,12 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 	void *data = SAMPLES_PTR(buf) + (buf->widx << SAMPLES_BPS_SHIFT(buf));
 	buf->widx += wlen;
 	return data;
+}
+
+void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
+	tracef("samplebuffer_truncate: wlen=%x\n", wlen);
+	assertf(buf->widx >= wlen, "samplebuffer_append_undo: invalid wlen:%x widx:%x", wlen, buf->widx);
+	buf->widx -= wlen;
 }
 
 void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
