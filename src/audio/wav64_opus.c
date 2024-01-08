@@ -89,32 +89,32 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     int16_t *out = samplebuffer_append(sbuf, st->xhead.frame_size*nframes);
 
     for (int i=0; i<nframes; i++) {
-        // Read frame size
-        int nb = io_read16(st->current_rom_addr);
-        assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %d (%ld)", nb, st->xhead.max_cmp_frame_size);
+        if (wpos >= wav->wave.len) {
+            // End of file. This request can happen because of the RSP mixer overread.
+            memset(out, 0, st->xhead.frame_size*2);
+        } else {
+            // Read frame size
+            int nb = io_read16(st->current_rom_addr);
+            assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %d (%ld)", nb, st->xhead.max_cmp_frame_size);
 
-        // Read frame
-        data_cache_hit_writeback_invalidate(buf, nb);
-        dma_read(buf, st->current_rom_addr + 2, nb);
+            // Read frame
+            data_cache_hit_writeback_invalidate(buf, nb);
+            dma_read(buf, st->current_rom_addr + 2, nb);
 
-        // Update ROM pointer after current frame
-        st->current_rom_addr += nb + 2;
-        if (st->current_rom_addr & 1)
-            st->current_rom_addr += 1;
+            // Update ROM pointer after current frame
+            st->current_rom_addr += nb + 2;
+            if (st->current_rom_addr & 1)
+                st->current_rom_addr += 1;
 
-        // Decode frame
-        int err = opus_custom_decode(st->dec, buf, nb, out, st->xhead.frame_size);
-        assertf(err > 0, "opus decode error: %s", opus_strerror(err));
-        assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
+            // Decode frame
+            int err = opus_custom_decode(st->dec, buf, nb, out, st->xhead.frame_size);
+            assertf(err > 0, "opus decode error: %s", opus_strerror(err));
+            assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
+        }
 
         out += st->xhead.frame_size * 2;
         wpos += st->xhead.frame_size;
         wlen -= st->xhead.frame_size;
-        if (wpos > wav->wave.len) {
-            // The last audio frame is padded with zeros. Truncate it automatically
-            // to the right length.
-            samplebuffer_undo(sbuf, wpos - wav->wave.len);
-        }
     }
 }
 
