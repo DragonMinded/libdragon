@@ -257,10 +257,10 @@ typedef struct {
             __KF_BFLY_FSTRIDE_CPX(3, N) }
 
 #define KF_POSTROT_TWIDDLE2(N)  \
-          { __KF_BFLY_FSTRIDE_CPX(N/4+0, N), \
-            __KF_BFLY_FSTRIDE_CPX(N/4-1, N), \
+          { __KF_BFLY_FSTRIDE_CPX(N/4-1, N), \
             __KF_BFLY_FSTRIDE_CPX(N/4-2, N), \
-            __KF_BFLY_FSTRIDE_CPX(N/4-3, N) }
+            __KF_BFLY_FSTRIDE_CPX(N/4-3, N), \
+            __KF_BFLY_FSTRIDE_CPX(N/4-4, N) }
 
 #define KF_POSTROT_TWINCR1(N)  \
           { __KF_ANGLE16_COS(4, N), __KF_ANGLE16_COS(4, N), \
@@ -469,6 +469,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
     rspq_flush();
 
     #if COMPARE_MDCT_REFERENCE
+    rspq_highpri_end();
     rspq_wait();
 
     int check_offset =  (overlap>>1);
@@ -503,6 +504,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
         error += diff*diff;
     }
     debugf("RMSD: %f\n", sqrtf(error / N4*2) / (1<<12));
+    rspq_highpri_begin();
     #endif
 }
 
