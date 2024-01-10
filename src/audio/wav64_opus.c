@@ -89,7 +89,6 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     int16_t *out = samplebuffer_append(sbuf, st->xhead.frame_size*nframes);
 
     for (int i=0; i<nframes; i++) {
-        debugf("wav64_opus: nframes=%d/%d wpos=%x wlen=%x total=%x seeking=%d\n", i, nframes, wpos, wlen, wav->wave.len, seeking);
         if (wpos >= wav->wave.len) {
             // End of file. This request can happen because of the RSP mixer overread.
             // FIXME: maybe the mixer should handle this case?
@@ -114,7 +113,7 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
             assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
         }
 
-        out += st->xhead.frame_size * 2;
+        out += st->xhead.frame_size * wav->wave.channels;
         wpos += st->xhead.frame_size;
         wlen -= st->xhead.frame_size;
     }
