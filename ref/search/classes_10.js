@@ -7,10 +7,14 @@ var searchData=
   ['si_5fregs_5ft_4',['SI_regs_t',['../group__lowlevel.html#structSI__regs__t',1,'']]],
   ['sp_5fregs_5ft_5',['SP_regs_t',['../group__lowlevel.html#structSP__regs__t',1,'']]],
   ['sprite_5fcache_6',['sprite_cache',['../group__rdp.html#structsprite__cache',1,'']]],
-  ['sprite_5ft_7',['sprite_t',['../group__graphics.html#structsprite__t',1,'']]],
-  ['stdio_5ft_8',['stdio_t',['../structstdio__t.html',1,'']]],
-  ['surface_5ft_9',['surface_t',['../surface_8h.html#structsurface__t',1,'']]],
-  ['symtable_5fentry_5ft_10',['symtable_entry_t',['../backtrace_8c.html#structsymtable__entry__t',1,'']]],
-  ['symtable_5fheader_5ft_11',['symtable_header_t',['../backtrace_8c.html#structsymtable__header__t',1,'']]],
-  ['syscall_5fhandler_5fentry_5ft_12',['syscall_handler_entry_t',['../group__exceptions.html#structsyscall__handler__entry__t',1,'']]]
+  ['sprite_5fext_5ft_7',['sprite_ext_t',['../structsprite__ext__t.html',1,'']]],
+  ['sprite_5fext_5ft_2e_5f_5funnamed7_5f_5f_8',['sprite_ext_t.__unnamed7__',['../structsprite__ext__t_8____unnamed7____.html',1,'']]],
+  ['sprite_5flod_5fs_9',['sprite_lod_s',['../structsprite__ext__t.html#structsprite__ext__t_1_1sprite__lod__s',1,'sprite_ext_t']]],
+  ['sprite_5ft_10',['sprite_t',['../sprite_8h.html#structsprite__t',1,'']]],
+  ['sprite_5ft_2e_5f_5funnamed23_5f_5f_11',['sprite_t.__unnamed23__',['../sprite_8h.html#unionsprite__t_8____unnamed23____',1,'']]],
+  ['stdio_5ft_12',['stdio_t',['../structstdio__t.html',1,'']]],
+  ['surface_5ft_13',['surface_t',['../surface_8h.html#structsurface__t',1,'']]],
+  ['symtable_5fentry_5ft_14',['symtable_entry_t',['../backtrace_8c.html#structsymtable__entry__t',1,'']]],
+  ['symtable_5fheader_5ft_15',['symtable_header_t',['../backtrace_8c.html#structsymtable__header__t',1,'']]],
+  ['syscall_5fhandler_5fentry_5ft_16',['syscall_handler_entry_t',['../group__exceptions.html#structsyscall__handler__entry__t',1,'']]]
 ];

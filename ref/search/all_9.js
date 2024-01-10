@@ -11,7 +11,7 @@ var searchData=
   ['header_5fchecksum_8',['header_checksum',['../tpak_8h.html#a8a2a5b5485fb8418c9e4e0369b1bf309',1,'gameboy_cartridge_header']]],
   ['header_5ft_9',['header_t',['../rompak_8c.html#structheader__t',1,'']]],
   ['heap_5fstart_5faddr_10',['HEAP_START_ADDR',['../group__n64sys.html#gaa83770c8bb3d7811f16af764871ed75f',1,'n64sys.h']]],
-  ['height_11',['height',['../group__rdp.html#afd2effaabb96eda3574341f43ac8ff7a',1,'sprite_cache::height()'],['../group__display.html#a9608bea4ba5520843bea748595fce009',1,'resolution_t::height()'],['../group__graphics.html#a0ac6b5fe9c9aba02b62e2f1fb873dfeb',1,'sprite_t::height()'],['../surface_8h.html#a95e005f68eb2625d2207f3fbe1702794',1,'surface_t::height()']]],
+  ['height_11',['height',['../structsprite__ext__t.html#a8a01e7effa0fb896a52f9c437a4ec10e',1,'sprite_ext_t::sprite_lod_s::height()'],['../group__display.html#a9608bea4ba5520843bea748595fce009',1,'resolution_t::height()'],['../sprite_8h.html#a0ac6b5fe9c9aba02b62e2f1fb873dfeb',1,'sprite_t::height()'],['../surface_8h.html#a95e005f68eb2625d2207f3fbe1702794',1,'surface_t::height()'],['../group__rdp.html#afd2effaabb96eda3574341f43ac8ff7a',1,'sprite_cache::height()']]],
   ['hi_12',['hi',['../group__exceptions.html#a5a157707d490ca2768dff98b6b394581',1,'reg_block_t']]],
   ['hold_13',['hold',['../structAYEnvelope.html#ae6af4ce2a69f5d4cd3870089d38a8948',1,'AYEnvelope']]],
   ['holding_14',['holding',['../structAYEnvelope.html#a235b48e588cfaa046987aa652fde8f9a',1,'AYEnvelope']]],
@@ -19,5 +19,5 @@ var searchData=
   ['hook_5ftime_5fcall_16',['hook_time_call',['../group__system.html#ga52ba40f92821927553a30e3c6e8c5214',1,'system.c']]],
   ['horizontal_5fpadding_17',['HORIZONTAL_PADDING',['../group__console.html#ga8cc8f6d4d0d42230b0d6b887e2c8e3a0',1,'console.h']]],
   ['hour_18',['hour',['../group__rtc.html#a1d50c8c929fc39c9c7d5addec7927a6f',1,'rtc_time_t']]],
-  ['hslices_19',['hslices',['../group__graphics.html#a87ec0bd7363d4cb727e3b2b72f19313f',1,'sprite_t']]]
+  ['hslices_19',['hslices',['../sprite_8h.html#a87ec0bd7363d4cb727e3b2b72f19313f',1,'sprite_t']]]
 ];

@@ -8,7 +8,7 @@ var searchData=
   ['valid_5',['valid',['../group__mempak.html#ac6f84c97a7f4614d2a89463baa8874be',1,'entry_structure_t']]],
   ['validate_5fmempak_6',['validate_mempak',['../group__mempak.html#gaf245021aed55de7a17cf417d41cdc32f',1,'mempak.c']]],
   ['vendor_7',['vendor',['../group__mempak.html#a4e65c83bc81eb966642da54ae8c885f5',1,'entry_structure_t']]],
-  ['version_8',['version',['../structasset__header__t.html#a27a6d9b3639eee4a44c290b23e90ae95',1,'asset_header_t::version()'],['../backtrace_8c.html#a49df133ec55445f03fd42411feafd66c',1,'symtable_header_t::version()'],['../group__lowlevel.html#afd8c6c5c941763964cdb3db04d731923',1,'MI_regs_t::version()'],['../structwav64__header__t.html#a41f089df9c3a1121a13adeecca288596',1,'wav64_header_t::version()']]],
+  ['version_8',['version',['../structasset__header__t.html#a27a6d9b3639eee4a44c290b23e90ae95',1,'asset_header_t::version()'],['../backtrace_8c.html#a49df133ec55445f03fd42411feafd66c',1,'symtable_header_t::version()'],['../structsprite__ext__t.html#a3bfa3f371fd2e730dcdb71c923be078d',1,'sprite_ext_t::version()'],['../group__lowlevel.html#afd8c6c5c941763964cdb3db04d731923',1,'MI_regs_t::version()'],['../structwav64__header__t.html#a41f089df9c3a1121a13adeecca288596',1,'wav64_header_t::version()']]],
   ['version_5fnumber_9',['version_number',['../tpak_8h.html#ab742ef846978b3ffe4a313374479c0b8',1,'gameboy_cartridge_header']]],
   ['vertical_5fpadding_10',['VERTICAL_PADDING',['../group__console.html#gaccc507054fe340b5b4c9db0d233a2f31',1,'console.h']]],
   ['vi_2eh_11',['vi.h',['../vi_8h.html',1,'']]],
@@ -72,5 +72,5 @@ var searchData=
   ['vi_5fy_5fscale_5fset_69',['VI_Y_SCALE_SET',['../group__display.html#ga0e6a2caf5dbfdcc516bfea8d0d3eb14b',1,'vi.h']]],
   ['vol_70',['vol',['../structAYEnvelope.html#abc79941d9d5d3d5c9f22f0b4d97cdffa',1,'AYEnvelope']]],
   ['vpr_71',['vpr',['../rsp_8h.html#a007496e4e8d0e57e66462151c8156051',1,'rsp_snapshot_t']]],
-  ['vslices_72',['vslices',['../group__graphics.html#a3b1f4d3f9dd51d45993bda45a6d474d3',1,'sprite_t']]]
+  ['vslices_72',['vslices',['../sprite_8h.html#a3b1f4d3f9dd51d45993bda45a6d474d3',1,'sprite_t']]]
 ];

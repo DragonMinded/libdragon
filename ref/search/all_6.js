@@ -53,10 +53,10 @@ var searchData=
   ['exception_5fhandler_5ft_50',['exception_handler_t',['../exception_8h.html#a4296110877efb56862a467ee1ab633bd',1,'exception.h']]],
   ['exception_5freset_5ftime_51',['exception_reset_time',['../group__interrupt.html#ga288a573e9c25f474c0e71cfcde6f388a',1,'exception_reset_time(void):&#160;interrupt.c'],['../group__interrupt.html#ga288a573e9c25f474c0e71cfcde6f388a',1,'exception_reset_time(void):&#160;interrupt.c']]],
   ['exception_5ft_52',['exception_t',['../group__exceptions.html#structexception__t',1,'']]],
-  ['exception_5ftype_5fcritical_53',['EXCEPTION_TYPE_CRITICAL',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa4512100e37620ac5e38279290ced9245',1,'exception.h']]],
-  ['exception_5ftype_5freset_54',['EXCEPTION_TYPE_RESET',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa8193732583ae3c307371a55998620919',1,'exception.h']]],
-  ['exception_5ftype_5fsyscall_55',['EXCEPTION_TYPE_SYSCALL',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa782e43cc570f9717fd4bbb6c16211826',1,'exception.h']]],
-  ['exception_5ftype_5funknown_56',['EXCEPTION_TYPE_UNKNOWN',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa90b2b2223067700d2015835a712151ba',1,'exception.h']]],
+  ['exception_5ftype_5fcritical_53',['EXCEPTION_TYPE_CRITICAL',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a4512100e37620ac5e38279290ced9245',1,'exception.h']]],
+  ['exception_5ftype_5freset_54',['EXCEPTION_TYPE_RESET',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a8193732583ae3c307371a55998620919',1,'exception.h']]],
+  ['exception_5ftype_5fsyscall_55',['EXCEPTION_TYPE_SYSCALL',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a782e43cc570f9717fd4bbb6c16211826',1,'exception.h']]],
+  ['exception_5ftype_5funknown_56',['EXCEPTION_TYPE_UNKNOWN',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a90b2b2223067700d2015835a712151ba',1,'exception.h']]],
   ['execute_5fraw_5fcommand_57',['execute_raw_command',['../group__controller.html#ga7bfd7d39fbe5db64593e60ee0fc3200e',1,'controller.c']]],
   ['execve_58',['execve',['../group__system.html#gaff1a7676150de79a9e494a9f7d926ae0',1,'system.c']]]
 ];

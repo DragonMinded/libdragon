@@ -165,6 +165,9 @@ Macros</h2></td></tr>
 <tr class="memitem:gaf3254bede595a8b2b76eb90c84d06328"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf3254bede595a8b2b76eb90c84d06328">C0_WATCHLO</a>()</td></tr>
 <tr class="memdesc:gaf3254bede595a8b2b76eb90c84d06328"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the COP0 WATCHLO register.  <a href="group__n64sys.html#gaf3254bede595a8b2b76eb90c84d06328">More...</a><br /></td></tr>
 <tr class="separator:gaf3254bede595a8b2b76eb90c84d06328"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga60da88e71d175a393dead4b1fe6148b1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga60da88e71d175a393dead4b1fe6148b1">C0_WRITE_WATCHLO</a>(x)&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$18&quot;::&quot;r&quot;(x))</td></tr>
+<tr class="memdesc:ga60da88e71d175a393dead4b1fe6148b1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write the COP0 WATCHLO register.  <a href="group__n64sys.html#ga60da88e71d175a393dead4b1fe6148b1">More...</a><br /></td></tr>
+<tr class="separator:ga60da88e71d175a393dead4b1fe6148b1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gace54d6bc9240a2ca470d2312fd3bd5f3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gace54d6bc9240a2ca470d2312fd3bd5f3">C0_WRITE_WIRED</a>(x)&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$6; nop; nop&quot;::&quot;r&quot;(x))</td></tr>
 <tr class="memdesc:gace54d6bc9240a2ca470d2312fd3bd5f3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write the COP0 WIRED register.  <a href="group__n64sys.html#gace54d6bc9240a2ca470d2312fd3bd5f3">More...</a><br /></td></tr>
 <tr class="separator:gace54d6bc9240a2ca470d2312fd3bd5f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -1097,6 +1100,27 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 <div class="line">})</div>
 </div><!-- fragment -->
 <p>Read the COP0 WATCHLO register. </p>
+<p >This register is used during watchpoint programming. It allows to trigger an exception when a memory access occurs on a specific memory location. </p>
+
+</div>
+</div>
+<a id="ga60da88e71d175a393dead4b1fe6148b1" name="ga60da88e71d175a393dead4b1fe6148b1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga60da88e71d175a393dead4b1fe6148b1">&#9670;&nbsp;</a></span>C0_WRITE_WATCHLO</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WRITE_WATCHLO</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$18&quot;::&quot;r&quot;(x))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write the COP0 WATCHLO register. </p>
 <p >This register is used during watchpoint programming. It allows to trigger an exception when a memory access occurs on a specific memory location. </p>
 
 </div>
@@ -2265,7 +2289,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jan 3 2024 22:39:31 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Jan 10 2024 12:04:21 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

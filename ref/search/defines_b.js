@@ -50,6 +50,9 @@ var searchData=
   ['sp_5fwstatus_5fset_5fsig6_47',['SP_WSTATUS_SET_SIG6',['../rsp_8h.html#a940178b2ac6c522baa730d070350937d',1,'rsp.h']]],
   ['sp_5fwstatus_5fset_5fsig7_48',['SP_WSTATUS_SET_SIG7',['../rsp_8h.html#a95b88e6bd6d43c35101dba2588db3247',1,'rsp.h']]],
   ['sp_5fwstatus_5fset_5fsstep_49',['SP_WSTATUS_SET_SSTEP',['../rsp_8h.html#a6f63f4f37aead63d765d93472cb10dc8',1,'rsp.h']]],
-  ['surface_5fflags_5fownedbuffer_50',['SURFACE_FLAGS_OWNEDBUFFER',['../surface_8h.html#a1c0fb0cf02521629354df1b07091be4f',1,'surface.h']]],
-  ['surface_5fflags_5ftexformat_51',['SURFACE_FLAGS_TEXFORMAT',['../surface_8h.html#af987b5a73ec05cead979f8295555b666',1,'surface.h']]]
+  ['sprite_5fflags_5fext_50',['SPRITE_FLAGS_EXT',['../sprite_8h.html#a9563f809bb96ffd9f64a3619142daa74',1,'sprite.h']]],
+  ['sprite_5fflags_5fownedbuffer_51',['SPRITE_FLAGS_OWNEDBUFFER',['../sprite_8h.html#a33ef3442b2f9f95efbe25ccf07da49c0',1,'sprite.h']]],
+  ['sprite_5fflags_5ftexformat_52',['SPRITE_FLAGS_TEXFORMAT',['../sprite_8h.html#a765ba7d5d9b35c6c60d958d2b35e81f7',1,'sprite.h']]],
+  ['surface_5fflags_5fownedbuffer_53',['SURFACE_FLAGS_OWNEDBUFFER',['../surface_8h.html#a1c0fb0cf02521629354df1b07091be4f',1,'surface.h']]],
+  ['surface_5fflags_5ftexformat_54',['SURFACE_FLAGS_TEXFORMAT',['../surface_8h.html#af987b5a73ec05cead979f8295555b666',1,'surface.h']]]
 ];

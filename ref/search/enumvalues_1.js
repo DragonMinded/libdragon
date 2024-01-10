@@ -3,8 +3,8 @@ var searchData=
   ['eeprom_5f16k_0',['EEPROM_16K',['../eeprom_8h.html#a5d2c70b26685af9f2498cd45f88f224fa25ac025e7c7c47297fe2830112f83cc7',1,'eeprom.h']]],
   ['eeprom_5f4k_1',['EEPROM_4K',['../eeprom_8h.html#a5d2c70b26685af9f2498cd45f88f224faa5124b25fb78cddf007a0ce23ce6f9f9',1,'eeprom.h']]],
   ['eeprom_5fnone_2',['EEPROM_NONE',['../eeprom_8h.html#a5d2c70b26685af9f2498cd45f88f224fa76e90a4797b64fe50d006bda0d657dc0',1,'eeprom.h']]],
-  ['exception_5ftype_5fcritical_3',['EXCEPTION_TYPE_CRITICAL',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa4512100e37620ac5e38279290ced9245',1,'exception.h']]],
-  ['exception_5ftype_5freset_4',['EXCEPTION_TYPE_RESET',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa8193732583ae3c307371a55998620919',1,'exception.h']]],
-  ['exception_5ftype_5fsyscall_5',['EXCEPTION_TYPE_SYSCALL',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa782e43cc570f9717fd4bbb6c16211826',1,'exception.h']]],
-  ['exception_5ftype_5funknown_6',['EXCEPTION_TYPE_UNKNOWN',['../group__exceptions.html#gga6b7b47dd702d9e331586d485013fd1eaa90b2b2223067700d2015835a712151ba',1,'exception.h']]]
+  ['exception_5ftype_5fcritical_3',['EXCEPTION_TYPE_CRITICAL',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a4512100e37620ac5e38279290ced9245',1,'exception.h']]],
+  ['exception_5ftype_5freset_4',['EXCEPTION_TYPE_RESET',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a8193732583ae3c307371a55998620919',1,'exception.h']]],
+  ['exception_5ftype_5fsyscall_5',['EXCEPTION_TYPE_SYSCALL',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a782e43cc570f9717fd4bbb6c16211826',1,'exception.h']]],
+  ['exception_5ftype_5funknown_6',['EXCEPTION_TYPE_UNKNOWN',['../group__exceptions.html#ggaae05225933a42f81e7c4a9fb286596f9a90b2b2223067700d2015835a712151ba',1,'exception.h']]]
 ];
