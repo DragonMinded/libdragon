@@ -844,7 +844,6 @@ void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int down
    assert(accum == 0);
    assert(PhysicalAddr(in[0]) % 8 == 0);
    if (C>1) assert(PhysicalAddr(in[1]) % 8 == 0);
-   assert(PhysicalAddr(pcm) % 8 == 0);
    assert(PhysicalAddr(mem) % 8 == 0);
 
    #if !RSP_COMB_FILTER

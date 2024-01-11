@@ -565,7 +565,6 @@ MOVE_BUFFER: .space MOVE_BUFFER_SIZE
 
     .func OPUS_memmove
 OPUS_memmove:
-    emux_breakpoint
     #if RSPQ_DEBUG
     andi t0, a0, 7
     assert_eq t0, 0, 0x8509

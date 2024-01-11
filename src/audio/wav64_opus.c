@@ -119,7 +119,6 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     }
 
     if (wav->wave.loop_len && wpos >= wav->wave.len) {
-        debugf("undo: %d\n", wpos - wav->wave.len);
         assert(wav->wave.loop_len == wav->wave.len);
         samplebuffer_undo(sbuf, wpos - wav->wave.len);
     }
