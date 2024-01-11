@@ -92,7 +92,7 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
         if (wpos >= wav->wave.len) {
             // End of file. This request can happen because of the RSP mixer overread.
             // FIXME: maybe the mixer should handle this case?
-            memset(out, 0, st->xhead.frame_size*2);
+            memset(out, 0, st->xhead.frame_size * wav->wave.channels * sizeof(int16_t));
         } else {
             // Read frame size
             int nb = io_read16(st->current_rom_addr);
@@ -130,6 +130,8 @@ void wav64_opus_init(wav64_t *wav, int fh) {
     debugf("opus header: frame_size=%ld, max_cmp_frame_size=%ld, bitrate_bps=%ld\n", xhead.frame_size, xhead.max_cmp_frame_size, xhead.bitrate_bps);
     debugf("frequency: %f\n", wav->wave.frequency);
 
+    rsp_opus_init();
+
     int err = OPUS_OK;
     OpusCustomMode *custom_mode = opus_custom_mode_create(wav->wave.frequency, xhead.frame_size, &err);
     assert(err == OPUS_OK);
@@ -146,8 +148,6 @@ void wav64_opus_init(wav64_t *wav, int fh) {
     wav->ext = state;
     wav->wave.read = waveform_opus_read;
     wav->wave.ctx = wav;
-
-    rsp_opus_init();
 }
 
 void wav64_opus_close(wav64_t *wav) {
