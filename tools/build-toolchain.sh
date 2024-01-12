@@ -59,6 +59,10 @@ download () {
     fi
 }
 
+if [[ "$PLATFORM" != 'darwin' ]]; then
+    GCC_CONFIGURE_ARGS+=("--with-system-zlib")
+fi
+
 # Compilation on macOS via homebrew
 if [[ $OSTYPE == 'darwin'* ]]; then
     if ! command_exists brew; then
@@ -69,7 +73,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
 
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
-    brew install -q gmp mpfr libmpc gsed
+    brew install -q gmp mpfr libmpc gsed gcc isl libpng lz4 make mpc texinfo zlib
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.
@@ -82,6 +86,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
         "--with-gmp=$(brew --prefix)"
         "--with-mpfr=$(brew --prefix)"
         "--with-mpc=$(brew --prefix)"
+        "--with-zlib=$(brew --prefix)"
     )
 
     # Install GNU sed as default sed in PATH. GCC compilation fails otherwise,
@@ -211,8 +216,7 @@ pushd gcc_compile_target
     --disable-threads \
     --disable-win32-registry \
     --disable-nls \
-    --disable-werror \
-    --with-system-zlib
+    --disable-werror 
 make all-gcc -j "$JOBS"
 make install-gcc || sudo make install-gcc || su -c "make install-gcc"
 make all-target-libgcc -j "$JOBS"
