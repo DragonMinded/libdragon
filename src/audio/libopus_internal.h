@@ -1,3 +1,9 @@
+/**
+ * @file libopus_internal.h
+ * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @brief C-level glue for RSP ucode for Opus decoding
+ */
+
 #ifndef LIBDRAGON_AUDIO_LIBOPUS_INTERNAL_H
 #define LIBDRAGON_AUDIO_LIBOPUS_INTERNAL_H
 

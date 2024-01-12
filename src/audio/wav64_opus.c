@@ -44,17 +44,19 @@
 
 #include "libopus_internal.h"
 
+/// @brief Wav64 Opus header extension
 typedef struct {
-    uint32_t frame_size;
-    uint32_t max_cmp_frame_size;
-    uint32_t bitrate_bps;
+    uint32_t frame_size;            ///< Size of an audioframe in samples
+    uint32_t max_cmp_frame_size;    ///< Maximum compressed frame size in bytes
+    uint32_t bitrate_bps;           ///< Bitrate in bits per second
 } wav64_opus_header_ext;
 
+/// @brief Wav64 Opus state
 typedef struct {
-    wav64_opus_header_ext xhead;
-    uint32_t current_rom_addr;
-    OpusCustomMode *mode;
-    OpusCustomDecoder *dec;
+    wav64_opus_header_ext xhead;    ///< Opus header extension
+    uint32_t current_rom_addr;      ///< Current ROM reading address
+    OpusCustomMode *mode;           ///< Opus custom mode for this file
+    OpusCustomDecoder *dec;         ///< Opus decoder for this file
 } wav64_opus_state;
 
 static uint16_t io_read16(uint32_t addr) {
