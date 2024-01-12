@@ -79,7 +79,7 @@ static uint32_t mainexe_sym_count;
 /**
  * @brief Insert module into module list
  * 
- * This function is non-static only to help debuggers support overlays.
+ * This function is non-static to help debuggers support overlays.
  *
  * @param module  Pointer to module
  */
@@ -102,7 +102,7 @@ void __attribute__((noinline)) __dl_insert_module(dl_module_t *module)
 /**
  * @brief Remove module from module list
  * 
- * This function is non-static only to help debuggers support overlays.
+ * This function is non-static to help debuggers support overlays.
  *
  * @param module  Pointer to module
  */
