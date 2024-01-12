@@ -59,10 +59,6 @@ download () {
     fi
 }
 
-if [[ "$PLATFORM" != 'darwin' ]]; then
-    GCC_CONFIGURE_ARGS+=("--with-system-zlib")
-fi
-
 # Compilation on macOS via homebrew
 if [[ $OSTYPE == 'darwin'* ]]; then
     if ! command_exists brew; then
@@ -93,8 +89,10 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     # because it does not work with BSD sed.
     PATH="$(brew --prefix gsed)/libexec/gnubin:$PATH"
     export PATH
+else
+    # Configure GCC arguments for non-macOS platforms
+    GCC_CONFIGURE_ARGS+=("--with-system-zlib")
 fi
-
 # Create build path and enter it
 mkdir -p "$BUILD_PATH"
 cd "$BUILD_PATH"
