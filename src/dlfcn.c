@@ -76,6 +76,13 @@ static dso_sym_t *mainexe_sym_table;
 /** @brief Number of symbols in main executable symbol table */
 static uint32_t mainexe_sym_count;
 
+/**
+ * @brief Insert module into module list
+ * 
+ * This function is non-static only to help debuggers support overlays.
+ *
+ * @param module  Pointer to module
+ */
 void __attribute__((noinline)) __dl_insert_module(dl_module_t *module)
 {
     dl_module_t *prev = __dl_list_tail;
@@ -92,6 +99,13 @@ void __attribute__((noinline)) __dl_insert_module(dl_module_t *module)
 	__dl_num_loaded_modules++; //Mark one more loaded module
 }
 
+/**
+ * @brief Remove module from module list
+ * 
+ * This function is non-static only to help debuggers support overlays.
+ *
+ * @param module  Pointer to module
+ */
 void __attribute__((noinline)) __dl_remove_module(dl_module_t *module)
 {
     dl_module_t *next = module->next;
