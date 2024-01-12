@@ -76,7 +76,7 @@ static dso_sym_t *mainexe_sym_table;
 /** @brief Number of symbols in main executable symbol table */
 static uint32_t mainexe_sym_count;
 
-static void insert_module(dl_module_t *module)
+void __attribute__((noinline)) __dl_insert_module(dl_module_t *module)
 {
     dl_module_t *prev = __dl_list_tail;
     //Insert module at end of list
@@ -92,7 +92,7 @@ static void insert_module(dl_module_t *module)
 	__dl_num_loaded_modules++; //Mark one more loaded module
 }
 
-static void remove_module(dl_module_t *module)
+void __attribute__((noinline)) __dl_remove_module(dl_module_t *module)
 {
     dl_module_t *next = module->next;
     dl_module_t *prev = module->prev;
@@ -419,7 +419,7 @@ void *dlopen(const char *filename, int mode)
         //Add module handle to list
         handle->ref_count = 1;
 		__dl_lookup_module = lookup_module;
-        insert_module(handle);
+        __dl_insert_module(handle);
         //Start running module
         start_module(handle);
     }
@@ -527,7 +527,7 @@ static void close_module(dl_module_t *module)
     //Deinitialize module
     end_module(module);
     //Remove module from memory
-    remove_module(module);
+    __dl_remove_module(module);
     free(module);
 }
 
