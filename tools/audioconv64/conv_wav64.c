@@ -3,6 +3,9 @@
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav.h"
 
+#define DR_MP3_IMPLEMENTATION
+#include "dr_mp3.h"
+
 #include "vadpcm/vadpcm.h"
 #include "vadpcm/encode.c"
 #include "vadpcm/error.c"
@@ -32,23 +35,22 @@ int flag_wav_resample = 0;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
 
-int wav_convert(const char *infn, const char *outfn) {
-	if (flag_verbose) {
-		const char *compr[4] = { "raw", "vadpcm", "raw", "opus" };
-		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, compr[flag_wav_compress]);
-	}
+typedef struct {
+	int16_t *samples;
+	int channels;
+	int bitsPerSample;
+	int sampleRate;
+} wav_data_t;
 
-	bool failed = false;
+static size_t read_wav(const char *infn, wav_data_t *out)
+{
 	drwav wav;
 	if (!drwav_init_file(&wav, infn, NULL)) {
 		fprintf(stderr, "ERROR: %s: not a valid WAV/RIFF/AIFF file\n", infn);
-		return 1;
+		return 0;
 	}
 
-	if (flag_verbose)
-		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
-
-	// Decode the samples as 16bit big-endian. This will decode everything including
+	// Decode the samples as 16bit little-endian. This will decode everything including
 	// compressed formats so that we're able to read any kind of WAV file, though
 	// it will end up as an uncompressed file.
 	int16_t* samples = malloc(wav.totalPCMFrameCount * wav.channels * sizeof(int16_t));
@@ -56,6 +58,58 @@ int wav_convert(const char *infn, const char *outfn) {
 	if (cnt != wav.totalPCMFrameCount) {
 		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, wav.totalPCMFrameCount, cnt);
 	}
+
+	out->samples = samples;
+	out->channels = wav.channels;
+	out->bitsPerSample = wav.bitsPerSample;
+	out->sampleRate = wav.sampleRate;
+	drwav_uninit(&wav);
+	return cnt;
+}
+
+static size_t read_mp3(const char *infn, wav_data_t *out)
+{
+	drmp3 mp3;
+	if (!drmp3_init_file(&mp3, infn, NULL)) {
+		fprintf(stderr, "ERROR: %s: not a valid MP3 file\n", infn);
+		return 0;
+	}
+
+	uint64_t nframes = drmp3_get_pcm_frame_count(&mp3);
+	int16_t* samples = malloc(nframes * mp3.channels * sizeof(int16_t));
+	size_t cnt = drmp3_read_pcm_frames_s16(&mp3, nframes, samples);
+	if (cnt != nframes) {
+		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, nframes, cnt);
+	}
+
+	out->samples = samples;
+	out->channels = mp3.channels;
+	out->bitsPerSample = 16;
+	out->sampleRate = mp3.sampleRate;
+	drmp3_uninit(&mp3);
+	return cnt;
+}
+
+int wav_convert(const char *infn, const char *outfn) {
+	if (flag_verbose) {
+		const char *compr[4] = { "raw", "vadpcm", "raw", "opus" };
+		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, compr[flag_wav_compress]);
+	}
+
+	bool failed = false;
+	wav_data_t wav; size_t cnt;
+
+	// Read the input file
+	if (strcasestr(infn, ".mp3"))
+		cnt = read_mp3(infn, &wav);
+	else
+		cnt = read_wav(infn, &wav);
+	if (cnt == 0) {
+		return 1;
+	}
+
+	if (flag_verbose)
+		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
 
 	// Check if the user requested conversion to mono
 	if (flag_wav_mono && wav.channels == 2) {
@@ -66,7 +120,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		int16_t *mono_samples = malloc(cnt * sizeof(int16_t));
 
 		// Convert to mono
-		int16_t *sptr = samples;
+		int16_t *sptr = wav.samples;
 		int16_t *dptr = mono_samples;
 		for (int i=0;i<cnt;i++) {
 			int32_t v = *sptr + *(sptr+1);
@@ -77,8 +131,8 @@ int wav_convert(const char *infn, const char *outfn) {
 		}
 
 		// Replace the samples buffer with the mono one
-		free(samples);
-		samples = mono_samples;
+		free(wav.samples);
+		wav.samples = mono_samples;
 		wav.channels = 1;
 	}
 
@@ -106,7 +160,7 @@ int wav_convert(const char *infn, const char *outfn) {
 
 		// Convert input samples to float
 		float *fsamples_in = malloc(cnt * wav.channels * sizeof(float));
-		src_short_to_float_array(samples, fsamples_in, cnt * wav.channels);
+		src_short_to_float_array(wav.samples, fsamples_in, cnt * wav.channels);
 
 		// Allocate output buffer, estimating the size based on the ratio.
 		// We add some margin because we are not sure of rounding errors.
@@ -126,15 +180,14 @@ int wav_convert(const char *infn, const char *outfn) {
 			fprintf(stderr, "ERROR: %s: resampling failed: %s\n", infn, src_strerror(err));
 			free(fsamples_in);
 			free(fsamples_out);
-			free(samples);
-			drwav_uninit(&wav);
+			free(wav.samples);
 			return 1;
 		}
 
 		// Extract the number of samples generated, and convert back to 16-bit
 		cnt = data.output_frames_gen;
-		samples = realloc(samples, cnt * wav.channels * sizeof(int16_t));
-		src_float_to_short_array(fsamples_out, samples, cnt * wav.channels);
+		wav.samples = realloc(wav.samples, cnt * wav.channels * sizeof(int16_t));
+		src_float_to_short_array(fsamples_out, wav.samples, cnt * wav.channels);
 
 		free(fsamples_in);
 		free(fsamples_out);
@@ -168,8 +221,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {
 		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
-		free(samples);
-		drwav_uninit(&wav);
+		free(wav.samples);
 		return 1;
 	}
 
@@ -187,7 +239,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	switch (flag_wav_compress) {
 	case 0: { // no compression
 		w32_at(out, wstart_offset, ftell(out));
-		int16_t *sptr = samples;
+		int16_t *sptr = wav.samples;
 		for (int i=0;i<cnt*wav.channels;i++) {
 			// Byteswap *sptr
 			int16_t v = *sptr;
@@ -209,7 +261,7 @@ int wav_convert(const char *infn, const char *outfn) {
 			int idx = cnt - loop_len;
 			int nb = 0;
 			while (nb < OVERREAD_BYTES) {
-				int16_t *sptr = samples + idx*wav.channels;
+				int16_t *sptr = wav.samples + idx*wav.channels;
 				for (int ch=0;ch<wav.channels;ch++) {
 					nb += fwrite(sptr, 1, nbits==8 ? 1 : 2, out);
 					sptr++;
@@ -224,8 +276,8 @@ int wav_convert(const char *infn, const char *outfn) {
 	case 1: { // vadpcm
 		if (cnt % kVADPCMFrameSampleCount) {
 			int newcnt = (cnt + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
-			samples = realloc(samples, newcnt * wav.channels * sizeof(int16_t));
-			memset(samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
+			wav.samples = realloc(wav.samples, newcnt * wav.channels * sizeof(int16_t));
+			memset(wav.samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
 			cnt = newcnt;
 		}
 
@@ -245,7 +297,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		uint8_t *destchan = dest;
 		for (int i=0; i<wav.channels; i++) {
 			for (int j=0; j<cnt; j++)
-				schan[j] = samples[i + j*wav.channels];
+				schan[j] = wav.samples[i + j*wav.channels];
 			vadpcm_error err = vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
 			if (err != 0) {
 				fprintf(stderr, "VADPCM encoding error: %s\n", vadpcm_error_name(err));
@@ -327,14 +379,14 @@ int wav_convert(const char *infn, const char *outfn) {
 
 		// Pad input samples with zeros, rounding to frame size
 		int newcnt = (cnt + frame_size - 1) / frame_size * frame_size;
-		samples = realloc(samples, newcnt * wav.channels * sizeof(int16_t));
-		memset(samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
+		wav.samples = realloc(wav.samples, newcnt * wav.channels * sizeof(int16_t));
+		memset(wav.samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
 		
 		int max_nb = 0;
 		int out_max_size = bitrate_bps/8; // overestimation
 		uint8_t *out_buffer = malloc(out_max_size);
 		for (int i=0; i<newcnt; i+=frame_size) {
-			int nb = opus_custom_encode(enc, samples + i*wav.channels, frame_size, out_buffer, out_max_size);
+			int nb = opus_custom_encode(enc, wav.samples + i*wav.channels, frame_size, out_buffer, out_max_size);
 			if (nb < 0) {
 				fprintf(stderr, "ERROR: %s: opus encoding failed: %s\n", infn, opus_strerror(nb));
 				failed = true;
@@ -424,8 +476,7 @@ int wav_convert(const char *infn, const char *outfn) {
 
 end:
 	fclose(out);
-	free(samples);
-	drwav_uninit(&wav);
+	free(wav.samples);
 	if (failed) {
 		remove(outfn);
 		return 1;
