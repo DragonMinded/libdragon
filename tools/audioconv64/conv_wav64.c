@@ -57,7 +57,7 @@ static size_t read_wav(const char *infn, wav_data_t *out)
 	int16_t* samples = malloc(wav.totalPCMFrameCount * wav.channels * sizeof(int16_t));
 	size_t cnt = drwav_read_pcm_frames_s16le(&wav, wav.totalPCMFrameCount, samples);
 	if (cnt != wav.totalPCMFrameCount) {
-		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, wav.totalPCMFrameCount, cnt);
+		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, (uint64_t)wav.totalPCMFrameCount, cnt);
 	}
 
 	out->samples = samples;
