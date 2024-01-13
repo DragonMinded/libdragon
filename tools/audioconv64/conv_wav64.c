@@ -12,6 +12,7 @@
 
 #include "../common/binout.c"
 #include "../common/binout.h"
+#include "../common/polyfill.h"
 
 #define ENABLE_SINC_BEST_CONVERTER
 #define PACKAGE "libsamplerate"
