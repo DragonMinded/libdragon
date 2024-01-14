@@ -460,7 +460,6 @@ void *dlopen(const char *filename, int mode)
         //Link module
         link_module(handle);
         handle->mode = mode;
-
         //Start running module
         start_module(handle);
     }

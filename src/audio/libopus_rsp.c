@@ -12,11 +12,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-DEFINE_RSP_UCODE(rsp_opus_dsp);
-DEFINE_RSP_UCODE(rsp_opus_imdct);
+DEFINE_RSP_UCODE(rsp_opus_dsp);         ///< RSP ucode for DSP functions
+DEFINE_RSP_UCODE(rsp_opus_imdct);       ///< RSP ucode for IMDCT
 
 static void fft_init(void);
 
+/** @brief Initialize Opus RSP acceleration */
 void rsp_opus_init(void)
 {
     static bool init = false;
@@ -80,16 +81,29 @@ static void rsp_cmd_memmove(int32_t *dst, int32_t *src, int nsamples)
    rspq_write(0x9<<28, 0x2,
       PhysicalAddr(dst),
       PhysicalAddr(src),
-      nsamples*4);
+      nsamples * sizeof(int32_t));
 }
 
+static void rsp_cmd_clear(int32_t *dst, int nsamples)
+{
+   rspq_write(0x9<<28, 0x3,
+      PhysicalAddr(dst),
+      nsamples * sizeof(int32_t));
+}
 
 /*******************************************************************************
  * Memmove
  *******************************************************************************/
 
+/** @brief Do a memmove with RSP to move back samples in the output buffer */
 void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len) {
     rsp_cmd_memmove(dst, src, len);
+    rspq_flush();
+}
+
+/** @brief Clear output buffer with RSP */
+void rsp_opus_clear(celt_sig *dst, opus_int32 len) {
+    rsp_cmd_clear(dst, len);
     rspq_flush();
 }
 
@@ -97,22 +111,23 @@ void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len) {
  * IMDCT (and FFT)
  *******************************************************************************/
 
-DEFINE_RSP_UCODE(rsp_opus_fft_prerot);
-DEFINE_RSP_UCODE(rsp_opus_fft_bfly2);
-DEFINE_RSP_UCODE(rsp_opus_fft_bfly3);
-DEFINE_RSP_UCODE(rsp_opus_fft_bfly4);
-DEFINE_RSP_UCODE(rsp_opus_fft_bfly4m1);
-DEFINE_RSP_UCODE(rsp_opus_fft_bfly5);
-DEFINE_RSP_UCODE(rsp_opus_fft_postrot);
+DEFINE_RSP_UCODE(rsp_opus_fft_prerot);      ///< RSP ucode for IMDCT pre-rotation
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly2);       ///< RSP ucode for FFT butterfly 2
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly3);       ///< RSP ucode for FFT butterfly 3
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly4);       ///< RSP ucode for FFT butterfly 4
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly4m1);     ///< RSP ucode for FFT butterfly 4 (multiplicity 1)
+DEFINE_RSP_UCODE(rsp_opus_fft_bfly5);       ///< RSP ucode for FFT butterfly 5
+DEFINE_RSP_UCODE(rsp_opus_fft_postrot);     ///< RSP ucode for IMDCT post-rotation
 
+/// @brief Description of a single pass of the FFT
 typedef struct {
-    uint16_t consts[8][8];      // Up to 8 vector constants
-    uint32_t next_pass_rdram;   // Pointer to next pass in RDRAM (or 0 if it's the last)
-    uint32_t func_rdram;        // Address of the butterfly function in RDRAM (overlay)
-    uint32_t stride, m, n, mm;  // Parameters for the butterfly function
+    uint16_t consts[8][8];      ///< Up to 8 vector constants
+    uint32_t next_pass_rdram;   ///< Pointer to next pass in RDRAM (or 0 if it's the last)
+    uint32_t func_rdram;        ///< Address of the butterfly function in RDRAM (overlay)
+    uint32_t stride, m, n, mm;  ///< Parameters for the butterfly function
 } opus_fft_pass_t;
 
-
+/// @cond
 #define __KF_ANGLE16_COS(i, N)             (((i) * (65536-1) / (N)) & 0xFFFF)
 #define __KF_ANGLE16_SIN(i, N)             ((__KF_ANGLE16_COS(i, N) + 0x4000) & 0xFFFF)
 #define __KF_BFLY_FSTRIDE_CPX(stride, N)   __KF_ANGLE16_COS(stride, N), __KF_ANGLE16_SIN(stride, N)
@@ -283,7 +298,7 @@ typedef struct {
     { 0x0044, 0x0266, 0x0489, 0x06ab, 0x08cd, 0x0aef, 0x0d11, 0x0f33 }
 #define KF_PREROT_TWINCR_60() \
     { 0x1111 }
-
+/// @endcond
 
 static opus_fft_pass_t fft_60[5];
 static opus_fft_pass_t fft_480[7];
@@ -381,11 +396,13 @@ static void fft_init(void) {
     data_cache_hit_writeback_invalidate(fft_480, sizeof(fft_480));
 }
 
+/** @brief Compare RSP and C implementation of IMDCT */
+#define COMPARE_MDCT_REFERENCE 0
+
+/** @brief Run a IMDCT on RSP */
 void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_scalar * OPUS_RESTRICT out,
       const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int B, int NB, int arch)
 {
-    #define COMPARE_MDCT_REFERENCE 0
-
     int N = l->n >> shift;
 
     #if COMPARE_MDCT_REFERENCE
@@ -544,11 +561,19 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
  * that describes how/where the buffer in DMEM must be split.
  */
 
-void comb_filter_const_c(opus_val32 *y, opus_val32 *x, int T, int N,
+/** @brief Compare RSP and C implementation of comb filter */
+#define COMPARE_REFERENCE 0
+
+/** @brief Compare RSP and C implementation of dual comb filter */
+#define COMPARE_REFERENCE_DUAL 0
+
+/** @brief Reference implementation of comb filter */
+extern void comb_filter_const_c(opus_val32 *y, opus_val32 *x, int T, int N,
       opus_val16 g10, opus_val16 g11, opus_val16 g12);
 
 static const int RSP_MAX_SAMPLES = 688;
 
+/** @brief Layout of samples within RSP during combfilter */
 typedef struct {
     int nT0;        // Delay offset T0 (possibly adjusted for alignment)
     int nT1;        // Delay offset T1 (possibly adjusted for alignment)
@@ -637,12 +662,11 @@ static int rsp_comb_fetch_all(opus_val32 *x, rsp_layout_t *L, int N)
     return nproc;
 }
 
+/** @brief Run a comb filter on the RSP */
 void rsp_opus_comb_filter_const(opus_val32 *y, opus_val32 *x, int T, int N,
       opus_val16 g10, opus_val16 g11, opus_val16 g12, int arch)
 {
     assert(x == y);
-
-#define COMPARE_REFERENCE 0
 
 #if COMPARE_REFERENCE
     rspq_wait();
@@ -697,12 +721,12 @@ void rsp_opus_comb_filter_const(opus_val32 *y, opus_val32 *x, int T, int N,
 #endif
 }
 
+/** @brief Run a dual comb filter on the RSP */
 void rsp_opus_comb_filter_dual(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
       opus_val16 g00, opus_val16 g01, opus_val16 g02,
       opus_val16 g10, opus_val16 g11, opus_val16 g12,
       const opus_val16 *window)
 {
-    #define COMPARE_REFERENCE_DUAL 0
     #if COMPARE_REFERENCE_DUAL
         rspq_wait();
         int TT = T0 > T1 ? T0 : T1;
@@ -816,11 +840,14 @@ void rsp_opus_comb_filter_dual(opus_val32 *y, opus_val32 *x, int T0, int T1, int
  * RSP version of deemphasis() in celt_decoder.c
  *******************************************************************************/
 
+/** @brief Compare RSP and C emphasis filter */
 #define RSP_DEEMPHASIS_COMPARE 0
 
-void deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef,
+/** @brief Reference implementation of the emphasis filter */
+extern void deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef,
       celt_sig *mem, int accum);
 
+/** @brief Run the emphasis filter on teh RSP */
 void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef,
       celt_sig *mem, int accum)
 {
@@ -844,7 +871,6 @@ void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int down
    assert(accum == 0);
    assert(PhysicalAddr(in[0]) % 8 == 0);
    if (C>1) assert(PhysicalAddr(in[1]) % 8 == 0);
-   assert(PhysicalAddr(pcm) % 8 == 0);
    assert(PhysicalAddr(mem) % 8 == 0);
 
    #if !RSP_COMB_FILTER

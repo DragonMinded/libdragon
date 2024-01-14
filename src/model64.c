@@ -219,14 +219,12 @@ static model64_data_t *load_model64_data(const char *fn)
 model64_t *model64_load_buf(void *buf, int sz)
 {
     model64_data_t *data = load_model64_data_buf(buf, sz);
-    data->ref_count++;
     return make_model_instance(data);
 }
 
 model64_t *model64_load(const char *fn)
 {
     model64_data_t *data = load_model64_data(fn);
-    data->ref_count++;
     return make_model_instance(data);
 }
 

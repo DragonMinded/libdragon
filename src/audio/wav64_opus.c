@@ -44,17 +44,19 @@
 
 #include "libopus_internal.h"
 
+/// @brief Wav64 Opus header extension
 typedef struct {
-    uint32_t frame_size;
-    uint32_t max_cmp_frame_size;
-    uint32_t bitrate_bps;
+    uint32_t frame_size;            ///< Size of an audioframe in samples
+    uint32_t max_cmp_frame_size;    ///< Maximum compressed frame size in bytes
+    uint32_t bitrate_bps;           ///< Bitrate in bits per second
 } wav64_opus_header_ext;
 
+/// @brief Wav64 Opus state
 typedef struct {
-    wav64_opus_header_ext xhead;
-    uint32_t current_rom_addr;
-    OpusCustomMode *mode;
-    OpusCustomDecoder *dec;
+    wav64_opus_header_ext xhead;    ///< Opus header extension
+    uint32_t current_rom_addr;      ///< Current ROM reading address
+    OpusCustomMode *mode;           ///< Opus custom mode for this file
+    OpusCustomDecoder *dec;         ///< Opus decoder for this file
 } wav64_opus_state;
 
 static uint16_t io_read16(uint32_t addr) {
@@ -92,7 +94,7 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
         if (wpos >= wav->wave.len) {
             // End of file. This request can happen because of the RSP mixer overread.
             // FIXME: maybe the mixer should handle this case?
-            memset(out, 0, st->xhead.frame_size*2);
+            memset(out, 0, st->xhead.frame_size * wav->wave.channels * sizeof(int16_t));
         } else {
             // Read frame size
             int nb = io_read16(st->current_rom_addr);
@@ -119,7 +121,6 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     }
 
     if (wav->wave.loop_len && wpos >= wav->wave.len) {
-        debugf("undo: %d\n", wpos - wav->wave.len);
         assert(wav->wave.loop_len == wav->wave.len);
         samplebuffer_undo(sbuf, wpos - wav->wave.len);
     }
@@ -130,6 +131,8 @@ void wav64_opus_init(wav64_t *wav, int fh) {
     dfs_read(&xhead, sizeof(xhead), 1, fh);
     debugf("opus header: frame_size=%ld, max_cmp_frame_size=%ld, bitrate_bps=%ld\n", xhead.frame_size, xhead.max_cmp_frame_size, xhead.bitrate_bps);
     debugf("frequency: %f\n", wav->wave.frequency);
+
+    rsp_opus_init();
 
     int err = OPUS_OK;
     OpusCustomMode *custom_mode = opus_custom_mode_create(wav->wave.frequency, xhead.frame_size, &err);
@@ -147,8 +150,6 @@ void wav64_opus_init(wav64_t *wav, int fh) {
     wav->ext = state;
     wav->wave.read = waveform_opus_read;
     wav->wave.ctx = wav;
-
-    rsp_opus_init();
 }
 
 void wav64_opus_close(wav64_t *wav) {

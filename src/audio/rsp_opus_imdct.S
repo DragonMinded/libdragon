@@ -9,6 +9,7 @@
         RSPQ_DefineCommand OPUS_imdct, 24                # 0x0
         RSPQ_DefineCommand OPUS_window, 8                # 0x1
         RSPQ_DefineCommand OPUS_memmove, 12              # 0x2
+        RSPQ_DefineCommand OPUS_clear, 8                 # 0x3
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -565,7 +566,6 @@ MOVE_BUFFER: .space MOVE_BUFFER_SIZE
 
     .func OPUS_memmove
 OPUS_memmove:
-    emux_breakpoint
     #if RSPQ_DEBUG
     andi t0, a0, 7
     assert_eq t0, 0, 0x8509
@@ -601,12 +601,50 @@ OPUS_memmove_loop:
     .endfunc
 
 
+    ############################################################################
+    # OPUS_clear
+    #
+    # This is called to clear the decode buffer, during OPUS_RESET_STATE.
+    #
+    # Input values:
+    #   a0: 0..23:  RDRAM pointer to destination data
+    #   a1:         Number of bytes word to clear
+    ############################################################################
 
+    .func OPUS_clear
+OPUS_clear:
+    #if RSPQ_DEBUG
+    andi t0, a0, 7
+    assert_eq t0, 0, 0x850A
+    #endif
 
+    li t4, MOVE_BUFFER_SIZE
+    li s4, %lo(MOVE_BUFFER)
+1:  sqv vzero, 0x00,s4
+    addiu t4, -16
+    bgtz t4, 1b
+    nop
 
+OPUS_clear_loop:
+    move t4, a1
+    ble t4, MOVE_BUFFER_SIZE, 1f
+    nop
+    li t4, MOVE_BUFFER_SIZE
+1:
+    move s0, a0
+    li s4, %lo(MOVE_BUFFER)
+    jal DMAOut
+    addiu t0, t4, -1
 
+    addu a0, t4
+    addiu a1, -MOVE_BUFFER_SIZE
+    bgtz a1, OPUS_clear_loop
+    nop
 
+    j RSPQ_Loop
+    nop
 
+    .endfunc
 
 
 

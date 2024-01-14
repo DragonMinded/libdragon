@@ -534,6 +534,8 @@ OPUS_deemphasis:
 
     li out_step, 4
     li dmem_out, %lo(DEEMPH_OUT) - 4*8
+    andi t0, rdram_out, 7
+    addu dmem_out, t0
 
     # Load coefficient matrix
 1:  li s0, %lo(KEMPHTABLE)
@@ -631,6 +633,8 @@ OPUS_deemphasis_loop:
     # Setup state for right channel
     li dmem_in, %lo(DEEMPH_IN_R)
     li dmem_out, %lo(DEEMPH_OUT) - 4*8 + 2
+    andi t0, rdram_out, 7
+    addu dmem_out, t0
     j OPUS_deemphasis_start
     addiu dmem_state, 4
 
@@ -645,6 +649,9 @@ OPUS_downsample:
     # is probably the most common case.
     li s0, %lo(DEEMPH_OUT)
     li s4, %lo(DEEMPH_OUT)
+    andi t0, rdram_out, 7
+    addu s0, t0
+    addu s4, t0
     sll downsample_factor, 1            # account for 16-bit
     sll num_samples, total_samples, 1   # account for 16-bit
 
@@ -692,6 +699,28 @@ OPUS_downsample_loop_mono:
     sdv vpcm.e0, -8,s4
 
 OPUS_deemphasis_out:
+    and t0, rdram_out, 7
+    beqz t0, OPUS_deemphasis_out2
+    nop
+
+    # Handle unaligned output buffer: we need to fetch and merge
+    # existing samples on misaligned addresses
+    emux_breakpoint
+    move s0, rdram_out
+    jal DMAIn
+    li s4, %lo(DEEMPH_IN_L)
+    
+    li s0, %lo(DEEMPH_OUT)
+    li s4, %lo(DEEMPH_IN_L)
+OPUS_deemphasis_merge_loop:
+    lhu t1, 0(s4)
+    addiu s4, 2
+    sh t1, 0(s0)
+    addiu t0, -2
+    bnez t0, OPUS_deemphasis_merge_loop
+    addiu s0, 2
+
+OPUS_deemphasis_out2:
     move s0, rdram_out
     li s4, %lo(DEEMPH_OUT)
     sub t0, s3, s4
