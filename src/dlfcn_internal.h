@@ -33,4 +33,7 @@ extern dl_module_t *__dl_list_tail;
 /** @brief Number of loaded modules */
 extern size_t __dl_num_loaded_modules;
 
+/** @brief Checks if module handle is valid */
+extern bool __dl_is_valid_handle(void *handle);
+
 #endif

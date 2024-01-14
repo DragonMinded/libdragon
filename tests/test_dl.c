@@ -59,8 +59,8 @@ void test_dlclose(TestContext *ctx) {
 
 void test_dlsym_rtld_default(TestContext *ctx) {
 	//Open both modules with their symbols exported
-	void *handle1 = dlopen("rom:/dl_test_syms.dso", RTLD_GLOBAL);
-	void *handle2 = dlopen("rom:/dl_test_imports.dso", RTLD_GLOBAL);
+	void *handle1 = dlopen("rom:/dl_test_imports.dso", RTLD_GLOBAL);
+	void *handle2 = dlopen("rom:/dl_test_syms.dso", RTLD_GLOBAL);
 	DEFER(dlclose(handle2));
 	DEFER(dlclose(handle1));
 	//Do RTLD_DEFAULT symbol search of known duplicate symbol

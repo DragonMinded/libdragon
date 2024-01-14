@@ -21,8 +21,7 @@ SceneBase::~SceneBase()
 
 void SceneMgr::Init()
 {
-    //Load as global to expose its symbols to other overlays
-    scene_common_ovl = dlopen("rom:/scene_common.dso", RTLD_GLOBAL);
+
 }
 
 void SceneMgr::SetNextScene(std::string name)

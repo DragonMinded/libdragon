@@ -1,6 +1,8 @@
 #include <libdragon.h>
 #include "bg_test.h"
 
+DL_DSO_DEPENDENCY("rom:/scene_common.dso");
+
 BGTest::BGTest()
 {
     //Load background and crosshair images

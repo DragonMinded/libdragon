@@ -350,15 +350,33 @@ static void relocate_module(dso_module_t *module)
     }
 }
 
+static void fixup_dso_deps(dso_module_t *module)
+{
+    if(module->dso_deps == NULL) {
+        return;
+    }
+    module->dso_deps = PTR_DECODE(module->prog_base, module->dso_deps);
+    for(uint32_t i=0; i<module->dso_dep_count; i++) {
+        module->dso_deps[i] = PTR_DECODE(module->prog_base, module->dso_deps[i]);
+    }
+}
+
+static void load_dso_deps(dso_module_t *module)
+{
+    if(module->dso_deps == NULL) {
+        return;
+    }
+    for(uint32_t i=0; i<module->dso_dep_count; i++) {
+        dlopen(module->dso_deps[i], RTLD_GLOBAL);
+    }
+}
+
 static void link_module(dso_module_t *module)
 {
-    //Relocate module pointers
-    module->syms = PTR_DECODE(module, module->syms);
-    module->relocs = PTR_DECODE(module, module->relocs);
-    module->prog_base = PTR_DECODE(module, module->prog_base);
-    module->src_elf = PTR_DECODE(module, module->src_elf);
-    module->filename = PTR_DECODE(module, module->filename);
+    
     fixup_sym_names(module->syms, (uint8_t *)module, module->num_syms);
+    fixup_dso_deps(module);
+    load_dso_deps(module);
     resolve_syms(module);
     relocate_module(module);
     flush_module(module);
@@ -420,8 +438,13 @@ void *dlopen(const char *filename, int mode)
     } else {
         handle = asset_load(filename, NULL);
         assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
-        link_module(handle);
-        handle->mode = mode;
+        //Relocate header pointers
+        handle->filename = PTR_DECODE(handle, handle->filename);
+        handle->syms = PTR_DECODE(handle, handle->syms);
+        handle->relocs = PTR_DECODE(handle, handle->relocs);
+        handle->prog_base = PTR_DECODE(handle, handle->prog_base);
+        handle->src_elf = PTR_DECODE(handle, handle->src_elf);
+        //Read symbols
         sprintf(handle->filename, "%s.sym", filename+5);
         handle->sym_romofs = dfs_rom_addr(handle->filename) & 0x1FFFFFFF;
         if(handle->sym_romofs == 0) {
@@ -429,11 +452,15 @@ void *dlopen(const char *filename, int mode)
             debugf("Could not find module symbol file %s.\n", handle->filename);
             debugf("Will not get symbolic backtraces through this module.\n");
         }
-        strcpy(handle->filename, filename);
         //Add module handle to list
         handle->ref_count = 1;
+        strcpy(handle->filename, filename);
 		__dl_lookup_module = lookup_module;
         __dl_insert_module(handle);
+        //Link module
+        link_module(handle);
+        handle->mode = mode;
+
         //Start running module
         start_module(handle);
     }
@@ -454,6 +481,11 @@ static bool is_valid_module(dl_module_t *module)
     }
     //Module is not found
     return false;
+}
+
+bool __dl_is_valid_handle(void *handle)
+{
+    return is_valid_module(handle);
 }
 
 void *dlsym(void *handle, const char *symbol)
@@ -536,12 +568,27 @@ static void end_module(dl_module_t *module)
     }
 }
 
+static void unload_dso_deps(dso_module_t *module)
+{
+    if(!module->dso_deps) {
+        return;
+    }
+    for(uint32_t i=0; i<module->dso_dep_count; i++) {
+        uint32_t module_idx = module->dso_dep_count-i-1;
+        dso_module_t *del_module = search_module_filename(module->dso_deps[module_idx]);
+        if(del_module) {
+            dlclose(del_module);
+        }
+    }
+}
+
 static void close_module(dl_module_t *module)
 {
     //Deinitialize module
     end_module(module);
     //Remove module from memory
     __dl_remove_module(module);
+    unload_dso_deps(module);
     free(module);
 }
 

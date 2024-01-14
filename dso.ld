@@ -65,7 +65,12 @@ SECTIONS {
     .lit4 : {
         *(.lit4)
     }
-    
+
+    /* Write DSO Dependency data */
+    .dsodep : {
+        KEEP(*(.dsodep))
+    }
+
     /* Write bss sections */
     .sbss (NOLOAD) : {
         *(.sbss)

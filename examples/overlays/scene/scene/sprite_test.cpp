@@ -1,6 +1,8 @@
 #include <libdragon.h>
 #include "sprite_test.h"
 
+DL_DSO_DEPENDENCY("rom:/scene_common.dso");
+
 //List of sprite filenames
 const std::string sprite_filenames[SpriteTest::NUM_SPRITE_IMAGES] = {
     "rom:/ball_rectangle.sprite",

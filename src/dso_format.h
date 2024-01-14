@@ -47,6 +47,8 @@ typedef struct dso_module_s {
     uint32_t ehframe_obj[6];    ///< Exception frame object
     uint32_t sym_romofs;        ///< Debug symbol data rom address
     uint32_t mode;              ///< Dynamic library flags
+    char **dso_deps;            ///< List of DSO Dependencies
+    uint32_t dso_dep_count;     ///< Number of DSO Dependencies
 } dso_module_t;
 
 /** @brief Information to load main executable symbol table */

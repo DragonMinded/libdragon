@@ -49,6 +49,7 @@ typedef struct elf_info_s {
     elf_symbol_t **export_syms;
     elf_load_seg_t load_seg;
     char *strtab;
+    char *shstrtab;
 } elf_info_t;
 
 //DSO Format Internals
@@ -121,6 +122,7 @@ void elf_info_free(elf_info_t *elf_info)
     stbds_arrfree(elf_info->syms);
     free(elf_info->load_seg.data);
     free(elf_info->strtab); //Free string table
+    free(elf_info->shstrtab); //Free section header string table
     free(elf_info);
 }
 
@@ -257,6 +259,26 @@ bool elf_section_header_read(elf_info_t *elf_info, Elf32_Half index, Elf32_Shdr 
     bswap32(&shdr->sh_addralign);
     bswap32(&shdr->sh_entsize);
     return true;
+}
+
+bool elf_read_shstrtab(elf_info_t *elf_info)
+{
+    Elf32_Shdr shdr;
+    if(!elf_section_header_read(elf_info, elf_info->header.e_shstrndx, &shdr)) {
+        fprintf(stderr, "Invalid shstrtab index %u\n", elf_info->header.e_shstrndx);
+        return false;
+    }
+    elf_info->shstrtab =  malloc(shdr.sh_size);
+    if(!read_checked(elf_info->file, shdr.sh_offset, elf_info->shstrtab, shdr.sh_size)) {
+        fprintf(stderr, "Failed to read associated section header string table\n");
+        return false;
+    }
+    return true;
+}
+
+char *elf_section_header_get_name(elf_info_t *elf_info, Elf32_Shdr *shdr)
+{
+    return elf_info->shstrtab+shdr->sh_name;
 }
 
 bool elf_section_fully_inside_prog(elf_info_t *elf_info, Elf32_Shdr *shdr)
@@ -502,10 +524,18 @@ bool dso_build_relocations(dso_module_t *module, elf_info_t *elf_info)
         if(shdr.sh_type == SHT_REL) {
             //Read applied section
             Elf32_Shdr applied_shdr;
+            char *name;
             if(!elf_section_header_read(elf_info, shdr.sh_info, &applied_shdr)) {
                 return false;
             }
-            //Include relocations applied to sections fully inside program
+            name = elf_section_header_get_name(elf_info, &applied_shdr);
+            if(strcmp(name, ".dsodep") == 0) {
+                uintptr_t dso_deps_addr = (uintptr_t)applied_shdr.sh_addr;
+                module->dso_deps = (char **)dso_deps_addr;
+                module->dso_dep_count = applied_shdr.sh_size/4;
+                continue;
+            }
+            //Include relocations applied to sections fully inside program and aren't from .dsodep
             if(elf_section_fully_inside_prog(elf_info, &applied_shdr)) {
                 for(uint32_t j=0; j<shdr.sh_size/sizeof(Elf32_Rel); j++) {
                     //Read ELF relocation
@@ -578,6 +608,7 @@ void dso_write_program(elf_info_t *elf_info, FILE *out_file)
 
 void dso_write_header(dso_module_t *module, FILE *out_file)
 {
+    uintptr_t dso_deps_addr = (uintptr_t)module->dso_deps;
     w32(out_file, DSO_MAGIC);
     w32(out_file, 0);
     w32(out_file, 0);
@@ -596,6 +627,8 @@ void dso_write_header(dso_module_t *module, FILE *out_file)
     }
     w32(out_file, 0);
     w32(out_file, 0);
+    w32(out_file, dso_deps_addr);
+    w32(out_file, module->dso_dep_count);
 }
 
 void dso_write_elf_path(dso_module_t *module, FILE *out_file)
@@ -641,7 +674,12 @@ bool convert(char *infn, char *outfn)
         goto end1;
     }
     //Find loadable program segment in ELF file
-    verbose("Finding one loadable segment in ELF file\n");
+    verbose("Reading section header string table\n");
+    if(!elf_read_shstrtab(elf_info)) {
+        goto end1;
+    }
+    //Find loadable program segment in ELF file
+    verbose("Finding the loadable segment in ELF file\n");
     if(!elf_get_load_seg(elf_info)) {
         goto end1;
     }

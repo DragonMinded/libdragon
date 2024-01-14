@@ -36,6 +36,9 @@ typedef struct {
     void       *dli_saddr;
 } Dl_info;
 
+#define DL_DSO_DEPENDENCY(name) \
+    static __attribute__((section(".dsodep"), used)) const char *__PPCAT(__dsodep_, __COUNTER__) = name
+
 #ifdef __cplusplus
 extern "C" {
 #endif
