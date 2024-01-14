@@ -1,3 +1,9 @@
+/**
+ * @file libopus_internal.h
+ * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @brief C-level glue for RSP ucode for Opus decoding
+ */
+
 #ifndef LIBDRAGON_AUDIO_LIBOPUS_INTERNAL_H
 #define LIBDRAGON_AUDIO_LIBOPUS_INTERNAL_H
 
@@ -46,6 +52,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
       const opus_val16 * OPUS_RESTRICT window, int overlap, int shift, int stride, int B, int NB, int arch);
 
 void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len);
+void rsp_opus_clear(celt_sig *dst, opus_int32 len);
 
 #endif
 
