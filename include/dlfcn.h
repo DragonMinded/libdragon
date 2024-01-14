@@ -36,6 +36,8 @@ typedef struct {
     void       *dli_saddr;
 } Dl_info;
 
+/** @brief Add DSO file to load before this DSO. */
+
 #define DL_DSO_DEPENDENCY(name) \
     static __attribute__((section(".dsodep"), used)) const char *__PPCAT(__dsodep_, __COUNTER__) = name
 
