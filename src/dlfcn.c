@@ -373,7 +373,12 @@ static void load_dso_deps(dso_module_t *module)
 
 static void link_module(dso_module_t *module)
 {
-    
+    //Relocate module pointers
+    module->syms = PTR_DECODE(module, module->syms);
+    module->relocs = PTR_DECODE(module, module->relocs);
+    module->prog_base = PTR_DECODE(module, module->prog_base);
+    module->src_elf = PTR_DECODE(module, module->src_elf);
+    module->filename = PTR_DECODE(module, module->filename);
     fixup_sym_names(module->syms, (uint8_t *)module, module->num_syms);
     fixup_dso_deps(module);
     load_dso_deps(module);
@@ -438,13 +443,8 @@ void *dlopen(const char *filename, int mode)
     } else {
         handle = asset_load(filename, NULL);
         assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
-        //Relocate header pointers
-        handle->filename = PTR_DECODE(handle, handle->filename);
-        handle->syms = PTR_DECODE(handle, handle->syms);
-        handle->relocs = PTR_DECODE(handle, handle->relocs);
-        handle->prog_base = PTR_DECODE(handle, handle->prog_base);
-        handle->src_elf = PTR_DECODE(handle, handle->src_elf);
-        //Read symbols
+        link_module(handle);
+        handle->mode = mode;
         sprintf(handle->filename, "%s.sym", filename+5);
         handle->sym_romofs = dfs_rom_addr(handle->filename) & 0x1FFFFFFF;
         if(handle->sym_romofs == 0) {
@@ -452,21 +452,17 @@ void *dlopen(const char *filename, int mode)
             debugf("Could not find module symbol file %s.\n", handle->filename);
             debugf("Will not get symbolic backtraces through this module.\n");
         }
+        strcpy(handle->filename, filename);
         //Add module handle to list
         handle->ref_count = 1;
-        strcpy(handle->filename, filename);
 		__dl_lookup_module = lookup_module;
         __dl_insert_module(handle);
-        //Link module
-        link_module(handle);
-        handle->mode = mode;
         //Start running module
         start_module(handle);
     }
     //Return module handle
     return handle;
 }
-
 static bool is_valid_module(dl_module_t *module)
 {
     //Iterate over loaded modules
@@ -588,6 +584,7 @@ static void close_module(dl_module_t *module)
     //Remove module from memory
     __dl_remove_module(module);
     unload_dso_deps(module);
+    debugf("Deleting module %s\n", module->filename);
     free(module);
 }
 
