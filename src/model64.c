@@ -11,14 +11,162 @@
 #include "model64_internal.h"
 #include "asset.h"
 #include "debug.h"
+#include "sprite.h"
 #include "utils.h"
+#include "rdpq_tex.h"
 
 #include "model64_catmull.h"
+
+
+/** @brief Loading state of a texture_entry_t */
+typedef enum {
+    ENTRY_STATE_EMPTY = 0,
+    ENTRY_STATE_SPRITE_LOADED,
+    ENTRY_STATE_FULL
+} texture_entry_state_t;
+
+/** @brief A single, possibly empty, shared texture */
+typedef struct texture_entry_s {
+    char *path;                  ///< Original file path of a texture, used as a key
+    texture_entry_state_t state; ///< Is only the sprite loaded or also a GL texture object
+    sprite_t *sprite;            ///< A sprite with image data
+    GLuint obj;                  ///< Texture object created on first draw
+    int ref_count;               ///< Reference count from all models
+} texture_entry_t;
+
+/** @brief Contains shared textures and their metadata */
+typedef struct texture_table_s {
+    texture_entry_t *entries; ///< Path to entry mapping with empty slots
+    uint32_t size;            ///< Number of elements allocated for the array above
+    int ref_count;            ///< How many models have shared textures
+} texture_table_t;
+
+static texture_table_t* shared_textures;
+
+void texture_table_allocate()
+{
+    shared_textures = calloc(1, sizeof(texture_table_t));
+    shared_textures->size = 2;
+    shared_textures->entries = calloc(shared_textures->size, sizeof(shared_textures->entries[0]));
+    shared_textures->ref_count = 1;
+}
+
+void free_texture_entry(texture_entry_t *entry) {
+    assertf(entry->ref_count == 0, "Leaked a texture entry %p", entry);
+    free(entry->path);
+    sprite_free(entry->sprite);
+    if (entry->state == ENTRY_STATE_FULL) {
+        glDeleteTextures(1, &entry->obj);
+    }
+    entry->path = NULL;
+    entry->state = ENTRY_STATE_EMPTY;
+    entry->sprite = NULL;
+}
+
+void texture_table_free()
+{
+    assertf(shared_textures->ref_count == 0, "Tried freeing texture table while still in use");
+
+    for (uint32_t i = 0; i < shared_textures->size; i++) {
+        texture_entry_t *entry = &shared_textures->entries[i];
+        assertf(entry->state == ENTRY_STATE_EMPTY, "Shared texture %lu=%p was leaked", i, entry);
+    }
+    free(shared_textures->entries);
+    free(shared_textures);
+    shared_textures = NULL;
+}
+
+uint32_t texture_table_get(const char* path)
+{
+    for (uint32_t i = 0; i < shared_textures->size; i++) {
+        texture_entry_t *entry = &shared_textures->entries[i];
+        if (entry->state != ENTRY_STATE_EMPTY) {
+            if (strcmp(shared_textures->entries[i].path, path) == 0) {
+                return i;
+            }
+        }
+    }
+
+    return TEXTURE_INDEX_MISSING;
+}
+
+uint32_t texture_table_add(const char* path, const char* prefix)
+{
+    uint32_t idx = TEXTURE_INDEX_MISSING;
+
+    for (uint32_t i = 0; i < shared_textures->size; i++) {
+        texture_entry_t *entry = &shared_textures->entries[i];
+        if (entry->state == ENTRY_STATE_EMPTY) {
+            idx = i;
+            break;
+        }
+    }
+
+    if (idx == TEXTURE_INDEX_MISSING) {
+        // Table must be full because a free slot wasn't found.
+        uint32_t new_size = shared_textures->size * 2;
+        shared_textures->entries = realloc(shared_textures->entries, new_size * sizeof(shared_textures->entries[0]));
+        assertf(shared_textures->entries, "Entry array allocation failed");
+
+        for (uint32_t i = shared_textures->size; i < new_size; i++) {
+            memset(&shared_textures->entries[i], 0, sizeof(shared_textures->entries[i]));
+        }
+
+        idx = shared_textures->size;
+        shared_textures->size = new_size;
+    }
+
+    char prefixed[strlen(prefix) + strlen(path) + 1]; 
+    prefixed[0] = '\0';
+    strcat(prefixed, prefix);
+    strcat(prefixed, path);
+    
+    sprite_t *sprite = sprite_load(prefixed);
+
+    if (!sprite) {
+        assertf(false, "Failed to load texture %s\n", prefixed);
+        return TEXTURE_INDEX_MISSING;
+    }
+
+    size_t size = strlen(path) + 1;
+    char *new = malloc(size);
+    strncpy(new, path, size);
+
+    texture_entry_t* entry = &shared_textures->entries[idx];
+    entry->path = new;
+    entry->sprite = sprite;
+    entry->ref_count = 0; // caller will increment ref_count if it stored a reference
+    entry->state = ENTRY_STATE_SPRITE_LOADED; // entry->obj gets initialized on first draw
+
+    return idx;
+}
+
+void texture_table_inc_ref_count(uint32_t idx)
+{
+    if (idx == TEXTURE_INDEX_MISSING) return;
+    assert(idx < shared_textures->size);
+    assert(shared_textures->entries[idx].ref_count >= 0);
+    shared_textures->entries[idx].ref_count++;
+}
+
+void texture_table_dec_ref_count(uint32_t idx)
+{
+    if (idx == TEXTURE_INDEX_MISSING) return;
+
+    assert(idx < shared_textures->size);
+
+    texture_entry_t* entry = &shared_textures->entries[idx];
+    assert(entry->ref_count > 0);
+
+    if (--entry->ref_count == 0) {
+        free_texture_entry(entry);
+    }
+}
 
 #define PTR_DECODE(model, ptr)    ((void*)(((uint8_t*)(model)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(model, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(model)))
 
-static model64_data_t *load_model_data_buf(void *buf, int sz)
+static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix)
 {
     model64_data_t *model = buf;
     assertf(sz >= sizeof(model64_data_t), "Model buffer too small (sz=%d)", sz);
@@ -30,6 +178,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
     model->meshes = PTR_DECODE(model, model->meshes);
     model->skins = PTR_DECODE(model, model->skins);
     model->anims = PTR_DECODE(model, model->anims);
+    model->texture_paths = PTR_DECODE(model, model->texture_paths);
     for(uint32_t i=0; i<model->num_skins; i++)
     {
         model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
@@ -50,6 +199,18 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
             model->nodes[i].skin = PTR_DECODE(model, model->nodes[i].skin);
         }
     }
+    if (model->num_textures > 0) {
+        assertf(prefix, "Trying to load a textured model from memory, only file system supported");
+        if (shared_textures) {
+            shared_textures->ref_count++;
+        } else {
+            texture_table_allocate();
+        }
+    }
+    for (uint32_t i = 0; i < model->num_textures; i++)
+    {
+        model->texture_paths[i] = PTR_DECODE(model, model->texture_paths[i]);
+    }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
         model->meshes[i].primitives = PTR_DECODE(model, model->meshes[i].primitives);
@@ -62,6 +223,19 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
             primitive->normal.pointer = PTR_DECODE(model, primitive->normal.pointer);
             primitive->mtx_index.pointer = PTR_DECODE(model, primitive->mtx_index.pointer);
             primitive->indices = PTR_DECODE(model, primitive->indices);
+
+            if (primitive->local_texture != TEXTURE_INDEX_MISSING) {
+                uint32_t idx = texture_table_get(model->texture_paths[primitive->local_texture]);
+
+                if (idx == TEXTURE_INDEX_MISSING) {
+                    idx = texture_table_add(model->texture_paths[primitive->local_texture], prefix);
+                }
+
+                assert(idx != TEXTURE_INDEX_MISSING);
+
+                primitive->shared_texture = idx;
+                texture_table_inc_ref_count(idx);
+            }
         }
     }
     for (uint32_t i = 0; i < model->num_anims; i++)
@@ -76,6 +250,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz)
             model->anims[i].keyframes = PTR_DECODE(model, model->anims[i].keyframes);
         }
     }
+
     model->magic = MODEL64_MAGIC_LOADED;
     model->ref_count = 1;
     data_cache_hit_writeback(model, sz);
@@ -197,7 +372,7 @@ static model64_t *make_model_instance(model64_data_t *model_data)
 
 static model64_data_t *load_model64_data_buf(void *buf, int sz)
 {
-    model64_data_t *data = load_model_data_buf(buf, sz);
+    model64_data_t *data = load_model_data_buf(buf, sz, NULL);
     assertf(!data->anim_data_handle, "Streaming animations not supported when loading model from buffer");
     return data;
 }
@@ -206,7 +381,14 @@ static model64_data_t *load_model64_data(const char *fn)
 {
     int sz;
     void *buf = asset_load(fn, &sz);
-    model64_data_t *data = load_model_data_buf(buf, sz);
+
+    // Path will have at least a file system prefix so a slash will be found.
+    char* slash = strrchr(fn, '/');
+    char prefix[slash - fn + 2];
+    memcpy(prefix, fn, slash - fn + 1);
+    prefix[sizeof(prefix)-1] = '\0';
+
+    model64_data_t *data = load_model_data_buf(buf, sz, prefix);
     if(data->anim_data_handle) {
         assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: models with streamed animations must be stored in ROM (rom:/)", fn);
         char anim_name[strlen(fn)+6];
@@ -264,6 +446,8 @@ static void unload_model_data(model64_data_t *model)
             primitive->normal.pointer = PTR_ENCODE(model, primitive->normal.pointer);
             primitive->mtx_index.pointer = PTR_ENCODE(model, primitive->mtx_index.pointer);
             primitive->indices = PTR_ENCODE(model, primitive->indices);
+            texture_table_dec_ref_count(primitive->shared_texture);
+            primitive->shared_texture = TEXTURE_INDEX_MISSING;
         }
         model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
     }
@@ -301,7 +485,13 @@ static void free_model64_data(model64_data_t *data)
 {
     if(--data->ref_count == 0)
     {
+        bool had_textures = data->num_textures > 0;
         unload_model_data(data);
+        if (had_textures) {
+            if (--shared_textures->ref_count == 0) {
+                texture_table_free();
+            }
+        }
     }
 }
 
@@ -423,6 +613,27 @@ primitive_t *model64_get_primitive(mesh_t *mesh, uint32_t primitive_index)
 
 void model64_draw_primitive(primitive_t *primitive)
 {
+    if (primitive->shared_texture != TEXTURE_INDEX_MISSING) {
+        texture_entry_t *entry = &shared_textures->entries[primitive->shared_texture];
+
+        if (entry->state == ENTRY_STATE_SPRITE_LOADED) {
+            glGenTextures(1, &entry->obj);
+            glBindTexture(GL_TEXTURE_2D, entry->obj);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+            // If a dimension is not a power of two then clamp and otherwise repeat.
+            float rs = (entry->sprite->width & (entry->sprite->width-1)) ? 1 : REPEAT_INFINITE;
+            float rt = (entry->sprite->height & (entry->sprite->height-1)) ? 1 : REPEAT_INFINITE;
+            glSpriteTextureN64(GL_TEXTURE_2D, entry->sprite, &(rdpq_texparms_t){.s.repeats = rs, .t.repeats = rt});
+
+            entry->state = ENTRY_STATE_FULL;
+        }
+
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, entry->obj);
+    }
+
     if (primitive->position.size > 0) {
         glEnableClientState(GL_VERTEX_ARRAY);
         if (primitive->position.type == GL_HALF_FIXED_N64) {
