@@ -320,7 +320,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_attach_stack,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_multi,      0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rdpq_tex_blit_normal,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_blit_normal,       0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_rdpq_tex_multi_i4,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_sprite_upload,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_sprite_lod,            0, TEST_FLAGS_NO_BENCHMARK),
@@ -341,6 +341,7 @@ static const struct Testsuite
 	TEST_FUNC(test_dlsym_rtld_default,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dlclose,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_ctors,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_dsodeps,           0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

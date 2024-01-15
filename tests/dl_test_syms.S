@@ -16,4 +16,4 @@ DLTestSym:
 .balign 4
 .global dl_test_ptr
 dl_test_ptr:
-.word 0
+.word 0x12345678

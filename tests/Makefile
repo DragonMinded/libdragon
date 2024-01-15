@@ -5,7 +5,7 @@ include $(N64_INST)/include/n64.mk
 all: testrom.z64 testrom_emu.z64
 
 MAIN_ELF_EXTERNS := $(BUILD_DIR)/testrom.externs
-DSO_MODULES = dl_test_syms.dso dl_test_relocs.dso dl_test_imports.dso dl_test_ctors.dso
+DSO_MODULES = dl_test_syms.dso dl_test_relocs.dso dl_test_imports.dso dl_test_ctors.dso dl_test_deps.dso
 DSO_LIST = $(addprefix filesystem/, $(DSO_MODULES))
 
 $(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*) $(DSO_LIST)
@@ -51,6 +51,7 @@ filesystem/dl_test_syms.dso: $(BUILD_DIR)/dl_test_syms.o
 filesystem/dl_test_relocs.dso: $(BUILD_DIR)/dl_test_relocs.o
 filesystem/dl_test_imports.dso: $(BUILD_DIR)/dl_test_imports.o
 filesystem/dl_test_ctors.dso: $(BUILD_DIR)/dl_test_ctors.o
+filesystem/dl_test_deps.dso: $(BUILD_DIR)/dl_test_deps.o
 
 clean:
 	rm -rf $(BUILD_DIR) testrom.z64 testrom_emu.z64

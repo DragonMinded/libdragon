@@ -121,3 +121,15 @@ void test_dl_syms(TestContext *ctx) {
 	//Check if correct symbol is found
 	ASSERT(strcmp(test_sym, "dl_test_sym") == 0 && strcmp(test_sym2, "DLTestSym") == 0, "Symbol searches do not work properly");
 }
+
+void test_dl_dsodeps(TestContext *ctx) {
+	//Open module
+	void *handle = dlopen("rom:/dl_test_deps.dso", RTLD_GLOBAL);
+	DEFER(dlclose(handle));
+	int **test_ptr = dlsym(handle, "dl_test_value");
+	//Check if correct symbol is found
+	ASSERT(__dl_num_loaded_modules == 2, "DSO dependencies didn't load");
+	ASSERT(*test_ptr, "DSO dependencies didn't resolve properly");
+	ASSERT((*test_ptr)[0] == 0x12345678, "DSO dependencies didn't load properly");
+}
+
