@@ -15,6 +15,7 @@
 #include "utils.h"
 #include "debug.h"
 #include "surface.h"
+#include "rsp.h"
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
@@ -275,7 +276,7 @@ void display_close()
     enable_interrupts();
 }
 
-surface_t* display_lock(void)
+surface_t* display_try_get(void)
 {
     surface_t* retval = NULL;
     int next;
@@ -298,6 +299,20 @@ surface_t* display_lock(void)
 
     /* Possibility of returning nothing, or a valid display context */
     return retval;
+}
+
+surface_t* display_get(void)
+{
+    // Wait until a buffer is available. We use a RSP_WAIT_LOOP as
+    // it is common for display to become ready again after RSP+RDP
+    // have finished processing the previous frame's commands.
+    surface_t* disp;
+    RSP_WAIT_LOOP(200) {
+         if ((disp = display_try_get())) {
+             break;
+         }
+    }
+    return disp;
 }
 
 void display_show( surface_t* surf )
@@ -335,7 +350,7 @@ void display_show( surface_t* surf )
  * internally.
  *
  * @param[in] disp
- *            A display context retrieved using #display_lock
+ *            A display context retrieved using #display_get
  */
 void display_show_force( display_context_t disp )
 {
@@ -346,22 +361,22 @@ void display_show_force( display_context_t disp )
     enable_interrupts();
 }
 
-uint32_t display_get_width()
+uint32_t display_get_width(void)
 {
     return __width;
 }
 
-uint32_t display_get_height()
+uint32_t display_get_height(void)
 {
     return __height;
 }
 
-uint32_t display_get_bitdepth()
+uint32_t display_get_bitdepth(void)
 {
     return __bitdepth;
 }
 
-uint32_t display_get_num_buffers()
+uint32_t display_get_num_buffers(void)
 {
     return __buffers;
 }

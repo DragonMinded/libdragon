@@ -36,7 +36,7 @@ int main(void) {
 	int music_frequency = sfx_monosample.wave.frequency;
 
 	while (1) {
-		display_context_t disp = display_lock();
+		display_context_t disp = display_get();
 		graphics_fill_screen(disp, 0);
 		graphics_draw_text(disp, 200-75, 10, "Audio mixer test");
 		graphics_draw_text(disp, 200-70, 20, "v1.0 - by Rasky");

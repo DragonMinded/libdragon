@@ -458,7 +458,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
                 page--;
             }
         }
-		while (!(disp = display_lock())) {}
+        disp = display_get();
 
         cursor_x = XSTART;
         cursor_y = YSTART;

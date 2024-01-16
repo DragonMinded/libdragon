@@ -83,11 +83,7 @@ int main(void) {
 
 	/* Main loop test */
 	while (1) {
-		static display_context_t disp = 0;
-
-		/* Grab a render buffer */
-		while (!(disp = display_lock()))
-			;
+		surface_t* disp = display_get();
 
 		/* Clear the screen */
 		graphics_fill_screen(disp, 0);

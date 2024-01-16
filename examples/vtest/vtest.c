@@ -57,23 +57,6 @@ unsigned char getAnalogY(int pad)
     return (unsigned char)gKeys.c[pad].y;
 }
 
-display_context_t lockVideo(int wait)
-{
-    display_context_t dc;
-
-    if (wait)
-        while (!(dc = display_lock()));
-    else
-        dc = display_lock();
-    return dc;
-}
-
-void unlockVideo(display_context_t dc)
-{
-    if (dc)
-        display_show(dc);
-}
-
 /* text functions */
 void drawText(display_context_t dc, char *msg, int x, int y)
 {
@@ -127,7 +110,7 @@ int main(void)
 		int height[6] = { 240, 480, 240, 480, 240, 240 };
 		unsigned int color;
 
-        _dc = lockVideo(1);
+        _dc = display_get();
 		color = graphics_make_color(0xCC, 0xCC, 0xCC, 0xFF);
 		graphics_fill_screen(_dc, color);
 
@@ -176,7 +159,7 @@ int main(void)
 		printText(_dc, "0123456789", 0, 16);
 		printText(_dc, "9876543210", width[res]/8 - 10, 16);
 
-        unlockVideo(_dc);
+        display_show(_dc);
 
         while (1)
         {
