@@ -153,7 +153,7 @@ void draw_rtc_time( void )
 
 void draw_writing_message( void )
 {
-    while( !(disp = display_lock()) ) { /* Spinloop */ }
+    disp = display_get();
 
     graphics_fill_screen( disp, BLACK );
 
@@ -169,7 +169,7 @@ void draw_writing_message( void )
 
 void run_rtc_write_test( void )
 {
-    while( !(disp = display_lock()) ) { /* Spinloop */ }
+    disp = display_get();
 
     graphics_fill_screen( disp, BLACK );
 
@@ -216,7 +216,7 @@ int main(void)
 
     if( !rtc_init() )
     {
-        while( !(disp = display_lock()) ) { /* Spinloop */ }
+        disp = display_get();
 
         graphics_fill_screen( disp, BLACK );
 
@@ -239,7 +239,7 @@ int main(void)
     {
         if( !edit_mode ) rtc_get( &rtc_time );
 
-        while( !(disp = display_lock()) ) { /* Spinloop */ }
+        disp = display_get();
 
         graphics_fill_screen( disp, BLACK );
 

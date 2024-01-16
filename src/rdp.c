@@ -28,7 +28,7 @@
  * to free all resources using #rdp_close.
  *
  * Code wishing to use the hardware rasterizer should first acquire a display context
- * using #display_lock.  Once a display context has been acquired, the RDP can be
+ * using #display_get.  Once a display context has been acquired, the RDP can be
  * attached to the display context with #rdp_attach.  Once the display has been
  * attached, the RDP can be used to draw sprites, rectangles and textured/untextured
  * triangles to the display context.  Note that some functions require additional setup,
@@ -283,7 +283,7 @@ void rdp_close( void )
  *
  * This function allows the RDP to operate on surfaces, that is memory buffers
  * that can be used as render targets. For instance, it can be used with
- * framebuffers acquired by calling #display_lock, or to render to an offscreen
+ * framebuffers acquired by calling #display_get, or to render to an offscreen
  * buffer created with #surface_alloc or #surface_make.
  * 
  * This should be performed before any rendering operations to ensure that the RDP
@@ -293,7 +293,7 @@ void rdp_close( void )
  *            A surface pointer
  *            
  * @see surface_new
- * @see display_lock
+ * @see display_get
  */
 void rdp_attach( surface_t* surface )
 {

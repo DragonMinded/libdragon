@@ -197,7 +197,7 @@ void console_init()
 /**
  * @brief Close the console
  *
- * Free the console system.  This will clean up any dynamic memry that was in
+ * Free the console system.  This will clean up any dynamic memory that was in
  * use.
  */
 void console_close()
@@ -250,10 +250,8 @@ static void __console_render(void)
 {
     if(!render_buffer) { return; }
 
-    static display_context_t dc = 0;
-
     /* Wait until we get a valid context */
-    while(!(dc = display_lock()));
+    surface_t *dc = display_get();
 
     /* Background color! */
     graphics_fill_screen( dc, 0 );

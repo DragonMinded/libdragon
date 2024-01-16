@@ -57,7 +57,7 @@ static void wrap(char * s, const int wrapline) {
 }
 
 enum Page page_intro(void) {
-	display_context_t disp = display_lock();
+	display_context_t disp = display_get();
 	graphics_fill_screen(disp, 0);
 	draw_header(disp);
 
@@ -88,7 +88,7 @@ enum Page page_intro(void) {
 }
 
 enum Page page_intro_error(void) {
-	display_context_t disp = display_lock();
+	display_context_t disp = display_get();
 	graphics_fill_screen(disp, 0);
 	draw_header(disp);
 	graphics_draw_text(disp, 40, 50, "No .XM64 roms found in the filesystem");
@@ -98,7 +98,7 @@ enum Page page_intro_error(void) {
 
 enum Page page_menu(void) {
 	char sbuf[1024];
-	display_context_t disp = display_lock();
+	display_context_t disp = display_get();
 	graphics_fill_screen(disp, 0);
 	draw_header(disp);
 
@@ -221,7 +221,7 @@ enum Page page_song(void) {
 	memset(mute, 0, sizeof(mute));
 
 	while (true) {
-		display_context_t disp = display_lock();
+		display_context_t disp = display_get();
 		graphics_fill_screen(disp, 0);
 		draw_header(disp);
 
