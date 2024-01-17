@@ -48,6 +48,12 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r4 (d78ddd06d2303d3f76d11de6b6326d69)
+* Allow to load ELF sections of odd sizes (before, it would error out). This
+  is required for n64elfcompress to produce unpadded compressed sections, since
+  adding padding might corrupt data without an in-band terminator (like LZ4
+  blocks).
+
 r3 (415c937a90ceee6f99d3d8a84edb42d3)
 * Add new ipl3_compat build for maximum backward compatibility and easy of
   integration in existing codebases.
