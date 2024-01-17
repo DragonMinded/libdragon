@@ -31,9 +31,9 @@
 // Update these when changing code that writes to the output file
 // IMPORTANT: Do not attempt to move these values to a header that is shared by mkmodel and runtime code!
 //            These values must reflect what the tool actually outputs.
-#define HEADER_SIZE         80
+#define HEADER_SIZE         88
 #define MESH_SIZE           8
-#define PRIMITIVE_SIZE      108
+#define PRIMITIVE_SIZE      116
 #define NODE_SIZE           128
 #define SKIN_SIZE           8
 #define ANIM_SIZE           40
@@ -47,6 +47,8 @@
 #define RSP_PRECISION       (1.0f/65536.0f)
 
 #define MIN_KEYFRAME_DT (1.0f/80.0f)
+
+#define MAX_TEXTURES 1000
 
 typedef void (*component_convert_func_t)(void*,float*,size_t);
 typedef void (*index_convert_func_t)(void*,cgltf_uint*,size_t);
@@ -86,6 +88,12 @@ typedef struct ordered_keyframe_array_s {
     uint32_t count;
     ordered_keyframe_t *data;
 } ordered_keyframe_array_t;
+
+struct {
+    char *file_paths[MAX_TEXTURES];   // Input image paths used as a search key
+    char *sprite_paths[MAX_TEXTURES]; // Converted sprite paths stored in file
+    uint32_t num;
+} texture_table;
 
 int flag_anim_stream = 1;
 int flag_verbose = 0;
@@ -186,6 +194,18 @@ void anim_free(model64_anim_t *anim)
     }
 }
 
+void texture_table_init()
+{
+    memset(&texture_table, 0, sizeof(texture_table));
+}
+
+void texture_table_free()
+{
+    for (uint32_t i = 0; i < texture_table.num; i++) {
+        free(texture_table.file_paths[i]);
+        free(texture_table.sprite_paths[i]);
+    }
+}
 
 void model64_free(model64_data_t *model)
 {
@@ -339,6 +359,10 @@ void model64_write_header(model64_data_t *model, FILE *out)
     } else {
         w32(out, 0);
     }
+
+    w32(out, texture_table.num);
+    w32_placeholderf(out, "textures");
+
     assert(ftell(out)-start_ofs == HEADER_SIZE);
 }
 
@@ -466,6 +490,8 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
             w32(out, primitive->index_type);
             w32(out, primitive->num_vertices);
             w32(out, primitive->num_indices);
+            w32(out, primitive->local_texture);
+            w32(out, TEXTURE_INDEX_MISSING);
             w32_placeholderf(out, "mesh%d_primitive%d_index", i, j);
             assert(ftell(out)-start_ofs == PRIMITIVE_SIZE);
         }
@@ -560,6 +586,19 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     }
 }
 
+void model64_write_textures(model64_data_t *model, FILE *out)
+{
+    walign(out, 4);
+    placeholder_set(out, "textures");
+    for (uint32_t i = 0; i < texture_table.num; i++) {
+        w32_placeholderf(out, "texture%d_path", i);
+    }
+    for (uint32_t i = 0; i < texture_table.num; i++) {
+        placeholder_set(out, "texture%d_path", i);
+        fwrite(texture_table.sprite_paths[i], strlen(texture_table.sprite_paths[i])+1, 1, out);
+    }
+}
+
 void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
 {
     model64_write_header(model, out);
@@ -567,6 +606,7 @@ void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
     model64_write_nodes(model, out);
     model64_write_skins(model, out);
     model64_write_anims(model, out, anim_out);
+    model64_write_textures(model, out);
     placeholder_clear();
 }
 
@@ -702,6 +742,53 @@ void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, attribute_t *weight_
     free(mtx_index_attr->pointer);
     mtx_index_attr->pointer = new_buffer;
     mtx_index_attr->size = 1;
+}
+
+uint32_t texture_table_find_or_add(const char* path)
+{
+    for (uint32_t i = 0; i < texture_table.num; i++) {
+        if (strcmp(texture_table.file_paths[i], path) == 0) {
+            return i;
+        }
+    }
+
+    if (texture_table.num >= MAX_TEXTURES) {
+        fprintf(stderr, "Error: maximum texture count %d reached. Skipping %s\n", MAX_TEXTURES, path);
+        return TEXTURE_INDEX_MISSING;
+    }
+
+    // Convert "whatever/image.extension" to "whatever/image.sprite".
+    char* p = strdup(path);
+    size_t len = strlen(p);
+
+    char *basename = strrchr(p, '/');
+    if (!basename) basename = p; else basename += 1;
+
+    char *ext = &p[len];
+    char *period = strrchr(p, '.');
+
+    // Only consider the last period if it was part of the basename
+    if (period > basename) {
+        ext = period;
+    }
+
+    *ext = '\0';
+
+    char *path_sprite;
+    if (asprintf(&path_sprite, "%s.sprite", p) == -1) {
+        fprintf(stderr, "Bug: asprintf failed\n");
+        free(p);
+        return TEXTURE_INDEX_MISSING;
+    }
+    free(p);
+
+    uint32_t idx = texture_table.num++;
+    texture_table.file_paths[idx] = strdup(path);
+    texture_table.sprite_paths[idx] = path_sprite;
+    if (flag_verbose) {
+        printf("New texture %s\n", texture_table.sprite_paths[idx]);
+    }
+    return idx;
 }
 
 int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
@@ -884,6 +971,25 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
 
         free(temp_indices);
     }
+
+    // Convert materials to textures
+    out_primitive->local_texture = TEXTURE_INDEX_MISSING;
+
+    if (in_primitive->material) {
+        cgltf_texture* texture = in_primitive->material->pbr_metallic_roughness.base_color_texture.texture;
+
+        if (texture && texture->image) {
+            const char* uri = texture->image->uri;
+            if ((strcmp(uri, "data:") == 0)) {
+                fprintf(stderr, "Error: embedded textures are not supported.\n");
+                free(weight_attr.pointer);
+                return 1;
+            }
+
+            out_primitive->local_texture = texture_table_find_or_add(uri);
+        }
+    }
+
     free(weight_attr.pointer);
     return 0;
 }
@@ -1669,8 +1775,11 @@ int convert(const char *infn, const char *outfn)
         fprintf(stderr, "Error: input file contains no meshes\n");
         goto error;
     }
-    
+
     // Convert meshes
+
+    texture_table_init();
+
     model->num_meshes = data->meshes_count;
     model->meshes = calloc(data->meshes_count, sizeof(mesh_t));
     for (size_t i = 0; i < data->meshes_count; i++)
@@ -1783,11 +1892,13 @@ int convert(const char *infn, const char *outfn)
     model64_write(model, out, anim_out);
     fclose(out);
 
+    texture_table_free();
     model64_free(model);
     cgltf_free(data);
     return 0;
 
 error:
+    texture_table_free();
     model64_free(model);
     cgltf_free(data);
     return 1;
