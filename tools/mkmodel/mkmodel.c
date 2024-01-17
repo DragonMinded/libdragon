@@ -980,13 +980,12 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
 
         if (texture && texture->image) {
             const char* uri = texture->image->uri;
-            if ((strcmp(uri, "data:") == 0)) {
-                fprintf(stderr, "Error: embedded textures are not supported.\n");
-                free(weight_attr.pointer);
-                return 1;
+            if (!uri || strncmp(uri, "data:", 5) == 0) {
+                fprintf(stderr, "WARNING: material \"%s\" has an embedded texture \"%s\" (type: %s) which will be ignored\n",
+                    in_primitive->material->name, texture->image->name, texture->image->mime_type);
+            } else {
+                out_primitive->local_texture = texture_table_find_or_add(uri);
             }
-
-            out_primitive->local_texture = texture_table_find_or_add(uri);
         }
     }
 
