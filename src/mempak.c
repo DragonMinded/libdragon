@@ -872,12 +872,10 @@ int format_mempak( int controller )
     };
 
     /* Assign 'random' value to ID */
-    uint64_t id = C0_COUNT(); /* id uses a random seed (using C0 register (ticks since boot?)). */
-
     for (i = 0; i < 24; i++)
     {
-        id ^= id >> 27; id *= 0x9E3779B97F4A7C55; id ^= id >> 33; /* simple 64-bit random generator (PRNG), for each byte of serial number */
-        cpakid_array[i] = id;
+        /* for each byte of serial number */
+        cpakid_array[i] = rand(); /* Assign 'random' value to the byte */
     }
 
     /* Create checksum */
