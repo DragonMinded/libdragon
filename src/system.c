@@ -1276,17 +1276,6 @@ int write( int file, char *ptr, int len )
     }
 }
 
-__attribute__((noinline))
-static void __entropy_add(uint32_t k)
-{
-    k *= 0xcc9e2d51;
-    k = k<<15 | k>>17;
-    k *= 0x1b873593;
-    __entropy_state ^= k;
-    __entropy_state = __entropy_state<<13 | __entropy_state>>19;
-    __entropy_state = __entropy_state * 5 + 0xe6546b64;
-}
-
 /**
  * @brief Generate an array of unpredictable random numbers
  * 
@@ -1308,18 +1297,27 @@ static void __entropy_add(uint32_t k)
  */
 int getentropy(uint8_t *buf, size_t buflen)
 {
-    volatile uint32_t *AI_STATUS = (uint32_t*)0xA450000C;
-    volatile uint32_t *SP_PC = (uint32_t*)0xA4080000;
-    volatile uint32_t *DP_PIPE_BUSY = (uint32_t*)0xA4100018;
-    volatile uint32_t *PI_UNKNOWN = (uint32_t*)0xA4600034;
+    volatile uint32_t *const AI_STATUS = (uint32_t*)0xA450000C;
+    volatile uint32_t *const SP_PC = (uint32_t*)0xA4080000;
+    volatile uint32_t *const DP_CLOCK = (uint32_t*)0xA4100010;
+    volatile uint32_t *const DP_PIPE_BUSY = (uint32_t*)0xA4100018;
+    volatile uint32_t *const PI_UNKNOWN = (uint32_t*)0xA4600034;
+    static volatile uint32_t* entropic_regs[] = {
+        AI_STATUS, SP_PC, DP_CLOCK, DP_PIPE_BUSY, PI_UNKNOWN
+    };
 
     // Mix in some hardware state / counters that are likely to be random
     // at the point of sampling, especially during hardware activity.
-    __entropy_add(C0_COUNT());
-    __entropy_add(*AI_STATUS);
-    __entropy_add(*SP_PC);
-    __entropy_add(*DP_PIPE_BUSY);
-    __entropy_add(*PI_UNKNOWN);
+    // This is standard MurMurHash3.
+    for (int i=0; i<sizeof(entropic_regs)/sizeof(entropic_regs[0]); i++) {
+        uint32_t k = *entropic_regs[i];
+        k *= 0xcc9e2d51;
+        k = k<<15 | k>>17;
+        k *= 0x1b873593;
+        __entropy_state ^= k;
+        __entropy_state = __entropy_state<<13 | __entropy_state>>19;
+        __entropy_state = __entropy_state * 5 + 0xe6546b64;
+    }
 
     // Extract the current hash value
     uint32_t h = __entropy_state;
@@ -1335,7 +1333,6 @@ int getentropy(uint8_t *buf, size_t buflen)
         *(u_uint32_t*)(buf) = h;
         buf += 4;
         buflen -= 4;
-        if (!buflen) return 0;
 
         // If more bytes are needed, use xorshift32 as PRNG
         h ^= h << 13;
