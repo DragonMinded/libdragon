@@ -35,7 +35,6 @@
  */
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
-uint32_t __boot_entropy;   ///< Entropy as provided by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
@@ -299,11 +298,6 @@ tv_type_t get_tv_type()
 reset_type_t sys_reset_type(void)
 {
     return __boot_resettype;
-}
-
-uint32_t sys_get_entropy(void)
-{
-    return __boot_entropy;
 }
 
 uint64_t get_ticks(void)

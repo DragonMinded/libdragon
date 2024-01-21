@@ -167,6 +167,8 @@ static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
 static stdio_t stdio_hooks = { 0 };
 /** @brief Function to provide the current time */
 time_t (*time_hook)( void ) = NULL;
+/** @brief Current entropy state */
+uint32_t __entropy_state = 0;
 
 /* Forward definitions */
 int close( int fildes );
@@ -1272,6 +1274,81 @@ int write( int file, char *ptr, int len )
 
         return fs->write( *handle_ptr, (uint8_t *)ptr, len );
     }
+}
+
+__attribute__((noinline))
+static void __entropy_add(uint32_t k)
+{
+    k *= 0xcc9e2d51;
+    k = k<<15 | k>>17;
+    k *= 0x1b873593;
+    __entropy_state ^= k;
+    __entropy_state = __entropy_state<<13 | __entropy_state>>19;
+    __entropy_state = __entropy_state * 5 + 0xe6546b64;
+}
+
+/**
+ * @brief Generate an array of unpredictable random numbers
+ * 
+ * This function can be used to generate an array of random data. The function
+ * is guaranteed to return good quality random numbers of basically
+ * unlimited length. The function is automatically seeded by entropy collected
+ * during the boot process (during IPL3) so it always returns different
+ * numbers after each boot on hardware. On each emulator, though, the
+ * generate numbers will be consistent.
+ * 
+ * The code is not cryptographically safe especially by
+ * modern standards, but it should be good enough for expected usages on
+ * Nintendo 64.
+ * 
+ * @param buf           Output buffer
+ * @param buflen        Length of the output buffer
+ * @return int          0 on success, -1 on failure. Currently, the function
+ *                      never returns -1.
+ */
+int getentropy(uint8_t *buf, size_t buflen)
+{
+    volatile uint32_t *AI_STATUS = (uint32_t*)0xA450000C;
+    volatile uint32_t *SP_PC = (uint32_t*)0xA4080000;
+    volatile uint32_t *DP_PIPE_BUSY = (uint32_t*)0xA4100018;
+    volatile uint32_t *PI_UNKNOWN = (uint32_t*)0xA4600034;
+
+    // Mix in some hardware state / counters that are likely to be random
+    // at the point of sampling, especially during hardware activity.
+    __entropy_add(C0_COUNT());
+    __entropy_add(*AI_STATUS);
+    __entropy_add(*SP_PC);
+    __entropy_add(*DP_PIPE_BUSY);
+    __entropy_add(*PI_UNKNOWN);
+
+    // Extract the current hash value
+    uint32_t h = __entropy_state;
+    h ^= h >> 16;
+    h *= 0x85ebca6b;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16;
+
+    // Generate output buffer
+    typedef uint32_t u_uint32_t __attribute__((aligned(1)));
+    while (buflen > 4) {
+        *(u_uint32_t*)(buf) = h;
+        buf += 4;
+        buflen -= 4;
+        if (!buflen) return 0;
+
+        // If more bytes are needed, use xorshift32 as PRNG
+        h ^= h << 13;
+        h ^= h >> 17;
+        h ^= h << 5;
+    }
+
+    while (buflen-- > 0) {
+        *buf++ = h;
+        h >>= 8;
+    }
+
+    return 0; 
 }
 
 /**
