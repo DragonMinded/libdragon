@@ -168,7 +168,15 @@ static stdio_t stdio_hooks = { 0 };
 /** @brief Function to provide the current time */
 time_t (*time_hook)( void ) = NULL;
 /** @brief Current entropy state */
-uint32_t __entropy_state = 0;
+uint64_t __entropy_state = 0;
+/** @brief Entropy calculation constants (MurMurHash3-128)
+ * These are not marked as static const to coerce GCC to load them for code efficiency.
+ */
+uint64_t __entropy_K[4] = {
+    0x87c37b91114253d5ull, 0x4cf5ad432745937full,
+    0xff51afd7ed558ccdull, 0xc4ceb9fe1a85ec53ull,
+};
+
 
 /* Forward definitions */
 int close( int fildes );
@@ -1300,49 +1308,50 @@ int getentropy(uint8_t *buf, size_t buflen)
     volatile uint32_t *const AI_STATUS = (uint32_t*)0xA450000C;
     volatile uint32_t *const SP_PC = (uint32_t*)0xA4080000;
     volatile uint32_t *const DP_CLOCK = (uint32_t*)0xA4100010;
-    volatile uint32_t *const DP_PIPE_BUSY = (uint32_t*)0xA4100018;
     volatile uint32_t *const PI_UNKNOWN = (uint32_t*)0xA4600034;
+    volatile uint32_t *const RI_BANK0_ROW = (uint32_t*)0xA3F00200;
+    volatile uint32_t *const RI_BANK1_ROW = (uint32_t*)0xA3F00600;
     static volatile uint32_t* entropic_regs[] = {
-        AI_STATUS, SP_PC, DP_CLOCK, DP_PIPE_BUSY, PI_UNKNOWN
+        RI_BANK0_ROW, RI_BANK1_ROW, AI_STATUS, SP_PC, DP_CLOCK, PI_UNKNOWN, 
     };
 
     // Mix in some hardware state / counters that are likely to be random
     // at the point of sampling, especially during hardware activity.
-    // This is standard MurMurHash3.
-    for (int i=0; i<sizeof(entropic_regs)/sizeof(entropic_regs[0]); i++) {
-        uint32_t k = *entropic_regs[i];
-        k *= 0xcc9e2d51;
-        k = k<<15 | k>>17;
-        k *= 0x1b873593;
+    // This is half of MurMurHash3-128.
+    for (int i=0; i<sizeof(entropic_regs)/sizeof(entropic_regs[0]); i+=2) {
+        uint64_t k = ((uint64_t)*entropic_regs[i+0] << 32) | *entropic_regs[i+1];
+        k *= __entropy_K[0];
+        k = k<<31 | k>>33;
+        k *= __entropy_K[1];
         __entropy_state ^= k;
-        __entropy_state = __entropy_state<<13 | __entropy_state>>19;
-        __entropy_state = __entropy_state * 5 + 0xe6546b64;
+        __entropy_state = __entropy_state<<27 | __entropy_state>>37;
+        __entropy_state = __entropy_state * 5 + 0x52dce729;
     }
 
     // Extract the current hash value
-    uint32_t h = __entropy_state;
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
+    uint64_t h = __entropy_state;
+    h ^= h >> 33;
+    h *= __entropy_K[2];
+    h ^= h >> 33;
+    h *= __entropy_K[3];
+    h ^= h >> 33;
 
     // Generate output buffer
-    typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-    while (buflen > 4) {
-        *(u_uint32_t*)(buf) = h;
-        buf += 4;
-        buflen -= 4;
+    typedef uint64_t u_uint64_t __attribute__((aligned(1)));
+    while (buflen > 8) {
+        *(u_uint64_t*)(buf) = h;
+        buf += 8;
+        buflen -= 8;
 
-        // If more bytes are needed, use xorshift32 as PRNG
+        // If more bytes are needed, use xorshift64 as PRNG
         h ^= h << 13;
-        h ^= h >> 17;
-        h ^= h << 5;
+        h ^= h >> 7;
+        h ^= h << 17;
     }
 
     while (buflen-- > 0) {
-        *buf++ = h;
-        h >>= 8;
+        *buf++ = h >> 56;
+        h <<= 8;
     }
 
     return 0; 
