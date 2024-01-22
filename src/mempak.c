@@ -6,6 +6,7 @@
 #include <string.h>
 #include "libdragon.h"
 #include "regsinternal.h"
+#include <unistd.h>
 
 /**
  * @defgroup mempak Mempak Filesystem Routines
@@ -872,11 +873,7 @@ int format_mempak( int controller )
     };
 
     /* Assign 'random' value to ID */
-    for (i = 0; i < 24; i++)
-    {
-        /* for each byte of serial number */
-        cpakid_array[i] = rand(); /* Assign 'random' value to the byte */
-    }
+    getentropy(&cpakid_array, 24); /* Use system entropy to write the first 24 bytes */
 
     /* Create checksum */
     for (i = 0; i < 28; i += 2)
