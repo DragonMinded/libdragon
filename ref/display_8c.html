@@ -91,29 +91,32 @@ Functions</h2></td></tr>
 <tr class="memitem:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">display_close</a> ()</td></tr>
 <tr class="memdesc:ga21c0b315e346cb1d1e4566688aa03e36"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close the display.  <a href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">More...</a><br /></td></tr>
 <tr class="separator:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae81c7c27f68f52224fec1f0fc15bc651"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651">display_lock</a> (void)</td></tr>
-<tr class="memdesc:gae81c7c27f68f52224fec1f0fc15bc651"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock a display buffer for rendering.  <a href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651">More...</a><br /></td></tr>
-<tr class="separator:gae81c7c27f68f52224fec1f0fc15bc651"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac972dd974e2062f4ab0e16f0e7134071"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac972dd974e2062f4ab0e16f0e7134071">display_try_get</a> (void)</td></tr>
+<tr class="memdesc:gac972dd974e2062f4ab0e16f0e7134071"><td class="mdescLeft">&#160;</td><td class="mdescRight">Try getting a display surface.  <a href="group__display.html#gac972dd974e2062f4ab0e16f0e7134071">More...</a><br /></td></tr>
+<tr class="separator:gac972dd974e2062f4ab0e16f0e7134071"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf8ad0501f0408430e3b40f0f626a33bd"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd">display_get</a> (void)</td></tr>
+<tr class="memdesc:gaf8ad0501f0408430e3b40f0f626a33bd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get a display buffer for rendering.  <a href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd">More...</a><br /></td></tr>
+<tr class="separator:gaf8ad0501f0408430e3b40f0f626a33bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga4f4a773501687663d0bf76f5cced752f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">display_show</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *surf)</td></tr>
-<tr class="memdesc:ga4f4a773501687663d0bf76f5cced752f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display a previously locked buffer.  <a href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">More...</a><br /></td></tr>
+<tr class="memdesc:ga4f4a773501687663d0bf76f5cced752f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display a buffer on the screen.  <a href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">More...</a><br /></td></tr>
 <tr class="separator:ga4f4a773501687663d0bf76f5cced752f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af0674519d27968807fed42b8c5226e11"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="display_8c.html#af0674519d27968807fed42b8c5226e11">display_show_force</a> (<a class="el" href="group__display.html#gadb422deee7b387b8c1c8025c8ac36628">display_context_t</a> disp)</td></tr>
 <tr class="memdesc:af0674519d27968807fed42b8c5226e11"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force-display a previously locked buffer.  <a href="display_8c.html#af0674519d27968807fed42b8c5226e11">More...</a><br /></td></tr>
 <tr class="separator:af0674519d27968807fed42b8c5226e11"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga524ce5d0e4ffa9d78428934ca0dab1f2"><td class="memItemLeft" align="right" valign="top">
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_width</b> ()</td></tr>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_width</b> (void)</td></tr>
 <tr class="memdesc:ga524ce5d0e4ffa9d78428934ca0dab1f2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured width of the display in pixels. <br /></td></tr>
 <tr class="separator:ga524ce5d0e4ffa9d78428934ca0dab1f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gafb1f28d538f5ab4e03a6d0648018c820"><td class="memItemLeft" align="right" valign="top">
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_height</b> ()</td></tr>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_height</b> (void)</td></tr>
 <tr class="memdesc:gafb1f28d538f5ab4e03a6d0648018c820"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured height of the display in pixels. <br /></td></tr>
 <tr class="separator:gafb1f28d538f5ab4e03a6d0648018c820"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf3fa362c6e06eaf1c7956432ec32bfcd"><td class="memItemLeft" align="right" valign="top">
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_bitdepth</b> ()</td></tr>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_bitdepth</b> (void)</td></tr>
 <tr class="memdesc:gaf3fa362c6e06eaf1c7956432ec32bfcd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured bitdepth of the display (in bytes per pixels) <br /></td></tr>
 <tr class="separator:gaf3fa362c6e06eaf1c7956432ec32bfcd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga40b2efafdb24b9cc7894c64fb12c449a"><td class="memItemLeft" align="right" valign="top">
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_buffers</b> ()</td></tr>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_buffers</b> (void)</td></tr>
 <tr class="memdesc:ga40b2efafdb24b9cc7894c64fb12c449a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured number of buffers. <br /></td></tr>
 <tr class="separator:ga40b2efafdb24b9cc7894c64fb12c449a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
@@ -141,7 +144,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_b
 <p >NOTE: this is currently not part of the public API as we use it only internally.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>A display context retrieved using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a> </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>A display context retrieved using <a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a> </td></tr>
   </table>
   </dd>
 </dl>
@@ -151,7 +154,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_b
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Jan 12 2024 23:03:16 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Jan 22 2024 17:01:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

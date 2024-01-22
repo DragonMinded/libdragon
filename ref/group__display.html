@@ -364,11 +364,14 @@ Functions</h2></td></tr>
 <tr class="memitem:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">display_close</a> ()</td></tr>
 <tr class="memdesc:ga21c0b315e346cb1d1e4566688aa03e36"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close the display.  <a href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">More...</a><br /></td></tr>
 <tr class="separator:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae81c7c27f68f52224fec1f0fc15bc651"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651">display_lock</a> (void)</td></tr>
-<tr class="memdesc:gae81c7c27f68f52224fec1f0fc15bc651"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock a display buffer for rendering.  <a href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651">More...</a><br /></td></tr>
-<tr class="separator:gae81c7c27f68f52224fec1f0fc15bc651"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf8ad0501f0408430e3b40f0f626a33bd"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd">display_get</a> (void)</td></tr>
+<tr class="memdesc:gaf8ad0501f0408430e3b40f0f626a33bd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get a display buffer for rendering.  <a href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd">More...</a><br /></td></tr>
+<tr class="separator:gaf8ad0501f0408430e3b40f0f626a33bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac972dd974e2062f4ab0e16f0e7134071"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac972dd974e2062f4ab0e16f0e7134071">display_try_get</a> (void)</td></tr>
+<tr class="memdesc:gac972dd974e2062f4ab0e16f0e7134071"><td class="mdescLeft">&#160;</td><td class="mdescRight">Try getting a display surface.  <a href="group__display.html#gac972dd974e2062f4ab0e16f0e7134071">More...</a><br /></td></tr>
+<tr class="separator:gac972dd974e2062f4ab0e16f0e7134071"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga4f4a773501687663d0bf76f5cced752f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">display_show</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *surf)</td></tr>
-<tr class="memdesc:ga4f4a773501687663d0bf76f5cced752f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display a previously locked buffer.  <a href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">More...</a><br /></td></tr>
+<tr class="memdesc:ga4f4a773501687663d0bf76f5cced752f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display a buffer on the screen.  <a href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">More...</a><br /></td></tr>
 <tr class="separator:ga4f4a773501687663d0bf76f5cced752f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga524ce5d0e4ffa9d78428934ca0dab1f2"><td class="memItemLeft" align="right" valign="top"><a id="ga524ce5d0e4ffa9d78428934ca0dab1f2" name="ga524ce5d0e4ffa9d78428934ca0dab1f2"></a>
 uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_width</b> (void)</td></tr>
@@ -417,7 +420,7 @@ const <a class="el" href="group__display.html#structresolution__t">resolution_t<
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Video interface system for configuring video output modes and displaying rendered graphics. </p>
 <p >The display subsystem handles interfacing with the video interface (VI) and the hardware rasterizer (RDP) to allow software and hardware graphics operations. It consists of the <a class="el" href="group__display.html">Display Subsystem</a>, the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. A separate module, the <a class="el" href="group__console.html">Console Support</a>, provides a rudimentary console for developers. Only the display subsystem or the console can be used at the same time. However, commands to draw console text to the display subsystem are available.</p>
-<p >The display subsystem module is responsible for initializing the proper video mode for displaying 2D, 3D and software graphics. To set up video on the N64, code should call <a class="el" href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1" title="Initialize the display to a particular resolution and bit depth.">display_init</a> with the appropriate options. Once the display has been set, a surface can be requested from the display subsystem using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>. To draw to the acquired surface, code should use functions present in the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. Once drawing to a surface is complete, the rendered graphic can be displayed to the screen using <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a>. Once code has finished rendering all graphics, <a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36" title="Close the display.">display_close</a> can be used to shut down the display subsystem. </p>
+<p >The display subsystem module is responsible for initializing the proper video mode for displaying 2D, 3D and software graphics. To set up video on the N64, code should call <a class="el" href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1" title="Initialize the display to a particular resolution and bit depth.">display_init</a> with the appropriate options. Once the display has been set, a surface can be requested from the display subsystem using <a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a>. To draw to the acquired surface, code should use functions present in the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. Once drawing to a surface is complete, the rendered graphic can be displayed to the screen using <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a buffer on the screen.">display_show</a>. Once code has finished rendering all graphics, <a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36" title="Close the display.">display_close</a> can be used to shut down the display subsystem. </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structvi__config__t" id="structvi__config__t"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structvi__config__t">&#9670;&nbsp;</a></span>vi_config_t</h2>
@@ -904,14 +907,14 @@ True if interlaced mode enabled. </td></tr>
 
 </div>
 </div>
-<a id="gae81c7c27f68f52224fec1f0fc15bc651" name="gae81c7c27f68f52224fec1f0fc15bc651"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gae81c7c27f68f52224fec1f0fc15bc651">&#9670;&nbsp;</a></span>display_lock()</h2>
+<a id="gaf8ad0501f0408430e3b40f0f626a33bd" name="gaf8ad0501f0408430e3b40f0f626a33bd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf8ad0501f0408430e3b40f0f626a33bd">&#9670;&nbsp;</a></span>display_get()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> * display_lock </td>
+          <td class="memname"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> * display_get </td>
           <td>(</td>
           <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
@@ -920,10 +923,32 @@ True if interlaced mode enabled. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Lock a display buffer for rendering. </p>
-<p >Grab a surface that is safe for drawing. If none is available then this will return 0, without blocking.</p>
-<p >When you are done drawing on the buffer, use <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a> to unlock the surface and schedule the buffer to be displayed on the screen during next vblank.</p>
-<p >It is possible to lock more than a display buffer at the same time, for instance to begin working on a new frame while the previous one is still being rendered in parallel through RDP. It is important to notice that surfaces will always be shown on the screen in locking order, irrespective of the order <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a> is called.</p>
+<p>Get a display buffer for rendering. </p>
+<p >Grab a surface that is safe for drawing, spin-waiting until one is available.</p>
+<p >When you are done drawing on the buffer, use <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a buffer on the screen.">display_show</a> to schedule the buffer to be displayed on the screen during next vblank.</p>
+<p >It is possible to get more than a display buffer at the same time, for instance to begin working on a new frame while the previous one is still being rendered in parallel through RDP. It is important to notice that surfaces will always be shown on the screen in the order they were gotten, irrespective of the order <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a buffer on the screen.">display_show</a> is called.</p>
+<dl class="section return"><dt>Returns</dt><dd>A valid surface to render to. </dd></dl>
+
+</div>
+</div>
+<a id="gac972dd974e2062f4ab0e16f0e7134071" name="gac972dd974e2062f4ab0e16f0e7134071"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac972dd974e2062f4ab0e16f0e7134071">&#9670;&nbsp;</a></span>display_try_get()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> * display_try_get </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Try getting a display surface. </p>
+<p >This is similar to <a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a>, but it does not block if no display is available and return NULL instead.</p>
 <dl class="section return"><dt>Returns</dt><dd>A valid surface to render to or NULL if none is available. </dd></dl>
 
 </div>
@@ -944,12 +969,12 @@ True if interlaced mode enabled. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Display a previously locked buffer. </p>
-<p >Display a previously-locked surface to the screen on the next vblank. The surface should be locked via <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>.</p>
-<p >This function does not accept any arbitrary surface, but only those returned by <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>.</p>
+<p>Display a buffer on the screen. </p>
+<p >Display a surface to the screen on the next vblank.</p>
+<p >Notice that this function does not accept any arbitrary surface, but only those returned by <a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a>, which are owned by the display module.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">surf</td><td>A surface to show (previously retrieved using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">surf</td><td>A surface to show (previously retrieved using <a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a>) </td></tr>
   </table>
   </dd>
 </dl>
@@ -959,7 +984,7 @@ True if interlaced mode enabled. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Jan 12 2024 23:03:16 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Jan 22 2024 17:01:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
