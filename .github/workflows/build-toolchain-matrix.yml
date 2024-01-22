@@ -133,6 +133,7 @@ jobs:
             --url "$Package_Url" \
             --maintainer "$Package_Maintainer" \
             --deb-no-default-config-files \
+            --depends build-essential libpng-dev \
             $Package_Source_Directory=$Package_Installation_Directory/ \
             $Package_Name-env.sh=/etc/profile.d/$Package_Name-env.sh
 
@@ -148,6 +149,7 @@ jobs:
             --description "$Package_Description" \
             --url "$Package_Url" \
             --maintainer "$Package_Maintainer" \
+            --depends libpng-dev \
             $Package_Source_Directory=$Package_Installation_Directory/ \
             $Package_Name-env.sh=/etc/profile.d/$Package_Name-env.sh
         continue-on-error: true
