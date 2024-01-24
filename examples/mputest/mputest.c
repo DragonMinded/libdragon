@@ -17,11 +17,11 @@ int main(void)
     printf(
             "To test an inserted\n"
             "ControllerPak (mempak):\n\n"
-            "Press A to read Pak.\n\n"
+            "Press A to validate Pak.\n\n"
             "Press B to format Pak.\n\n"
-            "Press Z to corrupt Pak.\n\n"
-            "Press L to copy Pak.\n\n" /* CPak to RAM */
-            "Press R to paste Pak." /* RAM to CPak */
+            "Press R to create entry.\n\n"
+            "Press L to get entries.\n\n"
+            "Press START to delete entry."
             );
     
     console_render();
