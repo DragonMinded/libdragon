@@ -7,7 +7,7 @@
 #define __LIBDRAGON_MEMPAK_H
 
 /**
- * @addtogroup controlllerpak
+ * @addtogroup controllerpak
  * @{
  */
 
