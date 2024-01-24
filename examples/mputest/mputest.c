@@ -14,13 +14,15 @@ int main(void)
 
     console_clear();
 
-    printf( "Press A on a controller\n"
-                    "to read that controller's\n"
-                    "mempak.\n\n"
-                    "Press B to format mempak.\n\n"
-                    "Press L to read first valid entry.\n\n"
-                    "Press R to write a new entry.\n\n"
-                    "Press Start to delete first valid entry.\n\n" );
+    printf(
+            "To test an inserted\n"
+            "ControllerPak (mempak):\n\n"
+            "Press A to read Pak.\n\n"
+            "Press B to format Pak.\n\n"
+            "Press Z to corrupt Pak.\n\n"
+            "Press L to copy Pak.\n\n" /* CPak to RAM */
+            "Press R to paste Pak." /* RAM to CPak */
+            );
     
     console_render();
 
@@ -36,7 +38,7 @@ int main(void)
 
             if (keys.a)
             {
-                /* Make sure they don't have a rumble pak inserted instead */
+                /* Make sure they don't have a Rumble Pak inserted instead */
                 switch (joypad_get_accessory_type(port))
                 {
                     case JOYPAD_ACCESSORY_TYPE_NONE:
@@ -49,11 +51,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Mempak is not formatted!" );
+                                printf( "Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Mempak bad or removed during read!" );
+                                printf( "Pak bad or removed during read!" );
                             }
                         }
                         else
@@ -90,7 +92,7 @@ int main(void)
             {
                 console_clear();
 
-                /* Make sure they don't have a rumble pak inserted instead */
+                /* Make sure they don't have a Rumble Pak inserted instead */
                 switch (joypad_get_accessory_type(port))
                 {
                     case JOYPAD_ACCESSORY_TYPE_NONE:
@@ -99,11 +101,11 @@ int main(void)
                     case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
                         if (format_mempak(port))
                         {
-                            printf( "Error formatting mempak!" );
+                            printf( "Error formatting Pak!" );
                         }
                         else
                         {
-                            printf( "Memory card formatted!" );
+                            printf( "Pak formatted!" );
                         }
 
                         break;
@@ -131,11 +133,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Mempak is not formatted!" );
+                                printf( "Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Mempak bad or removed during read!" );
+                                printf( "Pak bad or removed during read!" );
                             }
                         }
                         else
@@ -197,11 +199,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Mempak is not formatted!" );
+                                printf( "Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Mempak bad or removed during write!" );
+                                printf( "Pak bad or removed during write!" );
                             }
                         }
                         else
@@ -259,11 +261,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Mempak is not formatted!" );
+                                printf( "Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Mempak bad or removed during erase!" );
+                                printf( "Pak bad or removed during erase!" );
                             }
                         }
                         else

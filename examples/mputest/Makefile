@@ -6,7 +6,7 @@ include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/mputest.o
 
-mputest.z64: N64_ROM_TITLE = "Mempak Unit Test"
+mputest.z64: N64_ROM_TITLE = "CPak Unit Test"
 
 $(BUILD_DIR)/mputest.elf: $(OBJS)
 

@@ -16,13 +16,15 @@ int main(void)
 
     console_clear();
 
-    printf( "Press A on a controller\n"
-                    "to read that controller's\n"
-                    "mempak.\n\n"
-                    "Press B to format mempak.\n\n"
-                    "Press Z to corrupt mempak.\n\n"
-                    "Press L to copy mempak.\n\n"
-                    "Press R to paste mempak." );
+    printf(
+            "To test an inserted\n"
+            "ControllerPak (mempak):\n\n"
+            "Press A to read Pak.\n\n"
+            "Press B to format Pak.\n\n"
+            "Press Z to corrupt Pak.\n\n"
+            "Press L to copy Pak.\n\n" /* CPak to RAM */
+            "Press R to paste Pak." /* RAM to CPak */
+            );
     
     console_render();
 
@@ -32,7 +34,6 @@ int main(void)
         /* To do initialize routines */
         joypad_poll();
 
-        
 
         JOYPAD_PORT_FOREACH(port)
         {
@@ -42,7 +43,7 @@ int main(void)
             {
                 console_clear();
 
-                /* Make sure they don't have a rumble pak inserted instead */
+                /* Make sure they don't have a Rumble Pak inserted instead */
                 switch (joypad_get_accessory_type(port))
                 {
                     case JOYPAD_ACCESSORY_TYPE_NONE:
@@ -55,11 +56,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf("Mempak is not formatted!");
+                                printf("Pak is not formatted!");
                             }
                             else
                             {
-                                printf("Mempak bad or removed during read!");
+                                printf("Pak bad or removed during read!");
                             }
                         }
                         else
@@ -96,7 +97,7 @@ int main(void)
             {
                 console_clear();
 
-                /* Make sure they don't have a rumble pak inserted instead */
+                /* Make sure they don't have a Rumble Pak inserted instead */
                 switch (joypad_get_accessory_type(port))
                 {
                     case JOYPAD_ACCESSORY_TYPE_NONE:
@@ -105,11 +106,11 @@ int main(void)
                     case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
                         if (format_mempak(port))
                         {
-                            printf("Error formatting mempak!");
+                            printf( "Error formatting Pak!" );
                         }
                         else
                         {
-                            printf("Memory card formatted!");
+                            printf("Pak formatted!");
                         }
 
                         break;
@@ -149,7 +150,7 @@ int main(void)
                         }
                         else
                         {
-                            printf( "Data corrupted on memory card!" );
+                            printf( "Data corrupted on Pak!" );
                         }
 
                         break;
@@ -223,7 +224,7 @@ int main(void)
                         }
                         else
                         {
-                            printf("Data saved into mempak!");
+                            printf("Data saved onto Pak!");
                         }
 
                         break;
