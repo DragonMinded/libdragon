@@ -234,11 +234,12 @@ static void mem_bank_init(int chip_id, bool last)
 __attribute__((noreturn, section(".stage1.pre")))
 void stage1pre(void)
 {
-    // Move the stack to the data cache. Notice that RAM is not initialized
-    // yet but we don't care: if sp points to a cached location, it will
-    // just use the cache for that.
-    asm ("li $sp, %0"::"i"(STACK1_TOP));
-    __builtin_unreachable(); // avoid function epilog, we don't need it
+    // Move the stack to DMEM. An alternative would be to use the cache
+    // instead, which is technically faster (though the final performance
+    // difference is not measurable), but it would make the life harder
+    // for emulators for very little gain.
+    asm ("li $sp, %0"::"i"(SP_DMEM+0x1000));
+    __builtin_unreachable(); // avoid function epilog, fallthrough to stage1 (see linker script)
 }
 
 __attribute__((noreturn, section(".stage1")))
