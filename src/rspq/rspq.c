@@ -107,10 +107,10 @@
  * 
  * Internally, double buffering is used to implement the queue. The size of
  * each of the buffers is RSPQ_DRAM_LOWPRI_BUFFER_SIZE. When a buffer is full,
- * the queue engine writes a RSPQ_CMD_JUMP command with the address of the
+ * the queue engine writes a #RSPQ_CMD_JUMP command with the address of the
  * other buffer, to tell the RSP to jump there when it is done. 
  * 
- * Moreover, just before the jump, the engine also enqueue a RSPQ_CMD_WRITE_STATUS
+ * Moreover, just before the jump, the engine also enqueue a #RSPQ_CMD_WRITE_STATUS
  * command that sets the SP_STATUS_SIG_BUFDONE_LOW signal. This is used to
  * keep track when the RSP has finished processing a buffer, so that we know
  * it becomes free again for more commands.
@@ -119,16 +119,16 @@
  *
  * ## Blocks
  * 
- * Blocks are implemented by redirecting rspq_write to a different memory buffer,
+ * Blocks are implemented by redirecting #rspq_write to a different memory buffer,
  * allocated for the block. The starting size for this buffer is
  * RSPQ_BLOCK_MIN_SIZE. If the buffer becomes full, a new buffer is allocated
  * with double the size (to achieve exponential growth), and it is linked
- * to the previous buffer via a RSPQ_CMD_JUMP. So a block can end up being
+ * to the previous buffer via a #RSPQ_CMD_JUMP. So a block can end up being
  * defined by multiple memory buffers linked via jumps.
  * 
  * Calling a block requires some work because of the nesting calls we want
  * to support. To make the RSP ucode as short as possible, the two internal
- * command dedicated to block calls (RSPQ_CMD_CALL and RSPQ_CMD_RET) do not
+ * command dedicated to block calls (#RSPQ_CMD_CALL and #RSPQ_CMD_RET) do not
  * manage a call stack by themselves, but only allow to save/restore the
  * current queue position from a "save slot", whose index must be provided
  * by the CPU. 
@@ -151,24 +151,48 @@
  * When #rspq_highpri_begin is called, the CPU notifies the RSP that it must
  * switch to the highpri queues by setting signal SP_STATUS_SIG_HIGHPRI_REQUESTED.
  * The RSP checks for that signal between each command, and when it sees it, it
- * internally calls RSPQ_CMD_SWAP_BUFFERS. This command loads the highpri queue
+ * internally calls #RSPQ_CMD_SWAP_BUFFERS. This command loads the highpri queue
  * pointer from a special call slot, saves the current lowpri queue position
  * in another special save slot, and finally clear SP_STATUS_SIG_HIGHPRI_REQUESTED
  * and set SP_STATUS_SIG_HIGHPRI_RUNNING instead.
  * 
  * When the #rspq_highpri_end is called, the opposite is done. The CPU writes
- * in the queue a RSPQ_CMD_SWAP_BUFFERS that saves the current highpri pointer
+ * in the queue a #RSPQ_CMD_SWAP_BUFFERS that saves the current highpri pointer
  * into its call slot, recover the previous lowpri position, and turns off
  * SP_STATUS_SIG_HIGHPRI_RUNNING.
  * 
  * Some careful tricks are necessary to allow multiple highpri queues to be
  * pending, see #rspq_highpri_begin for details.
  * 
+ * ## rdpq integrations
+ * 
+ * There are a few places where the rsqp code is hooked with rdpq to provide
+ * for coherent usage of the two peripherals. In particular:
+ * 
+ *  * #rspq_wait automatically calls #rdpq_fence. This means that
+ *    it will also wait for RDP to finish executing all commands, which is
+ *    actually expected for its intended usage of "full sync for debugging
+ *    purposes".
+ *  * All rsqp block creation functions call into hooks in rdpq. This is
+ *    necessary because blocks are specially handled by rdpq via static
+ *    buffer, to make sure RDP commands in the block don't passthrough
+ *    via RSP, but are directly DMA from RDRAM into RDP. Moreover,
+ *    See rdpq.c documentation for more details. 
+ *  * In specific places, we call into the rdpq debugging module to help
+ *    tracing the RDP commands. For instance, when switching RDP RDRAM
+ *    buffers, RSP will generate an interrupt to inform the debugging
+ *    code that it needs to finish dumping the previous RDP buffer.
+ * 
  */
 
 #include "rsp.h"
 #include "rspq.h"
+#include "rspq_internal.h"
 #include "rspq_constants.h"
+#include "rdp.h"
+#include "rdpq_constants.h"
+#include "rdpq/rdpq_internal.h"
+#include "rdpq/rdpq_debug_internal.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "n64sys.h"
@@ -179,110 +203,11 @@
 #include <string.h>
 #include <malloc.h>
 
-/**
- * RSPQ internal commands (overlay 0)
- */
-enum {
-    /**
-     * @brief RSPQ command: Invalid
-     * 
-     * Reserved ID for invalid command. This is used as a marker so that RSP knows
-     * when it has caught up with CPU and reached an empty portion of the buffer.
-     */
-    RSPQ_CMD_INVALID           = 0x00,
 
-    /**
-     * @brief RSPQ command: No-op
-     * 
-     * This commands does nothing. It can be useful for debugging purposes.
-     */
-    RSPQ_CMD_NOOP              = 0x01,
-
-    /**
-     * @brief RSPQ command: Jump to another buffer
-     * 
-     * This commands tells the RSP to start fetching commands from a new address.
-     * It is mainly used internally to implement the queue as a ring buffer (jumping
-     * at the start when we reach the end of the buffer).
-     */
-    RSPQ_CMD_JUMP              = 0x02,
-
-    /**
-     * @brief RSPQ command: Call a block
-     * 
-     * This command is used by the block functions to implement the execution of
-     * a block. It tells RSP to starts fetching commands from the block address,
-     * saving the current address in an internal save slot in DMEM, from which
-     * it will be recovered by CMD_RET. Using multiple slots allow for nested
-     * calls.
-     */    
-    RSPQ_CMD_CALL              = 0x03,
-
-    /**
-     * @brief RSPQ command: Return from a block
-     * 
-     * This command tells the RSP to recover the buffer address from a save slot
-     * (from which it was currently saved by a CALL command) and begin fetching
-     * commands from there. It is used to finish the execution of a block.
-     */
-    RSPQ_CMD_RET               = 0x04,
-
-    /**
-     * @brief RSPQ command: DMA transfer
-     * 
-     * This commands runs a DMA transfer (either DRAM to DMEM, or DMEM to DRAM).
-     * It is used by #rspq_overlay_register to register a new overlay table into
-     * DMEM while the RSP is already running (to allow for overlays to be
-     * registered even after boot), and can be used by the users to perform
-     * manual DMA transfers to and from DMEM without risking a conflict with the
-     * RSP itself.
-     */
-    RSPQ_CMD_DMA               = 0x05,
-
-    /**
-     * @brief RSPQ Command: write SP_STATUS register
-     * 
-     * This command asks the RSP to write to the SP_STATUS register. It is normally
-     * used to set/clear signals or to raise RSP interrupts.
-     */
-    RSPQ_CMD_WRITE_STATUS      = 0x06,
-
-    /**
-     * @brief RSPQ Command: Swap lowpri/highpri buffers
-     * 
-     * This command is used as part of the highpri feature. It allows to switch
-     * between lowpri and highpri queue, by saving the current buffer pointer
-     * in a special save slot, and restoring the buffer pointer of the other
-     * queue from another slot. In addition, it also writes to SP_STATUS, to
-     * be able to adjust signals: entering highpri mode requires clearing
-     * SIG_HIGHPRI_REQUESTED and setting SIG_HIGHPRI_RUNNING; exiting highpri
-     * mode requires clearing SIG_HIGHPRI_RUNNING.
-     * 
-     * The command is called internally by RSP to switch to highpri when the
-     * SIG_HIGHPRI_REQUESTED is found set; then it is explicitly enqueued by the
-     * CPU when the highpri queue is finished to switch back to lowpri
-     * (see #rspq_highpri_end).
-     */
-    RSPQ_CMD_SWAP_BUFFERS      = 0x07,
-
-    /**
-     * @brief RSPQ Command: Test and write SP_STATUS register
-     * 
-     * This commands does a test-and-write sequence on the SP_STATUS register: first,
-     * it waits for a certain mask of bits to become zero, looping on it. Then
-     * it writes a mask to the register. It is used as part of the syncpoint
-     * feature to raise RSP interrupts, while waiting for the previous
-     * interrupt to be processed (coalescing interrupts would cause syncpoints
-     * to be missed).
-     */
-    RSPQ_CMD_TEST_WRITE_STATUS = 0x08
-};
-
-
+/// @cond
 // Make sure that RSPQ_CMD_WRITE_STATUS and RSPQ_CMD_TEST_WRITE_STATUS have
 // an even ID number. This is a small trick used to save one opcode in
 // rsp_queue.S (see cmd_write_status there for an explanation).
-/// @cond
 _Static_assert((RSPQ_CMD_WRITE_STATUS & 1) == 0);
 _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
 /// @endcond
@@ -308,9 +233,6 @@ _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
     ptr += 3; \
 })
 
-/** @brief Write an internal command to the RSP queue */
-#define rspq_int_write(cmd_id, ...) rspq_write(0, cmd_id, ##__VA_ARGS__)
-
 static void rspq_crash_handler(rsp_snapshot_t *state);
 static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 
@@ -333,60 +255,8 @@ typedef struct rspq_overlay_header_t {
     uint16_t commands[];
 } rspq_overlay_header_t;
 
-/** @brief A pre-built block of commands */
-typedef struct rspq_block_s {
-    uint32_t nesting_level;     ///< Nesting level of the block
-    uint32_t cmds[];            ///< Block contents (commands)
-} rspq_block_t;
-
 /** @brief RSPQ overlays */
 rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAY_COUNT];
-
-/** @brief A RSPQ overlay ucode. This is similar to rsp_ucode_t, but is used
- * internally to managed it as a RSPQ overlay */
-typedef struct rspq_overlay_t {
-    uint32_t code;              ///< Address of the overlay code in RDRAM
-    uint32_t data;              ///< Address of the overlay data in RDRAM
-    uint32_t state;             ///< Address of the overlay state in RDRAM (within data)
-    uint16_t code_size;         ///< Size of the code in bytes - 1
-    uint16_t data_size;         ///< Size of the data in bytes - 1
-} rspq_overlay_t;
-
-/// @cond
-_Static_assert(sizeof(rspq_overlay_t) == RSPQ_OVERLAY_DESC_SIZE);
-/// @endcond
-
-/**
- * @brief The overlay table in DMEM. 
- *
- * This structure is defined in DMEM by rsp_queue.S, and contains the descriptors
- * for the overlays, used by the queue engine to load each overlay when needed.
- */
-typedef struct rspq_overlay_tables_s {
-    /** @brief Table mapping overlay ID to overlay index (used for the descriptors) */
-    uint8_t overlay_table[RSPQ_OVERLAY_TABLE_SIZE];
-    /** @brief Descriptor for each overlay, indexed by the previous table. */
-    rspq_overlay_t overlay_descriptors[RSPQ_MAX_OVERLAY_COUNT];
-} rspq_overlay_tables_t;
-
-/**
- * @brief RSP Queue data in DMEM.
- * 
- * This structure is defined by rsp_queue.S, and represents the
- * top portion of DMEM.
- */
-typedef struct rsp_queue_s {
-    rspq_overlay_tables_t tables;        ///< Overlay table
-    /** @brief Pointer stack used by #RSPQ_CMD_CALL and #RSPQ_CMD_RET. */
-    uint32_t rspq_pointer_stack[RSPQ_MAX_BLOCK_NESTING_LEVEL];
-    uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
-    uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
-    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
-    int16_t current_ovl;                 ///< Current overlay index
-} __attribute__((aligned(16), packed)) rsp_queue_t;
-
-/** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
-#define RSPQ_DATA_ADDRESS                32
 
 /**
  * @brief RSP queue building context
@@ -434,6 +304,9 @@ rspq_ctx_t *rspq_ctx;                   ///< Current context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
 
+/** @brief Buffers that hold outgoing RDP commands (generated via RSP). */
+void *rspq_rdp_dynamic_buffers[2];
+
 /** @brief RSP queue data in DMEM. */
 static rsp_queue_t rspq_data;
 
@@ -441,20 +314,20 @@ static rsp_queue_t rspq_data;
 static bool rspq_initialized = 0;
 
 /** @brief Pointer to the current block being built, or NULL. */
-static rspq_block_t *rspq_block;
+rspq_block_t *rspq_block;
 /** @brief Size of the current block memory buffer (in 32-bit words). */
 static int rspq_block_size;
 
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
 /** @brief ID of the last syncpoint reached by RSP. */
-static volatile int rspq_syncpoints_done;
+volatile int __rspq_syncpoints_done  __attribute__((aligned(8)));
 
 /** @brief True if the RSP queue engine is running in the RSP. */
 static bool rspq_is_running;
 
 /** @brief Dummy state used for overlay 0 */
-static uint64_t dummy_overlay_state;
+static uint64_t dummy_overlay_state[2];
 
 static void rspq_flush_internal(void);
 
@@ -468,7 +341,13 @@ static void rspq_sp_interrupt(void)
     // syncpoint done ID and clear the signal.
     if (status & SP_STATUS_SIG_SYNCPOINT) {
         wstatus |= SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
-        ++rspq_syncpoints_done;
+        ++__rspq_syncpoints_done;
+        // writeback to memory; this is required for RDPQCmd_SyncFull to fetch the correct value 
+        data_cache_hit_writeback(&__rspq_syncpoints_done, sizeof(__rspq_syncpoints_done));
+    }
+    if (status & SP_STATUS_SIG0) {
+        wstatus |= SP_WSTATUS_CLEAR_SIG0;
+        if (rdpq_trace_fetch) rdpq_trace_fetch(true);
     }
 
     MEMORY_BARRIER();
@@ -478,14 +357,22 @@ static void rspq_sp_interrupt(void)
 }
 
 /** @brief Extract the current overlay index and name from the RSP queue state */
-static void rspq_get_current_ovl(rsp_queue_t *rspq, int *ovl_idx, const char **ovl_name)
+static void rspq_get_current_ovl(rsp_queue_t *rspq, int *ovl_idx, uint8_t *ovl_id, const char **ovl_name)
 {
+    *ovl_id = 0xFF;
     *ovl_idx = rspq->current_ovl / sizeof(rspq_overlay_t);
-    if (*ovl_idx == 0)
+    if (*ovl_idx == 0) {
         *ovl_name = "builtin";
-    else if (*ovl_idx < RSPQ_MAX_OVERLAY_COUNT && rspq_overlay_ucodes[*ovl_idx])
+        *ovl_id = 0;
+    } else if (*ovl_idx < RSPQ_MAX_OVERLAY_COUNT && rspq_overlay_ucodes[*ovl_idx]) {
         *ovl_name = rspq_overlay_ucodes[*ovl_idx]->name;
-    else
+        for (int i=0;i<RSPQ_OVERLAY_TABLE_SIZE;i++) {
+            if (rspq->tables.overlay_table[i] == *ovl_idx * sizeof(rspq_overlay_t)) {
+                *ovl_id = i;
+                break;
+            }
+        }
+    } else
         *ovl_name = "?";
 }
 
@@ -494,16 +381,17 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x160 : 0x100;
 
-    int ovl_idx; const char *ovl_name;
-    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+    int ovl_idx; const char *ovl_name; uint8_t ovl_id;
+    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
 
     printf("RSPQ: Normal  DRAM address: %08lx\n", rspq->rspq_dram_lowpri_addr);
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + GP=%lx = %08lx\n", 
         rspq->rspq_dram_addr, state->gpr[28], cur);
-    printf("RSPQ: Current Overlay: %s (%02x)\n", ovl_name, ovl_idx);
+    printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffers[1]);
+    printf("RSPQ: Current Overlay: %s (%x)\n", ovl_name, ovl_id);
 
     // Dump the command queue in DMEM. In debug mode, there is a marker to check
     // if we know the correct address. TODO: find a way to expose the symbols
@@ -519,11 +407,21 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     }
 
     // Dump the command queue in RDRAM (both data before and after the current pointer).
-    debugf("RSPQ: RDRAM Command queue:\n");
-    uint32_t *q = (uint32_t*)(0xA0000000 | (cur & 0xFFFFFF));
+    debugf("RSPQ: RDRAM Command queue: %s\n", (cur&3) ? "MISALIGNED" : "");
+    uint32_t *q = (uint32_t*)(0xA0000000 | (cur & 0xFFFFFC));
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
             debugf("%08lx%c", q[i+j*16-32], i+j*16-32==0 ? '*' : ' ');
+        debugf("\n");
+    }
+
+    debugf("RSPQ: RDP Command queue: %s\n", (cur&7) ? "MISALIGNED" : "");
+    q = (uint32_t*)(0xA0000000 | (state->cop0[10] & 0xFFFFF8));
+    for (int j=0;j<4;j++) {        
+        for (int i=0;i<16;i+=2) {
+            debugf("%08lx", q[i+0+j*16-32]);
+            debugf("%08lx%c", q[i+1+j*16-32], i+j*16-32==0 ? '*' : ' ');
+        }
         debugf("\n");
     }
 }
@@ -532,12 +430,12 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 static void rspq_assert_invalid_command(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
-    int ovl_idx; const char *ovl_name;
-    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+    int ovl_idx; const char *ovl_name; uint8_t ovl_id;
+    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
 
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x160 : 0x100;
     uint32_t cur = dmem_buffer + state->gpr[28];
-    printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_idx);
+    printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_id);
 }
 
 /** @brief Special RSP assert handler for ASSERT_INVALID_OVERLAY */
@@ -696,6 +594,10 @@ void rspq_init(void)
     // Start in low-priority mode
     rspq_switch_context(&lowpri);
 
+    // Allocate the RDP dynamic buffers.
+    rspq_rdp_dynamic_buffers[0] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
+    rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
+
     // Verify consistency of state
     int banner_offset = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 16);
     assertf(!memcmp(rsp_queue.data + banner_offset, "Dragon RSP Queue", 16),
@@ -706,13 +608,18 @@ void rspq_init(void)
     rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
     rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
-    rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
-    rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
+    rspq_data.rdp_scissor_rect = (0xEDull << 56) | (1 << 12);
+    rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
+    rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
+    rspq_data.rspq_rdp_current = rspq_data.rspq_rdp_buffers[0];
+    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_buffers[0] + RDPQ_DYNAMIC_BUFFER_SIZE;
+    rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(dummy_overlay_state);
+    rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t)*2;
     rspq_data.current_ovl = 0;
     
     // Init syncpoints
     rspq_syncpoints_genid = 0;
-    rspq_syncpoints_done = 0;
+    __rspq_syncpoints_done = 0;
 
     // Init blocks
     rspq_block = NULL;
@@ -723,6 +630,21 @@ void rspq_init(void)
     set_SP_interrupt(1);
 
     rspq_initialized = 1;
+
+    // Initialize the RDP
+    MEMORY_BARRIER();
+    *DP_STATUS = DP_WSTATUS_RESET_XBUS_DMEM_DMA | DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
+    MEMORY_BARRIER();
+    RSP_WAIT_LOOP(500) {
+        if (!(*DP_STATUS & (DP_STATUS_START_VALID | DP_STATUS_END_VALID))) {
+            break;
+        }
+    }
+    MEMORY_BARRIER();
+    *DP_START = rspq_data.rspq_rdp_buffers[0];
+    MEMORY_BARRIER();
+    *DP_END = rspq_data.rspq_rdp_buffers[0];
+    MEMORY_BARRIER();
 
     rspq_start();
 }
@@ -743,6 +665,9 @@ void rspq_close(void)
     
     rspq_initialized = 0;
 
+    free_uncached(rspq_rdp_dynamic_buffers[0]);
+    free_uncached(rspq_rdp_dynamic_buffers[1]);
+
     rspq_close_context(&highpri);
     rspq_close_context(&lowpri);
 
@@ -750,18 +675,61 @@ void rspq_close(void)
     unregister_SP_handler(rspq_sp_interrupt);
 }
 
-void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
+static void* overlay_get_state(rsp_ucode_t *overlay_ucode, int *state_size)
 {
     uint32_t rspq_data_size = rsp_queue_data_end - rsp_queue_data_start;
     rspq_overlay_header_t *overlay_header = (rspq_overlay_header_t*)(overlay_ucode->data + rspq_data_size);
 
     uint32_t state_offset = (overlay_header->state_start & 0xFFF);
-    assertf(state_offset >= rspq_data_size + sizeof(rspq_overlay_header_t), "Saved overlay state must start after the overlay header!");
+    assertf(state_offset >= rspq_data_size + sizeof(rspq_overlay_header_t), 
+        "Saved overlay state must start after the overlay header (overlay: %s)!", overlay_ucode->name);
 
     void* state_ptr = overlay_ucode->data + state_offset;
-    assertf(state_ptr + overlay_header->state_size + 1 <= overlay_ucode->data_end, "Saved overlay state must be completely within the data segment!");
+    assertf(state_ptr + overlay_header->state_size + 1 <= overlay_ucode->data_end, 
+    "Saved overlay state must be completely within the data segment (overlay: %s)", overlay_ucode->name);
+
+    if (state_size)
+        *state_size = overlay_header->state_size;
 
     return state_ptr;
+}
+
+void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
+{
+    // Get the RDRAM pointers to the overlay state
+    int state_size;
+    uint8_t* state_ptr = overlay_get_state(overlay_ucode, &state_size);
+
+    if (rspq_is_running)
+    {
+        // Make sure the RSP is idle, otherwise the overlay state could be modified
+        // at any time causing race conditions.
+        rspq_wait();
+
+        // Check if the current overlay is the one that we are requesting the
+        // state for. If so, read back the latest updated state from DMEM
+        // manually via DMA, so that the caller finds the latest contents.
+        int ovl_idx; const char *ovl_name; uint8_t ovl_id;
+        rsp_queue_t *rspq = (rsp_queue_t*)((uint8_t*)SP_DMEM + RSPQ_DATA_ADDRESS);
+        rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
+
+        if (ovl_idx && rspq_overlay_ucodes[ovl_idx] == overlay_ucode) {
+            rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
+        }
+    }
+
+    return state_ptr;
+}
+
+rsp_queue_t* __rspq_get_state(void)
+{
+    // Make sure the RSP is idle, otherwise the state could be modified
+    // at any time causing race conditions.
+    rspq_wait();
+
+    // Read the state and return it
+    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), RSPQ_DATA_ADDRESS);
+    return &rspq_data;
 }
 
 static uint32_t rspq_overlay_get_command_count(rspq_overlay_header_t *header)
@@ -774,6 +742,7 @@ static uint32_t rspq_overlay_get_command_count(rspq_overlay_header_t *header)
     }
 
     assertf(0, "Overlays can only define up to %d commands!", RSPQ_MAX_OVERLAY_COMMAND_COUNT);
+    return 0;
 }
 
 static uint32_t rspq_find_new_overlay_index(void)
@@ -791,25 +760,16 @@ static uint32_t rspq_find_new_overlay_index(void)
 static uint32_t rspq_find_new_overlay_id(uint32_t slot_count)
 {
     uint32_t cur_free_slots = 0;
-    bool cur_is_reserved = 0;
-
-    uint32_t found_reserved = 0;
 
     for (uint32_t i = 1; i <= RSPQ_OVERLAY_ID_COUNT - slot_count; i++)
     {
         // If this slot is occupied, reset number of free slots found
         if (rspq_data.tables.overlay_table[i] != 0) {
             cur_free_slots = 0;
-            cur_is_reserved = 0;
             continue;
         }
 
         ++cur_free_slots;
-
-        // These IDs are reserved for RDP commands
-        if (i == 0x2 || i == 0x3) {
-            cur_is_reserved = 1;
-        }
 
         // If required number of slots have not been found, keep searching
         if (cur_free_slots < slot_count) {
@@ -818,27 +778,11 @@ static uint32_t rspq_find_new_overlay_id(uint32_t slot_count)
 
         // We have found <slot_count> consecutive free slots
         uint32_t found_slot = i - slot_count + 1;
-
-        // If none of those slots are reserved, we are done
-        if (!cur_is_reserved) {
-            return found_slot;
-        }
-
-        // Otherwise, remember the found slot and keep searching.
-        // If we have already remembered something, don't overwrite it.
-        // So if only reserved slots are available, we still return the first one of them.
-        if (found_reserved == 0) {
-            found_reserved = found_slot;
-        }
-
-        // Reset and try again
-        cur_free_slots = 0;
-        cur_is_reserved = 0;
+        return found_slot;
     }
     
-    // If no unreserved slots have been found, return the first free reserved one as fallback.
-    // If all reserved slots are occupied as well, this returns zero, which means the search failed.
-    return found_reserved;
+    // If no free slots have been found, return zero, which means the search failed.
+    return 0;
 }
 
 static void rspq_update_tables(bool is_highpri)
@@ -962,9 +906,9 @@ void rspq_overlay_unregister(uint32_t overlay_id)
     memset(overlay, 0, sizeof(rspq_overlay_t));
 
     // Remove all registered ids
-    for (uint32_t i = unshifted_id; i < slot_count; i++)
+    for (uint32_t i = 0; i < slot_count; i++)
     {
-        rspq_data.tables.overlay_table[i] = 0;
+        rspq_data.tables.overlay_table[unshifted_id + i] = 0;
     }
 
     // Reset the command base in the overlay header
@@ -1003,8 +947,14 @@ void rspq_next_buffer(void) {
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
+
         return;
     }
+
+    // We are about to switch buffer. If the debugging engine is activate,
+    // it is a good time to run it, so that it does not accumulate too many
+    // commands.
+    if (rdpq_trace) rdpq_trace();
 
     // Wait until the previous buffer is executed by the RSP.
     // We cannot write to it if it's still being executed.
@@ -1069,6 +1019,7 @@ void rspq_flush(void)
     if (rspq_block) return;
 
     rspq_flush_internal();
+    if (rdpq_trace) rdpq_trace();
 }
 
 void rspq_highpri_begin(void)
@@ -1078,28 +1029,33 @@ void rspq_highpri_begin(void)
 
     rspq_switch_context(&highpri);
 
-    // If we're continuing on the same buffer another highpri sequence,
-    // try to skip the highpri epilog and jump to the buffer continuation.
-    // This is a small performance gain (the RSP doesn't need to exit and re-enter
-    // the highpri mode) but it also allows to enqueue more than one highpri
-    // sequence, since we only have a single SIG_HIGHPRI_REQUESTED and there
-    // would be no way to tell the RSP "there are 3 sequences pending, so exit
-    // and re-enter three times".
-    // 
-    // To skip the epilog we write single atomic words over  the epilog,
-    // changing it with a JUMP to the buffer continuation. This operation
-    // is completely safe because the RSP either see the memory before the
-    // change (it sees the epilog) or after the change (it sees the new JUMP).
-    // 
-    // In the first case, it will run the epilog and then reenter the highpri
-    // mode soon (as we're turning on SIG_HIGHPRI_REQUESTED anyway). In the 
-    // second case, it's going to see the JUMP, skip the epilog and continue.
-    // The SIG_HIGHPRI_REQUESTED bit will be set but this function, and reset
-    // at the beginning of the new segment, but it doesn't matter at this point.
-    if (rspq_cur_pointer[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
-        volatile uint32_t *epilog = rspq_cur_pointer-4;
-        rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
-        rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
+    // Check if we're not at the beginning of the buffer. This avoids doing
+    // OOB reads in the next check.
+    if (rspq_cur_pointer != rspq_ctx->buffers[rspq_ctx->buf_idx]) {
+
+        // If we're continuing on the same buffer another highpri sequence,
+        // try to skip the highpri epilog and jump to the buffer continuation.
+        // This is a small performance gain (the RSP doesn't need to exit and re-enter
+        // the highpri mode) but it also allows to enqueue more than one highpri
+        // sequence, since we only have a single SIG_HIGHPRI_REQUESTED and there
+        // would be no way to tell the RSP "there are 3 sequences pending, so exit
+        // and re-enter three times".
+        // 
+        // To skip the epilog we write single atomic words over  the epilog,
+        // changing it with a JUMP to the buffer continuation. This operation
+        // is completely safe because the RSP either see the memory before the
+        // change (it sees the epilog) or after the change (it sees the new JUMP).
+        // 
+        // In the first case, it will run the epilog and then reenter the highpri
+        // mode soon (as we're turning on SIG_HIGHPRI_REQUESTED anyway). In the 
+        // second case, it's going to see the JUMP, skip the epilog and continue.
+        // The SIG_HIGHPRI_REQUESTED bit will be set but this function, and reset
+        // at the beginning of the new segment, but it doesn't matter at this point.
+        if (rspq_cur_pointer[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
+            volatile uint32_t *epilog = rspq_cur_pointer-4;
+            rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
+            rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
+        }
     }
 
     // Clear SIG_HIGHPRI_REQUESTED and set SIG_HIGHPRI_RUNNING. This is normally done
@@ -1134,6 +1090,9 @@ void rspq_highpri_sync(void)
 {
     assertf(rspq_ctx != &highpri, "this function can only be called outside of highpri mode");
 
+    // Make sure the RSP is running, otherwise we might be blocking forever.
+    rspq_flush_internal();
+
     RSP_WAIT_LOOP(200) {
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING)))
             break;
@@ -1149,11 +1108,14 @@ void rspq_block_begin(void)
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
     rspq_block->nesting_level = 0;
+    rspq_block->rdp_block = NULL;
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
     rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
+
+    __rdpq_block_begin();
 }
 
 rspq_block_t* rspq_block_end(void)
@@ -1167,6 +1129,9 @@ rspq_block_t* rspq_block_end(void)
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
 
+    // Save pointer to rdpq block (if any)
+    rspq_block->rdp_block = __rdpq_block_end();
+
     // Return the created block
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
@@ -1175,6 +1140,9 @@ rspq_block_t* rspq_block_end(void)
 
 void rspq_block_free(rspq_block_t *block)
 {
+    // Free RDP blocks first
+    __rdpq_block_free(block->rdp_block);
+
     // Start from the commands in the first chunk of the block
     int size = RSPQ_BLOCK_MIN_SIZE;
     void *start = block;
@@ -1215,6 +1183,9 @@ void rspq_block_run(rspq_block_t *block)
     // mode, but it might be an acceptable limitation.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
 
+    // Notify rdpq engine we are about to run a block
+    __rdpq_block_run(block->rdp_block);
+
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
     // pointer position.
@@ -1230,6 +1201,16 @@ void rspq_block_run(rspq_block_t *block)
     }
 }
 
+void rspq_block_run_rsp(int nesting_level)
+{
+    __rdpq_block_run(NULL);
+    if (rspq_block && rspq_block->nesting_level <= nesting_level) {
+        rspq_block->nesting_level = nesting_level + 1;
+        assertf(rspq_block->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
+            "reached maximum number of nested block runs");
+    }    
+}
+
 void rspq_noop()
 {
     rspq_int_write(RSPQ_CMD_NOOP);
@@ -1237,8 +1218,20 @@ void rspq_noop()
 
 rspq_syncpoint_t rspq_syncpoint_new(void)
 {   
+    assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
     assertf(!rspq_block, "cannot create syncpoint in a block");
     assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
+
+    // To create a syncpoint, schedule a CMD_TEST_WRITE_STATUS command that:
+    //   1. Wait for SP_STATUS_SIG_SYNCPOINT to go zero. This is cleared in
+    //      the RSP interrupt routine and basically make sure that any other
+    //      pending interrupt had been acknowledged. Otherwise, we might
+    //      end up coalescing multiple RSP interrupts, and thus missing
+    //      syncpoints (as we need exactly one handled interrupt per syncpoint).
+    //   2. Write SP_STATUS with SP_WSTATUS_SET_SIG_SYNCPOINT and SP_WSTATUS_SET_INTR,
+    //      forcing a new RSP interrupt to be generated. The interrupt routine
+    //      (#rspq_sp_interrupt) will notice the SP_STATUS_SIG_SYNCPOINT and know
+    //      that the interrupt has been generated for a syncpoint.
     rspq_int_write(RSPQ_CMD_TEST_WRITE_STATUS, 
         SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT,
         SP_STATUS_SIG_SYNCPOINT);
@@ -1247,7 +1240,7 @@ rspq_syncpoint_t rspq_syncpoint_new(void)
 
 bool rspq_syncpoint_check(rspq_syncpoint_t sync_id) 
 {
-    int difference = (int)((uint32_t)(sync_id) - (uint32_t)(rspq_syncpoints_done));
+    int difference = (int)((uint32_t)(sync_id) - (uint32_t)(__rspq_syncpoints_done));
     return difference <= 0;
 }
 
@@ -1269,6 +1262,27 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
         if (rspq_syncpoint_check(sync_id))
             break;
     }
+}
+
+void rspq_wait(void)
+{
+    // Check if the RDPQ module was initialized.
+    if (__rdpq_inited) {
+        // If so, a full sync requires also waiting for RDP to finish.
+        rdpq_fence();
+
+        // Also force a buffer switch to go back to dynamic buffer. This is useful
+        // in the case the RDP is still pointing to a static buffer (after a block
+        // is just finished). This allows the user to safely free the static buffer
+        // after rspq_wait(), as intuition would suggest.
+        rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 0, 0, 0);
+    }
+    
+    // Wait until RSP has finished processing the queue
+    rspq_syncpoint_wait(rspq_syncpoint_new());
+
+    // Update the tracing engine (if enabled)
+    if (rdpq_trace) rdpq_trace();
 }
 
 void rspq_signal(uint32_t signal)
