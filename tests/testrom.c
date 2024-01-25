@@ -206,6 +206,11 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_constructors.c"
 #include "test_backtrace.c"
 #include "test_rspq.c"
+#include "test_rdpq.c"
+#include "test_rdpq_tri.c"
+#include "test_rdpq_tex.c"
+#include "test_rdpq_attach.c"
+#include "test_rdpq_sprite.c"
 
 /**********************************************************************
  * MAIN
@@ -273,6 +278,48 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_highpri_multiple,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_overlay,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_big_command,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_rdp_dynamic,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_rdp_dynamic_switch,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_rspqwait,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_clear,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_dynamic,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_passthrough_big,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_coalescing,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_contiguous,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_dynamic,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_change_other_modes,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_setfillcolor,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_setscissor,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_texturerect,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_fillrect,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address_offset, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_syncfull_cb,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_syncfull_resume,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_autosync,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_automode,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_blender,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_blender_memory,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fog,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_antialias,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_alphacompare,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_freeze,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mode_freeze_stack,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mipmap,                0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_autotmem,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_autotmem_reuse,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_texrect_passthrough,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_triangle,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_triangle_w1,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_attach_clear,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_attach_stack,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_upload,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_upload_multi,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_blit_normal,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_multi_i4,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_sprite_upload,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_sprite_lod,            0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
