@@ -368,6 +368,10 @@ void image_compact(uint8_t *pixels, int *w, int *h, int stride)
             }
         }
     }
+
+    // Add one black column and row to avoid bilinear filtering artifacts
+    *w = *w+1;
+    *h = *h+1;
 }
 
 // qsort compare function to sort arrays of kerning_t by glyph2
