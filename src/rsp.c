@@ -12,11 +12,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include "rsp.h"
+#include "rdp.h"
 #include "debug.h"
 #include "console.h"
 #include "regsinternal.h"
 #include "n64sys.h"
 #include "interrupt.h"
+#include "rdpq/rdpq_debug_internal.h"
 
 /**
  * RSP crash handler ucode (rsp_crash.S)
@@ -205,7 +207,7 @@ void __rsp_check_assert(const char *file, int line, const char *func)
 __attribute__((noreturn, format(printf, 4, 5)))
 void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
 {
-    volatile uint32_t *DP_STATUS = (volatile uint32_t*)0xA410000C;
+    volatile uint32_t *DP_REGS = (volatile uint32_t*)0xA4100000;
     volatile uint32_t *SP_REGS = (volatile uint32_t*)0xA4040000;
 
     rsp_snapshot_t state __attribute__((aligned(8)));
@@ -224,24 +226,34 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     // Now read all SP registers. Most of them are DMA-related so the earlier
     // we read them the better. We can't freeze the DMA transfer so they might
     // be slightly incoherent.
-    uint32_t sp_regs[8];
-    for (int i=0;i<8;i++)
+    uint32_t sp_regs[8], dp_regs[8];
+    for (int i=0;i<8;i++) {
         sp_regs[i] = i==4 ? sp_status : SP_REGS[i];
+        dp_regs[i] = i==3 ? dp_status : DP_REGS[i];
+    }
     MEMORY_BARRIER();
-
-    // Freeze the RDP
-    *DP_STATUS = 1<<3;
-
-    // Initialize the console
-    console_init();
-    console_set_debug(true);
-    console_set_render_mode(RENDER_MANUAL);
 
     // Forcibly halt the RSP, and wait also for the DMA engine to be idle
     *SP_STATUS = SP_WSTATUS_SET_HALT;
     while (!(*SP_STATUS & SP_STATUS_HALTED)) {}
     while (*SP_STATUS & (SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)) {}
     MEMORY_BARRIER();
+
+    // We now need to check whether the RDP has crashed. We need to send a
+    // DMA transfer (unless one is already going)
+    uint64_t dummy_rdp_command = 0x2700000000000000ull; // sync pipe
+    if (!(dp_status & (DP_STATUS_DMA_BUSY | DP_STATUS_START_VALID | DP_STATUS_END_VALID))) {
+        data_cache_hit_writeback_invalidate(&dummy_rdp_command, sizeof(dummy_rdp_command));
+        *DP_START = PhysicalAddr(&dummy_rdp_command);
+        *DP_END = PhysicalAddr(&dummy_rdp_command + 1);
+    }
+    // Check if there are any progresses in DP_CURRENT
+    for (int i=0; i<20 && *DP_CURRENT == dp_regs[2]; i++)
+        wait_ms(5);
+    bool rdp_crashed = *DP_CURRENT == dp_regs[2];
+
+    // Freeze the RDP
+    *DP_STATUS = 1<<3;
 
     // Read the current PC. This can only be read after the RSP is halted.
     uint32_t pc = *SP_PC;
@@ -258,13 +270,26 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     rsp_read_data(&state, 764, 0);
  
     // Overwrite the status register information with the reads we did at
-    // the beginning of the handler
-    for (int i=0;i<8;i++)
-        state.cop0[i] = sp_regs[i];
-    state.cop0[11] = dp_status;
+    // the beginning of the handler.
+    // FIXME: maybe not read these anymore from the RSP?
+    for (int i=0;i<8;i++) {
+        state.cop0[i+0] = sp_regs[i];
+        state.cop0[i+8] = dp_regs[i];
+    }
 
     // Write the PC now so it doesn't get overwritten by the DMA
     state.pc = pc;
+
+    // Initialize the console
+    console_init();
+    console_set_debug(true);
+    console_set_render_mode(RENDER_MANUAL);
+
+    // If the validator is active, this is a good moment to flush its buffered
+    // output. This could also trigger a RDP crash (which might be the
+    // underlying cause for the RSP crash), so better try that before start
+    // filling the output buffer.
+    if (rdpq_trace) rdpq_trace();
 
     // Dump information on the current ucode name and CPU point of crash
     const char *uc_name = uc ? uc->name : "???";
@@ -285,6 +310,25 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
         printf("\n");
     }
 
+    // Check if the RDP crashed. If the RDP crashed while the validator was active,
+    // theoretically it should have caught it before (in the rdpq_trace above),
+    // so we shouldn't event get here.
+    // Still, there are a few cases where this can happen:
+    //   * the validator could be disabled
+    //   * some unknown RDP crash conditions not yet handled by the validator
+    //   * some race condition for which the validator missed the command that
+    //     triggered the crash
+    //   * validator asserts could be disabled, in which case we dumped the crash
+    //     condition in the debug output, but we still get here.
+    // NOTE: unfortunately, RDP doesn't always sets the FREEZE bit when it crashes
+    // (it is unknown why sometimes it doesn't). So this is just a best effort to
+    // highlight the presence of the important FREEZE bit in DP STATUS that could
+    // otherwise go unnoticed.
+    if (rdp_crashed) {
+        printf("RDP CRASHED: the code triggered a RDP hardware bug.\n");
+        printf("Use the rdpq validator (rdpq_debug_start()) to analyze.\n");
+    }
+
     // Check if a RSP assert triggered. We check that we reached an
     // infinite loop with the break instruction in the delay slot.
     if (*(uint32_t*)(&state.imem[pc+4]) == 0x00BA000D) {
@@ -292,7 +336,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
         uint16_t code = state.gpr[1] >> 16;
         printf("RSP ASSERTION FAILED (0x%x)", code);
 
-        if (uc->assert_handler) {
+        if (uc && uc->assert_handler) {
             printf(" - ");
             uc->assert_handler(&state, code);
         } else {
@@ -391,7 +435,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // Invoke ucode-specific crash handler, if defined. This will dump ucode-specific
     // information (possibly decoded from DMEM).
-    if (uc->crash_handler) {
+    if (uc && uc->crash_handler) {
         printf("-----------------------------------------------Ucode data------\n");
         uc->crash_handler(&state);
     }

@@ -37,11 +37,11 @@
  * a portion of the original surface:
  * 
  * @code{.c}
- *      surface_t *fb = display_get(); // wait for a framebuffer to be ready
+ *      surface_t *fb = display_get();  // wait for a framebuffer to be ready
  *      
  *      // Attach the RDP to the top 40 rows of the framebuffer
  *      surface_t fbtop = surface_make_sub(fb, 0, 0, 320, 40);
- *      rdp_attach(&fbtop);
+ *      rdpq_attach(&fbtop);
  * @endcode
  * 
  * Surfaces created by #surface_make_sub don't need to be freed as they
@@ -94,9 +94,11 @@ extern "C" {
  * This enum defines the pixel formats that can be used for #surface_t buffers.
  * The list corresponds to the pixel formats that the RDP can use as textures.
  * 
- * Notice that only some of those can be used by RDP as framebuffer (specifically,
- * #FMT_RGBA16, #FMT_RGBA32 and #FMT_CI8). Moreover, the CPU-based graphics library
- * graphics.h only accepts surfaces in either #FMT_RGBA16 or #FMT_RGBA32 as target buffers.
+ * @note Some of these formats can be used by RDP as framebuffer (specifically,
+ * #FMT_RGBA16, #FMT_RGBA32 and #FMT_CI8). 
+ * @warning the CPU-based graphics library
+ * graphics.h only accepts surfaces in either #FMT_RGBA16 or #FMT_RGBA32 as 
+ * target buffers, and does not assert.
  */
 typedef enum {
     FMT_NONE   = 0,                        ///< Placeholder for no format defined
@@ -116,8 +118,9 @@ typedef enum {
 /** @brief Return the name of the texture format as a string (for debugging purposes) */
 const char* tex_format_name(tex_format_t fmt);
 
-#define SURFACE_FLAGS_TEXFORMAT    0x1F   ///< Pixel format of the surface
-#define SURFACE_FLAGS_OWNEDBUFFER  0x20   ///< Set if the buffer must be freed
+#define SURFACE_FLAGS_TEXFORMAT    0x001F   ///< Pixel format of the surface
+#define SURFACE_FLAGS_OWNEDBUFFER  0x0020   ///< Set if the buffer must be freed
+#define SURFACE_FLAGS_TEXINDEX     0x0F00   ///< Placeholder for rdpq lookup table
 
 /**
  * @brief A surface buffer for graphics
@@ -151,7 +154,7 @@ typedef struct surface_s
  * to the caller to handle its lifetime.
  * 
  * If you plan to use this format as RDP framebuffer, make sure that the provided buffer
- * respects the required alignment of 64 bytes, otherwise #rdp_attach will fail.
+ * respects the required alignment of 64 bytes, otherwise #rdpq_attach will fail.
  * 
  * @param[in] buffer    Pointer to the memory buffer
  * @param[in] format    Pixel format
@@ -201,7 +204,7 @@ inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t
  * not needed anymore.
  * 
  * A surface allocated via #surface_alloc can be used as a RDP frame buffer
- * (passed to #rdp_attach) because it is guaranteed to have the required
+ * (passed to #rdpq_attach) because it is guaranteed to have the required
  * alignment of 64 bytes, provided it is using one of the formats supported by
  * RDP as a framebuffer target (`FMT_RGBA32`, `FMT_RGBA16` or `FMT_I8`).
  *
@@ -264,6 +267,74 @@ inline bool surface_has_owned_buffer(const surface_t *surface)
 {
     return surface->buffer != NULL && surface->flags & SURFACE_FLAGS_OWNEDBUFFER;
 }
+
+/**
+ * @brief Create a placeholder surface, that can be used during rdpq block recording.
+ * 
+ * When recording a rspq block (via #rspq_block_begin / #rspq_block_end) it might
+ * be useful sometimes to issue draw commands that refer to a surface, but
+ * allowing the actual surface to change later at any time.
+ * 
+ * See #rdpq_set_lookup_address for more information.
+ * 
+ * @note A placeholder surface holds a NULL pointer to the actual bytes. Make sure
+ *       not to use it anywhere else but with rdpq.
+ * 
+ * @param index     Index that will be used to lookup the surface at playback time
+ * @param format    Pixel format
+ * @param width     Width of the surface in pixels
+ * @param height    Height of the surface in pixels
+ * @param stride    Stride of the surface in bytes
+ * @return surface_t    The initialized placeholder surface
+ * 
+ * @see #surface_make_placeholder_linear
+ * @see #rdpq_set_lookup_address
+ */
+inline surface_t surface_make_placeholder(int index, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride) {
+    return (surface_t){
+        .flags = format | (index << 8),
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .buffer = NULL,
+    };
+}
+
+/**
+ * @brief Create a linear placeholder surface, that can be used during rdpq block recording.
+ * 
+ * This function is similar to #surface_make_placeholder, but it creates
+ * a surface that is linearly mapped with no per-line padding or extraneous data.
+ * (so the stride is automatically deduced from the width).
+ * 
+ * @param index     Index that will be used to lookup the surface at playback time
+ * @param format    Pixel format
+ * @param width     Width of the surface in pixels
+ * @param height    Height of the surface in pixels
+ * @return surface_t    The initialized placeholder surface
+ * 
+ * @see #surface_make_placeholder
+ */
+inline surface_t surface_make_placeholder_linear(int index, tex_format_t format, uint32_t width, uint32_t height) {
+    return surface_make_placeholder(index, format, width, height, TEX_FORMAT_PIX2BYTES(format, width));
+}
+
+/**
+ * @brief Returns the lookup index of a placeholder surface
+ * 
+ * If ths surface is a placeholder, this function returns the associated lookup
+ * index that will be used to retrieve the actual surface at playback time.
+ * Otherwise, if it is a normal surface, this function will return 0.
+ * 
+ * @param surface   Placeholder surface
+ * @return int      The lookup index of the placeholder surface, or 0 if it is a normal surface
+ */
+inline int surface_get_placeholder_index(const surface_t *surface)
+{
+    return (surface->flags >> 8) & 0xF;
+}
+
+
 #ifdef __cplusplus
 }
 #endif
