@@ -109,7 +109,7 @@ RDPQ_Send:
     sw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
 
     # Calculate new sentinel (end of buffer)
-    addi sentinel, rdram_cur, RDPQ_DYNAMIC_BUFFER_SIZE
+    add sentinel, rdram_cur, RDPQ_DYNAMIC_BUFFER_SIZE
 
     # Run the DMA transfer now, and after that, run RSPQCmd_RdpSetBuffer via
     # tailcall. Prepare a1 for it, containing the pointer to the new buffer,
