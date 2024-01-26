@@ -6,6 +6,7 @@
 #include <string.h>
 #include "libdragon.h"
 #include "regsinternal.h"
+#include <unistd.h>
 
 /**
  * @defgroup mempak Mempak Filesystem Routines
@@ -839,86 +840,88 @@ int get_mempak_free_space( int controller )
 }
 
 /**
- * @brief Format a mempak
+ * @brief Format a ControllerPak (mempak)
  *
- * Formats a mempak.  Should only be done to wipe a mempak or to initialize
- * the filesystem in case of a blank or corrupt mempak.
+ * Formats a ControllerPak (mempak). This should only be done to totally wipe and re-initialize
+ * the filesystem in case of a blank or corrupt Pak after a repair has failed.
  *
  * @param[in] controller
- *            The controller (0-3) to format the mempak on
+ *            The Controller (0-3) that the CPak is inserted.
  *
- * @retval 0 if the mempak was formatted successfully
- * @retval -2 if the mempak was not present or couldn't be formatted
+ * @retval 0 if the CPak was formatted successfully.
+ * @retval -2 if the CPak was not present or couldn't be formatted.
  */
 int format_mempak( int controller )
 {
-    /* Many mempak dumps exist online for users of emulated games to get
-       saves that have all unlocks.  Every beginning sector on all these
-       was the same, so this is the data I use to initialize the first
-       sector */
-    uint8_t sector[MEMPAK_BLOCK_SIZE] = { 0x81,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
-                            0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
-                            0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,
-                            0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
+    /* set the size to 1280 as the notes table (768-1280) will need to be initialized. */
+    uint8_t cpak_header_data[1280] = {0x00};
 
-    if( write_mempak_sector( controller, 0, sector ) )
+    uint16_t i, word, sum1 = 0, sum2 = 0;
+
+    /* 0x00 	24 	Serial number
+     * 0x18 	1 	unused (always 0)
+     * 0x19 	1 	Device ID (always 1)
+     * 0x1A 	1 	Bank size (always 1)
+     * 0x1B 	1 	unused (always 0)
+     * 0x1C 	2 	Checksum 1
+     * 0x1E 	2 	Checksum 2 */
+    static uint8_t cpakid_array[] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x00 - 0x07 (0 - 7) */
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x08 - 0x0f (8 - 15) */
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x10 - 0x1f (16 - 23) */
+        0x00, 0x01, 0x01, 0x00, 0x01, 0x01, 0xFE, 0xF1  /* 0x20 - 0x2f (24 - 32) */
+    };
+
+    /* Assign 'random' value to ID */
+    getentropy(&cpakid_array, 24); /* Use system entropy to write the first 24 bytes */
+
+    /* Create checksum */
+    for (i = 0; i < 28; i += 2)
     {
-        /* Couldn't write initial sector */
-        return -2;
+        word = (cpakid_array[i] << 8) + cpakid_array[i + 1];
+        sum1 += word; sum2 += ~word;
     }
 
-    /* Write out entry sectors, which can safely be zero */
-    memset( sector, 0x0, MEMPAK_BLOCK_SIZE );
-    if( write_mempak_sector( controller, 3, sector ) ||
-        write_mempak_sector( controller, 4, sector ) )
+    /* Update checksum */
+    cpakid_array[0x1c] = sum1 >> 8;
+    cpakid_array[0x1d] = sum1 & 0xFF;
+    cpakid_array[0x1e] = sum2 >> 8;
+    cpakid_array[0x1f] = sum2 & 0xFF;
+
+    /* Update ID blocks with IDs */
+    for(i = 0; i < 32; i++)
     {
-        /* Couldn't write entry sectors */
-        return -2;
+        /* ID Block (Primary) */
+        cpak_header_data[0x20 + i] = cpakid_array[i];
+        /* 0x40 is unused */
+        /* ID Block (Backup 1) */
+        cpak_header_data[0x60 + i] = cpakid_array[i];
+        /* ID Block (Backup 2) */
+        cpak_header_data[0x80 + i] = cpakid_array[i];
+        /* 0xA0 is unused */
+        /* ID Block (Backup 3) */
+        cpak_header_data[0xC0 + i] = cpakid_array[i];
+        /* 0xE0 is unused */
     }
 
-    /* Go through, insert 'empty sector' marking on all entries */
-    for( int i = 0; i < 128; i++ )
+    /* initilize Index Table and backup (plus checksums) */
+    for(i = 5; i < 128; i++)
     {
-        sector[(i << 1) + 1] = BLOCK_EMPTY;
+        cpak_header_data[256 + (i * 2) + 1] = 3;
+        cpak_header_data[512 + (i * 2) + 1] = 3;
     }
 
-    /* Fix the checksum */
-    sector[1] = __get_toc_checksum( sector );
+    cpak_header_data[257] = 0x71;
+    cpak_header_data[513] = 0x71;
 
-    /* Write out */
-    if( write_mempak_sector( controller, 1, sector ) ||
-        write_mempak_sector( controller, 2, sector ) )
+    /* Write each sector */
+    for (i = 0; i < 1280; i += 256)
     {
-        /* Couldn't write TOC sectors */
-        return -2;
+        if(write_mempak_sector(controller, i / 256, &cpak_header_data[i]))
+        {
+            /* Couldn't write sector */
+            return -2;
+        }
     }
 
     return 0;

@@ -21,7 +21,8 @@ _start:
 	lw t0, 0x0000(v0)
 	lw t1, 0x0004(v0)
 	sw t0, %gprel(__boot_memsize)(gp)
-	sw t1, %gprel(__boot_entropy)(gp)
+	sw t1, %gprel(__entropy_state+0)(gp)
+	sw t1, %gprel(__entropy_state+4)(gp)
 
 	/* Setup SP using memory size */
 	addu sp, t0, 0x80000000 - 0x10		/* sp = KSEG0 + memsize - 0x10 */

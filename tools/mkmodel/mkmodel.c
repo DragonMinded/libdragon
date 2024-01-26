@@ -90,7 +90,8 @@ typedef struct ordered_keyframe_array_s {
 } ordered_keyframe_array_t;
 
 struct {
-    char *paths[MAX_TEXTURES];
+    char *file_paths[MAX_TEXTURES];   // Input image paths used as a search key
+    char *sprite_paths[MAX_TEXTURES]; // Converted sprite paths stored in file
     uint32_t num;
 } texture_table;
 
@@ -201,7 +202,8 @@ void texture_table_init()
 void texture_table_free()
 {
     for (uint32_t i = 0; i < texture_table.num; i++) {
-        free(texture_table.paths[i]);
+        free(texture_table.file_paths[i]);
+        free(texture_table.sprite_paths[i]);
     }
 }
 
@@ -593,7 +595,7 @@ void model64_write_textures(model64_data_t *model, FILE *out)
     }
     for (uint32_t i = 0; i < texture_table.num; i++) {
         placeholder_set(out, "texture%d_path", i);
-        fwrite(texture_table.paths[i], strlen(texture_table.paths[i])+1, 1, out);
+        fwrite(texture_table.sprite_paths[i], strlen(texture_table.sprite_paths[i])+1, 1, out);
     }
 }
 
@@ -742,16 +744,16 @@ void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, attribute_t *weight_
     mtx_index_attr->size = 1;
 }
 
-uint32_t texture_table_get(const char* path)
+uint32_t texture_table_find_or_add(const char* path)
 {
     for (uint32_t i = 0; i < texture_table.num; i++) {
-        if (strcmp(texture_table.paths[i], path) == 0) {
+        if (strcmp(texture_table.file_paths[i], path) == 0) {
             return i;
         }
     }
 
     if (texture_table.num >= MAX_TEXTURES) {
-        fprintf(stderr, "Error: Maximum texture count %d reached. Ignoring %s\n", MAX_TEXTURES, path);
+        fprintf(stderr, "Error: maximum texture count %d reached. Skipping %s\n", MAX_TEXTURES, path);
         return TEXTURE_INDEX_MISSING;
     }
 
@@ -775,13 +777,16 @@ uint32_t texture_table_get(const char* path)
     char *path_sprite;
     if (asprintf(&path_sprite, "%s.sprite", p) == -1) {
         fprintf(stderr, "Bug: asprintf failed\n");
+        free(p);
         return TEXTURE_INDEX_MISSING;
     }
+    free(p);
 
     uint32_t idx = texture_table.num++;
-    texture_table.paths[idx] = path_sprite;
+    texture_table.file_paths[idx] = strdup(path);
+    texture_table.sprite_paths[idx] = path_sprite;
     if (flag_verbose) {
-        printf("Renamed texture %s to %s\n", path, texture_table.paths[idx]);
+        printf("New texture %s\n", texture_table.sprite_paths[idx]);
     }
     return idx;
 }
@@ -975,13 +980,12 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
 
         if (texture && texture->image) {
             const char* uri = texture->image->uri;
-            if ((strcmp(uri, "data:") == 0)) {
-                fprintf(stderr, "Error: Image URI %s wasn't a path.\n", uri);
-                free(weight_attr.pointer);
-                return 1;
+            if (!uri || strncmp(uri, "data:", 5) == 0) {
+                fprintf(stderr, "WARNING: material \"%s\" has an embedded texture \"%s\" (type: %s) which will be ignored\n",
+                    in_primitive->material->name, texture->image->name, texture->image->mime_type);
+            } else {
+                out_primitive->local_texture = texture_table_find_or_add(uri);
             }
-
-            out_primitive->local_texture = texture_table_get(uri);
         }
     }
 

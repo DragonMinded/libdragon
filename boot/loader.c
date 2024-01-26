@@ -166,16 +166,6 @@ static const char MSG_ELF_OFFSET_NOT_ALIGNED[] = {
     _('A'), _('L'), _('I'), _('G'), _('N'), _('E'), _('D'), 0
 };
 
-// "ELF SIZE NOT MULTIPLE OF 2"
-__attribute__((aligned(1)))
-static const char MSG_ELF_SIZE_NOT_EVEN[] = {
-    _('E'), _('L'), _('F'), _(' '),
-    _('S'), _('I'), _('Z'), _('E'), _(' '),
-    _('N'), _('O'), _('T'), _(' '),
-    _('M'), _('U'), _('L'), _('T'), _('I'), _('P'), _('L'), _('E'), _(' '),
-    _('O'), _('F'), _(' '), _('2'), 0
-};
-
 #undef _
 
 __attribute__((noreturn))
@@ -322,17 +312,17 @@ void stage2(void)
             debugf("ELF: file offset is not 2-byte aligned in segment");
             fatal(MSG_ELF_OFFSET_NOT_ALIGNED);
         }
-        if ((size % 2) != 0) {
-            debugf("ELF: size is not multiple of 2 in segment");
-            fatal(MSG_ELF_SIZE_NOT_EVEN);
-        }
 
         debugf("Segment ", i, phdr[0], offset, vaddr, size, flags);
 
         // Load the segment into RDRAM. Notice that we don't need to clear
         // extra size at the end of the segment (as specified by phdr[5])
         // as the whole RDRAM has been cleared already.
-        pi_read_async((void*)vaddr, elf_header + offset, size);
+        // Handle odd sizes by loading one byte more; this can happen with
+        // compressed segments, where sometimes padding cannot be added 
+        // without corrupting the decompression.
+        int dma_size = size & 1 ? size+1 : size;
+        pi_read_async((void*)vaddr, elf_header + offset, dma_size);
 
         if (flags & PF_N64_COMPRESSED) {
             // Decompress the segment. paddr contains the output pointer, where

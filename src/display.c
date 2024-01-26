@@ -89,6 +89,17 @@ static void __display_callback()
     }
 
     vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
+
+    // FIXME: PAL-M on old boards like NUS-CPU-02 requires changing V_BURST every field, otherwise
+    // the image seems garbled at the top. It is probably a bug in old revisions of the VI chip,
+    // since the problem doesn't exist on newer boards.
+    if (__tv_type == TV_MPAL && interlaced) {
+        if (field == 0) {
+            *VI_V_BURST = 0x000b0202;
+        } else {
+            *VI_V_BURST = 0x000e0204;
+        }
+    }
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )

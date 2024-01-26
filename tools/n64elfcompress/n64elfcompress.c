@@ -319,13 +319,6 @@ bool process(char *infn, char *outfn, int compression)
                 continue;
             }
 
-            // Compress size must be even because of PI DMA constraints
-            if (cmp_size & 1) {
-                cmp_size++;
-                outbuf = realloc(outbuf, cmp_size);
-                outbuf[cmp_size-1] = 0;
-            }
-
             // Update program header
             elf->phdrs[i].p_filesz = cmp_size;
             elf->phdrs[i].p_flags |= PF_N64_COMPRESSED;
