@@ -824,9 +824,11 @@ RDPQ_Triangle:
     #define VTX_ATTR_INVWi  20
     #define VTX_ATTR_INVWf  22
 
-    mfc0 fp, COP0_DP_CLOCK
-
 #if 0
+    #mfc0 fp, COP0_DP_CLOCK
+#endif
+
+#if 1
 
     #define vall1    $v01
     #define vall2    $v02
@@ -885,13 +887,14 @@ RDPQ_Triangle:
     vmov vxy32.e4, vall3.e1;            mfc2 vtx2, vall2.e3
     vmov vxy32.e6, vall3.e1;            mfc2 vtx3, vall3.e3
     vmov vxy32.e1, vall2.e0;            xor t0, t2
-    vmov vxy32.e5, vall2.e1;            andi t0, 1
+    vmov vxy32.e5, vall2.e1;            xor t0, t1
 
                                         # Store Y values in output
     vmov vxy21.e0, vall1.e0;            sdv vy3.e0, 0,s3
     vmov vxy21.e2, vall2.e0;            andi t3, 0x38
     vmov vxy21.e4, vall1.e1;            or tricmd, t3
-    vmov vxy21.e6, vall2.e1;            xor cull, t0
+    vmov vxy21.e6, vall2.e1;            andi t0, 1
+                                        xor cull, t0
 
 #else
 
@@ -1348,11 +1351,12 @@ no_texture:
     ssv    vdy_f.e7, 0x0E,s3
     addi s3, 0x10
 
+#if 0
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
     emux_log_string "RDPQ_Triangle:  "
     emux_dump_gpr t0
-
+#endif
     jr ra
     nop
 
