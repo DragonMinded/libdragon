@@ -191,10 +191,6 @@ void render()
 
     rdpq_detach_wait();
 
-    char buf[80];
-    sprintf(buf, "Memory: %d MiB", get_memory_size() >> 20);
-    graphics_draw_text(disp, 30, 30, buf);
-
     display_show(disp);
 
     rspq_profile_next_frame();
@@ -202,7 +198,6 @@ void render()
     if (((frames++) % 60) == 0) {
         rspq_profile_dump();
         rspq_profile_reset();
-        debugf("frame %lld\n", frames);
     }
 }
 
