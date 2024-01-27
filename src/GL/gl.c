@@ -197,9 +197,6 @@ void gl_context_begin()
 
 void gl_context_end()
 {
-    assertf(state.modelview_stack.cur_depth == 0, "Modelview stack not empty");
-    assertf(state.projection_stack.cur_depth == 0, "Projection stack not empty");
-    assertf(state.texture_stack.cur_depth == 0, "Texture stack not empty");
 }
 
 GLenum glGetError(void)
