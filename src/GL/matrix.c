@@ -156,7 +156,7 @@ void glCurrentPaletteMatrixARB(GLint index)
     if (!gl_ensure_no_begin_end()) return;
     
     if (index < 0 || index >= MATRIX_PALETTE_SIZE) {
-        gl_set_error(GL_INVALID_VALUE, "%#04lx is not a valid palette matrix index (Must be in [0, %d])", index, MATRIX_PALETTE_SIZE);
+        gl_set_error(GL_INVALID_VALUE, "%#04lx is not a valid palette matrix index (Must be in [0, %d])", index, MATRIX_PALETTE_SIZE-1);
         return;
     }
 
