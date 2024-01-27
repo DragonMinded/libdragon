@@ -189,13 +189,7 @@ void render()
 
     gl_context_end();
 
-    rdpq_detach_wait();
-
-    char buf[80];
-    sprintf(buf, "Memory: %d MiB", get_memory_size() >> 20);
-    graphics_draw_text(disp, 30, 30, buf);
-
-    display_show(disp);
+    rdpq_detach_show();
 
     rspq_profile_next_frame();
 
