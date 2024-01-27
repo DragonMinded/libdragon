@@ -160,12 +160,12 @@ static const gl_array_t dummy_arrays[ATTRIB_COUNT] = {
 };
 
 typedef enum {
-    IMMEDIATE_INDETERMINATE,
-    IMMEDIATE_VERTEX,
-    IMMEDIATE_ARRAY_ELEMENT,
-} immediate_type_t;
+    BEGIN_END_INDETERMINATE,
+    BEGIN_END_VERTEX,
+    BEGIN_END_ARRAY_ELEMENT,
+} begin_end_type_t;
 
-static immediate_type_t immediate_type;
+static begin_end_type_t begin_end_type;
 static uint32_t vtx_cmd_size;
 
 static void upload_current_attributes(const gl_array_t *arrays)
@@ -462,7 +462,7 @@ static void gl_rsp_begin()
 {
     glpipe_init();
     state.last_array_element = -1;
-    immediate_type = IMMEDIATE_INDETERMINATE;
+    begin_end_type = BEGIN_END_INDETERMINATE;
 }
 
 static void gl_rsp_end()
@@ -472,7 +472,7 @@ static void gl_rsp_end()
         load_last_attributes(state.array_object->arrays, index);
     }
 
-    if (state.immediate_active) {
+    if (state.begin_end_active) {
         // TODO: Load from arrays
         gl_set_current_color(state.current_attributes.color);
         gl_set_current_texcoords(state.current_attributes.texcoord);
@@ -483,9 +483,9 @@ static void gl_rsp_end()
 
 static void gl_rsp_vertex(const void *value, GLenum type, uint32_t size)
 {
-    if (immediate_type != IMMEDIATE_VERTEX) {
+    if (begin_end_type != BEGIN_END_VERTEX) {
         gl_prepare_vtx_cmd(dummy_arrays);
-        immediate_type = IMMEDIATE_VERTEX;
+        begin_end_type = BEGIN_END_VERTEX;
     }
 
     static const int16_t default_values[] = { 0, 0, 0, 1 };
@@ -528,9 +528,9 @@ static void gl_rsp_mtx_index(const void *value, GLenum type, uint32_t size)
 
 static void gl_rsp_array_element(uint32_t index)
 {
-    if (immediate_type != IMMEDIATE_ARRAY_ELEMENT) {
+    if (begin_end_type != BEGIN_END_ARRAY_ELEMENT) {
         gl_prepare_vtx_cmd(state.array_object->arrays);
-        immediate_type = IMMEDIATE_ARRAY_ELEMENT;
+        begin_end_type = BEGIN_END_ARRAY_ELEMENT;
     }
 
     draw_vertex_from_arrays(state.array_object->arrays, index, index);
