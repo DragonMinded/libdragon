@@ -437,15 +437,6 @@ void glPixelMapfv(GLenum map, GLsizei size, const GLfloat *values);
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data);
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data);
 
-void glCopyTexImage1D(GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLint border);
-void glCopyTexImage2D(GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
-
-void glTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const GLvoid *data);
-void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data);
-
-void glCopyTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLint width);
-void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
-
 void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_texparms_t *texparms);
 void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texparms);
 
@@ -471,6 +462,13 @@ void glTexEnviv(GLenum target, GLenum pname, const GLint *params);
 void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params);
 
 GLboolean glIsTexture(GLuint texture);
+
+#define glCopyTexImage1D(target, level, internalformat, x, y, width, border) _GL_UNSUPPORTED(glCopyTexImage1D)
+#define glCopyTexImage2D(target, level, internalformat, x, y, width, height, border) _GL_UNSUPPORTED(glCopyTexImage2D)
+#define glTexSubImage1D(target, level, xoffset, width, format, type, data) _GL_UNSUPPORTED(glTexSubImage1D)
+#define glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, data) _GL_UNSUPPORTED(glTexSubImage2D)
+#define glCopyTexSubImage1D(target, level, xoffset, x, y, width) _GL_UNSUPPORTED(glCopyTexSubImage1D)
+#define glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height) _GL_UNSUPPORTED(glCopyTexSubImage2D)
 
 /* Fog */
 
