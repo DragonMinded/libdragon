@@ -226,22 +226,22 @@ void gl_end()
 
 void glBegin(GLenum mode)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     if (gl_begin(mode)) {
-        state.immediate_active = true;
+        state.begin_end_active = true;
     }
 }
 
 void glEnd(void)
 {
-    if (!state.immediate_active) {
+    if (!state.begin_end_active) {
         gl_set_error(GL_INVALID_OPERATION, "glEnd must be called after glBegin");
     }
 
     gl_end();
 
-    state.immediate_active = false;
+    state.begin_end_active = false;
 }
 
 void gl_reset_vertex_cache()
@@ -419,7 +419,7 @@ bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices)
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (mode) {
     case GL_POINTS:
@@ -464,7 +464,7 @@ uint32_t read_index_32(const uint32_t *src, uint32_t i)
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (mode) {
     case GL_POINTS:
@@ -517,7 +517,7 @@ void glArrayElement(GLint i)
 {
     // Calling glArrayElement while the vertex array is enabled has, among other things,
     // the same effect as glVertex. See __gl_vertex for that function's behavior.
-    assertf(!state.array_object->arrays[ATTRIB_VERTEX].enabled || state.immediate_active, 
+    assertf(!state.array_object->arrays[ATTRIB_VERTEX].enabled || state.begin_end_active, 
         "glArrayElement was called outside of glBegin/glEnd while vertex array was enabled");
 
     if (i < 0) {
@@ -532,13 +532,13 @@ void __gl_vertex(GLenum type, const void *value, uint32_t size)
 {
     // According to the spec, calling glVertex outside of glBegin/glEnd 
     // specifically results in UB instead of generating an error, so just assert.
-    assertf(state.immediate_active, "glVertex was called outside of glBegin/glEnd");
+    assertf(state.begin_end_active, "glVertex was called outside of glBegin/glEnd");
     state.current_pipeline->vertex(value, type, size);
 }
 
 void __gl_color(GLenum type, const void *value, uint32_t size)
 {
-    if (state.immediate_active) {
+    if (state.begin_end_active) {
         state.current_pipeline->color(value, type, size);
     } else {
         gl_read_attrib(ATTRIB_COLOR, value, type, size);
@@ -548,7 +548,7 @@ void __gl_color(GLenum type, const void *value, uint32_t size)
 
 void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
 {
-    if (state.immediate_active) {
+    if (state.begin_end_active) {
         state.current_pipeline->tex_coord(value, type, size);
     } else {
         gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
@@ -558,7 +558,7 @@ void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
 
 void __gl_normal(GLenum type, const void *value, uint32_t size)
 {
-    if (state.immediate_active) {
+    if (state.begin_end_active) {
         state.current_pipeline->normal(value, type, size);
     } else {
         gl_read_attrib(ATTRIB_NORMAL, value, type, size);
@@ -573,7 +573,7 @@ void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
         return;
     }
 
-    if (state.immediate_active) {
+    if (state.begin_end_active) {
         state.current_pipeline->mtx_index(value, type, size);
     } else {
         gl_read_attrib(ATTRIB_MTX_INDEX, value, type, size);
@@ -741,7 +741,7 @@ void glVertexHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state.vert
 void glTexCoordHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state.texcoord_halfx_precision, bits); }
 
 #define __RECT_IMPL(vertex, x1, y1, x2, y2) ({ \
-    if (!gl_ensure_no_immediate()) return; \
+    if (!gl_ensure_no_begin_end()) return; \
     glBegin(GL_POLYGON); \
     vertex(x1, y1); \
     vertex(x2, y1); \
@@ -762,7 +762,7 @@ void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2s
 
 void glPointSize(GLfloat size)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (size <= 0.0f) {
         gl_set_error(GL_INVALID_VALUE, "Point size must not be negative");
@@ -775,7 +775,7 @@ void glPointSize(GLfloat size)
 
 void glLineWidth(GLfloat width)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (width <= 0.0f) {
         gl_set_error(GL_INVALID_VALUE, "Line width must not be negative");
@@ -788,7 +788,7 @@ void glLineWidth(GLfloat width)
 
 void glPolygonMode(GLenum face, GLenum mode)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (face) {
     case GL_FRONT:
@@ -819,7 +819,7 @@ void glPolygonMode(GLenum face, GLenum mode)
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     state.current_viewport.scale[2] = (f - n) * 0.5f;
     state.current_viewport.offset[2] = n + (f - n) * 0.5f;
@@ -834,7 +834,7 @@ void glDepthRange(GLclampd n, GLclampd f)
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     uint32_t fbh = state.color_buffer->height;
 
@@ -922,19 +922,19 @@ void gl_tex_gen_i(GLenum coord, GLenum pname, GLint param)
 
 void glTexGeni(GLenum coord, GLenum pname, GLint param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_tex_gen_i(coord, pname, param);
 }
 
 void glTexGenf(GLenum coord, GLenum pname, GLfloat param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_tex_gen_i(coord, pname, param);
 }
 
 void glTexGend(GLenum coord, GLenum pname, GLdouble param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_tex_gen_i(coord, pname, param);
 }
 
@@ -961,7 +961,7 @@ void gl_tex_gen_set_plane(GLenum coord, GLenum pname, const GLfloat *plane)
 
 void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
     if (gen == NULL) {
@@ -994,7 +994,7 @@ void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
 
 void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
     if (gen == NULL) {
@@ -1027,7 +1027,7 @@ void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
 
 void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
     if (gen == NULL) {
@@ -1060,7 +1060,7 @@ void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
 
 void glCullFace(GLenum mode)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (mode) {
     case GL_BACK:
@@ -1077,7 +1077,7 @@ void glCullFace(GLenum mode)
 
 void glFrontFace(GLenum dir)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (dir) {
     case GL_CW:

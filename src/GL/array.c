@@ -163,7 +163,7 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (size) {
     case 2:
@@ -192,7 +192,7 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
 
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (size) {
     case 1:
@@ -222,7 +222,7 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
 
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (type) {
     case GL_BYTE:
@@ -241,7 +241,7 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
 
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (size) {
     case 3:
@@ -272,7 +272,7 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
 
 void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     if (size < 1 || size > VERTEX_UNIT_COUNT) {
         gl_set_error(GL_INVALID_VALUE, "Size must be 1");
@@ -300,7 +300,7 @@ void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
 
 void glEnableClientState(GLenum array)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (array) {
     case GL_VERTEX_ARRAY:
@@ -320,7 +320,7 @@ void glEnableClientState(GLenum array)
 }
 void glDisableClientState(GLenum array)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (array) {
     case GL_VERTEX_ARRAY:
@@ -341,7 +341,7 @@ void glDisableClientState(GLenum array)
 
 void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (format) {
     case GL_V2F:
@@ -397,7 +397,7 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 
 void glGenVertexArrays(GLsizei n, GLuint *arrays)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     for (GLsizei i = 0; i < n; i++)
     {
@@ -409,7 +409,7 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
 
 void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     for (GLsizei i = 0; i < n; i++)
     {
@@ -431,7 +431,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 
 void glBindVertexArray(GLuint array)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     assertf(array == 0 || is_valid_object_id(array), 
         "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
 
@@ -446,7 +446,7 @@ void glBindVertexArray(GLuint array)
 
 GLboolean glIsVertexArray(GLuint array)
 {
-    if (!gl_ensure_no_immediate()) return 0;
+    if (!gl_ensure_no_begin_end()) return 0;
     
     // FIXME: This doesn't actually guarantee that it's a valid array object, but just uses the heuristic of
     //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
