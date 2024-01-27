@@ -1285,14 +1285,6 @@ void rspq_wait(void)
     if (rdpq_trace) rdpq_trace();
 }
 
-void rspq_signal(uint32_t signal)
-{
-    const uint32_t allowed_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1;
-    assertf((signal & allowed_mask) == signal, "rspq_signal called with a mask that contains bits outside SIG0-1: %lx", signal);
-
-    rspq_int_write(RSPQ_CMD_WRITE_STATUS, signal);
-}
-
 static void rspq_dma(void *rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags)
 {
     rspq_int_write(RSPQ_CMD_DMA, PhysicalAddr(rdram_addr), dmem_addr, len, flags);
@@ -1308,6 +1300,15 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }
 
+/// @cond
+void rspq_signal(uint32_t signal)
+{
+    const uint32_t allowed_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0;
+    assertf((signal & allowed_mask) == signal, "rspq_signal called with a mask that contains bits outside SIG0: %lx", signal);
+
+    rspq_int_write(RSPQ_CMD_WRITE_STATUS, signal);
+}
+/// @endcond
 
 /* Extern inline instantiations. */
 extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
