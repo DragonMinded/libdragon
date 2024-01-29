@@ -22,7 +22,7 @@ void print_args(char * name)
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
     fprintf(stderr, "   -o/--output <dir>       Specify output directory (default: .)\n");
-    fprintf(stderr, "   -c/--compress <algo>    Compression: 0=none, 1=lz4, 2=lzh5 (default: %d)\n", DEFAULT_COMPRESSION);
+    fprintf(stderr, "   -c/--compress <algo>    Compression level 0-%d (default: %d)\n", MAX_COMPRESSION, DEFAULT_COMPRESSION);
     fprintf(stderr, "   -w/--winsize <window>   Maximum size of the matching window in KiB. (default: %d)\n", DEFAULT_WINSIZE_STREAMING/1024);
     fprintf(stderr, "\nSupported window sizes: 2, 4, 8, 16, 32, 64, 128, 256\n");
     fprintf(stderr, "The window size affects the memory used by asset_fopen() only.\n");
