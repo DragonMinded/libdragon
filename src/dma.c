@@ -8,6 +8,7 @@
 #include "n64sys.h"
 #include "interrupt.h"
 #include "debug.h"
+#include "utils.h"
 #include "regsinternal.h"
 
 /**
@@ -193,28 +194,6 @@ static uint32_t __io_read32(void* pi_pointer) {
     return *(volatile uint32_t*)pi_pointer;
 }
 
-/** @brief Low-level 32-bit unaligned PI ROM read.
- * 
- * @note This function must be called with interrupts disabled.
- */
-static uint32_t __io_read32u(void *pi_pointer) {
-    uint32_t val = 0;
-
-    // We need to manually issue assembly opcodes here because we must
-    // wait for #dma_busy inbetween. So we can't simply tell GCC to 
-    // generate the LWL/LWR pair via __attribute__((aligned(1)), otherwise
-    // we would only be able to wait once before both of them.
-    while (__dma_busy()) {}
-    MEMORY_BARRIER();
-    __asm volatile("lwl %0,0(%1)" : "+r"(val) : "r"(pi_pointer));    
-
-    while (__dma_busy()) {}
-    MEMORY_BARRIER();
-    __asm volatile("lwr %0,3(%1)" : "+r"(val) : "r"(pi_pointer));
-
-    return val;
-}
-
 /** @brief Low-level 16-bit aligned PI ROM read.
  * 
  * 16-bit PI ROM reads are undocumented. Testing on real hardware shows
@@ -282,6 +261,7 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
 {
     void *ram = UncachedAddr(ram_pointer);
     uint32_t ram_address = (uint32_t)ram;
+    void *rom = (void*)(pi_address | 0xA0000000);
 
     assert(len > 0);
     assert(((ram_address ^ pi_address) & 1) == 0); (void)ram_address;
@@ -298,59 +278,38 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
         return;
     }
 
-    union { uint64_t mem64; uint32_t mem32[2]; uint16_t mem16[4]; uint8_t mem8[8]; } val;
-    void *rom = (void*)(pi_address | 0xA0000000);
-
-    // Check if the RDRAM address is misaligned. If so, this requires some
-    // handling as it's officially "not supported".
-    int misalign = (uint32_t)ram & 7;
-
-    if (misalign) {
-        if ((misalign&1) == 0 && len < 0x7F-misalign*2) {
-            // Fast-path: RDRAM even-misaligned addresses work correctly
-            // for small transfers (up to some magic value), though they transfer
-            // less then requested on vanilla N64 (not on iQue). Tweak the length
-            // accordingly and do the transfer.
-            if (!sys_bbplayer())
-                len += misalign;
-        } else {        
-            // Manually transfer the first bytes, up to creating a 8-byte
-            // alignment. The code is complicated by the fact that we can
-            // only use uncached addresses here (to mimic DMA), which means
-            // that we can only do 32-bit RDRAM accesses, and PI accesses
-            // which have weird bugs.
-            uint64_t *ram0 = (uint64_t*)(ram - misalign);
-            ram += 8-misalign;
-
-            // Fetch the initial (aligned) 8-byte word, then loop to transfer
-            // the required bytes. Only some bytes of the word will be modified.
-            val.mem64 = *ram0;
-
-            do {
-                // If we're at an odd address (or this is the last byte), read
-                // 8-bit from PI into RDRAM, so that we immediately align
-                // to do 2-bytes, and we can do 16-bit reads/writes later.
-                if ((misalign & 1) || len == 1) {
-                    val.mem8[misalign] = __io_read8(rom);
-                    misalign += 1; rom += 1; len -= 1;
-                } else {
-                    val.mem16[misalign/2] = __io_read16(rom);
-                    misalign += 2; rom += 2; len -= 2;
-                }
-            } while (misalign < 8 && len > 0);
-
-            // Store back the modified 8-byte word.
-            *ram0 = val.mem64;
+    // Check if the address in RAM is misaligned.
+    if ((uint32_t)ram & 7) {
+        // Transfer the first bytes manually up until the next 8-byte aligned
+        // address. Make sure to not transfer more than requested.
+        if ((uint32_t)ram & 1) {
+            *(uint8_t*)ram = __io_read16(rom - 1);
+            ram++; rom++; len--;
+        }
+        if ((uint32_t)ram & 2 && len >= 2) {
+            *(uint16_t*)ram = __io_read16(rom);
+            ram += 2; rom += 2; len -= 2;
+        }
+        if ((uint32_t)ram & 4 && len >= 4) {
+            *(uint32_t*)ram = (__io_read16(rom) << 16) | __io_read16(rom+2);
+            ram += 4; rom += 4; len -= 4;
+        }
+        while ((uint32_t)ram & 7 && len > 0) {
+            *(uint8_t*)ram = __io_read8(rom);
+            ram++; rom++; len--;
         }
     }
 
-    // Now the transfer is 8-byte aligned. Check the length: we can do odd-length
-    // transfer (at aligned addresses) up to 0x7E bytes. For larger odd transfers,
-    // we need to write the last odd byte ourselves, and we do that with a 32-bit
-    // unaligned transfer (LWL/LWR + SWL/SWR).
-    if ((len & 1) != 0 && len >= 0x7F) {
-        *(u_uint32_t*)(ram+len-4) = __io_read32u(rom+len-4);
-        len -= 3;
+    // If there's an odd number of bytes left to transfer, check if the DMA
+    // will do that correctly. This happens only if the transfers fits the
+    // first DMA block, which is either 127 bytes or up to the end of the
+    // current RDRAM row (0x800 bytes).
+    int first_block_len = MIN(127, 0x800 - ((uint32_t)ram & 0x7ff));
+    if ((len & 1) && len >= first_block_len) {
+        // Odd transfers would not work correctly. Transfer the last byte
+        // manually.
+        *(uint8_t*)(ram+len-1) = __io_read16(rom+len-1) >> 8;
+        len -= 1;
     }
 
     // Start the actual DMA transfer, if still needed.
