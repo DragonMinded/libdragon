@@ -213,14 +213,12 @@ decompress_aplib_full_fast:
      nop
 
 .Lreadcc:                                        # read new CC byte 
-    #tne ra, ra, 0x10
     lwl cc, 0(inbuf)                             # load current byte into MSB
     addiu inbuf, 1                               # (other read bytes will be ignored)
     jr $ra
      li cc_count, 6                              # reset CC counter
 
 .Lwaitdma:
-    #tne ra, ra, 0x10
     li $t1, 0x80000000 - DMA_RACE_MARGIN
 .Lwaitdma_loop:
     lw $t0, (PI_STATUS)
@@ -231,7 +229,7 @@ decompress_aplib_full_fast:
     andi $t0, dma_ptr, 0xF
     xor dma_ptr, $t0
     addu dma_ptr, $t1
-    blt dma_ptr, inbuf, .Lwaitdma_loop
+    ble dma_ptr, inbuf, .Lwaitdma_loop
      nop
 .Lwaitdma_end:
     jr $ra

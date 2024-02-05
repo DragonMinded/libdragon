@@ -74,7 +74,7 @@ decompress_shrinkler_full_fast:
     beqz $t0, .Linitial_setup
     lw $t1, PI_DRAM_ADDR($t2)
     addu $t1, 0x80000000 - DMA_RACE_MARGIN
-    blt $t1, inbuf, .Lwaitdma_loop
+    ble $t1, inbuf, .Lwaitdma_loop
 .Linitial_setup:
      move ra3, $ra
     lwu intervalvalue, 0(inbuf)

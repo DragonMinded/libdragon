@@ -149,7 +149,7 @@ decompress_lz4_full_fast:
     andi $t0, dma_ptr, 0xF
     xor dma_ptr, $t0
     addu dma_ptr, $t1
-    blt dma_ptr, inbuf, .Lwaitdma_loop
+    ble dma_ptr, inbuf, .Lwaitdma_loop
      nop
 .Lwaitdma_end:
     jr $ra
