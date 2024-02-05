@@ -45,7 +45,7 @@ programming and debugging. These are the main features:
 * Simple and powerful Makefile-based build system for your ROMs and assets
   (n64.mk)
 
-The [unstable branch](https://github.com/DragonMinded/libdragon/wiki/Unstable-branch) features
+The [preview branch](https://github.com/DragonMinded/libdragon/wiki/Preview-branch) features
 many more features:
 
  * a new comprehensive RDP engine
@@ -56,7 +56,7 @@ many more features:
    source file name and line number.
 
 and much more. These features will eventually land to trunk, but you can start playing
-with them even today. Go the [unstable branch doc](https://github.com/DragonMinded/libdragon/wiki/Unstable-branch) for more information.
+with them even today. Go the [preview branch doc](https://github.com/DragonMinded/libdragon/wiki/Preview-branch) for more information.
 
 ## Getting started: how to build a ROM
 
@@ -89,7 +89,7 @@ libdragon debugging protocol, so to be able to show logs in console. For instanc
 [ed64](https://github.com/anacierdem/ed64). The official loaders provided by
 the vendors are usually less feature-rich.
 
-## Libdragon stable vs unstable
+## Libdragon stable vs preview
 
 Currently, there are two main libragon versions: 
 
@@ -99,10 +99,10 @@ Currently, there are two main libragon versions:
    against a newer libdragon version. We feel this is important because otherwise
    we would fragment the homebrew ecosystem too much, and we would leave a trail
    of libdragon-based applications that can't be compiled anymore.
- * The **unstable** version is the one in the `unstable` branch. This is where most
+ * The **preview** version is the one in the `preview` branch. This is where most
    development happens first. In fact, features are developed, evolved and
    battle-tested here, before the APIs are stabilized and they are finally
-   merged on the trunk. Applications that use the unstable branch need to be aware
+   merged on the trunk. Applications that use the preview branch need to be aware
    that the APIs can break at any time (though we try to avoid *gratuitous* breakage).
 
 ## Upgrading libdragon
@@ -111,7 +111,7 @@ If you are upgrade the stable version, check the [ChangeLog](https://github.com/
 in the wiki to see latest changes that were merged into the stable version of libdragon.
 Also check the wiki page for [common hurdles in upgrading libdragon](https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting).
 
-If you are upgrading the unstable version, instead, remember that some breaking
+If you are upgrading the preview version, instead, remember that some breaking
 changes are expected. We do not keep track of those though, so you will have
 to check the relevant header files yourself to check what is changed.
 
