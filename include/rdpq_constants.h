@@ -3,7 +3,7 @@
 
 #define RDPQ_ADDRESS_TABLE_SIZE 16
 
-#define RDPQ_DYNAMIC_BUFFER_SIZE   0x800
+#define RDPQ_DYNAMIC_BUFFER_SIZE (1024 * 64)
 
 // Asserted if #rdpq_mode_blender was called in fill/copy mode
 #define RDPQ_ASSERT_FILLCOPY_BLENDING  0xC003

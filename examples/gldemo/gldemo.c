@@ -189,15 +189,14 @@ void render()
 
     gl_context_end();
 
-    rdpq_detach_wait();
-
-    display_show(disp);
+    rdpq_detach_show();
 
     rspq_profile_next_frame();
 
     if (((frames++) % 60) == 0) {
         rspq_profile_dump();
         rspq_profile_reset();
+        debugf("frame %lld\n", frames);
     }
 }
 

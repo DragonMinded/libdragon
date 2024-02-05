@@ -118,7 +118,7 @@ void gl_set_fog_end(GLfloat param)
 
 void glFogi(GLenum pname, GLint param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_FOG_MODE:
@@ -141,7 +141,7 @@ void glFogi(GLenum pname, GLint param)
 
 void glFogf(GLenum pname, GLfloat param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_FOG_MODE:
@@ -164,7 +164,7 @@ void glFogf(GLenum pname, GLfloat param)
 
 void glFogiv(GLenum pname, const GLint *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_FOG_COLOR:
@@ -190,7 +190,7 @@ void glFogiv(GLenum pname, const GLint *params)
 
 void glFogfv(GLenum pname, const GLfloat *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_FOG_COLOR:
@@ -216,7 +216,7 @@ void glFogfv(GLenum pname, const GLfloat *params)
 
 void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (left < 0) {
         gl_set_error(GL_INVALID_VALUE, "Left must not be negative");
@@ -234,7 +234,7 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
 
 void glBlendFunc(GLenum src, GLenum dst)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (src) {
     case GL_ZERO:
@@ -283,7 +283,7 @@ void glBlendFunc(GLenum src, GLenum dst)
 
 void glDepthFunc(GLenum func)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (func) {
     case GL_LESS:
@@ -307,14 +307,14 @@ void glDepthFunc(GLenum func)
 
 void glDepthMask(GLboolean mask)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_set_flag(GL_UPDATE_NONE, FLAG_DEPTH_MASK, mask);
 }
 
 void glAlphaFunc(GLenum func, GLclampf ref)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (func) {
     case GL_GREATER:
@@ -339,7 +339,7 @@ void glAlphaFunc(GLenum func, GLclampf ref)
 
 void glTexEnvi(GLenum target, GLenum pname, GLint param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (target != GL_TEXTURE_ENV) {
         gl_set_error(GL_INVALID_ENUM, "Target must be GL_TEXTURE_ENV");
@@ -367,14 +367,14 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
 }
 void glTexEnvf(GLenum target, GLenum pname, GLfloat param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     glTexEnvi(target, pname, param);
 }
 
 void glTexEnviv(GLenum target, GLenum pname, const GLint *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (target != GL_TEXTURE_ENV) {
         gl_set_error(GL_INVALID_ENUM, "Target must be GL_TEXTURE_ENV");
@@ -393,7 +393,7 @@ void glTexEnviv(GLenum target, GLenum pname, const GLint *params)
 
 void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (target != GL_TEXTURE_ENV) {
         gl_set_error(GL_INVALID_ENUM, "Target must be GL_TEXTURE_ENV");

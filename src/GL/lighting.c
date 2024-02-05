@@ -574,7 +574,7 @@ void gl_light_set_quadratic_attenuation(gl_light_t *light, uint32_t offset, floa
 
 void glLightf(GLenum light, GLenum pname, GLfloat param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_light_t *l = gl_get_light(light);
     if (l == NULL) {
@@ -607,14 +607,14 @@ void glLightf(GLenum light, GLenum pname, GLfloat param)
 
 void glLighti(GLenum light, GLenum pname, GLint param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     glLightf(light, pname, param);
 }
 
 void glLightiv(GLenum light, GLenum pname, const GLint *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_light_t *l = gl_get_light(light);
     if (l == NULL) {
@@ -683,7 +683,7 @@ void glLightiv(GLenum light, GLenum pname, const GLint *params)
 
 void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_light_t *l = gl_get_light(light);
     if (l == NULL) {
@@ -741,7 +741,7 @@ void gl_set_light_model_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 
 void glLightModeli(GLenum pname, GLint param) 
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_LIGHT_MODEL_LOCAL_VIEWER:
@@ -757,14 +757,14 @@ void glLightModeli(GLenum pname, GLint param)
 }
 void glLightModelf(GLenum pname, GLfloat param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     glLightModeli(pname, param);
 }
 
 void glLightModeliv(GLenum pname, const GLint *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_LIGHT_MODEL_AMBIENT:
@@ -788,7 +788,7 @@ void glLightModeliv(GLenum pname, const GLint *params)
 
 void glLightModelfv(GLenum pname, const GLfloat *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_LIGHT_MODEL_AMBIENT:
@@ -808,7 +808,7 @@ void glLightModelfv(GLenum pname, const GLfloat *params)
 
 void glColorMaterial(GLenum face, GLenum mode)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (!gl_validate_material_face(face)) {
         return;
@@ -842,7 +842,7 @@ void glColorMaterial(GLenum face, GLenum mode)
 
 void glShadeModel(GLenum mode)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (mode) {
     case GL_FLAT:
