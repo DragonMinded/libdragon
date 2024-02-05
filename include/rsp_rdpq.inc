@@ -828,7 +828,7 @@ RDPQ_Triangle:
     #mfc0 fp, COP0_DP_CLOCK
 #endif
 
-#if 1
+#if 0
 
     #define vall1    $v01
     #define vall2    $v02
