@@ -1369,13 +1369,16 @@ int getentropy(uint8_t *buf, size_t buflen)
  *             Directory entry structure to populate with first entry
  *
  * @return 0 on successful lookup or a negative value on error.
+ * 
+ * @note This function uses a global context. Do not attempt multiple
+ *       directory traversals at the same time.
  */
 int dir_findfirst( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
     int mapping = __get_fs_link_by_name( path );
 
-    if( fs == 0 )
+    if( fs == 0 || mapping < 0 )
     {
         errno = EINVAL;
         return -1;
@@ -1388,7 +1391,7 @@ int dir_findfirst( const char * const path, dir_t *dir )
         return -1;
     }
 
-    return fs->findfirst( (char *)path + + __strlen( filesystems[mapping].prefix ), dir );
+    return fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
 }
 
 /**
@@ -1404,6 +1407,9 @@ int dir_findfirst( const char * const path, dir_t *dir )
  *             Directory entry structure to populate with next entry
  *
  * @return 0 on successful lookup or a negative value on error.
+ * 
+ * @note This function uses a global context. Do not attempt multiple
+ *       directory traversals at the same time.
  */
 int dir_findnext( const char * const path, dir_t *dir )
 {
@@ -1422,7 +1428,15 @@ int dir_findnext( const char * const path, dir_t *dir )
         return -1;
     }
 
-    return fs->findnext( dir );
+    int ret = fs->findnext( dir );
+    if ( ret < 0 ) {
+        /* FIXME: we don't have an API to return a better error here. Also,
+           consider that ret < 0 might also mean "end of directory traversal". */
+        errno = ENOENT;
+        return -1;
+    }
+
+    return 0;
 }
 
 /**
