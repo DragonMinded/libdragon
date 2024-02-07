@@ -238,7 +238,7 @@ void gl_texture_set_upload_block(uint32_t offset, int level, int width, int heig
 void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texparms)
 {
     gl_assert_no_display_list();
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;
@@ -315,7 +315,7 @@ void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_t
     assertf(fmt != FMT_CI4 && fmt != FMT_CI8, "CI textures are not supported by glSurfaceTexImageN64 yet");
 
     gl_assert_no_display_list();
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (level >= MAX_TEXTURE_LEVELS || level < 0) {
         gl_set_error(GL_INVALID_VALUE, "Invalid level number (must be in [0, %d])", MAX_TEXTURE_LEVELS-1);
@@ -433,7 +433,7 @@ void gl_texture_set_mag_filter(uint32_t offset, GLenum param)
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
@@ -466,7 +466,7 @@ void glTexParameteri(GLenum target, GLenum pname, GLint param)
 
 void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
@@ -499,7 +499,7 @@ void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
 
 void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
@@ -535,7 +535,7 @@ void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
 
 void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
@@ -571,7 +571,7 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
 
 GLboolean glIsTexture(GLuint texture)
 {
-    if (!gl_ensure_no_immediate()) return 0;
+    if (!gl_ensure_no_begin_end()) return 0;
     
     // FIXME: This doesn't actually guarantee that it's a valid texture object, but just uses the heuristic of
     //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
@@ -581,7 +581,7 @@ GLboolean glIsTexture(GLuint texture)
 
 void glBindTexture(GLenum target, GLuint texture)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     assertf(texture == 0 || is_valid_object_id(texture),
         "Not a valid texture object: %#lx. Make sure to allocate IDs via glGenTextures", texture);
 
@@ -628,7 +628,7 @@ void glBindTexture(GLenum target, GLuint texture)
 
 void glGenTextures(GLsizei n, GLuint *textures)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     for (uint32_t i = 0; i < n; i++)
     {
@@ -646,7 +646,7 @@ void texture_free(gl_texture_object_t* obj)
 
 void glDeleteTextures(GLsizei n, const GLuint *textures)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     for (uint32_t i = 0; i < n; i++)
     {
@@ -1247,7 +1247,7 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     gl_assert_no_display_list();
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (target) {
     case GL_TEXTURE_1D:
@@ -1266,7 +1266,7 @@ void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei widt
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     gl_assert_no_display_list();
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (target) {
     case GL_TEXTURE_2D:
@@ -1291,55 +1291,3 @@ void glPrioritizeTextures(GLsizei n, const GLuint *textures, const GLclampf *pri
 {
     // Priorities are ignored
 }
-
-/*
-void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
-{
-    assertf(0, "glTexSubImage* is temporarily unsupported. Please check again later!");
-
-    // TODO: can't access the image here!
-    gl_texture_object_t *obj;
-    gl_texture_image_t *image;
-
-    if (!gl_get_texture_object_and_image(target, level, &obj, &image)) {
-        return;
-    }
-
-    if (image->data == NULL) {
-        gl_set_error(GL_INVALID_OPERATION);
-        return;
-    }
-
-    uint32_t num_elements;
-    if (!gl_validate_upload_image(format, type, &num_elements)) {
-        return;
-    }
-
-    GLvoid *dest = image->data + yoffset * image->stride;
-
-    if (data != NULL) {
-        gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, xoffset, data);
-        obj->flags |= TEX_FLAG_UPLOAD_DIRTY;
-    }
-}
-
-void glTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const GLvoid *data)
-{
-    if (target != GL_TEXTURE_1D) {
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-
-    gl_tex_sub_image(target, level, xoffset, 0, width, 1, format, type, data);
-}
-
-void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
-{
-    if (target != GL_TEXTURE_2D) {
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-
-    gl_tex_sub_image(target, level, xoffset, yoffset, width, height, format, type, data);
-}
-*/

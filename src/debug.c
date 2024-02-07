@@ -392,6 +392,12 @@ static int __fat_findnext(dir_t *dir)
 	if (res != FR_OK)
 		return -1;
 
+	// Check if we reached the end of the directory
+	if (info.fname[0] == 0) {
+		f_closedir(&find_dir);
+		return -1;
+	}
+
 	strlcpy(dir->d_name, info.fname, sizeof(dir->d_name));
 	if (info.fattrib & AM_DIR)
 		dir->d_type = DT_DIR;

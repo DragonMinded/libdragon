@@ -197,14 +197,11 @@ void gl_context_begin()
 
 void gl_context_end()
 {
-    assertf(state.modelview_stack.cur_depth == 0, "Modelview stack not empty");
-    assertf(state.projection_stack.cur_depth == 0, "Projection stack not empty");
-    assertf(state.texture_stack.cur_depth == 0, "Texture stack not empty");
 }
 
 GLenum glGetError(void)
 {
-    if (!gl_ensure_no_immediate()) return 0;
+    if (!gl_ensure_no_begin_end()) return 0;
 
     GLenum error = state.current_error;
     state.current_error = GL_NO_ERROR;
@@ -360,13 +357,13 @@ void gl_set_flag2(GLenum target, bool value)
 
 void glEnable(GLenum target)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_set_flag2(target, true);
 }
 
 void glDisable(GLenum target)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_set_flag2(target, false);
 }
 
@@ -382,7 +379,7 @@ void glClear(GLbitfield buf)
     extern void __rdpq_clear_z(const uint16_t *z);
     extern void __rdpq_clear(const color_t* color);
 
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (!buf) {
         return;
@@ -410,7 +407,7 @@ void glClear(GLbitfield buf)
 
 void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     color_t clear_color = RGBA32(CLAMPF_TO_U8(r), CLAMPF_TO_U8(g), CLAMPF_TO_U8(b), CLAMPF_TO_U8(a));
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_color), color_to_packed32(clear_color));
@@ -418,7 +415,7 @@ void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 
 void glClearDepth(GLclampd d)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     color_t clear_depth = color_from_packed16(d * 0xFFFC);
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_depth), color_to_packed32(clear_depth));
@@ -430,21 +427,21 @@ void glDitherModeN64(rdpq_dither_t mode){
 
 void glFlush(void)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     rspq_flush();
 }
 
 void glFinish(void)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     rspq_wait();
 }
 
 void glHint(GLenum target, GLenum hint)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     switch (target)
     {

@@ -53,8 +53,8 @@
     assertf(error == GL_NO_ERROR, "%s: " message, #error, ##__VA_ARGS__); \
 })
 
-#define gl_ensure_no_immediate() ({ \
-    if (state.immediate_active) { \
+#define gl_ensure_no_begin_end() ({ \
+    if (state.begin_end_active) { \
         gl_set_error(GL_INVALID_OPERATION, "%s is not allowed between glBegin/glEnd", __func__); \
         false; \
     } \
@@ -425,7 +425,7 @@ typedef struct {
     gl_matrix_target_t palette_matrix_targets[MATRIX_PALETTE_SIZE];
     gl_matrix_target_t *current_matrix_target;
 
-    bool immediate_active;
+    bool begin_end_active;
 
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;

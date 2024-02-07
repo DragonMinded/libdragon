@@ -87,8 +87,8 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     builder.yscale = 1.0f;
     rdpq_paragraph_builder_font(initial_font_id);
     // start at center of pixel so that all rounds are to nearest
-    builder.x = 0.5f + builder.parms->indent;
-    builder.y = 0.5f + (builder.parms->height ? builder.font->ascent : 0);
+    builder.x = builder.parms->indent;
+    builder.y = (builder.parms->height ? builder.font->ascent : 0);
     builder.skip_current_line = rdpq_paragraph_builder_full();
     builder.ch_last_space = -1;
 }
@@ -185,8 +185,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                 .atlas_id = atlas_id,
                 .style_id = builder.style_id,
                 .glyph = index,
-                .x = xcur,
-                .y = ycur,
+                .x = xcur+.5f,
+                .y = ycur+.5f,
             };
         } else {       
             builder.ch_last_space = builder.layout->nchars;
@@ -203,6 +203,12 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                 xcur += kerning * builder.xscale;
             }
         }
+
+        // Round to nearest pixel when we find a space. This makes all words
+        // start from a pixel boundary, which means words will always look
+        // the same in any rendition (since, depending on resolution, a single
+        // pixel of relative distance between letters can be very visible).
+        if (is_space) xcur = roundf(xcur);
 
         // Check if we are limited in width
         if (UNLIKELY(parms->width) && UNLIKELY(last_pixel > parms->width)) {
@@ -258,8 +264,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                             .atlas_id = ellipsis_atlas_id,
                             .style_id = wrap_style_id,
                             .glyph = wfnt->ellipsis_glyph,
-                            .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale),
-                            .y = wrapch[-1].y,
+                            .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale) + .5f,
+                            .y = wrapch[-1].y + .5f,
                         };
                     }
                     builder.layout->nchars = wrapchar + fnt->ellipsis_reps;
@@ -286,7 +292,7 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
     line_height += builder.parms->line_spacing;
      
     builder.y += line_height * builder.yscale;
-    builder.x = 0.5f;
+    builder.x = 0;
     builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
     builder.layout->nlines += 1;
 

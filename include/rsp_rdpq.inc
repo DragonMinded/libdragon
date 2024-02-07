@@ -815,12 +815,89 @@ RDPQ_Triangle:
     #define VTX_ATTR_X      0
     #define VTX_ATTR_Y      2
     #define VTX_ATTR_Z      4
+    #define VTX_ATTR_CLIPCODE 6
+    #define VTX_ATTR_TRCODE 7
     #define VTX_ATTR_RGBA   8
     #define VTX_ATTR_S      12
     #define VTX_ATTR_T      14
     #define VTX_ATTR_W      16
     #define VTX_ATTR_INVWi  20
     #define VTX_ATTR_INVWf  22
+
+#if 0
+    #mfc0 fp, COP0_DP_CLOCK
+#endif
+
+#if 0
+
+    #define vall1    $v01
+    #define vall2    $v02
+    #define vall3    $v03
+    #define valltmp1 $v04
+    #define valltmp2 $v05
+    #define vy1    $v06
+    #define vy2    $v07
+    #define vy3    $v08
+    #define vytmp1 $v09
+    #define vytmp2 $v10
+
+    # vall registers:
+    # X1 Y1 Z1 ADDR1  RG1 BA1 S1 T1
+    # X2 Y2 Z2 ADDR2  RG2 BA2 S2 T2
+    # X3 Y3 Z3 ADDR3  RG3 BA3 S3 T3
+
+    lqv vall1, VTX_ATTR_X,vtx1
+    lqv vall2, VTX_ATTR_X,vtx2
+    lqv vall3, VTX_ATTR_X,vtx3
+    vnop
+
+    vcopy vy1, vall1.e1;                mtc2 vtx1, vall1.e3
+    vcopy vy2, vall2.e1;                mtc2 vtx2, vall2.e3
+    vcopy vy3, vall3.e1;                mtc2 vtx3, vall3.e3
+
+    # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
+    # and vallN as values to sort. We compare the keys with vlt/vge,
+    # and then use vmrg to apply the swap.
+
+    vge vytmp1, vy1, vy2;               
+    vmrg valltmp1, vall1, vall2;        
+    vlt vy1, vy1, vy2;                  cfc2 t0, COP2_CTRL_VCC
+    vmrg vall1, vall1, vall2;           lbu t5, VTX_ATTR_TRCODE(vtx3)
+
+    vge vytmp2, vy1, vy3;               
+    vmrg valltmp2, vall1, vall3;        lbu t3, VTX_ATTR_TRCODE(vtx1)
+    vlt vy1, vy1, vy3;                  cfc2 t1, COP2_CTRL_VCC
+    vmrg vall1, vall1, vall3;           lbu t4, VTX_ATTR_TRCODE(vtx2)
+
+    vge vy3, vytmp1, vytmp2;            and t5, t3
+    vmrg vall3, valltmp1, valltmp2;     lbu t3, %lo(RDPQ_OTHER_MODES) + 0
+    vlt vy2, vytmp1, vytmp2;            cfc2 t2, COP2_CTRL_VCC
+    vmrg vall2, valltmp1, valltmp2;     andi t5, 0x3f
+
+                                        # Trivial rejection
+    vmov vy3.e3, vy1.e0;                and t5, t4
+    vmov vxy32.e0, vall3.e0;            bnez t5, JrRa
+    vmov vy3.e2, vy2.e0;                # (DELAY SLOT)
+
+    # We want to build this layout to preare for cross product
+    #  vxy32 = X3 X2 X3 --    Y3 Y2 Y3 --
+    #  vxy21 = X1 -- X2 --    Y1 -- Y2 --
+
+    vmov vxy32.e2, vall3.e0;            mfc2 vtx1, vall1.e3
+    vmov vxy32.e4, vall3.e1;            mfc2 vtx2, vall2.e3
+    vmov vxy32.e6, vall3.e1;            mfc2 vtx3, vall3.e3
+    vmov vxy32.e1, vall2.e0;            xor t0, t2
+    vmov vxy32.e5, vall2.e1;            xor t0, t1
+
+                                        # Store Y values in output
+    vmov vxy21.e0, vall1.e0;            sdv vy3.e0, 0,s3
+    vmov vxy21.e2, vall2.e0;            andi t3, 0x38
+    vmov vxy21.e4, vall1.e1;            or tricmd, t3
+    vmov vxy21.e6, vall2.e1;            andi t0, 1
+                                        xor cull, t0
+
+#else
+
 
     j half_swap
     li t0, 1
@@ -867,6 +944,13 @@ swap_end:
     ssv vxy32.e5, 4,s3    # y2
     ssv vxy32.e4, 2,s3    # y3
 
+    # Add num mipmap levels to tricmd
+    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
+    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
+    or tricmd, t1
+
+#endif
+
     # Now calculate:
     #  vxy32    = X3 X2 X3 --    Y3 Y2 Y3 --
     #    -
@@ -910,11 +994,6 @@ swap_end:
     beq t0, cull, JrRa
     sll t0, 7
     or tricmd, t0
-
-    # Add num mipmap levels
-    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
-    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
-    or tricmd, t1
 
     # Calculate reciprocal of normal
     vrcph vnz_i.e0, vnz_i.e4
@@ -1270,8 +1349,16 @@ no_texture:
     ssv    vde_f.e7, 0x0A,s3
     ssv    vdy_i.e7, 0x0C,s3
     ssv    vdy_f.e7, 0x0E,s3
-    jr ra
     addi s3, 0x10
+
+#if 0
+    mfc0 t0, COP0_DP_CLOCK
+    sub t0, t0, fp
+    emux_log_string "RDPQ_Triangle:  "
+    emux_dump_gpr t0
+#endif
+    jr ra
+    nop
 
     #undef tricm
     #undef vtx1 

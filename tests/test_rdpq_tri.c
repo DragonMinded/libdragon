@@ -21,7 +21,7 @@ void test_rdpq_triangle(TestContext *ctx) {
     // precision. What we want to test here is the accuracy of the RSP implementation, which receives
     // fixed point numbers as input. If an error is introduced in input data, it just accumulates
     // through the algorithm but it doesn't give us actionable information.
-    #define RF(min,max) (((float)rand() / (float)0xFFFFFFFF) * ((max)-(min)) + (min))
+    #define RF(min,max) (((float)myrand() / (float)0xFFFFFFFF) * ((max)-(min)) + (min))
     #define RS16()      ((int)(RANDN(65536) - 32768))
     #define RFCOORD()   ((int)(RANDN(32768) - 16384) / 4.0f) 
     #define RFZ()       (RANDN(0x8000) / 32767.f)

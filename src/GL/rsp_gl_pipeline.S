@@ -226,8 +226,7 @@ gl_vtx_loader:
     jr ra2
     sb t0, PRIM_VTX_TRCODE(vtx)
 
-    # FIXME: in immediate mode, we should also cache the per-vertex
-    # material, in case it is changed within a glBegin / glEnd pair.
+    # FIXME: in a glBegin/glEnd pair, we should also cache the per-vertex material.
 
     #undef cmd_ptr
     #undef vtx

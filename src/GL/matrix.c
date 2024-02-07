@@ -132,7 +132,7 @@ void gl_update_current_matrix_stack()
 
 void glMatrixMode(GLenum mode)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     switch (mode) {
     case GL_MODELVIEW:
@@ -153,10 +153,10 @@ void glMatrixMode(GLenum mode)
 
 void glCurrentPaletteMatrixARB(GLint index)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     if (index < 0 || index >= MATRIX_PALETTE_SIZE) {
-        gl_set_error(GL_INVALID_VALUE, "%#04lx is not a valid palette matrix index (Must be in [0, %d])", index, MATRIX_PALETTE_SIZE);
+        gl_set_error(GL_INVALID_VALUE, "%#04lx is not a valid palette matrix index (Must be in [0, %d])", index, MATRIX_PALETTE_SIZE-1);
         return;
     }
 
@@ -220,13 +220,13 @@ void gl_load_matrix(const GLfloat *m)
 
 void glLoadMatrixf(const GLfloat *m)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_load_matrix(m);
 }
 
 void glLoadMatrixd(const GLdouble *m)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     GLfloat tmp[16];
     for (size_t i = 0; i < 16; i++)
@@ -247,13 +247,13 @@ void gl_mult_matrix(const GLfloat *m)
 
 void glMultMatrixf(const GLfloat *m)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_mult_matrix(m);
 }
 
 void glMultMatrixd(const GLdouble *m)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
 
     GLfloat tmp[16];
     for (size_t i = 0; i < 16; i++)
@@ -266,7 +266,7 @@ void glMultMatrixd(const GLdouble *m)
 
 void glLoadIdentity(void)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_matrix_t identity = (gl_matrix_t){ .m={
         {1,0,0,0},
@@ -302,13 +302,13 @@ void gl_rotate(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 
 void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_rotate(angle, x, y, z);
 }
 
 void glRotated(GLdouble angle, GLdouble x, GLdouble y, GLdouble z)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_rotate(angle, x, y, z);
 }
 
@@ -326,13 +326,13 @@ void gl_translate(GLfloat x, GLfloat y, GLfloat z)
 
 void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_translate(x, y, z);
 }
 
 void glTranslated(GLdouble x, GLdouble y, GLdouble z)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_translate(x, y, z);
 }
 
@@ -350,19 +350,19 @@ void gl_scale(GLfloat x, GLfloat y, GLfloat z)
 
 void glScalef(GLfloat x, GLfloat y, GLfloat z)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_scale(x, y, z);
 }
 
 void glScaled(GLdouble x, GLdouble y, GLdouble z)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     gl_scale(x, y, z);
 }
 
 void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_matrix_t frustum = (gl_matrix_t){ .m={
         {(2*n)/(r-l), 0.f,           0.f,            0.f},
@@ -376,7 +376,7 @@ void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdou
 
 void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_matrix_t ortho = (gl_matrix_t){ .m={
         {2.0f/(r-l),   0.f,          0.f,          0.f},
@@ -390,7 +390,7 @@ void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdoubl
 
 void glPushMatrix(void)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_matrix_stack_t *stack = state.current_matrix_stack;
 
@@ -410,7 +410,7 @@ void glPushMatrix(void)
 
 void glPopMatrix(void)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     
     gl_matrix_stack_t *stack = state.current_matrix_stack;
 
@@ -430,7 +430,7 @@ void glPopMatrix(void)
 
 void glCopyMatrixN64(GLenum source)
 {
-    if (!gl_ensure_no_immediate()) return;
+    if (!gl_ensure_no_begin_end()) return;
     int src_id;
     gl_matrix_stack_t *matrix_stack;
     switch(source)
