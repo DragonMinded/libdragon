@@ -159,3 +159,8 @@ void wav64_opus_close(wav64_t *wav) {
     opus_custom_mode_destroy(st->mode);
     free(st);
 }
+
+int wav64_opus_get_bitrate(wav64_t *wav) {
+    wav64_opus_state *st = (wav64_opus_state*)wav->ext;
+    return st->xhead.bitrate_bps;
+}
