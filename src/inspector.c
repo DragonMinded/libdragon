@@ -75,7 +75,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 		"s", "r", "jj", "jjal", "bbeq", "bbne", "bblez", "bbgtz",
 		"iaddi", "iaddiu", "rslt", "isltiu", "iandi", "iori", "ixori", "klui",
 		"ccop0", "fcop1", "ccop2", "ccop3", "bbeql", "bbnel", "bblezl", "bbgtzl",
-		"ddaddi", "ddaddiu", "dldl", "dldr", "*", "*", "*", "*",
+		"idaddi", "idaddiu", "mldl", "mldr", "*", "*", "*", "*",
 		"mlb", "mlh", "mlwl", "mlw", "mlbu", "mlhu", "mlwr", "mlwu",
 		"msb", "msh", "mswl", "msw", "msdl", "msdr", "mswr", "*",
 		"mll", "nlwc1", "mlwc2", "*", "mlld", "nldc1", "mldc2", "mld",
@@ -89,7 +89,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 		"radd", "raddu", "rsub", "rsubu", "rand", "ror", "rxor", "rnor", 
 		"*", "*", "*", "*", "*", "*", "*", "*", 
 		"ttge", "ttgeu", "ttlt", "ttltu", "tteq", "*", "ttne", "*", 
-		"*", "*", "*", "*", "*", "*", "*", "*", 
+		"edsll", "*", "edsrl", "edsra", "edsll32", "*", "edsrl32", "edsra32", 
 	};
 	static const char *fpu_ops[64]= {
         "radd", "rsub", "rmul", "rdiv", "rsqrt", "sabs", "smov", "sneg",
