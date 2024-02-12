@@ -789,8 +789,8 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$8&quot;</span> : <span class="stringliteral">&quot;=r&quot;</span> (x) : ); \</div>
+<div class="line">    uint64_t x; \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;dmfc0 %0,$8&quot;</span> : <span class="stringliteral">&quot;=r&quot;</span> (x) : ); \</div>
 <div class="line">    x; \</div>
 <div class="line">})</div>
 </div><!-- fragment -->
@@ -2289,7 +2289,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Feb 12 2024 13:04:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Feb 12 2024 17:20:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
