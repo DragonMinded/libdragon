@@ -367,7 +367,7 @@ finalize_exception_frame:
 	sd $28,(STACK_GPR+28*8)(sp)   # GP
 	# SP has been modified to make space for the exception frame,
 	# but we want to save the previous value in the exception frame itself.
-	daddiu $1, sp, EXC_STACK_SIZE
+	addiu $1, sp, EXC_STACK_SIZE
 	sd $1, (STACK_GPR+29*8)(sp)   # SP
 	sd $30,(STACK_GPR+30*8)(sp)   # FP
 	sdc1 $f20,(STACK_FPR+20*8)(sp)
