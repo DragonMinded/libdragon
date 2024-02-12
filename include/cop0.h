@@ -90,8 +90,8 @@
  * invalid, or a virtual address for which an addressing error occurred.
  */
 #define C0_BADVADDR() ({ \
-	uint32_t x; \
-	asm volatile("mfc0 %0,$8" : "=r" (x) : ); \
+	uint64_t x; \
+	asm volatile("dmfc0 %0,$8" : "=r" (x) : ); \
 	x; \
 })
 
