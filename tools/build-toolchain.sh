@@ -36,7 +36,8 @@ GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
 BINUTILS_V=2.42
-GCC_V=13.2.0
+GCC_V_MAJOR=14
+GCC_V_URL="https://gcc.gnu.org/pub/gcc/snapshots/LATEST-$GCC_V_MAJOR/"
 NEWLIB_V=4.4.0.20231231
 GMP_V=6.3.0 
 MPC_V=1.3.1 
@@ -58,6 +59,21 @@ download () {
         return 1
     fi
 }
+
+# Download the file URL using wget or curl (depending on which is installed) to stdout
+download_stdout() {
+    if   command_exists wget ; then wget -q -c -O -  "$1"
+    elif command_exists curl ; then curl -L "$1"
+    else
+        echo "Install wget or curl to download toolchain sources" 1>&2
+        return 1
+    fi
+}
+
+# Set the GCC snapshot version based on LATEST-$GCC_V_MAJOR/ retrieved with download_stdout
+GCC_V_DATE=$(download_stdout $GCC_V_URL)
+GCC_V_DATE=${GCC_V_DATE[@]:29:8}
+GCC_V=$GCC_V_MAJOR-$GCC_V_DATE
 
 # Compilation on macOS via homebrew
 if [[ $OSTYPE == 'darwin'* ]]; then
@@ -101,8 +117,8 @@ cd "$BUILD_PATH"
 test -f "binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
 test -d "binutils-$BINUTILS_V"        || tar -xzf "binutils-$BINUTILS_V.tar.gz"
 
-test -f "gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
-test -d "gcc-$GCC_V"                  || tar -xzf "gcc-$GCC_V.tar.gz"
+test -f "gcc-$GCC_V.tar.xz"           || download "$GCC_V_URL/gcc-$GCC_V.tar.xz"
+test -d "gcc-$GCC_V"                  || tar -xJf "gcc-$GCC_V.tar.xz"
 
 test -f "newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
 test -d "newlib-$NEWLIB_V"            || tar -xzf "newlib-$NEWLIB_V.tar.gz"
