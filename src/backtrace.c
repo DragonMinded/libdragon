@@ -633,7 +633,8 @@ int backtrace(void **buffer, int size)
 {
     int i = -1; // skip backtrace itself
     void cb(void *arg, void *ptr) {
-        if (i >= 0 && i < size)
+        if (i >= size) return;
+        if (i >= 0)
             buffer[i] = ptr;
         i++;
     }
