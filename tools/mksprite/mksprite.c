@@ -326,7 +326,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
             else fmt = FMT_IA16;
             break;
         case LCT_PALETTE:
-            fmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
+            fmt = (state.info_png.color.bitdepth > 4) ? FMT_CI8 : FMT_CI4;
             break;
         case LCT_RGB: case LCT_RGBA:
             // Usage of 32-bit sprites/textures is extremely rare because of the
