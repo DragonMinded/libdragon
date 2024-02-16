@@ -111,6 +111,7 @@ typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 #define MI_WMODE_CLEAR_UPPER_MODE           0x1000
 #define MI_VERSION                          ((volatile uint32_t*)0xA4300004)
 #define MI_INTERRUPT                        ((volatile uint32_t*)0xA4300008)
+#define MI_MASK                             ((volatile uint32_t*)0xA430000C)
 #define MI_IQUE_RNG                         ((volatile uint32_t*)0xA430002C)
 #define MI_WINTERRUPT_CLR_SP                0x0001
 #define MI_WINTERRUPT_SET_SP                0x0002
@@ -124,6 +125,18 @@ typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 #define MI_WINTERRUPT_SET_PI                0x0200
 #define MI_WINTERRUPT_CLR_DP                0x0400
 #define MI_WINTERRUPT_SET_DP                0x0800
+#define MI_WMASK_CLR_SP                     0x0001
+#define MI_WMASK_SET_SP                     0x0002
+#define MI_WMASK_CLR_SI                     0x0004
+#define MI_WMASK_SET_SI                     0x0008
+#define MI_WMASK_CLR_AI                     0x0010
+#define MI_WMASK_SET_AI                     0x0020
+#define MI_WMASK_CLR_VI                     0x0040
+#define MI_WMASK_SET_VI                     0x0080
+#define MI_WMASK_CLR_PI                     0x0100
+#define MI_WMASK_SET_PI                     0x0200
+#define MI_WMASK_CLR_DP                     0x0400
+#define MI_WMASK_SET_DP                     0x0800
 
 #define AI_STATUS                           ((volatile uint32_t*)0xA450000C)
 
@@ -249,6 +262,7 @@ static inline void rcp_reset(void)
     *SP_PC = 0;
     *SP_SEMAPHORE = 0;
     
+    *MI_MASK = MI_WMASK_CLR_SP | MI_WMASK_CLR_SI | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI | MI_WMASK_CLR_PI | MI_WMASK_CLR_DP;
     *MI_INTERRUPT = MI_WINTERRUPT_CLR_SP | MI_WINTERRUPT_CLR_SI | MI_WINTERRUPT_CLR_AI | MI_WINTERRUPT_CLR_VI | MI_WINTERRUPT_CLR_PI | MI_WINTERRUPT_CLR_DP;
     *PI_STATUS = PI_CLEAR_INTERRUPT;
     *SI_STATUS = SI_CLEAR_INTERRUPT;
