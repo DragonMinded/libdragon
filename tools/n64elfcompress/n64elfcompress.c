@@ -167,7 +167,10 @@ elf_t* elf_load(const char *infn)
 
     // Check ELF class
     if (elf->header.e_ident[EI_CLASS] != ELFCLASS32) {
-        fprintf(stderr, "invalid ELF class\n");
+        if (elf->header.e_ident[EI_CLASS] == ELFCLASS64)
+            fprintf(stderr, "64-bit ELF not supported\n");
+        else
+            fprintf(stderr, "invalid ELF class\n");
         goto error;
     }
 
