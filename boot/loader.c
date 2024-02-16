@@ -417,7 +417,7 @@ void stage3(uint32_t entrypoint)
 
     // Configure SP at the end of RDRAM. This is a good default in general,
     // then of course userspace code is free to reconfigure it.
-    asm ("move $sp, %0" : : "r" (0x80000000 + memsize));
+    asm ("move $sp, %0" : : "r" (0x80000000 + memsize - 0x10));
 
     goto *(void*)entrypoint;
 }

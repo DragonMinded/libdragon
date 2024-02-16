@@ -238,7 +238,7 @@ void stage1pre(void)
     // instead, which is technically faster (though the final performance
     // difference is not measurable), but it would make the life harder
     // for emulators for very little gain.
-    asm ("li $sp, %0"::"i"(SP_IMEM));
+    asm ("li $sp, %0"::"i"((uint32_t)SP_DMEM + 4096 - 0x10));
     __builtin_unreachable(); // avoid function epilog, fallthrough to stage1 (see linker script)
 }
 
