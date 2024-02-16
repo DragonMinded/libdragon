@@ -85,7 +85,9 @@ To use this IPL3 with your own programming environment, please follow
 the following rules:
 
  * Provide your binary in ELF format, statically-linked. IPL3 reads
-   all program headers of type PT_LOAD, and ignores all sections.
+   all program headers of type PT_LOAD, and ignores all sections. ELF can be
+   either 32-bit or 64-bit, but in the latter case, only the lowest 32-bit
+   of the addresses will be read.
  * The ELF file must be concatenated to the IPL3 z64 file (either
    development or production build), respecting a 256-byte alignment.
    You can put any other data before and/or after it, as long as the ELF
@@ -255,6 +257,9 @@ NOTE: at the moment of writing, `n64elfcompress` discards all sections in the
 ELF file. If your application require sections to be available at runtime,
 then you will need to handle compression in some other means (or modify
 `n64elfcompress`).
+
+NOTE: at the moment of writing, `n64elfcompress` does not support ELFs with
+headers in 64-bit format.
 
 #### Format details
 
