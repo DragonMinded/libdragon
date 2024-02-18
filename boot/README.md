@@ -48,6 +48,13 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r5 (1463a76f789aa2087dc0ba4e93d6c25d)
+* Initialize $sp to the end of RDRAM. This is a good default for most use cases.
+* Add support for 64-bit ELFs
+* Clear MI_MASK before booting the ELF
+* While IPL3 is running, the stack is now in DMEM rather than in CPU cache;
+  this should help emulators while having basically no effect on runtime.
+
 r4 (d78ddd06d2303d3f76d11de6b6326d69)
 * Allow to load ELF sections of odd sizes (before, it would error out). This
   is required for n64elfcompress to produce unpadded compressed sections, since
