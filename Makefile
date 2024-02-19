@@ -176,6 +176,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rdpq_macros.h $(INSTALLDIR)/mips64-elf/include/rdpq_macros.h
 	install -Cv -m 0644 include/rdpq_constants.h $(INSTALLDIR)/mips64-elf/include/rdpq_constants.h
 	install -Cv -m 0644 include/rsp_rdpq.inc $(INSTALLDIR)/mips64-elf/include/rsp_rdpq.inc
+	install -Cv -m 0644 include/rsp_rdpq_tri.inc $(INSTALLDIR)/mips64-elf/include/rsp_rdpq_tri.inc
 	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
 	install -Cv -m 0644 include/GL/gl.h $(INSTALLDIR)/mips64-elf/include/GL/gl.h
 	install -Cv -m 0644 include/GL/gl_enums.h $(INSTALLDIR)/mips64-elf/include/GL/gl_enums.h
