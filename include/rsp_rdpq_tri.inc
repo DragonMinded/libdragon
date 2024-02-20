@@ -230,15 +230,38 @@ RDPQ_Triangle:
     vsra  vx12_i, vx12_f, 2; 
     vsll8 vx12_f, vx12_f, 14;
 
-    # Store X2 value in output (as XL)
-    ssv vx12_f.e2, 10,s3  # XL_F
-    ssv vx12_i.e2,  8,s3  # Xl_I
+    # FY.e4 = floorf(y1) - y1
+    # TODO: this is always a negative
+    # fraction, so fy_i is always 0xFFFF
+    # (or fy_i=fy_f=0). See if we can
+    # take advantage of this somehow
+    # to simplify later.                
+                                        # Extract sign of Z
+    vsubc vfy_f, vzero, vfy_f;          mfc2 t0, vnz_i.e0
+    vsub  vfy_i, vfy_i
 
-    # X1 = F41F 4000
-    # X2 = FA18 4000
+    # Calculate reciprocal of normal
+    vrcph vnz_i.e4, vnz_i.e0;           # Backface culling
+    vrcpl vnz_f.e4, vnz_f.e0;           slt t0, t0, zero 
+    vrcph vnz_i.e4, vzero.e0;           xori t0, 1
+                                        beq t0, cull, JrRa
+    #define inz_f   vnz_f.e4
+    #define inz_i   vnz_i.e4
 
-    # F41F 0996
-    # FA18 197E
+    # Compute SLOPE vector
+    # slope    =  -- -- -- --    1/HY 1/MY 1/LY 1/NZ
+
+    # Compute ISL (L slope). 1/LY  (s14.1)      
+    vrcp  vslope_f.e6, ly;              # DELAY SLOT
+                                        # Write left flag into tricmd
+    vrcph vslope_i.e6, ly;              sll t0, 7
+    # Compute ISM (M slope). 1/MY  (s14.1)
+    vrcp  vslope_f.e5, my;              or tricmd, t0
+                                        # Store X2 value in output (as XL)
+    vrcph vslope_i.e5, my;              ssv vx12_i.e2,  8,s3  # Xl_I
+    # Compute ISH (H slope). 1/HY  (s14.1)
+    vrcp  vslope_f.e4, hy;              ssv vx12_f.e2, 10,s3  # XL_F
+    vrcph vslope_i.e4, hy
 
     # REMOVE THIS
     vmov vhml.e0, vh.e0
@@ -260,44 +283,6 @@ RDPQ_Triangle:
     #define lx      vhml.e2
     #define ly      vhml.e6
 
-    # REMOVE THIS
-    vmov vnz_f.e4, vnz_f.e0;
-    vmov vnz_i.e4, vnz_i.e0;
-
-    # FY.e4 = floorf(y1) - y1
-    # TODO: this is always a negative fraction, so fy_i is always 0xFFFF (or fy_i=fy_f=0).
-    # See if we can take advantage of this somehow to simplify later.
-    vsubc vfy_f, vzero, vfy_f
-    vsub  vfy_i, vfy_i
-
-    # Duplicate MX and MY into the two empty lanes.
-    # Extract left flag from the sign of NZ.
-    # Since we calculated -NZ, we need to reverse the sign
-    mfc2 t0, vnz_i.e4
-    sge t0, t0, zero
-    beq t0, cull, JrRa
-    sll t0, 7
-    or tricmd, t0
-
-    # Calculate reciprocal of normal
-    vrcph vnz_i.e0, vnz_i.e4
-    vrcpl vnz_f.e0, vnz_f.e4
-    vrcph vnz_i.e0, v__.e0
-    #define inz_f   vnz_f.e0
-    #define inz_i   vnz_i.e0
-
-    # Compute SLOPE vector
-    # slope    =  -- -- -- --    1/HY 1/MY 1/LY 1/NZ
-
-    # Compute ISL (L slope). 1/LY  (s14.1)
-    vrcp  vslope_f.e6, ly
-    vrcph vslope_i.e6, ly
-    # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  vslope_f.e5, my
-    vrcph vslope_i.e5, my
-    # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  vslope_f.e4, hy
-    vrcph vslope_i.e4, hy
 
     ##################
     # 1 NR pass
@@ -318,8 +303,8 @@ RDPQ_Triangle:
     #    vhml      =   HX MX LX MY    HY   MY   LY   NZf
     #    v__       =    0 0  0  0     0    0    0    NZi
     vxor v__, v__
-    vmov v__.e7,  vnz_i.e4
-    vmov vhml.e7, vnz_f.e4
+    vmov v__.e7,  vnz_i.e0
+    vmov vhml.e7, vnz_f.e0
 
     #define vtmp_f  vattr1
     #define vtmp_i  vattr2
@@ -347,8 +332,8 @@ RDPQ_Triangle:
     # v__       =    0 0  0  0     0    0    0    NZi
     # slope     =   -- -- -- --   1/HY 1/MY 1/LY  1/NZ
     
-    vmov vnz_f.e0, vslope_f.e7
-    vmov vnz_i.e0, vslope_i.e7
+    vmov inz_f, vslope_f.e7
+    vmov inz_i, vslope_i.e7
 
     # Rotate slope
     # slope     =   1/HY 1/MY 1/LY 1/NZ   -- -- -- --
