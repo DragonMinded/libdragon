@@ -126,11 +126,10 @@ RDPQ_Triangle:
     #define vytmp1 $v09
     #define vytmp2 $v10
 
-    #define vh      valltmp1
     #define vm      valltmp2
     #define vl      vytmp1
-    #define hx      vh.e0
-    #define hy      vh.e1
+    #define hx      vhml.e0
+    #define hy      vhml.e1
     #define mx      vm.e0
     #define my      vm.e1
     #define lx      vl.e0
@@ -205,7 +204,7 @@ RDPQ_Triangle:
     #  vy3:   Y1 Y2 Y3 Y3  Y3 Y3 Y3 Y3 
 
     vmov vy3.e3, vy1.e0;                xor did_swap_0, did_swap_1
-    vsubc vh, vall3, vall1;             nop
+    vsubc vhml, vall3, vall1;           nop
     vmov vy3.e2, vy2.e0;                xor did_swap_0, did_swap_2
     vsubc vm, vall2, vall1;             mfc2 vtx1, vall1.e3
     vsubc vl, vall3, vall2;             mfc2 vtx2, vall2.e3
@@ -223,9 +222,24 @@ RDPQ_Triangle:
     vsra  vfy_i, vy1, 2;                bnez clip1, JrRa
                                         li out_clip_flag, 1     # report clipping required
     vmudh vnz_f, vm, hy;                li out_clip_flag, 0     # report no clipping required
-    vmadh vnz_f, vh, vkm1;              
-    vsar vnz_i, COP2_ACC_HI;            
-    vsar vnz_f, COP2_ACC_MD;            
+    vmadh vnz_f, vhml, vkm1;            slv vm.e0,   8,s3
+    vsar vnz_i, COP2_ACC_HI;            slv vl.e0,  12,s3
+    vsar vnz_f, COP2_ACC_MD;            ldv vhml.e2, 8,s3
+
+    #undef vm
+    #undef vl
+    #undef hx
+    #undef hy
+    #undef mx
+    #undef my
+    #undef lx
+    #undef ly
+    #define hx      vhml.e0
+    #define hy      vhml.e1
+    #define mx      vhml.e2
+    #define my      vhml.e3
+    #define lx      vhml.e4
+    #define ly      vhml.e5
 
     vsra  vx12_i, vx12_f, 2; 
     vsll8 vx12_f, vx12_f, 14;
@@ -249,98 +263,75 @@ RDPQ_Triangle:
     #define inz_i   vnz_i.e4
 
     # Compute SLOPE vector
-    # slope    =  -- -- -- --    1/HY 1/MY 1/LY 1/NZ
+    # slope    =  -- 1/HY -- 1/MY   -- 1/LY -- 1/NZ
 
     # Compute ISL (L slope). 1/LY  (s14.1)      
-    vrcp  vslope_f.e6, ly;              # DELAY SLOT
+    vrcp  vslope_f.e4, ly;              # DELAY SLOT
                                         # Write left flag into tricmd
-    vrcph vslope_i.e6, ly;              sll t0, 7
+    vrcph vslope_i.e4, ly;              sll t0, 7
     # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  vslope_f.e5, my;              or tricmd, t0
+    vrcp  vslope_f.e2, my;              or tricmd, t0
                                         # Store X2 value in output (as XL)
-    vrcph vslope_i.e5, my;              ssv vx12_i.e2,  8,s3  # Xl_I
+    vrcph vslope_i.e2, my;              ssv vx12_i.e2,  8,s3  # XL_I
     # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  vslope_f.e4, hy;              ssv vx12_f.e2, 10,s3  # XL_F
-    vrcph vslope_i.e4, hy
-
-    # REMOVE THIS
-    vmov vhml.e0, vh.e0
-    vmov vhml.e1, vm.e0
-    vmov vhml.e2, vl.e0
-    vmov vhml.e4, vh.e1
-    vmov vhml.e5, vm.e1
-    vmov vhml.e6, vl.e1
-    #undef hx
-    #undef hy
-    #undef mx
-    #undef my
-    #undef lx
-    #undef ly
-    #define hx      vhml.e0
-    #define hy      vhml.e4
-    #define mx      vhml.e1
-    #define my      vhml.e5
-    #define lx      vhml.e2
-    #define ly      vhml.e6
-
+    vrcp  vslope_f.e0, hy;              ssv vx12_f.e2, 10,s3  # XL_F
+    vrcph vslope_i.e0, hy
 
     ##################
     # 1 NR pass
     ##################
-    vmov vslope_f.e7, inz_f
-    vmov vslope_i.e7, inz_i
-
-    # Adjust multiplying by 2 (required after reciprocal)
-    #vmudn vslope_f, vslope_f, K2
-    #vmadh vslope_i, vslope_i, K2
-    vaddc vslope_f, vslope_f
-    vadd  vslope_i, vslope_i
+    #define vtmp_f  vattr1
+    #define vtmp_i  vattr2
+    #define vk2     vattr3
 
     # Prepare 32-bit number containing the source of the reciprocal
     # Notice that we're calculating NR over 1 32-bit input (NZ) and
     # 3 16-bit inputs (HY, MY, LY), for which we provide 0 in the lower
     # part.
-    #    vhml      =   HX MX LX MY    HY   MY   LY   NZf
-    #    v__       =    0 0  0  0     0    0    0    NZi
+    #    vhml      =   HX HY MX MY    LX LY  0  NZf
+    #    v__       =    0 0  0  0     0  0   0  NZi
+    vor vk2, vzero, K2
     vxor v__, v__
     vmov v__.e7,  vnz_i.e0
     vmov vhml.e7, vnz_f.e0
 
-    #define vtmp_f  vattr1
-    #define vtmp_i  vattr2
-    #define vk2     vattr3
+    vmov vslope_f.e7, inz_f
+    vmov vslope_i.e7, inz_i
+
+    # Adjust multiplying by 2 (required after reciprocal)
+    vmudn vslope_f, vslope_f, K2
+    vmadh vslope_i, vslope_i, K2
 
     # NR: R*X
-    vmudl vtmp_f, vslope_f, vhml
-    vmadm vtmp_f, vslope_i, vhml
+    vmudl vtmp_f, vslope_f, vhml.q1
+    vmadm vtmp_f, vslope_i, vhml.q1
     vmadn vtmp_f, vslope_f, v__
     vmadh vtmp_i, vslope_i, v__
 
     # NR: 2 - R*X   
-    vor vk2, vzero, K2
     vsubc vtmp_f, vzero, vtmp_f
     vsub  vtmp_i, vk2,   vtmp_i
 
     # NR: X * (2 - R*X)
-    vmudl vk2, vtmp_f, vslope_f
-    vmadm vk2, vtmp_i, vslope_f
+    vmudl v__, vtmp_f, vslope_f
+    vmadm v__, vtmp_i, vslope_f
     vmadn vslope_f, vtmp_f, vslope_i
     vmadh vslope_i, vtmp_i, vslope_i
     #vmadn vslope_f, vzero, vzero     # re-read vslope_f in case of overflow
 
-    # vhml      =   HX MX LX MY    HY   MY   LY   NZf
-    # v__       =    0 0  0  0     0    0    0    NZi
-    # slope     =   -- -- -- --   1/HY 1/MY 1/LY  1/NZ
+    # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
+    # v__       =    0  0    0   0       0   0    0   NZi
+    # slope     =   -- 1/HY  -- 1/MY    --  1/LY --  1/NZ
     
     vmov inz_f, vslope_f.e7
     vmov inz_i, vslope_i.e7
 
     # Rotate slope
     # slope     =   1/HY 1/MY 1/LY 1/NZ   -- -- -- --
-    sqv vslope_f.e4, 0x10,s3
-    lqv vslope_f.e0  0x10,s3
-    sqv vslope_i.e4, 0x10,s3
-    lqv vslope_i.e0  0x10,s3
+    # sqv vslope_f.e4, 0x10,s3
+    # lqv vslope_f.e0  0x10,s3
+    # sqv vslope_i.e4, 0x10,s3
+    # lqv vslope_i.e0  0x10,s3
 
     # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
     # that will be required later.
@@ -348,11 +339,11 @@ RDPQ_Triangle:
     vmadh vnz_i, vnz_i, K4
 
     # Finalize slope divisions by multiplying by the reciprocal.
-    #  vhml     =   HX    MX    LX    1     HY MY LY MX
-    #    *
-    #  slope    =  1/HY  1/MY  1/LY  1/NZ   -- -- -- --
+    # vhml      =   HX  HY     MX  MY      LX    LY    0    NZf
+    #  *
+    # vslope.q1 =  1/HY 1/HY  1/MY 1/MY    1/LY 1/LY  1/NZ  1/NZ
     #    =
-    #  slope    =  HX/HY MX/MY LX/LY  --    -- -- -- --
+    # vslope    =  HX/HY --   MX/MY  --   LX/LY  --     --   --
     vmudn v__,     vslope_f, vhml
     vmadh v__,     vslope_i, vhml
     vsar  vslope_f, COP2_ACC_MD
@@ -360,10 +351,12 @@ RDPQ_Triangle:
 
     #define ish_f   vslope_f.e0
     #define ish_i   vslope_i.e0
-    #define ism_f   vslope_f.e1
-    #define ism_i   vslope_i.e1
-    #define isl_f   vslope_f.e2
-    #define isl_i   vslope_i.e2
+    #define ism_f   vslope_f.e2
+    #define ism_i   vslope_i.e2
+    #define isl_f   vslope_f.e4
+    #define isl_i   vslope_i.e4
+
+    emux_dump_vpr vslope_f, vslope_i
 
     # Store slopes
     ssv isl_f, 14,s3
@@ -373,21 +366,21 @@ RDPQ_Triangle:
     ssv ish_f, 22,s3
     ssv ish_i, 20,s3
 
-    #  vxy21 =   X1   --    X2   --  Y1 -- Y2 --
-    #  slope = HX/HY MX/MY LX/LY --  -- -- -- --
+    #  vxy21 =   X1   --    X2   --       Y1 --   Y2 --
+    #  slope = HX/HY  --   MX/MY --     LX/LY --  -- --
 
-    # Compute XH/XM
+    # Compute XH and XM
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
     vmudl v__,      vslope_f, vfy_f.e4
     vmadm v__,      vslope_i, vfy_f.e4
     vmadn vedges_f, vslope_f, vfy_i.e4
     vmadh vedges_i, vslope_i, vfy_i.e4
 
-    vaddc vedges_f, vx12_f.q0
-    vadd  vedges_i, vx12_i.q0
+    vaddc vedges_f, vx12_f.e0
+    vadd  vedges_i, vx12_i.e0
 
-    ssv vedges_f.e1, 26,s3  # XM_F
-    ssv vedges_i.e1, 24,s3  # XM_I
+    ssv vedges_f.e2, 26,s3  # XM_F
+    ssv vedges_i.e2, 24,s3  # XM_I
     ssv vedges_f.e0, 18,s3  # XH_F
     ssv vedges_i.e0, 16,s3  # XH_I
 
@@ -516,7 +509,6 @@ calc_attrs:
     mfc2 t1, hx
     neg t0
     neg t1
-    emux_dump_gpr t0, t1
     mtc2 t0, my
     mtc2 t1, hx
 
@@ -532,7 +524,6 @@ calc_attrs:
     vsar vdy_f, COP2_ACC_MD
     vsar vdy_i, COP2_ACC_HI
 
-    emux_dump_vpr vnz_f, vnz_i
     # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
     vmudl v__,  vdx_f, inz_f
     vmadm v__,  vdx_i, inz_f
@@ -546,7 +537,6 @@ calc_attrs:
     vmadh vdy_i, vdy_i, inz_i
 
     # DE = DX * invsh + DY
-    emux_dump_vpr vslope_f, vslope_i
     vmadl v__,  vdx_f, ish_f
     vmadm v__,  vdx_i, ish_f
     vmadn vde_f, vdx_f, ish_i
@@ -555,7 +545,6 @@ calc_attrs:
     # FINAL = vATTR1 + DE * FY
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
     # TODO: actually, it can also be fy_i = fy_f = 0.
-    emux_dump_vpr vfy_i, vfy_f
     vmudl v__,      vde_f, vfy_f.e4
     vmadm v__,      vde_i, vfy_f.e4
     vmadn vfinal_f, vde_f, vfy_i.e4
