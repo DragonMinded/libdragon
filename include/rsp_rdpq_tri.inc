@@ -254,17 +254,14 @@ RDPQ_Triangle:
     vsubc vfy_f, vzero, vfy_f;          mfc2 t0, vnz_i.e0
     vsub  vfy_i, vfy_i
 
-    # Calculate reciprocal of normal
-    vrcph vnz_i.e4, vnz_i.e0;           # Backface culling
-    vrcpl vnz_f.e4, vnz_f.e0;           slt t0, t0, zero 
-    vrcph vnz_i.e4, vzero.e0;           xori t0, 1
-                                        beq t0, cull, JrRa
-    #define inz_f   vnz_f.e4
-    #define inz_i   vnz_i.e4
-
     # Compute SLOPE vector
-    # slope    =  -- 1/HY -- 1/MY   -- 1/LY -- 1/NZ
+    # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
 
+    # Calculate reciprocal of normal
+    vrcph vslope_i.e7, vnz_i.e0;        # Backface culling
+    vrcpl vslope_f.e7, vnz_f.e0;        slt t0, t0, zero 
+    vrcph vslope_i.e7, vzero.e0;        xori t0, 1
+                                        beq t0, cull, JrRa
     # Compute ISL (L slope). 1/LY  (s14.1)      
     vrcp  vslope_f.e4, ly;              # DELAY SLOT
                                         # Write left flag into tricmd
@@ -295,9 +292,6 @@ RDPQ_Triangle:
     vmov v__.e7,  vnz_i.e0
     vmov vhml.e7, vnz_f.e0
 
-    vmov vslope_f.e7, inz_f
-    vmov vslope_i.e7, inz_i
-
     # Adjust multiplying by 2 (required after reciprocal)
     vmudn vslope_f, vslope_f, K2
     vmadh vslope_i, vslope_i, K2
@@ -323,9 +317,6 @@ RDPQ_Triangle:
     # v__       =    0  0    0   0       0   0    0   NZi
     # slope     =   -- 1/HY  -- 1/MY    --  1/LY --  1/NZ
     
-    vmov inz_f, vslope_f.e7
-    vmov inz_i, vslope_i.e7
-
     # Rotate slope
     # slope     =   1/HY 1/MY 1/LY 1/NZ   -- -- -- --
     # sqv vslope_f.e4, 0x10,s3
@@ -335,8 +326,11 @@ RDPQ_Triangle:
 
     # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
     # that will be required later.
-    vmudn vnz_f, vnz_f, K4
-    vmadh vnz_i, vnz_i, K4
+    
+    vmudn vnz_f, vslope_f, K4
+    vmadh vnz_i, vslope_i, K4
+    #define inz_f   vnz_f.e7
+    #define inz_i   vnz_i.e7
 
     # Finalize slope divisions by multiplying by the reciprocal.
     # vhml      =   HX  HY     MX  MY      LX    LY    0    NZf
