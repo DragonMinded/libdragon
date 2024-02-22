@@ -295,6 +295,8 @@ RDPQ_Triangle:
     #    vhmlupp   =    0 0  0  0     0  0   0  NZi
 
     # vslopem2  = X/2 * (-4) = -2*X
+    vstall
+    vstall
     vmudn vslopem2_f, vslope_f, VKM4
     vmadh vslopem2_i, vslope_i, VKM4
 
@@ -339,8 +341,9 @@ RDPQ_Triangle:
     # vslope    =  HX/HY --   MX/MY  --   LX/LY  --     --   --
     vmudn v__,     vslope_f, vhml
     vmadh v__,     vslope_i, vhml
-    vsar  vslope_f, COP2_ACC_MD
-    vsar  vslope_i, COP2_ACC_HI
+                                                # Store X2 value in output (as XL)
+    vsar  vslope_f, COP2_ACC_MD;                ssv vx12_i.e2,  8,s3  # XL_I
+    vsar  vslope_i, COP2_ACC_HI;                ssv vx12_f.e2, 10,s3  # XL_F
 
     #define ish_f   vslope_f.e0
     #define ish_i   vslope_i.e0
@@ -349,37 +352,25 @@ RDPQ_Triangle:
     #define isl_f   vslope_f.e4
     #define isl_i   vslope_i.e4
 
-    # Store X2 value in output (as XL)
-    ssv vx12_i.e2,  8,s3  # XL_I
-    ssv vx12_f.e2, 10,s3  # XL_F
-
-    # Store slopes
-    ssv isl_f, 14,s3
-    ssv isl_i, 12,s3
-    ssv ism_f, 30,s3
-    ssv ism_i, 28,s3
-    ssv ish_f, 22,s3
-    ssv ish_i, 20,s3
-
     #  vxy21 =   X1   --    X2   --       Y1 --   Y2 --
     #  slope = HX/HY  --   MX/MY --     LX/LY --  -- --
 
     # Compute XH and XM
-    # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
-    vmudl v__,      vslope_f, vfy_f.e4
-    vmadm v__,      vslope_i, vfy_f.e4
-    vmadn v__,      vslope_f, vfy_i.e4
-    vmadh v__,      vslope_i, vfy_i.e4
-    vmadm v__,      vk1,      vx12_f.e0
-    vmadh vedges_i, vk1,      vx12_i.e0
-    vmadn vedges_f, vzero,    vzero
+    # TODO: fy_i is always 0xFFFFFFFF here.
+    # See if we can benefit from this.          # Store slopes
+    vmudl v__,      vslope_f, vfy_f.e4;         ssv isl_f, 14,s3    
+    vmadm v__,      vslope_i, vfy_f.e4;         ssv isl_i, 12,s3
+    vmadn v__,      vslope_f, vfy_i.e4;         ssv ism_f, 30,s3
+    vmadh v__,      vslope_i, vfy_i.e4;         ssv ism_i, 28,s3
+    vmadm v__,      vk1,      vx12_f.e0;        ssv ish_f, 22,s3
+    vmadh vedges_i, vk1,      vx12_i.e0;        ssv ish_i, 20,s3
+    vmadn vedges_f, vzero,    vzero;            sh tricmd, 0(s3)
     
-    ssv vedges_f.e2, 26,s3  # XM_F
     ssv vedges_i.e2, 24,s3  # XM_I
-    ssv vedges_f.e0, 18,s3  # XH_F
+    ssv vedges_f.e2, 26,s3  # XM_F
     ssv vedges_i.e0, 16,s3  # XH_I
+    ssv vedges_f.e0, 18,s3  # XH_F
 
-    sh tricmd, 0(s3)
     add s3, 32
 
     # Load attributes into ATTR registers.
