@@ -134,10 +134,12 @@ RDPQ_Triangle:
     #define my      vm.e1
     #define lx      vl.e0
     #define ly      vl.e1
+    #define vhmlupp v__
 
 
     #define vk1    $v11
     #define vkm1   $v12
+    #define vk2    $v13
 
     #define vstall
     #define stall
@@ -186,8 +188,8 @@ RDPQ_Triangle:
     or clip1, clip2;                    vlt vy1, vy1, vy2;                  
     cfc2 did_swap_0, COP2_CTRL_VCC;     vmrg vall1, vall1, vall2;
 
-    andi t4, clip1, 0xFF;               vstall
-    xori t4, 0xFF;                      vstall
+    andi t4, clip1, 0xFF;               vcopy vk2, K2
+    xori t4, 0xFF;                      vxor vhmlupp, vhmlupp
 
     beqz t4, JrRa;                      vge vytmp2, vy1, vy3;               
     andi clip1, 0x3F00;                 vmrg valltmp2, vall1, vall3;
@@ -209,7 +211,6 @@ RDPQ_Triangle:
     vsubc vm, vall2, vall1;             mfc2 vtx1, vall1.e3
     vsubc vl, vall3, vall2;             mfc2 vtx2, vall2.e3
 
-    # X1/X2 in 16.16 precision
     # vx12 = X1 -- X2 --  -- -- -- --
     vmov vx12_f.e0, vall1.e0;           xor cull, did_swap_0
     vmov vx12_f.e2, vall2.e0;           andi did_swap_0, 1
@@ -226,6 +227,41 @@ RDPQ_Triangle:
     vsar vnz_i, COP2_ACC_HI;            slv vl.e0,  12,s3
     vsar vnz_f, COP2_ACC_MD;            ldv vhml.e2, 8,s3
 
+    # Convert X1 and X2 into 16.16 precision
+    # vx12 = X1 -- X2 --  -- -- -- --
+    vsra  vx12_i, vx12_f, 2;
+    vsll8 vx12_f, vx12_f, 14;
+
+    # FY.e0 = floorf(y1) - y1
+    # TODO: this is always a negative
+    # fraction, so fy_i is always 0xFFFF
+    # (or fy_i=fy_f=0). See if we can
+    # take advantage of this somehow
+    # to simplify later.                
+                                        # Extract sign of Z
+    vsubc vfy_f, vzero, vfy_f;          mfc2 t0, vnz_i.e0
+    vsub  vfy_i, vfy_i;                 ssv vnz_i.e0, 8,s3
+
+    # Compute SLOPE vector
+    # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
+
+    # Calculate reciprocal of normal
+    vrcph vslope_i.e7, vnz_i.e0;        # Backface culling
+    vrcpl vslope_f.e7, vnz_f.e0;        slt t0, t0, zero 
+    vrcph vslope_i.e7, vzero.e0;        xori t0, 1
+                                        beq t0, cull, JrRa
+    # Compute ISH (H slope). 1/HY  (s14.1)
+    vrcp  vslope_f.e0, hy;              # DELAY SLOT
+                                        
+    vrcph vslope_i.e0, hy;              ssv vnz_f.e0, 10,s3
+    # Compute ISM (M slope). 1/MY  (s14.1)
+    vrcp  vslope_f.e2, my;              lsv vhml.e7,  10,s3
+    vrcph vslope_i.e2, my;              lsv vhmlupp.e7, 8,s3
+    # Compute ISL (L slope). 1/LY  (s14.1)      
+                                        # Write left flag into tricmd
+    vrcp  vslope_f.e4, ly;              sll t0, 7
+    vrcph vslope_i.e4, ly;              or tricmd, t0
+
     #undef vm
     #undef vl
     #undef hx
@@ -241,92 +277,59 @@ RDPQ_Triangle:
     #define lx      vhml.e4
     #define ly      vhml.e5
 
-    vsra  vx12_i, vx12_f, 2; 
-    vsll8 vx12_f, vx12_f, 14;
-
-    # FY.e4 = floorf(y1) - y1
-    # TODO: this is always a negative
-    # fraction, so fy_i is always 0xFFFF
-    # (or fy_i=fy_f=0). See if we can
-    # take advantage of this somehow
-    # to simplify later.                
-                                        # Extract sign of Z
-    vsubc vfy_f, vzero, vfy_f;          mfc2 t0, vnz_i.e0
-    vsub  vfy_i, vfy_i
-
-    # Compute SLOPE vector
-    # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
-
-    # Calculate reciprocal of normal
-    vrcph vslope_i.e7, vnz_i.e0;        # Backface culling
-    vrcpl vslope_f.e7, vnz_f.e0;        slt t0, t0, zero 
-    vrcph vslope_i.e7, vzero.e0;        xori t0, 1
-                                        beq t0, cull, JrRa
-    # Compute ISL (L slope). 1/LY  (s14.1)      
-    vrcp  vslope_f.e4, ly;              # DELAY SLOT
-                                        # Write left flag into tricmd
-    vrcph vslope_i.e4, ly;              sll t0, 7
-    # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  vslope_f.e2, my;              or tricmd, t0
-                                        # Store X2 value in output (as XL)
-    vrcph vslope_i.e2, my;              ssv vx12_i.e2,  8,s3  # XL_I
-    # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  vslope_f.e0, hy;              ssv vx12_f.e2, 10,s3  # XL_F
-    vrcph vslope_i.e0, hy
-
     ##################
     # 1 NR pass
     ##################
-    #define vtmp_f  vattr1
-    #define vtmp_i  vattr2
-    #define vk2     vattr3
+    #define vtmp_f      vattr1
+    #define vtmp_i      vattr2
+    #define vslopem2_f   $v01
+    #define vslopem2_i   $v02
+    #define vkm4        $v04
 
     # Prepare 32-bit number containing the source of the reciprocal
     # Notice that we're calculating NR over 1 32-bit input (NZ) and
     # 3 16-bit inputs (HY, MY, LY), for which we provide 0 in the lower
     # part.
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
-    #    v__       =    0 0  0  0     0  0   0  NZi
-    vor vk2, vzero, K2
-    vxor v__, v__
-    vmov v__.e7,  vnz_i.e0
-    vmov vhml.e7, vnz_f.e0
+    #    vhmlupp   =    0 0  0  0     0  0   0  NZi
 
-    # Adjust multiplying by 2 (required after reciprocal)
-    vmudn vslope_f, vslope_f, K2
-    vmadh vslope_i, vslope_i, K2
+    # Prepare minus 1 and minus 4
+    # NOTE: this could be just one constant vector
+    vsubc vkm1, vzero, K1
+    vsubc vkm4, vzero, K4
 
-    # NR: R*X
+    # vslopem2  = X/2 * (-4) = -2*X
+    vmudn vslopem2_f, vslope_f, vkm4
+    vmadh vslopem2_i, vslope_i, vkm4
+
+    # NR: R*(X/2)
     vmudl vtmp_f, vslope_f, vhml.q1
     vmadm vtmp_f, vslope_i, vhml.q1
-    vmadn vtmp_f, vslope_f, v__
-    vmadh vtmp_i, vslope_i, v__
+    vmadn vtmp_f, vslope_f, vhmlupp
+    vmadh vtmp_i, vslope_i, vhmlupp
+    # NR: R*X/2 - 1   
+    vmadn vtmp_f, vk1,      vkm1
+    vmadh vtmp_i, vk1,      vkm1
 
-    # NR: 2 - R*X   
-    vsubc vtmp_f, vzero, vtmp_f
-    vsub  vtmp_i, vk2,   vtmp_i
+    # NR: -2*X * (R*X/2 - 1)
+    #   =  2*X * (1 - R*X/2)
+    #   =    X * (2 - R*X)
+    vstall
+    vstall
+    vmudl v__,      vtmp_f, vslopem2_f
+    vmadm v__,      vtmp_i, vslopem2_f
+    vmadn vslope_f, vtmp_f, vslopem2_i
+    vmadh vslope_i, vtmp_i, vslopem2_i
 
-    # NR: X * (2 - R*X)
-    vmudl v__, vtmp_f, vslope_f
-    vmadm v__, vtmp_i, vslope_f
-    vmadn vslope_f, vtmp_f, vslope_i
-    vmadh vslope_i, vtmp_i, vslope_i
-    #vmadn vslope_f, vzero, vzero     # re-read vslope_f in case of overflow
 
     # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
     # v__       =    0  0    0   0       0   0    0   NZi
-    # slope     =   -- 1/HY  -- 1/MY    --  1/LY --  1/NZ
+    # slope     =  1/HY --  1/MY --    1/LY --   --- 1/NZ
     
-    # Rotate slope
-    # slope     =   1/HY 1/MY 1/LY 1/NZ   -- -- -- --
-    # sqv vslope_f.e4, 0x10,s3
-    # lqv vslope_f.e0  0x10,s3
-    # sqv vslope_i.e4, 0x10,s3
-    # lqv vslope_i.e0  0x10,s3
-
     # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
-    # that will be required later.
-    
+    # that will be required later.    
+    vstall
+    vstall
     vmudn vnz_f, vslope_f, K4
     vmadh vnz_i, vslope_i, K4
     #define inz_f   vnz_f.e7
@@ -350,7 +353,9 @@ RDPQ_Triangle:
     #define isl_f   vslope_f.e4
     #define isl_i   vslope_i.e4
 
-    emux_dump_vpr vslope_f, vslope_i
+    # Store X2 value in output (as XL)
+    ssv vx12_i.e2,  8,s3  # XL_I
+    ssv vx12_f.e2, 10,s3  # XL_F
 
     # Store slopes
     ssv isl_f, 14,s3
@@ -367,12 +372,12 @@ RDPQ_Triangle:
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
     vmudl v__,      vslope_f, vfy_f.e4
     vmadm v__,      vslope_i, vfy_f.e4
-    vmadn vedges_f, vslope_f, vfy_i.e4
-    vmadh vedges_i, vslope_i, vfy_i.e4
-
-    vaddc vedges_f, vx12_f.e0
-    vadd  vedges_i, vx12_i.e0
-
+    vmadn v__,      vslope_f, vfy_i.e4
+    vmadh v__,      vslope_i, vfy_i.e4
+    vmadm v__,      vk1,      vx12_f.e0
+    vmadh vedges_i, vk1,      vx12_i.e0
+    vmadn vedges_f, vzero,    vzero
+    
     ssv vedges_f.e2, 26,s3  # XM_F
     ssv vedges_i.e2, 24,s3  # XM_I
     ssv vedges_f.e0, 18,s3  # XH_F
@@ -452,6 +457,7 @@ RDPQ_Triangle:
     # vinvw_i will be 1. Since we want to simplify further calculations and avoid
     # taking vinvw_i into account, we want to replace 0x1_0000 with 0x0_FFFF.
     # Do a manual saturation: vinvw_f = (vinvw_i == 0 ? vinvw_f : 0xFFFF)
+    vlt  vzero, vzero     # clear VCO/VCE
     veq  vinvw_i, vzero
     vmrg vinvw_f, K_FFFF
 
