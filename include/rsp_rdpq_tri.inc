@@ -120,12 +120,12 @@ RDPQ_Triangle:
     #define vall3    $v03
     #define valltmp1 $v04
     #define valltmp2 $v05
-    #define vy1    $v06
-    #define vy2    $v07
-    #define vy3    $v08
-    #define vytmp1 $v09
-    #define vytmp2 $v10
-
+    #define vy1      $v06
+    #define vy2      $v07
+    #define vy3      $v08
+    #define vytmp1   $v09
+    #define vytmp2   $v10
+  
     #define vm      valltmp2
     #define vl      vytmp1
     #define hx      vhml.e0
@@ -137,9 +137,11 @@ RDPQ_Triangle:
     #define vhmlupp v__
 
 
-    #define vk1    $v11
-    #define vkm1   $v12
-    #define vk2    $v13
+    #define vk1     $v11
+    #define vmconst $v12
+    #define vk2     $v13
+    #define VKM1    vmconst.e7
+    #define VKM4    vmconst.e5
 
     #define vstall
     #define stall
@@ -177,7 +179,7 @@ RDPQ_Triangle:
     # 1 and -1 (to be used for
     # cross product)                    # Finish loading clipping codes
     vcopy vk1, K1;                      lhu clip3, VTX_ATTR_CLIPCODE(vtx3)
-    vsubc vkm1, vzero, K1;              lhu clip2, VTX_ATTR_CLIPCODE(vtx2)
+    vsubc vmconst, vzero, vshift;       lhu clip2, VTX_ATTR_CLIPCODE(vtx2)
 
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
@@ -216,14 +218,14 @@ RDPQ_Triangle:
     vmov vx12_f.e2, vall2.e0;           andi did_swap_0, 1
 
     # Prepare -MY for crossprod
-    vsubc vkm1, vzero, my;              mfc2 vtx3, vall3.e3
+    vsubc vtmp, vzero, my;              mfc2 vtx3, vall3.e3
     
     # FY.e4 = Y1 (s15.16)
     vsll8 vfy_f, vy1, 14;               sdv vy3.e0, 0,s3
     vsra  vfy_i, vy1, 2;                bnez clip1, JrRa
                                         li out_clip_flag, 1     # report clipping required
     vmudh vnz_f, vm, hy;                li out_clip_flag, 0     # report no clipping required
-    vmadh vnz_f, vhml, vkm1;            slv vm.e0,   8,s3
+    vmadh vnz_f, vhml, vtmp;            slv vm.e0,   8,s3
     vsar vnz_i, COP2_ACC_HI;            slv vl.e0,  12,s3
     vsar vnz_f, COP2_ACC_MD;            ldv vhml.e2, 8,s3
 
@@ -284,7 +286,6 @@ RDPQ_Triangle:
     #define vtmp_i      vattr2
     #define vslopem2_f   $v01
     #define vslopem2_i   $v02
-    #define vkm4        $v04
 
     # Prepare 32-bit number containing the source of the reciprocal
     # Notice that we're calculating NR over 1 32-bit input (NZ) and
@@ -293,14 +294,9 @@ RDPQ_Triangle:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
     #    vhmlupp   =    0 0  0  0     0  0   0  NZi
 
-    # Prepare minus 1 and minus 4
-    # NOTE: this could be just one constant vector
-    vsubc vkm1, vzero, K1
-    vsubc vkm4, vzero, K4
-
     # vslopem2  = X/2 * (-4) = -2*X
-    vmudn vslopem2_f, vslope_f, vkm4
-    vmadh vslopem2_i, vslope_i, vkm4
+    vmudn vslopem2_f, vslope_f, VKM4
+    vmadh vslopem2_i, vslope_i, VKM4
 
     # NR: R*(X/2)
     vmudl vtmp_f, vslope_f, vhml.q1
@@ -308,8 +304,8 @@ RDPQ_Triangle:
     vmadn vtmp_f, vslope_f, vhmlupp
     vmadh vtmp_i, vslope_i, vhmlupp
     # NR: R*X/2 - 1   
-    vmadn vtmp_f, vk1,      vkm1
-    vmadh vtmp_i, vk1,      vkm1
+    vmadn vtmp_f, vk1,      VKM1
+    vmadh vtmp_i, vk1,      VKM1
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
