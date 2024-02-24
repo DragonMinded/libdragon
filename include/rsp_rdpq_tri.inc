@@ -540,19 +540,23 @@ calc_attrs:
     vmadm v__,      vde_i, vfy_f.e4;                sdv vde_f.e4, 0x30,tex_dmem
     vmadn vfinal_f, vde_f, vfy_i.e4;                sdv vde_i.e0, 0x20,color_dmem
     vmadh vfinal_i, vde_i, vfy_i.e4;                sdv vde_i.e4, 0x20,tex_dmem
-                                                    
-    sdv vfinal_f.e0, 0x10,color_dmem
-    sdv vfinal_f.e4, 0x10,tex_dmem
-    sdv vfinal_i.e0, 0x00,color_dmem    
-    sdv vfinal_i.e4, 0x00,tex_dmem
-    
-    # Store z
-    ssv vfinal_i.e7, 0x00,z_dmem
-    ssv vfinal_f.e7, 0x02,z_dmem
-    ssv    vde_i.e7, 0x08,z_dmem
-    ssv    vdy_f.e7, 0x0E,z_dmem
-    ssv    vde_f.e7, 0x0A,z_dmem
-    ssv    vdy_i.e7, 0x0C,z_dmem
+
+    # Since we need to wait 3 cycles before
+    # being able to store vfinal_f, use the time
+    # to compact the Z values, so that we can
+    # use slv to store them later.
+    vmov vdy_f.e6, vdy_i.e7;
+    vmov vde_f.e6, vde_i.e7;
+    vmov vdx_f.e7, vfinal_f.e7;                     sdv vfinal_f.e0, 0x10,color_dmem
+    vmov vdx_f.e6, vfinal_i.e7;                     sdv vfinal_f.e4, 0x10,tex_dmem
+                                                    sdv vfinal_i.e0, 0x00,color_dmem    
+                                                    sdv vfinal_i.e4, 0x00,tex_dmem
+
+                                                    # Store Z attributes, that were
+                                                    # compacted via vmov.
+                                                    slv vde_f.e6, 0x08,z_dmem
+                                                    slv vdy_f.e6, 0x0C,z_dmem
+                                                    slv vdx_f.e6, 0x00,z_dmem
     emux_trace_stop
 
 #if 1
