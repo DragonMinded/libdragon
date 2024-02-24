@@ -20,6 +20,14 @@ TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
     # * a1,a2,a3: pointer to the triangle structures in DMEM
     # * v0: 0=cull front, 1=cull back, any other value = culling disabled
     # * s3: output buffer pointer
+    #
+    # OUTPUT:
+    # * v1: 1=clipping required, 0=nothing to do
+    # * s3: pointer to the end of the primitive in the output buffer
+    #
+    # CLOBBER:
+    # t0-t5
+    #
     #####################################################################
 
     # Implementation limits of the RSP version. These are all edge cases that are probably
@@ -477,9 +485,9 @@ RDPQ_Triangle:
     # ATTRIBUTES
     ########################################################
 calc_attrs:
-    #define color_dmem     s0
-    #define tex_dmem       s1
-    #define z_dmem         s2
+    #define color_dmem     t3
+    #define tex_dmem       t4
+    #define z_dmem         t5
 
     # MA = A2 - A1
     # HA = A3 - A1
@@ -505,29 +513,27 @@ calc_attrs:
     vsar vdx_f, COP2_ACC_MD;                        srl t0, 3
     vsar vdx_i, COP2_ACC_HI;                        addu z_dmem, tex_dmem, t0
 
+    # DY = HA * MX + MA * -HX
+    vmudh vdy_f, vha, mx;                           andi t0, tricmd, 0x100
+    vmadh vdy_f, vma, hx;                           srl t0, 4    
+    vsar vdy_f, COP2_ACC_MD;                        addu s3, z_dmem, t0
+    vsar vdy_i, COP2_ACC_HI;                        
+
     # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vstall; vstall;
-    vmudl v__,  vdx_f, inz_f;                       andi t0, tricmd, 0x100
-    vmadm v__,  vdx_i, inz_f;                       srl t0, 4    
-    vmadn vdx_f, vdx_f, inz_i;                      addu s3, z_dmem, t0
+    vmudl v__,  vdx_f, inz_f;                       
+    vmadm v__,  vdx_i, inz_f;                       
+    vmadn vdx_f, vdx_f, inz_i;                      
     vmadh vdx_i, vdx_i, inz_i;
 
-    # DY = HA * MX + MA * -HX
-    vmudh vdy_f, vha, mx;                           
-    vmadh vdy_f, vma, hx;                           
-    vsar vdy_f, COP2_ACC_MD;                        sdv vdx_f.e0, 0x18,color_dmem
-    vsar vdy_i, COP2_ACC_HI;                        sdv vdx_f.e4, 0x18,tex_dmem
-
     # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vstall; vstall;
-    vmudl v__,  vdy_f, inz_f;                       ssv vdx_f.e7, 0x06,z_dmem
-    vmadm v__,  vdy_i, inz_f;                       sdv vdx_i.e0, 0x08,color_dmem
-    vmadn vdy_f, vdy_f, inz_i;                      sdv vdx_i.e4, 0x08,tex_dmem
-    vmadh vdy_i, vdy_i, inz_i;                      ssv vdx_i.e7, 0x04,z_dmem
+    vmudl v__,  vdy_f, inz_f;                       
+    vmadm v__,  vdy_i, inz_f;                       
+    vmadn vdy_f, vdy_f, inz_i;                      sdv vdx_f.e0, 0x18,color_dmem
+    vmadh vdy_i, vdy_i, inz_i;                      sdv vdx_f.e4, 0x18,tex_dmem
 
     # DE = DX * invsh + DY
-    vmadl v__,  vdx_f, ish_f;
-    vmadm v__,  vdx_i, ish_f;
+    vmadl v__,  vdx_f, ish_f;                       sdv vdx_i.e0, 0x08,color_dmem
+    vmadm v__,  vdx_i, ish_f;                       sdv vdx_i.e4, 0x08,tex_dmem
     vmadn vde_f, vdx_f, ish_i;                      sdv vdy_f.e0, 0x38,color_dmem
     vmadh vde_i, vdx_i, ish_i;                      sdv vdy_f.e4, 0x38,tex_dmem
     vnop;                                           sdv vdy_i.e0, 0x28,color_dmem
@@ -545,8 +551,8 @@ calc_attrs:
     # being able to store vfinal_f, use the time
     # to compact the Z values, so that we can
     # use slv to store them later.
-    vmov vdy_f.e6, vdy_i.e7;
-    vmov vde_f.e6, vde_i.e7;
+    vmov vdy_f.e6, vdy_i.e7;                        ssv vdx_f.e7, 0x06,z_dmem
+    vmov vde_f.e6, vde_i.e7;                        ssv vdx_i.e7, 0x04,z_dmem
     vmov vdx_f.e7, vfinal_f.e7;                     sdv vfinal_f.e0, 0x10,color_dmem
     vmov vdx_f.e6, vfinal_i.e7;                     sdv vfinal_f.e4, 0x10,tex_dmem
                                                     sdv vfinal_i.e0, 0x00,color_dmem    
@@ -557,6 +563,9 @@ calc_attrs:
                                                     slv vde_f.e6, 0x08,z_dmem
                                                     slv vdy_f.e6, 0x0C,z_dmem
                                                     slv vdx_f.e6, 0x00,z_dmem
+                                                    
+
+
     emux_trace_stop
 
 #if 1
