@@ -471,6 +471,7 @@ RDPQ_Triangle:
     lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
     lsv attr2_z, VTX_ATTR_Z,vtx2
     lsv attr3_z, VTX_ATTR_Z,vtx3
+    vnop
 
     ########################################################
     # ATTRIBUTES
@@ -498,74 +499,60 @@ calc_attrs:
     vsub vha, vattr3, vattr1;                       srl t0, 4
 
     # DX = MA * HY + HA * -MY
+    vstall; vstall;
     vmudh vdx_f, vma, hy;                           addu tex_dmem, color_dmem, t0
     vmadh vdx_f, vha, my;                           andi t0, tricmd, 0x200
     vsar vdx_f, COP2_ACC_MD;                        srl t0, 3
     vsar vdx_i, COP2_ACC_HI;                        addu z_dmem, tex_dmem, t0
 
-    # DY = HA * MX + MA * -HX
-    vmudh vdy_f, vha, mx;                           andi t0, tricmd, 0x100
-    vmadh vdy_f, vma, hx;                           srl t0, 4    
-    vsar vdy_f, COP2_ACC_MD;                        addu s3, z_dmem, t0
-    vsar vdy_i, COP2_ACC_HI
-
     # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  vdx_f, inz_f
-    vmadm v__,  vdx_i, inz_f
-    vmadn vdx_f, vdx_f, inz_i
-    vmadh vdx_i, vdx_i, inz_i
+    vstall; vstall;
+    vmudl v__,  vdx_f, inz_f;                       andi t0, tricmd, 0x100
+    vmadm v__,  vdx_i, inz_f;                       srl t0, 4    
+    vmadn vdx_f, vdx_f, inz_i;                      addu s3, z_dmem, t0
+    vmadh vdx_i, vdx_i, inz_i;
+
+    # DY = HA * MX + MA * -HX
+    vmudh vdy_f, vha, mx;                           
+    vmadh vdy_f, vma, hx;                           
+    vsar vdy_f, COP2_ACC_MD;                        sdv vdx_f.e0, 0x18,color_dmem
+    vsar vdy_i, COP2_ACC_HI;                        sdv vdx_f.e4, 0x18,tex_dmem
 
     # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  vdy_f, inz_f
-    vmadm v__,  vdy_i, inz_f
-    vmadn vdy_f, vdy_f, inz_i
-    vmadh vdy_i, vdy_i, inz_i
+    vstall; vstall;
+    vmudl v__,  vdy_f, inz_f;                       ssv vdx_f.e7, 0x06,z_dmem
+    vmadm v__,  vdy_i, inz_f;                       sdv vdx_i.e0, 0x08,color_dmem
+    vmadn vdy_f, vdy_f, inz_i;                      sdv vdx_i.e4, 0x08,tex_dmem
+    vmadh vdy_i, vdy_i, inz_i;                      ssv vdx_i.e7, 0x04,z_dmem
 
     # DE = DX * invsh + DY
-    vmadl v__,  vdx_f, ish_f
-    vmadm v__,  vdx_i, ish_f
-    vmadn vde_f, vdx_f, ish_i
-    vmadh vde_i, vdx_i, ish_i
+    vmadl v__,  vdx_f, ish_f;
+    vmadm v__,  vdx_i, ish_f;
+    vmadn vde_f, vdx_f, ish_i;                      sdv vdy_f.e0, 0x38,color_dmem
+    vmadh vde_i, vdx_i, ish_i;                      sdv vdy_f.e4, 0x38,tex_dmem
+    vnop;                                           sdv vdy_i.e0, 0x28,color_dmem
 
     # FINAL = vATTR1 + DE * FY
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
     # TODO: actually, it can also be fy_i = fy_f = 0.
-    vmudh v__,      vattr1, K1
-    vmadl v__,      vde_f, vfy_f.e4
-    vmadm v__,      vde_i, vfy_f.e4
-    vmadn vfinal_f, vde_f, vfy_i.e4
-    vmadh vfinal_i, vde_i, vfy_i.e4
-
-    # Store color
-    sdv vfinal_i.e0, 0x00,color_dmem
-    sdv    vdx_i.e0, 0x08,color_dmem
+    vmudh v__,      vattr1, K1;                     sdv vdy_i.e4, 0x28,tex_dmem
+    vmadl v__,      vde_f, vfy_f.e4;                sdv vde_f.e0, 0x30,color_dmem
+    vmadm v__,      vde_i, vfy_f.e4;                sdv vde_f.e4, 0x30,tex_dmem
+    vmadn vfinal_f, vde_f, vfy_i.e4;                sdv vde_i.e0, 0x20,color_dmem
+    vmadh vfinal_i, vde_i, vfy_i.e4;                sdv vde_i.e4, 0x20,tex_dmem
+                                                    
     sdv vfinal_f.e0, 0x10,color_dmem
-    sdv    vdx_f.e0, 0x18,color_dmem
-    sdv    vde_i.e0, 0x20,color_dmem
-    sdv    vdy_i.e0, 0x28,color_dmem
-    sdv    vde_f.e0, 0x30,color_dmem
-    sdv    vdy_f.e0, 0x38,color_dmem
-
-    # Store texture
-    sdv vfinal_i.e4, 0x00,tex_dmem
-    sdv    vdx_i.e4, 0x08,tex_dmem
     sdv vfinal_f.e4, 0x10,tex_dmem
-    sdv    vdx_f.e4, 0x18,tex_dmem
-    sdv    vde_i.e4, 0x20,tex_dmem
-    sdv    vdy_i.e4, 0x28,tex_dmem
-    sdv    vde_f.e4, 0x30,tex_dmem
-    sdv    vdy_f.e4, 0x38,tex_dmem
-
+    sdv vfinal_i.e0, 0x00,color_dmem    
+    sdv vfinal_i.e4, 0x00,tex_dmem
+    
     # Store z
     ssv vfinal_i.e7, 0x00,z_dmem
     ssv vfinal_f.e7, 0x02,z_dmem
-    ssv    vdx_i.e7, 0x04,z_dmem
-    ssv    vdx_f.e7, 0x06,z_dmem
     ssv    vde_i.e7, 0x08,z_dmem
+    ssv    vdy_f.e7, 0x0E,z_dmem
     ssv    vde_f.e7, 0x0A,z_dmem
     ssv    vdy_i.e7, 0x0C,z_dmem
-    ssv    vdy_f.e7, 0x0E,z_dmem
-
     emux_trace_stop
 
 #if 1
