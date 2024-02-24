@@ -6,7 +6,7 @@
 
     .section .data.rdpq_triangle
     .align 4
-TRICONST1: .half 0xFFFF,0,0,0,0x200,0x200,0x200,0x200
+TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
 
 
     .section .text.rdpq_triangle
@@ -90,6 +90,10 @@ RDPQ_Triangle:
     #define vfy_i            $v25
     #define vfy_f            $v26
 
+    #define vmconst          $v27
+    #define VKM1             vmconst.e7
+    #define VKM4             vmconst.e5
+
     #define vtmp             $v28
     #define v__              $v29
     #define invn_i           $v31.e4
@@ -138,10 +142,7 @@ RDPQ_Triangle:
 
 
     #define vk1     $v11
-    #define vmconst $v12
     #define vk2     $v13
-    #define VKM1    vmconst.e7
-    #define VKM4    vmconst.e5
 
     #define vstall
     #define stall
@@ -206,6 +207,9 @@ RDPQ_Triangle:
     # Copy Y1, Y2 into vy3, so that we get the three sorted Y in the same
     # vector.
     #  vy3:   Y1 Y2 Y3 Y3  Y3 Y3 Y3 Y3 
+
+    # Build vhml:
+    #    vhml      =   HX HY MX MY    LX LY  0  NZf
 
     vmov vy3.e3, vy1.e0;                xor did_swap_0, did_swap_1
     vsubc vhml, vall3, vall1;           nop
@@ -296,18 +300,19 @@ RDPQ_Triangle:
 
     # vslopem2  = X/2 * (-4) = -2*X
     vstall
-    vstall
-    vmudn vslopem2_f, vslope_f, VKM4
-    vmadh vslopem2_i, vslope_i, VKM4
+    vstall                                      # Change sign of MY and HX (will be needed later)
+    vmudn vslopem2_f, vslope_f, VKM4;           mfc2 t3, my
+    vmadh vslopem2_i, vslope_i, VKM4;           mfc2 t4, hx
 
     # NR: R*(X/2)
-    vmudl vtmp_f, vslope_f, vhml.q1
-    vmadm vtmp_f, vslope_i, vhml.q1
-    vmadn vtmp_f, vslope_f, vhmlupp
+    vmudl vtmp_f, vslope_f, vhml.q1;
+    vmadm vtmp_f, vslope_i, vhml.q1;            neg t3
+    vmadn vtmp_f, vslope_f, vhmlupp;            neg t4
     vmadh vtmp_i, vslope_i, vhmlupp
-    # NR: R*X/2 - 1   
-    vmadn vtmp_f, vk1,      VKM1
-    vmadh vtmp_i, vk1,      VKM1
+
+    # NR: R*X/2 - 1                             # Store X2 value in output (as XL)
+    vmadn vtmp_f, vk1,      VKM1;               ssv vx12_i.e2,  8,s3  # XL_I
+    vmadh vtmp_i, vk1,      VKM1;               ssv vx12_f.e2, 10,s3  # XL_F
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
@@ -341,9 +346,10 @@ RDPQ_Triangle:
     # vslope    =  HX/HY --   MX/MY  --   LX/LY  --     --   --
     vmudn v__,     vslope_f, vhml
     vmadh v__,     vslope_i, vhml
-                                                # Store X2 value in output (as XL)
-    vsar  vslope_f, COP2_ACC_MD;                ssv vx12_i.e2,  8,s3  # XL_I
-    vsar  vslope_i, COP2_ACC_HI;                ssv vx12_f.e2, 10,s3  # XL_F
+                                                # Store negated my/hx into vhml               
+    vsar  vslope_f, COP2_ACC_MD;                mtc2 t3, my
+    vsar  vslope_i, COP2_ACC_HI;                mtc2 t4, hx
+
 
     #define ish_f   vslope_f.e0
     #define ish_i   vslope_i.e0
@@ -370,8 +376,6 @@ RDPQ_Triangle:
     ssv vedges_f.e2, 26,s3  # XM_F
     ssv vedges_i.e0, 16,s3  # XH_I
     ssv vedges_f.e0, 18,s3  # XH_F
-
-    add s3, 32
 
     # Load attributes into ATTR registers.
     # TODO: we can interleave these in all the code above, and at that point
@@ -421,10 +425,7 @@ RDPQ_Triangle:
     lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
     lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
 
-    #define K_FFFF     vtmp.e0
-
     li s0, %lo(TRICONST1)+8
-    lsv K_FFFF, -8,s0
 
     # invw:     minw -- -- --            invw1 invw2 invw3 --
     #
@@ -446,7 +447,7 @@ RDPQ_Triangle:
     # Do a manual saturation: vinvw_f = (vinvw_i == 0 ? vinvw_f : 0xFFFF)
     vlt  vzero, vzero     # clear VCO/VCE
     veq  vinvw_i, vzero
-    vmrg vinvw_f, K_FFFF
+    vmrg vinvw_f, VKM1
 
     # Load 0x200 in the first 4 lanes of the vector, using a misaliged lqv.
     # 0x200 is the constant that can be used to >>7, which will be used for
@@ -475,40 +476,37 @@ RDPQ_Triangle:
     # ATTRIBUTES
     ########################################################
 calc_attrs:
+    #define color_dmem     s0
+    #define tex_dmem       s1
+    #define z_dmem         s2
+
     # MA = A2 - A1
     # HA = A3 - A1
-    # NOTE: S/T coordinates are kept as s10.5, so they can overflow here.
-    # The subtraction is saturated so the error is minimized, but it is 
-    # indeed there. To fix this, we would have to produce a 32-bit result here
-    # and then change the DX/DY calculations to use 32-bit numbers as well.
-    # Note also that we need "vsubc zero,zero" to clear the VCC (carry) bit
-    # which vsub reads as input.
-    vsubc vzero, vzero
-    vsub vma, vattr2, vattr1
-    vsub vha, vattr3, vattr1
+    # NOTE: S/T coordinates are kept as
+    # s10.5, so they can overflow here.
+    # The subtraction is saturated so
+    # the error is minimized, but it is 
+    # indeed there. To fix this, we would
+    # have to produce a 32-bit result here
+    # and then change the DX/DY calcs
+    # to use 32-bit numbers as well.
+    # Note also that we need
+    # "vsubc zero,zero" to clear the VCC
+    # (carry) bit which vsub reads as input.
+    vsubc vzero, vzero;                             addu color_dmem, s3, 0x20
+    vsub vma, vattr2, vattr1;                       andi t0, tricmd, 0x400
+    vsub vha, vattr3, vattr1;                       srl t0, 4
 
-    #  vhml     = HX MX LX MY1    HY MY LY MX1
+    # DX = MA * HY + HA * -MY
+    vmudh vdx_f, vma, hy;                           addu tex_dmem, color_dmem, t0
+    vmadh vdx_f, vha, my;                           andi t0, tricmd, 0x200
+    vsar vdx_f, COP2_ACC_MD;                        srl t0, 3
+    vsar vdx_i, COP2_ACC_HI;                        addu z_dmem, tex_dmem, t0
 
-    # TODO: find other strategies to negate MY and HX?
-    # Or maybe this is good as we can probably interleave it, being scalar ops.
-    # TODO: or we could also compute -MA / -HA. But that's even more vector ops.
-    mfc2 t0, my
-    mfc2 t1, hx
-    neg t0
-    neg t1
-    mtc2 t0, my
-    mtc2 t1, hx
-
-    # DX = MA * HY - HA * MY
-    vmudh vdx_f, vma, hy
-    vmadh vdx_f, vha, my
-    vsar vdx_f, COP2_ACC_MD
-    vsar vdx_i, COP2_ACC_HI
-
-    # DY = HA * MX - MA * HX
-    vmudh vdy_f, vha, mx
-    vmadh vdy_f, vma, hx
-    vsar vdy_f, COP2_ACC_MD
+    # DY = HA * MX + MA * -HX
+    vmudh vdy_f, vha, mx;                           andi t0, tricmd, 0x100
+    vmadh vdy_f, vma, hx;                           srl t0, 4    
+    vsar vdy_f, COP2_ACC_MD;                        addu s3, z_dmem, t0
     vsar vdy_i, COP2_ACC_HI
 
     # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
@@ -532,55 +530,41 @@ calc_attrs:
     # FINAL = vATTR1 + DE * FY
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
     # TODO: actually, it can also be fy_i = fy_f = 0.
-    vmudl v__,      vde_f, vfy_f.e4
+    vmudh v__,      vattr1, K1
+    vmadl v__,      vde_f, vfy_f.e4
     vmadm v__,      vde_i, vfy_f.e4
     vmadn vfinal_f, vde_f, vfy_i.e4
     vmadh vfinal_i, vde_i, vfy_i.e4
-    vmadh vfinal_i, vattr1, K1
-
-    andi t0, tricmd, 0x400
-    beqz t0, no_color
 
     # Store color
-    sdv vfinal_i.e0, 0x00,s3
-    sdv    vdx_i.e0, 0x08,s3
-    sdv vfinal_f.e0, 0x10,s3
-    sdv    vdx_f.e0, 0x18,s3
-    sdv    vde_i.e0, 0x20,s3
-    sdv    vdy_i.e0, 0x28,s3
-    sdv    vde_f.e0, 0x30,s3
-    sdv    vdy_f.e0, 0x38,s3
-    addi s3, 0x40
-
-no_color:
-    andi t0, tricmd, 0x200
-    beqz t0, no_texture
+    sdv vfinal_i.e0, 0x00,color_dmem
+    sdv    vdx_i.e0, 0x08,color_dmem
+    sdv vfinal_f.e0, 0x10,color_dmem
+    sdv    vdx_f.e0, 0x18,color_dmem
+    sdv    vde_i.e0, 0x20,color_dmem
+    sdv    vdy_i.e0, 0x28,color_dmem
+    sdv    vde_f.e0, 0x30,color_dmem
+    sdv    vdy_f.e0, 0x38,color_dmem
 
     # Store texture
-    sdv vfinal_i.e4, 0x00,s3
-    sdv    vdx_i.e4, 0x08,s3
-    sdv vfinal_f.e4, 0x10,s3
-    sdv    vdx_f.e4, 0x18,s3
-    sdv    vde_i.e4, 0x20,s3
-    sdv    vdy_i.e4, 0x28,s3
-    sdv    vde_f.e4, 0x30,s3
-    sdv    vdy_f.e4, 0x38,s3
-    addi s3, 0x40
-
-no_texture:
-    andi t0, tricmd, 0x100
-    beqz t0, JrRa
+    sdv vfinal_i.e4, 0x00,tex_dmem
+    sdv    vdx_i.e4, 0x08,tex_dmem
+    sdv vfinal_f.e4, 0x10,tex_dmem
+    sdv    vdx_f.e4, 0x18,tex_dmem
+    sdv    vde_i.e4, 0x20,tex_dmem
+    sdv    vdy_i.e4, 0x28,tex_dmem
+    sdv    vde_f.e4, 0x30,tex_dmem
+    sdv    vdy_f.e4, 0x38,tex_dmem
 
     # Store z
-    ssv vfinal_i.e7, 0x00,s3
-    ssv vfinal_f.e7, 0x02,s3
-    ssv    vdx_i.e7, 0x04,s3
-    ssv    vdx_f.e7, 0x06,s3
-    ssv    vde_i.e7, 0x08,s3
-    ssv    vde_f.e7, 0x0A,s3
-    ssv    vdy_i.e7, 0x0C,s3
-    ssv    vdy_f.e7, 0x0E,s3
-    addi s3, 0x10
+    ssv vfinal_i.e7, 0x00,z_dmem
+    ssv vfinal_f.e7, 0x02,z_dmem
+    ssv    vdx_i.e7, 0x04,z_dmem
+    ssv    vdx_f.e7, 0x06,z_dmem
+    ssv    vde_i.e7, 0x08,z_dmem
+    ssv    vde_f.e7, 0x0A,z_dmem
+    ssv    vdy_i.e7, 0x0C,z_dmem
+    ssv    vdy_f.e7, 0x0E,z_dmem
 
     emux_trace_stop
 
