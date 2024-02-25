@@ -79,6 +79,18 @@ RDPQ_Triangle:
     #define vattr1           $v09
     #define vattr2           $v10
     #define vattr3           $v11
+    #define attr1_r     vattr1.e0
+    #define attr2_r     vattr2.e0
+    #define attr3_r     vattr3.e0
+    #define attr1_s     vattr1.e4
+    #define attr2_s     vattr2.e4
+    #define attr3_s     vattr3.e4
+    #define attr1_invw  vattr1.e6
+    #define attr2_invw  vattr2.e6
+    #define attr3_invw  vattr3.e6
+    #define attr1_z     vattr1.e7
+    #define attr2_z     vattr2.e7
+    #define attr3_z     vattr3.e7
     #define vma              $v12
     #define vha              $v13
 
@@ -139,7 +151,7 @@ RDPQ_Triangle:
     #define vytmp2   $v10
   
     #define vm      valltmp2
-    #define vl      vytmp1
+    #define vl      valltmp1
     #define hx      vhml.e0
     #define hy      vhml.e1
     #define mx      vm.e0
@@ -149,7 +161,7 @@ RDPQ_Triangle:
     #define vhmlupp v__
 
 
-    #define vk1     $v11
+    #define vk1     $v12
     #define vk2     $v13
 
     #define vstall
@@ -241,10 +253,11 @@ RDPQ_Triangle:
     vsar vnz_i, COP2_ACC_HI;            slv vl.e0,  12,s3
     vsar vnz_f, COP2_ACC_MD;            ldv vhml.e2, 8,s3
 
-    # Convert X1 and X2 into 16.16 precision
+    # Convert X1 and X2 into
+    # 16.16 precision
     # vx12 = X1 -- X2 --  -- -- -- --
-    vsra  vx12_i, vx12_f, 2;
-    vsll8 vx12_f, vx12_f, 14;
+    vsra  vx12_i, vx12_f, 2;                       
+    vsll8 vx12_f, vx12_f, 14;           
 
     # FY.e0 = floorf(y1) - y1
     # TODO: this is always a negative
@@ -254,27 +267,26 @@ RDPQ_Triangle:
     # to simplify later.                
                                         # Extract sign of Z
     vsubc vfy_f, vzero, vfy_f;          mfc2 t0, vnz_i.e0
-    vsub  vfy_i, vfy_i;                 ssv vnz_i.e0, 8,s3
+    vsub  vfy_i, vfy_i;                 
 
     # Compute SLOPE vector
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
 
-    # Calculate reciprocal of normal
-    vrcph vslope_i.e7, vnz_i.e0;        # Backface culling
+    # Calculate reciprocal of normal    # Backface culling
+    vrcph vslope_i.e7, vnz_i.e0;        stall
     vrcpl vslope_f.e7, vnz_f.e0;        slt t0, t0, zero 
     vrcph vslope_i.e7, vzero.e0;        xori t0, 1
                                         beq t0, cull, JrRa
     # Compute ISH (H slope). 1/HY  (s14.1)
     vrcp  vslope_f.e0, hy;              # DELAY SLOT
                                         
-    vrcph vslope_i.e0, hy;              ssv vnz_f.e0, 10,s3
+    vrcph vslope_i.e0, hy;              luv attr1_r, VTX_ATTR_RGBA,vtx1
     # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  vslope_f.e2, my;              lsv vhml.e7,  10,s3
-    vrcph vslope_i.e2, my;              lsv vhmlupp.e7, 8,s3
+    vrcp  vslope_f.e2, my;              luv attr2_r, VTX_ATTR_RGBA,vtx2
+    vrcph vslope_i.e2, my;              luv attr3_r, VTX_ATTR_RGBA,vtx3
     # Compute ISL (L slope). 1/LY  (s14.1)      
-                                        # Write left flag into tricmd
-    vrcp  vslope_f.e4, ly;              sll t0, 7
-    vrcph vslope_i.e4, ly;              or tricmd, t0
+    vrcp  vslope_f.e4, ly;              
+    vrcph vslope_i.e4, ly;              
 
     #undef vm
     #undef vl
@@ -294,8 +306,8 @@ RDPQ_Triangle:
     ##################
     # 1 NR pass
     ##################
-    #define vtmp_f      vattr1
-    #define vtmp_i      vattr2
+    #define vtmp_f       $v03
+    #define vtmp_i       $v04
     #define vslopem2_f   $v01
     #define vslopem2_i   $v02
 
@@ -305,28 +317,30 @@ RDPQ_Triangle:
     # part.
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
     #    vhmlupp   =    0 0  0  0     0  0   0  NZi
+                                                # Write left flag into tricmd
+    vmov vhml.e7, vnz_f.e0;                     sll t0, 7
+    vmov vhmlupp.e7, vnz_i.e0;                  or tricmd, t0
 
     # vslopem2  = X/2 * (-4) = -2*X
-    vstall
-    vstall                                      # Change sign of MY and HX (will be needed later)
-    vmudn vslopem2_f, vslope_f, VKM4;           mfc2 t3, my
-    vmadh vslopem2_i, vslope_i, VKM4;           mfc2 t4, hx
+    vmudn vslopem2_f, vslope_f, VKM4;           
+    vmadh vslopem2_i, vslope_i, VKM4;           
 
-    # NR: R*(X/2)
-    vmudl vtmp_f, vslope_f, vhml.q1;
-    vmadm vtmp_f, vslope_i, vhml.q1;            neg t3
-    vmadn vtmp_f, vslope_f, vhmlupp;            neg t4
-    vmadh vtmp_i, vslope_i, vhmlupp
+    # NR: R*(X/2)                               # Calculate -MY/-HX
+    vmudl vtmp_f, vslope_f, vhml.q1;            mfc2 t3, my
+    vmadm vtmp_f, vslope_i, vhml.q1;            mfc2 t4, hx
+    vmadn vtmp_f, vslope_f, vhmlupp;            
+    vmadh vtmp_i, vslope_i, vhmlupp;            
 
     # NR: R*X/2 - 1                             # Store X2 value in output (as XL)
     vmadn vtmp_f, vk1,      VKM1;               ssv vx12_i.e2,  8,s3  # XL_I
     vmadh vtmp_i, vk1,      VKM1;               ssv vx12_f.e2, 10,s3  # XL_F
 
+    vnop;                     neg t3
+    vnop;                     neg t4
+
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
     #   =    X * (2 - R*X)
-    vstall
-    vstall
     vmudl v__,      vtmp_f, vslopem2_f
     vmadm v__,      vtmp_i, vslopem2_f
     vmadn vslope_f, vtmp_f, vslopem2_i
@@ -339,8 +353,6 @@ RDPQ_Triangle:
     
     # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
     # that will be required later.    
-    vstall
-    vstall
     vmudn vnz_f, vslope_f, K4
     vmadh vnz_i, vslope_i, K4
     #define inz_f   vnz_f.e7
@@ -371,39 +383,21 @@ RDPQ_Triangle:
 
     # Compute XH and XM
     # TODO: fy_i is always 0xFFFFFFFF here.
-    # See if we can benefit from this.          # Store slopes
-    vmudl v__,      vslope_f, vfy_f.e4;         ssv isl_f, 14,s3    
-    vmadm v__,      vslope_i, vfy_f.e4;         ssv isl_i, 12,s3
-    vmadn v__,      vslope_f, vfy_i.e4;         ssv ism_f, 30,s3
-    vmadh v__,      vslope_i, vfy_i.e4;         ssv ism_i, 28,s3
-    vmadm v__,      vk1,      vx12_f.e0;        ssv ish_f, 22,s3
-    vmadh vedges_i, vk1,      vx12_i.e0;        ssv ish_i, 20,s3
-    vmadn vedges_f, vzero,    vzero;            sh tricmd, 0(s3)
+    # See if we can benefit from this.    
+    vstall; vstall      
+    vmudl v__,      vslope_f, vfy_f.e4;             
+    vmadm v__,      vslope_i, vfy_f.e4;         
+    vmadn v__,      vslope_f, vfy_i.e4;         
+    vmadh v__,      vslope_i, vfy_i.e4;         
+    vmadm v__,      vk1,      vx12_f.e0;        
+    vmadh vedges_i, vk1,      vx12_i.e0;        
+    vmadn vedges_f, vzero,    vzero;
     
     ssv vedges_i.e2, 24,s3  # XM_I
     ssv vedges_f.e2, 26,s3  # XM_F
     ssv vedges_i.e0, 16,s3  # XH_I
     ssv vedges_f.e0, 18,s3  # XH_F
 
-    # Load attributes into ATTR registers.
-    # TODO: we can interleave these in all the code above, and at that point
-    # it's useless to test for tricmd to save loads. Just load them all.
-
-    #define attr1_r     vattr1.e0
-    #define attr2_r     vattr2.e0
-    #define attr3_r     vattr3.e0
-    #define attr1_s     vattr1.e4
-    #define attr2_s     vattr2.e4
-    #define attr3_s     vattr3.e4
-    #define attr1_invw  vattr1.e6
-    #define attr2_invw  vattr2.e6
-    #define attr3_invw  vattr3.e6
-    #define attr1_z     vattr1.e7
-    #define attr2_z     vattr2.e7
-    #define attr3_z     vattr3.e7
-    luv attr1_r, VTX_ATTR_RGBA,vtx1 # RGBA
-    luv attr2_r, VTX_ATTR_RGBA,vtx2
-    luv attr3_r, VTX_ATTR_RGBA,vtx3
 
     llv attr1_s, VTX_ATTR_S,vtx1  # S & T
     llv attr2_s, VTX_ATTR_S,vtx2
@@ -501,47 +495,53 @@ calc_attrs:
     # to use 32-bit numbers as well.
     # Note also that we need
     # "vsubc zero,zero" to clear the VCC
-    # (carry) bit which vsub reads as input.
-    vsubc vzero, vzero;                             addu color_dmem, s3, 0x20
-    vsub vma, vattr2, vattr1;                       andi t0, tricmd, 0x400
-    vsub vha, vattr3, vattr1;                       srl t0, 4
+    # (carry) bit which vsub reads as input.        # Store tricmd and coord slopes
+    vsubc vzero, vzero;                             sh tricmd, 0(s3)
+    vsub vma, vattr2, vattr1;                       ssv isl_f, 14,s3
+    vsub vha, vattr3, vattr1;                       ssv isl_i, 12,s3
 
     # DX = MA * HY + HA * -MY
     vstall; vstall;
-    vmudh vdx_f, vma, hy;                           addu tex_dmem, color_dmem, t0
-    vmadh vdx_f, vha, my;                           andi t0, tricmd, 0x200
-    vsar vdx_f, COP2_ACC_MD;                        srl t0, 3
-    vsar vdx_i, COP2_ACC_HI;                        addu z_dmem, tex_dmem, t0
+    vmudh vdx_f, vma, hy;                           ssv ism_f, 30,s3
+    vmadh vdx_f, vha, my;                           ssv ism_i, 28,s3
+    vsar vdx_f, COP2_ACC_MD;                        ssv ish_f, 22,s3
+    vsar vdx_i, COP2_ACC_HI;                        ssv ish_i, 20,s3
 
-    # DY = HA * MX + MA * -HX
-    vmudh vdy_f, vha, mx;                           andi t0, tricmd, 0x100
-    vmadh vdy_f, vma, hx;                           srl t0, 4    
-    vsar vdy_f, COP2_ACC_MD;                        addu s3, z_dmem, t0
-    vsar vdy_i, COP2_ACC_HI;                        
+    # DY = HA * MX + MA * -HX                       # Calculate pointers to color, tex
+                                                    # and z attributes, based on tricmd
+    vmudh vdy_f, vha, mx;                           addu color_dmem, s3, 0x20
+    vmadh vdy_f, vma, hx;                           andi t0, tricmd, 0x400
+    vsar vdy_f, COP2_ACC_MD;                        srl t0, 4
+    vsar vdy_i, COP2_ACC_HI;                        addu tex_dmem, color_dmem, t0
 
     # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  vdx_f, inz_f;                       
-    vmadm v__,  vdx_i, inz_f;                       
-    vmadn vdx_f, vdx_f, inz_i;                      
-    vmadh vdx_i, vdx_i, inz_i;
+    vmudl v__,  vdx_f, inz_f;                       andi t0, tricmd, 0x200
+    vmadm v__,  vdx_i, inz_f;                       srl t0, 3
+    vmadn vdx_f, vdx_f, inz_i;                      addu z_dmem, tex_dmem, t0
+    vmadh vdx_i, vdx_i, inz_i;                      andi t0, tricmd, 0x100
 
     # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  vdy_f, inz_f;                       
-    vmadm v__,  vdy_i, inz_f;                       
+    vmudl v__,  vdy_f, inz_f;                       srl t0, 4
+    vmadm v__,  vdy_i, inz_f;                       addu s3, z_dmem, t0
+                                                    # Store Dx slopes
     vmadn vdy_f, vdy_f, inz_i;                      sdv vdx_f.e0, 0x18,color_dmem
     vmadh vdy_i, vdy_i, inz_i;                      sdv vdx_f.e4, 0x18,tex_dmem
 
     # DE = DX * invsh + DY
     vmadl v__,  vdx_f, ish_f;                       sdv vdx_i.e0, 0x08,color_dmem
     vmadm v__,  vdx_i, ish_f;                       sdv vdx_i.e4, 0x08,tex_dmem
+                                                    # Store Dy slopes
     vmadn vde_f, vdx_f, ish_i;                      sdv vdy_f.e0, 0x38,color_dmem
     vmadh vde_i, vdx_i, ish_i;                      sdv vdy_f.e4, 0x38,tex_dmem
     vnop;                                           sdv vdy_i.e0, 0x28,color_dmem
 
     # FINAL = vATTR1 + DE * FY
-    # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
-    # TODO: actually, it can also be fy_i = fy_f = 0.
+    # TODO: fy_i is always 0xFFFFFFFF here.
+    # See if we can benefit from this.
+    # TODO: actually, it can also be 
+    # fy_i = fy_f = 0.
     vmudh v__,      vattr1, K1;                     sdv vdy_i.e4, 0x28,tex_dmem
+                                                    # Store De slopes
     vmadl v__,      vde_f, vfy_f.e4;                sdv vde_f.e0, 0x30,color_dmem
     vmadm v__,      vde_i, vfy_f.e4;                sdv vde_f.e4, 0x30,tex_dmem
     vmadn vfinal_f, vde_f, vfy_i.e4;                sdv vde_i.e0, 0x20,color_dmem
@@ -557,8 +557,7 @@ calc_attrs:
     vmov vdx_f.e6, vfinal_i.e7;                     sdv vfinal_f.e4, 0x10,tex_dmem
                                                     sdv vfinal_i.e0, 0x00,color_dmem    
                                                     sdv vfinal_i.e4, 0x00,tex_dmem
-
-                                                    # Store Z attributes, that were
+                                                    # Store Z slopes, that were
                                                     # compacted via vmov.
                                                     slv vde_f.e6, 0x08,z_dmem
                                                     slv vdy_f.e6, 0x0C,z_dmem
