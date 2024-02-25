@@ -94,6 +94,9 @@ RDPQ_Triangle:
     #define vma              $v12
     #define vha              $v13
 
+    #define vw_i             $v07
+    #define vw_f             $v08
+
     #define vinvw_i          $v14
     #define vinvw_f          $v15
 
@@ -255,9 +258,9 @@ RDPQ_Triangle:
 
     # Convert X1 and X2 into
     # 16.16 precision
-    # vx12 = X1 -- X2 --  -- -- -- --
+    # vx12 = X1 -- X2 --  -- -- -- --   # Read 32-bit W into vw_i (e0/e2/e4)
     vsra  vx12_i, vx12_f, 2;                       
-    vsll8 vx12_f, vx12_f, 14;           
+    vsll8 vx12_f, vx12_f, 14;           llv vw_i.e0, VTX_ATTR_W,vtx1
 
     # FY.e0 = floorf(y1) - y1
     # TODO: this is always a negative
@@ -267,7 +270,7 @@ RDPQ_Triangle:
     # to simplify later.                
                                         # Extract sign of Z
     vsubc vfy_f, vzero, vfy_f;          mfc2 t0, vnz_i.e0
-    vsub  vfy_i, vfy_i;                 
+    vsub  vfy_i, vfy_i;                 llv vw_i.e2, VTX_ATTR_W,vtx2
 
     # Compute SLOPE vector
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
@@ -285,7 +288,7 @@ RDPQ_Triangle:
     vrcp  vslope_f.e2, my;              luv attr2_r, VTX_ATTR_RGBA,vtx2
     vrcph vslope_i.e2, my;              luv attr3_r, VTX_ATTR_RGBA,vtx3
     # Compute ISL (L slope). 1/LY  (s14.1)      
-    vrcp  vslope_f.e4, ly;              
+    vrcp  vslope_f.e4, ly;              llv vw_i.e4, VTX_ATTR_W,vtx3
     vrcph vslope_i.e4, ly;              
 
     #undef vm
@@ -332,26 +335,29 @@ RDPQ_Triangle:
     vmadh vtmp_i, vslope_i, vhmlupp;            
 
     # NR: R*X/2 - 1                             # Store X2 value in output (as XL)
-    vmadn vtmp_f, vk1,      VKM1;               ssv vx12_i.e2,  8,s3  # XL_I
-    vmadh vtmp_i, vk1,      VKM1;               ssv vx12_f.e2, 10,s3  # XL_F
+    vmadn vtmp_f, vk1, VKM1;                    ssv vx12_i.e2,  8,s3  # XL_I
+    vmadh vtmp_i, vk1, VKM1;                    ssv vx12_f.e2, 10,s3  # XL_F
 
-    vnop;                     neg t3
-    vnop;                     neg t4
+    # Split 32-bit W into two 16-bit halves
+    vcopy vw_f, vw_i.q1;                        neg t3
+    vnop;                                       neg t4
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
-    #   =    X * (2 - R*X)
-    vmudl v__,      vtmp_f, vslopem2_f
-    vmadm v__,      vtmp_i, vslopem2_f
-    vmadn vslope_f, vtmp_f, vslopem2_i
-    vmadh vslope_i, vtmp_i, vslopem2_i
+    #   =    X * (2 - R*X)                      # Load S compoenents
+    vmudl v__,      vtmp_f, vslopem2_f;         llv attr1_s, VTX_ATTR_S,vtx1  # S & T
+    vmadm v__,      vtmp_i, vslopem2_f;         llv attr2_s, VTX_ATTR_S,vtx2
+    vmadn vslope_f, vtmp_f, vslopem2_i;         llv attr3_s, VTX_ATTR_S,vtx3
+    vmadh vslope_i, vtmp_i, vslopem2_i;
 
+    # Calculate minimum W (between e0 and e2)   # Load invw components
+    vsubc v__,  vw_f, vw_f.e2;                  lsv vinvw_i.e4, VTX_ATTR_INVWi,vtx1
+    vlt   vw_i, vw_i, vw_i.e2;                  lsv vinvw_i.e5, VTX_ATTR_INVWi,vtx2
+    vmrg  vw_f, vw_f, vw_f.e2;                  lsv vinvw_i.e6, VTX_ATTR_INVWi,vtx3
 
     # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
     # v__       =    0  0    0   0       0   0    0   NZi
     # slope     =  1/HY --  1/MY --    1/LY --   --- 1/NZ
-    vstall
-    vstall
     
     # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
     # that will be required later.    
@@ -371,8 +377,6 @@ RDPQ_Triangle:
                                                 # Store negated my/hx into vhml               
     vsar  vslope_f, COP2_ACC_MD;                mtc2 t3, my
     vsar  vslope_i, COP2_ACC_HI;                mtc2 t4, hx
-
-
     #define ish_f   vslope_f.e0
     #define ish_i   vslope_i.e0
     #define ism_f   vslope_f.e2
@@ -380,13 +384,18 @@ RDPQ_Triangle:
     #define isl_f   vslope_f.e4
     #define isl_i   vslope_i.e4
 
+    # Calculate minimum W (between e0 and e4)
+    # Now vw_if.e0 contains the minimum W       # Load other invw components
+    vsubc v__,  vw_f, vw_f.e4;                  lsv vinvw_f.e4, VTX_ATTR_INVWf,vtx1
+    vlt   vw_i, vw_i, vw_i.e4;                  lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
+    vmrg  vw_f, vw_f, vw_f.e4;                  lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
+
     #  vxy21 =   X1   --    X2   --       Y1 --   Y2 --
     #  slope = HX/HY  --   MX/MY --     LX/LY --  -- --
 
     # Compute XH and XM
     # TODO: fy_i is always 0xFFFFFFFF here.
     # See if we can benefit from this.    
-    vstall; vstall      
     vmudl v__,      vslope_f, vfy_f.e4;         ssv ish_f, 22,s3
     vmadm v__,      vslope_i, vfy_f.e4;         ssv ish_i, 20,s3
     vmadn v__,      vslope_f, vfy_i.e4;         ssv isl_f, 14,s3  
@@ -395,35 +404,11 @@ RDPQ_Triangle:
     vmadh vedges_i, vk1,      vx12_i.e0;        ssv ism_i, 28,s3
     vmadn vedges_f, vzero,    vzero;
     
-    llv attr1_s, VTX_ATTR_S,vtx1  # S & T
-    llv attr2_s, VTX_ATTR_S,vtx2
-    llv attr3_s, VTX_ATTR_S,vtx3
-
     # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
-    # We will multiply by W instead, and thus we search for the minimum W.
-    lw t0, VTX_ATTR_W(vtx1)
-    lw t1, VTX_ATTR_W(vtx2)
-    blt t0, t1, 1f
-    lw t2, VTX_ATTR_W(vtx3)
-    move t0, t1
-1:
-    blt t0, t2, 1f
-    nop
-    move t0, t2
-1:
-    mtc2 t0, vinvw_f.e0
-    srl t0, 16
-    mtc2 t0, vinvw_i.e0
-
-    lsv vinvw_i.e4, VTX_ATTR_INVWi,vtx1
-    lsv vinvw_i.e5, VTX_ATTR_INVWi,vtx2
-    lsv vinvw_i.e6, VTX_ATTR_INVWi,vtx3
-
-    lsv vinvw_f.e4, VTX_ATTR_INVWf,vtx1
-    lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
-    lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
-
-    # invw:     minw -- -- --            invw1 invw2 invw3 --
+    # We will multiply by W instead. We have now prepared the minium w in vw_i.e0.
+    #
+    #    vw:     minw -- -- --    ----- ----- ----- --
+    # vinvw:     ---- -- -- --    invw1 invw2 invw3 --
     #
     # We need to multiply minw with the three invw. All numbers are positive s16.16,
     # and the result is known to fit 0..1. By doing a standard 32-bit multiplication
@@ -431,10 +416,10 @@ RDPQ_Triangle:
     # In fact, in theory W * 1/W = 1, but both numbers are likely missing enough bits
     # of precision that the result will always be slightly lower than 1 (and thus the
     # integer part will be 0).
-    vmudl v__,     vinvw_f, vinvw_f.e0
-    vmadm v__,     vinvw_i, vinvw_f.e0
-    vmadn vinvw_f, vinvw_f, vinvw_i.e0
-    vmadh vinvw_i, vinvw_i, vinvw_i.e0
+    vmudl v__,     vinvw_f, vw_f.e0
+    vmadm v__,     vinvw_i, vw_f.e0
+    vmadn vinvw_f, vinvw_f, vw_i.e0
+    vmadh vinvw_i, vinvw_i, vw_i.e0
     
     # So now vinvw_i should be 0 (in lanes 4..6). It turns out there is one exception:
     # minw == invw == 1.0. In that case, the result will be exactly 1, and thus
@@ -490,10 +475,10 @@ calc_attrs:
     # to use 32-bit numbers as well.
     # Note also that we need
     # "vsubc zero,zero" to clear the VCC
-    # (carry) bit which vsub reads as input.        # Store tricmd and coord slopes
-    vsubc vzero, vzero;                             sh tricmd, 0(s3)
-    vsub vma, vattr2, vattr1;                       
-    vsub vha, vattr3, vattr1;                       
+    # (carry) bit which vsub reads as input.        
+    vsubc vzero, vzero;                             
+    vsub vma, vattr2, vattr1;                       # Store tricmd and coord slopes
+    vsub vha, vattr3, vattr1;                       sh tricmd, 0(s3)
 
     # DX = MA * HY + HA * -MY
     vstall; vstall;
