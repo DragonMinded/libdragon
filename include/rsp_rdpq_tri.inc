@@ -324,23 +324,23 @@ RDPQ_Triangle:
     vmov vhml.e7, vnz_f.e0;                     sll t0, 7
     vmov vhmlupp.e7, vnz_i.e0;                  or tricmd, t0
 
-    # vslopem2  = X/2 * (-4) = -2*X
-    vmudn vslopem2_f, vslope_f, VKM4;           
+    # vslopem2  = X/2 * (-4) = -2*X             
+    vmudn vslopem2_f, vslope_f, VKM4;            
     vmadh vslopem2_i, vslope_i, VKM4;           
+            
+    # NR: R*(X/2)                               
+    vmudl vtmp_f, vslope_f, vhml.q1;            
+    vmadm vtmp_f, vslope_i, vhml.q1;            # Store X2 value in output (as XL)
+    vmadn vtmp_f, vslope_f, vhmlupp;            ssv vx12_i.e2,  8,s3  # XL_I
+    vmadh vtmp_i, vslope_i, vhmlupp;            ssv vx12_f.e2, 10,s3  # XL_F
 
-    # NR: R*(X/2)                               # Calculate -MY/-HX
-    vmudl vtmp_f, vslope_f, vhml.q1;            mfc2 t3, my
-    vmadm vtmp_f, vslope_i, vhml.q1;            mfc2 t4, hx
-    vmadn vtmp_f, vslope_f, vhmlupp;            
-    vmadh vtmp_i, vslope_i, vhmlupp;            
-
-    # NR: R*X/2 - 1                             # Store X2 value in output (as XL)
-    vmadn vtmp_f, vk1, VKM1;                    ssv vx12_i.e2,  8,s3  # XL_I
-    vmadh vtmp_i, vk1, VKM1;                    ssv vx12_f.e2, 10,s3  # XL_F
+    # NR: R*X/2 - 1                             # Calculate -MY/-HX
+    vmadn vtmp_f, vk1, VKM1;                    mfc2 t3, my
+    vmadh vtmp_i, vk1, VKM1;                    mfc2 t4, hx
 
     # Split 32-bit W into two 16-bit halves
-    vcopy vw_f, vw_i.q1;                        neg t3
-    vnop;                                       neg t4
+    vcopy vw_f, vw_i.q1;                        
+    vnop;                                       
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
@@ -359,10 +359,11 @@ RDPQ_Triangle:
     # v__       =    0  0    0   0       0   0    0   NZi
     # slope     =  1/HY --  1/MY --    1/LY --   --- 1/NZ
     
-    # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
-    # that will be required later.    
-    vmudn vnz_f, vslope_f, K4
-    vmadh vnz_i, vslope_i, K4
+    # Shift left NZ (that contains INVNZ)
+    # by 2, to align with the fixed point
+    # precision that will be required later.    # Calculate -MY/-HX
+    vmudn vnz_f, vslope_f, K4;                  neg t3
+    vmadh vnz_i, vslope_i, K4;                  neg t4
     #define inz_f   vnz_f.e7
     #define inz_i   vnz_i.e7
 
@@ -396,8 +397,8 @@ RDPQ_Triangle:
     # Compute XH and XM
     # TODO: fy_i is always 0xFFFFFFFF here.
     # See if we can benefit from this.    
-    vmudl v__,      vslope_f, vfy_f.e4;         ssv ish_f, 22,s3
-    vmadm v__,      vslope_i, vfy_f.e4;         ssv ish_i, 20,s3
+    vmudl v__,      vslope_f, vfy_f.e4;         
+    vmadm v__,      vslope_i, vfy_f.e4;         
     vmadn v__,      vslope_f, vfy_i.e4;         ssv isl_f, 14,s3  
     vmadh v__,      vslope_i, vfy_i.e4;         ssv isl_i, 12,s3  
     vmadm v__,      vk1,      vx12_f.e0;        ssv ism_f, 30,s3
@@ -445,15 +446,14 @@ RDPQ_Triangle:
     # Change inv_w from 0.16 to s0.15 by shifting by one
     vsrl vinvw_f, vinvw_f, 1
 
+    lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
+    lsv attr2_z, VTX_ATTR_Z,vtx2
+    lsv attr3_z, VTX_ATTR_Z,vtx3
+
     # Copy inv_w components into ATTRn
     vmov vattr1.e6, vinvw_f.e4
     vmov vattr2.e6, vinvw_f.e5
     vmov vattr3.e6, vinvw_f.e6
-
-    lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
-    lsv attr2_z, VTX_ATTR_Z,vtx2
-    lsv attr3_z, VTX_ATTR_Z,vtx3
-    vnop
 
     ########################################################
     # ATTRIBUTES
@@ -475,9 +475,10 @@ calc_attrs:
     # to use 32-bit numbers as well.
     # Note also that we need
     # "vsubc zero,zero" to clear the VCC
-    # (carry) bit which vsub reads as input.        
-    vsubc vzero, vzero;                             
-    vsub vma, vattr2, vattr1;                       # Store tricmd and coord slopes
+    # (carry) bit which vsub reads as input.            
+                                                    # Store tricmd and last coord slopes
+    vsubc vzero, vzero;                             ssv ish_f, 22,s3
+    vsub vma, vattr2, vattr1;                       ssv ish_i, 20,s3
     vsub vha, vattr3, vattr1;                       sh tricmd, 0(s3)
 
     # DX = MA * HY + HA * -MY
