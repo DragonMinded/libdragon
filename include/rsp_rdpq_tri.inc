@@ -350,6 +350,8 @@ RDPQ_Triangle:
     # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
     # v__       =    0  0    0   0       0   0    0   NZi
     # slope     =  1/HY --  1/MY --    1/LY --   --- 1/NZ
+    vstall
+    vstall
     
     # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
     # that will be required later.    
@@ -385,20 +387,14 @@ RDPQ_Triangle:
     # TODO: fy_i is always 0xFFFFFFFF here.
     # See if we can benefit from this.    
     vstall; vstall      
-    vmudl v__,      vslope_f, vfy_f.e4;             
-    vmadm v__,      vslope_i, vfy_f.e4;         
-    vmadn v__,      vslope_f, vfy_i.e4;         
-    vmadh v__,      vslope_i, vfy_i.e4;         
-    vmadm v__,      vk1,      vx12_f.e0;        
-    vmadh vedges_i, vk1,      vx12_i.e0;        
+    vmudl v__,      vslope_f, vfy_f.e4;         ssv ish_f, 22,s3
+    vmadm v__,      vslope_i, vfy_f.e4;         ssv ish_i, 20,s3
+    vmadn v__,      vslope_f, vfy_i.e4;         ssv isl_f, 14,s3  
+    vmadh v__,      vslope_i, vfy_i.e4;         ssv isl_i, 12,s3  
+    vmadm v__,      vk1,      vx12_f.e0;        ssv ism_f, 30,s3
+    vmadh vedges_i, vk1,      vx12_i.e0;        ssv ism_i, 28,s3
     vmadn vedges_f, vzero,    vzero;
     
-    ssv vedges_i.e2, 24,s3  # XM_I
-    ssv vedges_f.e2, 26,s3  # XM_F
-    ssv vedges_i.e0, 16,s3  # XH_I
-    ssv vedges_f.e0, 18,s3  # XH_F
-
-
     llv attr1_s, VTX_ATTR_S,vtx1  # S & T
     llv attr2_s, VTX_ATTR_S,vtx2
     llv attr3_s, VTX_ATTR_S,vtx3
@@ -427,8 +423,6 @@ RDPQ_Triangle:
     lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
     lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
 
-    li s0, %lo(TRICONST1)+8
-
     # invw:     minw -- -- --            invw1 invw2 invw3 --
     #
     # We need to multiply minw with the three invw. All numbers are positive s16.16,
@@ -456,7 +450,8 @@ RDPQ_Triangle:
     # the RGBA components.
     #
     # invw:  0x200 0x200 0x200 0x200   invw1 invw2 invw3 --
-    lqv vinvw_f, 0,s0
+    li t0, %lo(TRICONST1)+8
+    lqv vinvw_f, 0,t0
 
     vmudm vattr1, vinvw_f.h0
     vmudm vattr2, vinvw_f.h1
@@ -497,15 +492,15 @@ calc_attrs:
     # "vsubc zero,zero" to clear the VCC
     # (carry) bit which vsub reads as input.        # Store tricmd and coord slopes
     vsubc vzero, vzero;                             sh tricmd, 0(s3)
-    vsub vma, vattr2, vattr1;                       ssv isl_f, 14,s3
-    vsub vha, vattr3, vattr1;                       ssv isl_i, 12,s3
+    vsub vma, vattr2, vattr1;                       
+    vsub vha, vattr3, vattr1;                       
 
     # DX = MA * HY + HA * -MY
     vstall; vstall;
-    vmudh vdx_f, vma, hy;                           ssv ism_f, 30,s3
-    vmadh vdx_f, vha, my;                           ssv ism_i, 28,s3
-    vsar vdx_f, COP2_ACC_MD;                        ssv ish_f, 22,s3
-    vsar vdx_i, COP2_ACC_HI;                        ssv ish_i, 20,s3
+    vmudh vdx_f, vma, hy;                           ssv vedges_i.e2, 24,s3  # XM_I
+    vmadh vdx_f, vha, my;                           ssv vedges_f.e2, 26,s3  # XM_F
+    vsar vdx_f, COP2_ACC_MD;                        ssv vedges_i.e0, 16,s3  # XH_I
+    vsar vdx_i, COP2_ACC_HI;                        ssv vedges_f.e0, 18,s3  # XH_F
 
     # DY = HA * MX + MA * -HX                       # Calculate pointers to color, tex
                                                     # and z attributes, based on tricmd
