@@ -26,7 +26,7 @@ TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
     # * s3: pointer to the end of the primitive in the output buffer
     #
     # CLOBBER:
-    # t0-t5
+    # t0-t5, a0-a3
     #
     #####################################################################
 
@@ -325,9 +325,12 @@ RDPQ_Triangle:
     vmov vhmlupp.e7, vnz_i.e0;                  or tricmd, t0
 
     # vslopem2  = X/2 * (-4) = -2*X             
-    vmudn vslopem2_f, vslope_f, VKM4;            
+    vmudn vslopem2_f, vslope_f, VKM4;           
     vmadh vslopem2_i, vslope_i, VKM4;           
             
+    # Split 32-bit W into two 16-bit halves
+    vcopy vw_f, vw_i.q1;                        
+
     # NR: R*(X/2)                               
     vmudl vtmp_f, vslope_f, vhml.q1;            
     vmadm vtmp_f, vslope_i, vhml.q1;            # Store X2 value in output (as XL)
@@ -338,44 +341,34 @@ RDPQ_Triangle:
     vmadn vtmp_f, vk1, VKM1;                    mfc2 t3, my
     vmadh vtmp_i, vk1, VKM1;                    mfc2 t4, hx
 
-    # Split 32-bit W into two 16-bit halves
-    vcopy vw_f, vw_i.q1;                        
-    vnop;                                       
+    # Calculate minimum W (between e0 and e2)   # Load invw components
+    vsubc v__,  vw_f, vw_f.e2;                  lsv vinvw_i.e4, VTX_ATTR_INVWi,vtx1
+    vlt   vw_i, vw_i, vw_i.e2;                  lsv vinvw_i.e5, VTX_ATTR_INVWi,vtx2
+    vmrg  vw_f, vw_f, vw_f.e2;                  lsv vinvw_i.e6, VTX_ATTR_INVWi,vtx3
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
     #   =    X * (2 - R*X)                      # Load S compoenents
     vmudl v__,      vtmp_f, vslopem2_f;         llv attr1_s, VTX_ATTR_S,vtx1  # S & T
     vmadm v__,      vtmp_i, vslopem2_f;         llv attr2_s, VTX_ATTR_S,vtx2
-    vmadn vslope_f, vtmp_f, vslopem2_i;         llv attr3_s, VTX_ATTR_S,vtx3
-    vmadh vslope_i, vtmp_i, vslopem2_i;
+    vmadn vnz_f,    vtmp_f, vslopem2_i;         llv attr3_s, VTX_ATTR_S,vtx3
+    vmadh vnz_i,    vtmp_i, vslopem2_i;
 
-    # Calculate minimum W (between e0 and e2)   # Load invw components
-    vsubc v__,  vw_f, vw_f.e2;                  lsv vinvw_i.e4, VTX_ATTR_INVWi,vtx1
-    vlt   vw_i, vw_i, vw_i.e2;                  lsv vinvw_i.e5, VTX_ATTR_INVWi,vtx2
-    vmrg  vw_f, vw_f, vw_f.e2;                  lsv vinvw_i.e6, VTX_ATTR_INVWi,vtx3
-
-    # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
-    # v__       =    0  0    0   0       0   0    0   NZi
-    # slope     =  1/HY --  1/MY --    1/LY --   --- 1/NZ
-    
-    # Shift left NZ (that contains INVNZ)
-    # by 2, to align with the fixed point
-    # precision that will be required later.    # Calculate -MY/-HX
-    vmudn vnz_f, vslope_f, K4;                  neg t3
-    vmadh vnz_i, vslope_i, K4;                  neg t4
-    #define inz_f   vnz_f.e7
-    #define inz_i   vnz_i.e7
+    # Calculate minimum W (between e0 and e4)
+    # Now vw_if.e0 contains the minimum W       # Load other invw components
+    vsubc v__,  vw_f, vw_f.e4;                  lsv vinvw_f.e4, VTX_ATTR_INVWf,vtx1
+    vlt   vw_i, vw_i, vw_i.e4;                  lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
+    vmrg  vw_f, vw_f, vw_f.e4;                  lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
 
     # Finalize slope divisions by multiplying by the reciprocal.
-    # vhml      =   HX  HY     MX  MY      LX    LY    0    NZf
+    # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
     #  *
-    # vslope.q1 =  1/HY 1/HY  1/MY 1/MY    1/LY 1/LY  1/NZ  1/NZ
+    # vnz       =  1/HY --  1/MY --    1/LY --   --- 1/NZ
     #    =
     # vslope    =  HX/HY --   MX/MY  --   LX/LY  --     --   --
-    vmudn v__,     vslope_f, vhml
-    vmadh v__,     vslope_i, vhml
-                                                # Store negated my/hx into vhml               
+                                                # Store negated my/hx into vhml
+    vmudn v__,  vnz_f, vhml;                    neg t3
+    vmadh v__,  vnz_i, vhml;                    neg t4
     vsar  vslope_f, COP2_ACC_MD;                mtc2 t3, my
     vsar  vslope_i, COP2_ACC_HI;                mtc2 t4, hx
     #define ish_f   vslope_f.e0
@@ -384,12 +377,35 @@ RDPQ_Triangle:
     #define ism_i   vslope_i.e2
     #define isl_f   vslope_f.e4
     #define isl_i   vslope_i.e4
+                                                # Prepare for vmrg later (to merge
+    # 32bit vsra by 1                           # tex coords inside the attribute
+    vmudl vw_f, vw_f, K32768;                   
+    vmadm vw_i, vw_i, K32768;                   li t0, 0xCF
+    vmadn vw_f, vzero, vzero;                   ctc2 t0, COP2_CTRL_VCC
 
-    # Calculate minimum W (between e0 and e4)
-    # Now vw_if.e0 contains the minimum W       # Load other invw components
-    vsubc v__,  vw_f, vw_f.e4;                  lsv vinvw_f.e4, VTX_ATTR_INVWf,vtx1
-    vlt   vw_i, vw_i, vw_i.e4;                  lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
-    vmrg  vw_f, vw_f, vw_f.e4;                  lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
+    #define vtmp1 vdx_f
+    #define vtmp2 vdx_i
+    #define vtmp3 vde_f
+
+    vsrl vattr1, vattr1, 7;                     llv vtmp1.e4, VTX_ATTR_S,vtx1                       
+    vsrl vattr2, vattr2, 7;                     llv vtmp2.e4, VTX_ATTR_S,vtx2                   
+    vsrl vattr3, vattr3, 7;                     llv vtmp3.e4, VTX_ATTR_S,vtx3                   
+
+    # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
+    # We will multiply by W instead. We have now prepared the minium w in vw_i.e0.
+    #
+    #    vw:     minw -- -- --    ----- ----- ----- --
+    # vinvw:     ---- -- -- --    invw1 invw2 invw3 --
+    #
+    # We need to multiply minw with the three invw. All numbers are positive s16.16,
+    # and the result is known to fit 0..1. By doing a standard 32-bit multiplication
+    # on RSP, we end up with a positive s16.16 number, where the integer word is zero.
+    # In fact, in theory W * 1/W = 1, but both numbers are likely missing enough bits
+    # of precision that the result will always be slightly lower than 1 (and thus the
+    # integer part will be 0).
+    vmudl v__,     vinvw_f, vw_f.e0;            lsv attr1_z, VTX_ATTR_Z,vtx1
+    vmadm v__,     vinvw_i, vw_f.e0;            lsv attr2_z, VTX_ATTR_Z,vtx2 
+    vmadn vinvw_f, vinvw_f, vw_i.e0;            lsv attr3_z, VTX_ATTR_Z,vtx3
 
     #  vxy21 =   X1   --    X2   --       Y1 --   Y2 --
     #  slope = HX/HY  --   MX/MY --     LX/LY --  -- --
@@ -403,62 +419,20 @@ RDPQ_Triangle:
     vmadh v__,      vslope_i, vfy_i.e4;         ssv isl_i, 12,s3  
     vmadm v__,      vk1,      vx12_f.e0;        ssv ism_f, 30,s3
     vmadh vedges_i, vk1,      vx12_i.e0;        ssv ism_i, 28,s3
-    vmadn vedges_f, vzero,    vzero;
-    
-    # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
-    # We will multiply by W instead. We have now prepared the minium w in vw_i.e0.
-    #
-    #    vw:     minw -- -- --    ----- ----- ----- --
-    # vinvw:     ---- -- -- --    invw1 invw2 invw3 --
-    #
-    # We need to multiply minw with the three invw. All numbers are positive s16.16,
-    # and the result is known to fit 0..1. By doing a standard 32-bit multiplication
-    # on RSP, we end up with a positive s16.16 number, where the integer word is zero.
-    # In fact, in theory W * 1/W = 1, but both numbers are likely missing enough bits
-    # of precision that the result will always be slightly lower than 1 (and thus the
-    # integer part will be 0).
-    vmudl v__,     vinvw_f, vw_f.e0
-    vmadm v__,     vinvw_i, vw_f.e0
-    vmadn vinvw_f, vinvw_f, vw_i.e0
-    vmadh vinvw_i, vinvw_i, vw_i.e0
-    
-    # So now vinvw_i should be 0 (in lanes 4..6). It turns out there is one exception:
-    # minw == invw == 1.0. In that case, the result will be exactly 1, and thus
-    # vinvw_i will be 1. Since we want to simplify further calculations and avoid
-    # taking vinvw_i into account, we want to replace 0x1_0000 with 0x0_FFFF.
-    # Do a manual saturation: vinvw_f = (vinvw_i == 0 ? vinvw_f : 0xFFFF)
-    vlt  vzero, vzero     # clear VCO/VCE
-    veq  vinvw_i, vzero
-    vmrg vinvw_f, VKM1
+    vmadn vedges_f, vzero,    vzero;            sdv vinvw_f.e4, 16,s3
 
-    # Load 0x200 in the first 4 lanes of the vector, using a misaliged lqv.
-    # 0x200 is the constant that can be used to >>7, which will be used for
-    # the RGBA components.
-    #
-    # invw:  0x200 0x200 0x200 0x200   invw1 invw2 invw3 --
-    li t0, %lo(TRICONST1)+8
-    lqv vinvw_f, 0,t0
-
-    vmudm vattr1, vinvw_f.h0
-    vmudm vattr2, vinvw_f.h1
-    vmudm vattr3, vinvw_f.h2
-
-    # Change inv_w from 0.16 to s0.15 by shifting by one
-    vsrl vinvw_f, vinvw_f, 1
-
-    lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
-    lsv attr2_z, VTX_ATTR_Z,vtx2
-    lsv attr3_z, VTX_ATTR_Z,vtx3
-
-    # Copy inv_w components into ATTRn
-    vmov vattr1.e6, vinvw_f.e4
-    vmov vattr2.e6, vinvw_f.e5
-    vmov vattr3.e6, vinvw_f.e6
+    vmulf vtmp1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
+    vmulf vtmp2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
+    vmulf vtmp3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
+                                            
+    vmrg vattr1, vtmp1;                         
+    vmrg vattr2, vtmp2;                                         
+    vmrg vattr3, vtmp3;                         
 
     ########################################################
     # ATTRIBUTES
     ########################################################
-calc_attrs:
+
     #define color_dmem     t3
     #define tex_dmem       t4
     #define z_dmem         t5
@@ -481,8 +455,15 @@ calc_attrs:
     vsub vma, vattr2, vattr1;                       ssv ish_i, 20,s3
     vsub vha, vattr3, vattr1;                       sh tricmd, 0(s3)
 
+    # Shift left NZ (that contains INVNZ)
+    # by 2, to align with the fixed point
+    # precision that will be required later.
+    vmudn vnz_f, K4;                  
+    vmadh vnz_i, K4;                  
+    #define inz_f   vnz_f.e7
+    #define inz_i   vnz_i.e7
+               
     # DX = MA * HY + HA * -MY
-    vstall; vstall;
     vmudh vdx_f, vma, hy;                           ssv vedges_i.e2, 24,s3  # XM_I
     vmadh vdx_f, vha, my;                           ssv vedges_f.e2, 26,s3  # XM_F
     vsar vdx_f, COP2_ACC_MD;                        ssv vedges_i.e0, 16,s3  # XH_I
@@ -495,13 +476,13 @@ calc_attrs:
     vsar vdy_f, COP2_ACC_MD;                        srl t0, 4
     vsar vdy_i, COP2_ACC_HI;                        addu tex_dmem, color_dmem, t0
 
-    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
+    # DX * 1/N
     vmudl v__,  vdx_f, inz_f;                       andi t0, tricmd, 0x200
     vmadm v__,  vdx_i, inz_f;                       srl t0, 3
     vmadn vdx_f, vdx_f, inz_i;                      addu z_dmem, tex_dmem, t0
     vmadh vdx_i, vdx_i, inz_i;                      andi t0, tricmd, 0x100
 
-    # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
+    # DY * 1/N
     vmudl v__,  vdy_f, inz_f;                       srl t0, 4
     vmadm v__,  vdy_i, inz_f;                       addu s3, z_dmem, t0
                                                     # Store Dx slopes
