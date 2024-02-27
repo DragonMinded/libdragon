@@ -827,7 +827,7 @@ RDPQ_Triangle:
     #define VTX_ATTR_INVWi  20
     #define VTX_ATTR_INVWf  22
 
-#if 1
+#if 0
     mfc0 fp, COP0_DP_CLOCK
     emux_trace_start
 #endif
@@ -1171,9 +1171,6 @@ swap_end:
     lsv attr2_z, VTX_ATTR_Z,vtx2
     lsv attr3_z, VTX_ATTR_Z,vtx3
 
-    emux_log_string "RDPQ_Triangle attributes:  "
-    emux_dump_vpr vattr1, vattr2, vattr3
-
     ########################################################
     # ATTRIBUTES
     ########################################################
@@ -1199,7 +1196,6 @@ calc_attrs:
     mfc2 t1, hx
     neg t0
     neg t1
-    emux_dump_gpr t0, t1
     mtc2 t0, my
     mtc2 t1, hx
 
@@ -1215,7 +1211,6 @@ calc_attrs:
     vsar vdy_f, COP2_ACC_MD
     vsar vdy_i, COP2_ACC_HI
 
-    emux_dump_vpr vnz_f, vnz_i
     # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
     vmudl v__,  vdx_f, inz_f
     vmadm v__,  vdx_i, inz_f
@@ -1229,7 +1224,6 @@ calc_attrs:
     vmadh vdy_i, vdy_i, inz_i
 
     # DE = DX * invsh + DY
-    emux_dump_vpr vslope_f, vslope_i
     vmadl v__,  vdx_f, ish_f
     vmadm v__,  vdx_i, ish_f
     vmadn vde_f, vdx_f, ish_i
@@ -1238,7 +1232,6 @@ calc_attrs:
     # FINAL = vATTR1 + DE * FY
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
     # TODO: actually, it can also be fy_i = fy_f = 0.
-    emux_dump_vpr vfy_i, vfy_f
     vmudl v__,      vde_f, vfy_f.e4
     vmadm v__,      vde_i, vfy_f.e4
     vmadn vfinal_f, vde_f, vfy_i.e4
@@ -1289,9 +1282,9 @@ no_texture:
     ssv    vdy_f.e7, 0x0E,s3
     addi s3, 0x10
 
+#if 0
     emux_trace_stop
 
-#if 1
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
     emux_log_string "RDPQ_Triangle:  "
