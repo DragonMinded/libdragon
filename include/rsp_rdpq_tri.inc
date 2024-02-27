@@ -415,19 +415,19 @@ RDPQ_Triangle:
     # See if we can benefit from this.    
     vmudl v__,      vslope_f, vfy_f.e4;         
     vmadm v__,      vslope_i, vfy_f.e4;         
-    vmadn v__,      vslope_f, vfy_i.e4;         ssv isl_f, 14,s3  
-    vmadh v__,      vslope_i, vfy_i.e4;         ssv isl_i, 12,s3  
-    vmadm v__,      vk1,      vx12_f.e0;        ssv ism_f, 30,s3
-    vmadh vedges_i, vk1,      vx12_i.e0;        ssv ism_i, 28,s3
-    vmadn vedges_f, vzero,    vzero;            sdv vinvw_f.e4, 16,s3
+    vmadn vedges_f, vslope_f, vfy_i.e4;         ssv ism_f, 30,s3
+    vmadh vedges_i, vslope_i, vfy_i.e4;         ssv ism_i, 28,s3
 
-    vmulf vtmp1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
-    vmulf vtmp2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
-    vmulf vtmp3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
-                                            
+    vmulf vtmp1, vinvw_f.h0;                    sdv vinvw_f.e4, 16,s3
+    vmulf vtmp2, vinvw_f.h1;                    lsv attr1_invw, 16,s3
+    vmulf vtmp3, vinvw_f.h2;                    lsv attr2_invw, 18,s3
+
+    vaddc vedges_f, vx12_f.e0;                  lsv attr3_invw, 20,s3
+    vadd  vedges_i, vx12_i.e0;
+
     vmrg vattr1, vtmp1;                         
-    vmrg vattr2, vtmp2;                                         
-    vmrg vattr3, vtmp3;                         
+    vmrg vattr2, vtmp2;                         ssv isl_f, 14,s3
+    vmrg vattr3, vtmp3;                         ssv isl_i, 12,s3
 
     ########################################################
     # ATTRIBUTES
