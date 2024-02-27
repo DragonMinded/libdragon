@@ -263,7 +263,7 @@ RDPQ_Triangle:
     # take advantage of this somehow
     # to simplify later.                
     vsubc vfy_f, vzero, vfy_f;          
-    vsub  vfy_i, vfy_i;                 llv vw_i.e2, VTX_ATTR_W,vtx2
+    vsub  vfy_i, vfy_i;                 lsv vw_i.e2, VTX_ATTR_W,vtx2
 
     # Compute SLOPE vector
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
@@ -280,8 +280,8 @@ RDPQ_Triangle:
     vrcp  vslope_f.e2, my;              beq t0, cull, JrRa
     vrcph vslope_i.e2, my;              
     # Compute ISL (L slope). 1/LY  (s14.1)      
-    vrcp  vslope_f.e4, ly;              llv vw_i.e4, VTX_ATTR_W,vtx3
-    vrcph vslope_i.e4, ly;              llv vw_i.e0, VTX_ATTR_W,vtx1
+    vrcp  vslope_f.e4, ly;              lsv vw_i.e4, VTX_ATTR_W,vtx3
+    vrcph vslope_i.e4, ly;              lsv vw_i.e0, VTX_ATTR_W,vtx1
 
     #undef vm
     #undef vl
@@ -318,14 +318,11 @@ RDPQ_Triangle:
 
     # vslopem2  = X/2 * (-4) = -2*X             
     vmudn vslopem2_f, vslope_f, VKM4;           luv attr3_r, VTX_ATTR_RGBA,vtx3
-    vmadh vslopem2_i, vslope_i, VKM4;           
-            
-    # Split 32-bit W into two 16-bit halves
-    vcopy vw_f, vw_i.q1;                        
+    vmadh vslopem2_i, vslope_i, VKM4;           lsv vw_f.e0, VTX_ATTR_W+2,vtx1
 
     # NR: R*(X/2)                               
-    vmudl vtmp_f, vslope_f, vhml.q1;            
-    vmadm vtmp_f, vslope_i, vhml.q1;            
+    vmudl vtmp_f, vslope_f, vhml.q1;            lsv vw_f.e2, VTX_ATTR_W+2,vtx2
+    vmadm vtmp_f, vslope_i, vhml.q1;            lsv vw_f.e4, VTX_ATTR_W+2,vtx3
     vmadn vtmp_f, vslope_f, vhmlupp;            
     vmadh vtmp_i, vslope_i, vhmlupp;            
 
