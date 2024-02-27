@@ -256,40 +256,32 @@ RDPQ_Triangle:
     vsar vnz_i, COP2_ACC_HI;            slv vl.e0,  12,s3
     vsar vnz_f, COP2_ACC_MD;            ldv vhml.e2, 8,s3
 
-    # Convert X1 and X2 into
-    # 16.16 precision
-    # vx12 = X1 -- X2 --  -- -- -- --   # Read 32-bit W into vw_i (e0/e2/e4)
-    vsra  vx12_i, vx12_f, 2;                       
-    vsll8 vx12_f, vx12_f, 14;           llv vw_i.e0, VTX_ATTR_W,vtx1
-
     # FY.e0 = floorf(y1) - y1
     # TODO: this is always a negative
     # fraction, so fy_i is always 0xFFFF
     # (or fy_i=fy_f=0). See if we can
     # take advantage of this somehow
     # to simplify later.                
-                                        # Extract sign of Z
-    vsubc vfy_f, vzero, vfy_f;          mfc2 t0, vnz_i.e0
+    vsubc vfy_f, vzero, vfy_f;          
     vsub  vfy_i, vfy_i;                 llv vw_i.e2, VTX_ATTR_W,vtx2
 
     # Compute SLOPE vector
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
 
     # Calculate reciprocal of normal    # Backface culling
-    vrcph vslope_i.e7, vnz_i.e0;        stall
-    vrcpl vslope_f.e7, vnz_f.e0;        slt t0, t0, zero 
-    vrcph vslope_i.e7, vzero.e0;        xori t0, 1
-                                        beq t0, cull, JrRa
-    # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  vslope_f.e0, hy;              # DELAY SLOT
+    vrcph vslope_i.e7, vnz_i.e0;        mfc2 t0, vnz_i.e0
+    vrcpl vslope_f.e7, vnz_f.e0;        luv attr1_r, VTX_ATTR_RGBA,vtx1
+    vrcph vslope_i.e7, vzero.e0;        luv attr2_r, VTX_ATTR_RGBA,vtx2
                                         
-    vrcph vslope_i.e0, hy;              luv attr1_r, VTX_ATTR_RGBA,vtx1
+    # Compute ISH (H slope). 1/HY  (s14.1)
+    vrcp  vslope_f.e0, hy;              slt t0, t0, zero
+    vrcph vslope_i.e0, hy;              xori t0, 1
     # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  vslope_f.e2, my;              luv attr2_r, VTX_ATTR_RGBA,vtx2
-    vrcph vslope_i.e2, my;              luv attr3_r, VTX_ATTR_RGBA,vtx3
+    vrcp  vslope_f.e2, my;              beq t0, cull, JrRa
+    vrcph vslope_i.e2, my;              
     # Compute ISL (L slope). 1/LY  (s14.1)      
     vrcp  vslope_f.e4, ly;              llv vw_i.e4, VTX_ATTR_W,vtx3
-    vrcph vslope_i.e4, ly;              
+    vrcph vslope_i.e4, ly;              llv vw_i.e0, VTX_ATTR_W,vtx1
 
     #undef vm
     #undef vl
@@ -325,7 +317,7 @@ RDPQ_Triangle:
     vmov vhmlupp.e7, vnz_i.e0;                  or tricmd, t0
 
     # vslopem2  = X/2 * (-4) = -2*X             
-    vmudn vslopem2_f, vslope_f, VKM4;           
+    vmudn vslopem2_f, vslope_f, VKM4;           luv attr3_r, VTX_ATTR_RGBA,vtx3
     vmadh vslopem2_i, vslope_i, VKM4;           
             
     # Split 32-bit W into two 16-bit halves
@@ -333,9 +325,9 @@ RDPQ_Triangle:
 
     # NR: R*(X/2)                               
     vmudl vtmp_f, vslope_f, vhml.q1;            
-    vmadm vtmp_f, vslope_i, vhml.q1;            # Store X2 value in output (as XL)
-    vmadn vtmp_f, vslope_f, vhmlupp;            ssv vx12_i.e2,  8,s3  # XL_I
-    vmadh vtmp_i, vslope_i, vhmlupp;            ssv vx12_f.e2, 10,s3  # XL_F
+    vmadm vtmp_f, vslope_i, vhml.q1;            
+    vmadn vtmp_f, vslope_f, vhmlupp;            
+    vmadh vtmp_i, vslope_i, vhmlupp;            
 
     # NR: R*X/2 - 1                             # Calculate -MY/-HX
     vmadn vtmp_f, vk1, VKM1;                    mfc2 t3, my
@@ -415,19 +407,26 @@ RDPQ_Triangle:
     # See if we can benefit from this.    
     vmudl v__,      vslope_f, vfy_f.e4;         
     vmadm v__,      vslope_i, vfy_f.e4;         
-    vmadn vedges_f, vslope_f, vfy_i.e4;         ssv ism_f, 30,s3
-    vmadh vedges_i, vslope_i, vfy_i.e4;         ssv ism_i, 28,s3
+    vmadn vedges_f, vslope_f, vfy_i.e4;         
+    vmadh vedges_i, vslope_i, vfy_i.e4;         sdv vinvw_f.e4, 16,s3
 
-    vmulf vtmp1, vinvw_f.h0;                    sdv vinvw_f.e4, 16,s3
-    vmulf vtmp2, vinvw_f.h1;                    lsv attr1_invw, 16,s3
-    vmulf vtmp3, vinvw_f.h2;                    lsv attr2_invw, 18,s3
+    vmulf vtmp1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
+    vmulf vtmp2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
+    vmulf vtmp3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
 
-    vaddc vedges_f, vx12_f.e0;                  lsv attr3_invw, 20,s3
-    vadd  vedges_i, vx12_i.e0;
+    # Convert X1 and X2 into
+    # 16.16 precision
+    # vx12 = X1 -- X2 --  -- -- -- --   
+    vsra  vx12_i, vx12_f, 2;                       
+    vsll8 vx12_f, vx12_f, 14;           
 
     vmrg vattr1, vtmp1;                         
-    vmrg vattr2, vtmp2;                         ssv isl_f, 14,s3
-    vmrg vattr3, vtmp3;                         ssv isl_i, 12,s3
+    vmrg vattr2, vtmp2;                         ssv isl_i, 12,s3
+    vmrg vattr3, vtmp3;                         ssv isl_f, 14,s3
+
+                                                # Store X2 value in output (as XL)
+    vaddc vedges_f, vx12_f.e0;                  ssv vx12_i.e2,  8,s3  # XL_I
+    vadd  vedges_i, vx12_i.e0;                  ssv vx12_f.e2, 10,s3  # XL_F
 
     ########################################################
     # ATTRIBUTES
@@ -449,8 +448,7 @@ RDPQ_Triangle:
     # to use 32-bit numbers as well.
     # Note also that we need
     # "vsubc zero,zero" to clear the VCC
-    # (carry) bit which vsub reads as input.            
-                                                    # Store tricmd and last coord slopes
+    # (carry) bit which vsub reads as input.        # Store tricmd and last coord slopes
     vsubc vzero, vzero;                             ssv ish_f, 22,s3
     vsub vma, vattr2, vattr1;                       ssv ish_i, 20,s3
     vsub vha, vattr3, vattr1;                       sh tricmd, 0(s3)
@@ -458,8 +456,8 @@ RDPQ_Triangle:
     # Shift left NZ (that contains INVNZ)
     # by 2, to align with the fixed point
     # precision that will be required later.
-    vmudn vnz_f, K4;                  
-    vmadh vnz_i, K4;                  
+    vmudn vnz_f, K4;                                ssv ism_i, 28,s3
+    vmadh vnz_i, K4;                                ssv ism_f, 30,s3
     #define inz_f   vnz_f.e7
     #define inz_i   vnz_i.e7
                
