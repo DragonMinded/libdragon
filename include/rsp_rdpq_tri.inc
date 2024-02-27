@@ -421,7 +421,8 @@ RDPQ_Triangle:
     vmrg vattr2, vtmp2;                         ssv isl_i, 12,s3
     vmrg vattr3, vtmp3;                         ssv isl_f, 14,s3
 
-                                                # Store X2 value in output (as XL)
+    # Finish computing XH/XM by adidng
+    # X0/X1                                     # Store X2 value in output (as XL)
     vaddc vedges_f, vx12_f.e0;                  ssv vx12_i.e2,  8,s3  # XL_I
     vadd  vedges_i, vx12_i.e0;                  ssv vx12_f.e2, 10,s3  # XL_F
 
