@@ -146,6 +146,16 @@ static const char MSG_ELF_NOT_FOUND[] = {
     _('F'), _('O'), _('U'), _('N'), _('D'), 0
 };
 
+// "ELF LITTLE ENDIAN NOT SUPPORTED"
+__attribute__((aligned(1)))
+static const char MSG_ELF_LITTLE_ENDIAN[] = {
+    _('E'), _('L'), _('F'), _(' '),
+    _('L'), _('I'), _('T'), _('T'), _('L'), _('E'), _(' '),
+    _('E'), _('N'), _('D'), _('I'), _('A'), _('N'), _(' '),
+    _('N'), _('O'), _('T'), _(' '),
+    _('S'), _('U'), _('P'), _('P'), _('O'), _('R'), _('T'), _('E'), _('D'), 0
+};
+
 // "ELF VADDR NOT 8-BYTE ALIGNED"
 __attribute__((aligned(1)))
 static const char MSG_ELF_VADDR_NOT_ALIGNED[] = {
@@ -264,28 +274,37 @@ void stage2(void)
     // Store the ELF offset in the boot flags
     *(uint32_t*)0xA400000C = elf_header << 8;
 
+    // Check if the ELF is 32/64 bit, and if it's big/little endian
+    uint32_t elf_type = io_read32(elf_header + 0x4);
+    bool elf64 = (elf_type >> 24) == 2;
+    if (((elf_type >> 16) & 0xff) == 1) {
+        debugf("ELF: little endian ELFs are not supported");
+        fatal(MSG_ELF_LITTLE_ENDIAN);
+    }
+
     // Read program headers offset and number. Allocate space in the stack
     // for them.
-    uint32_t phoff = io_read32(elf_header + 0x1C);
-    int phnum = io_read16(elf_header + 0x2C);
-    uint32_t entrypoint = io_read32(elf_header + 0x18);
-    uint32_t *phdr = alloca_aligned(0x20 * phnum);
-    data_cache_hit_writeback_invalidate(phdr, 0x20 * phnum);
+    const int PHDR_SIZE = elf64 ? 0x38 : 0x20;
+    uint32_t phoff = io_read32(elf_header + (elf64 ? 0x20+4 : 0x1C));
+    int phnum = io_read16(elf_header + (elf64 ? 0x38 : 0x2C));
+    uint32_t entrypoint = io_read32(elf_header + (elf64 ? 0x18+4 : 0x18));
+    uint32_t *phdr = alloca_aligned(PHDR_SIZE * phnum);
+    data_cache_hit_writeback_invalidate(phdr, PHDR_SIZE * phnum);
 
     // Load all the program headers
-    pi_read_async((void*)phdr, elf_header + phoff, 0x20 * phnum);
+    pi_read_async((void*)phdr, elf_header + phoff, PHDR_SIZE * phnum);
     pi_wait();
 
     // Decompression function (if any)
     int (*decomp)(void *inbuf, int size, void *outbuf) = 0;
 
     // Load the program segments
-    for (int i=0; i<phnum; i++, phdr+=0x20/4) {
-        uint32_t offset = phdr[1];
-        uint32_t vaddr = phdr[2];
-        uint32_t paddr = phdr[3];
-        uint32_t size = phdr[4];
-        uint32_t flags = phdr[6];
+    for (int i=0; i<phnum; i++, phdr+=PHDR_SIZE/4) {
+        uint32_t offset = phdr[elf64 ? 3 : 1];
+        uint32_t vaddr = phdr[elf64 ? 5 : 2];
+        uint32_t paddr = phdr[elf64 ? 7 : 3];
+        uint32_t size = phdr[elf64 ? 9 : 4];
+        uint32_t flags = phdr[elf64 ? 1 : 6];
 
         if (phdr[0] == PT_N64_DECOMP) {
             // If this segment contains the decompression function, load it
@@ -395,6 +414,10 @@ void stage3(uint32_t entrypoint)
     // Wait until the PIF is done. This will also clear the interrupt, so that
     // we don't leave the interrupt pending when we go to the entrypoint.
     si_wait();
+
+    // Configure SP at the end of RDRAM. This is a good default in general,
+    // then of course userspace code is free to reconfigure it.
+    asm ("move $sp, %0" : : "r" (0x80000000 + memsize - 0x10));
 
     goto *(void*)entrypoint;
 }

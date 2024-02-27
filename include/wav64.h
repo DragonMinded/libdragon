@@ -64,6 +64,14 @@ void wav64_set_loop(wav64_t *wav, bool loop);
  */
 void wav64_play(wav64_t *wav, int ch);
 
+/**
+ * @brief Get the (possibly compressed) bitrate of the WAV64 file.
+ * 
+ * @param wav 			Pointer to wav64_t structure
+ * @return int 			Bitrate in bits per second
+ */
+int wav64_get_bitrate(wav64_t *wav);
+
 
 /**
  * @brief Close a WAV64 file.

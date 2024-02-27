@@ -48,6 +48,13 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r5 (1463a76f789aa2087dc0ba4e93d6c25d)
+* Initialize $sp to the end of RDRAM. This is a good default for most use cases.
+* Add support for 64-bit ELFs
+* Clear MI_MASK before booting the ELF
+* While IPL3 is running, the stack is now in DMEM rather than in CPU cache;
+  this should help emulators while having basically no effect on runtime.
+
 r4 (d78ddd06d2303d3f76d11de6b6326d69)
 * Allow to load ELF sections of odd sizes (before, it would error out). This
   is required for n64elfcompress to produce unpadded compressed sections, since
@@ -85,7 +92,9 @@ To use this IPL3 with your own programming environment, please follow
 the following rules:
 
  * Provide your binary in ELF format, statically-linked. IPL3 reads
-   all program headers of type PT_LOAD, and ignores all sections.
+   all program headers of type PT_LOAD, and ignores all sections. ELF can be
+   either 32-bit or 64-bit, but in the latter case, only the lowest 32-bit
+   of the addresses will be read.
  * The ELF file must be concatenated to the IPL3 z64 file (either
    development or production build), respecting a 256-byte alignment.
    You can put any other data before and/or after it, as long as the ELF
@@ -255,6 +264,9 @@ NOTE: at the moment of writing, `n64elfcompress` discards all sections in the
 ELF file. If your application require sections to be available at runtime,
 then you will need to handle compression in some other means (or modify
 `n64elfcompress`).
+
+NOTE: at the moment of writing, `n64elfcompress` does not support ELFs with
+headers in 64-bit format.
 
 #### Format details
 

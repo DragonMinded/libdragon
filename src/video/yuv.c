@@ -298,6 +298,7 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
 {
     rdpq_set_mode_yuv(false);
+    rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
 
     // To avoid the need of pre-interleaving Y and UV together, we load them
     // separately into TMEM using separate LOAD_BLOCK commands.

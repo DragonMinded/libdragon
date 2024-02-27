@@ -335,6 +335,18 @@ void wav64_set_loop(wav64_t *wav, bool loop) {
 		wav->wave.loop_len -= 1;
 }
 
+int wav64_get_bitrate(wav64_t *wav) {
+	if (wav->ext) {
+		switch (wav->format) {
+		case WAV64_FORMAT_VADPCM:
+			return wav->wave.frequency * wav->wave.channels * 72 / 16;
+		case WAV64_FORMAT_OPUS:
+			return wav64_opus_get_bitrate(wav);
+		}
+	}
+	return wav->wave.frequency * wav->wave.channels * wav->wave.bits;
+}
+
 void wav64_close(wav64_t *wav)
 {
 	if (wav->ext) {

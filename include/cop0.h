@@ -90,8 +90,8 @@
  * invalid, or a virtual address for which an addressing error occurred.
  */
 #define C0_BADVADDR() ({ \
-	uint32_t x; \
-	asm volatile("mfc0 %0,$8" : "=r" (x) : ); \
+	uint64_t x; \
+	asm volatile("dmfc0 %0,$8" : "=r" (x) : ); \
 	x; \
 })
 
@@ -276,7 +276,7 @@
 #define C0_INTERRUPT_0      0x00000100      ///< Status/Cause: SW interrupt 0
 #define C0_INTERRUPT_1      0x00000200      ///< Status/Cause: SW interrupt 1
 #define C0_INTERRUPT_2      0x00000400      ///< Status/Cause: HW interrupt 2 (RCP)
-#define C0_INTERRUPT_3      0x00000800      ///< Status/Cause: HW interrupt 3
+#define C0_INTERRUPT_3      0x00000800      ///< Status/Cause: HW interrupt 3 (CART)
 #define C0_INTERRUPT_4      0x00001000      ///< Status/Cause: HW interrupt 4 (PRENMI)
 #define C0_INTERRUPT_5      0x00002000      ///< Status/Cause: HW interrupt 5
 #define C0_INTERRUPT_6      0x00004000      ///< Status/Cause: HW interrupt 6

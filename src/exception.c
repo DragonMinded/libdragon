@@ -107,9 +107,14 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
 		case EXCEPTION_CODE_I_BUS_ERROR:
 		case EXCEPTION_CODE_D_BUS_ERROR:
-		case EXCEPTION_CODE_TLB_MODIFICATION:
-			fprintf(out, "Exception address: %08lX\n", C0_BADVADDR());
+		case EXCEPTION_CODE_TLB_MODIFICATION: {
+			uint64_t badvaddr = C0_BADVADDR();
+			if ((uint64_t)(int32_t)badvaddr == badvaddr)
+				fprintf(out, "Exception address: %08lX\n", (uint32_t)badvaddr);
+			else
+				fprintf(out, "Exception address: %016llX\n", badvaddr);
 			break;
+		}
 
 		case EXCEPTION_CODE_FLOATING_POINT: {
 			const char *space = "";
@@ -260,6 +265,40 @@ void exception_default_handler(exception_t* ex) {
 }
 
 /**
+ * @brief Return true if the specified address is unmapped in 64-bit kernel space
+ */
+static bool is_unmapped_kx64(uint64_t vaddr)
+{
+  if (vaddr <= 0x000000ffffffffffull) return false;
+  if (vaddr <= 0x3fffffffffffffffull) return true;
+  if (vaddr <= 0x400000ffffffffffull) return false;
+  if (vaddr <= 0x7fffffffffffffffull) return true;
+  if (vaddr <= 0x80000000ffffffffull) return false;
+  if (vaddr <= 0x87ffffffffffffffull) return true;
+  if (vaddr <= 0x88000000ffffffffull) return false;
+  if (vaddr <= 0x8fffffffffffffffull) return true;
+  if (vaddr <= 0x90000000ffffffffull) return false;
+  if (vaddr <= 0x97ffffffffffffffull) return true;
+  if (vaddr <= 0x98000000ffffffffull) return false;
+  if (vaddr <= 0x9fffffffffffffffull) return true;
+  if (vaddr <= 0xa0000000ffffffffull) return false;
+  if (vaddr <= 0xa7ffffffffffffffull) return true;
+  if (vaddr <= 0xa8000000ffffffffull) return false;
+  if (vaddr <= 0xafffffffffffffffull) return true;
+  if (vaddr <= 0xb0000000ffffffffull) return false;
+  if (vaddr <= 0xb7ffffffffffffffull) return true;
+  if (vaddr <= 0xb8000000ffffffffull) return false;
+  if (vaddr <= 0xbfffffffffffffffull) return true;
+  if (vaddr <= 0xc00000ff7fffffffull) return false;
+  if (vaddr <= 0xffffffff7fffffffull) return true;
+  if (vaddr <= 0xffffffff9fffffffull) return false;
+  if (vaddr <= 0xffffffffbfffffffull) return false;
+  if (vaddr <= 0xffffffffdfffffffull) return false;
+  if (vaddr <= 0xffffffffffffffffull) return false;
+  __builtin_unreachable();
+}
+
+/**
  * @brief Fetch the string name of the exception
  *
  * @param[in] cr
@@ -309,7 +348,7 @@ static const char* __get_exception_name(exception_t *ex)
 	// When possible, by peeking into the exception state and COP0 registers
 	// we can provide a more detailed exception name.
 	uint32_t epc = ex->regs->epc + (ex->regs->cr & C0_CAUSE_BD ? 4 : 0);
-	uint32_t badvaddr = C0_BADVADDR();
+	uint64_t badvaddr = C0_BADVADDR();
 
 	switch (ex->code) {
 	case EXCEPTION_CODE_FLOATING_POINT:
@@ -327,7 +366,7 @@ static const char* __get_exception_name(exception_t *ex)
 			return "Generic floating point";
 		}
 	case EXCEPTION_CODE_TLB_LOAD_I_MISS:
-		if (epc == badvaddr) {
+		if (epc == (uint32_t)badvaddr) {
 			return "Invalid program counter address";
 		} else if (badvaddr < 128) {
 			// This is probably a NULL pointer dereference, though it can go through a structure or an array,
@@ -345,10 +384,16 @@ static const char* __get_exception_name(exception_t *ex)
 	case EXCEPTION_CODE_TLB_MODIFICATION:
 		return "Write to read-only memory";
 	case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
-		if (epc == badvaddr) {
-			return "Misaligned program counter address";
+		if (epc == (uint32_t)badvaddr) {
+			if (is_unmapped_kx64(badvaddr))
+				return "Program counter in invalid 64-bit address";
+			else
+				return "Misaligned program counter address";
 		} else {
-			return "Misaligned read from memory";
+			if (is_unmapped_kx64(badvaddr))
+				return "Read from invalid 64-bit address";
+			else
+				return "Misaligned read from memory";
 		}
 	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
 		return "Misaligned write to memory";
