@@ -6,7 +6,13 @@
 
     .section .text.rdpq_triangle
 
+#ifndef RDPQ_TRIANGLE_PROFILE
 #define RDPQ_TRIANGLE_PROFILE     0
+#endif
+
+#ifndef RDPQ_TRIANGLE_CUSTOM_VTX
+#define RDPQ_TRIANGLE_CUSTOM_VTX  0
+#endif
 
     #####################################################################
     # RDPQ_Triangle
@@ -114,17 +120,17 @@ RDPQ_Triangle:
     #define invsh_i          $v31.e6
     #define invsh_f          $v31.e7
 
-    #define VTX_ATTR_X      0
-    #define VTX_ATTR_Y      2
-    #define VTX_ATTR_Z      4
-    #define VTX_ATTR_CLIPCODE 6         // Clipping codes
-    #define VTX_ATTR_TRCODE   7         // Negated trivial-reject codes
-    #define VTX_ATTR_RGBA   8
-    #define VTX_ATTR_S      12
-    #define VTX_ATTR_T      14
-    #define VTX_ATTR_W      16
-    #define VTX_ATTR_INVWi  20
-    #define VTX_ATTR_INVWf  22
+    #if !RDPQ_TRIANGLE_CUSTOM_VTX
+        #define VTX_ATTR_XY          0
+        #define VTX_ATTR_Z           4
+        #define VTX_ATTR_CLIPFLAGS   6         // Clipping codes + Negated trivial-reject codes
+        #define VTX_ATTR_RGBA        8
+        #define VTX_ATTR_ST         12
+        #define VTX_ATTR_Wi         16
+        #define VTX_ATTR_Wf         18
+        #define VTX_ATTR_INVWi      20
+        #define VTX_ATTR_INVWf      22
+    #endif
 
 #if RDPQ_TRIANGLE_PROFILE
     mfc0 fp, COP0_DP_CLOCK
@@ -179,10 +185,10 @@ RDPQ_Triangle:
     sh vtx1, 0(s3)
     sh vtx2, 2(s3)
     sh vtx3, 4(s3)
-    llv vall1, VTX_ATTR_X,vtx1
-    llv vall2, VTX_ATTR_X,vtx2
-    llv vall3, VTX_ATTR_X,vtx3;         # Create a vector for negative pow2 constants
-    lhu clip1, VTX_ATTR_CLIPCODE(vtx1); vsubc vmconst, vzero, vshift;
+    llv vall1, VTX_ATTR_XY,vtx1
+    llv vall2, VTX_ATTR_XY,vtx2
+    llv vall3, VTX_ATTR_XY,vtx3;        # Create a vector for negative pow2 constants
+    lhu clip1, VTX_ATTR_CLIPFLAGS(vtx1); vsubc vmconst, vzero, vshift;
 
     vcopy vy1, vall1.e1;                lsv vall1.e3, 0,s3
     vcopy vy2, vall2.e1;                lsv vall2.e3, 2,s3
@@ -191,11 +197,11 @@ RDPQ_Triangle:
     # Create vector with constants      
     # 1 and -1 (to be used for
     # cross product)                    # Finish loading clipping codes
-    vcopy vk1, K1;                      lhu clip3, VTX_ATTR_CLIPCODE(vtx3)
+    vcopy vk1, K1;                      lhu clip3, VTX_ATTR_CLIPFLAGS(vtx3)
     # Clear VCO to make sure the first
     # VGE does the right thing if 
     # vy1==vy2
-    vsubc vzero, vzero, vzero;           lhu clip2, VTX_ATTR_CLIPCODE(vtx2)
+    vsubc vzero, vzero, vzero;          lhu clip2, VTX_ATTR_CLIPFLAGS(vtx2)
 
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
@@ -253,7 +259,7 @@ RDPQ_Triangle:
     # take advantage of this somehow
     # to simplify later.                
     vsubc vfy_f, vzero, vfy_f;          
-    vsub  vfy_i, vfy_i;                 lsv vw_i.e2, VTX_ATTR_W,vtx2
+    vsub  vfy_i, vfy_i;                 lsv vw_i.e2, VTX_ATTR_Wi,vtx2
 
     # Compute SLOPE vector
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
@@ -270,8 +276,8 @@ RDPQ_Triangle:
     vrcp  vslope_f.e2, my;              
     vrcph vslope_i.e2, my;              xori t0, 1
     # Compute ISL (L slope). 1/LY  (s14.1)      
-    vrcp  vslope_f.e4, ly;              lsv vw_i.e4, VTX_ATTR_W,vtx3
-    vrcph vslope_i.e4, ly;              lsv vw_i.e0, VTX_ATTR_W,vtx1
+    vrcp  vslope_f.e4, ly;              lsv vw_i.e4, VTX_ATTR_Wi,vtx3
+    vrcph vslope_i.e4, ly;              lsv vw_i.e0, VTX_ATTR_Wi,vtx1
 
     #undef vm
     #undef vl
@@ -308,11 +314,11 @@ RDPQ_Triangle:
 
     # vslopem2  = X/2 * (-4) = -2*X             
     vmudn vslopem2_f, vslope_f, VKM4;           luv attr3_r, VTX_ATTR_RGBA,vtx3
-    vmadh vslopem2_i, vslope_i, VKM4;           lsv vw_f.e0, VTX_ATTR_W+2,vtx1
+    vmadh vslopem2_i, vslope_i, VKM4;           lsv vw_f.e0, VTX_ATTR_Wf,vtx1
 
     # NR: R*(X/2)                               
-    vmudl vtmp_f, vslope_f, vhml.q1;            lsv vw_f.e2, VTX_ATTR_W+2,vtx2
-    vmadm vtmp_f, vslope_i, vhml.q1;            lsv vw_f.e4, VTX_ATTR_W+2,vtx3
+    vmudl vtmp_f, vslope_f, vhml.q1;            lsv vw_f.e2, VTX_ATTR_Wf,vtx2
+    vmadm vtmp_f, vslope_i, vhml.q1;            lsv vw_f.e4, VTX_ATTR_Wf,vtx3
     vmadn vtmp_f, vslope_f, vhmlupp;            
     vmadh vtmp_i, vslope_i, vhmlupp;            
 
@@ -327,10 +333,10 @@ RDPQ_Triangle:
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
-    #   =    X * (2 - R*X)                      # Load S compoenents
-    vmudl v__,      vtmp_f, vslopem2_f;         llv attr1_s, VTX_ATTR_S,vtx1  # S & T
-    vmadm v__,      vtmp_i, vslopem2_f;         llv attr2_s, VTX_ATTR_S,vtx2
-    vmadn vnz_f,    vtmp_f, vslopem2_i;         llv attr3_s, VTX_ATTR_S,vtx3
+    #   =    X * (2 - R*X)             
+    vmudl v__,      vtmp_f, vslopem2_f;
+    vmadm v__,      vtmp_i, vslopem2_f;
+    vmadn vnz_f,    vtmp_f, vslopem2_i;
     vmadh vnz_i,    vtmp_i, vslopem2_i;
 
     # Calculate minimum W (between e0 and e4)
@@ -366,9 +372,9 @@ RDPQ_Triangle:
     #define vtmp2 vdx_i
     #define vtmp3 vde_f
 
-    vsrl vattr1, vattr1, 7;                     llv vtmp1.e4, VTX_ATTR_S,vtx1                       
-    vsrl vattr2, vattr2, 7;                     llv vtmp2.e4, VTX_ATTR_S,vtx2                   
-    vsrl vattr3, vattr3, 7;                     llv vtmp3.e4, VTX_ATTR_S,vtx3                   
+    vsrl vattr1, vattr1, 7;                     llv vtmp1.e4, VTX_ATTR_ST,vtx1                       
+    vsrl vattr2, vattr2, 7;                     llv vtmp2.e4, VTX_ATTR_ST,vtx2                   
+    vsrl vattr3, vattr3, 7;                     llv vtmp3.e4, VTX_ATTR_ST,vtx3                   
 
     # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
     # We will multiply by W instead. We have now prepared the minium w in vw_i.e0.
