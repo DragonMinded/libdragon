@@ -441,6 +441,9 @@ RDPQ_Triangle:
     vsub vma, vattr2, vattr1;                       ssv ish_i, 20,s3
     vsub vha, vattr3, vattr1;                       sh tricmd, 0(s3)
 
+    #define vzout1      $v10
+    #undef vattr2
+
     # Shift left NZ (that contains INVNZ)
     # by 2, to align with the fixed point
     # precision that will be required later.
@@ -495,32 +498,35 @@ RDPQ_Triangle:
     vmadn vfinal_f, vde_f, vfy_i.e4;                sdv vde_i.e0, 0x20,color_dmem
     vmadh vfinal_i, vde_i, vfy_i.e4;                sdv vde_i.e4, 0x20,tex_dmem
 
-    # Since we need to wait 3 cycles before
-    # being able to store vfinal_f, use the time
-    # to compact the Z values, so that we can
-    # use slv to store them later.
-    vmov vdy_f.e6, vdy_i.e7;                        ssv vdx_f.e7, 0x06,z_dmem
-    vmov vde_f.e6, vde_i.e7;                        ssv vdx_i.e7, 0x04,z_dmem
-    vmov vdx_f.e7, vfinal_f.e7;                     sdv vfinal_f.e0, 0x10,color_dmem
-    vmov vdx_f.e6, vfinal_i.e7;                     sdv vfinal_f.e4, 0x10,tex_dmem
-                                                    sdv vfinal_i.e0, 0x00,color_dmem    
-                                                    sdv vfinal_i.e4, 0x00,tex_dmem
+    # Since we need to wait 2 cycles before
+    # being able to read vfinal_f contents,
+    # use the time to compact the Z values,
+    # so that we can use slv to store them later.
+    vmov vdy_f.e6, vdy_i.e7;                        
+    vmov vde_f.e6, vde_i.e7;                        
+    vmov vzout1.e1, vfinal_f.e7;                    sdv vfinal_f.e0, 0x10,color_dmem
+    vmov vzout1.e0, vfinal_i.e7;                    sdv vfinal_f.e4, 0x10,tex_dmem
+    vmov vzout1.e3, vdx_f.e7;                       sdv vfinal_i.e0, 0x00,color_dmem    
+    vmov vzout1.e2, vdx_i.e7;                       sdv vfinal_i.e4, 0x00,tex_dmem
                                                     # Store Z slopes, that were
                                                     # compacted via vmov.
                                                     slv vde_f.e6, 0x08,z_dmem
                                                     slv vdy_f.e6, 0x0C,z_dmem
-                                                    slv vdx_f.e6, 0x00,z_dmem
-                                                    
+#if !RDPQ_TRIANGLE_PROFILE
+                                                    jr ra
+#endif
+                                                    sdv vzout1.e0, 0x00,z_dmem
+
 #if RDPQ_TRIANGLE_PROFILE
     emux_trace_stop
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
     emux_log_string "RDPQ_Triangle:  "
     emux_dump_gpr t0
-#endif
-
     jr ra
     nop
+#endif
+
 
     #undef tricm
     #undef vtx1 
