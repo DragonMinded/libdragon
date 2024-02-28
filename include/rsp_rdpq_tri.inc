@@ -4,12 +4,9 @@
 #
 ##########################################################################
 
-    .section .data.rdpq_triangle
-    .align 4
-TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
-
-
     .section .text.rdpq_triangle
+
+#define RDPQ_TRIANGLE_PROFILE     0
 
     #####################################################################
     # RDPQ_Triangle
@@ -58,13 +55,6 @@ RDPQ_Triangle:
     #define vtx3   a3
     #define cull   v0
     #define out_clip_flag   v1
-
-    #define y1     t4
-    #define y2     t5
-    #define y3     t6
-    #define x1     t7
-    #define x2     t8
-    #define x3     v0
 
     # r, g, b, a, s, t, w, z
     #define vfinal_i         $v01
@@ -136,11 +126,10 @@ RDPQ_Triangle:
     #define VTX_ATTR_INVWi  20
     #define VTX_ATTR_INVWf  22
 
-#if 1
+#if RDPQ_TRIANGLE_PROFILE
     mfc0 fp, COP0_DP_CLOCK
     emux_trace_start
 #endif
-
 
     #define vall1    $v01
     #define vall2    $v02
@@ -179,9 +168,9 @@ RDPQ_Triangle:
 
 
     # vall registers:
-    # X1 Y1 Z1 ADDR1  RG1 BA1 S1 T1
-    # X2 Y2 Z2 ADDR2  RG2 BA2 S2 T2
-    # X3 Y3 Z3 ADDR3  RG3 BA3 S3 T3
+    # X1 Y1 [Z1 ADDR1  RG1 BA1 S1 T1]
+    # X2 Y2 [Z2 ADDR2  RG2 BA2 S2 T2]
+    # X3 Y3 [Z3 ADDR3  RG3 BA3 S3 T3]
 
     # TODO:
     # Should we do backface culling before clipping check?
@@ -190,9 +179,9 @@ RDPQ_Triangle:
     sh vtx1, 0(s3)
     sh vtx2, 2(s3)
     sh vtx3, 4(s3)
-    lqv vall1, VTX_ATTR_X,vtx1
-    lqv vall2, VTX_ATTR_X,vtx2
-    lqv vall3, VTX_ATTR_X,vtx3
+    llv vall1, VTX_ATTR_X,vtx1
+    llv vall2, VTX_ATTR_X,vtx2
+    llv vall3, VTX_ATTR_X,vtx3
     lhu clip1, VTX_ATTR_CLIPCODE(vtx1); vnop
 
     vcopy vy1, vall1.e1;                lsv vall1.e3, 0,s3
@@ -208,7 +197,6 @@ RDPQ_Triangle:
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
     # and then use vmrg to apply the swap.
-
     li out_clip_flag, 0;                vge vytmp1, vy1, vy2;               
     or clip1, clip3;                    vmrg valltmp1, vall1, vall2;        
     or clip1, clip2;                    vlt vy1, vy1, vy2;                  
@@ -233,7 +221,6 @@ RDPQ_Triangle:
 
     # Build vhml:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
-
     vmov vy3.e3, vy1.e0;                xor did_swap_0, did_swap_1
     vsubc vhml, vall3, vall1;           nop
     vmov vy3.e2, vy2.e0;                xor did_swap_0, did_swap_2
@@ -241,8 +228,8 @@ RDPQ_Triangle:
     vsubc vl, vall3, vall2;             mfc2 vtx2, vall2.e3
 
     # vx12 = X1 -- X2 --  -- -- -- --
-    vmov vx12_f.e0, vall1.e0;           xor cull, did_swap_0
-    vmov vx12_f.e2, vall2.e0;           andi did_swap_0, 1
+    vmov vx12_f.e0, vall1.e0;           andi did_swap_0, 1
+    vmov vx12_f.e2, vall2.e0;           xor cull, did_swap_0
 
     # Prepare -MY for crossprod
     vsubc vtmp, vzero, my;              mfc2 vtx3, vall3.e3
@@ -275,10 +262,10 @@ RDPQ_Triangle:
                                         
     # Compute ISH (H slope). 1/HY  (s14.1)
     vrcp  vslope_f.e0, hy;              slt t0, t0, zero
-    vrcph vslope_i.e0, hy;              xori t0, 1
+    vrcph vslope_i.e0, hy;              beq t0, cull, JrRa
     # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  vslope_f.e2, my;              beq t0, cull, JrRa
-    vrcph vslope_i.e2, my;              
+    vrcp  vslope_f.e2, my;              
+    vrcph vslope_i.e2, my;              xori t0, 1
     # Compute ISL (L slope). 1/LY  (s14.1)      
     vrcp  vslope_f.e4, ly;              lsv vw_i.e4, VTX_ATTR_W,vtx3
     vrcph vslope_i.e4, ly;              lsv vw_i.e0, VTX_ATTR_W,vtx1
@@ -521,11 +508,8 @@ RDPQ_Triangle:
                                                     slv vdy_f.e6, 0x0C,z_dmem
                                                     slv vdx_f.e6, 0x00,z_dmem
                                                     
-
-
+#if RDPQ_TRIANGLE_PROFILE
     emux_trace_stop
-
-#if 1
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
     emux_log_string "RDPQ_Triangle:  "
