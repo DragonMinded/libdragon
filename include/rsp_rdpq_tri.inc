@@ -181,8 +181,8 @@ RDPQ_Triangle:
     sh vtx3, 4(s3)
     llv vall1, VTX_ATTR_X,vtx1
     llv vall2, VTX_ATTR_X,vtx2
-    llv vall3, VTX_ATTR_X,vtx3
-    lhu clip1, VTX_ATTR_CLIPCODE(vtx1); vnop
+    llv vall3, VTX_ATTR_X,vtx3;         # Create a vector for negative pow2 constants
+    lhu clip1, VTX_ATTR_CLIPCODE(vtx1); vsubc vmconst, vzero, vshift;
 
     vcopy vy1, vall1.e1;                lsv vall1.e3, 0,s3
     vcopy vy2, vall2.e1;                lsv vall2.e3, 2,s3
@@ -192,7 +192,10 @@ RDPQ_Triangle:
     # 1 and -1 (to be used for
     # cross product)                    # Finish loading clipping codes
     vcopy vk1, K1;                      lhu clip3, VTX_ATTR_CLIPCODE(vtx3)
-    vsubc vmconst, vzero, vshift;       lhu clip2, VTX_ATTR_CLIPCODE(vtx2)
+    # Clear VCO to make sure the first
+    # VGE does the right thing if 
+    # vy1==vy2
+    vsubc vzero, vzero, vzero;           lhu clip2, VTX_ATTR_CLIPCODE(vtx2)
 
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
