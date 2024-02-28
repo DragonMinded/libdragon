@@ -187,42 +187,42 @@ RDPQ_Triangle:
     sh vtx3, 4(s3)
     llv vall1, VTX_ATTR_XY,vtx1
     llv vall2, VTX_ATTR_XY,vtx2
-    llv vall3, VTX_ATTR_XY,vtx3;        # Create a vector for negative pow2 constants
-    lhu clip1, VTX_ATTR_CLIPFLAGS(vtx1); vsubc vmconst, vzero, vshift;
+    llv vall3, VTX_ATTR_XY,vtx3;                # Create a vector for negative pow2 constants
+    lhu clip1, VTX_ATTR_CLIPFLAGS(vtx1);        vsubc vmconst, vzero, vshift;
 
-    vcopy vy1, vall1.e1;                lsv vall1.e3, 0,s3
-    vcopy vy2, vall2.e1;                lsv vall2.e3, 2,s3
-    vcopy vy3, vall3.e1;                lsv vall3.e3, 4,s3
+    vcopy vy1, vall1.e1;                        lsv vall1.e3, 0,s3
+    vcopy vy2, vall2.e1;                        lsv vall2.e3, 2,s3
+    vcopy vy3, vall3.e1;                        lsv vall3.e3, 4,s3
 
     # Create vector with constants      
     # 1 and -1 (to be used for
-    # cross product)                    # Finish loading clipping codes
-    vcopy vk1, K1;                      lhu clip3, VTX_ATTR_CLIPFLAGS(vtx3)
+    # cross product)                            # Finish loading clipping codes
+    vcopy vk1, K1;                              lhu clip3, VTX_ATTR_CLIPFLAGS(vtx3)
     # Clear VCO to make sure the first
     # VGE does the right thing if 
     # vy1==vy2
-    vsubc vzero, vzero, vzero;          lhu clip2, VTX_ATTR_CLIPFLAGS(vtx2)
+    vsubc vzero, vzero, vzero;                  lhu clip2, VTX_ATTR_CLIPFLAGS(vtx2)
 
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
     # and then use vmrg to apply the swap.
-    li out_clip_flag, 0;                vge vytmp1, vy1, vy2;               
-    or clip1, clip3;                    vmrg valltmp1, vall1, vall2;        
-    or clip1, clip2;                    vlt vy1, vy1, vy2;                  
-    cfc2 did_swap_0, COP2_CTRL_VCC;     vmrg vall1, vall1, vall2;
+    li out_clip_flag, 0;                        vge vytmp1, vy1, vy2;               
+    or clip1, clip3;                            vmrg valltmp1, vall1, vall2;        
+    or clip1, clip2;                            vlt vy1, vy1, vy2;                  
+    cfc2 did_swap_0, COP2_CTRL_VCC;             vmrg vall1, vall1, vall2;
 
-    andi t4, clip1, 0xFF;               vcopy vk2, K2
-    xori t4, 0xFF;                      vxor vhmlupp, vhmlupp
+    andi t4, clip1, 0xFF;                       vcopy vk2, K2
+    xori t4, 0xFF;                              vxor vhmlupp, vhmlupp
 
-    beqz t4, JrRa;                      vge vytmp2, vy1, vy3;               
-    andi clip1, 0x3F00;                 vmrg valltmp2, vall1, vall3;
-    lbu t4, %lo(RDPQ_OTHER_MODES) + 0;  vlt vy1, vy1, vy3;                  
-    cfc2 did_swap_1, COP2_CTRL_VCC;     vmrg vall1, vall1, vall3;           
+    beqz t4, JrRa;                              vge vytmp2, vy1, vy3;               
+    andi clip1, 0x3F00;                         vmrg valltmp2, vall1, vall3;
+    lbu t4, %lo(RDPQ_OTHER_MODES) + 0;          vlt vy1, vy1, vy3;                  
+    cfc2 did_swap_1, COP2_CTRL_VCC;             vmrg vall1, vall1, vall3;           
 
-    nop;                                vge vy3, vytmp1, vytmp2;            
-    andi t4, 0x38;                      vmrg vall3, valltmp1, valltmp2;     
-    or tricmd, t4;                      vlt vy2, vytmp1, vytmp2;            
-    cfc2 did_swap_2, COP2_CTRL_VCC;     vmrg vall2, valltmp1, valltmp2;     
+    nop;                                        vge vy3, vytmp1, vytmp2;            
+    andi t4, 0x38;                              vmrg vall3, valltmp1, valltmp2;     
+    or tricmd, t4;                              vlt vy2, vytmp1, vytmp2;            
+    cfc2 did_swap_2, COP2_CTRL_VCC;             vmrg vall2, valltmp1, valltmp2;     
 
     # Copy Y1, Y2 into vy3, so that we get the three sorted Y in the same
     # vector.
@@ -230,27 +230,27 @@ RDPQ_Triangle:
 
     # Build vhml:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
-    vmov vy3.e3, vy1.e0;                xor did_swap_0, did_swap_1
-    vsubc vhml, vall3, vall1;           nop
-    vmov vy3.e2, vy2.e0;                xor did_swap_0, did_swap_2
-    vsubc vm, vall2, vall1;             mfc2 vtx1, vall1.e3
-    vsubc vl, vall3, vall2;             mfc2 vtx2, vall2.e3
+    vmov vy3.e3, vy1.e0;                        xor did_swap_0, did_swap_1
+    vsubc vhml, vall3, vall1;
+    vmov vy3.e2, vy2.e0;                        xor did_swap_0, did_swap_2
+    vsubc vm, vall2, vall1;                     mfc2 vtx1, vall1.e3
+    vsubc vl, vall3, vall2;                     mfc2 vtx2, vall2.e3
 
     # vx12 = X1 -- X2 --  -- -- -- --
-    vmov vx12_f.e0, vall1.e0;           andi did_swap_0, 1
-    vmov vx12_f.e2, vall2.e0;           xor cull, did_swap_0
+    vmov vx12_f.e0, vall1.e0;                   andi did_swap_0, 1
+    vmov vx12_f.e2, vall2.e0;                   xor cull, did_swap_0
 
     # Prepare -MY for crossprod
-    vsubc vtmp, vzero, my;              mfc2 vtx3, vall3.e3
+    vsubc vtmp, vzero, my;                      mfc2 vtx3, vall3.e3
     
     # FY.e4 = Y1 (s15.16)
-    vsll8 vfy_f, vy1, 14;               sdv vy3.e0, 0,s3
-    vsra  vfy_i, vy1, 2;                bnez clip1, JrRa
-                                        li out_clip_flag, 1     # report clipping required
-    vmudh vnz_f, vm, hy;                li out_clip_flag, 0     # report no clipping required
-    vmadh vnz_f, vhml, vtmp;            slv vm.e0,   8,s3
-    vsar vnz_i, COP2_ACC_HI;            slv vl.e0,  12,s3
-    vsar vnz_f, COP2_ACC_MD;            ldv vhml.e2, 8,s3
+    vsll8 vfy_f, vy1, 14;                       sdv vy3.e0, 0,s3
+    vsra  vfy_i, vy1, 2;                        bnez clip1, JrRa
+                                                li out_clip_flag, 1     # report clipping required
+    vmudh vnz_f, vm, hy;                        li out_clip_flag, 0     # report no clipping required
+    vmadh vnz_f, vhml, vtmp;                    slv vm.e0,   8,s3
+    vsar vnz_i, COP2_ACC_HI;                    slv vl.e0,  12,s3
+    vsar vnz_f, COP2_ACC_MD;                    ldv vhml.e2, 8,s3
 
     # FY.e0 = floorf(y1) - y1
     # TODO: this is always a negative
@@ -259,25 +259,25 @@ RDPQ_Triangle:
     # take advantage of this somehow
     # to simplify later.                
     vsubc vfy_f, vzero, vfy_f;          
-    vsub  vfy_i, vfy_i;                 lsv vw_i.e2, VTX_ATTR_Wi,vtx2
+    vsub  vfy_i, vfy_i;                         lsv vw_i.e2, VTX_ATTR_Wi,vtx2
 
     # Compute SLOPE vector
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
 
-    # Calculate reciprocal of normal    # Backface culling
-    vrcph vslope_i.e7, vnz_i.e0;        mfc2 t0, vnz_i.e0
-    vrcpl vslope_f.e7, vnz_f.e0;        luv attr1_r, VTX_ATTR_RGBA,vtx1
-    vrcph vslope_i.e7, vzero.e0;        luv attr2_r, VTX_ATTR_RGBA,vtx2
+    # Calculate reciprocal of normal            # Backface culling
+    vrcph vslope_i.e7, vnz_i.e0;                mfc2 t0, vnz_i.e0
+    vrcpl vslope_f.e7, vnz_f.e0;                luv attr1_r, VTX_ATTR_RGBA,vtx1
+    vrcph vslope_i.e7, vzero.e0;                luv attr2_r, VTX_ATTR_RGBA,vtx2
                                         
     # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  vslope_f.e0, hy;              slt t0, t0, zero
-    vrcph vslope_i.e0, hy;              beq t0, cull, JrRa
+    vrcp  vslope_f.e0, hy;                      slt t0, t0, zero
+    vrcph vslope_i.e0, hy;                      beq t0, cull, JrRa
     # Compute ISM (M slope). 1/MY  (s14.1)
     vrcp  vslope_f.e2, my;              
-    vrcph vslope_i.e2, my;              xori t0, 1
+    vrcph vslope_i.e2, my;                      xori t0, 1
     # Compute ISL (L slope). 1/LY  (s14.1)      
-    vrcp  vslope_f.e4, ly;              lsv vw_i.e4, VTX_ATTR_Wi,vtx3
-    vrcph vslope_i.e4, ly;              lsv vw_i.e0, VTX_ATTR_Wi,vtx1
+    vrcp  vslope_f.e4, ly;                      lsv vw_i.e4, VTX_ATTR_Wi,vtx3
+    vrcph vslope_i.e4, ly;                      lsv vw_i.e0, VTX_ATTR_Wi,vtx1
 
     #undef vm
     #undef vl
@@ -368,13 +368,15 @@ RDPQ_Triangle:
     vmadm vw_i, vw_i, K32768;                   li t0, 0xCF
     vmadn vw_f, vzero, vzero;                   ctc2 t0, COP2_CTRL_VCC
 
-    #define vtmp1 vdx_f
-    #define vtmp2 vdx_i
-    #define vtmp3 vde_f
+    #define vtex1 vdx_f
+    #define vtex2 vdx_i
+    #define vtex3 vde_f
 
-    vsrl vattr1, vattr1, 7;                     llv vtmp1.e4, VTX_ATTR_ST,vtx1                       
-    vsrl vattr2, vattr2, 7;                     llv vtmp2.e4, VTX_ATTR_ST,vtx2                   
-    vsrl vattr3, vattr3, 7;                     llv vtmp3.e4, VTX_ATTR_ST,vtx3                   
+    # vattr now contains only RGBA, loaded
+    # via suv. Shift them back to raw bytes.    # Load S/T coordinates
+    vsrl vattr1, vattr1, 7;                     llv vtex1.e4, VTX_ATTR_ST,vtx1                       
+    vsrl vattr2, vattr2, 7;                     llv vtex2.e4, VTX_ATTR_ST,vtx2                   
+    vsrl vattr3, vattr3, 7;                     llv vtex3.e4, VTX_ATTR_ST,vtx3                   
 
     # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
     # We will multiply by W instead. We have now prepared the minium w in vw_i.e0.
@@ -388,6 +390,7 @@ RDPQ_Triangle:
     # In fact, in theory W * 1/W = 1, but both numbers are likely missing enough bits
     # of precision that the result will always be slightly lower than 1 (and thus the
     # integer part will be 0).
+    #                                           # Load Z componen into attribute vector
     vmudl v__,     vinvw_f, vw_f.e0;            lsv attr1_z, VTX_ATTR_Z,vtx1
     vmadm v__,     vinvw_i, vw_f.e0;            lsv attr2_z, VTX_ATTR_Z,vtx2 
     vmadn vinvw_f, vinvw_f, vw_i.e0;            lsv attr3_z, VTX_ATTR_Z,vtx3
@@ -400,12 +403,13 @@ RDPQ_Triangle:
     # See if we can benefit from this.    
     vmudl v__,      vslope_f, vfy_f.e4;         
     vmadm v__,      vslope_i, vfy_f.e4;         
-    vmadn vedges_f, vslope_f, vfy_i.e4;         
+    vmadn vedges_f, vslope_f, vfy_i.e4;         # Copy normalized invw into the attribute vector
     vmadh vedges_i, vslope_i, vfy_i.e4;         sdv vinvw_f.e4, 16,s3
 
-    vmulf vtmp1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
-    vmulf vtmp2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
-    vmulf vtmp3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
+    # Multiply S/T by INVW
+    vmulf vtex1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
+    vmulf vtex2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
+    vmulf vtex3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
 
     # Convert X1 and X2 into
     # 16.16 precision
@@ -413,14 +417,22 @@ RDPQ_Triangle:
     vsra  vx12_i, vx12_f, 2;                       
     vsll8 vx12_f, vx12_f, 14;           
 
-    vmrg vattr1, vtmp1;                         
-    vmrg vattr2, vtmp2;                         ssv isl_i, 12,s3
-    vmrg vattr3, vtmp3;                         ssv isl_f, 14,s3
+    # Move S/T into the attribute vector,
+    # preserving the other components. VCC
+    # was set to 0xCF before, so that only
+    # the S/T elements (.e4/.e5) are copied
+    vmrg vattr1, vtex1;                         
+    vmrg vattr2, vtex2;                         ssv isl_i, 12,s3
+    vmrg vattr3, vtex3;                         ssv isl_f, 14,s3
 
     # Finish computing XH/XM by adidng
     # X0/X1                                     # Store X2 value in output (as XL)
     vaddc vedges_f, vx12_f.e0;                  ssv vx12_i.e2,  8,s3  # XL_I
     vadd  vedges_i, vx12_i.e0;                  ssv vx12_f.e2, 10,s3  # XL_F
+
+    #undef vtex1
+    #undef vtex2
+    #undef vtex3
 
     ########################################################
     # ATTRIBUTES
