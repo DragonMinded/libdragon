@@ -460,11 +460,16 @@ RSPQ_Loop:
 1:
 #endif
 
-    jal RSPQ_CheckHighpri
-    li t0, 0
+    # Read SP_STATUS to check for highpri
+    mfc0 t2, COP0_SP_STATUS
 
-    # Read first word
+    # Read first word of the command
     lw a0, %lo(RSPQ_DMEM_BUFFER) + 0x0 (rspq_dmem_buf_ptr)
+
+    # Check if highpri mode is requested (and not already running)
+    li t0, SP_STATUS_SIG_HIGHPRI_REQUESTED
+    andi t2, SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING
+    beq t2, t0, rspq_switch_highpri
 
     # Index into overlay table
     srl t0, a0, 28
@@ -483,59 +488,40 @@ RSPQ_Loop:
 
     # Load overlay index from overlay table
     lbu ovl_index, %lo(RSPQ_OVERLAY_TABLE)(t0)
+    
+    # Load the command base (index of the first command of the overlay).
+    lhu t0, %lo(_ovl_data_start) + 0x4
+
+    # <stall cycle> Initial vshift in preparation to running the command
+    lqv vshift,  0x00,zero
+
     #if RSPQ_DEBUG
     assert_ne ovl_index, 0, ASSERT_INVALID_OVERLAY
     #endif
+    
     # Check if the requested overlay is already in memory
-    beq ovl_index, t1, rspq_overlay_loaded
-    lhu t0, %lo(_ovl_data_start) + 0x2
-
-#if RSPQ_PROFILE
-    mfc0 t3, COP0_DP_CLOCK
-#endif
-
-    # Save current overlay state
-    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x8 (t1)
-    jal DMAOutAsync
-    lhu s4, %lo(_ovl_data_start) + 0x0
-
-    # Load overlay data (saved state is included)
-    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
-    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
-    jal DMAInAsync
-    li s4, %lo(_ovl_data_start)
-
-    # Load overlay code
-    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
-    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
-    jal DMAIn
-    li s4, %lo(_ovl_text_start)
-
-    # Remember loaded overlay
-    sh ovl_index, %lo(RSPQ_CURRENT_OVL)
-
-#if RSPQ_PROFILE
-    mfc0 t0, COP0_DP_CLOCK
-    subu t0, t3
-    jal RSPQ_ProfileAccumulate
-    li s0, RSPQ_PROFILE_OVL_SWITCH_SLOT*RSPQ_PROFILE_SLOT_SIZE
-#endif
+    bne ovl_index, t1, rspq_load_overlay
 
 rspq_overlay_loaded:
-    # Subtract the command base to determine the final offset into the command table.
-    lhu t0, %lo(_ovl_data_start) + 0x4
-    sub cmd_index, t0
+     # Subtract the command base to determine the final offset into the command table.
+     sub cmd_index, t0
 
     # Load command descriptor from overlay command table
     lhu cmd_desc, %lo(_ovl_data_start) + OVERLAY_HEADER_SIZE(cmd_index)
 
 rspq_execute_command:
+    # Load second command word                                  # Calculate vshift8
+    lw a1, %lo(RSPQ_DMEM_BUFFER) + 0x4 (rspq_dmem_buf_ptr);     vmudn vshift8, vshift, K128
+
+    # Prepare constant for comparison later
+    li t1, RSPQ_DMEM_BUFFER_SIZE;                               vmadn vshift8, vshift, K128
+
     #if RSPQ_DEBUG
     assert_ne cmd_desc, 0, ASSERT_INVALID_COMMAND
     #endif
 
-    # Command size
-    srl rspq_cmd_size, cmd_desc, 8
+    # Extract command size in bytes                             # Initialize vzero
+    srl rspq_cmd_size, cmd_desc, 8;                             vxor vzero, vzero
     andi rspq_cmd_size, 0xFC
 
     # Check if the command is truncated because of buffer overflow (that is,
@@ -546,19 +532,13 @@ rspq_execute_command:
     # wasteful but saves us a few instructions (that would be required to check
     # whether we are then trying to load a command outside of the buffer).
     addu t0, rspq_dmem_buf_ptr, rspq_cmd_size
-    bge t0, RSPQ_DMEM_BUFFER_SIZE, rspq_fetch_buffer
+    bge t0, t1, rspq_fetch_buffer
 
-    # Load second to fourth command words (might be garbage, but will never be read in that case)
+    # Load third to fourth command words (might be garbage, but will never be read in that case)
     # This saves some instructions in all overlays that use more than 4 bytes per command.
-    lw a1, %lo(RSPQ_DMEM_BUFFER) + 0x4 (rspq_dmem_buf_ptr)
     lw a2, %lo(RSPQ_DMEM_BUFFER) + 0x8 (rspq_dmem_buf_ptr)
     lw a3, %lo(RSPQ_DMEM_BUFFER) + 0xC (rspq_dmem_buf_ptr)
     add rspq_dmem_buf_ptr, rspq_cmd_size
-
-    # Initialize vzero, vshift, vshift8.
-    vxor vzero, vzero,0
-    lqv vshift,  0x00,zero
-    lqv vshift8, 0x10,zero
 
     # Jump to command. Set ra to the loop function, so that commands can 
     # either do "j RSPQ_Loop" or "jr ra" (or a tail call) to get back to the main loop
@@ -578,43 +558,60 @@ rspq_execute_command:
     jr cmd_desc
     li ra, %lo(RSPQ_Loop)
 
+
+rspq_load_overlay:
+#if RSPQ_PROFILE
+    mfc0 t3, COP0_DP_CLOCK
+#endif
+
+    # Restore full command index before switching overlay
+    addu cmd_index, t0
+
+    # Save current overlay state
+    lhu t0, %lo(_ovl_data_start) + 0x2
+    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x8 (t1)
+    jal DMAOutAsync
+    lhu s4, %lo(_ovl_data_start) + 0x0
+
+    # Load overlay data (saved state is included)
+    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
+    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
+    jal DMAInAsync
+    li s4, %lo(_ovl_data_start)
+
+    # Load overlay code
+    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
+    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
+    jal DMAIn
+    li s4, %lo(_ovl_text_start)
+
+    # Load new overlay command base
+    lhu t0, %lo(_ovl_data_start) + 0x4
+
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    subu t0, t3
+    jal RSPQ_ProfileAccumulate
+    li s0, RSPQ_PROFILE_OVL_SWITCH_SLOT*RSPQ_PROFILE_SLOT_SIZE
+#endif
+
+    j rspq_overlay_loaded
+    sh ovl_index, %lo(RSPQ_CURRENT_OVL)
+
+
     #undef ovl_index
     #undef cmd_index
     #undef cmd_desc
     .endfunc
 
-    ############################################################
-    # RSPQ_CheckHighpri
-    #
-    # Polling function. Check whether the highpri mode has been
-    # requested by the CPU, and if so start executing it right away.
-    #
-    # This is called by the main loop automatically between each
-    # command, but can be also polled by any overlay function
-    # that takes a long time and want to yield. In this case, 
-    # the same command will be executed again when the highpri queue
-    # is finished, so make sure there is state to continue rather
-    # than restart the execution.
-    #
-    # ARGS:
-    #   t0: size of the current command
-    ############################################################
-
-    .func RSPQ_CheckHighpri
-RSPQ_CheckHighpri:
-    # We need to enter high-pri mode if highpri was requested and it is not
-    # already running (to avoid infinite loops).
-    mfc0 t2, COP0_SP_STATUS
-    andi t2, SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING
-    bne t2, SP_STATUS_SIG_HIGHPRI_REQUESTED, JrRa
-
+    .func rspq_switch_highpri
+rspq_switch_highpri:
     # Switch to highpri mode, calling RSPQCMD_SwapBuffers. We prepare the
     # argument to switch to the highpri buffer, clears the highpri requested
     # signal, and set the highpri running signal.
     li a2, SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
     li a0, RSPQ_HIGHPRI_CALL_SLOT<<2
     li a1, RSPQ_LOWPRI_CALL_SLOT<<2
-    sub rspq_dmem_buf_ptr, t0
     #fallthrough
     .endfunc
 
