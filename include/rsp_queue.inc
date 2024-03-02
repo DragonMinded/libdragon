@@ -350,6 +350,7 @@ RSPQ_PROFILE_START_TIME:      .long 0
 RSPQ_CURRENT_OVL:             .half 0
 
     .align 4
+    SCRATCH_MEM: # the following 32-bytes can be used by any overlay as temporary scratch-memory
     .ascii "Dragon RSP Queue"
     .ascii "Rasky & Snacchus"
 
