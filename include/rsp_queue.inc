@@ -585,9 +585,6 @@ rspq_load_overlay:
     jal DMAIn
     li s4, %lo(_ovl_text_start)
 
-    # Load new overlay command base
-    lhu t0, %lo(_ovl_data_start) + 0x4
-
 #if RSPQ_PROFILE
     mfc0 t0, COP0_DP_CLOCK
     subu t0, t3
@@ -595,6 +592,8 @@ rspq_load_overlay:
     li s0, RSPQ_PROFILE_OVL_SWITCH_SLOT*RSPQ_PROFILE_SLOT_SIZE
 #endif
 
+    # Load new overlay command base
+    lhu t0, %lo(_ovl_data_start) + 0x4
     j rspq_overlay_loaded
     sh ovl_index, %lo(RSPQ_CURRENT_OVL)
 
