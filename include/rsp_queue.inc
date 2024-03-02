@@ -268,9 +268,7 @@ _RSPQ_SAVED_STATE_END:
 _data_start:
 
 # Data for vector shift registers.
-# We put this at the top of the DMEM as we need an absolute address to save one opcode.
     vsll_data
-    vsll8_data
 
 # Overlay tables. See rsp_overlay_t in rsp.c
 RSPQ_OVERLAY_TABLE:           .ds.b RSPQ_OVERLAY_TABLE_SIZE

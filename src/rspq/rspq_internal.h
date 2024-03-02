@@ -262,7 +262,7 @@ typedef struct rsp_queue_s {
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
 /** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
-#define RSPQ_DATA_ADDRESS                32
+#define RSPQ_DATA_ADDRESS                16
 
 /** @brief ID of the last syncpoint reached by RSP. */
 extern volatile int __rspq_syncpoints_done;
