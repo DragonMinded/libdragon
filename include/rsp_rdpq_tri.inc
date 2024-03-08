@@ -310,10 +310,10 @@ RDPQ_Triangle_Send_Async:
     #define vslopem2_f   $v01
     #define vslopem2_i   $v02
 
-    #define prim_size       t6
-    #define color_dmem      t3
-    #define tex_dmem        t4
-    #define z_dmem          t5
+    #define prim_size       t3
+    #define color_dmem      t4
+    #define tex_dmem        t5
+    #define z_dmem          t6
 
     # Prepare 32-bit number containing the source of the reciprocal
     # Notice that we're calculating NR over 1 32-bit input (NZ) and
@@ -672,8 +672,11 @@ rdpq_triangle_change_buffer:
     sw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
     sw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
 
-    # Save primitive size. As scratch buffer, we use a part of the primitive
-    # buffer that will be written later, after we return to the happy-path.
+    # We are going to call RSPQCmd_RdpSetBuffer. Since it's going to destroy
+    # t0-t3, we need to save prim_size (t3). Notice that we rely on the fact
+    # that it doesn't destroy t4-t6 (which contain the various DMEM pointers).
+    # As scratch buffer, we use a part of the primitive buffer that will be
+    # written later, after we return to the happy-path.
     sb prim_size, 0x00(color_dmem)
 
     add rdram_sentinel, rdram_cur, RDPQ_DYNAMIC_BUFFER_SIZE
@@ -701,6 +704,9 @@ rdpq_triangle_dma_busy:
     nop
 
     .endfunc
+
+    #undef rdram_cur
+    #undef rdram_sentinel
 
 
     #####################################################################
