@@ -121,6 +121,8 @@ the following rules:
    - Byte 12..13: Offset of the ELF header in ROM, in 256-byte pages. Multiply
      by 256 to obtain the byte offset.
    - Byte 14..15: reserved
+ * Register state at boot is undefined, except for the following:
+   - $sp points to the end of the available RDRAM, so it can be used as a stack there. 
 
 If something doesn't work, try using the development version of IPL3
 (`ipl3_dev.z64`), that will log warnings and errors on both emulators and
