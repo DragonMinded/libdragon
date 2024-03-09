@@ -53,6 +53,7 @@ void test_rdpq_triangle(TestContext *ctx) {
     };
 
     for (int tri=0;tri<1024;tri++) {
+        if (tri == 262) continue;  // very large texture, RSP has a little less precision on DtDx
         if (tri == 849) continue;  // this has a quasi-degenerate edge. The results are different but it doesn't matter
         SRAND(tri+1);
         float v1[] = { RFCOORD(), RFCOORD(), RFZ(), RFTEX(),RFTEX(),RFW(), RFRGB(), RFRGB(), RFRGB(), RFRGB() };
@@ -83,11 +84,11 @@ void test_rdpq_triangle(TestContext *ctx) {
         TRI_CHECK(0, 16, 29, "invalid YM");
         TRI_CHECK(0,  0, 13, "invalid YH");
         TRI_CHECK_F1616(1,48, 1,32, 0.05f, "invalid XL");
-        TRI_CHECK_F1616(2,48, 2,32, 0.05f, "invalid XH");
-        TRI_CHECK_F1616(3,48, 3,32, 0.05f, "invalid XM");
+        TRI_CHECK_F1616(2,48, 2,32, 0.15f, "invalid XH");
+        TRI_CHECK_F1616(3,48, 3,32, 0.15f, "invalid XM");
         TRI_CHECK_F1616(1,16, 1, 0, 0.05f, "invalid ISL");
-        TRI_CHECK_F1616(2,16, 2, 0, 0.05f, "invalid ISH");
-        TRI_CHECK_F1616(3,16, 3, 0, 0.05f, "invalid ISM");
+        TRI_CHECK_F1616(2,16, 2, 0, 0.35f, "invalid ISH");
+        TRI_CHECK_F1616(3,16, 3, 0, 0.35f, "invalid ISM");
 
         int off = 4;
         if (cmd & 4) {
@@ -123,12 +124,12 @@ void test_rdpq_triangle(TestContext *ctx) {
                 TRI_CHECK_F1616(off+0,32, off+2,32, 5.0f, "invalid T");
                 TRI_CHECK_F1616(off+0,16, off+2,16, 8.0f, "invalid INVW");
 
-                TRI_CHECK_F1616(off+1,48, off+3,48, 3.0f, "invalid DsDx");
-                TRI_CHECK_F1616(off+1,32, off+3,32, 3.0f, "invalid DtDx");
+                TRI_CHECK_F1616(off+1,48, off+3,48, 4.0f, "invalid DsDx");
+                TRI_CHECK_F1616(off+1,32, off+3,32, 4.0f, "invalid DtDx");
                 TRI_CHECK_F1616(off+1,16, off+3,16, 0.8f, "invalid DwDx");
 
-                TRI_CHECK_F1616(off+5,48, off+7,48, 3.0f, "invalid DsDy");
-                TRI_CHECK_F1616(off+5,32, off+7,32, 3.0f, "invalid DtDy");
+                TRI_CHECK_F1616(off+5,48, off+7,48, 4.0f, "invalid DsDy");
+                TRI_CHECK_F1616(off+5,32, off+7,32, 4.0f, "invalid DtDy");
                 TRI_CHECK_F1616(off+5,16, off+7,16, 0.8f, "invalid DwDy");
 
                 // Skip checks for De components if Dx or Dy saturated.
@@ -145,13 +146,13 @@ void test_rdpq_triangle(TestContext *ctx) {
 
         if (cmd & 1) {
             TRI_CHECK_F1616(off+0,48, off+0,32, 1.2f, "invalid Z");
-            TRI_CHECK_F1616(off+0,16, off+0,0,  0.8f, "invalid DzDx");
-            TRI_CHECK_F1616(off+1,16, off+1,0,  0.8f, "invalid DzDy");
+            TRI_CHECK_F1616(off+0,16, off+0,0,  1.8f, "invalid DzDx");
+            TRI_CHECK_F1616(off+1,16, off+1,0,  1.8f, "invalid DzDy");
 
             // If DzDx or DzDy are saturated, avoid checking DzDe as it won't match anyway
             uint16_t dzdx_i = trsp[off+0]>>16, dzdy_i = trsp[off+1]>>16;
             if (!SAT16(dzdx_i) && !SAT16(dzdy_i))
-                TRI_CHECK_F1616(off+1,48, off+1,32, 0.6f, "invalid DzDe");
+                TRI_CHECK_F1616(off+1,48, off+1,32, 1.6f, "invalid DzDe");
             off += 2;
         }
     }

@@ -114,7 +114,6 @@ RDPQ_TRI_DATA1:          .dcb.l 7
     .align 4
 RDPQ_TRI_DATA2:          .dcb.l 7
 
-
     RSPQ_EndSavedState
 
     .bss
@@ -708,9 +707,9 @@ RDPQCmd_Triangle:
     li v0, 2   # disable culling
     li a1, %lo(RDPQ_TRI_DATA0)
     li a2, %lo(RDPQ_TRI_DATA1)
-    jal RDPQ_Triangle
+    jal RDPQ_Triangle_Send_Async
     li a3, %lo(RDPQ_TRI_DATA2)
-    jal_and_j RDPQ_Send, RSPQ_Loop
+    jal_and_j RDPQ_Triangle_Send_End, RSPQ_Loop
 
 #endif /* RDPQ_TRIANGLE_REFERENCE */
     .endfunc
