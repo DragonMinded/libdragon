@@ -93,8 +93,6 @@ void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg/pl_mpeg.h"
 
-#include "yuv.h"
-
 void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 	memset(mp2, 0, sizeof(mpeg2_t));
 
@@ -129,9 +127,7 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 		mp2->yuv_blitter = yuv_blitter_new_fmv(
 			width, height,
 			display_get_width(), display_get_height(),
-			&(yuv_fmv_parms_t){
-				.cs = &YUV_BT709_FULL,
-			});
+			NULL);
 	}
 
 	profile_init();
