@@ -508,6 +508,13 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
     return true;
 }
 
+void glTexSizeN64(GLushort width, GLushort height)
+{
+    width <<= TEX_COORD_SHIFT;
+    height <<= TEX_COORD_SHIFT;
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_size[0]), (width << 16) | height);
+}
+
 extern inline uint32_t next_pow2(uint32_t v);
 extern inline bool is_in_heap_memory(void *ptr);
 extern inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint32_t flag, bool value);

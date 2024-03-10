@@ -187,6 +187,36 @@ void render()
     glDisable(GL_LIGHTING);
     render_primitives(rotation);
 
+    // Draw a primitive with GL_RDPQ_TEXTURING_N64
+    glEnable(GL_RDPQ_TEXTURING_N64);
+    glEnable(GL_RDPQ_MATERIAL_N64);
+
+    // When rendering with GL_RDPQ_TEXTURING_N64 we need to manualy specify the
+    // tile size and if a 0.5 offset should be used since the ucode itself cannot
+    // determine these. Here we set the tile size to be 32x32 and we apply an offset
+    // since we are using bilinear texture filtering
+    glTexSizeN64(32, 32);
+    rdpq_sprite_upload(TILE0, sprites[0], &(rdpq_texparms_t){.s.repeats = REPEAT_INFINITE, .t.repeats = REPEAT_INFINITE});
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+
+    glBegin(GL_TRIANGLE_FAN);
+        glTexCoord2f(0.0f, 0.0f);
+        glVertex3f(-5.5f, 1.0f, -1.0f);
+
+        glTexCoord2f(0.0f, 1.0f);
+        glVertex3f(-5.5f, 1.0f, 1.0f);
+
+        glTexCoord2f(1.0f, 1.0f);
+        glVertex3f(-3.5f, 1.0f, 1.0f);
+
+        glTexCoord2f(1.0f, 0.0f);
+        glVertex3f(-3.5f, 1.0f, -1.0f);
+    glEnd();
+
+    glDisable(GL_RDPQ_TEXTURING_N64);
+    glDisable(GL_RDPQ_MATERIAL_N64);
+
     gl_context_end();
 
     rdpq_detach_show();

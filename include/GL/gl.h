@@ -470,6 +470,8 @@ GLboolean glIsTexture(GLuint texture);
 #define glCopyTexSubImage1D(target, level, xoffset, x, y, width) _GL_UNSUPPORTED(glCopyTexSubImage1D)
 #define glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height) _GL_UNSUPPORTED(glCopyTexSubImage2D)
 
+void glTexSizeN64(GLushort width, GLushort height);
+
 /* Fog */
 
 void glFogi(GLenum pname, GLint param);
