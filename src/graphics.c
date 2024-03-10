@@ -119,6 +119,9 @@ static uint32_t b_color = 0x00000000;
  * This is exactly the same as calling `graphics_convert_color(RGBA32(r,g,b,a))`.
  * Refer to #graphics_convert_color for more information.
  *
+ * @deprecated By switching to the rdpq API, this function should not be required
+ * anymore. Use #RGBA32 or #RGBA16 instead. Please avoid using it in new code if possible.
+ *
  * @param[in] r
  *            8-bit red value
  * @param[in] g
@@ -157,6 +160,9 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
  * in BOTH the lower 16 bits and the upper 16 bits. In general, this is not necessary.
  * However, for drawing with the old deprecated RDP API (in particular,
  * rdp_set_primitive_color), this is still required.
+ * 
+ * @deprecated By switching to the rdpq API, this function should not be required
+ * anymore. Please avoid using it in new code if possible.
  * 
  * @param[in] color
  *            A color structure representing an RGBA color

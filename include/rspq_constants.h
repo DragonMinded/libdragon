@@ -24,6 +24,11 @@
 #define RSPQ_LOWPRI_CALL_SLOT          (RSPQ_MAX_BLOCK_NESTING_LEVEL+0)  ///< Special slot used to store the current lowpri pointer
 #define RSPQ_HIGHPRI_CALL_SLOT         (RSPQ_MAX_BLOCK_NESTING_LEVEL+1)  ///< Special slot used to store the current highpri pointer
 
+/** Signal used by RDP SYNC_FULL command to notify that an interrupt is pending */
+#define SP_STATUS_SIG_RDPSYNCFULL              SP_STATUS_SIG1
+#define SP_WSTATUS_SET_SIG_RDPSYNCFULL         SP_WSTATUS_SET_SIG1
+#define SP_WSTATUS_CLEAR_SIG_RDPSYNCFULL       SP_WSTATUS_CLEAR_SIG1
+
 /** Signal used by RSP to notify that a syncpoint was reached */
 #define SP_STATUS_SIG_SYNCPOINT                SP_STATUS_SIG2
 #define SP_WSTATUS_SET_SIG_SYNCPOINT           SP_WSTATUS_SET_SIG2

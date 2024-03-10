@@ -8,10 +8,12 @@
 
 #include <rsp.inc>
 #include <rspq_constants.h>
+#include <rdpq_constants.h>
 
 ########################################################
 #
 # HOW TO WRITE AN OVERLAY:
+#
 # 1. Put `#include <rsp_queue.inc>` before any text or data
 #    segments in your file.
 # 2. Define the overlay header using RSPQ_BeginOverlayHeader
@@ -109,7 +111,7 @@ _RSPQ_OVERLAY_COMMAND_TABLE:
 # its size must not be zero.
 ########################################################
 .macro RSPQ_BeginSavedState
-    .align 3
+    .align 4
 _RSPQ_SAVED_STATE_START:
 .endm
 
@@ -228,22 +230,23 @@ _RSPQ_SAVED_STATE_END:
 
 # We also define direct access to small constants as they can be useful in some
 # calculations.
-#define K1       vshift,e(7)
-#define K2       vshift,e(6)
-#define K4       vshift,e(5)
-#define K8       vshift,e(4)
-#define K16      vshift,e(3)
-#define K32      vshift,e(2)
-#define K64      vshift,e(1)
-#define K128     vshift,e(0)
-#define K256     vshift8,e(7)
-#define K512     vshift8,e(6)
-#define K1024    vshift8,e(5)
-#define K2048    vshift8,e(4)
-#define K4096    vshift8,e(3)
-#define K8192    vshift8,e(2)
-#define K16384   vshift8,e(1)
-#define KM32768  vshift8,e(0)    // note: this is actually -32768 for most arithmetic operations
+#define K1       vshift.e7
+#define K2       vshift.e6
+#define K4       vshift.e5
+#define K8       vshift.e4
+#define K16      vshift.e3
+#define K32      vshift.e2
+#define K64      vshift.e1
+#define K128     vshift.e0
+#define K256     vshift8.e7
+#define K512     vshift8.e6
+#define K1024    vshift8.e5
+#define K2048    vshift8.e4
+#define K4096    vshift8.e3
+#define K8192    vshift8.e2
+#define K16384   vshift8.e1
+#define K32768   vshift8.e0
+#define KM32768  vshift8.e0    // note: this is actually -32768 for most arithmetic operations
 
 
 ########################################################
@@ -281,6 +284,58 @@ RSPQ_POINTER_STACK:           .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 # RDRAM address of the current command list.
 RSPQ_RDRAM_PTR:               .long 0
 
+################################################################
+# RDPQ shared state
+#
+# The next variables are state managed by rsp_rdpq.inc.
+# Not all overlays need rsp_rdpq.inc, but those that do, need
+# this state to be shared among all of them. We don't have
+# a way to do that currently, so the best workaround is to
+# keep this shared state in the rspq state itself, which is
+# always loaded in DMEM. This wastes some DMEM for overlays
+# that don't need to generate RDP commands, but it's the least
+# worse solution we can currently come up with.
+################################################################
+
+# Pointer to the end of the current RDP output buffer
+RDPQ_SENTINEL:              .long 0
+
+# RDP MODE (32 bytes). NOTE: This must be 16-byte aligned (because we use lqv in push/pop),
+# but we can't use .align 4 here, otherwise it's not easy to keep this structure layout
+# in sync with the C side (rdpq_state_t in rdpq.c).
+RDPQ_MODE:
+    # Combiner formula set by the application (1pass or 2pass)
+    RDPQ_COMBINER:               .quad  0
+    RDPQ_COMBINER_MIPMAPMASK:    .quad  0
+    # Blender settings: up to two steps. Either of them
+    # is already in a format valid for both 1cyc and 2cyc mode.
+    RDPQ_MODE_BLENDER_STEPS:     .word  0,0
+    # Curent state of "Set Other Modes" RDP mode command, plus our own extension
+    # fields (see SOMX_* in rdpq_macros.h). Notice that the top byte also contains
+    # extensions fields, so when sending this command to RDP, the top byte must be
+    # changed with the SOM command ID (0xEF) in the RDP output buffer.
+    RDPQ_OTHER_MODES:            .quad  0
+RDPQ_MODE_END:
+
+# Current scissor rectangle (in RDP commmand format)
+RDPQ_SCISSOR_RECT:           .quad 0
+# Two RDP output buffers (to alternate between)
+RDPQ_DYNAMIC_BUFFERS:        .long 0, 0
+# Current RDP write pointer (8 MSB are garbage)
+RDPQ_CURRENT:                .long 0
+# Current fill color
+RDPQ_FILL_COLOR:             .word  0
+# Current target buffer color depth
+RDPQ_TARGET_BITDEPTH:        .byte  0
+# True if there is a SYNC_FULL command in the current RDP output buffer
+RDPQ_SYNCFULL_ONGOING:       .byte  0
+# True if the rdpq debug mode is active (validator). TODO: hide this bit elsewhere to save one byte
+RDPQ_DEBUG:                  .byte 0
+
+################################################################
+# End of RDPQ shared state
+################################################################
+
 # Index (not ID!) of the current overlay, as byte offset in the descriptor array
 RSPQ_CURRENT_OVL:             .half 0
 
@@ -299,15 +354,14 @@ RSPQ_DefineCommand RSPQCmd_Dma,             16    # 0x05
 RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
+RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
+RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
 
+    .align 3
 #if RSPQ_DEBUG
-    .align 3
-RSPQ_LOG_IDX:                .long 0
-RSPQ_LOG:                    .ds.l 16
-RSPQ_LOG_END:                .long RSPQ_DEBUG_MARKER
+                             .long 0, RSPQ_DEBUG_MARKER
 #endif
-
-    .align 3
 RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
 
 
@@ -383,14 +437,6 @@ RSPQ_Loop:
 
     # Read first word
     lw a0, %lo(RSPQ_DMEM_BUFFER) + 0x0 (rspq_dmem_buf_ptr)
-
-#if RSPQ_DEBUG
-    lw t0, %lo(RSPQ_LOG_IDX)
-    sw a0, %lo(RSPQ_LOG)(t0)
-    addi t0, 4
-    andi t0, 16*4-1
-    sw t0, %lo(RSPQ_LOG_IDX)
-#endif
 
     # Index into overlay table
     srl t0, a0, 28
@@ -652,6 +698,120 @@ RSPQCmd_Dma:
     move t0, a2
     j DMAExec
     move t2, a3
+    .endfunc
+
+    #############################################################
+    # RSPQCmd_RdpSetBuffer
+    # 
+    # Configure a new output buffer in RDRAM for RDP. This can be
+    # used to either send a buffer of commands to RDP, or to setup
+    # a buffer for generation of new RDP commands.
+    # In fact, a1/a0 will be written to DP_START/DP_END, so if
+    # DP_END > DP_START, the commands contained in the buffer will
+    # be immediately processed by RDP. If DP_START==DP_END, the buffer
+    # is basically "stored" in the RDP registers but nothing happens:
+    # subsequent calls to RSPQ_RdpSend will append commands to it,
+    # until the sentinel (a2) is hit, which means that the buffer is
+    # full. At this point, RSPQ_RdpSend will get back to the
+    # standard buffers (RDPQ_DYNAMIC_BUFFERS).
+    #
+    # ARGS:
+    #   a0: New end pointer (to write to DP_END)
+    #   a1: New start buffer (to write to DP_START)
+    #   a2: New sentinel (end of total capacity of the buffer)
+    #
+    # NOTE: if the sentinel is 0, the command will force a switch
+    #       to the RDPQ dynamic buffer (the next one). This will happen
+    #       as soon as next RDPQ_Send is run.
+    #############################################################
+    .func RSPQCmd_RdpSetBuffer
+RSPQCmd_RdpSetBuffer:
+    # Update the sentinel. If zero, there's nothing more to do: next
+    # RDPQ_Send will switch to the next dynamic buffer.
+    sw a2, %lo(RDPQ_SENTINEL)
+    beqz a2, JrRa
+    move ra2, ra
+
+    # Wait for RDP DMA FIFO to be not full. If there's another
+    # pending buffer, we cannot do anything but wait.
+    lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
+    jal RSPQ_RdpWait
+    ori t3, DP_STATUS_END_VALID
+
+    # In case there was a SYNC_FULL pending, before switching to next buffer, we need
+    # to actually write the current one to RDP. Notice that the following two instructions
+    # are actually nops in case there was no SYNC_FULL (as DP_END == RDPQ_CURRENT in that case).
+    sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
+    lw t0, %lo(RDPQ_CURRENT)
+#ifdef NDEBUG
+    mtc0 t0, COP0_DP_END
+#else
+    # Check if the RDPQ debug mode is active (validator)
+    lbu t2, %lo(RDPQ_DEBUG)
+    beqz t2, 1f
+    mtc0 t0, COP0_DP_END
+
+    # Generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END.
+    # Then also wait until the CPU has acknowledged fetching the buffer (via SIG0)
+    # so that we absolutely don't lose the buffer.
+    jal SpStatusWait
+    li t2, SP_STATUS_SIG0
+    li t0, SP_WSTATUS_SET_SIG0 | SP_WSTATUS_SET_INTR
+    mtc0 t0, COP0_SP_STATUS
+    jal SpStatusWait
+    li t2, SP_STATUS_SIG0
+#endif
+1:  move ra, ra2
+
+    # Write new start buffer pointer, and fallthrough to 
+    # RSPQCmd_RdpAppendBuffer to write the new end pointer
+    mtc0 a1, COP0_DP_START
+    # fallthrough!
+    .endfunc
+
+
+    #############################################################
+    # RSPQCmd_RdpAppendBuffer
+    # 
+    # Tell RDP to run more commands that were appended to the end
+    # of the current RDP output buffer.
+    #
+    # ARGS:
+    #   a0: New end pointer (to write to DP_END)
+    #############################################################
+    .func RSPQCmd_RdpAppendBuffer
+RSPQCmd_RdpAppendBuffer:
+    lbu t0, %lo(RDPQ_SYNCFULL_ONGOING)
+    bnez t0, JrRa
+    sw a0, %lo(RDPQ_CURRENT)
+    jr ra
+    mtc0 a0, COP0_DP_END
+    .endfunc
+
+    #############################################################
+    # RSPQCmd_RdpWaitIdle
+    #
+    # Wait until RDP is idle. 
+    # 
+    # *NOTE*: a SYNC_FULL command *must* have been already written
+    # to the RDP output buffer,  otherwise this function will stall
+    # forever. In fact, once the RDP is running, it never gets back
+    # to idle state until a SYNC_FULL is found, even if it has no
+    # more commands to run.
+    #############################################################
+    .func RSPQCmd_RdpWaitIdle
+RSPQCmd_RdpWaitIdle:
+    li t3, DP_STATUS_BUSY
+
+RSPQ_RdpWait:
+    mfc0 t2, COP0_DP_STATUS
+1:
+    # Wait for selected RDP status bits to become 0.
+    and t1, t2, t3
+    bnez t1, 1b
+    mfc0 t2, COP0_DP_STATUS
+    jr ra
+    nop
     .endfunc
 
 #include <rsp_dma.inc>
