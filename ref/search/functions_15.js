@@ -8,6 +8,6 @@ var searchData=
   ['wav64_5fset_5floop_5',['wav64_set_loop',['../wav64_8c.html#ac8b7880f777dec27e73713a6e78cd9e3',1,'wav64_set_loop(wav64_t *wav, bool loop):&#160;wav64.c'],['../wav64_8h.html#ac8b7880f777dec27e73713a6e78cd9e3',1,'wav64_set_loop(wav64_t *wav, bool loop):&#160;wav64.c']]],
   ['write_6',['write',['../group__system.html#gaeb8090da2a212e27317ea48ead1a19d6',1,'system.c']]],
   ['write_5fmempak_5faddress_7',['write_mempak_address',['../group__controller.html#ga2fb5932eaaa737aaad4fabe43dcf2bbd',1,'controller.c']]],
-  ['write_5fmempak_5fentry_5fdata_8',['write_mempak_entry_data',['../group__mempak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'mempak.c']]],
-  ['write_5fmempak_5fsector_9',['write_mempak_sector',['../group__mempak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'mempak.c']]]
+  ['write_5fmempak_5fentry_5fdata_8',['write_mempak_entry_data',['../group__cpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'write_mempak_entry_data(int controller, entry_structure_t *entry, uint8_t *data):&#160;mempak.c'],['../group__controllerpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'write_mempak_entry_data(int controller, entry_structure_t *entry, uint8_t *data):&#160;mempak.c']]],
+  ['write_5fmempak_5fsector_9',['write_mempak_sector',['../group__cpak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'write_mempak_sector(int controller, int sector, uint8_t *sector_data):&#160;mempak.c'],['../group__controllerpak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'write_mempak_sector(int controller, int sector, uint8_t *sector_data):&#160;mempak.c']]]
 ];

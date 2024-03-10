@@ -1,7 +1,7 @@
 var searchData=
 [
   ['g_0',['g',['../group__graphics.html#a7d1a9e3552401fc5f8882f6e0c2c82aa',1,'color_t']]],
-  ['game_5fid_1',['game_id',['../group__mempak.html#a33ec60ad39db8ebf53de0a72bee466bd',1,'entry_structure_t']]],
+  ['game_5fid_1',['game_id',['../group__controllerpak.html#a33ec60ad39db8ebf53de0a72bee466bd',1,'entry_structure_t']]],
   ['gameboy_5fcartridge_5fheader_2',['gameboy_cartridge_header',['../tpak_8h.html#structgameboy__cartridge__header',1,'']]],
   ['gameboy_5fcartridge_5fheader_2e_5f_5funnamed27_5f_5f_3',['gameboy_cartridge_header.__unnamed27__',['../tpak_8h.html#uniongameboy__cartridge__header_8____unnamed27____',1,'']]],
   ['gamma_5fcorrect_4',['GAMMA_CORRECT',['../group__display.html#gga35f19c13bdc2076bd91416021036e439a8185179fe454e1ca98bfe0cbd5227edf',1,'display.h']]],
@@ -72,8 +72,8 @@ var searchData=
   ['get_5fkeys_5fpressed_69',['get_keys_pressed',['../group__controller.html#ga4fa8c731f50728b6dac1e62237b77b8c',1,'controller.c']]],
   ['get_5fkeys_5fup_70',['get_keys_up',['../group__controller.html#gac4f138275a4e0fef9e40c529a5a3ecf3',1,'controller.c']]],
   ['get_5fmemory_5fsize_71',['get_memory_size',['../group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0',1,'n64sys.c']]],
-  ['get_5fmempak_5fentry_72',['get_mempak_entry',['../group__mempak.html#gaaa54d6b5cea4be11738f951318ebc758',1,'mempak.c']]],
-  ['get_5fmempak_5ffree_5fspace_73',['get_mempak_free_space',['../group__mempak.html#ga5b092c36dbd886af01b0c4be86554946',1,'mempak.c']]],
+  ['get_5fmempak_5fentry_72',['get_mempak_entry',['../group__cpak.html#gaaa54d6b5cea4be11738f951318ebc758',1,'get_mempak_entry(int controller, int entry, entry_structure_t *entry_data):&#160;mempak.c'],['../group__controllerpak.html#gaaa54d6b5cea4be11738f951318ebc758',1,'get_mempak_entry(int controller, int entry, entry_structure_t *entry_data):&#160;mempak.c']]],
+  ['get_5fmempak_5ffree_5fspace_73',['get_mempak_free_space',['../group__cpak.html#ga5b092c36dbd886af01b0c4be86554946',1,'get_mempak_free_space(int controller):&#160;mempak.c'],['../group__controllerpak.html#ga5b092c36dbd886af01b0c4be86554946',1,'get_mempak_free_space(int controller):&#160;mempak.c']]],
   ['get_5fticks_74',['get_ticks',['../group__n64sys.html#ga2d061fe138e49ae71e8716e35c0d3dc9',1,'get_ticks(void):&#160;n64sys.h'],['../group__n64sys.html#ga2d061fe138e49ae71e8716e35c0d3dc9',1,'get_ticks(void):&#160;n64sys.h']]],
   ['get_5fticks_5fms_75',['get_ticks_ms',['../group__n64sys.html#ga94e97719a22e4dbbe64f6264e82119a5',1,'get_ticks_ms(void):&#160;n64sys.h'],['../group__n64sys.html#ga94e97719a22e4dbbe64f6264e82119a5',1,'get_ticks_ms(void):&#160;n64sys.h']]],
   ['get_5ftv_5ftype_76',['get_tv_type',['../group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b',1,'n64sys.c']]],

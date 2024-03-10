@@ -21,14 +21,14 @@ var searchData=
   ['waveformread_18',['WaveformRead',['../mixer_8h.html#ab0e995bf04880a3e14f689f48fdb2475',1,'mixer.h']]],
   ['waves_19',['waves',['../xm64_8h.html#afcc767f3e79098a163b8fe95bee4690e',1,'xm64player_t']]],
   ['week_5fday_20',['week_day',['../group__rtc.html#a114773185cd5db69d5d6ee38800f63f1',1,'rtc_time_t']]],
-  ['width_21',['width',['../structsprite__ext__t.html#af6a092a603357d342d6b240d300aeb02',1,'sprite_ext_t::sprite_lod_s::width()'],['../group__rdp.html#adff334763a74e03368d0e936afea52fd',1,'sprite_cache::width()'],['../group__display.html#a19f266d9fac3a424655d72ef8311da01',1,'resolution_t::width()'],['../group__lowlevel.html#a7cbd8d998467d09f233c554a61aea742',1,'VI_regs_t::width()'],['../sprite_8h.html#a8d0f5ca9dc069850fc604107eb0f085d',1,'sprite_t::width()'],['../surface_8h.html#a4da37c9b386a4740ef024d3eb33bd090',1,'surface_t::width()']]],
+  ['width_21',['width',['../group__display.html#a19f266d9fac3a424655d72ef8311da01',1,'resolution_t::width()'],['../group__rdp.html#adff334763a74e03368d0e936afea52fd',1,'sprite_cache::width()'],['../structsprite__ext__t.html#af6a092a603357d342d6b240d300aeb02',1,'sprite_ext_t::sprite_lod_s::width()'],['../group__lowlevel.html#a7cbd8d998467d09f233c554a61aea742',1,'VI_regs_t::width()'],['../sprite_8h.html#a8d0f5ca9dc069850fc604107eb0f085d',1,'sprite_t::width()'],['../surface_8h.html#a4da37c9b386a4740ef024d3eb33bd090',1,'surface_t::width()']]],
   ['widx_22',['widx',['../samplebuffer_8h.html#acddf24dc95038f2a3c91119d224cb0b4',1,'samplebuffer_t']]],
   ['wpos_23',['wpos',['../samplebuffer_8h.html#a73e969a4d788679d42b3abae10258ada',1,'samplebuffer_t']]],
   ['write_24',['write',['../structfilesystem__t.html#a283b797a834091ca6c45c5ac9c5a940e',1,'filesystem_t::write()'],['../group__system.html#gaeb8090da2a212e27317ea48ead1a19d6',1,'write():&#160;system.c']]],
   ['write_5flength_25',['write_length',['../group__lowlevel.html#a49dc82d881cae5f21cd7d7f2c0d68466',1,'PI_regs_t']]],
   ['write_5fmempak_5faddress_26',['write_mempak_address',['../group__controller.html#ga2fb5932eaaa737aaad4fabe43dcf2bbd',1,'controller.c']]],
-  ['write_5fmempak_5fentry_5fdata_27',['write_mempak_entry_data',['../group__mempak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'mempak.c']]],
-  ['write_5fmempak_5fsector_28',['write_mempak_sector',['../group__mempak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'mempak.c']]],
+  ['write_5fmempak_5fentry_5fdata_27',['write_mempak_entry_data',['../group__cpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'write_mempak_entry_data(int controller, entry_structure_t *entry, uint8_t *data):&#160;mempak.c'],['../group__controllerpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'write_mempak_entry_data(int controller, entry_structure_t *entry, uint8_t *data):&#160;mempak.c']]],
+  ['write_5fmempak_5fsector_28',['write_mempak_sector',['../group__cpak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'write_mempak_sector(int controller, int sector, uint8_t *sector_data):&#160;mempak.c'],['../group__controllerpak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'write_mempak_sector(int controller, int sector, uint8_t *sector_data):&#160;mempak.c']]],
   ['wv_5fctx_29',['wv_ctx',['../samplebuffer_8h.html#aca1b67ad123f7e11ba0a9ba3d5aa462c',1,'samplebuffer_t']]],
   ['wv_5fread_30',['wv_read',['../samplebuffer_8h.html#a9bc76559025664618f3fcc8c3abde8e5',1,'samplebuffer_t']]]
 ];

@@ -76,8 +76,8 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="groups" name="groups"></a>
 Modules</h2></td></tr>
-<tr class="memitem:group__mempak"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__mempak.html">Mempak Filesystem Routines</a></td></tr>
-<tr class="memdesc:group__mempak"><td class="mdescLeft">&#160;</td><td class="mdescRight">Managed mempak interface. <br /></td></tr>
+<tr class="memitem:group__cpak"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html">Controller Pak Filesystem Routines</a></td></tr>
+<tr class="memdesc:group__cpak"><td class="mdescLeft">&#160;</td><td class="mdescRight">Managed Controller Pak interface. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:group__transferpak"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__transferpak.html">Transfer Pak interface</a></td></tr>
 <tr class="memdesc:group__transferpak"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak interface. <br /></td></tr>
@@ -248,7 +248,7 @@ Functions</h2></td></tr>
 <p >To perform direct reads to the controllers, call <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a>. This will return a structure consisting of all button states on all controllers currently inserted. Note that this function takes about 10% of a frame's worth of time.</p>
 <p >Controllers can be enumerated with <a class="el" href="group__controller.html#gaf9adab7d3d9543819c84f7064b1aa1c1" title="Return a bitmask representing which controllers are present.">get_controllers_present</a>. Similarly, accessories can be enumerated with <a class="el" href="group__controller.html#ga3b8cc7be547152d029df99d63c3f32c3" title="Return a bitmask specifying which controllers have recognized accessories.">get_accessories_present</a> and <a class="el" href="group__controller.html#ga61f79691c93aed5a6abaf2d962823680" title="Identify the accessory connected to a controller.">identify_accessory</a>.</p>
 <p >To enable or disable rumbling on a controller, use <a class="el" href="group__controller.html#ga309a5a14096994b5aa400c50dee2eb0f" title="Turn rumble on for a particular controller.">rumble_start</a> and <a class="el" href="group__controller.html#ga89c2c699a83e5c896352cedab3563285" title="Turn rumble off for a particular controller.">rumble_stop</a>. These functions will turn rumble on and off at full speed respectively, so if different rumble effects are desired, consider using the <a class="el" href="group__timer.html">Timer Subsystem</a> for accurate timing.</p>
-<p >A mempak attached to a controller can be treated in one of two ways: as a raw binary string, or as a formatted mempak with notes. The former allows storage of any data as long as it fits, in any format convenient to the coder, but destroys any non-homebrew data on the mempak. The latter is recommended as it is completely compatible with official N64 games, though it allows less data to be stored due to filesystem overhead. To read and write raw sectors, use <a class="el" href="group__controller.html#gafe8168c5c4e7457d88c56ce56ff6245e" title="Read a chunk of data from a mempak.">read_mempak_address</a> and <a class="el" href="group__controller.html#ga2fb5932eaaa737aaad4fabe43dcf2bbd" title="Write a chunk of data to a mempak.">write_mempak_address</a>. The <a class="el" href="group__mempak.html">Mempak Filesystem Routines</a> handles reading and writing from the mempak in a way compatible with official games. </p>
+<p >A mempak attached to a controller can be treated in one of two ways: as a raw binary string, or as a formatted mempak with notes. The former allows storage of any data as long as it fits, in any format convenient to the coder, but destroys any non-homebrew data on the mempak. The latter is recommended as it is completely compatible with official N64 games, though it allows less data to be stored due to filesystem overhead. To read and write raw sectors, use <a class="el" href="group__controller.html#gafe8168c5c4e7457d88c56ce56ff6245e" title="Read a chunk of data from a mempak.">read_mempak_address</a> and <a class="el" href="group__controller.html#ga2fb5932eaaa737aaad4fabe43dcf2bbd" title="Write a chunk of data to a mempak.">write_mempak_address</a>. The <a class="el" href="group__cpak.html">Controller Pak Filesystem Routines</a> handles reading and writing from the mempak in a way compatible with official games. </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="struct__SI__condat" id="struct__SI__condat"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#struct__SI__condat">&#9670;&nbsp;</a></span>_SI_condat</h2>
@@ -1339,7 +1339,7 @@ analog_r: 8</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Feb 12 2024 22:26:16 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Mar 10 2024 00:15:00 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

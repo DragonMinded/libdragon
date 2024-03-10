@@ -4,7 +4,7 @@ var searchData=
   ['n64sys_2ec_1',['n64sys.c',['../n64sys_8c.html',1,'']]],
   ['n64sys_2eh_2',['n64sys.h',['../n64sys_8h.html',1,'']]],
   ['n64types_2eh_3',['n64types.h',['../n64types_8h.html',1,'']]],
-  ['name_4',['name',['../rompak_8c.html#a0fd8de7aa9655d5316c773c1578034e6',1,'entry_t::name()'],['../group__mempak.html#a2b6ef9f926b80b33797c6989ef4018e7',1,'entry_structure_t::name()'],['../mixer_8h.html#adb40944ddf35cee0a6cd8f135de2b8d8',1,'waveform_t::name()'],['../structrsp__ucode__t.html#a8ea5f87dbbd2f922a67d8768b845d027',1,'rsp_ucode_t::name()'],['../ym64_8h.html#adcc9f5f6ca833cf0bd09c62875ffd758',1,'ym64player_songinfo_t::name()']]],
+  ['name_4',['name',['../rompak_8c.html#a0fd8de7aa9655d5316c773c1578034e6',1,'entry_t::name()'],['../group__controllerpak.html#a2b6ef9f926b80b33797c6989ef4018e7',1,'entry_structure_t::name()'],['../mixer_8h.html#adb40944ddf35cee0a6cd8f135de2b8d8',1,'waveform_t::name()'],['../structrsp__ucode__t.html#a8ea5f87dbbd2f922a67d8768b845d027',1,'rsp_ucode_t::name()'],['../ym64_8h.html#adcc9f5f6ca833cf0bd09c62875ffd758',1,'ym64player_songinfo_t::name()']]],
   ['nbits_5',['nbits',['../structwav64__header__t.html#a75fcad20f98c085f88156fd895bb4ec0',1,'wav64_header_t']]],
   ['ndigidrums_6',['ndigidrums',['../ym64_8c.html#a1f16bedca5d97f6c231fed87f10d6cf2',1,'ym5header']]],
   ['nesting_5flevel_7',['nesting_level',['../rspq_8c.html#aaeb635d42c80c9b4fb25576d740e209b',1,'rspq_block_t']]],
