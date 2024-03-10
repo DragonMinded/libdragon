@@ -55,7 +55,7 @@
  * non-homebrew data on the mempak.  The latter is recommended as it is completely
  * compatible with official N64 games, though it allows less data to be stored due to
  * filesystem overhead.  To read and write raw sectors, use #read_mempak_address and
- * #write_mempak_address.  The @ref mempak handles reading and writing from the mempak
+ * #write_mempak_address.  The @ref cpak handles reading and writing from the mempak
  * in a way compatible with official games.
  *
  * @{
