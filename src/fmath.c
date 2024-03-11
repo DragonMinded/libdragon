@@ -17,17 +17,12 @@ static const float half_pi_hi       =  1.57079637e+0f; //  0x1.921fb6p+0
 // static const float half_pi_lo       = -4.37113883e-8f; // -0x1.777a5cp-25
 
 __attribute__((noinline))
-float fm_sinf_approx(float x, int approx) {
+static float sinf_approx(float x, int approx) {
     // Approximation of sine to 5 ULP with Chebyshev polynomials
     // http://mooooo.ooo/chebyshev-sine-approximation/
     float p, s;
     assertf(approx >= 0 && approx <= 5, "invalid approximation level %d", approx);
 
-    // This function has been designed to operate in the [-π, +π] range, so
-    // bring the argument there. This reduction using fm_fmodf is not
-    // very accurate for large numbers, so it will introduce more error compared
-    // to the 5 ULP figure.
-    x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
     p = 0;
     s = x * x;
     // Execute only a portion of the series, depending on the approximation level.
@@ -41,6 +36,15 @@ float fm_sinf_approx(float x, int approx) {
     return x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;   
 }
 
+float fm_sinf_approx(float x, int approx) {
+    // sinf_approx has been designed to operate in the [-π, +π] range, so
+    // bring the argument there. This reduction using fm_fmodf is not
+    // very accurate for large numbers, so it will introduce more error compared
+    // to the 5 ULP figure.
+    x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
+    return sinf_approx(x, approx);
+}
+
 float fm_sinf(float x) {
     return fm_sinf_approx(x, 0);
 }
@@ -50,9 +54,14 @@ float fm_cosf(float x) {
 }
 
 void fm_sincosf(float x, float *sin, float *cos) {
-    float y = fm_sinf_approx(x, 0);
-    *sin = y;
-    *cos = sqrtf(1.0f - y * y);
+    x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
+    float sy = sinf_approx(x, 0);
+    float cy = sqrtf(1.0f - sy * sy);
+    if (fabsf(x) > half_pi_hi) {
+        cy = -cy;
+    }
+    *sin = sy;
+    *cos = cy;
 }
 
 float fm_atan2f(float y, float x) {
