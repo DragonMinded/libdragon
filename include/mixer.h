@@ -198,7 +198,7 @@ void mixer_ch_play(int ch, waveform_t *wave);
  * By default, the frequency is the one required by the waveform associated
  * to the channel, but this function allows to override.
  * 
- * This function must be called after mixer_ch_play, as otherwise the
+ * This function must be called after #mixer_ch_play, as otherwise the
  * frequency is reset to the default of the waveform.
  * 
  * @param[in]   ch              Channel index
@@ -213,7 +213,7 @@ void mixer_ch_set_freq(int ch, float frequency);
  * The position must be specified in number of samples (not bytes). Fractional
  * values account for accurate resampling position.
  *
- * This function must be called after mixer_ch_play, as otherwise the
+ * This function must be called after #mixer_ch_play, as otherwise the
  * position is reset to the beginning of the waveform.
  * 
  * @param[in]   ch              Channel index
@@ -284,6 +284,54 @@ bool mixer_ch_playing(int ch);
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz);
 
 /**
+ * @brief Throttle the mixer by specifying the maximum number of samples
+ *        it can generate.
+ * 
+ * This is an advanced function that should only be called to achieve perfect
+ * sync between a possibly slowing-down video and audio.
+ * 
+ * Normally, once the mixer is initiated and assuming mixer_poll is called
+ * frequently enough, the audio will playback uninterrupted, irrespective of
+ * any slow down in the main loop. This is the expected behavior for background
+ * music for instance, but it does not work for video players or cut-scenes in
+ * which the music must be perfectly synchronized with the video. If the video
+ * happens to slowdown, the music will desynchronize.
+ * 
+ * mixer_throttle sets a budget of samples that the mixer is allowed to
+ * generate. Every time the function is called, the specified number of samples
+ * is added to the budget. Every time the mixer playbacks the channel, the
+ * budget is decreased. If the budget reaches zero, the mixer will automatically
+ * pause playback until the budget is increased again, possibly creating
+ * audio cracks.
+ * 
+ * To achieve perfect sync, call #mixer_throttle every time a video frame
+ * was generated, and pass the maximum number of samples that the mixer is
+ * allowed to produce. Typically, you will want to pass the audio samplerate
+ * divided by the video framerate, which corresponds to the number of
+ * audio samples per video frame.
+ * 
+ * @param[in]   num_samples     Number of new samples that the mixer is allowed
+ *                              to produce for this channel. This will be added
+ *                              to whatever allowance was left.
+ *                              
+ * @see #mixer_unthrottle
+ */
+void mixer_throttle(float num_samples);
+
+/**
+ * @brief Unthrottle the mixer
+ * 
+ * Switch back the mixer to the default unthrottled status, after some calls to
+ * #mixer_throttle.
+ * 
+ * After calling #mixer_unthrottle, the mixer will no longer be limited and
+ * will produce all the samples requested via #mixer_poll.
+ * 
+ * @see #mixer_throttle
+ */
+void mixer_unthrottle(void);
+
+/**
  * @brief Run the mixer to produce output samples.
  * 
  * This function will fetch the required samples from all the channels and
@@ -299,6 +347,10 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
  *
  * Since the N64 AI can only be fed with an even number of samples, mixer_poll
  * does not accept odd numbers.
+ * 
+ * This function will respect throttling, if configured via #mixer_throttle.
+ * In this case, it may produce less samples than requested, depending on
+ * the current allowance. The rest of the output buffer will be zeroed.
  * 
  * @param[in]   out             Output buffer were samples will be written.
  * @param[in]   nsamples        Number of stereo samples to generate.
