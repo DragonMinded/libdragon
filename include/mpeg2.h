@@ -21,7 +21,7 @@ typedef struct {
 	yuv_blitter_t yuv_blitter;
 } mpeg2_t;
 
-void mpeg2_open(mpeg2_t *mp2, const char *fn);
+void mpeg2_open(mpeg2_t *mp2, const char *fn, int output_width, int output_height);
 float mpeg2_get_framerate(mpeg2_t *mp2);
 bool mpeg2_next_frame(mpeg2_t *mp2);
 void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp);

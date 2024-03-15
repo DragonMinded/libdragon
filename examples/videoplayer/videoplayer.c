@@ -37,7 +37,7 @@ int main(void) {
 	fclose(f);
 
 	mpeg2_t mp2;
-	mpeg2_open(&mp2, "rom:/movie.m1v");
+	mpeg2_open(&mp2, "rom:/movie.m1v", display_get_width(), display_get_height());
 
 	wav64_t music;
 	wav64_open(&music, "movie.wav64");
