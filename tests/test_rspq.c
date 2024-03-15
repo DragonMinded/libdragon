@@ -34,7 +34,7 @@ static uint32_t test2_ovl_id;
 
 void test_ovl_init()
 {   
-    void *test_ovl_state = rspq_overlay_get_state(&rsp_test);
+    void *test_ovl_state = UncachedAddr(rspq_overlay_get_state(&rsp_test));
     memset(test_ovl_state, 0, sizeof(uint32_t) * 2);
 
     rspq_init();
@@ -832,15 +832,15 @@ void test_rspq_deferred_call(TestContext *ctx)
     int num_call_expected = 0;
     int num_call_found = 0;
 
-    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
-    data_cache_hit_writeback_invalidate(actual_sum, 16);
+    uint64_t *actual_sum = malloc_uncached(2 * sizeof(uint64_t));
+    DEFER(free_uncached(actual_sum));
+
     int value = 0;
 
     void cb1(void* expectedp) {
         ++num_call_found;
         int exp = (int)expectedp;
         volatile uint64_t cur_counter = actual_sum[0];
-        data_cache_hit_writeback_invalidate(actual_sum, 16);
         ASSERT(cur_counter >= exp, "invalid sequence for deferred call (expected %d, got %d)", exp, (int)cur_counter);
     }
 
