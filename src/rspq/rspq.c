@@ -383,7 +383,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 16) + 32;
+    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 8);
 
     const char *ovl_name; uint8_t ovl_id;
     rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
@@ -432,7 +432,7 @@ static void rspq_assert_invalid_command(rsp_snapshot_t *state)
     const char *ovl_name; uint8_t ovl_id;
     rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
 
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x160 : 0x100;
+    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 8);
     uint32_t cur = dmem_buffer + state->gpr[28];
     printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_id);
 }
@@ -601,7 +601,7 @@ void rspq_init(void)
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
 
     // Verify consistency of state
-    int banner_offset = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 16);
+    int banner_offset = RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, banner);
     assertf(!memcmp(rsp_queue.data + banner_offset, "Dragon RSP Queue", 16),
         "rsp_queue_t does not seem to match DMEM; did you forget to update it?");
 

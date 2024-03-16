@@ -284,8 +284,10 @@ RSPQ_OVERLAY_IDMAP:           .ds.b RSPQ_MAX_OVERLAYS
 # and highpri current pointer (used when switching between the two)
 RSPQ_POINTER_STACK:           .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 
-# RDRAM address of the current command list.
-RSPQ_RDRAM_PTR:               .long 0
+    .align 4
+RSPQ_SCRATCH_MEM: # the following 32-bytes can be used by any overlay as temporary scratch-memory
+    .ascii "Dragon RSP Queue"
+    .ascii "Rasky & Snacchus"
 
 ################################################################
 # RDPQ shared state
@@ -299,9 +301,6 @@ RSPQ_RDRAM_PTR:               .long 0
 # that don't need to generate RDP commands, but it's the least
 # worse solution we can currently come up with.
 ################################################################
-
-# Pointer to the end of the current RDP output buffer
-RDPQ_SENTINEL:              .long 0
 
 # RDP MODE (32 bytes). NOTE: This must be 16-byte aligned (because we use lqv in push/pop),
 # but we can't use .align 4 here, otherwise it's not easy to keep this structure layout
@@ -326,12 +325,14 @@ RDPQ_SCISSOR_RECT:           .quad 0
 RDPQ_DYNAMIC_BUFFERS:        .long 0, 0
 # Current RDP write pointer (8 MSB are garbage)
 RDPQ_CURRENT:                .long 0
+# Pointer to the end of the current RDP output buffer
+RDPQ_SENTINEL:               .long 0
 # Current fill color
-RDPQ_FILL_COLOR:             .word  0
+RDPQ_FILL_COLOR:             .word 0
 # Current target buffer color depth
-RDPQ_TARGET_BITDEPTH:        .byte  0
+RDPQ_TARGET_BITDEPTH:        .byte 0
 # True if there is a SYNC_FULL command in the current RDP output buffer
-RDPQ_SYNCFULL_ONGOING:       .byte  0
+RDPQ_SYNCFULL_ONGOING:       .byte 0
 # True if the rdpq debug mode is active (validator). TODO: hide this bit elsewhere to save one byte
 RDPQ_DEBUG:                  .byte 0
 
@@ -339,16 +340,16 @@ RDPQ_DEBUG:                  .byte 0
 # End of RDPQ shared state
 ################################################################
 
-    .align 4
-    SCRATCH_MEM: # the following 32-bytes can be used by any overlay as temporary scratch-memory
-    .ascii "Dragon RSP Queue"
-    .ascii "Rasky & Snacchus"
+                              .byte 0    # explicit padding byte (would be emitted by the assembler anyway)
 
-    .align 3
-RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
+# RDRAM address of the current command list.
+RSPQ_RDRAM_PTR:               .long 0
 
 # ID of the current overlay
 RSPQ_CURRENT_OVL:             .half 0
+
+    .align 3
+RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
 
 #if RSPQ_PROFILE
 RSPQ_PROFILE_CUR_SLOT:        .long 0
@@ -473,14 +474,14 @@ RSPQ_Loop:
     beq t2, t0, rspq_switch_highpri
 
     # Index into overlay table
-    srl ovl_index, a0, 28
+    srl t0, a0, 28
 
     # Index into command table
     srl cmd_index, a0, 23
     andi cmd_index, 0x1FE
 
     # Overlay 0 is reserved for internal commands
-    beqz ovl_index, rspq_execute_command
+    beqz t0, rspq_execute_command
     # Load command descriptor from internal command table if using the default overlay.
     # Otherwise, cmd_desc will be overwritten further down
     lhu cmd_desc, %lo(RSPQ_INTERNAL_COMMAND_TABLE)(cmd_index)
@@ -489,7 +490,7 @@ RSPQ_Loop:
 
     # Map overlay index through the ID map. This allows to resolve ID for
     # overlays that spans multiple IDs.
-    lbu ovl_index, RSPQ_OVERLAY_IDMAP(ovl_index)
+    lbu ovl_index, RSPQ_OVERLAY_IDMAP(t0)
 
     # Load the command base (index of the first command of the overlay).
     lhu t0, %lo(_ovl_data_start) + 14
