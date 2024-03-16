@@ -2,7 +2,7 @@
 
 void test_mpeg1_idct(TestContext *ctx) {
 	rspq_init(); DEFER(rspq_close());
-	rsp_mpeg1_init();
+	rsp_mpeg1_init(); DEFER(rsp_mpeg1_close());
 
 	int16_t matrix1[8*8] __attribute__((aligned(16)));
 	uint8_t out1[8*8] __attribute__((aligned(16)));
@@ -39,7 +39,7 @@ void test_mpeg1_idct(TestContext *ctx) {
 
 void test_mpeg1_block_decode(TestContext *ctx) {
 	rspq_init(); DEFER(rspq_close());
-	rsp_mpeg1_init();
+	rsp_mpeg1_init(); DEFER(rsp_mpeg1_close());
 
 	int16_t matrix1[8*8] __attribute__((aligned(16)));
 	uint8_t pixels1[8*8] __attribute__((aligned(16)));
@@ -166,7 +166,7 @@ void test_mpeg1_block_dequant(TestContext *ctx) {
 	}
 
 	rspq_init(); DEFER(rspq_close());
-	rsp_mpeg1_init();
+	rsp_mpeg1_init(); DEFER(rsp_mpeg1_close());
 
 	uint8_t pixels1[8*8] __attribute__((aligned(16)));
 	int16_t matrix1[8*8] __attribute__((aligned(16)));
@@ -257,7 +257,7 @@ static void plm_video_process_macroblock(
 
 void test_mpeg1_block_predict(TestContext *ctx) {
 	rspq_init(); DEFER(rspq_close());
-	rsp_mpeg1_init();
+	rsp_mpeg1_init(); DEFER(rsp_mpeg1_close());
 
 	enum { BUFFER_SIZE = 128 };
 

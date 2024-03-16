@@ -16,13 +16,19 @@
 DEFINE_RSP_UCODE(rsp_mpeg1);
 
 static uint32_t ovl_id;
+static bool rsp_mpeg1_initialized = false;
 
 void rsp_mpeg1_init(void) {
-	static bool initialized = false;
-	if (initialized) return;
+	if (rsp_mpeg1_initialized) return;
 	rspq_init();
 	ovl_id = rspq_overlay_register(&rsp_mpeg1);
-	initialized = true;
+	rsp_mpeg1_initialized = true;
+}
+
+void rsp_mpeg1_close(void) {
+	if (!rsp_mpeg1_initialized) return;
+	rspq_overlay_unregister(ovl_id); ovl_id = 0;
+	rsp_mpeg1_initialized = false;
 }
 
 void rsp_mpeg1_load_matrix(int16_t *mtx) {
