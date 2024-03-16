@@ -93,7 +93,7 @@ void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg/pl_mpeg.h"
 
-void mpeg2_open(mpeg2_t *mp2, const char *fn) {
+void mpeg2_open(mpeg2_t *mp2, const char *fn, int output_width, int output_height) {
 	memset(mp2, 0, sizeof(mpeg2_t));
 
 	rsp_mpeg1_init();
@@ -126,7 +126,7 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 		// Create a YUV blitter for this resolution
 		mp2->yuv_blitter = yuv_blitter_new_fmv(
 			width, height,
-			display_get_width(), display_get_height(),
+			output_width, output_height,
 			NULL);
 	}
 
