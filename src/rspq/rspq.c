@@ -383,7 +383,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = RSPQ_DEBUG ? (RSPQ_PROFILE ? 0x190 : 0x108) : 0xA8;
+    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 16) + 32;
 
     const char *ovl_name; uint8_t ovl_id;
     rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
@@ -399,9 +399,6 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     // if we know the correct address. TODO: find a way to expose the symbols
     // from rsp_queue.inc.
     debugf("RSPQ: Command queue:\n");
-    if (RSPQ_DEBUG)
-        assertf(((uint32_t*)state->dmem)[dmem_buffer/4-1] == RSPQ_DEBUG_MARKER, 
-            "invalid RSPQ_DMEM_BUFFER address; please update rspq_crash_handler()");
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
             debugf("%08lx%c", ((uint32_t*)state->dmem)[dmem_buffer/4+i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');

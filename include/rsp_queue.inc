@@ -339,6 +339,17 @@ RDPQ_DEBUG:                  .byte 0
 # End of RDPQ shared state
 ################################################################
 
+    .align 4
+    SCRATCH_MEM: # the following 32-bytes can be used by any overlay as temporary scratch-memory
+    .ascii "Dragon RSP Queue"
+    .ascii "Rasky & Snacchus"
+
+    .align 3
+RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
+
+# ID of the current overlay
+RSPQ_CURRENT_OVL:             .half 0
+
 #if RSPQ_PROFILE
 RSPQ_PROFILE_CUR_SLOT:        .long 0
 RSPQ_PROFILE_DATA:            .ds.b (RSPQ_PROFILE_SLOT_SIZE * RSPQ_PROFILE_SLOT_COUNT)
@@ -349,13 +360,6 @@ RSPQ_PROFILE_BUSY_LAST:       .long 0
 RSPQ_PROFILE_START_TIME:      .long 0
 #endif
 
-# ID of the current overlay
-RSPQ_CURRENT_OVL:             .half 0
-
-    .align 4
-    SCRATCH_MEM: # the following 32-bytes can be used by any overlay as temporary scratch-memory
-    .ascii "Dragon RSP Queue"
-    .ascii "Rasky & Snacchus"
 
     .align 3
 RSPQ_INTERNAL_COMMAND_TABLE:
@@ -374,13 +378,6 @@ RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
 #if RSPQ_PROFILE
 RSPQ_DefineCommand RSPQCmd_ProfileFrame,    4     # 0x0C
 #endif
-
-    .align 3
-#if RSPQ_DEBUG
-                             .long 0, RSPQ_DEBUG_MARKER
-#endif
-RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
-
 
     .align 4
 # Overlay data will be loaded at this address

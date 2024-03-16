@@ -63,9 +63,6 @@
 #define ASSERT_INVALID_OVERLAY       0xFF01    ///< A command is referencing an overlay that is not registered
 #define ASSERT_INVALID_COMMAND       0xFF02    ///< The requested command is not defined in the overlay
 
-/** Debug marker in DMEM to check that C and Assembly have the same DMEM layout */
-#define RSPQ_DEBUG_MARKER            0xABCD0123
-
 #define RSPQ_PROFILE_OVERLAY_COUNT      4 // RSPQ_MAX_OVERLAY_COUNT
 
 #define RSPQ_PROFILE_SLOT_SIZE          8
