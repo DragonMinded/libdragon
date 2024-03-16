@@ -320,7 +320,7 @@ RDPQ_MODE:
 RDPQ_MODE_END:
 
 # Current scissor rectangle (in RDP commmand format)
-RDPQ_SCISSOR_RECT:           .quad 0
+RDPQ_SCISSOR_RECT:           .quad (0xED << 56) | (1 << 12)
 # Two RDP output buffers (to alternate between)
 RDPQ_DYNAMIC_BUFFERS:        .long 0, 0
 # Current RDP write pointer (8 MSB are garbage)

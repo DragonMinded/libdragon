@@ -606,18 +606,15 @@ void rspq_init(void)
         "rsp_queue_t does not seem to match DMEM; did you forget to update it?");
 
     // Load initial settings
-    memset(&rspq_data, 0, sizeof(rsp_queue_t));
+    memcpy(&rspq_data, rsp_queue.data + RSPQ_DATA_ADDRESS, sizeof(rsp_queue_t));
     rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
     rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
-    rspq_data.rdp_scissor_rect = (0xEDull << 56) | (1 << 12);
     rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
     rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
     rspq_data.rspq_rdp_current = rspq_data.rspq_rdp_buffers[0];
     rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_buffers[0] + RDPQ_DYNAMIC_BUFFER_SIZE;
     rspq_data.rspq_ovl_table.data_rdram[0] = PhysicalAddr(dummy_overlay_state) | (0<<24);
-    rspq_data.rspq_ovl_table.idmap[0] = 0;
-    rspq_data.current_ovl = 0;
 
 #if RSPQ_PROFILE
     rspq_data.rspq_profile_cur_slot = -1;
