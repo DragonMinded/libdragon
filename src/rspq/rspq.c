@@ -383,7 +383,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = RSPQ_DEBUG ? (RSPQ_PROFILE ? 0x198 : 0x110) : 0xB0;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? (RSPQ_PROFILE ? 0x190 : 0x108) : 0xA8;
 
     const char *ovl_name; uint8_t ovl_id;
     rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);

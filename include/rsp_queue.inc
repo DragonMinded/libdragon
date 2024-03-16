@@ -272,7 +272,7 @@ _RSPQ_SAVED_STATE_END:
 _data_start:
 
 # Data for vector shift registers.
-    vsll_data
+    .byte 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01
 
 # Overlay table. Contains packed pointer to overlay data segment in RDRAM 
 # and overlay data size
@@ -498,7 +498,7 @@ RSPQ_Loop:
     lhu t0, %lo(_ovl_data_start) + 14
 
     # <stall cycle> Initial vshift in preparation to running the command
-    lqv vshift,  0x00,zero
+    lpv vshift8,  0x00,zero
 
     #if RSPQ_DEBUG
     assert_ne ovl_index, 0, ASSERT_INVALID_OVERLAY
@@ -516,10 +516,10 @@ rspq_overlay_loaded:
 
 rspq_execute_command:
     # Load second command word                                  # Calculate vshift8
-    lw a1, %lo(RSPQ_DMEM_BUFFER) + 0x4 (rspq_dmem_buf_ptr);     vmudn vshift8, vshift, K128
+    lw a1, %lo(RSPQ_DMEM_BUFFER) + 0x4 (rspq_dmem_buf_ptr);     vsrl vshift, vshift8, 8
 
     # Prepare constant for comparison later
-    li t1, RSPQ_DMEM_BUFFER_SIZE;                               vmadn vshift8, vshift, K128
+    li t1, RSPQ_DMEM_BUFFER_SIZE;
 
     #if RSPQ_DEBUG
     assert_ne cmd_desc, 0, ASSERT_INVALID_COMMAND
