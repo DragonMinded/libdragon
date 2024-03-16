@@ -1743,6 +1743,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
 
     rdpq_debug_log_msg("Mode freeze: standard");
     rdpq_set_mode_fill(RGBA32(255,255,255,255));
+    rdpq_set_blend_color(RGBA32(1,1,1,255));
     rdpq_debug_log_msg("Freeze start");
     rdpq_mode_begin();
         rdpq_set_mode_standard();
@@ -1771,19 +1772,20 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     // Try again within a block.
     debug_rdp_stream_reset();
     surface_clear(&fb, 0);
+    rdpq_set_blend_color(RGBA32(1,1,1,255));
     rdpq_debug_log_msg("Mode freeze: in block");
     rspq_block_begin();
         rdpq_set_mode_fill(RGBA32(255,255,255,255));
         rdpq_debug_log_msg("Freeze start");
         rdpq_mode_begin();
             rdpq_set_mode_standard();
-            rdpq_set_blend_color(RGBA32(255,255,255,255));
-            rdpq_set_mode_standard();
             rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
             rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
             rdpq_mode_filter(FILTER_POINT);
             rdpq_mode_alphacompare(false);
+            rdpq_debug_log_msg("Freeze end");
         rdpq_mode_end();
+        rdpq_set_blend_color(RGBA32(255,255,255,255));
         rdp_draw_filled_triangle(0, 0, FBWIDTH, 0, FBWIDTH, FBWIDTH);
         rdp_draw_filled_triangle(0, 0, 0, FBWIDTH, FBWIDTH, FBWIDTH);
     rspq_block_t *block = rspq_block_end();
@@ -1814,11 +1816,13 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     DEFER(rspq_block_free(block2));
 
     rdpq_set_mode_fill(RGBA32(255,255,255,255));
+    rdpq_set_blend_color(RGBA32(1,1,1,255));
     rdpq_debug_log_msg("Freeze start");
     rdpq_mode_begin();
         rspq_block_run(block2);
     rdpq_debug_log_msg("Freeze end");
     rdpq_mode_end();
+    rdpq_set_blend_color(RGBA32(255,255,255,255));
     rdp_draw_filled_triangle(0, 0, FBWIDTH, 0, FBWIDTH, FBWIDTH);
     rdp_draw_filled_triangle(0, 0, 0, FBWIDTH, FBWIDTH, FBWIDTH);
     rspq_wait();
@@ -1829,7 +1833,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     num_nops = debug_rdp_stream_count_cmd(0xC0);
     ASSERT_EQUAL_SIGNED(num_ccs, 1, "too many SET_COMBINE_MODE");
     ASSERT_EQUAL_SIGNED(num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
-    ASSERT_EQUAL_SIGNED(num_nops, 9, "wrong number of NOPs");
+    ASSERT_EQUAL_SIGNED(num_nops, 8, "wrong number of NOPs");
 }
 
 void test_rdpq_mode_freeze_stack(TestContext *ctx) {
