@@ -15,8 +15,8 @@
  * as they are batched instead, so we can avoid reserving space in the
  * RDP static buffer in blocks.
  */
-#define rdpq_mode_write(num_rdp_commands, ...) ({ \
-    rdpq_write(rdpq_tracking.mode_freeze ? 0 : num_rdp_commands, ##__VA_ARGS__); \
+#define rdpq_mode_write(num_rdp_commands, num_frozen_rdp_commands, ...) ({ \
+    rdpq_write(rdpq_tracking.mode_freeze ? num_frozen_rdp_commands : num_rdp_commands, ##__VA_ARGS__); \
 })
 
 /** 
@@ -29,7 +29,7 @@ __attribute__((noinline))
 void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_mode_write(2, RDPQ_OVL_ID, cmd_id, w0, w1);  // COMBINE+SOM
+    rdpq_mode_write(2, 0, RDPQ_OVL_ID, cmd_id, w0, w1);  // COMBINE+SOM
 }
 
 /** @brief Write a fixup that changes the current render mode (12-byte command) */
@@ -37,7 +37,7 @@ __attribute__((noinline))
 void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_mode_write(2, RDPQ_OVL_ID, cmd_id, w0, w1, w2);  // COMBINE+SOM
+    rdpq_mode_write(2, 0, RDPQ_OVL_ID, cmd_id, w0, w1, w2);  // COMBINE+SOM
 
 }
 
@@ -46,7 +46,7 @@ __attribute__((noinline))
 void __rdpq_fixup_mode4(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_mode_write(2, RDPQ_OVL_ID, cmd_id, w0, w1, w2, w3);  // COMBINE+SOM
+    rdpq_mode_write(2, 0, RDPQ_OVL_ID, cmd_id, w0, w1, w2, w3);  // COMBINE+SOM
 }
 
 /** @brief Write a fixup to reset the render mode */
@@ -54,8 +54,9 @@ __attribute__((noinline))
 void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    // ResetRenderMode can genereate: SCISSOR+COMBINE+SOM
-    rdpq_mode_write(3, RDPQ_OVL_ID, RDPQ_CMD_RESET_RENDER_MODE, w0, w1, w2, w3);
+    // ResetRenderMode can generate: SCISSOR+COMBINE+SOM when not frozen,
+    // or just SCISSOR when frozen.
+    rdpq_mode_write(3, 1, RDPQ_OVL_ID, RDPQ_CMD_RESET_RENDER_MODE, w0, w1, w2, w3);
 }
 
 void rdpq_mode_push(void)

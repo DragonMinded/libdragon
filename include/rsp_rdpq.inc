@@ -327,9 +327,12 @@ RDPQ_UpdateRenderMode:
     #define bkg_blending t8
 
     # If updates are frozen, do nothing
+    # We just call RDPQ_Finalize just in case we come
+    # from RDPQCmd_ResetMode and we have a pending
+    # scissor change to send.
     lw som_hi, %lo(RDPQ_OTHER_MODES) + 0
     andi t0, som_hi, SOMX_UPDATE_FREEZE >> 32
-    bnez t0, RSPQ_Loop
+    bnez t0, RDPQ_Finalize
     lw som_lo, %lo(RDPQ_OTHER_MODES) + 4
 
     # If we are in fill/copy mode, we just need to emit SOM
