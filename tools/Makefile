@@ -1,3 +1,4 @@
+N64_GCCPREFIX ?= $(N64_INST)
 INSTALLDIR ?= $(N64_INST)
 CFLAGS   += -std=gnu11 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-error=sign-compare -I../include -MMD
 CXXFLAGS += -std=c++11 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-error=sign-compare -MMD
@@ -29,8 +30,8 @@ common/mips_decomp_l3.bin: ../src/compress/shrinkler_dec_fast.S
 
 $(DECOMP_STUBS):
 	@echo "    [MIPS] $@"
-	$(N64_INST)/bin/mips64-elf-gcc -c -o $@.o $<
-	$(N64_INST)/bin/mips64-elf-objcopy -O binary $@.o $@
+	$(N64_GCCPREFIX)/bin/mips64-elf-gcc -c -o $@.o $<
+	$(N64_GCCPREFIX)/bin/mips64-elf-objcopy -O binary $@.o $@
 	rm $@.o
 
 -include $(wildcard common/*.d)
