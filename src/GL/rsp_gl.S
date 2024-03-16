@@ -130,16 +130,15 @@ GLCmd_SetShort:
     sh a1, %lo(GL_STATE)(a0)
     .endfunc
 
-    .func GLCmd_SetWord
-GLCmd_SetWord:
-    j GLCmd_Update
-    sw a1, %lo(GL_STATE)(a0)
-    .endfunc
-
     .func GLCmd_SetLong
 GLCmd_SetLong:
-    sw a1, %lo(GL_STATE) + 0(a0)
     sw a2, %lo(GL_STATE) + 4(a0)
+    # fallthrough!
+    .endfunc
+
+    .func GLCmd_SetWord
+GLCmd_SetWord:
+    sw a1, %lo(GL_STATE) + 0(a0)
     # fallthrough!
     .endfunc
 
@@ -147,7 +146,7 @@ GLCmd_Update:
     srl t0, a0, 12
     lhu t1, %lo(UPDATE_FUNCTIONS)(t0)
     jr t1
-    nop
+    #nop
 
 GLCmd_GetValue:
     srl t0, a0, 12
@@ -1036,7 +1035,7 @@ GLCmd_PreInitPipeTex:
     bne tex_id, uploaded_tex, 1f
     andi t0, tex_flags, TEX_FLAG_UPLOAD_DIRTY
     beqz t0, RSPQ_Loop
-    nop
+#    nop
 
 1:
     # OK we are going to do the upload. Update the state: clear dirty flag and

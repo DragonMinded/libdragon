@@ -86,17 +86,12 @@ GLCmd_SetByte:
     sb a1, %lo(GL_STATE)(a0)
     .endfunc
 
-    .func GLCmd_SetWord
+    .func GLCmd_SetLong
+GLCmd_SetLong:
+    sw a2, %lo(GL_STATE) + 4(a0)
 GLCmd_SetWord:
     jr ra
     sw a1, %lo(GL_STATE)(a0)
-    .endfunc
-
-    .func GLCmd_SetLong
-GLCmd_SetLong:
-    sw a1, %lo(GL_STATE) + 0(a0)
-    jr ra
-    sw a2, %lo(GL_STATE) + 4(a0)
     .endfunc
 
     ########################################
@@ -776,11 +771,10 @@ GLCmd_DrawTriangle:
     #define trcode1     t6
     #define trcode2     t7
     #define trcode3     t8
-    #define ra3         s8
 
     # If GL_FONT_AND_BACK is set (GL_TRI_CULL==-1), there's nothing to do
     lb v0, %lo(GL_TRI_CULL)
-    bltz v0, JrRa
+    bltz v0, RSPQ_Loop
 
     addi vtx3, a1, %lo(VERTEX_CACHE)
     srl  vtx2, a1, 16
@@ -799,7 +793,7 @@ GLCmd_DrawTriangle:
     and t0, trcode3
     andi t0, 0x3F
     bnez t0, JrRa
-    move ra3, ra
+    nop
 
     # Perform T&L for each vertex if we haven't already
     bgezal trcode1, GL_TnL
@@ -849,7 +843,7 @@ gl_draw_single_triangle:
     addi s1, 2
 
 gl_draw_triangle_end:
-    jr ra3
+    j RSPQ_Loop
     nop
 
     #undef vtx1
