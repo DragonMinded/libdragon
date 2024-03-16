@@ -183,33 +183,13 @@ typedef struct __attribute__((packed)) {
     uint64_t other_modes;
 } rspq_rdp_mode_t;
 
-// TODO: We could save 4 bytes in the overlay descriptor by assuming that data == code + code_size and that code_size is always a multiple of 8
-/** @brief A RSPQ overlay ucode. This is similar to rsp_ucode_t, but is used
- * internally to managed it as a RSPQ overlay */
-typedef struct rspq_overlay_t {
-    uint32_t code;              ///< Address of the overlay code in RDRAM
-    uint32_t data;              ///< Address of the overlay data in RDRAM
-    uint32_t state;             ///< Address of the overlay state in RDRAM (within data)
-    uint16_t code_size;         ///< Size of the code in bytes - 1
-    uint16_t data_size;         ///< Size of the data in bytes - 1
-} rspq_overlay_t;
-
-/// @cond
-_Static_assert(sizeof(rspq_overlay_t) == RSPQ_OVERLAY_DESC_SIZE);
-/// @endcond
-
 /**
- * @brief The overlay table in DMEM. 
- *
- * This structure is defined in DMEM by rsp_queue.S, and contains the descriptors
- * for the overlays, used by the queue engine to load each overlay when needed.
+ * @brief Table of registered overlays (as stored in DMEM)
  */
-typedef struct rspq_overlay_tables_s {
-    /** @brief Table mapping overlay ID to overlay index (used for the descriptors) */
-    uint8_t overlay_table[RSPQ_OVERLAY_TABLE_SIZE];
-    /** @brief Descriptor for each overlay, indexed by the previous table. */
-    rspq_overlay_t overlay_descriptors[RSPQ_MAX_OVERLAY_COUNT];
-} rspq_overlay_tables_t;
+typedef struct __attribute__((packed)) {
+    uint32_t data_rdram[RSPQ_MAX_OVERLAYS];     ///< Packed RDRAM address of data segment and size
+    uint8_t idmap[RSPQ_MAX_OVERLAYS];           ///< Map of overlay IDs to base IDs
+} rspq_ovl_table_t;
 
 /**
  * @brief RSP profiling data for a single overlay.
@@ -237,7 +217,7 @@ typedef struct rspq_profile_data_dmem_s {
  * top portion of DMEM.
  */
 typedef struct rsp_queue_s {
-    rspq_overlay_tables_t tables;        ///< Overlay table
+    rspq_ovl_table_t rspq_ovl_table;     ///< Overlay table
     /** @brief Pointer stack used by #RSPQ_CMD_CALL and #RSPQ_CMD_RET. */
     uint32_t rspq_pointer_stack[RSPQ_MAX_BLOCK_NESTING_LEVEL];
     uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)

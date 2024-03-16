@@ -84,18 +84,24 @@
 .macro RSPQ_BeginOverlayHeader
 # This reflects the rspq_overlay_header_t struct defined in rspq.c
 _RSPQ_OVERLAY_HEADER:
-    # state start
+    # 0: state start
     .short _RSPQ_SAVED_STATE_START - _data_start
-    # state size
+    # 2: state size
     .short _RSPQ_SAVED_STATE_END - _RSPQ_SAVED_STATE_START - 1
-    # command base (filled in by C code)
+    # 4: state RDRAM address (filled in by C code)
+    .long 0
+    # 8: text RDRAM address (filled in by C code)
+    .long 0
+    # 10: text size (filled in by C code)
     .short 0
-    # unused padding
+    # 14: command base (filled in by C code)
     .short 0
     
 	.align 1
 _RSPQ_OVERLAY_COMMAND_TABLE:
 .endm
+
+#define RSPQ_OVERLAY_HEADER_SIZE     16
 
 ########################################################
 # RSPQ_BeginSavedState
@@ -259,8 +265,6 @@ _RSPQ_SAVED_STATE_END:
 #
 ########################################################
 
-#define OVERLAY_HEADER_SIZE 0x8
-
     .set noreorder
     .set at
 
@@ -270,9 +274,10 @@ _data_start:
 # Data for vector shift registers.
     vsll_data
 
-# Overlay tables. See rsp_overlay_t in rsp.c
-RSPQ_OVERLAY_TABLE:           .ds.b RSPQ_OVERLAY_TABLE_SIZE
-RSPQ_OVERLAY_DESCRIPTORS:     .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_COUNT)
+# Overlay table. Contains packed pointer to overlay data segment in RDRAM 
+# and overlay data size
+RSPQ_OVERLAY_TABLE:           .ds.l RSPQ_MAX_OVERLAYS
+RSPQ_OVERLAY_IDMAP:           .ds.b RSPQ_MAX_OVERLAYS
 
 # Save slots for RDRAM addresses used during nested lists calls.
 # Notice that the two extra slots are used to save the lowpri
@@ -344,7 +349,7 @@ RSPQ_PROFILE_BUSY_LAST:       .long 0
 RSPQ_PROFILE_START_TIME:      .long 0
 #endif
 
-# Index (not ID!) of the current overlay, as byte offset in the descriptor array
+# ID of the current overlay
 RSPQ_CURRENT_OVL:             .half 0
 
     .align 4
@@ -471,25 +476,26 @@ RSPQ_Loop:
     beq t2, t0, rspq_switch_highpri
 
     # Index into overlay table
-    srl t0, a0, 28
+    srl ovl_index, a0, 28
 
     # Index into command table
     srl cmd_index, a0, 23
     andi cmd_index, 0x1FE
 
     # Overlay 0 is reserved for internal commands
-    beqz t0, rspq_execute_command
+    beqz ovl_index, rspq_execute_command
     # Load command descriptor from internal command table if using the default overlay.
     # Otherwise, cmd_desc will be overwritten further down
     lhu cmd_desc, %lo(RSPQ_INTERNAL_COMMAND_TABLE)(cmd_index)
 
     lhu t1, %lo(RSPQ_CURRENT_OVL)
 
-    # Load overlay index from overlay table
-    lbu ovl_index, %lo(RSPQ_OVERLAY_TABLE)(t0)
-    
+    # Map overlay index through the ID map. This allows to resolve ID for
+    # overlays that spans multiple IDs.
+    lbu ovl_index, RSPQ_OVERLAY_IDMAP(ovl_index)
+
     # Load the command base (index of the first command of the overlay).
-    lhu t0, %lo(_ovl_data_start) + 0x4
+    lhu t0, %lo(_ovl_data_start) + 14
 
     # <stall cycle> Initial vshift in preparation to running the command
     lqv vshift,  0x00,zero
@@ -506,7 +512,7 @@ rspq_overlay_loaded:
      sub cmd_index, t0
 
     # Load command descriptor from overlay command table
-    lhu cmd_desc, %lo(_ovl_data_start) + OVERLAY_HEADER_SIZE(cmd_index)
+    lhu cmd_desc, %lo(_ovl_data_start) + RSPQ_OVERLAY_HEADER_SIZE(cmd_index)
 
 rspq_execute_command:
     # Load second command word                                  # Calculate vshift8
@@ -567,20 +573,22 @@ rspq_load_overlay:
     addu cmd_index, t0
 
     # Save current overlay state
-    lhu t0, %lo(_ovl_data_start) + 0x2
-    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x8 (t1)
+    lhu t0, %lo(_ovl_data_start) + 2
+    lw s0, %lo(_ovl_data_start) + 4
     jal DMAOutAsync
-    lhu s4, %lo(_ovl_data_start) + 0x0
+    lhu s4, %lo(_ovl_data_start) + 0
 
-    # Load overlay data (saved state is included)
-    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
-    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
-    jal DMAInAsync
+    # Load data segment
+    sll s0, ovl_index, 2
+    lw s0, %lo(RSPQ_OVERLAY_TABLE)(s0)
     li s4, %lo(_ovl_data_start)
+    srl t0, s0, 24-4
+    jal DMAIn
+    ori t0, 0xf
 
-    # Load overlay code
-    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
-    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
+    # Load text segment
+    lw s0, %lo(_ovl_data_start) + 8
+    lhu t0, %lo(_ovl_data_start) + 12
     jal DMAIn
     li s4, %lo(_ovl_text_start)
 
@@ -590,9 +598,8 @@ rspq_load_overlay:
     jal RSPQ_ProfileAccumulate
     li s0, RSPQ_PROFILE_OVL_SWITCH_SLOT*RSPQ_PROFILE_SLOT_SIZE
 #endif
-
     # Load new overlay command base
-    lhu t0, %lo(_ovl_data_start) + 0x4
+    lhu t0, %lo(_ovl_data_start) + 14
     j rspq_overlay_loaded
     sh ovl_index, %lo(RSPQ_CURRENT_OVL)
 
