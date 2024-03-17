@@ -207,7 +207,6 @@ void test_gl_cull(TestContext *ctx)
 {
     GL_INIT();
     debug_rdp_stream_init();
-    rdpq_debug_log(true);
 
     void draw_tri(void) {
         glBegin(GL_TRIANGLES);
