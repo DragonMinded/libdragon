@@ -260,7 +260,9 @@ typedef struct rspq_overlay_header_t {
     uint16_t commands[];
 } rspq_overlay_header_t;
 
+///@cond
 _Static_assert(sizeof(rspq_overlay_header_t) == RSPQ_OVERLAY_HEADER_SIZE);
+///@endcond
 
 /** @brief RSPQ overlays */
 rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAYS];
