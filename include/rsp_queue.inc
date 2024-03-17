@@ -96,12 +96,10 @@ _RSPQ_OVERLAY_HEADER:
     .short 0
     # 14: command base (filled in by C code)
     .short 0
-    
+
 	.align 1
 _RSPQ_OVERLAY_COMMAND_TABLE:
 .endm
-
-#define RSPQ_OVERLAY_HEADER_SIZE     16
 
 ########################################################
 # RSPQ_BeginSavedState

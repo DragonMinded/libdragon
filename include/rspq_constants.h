@@ -15,6 +15,8 @@
 
 #define RSPQ_MAX_OVERLAY_COMMAND_COUNT ((1 << RSPQ_OVERLAY_CMD_BITS) * (RSPQ_MAX_OVERLAYS-1))
 
+#define RSPQ_OVERLAY_HEADER_SIZE     16         ///< Internal overlay header size in bytes
+
 /** Minimum / maximum size of a block's chunk (contiguous memory buffer) */
 #define RSPQ_BLOCK_MIN_SIZE            64
 #define RSPQ_BLOCK_MAX_SIZE            8192
