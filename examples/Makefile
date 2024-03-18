@@ -1,4 +1,4 @@
-EXAMPLES = audioplayer cpptest ctest dfsdemo eepromfstest mixertest mptest mputest rspqdemo spritemap test timers vrutest vtest ucodetest
+EXAMPLES = audioplayer cpptest ctest dfsdemo eepromfstest mixertest cpaktest cpak-utest rspqdemo spritemap test timers vrutest vtest ucodetest
 
 all: $(EXAMPLES)
 clean: $(foreach example,$(EXAMPLES),$(example)-clean)
