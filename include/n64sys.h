@@ -195,7 +195,7 @@ extern char __bss_end[];
 /**
  * @brief Returns equivalent count ticks for the given microseconds.
  */
-#define TICKS_FROM_US(val) (((val) * (8 * TICKS_PER_SECOND / 1000000) / 8)
+#define TICKS_FROM_US(val) (((val) * (8 * TICKS_PER_SECOND / 1000000) / 8))
 
 /**
  * @brief Returns equivalent count ticks for the given microseconds.
