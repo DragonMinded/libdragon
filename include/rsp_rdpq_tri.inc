@@ -166,7 +166,7 @@ RDPQ_Triangle_Send_Async:
     #define my      vm.e1
     #define lx      vl.e0
     #define ly      vl.e1
-    #define vhmlupp v__
+    #define vhmlupp vtmp
 
     #define vk1     $v12
 
@@ -249,43 +249,51 @@ RDPQ_Triangle_Send_Async:
     vmov vx12_f.e2, vall2.e0;                   xor cull, did_swap_0
 
     # Prepare -MY for crossprod
-    vsubc vtmp, vzero, my;                      mfc2 vtx3, vall3.e3
+    vsubc v__, vzero, my;                       mfc2 vtx3, vall3.e3
     
     # FY.e4 = Y1 (s15.16)
     vsll8 vfy_f, vy1, 14;                       sdv vy3.e0, 0,s3
     vsra  vfy_i, vy1, 2;                        bnez clip1, JrRa
                                                 li out_clip_flag, 1     # report clipping required
     vmudh vnz_f, vm, hy;                        li out_clip_flag, 0     # report no clipping required
-    vmadh vnz_f, vhml, vtmp;                    slv vm.e0,   8,s3
+    vmadh vnz_f, vhml, v__;                     slv vm.e0,   8,s3
     vsar vnz_i, COP2_ACC_HI;                    slv vl.e0,  12,s3
     vsar vnz_f, COP2_ACC_MD;                    ldv vhml.e2, 8,s3
+
+    #undef clip1
+    #undef clip2
+    #undef clip3
+    #define prim_size       t3
+    #define color_dmem      t4
+    #define tex_dmem        t5
+    #define z_dmem          t6
 
     # FY.e0 = floorf(y1) - y1
     # TODO: this is always a negative
     # fraction, so fy_i is always 0xFFFF
-    # (or fy_i=fy_f=0). See if we can
-    # take advantage of this somehow
-    # to simplify later.                
-    vsubc vfy_f, vzero, vfy_f;          
-    vsub  vfy_i, vfy_i;                         lsv vw_i.e2, VTX_ATTR_Wi,vtx2
+    # (or fy_i=fy_f=0). See if we can           # Begin calculating DMEM offsets:
+    # take advantage of this somehow            # color_dmem, tex_dmem, z_dmem
+    # to simplify later.                        # This will happen throughout the whole function
+    vsubc vfy_f, vzero, vfy_f;                  addu color_dmem, s3, 0x20
+    vsub  vfy_i, vfy_i;                         lsv vw_f.e0, VTX_ATTR_Wf,vtx1
 
     # Compute SLOPE vector
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
 
     # Calculate reciprocal of normal            # Backface culling
     vrcph vslope_i.e7, vnz_i.e0;                mfc2 t0, vnz_i.e0
-    vrcpl vslope_f.e7, vnz_f.e0;                luv attr1_r, VTX_ATTR_RGBA,vtx1
-    vrcph vslope_i.e7, vzero.e0;                luv attr2_r, VTX_ATTR_RGBA,vtx2
+    vrcpl vslope_f.e7, vnz_f.e0;                lsv vw_f.e2, VTX_ATTR_Wf,vtx2
+    vrcph vslope_i.e7, vzero.e0;                lsv vw_f.e4, VTX_ATTR_Wf,vtx3
                                         
     # Compute ISH (H slope). 1/HY  (s14.1)
     vrcp  vslope_f.e0, hy;                      slt t0, t0, zero
     vrcph vslope_i.e0, hy;                      beq t0, cull, JrRa
     # Compute ISM (M slope). 1/MY  (s14.1)
     vrcp  vslope_f.e2, my;                      # <delay slot>
-    vrcph vslope_i.e2, my;                      xori t0, 1
+    vrcph vslope_i.e2, my;                      lsv vw_i.e0, VTX_ATTR_Wi,vtx1
     # Compute ISL (L slope). 1/LY  (s14.1)      
-    vrcp  vslope_f.e4, ly;                      lsv vw_i.e4, VTX_ATTR_Wi,vtx3
-    vrcph vslope_i.e4, ly;                      lsv vw_i.e0, VTX_ATTR_Wi,vtx1
+    vrcp  vslope_f.e4, ly;                      lsv vw_i.e2, VTX_ATTR_Wi,vtx2
+    vrcph vslope_i.e4, ly;                      lsv vw_i.e4, VTX_ATTR_Wi,vtx3
 
     #undef vm
     #undef vl
@@ -310,11 +318,6 @@ RDPQ_Triangle_Send_Async:
     #define vslopem2_f   $v01
     #define vslopem2_i   $v02
 
-    #define prim_size       t3
-    #define color_dmem      t4
-    #define tex_dmem        t5
-    #define z_dmem          t6
-
     # Prepare 32-bit number containing the source of the reciprocal
     # Notice that we're calculating NR over 1 32-bit input (NZ) and
     # 3 16-bit inputs (HY, MY, LY), for which we provide 0 in the lower
@@ -322,47 +325,69 @@ RDPQ_Triangle_Send_Async:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
     #    vhmlupp   =    0 0  0  0     0  0   0  NZi
                                                 # Write left flag into tricmd
-    vmov vhml.e7, vnz_f.e0;                     sll t0, 7
-    vmov vhmlupp.e7, vnz_i.e0;                  or tricmd, t0
+    vmov vhml.e7, vnz_f.e0;                     xori t0, 1 
+    vmov vhmlupp.e7, vnz_i.e0;                  sll t0, 7
 
     # vslopem2  = X/2 * (-4) = -2*X             
     vmudn vslopem2_f, vslope_f, VKM4;           luv attr3_r, VTX_ATTR_RGBA,vtx3
-    vmadh vslopem2_i, vslope_i, VKM4;           lsv vw_f.e0, VTX_ATTR_Wf,vtx1
+    vmadh vslopem2_i, vslope_i, VKM4;           luv attr1_r, VTX_ATTR_RGBA,vtx1
 
-    # NR: R*(X/2)                               
-    vmudl vtmp_f, vslope_f, vhml.q1;            lsv vw_f.e2, VTX_ATTR_Wf,vtx2
-    vmadm vtmp_f, vslope_i, vhml.q1;            lsv vw_f.e4, VTX_ATTR_Wf,vtx3
+    # Calculate minimum W (between e0 and e2) 
+    vsubc v__,  vw_f, vw_f.e2;                  luv attr2_r, VTX_ATTR_RGBA,vtx2
+    vlt   vw_i, vw_i, vw_i.e2;                  or tricmd, t0
+    vmrg  vw_f, vw_f, vw_f.e2;                  lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
+
+    # NR: R*(X/2)                               # Load other invw components
+    vmudl vtmp_f, vslope_f, vhml.q1;            lsv vinvw_f.e4, VTX_ATTR_INVWf,vtx1           
+    vmadm vtmp_f, vslope_i, vhml.q1;            lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
                                                 
                                                 # Calculate pointers to color, tex
                                                 # and z attributes, based on tricmd    
-    vmadn vtmp_f, vslope_f, vhmlupp;            addu color_dmem, s3, 0x20
-    vmadh vtmp_i, vslope_i, vhmlupp;            andi tex_dmem, tricmd, 0x400
+    vmadn vtmp_f, vslope_f, vhmlupp;            andi tex_dmem, tricmd, 0x400
+    vmadh vtmp_i, vslope_i, vhmlupp;            srl tex_dmem, 4
+
 
     # NR: R*X/2 - 1                             # Calculate -MY/-HX
     vmadn vtmp_f, vk1, VKM1;                    mfc2 t0, my
     vmadh vtmp_i, vk1, VKM1;                    mfc2 t1, hx
 
-    # Calculate minimum W (between e0 and e2)   # Load invw components
-    vsubc v__,  vw_f, vw_f.e2;                  lsv vinvw_i.e4, VTX_ATTR_INVWi,vtx1
-    vlt   vw_i, vw_i, vw_i.e2;                  lsv vinvw_i.e5, VTX_ATTR_INVWi,vtx2
-    vmrg  vw_f, vw_f, vw_f.e2;                  lsv vinvw_i.e6, VTX_ATTR_INVWi,vtx3
+    # Calculate minimum W (between e0 and e4)   
+    # Now vw_if.e0 contains the minimum W       # Load invw components    
+    vsubc v__,  vw_f, vw_f.e4;                  lsv vinvw_i.e5, VTX_ATTR_INVWi,vtx2
+    vlt   vw_i, vw_i, vw_i.e4;                  lsv vinvw_i.e6, VTX_ATTR_INVWi,vtx3
+    vmrg  vw_f, vw_f, vw_f.e4;                  lsv vinvw_i.e4, VTX_ATTR_INVWi,vtx1
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
     #   =    X * (2 - R*X)             
-    vmudl v__,      vtmp_f, vslopem2_f;         srl tex_dmem, 4
-    vmadm v__,      vtmp_i, vslopem2_f;         addu tex_dmem, color_dmem
-    vmadn vnz_f,    vtmp_f, vslopem2_i;         andi z_dmem, tricmd, 0x200
+    vmudl v__,      vtmp_f, vslopem2_f;         addu tex_dmem, color_dmem
+    vmadm v__,      vtmp_i, vslopem2_f;         andi z_dmem, tricmd, 0x200
+    vmadn vnz_f,    vtmp_f, vslopem2_i;         srl z_dmem, 3                   
     vmadh vnz_i,    vtmp_i, vslopem2_i;         sh tricmd, 0(s3)
 
     #undef vtmp_i
     #undef vtmp_f
+    #define vtex1 vdx_f
+    #define vtex2 vdx_i
+    #define vtex3 vde_f
 
-    # Calculate minimum W (between e0 and e4)
-    # Now vw_if.e0 contains the minimum W       # Load other invw components
-    vsubc v__,  vw_f, vw_f.e4;                  lsv vinvw_f.e4, VTX_ATTR_INVWf,vtx1
-    vlt   vw_i, vw_i, vw_i.e4;                  lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
-    vmrg  vw_f, vw_f, vw_f.e4;                  lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
+    # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
+    # We will multiply by W instead. We have now prepared the minium w in vw_i.e0.
+    #
+    #    vw:     minw -- -- --    ----- ----- ----- --
+    # vinvw:     ---- -- -- --    invw1 invw2 invw3 --
+    #
+    # We need to multiply minw with the three invw. All numbers are positive s16.16,
+    # and the result is known to fit 0..1. By doing a standard 32-bit multiplication
+    # on RSP, we end up with a positive s16.16 number, where the integer word is zero.
+    # The only exception is when W = 1/W = 1.0. In that case the result of the
+    # multiplication will be 1.0, which means that vinw_f will be 0. To handle
+    # this case, we later subtract 1 from it, so that it becomes 0xffff, which
+    # is a fractional "almost 1".
+    #                                           # Load S/T coordinates
+    vmudl v__,     vinvw_f, vw_f.e0;            llv vtex1.e4, VTX_ATTR_ST,vtx1
+    vmadm v__,     vinvw_i, vw_f.e0;            llv vtex2.e4, VTX_ATTR_ST,vtx2
+    vmadn vinvw_f, vinvw_f, vw_i.e0;            llv vtex3.e4, VTX_ATTR_ST,vtx3
 
     # Finalize slope divisions by multiplying by the reciprocal.
     # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
@@ -382,39 +407,21 @@ RDPQ_Triangle_Send_Async:
     #define isl_f   vslope_f.e4
     #define isl_i   vslope_i.e4
                                                
-    # 32bit vsra by 1                          
-    vmudl vw_f, vw_f, K32768;                   srl z_dmem, 3
-                                                # Prepare for vmrg later (to merge
-                                                # tex coords inside the attribute
-    vmadm vw_i, vw_i, K32768;                   li t0, 0xCF
-    vmadn vw_f, vzero, vzero;                   ctc2 t0, COP2_CTRL_VCC
-
-    #define vtex1 vdx_f
-    #define vtex2 vdx_i
-    #define vtex3 vde_f
+    # Subtract INVW by 1. This workarounds      # Prepare for vmrg later (to merge
+    # an overflow when INVW is exactly
+    # 1.0.                                       # tex coords inside the attribute)
+    vsubc vinvw_f, K1;                          li t0, 0xCF
 
     # vattr now contains only RGBA, loaded
-    # via suv. Shift them back to raw bytes.    # Load S/T coordinates
-    vsrl vattr1, vattr1, 7;                     llv vtex1.e4, VTX_ATTR_ST,vtx1                       
-    vsrl vattr2, vattr2, 7;                     llv vtex2.e4, VTX_ATTR_ST,vtx2                   
-    vsrl vattr3, vattr3, 7;                     llv vtex3.e4, VTX_ATTR_ST,vtx3                   
+    # via suv. Shift them back to raw bytes.    # Load Z components into attribute vector
+    vsrl vattr1, vattr1, 7;                     lsv attr1_z, VTX_ATTR_Z,vtx1;
+    vsrl vattr2, vattr2, 7;                     ctc2 t0, COP2_CTRL_VCC                                          
+    vsrl vattr3, vattr3, 7;                     lsv attr2_z, VTX_ATTR_Z,vtx2 
 
-    # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
-    # We will multiply by W instead. We have now prepared the minium w in vw_i.e0.
-    #
-    #    vw:     minw -- -- --    ----- ----- ----- --
-    # vinvw:     ---- -- -- --    invw1 invw2 invw3 --
-    #
-    # We need to multiply minw with the three invw. All numbers are positive s16.16,
-    # and the result is known to fit 0..1. By doing a standard 32-bit multiplication
-    # on RSP, we end up with a positive s16.16 number, where the integer word is zero.
-    # In fact, in theory W * 1/W = 1, but both numbers are likely missing enough bits
-    # of precision that the result will always be slightly lower than 1 (and thus the
-    # integer part will be 0).
-    #                                           # Load Z componen into attribute vector
-    vmudl v__,     vinvw_f, vw_f.e0;            lsv attr1_z, VTX_ATTR_Z,vtx1
-    vmadm v__,     vinvw_i, vw_f.e0;            lsv attr2_z, VTX_ATTR_Z,vtx2 
-    vmadn vinvw_f, vinvw_f, vw_i.e0;            lsv attr3_z, VTX_ATTR_Z,vtx3
+    # Divide vinw_f by 2. This is needed
+    # because it is going to be used in a
+    # vmulf which expects a 0.15 number.        
+    vsrl vinvw_f, vinvw_f, 1;                   lsv attr3_z, VTX_ATTR_Z,vtx3
 
     #  vxy21 =   X1   --    X2   --       Y1 --   Y2 --
     #  slope = HX/HY  --   MX/MY --     LX/LY --  -- --
