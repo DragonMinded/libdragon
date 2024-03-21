@@ -336,7 +336,7 @@ volatile int __rspq_syncpoints_done  __attribute__((aligned(8)));
 static bool rspq_is_running;
 
 /** @brief Dummy state used for overlay 0 */
-static uint64_t dummy_overlay_state[2];
+static uint64_t dummy_overlay_state[2] __attribute__((aligned(16)));
 
 /** @brief Deferred calls: head of list */
 rspq_deferred_call_t *__rspq_defcalls_head;
@@ -1447,12 +1447,12 @@ static void rspq_profile_accumulate()
     profile_data.total_ticks += profile_buffer.data.frame_time;
     profile_data.rdp_busy_ticks += profile_buffer.data.busy_time;
     profile_data.frame_count++;
+    data_cache_hit_invalidate(&profile_buffer, sizeof(profile_buffer));
 }
 
 void rspq_profile_next_frame()
 {
     rspq_int_write(RSPQ_CMD_PROFILE_FRAME);
-    data_cache_hit_invalidate(&profile_buffer, sizeof(profile_buffer));
     rspq_dma_to_rdram(&profile_buffer, PROFILE_DATA_DMEM_ADDRESS, sizeof(profile_buffer), false);
     rspq_call_deferred(rspq_profile_accumulate, NULL);
     rspq_profile_reset_dmem(false);
