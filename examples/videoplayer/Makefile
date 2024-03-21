@@ -72,7 +72,7 @@ $(MOVIE_FILE):
 	fi
 
 clean:
-	rm -rf $(BUILD_DIR) $(MOVIE_FILE) $(DFS_FILES) movie.wav videoplayer.z64
+	rm -rf $(BUILD_DIR) $(DFS_FILES) movie.wav videoplayer.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
