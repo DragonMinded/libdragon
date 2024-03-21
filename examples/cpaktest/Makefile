@@ -1,14 +1,14 @@
-all: mptest.z64
+all: cpaktest.z64
 .PHONY: all
 
 BUILD_DIR = build
 include $(N64_INST)/include/n64.mk
 
-OBJS = $(BUILD_DIR)/mptest.o
+OBJS = $(BUILD_DIR)/cpaktest.o
 
-mptest.z64: N64_ROM_TITLE = "Mempak Test"
+cpaktest.z64: N64_ROM_TITLE = "ControllerPak Test"
 
-$(BUILD_DIR)/mptest.elf: $(OBJS)
+$(BUILD_DIR)/cpaktest.elf: $(OBJS)
 
 clean:
 	rm -rf $(BUILD_DIR) *.z64
