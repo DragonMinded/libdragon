@@ -332,6 +332,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
 
     JOYPAD_PORT_FOREACH (port)
     {
+        if (out_bytes[i] == 0xff) i++; // Skip nops we put for iQue
         device = &joypad_devices_hot[port];
         accessory = &joypad_accessories_hot[port];
         cmd = (void *)&out_bytes[i + JOYBUS_COMMAND_METADATA_SIZE];
@@ -425,6 +426,9 @@ static void joypad_identify_async(bool reset)
         memset(input, 0, JOYBUS_BLOCK_SIZE);
         JOYPAD_PORT_FOREACH (port)
         {
+            // iQue has a very lousy PIF emulator that requires identification
+            // commands to be prepended by a nop (0xff) or they are not recognized.
+            input[i++] = 0xff;
             // Set the command metadata
             input[i++] = sizeof(cmd.send);
             input[i++] = sizeof(cmd.recv);
@@ -503,6 +507,9 @@ static void joypad_read_async(void)
                 const joybus_cmd_n64_controller_read_port_t cmd = { .send = {
                     .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
                 } };
+                // iQue has a very lousy PIF emulator that requires commands
+                // to be prepended by a nop (0xff) or they are not recognized.
+                input[i++] = 0xff;
                 // Set the command metadata
                 input[i++] = sizeof(cmd.send);
                 input[i++] = sizeof(cmd.recv);
@@ -635,6 +642,7 @@ void joypad_poll(void)
 
     JOYPAD_PORT_FOREACH (port)
     {
+        if (output[i] == 0xff) i++; // Skip nops we put for iQue
         device = &joypad_devices_cold[port];
         // Check send_len to figure out if this port has a command on it
         send_len = output[i + JOYBUS_COMMAND_OFFSET_SEND_LEN];
