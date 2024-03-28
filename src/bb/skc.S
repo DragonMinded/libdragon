@@ -2,14 +2,14 @@
 
     .text
     .set noreorder
-    .set noat
-#define at $1
 
 .macro skc_call id
-    li v0, \id
-    lui at, 0xA430
+    li v0, \id              # Load the system call number in $v0
+    lw zero, 0xA4300014     # Force a SK trap. This will cause a NMI to be issued.
+    nop                     # NMI is a bit delayed to avoid retriggering on the load
+    nop
     jr ra
-     lw zero, 0x14(at)
+     nop
 .endm
 
     .global skc_get_id
