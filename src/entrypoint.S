@@ -24,9 +24,6 @@ _start:
 	sw t1, %gprel(__entropy_state+0)(gp)
 	sw t1, %gprel(__entropy_state+4)(gp)
 
-	/* Setup SP using memory size */
-	addu sp, t0, 0x80000000 - 0x10		/* sp = KSEG0 + memsize - 0x10 */
-
 	/* Copy other bootcode flags */
 	lbu t0, 0x0009(v0)
 	lbu t1, 0x000A(v0)
