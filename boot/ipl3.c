@@ -279,6 +279,14 @@ void stage1(void)
             if (memsize == 0x800000)
                 memsize = 0x7C0000;
 
+            if (memsize == 0x400000 && io_read(0xB0000008) >= 0x80400000) {
+                // This is a special case for writing code in SA2 context on iQue.
+                // In that case, the ELF must be located above 4 MiB, but 0xA0000318
+                // is initialized to 4 MiB. We need to boot the application by
+                // reporting the true size of the memory.
+                memsize = 0x800000;
+            }
+
             // iQue has a hardware RNG. Use that to fetch 32 bits of entropy
             uint32_t rng = 0;
             for (int i=0;i<32;i++)
