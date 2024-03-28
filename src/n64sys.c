@@ -45,11 +45,6 @@ static uint32_t ticks64_base_tick;
 /** @brief Last value of the 64-bit counter */
 static uint64_t ticks64_base;
 
-/** @brief Return true if we are running on a iQue player */
-bool sys_bbplayer(void) {
-    return __boot_consoletype != 0;
-}
-
 /**
  * @brief Helper macro to perform cache refresh operations
  *
@@ -408,3 +403,4 @@ extern inline uint8_t mem_read8(uint64_t vaddr);
 extern inline uint16_t mem_read16(uint64_t vaddr);
 extern inline uint32_t mem_read32(uint64_t vaddr);
 extern inline uint64_t mem_read64(uint64_t vaddr);
+extern inline bool sys_bbplayer(void);

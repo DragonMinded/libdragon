@@ -13,6 +13,7 @@
 #include "joybus_commands.h"
 #include "joybus_internal.h"
 #include "n64sys.h"
+#include "mi.h"
 #include "regsinternal.h"
 
 /**
@@ -71,11 +72,6 @@
  * @brief Structure used to interact with SI registers.
  */
 static volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *)0xa4800000;
-/** @brief Static structure to address MI registers */
-static volatile struct MI_regs_s * const MI_regs = (struct MI_regs_s *)0xa4300000;
-
-/** @brief SI interrupt bit */
-#define MI_INTR_SI 0x02
 
 /**
  * @brief Pointer to the memory-mapped location of the PIF RAM.
@@ -319,8 +315,8 @@ void joybus_exec( const void * input, void * output )
         // So while we spin loop, poll SI interrupts manually in case they
         // are disabled.
         disable_interrupts();
-        unsigned long status = MI_regs->intr & MI_regs->mask;
-        if (status & MI_INTR_SI) {
+        unsigned long status = *MI_INTERRUPT & *MI_MASK;
+        if (status & MI_INTERRUPT_SI) {
             SI_regs->status = 0;    // clear interrupt
             si_interrupt();
         }

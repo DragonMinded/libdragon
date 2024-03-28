@@ -41,57 +41,6 @@
  * @{
  */
 
-/** @brief SP interrupt bit */
-#define MI_INTR_SP 0x01
-/** @brief SI interrupt bit */
-#define MI_INTR_SI 0x02
-/** @brief AI interrupt bit */
-#define MI_INTR_AI 0x04
-/** @brief VI interrupt bit */
-#define MI_INTR_VI 0x08
-/** @brief PI interrupt bit */
-#define MI_INTR_PI 0x10
-/** @brief DP interrupt bit */
-#define MI_INTR_DP 0x20
-
-/** @brief SP mask bit */
-#define MI_MASK_SP 0x01
-/** @brief SI mask bit */
-#define MI_MASK_SI 0x02
-/** @brief AI mask bit */
-#define MI_MASK_AI 0x04
-/** @brief VI mask bit */
-#define MI_MASK_VI 0x08
-/** @brief PI mask bit */
-#define MI_MASK_PI 0x10
-/** @brief DP mask bit */
-#define MI_MASK_DP 0x20
-
-/** @brief Clear SP mask */
-#define MI_MASK_CLR_SP 0x0001
-/** @brief Set SP mask */
-#define MI_MASK_SET_SP 0x0002
-/** @brief Clear SI mask */
-#define MI_MASK_CLR_SI 0x0004
-/** @brief Set SI mask */
-#define MI_MASK_SET_SI 0x0008
-/** @brief Clear AI mask */
-#define MI_MASK_CLR_AI 0x0010
-/** @brief Set AI mask */
-#define MI_MASK_SET_AI 0x0020
-/** @brief Clear VI mask */
-#define MI_MASK_CLR_VI 0x0040
-/** @brief Set VI mask */
-#define MI_MASK_SET_VI 0x0080
-/** @brief Clear PI mask */
-#define MI_MASK_CLR_PI 0x0100
-/** @brief Set PI mask */
-#define MI_MASK_SET_PI 0x0200
-/** @brief Clear DP mask */
-#define MI_MASK_CLR_DP 0x0400
-/** @brief Set DP mask */
-#define MI_MASK_SET_DP 0x0800
-
 /** @brief Bit to set to clear the PI interrupt */
 #define PI_CLEAR_INTERRUPT 0x02
 /** @brief Bit to set to clear the SI interrupt */
@@ -131,8 +80,6 @@ typedef struct callback_link
 
 /** @brief Static structure to address AI registers */
 static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa4500000;
-/** @brief Static structure to address MI registers */
-static volatile struct MI_regs_s * const MI_regs = (struct MI_regs_s *)0xa4300000;
 /** @brief Static structure to address VI registers */
 static volatile struct VI_regs_s * const VI_regs = (struct VI_regs_s *)0xa4400000;
 /** @brief Static structure to address PI registers */
@@ -266,9 +213,9 @@ static void __unregister_callback( struct callback_link ** head, void (*callback
  */
 void __MI_handler(void)
 {
-    unsigned long status = MI_regs->intr & MI_regs->mask;
+    unsigned long status = *MI_INTERRUPT & *MI_MASK;
 
-    if( status & MI_INTR_SP )
+    if( status & MI_INTERRUPT_SP )
     {
         /* Clear interrupt */
         SP_regs->status=SP_CLEAR_INTERRUPT;
@@ -276,7 +223,7 @@ void __MI_handler(void)
         __call_callback(SP_callback);
     }
 
-    if( status & MI_INTR_SI )
+    if( status & MI_INTERRUPT_SI )
     {
         /* Clear interrupt */
         SI_regs->status=SI_CLEAR_INTERRUPT;
@@ -284,7 +231,7 @@ void __MI_handler(void)
         __call_callback(SI_callback);
     }
 
-    if( status & MI_INTR_AI )
+    if( status & MI_INTERRUPT_AI )
     {
         /* Clear interrupt */
     	AI_regs->status=AI_CLEAR_INTERRUPT;
@@ -292,7 +239,7 @@ void __MI_handler(void)
 	    __call_callback(AI_callback);
     }
 
-    if( status & MI_INTR_VI )
+    if( status & MI_INTERRUPT_VI )
     {
         /* Clear interrupt */
     	VI_regs->cur_line=VI_regs->cur_line;
@@ -300,7 +247,7 @@ void __MI_handler(void)
     	__call_callback(VI_callback);
     }
 
-    if( status & MI_INTR_PI )
+    if( status & MI_INTERRUPT_PI )
     {
         /* Clear interrupt */
         PI_regs->status=PI_CLEAR_INTERRUPT;
@@ -308,14 +255,63 @@ void __MI_handler(void)
         __call_callback(PI_callback);
     }
 
-    if( status & MI_INTR_DP )
+    if( status & MI_INTERRUPT_DP )
     {
         /* Clear interrupt */
-        MI_regs->mode=DP_CLEAR_INTERRUPT;
+        *MI_MODE = MI_WMODE_CLR_DPINT;
 
         __call_callback(DP_callback);
     }
 }
+
+/**
+ * @brief Handle the extra MI interrupts in iQue
+ */
+void __MI_BB_handler(void)
+{
+    unsigned long status = *MI_BB_INTERRUPT & *MI_BB_MASK;
+
+    if( status & MI_BB_INTERRUPT_FLASH )
+    {
+        assertf(0, "Unhandled iQue interrupt: flash");
+    }
+
+    if( status & MI_BB_INTERRUPT_AES )
+    {
+        assertf(0, "Unhandled iQue interrupt: AES");
+    }
+
+    if( status & MI_BB_INTERRUPT_IDE )
+    {
+        assertf(0, "Unhandled iQue interrupt: IDE");
+    }
+
+    if( status & MI_BB_INTERRUPT_PI_ERR )
+    {
+        assertf(0, "Unhandled iQue interrupt: PI_ERR");
+    }
+
+    if( status & MI_BB_INTERRUPT_USB0 )
+    {
+        assertf(0, "Unhandled iQue interrupt: USB0");
+    }
+
+    if( status & MI_BB_INTERRUPT_USB1 )
+    {
+        assertf(0, "Unhandled iQue interrupt: USB1");
+    }
+
+    if( status & MI_BB_INTERRUPT_BTN )
+    {
+        assertf(0, "Unhandled iQue interrupt: BTN");
+    }
+
+    if( status & MI_BB_INTERRUPT_MD )
+    {
+        assertf(0, "Unhandled iQue interrupt: MD");
+    }
+}
+
 
 /**
  * @brief Handle a timer interrupt
@@ -331,6 +327,12 @@ void __TI_handler(void)
  */
 void __CART_handler(void)
 {
+    /* On iQue, this is actually second half of MI handler */
+    if (sys_bbplayer()) {
+        __MI_BB_handler();
+        return;
+    }
+
     /* Call the registered callbacks */
     __call_callback(CART_callback);
 
@@ -644,14 +646,7 @@ void unregister_RESET_handler( void (*callback)() )
  */
 void set_AI_interrupt(int active)
 {
-    if( active )
-    {
-        MI_regs->mask=MI_MASK_SET_AI;
-    }
-    else
-    {
-        MI_regs->mask=MI_MASK_CLR_AI;
-    }
+    *MI_MASK = active ? MI_WMASK_SET_AI : MI_WMASK_CLR_AI;
 }
 
 /**
@@ -685,12 +680,12 @@ void set_VI_interrupt(int active, unsigned long line)
 {
     if( active )
     {
-    	MI_regs->mask=MI_MASK_SET_VI;
+    	*MI_MASK = MI_WMASK_SET_VI;
 	    VI_regs->v_int=line;
     }
     else
     {
-        MI_regs->mask=MI_MASK_CLR_VI;
+        *MI_MASK = MI_WMASK_CLR_VI;
     }
 }
 
@@ -702,14 +697,7 @@ void set_VI_interrupt(int active, unsigned long line)
  */
 void set_PI_interrupt(int active)
 {
-    if ( active )
-    {
-        MI_regs->mask=MI_MASK_SET_PI;
-    }
-    else
-    {
-        MI_regs->mask=MI_MASK_CLR_PI;
-    }
+    *MI_MASK = active ? MI_WMASK_SET_PI : MI_WMASK_CLR_PI;
 }
 
 /**
@@ -720,14 +708,7 @@ void set_PI_interrupt(int active)
  */
 void set_DP_interrupt(int active)
 {
-    if( active )
-    {
-        MI_regs->mask=MI_MASK_SET_DP;
-    }
-    else
-    {
-        MI_regs->mask=MI_MASK_CLR_DP;
-    }
+    *MI_MASK = active ? MI_WMASK_SET_DP : MI_WMASK_CLR_DP;
 }
 
 /**
@@ -738,14 +719,7 @@ void set_DP_interrupt(int active)
  */
 void set_SI_interrupt(int active)
 {
-    if( active )
-    {
-        MI_regs->mask=MI_MASK_SET_SI;
-    }
-    else
-    {
-        MI_regs->mask=MI_MASK_CLR_SI;
-    }
+    *MI_MASK = active ? MI_WMASK_SET_SI : MI_WMASK_CLR_SI;
 }
 
 /**
@@ -756,14 +730,7 @@ void set_SI_interrupt(int active)
  */
 void set_SP_interrupt(int active)
 {
-    if( active )
-    {
-        MI_regs->mask=MI_MASK_SET_SP;
-    }
-    else
-    {
-        MI_regs->mask=MI_MASK_CLR_SP;
-    }
+    *MI_MASK = active ? MI_WMASK_SET_SP : MI_WMASK_CLR_SP;
 }
 
 /**
@@ -842,7 +809,11 @@ __attribute__((constructor)) void __init_interrupts()
     if( __interrupt_depth < 0 )
     {
         /* Clear and mask all interrupts on the system so we start with a clean slate */
-        MI_regs->mask=MI_MASK_CLR_SP|MI_MASK_CLR_SI|MI_MASK_CLR_AI|MI_MASK_CLR_VI|MI_MASK_CLR_PI|MI_MASK_CLR_DP;
+        *MI_MASK = MI_WMASK_CLR_SP | MI_WMASK_CLR_SI | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI | MI_WMASK_CLR_PI | MI_WMASK_CLR_DP;
+
+        /* On iQue, also disable extra interrupts */
+        if (sys_bbplayer())
+            *MI_BB_MASK = MI_BB_WMASK_CLR_FLASH | MI_BB_WMASK_CLR_AES | MI_BB_WMASK_CLR_IDE | MI_BB_WMASK_CLR_PI_ERR | MI_BB_WMASK_CLR_USB0 | MI_BB_WMASK_CLR_USB1 | MI_BB_WMASK_CLR_BTN | MI_BB_WMASK_CLR_MD;
 
         /* Set that we are enabled */
         __interrupt_depth = 0;

@@ -65,7 +65,8 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/GL/buffer.o $(BUILD_DIR)/GL/rsp_gl.o \
 			 $(BUILD_DIR)/GL/rsp_gl_pipeline.o $(BUILD_DIR)/GL/glu.o \
 			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o \
-			 $(BUILD_DIR)/dlfcn.o $(BUILD_DIR)/model64.o
+			 $(BUILD_DIR)/dlfcn.o $(BUILD_DIR)/model64.o \
+			 $(BUILD_DIR)/bb/skc.o
 
 include $(SOURCE_DIR)/audio/libdragon.mk
 
@@ -115,6 +116,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/backtrace.h $(INSTALLDIR)/mips64-elf/include/backtrace.h
 	install -Cv -m 0644 include/cop0.h $(INSTALLDIR)/mips64-elf/include/cop0.h
 	install -Cv -m 0644 include/cop1.h $(INSTALLDIR)/mips64-elf/include/cop1.h
+	install -Cv -m 0644 include/mi.h $(INSTALLDIR)/mips64-elf/include/mi.h
 	install -Cv -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
 	install -Cv -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
 	install -Cv -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
@@ -185,6 +187,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/GL/glu.h $(INSTALLDIR)/mips64-elf/include/GL/glu.h
 	install -Cv -m 0644 include/dlfcn.h $(INSTALLDIR)/mips64-elf/include/dlfcn.h
 	install -Cv -m 0644 include/model64.h $(INSTALLDIR)/mips64-elf/include/model64.h
+	install -Cv -m 0644 include/skc.h $(INSTALLDIR)/mips64-elf/include/skc.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/libcart
 	install -Cv -m 0644 src/libcart/cart.h $(INSTALLDIR)/mips64-elf/include/libcart/cart.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/fatfs
