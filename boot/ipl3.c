@@ -110,7 +110,9 @@ const rom_header_t header = {
     .pi_dom1_config = 0x80371240,
     // Our IPL3 does not use directly this field. We do set it
     // mainly for iQue, so that the special iQue trampoline is run,
-    // which jumps to our IPL3.
+    // which jumps to our IPL3. Notice that n64tool will also overwrite
+    // this to align it to the one found in the ELF, to try to coerce
+    // iQue OS to use the same memory region used by the ELF.
     .boot_address = 0x80000400,
     // Default title name
     .title = "Libdragon           ",

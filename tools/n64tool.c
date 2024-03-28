@@ -67,6 +67,8 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 
 #define REGION_OFFSET 0x3E
 
+#define IQUE_ENTRYPOINT_OFFSET 0x8
+
 #define STATUS_OK       0
 #define STATUS_ERROR    1
 #define STATUS_BADUSAGE 2
@@ -84,6 +86,7 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 
 static const unsigned char zero[1024] = {0};
 static char * tmp_output = NULL;
+static uint32_t elf_loadpoint = 0xFFFFFFFF;
 
 struct toc_s {
 	char magic[4];
@@ -240,6 +243,82 @@ void remove_tmp_file(void)
 {
 	if(tmp_output)
 		remove(tmp_output);
+}
+
+static uint32_t fread32be_at(FILE *fp, int offset)
+{
+	uint8_t buf[4];
+	fseek(fp, offset, SEEK_SET);
+	fread(buf, 1, 4, fp);
+	return (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+}
+
+static uint16_t fread16be_at(FILE *fp, int offset)
+{
+	uint8_t buf[2];
+	fseek(fp, offset, SEEK_SET);
+	fread(buf, 1, 2, fp);
+	return (buf[0] << 8) | buf[1];
+}
+
+int parse_elf_loadpoint(const char *elf_fn, uint32_t *loadpoint)
+{
+	FILE *elf = fopen(elf_fn, "rb");
+
+	if(!elf)
+	{
+		fprintf(stderr, "ERROR: Cannot open %s for reading!\n", elf_fn);
+		return -1;
+	}
+
+	char id[4];
+	fread(id, 1, 4, elf);
+	if (memcmp(id, "\x7F" "ELF", 4) != 0) {
+		fprintf(stderr, "WARNING: %s is not an ELF file, boot may fail\n", elf_fn);
+		fclose(elf);
+		return -1;
+	}
+
+	bool elf64 = fgetc(elf) == 2;
+	if (fgetc(elf) == 1) {
+		fprintf(stderr, "WARNING: %s is a little-endian ELF file, boot may fail\n", elf_fn);
+		fclose(elf);
+		return -1;
+	}
+
+	int phoff = fread32be_at(elf, (elf64 ? 0x20+4 : 0x1C));
+	int phnum = fread16be_at(elf, (elf64 ? 0x38 : 0x2C));
+
+	enum { PF_N64_COMPRESSED = 0x1000 };
+	enum { PT_LOAD = 0x1 };
+
+	bool found_loadpoint = false;
+	for (int i=0; i<phnum; i++) {
+		uint32_t type  = fread32be_at(elf, phoff + 0);
+		uint32_t vaddr = fread32be_at(elf, phoff + (elf64 ? 5 : 2)*4);
+		uint32_t paddr = fread32be_at(elf, phoff + (elf64 ? 7 : 3)*4);
+		uint32_t flags = fread32be_at(elf, phoff + (elf64 ? 1 : 6)*4);
+
+		if (flags & PF_N64_COMPRESSED)
+			vaddr = paddr;
+
+		if (type == PT_LOAD && !(vaddr >= 0x80000000 && vaddr < 0x80000400)) {
+			*loadpoint = vaddr;
+			found_loadpoint = true;
+			break;
+		}
+		
+		phoff += elf64 ? 0x38 : 0x20;
+	}
+
+	if (!found_loadpoint) {
+		fprintf(stderr, "WARNING: No suitable loading point found in %s, boot may fail on iQue\n", elf_fn);
+		fclose(elf);
+		return -1;
+	}	
+
+	fclose(elf);
+	return 0;
 }
 
 int main(int argc, char *argv[])
@@ -510,6 +589,8 @@ int main(int argc, char *argv[])
 			{
 				header_size = sizeof(default_ipl3);
 				fwrite(default_ipl3, 1, header_size, write_file);
+				if (parse_elf_loadpoint(arg, &elf_loadpoint) < 0)
+					return STATUS_ERROR;
 			}
 
 			if(header_size < 0x100)
@@ -647,6 +728,17 @@ int main(int argc, char *argv[])
 	/* Set region in header */
 	fseek(write_file, REGION_OFFSET, SEEK_SET);
 	fwrite(&region, 1, 1, write_file);
+
+	/* If we are using libdragon's IPL3, set the entrypoint in the header
+	   for iQue to match the first valid loadpoint found in the ELF. This make
+	   sure that the iQue OS, in its initial flat-binary loading, will use
+	   the same memory region as the ELF.  */
+	if (elf_loadpoint != 0xFFFFFFFF)
+	{
+		elf_loadpoint = SWAPLONG(elf_loadpoint);
+		fseek(write_file, IQUE_ENTRYPOINT_OFFSET, SEEK_SET);
+		fwrite(&elf_loadpoint, 1, 4, write_file);
+	}
 
 	/* Write table of contents */
 	if(create_toc)
