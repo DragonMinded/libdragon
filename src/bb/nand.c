@@ -107,14 +107,21 @@ void nand_read_id(uint8_t id[4])
     memcpy(id, aligned_buf, 4);
 }
 
-void nand_read_data(nand_addr_t addr, void *buffer, int len) 
+static uint8_t io_read8(uint32_t addr)
+{
+    uint32_t data = io_read(addr & ~3);
+    return (data >> ((~addr & 3) * 8)) & 0xFF;
+}
+
+void nand_read_data(nand_addr_t addr, uint8_t *buffer, int len) 
 {
     int bufidx = 0;
 
     while (len > 0) {
         int read_len = MIN(len, NAND_PAGE_SIZE - ADDR_OFFSET(addr));
         nand_cmd_read1(bufidx, addr, read_len);
-        memcpy(buffer, (void*)PI_BB_BUFFER_0, read_len);
+        for (int i=0; i<read_len; i++)
+            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + i);
 
         addr += read_len;
         buffer += read_len;
