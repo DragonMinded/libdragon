@@ -332,7 +332,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
 
     JOYPAD_PORT_FOREACH (port)
     {
-        if (out_bytes[i] == 0xff) i++; // Skip nops we put for iQue
+        while (out_bytes[i] == 0xff) i++; // Skip nops we put for iQue
         device = &joypad_devices_hot[port];
         accessory = &joypad_accessories_hot[port];
         cmd = (void *)&out_bytes[i + JOYBUS_COMMAND_METADATA_SIZE];
@@ -435,6 +435,7 @@ static void joypad_identify_async(bool reset)
             // Micro-optimization: Minimize copy length
             memcpy(&input[i], &cmd, recv_offset);
             i += sizeof(cmd);
+            while (i & 7) input[i++] = 0xff; // Align to 8-byte boundary for iQue
         }
 
         // Close out the Joybus operation block
@@ -517,6 +518,7 @@ static void joypad_read_async(void)
                 const size_t recv_offset = offsetof(typeof(cmd), recv);
                 memcpy(&input[i], &cmd, recv_offset);
                 i += sizeof(cmd);
+                while (i & 7) input[i++] = 0xff; // Align to 8-byte boundary for iQue
             }
             else
             {
@@ -642,7 +644,7 @@ void joypad_poll(void)
 
     JOYPAD_PORT_FOREACH (port)
     {
-        if (output[i] == 0xff) i++; // Skip nops we put for iQue
+        while (output[i] == 0xff) i++; // Skip nops we put for iQue
         device = &joypad_devices_cold[port];
         // Check send_len to figure out if this port has a command on it
         send_len = output[i + JOYBUS_COMMAND_OFFSET_SEND_LEN];
