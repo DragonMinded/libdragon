@@ -121,7 +121,7 @@ void nand_read_data(nand_addr_t addr, uint8_t *buffer, int len)
         int read_len = MIN(len, NAND_PAGE_SIZE - ADDR_OFFSET(addr));
         nand_cmd_read1(bufidx, addr, read_len);
         for (int i=0; i<read_len; i++)
-            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + i);
+            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i);
 
         addr += read_len;
         buffer += read_len;
