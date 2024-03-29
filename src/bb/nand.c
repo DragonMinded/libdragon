@@ -42,20 +42,18 @@ typedef enum {
 
 static void nand_write_intbuffer(int bufidx, int offset, const void *data, int len)
 {
-    data_cache_hit_writeback_invalidate(data, len);
     dma_wait();
     *PI_DRAM_ADDR = PhysicalAddr(data);
-    *PI_CART_ADDR = offset;
+    *PI_CART_ADDR = offset + bufidx * 0x200;
     *PI_BB_RD_LEN = len;
     dma_wait();
 }
 
 static void nand_read_intbuffer(int bufidx, int offset, void *data, int len)
 {
-    data_cache_hit_invalidate(data, len);
     dma_wait();
     *PI_DRAM_ADDR = PhysicalAddr(data);
-    *PI_CART_ADDR = offset;
+    *PI_CART_ADDR = offset + bufidx * 0x200;
     *PI_BB_WR_LEN = len;
     dma_wait();
 }
@@ -76,6 +74,7 @@ static void nand_cmd_readid(int bufidx)
 void nand_read_id(uint8_t id[4])
 {
     uint8_t aligned_buf[16] __attribute__((aligned(16)));
+    data_cache_hit_invalidate(aligned_buf, 16);
     
     const int bufidx = 0;
     nand_cmd_readid(bufidx);
