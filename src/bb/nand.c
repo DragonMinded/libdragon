@@ -1,5 +1,9 @@
 #include <stdint.h>
+#include <assert.h>
+#include "n64sys.h"
+#include "debug.h"
 #include "dma.h"
+#include "utils.h"
 
 #define PI_DRAM_ADDR                        ((volatile uint32_t*)0xA4600000)
 #define PI_CART_ADDR                        ((volatile uint32_t*)0xA4600004)
@@ -27,7 +31,8 @@
 #define PI_BB_WNAND_CTRL_EXECUTE            (1 << 31)
 
 typedef enum {
-    NAND_CMD_READ1      = (0x00 << PI_BB_WNAND_CTRL_CMD_SHIFT),
+    NAND_CMD_READ1_H0   = (0x00 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<27) | (1<<26)| (1<<25) | (1<<24) | (1<<15),
+    NAND_CMD_READ1_H1   = (0x01 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<27) | (1<<26)| (1<<25) | (1<<24) | (1<<15),
     NAND_CMD_RESET      = (0xFF << PI_BB_WNAND_CTRL_CMD_SHIFT),
     NAND_CMD_READID     = (0x90 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<24),
     NAND_CMD_PAGEPROG_A = (0x80 << PI_BB_WNAND_CTRL_CMD_SHIFT),
@@ -39,6 +44,15 @@ typedef enum {
     NAND_CMD_ERASE_B    = (0xD0 << PI_BB_WNAND_CTRL_CMD_SHIFT),
     NAND_CMD_READSTATUS = (0x70 << PI_BB_WNAND_CTRL_CMD_SHIFT)
 } nand_cmd_t;
+
+typedef uint32_t nand_addr_t;
+
+#define NAND_PAGE_SIZE          0x200
+#define NAND_BLOCK_SIZE         0x4000
+
+#define ADDR_OFFSET(addr)       ((addr) & 0x1FF)
+#define ADDR_PAGE(addr)         (((addr) >> 9) & 0x1F)
+#define ADDR_BLOCK(addr)        (((addr) >> 14) & 0xFFF)
 
 static void nand_write_intbuffer(int bufidx, int offset, const void *data, int len)
 {
@@ -71,6 +85,16 @@ static void nand_cmd_readid(int bufidx)
     nand_cmd_wait();
 }
 
+static void nand_cmd_read1(int bufidx, uint32_t addr, int len)
+{
+    assert(len > 0 && len <= 512);
+    *PI_BB_NAND_ADDR = addr;
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
+        ((addr & 0x100) ? NAND_CMD_READ1_H1 : NAND_CMD_READ1_H0) | 
+        (len << PI_BB_WNAND_CTRL_LEN_SHIFT);
+    nand_cmd_wait();
+}
+
 void nand_read_id(uint8_t id[4])
 {
     uint8_t aligned_buf[16] __attribute__((aligned(16)));
@@ -81,4 +105,19 @@ void nand_read_id(uint8_t id[4])
     nand_read_intbuffer(bufidx, 0, aligned_buf, 4);
 
     memcpy(id, aligned_buf, 4);
+}
+
+void nand_read_data(nand_addr_t addr, void *buffer, int len) 
+{
+    int bufidx = 0;
+
+    while (len > 0) {
+        int read_len = MIN(len, NAND_PAGE_SIZE - ADDR_OFFSET(addr));
+        nand_cmd_read1(bufidx, addr, read_len);
+        memcpy(buffer, (void*)PI_BB_BUFFER_0, read_len);
+
+        addr += read_len;
+        buffer += read_len;
+        len -= read_len;
+    }
 }
