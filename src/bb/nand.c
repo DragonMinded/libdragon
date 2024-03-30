@@ -50,9 +50,10 @@ typedef uint32_t nand_addr_t;
 #define NAND_PAGE_SIZE          0x200
 #define NAND_BLOCK_SIZE         0x4000
 
-#define ADDR_OFFSET(addr)       ((addr) & 0x1FF)
-#define ADDR_PAGE(addr)         (((addr) >> 9) & 0x1F)
-#define ADDR_BLOCK(addr)        (((addr) >> 14) & 0xFFF)
+#define ADDR_MAKE(block, page, offset)      (((block) << 14) | ((page) << 9) | (offset))
+#define ADDR_OFFSET(addr)                   (((addr) >>  0) & 0x1FF)
+#define ADDR_PAGE(addr)                     (((addr) >>  9) & 0x01F)
+#define ADDR_BLOCK(addr)                    (((addr) >> 14) & 0xFFF)
 
 static void nand_write_intbuffer(int bufidx, int offset, const void *data, int len)
 {
@@ -118,10 +119,11 @@ void nand_read_data(nand_addr_t addr, uint8_t *buffer, int len)
     int bufidx = 0;
 
     while (len > 0) {
-        int read_len = MIN(len, NAND_PAGE_SIZE - ADDR_OFFSET(addr));
+        int offset = ADDR_OFFSET(addr);
+        int read_len = MIN(len, NAND_PAGE_SIZE - offset);
         nand_cmd_read1(bufidx, addr, read_len);
         for (int i=0; i<read_len; i++)
-            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i);
+            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + offset + i);
 
         addr += read_len;
         buffer += read_len;
