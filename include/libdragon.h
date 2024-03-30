@@ -75,5 +75,7 @@
 #include "dlfcn.h"
 #include "model64.h"
 #include "skc.h"
+#include "nand.h"
+#include "bbfs.h"
 
 #endif

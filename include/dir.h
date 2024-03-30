@@ -6,6 +6,8 @@
 #ifndef __LIBDRAGON_DIR_H
 #define __LIBDRAGON_DIR_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,6 +36,8 @@ typedef struct
     char d_name[256];
     /** @brief The type of the directory entry.  See #DT_REG and #DT_DIR. */
     int d_type;
+    /** @brief Opaque cookie used to continue walking. */
+    uint32_t d_cookie;
 } dir_t;
 
 /** @} */

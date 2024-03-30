@@ -3,6 +3,7 @@
 #include "n64sys.h"
 #include "debug.h"
 #include "dma.h"
+#include "nand.h"
 #include "utils.h"
 
 #define PI_DRAM_ADDR                        ((volatile uint32_t*)0xA4600000)
@@ -44,16 +45,6 @@ typedef enum {
     NAND_CMD_ERASE_B    = (0xD0 << PI_BB_WNAND_CTRL_CMD_SHIFT),
     NAND_CMD_READSTATUS = (0x70 << PI_BB_WNAND_CTRL_CMD_SHIFT)
 } nand_cmd_t;
-
-typedef uint32_t nand_addr_t;
-
-#define NAND_PAGE_SIZE          0x200
-#define NAND_BLOCK_SIZE         0x4000
-
-#define ADDR_MAKE(block, page, offset)      (((block) << 14) | ((page) << 9) | (offset))
-#define ADDR_OFFSET(addr)                   (((addr) >>  0) & 0x1FF)
-#define ADDR_PAGE(addr)                     (((addr) >>  9) & 0x01F)
-#define ADDR_BLOCK(addr)                    (((addr) >> 14) & 0xFFF)
 
 static void nand_write_intbuffer(int bufidx, int offset, const void *data, int len)
 {
@@ -114,12 +105,13 @@ static uint8_t io_read8(uint32_t addr)
     return (data >> ((~addr & 3) * 8)) & 0xFF;
 }
 
-void nand_read_data(nand_addr_t addr, uint8_t *buffer, int len) 
+void nand_read_data(nand_addr_t addr, void *buf, int len) 
 {
     int bufidx = 0;
+    uint8_t *buffer = buf;
 
     while (len > 0) {
-        int offset = ADDR_OFFSET(addr);
+        int offset = NAND_ADDR_OFFSET(addr);
         int read_len = MIN(len, NAND_PAGE_SIZE - offset);
         nand_cmd_read1(bufidx, addr, read_len);
         for (int i=0; i<read_len; i++)
