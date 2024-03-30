@@ -139,12 +139,12 @@ _RSPQ_SAVED_STATE_START:
 # Ends the definition of the saved overlay state.
 ########################################################
 .macro RSPQ_EndSavedState
+    .align 3
 #if RSPQ_PROFILE
 _RSPQ_OVL_PROFILESLOT:
     # Profiling data for this overlay
     .long 0, 0
 #endif
-    .align 3
 _RSPQ_SAVED_STATE_END:
 .endm
 
