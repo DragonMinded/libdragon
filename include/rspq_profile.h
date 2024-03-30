@@ -1,7 +1,8 @@
 #ifndef __LIBDRAGON_RSPQ_PROFILE_H
 #define __LIBDRAGON_RSPQ_PROFILE_H
 
-#include <rspq_constants.h>
+#include <stdint.h>
+#include "rspq_constants.h"
 
 #ifdef __cplusplus
 extern "C" {

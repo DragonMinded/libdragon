@@ -96,10 +96,24 @@ _RSPQ_OVERLAY_HEADER:
     .short 0
     # 14: command base (filled in by C code)
     .short 0
-
+    #if RSPQ_PROFILE
+    .short _RSPQ_OVL_PROFILESLOT - _data_start
+    #endif
 	.align 1
 _RSPQ_OVERLAY_COMMAND_TABLE:
 .endm
+
+# Macros that defines the offsets within the overlay header structure.
+# This makes it easier to modify them in the future if needed
+#define RSPQ_OH_STATESTART   0
+#define RSPQ_OH_STATESIZE    2
+#define RSPQ_OH_STATEADDR    4
+#define RSPQ_OH_TEXTADDR     8
+#define RSPQ_OH_TEXTSIZE     10
+#define RSPQ_OH_CMDBASE      14
+#if RSPQ_PROFILE
+#define RSPQ_OH_PROFILESLOT  16
+#endif
 
 ########################################################
 # RSPQ_BeginSavedState
@@ -125,6 +139,11 @@ _RSPQ_SAVED_STATE_START:
 # Ends the definition of the saved overlay state.
 ########################################################
 .macro RSPQ_EndSavedState
+#if RSPQ_PROFILE
+_RSPQ_OVL_PROFILESLOT:
+    # Profiling data for this overlay
+    .long 0, 0
+#endif
     .align 3
 _RSPQ_SAVED_STATE_END:
 .endm
@@ -346,18 +365,20 @@ RSPQ_RDRAM_PTR:               .long 0
 # ID of the current overlay
 RSPQ_CURRENT_OVL:             .half 0
 
-    .align 3
-RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
-
 #if RSPQ_PROFILE
 RSPQ_PROFILE_CUR_SLOT:        .long 0
-RSPQ_PROFILE_DATA:            .ds.b (RSPQ_PROFILE_SLOT_SIZE * RSPQ_PROFILE_SLOT_COUNT)
-RSPQ_PROFILE_FRAME_TIME:      .long 0
-RSPQ_PROFILE_BUSY_TIME:       .long 0
-RSPQ_PROFILE_FRAME_LAST:      .long 0
-RSPQ_PROFILE_BUSY_LAST:       .long 0
 RSPQ_PROFILE_START_TIME:      .long 0
+RSPQ_PROFILE_DATA:
+    RSPQ_PROFILESLOT_IDLE_CPU:              .long 0,0
+    RSPQ_PROFILESLOT_IDLE_RDPBUSY:          .long 0,0
+    RSPQ_PROFILESLOT_IDLE_RDPSYNCFULL:      .long 0,0
+    RSPQ_PROFILESLOT_IDLE_RDPSYNCFULLMULTI: .long 0,0
+    RSPQ_PROFILESLOT_OVLSWITCH:             .long 0,0
+    RSPQ_PROFILESLOT_BUILTINS:              .long 0,0
 #endif
+
+    .align 3
+RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
 
 
     .align 3
@@ -374,9 +395,6 @@ RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24
 RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
 RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
-#if RSPQ_PROFILE
-RSPQ_DefineCommand RSPQCmd_ProfileFrame,    4     # 0x0C
-#endif
 
     .align 4
 # Overlay data will be loaded at this address
@@ -458,6 +476,7 @@ RSPQ_Loop:
     li s0, -1
     sw s0, %lo(RSPQ_PROFILE_CUR_SLOT)
 1:
+    li s0, %lo(RSPQ_PROFILESLOT_BUILTINS)
 #endif
 
     # Read SP_STATUS to check for highpri
@@ -510,6 +529,11 @@ rspq_overlay_loaded:
     # Load command descriptor from overlay command table
     lhu cmd_desc, %lo(_ovl_data_start) + RSPQ_OVERLAY_HEADER_SIZE(cmd_index)
 
+    #if RSPQ_PROFILE
+    # Load the address of the profile slot for this overlay
+    lhu s0, %lo(_ovl_data_start) + RSPQ_OH_PROFILESLOT
+    #endif
+
 rspq_execute_command:
     # Load second command word                                  # Calculate vshift8
     lw a1, %lo(RSPQ_DMEM_BUFFER) + 0x4 (rspq_dmem_buf_ptr);     vsrl vshift, vshift8, 8
@@ -546,13 +570,12 @@ rspq_execute_command:
     sll cmd_desc, 2
 
 #if RSPQ_PROFILE
-    mfc0 t0, COP0_DP_CLOCK
     bnez a0, 1f
-    srl t1, ovl_index, 1
-    # Write samples of opcode 0 to a special slot ("Idle")
-    li t1, RSPQ_PROFILE_IDLE_SLOT*RSPQ_PROFILE_SLOT_SIZE
+     mfc0 t0, COP0_DP_CLOCK
+    # Write samples of opcode 0 to a special slot ("Idle (CPU)")
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_CPU)
 1:
-    sw t1, %lo(RSPQ_PROFILE_CUR_SLOT)
+    sw s0, %lo(RSPQ_PROFILE_CUR_SLOT)
     sw t0, %lo(RSPQ_PROFILE_START_TIME)
 #endif
 
@@ -592,7 +615,7 @@ rspq_load_overlay:
     mfc0 t0, COP0_DP_CLOCK
     subu t0, t3
     jal RSPQ_ProfileAccumulate
-    li s0, RSPQ_PROFILE_OVL_SWITCH_SLOT*RSPQ_PROFILE_SLOT_SIZE
+    li s0, %lo(RSPQ_PROFILESLOT_OVLSWITCH)
 #endif
     # Load new overlay command base
     lhu t0, %lo(_ovl_data_start) + 14
@@ -870,8 +893,8 @@ RSPQ_RdpWait:
     # If DP_STATUS_BUSY is set we are waiting for a FULL_SYNC. Divert this to yet another special slot.
     andi t2, t3, DP_STATUS_BUSY
     bnez t2, 1f
-    li s0, RSPQ_PROFILE_IDLE_SYNC_SLOT*RSPQ_PROFILE_SLOT_SIZE
-    li s0, RSPQ_PROFILE_IDLE_RDP_SLOT*RSPQ_PROFILE_SLOT_SIZE
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPSYNCFULL)
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPBUSY)
 1:
     lw t2, %lo(RSPQ_PROFILE_START_TIME)
     subu t1, t0
@@ -887,23 +910,6 @@ RSPQ_RdpWait:
     .endfunc
 
 #if RSPQ_PROFILE
-    .func RSPQCmd_ProfileFrame
-RSPQCmd_ProfileFrame:
-    mfc0 t0, COP0_DP_CLOCK
-    mfc0 t3, COP0_DP_BUSY
-    lw t1, %lo(RSPQ_PROFILE_FRAME_LAST)
-    lw t4, %lo(RSPQ_PROFILE_BUSY_LAST)
-    subu t2, t0, t1
-    subu t5, t3, t4
-    and t2, 0xFFFFFF
-    and t5, 0xFFFFFF
-    sw t0, %lo(RSPQ_PROFILE_FRAME_LAST)
-    sw t2, %lo(RSPQ_PROFILE_FRAME_TIME)
-    sw t3, %lo(RSPQ_PROFILE_BUSY_LAST)
-    jr ra
-    sw t5, %lo(RSPQ_PROFILE_BUSY_TIME)
-    .endfunc
-
     #############################################################
     # RSPQ_ProfileAccumulate
     # 
@@ -913,15 +919,16 @@ RSPQCmd_ProfileFrame:
     #############################################################
     .func RSPQ_ProfileAccumulate
 RSPQ_ProfileAccumulate:
-    lw t2, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
-    lw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    lw t2, 0x0(s0)
+    lw t1, 0x4(s0)
     # We need to mask the time because the RDP clock wraps around at 24 bits
     and t0, 0xFFFFFF
     add t0, t2
     addi t1, 1
-    sw t0, %lo(RSPQ_PROFILE_DATA) + 0x0(s0)
+    sw t0, 0x0(s0)
     jr ra
-    sw t1, %lo(RSPQ_PROFILE_DATA) + 0x4(s0)
+    sw t1, 0x4(s0)
+    nop
     .endfunc
 #endif
 

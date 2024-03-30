@@ -140,13 +140,6 @@ enum {
      * commands appended in the current buffer to be sent to RDP.
      */
     RSPQ_CMD_RDP_APPEND_BUFFER = 0x0B,
-
-#if RSPQ_PROFILE
-    /**
-     * @brief RSPQ Command: measure the total time the current frame has taken
-     */
-    RSPQ_CMD_PROFILE_FRAME     = 0x0C,
-#endif
 };
 
 /** @brief Write an internal command to the RSP queue */
@@ -197,18 +190,7 @@ typedef struct __attribute__((packed)) {
 typedef struct rspq_profile_slot_dmem_s {
     uint32_t total_ticks;
     uint32_t sample_count;
-} rspq_profile_slot_dmem_t __attribute__((aligned(8)));
-
-/**
- * @brief RSP profiling data.
- */
-typedef struct rspq_profile_data_dmem_s {
-    rspq_profile_slot_dmem_t slots[RSPQ_PROFILE_SLOT_COUNT];
-    uint32_t frame_time;
-    uint32_t busy_time;
-    uint32_t frame_last;
-    uint32_t busy_last;
-} rspq_profile_data_dmem_t;
+} rspq_profile_slot_dmem_t;
 
 /**
  * @brief RSP Queue data in DMEM.
@@ -235,13 +217,23 @@ typedef struct rsp_queue_s {
     uint8_t padding;                     ///< Padding
     uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
     uint16_t current_ovl;                ///< Current overlay ID
-} __attribute__((aligned(16), packed)) rsp_queue_t;
+    uint16_t padding2;                   ///< Padding
+#if RSPQ_PROFILE
+    uint32_t rspq_profile_cur_slot;
+    uint32_t rspq_profile_start_time;
+    rspq_profile_slot_dmem_t rspq_profile_cslots[RSPQ_PROFILE_CSLOT_COUNT];
+    rspq_profile_slot_dmem_t rspq_profile_builtin_slot;
+#endif
+ } __attribute__((aligned(16), packed)) rsp_queue_t;
 
 /** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
 #define RSPQ_DATA_ADDRESS                8
 
 /** @brief ID of the last syncpoint reached by RSP. */
 extern volatile int __rspq_syncpoints_done;
+
+/** @brief Registered overlays */
+extern rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAYS];
 
 /** @brief Flag to mark deferred calls that needs to wait for RDP SYNC_FULL */
 #define RSPQ_DCF_WAITRDP                 (1<<0)

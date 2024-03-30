@@ -50,6 +50,7 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/video/profile.o $(BUILD_DIR)/video/throttle.o \
 			 $(BUILD_DIR)/video/rsp_yuv.o $(BUILD_DIR)/video/rsp_mpeg1.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
+			 $(BUILD_DIR)/rspq/rspq_profile.o $(BUILD_DIR)/rspq/rsp_profile.o \
 			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
 			 $(BUILD_DIR)/rdpq/rdpq_debug.o $(BUILD_DIR)/rdpq/rdpq_tri.o \
 			 $(BUILD_DIR)/rdpq/rdpq_rect.o $(BUILD_DIR)/rdpq/rdpq_mode.o \
