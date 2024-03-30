@@ -48,6 +48,9 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r6 (954cc30e419ba8561e252cd97f8da0a2)
+* Fix iQue boot when the binary is in SA2 context.
+
 r5 (1463a76f789aa2087dc0ba4e93d6c25d)
 * Initialize $sp to the end of RDRAM. This is a good default for most use cases.
 * Add support for 64-bit ELFs
