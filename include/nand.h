@@ -17,7 +17,28 @@ typedef uint32_t nand_addr_t;
 #define NAND_ADDR_PAGE(addr)                     (((addr) >>  9) & 0x01F)
 #define NAND_ADDR_BLOCK(addr)                    (((addr) >> 14) & 0xFFF)
 
-void nand_read_data(nand_addr_t addr, void *buffer, int len);
+/**
+ * @brief Initialize the library to access the NAND flags on iQue Player
+ */
+void nand_init(void);
+
+/**
+ * @brief Return the size of the installed NAND.
+ * 
+ * @return int  Size of the NAND in bytes (either 64 MiB or 128 MiB)
+ */
+int nand_get_size(void);
+
+/**
+ * @brief Read sequential data from the NAND.
+ * 
+ * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
+ * @param buffer    Buffer to read data into
+ * @param len       Number of bytes to read
+ * 
+ * @return 0 if OK, -1 if error
+ */
+int nand_read_data(nand_addr_t addr, void *buffer, int len);
 
 #ifdef __cplusplus
 }

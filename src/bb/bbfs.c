@@ -294,6 +294,8 @@ static filesystem_t bb_fs = {
 
 int bbfs_init(void)
 {
+    nand_init();
+
     int err = bbfs_mount();
     if (err < 0)
         return err;

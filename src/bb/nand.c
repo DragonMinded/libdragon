@@ -9,6 +9,7 @@
 #define PI_DRAM_ADDR                        ((volatile uint32_t*)0xA4600000)
 #define PI_CART_ADDR                        ((volatile uint32_t*)0xA4600004)
 #define PI_BB_NAND_CTRL                     ((volatile uint32_t*)0xA4600048)
+#define PI_BB_NAND_CFG                      ((volatile uint32_t*)0xA460004C)
 #define PI_BB_RD_LEN                        ((volatile uint32_t*)0xA4600058)
 #define PI_BB_WR_LEN                        ((volatile uint32_t*)0xA460005C)
 #define PI_BB_NAND_ADDR                     ((volatile uint32_t*)0xA4600070)
@@ -45,6 +46,9 @@ typedef enum {
     NAND_CMD_ERASE_B    = (0xD0 << PI_BB_WNAND_CTRL_CMD_SHIFT),
     NAND_CMD_READSTATUS = (0x70 << PI_BB_WNAND_CTRL_CMD_SHIFT)
 } nand_cmd_t;
+
+static bool nand_inited;
+static uint32_t nand_size;
 
 static void nand_write_intbuffer(int bufidx, int offset, const void *data, int len)
 {
@@ -105,8 +109,48 @@ static uint8_t io_read8(uint32_t addr)
     return (data >> ((~addr & 3) * 8)) & 0xFF;
 }
 
-void nand_read_data(nand_addr_t addr, void *buf, int len) 
+void nand_init(void)
 {
+    assertf(sys_bbplayer(), "NAND is only present on iQue Player");
+    if (nand_inited) return;
+
+    uint8_t id[4];
+    *PI_BB_NAND_CFG = 0x753E3EFF;
+    nand_read_id(id);
+
+    uint16_t id16 = (id[0] << 8) | id[1];
+    switch (id16) {
+    default:
+        debugf("Unknown NAND ID: %04X", id16);
+        break;
+    case 0xEC76: // K9F1208U0M
+    case 0x2076: // NAND512W3A
+        *PI_BB_NAND_CFG = 0x441F1F3F;
+        nand_size = 64 * 1024 * 1024;
+        break;
+    case 0x9876: // TC58512FT
+        *PI_BB_NAND_CFG = 0x753E1F3F;
+        nand_size = 64 * 1024 * 1024;
+        break;
+    case 0xEC79: // K9K1G08U0B
+        *PI_BB_NAND_CFG = 0x441F1F3F;
+        nand_size = 128 * 1024 * 1024;
+        break;
+    }
+
+    nand_inited = true;
+}
+
+int nand_get_size(void)
+{
+    assertf(nand_inited, "nand_init() must be called first");
+    return nand_size;
+}
+
+int nand_read_data(nand_addr_t addr, void *buf, int len) 
+{
+    assertf(nand_inited, "nand_init() must be called first");
+
     int bufidx = 0;
     uint8_t *buffer = buf;
 
@@ -121,4 +165,6 @@ void nand_read_data(nand_addr_t addr, void *buf, int len)
         buffer += read_len;
         len -= read_len;
     }
+
+    return 0;
 }
