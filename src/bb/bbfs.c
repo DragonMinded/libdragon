@@ -114,29 +114,37 @@ static int bbfs_mount(void)
     return BBFS_ERR_SUPERBLOCK;
 }
 
+static bbfs_entry_t *bbfs_find_entry(const char *name)
+{
+    char *dot = strchr(name, '.');
+    if (dot - name > 8 || (dot && strlen(dot+1) > 3))
+        return NULL;
+    int namelen = dot ? dot-name : strlen(name);
+
+    for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
+        bbfs_entry_t *entry = &bbfs_superblock.entries[i];
+        if (entry->valid && !strncmp(entry->name, name, namelen) && !strncmp(entry->ext, dot ? dot+1 : "", 3)) {
+            return entry;
+        }
+    }
+
+    return NULL;
+}
+
 static void *__bbfs_open(char *name, int flags)
 {
     // Write access not implemented yet
     if (flags == O_WRONLY || flags == O_RDWR)
         return NULL;
 
-    // Check that the filename is 8.3
-    char *dot = strchr(name, '.');
-    if (dot - name > 8 || (dot && strlen(dot+1) > 3))
-        return NULL;
-    int namelen = dot ? dot-name : strlen(name);
-
-    // Search for a valid file with this name
-    for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
-        bbfs_entry_t *entry = &bbfs_superblock.entries[i];
-        if (entry->valid && !strncmp(entry->name, name, namelen) && !strncmp(entry->ext, dot ? dot+1 : "", 3)) {
-            bbfs_openfile_t *file = malloc(sizeof(bbfs_openfile_t));
-            file->entry = entry;
-            file->block = be16(entry->block);
-            file->pos = 0;
-            printf("Opened %.*s.%.*s (%d bytes)\n", 8, entry->name, 3, entry->ext, be32(entry->size));
-            return file;
-        }
+    // Search for the file
+    bbfs_entry_t *entry = bbfs_find_entry(name);
+    if (entry) {
+        bbfs_openfile_t *file = malloc(sizeof(bbfs_openfile_t));
+        file->entry = entry;
+        file->pos = 0;
+        file->block = be16(entry->block);
+        return file;
     }
 
     return NULL;
@@ -224,6 +232,18 @@ static int __bbfs_lseek(void *file, int offset, int whence)
     return pos;
 }
 
+static int __bbfs_fstat(void *file, struct stat *st)
+{
+    bbfs_openfile_t *f = file;
+    memset(st, 0, sizeof(struct stat));
+    st->st_ino = f->entry - bbfs_superblock.entries;
+    st->st_mode = S_IFREG;
+    st->st_size = be32(f->entry->size);
+    st->st_blksize = NAND_BLOCK_SIZE;
+    st->st_blocks = (st->st_size + NAND_BLOCK_SIZE - 1) / NAND_BLOCK_SIZE;
+    return 0;
+}
+
 static int __bbfs_findnext(dir_t *dir)
 {
     for (int i=dir->d_cookie+1; i<BBFS_MAX_ENTRIES; i++) {
@@ -262,7 +282,7 @@ static int __bbfs_findfirst(char *name, dir_t *dir)
 
 static filesystem_t bb_fs = {
 	.open = __bbfs_open,
-	.fstat = 0, //__bbfs_fstat,
+	.fstat = __bbfs_fstat,
 	.lseek = __bbfs_lseek,
 	.read = __bbfs_read,
 	.write = 0, //__bbfs_write,
@@ -280,4 +300,28 @@ int bbfs_init(void)
 
     attach_filesystem("bbfs", &bb_fs);
     return 0;
+}
+
+int16_t* bbfs_get_file_blocks(const char *filename)
+{
+    bbfs_entry_t* entry = bbfs_find_entry(filename);
+    if (!entry)
+        return NULL;
+
+    int num_blocks = (be32(entry->size) + NAND_BLOCK_SIZE - 1) / NAND_BLOCK_SIZE;
+    int16_t *blocks = malloc(sizeof(int16_t) * (num_blocks + 1));
+
+    int block = be16(entry->block);
+    for (int i=0; i<num_blocks; i++) {
+        if (block < 0 || block > 4095) {
+            // Corrupted filesystem
+            free(blocks);
+            return NULL;
+        }
+        blocks[i] = block;
+        block = be16(bbfs_superblock.fat[block]);
+    }
+
+    blocks[num_blocks] = -1;
+    return blocks;
 }

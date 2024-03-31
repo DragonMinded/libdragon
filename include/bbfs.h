@@ -26,6 +26,22 @@ enum bbfs_error_e {
  */
 int bbfs_init(void);
 
+/**
+ * @brief Return the indices of NAND blocks that contain the file data
+ * 
+ * The function lookups the specified file on the filesystem. If found, it
+ * returns a list of block indices that contain the file data. The list is
+ * dynamically allocated and must be freed by the caller.
+ * 
+ * The list of block indices is terminated by a -1 value.
+ * 
+ * @param filename      Filename (*without* filesystem prefix)
+ * @return int16_t*     Allocated array of block indices, or NULL 
+ *                      if file doesn't exist or the filesystem is corrupted
+ */
+int16_t* bbfs_get_file_blocks(const char *filename);
+
+
 #ifdef __cplusplus
 }
 #endif
