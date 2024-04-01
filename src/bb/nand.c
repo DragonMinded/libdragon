@@ -34,6 +34,8 @@
 #define PI_BB_WNAND_CTRL_INTERRUPT          (1 << 30)
 #define PI_BB_WNAND_CTRL_EXECUTE            (1 << 31)
 
+#define PI_BB_WATB_UPPER_IVSOURCE           (1 << 8)
+
 #define PI_BB_ATB_MAX_ENTRIES               192
 
 typedef enum {
@@ -242,13 +244,22 @@ static void atb_write(int idx, uint32_t pi_address, int nand_block, int num_bloc
 {
     assertf(num_blocks_log2 > 0 && num_blocks_log2 <= 16, "invalid ATB entry size: %d", 1<<num_blocks_log2);
     assertf((pi_address & (((1 << num_blocks_log2) * NAND_BLOCK_SIZE)-1)) == 0, 
-        "wrong ATB alignemnt (addr:0x%08lX, nlog2:%d)", pi_address, num_blocks_log2);
+        "wrong ATB alignment (addr:0x%08lX, nlog2:%d)", pi_address, num_blocks_log2);
 
     *PI_BB_ATB_UPPER = num_blocks_log2-1;
     PI_BB_ATB_LOWER[idx] = (nand_block << 16) | (pi_address / NAND_BLOCK_SIZE);
 }
 
-int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx_ptr)
+static void atb_write_ivsource(int idx, uint32_t pi_address)
+{
+    assertf((pi_address & (NAND_BLOCK_SIZE-1)) == 0,
+        "wrong ATB alignment (addr:0x%08lX)", pi_address);
+
+    *PI_BB_ATB_UPPER = PI_BB_WATB_UPPER_IVSOURCE;
+    PI_BB_ATB_LOWER[idx] = pi_address / NAND_BLOCK_SIZE;
+}
+
+int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx_ptr, int flags)
 {
     int nseq;
     int atb_idx = atb_idx_ptr ? *atb_idx_ptr : 0;
@@ -256,6 +267,12 @@ int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx_ptr)
     assertf(nand_inited, "nand_init() must be called first");
     assertf(pi_address >> 30 == 0, "Allowed PI addresses are in range [0 .. 0x3FFFFFFF] (0x%08lX)", pi_address);
     assertf(pi_address % NAND_BLOCK_SIZE == 0, "PI address must be block-aligned (0x%08lX)", pi_address);
+
+    if (flags & NAND_MMAP_ENCRYPTED) {
+        if (atb_idx >= PI_BB_ATB_MAX_ENTRIES)
+            return -1;
+        atb_write_ivsource(atb_idx++, pi_address - NAND_BLOCK_SIZE);
+    }
 
     while (*blocks != -1) {
         // Calculate how many consecutive blocks we can map

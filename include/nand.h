@@ -17,6 +17,8 @@ typedef uint32_t nand_addr_t;
 #define NAND_ADDR_PAGE(addr)                     (((addr) >>  9) & 0x01F)
 #define NAND_ADDR_BLOCK(addr)                    (((addr) >> 14) & 0xFFF)
 
+#define NAND_MMAP_ENCRYPTED                      (1<<0)   ///< The mapping refers to encrypted data
+
 /**
  * @brief Initialize the library to access the NAND flags on iQue Player
  */
@@ -82,13 +84,14 @@ int nand_erase_block(nand_addr_t addr);
  * @param atb_idx       If not NULL, it must contain the first ATB index to use
  *                      and will be filled with the index of the first ATB entry
  *                      after this mapping is done.
+ * @param flags         Flags to control the mapping (#NAND_MMAP_ENCRYPTED)
  * @return int          0 if OK, or -1 in case of error. A possible error
  *                      is that there are not enough ATB entries available. In
  *                      this case, it is necessary to defragment the file on
  *                      the NAND (as a single ATB entry can map multiple
  *                      consecutive blocks).
  */
-int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx);
+int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_id, int flags);
 
 #ifdef __cplusplus
 }
