@@ -2,6 +2,8 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
 #include "system.h"
 #include "nand.h"
 #include "bbfs.h"
