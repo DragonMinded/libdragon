@@ -8,11 +8,13 @@
 
 #define PI_DRAM_ADDR                        ((volatile uint32_t*)0xA4600000)
 #define PI_CART_ADDR                        ((volatile uint32_t*)0xA4600004)
+#define PI_BB_ATB_UPPER                     ((volatile uint32_t*)0xA4600040)        
 #define PI_BB_NAND_CTRL                     ((volatile uint32_t*)0xA4600048)
 #define PI_BB_NAND_CFG                      ((volatile uint32_t*)0xA460004C)
 #define PI_BB_RD_LEN                        ((volatile uint32_t*)0xA4600058)
 #define PI_BB_WR_LEN                        ((volatile uint32_t*)0xA460005C)
 #define PI_BB_NAND_ADDR                     ((volatile uint32_t*)0xA4600070)
+#define PI_BB_ATB_LOWER                     ((volatile uint32_t*)0xA4600500)
 
 #define PI_BB_BUFFER_0                      ((volatile uint32_t*)0xA4610000)    ///< NAND buffer 0
 #define PI_BB_BUFFER_1                      ((volatile uint32_t*)0xA4610200)    ///< NAND buffer 1
@@ -31,6 +33,8 @@
 #define PI_BB_WNAND_CTRL_BUF(n)             ((n) << 14)
 #define PI_BB_WNAND_CTRL_INTERRUPT          (1 << 30)
 #define PI_BB_WNAND_CTRL_EXECUTE            (1 << 31)
+
+#define PI_BB_ATB_MAX_ENTRIES               192
 
 typedef enum {
     NAND_CMD_READ1_H0   = (0x00 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<27) | (1<<26)| (1<<25) | (1<<24) | (1<<15),
@@ -166,5 +170,58 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
         len -= read_len;
     }
 
+    return 0;
+}
+
+static void atb_write(int idx, uint32_t pi_address, int nand_block, int num_blocks_log2)
+{
+    assertf(num_blocks_log2 > 0 && num_blocks_log2 <= 16, "invalid ATB entry size: %d", 1<<num_blocks_log2);
+    assertf((pi_address & (((1 << num_blocks_log2) * NAND_BLOCK_SIZE)-1)) == 0, 
+        "wrong ATB alignemnt (addr:0x%08lX, nlog2:%d)", pi_address, num_blocks_log2);
+
+    *PI_BB_ATB_UPPER = num_blocks_log2-1;
+    PI_BB_ATB_LOWER[idx] = (nand_block << 16) | (pi_address / NAND_BLOCK_SIZE);
+}
+
+int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx_ptr)
+{
+    int nseq;
+    int atb_idx = atb_idx_ptr ? *atb_idx_ptr : 0;
+
+    assertf(nand_inited, "nand_init() must be called first");
+    assertf(pi_address >> 30 == 0, "Allowed PI addresses are in range [0 .. 0x3FFFFFFF] (0x%08lX)", pi_address);
+    assertf(pi_address % NAND_BLOCK_SIZE == 0, "PI address must be block-aligned (0x%08lX)", pi_address);
+
+    while (*blocks != -1) {
+        // Calculate how many consecutive blocks we can map
+        int bidx = *blocks;
+
+        nseq = 1;
+        while (blocks[nseq] == bidx + nseq) nseq++;
+        blocks += nseq;
+
+        // Map this sequence as subsequent ATB entries 
+        while (nseq > 0) {
+            if (atb_idx >= PI_BB_ATB_MAX_ENTRIES)
+                return -1;
+
+            // The longest sequence we can map is limited by the PI address
+            // alignment. For instance, given a PI address of 0x10010000,
+            // we can only map 0x10000 bytes (4 blocks) in a single ATB entry.
+            int nseq_log2 = 32 - __builtin_clz(nseq);
+            int piaddr_align = __builtin_ctz(pi_address / NAND_BLOCK_SIZE);
+            int n_log2 = MIN(MIN(nseq_log2, piaddr_align), 16);
+            int n = 1 << n_log2;
+
+            // Write the ATB entry
+            atb_write(atb_idx, pi_address, bidx, n_log2);
+
+            bidx += n;
+            nseq -= n;
+            pi_address += n * NAND_BLOCK_SIZE;
+        }
+    }
+
+    if (atb_idx_ptr) *atb_idx_ptr = atb_idx;
     return 0;
 }
