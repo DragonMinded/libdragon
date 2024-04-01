@@ -41,13 +41,13 @@ typedef enum {
     NAND_CMD_READ1_H1   = (0x01 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<27) | (1<<26)| (1<<25) | (1<<24) | (1<<15),
     NAND_CMD_RESET      = (0xFF << PI_BB_WNAND_CTRL_CMD_SHIFT),
     NAND_CMD_READID     = (0x90 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<24),
-    NAND_CMD_PAGEPROG_A = (0x80 << PI_BB_WNAND_CTRL_CMD_SHIFT),
-    NAND_CMD_PAGEPROG_B = (0x10 << PI_BB_WNAND_CTRL_CMD_SHIFT),
+    NAND_CMD_PAGEPROG_A = (0x80 << PI_BB_WNAND_CTRL_CMD_SHIFT) | PI_BB_WNAND_CTRL_MULTICYCLE | (1<<29) | (1<<27) | (1<<26) | (1<<25) | (1<<24),
+    NAND_CMD_PAGEPROG_B = (0x10 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<15),
     NAND_CMD_COPYBACK_A = (0x00 << PI_BB_WNAND_CTRL_CMD_SHIFT),
     NAND_CMD_COPYBACK_B = (0x8A << PI_BB_WNAND_CTRL_CMD_SHIFT),
     NAND_CMD_COPYBACK_C = (0x10 << PI_BB_WNAND_CTRL_CMD_SHIFT),
-    NAND_CMD_ERASE_A    = (0x60 << PI_BB_WNAND_CTRL_CMD_SHIFT),
-    NAND_CMD_ERASE_B    = (0xD0 << PI_BB_WNAND_CTRL_CMD_SHIFT),
+    NAND_CMD_ERASE_A    = (0x60 << PI_BB_WNAND_CTRL_CMD_SHIFT) | PI_BB_WNAND_CTRL_MULTICYCLE | (1<<27) | (1<<26)| (1<<25),
+    NAND_CMD_ERASE_B    = (0xD0 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<15),
     NAND_CMD_READSTATUS = (0x70 << PI_BB_WNAND_CTRL_CMD_SHIFT)
 } nand_cmd_t;
 
@@ -95,6 +95,26 @@ static void nand_cmd_read1(int bufidx, uint32_t addr, int len)
     nand_cmd_wait();
 }
 
+static void nand_cmd_pageprog(int bufidx, uint32_t addr, int len)
+{
+    *PI_BB_NAND_ADDR = addr;
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
+        NAND_CMD_PAGEPROG_A | (len << PI_BB_WNAND_CTRL_LEN_SHIFT);
+    nand_cmd_wait();
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
+        NAND_CMD_PAGEPROG_B;
+    nand_cmd_wait();
+}
+
+static void nand_cmd_erase(uint32_t addr)
+{
+    *PI_BB_NAND_ADDR = addr;
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | NAND_CMD_ERASE_A;
+    nand_cmd_wait();
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | NAND_CMD_ERASE_B;
+    nand_cmd_wait();
+}
+
 void nand_read_id(uint8_t id[4])
 {
     uint8_t aligned_buf[16] __attribute__((aligned(16)));
@@ -111,6 +131,15 @@ static uint8_t io_read8(uint32_t addr)
 {
     uint32_t data = io_read(addr & ~3);
     return (data >> ((~addr & 3) * 8)) & 0xFF;
+}
+
+static void io_write8(uint32_t addr, uint8_t data)
+{
+    uint32_t mask = 0xFF << ((~addr & 3) * 8);
+    uint32_t shift = (~addr & 3) * 8;
+    uint32_t old_data = io_read(addr & ~3);
+    uint32_t new_data = (old_data & ~mask) | ((uint32_t)data << shift);
+    io_write(addr & ~3, new_data);
 }
 
 void nand_init(void)
@@ -170,6 +199,42 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
         len -= read_len;
     }
 
+    return 0;
+}
+
+int nand_write_data(nand_addr_t addr, const void *buf, int len)
+{
+    assertf(nand_inited, "nand_init() must be called first");
+    assertf(addr % NAND_PAGE_SIZE == 0, "NAND address must be page-aligned (0x%08lX)", addr);
+
+    int bufidx = 0;
+    const uint8_t *buffer = buf;
+
+    while (len > 0) {
+        int offset = NAND_ADDR_OFFSET(addr);
+        int write_len = MIN(len, NAND_PAGE_SIZE - offset);
+
+        // Write the data to the buffer
+        for (int i=0; i<write_len; i++)
+            io_write8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + offset + i, buffer[i]);
+
+        // Write the page to the NAND
+        nand_cmd_pageprog(bufidx, addr, write_len);
+
+        addr += write_len;
+        buffer += write_len;
+        len -= write_len;
+    }
+
+    return 0;
+}
+
+int nand_erase_block(nand_addr_t addr)
+{
+    assertf(nand_inited, "nand_init() must be called first");
+    assertf(addr % NAND_BLOCK_SIZE == 0, "NAND address must be block-aligned (0x%08lX)", addr);
+
+    nand_cmd_erase(addr);
     return 0;
 }
 
