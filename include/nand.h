@@ -91,7 +91,7 @@ int nand_erase_block(nand_addr_t addr);
  *                      the NAND (as a single ATB entry can map multiple
  *                      consecutive blocks).
  */
-int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_id, int flags);
+int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx, int flags);
 
 #ifdef __cplusplus
 }
