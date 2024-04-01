@@ -296,7 +296,7 @@ int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx_ptr, int flags)
             int n = 1 << n_log2;
 
             // Write the ATB entry
-            atb_write(atb_idx, pi_address, bidx, n_log2);
+            atb_write(atb_idx++, pi_address, bidx, n_log2);
 
             bidx += n;
             nseq -= n;
