@@ -67,7 +67,7 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/GL/rsp_gl_pipeline.o $(BUILD_DIR)/GL/glu.o \
 			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o \
 			 $(BUILD_DIR)/dlfcn.o $(BUILD_DIR)/model64.o \
-			 $(BUILD_DIR)/bb/skc.o $(BUILD_DIR)/bb/nand.o
+			 $(BUILD_DIR)/bb/skc.o $(BUILD_DIR)/bb/nand.o $(BUILD_DIR)/bb/bbfs.o
 
 include $(SOURCE_DIR)/audio/libdragon.mk
 
