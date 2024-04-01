@@ -20,6 +20,14 @@
 
 #include <stdint.h>
 
+///@cond
+typedef struct {
+    void *ticket;
+    void *ticket_certs[5];
+    void *ticket_cmd[5];
+} bb_ticket_bundle_t;
+///@endcond
+
 /**
  * @brief Retrieve the console unique ID
  * 
@@ -35,6 +43,16 @@ int skc_get_id(uint32_t *id);
  * @return int      -1 on error, or if the application exits and returns.
  */
 int skc_launch(void *address);
+
+/**
+ * @brief Prepare SK for launching an application. 
+ * 
+ * @param bundle            TBC
+ * @param crls              TBC
+ * @param recrypt_list      TBC
+ * @return int              Negative numbers for errors, 0 on success
+ */
+int skc_launch_setup(bb_ticket_bundle_t *bundle, void *crls, void *recrypt_list);
 
 /**
  * @brief Exit the application immediately, jumping back to iQue OS.
