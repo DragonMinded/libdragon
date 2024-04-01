@@ -29,6 +29,14 @@
 int skc_get_id(uint32_t *id);
 
 /**
+ * @brief Launch an application, performing some verifications
+ * 
+ * @param address   Entrypoint of the application in RDRAM
+ * @return int      -1 on error, or if the application exits and returns.
+ */
+int skc_launch(void *address);
+
+/**
  * @brief Exit the application immediately, jumping back to iQue OS.
  */
 void skc_exit(void) __attribute__((noreturn));

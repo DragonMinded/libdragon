@@ -16,6 +16,10 @@
 skc_get_id:
     skc_call 0
 
+    .global skc_launch
+skc_launch:
+    skc_call 2
+
     .global skc_exit
 skc_exit:
     skc_call 13
