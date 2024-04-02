@@ -75,7 +75,7 @@ _Static_assert(sizeof(bbfs_superblock_t) == NAND_BLOCK_SIZE, "bbfs_superblock_t 
 
 /** @brief Running state of the filesystem */
 typedef struct {
-    uint32_t superblock_dirty;  ///< Superblock dirty mask
+    uint32_t sb_dirty;          ///< Superblock dirty mask
     int total_blocks;           ///< Total number of blocks in the filesystem
     int small_area_idx;         ///< Start index of the area for small files (end of filesystem)
     int small_area_free;        ///< Number of free blocks in the small area
@@ -163,7 +163,7 @@ static void sb_record_write(void *data, int len)
     int first_page = offset / NAND_PAGE_SIZE;
     int last_page = (offset + len - 1) / NAND_PAGE_SIZE;
     for (int i=first_page; i<=last_page; i++)
-        bbfs_state.superblock_dirty |= 1 << i;
+        bbfs_state.sb_dirty |= 1 << i;
 }
 
 #define SB_WRITE(a, b)  ({ \
@@ -171,6 +171,33 @@ static void sb_record_write(void *data, int len)
     sb_record_write(&a, sizeof(a)); \
 })
 
+static void sb_flush(void)
+{
+    if (!bbfs_state.sb_dirty)
+        return;
+    
+    // Recalculate checksum
+    uint16_t checksum = 0;
+    uint16_t *data = (uint16_t *)&bbfs_superblock;
+    for (int i=0; i<NAND_BLOCK_SIZE/2-1; i++)
+        checksum += be16(data[i]);
+    checksum = 0xCAD7 - checksum;
+    SB_WRITE(bbfs_superblock.footer.checksum, checksum);
+
+    // Update sequence number
+    SB_WRITE(bbfs_superblock.footer.seqno, bbfs_superblock.footer.seqno + 1);
+
+    // Select a random superblock entry, and erase it
+    int block = RANDN(16) + 0xFF0;
+    nand_erase_block(NAND_ADDR_MAKE(block, 0, 0));
+
+    // TODO: we could use the dirty mask here to switch between writing new data
+    // and copying data from the previous superblock index.
+    for (int i=0; i<16; i++)
+        nand_write_data(NAND_ADDR_MAKE(0xFF0 + i, 0, 0), &bbfs_superblock, sizeof(bbfs_superblock));
+        
+    bbfs_state.sb_dirty = 0;
+}
 
 static int bbfs_mount(void)
 {
@@ -285,15 +312,15 @@ static void *__bbfs_open(char *name, int flags)
         }
     }
 
-    int page_cache = flags & (O_RDWR|O_WRONLY) ? NAND_PAGE_SIZE : 0;
+    int page_cache = (flags == O_RDWR || flags == O_WRONLY) ? NAND_PAGE_SIZE : 0;
     bbfs_openfile_t *file = malloc(sizeof(bbfs_openfile_t) + page_cache);
     file->entry = entry;
     file->pos = 0;
     file->block_prev_link = &entry->block;
     file->block = be16(entry->block);
     file->flags = 
-        (flags & (O_RDONLY | O_RDWR) ? BBFS_FLAGS_READING : 0) |
-        (flags & (O_WRONLY | O_RDWR) ? BBFS_FLAGS_WRITING : 0);
+        ((flags == O_RDONLY || flags == O_RDWR) ? BBFS_FLAGS_READING : 0) |
+        ((flags == O_WRONLY || flags == O_RDWR) ? BBFS_FLAGS_WRITING : 0);
 
     if (flags & O_TRUNC)
         SB_WRITE(entry->size, 0);
@@ -544,6 +571,8 @@ static int __bbfs_close(void *file)
         // Flush writing the current page/block
         __bbfs_write_page_end(f);
         __bbfs_write_block_end(f);
+        // Write the superblock if dirty
+        sb_flush();
     }
 
     free(file);
