@@ -304,6 +304,9 @@ int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx_ptr, int flags)
         }
     }
 
+    // ATB requires a read command to be programmed into PI_BB_NAND_CTRL.
+    *PI_BB_NAND_CTRL = NAND_CMD_READ1_H0;
+
     if (atb_idx_ptr) *atb_idx_ptr = atb_idx;
     return 0;
 }
