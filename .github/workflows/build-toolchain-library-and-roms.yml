@@ -113,7 +113,7 @@ jobs:
           ./build.sh
 
       - name: "Upload built ROMs to artifacts"
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: roms
           path: |

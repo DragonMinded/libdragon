@@ -45,7 +45,7 @@ jobs:
           N64_INST=$(pwd)/gcc-toolchain-mips64 make ${{ matrix.build }}
 
       - name: "Upload ${{ matrix.build }} executables"
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.arch }}-${{ matrix.build }}
           path: ${{ github.workspace }}/**/tools/**/*.exe

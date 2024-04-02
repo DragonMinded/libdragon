@@ -75,7 +75,7 @@ jobs:
 
       # Cache and restore dependencies instead of downloading them to increase build speed.
       # Expires after 7 days.
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: cache
         with:
           path: |
@@ -165,7 +165,7 @@ jobs:
 
       - name: Publish Windows-x86_64 Build Artifact
         if: ${{ matrix.target-platform == 'Windows-x86_64' }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gcc-toolchain-mips64-${{ matrix.target-platform }}
           path: |
@@ -174,7 +174,7 @@ jobs:
 
       - name: Publish Linux-x86_64 Build Artifacts
         if: ${{ matrix.target-platform == 'Linux-x86_64' }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gcc-toolchain-mips64-${{ matrix.target-platform }}
           path: |
@@ -191,14 +191,14 @@ jobs:
       
       - name: Download Windows artifact
         id: download-windows-artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: gcc-toolchain-mips64-Windows-x86_64
           path: ${{ runner.temp }}/gcc-toolchain-mips64-Windows-x86_64
 
       - name: Download Linux artifact
         id: download-linux-artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: gcc-toolchain-mips64-Linux-x86_64
           path: ${{ runner.temp }}/gcc-toolchain-mips64-Linux-x86_64
