@@ -662,7 +662,7 @@ int bbfs_init(void)
     if (err < 0)
         return err;
 
-    attach_filesystem("bbfs", &bb_fs);
+    attach_filesystem("bbfs:/", &bb_fs);
     return 0;
 }
 
