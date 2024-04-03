@@ -190,6 +190,11 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	bool highpri = false;
 	while (wlen > 0) {
 		int nframes = wlen / 16;
+		// Most of the code here would be ready to loop over multiple blocks of
+		// 256 frames, but the problem is that we don't doublebuffer the RDRAM
+		// buffers, so the RSP doesn't get to process the data in time. This
+		// would require CPU-spinning here. Since it's a very rare case, just
+		// block it for now.
 		assert(nframes <= 256);
 		nframes = MIN(nframes, 256);
 
