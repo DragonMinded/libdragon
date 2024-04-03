@@ -199,7 +199,6 @@ static void sb_flush(void)
     // TODO: we could use the dirty mask here to switch between writing new data
     // and copying data from the previous superblock index.
     nand_write_data(NAND_ADDR_MAKE(block, 0, 0), &bbfs_superblock, sizeof(bbfs_superblock));
-        
     bbfs_state.sb_dirty = 0;
 }
 
@@ -536,7 +535,7 @@ static int __bbfs_write(void *file, uint8_t *ptr, int len)
     return written;
 }
 
-static int __bbfs_lazy_extend(bbfs_openfile_t *f, int until)
+static int __bbfs_extend(bbfs_openfile_t *f, int until)
 {
     // Call this function only when at end of file
     assert(f->pos == be32(f->entry->size));
@@ -562,6 +561,28 @@ static int __bbfs_lazy_extend(bbfs_openfile_t *f, int until)
     return 0;
 }
 
+static void __bbfs_shrink(bbfs_entry_t *entry, int len)
+{
+    // Search for the block that contains len-1. That's the
+    // last block that we want to keep.
+    int16_t* block_ptr = &entry->block;
+    for (int blen = 0; blen < len; blen += NAND_BLOCK_SIZE) {
+        assert(be16i(*block_ptr) > 0);
+        block_ptr = &bbfs_superblock.fat[be16i(*block_ptr)];
+    }
+    // The current block terminates the chain. Then free all
+    // other blocks.
+    int16_t *next = &bbfs_superblock.fat[be16i(*block_ptr)];
+    SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
+    while (be16i(*next) != FAT_TERMINATOR) {
+        block_ptr = next;
+        next = &bbfs_superblock.fat[be16i(*block_ptr)];
+        SB_WRITE(*block_ptr, be16i(FAT_UNUSED));
+    }
+    // Truncate the file
+    SB_WRITE(entry->size, be32(len));
+}
+
 static int __bbfs_ftruncate(void *file, int len)
 {
     bbfs_openfile_t *f = file;
@@ -573,29 +594,15 @@ static int __bbfs_ftruncate(void *file, int len)
     }
 
     if (len < size) {
-        // Search for the block that contains len-1. That's the
-        // last block that we want to keep.
-        int16_t* block_ptr = &f->entry->block;
-        for (int blen = 0; blen < len; blen += NAND_BLOCK_SIZE) {
-            assert(be16i(*block_ptr) > 0);
-            block_ptr = &bbfs_superblock.fat[be16i(*block_ptr)];
-        }
-        // The current block terminates the chain. Then free all
-        // other blocks.
-        int16_t *next = &bbfs_superblock.fat[be16i(*block_ptr)];
-        SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
-        while (be16i(*next) != FAT_TERMINATOR) {
-            block_ptr = next;
-            next = &bbfs_superblock.fat[be16i(*block_ptr)];
-            SB_WRITE(*block_ptr, be16i(FAT_UNUSED));
-        }
-        // Truncate the file
-        SB_WRITE(f->entry->size, be32(len));
+        __bbfs_shrink(f->entry, len);
+        if (f->pos > len)
+            f->pos = len;
         // Even if we were asked before to extend the file, now
         // we've been asked to reduce it (against its original size),
         // so there's no need to extend it anymore.
         f->flags &= ~BBFS_FLAGS_LAZY_EXTEND;
     } else if (len > size) {
+        printf("Extending file to %d\n", len);
         // Remember that we want to extend the file but don't do
         // that yet, as the user might be writing the data anyway.
         f->flags |= BBFS_FLAGS_LAZY_EXTEND;
@@ -656,13 +663,13 @@ static int __bbfs_lseek(void *file, int offset, int whence)
     if (f->flags & BBFS_FLAGS_LAZY_EXTEND && pos > size) {
         // We've been asked to extend the file, and the user is seeking
         // beyond the current size. Extend the file now.
-        if (pos >= f->final_size) {
+        if (pos >= f->final_size)
             pos = f->final_size;
-            f->flags &= ~BBFS_FLAGS_LAZY_EXTEND;
-        }
-        int err = __bbfs_lazy_extend(file, pos);
+        int err = __bbfs_extend(file, pos);
         if (err < 0)
             return err;
+        if (pos == f->final_size)
+            f->flags &= ~BBFS_FLAGS_LAZY_EXTEND;
     }
 
     f->pos = pos;
@@ -698,6 +705,24 @@ static int __bbfs_fstat(void *file, struct stat *st)
     st->st_size = be32(f->entry->size);
     st->st_blksize = NAND_BLOCK_SIZE;
     st->st_blocks = (st->st_size + NAND_BLOCK_SIZE - 1) / NAND_BLOCK_SIZE;
+    return 0;
+}
+
+static int __bbfs_unlink(char *name)
+{
+    bbfs_entry_t *entry = bbfs_find_entry(name);
+    if (!entry) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    // Remove all blocks
+    __bbfs_shrink(entry, 0);
+    // Free the entry
+    SB_WRITE(entry->valid, 0);
+    // Write the superblock
+    sb_flush();
+
     return 0;
 }
 
@@ -745,7 +770,7 @@ static filesystem_t bb_fs = {
 	.write = __bbfs_write,
     .ftruncate = __bbfs_ftruncate,
 	.close = __bbfs_close,
-	.unlink = 0, //__bbfs_unlink,
+	.unlink = __bbfs_unlink,
 	.findfirst = __bbfs_findfirst,
 	.findnext = __bbfs_findnext,
 };
