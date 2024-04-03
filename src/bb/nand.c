@@ -242,11 +242,11 @@ int nand_erase_block(nand_addr_t addr)
 
 static void atb_write(int idx, uint32_t pi_address, int nand_block, int num_blocks_log2)
 {
-    assertf(num_blocks_log2 > 0 && num_blocks_log2 <= 16, "invalid ATB entry size: %d", 1<<num_blocks_log2);
+    assertf(num_blocks_log2 >= 0 && num_blocks_log2 < 16, "invalid ATB entry size: %d", 1<<num_blocks_log2);
     assertf((pi_address & (((1 << num_blocks_log2) * NAND_BLOCK_SIZE)-1)) == 0, 
         "wrong ATB alignment (addr:0x%08lX, nlog2:%d)", pi_address, num_blocks_log2);
 
-    *PI_BB_ATB_UPPER = num_blocks_log2-1;
+    *PI_BB_ATB_UPPER = num_blocks_log2;
     PI_BB_ATB_LOWER[idx] = (nand_block << 16) | (pi_address / NAND_BLOCK_SIZE);
 }
 
@@ -290,9 +290,9 @@ int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx_ptr, int flags)
             // The longest sequence we can map is limited by the PI address
             // alignment. For instance, given a PI address of 0x10010000,
             // we can only map 0x10000 bytes (4 blocks) in a single ATB entry.
-            int nseq_log2 = 32 - __builtin_clz(nseq);
+            int nseq_log2 = 31 - __builtin_clz(nseq);
             int piaddr_align = __builtin_ctz(pi_address / NAND_BLOCK_SIZE);
-            int n_log2 = MIN(MIN(nseq_log2, piaddr_align), 16);
+            int n_log2 = MIN(MIN(nseq_log2, piaddr_align), 15);
             int n = 1 << n_log2;
 
             // Write the ATB entry
