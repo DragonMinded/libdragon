@@ -1285,6 +1285,62 @@ int write( int file, char *ptr, int len )
 }
 
 /**
+ * @brief Truncate a file to the specified length.
+ * 
+ * If the specified length is larger than the current file size,
+ * the file is extended with zeros. If the specified length is smaller
+ * than the current file size, the file is truncated to the specified
+ * length.
+ * 
+ * @param file      File handle
+ * @param length    New length of the file
+ * @return int      0 on success, -1 on failure (errno will be set)
+ */
+int ftruncate( int file, off_t length )
+{
+    filesystem_t *fs = __get_fs_pointer_by_handle( file );
+    void **handle_ptr = __get_fs_handle( file );
+
+    if( fs == 0 || handle_ptr == 0 || length < 0 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if( fs->ftruncate == 0 )
+    {
+        /* Filesystem doesn't support ftruncate */
+        errno = ENOSYS;
+        return -1;
+    }
+
+    return fs->ftruncate( *handle_ptr, length );
+}
+
+/**
+ * @brief Truncate a file to the specified length.
+ * 
+ * If the specified length is larger than the current file size,
+ * the file is extended with zeros. If the specified length is smaller
+ * than the current file size, the file is truncated to the specified
+ * length.
+ * 
+ * @param path      Path to the file
+ * @param length    New length of the file
+ * @return int      0 on success, -1 on failure (errno will be set)
+ */
+int truncate( const char *path, off_t length )
+{
+    int fd = open( path, O_WRONLY );
+    if (fd < 0)
+        return fd;
+
+    int ret = ftruncate( fd, length );
+    close( fd );
+    return ret;
+}
+
+/**
  * @brief Generate an array of unpredictable random numbers
  * 
  * This function can be used to generate an array of random data. The function

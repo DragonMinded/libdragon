@@ -136,6 +136,15 @@ typedef struct
      * @return 0 on successful lookup or a negative value on failure or empty directory.
      */
     int (*findnext)( dir_t *dir );
+    /**
+     * @brief Truncate a file to a specified length
+     * 
+     * @param file    Arbitrary file handle returned by #filesystem_t::open
+     * @param length  New length of the file
+     * 
+     * @return 0 on success or a negative value on failure (errno must be set)
+     */
+    int (*ftruncate)( void *file, int length );
 } filesystem_t;
 
 /**
