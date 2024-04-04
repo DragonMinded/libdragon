@@ -9,6 +9,12 @@
 #include "nand.h"
 #include "bbfs.h"
 
+#ifndef BBFS_TRACE
+#define BBFS_TRACE      0
+#endif
+
+#define tracef(lvl, str, ...)    ({ if ((lvl) <= BBFS_TRACE) debugf("[bbfs] " str "\n", ##__VA_ARGS__); })
+
 #ifndef N64
 #define be16(x)   __builtin_bswap16(x)
 #define be16i(x)  (int16_t)__builtin_bswap16(x)
@@ -194,11 +200,13 @@ static void sb_record_write(void *data, int len)
 
 static void sb_flush(void)
 {    
-    if (!bbfs_state.sb_dirty[0] && !bbfs_state.sb_dirty[1])
+    if (!bbfs_state.sb_dirty[0] && !bbfs_state.sb_dirty[1]) {
+        tracef(3, "sb_flush: dirty mask is empty, skipping");
         return;
+    }
 
-    int sbarea = bbfs_state.total_blocks - 16;
-    int block =  sbarea + RANDN(16);
+    int sb_area = bbfs_state.total_blocks - 16;
+    int bidx = RANDN(16);
 
     for (int sbidx=bbfs_state.num_superblocks-1; sbidx >= 0; sbidx--) {
         bbfs_superblock_t *sb = &bbfs_superblock[sbidx];
@@ -211,17 +219,18 @@ static void sb_flush(void)
         SB_WRITE(sb->footer.checksum, be16(BBFS_CHECKSUM - sb_calc_checksum(sb)));
 
         // Select a random superblock entry, and erase it
-        nand_erase_block(NAND_ADDR_MAKE(block, 0, 0));
+        nand_erase_block(NAND_ADDR_MAKE(sb_area + bidx, 0, 0));
 
         // TODO: we could use the dirty mask here to switch between writing new data
         // and copying data from the previous superblock index.
-        nand_write_data(NAND_ADDR_MAKE(block, 0, 0), sb, sizeof(bbfs_superblock_t));
+        tracef(2, "sb_flush: writing superblock %d to block %x", sbidx, sb_area+bidx);
+        nand_write_data(NAND_ADDR_MAKE(sb_area + bidx, 0, 0), sb, sizeof(bbfs_superblock_t));
         bbfs_state.sb_dirty[sbidx] = 0;
 
         if (sbidx)
-            SB_WRITE(sb[-1].footer.link, be16(block));
+            SB_WRITE(sb[-1].footer.link, be16(sb_area+bidx));
 
-        block = (block+1) % 16;
+        bidx = (bidx+1) % 16;
     }
 }
 
@@ -271,26 +280,40 @@ static int bbfs_mount(void)
         nand_read_data(NAND_ADDR_MAKE(sb_area + idx, 0, 0), &bbfs_superblock[0], sizeof(bbfs_superblock_t));
 
         // Verify superblock checksum (16-bit sum of all 16-bit words)
-        if (sb_calc_checksum(&bbfs_superblock[0]) != BBFS_CHECKSUM)
+        if (sb_calc_checksum(&bbfs_superblock[0]) != BBFS_CHECKSUM) {
+            tracef(1, "superblock %x: invalid checksum", sb_area+idx);
             continue;
+        }
 
         if (must_be_linked) {
-            if (!bbfs_superblock[0].footer.link)
+            if (!bbfs_superblock[0].footer.link) {
+                tracef(1, "superblock %x: invalid missing link", sb_area+idx);
                 continue;
+            }
+
             // Read the linked superblock and check integrity
-            nand_read_data(NAND_ADDR_MAKE(bbfs_superblock[0].footer.link, 0, 0), &bbfs_superblock[1], sizeof(bbfs_superblock_t));
-            if (bbfs_superblock[1].footer.magic != FOURCC('B', 'B', 'F', 'L') ||
-                bbfs_superblock[1].footer.seqno != bbfs_superblock[0].footer.seqno || 
-                sb_calc_checksum(&bbfs_superblock[1]) != BBFS_CHECKSUM)
+            nand_read_data(NAND_ADDR_MAKE(be16(bbfs_superblock[0].footer.link), 0, 0), &bbfs_superblock[1], sizeof(bbfs_superblock_t));
+            if (be32(bbfs_superblock[1].footer.magic) != FOURCC('B', 'B', 'F', 'L')) {
+                tracef(1, "superblock %x (linked): invalid fourcc", bbfs_superblock[0].footer.link);
                 continue;
+            }
+            if (bbfs_superblock[1].footer.seqno != bbfs_superblock[0].footer.seqno) {
+                tracef(1, "superblock %x (linked): invalid seqno", bbfs_superblock[0].footer.link);
+                continue;
+            }
+            if (sb_calc_checksum(&bbfs_superblock[1]) != BBFS_CHECKSUM) {
+                tracef(1, "superblock %x (linked): invalid checksum", bbfs_superblock[0].footer.link);
+                continue;
+            }
         } else {
             if (bbfs_superblock[0].footer.link) {
-                printf("invalid link\n");
+                tracef(1, "superblock %x: unexpected link", sb_area+idx);
                 continue;
             }
         }
 
         // Superblock correctly initialized
+        tracef(2, "superblock %x: mounted", sb_area+idx);
         bbfs_state_init(total_blocks);
         return 0;
     }
@@ -638,7 +661,6 @@ static int __bbfs_ftruncate(void *file, int len)
         // so there's no need to extend it anymore.
         f->flags &= ~BBFS_FLAGS_LAZY_EXTEND;
     } else if (len > size) {
-        printf("Extending file to %d\n", len);
         // Remember that we want to extend the file but don't do
         // that yet, as the user might be writing the data anyway.
         f->flags |= BBFS_FLAGS_LAZY_EXTEND;
@@ -834,8 +856,8 @@ int16_t* bbfs_get_file_blocks(const char *filename)
 
     int block = be16i(entry->block);
     for (int i=0; i<num_blocks; i++) {
-        if (block < 0 || block > 4095) {
-            // Corrupted filesystem
+        if (block < 0 || block >= bbfs_state.total_blocks) {
+            tracef(1, "wrong block number %x, filesystem is corrupted", block);
             free(blocks);
             return NULL;
         }
