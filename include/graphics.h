@@ -61,12 +61,12 @@ inline uint32_t color_to_packed32(color_t c) {
 }
 /** @brief Create a #color_t from the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline color_t color_from_packed16(uint16_t c) {
-    return (color_t){ .r=((c>>11)&0x1F)<<3, .g=((c>>6)&0x1F)<<3, .b=((c>>1)&0x1F)<<3, .a=(c&0x1) ? 0xFF : 0 };
+    return (color_t){ .r=(uint8_t)(((c>>11)&0x1F)<<3), .g=(uint8_t)(((c>>6)&0x1F)<<3), .b=(uint8_t)(((c>>1)&0x1F)<<3), .a=(uint8_t)((c&0x1) ? 0xFF : 0) };
 }
 
 /** @brief Create a #color_t from the 32-bit packed format used by a #FMT_RGBA32 surface (RGBA 8888) */
 inline color_t color_from_packed32(uint32_t c) {
-    return (color_t){ .r=(c>>24)&0xFF, .g=(c>>16)&0xFF, .b=(c>>8)&0xFF, .a=c&0xFF };
+    return (color_t){ .r=(uint8_t)(c>>24), .g=(uint8_t)(c>>16), .b=(uint8_t)(c>>8), .a=(uint8_t)c };
 }
 
 uint32_t graphics_make_color( int r, int g, int b, int a );
