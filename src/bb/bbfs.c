@@ -79,14 +79,17 @@ _Static_assert(sizeof(bbfs_superblock_t) == NAND_BLOCK_SIZE, "bbfs_superblock_t 
 
 /** @brief Running state of the filesystem */
 typedef struct {
-    uint32_t sb_dirty;          ///< Superblock dirty mask
+    uint32_t sb_dirty[2];       ///< Superblock dirty mask
+    int num_superblocks;        ///< Number of superblocks
     int total_blocks;           ///< Total number of blocks in the filesystem
     int small_area_idx;         ///< Start index of the area for small files (end of filesystem)
     int small_area_free;        ///< Number of free blocks in the small area
 } bbfs_state_t;
 
-static bbfs_superblock_t bbfs_superblock;
+static bbfs_superblock_t bbfs_superblock[2];
 static bbfs_state_t bbfs_state;
+
+#define SB_FAT(bidx)   bbfs_superblock[(bidx) >> 12].fat[(bidx) & 0xFFF]
 
 static void bbfs_small_area_update(void);
 
@@ -104,14 +107,13 @@ static void bbfs_small_area_init(void)
     int area_size = 1024*1024 / NAND_BLOCK_SIZE;
     int free_blocks = 0;
     for (int i=total_blocks-area_size; i<total_blocks-16; i++) {
-        if (bbfs_superblock.fat[i] == FAT_UNUSED)
+        if (SB_FAT(i) == FAT_UNUSED)
             free_blocks++;
     }
 
     bbfs_state.small_area_idx = total_blocks - area_size;
     bbfs_state.small_area_free = free_blocks;
     bbfs_small_area_update();
-    printf("Small area: %d (%d blocks free)\n", total_blocks-bbfs_state.small_area_idx, bbfs_state.small_area_free);
 }
 
 static void bbfs_small_area_update(void)
@@ -123,7 +125,7 @@ static void bbfs_small_area_update(void)
         if (bbfs_state.small_area_idx == 0)
             break;
         bbfs_state.small_area_idx--;
-        if (bbfs_superblock.fat[bbfs_state.small_area_idx] == FAT_UNUSED)
+        if (SB_FAT(bbfs_state.small_area_idx) == FAT_UNUSED)
             bbfs_state.small_area_free++;
     }
 }
@@ -137,7 +139,7 @@ static int bbfs_small_area_alloc(void)
     // block so that we can reduce wear leveling.
     int block = RANDN(small_area_size) + bbfs_state.small_area_idx;
     for (int i=0; i<small_area_size; i++) {
-        if (bbfs_superblock.fat[block] == FAT_UNUSED) {
+        if (SB_FAT(block) == FAT_UNUSED) {
             bbfs_state.small_area_free--;
             bbfs_small_area_update();
             return block;
@@ -155,20 +157,24 @@ static int bbfs_small_area_alloc(void)
 static void bbfs_state_init(int nblocks)
 {
     memset(&bbfs_state, 0, sizeof(bbfs_state));
-    bbfs_state.total_blocks = 4096;
+    bbfs_state.total_blocks = nblocks;
+    bbfs_state.num_superblocks = 1;
     bbfs_small_area_init();
 }
 
 static void sb_record_write(void *data, int len)
 {
-    int offset = data - (void*)&bbfs_superblock;
-    assertf(offset >= 0 && offset < sizeof(bbfs_superblock_t), 
+    int offset = data - (void*)&bbfs_superblock[0];
+    assertf(offset >= 0 && offset < sizeof(bbfs_superblock_t)*2, 
         "internal error: invalid superblock pointer %p (%p)", data, &bbfs_superblock);
+
+    int sbidx = offset / sizeof(bbfs_superblock_t);
+    offset = offset % sizeof(bbfs_superblock_t);
 
     int first_page = offset / NAND_PAGE_SIZE;
     int last_page = (offset + len - 1) / NAND_PAGE_SIZE;
     for (int i=first_page; i<=last_page; i++)
-        bbfs_state.sb_dirty |= 1 << i;
+        bbfs_state.sb_dirty[sbidx] |= 1 << i;
 }
 
 #define SB_WRITE(a, b)  ({ \
@@ -177,29 +183,33 @@ static void sb_record_write(void *data, int len)
 })
 
 static void sb_flush(void)
-{
-    if (!bbfs_state.sb_dirty)
+{    
+    if (!bbfs_state.sb_dirty[0] && !bbfs_state.sb_dirty[1])
         return;
-    
-    // Update sequence number
-    SB_WRITE(bbfs_superblock.footer.seqno, be32(be32(bbfs_superblock.footer.seqno) + 1));
 
-    // Recalculate checksum
-    uint16_t checksum = 0;
-    uint16_t *data = (uint16_t *)&bbfs_superblock;
-    for (int i=0; i<NAND_BLOCK_SIZE/2-1; i++)
-        checksum += be16(data[i]);
-    checksum = 0xCAD7 - checksum;
-    SB_WRITE(bbfs_superblock.footer.checksum, be16(checksum));
+    for (int sbidx=0; sbidx<bbfs_state.num_superblocks; sbidx++) {
+        bbfs_superblock_t *sb = &bbfs_superblock[sbidx];
 
-    // Select a random superblock entry, and erase it
-    int block = RANDN(16) + 0xFF0;
-    nand_erase_block(NAND_ADDR_MAKE(block, 0, 0));
+        // Update sequence number
+        SB_WRITE(sb->footer.seqno, be32(be32(sb->footer.seqno) + 1));
 
-    // TODO: we could use the dirty mask here to switch between writing new data
-    // and copying data from the previous superblock index.
-    nand_write_data(NAND_ADDR_MAKE(block, 0, 0), &bbfs_superblock, sizeof(bbfs_superblock));
-    bbfs_state.sb_dirty = 0;
+        // Recalculate checksum
+        uint16_t checksum = 0;
+        uint16_t *data = (uint16_t *)sb;
+        for (int i=0; i<NAND_BLOCK_SIZE/2-1; i++)
+            checksum += be16(data[i]);
+        checksum = 0xCAD7 - checksum;
+        SB_WRITE(sb->footer.checksum, be16(checksum));
+
+        // Select a random superblock entry, and erase it
+        int block = RANDN(16) + 0xFF0;
+        nand_erase_block(NAND_ADDR_MAKE(block, 0, 0));
+
+        // TODO: we could use the dirty mask here to switch between writing new data
+        // and copying data from the previous superblock index.
+        nand_write_data(NAND_ADDR_MAKE(block, 0, 0), sb, sizeof(bbfs_superblock_t));
+        bbfs_state.sb_dirty[sbidx] = 0;
+    }
 }
 
 static int bbfs_mount(void)
@@ -245,11 +255,11 @@ static int bbfs_mount(void)
     // is correct.
     for (int i=0; i<nf; i++) {
         int idx = footers[i].magic;
-        nand_read_data(NAND_ADDR_MAKE(0xFF0 + idx, 0, 0), &bbfs_superblock, sizeof(bbfs_superblock));
+        nand_read_data(NAND_ADDR_MAKE(0xFF0 + idx, 0, 0), &bbfs_superblock[0], sizeof(bbfs_superblock_t));
 
         // Verify superblock checksum (16-bit sum of all 16-bit words)
         uint16_t checksum = 0;
-        uint16_t *data = (uint16_t *)&bbfs_superblock;
+        uint16_t *data = (uint16_t *)&bbfs_superblock[0];
         for (int j=0; j<NAND_BLOCK_SIZE/2; j++)
             checksum += be16(data[j]);
         if (checksum == 0xCAD7) {
@@ -270,7 +280,7 @@ static bbfs_entry_t *bbfs_find_entry(const char *name)
     int namelen = dot ? dot-name : strlen(name);
 
     for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
-        bbfs_entry_t *entry = &bbfs_superblock.entries[i];
+        bbfs_entry_t *entry = &bbfs_superblock[0].entries[i];
         if (entry->valid && !strncmp(entry->name, name, namelen) && !strncmp(entry->ext, dot ? dot+1 : "", 3)) {
             return entry;
         }
@@ -292,7 +302,7 @@ static void *__bbfs_open(char *name, int flags)
         // Search for an empty entry in the superblock where the file
         // can be written. 
         for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
-            entry = &bbfs_superblock.entries[i];
+            entry = &bbfs_superblock[0].entries[i];
             if (!entry->valid) {
                 memset(entry, 0, sizeof(bbfs_entry_t));
                 char *dot = strchr(name, '.');
@@ -365,7 +375,7 @@ static int __bbfs_read(void *file, uint8_t *ptr, int len)
         read += n;
 
         if (pos % NAND_BLOCK_SIZE == 0) {
-            block = be16i(bbfs_superblock.fat[block]);
+            block = be16i(SB_FAT(block));
         }
     }
 
@@ -379,7 +389,7 @@ static int __bbfs_allocate_block(int prev_block, bool big_file)
     // In general we prefer linear allocation as that is more likely to reduce
     // fragmentation. Check if the next block is free
     int block = prev_block+1;
-    if (prev_block != FAT_TERMINATOR && block < 4096 && bbfs_superblock.fat[block] == FAT_UNUSED)
+    if (prev_block != FAT_TERMINATOR && block < bbfs_state.total_blocks && SB_FAT(block) == FAT_UNUSED)
         return block;
 
     // If the file is small, search for a free block in the small area.
@@ -390,7 +400,7 @@ static int __bbfs_allocate_block(int prev_block, bool big_file)
     // We store there only large files, so the hope is that there is not much
     // fragmentation
     for (int i=0; i<bbfs_state.total_blocks; i++) {
-        if (bbfs_superblock.fat[i] == FAT_UNUSED)
+        if (SB_FAT(i) == FAT_UNUSED)
             return i;
     }
 
@@ -440,16 +450,16 @@ static void __bbfs_write_block_end(bbfs_openfile_t *f)
         // basically changing it from prev -> old -> next to prev -> new -> next,
         // that is replacing the old block with the new one.
         if (be16i(*f->block_prev_link) != FAT_TERMINATOR) {
-            int next_block = be16i(bbfs_superblock.fat[be16i(*f->block_prev_link)]);
-            SB_WRITE(bbfs_superblock.fat[f->block], be16i(next_block));
-            SB_WRITE(bbfs_superblock.fat[be16i(*f->block_prev_link)], be16i(FAT_UNUSED));
+            int next_block = be16i(SB_FAT(be16i(*f->block_prev_link)));
+            SB_WRITE(SB_FAT(f->block), be16i(next_block));
+            SB_WRITE(SB_FAT(be16i(*f->block_prev_link)), be16i(FAT_UNUSED));
             SB_WRITE(*f->block_prev_link, be16i(f->block));
         } else {
             // This is a totally new block. We don't do anything besides registering it
             SB_WRITE(*f->block_prev_link, be16i(f->block));
-            SB_WRITE(bbfs_superblock.fat[f->block], be16i(FAT_TERMINATOR));
+            SB_WRITE(SB_FAT(f->block), be16i(FAT_TERMINATOR));
         }
-        f->block_prev_link = &bbfs_superblock.fat[f->block];
+        f->block_prev_link = &SB_FAT(f->block);
         f->block = be16i(*f->block_prev_link);
         f->flags &= ~BBFS_FLAGS_BLOCK_SHADOWED;
     }
@@ -568,15 +578,15 @@ static void __bbfs_shrink(bbfs_entry_t *entry, int len)
     int16_t* block_ptr = &entry->block;
     for (int blen = 0; blen < len; blen += NAND_BLOCK_SIZE) {
         assert(be16i(*block_ptr) > 0);
-        block_ptr = &bbfs_superblock.fat[be16i(*block_ptr)];
+        block_ptr = &SB_FAT(be16i(*block_ptr));
     }
     // The current block terminates the chain. Then free all
     // other blocks.
-    int16_t *next = &bbfs_superblock.fat[be16i(*block_ptr)];
+    int16_t *next = &SB_FAT(be16i(*block_ptr));
     SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
     while (be16i(*next) != FAT_TERMINATOR) {
         block_ptr = next;
-        next = &bbfs_superblock.fat[be16i(*block_ptr)];
+        next = &SB_FAT(be16i(*block_ptr));
         SB_WRITE(*block_ptr, be16i(FAT_UNUSED));
     }
     // Truncate the file
@@ -654,7 +664,7 @@ static int __bbfs_lseek(void *file, int offset, int whence)
         f->block = be16i(*f->block_prev_link);
         int newpos = pos;
         while (newpos >= NAND_BLOCK_SIZE) {
-            f->block_prev_link = &bbfs_superblock.fat[f->block];
+            f->block_prev_link = &SB_FAT(f->block);
             f->block = be16i(*f->block_prev_link);
             newpos -= NAND_BLOCK_SIZE;
         }
@@ -700,7 +710,7 @@ static int __bbfs_fstat(void *file, struct stat *st)
 {
     bbfs_openfile_t *f = file;
     memset(st, 0, sizeof(struct stat));
-    st->st_ino = f->entry - bbfs_superblock.entries;
+    st->st_ino = f->entry - bbfs_superblock[0].entries;
     st->st_mode = S_IFREG;
     st->st_size = be32(f->entry->size);
     st->st_blksize = NAND_BLOCK_SIZE;
@@ -729,7 +739,7 @@ static int __bbfs_unlink(char *name)
 static int __bbfs_findnext(dir_t *dir)
 {
     for (int i=dir->d_cookie+1; i<BBFS_MAX_ENTRIES; i++) {
-        bbfs_entry_t *entry = &bbfs_superblock.entries[i];
+        bbfs_entry_t *entry = &bbfs_superblock[0].entries[i];
         if (entry->valid) {
             dir->d_cookie = i;
             dir->d_type = DT_REG;
@@ -804,7 +814,7 @@ int16_t* bbfs_get_file_blocks(const char *filename)
             return NULL;
         }
         blocks[i] = block;
-        block = be16i(bbfs_superblock.fat[block]);
+        block = be16i(SB_FAT(block));
     }
 
     blocks[num_blocks] = -1;
