@@ -14,7 +14,6 @@
 #define PI_BB_RD_LEN                        ((volatile uint32_t*)0xA4600058)
 #define PI_BB_WR_LEN                        ((volatile uint32_t*)0xA460005C)
 #define PI_BB_NAND_ADDR                     ((volatile uint32_t*)0xA4600070)
-#define PI_BB_ATB_LOWER                     ((volatile uint32_t*)0xA4600500)
 
 #define PI_BB_BUFFER_0                      ((volatile uint32_t*)0xA4610000)    ///< NAND buffer 0
 #define PI_BB_BUFFER_1                      ((volatile uint32_t*)0xA4610200)    ///< NAND buffer 1
@@ -22,6 +21,7 @@
 #define PI_BB_SPARE_1                       ((volatile uint32_t*)0xA4610410)    ///< NAND spare data 1
 #define PI_BB_AES_KEY                       ((volatile uint32_t*)0xA4610420)    ///< AES expanded key
 #define PI_BB_AES_IV                        ((volatile uint32_t*)0xA46104D0)    ///< AES initialization vector
+#define PI_BB_ATB_LOWER                     ((volatile uint32_t*)0xA4610500)
 
 #define PI_BB_NAND_CTRL_BUSY                (1 << 31)
 #define PI_BB_NAND_CTRL_ERROR               (1 << 10)
@@ -34,6 +34,8 @@
 #define PI_BB_WNAND_CTRL_INTERRUPT          (1 << 30)
 #define PI_BB_WNAND_CTRL_EXECUTE            (1 << 31)
 
+#define PI_BB_WATB_UPPER_DMAREAD            (1 << 4)        ///< This ATB entry will be enabled for DMA
+#define PI_BB_WATB_UPPER_CPUREAD            (1 << 5)        ///< This ATB entry will be enabled for CPU read
 #define PI_BB_WATB_UPPER_IVSOURCE           (1 << 8)
 
 #define PI_BB_ATB_MAX_ENTRIES               192
@@ -246,7 +248,7 @@ static void atb_write(int idx, uint32_t pi_address, int nand_block, int num_bloc
     assertf((pi_address & (((1 << num_blocks_log2) * NAND_BLOCK_SIZE)-1)) == 0, 
         "wrong ATB alignment (addr:0x%08lX, nlog2:%d)", pi_address, num_blocks_log2);
 
-    *PI_BB_ATB_UPPER = num_blocks_log2;
+    *PI_BB_ATB_UPPER = num_blocks_log2 | PI_BB_WATB_UPPER_DMAREAD | PI_BB_WATB_UPPER_CPUREAD;
     PI_BB_ATB_LOWER[idx] = (nand_block << 16) | (pi_address / NAND_BLOCK_SIZE);
 }
 
