@@ -68,6 +68,25 @@ int nand_write_data(nand_addr_t addr, const void *buffer, int len);
  */
 int nand_erase_block(nand_addr_t addr);
 
+
+/**
+ * @brief Initialize configuration of the NAND memory mapping to PI address space.
+ * 
+ * On iQue, a special hardware component called the ATB (Address Translation
+ * Buffer?) allows to memory map blocks of flash to the PI bus. This allows
+ * for instance for a ROM to be mapped at 0x10000000, which is required for
+ * booting them.
+ * 
+ * The configuration must be done from scratch every time it is changed; it
+ * is thus necessary to call #nand_mmap_begin to initialize the configuration,
+ * then call #nand_mmap for each block to map, and finally call #nand_mmap_end
+ * to finish the configuration.
+ * 
+ * @see #nand_mmap
+ * @see #nand_mmap_end
+ */
+void nand_mmap_begin(void);
+
 /**
  * @brief Memory-map flash blocks to PI address space via ATB.
  * 
@@ -76,22 +95,45 @@ int nand_erase_block(nand_addr_t addr);
  * for instance for a ROM to be mapped at 0x10000000, which is required for
  * booting them.
  * 
- * To map a file from a NAND formatted with the BBFS filesystem, you can use
- * #bbfs_get_file_blocks to get the list of blocks to map.
+ * This function configures a specific mapping from a sequence of blocks to
+ * a PI address area. The flash blocks can be non consecutive, though there
+ * are some limits to the number of ATB entries that can be configured,
+ * so it is better to use consecutive blocks if possible.
+ * 
+ * If multiple calls to #nand_mmap are done, they must be done in increasing
+ * @a pi_address order.
+ * 
+ * The BBFS filesystem is configured to use consecutive blocks as much as possible
+ * for large files (> 512 KiB). To map a file from a NAND formatted with the
+ * BBFS filesystem, you can use #bbfs_get_file_blocks to get the list of blocks
+ * to map.
  * 
  * @param pi_address    PI address to map the blocks to
  * @param blocks        Array of block numbers to map, terminated by -1
- * @param atb_idx       If not NULL, it must contain the first ATB index to use
- *                      and will be filled with the index of the first ATB entry
- *                      after this mapping is done.
  * @param flags         Flags to control the mapping (#NAND_MMAP_ENCRYPTED)
  * @return int          0 if OK, or -1 in case of error. A possible error
  *                      is that there are not enough ATB entries available. In
  *                      this case, it is necessary to defragment the file on
  *                      the NAND (as a single ATB entry can map multiple
  *                      consecutive blocks).
+ * 
+ * @see #nand_mmap_begin
+ * @see #nand_mmap_end
  */
-int nand_mmap(uint32_t pi_address, int16_t *blocks, int *atb_idx, int flags);
+int nand_mmap(uint32_t pi_address, int16_t *blocks, int flags);
+
+/**
+ * @brief Finish configuration of the NAND memory mapping to PI address space.
+ * 
+ * On iQue, a special hardware component called the ATB (Address Translation
+ * Buffer?) allows to memory map blocks of flash to the PI bus. This allows
+ * for instance for a ROM to be mapped at 0x10000000, which is required for
+ * booting them.
+ * 
+ * This function must be called to finish the configuration. Notice that it
+ * must be called even if #nand_mmap failed.
+ */
+void nand_mmap_end(void);
 
 #ifdef __cplusplus
 }
