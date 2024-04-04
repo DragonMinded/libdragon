@@ -30,6 +30,7 @@
 #define FAT_RESERVED            -3
 
 #define BBFS_MAX_ENTRIES        409
+#define BBFS_CHECKSUM           0xCAD7
 
 #define BBFS_FLAGS_READING          (1<<0)     ///< The file is open for reading
 #define BBFS_FLAGS_WRITING          (1<<1)     ///< The file is open for writing
@@ -158,8 +159,17 @@ static void bbfs_state_init(int nblocks)
 {
     memset(&bbfs_state, 0, sizeof(bbfs_state));
     bbfs_state.total_blocks = nblocks;
-    bbfs_state.num_superblocks = 1;
+    bbfs_state.num_superblocks = nblocks / 4096;
     bbfs_small_area_init();
+}
+
+static uint16_t sb_calc_checksum(bbfs_superblock_t *sb)
+{
+    uint16_t checksum = 0;
+    uint16_t *data = (uint16_t *)sb;
+    for (int j=0; j<NAND_BLOCK_SIZE/2; j++)
+        checksum += be16(data[j]);
+    return checksum;
 }
 
 static void sb_record_write(void *data, int len)
@@ -187,28 +197,31 @@ static void sb_flush(void)
     if (!bbfs_state.sb_dirty[0] && !bbfs_state.sb_dirty[1])
         return;
 
-    for (int sbidx=0; sbidx<bbfs_state.num_superblocks; sbidx++) {
+    int sbarea = bbfs_state.total_blocks - 16;
+    int block =  sbarea + RANDN(16);
+
+    for (int sbidx=bbfs_state.num_superblocks-1; sbidx >= 0; sbidx--) {
         bbfs_superblock_t *sb = &bbfs_superblock[sbidx];
 
         // Update sequence number
         SB_WRITE(sb->footer.seqno, be32(be32(sb->footer.seqno) + 1));
 
         // Recalculate checksum
-        uint16_t checksum = 0;
-        uint16_t *data = (uint16_t *)sb;
-        for (int i=0; i<NAND_BLOCK_SIZE/2-1; i++)
-            checksum += be16(data[i]);
-        checksum = 0xCAD7 - checksum;
-        SB_WRITE(sb->footer.checksum, be16(checksum));
+        sb->footer.checksum = 0;
+        SB_WRITE(sb->footer.checksum, be16(BBFS_CHECKSUM - sb_calc_checksum(sb)));
 
         // Select a random superblock entry, and erase it
-        int block = RANDN(16) + 0xFF0;
         nand_erase_block(NAND_ADDR_MAKE(block, 0, 0));
 
         // TODO: we could use the dirty mask here to switch between writing new data
         // and copying data from the previous superblock index.
         nand_write_data(NAND_ADDR_MAKE(block, 0, 0), sb, sizeof(bbfs_superblock_t));
         bbfs_state.sb_dirty[sbidx] = 0;
+
+        if (sbidx)
+            SB_WRITE(sb[-1].footer.link, be16(block));
+
+        block = (block+1) % 16;
     }
 }
 
@@ -216,13 +229,13 @@ static int bbfs_mount(void)
 {
     bbfs_footer_t footers[16];
     int nf = 0;
-
-    // Linked superblocks are not supported for now
-    assertf(nand_get_size() == NAND_BLOCK_SIZE * 4096, "Unsupported NAND size");
+    int total_blocks = nand_get_size() / NAND_BLOCK_SIZE;
+    bool must_be_linked = total_blocks > 4096;
+    int sb_area = total_blocks - 16;
 
     for (int i=0; i<16; i++) {
         bbfs_footer_t *f = &footers[nf];
-        nand_read_data(NAND_ADDR_MAKE(0xFF0 + i, 0, 0x3FF4), f, 12);
+        nand_read_data(NAND_ADDR_MAKE(sb_area + i, 0, 0x3FF4), f, 12);
         #ifndef N64
         f->magic = __builtin_bswap32(f->magic);
         f->seqno = __builtin_bswap32(f->seqno);
@@ -230,7 +243,7 @@ static int bbfs_mount(void)
         f->checksum = __builtin_bswap16(f->checksum);
         #endif
 
-        if (f->magic == FOURCC('B', 'B', 'F', 'S') || f->magic == FOURCC('B', 'B', 'F', 'L')) {
+        if (f->magic == FOURCC('B', 'B', 'F', 'S')) {
             f->magic = i;
             nf++;
         }
@@ -255,18 +268,31 @@ static int bbfs_mount(void)
     // is correct.
     for (int i=0; i<nf; i++) {
         int idx = footers[i].magic;
-        nand_read_data(NAND_ADDR_MAKE(0xFF0 + idx, 0, 0), &bbfs_superblock[0], sizeof(bbfs_superblock_t));
+        nand_read_data(NAND_ADDR_MAKE(sb_area + idx, 0, 0), &bbfs_superblock[0], sizeof(bbfs_superblock_t));
 
         // Verify superblock checksum (16-bit sum of all 16-bit words)
-        uint16_t checksum = 0;
-        uint16_t *data = (uint16_t *)&bbfs_superblock[0];
-        for (int j=0; j<NAND_BLOCK_SIZE/2; j++)
-            checksum += be16(data[j]);
-        if (checksum == 0xCAD7) {
-            assert(footers[i].link == 0); // linked superblocks not supported for now
-            bbfs_state_init(4096);
-            return 0;
+        if (sb_calc_checksum(&bbfs_superblock[0]) != BBFS_CHECKSUM)
+            continue;
+
+        if (must_be_linked) {
+            if (!bbfs_superblock[0].footer.link)
+                continue;
+            // Read the linked superblock and check integrity
+            nand_read_data(NAND_ADDR_MAKE(bbfs_superblock[0].footer.link, 0, 0), &bbfs_superblock[1], sizeof(bbfs_superblock_t));
+            if (bbfs_superblock[1].footer.magic != FOURCC('B', 'B', 'F', 'L') ||
+                bbfs_superblock[1].footer.seqno != bbfs_superblock[0].footer.seqno || 
+                sb_calc_checksum(&bbfs_superblock[1]) != BBFS_CHECKSUM)
+                continue;
+        } else {
+            if (bbfs_superblock[0].footer.link) {
+                printf("invalid link\n");
+                continue;
+            }
         }
+
+        // Superblock correctly initialized
+        bbfs_state_init(total_blocks);
+        return 0;
     }
 
     return BBFS_ERR_SUPERBLOCK;
@@ -482,7 +508,7 @@ static int __bbfs_block_write(bbfs_openfile_t *f, uint8_t *ptr, int len)
         if (offset == 0 && n == NAND_PAGE_SIZE) {
             // Fast path: write a full page
             assert(!(f->flags & BBFS_FLAGS_PAGE_CACHED));
-            nand_write_data(NAND_ADDR_MAKE(block, 0, pos % NAND_BLOCK_SIZE), ptr, n);
+            nand_write_data(NAND_ADDR_MAKE(block, 0, pos % NAND_BLOCK_SIZE), ptr, NAND_PAGE_SIZE);
         } else {
             // Slow path: read the page, modify it, and write it back
             __bbfs_write_page_begin(f);
@@ -819,4 +845,93 @@ int16_t* bbfs_get_file_blocks(const char *filename)
 
     blocks[num_blocks] = -1;
     return blocks;
+}
+
+static bool fsck_filenames(bool fix_errors, void (*report)(const char *msg, bool fixable))
+{
+    char msg[128];
+
+    // Check for duplicated filenames. We use a minimal 512-bit bloom filter to
+    // avoid quadratic behavior; given that there are a maximum of 409 entries,
+    // it should hold well.
+    uint64_t filename_bloom[8] = {0};
+    for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
+        bbfs_entry_t *entry = &bbfs_superblock[0].entries[i];
+        if (entry->valid) {
+            int nlen = strnlen(entry->name, 8);
+            int elen = strnlen(entry->ext, 3);
+
+            // Check that the filename is well formed. If the filename is shorter
+            // than 8 characters, all remaining characters must be NULL.
+            for (int j=nlen; j<8; j++) {
+                if (entry->name[j] != 0) {
+                    if (fix_errors) for (int k=j; k<8; k++) SB_WRITE(entry->name[k], 0);
+                    if (report) {
+                        snprintf(msg, sizeof(msg), "invalid padding in filename: %.*s.%.*s\n", nlen, entry->name, elen, entry->ext);
+                        report(msg, true);
+                    }
+                    break;
+                }
+            }
+            // Same for the extension
+            for (int j=elen; j<3; j++) {
+                if (entry->ext[j] != 0) {
+                    if (fix_errors) for (int k=j; k<3; k++) SB_WRITE(entry->ext[k], 0);
+                    if (report) {
+                        snprintf(msg, sizeof(msg), "invalid padding in filename: %.*s.%.*s\n", nlen, entry->name, elen, entry->ext);
+                        report(msg, true);
+                    }
+                    break;
+                }
+            }
+
+            // Check for duplicated filenames
+            uint32_t hash = 0;
+            char *str = entry->name;
+            for (int j=0; j<11; j++) {
+                hash += *str++ ^ 0x80; hash += (hash << 10); hash ^= (hash >> 6);
+            }
+            hash += (hash << 3); hash ^= (hash >> 11); hash += (hash << 15);
+            if (filename_bloom[hash >> 29] & (1ull << (hash & 63))) {
+                for (int j=0; j<i; j++) {
+                    bbfs_entry_t *entry2 = &bbfs_superblock[0].entries[j];
+                    if (entry2->valid && !strncmp(entry->name, entry2->name, 8) && !strncmp(entry->ext, entry2->ext, 3)) {
+                        if (fix_errors) SB_WRITE(entry->valid, 0);
+                        if (report) {
+                            snprintf(msg, sizeof(msg), "duplicate filename: %.*s.%.*s\n", nlen, entry->name, elen, entry->ext);
+                            report(msg, true);
+                        }
+                    }
+                }
+            }
+            filename_bloom[hash >> 29] |= 1ull << (hash & 63);
+        }
+    }
+    return false;
+}
+
+bool fsck_fatchains(bool fix_errors, void (*report)(const char *msg, bool fixable))
+{
+    for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
+        bbfs_entry_t *entry = &bbfs_superblock[0].entries[i];
+        if (entry->valid) {
+
+        }
+    }
+    return false;
+}
+
+
+int bbfs_fsck(bool fix_errors, void (*report)(const char *msg, bool fixable))
+{
+    bool unfixable = false;
+
+    // Run the various checks
+    unfixable |= fsck_filenames(fix_errors, report);
+    unfixable |= fsck_fatchains(fix_errors, report);
+
+    // Write the superblock in case we modified it
+    sb_flush();
+
+    return unfixable ? -1 : 0;
 }
