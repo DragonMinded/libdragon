@@ -43,18 +43,22 @@ int nand_get_size(void);
 int nand_read_data(nand_addr_t addr, void *buffer, int len);
 
 /**
- * @brief Write sequential data to the NAND.
+ * @brief Write pages to the NAND.
  * 
  * Writing to NAND is well defined only on erased blocks. If you write to a
  * non-erased block, the data will likely be corrupted.
  * 
+ * While technically it is possible to write even data smaller than a page,
+ * that doesn't allow the flash controller to recalculate the ECC, so 
+ * it is not recommended because ECC is required to detect failures.
+ * 
  * @param addr      Address to write to (use NAND_ADDR_MAKE to build)
+ * @param npages    Number of pages to write
  * @param buffer    Buffer to write data from
- * @param len       Number of bytes to write
  * 
  * @return 0 if OK, -1 if error
  */
-int nand_write_data(nand_addr_t addr, const void *buffer, int len);
+int nand_write_pages(nand_addr_t addr, int npages, const void *buffer);
 
 /**
  * @brief Erase a block on the NAND.
