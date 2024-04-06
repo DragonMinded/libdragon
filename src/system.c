@@ -1120,19 +1120,14 @@ int stat( const char *file, struct stat *st )
 {
     /* Dirty hack, open read only */
     int fd = open( (char *)file, O_RDONLY );
+    if( fd < 0 )
+        return fd;
 
-    if( fd > 0 )
-    {
-        int ret = fstat( fd, st );
-        close( fd );
+    /* Run fstat */
+    int ret = fstat( fd, st );
+    close( fd );
 
-        return ret;
-    }
-    else
-    {
-        errno = EINVAL;
-        return -1;
-    }
+    return ret;
 }
 
 /**
