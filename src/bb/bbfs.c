@@ -625,7 +625,7 @@ static void __bbfs_shrink(bbfs_entry_t *entry, int len)
 {
     // Search for the block that contains len-1. That's the
     // last block that we want to keep.
-    tracef(2, "shrink: %d -> %d", be32(entry->size), len);
+    tracef(2, "shrink: %d -> %d", (int)be32(entry->size), len);
     int16_t* block_ptr = &entry->block;
     for (int blen = 0; blen < len; blen += NAND_BLOCK_SIZE) {
         assert(be16i(*block_ptr) > 0);
@@ -640,7 +640,7 @@ static void __bbfs_shrink(bbfs_entry_t *entry, int len)
             block_ptr = next;
             next = &SB_FAT(be16i(*block_ptr));
             SB_WRITE(*block_ptr, be16i(FAT_UNUSED));
-            tracef(3, "shrink: free block %ld", block_ptr - bbfs_superblock[0].fat);
+            tracef(3, "shrink: free block %d", (int)(block_ptr - bbfs_superblock[0].fat));
         }
         SB_WRITE(*next, be16i(FAT_UNUSED));
     }
@@ -910,8 +910,6 @@ static bool fsck_hash_insert(fsck_state_t *state, uint32_t hash)
 
 static void fsck_filenames(fsck_state_t *state, bool fix_errors)
 {
-    char msg[128];
-
     // Check for duplicated filenames. We use a minimal 512-bit bloom filter to
     // avoid quadratic behavior; given that there are a maximum of 409 entries,
     // it should hold well.
