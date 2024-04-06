@@ -16,7 +16,7 @@ enum bbfs_error_e {
 };
 
 /**
- * @brief Initialize the iQue NAND filesystem libraruy
+ * @brief Initialize the iQue NAND filesystem library
  * 
  * This function mounts the filesystem and initializes the library.
  * After calling this function, you can access the BBFS files using
@@ -40,6 +40,18 @@ int bbfs_init(void);
  *                      if file doesn't exist or the filesystem is corrupted
  */
 int16_t* bbfs_get_file_blocks(const char *filename);
+
+/**
+ * @brief Verify the integrity of the filesystem, and optionally try to fix it
+ * 
+ * This function checks the integrity of the filesystem. If the filesystem is
+ * corrupted, it can optionally try to fix it. An error reporting function
+ * can be provided to log the errors.
+ * 
+ * @param fix_errors    If true, try to fix the errors, otherwise just check
+ * @return number of errors found in the filesystem
+ */
+int bbfs_fsck(bool fix_errors);
 
 
 #ifdef __cplusplus

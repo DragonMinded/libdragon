@@ -498,10 +498,11 @@ static void __bbfs_write_block_end(bbfs_openfile_t *f)
         // We've finished writing to the current block. Update the FAT,
         // basically changing it from prev -> old -> next to prev -> new -> next,
         // that is replacing the old block with the new one.
-        if (be16i(*f->block_prev_link) != FAT_TERMINATOR) {
-            int next_block = be16i(SB_FAT(be16i(*f->block_prev_link)));
-            SB_WRITE(SB_FAT(f->block), be16i(next_block));
-            SB_WRITE(SB_FAT(be16i(*f->block_prev_link)), be16i(FAT_UNUSED));
+        int16_t old = be16i(*f->block_prev_link);
+        if (old != FAT_TERMINATOR) {
+            int next = be16i(SB_FAT(old));
+            SB_WRITE(SB_FAT(f->block), be16i(next));
+            SB_WRITE(SB_FAT(old), be16i(FAT_UNUSED));
             SB_WRITE(*f->block_prev_link, be16i(f->block));
         } else {
             // This is a totally new block. We don't do anything besides registering it
@@ -624,50 +625,28 @@ static void __bbfs_shrink(bbfs_entry_t *entry, int len)
 {
     // Search for the block that contains len-1. That's the
     // last block that we want to keep.
+    tracef(2, "shrink: %d -> %d", be32(entry->size), len);
     int16_t* block_ptr = &entry->block;
     for (int blen = 0; blen < len; blen += NAND_BLOCK_SIZE) {
         assert(be16i(*block_ptr) > 0);
         block_ptr = &SB_FAT(be16i(*block_ptr));
     }
-    // The current block terminates the chain. Then free all
-    // other blocks.
-    int16_t *next = &SB_FAT(be16i(*block_ptr));
-    SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
-    while (be16i(*next) != FAT_TERMINATOR) {
-        block_ptr = next;
-        next = &SB_FAT(be16i(*block_ptr));
-        SB_WRITE(*block_ptr, be16i(FAT_UNUSED));
+    if (be16i(*block_ptr) != FAT_TERMINATOR) {
+        // The current block terminates the chain. Then free all
+        // other blocks. See
+        int16_t *next = &SB_FAT(be16i(*block_ptr));
+        SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
+        while (be16i(*next) != FAT_TERMINATOR) {
+            block_ptr = next;
+            next = &SB_FAT(be16i(*block_ptr));
+            SB_WRITE(*block_ptr, be16i(FAT_UNUSED));
+            tracef(3, "shrink: free block %ld", block_ptr - bbfs_superblock[0].fat);
+        }
+        SB_WRITE(*next, be16i(FAT_UNUSED));
     }
+
     // Truncate the file
     SB_WRITE(entry->size, be32(len));
-}
-
-static int __bbfs_ftruncate(void *file, int len)
-{
-    bbfs_openfile_t *f = file;
-    int size = be32(f->entry->size);
-
-    if (!(f->flags & BBFS_FLAGS_WRITING)) {
-        errno = EBADF;
-        return -1;
-    }
-
-    if (len < size) {
-        __bbfs_shrink(f->entry, len);
-        if (f->pos > len)
-            f->pos = len;
-        // Even if we were asked before to extend the file, now
-        // we've been asked to reduce it (against its original size),
-        // so there's no need to extend it anymore.
-        f->flags &= ~BBFS_FLAGS_LAZY_EXTEND;
-    } else if (len > size) {
-        // Remember that we want to extend the file but don't do
-        // that yet, as the user might be writing the data anyway.
-        f->flags |= BBFS_FLAGS_LAZY_EXTEND;
-        f->final_size = len;
-    }
-
-    return 0;
 }
 
 static int __bbfs_lseek(void *file, int offset, int whence)
@@ -732,6 +711,40 @@ static int __bbfs_lseek(void *file, int offset, int whence)
 
     f->pos = pos;
     return pos;
+}
+
+static int __bbfs_ftruncate(void *file, int len)
+{
+    bbfs_openfile_t *f = file;
+    int size = be32(f->entry->size);
+
+    if (!(f->flags & BBFS_FLAGS_WRITING)) {
+        errno = EBADF;
+        return -1;
+    }
+
+    if (len < size) {
+        // If we're currently past the new size, move back. Use lseek
+        // so that everything is flushed / updated correctly.
+        // TODO: we could optimize this by avoiding writing the current
+        // shadowed block if any, as it's going to be truncated anyway.
+        // But at least this version is trivially correct.
+        if (f->pos > len)
+            __bbfs_lseek(file, len, SEEK_SET);
+        // Flush writing the current page/block (if any)
+        __bbfs_shrink(f->entry, len);
+        // Even if we were asked before to extend the file, now
+        // we've been asked to reduce it (against its original size),
+        // so there's no need to extend it anymore.
+        f->flags &= ~BBFS_FLAGS_LAZY_EXTEND;
+    } else if (len > size) {
+        // Remember that we want to extend the file but don't do
+        // that yet, as the user might be writing the data anyway.
+        f->flags |= BBFS_FLAGS_LAZY_EXTEND;
+        f->final_size = len;
+    }
+
+    return 0;
 }
 
 static int __bbfs_close(void *file)
@@ -869,14 +882,37 @@ int16_t* bbfs_get_file_blocks(const char *filename)
     return blocks;
 }
 
-static bool fsck_filenames(bool fix_errors, void (*report)(const char *msg, bool fixable))
+
+typedef struct {
+    int num_errors;                 // number of errors found
+    uint64_t filename_bloom[8];     // bloom filter for filenames in the filesystem
+    uint8_t used_blocks[4096*2/8];  // bitmap of used blocks
+} fsck_state_t;
+
+static uint32_t fsck_hash_filename(const char *str)
+{
+    uint32_t hash = 0;
+    for (int j=0; j<11; j++) {
+        hash += *str++ ^ 0x80; hash += (hash << 10); hash ^= (hash >> 6);
+    }
+    hash += (hash << 3); hash ^= (hash >> 11); hash += (hash << 15);
+    return hash;
+}
+
+static bool fsck_hash_insert(fsck_state_t *state, uint32_t hash)
+{
+    bool prev = state->filename_bloom[hash >> 29] & (1ull << (hash & 63));
+    state->filename_bloom[hash >> 29] |= 1ull << (hash & 63);
+    return !prev;
+}
+
+static void fsck_filenames(fsck_state_t *state, bool fix_errors)
 {
     char msg[128];
 
     // Check for duplicated filenames. We use a minimal 512-bit bloom filter to
     // avoid quadratic behavior; given that there are a maximum of 409 entries,
     // it should hold well.
-    uint64_t filename_bloom[8] = {0};
     for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
         bbfs_entry_t *entry = &bbfs_superblock[0].entries[i];
         if (entry->valid) {
@@ -887,73 +923,148 @@ static bool fsck_filenames(bool fix_errors, void (*report)(const char *msg, bool
             // than 8 characters, all remaining characters must be NULL.
             for (int j=nlen; j<8; j++) {
                 if (entry->name[j] != 0) {
+                    state->num_errors++;
+                    tracef(1, "invalid padding in filename: %.*s.%.*s", nlen, entry->name, elen, entry->ext);
                     if (fix_errors) for (int k=j; k<8; k++) SB_WRITE(entry->name[k], 0);
-                    if (report) {
-                        snprintf(msg, sizeof(msg), "invalid padding in filename: %.*s.%.*s\n", nlen, entry->name, elen, entry->ext);
-                        report(msg, true);
-                    }
                     break;
                 }
             }
             // Same for the extension
             for (int j=elen; j<3; j++) {
                 if (entry->ext[j] != 0) {
+                    state->num_errors++;
+                    tracef(1, "invalid padding in filename: %.*s.%.*s", nlen, entry->name, elen, entry->ext);
                     if (fix_errors) for (int k=j; k<3; k++) SB_WRITE(entry->ext[k], 0);
-                    if (report) {
-                        snprintf(msg, sizeof(msg), "invalid padding in filename: %.*s.%.*s\n", nlen, entry->name, elen, entry->ext);
-                        report(msg, true);
-                    }
                     break;
                 }
             }
 
             // Check for duplicated filenames
-            uint32_t hash = 0;
-            char *str = entry->name;
-            for (int j=0; j<11; j++) {
-                hash += *str++ ^ 0x80; hash += (hash << 10); hash ^= (hash >> 6);
-            }
-            hash += (hash << 3); hash ^= (hash >> 11); hash += (hash << 15);
-            if (filename_bloom[hash >> 29] & (1ull << (hash & 63))) {
+            uint32_t hash = fsck_hash_filename(entry->name);
+            if (!fsck_hash_insert(state, hash)) {
                 for (int j=0; j<i; j++) {
                     bbfs_entry_t *entry2 = &bbfs_superblock[0].entries[j];
                     if (entry2->valid && !strncmp(entry->name, entry2->name, 8) && !strncmp(entry->ext, entry2->ext, 3)) {
+                        state->num_errors++;
+                        tracef(1, "duplicate filename: %.*s.%.*s", nlen, entry->name, elen, entry->ext);
                         if (fix_errors) SB_WRITE(entry->valid, 0);
-                        if (report) {
-                            snprintf(msg, sizeof(msg), "duplicate filename: %.*s.%.*s\n", nlen, entry->name, elen, entry->ext);
-                            report(msg, true);
-                        }
                     }
                 }
             }
-            filename_bloom[hash >> 29] |= 1ull << (hash & 63);
         }
     }
-    return false;
 }
 
-bool fsck_fatchains(bool fix_errors, void (*report)(const char *msg, bool fixable))
+static void fsck_random_name(fsck_state_t *state, char *name)
+{
+    // Loop until we find a unique name for this file. We trust the bloom filter
+    // here; if the bloom filter says the name is unique, we assume it is.
+    memcpy(name, "FSCK0000XXX", 11);
+    do {
+        for (int i=4; i<8; i++)
+            name[i] = '0' + (rand() % 10);
+    } while (fsck_hash_insert(state, fsck_hash_filename(name)));
+}
+
+static void fsck_fatchains(fsck_state_t *state, bool fix_errors)
 {
     for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
         bbfs_entry_t *entry = &bbfs_superblock[0].entries[i];
         if (entry->valid) {
+            int16_t *block_ptr = &entry->block;
+            int16_t block = be16i(*block_ptr);
+            int size = be32(entry->size);
+            int num_blocks = (size + NAND_BLOCK_SIZE - 1) / NAND_BLOCK_SIZE;
+            bool corrupted = false;
 
+            for (int j=0; j<num_blocks; j++) {
+                if (block < 0 || block >= bbfs_state.total_blocks) {
+                    state->num_errors++;
+                    tracef(1, "invalid block number %d in file %.*s.%.*s", block, 8, entry->name, 3, entry->ext);
+                    if (fix_errors) {
+                        SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
+                        corrupted = true;
+                    }
+                    break;
+                }
+                state->used_blocks[block / 8] |= 1 << (block % 8);
+                if (j < num_blocks-1 && SB_FAT(block) == FAT_TERMINATOR) {
+                    state->num_errors++;
+                    tracef(1, "missing block after %d in file %.*s.%.*s", block, 8, entry->name, 3, entry->ext);
+                    if (fix_errors) {
+                        SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
+                        corrupted = true;
+                    }
+                    break;
+                }
+                block_ptr = &SB_FAT(block);
+                block = be16i(*block_ptr);
+            }
+
+            if (!corrupted && block != FAT_TERMINATOR) {
+                state->num_errors++;
+                tracef(1, "extra block %d in file %.*s.%.*s", block, 8, entry->name, 3, entry->ext);
+                if (fix_errors) {
+                    SB_WRITE(*block_ptr, be16i(FAT_TERMINATOR));
+                    corrupted = true;
+                }
+            }
+
+            if (corrupted) {
+                fsck_random_name(state, entry->name);
+                sb_record_write(entry->name, 11);
+            }
         }
     }
-    return false;
+}
+
+static void fsck_blocks(fsck_state_t *state, bool fix_errors)
+{
+    for (int16_t block=0; block<bbfs_state.total_blocks; block++) {
+        int16_t next = be16i(SB_FAT(block));
+        if (next != FAT_UNUSED && next != FAT_BADBLOCK && next != FAT_RESERVED
+            && !(state->used_blocks[block / 8] & (1 << (block % 8)))) {
+            state->num_errors++;
+            tracef(1, "block %d is not marked as free but is not part of any file", block);
+            if (fix_errors) {
+                // Go through the chain from here. Mark all blocks as used
+                int num_blocks = 0;
+                int16_t cur = block;
+                do {
+                    state->used_blocks[cur / 8] |= 1 << (cur % 8);
+                    num_blocks++;
+                    cur = be16i(SB_FAT(cur));
+                } while (cur != FAT_TERMINATOR);
+
+                // Find a free entry in the superblock and store the block there
+                for (int j=0; j<BBFS_MAX_ENTRIES; j++) {
+                    bbfs_entry_t *entry = &bbfs_superblock[0].entries[j];
+                    if (!entry->valid) {
+                        entry->valid = 1;
+                        entry->block = be16i(block);
+                        entry->size = be32(num_blocks * NAND_BLOCK_SIZE);
+                        fsck_random_name(state, entry->name);
+                        sb_record_write(entry, sizeof(bbfs_entry_t));
+                        break;
+                    }
+                }
+            } 
+        }
+    }
 }
 
 
-int bbfs_fsck(bool fix_errors, void (*report)(const char *msg, bool fixable))
+int bbfs_fsck(bool fix_errors)
 {
-    bool unfixable = false;
+    fsck_state_t state = {0};
 
     // Run the various checks
-    unfixable |= fsck_filenames(fix_errors, report);
-    unfixable |= fsck_fatchains(fix_errors, report);
+    fsck_filenames(&state, fix_errors);
+    fsck_fatchains(&state, fix_errors);
+    fsck_blocks   (&state, fix_errors);
 
     // Write the superblock in case we modified it
     sb_flush();
 
-    return unfixable ? -1 : 0;
+    return state.num_errors;
 }
