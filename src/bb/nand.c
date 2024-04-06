@@ -100,13 +100,13 @@ static void nand_cmd_read1(int bufidx, uint32_t addr, int len)
     nand_cmd_wait();
 }
 
-static void nand_cmd_pageprog(int bufidx, uint32_t addr, int len)
+static void nand_cmd_pageprog(int bufidx, uint32_t addr)
 {
     *PI_BB_NAND_ADDR = addr;
-    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
-        NAND_CMD_PAGEPROG_A | (len << PI_BB_WNAND_CTRL_LEN_SHIFT);
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | PI_BB_WNAND_CTRL_ECC |
+        NAND_CMD_PAGEPROG_A | ((NAND_PAGE_SIZE+16) << PI_BB_WNAND_CTRL_LEN_SHIFT);
     nand_cmd_wait();
-    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | PI_BB_WNAND_CTRL_ECC |
         NAND_CMD_PAGEPROG_B;
     nand_cmd_wait();
 }
@@ -207,7 +207,7 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
     return 0;
 }
 
-int nand_write_data(nand_addr_t addr, const void *buf, int len)
+int nand_write_pages(nand_addr_t addr, int npages, const void *buf)
 {
     assertf(nand_inited, "nand_init() must be called first");
     assertf(addr % NAND_PAGE_SIZE == 0, "NAND address must be page-aligned (0x%08lX)", addr);
@@ -215,20 +215,22 @@ int nand_write_data(nand_addr_t addr, const void *buf, int len)
     int bufidx = 0;
     const uint8_t *buffer = buf;
 
-    while (len > 0) {
-        int offset = NAND_ADDR_OFFSET(addr);
-        int write_len = MIN(len, NAND_PAGE_SIZE - offset);
-
+    for (int i=0; i<npages; i++) {
         // Write the data to the buffer
-        for (int i=0; i<write_len; i++)
-            io_write8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + offset + i, buffer[i]);
+        for (int i=0; i<NAND_PAGE_SIZE; i++)
+            io_write8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i, buffer[i]);
+
+        // Put spare data into the buffer
+        PI_BB_SPARE_0[bufidx*4 + 0] = 0xffffffff;
+        PI_BB_SPARE_0[bufidx*4 + 1] = 0xffffffff;
+        PI_BB_SPARE_0[bufidx*4 + 2] = 0xffffffff;
+        PI_BB_SPARE_0[bufidx*4 + 3] = 0xffffffff;
 
         // Write the page to the NAND
-        nand_cmd_pageprog(bufidx, addr, write_len);
+        nand_cmd_pageprog(bufidx, addr);
 
-        addr += write_len;
-        buffer += write_len;
-        len -= write_len;
+        addr += NAND_PAGE_SIZE;
+        buffer += NAND_PAGE_SIZE;
     }
 
     return 0;
