@@ -882,11 +882,13 @@ int16_t* bbfs_get_file_blocks(const char *filename)
     return blocks;
 }
 
-
+/**
+ * @brief Internal state using during bbfs_fsck
+ */
 typedef struct {
-    int num_errors;                 // number of errors found
-    uint64_t filename_bloom[8];     // bloom filter for filenames in the filesystem
-    uint8_t used_blocks[4096*2/8];  // bitmap of used blocks
+    int num_errors;                 ///< number of errors found
+    uint64_t filename_bloom[8];     ///< bloom filter for filenames in the filesystem
+    uint8_t used_blocks[4096*2/8];  ///< bitmap of used blocks
 } fsck_state_t;
 
 static uint32_t fsck_hash_filename(const char *str)
