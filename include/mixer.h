@@ -275,11 +275,11 @@ bool mixer_ch_playing(int ch);
  *                              in Hz / samples per seconds (or 0 to reset
  *                              this to default, which is the output sample
  *                              rate as specified in #audio_init).
- * @param[in]   max_buf_sz      Maximum buffer size in bytes (or o to reset
+ * @param[in]   max_buf_sz      Maximum buffer size in bytes (or 0 to reset
  *                              this default, which is calculated using the
- *                              other limites, the playback output rate, and
+ *                              other limits, the playback output rate, and
  *                              the number of audio buffers specified in
- *                              #audio_init.
+ *                              #audio_init).
  */
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz);
 
