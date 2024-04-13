@@ -43,6 +43,17 @@ int nand_get_size(void);
 int nand_read_data(nand_addr_t addr, void *buffer, int len);
 
 /**
+ * @brief Read page from the NAND
+ * 
+ * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
+ * @param buffer    Buffer to read data into
+ * @param spare     Whether to read the spare area (require 16 extra bytes in buffer)
+ * @param ecc       Whether to use ECC to correct errors
+ * @return int      0 if OK, -1 if error
+ */
+int nand_read_page(nand_addr_t addr, void *buffer, bool spare, bool eccx);
+
+/**
  * @brief Write pages to the NAND.
  * 
  * Writing to NAND is well defined only on erased blocks. If you write to a

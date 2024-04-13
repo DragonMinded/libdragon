@@ -90,12 +90,13 @@ static void nand_cmd_readid(int bufidx)
     nand_cmd_wait();
 }
 
-static void nand_cmd_read1(int bufidx, uint32_t addr, int len)
+static void nand_cmd_read1(int bufidx, uint32_t addr, int len, bool ecc)
 {
-    assert(len > 0 && len <= 512);
+    assert(len > 0 && len <= 512+16);
     *PI_BB_NAND_ADDR = addr;
     *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
         ((addr & 0x100) ? NAND_CMD_READ1_H1 : NAND_CMD_READ1_H0) | 
+        (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
         (len << PI_BB_WNAND_CTRL_LEN_SHIFT);
     nand_cmd_wait();
 }
@@ -195,7 +196,7 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
     while (len > 0) {
         int offset = NAND_ADDR_OFFSET(addr);
         int read_len = MIN(len, NAND_PAGE_SIZE - offset);
-        nand_cmd_read1(bufidx, addr, read_len);
+        nand_cmd_read1(bufidx, addr, read_len, false);
         for (int i=0; i<read_len; i++)
             buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + offset + i);
 
@@ -203,6 +204,24 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
         buffer += read_len;
         len -= read_len;
     }
+
+    return 0;
+}
+
+int nand_read_page(nand_addr_t addr, void *buf, bool spare, bool ecc)
+{
+    assertf(nand_inited, "nand_init() must be called first");
+    assertf(addr % NAND_PAGE_SIZE == 0, "NAND address must be page-aligned (0x%08lX)", addr);
+
+    int bufidx = 0;
+    uint8_t *buffer = buf;
+
+    nand_cmd_read1(bufidx, addr, NAND_PAGE_SIZE + (spare ? 16 : 0), ecc);
+    for (int i=0; i<NAND_PAGE_SIZE; i++)
+        buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i);
+    if (spare)
+        for (int i=0; i<16; i++)
+            buffer[NAND_PAGE_SIZE + i] = io_read8((uint32_t)PI_BB_SPARE_0 + bufidx*4 + i);
 
     return 0;
 }
