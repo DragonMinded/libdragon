@@ -208,6 +208,10 @@ static void sb_flush(void)
     int sb_area = bbfs_state.total_blocks - 16;
     int bidx = RANDN(16);
 
+    // Write superblocks in reverse order. We can have 2 superblocks in case
+    // of a 128 MiB flash, and the first superblock contains a link to the
+    // second one. Writing the second one first ensures that we know how
+    // to fill the link in the first one.
     for (int sbidx=bbfs_state.num_superblocks-1; sbidx >= 0; sbidx--) {
         bbfs_superblock_t *sb = &bbfs_superblock[sbidx];
 
@@ -227,7 +231,8 @@ static void sb_flush(void)
         nand_write_pages(NAND_ADDR_MAKE(sb_area + bidx, 0, 0), sizeof(bbfs_superblock_t) / NAND_PAGE_SIZE, sb);
         bbfs_state.sb_dirty[sbidx] = 0;
 
-        if (sbidx)
+        // Fill the link in the previous superblock
+        if (sbidx > 0)
             SB_WRITE(sb[-1].footer.link, be16(sb_area+bidx));
 
         bidx = (bidx+1) % 16;
