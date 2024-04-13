@@ -47,11 +47,11 @@ int nand_read_data(nand_addr_t addr, void *buffer, int len);
  * 
  * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
  * @param buffer    Buffer to read data into
- * @param spare     Whether to read the spare area (require 16 extra bytes in buffer)
+ * @param spare     If not NULL, read also the spare area into the specified buffer (16 bytes)
  * @param ecc       Whether to use ECC to correct errors
  * @return int      0 if OK, -1 if error
  */
-int nand_read_page(nand_addr_t addr, void *buffer, bool spare, bool eccx);
+int nand_read_page(nand_addr_t addr, void *buffer, void *spare, bool ecc);
 
 /**
  * @brief Write pages to the NAND.

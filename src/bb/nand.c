@@ -208,20 +208,21 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
     return 0;
 }
 
-int nand_read_page(nand_addr_t addr, void *buf, bool spare, bool ecc)
+int nand_read_page(nand_addr_t addr, void *buf, void *spare, bool ecc)
 {
     assertf(nand_inited, "nand_init() must be called first");
     assertf(addr % NAND_PAGE_SIZE == 0, "NAND address must be page-aligned (0x%08lX)", addr);
 
     int bufidx = 0;
     uint8_t *buffer = buf;
+    uint8_t *spare_data = spare;
 
     nand_cmd_read1(bufidx, addr, NAND_PAGE_SIZE + (spare ? 16 : 0), ecc);
     for (int i=0; i<NAND_PAGE_SIZE; i++)
         buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i);
     if (spare)
         for (int i=0; i<16; i++)
-            buffer[NAND_PAGE_SIZE + i] = io_read8((uint32_t)PI_BB_SPARE_0 + bufidx*4 + i);
+            spare_data[i] = io_read8((uint32_t)PI_BB_SPARE_0 + bufidx*4 + i);
 
     return 0;
 }
