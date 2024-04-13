@@ -101,13 +101,15 @@ static void nand_cmd_read1(int bufidx, uint32_t addr, int len, bool ecc)
     nand_cmd_wait();
 }
 
-static void nand_cmd_pageprog(int bufidx, uint32_t addr)
+static void nand_cmd_pageprog(int bufidx, uint32_t addr, bool ecc)
 {
     *PI_BB_NAND_ADDR = addr;
-    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | PI_BB_WNAND_CTRL_ECC |
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) |
+        (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
         NAND_CMD_PAGEPROG_A | ((NAND_PAGE_SIZE+16) << PI_BB_WNAND_CTRL_LEN_SHIFT);
     nand_cmd_wait();
-    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | PI_BB_WNAND_CTRL_ECC |
+    *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) |
+        (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
         NAND_CMD_PAGEPROG_B;
     nand_cmd_wait();
 }
@@ -227,7 +229,7 @@ int nand_read_page(nand_addr_t addr, void *buf, void *spare, bool ecc)
     return 0;
 }
 
-int nand_write_pages(nand_addr_t addr, int npages, const void *buf)
+int nand_write_pages(nand_addr_t addr, int npages, const void *buf, bool ecc)
 {
     assertf(nand_inited, "nand_init() must be called first");
     assertf(addr % NAND_PAGE_SIZE == 0, "NAND address must be page-aligned (0x%08lX)", addr);
@@ -247,7 +249,7 @@ int nand_write_pages(nand_addr_t addr, int npages, const void *buf)
         PI_BB_SPARE_0[bufidx*4 + 3] = 0xffffffff;
 
         // Write the page to the NAND
-        nand_cmd_pageprog(bufidx, addr);
+        nand_cmd_pageprog(bufidx, addr, ecc);
 
         addr += NAND_PAGE_SIZE;
         buffer += NAND_PAGE_SIZE;

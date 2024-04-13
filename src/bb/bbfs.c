@@ -228,7 +228,7 @@ static void sb_flush(void)
         // TODO: we could use the dirty mask here to switch between writing new data
         // and copying data from the previous superblock index.
         tracef(2, "sb_flush: writing superblock %d to block %x", sbidx, sb_area+bidx);
-        nand_write_pages(NAND_ADDR_MAKE(sb_area + bidx, 0, 0), sizeof(bbfs_superblock_t) / NAND_PAGE_SIZE, sb);
+        nand_write_pages(NAND_ADDR_MAKE(sb_area + bidx, 0, 0), sizeof(bbfs_superblock_t) / NAND_PAGE_SIZE, sb, true);
         bbfs_state.sb_dirty[sbidx] = 0;
 
         // Fill the link in the previous superblock
@@ -476,7 +476,7 @@ static void __bbfs_write_page_end(bbfs_openfile_t *f)
 {
     if (f->flags & BBFS_FLAGS_PAGE_CACHED) {
         int page_start = f->pos - (f->pos % NAND_PAGE_SIZE);
-        nand_write_pages(NAND_ADDR_MAKE(f->block, 0, page_start % NAND_BLOCK_SIZE), 1, f->page_cache);
+        nand_write_pages(NAND_ADDR_MAKE(f->block, 0, page_start % NAND_BLOCK_SIZE), 1, f->page_cache, true);
         f->flags &= ~BBFS_FLAGS_PAGE_CACHED;
     }
 }
@@ -537,7 +537,7 @@ static int __bbfs_block_write(bbfs_openfile_t *f, uint8_t *ptr, int len)
         if (offset == 0 && n == NAND_PAGE_SIZE) {
             // Fast path: write a full page
             assert(!(f->flags & BBFS_FLAGS_PAGE_CACHED));
-            nand_write_pages(NAND_ADDR_MAKE(block, 0, pos % NAND_BLOCK_SIZE), 1, ptr);
+            nand_write_pages(NAND_ADDR_MAKE(block, 0, pos % NAND_BLOCK_SIZE), 1, ptr, true);
         } else {
             // Slow path: read the page, modify it, and write it back
             __bbfs_write_page_begin(f);

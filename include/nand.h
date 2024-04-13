@@ -66,10 +66,11 @@ int nand_read_page(nand_addr_t addr, void *buffer, void *spare, bool ecc);
  * @param addr      Address to write to (use NAND_ADDR_MAKE to build)
  * @param npages    Number of pages to write
  * @param buffer    Buffer to write data from
+ * @param ecc       Whether to compute and write ECC for the pages
  * 
  * @return 0 if OK, -1 if error
  */
-int nand_write_pages(nand_addr_t addr, int npages, const void *buffer);
+int nand_write_pages(nand_addr_t addr, int npages, const void *buffer, bool ecc);
 
 /**
  * @brief Erase a block on the NAND.
