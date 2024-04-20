@@ -130,9 +130,10 @@ void *asset_load(const char *fn, int *sz);
  * automatically uncompressed as it is being read.
  * 
  * Note that since the file might be compressed, the returned
- * FILE* cannot be rewinded, nor seeked backward, as that would be impossible
+ * FILE* cannot be arbitrarily seeked backward, as that would be impossible
  * to do efficiently on a compressed file. Seeking forward is supported and is
- * simulated by reading (decompressing) and discarding data.
+ * simulated by reading (decompressing) and discarding data. You can rewind
+ * the file to the start though, (by using either fseek or rewind).
  * 
  * This behavior of the returned file is enforced also for non compressed
  * assets, so that the code is ready to switch to compressed assets if
