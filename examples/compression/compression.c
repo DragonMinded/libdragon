@@ -135,14 +135,16 @@ int main(void) {
     asset_init_compression(2);
     asset_init_compression(3);
 
-    char sbuf[1024];
-    strcpy(sbuf, "rom:/");
-    if (dfs_dir_findfirst(".", sbuf+5) == FLAGS_FILE) {
+    dir_t dff;
+    if (dir_findfirst("rom:/", &dff) == 0) {
         do {
-            if (strendswith(sbuf, ".c0") || strendswith(sbuf, ".c1") || 
-                strendswith(sbuf, ".c2") || strendswith(sbuf, ".c3"))
-                cmpfiles[num_files++] = strdup(sbuf);
-        } while (dfs_dir_findnext(sbuf+5) == FLAGS_FILE);
+            if (dff.d_type == DT_REG)
+                if (strendswith(dff.d_name, ".c0") || strendswith(dff.d_name, ".c1") || 
+                    strendswith(dff.d_name, ".c2") || strendswith(dff.d_name, ".c3x")) {
+                        cmpfiles[num_files] = malloc(5 + strlen(dff.d_name) + 1);
+                        sprintf(cmpfiles[num_files++], "rom:/%s", dff.d_name);
+                    }
+        } while (dir_findnext("rom:/", &dff) == 0);
     }
 
     // Sort cmpfiles by name
