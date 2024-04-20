@@ -35,18 +35,28 @@ typedef struct entry_structure
     /** @brief ID of this entry */
     uint8_t entry_id;
     /**
-     * @brief Name of this entry
+     * @brief Name of this entry (UTF-8)
      *
-     * The complete list of valid ASCII characters in a note name is:
-     *
+     * The name is limited to 16 characters for name, and 4 characters for
+     * extension (though most games only show the first character of the
+     * extension). The extension is separated from the name using a dot.
+     * The valid characters set is very limited, and contains
+     * only a subset of ASCII or Katakana. The complete character map is:
+     * 
      * <pre>
-     * ABCDEFGHIJKLMNOPQRSTUVWXYZ!"#`*+,-./:=?\@
+     * 	0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!"#'*+,-./:=?@
+     *  。゛゜ァィゥェォッャュョヲンアイウエオカキクケコサシスセソタ
+     *  チツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワガギグゲ
+     *  ゴザジズゼゾダヂヅデドバビブベボパピプペポ
      * </pre>
      *
      * The space character is also allowed.  Any other character will be
      * converted to a space before writing to the Controller Pak.
+     * 
+     * The buffer here is longer because it allows for UTF-8 encoding of the
+     * Japanese characters.
      */
-    char name[19];
+    char name[16*3 + 1 + 4*3 + 1];
 } entry_structure_t;
 
 #ifdef __cplusplus

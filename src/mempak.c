@@ -490,7 +490,7 @@ static int __read_note( uint8_t *tnote, entry_structure_t *note )
  */
 static int __write_note( entry_structure_t *note, uint8_t *out_note )
 {
-    char tname[19];
+    char tname[sizeof(note->name)];
     if( !out_note || !note ) { return -1; }
 
     /* Start with baseline */
