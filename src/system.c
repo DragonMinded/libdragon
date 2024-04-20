@@ -1484,6 +1484,36 @@ int dir_findnext( const char * const path, dir_t *dir )
 }
 
 /**
+ * @brief Create a directory.
+ * 
+ * Creates a new directory at the specified location.
+ * 
+ * @param path      Path of the directory to create, relative to the root of the filesystem
+ * @param mode      Directory access mode
+ * @return int      0 on success, -1 on failure (errno will be set)
+ */
+int mkdir( const char * path, mode_t mode )
+{
+    filesystem_t *fs = __get_fs_pointer_by_name( path );
+    int mapping = __get_fs_link_by_name( path );
+
+    if( fs == 0 || mapping < 0 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if( fs->mkdir == 0 )
+    {
+        /* Filesystem doesn't support mkdir */
+        errno = ENOSYS;
+        return -1;
+    }
+    
+    return fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
+}
+
+/**
  * @brief Hook into stdio for STDIN, STDOUT and STDERR callbacks
  *
  * @param[in] stdio_calls

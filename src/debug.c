@@ -460,6 +460,16 @@ static int __fat_findfirst(char *name, dir_t *dir)
 	return __fat_findnext(dir);
 }
 
+static int __fat_mkdir(char *path, mode_t mode)
+{
+	FRESULT res = f_mkdir(path);
+	if (res != FR_OK) {
+		__fresult_set_errno(res);
+		return -1;
+	}
+	return 0;
+}
+
 static filesystem_t fat_fs = {
 	.open = __fat_open,
 	.fstat = __fat_fstat,
@@ -470,6 +480,7 @@ static filesystem_t fat_fs = {
 	.unlink = __fat_unlink,
 	.findfirst = __fat_findfirst,
 	.findnext = __fat_findnext,
+	.mkdir = __fat_mkdir,
 };
 
 

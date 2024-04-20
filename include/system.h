@@ -153,6 +153,17 @@ typedef struct
      * @return 0 on success or a negative value on failure (and errno is set)
      */
     int (*ftruncate)( void *file, int length );
+    /**
+     * @brief Create a directory
+     * 
+     * @param[in] path
+     *            Full path of the directory to create, relative to the root of the filesystem.
+     * @param[in] mode
+     *            Directory permissions
+     * 
+     * @return 0 on success or a negative value on failure (errno must be set)
+     */
+    int (*mkdir)( char *path, mode_t mode );
 } filesystem_t;
 
 /**
