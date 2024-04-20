@@ -220,66 +220,86 @@ static int __validate_toc( uint8_t *sector )
 }
 
 /**
- * @brief Convert a Controller Pak character to ASCII
+ * @brief Convert a Controller Pak character to UTF-8
+ * 
+ * The codepage used by the controller pak contains a subset of ASCII and
+ * some Katakana.
  *
  * @param[in] c
  *            A character read from a Controller Pak entry title
- *
- * @return ASCII equivalent of character read
+ * @param[out] out
+ *            Output buffer to write the bytes to (at least 3 bytes).
+ * 
+ * @return    The number of bytes written to the output buffer
  */
-static char __n64_to_ascii( char c )
+static int __n64_to_utf8( char c, char *out )
 {
     /* Miscelaneous chart */
     switch( c )
     {
         case 0x00:
-            return 0;
+            *out++ = 0; return 1;
         case 0x0F:
-            return ' ';
+            *out++ = ' '; return 1;
         case 0x34:
-            return '!';
+            *out++ = '!'; return 1;
         case 0x35:
-            return '\"';
+            *out++ = '\"'; return 1;
         case 0x36:
-            return '#';
+            *out++ = '#'; return 1;
         case 0x37:
-            return '`';
+            *out++ = '`'; return 1;
         case 0x38:
-            return '*';
+            *out++ = '*'; return 1;
         case 0x39:
-            return '+';
+            *out++ = '+'; return 1;
         case 0x3A:
-            return ',';
+            *out++ = ','; return 1;
         case 0x3B:
-            return '-';
+            *out++ = '-'; return 1;
         case 0x3C:
-            return '.';
+            *out++ = '.'; return 1;
         case 0x3D:
-            return '/';
+            *out++ = '/'; return 1;
         case 0x3E:
-            return ':';
+            *out++ = ':'; return 1;
         case 0x3F:
-            return '=';
+            *out++ = '='; return 1;
         case 0x40:
-            return '?';
+            *out++ = '?'; return 1;
         case 0x41:
-            return '@';
+            *out++ = '@'; return 1;
     }
 
     /* Numbers */
     if( c >= 0x10 && c <= 0x19 )
     {
-        return '0' + (c - 0x10);
+        *out++ = '0' + (c - 0x10);
+        return 1;
     }
 
     /* Uppercase ASCII */
     if( c >= 0x1A && c <= 0x33 )
     {
-        return 'A' + (c - 0x1A);
+        *out++ = 'A' + (c - 0x1A);
+        return 1;
+    }
+
+    /* Katakana and CJK symbols */
+    if( c >= 0x42 && c <= 0x94 )
+    {
+        const int cjk_base = 0x3000;
+        static uint8_t cjk_map[83] = { 2, 155, 156, 161, 163, 165, 167, 169, 195, 227, 229, 231, 242, 243, 162, 164, 166, 168, 170, 171, 173, 175, 177, 179, 181, 183, 185, 187, 189, 191, 193, 196, 198, 200, 202, 203, 204, 205, 206, 207, 210, 213, 216, 219, 222, 223, 224, 225, 226, 228, 230, 232, 233, 234, 235, 236, 237, 239, 172, 174, 176, 178, 180, 182, 184, 186, 188, 190, 192, 194, 197, 199, 201, 208, 211, 214, 217, 220, 209, 212, 215, 218, 221 };
+        uint16_t codepoint = cjk_base + cjk_map[c - 0x42];
+        *out++ = 0xE0 | ((codepoint >> 12) & 0x0F);
+        *out++ = 0x80 | ((codepoint >> 6) & 0x3F);
+        *out++ = 0x80 | (codepoint & 0x3F);
+        return 3;
     }
 
     /* Default to space for unprintables */
-    return ' ';
+    *out++ = ' ';
+    return 1;
 }
 
 /**
@@ -418,22 +438,24 @@ static int __read_note( uint8_t *tnote, entry_structure_t *note )
     /* Translate n64 to ascii */
     memset( note->name, 0, sizeof( note->name ) );
 
+    int nidx = 0;
     for( int i = 0; i < 16; i++ )
     {
-        note->name[i] = __n64_to_ascii( tnote[0x10 + i] );
+        if ( tnote[0x10 + i] == 0 ) break;
+        nidx += __n64_to_utf8( tnote[0x10 + i], &note->name[nidx] );
     }
 
-    /* Find the last position */
-    for( int i = 0; i < 17; i++ )
+    /* Separator between name and extension */
+    note->name[nidx++] = '.';
+
+    for( int i = 0; i < 4; i++ )
     {
-        if( note->name[i] == 0 )
-        {
-            /* Here it is! */
-            note->name[i]   = '.';
-            note->name[i+1] = __n64_to_ascii( tnote[0xC] );
-            break;
-        }
+        if ( tnote[0xC + i] == 0 ) break;
+        nidx += __n64_to_utf8( tnote[0xC + i], &note->name[nidx] );
     }
+
+    /* String terminator */
+    note->name[nidx++] = 0;
 
     /* Validate entries */
     if( note->inode < BLOCK_VALID_FIRST || note->inode > BLOCK_VALID_LAST )
