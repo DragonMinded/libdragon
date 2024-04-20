@@ -32,6 +32,7 @@ static asset_compression_t algos[3] = {
         .state_size = DECOMPRESS_LZ4_STATE_SIZE,
         .decompress_init = decompress_lz4_init,
         .decompress_read = decompress_lz4_read,
+        .decompress_reset = decompress_lz4_reset,
         .decompress_full_inplace = decompress_lz4_full_inplace,
     }
 };
@@ -42,6 +43,7 @@ void __asset_init_compression_lvl2(void)
         .state_size = DECOMPRESS_APLIB_STATE_SIZE,
         .decompress_init = decompress_aplib_init,
         .decompress_read = decompress_aplib_read,
+        .decompress_reset = decompress_aplib_reset,
         #if DECOMPRESS_APLIB_FULL_USE_ASM
         .decompress_full_inplace = decompress_aplib_full_inplace,
         #else
@@ -215,6 +217,11 @@ static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
     // SEEK_CUR with pos=0 is used as ftell()
     if (whence == SEEK_CUR && pos == 0)
         return ftell(cookie->fp);
+    if (whence == SEEK_SET && pos == 0) {
+        cookie->seeked = false;
+        rewind(cookie->fp);
+        return 0;
+    }
 
     cookie->seeked = true;
     return -1;
@@ -239,6 +246,7 @@ typedef struct  {
     FILE *fp;
     int pos;
     bool seeked;
+    void (*reset)(void *state);
     ssize_t (*read)(void *state, void *buf, size_t len);
     uint8_t state[] alignas(8);
 } cookie_cmp_t;
@@ -259,6 +267,13 @@ static fpos_t seekfn_cmp(void *c, fpos_t pos, int whence)
     // SEEK_CUR with pos=0 is used as ftell()
     if (whence == SEEK_CUR && pos == 0)
         return cookie->pos;
+    if (whence == SEEK_SET && pos == 0 && cookie->reset) {
+        cookie->seeked = false;
+        cookie->pos = 0;
+        fseek(cookie->fp, sizeof(asset_header_t), SEEK_SET);
+        cookie->reset(cookie->state);
+        return 0;
+    }
 
     // We should really have an assert here but unfortunately newlib's fclose
     // also issue a fseek (backward...) as part of a fflush. So we delay the actual
@@ -312,6 +327,7 @@ FILE *asset_fopen(const char *fn, int *sz)
         int winsize = asset_winsize_from_flags(header.flags);
         cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);
         cookie->read = algos[header.algo-1].decompress_read;
+        cookie->reset = algos[header.algo-1].decompress_reset;
         algos[header.algo-1].decompress_init(cookie->state, f, winsize);
 
         cookie->fp = f;

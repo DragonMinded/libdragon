@@ -62,6 +62,9 @@ typedef struct {
     /** @brief Partially read a decompressed file from a state */
     ssize_t (*decompress_read)(void *state, void *buf, size_t len);
 
+    /** @brief Reset decompression state after rewind */
+    void (*decompress_reset)(void *state);
+
     /** @brief Decompress a full file in one go */
     void* (*decompress_full)(const char *fn, FILE *fp, size_t cmp_size, size_t len);
 

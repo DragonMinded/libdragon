@@ -243,11 +243,18 @@ void decompress_lz4_init(void *state, FILE *fp, int winsize)
 {
    lz4dec_state_t *lz4 = (lz4dec_state_t*)state;
    lz4->fp = fp;
+   __ringbuf_init(&lz4->ringbuf, state+sizeof(lz4dec_state_t), winsize);
+   decompress_lz4_reset(state);
+}
+
+void decompress_lz4_reset(void *state)
+{
+   lz4dec_state_t *lz4 = (lz4dec_state_t*)state;
    lz4->eof = false;
    lz4->buf_idx = 0;
    lz4->buf_size = 0;
    memset(&lz4->st, 0, sizeof(lz4->st));
-   __ringbuf_init(&lz4->ringbuf, state+sizeof(lz4dec_state_t), winsize);
+   lz4->ringbuf.ringbuf_pos = 0;
 }
 
 ssize_t decompress_lz4_read(void *state, void *buf, size_t len)

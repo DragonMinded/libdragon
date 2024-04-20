@@ -93,13 +93,18 @@ static inline int readgamma2(aplib_decompressor_t *d)
     return v;
 }
 
-static void decompress_init(aplib_decompressor_t *d, FILE *f, uint32_t rom_addr)
+static void decompress_reset(aplib_decompressor_t *d)
 {
-    memset(d, 0, sizeof(*d));
-    d->f = f;
-    d->rom_addr = rom_addr;
     d->shift = -1;
-
+    d->eof = false;
+    d->partial.ringbuf.ringbuf_pos = 0;
+    d->partial.first_literal_done = false;
+    d->partial.nlit = 0;
+    d->partial.match_off = 0;
+    d->partial.match_len = 0;
+    d->buf_ptr = 0;
+    d->buf_end = 0;
+    
     #ifdef N64
 	if (d->rom_addr) {
 		data_cache_hit_invalidate(d->buf[d->cur_buf^1], sizeof(d->buf[0]));
@@ -107,6 +112,14 @@ static void decompress_init(aplib_decompressor_t *d, FILE *f, uint32_t rom_addr)
 		d->rom_addr += sizeof(d->buf[0]);
 	}
     #endif
+}
+
+static void decompress_init(aplib_decompressor_t *d, FILE *f, uint32_t rom_addr)
+{
+    memset(d, 0, sizeof(*d));
+    d->f = f;
+    d->rom_addr = rom_addr;
+    decompress_reset(d);
 }
 
 static int decompress_full(aplib_decompressor_t *d, uint8_t *out)
@@ -289,6 +302,12 @@ void decompress_aplib_init(void *state, FILE *fp, int winsize)
     aplib_decompressor_t *d = state;
     decompress_init(d, fp, 0);
     __ringbuf_init(&d->partial.ringbuf, state+sizeof(aplib_decompressor_t), winsize);
+}
+
+void decompress_aplib_reset(void *state)
+{
+    aplib_decompressor_t *d = state;
+    decompress_reset(d);
 }
 
 ssize_t decompress_aplib_read(void *state, void *buf, size_t len)

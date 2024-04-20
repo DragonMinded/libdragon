@@ -14,6 +14,7 @@
 
 void decompress_aplib_init(void *state, FILE *fp, int winsize);
 ssize_t decompress_aplib_read(void *state, void *buf, size_t len);
+void decompress_aplib_reset(void *state);
 
 #if DECOMPRESS_APLIB_FULL_USE_ASM
 int decompress_aplib_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size);
