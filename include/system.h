@@ -129,8 +129,8 @@ typedef struct
      *             Directory structure to place information on the first file in the
      *             directory.
      *
-     * @return 0 on successful lookup or a negative value on failure or empty directory
-     *         (and errno is set).
+     * @return 0 on successful lookup, -1 if the directory existed and is empty,
+     *         or a different negative value on error (in which case, errno will be set).
      */
     int (*findfirst)( char *path, dir_t *dir );
     /** 
@@ -140,8 +140,8 @@ typedef struct
      *             Directory structure to place information on the next file in the
      *             directory.
      *
-     * @return 0 on successful lookup or a negative value on failure or empty directory
-     *         (and errno is set).
+     * @return 0 on successful lookup, -1 if the directory existed and is empty,
+     *         or a different negative value on error (in which case, errno will be set).
      */
     int (*findnext)( dir_t *dir );
     /**

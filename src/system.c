@@ -1419,14 +1419,15 @@ int getentropy(uint8_t *buf, size_t buflen)
  * @param[out] dir
  *             Directory entry structure to populate with first entry
  *
- * @return 0 on successful lookup or a negative value on error.
+ * @return 0 on successful lookup, -1 if the directory existed and is empty,
+ *         or a different negative value on error (in which case, errno will be set).
  */
 int dir_findfirst( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
     int mapping = __get_fs_link_by_name( path );
 
-    if( fs == 0 || mapping < 0 )
+    if( fs == 0 || mapping < 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
@@ -1459,13 +1460,14 @@ int dir_findfirst( const char * const path, dir_t *dir )
  * @param[out] dir
  *             Directory entry structure to populate with next entry
  *
- * @return 0 on successful lookup or a negative value on error.
+ * @return 0 on successful lookup, -1 if there are no more files in the directory,
+ *         or a different negative value on error (in which case, errno will be set).
  */
 int dir_findnext( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
 
-    if( fs == 0 )
+    if( fs == 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
@@ -1478,15 +1480,7 @@ int dir_findnext( const char * const path, dir_t *dir )
         return -1;
     }
 
-    int ret = fs->findnext( dir );
-    if ( ret < 0 ) {
-        /* FIXME: we don't have an API to return a better error here. Also,
-           consider that ret < 0 might also mean "end of directory traversal". */
-        errno = ENOENT;
-        return -1;
-    }
-
-    return 0;
+    return fs->findnext( dir );
 }
 
 /**

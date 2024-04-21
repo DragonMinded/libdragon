@@ -831,8 +831,10 @@ static int __bbfs_findnext(dir_t *dir)
 
 static int __bbfs_findfirst(char *name, dir_t *dir)
 {
-    if (!name || strcmp(name, "/"))
-        return -1;
+    if (!name || strcmp(name, "/")) {
+        errno = EINVAL;
+        return -2;
+    }
  
     dir->d_cookie = -1;
     return __bbfs_findnext(dir);

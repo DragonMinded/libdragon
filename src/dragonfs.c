@@ -1182,8 +1182,6 @@ static int __close( void *file )
  */
 static int __findfirst( char *path, dir_t *dir )
 {
-    if( !path || !dir ) { return -1; }
-
     /* Grab first entry, return if bad */
     int flags = dfs_dir_findfirst( path, dir->d_name );
     if( flags < 0 ) { return -1; }
@@ -1216,8 +1214,6 @@ static int __findfirst( char *path, dir_t *dir )
  */
 static int __findnext( dir_t *dir )
 {
-    if( !dir ) { return -1; }
-
     /* Grab first entry, return if bad */
     int flags = dfs_dir_findnext( dir->d_name );
     if( flags < 0 ) { return -1; }

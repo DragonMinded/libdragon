@@ -428,12 +428,16 @@ static int __fat_findnext(dir_t *dir)
 	FRESULT res = f_readdir(&find_dir, &info);
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
-		return -1;
+		return -2;
 	}
 
 	// Check if we reached the end of the directory
 	if (info.fname[0] == 0) {
-		f_closedir(&find_dir);
+		res = f_closedir(&find_dir);
+		if (res != FR_OK) {
+			__fresult_set_errno(res);
+			return -2;
+		}
 		return -1;
 	}
 
@@ -451,7 +455,7 @@ static int __fat_findfirst(char *name, dir_t *dir)
 	FRESULT res = f_opendir(&find_dir, name);
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
-		return -1;
+		return -2;
 	}
 	return __fat_findnext(dir);
 }
