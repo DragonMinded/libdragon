@@ -955,6 +955,7 @@ static void fsck_filenames(fsck_state_t *state, bool fix_errors)
                         state->num_errors++;
                         tracef(1, "duplicate filename: %.*s.%.*s", nlen, entry->name, elen, entry->ext);
                         if (fix_errors) SB_WRITE(entry->valid, 0);
+                        break;
                     }
                 }
             }
