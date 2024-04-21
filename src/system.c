@@ -1118,6 +1118,19 @@ void *sbrk( int incr )
  */
 int stat( const char *file, struct stat *st )
 {
+    if( st == NULL )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    filesystem_t *fs = __get_fs_pointer_by_name( file );
+    int mapping = __get_fs_link_by_name( file );
+
+    /* Use stat function when available, and fstat as a fallback */
+    if( fs != 0 && mapping >= 0 && fs->stat )
+        return fs->stat( (char *)file + __strlen( filesystems[mapping].prefix ) - 1, st );
+
     /* Dirty hack, open read only */
     int fd = open( (char *)file, O_RDONLY );
     if( fd < 0 )
@@ -1481,6 +1494,36 @@ int dir_findnext( const char * const path, dir_t *dir )
     }
 
     return fs->findnext( dir );
+}
+
+/**
+ * @brief Create a directory.
+ * 
+ * Creates a new directory at the specified location.
+ * 
+ * @param path      Path of the directory to create, relative to the root of the filesystem
+ * @param mode      Directory access mode
+ * @return int      0 on success, -1 on failure (errno will be set)
+ */
+int mkdir( const char * path, mode_t mode )
+{
+    filesystem_t *fs = __get_fs_pointer_by_name( path );
+    int mapping = __get_fs_link_by_name( path );
+
+    if( fs == 0 || mapping < 0 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if( fs->mkdir == 0 )
+    {
+        /* Filesystem doesn't support mkdir */
+        errno = ENOSYS;
+        return -1;
+    }
+    
+    return fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
 }
 
 /**

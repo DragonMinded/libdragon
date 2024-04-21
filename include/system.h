@@ -60,6 +60,18 @@ typedef struct
      */
     int (*fstat)( void *file, struct stat *st );
     /** 
+     * @brief Function to call when performing a stat command
+     *
+     * @param[in]  file
+     *             Full path of the file to be examined, relative to the root
+     *             of the filesystem.
+     * @param[out] st
+     *             Stat structure to populate with file statistics
+     *
+     * @return 0 on success or a negative value on error (and errno is set).
+     */
+    int (*stat)( char *name, struct stat *st );
+    /** 
      * @brief Function to call when performing an lseek command
      *
      * @param[in] file
@@ -153,6 +165,17 @@ typedef struct
      * @return 0 on success or a negative value on failure (and errno is set)
      */
     int (*ftruncate)( void *file, int length );
+    /**
+     * @brief Create a directory
+     * 
+     * @param[in] path
+     *            Full path of the directory to create, relative to the root of the filesystem.
+     * @param[in] mode
+     *            Directory permissions
+     * 
+     * @return 0 on success or a negative value on failure (errno must be set)
+     */
+    int (*mkdir)( char *path, mode_t mode );
 } filesystem_t;
 
 /**
