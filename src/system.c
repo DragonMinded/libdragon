@@ -1118,6 +1118,19 @@ void *sbrk( int incr )
  */
 int stat( const char *file, struct stat *st )
 {
+    if( st == NULL )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    filesystem_t *fs = __get_fs_pointer_by_name( file );
+    int mapping = __get_fs_link_by_name( file );
+
+    /* Use stat function when available, and fstat as a fallback */
+    if( fs != 0 && mapping >= 0 && fs->stat )
+        return fs->stat( (char *)file + __strlen( filesystems[mapping].prefix ) - 1, st );
+
     /* Dirty hack, open read only */
     int fd = open( (char *)file, O_RDONLY );
     if( fd < 0 )

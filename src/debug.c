@@ -346,19 +346,45 @@ static void *__fat_open(char *name, int flags)
 	return &fat_files[i];
 }
 
-static int __fat_fstat(void *file, struct stat *st)
+static void __fat_stat_fill(FSIZE_t size, BYTE attr, struct stat *st)
 {
-	FIL *f = file;
-
 	memset(st, 0, sizeof(struct stat));
-	st->st_size = f_size(f);
-	if (f->obj.attr & AM_RDO)
+	st->st_size = size;
+	if (attr & AM_RDO)
 		st->st_mode |= 0444;
 	else
 		st->st_mode |= 0666;
-	if (f->obj.attr & AM_DIR)
+	if (attr & AM_DIR)
 		st->st_mode |= S_IFDIR;
+	else
+		st->st_mode |= S_IFREG;
+}
 
+static int __fat_stat(char *name, struct stat *st)
+{
+	FILINFO fno;
+	FRESULT res = f_stat(name, &fno);
+	if (res != FR_OK) {
+		__fresult_set_errno(res);
+		return -1;
+	}
+	__fat_stat_fill(fno.fsize, fno.fattrib, st);
+	struct tm tm;
+	memset(&tm, 0, sizeof(struct tm));
+	tm.tm_min = (fno.ftime >> 5) & 0x3F;
+	tm.tm_hour = fno.ftime >> 11;
+	tm.tm_mday = fno.fdate & 0x1F;
+	tm.tm_mon = ((fno.fdate >> 5) & 0x0F) - 1;
+	tm.tm_year = (fno.fdate >> 9) + 80;
+	st->st_mtim.tv_sec = mktime(&tm);
+	st->st_mtim.tv_nsec = 0;
+	return 0;
+}
+
+static int __fat_fstat(void *file, struct stat *st)
+{
+	FIL *f = file;
+	__fat_stat_fill(f_size(f), f->obj.attr, st);
 	return 0;
 }
 
@@ -472,6 +498,7 @@ static int __fat_mkdir(char *path, mode_t mode)
 
 static filesystem_t fat_fs = {
 	.open = __fat_open,
+	.stat = __fat_stat,
 	.fstat = __fat_fstat,
 	.lseek = __fat_lseek,
 	.read = __fat_read,
