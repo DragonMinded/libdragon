@@ -442,6 +442,7 @@ static int __fat_findnext(dir_t *dir)
 		dir->d_type = DT_DIR;
 	else
 		dir->d_type = DT_REG;
+	dir->d_size = info.fsize;
 	return 0;
 }
 

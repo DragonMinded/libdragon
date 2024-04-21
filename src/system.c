@@ -1420,9 +1420,6 @@ int getentropy(uint8_t *buf, size_t buflen)
  *             Directory entry structure to populate with first entry
  *
  * @return 0 on successful lookup or a negative value on error.
- * 
- * @note This function uses a global context. Do not attempt multiple
- *       directory traversals at the same time.
  */
 int dir_findfirst( const char * const path, dir_t *dir )
 {
@@ -1442,6 +1439,11 @@ int dir_findfirst( const char * const path, dir_t *dir )
         return -1;
     }
 
+    /* Initialize dir_t structure. Set size to -1 in case the filesystem
+       does not report it. */
+    __builtin_memset( dir, 0, sizeof( dir_t ) );
+    dir->d_size = -1;
+
     return fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
 }
 
@@ -1458,9 +1460,6 @@ int dir_findfirst( const char * const path, dir_t *dir )
  *             Directory entry structure to populate with next entry
  *
  * @return 0 on successful lookup or a negative value on error.
- * 
- * @note This function uses a global context. Do not attempt multiple
- *       directory traversals at the same time.
  */
 int dir_findnext( const char * const path, dir_t *dir )
 {
