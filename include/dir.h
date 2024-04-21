@@ -44,7 +44,7 @@ typedef struct
      * If negative, the filesystem does not report the size during directory
      * walking.
      */
-    int d_size;
+    int64_t d_size;
     /** @brief Opaque cookie used to continue walking. */
     uint32_t d_cookie;
 } dir_t;
