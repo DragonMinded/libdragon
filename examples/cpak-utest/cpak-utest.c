@@ -51,11 +51,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Pak is not formatted!" );
+                                printf( "Controller Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Pak bad or removed during read!" );
+                                printf( "Controller Pak bad or removed during read!" );
                             }
                         }
                         else
@@ -101,11 +101,11 @@ int main(void)
                     case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
                         if (format_mempak(port))
                         {
-                            printf( "Error formatting Pak!" );
+                            printf( "Error formatting Controller Pak!" );
                         }
                         else
                         {
-                            printf( "Pak formatted!" );
+                            printf( "Controller Pak formatted!" );
                         }
 
                         break;
@@ -133,11 +133,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Pak is not formatted!" );
+                                printf( "Controller Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Pak bad or removed during read!" );
+                                printf( "Controller Pak bad or removed during read!" );
                             }
                         }
                         else
@@ -199,11 +199,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Pak is not formatted!" );
+                                printf( "Controller Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Pak bad or removed during write!" );
+                                printf( "Controller Pak bad or removed during write!" );
                             }
                         }
                         else
@@ -261,11 +261,11 @@ int main(void)
                         {
                             if (err == -3)
                             {
-                                printf( "Pak is not formatted!" );
+                                printf( "Controller Pak is not formatted!" );
                             }
                             else
                             {
-                                printf( "Pak bad or removed during erase!" );
+                                printf( "Controller Pak bad or removed during erase!" );
                             }
                         }
                         else

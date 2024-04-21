@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 /**
- * @defgroup Controller Pak Filesystem Routines
+ * @defgroup cpak Controller Pak Filesystem Routines
  * @ingroup controller
  * @brief Managed Controller Pak interface.
  *
@@ -865,10 +865,10 @@ int get_mempak_free_space( int controller )
  * @brief Format a Controller Pak
  *
  * Formats a Controller Pak. This should only be done to totally wipe and re-initialize
- * the filesystem in case of a blank or corrupt Pak after a repair has failed.
+ * the filesystem in case of a blank or corrupt Controller Pak after a repair has failed.
  *
  * @param[in] controller
- *            The Controller (0-3) that the CPak is inserted.
+ *            The Controller (0-3) that the Controller Pak is inserted.
  *
  * @retval 0 if the Controller Pak was formatted successfully.
  * @retval -2 if the Controller Pak was not present or couldn't be formatted.
