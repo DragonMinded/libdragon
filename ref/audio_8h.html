@@ -95,9 +95,6 @@ Functions</h2></td></tr>
 <tr class="memitem:ga977622d0345b9951d9259d5ff202de8c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga977622d0345b9951d9259d5ff202de8c">audio_pause</a> (bool pause)</td></tr>
 <tr class="memdesc:ga977622d0345b9951d9259d5ff202de8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pause or resume audio playback.  <a href="group__audio.html#ga977622d0345b9951d9259d5ff202de8c">More...</a><br /></td></tr>
 <tr class="separator:ga977622d0345b9951d9259d5ff202de8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab06cc34952ebf6952af37f7080743c98"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#gab06cc34952ebf6952af37f7080743c98">audio_write</a> (const short *const buffer)</td></tr>
-<tr class="memdesc:gab06cc34952ebf6952af37f7080743c98"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a chunk of audio data.  <a href="group__audio.html#gab06cc34952ebf6952af37f7080743c98">More...</a><br /></td></tr>
-<tr class="separator:gab06cc34952ebf6952af37f7080743c98"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga762b8b0c8957798c66ee158ce513e05e"><td class="memItemLeft" align="right" valign="top">volatile int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga762b8b0c8957798c66ee158ce513e05e">audio_can_write</a> ()</td></tr>
 <tr class="memdesc:ga762b8b0c8957798c66ee158ce513e05e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return whether there is an empty buffer to write to.  <a href="group__audio.html#ga762b8b0c8957798c66ee158ce513e05e">More...</a><br /></td></tr>
 <tr class="separator:ga762b8b0c8957798c66ee158ce513e05e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -119,6 +116,12 @@ Functions</h2></td></tr>
 <tr class="memitem:gac872c4749acb1685ebeabc1f9d02c0bf"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#gac872c4749acb1685ebeabc1f9d02c0bf">audio_write_end</a> (void)</td></tr>
 <tr class="memdesc:gac872c4749acb1685ebeabc1f9d02c0bf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Complete writing to an internal buffer.  <a href="group__audio.html#gac872c4749acb1685ebeabc1f9d02c0bf">More...</a><br /></td></tr>
 <tr class="separator:gac872c4749acb1685ebeabc1f9d02c0bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gabc52546c0036b0fe9023d9588500a1e1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#gabc52546c0036b0fe9023d9588500a1e1">audio_push</a> (const short *buffer, int nsamples, bool blocking)</td></tr>
+<tr class="memdesc:gabc52546c0036b0fe9023d9588500a1e1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Push a chunk of audio data (high-level function)  <a href="group__audio.html#gabc52546c0036b0fe9023d9588500a1e1">More...</a><br /></td></tr>
+<tr class="separator:gabc52546c0036b0fe9023d9588500a1e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab06cc34952ebf6952af37f7080743c98"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#gab06cc34952ebf6952af37f7080743c98">audio_write</a> (const short *const buffer)</td></tr>
+<tr class="memdesc:gab06cc34952ebf6952af37f7080743c98"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a chunk of audio data.  <a href="group__audio.html#gab06cc34952ebf6952af37f7080743c98">More...</a><br /></td></tr>
+<tr class="separator:gab06cc34952ebf6952af37f7080743c98"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Audio Subsystem. </p>
@@ -149,7 +152,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 2 2024 08:04:21 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Apr 22 2024 16:22:44 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

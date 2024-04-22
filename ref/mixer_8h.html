@@ -627,7 +627,7 @@ Opaque pointer provided as context to the read function. </td></tr>
 
 <p>Change the frequency for the specified channel. </p>
 <p >By default, the frequency is the one required by the waveform associated to the channel, but this function allows to override.</p>
-<p >This function must be called after mixer_ch_play, as otherwise the frequency is reset to the default of the waveform.</p>
+<p >This function must be called after <a class="el" href="mixer_8h.html#a1aa94701f22d086d624fb7d938ba0062" title="Start playing the specified waveform on the specified channel.">mixer_ch_play</a>, as otherwise the frequency is reset to the default of the waveform.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
@@ -666,7 +666,7 @@ Opaque pointer provided as context to the read function. </td></tr>
 
 <p>Change the current playback position within a waveform. </p>
 <p >This function can be useful to seek to a specific point of the waveform. The position must be specified in number of samples (not bytes). Fractional values account for accurate resampling position.</p>
-<p >This function must be called after mixer_ch_play, as otherwise the position is reset to the beginning of the waveform.</p>
+<p >This function must be called after <a class="el" href="mixer_8h.html#a1aa94701f22d086d624fb7d938ba0062" title="Start playing the specified waveform on the specified channel.">mixer_ch_play</a>, as otherwise the position is reset to the beginning of the waveform.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
@@ -753,7 +753,7 @@ Opaque pointer provided as context to the read function. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">max_bits</td><td>Maximum number of bits per sample (or 0 to reset this to default, which is currently 16). </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">max_frequency</td><td>Maximum playback frequency for this channel in Hz / samples per seconds (or 0 to reset this to default, which is the output sample rate as specified in <a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f" title="Initialize the audio subsystem.">audio_init</a>). </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">max_buf_sz</td><td>Maximum buffer size in bytes (or o to reset this default, which is calculated using the other limites, the playback output rate, and the number of audio buffers specified in <a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f" title="Initialize the audio subsystem.">audio_init</a>. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">max_buf_sz</td><td>Maximum buffer size in bytes (or 0 to reset this default, which is calculated using the other limits, the playback output rate, and the number of audio buffers specified in <a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f" title="Initialize the audio subsystem.">audio_init</a>). </td></tr>
   </table>
   </dd>
 </dl>
@@ -887,7 +887,7 @@ Opaque pointer provided as context to the read function. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 2 2024 08:04:21 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Apr 22 2024 16:22:44 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

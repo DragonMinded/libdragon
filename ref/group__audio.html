@@ -132,6 +132,9 @@ Functions</h2></td></tr>
 <tr class="memitem:ga762b8b0c8957798c66ee158ce513e05e"><td class="memItemLeft" align="right" valign="top">volatile int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga762b8b0c8957798c66ee158ce513e05e">audio_can_write</a> ()</td></tr>
 <tr class="memdesc:ga762b8b0c8957798c66ee158ce513e05e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return whether there is an empty buffer to write to.  <a href="group__audio.html#ga762b8b0c8957798c66ee158ce513e05e">More...</a><br /></td></tr>
 <tr class="separator:ga762b8b0c8957798c66ee158ce513e05e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gabc52546c0036b0fe9023d9588500a1e1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#gabc52546c0036b0fe9023d9588500a1e1">audio_push</a> (const short *buffer, int nsamples, bool blocking)</td></tr>
+<tr class="memdesc:gabc52546c0036b0fe9023d9588500a1e1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Push a chunk of audio data (high-level function)  <a href="group__audio.html#gabc52546c0036b0fe9023d9588500a1e1">More...</a><br /></td></tr>
+<tr class="separator:gabc52546c0036b0fe9023d9588500a1e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga6892c9dfdd99e00a4285fe05058d6a37"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga6892c9dfdd99e00a4285fe05058d6a37">audio_get_frequency</a> ()</td></tr>
 <tr class="memdesc:ga6892c9dfdd99e00a4285fe05058d6a37"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return actual frequency of audio playback.  <a href="group__audio.html#ga6892c9dfdd99e00a4285fe05058d6a37">More...</a><br /></td></tr>
 <tr class="separator:ga6892c9dfdd99e00a4285fe05058d6a37"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -420,6 +423,55 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="gabc52546c0036b0fe9023d9588500a1e1" name="gabc52546c0036b0fe9023d9588500a1e1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gabc52546c0036b0fe9023d9588500a1e1">&#9670;&nbsp;</a></span>audio_push()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int audio_push </td>
+          <td>(</td>
+          <td class="paramtype">const short *&#160;</td>
+          <td class="paramname"><em>buffer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>nsamples</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>blocking</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Push a chunk of audio data (high-level function) </p>
+<p >This function is an easy-to-use, higher level alternative to all the audio_write* functions. It pushes audio samples into output hiding the complexity required to match the fixed-size audio buffers.</p>
+<p >The function accepts a <code>buffer</code> of stereo interleaved audio samples; <code>nsamples</code> is the number of samples in the buffer. The function will push the samples into output as much as possible.</p>
+<p >If <code>blocking</code> is true, it will stop and wait until all samples have been pushed into output. If <code>blocking</code> is false, it will stop as soon as there are no more free buffers to push samples into, and will return the number of pushed samples. It is up to the caller to then take care of this and later try to call audio_push again with the remaining samples.</p>
+<dl class="section note"><dt>Note</dt><dd>You CANNOT mixmatch this function with the other audio_write* functions, and viceversa. If you decide to use audio_push, use it exclusively to push the audio.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">buffer</td><td>Buffer containing stereo samples to be played </td></tr>
+    <tr><td class="paramname">nsamples</td><td>Number of stereo samples in the buffer </td></tr>
+    <tr><td class="paramname">blocking</td><td>If true, wait until all samples have been pushed </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int Number of samples pushed into output </dd></dl>
+
+</div>
+</div>
 <a id="ga6892c9dfdd99e00a4285fe05058d6a37" name="ga6892c9dfdd99e00a4285fe05058d6a37"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga6892c9dfdd99e00a4285fe05058d6a37">&#9670;&nbsp;</a></span>audio_get_frequency()</h2>
 
@@ -464,7 +516,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 2 2024 08:04:21 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Apr 22 2024 16:22:44 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
