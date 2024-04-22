@@ -930,7 +930,6 @@ encode_end_st1( void )
         send_block();
         putbits(CHAR_BIT - 1, 0);   /* flush remaining bits */
     }
-    free(buf); buf=0;
 }
 
 
@@ -1272,3 +1271,10 @@ lzh5_encode(FILE *in, FILE *out, unsigned int *out_crc, unsigned int *out_csize,
     if (out_dsize) *out_dsize = count;
     if (out_crc) *out_crc = crc;
 }
+
+#undef MAX_DICBIT
+#undef MAXMATCH
+#undef NT
+#undef NC
+#undef PBIT
+#undef TBIT
