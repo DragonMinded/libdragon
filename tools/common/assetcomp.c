@@ -17,9 +17,9 @@
 
 #ifndef LZ4_SRC_INCLUDED
 #define LZ4_DISTANCE_MAX 16384
-#include "../common/lz4.c"
+#include "../common/lz4/lz4.c"
 #endif
-#include "../common/lz4hc.c"
+#include "../common/lz4/lz4hc.c"
 #undef MIN
 #undef MAX
 
