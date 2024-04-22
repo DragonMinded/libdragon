@@ -1,0 +1,39 @@
+This file contains Shrinkler's license as obtained at:
+https://github.com/askeksa/Shrinkler/blob/master/LICENSE.txt
+
+Notice that this license applies only to tools. Runtime code
+shipped in ROMs is written from scratch and thus distributed
+under libdragon's own terms.
+
+-----------------------------------------------------------------------
+
+Shrinkler executable file compressor for Amiga
+
+Copyright 1999-2022 Aske Simon Christensen, with exceptions noted below.
+
+Permission is hereby granted to anyone obtaining a copy of this software
+package (including accompanying documentation) to compile, use, copy,
+modify, merge and/or distribute it, in whole or in part, subject to the
+following conditions:
+
+- Distribution in source code form must include a copy of this license.
+
+- Distribution in binary form must not be misattributed, i.e. you must
+  not claim (implicitly or explicitly) that you wrote it yourself.
+
+- Distribution of the decrunch headers (Header.S, MiniHeader.S,
+  OverlapHeader.S, and the .bin and .dat files generated from them) in
+  binary form as part of an Amiga executable is not restricted by this
+  license and does not require attribution.
+  In particular, output executables from Shrinkler (which contain code
+  from the decrunch headers) are to be considered original works of the
+  author(s) of the corresponding input executables.
+
+- The data decompression code (ShrinklerDecompress.S) is distributed
+  alongside the Shrinkler binaries in the official archives and has its
+  own license stated inside the file.
+
+Exceptions:
+
+- doshunks.h is part of the Amiga SDK and is Copyright 1989-1993
+  Commodore-Amiga, Inc.
