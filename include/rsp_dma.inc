@@ -67,19 +67,19 @@
 
     .func DMAOut
 DMAOut:
-    j DMAExec
+    b DMAExec
     li t2, DMA_OUT
     .endfunc
 
     .func DMAOutAsync
 DMAOutAsync:
-    j DMAExec
+    b DMAExec
     li t2, DMA_OUT_ASYNC
     .endfunc
 
     .func DMAInAsync
 DMAInAsync:
-    j DMAExec
+    b DMAExec
     li t2, DMA_IN_ASYNC
     .endfunc
 
@@ -110,7 +110,7 @@ DMAExec:
     # see the DMA_* macros)
     bgez t2, DMAIn1
     mtc0 s4, COP0_DMA_SPADDR
-    j DMAInEnd
+    b DMAInEnd
     mtc0 $1, COP0_DMA_WRITE
 DMAIn1:
     mtc0 $1, COP0_DMA_READ
@@ -147,7 +147,7 @@ JrRa: # Useful label if you need a pure "jr ra" somewhere in memory to jump to
 ###################################################################
     .func DMAWaitIdle
 DMAWaitIdle:
-    j DMAWaitLoop
+    b DMAWaitLoop
     li t2, SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL
     .endfunc
 
@@ -178,7 +178,7 @@ DMAWaitIdle:
 
     .func DMAWaitReady
 DMAWaitReady:
-    j DMAWaitLoop
+    b DMAWaitLoop
     li t2, SP_STATUS_DMA_FULL
     .endfunc
     .set at
