@@ -262,6 +262,13 @@ uint32_t display_get_bitdepth(void);
  */
 uint32_t display_get_num_buffers(void);
 
+/**
+ * @brief Get the current number of frames per second being rendered
+ * 
+ * @return float Frames per second
+ */
+float display_get_fps(void);
+
 
 /** @cond */
 __attribute__((deprecated("use display_get or display_try_get instead")))
