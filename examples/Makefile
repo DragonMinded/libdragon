@@ -1,4 +1,18 @@
-EXAMPLES = audioplayer cpptest ctest dfsdemo eepromfstest mixertest cpaktest cpak-utest rspqdemo spritemap test timers vrutest vtest ucodetest
+EXAMPLES += audioplayer
+EXAMPLES += cpptest
+EXAMPLES += ctest 
+EXAMPLES += dfsdemo
+EXAMPLES += eepromfstest
+EXAMPLES += mixertest
+EXAMPLES += cpaktest
+EXAMPLES += cpak-utest
+EXAMPLES += rspqdemo
+EXAMPLES += spritemap
+EXAMPLES += test
+EXAMPLES += timers
+EXAMPLES += vrutest
+EXAMPLES += vtest
+EXAMPLES += ucodetest
 
 all: $(EXAMPLES)
 clean: $(foreach example,$(EXAMPLES),$(example)-clean)
