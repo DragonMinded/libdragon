@@ -198,7 +198,7 @@ void mixer_ch_play(int ch, waveform_t *wave);
  * By default, the frequency is the one required by the waveform associated
  * to the channel, but this function allows to override.
  * 
- * This function must be called after mixer_ch_play, as otherwise the
+ * This function must be called after #mixer_ch_play, as otherwise the
  * frequency is reset to the default of the waveform.
  * 
  * @param[in]   ch              Channel index
@@ -213,7 +213,7 @@ void mixer_ch_set_freq(int ch, float frequency);
  * The position must be specified in number of samples (not bytes). Fractional
  * values account for accurate resampling position.
  *
- * This function must be called after mixer_ch_play, as otherwise the
+ * This function must be called after #mixer_ch_play, as otherwise the
  * position is reset to the beginning of the waveform.
  * 
  * @param[in]   ch              Channel index
@@ -275,11 +275,11 @@ bool mixer_ch_playing(int ch);
  *                              in Hz / samples per seconds (or 0 to reset
  *                              this to default, which is the output sample
  *                              rate as specified in #audio_init).
- * @param[in]   max_buf_sz      Maximum buffer size in bytes (or o to reset
+ * @param[in]   max_buf_sz      Maximum buffer size in bytes (or 0 to reset
  *                              this default, which is calculated using the
- *                              other limites, the playback output rate, and
+ *                              other limits, the playback output rate, and
  *                              the number of audio buffers specified in
- *                              #audio_init.
+ *                              #audio_init).
  */
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz);
 
