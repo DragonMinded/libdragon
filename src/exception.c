@@ -399,7 +399,12 @@ static const char* __get_exception_name(exception_t *ex)
 		return "Misaligned write to memory";
 	case EXCEPTION_CODE_SYS_CALL:
 		return "Unhandled syscall";
-
+	case EXCEPTION_CODE_TRAP: {
+		// GCC MIPS generate a trap with code 7 to guard divisions
+		uint32_t code = (*(uint32_t*)epc >> 6) & 0x3FF;
+		if (code == 7)
+			return "Integer divide by zero";
+	}	return exceptionMap[ex->code];
 	default:
 		return exceptionMap[ex->code];
 	}
