@@ -26,6 +26,8 @@
 
 bool asset_compress(const char *infn, const char *outfn, int compression)
 {
+    asset_init_compression(2);
+
     // Make sure the file exists before calling asset_load,
     // which would just assert.
     FILE *in = fopen(infn, "rb");
