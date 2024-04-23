@@ -424,12 +424,12 @@ static int lha_lh_new_init(LHANewDecoder *decoder, FILE *fp, uint32_t rom_addr)
 	return 1;
 }
 
-static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp)
+static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp, void *window, int winsize)
 {
 	lha_lh_new_init(&decoder->decoder, fp, 0);
 
 	// Initialize data structures.
-	__ringbuf_init(&decoder->ringbuf);
+	__ringbuf_init(&decoder->ringbuf, window, winsize);
 	decoder->ringbuf_copy_offset = 0;
 	decoder->ringbuf_copy_count = 0;
 
@@ -533,10 +533,10 @@ end:
 
 _Static_assert(sizeof(LHANewDecoderPartial) <= DECOMPRESS_LZH5_STATE_SIZE, "LZH5 state size is wrong");
 
-void decompress_lzh5_init(void *state, FILE *fp)
+void decompress_lzh5_init(void *state, FILE *fp, int winsize)
 {
 	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
-	lha_lh_new_init_partial(decoder, fp);
+	lha_lh_new_init_partial(decoder, fp, state+sizeof(LHANewDecoderPartial), winsize);
 }
 
 ssize_t decompress_lzh5_read(void *state, void *buf, size_t len)
@@ -552,7 +552,7 @@ int decompress_lzh5_pos(void *state) {
 
 void* decompress_lzh5_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
 {
-	void *s = memalign(16, size);
+	void *s = memalign(ASSET_ALIGNMENT, size);
 	assertf(s, "asset_load: out of memory");
 
 	uint32_t rom_addr = 0;

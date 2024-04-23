@@ -124,9 +124,9 @@ void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t
 
 		// Initialize decompressor and re-read the header (this time, it will
 		// be decompressed and we should find a valid YM header).
-		player->decoder = malloc(DECOMPRESS_LZH5_STATE_SIZE);
+		player->decoder = malloc(DECOMPRESS_LZH5_STATE_SIZE + DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE);
 		offset = 0;
-		decompress_lzh5_init(player->decoder, player->f);
+		decompress_lzh5_init(player->decoder, player->f, DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE);
 		_ymread(head, 12);
 	}
 
