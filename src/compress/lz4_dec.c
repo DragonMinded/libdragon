@@ -6,6 +6,7 @@
 #include "lz4_dec_internal.h"
 #include "ringbuf_internal.h"
 #include "../utils.h"
+#include "../asset_internal.h"
 
 #ifdef N64
 #include <malloc.h>
@@ -15,9 +16,6 @@
 #endif
 
 #define MIN_MATCH_SIZE  4
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
-#define HISTORY_SIZE 65536
 #define LITERALS_RUN_LEN 15
 #define MATCH_RUN_LEN 15
 
@@ -59,6 +57,7 @@
 #include "dma.h"
 #endif
 
+__attribute__((used))
 static void wait_dma(const void *pIn) {
    #ifdef N64
    static void *ptr; static bool finished = false;
@@ -92,11 +91,16 @@ static void wait_dma(const void *pIn) {
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int decompress_lz4_full_mem(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nBlockMaxSize, bool dma_race) {
+int decompress_lz4_full_inplace(const unsigned char *pInBlock, size_t nBlockSize, unsigned char *pOutData, size_t nBlockMaxSize) {
+#ifdef N64
+   extern int decompress_lz4_full_fast(const void *inbuf, int insize, void *outbuf);
+   return decompress_lz4_full_fast(pInBlock, nBlockSize, pOutData);
+#else
    const unsigned char *pInBlockEnd = pInBlock + nBlockSize;
    unsigned char *pCurOutData = pOutData;
    const unsigned char *pOutDataEnd = pCurOutData + nBlockMaxSize;
    const unsigned char *pOutDataFastEnd = pOutDataEnd - 18;
+   const bool dma_race = true;
 
    if (dma_race) wait_dma(NULL);
    while (likely(pInBlock < pInBlockEnd)) {
@@ -113,7 +117,7 @@ int decompress_lz4_full_mem(const unsigned char *pInBlock, int nBlockSize, unsig
             LZ4ULTRA_DECOMPRESSOR_BUILD_LEN(nLiterals);
 
          if (unlikely((pInBlock + nLiterals) > pInBlockEnd)) return -1;
-         if (unlikely((pCurOutData + nLiterals) > pOutDataEnd)) return -1;
+         if (unlikely((pCurOutData + nLiterals) > pOutDataEnd)) return -2;
 
          if (dma_race) wait_dma(pInBlock+nLiterals);
          memcpy(pCurOutData, pInBlock, nLiterals);
@@ -135,7 +139,7 @@ int decompress_lz4_full_mem(const unsigned char *pInBlock, int nBlockSize, unsig
          if (nMatchLen != (MATCH_RUN_LEN + MIN_MATCH_SIZE) && nMatchOffset >= 8 && pCurOutData <= pOutDataFastEnd) {
             const unsigned char *pSrc = pCurOutData - nMatchOffset;
 
-            if (unlikely(pSrc < pOutData)) return -1;
+            if (unlikely(pSrc < pOutData)) return -3;
 
             memcpy(pCurOutData, pSrc, 8);
             memcpy(pCurOutData + 8, pSrc + 8, 8);
@@ -147,7 +151,7 @@ int decompress_lz4_full_mem(const unsigned char *pInBlock, int nBlockSize, unsig
             if (likely(nMatchLen == (MATCH_RUN_LEN + MIN_MATCH_SIZE)))
                LZ4ULTRA_DECOMPRESSOR_BUILD_LEN(nMatchLen);
 
-            if (unlikely((pCurOutData + nMatchLen) > pOutDataEnd)) return -1;
+            if (unlikely((pCurOutData + nMatchLen) > pOutDataEnd)) return -4;
 
             const unsigned char *pSrc = pCurOutData - nMatchOffset;
             if (unlikely(pSrc < pOutData)) return -1;
@@ -175,55 +179,7 @@ int decompress_lz4_full_mem(const unsigned char *pInBlock, int nBlockSize, unsig
    }
 
    return (int)(pCurOutData - pOutData);
-}
-
-void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
-{
-   int bufsize = size + LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size);
-   int cmp_offset = bufsize - cmp_size;
-   if (cmp_offset & 1) {
-         cmp_offset++;
-         bufsize++;
-   }
-   if (bufsize & 15) {
-         // In case we need to call invalidate (see below), we need an aligned buffer
-         bufsize += 16 - (bufsize & 15);
-   }
-
-   void *s = memalign(16, bufsize);
-   assertf(s, "asset_load: out of memory");
-   int n;
-
-   #ifdef N64
-   if (fn && strncmp(fn, "rom:/", 5) == 0) {
-         // Invalid the portion of the buffer where we are going to load
-         // the compressed data. This is needed in case the buffer returned
-         // by memalign happens to be in cached already.
-         int align_cmp_offset = cmp_offset & ~15;
-         data_cache_hit_invalidate(s+align_cmp_offset, bufsize-align_cmp_offset);
-
-         // Loading from ROM. This is a common enough situation that we want to optimize it.
-         // Start an asynchronous DMA transfer, so that we can start decompressing as the
-         // data flows in.
-         uint32_t addr = dfs_rom_addr(fn+5) & 0x1FFFFFFF;
-         dma_read_async(s+cmp_offset, addr+16, cmp_size);
-
-         // Run the decompression racing with the DMA.
-         n = decompress_lz4_full_mem(s+cmp_offset, cmp_size, s, size, true); (void)n;
-   #else
-   if (false) {
-   #endif
-   } else {
-         // Standard loading via stdio. We have to wait for the whole file to be read.
-         fread(s+cmp_offset, 1, cmp_size, fp);
-
-         // Run the decompression.
-         n = decompress_lz4_full_mem(s+cmp_offset, cmp_size, s, size, false); (void)n;
-   }
-   assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
-   void *ptr = realloc(s, size); (void)ptr;
-   assertf(s == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
-   return ptr;
+#endif
 }
 
 /**
@@ -283,15 +239,22 @@ static void lz4_read(lz4dec_state_t *lz4, void *buf, size_t len)
    }
 }
 
-void decompress_lz4_init(void *state, FILE *fp)
+void decompress_lz4_init(void *state, FILE *fp, int winsize)
 {
    lz4dec_state_t *lz4 = (lz4dec_state_t*)state;
    lz4->fp = fp;
+   __ringbuf_init(&lz4->ringbuf, state+sizeof(lz4dec_state_t), winsize);
+   decompress_lz4_reset(state);
+}
+
+void decompress_lz4_reset(void *state)
+{
+   lz4dec_state_t *lz4 = (lz4dec_state_t*)state;
    lz4->eof = false;
    lz4->buf_idx = 0;
    lz4->buf_size = 0;
    memset(&lz4->st, 0, sizeof(lz4->st));
-   __ringbuf_init(&lz4->ringbuf);
+   lz4->ringbuf.ringbuf_pos = 0;
 }
 
 ssize_t decompress_lz4_read(void *state, void *buf, size_t len)
@@ -321,7 +284,7 @@ ssize_t decompress_lz4_read(void *state, void *buf, size_t len)
          buf += n;
          len -= n;
          st.lit_len -= n;
-         if (st.lit_len)
+         if (st.lit_len || lz4->eof)
             break;
          st.match_off = lz4_readbyte(lz4);
          st.match_off |= ((uint16_t)lz4_readbyte(lz4)) << 8;

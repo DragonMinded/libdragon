@@ -22,7 +22,6 @@
 
 // Compression library
 #include "../common/assetcomp.h"
-#include "../common/assetcomp.c"
 
 // Bring in tex_format_t definition
 #include "surface.h"
@@ -1597,7 +1596,7 @@ int main(int argc, char *argv[])
             if (compression) {
                 struct stat st_decomp = {0}, st_comp = {0};
                 stat(outfn, &st_decomp);
-                asset_compress(outfn, outfn, compression);
+                asset_compress(outfn, outfn, compression, 0);
                 stat(outfn, &st_comp);
                 if (flag_verbose)
                     fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
