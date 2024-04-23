@@ -831,10 +831,17 @@ int main( int argc, char *argv[] )
             }
             
             int fl = dfs_open( argv[3] );
-            uint8_t *data = malloc( (size_t)dfs_size( fl ) );
+            if (fl < 0)
+            {
+                fprintf(stderr, "File %s not found\n", argv[3]);
+                return -1;
+            }
+            int sz = dfs_size( fl );
+            assert( sz >= 0 );
+            uint8_t *data = malloc( sz );
 
-            dfs_read( data, 1, dfs_size( fl ), fl );
-            fwrite( data, 1, dfs_size( fl ), stdout );
+            dfs_read( data, 1, sz, fl );
+            fwrite( data, 1, sz, stdout );
             dfs_close( fl );
 
             free( filesystem );
@@ -867,10 +874,17 @@ int main( int argc, char *argv[] )
             dfs_read( &unused, 1, 4, nu );
             
             int fl = dfs_open( argv[3] );
-            uint8_t *data = malloc( (size_t)dfs_size( fl ) );
+            if (fl < 0)
+            {
+                fprintf(stderr, "File %s not found\n", argv[3]);
+                return -1;
+            }
+            int sz = dfs_size( fl );
+            assert( sz >= 0 );
+            uint8_t *data = malloc( sz );
 
-            dfs_read( data, 1, dfs_size( fl ), fl );
-            fwrite( data, 1, dfs_size( fl ), stdout );
+            dfs_read( data, 1, sz, fl );
+            fwrite( data, 1, sz, stdout );
             dfs_close( fl );
             dfs_close( nu );
 
