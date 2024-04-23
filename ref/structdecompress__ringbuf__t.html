@@ -75,10 +75,14 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
 Data Fields</h2></td></tr>
-<tr class="memitem:ad95a26ed52bd36f5388c805a141e3eaa"><td class="memItemLeft" align="right" valign="top"><a id="ad95a26ed52bd36f5388c805a141e3eaa" name="ad95a26ed52bd36f5388c805a141e3eaa"></a>
-uint8_t&#160;</td><td class="memItemRight" valign="bottom"><b>ringbuf</b> [RING_BUFFER_SIZE]</td></tr>
-<tr class="memdesc:ad95a26ed52bd36f5388c805a141e3eaa"><td class="mdescLeft">&#160;</td><td class="mdescRight">The ring buffer itself. <br /></td></tr>
-<tr class="separator:ad95a26ed52bd36f5388c805a141e3eaa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9d6b02275eadf6be283a6e1a22ea6273"><td class="memItemLeft" align="right" valign="top"><a id="a9d6b02275eadf6be283a6e1a22ea6273" name="a9d6b02275eadf6be283a6e1a22ea6273"></a>
+uint8_t *&#160;</td><td class="memItemRight" valign="bottom"><b>ringbuf</b></td></tr>
+<tr class="memdesc:a9d6b02275eadf6be283a6e1a22ea6273"><td class="mdescLeft">&#160;</td><td class="mdescRight">The ring buffer itself. <br /></td></tr>
+<tr class="separator:a9d6b02275eadf6be283a6e1a22ea6273"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a212bd81af52dfb00aa6798eafda60574"><td class="memItemLeft" align="right" valign="top"><a id="a212bd81af52dfb00aa6798eafda60574" name="a212bd81af52dfb00aa6798eafda60574"></a>
+unsigned int&#160;</td><td class="memItemRight" valign="bottom"><b>ringbuf_size</b></td></tr>
+<tr class="memdesc:a212bd81af52dfb00aa6798eafda60574"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of the ring buffer (power of two) <br /></td></tr>
+<tr class="separator:a212bd81af52dfb00aa6798eafda60574"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab010cbfe725447fb5964a6f819aa4d6a"><td class="memItemLeft" align="right" valign="top"><a id="ab010cbfe725447fb5964a6f819aa4d6a" name="ab010cbfe725447fb5964a6f819aa4d6a"></a>
 unsigned int&#160;</td><td class="memItemRight" valign="bottom"><b>ringbuf_pos</b></td></tr>
 <tr class="memdesc:ab010cbfe725447fb5964a6f819aa4d6a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Current write position in the ring buffer. <br /></td></tr>
@@ -87,19 +91,35 @@ unsigned int&#160;</td><td class="memItemRight" valign="bottom"><b>ringbuf_pos</
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >A ring buffer used for streaming decompression. </p>
 </div><h2 class="groupheader">Field Documentation</h2>
-<a id="ad95a26ed52bd36f5388c805a141e3eaa" name="ad95a26ed52bd36f5388c805a141e3eaa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad95a26ed52bd36f5388c805a141e3eaa">&#9670;&nbsp;</a></span>ringbuf</h2>
+<a id="a9d6b02275eadf6be283a6e1a22ea6273" name="a9d6b02275eadf6be283a6e1a22ea6273"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9d6b02275eadf6be283a6e1a22ea6273">&#9670;&nbsp;</a></span>ringbuf</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">uint8_t decompress_ringbuf_t::ringbuf[RING_BUFFER_SIZE]</td>
+          <td class="memname">uint8_t* decompress_ringbuf_t::ringbuf</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>The ring buffer itself. </p>
+
+</div>
+</div>
+<a id="a212bd81af52dfb00aa6798eafda60574" name="a212bd81af52dfb00aa6798eafda60574"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a212bd81af52dfb00aa6798eafda60574">&#9670;&nbsp;</a></span>ringbuf_size</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">unsigned int decompress_ringbuf_t::ringbuf_size</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Size of the ring buffer (power of two) </p>
 
 </div>
 </div>
@@ -125,7 +145,7 @@ unsigned int&#160;</td><td class="memItemRight" valign="bottom"><b>ringbuf_pos</
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 12:24:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Apr 23 2024 22:02:48 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

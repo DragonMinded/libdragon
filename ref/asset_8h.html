@@ -200,7 +200,7 @@ Functions</h2></td></tr>
 
 <p>Open an asset file for reading (with transparent decompression) </p>
 <p >This function opens a file from a file system (eg: from ROM or SD). If the file was compressed using the mkasset tool, it will be automatically uncompressed as it is being read.</p>
-<p >Note that since the file might be compressed, the returned FILE* cannot be rewinded, nor seeked backward, as that would be impossible to do efficiently on a compressed file. Seeking forward is supported and is simulated by reading (decompressing) and discarding data.</p>
+<p >Note that since the file might be compressed, the returned FILE* cannot be arbitrarily seeked backward, as that would be impossible to do efficiently on a compressed file. Seeking forward is supported and is simulated by reading (decompressing) and discarding data. You can rewind the file to the start though, (by using either fseek or rewind).</p>
 <p >This behavior of the returned file is enforced also for non compressed assets, so that the code is ready to switch to compressed assets if required. If you need random access to an uncompressed file, simply use the standard fopen() function.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -216,7 +216,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 12:24:03 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Apr 23 2024 22:02:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

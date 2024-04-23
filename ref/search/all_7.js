@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['f_0',['f',['../ym64_8h.html#a134cf98f97982482e86d944eae146a0b',1,'ym64player_t']]],
+  ['f_0',['f',['../structaplib__decompressor__t.html#a70cdbfa8f5bf04664b60cb26c9a0472b',1,'aplib_decompressor_t::f()'],['../ym64_8h.html#a134cf98f97982482e86d944eae146a0b',1,'ym64player_t::f()']]],
   ['fc31_1',['fc31',['../group__exceptions.html#aa89fb9604f39a776e7fcc3e126681c98',1,'reg_block_t']]],
   ['fh_2',['fh',['../xm64_8h.html#a00426b1b53cdbcd9d9488989500381ef',1,'xm64player_t']]],
   ['file_5flen_3',['file_len',['../backtrace_8c.html#ae0fb57aa791cb9b4180513c31598b8d9',1,'symtable_entry_t']]],
@@ -21,7 +21,7 @@ var searchData=
   ['first_5fch_18',['first_ch',['../xm64_8h.html#a1de02ca03e4aa261e2886dcad4a465f1',1,'xm64player_t::first_ch()'],['../ym64_8h.html#a80cbce65e91254965a4d4437c26a144f',1,'ym64player_t::first_ch()']]],
   ['first_5fcode_19',['first_code',['../group__exceptions.html#a2e15351dcb8638e7a369b9eaa171e05e',1,'syscall_handler_entry_t']]],
   ['first_5fword_20',['first_word',['../rspq_8h.html#a157026e64a3eef732005c716ff7752cb',1,'rspq_write_t']]],
-  ['flags_21',['flags',['../group__dfs.html#a57e42046242d6298d88a50a15614f6f9',1,'directory_entry::flags()'],['../surface_8h.html#afcf076b028b981bcdce9637481ba6ab2',1,'surface_t::flags()'],['../structasset__header__t.html#a11532397e35881b5b0e15ecaeb8aa908',1,'asset_header_t::flags()'],['../mixer_8c.html#ab30009fbbf5708d9ae6a4851dcbb173d',1,'mixer_channel_t::flags()'],['../group__timer.html#a0adb419b9e3755f1428ecadf89e15ad3',1,'timer_link_t::flags()'],['../mixer_8c.html#a9da4f34c33e22b64029bced99af520f7',1,'rsp_mixer_channel_t::flags()']]],
+  ['flags_21',['flags',['../structasset__header__t.html#a11532397e35881b5b0e15ecaeb8aa908',1,'asset_header_t::flags()'],['../group__timer.html#a0adb419b9e3755f1428ecadf89e15ad3',1,'timer_link_t::flags()'],['../surface_8h.html#afcf076b028b981bcdce9637481ba6ab2',1,'surface_t::flags()'],['../group__dfs.html#a57e42046242d6298d88a50a15614f6f9',1,'directory_entry::flags()'],['../mixer_8c.html#a9da4f34c33e22b64029bced99af520f7',1,'rsp_mixer_channel_t::flags()'],['../mixer_8c.html#ab30009fbbf5708d9ae6a4851dcbb173d',1,'mixer_channel_t::flags()']]],
   ['flags_5fdir_22',['FLAGS_DIR',['../group__dfs.html#ga72132c67f7a158fce46a1113c0b0e7eb',1,'dragonfs.h']]],
   ['flags_5feof_23',['FLAGS_EOF',['../group__dfs.html#ga4b6222e558984bbd372129daf4d0f6ee',1,'dragonfs.h']]],
   ['flags_5ffile_24',['FLAGS_FILE',['../group__dfs.html#ga40f46638c929774a7c8867451487239f',1,'dragonfs.h']]],

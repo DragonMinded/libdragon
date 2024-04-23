@@ -36,7 +36,7 @@ var searchData=
   ['timer_5fclose_33',['timer_close',['../group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d',1,'timer_close(void):&#160;timer.c'],['../group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d',1,'timer_close(void):&#160;timer.c']]],
   ['timer_5finit_34',['timer_init',['../group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9',1,'timer_init(void):&#160;timer.c'],['../group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9',1,'timer_init(void):&#160;timer.c']]],
   ['timer_5flink_5ft_35',['timer_link_t',['../group__timer.html#structtimer__link__t',1,'']]],
-  ['timer_5flink_5ft_2e_5f_5funnamed25_5f_5f_36',['timer_link_t.__unnamed25__',['../group__timer.html#uniontimer__link__t_8____unnamed25____',1,'']]],
+  ['timer_5flink_5ft_2e_5f_5funnamed26_5f_5f_36',['timer_link_t.__unnamed26__',['../group__timer.html#uniontimer__link__t_8____unnamed26____',1,'']]],
   ['timer_5fmicros_37',['TIMER_MICROS',['../group__timer.html#ga7a8376a5a1aab3ac8b63d0234ddf1646',1,'timer.h']]],
   ['timer_5fmicros_5fll_38',['TIMER_MICROS_LL',['../group__timer.html#gafcf1f9937f1a0a29fdf3df054090f968',1,'timer.h']]],
   ['timer_5fticks_39',['TIMER_TICKS',['../group__timer.html#ga5fc22e0d1f470acf22c7ad695e504cc3',1,'timer.h']]],
@@ -91,7 +91,7 @@ var searchData=
   ['tv_5ftype_5floc_88',['TV_TYPE_LOC',['../group__n64sys.html#ga16a9cb3b1d15189bd1c21327cd77ca1f',1,'n64sys.c']]],
   ['tv_5ftype_5ft_89',['tv_type_t',['../group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09',1,'n64sys.h']]],
   ['type_90',['type',['../structbt__func__t.html#acd92aefc7b9b27250b458fcd26d717cb',1,'bt_func_t::type()'],['../group__exceptions.html#afbad107df38f2e4963547dbcbe5c88ae',1,'exception_t::type()']]],
-  ['type_5fany_91',['TYPE_ANY',['../group__dfs.html#gga99fb83031ce9923c84392b4e92f956b5af173f42b16daa16262e56c2e12fb11b3',1,'dragonfs.c']]],
-  ['type_5fdir_92',['TYPE_DIR',['../group__dfs.html#gga99fb83031ce9923c84392b4e92f956b5a5b5f3036729530d8011e6f1ea2207aac',1,'dragonfs.c']]],
-  ['type_5ffile_93',['TYPE_FILE',['../group__dfs.html#gga99fb83031ce9923c84392b4e92f956b5a30351c278162a6e7dbdb10570ae8782e',1,'dragonfs.c']]]
+  ['type_5fany_91',['TYPE_ANY',['../group__dfs.html#ggabc6126af1d45847bc59afa0aa3216b04af173f42b16daa16262e56c2e12fb11b3',1,'dragonfs.c']]],
+  ['type_5fdir_92',['TYPE_DIR',['../group__dfs.html#ggabc6126af1d45847bc59afa0aa3216b04a5b5f3036729530d8011e6f1ea2207aac',1,'dragonfs.c']]],
+  ['type_5ffile_93',['TYPE_FILE',['../group__dfs.html#ggabc6126af1d45847bc59afa0aa3216b04a30351c278162a6e7dbdb10570ae8782e',1,'dragonfs.c']]]
 ];

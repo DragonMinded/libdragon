@@ -89,26 +89,27 @@ $(function() {
 <div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="preprocessor">    switch (level) { \</span></div>
 <div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="preprocessor">    case 1: break; \</span></div>
 <div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="preprocessor">    case 2: __asset_init_compression_lvl2(); break; \</span></div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="preprocessor">    default: assertf(0, &quot;Unsupported compression level: %d&quot;</span>, level); \</div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>    } \</div>
-<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>})</div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span> </div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="keywordtype">void</span> *<a class="code hl_function" href="asset_8h.html#abfc5939446d9920b884df034e89428a9">asset_load</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <span class="keywordtype">int</span> *sz);</div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span> </div>
-<div class="line"><a id="l00145" name="l00145"></a><span class="lineno"><a class="line" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509">  145</a></span>FILE *<a class="code hl_function" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509">asset_fopen</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <span class="keywordtype">int</span> *sz);</div>
-<div class="line"><a id="l00146" name="l00146"></a><span class="lineno">  146</span> </div>
-<div class="line"><a id="l00147" name="l00147"></a><span class="lineno">  147</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span>}</div>
-<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span> </div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="preprocessor">    case 3: __asset_init_compression_lvl3(); break; \</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="preprocessor">    default: assertf(0, &quot;Unsupported compression level: %d&quot;</span>, level); \</div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span>    } \</div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span>})</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span> </div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="keywordtype">void</span> *<a class="code hl_function" href="asset_8h.html#abfc5939446d9920b884df034e89428a9">asset_load</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <span class="keywordtype">int</span> *sz);</div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span> </div>
+<div class="line"><a id="l00147" name="l00147"></a><span class="lineno"><a class="line" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509">  147</a></span>FILE *<a class="code hl_function" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509">asset_fopen</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <span class="keywordtype">int</span> *sz);</div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno">  148</span> </div>
+<div class="line"><a id="l00149" name="l00149"></a><span class="lineno">  149</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span>}</div>
 <div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span><span class="preprocessor">#endif</span></div>
-<div class="ttc" id="aasset_8h_html_abfc5939446d9920b884df034e89428a9"><div class="ttname"><a href="asset_8h.html#abfc5939446d9920b884df034e89428a9">asset_load</a></div><div class="ttdeci">void * asset_load(const char *fn, int *sz)</div><div class="ttdoc">Load an asset file (possibly uncompressing it)</div><div class="ttdef"><b>Definition:</b> asset.c:74</div></div>
+<div class="line"><a id="l00152" name="l00152"></a><span class="lineno">  152</span> </div>
+<div class="line"><a id="l00153" name="l00153"></a><span class="lineno">  153</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="aasset_8h_html_abfc5939446d9920b884df034e89428a9"><div class="ttname"><a href="asset_8h.html#abfc5939446d9920b884df034e89428a9">asset_load</a></div><div class="ttdeci">void * asset_load(const char *fn, int *sz)</div><div class="ttdoc">Load an asset file (possibly uncompressing it)</div><div class="ttdef"><b>Definition:</b> asset.c:150</div></div>
 <div class="ttc" id="aasset_8h_html_ac731b2beb346c99f36fa8f355fb84509"><div class="ttname"><a href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509">asset_fopen</a></div><div class="ttdeci">FILE * asset_fopen(const char *fn, int *sz)</div><div class="ttdoc">Open an asset file for reading (with transparent decompression)</div></div>
 <div class="ttc" id="adebug_8h_html"><div class="ttname"><a href="debug_8h.html">debug.h</a></div><div class="ttdoc">Debugging Support.</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 12:24:03 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Apr 23 2024 22:02:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

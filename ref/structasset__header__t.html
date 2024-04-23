@@ -89,7 +89,7 @@ uint16_t&#160;</td><td class="memItemRight" valign="bottom"><b>algo</b></td></tr
 <tr class="separator:acc9fab985d055182dd2050c5e3413078"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a11532397e35881b5b0e15ecaeb8aa908"><td class="memItemLeft" align="right" valign="top"><a id="a11532397e35881b5b0e15ecaeb8aa908" name="a11532397e35881b5b0e15ecaeb8aa908"></a>
 uint16_t&#160;</td><td class="memItemRight" valign="bottom"><b>flags</b></td></tr>
-<tr class="memdesc:a11532397e35881b5b0e15ecaeb8aa908"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flags (unused for now) <br /></td></tr>
+<tr class="memdesc:a11532397e35881b5b0e15ecaeb8aa908"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flags. <br /></td></tr>
 <tr class="separator:a11532397e35881b5b0e15ecaeb8aa908"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afa099def17e43ef65f12871d6a53fcb1"><td class="memItemLeft" align="right" valign="top"><a id="afa099def17e43ef65f12871d6a53fcb1" name="afa099def17e43ef65f12871d6a53fcb1"></a>
 uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>cmp_size</b></td></tr>
@@ -99,6 +99,10 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>cmp_size</b></td>
 uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>orig_size</b></td></tr>
 <tr class="memdesc:a2459af1d56c5192e60564fc8e2de179f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Original size in bytes. <br /></td></tr>
 <tr class="separator:a2459af1d56c5192e60564fc8e2de179f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9c003831c36190373b848672aa8fa6c1"><td class="memItemLeft" align="right" valign="top"><a id="a9c003831c36190373b848672aa8fa6c1" name="a9c003831c36190373b848672aa8fa6c1"></a>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>inplace_margin</b></td></tr>
+<tr class="memdesc:a9c003831c36190373b848672aa8fa6c1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Margin for in-place decompression. <br /></td></tr>
+<tr class="separator:a9c003831c36190373b848672aa8fa6c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Header of a compressed asset. </p>
@@ -163,7 +167,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>orig_size</b></td
       </table>
 </div><div class="memdoc">
 
-<p>Flags (unused for now) </p>
+<p>Flags. </p>
 
 </div>
 </div>
@@ -199,13 +203,29 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>orig_size</b></td
 
 </div>
 </div>
+<a id="a9c003831c36190373b848672aa8fa6c1" name="a9c003831c36190373b848672aa8fa6c1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9c003831c36190373b848672aa8fa6c1">&#9670;&nbsp;</a></span>inplace_margin</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t asset_header_t::inplace_margin</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Margin for in-place decompression. </p>
+
+</div>
+</div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
 <li><a class="el" href="asset__internal_8h_source.html">asset_internal.h</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 12:24:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Apr 23 2024 22:02:48 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

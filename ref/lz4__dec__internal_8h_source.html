@@ -78,21 +78,21 @@ $(function() {
 <div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span> </div>
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#define LZ4_DECOMPRESS_INPLACE_MARGIN(compressed_size)    (((compressed_size) &gt;&gt; 8) + 32)</span></div>
 <div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span> </div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="keywordtype">int</span> decompress_lz4_full_mem(<span class="keyword">const</span> <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *src, <span class="keywordtype">int</span> src_size,</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span>    <span class="keywordtype">unsigned</span> <span class="keywordtype">char</span> *dst, <span class="keywordtype">int</span> dst_size, <span class="keywordtype">bool</span> dma_race);</div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span> </div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="keywordtype">int</span> decompress_lz4_full_inplace(<span class="keyword">const</span> uint8_t *src, <span class="keywordtype">size_t</span> src_size, uint8_t *dst, <span class="keywordtype">size_t</span> dst_size);</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="preprocessor">#define DECOMPRESS_LZ4_STATE_SIZE  176</span></div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="preprocessor">#define DECOMPRESS_LZ4_STATE_SIZE  (16552)</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="keywordtype">void</span> decompress_lz4_init(<span class="keywordtype">void</span> *state, FILE *fp);</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>ssize_t decompress_lz4_read(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="keywordtype">void</span>* decompress_lz4_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="keywordtype">void</span> decompress_lz4_init(<span class="keywordtype">void</span> *state, FILE *fp, <span class="keywordtype">int</span> winsize);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>ssize_t decompress_lz4_read(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="keywordtype">void</span> decompress_lz4_reset(<span class="keywordtype">void</span> *state);</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="keywordtype">void</span>* decompress_lz4_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="preprocessor">#endif</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 12:24:03 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Apr 23 2024 22:02:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

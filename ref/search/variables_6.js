@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['f_0',['f',['../ym64_8h.html#a134cf98f97982482e86d944eae146a0b',1,'ym64player_t']]],
+  ['f_0',['f',['../ym64_8h.html#a134cf98f97982482e86d944eae146a0b',1,'ym64player_t::f()'],['../structaplib__decompressor__t.html#a70cdbfa8f5bf04664b60cb26c9a0472b',1,'aplib_decompressor_t::f()']]],
   ['fc31_1',['fc31',['../group__exceptions.html#aa89fb9604f39a776e7fcc3e126681c98',1,'reg_block_t']]],
   ['fh_2',['fh',['../xm64_8h.html#a00426b1b53cdbcd9d9488989500381ef',1,'xm64player_t']]],
   ['file_5flen_3',['file_len',['../backtrace_8c.html#ae0fb57aa791cb9b4180513c31598b8d9',1,'symtable_entry_t']]],
