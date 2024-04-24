@@ -92,12 +92,20 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structdirectory__entry"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#structdirectory__entry">directory_entry_t</a></td></tr>
 <tr class="memdesc:structdirectory__entry"><td class="mdescLeft">&#160;</td><td class="mdescRight">Representation of a directory entry.  <a href="group__dfs.html#structdirectory__entry">More...</a><br /></td></tr>
 <tr class="separator:structdirectory__entry"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:structopen__file__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#structopen__file__t">open_file_t</a></td></tr>
-<tr class="memdesc:structopen__file__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open file handle structure.  <a href="group__dfs.html#structopen__file__t">More...</a><br /></td></tr>
-<tr class="separator:structopen__file__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:structdfs__open__file__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#structdfs__open__file__t">dfs_open_file_t</a></td></tr>
+<tr class="memdesc:structdfs__open__file__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open file handle structure.  <a href="group__dfs.html#structdfs__open__file__t">More...</a><br /></td></tr>
+<tr class="separator:structdfs__open__file__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
+<tr class="memitem:ga9ee63404c5bfea0014f8d9eb774f3932"><td class="memItemLeft" align="right" valign="top"><a id="ga9ee63404c5bfea0014f8d9eb774f3932" name="ga9ee63404c5bfea0014f8d9eb774f3932"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>OPENFILE_TO_HANDLE</b>(file)&#160;&#160;&#160;((int)<a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f">PhysicalAddr</a>(file))</td></tr>
+<tr class="memdesc:ga9ee63404c5bfea0014f8d9eb774f3932"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert an open file pointer to a handle. <br /></td></tr>
+<tr class="separator:ga9ee63404c5bfea0014f8d9eb774f3932"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab03bdffe1803ebcbb8f563a6408b1d3d"><td class="memItemLeft" align="right" valign="top"><a id="gab03bdffe1803ebcbb8f563a6408b1d3d" name="gab03bdffe1803ebcbb8f563a6408b1d3d"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>HANDLE_TO_OPENFILE</b>(handle)&#160;&#160;&#160;((<a class="el" href="group__dfs.html#structdfs__open__file__t">dfs_open_file_t</a>*)((uint32_t)(handle) | 0x80000000))</td></tr>
+<tr class="memdesc:gab03bdffe1803ebcbb8f563a6408b1d3d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert a handle to an open file pointer. <br /></td></tr>
+<tr class="separator:gab03bdffe1803ebcbb8f563a6408b1d3d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga8fa12767c574a2f58b937bf32ca0f180"><td class="memItemLeft" align="right" valign="top"><a id="ga8fa12767c574a2f58b937bf32ca0f180" name="ga8fa12767c574a2f58b937bf32ca0f180"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>ROOT_FLAGS</b>&#160;&#160;&#160;0xFFFFFFFF</td></tr>
 <tr class="memdesc:ga8fa12767c574a2f58b937bf32ca0f180"><td class="mdescLeft">&#160;</td><td class="mdescRight">The special ID value in <a class="el" href="group__dfs.html#a57e42046242d6298d88a50a15614f6f9" title="File size and flags. See FLAGS_FILE, FLAGS_DIR and FLAGS_EOF.">directory_entry::flags</a> defining the root sector. <br /></td></tr>
@@ -121,10 +129,6 @@ Macros</h2></td></tr>
 <tr class="memitem:ga1d81e04e879a844f4d733a3982bf85ee"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#ga1d81e04e879a844f4d733a3982bf85ee">DFS_DEFAULT_LOCATION</a>&#160;&#160;&#160;0</td></tr>
 <tr class="memdesc:ga1d81e04e879a844f4d733a3982bf85ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default filesystem location.  <a href="group__dfs.html#ga1d81e04e879a844f4d733a3982bf85ee">More...</a><br /></td></tr>
 <tr class="separator:ga1d81e04e879a844f4d733a3982bf85ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae4777ede3ed2173c78fab7798ad6eddb"><td class="memItemLeft" align="right" valign="top"><a id="gae4777ede3ed2173c78fab7798ad6eddb" name="gae4777ede3ed2173c78fab7798ad6eddb"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_OPEN_FILES</b>&#160;&#160;&#160;4</td></tr>
-<tr class="memdesc:gae4777ede3ed2173c78fab7798ad6eddb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum open files in DragonFS. <br /></td></tr>
-<tr class="separator:gae4777ede3ed2173c78fab7798ad6eddb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gacc9794f655f61a3246ba3fd5c9c67e14"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#gacc9794f655f61a3246ba3fd5c9c67e14">MAX_FILENAME_LEN</a>&#160;&#160;&#160;243</td></tr>
 <tr class="memdesc:gacc9794f655f61a3246ba3fd5c9c67e14"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum filename length.  <a href="group__dfs.html#gacc9794f655f61a3246ba3fd5c9c67e14">More...</a><br /></td></tr>
 <tr class="separator:gacc9794f655f61a3246ba3fd5c9c67e14"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -286,14 +290,14 @@ Offset to start sector of the file. </td></tr>
 
 </div>
 </div>
-<a name="structopen__file__t" id="structopen__file__t"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#structopen__file__t">&#9670;&nbsp;</a></span>open_file_t</h2>
+<a name="structdfs__open__file__t" id="structdfs__open__file__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structdfs__open__file__t">&#9670;&nbsp;</a></span>dfs_open_file_t</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">struct open_file_t</td>
+          <td class="memname">struct dfs_open_file_t</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -301,38 +305,19 @@ Offset to start sector of the file. </td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="aa78fc499e91f0a2fbfacfa7f167c8f94" name="aa78fc499e91f0a2fbfacfa7f167c8f94"></a>uint8_t</td>
-<td class="fieldname">
-cached_data[512]</td>
-<td class="fielddoc">
-Cached data to speed up small reads. <p >We want this buffer to be 8-byte aligned for DMA, but also 16-byte aligned so that it doesn't share cachelines with other members of the structure, so it's easier to handle coherency. </p>
-</td></tr>
-<tr><td class="fieldtype">
-<a id="ae0059c0f91fe71da66584470a30fd8a0" name="ae0059c0f91fe71da66584470a30fd8a0"></a>uint32_t</td>
-<td class="fieldname">
-cached_loc</td>
-<td class="fielddoc">
-location of the cached data </td></tr>
-<tr><td class="fieldtype">
-<a id="ad78cc43a1c22a246771e0bb868016336" name="ad78cc43a1c22a246771e0bb868016336"></a>uint32_t</td>
-<td class="fieldname">
-handle</td>
-<td class="fielddoc">
-The unique file handle to refer to this file by. </td></tr>
-<tr><td class="fieldtype">
-<a id="ac68ef47138956a1685d11820c9ef9869" name="ac68ef47138956a1685d11820c9ef9869"></a>uint32_t</td>
+<a id="a1cc7f84ffe277da9d698aaa355953a33" name="a1cc7f84ffe277da9d698aaa355953a33"></a>uint32_t</td>
 <td class="fieldname">
 size</td>
 <td class="fielddoc">
 The size in bytes of this file. </td></tr>
 <tr><td class="fieldtype">
-<a id="a011176dcc2349b1415d49c33b22ff625" name="a011176dcc2349b1415d49c33b22ff625"></a>uint32_t</td>
+<a id="ab08b372d937c46787f4e4de467fcbfe3" name="ab08b372d937c46787f4e4de467fcbfe3"></a>uint32_t</td>
 <td class="fieldname">
 loc</td>
 <td class="fielddoc">
 The offset of the current location in the file. </td></tr>
 <tr><td class="fieldtype">
-<a id="a5a6b9ed326d780740246d5b4bc61166b" name="a5a6b9ed326d780740246d5b4bc61166b"></a>uint32_t</td>
+<a id="a2ca5cc21b92ae6d9dc09f1275132635e" name="a2ca5cc21b92ae6d9dc09f1275132635e"></a>uint32_t</td>
 <td class="fieldname">
 cart_start_loc</td>
 <td class="fielddoc">
@@ -713,6 +698,7 @@ The offset within the filesystem where the file is stored. </td></tr>
 </div><div class="memdoc">
 
 <p>Read data from a file. </p>
+<p >Note that no caching is performed: if you need to read small amounts (eg: one byte at a time), consider using standard C API instead (fopen()) which performs internal buffering to avoid too much overhead.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[out]</td><td class="paramname">buf</td><td>Buffer to read into </td></tr>
@@ -842,7 +828,7 @@ The offset within the filesystem where the file is stored. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 16:05:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 23:02:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

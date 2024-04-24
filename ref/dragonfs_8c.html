@@ -67,6 +67,7 @@ $(function() {
 </div><!-- top -->
 <div class="header">
   <div class="summary">
+<a href="#define-members">Macros</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">dragonfs.c File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__asset.html">Asset Subsystem</a> &raquo; <a class="el" href="group__dfs.html">DragonFS</a></div></div></div>
@@ -76,6 +77,17 @@ $(function() {
 <p>DragonFS.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:ga9ee63404c5bfea0014f8d9eb774f3932"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>OPENFILE_TO_HANDLE</b>(file)&#160;&#160;&#160;((int)<a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f">PhysicalAddr</a>(file))</td></tr>
+<tr class="memdesc:ga9ee63404c5bfea0014f8d9eb774f3932"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert an open file pointer to a handle. <br /></td></tr>
+<tr class="separator:ga9ee63404c5bfea0014f8d9eb774f3932"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab03bdffe1803ebcbb8f563a6408b1d3d"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>HANDLE_TO_OPENFILE</b>(handle)&#160;&#160;&#160;((<a class="el" href="group__dfs.html#structdfs__open__file__t">dfs_open_file_t</a>*)((uint32_t)(handle) | 0x80000000))</td></tr>
+<tr class="memdesc:gab03bdffe1803ebcbb8f563a6408b1d3d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert a handle to an open file pointer. <br /></td></tr>
+<tr class="separator:gab03bdffe1803ebcbb8f563a6408b1d3d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
 <tr class="memitem:ga99fb83031ce9923c84392b4e92f956b5"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom">{ <a class="el" href="group__dfs.html#gga99fb83031ce9923c84392b4e92f956b5aa30e5e88c091325c9384d853412526f7">WALK_CHDIR</a>
@@ -139,7 +151,7 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>dfs_strerror<
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 16:05:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 23:02:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

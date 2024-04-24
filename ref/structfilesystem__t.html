@@ -105,7 +105,8 @@ Data Fields</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Filesystem hook structure. </p>
-<p >Filesystems that do not support one of more of the following methods should provide null pointers instead of empty functions. The newlib hooks will set errno to ENOSYS and return a proper error to userspace. </p>
+<p >Filesystems that do not support one of more of the following methods should provide null pointers instead of empty functions. The newlib hooks will set errno to ENOSYS and return a proper error to userspace.</p>
+<p >All filesystems functions must set errno in case of error, to report the proper error to userspace. </p>
 </div><h2 class="groupheader">Field Documentation</h2>
 <a id="a65220025714418f98076e1334237408e" name="a65220025714418f98076e1334237408e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a65220025714418f98076e1334237408e">&#9670;&nbsp;</a></span>open</h2>
@@ -127,7 +128,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>A pointer to an arbitrary file handle assigned by the filesystem code or NULL on error. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>A pointer to an arbitrary file handle assigned by the filesystem code or NULL on error (and errno is set). </dd></dl>
 
 </div>
 </div>
@@ -151,7 +152,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error (and errno is set). </dd></dl>
 
 </div>
 </div>
@@ -176,7 +177,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>The absolute offset in bytes after the seek. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>The absolute offset in bytes after the seek or a negative value on failure (and errno is set). </dd></dl>
 
 </div>
 </div>
@@ -201,7 +202,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes read into ptr or a negative value on failure. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes read into ptr or a negative value on failure (and errno is set). </dd></dl>
 
 </div>
 </div>
@@ -226,7 +227,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes written or a negative value on failure. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes written or a negative value on failure (and errno is set). </dd></dl>
 
 </div>
 </div>
@@ -249,7 +250,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure (and errno is set). </dd></dl>
 
 </div>
 </div>
@@ -272,7 +273,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure (and errno is set). </dd></dl>
 
 </div>
 </div>
@@ -329,7 +330,7 @@ Data Fields</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 16:05:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 23:02:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

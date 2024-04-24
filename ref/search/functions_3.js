@@ -1,7 +1,7 @@
 var searchData=
 [
   ['chown_0',['chown',['../group__system.html#ga1b89c77687f2ddc931aff3982814c39f',1,'system.c']]],
-  ['close_1',['close',['../group__system.html#gaacad1d135ca2779b583623678e36db7c',1,'system.c']]],
+  ['close_1',['close',['../group__system.html#ga8877deace0c63591fee0cc9c94d249d3',1,'system.c']]],
   ['color_5ffrom_5fpacked16_2',['color_from_packed16',['../group__graphics.html#ga3a142c3b250eae98b898f95f40a9375d',1,'graphics.h']]],
   ['color_5ffrom_5fpacked32_3',['color_from_packed32',['../group__graphics.html#ga0977a5620d59a7b833aa10fc3145009e',1,'graphics.h']]],
   ['color_5fto_5fpacked16_4',['color_to_packed16',['../group__graphics.html#gaa6a940868a1729b4e15525af86244f5a',1,'graphics.h']]],

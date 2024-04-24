@@ -96,9 +96,6 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structfs__mapping__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#structfs__mapping__t">fs_mapping_t</a></td></tr>
 <tr class="memdesc:structfs__mapping__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Filesystem mapping structure.  <a href="group__system.html#structfs__mapping__t">More...</a><br /></td></tr>
 <tr class="separator:structfs__mapping__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:structfs__handle__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#structfs__handle__t">fs_handle_t</a></td></tr>
-<tr class="memdesc:structfs__handle__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Filesystem open handle structure.  <a href="group__system.html#structfs__handle__t">More...</a><br /></td></tr>
-<tr class="separator:structfs__handle__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:structdir__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#structdir__t">dir_t</a></td></tr>
 <tr class="memdesc:structdir__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Directory entry structure.  <a href="group__system.html#structdir__t">More...</a><br /></td></tr>
 <tr class="separator:structdir__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -117,14 +114,37 @@ Macros</h2></td></tr>
 <tr class="memitem:gab0c7932a38248a4a2527c35dc39564cb"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gab0c7932a38248a4a2527c35dc39564cb">DEBUG_OUT</a>(x)&#160;&#160;&#160;((uint32_t *)0xA4400044)[0] = ((uint32_t)(x))</td></tr>
 <tr class="memdesc:gab0c7932a38248a4a2527c35dc39564cb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write to the MESS debug register.  <a href="group__system.html#gab0c7932a38248a4a2527c35dc39564cb">More...</a><br /></td></tr>
 <tr class="separator:gab0c7932a38248a4a2527c35dc39564cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab70d0d931ae689cf13ed804323d6c2ff"><td class="memItemLeft" align="right" valign="top"><a id="gab70d0d931ae689cf13ed804323d6c2ff" name="gab70d0d931ae689cf13ed804323d6c2ff"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>BITS</b>(v,  b,  e)&#160;&#160;&#160;((unsigned int)(v) &lt;&lt; (31-(e)) &gt;&gt; (31-(e)+(b)))</td></tr>
+<tr class="memdesc:gab70d0d931ae689cf13ed804323d6c2ff"><td class="mdescLeft">&#160;</td><td class="mdescRight">Extract bits from word. <br /></td></tr>
+<tr class="separator:gab70d0d931ae689cf13ed804323d6c2ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0521c5aa7398d42869e19f78050a2b0f"><td class="memItemLeft" align="right" valign="top"><a id="ga0521c5aa7398d42869e19f78050a2b0f" name="ga0521c5aa7398d42869e19f78050a2b0f"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>HANDLE_MAX_BUCKETS</b>&#160;&#160;&#160;32</td></tr>
+<tr class="memdesc:ga0521c5aa7398d42869e19f78050a2b0f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of buckets file handles are divided into. <br /></td></tr>
+<tr class="separator:ga0521c5aa7398d42869e19f78050a2b0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga7791254fd88f7c9ad55f8bfd96892531"><td class="memItemLeft" align="right" valign="top"><a id="ga7791254fd88f7c9ad55f8bfd96892531" name="ga7791254fd88f7c9ad55f8bfd96892531"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>HANDLE_BUCKET_SIZE</b>&#160;&#160;&#160;32</td></tr>
+<tr class="memdesc:ga7791254fd88f7c9ad55f8bfd96892531"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of each bucket of file handles. <br /></td></tr>
+<tr class="separator:ga7791254fd88f7c9ad55f8bfd96892531"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaca0fb58608fb52a6e98cb85945a7f84e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gaca0fb58608fb52a6e98cb85945a7f84e">FILENO_MAKE</a>(bkt_idx,  bkt_pos,  fs_index)&#160;&#160;&#160;( (bkt_pos) | ((bkt_idx) &lt;&lt; 5) | (((fs_index)+1) &lt;&lt; 11) )</td></tr>
+<tr class="memdesc:gaca0fb58608fb52a6e98cb85945a7f84e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a fileno.  <a href="group__system.html#gaca0fb58608fb52a6e98cb85945a7f84e">More...</a><br /></td></tr>
+<tr class="separator:gaca0fb58608fb52a6e98cb85945a7f84e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga762f8c798dbbeb2f5e95d028f30ebc0c"><td class="memItemLeft" align="right" valign="top"><a id="ga762f8c798dbbeb2f5e95d028f30ebc0c" name="ga762f8c798dbbeb2f5e95d028f30ebc0c"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>FILENO_GET_FS_INDEX</b>(fileno)&#160;&#160;&#160;((int)<a class="el" href="group__system.html#gab70d0d931ae689cf13ed804323d6c2ff">BITS</a>( (fileno), 11, 14 ) - 1)</td></tr>
+<tr class="memdesc:ga762f8c798dbbeb2f5e95d028f30ebc0c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Extract the filesystem index from a fileno. <br /></td></tr>
+<tr class="separator:ga762f8c798dbbeb2f5e95d028f30ebc0c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafaa3b6dc9367fb33b11e0d6a6022619f"><td class="memItemLeft" align="right" valign="top"><a id="gafaa3b6dc9367fb33b11e0d6a6022619f" name="gafaa3b6dc9367fb33b11e0d6a6022619f"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>FILENO_GET_BUCKET_IDX</b>(fileno)&#160;&#160;&#160;<a class="el" href="group__system.html#gab70d0d931ae689cf13ed804323d6c2ff">BITS</a>( (fileno),  5, 10 )</td></tr>
+<tr class="memdesc:gafaa3b6dc9367fb33b11e0d6a6022619f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Extract the bucket index from a fileno. <br /></td></tr>
+<tr class="separator:gafaa3b6dc9367fb33b11e0d6a6022619f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab1e0602f5794e66b5b66675da9ee826b"><td class="memItemLeft" align="right" valign="top"><a id="gab1e0602f5794e66b5b66675da9ee826b" name="gab1e0602f5794e66b5b66675da9ee826b"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>FILENO_GET_BUCKET_POS</b>(fileno)&#160;&#160;&#160;<a class="el" href="group__system.html#gab70d0d931ae689cf13ed804323d6c2ff">BITS</a>( (fileno),  0,  4 )</td></tr>
+<tr class="memdesc:gab1e0602f5794e66b5b66675da9ee826b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Extract the bucket position from a fileno. <br /></td></tr>
+<tr class="separator:gab1e0602f5794e66b5b66675da9ee826b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gad6c0e74019637e82fd86897e2d4a2a25"><td class="memItemLeft" align="right" valign="top"><a id="gad6c0e74019637e82fd86897e2d4a2a25" name="gad6c0e74019637e82fd86897e2d4a2a25"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_FILESYSTEMS</b>&#160;&#160;&#160;10</td></tr>
 <tr class="memdesc:gad6c0e74019637e82fd86897e2d4a2a25"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of filesystems that can be attached to the system. <br /></td></tr>
 <tr class="separator:gad6c0e74019637e82fd86897e2d4a2a25"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gabc61aac6da74a8a3fb9d8e883f8c3468"><td class="memItemLeft" align="right" valign="top"><a id="gabc61aac6da74a8a3fb9d8e883f8c3468" name="gabc61aac6da74a8a3fb9d8e883f8c3468"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_OPEN_HANDLES</b>&#160;&#160;&#160;100</td></tr>
-<tr class="memdesc:gabc61aac6da74a8a3fb9d8e883f8c3468"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of open handles that can be maintained at one time. <br /></td></tr>
-<tr class="separator:gabc61aac6da74a8a3fb9d8e883f8c3468"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
@@ -152,9 +172,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__wrap___do_global_ct
 <tr class="memitem:ga52651bf1923b2c97e8b4da0ac6b99fdb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga52651bf1923b2c97e8b4da0ac6b99fdb">disable_interrupts</a> ()</td></tr>
 <tr class="memdesc:ga52651bf1923b2c97e8b4da0ac6b99fdb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Disable interrupts systemwide.  <a href="group__system.html#ga52651bf1923b2c97e8b4da0ac6b99fdb">More...</a><br /></td></tr>
 <tr class="separator:ga52651bf1923b2c97e8b4da0ac6b99fdb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaacad1d135ca2779b583623678e36db7c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gaacad1d135ca2779b583623678e36db7c">close</a> (int fildes)</td></tr>
-<tr class="memdesc:gaacad1d135ca2779b583623678e36db7c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close a file.  <a href="group__system.html#gaacad1d135ca2779b583623678e36db7c">More...</a><br /></td></tr>
-<tr class="separator:gaacad1d135ca2779b583623678e36db7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga8877deace0c63591fee0cc9c94d249d3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga8877deace0c63591fee0cc9c94d249d3">close</a> (int fileno)</td></tr>
+<tr class="memdesc:ga8877deace0c63591fee0cc9c94d249d3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close a file.  <a href="group__system.html#ga8877deace0c63591fee0cc9c94d249d3">More...</a><br /></td></tr>
+<tr class="separator:ga8877deace0c63591fee0cc9c94d249d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gacca6d970a0153055aa8c962067cdfdf1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gacca6d970a0153055aa8c962067cdfdf1">attach_filesystem</a> (const char *const prefix, <a class="el" href="structfilesystem__t.html">filesystem_t</a> *filesystem)</td></tr>
 <tr class="memdesc:gacca6d970a0153055aa8c962067cdfdf1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a filesystem with newlib.  <a href="group__system.html#gacca6d970a0153055aa8c962067cdfdf1">More...</a><br /></td></tr>
 <tr class="separator:gacca6d970a0153055aa8c962067cdfdf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -173,9 +193,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__wrap___do_global_ct
 <tr class="memitem:gacd2e1ded4bb6fce4500438bf928330f4"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gacd2e1ded4bb6fce4500438bf928330f4">fork</a> (void)</td></tr>
 <tr class="memdesc:gacd2e1ded4bb6fce4500438bf928330f4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fork execution into two threads.  <a href="group__system.html#gacd2e1ded4bb6fce4500438bf928330f4">More...</a><br /></td></tr>
 <tr class="separator:gacd2e1ded4bb6fce4500438bf928330f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gad10a66a0359c37d910312be74233118a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gad10a66a0359c37d910312be74233118a">fstat</a> (int fildes, struct <a class="el" href="group__system.html#ga6267ee98ea4ca67296665534d549132a">stat</a> *st)</td></tr>
-<tr class="memdesc:gad10a66a0359c37d910312be74233118a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return stats on an open file handle.  <a href="group__system.html#gad10a66a0359c37d910312be74233118a">More...</a><br /></td></tr>
-<tr class="separator:gad10a66a0359c37d910312be74233118a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6104ed890cf8de16ee29498f40265c9f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga6104ed890cf8de16ee29498f40265c9f">fstat</a> (int fileno, struct <a class="el" href="group__system.html#ga6267ee98ea4ca67296665534d549132a">stat</a> *st)</td></tr>
+<tr class="memdesc:ga6104ed890cf8de16ee29498f40265c9f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return stats on an open file handle.  <a href="group__system.html#ga6104ed890cf8de16ee29498f40265c9f">More...</a><br /></td></tr>
+<tr class="separator:ga6104ed890cf8de16ee29498f40265c9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga939cb25a305fe68aad9b365077f1a8c7"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga939cb25a305fe68aad9b365077f1a8c7">getpid</a> (void)</td></tr>
 <tr class="memdesc:ga939cb25a305fe68aad9b365077f1a8c7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the PID of the current thread.  <a href="group__system.html#ga939cb25a305fe68aad9b365077f1a8c7">More...</a><br /></td></tr>
 <tr class="separator:ga939cb25a305fe68aad9b365077f1a8c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -197,9 +217,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__wrap___do_global_ct
 <tr class="memitem:ga94873fa89201b877351b663b9f5b040d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga94873fa89201b877351b663b9f5b040d">open</a> (const char *file, int flags,...)</td></tr>
 <tr class="memdesc:ga94873fa89201b877351b663b9f5b040d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open a file given a path.  <a href="group__system.html#ga94873fa89201b877351b663b9f5b040d">More...</a><br /></td></tr>
 <tr class="separator:ga94873fa89201b877351b663b9f5b040d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaa0c5d610f8b61891a7cf5fca2671b6f9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gaa0c5d610f8b61891a7cf5fca2671b6f9">read</a> (int file, char *ptr, int len)</td></tr>
-<tr class="memdesc:gaa0c5d610f8b61891a7cf5fca2671b6f9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read data from a file.  <a href="group__system.html#gaa0c5d610f8b61891a7cf5fca2671b6f9">More...</a><br /></td></tr>
-<tr class="separator:gaa0c5d610f8b61891a7cf5fca2671b6f9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0b746547993d7baf3b092ae620bfa666"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga0b746547993d7baf3b092ae620bfa666">read</a> (int fileno, char *ptr, int len)</td></tr>
+<tr class="memdesc:ga0b746547993d7baf3b092ae620bfa666"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read data from a file.  <a href="group__system.html#ga0b746547993d7baf3b092ae620bfa666">More...</a><br /></td></tr>
+<tr class="separator:ga0b746547993d7baf3b092ae620bfa666"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gae6da607ddfd489b206b2707ee9ffe014"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gae6da607ddfd489b206b2707ee9ffe014">readlink</a> (const char *path, char *buf, size_t bufsize)</td></tr>
 <tr class="memdesc:gae6da607ddfd489b206b2707ee9ffe014"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read a link.  <a href="group__system.html#gae6da607ddfd489b206b2707ee9ffe014">More...</a><br /></td></tr>
 <tr class="separator:gae6da607ddfd489b206b2707ee9ffe014"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -344,43 +364,6 @@ Filesystem callback pointers. </td></tr>
 
 </div>
 </div>
-<a name="structfs__handle__t" id="structfs__handle__t"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#structfs__handle__t">&#9670;&nbsp;</a></span>fs_handle_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">struct fs_handle_t</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<div class="textblock"><p >Filesystem open handle structure. </p>
-<p >This is used to look up the correct filesystem function to call when working with an open file handle </p>
-</div><table class="fieldtable">
-<tr><th colspan="3">Data Fields</th></tr>
-<tr><td class="fieldtype">
-<a id="a984ea58ce3fa03cd2585813a3eb59f80" name="a984ea58ce3fa03cd2585813a3eb59f80"></a>int</td>
-<td class="fieldname">
-fs_mapping</td>
-<td class="fielddoc">
-Index into <code>filesystems</code> array. </td></tr>
-<tr><td class="fieldtype">
-<a id="af5397201a443a9f264dec124b676afdd" name="af5397201a443a9f264dec124b676afdd"></a>void *</td>
-<td class="fieldname">
-handle</td>
-<td class="fielddoc">
-The handle assigned to this open file as returned by the filesystem code called to handle the open operation. Will be passed to all subsequent file operations on the file. </td></tr>
-<tr><td class="fieldtype">
-<a id="a063dee96aca8905dae49a6375d4a033b" name="a063dee96aca8905dae49a6375d4a033b"></a>int</td>
-<td class="fieldname">
-fileno</td>
-<td class="fielddoc">
-The handle assigned by the filesystem code that will be returned to newlib. All subsequent newlib calls will use this handle which will be used to look up the internal reference. </td></tr>
-</table>
-
-</div>
-</div>
 <a name="structdir__t" id="structdir__t"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structdir__t">&#9670;&nbsp;</a></span>dir_t</h2>
 
@@ -455,6 +438,46 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
+<a id="gaca0fb58608fb52a6e98cb85945a7f84e" name="gaca0fb58608fb52a6e98cb85945a7f84e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaca0fb58608fb52a6e98cb85945a7f84e">&#9670;&nbsp;</a></span>FILENO_MAKE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define FILENO_MAKE</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">bkt_idx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">bkt_pos, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">fs_index&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td>&#160;&#160;&#160;( (bkt_pos) | ((bkt_idx) &lt;&lt; 5) | (((fs_index)+1) &lt;&lt; 11) )</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Create a fileno. </p>
+<p >Filenos are created as bitfields containing a few fields.</p>
+<p >They contain the indices required to access the handle in handle_map: the bucket index and the position within the bucket where the handle is.</p>
+<p >They also contain the filesystem index, so that we always know which filesystem use to operate on the handle. Notice that the index is stored 1-based instead of 0-based, so that the special filenos 1,2,3 (used for stdin, stdout and stderr by C standard libraries) will never conflict with a fileno made by FILENO_MAKE.</p>
+<dl class="section note"><dt>Note</dt><dd>POSIX does not specify any specific limit for filenos returned by <a class="el" href="group__system.html#ga94873fa89201b877351b663b9f5b040d" title="Open a file given a path.">open()</a>, besides that they need to be non-negative integers. Newlib stores them into a 16-bit signed integer though, so we are actually limited to 15 bits for them. </dd></dl>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ga2d1bf5fe189639067937a3af7a0028e0" name="ga2d1bf5fe189639067937a3af7a0028e0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga2d1bf5fe189639067937a3af7a0028e0">&#9670;&nbsp;</a></span>__do_global_ctors()</h2>
@@ -517,8 +540,8 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="gaacad1d135ca2779b583623678e36db7c" name="gaacad1d135ca2779b583623678e36db7c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaacad1d135ca2779b583623678e36db7c">&#9670;&nbsp;</a></span>close()</h2>
+<a id="ga8877deace0c63591fee0cc9c94d249d3" name="ga8877deace0c63591fee0cc9c94d249d3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga8877deace0c63591fee0cc9c94d249d3">&#9670;&nbsp;</a></span>close()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -527,7 +550,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
           <td class="memname">int close </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fildes</em></td><td>)</td>
+          <td class="paramname"><em>fileno</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
@@ -536,7 +559,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 <p>Close a file. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">fildes</td><td>File handle of the file to close</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">fileno</td><td>File handle of the file to close</td></tr>
   </table>
   </dd>
 </dl>
@@ -768,8 +791,8 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="gad10a66a0359c37d910312be74233118a" name="gad10a66a0359c37d910312be74233118a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad10a66a0359c37d910312be74233118a">&#9670;&nbsp;</a></span>fstat()</h2>
+<a id="ga6104ed890cf8de16ee29498f40265c9f" name="ga6104ed890cf8de16ee29498f40265c9f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6104ed890cf8de16ee29498f40265c9f">&#9670;&nbsp;</a></span>fstat()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -778,7 +801,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
           <td class="memname">int fstat </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fildes</em>, </td>
+          <td class="paramname"><em>fileno</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -797,7 +820,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 <p>Return stats on an open file handle. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">fildes</td><td>File handle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">fileno</td><td>File handle </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">st</td><td>Pointer to stat struct to be filled</td></tr>
   </table>
   </dd>
@@ -1061,8 +1084,8 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="gaa0c5d610f8b61891a7cf5fca2671b6f9" name="gaa0c5d610f8b61891a7cf5fca2671b6f9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa0c5d610f8b61891a7cf5fca2671b6f9">&#9670;&nbsp;</a></span>read()</h2>
+<a id="ga0b746547993d7baf3b092ae620bfa666" name="ga0b746547993d7baf3b092ae620bfa666"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0b746547993d7baf3b092ae620bfa666">&#9670;&nbsp;</a></span>read()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1071,7 +1094,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
           <td class="memname">int read </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>file</em>, </td>
+          <td class="paramname"><em>fileno</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -1096,7 +1119,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 <p>Read data from a file. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>File handle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">fileno</td><td>Fileno for this file </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">ptr</td><td>Data pointer to read data to </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length in bytes of data to read</td></tr>
   </table>
@@ -1673,7 +1696,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 16:05:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 23:02:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

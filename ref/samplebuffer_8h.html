@@ -106,7 +106,7 @@ Functions</h2></td></tr>
 <tr class="memitem:ab36c29dc062a982b02d90c8515121b9a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="samplebuffer_8h.html#ab36c29dc062a982b02d90c8515121b9a">samplebuffer_set_bps</a> (<a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *buf, int bps)</td></tr>
 <tr class="memdesc:ab36c29dc062a982b02d90c8515121b9a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Configure the bit width of the samples stored in the buffer.  <a href="samplebuffer_8h.html#ab36c29dc062a982b02d90c8515121b9a">More...</a><br /></td></tr>
 <tr class="separator:ab36c29dc062a982b02d90c8515121b9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae1ed7b8b55c07c6c6a4c6471e94e6145"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="samplebuffer_8h.html#ae1ed7b8b55c07c6c6a4c6471e94e6145">samplebuffer_set_waveform</a> (<a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *buf, <a class="el" href="mixer_8h.html#ab0e995bf04880a3e14f689f48fdb2475">WaveformRead</a> <a class="el" href="group__system.html#gaa0c5d610f8b61891a7cf5fca2671b6f9">read</a>, void *ctx)</td></tr>
+<tr class="memitem:ae1ed7b8b55c07c6c6a4c6471e94e6145"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="samplebuffer_8h.html#ae1ed7b8b55c07c6c6a4c6471e94e6145">samplebuffer_set_waveform</a> (<a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *buf, <a class="el" href="mixer_8h.html#ab0e995bf04880a3e14f689f48fdb2475">WaveformRead</a> <a class="el" href="group__system.html#ga0b746547993d7baf3b092ae620bfa666">read</a>, void *ctx)</td></tr>
 <tr class="separator:ae1ed7b8b55c07c6c6a4c6471e94e6145"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7b810c10cdb970e8bebbfddce80fdea1"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="samplebuffer_8h.html#a7b810c10cdb970e8bebbfddce80fdea1">samplebuffer_get</a> (<a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *buf, int wpos, int *wlen)</td></tr>
 <tr class="memdesc:a7b810c10cdb970e8bebbfddce80fdea1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get a pointer to specific set of samples in the buffer (zero-copy).  <a href="samplebuffer_8h.html#a7b810c10cdb970e8bebbfddce80fdea1">More...</a><br /></td></tr>
@@ -176,6 +176,13 @@ widx</td>
 ridx</td>
 <td class="fielddoc">
 <p >Read pointer in the sample buffer (expressed as index of samples). It remembers which sample was last read. Assuming a forward streaming, it is used by the sample buffer to discard unused samples when not needed anymore. </p>
+</td></tr>
+<tr><td class="fieldtype">
+<a id="aba83de716010d8ba758a9be365af0fa4" name="aba83de716010d8ba758a9be365af0fa4"></a>int</td>
+<td class="fieldname">
+wnext</td>
+<td class="fielddoc">
+<p >Value of the "next" sample to be loaded into the sample buffer, to continue a linear reading. This is used to notify the wv_read function whether a seeking was performed or not. </p>
 </td></tr>
 <tr><td class="fieldtype">
 <a id="a9bc76559025664618f3fcc8c3abde8e5" name="a9bc76559025664618f3fcc8c3abde8e5"></a><a class="el" href="mixer_8h.html#ab0e995bf04880a3e14f689f48fdb2475">WaveformRead</a></td>
@@ -589,7 +596,7 @@ wv_ctx</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 16:05:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 23:02:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

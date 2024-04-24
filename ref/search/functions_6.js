@@ -8,5 +8,5 @@ var searchData=
   ['fork_5',['fork',['../group__system.html#gacd2e1ded4bb6fce4500438bf928330f4',1,'system.c']]],
   ['format_5fmempak_6',['format_mempak',['../group__cpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'format_mempak(int controller):&#160;mempak.c'],['../group__controllerpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'format_mempak(int controller):&#160;mempak.c']]],
   ['free_5funcached_7',['free_uncached',['../group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d',1,'n64sys.c']]],
-  ['fstat_8',['fstat',['../group__system.html#gad10a66a0359c37d910312be74233118a',1,'system.c']]]
+  ['fstat_8',['fstat',['../group__system.html#ga6104ed890cf8de16ee29498f40265c9f',1,'system.c']]]
 ];
