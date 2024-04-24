@@ -12,6 +12,7 @@
 #include "system.h"
 #include "dfsinternal.h"
 #include "rompak_internal.h"
+#include "utils.h"
 
 /**
  * @defgroup dfs DragonFS
@@ -796,7 +797,6 @@ int dfs_open(const char * const path)
     file->size = get_size(&t_node);
     file->loc = 0;
     file->cart_start_loc = get_start_location(&t_node);
-    file->cached_loc = 0xFFFFFFFF;
 
     return file->handle;
 }
@@ -924,7 +924,11 @@ int dfs_tell(uint32_t handle)
 
 /**
  * @brief Read data from a file
- *
+ * 
+ * Note that no caching is performed: if you need to read small amounts
+ * (eg: one byte at a time), consider using standard C API instead (fopen())
+ * which performs internal buffering to avoid too much overhead.
+ * 
  * @param[out] buf
  *             Buffer to read into
  * @param[in]  size
@@ -953,7 +957,6 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
     }
 
     int to_read = size * count;
-    int did_read = 0;
 
     /* Bounds check to make sure we don't read past the end */
     if(file->loc + to_read > file->size)
@@ -966,72 +969,57 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
         return 0;
 
     /* Fast-path. If possibly, we want to DMA directly into the destination
-     * buffer, without using any intermediate buffers. The rules are convoluted
-     * because we try to squeeze maximum performance here and thus we rely also
-     * on undocumented behaviors of PI DMA.
-     * The rules we follow are:
-     *
-     *   * The RDRAM destination pointer must be 8-bytes aligned.
-     *   * The ROM location must be 2-bytes aligned.
-     *   * The length must be either less than 0x7F (all values accepted),
-     *     or even.
+     * buffer, without using any intermediate buffers. We can do that only if
+     * the buffer and the ROM location have the same 2-byte phase.
      */
-    bool rom_aligned = (file->loc & 1) == 0;
-    bool ram_aligned = ((uint32_t)buf & 7) == 0;
-    bool len_aligned = (to_read < 0x7F) || ((to_read & 1) == 0);
-    if (rom_aligned && ram_aligned && len_aligned)
+    if (LIKELY(!(((uint32_t)buf ^ (uint32_t)file->loc) & 1)))
     {
-        /* 16-byte alignment: we can simply invalidate the buffer.
-         * 8-byte alignment: we need to also writeback in case the partial
-         *  cachelines have hot data to write back. */
+        /* Calculate ROM address. NOTE: do this before invalidation,
+         * in case the file object is false-sharing the buffer. */
+        uint32_t rom_address = file->cart_start_loc + file->loc;
+
+        /* 16-byte alignment: we can simply invalidate the buffer. */
         if ((((uint32_t)buf | to_read) & 15) == 0)
             data_cache_hit_invalidate(buf, to_read);
         else
             data_cache_hit_writeback_invalidate(buf, to_read);
 
-        dma_read((void *)(((uint32_t)buf) & 0x1FFFFFFF),
-            file->cart_start_loc + file->loc, to_read);
+        dma_read(buf, rom_address, to_read);
 
         file->loc += to_read;
         return to_read;
     }
 
-    /* Something we can actually increment! */
+    /* It was not possible to perform a direct DMA read into the destination
+     * buffer. Use an intermediate buffer on the stack to perform the read. */
     uint8_t *data = buf;
-    const int CACHED_SIZE = sizeof(file->cached_data);
+    const int CHUNK_SIZE = 512;
 
-    /* Loop in, reading data in the cached buffer */
+    /* Allocate the buffer, aligned to 16 bytes */
+    uint8_t chunk_base[CHUNK_SIZE+16] __attribute__((aligned(16)));
+    data_cache_hit_invalidate(chunk_base, CHUNK_SIZE+16);
+
+    /* Get a pointer to it with the same 2-byte phase of the file current location.
+     * This guarantees that we can actually DMA into it directly. */
+    uint8_t *chunk = UncachedAddr(chunk_base);
+    if (file->loc & 1)
+        chunk++;
+
     while(to_read)
     {
-        /* Check if we need to read into the cached buffer */
-        if (file->loc < file->cached_loc || file->loc >= file->cached_loc+CACHED_SIZE)
-        {
-            /* We need to read from a 8-byte aligned location, so calculate it */
-            file->cached_loc = file->loc & ~7;
+        int n = MIN(to_read, CHUNK_SIZE);
 
-            /* Invalidate the cached data. No need to writeback here because
-               CACHE_SIZE is a multiple of 16 bytes and the data is aligned,
-               so the cachelines are not shared with other variables. */
-            data_cache_hit_invalidate(file->cached_data, CACHED_SIZE);
+        /* Read the data from ROM into the stack buffer, and then and
+         * copy it to the destination buffer. */
+        dma_read(chunk, file->cart_start_loc + file->loc, n);
+        memcpy(data, chunk, n);
 
-            dma_read((void *)(((uint32_t)file->cached_data) & 0x1FFFFFFF),
-                file->cart_start_loc + file->cached_loc, CACHED_SIZE);
-        }
-
-        /* Pull as much data as we can from the current buffer */
-        int copy = file->cached_loc+CACHED_SIZE - file->loc;
-        if (copy > to_read)
-            copy = to_read;
-
-        memcpy(data, file->cached_data + (file->loc - file->cached_loc), copy);
-
-        file->loc += copy;
-        data += copy;
-        to_read -= copy;
-        did_read += copy;
+        file->loc += n;
+        data += n;
+        to_read -= n;
     }
 
-    return did_read;
+    return (void*)data - buf;
 }
 
 /**

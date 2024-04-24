@@ -539,7 +539,6 @@ int dfs_open(const char * const path)
     file->size = get_size(&t_node);
     file->loc = 0;
     file->cart_start_loc = t_node.file_pointer;
-    file->cached_loc = 0xFFFFFFFF;
 
     return file->handle;
 }
