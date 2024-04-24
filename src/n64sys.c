@@ -368,7 +368,7 @@ void wait_ms( unsigned long wait_ms )
  * @brief Initialize COP1 with default settings that prevent undesirable exceptions.
  *
  */
-__attribute__((constructor)) void __init_cop1()
+__attribute__((constructor)) void __init_cop1(void)
 {
     /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();
