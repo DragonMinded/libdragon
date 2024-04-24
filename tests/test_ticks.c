@@ -80,6 +80,7 @@ void test_ticks(TestContext *ctx) {
 	uint32_t ticks_1;
 
 	uint32_t continue_ticks = TICKS_READ();
+	DEFER(C0_WRITE_COUNT(continue_ticks));
 
 	disable_interrupts();
 
@@ -121,6 +122,7 @@ void test_ticks(TestContext *ctx) {
 
 	// Prepare for next test
 	register_VI_handler(frame_callback);
+	DEFER(unregister_VI_handler(frame_callback));
 	enable_interrupts();
 
 	ASSERT(ticks_0 == 0 && ticks_1 == (!sys_bbplayer() ? 45812 : 30542), "not reading correct register or function not inlined. Received %lu and %lu", ticks_0, ticks_1);
@@ -135,8 +137,4 @@ void test_ticks(TestContext *ctx) {
 	// iQue, so just skip this part.
 	if (!sys_bbplayer())
 		test_ticks_func(ctx, wait_ms, "wait_ms", test_ticks_ms_cases, sizeof(test_ticks_ms_cases) / sizeof(test_ticks_ms_cases[0]));
-
-	// Cleanup
-	unregister_VI_handler(frame_callback);
-	C0_WRITE_COUNT(continue_ticks);
 }
