@@ -1308,15 +1308,13 @@ static int __findnext( dir_t *dir )
  * to allow posix access to DragonFS filesystem.
  */
 static filesystem_t dragon_fs = {
-    __open,
-    __fstat,
-    __lseek,
-    __read,
-    0,
-    __close,
-    0,
-    __findfirst,
-    __findnext
+    .open = __open,
+    .fstat = __fstat,
+    .lseek = __lseek,
+    .read = __read,
+    .close = __close,
+    .findfirst = __findfirst,
+    .findnext = __findnext,
 };
 
 /**
