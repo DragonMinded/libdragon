@@ -113,6 +113,13 @@ typedef struct samplebuffer_s {
     int ridx;
 
     /**
+     * Value of the "next" sample to be loaded into the sample buffer,
+     * to continue a linear reading. This is used to notify the wv_read
+     * function whether a seeking was performed or not.
+     */
+    int wnext;
+
+    /**
      * wv_read is invoked by samplebuffer_get whenever more samples are
      * requested by the mixer. See #WaveformRead for more information.
      */

@@ -34,6 +34,7 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes) {
 	buf->ptr_and_flags = (uint32_t)uncached_mem;
 	assert((buf->ptr_and_flags & 7) == 0);
 	buf->size = nbytes;
+	buf->wnext = -1;
 }
 
 void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
@@ -78,8 +79,13 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 	if (buf->widx == 0 || wpos < buf->wpos || wpos > buf->wpos+buf->widx) {
 		// If the requested position is totally outside
 		// the existing range (and not even consecutive),
-		// we assume the mixer had to seek. So flush the
-		// buffer and decode from scratch with seeking.
+		// Flush the buffer and decode from scratch.
+		// Normally this is because of seeking, but might
+		// also be just because we discarded all the contents
+		// of the buffer, so be sure to set seeking only if
+		// the position is different from what we expected.
+		tracef("samplebuffer_get: flushing buffer: buf->widx=%x buf->wpos=%x buf->wnext=%x\n", buf->widx, buf->wpos, buf->wnext);
+		bool seeking = wpos != buf->wnext;	
 		samplebuffer_flush(buf);
 		buf->wpos = wpos;
 		// Avoid setting a position that is odd, because it would case a
@@ -89,7 +95,8 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if ((buf->wpos << bps) & 1) {
 			buf->wpos--; len++;
 		}
-		buf->wv_read(buf->wv_ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), true);
+		buf->wv_read(buf->wv_ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
+		buf->wnext = buf->wpos + buf->widx;
 	} else {
 		// Record first sample that we still need to keep in the sample
 		// buffer. This is important to do now because decoder_read might
@@ -106,8 +113,12 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 
 		// If the existing samples are not enough, read the missing
 		// through the callback.
-		if (reuse < *wlen)
+		if (reuse < *wlen) {
+			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
+			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
 			buf->wv_read(buf->wv_ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
+			buf->wnext = buf->wpos + buf->widx;
+		}
 	}
 
 	assertf(wpos >= buf->wpos && wpos < buf->wpos+buf->widx, 
@@ -181,7 +192,7 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 			return;
 	}
 
-	tracef("discard: wpos=%x idx:%x buf->wpos=%x buf->widx=%x\n", wpos, idx, buf->wpos, buf->widx);
+	tracef("samplebuffer_discard: wpos=%x idx:%x buf->wpos=%x buf->widx=%x\n", wpos, idx, buf->wpos, buf->widx);
 	int kept_bytes = (buf->widx - idx) << SAMPLES_BPS_SHIFT(buf);
 	if (kept_bytes > 0) {		
 		tracef("samplebuffer_discard: compacting buffer, moving 0x%x bytes\n", kept_bytes);
@@ -217,4 +228,5 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 
 void samplebuffer_flush(samplebuffer_t *buf) {
 	buf->wpos = buf->widx = buf->ridx = 0;
+	buf->wnext = -1;
 }
