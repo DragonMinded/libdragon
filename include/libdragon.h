@@ -41,6 +41,7 @@
 #include "eeprom.h"
 #include "eepromfs.h"
 #include "graphics.h"
+#include "mi.h"
 #include "interrupt.h"
 #include "n64sys.h"
 #include "backtrace.h"

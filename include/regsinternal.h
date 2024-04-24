@@ -60,21 +60,6 @@ typedef struct AI_regs_s {
 } AI_regs_t;
 
 /**
- * @brief Register definition for the MI interface
- * @ingroup lowlevel
- */
-typedef struct MI_regs_s {
-    /** @brief Mode register */
-    uint32_t mode;
-    /** @brief Version register */
-    uint32_t version;
-    /** @brief Current interrupts on the system */
-    uint32_t intr;
-    /** @brief Interrupt mask */
-    uint32_t mask;
-} MI_regs_t;
-
-/**
  * @brief Register definition for the VI interface
  * @ingroup lowlevel
  */
