@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/errno.h>
 #include "console.h"
 #include "debug.h"
 #include "regsinternal.h"
@@ -20,10 +21,10 @@
 #include "backtrace.h"
 #include "usb.h"
 #include "utils.h"
+#include "libcart/cart.h"
 #include "interrupt.h"
 #include "backtrace.h"
 #include "exception_internal.h"
-#include "libcart/cart.h"
 #include "fatfs/ff.h"
 #include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
@@ -280,6 +281,33 @@ static fat_disk_t fat_disk_sd =
 static FIL fat_files[MAX_FAT_FILES] = {0};
 static DIR find_dir;
 
+static void __fresult_set_errno(FRESULT err)
+{
+	assertf(err != FR_INT_ERR, "FatFS assertion error");
+	switch (err) {
+	case FR_OK: return;
+	case FR_DISK_ERR: 			errno = EIO; return;
+	case FR_NOT_READY: 			errno = EBUSY; return;
+	case FR_NO_FILE: 			errno = ENOENT; return;
+	case FR_NO_PATH: 			errno = ENOENT; return;
+	case FR_INVALID_NAME: 		errno = EINVAL; return;
+	case FR_DENIED: 			errno = EACCES; return;
+	case FR_EXIST: 				errno = EEXIST; return;
+	case FR_INVALID_OBJECT: 	errno = EINVAL; return;
+	case FR_WRITE_PROTECTED: 	errno = EROFS; return;
+	case FR_INVALID_DRIVE: 		errno = ENODEV; return;
+	case FR_NOT_ENABLED: 		errno = ENODEV; return;
+	case FR_NO_FILESYSTEM: 		errno = ENODEV; return;
+	case FR_MKFS_ABORTED: 		errno = EIO; return;
+	case FR_TIMEOUT: 			errno = ETIMEDOUT; return;
+	case FR_LOCKED: 			errno = EBUSY; return;
+	case FR_NOT_ENOUGH_CORE: 	errno = ENOMEM; return;
+	case FR_TOO_MANY_OPEN_FILES: errno = EMFILE; return;
+	case FR_INVALID_PARAMETER: 	errno = EINVAL; return;
+	default: 					errno = EIO; return;
+	}
+}
+
 static void *__fat_open(char *name, int flags)
 {
 	int i;
@@ -311,25 +339,31 @@ static void *__fat_open(char *name, int flags)
 	FRESULT res = f_open(&fat_files[i], name, fatfs_flags);
 	if (res != FR_OK)
 	{
+		__fresult_set_errno(res);
 		fat_files[i].obj.fs = NULL;
 		return NULL;
 	}
 	return &fat_files[i];
 }
 
-static int __fat_fstat(void *file, struct stat *st)
+static void __fat_stat_fill(FSIZE_t size, BYTE attr, struct stat *st)
 {
-	FIL *f = file;
-
 	memset(st, 0, sizeof(struct stat));
-	st->st_size = f_size(f);
-	if (f->obj.attr & AM_RDO)
+	st->st_size = size;
+	if (attr & AM_RDO)
 		st->st_mode |= 0444;
 	else
 		st->st_mode |= 0666;
-	if (f->obj.attr & AM_DIR)
+	if (attr & AM_DIR)
 		st->st_mode |= S_IFDIR;
+	else
+		st->st_mode |= S_IFREG;
+}
 
+static int __fat_fstat(void *file, struct stat *st)
+{
+	FIL *f = file;
+	__fat_stat_fill(f_size(f), f->obj.attr, st);
 	return 0;
 }
 
@@ -337,8 +371,10 @@ static int __fat_read(void *file, uint8_t *ptr, int len)
 {
 	UINT read;
 	FRESULT res = f_read(file, ptr, len, &read);
-	if (res != FR_OK)
-		debugf("[debug] fat: error reading file: %d\n", res);
+	if (res != FR_OK) {
+		__fresult_set_errno(res);
+		return -1;
+	}
 	return read;
 }
 
@@ -346,16 +382,20 @@ static int __fat_write(void *file, uint8_t *ptr, int len)
 {
 	UINT written;
 	FRESULT res = f_write(file, ptr, len, &written);
-	if (res != FR_OK)
-		debugf("[debug] fat: error writing file: %d\n", res);
+	if (res != FR_OK) {
+		__fresult_set_errno(res);
+		return -1;
+	}
 	return written;
 }
 
 static int __fat_close(void *file)
 {
 	FRESULT res = f_close(file);
-	if (res != FR_OK)
+	if (res != FR_OK) {
+		__fresult_set_errno(res);
 		return -1;
+	}
 	return 0;
 }
 
@@ -370,8 +410,10 @@ static int __fat_lseek(void *file, int offset, int whence)
 	case SEEK_END: res = f_lseek(f, f_size(f) + offset); break;
 	default: return -1;
 	}
-	if (res != FR_OK)
+	if (res != FR_OK) {
+		__fresult_set_errno(res);
 		return -1;
+	}
 	return f_tell(f);
 }
 
@@ -379,7 +421,7 @@ static int __fat_unlink(char *name)
 {
 	FRESULT res = f_unlink(name);
 	if (res != FR_OK) {
-		debugf("[debug] fat: unlink failed: %d\n", res);
+		__fresult_set_errno(res);
 		return -1;
 	}
 	return 0;
@@ -390,6 +432,7 @@ static int __fat_findnext(dir_t *dir)
 	FILINFO info;
 	FRESULT res = f_readdir(&find_dir, &info);
 	if (res != FR_OK) {
+		__fresult_set_errno(res);
 		return -1;
 	}
 
@@ -397,6 +440,7 @@ static int __fat_findnext(dir_t *dir)
 	if (info.fname[0] == 0) {
 		res = f_closedir(&find_dir);
 		if (res != FR_OK) {
+			__fresult_set_errno(res);
 			return -1;
 		}
 		return -1;
