@@ -409,15 +409,15 @@ static int __fat_findfirst(char *name, dir_t *dir)
 }
 
 static filesystem_t fat_fs = {
-	__fat_open,
-	__fat_fstat,
-	__fat_lseek,
-	__fat_read,
-	__fat_write,
-	__fat_close,
-	__fat_unlink,
-	__fat_findfirst,
-	__fat_findnext
+	.open = __fat_open,
+	.fstat = __fat_fstat,
+	.lseek = __fat_lseek,
+	.read = __fat_read,
+	.write = __fat_write,
+	.close = __fat_close,
+	.unlink = __fat_unlink,
+	.findfirst = __fat_findfirst,
+	.findnext = __fat_findnext,
 };
 
 
