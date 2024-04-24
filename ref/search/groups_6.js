@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['hardware_20display_20interface_0',['Hardware Display Interface',['../group__rdp.html',1,'']]]
+  ['fast_20math_20routines_0',['Fast math routines',['../group__fastmath.html',1,'']]]
 ];

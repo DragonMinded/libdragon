@@ -1,5 +1,6 @@
 var searchData=
 [
-  ['timer_20subsystem_0',['Timer Subsystem',['../group__timer.html',1,'']]],
-  ['transfer_20pak_20interface_1',['Transfer Pak interface',['../group__transferpak.html',1,'']]]
+  ['real_2dtime_20clock_20subsystem_0',['Real-Time Clock Subsystem',['../group__rtc.html',1,'']]],
+  ['rom_20bundle_20support_1',['ROM bundle support',['../group__rompak.html',1,'']]],
+  ['rsp_3a_20vector_20coprocessor_2',['RSP: vector coprocessor',['../group__rsp.html',1,'']]]
 ];

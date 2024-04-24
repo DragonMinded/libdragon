@@ -21,7 +21,7 @@ var searchData=
   ['_5f_5fexception_5fdump_5fheader_18',['__exception_dump_header',['../group__exceptions.html#ga72b5bc4d67c381300360c1a543924f1e',1,'__exception_dump_header(FILE *out, exception_t *ex):&#160;exception.c'],['../group__exceptions.html#ga72b5bc4d67c381300360c1a543924f1e',1,'__exception_dump_header(FILE *out, exception_t *ex):&#160;exception.c']]],
   ['_5f_5fget_5fbuffer_19',['__get_buffer',['../group__graphics.html#ga2e1fdb4ef4905d44d91a156f896e8272',1,'graphics.c']]],
   ['_5f_5fget_5fpixel_20',['__get_pixel',['../group__graphics.html#ga59ad026c57ccca2cfcd1b58937a42a2f',1,'graphics.c']]],
-  ['_5f_5finit_5fcop1_21',['__init_cop1',['../group__n64sys.html#ga6d93c103e363e706bdafdc30601fcedd',1,'n64sys.c']]],
+  ['_5f_5finit_5fcop1_21',['__init_cop1',['../group__n64sys.html#gaaa30315f523b6cfab1efbcf15a32ecab',1,'n64sys.c']]],
   ['_5f_5finit_5finterrupts_22',['__init_interrupts',['../group__interrupt.html#ga72e02641a29de5f343f8507140b46b8e',1,'interrupt.c']]],
   ['_5f_5fjoybus_5finit_23',['__joybus_init',['../group__joybus.html#gaa482f587d5604a7f878f78b1bf092654',1,'joybus.c']]],
   ['_5f_5flibdragon_5ftext_5fstart_24',['__libdragon_text_start',['../group__n64sys.html#gaeee0500fc15a8edadab5e50494669416',1,'n64sys.h']]],

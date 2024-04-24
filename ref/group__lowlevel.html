@@ -86,9 +86,6 @@ Modules</h2></td></tr>
 <tr class="memitem:group__interrupt"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html">Interrupt Controller</a></td></tr>
 <tr class="memdesc:group__interrupt"><td class="mdescLeft">&#160;</td><td class="mdescRight">N64 interrupt registering and servicing routines. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:group__joybus"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html">Joybus Subsystem</a></td></tr>
-<tr class="memdesc:group__joybus"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus peripheral interface. <br /></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:group__n64sys"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html">N64 System Interface</a></td></tr>
 <tr class="memdesc:group__n64sys"><td class="mdescLeft">&#160;</td><td class="mdescRight">N64 bootup and cache interfaces. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -107,6 +104,9 @@ Files</h2></td></tr>
 <tr class="memitem:joybus_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="joybus_8h.html">joybus.h</a></td></tr>
 <tr class="memdesc:joybus_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus Subsystem. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:mi_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mi_8h.html">mi.h</a></td></tr>
+<tr class="memdesc:mi_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">MI register definitions. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:regsinternal_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="regsinternal_8h.html">regsinternal.h</a></td></tr>
 <tr class="memdesc:regsinternal_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register definitions for various hardware in the N64. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -116,9 +116,6 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structAI__regs__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__lowlevel.html#structAI__regs__t">AI_regs_t</a></td></tr>
 <tr class="memdesc:structAI__regs__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register definition for the AI interface.  <a href="group__lowlevel.html#structAI__regs__t">More...</a><br /></td></tr>
 <tr class="separator:structAI__regs__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:structMI__regs__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__lowlevel.html#structMI__regs__t">MI_regs_t</a></td></tr>
-<tr class="memdesc:structMI__regs__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register definition for the MI interface.  <a href="group__lowlevel.html#structMI__regs__t">More...</a><br /></td></tr>
-<tr class="separator:structMI__regs__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:structVI__regs__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__lowlevel.html#structVI__regs__t">VI_regs_t</a></td></tr>
 <tr class="memdesc:structVI__regs__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register definition for the VI interface.  <a href="group__lowlevel.html#structVI__regs__t">More...</a><br /></td></tr>
 <tr class="separator:structVI__regs__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -206,48 +203,6 @@ bitrate</td>
 Half-rate at which each single bit of a sample is shifted into the DAC. <p >Allowed values are 0..15, with "0" turning off the audio output. Values 1 and 2 are a valid hardware configuration for the DAC, but result in audio corruption because AI isn't able to shift bits that fast.</p>
 <p >The maximum value that still allows samples to play correctly is dacrate / 66 (consider this is a half-rate and there are 2 16-bit samples). Lower values will work too, though. </p>
 </td></tr>
-</table>
-
-</div>
-</div>
-<a name="structMI__regs__t" id="structMI__regs__t"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#structMI__regs__t">&#9670;&nbsp;</a></span>MI_regs_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">struct MI_regs_t</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<div class="textblock"><p >Register definition for the MI interface. </p>
-</div><table class="fieldtable">
-<tr><th colspan="3">Data Fields</th></tr>
-<tr><td class="fieldtype">
-<a id="afe25e13062df11da13dd302086caee34" name="afe25e13062df11da13dd302086caee34"></a>uint32_t</td>
-<td class="fieldname">
-mode</td>
-<td class="fielddoc">
-Mode register. </td></tr>
-<tr><td class="fieldtype">
-<a id="afd8c6c5c941763964cdb3db04d731923" name="afd8c6c5c941763964cdb3db04d731923"></a>uint32_t</td>
-<td class="fieldname">
-version</td>
-<td class="fielddoc">
-Version register. </td></tr>
-<tr><td class="fieldtype">
-<a id="a5a5097a9eb34a41cbccc0ca68b3939d1" name="a5a5097a9eb34a41cbccc0ca68b3939d1"></a>uint32_t</td>
-<td class="fieldname">
-intr</td>
-<td class="fielddoc">
-Current interrupts on the system. </td></tr>
-<tr><td class="fieldtype">
-<a id="a61776cbd65b132a153fb7477ba154541" name="a61776cbd65b132a153fb7477ba154541"></a>uint32_t</td>
-<td class="fieldname">
-mask</td>
-<td class="fielddoc">
-Interrupt mask. </td></tr>
 </table>
 
 </div>
@@ -583,7 +538,7 @@ RSP Semaphore. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 15:35:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 16:05:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

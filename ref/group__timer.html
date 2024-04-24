@@ -400,7 +400,8 @@ callback_with_context</td>
 
 <p>Initialize the timer subsystem. </p>
 <p >This function will reset the COP0 ticks counter to 0. Even if you later access the hardware counter directly (via <a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1" title="Returns the 32-bit hardware tick counter.">TICKS_READ()</a>), it should not be a problem if you call <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init()</a> early in the application main.</p>
-<p >Do not modify the COP0 ticks counter after calling this function. Doing so will impede functionality of the timer module. </p>
+<p >Do not modify the COP0 ticks counter after calling this function. Doing so will impede functionality of the timer module.</p>
+<p >The timer subsystem tracks the number of times <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init</a> is called and will only initialize the subsystem on the first call. This reference count also applies to <a class="el" href="group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d" title="Free and close the timer subsystem.">timer_close</a>, which will only close the subsystem if it is called the same number of times as <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init</a>. </p>
 
 </div>
 </div>
@@ -713,7 +714,8 @@ It is safe to call this function from a timer callback, including to stop a time
 </div><div class="memdoc">
 
 <p>Free and close the timer subsystem. </p>
-<p >This function will ensure all recurring timers are deleted from the list before closing. One-shot timers that have expired will need to be manually deleted with <a class="el" href="group__timer.html#ga9be3a07bf5bcebee5509b64c37121083" title="Remove a timer from the list and delete it.">delete_timer</a>. </p>
+<p >This function will ensure all recurring timers are deleted from the list before closing. One-shot timers that have expired will need to be manually deleted with <a class="el" href="group__timer.html#ga9be3a07bf5bcebee5509b64c37121083" title="Remove a timer from the list and delete it.">delete_timer</a>.</p>
+<p >The timer subsystem tracks the number of times <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init</a> is called and will only close the subsystem if <a class="el" href="group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d" title="Free and close the timer subsystem.">timer_close</a> is called the same number of times. </p>
 
 </div>
 </div>
@@ -741,7 +743,7 @@ It is safe to call this function from a timer callback, including to stop a time
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 15:35:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 16:05:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
