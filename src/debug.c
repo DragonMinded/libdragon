@@ -389,8 +389,18 @@ static int __fat_findnext(dir_t *dir)
 {
 	FILINFO info;
 	FRESULT res = f_readdir(&find_dir, &info);
-	if (res != FR_OK)
+	if (res != FR_OK) {
 		return -1;
+	}
+
+	// Check if we reached the end of the directory
+	if (info.fname[0] == 0) {
+		res = f_closedir(&find_dir);
+		if (res != FR_OK) {
+			return -1;
+		}
+		return -1;
+	}
 
 	strlcpy(dir->d_name, info.fname, sizeof(dir->d_name));
 	if (info.fattrib & AM_DIR)
@@ -403,8 +413,9 @@ static int __fat_findnext(dir_t *dir)
 static int __fat_findfirst(char *name, dir_t *dir)
 {
 	FRESULT res = f_opendir(&find_dir, name);
-	if (res != FR_OK)
+	if (res != FR_OK) {
 		return -1;
+	}
 	return __fat_findnext(dir);
 }
 

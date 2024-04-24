@@ -1237,7 +1237,7 @@ int dir_findfirst( const char * const path, dir_t *dir )
     filesystem_t *fs = __get_fs_pointer_by_name( path );
     int mapping = __get_fs_link_by_name( path );
 
-    if( fs == 0 )
+    if( fs == 0 || mapping < 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
@@ -1250,7 +1250,7 @@ int dir_findfirst( const char * const path, dir_t *dir )
         return -1;
     }
 
-    return fs->findfirst( (char *)path + + __strlen( filesystems[mapping].prefix ), dir );
+    return fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
 }
 
 /**
@@ -1271,7 +1271,7 @@ int dir_findnext( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
 
-    if( fs == 0 )
+    if( fs == 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
