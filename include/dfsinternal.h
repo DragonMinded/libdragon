@@ -44,15 +44,6 @@ typedef struct directory_entry directory_entry_t;
 /** @brief Open file handle structure */
 typedef struct open_file
 {
-    /** @brief Cached data to speed up small reads.
-     *
-     *  We want this buffer to be 8-byte aligned for DMA, but also
-     *  16-byte aligned so that it doesn't share cachelines with other
-     *  members of the structure, so it's easier to handle coherency.
-     * */
-    uint8_t cached_data[512] __attribute__((aligned(16)));
-    /** @brief location of the cached data */
-    uint32_t cached_loc;
     /** @brief The unique file handle to refer to this file by */
     uint32_t handle;
     /** @brief The size in bytes of this file */
