@@ -42,17 +42,15 @@ _Static_assert(sizeof(struct directory_entry) == SECTOR_SIZE, "invalid directory
 typedef struct directory_entry directory_entry_t;
 
 /** @brief Open file handle structure */
-typedef struct open_file
+typedef struct dfs_open_file_s
 {
-    /** @brief The unique file handle to refer to this file by */
-    uint32_t handle;
     /** @brief The size in bytes of this file */
     uint32_t size;
     /** @brief The offset of the current location in the file */
     uint32_t loc;
     /** @brief The offset within the filesystem where the file is stored */
     uint32_t cart_start_loc;
-} open_file_t;
+} dfs_open_file_t;
 
 /** @} */ /* dfs */
 
