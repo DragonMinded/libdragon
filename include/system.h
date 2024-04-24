@@ -29,6 +29,9 @@ extern "C" {
  * Filesystems that do not support one of more of the following methods
  * should provide null pointers instead of empty functions.  The newlib
  * hooks will set errno to ENOSYS and return a proper error to userspace.
+ * 
+ * All filesystems functions must set errno in case of error, to report
+ * the proper error to userspace.
  */
 typedef struct
 {
@@ -42,7 +45,7 @@ typedef struct
      *            Open flags, such as binary, append, etc.  Follows POSIX flags.
      *
      * @return A pointer to an arbitrary file handle assigned by the filesystem code 
-     *         or NULL on error.
+     *         or NULL on error (and errno is set).
      */
     void *(*open)( char *name, int flags );
     /** 
@@ -53,7 +56,7 @@ typedef struct
      * @param[out] st
      *             Stat structure to populate with file statistics
      *
-     * @return 0 on success or a negative value on error.
+     * @return 0 on success or a negative value on error (and errno is set).
      */
     int (*fstat)( void *file, struct stat *st );
     /** 
@@ -66,7 +69,8 @@ typedef struct
      * @param[in] dir
      *            A direction to see, either SEEK_SET, SEEK_CUR or SEEK_END
      *
-     * @return The absolute offset in bytes after the seek.
+     * @return The absolute offset in bytes after the seek or a negative value on failure
+     *         (and errno is set).
      */
     int (*lseek)( void *file, int ptr, int dir );
     /** 
@@ -79,7 +83,8 @@ typedef struct
      * @param[in]  len
      *             Length of data that should be read into ptr
      *
-     * @return The actual number of bytes read into ptr or a negative value on failure.
+     * @return The actual number of bytes read into ptr or a negative value on failure
+     *         (and errno is set).
      */
     int (*read)( void *file, uint8_t *ptr, int len );
     /** @brief Function to call when performing a write operation
@@ -91,7 +96,8 @@ typedef struct
      * @param[in]  len
      *             Length of data that should be written out of ptr
      *
-     * @return The actual number of bytes written or a negative value on failure.
+     * @return The actual number of bytes written or a negative value on failure
+     *          (and errno is set).
      */
     int (*write)( void *file, uint8_t *ptr, int len );
     /** 
@@ -100,7 +106,7 @@ typedef struct
      * @param[in] file
      *            Arbitrary file handle returned by #filesystem_t::open
      *
-     * @return 0 on success or a negative value on failure.
+     * @return 0 on success or a negative value on failure (and errno is set).
      */
     int (*close)( void *file );
     /** 
@@ -110,7 +116,7 @@ typedef struct
      *            Full path of the file to be opened, relative to the root
      *            of the filesystem.
      *
-     * @return 0 on success or a negative value on failure.
+     * @return 0 on success or a negative value on failure (and errno is set).
      */
     int (*unlink)( char *name );
     /** 
