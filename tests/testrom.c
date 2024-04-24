@@ -245,7 +245,7 @@ static const struct Testsuite
 	TEST_FUNC(test_eepromfs,                   0, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,        1763, TEST_FLAGS_NONE),
 	TEST_FUNC(test_debug_sdfs,                 0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
+	TEST_FUNC(test_dma_read_misalign,      18591, TEST_FLAGS_NONE),
 	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_backtrace_analyze,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_backtrace_basic,            0, TEST_FLAGS_NO_BENCHMARK),
