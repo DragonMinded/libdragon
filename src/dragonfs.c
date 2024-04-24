@@ -79,14 +79,16 @@ enum
 
 /** @brief Base filesystem pointer */
 static uint32_t base_ptr = 0;
-/** @brief Open file tracking */
-static open_file_t open_files[MAX_OPEN_FILES];
 /** @brief Directory pointer stack */
 static uint32_t directories[MAX_DIRECTORY_DEPTH];
 /** @brief Depth into directory pointer stack */
 static uint32_t directory_top = 0;
 /** @brief Pointer to next directory entry set when doing a directory walk */
 static directory_entry_t *next_entry = 0;
+/** @brief Convert an open file pointer to a handle */
+#define OPENFILE_TO_HANDLE(file)        ((int)PhysicalAddr(file))
+/** @brief Convert a handle to an open file pointer */
+#define HANDLE_TO_OPENFILE(handle)      ((dfs_open_file_t*)((uint32_t)(handle) | 0x80000000))
 
 /**
  * @brief Read a sector from cartspace
@@ -105,51 +107,6 @@ static inline void grab_sector(void *cart_loc, void *ram_loc)
     data_cache_hit_writeback_invalidate(ram_loc, SECTOR_SIZE);
 
     dma_read((void *)(((uint32_t)ram_loc) & 0x1FFFFFFF), (uint32_t)cart_loc, SECTOR_SIZE);
-}
-
-/**
- * @brief Find a free open file structure
- *
- * @return A pointer to an open file structure or NULL if no more open file structures.
- */
-static open_file_t *find_free_file()
-{
-    for(int i = 0; i < MAX_OPEN_FILES; i++)
-    {
-        if(!open_files[i].handle)
-        {
-            /* Found one! */
-            return &open_files[i];
-        }
-    }
-
-    /* No free files */
-    return 0;
-}
-
-/**
- * @brief Find an open file structure based on a handle
- *
- * @param[in] x
- *            The file handle given to the open file
- *
- * @return A pointer to an open file structure or NULL if no file matches the handle
- */
-static open_file_t *find_open_file(uint32_t x)
-{
-    if(x == 0) { return 0; }
-
-    for(int i = 0; i < MAX_OPEN_FILES; i++)
-    {
-        if(open_files[i].handle == x)
-        {
-            /* Found it! */
-            return &open_files[i];
-        }
-    }
-
-    /* Couldn't find handle */
-    return 0;
 }
 
 /**
@@ -644,8 +601,6 @@ static int __dfs_init(uint32_t base_fs_loc)
         base_ptr = base_fs_loc;
         clear_directory();
 
-        memset(open_files, 0, sizeof(open_files));
-
         /* Good FS */
         return DFS_ESUCCESS;
     }
@@ -767,17 +722,6 @@ int dfs_dir_findnext(char *buf)
  */
 int dfs_open(const char * const path)
 {
-    /* Ensure we always open with a unique handle */
-    static uint32_t next_handle = 1;
-
-    /* Try to find a free slot */
-    open_file_t *file = find_free_file();
-
-    if(!file)
-    {
-        return DFS_ENFILE;        
-    }
-
     /* Try to find file */
     directory_entry_t *dirent;
     int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
@@ -788,17 +732,24 @@ int dfs_open(const char * const path)
         return ret;
     }
 
+    /* Try to find a free slot */
+    dfs_open_file_t *file = malloc(sizeof(dfs_open_file_t));
+
+    if(!file)
+    {
+        return DFS_ENOMEM;
+    }
+
     /* We now have the pointer to the file entry */
     directory_entry_t t_node;
     grab_sector(dirent, &t_node);
 
     /* Set up file handle */
-    file->handle = next_handle++;
     file->size = get_size(&t_node);
     file->loc = 0;
     file->cart_start_loc = get_start_location(&t_node);
 
-    return file->handle;
+    return OPENFILE_TO_HANDLE(file);
 }
 
 /**
@@ -811,15 +762,15 @@ int dfs_open(const char * const path)
  */
 int dfs_close(uint32_t handle)
 {
-    open_file_t *file = find_open_file(handle);
+    dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
 
     if(!file)
     {
         return DFS_EBADHANDLE;
     }
 
-    /* Closing the handle is easy as zeroing out the file */
-    memset(file, 0, sizeof(open_file_t));
+    /* Free the open file */
+    free(file);
 
     return DFS_ESUCCESS;
 }
@@ -838,7 +789,7 @@ int dfs_close(uint32_t handle)
  */
 int dfs_seek(uint32_t handle, int offset, int origin)
 {
-    open_file_t *file = find_open_file(handle);
+    dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
 
     if(!file)
     {
@@ -912,7 +863,7 @@ int dfs_seek(uint32_t handle, int offset, int origin)
 int dfs_tell(uint32_t handle)
 {
     /* The good thing is that the location is always in the file structure */
-    open_file_t *file = find_open_file(handle);
+    dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
 
     if(!file)
     {
@@ -943,7 +894,7 @@ int dfs_tell(uint32_t handle)
 int dfs_read(void * const buf, int size, int count, uint32_t handle)
 {
     /* This is where we do all the work */
-    open_file_t *file = find_open_file(handle);
+    dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
 
     if(!file)
     {
@@ -1032,7 +983,7 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
  */
 int dfs_size(uint32_t handle)
 {
-    open_file_t *file = find_open_file(handle);
+    dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
 
     if(!file)
     {
@@ -1091,7 +1042,7 @@ uint32_t dfs_rom_addr(const char *path)
  */
 int dfs_eof(uint32_t handle)
 {
-    open_file_t *file = find_open_file(handle);
+    dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
 
     if(!file)
     {
@@ -1231,8 +1182,6 @@ static int __close( void *file )
  */
 static int __findfirst( char *path, dir_t *dir )
 {
-    if( !path || !dir ) { return -1; }
-
     /* Grab first entry, return if bad */
     int flags = dfs_dir_findfirst( path, dir->d_name );
     if( flags < 0 ) { return -1; }
@@ -1265,8 +1214,6 @@ static int __findfirst( char *path, dir_t *dir )
  */
 static int __findnext( dir_t *dir )
 {
-    if( !dir ) { return -1; }
-
     /* Grab first entry, return if bad */
     int flags = dfs_dir_findnext( dir->d_name );
     if( flags < 0 ) { return -1; }

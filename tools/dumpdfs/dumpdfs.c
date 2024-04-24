@@ -36,6 +36,13 @@ enum
 };
 
 /* Internal filesystem stuff */
+typedef struct {
+    uint32_t handle;
+    uint32_t size;
+    uint32_t loc;
+    uint32_t cart_start_loc;
+} open_file_t;
+#define MAX_OPEN_FILES  4
 static void *base_ptr = 0;
 static open_file_t open_files[MAX_OPEN_FILES];
 static directory_entry_t* directories[MAX_DIRECTORY_DEPTH];

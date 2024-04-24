@@ -20,11 +20,6 @@
 #define DFS_DEFAULT_LOCATION    0
 
 /**
- * @brief Maximum open files in DragonFS
- */
-#define MAX_OPEN_FILES      4
-
-/**
  * @brief Maximum filename length
  *
  * This value is due to the direcory structure
