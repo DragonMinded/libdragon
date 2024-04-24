@@ -39,6 +39,8 @@
  * @{
  */
 
+/** @brief Refcount of #timer_init vs #timer_close calls. */
+static int timer_init_refcount = 0;
 
 /** @brief Internal linked list of timers */
 static timer_link_t *TI_timers = NULL;
@@ -205,10 +207,17 @@ static void timer_poll(void)
  *
  * Do not modify the COP0 ticks counter after calling this function. Doing so
  * will impede functionality of the timer module.
+ * 
+ * The timer subsystem tracks the number of times #timer_init is called
+ * and will only initialize the subsystem on the first call. This reference
+ * count also applies to #timer_close, which will only close the subsystem
+ * if it is called the same number of times as #timer_init.
  */
 void timer_init(void)
 {
-	assertf(!TI_timers, "timer module already initialized");
+	// Just increment the refcount if already initialized.
+	if (timer_init_refcount++ > 0) { return; }
+
 	// Reset the compare register and enable timer interrupts in COP0.
 	// Do not write the COUNT register to avoid interfering with get_ticks().
 	disable_interrupts();
@@ -235,7 +244,7 @@ void timer_init(void)
  */
 timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
@@ -279,7 +288,7 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
  */
 timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
@@ -322,7 +331,7 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
  */
 void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t callback)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -364,7 +373,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
  */
 void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -430,7 +439,7 @@ void stop_timer(timer_link_t *timer)
 	timer_link_t *head;
 	timer_link_t *last = 0;
 
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -467,7 +476,7 @@ void stop_timer(timer_link_t *timer)
  */
 void delete_timer(timer_link_t *timer)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
 	if (timer)
 	{
 		stop_timer(timer);
@@ -481,10 +490,18 @@ void delete_timer(timer_link_t *timer)
  * This function will ensure all recurring timers are deleted from the list 
  * before closing.  One-shot timers that have expired will need to be
  * manually deleted with #delete_timer.
+ * 
+ * The timer subsystem tracks the number of times #timer_init is called
+ * and will only close the subsystem if #timer_close is called the same
+ * number of times.
  */
 void timer_close(void)
 {
-	assertf(TI_timers, "timer module not initialized");
+	assertf(timer_init_refcount > 0, "timer module not initialized");
+
+	// Do nothing if there are still dangling references.
+	if (--timer_init_refcount > 0) { return; }
+
 	disable_interrupts();
 	
 	/* Disable generation of timer interrupt. */
