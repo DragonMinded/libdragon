@@ -118,9 +118,6 @@ static int __interrupt_depth = -1;
  */
 static int __interrupt_sr = 0;
 
-/** @brief tick at which interrupts were disabled. */
-uint32_t interrupt_disabled_tick = 0;
-
 /**
  * @brief Structure of an interrupt callback
  */
@@ -882,8 +879,6 @@ void disable_interrupts()
            So put an explicit barrier. */
         MEMORY_BARRIER();
         __interrupt_sr = sr;
-
-        interrupt_disabled_tick = TICKS_READ();
     }
 
     /* Ensure that we remember nesting levels */
