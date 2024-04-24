@@ -361,6 +361,8 @@ SUBPROCESS_DLLIMPORT subprocess_intptr_t __cdecl _get_osfhandle(int);
 
 #ifndef __MINGW32__
 void *__cdecl _alloca(subprocess_size_t);
+#else
+#include <malloc.h>  // alloca
 #endif
 
 #ifdef __clang__
