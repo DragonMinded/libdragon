@@ -123,13 +123,13 @@ Macros</h2></td></tr>
 <tr class="memdesc:ga56d4cbe1e093c683432a147eb1ccb293"><td class="mdescLeft">&#160;</td><td class="mdescRight">Memory barrier to ensure in-order execution.  <a href="group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293">More...</a><br /></td></tr>
 <tr class="separator:ga56d4cbe1e093c683432a147eb1ccb293"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a>()&#160;&#160;&#160;<a class="el" href="group__n64sys.html#ga06cc6d925caa4db67e81281eef124d28">C0_COUNT</a>()</td></tr>
-<tr class="memdesc:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the COP0 register $9 (count).  <a href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">More...</a><br /></td></tr>
+<tr class="memdesc:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the 32-bit hardware tick counter.  <a href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">More...</a><br /></td></tr>
 <tr class="separator:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3dd7b7d41c220904632461a2d95d61cf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a>&#160;&#160;&#160;(<a class="el" href="group__n64sys.html#gaf73acdf7fb3be35ff98322b7e827d349">CPU_FREQUENCY</a>/2)</td></tr>
 <tr class="memdesc:ga3dd7b7d41c220904632461a2d95d61cf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of updates to the count register per second.  <a href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">More...</a><br /></td></tr>
 <tr class="separator:ga3dd7b7d41c220904632461a2d95d61cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga39042176fdaeae838e23bf77575da2a7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">TICKS_DISTANCE</a>(from,  to)&#160;&#160;&#160;((int32_t)((uint32_t)(to) - (uint32_t)(from)))</td></tr>
-<tr class="memdesc:ga39042176fdaeae838e23bf77575da2a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">The signed difference of time between "from" and "to".  <a href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">More...</a><br /></td></tr>
+<tr class="memdesc:ga39042176fdaeae838e23bf77575da2a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Calculate the time passed between two ticks.  <a href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">More...</a><br /></td></tr>
 <tr class="separator:ga39042176fdaeae838e23bf77575da2a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga15bb7571f8648fe46fe52bf33d21b255"><td class="memItemLeft" align="right" valign="top">
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_SINCE</b>(t0)&#160;&#160;&#160;<a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">TICKS_DISTANCE</a>(t0, <a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a>())</td></tr>
@@ -139,9 +139,21 @@ Macros</h2></td></tr>
 <tr class="memdesc:ga5f0c6ccf7791e58f7f392e6f733fc66b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns true if "t1" is before "t2".  <a href="group__n64sys.html#ga5f0c6ccf7791e58f7f392e6f733fc66b">More...</a><br /></td></tr>
 <tr class="separator:ga5f0c6ccf7791e58f7f392e6f733fc66b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gac393c76be44d9322b9b06c2b334f38ad"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_FROM_MS</b>(val)&#160;&#160;&#160;((uint32_t)((val) * (<a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000)))</td></tr>
-<tr class="memdesc:gac393c76be44d9322b9b06c2b334f38ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given millis. <br /></td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_FROM_MS</b>(val)&#160;&#160;&#160;(((val) * (<a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000)))</td></tr>
+<tr class="memdesc:gac393c76be44d9322b9b06c2b334f38ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given milliseconds. <br /></td></tr>
 <tr class="separator:gac393c76be44d9322b9b06c2b334f38ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga39793fd1107ddfd20474d5d92fee4a6f"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_FROM_US</b>(val)&#160;&#160;&#160;(((val) * (8 * <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000000) / 8))</td></tr>
+<tr class="memdesc:ga39793fd1107ddfd20474d5d92fee4a6f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given microseconds. <br /></td></tr>
+<tr class="separator:ga39793fd1107ddfd20474d5d92fee4a6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga14c3e3ea1408b0fffbf8fd2d06a32522"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_TO_US</b>(val)&#160;&#160;&#160;(((val) * 8 / (8 * <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000000)))</td></tr>
+<tr class="memdesc:ga14c3e3ea1408b0fffbf8fd2d06a32522"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given microseconds. <br /></td></tr>
+<tr class="separator:ga14c3e3ea1408b0fffbf8fd2d06a32522"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6377ac2d56054bba13b5c5157a026292"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_TO_MS</b>(val)&#160;&#160;&#160;(((val) / (<a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000)))</td></tr>
+<tr class="memdesc:ga6377ac2d56054bba13b5c5157a026292"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given microseconds. <br /></td></tr>
+<tr class="separator:ga6377ac2d56054bba13b5c5157a026292"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6c4f1220d31e4e32d0586590c6a5b526">data_cache_hit_invalidate</a>(addr_,  sz_)</td></tr>
 <tr class="memdesc:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache invalidate over a memory region.  <a href="group__n64sys.html#ga6c4f1220d31e4e32d0586590c6a5b526">More...</a><br /></td></tr>
 <tr class="separator:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -167,12 +179,15 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><b>sys_bbplayer</b> (voi
 <tr class="memitem:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa3abd91a3b4d2ff33ad07556f7e7856e">sys_set_boot_cic</a> (int bc)</td></tr>
 <tr class="memdesc:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the boot CIC.  <a href="group__n64sys.html#gaa3abd91a3b4d2ff33ad07556f7e7856e">More...</a><br /></td></tr>
 <tr class="separator:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga2d061fe138e49ae71e8716e35c0d3dc9"><td class="memItemLeft" align="right" valign="top">volatile unsigned long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga2d061fe138e49ae71e8716e35c0d3dc9">get_ticks</a> (void)</td></tr>
-<tr class="memdesc:ga2d061fe138e49ae71e8716e35c0d3dc9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of ticks since system startup.  <a href="group__n64sys.html#ga2d061fe138e49ae71e8716e35c0d3dc9">More...</a><br /></td></tr>
-<tr class="separator:ga2d061fe138e49ae71e8716e35c0d3dc9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga94e97719a22e4dbbe64f6264e82119a5"><td class="memItemLeft" align="right" valign="top">volatile unsigned long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga94e97719a22e4dbbe64f6264e82119a5">get_ticks_ms</a> (void)</td></tr>
-<tr class="memdesc:ga94e97719a22e4dbbe64f6264e82119a5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of millisecounds since system startup.  <a href="group__n64sys.html#ga94e97719a22e4dbbe64f6264e82119a5">More...</a><br /></td></tr>
-<tr class="separator:ga94e97719a22e4dbbe64f6264e82119a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">get_ticks</a> (void)</td></tr>
+<tr class="memdesc:ga3686b92a0667e9774993808f4d2ac2b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of ticks since system startup.  <a href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">More...</a><br /></td></tr>
+<tr class="separator:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga00e8ae50f807ecd7726dadcbbb0b4b8e"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga00e8ae50f807ecd7726dadcbbb0b4b8e">get_ticks_us</a> (void)</td></tr>
+<tr class="memdesc:ga00e8ae50f807ecd7726dadcbbb0b4b8e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of microseconds since system startup.  <a href="group__n64sys.html#ga00e8ae50f807ecd7726dadcbbb0b4b8e">More...</a><br /></td></tr>
+<tr class="separator:ga00e8ae50f807ecd7726dadcbbb0b4b8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf402b4d750f14bff2ce2686e6da02e13"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf402b4d750f14bff2ce2686e6da02e13">get_ticks_ms</a> (void)</td></tr>
+<tr class="memdesc:gaf402b4d750f14bff2ce2686e6da02e13"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of millisecounds since system startup.  <a href="group__n64sys.html#gaf402b4d750f14bff2ce2686e6da02e13">More...</a><br /></td></tr>
+<tr class="separator:gaf402b4d750f14bff2ce2686e6da02e13"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf92492d6d351321a5974768b17e16d82"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf92492d6d351321a5974768b17e16d82">wait_ticks</a> (unsigned long <a class="el" href="group__system.html#ga6655447bab00753d59759423bf28e22e">wait</a>)</td></tr>
 <tr class="memdesc:gaf92492d6d351321a5974768b17e16d82"><td class="mdescLeft">&#160;</td><td class="mdescRight">Spin wait until the number of ticks have elapsed.  <a href="group__n64sys.html#gaf92492d6d351321a5974768b17e16d82">More...</a><br /></td></tr>
 <tr class="separator:gaf92492d6d351321a5974768b17e16d82"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -250,7 +265,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 22:51:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 15:35:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

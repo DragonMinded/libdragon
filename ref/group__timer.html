@@ -67,8 +67,7 @@ $(function() {
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">Timer Subsystem<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a></div></div></div>
 </div><!--header-->
 <div class="contents">
@@ -176,16 +175,6 @@ Functions</h2></td></tr>
 <tr class="memitem:gae044084b5c38e019cb7e38e9fe9bb425"><td class="memItemLeft" align="right" valign="top">long long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__timer.html#gae044084b5c38e019cb7e38e9fe9bb425">timer_ticks</a> (void)</td></tr>
 <tr class="memdesc:gae044084b5c38e019cb7e38e9fe9bb425"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return total ticks since timer was initialized, as a 64-bit counter.  <a href="group__timer.html#gae044084b5c38e019cb7e38e9fe9bb425">More...</a><br /></td></tr>
 <tr class="separator:gae044084b5c38e019cb7e38e9fe9bb425"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:ga1968987490ad39001548aafdc013035f"><td class="memItemLeft" align="right" valign="top"><a id="ga1968987490ad39001548aafdc013035f" name="ga1968987490ad39001548aafdc013035f"></a>
-volatile uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>ticks64_high</b></td></tr>
-<tr class="memdesc:ga1968987490ad39001548aafdc013035f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Higher-part of 64-bit tick counter. <br /></td></tr>
-<tr class="separator:ga1968987490ad39001548aafdc013035f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga85a4a7cd00dbfde35c7b7c41e0ab9e29"><td class="memItemLeft" align="right" valign="top">volatile uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__timer.html#ga85a4a7cd00dbfde35c7b7c41e0ab9e29">interrupt_disabled_tick</a></td></tr>
-<tr class="memdesc:ga85a4a7cd00dbfde35c7b7c41e0ab9e29"><td class="mdescLeft">&#160;</td><td class="mdescRight">Time at which interrupts were disabled.  <a href="group__timer.html#ga85a4a7cd00dbfde35c7b7c41e0ab9e29">More...</a><br /></td></tr>
-<tr class="separator:ga85a4a7cd00dbfde35c7b7c41e0ab9e29"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Interface to the timer module in the MIPS r4300 processor. </p>
@@ -410,7 +399,7 @@ callback_with_context</td>
 </div><div class="memdoc">
 
 <p>Initialize the timer subsystem. </p>
-<p >This function will reset the COP0 ticks counter to 0. Even if you later access the hardware counter directly (via <a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1" title="Returns the COP0 register $9 (count).">TICKS_READ()</a>), it should not be a problem if you call <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init()</a> early in the application main.</p>
+<p >This function will reset the COP0 ticks counter to 0. Even if you later access the hardware counter directly (via <a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1" title="Returns the 32-bit hardware tick counter.">TICKS_READ()</a>), it should not be a problem if you call <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init()</a> early in the application main.</p>
 <p >Do not modify the COP0 ticks counter after calling this function. Doing so will impede functionality of the timer module. </p>
 
 </div>
@@ -749,36 +738,10 @@ It is safe to call this function from a timer callback, including to stop a time
 
 </div>
 </div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="ga85a4a7cd00dbfde35c7b7c41e0ab9e29" name="ga85a4a7cd00dbfde35c7b7c41e0ab9e29"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga85a4a7cd00dbfde35c7b7c41e0ab9e29">&#9670;&nbsp;</a></span>interrupt_disabled_tick</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">volatile uint32_t interrupt_disabled_tick</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">extern</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>Time at which interrupts were disabled. </p>
-<p >Time at which interrupts were disabled. </p>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 22:51:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 15:35:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

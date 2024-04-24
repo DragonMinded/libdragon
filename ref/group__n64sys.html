@@ -401,13 +401,13 @@ Macros</h2></td></tr>
 <tr class="memdesc:ga56d4cbe1e093c683432a147eb1ccb293"><td class="mdescLeft">&#160;</td><td class="mdescRight">Memory barrier to ensure in-order execution.  <a href="group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293">More...</a><br /></td></tr>
 <tr class="separator:ga56d4cbe1e093c683432a147eb1ccb293"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a>()&#160;&#160;&#160;<a class="el" href="group__n64sys.html#ga06cc6d925caa4db67e81281eef124d28">C0_COUNT</a>()</td></tr>
-<tr class="memdesc:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the COP0 register $9 (count).  <a href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">More...</a><br /></td></tr>
+<tr class="memdesc:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the 32-bit hardware tick counter.  <a href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">More...</a><br /></td></tr>
 <tr class="separator:ga3f00b2f3f7a3bb391282d0b2da8969f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3dd7b7d41c220904632461a2d95d61cf"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a>&#160;&#160;&#160;(<a class="el" href="group__n64sys.html#gaf73acdf7fb3be35ff98322b7e827d349">CPU_FREQUENCY</a>/2)</td></tr>
 <tr class="memdesc:ga3dd7b7d41c220904632461a2d95d61cf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of updates to the count register per second.  <a href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">More...</a><br /></td></tr>
 <tr class="separator:ga3dd7b7d41c220904632461a2d95d61cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga39042176fdaeae838e23bf77575da2a7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">TICKS_DISTANCE</a>(from,  to)&#160;&#160;&#160;((int32_t)((uint32_t)(to) - (uint32_t)(from)))</td></tr>
-<tr class="memdesc:ga39042176fdaeae838e23bf77575da2a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">The signed difference of time between "from" and "to".  <a href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">More...</a><br /></td></tr>
+<tr class="memdesc:ga39042176fdaeae838e23bf77575da2a7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Calculate the time passed between two ticks.  <a href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">More...</a><br /></td></tr>
 <tr class="separator:ga39042176fdaeae838e23bf77575da2a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga15bb7571f8648fe46fe52bf33d21b255"><td class="memItemLeft" align="right" valign="top"><a id="ga15bb7571f8648fe46fe52bf33d21b255" name="ga15bb7571f8648fe46fe52bf33d21b255"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_SINCE</b>(t0)&#160;&#160;&#160;<a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">TICKS_DISTANCE</a>(t0, <a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a>())</td></tr>
@@ -417,9 +417,21 @@ Macros</h2></td></tr>
 <tr class="memdesc:ga5f0c6ccf7791e58f7f392e6f733fc66b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns true if "t1" is before "t2".  <a href="group__n64sys.html#ga5f0c6ccf7791e58f7f392e6f733fc66b">More...</a><br /></td></tr>
 <tr class="separator:ga5f0c6ccf7791e58f7f392e6f733fc66b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gac393c76be44d9322b9b06c2b334f38ad"><td class="memItemLeft" align="right" valign="top"><a id="gac393c76be44d9322b9b06c2b334f38ad" name="gac393c76be44d9322b9b06c2b334f38ad"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_FROM_MS</b>(val)&#160;&#160;&#160;((uint32_t)((val) * (<a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000)))</td></tr>
-<tr class="memdesc:gac393c76be44d9322b9b06c2b334f38ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given millis. <br /></td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_FROM_MS</b>(val)&#160;&#160;&#160;(((val) * (<a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000)))</td></tr>
+<tr class="memdesc:gac393c76be44d9322b9b06c2b334f38ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given milliseconds. <br /></td></tr>
 <tr class="separator:gac393c76be44d9322b9b06c2b334f38ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga39793fd1107ddfd20474d5d92fee4a6f"><td class="memItemLeft" align="right" valign="top"><a id="ga39793fd1107ddfd20474d5d92fee4a6f" name="ga39793fd1107ddfd20474d5d92fee4a6f"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_FROM_US</b>(val)&#160;&#160;&#160;(((val) * (8 * <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000000) / 8))</td></tr>
+<tr class="memdesc:ga39793fd1107ddfd20474d5d92fee4a6f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given microseconds. <br /></td></tr>
+<tr class="separator:ga39793fd1107ddfd20474d5d92fee4a6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga14c3e3ea1408b0fffbf8fd2d06a32522"><td class="memItemLeft" align="right" valign="top"><a id="ga14c3e3ea1408b0fffbf8fd2d06a32522" name="ga14c3e3ea1408b0fffbf8fd2d06a32522"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_TO_US</b>(val)&#160;&#160;&#160;(((val) * 8 / (8 * <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000000)))</td></tr>
+<tr class="memdesc:ga14c3e3ea1408b0fffbf8fd2d06a32522"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given microseconds. <br /></td></tr>
+<tr class="separator:ga14c3e3ea1408b0fffbf8fd2d06a32522"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6377ac2d56054bba13b5c5157a026292"><td class="memItemLeft" align="right" valign="top"><a id="ga6377ac2d56054bba13b5c5157a026292" name="ga6377ac2d56054bba13b5c5157a026292"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_TO_MS</b>(val)&#160;&#160;&#160;(((val) / (<a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000)))</td></tr>
+<tr class="memdesc:ga6377ac2d56054bba13b5c5157a026292"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given microseconds. <br /></td></tr>
+<tr class="separator:ga6377ac2d56054bba13b5c5157a026292"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6c4f1220d31e4e32d0586590c6a5b526">data_cache_hit_invalidate</a>(addr_,  sz_)</td></tr>
 <tr class="memdesc:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache invalidate over a memory region.  <a href="group__n64sys.html#ga6c4f1220d31e4e32d0586590c6a5b526">More...</a><br /></td></tr>
 <tr class="separator:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -491,6 +503,15 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:ga4cd768cc5d84485110ecf4991727b00b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">get_tv_type</a> ()</td></tr>
 <tr class="memdesc:ga4cd768cc5d84485110ecf4991727b00b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <a href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">More...</a><br /></td></tr>
 <tr class="separator:ga4cd768cc5d84485110ecf4991727b00b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">get_ticks</a> (void)</td></tr>
+<tr class="memdesc:ga3686b92a0667e9774993808f4d2ac2b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of ticks since system startup.  <a href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">More...</a><br /></td></tr>
+<tr class="separator:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga00e8ae50f807ecd7726dadcbbb0b4b8e"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga00e8ae50f807ecd7726dadcbbb0b4b8e">get_ticks_us</a> (void)</td></tr>
+<tr class="memdesc:ga00e8ae50f807ecd7726dadcbbb0b4b8e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of microseconds since system startup.  <a href="group__n64sys.html#ga00e8ae50f807ecd7726dadcbbb0b4b8e">More...</a><br /></td></tr>
+<tr class="separator:ga00e8ae50f807ecd7726dadcbbb0b4b8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf402b4d750f14bff2ce2686e6da02e13"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf402b4d750f14bff2ce2686e6da02e13">get_ticks_ms</a> (void)</td></tr>
+<tr class="memdesc:gaf402b4d750f14bff2ce2686e6da02e13"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of millisecounds since system startup.  <a href="group__n64sys.html#gaf402b4d750f14bff2ce2686e6da02e13">More...</a><br /></td></tr>
+<tr class="separator:gaf402b4d750f14bff2ce2686e6da02e13"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf92492d6d351321a5974768b17e16d82"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf92492d6d351321a5974768b17e16d82">wait_ticks</a> (unsigned long <a class="el" href="group__system.html#ga6655447bab00753d59759423bf28e22e">wait</a>)</td></tr>
 <tr class="memdesc:gaf92492d6d351321a5974768b17e16d82"><td class="mdescLeft">&#160;</td><td class="mdescRight">Spin wait until the number of ticks have elapsed.  <a href="group__n64sys.html#gaf92492d6d351321a5974768b17e16d82">More...</a><br /></td></tr>
 <tr class="separator:gaf92492d6d351321a5974768b17e16d82"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -501,12 +522,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__init_cop1</b> ()</td></tr>
 <tr class="memdesc:ga6d93c103e363e706bdafdc30601fcedd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize COP1 with default settings that prevent undesirable exceptions. <br /></td></tr>
 <tr class="separator:ga6d93c103e363e706bdafdc30601fcedd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga2d061fe138e49ae71e8716e35c0d3dc9"><td class="memItemLeft" align="right" valign="top">volatile unsigned long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga2d061fe138e49ae71e8716e35c0d3dc9">get_ticks</a> (void)</td></tr>
-<tr class="memdesc:ga2d061fe138e49ae71e8716e35c0d3dc9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of ticks since system startup.  <a href="group__n64sys.html#ga2d061fe138e49ae71e8716e35c0d3dc9">More...</a><br /></td></tr>
-<tr class="separator:ga2d061fe138e49ae71e8716e35c0d3dc9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga94e97719a22e4dbbe64f6264e82119a5"><td class="memItemLeft" align="right" valign="top">volatile unsigned long&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga94e97719a22e4dbbe64f6264e82119a5">get_ticks_ms</a> (void)</td></tr>
-<tr class="memdesc:ga94e97719a22e4dbbe64f6264e82119a5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of millisecounds since system startup.  <a href="group__n64sys.html#ga94e97719a22e4dbbe64f6264e82119a5">More...</a><br /></td></tr>
-<tr class="separator:ga94e97719a22e4dbbe64f6264e82119a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -1523,8 +1538,15 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
       </table>
 </div><div class="memdoc">
 
-<p>Returns the COP0 register $9 (count). </p>
-<p >The coprocessor 0 (system control coprocessor - COP0) register $9 is incremented at "half maximum instruction issue rate" which is the processor clock speed (93.75MHz) divided by two. (also see TICKS_PER_SECOND) It will always produce a 32-bit unsigned value which overflows back to zero in 91.625 seconds. The counter will increment irrespective of instructions actually being executed. This macro is for reading that value. Do not use for comparison without special handling. </p>
+<p>Returns the 32-bit hardware tick counter. </p>
+<p >This macro returns the current value of the hardware tick counter, present in the CPU coprocessor 0. The counter increments at half of the processor clock speed (see <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf" title="Number of updates to the count register per second.">TICKS_PER_SECOND</a>), and overflows every 91.625 seconds.</p>
+<p >It is fine to use this hardware counter for measuring small time intervals, as long as <a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7" title="Calculate the time passed between two ticks.">TICKS_DISTANCE</a> or <a class="el" href="group__n64sys.html#ga5f0c6ccf7791e58f7f392e6f733fc66b" title="Returns true if &quot;t1&quot; is before &quot;t2&quot;.">TICKS_BEFORE</a> are used to compare different counter reads, as those macros correctly handle overflows.</p>
+<p >Most users might find more convenient to use <a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4" title="Read the number of ticks since system startup.">get_ticks()</a>, a similar function that returns a 64-bit counter with the same frequency that never overflows.</p>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#ga5f0c6ccf7791e58f7f392e6f733fc66b" title="Returns true if &quot;t1&quot; is before &quot;t2&quot;.">TICKS_BEFORE</a> </dd>
+<dd>
+<a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7" title="Calculate the time passed between two ticks.">TICKS_DISTANCE</a> </dd>
+<dd>
+<a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4" title="Read the number of ticks since system startup.">get_ticks</a> </dd></dl>
 
 </div>
 </div>
@@ -1571,7 +1593,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
       </table>
 </div><div class="memdoc">
 
-<p>The signed difference of time between "from" and "to". </p>
+<p>Calculate the time passed between two ticks. </p>
 <p >If "from" is before "to", the distance in time is positive, otherwise it is negative. </p>
 
 </div>
@@ -1603,7 +1625,9 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><div class="memdoc">
 
 <p>Returns true if "t1" is before "t2". </p>
-<p >This is similar to t1 &lt; t2, but it correctly handles timer overflows which are very frequent. Notice that the N64 counter overflows every ~91 seconds, so it's not possible to compare times that are more than ~45 seconds apart. </p>
+<p >This is similar to t1 &lt; t2, but it correctly handles timer overflows which are very frequent. Notice that the hardware counter overflows every ~91 seconds, so it's not possible to compare times that are more than ~45 seconds apart.</p>
+<p >Use <a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4" title="Read the number of ticks since system startup.">get_ticks()</a> to get a 64-bit counter that never overflows.</p>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4" title="Read the number of ticks since system startup.">get_ticks</a> </dd></dl>
 
 </div>
 </div>
@@ -1791,7 +1815,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><div class="memdoc">
 
 <p>Force a data cache writeback invalidate over a memory region. </p>
-<p >Use this to force cached memory to be written to RDRAM and then cache updated.</p>
+<p >Use this to force cached memory to be written to RDRAM and then invalidate the corresponding cache lines.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
@@ -2156,6 +2180,72 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
+<a id="ga3686b92a0667e9774993808f4d2ac2b4" name="ga3686b92a0667e9774993808f4d2ac2b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3686b92a0667e9774993808f4d2ac2b4">&#9670;&nbsp;</a></span>get_ticks()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint64_t get_ticks </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Read the number of ticks since system startup. </p>
+<p >The frequency of this counter is <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf" title="Number of updates to the count register per second.">TICKS_PER_SECOND</a>. The counter will never overflow, being a 64-bit number.</p>
+<dl class="section return"><dt>Returns</dt><dd>The number of ticks since system startup </dd></dl>
+
+</div>
+</div>
+<a id="ga00e8ae50f807ecd7726dadcbbb0b4b8e" name="ga00e8ae50f807ecd7726dadcbbb0b4b8e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga00e8ae50f807ecd7726dadcbbb0b4b8e">&#9670;&nbsp;</a></span>get_ticks_us()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint64_t get_ticks_us </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Read the number of microseconds since system startup. </p>
+<p >This is similar to <a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4" title="Read the number of ticks since system startup.">get_ticks</a>, but converts the result in integer microseconds for convenience.</p>
+<dl class="section return"><dt>Returns</dt><dd>The number of microseconds since system startup </dd></dl>
+
+</div>
+</div>
+<a id="gaf402b4d750f14bff2ce2686e6da02e13" name="gaf402b4d750f14bff2ce2686e6da02e13"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf402b4d750f14bff2ce2686e6da02e13">&#9670;&nbsp;</a></span>get_ticks_ms()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint64_t get_ticks_ms </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Read the number of millisecounds since system startup. </p>
+<p >This is similar to <a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4" title="Read the number of ticks since system startup.">get_ticks</a>, but converts the result in integer milliseconds for convenience.</p>
+<dl class="section return"><dt>Returns</dt><dd>The number of millisecounds since system startup </dd></dl>
+
+</div>
+</div>
 <a id="gaf92492d6d351321a5974768b17e16d82" name="gaf92492d6d351321a5974768b17e16d82"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaf92492d6d351321a5974768b17e16d82">&#9670;&nbsp;</a></span>wait_ticks()</h2>
 
@@ -2208,66 +2298,6 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
-<a id="ga2d061fe138e49ae71e8716e35c0d3dc9" name="ga2d061fe138e49ae71e8716e35c0d3dc9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga2d061fe138e49ae71e8716e35c0d3dc9">&#9670;&nbsp;</a></span>get_ticks()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">volatile unsigned long get_ticks </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>Read the number of ticks since system startup. </p>
-<dl class="section note"><dt>Note</dt><dd>Also see the TICKS_READ macro</dd></dl>
-<dl class="section return"><dt>Returns</dt><dd>The number of ticks since system startup </dd></dl>
-
-</div>
-</div>
-<a id="ga94e97719a22e4dbbe64f6264e82119a5" name="ga94e97719a22e4dbbe64f6264e82119a5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga94e97719a22e4dbbe64f6264e82119a5">&#9670;&nbsp;</a></span>get_ticks_ms()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">volatile unsigned long get_ticks_ms </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>Read the number of millisecounds since system startup. </p>
-<dl class="section note"><dt>Note</dt><dd>It will wrap back to 0 after about 91.6 seconds. Also see the TICKS_READ macro. Do not use for comparison without special handling.</dd></dl>
-<dl class="section return"><dt>Returns</dt><dd>The number of millisecounds since system startup </dd></dl>
-
-</div>
-</div>
 <h2 class="groupheader">Variable Documentation</h2>
 <a id="ga7bde5bc5b3121ab6d4d1293f29a2718b" name="ga7bde5bc5b3121ab6d4d1293f29a2718b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7bde5bc5b3121ab6d4d1293f29a2718b">&#9670;&nbsp;</a></span>__bootcic</h2>
@@ -2289,7 +2319,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Apr 23 2024 22:51:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Apr 24 2024 15:35:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
