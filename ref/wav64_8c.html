@@ -79,6 +79,10 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
+<tr class="memitem:ab4697bd88e981205a5c85c90ddb0f8aa"><td class="memItemLeft" align="right" valign="top"><a id="ab4697bd88e981205a5c85c90ddb0f8aa" name="ab4697bd88e981205a5c85c90ddb0f8aa"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>VADPCM_REFERENCE_DECODER</b>&#160;&#160;&#160;0</td></tr>
+<tr class="memdesc:ab4697bd88e981205a5c85c90ddb0f8aa"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set to 1 to use the reference C decode for VADPCM. <br /></td></tr>
+<tr class="separator:ab4697bd88e981205a5c85c90ddb0f8aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2ebc55429ed20a91fac441986024ba61"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wav64_8c.html#a2ebc55429ed20a91fac441986024ba61">WAV_RIFF_ID</a>&#160;&#160;&#160;&quot;RIFF&quot;</td></tr>
 <tr class="separator:a2ebc55429ed20a91fac441986024ba61"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac353e6233bc992b82218f9bfdb804e62"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wav64_8c.html#ac353e6233bc992b82218f9bfdb804e62">WAV_RIFX_ID</a>&#160;&#160;&#160;&quot;RIFX&quot;</td></tr>
@@ -99,6 +103,12 @@ Functions</h2></td></tr>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>wav64_set_loop</b> (<a class="el" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, bool loop)</td></tr>
 <tr class="memdesc:ac8b7880f777dec27e73713a6e78cd9e3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Configure a WAV64 file for looping playback. <br /></td></tr>
 <tr class="separator:ac8b7880f777dec27e73713a6e78cd9e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aef5241ddfcc85ded464dc3c57e1e75be"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wav64_8c.html#aef5241ddfcc85ded464dc3c57e1e75be">wav64_get_bitrate</a> (<a class="el" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav)</td></tr>
+<tr class="memdesc:aef5241ddfcc85ded464dc3c57e1e75be"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the (possibly compressed) bitrate of the WAV64 file.  <a href="wav64_8c.html#aef5241ddfcc85ded464dc3c57e1e75be">More...</a><br /></td></tr>
+<tr class="separator:aef5241ddfcc85ded464dc3c57e1e75be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:add7b6d597315e268857bd2a55fc49ad7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wav64_8c.html#add7b6d597315e268857bd2a55fc49ad7">wav64_close</a> (<a class="el" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav)</td></tr>
+<tr class="memdesc:add7b6d597315e268857bd2a55fc49ad7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close a WAV64 file.  <a href="wav64_8c.html#add7b6d597315e268857bd2a55fc49ad7">More...</a><br /></td></tr>
+<tr class="separator:add7b6d597315e268857bd2a55fc49ad7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -266,10 +276,63 @@ int64_t&#160;</td><td class="memItemRight" valign="bottom"><b>__wav64_profile_dm
 
 </div>
 </div>
+<a id="aef5241ddfcc85ded464dc3c57e1e75be" name="aef5241ddfcc85ded464dc3c57e1e75be"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aef5241ddfcc85ded464dc3c57e1e75be">&#9670;&nbsp;</a></span>wav64_get_bitrate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int wav64_get_bitrate </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="wav64_8h.html#structwav64__t">wav64_t</a> *&#160;</td>
+          <td class="paramname"><em>wav</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the (possibly compressed) bitrate of the WAV64 file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">wav</td><td>Pointer to <a class="el" href="wav64_8h.html#structwav64__t" title="WAV64 structure.">wav64_t</a> structure </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int Bitrate in bits per second </dd></dl>
+
+</div>
+</div>
+<a id="add7b6d597315e268857bd2a55fc49ad7" name="add7b6d597315e268857bd2a55fc49ad7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#add7b6d597315e268857bd2a55fc49ad7">&#9670;&nbsp;</a></span>wav64_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void wav64_close </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="wav64_8h.html#structwav64__t">wav64_t</a> *&#160;</td>
+          <td class="paramname"><em>wav</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close a WAV64 file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">wav</td><td>Pointer to <a class="el" href="wav64_8h.html#structwav64__t" title="WAV64 structure.">wav64_t</a> structure </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Apr 24 2024 23:02:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Thu Apr 25 2024 21:20:39 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

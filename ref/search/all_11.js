@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['padding_0',['padding',['../structsprite__ext__t.html#a5e326787a06deb3514494c520c828862',1,'sprite_ext_t::detail_s']]],
+  ['padding_0',['padding',['../structwav64__header__vadpcm__t.html#af1755e00149d01c58635f3ade42dc763',1,'wav64_header_vadpcm_t::padding()'],['../structsprite__ext__t.html#a5e326787a06deb3514494c520c828862',1,'sprite_ext_t::detail_s::padding()']]],
   ['pal_5ffile_5fpos_1',['pal_file_pos',['../structsprite__ext__t.html#a0798cd35717e954e681e4d9b78b1764f',1,'sprite_ext_t']]],
   ['partial_2',['partial',['../structaplib__decompressor__t.html#ad31a656c315484e9ed601c8436ee2821',1,'aplib_decompressor_t']]],
   ['path_3',['path',['../eepromfs_8c.html#a21668da08c0d82dcec364c1bb11bcecc',1,'eepfs_file_t::path()'],['../group__dfs.html#ada5908f5c2a33e7ab5ff1d10a0e088d6',1,'directory_entry::path()'],['../eepromfs_8h.html#a6dcb30eea3da6cfa572b710b9bf22b32',1,'eepfs_entry_t::path()']]],

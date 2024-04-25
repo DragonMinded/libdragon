@@ -6,5 +6,6 @@ var searchData=
   ['env_3',['env',['../structAY8910.html#ade3424223bef9507c0f36115d7545053',1,'AY8910']]],
   ['eof_4',['eof',['../structaplib__decompressor__t.html#a1b05f6456cffbbb7d401c5d21a451d72',1,'aplib_decompressor_t::eof()'],['../structlz4dec__state__t.html#a873806347ffb39ff12f3ae7687e80d01',1,'lz4dec_state_t::eof()']]],
   ['epc_5',['epc',['../group__exceptions.html#a1ef589c265adcdb0a5bc6c35754b23e3',1,'reg_block_t']]],
-  ['err_6',['err',['../group__controller.html#a417cd17de789614c2a919b4b54faac34',1,'_SI_condat']]]
+  ['err_6',['err',['../group__controller.html#a417cd17de789614c2a919b4b54faac34',1,'_SI_condat']]],
+  ['ext_7',['ext',['../wav64_8h.html#aee15df2ac01f6586caaf33d1cae6511e',1,'wav64_t']]]
 ];

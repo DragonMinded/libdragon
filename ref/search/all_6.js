@@ -26,7 +26,7 @@ var searchData=
   ['eeprom_5fpresent_23',['eeprom_present',['../eeprom_8h.html#ad8d22be9ed8151aaf00f3aaa52909a87',1,'eeprom_present(void):&#160;eeprom.c'],['../eeprom_8c.html#ad8d22be9ed8151aaf00f3aaa52909a87',1,'eeprom_present(void):&#160;eeprom.c']]],
   ['eeprom_5fread_24',['eeprom_read',['../eeprom_8h.html#a8d4e5d5cd58c25c23954b9b0e8b02ac0',1,'eeprom_read(uint8_t block, uint8_t *dest):&#160;eeprom.c'],['../eeprom_8c.html#a8d4e5d5cd58c25c23954b9b0e8b02ac0',1,'eeprom_read(uint8_t block, uint8_t *dest):&#160;eeprom.c']]],
   ['eeprom_5fread_5fbytes_25',['eeprom_read_bytes',['../eeprom_8h.html#a8ffaa1a2d12887b9ebe66e293e9909fe',1,'eeprom_read_bytes(uint8_t *dest, size_t start, size_t len):&#160;eeprom.c'],['../eeprom_8c.html#a8ffaa1a2d12887b9ebe66e293e9909fe',1,'eeprom_read_bytes(uint8_t *dest, size_t start, size_t len):&#160;eeprom.c']]],
-  ['eeprom_5ftotal_5fblocks_26',['eeprom_total_blocks',['../eeprom_8c.html#abf6fdff1ec1d5c3f51e1ab79cdec3530',1,'eeprom_total_blocks(void):&#160;eeprom.c'],['../eeprom_8h.html#abf6fdff1ec1d5c3f51e1ab79cdec3530',1,'eeprom_total_blocks(void):&#160;eeprom.c']]],
+  ['eeprom_5ftotal_5fblocks_26',['eeprom_total_blocks',['../eeprom_8h.html#abf6fdff1ec1d5c3f51e1ab79cdec3530',1,'eeprom_total_blocks(void):&#160;eeprom.c'],['../eeprom_8c.html#abf6fdff1ec1d5c3f51e1ab79cdec3530',1,'eeprom_total_blocks(void):&#160;eeprom.c']]],
   ['eeprom_5ftype_5ft_27',['eeprom_type_t',['../eeprom_8h.html#a5d2c70b26685af9f2498cd45f88f224f',1,'eeprom.h']]],
   ['eeprom_5fwrite_28',['eeprom_write',['../eeprom_8h.html#af2aa704e1a317e4544a5be6e020f4d53',1,'eeprom_write(uint8_t block, const uint8_t *src):&#160;eeprom.c'],['../eeprom_8c.html#af2aa704e1a317e4544a5be6e020f4d53',1,'eeprom_write(uint8_t block, const uint8_t *src):&#160;eeprom.c']]],
   ['eeprom_5fwrite_5fbytes_29',['eeprom_write_bytes',['../eeprom_8h.html#a68beee5a570724abcd4dc81e0cd86331',1,'eeprom_write_bytes(const uint8_t *src, size_t start, size_t len):&#160;eeprom.c'],['../eeprom_8c.html#a68beee5a570724abcd4dc81e0cd86331',1,'eeprom_write_bytes(const uint8_t *src, size_t start, size_t len):&#160;eeprom.c']]],
@@ -39,7 +39,7 @@ var searchData=
   ['entry_5fstructure_5ft_36',['entry_structure_t',['../group__controllerpak.html#structentry__structure__t',1,'']]],
   ['entry_5ft_37',['entry_t',['../rompak_8c.html#structentry__t',1,'']]],
   ['env_38',['env',['../structAY8910.html#ade3424223bef9507c0f36115d7545053',1,'AY8910']]],
-  ['eof_39',['eof',['../structlz4dec__state__t.html#a873806347ffb39ff12f3ae7687e80d01',1,'lz4dec_state_t::eof()'],['../structaplib__decompressor__t.html#a1b05f6456cffbbb7d401c5d21a451d72',1,'aplib_decompressor_t::eof()']]],
+  ['eof_39',['eof',['../structaplib__decompressor__t.html#a1b05f6456cffbbb7d401c5d21a451d72',1,'aplib_decompressor_t::eof()'],['../structlz4dec__state__t.html#a873806347ffb39ff12f3ae7687e80d01',1,'lz4dec_state_t::eof()']]],
   ['epc_40',['epc',['../group__exceptions.html#a1ef589c265adcdb0a5bc6c35754b23e3',1,'reg_block_t']]],
   ['err_41',['err',['../group__controller.html#a417cd17de789614c2a919b4b54faac34',1,'_SI_condat']]],
   ['error_5fbad_5fcommand_42',['ERROR_BAD_COMMAND',['../group__controller.html#ga25fcd7a1a0b047bab42513f33881f733',1,'controller.h']]],
@@ -58,5 +58,6 @@ var searchData=
   ['exception_5ftype_5fsyscall_55',['EXCEPTION_TYPE_SYSCALL',['../group__exceptions.html#gga39fca1837c5ce7715cbf571669660c13a782e43cc570f9717fd4bbb6c16211826',1,'exception.h']]],
   ['exception_5ftype_5funknown_56',['EXCEPTION_TYPE_UNKNOWN',['../group__exceptions.html#gga39fca1837c5ce7715cbf571669660c13a90b2b2223067700d2015835a712151ba',1,'exception.h']]],
   ['execute_5fraw_5fcommand_57',['execute_raw_command',['../group__controller.html#ga7bfd7d39fbe5db64593e60ee0fc3200e',1,'controller.c']]],
-  ['execve_58',['execve',['../group__system.html#gaff1a7676150de79a9e494a9f7d926ae0',1,'system.c']]]
+  ['execve_58',['execve',['../group__system.html#gaff1a7676150de79a9e494a9f7d926ae0',1,'system.c']]],
+  ['ext_59',['ext',['../wav64_8h.html#aee15df2ac01f6586caaf33d1cae6511e',1,'wav64_t']]]
 ];
