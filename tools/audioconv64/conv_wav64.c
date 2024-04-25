@@ -1,45 +1,159 @@
-#include "wav64internal.h"
+#include "../../src/audio/wav64internal.h"
 
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav.h"
 
+#define DR_MP3_IMPLEMENTATION
+#include "dr_mp3.h"
+
+#include "../common/binout.c"
+#include "../common/binout.h"
+#include "../common/polyfill.h"
+
+#define ENABLE_SINC_BEST_CONVERTER
+#define PACKAGE "libsamplerate"
+#define VERSION "0.1.9"
+#include "libsamplerate/samplerate.h"
+#include "libsamplerate/samplerate.c"
+#include "libsamplerate/src_sinc.c"
+#include "libsamplerate/src_zoh.c"
+#include "libsamplerate/src_linear.c"
+#undef PACKAGE
+#undef VERSION
+#undef MIN
+#undef MAX
+
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
+int flag_wav_compress = 0;
+int flag_wav_resample = 0;
+bool flag_wav_mono = false;
 
-int wav_convert(const char *infn, const char *outfn) {
+typedef struct {
+	int16_t *samples;
+	int channels;
+	int bitsPerSample;
+	int sampleRate;
+} wav_data_t;
+
+static size_t read_wav(const char *infn, wav_data_t *out)
+{
 	drwav wav;
 	if (!drwav_init_file(&wav, infn, NULL)) {
-		// Check if it's a RIFX file. This is a big-endian variant of WAV
-		// that is not supported by dr_wav.
-		FILE *f = fopen(infn, "rb");
-		if (f) {
-			char head[4] = {0};
-			fread(head, 1, 4, f);
-			fclose(f);
-			if (memcmp(head, "RIFX", 4) == 0) {
-				fprintf(stderr, "ERROR: %s: big-endian / Motorola WAV files are not supported.\n", infn);
-				fprintf(stderr, "Convert them to little-endian / Intel format and run audiocovn64 again.\n");
-				fprintf(stderr, "For instance, using sox:\n");
-				fprintf(stderr, "    sox -L %s intel-%s\n", infn, infn);
-				return 1;
-			}
-		}
-
-		fprintf(stderr, "ERROR: %s: not a valid WAV file\n", infn);
-		return 1;
+		fprintf(stderr, "ERROR: %s: not a valid WAV/RIFF/AIFF file\n", infn);
+		return 0;
 	}
 
-	// Decode the samples as 16bit big-endian. This will decode everything including
+	// Decode the samples as 16bit little-endian. This will decode everything including
 	// compressed formats so that we're able to read any kind of WAV file, though
 	// it will end up as an uncompressed file.
 	int16_t* samples = malloc(wav.totalPCMFrameCount * wav.channels * sizeof(int16_t));
-	size_t cnt = drwav_read_pcm_frames_s16be(&wav, wav.totalPCMFrameCount, samples);
+	size_t cnt = drwav_read_pcm_frames_s16le(&wav, wav.totalPCMFrameCount, samples);
 	if (cnt != wav.totalPCMFrameCount) {
-		fprintf(stderr, "WARNING: %s: %llu frames found, but only %zu decoded\n", infn, wav.totalPCMFrameCount, cnt);
+		fprintf(stderr, "WARNING: %s: %d frames found, but only %zu decoded\n", infn, (int)wav.totalPCMFrameCount, cnt);
+	}
+
+	out->samples = samples;
+	out->channels = wav.channels;
+	out->bitsPerSample = wav.bitsPerSample;
+	out->sampleRate = wav.sampleRate;
+	drwav_uninit(&wav);
+	return cnt;
+}
+
+int wav_convert(const char *infn, const char *outfn) {
+	if (flag_verbose) {
+		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, "raw");
+	}
+
+	bool failed = false;
+	wav_data_t wav; size_t cnt;
+
+	// Read the input file
+	cnt = read_wav(infn, &wav);
+	if (cnt == 0) {
+		return 1;
+	}
+
+	if (flag_verbose)
+		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
+
+	// Check if the user requested conversion to mono
+	if (flag_wav_mono && wav.channels == 2) {
+		if (flag_verbose)
+			fprintf(stderr, "  converting to mono\n");
+
+		// Allocate a new buffer for the mono samples
+		int16_t *mono_samples = malloc(cnt * sizeof(int16_t));
+
+		// Convert to mono
+		int16_t *sptr = wav.samples;
+		int16_t *dptr = mono_samples;
+		for (int i=0;i<cnt;i++) {
+			int32_t v = *sptr + *(sptr+1);
+			v /= 2;
+			*dptr = v;
+			sptr += 2;
+			dptr++;
+		}
+
+		// Replace the samples buffer with the mono one
+		free(wav.samples);
+		wav.samples = mono_samples;
+		wav.channels = 1;
+	}
+
+	// Do sample rate conversion if requested
+	if (flag_wav_resample && wav.sampleRate != flag_wav_resample) {
+		if (flag_verbose)
+			fprintf(stderr, "  resampling to %d Hz\n", flag_wav_resample);
+
+		// Convert input samples to float
+		float *fsamples_in = malloc(cnt * wav.channels * sizeof(float));
+		src_short_to_float_array(wav.samples, fsamples_in, cnt * wav.channels);
+
+		// Allocate output buffer, estimating the size based on the ratio.
+		// We add some margin because we are not sure of rounding errors.
+		int newcnt = cnt * flag_wav_resample / wav.sampleRate + 16;
+		float *fsamples_out = malloc(newcnt * wav.channels * sizeof(float));
+
+		// Do the conversion
+		SRC_DATA data = {
+			.data_in = fsamples_in,
+			.input_frames = cnt,
+			.data_out = fsamples_out,
+			.output_frames = newcnt,
+			.src_ratio = (double)flag_wav_resample / wav.sampleRate,
+		};
+		int err = src_simple(&data, SRC_SINC_BEST_QUALITY, wav.channels);
+		if (err != 0) {
+			fprintf(stderr, "ERROR: %s: resampling failed: %s\n", infn, src_strerror(err));
+			free(fsamples_in);
+			free(fsamples_out);
+			free(wav.samples);
+			return 1;
+		}
+
+		// Extract the number of samples generated, and convert back to 16-bit
+		cnt = data.output_frames_gen;
+		wav.samples = realloc(wav.samples, cnt * wav.channels * sizeof(int16_t));
+		src_float_to_short_array(fsamples_out, wav.samples, cnt * wav.channels);
+
+		free(fsamples_in);
+		free(fsamples_out);
+
+		// Update wav.sampleRate as it will be used later
+		wav.sampleRate = flag_wav_resample;
+
+		// Update also the loop offset to the new sample rate
+		flag_wav_looping_offset = flag_wav_looping_offset * flag_wav_resample / wav.sampleRate;
 	}
 
 	// Keep 8 bits file if original is 8 bit, otherwise expand to 16 bit.
+	// Compressed waveforms always expand to 16 bit.
 	int nbits = wav.bitsPerSample == 8 ? 8 : 16;
+	if (flag_wav_compress != 0)
+		nbits = 16;
 
 	int loop_len = flag_wav_looping ? cnt - flag_wav_looping_offset : 0;
 	if (loop_len < 0) {
@@ -54,63 +168,68 @@ int wav_convert(const char *infn, const char *outfn) {
 		loop_len -= 1;
 	}
 
-	wav64_header_t head;
-	memset(&head, 0, sizeof(wav64_header_t));
-
-	memcpy(head.id, "WV64", 4);
-	head.version = WAV64_FILE_VERSION;
-	head.format = 0;
-	head.channels = wav.channels;
-	head.nbits = nbits;
-	head.freq = HOST_TO_BE32(wav.sampleRate);
-	head.len = HOST_TO_BE32(cnt);
-	head.loop_len = HOST_TO_BE32(loop_len);
-	head.start_offset = HOST_TO_BE32(sizeof(wav64_header_t));
-
-	if (flag_verbose)
-		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);
-
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {
 		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
-		free(samples);
-		drwav_uninit(&wav);
+		free(wav.samples);
 		return 1;
 	}
 
-	fwrite(&head, 1, sizeof(wav64_header_t), out);
+	char id[4] = "WV64";
+	fwrite(id, 1, 4, out);
+	w8(out, WAV64_FILE_VERSION);
+	w8(out, flag_wav_compress);
+	w8(out, wav.channels);
+	w8(out, nbits);
+	w32(out, wav.sampleRate);
+	w32(out, cnt);
+	w32(out, loop_len);
+	int wstart_offset = w32_placeholder(out); // start_offset (to be filled later)
 
-	int16_t *sptr = samples;
-	for (int i=0;i<cnt*wav.channels;i++) {
-		// Write the sample as 16bit or 8bit. Since *sptr is 16-bit big-endian,
-		// the 8bit representation is just the first byte (MSB). Notice
-		// that WAV64 8bit is signed anyway.
-		fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
-		sptr++;
-	}
-
-	// Amount of data that can be overread by the player.
-	const int OVERREAD_BYTES = 64;
-	if (loop_len == 0) {
-		for (int i=0;i<OVERREAD_BYTES;i++)
-			fputc(0, out);
-	} else {
-		int idx = cnt - loop_len;
-		int nb = 0;
-		while (nb < OVERREAD_BYTES) {
-			int16_t *sptr = samples + idx*wav.channels;
-			for (int ch=0;ch<wav.channels;ch++) {
-				nb += fwrite(sptr, 1, nbits==8 ? 1 : 2, out);
-				sptr++;
-			}
-			idx++;
-			if (idx == cnt)
-				idx -= loop_len;
+	switch (flag_wav_compress) {
+	case 0: { // no compression
+		w32_at(out, wstart_offset, ftell(out));
+		int16_t *sptr = wav.samples;
+		for (int i=0;i<cnt*wav.channels;i++) {
+			// Byteswap *sptr
+			int16_t v = *sptr;
+			v = ((v & 0xFF00) >> 8) | ((v & 0x00FF) << 8);
+			*sptr = v;
+			// Write the sample as 16bit or 8bit. Since *sptr is 16-bit big-endian,
+			// the 8bit representation is just the first byte (MSB). Notice
+			// that WAV64 8bit is signed anyway.
+			fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
+			sptr++;
 		}
+
+		// Amount of data that can be overread by the player.
+		const int OVERREAD_BYTES = 64;
+		if (loop_len == 0) {
+			for (int i=0;i<OVERREAD_BYTES;i++)
+				fputc(0, out);
+		} else {
+			int idx = cnt - loop_len;
+			int nb = 0;
+			while (nb < OVERREAD_BYTES) {
+				int16_t *sptr = wav.samples + idx*wav.channels;
+				for (int ch=0;ch<wav.channels;ch++) {
+					nb += fwrite(sptr, 1, nbits==8 ? 1 : 2, out);
+					sptr++;
+				}
+				idx++;
+				if (idx == cnt)
+					idx -= loop_len;
+			}
+		}
+	} break;
+
 	}
 
 	fclose(out);
-	free(samples);
-	drwav_uninit(&wav);
+	free(wav.samples);
+	if (failed) {
+		remove(outfn);
+		return 1;
+	}
 	return 0;
 }
