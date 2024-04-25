@@ -5,6 +5,7 @@
  */
 
 #include "mixer.h"
+#include "mixer_internal.h"
 #include "regsinternal.h"
 #include "utils.h"
 #include "rsp.h"
@@ -171,7 +172,7 @@ static struct {
 /** @brief Count of ticks spent in mixer RSP, used for debugging purposes. */
 int64_t __mixer_profile_rsp = 0;
 
-static uint32_t __mixer_overlay_id;
+uint32_t __mixer_overlay_id;
 
 static inline int mixer_initialized(void) { return Mixer.num_channels != 0; }
 
