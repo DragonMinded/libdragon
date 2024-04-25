@@ -64,7 +64,7 @@ void usage(void) {
 	printf("   audioconv64 [flags] <file-or-dir> [[flags] <file-or-dir>..]\n");
 	printf("\n");
 	printf("Supported conversions:\n");
-	printf("   * WAV => WAV64 (Waveforms)\n");
+	printf("   * WAV/MP3 => WAV64 (Waveforms)\n");
 	printf("   * XM  => XM64  (MilkyTracker, OpenMPT)\n");
 	printf("   * YM  => YM64  (Arkos Tracker II)\n");
 	printf("\n");
@@ -73,7 +73,7 @@ void usage(void) {
 	printf("   -v / --verbose            Verbose mode\n");
 	printf("   -d / --debug              Dump uncompressed files in output directory for debugging\n");
 	printf("\n");
-	printf("WAV options:\n");
+	printf("WAV/MP3 options:\n");
 	printf("   --wav-mono                Force mono output\n");
 	printf("   --wav-resample <N>        Resample to a different sample rate\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
@@ -99,7 +99,7 @@ void convert(char *infn, char *outfn1) {
 		return;
 	}
 
-	if (strcasecmp(ext, ".wav") == 0 || strcasecmp(ext, ".aiff") == 0) {
+	if (strcasecmp(ext, ".wav") == 0 || strcasecmp(ext, ".aiff") == 0 || strcasecmp(ext, ".mp3") == 0) {
 		char *outfn = changeext(outfn1, ".wav64");
 		wav_convert(infn, outfn);
 		free(outfn);
