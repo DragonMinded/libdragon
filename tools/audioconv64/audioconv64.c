@@ -76,6 +76,7 @@ void usage(void) {
 	printf("WAV/MP3 options:\n");
 	printf("   --wav-mono                Force mono output\n");
 	printf("   --wav-resample <N>        Resample to a different sample rate\n");
+	printf("   --wav-compress <0|1>      Enable compression: 0=none, 1=vadpcm (default)\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
 	printf("\n");
@@ -230,6 +231,16 @@ int main(int argc, char *argv[]) {
 				flag_wav_looping = true;
 			} else if (!strcmp(argv[i], "--wav-mono")) {
 				flag_wav_mono = true;
+			} else if (!strcmp(argv[i], "--wav-compress")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --wav-compress\n");
+					return 1;
+				}
+				flag_wav_compress = atoi(argv[i]);
+				if (flag_wav_compress != 0 && flag_wav_compress != 1 && flag_wav_compress != 3) {
+					fprintf(stderr, "invalid argument for --wav-compress: %s\n", argv[i]);
+					return 1;
+				}
 			} else if (!strcmp(argv[i], "--wav-resample")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --wav-resample\n");
