@@ -61,6 +61,29 @@ static size_t read_wav(const char *infn, wav_data_t *out)
 	return cnt;
 }
 
+static size_t read_mp3(const char *infn, wav_data_t *out)
+{
+	drmp3 mp3;
+	if (!drmp3_init_file(&mp3, infn, NULL)) {
+		fprintf(stderr, "ERROR: %s: not a valid MP3 file\n", infn);
+		return 0;
+	}
+
+	uint64_t nframes = drmp3_get_pcm_frame_count(&mp3);
+	int16_t* samples = malloc(nframes * mp3.channels * sizeof(int16_t));
+	size_t cnt = drmp3_read_pcm_frames_s16(&mp3, nframes, samples);
+	if (cnt != nframes) {
+		fprintf(stderr, "WARNING: %s: %d frames found, but only %zu decoded\n", infn, (int)nframes, cnt);
+	}
+
+	out->samples = samples;
+	out->channels = mp3.channels;
+	out->bitsPerSample = 16;
+	out->sampleRate = mp3.sampleRate;
+	drmp3_uninit(&mp3);
+	return cnt;
+}
+
 int wav_convert(const char *infn, const char *outfn) {
 	if (flag_verbose) {
 		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, "raw");
@@ -70,7 +93,10 @@ int wav_convert(const char *infn, const char *outfn) {
 	wav_data_t wav; size_t cnt;
 
 	// Read the input file
-	cnt = read_wav(infn, &wav);
+	if (strcasestr(infn, ".mp3"))
+		cnt = read_mp3(infn, &wav);
+	else
+		cnt = read_wav(infn, &wav);
 	if (cnt == 0) {
 		return 1;
 	}
