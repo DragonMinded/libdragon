@@ -11,7 +11,7 @@ DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
 filesystem/libdragon-font.sprite: assets/libdragon-font.png
 	@mkdir -p $(dir $@)
 	@echo "    [SPRITE] $@"
-	$(N64_MKSPRITE) 16 16 8 "$<" "$@"
+	$(N64_MKSPRITE) --tiles 16,16 -o $(dir $@) "$<"
 
 customfont.z64: N64_ROM_TITLE = "customfont"
 customfont.z64: $(BUILD_DIR)/customfont.dfs
