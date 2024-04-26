@@ -3,6 +3,7 @@
 #include "debug.h"
 #include "surface.h"
 #include "sprite_internal.h"
+#include "asset_internal.h"
 #include "asset.h"
 #include "utils.h"
 #include "rdpq_tex.h"
@@ -32,6 +33,12 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
 bool __sprite_upgrade(sprite_t *sprite)
 {
+    // Check if the sprite header begins with ASSET_MAGIC, which indicates a 
+    // compressed sprite loaded with old-style file reading. In this case, we
+    // can emit an assertion.
+    assertf(memcmp(sprite, ASSET_MAGIC, 3) != 0, 
+        "Sprite is compressed: use sprite_load() instead of reading the file manually");
+
     // Previously, the "format" field of the sprite structure (now renamed "flags")
     // was unused and always contained 0. Sprites could only be RGBA16 and RGBA32 anyway,
     // so only a bitdepth field could be used to understand the format.
