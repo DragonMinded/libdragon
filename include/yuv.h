@@ -4,6 +4,12 @@
  * @ingroup video
  */
 
+/**
+ * @defgroup video Video Subsystem
+ * @ingroup libdragon
+ * @brief Compressed video playback libraries (for FMVs, etc.)
+ */
+
 #ifndef __LIBDRAGON_YUV_H
 #define __LIBDRAGON_YUV_H
 
