@@ -8,6 +8,7 @@
 #include "system.h"
 #include "nand.h"
 #include "bbfs.h"
+#include "utils.h"
 
 #ifndef BBFS_TRACE
 #define BBFS_TRACE      0
@@ -59,8 +60,8 @@ typedef struct {
     char ext[3];            ///< Extension (0 terminated if shorter than 3 chars)
     uint8_t valid;          ///< 1 if entry is valid
     int16_t block;          ///< First block of the file
-    uint16_t padding;       ///< Padding
-    uint32_t size;          ///< File size in bytes
+    uint16_t padding;       ///< Size of the padding in the last block (libdragon extension)
+    uint32_t size;          ///< File size in bytes (rounded up to block size)
 } bbfs_entry_t;
 
 /** @brief BBFS superblock */
@@ -400,7 +401,7 @@ static void *__bbfs_open(char *name, int flags)
     if (flags & O_TRUNC)
         SB_WRITE(entry->size, 0);
     if (flags & O_APPEND)
-        file->pos = be32(entry->size);
+        file->pos = be32(entry->size) - be16(entry->padding);
     return file;
 }
 
@@ -409,7 +410,7 @@ static int __bbfs_read(void *file, uint8_t *ptr, int len)
     bbfs_openfile_t *f = file;
     int block = f->block;
     int pos = f->pos;
-    int size = be32(f->entry->size);
+    int size = be32(f->entry->size) - be16(f->entry->padding);
 
     if (!(f->flags & BBFS_FLAGS_READING)) {
         errno = EBADF;
@@ -491,7 +492,7 @@ static void __bbfs_write_page_end(bbfs_openfile_t *f)
 static int __bbfs_write_block_begin(bbfs_openfile_t *f)
 {
     if ((f->flags & BBFS_FLAGS_BLOCK_SHADOWED) == 0) {
-        int final_size = f->flags & BBFS_FLAGS_LAZY_EXTEND ? f->final_size : be32(f->entry->size);
+        int final_size = f->flags & BBFS_FLAGS_LAZY_EXTEND ? f->final_size : be32(f->entry->size) - be16(f->entry->padding);
         f->block = __bbfs_allocate_block(be16i(*f->block_prev_link), final_size >= BBFS_BIGFILE_THRESHOLD);
         if (f->block < 0) {
             // No free blocks: filesystem is full
@@ -531,7 +532,7 @@ static int __bbfs_block_write(bbfs_openfile_t *f, uint8_t *ptr, int len)
 {
     int block = f->block;
     int pos = f->pos;
-    int size = be32(f->entry->size);
+    int size = be32(f->entry->size) - be16(f->entry->padding);
 
     // Split the write into page-aligned chunks
     int written = 0;
@@ -563,7 +564,8 @@ static int __bbfs_block_write(bbfs_openfile_t *f, uint8_t *ptr, int len)
 
     f->pos = pos;
     if (pos > size) {
-        SB_WRITE(f->entry->size, be32(pos));
+        SB_WRITE(f->entry->size, be32(ROUND_UP(pos, NAND_BLOCK_SIZE)));
+        SB_WRITE(f->entry->padding, be16(-pos & (NAND_BLOCK_SIZE-1)));
     }
 
     return written;
@@ -637,7 +639,7 @@ static void __bbfs_shrink(bbfs_entry_t *entry, int len)
 {
     // Search for the block that contains len-1. That's the
     // last block that we want to keep.
-    tracef(2, "shrink: %d -> %d", (int)be32(entry->size), len);
+    tracef(2, "shrink: %d -> %d", (int)be32(entry->size) - be16(entry->padding), len);
     int16_t* block_ptr = &entry->block;
     for (int blen = 0; blen < len; blen += NAND_BLOCK_SIZE) {
         assert(be16i(*block_ptr) > 0);
@@ -658,13 +660,14 @@ static void __bbfs_shrink(bbfs_entry_t *entry, int len)
     }
 
     // Truncate the file
-    SB_WRITE(entry->size, be32(len));
+    SB_WRITE(entry->size, be32(ROUND_UP(len, NAND_BLOCK_SIZE)));
+    SB_WRITE(entry->padding, be16(-len & (NAND_BLOCK_SIZE-1)));
 }
 
 static int __bbfs_lseek(void *file, int offset, int whence)
 {
     bbfs_openfile_t *f = file;
-    int size = be32(f->entry->size);
+    int size = be32(f->entry->size) - be16(f->entry->padding);
     int pos = f->pos;
 
     switch (whence) {
@@ -728,13 +731,14 @@ static int __bbfs_lseek(void *file, int offset, int whence)
 static int __bbfs_ftruncate(void *file, int len)
 {
     bbfs_openfile_t *f = file;
-    int size = be32(f->entry->size);
+    int size = be32(f->entry->size) - be16(f->entry->padding);
 
     if (!(f->flags & BBFS_FLAGS_WRITING)) {
         errno = EBADF;
         return -1;
     }
 
+    tracef(1, "ftruncate: %d -> %d", size, len);
     if (len < size) {
         // If we're currently past the new size, move back. Use lseek
         // so that everything is flushed / updated correctly.
@@ -785,7 +789,7 @@ static int __bbfs_fstat(void *file, struct stat *st)
     memset(st, 0, sizeof(struct stat));
     st->st_ino = f->entry - bbfs_superblock[0].entries;
     st->st_mode = S_IFREG;
-    st->st_size = be32(f->entry->size);
+    st->st_size = be32(f->entry->size) - be16(f->entry->padding);
     st->st_blksize = NAND_BLOCK_SIZE;
     st->st_blocks = (st->st_size + NAND_BLOCK_SIZE - 1) / NAND_BLOCK_SIZE;
     return 0;
@@ -822,7 +826,7 @@ static int __bbfs_findnext(dir_t *dir)
         if (entry->valid) {
             dir->d_cookie = i;
             dir->d_type = DT_REG;
-            dir->d_size = be32(entry->size);
+            dir->d_size = be32(entry->size) - be16(entry->padding);
             
             int j=0;
             for (int k=0; k<8; k++) {
@@ -885,7 +889,7 @@ int16_t* bbfs_get_file_blocks(const char *filename)
     if (!entry)
         return NULL;
 
-    int num_blocks = (be32(entry->size) + NAND_BLOCK_SIZE - 1) / NAND_BLOCK_SIZE;
+    int num_blocks = be32(entry->size) / NAND_BLOCK_SIZE;
     int16_t *blocks = malloc(sizeof(int16_t) * (num_blocks + 1));
 
     int block = be16i(entry->block);
@@ -973,6 +977,20 @@ static void fsck_filenames(fsck_state_t *state, bool fix_errors)
                     }
                 }
             }
+
+            // Check that the size is a multiple of a block
+            if (be32(entry->size) % NAND_BLOCK_SIZE != 0) {
+                state->num_errors++;
+                tracef(1, "file %.*s.%.*s has invalid size %d", nlen, entry->name, elen, entry->ext, (int)be32(entry->size));
+                if (fix_errors) SB_WRITE(entry->size, be32(ROUND_UP(be32(entry->size), NAND_BLOCK_SIZE)));
+            }
+
+            // Check that the padding is within the block size
+            if (be16(entry->padding) >= NAND_BLOCK_SIZE) {
+                state->num_errors++;
+                tracef(1, "file %.*s.%.*s has invalid padding %d", nlen, entry->name, elen, entry->ext, be16(entry->padding));
+                if (fix_errors) SB_WRITE(entry->padding, 0);
+            }
         }
     }
 }
@@ -995,8 +1013,7 @@ static void fsck_fatchains(fsck_state_t *state, bool fix_errors)
         if (entry->valid) {
             int16_t *block_ptr = &entry->block;
             int16_t block = be16i(*block_ptr);
-            int size = be32(entry->size);
-            int num_blocks = (size + NAND_BLOCK_SIZE - 1) / NAND_BLOCK_SIZE;
+            int num_blocks = be32(entry->size) / NAND_BLOCK_SIZE;
             bool corrupted = false;
 
             for (int j=0; j<num_blocks; j++) {
@@ -1065,6 +1082,7 @@ static void fsck_blocks(fsck_state_t *state, bool fix_errors)
                         entry->valid = 1;
                         entry->block = be16i(block);
                         entry->size = be32(num_blocks * NAND_BLOCK_SIZE);
+                        entry->padding = 0;
                         fsck_random_name(state, entry->name);
                         sb_record_write(entry, sizeof(bbfs_entry_t));
                         break;
