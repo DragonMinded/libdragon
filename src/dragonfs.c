@@ -645,6 +645,10 @@ int dfs_chdir(const char * const path)
  *             Buffer to place the name of the file or directory found
  *
  * @return The flags (#FLAGS_FILE, #FLAGS_DIR, #FLAGS_EOF) or a negative value on error.
+ *
+ * @note This function uses a global context. Do not attempt multiple
+ *       directory traversals at the same time. You can use #dir_findfirst
+ *       and #dir_findnext to avoid this limitation.
  */
 int dfs_dir_findfirst(const char * const path, char *buf)
 {
