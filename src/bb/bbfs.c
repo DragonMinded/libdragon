@@ -822,6 +822,7 @@ static int __bbfs_findnext(dir_t *dir)
         if (entry->valid) {
             dir->d_cookie = i;
             dir->d_type = DT_REG;
+            dir->d_size = be32(entry->size);
             
             int j=0;
             for (int k=0; k<8; k++) {
