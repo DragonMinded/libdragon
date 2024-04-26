@@ -13,6 +13,8 @@
 
 /** @brief Number of filesystems that can be attached to the system */
 #define MAX_FILESYSTEMS     10
+/** @brief Number of open handles that can be maintained at one time */
+#define MAX_OPEN_HANDLES    4096
 
 #ifdef __cplusplus
 extern "C" {
