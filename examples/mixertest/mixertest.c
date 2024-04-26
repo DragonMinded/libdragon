@@ -14,7 +14,7 @@ int main(void) {
 	int ret = dfs_init(DFS_DEFAULT_LOCATION);
 	assert(ret == DFS_ESUCCESS);
 
-	audio_init(44100, 4);
+	audio_init(48000, 4);
 	mixer_init(16);  // Initialize up to 16 channels
 
 	// Bump maximum frequency of music channel to 128k.
