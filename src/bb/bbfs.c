@@ -326,11 +326,13 @@ static int bbfs_mount(void)
     return BBFS_ERR_SUPERBLOCK;
 }
 
-static bbfs_entry_t *bbfs_find_entry(const char *name)
+static bbfs_entry_t *bbfs_find_entry(const char *name, bool *invalid_name)
 {
     char *dot = strchr(name, '.');
-    if (dot - name > 8 || (dot && strlen(dot+1) > 3))
+    if (dot - name > 8 || (dot && strlen(dot+1) > 3)) {
+        if (invalid_name) *invalid_name = true;
         return NULL;
+    }
     int namelen = dot ? dot-name : strlen(name);
 
     for (int i=0; i<BBFS_MAX_ENTRIES; i++) {
@@ -345,7 +347,12 @@ static bbfs_entry_t *bbfs_find_entry(const char *name)
 
 static void *__bbfs_open(char *name, int flags)
 {
-    bbfs_entry_t *entry = bbfs_find_entry(name);
+    bool invalid_name = false;
+    bbfs_entry_t *entry = bbfs_find_entry(name, &invalid_name);
+    if (invalid_name) {
+        errno = EINVAL;
+        return NULL;
+    }
 
     if (!entry) {
         if (!(flags & O_CREAT)) {
@@ -786,7 +793,13 @@ static int __bbfs_fstat(void *file, struct stat *st)
 
 static int __bbfs_unlink(char *name)
 {
-    bbfs_entry_t *entry = bbfs_find_entry(name);
+    bool invalid_name = false;
+    bbfs_entry_t *entry = bbfs_find_entry(name, &invalid_name);
+    if (invalid_name) {
+        errno = EINVAL;
+        return -1;
+    }
+
     if (!entry) {
         errno = ENOENT;
         return -1;
@@ -867,7 +880,7 @@ int bbfs_init(void)
 
 int16_t* bbfs_get_file_blocks(const char *filename)
 {
-    bbfs_entry_t* entry = bbfs_find_entry(filename);
+    bbfs_entry_t* entry = bbfs_find_entry(filename, NULL);
     if (!entry)
         return NULL;
 
