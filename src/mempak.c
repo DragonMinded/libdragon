@@ -232,7 +232,7 @@ static int __validate_toc( uint8_t *sector )
  * 
  * @return    The number of bytes written to the output buffer
  */
-static int __n64_to_utf8( char c, char *out )
+static int __n64_to_utf8( uint8_t c, char *out )
 {
     /* Miscelaneous chart */
     switch( c )
