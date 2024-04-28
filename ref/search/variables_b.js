@@ -8,5 +8,8 @@ var searchData=
   ['max_5fbuf_5fsz_5',['max_buf_sz',['../mixer_8c.html#a0c051fe9a32c1034e2fc832b5c5b02cc',1,'channel_limit_t']]],
   ['max_5ffrequency_6',['max_frequency',['../mixer_8c.html#ac5388bb6f30e2d0ac2a92ff25fefea3f',1,'channel_limit_t']]],
   ['min_7',['min',['../group__rtc.html#a521dfb37091082541a7a08d527b3e5c4',1,'rtc_time_t']]],
-  ['month_8',['month',['../group__rtc.html#a72c1fb304848005b837a5966123feeb5',1,'rtc_time_t']]]
+  ['mode_5ffreeze_8',['mode_freeze',['../rdpq__internal_8h.html#ab8bd2c9579eae6b3e65b80a66881a4bf',1,'rdpq_tracking_t']]],
+  ['month_9',['month',['../group__rtc.html#a72c1fb304848005b837a5966123feeb5',1,'rtc_time_t']]],
+  ['mx_10',['mx',['../rdpq__tri_8c.html#ad1c1c20ba206875e2e9b287f5a82baa6',1,'rdpq_tri_edge_data_t']]],
+  ['my_11',['my',['../rdpq__tri_8c.html#a2df80859e66e0397507d6a059e5171aa',1,'rdpq_tri_edge_data_t']]]
 ];

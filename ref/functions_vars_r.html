@@ -69,6 +69,15 @@ $(function() {
 <li>ra_offset&#160;:&#160;<a class="el" href="structbt__func__t.html#a84458a7752c5604f07159aef57b67f71">bt_func_t</a></li>
 <li>ram_address&#160;:&#160;<a class="el" href="group__lowlevel.html#a9c462b86aed69b69730e770a6ad69107">PI_regs_t</a></li>
 <li>ram_size_code&#160;:&#160;<a class="el" href="tpak_8h.html#a0969c89ebf119da8111dd43c00cf76cb">gameboy_cartridge_header</a></li>
+<li>rdp_block&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a82d6fb16d4c24caa5d27ab56e3139b22">rspq_block_t</a></li>
+<li>rdp_fill_color&#160;:&#160;<a class="el" href="rspq__internal_8h.html#abe097bf8767f8c3caaa02a0e3dd633fc">rsp_queue_t</a></li>
+<li>rdp_mode&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a8ec5b9f0315c446369d65a828182c80d">rsp_queue_t</a></li>
+<li>rdp_scissor_rect&#160;:&#160;<a class="el" href="rspq__internal_8h.html#aaf03cf478da7d3bbac28add5e4e67263">rsp_queue_t</a></li>
+<li>rdp_syncfull_ongoing&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a808fa93797ada04a5122a0cc97ae5619">rsp_queue_t</a></li>
+<li>rdp_target_bitdepth&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a85ccbeaa6742d838a2dd3fadcf7c3a01">rsp_queue_t</a></li>
+<li>rdpq_debug&#160;:&#160;<a class="el" href="rspq__internal_8h.html#afb00700ee7080c68f9b26735936cd9dc">rsp_queue_t</a></li>
+<li>rdram_state_address&#160;:&#160;<a class="el" href="rdpq_8c.html#a9c2820055ca9c76d3bbb703e8c93446e">rdpq_state_t</a></li>
+<li>rdram_syncpoint_id&#160;:&#160;<a class="el" href="rdpq_8c.html#a55701a2e678917743415b9011a9b4c9f">rdpq_state_t</a></li>
 <li>read&#160;:&#160;<a class="el" href="structfilesystem__t.html#abff74937fb519579b4afcb843c52c5cb">filesystem_t</a>, <a class="el" href="mixer_8h.html#a5bcbece8e4db3e873a29bb9a227ac4e4">waveform_t</a></li>
 <li>read_length&#160;:&#160;<a class="el" href="group__lowlevel.html#af527dfb73fb557caa7fe0f346e336725">PI_regs_t</a></li>
 <li>real_height&#160;:&#160;<a class="el" href="group__rdp.html#a389a8584bd57aba7b0bfc3841e59609b">sprite_cache</a></li>
@@ -91,15 +100,19 @@ $(function() {
 <li>rsp_read_length&#160;:&#160;<a class="el" href="group__lowlevel.html#a99681ab88da1a35c4764d229224c276a">SP_regs_t</a></li>
 <li>rsp_semaphore&#160;:&#160;<a class="el" href="group__lowlevel.html#a5879be9e474337266c6855279c65b69b">SP_regs_t</a></li>
 <li>rsp_write_length&#160;:&#160;<a class="el" href="group__lowlevel.html#a26d7ebd4637d8630ea72b335220b1c5e">SP_regs_t</a></li>
-<li>rspq_dram_addr&#160;:&#160;<a class="el" href="rspq_8c.html#a95509523ed0319eedc0c1f243eb11287">rsp_queue_t</a></li>
-<li>rspq_dram_highpri_addr&#160;:&#160;<a class="el" href="rspq_8c.html#a416de4e7fb92fd08adadbdfadd988bdb">rsp_queue_t</a></li>
-<li>rspq_dram_lowpri_addr&#160;:&#160;<a class="el" href="rspq_8c.html#a5e0f8582d01071ec6cbb8ca64cef732b">rsp_queue_t</a></li>
-<li>rspq_pointer_stack&#160;:&#160;<a class="el" href="rspq_8c.html#a4c630b61de8b37527faef64f92972969">rsp_queue_t</a></li>
+<li>rspq_dram_addr&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a95509523ed0319eedc0c1f243eb11287">rsp_queue_t</a></li>
+<li>rspq_dram_highpri_addr&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a416de4e7fb92fd08adadbdfadd988bdb">rsp_queue_t</a></li>
+<li>rspq_dram_lowpri_addr&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a5e0f8582d01071ec6cbb8ca64cef732b">rsp_queue_t</a></li>
+<li>rspq_pointer_stack&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a4c630b61de8b37527faef64f92972969">rsp_queue_t</a></li>
+<li>rspq_rdp_buffers&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a658c3e9ce652b6efe1d8c4481376bc38">rsp_queue_t</a></li>
+<li>rspq_rdp_current&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a415b30de8d27a1cc60f6e09e59c2319f">rsp_queue_t</a></li>
+<li>rspq_rdp_sentinel&#160;:&#160;<a class="el" href="rspq__internal_8h.html#a3127fa994393137dd5db3af0665dfeec">rsp_queue_t</a></li>
+<li>rspq_syncpoint_id&#160;:&#160;<a class="el" href="rdpq_8c.html#a4966cb9c556597aa63ca1a8bf2554ce4">rdpq_state_t</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Apr 28 2024 21:33:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:47:39 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

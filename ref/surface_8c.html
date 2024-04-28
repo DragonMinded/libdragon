@@ -140,7 +140,7 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
 
 <p>Allocate a new surface in memory. </p>
 <p >This function allocates a new surface with the specified pixel format, width and height. The surface must be freed via <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> when it is not needed anymore.</p>
-<p >A surface allocated via <a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> can be used as a RDP frame buffer (passed to <a class="el" href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248" title="Attach the RDP to a surface.">rdp_attach</a>) because it is guaranteed to have the required alignment of 64 bytes, provided it is using one of the formats supported by RDP as a framebuffer target (<code>FMT_RGBA32</code>, <code>FMT_RGBA16</code> or <code>FMT_I8</code>).</p>
+<p >A surface allocated via <a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> can be used as a RDP frame buffer (passed to <a class="el" href="rdpq__attach_8h.html#a67bd7bcd3d71538f5a10d50ba73b6b10" title="Attach the RDP to a color surface (and optionally a Z buffer)">rdpq_attach</a>) because it is guaranteed to have the required alignment of 64 bytes, provided it is using one of the formats supported by RDP as a framebuffer target (<code>FMT_RGBA32</code>, <code>FMT_RGBA16</code> or <code>FMT_I8</code>).</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">format</td><td>Pixel format of the surface </td></tr>
@@ -296,7 +296,7 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
 <p>Initialize a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> structure with the provided buffer. </p>
 <p >This functions initializes a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> structure with the provided buffer and information. It is just a helper to fill the structure fields.</p>
 <p >It is not necessary to call <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> on surfaces created by <a class="el" href="surface_8h.html#a764269d5ee8de46b3c0ef0f318f86a15" title="Initialize a surface_t structure with the provided buffer.">surface_make</a> as there is nothing to free: the provided buffer will not be owned by the structure, so it is up to the caller to handle its lifetime.</p>
-<p >If you plan to use this format as RDP framebuffer, make sure that the provided buffer respects the required alignment of 64 bytes, otherwise <a class="el" href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248" title="Attach the RDP to a surface.">rdp_attach</a> will fail.</p>
+<p >If you plan to use this format as RDP framebuffer, make sure that the provided buffer respects the required alignment of 64 bytes, otherwise <a class="el" href="rdpq__attach_8h.html#a67bd7bcd3d71538f5a10d50ba73b6b10" title="Attach the RDP to a color surface (and optionally a Z buffer)">rdpq_attach</a> will fail.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">buffer</td><td>Pointer to the memory buffer </td></tr>
@@ -448,7 +448,7 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Apr 28 2024 21:33:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:47:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

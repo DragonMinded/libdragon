@@ -10,7 +10,9 @@ var searchData=
   ['alternate_7',['alternate',['../structAYEnvelope.html#a83cc06194995ba0ccac61a5fefc85760',1,'AYEnvelope']]],
   ['assert_5fhandler_8',['assert_handler',['../structrsp__ucode__t.html#a4e6b8b919f54b9af109d67cd6f851ebe',1,'rsp_ucode_t']]],
   ['attack_9',['attack',['../structAYEnvelope.html#ad32733abe56129ddcf068f8ee5d1e1b1',1,'AYEnvelope']]],
-  ['attrs_10',['attrs',['../ym64_8c.html#a0903c9d1a7c649656236eca442908c8f',1,'ym5header']]],
-  ['author_11',['author',['../ym64_8h.html#a294e33c591e9385f2dd616b2de3412bc',1,'ym64player_songinfo_t']]],
-  ['ay_12',['ay',['../ym64_8h.html#ac2f49185869569f91066b6f53627a941',1,'ym64player_t']]]
+  ['attr_5ffactor_10',['attr_factor',['../rdpq__tri_8c.html#a3e060c897ad2cb3eefabb55cc994542d',1,'rdpq_tri_edge_data_t']]],
+  ['attrs_11',['attrs',['../ym64_8c.html#a0903c9d1a7c649656236eca442908c8f',1,'ym5header']]],
+  ['author_12',['author',['../ym64_8h.html#a294e33c591e9385f2dd616b2de3412bc',1,'ym64player_songinfo_t']]],
+  ['autosync_13',['autosync',['../rdpq__internal_8h.html#a8d2ac563cf98083991bcf5b730539121',1,'rdpq_tracking_t']]],
+  ['ay_14',['ay',['../ym64_8h.html#ac2f49185869569f91066b6f53627a941',1,'ym64player_t']]]
 ];

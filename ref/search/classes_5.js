@@ -1,8 +1,8 @@
 var searchData=
 [
-  ['eepfs_5fentry_5ft_0',['eepfs_entry_t',['../eepromfs_8h.html#structeepfs__entry__t',1,'']]],
-  ['eepfs_5ffile_5ft_1',['eepfs_file_t',['../eepromfs_8c.html#structeepfs__file__t',1,'']]],
-  ['entry_5fstructure_5ft_2',['entry_structure_t',['../group__controllerpak.html#structentry__structure__t',1,'']]],
-  ['entry_5ft_3',['entry_t',['../rompak_8c.html#structentry__t',1,'']]],
-  ['exception_5ft_4',['exception_t',['../group__exceptions.html#structexception__t',1,'']]]
+  ['decompress_5fringbuf_5ft_0',['decompress_ringbuf_t',['../structdecompress__ringbuf__t.html',1,'']]],
+  ['detail_5fs_1',['detail_s',['../structsprite__ext__t.html#structsprite__ext__t_1_1detail__s',1,'sprite_ext_t']]],
+  ['dfs_5fopen_5ffile_5ft_2',['dfs_open_file_t',['../group__dfs.html#structdfs__open__file__t',1,'']]],
+  ['dir_5ft_3',['dir_t',['../group__system.html#structdir__t',1,'']]],
+  ['directory_5fentry_4',['directory_entry',['../group__dfs.html#structdirectory__entry',1,'']]]
 ];

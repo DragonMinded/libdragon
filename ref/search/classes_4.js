@@ -1,8 +1,6 @@
 var searchData=
 [
-  ['decompress_5fringbuf_5ft_0',['decompress_ringbuf_t',['../structdecompress__ringbuf__t.html',1,'']]],
-  ['detail_5fs_1',['detail_s',['../structsprite__ext__t.html#structsprite__ext__t_1_1detail__s',1,'sprite_ext_t']]],
-  ['dfs_5fopen_5ffile_5ft_2',['dfs_open_file_t',['../group__dfs.html#structdfs__open__file__t',1,'']]],
-  ['dir_5ft_3',['dir_t',['../group__system.html#structdir__t',1,'']]],
-  ['directory_5fentry_4',['directory_entry',['../group__dfs.html#structdirectory__entry',1,'']]]
+  ['channel_5flimit_5ft_0',['channel_limit_t',['../mixer_8c.html#structchannel__limit__t',1,'']]],
+  ['color_5ft_1',['color_t',['../group__graphics.html#structcolor__t',1,'']]],
+  ['colorcombiner_5ft_2',['colorcombiner_t',['../rdpq__debug_8c.html#structcolorcombiner__t',1,'']]]
 ];

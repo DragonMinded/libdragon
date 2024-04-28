@@ -84,8 +84,11 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structsprite__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a></td></tr>
 <tr class="memdesc:structsprite__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sprite structure.  <a href="sprite_8h.html#structsprite__t">More...</a><br /></td></tr>
 <tr class="separator:structsprite__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:unionsprite__t_8____unnamed24____"><td class="memItemLeft" align="right" valign="top">union &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#unionsprite__t_8____unnamed24____">sprite_t.__unnamed24__</a></td></tr>
-<tr class="separator:unionsprite__t_8____unnamed24____"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:structsprite__detail__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#structsprite__detail__t">sprite_detail_t</a></td></tr>
+<tr class="memdesc:structsprite__detail__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Sprite detail texture information structure.  <a href="sprite_8h.html#structsprite__detail__t">More...</a><br /></td></tr>
+<tr class="separator:structsprite__detail__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:unionsprite__t_8____unnamed36____"><td class="memItemLeft" align="right" valign="top">union &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#unionsprite__t_8____unnamed36____">sprite_t.__unnamed36__</a></td></tr>
+<tr class="separator:unionsprite__t_8____unnamed36____"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -123,12 +126,18 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>sprite_free</b> (<a c
 <tr class="memitem:a1b27ea3c16dcd2b151b44d2ce616fec6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#a1b27ea3c16dcd2b151b44d2ce616fec6">sprite_get_lod_pixels</a> (<a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *sprite, int num_level)</td></tr>
 <tr class="memdesc:a1b27ea3c16dcd2b151b44d2ce616fec6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> pointing to the contents of a LOD level.  <a href="sprite_8h.html#a1b27ea3c16dcd2b151b44d2ce616fec6">More...</a><br /></td></tr>
 <tr class="separator:a1b27ea3c16dcd2b151b44d2ce616fec6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3a867668cd0119fe7182e992698d1193"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#a3a867668cd0119fe7182e992698d1193">sprite_get_detail_pixels</a> (<a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *sprite, <a class="el" href="sprite_8h.html#structsprite__detail__t">sprite_detail_t</a> *info, <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t">rdpq_texparms_t</a> *infoparms)</td></tr>
+<tr class="memdesc:a3a867668cd0119fe7182e992698d1193"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> pointing to the contents of a detail texture.  <a href="sprite_8h.html#a3a867668cd0119fe7182e992698d1193">More...</a><br /></td></tr>
+<tr class="separator:a3a867668cd0119fe7182e992698d1193"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac2569c0dd2df7c58ebe684f4d21de550"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#ac2569c0dd2df7c58ebe684f4d21de550">sprite_get_tile</a> (<a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *sprite, int h, int v)</td></tr>
 <tr class="memdesc:ac2569c0dd2df7c58ebe684f4d21de550"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> pointing to a specific tile of the spritemap.  <a href="sprite_8h.html#ac2569c0dd2df7c58ebe684f4d21de550">More...</a><br /></td></tr>
 <tr class="separator:ac2569c0dd2df7c58ebe684f4d21de550"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adfc7bf5e68991099a3ec86ae05d4aca9"><td class="memItemLeft" align="right" valign="top">uint16_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#adfc7bf5e68991099a3ec86ae05d4aca9">sprite_get_palette</a> (<a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *sprite)</td></tr>
 <tr class="memdesc:adfc7bf5e68991099a3ec86ae05d4aca9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Access the sprite palette (if any)  <a href="sprite_8h.html#adfc7bf5e68991099a3ec86ae05d4aca9">More...</a><br /></td></tr>
 <tr class="separator:adfc7bf5e68991099a3ec86ae05d4aca9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeafae923dfd53e64c533e40b68dfb012"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#aeafae923dfd53e64c533e40b68dfb012">sprite_get_texparms</a> (<a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *sprite, <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t">rdpq_texparms_t</a> *parms)</td></tr>
+<tr class="memdesc:aeafae923dfd53e64c533e40b68dfb012"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get a copy of the RDP texparms, optionally stored within the sprite.  <a href="sprite_8h.html#aeafae923dfd53e64c533e40b68dfb012">More...</a><br /></td></tr>
+<tr class="separator:aeafae923dfd53e64c533e40b68dfb012"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a39f3cd068455a50b3f53306c5ba985a8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="sprite_8h.html#a39f3cd068455a50b3f53306c5ba985a8">sprite_get_lod_count</a> (<a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *sprite)</td></tr>
 <tr class="memdesc:a39f3cd068455a50b3f53306c5ba985a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the number of LOD levels stored within the sprite (including the main image).  <a href="sprite_8h.html#a39f3cd068455a50b3f53306c5ba985a8">More...</a><br /></td></tr>
 <tr class="separator:a39f3cd068455a50b3f53306c5ba985a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -177,7 +186,7 @@ bitdepth</td>
 DEPRECATED: do not use this field. Use TEX_FORMAT_BITDEPTH(sprite-&gt;format) instead. <br  />
  </td></tr>
 <tr><td class="fieldtype">
-<a id="a3cfe706dc323ecdb5774443de8dbb2d9" name="a3cfe706dc323ecdb5774443de8dbb2d9"></a>union <a class="el" href="sprite_8h.html#unionsprite__t_8____unnamed24____">sprite_t.__unnamed24__</a></td>
+<a id="adfb18d08e9dbe7e0cb48c44e60944be4" name="adfb18d08e9dbe7e0cb48c44e60944be4"></a>union <a class="el" href="sprite_8h.html#unionsprite__t_8____unnamed36____">sprite_t.__unnamed36__</a></td>
 <td class="fieldname">
 __unnamed__</td>
 <td class="fielddoc">
@@ -205,14 +214,48 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a name="unionsprite__t_8____unnamed24____" id="unionsprite__t_8____unnamed24____"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#unionsprite__t_8____unnamed24____">&#9670;&nbsp;</a></span>sprite_t.__unnamed24__</h2>
+<a name="structsprite__detail__t" id="structsprite__detail__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structsprite__detail__t">&#9670;&nbsp;</a></span>sprite_detail_t</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">union sprite_t.__unnamed24__</td>
+          <td class="memname">struct sprite_detail_t</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p >Sprite detail texture information structure. </p>
+<p >A "detail texture" is a 2D image with metadata attached to it to increase the perceived resolution of the main sprite when rendering with little to no additional TMEM usage.</p>
+<p >If the sprite uses a detail texture, its information can be retreived using the <a class="el" href="sprite_8h.html#a3a867668cd0119fe7182e992698d1193" title="Create a surface_t pointing to the contents of a detail texture.">sprite_get_detail_pixels</a> function.</p>
+<p >To include a detail texture to libdragon's sprite format, use the mksprite tool with &ndash;detail argument.</p>
+<p ><a class="el" href="rdpq__sprite_8h.html#a4455ad310d3a18a04c2ffee53dd0f944" title="Upload a sprite to TMEM, making it ready for drawing.">rdpq_sprite_upload</a> automatically uploads detail textures associated with the sprite. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="aa64a020b664e48963668b8cf8a440e49" name="aa64a020b664e48963668b8cf8a440e49"></a>bool</td>
+<td class="fieldname">
+use_main_tex</td>
+<td class="fielddoc">
+Is the detail texture the same as the main surface of the sprite, used for fractal detailing. </td></tr>
+<tr><td class="fieldtype">
+<a id="a4f483687c8b170b6c1832f514b7f0dc7" name="a4f483687c8b170b6c1832f514b7f0dc7"></a>float</td>
+<td class="fieldname">
+blend_factor</td>
+<td class="fielddoc">
+Blend factor of the detail texture in range of 0 to 1. </td></tr>
+</table>
+
+</div>
+</div>
+<a name="unionsprite__t_8____unnamed36____" id="unionsprite__t_8____unnamed36____"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#unionsprite__t_8____unnamed36____">&#9670;&nbsp;</a></span>sprite_t.__unnamed36__</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">union sprite_t.__unnamed36__</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -410,6 +453,55 @@ Various flags, including texture format. </td></tr>
 
 </div>
 </div>
+<a id="a3a867668cd0119fe7182e992698d1193" name="a3a867668cd0119fe7182e992698d1193"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3a867668cd0119fe7182e992698d1193">&#9670;&nbsp;</a></span>sprite_get_detail_pixels()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> sprite_get_detail_pixels </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *&#160;</td>
+          <td class="paramname"><em>sprite</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="sprite_8h.html#structsprite__detail__t">sprite_detail_t</a> *&#160;</td>
+          <td class="paramname"><em>info</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t">rdpq_texparms_t</a> *&#160;</td>
+          <td class="paramname"><em>infoparms</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Create a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> pointing to the contents of a detail texture. </p>
+<p >This function can be used to access detail texture within a sprite file. It is useful for sprites created by mksprite containing one.</p>
+<p >If there isn't a detail texture, the returned surface is 0.</p>
+<p >Additional detail information such as factor or texparms are accessible through the filled <a class="el" href="sprite_8h.html#structsprite__detail__t" title="Sprite detail texture information structure.">sprite_detail_t</a> and <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t" title="Texture sampling parameters for rdpq_tex_upload.">rdpq_texparms_t</a> structure. If you don't wish to use this information, pass NULL to the info argument(s).</p>
+<p >Notice that no memory allocations or copies are performed: the returned surface will point to the sprite contents.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">sprite</td><td>The sprite to access </td></tr>
+    <tr><td class="paramname">info</td><td>The detail information struct to fill if needed </td></tr>
+    <tr><td class="paramname">infoparms</td><td>The detail texture sampling struct to fill if needed </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> The surface containing the data. </dd></dl>
+
+</div>
+</div>
 <a id="ac2569c0dd2df7c58ebe684f4d21de550" name="ac2569c0dd2df7c58ebe684f4d21de550"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ac2569c0dd2df7c58ebe684f4d21de550">&#9670;&nbsp;</a></span>sprite_get_tile()</h2>
 
@@ -486,6 +578,45 @@ Various flags, including texture format. </td></tr>
 
 </div>
 </div>
+<a id="aeafae923dfd53e64c533e40b68dfb012" name="aeafae923dfd53e64c533e40b68dfb012"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeafae923dfd53e64c533e40b68dfb012">&#9670;&nbsp;</a></span>sprite_get_texparms()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool sprite_get_texparms </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="sprite_8h.html#structsprite__t">sprite_t</a> *&#160;</td>
+          <td class="paramname"><em>sprite</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t">rdpq_texparms_t</a> *&#160;</td>
+          <td class="paramname"><em>parms</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get a copy of the RDP texparms, optionally stored within the sprite. </p>
+<p >This function allows to obtain the RDP texparms structure stored within the sprite, if any. This structure is used by the RDP to set texture properties such as wrapping, mirroring, etc. It can be added to the sprite via the mksprite tool, using the <code>--texparms</code> option.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">sprite</td><td>The sprite to access </td></tr>
+    <tr><td class="paramname">parms</td><td>The texparms structure to fill </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>true if the sprite contain RDP texparms, false otherwise </dd></dl>
+
+</div>
+</div>
 <a id="a39f3cd068455a50b3f53306c5ba985a8" name="a39f3cd068455a50b3f53306c5ba985a8"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a39f3cd068455a50b3f53306c5ba985a8">&#9670;&nbsp;</a></span>sprite_get_lod_count()</h2>
 
@@ -532,7 +663,7 @@ Various flags, including texture format. </td></tr>
 <p>Return true if the sprite fits in TMEM without splitting. </p>
 <p >This function returns true if the sprite can be fully uploaded in TMEM (including all its LODs, detail texture and palettes).</p>
 <p >When working on 3D graphics, each texture must fit into RDP TMEM (4 KiB), otherwise it cannot be used. All sprites that are meant to be used as textures should fit in TMEM.</p>
-<p >In case of 2D graphics, it is more common to have images of arbitrary size. They can be drawn with <a class="el" href="group__rdp.html#ga7eeff61e93f78b8a0afe72cf8c57fb1c" title="Draw a texture to the screen as a sprite.">rdp_draw_sprite</a> (accelerated) or <a class="el" href="group__graphics.html#gaaa9f5910dc7ffc21ee59849086415966" title="Draw a sprite to a display context.">graphics_draw_sprite</a> (CPU) without specific limits (the RDP accelerated version does internally need to split the sprite in multiple parts, but that is indeed possible).</p>
+<p >In case of 2D graphics, it is more common to have images of arbitrary size. They can be drawn with <a class="el" href="rdpq__sprite_8h.html#ab9e9585ca159243d7ccae04c7ca38837" title="Blit a sprite to the active framebuffer.">rdpq_sprite_blit</a> (accelerated) or <a class="el" href="group__graphics.html#gaaa9f5910dc7ffc21ee59849086415966" title="Draw a sprite to a display context.">graphics_draw_sprite</a> (CPU) without specific limits (the RDP accelerated version does internally need to split the sprite in multiple parts, but that is indeed possible).</p>
 <p >This function is mostly for debugging purposes, as it can help validating whether a sprite can be used as a texture or not.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -547,7 +678,7 @@ Various flags, including texture format. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Apr 28 2024 21:33:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:47:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

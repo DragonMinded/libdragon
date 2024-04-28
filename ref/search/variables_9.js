@@ -13,5 +13,6 @@ var searchData=
   ['inthandler_5fend_10',['inthandler_end',['../backtrace_8c.html#ac2cccfc3a3401d1735cc73f85133c344',1,'backtrace.c']]],
   ['is_5ffirst_11',['is_first',['../rspq_8h.html#a86af89ac420fb4ad8c2a71416becdef8',1,'rspq_write_t']]],
   ['is_5finline_12',['is_inline',['../group__backtrace.html#a7491a1ec21e4c029117d889574417e25',1,'backtrace_frame_t']]],
-  ['is_5fsgb_5fsupported_13',['is_sgb_supported',['../tpak_8h.html#a302756cfef331ca9e94ad4eb49e814c1',1,'gameboy_cartridge_header']]]
+  ['is_5fsgb_5fsupported_13',['is_sgb_supported',['../tpak_8h.html#a302756cfef331ca9e94ad4eb49e814c1',1,'gameboy_cartridge_header']]],
+  ['ish_14',['ish',['../rdpq__tri_8c.html#ad8a7451ce917e105c585e38d8eac5bf0',1,'rdpq_tri_edge_data_t']]]
 ];

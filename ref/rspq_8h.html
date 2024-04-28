@@ -98,9 +98,6 @@ Macros</h2></td></tr>
 <tr class="memitem:aefec193be7de05f725738beeb3775634"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a>(ovl_id,  cmd_id, ...)</td></tr>
 <tr class="memdesc:aefec193be7de05f725738beeb3775634"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a new command into the RSP queue.  <a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">More...</a><br /></td></tr>
 <tr class="separator:aefec193be7de05f725738beeb3775634"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a79c0823905a1e1c371f97b2a0f016996"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#a79c0823905a1e1c371f97b2a0f016996">rspq_wait</a>()</td></tr>
-<tr class="memdesc:a79c0823905a1e1c371f97b2a0f016996"><td class="mdescLeft">&#160;</td><td class="mdescRight">Wait until all commands in the queue have been executed by RSP.  <a href="rspq_8h.html#a79c0823905a1e1c371f97b2a0f016996">More...</a><br /></td></tr>
-<tr class="separator:a79c0823905a1e1c371f97b2a0f016996"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
@@ -143,6 +140,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a115e1839ffd27c126ed6076e2b5de0b8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a> (void)</td></tr>
 <tr class="memdesc:a115e1839ffd27c126ed6076e2b5de0b8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Make sure that RSP starts executing up to the last written command.  <a href="rspq_8h.html#a115e1839ffd27c126ed6076e2b5de0b8">More...</a><br /></td></tr>
 <tr class="separator:a115e1839ffd27c126ed6076e2b5de0b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af3055d289f73a125e15b72429cfc91ed"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#af3055d289f73a125e15b72429cfc91ed">rspq_wait</a> (void)</td></tr>
+<tr class="memdesc:af3055d289f73a125e15b72429cfc91ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Wait until all commands in the queue have been executed by RSP.  <a href="rspq_8h.html#af3055d289f73a125e15b72429cfc91ed">More...</a><br /></td></tr>
+<tr class="separator:af3055d289f73a125e15b72429cfc91ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4d6fb26b5312a98ad83f758cd7514e6e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="rspq_8h.html#a80d73a81524565e802d89bb14523b1cf">rspq_syncpoint_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e">rspq_syncpoint_new</a> (void)</td></tr>
 <tr class="memdesc:a4d6fb26b5312a98ad83f758cd7514e6e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a syncpoint in the queue.  <a href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e">More...</a><br /></td></tr>
 <tr class="separator:a4d6fb26b5312a98ad83f758cd7514e6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -155,13 +155,13 @@ Functions</h2></td></tr>
 <tr class="memitem:a41f292fc1f7b261f84c55fc356f86acf"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf">rspq_block_begin</a> (void)</td></tr>
 <tr class="memdesc:a41f292fc1f7b261f84c55fc356f86acf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Begin creating a new block.  <a href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf">More...</a><br /></td></tr>
 <tr class="separator:a41f292fc1f7b261f84c55fc356f86acf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a81339d69802148a09829d1c6d9a9f9f6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="rspq_8c.html#structrspq__block__t">rspq_block_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6">rspq_block_end</a> (void)</td></tr>
+<tr class="memitem:a81339d69802148a09829d1c6d9a9f9f6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="rspq__internal_8h.html#structrspq__block__t">rspq_block_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6">rspq_block_end</a> (void)</td></tr>
 <tr class="memdesc:a81339d69802148a09829d1c6d9a9f9f6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Finish creating a block.  <a href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6">More...</a><br /></td></tr>
 <tr class="separator:a81339d69802148a09829d1c6d9a9f9f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad078c001303a1b2153ba99f3184194f3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3">rspq_block_run</a> (<a class="el" href="rspq_8c.html#structrspq__block__t">rspq_block_t</a> *block)</td></tr>
+<tr class="memitem:ad078c001303a1b2153ba99f3184194f3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3">rspq_block_run</a> (<a class="el" href="rspq__internal_8h.html#structrspq__block__t">rspq_block_t</a> *block)</td></tr>
 <tr class="memdesc:ad078c001303a1b2153ba99f3184194f3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add to the RSP queue a command that runs a block.  <a href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3">More...</a><br /></td></tr>
 <tr class="separator:ad078c001303a1b2153ba99f3184194f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa1d3fe8768ca839b49421bf08ac5b5c2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#aa1d3fe8768ca839b49421bf08ac5b5c2">rspq_block_free</a> (<a class="el" href="rspq_8c.html#structrspq__block__t">rspq_block_t</a> *block)</td></tr>
+<tr class="memitem:aa1d3fe8768ca839b49421bf08ac5b5c2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#aa1d3fe8768ca839b49421bf08ac5b5c2">rspq_block_free</a> (<a class="el" href="rspq__internal_8h.html#structrspq__block__t">rspq_block_t</a> *block)</td></tr>
 <tr class="memdesc:aa1d3fe8768ca839b49421bf08ac5b5c2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Free a block that is not needed any more.  <a href="rspq_8h.html#aa1d3fe8768ca839b49421bf08ac5b5c2">More...</a><br /></td></tr>
 <tr class="separator:aa1d3fe8768ca839b49421bf08ac5b5c2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae546104d15d469518ac5fba15521e965"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#ae546104d15d469518ac5fba15521e965">rspq_highpri_begin</a> (void)</td></tr>
@@ -176,9 +176,6 @@ Functions</h2></td></tr>
 <tr class="memitem:ae6c56593b83d4bbd5f6229a5a6a7ff18"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#ae6c56593b83d4bbd5f6229a5a6a7ff18">rspq_noop</a> (void)</td></tr>
 <tr class="memdesc:ae6c56593b83d4bbd5f6229a5a6a7ff18"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a no-op command in the queue.  <a href="rspq_8h.html#ae6c56593b83d4bbd5f6229a5a6a7ff18">More...</a><br /></td></tr>
 <tr class="separator:ae6c56593b83d4bbd5f6229a5a6a7ff18"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae4048a732f6dc351895e57654a3ea6cc"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#ae4048a732f6dc351895e57654a3ea6cc">rspq_signal</a> (uint32_t signal)</td></tr>
-<tr class="memdesc:ae4048a732f6dc351895e57654a3ea6cc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a command that sets a signal in SP status.  <a href="rspq_8h.html#ae4048a732f6dc351895e57654a3ea6cc">More...</a><br /></td></tr>
-<tr class="separator:ae4048a732f6dc351895e57654a3ea6cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af668e280d3621412dc28cbd59cf31ece"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#af668e280d3621412dc28cbd59cf31ece">rspq_dma_to_rdram</a> (void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool is_async)</td></tr>
 <tr class="memdesc:af668e280d3621412dc28cbd59cf31ece"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a command to do a DMA transfer from DMEM to RDRAM.  <a href="rspq_8h.html#af668e280d3621412dc28cbd59cf31ece">More...</a><br /></td></tr>
 <tr class="separator:af668e280d3621412dc28cbd59cf31ece"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -192,11 +189,11 @@ Functions</h2></td></tr>
 <p >The library is extremely efficient. It is designed for very high throughput and low latency, as the RSP pulls by the queue concurrently as the CPU fills it. Through some complex synchronization paradigms, both CPU and RSP run fully lockless, that is never need to explicitly synchronize with each other (unless requested by the user). The CPU can keep filling the queue and must only wait for RSP in case the queue becomes full; on the other side, the RSP can keep processing the queue without ever talking to the CPU.</p>
 <p >The library has been designed to be able to enqueue thousands of RSP commands per frame without its overhead to be measurable, which should be more than enough for most use cases.</p>
 <p >This documentation describes the API of the queue, and how to use it. For details on how it is implemented, see the comments in <a class="el" href="rspq_8c.html" title="RSP Command queue.">rspq.c</a>.</p>
-<h2><a class="anchor" id="autotoc_md23"></a>
+<h2><a class="anchor" id="autotoc_md45"></a>
 Commands</h2>
 <p >Each command in the queue is made by one or more 32-bit words (up to <a class="el" href="rspq_8h.html#a5c35e691b9651ffc302d590a47d47418" title="Maximum size of a command (in 32-bit words).">RSPQ_MAX_COMMAND_SIZE</a>). The MSB of the first word is the command ID. The higher 4 bits are called the "overlay ID" and identify the overlay that is able to execute the command; the lower 4 bits are the command index, which identify the command within the overlay. For instance, command ID 0x37 is command index 7 in overlay 3.</p>
 <p >As the RSP executes the queue, it will parse the command ID and dispatch it for execution. When required, the RSP will automatically load the RSP overlay needed to execute a command. In the previous example, the RSP will load into IMEM/DMEM overlay 3 (unless it was already loaded) and then dispatch command 7 to it.</p>
-<h2><a class="anchor" id="autotoc_md24"></a>
+<h2><a class="anchor" id="autotoc_md46"></a>
 Higher-level libraries and overlays</h2>
 <p >Higher-level libraries that come with their RSP ucode can be designed to use the RSP command queue to efficiently coexist with all other RSP libraries provided by libdragon. In fact, by using the overlay mechanism, each library can obtain its own overlay ID, and enqueue commands to be executed by the RSP through the same unique queue. Overlay IDs are allocated dynamically by rspq in registration order, to avoid conflicts between libraries.</p>
 <p >End-users can then use all these libraries at the same time, without having to arrange for complex RSP synchronization, asynchronous execution or plan for efficient context switching. In fact, they don't even need to be aware that the libraries are using the RSP. Through the unified command queue, the RSP can be used efficiently and effortlessly without idle time, nor wasting CPU cycles waiting for completion of a task before switching to another one.</p>
@@ -207,23 +204,29 @@ Higher-level libraries and overlays</h2>
 <li>Provide higher-level APIs that, when required, call <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> and <a class="el" href="rspq_8h.html#a115e1839ffd27c126ed6076e2b5de0b8" title="Make sure that RSP starts executing up to the last written command.">rspq_flush</a> to enqueue commands for the RSP. For instance, a matrix library might provide a "matrix_mult" function that internally calls <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> to enqueue a command for the RSP to perform the calculation.</li>
 </ul>
 <p >Normally, end-users will not need to manually enqueue commands in the RSP queue: they should only call higher-level APIs which internally do that.</p>
-<h2><a class="anchor" id="autotoc_md25"></a>
+<h2><a class="anchor" id="autotoc_md47"></a>
 Blocks</h2>
-<p >A block (<a class="el" href="rspq_8c.html#structrspq__block__t" title="A pre-built block of commands.">rspq_block_t</a>) is a prerecorded sequence of RSP commands that can be played back. Blocks can be created via <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>, and then executed by <a class="el" href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3" title="Add to the RSP queue a command that runs a block.">rspq_block_run</a>. It is also possible to do nested calls (a block can call another block), up to 8 levels deep.</p>
+<p >A block (<a class="el" href="rspq__internal_8h.html#structrspq__block__t" title="A rspq block: pre-recorded array of commands.">rspq_block_t</a>) is a prerecorded sequence of RSP commands that can be played back. Blocks can be created via <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>, and then executed by <a class="el" href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3" title="Add to the RSP queue a command that runs a block.">rspq_block_run</a>. It is also possible to do nested calls (a block can call another block), up to 8 levels deep.</p>
 <p >A block is very efficient to run because it is played back by the RSP itself. The CPU just enqueues a single command that "calls" the block. It is thus much faster than enqueuing the same commands every frame.</p>
 <p >Blocks can be used by higher-level libraries as an internal tool to efficiently drive the RSP (without having to repeat common sequence of commands), or they can be used by end-users to record and replay batch of commands, similar to OpenGL 1.x display lists.</p>
 <p >Notice that this library does not support static (compile-time) blocks. Blocks must always be created at runtime once (eg: at init time) before being used.</p>
-<h2><a class="anchor" id="autotoc_md26"></a>
+<h2><a class="anchor" id="autotoc_md48"></a>
 Syncpoints</h2>
 <p >The RSP command queue is designed to be fully lockless, but sometimes it is required to know when the RSP has actually executed an enqueued command or not (eg: to use its result). To do so, this library offers a synchronization primitive called "syncpoint" (<a class="el" href="rspq_8h.html#a80d73a81524565e802d89bb14523b1cf" title="A syncpoint in the queue.">rspq_syncpoint_t</a>). A syncpoint can be created via <a class="el" href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e" title="Create a syncpoint in the queue.">rspq_syncpoint_new</a> and records the current writing position in the queue. It is then possible to call <a class="el" href="rspq_8h.html#a86e818e81e25912cddbb86672dcd9976" title="Check whether a syncpoint was reached by RSP or not.">rspq_syncpoint_check</a> to check whether the RSP has reached that position, or <a class="el" href="rspq_8h.html#ac3aa6ceb175fd56a5969fa01985e1d60" title="Wait until a syncpoint is reached by RSP.">rspq_syncpoint_wait</a> to wait for the RSP to reach that position.</p>
 <p >Syncpoints are implemented using RSP interrupts, so their overhead is small but still measurable. They should not be abused.</p>
-<h2><a class="anchor" id="autotoc_md27"></a>
+<h2><a class="anchor" id="autotoc_md49"></a>
 High-priority queue</h2>
 <p >This library offers a mechanism to preempt the execution of RSP to give priority to very urgent tasks: the high-priority queue. Since the moment a high-priority queue is created via <a class="el" href="rspq_8h.html#ae546104d15d469518ac5fba15521e965" title="Start building a high-priority queue.">rspq_highpri_begin</a>, the RSP immediately suspends execution of the command queue, and switches to the high-priority queue, waiting for commands. All commands added via standard APIs (<a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>) are then directed to the high-priority queue, until <a class="el" href="rspq_8h.html#ae495b6d8ec49169f05e523fe564f9f4b" title="Finish building the high-priority queue and close it.">rspq_highpri_end</a> is called. Once the RSP has finished executing all the commands enqueue in the high-priority queue, it resumes execution of the standard queue.</p>
 <p >The net effect is that commands enqueued in the high-priority queue are executed right away by the RSP, irrespective to whatever was currently enqueued in the standard queue. This can be useful for running tasks that require immediate execution, like for instance audio processing.</p>
 <p >If required, it is possible to call <a class="el" href="rspq_8h.html#a577581d5bf9cfecaa6a1becf3da21d6c" title="Wait for the RSP to finish processing all high-priority queues.">rspq_highpri_sync</a> to wait for the high-priority queue to be fully executed.</p>
 <p >Notice that the RSP cannot be fully preempted, so switching to the high-priority queue can only happen after a command has finished execution (before starting the following one). This can have an effect on latency if a single command has a very long execution time; RSP overlays should in general prefer providing smaller, faster commands.</p>
-<p >This feature should normally not be used by end-users, but by libraries in which a very low latency of RSP execution is paramount to their workings. </p>
+<p >This feature should normally not be used by end-users, but by libraries in which a very low latency of RSP execution is paramount to their workings.</p>
+<h2><a class="anchor" id="autotoc_md50"></a>
+RDP support</h2>
+<p >RSPQ contains a basic support for sending commands to RDP. It is meant to collaborate with the RDPQ module for full RDP usage (see <a class="el" href="rdpq_8h.html" title="RDP Command queue.">rdpq.h</a>), but it does provide some barebone support on its own.</p>
+<p >In particulare, it allocates and handle two buffers (used with double buffering) that hold RDP commands generated by RSPQ overlays, where commands are stored to be sent to RDP via DMA.</p>
+<p >Overlays that generate RDP commands as part of their duty can call the assembly API RSPQ_RdpSend that will take care of sending the RDP commands via DMA into the RDRAM buffers (possibly swapping them when they are full) and also tell the RDP to run them.</p>
+<p >Notice that, while the RSP would allow also to send commands to RDP directly via DMEM, this is deemed as inefficient in the grand picture: DMEM in general is too small and would thus cause frequent stalls (RSP waiting for the RDP to run the commands and buffers to flush); at the same time, it is also hard to efficiently mix and match RDP buffers in DMEM and RDRAM, as that again can cause excessive stalling. So for the time being, this mode of working is unsupported by RSPQ. </p>
 </div><hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structrspq__write__t" id="structrspq__write__t"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structrspq__write__t">&#9670;&nbsp;</a></span>rspq_write_t</h2>
@@ -321,7 +324,7 @@ true if we are waiting for the first argument word </td></tr>
 <p >This macro is the main entry point to add a command to the RSP queue. It can be used as a variadic argument function, in which the first argument is the overlay ID, the second argument is the command index within the overlay, and the other arguments are the command arguments (additional 32-bit words).</p>
 <div class="fragment"><div class="line"><span class="comment">// This example adds to the queue a command called CMD_SPRITE with </span></div>
 <div class="line"><span class="comment">// index 0xA, with its arguments, for a total of three words. The overlay</span></div>
-<div class="line"><span class="comment">// was previously registered via #rspq_register_overlay.</span></div>
+<div class="line"><span class="comment">// was previously registered via #rspq_overlay_register.</span></div>
 <div class="line"> </div>
 <div class="line"><span class="preprocessor">#define CMD_SPRITE  0xA</span></div>
 <div class="line"> </div>
@@ -329,7 +332,7 @@ true if we are waiting for the first argument word </td></tr>
 <div class="line">           sprite_num, </div>
 <div class="line">           (x0 &lt;&lt; 16) | y0,</div>
 <div class="line">           (x1 &lt;&lt; 16) | y1);</div>
-<div class="ttc" id="arspq_8h_html_aefec193be7de05f725738beeb3775634"><div class="ttname"><a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a></div><div class="ttdeci">#define rspq_write(ovl_id, cmd_id,...)</div><div class="ttdoc">Write a new command into the RSP queue.</div><div class="ttdef"><b>Definition:</b> rspq.h:366</div></div>
+<div class="ttc" id="arspq_8h_html_aefec193be7de05f725738beeb3775634"><div class="ttname"><a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a></div><div class="ttdeci">#define rspq_write(ovl_id, cmd_id,...)</div><div class="ttdoc">Write a new command into the RSP queue.</div><div class="ttdef"><b>Definition:</b> rspq.h:397</div></div>
 </div><!-- fragment --><p >As explained in the top-level documentation, the overlay ID (4 bits) and the command index (4 bits) are composed to form the command ID, and are stored in the most significant byte of the first word. So, the first command argument word, if provided, must have the upper MSB empty, to leave space for the command ID itself.</p>
 <p >For instance, assuming the overlay ID for an overlay called "gfx" is 1, <code><a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write(gfx_id, 0x2, 0x00FF2233)</a></code> is a correct call, which writes <code>0x12FF2233</code> into the RSP queue; it will invoke command #2 in overlay with ID 0x1, and the first word contains other 24 bits of arguments that will be parsed by the RSP code. Instead, <code><a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write(gfx_id, 0x2, 0x11FF2233)</a></code> is an invalid call because the MSB of the first word is non-zero, and thus the highest byte "0x11" would clash with the overlay ID and command index.</p>
 <p ><code><a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write(gfx_id, 0x2)</a></code> is a valid call, and equivalent to <code><a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write(gfx_id, 0x2, 0x0)</a></code>. It will write <code>0x12000000</code> in the queue.</p>
@@ -352,31 +355,6 @@ true if we are waiting for the first argument word </td></tr>
 
 </div>
 </div>
-<a id="a79c0823905a1e1c371f97b2a0f016996" name="a79c0823905a1e1c371f97b2a0f016996"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a79c0823905a1e1c371f97b2a0f016996">&#9670;&nbsp;</a></span>rspq_wait</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define rspq_wait</td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    rspq_syncpoint_wait(<a class="code hl_function" href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e">rspq_syncpoint_new</a>()); \</div>
-<div class="line">})</div>
-<div class="ttc" id="arspq_8h_html_a4d6fb26b5312a98ad83f758cd7514e6e"><div class="ttname"><a href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e">rspq_syncpoint_new</a></div><div class="ttdeci">rspq_syncpoint_t rspq_syncpoint_new(void)</div><div class="ttdoc">Create a syncpoint in the queue.</div><div class="ttdef"><b>Definition:</b> rspq.c:1238</div></div>
-</div><!-- fragment -->
-<p>Wait until all commands in the queue have been executed by RSP. </p>
-<p >This function blocks until all commands present in the queue have been executed by the RSP and the RSP is idle.</p>
-<p >This function exists mostly for debugging purposes. Calling this function is not necessary, as the CPU can continue adding commands to the queue while the RSP is running them. If you need to synchronize between RSP and CPU (eg: to access data that was processed by RSP) prefer using <a class="el" href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e" title="Create a syncpoint in the queue.">rspq_syncpoint_new</a> / <a class="el" href="rspq_8h.html#ac3aa6ceb175fd56a5969fa01985e1d60" title="Wait until a syncpoint is reached by RSP.">rspq_syncpoint_wait</a> which allows for more granular synchronization. </p>
-
-</div>
-</div>
 <h2 class="groupheader">Typedef Documentation</h2>
 <a id="ad6b3f51acb3629b6fb547e6024c58606" name="ad6b3f51acb3629b6fb547e6024c58606"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ad6b3f51acb3629b6fb547e6024c58606">&#9670;&nbsp;</a></span>rspq_block_t</h2>
@@ -385,7 +363,7 @@ true if we are waiting for the first argument word </td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef struct rspq_block_s <a class="el" href="rspq_8c.html#structrspq__block__t">rspq_block_t</a></td>
+          <td class="memname">typedef struct rspq_block_s <a class="el" href="rspq__internal_8h.html#structrspq__block__t">rspq_block_t</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -577,13 +555,14 @@ true if we are waiting for the first argument word </td></tr>
 <p>Return a pointer to the overlay state (in RDRAM) </p>
 <p >Overlays can define a section of DMEM as persistent state. This area will be preserved across overlay switching, by reading back into RDRAM the DMEM contents when the overlay is switched away.</p>
 <p >This function returns a pointer to the state area in RDRAM (not DMEM). It is meant to modify the state on the CPU side while the overlay is not loaded. The layout of the state and its size should be known to the caller.</p>
+<p >To avoid race conditions between overlay state access by CPU and RSP, this function first calls <a class="el" href="rspq_8h.html#af3055d289f73a125e15b72429cfc91ed" title="Wait until all commands in the queue have been executed by RSP.">rspq_wait</a> to force a full sync and make sure the RSP is idle. As such, it should be treated as a debugging function.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">overlay_ucode</td><td>The ucode overlay for which the state pointer will be returned.</td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>Pointer to the overlay state (in RDRAM) </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>Pointer to the overlay state (in RDRAM). The pointer is returned in the cached segment, so make sure to handle cache coherency appropriately. </dd></dl>
 
 </div>
 </div>
@@ -761,7 +740,7 @@ true if we are waiting for the first argument word </td></tr>
 <p>Make sure that RSP starts executing up to the last written command. </p>
 <p >RSP processes the command queue asynchronously as it is being written. If it catches up with the CPU, it halts itself and waits for the CPU to notify that more commands are available. On the contrary, if the RSP lags behind it might keep executing commands as they are written without ever sleeping. So in general, at any given moment the RSP could be crunching commands or sleeping waiting to be notified that more commands are available.</p>
 <p >This means that writing a command via <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> is not enough to make sure it is executed; depending on timing and batching performed by RSP, it might either be executed automatically or not. <a class="el" href="rspq_8h.html#a115e1839ffd27c126ed6076e2b5de0b8" title="Make sure that RSP starts executing up to the last written command.">rspq_flush</a> makes sure that the RSP will see it and execute it.</p>
-<p >This function does not block: it just make sure that the RSP will run the full command queue written until now. If you need to actively wait until the last written command has been executed, use <a class="el" href="rspq_8h.html#a79c0823905a1e1c371f97b2a0f016996" title="Wait until all commands in the queue have been executed by RSP.">rspq_wait</a>.</p>
+<p >This function does not block: it just make sure that the RSP will run the full command queue written until now. If you need to actively wait until the last written command has been executed, use <a class="el" href="rspq_8h.html#af3055d289f73a125e15b72429cfc91ed" title="Wait until all commands in the queue have been executed by RSP.">rspq_wait</a>.</p>
 <p >It is suggested to call rspq_flush every time a new "batch" of commands has been written. In general, it is not a problem to call it often because it is very very fast (takes only ~20 cycles). For instance, it can be called after every rspq_write without many worries, but if you know that you are going to write a number of subsequent commands in straight line code, you can postpone the call to <a class="el" href="rspq_8h.html#a115e1839ffd27c126ed6076e2b5de0b8" title="Make sure that RSP starts executing up to the last written command.">rspq_flush</a> after the whole sequence has been written.</p>
 <div class="fragment"><div class="line">   <span class="comment">// This example shows some code configuring the lights for a scene.</span></div>
 <div class="line">   <span class="comment">// The command in this sample is called CMD_SET_LIGHT and requires</span></div>
@@ -779,10 +758,32 @@ true if we are waiting for the first argument word </td></tr>
 <div class="line">   <span class="comment">// to call rspq_flush once to make sure the RSP runs them (in case</span></div>
 <div class="line">   <span class="comment">// it was idling).</span></div>
 <div class="line">   <a class="code hl_function" href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a>();</div>
-<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1066</div></div>
+<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1016</div></div>
 </div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>This is an experimental API. In the future, it might become a no-op, and flushing could happen automatically at every <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>. We are keeping it separate from <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> while experimenting more with the RSPQ API.</dd>
 <dd>
 This function is a no-op if it is called while a block is being recorded (see <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>). This means calling this function in a block recording context will not guarantee the execution of commands that were queued prior to starting the block. </dd></dl>
+
+</div>
+</div>
+<a id="af3055d289f73a125e15b72429cfc91ed" name="af3055d289f73a125e15b72429cfc91ed"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af3055d289f73a125e15b72429cfc91ed">&#9670;&nbsp;</a></span>rspq_wait()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rspq_wait </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Wait until all commands in the queue have been executed by RSP. </p>
+<p >This function blocks until all commands present in the queue have been executed by the RSP and the RSP is idle. If the queue contained also RDP commands, it also waits for those commands to finish drawing.</p>
+<p >This function exists mostly for debugging purposes. Calling this function is not necessary, as the CPU can continue adding commands to the queue while the RSP is running them. If you need to synchronize between RSP and CPU (eg: to access data that was processed by RSP) prefer using <a class="el" href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e" title="Create a syncpoint in the queue.">rspq_syncpoint_new</a> / <a class="el" href="rspq_8h.html#ac3aa6ceb175fd56a5969fa01985e1d60" title="Wait until a syncpoint is reached by RSP.">rspq_syncpoint_wait</a> which allows for more granular synchronization. </p>
 
 </div>
 </div>
@@ -886,7 +887,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
 </div><div class="memdoc">
 
 <p>Begin creating a new block. </p>
-<p >This function begins writing a command block (see <a class="el" href="rspq_8c.html#structrspq__block__t" title="A pre-built block of commands.">rspq_block_t</a>). While a block is being written, all calls to <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> will record the commands into the block, without actually scheduling them for execution. Use <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a> to close the block and get a reference to it.</p>
+<p >This function begins writing a command block (see <a class="el" href="rspq__internal_8h.html#structrspq__block__t" title="A rspq block: pre-recorded array of commands.">rspq_block_t</a>). While a block is being written, all calls to <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> will record the commands into the block, without actually scheduling them for execution. Use <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a> to close the block and get a reference to it.</p>
 <p >Only one block at a time can be created. Calling <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> twice (without any intervening <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>) will cause an assert.</p>
 <p >During block creation, the RSP will keep running as usual and execute commands that have been already added to the queue.</p>
 <dl class="section note"><dt>Note</dt><dd>Calls to <a class="el" href="rspq_8h.html#a115e1839ffd27c126ed6076e2b5de0b8" title="Make sure that RSP starts executing up to the last written command.">rspq_flush</a> are ignored during block creation, as the RSP is not going to execute the block commands anyway. </dd></dl>
@@ -900,7 +901,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="rspq_8c.html#structrspq__block__t">rspq_block_t</a> * rspq_block_end </td>
+          <td class="memname"><a class="el" href="rspq__internal_8h.html#structrspq__block__t">rspq_block_t</a> * rspq_block_end </td>
           <td>(</td>
           <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
@@ -910,7 +911,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
 </div><div class="memdoc">
 
 <p>Finish creating a block. </p>
-<p >This function completes a block and returns a reference to it (see <a class="el" href="rspq_8c.html#structrspq__block__t" title="A pre-built block of commands.">rspq_block_t</a>). After this function is called, all subsequent <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> will resume working as usual: they will add commands to the queue for immediate RSP execution.</p>
+<p >This function completes a block and returns a reference to it (see <a class="el" href="rspq__internal_8h.html#structrspq__block__t" title="A rspq block: pre-recorded array of commands.">rspq_block_t</a>). After this function is called, all subsequent <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> will resume working as usual: they will add commands to the queue for immediate RSP execution.</p>
 <p >To run the created block, use <a class="el" href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3" title="Add to the RSP queue a command that runs a block.">rspq_block_run</a>.</p>
 <dl class="section return"><dt>Returns</dt><dd>A reference to the just created block</dd></dl>
 <dl class="section see"><dt>See also</dt><dd><a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> </dd>
@@ -928,7 +929,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
         <tr>
           <td class="memname">void rspq_block_run </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="rspq_8c.html#structrspq__block__t">rspq_block_t</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="rspq__internal_8h.html#structrspq__block__t">rspq_block_t</a> *&#160;</td>
           <td class="paramname"><em>block</em></td><td>)</td>
           <td></td>
         </tr>
@@ -957,7 +958,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
         <tr>
           <td class="memname">void rspq_block_free </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="rspq_8c.html#structrspq__block__t">rspq_block_t</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="rspq__internal_8h.html#structrspq__block__t">rspq_block_t</a> *&#160;</td>
           <td class="paramname"><em>block</em></td><td>)</td>
           <td></td>
         </tr>
@@ -1064,36 +1065,6 @@ It is currently not possible to call a block from the high-priority queue. (FIXM
 
 <p>Enqueue a no-op command in the queue. </p>
 <p >This function enqueues a command that does nothing. This is mostly useful for debugging purposes. </p>
-
-</div>
-</div>
-<a id="ae4048a732f6dc351895e57654a3ea6cc" name="ae4048a732f6dc351895e57654a3ea6cc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae4048a732f6dc351895e57654a3ea6cc">&#9670;&nbsp;</a></span>rspq_signal()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rspq_signal </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>signal</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Enqueue a command that sets a signal in SP status. </p>
-<p >The SP status register has 8 bits called "signals" that can be atomically set or cleared by both the CPU and the RSP. They can be used to provide asynchronous communication.</p>
-<p >This function allows to add a command to the queue that will set and/or clear a combination of the above bits.</p>
-<p >Notice that signal bits 2-7 are used by the RSP queue engine itself, so this function must only be used for bits 0 and 1.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">signal</td><td>A signal set/clear mask created by composing SP_WSTATUS_* defines.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section note"><dt>Note</dt><dd>This is an advanced function that should be used rarely. Most synchronization requirements should be fulfilled via <a class="el" href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e" title="Create a syncpoint in the queue.">rspq_syncpoint_new</a> which is easier to use. </dd></dl>
 
 </div>
 </div>
@@ -1204,7 +1175,7 @@ It is currently not possible to call a block from the high-priority queue. (FIXM
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Apr 28 2024 21:33:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:47:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

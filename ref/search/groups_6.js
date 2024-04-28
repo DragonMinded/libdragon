@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['fast_20math_20routines_0',['Fast math routines',['../group__fastmath.html',1,'']]]
+  ['eeprom_20subsystem_0',['EEPROM subsystem',['../group__eeprom.html',1,'']]],
+  ['exception_20handler_1',['Exception Handler',['../group__exceptions.html',1,'']]]
 ];

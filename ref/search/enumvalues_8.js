@@ -1,9 +1,5 @@
 var searchData=
 [
-  ['tv_5fmpal_0',['TV_MPAL',['../group__n64sys.html#gga7f74bd3e9215d217f484cb5441a04e09a18303db5564bcb8858b073fd71299266',1,'n64sys.h']]],
-  ['tv_5fntsc_1',['TV_NTSC',['../group__n64sys.html#gga7f74bd3e9215d217f484cb5441a04e09aa448059c396de3096b7f2cb91213effb',1,'n64sys.h']]],
-  ['tv_5fpal_2',['TV_PAL',['../group__n64sys.html#gga7f74bd3e9215d217f484cb5441a04e09a848a03bb41e5831799bcddab1e084d77',1,'n64sys.h']]],
-  ['type_5fany_3',['TYPE_ANY',['../group__dfs.html#ggabc6126af1d45847bc59afa0aa3216b04af173f42b16daa16262e56c2e12fb11b3',1,'dragonfs.c']]],
-  ['type_5fdir_4',['TYPE_DIR',['../group__dfs.html#ggabc6126af1d45847bc59afa0aa3216b04a5b5f3036729530d8011e6f1ea2207aac',1,'dragonfs.c']]],
-  ['type_5ffile_5',['TYPE_FILE',['../group__dfs.html#ggabc6126af1d45847bc59afa0aa3216b04a30351c278162a6e7dbdb10570ae8782e',1,'dragonfs.c']]]
+  ['sgb_5fenhanced_0',['SGB_ENHANCED',['../tpak_8h.html#a65a36b9bf504ca51cd9b616a61fe75afa89d9f2399cee9f63c7c2b0225a9c4c11',1,'tpak.h']]],
+  ['sgb_5fnot_5fenhanced_1',['SGB_NOT_ENHANCED',['../tpak_8h.html#a65a36b9bf504ca51cd9b616a61fe75afa9fd96c7c94db63ead48d322e86395e9f',1,'tpak.h']]]
 ];

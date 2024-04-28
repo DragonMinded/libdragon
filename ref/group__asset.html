@@ -93,7 +93,7 @@ Files</h2></td></tr>
 <p >The main functions for loading assets are <a class="el" href="asset_8h.html#abfc5939446d9920b884df034e89428a9" title="Load an asset file (possibly uncompressing it)">asset_load</a> and <a class="el" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509" title="Open an asset file for reading (with transparent decompression)">asset_fopen</a>. <a class="el" href="asset_8h.html#abfc5939446d9920b884df034e89428a9" title="Load an asset file (possibly uncompressing it)">asset_load</a> loads the entire file into memory in one go, and it is useful for small files or in general files that has to fully keep in RAM as-is. The asset is transparently decompressed if needed.</p>
 <p >Some files might require parsing during loading, and in that case, <a class="el" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509" title="Open an asset file for reading (with transparent decompression)">asset_fopen</a> is provided. It returns a FILE* so that any kind of file operation can be performed on it, with transparent decompression. Since it is not possible to seek in a compressed file, the FILE* returned by <a class="el" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509" title="Open an asset file for reading (with transparent decompression)">asset_fopen</a> will assert on seek, even if the file is not compressed (so that the user code will be ready for adding compression at any time).</p>
 <p >If you know that the file will never be compressed and you absolutely need to freely seek, simply use the standard fopen() function.</p>
-<h2><a class="anchor" id="autotoc_md17"></a>
+<h2><a class="anchor" id="autotoc_md33"></a>
 Asset compression</h2>
 <p >To compress your own data files, you can use the mkasset tool.</p>
 <p >There are currently two compression levels:</p>
@@ -105,7 +105,7 @@ Asset compression</h2>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Apr 28 2024 21:33:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:47:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

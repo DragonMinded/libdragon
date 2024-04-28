@@ -98,13 +98,17 @@ Macros</h2></td></tr>
 <tr class="memdesc:a3d266c460ce7974103858f37f8921c67"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert the specified number of bytes to pixels.  <a href="surface_8h.html#a3d266c460ce7974103858f37f8921c67">More...</a><br /></td></tr>
 <tr class="separator:a3d266c460ce7974103858f37f8921c67"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af987b5a73ec05cead979f8295555b666"><td class="memItemLeft" align="right" valign="top"><a id="af987b5a73ec05cead979f8295555b666" name="af987b5a73ec05cead979f8295555b666"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SURFACE_FLAGS_TEXFORMAT</b>&#160;&#160;&#160;0x1F</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SURFACE_FLAGS_TEXFORMAT</b>&#160;&#160;&#160;0x001F</td></tr>
 <tr class="memdesc:af987b5a73ec05cead979f8295555b666"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pixel format of the surface. <br /></td></tr>
 <tr class="separator:af987b5a73ec05cead979f8295555b666"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1c0fb0cf02521629354df1b07091be4f"><td class="memItemLeft" align="right" valign="top"><a id="a1c0fb0cf02521629354df1b07091be4f" name="a1c0fb0cf02521629354df1b07091be4f"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SURFACE_FLAGS_OWNEDBUFFER</b>&#160;&#160;&#160;0x20</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SURFACE_FLAGS_OWNEDBUFFER</b>&#160;&#160;&#160;0x0020</td></tr>
 <tr class="memdesc:a1c0fb0cf02521629354df1b07091be4f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set if the buffer must be freed. <br /></td></tr>
 <tr class="separator:a1c0fb0cf02521629354df1b07091be4f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7d8834b7841c0b42bdba9db6e482f1b2"><td class="memItemLeft" align="right" valign="top"><a id="a7d8834b7841c0b42bdba9db6e482f1b2" name="a7d8834b7841c0b42bdba9db6e482f1b2"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>SURFACE_FLAGS_TEXINDEX</b>&#160;&#160;&#160;0x0F00</td></tr>
+<tr class="memdesc:a7d8834b7841c0b42bdba9db6e482f1b2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Placeholder for rdpq lookup table. <br /></td></tr>
+<tr class="separator:a7d8834b7841c0b42bdba9db6e482f1b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
@@ -154,6 +158,15 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
 <tr class="memitem:a0366404adb987076f9b28e34cc15820b"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="surface_8h.html#a0366404adb987076f9b28e34cc15820b">surface_has_owned_buffer</a> (const <a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *surface)</td></tr>
 <tr class="memdesc:a0366404adb987076f9b28e34cc15820b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Checks whether this surface owns the buffer that it contains.  <a href="surface_8h.html#a0366404adb987076f9b28e34cc15820b">More...</a><br /></td></tr>
 <tr class="separator:a0366404adb987076f9b28e34cc15820b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aac82921435796d00eab23b713564c66b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="surface_8h.html#aac82921435796d00eab23b713564c66b">surface_make_placeholder</a> (int index, <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1">tex_format_t</a> format, uint32_t width, uint32_t height, uint32_t stride)</td></tr>
+<tr class="memdesc:aac82921435796d00eab23b713564c66b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a placeholder surface, that can be used during rdpq block recording.  <a href="surface_8h.html#aac82921435796d00eab23b713564c66b">More...</a><br /></td></tr>
+<tr class="separator:aac82921435796d00eab23b713564c66b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afd410e76cddeca8c2d422d940f360b49"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="surface_8h.html#afd410e76cddeca8c2d422d940f360b49">surface_make_placeholder_linear</a> (int index, <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1">tex_format_t</a> format, uint32_t width, uint32_t height)</td></tr>
+<tr class="memdesc:afd410e76cddeca8c2d422d940f360b49"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a linear placeholder surface, that can be used during rdpq block recording.  <a href="surface_8h.html#afd410e76cddeca8c2d422d940f360b49">More...</a><br /></td></tr>
+<tr class="separator:afd410e76cddeca8c2d422d940f360b49"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4f3cbb3a8c49dba329cd9c816c152825"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="surface_8h.html#a4f3cbb3a8c49dba329cd9c816c152825">surface_get_placeholder_index</a> (const <a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *surface)</td></tr>
+<tr class="memdesc:a4f3cbb3a8c49dba329cd9c816c152825"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns the lookup index of a placeholder surface.  <a href="surface_8h.html#a4f3cbb3a8c49dba329cd9c816c152825">More...</a><br /></td></tr>
+<tr class="separator:a4f3cbb3a8c49dba329cd9c816c152825"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Surface buffers used to draw images. </p>
@@ -171,19 +184,19 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
 <div class="line"> </div>
 <div class="line"><span class="comment">// Draw some text on it (with the CPU)</span></div>
 <div class="line"><a class="code hl_function" href="group__graphics.html#gac981119af0043edb807b5879a41b94eb">graphics_draw_text</a>(&amp;buf, 0, 0, <span class="stringliteral">&quot;ABC&quot;</span>);</div>
-<div class="ttc" id="agroup__graphics_html_gac981119af0043edb807b5879a41b94eb"><div class="ttname"><a href="group__graphics.html#gac981119af0043edb807b5879a41b94eb">graphics_draw_text</a></div><div class="ttdeci">void graphics_draw_text(surface_t *disp, int x, int y, const char *const msg)</div><div class="ttdoc">Draw a null terminated string to a display context.</div><div class="ttdef"><b>Definition:</b> graphics.c:779</div></div>
+<div class="ttc" id="agroup__graphics_html_gac981119af0043edb807b5879a41b94eb"><div class="ttname"><a href="group__graphics.html#gac981119af0043edb807b5879a41b94eb">graphics_draw_text</a></div><div class="ttdeci">void graphics_draw_text(surface_t *disp, int x, int y, const char *const msg)</div><div class="ttdoc">Draw a null terminated string to a display context.</div><div class="ttdef"><b>Definition:</b> graphics.c:785</div></div>
 <div class="ttc" id="asurface_8c_html_ac3ed4ec6825eeb8775ddf9763314b22f"><div class="ttname"><a href="surface_8c.html#ac3ed4ec6825eeb8775ddf9763314b22f">surface_alloc</a></div><div class="ttdeci">surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height)</div><div class="ttdoc">Allocate a new surface in memory.</div><div class="ttdef"><b>Definition:</b> surface.c:31</div></div>
-<div class="ttc" id="asurface_8h_html_a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5"><div class="ttname"><a href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5">FMT_RGBA16</a></div><div class="ttdeci">@ FMT_RGBA16</div><div class="ttdoc">Format RGBA 5551 (16-bit)</div><div class="ttdef"><b>Definition:</b> surface.h:104</div></div>
-<div class="ttc" id="asurface_8h_html_structsurface__t"><div class="ttname"><a href="surface_8h.html#structsurface__t">surface_t</a></div><div class="ttdoc">A surface buffer for graphics.</div><div class="ttdef"><b>Definition:</b> surface.h:135</div></div>
+<div class="ttc" id="asurface_8h_html_a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5"><div class="ttname"><a href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5">FMT_RGBA16</a></div><div class="ttdeci">@ FMT_RGBA16</div><div class="ttdoc">Format RGBA 5551 (16-bit)</div><div class="ttdef"><b>Definition:</b> surface.h:106</div></div>
+<div class="ttc" id="asurface_8h_html_structsurface__t"><div class="ttname"><a href="surface_8h.html#structsurface__t">surface_t</a></div><div class="ttdoc">A surface buffer for graphics.</div><div class="ttdef"><b>Definition:</b> surface.h:138</div></div>
 </div><!-- fragment --><p >Sometimes, you might have an existing raw pointer to a buffer and need to pass it to an API that accepts a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a>. For those cases, you can use <a class="el" href="surface_8h.html#a764269d5ee8de46b3c0ef0f318f86a15" title="Initialize a surface_t structure with the provided buffer.">surface_make</a> to create a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> instance, that you can throw away after you called the function; <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> does nothing on these surfaces.</p>
 <p >In some cases, you might want to interact with a rectangular portion of an existing surface (for instance, you want to draw with RDP only in the top portion of the screen for some reason). To do so, you can use <a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> to create a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> instance that is referring only to a portion of the original surface:</p>
-<div class="fragment"><div class="line"><a class="code hl_struct" href="surface_8h.html#structsurface__t">surface_t</a> *fb = <a class="code hl_function" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd">display_get</a>(); <span class="comment">// wait for a framebuffer to be ready</span></div>
+<div class="fragment"><div class="line"><a class="code hl_struct" href="surface_8h.html#structsurface__t">surface_t</a> *fb = <a class="code hl_function" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd">display_get</a>();  <span class="comment">// wait for a framebuffer to be ready</span></div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// Attach the RDP to the top 40 rows of the framebuffer</span></div>
 <div class="line"><a class="code hl_struct" href="surface_8h.html#structsurface__t">surface_t</a> fbtop = <a class="code hl_function" href="surface_8c.html#a75faf57d244b5a27a0af9e5a7cabef74">surface_make_sub</a>(fb, 0, 0, 320, 40);</div>
-<div class="line"><a class="code hl_function" href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248">rdp_attach</a>(&amp;fbtop);</div>
+<div class="line"><a class="code hl_function" href="rdpq__attach_8c.html#a67bd7bcd3d71538f5a10d50ba73b6b10">rdpq_attach</a>(&amp;fbtop);</div>
 <div class="ttc" id="agroup__display_html_gaf8ad0501f0408430e3b40f0f626a33bd"><div class="ttname"><a href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd">display_get</a></div><div class="ttdeci">surface_t * display_get(void)</div><div class="ttdoc">Get a display buffer for rendering.</div><div class="ttdef"><b>Definition:</b> display.c:328</div></div>
-<div class="ttc" id="agroup__rdp_html_gae4ae57eaadd3e5f29b9affd1e4420248"><div class="ttname"><a href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248">rdp_attach</a></div><div class="ttdeci">void rdp_attach(surface_t *surface)</div><div class="ttdoc">Attach the RDP to a surface.</div><div class="ttdef"><b>Definition:</b> rdp.c:298</div></div>
+<div class="ttc" id="ardpq__attach_8c_html_a67bd7bcd3d71538f5a10d50ba73b6b10"><div class="ttname"><a href="rdpq__attach_8c.html#a67bd7bcd3d71538f5a10d50ba73b6b10">rdpq_attach</a></div><div class="ttdeci">void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z)</div><div class="ttdoc">Attach the RDP to a color surface (and optionally a Z buffer)</div><div class="ttdef"><b>Definition:</b> rdpq_attach.c:76</div></div>
 <div class="ttc" id="asurface_8c_html_a75faf57d244b5a27a0af9e5a7cabef74"><div class="ttname"><a href="surface_8c.html#a75faf57d244b5a27a0af9e5a7cabef74">surface_make_sub</a></div><div class="ttdeci">surface_t surface_make_sub(surface_t *parent, uint32_t x0, uint32_t y0, uint32_t width, uint32_t height)</div><div class="ttdoc">Initialize a surface_t structure, pointing to a rectangular portion of another surface.</div><div class="ttdef"><b>Definition:</b> surface.c:56</div></div>
 </div><!-- fragment --><p >Surfaces created by <a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> don't need to be freed as they are just references to the parent surface; <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> does nothing on them. </p>
 </div><hr/><h2 class="groupheader">Data Structure Documentation</h2>
@@ -199,7 +212,7 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
       </table>
 </div><div class="memdoc">
 <div class="textblock"><p >A surface buffer for graphics. </p>
-<p >This structure holds the basic information about a buffer used to hold graphics. It is commonly used by graphics routines in libdragon as either a source (eg: texture) or a target (eg: framebuffer). It can be used for both CPU-based drawing (such as <a class="el" href="graphics_8h.html" title="2D Graphics">graphics.h</a>) or RDP-basic drawing (such as <a class="el" href="rdp_8h.html" title="Hardware Display Interface.">rdp.h</a> and rdpq.h).</p>
+<p >This structure holds the basic information about a buffer used to hold graphics. It is commonly used by graphics routines in libdragon as either a source (eg: texture) or a target (eg: framebuffer). It can be used for both CPU-based drawing (such as <a class="el" href="graphics_8h.html" title="2D Graphics">graphics.h</a>) or RDP-basic drawing (such as <a class="el" href="rdp_8h.html" title="RDP: Hardware Display Interface.">rdp.h</a> and <a class="el" href="rdpq_8h.html" title="RDP Command queue.">rdpq.h</a>).</p>
 <p >Use <a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> / <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> to allocate / free a surface. If you already have a memory pointer to a graphics buffer and you just need to wrap it in a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a>, use <a class="el" href="surface_8h.html#a764269d5ee8de46b3c0ef0f318f86a15" title="Initialize a surface_t structure with the provided buffer.">surface_make</a>. </p>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
@@ -336,7 +349,8 @@ Buffer pointer. </td></tr>
 
 <p>Pixel format enum. </p>
 <p >This enum defines the pixel formats that can be used for <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> buffers. The list corresponds to the pixel formats that the RDP can use as textures.</p>
-<p >Notice that only some of those can be used by RDP as framebuffer (specifically, <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5" title="Format RGBA 5551 (16-bit)">FMT_RGBA16</a>, <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a0ae35df0b9a28b002380dc866dad303a" title="Format RGBA 8888 (32-bit)">FMT_RGBA32</a> and <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a1d1f3cf5eb79947c79274c2a353e86aa" title="Format CI8: color index 8-bit (paletted, 1 index per byte)">FMT_CI8</a>). Moreover, the CPU-based graphics library <a class="el" href="graphics_8h.html" title="2D Graphics">graphics.h</a> only accepts surfaces in either <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5" title="Format RGBA 5551 (16-bit)">FMT_RGBA16</a> or <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a0ae35df0b9a28b002380dc866dad303a" title="Format RGBA 8888 (32-bit)">FMT_RGBA32</a> as target buffers. </p>
+<dl class="section note"><dt>Note</dt><dd>Some of these formats can be used by RDP as framebuffer (specifically, <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5" title="Format RGBA 5551 (16-bit)">FMT_RGBA16</a>, <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a0ae35df0b9a28b002380dc866dad303a" title="Format RGBA 8888 (32-bit)">FMT_RGBA32</a> and <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a1d1f3cf5eb79947c79274c2a353e86aa" title="Format CI8: color index 8-bit (paletted, 1 index per byte)">FMT_CI8</a>). </dd></dl>
+<dl class="section warning"><dt>Warning</dt><dd>the CPU-based graphics library <a class="el" href="graphics_8h.html" title="2D Graphics">graphics.h</a> only accepts surfaces in either <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5" title="Format RGBA 5551 (16-bit)">FMT_RGBA16</a> or <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a0ae35df0b9a28b002380dc866dad303a" title="Format RGBA 8888 (32-bit)">FMT_RGBA32</a> as target buffers, and does not assert. </dd></dl>
 <table class="fieldtable">
 <tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a01f43f3d6c80a7658bf729bfaf3136e1a7a2840ab7f7a839b7792f61a5da8f14a" name="a01f43f3d6c80a7658bf729bfaf3136e1a7a2840ab7f7a839b7792f61a5da8f14a"></a>FMT_NONE&#160;</td><td class="fielddoc"><p >Placeholder for no format defined. </p>
 </td></tr>
@@ -420,7 +434,7 @@ Buffer pointer. </td></tr>
 <p>Initialize a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> structure with the provided buffer. </p>
 <p >This functions initializes a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> structure with the provided buffer and information. It is just a helper to fill the structure fields.</p>
 <p >It is not necessary to call <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> on surfaces created by <a class="el" href="surface_8h.html#a764269d5ee8de46b3c0ef0f318f86a15" title="Initialize a surface_t structure with the provided buffer.">surface_make</a> as there is nothing to free: the provided buffer will not be owned by the structure, so it is up to the caller to handle its lifetime.</p>
-<p >If you plan to use this format as RDP framebuffer, make sure that the provided buffer respects the required alignment of 64 bytes, otherwise <a class="el" href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248" title="Attach the RDP to a surface.">rdp_attach</a> will fail.</p>
+<p >If you plan to use this format as RDP framebuffer, make sure that the provided buffer respects the required alignment of 64 bytes, otherwise <a class="el" href="rdpq__attach_8h.html#a67bd7bcd3d71538f5a10d50ba73b6b10" title="Attach the RDP to a color surface (and optionally a Z buffer)">rdpq_attach</a> will fail.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">buffer</td><td>Pointer to the memory buffer </td></tr>
@@ -533,7 +547,7 @@ Buffer pointer. </td></tr>
 
 <p>Allocate a new surface in memory. </p>
 <p >This function allocates a new surface with the specified pixel format, width and height. The surface must be freed via <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> when it is not needed anymore.</p>
-<p >A surface allocated via <a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> can be used as a RDP frame buffer (passed to <a class="el" href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248" title="Attach the RDP to a surface.">rdp_attach</a>) because it is guaranteed to have the required alignment of 64 bytes, provided it is using one of the formats supported by RDP as a framebuffer target (<code>FMT_RGBA32</code>, <code>FMT_RGBA16</code> or <code>FMT_I8</code>).</p>
+<p >A surface allocated via <a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> can be used as a RDP frame buffer (passed to <a class="el" href="rdpq__attach_8h.html#a67bd7bcd3d71538f5a10d50ba73b6b10" title="Attach the RDP to a color surface (and optionally a Z buffer)">rdpq_attach</a>) because it is guaranteed to have the required alignment of 64 bytes, provided it is using one of the formats supported by RDP as a framebuffer target (<code>FMT_RGBA32</code>, <code>FMT_RGBA16</code> or <code>FMT_I8</code>).</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">format</td><td>Pixel format of the surface </td></tr>
@@ -704,10 +718,181 @@ Buffer pointer. </td></tr>
 
 </div>
 </div>
+<a id="aac82921435796d00eab23b713564c66b" name="aac82921435796d00eab23b713564c66b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aac82921435796d00eab23b713564c66b">&#9670;&nbsp;</a></span>surface_make_placeholder()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> surface_make_placeholder </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>index</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1">tex_format_t</a>&#160;</td>
+          <td class="paramname"><em>format</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>width</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>height</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>stride</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Create a placeholder surface, that can be used during rdpq block recording. </p>
+<p >When recording a rspq block (via <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>) it might be useful sometimes to issue draw commands that refer to a surface, but allowing the actual surface to change later at any time.</p>
+<p >See <a class="el" href="rdpq_8h.html#ac3a157dcfb511e567251d69ba2272287" title="Store an address into the rdpq lookup table.">rdpq_set_lookup_address</a> for more information.</p>
+<dl class="section note"><dt>Note</dt><dd>A placeholder surface holds a NULL pointer to the actual bytes. Make sure not to use it anywhere else but with rdpq.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">index</td><td>Index that will be used to lookup the surface at playback time </td></tr>
+    <tr><td class="paramname">format</td><td>Pixel format </td></tr>
+    <tr><td class="paramname">width</td><td>Width of the surface in pixels </td></tr>
+    <tr><td class="paramname">height</td><td>Height of the surface in pixels </td></tr>
+    <tr><td class="paramname">stride</td><td>Stride of the surface in bytes </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> The initialized placeholder surface</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="surface_8h.html#afd410e76cddeca8c2d422d940f360b49" title="Create a linear placeholder surface, that can be used during rdpq block recording.">surface_make_placeholder_linear</a> </dd>
+<dd>
+<a class="el" href="rdpq_8h.html#ac3a157dcfb511e567251d69ba2272287" title="Store an address into the rdpq lookup table.">rdpq_set_lookup_address</a> </dd></dl>
+
+</div>
+</div>
+<a id="afd410e76cddeca8c2d422d940f360b49" name="afd410e76cddeca8c2d422d940f360b49"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afd410e76cddeca8c2d422d940f360b49">&#9670;&nbsp;</a></span>surface_make_placeholder_linear()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> surface_make_placeholder_linear </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>index</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1">tex_format_t</a>&#160;</td>
+          <td class="paramname"><em>format</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>width</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>height</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Create a linear placeholder surface, that can be used during rdpq block recording. </p>
+<p >This function is similar to <a class="el" href="surface_8h.html#aac82921435796d00eab23b713564c66b" title="Create a placeholder surface, that can be used during rdpq block recording.">surface_make_placeholder</a>, but it creates a surface that is linearly mapped with no per-line padding or extraneous data. (so the stride is automatically deduced from the width).</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">index</td><td>Index that will be used to lookup the surface at playback time </td></tr>
+    <tr><td class="paramname">format</td><td>Pixel format </td></tr>
+    <tr><td class="paramname">width</td><td>Width of the surface in pixels </td></tr>
+    <tr><td class="paramname">height</td><td>Height of the surface in pixels </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd><a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> The initialized placeholder surface</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="surface_8h.html#aac82921435796d00eab23b713564c66b" title="Create a placeholder surface, that can be used during rdpq block recording.">surface_make_placeholder</a> </dd></dl>
+
+</div>
+</div>
+<a id="a4f3cbb3a8c49dba329cd9c816c152825" name="a4f3cbb3a8c49dba329cd9c816c152825"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4f3cbb3a8c49dba329cd9c816c152825">&#9670;&nbsp;</a></span>surface_get_placeholder_index()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">int surface_get_placeholder_index </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
+          <td class="paramname"><em>surface</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Returns the lookup index of a placeholder surface. </p>
+<p >If ths surface is a placeholder, this function returns the associated lookup index that will be used to retrieve the actual surface at playback time. Otherwise, if it is a normal surface, this function will return 0.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">surface</td><td>Placeholder surface </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int The lookup index of the placeholder surface, or 0 if it is a normal surface </dd></dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Apr 28 2024 21:33:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:47:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

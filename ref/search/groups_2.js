@@ -1,4 +1,6 @@
 var searchData=
 [
-  ['backtrace_20_28call_20stack_29_20support_0',['Backtrace (call stack) support',['../group__backtrace.html',1,'']]]
+  ['asset_20subsystem_0',['Asset Subsystem',['../group__asset.html',1,'']]],
+  ['audio_20mixer_1',['Audio mixer',['../group__mixer.html',1,'']]],
+  ['audio_20subsystem_2',['Audio Subsystem',['../group__audio.html',1,'']]]
 ];
