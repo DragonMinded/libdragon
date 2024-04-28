@@ -186,9 +186,9 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
         int width = (g->xoff2 - g->xoff + 1);
         int height = (g->yoff2 - g->yoff + 1);
 
-        rdpq_texture_rectangle_raw(TILE0,
+        rdpq_texture_rectangle(TILE0,
             x, y, x+width, y+height,
-            g->s, g->t, 1, 1);
+            g->s, g->t);
 
         // rdpq_texture_rectangle_scaled(TILE0, 
         //     x, y, x + width * draw_ctx.xscale, y + height * draw_ctx.yscale,
