@@ -422,7 +422,7 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 })
 
 #define _rspq_write1(ovl_id, cmd_id, arg0, ...) ({ \
-    _Static_assert(__COUNT_VARARGS(__VA_ARGS__) < RSPQ_MAX_SHORT_COMMAND_SIZE); \
+    _Static_assert(__COUNT_VARARGS(__VA_ARGS__) <= RSPQ_MAX_SHORT_COMMAND_SIZE, "too many arguments to rspq_write, please use rspq_write_begin/arg/end instead"); \
     _rspq_write_prolog(); \
     __CALL_FOREACH(_rspq_write_arg, ##__VA_ARGS__); \
     rspq_cur_pointer[0] = ((ovl_id) + ((cmd_id)<<24)) | (arg0); \

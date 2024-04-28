@@ -2,8 +2,6 @@ BUILD_DIR=build
 SOURCE_DIR=.
 include $(N64_INST)/include/n64.mk
 
-N64_CXXFLAGS += -std=c++14
-
 all: cpptest.z64
 
 OBJS = $(BUILD_DIR)/cpptest.o
