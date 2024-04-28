@@ -99,6 +99,13 @@
 #define __FEB_31(_call, x, ...) _call(x) __FEB_30(_call, __VA_ARGS__)
 #define __CALL_FOREACH_BIS(fn, ...)  __GET_33RD_ARG("ignored", ##__VA_ARGS__, __FEB_31, __FEB_30, __FEB_29, __FEB_28, __FEB_27, __FEB_26, __FEB_25, __FEB_24, __FEB_23, __FEB_22, __FEB_21, __FEB_20, __FEB_19, __FEB_18, __FEB_17, __FEB_16, __FEB_15, __FEB_14, __FEB_13, __FEB_12, __FEB_11, __FEB_10, __FEB_9, __FEB_8, __FEB_7, __FEB_6, __FEB_5, __FEB_4, __FEB_3, __FEB_2, __FEB_1, __FEB_0)(fn, ##__VA_ARGS__)
 
+// Check that GNU extensions are active and macros work correctly. Specifically
+// we require the extension that allows ##__VA_ARGS__ to elide the previous comma
+// when no variadic arguments are specified.
+#if __COUNT_VARARGS() != 0
+#error GNU extensions are required -- please specify a -std=gnuXX/gnu++XX option to the compiler
+#endif
+
 /// @endcond
 
 #endif
