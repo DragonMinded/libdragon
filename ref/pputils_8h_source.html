@@ -169,12 +169,19 @@ $(function() {
 <div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="preprocessor">#define __FEB_31(_call, x, ...) _call(x) __FEB_30(_call, __VA_ARGS__)</span></div>
 <div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="preprocessor">#define __CALL_FOREACH_BIS(fn, ...)  __GET_33RD_ARG(&quot;ignored&quot;</span>, ##__VA_ARGS__, __FEB_31, __FEB_30, __FEB_29, __FEB_28, __FEB_27, __FEB_26, __FEB_25, __FEB_24, __FEB_23, __FEB_22, __FEB_21, __FEB_20, __FEB_19, __FEB_18, __FEB_17, __FEB_16, __FEB_15, __FEB_14, __FEB_13, __FEB_12, __FEB_11, __FEB_10, __FEB_9, __FEB_8, __FEB_7, __FEB_6, __FEB_5, __FEB_4, __FEB_3, __FEB_2, __FEB_1, __FEB_0)(fn, ##__VA_ARGS__)</div>
 <div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment">// Check that GNU extensions are active and macros work correctly. Specifically</span></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment">// we require the extension that allows ##__VA_ARGS__ to elide the previous comma</span></div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment">// when no variadic arguments are specified.</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="preprocessor">#if __COUNT_VARARGS() != 0</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="preprocessor">#error GNU extensions are required -- please specify a -std=gnuXX/gnu++XX option to the compiler</span></div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span> </div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="preprocessor">#endif</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Apr 27 2024 13:50:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:33:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

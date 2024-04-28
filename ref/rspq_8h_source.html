@@ -129,13 +129,13 @@ $(function() {
 <div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span><span class="preprocessor">})</span></div>
 <div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span> </div>
 <div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span><span class="preprocessor">#define _rspq_write1(ovl_id, cmd_id, arg0, ...) ({ \</span></div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span><span class="preprocessor">    _Static_assert(__COUNT_VARARGS(__VA_ARGS__) &lt; RSPQ_MAX_SHORT_COMMAND_SIZE); \</span></div>
-<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span><span class="preprocessor">    _rspq_write_prolog(); \</span></div>
-<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span><span class="preprocessor">    __CALL_FOREACH(_rspq_write_arg, ##__VA_ARGS__); \</span></div>
-<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span><span class="preprocessor">    rspq_cur_pointer[0] = ((ovl_id) + ((cmd_id)&lt;&lt;24)) | (arg0); \</span></div>
-<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span><span class="preprocessor">    rspq_cur_pointer += 1 + __COUNT_VARARGS(__VA_ARGS__); \</span></div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span><span class="preprocessor">    _rspq_write_epilog(); \</span></div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span><span class="preprocessor">})</span></div>
+<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span><span class="preprocessor">    _Static_assert(__COUNT_VARARGS(__VA_ARGS__) &lt;= RSPQ_MAX_SHORT_COMMAND_SIZE, &quot;too many arguments to rspq_write, please use rspq_write_begin/arg/end instead&quot;</span>); \</div>
+<div class="line"><a id="l00395" name="l00395"></a><span class="lineno">  395</span>    _rspq_write_prolog(); \</div>
+<div class="line"><a id="l00396" name="l00396"></a><span class="lineno">  396</span>    __CALL_FOREACH(_rspq_write_arg, ##__VA_ARGS__); \</div>
+<div class="line"><a id="l00397" name="l00397"></a><span class="lineno">  397</span>    rspq_cur_pointer[0] = ((ovl_id) + ((cmd_id)&lt;&lt;24)) | (arg0); \</div>
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno">  398</span>    rspq_cur_pointer += 1 + __COUNT_VARARGS(__VA_ARGS__); \</div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span>    _rspq_write_epilog(); \</div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>})</div>
 <div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span> </div>
 <div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span> </div>
 <div class="line"><a id="l00405" name="l00405"></a><span class="lineno"><a class="line" href="rspq_8h.html">  405</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
@@ -257,7 +257,7 @@ $(function() {
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Apr 27 2024 13:50:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Apr 28 2024 21:33:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
