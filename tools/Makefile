@@ -3,6 +3,12 @@ INSTALLDIR ?= $(N64_INST)
 CFLAGS   += -std=gnu11 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare -I../include -MMD
 CXXFLAGS += -std=gnu++17 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare -Wno-c++11-narrowing -Wno-narrowing -Wno-error=conversion-null -MMD
 
+ifeq ($(OS),Windows_NT)
+	CFLAGS += -static
+	CXXFLAGS += -static
+  	LDFLAGS += -static
+endif
+
 all:
 
 %.o: %.c
