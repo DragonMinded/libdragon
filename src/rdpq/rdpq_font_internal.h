@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "graphics.h"
+#include "../../include/graphics.h"
 
 typedef struct rspq_block_s rspq_block_t;
 
