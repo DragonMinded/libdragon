@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <assert.h>
+#include "binout.h"
 
 #define STBDS_NO_SHORT_NAMES
 #define STB_DS_IMPLEMENTATION //Hack to get tools to compile
