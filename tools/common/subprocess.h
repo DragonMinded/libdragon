@@ -259,7 +259,9 @@ typedef struct _OVERLAPPED *LPOVERLAPPED;
 #pragma clang diagnostic pop
 #endif
 
+#if defined(_MSC_VER)
 #pragma warning(push, 1)
+#endif
 struct subprocess_subprocess_information_s {
   void *hProcess;
   void *hThread;
@@ -308,7 +310,9 @@ struct subprocess_overlapped_s {
   void *hEvent;
 };
 
+#if defined(_MSC_VER)
 #pragma warning(pop)
+#endif
 
 __declspec(dllimport) unsigned long __stdcall GetLastError(void);
 __declspec(dllimport) int __stdcall SetHandleInformation(void *, unsigned long,
@@ -416,7 +420,7 @@ int subprocess_create_named_pipe_helper(void **rd, void **wr) {
   static subprocess_tls long index = 0;
   const long unique = index++;
 
-#if _MSC_VER < 1900
+#if defined(_MSC_VER) &&  _MSC_VER < 1900
 #pragma warning(push, 1)
 #pragma warning(disable : 4996)
   _snprintf(name, sizeof(name) - 1,
@@ -431,14 +435,14 @@ int subprocess_create_named_pipe_helper(void **rd, void **wr) {
 
   *rd =
       CreateNamedPipeA(name, pipeAccessInbound | fileFlagOverlapped,
-                       pipeTypeByte | pipeWait, 1, 4096, 4096, SUBPROCESS_NULL,
+                       pipeTypeByte | pipeWait, 1, 4096, 4096, 0,
                        SUBPROCESS_PTR_CAST(LPSECURITY_ATTRIBUTES, &saAttr));
 
   if (invalidHandleValue == *rd) {
     return -1;
   }
 
-  *wr = CreateFileA(name, genericWrite, SUBPROCESS_NULL,
+  *wr = CreateFileA(name, genericWrite, 0,
                     SUBPROCESS_PTR_CAST(LPSECURITY_ATTRIBUTES, &saAttr),
                     openExisting, fileAttributeNormal, SUBPROCESS_NULL);
 
