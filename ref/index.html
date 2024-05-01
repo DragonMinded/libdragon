@@ -70,28 +70,79 @@ $(function() {
 <p ><a href="https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml"><img src="https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml/badge.svg?branch=trunk" alt="Build" style="pointer-events: none;" class="inline"/></a></p>
 <h1><a class="anchor" id="autotoc_md1"></a>
 Welcome to libdragon</h1>
-<p >Libdragon is an open-source SDK for Nintendo 64. It aims for a complete N64 programming experience while providing programmers with modern approach to programming and debugging. These are the main features:</p>
+<blockquote class="doxtable">
+<p >&zwj;[!TIP] Coming back here after a while? Check the <a href="https://github.com/DragonMinded/libdragon/wiki/Stable-branch--Changelog">ChangeLog</a> of our stable branch, or the <a href="https://github.com/DragonMinded/libdragon/wiki/Preview-branch">Preview branch</a> </p>
+</blockquote>
+<p>Libdragon is an open-source SDK for Nintendo 64. It aims for a complete N64 programming experience while providing programmers with modern approach to programming and debugging. These are the main features:</p>
 <ul>
 <li>Based on modern GCC (13) and Newlib, for a full C11 programming experience. A Docker container is available to quickly set up the programming environment.</li>
 <li>The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities (commercial games and libultra are based on a 32-bit ABI and is not possible to use 64-bit registers and opcodes with it)</li>
-<li>Can be developed with newer-generation emulators (ares, cen64, Dillonb's n64, simple64) or development cartridges (64drive, EverDrive64, SummerCart64).</li>
-<li>Support both vanilla N64 and iQue Player (Chinese variant). The support is experimental and done fully at runtime, so it is possible to run ROMs built with libdragon on iQue without modifying the source code.</li>
+<li>Can be developed with newer-generation emulators (Ares) and development cartridges (64drive, EverDrive64, SummerCart64).</li>
+<li>Support both vanilla N64 and iQue Player (Chinese variant). It is possible to run ROMs built with libdragon on iQue without modifying the source code.</li>
+<li>2D accelerated graphics:<ul>
+<li>Comprehensive RDP library called <a href="https://github.com/DragonMinded/libdragon/wiki/Rdpq">rdpq</a> that offers both low-level access and very high-level blitting functions.</li>
+<li>Support for drawing sprites of arbitrary sizes and arbitrary pixel formats. Rdpq takes care of handling TMEM limits transparently and efficiently.</li>
+<li>Support for sprite zooming and rotation. Rotated sprites are transparently drawn via triangles instead of rectangles.</li>
+<li>Support for all RDP pixel formats, including palettized ones.</li>
+<li>Very simple render mode configuration, that allows for full RDP graphic effects including custom color combiner and blender.</li>
+<li>Comprehensive <a href="https://github.com/DragonMinded/libdragon/wiki/Mksprite">mksprite</a> tool, that converts from PNG format, includes optional state-of-the-art color quantizer and dithering.</li>
+<li>Transparent compression of graphics for minimal ROM size</li>
+</ul>
+</li>
+<li>Audio:<ul>
+<li>Advanced RSP-accelerated mixer library, supporting up to 32 channels and streaming samples from ROM during playback for very low memory usage.</li>
+<li>Supports WAV files for sound effects</li>
+<li>Supports streaming of uncompressed or VADPCM-compressed WAV files for music.</li>
+<li>Supports playing of XM modules (FastTracker, MilkyTracker, OpenMPT). Can playback a 10-channel XM with &lt; 3% CPU and &lt; 10% RSP.</li>
+<li>Supports playing of YM modules (Arkos Tracker 2) <br  />
+</li>
+</ul>
+</li>
+<li>Filesystems:<ul>
 <li>In-ROM filesystem implementation for assets. Assets can be loaded with <code>fopen("rom://asset.dat")</code> without having to do complex things to link them in.</li>
-<li>Efficient interrupt-based timer library (also features a monotone 64-bit timer to avoid dealing with 32-bit overflows)</li>
-<li>Graphics: easy-to-use API for 2D games, accelerated with RDP</li>
+<li>SD card access (<code>fopen("sd://asset.dat")</code>) on all available flashcarts.</li>
+</ul>
+</li>
+<li><a href="https://github.com/DragonMinded/libdragon/wiki/Compression">Compression</a>:<ul>
+<li>Asset library for fast, transparent compression support for data files, including your custom ones.</li>
+<li>Automatically integrated in conversion tools for graphics.</li>
+<li>Three different compression algorithms with increasing compression ratio (and decreasing decompression speed). Currently based on LZ4, Aplib, Shrinkler. Compression ratios competitive with gzip and xz, at higher decompression speeds.</li>
+<li>Optimized decompression routines in MIPS assembly that run in parallel with DMA for maximum speed.</li>
+<li>Support for streaming decompression based on the <code>fopen()</code> interface.</li>
+</ul>
+</li>
+<li>Debugging:<ul>
+<li>Clear error screens with symbolized stack traces in case of crashes</li>
+<li>Codebase is filled with assertions, so that you get a nice error screen instead of a console lockup.</li>
+<li>Printf-debugging via <code><a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf()</a></code> which are redirected to your PC console in emulators and to USB via compatible tools (UNFLoader, g64drive).</li>
+</ul>
+</li>
 <li>Support for standard N64 controllers and memory paks.</li>
 <li>Support for saving to flashes and EEPROMs (including a mini EEPROM filesystem to simplify serialization of structures).</li>
-<li>Audio: advanced RSP-accelerated library, supporting up to 32 channels and streaming samples from ROM during playback for very low memory usage. Supports WAV files for sound effects and the XM (FastTracker, MilkyTracker, OpenMPT), and YM (Arkos Tracker 2) module formats for background music. Can playback a 10-channel XM with &lt; 3% CPU and &lt; 10% RSP.</li>
-<li>Debugging aids: console (printf goes to screen) exception screen, many asserts (so that you get a nice error screen instead of a console lockup), <code>fprintf(stderr)</code> calls are redirected to your PC console in emulators and to USB via compatible tools (UNFLoader, g64drive).</li>
-<li>Support to read/write to SD cards in development kits (64drive, EverDrive64, SummerCart64), simply with <code>fopen("sd://sdata.dat")</code></li>
-<li>Simple and powerful Makefile-based build system for your ROMs and assets (n64.mk)</li>
 </ul>
 <p >The <a href="https://github.com/DragonMinded/libdragon/wiki/Preview-branch">preview branch</a> features many more features:</p>
 <ul>
-<li>a new comprehensive RDP engine</li>
-<li>a full OpenGL 1.1 port for 3D graphics programming, with a custom, efficient RSP ucode with full T&amp;L support.</li>
-<li>a MPEG1 RSP-accelerated movie player</li>
-<li>support for showing source-level stack traces in case of crashes or assertions, including source file name and line number.</li>
+<li>3D graphics<ul>
+<li>Allow for easily plugging in 3D graphics pipelines, that can potentially even coexist in the same scene.</li>
+<li>Included in libdragon: full <a href="https://github.com/DragonMinded/libdragon/wiki/OpenGL-on-N64">OpenGL 1.1 port</a>, together with custom N64 extensions for using RDP-specific features.</li>
+<li>Third-party: <a href="https://github.com/HailToDodongo/tiny3d">Tiny3D</a>, a high-performance native 3D pipeline.</li>
+<li>Both OpenGL and Tiny3D import model files from Blender via the GLTF format, and feature also an animation system with skinning support.</li>
+</ul>
+</li>
+<li>a <a href="https://github.com/DragonMinded/libdragon/wiki/MPEG1-Player">MPEG1 RSP-accelerated movie player</a>, for high-quality FMVs.<ul>
+<li>Expected performance for FMV: 320x240 movie at 800 Kbit/s at 20 fps</li>
+<li>Very simple to use also for render-to-texture scenarios, where a movie is played back as part of a 3D scene or as background in a 2D game.</li>
+</ul>
+</li>
+<li>Improved boot using open-source IPL3 bootcode, which boots ROMs up to 5x faster and allows for compressed game code (using libdragon compression library).</li>
+<li>Dynamic library support (DSO, sometimes called "overlays") for dynamically loading and unloading part of game code and data. This is implemented using the standard <code>dlopen()</code> / <code>dlsym()</code>.</li>
+<li>Support for <a href="https://github.com/DragonMinded/libdragon/wiki/Opus-decompression">Opus audio compression</a> for ultra-compressed music streaming.<ul>
+<li>Same state-of-the-art audio algorithm that is currently mainstream on PCs.</li>
+<li>Compression ratios around 15:1 for audio files. Around 3-5 minutes of mono audio per Megabyte of ROM, depending on quality.</li>
+<li>RSP-accelerated for realtime playback. 18-20% of CPU usage for mono streams, which makes it feasible for menus or not resource-intensive games.</li>
+<li>Well suited also for speech at very high compression ratio, would allow for a fully talkie game.</li>
+</ul>
+</li>
 </ul>
 <p >and much more. These features will eventually land to trunk, but you can start playing with them even today. Go the <a href="https://github.com/DragonMinded/libdragon/wiki/Preview-branch">preview branch doc</a> for more information.</p>
 <h1><a class="anchor" id="autotoc_md2"></a>
@@ -102,8 +153,9 @@ Getting started: how to build a ROM</h1>
 Getting started: how to run a ROM</h1>
 <h2><a class="anchor" id="autotoc_md4"></a>
 Using emulators</h2>
-<p >libdragon requires a modern N64 emulator (the first generation of emulators are basically HLE-only and can only play the old commercial games). Suggested emulators for homebrew developemnt are: <a href="https://ares-emu.net">ares</a>, <a href="https://github.com/n64dev/cen64">cen64</a>, <a href="https://github.com/Dillonb/n64">dgb-n64</a>, <a href="https://simple64.github.io">simple64</a>.</p>
-<p >On all the above emulators, you are also able to see in console anything printed via <code>fprintf(stderr)</code>, see the debug library for more information.</p>
+<p >libdragon targets real N64 hardware and uses many advanced corners of the hardware not used by old commercial games, and thus requires a modern N64 emulator which focuses on full hardware emulation.</p>
+<p >At the moment, the only emulator that accurately emulates the hardware (and does not just focus on playing old classics) is <a href="https://github.com/ares-emulator/ares">Ares</a>. Ares requires a modern PC with a discrete GPU with Vulkan support.</p>
+<p >You can develop 99% of your game using libdragon and the Ares emulator, and be confident that the game will correctly run on hardware as well. Make sure to turn on the "Homebrew mode" in Ares to enable developer specific checks during emulation that will simplify the debugging experience.</p>
 <h2><a class="anchor" id="autotoc_md5"></a>
 Using a development cartridge on a real N64</h2>
 <p >All cartridges that are able to load custom ROMs should be able to successfully load libdragon ROMs via either USB/serial, or from a MMC/SD card. For instance, the following are known to work: 64drive, EverDrive64 (all models), SC64.</p>
@@ -131,7 +183,7 @@ Resources</h1>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Apr 28 2024 21:47:39 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed May 1 2024 12:20:00 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
