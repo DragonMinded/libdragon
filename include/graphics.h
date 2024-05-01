@@ -35,7 +35,9 @@ typedef struct __attribute__((packed))
     uint8_t a;
 } color_t;
 
+#ifndef __cplusplus
 _Static_assert(sizeof(color_t) == 4, "invalid sizeof for color_t");
+#endif
 
 /** @brief Create a #color_t from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31, A in 0-1) */
 #define RGBA16(rx,gx,bx,ax) ({ \
