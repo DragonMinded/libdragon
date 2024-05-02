@@ -1,0 +1,19 @@
+[binaries]
+# Meson 0.53.2 doesn't use any cflags when doing basic compiler tests,
+# so we have to add -nostdlib to the compiler configuration itself or
+# early compiler tests will fail. This can be removed when picolibc
+# requires at least version 0.54.2 of meson.
+c = ['mips64-elf-gcc', '-nostdlib']
+ar = 'mips64-elf-ar'
+as = 'mips64-elf-as'
+nm = 'mips64-elf-nm'
+strip = 'mips64-elf-strip'
+
+[host_machine]
+system = 'none'
+cpu_family = 'mips64'
+cpu = 'mips64vr4300'
+endian = 'big'
+
+[properties]
+skip_sanity_check = true
