@@ -28,6 +28,14 @@ N64_BUILD=${N64_BUILD:-""}
 N64_HOST=${N64_HOST:-""}
 N64_TARGET=${N64_TARGET:-mips64-elf}
 
+# Toolchain configuration options.
+N64_USE_PICOLIBC=${N64_USE_PICOLIBC:-"false"}
+N64_USE_PICOLIBC_TINYSTDIO=${N64_USE_PICOLIBC_TINYSTDIO:-"false"}
+N64_USE_PICOLIBC_LEGACY_STDIO=true
+if [ "$N64_USE_PICOLIBC_TINYSTDIO" == "true" ]; then
+    N64_USE_PICOLIBC_LEGACY_STDIO=false
+fi
+
 # Set N64_INST before calling the script to change the default installation directory path
 INSTALL_PATH="${N64_INST}"
 # Set PATH for newlib to compile using GCC for MIPS N64 (pass 1)
@@ -45,6 +53,7 @@ GCC_CONFIGURE_ARGS=()
 BINUTILS_V=2.44
 GCC_V=14.2.0
 NEWLIB_V=4.4.0.20231231
+PICOLIBC_V=e0a04fec075f5cb1ddb80ea8c359748ef72b9122
 GMP_V=6.3.0
 MPC_V=1.3.1
 MPFR_V=4.2.1
@@ -130,8 +139,13 @@ test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH
 test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
 test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
 
-test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
-test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
+if [ "$N64_USE_PICOLIBC" == "true" ]; then
+    test -f "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip"    || ( download "https://github.com/picolibc/picolibc/archive/$PICOLIBC_V.zip" && mv "$DOWNLOAD_PATH/$PICOLIBC_V.zip" "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" )
+    test -d "$BUILD_PATH/picolibc-$PICOLIBC_V"           || unzip "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" -d "$BUILD_PATH"
+else
+    test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
+    test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
+fi
 
 if [ "$GMP_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
@@ -297,21 +311,59 @@ make all-target-libgcc -j "$JOBS"
 make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
 popd
 
-# Compile newlib for target.
-mkdir -p newlib_compile_target
-pushd newlib_compile_target
-CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-    --prefix="$CROSS_PREFIX" \
-    --target="$N64_TARGET" \
-    --with-cpu=mips64vr4300 \
-    --disable-libssp \
-    --disable-werror \
-    --enable-newlib-io-c99-formats \
-    --enable-newlib-multithread \
-    --enable-newlib-retargetable-locking
-make -j "$JOBS"
-make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-popd
+if [ "$N64_USE_PICOLIBC" == "true" ]; then
+    # Compile picolibc for target.
+    mkdir -p picolibc_compile_target
+    pushd picolibc_compile_target
+    meson setup \
+        --cross-file=../../meson-cross.txt \
+        -Dmultilib=false \
+        -Dpicocrt=false \
+        -Dpicolib=false \
+        -Dsemihost=false \
+        -Dspecsdir=none \
+        -Dtests=false \
+        -Dtinystdio="$N64_USE_PICOLIBC_TINYSTDIO" \
+        -Dfast-bufio=true \
+        -Dio-long-long=true \
+        -Dio-pos-args="$N64_USE_PICOLIBC_TINYSTDIO" \
+        -Dio-percent-b=true \
+        -Dposix-console=true \
+        -Dformat-default=double \
+        -Dnewlib-fseek-optimization="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+        -Dnewlib-fvwrite-in-streamio="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+        -Dnewlib-io-float="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+        -Dnewlib-stdio64=false \
+        -Dnewlib-unbuf-stream-opt="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+        -Dnewlib-nano-malloc=false \
+        -Dnewlib-multithread=true \
+        -Dnewlib-retargetable-locking=true \
+        -Dthread-local-storage=true \
+        -Dpicoexit=false \
+        -Dprefix="$CROSS_PREFIX" \
+        -Dlibdir=mips64-elf/lib \
+        -Dincludedir=mips64-elf/include \
+        ../"picolibc-$PICOLIBC_V"
+    ninja -j "$JOBS"
+    ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
+    popd
+else
+    # Compile newlib for target.
+    mkdir -p newlib_compile_target
+    pushd newlib_compile_target
+    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+        --prefix="$CROSS_PREFIX" \
+        --target="$N64_TARGET" \
+        --with-cpu=mips64vr4300 \
+        --disable-libssp \
+        --disable-werror \
+        --enable-newlib-io-c99-formats \
+        --enable-newlib-multithread \
+        --enable-newlib-retargetable-locking
+    make -j "$JOBS"
+    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+    popd
+fi
 
 # For a standard cross-compiler, the only thing left is to finish compiling the target libraries
 # like libstd++. We can continue on the previous GCC build target.
@@ -364,21 +416,58 @@ else
     make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
     popd
 
-    # Compile newlib for target.
-    mkdir -p newlib_compile
-    pushd newlib_compile
-    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-        --prefix="$INSTALL_PATH" \
-        --target="$N64_TARGET" \
-        --with-cpu=mips64vr4300 \
-        --disable-libssp \
-        --disable-werror \
-        --enable-newlib-io-c99-formats \
-        --enable-newlib-multithread \
-        --enable-newlib-retargetable-locking
-    make -j "$JOBS"
-    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-    popd
+    if [ "$N64_USE_PICOLIBC" == "true" ]; then
+        # Compile picolibc for target.
+        mkdir -p picolibc_compile_target
+        pushd picolibc_compile_target
+        meson setup \
+            --cross-file=../../meson-cross.txt \
+            -Dmultilib=false \
+            -Dpicocrt=false \
+            -Dpicolib=false \
+            -Dsemihost=false \
+            -Dspecsdir=none \
+            -Dtests=false \
+            -Dtinystdio="$N64_USE_PICOLIBC_TINYSTDIO" \
+            -Dfast-bufio=true \
+            -Dio-long-long=true \
+            -Dio-pos-args="$N64_USE_PICOLIBC_TINYSTDIO" \
+            -Dio-percent-b=true \
+            -Dposix-console=true \
+            -Dformat-default=double \
+            -Dnewlib-fseek-optimization="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+            -Dnewlib-fvwrite-in-streamio="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+            -Dnewlib-io-float="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+            -Dnewlib-stdio64=false \
+            -Dnewlib-unbuf-stream-opt="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+            -Dnewlib-nano-malloc=false \
+            -Dnewlib-multithread=true \
+            -Dnewlib-retargetable-locking=true \
+            -Dthread-local-storage=false \
+            -Dprefix="$INSTALL_PATH" \
+            -Dlibdir=mips64-elf/lib \
+            -Dincludedir=mips64-elf/include \
+            ../"picolibc-$PICOLIBC_V"
+        ninja -j "$JOBS"
+        ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
+        popd
+    else
+        # Compile newlib for target.
+        mkdir -p newlib_compile_target
+        pushd newlib_compile_target
+        CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+            --prefix="$INSTALL_PATH" \
+            --target="$N64_TARGET" \
+            --with-cpu=mips64vr4300 \
+            --disable-libssp \
+            --disable-werror \
+            --enable-newlib-io-c99-formats \
+            --enable-newlib-multithread \
+            --enable-newlib-retargetable-locking
+        make -j "$JOBS"
+        make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+        popd
+    fi
 
     # Finish compiling GCC
     mkdir -p gcc_compile
