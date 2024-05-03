@@ -149,7 +149,7 @@ static void png_write_func(void *context, void *data, int size)
     fwrite(data, 1, size, f);
 }
 
-void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int stride)
+void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int stride, int bytes_per_pixel)
 {
     static char *mksprite = NULL;
     if (!mksprite) asprintf(&mksprite, "%s/bin/mksprite", n64_inst);
@@ -171,7 +171,7 @@ void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int
 
     // Write PNG to standard input of mksprite
     FILE *mksprite_in = subprocess_stdin(&subp);
-    stbi_write_png_to_func(png_write_func, mksprite_in, width, height, 1, buf, stride);
+    stbi_write_png_to_func(png_write_func, mksprite_in, width, height, bytes_per_pixel, buf, stride);
     fclose(mksprite_in); subp.stdin_file = SUBPROCESS_NULL;
 
     // Read sprite from stdout into memory
@@ -212,13 +212,39 @@ void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int
     fnt->num_atlases++;
 }
 
-void n64font_addkerning(rdpq_font_t *fnt, int g1, int g2, int kerning)
+struct n64font_kern {
+    int glyph1;
+    int glyph2;
+    int kerning;
+};
+
+void n64font_addkerning(rdpq_font_t *fnt, std::vector<n64font_kern>& kernings)
 {
-    fnt->kerning = (kerning_t*)realloc(fnt->kerning, (fnt->num_kerning + 1) * sizeof(kerning_t));
-    fnt->kerning[fnt->num_kerning].glyph2 = g2;
-    assert(kerning >= -128 && kerning <= 127);
-    fnt->kerning[fnt->num_kerning].kerning = kerning;
-    fnt->num_kerning++;
+    assert(fnt->glyphs); // first we need the glyphs
+
+    // Sort kernings by g1 and then g2
+    std::sort(kernings.begin(), kernings.end(), [](const n64font_kern& k1, const n64font_kern& k2){
+        if (k1.glyph1 != k2.glyph1) return k1.glyph1 < k2.glyph1;
+        return k1.glyph2 < k2.glyph2;
+    });
+
+    // Allocate output data structure
+    fnt->num_kerning = kernings.size()+1;
+    fnt->kerning = (kerning_t*)malloc(fnt->num_kerning * sizeof(kerning_t));
+    memset(&fnt->kerning[0], 0, sizeof(kerning_t));
+
+    for (int i=0; i<kernings.size(); i++) {
+        // Copy kerning data into output
+        n64font_kern* ink = &kernings[i];
+        assert(ink->kerning >= -128 && ink->kerning <= 127);
+        fnt->kerning[i+1].glyph2 = ink->glyph2;
+        fnt->kerning[i+1].kerning = ink->kerning * 127 / fnt->point_size;
+
+        // Update lo/hi indices for current glyph.
+        if (i==0 || ink->glyph1 != ink[-1].glyph1)
+            fnt->glyphs[ink->glyph1].kerning_lo = i+1;
+        fnt->glyphs[ink->glyph1].kerning_hi = i+1;
+    }
 }
 
 void n64font_add_ellipsis(rdpq_font_t *fnt, int ellipsis_cp, int ellipsis_repeats)

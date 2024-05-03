@@ -207,6 +207,7 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
         settings.max_width = 128;
         settings.max_height = 64;
         settings.border_padding = 1;
+        settings.allow_rotate = false;
         
         std::vector<rect_pack::Size> sizes;
         for (int i=0; i<glyphs.size(); i++) {
@@ -229,9 +230,17 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                 rect_pack::Rect& rect = sheet.rects[j];
                 Glyph& glyph = glyphs[rect.id];
 
-                for (int y=0; y<glyph.height; y++) {
-                    for (int x=0; x<glyph.width; x++) {
-                        pixels[(rect.y + y) * sheet.width + (rect.x + x)] = ((uint8_t*)glyph.bitmap)[y * glyph.width + x];
+                if (!rect.rotated) {
+                    for (int y=0; y<glyph.height; y++) {
+                        for (int x=0; x<glyph.width; x++) {
+                            pixels[(rect.y + y) * sheet.width + (rect.x + x)] = ((uint8_t*)glyph.bitmap)[y * glyph.width + x];
+                        }
+                    }
+                } else {
+                    for (int y=0; y<glyph.width; y++) {
+                        for (int x=0; x<glyph.height; x++) {
+                            pixels[(rect.y + y) * sheet.width + (rect.x + x)] = ((uint8_t*)glyph.bitmap)[x * glyph.width + y];
+                        }
                     }
                 }
 
@@ -256,7 +265,7 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                 }
             }
 
-            n64font_addatlas(font, pixels, sheet.width, sheet.height, sheet.width);
+            n64font_addatlas(font, pixels, sheet.width, sheet.height, sheet.width, 1);
 
             if (flag_verbose)
                 fprintf(stderr, "created atlas %d: %d x %d pixels (%zu glyphs)\n", i, sheet.width, sheet.height, sheet.rects.size());
@@ -282,8 +291,7 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
         if (flag_verbose)
             fprintf(stderr, "collecting kerning information\n");
 
-        // Add first empty entry for kerning. This allows to store "0" in glyphs to mean "no kerning"
-        n64font_addkerning(font, 0, 0, 0);
+        std::vector<n64font_kern> kernings;
 
         // Prepare the kerning table. Go through all ranges, and within each range, construct a N*N table
         // for all the pairs [glyph1, glyph2] for all glyphs in that range. This means that we don't
@@ -304,7 +312,6 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
             for (int i=0;i<num_codepoints;i++) {
                 int gidx1 = (i >= range->num_codepoints) ? i-range->num_codepoints : range->first_glyph + i;
                 int ttfidx1 = gidx_to_ttfidx[gidx1];
-                int kerning_start = font->num_kerning;
 
                 for (int j=0;j<num_codepoints;j++) {
                     int gidx2 = (j >= range->num_codepoints) ? j-range->num_codepoints : range->first_glyph + j;
@@ -317,7 +324,10 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                         // Add the kerning entry. Scale the advance to fit 8 bit, assuming
                         // the kerning will never be bigger than the point size (and usually much
                         // smaller). This makes good use of the available precision.
-                        n64font_addkerning(font, gidx1, gidx2, (kerning.x >> 6) * 127.0f / point_size);
+                        kernings.push_back({
+                            .glyph1 = gidx1, .glyph2 = gidx2,
+                            .kerning = (kerning.x >> 6),
+                        });
                         if (flag_verbose >= 2) {
                             int codepoint1 = (i >= range->num_codepoints) ? ascii_range_start + i - range->num_codepoints : range->first_codepoint + i;
                             int codepoint2 = (j >= range->num_codepoints) ? ascii_range_start + j - range->num_codepoints : range->first_codepoint + j;
@@ -325,23 +335,9 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                         }
                     }
                 }
-
-                if (font->num_kerning != kerning_start) {
-                    glyph_t *g = &font->glyphs[gidx1];
-
-                    // If at least one kerning entry was added for this glyph, sort the kerning table
-                    // by second glyph index (to speeed up runtime lookups) and then store the range
-                    // within the first glyph.
-                    g->kerning_lo = kerning_start;
-                    g->kerning_hi = font->num_kerning - 1;
-
-                    std::sort(font->kerning + g->kerning_lo, font->kerning + g->kerning_hi + 1, 
-                        [](const kerning_t& k1, const kerning_t& k2){
-                            return k1.glyph2 < k2.glyph2;
-                        });
-                }
             }
 
+            n64font_addkerning(font, kernings);
         }
     }
 

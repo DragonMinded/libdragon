@@ -49,8 +49,6 @@ void print_args( char * name )
     fprintf(stderr, "   -c/--compress <level>     Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "   -d/--debug                Dump also debug images\n");
     fprintf(stderr, "\n");
-    // fprintf(stderr, "BMFont specific flags:\n");
-    // fprintf(stderr, "\n");
     fprintf(stderr, "TTF/OTF specific flags:\n");
     fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: 12)\n");
     fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
@@ -61,14 +59,7 @@ void print_args( char * name )
 
 #include "mkfont_out.cpp"
 #include "mkfont_ttf.cpp"
-
-
-int convert_bmfont(const char *infn, const char *outfn)
-{
-    fprintf(stderr, "Error: BMFont support is incomplete.\n");
-    exit(1);
-}
-
+#include "mkfont_bmfont.cpp"
 
 int main(int argc, char *argv[])
 {
@@ -185,8 +176,6 @@ int main(int argc, char *argv[])
         if (strcasestr(infn, ".ttf") || strcasestr(infn, ".otf")) {
             ret = convert_ttf(infn, outfn, flag_point_size, flag_ranges);
         } else if (strcasestr(infn, ".fnt")) {
-            fprintf(stderr, "Error: BMFont support is incomplete.\n"); exit(1);
-            compression = 0;
             ret = convert_bmfont(infn, outfn);
         } else {
             fprintf(stderr, "Error: unknown input file type: %s\n", infn);
