@@ -1364,6 +1364,17 @@ void rspq_wait(void)
         if (!__rspq_deferred_poll())
             break;
     }
+
+    // Last thing to check is whether there is a RSP DMA in progress. This is
+    // basically impossible because RSP DMA is very fast, but we still keep
+    // this code even just as documentation that we want to ensure that rspq_wait()
+    // exits with all RSP idle.
+    if (UNLIKELY(*SP_STATUS & SP_STATUS_DMA_BUSY)) {
+        RSP_WAIT_LOOP(200) {
+            if (!(*SP_STATUS & SP_STATUS_DMA_BUSY))
+                break;
+        }
+    }
 }
 
 void rspq_signal(uint32_t signal)
