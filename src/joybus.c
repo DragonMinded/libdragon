@@ -131,6 +131,11 @@ void __joybus_init(void)
     msgs_ridx = 0;
     joybus_state = JOYBUS_STATE_IDLE;
 
+    // Wait for any pending SI write. This can happen mainly because of the
+    // write made by entrypoint.S to complete the PIF boot. If the write is still
+    // pending, it would trigger a SI interrupt later and cause a crash.
+    while (SI_regs->status & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY)) {}
+
     // Acknowledge any pending SI interrupt
     SI_regs->status = 0;
 
