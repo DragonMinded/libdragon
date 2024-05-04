@@ -1,4 +1,5 @@
 #include <map>
+#include <memory>
 
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
 #define LODEPNG_NO_COMPILE_CPP                 // No need to use C++ API
