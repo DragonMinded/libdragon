@@ -792,7 +792,7 @@ int main( int argc, char *argv[] )
             fclose( fp );
 
             int offset = 0;
-            if (strstr(argv[2], ".z64"))
+            if (!strstr(argv[2], ".dfs"))
             {
                 void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
                 if (!fs)
@@ -835,7 +835,7 @@ int main( int argc, char *argv[] )
             fclose( fp );
 
             int offset = 0;
-            if (strstr(argv[2], ".z64"))
+            if (!strstr(argv[2], ".dfs"))
             {
                 void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
                 if (!fs)
