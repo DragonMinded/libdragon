@@ -724,11 +724,16 @@ void list_dir( char *directory, int depth )
     do
     {
         pr_depth( depth );
-        printf( "%s\n", path );
+        printf( "%s%s\n", path, FILETYPE( dir ) == FLAGS_DIR ? "/" : "");
 
         if( FILETYPE( dir ) == FLAGS_DIR )
         {
-            list_dir( path, depth + 2 );
+            char full_path[1024];
+
+            struct directory_entry *e = next_entry;
+            snprintf( full_path, sizeof(full_path), "%s%s/", directory, path );
+            list_dir( full_path, depth + 2 );
+            next_entry = e;
         }
     } while( (dir = dfs_dir_findnext( path )) != FLAGS_EOF );
 }
