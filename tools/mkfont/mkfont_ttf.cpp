@@ -170,8 +170,8 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                 .xoff = slot->bitmap_left,
                 .yoff = -slot->bitmap_top,
                 .xadv = slot->advance.x,
-                .bitmap = std::vector<uint8_t>(bmp.width * bmp.rows),
                 .crop = {0, 0, bmp.width, bmp.rows},
+                .bitmap = std::vector<uint8_t>(bmp.width * bmp.rows),
             };
 
             switch (bmp.pixel_mode) {
