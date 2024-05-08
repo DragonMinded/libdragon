@@ -256,9 +256,9 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                 gout->xadvance = glyph.xadv;
 
                 if (flag_verbose >= 2) {
-                    fprintf(stderr, "  glyph %s [U+%04X]: %d x %d, %d,%d %d,%d %d\n", 
+                    fprintf(stderr, "  glyph %s [U+%04X]: %d x %d, %d,%d %d,%d %.2f\n", 
                         codepoint_to_utf8(glyph.codepoint).c_str(), glyph.codepoint, 
-                        glyph.crop.width, glyph.crop.height, gout->xoff, gout->yoff, gout->xoff2, gout->yoff2, glyph.xadv);
+                        glyph.crop.width, glyph.crop.height, gout->xoff, gout->yoff, gout->xoff2, gout->yoff2, glyph.xadv/64.f);
                 }
 
                 if(abs(gout->xoff) > 128 || abs(gout->yoff) > 128 || abs(gout->xoff2) > 128 || abs(gout->yoff2) > 128 ||

@@ -236,9 +236,9 @@ void n64font_addkerning(rdpq_font_t *fnt, std::vector<n64font_kern>& kernings)
     for (int i=0; i<kernings.size(); i++) {
         // Copy kerning data into output
         n64font_kern* ink = &kernings[i];
-        assert(ink->kerning >= -128 && ink->kerning <= 127);
+        assert(ink->kerning >= (int)-fnt->point_size && ink->kerning <= (int)fnt->point_size);
         fnt->kerning[i+1].glyph2 = ink->glyph2;
-        fnt->kerning[i+1].kerning = ink->kerning * 127 / fnt->point_size;
+        fnt->kerning[i+1].kerning = ink->kerning * 127 / (int)fnt->point_size;
 
         // Update lo/hi indices for current glyph.
         if (i==0 || ink->glyph1 != ink[-1].glyph1)
