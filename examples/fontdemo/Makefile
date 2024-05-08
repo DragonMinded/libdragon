@@ -16,12 +16,12 @@ all: fontdemo.z64
 filesystem/%.font64: assets/%.ttf
 	@mkdir -p $(dir $@)
 	@echo "    [FONT] $@"
-	@$(N64_MKFONT) $(MKFONT_FLAGS) -o filesystem "$<"
+	$(N64_MKFONT) $(MKFONT_FLAGS) -o filesystem "$<"
 
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
 	@echo "    [SPRITE] $@"
-	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
+	$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
 
 filesystem/Pacifico.font64: MKFONT_FLAGS+=--size 12
 
