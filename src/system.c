@@ -77,6 +77,11 @@
  */
 #define STACK_SIZE 0x10000
 
+/** End of the heap */
+char *__heap_end = 0;
+/** Top of the heap */
+char *__heap_top = 0;
+
 /**
  * @brief Write to the MESS debug register
  *
@@ -1078,25 +1083,23 @@ int readlink( const char *path, char *buf, size_t bufsize )
  */
 void *sbrk( int incr )
 {
-    static char * heap_end = 0;
-    static char * heap_top = 0;
     char *        prev_heap_end;
 
     disable_interrupts();
 
-    if( heap_end == 0 )
+    if( __heap_end == 0 )
     {
-        heap_end = (char*)HEAP_START_ADDR;
-        heap_top = (char*)KSEG0_START_ADDR + get_memory_size() - STACK_SIZE;
+        __heap_end = (char*)HEAP_START_ADDR;
+        __heap_top = (char*)KSEG0_START_ADDR + get_memory_size() - STACK_SIZE;
     }
 
-    prev_heap_end = heap_end;
-    heap_end += incr;
+    prev_heap_end = __heap_end;
+    __heap_end += incr;
 
     // check if out of memory
-    if (heap_end > heap_top)
+    if (__heap_end > __heap_top)
     {
-        heap_end -= incr;
+        __heap_end -= incr;
         prev_heap_end = (char *)-1;
         errno = ENOMEM;
     }
@@ -1104,6 +1107,34 @@ void *sbrk( int incr )
     enable_interrupts();
 
     return (void *)prev_heap_end;
+}
+
+/**
+ * @brief Allocate static memory from the top of the heap
+ * 
+ * @param incr 
+ *        The amount of memory needed in bytes
+ *
+ * @return A pointer to the memory or ((void*)-1) on error allocating.
+ * 
+ * @note This function is internal, and can only used by the display module,
+ *       to allocate memory from the top memory bank for the Z buffer.
+ */
+void* sbrk_top( int incr )
+{
+    disable_interrupts();
+
+    __heap_top -= incr;
+    if (__heap_end > __heap_top)
+    {
+        __heap_top += incr;
+        errno = ENOMEM;
+        return (void *)-1;
+    }
+
+    enable_interrupts();
+
+    return __heap_top;
 }
 
 /**

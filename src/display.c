@@ -8,6 +8,7 @@
 #include <malloc.h>
 #include <string.h>
 #include "regsinternal.h"
+#include "system_internal.h"
 #include "n64sys.h"
 #include "vi.h"
 #include "display.h"
@@ -23,6 +24,10 @@
 #define FPS_WINDOW          32
 
 static surface_t *surfaces;
+/** @brief Currently allocated Z-buffer */
+static surface_t surf_zbuf;
+/** @brief Record whehter the Z-buffer as allocated via sbrk_top */
+bool zbuf_sbrk_top = false;
 /** @brief Currently active bit depth */
 static uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
@@ -280,6 +285,16 @@ void display_close()
     drawing_mask = 0;
     ready_mask = 0;
 
+    if ( surf_zbuf.buffer )
+    {
+        surface_free(&surf_zbuf);
+        
+        if (zbuf_sbrk_top) {
+            sbrk_top(-__width * __height * 2);
+            zbuf_sbrk_top = false;
+        }
+    }
+
     __width = 0;
     __height = 0;
 
@@ -347,6 +362,25 @@ surface_t* display_get(void)
          }
     }
     return disp;
+}
+
+surface_t* display_get_zbuf(void)
+{
+    if (surf_zbuf.buffer == NULL) {
+        /* Try to allocate the Z-Buffer from the top of the heap (near the stack).
+           This basically puts it in the last memory bank, hopefully separating it
+           from framebuffers, which provides a nice speed gain. */
+        void *buf = sbrk_top(__width * __height * 2);
+        if (buf != (void*)-1) {
+            surf_zbuf = surface_make(buf, FMT_RGBA16, __width, __height, __width*2);
+            zbuf_sbrk_top = true;
+        } else {
+            surf_zbuf = surface_alloc(FMT_RGBA16, __width, __height);
+            zbuf_sbrk_top = false;
+        }
+    }
+ 
+    return &surf_zbuf;
 }
 
 void display_show( surface_t* surf )

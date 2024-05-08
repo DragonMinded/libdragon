@@ -253,6 +253,18 @@ surface_t* display_try_get(void);
 void display_show(surface_t* surf);
 
 /**
+ * @brief Return a memory surface that can be used as Z-buffer for the current
+ *        resolution
+ *
+ * This function lazily allocates and returns a surface that can be used
+ * as Z-buffer for the current resolution. The surface is automatically freed
+ * when the display is closed.
+ *
+ * @return surface_t    The Z-buffer surface
+ */
+surface_t* display_get_zbuf(void);
+
+/**
  * @brief Get the currently configured width of the display in pixels
  */
 uint32_t display_get_width(void);

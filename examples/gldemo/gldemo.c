@@ -21,7 +21,6 @@
 static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
 static camera_t camera;
-static surface_t zbuffer;
 
 static uint64_t frames = 0;
 
@@ -67,8 +66,6 @@ void setup()
 {
     camera.distance = -10.0f;
     camera.rotation = 0.0f;
-
-    zbuffer = surface_alloc(FMT_RGBA16, display_get_width(), display_get_height());
 
     for (uint32_t i = 0; i < 4; i++)
     {
@@ -151,8 +148,9 @@ void set_light_positions(float rotation)
 void render()
 {
     surface_t *disp = display_get();
+    surface_t *zbuf = display_get_zbuf();
 
-    rdpq_attach(disp, &zbuffer);
+    rdpq_attach(disp, zbuf);
 
     gl_context_begin();
 
