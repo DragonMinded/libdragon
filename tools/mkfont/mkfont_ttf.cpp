@@ -26,13 +26,13 @@ static std::string codepoint_to_utf8(uint32_t codepoint) {
 }
 
 // Crop any row or column that is entirely empty
-static uint8_t* crop_bitmap(uint8_t *buffer, int *width, int *height)
+static void crop_bitmap(uint8_t *buffer, int width, int height, int *crop_x0, int *crop_y0, int *crop_width, int *crop_height)
 {
-    int x0 = 0, x1 = *width, y0 = 0, y1 = *height;
-    for (int x=0; x<*width; x++) {
+    int x0 = 0, x1 = width, y0 = 0, y1 = height;
+    for (int x=0; x<width; x++) {
         bool empty = true;
-        for (int y=0; y<*height; y++) {
-            if (buffer[y * *width + x] != 0) {
+        for (int y=0; y<height; y++) {
+            if (buffer[y * width + x] != 0) {
                 empty = false;
                 break;
             }
@@ -42,10 +42,10 @@ static uint8_t* crop_bitmap(uint8_t *buffer, int *width, int *height)
             break;
         }
     }
-    for (int x=*width-1; x>=0; x--) {
+    for (int x=width-1; x>=0; x--) {
         bool empty = true;
-        for (int y=0; y<*height; y++) {
-            if (buffer[y * *width + x] != 0) {
+        for (int y=0; y<height; y++) {
+            if (buffer[y * width + x] != 0) {
                 empty = false;
                 break;
             }
@@ -55,10 +55,10 @@ static uint8_t* crop_bitmap(uint8_t *buffer, int *width, int *height)
             break;
         }
     }
-    for (int y=0; y<*height; y++) {
+    for (int y=0; y<height; y++) {
         bool empty = true;
-        for (int x=0; x<*width; x++) {
-            if (buffer[y * *width + x] != 0) {
+        for (int x=0; x<width; x++) {
+            if (buffer[y * width + x] != 0) {
                 empty = false;
                 break;
             }
@@ -68,10 +68,10 @@ static uint8_t* crop_bitmap(uint8_t *buffer, int *width, int *height)
             break;
         }
     }
-    for (int y=*height-1; y>=0; y--) {
+    for (int y=height-1; y>=0; y--) {
         bool empty = true;
-        for (int x=0; x<*width; x++) {
-            if (buffer[y * *width + x] != 0) {
+        for (int x=0; x<width; x++) {
+            if (buffer[y * width + x] != 0) {
                 empty = false;
                 break;
             }
@@ -82,21 +82,10 @@ static uint8_t* crop_bitmap(uint8_t *buffer, int *width, int *height)
         }
     }
 
-    if (x0 == 0 && x1 == *width && y0 == 0 && y1 == *height)
-        return buffer;
-
-    int new_width = x1 - x0;
-    int new_height = y1 - y0;
-    uint8_t *new_buffer = (uint8_t*)malloc(new_width * new_height);
-    for (int y=0; y<new_height; y++) {
-        for (int x=0; x<new_width; x++) {
-            new_buffer[y * new_width + x] = buffer[(y0 + y) * *width + (x0 + x)];
-        }
-    }
-    free(buffer);
-    *width = new_width;
-    *height = new_height;
-    return new_buffer;
+    *crop_x0 = x0;
+    *crop_y0 = y0;
+    *crop_width = x1 - x0;
+    *crop_height = y1 - y0;
 }
 
 
@@ -147,7 +136,10 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
             int width, height;
             int xoff, yoff;
             int xadv;
-            uint8_t *bitmap;
+            struct {
+                int x0, y0, width, height;
+            } crop;
+            std::vector<uint8_t> bitmap;
         };
 
         std::vector<Glyph> glyphs;
@@ -155,7 +147,13 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
         // Extract the glyphs for these ranges
         for (int g=ranges[r]; g<=ranges[r+1]; g++) {
             int ttf_idx = FT_Get_Char_Index(face, g);
-            err = FT_Load_Glyph(face, ttf_idx, FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT);
+            if (ttf_idx == 0) {
+                if (flag_verbose >= 2)
+                    fprintf(stderr, "  glyph %s [U+%04X]: not found\n", codepoint_to_utf8(g).c_str(), g);
+                continue;
+            }
+
+            err = FT_Load_Glyph(face, ttf_idx, FT_LOAD_RENDER);
             if (err) {
                 fprintf(stderr, "cannot load glyph: %04X\n", g);
                 exit(1);
@@ -164,15 +162,18 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
             FT_GlyphSlot slot = face->glyph;
             FT_Bitmap bmp = slot->bitmap;
 
-            Glyph glyph;
-            glyph.codepoint = g;
-            glyph.gidx = n64font_glyph(font, glyph.codepoint);
-            glyph.width = bmp.width;
-            glyph.height = bmp.rows;
-            glyph.xoff = slot->bitmap_left;
-            glyph.yoff = -slot->bitmap_top;
-            glyph.xadv = slot->advance.x >> 6;
-            glyph.bitmap = (uint8_t*)malloc(bmp.width * bmp.rows);
+            Glyph glyph{
+                .codepoint = g,
+                .gidx = n64font_glyph(font, glyph.codepoint),
+                .width = bmp.width,
+                .height = bmp.rows,
+                .xoff = slot->bitmap_left,
+                .yoff = -slot->bitmap_top,
+                .xadv = slot->advance.x,
+                .bitmap = std::vector<uint8_t>(bmp.width * bmp.rows),
+                .crop = {0, 0, bmp.width, bmp.rows},
+            };
+
             switch (bmp.pixel_mode) {
             case FT_PIXEL_MODE_MONO:
                 for (int y=0; y<bmp.rows; y++) {
@@ -189,7 +190,8 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                     }
                 }
                 // After quantization, crop the bitmap if possible to save a few pixels
-                glyph.bitmap = crop_bitmap(glyph.bitmap, &glyph.width, &glyph.height);
+                crop_bitmap(&glyph.bitmap[0], glyph.width, glyph.height,
+                    &glyph.crop.x0, &glyph.crop.y0, &glyph.crop.width, &glyph.crop.height);
                 break;
             default:
                 fprintf(stderr, "internal error: unsupported freetype pixel mode: %d\n", bmp.pixel_mode);
@@ -213,8 +215,8 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
         for (int i=0; i<glyphs.size(); i++) {
             rect_pack::Size size;
             size.id = i;
-            size.width = glyphs[i].width + settings.border_padding;
-            size.height = glyphs[i].height + settings.border_padding;
+            size.width = glyphs[i].crop.width + settings.border_padding;
+            size.height = glyphs[i].crop.height + settings.border_padding;
             sizes.push_back(size);
         }
 
@@ -231,15 +233,15 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                 Glyph& glyph = glyphs[rect.id];
 
                 if (!rect.rotated) {
-                    for (int y=0; y<glyph.height; y++) {
-                        for (int x=0; x<glyph.width; x++) {
-                            pixels[(rect.y + y) * sheet.width + (rect.x + x)] = ((uint8_t*)glyph.bitmap)[y * glyph.width + x];
+                    for (int y=0; y<glyph.crop.height; y++) {
+                        for (int x=0; x<glyph.crop.width; x++) {
+                            pixels[(rect.y + y) * sheet.width + (rect.x + x)] = glyph.bitmap[(y + glyph.crop.y0) * glyph.width + (x + glyph.crop.x0)];
                         }
                     }
                 } else {
-                    for (int y=0; y<glyph.width; y++) {
-                        for (int x=0; x<glyph.height; x++) {
-                            pixels[(rect.y + y) * sheet.width + (rect.x + x)] = ((uint8_t*)glyph.bitmap)[x * glyph.width + y];
+                    for (int y=0; y<glyph.crop.width; y++) {
+                        for (int x=0; x<glyph.crop.height; x++) {
+                            pixels[(rect.y + y) * sheet.width + (rect.x + x)] = glyph.bitmap[(x + glyph.crop.x0) * glyph.width + (y + glyph.crop.y0)];
                         }
                     }
                 }
@@ -247,14 +249,16 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
                 glyph_t *gout = &font->glyphs[glyph.gidx];
                 gout->natlas = i;
                 gout->s = rect.x; gout->t = rect.y;
-                gout->xoff = glyph.xoff;
-                gout->yoff = glyph.yoff;
-                gout->xoff2 = glyph.xoff + glyph.width - 1;
-                gout->yoff2 = glyph.yoff + glyph.height - 1;
-                gout->xadvance = glyph.xadv * 64;
+                gout->xoff = glyph.xoff + glyph.crop.x0;
+                gout->yoff = glyph.yoff + glyph.crop.y0;
+                gout->xoff2 = gout->xoff + glyph.crop.width - 1;
+                gout->yoff2 = gout->yoff + glyph.crop.height - 1;
+                gout->xadvance = glyph.xadv;
 
                 if (flag_verbose >= 2) {
-                    fprintf(stderr, "  glyph %s [U+%04X]: %d x %d, %d,%d %d,%d %d\n", codepoint_to_utf8(glyph.codepoint).c_str(), glyph.codepoint, glyph.width, glyph.height, gout->xoff, gout->yoff, gout->xoff2, gout->yoff2, glyph.xadv);
+                    fprintf(stderr, "  glyph %s [U+%04X]: %d x %d, %d,%d %d,%d %d\n", 
+                        codepoint_to_utf8(glyph.codepoint).c_str(), glyph.codepoint, 
+                        glyph.crop.width, glyph.crop.height, gout->xoff, gout->yoff, gout->xoff2, gout->yoff2, glyph.xadv);
                 }
 
                 if(abs(gout->xoff) > 128 || abs(gout->yoff) > 128 || abs(gout->xoff2) > 128 || abs(gout->yoff2) > 128 ||
