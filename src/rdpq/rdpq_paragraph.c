@@ -319,7 +319,7 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
 
         // Do right/center alignment of the row (and adjust extents)
         if (UNLIKELY(builder.parms->width && builder.parms->align)) {
-            float offset = builder.parms->width - (x1 - x0);
+            float offset = builder.parms->width - (x1 + 1 - x0);
             if (builder.parms->align == ALIGN_CENTER) offset *= 0.5f;
 
             int16_t offset_fx = offset;
@@ -327,6 +327,12 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
                 ch->x += offset_fx;
             x0 += offset;
             x1 += offset;
+        }
+        if (UNLIKELY(builder.parms->width && off_x0 < 0 && builder.parms->align == ALIGN_LEFT)) {
+            for (rdpq_paragraph_char_t *ch = ch0; ch <= ch1; ++ch)
+                ch->x += -off_x0;
+            x0 += -off_x0;
+            x1 += -off_x0;
         }
 
         // Update bounding box
