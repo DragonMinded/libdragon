@@ -47,10 +47,10 @@ jobs:
             }}
           head: ${{ github.sha }}
 
-      # Setup QEMU so docker image can be built across platforms.
-      - name: Set up QEMU
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
-        uses: docker/setup-qemu-action@v3
+      # # Setup QEMU so docker image can be built across platforms.
+      # - name: Set up QEMU
+      #   if: ${{ steps.path_diff.outputs.changed == 1 }}
+      #   uses: docker/setup-qemu-action@v3
 
       # Build the toolchain if toolchain files changed w.r.t target and we can
       # use from registry o/w
