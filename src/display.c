@@ -372,7 +372,8 @@ surface_t* display_get_zbuf(void)
            from framebuffers, which provides a nice speed gain. */
         void *buf = sbrk_top(__width * __height * 2);
         if (buf != (void*)-1) {
-            surf_zbuf = surface_make(buf, FMT_RGBA16, __width, __height, __width*2);
+            data_cache_hit_invalidate(buf, __width * __height * 2);
+            surf_zbuf = surface_make(UncachedAddr(buf), FMT_RGBA16, __width, __height, __width*2);
             zbuf_sbrk_top = true;
         } else {
             surf_zbuf = surface_alloc(FMT_RGBA16, __width, __height);
