@@ -38,6 +38,9 @@ static bool __rdpq_clear_z_with_rsp(const surface_t *surf_z, uint16_t zvalue)
     else
         return false;
 
+    // We need a RDP fence here because the RDP might be drawing to the Z buffer
+    // at this point. So first force the RSP to wait for the RDP to finish.
+    rdpq_fence();
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_CLEAR_ZBUFFER, 
         PhysicalAddr(surf_z->buffer), rsp_size, PhysicalAddr(temp_buffer), zvalue);
     return true;
