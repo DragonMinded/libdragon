@@ -10,7 +10,7 @@
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xC0 NOOP
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
         RSPQ_DefineCommand RDPQCmd_RectEx,                  8   # 0xC2 Fill Rectangle (esclusive bounds)
-        RSPQ_DefineCommand RDPQCmd_ClearZBuffer,            12  # 0xC3 CLear Z-Buffer
+        RSPQ_DefineCommand RDPQCmd_ClearZBuffer,            16  # 0xC3 CLear Z-Buffer
         RSPQ_DefineCommand RDPQCmd_ResetMode,               16  # 0xC4 Reset Mode (set mode standard)
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
         RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC6 Push Mode
@@ -830,20 +830,16 @@ autotmem_lowerlimit:
     #
     #   a0: Address of the Z-Buffer
     #   a1: Size of the Z-Buffer in bytes
+    #   a2: Temporary buffer
+    #   a3: Z-Buffer clear value
     #
     #######################################################################
 
-ClearZBuf_DMEM_Backup:
-    # Backup the used DMEM area
-    li s4, 0
-    move s0, a2
-    j DMAExec
-    addiu t0, t7, -1
-
     .func RDPQCmd_ClearZBuffer
 RDPQCmd_ClearZBuffer:
-    # Prepare the 0xFFFC value
-    vsubc $v01, vzero, K4
+    # Prepare the fill value in $v01
+    mtc2 a3, $v01.e0
+    vor $v01, vzero, $v01.e0
     li t7, %lo(_data_end)
 
     # If this is hit, increase the temporary buffer in __rdpq_clear_z_with_rsp()
@@ -876,6 +872,15 @@ RDPQCmd_ClearZBuffer:
     jal_and_j ClearZBuf_DMEM_Backup, RSPQ_Loop
 
     .endfunc
+
+ClearZBuf_DMEM_Backup:
+    # Backup the used DMEM area
+    li s4, 0
+    move s0, a2
+    j DMAExec
+    addiu t0, t7, -1
+
+
 
 # Include RDPQ library
 #include <rsp_rdpq.inc>
