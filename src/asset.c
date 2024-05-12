@@ -248,7 +248,7 @@ typedef struct  {
     bool seeked;
     void (*reset)(void *state);
     ssize_t (*read)(void *state, void *buf, size_t len);
-    uint8_t alignas(8) state[];
+    uint8_t state[] alignas(8);
 } cookie_cmp_t;
 
 static int readfn_cmp(void *c, char *buf, int sz)
