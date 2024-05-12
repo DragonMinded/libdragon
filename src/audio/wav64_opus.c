@@ -82,7 +82,7 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
 
     // Allocate stack buffer for reading compressed data. Align it to cacheline
     // to avoid any false sharing.
-    uint8_t buf[st->xhead.max_cmp_frame_size] alignas(16);
+    uint8_t alignas(16) buf[st->xhead.max_cmp_frame_size];
     int nframes = DIVIDE_CEIL(wlen, st->xhead.frame_size);
 
     // Make space for the decoded samples. Call samplebuffer_append once as we
