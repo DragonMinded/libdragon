@@ -172,7 +172,7 @@ static int __console_write( char *buf, unsigned int len )
  * @brief Initialize the console
  *
  * Initialize the console system.  This will initialize the video properly, so
- * a call to the display_init() fuction is not necessary.
+ * a call to the display_init() function is not necessary.
  */
 void console_init()
 {
