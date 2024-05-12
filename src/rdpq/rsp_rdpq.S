@@ -10,7 +10,7 @@
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xC0 NOOP
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
         RSPQ_DefineCommand RDPQCmd_RectEx,                  8   # 0xC2 Fill Rectangle (esclusive bounds)
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC3
+        RSPQ_DefineCommand RDPQCmd_ClearZBuffer,            12  # 0xC3 CLear Z-Buffer
         RSPQ_DefineCommand RDPQCmd_ResetMode,               16  # 0xC4 Reset Mode (set mode standard)
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
         RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC6 Push Mode
@@ -115,6 +115,8 @@ RDPQ_TRI_DATA1:          .dcb.l 7
 RDPQ_TRI_DATA2:          .dcb.l 7
 
     RSPQ_EndSavedState
+
+_data_end:
 
     .bss
 
@@ -816,6 +818,63 @@ autotmem_lowerlimit:
     li t0, 2048/8
     j RDPQCmd_Passthrough8
     sh t0, %lo(RDPQ_AUTOTMEM_LIMIT)
+    .endfunc
+
+
+    #######################################################################
+    # RDPQCmd_ClearZBuffer
+    #
+    # Clear the Z-Buffer by filling it with 0xFFFC. This is quite a bit
+    # faster than using RDP, though it does require a RDP fence to make
+    # sure the Z-Buffer is not in use anymore
+    #
+    #   a0: Address of the Z-Buffer
+    #   a1: Size of the Z-Buffer in bytes
+    #
+    #######################################################################
+
+ClearZBuf_DMEM_Backup:
+    # Backup the used DMEM area
+    li s4, 0
+    move s0, a2
+    j DMAExec
+    addiu t0, t7, -1
+
+    .func RDPQCmd_ClearZBuffer
+RDPQCmd_ClearZBuffer:
+    # Prepare the 0xFFFC value
+    vsubc $v01, vzero, K4
+    li t7, %lo(_data_end)
+
+    # If this is hit, increase the temporary buffer in __rdpq_clear_z_with_rsp()
+    assert_le t7, 1024, RDPQ_ASSERT_ZCLEAR_INVALID_BUFFER
+
+    # Backup DMEM
+    jal ClearZBuf_DMEM_Backup
+    li t2, DMA_OUT_ASYNC
+
+    # Now start filling the whole DMEM with the clear code. Start from the
+    # end of data, so that we don't risk racing with DMA.
+    li s4, %lo(_data_end)
+    addiu s3, s4, 4096
+1:  sqv $v01, 0x00,s4
+    sqv $v01, 0x10,s4
+    sqv $v01, 0x20,s4
+    addiu s4, 0x40
+    bne s4, s3, 1b
+    sqv $v01, -0x10,s4
+
+    # Clear the Z-Buffer
+    jal DMAWaitReady
+    nop
+    mtc0 $0, COP0_DMA_SPADDR
+    mtc0 a0, COP0_DMA_RAMADDR
+    mtc0 a1, COP0_DMA_WRITE
+
+    # Restore DMEM
+    li t2, DMA_IN
+    jal_and_j ClearZBuf_DMEM_Backup, RSPQ_Loop
+
     .endfunc
 
 # Include RDPQ library

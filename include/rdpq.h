@@ -163,6 +163,7 @@ enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_FILL_RECTANGLE_EX          = 0x02,
+    RDPQ_CMD_CLEAR_ZBUFFER              = 0x03,
     RDPQ_CMD_RESET_RENDER_MODE          = 0x04,
     RDPQ_CMD_SET_COMBINE_MODE_2PASS     = 0x05,
     RDPQ_CMD_PUSH_RENDER_MODE           = 0x06,

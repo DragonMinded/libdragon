@@ -19,6 +19,30 @@
 static const surface_t* attach_stack[ATTACH_STACK_SIZE][2] = { { NULL, NULL } };
 static int attach_stack_ptr = 0;
 
+static bool __rdpq_clear_z_with_rsp(const surface_t *surf_z, uint16_t zvalue)
+{
+    static uint8_t temp_buffer[1024] __attribute__((aligned(16)));
+
+    int nbytes = surf_z->height * surf_z->stride;
+    uint32_t rsp_size;
+    if ((nbytes & 0xFFF) == 0) 
+        rsp_size = (((nbytes >> 12) - 1) << 12) | 0xFFF;
+    else if ((nbytes & 0x7FF) == 0)
+        rsp_size = (((nbytes >> 11) - 1) << 12) | 0x7FF;
+    else if ((nbytes & 0x3FF) == 0)
+        rsp_size = (((nbytes >> 10) - 1) << 12) | 0x3FF;
+    else if ((nbytes & 0x1FF) == 0)
+        rsp_size = (((nbytes >>  9) - 1) << 12) | 0x1FF;
+    else if ((nbytes & 0x0FF) == 0)
+        rsp_size = (((nbytes >>  8) - 1) << 12) | 0x0FF;
+    else
+        return false;
+
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_CLEAR_ZBUFFER, 
+        PhysicalAddr(surf_z->buffer), rsp_size, PhysicalAddr(temp_buffer), zvalue);
+    return true;
+}
+
 bool rdpq_is_attached(void)
 {
     return attach_stack_ptr > 0;
@@ -40,19 +64,21 @@ static void attach(const surface_t *surf_color, const surface_t *surf_z, bool cl
             "Color and Z buffers must have the same size");
         
         if (clear_z) {
-            rdpq_set_color_image(surf_z);
-            rdpq_set_mode_fill(color_from_packed16(0xFFFC));
-            rdpq_fill_rectangle(0, 0, surf_z->width, surf_z->height);
+            if (!__rdpq_clear_z_with_rsp(surf_z, 0xFFFC)) {
+                rdpq_set_color_image(surf_z);
+                rdpq_set_mode_fill(color_from_packed16(0xFFFC));
+                rdpq_fill_rectangle(0, 0, surf_z->width, surf_z->height);
+            }
         }
     }
+
     rdpq_set_z_image(surf_z);
+    rdpq_set_color_image(surf_color);
 
     if (clear_clr) {
-        rdpq_set_color_image(surf_color);
         rdpq_set_mode_fill(color_from_packed32(0x000000FF));
         rdpq_fill_rectangle(0, 0, surf_color->width, surf_color->height);
     }
-    rdpq_set_color_image(surf_color);
 
     if (clear_clr || clear_z)
         rdpq_mode_pop();
@@ -105,6 +131,11 @@ void __rdpq_clear_z(const uint16_t *z)
 
     const surface_t *surf_z = attach_stack[attach_stack_ptr-1][1];
     assertf(surf_z, "No Z buffer is currently attached");
+
+    // Try first to clear the Z buffer using the RSP. It should always be
+    // possible unless the surface has some very unexpected size.
+    if (z && __rdpq_clear_z_with_rsp(surf_z, *z))
+        return;
 
     // Disable autoscissor, so that when we attach to the Z buffer, we 
     // keep the previous scissor rect. This is probably expected by the user
