@@ -21,8 +21,7 @@ RUN apt-get install -yq \
     libmpc-dev \
     zlib1g-dev \
     texinfo \
-    git \
-    gcc-multilib
+    git
 
 # Build toolchain
 COPY ./tools/build-toolchain.sh /tmp/tools/build-toolchain.sh
