@@ -1,6 +1,6 @@
 #! /bin/bash
 # N64 MIPS GCC toolchain build/install script for Unix distributions
-# (c) 2012-2023 DragonMinded and libDragon Contributors.
+# (c) 2012-2024 DragonMinded and libDragon Contributors.
 # See the root folder for license information.
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
