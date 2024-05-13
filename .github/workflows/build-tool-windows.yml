@@ -13,7 +13,7 @@ jobs:
           { sys: mingw32, arch: i686,   build: tools}
         ]
     steps:
-      - uses: msys2/setup-msys2@v2
+      - uses: msys2/setup-msys2@v2.22.0
         with:
           msystem: ${{matrix.sys}}
           install: >-
