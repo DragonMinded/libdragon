@@ -1,15 +1,16 @@
-name: Build-Native
+name: Build-Toolchain-Native
 
 # This workflow will build the libdragon N64 GCC toolchain to keep it up-to-date.
 on:
   # This action will take about 40-70 minutes to run!
   # It is designed to only fire if the GCC toolchain build file changes.
   push:
-    paths:
-      - 'tools/build-toolchain.sh'
-  pull_request:
-    paths:
-      - 'tools/build-toolchain.sh'
+  # FIXME: revert before merge. These are commented out to ensure builds happen for mac
+  #   paths:
+  #     - 'tools/build-toolchain.sh'
+  # pull_request:
+  #   paths:
+  #     - 'tools/build-toolchain.sh'
   
 jobs:
   Build-Toolchain:
@@ -28,7 +29,7 @@ jobs:
       matrix:
         include: [
           { host-os: ubuntu-20.04, target-platform: Windows-x86_64, host: x86_64-w64-mingw32, makefile-version: 4.4 },
-          { host-os: ubuntu-20.04, target-platform: Linux-x86_64, host: '', makefile-version: '' }
+          { host-os: ubuntu-20.04, target-platform: Linux-x86_64, host: '', makefile-version: '' },
           { host-os: macos-14, target-platform: Linux-arm64, host: '', makefile-version: '' }
         ]
     runs-on: ${{ matrix.host-os }}
@@ -37,7 +38,17 @@ jobs:
       Build_Directory: libdragon
 
     steps:
+
+      # - name: Install native system build dependencies
+      #   if: ${{ matrix.host-os == 'macos-14' }}
+      #   run: |
+      #     sudo adduser github-ci
+      #     usermod -aG sudo github-ci
+      #   continue-on-error: true
+
+
       - name: Install native system build dependencies
+        if: ${{ matrix.host-os != 'macos-14' }}
         run: |
           sudo apt-get install libmpfr-dev
           sudo apt-get install texinfo
