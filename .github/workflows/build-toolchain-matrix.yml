@@ -47,7 +47,7 @@ jobs:
       #   continue-on-error: true
 
 
-      - name: Install native system build dependencies
+      - name: Install native linux system build dependencies
         if: ${{ matrix.host-os != 'macos-14' }}
         run: |
           sudo apt-get install libmpfr-dev
