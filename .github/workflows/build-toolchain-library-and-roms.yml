@@ -58,7 +58,7 @@ jobs:
       - name: Install docker for macos
         if: ${{ matrix.host-os == 'macos-14' }}
         run: |
-          brew cask install docker
+          brew install docker --cask
         continue-on-error: true
           
 
