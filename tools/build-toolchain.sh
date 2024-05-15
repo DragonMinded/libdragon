@@ -36,7 +36,7 @@ GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
 BINUTILS_V=2.42
-GCC_V=14.1.0
+GCC_V=13.2.0
 NEWLIB_V=4.4.0.20231231
 GMP_V=6.3.0 
 MPC_V=1.3.1 
@@ -101,7 +101,7 @@ cd "$BUILD_PATH"
 test -f "binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
 test -d "binutils-$BINUTILS_V"        || tar -xzf "binutils-$BINUTILS_V.tar.gz"
 
-test -f "gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
+test -f "gcc-$GCC_V.tar.gz"           || download "https://gcc.gnu.org/pub/gcc/snapshots/13.3.0-RC-20240514/gcc-13.3.0-RC-20240514.tar.gz" #"https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
 test -d "gcc-$GCC_V"                  || tar -xzf "gcc-$GCC_V.tar.gz"
 
 test -f "newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
