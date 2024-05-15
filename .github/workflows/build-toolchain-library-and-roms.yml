@@ -16,7 +16,7 @@ jobs:
       matrix:
         include: [
           { host-os: ubuntu-latest, platform: linux/amd64 },
-          { host-os: macos-14, platform: linux/arm64 },
+          { host-os: macos-14, platform: linux/arm64 }
         ]
     runs-on: ${{ matrix.host-os }}
 
