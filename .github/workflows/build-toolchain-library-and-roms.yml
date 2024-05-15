@@ -91,7 +91,8 @@ jobs:
           # of permission issues on PRs. Also see https://github.com/DragonMinded/libdragon/issues/230
           # In effect, each fork will be releasing its own image to its own
           # repository, which we can use to test the toolchain changes.
-          platform: ${{ matrix.platform }}
+          context: .
+          platforms: ${{ matrix.platform }}
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
