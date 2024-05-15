@@ -29,6 +29,7 @@ jobs:
         include: [
           { host-os: ubuntu-20.04, target-platform: Windows-x86_64, host: x86_64-w64-mingw32, makefile-version: 4.4 },
           { host-os: ubuntu-20.04, target-platform: Linux-x86_64, host: '', makefile-version: '' }
+          { host-os: macos-14, target-platform: Linux-arm64, host: '', makefile-version: '' }
         ]
     runs-on: ${{ matrix.host-os }}
 
