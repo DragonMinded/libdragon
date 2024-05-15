@@ -59,6 +59,7 @@ jobs:
         if: ${{ matrix.host-os == 'macos-14' }}
         run: |
           brew install --cask docker
+          sleep 5s # Waits 5 seconds.
           docker ps
         continue-on-error: true
           
