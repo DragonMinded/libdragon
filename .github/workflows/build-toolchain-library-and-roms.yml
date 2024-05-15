@@ -54,6 +54,14 @@ jobs:
             }}
           head: ${{ github.sha }}
 
+
+      - name: Install docker for macos
+        if: ${{ matrix.host-os == 'macos-14' }}
+        run: |
+          brew cask install docker
+        continue-on-error: true
+          
+
       # Build the toolchain if toolchain files changed w.r.t target and we can
       # use from registry o/w
       - name: Set up Docker Build
