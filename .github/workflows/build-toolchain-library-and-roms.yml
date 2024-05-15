@@ -67,7 +67,7 @@ jobs:
       # Build the toolchain if toolchain files changed w.r.t target and we can
       # use from registry o/w
       - name: Set up Docker Build
-        if: ${{ steps.path_diff.outputs.changed == 1 }} && ${{ matrix.host-os != 'macos-14' }}
+        if: (${{ steps.path_diff.outputs.changed == 1 }} && ${{ matrix.host-os != 'macos-14' }})
         uses: docker/setup-buildx-action@v3
 
       - name: Docker meta
