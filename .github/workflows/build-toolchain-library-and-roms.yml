@@ -14,16 +14,12 @@ jobs:
     strategy:
       matrix:
         include: [
-          { host-os: ubuntu-latest, platform: linux/amd64 },
-          { host-os: macos-14, platform: linux/arm64 }
+          { host-os: ubuntu-latest },
+          { host-os: macos-14 }
         ]
     runs-on: ${{ matrix.host-os }}
 
     steps:
-      - name: Prepare
-        run: |
-          platform=${{ matrix.platform }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,8 +87,6 @@ jobs:
           # of permission issues on PRs. Also see https://github.com/DragonMinded/libdragon/issues/230
           # In effect, each fork will be releasing its own image to its own
           # repository, which we can use to test the toolchain changes.
-          context: .
-          platforms: ${{ matrix.platform }}
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
