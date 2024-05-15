@@ -59,10 +59,8 @@ jobs:
         if: ${{ matrix.host-os == 'macos-14' }}
         run: |
           brew install --cask docker
-          sleep 10
-          systemctl start docker
-          sleep 10
-          docker ps
+          export DOCKER_HOST=unix:///Users/$USER/Library/Containers/com.docker.docker/Data/docker.raw.sock
+          docker --version
         continue-on-error: true
           
 
