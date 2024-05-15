@@ -39,16 +39,16 @@ jobs:
 
     steps:
 
-      # - name: Install native system build dependencies
-      #   if: ${{ matrix.host-os == 'macos-14' }}
-      #   run: |
-      #     sudo adduser github-ci
-      #     usermod -aG sudo github-ci
-      #   continue-on-error: true
+      - name: Install native system build dependencies
+        if: ${{ matrix.host-os == 'macos-14' }}
+        run: |
+          sudo adduser github-ci
+          usermod -aG sudo github-ci
+        continue-on-error: true
 
 
       - name: Install native system build dependencies
-        if: ${{ matrix.host-os != 'macos-14' }}
+        # if: ${{ matrix.host-os != 'macos-14' }}
         run: |
           sudo apt-get install libmpfr-dev
           sudo apt-get install texinfo
