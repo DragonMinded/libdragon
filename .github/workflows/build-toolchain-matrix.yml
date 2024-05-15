@@ -39,12 +39,12 @@ jobs:
 
     steps:
 
-      - name: Install native system build dependencies
-        if: ${{ matrix.host-os == 'macos-14' }}
-        run: |
-          brew install build-essential
-          brew install texinfo
-        continue-on-error: true
+      # - name: Install native system build dependencies
+      #   if: ${{ matrix.host-os == 'macos-14' }}
+      #   run: |
+      #     brew install build-essential
+      #     brew install texinfo
+      #   continue-on-error: true
 
 
       - name: Install native system build dependencies
