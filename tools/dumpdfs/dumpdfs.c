@@ -457,7 +457,7 @@ int dfs_chdir(const char * const path)
    and relative.  If the path is invalid, returns a negative DFS_errno.  If
    a file or directory is found, returns the flags of the entry and copies the
    name into buf. */
-int dfs_dir_findfirst(const char * const path, char *buf)
+int dumpdfs_dir_findfirst(const char * const path, char *buf)
 {
     directory_entry_t *dirent;
     int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_DIR);
@@ -488,7 +488,7 @@ int dfs_dir_findfirst(const char * const path, char *buf)
 
 /* Find the next file or directory in a directory listing.  Should be called
    after doing a dfs_dir_findfirst. */
-int dfs_dir_findnext(char *buf)
+int dumpdfs_dir_findnext(char *buf)
 {
     if(!next_entry)
     {
@@ -719,7 +719,7 @@ void list_dir( char *directory, int depth )
 {
     char path[512];
 
-    int dir = dfs_dir_findfirst( directory, path );
+    int dir = dumpdfs_dir_findfirst( directory, path );
 
     do
     {
@@ -746,7 +746,7 @@ void list_dir( char *directory, int depth )
             list_dir( full_path, depth + 2 );
             next_entry = e;
         }
-    } while( (dir = dfs_dir_findnext( path )) != FLAGS_EOF );
+    } while( (dir = dumpdfs_dir_findnext( path )) != FLAGS_EOF );
 }
 
 void usage(void)
