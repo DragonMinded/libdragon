@@ -420,6 +420,11 @@ void stage3(uint32_t entrypoint)
     // we don't leave the interrupt pending when we go to the entrypoint.
     si_wait();
 
+    // RSP DMA is guaranteed to be finished by now because stage3 is running from
+    // ROM and it's very slow. Anyway, let's just wait to avoid bugs in the future,
+    // because we don't want to begin using the stack (at the end of RDRAM) before it's finished.
+    while (*SP_DMA_BUSY) {}
+
     // Configure SP at the end of RDRAM. This is a good default in general,
     // then of course userspace code is free to reconfigure it.
     asm ("move $sp, %0" : : "r" (0x80000000 + memsize - 0x10));
