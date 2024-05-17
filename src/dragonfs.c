@@ -609,17 +609,7 @@ static int __dfs_init(uint32_t base_fs_loc)
     return DFS_EBADFS;
 }
 
-/**
- * @brief Change directories to the specified path.  
- *
- * Supports absolute and relative 
- *
- * @param[in] path
- *            Relative or absolute path to change directories to
- * 
- * @return DFS_ESUCCESS on success or a negative value on error.
- */
-int dfs_chdir(const char * const path)
+static int __dfs_chdir(const char * const path)
 {
     /* Reset directory listing */
     next_entry = 0;
@@ -1103,7 +1093,7 @@ int dfs_eof(uint32_t handle)
 static void *__open( char *name, int flags )
 {
     /* Always want a consistent interface */
-    dfs_chdir("/");
+    __dfs_chdir("/");
 
     /* We disregard flags here */
     int handle = dfs_open( name );
