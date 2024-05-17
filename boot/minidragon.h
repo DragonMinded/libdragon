@@ -159,10 +159,23 @@ typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 
 #define cache_op(addr, op, linesize, length) ({ \
     { \
-        void *cur = (void*)((unsigned long)addr & ~(linesize-1)); \
-        int count = (int)length + (addr-cur); \
+        void *cur = (void*)((unsigned long)addr & ~((linesize)-1)); \
+        int count = (int)(length) + ((addr)-cur); \
         for (int i = 0; i < count; i += linesize) \
             asm ("\tcache %0,(%1)\n"::"i" (op), "r" (cur+i)); \
+    } \
+})
+
+#define cache_op4(addr, op, linesize, length) ({ \
+    { \
+        void *cur = (void*)((unsigned long)addr & ~((linesize)-1)); \
+        int count = (int)(length) + ((addr)-cur); \
+        for (int i = 0; i < count; i += (linesize)*4) { \
+            asm ("\tcache %0,%2(%1)\n"::"i" (op), "r" (cur+i), "i"(0*(linesize))); \
+            asm ("\tcache %0,%2(%1)\n"::"i" (op), "r" (cur+i), "i"(1*(linesize))); \
+            asm ("\tcache %0,%2(%1)\n"::"i" (op), "r" (cur+i), "i"(2*(linesize))); \
+            asm ("\tcache %0,%2(%1)\n"::"i" (op), "r" (cur+i), "i"(3*(linesize))); \
+        } \
     } \
 })
 
@@ -170,14 +183,6 @@ typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
-})
-
-#define cache_op2(addr, op, linesize, length) ({ \
-    void *end = (void*)(ROUND_UP(((uint32_t)addr) + length - 1, linesize)); \
-    do { \
-        asm ("\tcache %0,(%1)\n"::"i" (op), "r" (addr)); \
-        addr += linesize; \
-    } while (addr < end); \
 })
 
 static inline void data_cache_hit_invalidate(volatile void * addr, unsigned long length)
@@ -199,8 +204,8 @@ static inline void cop0_clear_cache(void)
 {
     asm("mtc0 $0, $28");  // TagLo
     asm("mtc0 $0, $29");  // TagHi
-    cache_op((void*)0x80000000, INDEX_STORE_TAG_D, 0x10, 0x2000);
-    cache_op((void*)0x80000000, INDEX_STORE_TAG_I, 0x20, 0x4000);
+    cache_op4((void*)0x80000000, INDEX_STORE_TAG_D, 0x10, 0x2000);
+    cache_op4((void*)0x80000000, INDEX_STORE_TAG_I, 0x20, 0x4000);
 }
 
 __attribute__((noreturn))
