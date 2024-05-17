@@ -399,13 +399,18 @@ void stage3(uint32_t entrypoint)
     // Read memory size from boot flags
     int memsize = *(volatile uint32_t*)0xA4000000;
 
-    // Clear DMEM (leave only the boot flags area intact). Notice that we can't
-    // call debugf anymore after this, because a small piece of debugging code
-    // (io_write) is in DMEM, so it can't be used anymore.
+    // Clear the reserved portion of RDRAM. To create a SP_WR_LEN value that works,
+    // we assume the reserved size is a multiple of 1024. It can be made to work
+    // also with other sizes, but this code will need to be adjusted.
     while (*SP_DMA_FULL) {}
     *SP_RSP_ADDR = 0xA4001000;
     *SP_DRAM_ADDR = memsize - TOTAL_RESERVED_SIZE;
-    *SP_WR_LEN = TOTAL_RESERVED_SIZE;
+    _Static_assert((TOTAL_RESERVED_SIZE % 1024) == 0, "TOTAL_RESERVED_SIZE must be multiple of 1024");
+    *SP_WR_LEN = (((TOTAL_RESERVED_SIZE >> 10) - 1) << 12) | (1024-1);
+
+    // Clear DMEM (leave only the boot flags area intact). Notice that we can't
+    // call debugf anymore after this, because a small piece of debugging code
+    // (io_write) is in DMEM, so it can't be used anymore.
     while (*SP_DMA_FULL) {}
     *SP_RSP_ADDR = 0xA4000010;
     *SP_DRAM_ADDR = 0x00802000;  // Area > 8 MiB which is guaranteed to be empty

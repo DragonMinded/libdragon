@@ -203,11 +203,15 @@ void rsp_bzero_async(uint32_t rdram, int size)
     rdram += 8;
     size -= 8;
     while (size > 0) {
-        int sz = size > 1024*1024 ? 1024*1024 : size;
+        int sz;
+        if (size >= 1024*1024) sz = 1024*1024;
+        else if (size >= 4096) sz = (size >> 12) << 12;
+        else sz = size;
+
         while (*SP_DMA_FULL) {}
         *SP_RSP_ADDR = 0x1000;
         *SP_DRAM_ADDR = rdram; // this is automatically rounded down
-        *SP_WR_LEN = sz-1;   // this is automatically rounded up
+        *SP_WR_LEN = sz-1;     // this is automatically rounded up
         size -= sz;
         rdram += sz;
     }
