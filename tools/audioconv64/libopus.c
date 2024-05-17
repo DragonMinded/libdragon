@@ -1,8 +1,9 @@
 
 #pragma GCC diagnostic push
 
-// Compiling libopus seems to trigger this warning that we can safely ignore.
+// Compiling libopus seems to trigger these warnings that we can safely ignore.
 #pragma GCC diagnostic ignored "-Wtautological-pointer-compare"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 
 // Activate support for CELT custom modes. We are going to always use the
 // custom mode API even for standard modes (like 48 Khz), so we can safely
