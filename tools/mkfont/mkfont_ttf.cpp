@@ -89,7 +89,7 @@ static void crop_bitmap(uint8_t *buffer, int width, int height, int *crop_x0, in
 }
 
 
-int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector<int>& ranges)
+int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
 {
     int err;
 
@@ -108,11 +108,23 @@ int convert_ttf(const char *infn, const char *outfn, int point_size, std::vector
         return 1;
     }
 
-    err = FT_Set_Pixel_Sizes(face, 0, point_size);
-    if (err) {
-        fprintf(stderr, "cannot set font size: %d\n", point_size);
-        return 1;
+    FT_Size_RequestRec req;
+    memset(&req, 0, sizeof(req));
+    
+    int point_size;
+    if (flag_ttf_point_size == 0) {
+        // Set the size based on scales 1.0, so that it defaults to the "correct" size.
+        // This is good for TTF retro fonts which are actually bitmap fonts in TTF disguise.
+        req.type = FT_SIZE_REQUEST_TYPE_SCALES;
+        req.width = 1 << 16;
+        req.height =1 << 16;
+        point_size = face->bbox.yMax - face->bbox.yMin;
+    } else {
+        req.type = FT_SIZE_REQUEST_TYPE_NOMINAL;
+        req.height = flag_ttf_point_size << 6;
+        point_size = flag_ttf_point_size;
     }
+    FT_Request_Size(face, &req);
 
     int ascent = face->size->metrics.ascender >> 6;
     int descent = face->size->metrics.descender >> 6;

@@ -30,7 +30,7 @@
 int flag_verbose = 0;
 bool flag_debug = false;
 bool flag_kerning = true;
-int flag_point_size = 12;
+int flag_ttf_point_size = 0;
 std::vector<int> flag_ranges;
 const char *n64_inst = NULL;
 int flag_ellipsis_cp = 0x002E;
@@ -50,7 +50,7 @@ void print_args( char * name )
     fprintf(stderr, "   -d/--debug                Dump also debug images\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "TTF/OTF specific flags:\n");
-    fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: 12)\n");
+    fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: whatever the font defaults to)\n");
     fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 char extra;
-                if (sscanf(argv[i], "%d%c", &flag_point_size, &extra) != 1) {
+                if (sscanf(argv[i], "%d%c", &flag_ttf_point_size, &extra) != 1) {
                     fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     return 1;
                 }
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
         
         int ret;
         if (strcasestr(infn, ".ttf") || strcasestr(infn, ".otf")) {
-            ret = convert_ttf(infn, outfn, flag_point_size, flag_ranges);
+            ret = convert_ttf(infn, outfn, flag_ranges);
         } else if (strcasestr(infn, ".fnt")) {
             ret = convert_bmfont(infn, outfn);
         } else {
