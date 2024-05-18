@@ -462,7 +462,7 @@ void rdpq_init()
     // Initialize the ucode state.
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
     rdpq_state->rdram_state_address = PhysicalAddr(rdpq_state);
-    rdpq_state->rdram_syncpoint_id = PhysicalAddr(&__rspq_syncpoints_done);
+    rdpq_state->rdram_syncpoint_id = PhysicalAddr(&__rspq_syncpoints_done[0]);
     assert((rdpq_state->rdram_state_address & 7) == 0);  // check alignment for DMA
     assert((rdpq_state->rdram_syncpoint_id & 7) == 0);  // check alignment for DMA
     

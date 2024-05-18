@@ -330,8 +330,8 @@ static int rspq_block_size;
 
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
-/** @brief ID of the last syncpoint reached by RSP. */
-volatile int __rspq_syncpoints_done  __attribute__((aligned(8)));
+/** @brief ID of the last syncpoint reached by RSP (plus padding). */
+volatile int __rspq_syncpoints_done[4]  __attribute__((aligned(16)));
 
 /** @brief True if the RSP queue engine is running in the RSP. */
 static bool rspq_is_running;
@@ -356,9 +356,9 @@ static void rspq_sp_interrupt(void)
     // syncpoint done ID and clear the signal.
     if (status & SP_STATUS_SIG_SYNCPOINT) {
         wstatus |= SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
-        ++__rspq_syncpoints_done;
+        ++__rspq_syncpoints_done[0];
         // writeback to memory; this is required for RDPQCmd_SyncFull to fetch the correct value 
-        data_cache_hit_writeback(&__rspq_syncpoints_done, sizeof(__rspq_syncpoints_done));
+        data_cache_hit_writeback(&__rspq_syncpoints_done[0], 4);
     }
     if (status & SP_STATUS_SIG0) {
         wstatus |= SP_WSTATUS_CLEAR_SIG0;
@@ -627,7 +627,7 @@ void rspq_init(void)
     
     // Init syncpoints
     rspq_syncpoints_genid = 0;
-    __rspq_syncpoints_done = 0;
+    __rspq_syncpoints_done[0] = 0;
 
     // Init blocks
     rspq_block = NULL;
@@ -1228,7 +1228,7 @@ rspq_syncpoint_t rspq_syncpoint_new(void)
 
 bool rspq_syncpoint_check(rspq_syncpoint_t sync_id) 
 {
-    int difference = (int)((uint32_t)(sync_id) - (uint32_t)(__rspq_syncpoints_done));
+    int difference = (int)((uint32_t)(sync_id) - (uint32_t)(__rspq_syncpoints_done[0]));
     return difference <= 0;
 }
 

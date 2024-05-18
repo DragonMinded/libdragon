@@ -229,8 +229,8 @@ typedef struct rsp_queue_s {
 /** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
 #define RSPQ_DATA_ADDRESS                8
 
-/** @brief ID of the last syncpoint reached by RSP. */
-extern volatile int __rspq_syncpoints_done;
+/** @brief ID of the last syncpoint reached by RSP (plus padding). */
+extern volatile int __rspq_syncpoints_done[4];
 
 /** @brief Registered overlays */
 extern rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAYS];
