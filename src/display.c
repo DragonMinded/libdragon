@@ -418,5 +418,5 @@ uint32_t display_get_num_buffers(void)
 float display_get_fps(void)
 {
     if (!frame_times_duration) return 0;
-    return (float)(FPS_WINDOW * TICKS_PER_SECOND) / frame_times_duration;
+    return (float)FPS_WINDOW * TICKS_PER_SECOND / frame_times_duration;
 }
