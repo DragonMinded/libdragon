@@ -348,7 +348,8 @@ void repack_font(void)
 
     for (int i = 0; i < sheets.size(); ++i) {
         rect_pack::Sheet &sheet = sheets[i];
-        uint8_t *newbuf = (uint8_t*)calloc(1, sheet.width * sheet.height * 4);
+        uint8_t *newbuf = new uint8_t[sheet.width * sheet.height * 4];
+        memset(newbuf, 0, sheet.width * sheet.height * 4);
         for (int j = 0; j < sheet.rects.size(); ++j) {
             rect_pack::Rect &rect = sheet.rects[j];
             bmchar &ch = gctx->glyphs[rect.id];
