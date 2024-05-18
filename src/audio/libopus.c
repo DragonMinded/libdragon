@@ -6,6 +6,7 @@
 #else
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wnonnull-compare"
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 
 // Bring opus in
