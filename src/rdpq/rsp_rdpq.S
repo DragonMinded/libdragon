@@ -845,7 +845,7 @@ RDPQCmd_ClearZBuffer:
 
     # Backup DMEM
     jal ClearZBuf_DMEM_Backup
-    li t2, DMA_OUT_ASYNC
+    li t2, DMA_OUT    # FIXME: switch to ASYNC here when Ares is fixed
 
     # Now start filling the whole DMEM with the clear code. Start from the
     # end of data, so that we don't risk racing with DMA.
