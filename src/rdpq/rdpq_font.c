@@ -64,7 +64,6 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
         rspq_block_begin();
             rdpq_sprite_upload(TILE0, fnt->atlases[i].sprite, NULL);
         fnt->atlases[i].up = rspq_block_end();
-        debugf("Loaded atlas %d: %dx%d %s\n", i, fnt->atlases[i].sprite->width, fnt->atlases[i].sprite->height, tex_format_name(sprite_get_format(fnt->atlases[i].sprite)));
     }
     for (int i = 0; i < fnt->num_styles; i++)
         recalc_style(&fnt->styles[i]);
