@@ -116,8 +116,6 @@ RDPQ_TRI_DATA2:          .dcb.l 7
 
     RSPQ_EndSavedState
 
-_data_end:
-
     .bss
 
     .text
@@ -843,7 +841,7 @@ RDPQCmd_ClearZBuffer:
     li t7, %lo(_data_end)
 
     # If this is hit, increase the temporary buffer in __rdpq_clear_z_with_rsp()
-    assert_le t7, 1024, RDPQ_ASSERT_ZCLEAR_INVALID_BUFFER
+    assert_le t7, 1280, RDPQ_ASSERT_ZCLEAR_INVALID_BUFFER
 
     # Backup DMEM
     jal ClearZBuf_DMEM_Backup
@@ -851,7 +849,7 @@ RDPQCmd_ClearZBuffer:
 
     # Now start filling the whole DMEM with the clear code. Start from the
     # end of data, so that we don't risk racing with DMA.
-    li s4, %lo(_data_end)
+    li s4, 1280
     addiu s3, s4, 4096
 1:  sqv $v01, 0x00,s4
     sqv $v01, 0x10,s4

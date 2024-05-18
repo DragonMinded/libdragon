@@ -21,7 +21,7 @@ static int attach_stack_ptr = 0;
 
 static bool __rdpq_clear_z_with_rsp(const surface_t *surf_z, uint16_t zvalue)
 {
-    static uint8_t temp_buffer[1024] __attribute__((aligned(16)));
+    static uint8_t temp_buffer[1280] __attribute__((aligned(16)));
 
     int nbytes = surf_z->height * surf_z->stride;
     uint32_t rsp_size;

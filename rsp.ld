@@ -33,11 +33,13 @@ SECTIONS
         _start = .;
         KEEP(*(.text))
         *(.text.*)
+        _text_end = .;
     } > ram_text AT > rom_imem
 
     .data : { 
         KEEP(*(.data))
         *(.data.*)
+        _data_end = .;
     } > ram_data AT > rom_dmem
 
     . = ALIGN(8);
