@@ -811,9 +811,11 @@ __attribute__((constructor)) void __init_interrupts()
         /* Clear and mask all interrupts on the system so we start with a clean slate */
         *MI_MASK = MI_WMASK_CLR_SP | MI_WMASK_CLR_SI | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI | MI_WMASK_CLR_PI | MI_WMASK_CLR_DP;
 
-        /* On iQue, also disable extra interrupts */
+        /* On iQue, also disable extra interrupts. Activate power button interrupt. */
         if (sys_bbplayer())
-            *MI_BB_MASK = MI_BB_WMASK_CLR_FLASH | MI_BB_WMASK_CLR_AES | MI_BB_WMASK_CLR_IDE | MI_BB_WMASK_CLR_PI_ERR | MI_BB_WMASK_CLR_USB0 | MI_BB_WMASK_CLR_USB1 | MI_BB_WMASK_CLR_BTN | MI_BB_WMASK_CLR_MD;
+            *MI_BB_MASK = MI_BB_WMASK_CLR_FLASH | MI_BB_WMASK_CLR_AES | MI_BB_WMASK_CLR_IDE | 
+                          MI_BB_WMASK_CLR_PI_ERR | MI_BB_WMASK_CLR_USB0 | MI_BB_WMASK_CLR_USB1 | 
+                          MI_BB_WMASK_SET_BTN | MI_BB_WMASK_CLR_MD;
 
         /* Set that we are enabled */
         __interrupt_depth = 0;
