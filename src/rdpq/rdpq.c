@@ -573,6 +573,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("incorrect usage of auto-TMEM: unpaired begin/end\n");
         break;
 
+    case RDPQ_ASSERT_ZCLEAR_INVALID_BUFFER:
+        printf("Z-clear command issued with a too small temporary buffer\n");
+        break;
+
     default:
         printf("Unknown assert\n");
         break;
