@@ -317,8 +317,6 @@ void wav64_open(wav64_t *wav, const char *fn) {
 	}
 
 	dfs_close(fh);
-	debugf("wav64 %s: %d-bit %.1fHz %dch %d samples (loop: %d)\n",
-		fn, wav->wave.bits, wav->wave.frequency, wav->wave.channels, wav->wave.len, wav->wave.loop_len);
 }
 
 void wav64_play(wav64_t *wav, int ch)
