@@ -35,6 +35,8 @@ std::vector<int> flag_ranges;
 const char *n64_inst = NULL;
 int flag_ellipsis_cp = 0x002E;
 int flag_ellipsis_repeats = 3;
+bool flag_ttf_outline = false;
+bool flag_ttf_monochrome = false;
 
 void print_args( char * name )
 {
@@ -53,13 +55,15 @@ void print_args( char * name )
     fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: whatever the font defaults to)\n");
     fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "BMFont specific flags:\n");
+    fprintf(stderr, "\n");
     fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
     fprintf(stderr, "--range more than one time.\n");
 }
 
 #include "mkfont_out.cpp"
 #include "mkfont_ttf.cpp"
-#include "mkfont_bmfont.cpp"
+// #include "mkfont_bmfont.cpp"
 
 int main(int argc, char *argv[])
 {
@@ -106,6 +110,8 @@ int main(int argc, char *argv[])
                 }
                 flag_ranges.push_back(r0);
                 flag_ranges.push_back(r1);
+            } else if (!strcmp(argv[i], "--monochrome")) {
+                flag_ttf_monochrome = true;
             } else if (!strcmp(argv[i], "--ellipsis")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -176,7 +182,8 @@ int main(int argc, char *argv[])
         if (strcasestr(infn, ".ttf") || strcasestr(infn, ".otf")) {
             ret = convert_ttf(infn, outfn, flag_ranges);
         } else if (strcasestr(infn, ".fnt")) {
-            ret = convert_bmfont(infn, outfn);
+            // ret = convert_bmfont(infn, outfn);
+            assert(!"BMFont support is not implemented yet");
         } else {
             fprintf(stderr, "Error: unknown input file type: %s\n", infn);
             ret = 1;
