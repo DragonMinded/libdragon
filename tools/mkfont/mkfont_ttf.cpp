@@ -221,9 +221,9 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                     }
                 }
             }
-
-            font.make_kernings();
         }
+        
+        font.make_kernings();
     }
 
     if (flag_ellipsis_repeats > 0)
