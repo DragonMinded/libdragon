@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -171,6 +172,7 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         // First line is the function name. If instead it's the dummy 0x0 address,
         // it means that we're done.
         int n = getline(&line_buf, &line_buf_size, addr2line_r);
+        assert(n != -1);
         if (strncmp(line_buf, "0x00000000", 10) == 0) break;
 
         // If the function of name is longer than 64 bytes, truncate it. This also
@@ -180,7 +182,8 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         if (n-1 > flag_max_sym_len) strcpy(&func[flag_max_sym_len-3], "...");
 
         // Second line is the file name and line number
-        getline(&line_buf, &line_buf_size, addr2line_r);
+        int ret = getline(&line_buf, &line_buf_size, addr2line_r);
+        assert(ret != -1);
         char *colon = strrchr(line_buf, ':');
         char *file = strndup(line_buf, colon - line_buf);
         int line = atoi(colon + 1);
