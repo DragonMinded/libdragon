@@ -94,7 +94,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
             case FT_PIXEL_MODE_GRAY:
                 for (int y=0; y<bmp.rows; y++) {
                     for (int x=0; x<bmp.width; x++) {
-                        img[y][x] = bmp.buffer[y * bmp.pitch + x];
+                        img[y][x] = bmp.buffer[y * bmp.pitch + x] & 0xF0;
                     }
                 }
                 break;
