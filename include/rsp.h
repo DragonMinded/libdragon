@@ -172,6 +172,15 @@ extern "C" {
 /** @brief Current SP program counter */
 #define SP_PC         ((volatile uint32_t*)0xA4080000)
 
+/** @brief SP DMA IMEM/DMEM address register */
+#define SP_DMA_SPADDR  ((volatile uint32_t*)0xA4040000)
+/** @brief SP DMA RDRAM address register */
+#define SP_DMA_RAMADDR ((volatile uint32_t*)0xA4040004)
+/** @brief SP DMA from RDRAM to IMEM/DMEM register */
+#define SP_DMA_RDLEN   ((volatile uint32_t*)0xA4040008)
+/** @brief SP DMA from IMEM/DMEM to RDRAM register */
+#define SP_DMA_WRLEN   ((volatile uint32_t*)0xA404000C)
+
 /** @brief SP status register */
 #define SP_STATUS     ((volatile uint32_t*)0xA4040010)
 
