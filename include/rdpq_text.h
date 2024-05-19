@@ -224,6 +224,7 @@ typedef struct rdpq_textparms_s {
     int16_t char_spacing;    ///< Extra spacing between chars (in addition to glyph width and kerning)
     int16_t line_spacing;    ///< Extra spacing between lines (in addition to font height)
     rdpq_textwrap_t wrap;    ///< Wrap mode
+    int16_t *tabstops;       ///< Array of tab stops, in pixels (0-terminated)
 } rdpq_textparms_t;
 
 
