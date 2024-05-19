@@ -15,7 +15,7 @@ jobs:
       matrix:
         include: [
           { host-os: ubuntu-latest },
-          { host-os: macos-13 }
+          { host-os: macos-14 }
         ]
     runs-on: ${{ matrix.host-os }}
 
@@ -55,13 +55,14 @@ jobs:
           head: ${{ github.sha }}
 
 
-      # - name: Install docker for macos
-      #   if: ${{ matrix.host-os == 'macos-14' }}
-      #   run: |
-      #     brew install --cask docker
-      #     export DOCKER_HOST=unix:///Users/$USER/Library/Containers/com.docker.docker/Data/docker.raw.sock
-      #     docker --version
-      #   continue-on-error: true
+      - name: Install docker for macos
+        if: ${{ matrix.host-os == 'macos-14' }}
+        run: |
+          brew install --cask docker
+          colima start --mount-type 9p
+          # export DOCKER_HOST=unix:///Users/$USER/Library/Containers/com.docker.docker/Data/docker.raw.sock
+          docker --version
+        continue-on-error: true
           
 
       # Build the toolchain if toolchain files changed w.r.t target and we can
