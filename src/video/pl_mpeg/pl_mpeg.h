@@ -1665,17 +1665,14 @@ int plm_buffer_has_start_code(plm_buffer_t *self, int code) {
 	return current;
 }
 
-int plm_buffer_no_start_code(plm_buffer_t *self) {
-	if (!plm_buffer_has(self, (5 << 3))) {
+int plm_buffer_peek_non_zero(plm_buffer_t *self, int bit_count) {
+	if (!plm_buffer_has(self, bit_count)) {
 		return FALSE;
 	}
 
-	size_t byte_index = ((self->bit_index + 7) >> 3);
-	return !(
-		self->bytes[byte_index] == 0x00 &&
-		self->bytes[byte_index + 1] == 0x00 &&
-		self->bytes[byte_index + 2] == 0x01
-	);
+	int val = plm_buffer_read(self, bit_count);
+	self->bit_index -= bit_count;
+	return val != 0;
 }
 
 int16_t plm_buffer_read_vlc_bits(plm_buffer_t *self, const plm_vlc_t *table, uint64_t bits) {
@@ -3009,7 +3006,7 @@ void plm_video_decode_slice(plm_video_t *self, int slice) {
 		PROFILE_STOP(PS_MPEG_MB, 0);
 	} while (
 		self->macroblock_address < self->mb_size - 1 &&
-		plm_buffer_no_start_code(self->buffer)
+		plm_buffer_peek_non_zero(self->buffer, 23)
 	);
 }
 
