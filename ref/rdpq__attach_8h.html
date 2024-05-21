@@ -141,7 +141,7 @@ Functions</h2></td></tr>
 
 <p>Attach the RDP to a color surface (and optionally a Z buffer) </p>
 <p >This function configures the new render targets the RDP will draw to. It accepts both a color buffer and optionally a Z buffer, both of which in terms of <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> pointers.</p>
-<p >For instance, it can be used with framebuffers acquired by calling <a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a>, or to render to an offscreen buffer created with <a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> or <a class="el" href="surface_8h.html#a764269d5ee8de46b3c0ef0f318f86a15" title="Initialize a surface_t structure with the provided buffer.">surface_make</a>.</p>
+<p >For instance, it can be used with framebuffers acquired by calling <a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a>, or to render to an offscreen buffer created with <a class="el" href="surface_8h.html#a5a48f2ccc890381490463097d6f51c93" title="Allocate a new surface in memory.">surface_alloc</a> or <a class="el" href="surface_8h.html#a47bd38809ff7938c1d0123d540a2851a" title="Initialize a surface_t structure with the provided buffer.">surface_make</a>.</p>
 <p >This function should be called before any rendering operations to ensure that the RDP has a valid render target to operate on.</p>
 <p >The previous render targets are stored away in a small stack, so that they can be restored later when <a class="el" href="rdpq__attach_8h.html#ac8c2f2ec501e83d6fcd4c37675c512f7" title="Detach the RDP from the current surface, and restore the previous one.">rdpq_detach</a> is called. This allows to temporarily switch rendering to an offscreen surface, and then restore the main render target.</p>
 <dl class="params"><dt>Parameters</dt><dd>
@@ -153,7 +153,7 @@ Functions</h2></td></tr>
 </dl>
 <dl class="section see"><dt>See also</dt><dd><a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a> </dd>
 <dd>
-<a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> </dd></dl>
+<a class="el" href="surface_8h.html#a5a48f2ccc890381490463097d6f51c93" title="Allocate a new surface in memory.">surface_alloc</a> </dd></dl>
 
 </div>
 </div>
@@ -195,7 +195,7 @@ Functions</h2></td></tr>
 </dl>
 <dl class="section see"><dt>See also</dt><dd><a class="el" href="group__display.html#gaf8ad0501f0408430e3b40f0f626a33bd" title="Get a display buffer for rendering.">display_get</a> </dd>
 <dd>
-<a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f" title="Allocate a new surface in memory.">surface_alloc</a> </dd>
+<a class="el" href="surface_8h.html#a5a48f2ccc890381490463097d6f51c93" title="Allocate a new surface in memory.">surface_alloc</a> </dd>
 <dd>
 <a class="el" href="rdpq__attach_8h.html#a57062dc5e71cc6531b82785cf56be865" title="Clear the current render target with the specified color.">rdpq_clear</a> </dd>
 <dd>
@@ -427,7 +427,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue May 21 2024 22:28:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue May 21 2024 22:32:05 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -111,11 +111,11 @@ $(function() {
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span>    <span class="keywordflow">return</span> *(uint32_t*)&amp;c;</div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span>}</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno"><a class="line" href="group__graphics.html#ga3a142c3b250eae98b898f95f40a9375d">   63</a></span><span class="keyword">inline</span> <a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a> <a class="code hl_function" href="group__graphics.html#ga3a142c3b250eae98b898f95f40a9375d">color_from_packed16</a>(uint16_t c) {</div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <span class="keywordflow">return</span> (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){ .<a class="code hl_variable" href="group__graphics.html#a9138f903c9036862cfeab970b156b62d">r</a>=((c&gt;&gt;11)&amp;0x1F)&lt;&lt;3, .g=((c&gt;&gt;6)&amp;0x1F)&lt;&lt;3, .b=((c&gt;&gt;1)&amp;0x1F)&lt;&lt;3, .a=(c&amp;0x1) ? 0xFF : 0 };</div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span>    <span class="keywordflow">return</span> (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){ .<a class="code hl_variable" href="group__graphics.html#a9138f903c9036862cfeab970b156b62d">r</a>=(uint8_t)(((c&gt;&gt;11)&amp;0x1F)&lt;&lt;3), .g=(uint8_t)(((c&gt;&gt;6)&amp;0x1F)&lt;&lt;3), .b=(uint8_t)(((c&gt;&gt;1)&amp;0x1F)&lt;&lt;3), .a=(uint8_t)((c&amp;0x1) ? 0xFF : 0) };</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>}</div>
 <div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
 <div class="line"><a id="l00068" name="l00068"></a><span class="lineno"><a class="line" href="group__graphics.html#ga0977a5620d59a7b833aa10fc3145009e">   68</a></span><span class="keyword">inline</span> <a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a> <a class="code hl_function" href="group__graphics.html#ga0977a5620d59a7b833aa10fc3145009e">color_from_packed32</a>(uint32_t c) {</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <span class="keywordflow">return</span> (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){ .<a class="code hl_variable" href="group__graphics.html#a9138f903c9036862cfeab970b156b62d">r</a>=(c&gt;&gt;24)&amp;0xFF, .g=(c&gt;&gt;16)&amp;0xFF, .b=(c&gt;&gt;8)&amp;0xFF, .a=c&amp;0xFF };</div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span>    <span class="keywordflow">return</span> (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){ .<a class="code hl_variable" href="group__graphics.html#a9138f903c9036862cfeab970b156b62d">r</a>=(uint8_t)(c&gt;&gt;24), .g=(uint8_t)(c&gt;&gt;16), .b=(uint8_t)(c&gt;&gt;8), .a=(uint8_t)c };</div>
 <div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span>}</div>
 <div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
 <div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span>uint32_t <a class="code hl_function" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68">graphics_make_color</a>( <span class="keywordtype">int</span> r, <span class="keywordtype">int</span> g, <span class="keywordtype">int</span> b, <span class="keywordtype">int</span> a );</div>
@@ -175,7 +175,7 @@ $(function() {
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue May 21 2024 22:28:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue May 21 2024 22:32:05 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

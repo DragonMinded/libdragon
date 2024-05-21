@@ -226,7 +226,7 @@ $(function() {
 <div class="line"><a id="l00692" name="l00692"></a><span class="lineno">  692</span>        __rdpq_mode_change_som(<a class="code hl_define" href="rdpq__macros_8h.html#abd3ae80c819a9e203d072a8b8ec66a9e">SOM_ALPHACOMPARE_MASK</a>, 0);</div>
 <div class="line"><a id="l00693" name="l00693"></a><span class="lineno">  693</span>    } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (threshold &gt; 0) {</div>
 <div class="line"><a id="l00694" name="l00694"></a><span class="lineno">  694</span>        __rdpq_mode_change_som(<a class="code hl_define" href="rdpq__macros_8h.html#abd3ae80c819a9e203d072a8b8ec66a9e">SOM_ALPHACOMPARE_MASK</a>, <a class="code hl_define" href="rdpq__macros_8h.html#a2ee6b17a87f1f38fae287c1467d4a627">SOM_ALPHACOMPARE_THRESHOLD</a>);</div>
-<div class="line"><a id="l00695" name="l00695"></a><span class="lineno">  695</span>        <a class="code hl_function" href="rdpq_8c.html#ae6300356555382c0aa75967aa8c15640">rdpq_set_blend_color</a>(<a class="code hl_define" href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">RGBA32</a>(0,0,0,threshold));</div>
+<div class="line"><a id="l00695" name="l00695"></a><span class="lineno">  695</span>        <a class="code hl_function" href="rdpq_8c.html#ae6300356555382c0aa75967aa8c15640">rdpq_set_blend_color</a>(<a class="code hl_define" href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">RGBA32</a>(0,0,0,(uint8_t)threshold));</div>
 <div class="line"><a id="l00696" name="l00696"></a><span class="lineno">  696</span>    } <span class="keywordflow">else</span> {</div>
 <div class="line"><a id="l00697" name="l00697"></a><span class="lineno">  697</span>        __rdpq_mode_change_som(<a class="code hl_define" href="rdpq__macros_8h.html#abd3ae80c819a9e203d072a8b8ec66a9e">SOM_ALPHACOMPARE_MASK</a>, <a class="code hl_define" href="rdpq__macros_8h.html#a912e2ae945d9f0ca47999d22f966d60f">SOM_ALPHACOMPARE_NOISE</a>);</div>
 <div class="line"><a id="l00698" name="l00698"></a><span class="lineno">  698</span>    }</div>
@@ -413,7 +413,7 @@ $(function() {
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue May 21 2024 22:28:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue May 21 2024 22:32:05 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

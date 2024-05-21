@@ -414,7 +414,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 </ul>
 <p >After calling this function, the specified tile descriptor will be ready to be used in drawing primitives like <a class="el" href="rdpq__tri_8c.html#afb11d915a7ce8903b2b3e5ed9ef7936e" title="Draw a triangle (RDP command: TRI_*)">rdpq_triangle</a> or <a class="el" href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743" title="Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)">rdpq_texture_rectangle</a>.</p>
 <p >If the texture uses a palette (<a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a1d1f3cf5eb79947c79274c2a353e86aa" title="Format CI8: color index 8-bit (paletted, 1 index per byte)">FMT_CI8</a> or <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae7c884ef15b16d8bb1fe78d46aa209c4" title="Format CI4: color index 4-bit (paletted, 2 indices per byte)">FMT_CI4</a>), the tile descriptor will be by default pointing to palette 0. In the case of <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae7c884ef15b16d8bb1fe78d46aa209c4" title="Format CI4: color index 4-bit (paletted, 2 indices per byte)">FMT_CI4</a>, this might not be the correct palette; to specify a different palette number, add .palette = X to the tex parms. Before drawing a texture with palette, remember to call <a class="el" href="rdpq__mode_8h.html#aeb5d5cab3092397225bfc40fffd1ab7d" title="Activate palette lookup during drawing.">rdpq_mode_tlut</a> to activate palette mode.</p>
-<p >If you want to load a portion of a texture rather than the full texture, use <a class="el" href="rdpq__tex_8h.html#a02d0ec8eab1907101928c226831e6af3" title="Load a portion of texture into TMEM.">rdpq_tex_upload_sub</a>, or alternatively create a sub-surface using <a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> and pass it to <a class="el" href="rdpq__tex_8h.html#aaa36de4024b0a12f37ddfc5544bcbfa4" title="Load a texture into TMEM.">rdpq_tex_upload</a>. See <a class="el" href="rdpq__tex_8h.html#a02d0ec8eab1907101928c226831e6af3" title="Load a portion of texture into TMEM.">rdpq_tex_upload_sub</a> for an example of both techniques.</p>
+<p >If you want to load a portion of a texture rather than the full texture, use <a class="el" href="rdpq__tex_8h.html#a02d0ec8eab1907101928c226831e6af3" title="Load a portion of texture into TMEM.">rdpq_tex_upload_sub</a>, or alternatively create a sub-surface using <a class="el" href="surface_8h.html#a201a14d89649b0f81ef8d535b724b34f" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> and pass it to <a class="el" href="rdpq__tex_8h.html#aaa36de4024b0a12f37ddfc5544bcbfa4" title="Load a texture into TMEM.">rdpq_tex_upload</a>. See <a class="el" href="rdpq__tex_8h.html#a02d0ec8eab1907101928c226831e6af3" title="Load a portion of texture into TMEM.">rdpq_tex_upload_sub</a> for an example of both techniques.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">tile</td><td>Tile descriptor that will be initialized with this texture </td></tr>
@@ -426,7 +426,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 <dl class="section return"><dt>Returns</dt><dd>Number of bytes used in TMEM for this texture</dd></dl>
 <dl class="section see"><dt>See also</dt><dd><a class="el" href="rdpq__tex_8h.html#a02d0ec8eab1907101928c226831e6af3" title="Load a portion of texture into TMEM.">rdpq_tex_upload_sub</a> </dd>
 <dd>
-<a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> </dd></dl>
+<a class="el" href="surface_8h.html#a201a14d89649b0f81ef8d535b724b34f" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> </dd></dl>
 
 </div>
 </div>
@@ -502,11 +502,11 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 <div class="ttc" id="ardpq_8h_html_a8d34f311d2e71435652a57adb1d6931eadb7ac46392b285fc6cbac9404f189cc1"><div class="ttname"><a href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931eadb7ac46392b285fc6cbac9404f189cc1">TILE2</a></div><div class="ttdeci">@ TILE2</div><div class="ttdoc">Tile #2 (for code readability)</div><div class="ttdef"><b>Definition:</b> rdpq.h:252</div></div>
 <div class="ttc" id="ardpq__rect_8h_html_a7196362c567172a2012f414c8a412743"><div class="ttname"><a href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743">rdpq_texture_rectangle</a></div><div class="ttdeci">#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t)</div><div class="ttdoc">Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)</div><div class="ttdef"><b>Definition:</b> rdpq_rect.h:293</div></div>
 <div class="ttc" id="ardpq__tex_8c_html_a02d0ec8eab1907101928c226831e6af3"><div class="ttname"><a href="rdpq__tex_8c.html#a02d0ec8eab1907101928c226831e6af3">rdpq_tex_upload_sub</a></div><div class="ttdeci">int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)</div><div class="ttdoc">Load a portion of texture into TMEM.</div><div class="ttdef"><b>Definition:</b> rdpq_tex.c:365</div></div>
-</div><!-- fragment --><p >An alternative to this function is to call <a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> on the texture to create a sub-surface, and then call rdpq_tex_upload on the sub-surface. The same data will be loaded into TMEM but this time the RDP ignores that you are loading a portion of a larger texture:</p>
+</div><!-- fragment --><p >An alternative to this function is to call <a class="el" href="surface_8h.html#a201a14d89649b0f81ef8d535b724b34f" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> on the texture to create a sub-surface, and then call rdpq_tex_upload on the sub-surface. The same data will be loaded into TMEM but this time the RDP ignores that you are loading a portion of a larger texture:</p>
 <div class="fragment"><div class="line"><span class="comment">// Create a sub-surface of spritemap texture. No memory allocations</span></div>
 <div class="line"><span class="comment">// or pixel copies are performed, this is just a rectangular &quot;window&quot;</span></div>
 <div class="line"><span class="comment">// into the original texture.</span></div>
-<div class="line"><a class="code hl_struct" href="surface_8h.html#structsurface__t">surface_t</a> hero = <a class="code hl_function" href="surface_8c.html#a75faf57d244b5a27a0af9e5a7cabef74">surface_make_sub</a>(spritemap, 100, 100, 32, 32);</div>
+<div class="line"><a class="code hl_struct" href="surface_8h.html#structsurface__t">surface_t</a> hero = <a class="code hl_function" href="surface_8c.html#a201a14d89649b0f81ef8d535b724b34f">surface_make_sub</a>(spritemap, 100, 100, 32, 32);</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// Load the sub-surface. Notice that the RDP is unaware that it is</span></div>
 <div class="line"><span class="comment">// a sub-surface; it will think that it is a whole texture.</span></div>
@@ -519,7 +519,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 <div class="line">    0, 0,                               <span class="comment">// texture coordinates</span></div>
 <div class="line">    1.0, 1.0);                          <span class="comment">// texture increments (= no scaling)</span></div>
 <div class="ttc" id="ardpq__tex_8c_html_aaa36de4024b0a12f37ddfc5544bcbfa4"><div class="ttname"><a href="rdpq__tex_8c.html#aaa36de4024b0a12f37ddfc5544bcbfa4">rdpq_tex_upload</a></div><div class="ttdeci">int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms)</div><div class="ttdoc">Load a texture into TMEM.</div><div class="ttdef"><b>Definition:</b> rdpq_tex.c:398</div></div>
-<div class="ttc" id="asurface_8c_html_a75faf57d244b5a27a0af9e5a7cabef74"><div class="ttname"><a href="surface_8c.html#a75faf57d244b5a27a0af9e5a7cabef74">surface_make_sub</a></div><div class="ttdeci">surface_t surface_make_sub(surface_t *parent, uint32_t x0, uint32_t y0, uint32_t width, uint32_t height)</div><div class="ttdoc">Initialize a surface_t structure, pointing to a rectangular portion of another surface.</div><div class="ttdef"><b>Definition:</b> surface.c:56</div></div>
+<div class="ttc" id="asurface_8c_html_a201a14d89649b0f81ef8d535b724b34f"><div class="ttname"><a href="surface_8c.html#a201a14d89649b0f81ef8d535b724b34f">surface_make_sub</a></div><div class="ttdeci">surface_t surface_make_sub(surface_t *parent, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height)</div><div class="ttdoc">Initialize a surface_t structure, pointing to a rectangular portion of another surface.</div><div class="ttdef"><b>Definition:</b> surface.c:57</div></div>
 <div class="ttc" id="asurface_8h_html_structsurface__t"><div class="ttname"><a href="surface_8h.html#structsurface__t">surface_t</a></div><div class="ttdoc">A surface buffer for graphics.</div><div class="ttdef"><b>Definition:</b> surface.h:138</div></div>
 </div><!-- fragment --><p >The only limit of this second solution is that the sub-surface pointer must be 8-byte aligned (like all RDP textures), so it can only be used if the rectangle that needs to be loaded respects such constraint as well.</p>
 <dl class="params"><dt>Parameters</dt><dd>
@@ -537,7 +537,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 <dl class="section return"><dt>Returns</dt><dd>int Number of bytes used in TMEM for this texture</dd></dl>
 <dl class="section see"><dt>See also</dt><dd><a class="el" href="rdpq__tex_8h.html#aaa36de4024b0a12f37ddfc5544bcbfa4" title="Load a texture into TMEM.">rdpq_tex_upload</a> </dd>
 <dd>
-<a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> </dd></dl>
+<a class="el" href="surface_8h.html#a201a14d89649b0f81ef8d535b724b34f" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> </dd></dl>
 
 </div>
 </div>
@@ -837,7 +837,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue May 21 2024 22:28:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue May 21 2024 22:32:05 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
