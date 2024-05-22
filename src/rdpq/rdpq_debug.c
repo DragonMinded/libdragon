@@ -957,33 +957,52 @@ static void lazy_validate_rendertarget(void) {
     }
 }
 
-/** @brief Non-zero if the current CC uses the TEX0 slot aka the first texture */
-static int cc_use_tex0(void) {
+/** @brief Non-zero if the current CC uses the TEX0 slot aka the first texture in 1cycle mode */
+static int cc_1cyc_use_tex0(void) {
+    struct cc_cycle_s *cc = rdp.cc.cyc;
+
+    int ret = 0;
+    // Cycle1: reference to TEX0/TEX0_ALPHA slot
+    if (cc[1].rgb.suba == 1 || cc[1].rgb.subb == 1 || cc[1].rgb.mul == 1 || cc[1].rgb.mul == 8 || cc[1].rgb.add == 1)
+        ret |= 1;
+    if (cc[1].alpha.suba == 1 || cc[1].alpha.subb == 1 || cc[1].alpha.mul == 1 || cc[1].alpha.add == 1)
+        ret |= 1;
+    return ret;
+}
+
+/** @brief Non-zero if the current CC uses the TEX0 slot aka the first texture, in 2cycle mode */
+static int cc_2cyc_use_tex0(void) {
     struct cc_cycle_s *cc = rdp.cc.cyc;
 
     int ret = 0;
     // Cycle0: reference to TEX0/TEX0_ALPHA slot
     if (cc[0].rgb.suba == 1 || cc[0].rgb.subb == 1 || cc[0].rgb.mul == 1 || cc[0].rgb.mul == 8 || cc[0].rgb.add == 1)
         ret |= 1;
+    if (cc[0].alpha.suba == 1 || cc[0].alpha.subb == 1 || cc[0].alpha.mul == 1 || cc[0].alpha.add == 1)
+        ret |= 1;
     // Cycle1: reference to TEX1/TEX1_ALPHA slot (which actually points to TEX0)
     if (cc[1].rgb.suba == 2 || cc[1].rgb.subb == 2 || cc[1].rgb.mul == 2 || cc[1].rgb.mul == 9 || cc[1].rgb.add == 2)
+        ret |= 2;
+    if (cc[1].alpha.suba == 2 || cc[1].alpha.subb == 2 || cc[1].alpha.mul == 2 || cc[1].alpha.add == 2)
         ret |= 2;
     return ret;
 }
 
-/** @brief Non-zoer if the current CC uses the TEX1 slot aka the second texture */
-static int cc_use_tex1(void) {
+/** @brief Non-zoer if the current CC uses the TEX1 slot aka the second texture, in 2cycle mode */
+static int cc_2cyc_use_tex1(void) {
     struct cc_cycle_s *cc = rdp.cc.cyc;
-    if (rdp.som.cycle_type != 1)    // TEX1 is used only in 2-cycle mode
-        return false;
     if ((rdp.som.tf_mode & 3) == 1) // TEX1 is the color-conversion of TEX0, so TEX1 is not used
         return false;
     int ret = 0;
     // Cycle0: reference to TEX1/TEX1_ALPHA slot
     if (cc[0].rgb.suba == 2 || cc[0].rgb.subb == 2 || cc[0].rgb.mul == 2 || cc[0].rgb.mul == 9 || cc[0].rgb.add == 2)
         ret |= 1;
+    if (cc[0].alpha.suba == 2 || cc[0].alpha.subb == 2 || cc[0].alpha.mul == 2 || cc[0].alpha.add == 2)
+        ret |= 1;
     // Cycle1: reference to TEX0/TEX0_ALPHA slot (which actually points to TEX1)
     if (cc[1].rgb.suba == 1 || cc[1].rgb.subb == 1 || cc[1].rgb.mul == 1 || cc[1].rgb.mul == 8 || cc[1].rgb.add == 1)
+        ret |= 2;
+    if (cc[1].alpha.suba == 1 || cc[1].alpha.subb == 1 || cc[1].alpha.mul == 1 || cc[1].alpha.add == 1)
         ret |= 2;
     return ret;
 }
@@ -1331,16 +1350,26 @@ static void validate_use_tile_internal(int tidx, int cycles, float *texcoords, i
  * @param ncoords   Number of vertices in the array (the actual array element count will be double this number)
  */
 static void validate_use_tile(int tidx, float *texcoords, int ncoords) {
-    // Calculates in which cycles TEX0/TEX1 are accessed
-    int cyc_tex0 = cc_use_tex0();
-    int cyc_tex1 = cc_use_tex1();
+    if (rdp.som.cycle_type == 3) return; // FILL mode does not use tiles
+    if (rdp.som.cycle_type == 2) {
+        // In COPY mode, the tile is used only in the first cycle
+        validate_use_tile_internal(tidx, (1<<0), texcoords, ncoords);
+        return;
+    }
 
     // Tile indices. FIXME: this does not handle LODs and detail/sharpen
     int tidx0 = tidx;
     int tidx1 = (tidx+1) & 7;
-    
-    if (cyc_tex0) validate_use_tile_internal(tidx0, cyc_tex0, texcoords, ncoords);
-    if (cyc_tex1) validate_use_tile_internal(tidx1, cyc_tex1, texcoords, ncoords);
+
+    if (rdp.som.cycle_type == 1) {
+        int cyc_tex0 = cc_2cyc_use_tex0();
+        int cyc_tex1 = cc_2cyc_use_tex1();
+        if (cyc_tex0) validate_use_tile_internal(tidx0, cyc_tex0, texcoords, ncoords);
+        if (cyc_tex1) validate_use_tile_internal(tidx1, cyc_tex1, texcoords, ncoords);
+    } else {
+        int cyc_tex0 = cc_1cyc_use_tex0();
+        if (cyc_tex0) validate_use_tile_internal(tidx0, cyc_tex0, texcoords, ncoords);
+    }
 }
 
 void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
