@@ -487,7 +487,10 @@ int Font::add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv)
     }
 
     // Check if the font is still mono
+    bool was_mono = is_mono;
     is_mono &= img.is_mono();
+    if (was_mono != is_mono && num_atlases > 0) 
+        assert(!"cannot mix mono and non-mono glyphs in the same font in different ranges");
 
     // Crop the image to the actual glyph size
     int x0=0, y0=0;
@@ -499,6 +502,9 @@ int Font::add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv)
 
 void Font::make_atlases(void)
 {
+    if (is_mono && num_atlases == 0 && flag_verbose)
+        fprintf(stderr, "monochrome glyphs detected, auto-switching to FMT_I1 (1bpp)\n");
+
     // Pack the glyphs into a texture
     rect_pack::Settings settings;
     memset(&settings, 0, sizeof(settings));
@@ -630,7 +636,7 @@ void Font::make_atlases(void)
             }
         }
 
-        if (flag_verbose)
+        if (flag_verbose && !is_mono)
             fprintf(stderr, "created atlas %d: %d x %d pixels (%zu glyphs)\n", i, sheet.width, sheet.height, sheet.rects.size());
         if (flag_debug) {
             char *imgfn = NULL;
@@ -679,8 +685,12 @@ void Font::make_atlases(void)
                     img.palette[i*16+j] = (j & mask) ? 0xFFFF : 0;
             }
 
-            if (flag_verbose >= 2)
-                fprintf(stderr, "created CI4 atlas %d: %d x %d pixels\n", i/4, w, h);
+            if (flag_verbose) {
+                int num_glyphs = 0;
+                for (int j=0; j<4 && i+j<atlases.size(); j++)
+                    num_glyphs += sheets[i+j].rects.size();
+                fprintf(stderr, "created atlas %d: %d x %d pixels (%d glyphs)\n", i/4, w, h, num_glyphs);
+            }
             atlases2.push_back(std::move(img));
         }
 
