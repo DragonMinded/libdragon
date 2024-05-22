@@ -11,15 +11,17 @@
 #include "../../include/surface.h"
 #include "../../src/rdpq/rdpq_font_internal.h"
 
+// LodePNG
+#define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
+#define LODEPNG_NO_COMPILE_CPP                 // No need to use C++ API
+#include "../common/lodepng.h"
+#include "../common/lodepng.c"
+
 // Rect packing
 #include "rect_pack.cpp"
 
 // Compression library
 #include "../common/assetcomp.h"
-
-// STB image write
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
 
 #include "../common/binout.c"
 #include "../common/binout.h"

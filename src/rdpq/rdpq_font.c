@@ -29,18 +29,31 @@ _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(font, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(font)))
 
-static void recalc_style(style_t *s)
+static void recalc_style(style_t *s, tex_format_t fmt)
 {
     if (s->block)
         rdpq_call_deferred((void (*)(void*))rspq_block_free, s->block);
 
     rspq_block_begin();
         rdpq_mode_begin();
-            rdpq_set_mode_standard();
-            rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (TEX0,0,PRIM,0)));
-            rdpq_mode_alphacompare(1);
-            rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
-            rdpq_set_prim_color(s->color);
+            switch (fmt) {
+            case FMT_I4: case FMT_I8:
+                rdpq_set_mode_standard();
+                rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (TEX0,0,PRIM,0)));
+                rdpq_mode_alphacompare(1);
+                rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+                rdpq_set_prim_color(s->color);
+                break;
+            case FMT_CI4: case FMT_CI8:
+                rdpq_set_mode_standard();
+                rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (TEX0,0,PRIM,0)));
+                rdpq_mode_alphacompare(1);
+                rdpq_mode_tlut(TLUT_RGBA16);
+                rdpq_set_prim_color(s->color);
+                break;
+            default:
+                assert(0);
+            }
         rdpq_mode_end();
     s->block = rspq_block_end();
 }
@@ -62,11 +75,29 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
         void *buf = PTR_DECODE(fnt, fnt->atlases[i].sprite);
         fnt->atlases[i].sprite = sprite_load_buf(buf, fnt->atlases[i].size);
         rspq_block_begin();
-            rdpq_sprite_upload(TILE0, fnt->atlases[i].sprite, NULL);
+            switch (sprite_get_format(fnt->atlases[i].sprite)) {
+            case FMT_CI4:
+                surface_t surf = sprite_get_pixels(fnt->atlases[i].sprite);
+                rdpq_tex_multi_begin();
+                rdpq_tex_upload(TILE0, &surf, NULL);
+                rdpq_tex_reuse(TILE1, &(rdpq_texparms_t){ .palette = 1 });
+                rdpq_tex_reuse(TILE2, &(rdpq_texparms_t){ .palette = 2 });
+                rdpq_tex_reuse(TILE3, &(rdpq_texparms_t){ .palette = 3 });
+                rdpq_tex_multi_end();
+                rdpq_tex_upload_tlut(sprite_get_palette(fnt->atlases[i].sprite), 0, 64);
+                break;
+
+            default:
+                rdpq_sprite_upload(TILE0, fnt->atlases[i].sprite, NULL);
+                break;
+            }
+
         fnt->atlases[i].up = rspq_block_end();
     }
+
+    tex_format_t fmt = sprite_get_format(fnt->atlases[0].sprite);
     for (int i = 0; i < fnt->num_styles; i++)
-        recalc_style(&fnt->styles[i]);
+        recalc_style(&fnt->styles[i], fmt);
     memcpy(fnt->magic, FONT_MAGIC_LOADED, 3);
     data_cache_hit_writeback(fnt, sz);
     return fnt;
@@ -157,7 +188,8 @@ void rdpq_font_style(rdpq_font_t *fnt, uint8_t style_id, const rdpq_fontstyle_t 
     // mkfont time. The font always contain room for 256 styles (all zeroed).
     style_t *s = &fnt->styles[style_id];
     s->color = style->color;
-    recalc_style(s);
+    tex_format_t fmt = sprite_get_format(fnt->atlases[0].sprite);
+    recalc_style(s, fmt);
 }
 
 int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char_t *chars, float x0, float y0)
@@ -185,7 +217,7 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
         int width = (g->xoff2 - g->xoff + 1);
         int height = (g->yoff2 - g->yoff + 1);
 
-        rdpq_texture_rectangle(TILE0,
+        rdpq_texture_rectangle(g->ntile,
             x, y, x+width, y+height,
             g->s, g->t);
 

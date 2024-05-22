@@ -27,6 +27,7 @@ static std::string codepoint_to_utf8(uint32_t codepoint) {
 struct Image {
     tex_format_t fmt;
     std::vector<uint8_t> pixels;
+    std::vector<uint16_t> palette;
     int w, h;
 
     Image() {
@@ -44,8 +45,8 @@ struct Image {
             memset(pixels.data(), 0, pixels.size());
     }
 
-    Image(const Image& img) : fmt(img.fmt), pixels(img.pixels), w(img.w), h(img.h) {}
-    Image(const Image&& img) : fmt(img.fmt), pixels(std::move(img.pixels)), w(img.w), h(img.h) {}
+    Image(const Image& img) : fmt(img.fmt), pixels(img.pixels), palette(img.palette), w(img.w), h(img.h) {}
+    Image(const Image&& img) : fmt(img.fmt), pixels(std::move(img.pixels)), palette(std::move(img.palette)), w(img.w), h(img.h) {}
     Image& operator=(const Image& img) {
         fmt = img.fmt;
         pixels = img.pixels;
@@ -57,6 +58,7 @@ struct Image {
     struct Pixel {
         tex_format_t fmt;
         uint8_t *data;
+        uint16_t *palette;
 
         bool is_transparent() {
             switch (fmt) {
@@ -65,7 +67,24 @@ struct Image {
             case FMT_RGBA16:
                 return (data[1] & 1) == 0;
             case FMT_I8:
+            case FMT_CI8:
                 return *data == 0;
+            default:
+                assert(!"unsupported format");
+                return false;
+            }
+        }
+
+        bool is_mono() {
+            switch (fmt) {
+            case FMT_CI8:
+                return data[0] == 0 || data[0] == 1;
+            case FMT_I8:
+                return data[0] == 0 || data[0] >= 0xF0;
+            case FMT_RGBA16:
+                return false;
+            case FMT_RGBA32:
+                return false;
             default:
                 assert(!"unsupported format");
                 return false;
@@ -89,6 +108,10 @@ struct Image {
             }
             case FMT_I8: {
                 uint32_t i = *data;
+                return (i << 24) | (i << 16) | (i << 8) | i;
+            }
+            case FMT_CI8: {
+                uint32_t i = palette[*data];
                 return (i << 24) | (i << 16) | (i << 8) | i;
             }
             default:
@@ -146,9 +169,10 @@ struct Image {
         uint8_t *data;
         int w;
         tex_format_t fmt;
+        uint16_t *palette;
 
         Image::Pixel operator[](int x) {
-            return {fmt, data + TEX_FORMAT_PIX2BYTES(fmt, x)};
+            return {fmt, data + TEX_FORMAT_PIX2BYTES(fmt, x), palette};
         }
 
         void copy(Line src, int x0) {
@@ -163,7 +187,7 @@ struct Image {
     };
 
     Line operator[](int y) {
-        return {pixels.data() + TEX_FORMAT_PIX2BYTES(fmt, y * w), w, fmt};
+        return {pixels.data() + TEX_FORMAT_PIX2BYTES(fmt, y * w), w, fmt, palette.data()};
     }
 
     void copy(Image img, int x0, int y0) {
@@ -223,6 +247,22 @@ struct Image {
         *oy0 = y0;
         return crop(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
     }
+
+    bool is_mono() {
+        for (int y = 0; y < h; y++) {
+            Line line = (*this)[y];
+            for (int x = 0; x < w; x++) {
+                if (!line[x].is_mono())
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    void write_png(const char *fn) {
+        const auto &img = fmt == FMT_RGBA32 ? *this : convert(FMT_RGBA32);
+        lodepng_encode32_file(fn, img.pixels.data(), img.w, img.h);
+    }
 };
 
 // A Glyph to be added to the font
@@ -245,6 +285,7 @@ struct Font {
     std::vector<Kerning> kernings;
     int num_atlases = 0;
     std::string outfn;
+    bool is_mono = true;
 
     Font(std::string fn, int point_size, int ascent, int descent, int line_gap, int space_width)
     {
@@ -274,7 +315,7 @@ struct Font {
 
     void add_range(int first, int last);
     int add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv);
-    void add_atlas(uint8_t *buf, int width, int height, int stride, int bytes_per_pixel);
+    void add_atlas(Image& img);
     void add_kerning(int glyph1, int glyph2, int kerning);
     void add_ellipsis(int ellipsis_cp, int ellipsis_repeats);
 
@@ -343,7 +384,8 @@ void Font::write()
         w8(out, fnt->glyphs[i].s);
         w8(out, fnt->glyphs[i].t);
         w8(out, fnt->glyphs[i].natlas);
-        for (int j=0;j<3;j++) w8(out, (uint8_t)0);
+        w8(out, fnt->glyphs[i].ntile);
+        for (int j=0;j<2;j++) w8(out, (uint8_t)0);
         w16(out, fnt->glyphs[i].kerning_lo);
         w16(out, fnt->glyphs[i].kerning_hi);
     }
@@ -444,6 +486,9 @@ int Font::add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv)
         return -1;
     }
 
+    // Check if the font is still mono
+    is_mono &= img.is_mono();
+
     // Crop the image to the actual glyph size
     int x0=0, y0=0;
     img = img.crop_transparent(&x0, &y0);
@@ -458,12 +503,17 @@ void Font::make_atlases(void)
     rect_pack::Settings settings;
     memset(&settings, 0, sizeof(settings));
     settings.method = rect_pack::Method::Best;
+    settings.method = rect_pack::Method::Best;
+    settings.max_width = 128;
+    settings.max_height = 64;
+    settings.method = rect_pack::Method::Best;        
     settings.max_width = 128;
     settings.max_height = 64;
     settings.border_padding = 1;
     settings.allow_rotate = false;
     
     std::vector<rect_pack::Size> sizes;
+    std::vector<rect_pack::Sheet> sheets;
     for (int i=0; i<glyphs.size(); i++) {
         rect_pack::Size size;
         size.id = i;
@@ -472,9 +522,72 @@ void Font::make_atlases(void)
         sizes.push_back(size);
     }
 
-    std::vector<rect_pack::Sheet> sheets = rect_pack::pack(settings, sizes);
+    if (!is_mono) {
+        settings.max_width = 128;
+        settings.max_height = 64;
+        sheets = rect_pack::pack(settings, sizes);
+    } else {
+        // In mono format, we can pack 4 1bpp atlases into a single CI4 texture.
+        // So first start by computing a pack with the CI4 maximum size (64x64)
+        settings.min_width = 64;
+        settings.max_width = 64;
+        settings.max_height = 64;
+        sheets = rect_pack::pack(settings, sizes);
+        int num_sheets = sheets.size();
+        int last_group = (num_sheets-1) / 4 * 4;
+
+        // Try to optimize the last group (up to four sheets). Create an array
+        // of input sizes for all the glyphs in the last group
+        std::vector<rect_pack::Size> sizes2;
+        for (int i=last_group; i<num_sheets; i++) {
+            rect_pack::Sheet& sheet = sheets[i];
+            for (auto &r : sheet.rects)
+                sizes2.push_back(sizes[r.id]);
+        }
+
+        // Move the last group of sheets to a temporary array
+        int best_area = 64*64;
+        std::vector<rect_pack::Sheet> best_sheets;
+        for (int i=last_group; i<num_sheets; i++) {
+            best_sheets.push_back(sheets.back());
+            sheets.pop_back();
+        }
+
+        if (flag_verbose >= 2)
+            fprintf(stderr, "packing last group of %zu sheets\n", best_sheets.size());
+
+        // Try to find a better packing for the last group
+        while (1) {
+            bool changed = false;
+            for (int h=16; h<=64; h++) {
+                // Find texture sizes where the value is a multiple of 16. Since
+                // They are going to be packed as CI4, this allows the stride to be
+                // multiple of 8, which allows LOAD_BLOCK to be used at runtime.
+                int w = (best_area-1) / h / 16 * 16;
+                if (!w) break;
+
+                settings.min_width = 0;
+                settings.max_width = w;
+                settings.max_height = h;
+                std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
+                if (new_sheets.size() <= 4) {
+                    if (flag_verbose >= 2)
+                        printf("    found better packing: %d x %d (%d)\n", w, h, w*h);
+                    best_sheets = new_sheets;
+                    best_area = w * h;
+                    changed = true;
+                    break;
+                }
+            } 
+            if (!changed) break;
+        }
+
+        // Append the best sheets to the calculated sheets
+        sheets.insert(sheets.end(), best_sheets.begin(), best_sheets.end());
+    }
 
     // Create the actual textures
+    std::vector<Image> atlases;
     for (int i=0; i<sheets.size(); i++) {
         rect_pack::Sheet& sheet = sheets[i];
 
@@ -492,6 +605,10 @@ void Font::make_atlases(void)
 
             glyph_t *gout = &fnt->glyphs[glyph.gidx];
             gout->natlas = i;
+            if (is_mono) {
+                gout->ntile = i & 3;
+                gout->natlas /= 4;
+            }
             gout->s = rect.x; gout->t = rect.y;
             gout->xoff = glyph.xoff;
             gout->yoff = glyph.yoff;
@@ -513,32 +630,73 @@ void Font::make_atlases(void)
             }
         }
 
-        add_atlas(&img.pixels[0], img.w, img.h, img.w, 1);
-
         if (flag_verbose)
             fprintf(stderr, "created atlas %d: %d x %d pixels (%zu glyphs)\n", i, sheet.width, sheet.height, sheet.rects.size());
-
         if (flag_debug) {
             char *imgfn = NULL;
             asprintf(&imgfn, "%s_%d.png", outfn.c_str(), num_atlases);
-            stbi_write_png(imgfn, sheet.width, sheet.height, 1, &img.pixels[0], sheet.width);
+            img.write_png(imgfn);
             if (flag_verbose)
                 fprintf(stderr, "wrote debug image: %s\n", imgfn);
             free(imgfn);
         }
-        ++num_atlases;
+
+        atlases.push_back(std::move(img));
+        num_atlases++;
     }
 
+    if (is_mono) {
+        std::vector<Image> atlases2;
+        for (int i=0; i<atlases.size(); i+=4) {
+            // Merge (up to) 4 images into a single atlas. Calculate the
+            // size of this group.
+            int w = 0, h = 0;
+            for (int j=0; j<4 && i+j<atlases.size(); j++) {
+                w = std::max(w, atlases[i+j].w);
+                h = std::max(h, atlases[i+j].h);
+            }
+
+            // Create a new image with the size of the group
+            Image img(FMT_CI8, w, h);
+
+            // Merge the four images as four bitplanes
+            for (int j=0; j<4 && i+j<atlases.size(); j++) {
+                Image& img2 = atlases[i+j];
+                for (int y=0; y<img2.h; y++) {
+                    for (int x=0; x<img2.w; x++) {
+                        uint8_t px = img2[y][x].is_transparent() ? 0 : 1;
+                        *img[y][x].data |= px << (3-j);
+                    }
+                }
+            }
+
+            // We will treat this image as a CI4 image, and we will use 4 special palettes
+            // to isolate each of the 4 layers
+            img.palette.resize(16*4);
+            for (int i=0; i<4; i++) {
+                int mask = 1 << (3-i);
+                for (int j=0; j<16; j++)
+                    img.palette[i*16+j] = (j & mask) ? 0xFFFF : 0;
+            }
+
+            if (flag_verbose >= 2)
+                fprintf(stderr, "created CI4 atlas %d: %d x %d pixels\n", i/4, w, h);
+            atlases2.push_back(std::move(img));
+        }
+
+        // Replace the atlases with the new ones
+        atlases = std::move(atlases2);
+    }
+
+    // Add atlases to the font
+    for (int i=0; i<atlases.size(); i++)
+        add_atlas(atlases[i]);
+
+    // Clear the glyph array, as we have added these to the atlases already
     glyphs.clear();
 }
 
-static void png_write_func(void *context, void *data, int size)
-{
-    FILE *f = (FILE*)context;
-    fwrite(data, 1, size, f);
-}
-
-void Font::add_atlas(uint8_t *buf, int width, int height, int stride, int bytes_per_pixel)
+void Font::add_atlas(Image& img)
 {
     static char *mksprite = NULL;
     if (!mksprite) asprintf(&mksprite, "%s/bin/mksprite", n64_inst);
@@ -548,9 +706,15 @@ void Font::add_atlas(uint8_t *buf, int width, int height, int stride, int bytes_
     const char *cmd_addr[16] = {0}; int i = 0;
     cmd_addr[i++] = mksprite;
     cmd_addr[i++] = "--format";
-    cmd_addr[i++] = "I4";
+    switch (img.fmt) {
+        case FMT_I8: cmd_addr[i++] = "I4"; break;
+        case FMT_CI8: cmd_addr[i++] = "CI4"; break;
+        default: assert(!"unsupported format");
+    }
     cmd_addr[i++] = "--compress";  // don't compress the individual sprite (the font itself will be compressed)
     cmd_addr[i++] = "0";
+    if (flag_verbose >= 2)
+        cmd_addr[i++] = "--verbose";
     
     // Start mksprite
     if (subprocess_create(cmd_addr, subprocess_option_no_window|subprocess_option_inherit_environment, &subp) != 0) {
@@ -558,10 +722,49 @@ void Font::add_atlas(uint8_t *buf, int width, int height, int stride, int bytes_
         exit(1);
     }
 
+    // Create a PNG image from the atlas
+    LodePNGState state;
+    lodepng_state_init(&state);
+    state.encoder.auto_convert = false; // avoid automatic remapping of palette colors
+    LodePNGColorType ct;
+    switch (img.fmt) {
+        case FMT_I8: ct = LCT_GREY; break;
+        case FMT_CI8: ct = LCT_PALETTE; break;
+        case FMT_RGBA16: ct = LCT_RGBA; break;
+        case FMT_RGBA32: ct = LCT_RGBA; break;
+        default: assert(!"unsupported format");
+    }
+    state.info_raw = lodepng_color_mode_make(ct, 8);
+    state.info_png.color = lodepng_color_mode_make(ct, 8);
+    if (ct == LCT_PALETTE) {
+        for (int i=0; i<img.palette.size(); i++) {
+            int r = (img.palette[i] >> 11) & 0x1F;
+            int g = (img.palette[i] >> 6) & 0x1F;
+            int b = (img.palette[i] >> 1) & 0x1F;
+            int a = (img.palette[i] & 1) * 0xFF;
+            r = (r << 3) | (r >> 2);
+            g = (g << 3) | (g >> 2);
+            b = (b << 3) | (b >> 2);
+            lodepng_palette_add(&state.info_raw, r, g, b, a);
+            lodepng_palette_add(&state.info_png.color, r, g, b, a);
+        }
+    }
+
+    uint8_t *png = NULL; size_t png_size;
+    unsigned error = lodepng_encode(&png, &png_size, img.pixels.data(), img.w, img.h, &state);
+    if (error) {
+        fprintf(stderr, "ERROR: generating PNG file %s\n", lodepng_error_text(error));
+        exit(1);
+    }
+
     // Write PNG to standard input of mksprite
     FILE *mksprite_in = subprocess_stdin(&subp);
-    stbi_write_png_to_func(png_write_func, mksprite_in, width, height, bytes_per_pixel, buf, stride);
+    fwrite(png, 1, png_size, mksprite_in);
     fclose(mksprite_in); subp.stdin_file = SUBPROCESS_NULL;
+
+    // Deallocate lodepng state
+    lodepng_state_cleanup(&state);
+    if (png) lodepng_free(png);
 
     // Read sprite from stdout into memory
     FILE *mksprite_out = subprocess_stdout(&subp);
@@ -578,11 +781,23 @@ void Font::add_atlas(uint8_t *buf, int width, int height, int stride, int bytes_
 
     // Dump mksprite's stderr. Whatever is printed there (if anything) is useful to see
     FILE *mksprite_err = subprocess_stderr(&subp);
+    int buf_off = 0;
     while (1) {
         char buf[4096];
-        int n = fread(buf, 1, sizeof(buf), mksprite_err);
+        int n = fread(buf+buf_off, 1, sizeof(buf)-buf_off, mksprite_err);
         if (n == 0) break;
-        fwrite(buf, 1, n, stderr);
+        // Print whole lines to stderr, prefixed by "[mksprite]" and leave leftovers in the buffer
+        n += buf_off;
+        int x = 0;
+        for (i = 0; i < n; i++) {
+            if (buf[i] == '\n') {
+                fputs("[mksprite] ", stderr);
+                fwrite(buf+x, 1, i+1-x, stderr);
+                x = i+1;
+            }
+        }
+        if (i < n) memmove(buf, buf+i, n-i);
+        buf_off = n-i;
     }
 
     // mksprite should be finished. Extract the return code and abort if failed

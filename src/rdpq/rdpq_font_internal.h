@@ -33,7 +33,8 @@ typedef struct glyph_s {
     uint8_t s;                          ///< S texture coordinate of the glyph in the atlas
     uint8_t t;                          ///< T texture coordinate of the glyph in the atlas
     uint8_t natlas;                     ///< Index of atlas that contains this glyph
-    uint8_t __padding[3];               ///< Padding
+    uint8_t ntile;                      ///< Tile to use to draw the glyph (for multi-layer atlases)
+    uint8_t __padding[2];               ///< Padding
     uint16_t kerning_lo;                ///< Index of the first kerning pair for this glyph
     uint16_t kerning_hi;                ///< Index of the last kerning pair for this glyph
 } glyph_t;
