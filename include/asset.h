@@ -75,8 +75,10 @@
 extern "C" {
 #endif
 
-/// @private
+/// @cond
 extern void __asset_init_compression_lvl2(void);
+extern void __asset_init_compression_lvl3(void);
+/// @endcond
 
 /**
  * @brief Enable a non-default compression level
