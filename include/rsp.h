@@ -348,8 +348,8 @@ typedef struct {
     extern uint8_t ucode_name ## _data_end[0]; \
     rsp_ucode_t ucode_name = (rsp_ucode_t){ \
         .code = ucode_name ## _text_start, \
-        .data = ucode_name ## _data_start, \
         .code_end = ucode_name ## _text_end, \
+        .data = ucode_name ## _data_start, \
         .data_end = ucode_name ## _data_end, \
         .name = #ucode_name, .start_pc = 0, \
         .crash_handler = 0, .assert_handler = 0, \
