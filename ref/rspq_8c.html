@@ -826,7 +826,7 @@ Current write sentinel within the active buffer. </td></tr>
 <div class="line">   <span class="comment">// to call rspq_flush once to make sure the RSP runs them (in case</span></div>
 <div class="line">   <span class="comment">// it was idling).</span></div>
 <div class="line">   <a class="code hl_function" href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a>();</div>
-<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1016</div></div>
+<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1026</div></div>
 <div class="ttc" id="arspq_8h_html_aefec193be7de05f725738beeb3775634"><div class="ttname"><a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a></div><div class="ttdeci">#define rspq_write(ovl_id, cmd_id,...)</div><div class="ttdoc">Write a new command into the RSP queue.</div><div class="ttdef"><b>Definition:</b> rspq.h:397</div></div>
 </div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>This is an experimental API. In the future, it might become a no-op, and flushing could happen automatically at every <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>. We are keeping it separate from <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> while experimenting more with the RSPQ API.</dd>
 <dd>
@@ -1399,7 +1399,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 08:29:56 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

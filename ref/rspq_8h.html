@@ -89,7 +89,7 @@ Data Structures</h2></td></tr>
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:a5c35e691b9651ffc302d590a47d47418"><td class="memItemLeft" align="right" valign="top"><a id="a5c35e691b9651ffc302d590a47d47418" name="a5c35e691b9651ffc302d590a47d47418"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>RSPQ_MAX_COMMAND_SIZE</b>&#160;&#160;&#160;63</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>RSPQ_MAX_COMMAND_SIZE</b>&#160;&#160;&#160;62</td></tr>
 <tr class="memdesc:a5c35e691b9651ffc302d590a47d47418"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum size of a command (in 32-bit words). <br /></td></tr>
 <tr class="separator:a5c35e691b9651ffc302d590a47d47418"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad3e8eab2e022715528f41c540436c721"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8h.html#ad3e8eab2e022715528f41c540436c721">RSPQ_MAX_SHORT_COMMAND_SIZE</a>&#160;&#160;&#160;16</td></tr>
@@ -758,7 +758,7 @@ true if we are waiting for the first argument word </td></tr>
 <div class="line">   <span class="comment">// to call rspq_flush once to make sure the RSP runs them (in case</span></div>
 <div class="line">   <span class="comment">// it was idling).</span></div>
 <div class="line">   <a class="code hl_function" href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a>();</div>
-<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1016</div></div>
+<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1026</div></div>
 </div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>This is an experimental API. In the future, it might become a no-op, and flushing could happen automatically at every <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>. We are keeping it separate from <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> while experimenting more with the RSPQ API.</dd>
 <dd>
 This function is a no-op if it is called while a block is being recorded (see <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>). This means calling this function in a block recording context will not guarantee the execution of commands that were queued prior to starting the block. </dd></dl>
@@ -1175,7 +1175,7 @@ It is currently not possible to call a block from the high-priority queue. (FIXM
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 08:29:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
