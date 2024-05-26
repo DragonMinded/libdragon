@@ -14,6 +14,8 @@
 #define RSPQ_MAX_OVERLAY_COUNT         8
 #define RSPQ_OVERLAY_ID_COUNT          16
 #define RSPQ_MAX_OVERLAY_COMMAND_COUNT ((RSPQ_MAX_OVERLAY_COUNT - 1) * 16)
+#define RSPQ_DESCRIPTOR_SIZE_MASK      0xFC
+#define RSPQ_DESCRIPTOR_MAX_SIZE       RSPQ_DESCRIPTOR_SIZE_MASK
 
 /** Minimum / maximum size of a block's chunk (contiguous memory buffer) */
 #define RSPQ_BLOCK_MIN_SIZE            64
