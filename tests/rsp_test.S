@@ -1,4 +1,5 @@
 #include <rsp_queue.inc>
+#include "test_rspq_constants.h"
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in test_rspq.c
 #define ASSERT_TOO_MANY_NOPS         0xF002
@@ -17,7 +18,7 @@
         RSPQ_DefineCommand command_reset,     4      # 0x05
         RSPQ_DefineCommand command_test_high, 4      # 0x06
         RSPQ_DefineCommand command_reset_log, 4      # 0x07
-        RSPQ_DefineCommand command_big,       132    # 0x08
+        RSPQ_DefineCommand command_big,       TEST_RSPQ_BIG_COMMAND_SIZE*4    # 0x08
         RSPQ_DefineCommand command_big_out,   8      # 0x09
         RSPQ_DefineCommand command_send_rdp,  8      # 0x0A
         RSPQ_DefineCommand command_send_rdp_many,  4 # 0x0B
@@ -40,7 +41,7 @@ BIG_LOG_PTR: .long 0
 BIG_LOG:  .ds.b BIG_LOG_SIZE
 
     .align 2
-TEST_BIG: .ds.b 128
+TEST_BIG: .ds.b TEST_RSPQ_BIG_PAYLOAD_SIZE
 
     .text
 
@@ -141,7 +142,8 @@ command_send_rdp_many:
 
 
 command_big:
-    addi s1, rspq_dmem_buf_ptr, -128
+    emux_log_string "command_big\n"
+    addi s1, rspq_dmem_buf_ptr, -TEST_RSPQ_BIG_PAYLOAD_SIZE
     move s2, zero
 command_big_loop:
     lw t0, %lo(RSPQ_DMEM_BUFFER)(s1)
@@ -158,6 +160,6 @@ command_big_out:
     move s0, a1
     li s4, %lo(TEST_BIG)
     j DMAOut
-    li t0, DMA_SIZE(128, 1)
+    li t0, DMA_SIZE(TEST_RSPQ_BIG_PAYLOAD_SIZE, 1)
 
 #include <rsp_rdpq.inc>

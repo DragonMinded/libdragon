@@ -182,7 +182,7 @@ _RSPQ_SAVED_STATE_END:
 #   function: Address of the function that will be jumped to
 #             when this command is executed.
 #   size:     The size of the command in bytes. Must be a 
-#             multiple of 4 and in the range [0, 252].
+#             multiple of 4 and in the range [0, RSPQ_DESCRIPTOR_MAX_SIZE].
 ########################################################
 .macro RSPQ_DefineCommand function size
     .ifne ((\size) % 4)
@@ -191,18 +191,18 @@ _RSPQ_SAVED_STATE_END:
     .endif
 
     .iflt (\size)
-        .error "Invalid size - valid range: [0, 252]"
+        .error "Invalid size - valid range: [0, RSPQ_DESCRIPTOR_MAX_SIZE]"
         .exitm
     .endif
 
-    .ifgt ((\size) - 252)
-        .error "Invalid size - valid range: [0, 252]"
+    .ifgt ((\size) - RSPQ_DESCRIPTOR_MAX_SIZE)
+        .error "Invalid size - valid range: [0, RSPQ_DESCRIPTOR_MAX_SIZE]"
         .exitm
     .endif
 
     # Put the command size (as number of 4 byte words) into the high 6 bits,
     # and the jump address shifted right by 2 bits into the lower 10.
-    .short (\function - _start) >> 2 | ((\size) & 0xFC) << 8
+    .short (\function - _start) >> 2 | ((\size) & RSPQ_DESCRIPTOR_SIZE_MASK) << 8
 .endm
 
 ########################################################
@@ -547,7 +547,7 @@ rspq_execute_command:
 
     # Extract command size in bytes                             # Initialize vzero
     srl rspq_cmd_size, cmd_desc, 8;                             vxor vzero, vzero
-    andi rspq_cmd_size, 0xFC
+    andi rspq_cmd_size, RSPQ_DESCRIPTOR_SIZE_MASK
 
     # Check if the command is truncated because of buffer overflow (that is,
     # it finishes beyond the buffer end). If so, we must refetch the buffer
