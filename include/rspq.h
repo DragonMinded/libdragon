@@ -177,7 +177,7 @@ extern "C" {
 #endif
 
 /** @brief Maximum size of a command (in 32-bit words). */
-#define RSPQ_MAX_COMMAND_SIZE          63
+#define RSPQ_MAX_COMMAND_SIZE          62
 
 /** @brief Maximum size of a command that it is writable with #rspq_write
  *         (in 32-bit words).
@@ -475,6 +475,8 @@ typedef struct {
 inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size) {
     extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel;
     extern void rspq_next_buffer(void);
+
+    assertf(size <= RSPQ_MAX_COMMAND_SIZE, "The maximum command size is %d!", RSPQ_MAX_COMMAND_SIZE);
 
     if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - size, 0))
         rspq_next_buffer();
