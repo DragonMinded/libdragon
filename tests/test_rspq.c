@@ -5,6 +5,7 @@
 #include <rspq_constants.h>
 #include <rdp.h>
 #include <rdpq_constants.h>
+#include "test_rspq_constants.h"
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
 #define ASSERT_TOO_MANY_NOPS         0xF002
@@ -721,27 +722,27 @@ void test_rspq_big_command(TestContext *ctx)
     test_ovl_init();
     DEFER(test_ovl_close());
 
-    uint32_t values[32];
-    for (uint32_t i = 0; i < 32; i++)
+    uint32_t values[TEST_RSPQ_BIG_PAYLOAD_WORDS];
+    for (uint32_t i = 0; i < TEST_RSPQ_BIG_PAYLOAD_WORDS; i++)
     {
         values[i] = RANDN(0xFFFFFFFF);
     }
     
 
-    uint32_t output[32] __attribute__((aligned(16)));
-    data_cache_hit_writeback_invalidate(output, 128);
+    uint32_t output[TEST_RSPQ_BIG_PAYLOAD_WORDS] __attribute__((aligned(16)));
+    data_cache_hit_writeback_invalidate(output, TEST_RSPQ_BIG_PAYLOAD_SIZE);
 
-    rspq_write_t wptr = rspq_write_begin(test_ovl_id, 0x8, 33);
+    rspq_write_t wptr = rspq_write_begin(test_ovl_id, 0x8, TEST_RSPQ_BIG_COMMAND_SIZE);
     rspq_write_arg(&wptr, 0);
-    for (uint32_t i = 0; i < 32; i++)
+    for (uint32_t i = 0; i < TEST_RSPQ_BIG_PAYLOAD_WORDS; i++)
     {
         rspq_write_arg(&wptr, i | i << 8 | i << 16 | i << 24);
     }
     rspq_write_end(&wptr);
 
-    wptr = rspq_write_begin(test_ovl_id, 0x8, 33);
+    wptr = rspq_write_begin(test_ovl_id, 0x8, TEST_RSPQ_BIG_COMMAND_SIZE);
     rspq_write_arg(&wptr, 0);
-    for (uint32_t i = 0; i < 32; i++)
+    for (uint32_t i = 0; i < TEST_RSPQ_BIG_PAYLOAD_WORDS; i++)
     {
         rspq_write_arg(&wptr, values[i]);
     }
@@ -751,14 +752,14 @@ void test_rspq_big_command(TestContext *ctx)
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
-    uint32_t expected[32];
-    for (uint32_t i = 0; i < 32; i++)
+    uint32_t expected[TEST_RSPQ_BIG_PAYLOAD_WORDS];
+    for (uint32_t i = 0; i < TEST_RSPQ_BIG_PAYLOAD_WORDS; i++)
     {
         uint32_t x = i | i << 8 | i << 16 | i << 24;
         expected[i] = x ^ values[i];
     }
     
-    ASSERT_EQUAL_MEM((uint8_t*)output, (uint8_t*)expected, 128, "Output does not match!");
+    ASSERT_EQUAL_MEM((uint8_t*)output, (uint8_t*)expected, TEST_RSPQ_BIG_PAYLOAD_SIZE, "Output does not match!");
 }
 
 void test_rspq_rdp_dynamic(TestContext *ctx)

@@ -211,6 +211,16 @@
 // rsp_queue.S (see cmd_write_status there for an explanation).
 _Static_assert((RSPQ_CMD_WRITE_STATUS & 1) == 0);
 _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
+
+// Check that the DMEM buffer is sized at least for the largest command
+// that we can handle, plus some extra space that's required because
+// the RSP code won't run a command that ends exactly at the end of
+// the buffer (see rsp_queue.inc).
+_Static_assert(RSPQ_DMEM_BUFFER_SIZE >= (RSPQ_MAX_COMMAND_SIZE + 2) * 4);
+
+// Check that the maximum command size is actually supported by the 
+// internal command descriptor format.
+_Static_assert(RSPQ_MAX_COMMAND_SIZE * 4 <= RSPQ_DESCRIPTOR_MAX_SIZE);
 /// @endcond
 
 /** @brief Smaller version of rspq_write that writes to an arbitrary pointer */

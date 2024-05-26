@@ -15,6 +15,8 @@
 #define RSPQ_MAX_OVERLAYS              (1 << RSPQ_OVERLAY_ID_BITS)   ///< Maximum number of overlays that can be registered
 
 #define RSPQ_MAX_OVERLAY_COMMAND_COUNT ((1 << RSPQ_OVERLAY_CMD_BITS) * (RSPQ_MAX_OVERLAYS-1))
+#define RSPQ_DESCRIPTOR_SIZE_MASK      0xFC
+#define RSPQ_DESCRIPTOR_MAX_SIZE       RSPQ_DESCRIPTOR_SIZE_MASK
 
 #if RSPQ_PROFILE
 #define RSPQ_OVERLAY_HEADER_SIZE     18         ///< Internal overlay header size in bytes
