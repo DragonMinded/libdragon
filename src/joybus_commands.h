@@ -255,6 +255,84 @@ typedef struct __attribute__((packed)) joybus_cmd_identify_port_s
 typedef joybus_cmd_identify_port_t joybus_cmd_reset_port_t;
 
 /**
+ * @brief "EEPROM Read Block" Joybus command structure.
+ * 
+ * @see #JOYBUS_COMMAND_ID_EEPROM_READ_BLOCK
+ */
+typedef struct __attribute__((packed)) joybus_cmd_eeprom_read_block_s
+{
+    /** @brief "EEPROM Read Block" command send data */
+    struct __attribute__((packed))
+    {
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_EEPROM_READ_BLOCK) */
+        uint8_t command;
+        /** @brief EEPROM block to read */
+        uint8_t block;
+    } send;
+    /** @brief "EEPROM Read Block" command receive data */
+    struct __attribute__((packed))
+    {
+        union __attribute__((packed))
+        {
+            /** @brief 8-byte payload from the EEPROM block */
+            uint8_t data[8];
+            /** @brief 64-bit payload from the EEPROM block */
+            uint64_t dword;
+        };
+        /** @brief Status byte */
+        uint8_t status;
+    } recv;
+} joybus_cmd_eeprom_read_block_t;
+
+/**
+ * @brief "RTC Read Block" Joybus command structure.
+ * 
+ * Identical to the "EEPROM Read Block" command but with a different command ID.
+ * 
+ * @see #JOYBUS_COMMAND_ID_RTC_READ_BLOCK
+ */
+typedef joybus_cmd_eeprom_read_block_t joybus_cmd_rtc_read_block_t;
+
+/**
+ * @brief "EEPROM Write Block" Joybus command structure.
+ * 
+ * @see #JOYBUS_COMMAND_ID_EEPROM_WRITE_BLOCK
+ */
+typedef struct __attribute__((packed)) joybus_cmd_eeprom_write_block_s
+{
+    /** @brief "EEPROM Write Block" command send data */
+    struct __attribute__((packed))
+    {
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_EEPROM_WRITE_BLOCK) */
+        uint8_t command;
+        /** @brief EEPROM block to read */
+        uint8_t block;
+        union __attribute__((packed))
+        {
+            /** @brief 8-byte payload for the EEPROM block */
+            uint8_t data[8];
+            /** @brief 64-bit payload for the EEPROM block */
+            uint64_t dword;
+        };
+    } send;
+    /** @brief "EEPROM Write Block" command receive data */
+    struct __attribute__((packed))
+    {
+        /** @brief Status byte */
+        uint8_t status;
+    } recv;
+} joybus_cmd_eeprom_write_block_t;
+
+/**
+ * @brief "RTC Write Block" Joybus command structure.
+ * 
+ * Identical to the "EEPROM Write Block" command but with a different command ID.
+ * 
+ * @see #JOYBUS_COMMAND_ID_RTC_WRITE_BLOCK
+ */
+typedef joybus_cmd_eeprom_write_block_t joybus_cmd_rtc_write_block_t;
+
+/**
  * @brief "PixelFX N64 Game ID" Joybus command structure.
  * 
  * @see #JOYBUS_COMMAND_ID_PIXELFX_N64_GAME_ID
