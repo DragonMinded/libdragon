@@ -78,8 +78,9 @@ bool rtc_init( void )
     //     rtc_resync_time();
     // }
 
-    /* Enable newlib `gettimeofday` integration */
-    hook_time_call( &rtc_get_time );
+    /* Enable newlib time integration */
+    time_hooks_t hooks = { &rtc_get_time, &rtc_set_time };
+    hook_time_calls( &hooks );
     
     return rtc_source != RTC_SOURCE_NONE;
 }
@@ -89,8 +90,9 @@ void rtc_close( void )
     // Do nothing if there are still dangling references.
 	if (--rtc_init_refcount > 0) { return; }
 
-    /* Disable newlib `gettimeofday` integration */
-    unhook_time_call( &rtc_get_time );
+    /* Disable newlib time integration */
+    time_hooks_t hooks = { &rtc_get_time, &rtc_set_time };
+    unhook_time_calls( &hooks );
 
     // Decrement the timer subsystem refcount (possibly closing it)
     timer_close();

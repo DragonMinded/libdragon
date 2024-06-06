@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <dir.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 
 /**
@@ -222,14 +223,26 @@ typedef struct
     int (*stderr_write)( char *data, unsigned int len );
 } stdio_t;
 
+typedef struct
+{
+    time_t (*gettime)( void );
+    bool (*settime)( time_t );
+} time_hooks_t;
+
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem );
 int detach_filesystem( const char * const prefix );
 
 int hook_stdio_calls( stdio_t *stdio_calls );
 int unhook_stdio_calls( stdio_t *stdio_calls );
 
+__attribute__((deprecated("use hook_time_calls instead")))
 int hook_time_call( time_t (*time_fn)( void ) );
+
+__attribute__((deprecated("use unhook_time_calls instead")))
 int unhook_time_call( time_t (*time_fn)( void ) );
+
+int hook_time_calls( time_hooks_t *hooks );
+int unhook_time_calls( time_hooks_t *hooks );
 
 #ifdef __cplusplus
 }

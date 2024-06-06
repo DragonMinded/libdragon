@@ -1,6 +1,6 @@
 #include <stdio.h>
+#include <sys/time.h>
 #include <malloc.h>
-#include <string.h>
 #include <libdragon.h>
 
 #define BLACK 0x000000FF
@@ -75,7 +75,7 @@ static surface_t* disp = 0;
 static joypad_inputs_t pad_inputs = {0};
 static joypad_buttons_t pad_pressed = {0};
 static int8_t joystick_x_direction = 0;
-static struct tm rtc_time = {0};
+static struct tm rtc_tm = {0};
 static bool rtc_detected = false;
 static bool rtc_persistent = false;
 static uint16_t edit_mode = EDIT_NONE;
@@ -124,13 +124,13 @@ void adjust_rtc_time( struct tm * t, int incr )
 void draw_rtc_time( void )
 {
     /* Format RTC date/time as strings */
-    sprintf( year, "%04d", CLAMP(rtc_time.tm_year + 1900, 1996, 2038) );
-    sprintf( month, "%02d", CLAMP(rtc_time.tm_mon + 1, 1, 12) );
-    sprintf( day, "%02d", CLAMP(rtc_time.tm_mday, 1, 31) );
-    dow = DAYS_OF_WEEK[CLAMP(rtc_time.tm_wday, 0, 6)];
-    sprintf( hour, "%02d", CLAMP(rtc_time.tm_hour, 0, 23) );
-    sprintf( min, "%02d", CLAMP(rtc_time.tm_min, 0, 59) );
-    sprintf( sec, "%02d", CLAMP(rtc_time.tm_sec, 0, 59) );
+    sprintf( year, "%04d", CLAMP(rtc_tm.tm_year + 1900, 1996, 2038) );
+    sprintf( month, "%02d", CLAMP(rtc_tm.tm_mon + 1, 1, 12) );
+    sprintf( day, "%02d", CLAMP(rtc_tm.tm_mday, 1, 31) );
+    dow = DAYS_OF_WEEK[CLAMP(rtc_tm.tm_wday, 0, 6)];
+    sprintf( hour, "%02d", CLAMP(rtc_tm.tm_hour, 0, 23) );
+    sprintf( min, "%02d", CLAMP(rtc_tm.tm_min, 0, 59) );
+    sprintf( sec, "%02d", CLAMP(rtc_tm.tm_sec, 0, 59) );
 
     /* Line 2 */
     graphics_draw_text( disp, 0, LINE2, RTC_DATE_FORMAT );
@@ -253,8 +253,8 @@ int main(void)
     {
         if( !edit_mode )
         {
-            time_t now = rtc_get_time();
-            rtc_time = *gmtime( &now );
+            time_t now = time( NULL );
+            rtc_tm = *gmtime( &now );
         }
 
         disp = display_get();
@@ -301,7 +301,9 @@ int main(void)
             {
                 edit_mode = EDIT_NONE;
                 draw_writing_message();
-                rtc_set_time( mktime( &rtc_time ) );
+
+                struct timeval now = { .tv_sec = mktime( &rtc_tm ) };
+                settimeofday( &now, NULL );
             }
             else
             {
@@ -336,13 +338,13 @@ int main(void)
             /* Adjust date/time */
             if( pad_inputs.btn.d_up )
             {
-                adjust_rtc_time( &rtc_time, +1 );
+                adjust_rtc_time( &rtc_tm, +1 );
                 /* Add a delay so you can just hold the direction */
                 wait_ms( 100 );
             }
             else if( pad_inputs.btn.d_down )
             {
-                adjust_rtc_time( &rtc_time, -1 );
+                adjust_rtc_time( &rtc_tm, -1 );
                 /* Add a delay so you can just hold the direction */
                 wait_ms( 100 );
             }
