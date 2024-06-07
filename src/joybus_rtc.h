@@ -36,63 +36,6 @@ bool joybus_rtc_detect( void );
 bool joybus_rtc_is_stopped( void );
 
 /**
- * @brief Read a block of data from the Joybus real-time clock.
- *
- * This is a low-level utility function that is used by
- * #joybus_rtc_read_control and #rtc_get.
- *
- * @param[in]   block
- *              Which RTC block to read from (0-2)
- *
- * @param[out]  data
- *              Destination pointer for the RTC block data
- *
- * @return the status byte from the Joybus real-time clock
- */
-uint8_t joybus_rtc_read( uint8_t block, uint64_t * data );
-
-/**
- * @brief Write a block of data to the Joybus real-time clock.
- *
- * This is a low-level utility function that is used by
- * #joybus_rtc_write_control and #joybus_rtc_write_time.
- *
- * @param[in]   block
- *              Which RTC block to write to (0-2)
- *
- * @param[in]   data
- *              RTC block data to write
- *
- * @return the status byte from the Joybus real-time clock
- */
-uint8_t joybus_rtc_write( uint8_t block, const uint64_t * data );
-
-/**
- * @brief Read the control block from the Joybus real-time clock.
- *
- * The control registers should generally be one of the pre-defined modes:
- * #JOYBUS_RTC_CONTROL_MODE_SET when writing to the RTC.
- * #JOYBUS_RTC_CONTROL_MODE_RUN when not writing to the RTC.
- *
- * The calibration data is an opaque value that should be propagated when
- * calling #joybus_rtc_write_control. Emulators and flash carts may return
- * zeroes for this data, which is also fine. In the interest of compatibility
- * and accuracy, this data should be preserved, but its intended shape and
- * purpose is unknown.
- *
- * This is a low-level function that needs to be used in proper sequence.
- * For normal use, call the the high-level #rtc_init and #rtc_set functions
- * which handle the RTC control block writes, delays, and status checks.
- *
- * @param[out]  control
- *              Destination pointer for the RTC control register data.
- *
- * @param[out]  calibration
- *              Destination pointer for the RTC calibration data.
- */
-void joybus_rtc_read_control( uint16_t * control, uint32_t * calibration );
-
-/**
  * @brief Read the current date/time from the Joybus real-time clock.
  *
  * The result of calling this function when the Joybus RTC is not
@@ -103,41 +46,6 @@ void joybus_rtc_read_control( uint16_t * control, uint32_t * calibration );
  *              Destination pointer for the RTC time data structure
  */
 time_t joybus_rtc_read_time( void );
-
-/**
- * @brief Write the control block to the Joybus real-time clock.
- *
- * Typically this would be set to one of two "modes":
- * Use #JOYBUS_RTC_CONTROL_MODE_SET before writing to block 2 to stop the RTC.
- * Use #JOYBUS_RTC_CONTROL_MODE_RUN after writing to block 2 to resume the RTC.
- *
- * It may take some time after the SI command responds for the write operation
- * to actually complete. It is recommended to add a delay after this function
- * using #JOYBUS_RTC_WRITE_BLOCK_DELAY to ensure the control block data was fully
- * written. After the delay, check the RTC status byte to confirm that it is
- * in the expected state.
- *
- * It is strongly recommended to propagate the calibration data returned from
- * #joybus_rtc_read_control into the calibration parameter of this function.
- * If you have any reason to modify or omit the calibration data, please
- * update this documentation with an explanation of why and how you would
- * want to do this.
- *
- * Generally, you should not need to call this function directly. Prefer
- * calling the high-level #rtc_init and #rtc_set functions which handle
- * the necessary delays, status checks, and calibration propagation.
- *
- * This is a low-level function that needs to be used in proper sequence.
- * For normal use, call the the high-level #rtc_init and #rtc_set functions
- * which handle the RTC control block writes, delays, and status checks.
- *
- * @param[in]  control
- *             The control register data
- *
- * @param[in]  calibration
- *             The opaque calibration data from #joybus_rtc_read_control
- */
-void joybus_rtc_write_control( uint16_t control, uint32_t calibration );
 
 /**
  * @brief Write a new date/time to the Joybus real-time clock.
