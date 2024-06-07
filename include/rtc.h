@@ -91,14 +91,17 @@
 
 /** @brief RTC source values. */
 typedef enum {
+    /** @brief Software RTC source */
     RTC_SOURCE_NONE = 0,
+    /** @brief Joybus RTC source */
     RTC_SOURCE_JOYBUS = 1,
+    /** @brief 64DD RTC source (Not implemented yet) */
     RTC_SOURCE_DD = 2
 } rtc_source_t;
 
 /**
  * @brief Structure for storing RTC time data.
- * @deprecated Use the `time_t` APIs instead.
+ * @deprecated Use `struct tm` and `time_t` from <time.h> instead.
  */
 typedef struct rtc_time_t
 {
@@ -145,9 +148,6 @@ bool rtc_init( void );
 
 /**
  * @brief Close the RTC Subsystem, disabling system hooks.
- * 
- * Unhooks the RTC from the newlib gettimeofday function.
- * This will cause subsequent calls to gettimeofday to error with ENOSYS.
  */
 void rtc_close( void );
 
@@ -155,7 +155,8 @@ bool rtc_is_source_available( rtc_source_t source );
 
 bool rtc_get_source( void );
 
-/** @brief Switch the preferred source clock for the subsystem.
+/**
+ * @brief Switch the preferred source clock for the subsystem.
  * 
  * By default, the subsytem will use to the first available source,
  * but some games may wish to specify the preferred RTC source.
@@ -171,8 +172,29 @@ bool rtc_set_source( rtc_source_t source );
  */
 bool rtc_resync_time( void );
 
+/**
+ * @brief Read the current date/time from the real-time clock.
+ *
+ * @return the current RTC time as a UNIX timestamp
+ */
 time_t rtc_get_time( void );
 
+/** 
+ * @brief Set a new date/time for the real-time clock.
+ * 
+ * Internally, Joybus RTC cannot represent dates before 1990-01-01, although some
+ * RTC implementations (like UltraPIF) only support dates after 2000-01-01.
+ * 
+ * 64DD RTC only stores two digits for the year, so conventionally 96-99 are
+ * treated as 1996-1999 and 00-95 are treated as 2000-2095.
+ *
+ * For highest compatibility, it is not recommended to set the date past
+ * 2095-12-31 23:59:59 UTC.
+ * 
+ * @param new_time the new time to set the RTC to
+ * 
+ * @return whether the time was written to the RTC
+ */
 bool rtc_set_time( time_t new_time );
 
 /**
@@ -197,49 +219,9 @@ bool rtc_is_persistent( void );
 __attribute__((deprecated("use rtc_is_persistent instead")))
 bool rtc_is_writable( void );
 
-/**
- * @brief Read the current date/time from the real-time clock.
- *
- * If the RTC is not detected or supported, this function will
- * not modify the destination rtc_time parameter.
- *
- * Your code should call this once per frame to update the #rtc_time_t
- * data structure. The RTC Subsystem maintains a cache of the
- * most-recent RTC time that was read and will only perform an
- * actual RTC read command if the cache is invalidated. The
- * destination rtc_time parameter will be updated regardless of
- * the cache validity.
- *
- * Cache will invalidate every second.
- * Calling #rtc_set will also invalidate the cache.
- *
- * If an actual RTC read command is needed, this function can take
- * a few milliseconds to complete.
- *
- * @param[out]  rtc_time
- *              Destination pointer for the RTC time data structure
- *
- * @return whether the rtc_time destination pointer data was modified
- */
 __attribute__((deprecated("use rtc_get_time instead")))
 bool rtc_get( rtc_time_t * rtc_time );
 
-/**
- * @brief High-level convenience helper to set the RTC date/time.
- *
- * Prepares the RTC for writing, sets the new time, and resumes the clock.
- *
- * This function will take approximately 570 milliseconds to complete.
- *
- * Unfortunately, the best way to ensure that writes to the RTC have
- * actually finished is by waiting for a fixed duration. Emulators may not
- * accurately reflect this, but this delay is necessary on real hardware.
- *
- * @param[in]   write_time
- *              Source pointer for the RTC time data structure
- *
- * @return false if the RTC does not support being set
- */
 __attribute__((deprecated("use rtc_set_time instead")))
 bool rtc_set( rtc_time_t * rtc_time );
 

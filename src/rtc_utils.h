@@ -27,25 +27,22 @@ extern "C" {
  *
  * @return the decoded integer
  */
-uint8_t bcd_to_byte(uint8_t bcd);
+int bcd_decode( uint8_t bcd );
 
 /**
  * @brief Encode a packed binary-coded decimal number.
  *
- * @param[in]   byte
+ * @param[in]   value
  *              integer to encode
  *
  * @return the encoded packed binary-coded decimal number
  */
-uint8_t byte_to_bcd(uint8_t byte);
-
-
-int rtc_time_yday( const rtc_time_t * rtc_time );
-
-int rtc_time_wday( const rtc_time_t * rtc_time );
+uint8_t bcd_encode( int value );
 
 /**
  * @brief Convert rtc_time_t into struct tm.
+ * 
+ * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
  *
  * @param[in]   rtc_time
  *              rtc_time_t to convert
@@ -55,17 +52,9 @@ int rtc_time_wday( const rtc_time_t * rtc_time );
 struct tm rtc_time_to_tm( const rtc_time_t * rtc_time );
 
 /**
- * @brief Convert rtc_time_t into time_t.
- *
- * @param[in]   time
- *              rtc_time_t to convert
- *
- * @return the converted time_t
- */
-time_t rtc_time_to_time( const rtc_time_t * rtc_time );
-
-/**
  * @brief Convert a struct tm into rtc_time_t.
+ * 
+ * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
  *
  * @param[in]   time
  *              struct tm to convert
@@ -86,21 +75,13 @@ rtc_time_t rtc_time_from_tm( const struct tm * time );
  * input to ensure that the date being set always makes sense before they
  * actually confirm and commit the updated date/time. The rtctest example
  * demonstrates a user-interface for setting the time with live validation.
- *
- * Internally, RTC cannot represent dates before 1990-01-01, although some
- * RTC implementations (like UltraPIF) only support dates after 2000-01-01.
- *
- * For highest compatibility, it is not recommended to set the date past
- * 2038-01-19 03:14:07 UTC, which is the UNIX timestamp Epochalypse.
  * 
- * Special thanks to networkfusion for providing the algorithm to
- * calculate day-of-week from an arbitrary date.
+ * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
  *
  * @param[in,out] rtc_time
  *                Pointer to the RTC time data structure
  */
 void rtc_normalize_time( rtc_time_t * rtc_time );
-
 
 #ifdef __cplusplus
 }

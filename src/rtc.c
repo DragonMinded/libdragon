@@ -4,7 +4,6 @@
  * @ingroup rtc
  */
 
-#include "dd_rtc.h"
 #include "joybus_rtc.h"
 #include "n64sys.h"
 #include "rtc.h"
@@ -27,9 +26,6 @@ static rtc_source_t rtc_source = RTC_SOURCE_NONE;
 
 /** @brief Joybus RTC detection state */
 static bool rtc_detected_joybus = false;
-
-/** @brief 64DD RTC detection state */
-static bool rtc_detected_dd = false;
 
 /**
  * @brief Tick counter state when #rtc_get cache was last updated.
@@ -57,7 +53,6 @@ bool rtc_init( void )
     /* Reset subsystem state */
     rtc_source = RTC_SOURCE_NONE;
     rtc_detected_joybus = false;
-    rtc_detected_dd = false;
     rtc_cache_ticks = timer_ticks();
     rtc_cache_time = 0;
 
@@ -69,14 +64,6 @@ bool rtc_init( void )
         joybus_rtc_init();
         rtc_resync_time();
     }
-
-    // TODO 64DD RTC support
-    // if ( dd_rtc_detect() )
-    // {
-    //     rtc_detected_dd = true;
-    //     rtc_source = RTC_SOURCE_DD;
-    //     rtc_resync_time();
-    // }
 
     /* Enable newlib time integration */
     time_hooks_t hooks = { &rtc_get_time, &rtc_set_time };
@@ -98,7 +85,10 @@ void rtc_close( void )
     timer_close();
 }
 
-bool rtc_get_source( void ) { return rtc_source; }
+bool rtc_get_source( void )
+{ 
+    return rtc_source;
+}
 
 bool rtc_set_source( rtc_source_t source )
 {
@@ -113,7 +103,6 @@ bool rtc_set_source( rtc_source_t source )
 bool rtc_is_source_available( rtc_source_t source )
 {
     if( source == RTC_SOURCE_JOYBUS ) return rtc_detected_joybus;
-    // if( source == RTC_SOURCE_DD ) return rtc_detected_dd;
     return false;
 }
 
@@ -125,13 +114,6 @@ bool rtc_resync_time( void )
         rtc_cache_ticks = timer_ticks();
         return true;
     }
-    // TODO 64DD RTC support
-    // else if ( rtc_source == RTC_SOURCE_DD )
-    // {
-    //     rtc_cache_time = dd_rtc_get_time();
-    //     rtc_cache_ticks = timer_ticks();
-    //     return true;
-    // }
     return false;
 }
 
@@ -148,12 +130,6 @@ bool rtc_set_time( time_t new_time )
     {
         written = joybus_rtc_set_time( new_time );
     }
-    // TODO 64DD RTC support
-    // else if ( rtc_source == RTC_SOURCE_DD )
-    // {
-    //     dd_rtc_set_time( new_time );
-    //     written = true;
-    // }
     /* Update cache state */
     rtc_cache_time = new_time;
     rtc_cache_ticks = timer_ticks();
@@ -162,14 +138,21 @@ bool rtc_set_time( time_t new_time )
 
 bool rtc_is_persistent( void )
 {
-    time_t restore_time = rtc_get_time();
-    /* write_time could be any date/time except the present date/time */
+    time_t restore_time = rtc_cache_time;
+    /* write_time could be any time except the present time */
     time_t write_time = restore_time + 60;
-
+    
     bool written = rtc_set_time( write_time );
     if( !written ) return false;
 
-    time_t verify_time = rtc_get_time();
+    if( rtc_source == RTC_SOURCE_JOYBUS )
+    {
+        joybus_rtc_wait_for_write_finished();
+    }
+
+    if ( !rtc_resync_time() ) return false;
+    time_t verify_time = rtc_cache_time;
+
     if( write_time == verify_time || write_time + 1 == verify_time )
     {
         rtc_set_time( restore_time );
@@ -178,23 +161,22 @@ bool rtc_is_persistent( void )
     return false;
 }
 
-/** @deprecated Use #rtc_get_time instead. */
 bool rtc_get( rtc_time_t * rtc_time )
 {
-    time_t now = rtc_get_time();
-    struct tm * timeinfo = gmtime( &now );
+    time_t current_time = rtc_get_time();
+    struct tm * timeinfo = gmtime( &current_time );
     if( timeinfo == NULL ) return false;
     *rtc_time = rtc_time_from_tm( timeinfo );
     return true;
 }
 
-/** @deprecated Use #rtc_set_time instead. */
 bool rtc_set( rtc_time_t * write_time )
 {
-    return rtc_set_time( rtc_time_to_time( write_time ) );
+    struct tm timeinfo = rtc_time_to_tm( write_time );
+    time_t new_time = mktime( &timeinfo );
+    return rtc_set_time( new_time );
 }
 
-/** @deprecated Use #rtc_is_persistent instead. */
 bool rtc_is_writable( void ) 
 {
     return rtc_is_persistent(); 

@@ -75,12 +75,16 @@
 void joybus_rtc_init( void )
 {
     /* Read the calibration data from the control block */
+    uint16_t control;
     uint32_t calibration;
-    joybus_rtc_read_control( NULL, &calibration );
+    joybus_rtc_read_control( &control, &calibration );
 
-    /* Put the RTC into normal operating mode */
-    joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN, calibration );
-    wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
+    if ( control != JOYBUS_RTC_CONTROL_MODE_RUN )
+    {
+        /* Put the RTC into normal operating mode */
+        joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN, calibration );
+        wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
+    }
 }
 
 bool joybus_rtc_detect( void )
@@ -139,14 +143,13 @@ time_t joybus_rtc_read_time( void )
     uint8_t * bytes = (uint8_t *)&data;
 
     struct tm rtc_time = (struct tm){
-        .tm_sec   = bcd_to_byte(bytes[0]),
-        .tm_min   = bcd_to_byte(bytes[1]),
-        .tm_hour  = bcd_to_byte(bytes[2] - 0x80),
-        .tm_mday  = bcd_to_byte(bytes[3]),
-        .tm_wday  = bcd_to_byte(bytes[4]),
-        .tm_mon   = bcd_to_byte(bytes[5]) - 1,
-        .tm_year  = bcd_to_byte(bytes[6]) + ((uint16_t)bcd_to_byte(bytes[7]) * 100),
-        .tm_isdst = -1, /* Auto-detect Daylight Saving Time */
+        .tm_sec   = bcd_decode( bytes[0] ),
+        .tm_min   = bcd_decode( bytes[1] ),
+        .tm_hour  = bcd_decode( bytes[2] - 0x80 ),
+        .tm_mday  = bcd_decode( bytes[3] ),
+        .tm_wday  = bcd_decode( bytes[4] ),
+        .tm_mon   = bcd_decode( bytes[5] ) - 1,
+        .tm_year  = bcd_decode( bytes[6] ) + (bcd_decode( bytes[7] ) * 100),
     };
 
     return mktime( &rtc_time );
@@ -164,14 +167,14 @@ void joybus_rtc_write_time( time_t new_time )
     uint8_t * bytes = (uint8_t *)&data;
 
     struct tm * rtc_time = gmtime( &new_time );
-    bytes[0] = byte_to_bcd(rtc_time->tm_sec);
-    bytes[1] = byte_to_bcd(rtc_time->tm_min);
-    bytes[2] = byte_to_bcd(rtc_time->tm_hour) + 0x80;
-    bytes[3] = byte_to_bcd(rtc_time->tm_mday);
-    bytes[4] = byte_to_bcd(rtc_time->tm_wday);
-    bytes[5] = byte_to_bcd(rtc_time->tm_mon + 1);
-    bytes[6] = byte_to_bcd(rtc_time->tm_year);
-    bytes[7] = byte_to_bcd(rtc_time->tm_year / 100);
+    bytes[0] = bcd_encode( rtc_time->tm_sec );
+    bytes[1] = bcd_encode( rtc_time->tm_min );
+    bytes[2] = bcd_encode( rtc_time->tm_hour ) + 0x80;
+    bytes[3] = bcd_encode( rtc_time->tm_mday );
+    bytes[4] = bcd_encode( rtc_time->tm_wday );
+    bytes[5] = bcd_encode( rtc_time->tm_mon + 1 );
+    bytes[6] = bcd_encode( rtc_time->tm_year );
+    bytes[7] = bcd_encode( rtc_time->tm_year / 100 );
 
     joybus_rtc_write( 2, &data );
 }
@@ -191,11 +194,14 @@ bool joybus_rtc_set_time( time_t new_time )
   wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
   /* Put the RTC back into normal operating mode */
   joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN, calibration );
-  wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
-  /* Wait for the RTC to start running */
-  while( joybus_rtc_is_stopped() ) { /* Spinloop */ }
-  wait_ms( JOYBUS_RTC_WRITE_FINISHED_DELAY );
   return true;
+}
+
+void joybus_rtc_wait_for_write_finished( void )
+{
+    wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
+    while( joybus_rtc_is_stopped() ) { /* Spinloop */ }
+    wait_ms( JOYBUS_RTC_WRITE_FINISHED_DELAY );
 }
 
 /** @} */ /* rtc */

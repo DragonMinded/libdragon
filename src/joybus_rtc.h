@@ -8,7 +8,9 @@
 #ifndef __LIBDRAGON_JOYBUS_RTC_H
 #define __LIBDRAGON_JOYBUS_RTC_H
 
-#include "rtc.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <time.h>
 
 /**
  * @addtogroup rtc
@@ -169,7 +171,25 @@ void joybus_rtc_write_control( uint16_t control, uint32_t calibration );
  */
 void joybus_rtc_write_time( time_t new_time );
 
+/**
+ * @brief High-level convenience helper to set the Joybus RTC date/time.
+ *
+ * Prepares the RTC for writing, sets the new time, and resumes the clock.
+ *
+ * This function will take approximately 570 milliseconds to complete.
+ *
+ * Unfortunately, the best way to ensure that writes to the RTC have
+ * actually finished is by waiting for a fixed duration. Emulators may not
+ * accurately reflect this, but this delay is necessary on real hardware.
+ *
+ * @param[in]   new_time
+ *              Source pointer for the RTC time data structure
+ *
+ * @return false if the RTC does not support being set
+ */
 bool joybus_rtc_set_time( time_t new_time );
+
+void joybus_rtc_wait_for_write_finished( void );
 
 #ifdef __cplusplus
 }

@@ -39,6 +39,9 @@
 #define EDIT_SEC   0x0001
 #define EDIT_NONE  0x0000
 
+#define YEAR_MIN 1996
+#define YEAR_MAX 2095
+
 /* SCREEN_WIDTH_GUIDE:                "----------------------------------------" */
 static const char* MISSING_MESSAGE  = "     Real-time clock not detected.      ";
 static const char* HELP_1_MESSAGE   = "     Double-check the settings for      ";
@@ -98,7 +101,7 @@ void adjust_rtc_time( struct tm * t, int incr )
     switch( edit_mode )
     {
         case EDIT_YEAR:
-            t->tm_year = wrap( t->tm_year + incr, 1996 - 1900, 2037 - 1900 );
+            t->tm_year = wrap( t->tm_year + incr, YEAR_MIN - 1900, YEAR_MAX - 1900 );
             break;
         case EDIT_MONTH:
             t->tm_mon = wrap( t->tm_mon + incr, 0, 11 );
@@ -124,7 +127,7 @@ void adjust_rtc_time( struct tm * t, int incr )
 void draw_rtc_time( void )
 {
     /* Format RTC date/time as strings */
-    sprintf( year, "%04d", CLAMP(rtc_tm.tm_year + 1900, 1996, 2038) );
+    sprintf( year, "%04d", CLAMP(rtc_tm.tm_year + 1900, YEAR_MIN, YEAR_MAX) );
     sprintf( month, "%02d", CLAMP(rtc_tm.tm_mon + 1, 1, 12) );
     sprintf( day, "%02d", CLAMP(rtc_tm.tm_mday, 1, 31) );
     dow = DAYS_OF_WEEK[CLAMP(rtc_tm.tm_wday, 0, 6)];
