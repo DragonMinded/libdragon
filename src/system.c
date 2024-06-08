@@ -19,38 +19,6 @@
 #include "system.h"
 #include "n64sys.h"
 
-/** 
- * @defgroup system newlib Interface Hooks
- * @brief System hooks to provide low level threading and filesystem functionality to newlib.
- *
- * newlib provides all of the standard C libraries for homebrew development.
- * In addition to standard C libraries, newlib provides some additional bridging
- * functionality to allow POSIX function calls to be tied into libdragon.
- * Currently this is used only for filesystems.  The newlib interface hooks here
- * are mostly stubs that allow homebrew applications to compile.
- *
- * The sbrk function is responsible for allowing newlib to find the next chunk
- * of free space for use with malloc calls. The size of the available heap is
- * computed using the memory size computed by the boot code (IPL3), and available
- * via #get_memory_size(), which is normally either 4 MiB or 8 MiB if the expansion
- * pak is available.
- *
- * libdragon has defined a custom callback structure for filesystems to use.
- * Providing relevant hooks for calls that your filesystem supports and passing
- * the resulting structure to #attach_filesystem will hook your filesystem into
- * newlib.  Calls to POSIX file operations will be passed on to your filesystem
- * code if the file prefix matches, allowing code to make use of your filesystyem
- * without being rewritten.
- *
- * For example, your filesystem provides libdragon an interface to access a 
- * homebrew SD card interface.  You register a filesystem with "sd:/" as the prefix
- * and then attempt to open "sd://directory/file.txt".  The open callback for your
- * filesystem will be passed the file "/directory/file.txt".  The file handle returned
- * will be passed into all subsequent calls to your filesystem until the file is
- * closed.
- * @{
- */
-
 /**
  * @name STDIN/STDOUT/STDERR definitions from unistd.h
  *
@@ -101,8 +69,10 @@ char *__env[1] = { 0 };
 void (*__assert_func_ptr)(const char *file, int line, const char *func, const char *failedexpr) = 0;
 
 /* Externs from libdragon */
+/// @cond
 extern void enable_interrupts();
 extern void disable_interrupts();
+/// @endcond
 
 /**
  * @brief Filesystem mapping structure
@@ -332,30 +302,6 @@ static inline uint32_t __randn( uint32_t *state, int n )
     return ((uint64_t)__rand( state ) * n) >> 32;
 }
 
-/**
- * @brief Register a filesystem with newlib
- *
- * This function will take a prefix in the form of 'prefix:/' and a pointer
- * to a filesystem structure of relevant callbacks and register it with newlib.
- * Any standard open/fopen calls with the registered prefix will be passed
- * to this filesystem.  Userspace code does not need to know the underlying
- * filesystem, only the prefix that it has been registered under.
- *
- * The filesystem pointer passed in to this function should not go out of scope
- * for the lifetime of the filesystem.
- *
- * @param[in] prefix
- *            Prefix of the filesystem
- * @param[in] filesystem
- *            Structure of callbacks for various functions in the filesystem.
- *            If the registered filesystem doesn't support an operation, it
- *            should leave the callback null.
- * 
- * @retval -1 if the parameters are invalid
- * @retval -2 if the prefix is already in use
- * @retval -3 if there are no more slots for filesystems
- * @retval 0 if the filesystem was registered successfully
- */
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
 {
     /* Sanity checking */
@@ -417,19 +363,6 @@ int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
     return 0;
 }
 
-/**
- * @brief Unregister a filesystem from newlib
- *
- * @note This function will make sure all files are closed before unregistering
- *       the filesystem.
- *
- * @param[in] prefix
- *            The prefix that was used to register the filesystem
- *
- * @retval -1 if the parameters were invalid
- * @retval -2 if the filesystem couldn't be found
- * @retval 0 if the filesystem was successfully unregistered
- */
 int detach_filesystem( const char * const prefix )
 {
     /* Sanity checking */
@@ -1452,20 +1385,6 @@ int getentropy(uint8_t *buf, size_t buflen)
     return 0; 
 }
 
-/**
- * @brief Find the first file in a directory
- *
- * This function should be called to start enumerating a directory or whenever
- * a directory enumeration should be restarted.
- *
- * @param[in]  path
- *             Path to the directory structure
- * @param[out] dir
- *             Directory entry structure to populate with first entry
- *
- * @return 0 on successful lookup, -1 if the directory existed and is empty,
- *         or a different negative value on error (in which case, errno will be set).
- */
 int dir_findfirst( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
@@ -1492,21 +1411,6 @@ int dir_findfirst( const char * const path, dir_t *dir )
     return fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
 }
 
-/**
- * @brief Find the next file in a directory
- *
- * After finding the first file in a directory using #dir_findfirst, call this to retrieve
- * the rest of the directory entries.  Call this repeatedly until a negative error is returned
- * signifying that there are no more directory entries in the directory.
- *
- * @param[in]  path
- *             Path to the directory structure
- * @param[out] dir
- *             Directory entry structure to populate with next entry
- *
- * @return 0 on successful lookup, -1 if there are no more files in the directory,
- *         or a different negative value on error (in which case, errno will be set).
- */
 int dir_findnext( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
@@ -1557,14 +1461,6 @@ int mkdir( const char * path, mode_t mode )
     return fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
 }
 
-/**
- * @brief Hook into stdio for STDIN, STDOUT and STDERR callbacks
- *
- * @param[in] stdio_calls
- *            Pointer to structure containing callbacks for stdio functions
- *
- * @return 0 on successful hook or a negative value on failure.
- */
 int hook_stdio_calls( stdio_t *stdio_calls )
 {
     if( stdio_calls == NULL )
@@ -1585,14 +1481,6 @@ int hook_stdio_calls( stdio_t *stdio_calls )
     return 0;
 }
 
-/**
- * @brief Unhook from stdio
- *
- * @param[in] stdio_calls
- *            Pointer to structure containing callbacks for stdio functions
- *
- * @return 0 on successful hook or a negative value on failure.
- */
 int unhook_stdio_calls( stdio_t *stdio_calls )
 {
     /* Just wipe out internal variable */
@@ -1607,14 +1495,6 @@ int unhook_stdio_calls( stdio_t *stdio_calls )
     return 0;
 }
 
-/**
- * @brief Hook into gettimeofday with a current time callback.
- *
- * @param[in] time_fn
- *            Pointer to callback for the current time function
- *
- * @return 0 if successful or a negative value on failure.
- */
 int hook_time_call( time_t (*time_fn)( void ) )
 {
     if( time_fn == NULL )
@@ -1627,14 +1507,6 @@ int hook_time_call( time_t (*time_fn)( void ) )
     return 0;
 }
 
-/**
- * @brief Unhook from gettimeofday current time callback.
- *
- * @param[in] time_fn
- *            Pointer to callback for the current time function
- *
- * @return 0 if successful or a negative value on failure.
- */
 int unhook_time_call( time_t (*time_fn)( void ) )
 {
     if( time_hook == time_fn )
@@ -1672,5 +1544,3 @@ void __assert_func(const char *file, int line, const char *func, const char *fai
         __assert_func_ptr(file, line, func, failedexpr);
     abort();
 }
-
-/** @} */
