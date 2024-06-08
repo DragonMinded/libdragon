@@ -37,7 +37,7 @@ std::vector<int> flag_ranges;
 const char *n64_inst = NULL;
 int flag_ellipsis_cp = 0x002E;
 int flag_ellipsis_repeats = 3;
-bool flag_ttf_outline = false;
+float flag_ttf_outline = 0;
 bool flag_ttf_monochrome = false;
 
 void print_args( char * name )
@@ -56,6 +56,9 @@ void print_args( char * name )
     fprintf(stderr, "TTF/OTF specific flags:\n");
     fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: whatever the font defaults to)\n");
     fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
+    fprintf(stderr, "                             (can be specified multiple times)\n");
+    fprintf(stderr, "   --monochrome              Force monochrome output, with no aliasing (default: off)\n");
+    fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "BMFont specific flags:\n");
     fprintf(stderr, "\n");
@@ -114,6 +117,18 @@ int main(int argc, char *argv[])
                 flag_ranges.push_back(r1);
             } else if (!strcmp(argv[i], "--monochrome")) {
                 flag_ttf_monochrome = true;
+            } else if (!strcmp(argv[i], "--outline")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                float outline;
+                char extra;
+                if (sscanf(argv[i], "%f%c", &outline, &extra) != 1) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                flag_ttf_outline = outline;
             } else if (!strcmp(argv[i], "--ellipsis")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
