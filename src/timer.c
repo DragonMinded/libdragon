@@ -10,35 +10,6 @@
 #include "regsinternal.h"
 #include "utils.h"
 
-/**
- * @defgroup timer Timer Subsystem
- * @ingroup libdragon
- * @brief Interface to the timer module in the MIPS r4300 processor.
- *
- * The timer subsystem allows code to receive a callback after a specified
- * number of ticks or microseconds.  It interfaces with the MIPS
- * coprocessor 0 to handle the timer interrupt and provide useful timing
- * services.
- *
- * Before attempting to use the timer subsystem, code should call #timer_init.
- * After the timer subsystem has been initialized, a new one-shot or
- * continuous timer can be created with #new_timer.  To remove an expired
- * one-shot timer or a recurring timer, use #delete_timer.  To temporarily
- * stop a timer, use #stop_timer.  To restart a stopped timer or an expired
- * one-shot timer, use #start_timer.  Once code no longer needs the timer
- * subsystem, a call to #timer_close will free all continuous timers and shut
- * down the timer subsystem.  Note that timers removed with #stop_timer or
- * expired one-short timers will not be removed automatically and are the
- * responsibility of the calling code to be freed, regardless of a call to
- * #timer_close.
- *
- * Because the MIPS internal counter wraps around after ~90 seconds (see
- * TICKS_READ), it's not possible to schedule a timer more than 90 seconds
- * in the future.
- *
- * @{
- */
-
 /** @brief Refcount of #timer_init vs #timer_close calls. */
 static int timer_init_refcount = 0;
 
@@ -198,21 +169,6 @@ static void timer_poll(void)
 	timer_update_compare(TI_timers, TICKS_READ());
 }
 
-/**
- * @brief Initialize the timer subsystem
- *
- * This function will reset the COP0 ticks counter to 0. Even if you
- * later access the hardware counter directly (via TICKS_READ()), it should not
- * be a problem if you call timer_init() early in the application main.
- *
- * Do not modify the COP0 ticks counter after calling this function. Doing so
- * will impede functionality of the timer module.
- * 
- * The timer subsystem tracks the number of times #timer_init is called
- * and will only initialize the subsystem on the first call. This reference
- * count also applies to #timer_close, which will only close the subsystem
- * if it is called the same number of times as #timer_init.
- */
 void timer_init(void)
 {
 	// Just increment the refcount if already initialized.
@@ -227,21 +183,6 @@ void timer_init(void)
 	enable_interrupts();
 }
 
-/**
- * @brief Create a new timer and add to list
- * 
- * If you need to associate some data with the timer, consider using
- * #new_timer_context to include a pointer in the callback.
- *
- * @param[in] ticks
- *            Number of ticks before the timer should fire
- * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS and #TF_DISABLED
- * @param[in] callback
- *            Callback function to call when the timer expires
- *
- * @return A pointer to the timer structure created
- */
 timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
@@ -270,22 +211,6 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 	return timer;
 }
 
-/**
- * @brief Create a new timer with context and add to list
- * 
- * If you don't need the context, consider using #new_timer instead.
- *
- * @param[in] ticks
- *            Number of ticks before the timer should fire
- * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS and #TF_DISABLED
- * @param[in] callback
- *            Callback function to call when the timer expires
- * @param[in] ctx
- * 			  Opaque pointer to pass as an argument to callback
- *
- * @return A pointer to the timer structure created
- */
 timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
@@ -314,21 +239,6 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
 	return timer;
 }
 
-/**
- * @brief Start a timer (not currently in the list)
- * 
- * If you need to associate some data with the timer, consider using
- * #start_timer_context to include a pointer in the callback.
- *
- * @param[in] timer
- *            Pointer to timer structure to reinsert and start
- * @param[in] ticks
- *            Number of ticks before the timer should fire
- * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED
- * @param[in] callback
- *            Callback function to call when the timer expires
- */
 void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t callback)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
@@ -355,22 +265,6 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
 	}
 }
 
-/**
- * @brief Start a timer (not currently in the list) with context
- * 
- * If you don't need the context, consider using #start_timer instead.
- *
- * @param[in] timer
- *            Pointer to timer structure to reinsert and start
- * @param[in] ticks
- *            Number of ticks before the timer should fire
- * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED
- * @param[in] callback
- *            Callback function to call when the timer expires
- * @param[in] ctx
- *            Opaque pointer to pass as an argument to callback
- */
 void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
@@ -397,12 +291,6 @@ void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callba
 	}
 }
 
-/**
- * @brief Reset a timer and add to list
- *
- * @param[in] timer
- *            Pointer to timer structure to reinsert and start
- */
 void restart_timer(timer_link_t *timer)
 {
 	if (timer)
@@ -422,18 +310,6 @@ void restart_timer(timer_link_t *timer)
 	}
 }
 
-/**
- * @brief Stop a timer and remove it from the list
- *
- * @note This function does not free a timer structure, use #delete_timer
- *       to do this.
- * 
- * @note It is safe to call this function from a timer callback, including
- *       to stop a timer from its own callback.
- *
- * @param[in] timer
- *            Timer structure to stop and remove
- */
 void stop_timer(timer_link_t *timer)
 {
 	timer_link_t *head;
@@ -466,14 +342,6 @@ void stop_timer(timer_link_t *timer)
 	}
 }
 
-/**
- * @brief Remove a timer from the list and delete it
- *
- * @note It is not safe to call this function from a timer callback.
-
- * @param[in] timer
- *            Timer structure to stop, remove and free
- */
 void delete_timer(timer_link_t *timer)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
@@ -484,17 +352,6 @@ void delete_timer(timer_link_t *timer)
 	}
 }
 
-/**
- * @brief Free and close the timer subsystem
- *
- * This function will ensure all recurring timers are deleted from the list 
- * before closing.  One-shot timers that have expired will need to be
- * manually deleted with #delete_timer.
- * 
- * The timer subsystem tracks the number of times #timer_init is called
- * and will only close the subsystem if #timer_close is called the same
- * number of times.
- */
 void timer_close(void)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
@@ -530,16 +387,8 @@ void timer_close(void)
 	enable_interrupts();
 }
 
-/**
- * @brief Return total ticks since timer was initialized, as a 64-bit counter.
- *
- * @return Then number of ticks since the timer was initialized
- *
- */
 long long timer_ticks(void)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
 	return get_ticks();
 }
-
-/** @} */
