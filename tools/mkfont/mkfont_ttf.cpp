@@ -1,6 +1,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <array>
+#include <map>
 
 // Freetype
 #include "freetype/FreeTypeAmalgam.h"
@@ -56,6 +57,29 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
     FT_Stroker stroker;
     FT_Stroker_New(ftlib, &stroker);
     FT_Stroker_Set(stroker, flag_ttf_outline * 64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+
+    if (ranges.empty()) {
+        unsigned idx;
+        std::map<int, std::pair<int, int>> range_map;
+        uint32_t cp = FT_Get_First_Char(face, &idx);
+        while (idx) {
+            int range = *(std::upper_bound(unicode_ranges.begin(), unicode_ranges.end(), cp)-1);
+
+            auto r = range_map.find(range);
+            if (r != range_map.end()) {
+                r->second.first = MIN(r->second.first, cp);
+                r->second.second = MAX(r->second.second, cp);
+            } else {
+                range_map.insert({range, {cp, cp}});
+            }
+
+            cp = FT_Get_Next_Char(face, cp, &idx);
+        }
+        for (auto r : range_map) {
+            ranges.push_back(r.second.first);
+            ranges.push_back(r.second.second);
+        }
+    }
 
     // Go through all the ranges
     for (int r=0; r<ranges.size(); r+=2) {

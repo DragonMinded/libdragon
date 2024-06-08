@@ -40,9 +40,26 @@ int flag_ellipsis_repeats = 3;
 float flag_ttf_outline = 0;
 bool flag_ttf_monochrome = false;
 
+std::vector<uint32_t> unicode_ranges{
+    0x0000, 0x0020, 0x0080, 0x0100, 0x180, 0x250, 0x2b0, 0x300, 0x370, 0x400,
+    0x500, 0x530, 0x590, 0x600, 0x700, 0x780, 0x900, 0x980, 0xa00, 0xa80,
+    0xa00, 0xa80, 0xb00, 0xb80, 0xc00, 0xc80, 0xd00, 0xd80, 0xe00, 0xe80,
+    0xf00, 0x1000, 0x10A0, 0x1100, 0x1200, 0x13A0, 0x1400, 0x1680, 0x16A0,
+    0x1700, 0x1720, 0x1740, 0x1760, 0x1780, 0x1800, 0x1900, 0x1950, 0x19E0,
+    0x1D00, 0x1E00, 0x1F00, 0x2000, 0x2070, 0x20A0, 0x20D0, 0x2100, 0x2150,
+    0x2190, 0x2200, 0x2300, 0x2400, 0x2440, 0x2460, 0x2500, 0x2580, 0x25A0,
+    0x2600, 0x2700, 0x27C0, 0x27F0, 0x2800, 0x2900, 0x2980, 0x2A00, 0x2B00,
+    0x2E80, 0x2F00, 0x2FF0, 0x3000, 0x3040, 0x30A0, 0x3100, 0x3130, 0x3190,
+    0x31A0, 0x31F0, 0x3200, 0x3300, 0x3400, 0x4DC0, 0x4E00, 0xA000, 0xA490,
+    0xAC00, 0xD800, 0xDB80, 0xDC00, 0xE000, 0xF900, 0xFB00, 0xFB50, 0xFE00,
+    0xFE20, 0xFE30, 0xFE50, 0xFE70, 0xFF00, 0xFFF0, 0x10000, 0x10080, 0x10100,
+    0x10300, 0x10330, 0x10380, 0x10400, 0x10450, 0x10480, 0x10800, 0x1D000, 0x1D100,
+    0x1D300, 0x1D400, 0x20000, 0x2F800, 0x2FA20
+};
+
 void print_args( char * name )
 {
-    fprintf(stderr, "mkfont -- Convert TTF/OTF/BMFont fonts into the font64 format for libdragon\n\n");
+    fprintf(stderr, "mkfont -- Convert TTF/OTF fonts into the font64 format for libdragon\n\n");
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
@@ -56,11 +73,10 @@ void print_args( char * name )
     fprintf(stderr, "TTF/OTF specific flags:\n");
     fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: whatever the font defaults to)\n");
     fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
-    fprintf(stderr, "                             (can be specified multiple times)\n");
+    fprintf(stderr, "                             Can be specified multiple times. Use \"--range all\" to extract all\n");
+    fprintf(stderr, "                             glyphs in the font.\n");
     fprintf(stderr, "   --monochrome              Force monochrome output, with no aliasing (default: off)\n");
     fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "BMFont specific flags:\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
     fprintf(stderr, "--range more than one time.\n");
@@ -75,6 +91,7 @@ int main(int argc, char *argv[])
     char *infn = NULL, *outfn = NULL; const char *outdir = ".";
     bool error = false;
     int compression = DEFAULT_COMPRESSION;
+    bool range_all = false;
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -106,6 +123,10 @@ int main(int argc, char *argv[])
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
+                }
+                if (strcmp(argv[i], "all") == 0) {
+                    range_all = true;
+                    continue;
                 }
                 int r0, r1;
                 char extra;
@@ -175,8 +196,9 @@ int main(int argc, char *argv[])
         char* ext = strrchr(basename_noext, '.');
         if (ext) *ext = '\0';
 
-        if (flag_ranges.empty()) {
-            // Default range (ASCII)
+        if (range_all) {
+            flag_ranges.clear();
+        } else if (flag_ranges.empty()) {
             flag_ranges.push_back(0x20);
             flag_ranges.push_back(0x7F);
         }
