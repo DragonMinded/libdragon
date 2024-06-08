@@ -44,14 +44,6 @@ static uint32_t eeprom_status( void )
     );
 }
 
-/**
- * @brief Probe the EEPROM interface on the cartridge.
- *
- * Inspect the identifier half-word of the EEPROM status response to
- * determine which EEPROM save type is available (if any).
- *
- * @return which EEPROM type was detected on the cartridge.
- */
 eeprom_type_t eeprom_present( void )
 {
     switch( eeprom_status() >> 8 )
@@ -62,12 +54,6 @@ eeprom_type_t eeprom_present( void )
     }
 }
 
-/**
- * @brief Determine how many blocks of EEPROM exist on the cartridge.
- *
- * @return 0 if EEPROM was not detected
- *         or the number of EEPROM 8-byte save blocks available.
- */
 size_t eeprom_total_blocks( void )
 {
     switch ( eeprom_present() )
@@ -78,15 +64,6 @@ size_t eeprom_total_blocks( void )
     }
 }
 
-/**
- * @brief Read a block from EEPROM.
- *
- * @param[in]  block
- *             Block to read data from. Joybus accesses EEPROM in 8-byte blocks.
- *
- * @param[out] dest
- *             Destination buffer for the eight bytes read from EEPROM.
- */
 void eeprom_read( uint8_t block, uint8_t * dest )
 {
     const uint64_t input[JOYBUS_BLOCK_DWORDS] =
@@ -107,17 +84,6 @@ void eeprom_read( uint8_t block, uint8_t * dest )
     memcpy( dest, &output[1], EEPROM_BLOCK_SIZE );
 }
 
-/**
- * @brief Write a block to EEPROM.
- *
- * @param[in] block
- *            Block to write data to. Joybus accesses EEPROM in 8-byte blocks.
- *
- * @param[in] src
- *            Source buffer for the eight bytes of data to write to EEPROM.
- *
- * @return the EEPROM status byte
- */
 uint8_t eeprom_write( uint8_t block, const uint8_t * src )
 {
     uint64_t input[JOYBUS_BLOCK_DWORDS] =
@@ -140,19 +106,6 @@ uint8_t eeprom_write( uint8_t block, const uint8_t * src )
     return output[2] >> 56;
 }
 
-/**
- * @brief Read a buffer of bytes from EEPROM.
- *
- * This is a high-level convenience helper that abstracts away the
- * one-at-a-time EEPROM block access pattern.
- *
- * @param[out] dest
- *             Destination buffer to read data into
- * @param[in]  start
- *             Byte offset in EEPROM to start reading data from
- * @param[in]  len
- *             Byte length of data to read into buffer
- */
 void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
 {
     size_t bytes_left = len;
@@ -184,29 +137,6 @@ void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
     }
 }
 
-/**
- * @brief Write a buffer of bytes to EEPROM.
- *
- * This is a high-level convenience helper that abstracts away the
- * one-at-a-time EEPROM block access pattern.
- *
- * Each EEPROM block write takes approximately 15 milliseconds;
- * this operation may block for a while with large buffer sizes:
- *
- * * 4k EEPROM: 64 blocks * 15ms = 960ms!
- * * 16k EEPROM: 256 blocks * 15ms = 3840ms!
- *
- * You may want to pause audio before calling this.
- *
- * @param[in] src
- *            Source buffer containing data to write
- *
- * @param[in] start
- *            Byte offset in EEPROM to start writing data to
- *
- * @param[in] len
- *            Byte length of the src buffer
- */
 void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len )
 {
     size_t bytes_left = len;

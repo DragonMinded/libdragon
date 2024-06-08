@@ -15,45 +15,6 @@
 #include "utils.h"
 
 /**
- * @defgroup dfs DragonFS
- * @ingroup asset
- * @brief DragonFS filesystem implementation and newlib hooks.
- *
- * DragonFS is a read only ROM filesystem for the N64.  It provides an interface
- * that homebrew developers can use to load resources from cartridge space that
- * were not available at compile time.  This can mean sprites or other game assets,
- * or the filesystem can be appended at a later time if the homebrew developer wishes
- * end users to be able to insert custom levels, music or other assets.  It is loosely
- * based off of FAT with consideration into application and limitations of the N64.
- *
- * The filesystem can be generated using 'mkdfs' which is included in the 'tools'
- * directory of libdragon.  Due to the read-only nature, DFS does not support empty
- * files or empty directories.  Attempting to create a filesystem with either of
- * these using 'mkdfs' will result in an error.  If a filesystem contains either empty
- * files or empty directories, the result of manipulating the filesystem is undefined.
- *
- * DragonFS does not support writing, renaming or symlinking of files.  It supports only
- * file and directory types.
- *
- * DFS files have a maximum size of 256 MiB.  Directories can have an unlimited
- * number of files in them.  Each token (separated by a / in the path) can be 243 characters
- * maximum.  Directories can be 100 levels deep at maximum.  There can be 4 files open
- * simultaneously.
- *
- * When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix.
- * Files can be accessed either with standard POSIX functions (open, fopen) using the 'rom:/'
- * prefix or the lower-level DFS API calls without prefix. In most cases, it is not necessary
- * to use the DFS API directly, given that the standard C functions are more comprehensive.
- * Files can be opened using both sets of API calls simultaneously as long as no more than
- * four files are open at any one time.
- * 
- * DragonFS does not support file compression; if you want to compress your assets,
- * use the asset API (#asset_load / #asset_fopen).
- * 
- * @{
- */
-
-/**
  * @brief Directory walking flags 
  */
 enum
@@ -609,16 +570,6 @@ static int __dfs_init(uint32_t base_fs_loc)
     return DFS_EBADFS;
 }
 
-/**
- * @brief Change directories to the specified path.  
- *
- * Supports absolute and relative 
- *
- * @param[in] path
- *            Relative or absolute path to change directories to
- * 
- * @return DFS_ESUCCESS on success or a negative value on error.
- */
 int dfs_chdir(const char * const path)
 {
     /* Reset directory listing */
@@ -633,19 +584,6 @@ int dfs_chdir(const char * const path)
     return recurse_path(path, WALK_CHDIR, 0, TYPE_ANY);
 }
 
-/**
- * @brief Find the first file or directory in a directory listing.
- *
- * Supports absolute and relative.  If the path is invalid, returns a negative DFS_errno.  If
- * a file or directory is found, returns the flags of the entry and copies the name into buf.
- *
- * @param[in]  path
- *             The path to look for files in
- * @param[out] buf
- *             Buffer to place the name of the file or directory found
- *
- * @return The flags (#FLAGS_FILE, #FLAGS_DIR, #FLAGS_EOF) or a negative value on error.
- */
 int dfs_dir_findfirst(const char * const path, char *buf)
 {
     directory_entry_t *dirent;
@@ -675,16 +613,6 @@ int dfs_dir_findfirst(const char * const path, char *buf)
     return get_flags(&t_node);
 }
 
-/**
- * @brief Find the next file or directory in a directory listing. 
- *
- * @note Should be called after doing a #dfs_dir_findfirst.
- *
- * @param[out] buf
- *             Buffer to place the name of the next file or directory found
- *
- * @return The flags (#FLAGS_FILE, #FLAGS_DIR, #FLAGS_EOF) or a negative value on error.
- */
 int dfs_dir_findnext(char *buf)
 {
     if(!next_entry)
@@ -1277,30 +1205,6 @@ static void __dfs_check_emulation(void)
     assertf(0, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support accurate PI DMA");
 }
 
-/**
- * @brief Initialize the filesystem.
- *
- * Given a base offset where the filesystem should be found, this function will
- * initialize the filesystem to read from cartridge space.  This function will
- * also register DragonFS with newlib so that standard POSIX/C file operations
- * work with DragonFS, using the "rom:/" prefix".
- * 
- * The function needs to know where the DFS image is located within the cartridge
- * space. To simplify this, you can pass #DFS_DEFAULT_LOCATION which tells
- * #dfs_init to search for the DFS image by itself, using the rompak TOC (see
- * rompak_internal.h). Most users should use this option.
- * 
- * Otherwise, if the ROM cannot be built with a rompak TOC for some reason,
- * a virtual address should be passed. This is normally 0xB0000000 + the offset
- * used when building your ROM + the size of the header file used (typically 0x1000). 
- *
- * @param[in] base_fs_loc
- *            Virtual address in cartridge space at which to find the filesystem, or
- *            DFS_DEFAULT_LOCATION to automatically search for the filesystem in the
- *            cartridge (using the rompak).
- *
- * @return DFS_ESUCCESS on success or a negative error otherwise.
- */
 int dfs_init(uint32_t base_fs_loc)
 {
     /* Detect if we are running on emulator accurate enough to emulate DragonFS. */
@@ -1351,5 +1255,3 @@ const char *dfs_strerror(int error)
     default:             return "Unknown error";
     }
 }
-
-/** @} */
