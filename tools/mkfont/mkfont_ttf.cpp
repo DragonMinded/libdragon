@@ -157,7 +157,11 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 // Copy the outline bitmap to the image
                 for (int y = 0; y < bitmapGlyph2->bitmap.rows; y++) {
                     for (int x = 0; x < bitmapGlyph2->bitmap.width; x++) {
-                        uint8_t v = bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.width + x];
+                        uint8_t v;
+                        if (flag_ttf_monochrome)
+                            v = (bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.pitch + x / 8] & (1 << (7 - x % 8))) ? 1 : 0;
+                        else
+                            v = bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.pitch + x];
                         if (v != 0)
                             img[y + img_top - bitmapGlyph2->top][x - img_left + bitmapGlyph2->left] = 2;
                     }
@@ -166,7 +170,11 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 // Copy the first bitmap to the image
                 for (int y = 0; y < bitmapGlyph1->bitmap.rows; y++) {
                     for (int x = 0; x < bitmapGlyph1->bitmap.width; x++) {
-                        uint8_t v = bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.width + x];
+                        uint8_t v;
+                        if (flag_ttf_monochrome)
+                            v = (bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.pitch + x / 8] & (1 << (7 - x % 8))) ? 1 : 0;
+                        else
+                            v = bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.pitch + x];
                         if (v != 0)
                             img[y + img_top - bitmapGlyph1->top][x - img_left + bitmapGlyph1->left] = 1;
                     }
