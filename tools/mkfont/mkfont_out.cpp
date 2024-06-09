@@ -705,7 +705,7 @@ void Font::make_atlases(void)
     if (is_mono) {
         assert(merge_layers == 2 || merge_layers == 4);
         std::vector<Image> atlases2;
-        for (int i=0; i<atlases.size(); i+=4) {
+        for (int i=0; i<atlases.size(); i+=merge_layers) {
             // Merge (up to) 4 images into a single atlas. Calculate the
             // size of this group.
             int w = 0, h = 0;
