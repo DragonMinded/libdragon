@@ -227,6 +227,7 @@ void rdpq_font_style(rdpq_font_t *fnt, uint8_t style_id, const rdpq_fontstyle_t 
     // mkfont time. The font always contain room for 256 styles (all zeroed).
     style_t *s = &fnt->styles[style_id];
     s->color = style->color;
+    s->outline_color = style->outline_color;
     recalc_style(fnt->flags & FONT_FLAG_TYPE_MASK, s);
 }
 

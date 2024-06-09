@@ -64,6 +64,7 @@ void rdpq_font_free(rdpq_font_t *fnt);
  */
 typedef struct rdpq_fontstyle_s {
     color_t color;                  ///< Color of the text
+    color_t outline_color;          ///< Color of the outline (if any)
 } rdpq_fontstyle_t;
 
 /**
