@@ -216,6 +216,7 @@ typedef enum {
 
 /** @brief Print formatting parameters */
 typedef struct rdpq_textparms_s {
+    int16_t style_id;        ///< Initial style ID for the text
     int16_t width;           ///< Maximum horizontal width of the paragraph, in pixels (0 if unbounded)
     int16_t height;          ///< Maximum vertical height of the paragraph, in pixels (0 if unbounded)
     rdpq_align_t align;      ///< Horizontal alignment (0=left, 1=center, 2=right)
