@@ -331,7 +331,7 @@ struct Font {
     void write(FILE *out);
 
     void add_range(int first, int last);
-    int add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv);
+    int add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv);
     void add_atlas(Image& img);
     void add_kerning(int glyph1, int glyph2, int kerning);
     void add_ellipsis(int ellipsis_cp, int ellipsis_repeats);
@@ -498,7 +498,7 @@ int Font::get_glyph_index(uint32_t cp)
     return -1;
 }
 
-int Font::add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv)
+int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
 {
     int gidx = get_glyph_index(cp);
     if (gidx < 0) {
