@@ -171,6 +171,7 @@
 #define LIBDRAGON_RDPQ_TEXT_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 
 #ifdef __cplusplus
@@ -226,6 +227,7 @@ typedef struct rdpq_textparms_s {
     int16_t line_spacing;    ///< Extra spacing between lines (in addition to font height)
     rdpq_textwrap_t wrap;    ///< Wrap mode
     int16_t *tabstops;       ///< Array of tab stops, in pixels (0-terminated)
+    bool disable_aa_fix;     ///< Obtain a small rendering speedup by disabling the anti-aliasing fix. Can be enabled when anti-alias is disabled in #display_init. (see #RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX for more details).
 } rdpq_textparms_t;
 
 

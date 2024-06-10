@@ -38,6 +38,20 @@ typedef struct __attribute__((packed)) rdpq_paragraph_char_s {
 
 _Static_assert(sizeof(rdpq_paragraph_char_t) == 8, "rdpq_paragraph_char_t is not packed");
 
+/** @brief Bitmask flags for #rdpq_paragraph_t */
+enum rdpq_paragraph_flag_e {
+    /// @brief Draw a transparent background rectangle to avoid AA artifacts
+    /// When drawing text on a 3D background using anti-aliasing (also enabled
+    /// in #display_init), the text might interact with the AA filter performed
+    /// by the VI and causes artifacts such as smearing. To avoid this, this flag
+    /// tells #rdpq_paragraph_render to draw a transparent rectangle behind the
+    /// text.
+    /// This flag is set by default when using #rdpq_text_printn, #rdpq_text_printf,
+    /// and #rdpq_text_print. It can be disabled by setting #rdpq_textparms_t::disable_aa_fix
+    /// while rendering.
+    RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX = (1 << 0),
+};
+
 /**
  * @brief A paragraph of text, fully laid out
  * 
@@ -61,6 +75,7 @@ typedef struct {
     int nchars;                      ///< Total number of chars in this layout
     int capacity;                    ///< Capacity of the chars array
     float x0, y0;                    ///< Alignment offset of the text
+    int flags;                       ///< Flags (see #rdpq_paragraph_flag_e)
     rdpq_paragraph_char_t chars[];   ///< Array of chars
 } rdpq_paragraph_t;
 
