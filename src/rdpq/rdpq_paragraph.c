@@ -203,16 +203,21 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
 
         float last_pixel = xcur + xoff2 * builder.xscale;
 
-        if (UNLIKELY(is_tab) && parms->tabstops) {
-            // Go to next tabstop
-            for (int t=0; parms->tabstops[t] != 0; t++) {
-                if (last_pixel < parms->tabstops[t] * builder.xscale) {
-                    xcur = parms->tabstops[t] * builder.xscale;
-                    break;
+        if (UNLIKELY(is_tab)) {
+            if (parms->tabstops) {
+                // Go to next tabstop
+                for (int t=0; parms->tabstops[t] != 0; t++) {
+                    if (last_pixel < parms->tabstops[t] * builder.xscale) {
+                        xcur = parms->tabstops[t] * builder.xscale;
+                        break;
+                    }
                 }
+            } else {
+                // Arbitrarly put tabstops every 32 pixels
+                xcur += xadvance * builder.xscale;
+                xcur = fm_ceilf(xcur / 32.0f) * 32.0f;
             }
         } else {
-            // Advance the cursor (rounding to nearest pixel
             xcur += xadvance * builder.xscale;
         }
 

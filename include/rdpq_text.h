@@ -226,7 +226,7 @@ typedef struct rdpq_textparms_s {
     int16_t char_spacing;    ///< Extra spacing between chars (in addition to glyph width and kerning)
     int16_t line_spacing;    ///< Extra spacing between lines (in addition to font height)
     rdpq_textwrap_t wrap;    ///< Wrap mode
-    int16_t *tabstops;       ///< Array of tab stops, in pixels (0-terminated)
+    int16_t *tabstops;       ///< Array of tab stops, in pixels (0-terminated). If NULL, tab stops are every 32 pixels
     bool disable_aa_fix;     ///< Obtain a small rendering speedup by disabling the anti-aliasing fix. Can be enabled when anti-alias is disabled in #display_init. (see #RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX for more details).
 } rdpq_textparms_t;
 
