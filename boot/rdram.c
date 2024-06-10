@@ -345,6 +345,9 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
     // Initialize RDRAM register access
     rdram_reg_init();
 
+    // First call to callback, now that RI is initialized
+    bank_found(-1, false);
+
     // Follow the init procedure specified in the datasheet.
     // First, put all of them to a fixed high ID (we use RDRAM_MAX_DEVICE_ID).
     enum { 

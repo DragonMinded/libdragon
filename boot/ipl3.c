@@ -168,27 +168,13 @@ typedef struct {
 
 _Static_assert(sizeof(bootinfo_t) == 16, "invalid sizeof(bootinfo_t)");
 
-void rsp_clear_mem(uint32_t mem, unsigned int size)
-{
-    while (*SP_DMA_BUSY) {}
-    uint32_t *ptr = (uint32_t*)mem;
-    uint32_t *ptr_end = (uint32_t*)(mem + size);
-    while (ptr < ptr_end)
-        *ptr++ = 0;
- 
-    // *SP_RSP_ADDR = 0x1000; // IMEM
-    // *SP_DRAM_ADDR = 8*1024*1024 + 0x2000; // Most RDRAM addresses >8 MiB always return 0
-    // *SP_RD_LEN = 4096-1;
-    // while (*SP_DMA_BUSY) {}
-}
-
 static void bzero8(void *mem)
 {
     asm ("sdl $0, 0(%0); sdr $0, 7(%0);" :: "r"(mem));
 }
 
 // Clear memory using RSP DMA. We use IMEM as source address, which
-// was cleared in rsp_clear_imem(). The size can be anything up to 1 MiB,
+// was cleared in mem_bank_init(). The size can be anything up to 1 MiB,
 // since the DMA would just wrap around in IMEM.
 void rsp_bzero_async(uint32_t rdram, int size)
 {
@@ -224,6 +210,17 @@ void rsp_bzero_async(uint32_t rdram, int size)
 // schedule two transfers for each bank.
 static void mem_bank_init(int chip_id, bool last)
 {
+    if (chip_id == -1) {
+        // First call, we clear SP_IMEM that will be used later.
+        // We run a DMA from RDRAM address > 8MiB where many areas return 0 on read.
+        // Notice that we can do this only after RI has been initialized.
+        while (*SP_DMA_BUSY) {} 
+        *SP_RSP_ADDR = 0x1000;
+        *SP_DRAM_ADDR = 8*1024*1024 + 0x2000;
+        *SP_RD_LEN = 4096-1;
+        return;
+    }
+ 
     uint32_t base = chip_id*1024*1024;
     int size = 2*1024*1024;
 
@@ -251,10 +248,6 @@ void stage1pre(void)
 __attribute__((noreturn, section(".stage1")))
 void stage1(void)
 {
-    // Clear IMEM (contains IPL2). We don't need it anymore, and we can
-    // instead use IMEM as a zero-buffer for RSP DMA.
-    rsp_clear_mem((uint32_t)SP_IMEM, 4096);
-
     entropy_init();
     usb_init();
     debugf("Libdragon IPL3");

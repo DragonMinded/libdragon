@@ -49,8 +49,6 @@
 
 // Stage 1 functions we want to reuse
 __attribute__((far))
-extern void rsp_clear_mem(uint32_t mem, int size);
-__attribute__((far))
 extern void rsp_bzero_async(uint32_t rdram, int size);
 __attribute__((far))
 extern void cop0_clear_cache(void);
