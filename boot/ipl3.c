@@ -325,6 +325,7 @@ void stage1(void)
     void *rdram_stage2 = LOADER_BASE(memsize, stage2_size);
     *PI_DRAM_ADDR = (uint32_t)rdram_stage2;
     *PI_CART_ADDR = (uint32_t)stage2_start - 0xA0000000;
+    while (*SP_DMA_BUSY) {}         // Make sure RDRAM clearing is finished before reading data
     *PI_WR_LEN = stage2_size-1;
 
     // Clear D/I-cache, useful after warm boot. Maybe not useful for cold
@@ -350,6 +351,7 @@ void stage1(void)
     data_cache_hit_writeback_invalidate((void*)0x80000300, 0x20);
 #endif
 
+    // Wait until stage 2 is fully loaded into RDRAM
     while (*PI_STATUS & 1) {}
 
     // Jump to stage 2 in RDRAM.
