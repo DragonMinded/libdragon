@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -158,7 +159,8 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         if (n > flag_max_sym_len) strcpy(&func[flag_max_sym_len-3], "...");
 
         // Second line is the file name and line number
-        getline(&line_buf, &line_buf_size, addr2line_r);
+        int ret = getline(&line_buf, &line_buf_size, addr2line_r);
+        assert(ret != -1);
         char *colon = strrchr(line_buf, ':');
         char *file = strndup(line_buf, colon - line_buf);
         int line = atoi(colon + 1);

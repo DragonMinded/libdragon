@@ -9,21 +9,14 @@ assets_png = $(wildcard assets/*.png)
 assets_conv = $(addprefix filesystem/,$(notdir $(assets_xm:%.xm=%.xm64))) \
               $(addprefix filesystem/,$(notdir $(assets_wav:%.wav=%.wav64))) \
               $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
+assets_png = $(wildcard assets/*.png)
+
+assets_conv = $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
 
 AUDIOCONV_FLAGS ?=
 MKSPRITE_FLAGS ?=
 
 all: rdpqdemo.z64
-
-filesystem/%.xm64: assets/%.xm
-	@mkdir -p $(dir $@)
-	@echo "    [AUDIO] $@"
-	@$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem $<
-
-filesystem/%.wav64: assets/%.wav
-	@mkdir -p $(dir $@)
-	@echo "    [AUDIO] $@"
-	@$(N64_AUDIOCONV) -o filesystem $<
 
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)

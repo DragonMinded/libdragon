@@ -692,7 +692,7 @@ inline void rdpq_mode_alphacompare(int threshold) {
         __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, 0);
     } else if (threshold > 0) {
         __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_THRESHOLD);
-        rdpq_set_blend_color(RGBA32(0,0,0,threshold));
+        rdpq_set_blend_color(RGBA32(0,0,0,(uint8_t)threshold));
     } else {
         __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_NOISE);
     }

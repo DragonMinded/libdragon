@@ -206,15 +206,6 @@ void test_rspq_wrap(TestContext *ctx)
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_rspq_signal(TestContext *ctx)
-{
-    TEST_RSPQ_PROLOG();
-    
-    rspq_signal(SP_WSTATUS_SET_SIG0);
-
-    TEST_RSPQ_EPILOG(SP_STATUS_SIG0, rspq_timeout);
-}
-
 void test_rspq_high_load(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();

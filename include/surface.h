@@ -165,7 +165,7 @@ typedef struct surface_s
  * 
  * @see #surface_make_linear
  */
-inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride) {
+inline surface_t surface_make(void *buffer, tex_format_t format, uint16_t width, uint16_t height, uint16_t stride) {
     return (surface_t){
         .flags = format,
         .width = width,
@@ -192,7 +192,7 @@ inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width,
  * 
  * @see #surface_make
  */
-inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t width, uint32_t height) {
+inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint16_t width, uint16_t height) {
     return surface_make(buffer, format, width, height, TEX_FORMAT_PIX2BYTES(format, width));
 }
 
@@ -213,7 +213,7 @@ inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t
  * @param[in]  height   Height in pixels
  * @return              The initialized surface
  */
-surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height);
+surface_t surface_alloc(tex_format_t format, uint16_t width, uint16_t height);
 
 /**
  * @brief Initialize a surface_t structure, pointing to a rectangular portion of another
@@ -230,7 +230,7 @@ surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height);
  * @return              The initialized surface
  */
 surface_t surface_make_sub(surface_t *parent, 
-    uint32_t x0, uint32_t y0, uint32_t width, uint32_t height);
+    uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);
 
 /**
  * @brief Free the buffer allocated in a surface.
@@ -290,9 +290,9 @@ inline bool surface_has_owned_buffer(const surface_t *surface)
  * @see #surface_make_placeholder_linear
  * @see #rdpq_set_lookup_address
  */
-inline surface_t surface_make_placeholder(int index, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride) {
+inline surface_t surface_make_placeholder(int index, tex_format_t format, uint16_t width, uint16_t height, uint16_t stride) {
     return (surface_t){
-        .flags = format | (index << 8),
+        .flags = (uint16_t)(format | ((index & 0xF) << 8)),
         .width = width,
         .height = height,
         .stride = stride,
@@ -315,14 +315,14 @@ inline surface_t surface_make_placeholder(int index, tex_format_t format, uint32
  * 
  * @see #surface_make_placeholder
  */
-inline surface_t surface_make_placeholder_linear(int index, tex_format_t format, uint32_t width, uint32_t height) {
+inline surface_t surface_make_placeholder_linear(int index, tex_format_t format, uint16_t width, uint16_t height) {
     return surface_make_placeholder(index, format, width, height, TEX_FORMAT_PIX2BYTES(format, width));
 }
 
 /**
  * @brief Returns the lookup index of a placeholder surface
  * 
- * If ths surface is a placeholder, this function returns the associated lookup
+ * If the surface is a placeholder, this function returns the associated lookup
  * index that will be used to retrieve the actual surface at playback time.
  * Otherwise, if it is a normal surface, this function will return 0.
  * 

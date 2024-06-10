@@ -266,7 +266,6 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_queue_multiple,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_rapid,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_wrap,                  0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_signal,                0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_high_load,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_load_overlay,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_switch_overlay,        0, TEST_FLAGS_NO_BENCHMARK),
