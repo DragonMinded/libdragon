@@ -487,6 +487,70 @@ void set_CART_interrupt( int active );
  */
 void set_RESET_interrupt( int active );
 
+/**
+ * @brief Enable or disable the BBPlayer FLASH interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the FLASH interrupt should be active
+ */
+void set_FLASH_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer AES interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the AES interrupt should be active
+ */
+void set_AES_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer IDE interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the IDE interrupt should be active
+ */
+void set_IDE_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer PI Error interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the PI Error interrupt should be active
+ */
+void set_PI_ERR_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer USB0 interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the USB0 interrupt should be active
+ */
+void set_USB0_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer USB1 interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the USB1 interrupt should be active
+ */
+void set_USB1_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer BTN interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the BTN interrupt should be active
+ */
+void set_BTN_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer MD interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the MD interrupt should be active
+ */
+void set_MD_interrupt( int active );
+
 /** 
  * @brief Guaranteed length of the reset time.
  * 
