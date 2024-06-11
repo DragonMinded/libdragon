@@ -125,7 +125,7 @@ var searchData=
   ['context_122',['context',['../structjoybus__msg__t.html#a53edb09d6fd76f13e3e1b097b31a3a41',1,'joybus_msg_t']]],
   ['contexts_123',['contexts',['../structshrinkler__ctx__t.html#ade249eba67aa154473e00d0f3dfbd58f',1,'shrinkler_ctx_t::contexts()'],['../structshrinkler__asm__state__t.html#ae4878825622f2f4d6b40c11e952e151a',1,'shrinkler_asm_state_t::contexts()']]],
   ['control_124',['control',['../group__lowlevel.html#aa284c94e35fe508abcf4e7ecbd9051d5',1,'VI_regs_t::control()'],['../group__lowlevel.html#a21bec29dfa1330f955418c313c89a933',1,'AI_regs_t::control()']]],
-  ['controller_20pak_20filesystem_20routines_125',['Controller Pak Filesystem Routines',['../group__cpak.html',1,'']]],
+  ['controller_20pak_20filesystem_20routines_125',['Controller Pak Filesystem Routines',['../group__controllerpak.html',1,'']]],
   ['controller_20subsystem_126',['Controller Subsystem',['../group__controller.html',1,'']]],
   ['controller_2ec_127',['controller.c',['../controller_8c.html',1,'']]],
   ['controller_2eh_128',['controller.h',['../controller_8h.html',1,'']]],

@@ -25,7 +25,7 @@ var searchData=
   ['block_5flast_22',['BLOCK_LAST',['../mempak_8c.html#aaf535f6a89db6d7c4b2c54e98f43facb',1,'mempak.c']]],
   ['block_5fvalid_5ffirst_23',['BLOCK_VALID_FIRST',['../mempak_8c.html#a42c87752b22ef217fa258ead71a46318',1,'mempak.c']]],
   ['block_5fvalid_5flast_24',['BLOCK_VALID_LAST',['../mempak_8c.html#a669cc689e0f884dbf9ddd0a20cd799c5',1,'mempak.c']]],
-  ['blocks_25',['blocks',['../group__cpak.html#a93cca58c3728111ce6c8b925009afa83',1,'entry_structure_t']]],
+  ['blocks_25',['blocks',['../group__controllerpak.html#a93cca58c3728111ce6c8b925009afa83',1,'entry_structure_t']]],
   ['bt_5ffunc_5ft_26',['bt_func_t',['../structbt__func__t.html',1,'']]],
   ['buf_27',['buf',['../structlz4dec__state__t.html#ae61b9fc0ba9728c260c4ee4537187b7c',1,'lz4dec_state_t::buf()'],['../structaplib__decompressor__t.html#a69870c78ca591a097145b07a1f5a83be',1,'aplib_decompressor_t::buf()']]],
   ['buf_5fend_28',['buf_end',['../structaplib__decompressor__t.html#aff28c82db32cf15748e51129d905f840',1,'aplib_decompressor_t']]],

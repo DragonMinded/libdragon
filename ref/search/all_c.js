@@ -4,7 +4,7 @@ var searchData=
   ['identify_5faccessory_1',['identify_accessory',['../group__controller.html#ga61f79691c93aed5a6abaf2d962823680',1,'controller.c']]],
   ['imem_2',['imem',['../rsp_8h.html#ae1405b13440ab3b2280cdddde0e9ab67',1,'rsp_snapshot_t']]],
   ['info_3',['info',['../group__exceptions.html#a05e27f4f7ffca11f72050238adf56e14',1,'exception_t']]],
-  ['inode_4',['inode',['../group__cpak.html#a7370d297cba84f180f10bafa46cefba7',1,'entry_structure_t']]],
+  ['inode_4',['inode',['../group__controllerpak.html#a7370d297cba84f180f10bafa46cefba7',1,'entry_structure_t']]],
   ['inplace_5fmargin_5',['inplace_margin',['../structasset__header__t.html#a9c003831c36190373b848672aa8fa6c1',1,'asset_header_t']]],
   ['input_6',['input',['../structjoybus__msg__t.html#a9b65428327f29247ccbc957d9cad1d77',1,'joybus_msg_t']]],
   ['inst_5fcache_5fhit_5finvalidate_7',['inst_cache_hit_invalidate',['../group__n64sys.html#gab2c93d4fcef0d7e2b4df4eba3fed362d',1,'inst_cache_hit_invalidate(volatile void *, unsigned long):&#160;n64sys.c'],['../group__n64sys.html#gab2c93d4fcef0d7e2b4df4eba3fed362d',1,'inst_cache_hit_invalidate(volatile void *addr, unsigned long length):&#160;n64sys.c']]],

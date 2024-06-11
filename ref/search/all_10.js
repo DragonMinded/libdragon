@@ -21,7 +21,7 @@ var searchData=
   ['memory_5fbarrier_18',['MEMORY_BARRIER',['../group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293',1,'n64sys.h']]],
   ['mempak_2ec_19',['mempak.c',['../mempak_8c.html',1,'']]],
   ['mempak_2eh_20',['mempak.h',['../mempak_8h.html',1,'']]],
-  ['mempak_5fblock_5fsize_21',['MEMPAK_BLOCK_SIZE',['../group__cpak.html#ga8291313350e93f54e8c397f6d13f9454',1,'mempak.h']]],
+  ['mempak_5fblock_5fsize_21',['MEMPAK_BLOCK_SIZE',['../group__controllerpak.html#ga8291313350e93f54e8c397f6d13f9454',1,'mempak.h']]],
   ['mi_2eh_22',['mi.h',['../mi_8h.html',1,'']]],
   ['mi_5fbb_5finterrupt_23',['MI_BB_INTERRUPT',['../mi_8h.html#adb8b57553421fa401b2d394f8431a26c',1,'mi.h']]],
   ['mi_5fbb_5finterrupt_5faes_24',['MI_BB_INTERRUPT_AES',['../mi_8h.html#a452f8e7f346eb9fcb8de46fda0f4144c',1,'mi.h']]],

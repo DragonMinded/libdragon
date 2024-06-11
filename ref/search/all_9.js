@@ -61,7 +61,7 @@ var searchData=
   ['font_2eh_58',['font.h',['../font_8h.html',1,'']]],
   ['fork_59',['fork',['../system_8c.html#acd2e1ded4bb6fce4500438bf928330f4',1,'system.c']]],
   ['format_60',['format',['../wav64_8h.html#a67a17a0ef9204d7f9e0c94e242380923',1,'wav64_t::format()'],['../structwav64__header__t.html#a42fb6e3952c6594e19c3f246364e9f7c',1,'wav64_header_t::format()']]],
-  ['format_5fmempak_61',['format_mempak',['../group__cpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'format_mempak(int controller):&#160;mempak.c'],['../group__cpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'format_mempak(int controller):&#160;mempak.c']]],
+  ['format_5fmempak_61',['format_mempak',['../group__controllerpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'format_mempak(int controller):&#160;mempak.c'],['../group__controllerpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'format_mempak(int controller):&#160;mempak.c']]],
   ['fp_62',['fp',['../structlz4dec__state__t.html#a88bb7dc984ac7e0de0f1e3ef4015256e',1,'lz4dec_state_t']]],
   ['fp_5foffset_63',['fp_offset',['../structbt__func__t.html#ab3c56748c8e227233b73679a37e1fc04',1,'bt_func_t']]],
   ['fpr_64',['fpr',['../group__exceptions.html#a4321db58f0793284fe625973ad21eb14',1,'reg_block_t']]],

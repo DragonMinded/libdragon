@@ -1,7 +1,7 @@
 var searchData=
 [
   ['end_0',['end',['../rdpq__debug_8c.html#ad2ebc400b3ac450a59a83fe40fdef488',1,'rdp_buffer_t']]],
-  ['entry_5fid_1',['entry_id',['../group__cpak.html#ad6124aefb1425f190a3665f7a0c3aefc',1,'entry_structure_t']]],
+  ['entry_5fid_1',['entry_id',['../group__controllerpak.html#ad6124aefb1425f190a3665f7a0c3aefc',1,'entry_structure_t']]],
   ['entry_5fpoint_2',['entry_point',['../tpak_8h.html#ac476b4130c9762d331280ba2c9487505',1,'gameboy_cartridge_header']]],
   ['entry_5fsize_3',['entry_size',['../rompak_8c.html#a564175ef8d47609445276c3b375a5446',1,'header_t']]],
   ['env_4',['env',['../structAY8910.html#ade3424223bef9507c0f36115d7545053',1,'AY8910']]],
