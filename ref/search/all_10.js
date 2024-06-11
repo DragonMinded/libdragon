@@ -1,8 +1,8 @@
 var searchData=
 [
   ['magic_0',['magic',['../structasset__header__t.html#a440f1f3e0336f4695b0faad1b0859bd7',1,'asset_header_t::magic()'],['../rompak_8c.html#a7fafb06c258e0d65060c3471e1a05ff8',1,'header_t::magic()']]],
-  ['malloc_5funcached_1',['malloc_uncached',['../group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a',1,'n64sys.c']]],
-  ['malloc_5funcached_5faligned_2',['malloc_uncached_aligned',['../group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01',1,'n64sys.c']]],
+  ['malloc_5funcached_1',['malloc_uncached',['../group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a',1,'malloc_uncached(size_t size):&#160;n64sys.c'],['../group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a',1,'malloc_uncached(size_t size):&#160;n64sys.c']]],
+  ['malloc_5funcached_5faligned_2',['malloc_uncached_aligned',['../group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01',1,'malloc_uncached_aligned(int align, size_t size):&#160;n64sys.c'],['../group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01',1,'malloc_uncached_aligned(int align, size_t size):&#160;n64sys.c']]],
   ['manufacturer_5fcode_3',['manufacturer_code',['../tpak_8h.html#ab1c9ffba2682d5265444f20815c81f0e',1,'new_gbc_title']]],
   ['match_5flen_4',['match_len',['../structlz4dec__faststate__t.html#a9c130ea609cc085d8f8cf7faa5433466',1,'lz4dec_faststate_t']]],
   ['match_5foff_5',['match_off',['../structlz4dec__faststate__t.html#aef8dbe5a42f073f573fc842fb247e4fa',1,'lz4dec_faststate_t']]],
@@ -14,14 +14,14 @@ var searchData=
   ['max_5ffilename_5flen_11',['MAX_FILENAME_LEN',['../group__dfs.html#gacc9794f655f61a3246ba3fd5c9c67e14',1,'dragonfs.h']]],
   ['max_5ffilesystems_12',['MAX_FILESYSTEMS',['../group__system.html#gad6c0e74019637e82fd86897e2d4a2a25',1,'system.h']]],
   ['max_5ffrequency_13',['max_frequency',['../mixer_8c.html#ac5388bb6f30e2d0ac2a92ff25fefea3f',1,'channel_limit_t']]],
-  ['max_5fjoybus_5fmsgs_14',['MAX_JOYBUS_MSGS',['../group__joybus.html#ga42220dfa963618e170f0c794440a02c7',1,'joybus.c']]],
+  ['max_5fjoybus_5fmsgs_14',['MAX_JOYBUS_MSGS',['../joybus_8c.html#a42220dfa963618e170f0c794440a02c7',1,'joybus.c']]],
   ['max_5fopen_5fhandles_15',['MAX_OPEN_HANDLES',['../group__system.html#gabc61aac6da74a8a3fb9d8e883f8c3468',1,'system.h']]],
-  ['max_5freset_5fhandlers_16',['MAX_RESET_HANDLERS',['../group__interrupt.html#gaf76584f6b55e9cac50bf3f3a706f3428',1,'interrupt.c']]],
-  ['max_5fsyscall_5fhandlers_17',['MAX_SYSCALL_HANDLERS',['../group__exceptions.html#gacc6936ec7217ab33cafead5d46266c8e',1,'exception.c']]],
+  ['max_5freset_5fhandlers_16',['MAX_RESET_HANDLERS',['../interrupt_8c.html#af76584f6b55e9cac50bf3f3a706f3428',1,'interrupt.c']]],
+  ['max_5fsyscall_5fhandlers_17',['MAX_SYSCALL_HANDLERS',['../exception_8c.html#acc6936ec7217ab33cafead5d46266c8e',1,'exception.c']]],
   ['memory_5fbarrier_18',['MEMORY_BARRIER',['../group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293',1,'n64sys.h']]],
   ['mempak_2ec_19',['mempak.c',['../mempak_8c.html',1,'']]],
   ['mempak_2eh_20',['mempak.h',['../mempak_8h.html',1,'']]],
-  ['mempak_5fblock_5fsize_21',['MEMPAK_BLOCK_SIZE',['../group__controllerpak.html#ga8291313350e93f54e8c397f6d13f9454',1,'mempak.h']]],
+  ['mempak_5fblock_5fsize_21',['MEMPAK_BLOCK_SIZE',['../group__cpak.html#ga8291313350e93f54e8c397f6d13f9454',1,'mempak.h']]],
   ['mi_2eh_22',['mi.h',['../mi_8h.html',1,'']]],
   ['mi_5fbb_5finterrupt_23',['MI_BB_INTERRUPT',['../mi_8h.html#adb8b57553421fa401b2d394f8431a26c',1,'mi.h']]],
   ['mi_5fbb_5finterrupt_5faes_24',['MI_BB_INTERRUPT_AES',['../mi_8h.html#a452f8e7f346eb9fcb8de46fda0f4144c',1,'mi.h']]],
@@ -157,7 +157,7 @@ var searchData=
   ['mixerevent_154',['MixerEvent',['../mixer_8h.html#a509fb916b04893006f91d4bc5f7fc69e',1,'mixer.h']]],
   ['mode_5ffreeze_155',['mode_freeze',['../rdpq__internal_8h.html#ab8bd2c9579eae6b3e65b80a66881a4bf',1,'rdpq_tracking_t']]],
   ['month_156',['month',['../group__rtc.html#a72c1fb304848005b837a5966123feeb5',1,'rtc_time_t']]],
-  ['move_5fbuffer_157',['move_buffer',['../group__console.html#ga0493bc0de60ff266e7f4e9a4256d27f0',1,'console.c']]],
+  ['move_5fbuffer_157',['move_buffer',['../console_8c.html#a0493bc0de60ff266e7f4e9a4256d27f0',1,'console.c']]],
   ['mx_158',['mx',['../rdpq__tri_8c.html#ad1c1c20ba206875e2e9b287f5a82baa6',1,'rdpq_tri_edge_data_t']]],
   ['my_159',['my',['../rdpq__tri_8c.html#a2df80859e66e0397507d6a059e5171aa',1,'rdpq_tri_edge_data_t']]]
 ];

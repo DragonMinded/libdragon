@@ -663,7 +663,7 @@ Various flags, including texture format. </td></tr>
 <p>Return true if the sprite fits in TMEM without splitting. </p>
 <p >This function returns true if the sprite can be fully uploaded in TMEM (including all its LODs, detail texture and palettes).</p>
 <p >When working on 3D graphics, each texture must fit into RDP TMEM (4 KiB), otherwise it cannot be used. All sprites that are meant to be used as textures should fit in TMEM.</p>
-<p >In case of 2D graphics, it is more common to have images of arbitrary size. They can be drawn with <a class="el" href="rdpq__sprite_8h.html#ab9e9585ca159243d7ccae04c7ca38837" title="Blit a sprite to the active framebuffer.">rdpq_sprite_blit</a> (accelerated) or <a class="el" href="group__graphics.html#gaaa9f5910dc7ffc21ee59849086415966" title="Draw a sprite to a display context.">graphics_draw_sprite</a> (CPU) without specific limits (the RDP accelerated version does internally need to split the sprite in multiple parts, but that is indeed possible).</p>
+<p >In case of 2D graphics, it is more common to have images of arbitrary size. They can be drawn with <a class="el" href="rdpq__sprite_8h.html#ab9e9585ca159243d7ccae04c7ca38837" title="Blit a sprite to the active framebuffer.">rdpq_sprite_blit</a> (accelerated) or <a class="el" href="group__graphics.html#ga60d3b47bfec29bb6b9bacf84fe7bf1d6" title="Draw a sprite to a display context.">graphics_draw_sprite</a> (CPU) without specific limits (the RDP accelerated version does internally need to split the sprite in multiple parts, but that is indeed possible).</p>
 <p >This function is mostly for debugging purposes, as it can help validating whether a sprite can be used as a texture or not.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -678,7 +678,7 @@ Various flags, including texture format. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:48 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

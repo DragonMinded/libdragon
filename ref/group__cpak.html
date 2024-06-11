@@ -63,6 +63,8 @@ $(function() {
 
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">Controller Pak Filesystem Routines<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__controller.html">Controller Subsystem</a></div></div></div>
 </div><!--header-->
@@ -71,6 +73,19 @@ $(function() {
 <p>Managed Controller Pak interface.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:structentry__structure__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a></td></tr>
+<tr class="memdesc:structentry__structure__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Structure representing a save entry on a Controller Pak.  <a href="group__cpak.html#structentry__structure__t">More...</a><br /></td></tr>
+<tr class="separator:structentry__structure__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:ga8291313350e93f54e8c397f6d13f9454"><td class="memItemLeft" align="right" valign="top"><a id="ga8291313350e93f54e8c397f6d13f9454" name="ga8291313350e93f54e8c397f6d13f9454"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MEMPAK_BLOCK_SIZE</b>&#160;&#160;&#160;256</td></tr>
+<tr class="memdesc:ga8291313350e93f54e8c397f6d13f9454"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size in bytes of a Controller Pak block. <br /></td></tr>
+<tr class="separator:ga8291313350e93f54e8c397f6d13f9454"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ga3811bed7584fee9426fa21cb77c6d669"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#ga3811bed7584fee9426fa21cb77c6d669">read_mempak_sector</a> (int controller, int sector, uint8_t *sector_data)</td></tr>
@@ -82,47 +97,101 @@ Functions</h2></td></tr>
 <tr class="memitem:gaf245021aed55de7a17cf417d41cdc32f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#gaf245021aed55de7a17cf417d41cdc32f">validate_mempak</a> (int controller)</td></tr>
 <tr class="memdesc:gaf245021aed55de7a17cf417d41cdc32f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return whether a Controller Pak is valid.  <a href="group__cpak.html#gaf245021aed55de7a17cf417d41cdc32f">More...</a><br /></td></tr>
 <tr class="separator:gaf245021aed55de7a17cf417d41cdc32f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaaa54d6b5cea4be11738f951318ebc758"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#gaaa54d6b5cea4be11738f951318ebc758">get_mempak_entry</a> (int controller, int entry, <a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *entry_data)</td></tr>
-<tr class="memdesc:gaaa54d6b5cea4be11738f951318ebc758"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read an entry on a Controller Pak.  <a href="group__cpak.html#gaaa54d6b5cea4be11738f951318ebc758">More...</a><br /></td></tr>
-<tr class="separator:gaaa54d6b5cea4be11738f951318ebc758"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga5b092c36dbd886af01b0c4be86554946"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#ga5b092c36dbd886af01b0c4be86554946">get_mempak_free_space</a> (int controller)</td></tr>
 <tr class="memdesc:ga5b092c36dbd886af01b0c4be86554946"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the number of free blocks on a Controller Pak.  <a href="group__cpak.html#ga5b092c36dbd886af01b0c4be86554946">More...</a><br /></td></tr>
 <tr class="separator:ga5b092c36dbd886af01b0c4be86554946"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaaa54d6b5cea4be11738f951318ebc758"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#gaaa54d6b5cea4be11738f951318ebc758">get_mempak_entry</a> (int controller, int entry, <a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *entry_data)</td></tr>
+<tr class="memdesc:gaaa54d6b5cea4be11738f951318ebc758"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read an entry on a Controller Pak.  <a href="group__cpak.html#gaaa54d6b5cea4be11738f951318ebc758">More...</a><br /></td></tr>
+<tr class="separator:gaaa54d6b5cea4be11738f951318ebc758"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga14df2d1b0aeb7436cabd95294eb29b9f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f">format_mempak</a> (int controller)</td></tr>
 <tr class="memdesc:ga14df2d1b0aeb7436cabd95294eb29b9f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Format a Controller Pak.  <a href="group__cpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f">More...</a><br /></td></tr>
 <tr class="separator:ga14df2d1b0aeb7436cabd95294eb29b9f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga7e07b0ab92a7f383b355f5ed99c5f727"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#ga7e07b0ab92a7f383b355f5ed99c5f727">read_mempak_entry_data</a> (int controller, <a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *entry, uint8_t *data)</td></tr>
+<tr class="memitem:ga7e07b0ab92a7f383b355f5ed99c5f727"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#ga7e07b0ab92a7f383b355f5ed99c5f727">read_mempak_entry_data</a> (int controller, <a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *entry, uint8_t *data)</td></tr>
 <tr class="memdesc:ga7e07b0ab92a7f383b355f5ed99c5f727"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the data associated with an entry on a Controller Pak.  <a href="group__cpak.html#ga7e07b0ab92a7f383b355f5ed99c5f727">More...</a><br /></td></tr>
 <tr class="separator:ga7e07b0ab92a7f383b355f5ed99c5f727"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga520a9d2a4eb81c7f40ed2fcc9ecafecc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc">write_mempak_entry_data</a> (int controller, <a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *entry, uint8_t *data)</td></tr>
+<tr class="memitem:ga520a9d2a4eb81c7f40ed2fcc9ecafecc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc">write_mempak_entry_data</a> (int controller, <a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *entry, uint8_t *data)</td></tr>
 <tr class="memdesc:ga520a9d2a4eb81c7f40ed2fcc9ecafecc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write associated data to a Controller Pak entry.  <a href="group__cpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc">More...</a><br /></td></tr>
 <tr class="separator:ga520a9d2a4eb81c7f40ed2fcc9ecafecc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaa56a78fe3d1d2b9427afe8d5894156df"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#gaa56a78fe3d1d2b9427afe8d5894156df">delete_mempak_entry</a> (int controller, <a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *entry)</td></tr>
+<tr class="memitem:gaa56a78fe3d1d2b9427afe8d5894156df"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__cpak.html#gaa56a78fe3d1d2b9427afe8d5894156df">delete_mempak_entry</a> (int controller, <a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *entry)</td></tr>
 <tr class="memdesc:gaa56a78fe3d1d2b9427afe8d5894156df"><td class="mdescLeft">&#160;</td><td class="mdescRight">Delete a Controller Pak entry and associated data.  <a href="group__cpak.html#gaa56a78fe3d1d2b9427afe8d5894156df">More...</a><br /></td></tr>
 <tr class="separator:gaa56a78fe3d1d2b9427afe8d5894156df"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader">Inode values</h2></td></tr>
-<tr class="memitem:ga4642580b046949b340ed1663c65fc226"><td class="memItemLeft" align="right" valign="top"><a id="ga4642580b046949b340ed1663c65fc226" name="ga4642580b046949b340ed1663c65fc226"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>BLOCK_EMPTY</b>&#160;&#160;&#160;0x03</td></tr>
-<tr class="memdesc:ga4642580b046949b340ed1663c65fc226"><td class="mdescLeft">&#160;</td><td class="mdescRight">This block is empty. <br /></td></tr>
-<tr class="separator:ga4642580b046949b340ed1663c65fc226"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaaf535f6a89db6d7c4b2c54e98f43facb"><td class="memItemLeft" align="right" valign="top"><a id="gaaf535f6a89db6d7c4b2c54e98f43facb" name="gaaf535f6a89db6d7c4b2c54e98f43facb"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>BLOCK_LAST</b>&#160;&#160;&#160;0x01</td></tr>
-<tr class="memdesc:gaaf535f6a89db6d7c4b2c54e98f43facb"><td class="mdescLeft">&#160;</td><td class="mdescRight">This is the last block in the note. <br /></td></tr>
-<tr class="separator:gaaf535f6a89db6d7c4b2c54e98f43facb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga42c87752b22ef217fa258ead71a46318"><td class="memItemLeft" align="right" valign="top"><a id="ga42c87752b22ef217fa258ead71a46318" name="ga42c87752b22ef217fa258ead71a46318"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>BLOCK_VALID_FIRST</b>&#160;&#160;&#160;0x05</td></tr>
-<tr class="memdesc:ga42c87752b22ef217fa258ead71a46318"><td class="mdescLeft">&#160;</td><td class="mdescRight">First valid block that can contain user data. <br /></td></tr>
-<tr class="separator:ga42c87752b22ef217fa258ead71a46318"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga669cc689e0f884dbf9ddd0a20cd799c5"><td class="memItemLeft" align="right" valign="top"><a id="ga669cc689e0f884dbf9ddd0a20cd799c5" name="ga669cc689e0f884dbf9ddd0a20cd799c5"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>BLOCK_VALID_LAST</b>&#160;&#160;&#160;0x7F</td></tr>
-<tr class="memdesc:ga669cc689e0f884dbf9ddd0a20cd799c5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Last valid block that can contain user data. <br /></td></tr>
-<tr class="separator:ga669cc689e0f884dbf9ddd0a20cd799c5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Managed Controller Pak interface. </p>
 <p >The Controller Pak system is a subsystem of the <a class="el" href="group__controller.html">Controller Subsystem</a>. Before attempting to read from or write to a Controller Pak, be sure you have initialized the controller system with <a class="el" href="group__controller.html#gad13ec5f696a3c69997b9fc57246a0238" title="Initialize the controller subsystem.">controller_init</a> and verified that you have a mempak in the correct controller using <a class="el" href="group__controller.html#ga61f79691c93aed5a6abaf2d962823680" title="Identify the accessory connected to a controller.">identify_accessory</a>.</p>
 <p >To read and write to the Controller Pak in an organized way compatible with official software, first check that the Controller Pak is valid using <a class="el" href="group__cpak.html#gaf245021aed55de7a17cf417d41cdc32f" title="Return whether a Controller Pak is valid.">validate_mempak</a>. If the Controller Pak is invalid, it will need to be formatted using <a class="el" href="group__cpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f" title="Format a Controller Pak.">format_mempak</a>. Once the Controller Pak is considered valid, existing notes can be enumerated using <a class="el" href="group__cpak.html#gaaa54d6b5cea4be11738f951318ebc758" title="Read an entry on a Controller Pak.">get_mempak_entry</a>. To read the data associated with a note, use <a class="el" href="group__cpak.html#ga7e07b0ab92a7f383b355f5ed99c5f727" title="Read the data associated with an entry on a Controller Pak.">read_mempak_entry_data</a>. To write a new note to the Controller Pak, use <a class="el" href="group__cpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc" title="Write associated data to a Controller Pak entry.">write_mempak_entry_data</a>. Note that there is no append functionality so if a note is being updated, ensure you have deleted the old note first using <a class="el" href="group__cpak.html#gaa56a78fe3d1d2b9427afe8d5894156df" title="Delete a Controller Pak entry and associated data.">delete_mempak_entry</a>. Code should be careful to check how many blocks are free before writing using <a class="el" href="group__cpak.html#ga5b092c36dbd886af01b0c4be86554946" title="Return the number of free blocks on a Controller Pak.">get_mempak_free_space</a>. </p>
+<hr/><h2 class="groupheader">Data Structure Documentation</h2>
+<a name="structentry__structure__t" id="structentry__structure__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structentry__structure__t">&#9670;&nbsp;</a></span>entry_structure_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct entry_structure_t</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p >Structure representing a save entry on a Controller Pak. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="a4e65c83bc81eb966642da54ae8c885f5" name="a4e65c83bc81eb966642da54ae8c885f5"></a>uint32_t</td>
+<td class="fieldname">
+vendor</td>
+<td class="fielddoc">
+Vendor ID. </td></tr>
+<tr><td class="fieldtype">
+<a id="a33ec60ad39db8ebf53de0a72bee466bd" name="a33ec60ad39db8ebf53de0a72bee466bd"></a>uint16_t</td>
+<td class="fieldname">
+game_id</td>
+<td class="fielddoc">
+Game ID. </td></tr>
+<tr><td class="fieldtype">
+<a id="a7370d297cba84f180f10bafa46cefba7" name="a7370d297cba84f180f10bafa46cefba7"></a>uint16_t</td>
+<td class="fieldname">
+inode</td>
+<td class="fielddoc">
+Inode pointer. </td></tr>
+<tr><td class="fieldtype">
+<a id="a738a028e4829b69dedb17ae6a8375c79" name="a738a028e4829b69dedb17ae6a8375c79"></a>uint8_t</td>
+<td class="fieldname">
+region</td>
+<td class="fielddoc">
+Intended region. </td></tr>
+<tr><td class="fieldtype">
+<a id="a93cca58c3728111ce6c8b925009afa83" name="a93cca58c3728111ce6c8b925009afa83"></a>uint8_t</td>
+<td class="fieldname">
+blocks</td>
+<td class="fielddoc">
+Number of blocks used by this entry. <dl class="section see"><dt>See also</dt><dd><a class="el" href="group__cpak.html#ga8291313350e93f54e8c397f6d13f9454" title="Size in bytes of a Controller Pak block.">MEMPAK_BLOCK_SIZE</a> </dd></dl>
+</td></tr>
+<tr><td class="fieldtype">
+<a id="ac6f84c97a7f4614d2a89463baa8874be" name="ac6f84c97a7f4614d2a89463baa8874be"></a>uint8_t</td>
+<td class="fieldname">
+valid</td>
+<td class="fielddoc">
+Validity of this entry. </td></tr>
+<tr><td class="fieldtype">
+<a id="ad6124aefb1425f190a3665f7a0c3aefc" name="ad6124aefb1425f190a3665f7a0c3aefc"></a>uint8_t</td>
+<td class="fieldname">
+entry_id</td>
+<td class="fielddoc">
+ID of this entry. </td></tr>
+<tr><td class="fieldtype">
+<a id="a2b6ef9f926b80b33797c6989ef4018e7" name="a2b6ef9f926b80b33797c6989ef4018e7"></a>char</td>
+<td class="fieldname">
+name[19]</td>
+<td class="fielddoc">
+Name of this entry. <p >The complete list of valid ASCII characters in a note name is:</p>
+<pre>
+ABCDEFGHIJKLMNOPQRSTUVWXYZ!"#`*+,-./:=?@
+</pre><p >The space character is also allowed. Any other character will be converted to a space before writing to the Controller Pak. </p>
+</td></tr>
+</table>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ga3811bed7584fee9426fa21cb77c6d669" name="ga3811bed7584fee9426fa21cb77c6d669"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga3811bed7584fee9426fa21cb77c6d669">&#9670;&nbsp;</a></span>read_mempak_sector()</h2>
@@ -265,6 +334,34 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ga5b092c36dbd886af01b0c4be86554946" name="ga5b092c36dbd886af01b0c4be86554946"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga5b092c36dbd886af01b0c4be86554946">&#9670;&nbsp;</a></span>get_mempak_free_space()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int get_mempak_free_space </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the number of free blocks on a Controller Pak. </p>
+<p >Note that a block is identical in size to a sector. To calculate the number of bytes free, multiply the return of this function by <a class="el" href="group__cpak.html#ga8291313350e93f54e8c397f6d13f9454" title="Size in bytes of a Controller Pak block.">MEMPAK_BLOCK_SIZE</a>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to read the free space from</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The number of blocks free on the memory card or a negative number on failure </dd></dl>
+
+</div>
+</div>
 <a id="gaaa54d6b5cea4be11738f951318ebc758" name="gaaa54d6b5cea4be11738f951318ebc758"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaaa54d6b5cea4be11738f951318ebc758">&#9670;&nbsp;</a></span>get_mempak_entry()</h2>
 
@@ -286,7 +383,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
           <td class="paramname"><em>entry_data</em>&#160;</td>
         </tr>
         <tr>
@@ -315,34 +412,6 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
-
-</div>
-</div>
-<a id="ga5b092c36dbd886af01b0c4be86554946" name="ga5b092c36dbd886af01b0c4be86554946"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga5b092c36dbd886af01b0c4be86554946">&#9670;&nbsp;</a></span>get_mempak_free_space()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int get_mempak_free_space </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the number of free blocks on a Controller Pak. </p>
-<p >Note that a block is identical in size to a sector. To calculate the number of bytes free, multiply the return of this function by <a class="el" href="group__controllerpak.html#ga8291313350e93f54e8c397f6d13f9454" title="Size in bytes of a Controller Pak block.">MEMPAK_BLOCK_SIZE</a>.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to read the free space from</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The number of blocks free on the memory card or a negative number on failure </dd></dl>
 
 </div>
 </div>
@@ -395,7 +464,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
           <td class="paramname"><em>entry</em>, </td>
         </tr>
         <tr>
@@ -413,7 +482,7 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Read the data associated with an entry on a Controller Pak. </p>
-<p >Given a valid Controller Pak entry fetched by get_mempak_entry, retrieves the contents of the entry. The calling function must ensure that enough room is available in the passed in buffer for the entire entry. The entry structure itself contains the number of blocks used to store the data which can be multiplied by <a class="el" href="group__controllerpak.html#ga8291313350e93f54e8c397f6d13f9454" title="Size in bytes of a Controller Pak block.">MEMPAK_BLOCK_SIZE</a> to calculate the size of the buffer needed.</p>
+<p >Given a valid Controller Pak entry fetched by get_mempak_entry, retrieves the contents of the entry. The calling function must ensure that enough room is available in the passed in buffer for the entire entry. The entry structure itself contains the number of blocks used to store the data which can be multiplied by <a class="el" href="group__cpak.html#ga8291313350e93f54e8c397f6d13f9454" title="Size in bytes of a Controller Pak block.">MEMPAK_BLOCK_SIZE</a> to calculate the size of the buffer needed.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to read the entry data from </td></tr>
@@ -449,7 +518,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
           <td class="paramname"><em>entry</em>, </td>
         </tr>
         <tr>
@@ -505,7 +574,7 @@ Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__controllerpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="group__cpak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
           <td class="paramname"><em>entry</em>&#160;</td>
         </tr>
         <tr>
@@ -539,7 +608,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

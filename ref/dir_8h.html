@@ -98,19 +98,98 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:gaf069d9aae45f54cadde63548780ca64a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gaf069d9aae45f54cadde63548780ca64a">dir_findfirst</a> (const char *const path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
-<tr class="memdesc:gaf069d9aae45f54cadde63548780ca64a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the first file in a directory.  <a href="group__system.html#gaf069d9aae45f54cadde63548780ca64a">More...</a><br /></td></tr>
-<tr class="separator:gaf069d9aae45f54cadde63548780ca64a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga9f45aada2a3237bc3c59c8ceb3d88d20"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga9f45aada2a3237bc3c59c8ceb3d88d20">dir_findnext</a> (const char *const path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
-<tr class="memdesc:ga9f45aada2a3237bc3c59c8ceb3d88d20"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the next file in a directory.  <a href="group__system.html#ga9f45aada2a3237bc3c59c8ceb3d88d20">More...</a><br /></td></tr>
-<tr class="separator:ga9f45aada2a3237bc3c59c8ceb3d88d20"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af069d9aae45f54cadde63548780ca64a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dir_8h.html#af069d9aae45f54cadde63548780ca64a">dir_findfirst</a> (const char *const path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
+<tr class="memdesc:af069d9aae45f54cadde63548780ca64a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the first file in a directory.  <a href="dir_8h.html#af069d9aae45f54cadde63548780ca64a">More...</a><br /></td></tr>
+<tr class="separator:af069d9aae45f54cadde63548780ca64a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9f45aada2a3237bc3c59c8ceb3d88d20"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dir_8h.html#a9f45aada2a3237bc3c59c8ceb3d88d20">dir_findnext</a> (const char *const path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
+<tr class="memdesc:a9f45aada2a3237bc3c59c8ceb3d88d20"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the next file in a directory.  <a href="dir_8h.html#a9f45aada2a3237bc3c59c8ceb3d88d20">More...</a><br /></td></tr>
+<tr class="separator:a9f45aada2a3237bc3c59c8ceb3d88d20"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Directory handling. </p>
-</div></div><!-- contents -->
+</div><h2 class="groupheader">Function Documentation</h2>
+<a id="af069d9aae45f54cadde63548780ca64a" name="af069d9aae45f54cadde63548780ca64a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af069d9aae45f54cadde63548780ca64a">&#9670;&nbsp;</a></span>dir_findfirst()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dir_findfirst </td>
+          <td>(</td>
+          <td class="paramtype">const char *const&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__system.html#structdir__t">dir_t</a> *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Find the first file in a directory. </p>
+<p >This function should be called to start enumerating a directory or whenever a directory enumeration should be restarted.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path to the directory structure </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory entry structure to populate with first entry</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="a9f45aada2a3237bc3c59c8ceb3d88d20" name="a9f45aada2a3237bc3c59c8ceb3d88d20"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9f45aada2a3237bc3c59c8ceb3d88d20">&#9670;&nbsp;</a></span>dir_findnext()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dir_findnext </td>
+          <td>(</td>
+          <td class="paramtype">const char *const&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__system.html#structdir__t">dir_t</a> *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Find the next file in a directory. </p>
+<p >After finding the first file in a directory using <a class="el" href="dir_8h.html#af069d9aae45f54cadde63548780ca64a" title="Find the first file in a directory.">dir_findfirst</a>, call this to retrieve the rest of the directory entries. Call this repeatedly until a negative error is returned signifying that there are no more directory entries in the directory.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path to the directory structure </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory entry structure to populate with next entry</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
+
+</div>
+</div>
+</div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:48 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

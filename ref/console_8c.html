@@ -78,13 +78,13 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:ga96913e13233c78966693d254522126d8"><td class="memItemLeft" align="right" valign="top">
+<tr class="memitem:a96913e13233c78966693d254522126d8"><td class="memItemLeft" align="right" valign="top"><a id="a96913e13233c78966693d254522126d8" name="a96913e13233c78966693d254522126d8"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>CONSOLE_SIZE</b>&#160;&#160;&#160;((sizeof(char) * <a class="el" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a> * <a class="el" href="group__console.html#ga157ee137a3acabff3d7612bff73b448b">CONSOLE_HEIGHT</a>) + sizeof(char))</td></tr>
-<tr class="memdesc:ga96913e13233c78966693d254522126d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of the console buffer in bytes. <br /></td></tr>
-<tr class="separator:ga96913e13233c78966693d254522126d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga0493bc0de60ff266e7f4e9a4256d27f0"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga0493bc0de60ff266e7f4e9a4256d27f0">move_buffer</a>()</td></tr>
-<tr class="memdesc:ga0493bc0de60ff266e7f4e9a4256d27f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to move the console up one line.  <a href="group__console.html#ga0493bc0de60ff266e7f4e9a4256d27f0">More...</a><br /></td></tr>
-<tr class="separator:ga0493bc0de60ff266e7f4e9a4256d27f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memdesc:a96913e13233c78966693d254522126d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of the console buffer in bytes. <br /></td></tr>
+<tr class="separator:a96913e13233c78966693d254522126d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0493bc0de60ff266e7f4e9a4256d27f0"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="console_8c.html#a0493bc0de60ff266e7f4e9a4256d27f0">move_buffer</a>()</td></tr>
+<tr class="memdesc:a0493bc0de60ff266e7f4e9a4256d27f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to move the console up one line.  <a href="console_8c.html#a0493bc0de60ff266e7f4e9a4256d27f0">More...</a><br /></td></tr>
+<tr class="separator:a0493bc0de60ff266e7f4e9a4256d27f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -109,10 +109,34 @@ Functions</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Console Support. </p>
-</div></div><!-- contents -->
+</div><h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a0493bc0de60ff266e7f4e9a4256d27f0" name="a0493bc0de60ff266e7f4e9a4256d27f0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0493bc0de60ff266e7f4e9a4256d27f0">&#9670;&nbsp;</a></span>move_buffer</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define move_buffer</td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    memmove(render_buffer, render_buffer + (<span class="keyword">sizeof</span>(<span class="keywordtype">char</span>) * <a class="code hl_define" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a>), <a class="code hl_define" href="console_8c.html#a96913e13233c78966693d254522126d8">CONSOLE_SIZE</a> - (<a class="code hl_define" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a> * <span class="keyword">sizeof</span>(<span class="keywordtype">char</span>))); \</div>
+<div class="line">    pos -= <a class="code hl_define" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a>;</div>
+<div class="ttc" id="aconsole_8c_html_a96913e13233c78966693d254522126d8"><div class="ttname"><a href="console_8c.html#a96913e13233c78966693d254522126d8">CONSOLE_SIZE</a></div><div class="ttdeci">#define CONSOLE_SIZE</div><div class="ttdoc">Size of the console buffer in bytes.</div><div class="ttdef"><b>Definition:</b> console.c:21</div></div>
+<div class="ttc" id="agroup__console_html_gac8a565248bf80a622adcf61f4fe6dbc3"><div class="ttname"><a href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a></div><div class="ttdeci">#define CONSOLE_WIDTH</div><div class="ttdoc">The console width in characters.</div><div class="ttdef"><b>Definition:</b> console.h:69</div></div>
+</div><!-- fragment -->
+<p>Macro to move the console up one line. </p>
+
+</div>
+</div>
+</div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

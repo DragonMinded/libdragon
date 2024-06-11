@@ -327,7 +327,7 @@ Size of the file (in bytes) </td></tr>
 </div><div class="memdoc">
 
 <p>Erases a file in the EEPROM filesystem. </p>
-<p >Note that "erasing" a file just means writing it full of zeroes. All files in the filesystem must always exist at the size specified during <a class="el" href="eepromfs_8c.html#a85e57900d8cccd4cce21a50273fe0662" title="Initializes the EEPROM filesystem.">eepfs_init</a></p>
+<p >Note that "erasing" a file just means writing it full of zeroes. All files in the filesystem must always exist at the size specified during <a class="el" href="eepromfs_8h.html#a85e57900d8cccd4cce21a50273fe0662" title="Initializes the EEPROM filesystem.">eepfs_init</a></p>
 <p >Each EEPROM block write takes approximately 15 milliseconds; this operation may block for a while!</p>
 <p >Be advised: this is a destructive operation that cannot be undone!</p>
 <dl class="retval"><dt>Return values</dt><dd>
@@ -363,7 +363,7 @@ Size of the file (in bytes) </td></tr>
 <p >If the signature matches, the data in EEPROM is probably what the filesystem expects. If not, the best move is to erase everything and start from zero.</p>
 <dl class="section see"><dt>See also</dt><dd>eepfs_generate_signature </dd>
 <dd>
-<a class="el" href="eepromfs_8c.html#ae542838b659a911edd87d2f53d581517" title="Erases all blocks in EEPROM and sets a new signature.">eepfs_wipe</a></dd></dl>
+<a class="el" href="eepromfs_8h.html#ae542838b659a911edd87d2f53d581517" title="Erases all blocks in EEPROM and sets a new signature.">eepfs_wipe</a></dd></dl>
 <dl class="retval"><dt>Return values</dt><dd>
   <table class="retval">
     <tr><td class="paramname">true</td><td>if the signature in EEPROM matches the filesystem signature </td></tr>
@@ -399,14 +399,14 @@ Size of the file (in bytes) </td></tr>
 </ul>
 <p >You may want to pause audio in advance of calling this.</p>
 <p >Be advised: this is a destructive operation that cannot be undone!</p>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="eepromfs_8c.html#a352c89ef6e0adc23eba08938c39e7155" title="Validates the first block of EEPROM.">eepfs_verify_signature</a> </dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="eepromfs_8h.html#a352c89ef6e0adc23eba08938c39e7155" title="Validates the first block of EEPROM.">eepfs_verify_signature</a> </dd></dl>
 
 </div>
 </div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

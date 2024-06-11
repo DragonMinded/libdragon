@@ -65,9 +65,7 @@ $(function() {
   <div class="summary">
 <a href="#groups">Modules</a> &#124;
 <a href="#files">Files</a> &#124;
-<a href="#nested-classes">Data Structures</a> &#124;
-<a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a>  </div>
+<a href="#nested-classes">Data Structures</a>  </div>
   <div class="headertitle"><div class="title">Low Level Hardware Interfaces<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a></div></div></div>
 </div><!--header-->
 <div class="contents">
@@ -77,6 +75,12 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="groups" name="groups"></a>
 Modules</h2></td></tr>
+<tr class="memitem:group__rompak"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__rompak.html">ROM bundle support</a></td></tr>
+<tr class="memdesc:group__rompak"><td class="mdescLeft">&#160;</td><td class="mdescRight">Rompak functions (private API) <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:group__backtrace"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__backtrace.html">Backtrace (call stack) support</a></td></tr>
+<tr class="memdesc:group__backtrace"><td class="mdescLeft">&#160;</td><td class="mdescRight">Implementation of functions to walk the stack and dump a backtrace. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:group__dma"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dma.html">DMA Controller</a></td></tr>
 <tr class="memdesc:group__dma"><td class="mdescLeft">&#160;</td><td class="mdescRight">DMA functionality for transfers between cartridge space and RDRAM. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -88,12 +92,6 @@ Modules</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:group__n64sys"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html">N64 System Interface</a></td></tr>
 <tr class="memdesc:group__n64sys"><td class="mdescLeft">&#160;</td><td class="mdescRight">N64 bootup and cache interfaces. <br /></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:group__rompak"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__rompak.html">ROM bundle support</a></td></tr>
-<tr class="memdesc:group__rompak"><td class="mdescLeft">&#160;</td><td class="mdescRight">Rompak functions (private API) <br /></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:group__backtrace"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__backtrace.html">Backtrace (call stack) support</a></td></tr>
-<tr class="memdesc:group__backtrace"><td class="mdescLeft">&#160;</td><td class="mdescRight">Implementation of functions to walk the stack and dump a backtrace. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:group__rsp"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__rsp.html">RSP: vector coprocessor</a></td></tr>
 <tr class="memdesc:group__rsp"><td class="mdescLeft">&#160;</td><td class="mdescRight">RSP basic library and command queue. <br /></td></tr>
@@ -128,23 +126,6 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structSP__regs__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__lowlevel.html#structSP__regs__t">SP_regs_t</a></td></tr>
 <tr class="memdesc:structSP__regs__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register definition for the SP interface.  <a href="group__lowlevel.html#structSP__regs__t">More...</a><br /></td></tr>
 <tr class="separator:structSP__regs__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:ga96357e747d908aa6c354b507d9b0fdc4"><td class="memItemLeft" align="right" valign="top"><a id="ga96357e747d908aa6c354b507d9b0fdc4" name="ga96357e747d908aa6c354b507d9b0fdc4"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_SIZE</b>&#160;&#160;&#160;64</td></tr>
-<tr class="memdesc:ga96357e747d908aa6c354b507d9b0fdc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in bytes. <br /></td></tr>
-<tr class="separator:ga96357e747d908aa6c354b507d9b0fdc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gabd5f84cf2323e720ab0b79fff05e8383"><td class="memItemLeft" align="right" valign="top"><a id="gabd5f84cf2323e720ab0b79fff05e8383" name="gabd5f84cf2323e720ab0b79fff05e8383"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_DWORDS</b>&#160;&#160;&#160;( <a class="el" href="group__lowlevel.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a> / sizeof(uint64_t) )</td></tr>
-<tr class="memdesc:gabd5f84cf2323e720ab0b79fff05e8383"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in double-words. <br /></td></tr>
-<tr class="separator:gabd5f84cf2323e720ab0b79fff05e8383"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
-Functions</h2></td></tr>
-<tr class="memitem:ga89cef5dd261a8436fce3d5eb6aeacda0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__lowlevel.html#ga89cef5dd261a8436fce3d5eb6aeacda0">joybus_exec</a> (const void *inblock, void *outblock)</td></tr>
-<tr class="memdesc:ga89cef5dd261a8436fce3d5eb6aeacda0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a 64-byte block of data to the PIF and read the 64-byte result.  <a href="group__lowlevel.html#ga89cef5dd261a8436fce3d5eb6aeacda0">More...</a><br /></td></tr>
-<tr class="separator:ga89cef5dd261a8436fce3d5eb6aeacda0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Low level hardware interface descriptions and functionality. </p>
@@ -495,50 +476,10 @@ RSP Semaphore. </td></tr>
 
 </div>
 </div>
-<h2 class="groupheader">Function Documentation</h2>
-<a id="ga89cef5dd261a8436fce3d5eb6aeacda0" name="ga89cef5dd261a8436fce3d5eb6aeacda0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga89cef5dd261a8436fce3d5eb6aeacda0">&#9670;&nbsp;</a></span>joybus_exec()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void joybus_exec </td>
-          <td>(</td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>input</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>output</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write a 64-byte block of data to the PIF and read the 64-byte result. </p>
-<p >This function is not a stable feature of the libdragon API and should be considered experimental!</p>
-<p >The usage of this function will likely change as a result of the ongoing effort to integrate the multitasking kernel with asynchronous operations.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Source buffer for the input block to send to the PIF</td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Destination buffer to place the output block from the PIF </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:56 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

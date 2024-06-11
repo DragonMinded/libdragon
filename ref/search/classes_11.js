@@ -20,5 +20,5 @@ var searchData=
   ['surface_5ft_17',['surface_t',['../surface_8h.html#structsurface__t',1,'']]],
   ['symtable_5fentry_5ft_18',['symtable_entry_t',['../backtrace_8c.html#structsymtable__entry__t',1,'']]],
   ['symtable_5fheader_5ft_19',['symtable_header_t',['../backtrace_8c.html#structsymtable__header__t',1,'']]],
-  ['syscall_5fhandler_5fentry_5ft_20',['syscall_handler_entry_t',['../group__exceptions.html#structsyscall__handler__entry__t',1,'']]]
+  ['syscall_5fhandler_5fentry_5ft_20',['syscall_handler_entry_t',['../exception_8c.html#structsyscall__handler__entry__t',1,'']]]
 ];

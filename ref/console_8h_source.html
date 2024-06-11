@@ -76,44 +76,49 @@ $(function() {
 <div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#include &lt;stdbool.h&gt;</span></div>
 <div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#include &quot;<a class="code" href="display_8h.html">display.h</a>&quot;</span></div>
 <div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span> </div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno"><a class="line" href="group__console.html#ga4d4483f024061765e1c6cf1de58875d1">   30</a></span><span class="preprocessor">#define RENDER_MANUAL       0</span></div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno"><a class="line" href="group__console.html#ga6ae7fe1a8fe3564834d9377ba285a477">   36</a></span><span class="preprocessor">#define RENDER_AUTOMATIC    1</span></div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno"><a class="line" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">   49</a></span><span class="preprocessor">#define CONSOLE_WIDTH       64</span></div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno"><a class="line" href="group__console.html#ga157ee137a3acabff3d7612bff73b448b">   55</a></span><span class="preprocessor">#define CONSOLE_HEIGHT      28</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno"><a class="line" href="group__console.html#ga49426d7a9b562958ad2ab7fbf134f368">   63</a></span><span class="preprocessor">#define TAB_WIDTH           4</span></div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span> </div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno"><a class="line" href="group__console.html#ga8cc8f6d4d0d42230b0d6b887e2c8e3a0">   70</a></span><span class="preprocessor">#define HORIZONTAL_PADDING  64</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span> </div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno"><a class="line" href="group__console.html#gaccc507054fe340b5b4c9db0d233a2f31">   75</a></span><span class="preprocessor">#define VERTICAL_PADDING    8</span></div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span> </div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span> </div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d">console_init</a>();</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga3926fb0265ead00edda71d6c1b2e91c9">console_close</a>();</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">console_set_debug</a>(<span class="keywordtype">bool</span> debug);</div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga4767e9d68500cb84a81984a525325112">console_set_render_mode</a>(<span class="keywordtype">int</span> mode);</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f">console_clear</a>();</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70">console_render</a>();</div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span> </div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>}</div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span> <span class="comment">/* console */</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span> </div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno"><a class="line" href="group__console.html#ga4d4483f024061765e1c6cf1de58875d1">   50</a></span><span class="preprocessor">#define RENDER_MANUAL       0</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno"><a class="line" href="group__console.html#ga6ae7fe1a8fe3564834d9377ba285a477">   56</a></span><span class="preprocessor">#define RENDER_AUTOMATIC    1</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno"><a class="line" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">   69</a></span><span class="preprocessor">#define CONSOLE_WIDTH       64</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno"><a class="line" href="group__console.html#ga157ee137a3acabff3d7612bff73b448b">   75</a></span><span class="preprocessor">#define CONSOLE_HEIGHT      28</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno"><a class="line" href="group__console.html#ga49426d7a9b562958ad2ab7fbf134f368">   83</a></span><span class="preprocessor">#define TAB_WIDTH           4</span></div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span> </div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno"><a class="line" href="group__console.html#ga8cc8f6d4d0d42230b0d6b887e2c8e3a0">   90</a></span><span class="preprocessor">#define HORIZONTAL_PADDING  64</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span> </div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno"><a class="line" href="group__console.html#gaccc507054fe340b5b4c9db0d233a2f31">   95</a></span><span class="preprocessor">#define VERTICAL_PADDING    8</span></div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span> </div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span> </div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d">console_init</a>();</div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga3926fb0265ead00edda71d6c1b2e91c9">console_close</a>();</div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span> </div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno">  128</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">console_set_debug</a>(<span class="keywordtype">bool</span> debug);</div>
+<div class="line"><a id="l00129" name="l00129"></a><span class="lineno">  129</span> </div>
+<div class="line"><a id="l00143" name="l00143"></a><span class="lineno">  143</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga4767e9d68500cb84a81984a525325112">console_set_render_mode</a>(<span class="keywordtype">int</span> mode);</div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno">  144</span> </div>
+<div class="line"><a id="l00150" name="l00150"></a><span class="lineno">  150</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f">console_clear</a>();</div>
+<div class="line"><a id="l00151" name="l00151"></a><span class="lineno">  151</span> </div>
+<div class="line"><a id="l00163" name="l00163"></a><span class="lineno">  163</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70">console_render</a>();</div>
+<div class="line"><a id="l00164" name="l00164"></a><span class="lineno">  164</span> </div>
+<div class="line"><a id="l00165" name="l00165"></a><span class="lineno">  165</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno">  166</span>}</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00168" name="l00168"></a><span class="lineno">  168</span> <span class="comment">/* console */</span></div>
+<div class="line"><a id="l00170" name="l00170"></a><span class="lineno">  170</span> </div>
+<div class="line"><a id="l00171" name="l00171"></a><span class="lineno">  171</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="adisplay_8h_html"><div class="ttname"><a href="display_8h.html">display.h</a></div><div class="ttdoc">Display Subsystem.</div></div>
-<div class="ttc" id="agroup__console_html_ga24ccc39d7786d9c45e14389efdd64f70"><div class="ttname"><a href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70">console_render</a></div><div class="ttdeci">void console_render()</div><div class="ttdoc">Render the console.</div><div class="ttdef"><b>Definition:</b> console.c:301</div></div>
-<div class="ttc" id="agroup__console_html_ga3926fb0265ead00edda71d6c1b2e91c9"><div class="ttname"><a href="group__console.html#ga3926fb0265ead00edda71d6c1b2e91c9">console_close</a></div><div class="ttdeci">void console_close()</div><div class="ttdoc">Close the console.</div><div class="ttdef"><b>Definition:</b> console.c:203</div></div>
-<div class="ttc" id="agroup__console_html_ga463df5bcb42f4d4ad7d73c17c555e53d"><div class="ttname"><a href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d">console_init</a></div><div class="ttdeci">void console_init()</div><div class="ttdoc">Initialize the console.</div><div class="ttdef"><b>Definition:</b> console.c:177</div></div>
-<div class="ttc" id="agroup__console_html_ga4767e9d68500cb84a81984a525325112"><div class="ttname"><a href="group__console.html#ga4767e9d68500cb84a81984a525325112">console_set_render_mode</a></div><div class="ttdeci">void console_set_render_mode(int mode)</div><div class="ttdoc">Set the console rendering mode.</div><div class="ttdef"><b>Definition:</b> console.c:71</div></div>
-<div class="ttc" id="agroup__console_html_ga54a293959bd682e2c2ec170f9a50011f"><div class="ttname"><a href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f">console_clear</a></div><div class="ttdeci">void console_clear()</div><div class="ttdoc">Clear the console.</div><div class="ttdef"><b>Definition:</b> console.c:222</div></div>
-<div class="ttc" id="agroup__console_html_ga715d9317d3fa56ce678ac3bcbfbaae8b"><div class="ttname"><a href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">console_set_debug</a></div><div class="ttdeci">void console_set_debug(bool debug)</div><div class="ttdoc">Send console output to debug channel.</div><div class="ttdef"><b>Definition:</b> console.c:321</div></div>
+<div class="ttc" id="agroup__console_html_ga24ccc39d7786d9c45e14389efdd64f70"><div class="ttname"><a href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70">console_render</a></div><div class="ttdeci">void console_render()</div><div class="ttdoc">Render the console.</div><div class="ttdef"><b>Definition:</b> console.c:235</div></div>
+<div class="ttc" id="agroup__console_html_ga3926fb0265ead00edda71d6c1b2e91c9"><div class="ttname"><a href="group__console.html#ga3926fb0265ead00edda71d6c1b2e91c9">console_close</a></div><div class="ttdeci">void console_close()</div><div class="ttdoc">Close the console.</div><div class="ttdef"><b>Definition:</b> console.c:153</div></div>
+<div class="ttc" id="agroup__console_html_ga463df5bcb42f4d4ad7d73c17c555e53d"><div class="ttname"><a href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d">console_init</a></div><div class="ttdeci">void console_init()</div><div class="ttdoc">Initialize the console.</div><div class="ttdef"><b>Definition:</b> console.c:133</div></div>
+<div class="ttc" id="agroup__console_html_ga4767e9d68500cb84a81984a525325112"><div class="ttname"><a href="group__console.html#ga4767e9d68500cb84a81984a525325112">console_set_render_mode</a></div><div class="ttdeci">void console_set_render_mode(int mode)</div><div class="ttdoc">Set the console rendering mode.</div><div class="ttdef"><b>Definition:</b> console.c:33</div></div>
+<div class="ttc" id="agroup__console_html_ga54a293959bd682e2c2ec170f9a50011f"><div class="ttname"><a href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f">console_clear</a></div><div class="ttdeci">void console_clear()</div><div class="ttdoc">Clear the console.</div><div class="ttdef"><b>Definition:</b> console.c:167</div></div>
+<div class="ttc" id="agroup__console_html_ga715d9317d3fa56ce678ac3bcbfbaae8b"><div class="ttname"><a href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">console_set_debug</a></div><div class="ttdeci">void console_set_debug(bool debug)</div><div class="ttdoc">Send console output to debug channel.</div><div class="ttdef"><b>Definition:</b> console.c:244</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:48 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

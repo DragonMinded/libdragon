@@ -78,7 +78,7 @@ Data Fields</h2></td></tr>
 <tr class="memitem:a65220025714418f98076e1334237408e"><td class="memItemLeft" align="right" valign="top">void *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e">open</a> )(char *name, int flags)</td></tr>
 <tr class="memdesc:a65220025714418f98076e1334237408e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing an open command.  <a href="structfilesystem__t.html#a65220025714418f98076e1334237408e">More...</a><br /></td></tr>
 <tr class="separator:a65220025714418f98076e1334237408e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a57af83b0f926cbd4779eb400fc2b7398"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a57af83b0f926cbd4779eb400fc2b7398">fstat</a> )(void *file, struct <a class="el" href="group__system.html#ga6267ee98ea4ca67296665534d549132a">stat</a> *st)</td></tr>
+<tr class="memitem:a57af83b0f926cbd4779eb400fc2b7398"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a57af83b0f926cbd4779eb400fc2b7398">fstat</a> )(void *file, struct <a class="el" href="system_8c.html#a6267ee98ea4ca67296665534d549132a">stat</a> *st)</td></tr>
 <tr class="memdesc:a57af83b0f926cbd4779eb400fc2b7398"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing a fstat command.  <a href="structfilesystem__t.html#a57af83b0f926cbd4779eb400fc2b7398">More...</a><br /></td></tr>
 <tr class="separator:a57af83b0f926cbd4779eb400fc2b7398"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aed5c8fa5f3f3ff7d1e1c876a8864642d"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#aed5c8fa5f3f3ff7d1e1c876a8864642d">lseek</a> )(void *file, int ptr, int dir)</td></tr>
@@ -139,7 +139,7 @@ Data Fields</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int(* filesystem_t::fstat) (void *file, struct <a class="el" href="group__system.html#ga6267ee98ea4ca67296665534d549132a">stat</a> *st)</td>
+          <td class="memname">int(* filesystem_t::fstat) (void *file, struct <a class="el" href="system_8c.html#a6267ee98ea4ca67296665534d549132a">stat</a> *st)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -297,7 +297,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on failure or empty directory. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup, -1 if the directory existed and is empty, or a different negative value on error (in which case, errno will be set). </dd></dl>
 
 </div>
 </div>
@@ -320,7 +320,7 @@ Data Fields</h2></td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on failure or empty directory. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup, -1 if the directory existed and is empty, or a different negative value on error (in which case, errno will be set). </dd></dl>
 
 </div>
 </div>
@@ -330,7 +330,7 @@ Data Fields</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:56 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

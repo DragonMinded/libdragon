@@ -84,13 +84,6 @@ Files</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:ga96913e13233c78966693d254522126d8"><td class="memItemLeft" align="right" valign="top"><a id="ga96913e13233c78966693d254522126d8" name="ga96913e13233c78966693d254522126d8"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>CONSOLE_SIZE</b>&#160;&#160;&#160;((sizeof(char) * <a class="el" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a> * <a class="el" href="group__console.html#ga157ee137a3acabff3d7612bff73b448b">CONSOLE_HEIGHT</a>) + sizeof(char))</td></tr>
-<tr class="memdesc:ga96913e13233c78966693d254522126d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of the console buffer in bytes. <br /></td></tr>
-<tr class="separator:ga96913e13233c78966693d254522126d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga0493bc0de60ff266e7f4e9a4256d27f0"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga0493bc0de60ff266e7f4e9a4256d27f0">move_buffer</a>()</td></tr>
-<tr class="memdesc:ga0493bc0de60ff266e7f4e9a4256d27f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to move the console up one line.  <a href="group__console.html#ga0493bc0de60ff266e7f4e9a4256d27f0">More...</a><br /></td></tr>
-<tr class="separator:ga0493bc0de60ff266e7f4e9a4256d27f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga49426d7a9b562958ad2ab7fbf134f368"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga49426d7a9b562958ad2ab7fbf134f368">TAB_WIDTH</a>&#160;&#160;&#160;4</td></tr>
 <tr class="memdesc:ga49426d7a9b562958ad2ab7fbf134f368"><td class="mdescLeft">&#160;</td><td class="mdescRight">Tab width.  <a href="group__console.html#ga49426d7a9b562958ad2ab7fbf134f368">More...</a><br /></td></tr>
 <tr class="separator:ga49426d7a9b562958ad2ab7fbf134f368"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -104,24 +97,24 @@ Macros</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ga4767e9d68500cb84a81984a525325112"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga4767e9d68500cb84a81984a525325112">console_set_render_mode</a> (int mode)</td></tr>
-<tr class="memdesc:ga4767e9d68500cb84a81984a525325112"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the console rendering mode.  <a href="group__console.html#ga4767e9d68500cb84a81984a525325112">More...</a><br /></td></tr>
-<tr class="separator:ga4767e9d68500cb84a81984a525325112"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga463df5bcb42f4d4ad7d73c17c555e53d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d">console_init</a> ()</td></tr>
 <tr class="memdesc:ga463df5bcb42f4d4ad7d73c17c555e53d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the console.  <a href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d">More...</a><br /></td></tr>
 <tr class="separator:ga463df5bcb42f4d4ad7d73c17c555e53d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3926fb0265ead00edda71d6c1b2e91c9"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga3926fb0265ead00edda71d6c1b2e91c9">console_close</a> ()</td></tr>
 <tr class="memdesc:ga3926fb0265ead00edda71d6c1b2e91c9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close the console.  <a href="group__console.html#ga3926fb0265ead00edda71d6c1b2e91c9">More...</a><br /></td></tr>
 <tr class="separator:ga3926fb0265ead00edda71d6c1b2e91c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga715d9317d3fa56ce678ac3bcbfbaae8b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">console_set_debug</a> (bool debug)</td></tr>
+<tr class="memdesc:ga715d9317d3fa56ce678ac3bcbfbaae8b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Send console output to debug channel.  <a href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">More...</a><br /></td></tr>
+<tr class="separator:ga715d9317d3fa56ce678ac3bcbfbaae8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4767e9d68500cb84a81984a525325112"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga4767e9d68500cb84a81984a525325112">console_set_render_mode</a> (int mode)</td></tr>
+<tr class="memdesc:ga4767e9d68500cb84a81984a525325112"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the console rendering mode.  <a href="group__console.html#ga4767e9d68500cb84a81984a525325112">More...</a><br /></td></tr>
+<tr class="separator:ga4767e9d68500cb84a81984a525325112"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga54a293959bd682e2c2ec170f9a50011f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f">console_clear</a> ()</td></tr>
 <tr class="memdesc:ga54a293959bd682e2c2ec170f9a50011f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Clear the console.  <a href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f">More...</a><br /></td></tr>
 <tr class="separator:ga54a293959bd682e2c2ec170f9a50011f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga24ccc39d7786d9c45e14389efdd64f70"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70">console_render</a> ()</td></tr>
 <tr class="memdesc:ga24ccc39d7786d9c45e14389efdd64f70"><td class="mdescLeft">&#160;</td><td class="mdescRight">Render the console.  <a href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70">More...</a><br /></td></tr>
 <tr class="separator:ga24ccc39d7786d9c45e14389efdd64f70"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga715d9317d3fa56ce678ac3bcbfbaae8b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">console_set_debug</a> (bool debug)</td></tr>
-<tr class="memdesc:ga715d9317d3fa56ce678ac3bcbfbaae8b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Send console output to debug channel.  <a href="group__console.html#ga715d9317d3fa56ce678ac3bcbfbaae8b">More...</a><br /></td></tr>
-<tr class="separator:ga715d9317d3fa56ce678ac3bcbfbaae8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader">Console Render Modes</h2></td></tr>
 <tr><td class="ititle" colspan="2"><p >Modes for rendering the console to the screen </p>
@@ -146,29 +139,6 @@ Functions</h2></td></tr>
 <p >Console support is provided as a poor-man's console for simple debugging on the N64. It does not respect common escape sequences and is nonstandard in size. When using the console, code should be careful to make sure that the display system has not been initialized. Similarly, if the display system is needed, code should be sure that the console is not initialized.</p>
 <p >Code wishing to use the console should first initialize the console support in libdragon with <a class="el" href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d" title="Initialize the console.">console_init</a>. Once the console has been initialized, it wil operate in one of two modes. In automatic mode, every write to the console will be immediately displayed on the screen. The console will be scrolled when the buffer fills. In manual mode, the console will only be displayed after calling <a class="el" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70" title="Render the console.">console_render</a>. To set the render mode, use <a class="el" href="group__console.html#ga4767e9d68500cb84a81984a525325112" title="Set the console rendering mode.">console_set_render_mode</a>. To add data to the console, use printf or iprintf. To clear the console and reset the scroll, use <a class="el" href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f" title="Clear the console.">console_clear</a>. Once the console is not needed or when the code wishes to switch to the display subsystem, <a class="el" href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f" title="Clear the console.">console_clear</a> should be called to cleanly shut down the console support. </p>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ga0493bc0de60ff266e7f4e9a4256d27f0" name="ga0493bc0de60ff266e7f4e9a4256d27f0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga0493bc0de60ff266e7f4e9a4256d27f0">&#9670;&nbsp;</a></span>move_buffer</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define move_buffer</td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    memmove(render_buffer, render_buffer + (<span class="keyword">sizeof</span>(<span class="keywordtype">char</span>) * <a class="code hl_define" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a>), <a class="code hl_define" href="group__console.html#ga96913e13233c78966693d254522126d8">CONSOLE_SIZE</a> - (<a class="code hl_define" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a> * <span class="keyword">sizeof</span>(<span class="keywordtype">char</span>))); \</div>
-<div class="line">    pos -= <a class="code hl_define" href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a>;</div>
-<div class="ttc" id="agroup__console_html_ga96913e13233c78966693d254522126d8"><div class="ttname"><a href="group__console.html#ga96913e13233c78966693d254522126d8">CONSOLE_SIZE</a></div><div class="ttdeci">#define CONSOLE_SIZE</div><div class="ttdoc">Size of the console buffer in bytes.</div><div class="ttdef"><b>Definition:</b> console.c:46</div></div>
-<div class="ttc" id="agroup__console_html_gac8a565248bf80a622adcf61f4fe6dbc3"><div class="ttname"><a href="group__console.html#gac8a565248bf80a622adcf61f4fe6dbc3">CONSOLE_WIDTH</a></div><div class="ttdeci">#define CONSOLE_WIDTH</div><div class="ttdoc">The console width in characters.</div><div class="ttdef"><b>Definition:</b> console.h:49</div></div>
-</div><!-- fragment -->
-<p>Macro to move the console up one line. </p>
-
-</div>
-</div>
 <a id="ga4d4483f024061765e1c6cf1de58875d1" name="ga4d4483f024061765e1c6cf1de58875d1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga4d4483f024061765e1c6cf1de58875d1">&#9670;&nbsp;</a></span>RENDER_MANUAL</h2>
 
@@ -272,6 +242,73 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ga463df5bcb42f4d4ad7d73c17c555e53d" name="ga463df5bcb42f4d4ad7d73c17c555e53d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga463df5bcb42f4d4ad7d73c17c555e53d">&#9670;&nbsp;</a></span>console_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void console_init </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Initialize the console. </p>
+<p >Initialize the console system. This will initialize the video properly, so a call to the <a class="el" href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1" title="Initialize the display to a particular resolution and bit depth.">display_init()</a> fuction is not necessary. </p>
+
+</div>
+</div>
+<a id="ga3926fb0265ead00edda71d6c1b2e91c9" name="ga3926fb0265ead00edda71d6c1b2e91c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3926fb0265ead00edda71d6c1b2e91c9">&#9670;&nbsp;</a></span>console_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void console_close </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close the console. </p>
+<p >Free the console system. This will clean up any dynamic memory that was in use. </p>
+
+</div>
+</div>
+<a id="ga715d9317d3fa56ce678ac3bcbfbaae8b" name="ga715d9317d3fa56ce678ac3bcbfbaae8b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga715d9317d3fa56ce678ac3bcbfbaae8b">&#9670;&nbsp;</a></span>console_set_debug()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void console_set_debug </td>
+          <td>(</td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>debug</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Send console output to debug channel. </p>
+<p >Configure whether the console output should be redirected to the debug channel as well (stderr), that can be sent over USB for development purposes. See <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf</a> for more information.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">debug</td><td>True if console output should also be sent to the debugging channel, false otherwise </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ga4767e9d68500cb84a81984a525325112" name="ga4767e9d68500cb84a81984a525325112"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga4767e9d68500cb84a81984a525325112">&#9670;&nbsp;</a></span>console_set_render_mode()</h2>
 
@@ -296,46 +333,6 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
-
-</div>
-</div>
-<a id="ga463df5bcb42f4d4ad7d73c17c555e53d" name="ga463df5bcb42f4d4ad7d73c17c555e53d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga463df5bcb42f4d4ad7d73c17c555e53d">&#9670;&nbsp;</a></span>console_init()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void console_init </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Initialize the console. </p>
-<p >Initialize the console system. This will initialize the video properly, so a call to the <a class="el" href="group__display.html#ga1763c553f071d40c4bd18cee77ae98a1" title="Initialize the display to a particular resolution and bit depth.">display_init()</a> function is not necessary. </p>
-
-</div>
-</div>
-<a id="ga3926fb0265ead00edda71d6c1b2e91c9" name="ga3926fb0265ead00edda71d6c1b2e91c9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3926fb0265ead00edda71d6c1b2e91c9">&#9670;&nbsp;</a></span>console_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void console_close </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Close the console. </p>
-<p >Free the console system. This will clean up any dynamic memory that was in use. </p>
 
 </div>
 </div>
@@ -381,37 +378,10 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ga715d9317d3fa56ce678ac3bcbfbaae8b" name="ga715d9317d3fa56ce678ac3bcbfbaae8b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga715d9317d3fa56ce678ac3bcbfbaae8b">&#9670;&nbsp;</a></span>console_set_debug()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void console_set_debug </td>
-          <td>(</td>
-          <td class="paramtype">bool&#160;</td>
-          <td class="paramname"><em>debug</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Send console output to debug channel. </p>
-<p >Configure whether the console output should be redirected to the debug channel as well (stderr), that can be sent over USB for development purposes. See <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf</a> for more information.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">debug</td><td>True if console output should also be sent to the debugging channel, false otherwise </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

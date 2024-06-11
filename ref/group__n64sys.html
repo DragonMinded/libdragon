@@ -92,13 +92,6 @@ Files</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:gac69e8a7b3752d227238ff76b56b3fa17"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gac69e8a7b3752d227238ff76b56b3fa17">cache_op</a>(op,  linesize)</td></tr>
-<tr class="memdesc:gac69e8a7b3752d227238ff76b56b3fa17"><td class="mdescLeft">&#160;</td><td class="mdescRight">Helper macro to perform cache refresh operations.  <a href="group__n64sys.html#gac69e8a7b3752d227238ff76b56b3fa17">More...</a><br /></td></tr>
-<tr class="separator:gac69e8a7b3752d227238ff76b56b3fa17"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga16a9cb3b1d15189bd1c21327cd77ca1f"><td class="memItemLeft" align="right" valign="top"><a id="ga16a9cb3b1d15189bd1c21327cd77ca1f" name="ga16a9cb3b1d15189bd1c21327cd77ca1f"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>TV_TYPE_LOC</b>&#160;&#160;&#160;0x80000300</td></tr>
-<tr class="memdesc:ga16a9cb3b1d15189bd1c21327cd77ca1f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Memory location to read which determines the TV type. <br /></td></tr>
-<tr class="separator:ga16a9cb3b1d15189bd1c21327cd77ca1f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga06cc6d925caa4db67e81281eef124d28"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga06cc6d925caa4db67e81281eef124d28">C0_COUNT</a>()</td></tr>
 <tr class="memdesc:ga06cc6d925caa4db67e81281eef124d28"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the COP0 Count register (see also TICKS_READ).  <a href="group__n64sys.html#ga06cc6d925caa4db67e81281eef124d28">More...</a><br /></td></tr>
 <tr class="separator:ga06cc6d925caa4db67e81281eef124d28"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -457,52 +450,6 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><b>sys_bbplayer</b> (voi
 <tr class="memitem:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa3abd91a3b4d2ff33ad07556f7e7856e">sys_set_boot_cic</a> (int bc)</td></tr>
 <tr class="memdesc:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the boot CIC.  <a href="group__n64sys.html#gaa3abd91a3b4d2ff33ad07556f7e7856e">More...</a><br /></td></tr>
 <tr class="separator:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gacc2164dd0c39d2d949291bb9b2379c0f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gacc2164dd0c39d2d949291bb9b2379c0f">data_cache_hit_writeback</a> (volatile const void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:gacc2164dd0c39d2d949291bb9b2379c0f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback over a memory region.  <a href="group__n64sys.html#gacc2164dd0c39d2d949291bb9b2379c0f">More...</a><br /></td></tr>
-<tr class="separator:gacc2164dd0c39d2d949291bb9b2379c0f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga77626094fc3952fe3321098e24811e83"><td class="memItemLeft" align="right" valign="top"><a id="ga77626094fc3952fe3321098e24811e83" name="ga77626094fc3952fe3321098e24811e83"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_invalidate</b> (volatile void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:ga77626094fc3952fe3321098e24811e83"><td class="mdescLeft">&#160;</td><td class="mdescRight">Underlying implementation of data_cache_hit_invalidate. <br /></td></tr>
-<tr class="separator:ga77626094fc3952fe3321098e24811e83"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga477cecd8d83802c27a334edac9afe83a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga477cecd8d83802c27a334edac9afe83a">data_cache_hit_writeback_invalidate</a> (volatile void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:ga477cecd8d83802c27a334edac9afe83a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback invalidate over a memory region.  <a href="group__n64sys.html#ga477cecd8d83802c27a334edac9afe83a">More...</a><br /></td></tr>
-<tr class="separator:ga477cecd8d83802c27a334edac9afe83a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga65b4f6171cb8c4813576cd7925cb76de"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga65b4f6171cb8c4813576cd7925cb76de">data_cache_index_writeback_invalidate</a> (volatile void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:ga65b4f6171cb8c4813576cd7925cb76de"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache index writeback invalidate over a memory region.  <a href="group__n64sys.html#ga65b4f6171cb8c4813576cd7925cb76de">More...</a><br /></td></tr>
-<tr class="separator:ga65b4f6171cb8c4813576cd7925cb76de"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaa57816b81179fe22e8fc6b93f1e5cf69"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa57816b81179fe22e8fc6b93f1e5cf69">data_cache_writeback_invalidate_all</a> (void)</td></tr>
-<tr class="memdesc:gaa57816b81179fe22e8fc6b93f1e5cf69"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback invalidate over whole memory.  <a href="group__n64sys.html#gaa57816b81179fe22e8fc6b93f1e5cf69">More...</a><br /></td></tr>
-<tr class="separator:gaa57816b81179fe22e8fc6b93f1e5cf69"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gac57f15648738d8f8575ec655a1678b73"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gac57f15648738d8f8575ec655a1678b73">inst_cache_hit_writeback</a> (volatile const void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:gac57f15648738d8f8575ec655a1678b73"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache writeback over a memory region.  <a href="group__n64sys.html#gac57f15648738d8f8575ec655a1678b73">More...</a><br /></td></tr>
-<tr class="separator:gac57f15648738d8f8575ec655a1678b73"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga6c1668d8eee5e64ac7f3b91bd37db60e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6c1668d8eee5e64ac7f3b91bd37db60e">inst_cache_hit_invalidate</a> (volatile void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:ga6c1668d8eee5e64ac7f3b91bd37db60e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache invalidate over a memory region.  <a href="group__n64sys.html#ga6c1668d8eee5e64ac7f3b91bd37db60e">More...</a><br /></td></tr>
-<tr class="separator:ga6c1668d8eee5e64ac7f3b91bd37db60e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae7ec4cb3b1776373ede58525b43a258e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gae7ec4cb3b1776373ede58525b43a258e">inst_cache_index_invalidate</a> (volatile void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:gae7ec4cb3b1776373ede58525b43a258e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache index invalidate over a memory region.  <a href="group__n64sys.html#gae7ec4cb3b1776373ede58525b43a258e">More...</a><br /></td></tr>
-<tr class="separator:gae7ec4cb3b1776373ede58525b43a258e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3bbb609a58f6025ea3b8cb406ca4d823">inst_cache_invalidate_all</a> (void)</td></tr>
-<tr class="memdesc:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache invalidate over whole memory.  <a href="group__n64sys.html#ga3bbb609a58f6025ea3b8cb406ca4d823">More...</a><br /></td></tr>
-<tr class="separator:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">malloc_uncached</a> (size_t size)</td></tr>
-<tr class="memdesc:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory.  <a href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">More...</a><br /></td></tr>
-<tr class="separator:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01">malloc_uncached_aligned</a> (int align, size_t size)</td></tr>
-<tr class="memdesc:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory, specifying alignment.  <a href="group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01">More...</a><br /></td></tr>
-<tr class="separator:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">free_uncached</a> (void *buf)</td></tr>
-<tr class="memdesc:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Free an uncached memory buffer.  <a href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">More...</a><br /></td></tr>
-<tr class="separator:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga4496cbe7966a01738242c1b214028eb0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0">get_memory_size</a> ()</td></tr>
-<tr class="memdesc:ga4496cbe7966a01738242c1b214028eb0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get amount of available memory.  <a href="group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0">More...</a><br /></td></tr>
-<tr class="separator:ga4496cbe7966a01738242c1b214028eb0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga28ba352e296d379426531772b874046d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga28ba352e296d379426531772b874046d">is_memory_expanded</a> ()</td></tr>
-<tr class="memdesc:ga28ba352e296d379426531772b874046d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is expansion pak in use.  <a href="group__n64sys.html#ga28ba352e296d379426531772b874046d">More...</a><br /></td></tr>
-<tr class="separator:ga28ba352e296d379426531772b874046d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga4cd768cc5d84485110ecf4991727b00b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">get_tv_type</a> ()</td></tr>
-<tr class="memdesc:ga4cd768cc5d84485110ecf4991727b00b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <a href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">More...</a><br /></td></tr>
-<tr class="separator:ga4cd768cc5d84485110ecf4991727b00b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">get_ticks</a> (void)</td></tr>
 <tr class="memdesc:ga3686b92a0667e9774993808f4d2ac2b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of ticks since system startup.  <a href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">More...</a><br /></td></tr>
 <tr class="separator:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -512,25 +459,61 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:gaf402b4d750f14bff2ce2686e6da02e13"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf402b4d750f14bff2ce2686e6da02e13">get_ticks_ms</a> (void)</td></tr>
 <tr class="memdesc:gaf402b4d750f14bff2ce2686e6da02e13"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of millisecounds since system startup.  <a href="group__n64sys.html#gaf402b4d750f14bff2ce2686e6da02e13">More...</a><br /></td></tr>
 <tr class="separator:gaf402b4d750f14bff2ce2686e6da02e13"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaf92492d6d351321a5974768b17e16d82"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf92492d6d351321a5974768b17e16d82">wait_ticks</a> (unsigned long <a class="el" href="group__system.html#ga6655447bab00753d59759423bf28e22e">wait</a>)</td></tr>
+<tr class="memitem:gaf92492d6d351321a5974768b17e16d82"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf92492d6d351321a5974768b17e16d82">wait_ticks</a> (unsigned long <a class="el" href="system_8c.html#a6655447bab00753d59759423bf28e22e">wait</a>)</td></tr>
 <tr class="memdesc:gaf92492d6d351321a5974768b17e16d82"><td class="mdescLeft">&#160;</td><td class="mdescRight">Spin wait until the number of ticks have elapsed.  <a href="group__n64sys.html#gaf92492d6d351321a5974768b17e16d82">More...</a><br /></td></tr>
 <tr class="separator:gaf92492d6d351321a5974768b17e16d82"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga2ae016ad196fd951c5ce81d0f775f4ed">wait_ms</a> (unsigned long wait_ms)</td></tr>
 <tr class="memdesc:ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Spin wait until the number of milliseconds have elapsed.  <a href="group__n64sys.html#ga2ae016ad196fd951c5ce81d0f775f4ed">More...</a><br /></td></tr>
 <tr class="separator:ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaaa30315f523b6cfab1efbcf15a32ecab"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaaa30315f523b6cfab1efbcf15a32ecab">__init_cop1</a> (void)</td></tr>
-<tr class="memdesc:gaaa30315f523b6cfab1efbcf15a32ecab"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize COP1 with default settings that prevent undesirable exceptions.  <a href="group__n64sys.html#gaaa30315f523b6cfab1efbcf15a32ecab">More...</a><br /></td></tr>
-<tr class="separator:gaaa30315f523b6cfab1efbcf15a32ecab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga77626094fc3952fe3321098e24811e83"><td class="memItemLeft" align="right" valign="top"><a id="ga77626094fc3952fe3321098e24811e83" name="ga77626094fc3952fe3321098e24811e83"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_invalidate</b> (volatile void *addr, unsigned long length)</td></tr>
+<tr class="memdesc:ga77626094fc3952fe3321098e24811e83"><td class="mdescLeft">&#160;</td><td class="mdescRight">Underlying implementation of data_cache_hit_invalidate. <br /></td></tr>
+<tr class="separator:ga77626094fc3952fe3321098e24811e83"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9365c415a472036d7c8dbbf71239e707"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga9365c415a472036d7c8dbbf71239e707">data_cache_hit_writeback</a> (volatile const void *, unsigned long)</td></tr>
+<tr class="memdesc:ga9365c415a472036d7c8dbbf71239e707"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback over a memory region.  <a href="group__n64sys.html#ga9365c415a472036d7c8dbbf71239e707">More...</a><br /></td></tr>
+<tr class="separator:ga9365c415a472036d7c8dbbf71239e707"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaba18b282af73a79b576df68fe40bbc6b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaba18b282af73a79b576df68fe40bbc6b">data_cache_hit_writeback_invalidate</a> (volatile void *, unsigned long)</td></tr>
+<tr class="memdesc:gaba18b282af73a79b576df68fe40bbc6b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback invalidate over a memory region.  <a href="group__n64sys.html#gaba18b282af73a79b576df68fe40bbc6b">More...</a><br /></td></tr>
+<tr class="separator:gaba18b282af73a79b576df68fe40bbc6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga1e4bfc6b17d92877acd41f53686296e0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga1e4bfc6b17d92877acd41f53686296e0">data_cache_index_writeback_invalidate</a> (volatile void *, unsigned long)</td></tr>
+<tr class="memdesc:ga1e4bfc6b17d92877acd41f53686296e0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache index writeback invalidate over a memory region.  <a href="group__n64sys.html#ga1e4bfc6b17d92877acd41f53686296e0">More...</a><br /></td></tr>
+<tr class="separator:ga1e4bfc6b17d92877acd41f53686296e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa57816b81179fe22e8fc6b93f1e5cf69"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa57816b81179fe22e8fc6b93f1e5cf69">data_cache_writeback_invalidate_all</a> (void)</td></tr>
+<tr class="memdesc:gaa57816b81179fe22e8fc6b93f1e5cf69"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback invalidate over whole memory.  <a href="group__n64sys.html#gaa57816b81179fe22e8fc6b93f1e5cf69">More...</a><br /></td></tr>
+<tr class="separator:gaa57816b81179fe22e8fc6b93f1e5cf69"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga87207b62699be43a587de583dc0196b3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga87207b62699be43a587de583dc0196b3">inst_cache_hit_writeback</a> (volatile const void *, unsigned long)</td></tr>
+<tr class="memdesc:ga87207b62699be43a587de583dc0196b3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache writeback over a memory region.  <a href="group__n64sys.html#ga87207b62699be43a587de583dc0196b3">More...</a><br /></td></tr>
+<tr class="separator:ga87207b62699be43a587de583dc0196b3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab2c93d4fcef0d7e2b4df4eba3fed362d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gab2c93d4fcef0d7e2b4df4eba3fed362d">inst_cache_hit_invalidate</a> (volatile void *, unsigned long)</td></tr>
+<tr class="memdesc:gab2c93d4fcef0d7e2b4df4eba3fed362d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache invalidate over a memory region.  <a href="group__n64sys.html#gab2c93d4fcef0d7e2b4df4eba3fed362d">More...</a><br /></td></tr>
+<tr class="separator:gab2c93d4fcef0d7e2b4df4eba3fed362d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaea59ec9f10a1305eb34502b1bb9af5e0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaea59ec9f10a1305eb34502b1bb9af5e0">inst_cache_index_invalidate</a> (volatile void *, unsigned long)</td></tr>
+<tr class="memdesc:gaea59ec9f10a1305eb34502b1bb9af5e0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache index invalidate over a memory region.  <a href="group__n64sys.html#gaea59ec9f10a1305eb34502b1bb9af5e0">More...</a><br /></td></tr>
+<tr class="separator:gaea59ec9f10a1305eb34502b1bb9af5e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3bbb609a58f6025ea3b8cb406ca4d823">inst_cache_invalidate_all</a> (void)</td></tr>
+<tr class="memdesc:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache invalidate over whole memory.  <a href="group__n64sys.html#ga3bbb609a58f6025ea3b8cb406ca4d823">More...</a><br /></td></tr>
+<tr class="separator:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4496cbe7966a01738242c1b214028eb0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0">get_memory_size</a> ()</td></tr>
+<tr class="memdesc:ga4496cbe7966a01738242c1b214028eb0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get amount of available memory.  <a href="group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0">More...</a><br /></td></tr>
+<tr class="separator:ga4496cbe7966a01738242c1b214028eb0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga28ba352e296d379426531772b874046d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga28ba352e296d379426531772b874046d">is_memory_expanded</a> ()</td></tr>
+<tr class="memdesc:ga28ba352e296d379426531772b874046d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is expansion pak in use.  <a href="group__n64sys.html#ga28ba352e296d379426531772b874046d">More...</a><br /></td></tr>
+<tr class="separator:ga28ba352e296d379426531772b874046d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">malloc_uncached</a> (size_t size)</td></tr>
+<tr class="memdesc:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory.  <a href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">More...</a><br /></td></tr>
+<tr class="separator:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01">malloc_uncached_aligned</a> (int align, size_t size)</td></tr>
+<tr class="memdesc:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory, specifying alignment.  <a href="group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01">More...</a><br /></td></tr>
+<tr class="separator:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">free_uncached</a> (void *buf)</td></tr>
+<tr class="memdesc:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Free an uncached memory buffer.  <a href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">More...</a><br /></td></tr>
+<tr class="separator:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4cd768cc5d84485110ecf4991727b00b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">get_tv_type</a> ()</td></tr>
+<tr class="memdesc:ga4cd768cc5d84485110ecf4991727b00b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <a href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">More...</a><br /></td></tr>
+<tr class="separator:ga4cd768cc5d84485110ecf4991727b00b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:gacd3b316e4428bf20c80fa403921feeb5"><td class="memItemLeft" align="right" valign="top"><a id="gacd3b316e4428bf20c80fa403921feeb5" name="gacd3b316e4428bf20c80fa403921feeb5"></a>
-int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b> = 0</td></tr>
-<tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
-<tr class="separator:gacd3b316e4428bf20c80fa403921feeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga7bde5bc5b3121ab6d4d1293f29a2718b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga7bde5bc5b3121ab6d4d1293f29a2718b">__bootcic</a> = 6102</td></tr>
-<tr class="memdesc:ga7bde5bc5b3121ab6d4d1293f29a2718b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Boot CIC.  <a href="group__n64sys.html#ga7bde5bc5b3121ab6d4d1293f29a2718b">More...</a><br /></td></tr>
-<tr class="separator:ga7bde5bc5b3121ab6d4d1293f29a2718b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gacd3b316e4428bf20c80fa403921feeb5"><td class="memItemLeft" align="right" valign="top"><a id="gacd3b316e4428bf20c80fa403921feeb5" name="gacd3b316e4428bf20c80fa403921feeb5"></a>
 int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></tr>
 <tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
@@ -552,51 +535,6 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 <p >N64 bootup and cache interfaces. </p>
 <p >The N64 system interface provides a way for code to interact with the memory setup on the system. This includes cache operations to invalidate or flush regions and the ability to set the boot CIC. The <a class="el" href="group__system.html">newlib Interface Hooks</a> use the knowledge of the boot CIC to properly determine if the expansion pak is present, giving 4 MiB of additional memory. Aside from this, the MIPS r4300 uses a manual cache management strategy, where SW that requires passing buffers to and from hardware components using DMA controllers needs to ensure that cache and RDRAM are in sync. A set of operations to invalidate and/or write back cache is provided for both instruction cache and data cache. </p>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="gac69e8a7b3752d227238ff76b56b3fa17" name="gac69e8a7b3752d227238ff76b56b3fa17"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac69e8a7b3752d227238ff76b56b3fa17">&#9670;&nbsp;</a></span>cache_op</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define cache_op</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">op, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">linesize&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    if (length) { \</div>
-<div class="line">        void *cur = (<span class="keywordtype">void</span>*)((<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span>)addr &amp; ~(linesize-1)); \</div>
-<div class="line">        int count = (int)length + (addr-cur); \</div>
-<div class="line">        for (<span class="keywordtype">int</span> i = 0; i &lt; count; i += linesize) \</div>
-<div class="line">            <span class="keyword">asm</span> (<span class="stringliteral">&quot;\tcache %0,(%1)\n&quot;</span>::<span class="stringliteral">&quot;i&quot;</span> (op), <span class="stringliteral">&quot;r&quot;</span> (cur+i)); \</div>
-<div class="line">    } \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Helper macro to perform cache refresh operations. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">op</td><td>Operation to perform </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">linesize</td><td>Size of a cacheline in bytes </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a id="ga06cc6d925caa4db67e81281eef124d28" name="ga06cc6d925caa4db67e81281eef124d28"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga06cc6d925caa4db67e81281eef124d28">&#9670;&nbsp;</a></span>C0_COUNT</h2>
 
@@ -1665,7 +1603,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 <p >Use this to force the N64 to update cache from RDRAM.</p>
 <p >The cache is made by cachelines of 16 bytes. If a memory region is invalidated and the memory region is not fully aligned to cachelines, a larger area than that requested will be invalidated; depending on the arrangement of the data segments and/or heap, this might make data previously written by the CPU in regular memory locations to be unexpectedly discarded, causing bugs.</p>
 <p >For this reason, this function must only be called with an address aligned to 16 bytes, and with a length which is an exact multiple of 16 bytes; it will assert otherwise.</p>
-<p >As an alternative, consider using <a class="el" href="group__n64sys.html#ga477cecd8d83802c27a334edac9afe83a" title="Force a data cache writeback invalidate over a memory region.">data_cache_hit_writeback_invalidate</a>, that first writebacks the affected cachelines to RDRAM, guaranteeing integrity of memory areas that share cachelines with the region that must be invalidated.</p>
+<p >As an alternative, consider using <a class="el" href="group__n64sys.html#gaba18b282af73a79b576df68fe40bbc6b" title="Force a data cache writeback invalidate over a memory region.">data_cache_hit_writeback_invalidate</a>, that first writebacks the affected cachelines to RDRAM, guaranteeing integrity of memory areas that share cachelines with the region that must be invalidated.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">addr_</td><td>Pointer to memory in question </td></tr>
@@ -1746,436 +1684,6 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
   </table>
   </dd>
 </dl>
-
-</div>
-</div>
-<a id="gacc2164dd0c39d2d949291bb9b2379c0f" name="gacc2164dd0c39d2d949291bb9b2379c0f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gacc2164dd0c39d2d949291bb9b2379c0f">&#9670;&nbsp;</a></span>data_cache_hit_writeback()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void data_cache_hit_writeback </td>
-          <td>(</td>
-          <td class="paramtype">volatile const void *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force a data cache writeback over a memory region. </p>
-<p >Use this to force cached memory to be written to RDRAM.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga477cecd8d83802c27a334edac9afe83a" name="ga477cecd8d83802c27a334edac9afe83a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga477cecd8d83802c27a334edac9afe83a">&#9670;&nbsp;</a></span>data_cache_hit_writeback_invalidate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void data_cache_hit_writeback_invalidate </td>
-          <td>(</td>
-          <td class="paramtype">volatile void *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force a data cache writeback invalidate over a memory region. </p>
-<p >Use this to force cached memory to be written to RDRAM and then invalidate the corresponding cache lines.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga65b4f6171cb8c4813576cd7925cb76de" name="ga65b4f6171cb8c4813576cd7925cb76de"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga65b4f6171cb8c4813576cd7925cb76de">&#9670;&nbsp;</a></span>data_cache_index_writeback_invalidate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void data_cache_index_writeback_invalidate </td>
-          <td>(</td>
-          <td class="paramtype">volatile void *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force a data cache index writeback invalidate over a memory region. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gaa57816b81179fe22e8fc6b93f1e5cf69" name="gaa57816b81179fe22e8fc6b93f1e5cf69"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa57816b81179fe22e8fc6b93f1e5cf69">&#9670;&nbsp;</a></span>data_cache_writeback_invalidate_all()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void data_cache_writeback_invalidate_all </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force a data cache writeback invalidate over whole memory. </p>
-<p >Also see <a class="el" href="group__n64sys.html#ga477cecd8d83802c27a334edac9afe83a" title="Force a data cache writeback invalidate over a memory region.">data_cache_hit_writeback_invalidate</a> </p>
-
-</div>
-</div>
-<a id="gac57f15648738d8f8575ec655a1678b73" name="gac57f15648738d8f8575ec655a1678b73"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac57f15648738d8f8575ec655a1678b73">&#9670;&nbsp;</a></span>inst_cache_hit_writeback()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void inst_cache_hit_writeback </td>
-          <td>(</td>
-          <td class="paramtype">volatile const void *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force an instruction cache writeback over a memory region. </p>
-<p >Use this to force cached memory to be written to RDRAM.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga6c1668d8eee5e64ac7f3b91bd37db60e" name="ga6c1668d8eee5e64ac7f3b91bd37db60e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6c1668d8eee5e64ac7f3b91bd37db60e">&#9670;&nbsp;</a></span>inst_cache_hit_invalidate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void inst_cache_hit_invalidate </td>
-          <td>(</td>
-          <td class="paramtype">volatile void *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force an instruction cache invalidate over a memory region. </p>
-<p >Use this to force the N64 to update cache from RDRAM.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gae7ec4cb3b1776373ede58525b43a258e" name="gae7ec4cb3b1776373ede58525b43a258e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gae7ec4cb3b1776373ede58525b43a258e">&#9670;&nbsp;</a></span>inst_cache_index_invalidate()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void inst_cache_index_invalidate </td>
-          <td>(</td>
-          <td class="paramtype">volatile void *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force an instruction cache index invalidate over a memory region. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga3bbb609a58f6025ea3b8cb406ca4d823" name="ga3bbb609a58f6025ea3b8cb406ca4d823"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3bbb609a58f6025ea3b8cb406ca4d823">&#9670;&nbsp;</a></span>inst_cache_invalidate_all()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void inst_cache_invalidate_all </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force an instruction cache invalidate over whole memory. </p>
-<p >Also see <a class="el" href="group__n64sys.html#ga6c1668d8eee5e64ac7f3b91bd37db60e" title="Force an instruction cache invalidate over a memory region.">inst_cache_hit_invalidate</a> </p>
-
-</div>
-</div>
-<a id="gaf9f812fb3f12eaee7f5186b893266d3a" name="gaf9f812fb3f12eaee7f5186b893266d3a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf9f812fb3f12eaee7f5186b893266d3a">&#9670;&nbsp;</a></span>malloc_uncached()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void * malloc_uncached </td>
-          <td>(</td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>size</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Allocate a buffer that will be accessed as uncached memory. </p>
-<p >This function allocates a memory buffer that can be safely read and written through uncached memory accesses only. It makes sure that that the buffer does not share any cacheline with other buffers in the heap, and returns a pointer in the uncached segment (0xA0000000).</p>
-<p >The buffer contents are uninitialized.</p>
-<p >To free the buffer, use <a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d" title="Free an uncached memory buffer.">free_uncached</a>.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>The size of the buffer to allocate</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>a pointer to the start of the buffer (in the uncached segment)</dd></dl>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d" title="Free an uncached memory buffer.">free_uncached</a> </dd></dl>
-
-</div>
-</div>
-<a id="gaa32bea9ddd5d2931d27945d63cc71e01" name="gaa32bea9ddd5d2931d27945d63cc71e01"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa32bea9ddd5d2931d27945d63cc71e01">&#9670;&nbsp;</a></span>malloc_uncached_aligned()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void * malloc_uncached_aligned </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>align</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>size</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Allocate a buffer that will be accessed as uncached memory, specifying alignment. </p>
-<p >This function is similar to <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>, but allows to force a higher alignment to the buffer (just like memalign does). See <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> for reference.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">align</td><td>The alignment of the buffer in bytes (eg: 64) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>The size of the buffer to allocate</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>a pointer to the start of the buffer (in the uncached segment)</dd></dl>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> </dd></dl>
-
-</div>
-</div>
-<a id="gad7eb2952f66b4c6158a161eddc6f6a7d" name="gad7eb2952f66b4c6158a161eddc6f6a7d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad7eb2952f66b4c6158a161eddc6f6a7d">&#9670;&nbsp;</a></span>free_uncached()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void free_uncached </td>
-          <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Free an uncached memory buffer. </p>
-<p >This function frees a memory buffer previously allocated via <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">buf</td><td>The buffer to free</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> </dd></dl>
-
-</div>
-</div>
-<a id="ga4496cbe7966a01738242c1b214028eb0" name="ga4496cbe7966a01738242c1b214028eb0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4496cbe7966a01738242c1b214028eb0">&#9670;&nbsp;</a></span>get_memory_size()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int get_memory_size </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get amount of available memory. </p>
-<dl class="section return"><dt>Returns</dt><dd>amount of total available memory in bytes. </dd></dl>
-
-</div>
-</div>
-<a id="ga28ba352e296d379426531772b874046d" name="ga28ba352e296d379426531772b874046d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga28ba352e296d379426531772b874046d">&#9670;&nbsp;</a></span>is_memory_expanded()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">bool is_memory_expanded </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Is expansion pak in use. </p>
-<p >Checks whether the maximum available memory has been expanded to 8 MiB</p>
-<dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise.</dd></dl>
-<dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8 MiB of RAM. </dd></dl>
-
-</div>
-</div>
-<a id="ga4cd768cc5d84485110ecf4991727b00b" name="ga4cd768cc5d84485110ecf4991727b00b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4cd768cc5d84485110ecf4991727b00b">&#9670;&nbsp;</a></span>get_tv_type()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a> get_tv_type </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Is system NTSC/PAL/MPAL. </p>
-<p >Checks enum hard-coded in PIF BootROM to indicate the tv type of the system.</p>
-<dl class="section return"><dt>Returns</dt><dd>enum value indicating PAL, NTSC or MPAL </dd></dl>
 
 </div>
 </div>
@@ -2297,14 +1805,127 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
-<a id="gaaa30315f523b6cfab1efbcf15a32ecab" name="gaaa30315f523b6cfab1efbcf15a32ecab"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaaa30315f523b6cfab1efbcf15a32ecab">&#9670;&nbsp;</a></span>__init_cop1()</h2>
+<a id="ga9365c415a472036d7c8dbbf71239e707" name="ga9365c415a472036d7c8dbbf71239e707"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9365c415a472036d7c8dbbf71239e707">&#9670;&nbsp;</a></span>data_cache_hit_writeback()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void __init_cop1 </td>
+          <td class="memname">void data_cache_hit_writeback </td>
+          <td>(</td>
+          <td class="paramtype">volatile const void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force a data cache writeback over a memory region. </p>
+<p >Use this to force cached memory to be written to RDRAM.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gaba18b282af73a79b576df68fe40bbc6b" name="gaba18b282af73a79b576df68fe40bbc6b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaba18b282af73a79b576df68fe40bbc6b">&#9670;&nbsp;</a></span>data_cache_hit_writeback_invalidate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void data_cache_hit_writeback_invalidate </td>
+          <td>(</td>
+          <td class="paramtype">volatile void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force a data cache writeback invalidate over a memory region. </p>
+<p >Use this to force cached memory to be written to RDRAM and then invalidate the corresponding cache lines.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga1e4bfc6b17d92877acd41f53686296e0" name="ga1e4bfc6b17d92877acd41f53686296e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga1e4bfc6b17d92877acd41f53686296e0">&#9670;&nbsp;</a></span>data_cache_index_writeback_invalidate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void data_cache_index_writeback_invalidate </td>
+          <td>(</td>
+          <td class="paramtype">volatile void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force a data cache index writeback invalidate over a memory region. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gaa57816b81179fe22e8fc6b93f1e5cf69" name="gaa57816b81179fe22e8fc6b93f1e5cf69"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa57816b81179fe22e8fc6b93f1e5cf69">&#9670;&nbsp;</a></span>data_cache_writeback_invalidate_all()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void data_cache_writeback_invalidate_all </td>
           <td>(</td>
           <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
@@ -2313,33 +1934,311 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
       </table>
 </div><div class="memdoc">
 
-<p>Initialize COP1 with default settings that prevent undesirable exceptions. </p>
-<p >Enable FPU exceptions that can help programmers avoid bugs in their code. Underflow exceptions are not enabled because they are triggered whenever a denormalized float is generated, <em>even if</em> the FS bit is set (see below). So basically having the underflow exception enabled seems to be useless unless also the underflow (and the inexact) exceptions are off. Notice that underflows can happen also with library code such as tanf(BITCAST_I2F(0x3f490fdb)) (0.785398185253).</p>
+<p>Force a data cache writeback invalidate over whole memory. </p>
+<p >Also see <a class="el" href="group__n64sys.html#gaba18b282af73a79b576df68fe40bbc6b" title="Force a data cache writeback invalidate over a memory region.">data_cache_hit_writeback_invalidate</a> </p>
 
 </div>
 </div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="ga7bde5bc5b3121ab6d4d1293f29a2718b" name="ga7bde5bc5b3121ab6d4d1293f29a2718b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7bde5bc5b3121ab6d4d1293f29a2718b">&#9670;&nbsp;</a></span>__bootcic</h2>
+<a id="ga87207b62699be43a587de583dc0196b3" name="ga87207b62699be43a587de583dc0196b3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga87207b62699be43a587de583dc0196b3">&#9670;&nbsp;</a></span>inst_cache_hit_writeback()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int __bootcic = 6102</td>
+          <td class="memname">void inst_cache_hit_writeback </td>
+          <td>(</td>
+          <td class="paramtype">volatile const void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Boot CIC. </p>
-<p >Defaults to 6102. </p>
+<p>Force an instruction cache writeback over a memory region. </p>
+<p >Use this to force cached memory to be written to RDRAM.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gab2c93d4fcef0d7e2b4df4eba3fed362d" name="gab2c93d4fcef0d7e2b4df4eba3fed362d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab2c93d4fcef0d7e2b4df4eba3fed362d">&#9670;&nbsp;</a></span>inst_cache_hit_invalidate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void inst_cache_hit_invalidate </td>
+          <td>(</td>
+          <td class="paramtype">volatile void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force an instruction cache invalidate over a memory region. </p>
+<p >Use this to force the N64 to update cache from RDRAM.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gaea59ec9f10a1305eb34502b1bb9af5e0" name="gaea59ec9f10a1305eb34502b1bb9af5e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaea59ec9f10a1305eb34502b1bb9af5e0">&#9670;&nbsp;</a></span>inst_cache_index_invalidate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void inst_cache_index_invalidate </td>
+          <td>(</td>
+          <td class="paramtype">volatile void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force an instruction cache index invalidate over a memory region. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga3bbb609a58f6025ea3b8cb406ca4d823" name="ga3bbb609a58f6025ea3b8cb406ca4d823"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3bbb609a58f6025ea3b8cb406ca4d823">&#9670;&nbsp;</a></span>inst_cache_invalidate_all()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void inst_cache_invalidate_all </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force an instruction cache invalidate over whole memory. </p>
+<p >Also see <a class="el" href="group__n64sys.html#gab2c93d4fcef0d7e2b4df4eba3fed362d" title="Force an instruction cache invalidate over a memory region.">inst_cache_hit_invalidate</a> </p>
+
+</div>
+</div>
+<a id="ga4496cbe7966a01738242c1b214028eb0" name="ga4496cbe7966a01738242c1b214028eb0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4496cbe7966a01738242c1b214028eb0">&#9670;&nbsp;</a></span>get_memory_size()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int get_memory_size </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get amount of available memory. </p>
+<dl class="section return"><dt>Returns</dt><dd>amount of total available memory in bytes. </dd></dl>
+
+</div>
+</div>
+<a id="ga28ba352e296d379426531772b874046d" name="ga28ba352e296d379426531772b874046d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga28ba352e296d379426531772b874046d">&#9670;&nbsp;</a></span>is_memory_expanded()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool is_memory_expanded </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Is expansion pak in use. </p>
+<p >Checks whether the maximum available memory has been expanded to 8 MiB</p>
+<dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8 MiB of RAM. </dd></dl>
+
+</div>
+</div>
+<a id="gaf9f812fb3f12eaee7f5186b893266d3a" name="gaf9f812fb3f12eaee7f5186b893266d3a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf9f812fb3f12eaee7f5186b893266d3a">&#9670;&nbsp;</a></span>malloc_uncached()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void * malloc_uncached </td>
+          <td>(</td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>size</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Allocate a buffer that will be accessed as uncached memory. </p>
+<p >This function allocates a memory buffer that can be safely read and written through uncached memory accesses only. It makes sure that that the buffer does not share any cacheline with other buffers in the heap, and returns a pointer in the uncached segment (0xA0000000).</p>
+<p >The buffer contents are uninitialized.</p>
+<p >To free the buffer, use <a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d" title="Free an uncached memory buffer.">free_uncached</a>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>The size of the buffer to allocate</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>a pointer to the start of the buffer (in the uncached segment)</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d" title="Free an uncached memory buffer.">free_uncached</a> </dd></dl>
+
+</div>
+</div>
+<a id="gaa32bea9ddd5d2931d27945d63cc71e01" name="gaa32bea9ddd5d2931d27945d63cc71e01"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa32bea9ddd5d2931d27945d63cc71e01">&#9670;&nbsp;</a></span>malloc_uncached_aligned()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void * malloc_uncached_aligned </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>align</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Allocate a buffer that will be accessed as uncached memory, specifying alignment. </p>
+<p >This function is similar to <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>, but allows to force a higher alignment to the buffer (just like memalign does). See <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> for reference.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">align</td><td>The alignment of the buffer in bytes (eg: 64) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>The size of the buffer to allocate</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>a pointer to the start of the buffer (in the uncached segment)</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> </dd></dl>
+
+</div>
+</div>
+<a id="gad7eb2952f66b4c6158a161eddc6f6a7d" name="gad7eb2952f66b4c6158a161eddc6f6a7d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad7eb2952f66b4c6158a161eddc6f6a7d">&#9670;&nbsp;</a></span>free_uncached()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void free_uncached </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Free an uncached memory buffer. </p>
+<p >This function frees a memory buffer previously allocated via <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">buf</td><td>The buffer to free</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> </dd></dl>
+
+</div>
+</div>
+<a id="ga4cd768cc5d84485110ecf4991727b00b" name="ga4cd768cc5d84485110ecf4991727b00b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4cd768cc5d84485110ecf4991727b00b">&#9670;&nbsp;</a></span>get_tv_type()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a> get_tv_type </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Is system NTSC/PAL/MPAL. </p>
+<p >Checks enum hard-coded in PIF BootROM to indicate the tv type of the system.</p>
+<dl class="section return"><dt>Returns</dt><dd>enum value indicating PAL, NTSC or MPAL </dd></dl>
 
 </div>
 </div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

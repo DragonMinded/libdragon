@@ -1,14 +1,14 @@
 var searchData=
 [
-  ['_5f_5fassert_5ffunc_5fptr_0',['__assert_func_ptr',['../group__system.html#ga6e83120dfc32290b3dfff131819edf38',1,'system.c']]],
-  ['_5f_5fbaseregaddr_1',['__baseRegAddr',['../group__exceptions.html#gaeb336a150cd15bd969c9067b0bca7ef9',1,'exception.c']]],
+  ['_5f_5fassert_5ffunc_5fptr_0',['__assert_func_ptr',['../system_8c.html#a6e83120dfc32290b3dfff131819edf38',1,'system.c']]],
+  ['_5f_5fbaseregaddr_1',['__baseRegAddr',['../exception_8c.html#aeb336a150cd15bd969c9067b0bca7ef9',1,'exception.c']]],
   ['_5f_5fbbplayer_2',['__bbplayer',['../group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5',1,'__bbplayer():&#160;n64sys.c'],['../group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5',1,'__bbplayer():&#160;n64sys.c']]],
-  ['_5f_5fbootcic_3',['__bootcic',['../group__n64sys.html#ga7bde5bc5b3121ab6d4d1293f29a2718b',1,'__bootcic():&#160;n64sys.c'],['../group__system.html#ga7bde5bc5b3121ab6d4d1293f29a2718b',1,'__bootcic():&#160;n64sys.c']]],
+  ['_5f_5fbootcic_3',['__bootcic',['../n64sys_8c.html#a7bde5bc5b3121ab6d4d1293f29a2718b',1,'__bootcic():&#160;n64sys.c'],['../system_8c.html#a7bde5bc5b3121ab6d4d1293f29a2718b',1,'__bootcic():&#160;n64sys.c']]],
   ['_5f_5fbss_5fend_4',['__bss_end',['../group__n64sys.html#gad07593be6cf1d4ebe605cbdb85f8956b',1,'n64sys.h']]],
   ['_5f_5fctor_5fend_5f_5f_5',['__CTOR_END__',['../group__system.html#ga537f421bb42d6566f23aabcdcc0aa0f3',1,'do_ctors.c']]],
   ['_5f_5fctor_5flist_5f_5f_6',['__CTOR_LIST__',['../group__system.html#ga85d9cd4c96818595113f38830217f2f9',1,'do_ctors.c']]],
   ['_5f_5feh_5fframe_5fbegin_5f_5f_7',['__EH_FRAME_BEGIN__',['../group__system.html#ga9efca5b23bc6ea3165cab5b4ebfb4c77',1,'do_ctors.c']]],
-  ['_5f_5fenv_8',['__env',['../group__system.html#ga5428d66981cb84e60b899495874618b2',1,'system.c']]],
+  ['_5f_5fenv_8',['__env',['../system_8c.html#a5428d66981cb84e60b899495874618b2',1,'system.c']]],
   ['_5f_5flibdragon_5ftext_5fstart_9',['__libdragon_text_start',['../group__n64sys.html#gaeee0500fc15a8edadab5e50494669416',1,'n64sys.h']]],
   ['_5f_5fmixer_5foverlay_5fid_10',['__mixer_overlay_id',['../mixer_8c.html#a728b6be978ab3d502aa747add3151db3',1,'mixer.c']]],
   ['_5f_5fmixer_5fprofile_5frsp_11',['__mixer_profile_rsp',['../mixer_8c.html#adb6462ba394e665c815abb852d8e341f',1,'mixer.c']]],

@@ -80,16 +80,16 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
-<tr class="memitem:aecfbc74a751594695ce3706d199da203"><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="audio_8h.html#aecfbc74a751594695ce3706d199da203">audio_fill_buffer_callback</a>) (short *buffer, size_t numsamples)</td></tr>
-<tr class="memdesc:aecfbc74a751594695ce3706d199da203"><td class="mdescLeft">&#160;</td><td class="mdescRight">Will be called periodically when more sample data is needed.  <a href="audio_8h.html#aecfbc74a751594695ce3706d199da203">More...</a><br /></td></tr>
-<tr class="separator:aecfbc74a751594695ce3706d199da203"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaecfbc74a751594695ce3706d199da203"><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#gaecfbc74a751594695ce3706d199da203">audio_fill_buffer_callback</a>) (short *buffer, size_t numsamples)</td></tr>
+<tr class="memdesc:gaecfbc74a751594695ce3706d199da203"><td class="mdescLeft">&#160;</td><td class="mdescRight">Will be called periodically when more sample data is needed.  <a href="group__audio.html#gaecfbc74a751594695ce3706d199da203">More...</a><br /></td></tr>
+<tr class="separator:gaecfbc74a751594695ce3706d199da203"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ga8ef2eb966a8552f3d19526753b98427f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f">audio_init</a> (const int frequency, int numbuffers)</td></tr>
 <tr class="memdesc:ga8ef2eb966a8552f3d19526753b98427f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the audio subsystem.  <a href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f">More...</a><br /></td></tr>
 <tr class="separator:ga8ef2eb966a8552f3d19526753b98427f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga456542c1cf5d749b2a351778f932f7a6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga456542c1cf5d749b2a351778f932f7a6">audio_set_buffer_callback</a> (<a class="el" href="audio_8h.html#aecfbc74a751594695ce3706d199da203">audio_fill_buffer_callback</a> fill_buffer_callback)</td></tr>
+<tr class="memitem:ga456542c1cf5d749b2a351778f932f7a6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga456542c1cf5d749b2a351778f932f7a6">audio_set_buffer_callback</a> (<a class="el" href="group__audio.html#gaecfbc74a751594695ce3706d199da203">audio_fill_buffer_callback</a> fill_buffer_callback)</td></tr>
 <tr class="memdesc:ga456542c1cf5d749b2a351778f932f7a6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Install a audio callback to fill the audio buffer when required.  <a href="group__audio.html#ga456542c1cf5d749b2a351778f932f7a6">More...</a><br /></td></tr>
 <tr class="separator:ga456542c1cf5d749b2a351778f932f7a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga977622d0345b9951d9259d5ff202de8c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga977622d0345b9951d9259d5ff202de8c">audio_pause</a> (bool pause)</td></tr>
@@ -125,34 +125,10 @@ Functions</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Audio Subsystem. </p>
-</div><h2 class="groupheader">Typedef Documentation</h2>
-<a id="aecfbc74a751594695ce3706d199da203" name="aecfbc74a751594695ce3706d199da203"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aecfbc74a751594695ce3706d199da203">&#9670;&nbsp;</a></span>audio_fill_buffer_callback</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">typedef void(* audio_fill_buffer_callback) (short *buffer, size_t numsamples)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Will be called periodically when more sample data is needed. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">buffer</td><td>The address to write the sample data to </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">numsamples</td><td>The number of samples to write to the buffer Note: this is the number of samples per channel, so clients should write twice this number of samples (interleaved). </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-</div><!-- contents -->
+</div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:48 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -1,10 +1,10 @@
 var searchData=
 [
   ['tex_5fformat_5fname_0',['tex_format_name',['../surface_8h.html#ae533cf98566a3ff542e8a9af92e177b3',1,'tex_format_name(tex_format_t fmt):&#160;surface.c'],['../surface_8c.html#ae533cf98566a3ff542e8a9af92e177b3',1,'tex_format_name(tex_format_t fmt):&#160;surface.c']]],
-  ['timer_5fclose_1',['timer_close',['../group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d',1,'timer_close(void):&#160;timer.c'],['../group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d',1,'timer_close(void):&#160;timer.c']]],
-  ['timer_5finit_2',['timer_init',['../group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9',1,'timer_init(void):&#160;timer.c'],['../group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9',1,'timer_init(void):&#160;timer.c']]],
-  ['timer_5fticks_3',['timer_ticks',['../group__timer.html#gae044084b5c38e019cb7e38e9fe9bb425',1,'timer_ticks(void):&#160;timer.c'],['../group__timer.html#gae044084b5c38e019cb7e38e9fe9bb425',1,'timer_ticks(void):&#160;timer.c']]],
-  ['times_4',['times',['../group__system.html#ga73fc89d71a97e11d44bdd0bbb851a9cb',1,'system.c']]],
+  ['timer_5fclose_1',['timer_close',['../timer_8c.html#a32c93080b7ed9264d7db8e5137a17c0d',1,'timer_close(void):&#160;timer.c'],['../timer_8h.html#a32c93080b7ed9264d7db8e5137a17c0d',1,'timer_close(void):&#160;timer.c']]],
+  ['timer_5finit_2',['timer_init',['../timer_8c.html#a7b8ab79df77b57475a5494f5f81c3bd9',1,'timer_init(void):&#160;timer.c'],['../timer_8h.html#a7b8ab79df77b57475a5494f5f81c3bd9',1,'timer_init(void):&#160;timer.c']]],
+  ['timer_5fticks_3',['timer_ticks',['../timer_8c.html#ae044084b5c38e019cb7e38e9fe9bb425',1,'timer_ticks(void):&#160;timer.c'],['../timer_8h.html#ae044084b5c38e019cb7e38e9fe9bb425',1,'timer_ticks(void):&#160;timer.c']]],
+  ['times_4',['times',['../system_8c.html#a73fc89d71a97e11d44bdd0bbb851a9cb',1,'system.c']]],
   ['tpak_5fcheck_5fheader_5',['tpak_check_header',['../tpak_8c.html#a4d4815b2643fdb64a0d12f99beaa7d0a',1,'tpak_check_header(struct gameboy_cartridge_header *header):&#160;tpak.c'],['../tpak_8h.html#a4d4815b2643fdb64a0d12f99beaa7d0a',1,'tpak_check_header(struct gameboy_cartridge_header *header):&#160;tpak.c']]],
   ['tpak_5fget_5fcartridge_5fheader_6',['tpak_get_cartridge_header',['../tpak_8c.html#ac275be37f853abac5bc64548f3722607',1,'tpak_get_cartridge_header(int controller, struct gameboy_cartridge_header *header):&#160;tpak.c'],['../tpak_8h.html#ac275be37f853abac5bc64548f3722607',1,'tpak_get_cartridge_header(int controller, struct gameboy_cartridge_header *header):&#160;tpak.c']]],
   ['tpak_5fget_5fstatus_7',['tpak_get_status',['../tpak_8h.html#afd9cdb4edd60438bf470cc07e2bba208',1,'tpak_get_status(int controller):&#160;tpak.c'],['../tpak_8c.html#afd9cdb4edd60438bf470cc07e2bba208',1,'tpak_get_status(int controller):&#160;tpak.c']]],

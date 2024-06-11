@@ -64,7 +64,6 @@ $(function() {
 <div class="header">
   <div class="summary">
 <a href="#files">Files</a> &#124;
-<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">Joybus Subsystem<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__peripherals.html">Peripherals subsystem</a></div></div></div>
@@ -83,57 +82,22 @@ Files</h2></td></tr>
 <tr class="memdesc:joybus__internal_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus internal API. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
-Data Structures</h2></td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structjoybus__msg__t.html">joybus_msg_t</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">A message to be sent to JoyBus, with its completion callback.  <a href="structjoybus__msg__t.html#details">More...</a><br /></td></tr>
-<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:ga42220dfa963618e170f0c794440a02c7"><td class="memItemLeft" align="right" valign="top"><a id="ga42220dfa963618e170f0c794440a02c7" name="ga42220dfa963618e170f0c794440a02c7"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_JOYBUS_MSGS</b>&#160;&#160;&#160;8</td></tr>
-<tr class="memdesc:ga42220dfa963618e170f0c794440a02c7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of pending joybus messages. <br /></td></tr>
-<tr class="separator:ga42220dfa963618e170f0c794440a02c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga96357e747d908aa6c354b507d9b0fdc4"><td class="memItemLeft" align="right" valign="top"><a id="ga96357e747d908aa6c354b507d9b0fdc4" name="ga96357e747d908aa6c354b507d9b0fdc4"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_SIZE</b>&#160;&#160;&#160;64</td></tr>
+<tr class="memdesc:ga96357e747d908aa6c354b507d9b0fdc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in bytes. <br /></td></tr>
+<tr class="separator:ga96357e747d908aa6c354b507d9b0fdc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gabd5f84cf2323e720ab0b79fff05e8383"><td class="memItemLeft" align="right" valign="top"><a id="gabd5f84cf2323e720ab0b79fff05e8383" name="gabd5f84cf2323e720ab0b79fff05e8383"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_DWORDS</b>&#160;&#160;&#160;( <a class="el" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a> / sizeof(uint64_t) )</td></tr>
+<tr class="memdesc:gabd5f84cf2323e720ab0b79fff05e8383"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in double-words. <br /></td></tr>
+<tr class="separator:gabd5f84cf2323e720ab0b79fff05e8383"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:gaa482f587d5604a7f878f78b1bf092654"><td class="memItemLeft" align="right" valign="top"><a id="gaa482f587d5604a7f878f78b1bf092654" name="gaa482f587d5604a7f878f78b1bf092654"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (void)</td></tr>
-<tr class="memdesc:gaa482f587d5604a7f878f78b1bf092654"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the joybus subsystem. <br /></td></tr>
-<tr class="separator:gaa482f587d5604a7f878f78b1bf092654"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga67a0b9a8881c8ca94d35be1db9e6030f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a> (const void *input, void(*callback)(uint64_t *output, void *ctx), void *ctx)</td></tr>
-<tr class="memdesc:ga67a0b9a8881c8ca94d35be1db9e6030f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute an asynchronous joybus message.  <a href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">More...</a><br /></td></tr>
-<tr class="separator:ga67a0b9a8881c8ca94d35be1db9e6030f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a> (const void *input, void *output)</td></tr>
 <tr class="memdesc:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a 64-byte block of data to the PIF and read the 64-byte result.  <a href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">More...</a><br /></td></tr>
 <tr class="separator:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader">SI status register bit definitions</h2></td></tr>
-<tr class="memitem:gaa522bd708d3dd1df64a630a520db3b4c"><td class="memItemLeft" align="right" valign="top"><a id="gaa522bd708d3dd1df64a630a520db3b4c" name="gaa522bd708d3dd1df64a630a520db3b4c"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SI_STATUS_DMA_BUSY</b>&#160;&#160;&#160;( 1 &lt;&lt; 0 )</td></tr>
-<tr class="memdesc:gaa522bd708d3dd1df64a630a520db3b4c"><td class="mdescLeft">&#160;</td><td class="mdescRight">SI DMA busy. <br /></td></tr>
-<tr class="separator:gaa522bd708d3dd1df64a630a520db3b4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga986a6408fb27f36259cfdc11ddbf6096"><td class="memItemLeft" align="right" valign="top"><a id="ga986a6408fb27f36259cfdc11ddbf6096" name="ga986a6408fb27f36259cfdc11ddbf6096"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>SI_STATUS_IO_BUSY</b>&#160;&#160;&#160;( 1 &lt;&lt; 1 )</td></tr>
-<tr class="memdesc:ga986a6408fb27f36259cfdc11ddbf6096"><td class="mdescLeft">&#160;</td><td class="mdescRight">SI IO busy. <br /></td></tr>
-<tr class="separator:ga986a6408fb27f36259cfdc11ddbf6096"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus internal state machine values</h2></td></tr>
-<tr><td class="ititle" colspan="2"><p ><a class="anchor" id="JOYBUS_STATE"></a></p>
-</td></tr>
-<tr class="memitem:ga21c70d0510a908f2a582a5724eefe097"><td class="memItemLeft" align="right" valign="top"><a id="ga21c70d0510a908f2a582a5724eefe097" name="ga21c70d0510a908f2a582a5724eefe097"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_STATE_IDLE</b>&#160;&#160;&#160;0</td></tr>
-<tr class="memdesc:ga21c70d0510a908f2a582a5724eefe097"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus state: idle (no pending messages) <br /></td></tr>
-<tr class="separator:ga21c70d0510a908f2a582a5724eefe097"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaaa2bc8f4ff1d3885fd957a1d731984eb"><td class="memItemLeft" align="right" valign="top"><a id="gaaa2bc8f4ff1d3885fd957a1d731984eb" name="gaaa2bc8f4ff1d3885fd957a1d731984eb"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_STATE_SENDING</b>&#160;&#160;&#160;1</td></tr>
-<tr class="memdesc:gaaa2bc8f4ff1d3885fd957a1d731984eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">JoyBus state: sending a message to PIF. <br /></td></tr>
-<tr class="separator:gaaa2bc8f4ff1d3885fd957a1d731984eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab2e6c7129176653478cb02a5161292cc"><td class="memItemLeft" align="right" valign="top"><a id="gab2e6c7129176653478cb02a5161292cc" name="gab2e6c7129176653478cb02a5161292cc"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_STATE_RECEIVING</b>&#160;&#160;&#160;2</td></tr>
-<tr class="memdesc:gab2e6c7129176653478cb02a5161292cc"><td class="mdescLeft">&#160;</td><td class="mdescRight">JoyBus state: receiving a reply from PIF. <br /></td></tr>
-<tr class="separator:gab2e6c7129176653478cb02a5161292cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Joybus peripheral interface. </p>
@@ -142,57 +106,8 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (vo
 <p >For controllers: <a class="el" href="group__controller.html">Controller Subsystem</a>.</p>
 <p >For EEPROM, RTC and other peripherals: <a class="el" href="group__peripherals.html">Peripherals Subsystem</a>.</p>
 <p >Internally, the JoyBus subsystem communicates with the PIF controller via the SI DMA, via the JoyBus protocol which is a standard master/slave binary protocol. Each message of the protocol is a block of 64 bytes, and can contain multiple commands. Currently, there are no macros or functions to help composing a JoyBus message, so higher-level libraries currently hard code the binary messages.</p>
-<p >All communications is made asynchronously because SI DMA is quite slow: its completion is bound to the PIF actually processing the data, rather than just being the memory transfer. A queue of pending JoyBus messages is kept in a ring buffer, and is then executed under interrupt when the previous SI DMA completes. The internal entry point is <a class="el" href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f" title="Execute an asynchronous joybus message.">joybus_exec_async</a>, that schedules a message to be sent to PIF, and calls a callback with the reply whenever it is available. A blocking API (<a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a>) is made available for simpler usage. </p>
+<p >All communications is made asynchronously because SI DMA is quite slow: its completion is bound to the PIF actually processing the data, rather than just being the memory transfer. A queue of pending JoyBus messages is kept in a ring buffer, and is then executed under interrupt when the previous SI DMA completes. The internal entry point is <a class="el" href="joybus__internal_8h.html#a67a0b9a8881c8ca94d35be1db9e6030f" title="Execute an asynchronous joybus message.">joybus_exec_async</a>, that schedules a message to be sent to PIF, and calls a callback with the reply whenever it is available. A blocking API (<a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a>) is made available for simpler usage. </p>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ga67a0b9a8881c8ca94d35be1db9e6030f" name="ga67a0b9a8881c8ca94d35be1db9e6030f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga67a0b9a8881c8ca94d35be1db9e6030f">&#9670;&nbsp;</a></span>joybus_exec_async()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void joybus_exec_async </td>
-          <td>(</td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>input</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void(*)(uint64_t *output, void *ctx)&#160;</td>
-          <td class="paramname"><em>callback</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>ctx</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Execute an asynchronous joybus message. </p>
-<p >This function executes an asynchronous joybus protocol exchange, sending a message block (input), and receiving a reply (output). The message is sent in background and a completion function "callback" is called when the output is ready to be processed.</p>
-<p >It is possible to schedule multiple joybus messages by calling this function multiple times. They will be automatically executed in order. The maximum number of pending messages at any given time is <a class="el" href="group__joybus.html#ga42220dfa963618e170f0c794440a02c7" title="Maximum number of pending joybus messages.">MAX_JOYBUS_MSGS</a>.</p>
-<dl class="section note"><dt>Note</dt><dd>The callback function will be called under interrupt.</dd>
-<dd>
-This function is not part of the public API yet because we want to evaluate the use of threading rather than asynchronous programming. It should only be used internally without exposing a asynchronous API externally.</dd></dl>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>The input block (must be of JOYBUS_BLOCK_SIZE bytes). No specific alignment is required for this data block. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>A callback completion function that will be called when the joybus command is finished. The function will receive a pointer to the output buffer and the opaque pointer to the callback's context. Can be NULL if no callback is required. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ctx</td><td>Context opaque pointer to pass to the callback. Can be NULL if no context is required. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a id="ga6d62432ce8ecd83cd1588716fd28fdb7" name="ga6d62432ce8ecd83cd1588716fd28fdb7"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga6d62432ce8ecd83cd1588716fd28fdb7">&#9670;&nbsp;</a></span>joybus_exec()</h2>
 
@@ -235,7 +150,7 @@ This function is not part of the public API yet because we want to evaluate the 
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun May 26 2024 17:19:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Jun 11 2024 20:07:49 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

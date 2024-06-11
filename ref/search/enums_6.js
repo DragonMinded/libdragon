@@ -6,5 +6,5 @@ var searchData=
   ['rdpq_5fmipmap_5ft_3',['rdpq_mipmap_t',['../rdpq__mode_8h.html#af881bfd1d140d97a1707c30e476787bd',1,'rdpq_mode.h']]],
   ['rdpq_5ftile_5ft_4',['rdpq_tile_t',['../rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931e',1,'rdpq.h']]],
   ['rdpq_5ftlut_5ft_5',['rdpq_tlut_t',['../rdpq__mode_8h.html#af94fffeeb6056f4af25fc52405e7d38c',1,'rdpq_mode.h']]],
-  ['rtc_5ftype_5ft_6',['rtc_type_t',['../group__rtc.html#gaf4e6e809a36c78b63cd09260d3a5f561',1,'rtc.c']]]
+  ['rtc_5ftype_5ft_6',['rtc_type_t',['../rtc_8c.html#af4e6e809a36c78b63cd09260d3a5f561',1,'rtc.c']]]
 ];
