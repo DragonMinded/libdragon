@@ -72,6 +72,23 @@ struct callback_link * TI_callback = 0;
 /** @brief Linked list of CART callbacks */
 struct callback_link * CART_callback = 0;
 
+/** @brief Linked list of BB FLASH callbacks */
+struct callback_link * BB_FLASH_callback = 0;
+/** @brief Linked list of BB AES callbacks */
+struct callback_link * BB_AES_callback = 0;
+/** @brief Linked list of BB IDE callbacks */
+struct callback_link * BB_IDE_callback = 0;
+/** @brief Linked list of BB PI ERR callbacks */
+struct callback_link * BB_PI_ERR_callback = 0;
+/** @brief Linked list of BB USB0 callbacks */
+struct callback_link * BB_USB0_callback = 0;
+/** @brief Linked list of BB USB1 callbacks */
+struct callback_link * BB_USB1_callback = 0;
+/** @brief Linked list of BB BTN callbacks */
+struct callback_link * BB_BTN_callback = 0;
+/** @brief Linked list of BB MD callbacks */
+struct callback_link * BB_MD_callback = 0;
+
 /** @brief Maximum number of reset handlers that can be registered. */
 #define MAX_RESET_HANDLERS 4
 
@@ -230,6 +247,9 @@ void __MI_handler(void)
     }
 }
 
+#define PI_BB_NAND_CTRL                     ((volatile uint32_t*)0xA4600048)
+#define PI_BB_AES_CTRL                      ((volatile uint32_t*)0xA4600050)
+
 /**
  * @brief Handle the extra MI interrupts in iQue
  */
@@ -239,42 +259,71 @@ void __MI_BB_handler(void)
 
     if( status & MI_BB_INTERRUPT_FLASH )
     {
-        assertf(0, "Unhandled iQue interrupt: flash");
+        /* Clear interrupt */
+        *PI_BB_NAND_CTRL = 0;
+
+        __call_callback(BB_FLASH_callback);
     }
 
     if( status & MI_BB_INTERRUPT_AES )
     {
-        assertf(0, "Unhandled iQue interrupt: AES");
+        /* Clear interrupt */
+        *PI_BB_AES_CTRL = 0;
+
+        __call_callback(BB_AES_callback);
     }
 
     if( status & MI_BB_INTERRUPT_IDE )
     {
         assertf(0, "Unhandled iQue interrupt: IDE");
+
+        __call_callback(BB_IDE_callback);
     }
 
     if( status & MI_BB_INTERRUPT_PI_ERR )
     {
         assertf(0, "Unhandled iQue interrupt: PI_ERR");
+
+        __call_callback(BB_PI_ERR_callback);
     }
 
     if( status & MI_BB_INTERRUPT_USB0 )
     {
-        assertf(0, "Unhandled iQue interrupt: USB0");
+        /* USB interrupt handling requires clearing the interrupt signal only
+           after some handling has begun, so we do not clear it here. It is
+           therefore a requirement to either leave this interrupt disabled or
+           have a handler ready to act on it. */
+        assertf(BB_USB0_callback != NULL && BB_USB0_callback->callback != NULL,
+                "No handler was registered for iQue USB0 interrupt despite being enabled");
+
+        __call_callback(BB_USB0_callback);
     }
 
     if( status & MI_BB_INTERRUPT_USB1 )
     {
-        assertf(0, "Unhandled iQue interrupt: USB1");
+        /* USB interrupt handling requires clearing the interrupt signal only
+           after some handling has begun, so we do not clear it here. It is
+           therefore a requirement to either leave this interrupt disabled or
+           have a handler ready to act on it. */
+        assertf(BB_USB1_callback != NULL && BB_USB1_callback->callback != NULL,
+                "No handler was registered for iQue USB1 interrupt despite being enabled");
+
+        __call_callback(BB_USB1_callback);
     }
 
     if( status & MI_BB_INTERRUPT_BTN )
     {
         assertf(0, "Unhandled iQue interrupt: BTN");
+
+        __call_callback(BB_BTN_callback);
     }
 
     if( status & MI_BB_INTERRUPT_MD )
     {
-        assertf(0, "Unhandled iQue interrupt: MD");
+        /* Clear interrupt */
+        *MI_BB_INTERRUPT = MI_BB_INTERRUPT_MD;
+
+        __call_callback(BB_MD_callback);
     }
 }
 
@@ -445,6 +494,86 @@ void unregister_RESET_handler( void (*callback)() )
         }
     }
     assertf(0, "Reset handler not found\n");
+}
+
+void register_FLASH_handler( void (*callback)() )
+{
+    __register_callback(&BB_FLASH_callback,callback);
+}
+
+void unregister_FLASH_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_FLASH_callback,callback);
+}
+
+void register_AES_handler( void (*callback)() )
+{
+    __register_callback(&BB_AES_callback,callback);
+}
+
+void unregister_AES_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_AES_callback,callback);
+}
+
+void register_IDE_handler( void (*callback)() )
+{
+    __register_callback(&BB_IDE_callback,callback);
+}
+
+void unregister_IDE_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_IDE_callback,callback);
+}
+
+void register_PI_ERR_handler( void (*callback)() )
+{
+    __register_callback(&BB_PI_ERR_callback,callback);
+}
+
+void unregister_PI_ERR_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_PI_ERR_callback,callback);
+}
+
+void register_USB0_handler( void (*callback)() )
+{
+    __register_callback(&BB_USB0_callback,callback);
+}
+
+void unregister_USB0_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_USB0_callback,callback);
+}
+
+void register_USB1_handler( void (*callback)() )
+{
+    __register_callback(&BB_USB1_callback,callback);
+}
+
+void unregister_USB1_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_USB1_callback,callback);
+}
+
+void register_BTN_handler( void (*callback)() )
+{
+    __register_callback(&BB_BTN_callback,callback);
+}
+
+void unregister_BTN_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_BTN_callback,callback);
+}
+
+void register_MD_handler( void (*callback)() )
+{
+    __register_callback(&BB_MD_callback,callback);
+}
+
+void unregister_MD_handler( void (*callback)() )
+{
+    __unregister_callback(&BB_MD_callback,callback);
 }
 
 void set_AI_interrupt(int active)

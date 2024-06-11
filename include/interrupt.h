@@ -178,6 +178,69 @@ void register_CART_handler( void (*callback)() );
  */
 void register_RESET_handler( void (*callback)() );
 
+/**
+ * @brief Register a BBPlayer FLASH callback
+ *
+ * @param[in] callback
+ *            Function to call when a FLASH interrupt occurs
+ */
+void register_FLASH_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer AES callback
+ *
+ * @param[in] callback
+ *            Function to call when a AES interrupt occurs
+ */
+void register_AES_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer IDE callback
+ *
+ * @param[in] callback
+ *            Function to call when a IDE interrupt occurs
+ */
+void register_IDE_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer PI Error callback
+ *
+ * @param[in] callback
+ *            Function to call when a PI Error interrupt occurs
+ */
+void register_PI_ERR_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer USB0 callback
+ *
+ * @param[in] callback
+ *            Function to call when a USB0 interrupt occurs
+ */
+void register_USB0_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer USB1 callback
+ *
+ * @param[in] callback
+ *            Function to call when a USB1 interrupt occurs
+ */
+void register_USB1_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer BTN callback
+ *
+ * @param[in] callback
+ *            Function to call when a BTN interrupt occurs
+ */
+void register_BTN_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer MD callback
+ *
+ * @param[in] callback
+ *            Function to call when a MD interrupt occurs
+ */
+void register_MD_handler( void (*callback)() );
 
 /**
  * @brief Unregister an AI callback
@@ -255,6 +318,69 @@ void unregister_CART_handler( void (*callback)() );
  */
 void unregister_RESET_handler( void (*callback)() );
 
+/**
+ * @brief Unregister a BBPlayer FLASH interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on FLASH interrupts
+ */
+void unregister_FLASH_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer AES interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on AES interrupts
+ */
+void unregister_AES_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer IDE interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on IDE interrupts
+ */
+void unregister_IDE_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer PI Error interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on PI Error interrupts
+ */
+void unregister_PI_ERR_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer USB0 interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on USB0 interrupts
+ */
+void unregister_USB0_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer USB1 interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on USB1 interrupts
+ */
+void unregister_USB1_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer BTN interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on BTN interrupts
+ */
+void unregister_BTN_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer MD interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on MD interrupts
+ */
+void unregister_MD_handler( void (*callback)() );
 
 /**
  * @brief Enable or disable the AI interrupt
