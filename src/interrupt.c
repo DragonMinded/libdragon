@@ -650,6 +650,45 @@ void set_RESET_interrupt(int active)
     }
 }
 
+void set_FLASH_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_FLASH : MI_BB_WMASK_CLR_FLASH;
+}
+
+void set_AES_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_AES : MI_BB_WMASK_CLR_AES;
+}
+
+void set_IDE_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_IDE : MI_BB_WMASK_CLR_IDE;
+}
+
+void set_PI_ERR_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_PI_ERR : MI_BB_WMASK_CLR_PI_ERR;
+}
+
+void set_USB0_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_USB0 : MI_BB_WMASK_CLR_USB0;
+}
+
+void set_USB1_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_USB1 : MI_BB_WMASK_CLR_USB1;
+}
+
+void set_BTN_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_BTN : MI_BB_WMASK_CLR_BTN;
+}
+
+void set_MD_interrupt(int active)
+{
+    *MI_BB_MASK = active ? MI_BB_WMASK_SET_MD : MI_BB_WMASK_CLR_MD;
+}
 
 /**
  * @brief Initialize the interrupt controller
