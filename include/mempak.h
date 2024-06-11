@@ -7,7 +7,7 @@
 #define __LIBDRAGON_MEMPAK_H
 
 /**
- * @defgroup cpak Controller Pak Filesystem Routines
+ * @defgroup controllerpak Controller Pak Filesystem Routines
  * @ingroup controller
  * @brief Managed Controller Pak interface.
  *
