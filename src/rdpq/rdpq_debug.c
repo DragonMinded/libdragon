@@ -1118,10 +1118,12 @@ static void lazy_validate_rendermode(void) {
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
             "in 2cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
         if (rdp.som.alphacmp.enable && !rdp.som.alphacmp.noise) {
-            bool cc1_passthrough = (ccs[1].alpha.mul == 7 && ccs[1].alpha.add == 0);  // (any-any)*0+combined
+            bool cc1_passthrough = (ccs[1].alpha.mul == 7 && ccs[1].alpha.add == 0);                // (any-any)*0+combined
+            cc1_passthrough |= (ccs[1].alpha.suba == ccs[1].alpha.subb && ccs[1].alpha.add == 0);   // (same-same)*any+combine
+            cc1_passthrough |= memcmp(&ccs[1], &ccs[0], sizeof(ccs[0])) == 0;                       // same as cycle0
             VALIDATE_ERR_CC(cc1_passthrough,
                 "in 2cycle mode, alpha compare is broken if the second alpha combiner cycle is not a passthrough because of a hardware bug");
-            VALIDATE_WARN_CC(!cc1_passthrough,
+            VALIDATE_ERR_SOM(!cc1_passthrough,
                 "in 2cycle mode, alpha compare is often shifted by one pixel because of a hardware bug");
         }
     }

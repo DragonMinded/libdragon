@@ -111,8 +111,19 @@ struct Image {
                 return (i << 24) | (i << 16) | (i << 8) | i;
             }
             case FMT_CI8: {
-                uint32_t i = palette[*data];
-                return (i << 24) | (i << 16) | (i << 8) | i;
+                if (!palette) {
+                    uint32_t i = *data;
+                    return (i << 24) | (i << 16) | (i << 8) | i;
+                }
+                uint16_t val = palette[*data];
+                uint32_t r = (val >> 11) & 0x1F;
+                uint32_t g = (val >> 6) & 0x1F;
+                uint32_t b = (val >> 1) & 0x1F;
+                uint32_t a = (val & 1) * 0xFF;
+                r = (r << 3) | (r >> 2);
+                g = (g << 3) | (g >> 2);
+                b = (b << 3) | (b >> 2);
+                return (r << 24) | (g << 16) | (b << 8) | a;
             }
             default:
                 assert(!"unsupported format");
@@ -143,8 +154,11 @@ struct Image {
             }
             case FMT_I8: {
                 data[0] = a;
-                break;
-            }
+            }   break;
+            case FMT_CI8: {
+                assert(px < 256);
+                data[0] = px;
+            }   break;
             default:
                 assert(!"unsupported format");
                 break;
@@ -268,8 +282,8 @@ struct Image {
 // A Glyph to be added to the font
 struct Glyph {
     int gidx;               // index in the glyph array in font64
-    uint32_t codepoint;      // unicode codepoint
-    Image img;
+    uint32_t codepoint;     // unicode codepoint
+    Image img;              // Pixel image (see add_glyph for valid formats)
     int xoff, yoff;
     int xadv;
 
@@ -286,18 +300,21 @@ struct Font {
     int num_atlases = 0;
     std::string outfn;
     bool is_mono = true;
+    bool has_outline = false;
 
-    Font(std::string fn, int point_size, int ascent, int descent, int line_gap, int space_width)
+    Font(std::string fn, int point_size, int ascent, int descent, int line_gap, int space_width, bool outline)
     {
         outfn = fn;
         fnt = (rdpq_font_t*)calloc(1, sizeof(rdpq_font_t));
         memcpy(fnt->magic, FONT_MAGIC, 3);
-        fnt->version = 4;
+        fnt->version = 5;
+        fnt->flags = FONT_TYPE_ALIASED;
         fnt->point_size = point_size;
         fnt->ascent = ascent;
         fnt->descent = descent;
         fnt->line_gap = line_gap;
         fnt->space_width = space_width;
+        has_outline = outline;
     }
 
     ~Font()
@@ -314,7 +331,7 @@ struct Font {
     void write(FILE *out);
 
     void add_range(int first, int last);
-    int add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv);
+    int add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv);
     void add_atlas(Image& img);
     void add_kerning(int glyph1, int glyph2, int kerning);
     void add_ellipsis(int ellipsis_cp, int ellipsis_repeats);
@@ -339,6 +356,7 @@ void Font::write()
     w8(out, fnt->magic[1]);
     w8(out, fnt->magic[2]);
     w8(out, fnt->version);
+    w32(out, fnt->flags);
     w32(out, fnt->point_size);
     w32(out, fnt->ascent);
     w32(out, fnt->descent);
@@ -423,10 +441,12 @@ void Font::write()
     walign(out, 16);
     uint32_t offset_styles = ftell(out);
     w32(out, 0xFFFFFFFF); // color
+    w32(out, 0x40404040); // outline
     w32(out, 0); // runtime pointer
     for (int i=0; i<255; i++)
     {
         w32(out, 0); // color
+        w32(out, 0); // outline
         w32(out, 0); // runtime pointer
     }
 
@@ -478,7 +498,7 @@ int Font::get_glyph_index(uint32_t cp)
     return -1;
 }
 
-int Font::add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv)
+int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
 {
     int gidx = get_glyph_index(cp);
     if (gidx < 0) {
@@ -486,11 +506,23 @@ int Font::add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv)
         return -1;
     }
 
-    // Check if the font is still mono
-    bool was_mono = is_mono;
-    is_mono &= img.is_mono();
-    if (was_mono != is_mono && num_atlases > 0) 
-        assert(!"cannot mix mono and non-mono glyphs in the same font in different ranges");
+    if (has_outline) {
+        // Outline fonts are only monochromatic, must be CI8, and values should be:
+        // 0 = transparent, 1 = outline, 2 = fill
+        if (img.fmt != FMT_CI8) assert(!"glyph image must be CI8 for outlined fonts");
+        for (int i=0;i<img.w*img.h;i++) assert(img.pixels[i] < 3);
+    } else {
+        // Non-outline fonts can be monochromatic or aliased, and must be I8 in both cases.
+        // The monochromatic property is deduced by the glyphs pixels so that the user
+        // doesn't have to specify it to benefits from 1bpp size reduction.
+        if (img.fmt != FMT_I8) assert(!"glyph image must be I8 for non-outlined fonts");
+
+        // Check if the font is still mono
+        bool was_mono = is_mono;
+        is_mono &= img.is_mono();
+        if (was_mono != is_mono && num_atlases > 0) 
+            assert(!"cannot mix mono and non-mono glyphs in the same font in different ranges");
+    }
 
     // Crop the image to the actual glyph size
     int x0=0, y0=0;
@@ -502,8 +534,21 @@ int Font::add_glyph(uint32_t cp, Image img, int xoff, int yoff, int xadv)
 
 void Font::make_atlases(void)
 {
-    if (is_mono && num_atlases == 0 && flag_verbose)
-        fprintf(stderr, "monochrome glyphs detected, auto-switching to FMT_I1 (1bpp)\n");
+    if (is_mono && num_atlases == 0) {
+        if (has_outline) {
+            if (flag_verbose) fprintf(stderr, "monochrome+outlined glyphs detected, auto-switching to 2bpp atlases\n");
+            fnt->flags = (fnt->flags & ~FONT_FLAG_TYPE_MASK) | FONT_TYPE_MONO_OUTLINE;
+        } else {
+            if (flag_verbose) fprintf(stderr, "monochrome glyphs detected, auto-switching to 1bpp atlases\n");
+            fnt->flags = (fnt->flags & ~FONT_FLAG_TYPE_MASK) | FONT_TYPE_MONO;
+        }
+    }
+
+    // Determine how many different layers the final atlases will be:
+    //  Aliased font: single layer (we need 4 bits for the 16 intensity levels)
+    //  Mono, no outline: we can use 1bpp, so we can merge 4 layers
+    //  Mono, outline: we can use 2bpp, so we can merge 2 layers
+    int merge_layers = !is_mono ? 1 : (has_outline ? 2 : 4);
 
     // Pack the glyphs into a texture
     rect_pack::Settings settings;
@@ -512,15 +557,13 @@ void Font::make_atlases(void)
     settings.method = rect_pack::Method::Best;
     settings.max_width = 128;
     settings.max_height = 64;
-    settings.method = rect_pack::Method::Best;        
-    settings.max_width = 128;
-    settings.max_height = 64;
-    settings.border_padding = 1;
+    settings.border_padding = 0;
     settings.allow_rotate = false;
     
     std::vector<rect_pack::Size> sizes;
     std::vector<rect_pack::Sheet> sheets;
     for (int i=0; i<glyphs.size(); i++) {
+        if (glyphs[i].img.w == 0 || glyphs[i].img.h == 0) continue;
         rect_pack::Size size;
         size.id = i;
         size.width = glyphs[i].img.w + settings.border_padding;
@@ -529,18 +572,20 @@ void Font::make_atlases(void)
     }
 
     if (!is_mono) {
+        // Aliased font: pack into I4 (max 128x64).
+        // Outline not supported yet.
+        assert(!has_outline);
         settings.max_width = 128;
         settings.max_height = 64;
         sheets = rect_pack::pack(settings, sizes);
     } else {
-        // In mono format, we can pack 4 1bpp atlases into a single CI4 texture.
-        // So first start by computing a pack with the CI4 maximum size (64x64)
+        // Start by computing a pack with the CI4 maximum size (64x64)
         settings.min_width = 64;
         settings.max_width = 64;
         settings.max_height = 64;
         sheets = rect_pack::pack(settings, sizes);
         int num_sheets = sheets.size();
-        int last_group = (num_sheets-1) / 4 * 4;
+        int last_group = (num_sheets-1) / merge_layers * merge_layers;
 
         // Try to optimize the last group (up to four sheets). Create an array
         // of input sizes for all the glyphs in the last group
@@ -576,7 +621,7 @@ void Font::make_atlases(void)
                 settings.max_width = w;
                 settings.max_height = h;
                 std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
-                if (new_sheets.size() <= 4) {
+                if (new_sheets.size() <= merge_layers) {
                     if (flag_verbose >= 2)
                         printf("    found better packing: %d x %d (%d)\n", w, h, w*h);
                     best_sheets = new_sheets;
@@ -597,7 +642,7 @@ void Font::make_atlases(void)
     for (int i=0; i<sheets.size(); i++) {
         rect_pack::Sheet& sheet = sheets[i];
 
-        Image img(FMT_I8, sheet.width, sheet.height);
+        Image img(has_outline ? FMT_CI8 : FMT_I8, sheet.width, sheet.height);
 
         for (int j=0; j<sheet.rects.size(); j++) {
             rect_pack::Rect& rect = sheet.rects[j];
@@ -612,8 +657,8 @@ void Font::make_atlases(void)
             glyph_t *gout = &fnt->glyphs[glyph.gidx];
             gout->natlas = i;
             if (is_mono) {
-                gout->ntile = i & 3;
-                gout->natlas /= 4;
+                gout->ntile = i & (merge_layers-1);
+                gout->natlas /= merge_layers;
             }
             gout->s = rect.x; gout->t = rect.y;
             gout->xoff = glyph.xoff;
@@ -641,6 +686,12 @@ void Font::make_atlases(void)
         if (flag_debug) {
             char *imgfn = NULL;
             asprintf(&imgfn, "%s_%d.png", outfn.c_str(), num_atlases);
+            if (img.fmt == FMT_CI8) {
+                img.palette.resize(3);
+                img.palette[0] = 0;
+                img.palette[1] = (31<<11) | (31<<6) | (31<<1) | 1;
+                img.palette[2] = (10<<11) | (10<<6) | (10<<1) | 1;
+            }
             img.write_png(imgfn);
             if (flag_verbose)
                 fprintf(stderr, "wrote debug image: %s\n", imgfn);
@@ -652,12 +703,13 @@ void Font::make_atlases(void)
     }
 
     if (is_mono) {
+        assert(merge_layers == 2 || merge_layers == 4);
         std::vector<Image> atlases2;
-        for (int i=0; i<atlases.size(); i+=4) {
+        for (int i=0; i<atlases.size(); i+=merge_layers) {
             // Merge (up to) 4 images into a single atlas. Calculate the
             // size of this group.
             int w = 0, h = 0;
-            for (int j=0; j<4 && i+j<atlases.size(); j++) {
+            for (int j=0; j<merge_layers && i+j<atlases.size(); j++) {
                 w = std::max(w, atlases[i+j].w);
                 h = std::max(h, atlases[i+j].h);
             }
@@ -666,23 +718,42 @@ void Font::make_atlases(void)
             Image img(FMT_CI8, w, h);
 
             // Merge the four images as four bitplanes
-            for (int j=0; j<4 && i+j<atlases.size(); j++) {
+            for (int j=0; j<merge_layers && i+j<atlases.size(); j++) {
                 Image& img2 = atlases[i+j];
                 for (int y=0; y<img2.h; y++) {
                     for (int x=0; x<img2.w; x++) {
-                        uint8_t px = img2[y][x].is_transparent() ? 0 : 1;
-                        *img[y][x].data |= px << (3-j);
+                        if (merge_layers == 4) {
+                            uint8_t px = img2[y][x].is_transparent() ? 0 : 1;
+                            *img[y][x].data |= px << (3-j);
+                        } else {
+                            uint8_t px = img2[y][x].data[0];
+                            *img[y][x].data |= px << ((1-j)*2);
+                        }
                     }
                 }
             }
 
-            // We will treat this image as a CI4 image, and we will use 4 special palettes
-            // to isolate each of the 4 layers
-            img.palette.resize(16*4);
-            for (int i=0; i<4; i++) {
-                int mask = 1 << (3-i);
-                for (int j=0; j<16; j++)
-                    img.palette[i*16+j] = (j & mask) ? 0xFFFF : 0;
+            // We will treat this image as a CI4 image, and we will use special palettes
+            // to isolate each layer
+            if (merge_layers == 4) {
+                img.palette.resize(16*4);
+                for (int i=0; i<4; i++) {
+                    int mask = 1 << (3-i);
+                    for (int j=0; j<16; j++)
+                        img.palette[i*16+j] = (j & mask) ? 0xFFFF : 0;
+                }
+            } else {
+                img.palette.resize(16*2);
+                for (int i=0; i<2; i++) {
+                    for (int j=0; j<16; j++) {
+                        int px = i==0 ? j>>2 : j&3;
+                        switch (px) {
+                        // IA16 palette with either I=FF or A=FF to identify fill vs outline
+                        case 1: img.palette[i*16+j] = 0xFFFF; break;
+                        case 2: img.palette[i*16+j] = 0x00FF; break;
+                        }
+                    }
+                }
             }
 
             if (flag_verbose) {
@@ -701,6 +772,15 @@ void Font::make_atlases(void)
     // Add atlases to the font
     for (int i=0; i<atlases.size(); i++)
         add_atlas(atlases[i]);
+
+    // Search for 0-sized glyphs. Those were not included in the atlases, so
+    // we just need to set their advances correctly
+    for (auto& g : glyphs) {
+        if (g.img.w == 0 || g.img.h == 0) {
+            glyph_t *gout = &fnt->glyphs[g.gidx];
+            gout->xadvance = g.xadv;
+        }
+    }
 
     // Clear the glyph array, as we have added these to the atlases already
     glyphs.clear();

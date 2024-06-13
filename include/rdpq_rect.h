@@ -208,7 +208,7 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * 20x20 pixels.
  * 
  * Fractional values can be used, and will create a semi-transparent edge. For
- * instance, `rdp_fill_rectangle(9.75, 9.75, 30.25, 30.25)` will create a 22x22 pixel
+ * instance, `rdpq_fill_rectangle(9.75, 9.75, 30.25, 30.25)` will create a 22x22 pixel
  * square, with the most external pixel rows and columns having a alpha of 25%.
  * This obviously makes more sense in RGBA32 mode where there is enough alpha
  * bitdepth to appreciate the result. Make sure to configure the blender via

@@ -16,6 +16,14 @@ typedef struct rspq_block_s rspq_block_t;
 /** @brief font64 owned font buffer magic */
 #define FONT_MAGIC_OWNED        "FNO"
 
+#define FONT_FLAG_TYPE_MASK     0x0000000F  ///< Mask for the font type
+
+enum {
+    FONT_TYPE_ALIASED       = 0,      ///< Aliased font (I4)
+    FONT_TYPE_MONO          = 1,      ///< Mono font (CI4, which are 4 1bpp layers)
+    FONT_TYPE_MONO_OUTLINE  = 2,      ///< Mono font with outline (CI4, which are 2 2bpp layers)
+};
+
 /** @brief A range of codepoint (part of #rdpq_font_t) */
 typedef struct {
     uint32_t first_codepoint;    ///< First codepoint in the range
@@ -55,6 +63,7 @@ typedef struct kerning_s {
 /** @brief Data related to font styling */
 typedef struct style_s {
     color_t color;                      ///< Color of the text
+    color_t outline_color;              ///< Color of the outline (if any)
     rspq_block_t *block;                ///< RSPQ block that configures the style
 } style_t;
 
@@ -62,6 +71,7 @@ typedef struct style_s {
 typedef struct rdpq_font_s {
     char magic[3];                      ///< Magic header (FONT_MAGIC)
     uint8_t version;                    ///< Version number (1)
+    uint32_t flags;                     ///< Flags
     uint32_t point_size;                ///< Point size of the font
     int32_t ascent;                     ///< Ascent (number of pixels above baseline)
     int32_t descent;                    ///< Descent (number of pixels below baseline)

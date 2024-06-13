@@ -200,13 +200,13 @@ static int rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
 {
     uint8_t cc = cci ^ 0x3F;   // invert bits to non inverted value
     enum { 
-        FR = 1 << 12,
+        X2 = 1 << 6, // ?
         CURRENT_CONTROL_AUTO = 1 << 7, // Set auto current mode
         AUTO_SKIP = 1 << 2, // ?
         DEVICE_EN = 1 << 1, // Enable direct chip configuration (even without broadcast)
     };
 
-    uint32_t value = DEVICE_EN | AUTO_SKIP | FR;
+    uint32_t value = DEVICE_EN | AUTO_SKIP | X2;
     if (auto_current) value |= CURRENT_CONTROL_AUTO;
     value |= CCVALUE(cc);
 
@@ -345,6 +345,9 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
     // Initialize RDRAM register access
     rdram_reg_init();
 
+    // First call to callback, now that RI is initialized
+    bank_found(-1, false);
+
     // Follow the init procedure specified in the datasheet.
     // First, put all of them to a fixed high ID (we use RDRAM_MAX_DEVICE_ID).
     enum { 
@@ -352,7 +355,7 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         INVALID_ID = RDRAM_MAX_DEVICE_ID - 2,
     };
     rdram_reg_w_deviceid(RDRAM_BROADCAST, INITIAL_ID);
-    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_MODE, (1<<12)|(1<<2));
+    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_MODE, (1<<6)|(1<<2));
     rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_REF_ROW, 0);
 
     // Initialization loop
@@ -366,7 +369,7 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         rdram_reg_w_deviceid(INITIAL_ID, chip_id);
 
         // Turn on the chip (set DE=1)
-        rdram_reg_w(chip_id, RDRAM_REG_MODE, (1<<12) | (1<<1) | (1<<2));
+        rdram_reg_w(chip_id, RDRAM_REG_MODE, (1<<6) | (1<<1) | (1<<2));
 
         // Check if the DE bit was turned on. If it's not, a chip is not present
         // and we can abort the initialization loop.

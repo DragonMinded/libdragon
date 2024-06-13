@@ -168,27 +168,23 @@ typedef struct {
 
 _Static_assert(sizeof(bootinfo_t) == 16, "invalid sizeof(bootinfo_t)");
 
-void rsp_clear_mem(uint32_t mem, unsigned int size)
-{
-    while (*SP_DMA_BUSY) {}
-    uint32_t *ptr = (uint32_t*)mem;
-    uint32_t *ptr_end = (uint32_t*)(mem + size);
-    while (ptr < ptr_end)
-        *ptr++ = 0;
- 
-    // *SP_RSP_ADDR = 0x1000; // IMEM
-    // *SP_DRAM_ADDR = 8*1024*1024 + 0x2000; // Most RDRAM addresses >8 MiB always return 0
-    // *SP_RD_LEN = 4096-1;
-    // while (*SP_DMA_BUSY) {}
-}
-
 static void bzero8(void *mem)
 {
     asm ("sdl $0, 0(%0); sdr $0, 7(%0);" :: "r"(mem));
 }
 
+static void rsp_bzero_init(void)
+{
+    // We run a DMA from RDRAM address > 8MiB where many areas return 0 on read.
+    // Notice that we can do this only after RI has been initialized.
+    while (*SP_DMA_BUSY) {} 
+    *SP_RSP_ADDR = 0x1000;
+    *SP_DRAM_ADDR = 8*1024*1024 + 0x2000;
+    *SP_RD_LEN = 4096-1;
+}
+
 // Clear memory using RSP DMA. We use IMEM as source address, which
-// was cleared in rsp_clear_imem(). The size can be anything up to 1 MiB,
+// was cleared in mem_bank_init(). The size can be anything up to 1 MiB,
 // since the DMA would just wrap around in IMEM.
 void rsp_bzero_async(uint32_t rdram, int size)
 {
@@ -224,6 +220,12 @@ void rsp_bzero_async(uint32_t rdram, int size)
 // schedule two transfers for each bank.
 static void mem_bank_init(int chip_id, bool last)
 {
+    if (chip_id == -1) {
+        // First call, we clear SP_IMEM that will be used later.
+        rsp_bzero_init();
+        return;
+    }
+ 
     uint32_t base = chip_id*1024*1024;
     int size = 2*1024*1024;
 
@@ -251,10 +253,6 @@ void stage1pre(void)
 __attribute__((noreturn, section(".stage1")))
 void stage1(void)
 {
-    // Clear IMEM (contains IPL2). We don't need it anymore, and we can
-    // instead use IMEM as a zero-buffer for RSP DMA.
-    rsp_clear_mem((uint32_t)SP_IMEM, 4096);
-
     entropy_init();
     usb_init();
     debugf("Libdragon IPL3");
@@ -317,6 +315,7 @@ void stage1(void)
         // with this even if Everdrive itself doesn't use this IPL3 (but
         // might boot a game that does, and that game shouldn't clear
         // 0x80000318).
+        rsp_bzero_init();
         rsp_bzero_async(0xA0000400, memsize-0x400-TOTAL_RESERVED_SIZE);
     }
 
@@ -332,6 +331,7 @@ void stage1(void)
     void *rdram_stage2 = LOADER_BASE(memsize, stage2_size);
     *PI_DRAM_ADDR = (uint32_t)rdram_stage2;
     *PI_CART_ADDR = (uint32_t)stage2_start - 0xA0000000;
+    while (*SP_DMA_BUSY) {}         // Make sure RDRAM clearing is finished before reading data
     *PI_WR_LEN = stage2_size-1;
 
     // Clear D/I-cache, useful after warm boot. Maybe not useful for cold
@@ -357,6 +357,7 @@ void stage1(void)
     data_cache_hit_writeback_invalidate((void*)0x80000300, 0x20);
 #endif
 
+    // Wait until stage 2 is fully loaded into RDRAM
     while (*PI_STATUS & 1) {}
 
     // Jump to stage 2 in RDRAM.

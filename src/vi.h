@@ -79,12 +79,12 @@ typedef struct vi_config_s{
 static const vi_config_t vi_ntsc_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x0c150c15, 0x006c02ec, 0x00230203, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_p =  {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
+    0x0c6f0c6e, 0x00800300, 0x002d026d, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
@@ -94,12 +94,12 @@ static const vi_config_t vi_mpal_p = {.regs = {
 static const vi_config_t vi_ntsc_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
+    0x0c150c15, 0x006c02ec, 0x00230203, 0x000e0204,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_pal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
+    0x0c6f0c6e, 0x00800300, 0x002d026d, 0x0009026b,
     0x00000000, 0x00000000 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0x00000000, 0x00000000, 0x00000000, 0x00000002,
@@ -204,7 +204,11 @@ static const vi_config_t vi_config_presets[2][3] = {
 
 /**  Under VI_Y_SCALE   */
 /** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
-#define VI_Y_SCALE_SET(value)               (( 1024*(value) + 120 ) / 240)
+#define VI_Y_SCALE_SET_240_LINES(value)               (( 1024*(value) + 120 ) / 240)
+
+/**  Under VI_Y_SCALE   */
+/** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
+#define VI_Y_SCALE_SET_288_LINES(value)               (( 1024*(value) + 144 ) / 288)
 
 /**
  * @brief Write a set of video registers to the VI

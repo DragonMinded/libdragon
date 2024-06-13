@@ -14,7 +14,20 @@
 #include "cop1.h"
 
 /**
- * @addtogroup n64sys
+ * @defgroup n64sys N64 System Interface
+ * @ingroup lowlevel
+ * @brief N64 bootup and cache interfaces.
+ *
+ * The N64 system interface provides a way for code to interact with
+ * the memory setup on the system.  This includes cache operations to
+ * invalidate or flush regions and the ability to set the boot CIC.
+ * The @ref system use the knowledge of the boot CIC to properly determine
+ * if the expansion pak is present, giving 4 MiB of additional memory.  Aside
+ * from this, the MIPS r4300 uses a manual cache management strategy, where
+ * SW that requires passing buffers to and from hardware components using
+ * DMA controllers needs to ensure that cache and RDRAM are in sync.  A
+ * set of operations to invalidate and/or write back cache is provided for
+ * both instruction cache and data cache.
  * @{
  */
 
@@ -311,19 +324,157 @@ void die(void);
 })
 
 void __data_cache_hit_invalidate(volatile void * addr, unsigned long length);
+
+/**
+ * @brief Force a data cache writeback over a memory region
+ *
+ * Use this to force cached memory to be written to RDRAM.
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
 void data_cache_hit_writeback(volatile const void *, unsigned long);
+
+/**
+ * @brief Force a data cache writeback invalidate over a memory region
+ *
+ * Use this to force cached memory to be written to RDRAM
+ * and then invalidate the corresponding cache lines.
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
 void data_cache_hit_writeback_invalidate(volatile void *, unsigned long);
+
+/**
+ * @brief Force a data cache index writeback invalidate over a memory region
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
 void data_cache_index_writeback_invalidate(volatile void *, unsigned long);
+
+/**
+ * @brief Force a data cache writeback invalidate over whole memory
+ *
+ * Also see #data_cache_hit_writeback_invalidate
+ *
+ */
 void data_cache_writeback_invalidate_all(void);
+
+/**
+ * @brief Force an instruction cache writeback over a memory region
+ *
+ * Use this to force cached memory to be written to RDRAM.
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
 void inst_cache_hit_writeback(volatile const void *, unsigned long);
+
+/**
+ * @brief Force an instruction cache invalidate over a memory region
+ *
+ * Use this to force the N64 to update cache from RDRAM.
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
 void inst_cache_hit_invalidate(volatile void *, unsigned long);
+
+/**
+ * @brief Force an instruction cache index invalidate over a memory region
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
 void inst_cache_index_invalidate(volatile void *, unsigned long);
+
+/**
+ * @brief Force an instruction cache invalidate over whole memory
+ *
+ * Also see #inst_cache_hit_invalidate
+ *
+ */
 void inst_cache_invalidate_all(void);
 
+
+/**
+ * @brief Get amount of available memory.
+ *
+ * @return amount of total available memory in bytes.
+ */
 int get_memory_size();
+
+/**
+ * @brief Is expansion pak in use.
+ *
+ * Checks whether the maximum available memory has been expanded to 8 MiB
+ *
+ * @return true if expansion pak detected, false otherwise.
+ * 
+ * @note On iQue, this function returns true only if the game has been assigned
+ *       exactly 8 MiB of RAM.
+ */
 bool is_memory_expanded();
+
+/**
+ * @brief Allocate a buffer that will be accessed as uncached memory.
+ * 
+ * This function allocates a memory buffer that can be safely read and written
+ * through uncached memory accesses only. It makes sure that that the buffer
+ * does not share any cacheline with other buffers in the heap, and returns
+ * a pointer in the uncached segment (0xA0000000).
+ * 
+ * The buffer contents are uninitialized.
+ * 
+ * To free the buffer, use #free_uncached.
+ * 
+ * @param[in]  size  The size of the buffer to allocate
+ *
+ * @return a pointer to the start of the buffer (in the uncached segment)
+ * 
+ * @see #free_uncached
+ */
 void *malloc_uncached(size_t size);
+
+/**
+ * @brief Allocate a buffer that will be accessed as uncached memory, specifying alignment
+ * 
+ * This function is similar to #malloc_uncached, but allows to force a higher
+ * alignment to the buffer (just like memalign does). See #malloc_uncached
+ * for reference.
+ * 
+ * @param[in]  align The alignment of the buffer in bytes (eg: 64)
+ * @param[in]  size  The size of the buffer to allocate
+ * 
+ * @return a pointer to the start of the buffer (in the uncached segment)
+ * 
+ * @see #malloc_uncached 
+ */
 void *malloc_uncached_aligned(int align, size_t size);
+
+/**
+ * @brief Free an uncached memory buffer
+ * 
+ * This function frees a memory buffer previously allocated via #malloc_uncached.
+ * 
+ * @param[in]  buf  The buffer to free
+ * 
+ * @see #malloc_uncached
+ */
 void free_uncached(void *buf);
 
 /** @brief Type of TV video output */
@@ -333,6 +484,13 @@ typedef enum {
     TV_MPAL = 2      ///< Video output is M-PAL
 } tv_type_t;
 
+/**
+ * @brief Is system NTSC/PAL/MPAL
+ * 
+ * Checks enum hard-coded in PIF BootROM to indicate the tv type of the system.
+ * 
+ * @return enum value indicating PAL, NTSC or MPAL
+ */
 tv_type_t get_tv_type();
 
 /** @brief Reset types */

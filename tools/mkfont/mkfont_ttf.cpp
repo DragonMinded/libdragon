@@ -1,6 +1,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <array>
+#include <map>
 
 // Freetype
 #include "freetype/FreeTypeAmalgam.h"
@@ -48,14 +49,37 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
     int space_width = face->size->metrics.max_advance >> 6;
     if (flag_verbose) printf("asc: %d dec: %d scalable:%d fixed:%d\n", ascent, descent, FT_IS_SCALABLE(face), FT_HAS_FIXED_SIZES(face));
 
-    Font font(outfn, point_size, ascent, descent, line_gap, space_width);
+    Font font(outfn, point_size, ascent, descent, line_gap, space_width, flag_ttf_outline > 0);
 
     // Create a map from font64 glyph indices to truetype indices
     std::unordered_map<int, int> gidx_to_ttfidx;
 
     FT_Stroker stroker;
     FT_Stroker_New(ftlib, &stroker);
-    FT_Stroker_Set(stroker, 1*64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+    FT_Stroker_Set(stroker, flag_ttf_outline * 64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+
+    if (ranges.empty()) {
+        unsigned idx;
+        std::map<int, std::pair<int, int>> range_map;
+        uint32_t cp = FT_Get_First_Char(face, &idx);
+        while (idx) {
+            int range = *(std::upper_bound(unicode_ranges.begin(), unicode_ranges.end(), cp)-1);
+
+            auto r = range_map.find(range);
+            if (r != range_map.end()) {
+                r->second.first = MIN(r->second.first, cp);
+                r->second.second = MAX(r->second.second, cp);
+            } else {
+                range_map.insert({range, {cp, cp}});
+            }
+
+            cp = FT_Get_Next_Char(face, cp, &idx);
+        }
+        for (auto r : range_map) {
+            ranges.push_back(r.second.first);
+            ranges.push_back(r.second.second);
+        }
+    }
 
     // Go through all the ranges
     for (int r=0; r<ranges.size(); r+=2) {
@@ -78,95 +102,87 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 exit(1);
             }
 
-            FT_GlyphSlot slot = face->glyph;
-            FT_Bitmap bmp = slot->bitmap;
+            if (flag_ttf_outline == 0) {
+                FT_GlyphSlot slot = face->glyph;
+                FT_Bitmap bmp = slot->bitmap;
 
-            Image img(FMT_I8, bmp.width, bmp.rows);
+                Image img = Image(FMT_I8, bmp.width, bmp.rows);
 
-            switch (bmp.pixel_mode) {
-            case FT_PIXEL_MODE_MONO:
-                for (int y=0; y<bmp.rows; y++) {
-                    for (int x=0; x<bmp.width; x++) {
-                        img[y][x] = (bmp.buffer[y * bmp.pitch + x / 8] & (1 << (7 - x % 8))) ? 255 : 0;
+                switch (bmp.pixel_mode) {
+                case FT_PIXEL_MODE_MONO:
+                    for (int y=0; y<bmp.rows; y++) {
+                        for (int x=0; x<bmp.width; x++) {
+                            img[y][x] = (bmp.buffer[y * bmp.pitch + x / 8] & (1 << (7 - x % 8))) ? 255 : 0;
+                        }
+                    }
+                    break;
+                case FT_PIXEL_MODE_GRAY:
+                    for (int y=0; y<bmp.rows; y++) {
+                        for (int x=0; x<bmp.width; x++) {
+                            img[y][x] = bmp.buffer[y * bmp.pitch + x] & 0xF0;
+                        }
+                    }
+                    break;
+                default:
+                    fprintf(stderr, "internal error: unsupported freetype pixel mode: %d\n", bmp.pixel_mode);
+                    return 1;
+                }
+
+                int gidx = font.add_glyph(g, std::move(img), slot->bitmap_left, -slot->bitmap_top, slot->advance.x);
+                gidx_to_ttfidx[gidx] = ttf_idx;
+
+            } else {
+                FT_Render_Mode rm = flag_ttf_monochrome ? FT_RENDER_MODE_MONO : FT_RENDER_MODE_NORMAL;
+
+                FT_Glyph ftglyph1, ftglyph2;
+                FT_Load_Glyph(face, ttf_idx, FT_LOAD_DEFAULT);
+                FT_Get_Glyph(face->glyph, &ftglyph1);
+                FT_Glyph_Copy(ftglyph1, &ftglyph2);
+
+                FT_Glyph_To_Bitmap(&ftglyph1, rm, nullptr, true);
+                FT_BitmapGlyph bitmapGlyph1 = reinterpret_cast<FT_BitmapGlyph>(ftglyph1);
+
+                FT_Glyph_StrokeBorder(&ftglyph2, stroker, false, true);
+                FT_Glyph_To_Bitmap(&ftglyph2, rm, nullptr, true);
+                FT_BitmapGlyph bitmapGlyph2 = reinterpret_cast<FT_BitmapGlyph>(ftglyph2);
+
+                int img_top = std::max(bitmapGlyph1->top, bitmapGlyph2->top);
+                int img_left = std::min(bitmapGlyph1->left, bitmapGlyph2->left);
+
+                int img_width = std::max(bitmapGlyph1->left + bitmapGlyph1->bitmap.width, bitmapGlyph2->left + bitmapGlyph2->bitmap.width) - img_left;
+                int img_height = std::max(bitmapGlyph1->top + bitmapGlyph1->bitmap.rows, bitmapGlyph2->top + bitmapGlyph2->bitmap.rows) - img_top;
+
+                Image img = Image(FMT_CI8, img_width, img_height);
+
+                // Copy the outline bitmap to the image
+                for (int y = 0; y < bitmapGlyph2->bitmap.rows; y++) {
+                    for (int x = 0; x < bitmapGlyph2->bitmap.width; x++) {
+                        uint8_t v;
+                        if (flag_ttf_monochrome)
+                            v = (bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.pitch + x / 8] & (1 << (7 - x % 8))) ? 1 : 0;
+                        else
+                            v = bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.pitch + x];
+                        if (v != 0)
+                            img[y + img_top - bitmapGlyph2->top][x - img_left + bitmapGlyph2->left] = 2;
                     }
                 }
-                break;
-            case FT_PIXEL_MODE_GRAY:
-                for (int y=0; y<bmp.rows; y++) {
-                    for (int x=0; x<bmp.width; x++) {
-                        img[y][x] = bmp.buffer[y * bmp.pitch + x] & 0xF0;
+
+                // Copy the first bitmap to the image
+                for (int y = 0; y < bitmapGlyph1->bitmap.rows; y++) {
+                    for (int x = 0; x < bitmapGlyph1->bitmap.width; x++) {
+                        uint8_t v;
+                        if (flag_ttf_monochrome)
+                            v = (bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.pitch + x / 8] & (1 << (7 - x % 8))) ? 1 : 0;
+                        else
+                            v = bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.pitch + x];
+                        if (v != 0)
+                            img[y + img_top - bitmapGlyph1->top][x - img_left + bitmapGlyph1->left] = 1;
                     }
                 }
-                break;
-            default:
-                fprintf(stderr, "internal error: unsupported freetype pixel mode: %d\n", bmp.pixel_mode);
-                return 1;
+
+                int gidx = font.add_glyph(g, std::move(img), img_left, -img_top, face->glyph->advance.x);
+                gidx_to_ttfidx[gidx] = ttf_idx;
             }
-
-            // } else {
-
-            //     FT_Glyph ftglyph1, ftglyph2;
-            //     FT_Load_Glyph(face, ttf_idx, FT_LOAD_DEFAULT);
-            //     FT_Get_Glyph(face->glyph, &ftglyph1);
-            //     FT_Glyph_Copy(ftglyph1, &ftglyph2);
-
-            //     FT_Glyph_To_Bitmap(&ftglyph1, FT_RENDER_MODE_NORMAL, nullptr, true);
-            //     FT_BitmapGlyph bitmapGlyph1 = reinterpret_cast<FT_BitmapGlyph>(ftglyph1);
-
-            //     FT_Glyph_StrokeBorder(&ftglyph2, stroker, false, true);
-            //     FT_Glyph_To_Bitmap(&ftglyph2, FT_RENDER_MODE_NORMAL, nullptr, true);
-            //     FT_BitmapGlyph bitmapGlyph2 = reinterpret_cast<FT_BitmapGlyph>(ftglyph2);
-
-            //     bmp_width = 128;
-            //     bmp_height = 128;
-
-            //     bitmap.resize(128 * 128);
-            //     uint8_t pixel32[128*128*4];  // rgba buffer
-            //     memset(pixel32, 0, 128*128*4);
-
-            //     // printf("bitmap1: %d x %d -- %d,%d\n", bitmapGlyph1->bitmap.width, bitmapGlyph1->bitmap.rows,
-            //     //     bitmapGlyph1->left, bitmapGlyph1->top);
-            //     // printf("bitmap2: %d x %d -- %d,%d\n", bitmapGlyph2->bitmap.width, bitmapGlyph2->bitmap.rows,
-            //     //     bitmapGlyph2->left, bitmapGlyph2->top);
-
-            //     const int outR = 0x0, outG = 0x0, outB = 0x0;
-            //     const int fillR = 0xFF, fillG = 0xFF, fillB = 0xFF;
-
-            //     // Copy the second bitmap to the rgba buffer with yellow color
-            //     for (int y = 0; y < bitmapGlyph2->bitmap.rows; y++) {
-            //         for (int x = 0; x < bitmapGlyph2->bitmap.width; x++) {
-            //             uint8_t v = bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.width + x];
-            //             int i = (y + 70 - bitmapGlyph2->top) * 128 + x + 10 + bitmapGlyph2->left;
-            //             pixel32[i * 4 + 0] = outR;
-            //             pixel32[i * 4 + 1] = outG;
-            //             pixel32[i * 4 + 2] = outB;
-            //             pixel32[i * 4 + 3] = v;
-            //         }
-            //     }
-            //     (void)bitmapGlyph2;
-
-            //     // Copy the first bitmap to the rgba buffer with red color, blending
-            //     // it over the yellow color
-            //     for (int y = 0; y < bitmapGlyph1->bitmap.rows; y++) {
-            //         for (int x = 0; x < bitmapGlyph1->bitmap.width; x++) {
-            //             uint8_t v = bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.width + x];
-            //             int i = (y + 70 - bitmapGlyph1->top) * 128 + x + 10 + bitmapGlyph1->left;
-            //             uint8_t *dst = &pixel32[i * 4];
-            //             dst[0] = dst[0] + ((fillR - dst[0]) * v) / 255;
-            //             dst[1] = dst[1] + ((fillG - dst[1]) * v) / 255;
-            //             dst[2] = dst[2] + ((fillB - dst[2]) * v) / 255;
-            //             dst[3] = dst[3] + v >= 128 ? 255 : 0;
-            //         }
-            //     }
-
-            //     bmp_bpp = 4;
-            //     bmp_left = 0;
-            //     bmp_top = 0;
-            //     bmp_adv = 0;
-            // }
-
-            int gidx = font.add_glyph(g, img, slot->bitmap_left, -slot->bitmap_top, slot->advance.x);
-            gidx_to_ttfidx[gidx] = ttf_idx;
         }
 
         font.make_atlases();

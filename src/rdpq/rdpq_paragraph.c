@@ -2,6 +2,8 @@
 #include "rdpq_text.h"
 #include "rdpq_font.h"
 #include "rdpq_font_internal.h"
+#include "rdpq_mode.h"
+#include "rdpq_rect.h"
 #include "debug.h"
 #include "fmath.h"
 #include <stdlib.h>
@@ -75,17 +77,21 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     static const rdpq_textparms_t empty_parms = {0};
     builder.parms = parms ? parms : &empty_parms;
 
-    if (!layout) {
-        const int initial_chars = 256;
-        layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * initial_chars);
-        memset(layout, 0, sizeof(*layout));
-        layout->capacity = initial_chars;
-    }
+    int layout_cap = 256;
+    if (!layout)
+        layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * layout_cap);
+    else
+        layout_cap = layout->capacity;
+    memset(layout, 0, sizeof(*layout));
+    layout->capacity = layout_cap;
+    if (!builder.parms->disable_aa_fix)
+        layout->flags |= RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX;
     builder.layout = layout;
 
     builder.xscale = 1.0f;
     builder.yscale = 1.0f;
     rdpq_paragraph_builder_font(initial_font_id);
+    builder.style_id = builder.parms->style_id;
     // start at center of pixel so that all rounds are to nearest
     builder.x = builder.parms->indent;
     builder.y = (builder.parms->height ? builder.font->ascent : 0);
@@ -197,16 +203,21 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
 
         float last_pixel = xcur + xoff2 * builder.xscale;
 
-        if (UNLIKELY(is_tab) && parms->tabstops) {
-            // Go to next tabstop
-            for (int t=0; parms->tabstops[t] != 0; t++) {
-                if (last_pixel < parms->tabstops[t] * builder.xscale) {
-                    xcur = parms->tabstops[t] * builder.xscale;
-                    break;
+        if (UNLIKELY(is_tab)) {
+            if (parms->tabstops) {
+                // Go to next tabstop
+                for (int t=0; parms->tabstops[t] != 0; t++) {
+                    if (last_pixel < parms->tabstops[t] * builder.xscale) {
+                        xcur = parms->tabstops[t] * builder.xscale;
+                        break;
+                    }
                 }
+            } else {
+                // Arbitrarly put tabstops every 32 pixels
+                xcur += xadvance * builder.xscale;
+                xcur = fm_ceilf(xcur / 32.0f) * 32.0f;
             }
         } else {
-            // Advance the cursor (rounding to nearest pixel
             xcur += xadvance * builder.xscale;
         }
 
@@ -502,6 +513,19 @@ rdpq_paragraph_t* rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t in
 void rdpq_paragraph_render(const rdpq_paragraph_t *layout, float x0, float y0)
 {
     const rdpq_paragraph_char_t *ch = layout->chars;
+
+    if (layout->flags & RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX) {
+        rdpq_mode_begin();
+            rdpq_set_mode_standard();
+            rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+            rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0),(0,0,0,0)));
+        rdpq_mode_end();
+
+        // Draw a rectangle that covers three horizontal pixels on horizontal edges,
+        // and one pixel on vertical edges. This makes sure the VI AA filter will
+        // never fetch one of the text pixels.
+        rdpq_fill_rectangle(layout->bbox.x0 + x0 - 3, layout->bbox.y0 + y0 - 1, layout->bbox.x1 + x0 + 6, layout->bbox.y1 + y0 + 2);
+    }
 
     x0 += layout->x0;
     y0 += layout->y0;

@@ -181,5 +181,3 @@ bool rtc_is_writable( void )
 {
     return rtc_is_persistent(); 
 }
-
-/** @} */ /* rtc */

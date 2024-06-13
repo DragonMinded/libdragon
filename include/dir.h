@@ -51,7 +51,37 @@ typedef struct
 
 /** @} */
 
+/**
+ * @brief Find the first file in a directory
+ *
+ * This function should be called to start enumerating a directory or whenever
+ * a directory enumeration should be restarted.
+ *
+ * @param[in]  path
+ *             Path to the directory structure
+ * @param[out] dir
+ *             Directory entry structure to populate with first entry
+ *
+ * @return 0 on successful lookup, -1 if the directory existed and is empty,
+ *         or a different negative value on error (in which case, errno will be set).
+ */
 int dir_findfirst( const char * const path, dir_t *dir );
+
+/**
+ * @brief Find the next file in a directory
+ *
+ * After finding the first file in a directory using #dir_findfirst, call this to retrieve
+ * the rest of the directory entries.  Call this repeatedly until a negative error is returned
+ * signifying that there are no more directory entries in the directory.
+ *
+ * @param[in]  path
+ *             Path to the directory structure
+ * @param[out] dir
+ *             Directory entry structure to populate with next entry
+ *
+ * @return 0 on successful lookup, -1 if there are no more files in the directory,
+ *         or a different negative value on error (in which case, errno will be set).
+ */
 int dir_findnext( const char * const path, dir_t *dir );
 
 #ifdef __cplusplus

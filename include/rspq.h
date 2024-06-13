@@ -861,28 +861,6 @@ void rspq_highpri_sync(void);
 void rspq_noop(void);
 
 /**
- * @brief Enqueue a command that sets a signal in SP status
- * 
- * The SP status register has 8 bits called "signals" that can be
- * atomically set or cleared by both the CPU and the RSP. They can be used
- * to provide asynchronous communication.
- * 
- * This function allows to add a command to the queue that will set and/or
- * clear a combination of the above bits.
- * 
- * Notice that signal bits 2-7 are used by the RSP queue engine itself, so this
- * function must only be used for bits 0 and 1.
- * 
- * @param[in]  signal  A signal set/clear mask created by composing SP_WSTATUS_* 
- *                     defines.
- *                     
- * @note This is an advanced function that should be used rarely. Most
- * synchronization requirements should be fulfilled via #rspq_syncpoint_new which is
- * easier to use.
- */
-void rspq_signal(uint32_t signal);
-
-/**
  * @brief Enqueue a command to do a DMA transfer from DMEM to RDRAM
  *
  * @param      rdram_addr  The RDRAM address (destination, must be aligned to 8)
@@ -915,6 +893,11 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
  *       to the queue.
  */
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async);
+
+/** @cond */
+__attribute__((deprecated("may not work anymore. use rspq_syncpoint_new/rspq_syncpoint_check instead")))
+void rspq_signal(uint32_t signal);
+/** @endcond */
 
 #ifdef __cplusplus
 }

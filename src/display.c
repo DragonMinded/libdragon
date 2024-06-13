@@ -263,7 +263,14 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
     vi_write_safe(VI_WIDTH, res.width);
     vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
-    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(res.height));
+    if (__tv_type == TV_PAL)
+    {
+        vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET_288_LINES(res.height));
+    }
+    else
+    {
+        vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET_240_LINES(res.height));
+    }
     vi_write_safe(VI_CTRL, control);
 
     enable_interrupts();

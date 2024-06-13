@@ -6,8 +6,35 @@
 #ifndef __LIBDRAGON_SYSTEM_H
 #define __LIBDRAGON_SYSTEM_H
 
-/**
- * @addtogroup system
+/** 
+ * @defgroup system newlib Interface Hooks
+ * @brief System hooks to provide low level threading and filesystem functionality to newlib.
+ *
+ * newlib provides all of the standard C libraries for homebrew development.
+ * In addition to standard C libraries, newlib provides some additional bridging
+ * functionality to allow POSIX function calls to be tied into libdragon.
+ * Currently this is used only for filesystems.  The newlib interface hooks here
+ * are mostly stubs that allow homebrew applications to compile.
+ *
+ * The sbrk function is responsible for allowing newlib to find the next chunk
+ * of free space for use with malloc calls. The size of the available heap is
+ * computed using the memory size computed by the boot code (IPL3), and available
+ * via #get_memory_size(), which is normally either 4 MiB or 8 MiB if the expansion
+ * pak is available.
+ *
+ * libdragon has defined a custom callback structure for filesystems to use.
+ * Providing relevant hooks for calls that your filesystem supports and passing
+ * the resulting structure to #attach_filesystem will hook your filesystem into
+ * newlib.  Calls to POSIX file operations will be passed on to your filesystem
+ * code if the file prefix matches, allowing code to make use of your filesystyem
+ * without being rewritten.
+ *
+ * For example, your filesystem provides libdragon an interface to access a 
+ * homebrew SD card interface.  You register a filesystem with "sd:/" as the prefix
+ * and then attempt to open "sd://directory/file.txt".  The open callback for your
+ * filesystem will be passed the file "/directory/file.txt".  The file handle returned
+ * will be passed into all subsequent calls to your filesystem until the file is
+ * closed.
  * @{
  */
 
@@ -223,16 +250,67 @@ typedef struct
     int (*stderr_write)( char *data, unsigned int len );
 } stdio_t;
 
+/**
+ * @brief Time hook structure
+ *
+ * This structure provides optional callback hooks for code wishing to
+ * implement C time functions.  Any function that code does not wish to handle
+ * should be left as a NULL pointer.
+ */
 typedef struct
 {
+    /** 
+     * @brief Function to call to retrieve the current date/time
+     * 
+     * @return number of seconds since 1970-01-01 00:00:00 UTC
+     */
     time_t (*gettime)( void );
+    /** 
+     * @brief Function to call to set the current date/time
+     * 
+     * @param time number of seconds since 1970-01-01 00:00:00 UTC
+     * 
+     * @return whether the time was set successfully
+     */
     bool (*settime)( time_t );
 } time_hooks_t;
 
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem );
+
+/**
+ * @brief Unregister a filesystem from newlib
+ *
+ * @note This function will make sure all files are closed before unregistering
+ *       the filesystem.
+ *
+ * @param[in] prefix
+ *            The prefix that was used to register the filesystem
+ *
+ * @retval -1 if the parameters were invalid
+ * @retval -2 if the filesystem couldn't be found
+ * @retval 0 if the filesystem was successfully unregistered
+ */
 int detach_filesystem( const char * const prefix );
 
+
+/**
+ * @brief Hook into stdio for STDIN, STDOUT and STDERR callbacks
+ *
+ * @param[in] stdio_calls
+ *            Pointer to structure containing callbacks for stdio functions
+ *
+ * @return 0 on successful hook or a negative value on failure.
+ */
 int hook_stdio_calls( stdio_t *stdio_calls );
+
+/**
+ * @brief Unhook from stdio
+ *
+ * @param[in] stdio_calls
+ *            Pointer to structure containing callbacks for stdio functions
+ *
+ * @return 0 on successful hook or a negative value on failure.
+ */
 int unhook_stdio_calls( stdio_t *stdio_calls );
 
 __attribute__((deprecated("use hook_time_calls instead")))
