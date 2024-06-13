@@ -496,82 +496,82 @@ void unregister_RESET_handler( void (*callback)() )
     assertf(0, "Reset handler not found\n");
 }
 
-void register_FLASH_handler( void (*callback)() )
+void register_BB_FLASH_handler( void (*callback)() )
 {
     __register_callback(&BB_FLASH_callback,callback);
 }
 
-void unregister_FLASH_handler( void (*callback)() )
+void unregister_BB_FLASH_handler( void (*callback)() )
 {
     __unregister_callback(&BB_FLASH_callback,callback);
 }
 
-void register_AES_handler( void (*callback)() )
+void register_BB_AES_handler( void (*callback)() )
 {
     __register_callback(&BB_AES_callback,callback);
 }
 
-void unregister_AES_handler( void (*callback)() )
+void unregister_BB_AES_handler( void (*callback)() )
 {
     __unregister_callback(&BB_AES_callback,callback);
 }
 
-void register_IDE_handler( void (*callback)() )
+void register_BB_IDE_handler( void (*callback)() )
 {
     __register_callback(&BB_IDE_callback,callback);
 }
 
-void unregister_IDE_handler( void (*callback)() )
+void unregister_BB_IDE_handler( void (*callback)() )
 {
     __unregister_callback(&BB_IDE_callback,callback);
 }
 
-void register_PI_ERR_handler( void (*callback)() )
+void register_BB_PI_ERR_handler( void (*callback)() )
 {
     __register_callback(&BB_PI_ERR_callback,callback);
 }
 
-void unregister_PI_ERR_handler( void (*callback)() )
+void unregister_BB_PI_ERR_handler( void (*callback)() )
 {
     __unregister_callback(&BB_PI_ERR_callback,callback);
 }
 
-void register_USB0_handler( void (*callback)() )
+void register_BB_USB0_handler( void (*callback)() )
 {
     __register_callback(&BB_USB0_callback,callback);
 }
 
-void unregister_USB0_handler( void (*callback)() )
+void unregister_BB_USB0_handler( void (*callback)() )
 {
     __unregister_callback(&BB_USB0_callback,callback);
 }
 
-void register_USB1_handler( void (*callback)() )
+void register_BB_USB1_handler( void (*callback)() )
 {
     __register_callback(&BB_USB1_callback,callback);
 }
 
-void unregister_USB1_handler( void (*callback)() )
+void unregister_BB_USB1_handler( void (*callback)() )
 {
     __unregister_callback(&BB_USB1_callback,callback);
 }
 
-void register_BTN_handler( void (*callback)() )
+void register_BB_BTN_handler( void (*callback)() )
 {
     __register_callback(&BB_BTN_callback,callback);
 }
 
-void unregister_BTN_handler( void (*callback)() )
+void unregister_BB_BTN_handler( void (*callback)() )
 {
     __unregister_callback(&BB_BTN_callback,callback);
 }
 
-void register_MD_handler( void (*callback)() )
+void register_BB_MD_handler( void (*callback)() )
 {
     __register_callback(&BB_MD_callback,callback);
 }
 
-void unregister_MD_handler( void (*callback)() )
+void unregister_BB_MD_handler( void (*callback)() )
 {
     __unregister_callback(&BB_MD_callback,callback);
 }
@@ -650,42 +650,42 @@ void set_RESET_interrupt(int active)
     }
 }
 
-void set_FLASH_interrupt(int active)
+void set_BB_FLASH_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_FLASH : MI_BB_WMASK_CLR_FLASH;
 }
 
-void set_AES_interrupt(int active)
+void set_BB_AES_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_AES : MI_BB_WMASK_CLR_AES;
 }
 
-void set_IDE_interrupt(int active)
+void set_BB_IDE_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_IDE : MI_BB_WMASK_CLR_IDE;
 }
 
-void set_PI_ERR_interrupt(int active)
+void set_BB_PI_ERR_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_PI_ERR : MI_BB_WMASK_CLR_PI_ERR;
 }
 
-void set_USB0_interrupt(int active)
+void set_BB_USB0_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_USB0 : MI_BB_WMASK_CLR_USB0;
 }
 
-void set_USB1_interrupt(int active)
+void set_BB_USB1_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_USB1 : MI_BB_WMASK_CLR_USB1;
 }
 
-void set_BTN_interrupt(int active)
+void set_BB_BTN_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_BTN : MI_BB_WMASK_CLR_BTN;
 }
 
-void set_MD_interrupt(int active)
+void set_BB_MD_interrupt(int active)
 {
     *MI_BB_MASK = active ? MI_BB_WMASK_SET_MD : MI_BB_WMASK_CLR_MD;
 }
