@@ -78,6 +78,20 @@ static void recalc_style(int font_type, style_t *s)
                 rdpq_set_prim_color(s->color);
                 rdpq_set_env_color(s->outline_color);
                 break;
+            case FONT_TYPE_ALIASED_OUTLINE:
+                // Atlases are IA8, where I modulates between the fill color and the outline color.
+                rdpq_mode_begin();
+                    rdpq_set_mode_standard();
+                    rdpq_mode_combiner(RDPQ_COMBINER2(
+                        (ONE,TEX1,ENV,0),       (0,0,0,TEX1),
+                        (TEX1,0,PRIM,COMBINED), (0,0,0,COMBINED)
+                    ));
+                    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+                rdpq_mode_end();
+                rdpq_change_other_modes_raw(SOM_BLALPHA_MASK, SOM_BLALPHA_CVG_TIMES_CC);
+                rdpq_set_prim_color(s->color);
+                rdpq_set_env_color(s->outline_color);
+                break;
             default:
                 assert(0);
             }
@@ -126,6 +140,9 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
                 rdpq_tex_upload_tlut(sprite_get_palette(fnt->atlases[i].sprite), 0, font_type == FONT_TYPE_MONO ? 64 : 32);
                 break;
             }
+            case FONT_TYPE_ALIASED_OUTLINE:
+                rdpq_sprite_upload(TILE1, fnt->atlases[i].sprite, NULL);
+                break;
             case FONT_TYPE_ALIASED:
             default:
                 rdpq_sprite_upload(TILE0, fnt->atlases[i].sprite, NULL);

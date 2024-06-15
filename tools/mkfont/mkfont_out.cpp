@@ -66,6 +66,8 @@ struct Image {
                 return data[3] == 0;
             case FMT_RGBA16:
                 return (data[1] & 1) == 0;
+            case FMT_IA16:
+                return data[1] == 0;
             case FMT_I8:
             case FMT_CI8:
                 return *data == 0;
@@ -81,6 +83,8 @@ struct Image {
                 return data[0] == 0 || data[0] == 1;
             case FMT_I8:
                 return data[0] == 0 || data[0] >= 0xF0;
+            case FMT_IA16:
+                return data[1] == 0 || data[1] == 0xFF;
             case FMT_RGBA16:
                 return false;
             case FMT_RGBA32:
@@ -109,6 +113,12 @@ struct Image {
             case FMT_I8: {
                 uint32_t i = *data;
                 return (i << 24) | (i << 16) | (i << 8) | i;
+            }
+            case FMT_IA16: {
+                uint16_t val = (data[0] << 8) | data[1];
+                uint32_t i = val >> 8;
+                uint32_t a = val & 0xFF;
+                return (i << 24) | (i << 16) | (i << 8) | a;
             }
             case FMT_CI8: {
                 if (!palette) {
@@ -154,6 +164,12 @@ struct Image {
             }
             case FMT_I8: {
                 data[0] = a;
+            }   break;
+            case FMT_IA16: {
+                assert(r == g && g == b);
+                uint16_t val = (r << 8) | a;
+                data[0] = val >> 8;
+                data[1] = val & 0xFF;
             }   break;
             case FMT_CI8: {
                 assert(px < 256);
@@ -507,22 +523,22 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
     }
 
     if (has_outline) {
-        // Outline fonts are only monochromatic, must be CI8, and values should be:
-        // 0 = transparent, 1 = outline, 2 = fill
-        if (img.fmt != FMT_CI8) assert(!"glyph image must be CI8 for outlined fonts");
-        for (int i=0;i<img.w*img.h;i++) assert(img.pixels[i] < 3);
+        // Outline fonts are IA16. Intensity goes between 0x00 for the outline
+        // to 0xFF for the fill, while the alpha channel is the coverage of each pixel.
+        // Outline monochromatic fonts have intensity fixed to 0xFF.
+        if (img.fmt != FMT_IA16) assert(!"glyph image must be IA16 for outlined fonts");
     } else {
         // Non-outline fonts can be monochromatic or aliased, and must be I8 in both cases.
         // The monochromatic property is deduced by the glyphs pixels so that the user
         // doesn't have to specify it to benefits from 1bpp size reduction.
         if (img.fmt != FMT_I8) assert(!"glyph image must be I8 for non-outlined fonts");
-
-        // Check if the font is still mono
-        bool was_mono = is_mono;
-        is_mono &= img.is_mono();
-        if (was_mono != is_mono && num_atlases > 0) 
-            assert(!"cannot mix mono and non-mono glyphs in the same font in different ranges");
     }
+
+    // Check if the font is still mono
+    bool was_mono = is_mono;
+    is_mono &= img.is_mono();
+    if (was_mono != is_mono && num_atlases > 0) 
+        assert(!"cannot mix mono and non-mono glyphs in the same font in different ranges");
 
     // Crop the image to the actual glyph size
     int x0=0, y0=0;
@@ -534,18 +550,30 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
 
 void Font::make_atlases(void)
 {
-    if (is_mono && num_atlases == 0) {
-        if (has_outline) {
-            if (flag_verbose) fprintf(stderr, "monochrome+outlined glyphs detected, auto-switching to 2bpp atlases\n");
-            fnt->flags = (fnt->flags & ~FONT_FLAG_TYPE_MASK) | FONT_TYPE_MONO_OUTLINE;
+    if (num_atlases == 0) {
+        // First call, time to decide the format of the font
+        fnt->flags &= ~FONT_FLAG_TYPE_MASK;
+        if (is_mono) {
+            if (has_outline) {
+                if (flag_verbose) fprintf(stderr, "monochrome+outlined glyphs detected (format: 2bpp)\n");
+                fnt->flags |= FONT_TYPE_MONO_OUTLINE;
+            } else {
+                if (flag_verbose) fprintf(stderr, "monochrome glyphs detected (format: 1bpp)\n");
+                fnt->flags |= FONT_TYPE_MONO;
+            }
         } else {
-            if (flag_verbose) fprintf(stderr, "monochrome glyphs detected, auto-switching to 1bpp atlases\n");
-            fnt->flags = (fnt->flags & ~FONT_FLAG_TYPE_MASK) | FONT_TYPE_MONO;
+            if (has_outline) {
+                if (flag_verbose) fprintf(stderr, "aliased+outlined glyphs detected (format: 8 bpp)\n");
+                fnt->flags |= FONT_TYPE_ALIASED_OUTLINE;
+            } else {
+                if (flag_verbose) fprintf(stderr, "aliased glyphs detected (format: 4 bpp)\n");
+                fnt->flags |= FONT_TYPE_ALIASED;
+            }
         }
     }
 
     // Determine how many different layers the final atlases will be:
-    //  Aliased font: single layer (we need 4 bits for the 16 intensity levels)
+    //  Aliased font: single layer (either I4 or IA8, depending on outline)
     //  Mono, no outline: we can use 1bpp, so we can merge 4 layers
     //  Mono, outline: we can use 2bpp, so we can merge 2 layers
     int merge_layers = !is_mono ? 1 : (has_outline ? 2 : 4);
@@ -574,9 +602,13 @@ void Font::make_atlases(void)
     if (!is_mono) {
         // Aliased font: pack into I4 (max 128x64).
         // Outline not supported yet.
-        assert(!has_outline);
-        settings.max_width = 128;
-        settings.max_height = 64;
+        if (!has_outline) {
+            settings.max_width = 128;
+            settings.max_height = 64;
+        } else {
+            settings.max_width = 64;
+            settings.max_height = 64;
+        }
         sheets = rect_pack::pack(settings, sizes);
     } else {
         // Start by computing a pack with the CI4 maximum size (64x64)
@@ -642,7 +674,7 @@ void Font::make_atlases(void)
     for (int i=0; i<sheets.size(); i++) {
         rect_pack::Sheet& sheet = sheets[i];
 
-        Image img(has_outline ? FMT_CI8 : FMT_I8, sheet.width, sheet.height);
+        Image img(FMT_IA16, sheet.width, sheet.height);
 
         for (int j=0; j<sheet.rects.size(); j++) {
             rect_pack::Rect& rect = sheet.rects[j];
@@ -726,7 +758,11 @@ void Font::make_atlases(void)
                             uint8_t px = img2[y][x].is_transparent() ? 0 : 1;
                             *img[y][x].data |= px << (3-j);
                         } else {
-                            uint8_t px = img2[y][x].data[0];
+                            uint32_t rgba32 = img2[y][x].to_rgba32();
+                            uint8_t a = rgba32 & 0xFF;
+                            uint8_t i = (rgba32 >> 8) & 0xFF;
+                            uint8_t px = 0;
+                            if (a) { if (i > 0x80) px = 1; else px = 2; }
                             *img[y][x].data |= px << ((1-j)*2);
                         }
                     }
@@ -797,8 +833,8 @@ void Font::add_atlas(Image& img)
     cmd_addr[i++] = mksprite;
     cmd_addr[i++] = "--format";
     switch (img.fmt) {
-        case FMT_I8: cmd_addr[i++] = "I4"; break;
         case FMT_CI8: cmd_addr[i++] = "CI4"; break;
+        case FMT_IA16: cmd_addr[i++] = has_outline ? "IA8" : "I4"; break;
         default: assert(!"unsupported format");
     }
     cmd_addr[i++] = "--compress";  // don't compress the individual sprite (the font itself will be compressed)
@@ -820,6 +856,7 @@ void Font::add_atlas(Image& img)
     switch (img.fmt) {
         case FMT_I8: ct = LCT_GREY; break;
         case FMT_CI8: ct = LCT_PALETTE; break;
+        case FMT_IA16: ct = LCT_GREY_ALPHA; break;
         case FMT_RGBA16: ct = LCT_RGBA; break;
         case FMT_RGBA32: ct = LCT_RGBA; break;
         default: assert(!"unsupported format");
