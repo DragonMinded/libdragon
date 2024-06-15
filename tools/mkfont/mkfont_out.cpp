@@ -77,24 +77,6 @@ struct Image {
             }
         }
 
-        bool is_mono() {
-            switch (fmt) {
-            case FMT_CI8:
-                return data[0] == 0 || data[0] == 1;
-            case FMT_I8:
-                return data[0] == 0 || data[0] >= 0xF0;
-            case FMT_IA16:
-                return data[1] == 0 || data[1] == 0xFF;
-            case FMT_RGBA16:
-                return false;
-            case FMT_RGBA32:
-                return false;
-            default:
-                assert(!"unsupported format");
-                return false;
-            }
-        }
-
         uint32_t to_rgba32() {
             switch (fmt) {
             case FMT_RGBA32:
@@ -115,9 +97,8 @@ struct Image {
                 return (i << 24) | (i << 16) | (i << 8) | i;
             }
             case FMT_IA16: {
-                uint16_t val = (data[0] << 8) | data[1];
-                uint32_t i = val >> 8;
-                uint32_t a = val & 0xFF;
+                uint32_t i = data[0];
+                uint32_t a = data[1];
                 return (i << 24) | (i << 16) | (i << 8) | a;
             }
             case FMT_CI8: {
@@ -278,15 +259,13 @@ struct Image {
         return crop(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
     }
 
-    bool is_mono() {
+    template <typename F>
+    void for_each_pixel(F f) {
         for (int y = 0; y < h; y++) {
             Line line = (*this)[y];
-            for (int x = 0; x < w; x++) {
-                if (!line[x].is_mono())
-                    return false;
-            }
+            for (int x = 0; x < w; x++)
+                f(line[x]);
         }
-        return true;
     }
 
     void write_png(const char *fn) {
@@ -303,7 +282,7 @@ struct Glyph {
     int xoff, yoff;
     int xadv;
 
-    Glyph(int idx, uint32_t cp, Image img, int xoff, int yoff, int xadv)
+    Glyph(int idx, uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
         : gidx(idx), codepoint(cp), img(img), xoff(xoff), yoff(yoff), xadv(xadv) {}
 };
 
@@ -536,9 +515,24 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
 
     // Check if the font is still mono
     bool was_mono = is_mono;
-    is_mono &= img.is_mono();
-    if (was_mono != is_mono && num_atlases > 0) 
-        assert(!"cannot mix mono and non-mono glyphs in the same font in different ranges");
+    if (was_mono) {
+        img.for_each_pixel([&](Image::Pixel&& px) {
+            switch (img.fmt) {
+            case FMT_I8:
+                if (px.data[0] > 0 && px.data[0] < 0xF0)
+                    is_mono = false;
+                break;
+            case FMT_IA16:
+                if (px.data[0] != 0 && px.data[1] != 0x00 && px.data[1] != 0xFF)
+                    is_mono = false;
+                break;
+            default:
+                assert(!"unsupported format");
+            }
+        });
+        if (was_mono != is_mono && num_atlases > 0) 
+            assert(!"cannot mix mono and non-mono glyphs in the same font in different ranges");
+    }
 
     // Crop the image to the actual glyph size
     int x0=0, y0=0;
