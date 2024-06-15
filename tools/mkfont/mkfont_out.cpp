@@ -302,7 +302,7 @@ struct Font {
         outfn = fn;
         fnt = (rdpq_font_t*)calloc(1, sizeof(rdpq_font_t));
         memcpy(fnt->magic, FONT_MAGIC, 3);
-        fnt->version = 5;
+        fnt->version = 6;
         fnt->flags = FONT_TYPE_ALIASED;
         fnt->point_size = point_size;
         fnt->ascent = ascent;
@@ -365,7 +365,13 @@ void Font::write()
     w32(out, fnt->num_glyphs);
     w32(out, fnt->num_atlases);
     w32(out, fnt->num_kerning);
-    w32(out, 1);   // num styles (not supported by mkfont yet)
+    // Write builtin style
+    w32(out, 1);   // num styles
+    uint32_t offset_builtin_style = ftell(out);
+    w32(out, 0xFFFFFFFF); // color
+    w32(out, 0x40404040); // outline
+    w32(out, 0); // runtime pointer
+
     int off_placeholders = ftell(out);
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
@@ -432,26 +438,13 @@ void Font::write()
     }
     uint32_t offset_end = ftell(out);
 
-    // Write styles
-    walign(out, 16);
-    uint32_t offset_styles = ftell(out);
-    w32(out, 0xFFFFFFFF); // color
-    w32(out, 0x40404040); // outline
-    w32(out, 0); // runtime pointer
-    for (int i=0; i<255; i++)
-    {
-        w32(out, 0); // color
-        w32(out, 0); // outline
-        w32(out, 0); // runtime pointer
-    }
-
     // Write offsets
     fseek(out, off_placeholders, SEEK_SET);
     w32(out, offset_ranges);
     w32(out, offset_glypes);
     w32(out, offset_atlases);
     w32(out, offset_kernings);
-    w32(out, offset_styles);
+    w32(out, offset_builtin_style);
 
     fseek(out, offset_end, SEEK_SET);
 

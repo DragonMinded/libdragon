@@ -87,6 +87,7 @@ typedef struct rdpq_font_s {
     uint32_t num_atlases;               ///< Number of atlases in the font
     uint32_t num_kerning;               ///< Number of kerning pairs in the font
     uint32_t num_styles;                ///< Number of styles in the font
+    style_t builtin_style;              ///< Default style for the font
     range_t *ranges;                    ///< Array of ranges
     glyph_t *glyphs;                    ///< Array of glyphs
     atlas_t *atlases;                   ///< Array of atlases

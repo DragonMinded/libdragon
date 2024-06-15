@@ -17,8 +17,7 @@
 #include "rdpq_internal.h"
 #include "asset.h"
 #include "fmath.h"
-
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#include "utils.h"
 
 #define MAX_STYLES   256
 
@@ -106,12 +105,13 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
     assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
     assertf(memcmp(fnt->magic, FONT_MAGIC_LOADED, 3), "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
     assertf(!memcmp(fnt->magic, FONT_MAGIC, 3), "invalid font data (magic: %c%c%c)", fnt->magic[0], fnt->magic[1], fnt->magic[2]);
-    assertf(fnt->version == 5, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
+    assertf(fnt->version == 6, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
     fnt->kerning = PTR_DECODE(fnt, fnt->kerning);
-    fnt->styles = PTR_DECODE(fnt, fnt->styles);
+    fnt->styles = &fnt->builtin_style;
+    fnt->num_styles = 1;
     for (int i = 0; i < fnt->num_atlases; i++) {
         void *buf = PTR_DECODE(fnt, fnt->atlases[i].sprite);
         fnt->atlases[i].sprite = sprite_load_buf(buf, fnt->atlases[i].size);
@@ -175,17 +175,21 @@ static void font_unload(rdpq_font_t *fnt)
         rspq_block_free(fnt->atlases[i].up); fnt->atlases[i].up = NULL;
         fnt->atlases[i].sprite = PTR_ENCODE(fnt, fnt->atlases[i].sprite);
     }
-    for (int i = 0; i < MAX_STYLES; i++) {
+    for (int i = 0; i < fnt->num_styles; i++) {
         if (fnt->styles[i].block) {
             rspq_block_free(fnt->styles[i].block);
             fnt->styles[i].block = NULL;
         }
     }
+    if (fnt->num_styles > 1) {
+        free(fnt->styles);
+        fnt->styles = &fnt->builtin_style;
+        fnt->num_styles = 1;
+    }
     fnt->ranges = PTR_ENCODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_ENCODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_ENCODE(fnt, fnt->atlases);
     fnt->kerning = PTR_ENCODE(fnt, fnt->kerning);
-    fnt->styles = PTR_ENCODE(fnt, fnt->styles);
     memcpy(fnt->magic, FONT_MAGIC, 3);
 }
 
@@ -240,8 +244,22 @@ float __rdpq_font_kerning(const rdpq_font_t *fnt, int16_t glyph1, int16_t glyph2
 
 void rdpq_font_style(rdpq_font_t *fnt, uint8_t style_id, const rdpq_fontstyle_t *style)
 {
-    // NOTE: fnt->num_styles refer to how many styles have been defined at
-    // mkfont time. The font always contain room for 256 styles (all zeroed).
+    if (style_id >= fnt->num_styles) {
+        assertf(style_id < MAX_STYLES, "style_id %d exceeds maximum %d", style_id, MAX_STYLES);
+
+        if (fnt->num_styles == 1) {
+            fnt->num_styles = 16;
+            fnt->styles = calloc(16, sizeof(style_t));
+            memcpy(&fnt->styles[0], &fnt->builtin_style, sizeof(style_t));
+            fnt->builtin_style.block = NULL;
+        } else {
+            int old_styles = fnt->num_styles;
+            fnt->num_styles = MAX(fnt->num_styles*2, MAX_STYLES);
+            fnt->styles = realloc(fnt->styles, fnt->num_styles * sizeof(style_t));
+            memset(&fnt->styles[old_styles], 0, (fnt->num_styles - old_styles) * sizeof(style_t));
+        }
+    }
+
     style_t *s = &fnt->styles[style_id];
     s->color = style->color;
     s->outline_color = style->outline_color;
@@ -258,7 +276,8 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     while (ch->font_id == font_id) {
         const glyph_t *g = &fnt->glyphs[ch->glyph];
         if (UNLIKELY(ch->style_id != cur_style)) {
-            assertf(fnt->styles[ch->style_id].block, "style %d not defined in this font", ch->style_id);
+            assertf(ch->style_id < fnt->num_styles && fnt->styles[ch->style_id].block,
+                 "style %d not defined in this font", ch->style_id);
             rspq_block_run(fnt->styles[ch->style_id].block);
             cur_style = ch->style_id;
         }
