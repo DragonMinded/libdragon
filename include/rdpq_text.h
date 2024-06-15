@@ -228,6 +228,7 @@ typedef struct rdpq_textparms_s {
     rdpq_textwrap_t wrap;    ///< Wrap mode
     int16_t *tabstops;       ///< Array of tab stops, in pixels (0-terminated). If NULL, tab stops are every 32 pixels
     bool disable_aa_fix;     ///< Obtain a small rendering speedup by disabling the anti-aliasing fix. Can be enabled when anti-alias is disabled in #display_init. (see #RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX for more details).
+    bool preserve_overlap;   ///< Preserve overlapping glyphs when rendering. Notice that this might have a strong performance impact because it forces left-to-right rendering, which means that texture loading can't be optimized.
 } rdpq_textparms_t;
 
 

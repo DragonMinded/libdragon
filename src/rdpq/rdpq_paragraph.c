@@ -101,11 +101,11 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
 
 void rdpq_paragraph_builder_font(uint8_t font_id)
 {
-    builder.must_sort |= builder.font_id > font_id;
     builder.font_id = font_id;
     builder.font = rdpq_text_get_font(font_id);
     assertf(builder.font, "font %d not registered", font_id);
     builder.style_id = 0;
+    builder.must_sort |= builder.font_id > font_id || builder.font->num_atlases > 1;
 
     if (builder.parms->wrap == WRAP_ELLIPSES)
         assertf(builder.font->ellipsis_glyph && builder.font->ellipsis_reps, 
@@ -419,12 +419,14 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
     builder.layout->bbox.y1 = y1;
 
     // Sort the chars by font/style/glyph
-    if (builder.layout->nchars < 48) {
-        // For small sizes, use insertion sort as it's faster
-        insertion_sort_char_array(builder.layout->chars, builder.layout->nchars);
-    } else {
-        qsort(builder.layout->chars, builder.layout->nchars, sizeof(rdpq_paragraph_char_t),
-            char_compare);
+    if (builder.must_sort && !builder.parms->preserve_overlap) {
+        if (builder.layout->nchars < 48) {
+            // For small sizes, use insertion sort as it's faster
+            insertion_sort_char_array(builder.layout->chars, builder.layout->nchars);
+        } else {
+            qsort(builder.layout->chars, builder.layout->nchars, sizeof(rdpq_paragraph_char_t),
+                char_compare);
+        }
     }
 
     // Make sure there is always a terminator.
