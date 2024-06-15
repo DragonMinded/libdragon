@@ -8,6 +8,7 @@
 #define LIBDRAGON_RDPQ_FONT_H
 
 #include "graphics.h"
+#include "debug.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +17,8 @@ extern "C" {
 ///@cond
 typedef struct rdpq_font_s rdpq_font_t;
 typedef struct rdpq_paragraph_char_s rdpq_paragraph_char_t;
+rdpq_font_t* __rdpq_font_load_builtin_0(void);
+rdpq_font_t* __rdpq_font_load_builtin_1(void);
 ///@endcond
 
 /**
@@ -44,6 +47,48 @@ rdpq_font_t* rdpq_font_load(const char *fn);
  * @return rdpq_font_t*     Loaded font
  */
 rdpq_font_t* rdpq_font_load_buf(void *buf, int sz);
+
+/** 
+ * @brief Builtin fonts, shipped with libdragon
+ * 
+ * All builtin fonts are licensed under CC0 or similar license that effectively
+ * place them into public domain, so there are no restrictions on their usage.
+ */
+typedef enum {
+    /// ASCII Debug font, outlined, monospace (8x8 pixels, plus outline)
+    /// Monogram by datagoblin (https://datagoblin.itch.io/monogram)
+    /// License: CC0
+    FONT_BUILTIN_DEBUG_MONO = 0,
+
+    /// ASCII Debug font, outlined, variable width (7x9 pixels, plus outline)
+    /// At01 by GrafxKid (https://grafxkid.itch.io/at01)
+    /// License: CC0
+    FONT_BUILTIN_DEBUG_VAR = 1,
+} rdpq_font_builtin_t;
+
+/**
+ * @brief Load a builtin font provided by libdragon.
+ * 
+ * Builtin fonts are simple debug fonts shipped with libdragon itself, to let
+ * people quickly write something on the screen without much hassle. They are
+ * meant mainly for debug purposes.
+ * 
+ * See #rdpq_font_builtin_t for a list of available builtin fonts.
+ * 
+ * @param font              Builtin font to load
+ * 
+ * @return rdpq_font_t*     Loaded font
+ */
+inline rdpq_font_t* rdpq_font_load_builtin(rdpq_font_builtin_t font) {
+    switch (font) {
+        case FONT_BUILTIN_DEBUG_MONO:
+            return __rdpq_font_load_builtin_0();
+        case FONT_BUILTIN_DEBUG_VAR:
+            return __rdpq_font_load_builtin_1();
+        default:
+            assertf(false, "Invalid builtin font");
+    }
+}
 
 /**
  * @brief Free a font.

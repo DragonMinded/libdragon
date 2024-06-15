@@ -19,6 +19,9 @@
 #include "fmath.h"
 #include "utils.h"
 
+// Include the built-in font data
+#include "rdpq_font_builtin.c"
+
 #define MAX_STYLES   256
 
 _Static_assert(sizeof(glyph_t) == 16, "glyph_t size is wrong");
@@ -306,5 +309,17 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     return ch - chars;
 }
 
-// extern inline void rdpq_font_print(rdpq_font_t *fnt, const char *text, const rdpq_parparms_t *parms);
+rdpq_font_t *__rdpq_font_load_builtin_0(void)
+{
+    return rdpq_font_load_buf((void*)__fontdb_monogram, __fontdb_monogram_len);
+}
+
+rdpq_font_t *__rdpq_font_load_builtin_1(void)
+{
+    return rdpq_font_load_buf((void*)__fontdb_at01, __fontdb_at01_len);
+}
+
+
 extern inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *sort_key);
+extern inline rdpq_font_t* rdpq_font_load_builtin(rdpq_font_builtin_t font);
+
