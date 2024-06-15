@@ -247,8 +247,8 @@ void __MI_handler(void)
     }
 }
 
-#define PI_BB_NAND_CTRL                     ((volatile uint32_t*)0xA4600048)
-#define PI_BB_AES_CTRL                      ((volatile uint32_t*)0xA4600050)
+#define PI_BB_NAND_CTRL                     ((volatile uint32_t*)0xA4600048)  ///< BB NAND control register
+#define PI_BB_AES_CTRL                      ((volatile uint32_t*)0xA4600050)  ///< BB AES control register
 
 /**
  * @brief Handle the extra MI interrupts in iQue
