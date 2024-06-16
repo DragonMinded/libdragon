@@ -537,6 +537,11 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
 
 void Font::make_atlases(void)
 {
+    if (glyphs.empty()) {
+        if (flag_verbose) fprintf(stderr, "WARNING: no glyphs found in this range\n");
+        return;
+    }
+        
     if (num_atlases == 0) {
         // First call, time to decide the format of the font
         fnt->flags &= ~FONT_FLAG_TYPE_MASK;
@@ -587,21 +592,76 @@ void Font::make_atlases(void)
     }
 
     if (!is_mono) {
-        // Aliased font: pack into I4 (max 128x64).
-        // Outline not supported yet.
+        int ppb; 
         if (!has_outline) {
+            // Aliased font: pack into I4 (max 128x64).
             settings.max_width = 128;
             settings.max_height = 64;
+            settings.align_width = 16;
+            ppb = 2;
         } else {
+            // Aliased+outlined font: pack into IA8 (max 64x64).
             settings.max_width = 64;
             settings.max_height = 64;
+            settings.align_width = 8;
+            ppb = 1;
         }
         sheets = rect_pack::pack(settings, sizes);
+
+        // We can save byte son the last sheet by checking for many different
+        // sizes. This is not something at which rect_pack excels at, so a bruteforce
+        // approach is used here.
+        int i = sheets.size()-1;
+        int best_area = sheets[i].width * sheets[i].height;
+
+        if (flag_verbose >= 2)
+            printf("repacking last sheet %d x %d (%d bytes)\n", sheets[i].width, sheets[i].height, best_area/ppb);
+
+        // Create a new array of sizes for the glyphs in this sheet
+        std::vector<rect_pack::Size> sizes2;
+        rect_pack::Sheet& sheet = sheets[i];
+        for (auto &r : sheet.rects) {
+            auto &g = glyphs[r.id];
+            rect_pack::Size size;
+            size.id = r.id;
+            size.width = g.img.w + settings.border_padding;
+            size.height = g.img.h + settings.border_padding;
+            sizes2.push_back(size);
+        }
+
+        // Try to find a better packing for this sheet
+        while (1) {
+            bool changed = false;
+            for (int h=16; h<=256; h++) {
+                int w = (best_area-1) / h / settings.align_width * settings.align_width;
+                if (w > 256) w = 256;
+                if (!w) break;
+
+                settings.min_width = 0;
+                settings.max_width = w;
+                settings.max_height = h;
+                std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
+                if (new_sheets.size() == 1 && new_sheets[0].rects.size() == sizes2.size()) {
+                    auto &new_sheet = new_sheets[0];
+                    int new_area = new_sheet.width * new_sheet.height;
+                    if (new_area < best_area) {
+                        if (flag_verbose >= 2)
+                            printf("    found better packing: %d x %d (%d bytes)\n", new_sheet.width, new_sheet.height, new_area/ppb);
+                        sheets[i] = new_sheet;
+                        best_area = new_area;
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+            if (!changed) break;
+        }
     } else {
         // Start by computing a pack with the CI4 maximum size (64x64)
         settings.min_width = 64;
         settings.max_width = 64;
         settings.max_height = 64;
+        settings.align_width = 16;
         sheets = rect_pack::pack(settings, sizes);
         int num_sheets = sheets.size();
         int last_group = (num_sheets-1) / merge_layers * merge_layers;
@@ -629,11 +689,12 @@ void Font::make_atlases(void)
         // Try to find a better packing for the last group
         while (1) {
             bool changed = false;
-            for (int h=16; h<=64; h++) {
+            for (int h=16; h<=256; h++) {
                 // Find texture sizes where the value is a multiple of 16. Since
                 // They are going to be packed as CI4, this allows the stride to be
                 // multiple of 8, which allows LOAD_BLOCK to be used at runtime.
-                int w = (best_area-1) / h / 16 * 16;
+                int w = (best_area-1) / h / settings.align_width * settings.align_width;
+                if (w > 256) w = 256;
                 if (!w) break;
 
                 settings.min_width = 0;
@@ -648,7 +709,7 @@ void Font::make_atlases(void)
                     changed = true;
                     break;
                 }
-            } 
+            }
             if (!changed) break;
         }
 
@@ -679,6 +740,7 @@ void Font::make_atlases(void)
                 gout->ntile = i & (merge_layers-1);
                 gout->natlas /= merge_layers;
             }
+            assert(rect.x < 256 && rect.y < 256);
             gout->s = rect.x; gout->t = rect.y;
             gout->xoff = glyph.xoff;
             gout->yoff = glyph.yoff;
