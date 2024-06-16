@@ -17,8 +17,8 @@ extern "C" {
 ///@cond
 typedef struct rdpq_font_s rdpq_font_t;
 typedef struct rdpq_paragraph_char_s rdpq_paragraph_char_t;
-rdpq_font_t* __rdpq_font_load_builtin_0(void);
 rdpq_font_t* __rdpq_font_load_builtin_1(void);
+rdpq_font_t* __rdpq_font_load_builtin_2(void);
 ///@endcond
 
 /**
@@ -58,12 +58,12 @@ typedef enum {
     /// ASCII Debug font, outlined, monospace (8x8 pixels, plus outline)
     /// Monogram by datagoblin (https://datagoblin.itch.io/monogram)
     /// License: CC0
-    FONT_BUILTIN_DEBUG_MONO = 0,
+    FONT_BUILTIN_DEBUG_MONO = 1,
 
     /// ASCII Debug font, outlined, variable width (7x9 pixels, plus outline)
     /// At01 by GrafxKid (https://grafxkid.itch.io/at01)
     /// License: CC0
-    FONT_BUILTIN_DEBUG_VAR = 1,
+    FONT_BUILTIN_DEBUG_VAR = 2,
 } rdpq_font_builtin_t;
 
 /**
@@ -82,9 +82,9 @@ typedef enum {
 inline rdpq_font_t* rdpq_font_load_builtin(rdpq_font_builtin_t font) {
     switch (font) {
         case FONT_BUILTIN_DEBUG_MONO:
-            return __rdpq_font_load_builtin_0();
-        case FONT_BUILTIN_DEBUG_VAR:
             return __rdpq_font_load_builtin_1();
+        case FONT_BUILTIN_DEBUG_VAR:
+            return __rdpq_font_load_builtin_2();
         default:
             assertf(false, "Invalid builtin font");
     }

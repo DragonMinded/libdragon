@@ -309,12 +309,12 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     return ch - chars;
 }
 
-rdpq_font_t *__rdpq_font_load_builtin_0(void)
+rdpq_font_t *__rdpq_font_load_builtin_1(void)
 {
     return rdpq_font_load_buf((void*)__fontdb_monogram, __fontdb_monogram_len);
 }
 
-rdpq_font_t *__rdpq_font_load_builtin_1(void)
+rdpq_font_t *__rdpq_font_load_builtin_2(void)
 {
     return rdpq_font_load_buf((void*)__fontdb_at01, __fontdb_at01_len);
 }
