@@ -669,10 +669,16 @@ void Font::make_atlases(void)
         // Try to optimize the last group (up to four sheets). Create an array
         // of input sizes for all the glyphs in the last group
         std::vector<rect_pack::Size> sizes2;
-        for (int i=last_group; i<num_sheets; i++) {
-            rect_pack::Sheet& sheet = sheets[i];
-            for (auto &r : sheet.rects)
-                sizes2.push_back(sizes[r.id]);
+        for (int j=last_group; j<num_sheets; j++) {
+            rect_pack::Sheet& sheet = sheets[j];
+            for (auto &r : sheet.rects) {
+                auto &g = glyphs[r.id];
+                rect_pack::Size size;
+                size.id = r.id;
+                size.width = g.img.w + settings.border_padding;
+                size.height = g.img.h + settings.border_padding;
+                sizes2.push_back(size);
+            }
         }
 
         // Move the last group of sheets to a temporary array
@@ -702,12 +708,20 @@ void Font::make_atlases(void)
                 settings.max_height = h;
                 std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
                 if (new_sheets.size() <= merge_layers) {
-                    if (flag_verbose >= 2)
-                        printf("    found better packing: %d x %d (%d)\n", w, h, w*h);
-                    best_sheets = new_sheets;
-                    best_area = w * h;
-                    changed = true;
-                    break;
+                    // Check that all the glyphs were packed.
+                    // FIXME: this seems like a bug in rect_pack... I can't see
+                    // why it shouldn't simply create more sheets if it can't fit
+                    int packed_glyphs = 0;
+                    for (auto &sheet : new_sheets)
+                        packed_glyphs += sheet.rects.size();
+                    if (packed_glyphs == sizes2.size()) {
+                        if (flag_verbose >= 2)
+                            printf("    found better packing: %d x %d (%d)\n", w, h, w*h);
+                        best_sheets = new_sheets;
+                        best_area = w * h;
+                        changed = true;
+                        break;
+                    }
                 }
             }
             if (!changed) break;
@@ -736,10 +750,11 @@ void Font::make_atlases(void)
 
             glyph_t *gout = &fnt->glyphs[glyph.gidx];
             gout->natlas = i;
-            if (is_mono) {
+            if (merge_layers > 1) {
                 gout->ntile = i & (merge_layers-1);
                 gout->natlas /= merge_layers;
             }
+            gout->natlas += fnt->num_atlases; // offset by the atlases already added for other ranges
             assert(rect.x < 256 && rect.y < 256);
             gout->s = rect.x; gout->t = rect.y;
             gout->xoff = glyph.xoff;
@@ -762,8 +777,8 @@ void Font::make_atlases(void)
             }
         }
 
-        if (flag_verbose && !is_mono)
-            fprintf(stderr, "created atlas %d: %d x %d pixels (%zu glyphs)\n", i, sheet.width, sheet.height, sheet.rects.size());
+        if (flag_verbose && merge_layers == 1)
+            fprintf(stderr, "created atlas %d: %d x %d pixels (%zu glyphs)\n", i + fnt->num_atlases, sheet.width, sheet.height, sheet.rects.size());
         if (flag_debug) {
             char *imgfn = NULL;
             asprintf(&imgfn, "%s_%d.png", outfn.c_str(), num_atlases);
@@ -783,8 +798,7 @@ void Font::make_atlases(void)
         num_atlases++;
     }
 
-    if (is_mono) {
-        assert(merge_layers == 2 || merge_layers == 4);
+    if (merge_layers > 1) {
         std::vector<Image> atlases2;
         for (int i=0; i<atlases.size(); i+=merge_layers) {
             // Merge (up to) 4 images into a single atlas. Calculate the
@@ -843,9 +857,9 @@ void Font::make_atlases(void)
 
             if (flag_verbose) {
                 int num_glyphs = 0;
-                for (int j=0; j<4 && i+j<atlases.size(); j++)
+                for (int j=0; j<merge_layers && i+j<atlases.size(); j++)
                     num_glyphs += sheets[i+j].rects.size();
-                fprintf(stderr, "created atlas %d: %d x %d pixels (%d glyphs)\n", i/4, w, h, num_glyphs);
+                fprintf(stderr, "created atlas %d: %d x %d pixels (%d glyphs)\n", i/merge_layers + fnt->num_atlases, w, h, num_glyphs);
             }
             atlases2.push_back(std::move(img));
         }
