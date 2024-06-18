@@ -146,12 +146,18 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 FT_Glyph_To_Bitmap(&ftglyph2, rm, nullptr, true);
                 FT_BitmapGlyph bitmapGlyph2 = reinterpret_cast<FT_BitmapGlyph>(ftglyph2);
 
+                // Calculate the union of the two bitmaps. Notice that the Y coordinates (top) is
+                // reversed in freetype, so positive is up, which means that all calculations are inverted here.
                 int img_top = std::max(bitmapGlyph1->top, bitmapGlyph2->top);
                 int img_left = std::min(bitmapGlyph1->left, bitmapGlyph2->left);
+                int img_bottom = std::min(bitmapGlyph1->top - (int)bitmapGlyph1->bitmap.rows, bitmapGlyph2->top - (int)bitmapGlyph2->bitmap.rows);
+                int img_right = std::max(bitmapGlyph1->left + (int)bitmapGlyph1->bitmap.width, bitmapGlyph2->left + (int)bitmapGlyph2->bitmap.width);
+                
+                int img_width = img_right - img_left;
+                int img_height = img_top - img_bottom;
 
-                int img_width = std::max(bitmapGlyph1->left + bitmapGlyph1->bitmap.width, bitmapGlyph2->left + bitmapGlyph2->bitmap.width) - img_left;
-                int img_height = std::max(bitmapGlyph1->top + bitmapGlyph1->bitmap.rows, bitmapGlyph2->top + bitmapGlyph2->bitmap.rows) - img_top;
-
+                // Allow for empty images (eg: space). We need to call add_glyph for them anyway
+                assert(img_width >= 0 && img_height >= 0);
                 Image img = Image(FMT_IA16, img_width, img_height);
 
                 // Copy the outline bitmap to the image

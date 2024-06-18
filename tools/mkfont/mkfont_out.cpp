@@ -183,6 +183,7 @@ struct Image {
         uint16_t *palette;
 
         Image::Pixel operator[](int x) {
+            assert(x >= 0 && x < w);
             return {fmt, data + TEX_FORMAT_PIX2BYTES(fmt, x), palette};
         }
 
@@ -198,6 +199,7 @@ struct Image {
     };
 
     Line operator[](int y) {
+        assert(y >= 0 && y < h);
         return {pixels.data() + TEX_FORMAT_PIX2BYTES(fmt, y * w), w, fmt, palette.data()};
     }
 
