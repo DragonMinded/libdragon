@@ -96,7 +96,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Can't have the video interrupt happening here */
     disable_interrupts();
 
-    /* Minimum is two buffers. */
     __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
 

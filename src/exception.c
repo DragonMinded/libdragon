@@ -109,7 +109,7 @@ void __exception_dump_gpr(exception_t* ex, void (*cb)(void *arg, const char *reg
 	char buf[24];
 	for (int i=0;i<34;i++) {
 		uint64_t v = (i<32) ? ex->regs->gpr[i] : (i == 33) ? ex->regs->lo : ex->regs->hi;
-		if ((int32_t)v == v) {
+		if ((uint64_t)(int32_t)v == v) { // if the value looks like a 32-bit value (accounting for sign extension)
 			snprintf(buf, sizeof(buf), "---- ---- %04llx %04llx", (v >> 16) & 0xFFFF, v & 0xFFFF);
 		} else {
 			snprintf(buf, sizeof(buf), "%04llx %04llx %04llx %04llx", v >> 48, (v >> 32) & 0xFFFF, (v >> 16) & 0xFFFF, v & 0xFFFF);

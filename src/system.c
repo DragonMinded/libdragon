@@ -101,7 +101,7 @@ static void *handle_first_bucket[HANDLE_BUCKET_SIZE];
 /** @brief Array of buckets of file handles */
 static void **handle_map[HANDLE_MAX_BUCKETS] = { handle_first_bucket };
 /** @brief Number of allocated handle buckets (start from 1, as the first one is allocated statically) */
-static int handle_buckets_count = 1;    
+static int handle_buckets_count = 1;
 /** @brief Number of open handles */
 static int handle_open_count;
 
@@ -626,7 +626,7 @@ int close( int fileno )
  *
  * @return 0 on success or a negative value on error.
  */
-int execve( char *name, char **argv, char **env )
+int execve( const char *name, char * const *argv, char * const *env )
 {
     /* No threads (yet??) */
     errno = ENOSYS;
