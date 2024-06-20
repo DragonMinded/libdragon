@@ -470,7 +470,7 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
 
         for( int yp = sy; yp < ey; yp++ )
         {
-            const register int run = yp * sprite_font.sprite->width;
+            register const int run = yp * sprite_font.sprite->width;
 
             for( int xp = sx; xp < ex; xp++ )
             {
@@ -496,7 +496,7 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
 
         for( int yp = sy; yp < ey; yp++ )
         {
-            const register int run = yp * sprite_font.sprite->width;
+            register const int run = yp * sprite_font.sprite->width;
 
             for( int xp = sx; xp < ex; xp++ )
             {
@@ -641,7 +641,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
 
         for( int yp = sy; yp < ey; yp++ )
         {
-            const register int run = yp * sprite->width;
+            register const int run = yp * sprite->width;
 
             for( int xp = sx; xp < ex; xp++ )
             {
@@ -656,7 +656,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
 
         for( int yp = sy; yp < ey; yp++ )
         {
-            const register int run = yp * sprite->width;
+            register const int run = yp * sprite->width;
 
             for( int xp = sx; xp < ex; xp++ )
             {
@@ -756,7 +756,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
 
         for( int yp = sy; yp < ey; yp++ )
         {
-            const register int run = yp * sprite->width;
+            register const int run = yp * sprite->width;
 
             for( int xp = sx; xp < ex; xp++ )
             {
