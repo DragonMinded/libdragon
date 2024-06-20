@@ -59,6 +59,7 @@
 #include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include "backtrace.h"
 #include "backtrace_internal.h"
 #include "debug.h"
@@ -205,9 +206,9 @@ static symtable_header_t symt_open(void) {
  * @param idx       Index of the entry to return
  * @return addrtable_entry_t  Entry of the address table
  */
-static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
+static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, unsigned int idx)
 {
-    assert(idx >= 0 && idx < symt->addrtab_size);
+    assert(idx < symt->addrtab_size);
     return io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
 }
 
@@ -225,12 +226,13 @@ static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
  * @param idx       If not null, will be set to the index of the entry found (or the index just before)
  * @return          The found entry (or the entry just before)
  */
-static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t addr, int *idx)
+static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t addr, unsigned int *idx)
 {
-    int min = 0;
-    int max = symt->addrtab_size - 1;
+    assert(symt->addrtab_size > 0);
+    unsigned int min = 0;
+    unsigned int max = symt->addrtab_size - 1;
     while (min < max) {
-        int mid = (min + max) / 2;
+        unsigned int mid = (min + max) / 2;
         addrtable_entry_t entry = symt_addrtab_entry(symt, mid);
         if (addr <= ADDRENTRY_ADDR(entry))
             max = mid;
@@ -238,9 +240,11 @@ static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t a
             min = mid + 1;
     }
     addrtable_entry_t entry = symt_addrtab_entry(symt, min);
-    if (min > 0 && ADDRENTRY_ADDR(entry) > addr)
-        entry = symt_addrtab_entry(symt, --min);
-    if (idx) *idx = min;
+    if (min > 0 && ADDRENTRY_ADDR(entry) > addr) {
+        min -= 1;
+        entry = symt_addrtab_entry(symt, min);
+    }
+    if (idx != NULL) *idx = min;
     return entry;
 }
 
@@ -276,7 +280,7 @@ static char* symt_string(symtable_header_t *symt, int sidx, int slen, char *buf,
  * @param entry   Output entry pointer
  * @param idx     Index of the entry to fetch
  */
-static void symt_entry_fetch(symtable_header_t *symt, symtable_entry_t *entry, int idx)
+static void symt_entry_fetch(symtable_header_t *symt, symtable_entry_t *entry, unsigned int idx)
 {
     data_cache_hit_writeback_invalidate(entry, sizeof(symtable_entry_t));
     dma_read(entry, SYMT_ROM + symt->symtab_off + idx * sizeof(symtable_entry_t), sizeof(symtable_entry_t));
@@ -306,10 +310,11 @@ char* __symbolize(void *vaddr, char *buf, int size)
     symtable_header_t symt = symt_open();
     if (symt.head[0]) {
         uint32_t addr = (uint32_t)vaddr;
-        int idx = 0;
+        unsigned int idx = 0;
         addrtable_entry_t a = symt_addrtab_search(&symt, addr, &idx);
-        while (!ADDRENTRY_IS_FUNC(a))
+        while (!ADDRENTRY_IS_FUNC(a) && idx > 0)
             a = symt_addrtab_entry(&symt, --idx);
+        assertf(ADDRENTRY_IS_FUNC(a), "No function found at or before address addr=0x%08" PRIx32, addr);
 
         // Read the symbol name
         symtable_entry_t alignas(8) entry;
@@ -566,10 +571,11 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
                 // address of the function.
                 symtable_header_t symt = symt_open();
                 if (symt.head[0]) {
-                    int idx;
+                    unsigned int idx;
                     addrtable_entry_t entry = symt_addrtab_search(&symt, (uint32_t)ra, &idx);
-                    while (!ADDRENTRY_IS_FUNC(entry))
+                    while (!ADDRENTRY_IS_FUNC(entry) && idx > 0)
                         entry = symt_addrtab_entry(&symt, --idx);
+                    assertf(ADDRENTRY_IS_FUNC(entry), "No function found at or before address (uint32_t)ra=0x%08" PRIx32, (uint32_t)ra);
                     func_start = ADDRENTRY_ADDR(entry);
                     #if BACKTRACE_DEBUG
                     debugf("Found interrupted function start address: %08lx\n", func_start);
@@ -605,7 +611,7 @@ int backtrace(void **buffer, int size)
 }
 
 static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
-    symtable_header_t *symt, int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)
+    symtable_header_t *symt, unsigned int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)
 {       
     symtable_entry_t alignas(8) entry;
     symt_entry_fetch(symt, &entry, idx);
@@ -653,7 +659,7 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
             });
             continue;
         }
-        int idx; addrtable_entry_t a;
+        unsigned int idx; addrtable_entry_t a;
         a = symt_addrtab_search(&symt_header, needle, &idx);
 
         if (ADDRENTRY_ADDR(a) == needle) {
@@ -665,8 +671,9 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
             }
         } else {
             // Search the containing function
-            while (!ADDRENTRY_IS_FUNC(a))
+            while (!ADDRENTRY_IS_FUNC(a) && idx > 0)
                 a = symt_addrtab_entry(&symt_header, --idx);
+            assertf(ADDRENTRY_IS_FUNC(a), "No function found at or before address needle=0x%08" PRIx32, needle);
             format_entry(cb, cb_arg, &symt_header, idx, needle, needle - ADDRENTRY_ADDR(a), true, false);
         }
     }
