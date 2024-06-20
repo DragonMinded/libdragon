@@ -84,7 +84,7 @@ static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa450000
  *
  * @return nonzero if the AI is busy, zero otherwise
  */
-static volatile inline int __busy()
+static inline int __busy()
 {
     return AI_regs->status & AI_STATUS_BUSY;
 }
@@ -94,7 +94,7 @@ static volatile inline int __busy()
  *
  * @return nonzero if the AI is full, zero otherwise
  */
-static volatile inline int __full()
+static inline int __full()
 {
     return AI_regs->status & AI_STATUS_FULL;
 }
@@ -430,7 +430,7 @@ void audio_write_silence()
     enable_interrupts();
 }
 
-volatile int audio_can_write()
+int audio_can_write()
 {
     if(!buffers)
     {

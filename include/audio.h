@@ -105,7 +105,7 @@ void audio_pause(bool pause);
  * write data to.  If all buffers are full, wait until the AI has played back
  * the next buffer in its queue and try writing again.
  */
-volatile int audio_can_write();
+int audio_can_write();
 
 /**
  * @brief Write a chunk of silence

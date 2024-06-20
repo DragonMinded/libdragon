@@ -499,7 +499,7 @@ tv_type_t get_tv_type();
 /** @cond */
 /* Deprecated version of get_ticks */
 __attribute__((deprecated("use get_ticks instead")))
-static inline volatile unsigned long read_count(void) {
+static inline unsigned long read_count(void) {
     return get_ticks();
 }
 /** @endcond */
