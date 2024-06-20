@@ -1463,7 +1463,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         break;
     case 0x25: // TEX_RECT_FLIP
         VALIDATE_ERR(rdp.som.cycle_type < 2, "cannot draw texture rectangle flip in copy/fill mode");
-        // passthrough
+         __attribute__((fallthrough));
     case 0x24: { // TEX_RECT
         rdp.busy.pipe = true;
         lazy_validate_rendertarget();

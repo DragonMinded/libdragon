@@ -514,7 +514,7 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
                         return;
                     }
                 }
-                // FALLTHROUGH!
+                __attribute__((fallthrough));
             case BT_FUNCTION:
                 if (func.fp_offset)
                     fp = *(uint32_t**)((uint32_t)sp + func.fp_offset);

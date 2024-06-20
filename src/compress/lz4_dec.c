@@ -277,6 +277,7 @@ ssize_t decompress_lz4_read(void *state, void *buf, size_t len)
             } while (unlikely(byte == 255));
          }
          st.fsm_state = 1;
+         __attribute__((fallthrough));
       case 1: // literals
          n = MIN(st.lit_len, len);
          lz4_read(lz4, buf, n);
@@ -298,6 +299,7 @@ ssize_t decompress_lz4_read(void *state, void *buf, size_t len)
          }
          st.match_len += MIN_MATCH_SIZE;
          st.fsm_state = 2;
+         __attribute__((fallthrough));
       case 2: // match
          n = MIN(st.match_len, len);
          __ringbuf_copy(&lz4->ringbuf, st.match_off, buf, n);
