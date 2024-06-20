@@ -62,7 +62,7 @@ static int __console_write( char *buf, unsigned int len )
         write(2, buf, len);
 
     /* Copy over to screen buffer */
-    for(int x = 0; x < len; x++)
+    for(unsigned int x = 0; x < len; x++)
     {
         if(pos == CONSOLE_WIDTH * CONSOLE_HEIGHT)
         {

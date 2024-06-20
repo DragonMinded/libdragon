@@ -126,7 +126,7 @@ static inline int lzDecodeNumber(shrinkler_ctx_t *ctx, int context_group) {
     return shr_decode_number(ctx, NUM_SINGLE_CONTEXTS + (context_group << 8));
 }
 
-int shr_unpack(uint8_t *dst, uint8_t *src)
+size_t shr_unpack(uint8_t *dst, uint8_t *src)
 {
     const int parity_mask = 1;
 
@@ -186,7 +186,7 @@ void* decompress_shrinkler_full(const char *fn, FILE *fp, size_t cmp_size, size_
 
     void *out = malloc(size);
     if (!out) return 0;
-    int dec_size = shr_unpack(out, in); (void)dec_size;
+    size_t dec_size = shr_unpack(out, in); (void)dec_size;
     assertf(dec_size == size, "Shrinkler size:%d exp:%d", dec_size, size);
     free(in);
     return out;

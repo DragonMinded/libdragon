@@ -62,7 +62,7 @@ uint32_t rompak_search_ext(const char *ext)
     }
 
     entry_t *entry = alloca(header.entry_size);
-    for (int i=0; i < header.num_entries; i++) {
+    for (unsigned int i=0; i < header.num_entries; i++) {
         data_cache_hit_writeback_invalidate(entry, header.entry_size);
         dma_read(entry, TOC_ADDR + sizeof(header_t) + i*header.entry_size, header.entry_size);
 

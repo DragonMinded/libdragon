@@ -110,7 +110,7 @@ static void isviewer_write(const uint8_t *data, int len)
 		// we might overflow the input buffer if it's not a multiple
 		// of 4 bytes but it doesn't matter because we are going to
 		// write the exact number of bytes later.
-		for (int i=0; i < l; i+=4)
+		for (unsigned int i=0; i < l; i+=4)
 		{
 			ISVIEWER_BUFFER[i/4] = ((uint32_t)data[0] << 24) |
 								   ((uint32_t)data[1] << 16) |
@@ -513,7 +513,7 @@ static bool usb_initialize_once(void) {
 
 static int __stderr_write(char *buf, unsigned int len)
 {
-	for (int i=0; i<sizeof(debug_writer) / sizeof(debug_writer[0]); i++)
+	for (unsigned int i=0; i<sizeof(debug_writer) / sizeof(debug_writer[0]); i++)
 		if (debug_writer[i])
 			debug_writer[i]((uint8_t*)buf, len);
 
