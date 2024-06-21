@@ -50,6 +50,11 @@ enum rdpq_paragraph_flag_e {
     /// and #rdpq_text_print. It can be disabled by setting #rdpq_textparms_t::disable_aa_fix
     /// while rendering.
     RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX = (1 << 0),
+
+    /// @brief Dynamically-allocated layout
+    /// This flag is set when the layout was allocated dynamically via malloc
+    /// and can thus be resized when needed via realloc.
+    RDPQ_PARAGRAPH_FLAG_MALLOC = (1 << 1),
 };
 
 /**
