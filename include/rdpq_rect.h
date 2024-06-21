@@ -24,7 +24,7 @@ inline void __rdpq_fill_rectangle_inline(int32_t x0, int32_t y0, int32_t x1, int
     if (__UNLIKELY(y0 < 0)) y0 = 0;
     if (__UNLIKELY(x1 > 0xFFF)) x1 = 0xFFF;
     if (__UNLIKELY(y1 > 0xFFF)) y1 = 0xFFF;
-    if (__UNLIKELY(x0 >= x1 || y0 >= y1)) return;
+    if (__UNLIKELY(x0+3 >= x1 || y0+3 >= y1)) return;
 
     extern void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1);
     __rdpq_fill_rectangle(
