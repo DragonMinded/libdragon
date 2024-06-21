@@ -21,6 +21,15 @@ rdpq_font_t* __rdpq_font_load_builtin_1(void);
 rdpq_font_t* __rdpq_font_load_builtin_2(void);
 ///@endcond
 
+/** @brief Metrics of a glyph in the font */
+typedef struct {
+    float xadvance;         ///< Advance after drawing the glyph
+    int8_t x0;              ///< Top-left X coordinate of the bbox of the glyph (relative to the baseline)
+    int8_t y0;              ///< Top-left Y coordinate of the bbox of the glyph (relative to the baseline)
+    int8_t x1;              ///< Bottom-right *exclusive* X coordinate of the bbox of the glyph (relative to the baseline)
+    int8_t y1;              ///< Bottom-right *exclusive* Y coordinate of the bbox of the glyph (relative to the baseline)
+} rdpq_font_gmetrics_t;
+
 /**
  * @brief Load a font from a file (.font64 format).
  * 
@@ -149,6 +158,41 @@ void rdpq_font_style(rdpq_font_t *font, uint8_t style_id, const rdpq_fontstyle_t
  */
 int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char_t *chars, float x0, float y0);
 
+/**
+ * @brief Get information on the Unicode codepoint ranges covered by a font.
+ * 
+ * Fonts can cover several ranges of Unicode codepoints. This function allows
+ * to query the ranges one by one, using the @p idx parameter. There is no
+ * minimum or maximum size for a range.
+ * 
+ * If the @p idx parameter is out of bounds, the function will return false.
+ * To iterate over all ranges, start with @p idx = 0 and increment it until
+ * the function returns false.
+ * 
+ * The ranges are guranteed to be sorted in ascending order.
+ * 
+ * @param[in] fnt       Font to query
+ * @param[in] idx       Index of the range to query
+ * @param[out] start    Start of the range
+ * @param[out] end      End of the range (inclusive)
+ * @return true         If the index is valid
+ * @return false        If the index is out of bounds
+ */
+bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start, uint32_t *end);
+
+/**
+ * @brief Get the metrics of a glyph in a font
+ * 
+ * @note This is a low-level function for very advanced use cases. Most users
+ *       should instead rely to the layout functions provided by #rdpq_text.h
+ *       and #rdpq_paragraph.h
+ *
+ * @param fnt           Font to query
+ * @param codepoint     Unicode codepoint of the glyph
+ * @param metrics       Pointer to a structure to store the metrics
+ * @return bool         true if the glyph was found, false otherwise
+ */
+bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt, uint32_t codepoint, rdpq_font_gmetrics_t *metrics);
 
 #ifdef __cplusplus
 }

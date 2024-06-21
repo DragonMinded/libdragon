@@ -309,6 +309,30 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     return ch - chars;
 }
 
+bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start, uint32_t *end)
+{
+    if (idx < 0 || idx >= fnt->num_ranges)
+        return false;
+    *start = fnt->ranges[idx].first_codepoint;
+    *end = fnt->ranges[idx].first_codepoint + fnt->ranges[idx].num_codepoints - 1;
+    return true;
+}
+
+bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt,  uint32_t codepoint, rdpq_font_gmetrics_t *metrics)
+{
+    int16_t glyph = __rdpq_font_glyph(fnt, codepoint);
+    if (glyph < 0)
+        return false;
+
+    glyph_t *g = &fnt->glyphs[glyph];
+    metrics->xadvance = g->xadvance * (1.0f / 64.0f);
+    metrics->x0 = g->xoff;
+    metrics->y0 = g->yoff;
+    metrics->x1 = g->xoff2+1;
+    metrics->y1 = g->yoff2+1;
+    return true;
+}
+
 rdpq_font_t *__rdpq_font_load_builtin_1(void)
 {
     return rdpq_font_load_buf((void*)__fontdb_monogram, __fontdb_monogram_len);
