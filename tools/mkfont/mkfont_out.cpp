@@ -543,7 +543,24 @@ void Font::make_atlases(void)
         if (flag_verbose) fprintf(stderr, "WARNING: no glyphs found in this range\n");
         return;
     }
-        
+
+    bool all_spaces = true;
+    for (auto& g : glyphs) {
+        // Zero-sized glyphs ("spaces") will not be included in the atlases
+        // but we want to set their advance anyway in the output table.
+        if (g.img.w == 0 && g.img.h == 0) {
+            glyph_t *gout = &fnt->glyphs[g.gidx];
+            gout->xadvance = g.xadv;
+        } else {
+            all_spaces = false;
+        }
+    }
+    if (all_spaces) {
+        // No glyphs to pack
+        glyphs.clear();
+        return;
+    }
+
     if (num_atlases == 0) {
         // First call, time to decide the format of the font
         fnt->flags &= ~FONT_FLAG_TYPE_MASK;
@@ -873,15 +890,6 @@ void Font::make_atlases(void)
     // Add atlases to the font
     for (int i=0; i<atlases.size(); i++)
         add_atlas(atlases[i]);
-
-    // Search for 0-sized glyphs. Those were not included in the atlases, so
-    // we just need to set their advances correctly
-    for (auto& g : glyphs) {
-        if (g.img.w == 0 || g.img.h == 0) {
-            glyph_t *gout = &fnt->glyphs[g.gidx];
-            gout->xadvance = g.xadv;
-        }
-    }
 
     // Clear the glyph array, as we have added these to the atlases already
     glyphs.clear();
