@@ -126,22 +126,6 @@ int main()
     int total_chars = strlen(text);
     int frame = 0;
 
-    // rdpq_paragraph_t *partext = rdpq_paragraph_build(&(rdpq_textparms_t){
-    //         .line_spacing = -3,
-    //         .width = box_width,
-    //         .height = box_height,
-    //         .wrap = WRAP_WORD,
-    //     }, FONT_PACIFICO, text, strlen(text));
-
-    #if 0
-    surface_t *screen = display_get();
-    rdpq_attach_clear(screen, NULL);
-    run_benchmark();
-    rdpq_detach_show();
-    return 0;
-    #endif
-
-
     while (1) {
         ++frame;
         if ((frame % 4) == 0) {
@@ -177,43 +161,11 @@ int main()
             .width = box_width,
             .height = box_height,
             .wrap = WRAP_WORD,
-        }, FONT_PACIFICO, (320-box_width)/2, (240-box_height)/2, text);
+        }, FONT_PACIFICO, (320-box_width)/2, (240-box_height)/2, text).utf8_text_advance;
         // rdpq_paragraph_render(partext, (320-box_width)/2, (240-box_height)/2);
         uint32_t t1 = get_ticks();
         enable_interrupts();
         debugf("rdpq_text_print: %d us (%dx%d) - %d bytes\n", TIMER_MICROS(t1-t0), box_width, box_height, nbytes);
-
-#if 0
-        rdpq_font_begin(RGBA32(0xED, 0xAE, 0x49, 0xFF));
-        rdpq_font_position((320-box_width)/2, (240-box_height)/2);
-        rdpq_font_printn(fnt1, text, drawn_chars, &(rdpq_parparms_t){
-            .line_spacing = -3,
-            .width = box_width,
-            .height = box_height,
-            .wrap = WRAP_WORD,
-        });
-
-        // rdpq_font_print(fnt1, "Jumping over the river");
-        // rdpq_font_position(20, 70);
-        // rdpq_font_print(fnt2, "Jumping over the river");
-        // rdpq_font_position(20, 90);
-        // rdpq_font_print(fnt3, "Jumping over the river");
-        // rdpq_font_position(20, 110);
-        // rdpq_font_print(fnt4, "Jumping over the river");
-        // rdpq_font_position(20, 130);
-        // rdpq_font_print(fnt5, "Jumping over the river");
-        // rdpq_font_position(20, 150);
-        // rdpq_font_print(fnt6, "Jumping over the river");
-        // rdpq_font_position(20, 170);
-        // rdpq_font_print(fnt7, "Jumping over the river");
-        // rdpq_font_position(20, 190);
-        // rdpq_font_print(fnt8, "Jumping over the river");
-        // rdpq_font_position(20, 210);
-        // rdpq_font_print(fnt9, "Jumping over the river");
-        // rdpq_font_position(20, 230);
-        // rdpq_font_print(fnt10, "こうちゃに レモンを いれます。");
-        rdpq_font_end();
-#endif
 
         rdpq_detach_show();
     }
