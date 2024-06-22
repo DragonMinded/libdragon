@@ -39,6 +39,9 @@ static void recalc_style(int font_type, style_t *s)
     rspq_block_begin();
             switch (font_type) {
             case FONT_TYPE_ALIASED:
+                // Atlases are simple I4 textures, so we just need to colorize
+                // them using the PRIM color. We also use PRIM alpha to control
+                // additional transparency of the text.
                 rdpq_mode_begin();
                     rdpq_set_mode_standard();
                     rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (TEX0,0,PRIM,0)));
@@ -48,6 +51,9 @@ static void recalc_style(int font_type, style_t *s)
                 rdpq_set_prim_color(s->color);
                 break;
             case FONT_TYPE_MONO:
+                // Monochrome fonts use CI4 textures with 4 1bpp layers, and special
+                // palettes to isolate each layer. PRIM control the color and
+                // the transparency of the text.
                 rdpq_mode_begin();
                     rdpq_set_mode_standard();
                     rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (TEX0,0,PRIM,0)));
