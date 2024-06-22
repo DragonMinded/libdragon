@@ -24,10 +24,10 @@ rdpq_font_t* __rdpq_font_load_builtin_2(void);
 /** @brief Metrics of a glyph in the font */
 typedef struct {
     float xadvance;         ///< Advance after drawing the glyph
-    int8_t x0;              ///< Top-left X coordinate of the bbox of the glyph (relative to the baseline)
-    int8_t y0;              ///< Top-left Y coordinate of the bbox of the glyph (relative to the baseline)
-    int8_t x1;              ///< Bottom-right *exclusive* X coordinate of the bbox of the glyph (relative to the baseline)
-    int8_t y1;              ///< Bottom-right *exclusive* Y coordinate of the bbox of the glyph (relative to the baseline)
+    int8_t x0;              ///< Top-left X coordinate of the bbox of the glyph (relative to the pen position)
+    int8_t y0;              ///< Top-left Y coordinate of the bbox of the glyph (relative to the pen position)
+    int8_t x1;              ///< Bottom-right *exclusive* X coordinate of the bbox of the glyph (relative to the pen position)
+    int8_t y1;              ///< Bottom-right *exclusive* Y coordinate of the bbox of the glyph (relative to the pen position)
 } rdpq_font_gmetrics_t;
 
 /**
