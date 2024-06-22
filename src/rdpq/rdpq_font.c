@@ -114,7 +114,7 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
     assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
     assertf(memcmp(fnt->magic, FONT_MAGIC_LOADED, 3), "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
     assertf(!memcmp(fnt->magic, FONT_MAGIC, 3), "invalid font data (magic: %c%c%c)", fnt->magic[0], fnt->magic[1], fnt->magic[2]);
-    assertf(fnt->version == 6, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
+    assertf(fnt->version == 7, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
@@ -298,8 +298,8 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
         // Draw the glyph
         float x = x0 + (ch->x + g->xoff);
         float y = y0 + (ch->y + g->yoff);
-        int width = (g->xoff2 - g->xoff + 1);
-        int height = (g->yoff2 - g->yoff + 1);
+        int width = g->xoff2 - g->xoff;
+        int height = g->yoff2 - g->yoff;
 
         rdpq_texture_rectangle(g->ntile,
             x, y, x+width, y+height,
@@ -334,8 +334,8 @@ bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt,  uint32_t codepoint, rd
     metrics->xadvance = g->xadvance * (1.0f / 64.0f);
     metrics->x0 = g->xoff;
     metrics->y0 = g->yoff;
-    metrics->x1 = g->xoff2+1;
-    metrics->y1 = g->yoff2+1;
+    metrics->x1 = g->xoff2;
+    metrics->y1 = g->yoff2;
     return true;
 }
 

@@ -37,8 +37,8 @@ typedef struct glyph_s {
     int16_t xadvance;                   ///< Number of pixels to advance the cursor after drawing the glyph (scaled by 64)
     int8_t xoff;                        ///< Offset of the x0 coordinate of the glyph from the cursor
     int8_t yoff;                        ///< Offset of the y0 coordinate of the glyph from the cursor
-    int8_t xoff2;                       ///< Offset of the x1 coordinate of the glyph from the cursor
-    int8_t yoff2;                       ///< Offset of the y1 coordinate of the glyph from the cursor
+    int8_t xoff2;                       ///< Offset of the *exclusive* x1 coordinate of the glyph from the cursor
+    int8_t yoff2;                       ///< Offset of the *exclusive* y1 coordinate of the glyph from the cursor
     uint8_t s;                          ///< S texture coordinate of the glyph in the atlas
     uint8_t t;                          ///< T texture coordinate of the glyph in the atlas
     uint8_t natlas;                     ///< Index of atlas that contains this glyph

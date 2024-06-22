@@ -182,14 +182,12 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     float xcur = builder.x;
     float ycur = builder.y;
     int16_t next_index = -1;
-    bool is_space = false;
     bool is_tab = false;
 
     #define UTF8_DECODE_NEXT() ({ \
         uint32_t codepoint = *utf8_text > 0 ? *utf8_text++ : utf8_decode(&utf8_text); \
         is_tab = (codepoint == '\t'); \
         if (is_tab) codepoint = ' '; \
-        is_space = codepoint == ' '; \
         __rdpq_font_glyph(builder.font, codepoint); \
     })
 
@@ -201,40 +199,52 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
         float xadvance; int8_t xoff2; bool has_kerning; uint8_t atlas_id;
         __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &atlas_id);
 
-        if (!is_space) {
-            if (UNLIKELY(builder.layout->nchars >= builder.layout->capacity)) paragraph_extend();
-            builder.layout->chars[builder.layout->nchars++] = (rdpq_paragraph_char_t) {
-                .font_id = builder.font_id,
-                .atlas_id = atlas_id,
-                .style_id = builder.style_id,
-                .glyph = index,
-                .x = xcur+.5f,
-                .y = ycur+.5f,
-            };
-        } else {       
+        // Check if this is a space character
+        if (UNLIKELY(xoff2 == 0)) {
             builder.ch_last_space = builder.layout->nchars;
-        }
 
-        float last_pixel = xcur + xoff2 * builder.xscale;
-
-        if (UNLIKELY(is_tab)) {
-            if (parms->tabstops) {
-                // Go to next tabstop
-                for (int t=0; parms->tabstops[t] != 0; t++) {
-                    if (last_pixel < parms->tabstops[t] * builder.xscale) {
-                        xcur = parms->tabstops[t] * builder.xscale;
-                        break;
+            if (UNLIKELY(is_tab)) {
+                if (parms->tabstops) {
+                    // Go to next tabstop
+                    for (int t=0; parms->tabstops[t] != 0; t++) {
+                        if (xcur < parms->tabstops[t] * builder.xscale) {
+                            xcur = parms->tabstops[t] * builder.xscale;
+                            break;
+                        }
                     }
+                } else {
+                    // Arbitrarly put tabstops every 32 pixels
+                    xcur += xadvance * builder.xscale;
+                    xcur = fm_ceilf(xcur / 32.0f) * 32.0f;
                 }
             } else {
-                // Arbitrarly put tabstops every 32 pixels
                 xcur += xadvance * builder.xscale;
-                xcur = fm_ceilf(xcur / 32.0f) * 32.0f;
             }
-        } else {
-            xcur += xadvance * builder.xscale;
+
+            // Round to nearest pixel when we find a space. This makes all words
+            // start from a pixel boundary, which means words will always look
+            // the same in any rendition (since, depending on resolution, a single
+            // pixel of relative distance between letters can be very visible).
+            xcur = roundf(xcur);
+
+            continue;
         }
 
+        // Add character to the layout
+        if (UNLIKELY(builder.layout->nchars >= builder.layout->capacity)) paragraph_extend();
+        builder.layout->chars[builder.layout->nchars++] = (rdpq_paragraph_char_t) {
+            .font_id = builder.font_id,
+            .atlas_id = atlas_id,
+            .style_id = builder.style_id,
+            .glyph = index,
+            .x = xcur+.5f,
+            .y = ycur+.5f,
+        };
+
+        // Advance the cursor
+        xcur += xadvance * builder.xscale;
+
+        // Correct for kerning
         if (UNLIKELY(has_kerning && utf8_text < end)) {
             next_index = UTF8_DECODE_NEXT();
             if (next_index >= 0) {
@@ -243,13 +253,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             }
         }
 
-        // Round to nearest pixel when we find a space. This makes all words
-        // start from a pixel boundary, which means words will always look
-        // the same in any rendition (since, depending on resolution, a single
-        // pixel of relative distance between letters can be very visible).
-        if (is_space) xcur = roundf(xcur);
-
         // Check if we are limited in width
+        float last_pixel = xcur + (xoff2-1) * builder.xscale;
         if (UNLIKELY(parms->width) && UNLIKELY(last_pixel > parms->width)) {
             // Check if we are allowed to wrap
             switch (parms->wrap) {

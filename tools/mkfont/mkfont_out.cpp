@@ -304,7 +304,7 @@ struct Font {
         outfn = fn;
         fnt = (rdpq_font_t*)calloc(1, sizeof(rdpq_font_t));
         memcpy(fnt->magic, FONT_MAGIC, 3);
-        fnt->version = 6;
+        fnt->version = 7;
         fnt->flags = FONT_TYPE_ALIASED;
         fnt->point_size = point_size;
         fnt->ascent = ascent;
@@ -778,8 +778,8 @@ void Font::make_atlases(void)
             gout->s = rect.x; gout->t = rect.y;
             gout->xoff = glyph.xoff;
             gout->yoff = glyph.yoff;
-            gout->xoff2 = gout->xoff + glyph.img.w - 1;
-            gout->yoff2 = gout->yoff + glyph.img.h - 1;
+            gout->xoff2 = gout->xoff + glyph.img.w;
+            gout->yoff2 = gout->yoff + glyph.img.h;
             gout->xadvance = glyph.xadv;
 
             if (flag_verbose >= 2) {
