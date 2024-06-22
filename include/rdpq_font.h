@@ -184,8 +184,8 @@ bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start
  * @brief Get the metrics of a glyph in a font
  * 
  * @note This is a low-level function for very advanced use cases. Most users
- *       should instead rely to the layout functions provided by #rdpq_text.h
- *       and #rdpq_paragraph.h
+ *       should instead rely to the layout functions provided by rdpq_text.h
+ *       and rdpq_paragraph.h
  *
  * @param fnt           Font to query
  * @param codepoint     Unicode codepoint of the glyph
