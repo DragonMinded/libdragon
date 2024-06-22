@@ -454,6 +454,10 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
         "paragraph too long (%d/%d chars)", builder.layout->nchars, builder.layout->capacity);
     builder.layout->chars[builder.layout->nchars].sort_key = 0;
 
+    // Finish filling the metrics
+    builder.layout->advance_x = builder.x;
+    builder.layout->advance_y = builder.y;
+
     return builder.layout;
 }
 

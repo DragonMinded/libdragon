@@ -76,7 +76,9 @@ typedef struct {
         float x1;                    ///< Bottom-right corner (X coord) of the bounding box, relative to drawing position
         float y1;                    ///< Bottom-right corner (Y coord) of the bounding box, relative to drawing position
     } bbox;                          ///< Bounding box of the text, relative to the drawing position
-    int nlines;                      ///< Number of lines of the text
+    float advance_x;                 ///< Pen advance in X after drawing the text
+    float advance_y;                 ///< Pen advance in Y after drawing the text
+    int nlines;                      ///< Number of lines in the text
     int nchars;                      ///< Total number of chars in this layout
     int capacity;                    ///< Capacity of the chars array
     float x0, y0;                    ///< Alignment offset of the text

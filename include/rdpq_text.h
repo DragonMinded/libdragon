@@ -172,6 +172,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <string.h>
 
 #ifdef __cplusplus
@@ -231,6 +232,13 @@ typedef struct rdpq_textparms_s {
     bool preserve_overlap;   ///< Preserve overlapping glyphs when rendering. Notice that this might have a strong performance impact because it forces left-to-right rendering, which means that texture loading can't be optimized.
 } rdpq_textparms_t;
 
+/** @brief Metrics of formatted text */
+typedef struct rdpq_textmetrics_t {
+    float advance_x;                ///< X pen advance after rendering the text 
+    float advance_y;                ///< Y pen advance after rendering the text
+    int utf8_text_advance;          ///< Number of bytes rendered in the UTF-8 text
+    int nlines;                     ///< Number of lines rendered (including wrapped lines)
+} rdpq_textmetrics_t;
 
 /**
  * @brief Register a new font into the text engine.
@@ -305,7 +313,7 @@ const rdpq_font_t *rdpq_text_get_font(uint8_t font_id);
  * @see #rdpq_text_print
  * @see #rdpq_textparms_t
  */
-int rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
+rdpq_textmetrics_t rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
     const char *utf8_text, int nbytes);
 
 /**
@@ -324,8 +332,29 @@ int rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t font_id, float x0, f
  * @return int          Number of bytes printed
  */
 __attribute__((format(printf, 5, 6)))
-int rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
+rdpq_textmetrics_t rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
     const char *utf8_fmt, ...);
+
+
+/**
+ * @brief Layout and render a formatted text in a single call.
+ * 
+ * This function is similar to #rdpq_text_printf, but it accepts a va_list
+ * argument list, similar to vsprintf. The format string is expected to be
+ * UTF-8 encoded.
+ * 
+ * @param parms         Layout parameters
+ * @param font_id       Font ID to use to render the text (at least initially;
+ *                      it can modified via escape codes). The initial style
+ *                      will be style 0.
+ * @param x0            X coordinate where to start rendering the text
+ * @param y0            Y coordinate where to start rendering the text
+ * @param utf8_fmt      Format string, in UTF-8 encoding
+ * @param va            Argument list
+ * @return rdpq_textmetrics_t   Metrics of the text
+ */
+rdpq_textmetrics_t rdpq_text_vprintf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
+    const char *utf8_fmt, va_list va);
 
 /**
  * @brief Layout and render a text in a single call.
@@ -342,7 +371,7 @@ int rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, f
  * @param utf8_text     Text to render, in UTF-8 encoding, NULL terminated.
  * @return int          Number of bytes printed
  */
-inline int rdpq_text_print(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
+inline rdpq_textmetrics_t rdpq_text_print(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
     const char *utf8_text)
 {
     return rdpq_text_printn(parms, font_id, x0, y0, utf8_text, strlen(utf8_text));
