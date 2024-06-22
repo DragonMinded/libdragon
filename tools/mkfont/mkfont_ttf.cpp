@@ -6,6 +6,78 @@
 // Freetype
 #include "freetype/FreeTypeAmalgam.h"
 
+static bool is_monochrome(FT_Face face)
+{
+    // Check if the font is monochrome at the current size, by rendering a
+    // few ASCII glyphs and checking if all pixels in them are either fully
+    // transparent or fully solid.
+    for (int ch='a'; ch <= 'f'; ch++) {
+        int idx = FT_Get_Char_Index(face, ch);
+        if (idx == 0) continue;
+
+        FT_Load_Glyph(face, idx, FT_LOAD_RENDER);
+
+        FT_GlyphSlot slot = face->glyph;
+        FT_Bitmap bmp = slot->bitmap;
+
+        for (int y=0; y<bmp.rows; y++) {
+            for (int x=0; x<bmp.width; x++) {
+                if (bmp.buffer[y * bmp.pitch + x] != 0 && bmp.buffer[y * bmp.pitch + x] != 0xFF)
+                    return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static int font_set_default_size(FT_Face face)
+{
+    FT_Size_RequestRec req;
+    memset(&req, 0, sizeof(req));
+
+    // Set the size based on scales 1.0, so that it defaults to the "correct" size.
+    // This is good for TTF retro fonts which are actually bitmap fonts in TTF disguise.
+    // Notice that we try hard to find if this font is monochrome because that's what
+    // the user expects for monochrome fonts.
+    req.type = FT_SIZE_REQUEST_TYPE_SCALES;
+    req.width = 1 << 16;
+    req.height =1 << 16;
+    FT_Request_Size(face, &req);
+
+    if (is_monochrome(face))
+        return face->bbox.yMax - face->bbox.yMin;
+
+    // If the font is not monochrome at its default size, try harder. Some monochrome fonts
+    // come with a default scaling size configured in the TTF, so check
+    // all "reasonable" sizes to check if the font is monochrome at one of those:
+    int point_size = 0;
+    for (int sz = 3; sz <= 30; sz++) {
+        memset(&req, 0, sizeof(req));
+        req.type = FT_SIZE_REQUEST_TYPE_NOMINAL;
+        req.height = sz << 6;
+        FT_Request_Size(face, &req);
+
+        if (is_monochrome(face)) {
+            point_size = sz;
+            break;
+        }
+    }
+
+    if (point_size)
+        return point_size;
+
+    // Ok we couldn't find a size at which this font is monochrome. We assume
+    // it's an aliased font. Let's just a default size of 12 pixels that is a
+    // good compromise for most fonts at 320x240.
+    const int DEFAULT_SIZE = 12;
+    memset(&req, 0, sizeof(req));
+    req.type = FT_SIZE_REQUEST_TYPE_NOMINAL;
+    req.height = DEFAULT_SIZE << 6;
+    FT_Request_Size(face, &req);
+    return DEFAULT_SIZE;
+}
+
 int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
 {
     int err;
@@ -25,46 +97,45 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         return 1;
     }
 
-    FT_Size_RequestRec req;
-    memset(&req, 0, sizeof(req));
-    
     int point_size;
     if (flag_ttf_point_size == 0) {
-        // Set the size based on scales 1.0, so that it defaults to the "correct" size.
-        // This is good for TTF retro fonts which are actually bitmap fonts in TTF disguise.
-        req.type = FT_SIZE_REQUEST_TYPE_SCALES;
-        req.width = 1 << 16;
-        req.height =1 << 16;
-        point_size = face->bbox.yMax - face->bbox.yMin;
+        point_size = font_set_default_size(face);
     } else {
+        // Use the point size requested by the user
+        FT_Size_RequestRec req;
+        memset(&req, 0, sizeof(req));
         req.type = FT_SIZE_REQUEST_TYPE_NOMINAL;
         req.height = flag_ttf_point_size << 6;
+        FT_Request_Size(face, &req);
         point_size = flag_ttf_point_size;
     }
-    FT_Request_Size(face, &req);
 
     int ascent = face->size->metrics.ascender >> 6;
     int descent = face->size->metrics.descender >> 6;
     int line_gap = (face->size->metrics.height >> 6) - ascent + descent; 
     int space_width = face->size->metrics.max_advance >> 6;
-    if (flag_verbose) printf("asc: %d dec: %d scalable:%d fixed:%d\n", ascent, descent, FT_IS_SCALABLE(face), FT_HAS_FIXED_SIZES(face));
-
+    if (flag_verbose) printf("Metrics: ascent=%d, descent=%d, line_gap=%d, space_width=%d\n", ascent, descent, line_gap, space_width);
     Font font(outfn, point_size, ascent, descent, line_gap, space_width, flag_ttf_outline > 0);
 
     // Create a map from font64 glyph indices to truetype indices
     std::unordered_map<int, int> gidx_to_ttfidx;
 
+    // Create the stroker (in case it's needed later)
     FT_Stroker stroker;
     FT_Stroker_New(ftlib, &stroker);
     FT_Stroker_Set(stroker, flag_ttf_outline * 64, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
 
+    // If ranges is emtpy, it means we need to extract all the glyphs from the font
     if (ranges.empty()) {
         unsigned idx;
         std::map<int, std::pair<int, int>> range_map;
+        // Go through all the glyphs in the font
         uint32_t cp = FT_Get_First_Char(face, &idx);
         while (idx) {
+            // Search which unicode range this glyph belongs to
             int range = *(std::upper_bound(unicode_ranges.begin(), unicode_ranges.end(), cp)-1);
 
+            // Update the min/max codepoint for this range
             auto r = range_map.find(range);
             if (r != range_map.end()) {
                 r->second.first = MIN(r->second.first, cp);
@@ -75,6 +146,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
 
             cp = FT_Get_Next_Char(face, cp, &idx);
         }
+        // Convert the map back to a the ranges vector
         for (auto r : range_map) {
             ranges.push_back(r.second.first);
             ranges.push_back(r.second.second);
@@ -119,6 +191,8 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 case FT_PIXEL_MODE_GRAY:
                     for (int y=0; y<bmp.rows; y++) {
                         for (int x=0; x<bmp.width; x++) {
+                            // For greyscale, mask out the lower 4 bits because we
+                            // are going to save a I4 anyway.
                             img[y][x] = bmp.buffer[y * bmp.pitch + x] & 0xF0;
                         }
                     }
@@ -174,7 +248,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                     }
                 }
 
-                // Copy the first bitmap to the image
+                // Copy the fill bitmap to the image, over the outline, blending it in.
                 for (int y = 0; y < bitmapGlyph1->bitmap.rows; y++) {
                     for (int x = 0; x < bitmapGlyph1->bitmap.width; x++) {
                         uint8_t v;
@@ -196,6 +270,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
             }
         }
 
+        // Create atlases for glyphs in this range
         font.make_atlases();
     }
 
