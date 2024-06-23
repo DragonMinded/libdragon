@@ -22,7 +22,7 @@ typedef enum {
     FONT_TYPE_ALIASED         = 0,      ///< Aliased font (I4)
     FONT_TYPE_MONO            = 1,      ///< Mono font (CI4, which are 4 1bpp layers)
     FONT_TYPE_MONO_OUTLINE    = 2,      ///< Mono font with outline (CI4, which are 2 2bpp layers)
-    FONT_TYPE_ALIASED_OUTLINE = 3,      ///< Mono font with outline (CI4, which are 2 2bpp layers)
+    FONT_TYPE_ALIASED_OUTLINE = 3,      ///< Aliased font with outline (IA8)
     FONT_TYPE_BITMAP          = 4,      ///< Bitmap font (RGBA32/RGBA16/CI4/CI8)
 } fonttype_t;
 
