@@ -39,6 +39,7 @@ int flag_ellipsis_cp = 0x002E;
 int flag_ellipsis_repeats = 3;
 float flag_ttf_outline = 0;
 bool flag_ttf_monochrome = false;
+tex_format_t flag_bmfont_format = FMT_RGBA16;
 
 std::vector<uint32_t> unicode_ranges{
     0x0000, 0x0020, 0x0080, 0x0100, 0x180, 0x250, 0x2b0, 0x300, 0x370, 0x400,
@@ -59,7 +60,7 @@ std::vector<uint32_t> unicode_ranges{
 
 void print_args( char * name )
 {
-    fprintf(stderr, "mkfont -- Convert TTF/OTF fonts into the font64 format for libdragon\n\n");
+    fprintf(stderr, "mkfont -- Convert TTF/OTF/BMFont fonts into the font64 format for libdragon\n\n");
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
@@ -77,14 +78,15 @@ void print_args( char * name )
     fprintf(stderr, "                             glyphs in the font.\n");
     fprintf(stderr, "   --monochrome              Force monochrome output, with no aliasing (default: off)\n");
     fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
+    fprintf(stderr, "BMFont specific flags:\n");
+    fprintf(stderr, "   --format <format>         Specify the output texture format. Valid options are:\n");
+    fprintf(stderr, "                             RGBA16, RGBA32, CI4, CI8 (default: RGBA16)\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
-    fprintf(stderr, "--range more than one time.\n");
 }
 
 #include "mkfont_out.cpp"
 #include "mkfont_ttf.cpp"
-// #include "mkfont_bmfont.cpp"
+#include "mkfont_bmfont.cpp"
 
 int main(int argc, char *argv[])
 {
@@ -182,6 +184,23 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 outdir = argv[i];
+            } else if (!strcmp(argv[i], "--format")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                if (strcmp(argv[i], "RGBA16") == 0) {
+                    flag_bmfont_format = FMT_RGBA16;
+                } else if (strcmp(argv[i], "RGBA32") == 0) {
+                    flag_bmfont_format = FMT_RGBA32;
+                } else if (strcmp(argv[i], "CI4") == 0) {
+                    flag_bmfont_format = FMT_CI4;
+                } else if (strcmp(argv[i], "CI8") == 0) {
+                    flag_bmfont_format = FMT_CI8;
+                } else {
+                    fprintf(stderr, "invalid format: %s\n", argv[i]);
+                    return 1;
+                }
             } else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
@@ -221,8 +240,7 @@ int main(int argc, char *argv[])
         if (strcasestr(infn, ".ttf") || strcasestr(infn, ".otf")) {
             ret = convert_ttf(infn, outfn, flag_ranges);
         } else if (strcasestr(infn, ".fnt")) {
-            // ret = convert_bmfont(infn, outfn);
-            assert(!"BMFont support is not implemented yet");
+            ret = convert_bmfont(infn, outfn);
         } else {
             fprintf(stderr, "Error: unknown input file type: %s\n", infn);
             ret = 1;

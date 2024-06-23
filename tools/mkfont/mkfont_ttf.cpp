@@ -110,12 +110,26 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         point_size = flag_ttf_point_size;
     }
 
+    // Decide the fonttype
+    fonttype_t fonttype;
+    if (!flag_ttf_outline) {
+        if (flag_ttf_monochrome || is_monochrome(face))
+            fonttype = FONT_TYPE_MONO;
+        else
+            fonttype = FONT_TYPE_ALIASED;
+    } else {
+        if (flag_ttf_monochrome || is_monochrome(face))
+            fonttype = FONT_TYPE_MONO_OUTLINE;
+        else
+            fonttype = FONT_TYPE_ALIASED_OUTLINE;
+    }
+
     int ascent = face->size->metrics.ascender >> 6;
     int descent = face->size->metrics.descender >> 6;
     int line_gap = (face->size->metrics.height >> 6) - ascent + descent; 
     int space_width = face->size->metrics.max_advance >> 6;
     if (flag_verbose) printf("Metrics: ascent=%d, descent=%d, line_gap=%d, space_width=%d\n", ascent, descent, line_gap, space_width);
-    Font font(outfn, point_size, ascent, descent, line_gap, space_width, flag_ttf_outline > 0);
+    Font font(outfn, fonttype, point_size, ascent, descent, line_gap, space_width);
 
     // Create a map from font64 glyph indices to truetype indices
     std::unordered_map<int, int> gidx_to_ttfidx;

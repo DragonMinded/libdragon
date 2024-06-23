@@ -31,7 +31,7 @@ _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(font, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(font)))
 
-static void recalc_style(int font_type, style_t *s)
+static void recalc_style(int font_type, tex_format_t fmt, style_t *s)
 {
     if (s->block)
         rdpq_call_deferred((void (*)(void*))rspq_block_free, s->block);
@@ -100,6 +100,27 @@ static void recalc_style(int font_type, style_t *s)
                 rdpq_set_prim_color(s->color);
                 rdpq_set_env_color(s->outline_color);
                 break;
+            case FONT_TYPE_BITMAP:
+                switch (fmt) {
+                case FMT_RGBA16:
+                case FMT_CI4:
+                case FMT_CI8:
+                    rdpq_mode_begin();
+                        rdpq_set_mode_copy(true);
+                        rdpq_mode_alphacompare(1);
+                    rdpq_mode_end();
+                    break;
+                case FMT_RGBA32:
+                    rdpq_mode_begin();
+                        rdpq_set_mode_standard();
+                        rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+                    rdpq_mode_end();
+                    break;
+                default:
+                    assertf(0, "unsupported bitmap font format %s", tex_format_name(fmt));
+                    break;
+                }
+                break;
             default:
                 assert(0);
             }
@@ -162,7 +183,7 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
     }
 
     for (int i = 0; i < fnt->num_styles; i++)
-        recalc_style(fnt->flags & FONT_FLAG_TYPE_MASK, &fnt->styles[i]);
+        recalc_style(fnt->flags & FONT_FLAG_TYPE_MASK, sprite_get_format(fnt->atlases[0].sprite), &fnt->styles[i]);
     memcpy(fnt->magic, FONT_MAGIC_LOADED, 3);
     data_cache_hit_writeback(fnt, sz);
     return fnt;
@@ -272,7 +293,7 @@ void rdpq_font_style(rdpq_font_t *fnt, uint8_t style_id, const rdpq_fontstyle_t 
     style_t *s = &fnt->styles[style_id];
     s->color = style->color;
     s->outline_color = style->outline_color;
-    recalc_style(fnt->flags & FONT_FLAG_TYPE_MASK, s);
+    recalc_style(fnt->flags & FONT_FLAG_TYPE_MASK, sprite_get_format(fnt->atlases[0].sprite), s);
 }
 
 int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char_t *chars, float x0, float y0)

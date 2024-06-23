@@ -1,11 +1,6 @@
 #include <map>
 #include <memory>
 
-#define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
-#define LODEPNG_NO_COMPILE_CPP                 // No need to use C++ API
-#include "../common/lodepng.h"
-#include "../common/lodepng.c"
-
 // Bring in tex_format_t definition
 #include "surface.h"
 
@@ -38,12 +33,6 @@ tex_format_t tex_format_from_name(const char *name) {
     return FMT_NONE;
 }
 
-struct bmpage {
-    std::unique_ptr<uint8_t[]> buf;       // pixels (RGBA, 32bpp)
-    unsigned width;     // width in pixels
-    unsigned height;    // height in pixels
-};
-
 struct bmchar {
     int id;
     int x, y;
@@ -56,16 +45,15 @@ struct bmchar {
 };
 
 struct bmctx {
-    tex_format_t out_fmt;
     std::string basedir;
-    rdpq_font_t *font;
-    std::vector<bmpage> pages;
+    Font *font;
+    std::vector<Image> pages;
     std::vector<bmchar> glyphs;
-    std::vector<n64font_kern> kernings;
+    // std::vector<n64font_kern> kernings;
     std::unordered_map<int, int> glyphmap; // ID -> index in glyphs
 
-    bmctx() : out_fmt(FMT_NONE), font(NULL) {}
-    ~bmctx() { if (font) n64font_free(font); }
+    bmctx() : font(NULL) {}
+    ~bmctx() { if (font) { delete font; font = NULL; } }
 };
 
 bmctx *gctx;
@@ -125,14 +113,14 @@ char* tokenize_bmfont_line(char *line_in)
 
 bool bmfont_parse_info(char *key, char *value) {
     if (!key) return true;
-    if (!strcmp(key, "size")) gctx->font->point_size = atoi(value);
+    if (!strcmp(key, "size")) gctx->font->fnt->point_size = atoi(value);
     return true;
 }
 
 bool bmfont_parse_common(char *key, char *value) {
     if (!key) return true;
-    if (!strcmp(key, "base")) gctx->font->ascent = atoi(value);
-    if (!strcmp(key, "lineHeight")) gctx->font->line_gap = atoi(value);
+    if (!strcmp(key, "base")) gctx->font->fnt->ascent = atoi(value);
+    if (!strcmp(key, "lineHeight")) gctx->font->fnt->line_gap = atoi(value);
     if (!strcmp(key, "pages")) {
         gctx->pages.resize(atoi(value));
         return true;
@@ -141,7 +129,7 @@ bool bmfont_parse_common(char *key, char *value) {
 }
 
 bool bmfont_parse_page(char *key, char *value) {
-    static bmpage *curpage = NULL;
+    static Image *curpage = NULL;
     if (!key) {
         curpage = NULL;
         return true;
@@ -158,14 +146,15 @@ bool bmfont_parse_page(char *key, char *value) {
     if (!strcmp(key, "file")) {
         char *pagefn = NULL;
         asprintf(&pagefn, "%s/%s", gctx->basedir.c_str(), unquote(value));
-        uint8_t *buf = NULL;
-        int err = lodepng_decode32_file(&buf, &curpage->width, &curpage->height, pagefn);
+        uint8_t *buf = NULL; unsigned width, height;
+        int err = lodepng_decode32_file(&buf, &width, &height, pagefn);
         if (err) {
             fprintf(stderr, "error loading page %s: %s\n", pagefn, lodepng_error_text(err));
             free(pagefn);
             return false;
         }
-        curpage->buf.reset(buf);
+        *curpage = std::move(Image(FMT_RGBA32, width, height, buf));
+        free(buf);
         free(pagefn);
         return true;
     }
@@ -208,7 +197,7 @@ bool bmfont_parse_kernings(char *key, char *value) {
     if (!key) return true;
     if (!strcmp(key, "count")) {
         int numkerns = atoi(value);
-        if (numkerns > 0) gctx->kernings.reserve(numkerns);
+        if (numkerns > 0) gctx->font->kernings.reserve(numkerns);
         return true;
     }
     return true;
@@ -216,12 +205,11 @@ bool bmfont_parse_kernings(char *key, char *value) {
 
 bool bmfont_parse_kerning(char *key, char *value) {
     if (!key) {
-        n64font_kern k{0,0,0};
-        gctx->kernings.push_back(k);
+        gctx->font->kernings.push_back({0,0,0});
         return true;
     }
 
-    n64font_kern &k = gctx->kernings.back();
+    auto &k = gctx->font->kernings.back();
     if (!strcmp(key, "first")) k.glyph1 = atoi(value);
     if (!strcmp(key, "second")) k.glyph2 = atoi(value);
     if (!strcmp(key, "amount")) k.kerning = atoi(value);
@@ -293,119 +281,49 @@ void calc_ranges(void)
     }
 
     for (auto& r : ranges) {
-        n64font_addrange(gctx->font, r.second.first, r.second.second);
+        gctx->font->add_range(r.second.first, r.second.second);
     }
 }
 
-void repack_font(void)
+bool repack_font(void)
 {
-    const int border_padding = 1;
-
-    rect_pack::Settings settings;
-    memset(&settings, 0, sizeof(settings));
-    settings.method = rect_pack::Method::Best;
-    switch (gctx->out_fmt) {
-    case FMT_I4: settings.max_width = 128; settings.max_height = 64; break;
-    default:
-        fprintf(stderr, "ERROR: unsupported output format: %s\n", tex_format_name(gctx->out_fmt));
-        return;
-    }
-    settings.border_padding = 1;
-    settings.allow_rotate = false;
-
-    std::vector<rect_pack::Size> sizes;
-    for (int i = 0; i < gctx->glyphs.size(); ++i) {
-        bmchar &ch = gctx->glyphs[i];
-        rect_pack::Size sz;
-        sz.id = i;
-        sz.width = ch.width + border_padding;
-        sz.height = ch.height + border_padding;
-        sizes.push_back(sz);
-    }
-
-    // Repack the glyphs
-    std::vector<rect_pack::Sheet> sheets = rect_pack::pack(settings, sizes);
-
-    // Create the new pages
-    std::vector<bmpage> newpages;
-
-    for (int i = 0; i < sheets.size(); ++i) {
-        rect_pack::Sheet &sheet = sheets[i];
-        uint8_t *newbuf = new uint8_t[sheet.width * sheet.height * 4];
-        memset(newbuf, 0, sheet.width * sheet.height * 4);
-        for (int j = 0; j < sheet.rects.size(); ++j) {
-            rect_pack::Rect &rect = sheet.rects[j];
-            bmchar &ch = gctx->glyphs[rect.id];
-            bmpage &page = gctx->pages[ch.page];
-            for (int y = 0; y < ch.height; ++y) {
-                for (int x = 0; x < ch.width; ++x) {
-                    int srcidx = (ch.y + y) * page.width * 4 + (ch.x + x) * 4;
-                    int dstidx = (rect.y + y) * sheet.width * 4 + (rect.x + x) * 4;
-                    memcpy(&newbuf[dstidx], &page.buf[srcidx], 4);
-                }
+    switch (gctx->font->bmp_outfmt) {
+        case FMT_RGBA32: case FMT_RGBA16:
+            for (auto &page : gctx->pages) {
+                if (page.fmt != gctx->font->bmp_outfmt)
+                    page = std::move(page.convert(gctx->font->bmp_outfmt));
             }
-            ch.x = rect.x;
-            ch.y = rect.y;
-            ch.page = i;
-        }
-
-        newpages.push_back({
-            .buf = std::unique_ptr<uint8_t[]>(newbuf),
-            .width = sheet.width,
-            .height = sheet.height
-        });
+            break;
+        default:
+            // assert(!"unsupported output format");
+            break;
     }
-
-    // Free the old pages
-    gctx->pages = std::move(newpages);
+    return true;
 }
 
 void calc_glyphs(void)
-{
+{    
     for (auto &ch : gctx->glyphs) {
-        int gidx = n64font_glyph(gctx->font, ch.id);
-        glyph_t *g = &gctx->font->glyphs[gidx];       
-        g->xadvance = ch.xadvance*64;
-        g->xoff = ch.xoffset;
-        g->yoff = ch.yoffset - gctx->font->ascent;
-        g->xoff2 = g->xoff + ch.width;
-        g->yoff2 = g->yoff + ch.height;
-        g->s = ch.x;
-        g->t = ch.y;
-        g->natlas = ch.page;
-
         if (ch.id == 32) {
-            gctx->font->space_width = ch.width;
+            gctx->font->fnt->space_width = ch.width;
         }
 
-        gctx->glyphmap[ch.id] = gidx;
+        // gctx->glyphmap[ch.id] = gidx;
+        Image *page = &gctx->pages[ch.page];
+
+        gctx->font->add_glyph(ch.id, 
+            page->crop(ch.x, ch.y, ch.width, ch.height),
+            ch.xoffset, ch.yoffset - gctx->font->fnt->ascent,
+            ch.xadvance*64);
     }
 
-    if (!gctx->font->space_width)
-        gctx->font->space_width = gctx->font->point_size;
+    if (!gctx->font->fnt->space_width)
+        gctx->font->fnt->space_width = gctx->font->fnt->point_size;
 }
 
 void calc_atlases(void)
 {
-    for (bmpage& page : gctx->pages) {
-        switch (gctx->out_fmt) {
-        case FMT_I4: case FMT_I8:
-            // Extract only the alpha channel from the atlases
-            for (int i = 0; i < page.width * page.height; ++i) {
-                page.buf[i*4+0] = page.buf[i*4+3];
-                page.buf[i*4+1] = page.buf[i*4+3];
-                page.buf[i*4+2] = page.buf[i*4+3];
-                page.buf[i*4+3] = 0xFF;
-            }
-            break;
-
-        default:
-            fprintf(stderr, "ERROR: unsupported output format: %s\n", tex_format_name(gctx->out_fmt));            
-        }
-
-
-        n64font_addatlas(gctx->font, page.buf.get(), page.width, page.height, page.width*4, 4);
-    }
+    gctx->font->make_atlases();
 }
 
 void calc_kernings(void)
@@ -413,12 +331,12 @@ void calc_kernings(void)
     if (!flag_kerning) return;
 
     // Convert unicode IDs to glyph indices in the kernings array
-    for (n64font_kern &k : gctx->kernings) {
+    for (auto &k : gctx->font->kernings) {
         k.glyph1 = gctx->glyphmap[k.glyph1];
         k.glyph2 = gctx->glyphmap[k.glyph2];
     }
 
-    n64font_addkerning(gctx->font, gctx->kernings);
+    gctx->font->make_kernings();
 }
 
 int convert_bmfont(const char *infn, const char *outfn) 
@@ -441,8 +359,8 @@ int convert_bmfont(const char *infn, const char *outfn)
     rewind(f);
 
     gctx = new bmctx;
-    gctx->out_fmt = FMT_I4;
-    gctx->font = n64font_alloc(0,0,0,0,0);
+    gctx->font = new Font(outfn, FONT_TYPE_BITMAP, 0, 0, 0, 0, 0);
+    gctx->font->bmp_outfmt = flag_bmfont_format;
     gctx->basedir = dirname(infn);
 
     while (bmfont_parse_line(f, infn)) {}
@@ -457,9 +375,8 @@ int convert_bmfont(const char *infn, const char *outfn)
     }
 
     if (ret == 0) {
-        gctx->font->descent = 0;
-        gctx->font->line_gap = gctx->font->line_gap - gctx->font->ascent + gctx->font->descent;
-        printf("ascender: %d, descender: %d, line gap: %d\n", gctx->font->ascent, gctx->font->descent, gctx->font->line_gap);
+        gctx->font->fnt->descent = 0;
+        gctx->font->fnt->line_gap = gctx->font->fnt->line_gap - gctx->font->fnt->ascent + gctx->font->fnt->descent;
 
         // Map glyphs to the ranges
         calc_ranges();
@@ -473,28 +390,12 @@ int convert_bmfont(const char *infn, const char *outfn)
         // Add the atlases
         calc_atlases();
 
-        // Dump the pages in PNG format
-        for (int i = 0; i < gctx->pages.size(); ++i) {
-            bmpage &page = gctx->pages[i];
-            char *pagefn = NULL;
-            asprintf(&pagefn, "%s/%s_%d.png", gctx->basedir.c_str(), outfn, i);
-            lodepng_encode32_file(pagefn, page.buf.get(), page.width, page.height);
-            printf("page %d: %s\n", i, pagefn);
-            free(pagefn);
-        }
-
         // Add the kernings to output
         calc_kernings();
     }
 
     // Write output file
-    FILE *out = fopen(outfn, "wb");
-    if (!out) {
-        fprintf(stderr, "cannot open output file: %s\n", outfn);
-        return 1;
-    }
-    n64font_write(gctx->font, out);
-    fclose(out);
+    gctx->font->write();
 
     delete gctx;
     return ret;
