@@ -8,6 +8,7 @@ EXAMPLES += customfont
 #EXAMPLES += dfsdemo # Disabled for now because it requires libmikmod
 EXAMPLES += eepromfstest
 EXAMPLES += fontdemo
+EXAMPLES += fontgallery
 EXAMPLES += gldemo
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
