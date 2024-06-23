@@ -637,11 +637,11 @@ int main()
         }   break;
 
         case PAGE_TEXT: {
-            rdpq_text_printf(&(rdpq_textparms_t){
+            rdpq_text_printn(&(rdpq_textparms_t){
                 .width = 320-10-x0,
                 .style_id = color_mode>>1,
                 .wrap = WRAP_ELLIPSES,
-            }, fi->font_id, x0, y0, custom_text);
+            }, fi->font_id, x0, y0, custom_text, custom_text_len);
 
         } break;
         }
