@@ -392,7 +392,12 @@ int convert_bmfont(const char *infn, const char *outfn)
 
         // Add the kernings to output
         calc_kernings();
+
+        // Add ellipsis glyph
+        if (flag_ellipsis_repeats > 0)
+            gctx->font->add_ellipsis(flag_ellipsis_cp, flag_ellipsis_repeats);
     }
+
 
     // Write output file
     gctx->font->write();
