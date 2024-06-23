@@ -1,7 +1,6 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 DSO_COMPRESS_LEVEL ?= 1
-N64_DFS_OFFSET ?= 1M # Override this to offset where the DFS file will be located inside the ROM
 
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
 N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
