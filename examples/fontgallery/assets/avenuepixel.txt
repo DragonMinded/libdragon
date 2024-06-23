@@ -1,0 +1,3 @@
+author: J.D. Jimenez
+url: https://jdjimenez.itch.io/avenue-pixel
+license: SIL 1.1

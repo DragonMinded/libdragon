@@ -1,0 +1,3 @@
+author: Not Jam
+url: https://not-jam.itch.io/not-jam-chunky-sans-6
+license: cc0

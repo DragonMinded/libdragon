@@ -1,0 +1,4 @@
+author: Daniel Linssen
+license: Free with attribution
+url: https://managore.itch.io/m3x6
+
