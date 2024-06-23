@@ -1135,22 +1135,20 @@ void Font::add_ellipsis(int ellipsis_cp, int ellipsis_repeats)
 
     // Calculate length of ellipsis string
     glyph_t *g = &fnt->glyphs[ellipsis_glyph];
-    float ellipsis_width = g->xadvance * (1.0f / 64.0f);
+    float ellipsis_advance = g->xadvance * (1.0f / 64.0f);
     
+    // Correct for kerning when repeating the ellipsis twice
     if (g->kerning_lo) {
         for (int i = g->kerning_lo; i <= g->kerning_hi; i++) {
             if (fnt->kerning[i].glyph2 == ellipsis_glyph) {
-                ellipsis_width += fnt->kerning[i].kerning * fnt->point_size / 127.0f;
+                ellipsis_advance += fnt->kerning[i].kerning * fnt->point_size / 127.0f;
                 break;
             }
         }
     }
 
-    fnt->ellipsis_advance = ellipsis_width + 0.5f;
-    ellipsis_width *= 2;
-    ellipsis_width += g->xoff2;
-    
-    fnt->ellipsis_width = ellipsis_width + 0.5f;
+    fnt->ellipsis_advance = ellipsis_advance;
+    fnt->ellipsis_width = ellipsis_advance * (ellipsis_repeats-1) + g->xoff2;
     fnt->ellipsis_reps = ellipsis_repeats;
     fnt->ellipsis_glyph = ellipsis_glyph;
 }
