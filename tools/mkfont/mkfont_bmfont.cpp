@@ -94,7 +94,9 @@ char* tokenize_bmfont_line(char *line_in)
         line += strspn(line, " \t\r\n");
         if (!*line) return NULL;
         char *key = line;
-        line += strcspn(line, "="); *line++ = '\0';
+        line += strcspn(line, "="); 
+        if (!*line) return NULL; // ignore keys without value
+        *line++ = '\0';
         return key;
     } else {
         line += strspn(line, " \t\r\n");

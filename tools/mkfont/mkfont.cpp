@@ -78,6 +78,7 @@ void print_args( char * name )
     fprintf(stderr, "                             glyphs in the font.\n");
     fprintf(stderr, "   --monochrome              Force monochrome output, with no aliasing (default: off)\n");
     fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
+    fprintf(stderr, "\n");
     fprintf(stderr, "BMFont specific flags:\n");
     fprintf(stderr, "   --format <format>         Specify the output texture format. Valid options are:\n");
     fprintf(stderr, "                             RGBA16, RGBA32, CI4, CI8 (default: RGBA16)\n");
