@@ -1,0 +1,3 @@
+author: Not Jam
+license: cc0
+url: https://not-jam.itch.io/not-jam-slab-serif-11

@@ -1,0 +1,3 @@
+author: Poppy Works
+url: https://poppyworks.itch.io/silver
+license: CC-BY 4.0

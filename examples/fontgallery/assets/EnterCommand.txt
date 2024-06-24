@@ -1,0 +1,3 @@
+author: jeti
+url: https://fontenddev.com/fonts/enter-command/
+license: CC-BY 4.0
