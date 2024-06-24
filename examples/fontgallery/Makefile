@@ -47,6 +47,7 @@ filesystem/CyborgSister.font64: MKFONT_FLAGS+=--outline 1
 filesystem/Lato.font64: MKFONT_FLAGS=--range 20-52F --outline 1
 filesystem/droid-sans.font64: MKFONT_FLAGS=--range 20-52F
 filesystem/montreal.font64: MKFONT_FLAGS=--range 20-52F
+filesystem/Liver.font64: MKFONT_FLAGS+=--size 16
 filesystem/monogram.font64: MKFONT_FLAGS+=--outline 1
 filesystem/at01.font64: MKFONT_FLAGS+=--outline 1
 filesystem/abaddon.font64: MKFONT_FLAGS+=--outline 1
