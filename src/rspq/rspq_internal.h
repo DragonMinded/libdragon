@@ -123,8 +123,8 @@ enum {
     /**
      * @brief RSPQ Command: send a new buffer to RDP and/or configure it for new commands
      * 
-     * This command configures a new buffer in RSP for RDP commands. A buffer is described
-     * with three pointers: start, cur, sentinel.
+     * This command configures a new buffer in RSP for RDP commands. It requires three
+     * arguments: cur, start, end.
      * 
      * Start is the beginning of the buffer. Cur is the current write pointer in the buffer.
      * If start==cur, it means the buffer is currently empty; otherwise, it means it contains
