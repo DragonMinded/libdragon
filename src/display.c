@@ -54,6 +54,8 @@ static int frame_times_index = 0;
 static uint32_t frame_times_duration;
 /** @brief Auto detected TV region for display */
 static uint32_t __tv_type;
+/** @brief Minimum frame time duration (FPS limit) */
+static uint32_t min_frame_time_duration;
 
 /** @brief Get the next buffer index (with wraparound) */
 static inline int buffer_next(int idx) {
@@ -63,11 +65,12 @@ static inline int buffer_next(int idx) {
     return idx;
 }
 
-static void update_fps(void)
+static bool update_fps(void)
 {
     // Read the current time (forcing it to be non zero), and the old time in the window
     uint32_t now = TICKS_READ() | 1;
     uint32_t old_ticks = frame_times[frame_times_index];
+    uint32_t refresh_period = TICKS_PER_SECOND / display_get_refresh_rate();
 
     // If the window is not empty, calculate the time elapsed between the oldest and newest frame
     if (old_ticks)
@@ -76,11 +79,18 @@ static void update_fps(void)
     else if (frame_times_index > 0)
         frame_times_duration = TICKS_DISTANCE(frame_times[0], now) * FPS_WINDOW / frame_times_index;
 
+    if (min_frame_time_duration && frame_times_duration) {
+        int dist = min_frame_time_duration - frame_times_duration;
+        if (dist > (int)refresh_period/2)
+            return false;
+    }
+
     // Update the window
     frame_times[frame_times_index] = now;
     frame_times_index++;
     if (frame_times_index == FPS_WINDOW)
         frame_times_index = 0;
+    return true;
 }
 
 /**
@@ -108,9 +118,10 @@ static void __display_callback()
     if (!(__interlace_mode == INTERLACE_FULL && field)) {
         int next = buffer_next(now_showing);
         if (ready_mask & (1 << next)) {
-            now_showing = next;
-            ready_mask &= ~(1 << next);
-            update_fps();
+            if (update_fps()) {
+                now_showing = next;
+                ready_mask &= ~(1 << next);
+            }
         }
     }
 
@@ -504,4 +515,12 @@ float display_get_delta_time(void)
     if (!fps) fps = display_get_refresh_rate();
     return 1.0f / fps;
 }
+
+void display_set_fps_limit(float fps)
+{
+    disable_interrupts();
+    min_frame_time_duration = fps ? (int64_t)FPS_WINDOW * TICKS_PER_SECOND / fps : 0;
+    enable_interrupts();
+}
+
 extern inline void vi_write_config(const vi_config_t* config);

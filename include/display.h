@@ -317,6 +317,19 @@ float display_get_fps(void);
  */
 float display_get_delta_time(void);
 
+/**
+ * @brief Configure a limit for the frames per second
+ *
+ * This function allows to set a limit for the frames per second to render.
+ * The limit is enforced by the display module, which will slow down calls
+ * to display_get() if need to respect the limit.
+ *
+ * Passing 0 as argument will disable the limit.
+ *
+ * @param fps           The maximum number of frames per second to render (fractionals allowed)
+ */
+void display_set_fps_limit(float fps);
+
 /** @cond */
 __attribute__((deprecated("use display_get or display_try_get instead")))
 static inline surface_t* display_lock(void) {
