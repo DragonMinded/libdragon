@@ -63,6 +63,26 @@ static inline int buffer_next(int idx) {
     return idx;
 }
 
+static void update_fps(void)
+{
+    // Read the current time (forcing it to be non zero), and the old time in the window
+    uint32_t now = TICKS_READ() | 1;
+    uint32_t old_ticks = frame_times[frame_times_index];
+
+    // If the window is not empty, calculate the time elapsed between the oldest and newest frame
+    if (old_ticks)
+        frame_times_duration = TICKS_DISTANCE(old_ticks, now);
+    // Otherwise, use the first N frames to calculate the duration
+    else if (frame_times_index > 0)
+        frame_times_duration = TICKS_DISTANCE(frame_times[0], now) * FPS_WINDOW / frame_times_index;
+
+    // Update the window
+    frame_times[frame_times_index] = now;
+    frame_times_index++;
+    if (frame_times_index == FPS_WINDOW)
+        frame_times_index = 0;
+}
+
 /**
  * @brief Interrupt handler for vertical blank
  *
@@ -90,6 +110,7 @@ static void __display_callback()
         if (ready_mask & (1 << next)) {
             now_showing = next;
             ready_mask &= ~(1 << next);
+            update_fps();
         }
     }
 
@@ -413,16 +434,6 @@ void display_show( surface_t* surf )
     drawing_mask &= ~(1 << i);
     ready_mask |= 1 << i;
 
-    /* Record the time at which this frame was (asked to be) shown */
-    uint32_t old_ticks = frame_times[frame_times_index];
-    uint32_t now = TICKS_READ();
-    if (old_ticks)
-        frame_times_duration = TICKS_DISTANCE(old_ticks, now);
-    frame_times[frame_times_index] = now;
-    frame_times_index++;
-    if (frame_times_index == FPS_WINDOW)
-        frame_times_index = 0;
-
     enable_interrupts();
 }
 
@@ -473,4 +484,15 @@ float display_get_fps(void)
     return (float)FPS_WINDOW * TICKS_PER_SECOND / frame_times_duration;
 }
 
+float display_get_refresh_rate(void)
+{
+    return __tv_type == TV_PAL ? 50.0f : 60.0f;
+}
+
+float display_get_delta_time(void)
+{
+    float fps = display_get_fps();
+    if (!fps) fps = display_get_refresh_rate();
+    return 1.0f / fps;
+}
 extern inline void vi_write_config(const vi_config_t* config);

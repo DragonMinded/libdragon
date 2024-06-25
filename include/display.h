@@ -285,12 +285,37 @@ uint32_t display_get_bitdepth(void);
 uint32_t display_get_num_buffers(void);
 
 /**
+ * @brief Get the current refreshed rate of the TV in Hz
+ * 
+ * The refresh rate is normally 50 for PAL and 60 for NTSC, but this function
+ * will also account for advanced VI configurations affecting the refresh rate,
+ * like PAL60.
+ * 
+ * @return float        Refresh rate in Hz (frames per second)
+ */
+float display_get_refresh_rate(void);
+
+/**
  * @brief Get the current number of frames per second being rendered
  * 
  * @return float Frames per second
  */
 float display_get_fps(void);
 
+/**
+ * @brief Returns the "delta time", that is the time it took to the last frame
+ *        to be prepared and rendered.
+ * 
+ * This function is useful for time-based animations and physics, as it allows
+ * to calculate the time elapsed between frames. Call this function once per
+ * frame to get the time elapsed since the last frame.
+ * 
+ * @note Do not call this function more than once per frame. If needed, cache
+ *       the result in a variable and use it multiple times.
+ * 
+ * @return float        Time elapsed since the last complete frame (in seconds)
+ */
+float display_get_delta_time(void);
 
 /** @cond */
 __attribute__((deprecated("use display_get or display_try_get instead")))
