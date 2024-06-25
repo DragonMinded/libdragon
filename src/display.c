@@ -486,7 +486,16 @@ float display_get_fps(void)
 
 float display_get_refresh_rate(void)
 {
-    return __tv_type == TV_PAL ? 50.0f : 60.0f;
+    int clock;
+    switch (__tv_type) {
+        case TV_PAL:    clock = 49656530; break;
+        case TV_MPAL:   clock = 48628316; break;
+        default:        clock = 48681812; break;
+    }
+
+    int h_sync = (*VI_H_SYNC & 0xFFF) + 1;
+    int v_sync = (*VI_V_SYNC & 0x3FF) + 1;
+    return (float)clock / (h_sync * v_sync / 2);
 }
 
 float display_get_delta_time(void)
