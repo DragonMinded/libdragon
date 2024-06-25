@@ -48,6 +48,13 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r7 (7f014ed41cc53bb1a5e44f211f8c3dec)
+* Fix RDRAM clearing to fully cover the whole memory (because of a bug,
+  some zones were not cleaned at all before).
+* Improve boot time by ~10 ms thanks to some optimizations.
+* Correctly configure X2 bit during RDRAM init. No visible change, but it
+  seems required, when reading the datasheet.
+
 r6 (954cc30e419ba8561e252cd97f8da0a2)
 * Fix iQue boot when the binary is in SA2 context.
 
