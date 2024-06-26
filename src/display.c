@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <malloc.h>
 #include <string.h>
+#include <math.h>
 #include "regsinternal.h"
 #include "system_internal.h"
 #include "n64sys.h"
@@ -51,11 +52,18 @@ static uint32_t frame_times[FPS_WINDOW];
 /** @brief Current index into the frame times window */
 static int frame_times_index = 0;
 /** @brief Current duration of the frame window (time elapsed for FPS_WINDOW frames) */
-static uint32_t frame_times_duration;
+static float frame_times_duration;
 /** @brief Auto detected TV region for display */
 static uint32_t __tv_type;
 /** @brief Minimum frame time duration (FPS limit) */
-static uint32_t min_frame_time_duration;
+static float min_frame_time_duration;
+/** @brief Actual display refresh rate */
+static float refresh_rate;
+static float refresh_period;
+static uint64_t vcount;
+static uint64_t last_update_vcount;
+static uint64_t last_displayshow;
+static int frame_skip;
 
 /** @brief Get the next buffer index (with wraparound) */
 static inline int buffer_next(int idx) {
@@ -65,12 +73,95 @@ static inline int buffer_next(int idx) {
     return idx;
 }
 
+typedef struct {
+    float min_cutoff;
+    float beta;
+    float d_cutoff;
+    float x_prev;
+    float dx_prev;
+} oeflt_state_t;
+
+static oeflt_state_t g_state;
+
+static float oeflt_smoothing_factor(float t_e, float cutoff)
+{
+    float r = 2 * 3.14159265f * cutoff * t_e;
+    return r / (r + 1);
+}
+
+static float oeflt_exp_smoothing(float a, float x, float x_prev)
+{
+    return a * x + (1 - a) * x_prev;
+}
+
+static void oeflt_init(oeflt_state_t *state, float x0)
+{
+    state->min_cutoff = 0.5f;
+    state->beta = 5.0f;
+    state->d_cutoff = 1.0f;
+
+    state->x_prev = x0;
+    state->dx_prev = 0;
+}
+
+__attribute__((noinline))
+static float oeflt(oeflt_state_t *state, float t_e, float x)
+{
+    float a_d = oeflt_smoothing_factor(t_e, state->d_cutoff);
+    float dx = (x - state->x_prev) / t_e;
+    float dx_hat = oeflt_exp_smoothing(a_d, dx, state->dx_prev);
+
+    float cutoff = state->min_cutoff + state->beta * fabsf(dx_hat);
+    float a = oeflt_smoothing_factor(t_e, cutoff);
+    float x_hat = oeflt_exp_smoothing(a, x, state->x_prev);
+
+    state->x_prev = x_hat;
+    state->dx_prev = dx_hat;
+
+    return x_hat;
+}
+
+/** Calculate the actual refresh rate of the display given the current VI configuration */
+static float calc_refresh_rate(void)
+{
+    int clock;
+    switch (__tv_type) {
+        case TV_PAL:    clock = 49656530; break;
+        case TV_MPAL:   clock = 48628322; break;
+        default:        clock = 48681818; break;
+    }
+    uint32_t HSYNC = *VI_H_SYNC;
+    uint32_t VSYNC = *VI_V_SYNC;
+    uint32_t HSYNC_LEAP = *VI_H_SYNC_LEAP;
+
+    int h_sync = (HSYNC & 0xFFF) + 1;
+    int v_sync = (VSYNC & 0x3FF) + 1;
+    int h_sync_leap_b = (HSYNC_LEAP >>  0) & 0xFFF;
+    int h_sync_leap_a = (HSYNC_LEAP >> 16) & 0xFFF;
+    int leap_bitcount = 0;
+    int mask = 1<<16;
+    for (int i=0; i<5; i++) {
+        if (HSYNC & mask) leap_bitcount++;
+        mask <<= 1;
+    }
+    int h_sync_leap_avg = (h_sync_leap_a * leap_bitcount + h_sync_leap_b * (5 - leap_bitcount)) / 5;
+
+    return (float)clock / ((h_sync * (v_sync - 2) + h_sync_leap_avg) / 2);
+}
+
 static bool update_fps(void)
 {
+    if (frame_skip) {
+        frame_skip--;
+        return false;
+    }
+
+    #if 0
     // Read the current time (forcing it to be non zero), and the old time in the window
+    static int count = 0;
     uint32_t now = TICKS_READ() | 1;
     uint32_t old_ticks = frame_times[frame_times_index];
-    uint32_t refresh_period = TICKS_PER_SECOND / display_get_refresh_rate();
+    uint32_t refresh_period = TICKS_PER_SECOND / refresh_rate;
 
     // If the window is not empty, calculate the time elapsed between the oldest and newest frame
     if (old_ticks)
@@ -81,8 +172,11 @@ static bool update_fps(void)
 
     if (min_frame_time_duration && frame_times_duration) {
         int dist = min_frame_time_duration - frame_times_duration;
-        if (dist > (int)refresh_period/2)
+        if (dist > (int)refresh_period/2) {
+            debugf("%d: SKIP\n", count++);
             return false;
+        }
+        debugf("%d: DRAW\n", count++);
     }
 
     // Update the window
@@ -90,6 +184,17 @@ static bool update_fps(void)
     frame_times_index++;
     if (frame_times_index == FPS_WINDOW)
         frame_times_index = 0;
+    return true;
+    #elif 0
+
+    int vcount_diff = vcount - last_update_vcount;
+    debugf("vcount_diff: %d\n", vcount_diff);
+    frame_times_duration = oeflt(&g_state, vcount_diff * refresh_period, vcount_diff * refresh_period);
+    debugf("delta: %f => %f\n", vcount_diff * refresh_period, frame_times_duration);
+
+
+    last_update_vcount = vcount;
+#endif
     return true;
 }
 
@@ -137,6 +242,8 @@ static void __display_callback()
             *VI_V_BURST = 0x000e0204;
         }
     }
+
+    ++vcount;    
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -305,6 +412,11 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     }
     vi_write_safe(VI_CTRL, control);
 
+    /* Calculate actual refresh rate for this configuration */
+    refresh_rate = calc_refresh_rate();
+    refresh_period = 1.0f / refresh_rate;
+    oeflt_init(&g_state, refresh_period);
+
     enable_interrupts();
 
     /* Set which line to call back on in order to flip screens */
@@ -445,6 +557,22 @@ void display_show( surface_t* surf )
     drawing_mask &= ~(1 << i);
     ready_mask |= 1 << i;
 
+    if (!last_displayshow) {
+        last_displayshow = get_ticks();
+    } else {
+        uint64_t now = get_ticks();
+        float delta = (float)(now - last_displayshow) / TICKS_PER_SECOND;
+        last_displayshow = now;
+        frame_times_duration = oeflt(&g_state, delta, delta);
+        if (min_frame_time_duration && frame_times_duration < min_frame_time_duration) {
+            float diff = min_frame_time_duration - frame_times_duration;
+            frame_skip = ceilf(diff / refresh_period);
+            debugf("duration: %f (%f) => diff: %f   rp:%f skip:%d\n", frame_times_duration, min_frame_time_duration, diff, refresh_period, frame_skip);
+        } else {
+            debugf("noskip\n");
+        }
+    }
+
     enable_interrupts();
 }
 
@@ -492,21 +620,13 @@ uint32_t display_get_num_buffers(void)
 float display_get_fps(void)
 {
     if (!frame_times_duration) return 0;
-    return (float)FPS_WINDOW * TICKS_PER_SECOND / frame_times_duration;
+    // return (float)FPS_WINDOW * TICKS_PER_SECOND / frame_times_duration;
+    return 1.0f / frame_times_duration;
 }
 
 float display_get_refresh_rate(void)
 {
-    int clock;
-    switch (__tv_type) {
-        case TV_PAL:    clock = 49656530; break;
-        case TV_MPAL:   clock = 48628316; break;
-        default:        clock = 48681812; break;
-    }
-
-    int h_sync = (*VI_H_SYNC & 0xFFF) + 1;
-    int v_sync = (*VI_V_SYNC & 0x3FF) + 1;
-    return (float)clock / (h_sync * v_sync / 2);
+    return refresh_rate;
 }
 
 float display_get_delta_time(void)
@@ -519,7 +639,8 @@ float display_get_delta_time(void)
 void display_set_fps_limit(float fps)
 {
     disable_interrupts();
-    min_frame_time_duration = fps ? (int64_t)FPS_WINDOW * TICKS_PER_SECOND / fps : 0;
+    //min_frame_time_duration = fps ? (int64_t)FPS_WINDOW * TICKS_PER_SECOND / fps : 0;
+    min_frame_time_duration = fps ? 1.0f / fps : 0;
     enable_interrupts();
 }
 
