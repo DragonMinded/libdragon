@@ -23,6 +23,8 @@
 #define NUM_BUFFERS         32
 /** @brief Number of past frames used to evaluate FPS */
 #define FPS_WINDOW          32
+/** @brief How many times per second we should update the FPS value */
+#define FPS_UPDATE_FREQ      4
 
 static surface_t *surfaces;
 /** @brief Currently allocated Z-buffer */
@@ -48,11 +50,12 @@ static uint32_t drawing_mask = 0;
 /** @brief Bitmask of surfaces that are ready to be shown */
 static volatile uint32_t ready_mask = 0;
 /** @brief Window of absolute times at which previous frames were shown */
-static uint32_t frame_times[FPS_WINDOW];
+static float frame_times[FPS_WINDOW];
 /** @brief Current index into the frame times window */
 static int frame_times_index = 0;
 /** @brief Current duration of the frame window (time elapsed for FPS_WINDOW frames) */
 static float frame_times_duration;
+static float avg_frame_times_duration;
 /** @brief Auto detected TV region for display */
 static uint32_t __tv_type;
 /** @brief Minimum frame time duration (FPS limit) */
@@ -62,7 +65,7 @@ static float refresh_rate;
 static float refresh_period;
 static uint64_t vcount;
 static uint64_t last_update_vcount;
-static uint64_t last_displayshow;
+static uint32_t last_displayshow;
 static int frame_skip;
 
 /** @brief Get the next buffer index (with wraparound) */
@@ -146,7 +149,7 @@ static float calc_refresh_rate(void)
     }
     int h_sync_leap_avg = (h_sync_leap_a * leap_bitcount + h_sync_leap_b * (5 - leap_bitcount)) / 5;
 
-    return (float)clock / ((h_sync * (v_sync - 2) + h_sync_leap_avg) / 2);
+    return (float)clock / ((h_sync * (v_sync - 2) / 2 + h_sync_leap_avg));
 }
 
 static bool update_fps(void)
@@ -558,19 +561,40 @@ void display_show( surface_t* surf )
     ready_mask |= 1 << i;
 
     if (!last_displayshow) {
-        last_displayshow = get_ticks();
+        last_displayshow = TICKS_READ();
     } else {
-        uint64_t now = get_ticks();
-        float delta = (float)(now - last_displayshow) / TICKS_PER_SECOND;
+        uint32_t now = TICKS_READ();
+        float delta = (float)TICKS_DISTANCE(last_displayshow, now) / TICKS_PER_SECOND;
         last_displayshow = now;
         frame_times_duration = oeflt(&g_state, delta, delta);
         if (min_frame_time_duration && frame_times_duration < min_frame_time_duration) {
             float diff = min_frame_time_duration - frame_times_duration;
             frame_skip = ceilf(diff / refresh_period);
             debugf("duration: %f (%f) => diff: %f   rp:%f skip:%d\n", frame_times_duration, min_frame_time_duration, diff, refresh_period, frame_skip);
+            last_displayshow -= refresh_period * frame_skip * TICKS_PER_SECOND;
         } else {
             debugf("noskip\n");
         }
+
+        #if 0
+        float old_frame_time = frame_times[frame_times_index];
+        frame_times[frame_times_index] = frame_times_duration;
+        frame_times_index++;
+        if (frame_times_index == FPS_WINDOW) {
+            frame_times_index = 0;
+        }
+        if (!old_frame_time) avg_frame_times_duration = refresh_period;
+        else if ((frame_times_index % 8) == 0) {
+            avg_frame_times_duration = 0;
+            for (int i=0; i<FPS_WINDOW; i++) {
+                avg_frame_times_duration += frame_times[i];
+                debugf("%d: %f\n", i, frame_times[i]);
+            }
+            avg_frame_times_duration /= FPS_WINDOW;
+            debugf("new avg: %f\n", avg_frame_times_duration);
+        }
+        #else
+        #endif
     }
 
     enable_interrupts();
@@ -619,9 +643,24 @@ uint32_t display_get_num_buffers(void)
 
 float display_get_fps(void)
 {
-    if (!frame_times_duration) return 0;
-    // return (float)FPS_WINDOW * TICKS_PER_SECOND / frame_times_duration;
-    return 1.0f / frame_times_duration;
+    static uint32_t last_update = 0;
+    static float last_fps = 0;
+
+    if (!last_update && !frame_times_duration) {
+        if (!frame_times_duration) {
+            // If no frames have been shown until now, say 0 FPS.
+            last_fps = 0.0f;
+        } else {
+            // Otherwise, calculate the FPS based on the time it took to show the first frame.
+            last_update = TICKS_READ();
+            last_fps = 1.0f / frame_times_duration;
+        }
+    } else if (TICKS_SINCE(last_update) > TICKS_PER_SECOND / FPS_UPDATE_FREQ) {
+        last_update = TICKS_READ();
+        last_fps = 1.0f / frame_times_duration;
+    }
+
+    return last_fps;
 }
 
 float display_get_refresh_rate(void)
