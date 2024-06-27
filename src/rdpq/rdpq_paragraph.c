@@ -198,6 +198,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
 
         float xadvance; int8_t xoff2; bool has_kerning; uint8_t atlas_id;
         __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &atlas_id);
+        xadvance += builder.parms->char_spacing;
 
         // Check if this is a space character
         if (UNLIKELY(xoff2 == 0)) {
