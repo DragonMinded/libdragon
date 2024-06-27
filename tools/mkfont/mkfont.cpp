@@ -39,6 +39,7 @@ int flag_ellipsis_cp = 0x002E;
 int flag_ellipsis_repeats = 3;
 float flag_ttf_outline = 0;
 bool flag_ttf_monochrome = false;
+float flag_ttf_char_spacing = 0;
 tex_format_t flag_bmfont_format = FMT_RGBA16;
 
 std::vector<uint32_t> unicode_ranges{
@@ -78,6 +79,7 @@ void print_args( char * name )
     fprintf(stderr, "                             glyphs in the font.\n");
     fprintf(stderr, "   --monochrome              Force monochrome output, with no aliasing (default: off)\n");
     fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
+    fprintf(stderr, "   --char-spacing <width>    Add extra spacing between characters (default: 0)\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "BMFont specific flags:\n");
     fprintf(stderr, "   --format <format>         Specify the output texture format. Valid options are:\n");
@@ -185,6 +187,18 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 outdir = argv[i];
+            } else if (!strcmp(argv[i], "--char-spacing")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                float spacing;
+                char extra;
+                if (sscanf(argv[i], "%f%c", &spacing, &extra) != 1) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                flag_ttf_char_spacing = spacing;
             } else if (!strcmp(argv[i], "--format")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
