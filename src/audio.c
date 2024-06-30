@@ -18,11 +18,11 @@
  * @{
  */
 /** @brief NTSC DAC rate */
-#define AI_NTSC_DACRATE 48681812
+#define AI_NTSC_DACRATE 48681818
 /** @brief PAL DAC rate */
 #define AI_PAL_DACRATE  49656530
 /** @brief MPAL DAC rate */
-#define AI_MPAL_DACRATE 48628316
+#define AI_MPAL_DACRATE 48628322
 /** @} */
 
 /**
