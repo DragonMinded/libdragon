@@ -53,62 +53,50 @@ static volatile uint32_t ready_mask = 0;
 static uint32_t __tv_type;
 /** @brief Actual display refresh rate */
 static float refresh_rate;
+/** @brief Actual display refresh period */
 static float refresh_period;
-static volatile float delta_time_accum;
+/** @brief Currently calculated delta time estimation */
 static volatile float delta_time;
-static float frame_skip_accum;
-static float frame_skip = 0.0f;
-static float frame_rate;
-static float frame_rate_tmp1;
-static float frame_rate_tmp2;
-static float frame_rate_snapshot;
+/** @brief Snapshot of frame rate for display purposes (avoid changing it too fast) */
+static volatile float frame_rate_snapshot;
+/** @brief Factor between TV refresh rate and requested virtual refresh rate (#display_set_fps_limit) */
+static float frame_skip;
+/** @brief Minimum refresh period as requested by #display_set_fps_limit */
+static float min_refresh_period;
 
+/** @brief State for the Kalman filter */
 typedef struct {
-    float min_cutoff;
-    float beta;
-    float d_cutoff;
-    float x_prev;
-    float dx_prev;
-} oeflt_state_t;
+    float P;            ///< Process noise covariance
+    float Q;            ///< Measurement noise covariance
+    float R;            ///< Estimation error covariance
+    float p_estimate;   ///> Last estimated value
+} kalman_state_t;
 
-static oeflt_state_t g_state;
+/** @brief State for kalman filter used for FPS estimation */
+static kalman_state_t k_fps;
+/** @brief State for kalman filter used for delta-time estimation */
+static kalman_state_t k_delta;
 
-static float oeflt_smoothing_factor(float t_e, float cutoff)
+/** @brief Initalize Kalman's filter  */
+static void kalman_init(kalman_state_t *s, float x, float Q)
 {
-    float r = 2 * 3.14159265f * cutoff * t_e;
-    return r / (r + 1);
+    s->P = 1.0f;
+    s->Q = Q;
+    s->R = 1.0f;
+    s->p_estimate = x;
 }
 
-static float oeflt_exp_smoothing(float a, float x, float x_prev)
+/** @brief Run kalman's filter */
+static float kalman(kalman_state_t *s, float x)
 {
-    return a * x + (1 - a) * x_prev;
-}
+    float p_pred = s->p_estimate;
+    float P_pred = s->P + s->Q;
 
-static void oeflt_init(oeflt_state_t *state, float x0)
-{
-    state->min_cutoff = 0.5f;
-    state->beta = 5.0f;
-    state->d_cutoff = 1.0f;
+    float K = P_pred / (P_pred + s->R);
+    s->p_estimate = p_pred + K * (x - p_pred);
+    s->P = (1 - K) * P_pred;
 
-    state->x_prev = x0;
-    state->dx_prev = 0;
-}
-
-__attribute__((noinline))
-static float oeflt(oeflt_state_t *state, float t_e, float x)
-{
-    float a_d = oeflt_smoothing_factor(t_e, state->d_cutoff);
-    float dx = (x - state->x_prev) / t_e;
-    float dx_hat = oeflt_exp_smoothing(a_d, dx, state->dx_prev);
-
-    float cutoff = state->min_cutoff + state->beta * fabsf(dx_hat);
-    float a = oeflt_smoothing_factor(t_e, cutoff);
-    float x_hat = oeflt_exp_smoothing(a, x, state->x_prev);
-
-    state->x_prev = x_hat;
-    state->dx_prev = dx_hat;
-
-    return x_hat;
+    return s->p_estimate;
 }
 
 /** @brief Get the next buffer index (with wraparound) */
@@ -157,72 +145,44 @@ static float calc_refresh_rate(void)
  */
 static bool fps_limit_ok(void)
 {
+    static float frame_skip_accum = 0.0f;
     frame_skip_accum += frame_skip;
     if (frame_skip_accum < 0.0f) return false;
     frame_skip_accum -= 1.0f;
     return true;
 }
 
-typedef struct {
-    float P;
-    float Q;
-    float R;
-    float p_estimate;
-} kalman_state_t;
-
-static kalman_state_t k_fps;
-static kalman_state_t k_delta;
-
-void kalman_init(kalman_state_t *s, float x)
-{
-    s->P = 1.0f;
-    s->Q = 0.01f;
-    s->R = 0.9f;
-    s->p_estimate = x;
-}
-
-__attribute__((noinline))
-static float kalman(kalman_state_t *s, float x)
-{
-    float p_pred = s->p_estimate;
-    float P_pred = s->P + s->Q;
-
-    float K = P_pred / (P_pred + s->R);
-    s->p_estimate = p_pred + K * (x - p_pred);
-    s->P = (1 - K) * P_pred;
-
-    return s->p_estimate;
-}
-
-static void update_framerate(bool newframe)
+/** 
+ * @brief Update FPS estimation. 
+ * 
+ * This function is on every "virtual" vblank (that is, only on vblank interrupts
+ * which are not ignored by #fps_limit_ok). It updates the estimation of the
+ * frame rate using a Kalman filter, based on the number of frames that were
+ * actually displayed.
+ * 
+ * @param newframe      True if a new frame was displayed in this vblank, false otherwise
+ */
+static void update_fps(bool newframe)
 {
     static int last_frame_counter = 0;
-
-    // Update framerate using a simple exponential mean average.
-    // const float alpha = 0.04f;
-    // frame_rate_tmp1 = newframe * refresh_rate * frame_skip * alpha + (1-alpha) * frame_rate_tmp1;
-    // frame_rate_tmp2 = frame_rate_tmp1 * alpha + (1-alpha) * frame_rate_tmp2;
-    // frame_rate = 2 * frame_rate_tmp1 - frame_rate_tmp2;
-
-    // frame_rate = kalman(newframe) * refresh_rate * frame_skip;
-    // delta_time_accum += 1.0f / frame_rate;
-
     ++last_frame_counter;
-    if (newframe) {
-        float kk = kalman(&k_fps, last_frame_counter);
-        delta_time = kk * refresh_period / frame_skip;
-        // debugf("kalman: %d => %f  delta=%f\n", last_frame_counter, kk, delta_time);
-        frame_rate = 1.0f / delta_time;
-        last_frame_counter = 0;
-    }
-    
+    if (!newframe) return;
+
+    // Calculate updated delta_time and frame_rate. Technically one is just the
+    // reciprocal of the other, but we prefer a more reactive kalman filter (Q=1)
+    // for delta_time, and a more stable one (Q=0.01) for frame_rate for display purposes.
+    delta_time = kalman(&k_delta, last_frame_counter) * min_refresh_period;
+    float kk_fps = kalman(&k_fps, last_frame_counter);
+
     // Take a few snapshots of the framerate for display purposes.
     static uint32_t last_update = 0;
     uint32_t now = TICKS_READ();
     if (TICKS_DISTANCE(last_update, now) > TICKS_PER_SECOND / FPS_UPDATE_FREQ) {
-        last_update = now;
-        frame_rate_snapshot = frame_rate;
+        last_update = now;        
+        frame_rate_snapshot = 1.0f / (kk_fps * min_refresh_period);
     }
+
+    last_frame_counter = 0;
 }
 
 /**
@@ -255,7 +215,7 @@ static void __display_callback()
             ready_mask &= ~(1 << next);
             newframe = true;
         }
-        update_framerate(newframe);
+        update_fps(newframe);
     }
 
     vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
@@ -441,12 +401,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Calculate actual refresh rate for this configuration */
     refresh_rate = calc_refresh_rate();
     refresh_period = 1.0f / refresh_rate;
-    frame_rate = frame_rate_tmp1 = frame_rate_tmp2 = refresh_rate;
     frame_rate_snapshot = refresh_rate;
     display_set_fps_limit(0);
-    kalman_init(&k_fps, 1.0f);
-    kalman_init(&k_delta, refresh_period / frame_skip);
-    oeflt_init(&g_state, refresh_rate);
+    kalman_init(&k_fps, 1.0f, 0.01f);
+    kalman_init(&k_delta, 1.0f, 1.0f);
 
     enable_interrupts();
 
@@ -635,7 +593,6 @@ uint32_t display_get_num_buffers(void)
 float display_get_fps(void)
 {
     return frame_rate_snapshot;
-    //return frame_rate;
 }
 
 float display_get_refresh_rate(void)
@@ -645,35 +602,15 @@ float display_get_refresh_rate(void)
 
 float display_get_delta_time(void)
 {
-#if 0
-    static uint32_t last_time = 0;
-    
-    uint32_t now = TICKS_READ();
-    uint32_t elapsed = TICKS_DISTANCE(last_time, now);
-    last_time = now;
-
-    float te = (float)elapsed / TICKS_PER_SECOND;
-    float kte = kalman(&k_delta, te);
-
-    debugf("delta_time: %.6f = %.6f  (min: %f max: %f)\n", te, kte, refresh_period / frame_skip, 1.0f);
-    // te = CLAMP(te, refresh_period / frame_skip, 1.0f);
-
-    return kte;
-#else
     return delta_time;
-#endif
 }
 
 void display_set_fps_limit(float fps)
 {
     disable_interrupts();
-    float min_frame_time_duration = 1.0f / (fps ? fps : refresh_rate);
-    frame_skip = refresh_period / min_frame_time_duration;
-    debugf("FPS limit set to %.2f (%.2f frameskip)\n", fps, frame_skip);
-    if (fps < frame_rate) {
-        frame_rate = frame_rate_snapshot = fps;
-        frame_rate_tmp1 = frame_rate_tmp2 = fps;
-    }
+    min_refresh_period = 1.0f / (fps ? fps : refresh_rate);
+    frame_skip = refresh_period / min_refresh_period;
+    delta_time = min_refresh_period;
     enable_interrupts();
 }
 
