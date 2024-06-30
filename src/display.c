@@ -49,36 +49,19 @@ static int now_showing = -1;
 static uint32_t drawing_mask = 0;
 /** @brief Bitmask of surfaces that are ready to be shown */
 static volatile uint32_t ready_mask = 0;
-/** @brief Window of absolute times at which previous frames were shown */
-static float frame_times[FPS_WINDOW];
-/** @brief Current index into the frame times window */
-static int frame_times_index = 0;
-/** @brief Current duration of the frame window (time elapsed for FPS_WINDOW frames) */
-static float frame_times_duration;
-static float avg_frame_times_duration;
 /** @brief Auto detected TV region for display */
 static uint32_t __tv_type;
-/** @brief Minimum frame time duration (FPS limit) */
-static float min_frame_time_duration;
 /** @brief Actual display refresh rate */
 static float refresh_rate;
 static float refresh_period;
-static uint64_t vcount;
-static uint64_t last_update_vcount;
-static uint32_t last_displayshow;
+static volatile float delta_time_accum;
+static volatile float delta_time;
 static float frame_skip_accum;
-static float frame_skip_counter = 0;
 static float frame_skip = 0.0f;
-static int frame_counter = 0;
-static uint64_t new_frame_bitflags = 0;
-
-/** @brief Get the next buffer index (with wraparound) */
-static inline int buffer_next(int idx) {
-    idx += 1;
-    if (idx == __buffers)
-        idx = 0;
-    return idx;
-}
+static float frame_rate;
+static float frame_rate_tmp1;
+static float frame_rate_tmp2;
+static float frame_rate_snapshot;
 
 typedef struct {
     float min_cutoff;
@@ -128,9 +111,18 @@ static float oeflt(oeflt_state_t *state, float t_e, float x)
     return x_hat;
 }
 
+/** @brief Get the next buffer index (with wraparound) */
+static inline int buffer_next(int idx) {
+    idx += 1;
+    if (idx == __buffers)
+        idx = 0;
+    return idx;
+}
+
 /** Calculate the actual refresh rate of the display given the current VI configuration */
 static float calc_refresh_rate(void)
 {
+    return 60.0f;
     int clock;
     switch (__tv_type) {
         case TV_PAL:    clock = 49656530; break;
@@ -156,61 +148,81 @@ static float calc_refresh_rate(void)
     return (float)clock / ((h_sync * (v_sync - 2) / 2 + h_sync_leap_avg));
 }
 
-static bool update_fps(void)
+/** 
+ * @brief Check if we should use this vblank interrupt or not, depending on fps limit 
+ * 
+ * FPS limit is implemented simply by pretending the hardware is slower at generating
+ * video interrupts, which in turn means skipping an interrupt every now and then
+ * to keep the frame rate within the desired limits.
+ */
+static bool fps_limit_ok(void)
 {
-    #if 1
     frame_skip_accum += frame_skip;
-    if (frame_skip_accum < 0.0f) {
-        debugf("SKIP: %f (%f)\n", frame_skip_accum, frame_skip);
-        ++frame_counter;
-        return false;
-    }
-    // debugf("DRAW: %f (%f)\n", frame_skip_accum, frame_skip);
+    if (frame_skip_accum < 0.0f) return false;
     frame_skip_accum -= 1.0f;
-    frame_skip_counter++;
     return true;
-#endif
+}
 
-    #if 0
-    // Read the current time (forcing it to be non zero), and the old time in the window
-    static int count = 0;
-    uint32_t now = TICKS_READ() | 1;
-    uint32_t old_ticks = frame_times[frame_times_index];
-    uint32_t refresh_period = TICKS_PER_SECOND / refresh_rate;
+typedef struct {
+    float P;
+    float Q;
+    float R;
+    float p_estimate;
+} kalman_state_t;
 
-    // If the window is not empty, calculate the time elapsed between the oldest and newest frame
-    if (old_ticks)
-        frame_times_duration = TICKS_DISTANCE(old_ticks, now);
-    // Otherwise, use the first N frames to calculate the duration
-    else if (frame_times_index > 0)
-        frame_times_duration = TICKS_DISTANCE(frame_times[0], now) * FPS_WINDOW / frame_times_index;
+static kalman_state_t k_fps;
+static kalman_state_t k_delta;
 
-    if (min_frame_time_duration && frame_times_duration) {
-        int dist = min_frame_time_duration - frame_times_duration;
-        if (dist > (int)refresh_period/2) {
-            debugf("%d: SKIP\n", count++);
-            return false;
-        }
-        debugf("%d: DRAW\n", count++);
+void kalman_init(kalman_state_t *s, float x)
+{
+    s->P = 1.0f;
+    s->Q = 0.01f;
+    s->R = 0.9f;
+    s->p_estimate = x;
+}
+
+__attribute__((noinline))
+static float kalman(kalman_state_t *s, float x)
+{
+    float p_pred = s->p_estimate;
+    float P_pred = s->P + s->Q;
+
+    float K = P_pred / (P_pred + s->R);
+    s->p_estimate = p_pred + K * (x - p_pred);
+    s->P = (1 - K) * P_pred;
+
+    return s->p_estimate;
+}
+
+static void update_framerate(bool newframe)
+{
+    static int last_frame_counter = 0;
+
+    // Update framerate using a simple exponential mean average.
+    // const float alpha = 0.04f;
+    // frame_rate_tmp1 = newframe * refresh_rate * frame_skip * alpha + (1-alpha) * frame_rate_tmp1;
+    // frame_rate_tmp2 = frame_rate_tmp1 * alpha + (1-alpha) * frame_rate_tmp2;
+    // frame_rate = 2 * frame_rate_tmp1 - frame_rate_tmp2;
+
+    // frame_rate = kalman(newframe) * refresh_rate * frame_skip;
+    // delta_time_accum += 1.0f / frame_rate;
+
+    ++last_frame_counter;
+    if (newframe) {
+        float kk = kalman(&k_fps, last_frame_counter);
+        delta_time = kk * refresh_period / frame_skip;
+        // debugf("kalman: %d => %f  delta=%f\n", last_frame_counter, kk, delta_time);
+        frame_rate = 1.0f / delta_time;
+        last_frame_counter = 0;
     }
-
-    // Update the window
-    frame_times[frame_times_index] = now;
-    frame_times_index++;
-    if (frame_times_index == FPS_WINDOW)
-        frame_times_index = 0;
-    return true;
-    #elif 0
-
-    int vcount_diff = vcount - last_update_vcount;
-    debugf("vcount_diff: %d\n", vcount_diff);
-    frame_times_duration = oeflt(&g_state, vcount_diff * refresh_period, vcount_diff * refresh_period);
-    debugf("delta: %f => %f\n", vcount_diff * refresh_period, frame_times_duration);
-
-
-    last_update_vcount = vcount;
-#endif
-    return true;
+    
+    // Take a few snapshots of the framerate for display purposes.
+    static uint32_t last_update = 0;
+    uint32_t now = TICKS_READ();
+    if (TICKS_DISTANCE(last_update, now) > TICKS_PER_SECOND / FPS_UPDATE_FREQ) {
+        last_update = now;
+        frame_rate_snapshot = frame_rate;
+    }
 }
 
 /**
@@ -235,16 +247,15 @@ static void __display_callback()
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame. If full interlace mode is selected
        then don't update the buffer until two fields were displayed. */
-    if (!(__interlace_mode == INTERLACE_FULL && field)) {
-        if (update_fps()) {
-            new_frame_bitflags <<= 1;
-            int next = buffer_next(now_showing);
-            if (ready_mask & (1 << next)) {
-                now_showing = next;
-                ready_mask &= ~(1 << next);
-                new_frame_bitflags |= 1;
-            }
+    if (!(__interlace_mode == INTERLACE_FULL && field) && fps_limit_ok()) {
+        bool newframe = false;
+        int next = buffer_next(now_showing);
+        if (ready_mask & (1 << next)) {
+            now_showing = next;
+            ready_mask &= ~(1 << next);
+            newframe = true;
         }
+        update_framerate(newframe);
     }
 
     vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
@@ -259,8 +270,6 @@ static void __display_callback()
             *VI_V_BURST = 0x000e0204;
         }
     }
-
-    ++vcount;    
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -432,7 +441,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Calculate actual refresh rate for this configuration */
     refresh_rate = calc_refresh_rate();
     refresh_period = 1.0f / refresh_rate;
-    oeflt_init(&g_state, refresh_period);
+    frame_rate = frame_rate_tmp1 = frame_rate_tmp2 = refresh_rate;
+    frame_rate_snapshot = refresh_rate;
+    display_set_fps_limit(0);
+    kalman_init(&k_fps, 1.0f);
+    kalman_init(&k_delta, refresh_period / frame_skip);
+    oeflt_init(&g_state, refresh_rate);
 
     enable_interrupts();
 
@@ -573,47 +587,7 @@ void display_show( surface_t* surf )
 
     drawing_mask &= ~(1 << i);
     ready_mask |= 1 << i;
-#if 0
-    if (!last_displayshow) {
-        last_displayshow = TICKS_READ();
-    } else {
-        uint32_t now = TICKS_READ();
-        float delta = (float)TICKS_DISTANCE(last_displayshow, now) / TICKS_PER_SECOND;
-        float t_delta = delta;
-        last_displayshow = now;
-        if (frame_skip_counter > 0) {
-            delta -= frame_skip_counter * refresh_period;
-            frame_skip_counter = 0;
-        }
-        frame_times_duration = oeflt(&g_state, t_delta, delta);
-        // if (min_frame_time_duration && frame_times_duration < min_frame_time_duration) {
-        //     frame_skip = frame_times_duration / min_frame_time_duration;
-        //     debugf("frame_skip: %f (%f %f)\n", frame_skip, frame_times_duration, min_frame_time_duration);
-        // } else {
-        //     frame_skip = 0.0f;
-        // }
 
-        #if 0
-        float old_frame_time = frame_times[frame_times_index];
-        frame_times[frame_times_index] = frame_times_duration;
-        frame_times_index++;
-        if (frame_times_index == FPS_WINDOW) {
-            frame_times_index = 0;
-        }
-        if (!old_frame_time) avg_frame_times_duration = refresh_period;
-        else if ((frame_times_index % 8) == 0) {
-            avg_frame_times_duration = 0;
-            for (int i=0; i<FPS_WINDOW; i++) {
-                avg_frame_times_duration += frame_times[i];
-                debugf("%d: %f\n", i, frame_times[i]);
-            }
-            avg_frame_times_duration /= FPS_WINDOW;
-            debugf("new avg: %f\n", avg_frame_times_duration);
-        }
-        #else
-        #endif
-    }
-#endif
     enable_interrupts();
 }
 
@@ -660,30 +634,8 @@ uint32_t display_get_num_buffers(void)
 
 float display_get_fps(void)
 {
-#if 0
-    static uint32_t last_update = 0;
-    static float last_fps = 0;
-
-    if (!last_update && !frame_times_duration) {
-        if (!frame_times_duration) {
-            // If no frames have been shown until now, say 0 FPS.
-            last_fps = 0.0f;
-        } else {
-            // Otherwise, calculate the FPS based on the time it took to show the first frame.
-            last_update = TICKS_READ();
-            last_fps = frame_counter * FPS_UPDATE_FREQ;
-            frame_counter = 0;
-        }
-    } else if (TICKS_SINCE(last_update) > TICKS_PER_SECOND / FPS_UPDATE_FREQ) {
-        last_update = TICKS_READ();
-        last_fps = frame_counter * FPS_UPDATE_FREQ; //1.0f / frame_times_duration;
-        frame_counter = 0;
-    }
-    return last_fps;
-#endif
-
-    int numframes = __builtin_popcount(new_frame_bitflags & 0xFFFF);
-    return (frame_skip / refresh_period) * numframes / 16;
+    return frame_rate_snapshot;
+    //return frame_rate;
 }
 
 float display_get_refresh_rate(void)
@@ -693,18 +645,35 @@ float display_get_refresh_rate(void)
 
 float display_get_delta_time(void)
 {
-    float fps = display_get_fps();
-    if (!fps) fps = display_get_refresh_rate();
-    return 1.0f / fps;
+#if 0
+    static uint32_t last_time = 0;
+    
+    uint32_t now = TICKS_READ();
+    uint32_t elapsed = TICKS_DISTANCE(last_time, now);
+    last_time = now;
+
+    float te = (float)elapsed / TICKS_PER_SECOND;
+    float kte = kalman(&k_delta, te);
+
+    debugf("delta_time: %.6f = %.6f  (min: %f max: %f)\n", te, kte, refresh_period / frame_skip, 1.0f);
+    // te = CLAMP(te, refresh_period / frame_skip, 1.0f);
+
+    return kte;
+#else
+    return delta_time;
+#endif
 }
 
 void display_set_fps_limit(float fps)
 {
     disable_interrupts();
-    //min_frame_time_duration = fps ? (int64_t)FPS_WINDOW * TICKS_PER_SECOND / fps : 0;
-    min_frame_time_duration = 1.0f / (fps ? fps : refresh_rate);
+    float min_frame_time_duration = 1.0f / (fps ? fps : refresh_rate);
     frame_skip = refresh_period / min_frame_time_duration;
-    debugf("min_frame_time_duration: %f %f  frame_skip: %f\n", min_frame_time_duration, refresh_period, frame_skip);
+    debugf("FPS limit set to %.2f (%.2f frameskip)\n", fps, frame_skip);
+    if (fps < frame_rate) {
+        frame_rate = frame_rate_snapshot = fps;
+        frame_rate_tmp1 = frame_rate_tmp2 = fps;
+    }
     enable_interrupts();
 }
 
