@@ -110,7 +110,6 @@ static inline int buffer_next(int idx) {
 /** Calculate the actual refresh rate of the display given the current VI configuration */
 static float calc_refresh_rate(void)
 {
-    return 60.0f;
     int clock;
     switch (__tv_type) {
         case TV_PAL:    clock = 49656530; break;
