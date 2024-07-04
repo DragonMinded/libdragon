@@ -24,7 +24,7 @@ filesystem/movie.m1v: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
 	if [ -s "$<" ]; then \
 		if command -v ffmpeg; then \
-			ffmpeg -y -i "$<" -vb 800K -vf 'scale=320x176' -r 20 "$@" ; \
+			ffmpeg -y -i "$<" -vb 800K -vf 'scale=288x160' -r 24 "$@" ; \
 		else \
 			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
 			touch "$@" ; \
