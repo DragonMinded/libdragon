@@ -151,7 +151,7 @@ void print_args( char * name )
     fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
     fprintf(stderr, "   -D/--dither <dither>  Dithering algorithm (default: NONE)\n");
     fprintf(stderr, "   -c/--compress <level> Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
-    fprintf(stderr, "   -g/--gamma            Remove gamma correction. Use when gamma correction is enabled on console)\n");
+    fprintf(stderr, "   -g/--gamma            Adjust colors for when VI gamma correction is enabled on console (convert to linear colors)\n");
     fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
     fprintf(stderr, "\nSampling flags:\n");
     fprintf(stderr, "   --texparms <x,s,r,m>          Sampling parameters:\n");
@@ -1552,7 +1552,7 @@ int main(int argc, char *argv[])
             }
             
             /* ---------------- GAMMA_CORRECT console argument ------------------- */
-            /* -g/--gamma         Remove gamma correction                          */
+            /* -g/--gamma  Adjust colors for when VI gamma correction is enabled on console (convert to linear colors)                          */
             else if (!strcmp(argv[i], "-g") || !strcmp(argv[i], "--gamma")) {
                 pm.gamma_correct = 1;
             }
