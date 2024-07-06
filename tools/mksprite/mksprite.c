@@ -112,6 +112,7 @@ typedef struct {
     int tileh;
     int mipmap_algo;
     int dither_algo;
+    int gamma_correct;
     texparms_t texparms;
     struct{
         const char   *infn;       // Input file for detail texture
@@ -150,6 +151,7 @@ void print_args( char * name )
     fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
     fprintf(stderr, "   -D/--dither <dither>  Dithering algorithm (default: NONE)\n");
     fprintf(stderr, "   -c/--compress <level> Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
+    fprintf(stderr, "   -g/--gamma            Remove gamma correction. Use when gamma correction is enabled on console)\n");
     fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
     fprintf(stderr, "\nSampling flags:\n");
     fprintf(stderr, "   --texparms <x,s,r,m>          Sampling parameters:\n");
@@ -750,6 +752,54 @@ static uint8_t ihq_calc_best_i4(float ifactor, uint8_t r0, uint8_t g0, uint8_t b
     return best_i;
 }
 
+uint8_t gamma_correct_value(uint8_t input) {
+    return (uint8_t)(((int)input * (int)input) >> 8);
+}
+
+bool spritemaker_gamma_correct(spritemaker_t *spr) {
+    for (int m=0; m<MAX_IMAGES; m++) {
+        image_t *image = &spr->images[m];
+        if (image->image == NULL)
+            continue;
+
+        if (image->fmt == FMT_CI4 || image->fmt == FMT_CI8) {
+            // gamma correct the pallete
+            continue;
+        } else if (image->fmt == FMT_RGBA32 || image->fmt == FMT_RGBA16) {
+            uint8_t *img = image->image;
+            for (int i=0;i<image->width*image->height;i++) {
+                img[0] = gamma_correct_value(img[0]);
+                img[1] = gamma_correct_value(img[1]);
+                img[2] = gamma_correct_value(img[2]);
+                img += 4;
+            }
+        } else if (image->fmt == FMT_I4 || image->fmt == FMT_I8) {
+            uint8_t *img = image->image;
+            for (int i=0;i<image->width*image->height;i++) {
+                *img = gamma_correct_value(*img);
+                img++;
+            }
+        } else if (image->fmt == FMT_IA16 || image->fmt == FMT_IA8 || image->fmt == FMT_IA4) {
+            uint8_t *img = image->image;
+            for (int i=0;i<image->width*image->height;i++) {
+                *img = gamma_correct_value(*img);
+                img += 2;
+            }
+        } else {
+            fprintf(stderr, "Gamma correction not implemented for format %s\n", tex_format_name(image->fmt));
+            return false;
+        }
+    }
+
+    for (int i=0; i<spr->palette.num_colors; i++) {
+        spr->palette.colors[i][0] = gamma_correct_value(spr->palette.colors[i][0]);
+        spr->palette.colors[i][1] = gamma_correct_value(spr->palette.colors[i][1]);
+        spr->palette.colors[i][2] = gamma_correct_value(spr->palette.colors[i][2]);
+    }
+
+    return true;
+}
+
 bool spritemaker_convert_ihq(spritemaker_t *spr) {
     if (spr->detail.enabled || spr->detail.texparms.defined) {
         fprintf(stderr, "ERROR: detail textures are not supported in IHQ mode\n");
@@ -1214,6 +1264,11 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     if (!spritemaker_load_png(&spr, pm->outfmt))
         goto error;
 
+    if (pm->gamma_correct) {
+        if (!spritemaker_gamma_correct(&spr))
+            goto error;
+    }
+
     if (spr.images[0].fmt == FMT_IHQ) {
         if (!spritemaker_convert_ihq(&spr))
             goto error;
@@ -1494,6 +1549,12 @@ int main(int argc, char *argv[])
                         return 1;
                     }
                 }
+            }
+            
+            /* ---------------- GAMMA_CORRECT console argument ------------------- */
+            /* -g/--gamma         Remove gamma correction                          */
+            else if (!strcmp(argv[i], "-g") || !strcmp(argv[i], "--gamma")) {
+                pm.gamma_correct = 1;
             }
 
             /* ---------------- TEXTURE PARAMETERS console argument ------------------- */
