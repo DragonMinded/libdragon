@@ -287,6 +287,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_block_coalescing,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block_contiguous,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block_dynamic,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_nested,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_change_other_modes,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_setfillcolor,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_setscissor,      0, TEST_FLAGS_NO_BENCHMARK),
