@@ -747,15 +747,15 @@ rdpq_block_t* __rdpq_block_end()
     return ret;
 }
 
-/** @brief Run a block (called by #rspq_block_run). */
+/** @brief Notify that a rspq block was run (called by #rspq_block_run). */
 void __rdpq_block_run(rdpq_block_t *block)
 {
-    // We are about to run a block that contains rdpq commands.
-    // During creation, we tracked some state for the block 
-    // and saved it into the block structure; set it as current,
-    // because from now on we can assume the block would and the
-    // state of the engine must match the state at the end of the block.
     if (block) {
+        // We have run a block that contains rdpq commands.
+        // During creation, we tracked some state for the block 
+        // and saved it into the block structure; set it as current,
+        // because from now on we can assume the block would and the
+        // state of the engine must match the state at the end of the block.
         rdpq_tracking_t prev = rdpq_tracking;
         rdpq_tracking = block->tracking;
 
@@ -766,6 +766,15 @@ void __rdpq_block_run(rdpq_block_t *block)
             rdpq_tracking.cycle_type_known = prev.cycle_type_known;
         if (rdpq_tracking.cycle_type_frozen == 0)
             rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
+
+        // The called block has switched static buffer. Adjust our state to set
+        // our buffer as pending; if a new RDP command is issued, we will switch
+        // back to it.
+        struct rdpq_block_state_s *st = &rdpq_block_state;
+        st->pending_wptr = st->wptr;
+        st->pending_wend = st->wend;
+        st->wptr = NULL;
+        st->wend = NULL;
     } else {
         // Initialize tracking state for unknown state
         rdpq_tracking = (rdpq_tracking_t){

@@ -1181,9 +1181,6 @@ void rspq_block_run(rspq_block_t *block)
     // mode, but it might be an acceptable limitation.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
 
-    // Notify rdpq engine we are about to run a block
-    __rdpq_block_run(block->rdp_block);
-
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
     // pointer position.
@@ -1197,6 +1194,9 @@ void rspq_block_run(rspq_block_t *block)
         assertf(rspq_block->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
             "reached maximum number of nested block runs");
     }
+
+    // Notify rdpq engine we have run a block
+    __rdpq_block_run(block->rdp_block);
 }
 
 void rspq_block_run_rsp(int nesting_level)

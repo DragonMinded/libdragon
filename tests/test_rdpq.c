@@ -442,6 +442,60 @@ void test_rdpq_block_dynamic(TestContext *ctx)
     if (ctx->result == TEST_FAILED) return;
 }
 
+void test_rdpq_block_nested(TestContext *ctx)
+{
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    const int WIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, WIDTH, WIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+
+    surface_clear(&fb, 0);
+    rdpq_set_mode_standard();
+    rspq_wait();
+    debug_rdp_stream_reset();
+
+    rspq_block_begin();
+        rdpq_set_blend_color(RGBA32(0x22,0x22,0x22,0x22));
+        rdpq_set_prim_color(RGBA32(0x11,0x11,0x11,0x11));
+    rspq_block_t *block1 = rspq_block_end();
+
+    rspq_block_begin();
+        rdpq_set_fog_color(RGBA32(0x33,0x33,0x33,0x33));
+        rspq_block_run(block1);
+        rdpq_set_env_color(RGBA32(0x44,0x44,0x44,0x44));
+    rspq_block_t *block2 = rspq_block_end();
+
+    rspq_block_run(block2);
+    rspq_wait();
+    
+    for (int i=0;i<rdp_stream_ctx.idx;i++) {
+        LOG("%016llx\n", rdp_stream[i]);
+    }
+    
+    int num_fc = debug_rdp_stream_count_cmd(0xF8); // SET_FOG_COLOR
+    int num_bc = debug_rdp_stream_count_cmd(0xF9); // SET_BLEND_COLOR
+    int num_pc = debug_rdp_stream_count_cmd(0xFA); // SET_PRIMITIVE_COLOR
+    int num_ec = debug_rdp_stream_count_cmd(0xFB); // SET_ENV_COLOR
+    ASSERT_EQUAL_SIGNED(num_fc, 1, "invalid number of SET_FOG_COLOR");
+    ASSERT_EQUAL_SIGNED(num_bc, 1, "invalid number of SET_BLEND_COLOR");
+    ASSERT_EQUAL_SIGNED(num_pc, 1, "invalid number of SET_PRIMITIVE_COLOR");
+    ASSERT_EQUAL_SIGNED(num_ec, 1, "invalid number of SET_ENV_COLOR");
+
+    // Now check that they appear in the right order
+    //   rdp_stream[0] = SYNC
+    ASSERT_EQUAL_HEX(rdp_stream[1]>>56, 0xF8, "SET_FOG_COLOR not in position 0");
+    //   rdp_stream[2] = SYNC
+    ASSERT_EQUAL_HEX(rdp_stream[3]>>56, 0xF9, "SET_BLEND_COLOR not in position 1");
+    ASSERT_EQUAL_HEX(rdp_stream[4]>>56, 0xFA, "SET_PRIM_COLOR not in position 2");
+    ASSERT_EQUAL_HEX(rdp_stream[5]>>56, 0xFB, "SET_ENV_COLOR not in position 3");
+}
+
 void test_rdpq_change_other_modes(TestContext *ctx)
 {
     RDPQ_INIT();
