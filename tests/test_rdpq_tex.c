@@ -372,7 +372,7 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
         tex_format_t fmt = fmts[i];
 
         // Create the random surface
-        for (int tex_width = 80; tex_width < 83; tex_width++)  {
+        for (int tex_width = 72; tex_width < 75; tex_width++)  {
             LOG("  tex_width: %d\n", tex_width);
             surface_t surf_full = surface_create_random(tex_width, tex_width, fmt);
             DEFER(surface_free(&surf_full));
