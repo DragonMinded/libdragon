@@ -8,7 +8,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "regsinternal.h"
 #include "n64sys.h"
 
 /**
@@ -71,49 +70,6 @@ typedef struct vi_config_s{
 /** @brief VI index from register */
 #define VI_TO_INDEX(reg) ((reg) - VI_REGISTERS)
 
-/**
- * @name Video Mode Register Presets
- * @brief Presets to begin with when setting a particular video mode
- * @{
- */
-static const vi_config_t vi_ntsc_p = {.regs = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x00230203, 0x000e0204,
-    0x00000000, 0x00000000 }};
-static const vi_config_t vi_pal_p =  {.regs = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x002d026d, 0x0009026b,
-    0x00000000, 0x00000000 }};
-static const vi_config_t vi_mpal_p = {.regs = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000000, 0x00000000 }};
-static const vi_config_t vi_ntsc_i = {.regs = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x00230203, 0x000e0204,
-    0x00000000, 0x00000000 }};
-static const vi_config_t vi_pal_i = {.regs = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x002d026d, 0x0009026b,
-    0x00000000, 0x00000000 }};
-static const vi_config_t vi_mpal_i = {.regs = {
-    0x00000000, 0x00000000, 0x00000000, 0x00000002,
-    0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
-    0x00000000, 0x00000000 }};
-/** @} */
-
-/** @brief Register initial value array */
-static const vi_config_t vi_config_presets[2][3] = {
-    {vi_pal_p, vi_ntsc_p, vi_mpal_p},
-    {vi_pal_i, vi_ntsc_i, vi_mpal_i}
-};
-
 /** Under VI_CTRL */
 
 /** @brief VI_CTRL Register setting: enable dedither filter. */
@@ -167,13 +123,17 @@ static const vi_config_t vi_config_presets[2][3] = {
 
 /** Under VI_BURST     */
 /** @brief VI_BURST Register: set start of color burst in pixels from hsync. */
-#define VI_BURST_START(value)               ((value & 0x3F) << 20)
+#define VI_BURST_START(value)               ((value & 0x3FF) << 20)
 /** @brief VI_BURST Register: set vertical sync width in half lines. */
-#define VI_VSYNC_WIDTH(value)               ((value & 0x7)  << 16)
+#define VI_VSYNC_WIDTH(value)               ((value & 0xF)  << 16)
 /** @brief VI_BURST Register: set color burst width in pixels. */
 #define VI_BURST_WIDTH(value)               ((value & 0xFF) << 8)
 /** @brief VI_BURST Register: set horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH(value)               ((value & 0xFF) << 0)
+/** @brief VI_BURST Register: set all values. */
+#define VI_BURST_SET(burst_start, vsync_width, burst_width, hsync_width)                                \
+                                            VI_BURST_START(burst_start) | VI_VSYNC_WIDTH(vsync_width) | \
+                                            VI_BURST_WIDTH(burst_width) | VI_HSYNC_WIDTH(hsync_width)
 
 /** @brief VI_BURST Register: NTSC default start of color burst in pixels from hsync. */
 #define VI_BURST_START_NTSC                 62
@@ -183,6 +143,8 @@ static const vi_config_t vi_config_presets[2][3] = {
 #define VI_BURST_WIDTH_NTSC                 34
 /** @brief VI_BURST Register: NTSC default horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH_NTSC                 57
+/** @brief VI_BURST Register: NTSC default setting. */
+#define VI_BURST_NTSC                       VI_BURST_SET(VI_BURST_START_NTSC, VI_VSYNC_WIDTH_NTSC, VI_BURST_WIDTH_NTSC, VI_HSYNC_WIDTH_NTSC)
 
 /** @brief VI_BURST Register: PAL default start of color burst in pixels from hsync. */
 #define VI_BURST_START_PAL                  64
@@ -192,11 +154,41 @@ static const vi_config_t vi_config_presets[2][3] = {
 #define VI_BURST_WIDTH_PAL                  35
 /** @brief VI_BURST Register: PAL default horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH_PAL                  58
+#define VI_BURST_PAL                        VI_BURST_SET(VI_BURST_START_PAL, VI_VSYNC_WIDTH_PAL, VI_BURST_WIDTH_PAL, VI_HSYNC_WIDTH_PAL)
 
-/** @brief VI period for showing one NTSC and MPAL picture in ms. */
-#define VI_PERIOD_NTSC_MPAL                 ((float)1000/60)
-/** @brief VI period for showing one PAL picture in ms. */
-#define VI_PERIOD_PAL                       ((float)1000/50)
+/** @brief VI_BURST Register: MPAL default start of color burst in pixels from hsync. */
+#define VI_BURST_START_MPAL                 70
+/** @brief VI_BURST Register: MPAL default vertical sync width in half lines. */
+#define VI_VSYNC_WIDTH_MPAL                 5
+/** @brief VI_BURST Register: MPAL default color burst width in pixels.  */
+#define VI_BURST_WIDTH_MPAL                 30
+/** @brief VI_BURST Register: MPAL default horizontal sync width in pixels. */
+#define VI_HSYNC_WIDTH_MPAL                 57
+#define VI_BURST_MPAL                       VI_BURST_SET(VI_BURST_START_MPAL, VI_VSYNC_WIDTH_MPAL, VI_BURST_WIDTH_MPAL, VI_HSYNC_WIDTH_MPAL)
+
+/**  Under VI_V_SYNC */
+/** @brief VI_V_SYNC Register: set the total number of visible and non-visible half-lines (-1). */
+#define VI_V_SYNC_SET(vsync)                (vsync)
+
+/**  Under VI_H_SYNC */
+/** @brief VI_H_SYNC Register: set the total width of a line in quarter-pixel units (-1), and the 5-bit leap pattern. */
+#define VI_H_SYNC_SET(leap_pattern, hsync)  ((((leap_pattern) & 0x1F) << 16) | ((hsync) & 0xFFF))
+
+/**  Under VI_H_SYNC_LEAP */
+/** @brief VI_H_SYNC_LEAP Register: set alternate scanline lengths for one scanline during vsync, leap_a and leap_b are selected based on the leap pattern in VI_H_SYNC. */
+#define VI_H_SYNC_LEAP_SET(leap_a, leap_b)  ((((leap_a) & 0xFFF) << 16) | ((leap_b) & 0xFFF))
+
+/**  Under VI_H_VIDEO */
+/** @brief VI_H_VIDEO Register: set the horizontal start and end of the active video area, in screen pixels */
+#define VI_H_VIDEO_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
+
+/**  Under VI_V_VIDEO */
+/** @brief VI_V_VIDEO Register: set the vertical start and end of the active video area, in half-lines */
+#define VI_V_VIDEO_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
+
+/**  Under VI_V_BURST */
+/** @brief VI_V_BURST Register: set the start and end of color burst enable, in half-lines */
+#define VI_V_BURST_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
 
 /**  Under VI_X_SCALE   */
 /** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */
@@ -209,6 +201,120 @@ static const vi_config_t vi_config_presets[2][3] = {
 /**  Under VI_Y_SCALE   */
 /** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
 #define VI_Y_SCALE_SET_288_LINES(value)               (( 1024*(value) + 144 ) / 288)
+
+/** @brief VI period for showing one NTSC and MPAL picture in ms. */
+#define VI_PERIOD_NTSC_MPAL                 ((float)1000/60)
+/** @brief VI period for showing one PAL picture in ms. */
+#define VI_PERIOD_PAL                       ((float)1000/50)
+
+/**
+ * @name Video Mode Register Presets
+ * @brief Presets to begin with when setting a particular video mode
+ * @{
+ */
+static const vi_config_t vi_ntsc_p = {.regs = {
+    0,
+    VI_ORIGIN_SET(0),
+    VI_WIDTH_SET(0),
+    VI_V_INTR_SET(2),
+    0,
+    VI_BURST_NTSC,
+    VI_V_SYNC_SET(525),
+    VI_H_SYNC_SET(0b00000, 3093),
+    VI_H_SYNC_LEAP_SET(3093, 3093),
+    VI_H_VIDEO_SET(108, 748),
+    VI_V_VIDEO_SET(35, 515),
+    VI_V_BURST_SET(14, 516),
+    VI_X_SCALE_SET(0),
+    VI_Y_SCALE_SET_240_LINES(0),
+}};
+static const vi_config_t vi_pal_p =  {.regs = {
+    0,
+    VI_ORIGIN_SET(0),
+    VI_WIDTH_SET(0),
+    VI_V_INTR_SET(2),
+    0,
+    VI_BURST_PAL,
+    VI_V_SYNC_SET(625),
+    VI_H_SYNC_SET(0b10101, 3177),
+    VI_H_SYNC_LEAP_SET(3183, 3182),
+    VI_H_VIDEO_SET(128, 768),
+    VI_V_VIDEO_SET(45, 621),
+    VI_V_BURST_SET(9, 619),
+    VI_X_SCALE_SET(0),
+    VI_Y_SCALE_SET_288_LINES(0),
+}};
+static const vi_config_t vi_mpal_p = {.regs = {
+    0,
+    VI_ORIGIN_SET(0),
+    VI_WIDTH_SET(0),
+    VI_V_INTR_SET(2),
+    0,
+    VI_BURST_MPAL,
+    VI_V_SYNC_SET(525),
+    VI_H_SYNC_SET(0b00100, 3089),
+    VI_H_SYNC_LEAP_SET(3097, 3098),
+    VI_H_VIDEO_SET(108, 748),
+    VI_V_VIDEO_SET(37, 511),
+    VI_V_BURST_SET(14, 516),
+    VI_X_SCALE_SET(0),
+    VI_Y_SCALE_SET_240_LINES(0)
+}};
+static const vi_config_t vi_ntsc_i = {.regs = {
+    0,
+    VI_ORIGIN_SET(0),
+    VI_WIDTH_SET(0),
+    VI_V_INTR_SET(2),
+    0,
+    VI_BURST_NTSC,
+    VI_V_SYNC_SET(524),
+    VI_H_SYNC_SET(0b00000, 3093),
+    VI_H_SYNC_LEAP_SET(3093, 3093),
+    VI_H_VIDEO_SET(108, 748),
+    VI_V_VIDEO_SET(35, 515),
+    VI_V_BURST_SET(14, 516),
+    VI_X_SCALE_SET(0),
+    VI_Y_SCALE_SET_240_LINES(0)
+}};
+static const vi_config_t vi_pal_i = {.regs = {
+    0,
+    VI_ORIGIN_SET(0),
+    VI_WIDTH_SET(0),
+    VI_V_INTR_SET(2),
+    0,
+    VI_BURST_PAL,
+    VI_V_SYNC_SET(624),
+    VI_H_SYNC_SET(0b10101, 3177),
+    VI_H_SYNC_LEAP_SET(3183, 3182),
+    VI_H_VIDEO_SET(128, 768),
+    VI_V_VIDEO_SET(45, 621),
+    VI_V_BURST_SET(9, 619),
+    VI_X_SCALE_SET(0),
+    VI_Y_SCALE_SET_288_LINES(0)
+}};
+static const vi_config_t vi_mpal_i = {.regs = {
+    0,
+    VI_ORIGIN_SET(0),
+    VI_WIDTH_SET(0),
+    VI_V_INTR_SET(2),
+    0,
+    VI_BURST_MPAL,
+    VI_V_SYNC_SET(524),
+    VI_H_SYNC_SET(0b00000, 3088),
+    VI_H_SYNC_LEAP_SET(3100, 3100),
+    VI_H_VIDEO_SET(108, 748),
+    VI_V_VIDEO_SET(35, 509),
+    VI_V_BURST_SET(11, 514),
+    VI_X_SCALE_SET(0),
+    VI_Y_SCALE_SET_240_LINES(0)
+}};
+/** @} */
+
+/** @brief Register initial value array */
+static const vi_config_t vi_config_presets[2][3] = {
+    {vi_pal_p, vi_ntsc_p, vi_mpal_p},
+    {vi_pal_i, vi_ntsc_i, vi_mpal_i}
+};
 
 /**
  * @brief Write a set of video registers to the VI
