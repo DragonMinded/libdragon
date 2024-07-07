@@ -66,7 +66,6 @@ typedef struct kerning_s {
 typedef struct style_s {
     color_t color;                      ///< Color of the text
     color_t outline_color;              ///< Color of the outline (if any)
-    rspq_block_t *block;                ///< RSPQ block that configures the style
 } style_t;
 
 /** @brief A font64 file containing a font */
