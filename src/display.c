@@ -63,6 +63,8 @@ static volatile float frame_rate_snapshot;
 static float frame_skip;
 /** @brief Minimum refresh period as requested by #display_set_fps_limit */
 static float min_refresh_period;
+/** @brief Rounded minimum refresh period as requested by #display_set_fps_limit */
+static float min_refresh_period_rounded;
 
 /** @brief State for the Kalman filter */
 typedef struct {
@@ -178,7 +180,7 @@ static void update_fps(bool newframe)
     uint32_t now = TICKS_READ();
     if (TICKS_DISTANCE(last_update, now) > TICKS_PER_SECOND / FPS_UPDATE_FREQ) {
         last_update = now;        
-        frame_rate_snapshot = 1.0f / (kk_fps * min_refresh_period);
+        frame_rate_snapshot = 1.0f / (kk_fps * min_refresh_period_rounded);
     }
 
     last_frame_counter = 0;
@@ -607,9 +609,16 @@ float display_get_delta_time(void)
 void display_set_fps_limit(float fps)
 {
     disable_interrupts();
+
     min_refresh_period = 1.0f / (fps ? fps : refresh_rate);
     frame_skip = refresh_period / min_refresh_period;
     delta_time = min_refresh_period;
+
+    // Calculate also the minimum period using a rounded refresh rate
+    // This will be used only for display purposes, so that FPS are capped
+    // to 60 Hz rather than 59.83 Hz, which would be the hw-accurate value.
+    min_refresh_period_rounded = 1.0f / (fps ? fps : roundf(refresh_rate));
+
     enable_interrupts();
 }
 
