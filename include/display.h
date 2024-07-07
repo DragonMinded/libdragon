@@ -67,6 +67,17 @@ typedef struct {
     int32_t height;
     /** @brief Interlace mode */
     interlace_mode_t interlaced;
+    /** 
+     * @brief Use PAL60 mode if on PAL
+     * 
+     * PAL60 is a PAL video setting with NTSC-like vertical timing, that allows
+     * to refresh 60 frames per second instead of the usual 50. This is compatible
+     * with most PAL CRTs, but sometimes it creates issues with some modern
+     * converters / upscalers. 
+     * 
+     * Setting this variable to true on NTSC/MPAL will have no effect.
+     */
+    bool pal60;
 } resolution_t;
 
 ///@cond
