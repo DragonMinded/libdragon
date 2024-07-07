@@ -116,7 +116,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rdpq_fence</b> (void)
 <tr class="separator:a95f193ed65ef91d46599c3ca7edb1cc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7e9fde5a3babeec454eb8ea92f390601"><td class="memItemLeft" align="right" valign="top"><a id="a7e9fde5a3babeec454eb8ea92f390601" name="a7e9fde5a3babeec454eb8ea92f390601"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__rdpq_block_run</b> (<a class="el" href="rdpq__internal_8h.html#structrdpq__block__t">rdpq_block_t</a> *block)</td></tr>
-<tr class="memdesc:a7e9fde5a3babeec454eb8ea92f390601"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run a block (called by <a class="el" href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3" title="Add to the RSP queue a command that runs a block.">rspq_block_run</a>). <br /></td></tr>
+<tr class="memdesc:a7e9fde5a3babeec454eb8ea92f390601"><td class="mdescLeft">&#160;</td><td class="mdescRight">Notify that a rspq block was run (called by <a class="el" href="rspq_8h.html#ad078c001303a1b2153ba99f3184194f3" title="Add to the RSP queue a command that runs a block.">rspq_block_run</a>). <br /></td></tr>
 <tr class="separator:a7e9fde5a3babeec454eb8ea92f390601"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab0187e0dcc3e6ef22ec15a36eabe1102"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__internal_8h.html#ab0187e0dcc3e6ef22ec15a36eabe1102">__rdpq_block_next_buffer</a> (void)</td></tr>
 <tr class="memdesc:ab0187e0dcc3e6ef22ec15a36eabe1102"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a new RDP block buffer, chaining it to the current one (if any)  <a href="rdpq__internal_8h.html#ab0187e0dcc3e6ef22ec15a36eabe1102">More...</a><br /></td></tr>
@@ -390,11 +390,11 @@ Tracking state before starting building the block. </td></tr>
 </div><div class="memdoc">
 
 <p>Finish creation of a RDP block. </p>
-<p >This is called by <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>. It finalizes block creation and return a pointer to the first node of the block, which will be put within the <a class="el" href="rspq__internal_8h.html#structrspq__block__t" title="A rspq block: pre-recorded array of commands.">rspq_block_t</a> structure, so to be able to reference it in <a class="el" href="rdpq_8c.html#a7e9fde5a3babeec454eb8ea92f390601" title="Run a block (called by rspq_block_run).">__rdpq_block_run</a> and <a class="el" href="rdpq_8c.html#a95f193ed65ef91d46599c3ca7edb1cc6" title="Free a block.">__rdpq_block_free</a>.</p>
+<p >This is called by <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>. It finalizes block creation and return a pointer to the first node of the block, which will be put within the <a class="el" href="rspq__internal_8h.html#structrspq__block__t" title="A rspq block: pre-recorded array of commands.">rspq_block_t</a> structure, so to be able to reference it in <a class="el" href="rdpq_8c.html#a7e9fde5a3babeec454eb8ea92f390601" title="Notify that a rspq block was run (called by rspq_block_run).">__rdpq_block_run</a> and <a class="el" href="rdpq_8c.html#a95f193ed65ef91d46599c3ca7edb1cc6" title="Free a block.">__rdpq_block_free</a>.</p>
 <dl class="section return"><dt>Returns</dt><dd>rdpq_block_t* The created block (first node)</dd></dl>
 <dl class="section see"><dt>See also</dt><dd><a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a> </dd>
 <dd>
-<a class="el" href="rdpq_8c.html#a7e9fde5a3babeec454eb8ea92f390601" title="Run a block (called by rspq_block_run).">__rdpq_block_run</a> </dd>
+<a class="el" href="rdpq_8c.html#a7e9fde5a3babeec454eb8ea92f390601" title="Notify that a rspq block was run (called by rspq_block_run).">__rdpq_block_run</a> </dd>
 <dd>
 <a class="el" href="rdpq_8c.html#a95f193ed65ef91d46599c3ca7edb1cc6" title="Free a block.">__rdpq_block_free</a> </dd></dl>
 
