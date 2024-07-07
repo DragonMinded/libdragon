@@ -154,6 +154,7 @@ typedef struct vi_config_s{
 #define VI_BURST_WIDTH_PAL                  35
 /** @brief VI_BURST Register: PAL default horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH_PAL                  58
+/** @brief VI_BURST Register: PAL default setting. */
 #define VI_BURST_PAL                        VI_BURST_SET(VI_BURST_START_PAL, VI_VSYNC_WIDTH_PAL, VI_BURST_WIDTH_PAL, VI_HSYNC_WIDTH_PAL)
 
 /** @brief VI_BURST Register: MPAL default start of color burst in pixels from hsync. */
@@ -164,6 +165,7 @@ typedef struct vi_config_s{
 #define VI_BURST_WIDTH_MPAL                 30
 /** @brief VI_BURST Register: MPAL default horizontal sync width in pixels. */
 #define VI_HSYNC_WIDTH_MPAL                 57
+/** @brief VI_BURST Register: MPAL default setting. */
 #define VI_BURST_MPAL                       VI_BURST_SET(VI_BURST_START_MPAL, VI_VSYNC_WIDTH_MPAL, VI_BURST_WIDTH_MPAL, VI_HSYNC_WIDTH_MPAL)
 
 /**  Under VI_V_SYNC */
