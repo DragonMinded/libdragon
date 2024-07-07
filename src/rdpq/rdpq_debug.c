@@ -375,6 +375,8 @@ void rdpq_debug_start(void)
 
     assertf(__rdpq_inited, "rdpq_init() must be called before rdpq_debug_start()");
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_SET_DEBUG_MODE, 1);
+
+    debugf("\n**************************************************\nRDPQ debug engine started (slowdowns are expected)\n**************************************************\n\n");
 }
 
 void rdpq_debug_log(bool log)
