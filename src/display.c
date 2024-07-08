@@ -262,7 +262,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
                 Alternatively we could have elected to shorten H_SYNC, however H_SYNC is expected
                 to be less tolerant than V_SYNC so we opt to leave it alone at the nominal value. */
         vi_write_safe(VI_V_SYNC, VI_V_SYNC_SET(525 - 6 - serrate));
-        vi_write_safe(VI_V_VIDEO, (serrate) ? VI_V_VIDEO_SET(35, 509) : VI_V_VIDEO_SET(37, 511));
+        vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
     }
 
     /* Figure out control register based on input given */
