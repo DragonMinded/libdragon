@@ -70,7 +70,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-w, --savetype <type>           Declare cartridge save type.\n");
 	fprintf(stderr, "\t-c, --rtc                       Declare real-time clock support.\n");
 	fprintf(stderr, "\t-r, --regionfree                Declare region-free ROM.\n");
-	fprintf(stderr, "\t-C1, --controller1 <type>       Define controller 1 hardware type. <type> should be one of:\n");
+	fprintf(stderr, "\t-1, --controller1 <type>        Define controller 1 hardware type. <type> should be one of:\n");
 	fprintf(stderr, "\t    default                     Emulators should follow standard config for this port.\n");
 	fprintf(stderr, "\t    n64,pak=rumble              N64 controller with Rumble Pak\n");
 	fprintf(stderr, "\t    n64,pak=controller          N64 controller with Controller Pak\n");
@@ -81,9 +81,9 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t    ngc                         Gamecube controller\n");
 	fprintf(stderr, "\t    randnet                     Randnet keyboard\n");
 	fprintf(stderr, "\t    ngckeyboard                 Gamecube keyboard\n");
-	fprintf(stderr, "\t-C2, --controller2 <type>       Define controller 2 hardware type. For <type>, see --controller1.\n");
-	fprintf(stderr, "\t-C3, --controller3 <type>       Define controller 3 hardware type. For <type>, see --controller1.\n");
-	fprintf(stderr, "\t-C4, --controller4 <type>       Define controller 4 hardware type. For <type>, see --controller1.\n");
+	fprintf(stderr, "\t-2, --controller2 <type>        Define controller 2 hardware type. For <type>, see --controller1.\n");
+	fprintf(stderr, "\t-3, --controller3 <type>        Define controller 3 hardware type. For <type>, see --controller1.\n");
+	fprintf(stderr, "\t-4, --controller4 <type>        Define controller 4 hardware type. For <type>, see --controller1.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Supported cartridge save types:\n");
 	fprintf(stderr, "\tnone        Game does not save or uses Controller Pak.\n");
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
 
 			continue;
 		}
-		if(check_flag(arg, "-C1", "--controller1"))
+		if(check_flag(arg, "-1", "--controller1"))
 		{
 			if(i >= argc)
 			{
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
 
 			continue;
 		}
-		if(check_flag(arg, "-C2", "--controller2"))
+		if(check_flag(arg, "-2", "--controller2"))
 		{
 			if(i >= argc)
 			{
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 			
 			continue;
 		}
-		if(check_flag(arg, "-C3", "--controller3"))
+		if(check_flag(arg, "-3", "--controller3"))
 		{
 			if(i >= argc)
 			{
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
 			
 			continue;
 		}
-		if(check_flag(arg, "-C4", "--controller4"))
+		if(check_flag(arg, "-4", "--controller4"))
 		{
 			if(i >= argc)
 			{
