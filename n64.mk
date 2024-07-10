@@ -8,6 +8,10 @@ N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
 N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
 N64_ROM_ELFCOMPRESS = 1 # Set compression level of ELF file in ROM
+N64_ROM_CONTROLLER1 = # Sets the type of Controller 1 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER2 = # Sets the type of Controller 2 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER3 = # Sets the type of Controller 3 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER4 = # Sets the type of Controller 4 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
@@ -62,6 +66,10 @@ N64_TOOLFLAGS += $(if $(N64_ROM_REGION),--region $(N64_ROM_REGION))
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_REGIONFREE),--regionfree)
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER_TYPE1),--controller1 $(N64_ROM_CONTROLLER_TYPE1))
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER_TYPE2),--controller2 $(N64_ROM_CONTROLLER_TYPE2))
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER_TYPE3),--controller3 $(N64_ROM_CONTROLLER_TYPE3))
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER_TYPE4),--controller4 $(N64_ROM_CONTROLLER_TYPE4))
 
 ifeq ($(D),1)
 CFLAGS+=-g3
