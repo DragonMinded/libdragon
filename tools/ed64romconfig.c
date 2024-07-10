@@ -34,11 +34,11 @@
 #define ROMCONFIG_NOT_SET  0x00
 
 #define CONTROLLERTYPE_INVALID 0xFE
-#define CONTROLLERTYPE_DEFAULT 0x00
+#define CONTROLLERTYPE_N64 0x00
 #define CONTROLLERTYPE_N64_WITH_RUMBLEPAK 0x01
 #define CONTROLLERTYPE_N64_WITH_CONTROLLERPAK 0x02
 #define CONTROLLERTYPE_N64_WITH_TRANSFERPAK 0x03
-#define CONTROLLERTYPE_NOTHING 0xFF
+#define CONTROLLERTYPE_NONE 0xFF
 #define CONTROLLERTYPE_N64_MOUSE 0x80
 #define CONTROLLERTYPE_VRU 0x81
 #define CONTROLLERTYPE_GAMECUBE 0x82
@@ -53,6 +53,7 @@
 #define CONTROLLERTYPE2_OFFSET 0x35
 #define CONTROLLERTYPE3_OFFSET 0x36
 #define CONTROLLERTYPE4_OFFSET 0x37
+#define CONTROLLERTYPE_SIZE 1
 
 #define STATUS_OK       0
 #define STATUS_ERROR    1
@@ -71,16 +72,16 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-c, --rtc                       Declare real-time clock support.\n");
 	fprintf(stderr, "\t-r, --regionfree                Declare region-free ROM.\n");
 	fprintf(stderr, "\t-1, --controller1 <type>        Define controller 1 hardware type. <type> should be one of:\n");
-	fprintf(stderr, "\t    default                     Emulators should follow standard config for this port.\n");
+	fprintf(stderr, "\t    n64                         N64 controller without attachments\n");
 	fprintf(stderr, "\t    n64,pak=rumble              N64 controller with Rumble Pak\n");
 	fprintf(stderr, "\t    n64,pak=controller          N64 controller with Controller Pak\n");
 	fprintf(stderr, "\t    n64,pak=transfer            N64 controller with Transfer Pak\n");
-	fprintf(stderr, "\t    nothing                     Nothing attached to this port\n");
+	fprintf(stderr, "\t    none                        Nothing attached to this port\n");
 	fprintf(stderr, "\t    mouse                       N64 mouse\n");
 	fprintf(stderr, "\t    vru                         VRU\n");
-	fprintf(stderr, "\t    ngc                         Gamecube controller\n");
-	fprintf(stderr, "\t    randnet                     Randnet keyboard\n");
-	fprintf(stderr, "\t    ngckeyboard                 Gamecube keyboard\n");
+	fprintf(stderr, "\t    gamecube                    Gamecube controller\n");
+	fprintf(stderr, "\t    randnetkeyboard             Randnet keyboard\n");
+	fprintf(stderr, "\t    gamecubekeyboard            Gamecube keyboard\n");
 	fprintf(stderr, "\t-2, --controller2 <type>        Define controller 2 hardware type. For <type>, see --controller1.\n");
 	fprintf(stderr, "\t-3, --controller3 <type>        Define controller 3 hardware type. For <type>, see --controller1.\n");
 	fprintf(stderr, "\t-4, --controller4 <type>        Define controller 4 hardware type. For <type>, see --controller1.\n");
@@ -124,7 +125,7 @@ uint8_t parse_save_type(const char * arg)
 uint8_t parse_controller_type(const char* arg)
 {
 	const uint8_t n64_pak_prefix_string_length = 8;
-	if(!strcmp(arg, "default")) return CONTROLLERTYPE_DEFAULT;
+
 	if(!strncmp(arg, "n64,pak=", n64_pak_prefix_string_length))
 	{
 		const char* pak_type_substring = arg + n64_pak_prefix_string_length;
@@ -132,12 +133,13 @@ uint8_t parse_controller_type(const char* arg)
 		if(!strcmp(pak_type_substring, "controller")) return CONTROLLERTYPE_N64_WITH_CONTROLLERPAK;
 		if(!strcmp(pak_type_substring, "transfer")) return CONTROLLERTYPE_N64_WITH_TRANSFERPAK;
 	}
-	if(!strcmp(arg, "nothing")) return CONTROLLERTYPE_NOTHING;
+	if(!strcmp(arg, "n64")) return CONTROLLERTYPE_N64;
+	if(!strcmp(arg, "none")) return CONTROLLERTYPE_NONE;
 	if(!strcmp(arg, "mouse")) return CONTROLLERTYPE_N64_MOUSE;
 	if(!strcmp(arg, "vru")) return CONTROLLERTYPE_VRU;
-	if(!strcmp(arg, "ngc")) return CONTROLLERTYPE_GAMECUBE;
-	if(!strcmp(arg, "randnet")) return CONTROLLERTYPE_RANDNET_KEYBOARD;
-	if(!strcmp(arg, "ngckeyboard")) return CONTROLLERTYPE_GAMECUBE_KEYBOARD;
+	if(!strcmp(arg, "gamecube")) return CONTROLLERTYPE_GAMECUBE;
+	if(!strcmp(arg, "randnetkeyboard")) return CONTROLLERTYPE_RANDNET_KEYBOARD;
+	if(!strcmp(arg, "gamecubekeyboard")) return CONTROLLERTYPE_GAMECUBE_KEYBOARD;
 
 	return CONTROLLERTYPE_INVALID;
 }
@@ -148,10 +150,10 @@ int main(int argc, char *argv[])
 	bool force_rtc = false;
 	bool region_free = false;
 	uint8_t save_type = SAVETYPE_NONE;
-	uint8_t controller_type1 = CONTROLLERTYPE_DEFAULT;
-	uint8_t controller_type2 = CONTROLLERTYPE_DEFAULT;
-	uint8_t controller_type3 = CONTROLLERTYPE_DEFAULT;
-	uint8_t controller_type4 = CONTROLLERTYPE_DEFAULT;
+	uint8_t controller_type1 = CONTROLLERTYPE_N64;
+	uint8_t controller_type2 = CONTROLLERTYPE_N64;
+	uint8_t controller_type3 = CONTROLLERTYPE_N64;
+	uint8_t controller_type4 = CONTROLLERTYPE_N64;
 	int i = 1;
 	const char * arg;
 
@@ -310,13 +312,13 @@ int main(int argc, char *argv[])
 	fseek(write_file, VERSION_OFFSET, SEEK_SET);
 	fwrite(&config, 1, VERSION_SIZE, write_file);
 	fseek(write_file, CONTROLLERTYPE1_OFFSET, SEEK_SET);
-	fwrite(&controller_type1, 1, 1, write_file);
+	fwrite(&controller_type1, 1, CONTROLLERTYPE_SIZE, write_file);
 	fseek(write_file, CONTROLLERTYPE2_OFFSET, SEEK_SET);
-	fwrite(&controller_type2, 1, 1, write_file);
+	fwrite(&controller_type2, 1, CONTROLLERTYPE_SIZE, write_file);
 	fseek(write_file, CONTROLLERTYPE3_OFFSET, SEEK_SET);
-	fwrite(&controller_type3, 1, 1, write_file);
+	fwrite(&controller_type3, 1, CONTROLLERTYPE_SIZE, write_file);
 	fseek(write_file, CONTROLLERTYPE4_OFFSET, SEEK_SET);
-	fwrite(&controller_type4, 1, 1, write_file);
+	fwrite(&controller_type4, 1, CONTROLLERTYPE_SIZE, write_file);
 
 	fclose(write_file);
 
