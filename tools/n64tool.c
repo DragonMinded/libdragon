@@ -65,6 +65,8 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 #define TITLE_OFFSET 0x20
 #define TITLE_SIZE   20
 
+#define ADVANCED_HOMEBREW_HEADER_CONTROLLER1_CONFIG_OFFSET 0x34
+
 #define REGION_OFFSET 0x3E
 
 #define IQUE_ENTRYPOINT_OFFSET 0x8
@@ -119,6 +121,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
 	fprintf(stderr, "\t-R, --region <reg>     Specify ROM region (default: 'E' - North America).\n");
 	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
+	fprintf(stderr, "\t-P, --ares-tpak        Enable Ares Emulator Transfer Pak Compatibility.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "File flags (to be used before each file):\n");
 	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (minimum: 4).\n");
@@ -330,6 +333,7 @@ int main(int argc, char *argv[])
 	size_t total_bytes_written = 0;
 	char title[TITLE_SIZE + 1] = { 0, };
 	bool create_toc = false;
+	bool enable_ares_tpak_compatibility = false;
 	size_t toc_offset = 0;
 	int header_size = 0;
 	int align_next = 0;
@@ -440,6 +444,11 @@ int main(int argc, char *argv[])
 				return print_usage(argv[0]);
 			}
 			create_toc = true;
+			continue;
+		}
+		if(check_flag(arg, "-P", "--ares-tpak"))
+		{
+			enable_ares_tpak_compatibility = true;
 			continue;
 		}
 		if(check_flag(arg, "-s", "--offset"))
@@ -751,6 +760,15 @@ int main(int argc, char *argv[])
 
 		fseek(write_file, toc_offset, SEEK_SET);
 		fwrite(&toc, 1, TOC_SIZE, write_file);
+	}
+
+	/* Enable Ares Emulator Transfer Pak compatibility by setting the controller config accordingly
+	   in the Advanced Homebrew header. In the Ares emulator source code, refer to mia/medium/nintendo-64.cpp */
+	if(enable_ares_tpak_compatibility)
+	{
+		uint8_t newVal = 0x03; //N64 controller with Transfer Pak
+		fseek(write_file, ADVANCED_HOMEBREW_HEADER_CONTROLLER1_CONFIG_OFFSET, SEEK_SET);
+		fwrite(&newVal, 1, 1, write_file);
 	}
 
 	/* Sync and close the output file */

@@ -8,6 +8,7 @@ N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
 N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
 N64_ROM_ELFCOMPRESS = 1 # Set compression level of ELF file in ROM
+N64_ARES_TPAK_COMPAT = # Set to true to enable Ares Emulator Transfer Pak Compatibility.
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
@@ -59,6 +60,7 @@ N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_
 N64_TOOLFLAGS = --title $(N64_ROM_TITLE)
 N64_TOOLFLAGS += $(if $(N64_ROM_HEADER),--header $(N64_ROM_HEADER))
 N64_TOOLFLAGS += $(if $(N64_ROM_REGION),--region $(N64_ROM_REGION))
+N64_TOOLFLAGS += $(if $(N64_ARES_TPAK_COMPAT),--ares-tpak)
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_REGIONFREE),--regionfree)
