@@ -79,9 +79,9 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t    none                        Nothing attached to this port\n");
 	fprintf(stderr, "\t    mouse                       N64 mouse\n");
 	fprintf(stderr, "\t    vru                         VRU\n");
-	fprintf(stderr, "\t    gamecube                    Gamecube controller\n");
+	fprintf(stderr, "\t    gamecube                    GameCube controller\n");
 	fprintf(stderr, "\t    randnetkeyboard             Randnet keyboard\n");
-	fprintf(stderr, "\t    gamecubekeyboard            Gamecube keyboard\n");
+	fprintf(stderr, "\t    gamecubekeyboard            GameCube keyboard\n");
 	fprintf(stderr, "\t-2, --controller2 <type>        Define controller 2 hardware type. For <type>, see --controller1.\n");
 	fprintf(stderr, "\t-3, --controller3 <type>        Define controller 3 hardware type. For <type>, see --controller1.\n");
 	fprintf(stderr, "\t-4, --controller4 <type>        Define controller 4 hardware type. For <type>, see --controller1.\n");
