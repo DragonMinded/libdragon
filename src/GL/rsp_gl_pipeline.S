@@ -548,6 +548,10 @@ GL_TnL:
 
     lqv vmodes,       TEX_GEN_MODE_OFFSET,         s1
     lqv vplanes_s_i,  TEX_GEN_INTEGER_OFFSET+0x00, s1
+
+    # If profiling is enabled, this ucode won't fit into IMEM in its entirety.
+    # In that case, sacrifice linear tex coord generation, a rarely used feature.
+#if !RSPQ_PROFILE
     # Check if linear tex gen is active for any coordinate
     andi t0, state_flags, FLAG_TEX_GEN_LINEAR
     beqz t0, 1f
@@ -583,6 +587,8 @@ GL_TnL:
     #undef vplanes_q_f
 
 1:
+#endif
+
     #define vsqdist_i   $v13
     #define vsqdist_f   $v14
     #define vtmp_i      $v15
