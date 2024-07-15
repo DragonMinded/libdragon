@@ -9,6 +9,7 @@ tools/dumpdfs/dumpdfs
 tools/mkdfs/mkdfs
 tools/mksprite/convtool
 tools/mksprite/mksprite
+tools/n64sym
 tools/n64tool
 tools/**/*.exe
 website/ref/
