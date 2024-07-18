@@ -27,10 +27,11 @@ static int tick(void *arg) {
 	}
 
 	// If we're requested to stop playback, do it.
-	if (!xmp->playing || (!xmp->looping && ctx->loop_count > 0)) {
+	if (xmp->stop_requested || (!xmp->looping && ctx->loop_count > 0)) {
 		for (int i=0;i<ctx->module.num_channels;i++)
 			mixer_ch_stop(xmp->first_ch+i);
 		xmp->playing = false;
+		xmp->stop_requested = false;
 		// Do not reschedule again
 		return 0;
 	}
@@ -197,7 +198,7 @@ void xm64player_play(xm64player_t *player, int first_ch) {
 
 void xm64player_stop(xm64player_t *player) {
 	// Let the mixer callback stop playing
-	player->playing = false;
+	player->stop_requested = true;
 }
 
 void xm64player_tell(xm64player_t *player, int *patidx, int *row, float *secs) {

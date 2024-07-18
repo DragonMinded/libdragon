@@ -60,6 +60,7 @@ typedef struct xm64player_s {
 	FILE *fh;                 ///< open handle of XM64 file
 	int first_ch;             ///< first channel used in the mixer
 	bool playing;             ///< playing flag
+	bool stop_requested;      ///< user requested stop playing
 	bool looping;             ///< true if the XM is configured to loop
 	struct {
 		int patidx, row, tick;
