@@ -709,6 +709,8 @@ RDPQCmd_Triangle:
     li a2, %lo(RDPQ_TRI_DATA1)
     jal RDPQ_Triangle_Send_Async
     li a3, %lo(RDPQ_TRI_DATA2)
+RSPQ_Triangle_Clip:
+RSPQ_Triangle_Cull:
     jal_and_j RDPQ_Triangle_Send_End, RSPQ_Loop
 
 #endif /* RDPQ_TRIANGLE_REFERENCE */

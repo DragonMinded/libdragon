@@ -1368,10 +1368,10 @@ makeMxc2Op mfc2, 0x0
 
 .macro emux_log_string str
     .data
-__emux_log_string.\@: .asciiz "\str"
+__emux_log_string_\@: .asciiz "\str"
     .previous
     .set noat
-    la $1, __emux_log_string.\@
+    la $1, __emux_log_string_\@
     emux 1, 0x31
     .set at
 .endm

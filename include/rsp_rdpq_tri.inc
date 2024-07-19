@@ -82,8 +82,12 @@
     # * s3: output buffer pointer
     #
     # OUTPUT:
-    # * v1: 1=clipping required, 0=nothing to do
     # * s3: pointer to the end of the primitive in the output buffer
+    #
+    # RETURN TO:
+    # * Caller ($ra) if the triangle is correctly processed
+    # * Jump to RSPQ_Triangle_Clip if the triangle requires clipping
+    # * Jump to RSPQ_Triangle_Cull if the triangle is culled (either backface, or out of clip planes)
     #
     # CLOBBER:
     # t0-t6, a0-a3
@@ -117,7 +121,6 @@ RDPQ_Triangle_Send_Async:
     #define vtx2   RDPQ_TRIANGLE_VTX2   // a2
     #define vtx3   RDPQ_TRIANGLE_VTX3   // a3
     #define cull   v0
-    #define out_clip_flag   v1
 
     # r, g, b, a, s, t, w, z
     #define vfinal_i         $v01
@@ -255,23 +258,22 @@ RDPQ_Triangle_Send_Async:
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
     # and then use vmrg to apply the swap.
-    li out_clip_flag, 0;                        vge vytmp1, vy1, vy2;               
+    lbu t6, %lo(RDPQ_OTHER_MODES) + 0;          vge vytmp1, vy1, vy2;               
     or clip1, clip3;                            vmrg valltmp1, vall1, vall2;        
     or clip1, clip2;                            vlt vy1, vy1, vy2;                  
     cfc2 did_swap_0, COP2_CTRL_VCC;             vmrg vall1, vall1, vall2;
 
-    andi t4, clip1, 0xFF;                       
-    xori t4, 0xFF;                              vxor vhmlupp, vhmlupp
+    andi t1, clip1, 0x3F00;                     vxor vhmlupp, vhmlupp
 
-    beqz t4, JrRa;                              vge vytmp2, vy1, vy3;               
-    andi clip1, 0x3F00;                         vmrg valltmp2, vall1, vall3;
-    lbu t4, %lo(RDPQ_OTHER_MODES) + 0;          vlt vy1, vy1, vy3;                  
+    bnez t1, RSPQ_Triangle_Clip;                vge vytmp2, vy1, vy3;
+    andi clip1, 0xFF;                           vmrg valltmp2, vall1, vall3;
+    andi t6, 0x38;                              vlt vy1, vy1, vy3;                  
     cfc2 did_swap_1, COP2_CTRL_VCC;             vmrg vall1, vall1, vall3;           
 
-    nop;                                        vge vy3, vytmp1, vytmp2;            
-    andi t4, 0x38;                              vmrg vall3, valltmp1, valltmp2;     
-    or tricmd, t4;                              vlt vy2, vytmp1, vytmp2;            
-    cfc2 did_swap_2, COP2_CTRL_VCC;             vmrg vall2, valltmp1, valltmp2;     
+    xori clip1, 0xFF;                           vge vy3, vytmp1, vytmp2;            
+    or tricmd, t6;                              vmrg vall3, valltmp1, valltmp2;
+    ssv vy1.e0, 6,s3;                           vlt vy2, vytmp1, vytmp2;
+    cfc2 did_swap_2, COP2_CTRL_VCC;             vmrg vall2, valltmp1, valltmp2;
 
     # Copy Y1, Y2 into vy3, so that we get the three sorted Y in the same
     # vector.
@@ -279,9 +281,8 @@ RDPQ_Triangle_Send_Async:
 
     # Build vhml:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
-    vmov vy3.e3, vy1.e0;                        xor did_swap_0, did_swap_1
-    vsubc vhml, vall3, vall1;
-    vmov vy3.e2, vy2.e0;                        xor did_swap_0, did_swap_2
+    beqz clip1, RSPQ_Triangle_Cull;             xor did_swap_0, did_swap_1
+    vsubc vhml, vall3, vall1;                   xor did_swap_0, did_swap_2
     vsubc vm, vall2, vall1;                     mfc2 vtx1, vall1.e3
     vsubc vl, vall3, vall2;                     mfc2 vtx2, vall2.e3
 
@@ -293,10 +294,9 @@ RDPQ_Triangle_Send_Async:
     vsubc v__, vzero, my;                       mfc2 vtx3, vall3.e3
     
     # FY.e4 = Y1 (s15.16)
-    vsll8 vfy_f, vy1, 14;                       sdv vy3.e0, 0,s3
-    vsra  vfy_i, vy1, 2;                        bnez clip1, JrRa
-                                                li out_clip_flag, 1     # report clipping required
-    vmudh vnz_f, vm, hy;                        li out_clip_flag, 0     # report no clipping required
+    vsll8 vfy_f, vy1, 14;                       ssv vy2.e0, 4,s3
+    vsra  vfy_i, vy1, 2;                        
+    vmudh vnz_f, vm, hy;                        ssv vy3.e0, 2,s3
     vmadh vnz_f, vhml, v__;                     slv vm.e0,   8,s3
     vsar vnz_i, COP2_ACC_HI;                    slv vl.e0,  12,s3
     vsar vnz_f, COP2_ACC_MD;                    ldv vhml.e2, 8,s3
@@ -328,7 +328,7 @@ RDPQ_Triangle_Send_Async:
                                         
     # Compute ISH (H slope). 1/HY  (s14.1)
     vrcp  vslope_f.e0, hy;                      slt t0, t0, zero
-    vrcph vslope_i.e0, hy;                      beq t0, cull, JrRa
+    vrcph vslope_i.e0, hy;                      beq t0, cull, RSPQ_Triangle_Cull
     # Compute ISM (M slope). 1/MY  (s14.1)
     vrcp  vslope_f.e2, my;                      # <delay slot>
     vrcph vslope_i.e2, my;                      lsv vw_i.e0, VTX_ATTR_Wi,vtx1
