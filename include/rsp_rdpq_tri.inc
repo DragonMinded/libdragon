@@ -86,8 +86,8 @@
     #
     # RETURN TO:
     # * Caller ($ra) if the triangle is correctly processed
-    # * Jump to RSPQ_Triangle_Clip if the triangle requires clipping
-    # * Jump to RSPQ_Triangle_Cull if the triangle is culled (either backface, or out of clip planes)
+    # * Jump to RDPQ_Triangle_Clip if the triangle requires clipping
+    # * Jump to RDPQ_Triangle_Cull if the triangle is culled (either backface, or out of clip planes)
     #
     # CLOBBER:
     # t0-t6, a0-a3
@@ -265,7 +265,7 @@ RDPQ_Triangle_Send_Async:
 
     andi t1, clip1, 0x3F00;                     vxor vhmlupp, vhmlupp
 
-    bnez t1, RSPQ_Triangle_Clip;                vge vytmp2, vy1, vy3;
+    bnez t1, RDPQ_Triangle_Clip;                vge vytmp2, vy1, vy3;
     andi clip1, 0xFF;                           vmrg valltmp2, vall1, vall3;
     andi t6, 0x38;                              vlt vy1, vy1, vy3;                  
     cfc2 did_swap_1, COP2_CTRL_VCC;             vmrg vall1, vall1, vall3;           
@@ -281,7 +281,7 @@ RDPQ_Triangle_Send_Async:
 
     # Build vhml:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
-    beqz clip1, RSPQ_Triangle_Cull;             xor did_swap_0, did_swap_1
+    beqz clip1, RDPQ_Triangle_Cull;             xor did_swap_0, did_swap_1
     vsubc vhml, vall3, vall1;                   xor did_swap_0, did_swap_2
     vsubc vm, vall2, vall1;                     mfc2 vtx1, vall1.e3
     vsubc vl, vall3, vall2;                     mfc2 vtx2, vall2.e3
@@ -328,7 +328,7 @@ RDPQ_Triangle_Send_Async:
                                         
     # Compute ISH (H slope). 1/HY  (s14.1)
     vrcp  vslope_f.e0, hy;                      slt t0, t0, zero
-    vrcph vslope_i.e0, hy;                      beq t0, cull, RSPQ_Triangle_Cull
+    vrcph vslope_i.e0, hy;                      beq t0, cull, RDPQ_Triangle_Cull
     # Compute ISM (M slope). 1/MY  (s14.1)
     vrcp  vslope_f.e2, my;                      # <delay slot>
     vrcph vslope_i.e2, my;                      lsv vw_i.e0, VTX_ATTR_Wi,vtx1
