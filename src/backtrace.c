@@ -203,7 +203,7 @@ static symtable_header_t symt_open(void *addr) {
 		if(__dl_lookup_module) {
 			module = __dl_lookup_module(addr);
 		}
-		if(module) {
+		if(module && module->sym_romofs != 0) {
 			//Read module SYMT
 			SYMT_ROM = module->sym_romofs;
 			addrtable_base = (uint32_t)module->prog_base;
