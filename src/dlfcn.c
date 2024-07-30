@@ -401,7 +401,6 @@ static dl_module_t *lookup_module(const void *addr)
 void *dlopen(const char *filename, int mode)
 {
     dl_module_t *handle;
-    assertf(strncmp(filename, "rom:/", 5) == 0, "Cannot open %s: dlopen only supports files in ROM (rom:/)", filename);
     assertf(strlen(filename) <= 255, "dlopen only supports filenames with no more than 255 characters");
     handle = search_module_filename(filename);
     if(mode & ~(RTLD_GLOBAL|RTLD_NODELETE|RTLD_NOLOAD)) {
@@ -422,13 +421,21 @@ void *dlopen(const char *filename, int mode)
         assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
         link_module(handle);
         handle->mode = mode;
-        sprintf(handle->filename, "%s.sym", filename+5);
-        handle->sym_romofs = dfs_rom_addr(handle->filename) & 0x1FFFFFFF;
-        if(handle->sym_romofs == 0) {
-            //Warn if symbol file was not found in ROM
-            debugf("Could not find module symbol file %s.\n", handle->filename);
-            debugf("Will not get symbolic backtraces through this module.\n");
-        }
+		if(strncmp(filename, "rom:/", 5) == 0) {
+			sprintf(handle->filename, "%s.sym", filename+5);
+			handle->sym_romofs = dfs_rom_addr(handle->filename) & 0x1FFFFFFF;
+			if(handle->sym_romofs == 0) {
+				//Warn if symbol file was not found in ROM
+				debugf("Could not find module symbol file %s.\n", handle->filename);
+				debugf("Will not get symbolic backtraces through this module.\n");
+			}
+		} else {
+			//Warn that no symbolic backtraces are possible
+			debugf("DSO file %s does not come from ROM.\n", filename);
+			debugf("Symbolic backtraces will be disabled.\n");
+			handle->sym_romofs = 0;
+		}
+        
         strcpy(handle->filename, filename);
         //Add module handle to list
         handle->ref_count = 1;
