@@ -859,4 +859,31 @@ typedef uint32_t rdpq_blender_t;
  */
 #define RDPQ_BLENDER2(bl0, bl1) castbl(__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | SOMX_BLEND_2PASS)
 
+/** 
+ * @brief The maximum Z value, which is the default reset value for the Z-Buffer.
+ * 
+ * This is equivalent to #ZBUF_VAL(1.0f)
+ */
+#define ZBUF_MAX        0xFFFC 
+
+#ifndef __ASSEMBLER__
+
+///@cond
+extern uint16_t __rdpq_zfp14(float f);
+///@endcond
+
+/** 
+ * @brief Create a packed Z-buffer value for a given Z value.
+ * 
+ * This macro can be used to convert a floating point Z value in range [0..1]
+ * to a packed Z value that can be written as-is in the Z-buffer, for instance
+ * via #rdpq_clear_z.
+ * 
+ * Notice that this macro sets Delta-Z to 0 in the packed Z value, since it is
+ * not possible to fully configure Delta-Z via #rdpq_clear_z anyway.
+ */
+#define ZBUF_VAL(f)     (__rdpq_zfp14(f) << 2)
+
+#endif
+
 #endif

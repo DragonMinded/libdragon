@@ -824,7 +824,7 @@ autotmem_lowerlimit:
     #######################################################################
     # RDPQCmd_ClearZBuffer
     #
-    # Clear the Z-Buffer by filling it with 0xFFFC. This is quite a bit
+    # Clear the Z-Buffer by filling it with ZBUF_MAX. This is quite a bit
     # faster than using RDP, though it does require a RDP fence to make
     # sure the Z-Buffer is not in use anymore
     #

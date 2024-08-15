@@ -1138,6 +1138,20 @@ void rdpq_call_deferred(void (*func)(void *), void *arg)
 
 /** @} */
 
+///@cond
+uint16_t __rdpq_zfp14(float f) {
+    uint32_t fx = f * 0x3FFFF;
+    if (!(fx & 0x20000)) return (0<<11) | ((fx >> 6) & 0x7FF);
+    if (!(fx & 0x10000)) return (1<<11) | ((fx >> 5) & 0x7FF);
+    if (!(fx & 0x08000)) return (2<<11) | ((fx >> 4) & 0x7FF);
+    if (!(fx & 0x04000)) return (3<<11) | ((fx >> 3) & 0x7FF);
+    if (!(fx & 0x02000)) return (4<<11) | ((fx >> 2) & 0x7FF);
+    if (!(fx & 0x01000)) return (5<<11) | ((fx >> 1) & 0x7FF);
+    if (!(fx & 0x00800)) return (6<<11) | ((fx >> 0) & 0x7FF);
+    if (true)            return (7<<11) | ((fx >> 0) & 0x7FF);
+}
+///@endcond
+
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);
 extern inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2);

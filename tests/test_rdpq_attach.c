@@ -24,7 +24,7 @@ void test_rdpq_attach_clear(TestContext *ctx)
 
     ASSERT_SURFACE(&fb, { return RGBA32(0,0,0,0xFF); });
     for (int i=0; i<WIDTH*WIDTH; i++)
-        ASSERT_EQUAL_HEX(((uint16_t*)fbz.buffer)[i], 0xFFFC,
+        ASSERT_EQUAL_HEX(((uint16_t*)fbz.buffer)[i], ZBUF_MAX,
             "Invalid Z-buffer value at %d", i);
 }
 
@@ -53,6 +53,6 @@ void test_rdpq_attach_stack(TestContext *ctx)
     ASSERT_SURFACE(&fb1, { return RGBA32(0xAA,0xAA,0xAA,0xAA); });
     ASSERT_SURFACE(&fb2, { return RGBA32(0,0,0,0xFF); });
     for (int i=0; i<WIDTH*WIDTH; i++)
-        ASSERT_EQUAL_HEX(((uint16_t*)fbz.buffer)[i], 0xFFFC,
+        ASSERT_EQUAL_HEX(((uint16_t*)fbz.buffer)[i], ZBUF_MAX,
             "Invalid Z-buffer value at %d", i);
 }

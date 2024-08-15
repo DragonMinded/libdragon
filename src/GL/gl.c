@@ -416,8 +416,8 @@ void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 void glClearDepth(GLclampd d)
 {
     if (!gl_ensure_no_begin_end()) return;
-    
-    color_t clear_depth = color_from_packed16((uint16_t)(d * 0xFFFF) & 0xFFFC);
+
+    color_t clear_depth = color_from_packed16(ZBUF_VAL(d));
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_depth), color_to_packed32(clear_depth));
 }
 
