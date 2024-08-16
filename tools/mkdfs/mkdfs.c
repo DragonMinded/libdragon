@@ -280,18 +280,17 @@ uint32_t add_directory(const char * const base_path, const char * const path)
 
 void write_dir_lookup(void)
 {
-    size_t lookup_size = sizeof(dfs_file_lookup_t);
     uint32_t num_files = stbds_arrlenu(dfs_lookup);
-    lookup_size += num_files*sizeof(dfs_file_entry_t);
+    uint32_t lookup_size = num_files*sizeof(dfs_file_entry_t);
     uint32_t file_pointer = new_blob(lookup_size);
     directory_entry_t *id_dir = sector_to_memory(0);
-    dfs_file_lookup_t *lookup_ptr = sector_to_memory(file_pointer);
+    dfs_file_entry_t *rom_lookup = sector_to_memory(file_pointer);
+    id_dir->next_entry = SWAPLONG(num_files);
     id_dir->file_pointer = SWAPLONG(file_pointer);
-    lookup_ptr->num_files = SWAPLONG(num_files);
     for(uint32_t i=0; i<num_files; i++) {
-        lookup_ptr->files[i].path_hash = SWAPLONG(dfs_lookup[i].path_hash);
-        lookup_ptr->files[i].data_ofs = SWAPLONG(dfs_lookup[i].data_ofs);
-        lookup_ptr->files[i].data_len = SWAPLONG(dfs_lookup[i].data_len);
+        rom_lookup[i].path_hash = SWAPLONG(dfs_lookup[i].path_hash);
+        rom_lookup[i].data_ofs = SWAPLONG(dfs_lookup[i].data_ofs);
+        rom_lookup[i].data_len = SWAPLONG(dfs_lookup[i].data_len);
     }
 }
 

@@ -40,6 +40,10 @@ enum
 
 /** @brief Base filesystem pointer */
 static uint32_t base_ptr = 0;
+/** @brief Number of file entries in lookup data */
+uint32_t file_entry_count;
+/** @brief Base pointer for lookup data */
+dfs_file_entry_t *file_entry;
 /** @brief Directory pointer stack */
 static uint32_t directories[MAX_DIRECTORY_DEPTH];
 /** @brief Depth into directory pointer stack */
@@ -541,6 +545,17 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
     return ret;
 }
 
+
+static void init_dfs_lookup(directory_entry_t *id_node)
+{
+    uint32_t romaddr = get_start_location(id_node);
+    file_entry_count = id_node->next_entry;
+    uint32_t data_size = file_entry_count*sizeof(dfs_file_entry_t);
+    file_entry = malloc(data_size);
+    data_cache_hit_writeback_invalidate(file_entry, data_size);
+    dma_read(file_entry, romaddr, data_size);
+}
+
 /**
  * @brief Helper functioner to initialize the filesystem
  *
@@ -555,13 +570,14 @@ static int __dfs_init(uint32_t base_fs_loc)
     directory_entry_t id_node;
     grab_sector((void *)base_fs_loc, &id_node);
 
-    if(id_node.flags == ROOT_FLAGS && id_node.next_entry == ROOT_NEXT_ENTRY && 
-        !strcmp(id_node.path, ROOT_PATH))
+    if(id_node.flags == ROOT_FLAGS && !strcmp(id_node.path, ROOT_PATH))
     {
         /* Passes, set up the FS */
         base_ptr = base_fs_loc;
         clear_directory();
-
+        if(id_node.file_pointer != 0) {
+            init_dfs_lookup(&id_node);
+        }
         /* Good FS */
         return DFS_ESUCCESS;
     }
@@ -684,36 +700,76 @@ int dfs_dir_findnext(char *buf)
     return __dfs_findnext(buf, &next_entry);
 }
 
-
-int dfs_open(const char * const path)
+static uint32_t prime_hash(const char *str, uint32_t prime)
 {
-    /* Try to find file */
-    directory_entry_t *dirent;
-    int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
-
-    if(ret != DFS_ESUCCESS)
-    {
-        /* File not found, or other error */
-        return ret;
+    uint32_t hash = 0;
+    while(*str) {
+        char c = *str++;
+        hash = (hash * prime) + c;
     }
+    return hash;
+}
 
-    /* Try to find a free slot */
-    dfs_open_file_t *file = malloc(sizeof(dfs_open_file_t));
-
-    if(!file)
-    {
-        return DFS_ENOMEM;
+static dfs_file_entry_t *lookup_file_entry(const char *const path)
+{
+    uint32_t hash = prime_hash(path, DFS_LOOKUP_PRIME);
+    for(uint32_t i=0; i<file_entry_count; i++) {
+        if(file_entry[i].path_hash == hash) {
+            return &file_entry[i];
+        }
     }
+    return NULL;
+}
 
-    /* We now have the pointer to the file entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
+int dfs_open(const char *const path)
+{
+    dfs_open_file_t *file;
+    if(file_entry)
+    {
+        dfs_file_entry_t *entry = lookup_file_entry(path);
+        if(!entry)
+        {
+            //File not found
+            return DFS_ENOFILE;
+        }
+        /* Try to find a free slot */
+        file = malloc(sizeof(dfs_open_file_t));
+        if(!file)
+        {
+            return DFS_ENOMEM;
+        }
+        //Set file data
+        file->size = entry->data_len;
+        file->loc = 0;
+        file->cart_start_loc = base_ptr+entry->data_ofs;
+    } else {
+        /* Try to find file */
+        directory_entry_t *dirent;
+        int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
 
-    /* Set up file handle */
-    file->size = get_size(&t_node);
-    file->loc = 0;
-    file->cart_start_loc = get_start_location(&t_node);
+        if(ret != DFS_ESUCCESS)
+        {
+            /* File not found, or other error */
+            return ret;
+        }
 
+        /* Try to find a free slot */
+        file = malloc(sizeof(dfs_open_file_t));
+
+        if(!file)
+        {
+            return DFS_ENOMEM;
+        }
+
+        /* We now have the pointer to the file entry */
+        directory_entry_t t_node;
+        grab_sector(dirent, &t_node);
+
+        /* Set up file handle */
+        file->size = get_size(&t_node);
+        file->loc = 0;
+        file->cart_start_loc = get_start_location(&t_node);
+    }
     return OPENFILE_TO_HANDLE(file);
 }
 
@@ -907,22 +963,34 @@ int dfs_size(uint32_t handle)
 
 uint32_t dfs_rom_addr(const char *path)
 {
-    /* Try to find file */
-    directory_entry_t *dirent;
-    int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
-
-    if(ret != DFS_ESUCCESS)
+    if(file_entry)
     {
-        /* File not found, or other error */
-        return 0;
+        dfs_file_entry_t *entry = lookup_file_entry(path);
+        if(!entry)
+        {
+            //File not found
+            return 0;
+        }
+        return base_ptr+entry->data_ofs;
+    } else {
+        /* Try to find file */
+        directory_entry_t *dirent;
+        int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
+
+        if(ret != DFS_ESUCCESS)
+        {
+            /* File not found, or other error */
+            return 0;
+        }
+
+        /* We now have the pointer to the file entry */
+        directory_entry_t t_node;
+        grab_sector(dirent, &t_node);
+
+        /* Return the starting location in ROM */
+        return get_start_location(&t_node);
     }
-
-    /* We now have the pointer to the file entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
-
-    /* Return the starting location in ROM */
-    return get_start_location(&t_node);
+    
 }
 
 int dfs_eof(uint32_t handle)

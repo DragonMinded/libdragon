@@ -57,9 +57,4 @@ typedef struct dfs_file_entry_s {
     uint32_t data_len;
 } dfs_file_entry_t;
 
-typedef struct dfs_file_lookup_s {
-    uint32_t num_files;
-    dfs_file_entry_t files[];
-} dfs_file_lookup_t;
-
 #endif
