@@ -512,7 +512,8 @@ static void joypad_read_async(void)
             }
             else if (
                 identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER ||
-                identifier == JOYBUS_IDENTIFIER_N64_MOUSE
+                identifier == JOYBUS_IDENTIFIER_N64_MOUSE ||
+                sys_bbplayer() // on iQue, we must always poll the 4 controllers even if disconnected
             )
             {
                 const joybus_cmd_n64_controller_read_port_t cmd = { .send = {
@@ -654,6 +655,7 @@ void joypad_poll(void)
     enable_interrupts();
 
     uint8_t send_len, recv_len, command_id, command_len;
+    bool error;
     joypad_device_cold_t *device;
     bool check_origins = false;
     size_t i = 0;
@@ -675,15 +677,22 @@ void joypad_poll(void)
             recv_len = 0;
             command_id = JOYBUS_COMMAND_ID_RESET;
             command_len = JOYBUS_COMMAND_SKIP_SIZE;
+            error = false;
         }
         else
         {
             recv_len = output[i + JOYBUS_COMMAND_OFFSET_RECV_LEN];
+            // Extract error flag which means that the device was disconnected.
+            // We can instead ignore the overflow flag (0x40). That should never
+            // happen in practice, because we always allocate enough space for
+            // the whole reply.
+            error = recv_len & 0x80;
+            recv_len &= 0x3F;
             command_id = output[i + JOYBUS_COMMAND_OFFSET_COMMAND_ID];
             command_len = JOYBUS_COMMAND_METADATA_SIZE + send_len + recv_len;
         }
 
-        if (command_id == JOYBUS_COMMAND_ID_N64_CONTROLLER_READ)
+        if (command_id == JOYBUS_COMMAND_ID_N64_CONTROLLER_READ && !error)
         {
             const joybus_cmd_n64_controller_read_port_t *cmd;
             cmd = (void *)&output[i + JOYBUS_COMMAND_METADATA_SIZE];
@@ -702,7 +711,7 @@ void joypad_poll(void)
             device->previous = device->current;
             device->current = joypad_inputs_from_n64_controller_read(cmd);
         }
-        else if (command_id == JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ)
+        else if (command_id == JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ && !error)
         {
             // Normalize GameCube controller read response
             const joybus_cmd_gcn_controller_read_port_t *cmd;
