@@ -353,13 +353,15 @@ void stage1(void)
     bootinfo->flags = (ipl2_tvType << 16) | (ipl2_resetType << 8) | (bbplayer ? 1 : 0);
     bootinfo->padding = 0;
 #else
-    *(volatile uint32_t *)0x80000300 = ipl2_tvType;
-    *(volatile uint32_t *)0x80000304 = ipl2_romType;
-    *(volatile uint32_t *)0x80000308 = ipl2_romType ? 0x06000000 : 0x10000000;
-    *(volatile uint32_t *)0x8000030C = ipl2_resetType;
-    *(volatile uint32_t *)0x80000314 = ipl2_version;
-    *(volatile uint32_t *)0x80000318 = memsize;
-    data_cache_hit_writeback_invalidate((void*)0x80000300, 0x20);
+    if (!bbplayer) {
+        *(volatile uint32_t *)0x80000300 = ipl2_tvType;
+        *(volatile uint32_t *)0x80000304 = ipl2_romType;
+        *(volatile uint32_t *)0x80000308 = ipl2_romType ? 0xA6000000 : 0xB0000000;
+        *(volatile uint32_t *)0x8000030C = ipl2_resetType;
+        *(volatile uint32_t *)0x80000314 = ipl2_version;
+        *(volatile uint32_t *)0x80000318 = memsize;
+        data_cache_hit_writeback_invalidate((void*)0x80000300, 0x20);
+    }
 #endif
 
     // Wait until stage 2 is fully loaded into RDRAM
