@@ -19,7 +19,6 @@ typedef struct dfs_file_s {
 typedef struct dfs_header_s {
     uint32_t magic;
     uint32_t num_files;
-    uint32_t pathdata_ofs;
 } dfs_header_t;
 
 #endif
