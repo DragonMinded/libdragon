@@ -173,14 +173,22 @@ static void bzero8(void *mem)
     asm ("sdl $0, 0(%0); sdr $0, 7(%0);" :: "r"(mem));
 }
 
-static void rsp_bzero_init(void)
+static void rsp_bzero_init(bool bbplayer)
 {
-    // We run a DMA from RDRAM address > 8MiB where many areas return 0 on read.
-    // Notice that we can do this only after RI has been initialized.
     while (*SP_DMA_BUSY) {} 
-    *SP_RSP_ADDR = 0x1000;
-    *SP_DRAM_ADDR = 8*1024*1024 + 0x2000;
-    *SP_RD_LEN = 4096-1;
+    if (!bbplayer) {
+        // We run a DMA from RDRAM address > 8MiB where many areas return 0 on read.
+        // Notice that we can do this only after RI has been initialized.
+        *SP_RSP_ADDR = 0x1000;
+        *SP_DRAM_ADDR = 8*1024*1024 + 0x2000;
+        *SP_RD_LEN = 4096-1;
+    } else {
+        // iQue RAM is mirrored instead, so we can't use the above trick. Just use
+        // CPU to clear IMEM.
+        for (int i=0; i<4096/4; i++) {
+            SP_IMEM[i] = 0;
+        }
+    }
 }
 
 // Clear memory using RSP DMA. We use IMEM as source address, which
@@ -222,7 +230,7 @@ static void mem_bank_init(int chip_id, bool last)
 {
     if (chip_id == -1) {
         // First call, we clear SP_IMEM that will be used later.
-        rsp_bzero_init();
+        rsp_bzero_init(false);
         return;
     }
  
@@ -320,7 +328,7 @@ void stage1(void)
         // with this even if Everdrive itself doesn't use this IPL3 (but
         // might boot a game that does, and that game shouldn't clear
         // 0x80000318).
-        rsp_bzero_init();
+        rsp_bzero_init(bbplayer);
         rsp_bzero_async(0xA0000400, memsize-0x400-TOTAL_RESERVED_SIZE);
     }
 
