@@ -67,9 +67,9 @@ static void attach(const surface_t *surf_color, const surface_t *surf_z, bool cl
             "Color and Z buffers must have the same size");
         
         if (clear_z) {
-            if (!__rdpq_clear_z_with_rsp(surf_z, 0xFFFC)) {
+            if (!__rdpq_clear_z_with_rsp(surf_z, ZBUF_MAX)) {
                 rdpq_set_color_image(surf_z);
-                rdpq_set_mode_fill(color_from_packed16(0xFFFC));
+                rdpq_set_mode_fill(color_from_packed16(ZBUF_MAX));
                 rdpq_fill_rectangle(0, 0, surf_z->width, surf_z->height);
             }
         }
