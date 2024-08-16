@@ -270,6 +270,11 @@ void stage1(void)
         memsize = rdram_init(mem_bank_init);
     } else {
         if (bbplayer) {
+            // iQue doesn't have a IPL2 and the OS provides boot flags already in lowmem.
+            // Read the ones we need for our bootflags.
+            ipl2_tvType    = *(uint32_t *)0xA0000300;
+            ipl2_resetType = *(uint32_t *)0xA000030C;
+
             // iQue OS put the memory size in a special location. This is the
             // amount of memory that the OS has assigned to the application, so it
             // could be less than the physical total memory. Anyway, it's the value
