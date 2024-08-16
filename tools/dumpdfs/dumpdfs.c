@@ -794,7 +794,7 @@ int main( int argc, char *argv[] )
             int offset = 0;
             if (!strstr(argv[2], ".dfs"))
             {
-                void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
+                void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent)-4);
                 if (!fs)
                 {
                     fprintf(stderr, "cannot find DragonFS in ROM\n");
