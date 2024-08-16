@@ -16,6 +16,9 @@ _start:
 	li v0,SR_CU1|SR_PE|SR_FR|SR_KX|SR_SX|SR_UX
 	mtc0 v0,C0_SR
 
+	jal __bss_check
+	nop
+
 	/* Copy bootcode flags, stored in DMEM */
 	lui v0, 0xA400
 	lw t0, 0x0000(v0)
