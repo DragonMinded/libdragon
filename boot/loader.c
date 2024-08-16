@@ -231,8 +231,8 @@ static void fatal(const char *str)
     }
 
 #endif
-    int tv_type = io_read8(0xA4400009);
-    bool ique = io_read8(0xA440000B);
+    int tv_type = io_read8(0xA4000009);
+    bool ique = io_read8(0xA400000B);
     #pragma GCC unroll 0
     for (int reg=0; reg<7; reg++)
         regs[reg+5] = vi_regs_p[tv_type][reg];
