@@ -285,8 +285,12 @@ void usb_init(void)
         if (!ique_addr) ique_addr = *(uint32_t*)0x8000036C; // sram emulation
 
         // If save emulation support is not enabled for this ROM, we can't log
+        // Otherwise, log directly to RDRAM (bypass the cache) so that we don't
+        // risk the data to be lost if the cache is purged during IPL3.
         if (!ique_addr) 
             debug_pipe = 0;
+        else
+            ique_addr |= 0xA0000000;
     }   break;
     }
 }
