@@ -332,13 +332,21 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
 
     JOYPAD_PORT_FOREACH (port)
     {
-        while (out_bytes[i] == 0xff) i++; // Skip nops we put for iQue
+        if (sys_bbplayer()) {
+            // iQue has a very fixed layout for commands, and it also tends
+            // to corrupt other parts of PIF-RAM. So better jump to fixed positions
+            // while parsing.
+            i = (port * 8) + 1;
+        }
         device = &joypad_devices_hot[port];
         accessory = &joypad_accessories_hot[port];
         cmd = (void *)&out_bytes[i + JOYBUS_COMMAND_METADATA_SIZE];
-        i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
 
         joybus_identifier_t identifier = cmd->recv.identifier;
+        if (out_bytes[i+1] & 0x80) {
+            // If the error flag is set, no device is connected here
+            identifier = JOYBUS_IDENTIFIER_NONE;
+        }
         if (joypad_identifiers_hot[port] != identifier)
         {
             // The identifier has changed; reinitialize device state
@@ -394,6 +402,8 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
         {
             device->style = JOYPAD_STYLE_MOUSE;
         }
+
+        i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
     }
 
     if (devices_changed) joypad_read_input_valid = false;
@@ -428,14 +438,14 @@ static void joypad_identify_async(bool reset)
         {
             // iQue has a very lousy PIF emulator that requires identification
             // commands to be prepended by a nop (0xff) or they are not recognized.
-            input[i++] = 0xff;
+            if (sys_bbplayer()) input[i++] = 0xff;
             // Set the command metadata
             input[i++] = sizeof(cmd.send);
             input[i++] = sizeof(cmd.recv);
             // Micro-optimization: Minimize copy length
             memcpy(&input[i], &cmd, recv_offset);
             i += sizeof(cmd);
-            while (i & 7) input[i++] = 0xff; // Align to 8-byte boundary for iQue
+            if (sys_bbplayer()) while (i & 7) input[i++] = 0xff;
         }
 
         // Close out the Joybus operation block
@@ -510,7 +520,7 @@ static void joypad_read_async(void)
                 } };
                 // iQue has a very lousy PIF emulator that requires commands
                 // to be prepended by a nop (0xff) or they are not recognized.
-                input[i++] = 0xff;
+                if (sys_bbplayer()) input[i++] = 0xff;
                 // Set the command metadata
                 input[i++] = sizeof(cmd.send);
                 input[i++] = sizeof(cmd.recv);
@@ -518,12 +528,18 @@ static void joypad_read_async(void)
                 const size_t recv_offset = offsetof(typeof(cmd), recv);
                 memcpy(&input[i], &cmd, recv_offset);
                 i += sizeof(cmd);
-                while (i & 7) input[i++] = 0xff; // Align to 8-byte boundary for iQue
+                if (sys_bbplayer()) while (i & 7) input[i++] = 0xff;
             }
             else
             {
-                // Skip this port
-                i += JOYBUS_COMMAND_SKIP_SIZE;
+                if (sys_bbplayer()) {
+                    // Align to 8-byte boundary for iQue
+                    for (int j=0; j<8; j++)
+                        input[i++] = 0xff;
+                } else {
+                    // Skip this port
+                    i += JOYBUS_COMMAND_SKIP_SIZE;
+                }
             }
         }
 
@@ -644,7 +660,12 @@ void joypad_poll(void)
 
     JOYPAD_PORT_FOREACH (port)
     {
-        while (output[i] == 0xff) i++; // Skip nops we put for iQue
+        if (sys_bbplayer()) {
+            // iQue has a very fixed layout for commands, and it also tends
+            // to corrupt other parts of PIF-RAM. So better jump to fixed positions
+            // while parsing.
+            i = (port * 8) + 1;
+        }
         device = &joypad_devices_cold[port];
         // Check send_len to figure out if this port has a command on it
         send_len = output[i + JOYBUS_COMMAND_OFFSET_SEND_LEN];
