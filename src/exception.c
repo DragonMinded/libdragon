@@ -54,15 +54,14 @@ exception_handler_t register_exception_handler( exception_handler_t cb )
 void __exception_dump_header(FILE *out, exception_t* ex) {
 	uint32_t cr = ex->regs->cr;
 	uint32_t fcr31 = ex->regs->fc31;
+	uint32_t epc = (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0));
 
-	fprintf(out, "%s exception at PC:%08lX\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
+	fprintf(out, "%s exception at PC:%08lX\n", ex->info, epc);
 	switch (ex->code) {
 		case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
 		case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
 		case EXCEPTION_CODE_TLB_STORE_MISS:
 		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
-		case EXCEPTION_CODE_I_BUS_ERROR:
-		case EXCEPTION_CODE_D_BUS_ERROR:
 		case EXCEPTION_CODE_TLB_MODIFICATION: {
 			uint64_t badvaddr = C0_BADVADDR();
 			if ((uint64_t)(int32_t)badvaddr == badvaddr)
@@ -93,6 +92,18 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 			fprintf(out, "Watched address: %08lX\n", C0_WATCHLO() & ~3);
 			break;
 
+		case EXCEPTION_CODE_D_BUS_ERROR: {
+			uint32_t opcode = *(uint32_t*)epc;
+			uint64_t base = ex->regs->gpr[((opcode >> 21) & 0x1F)];
+			uint64_t offset = (int16_t)(opcode & 0xFFFF);
+			uint64_t badvaddr = base + offset;
+			if ((uint64_t)(int32_t)badvaddr == badvaddr)
+				fprintf(out, "Exception address: %08lX\n", (uint32_t)badvaddr);
+			else
+				fprintf(out, "Exception address: %016llX\n", badvaddr);
+		}	break;
+
+		case EXCEPTION_CODE_I_BUS_ERROR:
 		default:
 			break;
 	}
@@ -266,7 +277,7 @@ static const char* __get_exception_name(exception_t *ex)
 		"Address Error (load/instruction fetch)",	// 4
 		"Address Error (store)",					// 5
 		"Bus Error (instruction fetch)",			// 6
-		"Bus Error (data reference: load/store)",	// 7
+		"Bus Error (load/store)",					// 7
 		"Syscall",									// 8
 		"Breakpoint",								// 9
 		"Reserved Instruction",						// 10
