@@ -40,7 +40,7 @@ SECTIONS {
     } > rom
 
     .text.signature 0xA4000FF8 : {
-        QUAD(0x0003F10CF16E4E7C);
+        QUAD(0x00004AE1656086B9);
     } > dmem
 
     __stage2_size = __stage2_end - __stage2_start;

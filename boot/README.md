@@ -48,6 +48,12 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r8 (419c213307cdb855934852c67759102b)
+* Add ROM type to bootflags (byte 8). This will allow in the future to use
+  IPL3 as part of a replacement 64DD IPL.
+* Fix regression on memory clearing on iQue (introduced in r7)
+* Fix TV type and reset type bootflags on iQue (they have always been wrong)
+
 r7 (7f014ed41cc53bb1a5e44f211f8c3dec)
 * Fix RDRAM clearing to fully cover the whole memory (because of a bug,
   some zones were not cleaned at all before).

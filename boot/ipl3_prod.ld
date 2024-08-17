@@ -27,7 +27,7 @@ SECTIONS {
     } > dmem
 
     .text.signature 0xA4000FF8 : {
-        QUAD(0x000023A66D530235);
+        QUAD(0x000097C7804A059C);
     } > dmem
 
     __stage2_size = __stage2_end - __stage2_start;
