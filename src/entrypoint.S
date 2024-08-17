@@ -16,8 +16,12 @@ _start:
 	li v0,SR_CU1|SR_PE|SR_FR|SR_KX|SR_SX|SR_UX
 	mtc0 v0,C0_SR
 
+#if 0
+	/* Run a check to verify that BSS is cleared. This is useful while debugging
+	   IPL3 changes. */
 	jal __bss_check
 	nop
+#endif
 
 	/* Copy bootcode flags, stored in DMEM */
 	lui v0, 0xA400
