@@ -93,6 +93,11 @@ void __debug_backtrace(FILE *out, bool skip_exception);
 
 static bool isviewer_init(void)
 {
+	// No ISViewer on iQue Player (and touching PI addresses outside ROM
+	// trigger a bus error, so better avoid it)
+	if (sys_bbplayer())
+		return false;
+
 	// To check whether an ISViewer is present (probably emulated),
 	// write some data to the "magic" register. If we can read it
 	// back, it means that there's some memory there and we can
@@ -540,8 +545,8 @@ static bool sd_initialize_once(void) {
 		if (!sys_bbplayer())
 			ok = cart_init() >= 0;
 		else
-			/* 64drive autodetection makes iQue player crash; disable SD
-			   support altogether for now. */
+			/* Don't call cart_init() on iQue, as touching PI addresses outside ROM
+			   triggers a bus error. */
 			ok = false;
 	}
 	return ok;
@@ -557,8 +562,8 @@ static bool usb_initialize_once(void) {
 		if (!sys_bbplayer())
 			ok = usb_initialize();
 		else
-			/* 64drive autodetection makes iQue player crash; disable USB
-			   support altogether for now. */
+			/* Don't call usb_initialize() on iQue, as touching PI addresses outside ROM
+			   triggers a bus error. */
 			ok = false;
 	}
 	return ok;
