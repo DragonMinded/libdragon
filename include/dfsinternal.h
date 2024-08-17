@@ -1,3 +1,8 @@
+/**
+ * @file dfsinternal.h
+ * @brief Internal DFS Definitions
+ * @ingroup dfs
+ */
 #ifndef __LIBDRAGON_DFSINTERNAL_H
 #define __LIBDRAGON_DFSINTERNAL_H
 
@@ -35,8 +40,6 @@ struct directory_entry
 } __attribute__((__packed__));
 
 _Static_assert(sizeof(struct directory_entry) == SECTOR_SIZE, "invalid directory_entry size");
-#include <stdint.h>
-#include <stdbool.h>
 
 /** @brief Type definition */
 typedef struct directory_entry directory_entry_t;
@@ -52,17 +55,28 @@ typedef struct dfs_open_file_s
     uint32_t cart_start_loc;
 } dfs_open_file_t;
 
+/** @brief DFS File Entry */
 typedef struct dfs_file_entry_s {
+    /** @brief Hash or string offset of file path */
     uint32_t path_hash;
+    /** @brief Data offset for file */
     uint32_t data_ofs;
+    /** @brief Data length for file */
     uint32_t data_len;
 } dfs_file_entry_t;
 
+/** @brief Data for DFS file lookup */
 typedef struct dfs_file_lookup_s {
+    /** @brief Number of files with path hashes */
     uint32_t num_hash_files;
+    /** @brief Number of files with path strings */
     uint32_t num_name_files;
+    /** @brief Offset for path string data */
     uint32_t string_ofs;
+    /** @brief Array of file entries */
     dfs_file_entry_t files[];
 } dfs_file_lookup_t;
+
+/** @} */ /* dfs */
 
 #endif
