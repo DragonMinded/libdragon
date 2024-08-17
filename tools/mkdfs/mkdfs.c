@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/param.h>
+#include <stdbool.h>
 #include "dragonfs.h"
 #include "dfsinternal.h"
 
