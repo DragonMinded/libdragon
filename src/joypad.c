@@ -533,14 +533,8 @@ static void joypad_read_async(void)
             }
             else
             {
-                if (sys_bbplayer()) {
-                    // Align to 8-byte boundary for iQue
-                    for (int j=0; j<8; j++)
-                        input[i++] = 0xff;
-                } else {
-                    // Skip this port
-                    i += JOYBUS_COMMAND_SKIP_SIZE;
-                }
+                // Skip this port
+                i += JOYBUS_COMMAND_SKIP_SIZE;
             }
         }
 
