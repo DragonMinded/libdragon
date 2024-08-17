@@ -42,6 +42,8 @@ enum
 static uint32_t base_ptr = 0;
 /** @brief Base pointer for lookup data */
 static dfs_file_lookup_t *file_lookup;
+/** @brief Base ROM address for path data */
+static uint32_t path_rom_ofs;
 /** @brief Directory pointer stack */
 static uint32_t directories[MAX_DIRECTORY_DEPTH];
 /** @brief Depth into directory pointer stack */
@@ -551,6 +553,9 @@ static void init_dfs_lookup(directory_entry_t *id_node)
     file_lookup = malloc(size);
     data_cache_hit_writeback_invalidate(file_lookup, size);
     dma_read(file_lookup, romaddr, size);
+    if(file_lookup->path_ofs != 0) {
+        path_rom_ofs = base_ptr+file_lookup->path_ofs;
+    }
 }
 
 /**
@@ -707,13 +712,6 @@ static uint32_t prime_hash(const char *str, uint32_t prime)
     return hash;
 }
 
-static char *get_dfs_file_entry_name(dfs_file_entry_t *entry)
-{
-    char *base = (char *)file_lookup;
-    base += file_lookup->string_ofs;
-    return base+entry->path_hash;
-}
-
 static int file_entry_hash_compare(const void *arg1, const void *arg2)
 {
     const dfs_file_entry_t *entry1 = arg1;
@@ -727,36 +725,73 @@ static int file_entry_hash_compare(const void *arg1, const void *arg2)
     }
 }
 
-static int file_entry_name_compare(const void *arg1, const void *arg2)
+static int32_t lookup_file_hash_entry(uint32_t hash)
 {
-    const char *name1 = arg1;
-    const char *name2 = get_dfs_file_entry_name((void *)arg2);
-    return strcmp(name1, name2);
+    int32_t left = 0;
+    int32_t right = file_lookup->num_files-1;
+    int32_t result = -1;
+    while(left <= right) {
+        int32_t mid = left+((right-left)/2);
+        if(file_lookup->files[mid].path_hash == hash) {
+            result = mid;
+            right = mid-1;
+        } else if(file_lookup->files[mid].path_hash < hash) {
+            left = mid+1;
+        } else {
+            right = mid-1;
+        }
+    }
+    return result;
 }
 
-static dfs_file_entry_t *lookup_file_hash_entry(uint32_t hash)
+static dfs_file_entry_t *lookup_file_path_entry(const char *const path, int32_t start_index, uint32_t hash)
 {
-    dfs_file_entry_t example = { hash, 0, 0 };
-    return bsearch(&example, &file_lookup->files[0], file_lookup->num_hash_files, sizeof(dfs_file_entry_t), file_entry_hash_compare);
+    char alignas(8) path_buf[file_lookup->path_buf_size];
+    for(int32_t i=start_index; file_lookup->files[i].path_hash == hash; i++) {
+        uint32_t path_ofs = file_lookup->files[i].path_ofs;
+        uint32_t path_len = path_ofs >> 20;
+        path_ofs &= (1 << 20)-1;
+        data_cache_hit_writeback_invalidate(path_buf, path_len);
+        dma_read(path_buf, path_rom_ofs+path_ofs, path_len);
+        if(strcmp(path, path_buf) == 0) {
+            return &file_lookup->files[i];
+        }
+    }
+    return NULL;
 }
 
-static dfs_file_entry_t *lookup_file_name_entry(const char *name)
+static bool verify_lookup_path(int32_t index, const char *const path)
 {
-    return bsearch(name, &file_lookup->files[file_lookup->num_hash_files], file_lookup->num_name_files, sizeof(dfs_file_entry_t), file_entry_name_compare);
+    char alignas(8) path_buf[file_lookup->path_buf_size];
+    uint32_t path_ofs = file_lookup->files[index].path_ofs;
+    uint32_t path_len = path_ofs >> 20;
+    path_ofs &= (1 << 20)-1;
+    data_cache_hit_writeback_invalidate(path_buf, path_len);
+    dma_read(path_buf, path_rom_ofs+path_ofs, path_len);
+    return strcmp(path, path_buf) == 0;
 }
 
 static dfs_file_entry_t *lookup_file_entry(const char *const path)
 {
-    dfs_file_entry_t *entry = lookup_file_hash_entry(prime_hash(path, DFS_LOOKUP_PRIME));
-    if(!entry) {
-        entry = lookup_file_name_entry(path);
+    uint32_t hash = prime_hash(path, DFS_LOOKUP_PRIME);
+    int32_t index = lookup_file_hash_entry(hash);
+    if(index == -1) {
+        return NULL;
     }
-    return entry;
+    //Check if path is correct
+    if(verify_lookup_path(index, path)) {
+        return &file_lookup->files[index];
+    }
+    return lookup_file_path_entry(path, index, hash);
 }
 
-int dfs_open(const char *const path)
+int dfs_open(const char *path)
 {
     dfs_open_file_t *file;
+    //Skip initial slash
+    if(path[0] == '/') {
+        path++;
+    }
     if(file_lookup)
     {
         dfs_file_entry_t *entry = lookup_file_entry(path);
@@ -996,6 +1031,10 @@ int dfs_size(uint32_t handle)
 
 uint32_t dfs_rom_addr(const char *path)
 {
+    //Skip initial slash
+    if(path[0] == '/') {
+        path++;
+    }
     if(file_lookup)
     {
         dfs_file_entry_t *entry = lookup_file_entry(path);

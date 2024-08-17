@@ -57,8 +57,10 @@ typedef struct dfs_open_file_s
 
 /** @brief DFS File Entry */
 typedef struct dfs_file_entry_s {
-    /** @brief Hash or string offset of file path */
+    /** @brief Hash of file path */
     uint32_t path_hash;
+    /** @brief Top 12 bits: length; lowest 20 bits: offset */
+    uint32_t path_ofs;
     /** @brief Data offset for file */
     uint32_t data_ofs;
     /** @brief Data length for file */
@@ -67,12 +69,12 @@ typedef struct dfs_file_entry_s {
 
 /** @brief Data for DFS file lookup */
 typedef struct dfs_file_lookup_s {
-    /** @brief Number of files with path hashes */
-    uint32_t num_hash_files;
-    /** @brief Number of files with path strings */
-    uint32_t num_name_files;
-    /** @brief Offset for path string data */
-    uint32_t string_ofs;
+    /** @brief Number of files */
+    uint32_t num_files;
+    /** @brief Size of path buffer */
+    uint32_t path_buf_size;
+    /** @brief Offset for path data */
+    uint32_t path_ofs;
     /** @brief Array of file entries */
     dfs_file_entry_t files[];
 } dfs_file_lookup_t;

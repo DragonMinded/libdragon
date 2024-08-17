@@ -20,7 +20,6 @@ typedef struct dfs_file_s {
     uint32_t path_hash;
     uint32_t data_ofs;
     uint32_t data_len;
-    bool hash_file;
 } dfs_file_t;
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -31,8 +30,6 @@ typedef struct dfs_file_s {
 
 uint8_t *dfs = NULL;
 dfs_file_t *dfs_files;
-dfs_file_t *dfs_hash_files;
-dfs_file_t *dfs_name_files;
 
 uint32_t fs_size = 0;
 
@@ -226,7 +223,6 @@ uint32_t add_directory(const char * const base_path, const char * const path)
                     temp_file.path_hash = prime_hash(temp_file.path, DFS_LOOKUP_PRIME);
                     temp_file.data_ofs = new_file;
                     temp_file.data_len = file_size;
-                    temp_file.hash_file = true;
                     stbds_arrpush(dfs_files, temp_file);
                     
                     tmp_entry = sector_to_memory(new_entry);
@@ -309,84 +305,79 @@ int compare_dfs_entry_hash(const void *a, const void *b)
     }
 }
 
-int compare_dfs_entry_path(const void *a, const void *b)
-{
-    //Sort in hash order
-    dfs_file_t *entry1 = (dfs_file_t *)a;
-    dfs_file_t *entry2 = (dfs_file_t *)b;
-    return strcmp(entry1->path, entry2->path);
-}
-
 void sort_dfs_entries(void)
 {
     size_t num_files = stbds_arrlenu(dfs_files);
     qsort(&dfs_files[0], num_files, sizeof(dfs_file_t), compare_dfs_entry_hash);
-    for(size_t i=0; i<num_files-1; i++) {
-        if(dfs_files[i].path_hash == dfs_files[i+1].path_hash) {
-            dfs_files[i].hash_file = false;
-            dfs_files[i+1].hash_file = false;
-        }
-    }
-    for(size_t i=0; i<num_files; i++) {
-        if(dfs_files[i].hash_file) {
-            stbds_arrpush(dfs_hash_files, dfs_files[i]);
-        } else {
-            stbds_arrpush(dfs_name_files, dfs_files[i]);
-        }
-    }
-    qsort(&dfs_name_files[0], stbds_arrlenu(dfs_name_files), sizeof(dfs_file_t), compare_dfs_entry_path);
 }
 
-uint32_t dfs_get_lookup_string_size(void)
+uint32_t dfs_get_path_size(void)
 {
     uint32_t size = 0;
-    for(size_t i=0; i<stbds_arrlenu(dfs_name_files); i++) {
-        size += strlen(dfs_name_files[i].path)+1;
-    }
-    //Round up size to next 2-byte boundary
-    if(size % 2 != 0) {
-        size++;
+    for(size_t i=0; i<stbds_arrlenu(dfs_files); i++) {
+        uint32_t len = strlen(dfs_files[i].path)+1;
+        if(len % 2 != 0) {
+            len++;
+        }
+        size += len;
     }
     return size;
 }
 
+uint32_t dfs_get_path_buf_size(void)
+{
+    uint32_t buf_size = 0;
+    for(size_t i=0; i<stbds_arrlenu(dfs_files); i++) {
+        uint32_t len = strlen(dfs_files[i].path)+1;
+        if(len % 2 != 0) {
+            len++;
+        }
+        if(len > buf_size) {
+            buf_size = len;
+        }
+    }
+    return buf_size;
+}
+
 void write_dfs_entries(void)
 {
-    uint32_t num_hash_files = stbds_arrlenu(dfs_hash_files);
-    uint32_t num_name_files = stbds_arrlenu(dfs_name_files);
-    uint32_t size = sizeof(dfs_file_lookup_t);
-    size += (num_hash_files+num_name_files)*sizeof(dfs_file_entry_t);
-    uint32_t string_ofs = size;
-    size += dfs_get_lookup_string_size();
-    uint32_t file_pointer = new_blob(size);
+    uint32_t num_files = stbds_arrlenu(dfs_files);
+    uint32_t lookup_size = sizeof(dfs_file_lookup_t);
+    lookup_size += num_files*sizeof(dfs_file_entry_t);
+    uint32_t lookup_ptr = new_blob(lookup_size);
     directory_entry_t *id_dir = sector_to_memory(0);
-    dfs_file_lookup_t *rom_lookup = sector_to_memory(file_pointer);
-    id_dir->next_entry = SWAPLONG(size);
-    id_dir->file_pointer = SWAPLONG(file_pointer);
-    rom_lookup->num_hash_files = SWAPLONG(num_hash_files);
-    rom_lookup->num_name_files = SWAPLONG(num_name_files);
-    rom_lookup->string_ofs = SWAPLONG(string_ofs);
-    char *string_data = ((char *)rom_lookup)+string_ofs;
+    id_dir->next_entry = SWAPLONG(lookup_size);
+    id_dir->file_pointer = SWAPLONG(lookup_ptr);
+    uint32_t path_size = dfs_get_path_size();
+    uint32_t path_ofs = new_blob(path_size);
+    dfs_file_lookup_t *rom_lookup = sector_to_memory(lookup_ptr);
+    rom_lookup->num_files = SWAPLONG(num_files);
+    rom_lookup->path_buf_size = SWAPLONG(dfs_get_path_buf_size());
+    rom_lookup->path_ofs = SWAPLONG(path_ofs);
     
-    uint32_t file_idx = 0;
-    for(uint32_t i=0; i<num_hash_files; i++) {
-        rom_lookup->files[file_idx].path_hash = SWAPLONG(dfs_hash_files[i].path_hash);
-        rom_lookup->files[file_idx].data_ofs = SWAPLONG(dfs_hash_files[i].data_ofs);
-        rom_lookup->files[file_idx].data_len = SWAPLONG(dfs_hash_files[i].data_len);
-        file_idx++;
-    }
-    uint32_t string_rel_ofs = 0;
-    for(uint32_t i=0; i<num_name_files; i++) {
-        rom_lookup->files[file_idx].path_hash = SWAPLONG(string_rel_ofs);
-        rom_lookup->files[file_idx].data_ofs = SWAPLONG(dfs_name_files[i].data_ofs);
-        rom_lookup->files[file_idx].data_len = SWAPLONG(dfs_name_files[i].data_len);
-        file_idx++;
-        string_rel_ofs += strlen(dfs_name_files[i].path)+1;
-    }
+    uint32_t path_curr_ofs = 0;
     
-    for(uint32_t i=0; i<num_name_files; i++) {
-        strcpy(string_data, dfs_name_files[i].path);
-        string_data += strlen(dfs_name_files[i].path)+1;
+    for(uint32_t i=0; i<num_files; i++) {
+        uint32_t len = strlen(dfs_files[i].path)+1;
+        if(len % 2 != 0) {
+            len++;
+        }
+        rom_lookup->files[i].path_ofs = SWAPLONG((len << 20)|path_curr_ofs);
+        path_curr_ofs += len;
+        rom_lookup->files[i].path_hash = SWAPLONG(dfs_files[i].path_hash);
+        rom_lookup->files[i].data_ofs = SWAPLONG(dfs_files[i].data_ofs);
+        rom_lookup->files[i].data_len = SWAPLONG(dfs_files[i].data_len);
+        
+    }
+    path_curr_ofs = 0;
+    char *path_buf = sector_to_memory(path_ofs);
+    for(uint32_t i=0; i<num_files; i++) {
+        uint32_t len = strlen(dfs_files[i].path)+1;
+        memcpy(&path_buf[path_curr_ofs], dfs_files[i].path, len);
+        path_curr_ofs += len;
+        if(len % 2 != 0) {
+            path_curr_ofs++;
+        }
     }
 }
 
