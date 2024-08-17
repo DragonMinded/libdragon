@@ -246,6 +246,12 @@ __attribute__((constructor)) void __init_cop1(void)
     C1_WRITE_FCR31(fcr31);
 }
 
+/************* BSS CHECK **************/
+// This code is useful only while debugging IPL3 changes. It is not run by default
+// and requires manually changing entrypoint.S to be activated. It is left in the
+// preview branch for reference, but it's not meant to be merged into stable.
+
+/// @cond
 static uint32_t io_read32(uint32_t vaddrx)
 {
     vaddrx |= 0xA0000000;
@@ -363,7 +369,7 @@ void __bss_check(void)
         if (*p != 0)
             fatal(MSG_BSS_CHECK_ERROR);
 }
-
+/// @endcond
 
 /* Inline instantiations */
 extern inline uint8_t mem_read8(uint64_t vaddr);
