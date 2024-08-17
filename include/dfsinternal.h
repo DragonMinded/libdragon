@@ -36,6 +36,7 @@ struct directory_entry
 
 _Static_assert(sizeof(struct directory_entry) == SECTOR_SIZE, "invalid directory_entry size");
 #include <stdint.h>
+#include <stdbool.h>
 
 /** @brief Type definition */
 typedef struct directory_entry directory_entry_t;
@@ -56,5 +57,12 @@ typedef struct dfs_file_entry_s {
     uint32_t data_ofs;
     uint32_t data_len;
 } dfs_file_entry_t;
+
+typedef struct dfs_file_lookup_s {
+    uint32_t num_hash_files;
+    uint32_t num_name_files;
+    uint32_t string_ofs;
+    dfs_file_entry_t files[];
+} dfs_file_lookup_t;
 
 #endif

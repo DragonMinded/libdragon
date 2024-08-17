@@ -40,10 +40,8 @@ enum
 
 /** @brief Base filesystem pointer */
 static uint32_t base_ptr = 0;
-/** @brief Number of file entries in lookup data */
-uint32_t file_entry_count;
 /** @brief Base pointer for lookup data */
-dfs_file_entry_t *file_entry;
+static dfs_file_lookup_t *file_lookup;
 /** @brief Directory pointer stack */
 static uint32_t directories[MAX_DIRECTORY_DEPTH];
 /** @brief Depth into directory pointer stack */
@@ -549,11 +547,10 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
 static void init_dfs_lookup(directory_entry_t *id_node)
 {
     uint32_t romaddr = get_start_location(id_node);
-    file_entry_count = id_node->next_entry;
-    uint32_t data_size = file_entry_count*sizeof(dfs_file_entry_t);
-    file_entry = malloc(data_size);
-    data_cache_hit_writeback_invalidate(file_entry, data_size);
-    dma_read(file_entry, romaddr, data_size);
+    uint32_t size = id_node->next_entry;
+    file_lookup = malloc(size);
+    data_cache_hit_writeback_invalidate(file_lookup, size);
+    dma_read(file_lookup, romaddr, size);
 }
 
 /**
@@ -710,21 +707,57 @@ static uint32_t prime_hash(const char *str, uint32_t prime)
     return hash;
 }
 
+static char *get_dfs_file_entry_name(dfs_file_entry_t *entry)
+{
+    char *base = (char *)file_lookup;
+    base += file_lookup->string_ofs;
+    return base+entry->path_hash;
+}
+
+static int file_entry_hash_compare(const void *arg1, const void *arg2)
+{
+    const dfs_file_entry_t *entry1 = arg1;
+    const dfs_file_entry_t *entry2 = arg2;
+    if(entry1->path_hash > entry2->path_hash) {
+        return 1;
+    } else if(entry1->path_hash < entry2->path_hash) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+static int file_entry_name_compare(const void *arg1, const void *arg2)
+{
+    const char *name1 = arg1;
+    const char *name2 = get_dfs_file_entry_name((void *)arg2);
+    return strcmp(name1, name2);
+}
+
+static dfs_file_entry_t *lookup_file_hash_entry(uint32_t hash)
+{
+    dfs_file_entry_t example = { hash, 0, 0 };
+    return bsearch(&example, &file_lookup->files[0], file_lookup->num_hash_files, sizeof(dfs_file_entry_t), file_entry_hash_compare);
+}
+
+static dfs_file_entry_t *lookup_file_name_entry(const char *name)
+{
+    return bsearch(name, &file_lookup->files[file_lookup->num_hash_files], file_lookup->num_name_files, sizeof(dfs_file_entry_t), file_entry_name_compare);
+}
+
 static dfs_file_entry_t *lookup_file_entry(const char *const path)
 {
-    uint32_t hash = prime_hash(path, DFS_LOOKUP_PRIME);
-    for(uint32_t i=0; i<file_entry_count; i++) {
-        if(file_entry[i].path_hash == hash) {
-            return &file_entry[i];
-        }
+    dfs_file_entry_t *entry = lookup_file_hash_entry(prime_hash(path, DFS_LOOKUP_PRIME));
+    if(!entry) {
+        entry = lookup_file_name_entry(path);
     }
-    return NULL;
+    return entry;
 }
 
 int dfs_open(const char *const path)
 {
     dfs_open_file_t *file;
-    if(file_entry)
+    if(file_lookup)
     {
         dfs_file_entry_t *entry = lookup_file_entry(path);
         if(!entry)
@@ -963,7 +996,7 @@ int dfs_size(uint32_t handle)
 
 uint32_t dfs_rom_addr(const char *path)
 {
-    if(file_entry)
+    if(file_lookup)
     {
         dfs_file_entry_t *entry = lookup_file_entry(path);
         if(!entry)

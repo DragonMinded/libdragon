@@ -14,6 +14,14 @@
 #define STB_DS_IMPLEMENTATION //Hack to get tools to compile
 #include "../common/stb_ds.h"
 
+typedef struct dfs_file_s {
+    char *path;
+    uint32_t path_hash;
+    uint32_t data_ofs;
+    uint32_t data_len;
+    bool hash_file;
+} dfs_file_t;
+
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define SWAPLONG(i) (i)
 #else
@@ -21,7 +29,10 @@
 #endif
 
 uint8_t *dfs = NULL;
-dfs_file_entry_t *dfs_lookup;
+dfs_file_t *dfs_files;
+dfs_file_t *dfs_hash_files;
+dfs_file_t *dfs_name_files;
+
 uint32_t fs_size = 0;
 
 /* Offset from start of filesystem */
@@ -80,7 +91,10 @@ void kill_fs()
     {
         free(dfs);
     }
-    stbds_arrfree(dfs_lookup);
+    for(size_t i=0; i<stbds_arrlenu(dfs_files); i++) {
+        free(dfs_files[i].path);
+    }
+    stbds_arrfree(dfs_files);
 }
 
 void print_help(const char * const prog_name)
@@ -206,11 +220,13 @@ uint32_t add_directory(const char * const base_path, const char * const path)
                         free(file);
                         return 0;
                     }
-                    dfs_file_entry_t temp_lookup;
-                    temp_lookup.path_hash = prime_hash(file+strlen(base_path)+1, DFS_LOOKUP_PRIME);
-                    temp_lookup.data_ofs = new_file;
-                    temp_lookup.data_len = file_size;
-                    stbds_arrpush(dfs_lookup, temp_lookup);
+                    dfs_file_t temp_file;
+                    temp_file.path = strdup(file+strlen(base_path)+1);
+                    temp_file.path_hash = prime_hash(temp_file.path, DFS_LOOKUP_PRIME);
+                    temp_file.data_ofs = new_file;
+                    temp_file.data_len = file_size;
+                    temp_file.hash_file = true;
+                    stbds_arrpush(dfs_files, temp_file);
                     
                     tmp_entry = sector_to_memory(new_entry);
                     tmp_entry->file_pointer = SWAPLONG(new_file);
@@ -278,19 +294,98 @@ uint32_t add_directory(const char * const base_path, const char * const path)
     return first_entry;
 }
 
-void write_dir_lookup(void)
+int compare_dfs_entry_hash(const void *a, const void *b)
 {
-    uint32_t num_files = stbds_arrlenu(dfs_lookup);
-    uint32_t lookup_size = num_files*sizeof(dfs_file_entry_t);
-    uint32_t file_pointer = new_blob(lookup_size);
+    //Sort in hash order
+    dfs_file_t *entry1 = (dfs_file_t *)a;
+    dfs_file_t *entry2 = (dfs_file_t *)b;
+    if(entry1->path_hash > entry2->path_hash) {
+        return 1;
+    } else if(entry1->path_hash < entry2->path_hash) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+int compare_dfs_entry_path(const void *a, const void *b)
+{
+    //Sort in hash order
+    dfs_file_t *entry1 = (dfs_file_t *)a;
+    dfs_file_t *entry2 = (dfs_file_t *)b;
+    return strcmp(entry1->path, entry2->path);
+}
+
+void sort_dfs_entries(void)
+{
+    size_t num_files = stbds_arrlenu(dfs_files);
+    qsort(&dfs_files[0], num_files, sizeof(dfs_file_t), compare_dfs_entry_hash);
+    for(size_t i=0; i<num_files-1; i++) {
+        if(dfs_files[i].path_hash == dfs_files[i+1].path_hash) {
+            dfs_files[i].hash_file = false;
+            dfs_files[i+1].hash_file = false;
+        }
+    }
+    for(size_t i=0; i<num_files; i++) {
+        if(dfs_files[i].hash_file) {
+            stbds_arrpush(dfs_hash_files, dfs_files[i]);
+        } else {
+            stbds_arrpush(dfs_name_files, dfs_files[i]);
+        }
+    }
+    qsort(&dfs_name_files[0], stbds_arrlenu(dfs_name_files), sizeof(dfs_file_t), compare_dfs_entry_path);
+}
+
+uint32_t dfs_get_lookup_string_size(void)
+{
+    uint32_t size = 0;
+    for(size_t i=0; i<stbds_arrlenu(dfs_name_files); i++) {
+        size += strlen(dfs_name_files[i].path)+1;
+    }
+    //Round up size to next 2-byte boundary
+    if(size % 2 != 0) {
+        size++;
+    }
+    return size;
+}
+
+void write_dfs_entries(void)
+{
+    uint32_t num_hash_files = stbds_arrlenu(dfs_hash_files);
+    uint32_t num_name_files = stbds_arrlenu(dfs_name_files);
+    uint32_t size = sizeof(dfs_file_lookup_t);
+    size += (num_hash_files+num_name_files)*sizeof(dfs_file_entry_t);
+    uint32_t string_ofs = size;
+    size += dfs_get_lookup_string_size();
+    uint32_t file_pointer = new_blob(size);
     directory_entry_t *id_dir = sector_to_memory(0);
-    dfs_file_entry_t *rom_lookup = sector_to_memory(file_pointer);
-    id_dir->next_entry = SWAPLONG(num_files);
+    dfs_file_lookup_t *rom_lookup = sector_to_memory(file_pointer);
+    id_dir->next_entry = SWAPLONG(size);
     id_dir->file_pointer = SWAPLONG(file_pointer);
-    for(uint32_t i=0; i<num_files; i++) {
-        rom_lookup[i].path_hash = SWAPLONG(dfs_lookup[i].path_hash);
-        rom_lookup[i].data_ofs = SWAPLONG(dfs_lookup[i].data_ofs);
-        rom_lookup[i].data_len = SWAPLONG(dfs_lookup[i].data_len);
+    rom_lookup->num_hash_files = SWAPLONG(num_hash_files);
+    rom_lookup->num_name_files = SWAPLONG(num_name_files);
+    rom_lookup->string_ofs = SWAPLONG(string_ofs);
+    char *string_data = ((char *)rom_lookup)+string_ofs;
+    
+    uint32_t file_idx = 0;
+    for(uint32_t i=0; i<num_hash_files; i++) {
+        rom_lookup->files[file_idx].path_hash = SWAPLONG(dfs_hash_files[i].path_hash);
+        rom_lookup->files[file_idx].data_ofs = SWAPLONG(dfs_hash_files[i].data_ofs);
+        rom_lookup->files[file_idx].data_len = SWAPLONG(dfs_hash_files[i].data_len);
+        file_idx++;
+    }
+    uint32_t string_rel_ofs = 0;
+    for(uint32_t i=0; i<num_name_files; i++) {
+        rom_lookup->files[file_idx].path_hash = SWAPLONG(string_rel_ofs);
+        rom_lookup->files[file_idx].data_ofs = SWAPLONG(dfs_name_files[i].data_ofs);
+        rom_lookup->files[file_idx].data_len = SWAPLONG(dfs_name_files[i].data_len);
+        file_idx++;
+        string_rel_ofs += strlen(dfs_name_files[i].path)+1;
+    }
+    
+    for(uint32_t i=0; i<num_name_files; i++) {
+        strcpy(string_data, dfs_name_files[i].path);
+        string_data += strlen(dfs_name_files[i].path)+1;
     }
 }
 
@@ -325,7 +420,8 @@ int main(int argc, char *argv[])
 
         return -1;
     }
-    write_dir_lookup();
+    sort_dfs_entries();
+    write_dfs_entries();
     /* Write out filesystem */
     FILE *fp = fopen(argv[1], "wb");
 
