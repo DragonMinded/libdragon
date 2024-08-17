@@ -358,7 +358,7 @@ void stage1(void)
 #ifndef COMPAT
     bootinfo_t *bootinfo = (bootinfo_t*)0xA4000000;
     bootinfo->memory_size = memsize;
-    bootinfo->flags = (ipl2_tvType << 16) | (ipl2_resetType << 8) | (bbplayer ? 1 : 0);
+    bootinfo->flags = (ipl2_romType << 24) | (ipl2_tvType << 16) | (ipl2_resetType << 8) | (bbplayer ? 1 : 0);
     bootinfo->padding = 0;
 #else
     if (!bbplayer) {

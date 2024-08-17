@@ -124,7 +124,7 @@ the following rules:
    - Byte 0..3: Amount of memory, in bytes. On iQue, this number is adjusted
      to report the amount of memory allocated to the application by the OS.
    - Byte 4..7: 32-bit random number (entropy collected during boot)
-   - Byte 8: reserved
+   - Byte 8: ROM type (0: Cartridge at 0x10000000, 1: 64DD IPL at 0x06000000)
    - Byte 9: TV type (0:PAL, 1:NTSC, 2:MPAL)
    - Byte 10: Reset type (0:cold, 1:warm)
    - Byte 11: Console type (0:n64, 1:iQue)
