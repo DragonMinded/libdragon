@@ -466,6 +466,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
     static bool backtrace = false;
     joypad_buttons_t key_old = {0};
     joypad_buttons_t key_pressed = {0};
+    int prevPad = -1;
 	enum Page page = PAGE_EXCEPTION;
 	while (1) {
         if (key_pressed.z || key_pressed.r) {
@@ -528,12 +529,20 @@ static void inspector(exception_t* ex, enum Mode mode) {
         while (1) {
             // Read controller using #joypad_read_n64_inputs, which works also when
             // the interrupts are disabled and when #joypad_init has not been called.
-            joypad_buttons_t key_new = joypad_read_n64_inputs(JOYPAD_PORT_1).btn;
-            if (key_new.raw != key_old.raw) {
-                key_pressed = (joypad_buttons_t){ .raw = key_new.raw & ~key_old.raw };
-                key_old = key_new;
-	            break;
-            };
+            int keyPress = false;
+            for (int i = 0; i < 4; i++) {
+                joypad_buttons_t key_new = joypad_read_n64_inputs(i).btn;
+                if ((key_new.raw || prevPad == i) && key_new.raw != key_old.raw) {
+                    key_pressed = (joypad_buttons_t){ .raw = key_new.raw & ~key_old.raw };
+                    key_old = key_new;
+                    prevPad = i;
+                    keyPress = true;
+                    break;
+                };
+            }
+            if (keyPress) {
+                break;
+            }
             // If we draw the first frame, turn on backtrace and redraw immediately
             if (!backtrace) {
                 backtrace = true;
