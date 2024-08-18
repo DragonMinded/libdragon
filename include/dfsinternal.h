@@ -55,7 +55,7 @@ typedef struct dfs_open_file_s
     uint32_t cart_start_loc;
 } dfs_open_file_t;
 
-/** @brief Data for a single file in the lookup table */
+/** @brief Data for a single file in dfs_lookup_t */
 typedef struct dfs_lookup_file_s {
     /** @brief Hash of the path string */
     uint32_t path_hash;
