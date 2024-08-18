@@ -106,9 +106,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         control |= VI_CTRL_SERRATE;
     }
 
-    /* Copy over extra initializations */
-    vi_write_config(&vi_config_presets[res.interlaced][tv_type]);
-
     /* Figure out control register based on input given */
     switch( bit )
     {
@@ -199,9 +196,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
             break;
     }
 
-    /* Set the control register in our template */
-    vi_write_safe(VI_CTRL, control);
-
     /* Calculate width and scale registers */
     assertf(res.width > 0, "nonpositive width");
     assertf(res.height > 0, "nonpositive height");
@@ -215,9 +209,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         assertf(res.width % 2 == 0, "width must be divisible by 2 for 32-bit depth");
     }
-    vi_write_safe(VI_WIDTH, res.width);
-    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
-    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(res.height));
 
     /* Set up the display */
     __width = res.width;
@@ -249,7 +240,14 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
        to avoid confusing the VI chip with in-frame modifications. */
     if ( vi_is_active() ) { vi_wait_for_vblank(); }
 
+    /* Set basic preset */
+    vi_write_config(&vi_config_presets[res.interlaced][tv_type]);
+
     vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
+    vi_write_safe(VI_WIDTH, res.width);
+    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
+    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(res.height));
+    vi_write_safe(VI_CTRL, control);
 
     enable_interrupts();
 
