@@ -305,12 +305,6 @@ int compare_dfs_entry_hash(const void *a, const void *b)
     }
 }
 
-void sort_dfs_entries(void)
-{
-    size_t num_files = stbds_arrlenu(dfs_files);
-    qsort(&dfs_files[0], num_files, sizeof(dfs_file_t), compare_dfs_entry_hash);
-}
-
 uint32_t dfs_get_path_size(void)
 {
     uint32_t size = 0;
@@ -324,46 +318,31 @@ uint32_t dfs_get_path_size(void)
     return size;
 }
 
-uint32_t dfs_get_path_buf_size(void)
-{
-    uint32_t buf_size = 0;
-    for(size_t i=0; i<stbds_arrlenu(dfs_files); i++) {
-        uint32_t len = strlen(dfs_files[i].path)+1;
-        if(len % 2 != 0) {
-            len++;
-        }
-        if(len > buf_size) {
-            buf_size = len;
-        }
-    }
-    return buf_size;
-}
-
-void write_dfs_entries(void)
+void write_dfs_lookup(void)
 {
     uint32_t num_files = stbds_arrlenu(dfs_files);
-    uint32_t lookup_size = sizeof(dfs_file_lookup_t);
-    lookup_size += num_files*sizeof(dfs_file_entry_t);
+    qsort(&dfs_files[0], num_files, sizeof(dfs_file_t), compare_dfs_entry_hash);
+    uint32_t lookup_size = sizeof(dfs_lookup_t);
+    lookup_size += num_files*sizeof(dfs_lookup_file_t);
     uint32_t lookup_ptr = new_blob(lookup_size);
     directory_entry_t *id_dir = sector_to_memory(0);
     id_dir->next_entry = SWAPLONG(lookup_size);
     id_dir->file_pointer = SWAPLONG(lookup_ptr);
     uint32_t path_size = dfs_get_path_size();
     uint32_t path_ofs = new_blob(path_size);
-    dfs_file_lookup_t *rom_lookup = sector_to_memory(lookup_ptr);
+    dfs_lookup_t *rom_lookup = sector_to_memory(lookup_ptr);
     rom_lookup->num_files = SWAPLONG(num_files);
-    rom_lookup->path_buf_size = SWAPLONG(dfs_get_path_buf_size());
     rom_lookup->path_ofs = SWAPLONG(path_ofs);
     
     uint32_t path_curr_ofs = 0;
     
     for(uint32_t i=0; i<num_files; i++) {
         uint32_t len = strlen(dfs_files[i].path)+1;
-        if(len % 2 != 0) {
-            len++;
-        }
         rom_lookup->files[i].path_ofs = SWAPLONG((len << 20)|path_curr_ofs);
         path_curr_ofs += len;
+        if(len % 2 != 0) {
+            path_curr_ofs++;
+        }
         rom_lookup->files[i].path_hash = SWAPLONG(dfs_files[i].path_hash);
         rom_lookup->files[i].data_ofs = SWAPLONG(dfs_files[i].data_ofs);
         rom_lookup->files[i].data_len = SWAPLONG(dfs_files[i].data_len);
@@ -412,8 +391,7 @@ int main(int argc, char *argv[])
 
         return -1;
     }
-    sort_dfs_entries();
-    write_dfs_entries();
+    write_dfs_lookup();
     /* Write out filesystem */
     FILE *fp = fopen(argv[1], "wb");
 

@@ -55,29 +55,27 @@ typedef struct dfs_open_file_s
     uint32_t cart_start_loc;
 } dfs_open_file_t;
 
-/** @brief DFS File Entry */
-typedef struct dfs_file_entry_s {
-    /** @brief Hash of file path */
+/** @brief Data for a single file in the lookup table */
+typedef struct dfs_lookup_file_s {
+    /** @brief Hash of the path string */
     uint32_t path_hash;
-    /** @brief Top 12 bits: length; lowest 20 bits: offset */
+    /** @brief Top 12 bits: length of the path string; lowest 20 bits: offset of the path string */
     uint32_t path_ofs;
     /** @brief Data offset for file */
     uint32_t data_ofs;
     /** @brief Data length for file */
     uint32_t data_len;
-} dfs_file_entry_t;
+} dfs_lookup_file_t;
 
-/** @brief Data for DFS file lookup */
-typedef struct dfs_file_lookup_s {
+/** @brief Data for DFS file lookup used to speed up file open performance */
+typedef struct dfs_lookup_s {
     /** @brief Number of files */
     uint32_t num_files;
-    /** @brief Size of path buffer */
-    uint32_t path_buf_size;
-    /** @brief Offset for path data */
+    /** @brief Base offset for path data */
     uint32_t path_ofs;
     /** @brief Array of file entries */
-    dfs_file_entry_t files[];
-} dfs_file_lookup_t;
+    dfs_lookup_file_t files[];
+} dfs_lookup_t;
 
 /** @} */ /* dfs */
 
