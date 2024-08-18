@@ -248,23 +248,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Serrate on to stop vertical jitter */
     if(serrate) control |= VI_CTRL_SERRATE;
 
-    /* Copy over extra initializations */
-    vi_write_config(&vi_config_presets[serrate][__tv_type]);
-
-    if( __tv_type == TV_PAL && res.pal60 )
-    {
-        /* 60Hz PAL is a regular PAL video mode with NTSC-like V_SYNC and V_VIDEO */
-
-        /* NOTE: Ideally V_SYNC would be 524/525, matching NTSC, however in practice this appears
-                to cause too-slow retrace intervals. Instead we use 518/519 half-lines which is
-                only a 1.14% deviation, the expectation is that this is within the tolerance ranges
-                of almost all devices.
-                Alternatively we could have elected to shorten H_SYNC, however H_SYNC is expected
-                to be less tolerant than V_SYNC so we opt to leave it alone at the nominal value. */
-        vi_write_safe(VI_V_SYNC, VI_V_SYNC_SET(525 - 6 - serrate));
-        vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
-    }
-
     /* Figure out control register based on input given */
     switch( bit )
     {
@@ -399,7 +382,24 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
        to avoid confusing the VI chip with in-frame modifications. */
     if ( vi_is_active() ) { vi_wait_for_vblank(); }
 
-    /* Configure all VI registers */
+    /* Set basic preset */
+    vi_write_config(&vi_config_presets[serrate][__tv_type]);
+
+    if( __tv_type == TV_PAL && res.pal60 )
+    {
+        /* 60Hz PAL is a regular PAL video mode with NTSC-like V_SYNC and V_VIDEO */
+
+        /* NOTE: Ideally V_SYNC would be 524/525, matching NTSC, however in practice this appears
+                to cause too-slow retrace intervals. Instead we use 518/519 half-lines which is
+                only a 1.14% deviation, the expectation is that this is within the tolerance ranges
+                of almost all devices.
+                Alternatively we could have elected to shorten H_SYNC, however H_SYNC is expected
+                to be less tolerant than V_SYNC so we opt to leave it alone at the nominal value. */
+        vi_write_safe(VI_V_SYNC, VI_V_SYNC_SET(525 - 6 - serrate));
+        vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
+    }
+
+    /* Configure other VI registers */
     vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
     vi_write_safe(VI_WIDTH, res.width);
     vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
