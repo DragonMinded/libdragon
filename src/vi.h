@@ -113,7 +113,7 @@ typedef struct vi_config_s{
 
 /** Under VI_V_CURRENT  */
 /** @brief VI_V_CURRENT Register: default value for vblank begin line. */
-#define VI_V_CURRENT_VBLANK                 2
+#define VI_V_CURRENT_VBLANK                 0
 
 /** Under VI_V_INTR    */
 /** @brief VI_V_INTR Register: set value for vertical interrupt. */
@@ -370,7 +370,7 @@ static inline void vi_write_dram_register( void const * const dram_val )
 /** @brief Wait until entering the vblank period */
 static inline void vi_wait_for_vblank()
 {
-    while(*VI_V_CURRENT != VI_V_CURRENT_VBLANK ) {  }
+    while((*VI_V_CURRENT & ~1) != VI_V_CURRENT_VBLANK ) {  }
 }
 
 /** @brief Return true if VI is sending a video signal (16-bit or 32-bit color set) */
