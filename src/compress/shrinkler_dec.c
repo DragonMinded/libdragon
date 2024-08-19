@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #ifdef N64
 #include "debug.h"
 #else
@@ -179,10 +180,10 @@ int shr_unpack(uint8_t *dst, uint8_t *src)
     return dst - dst_start;
 }
 
-void* decompress_shrinkler_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
+void* decompress_shrinkler_full(const char *fn, int fd, size_t cmp_size, size_t size)
 {
     void *in = malloc(cmp_size);
-    fread(in, 1, cmp_size, fp);
+    read(fd, in, cmp_size);
 
     void *out = malloc(size);
     if (!out) return 0;

@@ -3,6 +3,8 @@
 #include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
 #include "compress/shrinkler_dec_internal.h"
+#include <unistd.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -63,33 +65,38 @@ void __asset_init_compression_lvl3(void)
     };
 }
 
-FILE *must_fopen(const char *fn)
+int must_open(const char *fn)
 {
-    FILE *f = fopen(fn, "rb");
-    if (!f) {
+    int fd = open(fn, O_RDONLY);
+    if (fd < 0) {
         // File not found.
         int errnum = errno;
         if (errnum == EINVAL) {
             if (!strstr(fn, ":/")) {
                 // A common mistake is to forget the filesystem prefix.
                 // Try to give a hint if that's the case.
-                assertf(f, "File not found: %s\n"
+                assertf(fd >= 0, "File not found: %s\n"
                     "Did you forget the filesystem prefix? (e.g. \"rom:/\")\n", fn);
-                return NULL;
+                return -1;
             } else if (strstr(fn, "rom:/")) {
                 // Another common mistake is to forget to initialize the rom filesystem.
                 // Suggest that if the filesystem prefix is "rom:/".
-                assertf(f, "File not found: %s\n"
+                assertf(fd >= 0, "File not found: %s\n"
                     "Did you forget to call dfs_init(), or did it return an error?\n", fn);
-                return NULL;
+                return -1;
             }
         }
-        assertf(f, "error opening file %s: %s\n", fn, strerror(errnum));
+        assertf(fd >= 0, "error opening file %s: %s\n", fn, strerror(errnum));
     }
-    return f;
+    return fd;
 }
 
-static void* decompress_inplace(asset_compression_t *algo, const char *fn, FILE *fp, size_t cmp_size, size_t size, int margin)
+FILE *must_fopen(const char *fn)
+{
+    return fdopen(must_open(fn), "rb");
+}
+
+static void* decompress_inplace(asset_compression_t *algo, const char *fn, int fd, size_t cmp_size, size_t size, int margin)
 {
     // Consistency check on input data
     assert(margin >= 0);
@@ -136,7 +143,7 @@ static void* decompress_inplace(asset_compression_t *algo, const char *fn, FILE 
     #endif
     } else {
         // Standard loading via stdio. We have to wait for the whole file to be read.
-        fread(s+cmp_offset, 1, cmp_size, fp);
+        read(fd, s+cmp_offset, cmp_size);
 
         // Run the decompression.
         n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
@@ -150,17 +157,11 @@ static void* decompress_inplace(asset_compression_t *algo, const char *fn, FILE 
 void *asset_load(const char *fn, int *sz)
 {
     uint8_t *s; int size;
-    FILE *f = must_fopen(fn);
-
-    // Disable buffering. This is optimal both for the no-compression case
-    // (where we just read the whole file in one go, so we want to avoid
-    // extra memory copies), and for the compressed case (where each
-    // compression algorithm implements its own logic of optimized buffering).
-    setvbuf(f, NULL, _IONBF, 0);
+    int fd = must_open(fn);
    
     // Check if file is compressed
     asset_header_t header;
-    fread(&header, 1, sizeof(asset_header_t), f);
+    read(fd, &header, sizeof(asset_header_t));
     if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
         if (header.version != '3') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
@@ -182,23 +183,22 @@ void *asset_load(const char *fn, int *sz)
 
         size = header.orig_size;
         if ((header.flags & ASSET_FLAG_INPLACE) && algos[header.algo-1].decompress_full_inplace)
-            s = decompress_inplace(&algos[header.algo-1], fn, f, header.cmp_size, size, header.inplace_margin);
+            s = decompress_inplace(&algos[header.algo-1], fn, fd, header.cmp_size, size, header.inplace_margin);
         else
-            s = algos[header.algo-1].decompress_full(fn, f, header.cmp_size, size);
+            s = algos[header.algo-1].decompress_full(fn, fd, header.cmp_size, size);
     } else {
         // Allocate a buffer big enough to hold the file.
         // We force a 32-byte alignment for the buffer so that it's aligned to instruction cache lines.
         // This might or might not be useful, but if a binary file is laid out so that it
         // matters, at least we guarantee that. 
-        fseek(f, 0, SEEK_END);
-        size = ftell(f);
+        size = lseek(fd, 0, SEEK_END);
         s = memalign(ASSET_ALIGNMENT, size);
 
-        fseek(f, 0, SEEK_SET);
-        fread(s, 1, size, f);
+        lseek(fd, 0, SEEK_SET);
+        read(fd, s, size);
     }
 
-    fclose(f);
+    close(fd);
     if (sz) *sz = size;
     return s;
 }
@@ -206,7 +206,7 @@ void *asset_load(const char *fn, int *sz)
 #ifdef N64
 
 typedef struct  {
-    FILE *fp;
+    int fd;
     bool seeked;
 } cookie_none_t;
 
@@ -216,10 +216,10 @@ static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
 
     // SEEK_CUR with pos=0 is used as ftell()
     if (whence == SEEK_CUR && pos == 0)
-        return ftell(cookie->fp);
+        return lseek(cookie->fd, 0, SEEK_CUR);
     if (whence == SEEK_SET && pos == 0) {
         cookie->seeked = false;
-        rewind(cookie->fp);
+        lseek(cookie->fd, 0, SEEK_SET);
         return 0;
     }
 
@@ -231,19 +231,19 @@ static int readfn_none(void *c, char *buf, int sz)
 {
     cookie_none_t *cookie = c;
     assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");
-    return fread(buf, 1, sz, cookie->fp);
+    return read(cookie->fd, buf, sz);
 }
 
 static int closefn_none(void *c)
 {
     cookie_none_t *cookie = c;
-    fclose(cookie->fp); cookie->fp = NULL;
+    close(cookie->fd); cookie->fd = -1;
     free(cookie);
     return 0;
 }
 
 typedef struct  {
-    FILE *fp;
+    int fd;
     int pos;
     bool seeked;
     void (*reset)(void *state);
@@ -270,7 +270,7 @@ static fpos_t seekfn_cmp(void *c, fpos_t pos, int whence)
     if (whence == SEEK_SET && pos == 0 && cookie->reset) {
         cookie->seeked = false;
         cookie->pos = 0;
-        fseek(cookie->fp, sizeof(asset_header_t), SEEK_SET);
+        lseek(cookie->fd, sizeof(asset_header_t), SEEK_SET);
         cookie->reset(cookie->state);
         return 0;
     }
@@ -285,22 +285,20 @@ static fpos_t seekfn_cmp(void *c, fpos_t pos, int whence)
 static int closefn_cmp(void *c)
 {
     cookie_cmp_t *cookie = (cookie_cmp_t*)c;
-    fclose(cookie->fp); cookie->fp = NULL;
+    close(cookie->fd); cookie->fd = -1;
     free(cookie);
     return 0;
 }
 
 FILE *asset_fopen(const char *fn, int *sz)
 {
-    FILE *f = must_fopen(fn);
-
-    // We use buffering on the outer file created by funopen, so we don't
-    // actually need buffering on the underlying one.
-    setbuf(f, NULL);
+    // Open the file. We use buffering on the outer file created by funopen,
+    // so we don't actually need buffering on the underlying one.
+    int fd = must_open(fn);
 
     // Check if file is compressed
     asset_header_t header;
-    fread(&header, 1, sizeof(asset_header_t), f);
+    read(fd, &header, sizeof(asset_header_t));
     if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
         if (header.version != '3') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
@@ -328,9 +326,9 @@ FILE *asset_fopen(const char *fn, int *sz)
         cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);
         cookie->read = algos[header.algo-1].decompress_read;
         cookie->reset = algos[header.algo-1].decompress_reset;
-        algos[header.algo-1].decompress_init(cookie->state, f, winsize);
+        algos[header.algo-1].decompress_init(cookie->state, fd, winsize);
 
-        cookie->fp = f;
+        cookie->fd = fd;
         cookie->pos = 0;
         cookie->seeked = false;
         if (sz) *sz = header.orig_size;
@@ -339,13 +337,10 @@ FILE *asset_fopen(const char *fn, int *sz)
 
     // Not compressed. Return a wrapped FILE* without the seeking capability,
     // so that it matches the behavior of the compressed file.
-    if (sz) {
-        fseek(f, 0, SEEK_END);
-        *sz = ftell(f);
-    }
-    fseek(f, 0, SEEK_SET);
+    if (sz) *sz = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);
     cookie_none_t *cookie = malloc(sizeof(cookie_none_t));
-    cookie->fp = f;
+    cookie->fd = fd;
     cookie->seeked = false;
     return funopen(cookie, readfn_none, NULL, seekfn_none, closefn_none);
 }
