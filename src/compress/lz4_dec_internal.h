@@ -59,7 +59,7 @@ int decompress_lz4_full_inplace(const uint8_t *src, size_t src_size, uint8_t *ds
 
 #define DECOMPRESS_LZ4_STATE_SIZE  176
 
-void decompress_lz4_init(void *state, FILE *fp, int winsize);
+void decompress_lz4_init(void *state, int fd, int winsize);
 ssize_t decompress_lz4_read(void *state, void *buf, size_t len);
 void decompress_lz4_reset(void *state);
 void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size);

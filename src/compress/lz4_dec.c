@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "lz4_dec_internal.h"
 #include "ringbuf_internal.h"
 #include "../utils.h"
@@ -200,7 +201,7 @@ typedef struct lz4dec_faststate_s {
  */
 typedef struct lz4dec_state_s {
    uint8_t buf[128] __attribute__((aligned(8)));     ///< File buffer
-   FILE *fp;                        ///< File pointer to read from
+   int fd;                          ///< File descriptor to read from
 	int buf_idx;                     ///< Current index in the file buffer
 	int buf_size;                    ///< Size of the file buffer
    bool eof;                        ///< True if we reached the end of the file
@@ -214,7 +215,7 @@ _Static_assert(sizeof(lz4dec_state_t) == DECOMPRESS_LZ4_STATE_SIZE, "decompress_
 
 static void lz4_refill(lz4dec_state_t *lz4)
 {
-   lz4->buf_size = fread(lz4->buf, 1, sizeof(lz4->buf), lz4->fp);
+   lz4->buf_size = read(lz4->fd, lz4->buf, sizeof(lz4->buf));
    lz4->buf_idx = 0;
    lz4->eof = (lz4->buf_size == 0);
 }
@@ -239,10 +240,10 @@ static void lz4_read(lz4dec_state_t *lz4, void *buf, size_t len)
    }
 }
 
-void decompress_lz4_init(void *state, FILE *fp, int winsize)
+void decompress_lz4_init(void *state, int fd, int winsize)
 {
    lz4dec_state_t *lz4 = (lz4dec_state_t*)state;
-   lz4->fp = fp;
+   lz4->fd = fd;
    __ringbuf_init(&lz4->ringbuf, state+sizeof(lz4dec_state_t), winsize);
    decompress_lz4_reset(state);
 }
