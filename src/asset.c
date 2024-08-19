@@ -170,7 +170,9 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
         header.orig_size = __builtin_bswap32(header.orig_size);
         header.inplace_margin = __builtin_bswap32(header.inplace_margin);
         #endif
-
+        
+        assertf((header.cmp_size+sizeof(asset_header_t)) == *sz, "Wrong compressed size (%d/%d)", *sz, (int)(header.cmp_size+sizeof(asset_header_t)));
+        
         assertf(header.algo >= 1 || header.algo <= 3,
             "unsupported compression algorithm: %d", header.algo);
         assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
