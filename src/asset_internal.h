@@ -15,6 +15,31 @@
 #define ASSET_FLAG_WINSIZE_128K     0x0006  ///< 128 KiB window size
 #define ASSET_FLAG_WINSIZE_256K     0x0007  ///< 256 KiB window size
 #define ASSET_FLAG_INPLACE          0x0100  ///< Decompress in-place
+#define ASSET_ALIGNMENT             32      ///< Aligned to instruction cacheline
+
+__attribute__((used))
+static inline int asset_buf_size(int size, int cmp_size, int margin, int *cmp_offset_dst)
+{
+    // add 8 because the assembly decompressors do writes up to 8 bytes out-of-bounds,
+    // that could overwrite the input data.
+    margin += 8;
+    int bufsize = size + margin;
+    int cmp_offset = bufsize - cmp_size;
+    // Align the source buffer to 4 bytes, so that we can use 32-bit loads (required by shrinkler).
+    // Notice that we need at least 2-byte alignment anyway, for DMA.
+    while (cmp_offset & 3) {
+        cmp_offset++;
+        bufsize++;
+    }
+    if(cmp_offset_dst) {
+        *cmp_offset_dst = cmp_offset;
+    }
+    if (bufsize & 15) {
+        // In case we need to call invalidate (see below), we need an aligned buffer
+        bufsize += 16 - (bufsize & 15);
+    }
+    return bufsize;
+}
 
 __attribute__((used))
 static inline int asset_winsize_from_flags(uint16_t flags) {

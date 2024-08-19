@@ -100,31 +100,19 @@ static void decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
 {
     // Consistency check on input data
     assert(margin >= 0);
-
-    // add 8 because the assembly decompressors do writes up to 8 bytes out-of-bounds,
-    // that could overwrite the input data.
-    margin += 8;
-
-    int bufsize = size + margin;
-    int cmp_offset = bufsize - cmp_size;
-    // Align the source buffer to 4 bytes, so that we can use 32-bit loads (required by shrinkler).
-    // Notice that we need at least 2-byte alignment anyway, for DMA.
-    while (cmp_offset & 3) {
-        cmp_offset++;
-        bufsize++;
-    }
-    if (bufsize & 15) {
-        // In case we need to call invalidate (see below), we need an aligned buffer
-        bufsize += 16 - (bufsize & 15);
-    }
+    int cmp_offset;
+    int bufsize = asset_buf_size(size, cmp_size, margin, &cmp_offset);
     bool buf_realloc = false;
     if(*buf == NULL || *buf_size < bufsize) {
         *buf = memalign(ASSET_ALIGNMENT, bufsize);
         assertf(*buf, "asset_load: out of memory");
         *buf_size = bufsize;
         buf_realloc = true;
+    } else {
+        assertf(((uintptr_t)(*buf) & ~(ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
     }
     void *s = *buf;
+    
     int n;
 
     #ifdef N64
@@ -195,12 +183,14 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
             algos[header.algo-1].decompress_full(fd, header.cmp_size, *sz, buf, buf_size);
     } else {
         // Allocate a buffer big enough to hold the file.
-        // We force a 32-byte alignment for the buffer so that it's aligned to instruction cache lines.
+        // We force a 16-byte alignment for the buffer so that it's aligned to data cache lines.
         // This might or might not be useful, but if a binary file is laid out so that it
         // matters, at least we guarantee that.
         if(*buf == NULL || *buf_size < *sz) {
             *buf = memalign(ASSET_ALIGNMENT, *sz);
             *buf_size = *sz;
+        } else {
+            assertf(((uintptr_t)(*buf) & ~(ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
         }
         lseek(fd, orig_ofs, SEEK_SET);
         read(fd, *buf, *sz);

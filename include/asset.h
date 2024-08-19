@@ -80,7 +80,8 @@ extern void __asset_init_compression_lvl2(void);
 extern void __asset_init_compression_lvl3(void);
 /// @endcond
 
-#define ASSET_ALIGNMENT 16  ///< Aligned to data cacheline
+/** @brief Minimum required alignment for assets */
+#define ASSET_ALIGNMENT_MIN 16  ///< Aligned to data cacheline
 
 
 /**
