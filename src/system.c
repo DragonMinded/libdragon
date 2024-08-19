@@ -1189,6 +1189,24 @@ int wait( int *status )
     return -1;
 }
 
+int ioctl(int fd, unsigned long cmd, void *argp)
+{
+    filesystem_t *fs = __get_fs_pointer_by_handle(fd);
+    void **handle_ptr = __get_fs_handle(fd);
+    if(fs == 0 || handle_ptr == 0)
+    {
+        errno = EBADF;
+        return -1;
+    }
+    if(fs->ioctl == 0 )
+    {
+        /* Filesystem doesn't support ioctl */
+        errno = ENOTTY;
+        return -1;
+    }
+    return fs->ioctl(*handle_ptr, cmd, argp);
+}
+
 /**
  * @brief Write data to a file
  *

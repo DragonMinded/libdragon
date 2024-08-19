@@ -88,3 +88,13 @@ void test_dfs_rom_addr(TestContext *ctx) {
 
 	ASSERT_EQUAL_MEM(buf1, buf2, 128, "DMA ROM access is different");
 }
+
+void test_dfs_ioctl(TestContext *ctx) {
+    FILE *file = fopen("rom:/counter.dat", "rb");
+    ASSERT(file, "counter.dat not found");
+    DEFER(fclose(file));
+    uint32_t rom_addr = 0;
+    int ret = ioctl(fileno(file), IODFS_GET_ROM_BASE, &rom_addr);
+    ASSERT(ret >= 0, "DFS ioctl failed");
+    ASSERT(rom_addr == dfs_rom_addr("counter.dat"), "IODFS_GET_ROM_BASE ioctl not working");
+}
