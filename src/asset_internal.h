@@ -15,7 +15,6 @@
 #define ASSET_FLAG_WINSIZE_128K     0x0006  ///< 128 KiB window size
 #define ASSET_FLAG_WINSIZE_256K     0x0007  ///< 256 KiB window size
 #define ASSET_FLAG_INPLACE          0x0100  ///< Decompress in-place
-#define ASSET_ALIGNMENT             32
 
 __attribute__((used))
 static inline int asset_winsize_from_flags(uint16_t flags) {
@@ -66,7 +65,7 @@ typedef struct {
     void (*decompress_reset)(void *state);
 
     /** @brief Decompress a full file in one go */
-    void* (*decompress_full)(const char *fn, int fd, size_t cmp_size, size_t len);
+    void (*decompress_full)(int fd, size_t cmp_size, size_t len, void **buf, int *buf_size);
 
     /** @brief Decompress a full file in-place */
     int (*decompress_full_inplace)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);

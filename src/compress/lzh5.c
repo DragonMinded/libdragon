@@ -13,6 +13,8 @@
 #include "utils.h"
 #include "n64sys.h"
 #include "dragonfs.h"
+#include "asset.h"
+
 #else
 #include <stdlib.h>
 #endif

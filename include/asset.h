@@ -80,6 +80,9 @@ extern void __asset_init_compression_lvl2(void);
 extern void __asset_init_compression_lvl3(void);
 /// @endcond
 
+#define ASSET_ALIGNMENT 16  ///< Aligned to data cacheline
+
+
 /**
  * @brief Enable a non-default compression level
  * 

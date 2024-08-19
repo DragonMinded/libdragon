@@ -96,7 +96,7 @@ FILE *must_fopen(const char *fn)
     return fdopen(must_open(fn), "rb");
 }
 
-static void* decompress_inplace(asset_compression_t *algo, const char *fn, int fd, size_t cmp_size, size_t size, int margin)
+static void decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_size, size_t size, int margin, void **buf, int *buf_size)
 {
     // Consistency check on input data
     assert(margin >= 0);
@@ -117,13 +117,19 @@ static void* decompress_inplace(asset_compression_t *algo, const char *fn, int f
         // In case we need to call invalidate (see below), we need an aligned buffer
         bufsize += 16 - (bufsize & 15);
     }
-
-    void *s = memalign(ASSET_ALIGNMENT, bufsize);
-    assertf(s, "asset_load: out of memory");
+    bool buf_realloc = false;
+    if(*buf == NULL || *buf_size < bufsize) {
+        *buf = memalign(ASSET_ALIGNMENT, bufsize);
+        assertf(*buf, "asset_load: out of memory");
+        *buf_size = bufsize;
+        buf_realloc = true;
+    }
+    void *s = *buf;
     int n;
 
     #ifdef N64
-    if (fn && strncmp(fn, "rom:/", 5) == 0) {
+    uint32_t rom_addr = 0;
+    if (ioctl(fd, IODFS_GET_ROM_BASE, &rom_addr) >= 0) {
         // Invalid the portion of the buffer where we are going to load
         // the compressed data. This is needed in case the buffer returned
         // by memalign happens to be in cached already.
@@ -133,8 +139,8 @@ static void* decompress_inplace(asset_compression_t *algo, const char *fn, int f
         // Loading from ROM. This is a common enough situation that we want to optimize it.
         // Start an asynchronous DMA transfer, so that we can start decompressing as the
         // data flows in.
-        uint32_t addr = dfs_rom_addr(fn+5) & 0x1FFFFFFF;
-        dma_read_async(s+cmp_offset, addr+sizeof(asset_header_t), cmp_size);
+        uint32_t addr = (rom_addr & 0x1FFFFFFF)+lseek(fd, 0, SEEK_CUR);
+        dma_read_async(s+cmp_offset, addr, cmp_size);
 
         // Run the decompression racing with the DMA.
         n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
@@ -148,24 +154,25 @@ static void* decompress_inplace(asset_compression_t *algo, const char *fn, int f
         // Run the decompression.
         n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
     }
-    assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
-    void *ptr = realloc(s, size); (void)ptr;
-    assertf(s == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
-    return ptr;
+    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
+    if(buf_realloc) {
+        void *ptr = realloc(*buf, size); (void)ptr;
+        assertf(*buf == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
+        *buf = ptr;
+    }
 }
 
-void *asset_load(const char *fn, int *sz)
+static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
 {
-    uint8_t *s; int size;
-    int fd = must_open(fn);
-   
     // Check if file is compressed
     asset_header_t header;
+    off_t orig_ofs = lseek(fd, 0, SEEK_CUR);
     read(fd, &header, sizeof(asset_header_t));
+    
     if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
         if (header.version != '3') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
-            return NULL;
+            return;
         }
 
         #ifndef N64
@@ -181,26 +188,48 @@ void *asset_load(const char *fn, int *sz)
         assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
 
-        size = header.orig_size;
+        *sz = header.orig_size;
         if ((header.flags & ASSET_FLAG_INPLACE) && algos[header.algo-1].decompress_full_inplace)
-            s = decompress_inplace(&algos[header.algo-1], fn, fd, header.cmp_size, size, header.inplace_margin);
+            decompress_inplace(&algos[header.algo-1], fd, header.cmp_size, *sz, header.inplace_margin, buf, buf_size);
         else
-            s = algos[header.algo-1].decompress_full(fn, fd, header.cmp_size, size);
+            algos[header.algo-1].decompress_full(fd, header.cmp_size, *sz, buf, buf_size);
     } else {
         // Allocate a buffer big enough to hold the file.
         // We force a 32-byte alignment for the buffer so that it's aligned to instruction cache lines.
         // This might or might not be useful, but if a binary file is laid out so that it
-        // matters, at least we guarantee that. 
-        size = lseek(fd, 0, SEEK_END);
-        s = memalign(ASSET_ALIGNMENT, size);
-
-        lseek(fd, 0, SEEK_SET);
-        read(fd, s, size);
+        // matters, at least we guarantee that.
+        if(*buf == NULL || *buf_size < *sz) {
+            *buf = memalign(ASSET_ALIGNMENT, *sz);
+            *buf_size = *sz;
+        }
+        lseek(fd, orig_ofs, SEEK_SET);
+        read(fd, *buf, *sz);
     }
+}
 
-    close(fd);
+void asset_loadf_into(FILE *f, int *sz, void **buf, int *buf_size)
+{
+    asset_load_fd_into(fileno(f), sz, buf, buf_size);
+}
+
+void *asset_loadf(FILE *f, int *sz)
+{
+    void *buf = NULL; int buf_size = 0;
+    asset_loadf_into(f, sz, &buf, &buf_size);
+    return buf;
+}
+
+void *asset_load(const char *fn, int *sz)
+{
+    void *buf = NULL; int buf_size = 0;
+    int size;
+    int fd = must_open(fn);
+    size = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);
+    asset_load_fd_into(fd, &size, &buf, &buf_size);
     if (sz) *sz = size;
-    return s;
+    close(fd);
+    return buf;
 }
 
 #ifdef N64
