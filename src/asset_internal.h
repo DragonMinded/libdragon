@@ -57,7 +57,7 @@ typedef struct {
     int state_size;     ///< Basic size of the decompression state (without ringbuffer)
 
     /** @brief Initialize the decompression state */
-    void (*decompress_init)(void *state, FILE *fp, int winsize);
+    void (*decompress_init)(void *state, int fd, int winsize);
 
     /** @brief Partially read a decompressed file from a state */
     ssize_t (*decompress_read)(void *state, void *buf, size_t len);
@@ -66,7 +66,7 @@ typedef struct {
     void (*decompress_reset)(void *state);
 
     /** @brief Decompress a full file in one go */
-    void* (*decompress_full)(const char *fn, FILE *fp, size_t cmp_size, size_t len);
+    void* (*decompress_full)(const char *fn, int fd, size_t cmp_size, size_t len);
 
     /** @brief Decompress a full file in-place */
     int (*decompress_full_inplace)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);

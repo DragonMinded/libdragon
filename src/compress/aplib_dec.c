@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 #ifdef N64
 #include "n64sys.h"
 #include "dma.h"
@@ -32,7 +33,7 @@ typedef struct {
     uint8_t *buf_end;                                   ///< Pointer to end of current loaded data
     uint8_t cc;                                         ///< Current byte being processed
     int shift;                                          ///< Current bit being processed
-    FILE *f;                                            ///< File being read from
+    int fd;                                             ///< File being read from
     uint32_t rom_addr;                                  ///< ROM address being read from (optional)
     bool eof;                                           ///< Whether the end of the stream has been reached
     struct {
@@ -59,10 +60,10 @@ static void refill(aplib_decompressor_t *d)
         d->rom_addr += sizeof(d->buf[0]);
         buf_size = sizeof(d->buf[0]);
     } else {
-        buf_size = fread(d->buf[d->cur_buf], 1, sizeof(d->buf[0]), d->f);
+        buf_size = read(d->fd, d->buf[d->cur_buf], sizeof(d->buf[0]));
     }
     #else
-    buf_size = fread(d->buf[d->cur_buf], 1, sizeof(d->buf[0]), d->f);
+    buf_size = read(d->fd, d->buf[d->cur_buf], sizeof(d->buf[0]));
     #endif
 
     d->buf_ptr = d->buf[d->cur_buf];
@@ -114,10 +115,10 @@ static void decompress_reset(aplib_decompressor_t *d)
     #endif
 }
 
-static void decompress_init(aplib_decompressor_t *d, FILE *f, uint32_t rom_addr)
+static void decompress_init(aplib_decompressor_t *d, int fd, uint32_t rom_addr)
 {
     memset(d, 0, sizeof(*d));
-    d->f = f;
+    d->fd = fd;
     d->rom_addr = rom_addr;
     decompress_reset(d);
 }
@@ -297,10 +298,10 @@ static int decompress_aplib_partial(aplib_decompressor_t *d, uint8_t *out, int l
     return out - out_orig;
 }
 
-void decompress_aplib_init(void *state, FILE *fp, int winsize)
+void decompress_aplib_init(void *state, int fd, int winsize)
 {
     aplib_decompressor_t *d = state;
-    decompress_init(d, fp, 0);
+    decompress_init(d, fd, 0);
     __ringbuf_init(&d->partial.ringbuf, state+sizeof(aplib_decompressor_t), winsize);
 }
 
@@ -316,17 +317,17 @@ ssize_t decompress_aplib_read(void *state, void *buf, size_t len)
     return decompress_aplib_partial(d, buf, len);
 }
 
-void* decompress_aplib_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
+void* decompress_aplib_full(const char *fn, int fd, size_t cmp_size, size_t size)
 {
     uint32_t rom_addr = 0;
     #ifdef N64
 	if (strncmp(fn, "rom:/", 5) == 0) {
-		rom_addr = (dfs_rom_addr(fn+5) & 0x1fffffff) + ftell(fp);
+		rom_addr = (dfs_rom_addr(fn+5) & 0x1fffffff) + lseek(fd, 0, SEEK_CUR);
 	}
     #endif
     void *buf = memalign(ASSET_ALIGNMENT, size + 8);
     aplib_decompressor_t d;
-    decompress_init(&d, fp, rom_addr);
+    decompress_init(&d, fd, rom_addr);
     int sz = decompress_full(&d, buf); (void)sz;
     buf = realloc(buf, size);
     return buf;
