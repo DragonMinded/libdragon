@@ -205,6 +205,7 @@ void asset_loadf_into(FILE *f, int *sz, void **buf, int *buf_size)
     
     fd = fileno(f);
     fflush(f);
+    assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
     asset_load_fd_into(fd, sz, buf, buf_size);
 }
 
