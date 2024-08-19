@@ -129,6 +129,42 @@ extern void __asset_init_compression_lvl3(void);
 void *asset_load(const char *fn, int *sz);
 
 /**
+ * @brief Load an asset file (possibly uncompressing it)
+ * 
+ * This function loads a file from a file system (eg: from ROM or SD).
+ * If the file was compressed using the mkasset tool, it will be
+ * automatically uncompressed.
+ * 
+ * @param f         pre-seeked file pointer, pointing to a valid asset header (or
+ *                  actual data if uncompressed)
+ * @param sz        size of input data (compressed or not). It will be filled
+ *                  the uncompressed asset size, which is equal to the input value if the
+ *                  asset is not compressed.
+ * @return void*    Allocated buffer filled with the uncompressed asset content
+ */
+void* asset_loadf(FILE *f, int *sz);
+
+
+/**
+ * @brief Load an asset file (possibly uncompressing it)
+ * 
+ * This function loads a file from a file system (eg: from ROM or SD).
+ * If the file was compressed using the mkasset tool, it will be
+ * automatically uncompressed.
+ * 
+ * @param f         pre-seeked file pointer, pointing to a valid asset header (or
+ *                  actual data if uncompressed)
+ * @param sz        [in/out]: size of input data (compressed or not). It will be filled
+ *                  the uncompressed asset size, which is equal to the input value if the
+ *                  asset is not compressed.
+ * @param buf       pointer to the buffer pointer. If the buffer pointer is NULL,
+ *                  or it is too small, asset_load_into will try to resize it via realloc()
+ * @param buf_size  pointer to the size of the provided buffer. If the buffer
+ *                  is (re-)allocated, this will contain the buffer size.
+ */
+void asset_loadf_into(FILE *f, int *sz, void **buf, int *buf_size);
+
+/**
  * @brief Open an asset file for reading (with transparent decompression)
  * 
  * This function opens a file from a file system (eg: from ROM or SD).
