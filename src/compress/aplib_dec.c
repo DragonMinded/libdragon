@@ -325,7 +325,7 @@ void decompress_aplib_full(int fd, size_t cmp_size, size_t size, void **buf, int
     uint32_t rom_addr = 0;
     #ifdef N64
 	if (ioctl(fd, IODFS_GET_ROM_BASE, &rom_addr) >= 0) {
-		rom_addr = (rom_addr & 0x1FFFFFFF)+lseek(fd, 0, SEEK_CUR);
+		rom_addr += lseek(fd, 0, SEEK_CUR);
 	}
     #endif
     if(*buf == NULL || *buf_size < size+8) {

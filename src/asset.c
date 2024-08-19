@@ -139,7 +139,7 @@ static void decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
         // Loading from ROM. This is a common enough situation that we want to optimize it.
         // Start an asynchronous DMA transfer, so that we can start decompressing as the
         // data flows in.
-        uint32_t addr = (rom_addr & 0x1FFFFFFF)+lseek(fd, 0, SEEK_CUR);
+        uint32_t addr = rom_addr+lseek(fd, 0, SEEK_CUR);
         dma_read_async(s+cmp_offset, addr, cmp_size);
 
         // Run the decompression racing with the DMA.
