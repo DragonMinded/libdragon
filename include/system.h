@@ -362,7 +362,7 @@ int unhook_time_call( time_t (*time_fn)( void ) );
 /**
  * @brief Perform IO Control Request
  *
- * @param[in] file
+ * @param[in] fd
  *            File handle
  * @param[in] cmd
  *            Request ioctl command code 
