@@ -201,7 +201,11 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
 
 void asset_loadf_into(FILE *f, int *sz, void **buf, int *buf_size)
 {
-    asset_load_fd_into(fileno(f), sz, buf, buf_size);
+    int fd;
+    
+    fd = fileno(f);
+    fflush(f);
+    asset_load_fd_into(fd, sz, buf, buf_size);
 }
 
 void *asset_loadf(FILE *f, int *sz)

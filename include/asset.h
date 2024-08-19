@@ -131,9 +131,9 @@ void *asset_load(const char *fn, int *sz);
 /**
  * @brief Load an asset file (possibly uncompressing it)
  * 
- * This function loads a file from a file system (eg: from ROM or SD).
- * If the file was compressed using the mkasset tool, it will be
- * automatically uncompressed.
+ * This function loads an asset pointed to by a file pointer. The
+ * file will be seeked to an undefined position after the function executes.
+ * If this asset was compressed it will be uncompressed automatically.
  * 
  * @param f         pre-seeked file pointer, pointing to a valid asset header (or
  *                  actual data if uncompressed)
@@ -148,9 +148,10 @@ void* asset_loadf(FILE *f, int *sz);
 /**
  * @brief Load an asset file (possibly uncompressing it)
  * 
- * This function loads a file from a file system (eg: from ROM or SD).
- * If the file was compressed using the mkasset tool, it will be
- * automatically uncompressed.
+ * This function loads an asset pointed to by a file pointer. The
+ * file will be seeked to an undefined position after the function executes.
+ * It will load to the given buffer and automatically resize the buffer if
+ * the buffer is too small.
  * 
  * @param f         pre-seeked file pointer, pointing to a valid asset header (or
  *                  actual data if uncompressed)
