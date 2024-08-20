@@ -145,48 +145,51 @@ static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
     return true;
 }
 
-static bool asset_load_fd_into(int fd, int *sz, void *buf, int *buf_size)
+static int asset_read_header(int fd, asset_header_t *header, int *sz)
 {
-    // Check if file is compressed
-    asset_header_t header;
-    read(fd, &header, sizeof(asset_header_t));
+    read(fd, header, sizeof(asset_header_t));
     
-    if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
-        bool ret = false;
-        if (header.version != '3') {
-            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
-            return false;
+    if (!memcmp(header->magic, ASSET_MAGIC, 3)) {
+        if (header->version != '3') {
+            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header->version);
         }
 
         #ifndef N64
-        header.algo = __builtin_bswap16(header.algo);
-        header.flags = __builtin_bswap16(header.flags);
-        header.cmp_size = __builtin_bswap32(header.cmp_size);
-        header.orig_size = __builtin_bswap32(header.orig_size);
-        header.inplace_margin = __builtin_bswap32(header.inplace_margin);
+        header->algo = __builtin_bswap16(header->algo);
+        header->flags = __builtin_bswap16(header->flags);
+        header->cmp_size = __builtin_bswap32(header->cmp_size);
+        header->orig_size = __builtin_bswap32(header->orig_size);
+        header->inplace_margin = __builtin_bswap32(header->inplace_margin);
         #endif
         
-        assertf((header.cmp_size+sizeof(asset_header_t)) == *sz, "Wrong compressed size (%d/%d)", *sz, (int)(header.cmp_size+sizeof(asset_header_t)));
+        int compressed_size = header->cmp_size+sizeof(asset_header_t);
+        assertf(compressed_size == *sz, "Wrong compressed size (%d/%d)", *sz, compressed_size);
 
-        assertf(header.algo >= 1 || header.algo <= 3,
-            "unsupported compression algorithm: %d", header.algo);
-        assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
-            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
+        assertf(header->algo >= 1 || header->algo <= 3,
+            "unsupported compression algorithm: %d", header->algo);
+        assertf(algos[header->algo-1].decompress_full || algos[header->algo-1].decompress_full_inplace, 
+            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header->algo, header->algo);
+        return asset_buf_size(header->orig_size, header->cmp_size, header->inplace_margin, NULL);
+    } else {
+        assertf(*sz >= 0, "Invalid uncompressed size");
+        return *sz;
+    }
+}
 
-        if ((header.flags & ASSET_FLAG_INPLACE) && algos[header.algo-1].decompress_full_inplace)
-            ret = decompress_inplace(&algos[header.algo-1], fd, header.cmp_size, header.orig_size, header.inplace_margin, buf, buf_size);
+static bool asset_read(int fd, asset_header_t *header, int *sz, void *buf, int *buf_size)
+{
+    if(!memcmp(header->magic, ASSET_MAGIC, 3)) {
+        bool ret;
+
+        if ((header->flags & ASSET_FLAG_INPLACE) && algos[header->algo-1].decompress_full_inplace)
+            ret = decompress_inplace(&algos[header->algo-1], fd, header->cmp_size, header->orig_size, header->inplace_margin, buf, buf_size);
         else
-            ret = algos[header.algo-1].decompress_full(fd, header.cmp_size, header.orig_size, buf, buf_size);
+            ret = algos[header->algo-1].decompress_full(fd, header->cmp_size, header->orig_size, buf, buf_size);
         if(ret) {
-            *sz = header.orig_size;
+            *sz = header->orig_size;
         }
         return ret;
     } else {
-        assertf(*sz >= 0, "Invalid uncompressed size");
-        // Allocate a buffer big enough to hold the file.
-        // We force a 16-byte alignment for the buffer so that it's aligned to data cache lines.
-        // This might or might not be useful, but if a binary file is laid out so that it
-        // matters, at least we guarantee that.
         if(buf == NULL || *buf_size < *sz) {
             *buf_size = *sz;
             return false;
@@ -208,17 +211,22 @@ bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
     fd = fileno(f);
     fflush(f);
     assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
-    return asset_load_fd_into(fd, sz, buf, buf_size);
+    asset_header_t header;
+    asset_read_header(fd, &header, sz);
+    return asset_read(fd, &header, sz, buf, buf_size);
 }
 
 void *asset_loadf(FILE *f, int *sz)
 {
     void *buf = NULL; int buf_size = 0;
-    long file_ofs = ftell(f);
-    asset_loadf_into(f, sz, buf, &buf_size);
-    fseek(f, file_ofs, SEEK_SET);
+    int fd;
+    fd = fileno(f);
+    fflush(f);
+    assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
+    asset_header_t header;
+    buf_size = asset_read_header(fd, &header, sz);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
-    asset_loadf_into(f, sz, buf, &buf_size);
+    asset_read(fd, &header, sz, buf, &buf_size);
     return buf;
 }
 
@@ -230,10 +238,10 @@ void *asset_load(const char *fn, int *sz)
     struct stat stat;
     fstat(fd, &stat);
     size = stat.st_size;
-    asset_load_fd_into(fd, &size, buf, &buf_size);
+    asset_header_t header;
+    buf_size = asset_read_header(fd, &header, &size);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
-    lseek(fd, 0, SEEK_SET);
-    asset_load_fd_into(fd, &size, buf, &buf_size);
+    asset_read(fd, &header, &size, buf, &buf_size);
     if (sz) *sz = size;
     close(fd);
     return buf;
