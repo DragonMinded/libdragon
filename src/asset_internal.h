@@ -2,6 +2,8 @@
 #define __LIBDRAGON_ASSET_INTERNAL_H
 
 #include <stdint.h>
+#include <stdbool.h>
+
 #include <stdio.h>
 
 #define ASSET_MAGIC                 "DCA"   ///< Magic compressed asset header
@@ -90,7 +92,7 @@ typedef struct {
     void (*decompress_reset)(void *state);
 
     /** @brief Decompress a full file in one go */
-    void (*decompress_full)(int fd, size_t cmp_size, size_t len, void **buf, int *buf_size);
+    bool (*decompress_full)(int fd, size_t cmp_size, size_t len, void *buf, int *buf_size);
 
     /** @brief Decompress a full file in-place */
     int (*decompress_full_inplace)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);

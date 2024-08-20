@@ -146,24 +146,50 @@ void* asset_loadf(FILE *f, int *sz);
 
 
 /**
- * @brief Load an asset file (possibly uncompressing it)
- * 
- * This function loads an asset pointed to by a file pointer. The
- * file will be seeked to an undefined position after the function executes.
- * It will load to the given buffer and automatically resize the buffer if
- * the buffer is too small.
- * 
- * @param f         pre-seeked file pointer, pointing to a valid asset header (or
- *                  actual data if uncompressed)
- * @param sz        [in/out]: size of input data (compressed or not). It will be filled
- *                  the uncompressed asset size, which is equal to the input value if the
- *                  asset is not compressed.
- * @param buf       pointer to the buffer pointer. If the buffer pointer is NULL,
- *                  or it is too small, asset_load_into will try to resize it via realloc()
- * @param buf_size  pointer to the size of the provided buffer. If the buffer
- *                  is (re-)allocated, this will contain the buffer size.
- */
-void asset_loadf_into(FILE *f, int *sz, void **buf, int *buf_size);
+  * @brief Load an asset file (possibly uncompressing it)
+  *
+  * This is the lowest-level asset loading function, that is
+  * needed only for advanced use cases. In general, prefer using
+  * any of other variants if possible, as the other APIs are
+  * harder to misuse.
+  * 
+  * This function loads an asset potentially embedded within a
+  * larger, opened file. It requires an open file pointer, seeked
+  * to the beginning of the asset, and the size of the asset itself.
+  * If the asset is compressed, it is transparently decompressed.
+  *
+  * After this function returns, for technical reasons, the position
+  * of the provided file pointer becomes undefined. If you need to
+  * use it again, make sure to seek it.
+  * 
+  * The memory buffer to hold the uncompressed asset must be provided as
+  * input, together with its size. If the provided buffer is too small (or
+  * it is NULL), the function does not load the asset and returns false,
+  * change buf_size to contain the minimum required size for the buffer.
+  * Notice that the minimum buffer size might be slightly larger than
+  * the uncompressed asset size, because some extra space might be required
+  * to perform in-place decompression. The minimum buffer size can either
+  * be calculated a build time (the assetcomp library exposes a function to
+  * do so), or queried at runtime by simply calling this function with a NULL
+  * input buffer.
+  *
+  * @param f         pre-seeked file pointer, pointing to a valid asset header
+  *                  (or actual data if uncompressed)
+  * @param sz        [in/out]: size of input data (compressed or not). It will
+  *                  be filled the uncompressed asset size, which is equal to
+  *                  the input value if the asset is not compressed.
+  * @param buf       Pointer to the buffer where data must be loaded into. 
+  *                  If the buffer pointer is NULL, or it is too small,
+  *                  asset_loadf_into will fail.
+  * @param buf_size  [in/out]: Size of the provided input buffer. Changed to 
+  *                  minimum required size, if it was too small.
+  *
+  * @return true The function has succeeded and the asset was loaded
+  * @return false The function has failed because the provided buffer was too small.
+  *               In this case, *buf_size is changed to contain the minimum size
+  *               that is required to load this asset.
+  */
+bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size);
 
 /**
  * @brief Open an asset file for reading (with transparent decompression)

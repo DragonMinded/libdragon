@@ -97,23 +97,21 @@ FILE *must_fopen(const char *fn)
     return fdopen(must_open(fn), "rb");
 }
 
-static void decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_size, size_t size, int margin, void **buf, int *buf_size)
+static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_size, size_t size, int margin, void *buf, int *buf_size)
 {
     // Consistency check on input data
     assert(margin >= 0);
     int cmp_offset;
     int bufsize = asset_buf_size(size, cmp_size, margin, &cmp_offset);
-    bool buf_realloc = false;
-    if(*buf == NULL || *buf_size < bufsize) {
-        *buf = memalign(ASSET_ALIGNMENT, bufsize);
-        assertf(*buf, "asset_load: out of memory");
+    if(buf == NULL || *buf_size < bufsize) {
         *buf_size = bufsize;
-        buf_realloc = true;
+        return false;
     } else {
-        assertf(((uintptr_t)(*buf) & ~(ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
+        #ifdef N64
+        assertf(((uintptr_t)(buf) & (ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
+        #endif
     }
-    void *s = *buf;
-    
+    void *s = buf;
     int n;
 
     #ifdef N64
@@ -144,23 +142,20 @@ static void decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
         n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
     }
     assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
-    if(buf_realloc) {
-        void *ptr = realloc(*buf, size); (void)ptr;
-        assertf(*buf == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
-        *buf = ptr;
-    }
+    return true;
 }
 
-static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
+static bool asset_load_fd_into(int fd, int *sz, void *buf, int *buf_size)
 {
     // Check if file is compressed
     asset_header_t header;
     read(fd, &header, sizeof(asset_header_t));
     
     if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
+        bool ret = false;
         if (header.version != '3') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
-            return;
+            return false;
         }
 
         #ifndef N64
@@ -171,56 +166,59 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
         header.inplace_margin = __builtin_bswap32(header.inplace_margin);
         #endif
         
-        if(*sz >= 0) {
-            assertf((header.cmp_size+sizeof(asset_header_t)) == *sz, "Wrong compressed size (%d/%d)", *sz, (int)(header.cmp_size+sizeof(asset_header_t)));
-        }
+        assertf((header.cmp_size+sizeof(asset_header_t)) == *sz, "Wrong compressed size (%d/%d)", *sz, (int)(header.cmp_size+sizeof(asset_header_t)));
 
         assertf(header.algo >= 1 || header.algo <= 3,
             "unsupported compression algorithm: %d", header.algo);
         assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
 
-        *sz = header.orig_size;
         if ((header.flags & ASSET_FLAG_INPLACE) && algos[header.algo-1].decompress_full_inplace)
-            decompress_inplace(&algos[header.algo-1], fd, header.cmp_size, *sz, header.inplace_margin, buf, buf_size);
+            ret = decompress_inplace(&algos[header.algo-1], fd, header.cmp_size, header.orig_size, header.inplace_margin, buf, buf_size);
         else
-            algos[header.algo-1].decompress_full(fd, header.cmp_size, *sz, buf, buf_size);
-    } else {
-        //Calculate number of remaining bytes
-        if(*sz < 0) {
-            struct stat stat;
-            fstat(fd, &stat);
-            *sz += stat.st_size;
+            ret = algos[header.algo-1].decompress_full(fd, header.cmp_size, header.orig_size, buf, buf_size);
+        if(ret) {
+            *sz = header.orig_size;
         }
+        return ret;
+    } else {
+        assertf(*sz >= 0, "Invalid uncompressed size");
         // Allocate a buffer big enough to hold the file.
         // We force a 16-byte alignment for the buffer so that it's aligned to data cache lines.
         // This might or might not be useful, but if a binary file is laid out so that it
         // matters, at least we guarantee that.
-        if(*buf == NULL || *buf_size < *sz) {
-            *buf = memalign(ASSET_ALIGNMENT, *sz);
+        if(buf == NULL || *buf_size < *sz) {
             *buf_size = *sz;
+            return false;
         } else {
-            assertf(((uintptr_t)(*buf) & ~(ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
+            #ifdef N64
+            assertf(((uintptr_t)(buf) & (ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
+            #endif
         }
         lseek(fd, -sizeof(asset_header_t), SEEK_CUR);
-        read(fd, *buf, *sz);
+        read(fd, buf, *sz);
+        return true;
     }
 }
 
-void asset_loadf_into(FILE *f, int *sz, void **buf, int *buf_size)
+bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
 {
     int fd;
     
     fd = fileno(f);
     fflush(f);
     assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
-    asset_load_fd_into(fd, sz, buf, buf_size);
+    return asset_load_fd_into(fd, sz, buf, buf_size);
 }
 
 void *asset_loadf(FILE *f, int *sz)
 {
     void *buf = NULL; int buf_size = 0;
-    asset_loadf_into(f, sz, &buf, &buf_size);
+    long file_ofs = ftell(f);
+    asset_loadf_into(f, sz, buf, &buf_size);
+    fseek(f, file_ofs, SEEK_SET);
+    buf = memalign(ASSET_ALIGNMENT, buf_size);
+    asset_loadf_into(f, sz, buf, &buf_size);
     return buf;
 }
 
@@ -229,8 +227,13 @@ void *asset_load(const char *fn, int *sz)
     void *buf = NULL; int buf_size = 0;
     int size;
     int fd = must_open(fn);
-    size = -1;
-    asset_load_fd_into(fd, &size, &buf, &buf_size);
+    struct stat stat;
+    fstat(fd, &stat);
+    size = stat.st_size;
+    asset_load_fd_into(fd, &size, buf, &buf_size);
+    buf = memalign(ASSET_ALIGNMENT, buf_size);
+    lseek(fd, 0, SEEK_SET);
+    asset_load_fd_into(fd, &size, buf, &buf_size);
     if (sz) *sz = size;
     close(fd);
     return buf;
