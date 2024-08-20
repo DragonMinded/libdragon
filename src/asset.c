@@ -9,6 +9,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdalign.h>
+#include <sys/stat.h>
 
 #ifdef N64
 #include <malloc.h>
@@ -154,7 +155,6 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
 {
     // Check if file is compressed
     asset_header_t header;
-    off_t orig_ofs = lseek(fd, 0, SEEK_CUR);
     read(fd, &header, sizeof(asset_header_t));
     
     if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
@@ -171,8 +171,10 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
         header.inplace_margin = __builtin_bswap32(header.inplace_margin);
         #endif
         
-        assertf((header.cmp_size+sizeof(asset_header_t)) == *sz, "Wrong compressed size (%d/%d)", *sz, (int)(header.cmp_size+sizeof(asset_header_t)));
-        
+        if(*sz >= 0) {
+            assertf((header.cmp_size+sizeof(asset_header_t)) == *sz, "Wrong compressed size (%d/%d)", *sz, (int)(header.cmp_size+sizeof(asset_header_t)));
+        }
+
         assertf(header.algo >= 1 || header.algo <= 3,
             "unsupported compression algorithm: %d", header.algo);
         assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
@@ -184,6 +186,12 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
         else
             algos[header.algo-1].decompress_full(fd, header.cmp_size, *sz, buf, buf_size);
     } else {
+        //Calculate number of remaining bytes
+        if(*sz < 0) {
+            struct stat stat;
+            fstat(fd, &stat);
+            *sz += stat.st_size;
+        }
         // Allocate a buffer big enough to hold the file.
         // We force a 16-byte alignment for the buffer so that it's aligned to data cache lines.
         // This might or might not be useful, but if a binary file is laid out so that it
@@ -194,7 +202,7 @@ static void asset_load_fd_into(int fd, int *sz, void **buf, int *buf_size)
         } else {
             assertf(((uintptr_t)(*buf) & ~(ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
         }
-        lseek(fd, orig_ofs, SEEK_SET);
+        lseek(fd, -sizeof(asset_header_t), SEEK_CUR);
         read(fd, *buf, *sz);
     }
 }
@@ -221,8 +229,7 @@ void *asset_load(const char *fn, int *sz)
     void *buf = NULL; int buf_size = 0;
     int size;
     int fd = must_open(fn);
-    size = lseek(fd, 0, SEEK_END);
-    lseek(fd, 0, SEEK_SET);
+    size = -1;
     asset_load_fd_into(fd, &size, &buf, &buf_size);
     if (sz) *sz = size;
     close(fd);
