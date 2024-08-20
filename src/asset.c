@@ -198,7 +198,7 @@ static bool asset_read(int fd, asset_header_t *header, int *sz, void *buf, int *
             assertf(((uintptr_t)(buf) & (ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
             #endif
         }
-        lseek(fd, -sizeof(asset_header_t), SEEK_CUR);
+        lseek(fd, -((off_t)sizeof(asset_header_t)), SEEK_CUR);
         read(fd, buf, *sz);
         return true;
     }
