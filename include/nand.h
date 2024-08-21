@@ -35,6 +35,11 @@ int nand_get_size(void);
 /**
  * @brief Read sequential data from the NAND.
  * 
+ * This function reads a sequence of bytes from the NAND, across different
+ * pages and/or blocks. It will only fetch the requested bytes. It is not
+ * possible to check ECC when using this function, because ECC only works
+ * when reading full pages.
+ * 
  * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
  * @param buffer    Buffer to read data into
  * @param len       Number of bytes to read
@@ -44,15 +49,22 @@ int nand_get_size(void);
 int nand_read_data(nand_addr_t addr, void *buffer, int len);
 
 /**
- * @brief Read page from the NAND
+ * @brief Read one or multiple full pages from the NAND
+ * 
+ * This is the lower level function to read data from the NAND. It reads
+ * only full pages, and is provided for symmetry with #nand_write_pages.
+ * Since it is indeed possible to read also partial pages, most users
+ * will prefer to use #nand_read_data instead.
  * 
  * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
- * @param buffer    Buffer to read data into
- * @param spare     If not NULL, read also the spare area into the specified buffer (16 bytes)
- * @param ecc       Whether to use ECC to correct errors
- * @return int      0 if OK, -1 if error
+ * @param npages    Number of pages to read
+ * @param buffer    Buffer to read data into (1024 bytes per page, aka #NAND_PAGE_SIZE)
+ * @param spare     If not NULL, read also the spare area into the specified buffer (16 bytes per page)
+ * @param ecc       Whether to use ECC to correct/verify errors
+ * @return 0        If OK
+ * @return -1       If at least one page had an unrecoverable ECC error
  */
-int nand_read_page(nand_addr_t addr, void *buffer, void *spare, bool ecc);
+int nand_read_pages(nand_addr_t addr, int npages, void *buffer, void *spare, bool ecc);
 
 /**
  * @brief Write pages to the NAND.
@@ -151,6 +163,26 @@ int nand_mmap(uint32_t pi_address, int16_t *blocks, int flags);
  * must be called even if #nand_mmap failed.
  */
 void nand_mmap_end(void);
+
+/**
+ * @brief Compute the ECC code for a page of data.
+ * 
+ * iQue NAND contains a 6-byte ECC code for each 1024-byte page. This is actually
+ * the combination of two 3-byte ECC for each 512-byte half of the page. The
+ * code is stored in the spare date of each page (bytes 0x8-0xA contain the
+ * ECC of the second half, and bytes 0xD-0xF contain the ECC of the first half).
+ * 
+ * This function implements the same algorithm and is provided for completeness.
+ * It is normally not required to compute the ECC code manually, as the flash
+ * controller will do that automatically when writing to the NAND (via
+ * #nand_write_pages) and used to correct errors when reading from the NAND
+ * (via #nand_read_page).
+ * 
+ * @param buf               Buffer containing the 1024-byte page
+ * @param ecc               Buffer to store the 6-byte ECC code
+ */
+void nand_compute_page_ecc(const uint8_t *buf, uint8_t *ecc);
+
 
 #ifdef __cplusplus
 }

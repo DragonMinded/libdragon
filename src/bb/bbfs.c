@@ -44,6 +44,7 @@
 #define BBFS_FLAGS_PAGE_CACHED      (1<<2)     ///< The current page is cached in the page cache
 #define BBFS_FLAGS_BLOCK_SHADOWED   (1<<3)     ///< The current block is now duplicated into a new block
 #define BBFS_FLAGS_LAZY_EXTEND      (1<<4)     ///< The file has been extended via ftruncate, but the zeros haven't been written yet
+#define BBFS_FLAGS_PAGE_CACHE_DIRTY (1<<5)     ///< The cached page contains modifications that need to be written back
 #define BBFS_BIGFILE_THRESHOLD   (512*1024)  ///< Files bigger than this are stored in the beginning of the filesystem
 
 /** @brief Superblock footer */
@@ -73,14 +74,14 @@ typedef struct {
 
 /** @brief An open file in the BBFS filesystem */
 typedef struct {
-    bbfs_entry_t *entry;        ///< File entry
-    int32_t pos;                ///< Current file position
-    int16_t block;              ///< Current block
-    int16_t* block_prev_link;   ///< Pointer to the FAT entry that points to this block
-    uint32_t page_dirty_mask;   ///< Bitmap of dirty pages in current block
-    int32_t final_size;         ///< Final size of the file after a lazy extension (only valid if BBFS_FLAGS_LAZY_EXTEND is set)
-    int8_t flags;               ///< Flags
-    uint8_t page_cache[];       ///< Page cache
+    bbfs_entry_t *entry;                    ///< File entry
+    int32_t pos;                            ///< Current file position
+    int16_t block;                          ///< Current block
+    int16_t* block_prev_link;               ///< Pointer to the FAT entry that points to this block
+    uint32_t page_dirty_mask;               ///< Bitmap of dirty pages in current block
+    int32_t final_size;                     ///< Final size of the file after a lazy extension (only valid if BBFS_FLAGS_LAZY_EXTEND is set)
+    int8_t flags;                           ///< Flags
+    uint8_t page_cache[NAND_PAGE_SIZE];     ///< Page cache
 } bbfs_openfile_t;
 
 _Static_assert(sizeof(bbfs_superblock_t) == NAND_BLOCK_SIZE, "bbfs_superblock_t size mismatch");
@@ -283,7 +284,10 @@ static int bbfs_mount(void)
     // is correct.
     for (int i=0; i<nf; i++) {
         int idx = footers[i].magic;
-        nand_read_data(NAND_ADDR_MAKE(sb_area + idx, 0, 0), &bbfs_superblock[0], sizeof(bbfs_superblock_t));
+        if (nand_read_pages(NAND_ADDR_MAKE(sb_area + idx, 0, 0), sizeof(bbfs_superblock_t) / NAND_PAGE_SIZE, &bbfs_superblock[0], NULL, true) < 0) {
+            tracef(1, "superblock %x: read error", sb_area+idx);
+            continue;
+        }
 
         // Verify superblock checksum (16-bit sum of all 16-bit words)
         if (sb_calc_checksum(&bbfs_superblock[0]) != BBFS_CHECKSUM) {
@@ -298,7 +302,10 @@ static int bbfs_mount(void)
             }
 
             // Read the linked superblock and check integrity
-            nand_read_data(NAND_ADDR_MAKE(be16(bbfs_superblock[0].footer.link), 0, 0), &bbfs_superblock[1], sizeof(bbfs_superblock_t));
+            if (nand_read_pages(NAND_ADDR_MAKE(be16(bbfs_superblock[0].footer.link), 0, 0), sizeof(bbfs_superblock_t) / NAND_PAGE_SIZE, &bbfs_superblock[1], NULL, true) < 0) {
+                tracef(1, "superblock %x (linked): read error", bbfs_superblock[0].footer.link);
+                continue;
+            }
             if (be32(bbfs_superblock[1].footer.magic) != FOURCC('B', 'B', 'F', 'L')) {
                 tracef(1, "superblock %x (linked): invalid fourcc", bbfs_superblock[0].footer.link);
                 continue;
@@ -388,8 +395,7 @@ static void *__bbfs_open(char *name, int flags)
     }
 
     int mode = flags & 7;
-    int page_cache = (mode == O_RDWR || mode == O_WRONLY) ? NAND_PAGE_SIZE : 0;
-    bbfs_openfile_t *file = malloc(sizeof(bbfs_openfile_t) + page_cache);
+    bbfs_openfile_t *file = malloc(sizeof(bbfs_openfile_t));
     file->entry = entry;
     file->pos = 0;
     file->block_prev_link = &entry->block;
@@ -405,44 +411,97 @@ static void *__bbfs_open(char *name, int flags)
     return file;
 }
 
+static int __bbfs_page_begin(bbfs_openfile_t *f)
+{
+    if (!(f->flags & BBFS_FLAGS_PAGE_CACHED)) {
+        int page_start = f->pos - (f->pos % NAND_PAGE_SIZE);
+        if (nand_read_pages(NAND_ADDR_MAKE(f->block, 0, page_start % NAND_BLOCK_SIZE), 1, f->page_cache, NULL, true) < 0) {
+            errno = EIO;
+            return -1;
+        }
+        f->flags |= BBFS_FLAGS_PAGE_CACHED;
+        f->flags &= ~BBFS_FLAGS_PAGE_CACHE_DIRTY;
+    }
+    return 0;
+}
+
+static void __bbfs_page_end(bbfs_openfile_t *f)
+{
+    if (f->flags & BBFS_FLAGS_PAGE_CACHE_DIRTY) {
+        assert(f->flags & BBFS_FLAGS_PAGE_CACHED);
+        int page_start = f->pos - (f->pos % NAND_PAGE_SIZE);
+        nand_write_pages(NAND_ADDR_MAKE(f->block, 0, page_start % NAND_BLOCK_SIZE), 1, f->page_cache, true);
+    }
+    f->flags &= ~(BBFS_FLAGS_PAGE_CACHED|BBFS_FLAGS_PAGE_CACHE_DIRTY);
+}
+
+static int __bbfs_block_read(bbfs_openfile_t *f, uint8_t *ptr, int len)
+{
+    int read = 0;
+    while (len > 0) {
+        int offset = f->pos % NAND_PAGE_SIZE;
+        int n;
+
+        if (offset == 0 && len >= NAND_PAGE_SIZE) {
+            n = len - (len % NAND_PAGE_SIZE);
+            if (nand_read_pages(NAND_ADDR_MAKE(f->block, 0, f->pos % NAND_BLOCK_SIZE), n / NAND_PAGE_SIZE, ptr, NULL, true) < 0)
+                return -1;
+        } else {
+            n = NAND_PAGE_SIZE - offset;
+            if (n > len)
+                n = len;
+
+            if (__bbfs_page_begin(f) < 0)
+                return -1;
+            memcpy(ptr, f->page_cache + offset, n);
+        }
+
+        if ((f->pos+n) % NAND_PAGE_SIZE == 0)
+            __bbfs_page_end(f);
+
+        ptr += n;
+        len -= n;
+        f->pos += n;
+        read += n;
+    }
+    return read;
+}
+
 static int __bbfs_read(void *file, uint8_t *ptr, int len)
 {
     bbfs_openfile_t *f = file;
-    int block = f->block;
-    int pos = f->pos;
     int size = be32(f->entry->size) - be16(f->entry->padding);
 
     if (!(f->flags & BBFS_FLAGS_READING)) {
         errno = EBADF;
         return -1;
     }
-    if (pos >= size)
+    if (f->pos >= size)
         return 0;
 
-    int toread = size - pos;
+    int toread = size - f->pos;
     if (toread > len)
         toread = len;
 
     int read = 0;
     while (toread > 0) {
-        int offset = pos % NAND_BLOCK_SIZE;
+        int offset = f->pos % NAND_BLOCK_SIZE;
         int n = NAND_BLOCK_SIZE - offset;
         if (n > toread)
             n = toread;
 
-        nand_read_data(NAND_ADDR_MAKE(block, 0, offset), ptr, n);
+        if (__bbfs_block_read(f, ptr, n) < 0)
+            return -1;
         ptr += n;
-        pos += n;
         toread -= n;
         read += n;
 
-        if (pos % NAND_BLOCK_SIZE == 0) {
-            block = be16i(SB_FAT(block));
+        if (f->pos % NAND_BLOCK_SIZE == 0) {
+            f->block_prev_link = &SB_FAT(f->block);
+            f->block = be16i(*f->block_prev_link);
         }
     }
 
-    f->block = block;
-    f->pos = pos;
     return read;
 }
 
@@ -468,25 +527,6 @@ static int __bbfs_allocate_block(int prev_block, bool big_file)
 
     // No free blocks: filesystem is full
     return -1;
-}
-
-
-static void __bbfs_write_page_begin(bbfs_openfile_t *f)
-{
-    if (!(f->flags & BBFS_FLAGS_PAGE_CACHED)) {
-        int page_start = f->pos - (f->pos % NAND_PAGE_SIZE);
-        nand_read_data(NAND_ADDR_MAKE(be16i(*f->block_prev_link), 0, page_start % NAND_BLOCK_SIZE), f->page_cache, NAND_PAGE_SIZE);
-        f->flags |= BBFS_FLAGS_PAGE_CACHED;
-    }
-}
-
-static void __bbfs_write_page_end(bbfs_openfile_t *f)
-{
-    if (f->flags & BBFS_FLAGS_PAGE_CACHED) {
-        int page_start = f->pos - (f->pos % NAND_PAGE_SIZE);
-        nand_write_pages(NAND_ADDR_MAKE(f->block, 0, page_start % NAND_BLOCK_SIZE), 1, f->page_cache, true);
-        f->flags &= ~BBFS_FLAGS_PAGE_CACHED;
-    }
 }
 
 static int __bbfs_write_block_begin(bbfs_openfile_t *f)
@@ -531,41 +571,45 @@ static void __bbfs_write_block_end(bbfs_openfile_t *f)
 static int __bbfs_block_write(bbfs_openfile_t *f, uint8_t *ptr, int len)
 {
     int block = f->block;
-    int pos = f->pos;
     int size = be32(f->entry->size) - be16(f->entry->padding);
 
     // Split the write into page-aligned chunks
     int written = 0;
     while (len > 0) {
-        int offset = pos % NAND_PAGE_SIZE;
-        int n = NAND_PAGE_SIZE - offset;
-        if (n > len)
-            n = len;
+        int offset = f->pos % NAND_PAGE_SIZE;
+        int n;
 
-        if (offset == 0 && n == NAND_PAGE_SIZE) {
-            // Fast path: write a full page
+        if (offset == 0 && len >= NAND_PAGE_SIZE) {
+            // Fast path: write full pages
             assert(!(f->flags & BBFS_FLAGS_PAGE_CACHED));
-            nand_write_pages(NAND_ADDR_MAKE(block, 0, pos % NAND_BLOCK_SIZE), 1, ptr, true);
+            n = len - (len % NAND_PAGE_SIZE);
+            nand_write_pages(NAND_ADDR_MAKE(block, 0, f->pos % NAND_BLOCK_SIZE), n / NAND_PAGE_SIZE, ptr, true);
         } else {
-            // Slow path: read the page, modify it, and write it back
-            __bbfs_write_page_begin(f);
+            n = NAND_PAGE_SIZE - offset;
+            if (n > len)
+                n = len;
+            // Slow path: read the page and modify it
+            if (__bbfs_page_begin(f) < 0)
+                return -1;
             memcpy(f->page_cache + offset, ptr, n);
+            // Record it that we will need to write it back later
+            f->flags |= BBFS_FLAGS_PAGE_CACHE_DIRTY;
         }
-
+        
         // If this write reached the end of the page, finish writing it (flush the cache if any)
-        if ((pos+n) % NAND_PAGE_SIZE == 0)
-            __bbfs_write_page_end(f);
+        if ((f->pos+n) % NAND_PAGE_SIZE == 0)
+            __bbfs_page_end(f);
 
         ptr += n;
-        pos += n;
+        f->pos += n;
         len -= n;
         written += n;
     }
 
-    f->pos = pos;
-    if (pos > size) {
-        SB_WRITE(f->entry->size, be32(ROUND_UP(pos, NAND_BLOCK_SIZE)));
-        SB_WRITE(f->entry->padding, be16(-pos & (NAND_BLOCK_SIZE-1)));
+    // If this write increased the file size, record the new size in the superblock
+    if (f->pos > size) {
+        SB_WRITE(f->entry->size, be32(ROUND_UP(f->pos, NAND_BLOCK_SIZE)));
+        SB_WRITE(f->entry->padding, be16(-f->pos & (NAND_BLOCK_SIZE-1)));
     }
 
     return written;
@@ -694,7 +738,7 @@ static int __bbfs_lseek(void *file, int offset, int whence)
 
     if (f->flags & BBFS_FLAGS_WRITING) {
         if (page_changed) {
-            __bbfs_write_page_end(f);
+            __bbfs_page_end(f);
             if (block_changed)
                 __bbfs_write_block_end(f);
         }
@@ -768,7 +812,7 @@ static int __bbfs_close(void *file)
     bbfs_openfile_t *f = file;
     if (f->flags & BBFS_FLAGS_WRITING) {
         // Flush writing the current page/block
-        __bbfs_write_page_end(f);
+        __bbfs_page_end(f);
         __bbfs_write_block_end(f);
         // Check if we need to finish extending the file. Calling
         // lseek will extend it if necessary.

@@ -24,7 +24,8 @@
 #define PI_BB_ATB_LOWER                     ((volatile uint32_t*)0xA4610500)
 
 #define PI_BB_NAND_CTRL_BUSY                (1 << 31)
-#define PI_BB_NAND_CTRL_ERROR               (1 << 10)
+#define PI_BB_NAND_CTRL_ECC_ERROR           (1 << 10)
+#define PI_BB_NAND_CTRL_ECC_CORRECTED       (1 << 11)
 
 #define PI_BB_WNAND_CTRL_CMD_SHIFT          16
 #define PI_BB_WNAND_CTRL_LEN_SHIFT          0
@@ -210,7 +211,29 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
     return 0;
 }
 
-int nand_read_page(nand_addr_t addr, void *buf, void *spare, bool ecc)
+int nand_read_data_ecc(nand_addr_t addr, void *buf, int len, bool ecc) 
+{
+    assertf(nand_inited, "nand_init() must be called first");
+
+    int bufidx = 0;
+    uint8_t *buffer = buf;
+
+    while (len > 0) {
+        int offset = NAND_ADDR_OFFSET(addr);
+        int read_len = MIN(len, NAND_PAGE_SIZE - offset);
+        nand_cmd_read1(bufidx, addr, read_len, ecc);
+        for (int i=0; i<read_len; i++)
+            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + offset + i);
+
+        addr += read_len;
+        buffer += read_len;
+        len -= read_len;
+    }
+
+    return 0;
+}
+
+int nand_read_pages(nand_addr_t addr, int npages, void *buf, void *spare, bool ecc)
 {
     assertf(nand_inited, "nand_init() must be called first");
     assertf(addr % NAND_PAGE_SIZE == 0, "NAND address must be page-aligned (0x%08lX)", addr);
@@ -219,12 +242,30 @@ int nand_read_page(nand_addr_t addr, void *buf, void *spare, bool ecc)
     uint8_t *buffer = buf;
     uint8_t *spare_data = spare;
 
-    nand_cmd_read1(bufidx, addr, NAND_PAGE_SIZE + (spare ? 16 : 0), ecc);
-    for (int i=0; i<NAND_PAGE_SIZE; i++)
-        buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i);
-    if (spare)
-        for (int i=0; i<16; i++)
-            spare_data[i] = io_read8((uint32_t)PI_BB_SPARE_0 + bufidx*4 + i);
+    for (int i=0; i<npages; i++) {
+        // Read the page from the NAND. Notice that if ECC is requested, it is mandatory to read
+        // the spares even if we will not return them to the caller, because otherwise the
+        // controller is unable to perform ECC calculation.
+        nand_cmd_read1(bufidx, addr, NAND_PAGE_SIZE + (spare || ecc ? 16 : 0), ecc);
+        addr += NAND_PAGE_SIZE;
+
+        // If ECC detected an unrecoverable error, abort reading. This will only
+        // be set if ECC was requested in the first place.
+        if (*PI_BB_NAND_CTRL & PI_BB_NAND_CTRL_ECC_ERROR)
+            return -1;
+
+        // Copy data into output buffer
+        for (int i=0; i<NAND_PAGE_SIZE; i++)
+            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i);
+        buffer += NAND_PAGE_SIZE;
+
+        // Copy spare into output buffer
+        if (spare_data) {
+            for (int i=0; i<16; i++)
+                spare_data[i] = io_read8((uint32_t)PI_BB_SPARE_0 + bufidx*4 + i);
+            spare_data += 16;
+        }
+    }
 
     return 0;
 }
@@ -242,11 +283,11 @@ int nand_write_pages(nand_addr_t addr, int npages, const void *buf, bool ecc)
         for (int i=0; i<NAND_PAGE_SIZE; i++)
             io_write8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i, buffer[i]);
 
-        // Put spare data into the buffer
-        PI_BB_SPARE_0[bufidx*4 + 0] = 0xffffffff;
-        PI_BB_SPARE_0[bufidx*4 + 1] = 0xffffffff;
-        PI_BB_SPARE_0[bufidx*4 + 2] = 0xffffffff;
-        PI_BB_SPARE_0[bufidx*4 + 3] = 0xffffffff;
+        // Put empty spare data into the buffer
+        PI_BB_SPARE_0[bufidx*4 + 0] = 0xFFFFFFFF;
+        PI_BB_SPARE_0[bufidx*4 + 1] = 0xFFFFFFFF;
+        PI_BB_SPARE_0[bufidx*4 + 2] = 0xFFFFFFFF;
+        PI_BB_SPARE_0[bufidx*4 + 3] = 0xFFFFFFFF;
 
         // Write the page to the NAND
         nand_cmd_pageprog(bufidx, addr, ecc);
@@ -361,4 +402,59 @@ void nand_mmap_end(void)
     // ATB requires a read command to be programmed into PI_BB_NAND_CTRL.
     *PI_BB_NAND_CTRL = NAND_CMD_READ1_H0;
     mmap_atb_idx = -1;
+}
+
+void nand_compute_page_ecc(const uint8_t *buf, uint8_t *ecc)
+{
+    // This function implements the ECC algorithm used in SmartMedia, and in
+    // some flash filesystems like YAFFS2. Another C implementation can be found
+    // in the YAFFS2 source code:
+    //    https://github.com/m-labs/rtems-yaffs2/blob/23be2ac372173ecf701a0ab179c510ca54b678d0/yaffs_ecc.c
+
+    // ECC parity table, calculated via gen-ecc.py. This parity table contains
+    // various parity bits for each byte of the input data. Bit 1 is always 0,
+    // and bit 0 is the parity of the while byte.
+    // The table is vertically symmetric (when viewed as a 16x16 matrix), so
+    // we store only the first half, and the mirror vertically the accesses for
+    // the second half.
+    static const uint8_t ecc_table[128] = {
+        0x00, 0x55, 0x59, 0x0c, 0x65, 0x30, 0x3c, 0x69, 0x69, 0x3c, 0x30, 0x65, 0x0c, 0x59, 0x55, 0x00,
+        0x95, 0xc0, 0xcc, 0x99, 0xf0, 0xa5, 0xa9, 0xfc, 0xfc, 0xa9, 0xa5, 0xf0, 0x99, 0xcc, 0xc0, 0x95,
+        0x99, 0xcc, 0xc0, 0x95, 0xfc, 0xa9, 0xa5, 0xf0, 0xf0, 0xa5, 0xa9, 0xfc, 0x95, 0xc0, 0xcc, 0x99,
+        0x0c, 0x59, 0x55, 0x00, 0x69, 0x3c, 0x30, 0x65, 0x65, 0x30, 0x3c, 0x69, 0x00, 0x55, 0x59, 0x0c,
+        0xa5, 0xf0, 0xfc, 0xa9, 0xc0, 0x95, 0x99, 0xcc, 0xcc, 0x99, 0x95, 0xc0, 0xa9, 0xfc, 0xf0, 0xa5,
+        0x30, 0x65, 0x69, 0x3c, 0x55, 0x00, 0x0c, 0x59, 0x59, 0x0c, 0x00, 0x55, 0x3c, 0x69, 0x65, 0x30,
+        0x3c, 0x69, 0x65, 0x30, 0x59, 0x0c, 0x00, 0x55, 0x55, 0x00, 0x0c, 0x59, 0x30, 0x65, 0x69, 0x3c,
+        0xa9, 0xfc, 0xf0, 0xa5, 0xcc, 0x99, 0x95, 0xc0, 0xc0, 0x95, 0x99, 0xcc, 0xa5, 0xf0, 0xfc, 0xa9,
+    };
+
+    for (int j=0; j<2; j++) {
+        uint8_t ecc2=0;
+        uint32_t l0=0, l1=0;
+
+        for (int i=0; i<256; i++) {
+            // Lookup the parity table (with vertical symmetry for the second half)
+            uint8_t val = *buf++;
+            val = ecc_table[val < 128 ? val : val ^ 0xf0];
+            // If byte has odd parity, update the line parity 
+            if (val & 1) { l0 ^= i; l1 ^= ~i; val ^= 1; }
+            // Update column parity
+            ecc2 ^= val;
+        }
+
+        // Interleave the bits of the two line parity (l0 and l1)
+        l0 = (l0 | (l0 << 4)) & 0x0F0F;
+        l0 = (l0 | (l0 << 2)) & 0x3333;
+        l0 = (l0 | (l0 << 1)) & 0x5555;
+        l1 &= 0xFF;
+        l1 = (l1 | (l1 << 4)) & 0x0F0F;
+        l1 = (l1 | (l1 << 2)) & 0x3333;
+        l1 = (l1 | (l1 << 1)) & 0x5555;
+        l0 = (l1 << 0) | (l0 << 1);
+
+        // Store the inverted line parity and column parity
+        *ecc++ = ~l0 >> 0;
+        *ecc++ = ~l0 >> 8;
+        *ecc++ = ~ecc2;
+    }
 }
