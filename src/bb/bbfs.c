@@ -854,6 +854,11 @@ static int __bbfs_ioctl(void *file, unsigned long request, void *arg)
             }
             return 0;
         }
+        case IOBBFS_GET_BLOCK: {
+            int16_t *block = arg;
+            *block = f->block;
+            return 0;
+        }
         default:
             errno = ENOTTY;
             return -1;

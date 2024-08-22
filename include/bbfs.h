@@ -150,6 +150,28 @@ enum bbfs_error_e {
 #define IOBBFS_SET_CONTIGUOUS   _IO('B', 0)
 
 /**
+ * @brief Get the current block number of an open file
+ * 
+ * This function is used to retrieve the current block number of an open file.
+ * The block number is a 16-bit value that represents the current flash block
+ * where the file is being read or written.
+ * 
+ * This can be used for debugging purposes, or to implement something similar
+ * to #bbfs_get_file_blocks for an open file, by seeking into the file at each
+ * block boundary.
+ * 
+ * \code{.c}
+ *   FILE *f = fopen("bbfs:/my_rom.z64", "rb");
+ * 
+ *   // Get the first block in which the file is stored
+ *   // WARNING: make sure to use int16_t for blocks.
+ *   int16_t block = 0;
+ *   ioctl(fileno(f), IOBBFS_GET_BLOCK, &block);
+ * \endcode
+ */
+#define IOBBFS_GET_BLOCK        _IO('B', 1)
+
+/**
  * @brief Initialize the iQue NAND filesystem library
  * 
  * This function mounts the filesystem and initializes the library.
