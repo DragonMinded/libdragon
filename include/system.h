@@ -43,20 +43,6 @@
 /** @brief Number of open handles that can be maintained at one time */
 #define MAX_OPEN_HANDLES    4096
 
-/** 
- * @brief Generate an IOCTL Command Code
- *
- * @param[in] type
- *            A 16-bit number, often a character literal, specific to a subsystem
- *            or driver
- *
- * @param[in] nr
- *            A 16-bit number identifying the specific command, unique for a given
- *            value of 'type'
- * @return An IOCTL Command Code
- */
-#define _IO(type, nr) (((type) & 0xFFFF) << 16)|((nr) & 0xFFFF)
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -227,7 +213,7 @@ typedef struct
      * @param[in] argp
      *            Pointer to a request-specific data structure
      *
-     * @return Zero on success, or a negative value on error.
+     * @return 0 on success or a negative value on failure (errno must be set)
      */
     int (*ioctl)(void *file, unsigned long cmd, void *argp);
 } filesystem_t;
@@ -358,20 +344,6 @@ int hook_time_call( time_t (*time_fn)( void ) );
  * @return 0 if successful or a negative value on failure.
  */
 int unhook_time_call( time_t (*time_fn)( void ) );
-
-/**
- * @brief Perform IO Control Request
- *
- * @param[in] fd
- *            File handle
- * @param[in] cmd
- *            Request ioctl command code 
- * @param[in] argp
- *            Pointer to a request-specific data structure
- *
- * @return Zero on success, or a negative value on error.
- */
-int ioctl(int fd, unsigned long cmd, void *argp);
 
 #ifdef __cplusplus
 }

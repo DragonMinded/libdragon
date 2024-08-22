@@ -45,6 +45,12 @@
  * @{
  */
 
+#ifdef N64
+
+#include "ioctl.h"
+
+#endif
+
 /**
  * @brief Default filesystem location 
  *
