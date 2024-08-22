@@ -197,7 +197,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 src/fatfs/diskio.h $(INSTALLDIR)/mips64-elf/include/fatfs/diskio.h
 	install -Cv -m 0644 src/fatfs/ff.h $(INSTALLDIR)/mips64-elf/include/fatfs/ff.h
 	install -Cv -m 0644 src/fatfs/ffconf.h $(INSTALLDIR)/mips64-elf/include/fatfs/ffconf.h
-	
+	install -Cv -m 0644 include/ioctl.h $(INSTALLDIR)/mips64-elf/include/ioctl.h
 
 clean:
 	rm -f *.o *.a
