@@ -1,3 +1,36 @@
+/**
+ * @file nand.h
+ * @brief iQue NAND (flash) support
+ * @ingroup ique
+ * 
+ * This module contains low-level functions to perform read/write operations
+ * on the iQue flash memory (NAND). The flash memory is used to store the
+ * operating system and the games. Contents in the flash are arranged using
+ * a custom filesystem called BBFS, which is implemented in the bbfs.h module.
+ */
+
+/**
+ * @defgroup ique iQue-specific hardware interfaces
+ * @ingroup libdragon
+ * @brief Hardware interfaces and libraries specific for the iQue Player
+ * 
+ * This module contains both lower-level hardware interfaces and higher-level
+ * libraries that are specific to the iQue Player (also called "BB player").
+ * It is a console that was released in China that is compatible with the
+ * original N64 hardware while being faster (higher clock, faster RAM).
+ * 
+ * Libdragon supports iQue transparently: all ROMs built with libdragon will
+ * also run on the iQue player without modifications (and be even faster!).
+ * 
+ * Given that the iQue player also has specific additional hardware components,
+ * libdragon also features some libraries to access them and use them in your
+ * programs (though, at that point, your program will not be compatible with
+ * the original N64).
+ * 
+ * To perform a runtime check on what console the ROM is running, just use
+ * the #sys_bbplayer function, that will return true when running on iQue.
+ * 
+ */
 #ifndef LIBDRAGON_BB_NAND_H
 #define LIBDRAGON_BB_NAND_H
 
@@ -8,20 +41,42 @@
 extern "C" {
 #endif
 
+/** 
+ * @brief An absolute address in the NAND.
+ * 
+ * The address can be interpreted as a simple offset byte address from the
+ * start of the NAND, but given the hardware layout of the NAND, it can be
+ * thought as composed of three components:
+ * 
+ *  - Block number (12 bits)
+ *  - Page number (5 bits)
+ *  - Offset within the page (9 bits)
+ * 
+ * You can use #NAND_ADDR_MAKE to build an address from the three
+ * components, and #NAND_ADDR_BLOCK, #NAND_ADDR_PAGE, #NAND_ADDR_OFFSET
+ * to extract the components from an address.
+ */
 typedef uint32_t nand_addr_t;
 
-#define NAND_PAGE_SIZE          0x200
-#define NAND_BLOCK_SIZE         0x4000
+#define NAND_BLOCK_SIZE         0x4000          ///< Size of a NAND block in bytes
+#define NAND_PAGE_SIZE          0x200           ///< Size of a NAND page in bytes
 
-#define NAND_ADDR_MAKE(block, page, offset)      (((block) << 14) | ((page) << 9) | (offset))
+/** @brief Build a NAND address given the block, page and offset. */
+#define NAND_ADDR_MAKE(block, page, offset)      (((block) << 14) | ((page) << 9) | (offset))   
+/** @brief Extract the page offset from an address */
 #define NAND_ADDR_OFFSET(addr)                   (((addr) >>  0) & 0x1FF)
+/** @brief Extract the page index from an address */
 #define NAND_ADDR_PAGE(addr)                     (((addr) >>  9) & 0x01F)
+/** @brief Extract the block index from an address */
 #define NAND_ADDR_BLOCK(addr)                    (((addr) >> 14) & 0xFFF)
 
-#define NAND_MMAP_ENCRYPTED                      (1<<0)   ///< The mapping refers to encrypted data
+/** @brief Flags used for #nand_mmap */
+typedef enum {
+    NAND_MMAP_ENCRYPTED = (1<<0),               ///< Data in the filesystem will be decrypted by the mmap
+} nand_mmap_flags_t;
 
 /**
- * @brief Initialize the library to access the NAND flags on iQue Player
+ * @brief Initialize the library to access the NAND flash on the iQue Player
  */
 void nand_init(void);
 
@@ -33,35 +88,27 @@ void nand_init(void);
 int nand_get_size(void);
 
 /**
- * @brief Read sequential data from the NAND.
- * 
- * This function reads a sequence of bytes from the NAND, across different
- * pages and/or blocks. It will only fetch the requested bytes. It is not
- * possible to check ECC when using this function, because ECC only works
- * when reading full pages.
- * 
- * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
- * @param buffer    Buffer to read data into
- * @param len       Number of bytes to read
- * 
- * @return 0 if OK, -1 if error
- */
-int nand_read_data(nand_addr_t addr, void *buffer, int len);
-
-/**
  * @brief Read one or multiple full pages from the NAND
  * 
  * This is the lower level function to read data from the NAND. It reads
- * only full pages, and is provided for symmetry with #nand_write_pages.
- * Since it is indeed possible to read also partial pages, most users
- * will prefer to use #nand_read_data instead.
+ * only full pages and optionally perform ECC correction while reading them.
+ * 
+ * Each page of the flash contains 1024 bytes of data (#NAND_PAGE_SIZE) and
+ * 16 bytes of so-called "spare" data. The ECC codes are stored in 6 bytes of
+ * spare data, while some of the other bytes seem used by the official iQue OS
+ * for marking bad blocks or other not fully understood purposes.
+ * 
+ * You can read the spare data by providing a pointer to a buffer where to
+ * store it (16 bytes per each requested page). If you don't need the spare data,
+ * you can pass NULL. Notice that ECC correction can be performed even if you
+ * pass NULL to spare.
  * 
  * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
  * @param npages    Number of pages to read
  * @param buffer    Buffer to read data into (1024 bytes per page, aka #NAND_PAGE_SIZE)
  * @param spare     If not NULL, read also the spare area into the specified buffer (16 bytes per page)
  * @param ecc       Whether to use ECC to correct/verify errors
- * @return 0        If OK
+ * @return >=0      If OK (number of pages read)
  * @return -1       If at least one page had an unrecoverable ECC error
  */
 int nand_read_pages(nand_addr_t addr, int npages, void *buffer, void *spare, bool ecc);
@@ -81,7 +128,8 @@ int nand_read_pages(nand_addr_t addr, int npages, void *buffer, void *spare, boo
  * @param buffer    Buffer to write data from
  * @param ecc       Whether to compute and write ECC for the pages
  * 
- * @return 0 if OK, -1 if error
+ * @return >=0      If OK (number of pages written)
+ * @return -1       If error during writing
  */
 int nand_write_pages(nand_addr_t addr, int npages, const void *buffer, bool ecc);
 
@@ -97,6 +145,24 @@ int nand_write_pages(nand_addr_t addr, int npages, const void *buffer, bool ecc)
  */
 int nand_erase_block(nand_addr_t addr);
 
+/**
+ * @brief Read sequential data from the NAND.
+ * 
+ * This function reads a sequence of bytes from the NAND, across different
+ * pages and/or blocks. It will only fetch the requested bytes. 
+ * 
+ * Notice that it is not possible to check ECC when using this function,
+ * because ECC only works when reading full pages. Not using ECC while reading
+ * might cause data corruption if the NAND has errors, so carefully consider
+ * whether to use this function.
+ * 
+ * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
+ * @param buffer    Buffer to read data into
+ * @param len       Number of bytes to read
+ * 
+ * @return 0 if OK, -1 if error
+ */
+int nand_read_data(nand_addr_t addr, void *buffer, int len);
 
 /**
  * @brief Initialize configuration of the NAND memory mapping to PI address space.
@@ -176,7 +242,7 @@ void nand_mmap_end(void);
  * It is normally not required to compute the ECC code manually, as the flash
  * controller will do that automatically when writing to the NAND (via
  * #nand_write_pages) and used to correct errors when reading from the NAND
- * (via #nand_read_page).
+ * (via #nand_read_pages).
  * 
  * @param buf               Buffer containing the 1024-byte page
  * @param ecc               Buffer to store the 6-byte ECC code

@@ -211,28 +211,6 @@ int nand_read_data(nand_addr_t addr, void *buf, int len)
     return 0;
 }
 
-int nand_read_data_ecc(nand_addr_t addr, void *buf, int len, bool ecc) 
-{
-    assertf(nand_inited, "nand_init() must be called first");
-
-    int bufidx = 0;
-    uint8_t *buffer = buf;
-
-    while (len > 0) {
-        int offset = NAND_ADDR_OFFSET(addr);
-        int read_len = MIN(len, NAND_PAGE_SIZE - offset);
-        nand_cmd_read1(bufidx, addr, read_len, ecc);
-        for (int i=0; i<read_len; i++)
-            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + offset + i);
-
-        addr += read_len;
-        buffer += read_len;
-        len -= read_len;
-    }
-
-    return 0;
-}
-
 int nand_read_pages(nand_addr_t addr, int npages, void *buf, void *spare, bool ecc)
 {
     assertf(nand_inited, "nand_init() must be called first");
@@ -267,7 +245,7 @@ int nand_read_pages(nand_addr_t addr, int npages, void *buf, void *spare, bool e
         }
     }
 
-    return 0;
+    return npages;
 }
 
 int nand_write_pages(nand_addr_t addr, int npages, const void *buf, bool ecc)
@@ -296,7 +274,7 @@ int nand_write_pages(nand_addr_t addr, int npages, const void *buf, bool ecc)
         buffer += NAND_PAGE_SIZE;
     }
 
-    return 0;
+    return npages;
 }
 
 int nand_erase_block(nand_addr_t addr)
