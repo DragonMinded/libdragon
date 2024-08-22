@@ -45,6 +45,7 @@
 #define BBFS_FLAGS_BLOCK_SHADOWED   (1<<3)     ///< The current block is now duplicated into a new block
 #define BBFS_FLAGS_LAZY_EXTEND      (1<<4)     ///< The file has been extended via ftruncate, but the zeros haven't been written yet
 #define BBFS_FLAGS_PAGE_CACHE_DIRTY (1<<5)     ///< The cached page contains modifications that need to be written back
+#define BBFS_FLAGS_CONTIGUOUS       (1<<6)     ///< The file must be stored as contiguous as possible
 #define BBFS_BIGFILE_THRESHOLD   (512*1024)  ///< Files bigger than this are stored in the beginning of the filesystem
 
 /** @brief Superblock footer */
@@ -533,7 +534,8 @@ static int __bbfs_write_block_begin(bbfs_openfile_t *f)
 {
     if ((f->flags & BBFS_FLAGS_BLOCK_SHADOWED) == 0) {
         int final_size = f->flags & BBFS_FLAGS_LAZY_EXTEND ? f->final_size : be32(f->entry->size) - be16(f->entry->padding);
-        f->block = __bbfs_allocate_block(be16i(*f->block_prev_link), final_size >= BBFS_BIGFILE_THRESHOLD);
+        bool big_file = (f->flags & BBFS_FLAGS_CONTIGUOUS) || (final_size >= BBFS_BIGFILE_THRESHOLD);
+        f->block = __bbfs_allocate_block(be16i(*f->block_prev_link), big_file);
         if (f->block < 0) {
             // No free blocks: filesystem is full
             errno = ENOSPC;
@@ -839,6 +841,25 @@ static int __bbfs_fstat(void *file, struct stat *st)
     return 0;
 }
 
+static int __bbfs_ioctl(void *file, unsigned long request, void *arg)
+{
+    bbfs_openfile_t *f = file;
+    switch (request) {
+        case IOBBFS_SET_CONTIGUOUS: {
+            bool contiguous = *(bool*)arg;
+            if (contiguous) {
+                f->flags |= BBFS_FLAGS_CONTIGUOUS;
+            } else {
+                f->flags &= ~BBFS_FLAGS_CONTIGUOUS;
+            }
+            return 0;
+        }
+        default:
+            errno = ENOTTY;
+            return -1;
+    }
+}
+
 static int __bbfs_unlink(char *name)
 {
     bool invalid_name = false;
@@ -911,6 +932,7 @@ static filesystem_t bb_fs = {
     .ftruncate = __bbfs_ftruncate,
 	.close = __bbfs_close,
 	.unlink = __bbfs_unlink,
+    .ioctl = __bbfs_ioctl,
 	.findfirst = __bbfs_findfirst,
 	.findnext = __bbfs_findnext,
 };

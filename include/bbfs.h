@@ -119,7 +119,7 @@ enum bbfs_error_e {
  * means that if you write a ROM file that is larger than 512 KiB, the first
  * blocks up to 512 KiB will still be fragmented, but the rest will be contiguous.
  * 
- * If you want to avoid this, you can either #truncate immediately after opening
+ * If you want to avoid this, you can either call #ftruncate immediately after opening
  * the file to communicate the final size right away, or use this #ioctl to force
  * to immediately use the contiguous block allocation algorithm.
  * 
@@ -136,6 +136,14 @@ enum bbfs_error_e {
  *   // Close the file
  *   fclose(f);
  * \endcode
+ * 
+ * Calling this #ioctl only affects blocks allocated after the call; there is
+ * no way to change the allocation of blocks that have already been written
+ * (short of truncating the file to zero, and writing it again).
+ * 
+ * Calling this #ioctl with the value set to false will revert the file
+ * to the default allocation algorithm based on the heuristics. There is no way
+ * to force a file to be always stored as fragmented.
  * 
  * See also the top comment of this file for more information.
  */
