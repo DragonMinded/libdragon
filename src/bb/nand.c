@@ -311,7 +311,7 @@ void nand_mmap_begin(void)
     mmap_atb_idx = 0;
 }
 
-int nand_mmap(uint32_t pi_address, int16_t *blocks, int flags)
+int nand_mmap(uint32_t pi_address, int16_t *blocks, nand_mmap_flags_t flags)
 {
     assertf(nand_inited, "nand_init() must be called first");
     assertf(mmap_atb_idx != -1, "nand_mmap_begin() was not called");

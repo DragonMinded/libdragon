@@ -215,7 +215,7 @@ void nand_mmap_begin(void);
  * @see #nand_mmap_begin
  * @see #nand_mmap_end
  */
-int nand_mmap(uint32_t pi_address, int16_t *blocks, int flags);
+int nand_mmap(uint32_t pi_address, int16_t *blocks, nand_mmap_flags_t flags);
 
 /**
  * @brief Finish configuration of the NAND memory mapping to PI address space.

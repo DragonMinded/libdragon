@@ -1,18 +1,12 @@
 /**
  * @file skc.h
  * @brief SKC - Secure Kernel Calls
- * @ingroup bb
+ * @ingroup ique
  * 
  * This module defines the interfaces to do the secure kernel calls (SKC)
  * on the iQue Player. These are basically syscalls into the kernel to 
  * perform security-sensitive operations like cryptography, launching
  * an application or so on.
- */
-
-/**
- * @defgroup bb iQue Player
- * @ingroup libdragon
- * @brief Modules to interact with the iQue Player hardware
  */
 
 #ifndef LIBDRAGON_BB_SKC_H
