@@ -86,6 +86,20 @@
  * 
  * To see an example of using the #ioctl instead, see #IOBBFS_SET_CONTIGUOUS.
  * 
+ * Filesytem consistency checks
+ * ----------------------------
+ * 
+ * The library also offers a function to check the filesystem consistency:
+ * #bbfs_fsck. This function will scan the filesystem and check for logic errors
+ * in the filesystem structure. If the filesystem is corrupted, it can optionally
+ * try to fix the errors.
+ * 
+ * For errors that affect specific files, the portions of the files that can
+ * be recovered are saved with the name "FSCK1234.XXX" where 1234 is a random
+ * number. 
+ * 
+ * Notice that currently this function does not check the integrity of the
+ * data stored in the filesystem (via ECC), only the filesystem structure.
  */
 
 #ifndef LIBDRAGON_BBFS_H
@@ -201,8 +215,7 @@ int16_t* bbfs_get_file_blocks(const char *filename);
  * @brief Verify the integrity of the filesystem, and optionally try to fix it
  * 
  * This function checks the integrity of the filesystem. If the filesystem is
- * corrupted, it can optionally try to fix it. An error reporting function
- * can be provided to log the errors.
+ * corrupted, it can optionally try to fix it.
  * 
  * @param fix_errors    If true, try to fix the errors, otherwise just check
  * @return number of errors found in the filesystem
