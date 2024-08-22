@@ -77,6 +77,6 @@
 #include "skc.h"
 #include "nand.h"
 #include "bbfs.h"
-#include "system.h"
+#include "ioctl.h"
 
 #endif

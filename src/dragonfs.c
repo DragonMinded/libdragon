@@ -1182,7 +1182,7 @@ static int __ioctl(void *file, unsigned long cmd, void *argp)
         {
             uint32_t *rom_addr = argp;
             dfs_open_file_t *openfile = HANDLE_TO_OPENFILE(file);
-            *rom_addr = openfile->cart_start_loc;
+            *rom_addr = openfile->cart_start_loc & 0x1FFFFFFF;
         }
             return 0;
             
