@@ -359,8 +359,8 @@ void test_kernel_event_1(TestContext *ctx) {
 		uint32_t __attribute__((aligned(8))) miniucode[] = { 0x0000000d }; // BREAK opcode
 		
 		data_cache_hit_writeback_invalidate(miniucode, sizeof(miniucode));
-		load_ucode(miniucode, sizeof(miniucode));
-		run_ucode();
+		rsp_load_code(miniucode, sizeof(miniucode), 0);
+		rsp_run_async();
 	}
 
 	kthread_set_pri(NULL, 1);
@@ -404,8 +404,8 @@ void test_kernel_event_2(TestContext *ctx) {
 		uint32_t __attribute__((aligned(8))) miniucode[] = { 0x0000000d }; // BREAK opcode
 		
 		data_cache_hit_writeback_invalidate(miniucode, sizeof(miniucode));
-		load_ucode(miniucode, sizeof(miniucode));
-		run_ucode();
+		rsp_load_code(miniucode, sizeof(miniucode), 0);
+		rsp_run_async();
 	}
 
 	kmbox_attach_event(m1, &KEVENT_IRQ_SP);
