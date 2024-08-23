@@ -103,9 +103,14 @@ int nand_get_size(void);
  * you can pass NULL. Notice that ECC correction can be performed even if you
  * pass NULL to spare.
  * 
+ * You can pass NULL to @p buffer if you don't need the data (for instance, to
+ * only read the spares). Passing NULL to both @p buffer and @p spare can be
+ * useful to only perform an ECC check on pages without actually reading the
+ * data.
+ * 
  * @param addr      Address to read from (use NAND_ADDR_MAKE to build)
  * @param npages    Number of pages to read
- * @param buffer    Buffer to read data into (1024 bytes per page, aka #NAND_PAGE_SIZE)
+ * @param buffer    If not NULL, Buffer to read data into (1024 bytes per page, aka #NAND_PAGE_SIZE)
  * @param spare     If not NULL, read also the spare area into the specified buffer (16 bytes per page)
  * @param ecc       Whether to use ECC to correct/verify errors
  * @return >=0      If OK (number of pages read)
