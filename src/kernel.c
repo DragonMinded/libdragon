@@ -1,6 +1,6 @@
 #include <libdragon.h>
 #include "kernel.h"
-#include "kernelinternal.h"
+#include "kernel_internal.h"
 #include "timer.h"
 #include <assert.h>
 #include <stdlib.h>
