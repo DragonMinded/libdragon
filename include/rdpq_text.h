@@ -41,7 +41,7 @@
  *              rdpq_detach_show();
  *          }
  *      }
- * @endcode{.c}
+ * @endcode
  * 
  * In this case, no styling or formatting rules are provided, so the text is
  * drawn using the default style of the font (which is full white). The text
@@ -73,7 +73,7 @@
  *              .width = 200,       // maximum width of the paragraph
  *              .wrap = WRAP_WORD   // wrap at word boundaries
  *          }, FONT_ARIAL, 20, 20, text);
- * @endcode{.c}
+ * @endcode
  * 
  * There are four wrapping modes available:
  * 
@@ -127,7 +127,7 @@
  * 
  *      rdpq_text_print(NULL, FONT_ARIAL, 20, 20, 
  *          "Hello, ^01world^00! ^02This^00 is ^03a^00 ^04test^00.");
- * @endcode{.c}
+ * @endcode
  * 
  * ## Other examples
  * 
@@ -162,7 +162,7 @@
  * 
  *          // Free the layout
  *          rdpq_text_layout_free(layout);
- * @endcode{.c}
+ * @endcode
  *
  */
 
