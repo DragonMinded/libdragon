@@ -84,24 +84,6 @@ static void dma_bb_write_raw_async(void *ram_buffer, int pi_buffer_offset, int l
     enable_interrupts();
 }
 
-static void nand_write_intbuffer(int bufidx, int offset, const void *data, int len)
-{
-    dma_wait();
-    *PI_DRAM_ADDR = PhysicalAddr(data);
-    *PI_CART_ADDR = offset + bufidx * 0x200;
-    *PI_BB_RD_LEN = len;
-    dma_wait();
-}
-
-static void nand_read_intbuffer(int bufidx, int offset, void *data, int len)
-{
-    dma_wait();
-    *PI_DRAM_ADDR = PhysicalAddr(data);
-    *PI_CART_ADDR = offset + bufidx * 0x200;
-    *PI_BB_WR_LEN = len;
-    dma_wait();
-}
-
 static void nand_cmd_wait(void)
 {
     while (*PI_BB_NAND_CTRL & PI_BB_NAND_CTRL_BUSY) {}
@@ -160,9 +142,12 @@ void nand_read_id(uint8_t id[4])
     
     const int bufidx = 0;
     nand_cmd_readid(bufidx);
-    nand_read_intbuffer(bufidx, 0, aligned_buf, 4);
 
-    memcpy(id, aligned_buf, 4);
+    uint32_t id32 = io_read((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200);
+    id[0] = id32 >> 24;
+    id[1] = id32 >> 16;
+    id[2] = id32 >> 8;
+    id[3] = id32;
 }
 
 static uint8_t io_read8(uint32_t addr)
