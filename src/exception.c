@@ -9,7 +9,7 @@
 #include "n64sys.h"
 #include "debug.h"
 #include "regsinternal.h"
-#include "kernelinternal.h"
+#include "kernel_internal.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
