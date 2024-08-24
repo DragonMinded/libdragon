@@ -127,12 +127,6 @@ static void nand_cmd_pageprog_async(int bufidx, uint32_t addr, bool ecc)
         NAND_CMD_PAGEPROG_B;
 }
 
-static void nand_cmd_pageprog(int bufidx, uint32_t addr, bool ecc)
-{
-    nand_cmd_pageprog_async(bufidx, addr, ecc);
-    nand_cmd_wait();
-}
-
 static void nand_cmd_erase(uint32_t addr)
 {
     *PI_BB_NAND_ADDR = addr;
@@ -161,15 +155,6 @@ static uint8_t io_read8(uint32_t addr)
 {
     uint32_t data = io_read(addr & ~3);
     return (data >> ((~addr & 3) * 8)) & 0xFF;
-}
-
-static void io_write8(uint32_t addr, uint8_t data)
-{
-    uint32_t mask = 0xFF << ((~addr & 3) * 8);
-    uint32_t shift = (~addr & 3) * 8;
-    uint32_t old_data = io_read(addr & ~3);
-    uint32_t new_data = (old_data & ~mask) | ((uint32_t)data << shift);
-    io_write(addr & ~3, new_data);
 }
 
 void nand_init(void)
