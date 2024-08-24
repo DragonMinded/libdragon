@@ -132,8 +132,8 @@ typedef struct kthread_s
  * thread receives a mail from a mailbox, the mail is removed and other
  * threads will not see it anymore.
  *
- * A mailbox can be allocated either on the heap (#mbox_new) or on
- * the stack (#mbox_new_stack). In both cases, the size of the buffer
+ * A mailbox can be allocated either on the heap (#kmbox_new) or on
+ * the stack (#kmbox_new_stack). In both cases, the size of the buffer
  * (maximum number of mails that can be kept within the mailbox)
  * must be specified.
  *
@@ -177,7 +177,7 @@ typedef struct kmbox_s
  * so that it's possible for threads to wait for specific interrupts and
  * act after them.
  *
- * It is also possible to attach a mailbox to an event using #mbox_attach_event.
+ * It is also possible to attach a mailbox to an event using #kmbox_attach_event.
  * This is useful if a thread needs to wait for multiple events.
  *
  * NOTE: this structure should be considered internal and subject
@@ -213,7 +213,7 @@ extern kevent_t KEVENT_RESET;
  *
  * The current execution context becomes the main thread of the
  * program, with priority set to 0 (you can change priority
- * to the main thread as well using #thread_set_pri).
+ * to the main thread as well using #kthread_set_pri).
  *
  * The main thread uses the original stack allocated for the
  * whole process, so it is technically unbounded (or limited by
@@ -368,8 +368,8 @@ const char* kthread_name(kthread_t *th);
  * threads will be scheduled.
  *
  * If the thread needs to handle multiple events and/or a more
- * elaborate communication with other threads, you can use
- * #kmbox with #kmbox_attach_event instead.
+ * elaborate communication with other threads, you can use a
+ * #kmbox_t with #kmbox_attach_event instead.
  *
  * @param[in] evt
  *            The event to wait for
@@ -385,7 +385,7 @@ void kthread_wait_event(kevent_t *evt);
  *
  * @return The allocated mailbox
  *
- * @note See #mbox_new_stack to allocate a mailbox on the stack.
+ * @note See #kmbox_new_stack to allocate a mailbox on the stack.
  */
 kmbox_t* kmbox_new(int max_mails);
 
@@ -397,7 +397,7 @@ kmbox_t* kmbox_new(int max_mails);
  *
  * @return The allocated mailbox
  *
- * @note See #mbox_new to allocate a mailbox on the heap.
+ * @note See #kmbox_new to allocate a mailbox on the heap.
  */
 #define kmbox_new_stack(max_mails) ({ \
 	int sz = sizeof(kmbox_t) + (max_mails)*sizeof(void*); \
@@ -488,7 +488,7 @@ void* kmbox_recv(kmbox_t *mbox);
  * This function is useful for threads that need to react to multiple
  * events and/or handle messages from other threads. If you just
  * want to wait for a single interrupt, it is easier to simply
- * call #thread_wait_event.
+ * call #kthread_wait_event.
  *
  * Example:
  *
