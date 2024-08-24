@@ -1,10 +1,12 @@
 #include <stdint.h>
 #include <assert.h>
 #include "n64sys.h"
+#include "n64types.h"
 #include "debug.h"
 #include "dma.h"
 #include "nand.h"
 #include "utils.h"
+#include "interrupt.h"
 
 #define PI_DRAM_ADDR                        ((volatile uint32_t*)0xA4600000)
 #define PI_CART_ADDR                        ((volatile uint32_t*)0xA4600004)
@@ -60,22 +62,26 @@ static bool nand_inited;
 static uint32_t nand_size;
 static int mmap_atb_idx = -1;
 
-static void nand_write_intbuffer(int bufidx, int offset, const void *data, int len)
+static void dma_bb_read_raw_async(void *ram_buffer, int pi_buffer_offset, int len)
 {
+    assert(len > 0);
+    disable_interrupts();
     dma_wait();
-    *PI_DRAM_ADDR = PhysicalAddr(data);
-    *PI_CART_ADDR = offset + bufidx * 0x200;
-    *PI_BB_RD_LEN = len;
-    dma_wait();
+    *PI_DRAM_ADDR = PhysicalAddr(ram_buffer);
+    *PI_CART_ADDR = pi_buffer_offset;
+    *PI_BB_WR_LEN = len-1;
+    enable_interrupts();
 }
 
-static void nand_read_intbuffer(int bufidx, int offset, void *data, int len)
+static void dma_bb_write_raw_async(void *ram_buffer, int pi_buffer_offset, int len)
 {
+    assert(len > 0);
+    disable_interrupts();
     dma_wait();
-    *PI_DRAM_ADDR = PhysicalAddr(data);
-    *PI_CART_ADDR = offset + bufidx * 0x200;
-    *PI_BB_WR_LEN = len;
-    dma_wait();
+    *PI_DRAM_ADDR = PhysicalAddr(ram_buffer);
+    *PI_CART_ADDR = pi_buffer_offset;
+    *PI_BB_RD_LEN = len-1;
+    enable_interrupts();
 }
 
 static void nand_cmd_wait(void)
@@ -91,19 +97,26 @@ static void nand_cmd_readid(int bufidx)
     nand_cmd_wait();
 }
 
-static void nand_cmd_read1(int bufidx, uint32_t addr, int len, bool ecc)
+static void nand_cmd_read1_async(int bufidx, uint32_t addr, int len, bool ecc)
 {
+    nand_cmd_wait();
     assert(len > 0 && len <= 512+16);
     *PI_BB_NAND_ADDR = addr;
     *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
         ((addr & 0x100) ? NAND_CMD_READ1_H1 : NAND_CMD_READ1_H0) | 
         (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
         (len << PI_BB_WNAND_CTRL_LEN_SHIFT);
+}
+
+static void nand_cmd_read1(int bufidx, uint32_t addr, int len, bool ecc)
+{
+    nand_cmd_read1_async(bufidx, addr, len, ecc);
     nand_cmd_wait();
 }
 
-static void nand_cmd_pageprog(int bufidx, uint32_t addr, bool ecc)
+static void nand_cmd_pageprog_async(int bufidx, uint32_t addr, bool ecc)
 {
+    nand_cmd_wait();
     *PI_BB_NAND_ADDR = addr;
     *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) |
         (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
@@ -112,7 +125,6 @@ static void nand_cmd_pageprog(int bufidx, uint32_t addr, bool ecc)
     *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) |
         (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
         NAND_CMD_PAGEPROG_B;
-    nand_cmd_wait();
 }
 
 static void nand_cmd_erase(uint32_t addr)
@@ -131,24 +143,18 @@ void nand_read_id(uint8_t id[4])
     
     const int bufidx = 0;
     nand_cmd_readid(bufidx);
-    nand_read_intbuffer(bufidx, 0, aligned_buf, 4);
 
-    memcpy(id, aligned_buf, 4);
+    uint32_t id32 = io_read((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200);
+    id[0] = id32 >> 24;
+    id[1] = id32 >> 16;
+    id[2] = id32 >> 8;
+    id[3] = id32;
 }
 
 static uint8_t io_read8(uint32_t addr)
 {
     uint32_t data = io_read(addr & ~3);
     return (data >> ((~addr & 3) * 8)) & 0xFF;
-}
-
-static void io_write8(uint32_t addr, uint8_t data)
-{
-    uint32_t mask = 0xFF << ((~addr & 3) * 8);
-    uint32_t shift = (~addr & 3) * 8;
-    uint32_t old_data = io_read(addr & ~3);
-    uint32_t new_data = (old_data & ~mask) | ((uint32_t)data << shift);
-    io_write(addr & ~3, new_data);
 }
 
 void nand_init(void)
@@ -215,36 +221,58 @@ int nand_read_pages(nand_addr_t addr, int npages, void *buf, void *spare, bool e
 {
     assertf(nand_inited, "nand_init() must be called first");
     assertf(addr % NAND_PAGE_SIZE == 0, "NAND address must be page-aligned (0x%08lX)", addr);
+    assertf(npages > 0, "number of pages must be positive");
 
     int bufidx = 0;
     uint8_t *buffer = buf;
-    uint8_t *spare_data = spare;
+    uint32_t *spare_data = spare;
+
+    // Read the first page from the NAND. Notice that if ECC is requested, it is mandatory to read
+    // the spares even if we will not return them to the caller, because otherwise the
+    // controller is unable to perform ECC calculation.
+    nand_cmd_read1_async(bufidx, addr, NAND_PAGE_SIZE + (spare || ecc ? 16 : 0), ecc);
+    addr += NAND_PAGE_SIZE;
 
     for (int i=0; i<npages; i++) {
-        // Read the page from the NAND. Notice that if ECC is requested, it is mandatory to read
-        // the spares even if we will not return them to the caller, because otherwise the
-        // controller is unable to perform ECC calculation.
-        nand_cmd_read1(bufidx, addr, NAND_PAGE_SIZE + (spare || ecc ? 16 : 0), ecc);
-        addr += NAND_PAGE_SIZE;
+        // Wait for the previous page to finish reading
+        nand_cmd_wait();
 
         // If ECC detected an unrecoverable error, abort reading. This will only
         // be set if ECC was requested in the first place.
         if (*PI_BB_NAND_CTRL & PI_BB_NAND_CTRL_ECC_ERROR)
             return -1;
 
-        // Copy data into output buffer
-        for (int i=0; i<NAND_PAGE_SIZE; i++)
-            buffer[i] = io_read8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i);
-        buffer += NAND_PAGE_SIZE;
-
-        // Copy spare into output buffer
-        if (spare_data) {
-            for (int i=0; i<16; i++)
-                spare_data[i] = io_read8((uint32_t)PI_BB_SPARE_0 + bufidx*4 + i);
-            spare_data += 16;
+        // Start reading next page in the background (unless we're already at the last one)
+        if (i < npages-1) {
+            nand_cmd_read1_async(1-bufidx, addr, NAND_PAGE_SIZE + (spare || ecc ? 16 : 0), ecc);
+            addr += NAND_PAGE_SIZE;
         }
+
+        // Copy spare into output buffer using CPU. It seems that PI BB DMA
+        // doesn't support spare data.
+        // Notice that access to NAND buffers should be treated *as if*
+        // they are memory mapped buffers from the PI bus, so must happen
+        // via io_read.
+        if (spare_data) {
+            for (int i=0; i<4; i++)
+                spare_data[i] = io_read((uint32_t)(PI_BB_SPARE_0 + bufidx*4 + i));
+            spare_data += 4;
+        }
+
+        // Copy data into output buffer, leaving DMA running in background
+        if (buffer) {
+            data_cache_hit_writeback_invalidate(buffer, NAND_PAGE_SIZE);
+            dma_bb_read_raw_async(buffer, bufidx*0x200, NAND_PAGE_SIZE);
+            buffer += NAND_PAGE_SIZE;
+        }
+
+        // Alternate between the two available hardware buffers
+        bufidx = 1-bufidx;
     }
 
+    // Wait for last DMA transfer to finish, so that we return only when all
+    // data has been actually read.
+    if (buffer) dma_wait();
     return npages;
 }
 
@@ -258,22 +286,27 @@ int nand_write_pages(nand_addr_t addr, int npages, const void *buf, bool ecc)
 
     for (int i=0; i<npages; i++) {
         // Write the data to the buffer
-        for (int i=0; i<NAND_PAGE_SIZE; i++)
-            io_write8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i, buffer[i]);
+        data_cache_hit_writeback_invalidate((void*)buffer, NAND_PAGE_SIZE);
+        dma_bb_write_raw_async((void*)buffer, bufidx*0x200, NAND_PAGE_SIZE);
 
         // Put empty spare data into the buffer
-        PI_BB_SPARE_0[bufidx*4 + 0] = 0xFFFFFFFF;
-        PI_BB_SPARE_0[bufidx*4 + 1] = 0xFFFFFFFF;
-        PI_BB_SPARE_0[bufidx*4 + 2] = 0xFFFFFFFF;
-        PI_BB_SPARE_0[bufidx*4 + 3] = 0xFFFFFFFF;
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 0], 0xFFFFFFFF);
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 1], 0xFFFFFFFF);
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 2], 0xFFFFFFFF);
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 3], 0xFFFFFFFF);
+        dma_wait();
 
         // Write the page to the NAND
-        nand_cmd_pageprog(bufidx, addr, ecc);
+        nand_cmd_wait();
+        nand_cmd_pageprog_async(bufidx, addr, ecc);
 
         addr += NAND_PAGE_SIZE;
         buffer += NAND_PAGE_SIZE;
+
+        bufidx = 1-bufidx;
     }
 
+    nand_cmd_wait();
     return npages;
 }
 
@@ -420,7 +453,7 @@ void nand_compute_page_ecc(const uint8_t *buf, uint8_t *ecc)
             ecc2 ^= val;
         }
 
-        // Interleave the bits of the two line parity (l0 and l1)
+        // Interleave the bits of the two line parities (l0 and l1)
         l0 = (l0 | (l0 << 4)) & 0x0F0F;
         l0 = (l0 | (l0 << 2)) & 0x3333;
         l0 = (l0 | (l0 << 1)) & 0x5555;
@@ -430,7 +463,7 @@ void nand_compute_page_ecc(const uint8_t *buf, uint8_t *ecc)
         l1 = (l1 | (l1 << 1)) & 0x5555;
         l0 = (l1 << 0) | (l0 << 1);
 
-        // Store the inverted line parity and column parity
+        // Store the inverted line parities and column parity
         *ecc++ = ~l0 >> 0;
         *ecc++ = ~l0 >> 8;
         *ecc++ = ~ecc2;

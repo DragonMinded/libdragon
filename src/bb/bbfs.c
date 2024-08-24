@@ -416,7 +416,8 @@ static int __bbfs_page_begin(bbfs_openfile_t *f)
 {
     if (!(f->flags & BBFS_FLAGS_PAGE_CACHED)) {
         int page_start = f->pos - (f->pos % NAND_PAGE_SIZE);
-        if (nand_read_pages(NAND_ADDR_MAKE(f->block, 0, page_start % NAND_BLOCK_SIZE), 1, f->page_cache, NULL, true) < 0) {
+        int block = f->flags & BBFS_FLAGS_BLOCK_SHADOWED ? be16i(*f->block_prev_link) : f->block;
+        if (nand_read_pages(NAND_ADDR_MAKE(block, 0, page_start % NAND_BLOCK_SIZE), 1, f->page_cache, NULL, true) < 0) {
             errno = EIO;
             return -1;
         }
@@ -852,6 +853,11 @@ static int __bbfs_ioctl(void *file, unsigned long request, void *arg)
             } else {
                 f->flags &= ~BBFS_FLAGS_CONTIGUOUS;
             }
+            return 0;
+        }
+        case IOBBFS_GET_BLOCK: {
+            int16_t *block = arg;
+            *block = f->block;
             return 0;
         }
         default:
