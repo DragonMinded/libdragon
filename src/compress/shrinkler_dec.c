@@ -180,17 +180,18 @@ int shr_unpack(uint8_t *dst, uint8_t *src)
     return dst - dst_start;
 }
 
-void* decompress_shrinkler_full(const char *fn, int fd, size_t cmp_size, size_t size)
+bool decompress_shrinkler_full(int fd, size_t cmp_size, size_t size, void *buf, int *buf_size)
 {
     void *in = malloc(cmp_size);
     read(fd, in, cmp_size);
-
-    void *out = malloc(size);
-    if (!out) return 0;
-    int dec_size = shr_unpack(out, in); (void)dec_size;
+    if(buf == NULL || *buf_size < size) {
+        *buf_size = size;
+        return false;
+    }
+    int dec_size = shr_unpack(buf, in); (void)dec_size;
     assertf(dec_size == size, "Shrinkler size:%d exp:%d", dec_size, size);
     free(in);
-    return out;
+    return true;
 }
 
 #ifdef N64

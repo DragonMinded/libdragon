@@ -42,5 +42,4 @@ int ioctl(int fd, unsigned long cmd, void *argp);
 }
 #endif
 
-
 #endif

@@ -13,7 +13,7 @@
 #if DECOMPRESS_SHRINKLER_FULL_USE_ASM
 int decompress_shrinkler_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size);
 #else
-void* decompress_shrinkler_full(const char *fn, int fd, size_t cmp_size, size_t size);
+bool decompress_shrinkler_full(int fd, size_t cmp_size, size_t size, void *buf, int *buf_size);
 #endif
 
 #endif
