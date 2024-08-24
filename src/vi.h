@@ -113,7 +113,7 @@ typedef struct vi_config_s{
 
 /** Under VI_V_CURRENT  */
 /** @brief VI_V_CURRENT Register: default value for vblank begin line. */
-#define VI_V_CURRENT_VBLANK                 0
+#define VI_V_CURRENT_VBLANK                 2
 
 /** Under VI_V_INTR    */
 /** @brief VI_V_INTR Register: set value for vertical interrupt. */
