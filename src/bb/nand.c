@@ -99,6 +99,7 @@ static void nand_cmd_readid(int bufidx)
 
 static void nand_cmd_read1_async(int bufidx, uint32_t addr, int len, bool ecc)
 {
+    nand_cmd_wait();
     assert(len > 0 && len <= 512+16);
     *PI_BB_NAND_ADDR = addr;
     *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) | 
@@ -113,8 +114,9 @@ static void nand_cmd_read1(int bufidx, uint32_t addr, int len, bool ecc)
     nand_cmd_wait();
 }
 
-static void nand_cmd_pageprog(int bufidx, uint32_t addr, bool ecc)
+static void nand_cmd_pageprog_async(int bufidx, uint32_t addr, bool ecc)
 {
+    nand_cmd_wait();
     *PI_BB_NAND_ADDR = addr;
     *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) |
         (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
@@ -123,6 +125,11 @@ static void nand_cmd_pageprog(int bufidx, uint32_t addr, bool ecc)
     *PI_BB_NAND_CTRL = PI_BB_WNAND_CTRL_EXECUTE | PI_BB_WNAND_CTRL_BUF(bufidx) |
         (ecc ? PI_BB_WNAND_CTRL_ECC : 0) |
         NAND_CMD_PAGEPROG_B;
+}
+
+static void nand_cmd_pageprog(int bufidx, uint32_t addr, bool ecc)
+{
+    nand_cmd_pageprog_async(bufidx, addr, ecc);
     nand_cmd_wait();
 }
 
@@ -294,22 +301,27 @@ int nand_write_pages(nand_addr_t addr, int npages, const void *buf, bool ecc)
 
     for (int i=0; i<npages; i++) {
         // Write the data to the buffer
-        for (int i=0; i<NAND_PAGE_SIZE; i++)
-            io_write8((uint32_t)PI_BB_BUFFER_0 + bufidx*0x200 + i, buffer[i]);
+        data_cache_hit_writeback_invalidate((void*)buffer, NAND_PAGE_SIZE);
+        dma_bb_write_raw_async((void*)buffer, bufidx*0x200, NAND_PAGE_SIZE);
 
         // Put empty spare data into the buffer
-        PI_BB_SPARE_0[bufidx*4 + 0] = 0xFFFFFFFF;
-        PI_BB_SPARE_0[bufidx*4 + 1] = 0xFFFFFFFF;
-        PI_BB_SPARE_0[bufidx*4 + 2] = 0xFFFFFFFF;
-        PI_BB_SPARE_0[bufidx*4 + 3] = 0xFFFFFFFF;
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 0], 0xFFFFFFFF);
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 1], 0xFFFFFFFF);
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 2], 0xFFFFFFFF);
+        io_write((uint32_t)&PI_BB_SPARE_0[bufidx*4 + 3], 0xFFFFFFFF);
+        dma_wait();
 
         // Write the page to the NAND
-        nand_cmd_pageprog(bufidx, addr, ecc);
+        nand_cmd_wait();
+        nand_cmd_pageprog_async(bufidx, addr, ecc);
 
         addr += NAND_PAGE_SIZE;
         buffer += NAND_PAGE_SIZE;
+
+        bufidx = 1-bufidx;
     }
 
+    nand_cmd_wait();
     return npages;
 }
 
