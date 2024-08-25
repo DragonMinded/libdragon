@@ -131,9 +131,18 @@ void *asset_load(const char *fn, int *sz);
 /**
  * @brief Load an asset file (possibly uncompressing it)
  * 
- * This function loads an asset pointed to by a file pointer. The
- * file will be seeked to an undefined position after the function executes.
- * If this asset was compressed it will be uncompressed automatically.
+ * This function loads an asset embedded within a larger file. It requires in
+ * input an open file pointer, seeked to the beginning of the asset, and the
+ * size of the asset itself. If the asset is compressed, it is transparently
+ * decompressed.
+ *
+ * After this function returns, for technical reasons, the position of the
+ * provided file pointer becomes undefined. If you need to use it again, make
+ * sure to seek it.
+ *
+ * A memory buffer to hold the uncompressed asset is automatically allocated
+ * and returned. It must be freed using free() when the buffer is not required
+ * anymore. The memory is guaranteed to be aligned by at least #ASSET_ALIGNMENT_MIN.
  * 
  * @param f         pre-seeked file pointer, pointing to a valid asset header (or
  *                  actual data if uncompressed)

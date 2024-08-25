@@ -20,7 +20,7 @@
 /**
  * @brief Execute a context switch.
  *
- * This forces a context switch to happen, by invoking the syscall 0x1. The
+ * This forces a context switch to happen, by invoking the syscall 0x0. The
  * syscall will be intercepted by the generic interrupt handler (inthandler.S)
  * that will call #__kthread_syscall_schedule.
  *
@@ -29,7 +29,7 @@
  *
  * Do not call this under interrupt; use #KTHREAD_SWITCH_ISR instead.
  */
-#define KTHREAD_SWITCH()      __asm("syscall 0x1")
+#define KTHREAD_SWITCH()      __asm("syscall 0x0")
 
 /**
  * @brief Executed a context switch, during an ongoing interrupt service routine.
@@ -208,7 +208,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 				// the thread must already have been added to a waiting list,
 				// otherwise it wouldn't ever be scheduled again.
 				assert(th_cur->flags & TH_FLAG_INLIST);
-				assertf(*(uint32_t*)th_cur->stack_state->epc == 0x0000004C, "invalid opcode found by __kthread_syscall_schedule:\nexpected 0x0000004C (SYSCALL 0x1), found: %08lx", *(uint32_t*)th_cur->stack_state->epc);
+				assertf(*(uint32_t*)th_cur->stack_state->epc == 0x0000000C, "invalid opcode found by __kthread_syscall_schedule:\nexpected 0x0000000C (SYSCALL 0x0), found: %08lx", *(uint32_t*)th_cur->stack_state->epc);
 				th_cur->stack_state->epc += 4;
 			}
 			else

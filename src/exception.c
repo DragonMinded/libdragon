@@ -452,7 +452,7 @@ reg_block_t* __onSyscallException( reg_block_t* regs )
 	uint32_t opcode = *(uint32_t*)epc;
 	uint32_t code = (opcode >> 6) & 0xfffff;
 
-	if (code == 1)
+	if (code == 0)
 		return __kthread_syscall_schedule(regs);
 
 	bool called = false;
