@@ -93,35 +93,8 @@
  * #kthread_new returns a pointer to the thread (a pointer
  * to kthread_t) that can be used to externally manage the
  * thread like changing its priority or killing it.
- * 
- * NOTE: this structure should be considered internal and subject
- * to future changes. It is exposed just for debugging purposes
- * and should not be relied upon. Please do not change any
- * field without going through a function of the public API.
  */
-typedef struct kthread_s
-{
-	/** Pointer to the top of the stack, which contains the thread register state */
-	reg_block_t* stack_state;
-	/** Current state of interrupt depth for this thread */
-	int interrupt_depth;
-	/** Size of the stack in bytes */
-	int stack_size;
-	/** Name of thread (for debugging purposes) */
-	const char *name;
-	/** Internal flags */
-	uint8_t flags;
-	/** Priority of the thread (0=lowest, use positive numbers only) */
-	int8_t pri;
-	/** Intrusive link to next thread in a waiting list */
-	struct kthread_s *next;
-	/** Entry point function for the thread */
-	void (*user_entry)(void*);
-	/** Custom argument to be passed to the entry point */
-	void *user_data;
-	/** Pointer to the stack buffer */
-	void *stack;
-} kthread_t;
+typedef struct kthread_s kthread_t;
 
 /**
  * @brief A kernel mailbox.
@@ -257,7 +230,8 @@ void kernel_close(void);
  * @param[in] user_entry
  *            Entry point of the thread. This is the function that will
  *            be called when the thread begins execution. If this function
- *            ever returns, the thread is automatically killed.
+ *            ever returns, the thread is automatically killed, and the return
+ * 			  value will be its exit code.
  * @param[in] user_data
  *            Argument that will be passed to the entry point of the thread.
  *
@@ -266,7 +240,15 @@ void kernel_close(void);
  *            after itself when it exits.
  */
 kthread_t* kthread_new(const char *name, int stack_size, int8_t pri,
-	void (*user_entry)(void*), void *user_data);
+	int (*user_entry)(void*), void *user_data);
+
+
+/**
+ * @brief Return a reference to the current running thread
+ * 
+ * @return kthread_t	Reference to the current thread
+ */
+kthread_t* kthread_current(void);
 
 
 /**
@@ -341,16 +323,88 @@ void kthread_set_pri(kthread_t *th, int8_t pri);
  * @brief Kill a thread, aborting its execution.
  *
  * The specified thread is aborted, and its memory freed (including
- * its stack). This function can executed for any thread, including the
- * current one. The execution will be aborted and the memory released
+ * its stack). The execution will be aborted and the memory released
  * to the heap for further use.
+ * 
+ * This function can executed for any thread, including the
+ * current one, in which case it becomes equivalent to #kthread_exit.
  *
- * @param[in]  th
- *             Reference to the thread to kill (NULL = current thread)
- *
+ * @param[in]  th 	Reference to the thread to kill. Since NULL refers to the
+ *                  current thread, calling this function passing NULL is
+ *                  equivalent to #kthread_exit.
+ * @param[in]  res	Result code of the thread that will be killed
+ * 
+ * @see #kthread_exit
  */
-void kthread_kill(kthread_t *th);
+void kthread_kill(kthread_t *th, int res);
 
+
+/**
+ * @brief Exit from a thread, providing a result value
+ * 
+ * This function allows to abort the execution of the current thread, optionally
+ * providing a result value. If the thread is not detached, the result value
+ * can be read by the joiner thread via #kthread_join. If the thread is detached,
+ * the return value will be ignored.
+ * 
+ * Returning from a thread's entry point is equivalent to calling kthread_exit.
+ * 
+ * @param res 		Result value
+ */
+__attribute__((noreturn))
+void kthread_exit(int res);
+
+/**
+ * @brief Detach a thread, so that it can terminated without any join
+ * 
+ * By defaults, kernel threads are "attached" to the main thread; this 
+ * means that to fully terminate, there should be a thread calling kthread_join
+ * on then. Joining a thread can happen before or after it finishes execution,
+ * but it has to happen for the thread to be fully cleaned up.
+ * 
+ * If a thread is detached, it can be terminated without any join. The thread
+ * will be fully cleaned up when it finishes execution.
+ * 
+ * NOTE: Pay attention to race conditions when detaching threads that you have
+ * just created. It might be advisable to let a thread detaches itself, so that
+ * you don't risk to detach a thread that is already finished.
+ * 
+ * @param[in]  th		Reference to the thread to detach (or NULL to
+ * 						detach the current thread)
+ */
+void kthread_detach(kthread_t *th);
+
+
+/**
+ * @brief Wait for a thread to finish.
+ * 
+ * This function blocks the current thread until the specified
+ * thread finishes its execution. The CPU is yielded so that other
+ * threads will be scheduled.
+ * 
+ * @param[in]  th		Reference to the thread to wait for
+ * @result				Result code of the thread that was joined
+ */
+int kthread_join(kthread_t *th);
+
+/**
+ * @brief Check if a thread is finished without blocking
+ * 
+ * This function is similar to #kthread_join, but it does not block if
+ * the thread is not finished yet. If the thread is finished, it returns
+ * true and stores the result code in the res argument. If the thread is
+ * still running, it returns false.
+ * 
+ * Notice that the thread *is* joined if the function returns true; after
+ * that, the thread is fully cleaned up and the memory released, so the thread
+ * pointer becomes invalid.
+ * 
+ * @param[in]  th 			Reference to the thread to wait for
+ * @param[out] res 			Pointer to the result code of the thread
+ * @return true 			if the thread is finished and successfully joined
+ * @return false 			if the thread is still running
+ */
+bool kthread_try_join(kthread_t *th, int *res);
 
 /**
  * @brief Return the name of the specified thread.

@@ -43,6 +43,7 @@
 #include "mi.h"
 #include "interrupt.h"
 #include "kernel.h"
+#include "cthreads.h"
 #include "n64sys.h"
 #include "backtrace.h"
 #include "rdp.h"

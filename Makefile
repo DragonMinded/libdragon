@@ -28,7 +28,8 @@ libdragon: libdragon.a libdragonsys.a
 libdragonsys.a: $(BUILD_DIR)/system.o
 
 LIBDRAGON_OBJS += \
-             $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/kernel.o $(BUILD_DIR)/backtrace.o \
+             $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtrace.o \
+			 $(BUILD_DIR)/kernel/kernel.o $(BUILD_DIR)/kernel/cthreads.o \
 			 $(BUILD_DIR)/fmath.o $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
 			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
 			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
@@ -120,6 +121,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/mi.h $(INSTALLDIR)/mips64-elf/include/mi.h
 	install -Cv -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
 	install -Cv -m 0644 include/kernel.h $(INSTALLDIR)/mips64-elf/include/kernel.h
+	install -Cv -m 0644 include/cthreads.h $(INSTALLDIR)/mips64-elf/include/cthreads.h
 	install -Cv -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
 	install -Cv -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
 	install -Cv -m 0644 include/asset.h $(INSTALLDIR)/mips64-elf/include/asset.h

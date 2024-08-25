@@ -6,8 +6,9 @@ void test_kernel_basic(TestContext *ctx) {
 	uint8_t thcalled[16] = {0};
 	uint8_t thcalled_idx = 0;
 
-	void func_th(void *arg)
+	int func_th(void *arg)
 	{
+		kthread_detach(NULL);
 		int thid = (int)arg;
 
 		thcalled[thcalled_idx++] = thid;
@@ -15,6 +16,7 @@ void test_kernel_basic(TestContext *ctx) {
 		thcalled[thcalled_idx++] = thid;
 		kthread_yield();
 		thcalled[thcalled_idx++] = thid;
+		return 0;
 	}
 
 	// Create two threads. Pause their execution by making
@@ -41,29 +43,35 @@ void test_kernel_priority(TestContext *ctx) {
 	uint8_t thcalled[16] = {0};
 	uint8_t thcalled_idx = 0;
 
-	void func_th1(void *arg)
+	int func_th1(void *arg)
 	{
+		kthread_detach(NULL);
 		thcalled[thcalled_idx++] = 1;
 		kthread_yield();		
 		thcalled[thcalled_idx++] = 1;
 		kthread_yield();
 		thcalled[thcalled_idx++] = 1;
+		return 0;
 	}
 
-	void func_th2(void *arg)
+	int func_th2(void *arg)
 	{
+		kthread_detach(NULL);
 		thcalled[thcalled_idx++] = 2;
 		kthread_new("test1", 2048, 5, func_th1, 0);
 		thcalled[thcalled_idx++] = 2;
+		return 0;
 	}
 
-	void func_th3(void *arg)
+	int func_th3(void *arg)
 	{
+		kthread_detach(NULL);
 		thcalled[thcalled_idx++] = 3;
 		kthread_new("test2", 2048, 6, func_th2, 0);
 		thcalled[thcalled_idx++] = 3;
 		kthread_yield();
 		thcalled[thcalled_idx++] = 3;
+		return 0;
 	}
 
 	kthread_set_pri(NULL, 1);
@@ -84,8 +92,9 @@ void test_kernel_sleep(TestContext *ctx) {
 	uint8_t thcalled_idx = 0;
 	volatile uint8_t thexit = 0;
 
-	void func_th1(void *arg)
+	int func_th1(void *arg)
 	{
+		kthread_detach(NULL);
 		LOG("func_th1 called\n");
 		thcalled[thcalled_idx++] = 1;
 		kthread_sleep(TICKS_FROM_MS(5));
@@ -93,15 +102,18 @@ void test_kernel_sleep(TestContext *ctx) {
 		kthread_sleep(TICKS_FROM_MS(5));
 		thcalled[thcalled_idx++] = 1;
 		++thexit;
+		return 0;
 	}
 
-	void func_th2(void *arg)
+	int func_th2(void *arg)
 	{
+		kthread_detach(NULL);
 		LOG("func_th2 called\n");
 		thcalled[thcalled_idx++] = 2;
 		kthread_sleep(TICKS_FROM_MS(8));
 		thcalled[thcalled_idx++] = 2;
 		++thexit;
+		return 0;
 	}
 
 	kthread_set_pri(NULL, 6);
@@ -131,8 +143,9 @@ void test_kernel_mbox_1(TestContext *ctx) {
 	uint8_t msgread[16] = {0};
 	uint8_t msgread_idx = 0;
 
-	void read_thread(void* arg)
+	int read_thread(void* arg)
 	{
+		kthread_detach(NULL);
 		uint8_t *msg;
 		LOG("read_thread() %d\n", kmbox_empty(mbox));
 		while ((msg = kmbox_recv(mbox)))
@@ -140,6 +153,7 @@ void test_kernel_mbox_1(TestContext *ctx) {
 			LOG("mbox_recv(): %p:%d\n", msg, *msg);
 			msgread[msgread_idx++] = *msg;
 		}
+		return 0;
 	}
 
 	// Bump priority of main thread
@@ -147,7 +161,7 @@ void test_kernel_mbox_1(TestContext *ctx) {
 
 	// Create reader thread
 	kthread_t *th1 = kthread_new("read_thread", 2048, 1, read_thread, NULL);
-	DEFER(kthread_kill(th1));
+	DEFER(kthread_kill(th1, 0));
 
 	// Enqueue 4 messages
 	ASSERT(kmbox_empty(mbox), "mbox not empty?");
@@ -226,8 +240,9 @@ void test_kernel_mbox_2(TestContext *ctx) {
 	uint8_t msgread[16] = {0};
 	uint8_t msgread_idx = 0;
 
-	void read_thread(void* arg)
+	int read_thread(void* arg)
 	{
+		kthread_detach(NULL);
 		uint8_t *msg;
 		LOG("read_thread() %d\n", kmbox_empty(mbox));
 		while ((msg = kmbox_recv(mbox)))
@@ -235,6 +250,7 @@ void test_kernel_mbox_2(TestContext *ctx) {
 			LOG("mbox_recv(): %p:%d\n", msg, *msg);
 			msgread[msgread_idx++] = *msg;
 		}
+		return 0;
 	}
 
 	// Bump priority of main thread to suspend the reader thread
@@ -242,7 +258,7 @@ void test_kernel_mbox_2(TestContext *ctx) {
 
 	// Create reader thread
 	kthread_t *th1 = kthread_new("read_thread", 2048, 1, read_thread, NULL);
-	DEFER(kthread_kill(th1));
+	DEFER(kthread_kill(th1, 0));
 
 	// Enqueue messages. The reader thread has not started yet because it
 	// has lower priority for now
@@ -294,8 +310,9 @@ void test_kernel_mbox_3(TestContext *ctx) {
 	uint8_t msgread[16] = {0};
 	uint8_t msgread_idx = 0;
 
-	void read_thread(void* arg)
+	int read_thread(void* arg)
 	{
+		kthread_detach(NULL);
 		uint8_t *msg;
 		LOG("read_thread() %d\n", kmbox_empty(mbox));
 		while ((msg = kmbox_recv(mbox)))
@@ -303,6 +320,7 @@ void test_kernel_mbox_3(TestContext *ctx) {
 			LOG("mbox_recv(): %p:%d\n", msg, *msg);
 			msgread[msgread_idx++] = *msg;
 		}
+		return 0;
 	}
 
 	// Bump priority of main thread
@@ -310,7 +328,7 @@ void test_kernel_mbox_3(TestContext *ctx) {
 
 	// Create reader thread
 	kthread_t *th1 = kthread_new("read_thread", 2048, 2, read_thread, NULL);
-	DEFER(kthread_kill(th1));
+	DEFER(kthread_kill(th1, 0));
 
 	// Enqueue messages. They will be processed right away
 	// because the reader thread has higher priority.
@@ -348,19 +366,23 @@ void test_kernel_event_1(TestContext *ctx) {
 
 	bool called = false;
 
-	void wait_thread(void *arg)
+	int wait_thread(void *arg)
 	{
+		kthread_detach(NULL);
 		kthread_wait_event(&KEVENT_IRQ_SP);
 		called = true;
+		return 0;
 	}
 
-	void rsp_thread(void* arg)
+	int rsp_thread(void* arg)
 	{
+		kthread_detach(NULL);
 		uint32_t __attribute__((aligned(8))) miniucode[] = { 0x0000000d }; // BREAK opcode
 		
 		data_cache_hit_writeback_invalidate(miniucode, sizeof(miniucode));
 		rsp_load_code(miniucode, sizeof(miniucode), 0);
 		rsp_run_async();
+		return 0;
 	}
 
 	kthread_set_pri(NULL, 1);
@@ -387,25 +409,31 @@ void test_kernel_event_2(TestContext *ctx) {
 	kmbox_t *m1 = kmbox_new_stack(1);
 	kmbox_t *m2 = kmbox_new_stack(1);
 
-	void read_kthread_1(void* arg)
+	int read_kthread_1(void* arg)
 	{
+		kthread_detach(NULL);
 		while (kmbox_recv(m1) == &KEVENT_IRQ_SP)
 			called[called_idx++] = 1;
+		return 0;
 	}
 
-	void read_kthread_2(void* arg)
+	int read_kthread_2(void* arg)
 	{
+		kthread_detach(NULL);
 		while (kmbox_recv(m2) == &KEVENT_IRQ_SP)
 			called[called_idx++] = 2;
+		return 0;
 	}
 
-	void rsp_thread(void* arg)
+	int rsp_thread(void* arg)
 	{
+		kthread_detach(NULL);
 		uint32_t __attribute__((aligned(8))) miniucode[] = { 0x0000000d }; // BREAK opcode
 		
 		data_cache_hit_writeback_invalidate(miniucode, sizeof(miniucode));
 		rsp_load_code(miniucode, sizeof(miniucode), 0);
 		rsp_run_async();
+		return 0;
 	}
 
 	kmbox_attach_event(m1, &KEVENT_IRQ_SP);
@@ -418,10 +446,10 @@ void test_kernel_event_2(TestContext *ctx) {
 	kthread_new("rsp_thread", 2048, 2, rsp_thread, NULL);
 
 	kthread_t *rth1 = kthread_new("read_kthread_1", 2048, 3, read_kthread_1, NULL);
-	DEFER(kthread_kill(rth1));
+	DEFER(kthread_kill(rth1, 0));
 
 	kthread_t *rth2 = kthread_new("read_kthread_2", 2048, 4, read_kthread_2, NULL);
-	DEFER(kthread_kill(rth2));
+	DEFER(kthread_kill(rth2, 0));
 
 	// Go to sleep. Now the RSP will run, trigger the two reader threads, and
 	// they will register themselves in the called array.

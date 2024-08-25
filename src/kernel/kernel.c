@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#define DEBUG_KERNEL   0
+#define DEBUG_KERNEL   1
 
 /** @brief Enable stack-smashing checks of threads. */
 #define KERNEL_CHECKS  1
@@ -71,14 +71,15 @@ extern int __interrupt_depth;
  * It invokes the user entry function, and then kills the thread
  * if the function ever returns.
  */
+__attribute__((noreturn))
 void __kthread_boot(void)
 {
 	// Initialize GP register. This is the same as done in the entrypoint
 	// and is also used by the backtrace code as marker to stop walking.
 	asm volatile ("la $gp, _gp");
-	th_cur->user_entry(th_cur->user_data);
-	if (DEBUG_KERNEL) debugf("thread end: %s[%p]\n", th_cur->name, th_cur);
-	kthread_kill(NULL);
+	int res = th_cur->user_entry(th_cur->user_data);
+	if (DEBUG_KERNEL) debugf("thread end: %s[%p] res=%d\n", th_cur->name, th_cur, res);
+	kthread_exit(res);
 }
 
 void __kthread_check_overflow(kthread_t *th)
@@ -191,8 +192,16 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	 		// be freed.
 	 		if (DEBUG_KERNEL) debugf("[kernel] killing zombie: %s(%p) PC=%lx\n", th_cur->name, th_cur, stack_state->epc);
 			assert(!(th_cur->flags & TH_FLAG_INLIST));
+			assert(th_cur->flags & TH_FLAG_DETACHED);
 			free(th_cur->stack);
 	 	}
+		else if (th_cur->flags & TH_FLAG_WAITFORJOIN)
+		{
+			// Nothing to do. This is a non-detached thread that just exited without a joiner.
+			// We can just forget about it, it wil get freed when someone calls kthread_join().
+			assert(!(th_cur->flags & TH_FLAG_INLIST));
+			assertf(!(th_cur->flags & TH_FLAG_DETACHED), "thread %s[%p] is waiting for a joiner, but is detached", th_cur->name, th_cur);
+		}
 		else
 		{
 			// Save the current thread state.
@@ -227,11 +236,15 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 		}
 	}
 
-	// Schedule the highest-priority thread that is ready. This would be
-	// the first thread in the ready list. There is always at least a thread
-	// here: the idle thread.
-	th_cur = __thlist_rem(&th_ready);
-	assert(th_cur != NULL);
+	// Schedule the highest-priority thread that is ready, and is not waiting for
+	// a join. This would be the first thread in the ready list. There is always
+	// at least a thread here that matches this condition: the idle thread.
+	// Wait-for-join threads are purposedly skipped and we lose the reference to
+	// them: it's required for someone to call kthread_join() to free them.
+	do {
+		th_cur = __thlist_rem(&th_ready);
+		assert(th_cur != NULL);
+	} while (th_cur->flags & TH_FLAG_WAITFORJOIN);
 	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc);
 	assert(!(th_cur->flags & TH_FLAG_INLIST));
 
@@ -251,7 +264,8 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
  * This thread does absolutely nothing. It just waits for any other thread
  * to wake up so that it will be preempted.
  */
-void __kthread_idle(void *arg)
+__attribute__((noreturn))
+static int __kthread_idle(void *arg)
 {
 	// When this thread is scheduled, there are no
 	// ready threads and all threads are probably waiting for some
@@ -283,6 +297,7 @@ kthread_t* kernel_init(void)
 
 	// Allocate the idle thread
 	th_idle = kthread_new("idle", 4096, -1, __kthread_idle, 0);
+	kthread_detach(th_idle);
 
 	__kernel = true;
 	return th_cur;
@@ -294,7 +309,7 @@ void kernel_close(void)
 	assertf(th_cur == &th_main, "kthread_close can only be called from main thread");
 
 	// Kill the idle thread to release the memory
-	kthread_kill(th_idle);
+	kthread_kill(th_idle, 0);
 	th_idle = NULL;
 
 	assertf(th_count == 1, "not all threads were killed");
@@ -304,7 +319,7 @@ void kernel_close(void)
 	__isr_force_schedule = false;
 }
 
-kthread_t* kthread_new(const char *name, int stack_size, int8_t pri, void (*user_entry)(void*), void *user_data)
+kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)
 {
 	assert((stack_size % 8) == 0);
 
@@ -380,7 +395,17 @@ kthread_t* kthread_new(const char *name, int stack_size, int8_t pri, void (*user
 	return th;
 }
 
-void kthread_kill(kthread_t *th)
+kthread_t* kthread_new(const char *name, int stack_size, int8_t pri, int (*user_entry)(void*), void *user_data)
+{
+	return __kthread_new_internal(name, stack_size, pri, 0, user_entry, user_data);	
+}
+
+kthread_t* kthread_current(void)
+{
+	return th_cur;
+}
+
+void kthread_kill(kthread_t *th, int res)
 {
 	if (th == NULL) th = th_cur;
 	
@@ -389,20 +414,37 @@ void kthread_kill(kthread_t *th)
 	disable_interrupts();
 	th_count--;
 
-	// In general, we cannot just free the memory. If the thread is enqueued
-	// in some list (eg: waiting on a mailbox), we would need to remove it
-	// from that list before freeing it, but we don't have a way to do it
-	// (a thread doesn't have a reference to the list it's in, just a next
-	// pointer).
-	// So just mark the thread as zombie. This will cause the scheduler to
-	// free it as soon as the thread is first scheduled.
-	th->flags |= TH_FLAG_ZOMBIE;
+	if (th->flags & TH_FLAG_DETACHED) {
+		// In general, we cannot just free the memory. If the thread is enqueued
+		// in some list (eg: waiting on a mailbox), we would need to remove it
+		// from that list before freeing it, but we don't have a way to do it
+		// (a thread doesn't have a reference to the list it's in, just a next
+		// pointer).
+		// So just mark the thread as zombie. This will cause the scheduler to
+		// free it as soon as the thread is first scheduled.
+		th->flags |= TH_FLAG_ZOMBIE;
+	} else {
+		if (th->joiner) {
+			th->joiner->joined_result = res;
+			__thlist_add_pri(&th_ready, th->joiner);
+		} else {
+			th->flags |= TH_FLAG_WAITFORJOIN;
+			th->joined_result = res;
+		}
+	}
 
 	// If we're trying to kill ourselves, it's sufficient to force a context
-	// switch now.
+	// switch now. This thread will be killed immediately by the scheduler.
 	if (th == th_cur)
 		KTHREAD_SWITCH();
+
 	enable_interrupts();
+}
+
+void kthread_exit(int res)
+{
+	kthread_kill(NULL, res);
+	__builtin_unreachable();
 }
 
 void kthread_yield(void)
@@ -422,6 +464,62 @@ void kthread_yield(void)
 
 		enable_interrupts();
 	}
+}
+
+
+#define kernel_preempt_disable() asm volatile ("addiu $k1, 1")
+#define kernel_preempt_enable()  asm volatile ("addi $k1, -1")
+
+void kthread_detach(kthread_t *th)
+{
+	if (th == NULL) th = th_cur;
+	// disable_interrupts();
+	kernel_preempt_disable();
+	assertf((th->flags & TH_FLAG_WAITFORJOIN) == 0, "cannot detach thread %s[%p] which is already exited", th->name, th);
+	th->flags |= TH_FLAG_DETACHED;
+	kernel_preempt_enable();
+	// enable_interrupts();
+}
+
+int kthread_join(kthread_t *th)
+{
+	disable_interrupts();
+	assertf((th->flags & TH_FLAG_DETACHED), "cannot join a detached thread %s[%p]", th->name, th);
+
+	if (th->flags & TH_FLAG_WAITFORJOIN)
+	{
+		th_cur->joined_result = th->joined_result;
+		free(th->stack);
+	}
+	else
+	{
+		// Add the current thread to the joiner list, and then force a context switch.
+		assertf(th->joiner == NULL, "thread %s[%p] already joined by %s[%p]", th->name, th, th->joiner->name, th->joiner);
+		th->joiner = th_cur;
+		KTHREAD_SWITCH();
+	}
+
+	enable_interrupts();
+	return th_cur->joined_result;
+}
+
+bool kthread_try_join(kthread_t *th, int *res)
+{
+	bool joined = false;
+
+	disable_interrupts();
+	assertf((th->flags & TH_FLAG_DETACHED), "cannot join a detached thread %s[%p]", th->name, th);
+
+	if (th->flags & TH_FLAG_WAITFORJOIN)
+	{
+		th_cur->joined_result = th->joined_result;
+		if (res) *res = th->joined_result;
+		free(th->stack);
+		joined = true;
+	}
+
+	enable_interrupts();
+	return joined;
 }
 
 void kthread_set_pri(kthread_t *th, int8_t pri)

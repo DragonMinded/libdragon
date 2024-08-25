@@ -6,7 +6,7 @@
 #include <malloc.h>
 #include "libdragon.h"
 #include "regsinternal.h"
-#include "kernel_internal.h"
+#include "kernel/kernel_internal.h"
 
 /** @brief Bit to set to clear the PI interrupt */
 #define PI_CLEAR_INTERRUPT 0x02
