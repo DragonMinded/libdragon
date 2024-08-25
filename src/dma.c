@@ -4,6 +4,7 @@
  * @ingroup dma
  */
 #include <stdbool.h>
+#include "dma.h"
 #include "n64types.h"
 #include "n64sys.h"
 #include "interrupt.h"
@@ -11,17 +12,6 @@
 #include "utils.h"
 #include "regsinternal.h"
 
-/**
- * @name PI Status Register Bit Definitions
- * @{
- */
-/** @brief PI DMA Busy */
-#define PI_STATUS_DMA_BUSY ( 1 << 0 )
-/** @brief PI IO Busy */
-#define PI_STATUS_IO_BUSY  ( 1 << 1 )
-/** @brief PI Error */
-#define PI_STATUS_ERROR    ( 1 << 2 )
-/** @} */
 
 /** @brief Structure used to interact with the PI registers */
 static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)0xa4600000;

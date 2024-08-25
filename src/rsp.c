@@ -449,6 +449,11 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // OK we're done. Render on the screen and abort
     console_render();
+
+    // Poll incoming commands from the host
+    extern bool debug_poll_host_commands(void);
+    while (debug_poll_host_commands());
+
     abort();
 }
 /// @endcond

@@ -279,7 +279,7 @@ void wait_ticks( unsigned long wait );
  */
 void wait_ms( unsigned long wait_ms );
 
-void halt(void);
+void sys_rcp_halt(void);
 
 /**
  * @brief Force a complete halt of all processors
@@ -295,7 +295,7 @@ __attribute__((noreturn))
 void die(void);
 
 __attribute__((noreturn)) 
-void reboot(void);
+void sys_reboot(void);
 
 /**
  * @brief Force a data cache invalidate over a memory region
