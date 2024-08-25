@@ -192,10 +192,19 @@ void sys_rcp_halt(void)
     *SP_STATUS = SP_WSTATUS_SET_HALT;
 
     // Wait for RSP to halt execution
-    while( !(*SP_STATUS & (SP_STATUS_HALTED)) );
+    while( !(*SP_STATUS & SP_STATUS_HALTED) );
 
     // Wait for RSP IO and DMA operations to finish
     while( *SP_STATUS & (SP_STATUS_IO_BUSY | SP_STATUS_DMA_BUSY) );
+
+    // Flush the RDP and wait for DMA to finish fetching commands
+    *DP_STATUS = DP_WSTATUS_SET_FLUSH;
+    RSP_WAIT_LOOP(200) {
+        if ( !(*DP_STATUS & DP_STATUS_DMA_BUSY) ) {
+            break;
+        }
+    }
+    *DP_STATUS = DP_WSTATUS_RESET_FLUSH;
 
     // Shut the video off
     if ( vi_is_active() ) { vi_wait_for_vblank(); }
@@ -204,13 +213,6 @@ void sys_rcp_halt(void)
     // Turn off and clear VI interrupt
     *VI_V_INTR = 0x3FF;
     *VI_V_CURRENT = 0;
-
-    // Wait for RDP to finish fetching commands
-    RSP_WAIT_LOOP(200) {
-        if ( !(*DP_STATUS & (DP_STATUS_DMA_BUSY)) ) {
-            break;
-        }
-    }
 }
 
 /**
