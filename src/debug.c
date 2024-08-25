@@ -669,6 +669,90 @@ void debug_close_sdfs(void)
 	}
 }
 
+#define SC64_SCR (0x1FFF0000)
+#define SC64_IRQ (0x1FFF0014)
+#define SC64_AUX (0x1FFF0018)
+
+#define SC64_SCR_AUX_IRQ_PENDING (1 << 23)
+#define SC64_SCR_AUX_IRQ_MASK (1 << 22)
+
+#define SC64_IRQ_AUX_CLEAR (1 << 28)
+#define SC64_IRQ_AUX_DISABLE (1 << 9)
+#define SC64_IRQ_AUX_ENABLE (1 << 8)
+
+#define AUX_PING (0xFF000000)
+#define AUX_HALT (0xFF000001)
+#define AUX_REBOOT (0xFF000002)
+
+static void debug_cart_handler_sc64(void)
+{
+	bool halt_requested = false;
+
+	do {
+		uint32_t scr = io_read(SC64_SCR);
+
+		if ((scr & SC64_SCR_AUX_IRQ_MASK) && (scr & SC64_SCR_AUX_IRQ_PENDING)) {
+			io_write(SC64_IRQ, SC64_IRQ_AUX_CLEAR);
+
+			switch (io_read(SC64_AUX)) {
+				case AUX_PING:
+					io_write(SC64_AUX, AUX_PING);
+					break;
+
+				case AUX_HALT:
+					if (!halt_requested) {
+						halt();
+						halt_requested = true;
+					}
+					io_write(SC64_AUX, AUX_HALT);
+					break;
+
+				case AUX_REBOOT:
+					io_write(SC64_IRQ, SC64_IRQ_AUX_DISABLE);
+					io_write(SC64_AUX, AUX_REBOOT);
+					reboot();
+					break;
+
+				default:
+					break;
+			}
+		}
+	} while (halt_requested);
+}
+
+bool debug_init_cart_interrupt(void)
+{
+	if (!sd_initialize_once())
+		return false;
+
+	if (cart_type == CART_SC) {
+		register_CART_handler(debug_cart_handler_sc64);
+		set_CART_interrupt(true);
+
+		io_write(SC64_IRQ, SC64_IRQ_AUX_ENABLE);
+
+		enabled_features |= DEBUG_FEATURE_CART_INTERRUPT;
+
+		return true;
+	}
+
+	return false;
+}
+
+void debug_close_cart_interrupt(void)
+{
+	if (enabled_features & DEBUG_FEATURE_CART_INTERRUPT) {
+		enabled_features &= ~(DEBUG_FEATURE_CART_INTERRUPT);
+
+		if (cart_type == CART_SC) {
+			io_write(SC64_IRQ, SC64_IRQ_AUX_DISABLE);
+
+			set_CART_interrupt(false);
+			unregister_CART_handler(debug_cart_handler_sc64);
+		}
+	}
+}
+
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
 {
 	disable_interrupts();

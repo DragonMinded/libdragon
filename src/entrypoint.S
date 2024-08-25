@@ -32,12 +32,14 @@ _start:
 	sw t1, %gprel(__entropy_state+4)(gp)
 
 	/* Copy other bootcode flags */
-	lbu t0, 0x0009(v0)
-	lbu t1, 0x000A(v0)
-	lbu t2, 0x000B(v0)
-	sw t0, %gprel(__boot_tvtype)(gp)
-	sw t1, %gprel(__boot_resettype)(gp)
-	sw t2, %gprel(__boot_consoletype)(gp)
+	lbu t0, 0x0008(v0)
+	lbu t1, 0x0009(v0)
+	lbu t2, 0x000A(v0)
+	lbu t3, 0x000B(v0)
+	sw t0, %gprel(__boot_romtype)(gp)
+	sw t1, %gprel(__boot_tvtype)(gp)
+	sw t2, %gprel(__boot_resettype)(gp)
+	sw t3, %gprel(__boot_consoletype)(gp)
 
 	la t0, debug_assert_func    /* install assert function in system.c */
 	la t1, __assert_func_ptr

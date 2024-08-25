@@ -115,6 +115,8 @@ typedef struct PI_regs_s {
     uint32_t dom1_latency;
     /** @brief Cartridge domain 1 pulse width in RCP clock cycles. Requires DMA status bit guards to work reliably */
     uint32_t dom1_pulse_width;
+    uint32_t dom1_page_size;
+    uint32_t dom1_release;
     // TODO: add remaining registers
 } PI_regs_t;
 
