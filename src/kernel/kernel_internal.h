@@ -85,6 +85,7 @@ extern kcond_t __kirq_cond_pi;      ///< Condition variable for PI interrupt
  */
 void __kcond_broadcast_isr(kcond_t* cond);
 
+/** @brief Initialize kirq condition variables */
 void __kirq_init(void);
 
 /** @brief Syscall handler to run the scheduler and optionally switch current thread */
