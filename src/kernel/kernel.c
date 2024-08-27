@@ -50,20 +50,13 @@ static kthread_t *th_ready;
 /** @brief Number of live thread */
 static int th_count;
 
-kevent_t KEVENT_IRQ_AI = {0};
-kevent_t KEVENT_IRQ_DP = {0};
-kevent_t KEVENT_IRQ_SP = {0};
-kevent_t KEVENT_IRQ_SI = {0};
-kevent_t KEVENT_IRQ_VI = {0};
-kevent_t KEVENT_IRQ_PI = {0};
-kevent_t KEVENT_RESET  = {0};
-
 /** @brief True if the multithreading kernel has been initialized and is running. */
 bool __kernel = false;
 /** @brief True if a context switch must be done at the end of current interrupt. */
 bool __isr_force_schedule = false;
 /* Global current interrupt depth (defined in interrupt.c) */ 
 extern int __interrupt_depth;
+extern int __interrupt_sr;
 
 /** 
  * @brief Boot function for a kthread.
@@ -271,7 +264,8 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 			// Save the current interrupt depth. Interrupt depth is actually
 			// per-thread, so we just save/restore it every time a thread is
 			// scheduled.
-			th_cur->interrupt_depth = __interrupt_depth;
+			th_cur->tls.interrupt_depth = __interrupt_depth;
+			th_cur->tls.interrupt_sr = __interrupt_sr;
 		}
 	}
 
@@ -288,7 +282,8 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	assert(!(th_cur->flags & TH_FLAG_INLIST));
 
 	// Set the current interrupt depth to that of the current thread.
-	__interrupt_depth = th_cur->interrupt_depth;
+	__interrupt_depth = th_cur->tls.interrupt_depth;
+	__interrupt_sr = th_cur->tls.interrupt_sr;
 
 	return th_cur->stack_state;
 }
@@ -335,8 +330,11 @@ kthread_t* kernel_init(void)
 	th_cur = &th_main;
 
 	// Allocate the idle thread
-	th_idle = kthread_new("idle", 4096, -1, __kthread_idle, 0);
+	th_idle = kthread_new("idle", 4096, -128, __kthread_idle, 0);
 	kthread_detach(th_idle);
+
+	// Initialize IRQ condition variables
+	__kirq_init();
 
 	__kernel = true;
 	return th_cur;
@@ -608,16 +606,6 @@ void kthread_sleep(uint32_t ticks)
 	enable_interrupts();
 }
 
-void kthread_wait_event(kevent_t *evt)
-{
-	// Simplified API to wait for a single event. Just allocate a mailbox
-	// on the stack, attach to the event, and receive from it.
-	kmbox_t *mbox = kmbox_new_stack(1);
-	kmbox_attach_event(mbox, evt);
-	kmbox_recv(mbox);
-	kmbox_detach_event(mbox, evt);
-}
-
 void kmutex_init(kmutex_t *mutex, uint8_t flags)
 {
 	assertf(mutex, "out of free memory");
@@ -776,23 +764,33 @@ void kcond_broadcast(kcond_t *cond)
 	enable_interrupts();
 }
 
+void __kcond_broadcast_isr(kcond_t* cond)
+{
+	// This is a special version of kcond_broadcast that can be called
+	// from an interrupt handler.
+	if (__thlist_splice_pri(&th_ready, &cond->waiting))
+		KTHREAD_SWITCH_ISR();
+}
+
 void kcond_wait(kcond_t *cond, kmutex_t *mutex)
 {
 	kthread_t *th = th_cur;
 
 	disable_interrupts();
-	assertf(mutex->owner == PhysicalAddr(th), "kcond_wait() called, but mutex is not locked by %s[%p]", th->name, th);
-	assertf(mutex->counter != 1, "kcond_wait() called, but mutex is locked multiple times");
+	if (mutex) {
+		assertf(mutex->owner == PhysicalAddr(th), "kcond_wait() called, but mutex is not locked by %s[%p]", th->name, th);
+		assertf(mutex->counter != 1, "kcond_wait() called, but mutex is locked multiple times");
 
-	// Unlock the mutex, and put the thread in the cond waiting list
-	kmutex_unlock_internal(mutex);
+		// Unlock the mutex, and put the thread in the cond waiting list
+		kmutex_unlock_internal(mutex);
+	}
 	__thlist_add_pri(&cond->waiting, th);
 
 	// Context switch
 	KTHREAD_SWITCH();
 
 	// Try to re-lock the mutex
-	kmutex_lock(mutex);
+	if (mutex) kmutex_lock(mutex);
 	enable_interrupts();
 }
 
@@ -836,178 +834,4 @@ bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mutex, uint32_t ticks)
 	kmutex_lock(mutex);
 	enable_interrupts();
 	return !timeout;
-}
-			
-			
-kmbox_t* kmbox_new(int max_mails)
-{
-	// Allocate memory for the mailbox structure plus the mail array
-	int sz = sizeof(kmbox_t) + (max_mails)*sizeof(void*);
-	kmbox_t *mb = malloc(sz);
-	assertf(mb, "out of free memory");
-	memset(mb, 0, sz);
-	mb->max = max_mails;
-	return mb;
-}
-
-void kmbox_free(kmbox_t *mbox)
-{
-	assertf(mbox->evts == 0, "mbox_free() called, but missing %d mbox_detach_event() calls", mbox->evts);
-	free(mbox);
-}
-
-bool kmbox_empty(kmbox_t *mbox)
-{
-	return mbox->mails[mbox->r] == NULL;
-}
-
-bool kmbox_full(kmbox_t *mbox)
-{
-	return mbox->mails[mbox->w] != NULL;
-}
-
-/**
- * @brief  Enqueue a mail into a mailbox (lower-level primitive).
- *
- * @note   This function must be called with interrupts disabled, as it
- *         manipulates the ready list.
- *
- * @return 0 if the mail was not sent (mbox full)
- *         1 if the mail was sent
- *         2 if mail was sent and a higher-priority thread was awaken,
- *         so a context switch should be done as soon as possible.
- */
-int __kmbox_try_send(kmbox_t *mbox, void *mail)
-{
-	// If the mbox is full, there's nothing to do
-	if (kmbox_full(mbox))
-		return 0;
-
-	// Enqueue the new mail
-	mbox->mails[mbox->w++] = mail;
-	if (mbox->w == mbox->max)
-		mbox->w = 0;
-
-	// Awake pending threads. If a higher-priority thread is awaken,
-	// notify it to the caller.
-	return __thlist_splice_pri(&th_ready, &mbox->wait_list) ? 2 : 1;
-}
-
-bool kmbox_try_send(kmbox_t *mbox, void *mail)
-{
-	int ret;
-
-	disable_interrupts();
-	ret = __kmbox_try_send(mbox, mail);
-	if (ret == 2)
-		kthread_yield();
-	enable_interrupts();
-
-	return ret != 0;
-}
-
-void kmbox_send(kmbox_t *mbox, void *mail)
-{
-	disable_interrupts();
-	while (!kmbox_try_send(mbox, mail))
-	{
-		__thlist_add(&mbox->wait_list, th_cur);
-		KTHREAD_SWITCH();
-	}
-	enable_interrupts();
-}
-
-void* kmbox_try_recv(kmbox_t *mbox)
-{
-	void *mail = NULL;
-	disable_interrupts();
-	if (!kmbox_empty(mbox))
-	{
-		mail = mbox->mails[mbox->r];
-		mbox->mails[mbox->r++] = NULL;
-		if (mbox->r == mbox->max) mbox->r = 0;
-		if (__thlist_splice_pri(&th_ready, &mbox->wait_list)) {
-			if (DEBUG_KERNEL) debugf("kmbox_try_recv: switching out\n");
-			kthread_yield();
-			if (DEBUG_KERNEL) debugf("kmbox_try_recv: back %p\n", mail);
-		}
-	}
-	enable_interrupts();
-	return mail;
-}
-
-void* kmbox_recv(kmbox_t *mbox)
-{
-	void* mail;
-	disable_interrupts();
-	while (!(mail = kmbox_try_recv(mbox)))
-	{
-		__thlist_add(&mbox->wait_list, th_cur);
-		KTHREAD_SWITCH();		
-	}
-	enable_interrupts();
-	return mail;
-}
-
-/** @brief Underlying implementation for #kevent_trigger and #kevent_trigger_isr */
-void __kevent_trigger(kevent_t *evt, bool isr)
-{
-	bool should_yield = false;
-
-	disable_interrupts();
-	for (int i = 0; i < MAX_MAILBOXES_PER_EVENT; i++)
-	{
-		// Send the event to the attached mailboxes, and remember
-		// if we have woken up a higher-priority thread.
-		if (evt->mboxes[i] && __kmbox_try_send(evt->mboxes[i], evt) == 2)
-			should_yield = true;
-	}
-
-	// If a higher-priority thread has been waken up,
-	// force a context switch. Depending on whether we are
-	// running under interrupt or not, call the correct function.
-	if (should_yield)
-	{
-		if (isr)
-			KTHREAD_SWITCH_ISR();
-		else
-			kthread_yield();
-	}
-
-	enable_interrupts();
-}
-
-void kevent_trigger(kevent_t *evt)     { __kevent_trigger(evt, false); }
-void kevent_trigger_isr(kevent_t *evt) { __kevent_trigger(evt, true);  }
-
-void kmbox_attach_event(kmbox_t *mbox, kevent_t *evt)
-{
-	disable_interrupts();
-	for (int i=0;i<MAX_MAILBOXES_PER_EVENT;i++)
-	{
-		// Find a free slot for the mailbox in the event.
-		if (!evt->mboxes[i])
-		{
-			evt->mboxes[i] = mbox;
-			mbox->evts++;
-			break;
-		}
-	}
-	enable_interrupts();
-}
-
-void kmbox_detach_event(kmbox_t *mbox, kevent_t *evt)
-{
-	disable_interrupts();
-	for (int i=0;i<MAX_MAILBOXES_PER_EVENT;i++)
-	{
-		// Search for the mailbox in the event, and remove it
-		if (evt->mboxes[i] == mbox)
-		{
-			evt->mboxes[i] = NULL;
-			mbox->evts--;
-			break;
-		}
-	}
-	enable_interrupts();
 }

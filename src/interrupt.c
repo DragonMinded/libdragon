@@ -32,7 +32,7 @@ int __interrupt_depth = -1;
 /** @brief Value of the status register at the moment interrupts
  *         got disabled.
  */
-static int __interrupt_sr = 0;
+int __interrupt_sr = 0;
 
 /**
  * @brief Structure of an interrupt callback
@@ -205,7 +205,7 @@ void __MI_handler(void)
         SP_regs->status=SP_CLEAR_INTERRUPT;
 
         /* Trigger kernel event */
-        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_SP);
+        if (__kernel) __kcond_broadcast_isr(&__kirq_cond_sp);
 
         __call_callback(SP_callback);
     }
@@ -216,7 +216,7 @@ void __MI_handler(void)
         SI_regs->status=SI_CLEAR_INTERRUPT;
 
         /* Trigger kernel event */
-        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_SI);
+        if (__kernel) __kcond_broadcast_isr(&__kirq_cond_si);
 
         __call_callback(SI_callback);
     }
@@ -227,7 +227,7 @@ void __MI_handler(void)
     	AI_regs->status=AI_CLEAR_INTERRUPT;
 
         /* Trigger kernel event */
-        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_AI);
+        if (__kernel) __kcond_broadcast_isr(&__kirq_cond_ai);
 
 	    __call_callback(AI_callback);
     }
@@ -238,7 +238,7 @@ void __MI_handler(void)
     	VI_regs->cur_line=VI_regs->cur_line;
 
         /* Trigger kernel event */
-        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_VI);
+        if (__kernel) __kcond_broadcast_isr(&__kirq_cond_vi);
 
     	__call_callback(VI_callback);
     }
@@ -249,7 +249,7 @@ void __MI_handler(void)
         PI_regs->status=PI_CLEAR_INTERRUPT;
 
         /* Trigger kernel event */
-        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_PI);
+        if (__kernel) __kcond_broadcast_isr(&__kirq_cond_pi);
 
         __call_callback(PI_callback);
     }
@@ -260,7 +260,7 @@ void __MI_handler(void)
         *MI_MODE = MI_WMODE_CLR_DPINT;
 
         /* Trigger kernel event */
-        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_DP);
+        if (__kernel) __kcond_broadcast_isr(&__kirq_cond_dp);
 
         __call_callback(DP_callback);
     }

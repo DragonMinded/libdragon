@@ -40,8 +40,12 @@ typedef struct kthread_s
 {
 	/** Pointer to the top of the stack, which contains the thread register state */
 	reg_block_t* stack_state;
-	/** Current state of interrupt depth for this thread */
-	int interrupt_depth;
+    struct {
+        /** Mirror of __interrupt_depth */
+        int interrupt_depth;
+        /** Mirror of __interrupt_sr */
+        int interrupt_sr;
+    } tls;
 	/** Size of the stack in bytes */
 	int stack_size;
 	/** Name of thread (for debugging purposes) */
@@ -67,11 +71,21 @@ typedef struct kthread_s
 /** Kernel initialization flag. */
 extern bool __kernel;
 
-/** Trigger the specified event, broadcasted to all threads waiting for it. */
-void kevent_trigger(kevent_t* evt);
+extern kcond_t __kirq_cond_sp;      ///< Condition variable for SP interrupt
+extern kcond_t __kirq_cond_dp;      ///< Condition variable for DP interrupt
+extern kcond_t __kirq_cond_si;      ///< Condition variable for SI interrupt
+extern kcond_t __kirq_cond_ai;      ///< Condition variable for AI interrupt
+extern kcond_t __kirq_cond_vi;      ///< Condition variable for VI interrupt
+extern kcond_t __kirq_cond_pi;      ///< Condition variable for PI interrupt
 
-/** Same as #kevent_trigger, but to be called under interrupt. */
-void kevent_trigger_isr(kevent_t* evt);
+/** 
+ * @brief Broadcast a condition under interrupt.
+ * 
+ * This is useful for the special condition variables used to wait for interrupts.
+ */
+void __kcond_broadcast_isr(kcond_t* cond);
+
+void __kirq_init(void);
 
 /** @brief Syscall handler to run the scheduler and optionally switch current thread */
 reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state);

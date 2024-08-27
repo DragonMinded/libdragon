@@ -51,29 +51,6 @@
  * threads that are mostly blocked waiting for specific events like
  * hardware interrupts or background activities like RSP ucode.
  * 
- * An event, represented by a #kevent_t instance, is a signal that can
- * be broadcasted to many different threads. A thread can use
- * #kthread_wait_event to wait for a specific event to fire. The kernel
- * library includes a set of events bound to MI peripheral interrupts,
- * so that it's possible for threads to wait for specific interrupts and
- * act after them.
- *
- * Typically, applications will keep the main thread at low priority
- * for the main business logic, and will spawn a few threads to handle
- * high-priority / low-latency responses to hardware events.
- *
- * In addition to threads (#kthread_t) and events (#kevent_t), the kernel
- * library offers a message passing communication primitive called "mail
- * box" (#kmbox_t). A mailbox is a circular buffer of messages called
- * "mails"; any number of threads can try to send mails into a mailbox,
- * and any number of threads can try to read mails from a mailbox. Once a
- * thread receives a mail from a mailbox, the mail is removed and other
- * threads will not see it anymore. 
- *
- * Mailboxes can be useful as communicative primitives among threads
- * (eg: to send tasks to other threads), or a synchronization primitive
- * to wait for multiple events (see #kmbox_attach_event).
- *
  * @{
  */
 
@@ -120,12 +97,12 @@ typedef struct kthread_s kthread_t;
  * @see #kmutex_destroy
  */
 typedef struct kmutex_s {
-	uint8_t flags : 8;          ///< Flags for the mutex
-	phys_addr_t owner : 24;     ///< Owner thread
-	uint8_t counter : 8;        ///< Recursive lock counter
-	phys_addr_t waiting : 24;   ///< List of waiting threads
+    uint8_t flags : 8;          ///< Flags for the mutex
+    phys_addr_t owner : 24;     ///< Owner thread
+    uint8_t counter : 8;        ///< Recursive lock counter
+    phys_addr_t waiting : 24;   ///< List of waiting threads
 } kmutex_t;
-	
+    
 #define KMUTEX_STANDARD		0			///< Standard mutex
 #define KMUTEX_RECURSIVE	(1<<0)		///< Recursive mutex
 
@@ -149,94 +126,8 @@ typedef struct kmutex_s {
  * 
  */
 typedef struct kcond_s {
-	kthread_t *waiting;			///< List of waiting threads
+    kthread_t *waiting;			///< List of waiting threads
 } kcond_t;
-
-
-/**
- * @brief A kernel mailbox.
- *
- * A mailbox is a circular buffer of messages called
- * "mails"; any number of threads can try to send mails into a mailbox,
- * and any number of threads can try to read mails from a mailbox. Once a
- * thread receives a mail from a mailbox, the mail is removed and other
- * threads will not see it anymore.
- *
- * A mailbox can be allocated either on the heap (#kmbox_new) or on
- * the stack (#kmbox_new_stack). In both cases, the size of the buffer
- * (maximum number of mails that can be kept within the mailbox)
- * must be specified.
- *
- * Threads can send mails using #kmbox_send or #kmbox_try_send: the former
- * will block the thread if the mailbox is full, while the later will
- * simply return a failure in that case.
- *
- * Threads can receive mails using #kmbox_recv or #kmbox_try_recv.
- *
- * NOTE: this structure should be considered internal and subject
- * to future changes. It is exposed just for debugging purposes
- * and should not be relied upon. Please do not change any
- * field without going through a function of the public API.
- */
-typedef struct kmbox_s
-{
-	/** Read index of the circular buffer */
-	uint8_t r;
-	/** Write index of the circular buffer */
-	uint8_t w;
-	/** Size of the buffer (maximum number of mails) */
-	uint8_t max;
-	/** Number of events this mailbox is attached to */
-	uint8_t evts;
-	/** Linked list of threads waiting on this mailbox */
-	kthread_t *wait_list;
-	/** Circular buffer of mails */
-	void* mails[0];
-} kmbox_t;
-
-/** Maximum number of mailboxes that can be attached to a single event. */
-#define MAX_MAILBOXES_PER_EVENT 8
-
-/**
- * @brief a kernel event.
- *
- * An event, represented by a #kevent_t instance, is a signal that can
- * be broadcasted to many different threads. A thread can use
- * #kthread_wait_event to wait for a specific event to fire. The kernel
- * library includes a set of events bound to MI peripheral interrupts,
- * so that it's possible for threads to wait for specific interrupts and
- * act after them.
- *
- * It is also possible to attach a mailbox to an event using #kmbox_attach_event.
- * This is useful if a thread needs to wait for multiple events.
- *
- * NOTE: this structure should be considered internal and subject
- * to future changes. It is exposed just for debugging purposes
- * and should not be relied upon. Please do not change any
- * field without going through a function of the public API.
- */
-typedef struct kevent_s
-{
-	/** Mailboxes attached to this event */
-	kmbox_t *mboxes[MAX_MAILBOXES_PER_EVENT];
-} kevent_t;
-
-
-/** @brief Event generated when a SP interrupt is triggered */
-extern kevent_t KEVENT_IRQ_SP;
-/** @brief Event generated when a SI interrupt is triggered */
-extern kevent_t KEVENT_IRQ_SI;
-/** @brief Event generated when a AI interrupt is triggered */
-extern kevent_t KEVENT_IRQ_AI;
-/** @brief Event generated when a VI interrupt is triggered */
-extern kevent_t KEVENT_IRQ_VI;
-/** @brief Event generated when a PI interrupt is triggered */
-extern kevent_t KEVENT_IRQ_PI;
-/** @brief Event generated when a DP interrupt is triggered */
-extern kevent_t KEVENT_IRQ_DP;
-/** @brief Event generated when the RESET button is pushed (pre-NMI exception) */
-extern kevent_t KEVENT_RESET;
-
 
 /** 
  * @brief Initialize the multi-threading kernel
@@ -247,7 +138,7 @@ extern kevent_t KEVENT_RESET;
  *
  * The main thread uses the original stack allocated for the
  * whole process, so it is technically unbounded (or limited by
- * heap size).
+ * heap size). The priority of the main thread is 0.
  *
  * @return a pointer to the main thread.
  *
@@ -282,8 +173,11 @@ void kernel_close(void);
  *            Size of the stack in bytes. Minimum suggested size
  *            is 2048.
  * @param[in] pri
- *            Priority of the thread (0-127). Negative values are not allowed.
- *            Higher number means higher priority.
+ *            Priority of the thread (-128 .. 127). Higher number means higher 
+ * 			  priority. Main thread is conventionally set at 0, so you can use
+ * 		      positive numbers for "high priority" tasks that should interrupt
+ *            the main thread (eg: audio), and negative numbers for stuff that
+ * 		      needs to happen "in background" while the main thread is idle.
  * @param[in] user_entry
  *            Entry point of the thread. This is the function that will
  *            be called when the thread begins execution. If this function
@@ -297,7 +191,7 @@ void kernel_close(void);
  *            after itself when it exits.
  */
 kthread_t* kthread_new(const char *name, int stack_size, int8_t pri,
-	int (*user_entry)(void*), void *user_data);
+    int (*user_entry)(void*), void *user_data);
 
 
 /**
@@ -456,10 +350,10 @@ int kthread_join(kthread_t *th);
  * that, the thread is fully cleaned up and the memory released, so the thread
  * pointer becomes invalid.
  * 
- * @param[in]  th 			Reference to the thread to wait for
- * @param[out] res 			Pointer to the result code of the thread
- * @return true 			if the thread is finished and successfully joined
- * @return false 			if the thread is still running
+ * @param[in]  th           Reference to the thread to wait for
+ * @param[out] res          Pointer to the result code of the thread
+ * @return true             if the thread is finished and successfully joined
+ * @return false            if the thread is still running
  */
 bool kthread_try_join(kthread_t *th, int *res);
 
@@ -470,23 +364,6 @@ bool kthread_try_join(kthread_t *th, int *res);
  *             Reference to thread (NULL = current thread)
  */
 const char* kthread_name(kthread_t *th);
-
-/**
- * @brief Wait for a single hardware event.
- *
- * This functions blocks the current thread until a specified
- * hardware event happens. The CPU is yielded so that other
- * threads will be scheduled.
- *
- * If the thread needs to handle multiple events and/or a more
- * elaborate communication with other threads, you can use a
- * #kmbox_t with #kmbox_attach_event instead.
- *
- * @param[in] evt
- *            The event to wait for
- *
- */
-void kthread_wait_event(kevent_t *evt);
 
 /**
  * @brief Inititalize a new mutex.
@@ -555,11 +432,11 @@ void kmutex_unlock(kmutex_t *mtx);
  * As a special case, if @p ticks is 0, the function will never block
  * and will return false immediately if the mutex is already locked.
  * 
- * @param mtx 				Pointer to the mutex
- * @param ticks 			Number of hardware ticks to wait for the mutex. See
- * 							#TICKS_FROM_MS or #TICKS_FROM_US for conversion macros.
- * @return true 			If the mutex was successfully locked
- * @return false 			If the mutex was not locked in time
+ * @param mtx               Pointer to the mutex
+ * @param ticks             Number of hardware ticks to wait for the mutex. See
+ *                          #TICKS_FROM_MS or #TICKS_FROM_US for conversion macros.
+ * @return true             If the mutex was successfully locked
+ * @return false            If the mutex was not locked in time
  */
 bool kmutex_try_lock(kmutex_t *mtx, uint32_t ticks);
 
@@ -647,169 +524,6 @@ void kcond_signal(kcond_t *cond);
  * @see #kcond_signal
  */
 void kcond_broadcast(kcond_t *cond);
-
-
-
-/**
- * @brief Allocate a new mailbox (on the heap).
- *
- * @param[in] max_mails
- *            Maximum number of pending mails in the mailbox.
- *
- * @return The allocated mailbox
- *
- * @note See #kmbox_new_stack to allocate a mailbox on the stack.
- */
-kmbox_t* kmbox_new(int max_mails);
-
-/**
- * @brief Allocate a new mailbox (on the stack).
- *
- * @param[in] max_mails
- *            Maximum number of pending mails in the mailbox.
- *
- * @return The allocated mailbox
- *
- * @note See #kmbox_new to allocate a mailbox on the heap.
- */
-#define kmbox_new_stack(max_mails) ({ \
-	int sz = sizeof(kmbox_t) + (max_mails)*sizeof(void*); \
-	kmbox_t *mb = alloca(sz); \
-	bzero(mb, sz); \
-	mb->max = max_mails; \
-	mb; \
-})
-
-/**
- * @brief Free a heap mailbox when it's not needed anymore.
- *
- * @note Do not call this function on a mailbox allocated with
- *       #kmbox_new_stack. As the mailbox is on the stack, there is
- *       no need to explicitly free it.
- */
-void kmbox_free(kmbox_t *mbox);
-
-/** @brief Return true if the mailbox is empty */
-bool kmbox_empty(kmbox_t *mbox);
-
-/** @brief Return true if the mailbox is full */
-bool kmbox_full(kmbox_t *mbox);
-
-/** 
- * @brief Try sending a mail to a mailbox. 
- *
- * This function tries to send a mail to a mailbox. If the
- * mailbox is full, it returns false without blocking.
- *
- * @param[in] mbox The mailbox to send the mail to
- * @param[in] mail The mail to send (must not be NULL)
- *
- * @return true if the mail was sent, false if the mailbox was full
- */
-bool kmbox_try_send(kmbox_t *mbox, void *mail);
-
-/** 
- * @brief Send a mail to a mailbox. 
- *
- * This function sends a mail to a mailbox. If the
- * mailbox is full, it will block until another thread
- * receive a pending mail, so that the mailbox has space
- * for the new mail.
- *
- * @param[in] mbox The mailbox to send the mail to
- * @param[in] mail The mail to send (must not be NULL)
- *
- */
-void kmbox_send(kmbox_t *mbox, void *mail);
-
-/** 
- * @brief Try receiving a mail from a mailbox. 
- *
- * This function tries to receive a mail to a mailbox. If the
- * mailbox is empty, it will return NULL without blocking.
- *
- * @param[in] mbox The mailbox to receive the mail from
- *
- * @return the received mail, or NULL if the mailbox was empty
- *
- */
-void* kmbox_try_recv(kmbox_t *mbox);
-
-/** 
- * @brief Receive a mail from a mailbox. 
- *
- * This function receives a mail from a mailbox. If the
- * mailbox is empty, it will block until a mail is available.
- *
- * @param[in] mbox The mailbox to receive the mail from
- *
- * @return the received mail
- *
- */
-void* kmbox_recv(kmbox_t *mbox);
-
-
-/**
- * @brief Attach an event to a mailbox, so that a mail arrives when the event
- *        is triggered.
- *
- * This functions connects a mailbox to the specified event, so that
- * when the event is triggered, a mail is posted to the
- * mailbox. The thread can then poll the mailbox to see when the
- * event is arrived. The received mail will be the event itself.
- *
- * This function is useful for threads that need to react to multiple
- * events and/or handle messages from other threads. If you just
- * want to wait for a single interrupt, it is easier to simply
- * call #kthread_wait_event.
- *
- * Example:
- *
- *     kmbox_t *mbox = kmbox_new_stack(4);
- *     kmbox_attach_event(mbox, &KEVENT_IRQ_SP);
- *     kmbox_attach_event(mbox, &KEVENT_IRQ_DP);
- *
- *     void *mail;
- *     while ((mail = kmbox_recv(mbox)))
- *     {
- *        if (mail == &KEVENT_IRQ_SP)
- *        {
- *            [...]
- *        }
- *        else if (mail == &KEVENT_IRQ_DP)
- *        {
- *            [...]
- *        }
- *     }
- *
- *     // Always detach mailboxes before freeing them!
- *     kmbox_detach_event(mbox, &KEVENT_IRQ_SP);
- *     kmbox_detach_event(mbox, &KEVENT_IRQ_DP);
- *
- *
- * @note It is mandatory to detach all attached events before
- *       destroying a mailbox.
- *
- * @note If the mailbox happens to be full when the event is triggered,
- *       the event will be missed. When you attach a mailbox to an event,
- *       make always sure to have enough space in the mailbox.
- *
- * @param[in] mbox The mailbox that will receive the event
- * @param[in] evt The event to attach to
- */
-void kmbox_attach_event(kmbox_t *mbox, kevent_t *evt);
-
-
-/**
- * @brief Detach an event from a mailbox.
- *
- * @note It is mandatory to detach all attached events before
- *       destroying a mailbox.
- *
- * @param[in] mbox The mailbox that is receiving the event
- * @param[in] evt The event to detach from
- */
-void kmbox_detach_event(kmbox_t *mbox, kevent_t *evt);
 
 /** @} */
 
