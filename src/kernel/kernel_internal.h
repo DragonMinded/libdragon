@@ -45,7 +45,7 @@ typedef struct kthread_s
         int interrupt_depth;
         /** Mirror of __interrupt_sr */
         int interrupt_sr;
-    } tls;
+    } tls;  ///< Thread-local storage
 	/** Size of the stack in bytes */
 	int stack_size;
 	/** Name of thread (for debugging purposes) */
