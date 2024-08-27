@@ -97,6 +97,28 @@
  */
 typedef struct kthread_s kthread_t;
 
+/**
+ * @brief A mutex for synchronization
+ * 
+ * A mutex is a synchronization primitive that can be used to protect
+ * shared resources from concurrent access. A mutex can be locked by
+ * only one thread at a time; if another thread tries to lock a mutex
+ * that is already locked, it will block until the mutex is unlocked.
+ * 
+ * The mutex can be created with the KMUTEX_RECURSIVE flag, so that
+ * the same thread can lock the mutex multiple times without blocking.
+ * In this case, the mutex must be unlocked the same number of times
+ * it was locked.
+ * 
+ * @note The contents of this structure are subject to change and should be
+ * considered internal. Do not access or modify any field directly. The structure
+ * is exposed only to allow creation in a static context (that is, without malloc).
+ * 
+ * @see #kmutex_init
+ * @see #kmutex_lock
+ * @see #kmutex_unlock
+ * @see #kmutex_destroy
+ */
 typedef struct kmutex_s {
 	uint8_t flags : 8;          ///< Flags for the mutex
 	phys_addr_t owner : 24;     ///< Owner thread
@@ -104,6 +126,28 @@ typedef struct kmutex_s {
 	phys_addr_t waiting : 24;   ///< List of waiting threads
 } kmutex_t;
 	
+#define KMUTEX_STANDARD		0			///< Standard mutex
+#define KMUTEX_RECURSIVE	(1<<0)		///< Recursive mutex
+
+
+/**
+ * @brief A condition variable for synchronization
+ * 
+ * A condition variable is a synchronization primitive that allows
+ * threads to wait for a specific condition to happen. A condition
+ * variable is always associated with a mutex, and the mutex must be
+ * locked before calling #kcond_wait or #kcond_signal.
+ * 
+ * @note The contents of this structure are subject to change and should be
+ * considered internal. Do not access or modify any field directly. The structure
+ * is exposed only to allow creation in a static context (that is, without malloc).
+ * 
+ * @see #kcond_init
+ * @see #kcond_wait
+ * @see #kcond_signal
+ * @see #kcond_broadcast
+ * 
+ */
 typedef struct kcond_s {
 	kthread_t *waiting;			///< List of waiting threads
 } kcond_t;
@@ -444,9 +488,6 @@ const char* kthread_name(kthread_t *th);
  */
 void kthread_wait_event(kevent_t *evt);
 
-#define KMUTEX_STANDARD		0
-#define KMUTEX_RECURSIVE	(1<<0)
-
 /**
  * @brief Inititalize a new mutex.
  * 
@@ -530,7 +571,7 @@ bool kmutex_try_lock(kmutex_t *mtx, uint32_t ticks);
  * variable is always associated with a mutex, and the mutex must be
  * locked before calling #kcond_wait or #kcond_signal.
  * 
- * @param[in] kcond_t*		Pointer to the condition variable to initialize
+ * @param[in] cond		Pointer to the condition variable to initialize
  * 
  * @see #kcond_destroy
  */
