@@ -1,5 +1,9 @@
+#include "kirq.h"
 #include "kernel.h"
 #include "kernel_internal.h"
+#include "interrupt.h"
+
+extern volatile int64_t __interrupt_counter;
 
 kcond_t __kirq_cond_sp;
 kcond_t __kirq_cond_dp;
@@ -18,38 +22,62 @@ void __kirq_init(void)
     kcond_init(&__kirq_cond_pi);
 }
 
-void kirq_wait_sp(void)
+
+kirq_wait_t kirq_begin_wait_sp(void)
 {
-    if (__kernel)
-        kcond_wait(&__kirq_cond_sp, NULL);
+    return (kirq_wait_t){ 
+        .counter = __interrupt_counter,  
+        .cond = &__kirq_cond_sp,
+    };
 }
 
-void kirq_wait_dp(void)
+kirq_wait_t kirq_begin_wait_dp(void)
 {
-    if (__kernel)
-        kcond_wait(&__kirq_cond_dp, NULL);
+    return (kirq_wait_t){ 
+        .counter = __interrupt_counter,  
+        .cond = &__kirq_cond_dp,
+    };
 }
 
-void kirq_wait_si(void)
+kirq_wait_t kirq_begin_wait_si(void)
 {
-    if (__kernel)
-        kcond_wait(&__kirq_cond_si, NULL);
+    return (kirq_wait_t){ 
+        .counter = __interrupt_counter,  
+        .cond = &__kirq_cond_si,
+    };
 }
 
-void kirq_wait_ai(void)
+kirq_wait_t kirq_begin_wait_ai(void)
 {
-    if (__kernel)
-        kcond_wait(&__kirq_cond_ai, NULL);
+    return (kirq_wait_t){ 
+        .counter = __interrupt_counter,  
+        .cond = &__kirq_cond_ai,
+    };
 }
 
-void kirq_wait_vi(void)
+kirq_wait_t kirq_begin_wait_vi(void)
 {
-    if (__kernel)
-        kcond_wait(&__kirq_cond_vi, NULL);
+    return (kirq_wait_t){ 
+        .counter = __interrupt_counter,  
+        .cond = &__kirq_cond_vi,
+    };
 }
 
-void kirq_wait_pi(void)
+kirq_wait_t kirq_begin_wait_pi(void)
 {
-    if (__kernel)
-        kcond_wait(&__kirq_cond_pi, NULL);
+    return (kirq_wait_t){ 
+        .counter = __interrupt_counter,  
+        .cond = &__kirq_cond_pi,
+    };
+}
+
+void kirq_wait(kirq_wait_t* wait)
+{
+    if (!__kernel) return;
+
+    disable_interrupts();    
+    if (wait->counter == __interrupt_counter)
+        kcond_wait(wait->cond, NULL);
+    wait->counter = __interrupt_counter;
+    enable_interrupts();
 }

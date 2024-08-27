@@ -34,6 +34,9 @@ int __interrupt_depth = -1;
  */
 int __interrupt_sr = 0;
 
+/** @brief Number of interrupts that have been triggered since boot */
+volatile int64_t __interrupt_counter = 0;
+
 /**
  * @brief Structure of an interrupt callback
  */
@@ -198,6 +201,7 @@ static void __unregister_callback( struct callback_link ** head, void (*callback
 void __MI_handler(void)
 {
     unsigned long status = *MI_INTERRUPT & *MI_MASK;
+    ++__interrupt_counter;
 
     if( status & MI_INTERRUPT_SP )
     {
@@ -275,6 +279,7 @@ void __MI_handler(void)
 void __MI_BB_handler(void)
 {
     unsigned long status = *MI_BB_INTERRUPT & *MI_BB_MASK;
+    ++__interrupt_counter;
 
     if( status & MI_BB_INTERRUPT_FLASH )
     {
