@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "exception.h"
+#include "n64sys.h"
 
 /**
  * @defgroup kernel Multi-threading kernel
@@ -95,6 +96,18 @@
  * thread like changing its priority or killing it.
  */
 typedef struct kthread_s kthread_t;
+
+typedef struct kmutex_s {
+	uint8_t flags : 8;          ///< Flags for the mutex
+	phys_addr_t owner : 24;     ///< Owner thread
+	uint8_t counter : 8;        ///< Recursive lock counter
+	phys_addr_t waiting : 24;   ///< List of waiting threads
+} kmutex_t;
+	
+typedef struct kcond_s {
+	kthread_t *waiting;			///< List of waiting threads
+} kcond_t;
+
 
 /**
  * @brief A kernel mailbox.
@@ -431,6 +444,171 @@ const char* kthread_name(kthread_t *th);
  */
 void kthread_wait_event(kevent_t *evt);
 
+#define KMUTEX_STANDARD		0
+#define KMUTEX_RECURSIVE	(1<<0)
+
+/**
+ * @brief Inititalize a new mutex.
+ * 
+ * A mutex is a synchronization primitive that can be used to protect
+ * shared resources from concurrent access. A mutex can be locked by
+ * only one thread at a time; if another thread tries to lock a mutex
+ * that is already locked, it will block until the mutex is unlocked.
+ * 
+ * The mutex can be created with the KMUTEX_RECURSIVE flag, so that
+ * the same thread can lock the mutex multiple times without blocking.
+ * In this case, the mutex must be unlocked the same number of times
+ * it was locked.
+ * 
+ * @note Mutexes are not recursive by default.
+ * 
+ * @param mutex			Pointer to the mutex to initialize
+ * @param flags			Flags for the mutex. Use #KMUTEX_STANDARD for a standard
+ * 						mutex, or #KMUTEX_RECURSIVE for a recursive mutex.
+ * 
+ * @see #kmutex_destroy
+ */
+void kmutex_init(kmutex_t *mutex, uint8_t flags);
+
+/**
+ * @brief Destroy a mutex.
+ * 
+ * @param mtx 			Pointer to the mutex to free
+ */
+void kmutex_destroy(kmutex_t *mtx);
+
+/**
+ * @brief Acquire a lock to the mutex
+ * 
+ * This function tries to acquire a lock to the mutex. If the mutex
+ * is already locked, the thread will block until the mutex is unlocked.
+ * 
+ * A thread can lock a mutex multiple times only if the mutex was created
+ * with the KMUTEX_RECURSIVE flag. In this case, the mutex must be unlocked
+ * the same number of times it was locked.
+ * 
+ * For a non-blocking or timed version, see #kmutex_try_lock.
+ * 
+ * @param mtx 			Pointer to the mutex
+ * 
+ * @see #kmutex_unlock
+ * @see #kmutex_try_lock
+ */
+void kmutex_lock(kmutex_t *mtx);
+
+/**
+ * @brief Release a lock to the mutex
+ * 
+ * @param mtx 			Pointer to the mutex
+ */
+void kmutex_unlock(kmutex_t *mtx);
+
+/**
+ * @brief Try to acquire a lock to the mutex for a specified amount of time
+ * 
+ * This function tries to acquire a lock to the mutex. If the mutex
+ * is already locked, the thread will block until the mutex is unlocked
+ * but only for the specified amount of @p ticks. If the mutex is not
+ * unlocked in time, the function will return false.
+ * 
+ * As a special case, if @p ticks is 0, the function will never block
+ * and will return false immediately if the mutex is already locked.
+ * 
+ * @param mtx 				Pointer to the mutex
+ * @param ticks 			Number of hardware ticks to wait for the mutex. See
+ * 							#TICKS_FROM_MS or #TICKS_FROM_US for conversion macros.
+ * @return true 			If the mutex was successfully locked
+ * @return false 			If the mutex was not locked in time
+ */
+bool kmutex_try_lock(kmutex_t *mtx, uint32_t ticks);
+
+/**
+ * @brief Initialize a condition variable
+ * 
+ * A condition variable is a synchronization primitive that allows
+ * threads to wait for a specific condition to happen. A condition
+ * variable is always associated with a mutex, and the mutex must be
+ * locked before calling #kcond_wait or #kcond_signal.
+ * 
+ * @param[in] kcond_t*		Pointer to the condition variable to initialize
+ * 
+ * @see #kcond_destroy
+ */
+void kcond_init(kcond_t *cond);
+
+/**
+ * @brief Destroy a condition variable
+ * 
+ * @param cond 			Pointer to the condition variable
+ */
+void kcond_destroy(kcond_t *cond);
+
+/**
+ * @brief Wait for a condition to happen
+ * 
+ * This function will block the current thread until the condition
+ * variable is signaled. The mutex must be locked before calling
+ * this function. It will be released while the thread is waiting
+ * and re-acquired when the thread is woken up.
+ * 
+ * @param cond 			Pointer to the condition variable
+ * @param mtx 			Pointer to the mutex
+ * 
+ * @see #kcond_signal
+ * @see #kcond_broadcast
+ */
+void kcond_wait(kcond_t *cond, kmutex_t *mtx);
+
+
+/**
+ * @brief Wait for a condition to happen for a specified amount of time
+ * 
+ * This function will block the current thread until the condition
+ * variable is signaled, or until the specified amount of time has
+ * passed. The mutex must be locked before calling this function.
+ * It will be released while the thread is waiting and re-acquired
+ * when the thread is woken up.
+ * 
+ * @param cond 			Pointer to the condition variable
+ * @param mtx 			Pointer to the mutex
+ * @param ticks 		Number of hardware ticks to wait for the condition.
+ * 
+ * @return true 		If the condition was signaled
+ * @return false 		If the condition was not signaled in time
+ */
+bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mtx, uint32_t ticks);
+
+
+/**
+ * @brief Signal a condition variable
+ * 
+ * This function will wake up one thread that is waiting on the
+ * condition variable. If no thread is waiting, the signal is
+ * ignored.
+ * 
+ * @param cond 			Pointer to the condition variable
+ * 
+ * @see #kcond_wait
+ * @see #kcond_broadcast
+ */
+void kcond_signal(kcond_t *cond);
+
+/**
+ * @brief Broadcast a condition variable
+ * 
+ * This function will wake up all threads that are waiting on the
+ * condition variable. If no thread is waiting, the broadcast is
+ * ignored.
+ * 
+ * @param cond 			Pointer to the condition variable
+ * 
+ * @see #kcond_wait
+ * @see #kcond_signal
+ */
+void kcond_broadcast(kcond_t *cond);
+
+
+
 /**
  * @brief Allocate a new mailbox (on the heap).
  *
@@ -591,7 +769,6 @@ void kmbox_attach_event(kmbox_t *mbox, kevent_t *evt);
  * @param[in] evt The event to detach from
  */
 void kmbox_detach_event(kmbox_t *mbox, kevent_t *evt);
-
 
 /** @} */
 

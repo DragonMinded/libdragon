@@ -53,8 +53,60 @@ inline int thrd_detach(thrd_t thr)
     return thrd_success;
 }
 
-
 int thrd_join(thrd_t thr, int *res);
 int thrd_sleep(const struct timespec* duration, struct timespec* remaining);
+
+typedef kmutex_t mtx_t;
+
+enum {
+    mtx_plain = 1<<0,
+    mtx_recursive = 1<<1,
+    mtx_timed = 1<<2,
+};
+
+int mtx_init(mtx_t *mutex, int type);
+
+inline int mtx_lock(mtx_t* mutex) {
+    kmutex_lock(mutex);
+    return thrd_success;
+}
+inline int mtx_trylock(mtx_t *mutex) {
+    return kmutex_try_lock(mutex, 0) ? thrd_success : thrd_busy;
+}
+
+int mtx_timedlock(mtx_t *restrict mutex, const struct timespec *restrict time_point);
+
+inline int mtx_unlock(mtx_t *mutex) {
+    kmutex_unlock(mutex);
+    return thrd_success;
+}
+inline void mtx_destroy(mtx_t *mutex) {
+    kmutex_destroy(mutex);
+}
+
+typedef kcond_t cnd_t;
+
+inline int cnd_init(cnd_t *cond) {
+    kcond_init(cond);
+    return thrd_success;
+}
+inline int cnd_signal(cnd_t *cond) {
+    kcond_signal(cond);
+    return thrd_success;
+}
+inline int cnd_broadcast(cnd_t *cond) {
+    kcond_broadcast(cond);
+    return thrd_success;
+}
+inline int cnd_wait(cnd_t *cond, mtx_t *mutex) {
+    kcond_wait(cond, mutex);
+    return thrd_success;
+}
+
+int cnd_timedwait(cnd_t *cond, mtx_t *mutex, const struct timespec *time_point);
+
+inline void cnd_destroy(cnd_t *cond) {
+    kcond_destroy(cond);
+}
 
 #endif

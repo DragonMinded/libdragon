@@ -51,8 +51,73 @@ extern int __boot_consoletype;
  */
 #define KSEG0_START_ADDR ((void*)0x80000000)
 
+/** 
+ * @brief A physical address on the MIPS bus.
+ * 
+ * Physical addresses are 32-bit wide, and are used to address the memory
+ * space of the MIPS R4300 CPU. The MIPS R4300 CPU has a 32-bit address bus,
+ * and can address up to 4 GiB of memory.
+ * 
+ * Physical addresses are just numbers, they cannot be used as pointers (dereferenced).
+ * To access them, you must first convert them virtual addresses using the
+ * #VirtualCachedAddr or #VirtualUncachedAddr macros.
+ * 
+ * In general, libdragon will try to use #phys_addr_t whenever a physical
+ * address is expected or returned, and C pointers for virtual addresses.
+ * Unfortunately, not all codebase can be changed to follow this convention
+ * for backward compatibility reasons.
+ */
+typedef uint32_t phys_addr_t;
+
 /**
- * @brief Return the uncached memory address for a given address
+ * @brief Return the physical memory address for a given virtual address (pointer)
+ *
+ * @param[in] _addr     Virtual address to convert to a physical address
+ * 
+ * @return A phys_addr_t containing the physical memory address
+ */
+#define PhysicalAddr(_addr) ({ \
+    const volatile void *_addrp = (_addr); \
+    (((phys_addr_t)(_addrp))&~0xE0000000); \
+})
+
+/**
+ * @brief Create a virtual addresses in a cached segment to access a physical address
+ * 
+ * This macro creates a virtual address that can be used to access a physical
+ * address in the cached segment of the memory. The cached segment is the
+ * segment of memory that is cached by the CPU, and is the default segment
+ * for all memory accesses.
+ * 
+ * The virtual address created by this macro can be used as a pointer in C
+ * to access the physical address.
+ *
+ * @param[in] _addr     Physical address to convert to a virtual address
+ * 
+ * @return A void pointer to the cached memory address
+ */
+#define VirtualCachedAddr(_addr) ((void *)(((unsigned long)(_addr))|0x80000000))
+
+/**
+ * @brief Create a virtual addresses in an uncached segment to access a physical address
+ * 
+ * This macro creates a virtual address that can be used to access a physical
+ * address in the uncached segment of the memory. The uncached segment is the
+ * segment of memory that is not cached by the CPU, and is used for memory
+ * that is accessed by hardware devices, like the RCP.
+ * 
+ * The virtual address created by this macro can be used as a pointer in C
+ * to access the physical address.
+ *
+ * @param[in] _addr     Physical address to convert to a virtual address
+ * 
+ * @return A void pointer to the uncached memory address
+ */
+#define VirtualUncachedAddr(_addr) ((void *)(((unsigned long)(_addr))|0xA0000000))
+
+
+/**
+ * @brief Return the uncached memory address for a given virtual address
  *
  * @param[in] _addr
  *            Address in RAM to convert to an uncached address
@@ -110,19 +175,6 @@ extern int __boot_consoletype;
  * @return A void pointer to the cached memory address in RAM
  */
 #define CachedAddr(_addr) ((void *)(((unsigned long)(_addr))&~0x20000000))
-
-/**
- * @brief Return the physical memory address for a given address
- *
- * @param[in] _addr
- *            Address in RAM to convert to a physical address
- * 
- * @return A void pointer to the physical memory address in RAM
- */
-#define PhysicalAddr(_addr) ({ \
-    const volatile void *_addrp = (_addr); \
-    (((unsigned long)(_addrp))&~0xE0000000); \
-})
 
 /** @brief Symbol at the start of code (start of ROM contents after header) */
 extern char __libdragon_text_start[];

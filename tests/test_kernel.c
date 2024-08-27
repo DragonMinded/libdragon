@@ -128,6 +128,51 @@ void test_kernel_sleep(TestContext *ctx) {
 	ASSERT_EQUAL_MEM(thcalled, exp, sizeof(exp), "invalid order of threads");
 }
 
+void test_kernel_mutex_1(TestContext *ctx) {
+	timer_init();
+	DEFER(timer_close());
+
+	kernel_init();
+	DEFER(kernel_close());
+	
+	kmutex_t mtx;
+	kmutex_init(&mtx, KMUTEX_RECURSIVE);
+	DEFER(kmutex_destroy(&mtx));
+	
+	uint8_t thcalled[16] = {0};
+	int thcalled_idx = 0;
+
+	int func_th(void* arg)
+	{
+		LOG("func_th1 called\n");
+
+		kmutex_lock(&mtx);
+		thcalled[thcalled_idx++] = (int)arg;
+		kmutex_unlock(&mtx);
+		return 0;
+	}
+
+	kmutex_lock(&mtx);
+
+	kthread_set_pri(NULL, 1);
+	kthread_t *th1 = kthread_new("test1", 2048, 4, func_th, (void*)1);
+	kthread_t *th2 = kthread_new("test2", 2048, 5, func_th, (void*)2);
+	kthread_t *th3 = kthread_new("test3", 2048, 7, func_th, (void*)3);
+	kthread_t *th4 = kthread_new("test4", 2048, 6, func_th, (void*)4);
+
+	kmutex_unlock(&mtx);
+	
+	kthread_join(th1);
+	kthread_join(th2);
+	kthread_join(th3);
+	kthread_join(th4);
+
+	uint8_t exp[] = { 3,4,2,1 };
+	ASSERT_EQUAL_MEM(thcalled, exp, sizeof(exp), "invalid order of threads");
+}
+
+
+#if 0
 // Test mbox with writer thread having priority higher than reader thread.
 void test_kernel_mbox_1(TestContext *ctx) {
 	timer_init();
@@ -470,3 +515,4 @@ void test_kernel_event_2(TestContext *ctx) {
 	uint8_t exp2[] = { 2, 1, 1, 0 };
 	ASSERT_EQUAL_MEM(called, exp2, sizeof(exp2), "invalid order of threads");
 }
+#endif

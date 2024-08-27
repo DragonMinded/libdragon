@@ -114,13 +114,19 @@ void __thlist_add(kthread_t **list, kthread_t *th)
 	*list = th;	
 }
 
-/** @brief Add a thread to a linked list sorted by priority */
+/** @brief Add a thread to a linked list sorted by priority. */
 void __thlist_add_pri(kthread_t **list, kthread_t *th)
 {
 	while (*list && (*list)->pri >= th->pri)
 		list = &((*list)->next);
 	__thlist_add(list, th);
 }
+
+#define __phys_thlist_add_pri(list, th) ({ \
+	kthread_t *__list = (list) ? VirtualCachedAddr(list) : NULL; \
+	__thlist_add_pri(&__list, (th)); \
+	(list) = PhysicalAddr(__list); \
+})
 
 /** @brief Peek the head of a thread list (without popping it) */
 kthread_t* __thlist_head(kthread_t **list)
@@ -129,13 +135,13 @@ kthread_t* __thlist_head(kthread_t **list)
 	return *list;
 }
 
-/** @brief Pop the head of a thread list */
-kthread_t* __thlist_rem(kthread_t **list)
+/** @brief Pop the head of a thread list (highest priority one, if the list is sorted) */
+kthread_t* __thlist_pop(kthread_t **list)
 {
 	kthread_t *th = *list;
 	if (th)
 	{
-		assert(th->flags & TH_FLAG_INLIST);
+		assertf(th->flags & TH_FLAG_INLIST, "thread %s[%p] not in list", th->name, th);
 		th->flags &= ~TH_FLAG_INLIST;
 
 		*list = th->next;
@@ -144,8 +150,33 @@ kthread_t* __thlist_rem(kthread_t **list)
 	return th;
 }
 
+/** @brief Remove an element from a thread list */
+bool __thlist_remove(kthread_t **list, kthread_t *th)
+{
+	while (*list && *list != th)
+		list = &((*list)->next);
+	if (*list)
+	{
+		*list = th->next;
+		th->next = NULL;
+		th->flags &= ~TH_FLAG_INLIST;
+		return true;
+	}
+	return false;
+}
+
+#define __phys_thlist_remove(list, th) ({ \
+	kthread_t *__list = (list) ? VirtualCachedAddr(list) : NULL; \
+	bool __ret = __thlist_remove(&__list, (th)); \
+	(list) = PhysicalAddr(__list); \
+	__ret; \
+})
+
 /** 
  * @brief Move all threads from list src to list dst, respecting priority. 
+ * 
+ * NOTE: both lists must be sorted by priority, otherwise result is not
+ * guaranteed to be sorted.
  *
  * @return true if at least a thread of priority equal or higher than the
  *         the current one has been moved.
@@ -154,13 +185,21 @@ bool __thlist_splice_pri(kthread_t **dst, kthread_t **src)
 {
 	bool highpri = false;
 	kthread_t *th;
-	while ((th = __thlist_rem(src)))
+	while ((th = __thlist_pop(src)))
 	{
 		highpri = highpri || (th->pri >= th_cur->pri);
 		__thlist_add_pri(dst, th);
+		dst = &th->next;
 	}
 	return highpri;
 }
+
+#define __phys_thlist_splice_pri(dst, src) ({ \
+	kthread_t *__src = (src) ? VirtualCachedAddr(src) : NULL; \
+	bool __ret = __thlist_splice_pri(dst, &__src); \
+	(src) = PhysicalAddr(__src); \
+	__ret; \
+})
 
 /** 
  * @brief Kernel scheduler: park the current thread and schedule the next thread
@@ -242,7 +281,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	// Wait-for-join threads are purposedly skipped and we lose the reference to
 	// them: it's required for someone to call kthread_join() to free them.
 	do {
-		th_cur = __thlist_rem(&th_ready);
+		th_cur = __thlist_pop(&th_ready);
 		assert(th_cur != NULL);
 	} while (th_cur->flags & TH_FLAG_WAITFORJOIN);
 	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc);
@@ -484,7 +523,7 @@ void kthread_detach(kthread_t *th)
 int kthread_join(kthread_t *th)
 {
 	disable_interrupts();
-	assertf((th->flags & TH_FLAG_DETACHED), "cannot join a detached thread %s[%p]", th->name, th);
+	assertf(!(th->flags & TH_FLAG_DETACHED), "cannot join a detached thread %s[%p]", th->name, th);
 
 	if (th->flags & TH_FLAG_WAITFORJOIN)
 	{
@@ -579,6 +618,227 @@ void kthread_wait_event(kevent_t *evt)
 	kmbox_detach_event(mbox, evt);
 }
 
+void kmutex_init(kmutex_t *mutex, uint8_t flags)
+{
+	assertf(mutex, "out of free memory");
+	((uint32_t*)mutex)[0] = 0;
+	((uint32_t*)mutex)[1] = 0;
+	mutex->flags = flags;
+}
+
+void kmutex_destroy(kmutex_t *mutex)
+{
+	kthread_t *owner = (void*)(mutex->owner | 0x80000000);
+	assertf(!mutex->owner, "kmutex_destroy() called, but mutex is locked by %s[%p]", owner->name, owner);
+	assertf(!mutex->waiting, "kmutex_destroy() called, but threads are waiting");
+}
+
+void kmutex_lock(kmutex_t *mutex)
+{
+	kthread_t *th = th_cur;
+
+	disable_interrupts();
+	if (mutex->owner == PhysicalAddr(th))
+	{
+		assertf(mutex->flags & KMUTEX_RECURSIVE, "a non-recursive mutex cannot be locked twice");
+		mutex->counter++;
+	}
+	else
+	{
+		while (mutex->owner)
+		{
+			__phys_thlist_add_pri(mutex->waiting, th);
+			KTHREAD_SWITCH();
+		}
+		mutex->owner = PhysicalAddr(th);
+		mutex->counter = 1;
+	}
+	enable_interrupts();
+}
+
+bool kmutex_try_lock(kmutex_t *mutex, uint32_t ticks)
+{
+	kthread_t *th = th_cur;
+	bool locked = false;
+
+	disable_interrupts();
+	if (mutex->owner == PhysicalAddr(th))
+	{
+		assertf(mutex->flags & KMUTEX_RECURSIVE, "a non-recursive mutex cannot be locked twice");
+		mutex->counter++;
+		locked = true;
+	}
+	else if (!mutex->owner)
+	{
+		mutex->owner = PhysicalAddr(th);
+		mutex->counter = 1;
+		locked = true;
+	}
+	else if (ticks > 0)
+	{
+		bool timeout = false;
+
+		// Timer callback. This will be invoked when the timer elapses after the
+		// requested delay.
+		void cb(int ovlf)
+		{
+			if (DEBUG_KERNEL) debugf("[kernel] mutex timeout %s[%p]\n", th->name, th);
+
+			// Put the thread again in the ready list, and forces a context switch.
+			// Avoid race conditions here: if the thread is not anymore in the wait list,
+			// don't add it to the ready list.
+			timeout = true;
+			if (__phys_thlist_remove(mutex->waiting, th))
+				__thlist_add_pri(&th_ready, th);
+			KTHREAD_SWITCH_ISR();
+		}
+
+		// Start a timer for the specified delay.
+		timer_link_t timer;
+		start_timer(&timer, ticks, TF_ONE_SHOT, cb);
+
+		while (mutex->owner && !timeout)
+		{
+			__phys_thlist_add_pri(mutex->waiting, th);
+			KTHREAD_SWITCH();
+		}
+		if (!timeout)
+		{
+			stop_timer(&timer);
+			mutex->owner = PhysicalAddr(th);
+			mutex->counter = 1;
+			locked = true;
+		}
+	}
+
+	enable_interrupts();
+	return locked;
+}
+
+__attribute__((noinline))
+static bool kmutex_unlock_internal(kmutex_t *mutex)
+{
+	bool highpri = false;
+
+	mutex->counter--;
+	if (mutex->counter == 0)
+	{
+		mutex->owner = 0;
+		highpri = __phys_thlist_splice_pri(&th_ready, mutex->waiting);
+	}
+	return highpri;
+}
+
+void kmutex_unlock(kmutex_t *mutex)
+{
+	kthread_t *th = th_cur;
+
+	disable_interrupts();
+	assertf(mutex->owner == PhysicalAddr(th), "mutex_unlock() called, but mutex is not locked by %s[%p]", th->name, th);
+	assertf(mutex->counter > 0, "mutex_unlock() called, but mutex is not locked");
+
+	// Unlock the mutex, and yield in case a higher priority thread is awaken
+	if (kmutex_unlock_internal(mutex))
+		kthread_yield();
+
+	enable_interrupts();
+}
+
+void kcond_init(kcond_t *cond)
+{
+	memset(cond, 0, sizeof(kcond_t));
+}
+
+void kcond_destroy(kcond_t *cond)
+{
+	assertf(cond->waiting == NULL, "kcond_free() called, but some threads were waiting");
+}
+
+void kcond_signal(kcond_t *cond)
+{
+	disable_interrupts();
+	// Wake up the highest-priority thread in the waiting list
+	kthread_t *th = __thlist_pop(&cond->waiting);
+	if (th) {
+		__thlist_add_pri(&th_ready, th);
+		if (th_cur->pri < th->pri)
+			kthread_yield();
+	}
+	enable_interrupts();
+}
+
+void kcond_broadcast(kcond_t *cond)
+{
+	disable_interrupts();
+	// Wake up all threads in the waiting list
+	if (__thlist_splice_pri(&th_ready, &cond->waiting))
+		kthread_yield();
+	enable_interrupts();
+}
+
+void kcond_wait(kcond_t *cond, kmutex_t *mutex)
+{
+	kthread_t *th = th_cur;
+
+	disable_interrupts();
+	assertf(mutex->owner == PhysicalAddr(th), "kcond_wait() called, but mutex is not locked by %s[%p]", th->name, th);
+	assertf(mutex->counter != 1, "kcond_wait() called, but mutex is locked multiple times");
+
+	// Unlock the mutex, and put the thread in the cond waiting list
+	kmutex_unlock_internal(mutex);
+	__thlist_add_pri(&cond->waiting, th);
+
+	// Context switch
+	KTHREAD_SWITCH();
+
+	// Try to re-lock the mutex
+	kmutex_lock(mutex);
+	enable_interrupts();
+}
+
+bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mutex, uint32_t ticks)
+{
+	kthread_t *th = th_cur;
+	bool timeout = false;
+
+	disable_interrupts();
+	assertf(mutex->owner == PhysicalAddr(th), "kcond_wait_timeout() called, but mutex is not locked by %s[%p]", th->name, th);
+	assertf(mutex->counter != 1, "kcond_wait_timeout() called, but mutex is locked multiple times");
+
+	// Unlock the mutex, and put the thread in the cond waiting list
+	kmutex_unlock_internal(mutex);
+	__thlist_add_pri(&cond->waiting, th);
+
+	// Timer callback. This will be invoked when the timer elapses after the
+	// requested delay.
+	void cb(int ovlf)
+	{
+		if (DEBUG_KERNEL) debugf("[kernel] cond timeout %s[%p]\n", th->name, th);
+
+		// Put the thread again in the ready list, and forces a context switch.
+		// Avoid race conditions here: if the thread is not anymore in the wait list,
+		// don't add it to the ready list.
+		timeout = true;
+		if (__thlist_remove(&cond->waiting, th))
+			__thlist_add_pri(&th_ready, th);
+		KTHREAD_SWITCH_ISR();
+	}
+
+	// Start a timer for the specified delay.
+	timer_link_t timer;
+	start_timer(&timer, ticks, TF_ONE_SHOT, cb);
+
+	// Context switch
+	KTHREAD_SWITCH();
+
+	if (!timeout) stop_timer(&timer);
+
+	kmutex_lock(mutex);
+	enable_interrupts();
+	return !timeout;
+}
+			
+			
 kmbox_t* kmbox_new(int max_mails)
 {
 	// Allocate memory for the mailbox structure plus the mail array
