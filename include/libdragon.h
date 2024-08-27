@@ -43,7 +43,6 @@
 #include "mi.h"
 #include "interrupt.h"
 #include "kernel.h"
-#include "cthreads.h"
 #include "n64sys.h"
 #include "backtrace.h"
 #include "rdp.h"
@@ -80,5 +79,9 @@
 #include "nand.h"
 #include "bbfs.h"
 #include "ioctl.h"
+
+#ifndef __cplusplus
+#include "cthreads.h"
+#endif
 
 #endif
