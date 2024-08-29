@@ -224,6 +224,39 @@ kthread_t* kthread_current(void);
  */
 void kthread_yield(void);
 
+/**
+ * @brief Suspend the specified thread
+ * 
+ * Suspends the specified thread, so that it will not be scheduled anymore.
+ * The thread will be put in a "suspended" state, and will not be scheduled
+ * until it is resumed.
+ * 
+ * @param th        Reference to the thread to suspend
+ */
+void kthread_suspend(kthread_t *th);
+
+/**
+ * @brief Resume a thread that was previously suspended
+ * 
+ * @param th        Reference to the thread to resume
+ */
+void kthread_resume(kthread_t *th);
+
+/**
+ * @brief Return the backtrace of the specified thread
+ * 
+ * This function has the same semantic of #backtrace, but it returns
+ * the backtrace of the specified thread instead of the current one.
+ * 
+ * When called with a NULL argument, this function returns the backtrace
+ * of the current thread, and thus behaves identical to #backtrace.
+ * 
+ * @param[in]  th       Reference to the thread to backtrace (NULL = current thread)
+ * @param[out] buffer   Buffer where to store the backtrace
+ * @param[in]  size     Size of the buffer
+ * @return              Number of entries in the backtrace
+ */
+int kthread_backtrace(kthread_t *th, void *buffer, int size);
 
 /**
  * @brief Sleep for the specified interval, allowing execution of other threads.

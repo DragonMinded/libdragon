@@ -487,7 +487,7 @@ bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, bool
     return true;
 }
 
-static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
+static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg, uint32_t *ra, uint32_t *sp, uint32_t *fp, uint32_t *exception_ra)
 {
     /*
      * This function is called in very risky contexts, for instance as part of an exception
@@ -501,25 +501,14 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
      *    to wrong addresses.
      */
 
-    // Current value of SP/RA/FP registers.
-    uint32_t *sp, *ra, *fp;
-    asm volatile (
-        "move %0, $ra\n"
-        "move %1, $sp\n"
-        "move %2, $fp\n"
-        : "=r"(ra), "=r"(sp), "=r"(fp)
-    );
-
     #if BACKTRACE_DEBUG
     debugf("backtrace: start\n"); 
     #endif
 
-    uint32_t* exception_ra = NULL;      // If != NULL, 
     uint32_t func_start = 0;            // Start of the current function (when known)
 
-    // Start from the backtrace function itself. Put the start pointer somewhere after the initial
-    // prolog (eg: 64 instructions after start), so that we parse the prolog itself to find sp/fp/ra offsets.
-    ra = (uint32_t*)backtrace_foreach + 64;
+    // Start calling the callback for the backtrace entry point
+    cb(arg, ra);
 
     while (1) {
         // Analyze the function pointed by ra, passing information about the previous exception frame if any.
@@ -631,16 +620,46 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
 
 int backtrace(void **buffer, int size)
 {
-    int i = -1; // skip backtrace itself
+    int i = -2; // skip backtrace_foreach() and backtrace())
     void cb(void *arg, void *ptr) {
         if (i >= size) return;
         if (i >= 0)
             buffer[i] = ptr;
         i++;
     }
-    backtrace_foreach(cb, NULL);
+
+    // Current value of SP/RA/FP registers.
+    uint32_t *sp, *fp;
+    asm volatile (
+        "move %0, $sp\n"
+        "move %1, $fp\n"
+        : "=r"(sp), "=r"(fp)
+    );
+
+    // Start from the backtrace function itself. Put the start pointer
+    // somewhere after the initial prolog, so that we parse the prolog
+    // itself to find sp/fp/ra offsets.
+    // Since we don't come from an exception, exception_ra must be NULL.
+    uint32_t *pc = (uint32_t*)backtrace + 24;
+
+    backtrace_foreach(cb, NULL, pc, sp, fp, NULL);
     return i;
 }
+
+int __backtrace_from(void **buffer, int size, uint32_t *pc, uint32_t *sp, uint32_t *fp, uint32_t *exception_ra)
+{
+    int i = 0;
+    void cb(void *arg, void *ptr) {
+        if (i >= size) return;
+        if (i >= 0)
+            buffer[i] = ptr;
+        i++;
+    }
+
+    backtrace_foreach(cb, NULL, pc, sp, fp, exception_ra);
+    return i;
+}
+
 
 static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
     symtable_header_t *symt, int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)

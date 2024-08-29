@@ -17,6 +17,8 @@
 #define TH_FLAG_INLIST      (1<<1)      ///< The thread is in a list (ready or waiting)
 #define TH_FLAG_DETACHED    (1<<2)      ///< The thread is detached (no one will join it)
 #define TH_FLAG_WAITFORJOIN (1<<3)      ///< The non-detached thread is finished and is waiting for a join
+#define TH_FLAG_SUSPENDED   (1<<4)      ///< The thread is suspended (will not be scheduled)
+#define TH_FLAG_INSPECTOR1  (1<<7)      ///< Flag reserved for usage in the inspector
 
 /**
  * @brief a kernel thread for parallel execution
@@ -60,6 +62,10 @@ typedef struct kthread_s
     int joined_result;
 	/** Intrusive link to next thread in a waiting list */
 	struct kthread_s *next;
+    #ifndef NDEBUG
+    /** Intrusive link to next thread in the all list */
+    struct kthread_s *all_next;
+    #endif
 	/** Entry point function for the thread */
 	int (*user_entry)(void*);
 	/** Custom argument to be passed to the entry point */
@@ -93,6 +99,12 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state);
 
 /** @brief Internal thread creation function with also flags */
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data);
+
+#ifndef NDEBUG
+/** @brief List of all threads, used for debugging purposes (uses the #kthread::all_next pointer) */
+extern kthread_t *__kernel_all_threads;
+#endif
+
 
 /** @} */ /* kernel */
 

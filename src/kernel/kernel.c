@@ -1,12 +1,13 @@
 #include <libdragon.h>
 #include "kernel.h"
 #include "kernel_internal.h"
+#include "backtrace_internal.h"
 #include "timer.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <memory.h>
 
-#define DEBUG_KERNEL   1
+#define DEBUG_KERNEL   0
 
 /** @brief Enable stack-smashing checks of threads. */
 #define KERNEL_CHECKS  1
@@ -58,6 +59,10 @@ bool __isr_force_schedule = false;
 extern int __interrupt_depth;
 extern int __interrupt_sr;
 
+#ifndef NDEBUG
+kthread_t *__kernel_all_threads;
+#endif
+
 /** 
  * @brief Boot function for a kthread.
  *
@@ -95,6 +100,22 @@ void __kthread_check_overflow(kthread_t *th)
 		for (int i=0;i<STACK_GUARD/8;i++)
 			assertf(cookie[i] == STACK_COOKIE, "stack overflow in thread: %s[%p]\nStack guard is corrupted", th->name, th);		
 	}
+}
+
+static void kthread_free(kthread_t *th)
+{
+	if (DEBUG_KERNEL) debugf("[kernel] freeing %s[%p]\n", th->name, th);
+	#ifndef NDEBUG
+	// Clear memory to avoid dangling pointers
+	memset(th, 0, sizeof(kthread_t));
+	// Remove the thread from the all-threads list
+	kthread_t **p = &__kernel_all_threads;
+	while (*p && *p != th)
+		p = &((*p)->all_next);
+	if (*p) *p = th->all_next;
+	#endif
+	// Free the thread memory (the start of the heap-allocated block is the stack)
+	free(th->stack);
 }
 
 /** @brief Add a thread to a linked list */
@@ -225,7 +246,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	 		if (DEBUG_KERNEL) debugf("[kernel] killing zombie: %s(%p) PC=%lx\n", th_cur->name, th_cur, stack_state->epc);
 			assert(!(th_cur->flags & TH_FLAG_INLIST));
 			assert(th_cur->flags & TH_FLAG_DETACHED);
-			free(th_cur->stack);
+			kthread_free(th_cur);
 	 	}
 		else if (th_cur->flags & TH_FLAG_WAITFORJOIN)
 		{
@@ -277,8 +298,8 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	do {
 		th_cur = __thlist_pop(&th_ready);
 		assert(th_cur != NULL);
-	} while (th_cur->flags & TH_FLAG_WAITFORJOIN);
-	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc);
+	} while (th_cur->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
+	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx SR=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc, th_cur->stack_state->sr);
 	assert(!(th_cur->flags & TH_FLAG_INLIST));
 
 	// Set the current interrupt depth to that of the current thread.
@@ -317,6 +338,8 @@ kthread_t* kernel_init(void)
 	memset(&th_main, 0, sizeof(th_main));
 	th_main.pri = 0;
 	th_main.name = "main";
+	th_main.stack_size = 0x10000; // see STACK_SIZE in system.c
+	th_main.flags = TH_FLAG_DETACHED; // main thread cannot be joined
 
 	// NOTE: keep this in sync with system.c
 	#define STACK_SIZE 0x10000
@@ -325,6 +348,11 @@ kthread_t* kernel_init(void)
 	uint64_t *s = (uint64_t*)th_main.stack;
 	for (int i=0;i<STACK_GUARD/8;i++)
 		s[i] = STACK_COOKIE;
+
+	#ifndef NDEBUG
+	assertf(__kernel_all_threads == NULL, "all threads list not empty");
+	__kernel_all_threads = &th_main;
+	#endif
 
 	// The main thread is the currently scheduled one.
 	th_cur = &th_main;
@@ -384,6 +412,7 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	th->user_entry = user_entry;
 	th->user_data = user_data;
 	th->pri = pri;
+	th->stack_size = stack_size;
 
 	// Initialize the stack guard
 	uint64_t *s = (uint64_t*)th->stack;
@@ -412,14 +441,19 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 
 	// GP: this is needed by the compiler to point to the global memory pool,
 	// so let's initialize to the same value it has in this thread.
-	th->stack_state->gpr[28] = REG_GP();
+	th->stack_state->gp = REG_GP();
 
 	// SP: top of stack
-	th->stack_state->gpr[29] = (int64_t)(int32_t)top_stack;
+	th->stack_state->sp = (int64_t)(int32_t)top_stack;
 
 	disable_interrupts();
 	th_count++;
 	__thlist_add_pri(&th_ready, th);
+	#ifndef NDEBUG
+	// Add the thread to the all-threads list for debugging purposes
+	th->all_next = __kernel_all_threads;
+	__kernel_all_threads = th;
+	#endif
 	enable_interrupts();
 
 	// If the new thread has a priority higher or equal to the current one,
@@ -503,6 +537,20 @@ void kthread_yield(void)
 	}
 }
 
+void kthread_suspend(kthread_t *th)
+{
+	disable_interrupts();
+	th->flags |= TH_FLAG_SUSPENDED;
+	enable_interrupts();
+}
+
+void kthread_resume(kthread_t *th)
+{
+	disable_interrupts();
+	th->flags &= ~TH_FLAG_SUSPENDED;
+	enable_interrupts();
+}
+
 
 #define kernel_preempt_disable() asm volatile ("addiu $k1, 1")
 #define kernel_preempt_enable()  asm volatile ("addi $k1, -1")
@@ -526,7 +574,7 @@ int kthread_join(kthread_t *th)
 	if (th->flags & TH_FLAG_WAITFORJOIN)
 	{
 		th_cur->joined_result = th->joined_result;
-		free(th->stack);
+		kthread_free(th);
 	}
 	else
 	{
@@ -551,7 +599,7 @@ bool kthread_try_join(kthread_t *th, int *res)
 	{
 		th_cur->joined_result = th->joined_result;
 		if (res) *res = th->joined_result;
-		free(th->stack);
+		kthread_free(th);
 		joined = true;
 	}
 
@@ -604,6 +652,20 @@ void kthread_sleep(uint32_t ticks)
 	KTHREAD_SWITCH();
 
 	enable_interrupts();
+}
+
+int kthread_backtrace(kthread_t *th, void *buffer, int size)
+{
+	if (th == NULL) th = th_cur;
+	
+	if (th == th_cur)
+		return backtrace(buffer, size);
+
+	return __backtrace_from(buffer, size, 
+		(void*)(uint32_t)th->stack_state->epc, 
+		(void*)(uint32_t)th->stack_state->sp,
+		(void*)(uint32_t)th->stack_state->fp,
+		(void*)(uint32_t)th->stack_state->ra);
 }
 
 void kmutex_init(kmutex_t *mutex, uint8_t flags)
