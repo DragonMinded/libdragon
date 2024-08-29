@@ -271,7 +271,13 @@ static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
     return -1;
 }
 
+#if defined(__PICOLIBC__) && defined(TINY_STDIO)
+static int readfn_none(void *c, void *buf, size_t sz)
+#elif defined(__PICOLIBC__)
+static int readfn_none(void *c, char *buf, size_t sz)
+#else
 static int readfn_none(void *c, char *buf, int sz)
+#endif
 {
     cookie_none_t *cookie = c;
     assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");
@@ -295,7 +301,13 @@ typedef struct  {
     uint8_t alignas(8) state[];
 } cookie_cmp_t;
 
+#if defined(__PICOLIBC__) && defined(TINY_STDIO)
+static int readfn_cmp(void *c, void *buf, size_t sz)
+#elif defined(__PICOLIBC__)
+static int readfn_cmp(void *c, char *buf, size_t sz)
+#else
 static int readfn_cmp(void *c, char *buf, int sz)
+#endif
 {
     cookie_cmp_t *cookie = (cookie_cmp_t*)c;
     assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");

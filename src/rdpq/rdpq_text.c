@@ -42,6 +42,14 @@ rdpq_textmetrics_t rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t initi
 rdpq_textmetrics_t rdpq_text_vprintf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
     const char *utf8_fmt, va_list va)
 {
+#if defined(__PICOLIBC__) && defined(TINY_STDIO)
+    char *buf;
+    size_t n = vasprintf(&buf, utf8_fmt, va);
+
+    rdpq_textmetrics_t m = rdpq_text_printn(parms, font_id, x0, y0, buf, n);
+    free(buf);
+    return m;
+#else
     char buf[512];
     size_t n = sizeof(buf);
     char *buf2 = vasnprintf(buf, &n, utf8_fmt, va);
@@ -52,6 +60,7 @@ rdpq_textmetrics_t rdpq_text_vprintf(const rdpq_textparms_t *parms, uint8_t font
     rdpq_textmetrics_t m = rdpq_text_printn(parms, font_id, x0, y0, buf2, n);
     free(buf2);
     return m;
+#endif
 }
 
 rdpq_textmetrics_t rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
