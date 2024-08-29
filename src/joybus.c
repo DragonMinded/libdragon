@@ -14,7 +14,9 @@
 #include "joybus_internal.h"
 #include "n64sys.h"
 #include "mi.h"
+#include "kernel/kernel_internal.h"
 #include "regsinternal.h"
+#include "kirq.h"
 
 /**
  * @name SI status register bit definitions
@@ -253,17 +255,23 @@ void joybus_exec( const void * input, void * output )
         done = true;
     }
 
+    kirq_wait_t w = kirq_begin_wait_si();
+
     joybus_exec_async(input, callback, NULL);
     while (!done) {
-        // We want the blocking function to also work with interrupts disabled.
-        // So while we spin loop, poll SI interrupts manually in case they
-        // are disabled.
-        disable_interrupts();
-        unsigned long status = *MI_INTERRUPT & *MI_MASK;
-        if (status & MI_INTERRUPT_SI) {
-            SI_regs->status = 0;    // clear interrupt
-            si_interrupt();
+        if (__kernel) {
+            kirq_wait(&w);
+        } else {
+            // We want the blocking function to also work with interrupts disabled.
+            // So while we spin loop, poll SI interrupts manually in case they
+            // are disabled.
+            disable_interrupts();
+            unsigned long status = *MI_INTERRUPT & *MI_MASK;
+            if (status & MI_INTERRUPT_SI) {
+                SI_regs->status = 0;    // clear interrupt
+                si_interrupt();
+            }
+            enable_interrupts();
         }
-        enable_interrupts();
     }
 }

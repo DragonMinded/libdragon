@@ -18,6 +18,7 @@
 #include "debug.h"
 #include "surface.h"
 #include "rsp.h"
+#include "kirq.h"
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
@@ -511,10 +512,13 @@ surface_t* display_get(void)
     // it is common for display to become ready again after RSP+RDP
     // have finished processing the previous frame's commands.
     surface_t* disp;
+
+    kirq_wait_t kirq = kirq_begin_wait_vi();
     RSP_WAIT_LOOP(200) {
          if ((disp = display_try_get())) {
              break;
          }
+         kirq_wait(&kirq);
     }
     return disp;
 }
