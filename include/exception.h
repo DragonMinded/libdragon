@@ -67,7 +67,15 @@ typedef enum {
 typedef struct __attribute__((packed))
 {
     /** @brief General purpose registers 1-32 */
-    uint64_t gpr[32];
+    union {
+        uint64_t gpr[32];
+        struct {
+            uint64_t zr, at, v0, v1, a0, a1, a2, a3;
+            uint64_t t0, t1, t2, t3, t4, t5, t6, t7;
+            uint64_t s0, s1, s2, s3, s4, s5, s6, s7;
+            uint64_t t8, t9, k0, k1, gp, sp, fp, ra;
+        };
+    };
     /** @brief HI */
     uint64_t hi;
     /** @brief LO */
