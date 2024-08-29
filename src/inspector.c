@@ -8,9 +8,11 @@
 #include "utils.h"
 #include "backtrace.h"
 #include "backtrace_internal.h"
+#include "kernel/kernel_internal.h"
 #include "dlfcn_internal.h"
 #include "cop0.h"
 #include "n64sys.h"
+#include "mi.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -51,6 +53,8 @@ static int fpr_show_mode = 1;
 static int disasm_bt_idx = 0;
 static int disasm_max_frames = 0;
 static int disasm_offset = 0;
+static int thread_offset = 0;
+static int num_threads = 0;
 static int module_offset = 0;
 static bool first_backtrace = true;
 
@@ -228,6 +232,37 @@ static void title(const char *title) {
     graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
 }
 
+static void inspector_print_backtrace(void *bt, int n, int bt_skip, bool also_debugf)
+{
+    printf("\aWBacktrace:\n");
+    if (also_debugf) debugf("Backtrace:\n");
+    char func[128];
+    bool skip = true;
+    void cb(void *arg, backtrace_frame_t *frame) {
+        if (also_debugf) { debugf("    "); backtrace_frame_print(frame, stderr); debugf("\n"); }
+        if (skip) {
+            if (strstr(frame->func, "<EXCEPTION HANDLER>"))
+                skip = false;
+            return;
+        }
+        if (bt_skip > 0) {
+            bt_skip--;
+            return;
+        }
+        printf("    ");
+        snprintf(func, sizeof(func), "\aG%s\aT", frame->func);
+        frame->func = func;
+        backtrace_frame_print_compact(frame, stdout, 60);
+    }
+    backtrace_symbols_cb(bt, n, 0, cb, NULL);
+    if (skip) {
+        // we didn't find the exception handler for some reason (eg: missing symbols)
+        // so just print the whole thing
+        skip = false;
+        backtrace_symbols_cb(bt, n, 0, cb, NULL);
+    }
+}
+
 static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode mode, bool with_backtrace) {
     int bt_skip = 0;
 
@@ -246,6 +281,10 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
             printf("    %s\n\n", buf);
         } else {
             printf("    <Invalid PC: %08lx>\n\n", epc);
+        }
+
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
         }
         break;
 
@@ -285,7 +324,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
 
     void *bt[32];
     int n = backtrace(bt, 32);
-
+#if 0
     printf("\aWBacktrace:\n");
     if (first_backtrace) debugf("Backtrace:\n");
     char func[128];
@@ -313,6 +352,8 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         skip = false;
         backtrace_symbols_cb(bt, n, 0, cb, NULL);
     }
+#endif
+    inspector_print_backtrace(bt, n, bt_skip, first_backtrace);
     first_backtrace = false;
 }
 
@@ -421,6 +462,70 @@ static void inspector_page_disasm(surface_t *disp, exception_t* ex, joypad_butto
     }
 }
 
+static void inspector_page_threads(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
+{
+    const int THREAD_LEN = 12;
+    const int THREADS_PER_LINE = 5;
+    kthread_t *th_sel = NULL;
+
+    if (key_pressed->d_left && thread_offset > 0) { thread_offset--; }
+    if (key_pressed->d_right && thread_offset < num_threads-1) { thread_offset++; }
+    if (key_pressed->d_up && thread_offset >= THREADS_PER_LINE) { thread_offset -= THREADS_PER_LINE; }
+    if (key_pressed->d_down && thread_offset+THREADS_PER_LINE < num_threads) { thread_offset += THREADS_PER_LINE; }
+
+    title("Threads");
+    if (!__kernel) {
+        printf("\aWkernel not initialized\n");
+        return;
+    }
+
+    int i = 0;
+    for (kthread_t *th = __kernel_all_threads; th; th = th->all_next) {
+        char buf[THREAD_LEN+4];
+
+        if (i == thread_offset) {
+            sprintf(buf, "[%.*s]", THREAD_LEN, th->name);
+            printf("\aW%-*s\aT", THREAD_LEN+2, buf);
+            th_sel = th;
+        } else {
+            sprintf(buf, " %.*s ", THREAD_LEN, th->name);
+            printf("%-*s", THREAD_LEN+2, buf);
+        }
+        
+        if ((i+1)%THREADS_PER_LINE == 0) printf("\n");
+        i++;
+    }
+    if (i % THREADS_PER_LINE != 0) printf("\n");
+    printf("\n");
+
+    char type[64] = {0};
+    
+    if (th_sel->flags & TH_FLAG_INSPECTOR1) 
+        strcat(type, "suspended ");
+    if (th_sel->flags & TH_FLAG_DETACHED) {
+        strcat(type, "detached ");
+        if (th_sel->flags & TH_FLAG_ZOMBIE)
+            strcat(type, "zombie ");
+    } else if (th_sel->joiner) {
+        strcat(type, "joined(");
+        strcat(type, th_sel->joiner->name);
+        strcat(type, ") ");
+    } else {
+        strcat(type, "joinable ");
+        if (th_sel->flags & TH_FLAG_WAITFORJOIN) 
+            strcat(type, "joinable finished ");
+    }
+
+    printf("    \aWPriority: \aT%-30d\aWStack size: \aT%d KiB\n", th_sel->pri, th_sel->stack_size / 1024);
+    printf("    \aWType: \aT%-34.34s\aWStack: \aT%p\n", type, th_sel->stack);
+    printf("    \aWPC: \aT%p\n", th_sel == kthread_current() ? (void*)ex->regs->epc : (void*)th_sel->stack_state->epc);
+    printf("\n");
+
+    void *bt[32]; int n;
+    n = kthread_backtrace(th_sel, bt, 32);
+    inspector_print_backtrace(bt, n, 0, false);
+}
+
 static void inspector_page_modules(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
 {
     dl_module_t *curr_module = __dl_list_head;
@@ -449,6 +554,43 @@ static void inspector(exception_t* ex, enum Mode mode) {
     if (in_inspector) abort();
     in_inspector = true;
 
+    if (__kernel) {
+        // Reverse the order of the thread list, so that we show the oldest threads
+        // first in the list
+        kthread_t *prev = NULL;
+        kthread_t *th = __kernel_all_threads;
+        while (th) {
+            kthread_t *next = th->all_next;
+            th->all_next = prev;
+            prev = th;
+            th = next;
+        }
+        __kernel_all_threads = prev;
+
+        // Suspend all threads but idle. This avoids the inpsector to be interrupted
+        // by other threads, and also allows to consistently inspect the state of the threads
+        kthread_t *current = kthread_current();
+        for (kthread_t *th = __kernel_all_threads; th; th = th->all_next) {
+            if (th != current && strcmp(th->name, "idle") != 0) {
+                // Copy the current suspended flag into the inspector flag,
+                // so that we can later dump the state of the thread correctly
+                if (th->flags & TH_FLAG_SUSPENDED)
+                    th->flags |= TH_FLAG_INSPECTOR1;
+                else
+                    th->flags &= ~TH_FLAG_INSPECTOR1;
+                kthread_suspend(th);
+            }
+            ++num_threads;
+        }
+
+        // Mask interrupts that we don't need during the inspector, so that
+        // their callbacks aren't called, which might cause crashes now.
+        // When the kernel is running, interrupts can always be activated in
+        // case of thread switch (eg: when using kirq), so to completely
+        // disable them we need to mask them.
+        *MI_MASK = MI_WMASK_CLR_DP | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI;
+    }
+
 	display_close();
 	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
@@ -457,6 +599,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
 		PAGE_GPR,
 		PAGE_FPR,
 		PAGE_CODE,
+        PAGE_THREADS,
         PAGE_MODULES
 	};
 	enum { PAGE_COUNT = PAGE_MODULES+1 };
@@ -506,7 +649,9 @@ static void inspector(exception_t* ex, enum Mode mode) {
         case PAGE_CODE:
             inspector_page_disasm(disp, ex, &key_pressed);
             break;
-            
+        case PAGE_THREADS:
+            inspector_page_threads(disp, ex, &key_pressed);
+            break;
         case PAGE_MODULES:
             inspector_page_modules(disp, ex, &key_pressed);
             break;
