@@ -101,7 +101,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state);
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data);
 
 #ifndef NDEBUG
-/** @brief List of all threads, used for debugging purposes (uses the #kthread::all_next pointer) */
+/** @brief List of all threads, used for debugging purposes (uses the #kthread_t all_next pointer) */
 extern kthread_t *__kernel_all_threads;
 #endif
 
