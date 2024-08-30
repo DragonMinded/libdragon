@@ -302,6 +302,9 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         } else {
             printf("\b\aOASSERTION FAILED: %s\n\n", failedexpr);
         }
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
+        }
         bt_skip = 2;
         break;
     }
@@ -314,6 +317,9 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
             printf("\aWException type:\n");
             printf("    "); printf("\b%s", exctype); printf("\n\n");
         }
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
+        }
         bt_skip = 5;
         break;
     }
@@ -324,35 +330,6 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
 
     void *bt[32];
     int n = backtrace(bt, 32);
-#if 0
-    printf("\aWBacktrace:\n");
-    if (first_backtrace) debugf("Backtrace:\n");
-    char func[128];
-    bool skip = true;
-    void cb(void *arg, backtrace_frame_t *frame) {
-        if (first_backtrace) { debugf("    "); backtrace_frame_print(frame, stderr); debugf("\n"); }
-        if (skip) {
-            if (strstr(frame->func, "<EXCEPTION HANDLER>"))
-                skip = false;
-            return;
-        }
-        if (bt_skip > 0) {
-            bt_skip--;
-            return;
-        }
-        printf("    ");
-        snprintf(func, sizeof(func), "\aG%s\aT", frame->func);
-        frame->func = func;
-        backtrace_frame_print_compact(frame, stdout, 60);
-    }
-    backtrace_symbols_cb(bt, n, 0, cb, NULL);
-    if (skip) {
-        // we didn't find the exception handler for some reason (eg: missing symbols)
-        // so just print the whole thing
-        skip = false;
-        backtrace_symbols_cb(bt, n, 0, cb, NULL);
-    }
-#endif
     inspector_print_backtrace(bt, n, bt_skip, first_backtrace);
     first_backtrace = false;
 }
