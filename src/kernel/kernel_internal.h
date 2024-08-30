@@ -7,6 +7,9 @@
 #define __LIBDRAGON_KERNEL_INTERNAL_H
 
 #include "kernel.h"
+#ifdef __NEWLIB__
+#include <sys/reent.h>
+#endif
 
 /**
  * @addtogroup kernel
@@ -47,6 +50,10 @@ typedef struct kthread_s
         int interrupt_depth;
         /** Mirror of __interrupt_sr */
         int interrupt_sr;
+		#ifdef __NEWLIB__
+		/** Newlib reentrancy */
+		struct _reent *reent_ptr;
+		#endif
     } tls;  ///< Thread-local storage
 	/** Size of the stack in bytes */
 	int stack_size;

@@ -305,6 +305,9 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	// Set the current interrupt depth to that of the current thread.
 	__interrupt_depth = th_cur->tls.interrupt_depth;
 	__interrupt_sr = th_cur->tls.interrupt_sr;
+	#ifdef __NEWLIB__
+	_REENT = th_cur->tls.reent_ptr;
+	#endif
 
 	return th_cur->stack_state;
 }
@@ -340,6 +343,9 @@ kthread_t* kernel_init(void)
 	th_main.name = "main";
 	th_main.stack_size = 0x10000; // see STACK_SIZE in system.c
 	th_main.flags = TH_FLAG_DETACHED; // main thread cannot be joined
+	#ifdef __NEWLIB__
+	th_main.tls.reent_ptr = _REENT;
+	#endif
 
 	// NOTE: keep this in sync with system.c
 	#define STACK_SIZE 0x10000
@@ -392,7 +398,7 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	// structure
 	//
 	// |             |                        |             |
-	// | Stack guard |   Stack                | kthread_t   |
+	// | Stack guard |   Stack                | kthread_t   | Extra (TLS, etc)
 	// |             |                        |             |
 	//
 	//
@@ -400,9 +406,15 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	// the buffer: since the stack grows downward, this makes sure that
 	// overflowing the stack doesn't corrupt the thread structure, which might
 	// make debugging more difficult and might even cause the kernel to crash.
-	void *thmem = malloc(STACK_GUARD + stack_size + sizeof(kthread_t));
+
+	int extra_size = 0;
+	#ifdef __NEWLIB__
+	extra_size += sizeof(struct _reent);
+	#endif
+	void *thmem = malloc(STACK_GUARD + stack_size + sizeof(kthread_t) + extra_size);
 	assertf(thmem, "out of free memory");
 	kthread_t *th = thmem + STACK_GUARD + stack_size;
+	void *extra = thmem + STACK_GUARD + stack_size + sizeof(kthread_t);
 
 	// Initialize the thread structure
 	memset(th, 0, sizeof(kthread_t));
@@ -455,6 +467,12 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	__kernel_all_threads = th;
 	#endif
 	enable_interrupts();
+
+	// TLS initial configuration
+	#ifdef __NEWLIB__
+	th->tls.reent_ptr = extra;
+	_REENT_INIT_PTR(th->tls.reent_ptr);
+	#endif
 
 	// If the new thread has a priority higher or equal to the current one,
 	// yield immediately so that it will get started. This preserves the basic
@@ -666,6 +684,12 @@ int kthread_backtrace(kthread_t *th, void *buffer, int size)
 		(void*)(uint32_t)th->stack_state->sp,
 		(void*)(uint32_t)th->stack_state->fp,
 		(void*)(uint32_t)th->stack_state->ra);
+}
+
+const char *kthread_name(kthread_t *th)
+{
+	if (th == NULL) th = th_cur;
+	return th->name;
 }
 
 void kmutex_init(kmutex_t *mutex, uint8_t flags)
