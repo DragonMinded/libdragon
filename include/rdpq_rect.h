@@ -200,20 +200,16 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * @brief Draw a filled rectangle (RDP command: FILL_RECTANGLE)
  * 
  * This command is used to render a rectangle filled with a solid color.
- * The color must have been configured via #rdpq_set_fill_color, and the
- * render mode should be set to FILL via #rdpq_set_mode_fill.
  * 
  * The rectangle must be defined using exclusive bottom-right bounds, so for
  * instance `rdpq_fill_rectangle(10,10,30,30)` will draw a square of exactly
  * 20x20 pixels.
  * 
- * Fractional values can be used, and will create a semi-transparent edge. For
- * instance, `rdpq_fill_rectangle(9.75, 9.75, 30.25, 30.25)` will create a 22x22 pixel
- * square, with the most external pixel rows and columns having a alpha of 25%.
- * This obviously makes more sense in RGBA32 mode where there is enough alpha
- * bitdepth to appreciate the result. Make sure to configure the blender via
- * #rdpq_mode_blender (part of the mode API) or via the lower-level #rdpq_set_other_modes_raw,
- * to decide the blending formula.
+ * Depending on the render mode, the way to configure the color differs:
+ * 
+ * * In fill mode, the color is normally configured directly via #rdpq_set_mode_fill,
+ *   and can be changed with #rdpq_set_fill_color. Notice that fill mode does not
+ *   support blending.
  * 
  * @code{.c}
  *      // Fill the screen with red color.
@@ -221,6 +217,24 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  *      rdpq_fill_rectangle(0, 0, 320, 240);
  * @endcode
  * 
+ * * In standard mode (#rdpq_set_mode_standard), the color must be configured
+ *   using the combiner, so normally by calling #rdpq_mode_combiner with
+ *   #RDPQ_COMBINER_FLAT, and setting the color via #rdpq_set_prim_color.
+ *   To draw a blended rectangle, activate the blender via #rdpq_mode_blender,
+ *   normally with #RDPQ_BLENDER_MULTIPLY.
+ * 
+ * @code{.c}
+ *      // Set the render mode to standard, with blending enabled
+ *      rdpq_set_mode_standard();
+ *      rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+ *      rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+ * 
+ *      // Set color to black, and alpha to 25% (64 out of 255)
+ *      rdpq_set_prim_color(RGBA32(0, 0, 0, 64));
+ * 
+ *      // Draw the rectangle
+ *      rdpq_fill_rectangle(10, 10, 30, 30);
+ * @endcode
  * 
  * @param[x0]   x0      Top-left X coordinate of the rectangle (integer or float)
  * @param[y0]   y0      Top-left Y coordinate of the rectangle (integer or float)
