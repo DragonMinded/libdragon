@@ -166,13 +166,13 @@ palette</td>
 <td class="fielddoc">
 Palette number where TLUT is stored (used only for CI4 textures) </td></tr>
 <tr><td class="fieldtype">
-<a id="a1e7fa41842c443d27f8021a58c2c3885" name="a1e7fa41842c443d27f8021a58c2c3885"></a>struct <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t_8s">rdpq_texparms_t.s</a></td>
+<a id="a40bc437d6459331836c802542940782e" name="a40bc437d6459331836c802542940782e"></a>struct <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t_8s">rdpq_texparms_t.s</a></td>
 <td class="fieldname">
 s</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
-<a id="a18093ac7ac26e7470b199f1f558e5fff" name="a18093ac7ac26e7470b199f1f558e5fff"></a>struct <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t_8t">rdpq_texparms_t.t</a></td>
+<a id="a62f15a678749b8d7626dcb47bde0c020" name="a62f15a678749b8d7626dcb47bde0c020"></a>struct <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t_8t">rdpq_texparms_t.t</a></td>
 <td class="fieldname">
 t</td>
 <td class="fielddoc">
@@ -501,7 +501,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 <div class="line">    100, 100,                           <span class="comment">// texture coordinates</span></div>
 <div class="line">    1.0, 1.0);                          <span class="comment">// texture increments (= no scaling)</span></div>
 <div class="ttc" id="ardpq_8h_html_a8d34f311d2e71435652a57adb1d6931eadb7ac46392b285fc6cbac9404f189cc1"><div class="ttname"><a href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931eadb7ac46392b285fc6cbac9404f189cc1">TILE2</a></div><div class="ttdeci">@ TILE2</div><div class="ttdoc">Tile #2 (for code readability)</div><div class="ttdef"><b>Definition:</b> rdpq.h:252</div></div>
-<div class="ttc" id="ardpq__rect_8h_html_a7196362c567172a2012f414c8a412743"><div class="ttname"><a href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743">rdpq_texture_rectangle</a></div><div class="ttdeci">#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t)</div><div class="ttdoc">Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)</div><div class="ttdef"><b>Definition:</b> rdpq_rect.h:293</div></div>
+<div class="ttc" id="ardpq__rect_8h_html_a7196362c567172a2012f414c8a412743"><div class="ttname"><a href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743">rdpq_texture_rectangle</a></div><div class="ttdeci">#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t)</div><div class="ttdoc">Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)</div><div class="ttdef"><b>Definition:</b> rdpq_rect.h:307</div></div>
 <div class="ttc" id="ardpq__tex_8c_html_a02d0ec8eab1907101928c226831e6af3"><div class="ttname"><a href="rdpq__tex_8c.html#a02d0ec8eab1907101928c226831e6af3">rdpq_tex_upload_sub</a></div><div class="ttdeci">int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)</div><div class="ttdoc">Load a portion of texture into TMEM.</div><div class="ttdef"><b>Definition:</b> rdpq_tex.c:365</div></div>
 </div><!-- fragment --><p >An alternative to this function is to call <a class="el" href="surface_8h.html#a201a14d89649b0f81ef8d535b724b34f" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> on the texture to create a sub-surface, and then call rdpq_tex_upload on the sub-surface. The same data will be loaded into TMEM but this time the RDP ignores that you are loading a portion of a larger texture:</p>
 <div class="fragment"><div class="line"><span class="comment">// Create a sub-surface of spritemap texture. No memory allocations</span></div>

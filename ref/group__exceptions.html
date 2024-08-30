@@ -91,6 +91,11 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structexception__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#structexception__t">exception_t</a></td></tr>
 <tr class="memdesc:structexception__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Structure representing an exception.  <a href="group__exceptions.html#structexception__t">More...</a><br /></td></tr>
 <tr class="separator:structexception__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:unionreg__block__t_8____unnamed33____"><td class="memItemLeft" align="right" valign="top">union &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#unionreg__block__t_8____unnamed33____">reg_block_t.__unnamed33__</a></td></tr>
+<tr class="memdesc:unionreg__block__t_8____unnamed33____"><td class="mdescLeft">&#160;</td><td class="mdescRight">General purpose registers 1-32.  <a href="group__exceptions.html#unionreg__block__t_8____unnamed33____">More...</a><br /></td></tr>
+<tr class="separator:unionreg__block__t_8____unnamed33____"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:structreg__block__t_8____unnamed33_____8____unnamed35____"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#structreg__block__t_8____unnamed33_____8____unnamed35____">reg_block_t.__unnamed33__.__unnamed35__</a></td></tr>
+<tr class="separator:structreg__block__t_8____unnamed33_____8____unnamed35____"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
@@ -146,9 +151,9 @@ Enumerations</h2></td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="add78bfbfed7a8b0b13222920dd0cb9e6" name="add78bfbfed7a8b0b13222920dd0cb9e6"></a>uint64_t</td>
+<a id="ae5e221ae0db1e3caae9ecf97dd205073" name="ae5e221ae0db1e3caae9ecf97dd205073"></a>union <a class="el" href="group__exceptions.html#unionreg__block__t_8____unnamed33____">reg_block_t.__unnamed33__</a></td>
 <td class="fieldname">
-gpr[32]</td>
+__unnamed__</td>
 <td class="fielddoc">
 General purpose registers 1-32. </td></tr>
 <tr><td class="fieldtype">
@@ -237,6 +242,245 @@ String information of exception. </td></tr>
 regs</td>
 <td class="fielddoc">
 Registers at point of exception. </td></tr>
+</table>
+
+</div>
+</div>
+<a name="unionreg__block__t_8____unnamed33____" id="unionreg__block__t_8____unnamed33____"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#unionreg__block__t_8____unnamed33____">&#9670;&nbsp;</a></span>reg_block_t.__unnamed33__</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">union reg_block_t.__unnamed33__</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p >General purpose registers 1-32. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="a51ff7c0cfdb51422f7fb8adf314cd436" name="a51ff7c0cfdb51422f7fb8adf314cd436"></a>uint64_t</td>
+<td class="fieldname">
+gpr[32]</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a803f1c8918d40e1fd2b1852697c7405c" name="a803f1c8918d40e1fd2b1852697c7405c"></a>struct <a class="el" href="group__exceptions.html#structreg__block__t_8____unnamed33_____8____unnamed35____">reg_block_t.__unnamed33__.__unnamed35__</a></td>
+<td class="fieldname">
+__unnamed__</td>
+<td class="fielddoc">
+</td></tr>
+</table>
+
+</div>
+</div>
+<a name="structreg__block__t_8____unnamed33_____8____unnamed35____" id="structreg__block__t_8____unnamed33_____8____unnamed35____"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structreg__block__t_8____unnamed33_____8____unnamed35____">&#9670;&nbsp;</a></span>reg_block_t.__unnamed33__.__unnamed35__</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct reg_block_t.__unnamed33__.__unnamed35__</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"></div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="ac3bf26db16183dd7bd0903b9def79bf3" name="ac3bf26db16183dd7bd0903b9def79bf3"></a>uint64_t</td>
+<td class="fieldname">
+zr</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a7d0db380a5b95a8ba1da0bca241abda1" name="a7d0db380a5b95a8ba1da0bca241abda1"></a>uint64_t</td>
+<td class="fieldname">
+at</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a9abcde3c584628a02620bf796dee1204" name="a9abcde3c584628a02620bf796dee1204"></a>uint64_t</td>
+<td class="fieldname">
+v0</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a6654c734ccab8f440ff0825eb443dc7f" name="a6654c734ccab8f440ff0825eb443dc7f"></a>uint64_t</td>
+<td class="fieldname">
+v1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a5640486daa6880d667b76c958820361a" name="a5640486daa6880d667b76c958820361a"></a>uint64_t</td>
+<td class="fieldname">
+a0</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a8a8bb7cd343aa2ad99b7d762030857a2" name="a8a8bb7cd343aa2ad99b7d762030857a2"></a>uint64_t</td>
+<td class="fieldname">
+a1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a693a9fdd4c2fd0700968fba0d07ff3c0" name="a693a9fdd4c2fd0700968fba0d07ff3c0"></a>uint64_t</td>
+<td class="fieldname">
+a2</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a9d607a663f3e9b0a90c3c8d4426640dc" name="a9d607a663f3e9b0a90c3c8d4426640dc"></a>uint64_t</td>
+<td class="fieldname">
+a3</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a809d4580aaed41565abc38d58f77f840" name="a809d4580aaed41565abc38d58f77f840"></a>uint64_t</td>
+<td class="fieldname">
+t0</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a83f1535f99ab0bf4e9d02dfd85d3e3f7" name="a83f1535f99ab0bf4e9d02dfd85d3e3f7"></a>uint64_t</td>
+<td class="fieldname">
+t1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a0f826a89cf68c399c5f4cf320c1a5842" name="a0f826a89cf68c399c5f4cf320c1a5842"></a>uint64_t</td>
+<td class="fieldname">
+t2</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a0b8854ad38f0a6c65807928d28195609" name="a0b8854ad38f0a6c65807928d28195609"></a>uint64_t</td>
+<td class="fieldname">
+t3</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a1051527638b9da6fe99e4242795a10ea" name="a1051527638b9da6fe99e4242795a10ea"></a>uint64_t</td>
+<td class="fieldname">
+t4</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="adf2184f4b46de3ddf02f74fb03810020" name="adf2184f4b46de3ddf02f74fb03810020"></a>uint64_t</td>
+<td class="fieldname">
+t5</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="aa77cca9bd375665b36f4239eeda0c996" name="aa77cca9bd375665b36f4239eeda0c996"></a>uint64_t</td>
+<td class="fieldname">
+t6</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a3685708fd594a6861aa73f181e657dc5" name="a3685708fd594a6861aa73f181e657dc5"></a>uint64_t</td>
+<td class="fieldname">
+t7</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a0b1cdc9fe1f929e469c5a54ffe0b2ed5" name="a0b1cdc9fe1f929e469c5a54ffe0b2ed5"></a>uint64_t</td>
+<td class="fieldname">
+s0</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a8ddf878039b70767c4a5bcf4f0c4f65e" name="a8ddf878039b70767c4a5bcf4f0c4f65e"></a>uint64_t</td>
+<td class="fieldname">
+s1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="afac989447cad2edbc89fbcba70003b36" name="afac989447cad2edbc89fbcba70003b36"></a>uint64_t</td>
+<td class="fieldname">
+s2</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="ac0828e0381730befd1f7a025057c74fb" name="ac0828e0381730befd1f7a025057c74fb"></a>uint64_t</td>
+<td class="fieldname">
+s3</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a7e7cb6814b74d6596098fc80127569a5" name="a7e7cb6814b74d6596098fc80127569a5"></a>uint64_t</td>
+<td class="fieldname">
+s4</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a437f57809f82b9e2947f70fd488eb536" name="a437f57809f82b9e2947f70fd488eb536"></a>uint64_t</td>
+<td class="fieldname">
+s5</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a425db905039f7a6559ce1115efa7d397" name="a425db905039f7a6559ce1115efa7d397"></a>uint64_t</td>
+<td class="fieldname">
+s6</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a9d7115b42254d59b82440ebe8084927f" name="a9d7115b42254d59b82440ebe8084927f"></a>uint64_t</td>
+<td class="fieldname">
+s7</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a531a93a176df5bde70902adaeeeb8eb2" name="a531a93a176df5bde70902adaeeeb8eb2"></a>uint64_t</td>
+<td class="fieldname">
+t8</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a82f696175c08fe04cd4bf22182d109f6" name="a82f696175c08fe04cd4bf22182d109f6"></a>uint64_t</td>
+<td class="fieldname">
+t9</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a28d61f7b1f07d88c18f1068410d140b5" name="a28d61f7b1f07d88c18f1068410d140b5"></a>uint64_t</td>
+<td class="fieldname">
+k0</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="ab637b17af08aced8850c18cccde915da" name="ab637b17af08aced8850c18cccde915da"></a>uint64_t</td>
+<td class="fieldname">
+k1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a5343b21ad303bf1799629894deca13db" name="a5343b21ad303bf1799629894deca13db"></a>uint64_t</td>
+<td class="fieldname">
+gp</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a1952a01898073d1e561b9b4f2e42cbd7" name="a1952a01898073d1e561b9b4f2e42cbd7"></a>uint64_t</td>
+<td class="fieldname">
+sp</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a0666f0acdeed38d4cd9084ade1739498" name="a0666f0acdeed38d4cd9084ade1739498"></a>uint64_t</td>
+<td class="fieldname">
+fp</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="adb26ee047a4c86fbd2fba73503feccb6" name="adb26ee047a4c86fbd2fba73503feccb6"></a>uint64_t</td>
+<td class="fieldname">
+ra</td>
+<td class="fielddoc">
+</td></tr>
 </table>
 
 </div>

@@ -246,33 +246,33 @@ $(function() {
 <div class="line"><a id="l00180" name="l00180"></a><span class="lineno">  180</span>}</div>
 <div class="line"><a id="l00181" name="l00181"></a><span class="lineno">  181</span><span class="preprocessor">#undef __UNLIKELY</span></div>
 <div class="line"><a id="l00183" name="l00183"></a><span class="lineno">  183</span> </div>
-<div class="line"><a id="l00235" name="l00235"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#a9c6405f89d2fe70046330964c21ba124">  235</a></span><span class="preprocessor">#define rdpq_fill_rectangle(x0, y0, x1, y1) ({ \</span></div>
-<div class="line"><a id="l00236" name="l00236"></a><span class="lineno">  236</span><span class="preprocessor">    __rdpq_fill_rectangle_fx((x0)*4, (y0)*4, (x1)*4, (y1)*4); \</span></div>
-<div class="line"><a id="l00237" name="l00237"></a><span class="lineno">  237</span><span class="preprocessor">})</span></div>
-<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span> </div>
-<div class="line"><a id="l00291" name="l00291"></a><span class="lineno">  291</span><span class="comment">// NOTE: we use a macro here to support both integer and float inputs without ever forcing</span></div>
-<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span><span class="comment">// a useless additional conversion.</span></div>
-<div class="line"><a id="l00293" name="l00293"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743">  293</a></span><span class="preprocessor">#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t) \</span></div>
-<div class="line"><a id="l00294" name="l00294"></a><span class="lineno">  294</span><span class="preprocessor">    __rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32)</span></div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno">  295</span> </div>
-<div class="line"><a id="l00317" name="l00317"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#ac00bd2edd99d2555cc90fdad865195f2">  317</a></span><span class="preprocessor">#define rdpq_texture_rectangle_scaled(tile, x0, y0, x1, y1, s0, t0, s1, t1) \</span></div>
-<div class="line"><a id="l00318" name="l00318"></a><span class="lineno">  318</span><span class="preprocessor">    __rdpq_texture_rectangle_scaled_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (s1)*32, (t1)*32)</span></div>
-<div class="line"><a id="l00319" name="l00319"></a><span class="lineno">  319</span> </div>
-<div class="line"><a id="l00320" name="l00320"></a><span class="lineno">  320</span> </div>
-<div class="line"><a id="l00361" name="l00361"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#abb688bef33e871b6ebe8056e61b9f981">  361</a></span><span class="preprocessor">#define rdpq_texture_rectangle_raw(tile, x0, y0, x1, y1, s0, t0, dsdx, dtdy) \</span></div>
-<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span><span class="preprocessor">    __rdpq_texture_rectangle_raw_fx(tile, (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (dsdx)*1024, (dtdy)*1024)</span></div>
-<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span> </div>
-<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span> </div>
-<div class="line"><a id="l00390" name="l00390"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#a7c460fe293c4124739227e8dd87820a9">  390</a></span><span class="preprocessor">#define rdpq_texture_rectangle_flip_raw(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \</span></div>
-<div class="line"><a id="l00391" name="l00391"></a><span class="lineno">  391</span><span class="preprocessor">    __rdpq_texture_rectangle_flip_raw_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \</span></div>
-<div class="line"><a id="l00392" name="l00392"></a><span class="lineno">  392</span><span class="preprocessor">})</span></div>
-<div class="line"><a id="l00393" name="l00393"></a><span class="lineno">  393</span> </div>
-<div class="line"><a id="l00394" name="l00394"></a><span class="lineno">  394</span> </div>
-<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span>}</div>
-<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span> </div>
-<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#a9c6405f89d2fe70046330964c21ba124">  249</a></span><span class="preprocessor">#define rdpq_fill_rectangle(x0, y0, x1, y1) ({ \</span></div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span><span class="preprocessor">    __rdpq_fill_rectangle_fx((x0)*4, (y0)*4, (x1)*4, (y1)*4); \</span></div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span><span class="preprocessor">})</span></div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span> </div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span><span class="comment">// NOTE: we use a macro here to support both integer and float inputs without ever forcing</span></div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span><span class="comment">// a useless additional conversion.</span></div>
+<div class="line"><a id="l00307" name="l00307"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743">  307</a></span><span class="preprocessor">#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t) \</span></div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span><span class="preprocessor">    __rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32)</span></div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span> </div>
+<div class="line"><a id="l00331" name="l00331"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#ac00bd2edd99d2555cc90fdad865195f2">  331</a></span><span class="preprocessor">#define rdpq_texture_rectangle_scaled(tile, x0, y0, x1, y1, s0, t0, s1, t1) \</span></div>
+<div class="line"><a id="l00332" name="l00332"></a><span class="lineno">  332</span><span class="preprocessor">    __rdpq_texture_rectangle_scaled_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (s1)*32, (t1)*32)</span></div>
+<div class="line"><a id="l00333" name="l00333"></a><span class="lineno">  333</span> </div>
+<div class="line"><a id="l00334" name="l00334"></a><span class="lineno">  334</span> </div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#abb688bef33e871b6ebe8056e61b9f981">  375</a></span><span class="preprocessor">#define rdpq_texture_rectangle_raw(tile, x0, y0, x1, y1, s0, t0, dsdx, dtdy) \</span></div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span><span class="preprocessor">    __rdpq_texture_rectangle_raw_fx(tile, (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (dsdx)*1024, (dtdy)*1024)</span></div>
+<div class="line"><a id="l00377" name="l00377"></a><span class="lineno">  377</span> </div>
+<div class="line"><a id="l00378" name="l00378"></a><span class="lineno">  378</span> </div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno"><a class="line" href="rdpq__rect_8h.html#a7c460fe293c4124739227e8dd87820a9">  404</a></span><span class="preprocessor">#define rdpq_texture_rectangle_flip_raw(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \</span></div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span><span class="preprocessor">    __rdpq_texture_rectangle_flip_raw_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \</span></div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span><span class="preprocessor">})</span></div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span> </div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span> </div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00414" name="l00414"></a><span class="lineno">  414</span>}</div>
+<div class="line"><a id="l00415" name="l00415"></a><span class="lineno">  415</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00416" name="l00416"></a><span class="lineno">  416</span> </div>
+<div class="line"><a id="l00417" name="l00417"></a><span class="lineno">  417</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="ardpq_8c_html_a570d8fd6e1f449d8a8682f3c0d48956a"><div class="ttname"><a href="rdpq_8c.html#a570d8fd6e1f449d8a8682f3c0d48956a">__rdpq_write16_syncuse</a></div><div class="ttdeci">void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t autosync)</div><div class="ttdoc">Write a standard 16-byte RDP command, which uses some autosync resources</div><div class="ttdef"><b>Definition:</b> rdpq.c:943</div></div>
 <div class="ttc" id="ardpq_8h_html"><div class="ttname"><a href="rdpq_8h.html">rdpq.h</a></div><div class="ttdoc">RDP Command queue.</div></div>
 <div class="ttc" id="ardpq_8h_html_a8d34f311d2e71435652a57adb1d6931e"><div class="ttname"><a href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931e">rdpq_tile_t</a></div><div class="ttdeci">rdpq_tile_t</div><div class="ttdoc">Tile descriptors.</div><div class="ttdef"><b>Definition:</b> rdpq.h:249</div></div>
