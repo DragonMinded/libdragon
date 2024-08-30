@@ -84,7 +84,7 @@ $(function() {
 <div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
 <div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="preprocessor">#define DECOMPRESS_LZ4_STATE_SIZE  176</span></div>
 <div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="keywordtype">void</span> decompress_lz4_init(<span class="keywordtype">void</span> *state, FILE *fp, <span class="keywordtype">int</span> winsize);</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="keywordtype">void</span> decompress_lz4_init(<span class="keywordtype">void</span> *state, <span class="keywordtype">int</span> fd, <span class="keywordtype">int</span> winsize);</div>
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span>ssize_t decompress_lz4_read(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="keywordtype">void</span> decompress_lz4_reset(<span class="keywordtype">void</span> *state);</div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="keywordtype">void</span>* decompress_lz4_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>

@@ -80,10 +80,10 @@ Data Fields</h2></td></tr>
 int&#160;</td><td class="memItemRight" valign="bottom"><b>state_size</b></td></tr>
 <tr class="memdesc:a9ff652e8ff64060f86ba34e08ba0d51a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Basic size of the decompression state (without ringbuffer) <br /></td></tr>
 <tr class="separator:a9ff652e8ff64060f86ba34e08ba0d51a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab4efb78aecf087a6619823edc15af31e"><td class="memItemLeft" align="right" valign="top"><a id="ab4efb78aecf087a6619823edc15af31e" name="ab4efb78aecf087a6619823edc15af31e"></a>
-void(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_init</b> )(void *state, FILE *fp, int winsize)</td></tr>
-<tr class="memdesc:ab4efb78aecf087a6619823edc15af31e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the decompression state. <br /></td></tr>
-<tr class="separator:ab4efb78aecf087a6619823edc15af31e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac706459b73369de33fa391072e7df8b2"><td class="memItemLeft" align="right" valign="top"><a id="ac706459b73369de33fa391072e7df8b2" name="ac706459b73369de33fa391072e7df8b2"></a>
+void(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_init</b> )(void *state, int fd, int winsize)</td></tr>
+<tr class="memdesc:ac706459b73369de33fa391072e7df8b2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the decompression state. <br /></td></tr>
+<tr class="separator:ac706459b73369de33fa391072e7df8b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a62bbd6d445526848be269e11bbcc8e20"><td class="memItemLeft" align="right" valign="top"><a id="a62bbd6d445526848be269e11bbcc8e20" name="a62bbd6d445526848be269e11bbcc8e20"></a>
 ssize_t(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_read</b> )(void *state, void *buf, size_t len)</td></tr>
 <tr class="memdesc:a62bbd6d445526848be269e11bbcc8e20"><td class="mdescLeft">&#160;</td><td class="mdescRight">Partially read a decompressed file from a state. <br /></td></tr>
@@ -92,10 +92,10 @@ ssize_t(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_read<
 void(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_reset</b> )(void *state)</td></tr>
 <tr class="memdesc:aeb9fd511a9f0e4e65dab4243621a241d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reset decompression state after rewind. <br /></td></tr>
 <tr class="separator:aeb9fd511a9f0e4e65dab4243621a241d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a568ba04687e1e257ef31c0ee538a30b2"><td class="memItemLeft" align="right" valign="top"><a id="a568ba04687e1e257ef31c0ee538a30b2" name="a568ba04687e1e257ef31c0ee538a30b2"></a>
-void *(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_full</b> )(const char *fn, FILE *fp, size_t cmp_size, size_t len)</td></tr>
-<tr class="memdesc:a568ba04687e1e257ef31c0ee538a30b2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Decompress a full file in one go. <br /></td></tr>
-<tr class="separator:a568ba04687e1e257ef31c0ee538a30b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2f4e1dcb788afe52f96267739a6130b3"><td class="memItemLeft" align="right" valign="top"><a id="a2f4e1dcb788afe52f96267739a6130b3" name="a2f4e1dcb788afe52f96267739a6130b3"></a>
+void *(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_full</b> )(const char *fn, int fd, size_t cmp_size, size_t len)</td></tr>
+<tr class="memdesc:a2f4e1dcb788afe52f96267739a6130b3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Decompress a full file in one go. <br /></td></tr>
+<tr class="separator:a2f4e1dcb788afe52f96267739a6130b3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a770df9c3a6d9dbef1ed42738d0084c54"><td class="memItemLeft" align="right" valign="top"><a id="a770df9c3a6d9dbef1ed42738d0084c54" name="a770df9c3a6d9dbef1ed42738d0084c54"></a>
 int(*&#160;</td><td class="memItemRight" valign="bottom"><b>decompress_full_inplace</b> )(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len)</td></tr>
 <tr class="memdesc:a770df9c3a6d9dbef1ed42738d0084c54"><td class="mdescLeft">&#160;</td><td class="mdescRight">Decompress a full file in-place. <br /></td></tr>

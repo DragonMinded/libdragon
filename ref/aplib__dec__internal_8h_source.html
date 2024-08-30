@@ -83,14 +83,14 @@ $(function() {
 <div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span> </div>
 <div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#define DECOMPRESS_APLIB_STATE_SIZE       348</span></div>
 <div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="keywordtype">void</span> decompress_aplib_init(<span class="keywordtype">void</span> *state, FILE *fp, <span class="keywordtype">int</span> winsize);</div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="keywordtype">void</span> decompress_aplib_init(<span class="keywordtype">void</span> *state, <span class="keywordtype">int</span> fd, <span class="keywordtype">int</span> winsize);</div>
 <div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>ssize_t decompress_aplib_read(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
 <div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="keywordtype">void</span> decompress_aplib_reset(<span class="keywordtype">void</span> *state);</div>
 <div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
 <div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#if DECOMPRESS_APLIB_FULL_USE_ASM</span></div>
 <div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="keywordtype">int</span> decompress_aplib_full_inplace(<span class="keyword">const</span> uint8_t* in, <span class="keywordtype">size_t</span> cmp_size, uint8_t *out, <span class="keywordtype">size_t</span> size);</div>
 <div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#else</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="keywordtype">void</span>* decompress_aplib_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="keywordtype">void</span>* decompress_aplib_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <span class="keywordtype">int</span> fd, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#endif</span></div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
 <div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#endif</span></div>
