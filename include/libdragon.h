@@ -45,6 +45,7 @@
 #include "kernel.h"
 #include "kirq.h"
 #include "kqueue.h"
+#include "ksemaphore.h"
 #include "n64sys.h"
 #include "backtrace.h"
 #include "rdp.h"
