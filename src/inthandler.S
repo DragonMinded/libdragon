@@ -80,8 +80,9 @@ inthandler:
 	# we can now turn off EXL. This allows a reentrant exception to save its
 	# own full context for operating. At the same time, it is better to keep
 	# interrupts disabled so that we don't risk triggering recursive interrupts,
-	# so disable IE as well.
-	and k1, ~(SR_IE | SR_EXL)
+	# so disable IE as well. If the triggering code was running in a non-kernel
+	# mode, we also need to re-enter kernel mode.
+	and k1, ~(SR_IE | SR_EXL | SR_KSU)
 	mtc0 k1, C0_SR
 
 	# WARNING: after clearing the EXL bit, it is now possible to trigger
