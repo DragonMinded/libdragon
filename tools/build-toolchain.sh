@@ -211,7 +211,6 @@ pushd gcc_compile_target
     --disable-shared \
     --with-gcc \
     --with-newlib \
-    --disable-threads \
     --disable-win32-registry \
     --disable-nls \
     --disable-werror 
@@ -228,9 +227,10 @@ CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/co
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
-    --disable-threads \
     --disable-libssp \
-    --disable-werror
+    --disable-werror \
+    --enable-newlib-multithread \
+    --enable-newlib-retargetable-locking
 make -j "$JOBS"
 make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
 popd
@@ -280,7 +280,6 @@ else
         --with-gcc \
         --disable-libssp \
         --disable-shared \
-        --disable-threads \
         --disable-win32-registry \
         --disable-nls
     make all-target-libgcc -j "$JOBS"
@@ -294,9 +293,10 @@ else
         --prefix="$INSTALL_PATH" \
         --target="$N64_TARGET" \
         --with-cpu=mips64vr4300 \
-        --disable-threads \
         --disable-libssp \
-        --disable-werror
+        --disable-werror \
+        --enable-newlib-multithread \
+        --enable-newlib-retargetable-locking
     make -j "$JOBS"
     make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
     popd
