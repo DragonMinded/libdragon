@@ -75,8 +75,6 @@ void __retarget_lock_close_recursive(_LOCK_T lock) {
     __free_libc_mutex(lock);
 }
 
-extern void isviewer_write(const char *data, int len);
-
 void __retarget_lock_acquire(_LOCK_T lock) {
     if (!__kernel) return;
     kmutex_lock(&lock->mut);

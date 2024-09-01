@@ -1563,5 +1563,6 @@ void __assert_func(const char *file, int line, const char *func, const char *fai
     abort();
 }
 
-
+#ifdef __NEWLIB__
 #include "system_newlib_locks.c"
+#endif
