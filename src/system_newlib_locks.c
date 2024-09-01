@@ -13,7 +13,13 @@
 #include "kernel.h"
 #include <stdio.h>
 
-#ifdef _RETARGETABLE_LOCKING //Disable this file when compiling without retargetable locking support
+// Toolchains since Sept 2024 build with threads and retargetable locks enabled,
+// both of which are required for libc to be thread safe and thus the kernel
+// to work correctly (otherwise, kernel_init() will assert).
+// We want to be able to build libdragon with old toolchains as well, obviously
+// for applications not using the kernel. This file wouldn't complete there
+// because on those toolchains, LOCK_T is a typedef to int. So we just disable it.
+#ifdef _RETARGETABLE_LOCKING
 
 /** Lock structure: use a kmutex from our kernel */
 struct __lock {
