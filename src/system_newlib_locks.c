@@ -13,6 +13,8 @@
 #include "kernel.h"
 #include <stdio.h>
 
+#ifdef _RETARGETABLE_LOCKING //Disable this file when compiling without retargetable locking support
+
 /** Lock structure: use a kmutex from our kernel */
 struct __lock {
     kmutex_t mut;
@@ -108,3 +110,5 @@ void __retarget_lock_release_recursive (_LOCK_T lock) {
 }
 
 ///@endcond
+
+#endif
