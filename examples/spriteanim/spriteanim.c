@@ -48,6 +48,20 @@ void render(void)
     rdpq_detach_show();
 }
 
+void update(void)
+{
+    for(int i=0; i<KNIGHT_MAX; i++) {
+        if(knights[i].attack) {
+            knights[i].time++; //Increment time
+            //Stop attack at end of animation
+            if(knights[i].time >= ANIM_FRAME_DELAY*ANIM_FRAME_MAX) {
+                knights[i].time = 0;
+                knights[i].attack = false;
+            }
+        }
+    }
+}
+
 int main()
 {
     //Init logging
@@ -74,17 +88,8 @@ int main()
     while (1)
     {
         render();
-        //Advance knight time
-        for(int i=0; i<KNIGHT_MAX; i++) {
-            if(knights[i].attack) {
-                knights[i].time++; //Increment time
-                //Stop attack at end of animation
-                if(knights[i].time >= ANIM_FRAME_DELAY*ANIM_FRAME_MAX) {
-                    knights[i].time = 0;
-                    knights[i].attack = false;
-                }
-            }
-        }
+        update();
+        
         //Read joypad
         joypad_poll();
         joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
