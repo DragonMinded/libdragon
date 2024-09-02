@@ -340,11 +340,15 @@ kthread_t* kernel_init(void)
 	extern void __malloc_lock(void);
 	assertf(*(uint32_t*)__malloc_lock != 0x03e00008, 
 		"Toolchain is outdated and does not support multithreading -- upgrade toolchain to the latest version");
+	// Protect from link errors when building with old toolchains without retargetable locks.
+	// Those should fall into the previous check anyway.
+	#ifdef _RETARGETABLE_LOCKING
 	// Check that retargetable locks are correctly implemented. Since a simple change
 	// in linker command can cause them to disappear, better have an assert here.
 	extern void __retarget_lock_acquire_recursive(_LOCK_T lock);
 	assertf(*(uint32_t*)__retarget_lock_acquire_recursive != 0x03e00008, 
 		"Build error: retargetable locks not defined -- check that the linker invokation is correct");
+	#endif
 	#endif
 	th_ready = NULL;  // empty ready list
 	th_count = 1; // start with the main thread
