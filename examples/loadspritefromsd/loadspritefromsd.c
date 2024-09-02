@@ -6,66 +6,35 @@
 
 static const int MAX_SPRITES = 4;
 static char *sprites_rom[] = {
-	"rom:/circle0.sprite",
-	"rom:/diamond0.sprite",
-	"rom:/pentagon0.sprite",
-	"rom:/triangle0.sprite",
+	"rom:/attack1.sprite",
+	"rom:/attack2.sprite",
+	"rom:/attack3.sprite",
+	"rom:/attack4.sprite",
 };
 
 static char *sprites_sd[] = {
-	"sd:/circle0.sprite",
-	"sd:/diamond0.sprite",
-	"sd:/pentagon0.sprite",
-	"sd:/triangle0.sprite",
+	"sd:/attack1.sprite",
+	"sd:/attack2.sprite",
+	"sd:/attack3.sprite",
+	"sd:/attack4.sprite",
 };
 static bool use_sd = true;
 
 static int cur_sprite = -1;
 static sprite_t *sprite;
 
-/* Gets the file size - used to know how much to allocate */
-int filesize(FILE *pFile) {
-	fseek(pFile, 0, SEEK_END);
-	int lSize = ftell(pFile);
-	rewind(pFile);
-
-	return lSize;
-}
-
-/*
-Load a sprite with the given path. Can load both from SD and ROM.
-We can't use dfs_read here since we may be loading from the SD card.
- */
-sprite_t *spritesheet_load(const char *sprite_path) {
-	FILE *fp = fopen(sprite_path, "r");
-	if (!fp) {
-		debugf("Error loading background\n");
-		return NULL;
-	}
-
-	const int size = filesize(fp);
-	debugf("Size: %d\n", size);
-
-	sprite_t *sprite = malloc(size);
-
-	fread(sprite, 1, size, fp);
-	fclose(fp);
-
-	return sprite;
-}
-
 /* Selects the next sprite and loads it (also frees the previous, if any) */
 void load_sprite(int id) {
 	if (cur_sprite >= 0) {
-		free(sprite);
+		sprite_free(sprite);
 	}
 
 	cur_sprite = id;
 
 	if (use_sd)
-		sprite = spritesheet_load(sprites_sd[cur_sprite]);
+		sprite = sprite_load(sprites_sd[cur_sprite]);
 	else
-		sprite = spritesheet_load(sprites_rom[cur_sprite]);
+		sprite = sprite_load(sprites_rom[cur_sprite]);
 }
 
 int main(void) {
@@ -92,7 +61,7 @@ int main(void) {
 		graphics_fill_screen(disp, 0);
 
 		/* Draw the current loaded sprite (can be from SD or ROM, at this point it doesn't matter) */
-		graphics_draw_sprite(disp, 20, 40, sprite);
+		graphics_draw_sprite_trans(disp, 20, 40, sprite);
 
 		/* Draw some help text on screen */
 		graphics_draw_text(disp, 20, 20, "Press START to change sprites.");
