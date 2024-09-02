@@ -4,16 +4,19 @@
 #include <stdint.h>
 #include <libdragon.h>
 
-static const int MAX_SPRITES = 3;
+static const int MAX_SPRITES = 4;
 static char *sprites_rom[] = {
-	"rom:/mudkip.sprite",
-	"rom:/earthbound.sprite",
-	"rom:/plane.sprite",
+	"rom:/circle0.sprite",
+	"rom:/diamond0.sprite",
+	"rom:/pentagon0.sprite",
+	"rom:/triangle0.sprite",
 };
+
 static char *sprites_sd[] = {
-	"sd:/mudkip.sprite",
-	"sd:/earthbound.sprite",
-	"sd:/plane.sprite",
+	"sd:/circle0.sprite",
+	"sd:/diamond0.sprite",
+	"sd:/pentagon0.sprite",
+	"sd:/triangle0.sprite",
 };
 static bool use_sd = true;
 
