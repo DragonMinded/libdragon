@@ -13,12 +13,12 @@ all: loadspritefromsd.z64
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
 	@echo "    [SPRITE] $@"
-	@$(N64_MKSPRITE) -f RGBA16 --compress 0 -o "$(dir $@)" "$<"
+	@$(N64_MKSPRITE) -f RGBA16 -o "$(dir $@)" "$<"
 
 $(BUILD_DIR)/loadspritefromsd.dfs: $(assets_conv)
 $(BUILD_DIR)/loadspritefromsd.elf: $(src:%.c=$(BUILD_DIR)/%.o)
 
-loadspritefromsd.z64: N64_ROM_TITLE="GL Demo"
+loadspritefromsd.z64: N64_ROM_TITLE="loadspritefromsd"
 loadspritefromsd.z64: $(BUILD_DIR)/loadspritefromsd.dfs
 
 clean:
