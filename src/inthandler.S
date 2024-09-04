@@ -84,15 +84,15 @@ inthandler:
 	sd $25,(STACK_GPR+25*8)(sp) # T9
 	sd $31,(STACK_GPR+31*8)(sp) # RA
 
-	mflo k0
-	mfhi k1
-	sd k0,STACK_LO(sp)
-	sd k1,STACK_HI(sp)
+	mflo t0
+	mfhi t1
+	sd t0,STACK_LO(sp)
+	sd t1,STACK_HI(sp)
 
-	mfc0 k0, C0_EPC
-	mfc0 k1, C0_SR
-	sw k0, STACK_EPC(sp)
-	sw k1, STACK_SR(sp)
+	mfc0 t0, C0_EPC
+	mfc0 t1, C0_SR
+	sw t0, STACK_EPC(sp)
+	sw t1, STACK_SR(sp)
 
 	# Since all critical information about current exception has been saved,
 	# we can now turn off EXL. This allows a reentrant exception to save its
@@ -100,8 +100,8 @@ inthandler:
 	# interrupts disabled so that we don't risk triggering recursive interrupts,
 	# so disable IE as well. If the triggering code was running in a non-kernel
 	# mode, we also need to re-enter kernel mode.
-	and k1, ~(SR_IE | SR_EXL | SR_KSU)
-	mtc0 k1, C0_SR
+	and t1, ~(SR_IE | SR_EXL | SR_KSU)
+	mtc0 t1, C0_SR
 
 	# WARNING: after clearing the EXL bit, it is now possible to trigger
 	# reentrant exceptions (and not only crashing ones).
@@ -470,53 +470,6 @@ save_fpu_regs:
 inthandler_end:
 	.endfunc
 
-	.section .bss
-	.p2align 2
-	.lcomm interrupt_exception_frame, 4
-
-	ld k1,STACK_LO(k0)
-	mtlo k1
-
-	ld k1,STACK_HI(k0)
-	mthi k1
-
-	ldc1 $f0,(STACK_FPR+0*8)(k0)
-	ldc1 $f1,(STACK_FPR+1*8)(k0)
-	ldc1 $f2,(STACK_FPR+2*8)(k0)
-	ldc1 $f3,(STACK_FPR+3*8)(k0)
-	ldc1 $f4,(STACK_FPR+4*8)(k0)
-	ldc1 $f5,(STACK_FPR+5*8)(k0)
-	ldc1 $f6,(STACK_FPR+6*8)(k0)
-	ldc1 $f7,(STACK_FPR+7*8)(k0)
-	ldc1 $f8,(STACK_FPR+8*8)(k0)
-	ldc1 $f9,(STACK_FPR+9*8)(k0)
-	ldc1 $f10,(STACK_FPR+10*8)(k0)
-	ldc1 $f11,(STACK_FPR+11*8)(k0)
-	ldc1 $f12,(STACK_FPR+12*8)(k0)
-	ldc1 $f13,(STACK_FPR+13*8)(k0)
-	ldc1 $f14,(STACK_FPR+14*8)(k0)
-	ldc1 $f15,(STACK_FPR+15*8)(k0)
-	ldc1 $f16,(STACK_FPR+16*8)(k0)
-	ldc1 $f17,(STACK_FPR+17*8)(k0)
-	ldc1 $f18,(STACK_FPR+18*8)(k0)
-	ldc1 $f19,(STACK_FPR+19*8)(k0)
-	ldc1 $f20,(STACK_FPR+20*8)(k0)
-	ldc1 $f21,(STACK_FPR+21*8)(k0)
-	ldc1 $f22,(STACK_FPR+22*8)(k0)
-	ldc1 $f23,(STACK_FPR+23*8)(k0)
-	ldc1 $f24,(STACK_FPR+24*8)(k0)
-	ldc1 $f25,(STACK_FPR+25*8)(k0)
-	ldc1 $f26,(STACK_FPR+26*8)(k0)
-	ldc1 $f27,(STACK_FPR+27*8)(k0)
-	ldc1 $f28,(STACK_FPR+28*8)(k0)
-	ldc1 $f29,(STACK_FPR+29*8)(k0)
-	ldc1 $f30,(STACK_FPR+30*8)(k0)
-	ldc1 $f31,(STACK_FPR+31*8)(k0)
-
-	lw k1, STACK_FC31(k0)
-	ctc1 k1, $f31
-
-	.set noat
-	ld $1,(STACK_GPR+1*8)(k0)
-	eret
-	nop
+    .section .bss
+    .p2align 2
+    .lcomm interrupt_exception_frame, 4
