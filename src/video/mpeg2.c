@@ -11,7 +11,11 @@
 #include <errno.h>
 #include "mpeg1_internal.h"
 
-#define YUV_MODE   1   // 0=CPU, 1=RSP+RDP
+typedef struct mpeg2_s {
+	plm_buffer_t *buf;
+	plm_video_t *v;
+	void *f;
+} mpeg2_t;
 
 DEFINE_RSP_UCODE(rsp_mpeg1);
 
@@ -99,7 +103,8 @@ void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg/pl_mpeg.h"
 
-void mpeg2_open(mpeg2_t *mp2, const char *fn, int output_width, int output_height) {
+mpeg2_t *mpeg2_open(const char *fn) {
+	mpeg2_t *mp2 = malloc(sizeof(mpeg2_t));
 	memset(mp2, 0, sizeof(mpeg2_t));
 
 	rsp_mpeg1_init();
@@ -118,25 +123,19 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn, int output_width, int output_heigh
 
 	mp2->v = plm_video_create_with_buffer(mp2->buf, 1);
 	assert(mp2->v);
+	return mp2;
+}
 
-	// Fetch resolution. These calls will automatically decode enough of the
-	// stream header to acquire these data.
-	int width = plm_video_get_width(mp2->v);
-	int height = plm_video_get_height(mp2->v);
+int mpeg2_get_width(mpeg2_t *mp2) {
+	return plm_video_get_width(mp2->v);
+}
 
-	debugf("Resolution: %dx%d\n", width, height);
+int mpeg2_get_height(mpeg2_t *mp2) {
+	return plm_video_get_height(mp2->v);
+}
 
-	if (YUV_MODE == 1) {
-		yuv_init();
-
-		// Create a YUV blitter for this resolution
-		mp2->yuv_blitter = yuv_blitter_new_fmv(
-			width, height,
-			output_width, output_height,
-			NULL);
-	}
-
-	profile_init();
+float mpeg2_get_framerate(mpeg2_t *mp2) {
+	return plm_video_get_framerate(mp2->v);
 }
 
 bool mpeg2_next_frame(mpeg2_t *mp2) {
@@ -150,34 +149,16 @@ void mpeg2_rewind(mpeg2_t *mp2) {
 	plm_video_rewind(mp2->v);
 }
 
-void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp) {
-	PROFILE_START(PS_YUV, 0);
-	if (YUV_MODE == 0) {	
-	    plm_frame_to_rgba(mp2->f, disp->buffer, disp->stride);
-	} else {
-		plm_frame_t *frame = mp2->f;
-		surface_t yp = surface_make_linear(frame->y.data, FMT_I8, frame->width, frame->height);
-		surface_t cbp = surface_make_linear(frame->cb.data, FMT_I8, frame->width/2, frame->height/2);
-		surface_t crp = surface_make_linear(frame->cr.data, FMT_I8, frame->width/2, frame->height/2);
-		yuv_blitter_run(&mp2->yuv_blitter, &yp, &cbp, &crp);
-    }
-	PROFILE_STOP(PS_YUV, 0);
-
-    static int nframes=0;
-    profile_next_frame();
-    if (++nframes % 128 == 0) {
-    	profile_dump();
-    	profile_init();
-    }
-}
-
-float mpeg2_get_framerate(mpeg2_t *mp2) {
-	return plm_video_get_framerate(mp2->v);
+yuv_frame_t mpeg2_get_frame(mpeg2_t *mp2) {
+	plm_frame_t *frame = mp2->f;
+	surface_t yp  = surface_make_linear(frame->y.data,  FMT_I8, frame->width,   frame->height);
+	surface_t cbp = surface_make_linear(frame->cb.data, FMT_I8, frame->width/2, frame->height/2);
+	surface_t crp = surface_make_linear(frame->cr.data, FMT_I8, frame->width/2, frame->height/2);
+	return (yuv_frame_t){ .y = yp, .u = cbp, .v = crp };
 }
 
 void mpeg2_close(mpeg2_t *mp2) {
 	plm_video_destroy(mp2->v);
 	plm_buffer_destroy(mp2->buf);
-	if (YUV_MODE == 1) yuv_blitter_free(&mp2->yuv_blitter);
-	memset(mp2, 0, sizeof(mpeg2_t));
+	free(mp2);
 }

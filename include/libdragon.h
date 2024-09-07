@@ -53,6 +53,7 @@
 #include "timer.h"
 #include "exception.h"
 #include "dir.h"
+#include "yuv.h"
 #include "mpeg2.h"
 #include "throttle.h"
 #include "mixer.h"

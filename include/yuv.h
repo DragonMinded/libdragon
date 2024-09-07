@@ -216,6 +216,12 @@ yuv_colorspace_t yuv_new_colorspace(float Kr, float Kb, int y0, int yrange, int 
  */
 color_t yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v, const yuv_colorspace_t *cs);
 
+/** @brief A YUV frame, made of three distinct planes */
+typedef struct {
+	surface_t y;           ///< Luminance plane (Y)
+    surface_t u;           ///< Chrominance plane (U)
+    surface_t v;           ///< Chrominance plane (V)
+} yuv_frame_t;
 
 /** @brief YUV blitter zoom configuration */
 typedef enum {
@@ -338,14 +344,12 @@ yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
  * attached surface (see #rdpq_attach).
  * 
  * The blitter is configured at creation time with parameters that describe
- * where to draw ito the buffer, whether to perform a zoom, etc.
+ * where to draw into the buffer, whether to perform a zoom, etc.
  * 
  * @param blitter 		Blitter created by #yuv_blitter_new_fmv or #yuv_blitter_new
- * @param yp 			Y plane
- * @param up 			U plane
- * @param vp 			V plane
+ * @param frame         YUV frame to blit
  */
-void yuv_blitter_run(yuv_blitter_t *blitter, surface_t *yp, surface_t *up, surface_t *vp);
+void yuv_blitter_run(yuv_blitter_t *blitter, yuv_frame_t *frame);
 
 /**
  * @brief Free the memory allocated by a blitter
@@ -373,9 +377,7 @@ void yuv_blitter_free(yuv_blitter_t *blitter);
  * 
  * For more information on how to use this function, see #rdpq_tex_blit.
  * 
- * @param yp 			Pointer to the Y plane (must be #FMT_I8)
- * @param up 			Pointer to the U plane (must be #FMT_I8)
- * @param vp 			Pointer to the V plane (must be #FMT_I8)
+ * @param frame         YUV frame to blit
  * @param x0 		    X coordinate where to blit the frame
  * @param y0            Y coordinate where to blit the frame
  * @param parms         Optional blitting parameters (see #rdpq_blitparms_t)
@@ -387,8 +389,8 @@ void yuv_blitter_free(yuv_blitter_t *blitter);
  * @see #yuv_blitter_new
  * @see #yuv_blitter_new_fmv
  */
-void yuv_tex_blit(surface_t *yp, surface_t *up, surface_t *vp,
-    float x0, float y0, const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
+void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
+    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
 
 #ifdef __cplusplus

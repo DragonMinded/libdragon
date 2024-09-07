@@ -26,6 +26,8 @@ int main(void) {
 	display_init(RESOLUTION_320x240, DEPTH_32_BPP, NUM_DISPLAY, GAMMA_NONE, FILTERS_DISABLED);
 	dfs_init(DFS_DEFAULT_LOCATION);
 	rdpq_init();
+	profile_init();
+	yuv_init();
 
 	audio_init(44100, 4);
 	mixer_init(8);
@@ -36,25 +38,30 @@ int main(void) {
 	assertf(f, "Movie not found!\nInstall wget and ffmpeg to download and encode the sample movie\n");
 	fclose(f);
 
-	mpeg2_t mp2;
-	mpeg2_open(&mp2, "rom:/movie.m1v", display_get_width(), display_get_height());
+	mpeg2_t *mp2 = mpeg2_open("rom:/movie.m1v");
+
+	// Create a YUV blitter to draw this movie
+	yuv_blitter_t yuv = yuv_blitter_new_fmv(
+		mpeg2_get_width(mp2), mpeg2_get_height(mp2),		// Video size
+		display_get_width(), display_get_height(),			// Output size
+		NULL												// Colorspace (use default)
+	);												
 
 	wav64_t music;
 	wav64_open(&music, "movie.wav64");
 
-	float fps = mpeg2_get_framerate(&mp2);
+	float fps = mpeg2_get_framerate(mp2);
 	throttle_init(fps, 0, 8);
 
 	mixer_ch_play(0, &music.wave);
 
-	debugf("start\n");
 	int nframes = 0;
 	display_context_t disp = 0;
 
 	while (1) {
 		mixer_throttle(44100.0f / fps);
 
-		if (!mpeg2_next_frame(&mp2))
+		if (!mpeg2_next_frame(mp2))
 			break;
 
 		disp = display_get();
@@ -62,20 +69,16 @@ int main(void) {
 		// rdpq_attach(disp, NULL);
 		rdpq_attach_clear(disp, NULL);
 
-		mpeg2_draw_frame(&mp2, disp);
+		PROFILE_START(PS_YUV, 0);
+		yuv_frame_t frame = mpeg2_get_frame(mp2);
+		yuv_blitter_run(&yuv, &frame);
+		PROFILE_STOP(PS_YUV, 0);
 
 		rdpq_detach_show();
 
 		audio_poll();
 
 		nframes++;
-		// uint32_t t1 = TICKS_READ();
-		// if (TICKS_DISTANCE(t0, t1) > TICKS_PER_SECOND && nframes) {
-		// 	float fps = (float)nframes / (float)TICKS_DISTANCE(t0,t1) * TICKS_PER_SECOND;
-		// 	debugf("FPS: %.2f\n", fps);
-		// 	t0 = t1;
-		// 	nframes = 0;
-		// }
 
 		int ret = throttle_wait();
 		if (ret < 0) {
@@ -87,5 +90,11 @@ int main(void) {
 		PROFILE_START(PS_SYNC, 0);
 		rspq_wait();
 		PROFILE_STOP(PS_SYNC, 0);
+
+		profile_next_frame();
+		if (nframes % 128 == 0) {
+			profile_dump();
+			profile_init();
+		}
 	}
 }
