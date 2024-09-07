@@ -123,6 +123,13 @@ mpeg2_t *mpeg2_open(const char *fn) {
 
 	mp2->v = plm_video_create_with_buffer(mp2->buf, 1);
 	assert(mp2->v);
+
+	// Force decoding of header. This would be done lazily but better do it
+	// now to catch any errors early.
+	if (!plm_video_has_header(mp2->v)) {
+		assertf(0, "invalid header in video stream\n");
+	}
+
 	return mp2;
 }
 
