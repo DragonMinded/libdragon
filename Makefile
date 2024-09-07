@@ -33,7 +33,7 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
 			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
 			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
-			 $(BUILD_DIR)/console.o $(BUILD_DIR)/asset.o \
+			 $(BUILD_DIR)/console.o $(BUILD_DIR)/asset.o $(BUILD_DIR)/pifile.o \
 			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/lz4_dec_fast.o $(BUILD_DIR)/compress/ringbuf.o \
 			 $(BUILD_DIR)/compress/aplib_dec_fast.o $(BUILD_DIR)/compress/aplib_dec.o \
 			 $(BUILD_DIR)/compress/shrinkler_dec_fast.o $(BUILD_DIR)/compress/shrinkler_dec.o \
@@ -128,6 +128,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
 	install -Cv -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
 	install -Cv -m 0644 include/asset.h $(INSTALLDIR)/mips64-elf/include/asset.h
+	install -Cv -m 0644 include/pifile.h $(INSTALLDIR)/mips64-elf/include/pifile.h
 	install -Cv -m 0644 include/audio.h $(INSTALLDIR)/mips64-elf/include/audio.h
 	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
 	install -Cv -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h

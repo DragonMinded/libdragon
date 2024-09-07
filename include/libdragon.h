@@ -37,6 +37,7 @@
 #include "dma.h"
 #include "dragonfs.h"
 #include "asset.h"
+#include "pifile.h"
 #include "eeprom.h"
 #include "eepromfs.h"
 #include "graphics.h"
