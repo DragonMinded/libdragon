@@ -96,7 +96,7 @@ static int __pifile_read(void *file, uint8_t *buf, int len)
         return 0;
 
     // Check if we can DMA directly to the output buffer
-    if (((f->base + f->ptr) ^ (uint32_t)buf) == 0) {
+    if ((((f->base + f->ptr) ^ (uint32_t)buf) & 1) == 0) {
         data_cache_hit_writeback_invalidate(buf, len);
         dma_read_async(buf, f->base + f->ptr, len);
         dma_wait();
