@@ -92,12 +92,15 @@ static int __pifile_read(void *file, uint8_t *buf, int len)
     pifile_t *f = file;
     if (f->ptr + len > f->size)
         len = f->size - f->ptr;
+    if (len <= 0)
+        return 0;
 
     // Check if we can DMA directly to the output buffer
     if (((f->base + f->ptr) ^ (uint32_t)buf) == 0) {
         data_cache_hit_writeback_invalidate(buf, len);
         dma_read_async(buf, f->base + f->ptr, len);
         dma_wait();
+        f->ptr += len;
     } else {
         // Go through a temporary buffer
         uint8_t *tmp = alloca(512+1);
@@ -115,7 +118,6 @@ static int __pifile_read(void *file, uint8_t *buf, int len)
         }
     }
 
-    f->ptr += len;
     return len;
 }
 
