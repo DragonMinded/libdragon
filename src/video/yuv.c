@@ -228,8 +228,6 @@ color_t yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v, const yuv_colorspace_t *cs)
     float g = yp + cs->c2 * (u-128) + cs->c3 * (v-128) + .5f;
     float b = yp + cs->c4 * (u-128) + .5f;
 
-    debugf("%d,%d,%d => %f,%f,%f\n", y, u, v, r, g, b);
-
     return (color_t){
         .r = r > 255 ? 255.f : r < 0 ? 0 : r,
         .g = g > 255 ? 255.f : g < 0 ? 0 : g,
