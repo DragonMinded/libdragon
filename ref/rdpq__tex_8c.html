@@ -270,7 +270,7 @@ limit</td>
 <div class="line">    100, 100,                           <span class="comment">// texture coordinates</span></div>
 <div class="line">    1.0, 1.0);                          <span class="comment">// texture increments (= no scaling)</span></div>
 <div class="ttc" id="ardpq_8h_html_a8d34f311d2e71435652a57adb1d6931eadb7ac46392b285fc6cbac9404f189cc1"><div class="ttname"><a href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931eadb7ac46392b285fc6cbac9404f189cc1">TILE2</a></div><div class="ttdeci">@ TILE2</div><div class="ttdoc">Tile #2 (for code readability)</div><div class="ttdef"><b>Definition:</b> rdpq.h:252</div></div>
-<div class="ttc" id="ardpq__rect_8h_html_a7196362c567172a2012f414c8a412743"><div class="ttname"><a href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743">rdpq_texture_rectangle</a></div><div class="ttdeci">#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t)</div><div class="ttdoc">Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)</div><div class="ttdef"><b>Definition:</b> rdpq_rect.h:307</div></div>
+<div class="ttc" id="ardpq__rect_8h_html_a7196362c567172a2012f414c8a412743"><div class="ttname"><a href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743">rdpq_texture_rectangle</a></div><div class="ttdeci">#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t)</div><div class="ttdoc">Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)</div><div class="ttdef"><b>Definition:</b> rdpq_rect.h:308</div></div>
 <div class="ttc" id="ardpq__tex_8c_html_a02d0ec8eab1907101928c226831e6af3"><div class="ttname"><a href="rdpq__tex_8c.html#a02d0ec8eab1907101928c226831e6af3">rdpq_tex_upload_sub</a></div><div class="ttdeci">int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)</div><div class="ttdoc">Load a portion of texture into TMEM.</div><div class="ttdef"><b>Definition:</b> rdpq_tex.c:365</div></div>
 </div><!-- fragment --><p >An alternative to this function is to call <a class="el" href="surface_8h.html#a201a14d89649b0f81ef8d535b724b34f" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> on the texture to create a sub-surface, and then call rdpq_tex_upload on the sub-surface. The same data will be loaded into TMEM but this time the RDP ignores that you are loading a portion of a larger texture:</p>
 <div class="fragment"><div class="line"><span class="comment">// Create a sub-surface of spritemap texture. No memory allocations</span></div>
@@ -423,7 +423,8 @@ limit</td>
 <p >This sub-variant also allows to specify what part of the uploaded texture must be reused. For example, after uploading a 64x64 texture (or a 64x64 sub texture of a larger surface), you can reuse an existing portion of it, like (16,16)-(48,48) or (0,0)-(8,32). Restrictions of <a class="el" href="rdpq__tex_8h.html#structrdpq__texparms__t" title="Texture sampling parameters for rdpq_tex_upload.">rdpq_texparms_t</a> apply just when reusing just as well as for uploading a texture.</p>
 <p >Sub-rectangle must be within the bounds of the texture reused and be 8-byte aligned, not all starting positions are valid for different formats.</p>
 <p >Starting horizontal position s0 must be 8-byte aligned, meaning for different image formats you can use <a class="el" href="surface_8h.html#a3d266c460ce7974103858f37f8921c67" title="Convert the specified number of bytes to pixels.">TEX_FORMAT_BYTES2PIX(fmt, bytes)</a> with bytes being in multiples of 8. Starting vertical position t0 must be in multiples of 2 pixels due to TMEM arrangement.</p>
-<p >Leaving parms to NULL will copy the previous' texture texparms. Note: This function must be executed in a multi-upload block right after the reused texture has been uploaded.</p>
+<p >Leaving parms to NULL will copy the previous' texture texparms.</p>
+<p >NOTE: This function must be executed in a multi-upload block right after the reused texture has been uploaded.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">tile</td><td>Tile descriptor that will be initialized with reused texture </td></tr>
@@ -468,7 +469,7 @@ limit</td>
 <p>Reuse the previously uploaded texture to TMEM. </p>
 <p >When a texture has been uploaded, its possible to reuse it for multiple tiles without increasing TMEM usage. This function provides a way to achieve this while also configuring your own texture parameters for the reused texture.</p>
 <p >This full-variant will use the whole texture that was previously uploaded. Leaving parms to NULL will copy the previous' texture texparms.</p>
-<p >Note: This function must be executed in a multi-upload block right after the reused texture has been uploaded.</p>
+<p >NOTE: This function must be executed in a multi-upload block right after the reused texture has been uploaded.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">tile</td><td>Tile descriptor that will be initialized with reused texture </td></tr>
@@ -538,7 +539,7 @@ limit</td>
 <div class="line">    .cx = splashscreen-&gt;width / 2,</div>
 <div class="line">    .cy = splashscreen-&gt;height / 2,</div>
 <div class="line">});</div>
-<div class="ttc" id="ardpq__tex_8h_html_structrdpq__blitparms__t"><div class="ttname"><a href="rdpq__tex_8h.html#structrdpq__blitparms__t">rdpq_blitparms_t</a></div><div class="ttdoc">Blitting parameters for rdpq_tex_blit.</div><div class="ttdef"><b>Definition:</b> rdpq_tex.h:300</div></div>
+<div class="ttc" id="ardpq__tex_8h_html_structrdpq__blitparms__t"><div class="ttname"><a href="rdpq__tex_8h.html#structrdpq__blitparms__t">rdpq_blitparms_t</a></div><div class="ttdoc">Blitting parameters for rdpq_tex_blit.</div><div class="ttdef"><b>Definition:</b> rdpq_tex.h:301</div></div>
 </div><!-- fragment --><p >This examples scales a 64x64 image to 256x256, putting its center near the top-left of the screen (so part of resulting image will be offscreen):</p>
 <div class="fragment"><div class="line"><a class="code hl_function" href="rdpq__tex_8c.html#a3a74ebb71eafae1b357a40417916854c">rdpq_tex_blit</a>(splashscreen, 20, 20, &amp;(<a class="code hl_struct" href="rdpq__tex_8h.html#structrdpq__blitparms__t">rdpq_blitparms_t</a>){</div>
 <div class="line">    .cx = splashscreen-&gt;width / 2, .cy = splashscreen-&gt;height / 2,</div>
