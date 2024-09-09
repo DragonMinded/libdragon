@@ -52,12 +52,11 @@ extern "C" {
 /**
  * @brief Will be called periodically when more sample data is needed.
  *
- * @param[in] buffer
- *            The address to write the sample data to
- * @param[in] numsamples
- *            The number of samples to write to the buffer
- *            Note: this is the number of samples per channel, so clients
- *            should write twice this number of samples (interleaved).
+ * @param[in] buffer        The address to write the sample data to
+ * @param[in] numsamples    The number of samples to write to the buffer
+ * 
+ * NOTE: This is the number of samples per channel, so clients should write
+ * twice this number of samples (interleaved).
  */
 typedef void(*audio_fill_buffer_callback)(short *buffer, size_t numsamples);
 

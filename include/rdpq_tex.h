@@ -216,7 +216,8 @@ void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * Starting vertical position t0 must be in multiples of 2 pixels due to TMEM arrangement.
  * 
  * Leaving parms to NULL will copy the previous' texture texparms.
- * Note: This function must be executed in a multi-upload block right after the reused texture has been
+ * 
+ * NOTE: This function must be executed in a multi-upload block right after the reused texture has been
  * uploaded.
  * 
  * @param tile       Tile descriptor that will be initialized with reused texture
@@ -239,7 +240,7 @@ int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, i
  * This full-variant will use the whole texture that was previously uploaded.
  * Leaving parms to NULL will copy the previous' texture texparms.
  * 
- * Note: This function must be executed in a multi-upload block right after the reused texture has been
+ * NOTE: This function must be executed in a multi-upload block right after the reused texture has been
  * uploaded.
  * 
  * @param tile       Tile descriptor that will be initialized with reused texture
