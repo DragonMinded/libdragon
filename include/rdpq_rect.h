@@ -292,6 +292,9 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * call #rdpq_triangle instead, and thus draw the rectangles as two triangles.
  * This will however incur in more overhead on the CPU to setup the primitives.
  * 
+ * NOTE: implemented using a macro here to support both integer and float inputs
+ * without ever forcing a useless additional conversion.
+ * 
  * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
  * @param[in]   x0      Top-left X coordinate of the rectangle
  * @param[in]   y0      Top-left Y coordinate of the rectangle
@@ -302,8 +305,6 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * 
  * @hideinitializer
  */
-// NOTE: we use a macro here to support both integer and float inputs without ever forcing
-// a useless additional conversion.
 #define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t) \
     __rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32)
 

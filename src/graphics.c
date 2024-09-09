@@ -22,7 +22,7 @@ static struct {
     sprite_t *sprite;
     int font_width;
     int font_height;
-} sprite_font = { .sprite = NULL };
+} sprite_font = { .sprite = NULL, .font_width = 8, .font_height = 8 };
 
 
 /**
@@ -428,8 +428,9 @@ void graphics_fill_screen( surface_t* disp, uint32_t c )
 
 void graphics_set_default_font( void )
 {
-    sprite_t *font = (sprite_t *)(display_get_bitdepth() == 2 ? __font_data_16 : __font_data_32);
-    graphics_set_font_sprite( font );
+    sprite_font.sprite = NULL;
+    sprite_font.font_width = 8;
+    sprite_font.font_height = 8;
 }
 
 void graphics_set_font_sprite( sprite_t *font )
@@ -446,8 +447,8 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
     int depth = display_get_bitdepth();
 
-    // setting default font if none was set previously
-    if( sprite_font.sprite == NULL || depth*8 != TEX_FORMAT_BITDEPTH(sprite_get_format(sprite_font.sprite)) )
+    // resetting to default font if bit depth has been changed
+    if( sprite_font.sprite != NULL && depth*8 != TEX_FORMAT_BITDEPTH(sprite_get_format(sprite_font.sprite)) )
     {
         graphics_set_default_font();
     }
@@ -455,62 +456,134 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     /* Figure out if they want the background to be transparent */
     int trans = __is_transparent( depth, b_color );
 
-    const int sx = ( ch % sprite_font.sprite->hslices ) * sprite_font.font_width;
-    const int sy = ( ch / sprite_font.sprite->hslices ) * sprite_font.font_height;
-    const int ex = sx + sprite_font.font_width;
-    const int ey = sy + sprite_font.font_height;
-
-    const int tx = x - sx;
-    const int ty = y - sy;
-
-    if( depth == 2 )
+    if ( sprite_font.sprite != NULL )
     {
-        uint16_t *buffer = (uint16_t *)__get_buffer( disp );
-        uint16_t *sp_data = (uint16_t *)sprite_font.sprite->data;
+        // Use custom font
+        const int sx = ( ch % sprite_font.sprite->hslices ) * sprite_font.font_width;
+        const int sy = ( ch / sprite_font.sprite->hslices ) * sprite_font.font_height;
+        const int ex = sx + sprite_font.font_width;
+        const int ey = sy + sprite_font.font_height;
 
-        for( int yp = sy; yp < ey; yp++ )
+        const int tx = x - sx;
+        const int ty = y - sy;
+
+        if( depth == 2 )
         {
-            const register int run = yp * sprite_font.sprite->width;
+            uint16_t *buffer = (uint16_t *)__get_buffer( disp );
+            uint16_t *sp_data = (uint16_t *)sprite_font.sprite->data;
 
-            for( int xp = sx; xp < ex; xp++ )
+            for( int yp = sy; yp < ey; yp++ )
             {
-                const char c = sp_data[xp + run];
-                if( trans )
+                const register int run = yp * sprite_font.sprite->width;
+
+                for( int xp = sx; xp < ex; xp++ )
                 {
-                    if( ( c & 0x1 ) != 0x0 )
+                    const char c = sp_data[xp + run];
+                    int active = !__is_transparent (depth, c);
+                    if( trans )
                     {
-                        __set_pixel( buffer, tx + xp, ty + yp, f_color );
+                        if( active )
+                        {
+                            /* Only draw it if it is active */
+                            __set_pixel( buffer, tx + xp, ty + yp, f_color );
+                        }
                     }
-                }
-                else
-                {
-                    __set_pixel( buffer, tx + xp, ty + yp, ( ( c & 0x1 ) != 0x0 ) ? f_color : b_color );
+                    else
+                    {
+                        /* Display foreground or background depending on font data */
+                        __set_pixel( buffer, tx + xp, ty + yp, active ? f_color : b_color );
+                    }
                 }
             }
         }
-    }
-    else
-    {
-        uint32_t *buffer = (uint32_t *)__get_buffer( disp );
-        uint32_t *sp_data = (uint32_t *)sprite_font.sprite->data;
-
-        for( int yp = sy; yp < ey; yp++ )
+        else
         {
-            const register int run = yp * sprite_font.sprite->width;
+            uint32_t *buffer = (uint32_t *)__get_buffer( disp );
+            uint32_t *sp_data = (uint32_t *)sprite_font.sprite->data;
 
-            for( int xp = sx; xp < ex; xp++ )
+            for( int yp = sy; yp < ey; yp++ )
             {
-                const char c = sp_data[xp + run];
-                if( trans )
+                const register int run = yp * sprite_font.sprite->width;
+
+                for( int xp = sx; xp < ex; xp++ )
                 {
-                    if( ( c & 0xFF ) != 0x00 )
+                    const char c = sp_data[xp + run];
+                    int active = !__is_transparent (depth, c);
+                    if( trans )
                     {
-                        __set_pixel( buffer, tx + xp, ty + yp, f_color );
+                        if( active )
+                        {
+                            /* Only draw it if it is active */
+                            __set_pixel( buffer, tx + xp, ty + yp, f_color );
+                        }
+                    }
+                    else
+                    {
+                        /* Display foreground or background depending on font data */
+                        __set_pixel( buffer, tx + xp, ty + yp, active ? f_color : b_color );
                     }
                 }
-                else
+            }
+        }
+    } else {
+        // Use 1bpp default font
+        int trans = __is_transparent( depth, b_color );
+
+        if( depth == 2 )
+        {
+            uint16_t *buffer = (uint16_t *)__get_buffer( disp );
+
+            for( int row = 0; row < 8; row++ )
+            {
+                unsigned char c = __font_data[(ch * 8) + row];
+
+                for( int col = 0; col < 8; col++ )
                 {
-                    __set_pixel( buffer, tx + xp, ty + yp, ( ( c & 0xFF ) != 0x00 ) ? f_color : b_color );
+                    int active = (c & 0x80) != 0;
+                    if( trans )
+                    {
+                        if( active )
+                        {
+                            /* Only draw it if it is active */
+                            __set_pixel( buffer, x + col, y + row, f_color );
+                        }
+                    }
+                    else
+                    {
+                        /* Display foreground or background depending on font data */
+                        __set_pixel( buffer, x + col, y + row, active ? f_color : b_color );
+                    }
+
+                    c <<= 1;
+                }
+            }
+        }
+        else
+        {
+            uint32_t *buffer = (uint32_t *)__get_buffer( disp );
+
+            for( int row = 0; row < 8; row++ )
+            {
+                unsigned char c = __font_data[(ch * 8) + row];
+
+                for( int col = 0; col < 8; col++ )
+                {
+                    int active = (c & 0x80) != 0;
+                    if( trans )
+                    {
+                        if( active )
+                        {
+                            /* Only draw it if it is active */
+                            __set_pixel( buffer, x + col, y + row, f_color );
+                        }
+                    }
+                    else
+                    {
+                        /* Display foreground or background depending on font data */
+                        __set_pixel( buffer, x + col, y + row, active ? f_color : b_color );
+                    }
+
+                    c <<= 1;
                 }
             }
         }
