@@ -96,6 +96,7 @@ inline rdpq_font_t* rdpq_font_load_builtin(rdpq_font_builtin_t font) {
             return __rdpq_font_load_builtin_2();
         default:
             assertf(false, "Invalid builtin font");
+            return NULL;
     }
 }
 

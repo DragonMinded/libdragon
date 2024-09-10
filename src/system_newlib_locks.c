@@ -51,6 +51,7 @@ static struct __lock* __alloc_libc_mutex(void) {
         }
     }
     assert(0);
+    return NULL;
 }
 
 /** Free a dynamic lock from our static pool */

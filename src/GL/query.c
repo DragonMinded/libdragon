@@ -578,6 +578,7 @@ GLboolean glIsEnabled(GLenum value)
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid value name", value);
     }
+    return false;
 }
 
 void glGetPointerv(GLenum pname, GLvoid **params)
