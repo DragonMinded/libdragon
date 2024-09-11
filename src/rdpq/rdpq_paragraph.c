@@ -299,11 +299,22 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                         wrapch -= 1;
                     }
 
+                    // We have now found the character at which we want to wrap.
+                    // We want to insert the ellipsis in place of this character,
+                    // but using the font/style of the *previous* character (if it exists).
+                    builder.layout->nchars = wrapchar;
+                    uint8_t wrap_font_id, wrap_style_id;
+                    if (wrapchar > 0) {
+                        wrap_font_id = wrapch[-1].font_id; wrap_style_id = wrapch[-1].style_id;
+                    } else {
+                        wrap_font_id = wrapch[0].font_id; wrap_style_id = wrapch[0].style_id;
+                    }
+                    wfnt = rdpq_text_get_font(wrap_font_id);
+
                     uint8_t ellipsis_atlas_id;
                     __rdpq_font_glyph_metrics(wfnt, wfnt->ellipsis_glyph, NULL, NULL, NULL, NULL, &ellipsis_atlas_id);
 
-                    builder.layout->nchars = wrapchar;
-                    uint8_t wrap_font_id = wrapch[-1].font_id, wrap_style_id = wrapch[-1].style_id;
+                    assert(wrap_font_id > 0);
                     for (int i=0; i<wfnt->ellipsis_reps; i++) {
                         if (UNLIKELY(builder.layout->nchars >= builder.layout->capacity)) paragraph_extend();
                         builder.layout->chars[builder.layout->nchars++] = (rdpq_paragraph_char_t) {
