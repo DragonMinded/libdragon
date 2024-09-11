@@ -35,15 +35,15 @@ typedef struct {
 
 /** @brief A glyph in the font (part of #rdpq_font_t) */
 typedef struct glyph_s {
-    int16_t xadvance;                   ///< Number of pixels to advance the cursor after drawing the glyph (scaled by 64)
+    uint8_t xadvance;                   ///< Number of pixels to advance the cursor after drawing the glyph
     int8_t xoff;                        ///< Offset of the x0 coordinate of the glyph from the cursor
     int8_t yoff;                        ///< Offset of the y0 coordinate of the glyph from the cursor
     int8_t xoff2;                       ///< Offset of the *exclusive* x1 coordinate of the glyph from the cursor
     int8_t yoff2;                       ///< Offset of the *exclusive* y1 coordinate of the glyph from the cursor
     uint8_t s;                          ///< S texture coordinate of the glyph in the atlas
     uint8_t t;                          ///< T texture coordinate of the glyph in the atlas
-    uint8_t natlas;                     ///< Index of atlas that contains this glyph
-    uint8_t ntile;                      ///< Tile to use to draw the glyph (for multi-layer atlases)
+    uint8_t natlas : 6;                 ///< Index of atlas that contains this glyph
+    uint8_t ntile : 2;                  ///< Tile to use to draw the glyph (for multi-layer atlases)
 } glyph_t;
 
 /** @brief For each glyph, range of kerning pairs in the kerning table */
@@ -111,7 +111,7 @@ int16_t __rdpq_font_glyph(const rdpq_font_t *font, uint32_t codepoint);
 inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *atlas_id)
 {
     glyph_t *g = &fnt->glyphs[index];
-    if (xadvance) *xadvance = g->xadvance * (1.0f / 64.0f);
+    if (xadvance) *xadvance = g->xadvance;
     if (xoff) *xoff = g->xoff;
     if (xoff2) *xoff2 = g->xoff2;
     if (has_kerning) *has_kerning = fnt->glyphs_kranges && fnt->glyphs_kranges[index].kerning_lo != 0;

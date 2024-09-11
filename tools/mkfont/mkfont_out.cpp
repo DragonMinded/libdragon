@@ -409,15 +409,14 @@ void Font::write()
     uint32_t offset_glypes = ftell(out);
     for (int i=0; i<fnt->num_glyphs; i++)
     {
-        w16(out, fnt->glyphs[i].xadvance);
+        w8(out, fnt->glyphs[i].xadvance);
         w8(out, fnt->glyphs[i].xoff);
         w8(out, fnt->glyphs[i].yoff);
         w8(out, fnt->glyphs[i].xoff2);
         w8(out, fnt->glyphs[i].yoff2);
         w8(out, fnt->glyphs[i].s);
         w8(out, fnt->glyphs[i].t);
-        w8(out, fnt->glyphs[i].natlas);
-        w8(out, fnt->glyphs[i].ntile);
+        w8(out, (fnt->glyphs[i].natlas << 2) | (fnt->glyphs[i].ntile));
     }
 
     uint32_t offset_glyphs_kranges = 0;
@@ -834,12 +833,16 @@ void Font::make_atlases(void)
             }
 
             glyph_t *gout = &fnt->glyphs[glyph.gidx];
-            gout->natlas = i;
+            
+            int natlas = i;
             if (merge_layers > 1) {
+                assert(merge_layers <= 4); // 2 bits for glyph_t::ntile
                 gout->ntile = i & (merge_layers-1);
-                gout->natlas /= merge_layers;
+                natlas /= merge_layers;
             }
-            gout->natlas += fnt->num_atlases; // offset by the atlases already added for other ranges
+            natlas += fnt->num_atlases; // offset by the atlases already added for other ranges
+            assert(natlas < 64); // 6 bits for glyph_t::natlas
+            gout->natlas = natlas;
             assert(rect.x < 256 && rect.y < 256);
             gout->s = rect.x; gout->t = rect.y;
             gout->xoff = glyph.xoff;
@@ -855,7 +858,7 @@ void Font::make_atlases(void)
             }
 
             if(abs(gout->xoff) > 128 || abs(gout->yoff) > 128 || abs(gout->xoff2) > 128 || abs(gout->yoff2) > 128 ||
-                abs(gout->xadvance) > 32768)
+                gout->xadvance < 0 || gout->xadvance > 255)
             {
                 fprintf(stderr, "ERROR: font too big, please reduce point size (%d)\n", fnt->point_size);
                 exit(1);
@@ -1153,7 +1156,7 @@ void Font::add_ellipsis(int ellipsis_cp, int ellipsis_repeats)
     // Calculate length of ellipsis string
     glyph_t *g = &fnt->glyphs[ellipsis_glyph];
     glyph_krange_t *gkr = &fnt->glyphs_kranges[ellipsis_glyph];
-    float ellipsis_advance = g->xadvance * (1.0f / 64.0f);
+    float ellipsis_advance = g->xadvance;
     
     // Correct for kerning when repeating the ellipsis twice
     if (gkr->kerning_lo) {

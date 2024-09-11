@@ -24,7 +24,7 @@
 
 #define MAX_STYLES   256
 
-_Static_assert(sizeof(glyph_t) == 10, "glyph_t size is wrong");
+_Static_assert(sizeof(glyph_t) == 8, "glyph_t size is wrong");
 _Static_assert(sizeof(atlas_t) == 12, "atlas_t size is wrong");
 _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 
@@ -349,7 +349,7 @@ bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt,  uint32_t codepoint, rd
         return false;
 
     glyph_t *g = &fnt->glyphs[glyph];
-    metrics->xadvance = g->xadvance * (1.0f / 64.0f);
+    metrics->xadvance = g->xadvance;
     metrics->x0 = g->xoff;
     metrics->y0 = g->yoff;
     metrics->x1 = g->xoff2;

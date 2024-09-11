@@ -316,7 +316,7 @@ void calc_glyphs(void)
         gctx->font->add_glyph(ch.id, 
             page->crop(ch.x, ch.y, ch.width, ch.height),
             ch.xoffset, ch.yoffset - gctx->font->fnt->ascent,
-            ch.xadvance*64);
+            ch.xadvance);
     }
 
     if (!gctx->font->fnt->space_width)

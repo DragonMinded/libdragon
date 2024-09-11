@@ -216,7 +216,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                     return 1;
                 }
 
-                int gidx = font.add_glyph(g, std::move(img), slot->bitmap_left, -slot->bitmap_top, slot->advance.x + flag_ttf_char_spacing*64);
+                int gidx = font.add_glyph(g, std::move(img), slot->bitmap_left, -slot->bitmap_top, slot->advance.x/64 + flag_ttf_char_spacing);
                 gidx_to_ttfidx[gidx] = ttf_idx;
 
             } else {
@@ -279,7 +279,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                     }
                 }
 
-                int gidx = font.add_glyph(g, std::move(img), img_left, -img_top, face->glyph->advance.x + flag_ttf_char_spacing*64);
+                int gidx = font.add_glyph(g, std::move(img), img_left, -img_top, face->glyph->advance.x/64 + flag_ttf_char_spacing);
                 gidx_to_ttfidx[gidx] = ttf_idx;
             }
         }
