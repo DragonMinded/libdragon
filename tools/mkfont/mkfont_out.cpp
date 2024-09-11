@@ -306,7 +306,7 @@ struct Font {
         fonttype = ftype;
         fnt = (rdpq_font_t*)calloc(1, sizeof(rdpq_font_t));
         memcpy(fnt->magic, FONT_MAGIC, 3);
-        fnt->version = 8;
+        fnt->version = 9;
         fnt->flags = fonttype;
         fnt->point_size = point_size;
         fnt->ascent = ascent;
@@ -391,6 +391,7 @@ void Font::write()
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
+    w32(out, (uint32_t)0); // placeholder
 
     // Write ranges
     uint32_t offset_ranges = ftell(out);
@@ -417,9 +418,19 @@ void Font::write()
         w8(out, fnt->glyphs[i].t);
         w8(out, fnt->glyphs[i].natlas);
         w8(out, fnt->glyphs[i].ntile);
-        for (int j=0;j<2;j++) w8(out, (uint8_t)0);
-        w16(out, fnt->glyphs[i].kerning_lo);
-        w16(out, fnt->glyphs[i].kerning_hi);
+    }
+
+    uint32_t offset_glyphs_kranges = 0;
+    if (fnt->num_kerning > 1)
+    {
+        // Write glyph kerning ranges
+        walign(out, 16);
+        offset_glyphs_kranges = ftell(out);
+        for (int i=0; i<fnt->num_glyphs; i++)
+        {
+            w16(out, fnt->glyphs_kranges[i].kerning_lo);
+            w16(out, fnt->glyphs_kranges[i].kerning_hi);
+        }
     }
 
     // Write atlases
@@ -455,6 +466,7 @@ void Font::write()
     fseek(out, off_placeholders, SEEK_SET);
     w32(out, offset_ranges);
     w32(out, offset_glypes);
+    w32(out, offset_glyphs_kranges);
     w32(out, offset_atlases);
     w32(out, offset_kernings);
     w32(out, offset_builtin_style);
@@ -466,6 +478,7 @@ void Font::write()
 
 void Font::add_range(int first, int last)
 {
+    int range_size = last - first + 1;
     // Check that the range does not overlap an existing one
     for (int i=0;i<fnt->num_ranges;i++)
     {
@@ -482,12 +495,14 @@ void Font::add_range(int first, int last)
     }
     fnt->ranges = (range_t*)realloc(fnt->ranges, (fnt->num_ranges + 1) * sizeof(range_t));
     fnt->ranges[fnt->num_ranges].first_codepoint = first;
-    fnt->ranges[fnt->num_ranges].num_codepoints = last - first + 1;
+    fnt->ranges[fnt->num_ranges].num_codepoints = range_size;
     fnt->ranges[fnt->num_ranges].first_glyph = fnt->num_glyphs;
     fnt->num_ranges++;
-    fnt->glyphs = (glyph_t*)realloc(fnt->glyphs, (fnt->num_glyphs + last - first + 1) * sizeof(glyph_t));
-    memset(fnt->glyphs + fnt->num_glyphs, 0, (last - first + 1) * sizeof(glyph_t));
-    fnt->num_glyphs += last - first + 1;
+    fnt->glyphs =                (glyph_t*)realloc(fnt->glyphs,         (fnt->num_glyphs + range_size) * sizeof(glyph_t));
+    fnt->glyphs_kranges = (glyph_krange_t*)realloc(fnt->glyphs_kranges, (fnt->num_glyphs + range_size) * sizeof(glyph_krange_t));
+    memset(fnt->glyphs         + fnt->num_glyphs, 0, range_size * sizeof(glyph_t));
+    memset(fnt->glyphs_kranges + fnt->num_glyphs, 0, range_size * sizeof(glyph_krange_t));
+    fnt->num_glyphs += range_size;
 }
 
 int Font::get_glyph_index(uint32_t cp)
@@ -1117,9 +1132,12 @@ void Font::make_kernings()
 
         // Update lo/hi indices for current glyph.
         if (i==0 || ink->glyph1 != ink[-1].glyph1)
-            fnt->glyphs[ink->glyph1].kerning_lo = i+1;
-        fnt->glyphs[ink->glyph1].kerning_hi = i+1;
+            fnt->glyphs_kranges[ink->glyph1].kerning_lo = i+1;
+        fnt->glyphs_kranges[ink->glyph1].kerning_hi = i+1;
     }
+
+    if (flag_verbose)
+        fprintf(stderr, "added %zu kernings\n", kernings.size());
 
     kernings.clear();
 }
@@ -1134,11 +1152,12 @@ void Font::add_ellipsis(int ellipsis_cp, int ellipsis_repeats)
 
     // Calculate length of ellipsis string
     glyph_t *g = &fnt->glyphs[ellipsis_glyph];
+    glyph_krange_t *gkr = &fnt->glyphs_kranges[ellipsis_glyph];
     float ellipsis_advance = g->xadvance * (1.0f / 64.0f);
     
     // Correct for kerning when repeating the ellipsis twice
-    if (g->kerning_lo) {
-        for (int i = g->kerning_lo; i <= g->kerning_hi; i++) {
+    if (gkr->kerning_lo) {
+        for (int i = gkr->kerning_lo; i <= gkr->kerning_hi; i++) {
             if (fnt->kerning[i].glyph2 == ellipsis_glyph) {
                 ellipsis_advance += fnt->kerning[i].kerning * fnt->point_size / 127.0f;
                 break;

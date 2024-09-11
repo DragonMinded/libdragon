@@ -24,7 +24,7 @@
 
 #define MAX_STYLES   256
 
-_Static_assert(sizeof(glyph_t) == 16, "glyph_t size is wrong");
+_Static_assert(sizeof(glyph_t) == 10, "glyph_t size is wrong");
 _Static_assert(sizeof(atlas_t) == 12, "atlas_t size is wrong");
 _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 
@@ -141,9 +141,10 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
     assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
     assertf(memcmp(fnt->magic, FONT_MAGIC_LOADED, 3), "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
     assertf(!memcmp(fnt->magic, FONT_MAGIC, 3), "invalid font data (magic: %c%c%c)", fnt->magic[0], fnt->magic[1], fnt->magic[2]);
-    assertf(fnt->version == 8, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
+    assertf(fnt->version == 9, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
+    if (fnt->glyphs_kranges) fnt->glyphs_kranges = PTR_DECODE(fnt, fnt->glyphs_kranges);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
     fnt->kerning = PTR_DECODE(fnt, fnt->kerning);
     fnt->styles = &fnt->builtin_style;
@@ -219,6 +220,7 @@ static void font_unload(rdpq_font_t *fnt)
     }
     fnt->ranges = PTR_ENCODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_ENCODE(fnt, fnt->glyphs);
+    if (fnt->glyphs_kranges) fnt->glyphs_kranges = PTR_ENCODE(fnt, fnt->glyphs_kranges);
     fnt->atlases = PTR_ENCODE(fnt, fnt->atlases);
     fnt->kerning = PTR_ENCODE(fnt, fnt->kerning);
     memcpy(fnt->magic, FONT_MAGIC, 3);
@@ -253,11 +255,11 @@ int16_t __rdpq_font_glyph(const rdpq_font_t *fnt, uint32_t codepoint)
 
 float __rdpq_font_kerning(const rdpq_font_t *fnt, int16_t glyph1, int16_t glyph2)
 {
-    glyph_t *g = &fnt->glyphs[glyph1];
+    glyph_krange_t *gk = &fnt->glyphs_kranges[glyph1];
     float kerning_scale = fnt->point_size / 127.0f;
 
     // Do a binary search in the kerning table to look for the next glyph
-    int l = g->kerning_lo, r = g->kerning_hi;
+    int l = gk->kerning_lo, r = gk->kerning_hi;
     while (l <= r) {
         int m = (l + r) / 2;
         if (fnt->kerning[m].glyph2 == glyph2) {

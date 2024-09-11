@@ -44,10 +44,12 @@ typedef struct glyph_s {
     uint8_t t;                          ///< T texture coordinate of the glyph in the atlas
     uint8_t natlas;                     ///< Index of atlas that contains this glyph
     uint8_t ntile;                      ///< Tile to use to draw the glyph (for multi-layer atlases)
-    uint8_t __padding[2];               ///< Padding
+} glyph_t;
+
+typedef struct glyph_krange_s {
     uint16_t kerning_lo;                ///< Index of the first kerning pair for this glyph
     uint16_t kerning_hi;                ///< Index of the last kerning pair for this glyph
-} glyph_t;
+} glyph_krange_t;
 
 /** @brief A texture atlas (part of #rdpq_font_t) */
 typedef struct atlas_s {
@@ -90,6 +92,7 @@ typedef struct rdpq_font_s {
     style_t builtin_style;              ///< Default style for the font
     range_t *ranges;                    ///< Array of ranges
     glyph_t *glyphs;                    ///< Array of glyphs
+    glyph_krange_t *glyphs_kranges;     ///< Array of glyph kerning ranges
     atlas_t *atlases;                   ///< Array of atlases
     kerning_t *kerning;                 ///< Array of kerning pairs
     style_t *styles;                    ///< Array of styles
@@ -110,7 +113,7 @@ inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, flo
     if (xadvance) *xadvance = g->xadvance * (1.0f / 64.0f);
     if (xoff) *xoff = g->xoff;
     if (xoff2) *xoff2 = g->xoff2;
-    if (has_kerning) *has_kerning = g->kerning_lo != 0;
+    if (has_kerning) *has_kerning = fnt->glyphs_kranges && fnt->glyphs_kranges[index].kerning_lo != 0;
     if (atlas_id) *atlas_id = g->natlas;
 }
 

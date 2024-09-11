@@ -272,6 +272,12 @@ int main(int argc, char *argv[])
                 if (flag_verbose)
                     printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
                     (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
+            } else {
+                if (flag_verbose) {
+                    struct stat st = {0};
+                    stat(outfn, &st);
+                    printf("written: %s (%d bytes)\n", outfn, (int)st.st_size);
+                }
             }
         }
         free(outfn);
