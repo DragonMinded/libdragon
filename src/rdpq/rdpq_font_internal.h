@@ -46,6 +46,7 @@ typedef struct glyph_s {
     uint8_t ntile;                      ///< Tile to use to draw the glyph (for multi-layer atlases)
 } glyph_t;
 
+/** @brief For each glyph, range of kerning pairs in the kerning table */
 typedef struct glyph_krange_s {
     uint16_t kerning_lo;                ///< Index of the first kerning pair for this glyph
     uint16_t kerning_hi;                ///< Index of the last kerning pair for this glyph
