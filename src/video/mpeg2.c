@@ -121,7 +121,7 @@ mpeg2_t *mpeg2_open(const char *fn) {
 		setvbuf(mp2->buf->fh, NULL, _IONBF, 0);
 	}
 
-	mp2->v = plm_video_create_with_buffer(mp2->buf, 1);
+	mp2->v = plm_video_create_with_buffer(mp2->buf, true);
 	assert(mp2->v);
 
 	// Force decoding of header. This would be done lazily but better do it
@@ -166,6 +166,5 @@ yuv_frame_t mpeg2_get_frame(mpeg2_t *mp2) {
 
 void mpeg2_close(mpeg2_t *mp2) {
 	plm_video_destroy(mp2->v);
-	plm_buffer_destroy(mp2->buf);
 	free(mp2);
 }
