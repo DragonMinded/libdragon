@@ -349,6 +349,9 @@ struct Font {
     void make_kernings(void);
 
     void write(void);
+
+private:
+    std::vector<rect_pack::Sheet> pack_atlases(std::vector<Glyph>& glyphs, int merge_layers);
 };
 
 
@@ -565,6 +568,162 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
     return gidx;
 }
 
+// Pack the specified glyphs into optimized texture atlases
+std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int merge_layers)
+{
+    // Pack the glyphs into a texture
+    rect_pack::Settings settings;
+    memset(&settings, 0, sizeof(settings));
+    settings.method = rect_pack::Method::Best;
+    settings.method = rect_pack::Method::Best;
+    settings.max_width = 128;
+    settings.max_height = 64;
+    settings.border_padding = 0;
+    settings.allow_rotate = false;
+    
+    std::vector<rect_pack::Size> sizes;
+    std::vector<rect_pack::Sheet> sheets;
+    for (int i=0; i<glyphs.size(); i++) {
+        if (glyphs[i].img.w == 0 || glyphs[i].img.h == 0) continue;
+        rect_pack::Size size;
+        size.id = i;
+        size.width = glyphs[i].img.w + settings.border_padding;
+        size.height = glyphs[i].img.h + settings.border_padding;
+        sizes.push_back(size);
+    }
+
+    tex_format_t cfmt; 
+    switch (fonttype) {
+    case FONT_TYPE_BITMAP:
+        cfmt = bmp_outfmt;
+        switch (bmp_outfmt) {
+        case FMT_RGBA16:
+            settings.max_width = 64;
+            settings.max_height = 32;
+            settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
+            break;
+        case FMT_RGBA32:
+            settings.max_width = 32;
+            settings.max_height = 32;
+            // RGBA32 is 4bpp but it's split into two 16-bit planes in TMEM.
+            // So the width alignment applies for each 16-bit plane.
+            settings.align_width = TEX_FORMAT_BYTES2PIX(FMT_RGBA16, 8);
+            break;
+        case FMT_CI4:
+            settings.max_width = 64;
+            settings.max_height = 64;
+            settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
+            break;
+        case FMT_CI8:
+            settings.max_width = 64;
+            settings.max_height = 32;
+            settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
+            break;
+        default:
+            assert(!"unsupported bitmap format");
+        }
+        break;
+    case FONT_TYPE_ALIASED:
+        // Aliased font: pack into I4 (max 128x64).
+        settings.max_width = 128;
+        settings.max_height = 64;
+        cfmt = FMT_I4;
+        settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
+        break;
+    case FONT_TYPE_ALIASED_OUTLINE:
+        // Aliased+outlined font: pack into IA8 (max 64x64).
+        settings.max_width = 64;
+        settings.max_height = 64;
+        cfmt = FMT_IA8;
+        settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
+        break;
+    case FONT_TYPE_MONO:
+    case FONT_TYPE_MONO_OUTLINE:
+        settings.max_width = 64;
+        settings.max_height = 64;
+        cfmt = FMT_CI4;
+        settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
+        break;
+    default:
+        assert(!"unsupported font type");
+    }
+
+    // Texture width must always be 8-bytes aligned (RDP constraint)
+    sheets = rect_pack::pack(settings, sizes);
+
+    // We can save byte son the last sheet by checking for many different
+    // sizes. This is not something at which rect_pack excels at, so a bruteforce
+    // approach is used here.
+    int num_sheets = sheets.size();
+    int last_group = (num_sheets-1) / merge_layers * merge_layers;
+
+    // Move the last group of sheets to a temporary array
+    int best_area = 0;
+    std::vector<rect_pack::Sheet> best_sheets;
+    for (int i=last_group; i<num_sheets; i++) {
+        auto& s = sheets.back();
+        int area = s.width * s.height;
+        if (area > best_area) best_area = area;
+        best_sheets.push_back(s);
+        sheets.pop_back();
+    }
+
+    // Try to optimize the last group (up to four sheets). Create an array
+    // of input sizes for all the glyphs in the last group
+    std::vector<rect_pack::Size> sizes2;
+    for (auto& sheet : best_sheets) {
+        for (auto &r : sheet.rects) {
+            auto &g = glyphs[r.id];
+            rect_pack::Size size;
+            size.id = r.id;
+            size.width = g.img.w + settings.border_padding;
+            size.height = g.img.h + settings.border_padding;
+            sizes2.push_back(size);
+        }
+    }
+
+    if (flag_verbose >= 1)
+        fprintf(stderr, "packing last %zu sheets: %d x %d (%d bytes)\n", best_sheets.size(), best_sheets[0].width, best_sheets[0].height, TEX_FORMAT_PIX2BYTES(cfmt, best_sheets[0].width * best_sheets[0].height));
+
+    // Try to find a better packing for this sheet
+    while (1) {
+        bool changed = false;
+        int minh = MAX((best_area-1) / 256, 16);
+        for (int h=minh; h<=256; h++) {
+            int w = (best_area-1) / h / settings.align_width * settings.align_width;
+            if (w > 256) w = 256;
+            if (!w) break;
+
+            settings.min_width = 0;
+            settings.max_width = w;
+            settings.max_height = h;
+            std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
+            if (new_sheets.size() > 0 && new_sheets.size() <= merge_layers) {
+                int new_area = new_sheets[0].width * new_sheets[0].height;
+                if (new_area < best_area) {
+                    int packed_glyphs = 0;
+                    for (auto &sheet : new_sheets) packed_glyphs += sheet.rects.size();
+                    if (packed_glyphs == sizes2.size()) {
+                        if (flag_verbose >= 1)
+                            printf("    found better packing: %d x %d (%d bytes)\n", new_sheets[0].width, new_sheets[0].height, TEX_FORMAT_PIX2BYTES(cfmt, new_area));
+                        best_sheets = new_sheets;
+                        best_area = new_area;
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!changed) break;
+    }
+
+    // Append the best sheets to the calculated sheets
+    sheets.insert(sheets.end(), best_sheets.begin(), best_sheets.end());
+
+    return sheets;
+}
+
+
 void Font::make_atlases(void)
 {
     if (glyphs.empty()) {
@@ -618,202 +777,8 @@ void Font::make_atlases(void)
     //  Mono, outline: we can use 2bpp, so we can merge 2 layers
     int merge_layers = !is_monochrome() ? 1 : (has_outline() ? 2 : 4);
 
-    // Pack the glyphs into a texture
-    rect_pack::Settings settings;
-    memset(&settings, 0, sizeof(settings));
-    settings.method = rect_pack::Method::Best;
-    settings.method = rect_pack::Method::Best;
-    settings.max_width = 128;
-    settings.max_height = 64;
-    settings.border_padding = 0;
-    settings.allow_rotate = false;
-    
-    std::vector<rect_pack::Size> sizes;
-    std::vector<rect_pack::Sheet> sheets;
-    for (int i=0; i<glyphs.size(); i++) {
-        if (glyphs[i].img.w == 0 || glyphs[i].img.h == 0) continue;
-        rect_pack::Size size;
-        size.id = i;
-        size.width = glyphs[i].img.w + settings.border_padding;
-        size.height = glyphs[i].img.h + settings.border_padding;
-        sizes.push_back(size);
-    }
-
-    if (!is_monochrome()) {
-        tex_format_t cfmt; 
-        switch (fonttype) {
-        case FONT_TYPE_BITMAP:
-            cfmt = bmp_outfmt;
-            switch (bmp_outfmt) {
-            case FMT_RGBA16:
-                settings.max_width = 64;
-                settings.max_height = 32;
-                settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
-                break;
-            case FMT_RGBA32:
-                settings.max_width = 32;
-                settings.max_height = 32;
-                // RGBA32 is 4bpp but it's split into two 16-bit planes in TMEM.
-                // So the width alignment applies for each 16-bit plane.
-                settings.align_width = TEX_FORMAT_BYTES2PIX(FMT_RGBA16, 8);
-                break;
-            case FMT_CI4:
-                settings.max_width = 64;
-                settings.max_height = 64;
-                settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
-                break;
-            case FMT_CI8:
-                settings.max_width = 64;
-                settings.max_height = 32;
-                settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
-                break;
-            default:
-                assert(!"unsupported bitmap format");
-            }
-            break;
-        case FONT_TYPE_ALIASED:
-            // Aliased font: pack into I4 (max 128x64).
-            settings.max_width = 128;
-            settings.max_height = 64;
-            cfmt = FMT_I4;
-            settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
-            break;
-        case FONT_TYPE_ALIASED_OUTLINE:
-            // Aliased+outlined font: pack into IA8 (max 64x64).
-            settings.max_width = 64;
-            settings.max_height = 64;
-            cfmt = FMT_IA8;
-            settings.align_width = TEX_FORMAT_BYTES2PIX(cfmt, 8);
-            break;
-        default:
-            assert(!"unsupported font type");
-        }
-
-        // Texture width must always be 8-bytes aligned (RDP constraint)
-        sheets = rect_pack::pack(settings, sizes);
-
-        // We can save byte son the last sheet by checking for many different
-        // sizes. This is not something at which rect_pack excels at, so a bruteforce
-        // approach is used here.
-        int i = sheets.size()-1;
-        int best_area = sheets[i].width * sheets[i].height;
-
-        if (flag_verbose >= 2)
-            printf("repacking last sheet %d x %d (%d bytes)\n", sheets[i].width, sheets[i].height, TEX_FORMAT_PIX2BYTES(cfmt, best_area));
-
-        // Create a new array of sizes for the glyphs in this sheet
-        std::vector<rect_pack::Size> sizes2;
-        rect_pack::Sheet& sheet = sheets[i];
-        for (auto &r : sheet.rects) {
-            auto &g = glyphs[r.id];
-            rect_pack::Size size;
-            size.id = r.id;
-            size.width = g.img.w + settings.border_padding;
-            size.height = g.img.h + settings.border_padding;
-            sizes2.push_back(size);
-        }
-
-        // Try to find a better packing for this sheet
-        while (1) {
-            bool changed = false;
-            for (int h=16; h<=256; h++) {
-                int w = (best_area-1) / h / settings.align_width * settings.align_width;
-                if (w > 256) w = 256;
-                if (!w) break;
-
-                settings.min_width = 0;
-                settings.max_width = w;
-                settings.max_height = h;
-                std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
-                if (new_sheets.size() == 1 && new_sheets[0].rects.size() == sizes2.size()) {
-                    auto &new_sheet = new_sheets[0];
-                    int new_area = new_sheet.width * new_sheet.height;
-                    if (new_area < best_area) {
-                        if (flag_verbose >= 2)
-                            printf("    found better packing: %d x %d (%d bytes)\n", new_sheet.width, new_sheet.height, TEX_FORMAT_PIX2BYTES(cfmt, new_area));
-                        sheets[i] = new_sheet;
-                        best_area = new_area;
-                        changed = true;
-                        break;
-                    }
-                }
-            }
-            if (!changed) break;
-        }
-    } else {
-        // Start by computing a pack with the CI4 maximum size (64x64)
-        settings.min_width = 64;
-        settings.max_width = 64;
-        settings.max_height = 64;
-        settings.align_width = 16;
-        sheets = rect_pack::pack(settings, sizes);
-        int num_sheets = sheets.size();
-        int last_group = (num_sheets-1) / merge_layers * merge_layers;
-
-        // Try to optimize the last group (up to four sheets). Create an array
-        // of input sizes for all the glyphs in the last group
-        std::vector<rect_pack::Size> sizes2;
-        for (int j=last_group; j<num_sheets; j++) {
-            rect_pack::Sheet& sheet = sheets[j];
-            for (auto &r : sheet.rects) {
-                auto &g = glyphs[r.id];
-                rect_pack::Size size;
-                size.id = r.id;
-                size.width = g.img.w + settings.border_padding;
-                size.height = g.img.h + settings.border_padding;
-                sizes2.push_back(size);
-            }
-        }
-
-        // Move the last group of sheets to a temporary array
-        int best_area = 64*64;
-        std::vector<rect_pack::Sheet> best_sheets;
-        for (int i=last_group; i<num_sheets; i++) {
-            best_sheets.push_back(sheets.back());
-            sheets.pop_back();
-        }
-
-        if (flag_verbose >= 2)
-            fprintf(stderr, "packing last group of %zu sheets\n", best_sheets.size());
-
-        // Try to find a better packing for the last group
-        while (1) {
-            bool changed = false;
-            for (int h=16; h<=256; h++) {
-                // Find texture sizes where the value is a multiple of 16. Since
-                // They are going to be packed as CI4, this allows the stride to be
-                // multiple of 8, which allows LOAD_BLOCK to be used at runtime.
-                int w = (best_area-1) / h / settings.align_width * settings.align_width;
-                if (w > 256) w = 256;
-                if (!w) break;
-
-                settings.min_width = 0;
-                settings.max_width = w;
-                settings.max_height = h;
-                std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
-                if (new_sheets.size() <= merge_layers) {
-                    // Check that all the glyphs were packed.
-                    // FIXME: this seems like a bug in rect_pack... I can't see
-                    // why it shouldn't simply create more sheets if it can't fit
-                    int packed_glyphs = 0;
-                    for (auto &sheet : new_sheets)
-                        packed_glyphs += sheet.rects.size();
-                    if (packed_glyphs == sizes2.size()) {
-                        if (flag_verbose >= 2)
-                            printf("    found better packing: %d x %d (%d)\n", w, h, w*h);
-                        best_sheets = new_sheets;
-                        best_area = w * h;
-                        changed = true;
-                        break;
-                    }
-                }
-            }
-            if (!changed) break;
-        }
-
-        // Append the best sheets to the calculated sheets
-        sheets.insert(sheets.end(), best_sheets.begin(), best_sheets.end());
-    }
+    // Pack the atlases
+    auto sheets = pack_atlases(glyphs, merge_layers);
 
     // Create the actual textures
     std::vector<Image> atlases;
