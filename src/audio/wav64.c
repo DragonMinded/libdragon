@@ -255,19 +255,32 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 void wav64_open(wav64_t *wav, const char *fn) {
 	memset(wav, 0, sizeof(*wav));
 
-	// Currently, we only support streaming WAVs from DFS (ROMs). Any other
-	// filesystem is unsupported.
-	// For backward compatibility, we also silently accept a non-prefixed path.
-	if (strstr(fn, ":/")) {
-		assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: wav64 only supports files in ROM (rom:/)", fn);
-		fn += 5;
+	const char romPrefix[] = "rom:/";
+	const char piPrefix[] = "pi:/";
+	const char* prefix = NULL;
+	FILE* fptr = NULL;
+	int prefixLength = 0; // TODO: get rid of this when wav64 starts supporting real FILE*'s and not just dfs and pi:
+	// Only support "rom:/" and "pi:/" extensions for now. When no extension is present assume "rom:/".
+	if (strncmp(fn, romPrefix, sizeof(romPrefix) - 1) == 0) {
+		prefixLength = sizeof(romPrefix) - 1;
+		prefix = romPrefix;
+	} else if (strncmp(fn, piPrefix, sizeof(piPrefix) - 1) == 0) {
+		prefixLength = sizeof(piPrefix) - 1;
+		prefix = piPrefix;
+	} else {
+		char *tempRomFileName = malloc(strlen(fn) + sizeof(romPrefix));
+		sprintf(tempRomFileName, "%s%s", romPrefix, fn);
+		fptr = fopen(tempRomFileName, "rb");
+		assertf(fptr != NULL, "error opening file %s: FILE == NULL\n", tempRomFileName);
+		free(tempRomFileName);
 	}
 
-	int fh = dfs_open(fn);
-	assertf(fh >= 0, "error opening file %s: %s (%d)\n", fn, dfs_strerror(fh), fh);
-
+	if (fptr == NULL) {
+		fptr = fopen(fn, "rb");
+	}
+	assertf(fptr != NULL, "error opening file %s: FILE == NULL\n", fn);
 	wav64_header_t head = {0};
-	dfs_read(&head, 1, sizeof(head), fh);
+	fread(&head, 1, sizeof(head), fptr);
 	if (memcmp(head.id, WAV64_ID, 4) != 0) {
 		assertf(memcmp(head.id, WAV_RIFF_ID, 4) != 0 && memcmp(head.id, WAV_RIFX_ID, 4) != 0,
 			"wav64 %s: use audioconv64 to convert to wav64 format", fn);
@@ -283,7 +296,17 @@ void wav64_open(wav64_t *wav, const char *fn) {
 	wav->wave.frequency = head.freq;
 	wav->wave.len = head.len;
 	wav->wave.loop_len = head.loop_len; 
-	wav->rom_addr = dfs_rom_addr(fn) + head.start_offset;
+	// TODO: remove when wav64 and opus supports real FILE* and file-io.
+	uint32_t romAddress = 0;
+	if (prefix == piPrefix) {
+		char *end;
+		uint32_t base = strtoul(fn + prefixLength, &end, 16);
+		romAddress = base | 0xA0000000;
+	} else {
+		romAddress = dfs_rom_addr(fn + prefixLength);
+	}
+	assert(romAddress != 0);
+	wav->rom_addr = romAddress + head.start_offset;
 	wav->format = head.format;
 
 	switch (head.format) {
@@ -294,13 +317,12 @@ void wav64_open(wav64_t *wav, const char *fn) {
 
 	case WAV64_FORMAT_VADPCM: {
 		wav64_header_vadpcm_t vhead = {0};
-		dfs_read(&vhead, 1, sizeof(vhead), fh);
-
+		fread(&vhead, 1, sizeof(vhead), fptr);
 		int codebook_size = vhead.npredictors * vhead.order * head.channels * sizeof(wav64_vadpcm_vector_t);
 
 		void *ext = malloc_uncached(sizeof(vhead) + codebook_size);
 		memcpy(ext, &vhead, sizeof(vhead));
-		dfs_read(ext + sizeof(vhead), 1, codebook_size, fh);
+		fread(ext + sizeof(vhead), 1, codebook_size, fptr);
 		wav->ext = ext;
 		wav->wave.read = waveform_vadpcm_read;
 		wav->wave.ctx = wav;
@@ -309,14 +331,14 @@ void wav64_open(wav64_t *wav, const char *fn) {
 	}	break;
 
 	case WAV64_FORMAT_OPUS: {
-		wav64_opus_init(wav, fh);
+		wav64_opus_init(wav, fptr);
 	}	break;
 	
 	default:
 		assertf(0, "wav64 %s: invalid format: %02x\n", fn, head.format);
 	}
 
-	dfs_close(fh);
+	fclose(fptr);
 }
 
 void wav64_play(wav64_t *wav, int ch)
