@@ -32,9 +32,9 @@ typedef struct {
 	 */
 	waveform_t wave;
 
-	/** @brief Absolute ROM address of WAV64 */
-	uint32_t rom_addr;
-
+	/** @brief File descriptor to read WAV64 */
+	int current_fd;			 ///< File descriptor for the wav64 file
+	int base_offset;		 ///< Start of Wav64 data.
 	int format;			     ///< Internal format of the file
 	void *ext;               ///< Pointer to extended data (internal use)
 } wav64_t;

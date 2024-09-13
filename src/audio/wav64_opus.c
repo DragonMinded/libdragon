@@ -41,6 +41,7 @@
 #include "n64sys.h"
 #include "rspq.h"
 #include "utils.h"
+#include <unistd.h>
 
 #include "libopus_internal.h"
 
@@ -54,35 +55,28 @@ typedef struct {
 /// @brief Wav64 Opus state
 typedef struct {
     wav64_opus_header_ext xhead;    ///< Opus header extension
-    uint32_t current_rom_addr;      ///< Current ROM reading address
     OpusCustomMode *mode;           ///< Opus custom mode for this file
     OpusCustomDecoder *dec;         ///< Opus decoder for this file
 } wav64_opus_state;
 
-static uint16_t io_read16(uint32_t addr) {
-    uint32_t value = io_read(addr & ~3);
-    if (!(addr & 2))
-        value >>= 16;
-    return value;
-}
-
-
 static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
+    static int callcount = 0;
+    callcount += 1;
 	wav64_t *wav = (wav64_t*)ctx;
 	wav64_opus_state *st = (wav64_opus_state*)wav->ext;
 
 	if (seeking) {
 		if (wpos == 0) {
-			st->current_rom_addr = wav->rom_addr;
-            opus_custom_decoder_ctl(st->dec, OPUS_RESET_STATE);
+			lseek(wav->current_fd, wav->base_offset, SEEK_SET);
+			opus_custom_decoder_ctl(st->dec, OPUS_RESET_STATE);
 		} else {
-            assertf(0, "seeking not support in wav64 with opus compression");
+			assertf(0, "seeking not support in wav64 with opus compression");
 		}
 	}
 
     // Allocate stack buffer for reading compressed data. Align it to cacheline
     // to avoid any false sharing.
-    uint8_t alignas(16) buf[st->xhead.max_cmp_frame_size];
+    uint8_t alignas(16) buf[st->xhead.max_cmp_frame_size + 1];
     int nframes = DIVIDE_CEIL(wlen, st->xhead.frame_size);
 
     // Make space for the decoded samples. Call samplebuffer_append once as we
@@ -97,17 +91,18 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
             memset(out, 0, st->xhead.frame_size * wav->wave.channels * sizeof(int16_t));
         } else {
             // Read frame size
-            int nb = io_read16(st->current_rom_addr);
-            assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %d (%ld)", nb, st->xhead.max_cmp_frame_size);
+            uint16_t nb = 0;
+            read(wav->current_fd, &nb, 2);
+            assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %08X (%ld) %d", nb, st->xhead.max_cmp_frame_size, callcount);
+
+            unsigned long aligned_frame_size = nb; 
+            if (aligned_frame_size & 1) {
+                aligned_frame_size += 1;
+            }
 
             // Read frame
-            data_cache_hit_writeback_invalidate(buf, nb);
-            dma_read(buf, st->current_rom_addr + 2, nb);
-
-            // Update ROM pointer after current frame
-            st->current_rom_addr += nb + 2;
-            if (st->current_rom_addr & 1)
-                st->current_rom_addr += 1;
+            data_cache_hit_writeback_invalidate(buf, aligned_frame_size);
+            read(wav->current_fd, buf, aligned_frame_size);
 
             // Decode frame
             int err = opus_custom_decode(st->dec, buf, nb, out, st->xhead.frame_size);
@@ -126,9 +121,9 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     }
 }
 
-void wav64_opus_init(wav64_t *wav, FILE* fptr) {
-    wav64_opus_header_ext xhead; 
-    fread(&xhead, sizeof(xhead), 1, fptr);
+void wav64_opus_init(wav64_t *wav, int fh) {
+    wav64_opus_header_ext xhead;
+    read(fh, &xhead, sizeof(xhead));
     debugf("opus header: frame_size=%ld, max_cmp_frame_size=%ld, bitrate_bps=%ld\n", xhead.frame_size, xhead.max_cmp_frame_size, xhead.bitrate_bps);
     debugf("frequency: %f\n", wav->wave.frequency);
 
@@ -136,13 +131,12 @@ void wav64_opus_init(wav64_t *wav, FILE* fptr) {
 
     int err = OPUS_OK;
     OpusCustomMode *custom_mode = opus_custom_mode_create(wav->wave.frequency, xhead.frame_size, &err);
-    assert(err == OPUS_OK);
+    assertf(err == OPUS_OK, "%i", err);
     OpusCustomDecoder *dec = opus_custom_decoder_create(custom_mode, wav->wave.channels, &err);
     assert(err == OPUS_OK);
 
     // FIXME: try to avoid one allocation by allocating the decoder in the same malloc
     wav64_opus_state *state = malloc(sizeof(wav64_opus_state));
-    state->current_rom_addr = 0;
     state->mode = custom_mode;
     state->dec = dec;
     state->xhead = xhead;
