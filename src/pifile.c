@@ -84,7 +84,7 @@ static int __pifile_lseek(void *file, int offset, int whence)
         f->ptr = 0;
     if (f->ptr > f->size)
         f->ptr = f->size;
-    return 0;
+    return f->ptr;
 }
 
 static int __pifile_read(void *file, uint8_t *buf, int len)
