@@ -487,6 +487,7 @@ int main()
     const int MENU_END_WIDTH = 12;
     const int MENU_FONT_SPACE = 20;
     int color_mode = 0;
+    rdpq_paragraph_t *allglyphs_par = NULL;
 
     int cur_font_index = 0;
     float star_angle = 0.0f;
@@ -504,14 +505,16 @@ int main()
         NUM_PAGES,
     };
     int curpage = PAGE_META;
+    bool curpage_changed = false;
 
     while (1) {
+        curpage_changed = false;
         joypad_poll();
         joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
         if (keys.d_up) { cur_font_index = (cur_font_index + font_db_size - 1) % font_db_size; }
         if (keys.d_down) { cur_font_index = (cur_font_index + 1) % font_db_size; }
-        if (keys.d_left) { curpage = (curpage + 1) % NUM_PAGES; }
-        if (keys.d_right) { curpage = (curpage + NUM_PAGES - 1) % NUM_PAGES; }
+        if (keys.d_left) { curpage = (curpage + 1) % NUM_PAGES; curpage_changed = true; }
+        if (keys.d_right) { curpage = (curpage + NUM_PAGES - 1) % NUM_PAGES; curpage_changed = true; }
         if (keys.z) { color_mode += 1; color_mode %= 4; }
         if (keys.c_left) { menu_xstart_target = -MENU_WIDTH-MENU_END_WIDTH+4; }
         if (keys.c_right) { menu_xstart_target = 0; }
@@ -600,40 +603,53 @@ int main()
         } break;
 
         case PAGE_ALLGLYPHS: {
-            static char buffer[4096];
-            font_block_t *block = fi->block_list;
-            while (block->name != NULL) {
-                int bufidx = 0;
+            if (curpage_changed) {
+                static char buffer[65536];
 
-                // Put all the glyphs in the range in a buffer, in UTF-8 format
-                for (uint32_t c = block->first; c <= block->last; c++) {
-                    if (c < 0x80) {
-                        if (c == '\n' || c == '\t' || c == '\r' || c == ' ') continue;
-                        buffer[bufidx++] = c;
-                        if (c == '^' || c == '$') buffer[bufidx++] = c;
-                    } else if (c < 0x800) {
-                        buffer[bufidx++] = 0xC0 | (c >> 6);
-                        buffer[bufidx++] = 0x80 | (c & 0x3F);
-                    } else if (c < 0x10000) {
-                        buffer[bufidx++] = 0xE0 | (c >> 12);
-                        buffer[bufidx++] = 0x80 | ((c >> 6) & 0x3F);
-                        buffer[bufidx++] = 0x80 | (c & 0x3F);
-                    } else {
-                        buffer[bufidx++] = 0xF0 | (c >> 18);
-                        buffer[bufidx++] = 0x80 | ((c >> 12) & 0x3F);
-                        buffer[bufidx++] = 0x80 | ((c >> 6) & 0x3F);
-                        buffer[bufidx++] = 0x80 | (c & 0x3F);
+                tparms.wrap = WRAP_WORD;
+                rdpq_paragraph_builder_begin(&tparms, fi->font_id, allglyphs_par);
+
+                font_block_t *block = fi->block_list;
+                while (block->name != NULL) {
+                    int n = sprintf(buffer, "%s%s (U+%04lX - U+%04lX)", block->name, block->partial ? "*" : "", block->first, block->last);
+                    rdpq_paragraph_builder_span(buffer, n);
+                    rdpq_paragraph_builder_newline();
+
+                    int bufidx = 0;
+                    // Put all the glyphs in the range in a buffer, in UTF-8 format
+                    for (uint32_t c = block->first; c <= block->last; c++) {
+                        if (c < 0x80) {
+                            if (c == '\n' || c == '\t' || c == '\r' || c == ' ') continue;
+                            buffer[bufidx++] = c;
+                            if (c == '^' || c == '$') buffer[bufidx++] = c;
+                        } else if (c < 0x800) {
+                            buffer[bufidx++] = 0xC0 | (c >> 6);
+                            buffer[bufidx++] = 0x80 | (c & 0x3F);
+                        } else if (c < 0x10000) {
+                            buffer[bufidx++] = 0xE0 | (c >> 12);
+                            buffer[bufidx++] = 0x80 | ((c >> 6) & 0x3F);
+                            buffer[bufidx++] = 0x80 | (c & 0x3F);
+                        } else {
+                            buffer[bufidx++] = 0xF0 | (c >> 18);
+                            buffer[bufidx++] = 0x80 | ((c >> 12) & 0x3F);
+                            buffer[bufidx++] = 0x80 | ((c >> 6) & 0x3F);
+                            buffer[bufidx++] = 0x80 | (c & 0x3F);
+                        }
                     }
-                }
 
-                print(WRAP_WORD, "%s%s (U+%04X - U+%04X)\n", block->name, block->partial ? "*" : "", block->first, block->last);
 
-                tparms.wrap = WRAP_CHAR;
-                y0 += rdpq_text_printn(&tparms, fi->font_id, x0, y0, buffer, bufidx).advance_y;
+                    tparms.wrap = WRAP_CHAR;
+                    rdpq_paragraph_builder_span(buffer, bufidx);
+                    rdpq_paragraph_builder_newline();
+                    rdpq_paragraph_builder_newline();
 
-                y0 += 20;
-                ++block;
-            }            
+                    ++block;
+                }            
+
+                allglyphs_par = rdpq_paragraph_builder_end();
+            }
+
+            rdpq_paragraph_render(allglyphs_par, x0, y0);
         }   break;
 
         case PAGE_TEXT: {

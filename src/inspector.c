@@ -143,8 +143,8 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
                 opn = fpu_ops[(op >> 0) & 0x3F];
                 sprintf(symbuf, "%s.%s", opn, (sub == 16) ? "s" : (sub == 17) ? "d" : (sub == 20) ? "w" : "l");
                 opn = symbuf;
-                rt = __mips_fpreg[(op >> 11) & 0x1F];
-                rs = __mips_fpreg[(op >> 16) & 0x1F];
+                rt = __mips_fpreg[(op >> 16) & 0x1F];
+                rs = __mips_fpreg[(op >> 11) & 0x1F];
                 rd = __mips_fpreg[(op >> 6) & 0x1F];
                 break;
         }
