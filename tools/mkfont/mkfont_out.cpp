@@ -38,6 +38,7 @@ struct Image {
     Image(tex_format_t fmt, int w, int h, uint8_t *px = NULL)
         : fmt(fmt), w(w), h(h)
     {
+        assert(w >= 0 && h >= 0);
         pixels.resize(w * h * TEX_FORMAT_BITDEPTH(fmt)/8);
         if (px)
             memcpy(pixels.data(), px, pixels.size());
@@ -229,6 +230,9 @@ struct Image {
     }
 
     Image crop(int x0, int y0, int w, int h) {
+        assert(w >= 0 && h >= 0);
+        if (w == 0 && h == 0)
+            return Image(fmt, 0, 0);
         Image img(fmt, w, h);
         for (int y = 0; y < h; y++) {
             Line src = (*this)[y0 + y];
@@ -245,6 +249,7 @@ struct Image {
             return *this;
         }
 
+        bool solid = false;
         int x0 = w, y0 = h, x1 = 0, y1 = 0;
         for (int y = 0; y < h; y++) {
             Line line = (*this)[y];
@@ -254,11 +259,17 @@ struct Image {
                     y0 = std::min(y0, y);
                     x1 = std::max(x1, x);
                     y1 = std::max(y1, y);
+                    solid = true;
                 }
             }
         }
+        if (!solid) {
+            *ox0 = *oy0 = 0;
+            return Image(fmt, 0, 0);
+        }
         *ox0 = x0;
         *oy0 = y0;
+        
         return crop(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
     }
 

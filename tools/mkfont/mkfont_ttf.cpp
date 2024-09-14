@@ -192,6 +192,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 FT_GlyphSlot slot = face->glyph;
                 FT_Bitmap bmp = slot->bitmap;
 
+                assert(bmp.width >= 0 && bmp.rows >= 0);
                 Image img = Image(FMT_I8, bmp.width, bmp.rows);
 
                 switch (bmp.pixel_mode) {
