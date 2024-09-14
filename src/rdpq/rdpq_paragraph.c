@@ -125,7 +125,7 @@ void rdpq_paragraph_builder_style(uint8_t style_id)
 
 static void paragraph_extend(void)
 {
-    assertf(builder.layout->flags & RDPQ_PARAGRAPH_FLAG_MALLOC, "paragraph of text is too long and cannot be dynamically extnded");
+    assertf(builder.layout->flags & RDPQ_PARAGRAPH_FLAG_MALLOC, "paragraph of text is too long and cannot be dynamically extended");
     int new_cap = builder.layout->capacity * 2;
     builder.layout = realloc(builder.layout, sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * new_cap);
     builder.layout->capacity = new_cap;
