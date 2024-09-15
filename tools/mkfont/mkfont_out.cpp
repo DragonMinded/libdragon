@@ -691,6 +691,23 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
 
     // Do the packing
     sheets = rect_pack::pack(settings, sizes);
+    
+    // If we end up with too many atlases for a single range, it means that
+    // loading atlases into TMEM isn't going to be efficient: we would statistically
+    // need to switch between atlases too often. In this case, change strategy
+    // and build huge atlases that will be kept in RDRAM and loaded one glyph
+    // at a time instead
+    // 8 is an arbitrary threshold for the heuristics of "too many atlases".
+    if (sheets.size() / merge_layers >= 8) {
+        if (flag_verbose) fprintf(stderr, "too many atlases for a single range (%zu), switching to RDRAM atlases\n", sheets.size());
+        // We are limited to 256x256 because we keep s/t coordinates in 8-bit values
+        settings.max_width = 256;
+        settings.max_height = 256;
+        // RDRAM atlases are not limited in width, they could have any size. We still
+        // put 4 here to avoid a too slow optimization process for a modest saving.
+        settings.align_width = 4;
+        sheets = rect_pack::pack(settings, sizes);
+    }
 
     if (flag_verbose) fprintf(stderr, "packed %zu glyphs into %zu sheets\n", sizes.size(), sheets.size());
 
