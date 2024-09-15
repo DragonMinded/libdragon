@@ -659,30 +659,38 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
         assert(!"unsupported font type");
     }
 
-    // Texture width must always be 8-bytes aligned (RDP constraint)
+    // Do the packing
     sheets = rect_pack::pack(settings, sizes);
 
-    // We can save byte son the last sheet by checking for many different
+    if (flag_verbose) fprintf(stderr, "packed %zu glyphs into %zu sheets\n", sizes.size(), sheets.size());
+
+    // We can save bytes on the last group of sheets by checking for many different
     // sizes. This is not something at which rect_pack excels at, so a bruteforce
     // approach is used here.
     int num_sheets = sheets.size();
     int last_group = (num_sheets-1) / merge_layers * merge_layers;
 
-    // Move the last group of sheets to a temporary array
-    int best_area = 0;
-    std::vector<rect_pack::Sheet> best_sheets;
+    // Move the last group of sheets to a temporary array. Calculate also the
+    // current area for the last group (which is the area of the biggest
+    // sheet in the group).
+    int group_width = 0, group_height = 0;
+    std::vector<rect_pack::Sheet> group_sheets;
     for (int i=last_group; i<num_sheets; i++) {
         auto& s = sheets.back();
         int area = s.width * s.height;
-        if (area > best_area) best_area = area;
-        best_sheets.push_back(s);
+        if (area > group_width*group_height) {
+            group_width = s.width;
+            group_height = s.height;
+        }
+        group_sheets.push_back(s);
         sheets.pop_back();
     }
 
     // Try to optimize the last group (up to four sheets). Create an array
     // of input sizes for all the glyphs in the last group
+    int min_area = 0;
     std::vector<rect_pack::Size> sizes2;
-    for (auto& sheet : best_sheets) {
+    for (auto& sheet : group_sheets) {
         for (auto &r : sheet.rects) {
             auto &g = glyphs[r.id];
             rect_pack::Size size;
@@ -690,46 +698,47 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
             size.width = g.img.w + settings.border_padding;
             size.height = g.img.h + settings.border_padding;
             sizes2.push_back(size);
+            min_area += size.width * size.height;
         }
     }
+    min_area /= merge_layers;
 
     if (flag_verbose >= 1)
-        fprintf(stderr, "packing last %zu sheets: %d x %d (%d bytes)\n", best_sheets.size(), best_sheets[0].width, best_sheets[0].height, TEX_FORMAT_PIX2BYTES(cfmt, best_sheets[0].width * best_sheets[0].height));
+        fprintf(stderr, "repacking last %zu sheets: %d x %d (%d bytes)\n", group_sheets.size(), group_width, group_height, TEX_FORMAT_PIX2BYTES(cfmt, group_width * group_height));
 
-    // Try to find a better packing for this sheet
-    while (1) {
-        bool changed = false;
-        int minh = MAX((best_area-1) / 256, 16);
-        for (int h=minh; h<=256; h++) {
-            int w = (best_area-1) / h / settings.align_width * settings.align_width;
-            if (w > 256) w = 256;
-            if (!w) break;
+    // Try to find a better packing for this sheet group. Set the maximum number
+    // of sheets to the expected one so that we can early abort.
+    int best_area = group_width * group_height;
+    settings.max_sheets = merge_layers;
 
-            settings.min_width = 0;
+    for (int h=MAX(min_area/256, 8); h<=256; h++) {
+        int w = MAX(ROUND_UP(min_area / h, settings.align_width), settings.align_width);
+        for (; w <= 256; w += settings.align_width) {
+            if (h * w >= best_area)
+                break;
+
+            // printf("    trying %dx%d\n", w, h);
+            settings.min_width = w;
+            settings.min_height = h;
             settings.max_width = w;
             settings.max_height = h;
             std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
-            if (new_sheets.size() > 0 && new_sheets.size() <= merge_layers) {
-                int new_area = new_sheets[0].width * new_sheets[0].height;
-                if (new_area < best_area) {
-                    int packed_glyphs = 0;
-                    for (auto &sheet : new_sheets) packed_glyphs += sheet.rects.size();
-                    if (packed_glyphs == sizes2.size()) {
-                        if (flag_verbose >= 1)
-                            printf("    found better packing: %d x %d (%d bytes)\n", new_sheets[0].width, new_sheets[0].height, TEX_FORMAT_PIX2BYTES(cfmt, new_area));
-                        best_sheets = new_sheets;
-                        best_area = new_area;
-                        changed = true;
-                        break;
-                    }
-                }
+
+            // Check if all glyphs fit this size, by counting how many of them were packed
+            int packed_glyphs = 0;
+            for (auto &sheet : new_sheets) packed_glyphs += sheet.rects.size();
+            if (packed_glyphs == sizes2.size()) {
+                group_sheets = new_sheets;
+                best_area = w*h;
+                if (flag_verbose >= 1)
+                    printf("    found better packing: %d x %d (%d bytes)\n", w, h, TEX_FORMAT_PIX2BYTES(cfmt, w*h));
+                break;
             }
         }
-        if (!changed) break;
     }
 
     // Append the best sheets to the calculated sheets
-    sheets.insert(sheets.end(), best_sheets.begin(), best_sheets.end());
+    sheets.insert(sheets.end(), group_sheets.begin(), group_sheets.end());
 
     return sheets;
 }
