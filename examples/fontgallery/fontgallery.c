@@ -511,8 +511,8 @@ int main()
         curpage_changed = false;
         joypad_poll();
         joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
-        if (keys.d_up) { cur_font_index = (cur_font_index + font_db_size - 1) % font_db_size; }
-        if (keys.d_down) { cur_font_index = (cur_font_index + 1) % font_db_size; }
+        if (keys.d_up) { cur_font_index = (cur_font_index + font_db_size - 1) % font_db_size; curpage_changed = true; }
+        if (keys.d_down) { cur_font_index = (cur_font_index + 1) % font_db_size; curpage_changed = true; }
         if (keys.d_left) { curpage = (curpage + 1) % NUM_PAGES; curpage_changed = true; }
         if (keys.d_right) { curpage = (curpage + NUM_PAGES - 1) % NUM_PAGES; curpage_changed = true; }
         if (keys.z) { color_mode += 1; color_mode %= 4; }
