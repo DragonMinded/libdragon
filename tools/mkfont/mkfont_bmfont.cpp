@@ -268,6 +268,10 @@ bool bmfont_parse_line(FILE *f, const char *infn) {
 
 void calc_ranges(void)
 {
+    std::vector<uint32_t> unicode_ranges;
+    for (auto &b : unicode_blocks)
+        unicode_ranges.push_back(b.first);
+
     std::map<int, std::pair<int, int>> ranges;
     for (auto& ch : gctx->glyphs) {
         int range = *(std::upper_bound(unicode_ranges.begin(), unicode_ranges.end(), ch.id)-1);

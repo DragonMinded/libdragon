@@ -23,6 +23,36 @@ static std::string codepoint_to_utf8(uint32_t codepoint) {
     return utf8;
 }
 
+static uint32_t utf8_to_codepoint(const char *utf8, const char **endptr) {
+    const uint8_t *s = (const uint8_t*)utf8;
+    uint32_t c = *s++;
+    if (c < 0x80) {
+        *endptr = (const char*)s;
+        return c;
+    }
+    if (c < 0xC0) {
+        *endptr = (const char*)s;
+        return 0xFFFD;
+    }
+    if (c < 0xE0) {
+        c = ((c & 0x1F) << 6) | (*s++ & 0x3F);
+        *endptr = (const char*)s;
+        return c;
+    }
+    if (c < 0xF0) {
+        c = ((c & 0x0F) << 12); c |= ((*s++ & 0x3F) << 6); c |= (*s++ & 0x3F);
+        *endptr = (const char*)s;
+        return c;
+    }
+    if (c < 0xF8) {
+        c = ((c & 0x07) << 18); c |= ((*s++ & 0x3F) << 12); c |= ((*s++ & 0x3F) << 6); c |= (*s++ & 0x3F);
+        *endptr = (const char*)s;
+        return c;
+    }
+    *endptr = (const char*)s;
+    return 0xFFFD;
+}
+
 // An owned image bitmap, supporting multiple texture formats for dynamic conversions
 struct Image {
     tex_format_t fmt;

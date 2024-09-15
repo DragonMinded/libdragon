@@ -141,6 +141,10 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
 
     // If ranges is emtpy, it means we need to extract all the glyphs from the font
     if (ranges.empty()) {
+        std::vector<uint32_t> unicode_ranges;
+        for (auto &b : unicode_blocks)
+            unicode_ranges.push_back(b.first);
+
         unsigned idx;
         std::map<int, std::pair<int, int>> range_map;
         // Go through all the glyphs in the font
@@ -175,6 +179,9 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
 
         // Extract the glyphs for these ranges
         for (int g=ranges[r]; g<=ranges[r+1]; g++) {
+            if (!flag_charset.empty() && flag_charset.find(g) == flag_charset.end())
+                continue;
+
             int ttf_idx = FT_Get_Char_Index(face, g);
             if (ttf_idx == 0) {
                 if (flag_verbose >= 2)
