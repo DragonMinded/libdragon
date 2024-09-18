@@ -21,6 +21,18 @@ typedef enum {
 	RES_PARERR		/* 4: Invalid Parameter */
 } DRESULT;
 
+/* Disk io function pointer interface */
+typedef struct
+{
+	DSTATUS (*disk_initialize)(void);
+	DSTATUS (*disk_status)(void);
+	DRESULT (*disk_read)(BYTE* buff, LBA_t sector, UINT count);
+	DRESULT (*disk_read_sdram)(BYTE* buff, LBA_t sector, UINT count);
+	DRESULT (*disk_write)(const BYTE* buff, LBA_t sector, UINT count);
+	DRESULT (*disk_ioctl)(BYTE cmd, void* buff);
+	uint32_t version;
+	uint32_t size;
+} fat_disk_t;
 
 /*---------------------------------------*/
 /* Prototypes for disk control functions */
@@ -31,6 +43,7 @@ DSTATUS disk_status (BYTE pdrv);
 DRESULT disk_read (BYTE pdrv, BYTE* buff, LBA_t sector, UINT count);
 DRESULT disk_write (BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count);
 DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
+DRESULT disk_io_reroute_interface(fat_disk_t* disk_io_interface, uint32_t index, uint32_t count);
 
 
 /* Disk Status Bits (DSTATUS) */
@@ -70,6 +83,7 @@ DRESULT disk_ioctl (BYTE pdrv, BYTE cmd, void* buff);
 #define ATA_GET_MODEL		21	/* Get model name */
 #define ATA_GET_SN			22	/* Get serial number */
 
+#define DISK_IO_INTERFACE_VERSION 1
 #ifdef __cplusplus
 }
 #endif

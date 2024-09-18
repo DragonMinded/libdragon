@@ -174,17 +174,23 @@ static void sdlog_write(const uint8_t *data, int len)
 static FATFS sd_fat;
 #define FAT_VOLUME_SD    0
 
-typedef struct
-{
-	DSTATUS (*disk_initialize)(void);
-	DSTATUS (*disk_status)(void);
-	DRESULT (*disk_read)(BYTE* buff, LBA_t sector, UINT count);
-	DRESULT (*disk_read_sdram)(BYTE* buff, LBA_t sector, UINT count);
-	DRESULT (*disk_write)(const BYTE* buff, LBA_t sector, UINT count);
-	DRESULT (*disk_ioctl)(BYTE cmd, void* buff);
-} fat_disk_t;
-
+// Allow applications to overwrite these function calls incase they can optimize.
 static fat_disk_t fat_disks[FF_VOLUMES] = {0};
+DRESULT disk_io_reroute_interface(fat_disk_t* disk_io_interface, uint32_t index, uint32_t count)
+{
+	if (disk_io_interface->version != DISK_IO_INTERFACE_VERSION) 
+		return RES_PARERR;
+
+	if (sizeof(fat_disks[0]) != disk_io_interface->size)
+		return RES_PARERR;
+
+	if (((sizeof(fat_disks[0]) * count) + (sizeof(fat_disks[0]) * index)) > sizeof(fat_disks))
+		return RES_PARERR;
+
+	memcpy(&fat_disks[index], disk_io_interface, (sizeof(fat_disks[0]) * count));
+
+	return RES_OK;
+}
 
 DSTATUS disk_initialize(BYTE pdrv)
 {
