@@ -268,7 +268,7 @@ uint32_t dfs_rom_addr(const char *path);
  * @brief Return the size of a file (in ROM data)
  * 
  * Returns the size of a file without opening it. Can be used in conjunction
- * with dfs_rom_addr to get the size of a file without calling dfs_open.
+ * with dfs_rom_addr to perform DMA without without calling dfs_open.
  *
  * @param[in] path
  *            Name of the file
