@@ -265,6 +265,22 @@ int dfs_size(uint32_t handle);
 uint32_t dfs_rom_addr(const char *path);
 
 /**
+ * @brief Return the size of a file (in ROM data)
+ * 
+ * Returns the size of a file without opening it. Can be used in conjunction
+ * with dfs_rom_addr to get the size of a file without calling dfs_open.
+ *
+ * @param[in] path
+ *            Name of the file
+ *
+ * @return The size of a file in ROM, or 0 if the file was not found.
+ * 
+ * @see #dfs_rom_addr
+ * 
+ */
+uint32_t dfs_rom_size(const char *path);
+
+/**
  * @brief Convert DFS error code into an error string
  */
 const char *dfs_strerror(int error);
