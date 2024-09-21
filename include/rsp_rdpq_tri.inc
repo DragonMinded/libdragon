@@ -246,14 +246,12 @@ RDPQ_Triangle_Send_Async:
     vcopy vy2, vall2.e1;                        lsv vall2.e3, RDPQ_TRIANGLE_VTX2_DMEM
     vcopy vy3, vall3.e1;                        lsv vall3.e3, RDPQ_TRIANGLE_VTX3_DMEM
 
-    # Create vector with constants      
-    # 1 and -1 (to be used for
-    # cross product)                            # Finish loading clipping codes
-    vcopy vk1, K1;                              lhu clip3, VTX_ATTR_CLIPFLAGS(vtx3)
-    # Clear VCO to make sure the first
-    # VGE does the right thing if 
-    # vy1==vy2
-    vsubc vzero, vzero, vzero;                  lhu clip2, VTX_ATTR_CLIPFLAGS(vtx2)
+    # Create vector of ones.                    
+    # Do it with vaddc so that we also clear
+    # VCO to make sure the first VGE does
+    # the right thing if vy1==vy2               # Finish loading clipping codes
+    vaddc vk1, vzero, K1;                       lhu clip3, VTX_ATTR_CLIPFLAGS(vtx3)
+                                                lhu clip2, VTX_ATTR_CLIPFLAGS(vtx2)
 
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
@@ -428,7 +426,9 @@ RDPQ_Triangle_Send_Async:
     #                                           # Load S/T coordinates
     vmudl v__,     vinvw_f, vw_f.e0;            llv vtex1.e4, VTX_ATTR_ST,vtx1
     vmadm v__,     vinvw_i, vw_f.e0;            llv vtex2.e4, VTX_ATTR_ST,vtx2
-    vmadn vinvw_f, vinvw_f, vw_i.e0;            llv vtex3.e4, VTX_ATTR_ST,vtx3
+    
+                                                # Store negated my/hx into vhml
+    vmadn vinvw_f, vinvw_f, vw_i.e0;            neg t0
 
     # Finalize slope divisions by multiplying by the reciprocal.
     # vhml      =   HX  HY   MX  MY     LX   LY   0   NZf
@@ -436,11 +436,11 @@ RDPQ_Triangle_Send_Async:
     # vnz       =  1/HY --  1/MY --    1/LY --   --- 1/NZ
     #    =
     # vslope    =  HX/HY --   MX/MY  --   LX/LY  --     --   --
-                                                # Store negated my/hx into vhml
-    vmudn v__,  vnz_f, vhml;                    neg t0
-    vmadh v__,  vnz_i, vhml;                    neg t1
-    vsar  vslope_f, COP2_ACC_MD;                mtc2 t0, my
-    vsar  vslope_i, COP2_ACC_HI;                mtc2 t1, hx
+                                                
+    vmudn v__,  vnz_f, vhml;                    neg t1
+    vmadh v__,  vnz_i, vhml;                    mtc2 t0, my
+    vsar  vslope_f, COP2_ACC_MD;                mtc2 t1, hx
+    vsar  vslope_i, COP2_ACC_HI;                li t0, 0xCF
     #define ish_f   vslope_f.e0
     #define ish_i   vslope_i.e0
     #define ism_f   vslope_f.e2
@@ -448,15 +448,15 @@ RDPQ_Triangle_Send_Async:
     #define isl_f   vslope_f.e4
     #define isl_i   vslope_i.e4
                                                
-    # Subtract INVW by 1. This workarounds      # Prepare for vmrg later (to merge
-    # an overflow when INVW is exactly
-    # 1.0.                                       # tex coords inside the attribute)
-    vsubc vinvw_f, K1;                          li t0, 0xCF
+    # Subtract INVW by 1. This workarounds      
+    # an overflow when INVW is exactly 1.0.     # Load last S/T coordinate
+    vsubc vinvw_f, K1;                          llv vtex3.e4, VTX_ATTR_ST,vtx3
 
-    # vattr now contains only RGBA, loaded
-    # via suv. Shift them back to raw bytes.    # Load Z components into attribute vector
-    vsrl vattr1, vattr1, 7;                     lsv attr1_z, VTX_ATTR_Z,vtx1;
-    vsrl vattr2, vattr2, 7;                     ctc2 t0, COP2_CTRL_VCC                                          
+    # vattr now contains only RGBA, loaded      # Prepare for vmrg later (to merge
+    # via suv. Shift them back to raw bytes.    # tex coords inside the attribute)
+    vsrl vattr1, vattr1, 7;                     ctc2 t0, COP2_CTRL_VCC                                          
+                                                # Load Z components into attribute vector
+    vsrl vattr2, vattr2, 7;                     lsv attr1_z, VTX_ATTR_Z,vtx1;
     vsrl vattr3, vattr3, 7;                     lsv attr2_z, VTX_ATTR_Z,vtx2 
 
     # Divide vinw_f by 2. This is needed
