@@ -1048,8 +1048,7 @@ uint32_t dfs_rom_addr(const char *path)
 int dfs_rom_size(const char *path)
 {
     //Skip initial slash
-    if(path[0] == '/')
-    {
+    if(path[0] == '/') {
         path++;
     }
     dfs_lookup_file_t *entry = lookup_file(path);
