@@ -1045,10 +1045,11 @@ uint32_t dfs_rom_addr(const char *path)
     
 }
 
-uint32_t dfs_rom_size(const char *path)
+int dfs_rom_size(const char *path)
 {
     //Skip initial slash
-    if(path[0] == '/') {
+    if(path[0] == '/')
+    {
         path++;
     }
     dfs_lookup_file_t *entry = lookup_file(path);
@@ -1056,9 +1057,10 @@ uint32_t dfs_rom_size(const char *path)
     if(!entry)
     {
         //File not found
-        return 0;
+        return -1;
     }
-    return base_ptr+entry->data_len;
+
+    return (int)(entry->data_len);
 }
 
 int dfs_eof(uint32_t handle)
