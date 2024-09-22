@@ -273,12 +273,12 @@ uint32_t dfs_rom_addr(const char *path);
  * @param[in] path
  *            Name of the file
  *
- * @return The size of a file in ROM, or 0 if the file was not found.
+ * @return The size of a file in ROM, or -1 if the file was not found.
  * 
  * @see #dfs_rom_addr
  * 
  */
-uint32_t dfs_rom_size(const char *path);
+int dfs_rom_size(const char *path);
 
 /**
  * @brief Convert DFS error code into an error string
