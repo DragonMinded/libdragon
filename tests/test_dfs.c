@@ -95,7 +95,7 @@ void test_dfs_rom_size(TestContext *ctx) {
 	DEFER(dfs_close(fh));
 
 	int dfs_file_size = dfs_size(fh);
-	assert(dfs_file_size >= 0, "Unable to get size of counter.dat");
+	ASSERT(dfs_file_size >= 0, "Unable to get size of counter.dat");
 
 	int rom_file_size = dfs_rom_size("counter.dat");
 	ASSERT_EQUAL_SIGNED(dfs_file_size, rom_file_size, "dfs_rom_size returns a different size from dfs_file_size");
