@@ -1042,24 +1042,45 @@ uint32_t dfs_rom_addr(const char *path)
         /* Return the starting location in ROM */
         return get_start_location(&t_node);
     }
-    
 }
 
 int dfs_rom_size(const char *path)
 {
-    //Skip initial slash
-    if(path[0] == '/') {
+    /* Skip initial slash */
+    if(path[0] == '/')
+    {
         path++;
     }
-    dfs_lookup_file_t *entry = lookup_file(path);
-    
-    if(!entry)
-    {
-        //File not found
-        return -1;
-    }
 
-    return (int)(entry->data_len);
+    if(can_use_hash(path)) {
+        dfs_lookup_file_t *entry = lookup_file(path);
+        if(!entry)
+        {
+            /* File not found */
+            return -1;
+        }
+
+        return (int)(entry->data_len);
+    }
+    else
+    {
+        /* Try to find file */
+        directory_entry_t *dirent;
+        int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
+
+        if(ret != DFS_ESUCCESS)
+        {
+            /* File not found, or other error */
+            return -1;
+        }
+
+        /* We now have the pointer to the file entry */
+        directory_entry_t t_node;
+        grab_sector(dirent, &t_node);
+
+        /* Return the starting location in ROM */
+        return (int)(get_size(&t_node));
+    }
 }
 
 int dfs_eof(uint32_t handle)
