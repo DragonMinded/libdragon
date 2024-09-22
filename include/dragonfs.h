@@ -261,6 +261,7 @@ int dfs_size(uint32_t handle);
  * @return A pointer to the physical address of the file body, or 0
  *         if the file was not found.
  * 
+ * @see #dfs_rom_size
  */
 uint32_t dfs_rom_addr(const char *path);
 
@@ -273,7 +274,7 @@ uint32_t dfs_rom_addr(const char *path);
  * @param[in] path
  *            Name of the file
  *
- * @return The size of a file in ROM, or -1 if the file was not found.
+ * @return The size of a file in ROM, or DFS_ENOFILE if the file was not found.
  * 
  * @see #dfs_rom_addr
  * 

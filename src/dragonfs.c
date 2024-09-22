@@ -1057,7 +1057,7 @@ int dfs_rom_size(const char *path)
         if(!entry)
         {
             /* File not found */
-            return -1;
+            return DFS_ENOFILE;
         }
 
         return (int)(entry->data_len);
@@ -1071,7 +1071,7 @@ int dfs_rom_size(const char *path)
         if(ret != DFS_ESUCCESS)
         {
             /* File not found, or other error */
-            return -1;
+            return DFS_ENOFILE;
         }
 
         /* We now have the pointer to the file entry */
