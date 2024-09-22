@@ -89,6 +89,18 @@ void test_dfs_rom_addr(TestContext *ctx) {
 	ASSERT_EQUAL_MEM(buf1, buf2, 128, "DMA ROM access is different");
 }
 
+void test_dfs_rom_size(TestContext *ctx) {
+	int fh = dfs_open("counter.dat");
+	ASSERT(fh >= 0, "counter.dat not found");
+	DEFER(dfs_close(fh));
+
+	int dfs_file_size = dfs_size(fh);
+	assert(dfs_file_size >= 0, "Unable to get size of counter.dat");
+
+	int rom_file_size = dfs_rom_size("counter.dat");
+	ASSERT_EQUAL_SIGNED(dfs_file_size, rom_file_size, "dfs_rom_size returns a different size from dfs_file_size");
+}
+
 void test_dfs_ioctl(TestContext *ctx) {
     FILE *file = fopen("rom:/counter.dat", "rb");
     ASSERT(file, "counter.dat not found");
