@@ -313,6 +313,7 @@ typedef struct {
     uint32_t first;
     uint32_t last;
     bool partial;
+    bool sparse;
 } font_block_t;
 
 font_block_t* font_create_block_list(rdpq_font_t *font)
@@ -322,8 +323,8 @@ font_block_t* font_create_block_list(rdpq_font_t *font)
     font_block_t *blocks = calloc(block_capacity, sizeof(font_block_t));
 
     int idx = 0;
-    uint32_t start, end;
-    while (rdpq_font_get_glyph_ranges(font, idx++, &start, &end)) {        
+    uint32_t start, end; bool sparse;
+    while (rdpq_font_get_glyph_ranges(font, idx++, &start, &end, &sparse)) {
         // Compact range by avoiding empty glyphs. Somtimes font define just spaces
         // in various variants (eg: CJK space) and don't define other chars there.
         // So we want to avoid mentioning those empty blocks.
@@ -354,6 +355,8 @@ font_block_t* font_create_block_list(rdpq_font_t *font)
                 } else {
                     blocks[block_count].partial = true;
                 }
+                blocks[block_count].sparse = sparse;
+
                 blocks[block_count].name = unicode_blocks[i].name;
                 blocks[block_count].first = MAX(start, unicode_blocks[i].first);
                 blocks[block_count].last = MIN(end, unicode_blocks[i].last);
@@ -381,14 +384,14 @@ typedef struct {
     rdpq_font_t *font;
     font_block_t *block_list;
     uint8_t font_id;
-} font_info_t;
+} font_info;
 
 static int sort_font_info(const void *a, const void *b)
 {
-    return strcasecmp(((font_info_t*)a)->name, ((font_info_t*)b)->name);
+    return strcasecmp(((font_info*)a)->name, ((font_info*)b)->name);
 }
 
-font_info_t *font_db;
+font_info *font_db;
 int font_db_size;
 
 static void load_font_database(void)
@@ -401,9 +404,11 @@ static void load_font_database(void)
         strcat(full_fn, dir.d_name);
 
         // if (!strstr(full_fn, "monogram.font64")) continue;
+        // if (!strstr(full_fn, "unscii-8.font64")) continue;
 
         char *ext = strstr(full_fn, ".font64");
         if (!ext) continue;
+        debugf("Loading: %s\n", full_fn);
         rdpq_font_t *fnt = rdpq_font_load(full_fn);
 
         rdpq_font_style(fnt, 0, &(rdpq_fontstyle_t){
@@ -421,7 +426,7 @@ static void load_font_database(void)
             strcat(full_fn, ".txt");
         }
 
-        font_info_t fi = { .font = fnt, .font_id = font_db_size+1 };
+        font_info fi = { .font = fnt, .font_id = font_db_size+1 };
         rdpq_text_register_font(fi.font_id, fnt);
 
         // Parse the txt file as a sequence of "key: value" fields
@@ -454,12 +459,141 @@ static void load_font_database(void)
         fi.block_list = font_create_block_list(fnt);
 
         // Add the font to the database
-        font_db = realloc(font_db, (font_db_size+1) * sizeof(font_info_t));
+        font_db = realloc(font_db, (font_db_size+1) * sizeof(font_info));
         font_db[font_db_size++] = fi;
 
     } while (dir_findnext("rom:/", &dir) == 0);
 
-    qsort(font_db, font_db_size, sizeof(font_info_t), sort_font_info);
+    qsort(font_db, font_db_size, sizeof(font_info), sort_font_info);
+}
+
+void codepoint_to_utf8(uint32_t c, char *buf, int *bufidx)
+{
+    if (c < 0x80) {
+        buf[(*bufidx)++] = c;
+    } else if (c < 0x800) {
+        buf[(*bufidx)++] = 0xC0 | (c >> 6);
+        buf[(*bufidx)++] = 0x80 | (c & 0x3F);
+    } else if (c < 0x10000) {
+        buf[(*bufidx)++] = 0xE0 | (c >> 12);
+        buf[(*bufidx)++] = 0x80 | ((c >> 6) & 0x3F);
+        buf[(*bufidx)++] = 0x80 | (c & 0x3F);
+    } else {
+        buf[(*bufidx)++] = 0xF0 | (c >> 18);
+        buf[(*bufidx)++] = 0x80 | ((c >> 12) & 0x3F);
+        buf[(*bufidx)++] = 0x80 | ((c >> 6) & 0x3F);
+        buf[(*bufidx)++] = 0x80 | (c & 0x3F);
+    }
+}
+
+typedef struct {
+    rdpq_paragraph_t *pars[128];
+    int npars;
+} font_atlas;
+
+void font_atlas_build(font_info *fi, font_atlas *atlas, rdpq_textparms_t *tparms)
+{
+    static char buffer[65536];
+    atlas->npars = 0;
+
+    // Dump each non-sparse range of glyphs.
+    for (font_block_t *block = fi->block_list; block->name != NULL; ++block) {
+        if (block->sparse) continue;
+
+        // Title with the block name and range
+        tparms->wrap = WRAP_WORD;
+        rdpq_paragraph_builder_begin(tparms, fi->font_id, atlas->pars[atlas->npars]);
+        int n = sprintf(buffer, "%s%s (U+%04lX - U+%04lX)", block->name, block->partial ? "*" : "", block->first, block->last);
+        rdpq_paragraph_builder_span(buffer, n);
+        rdpq_paragraph_builder_newline();
+
+        // Put all the glyphs in the range in a buffer, in UTF-8 format
+        int bufidx = 0;
+        for (uint32_t c = block->first; c <= block->last; c++) {
+            if (c == '\n' || c == '\t' || c == '\r' || c == ' ') continue;
+            if (c == '^' || c == '$') {  // escape correctly the rdpq_font special chars
+                buffer[bufidx++] = c; buffer[bufidx++] = c;
+                continue;
+            }
+            codepoint_to_utf8(c, buffer, &bufidx);
+        }
+
+        // Draw the glyphs
+        tparms->wrap = WRAP_CHAR;
+        rdpq_paragraph_builder_span(buffer, bufidx);
+        rdpq_paragraph_builder_newline();
+        rdpq_paragraph_builder_newline();
+        atlas->pars[atlas->npars++] = rdpq_paragraph_builder_end();
+    }
+
+    // Now dump sparse ranges. This is more complicated because rdpq_font doesn't
+    // know exactly what characters are contained and lookups can return false positives.
+    // So we dump all the sparse ranges in a single paragraph, and we just iterate
+    // over all the codepoints in the font and deduplicate the glyphs we print.
+    tparms->wrap = WRAP_WORD;
+    rdpq_paragraph_builder_begin(tparms, fi->font_id, atlas->pars[atlas->npars]);
+
+    for (font_block_t *block = fi->block_list; block->name != NULL; ++block) {
+        if (!block->sparse) continue;
+
+        // Print the range name
+        tparms->wrap = WRAP_WORD;
+        int n = sprintf(buffer, "%s%s (U+%04lX - U+%04lX)", block->name, block->partial ? "*" : "", block->first, block->last);
+        rdpq_paragraph_builder_span(buffer, n);
+        rdpq_paragraph_builder_newline();
+    }
+
+    // Sparse bitmap that holds which glyphs we already printed
+    static uint8_t sparse_bitmap[32768/8];
+    memset(sparse_bitmap, 0, sizeof(sparse_bitmap));
+    
+    int bufidx = 0;
+    for (font_block_t *block = fi->block_list; block->name != NULL; ++block) {
+        if (!block->sparse) continue;
+
+        for (uint32_t c = block->first; c <= block->last; c++) {
+            // Get the glyph index for this codepoint.
+            int16_t index = rdpq_font_get_glyph_index(fi->font, c);
+            if (index < 0) continue;
+
+            // Check if we already printed this glyph
+            if (sparse_bitmap[index/8] & (1 << (index%8))) continue;
+
+            // Print the glyph and remmeber it in the bitmap
+            codepoint_to_utf8(c, buffer, &bufidx);
+            sparse_bitmap[index/8] |= 1 << (index%8);
+        }
+    }
+
+    // Draw the glyphs
+    tparms->wrap = WRAP_CHAR;
+    rdpq_paragraph_builder_span(buffer, bufidx);
+
+    atlas->pars[atlas->npars++] = rdpq_paragraph_builder_end();
+
+    // Clear memory used by the previous paragraphs that we don't need anymore
+    for (int i = atlas->npars; i < sizeof(atlas->pars) / sizeof(rdpq_paragraph_t*); i++) {
+        if (atlas->pars[i]) {
+            rdpq_paragraph_free(atlas->pars[i]);
+            atlas->pars[i] = NULL;
+        }
+    }
+}
+
+void font_atlas_render(font_atlas *atlas, int x, int y)
+{
+    int height = display_get_height();
+    for (int i=0; i<atlas->npars; i++) {
+        rdpq_paragraph_t *par = atlas->pars[i];
+
+        // Draw only visibile paragraphs, using the bbox
+        int y0 = y + par->bbox.y0;
+        int y1 = y + par->bbox.y1;
+        if (y0 < height && y1 >= 0)
+            rdpq_paragraph_render(atlas->pars[i], x, y);
+
+        y += par->advance_y;
+    }
 }
 
 int main()
@@ -487,7 +621,7 @@ int main()
     const int MENU_END_WIDTH = 12;
     const int MENU_FONT_SPACE = 20;
     int color_mode = 0;
-    rdpq_paragraph_t *allglyphs_par = NULL;
+    font_atlas atlas = {0};
 
     int cur_font_index = 0;
     float star_angle = 0.0f;
@@ -567,7 +701,7 @@ int main()
             }
         }
 
-        font_info_t *fi = &font_db[cur_font_index];
+        font_info *fi = &font_db[cur_font_index];
         int x0 = menu_xstarti + MENU_WIDTH+MENU_END_WIDTH + 10;
         int y0 = ystart;
         rdpq_textparms_t tparms = {
@@ -604,52 +738,9 @@ int main()
 
         case PAGE_ALLGLYPHS: {
             if (curpage_changed) {
-                static char buffer[65536];
-
-                tparms.wrap = WRAP_WORD;
-                rdpq_paragraph_builder_begin(&tparms, fi->font_id, allglyphs_par);
-
-                font_block_t *block = fi->block_list;
-                while (block->name != NULL) {
-                    int n = sprintf(buffer, "%s%s (U+%04lX - U+%04lX)", block->name, block->partial ? "*" : "", block->first, block->last);
-                    rdpq_paragraph_builder_span(buffer, n);
-                    rdpq_paragraph_builder_newline();
-
-                    int bufidx = 0;
-                    // Put all the glyphs in the range in a buffer, in UTF-8 format
-                    for (uint32_t c = block->first; c <= block->last; c++) {
-                        if (c < 0x80) {
-                            if (c == '\n' || c == '\t' || c == '\r' || c == ' ') continue;
-                            buffer[bufidx++] = c;
-                            if (c == '^' || c == '$') buffer[bufidx++] = c;
-                        } else if (c < 0x800) {
-                            buffer[bufidx++] = 0xC0 | (c >> 6);
-                            buffer[bufidx++] = 0x80 | (c & 0x3F);
-                        } else if (c < 0x10000) {
-                            buffer[bufidx++] = 0xE0 | (c >> 12);
-                            buffer[bufidx++] = 0x80 | ((c >> 6) & 0x3F);
-                            buffer[bufidx++] = 0x80 | (c & 0x3F);
-                        } else {
-                            buffer[bufidx++] = 0xF0 | (c >> 18);
-                            buffer[bufidx++] = 0x80 | ((c >> 12) & 0x3F);
-                            buffer[bufidx++] = 0x80 | ((c >> 6) & 0x3F);
-                            buffer[bufidx++] = 0x80 | (c & 0x3F);
-                        }
-                    }
-
-
-                    tparms.wrap = WRAP_CHAR;
-                    rdpq_paragraph_builder_span(buffer, bufidx);
-                    rdpq_paragraph_builder_newline();
-                    rdpq_paragraph_builder_newline();
-
-                    ++block;
-                }            
-
-                allglyphs_par = rdpq_paragraph_builder_end();
+                font_atlas_build(fi, &atlas, &tparms);
             }
-
-            rdpq_paragraph_render(allglyphs_par, x0, y0);
+            font_atlas_render(&atlas, x0, y0);
         }   break;
 
         case PAGE_TEXT: {
