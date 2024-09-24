@@ -363,12 +363,16 @@ void print_args( char * name )
     fprintf(stderr, "\n");
     fprintf(stderr, "TTF/OTF specific flags:\n");
     fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: whatever the font defaults to)\n");
-    fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
-    fprintf(stderr, "                             Can be specified multiple times. Use \"--range all\" to extract all\n");
-    fprintf(stderr, "                             glyphs in the font.\n");
     fprintf(stderr, "   --monochrome              Force monochrome output, with no aliasing (default: off)\n");
     fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
     fprintf(stderr, "   --char-spacing <width>    Add extra spacing between characters (default: 0)\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "   Glyph selection modes (choose one of the follwing):\n");
+    fprintf(stderr, "   --charset <file>          Create a font that covers all and only the glyphs used in the");
+    fprintf(stderr, "                             specified file (in UTF-8 format).\n");
+    fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
+    fprintf(stderr, "                             Can be specified multiple times. Use \"--range all\" to extract all\n");
+    fprintf(stderr, "                             glyphs in the font.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "BMFont specific flags:\n");
     fprintf(stderr, "   --format <format>         Specify the output texture format. Valid options are:\n");
@@ -426,6 +430,10 @@ int main(int argc, char *argv[])
                 char extra;
                 if (sscanf(argv[i], "%x-%x%c", &r0, &r1, &extra) != 2) {
                     fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                if (r0 > r1) {
+                    fprintf(stderr, "invalid range: %x-%x\n", r0, r1);
                     return 1;
                 }
                 flag_ranges.push_back(r0);
