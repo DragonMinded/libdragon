@@ -622,6 +622,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
     settings.border_padding = 0;
     settings.allow_rotate = false;
     
+    int total_glyph_area = 0;
     std::vector<rect_pack::Size> sizes;
     std::vector<rect_pack::Sheet> sheets;
     for (int i=0; i<glyphs.size(); i++) {
@@ -630,6 +631,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
         size.id = i;
         size.width = glyphs[i].img.w + settings.border_padding;
         size.height = glyphs[i].img.h + settings.border_padding;
+        total_glyph_area += size.width * size.height;
         sizes.push_back(size);
     }
 
@@ -689,17 +691,29 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
         assert(!"unsupported font type");
     }
 
-    // Do the packing
-    sheets = rect_pack::pack(settings, sizes);
-    
-    // If we end up with too many atlases for a single range, it means that
-    // loading atlases into TMEM isn't going to be efficient: we would statistically
-    // need to switch between atlases too often. In this case, change strategy
-    // and build huge atlases that will be kept in RDRAM and loaded one glyph
-    // at a time instead
-    // 8 is an arbitrary threshold for the heuristics of "too many atlases".
-    if (sheets.size() / merge_layers >= 8) {
-        if (flag_verbose) fprintf(stderr, "too many atlases for a single range (%zu), switching to RDRAM atlases\n", sheets.size());
+    enum { MAX_TMEM_ATLASES = 8 };
+    bool fit_tmem = false;
+
+    // Try packing for TMEM sizes. We first do a quick check whether the glyphs
+    // do fit in the maximum number of atlases for TMEM (with zero waste), just to avoid
+    // doing a huge computation in case there are many glyph, just to discard it.
+    if (total_glyph_area <= merge_layers * MAX_TMEM_ATLASES * settings.max_width * settings.max_height) {
+
+        // Do the packing with TMEM limits
+        sheets = rect_pack::pack(settings, sizes);
+        
+        // Check whether the number of atlases is below the threshold to keep them in TMEM
+        fit_tmem = sheets.size() / merge_layers <= MAX_TMEM_ATLASES;
+    }
+
+    if (!fit_tmem) {    
+        // If we end up with too many atlases for a single range, it means that
+        // loading atlases into TMEM isn't going to be efficient: we would statistically
+        // need to switch between atlases too often. In this case, change strategy
+        // and build huge atlases that will be kept in RDRAM and loaded one glyph
+        // at a time instead
+        // 8 is an arbitrary threshold for the heuristics of "too many atlases".
+        if (flag_verbose) fprintf(stderr, "too many atlases for a single range, switching to RDRAM atlases\n");
         // We are limited to 256x256 because we keep s/t coordinates in 8-bit values
         settings.max_width = 256;
         settings.max_height = 256;
