@@ -2,6 +2,9 @@
 // Bring in tex_format_t definition
 #include "surface.h"
 #include "sprite.h"
+#include <map>
+#include "phf.h"
+#include "phf.cpp"
 
 static std::string codepoint_to_utf8(uint32_t codepoint) {
     std::string utf8;
@@ -340,6 +343,8 @@ struct Font {
     std::string outfn;
     fonttype_t fonttype;
     tex_format_t bmp_outfmt = FMT_RGBA16;  // output format in case fonttype is FONT_TYPE_BITMAP
+    phf phash;  // perfect hash table for sparse ranges
+    std::vector<int16_t> phash_values;
 
     Font(std::string fn, fonttype_t ftype, int point_size, int ascent, int descent, int line_gap, int space_width)
     {
@@ -347,13 +352,14 @@ struct Font {
         fonttype = ftype;
         fnt = (rdpq_font_t*)calloc(1, sizeof(rdpq_font_t));
         memcpy(fnt->magic, FONT_MAGIC, 3);
-        fnt->version = 9;
+        fnt->version = 10;
         fnt->flags = fonttype;
         fnt->point_size = point_size;
         fnt->ascent = ascent;
         fnt->descent = descent;
         fnt->line_gap = line_gap;
         fnt->space_width = space_width;
+        memset(&phash, 0, sizeof(phf));
     }
 
     ~Font()
@@ -388,11 +394,13 @@ struct Font {
 
     void make_atlases(void);
     void make_kernings(void);
+    void make_sparse_ranges(void);
 
     void write(void);
 
 private:
     std::vector<rect_pack::Sheet> pack_atlases(std::vector<Glyph>& glyphs, int merge_layers);
+    void build_perfect_hash(std::vector<uint32_t>& keys, std::vector<int16_t>& values);
 };
 
 
@@ -436,6 +444,7 @@ void Font::write()
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
+    w32(out, (uint32_t)0); // placeholder
 
     // Write ranges
     uint32_t offset_ranges = ftell(out);
@@ -444,6 +453,28 @@ void Font::write()
         w32(out, fnt->ranges[i].first_codepoint);
         w32(out, fnt->ranges[i].num_codepoints);
         w32(out, fnt->ranges[i].first_glyph);
+    }
+
+    // Write sparse table
+    uint32_t offset_sparse = 0;
+    if (!phash_values.empty()) {
+        walign(out, 4);
+
+        int offset_disp = ftell(out);
+        for (int i=0; i<phash.r; i++)
+            w16(out, phash.g[i]); // already verified it fits 16 bits in build_perfect_hash
+
+        int offset_T = ftell(out);
+        for (int i=0; i<phash_values.size(); i++)
+            w16(out, phash_values[i]);
+
+        walign(out, 4);
+        offset_sparse = ftell(out);
+        w32(out, phash.seed);
+        w32(out, phash.r);
+        w32(out, phash.m);
+        w32(out, offset_disp);
+        w32(out, offset_T);
     }
 
     // Write glyphs, aligned to 16 bytes. This makes sure
@@ -508,6 +539,7 @@ void Font::write()
     // Write offsets
     fseek(out, off_placeholders, SEEK_SET);
     w32(out, offset_ranges);
+    w32(out, offset_sparse);
     w32(out, offset_glypes);
     w32(out, offset_glyphs_kranges);
     w32(out, offset_atlases);
@@ -1189,6 +1221,113 @@ void Font::make_kernings()
         fprintf(stderr, "added %zu kernings\n", kernings.size());
 
     kernings.clear();
+}
+
+// Calculate the smallest prime number bigger than x
+static int calc_smallest_prime(int x) 
+{
+    for (int i=x; ; i++) {
+        bool prime = true;
+        for (int j=2; j*j<=i; j++) {
+            if (i % j == 0) {
+                prime = false;
+                break;
+            }
+        }
+        if (prime) return i;
+    }
+    return 0;
+}
+
+void Font::build_perfect_hash(std::vector<uint32_t>& keys, std::vector<int16_t>& values)
+{
+    assert(phash.r == 0); // only one perfect hash
+
+    const int lambda = 4;
+    const int alpha = 100; // load factor (100%)
+    const uint32_t seed = 0x12345678;
+
+    PHF::init<uint32_t, false>(&phash, &keys[0], keys.size(), lambda, alpha, seed);
+
+    phash_values.resize(phash.m, -1);
+    for (int i=0; i<keys.size(); i++) {
+        uint32_t h = PHF::hash(&phash, keys[i]);
+        assert(h < phash_values.size());
+        assert(phash_values[h] == -1);      // check if it's a real perfect hash
+        phash_values[h] = values[i];
+    }
+
+    // In font64 we will store the displacement table using 16 bit indices.
+    // This seems to be more than enough even for huge fonts. In case this is
+    // hit, probably the best solution is to decrease the load factor a bit,
+    // which reduces d_max (eg: in a loop until d_max fits 16 bits again).
+    assert(phash.d_max < 65536);
+
+    if (flag_verbose) fprintf(stderr, "    perfect hash table: %zu glyphs, %u bytes\n",
+        keys.size(), (int)(phash.m * sizeof(int16_t) + phash.r * sizeof(uint16_t)));
+}
+
+void Font::make_sparse_ranges(void)
+{
+    // By default, all ranges are dense. Check if we find ranges that waste more
+    // than WASTED_MEMORY_THRESHOLD by being dense, and convert them to sparse.
+    enum { WASTED_MEMORY_THRESHOLD = 1*1024 };
+
+    std::vector<uint32_t> sparse_codepoints;
+    std::vector<int16_t> sparse_indices;
+    
+    int widx = 0;
+    for (int i=0; i<fnt->num_ranges; i++)
+    {
+        // Small ranges are never worth converting to sparse
+        bool sparse = false;
+        int num_codepoints = fnt->ranges[i].num_codepoints;
+        if (num_codepoints * sizeof(glyph_t) >= WASTED_MEMORY_THRESHOLD) {
+            // Check how many empty glyph slots are in this range
+            int num_glyphs = 0;
+            for (int j=0; j<num_codepoints; j++)
+            {
+                int gidx = fnt->ranges[i].first_glyph + j;
+                if (fnt->glyphs[gidx].xadvance > 0)
+                    num_glyphs++;
+            }
+            if ((num_codepoints - num_glyphs) * sizeof(glyph_t) >= WASTED_MEMORY_THRESHOLD) {
+                sparse = true;
+                if (flag_verbose) fprintf(stderr, "range %x-%x is sparse (%d glyphs out of %d)\n", 
+                    fnt->ranges[i].first_codepoint, fnt->ranges[i].first_codepoint + num_codepoints - 1, 
+                    num_glyphs, num_codepoints);
+            }
+        }
+
+        int first_glyph = fnt->ranges[i].first_glyph;
+        fnt->ranges[i].first_glyph = sparse ? -1 : widx;
+
+        // Compact the range, removing all empty glyphs if sparse
+        for (int j=0; j<num_codepoints; j++)
+        {
+            int ridx = first_glyph + j;
+            if (fnt->glyphs[ridx].xadvance != 0 || !sparse) {
+                if (sparse) {
+                    sparse_codepoints.push_back(fnt->ranges[i].first_codepoint + j);
+                    sparse_indices.push_back(widx);
+                }
+                fnt->glyphs[widx++] = fnt->glyphs[ridx];
+            }
+        }
+
+    }
+
+    if (sparse_codepoints.empty()) {
+        assert(widx == fnt->num_glyphs);
+        return;
+    }
+
+    // Some glyphs have been compacted. Update the number of glyphs in the font
+    fnt->num_glyphs = widx;
+
+    build_perfect_hash(sparse_codepoints, sparse_indices);
+    
+    if (flag_verbose) fprintf(stderr, "total glyphs: %d\n", fnt->num_glyphs);
 }
 
 void Font::add_ellipsis(int ellipsis_cp, int ellipsis_repeats)

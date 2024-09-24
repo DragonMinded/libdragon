@@ -141,8 +141,13 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
     assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
     assertf(memcmp(fnt->magic, FONT_MAGIC_LOADED, 3), "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
     assertf(!memcmp(fnt->magic, FONT_MAGIC, 3), "invalid font data (magic: %c%c%c)", fnt->magic[0], fnt->magic[1], fnt->magic[2]);
-    assertf(fnt->version == 9, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
+    assertf(fnt->version == 10, "unsupported font version: %d\nPlease regenerate fonts with an updated mkfont tool", fnt->version);
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
+    if (fnt->sparse_range) {
+        fnt->sparse_range = PTR_DECODE(fnt, fnt->sparse_range);
+        fnt->sparse_range->g = PTR_DECODE(fnt, fnt->sparse_range->g);
+        fnt->sparse_range->values = PTR_DECODE(fnt, fnt->sparse_range->values);
+    }
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
     if (fnt->glyphs_kranges) fnt->glyphs_kranges = PTR_DECODE(fnt, fnt->glyphs_kranges);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
@@ -254,6 +259,11 @@ static void font_unload(rdpq_font_t *fnt)
         fnt->num_styles = 1;
     }
     fnt->ranges = PTR_ENCODE(fnt, fnt->ranges);
+    if (fnt->sparse_range) {
+        fnt->sparse_range->g = PTR_ENCODE(fnt, fnt->sparse_range->g);
+        fnt->sparse_range->values = PTR_ENCODE(fnt, fnt->sparse_range->values);
+        fnt->sparse_range = PTR_ENCODE(fnt, fnt->sparse_range);
+    }
     fnt->glyphs = PTR_ENCODE(fnt, fnt->glyphs);
     if (fnt->glyphs_kranges) fnt->glyphs_kranges = PTR_ENCODE(fnt, fnt->glyphs_kranges);
     fnt->atlases = PTR_ENCODE(fnt, fnt->atlases);
@@ -276,12 +286,55 @@ void rdpq_font_free(rdpq_font_t *fnt)
     }
 }
 
+static uint32_t rotl(uint32_t x, int k)
+{
+    return (x << k) | (x >> (-k & 31));
+}
+
+__attribute__((noinline))
+static uint32_t phf_round32(uint32_t k1, uint32_t h1) {
+	k1 *= 0xcc9e2d51;
+	k1 = rotl(k1, 15);
+	k1 *= 0x1b873593;
+	h1 ^= k1;
+	h1 = rotl(h1, 13);
+	h1 = h1 * 5 + 0xe6546b64;
+	return h1;
+}
+__attribute__((noinline))
+static uint32_t phf_mix32(uint32_t h1) {
+	h1 ^= h1 >> 16;
+	h1 *= 0x85ebca6b;
+	h1 ^= h1 >> 13;
+	h1 *= 0xc2b2ae35;
+	h1 ^= h1 >> 16;
+	return h1;
+}
+
+__attribute__((noinline))
+static int16_t __rdpq_font_glyph_sparse(const rdpq_font_t *fnt, uint32_t codepoint)
+{
+    uint32_t seed = fnt->sparse_range->seed;
+    uint32_t g = phf_mix32(phf_round32(codepoint, seed));
+    uint32_t gidx = ((uint64_t)g * fnt->sparse_range->r) >> 32;
+    uint32_t d = fnt->sparse_range->g[gidx];
+    uint32_t f = phf_mix32(phf_round32(codepoint, phf_round32(d, seed)));
+    uint32_t idx = ((uint64_t)f * fnt->sparse_range->m) >> 32;
+    int16_t glyph = fnt->sparse_range->values[idx];
+    assertf(glyph >= 0, "internal error: perfect hash table lookup failed for codepoint %ld", codepoint);
+    return glyph;
+}
+
 int16_t __rdpq_font_glyph(const rdpq_font_t *fnt, uint32_t codepoint)
 {
     // Search for the range that contains this codepoint (if any)
     for (int i = 0; i < fnt->num_ranges; i++) {
         range_t *r = &fnt->ranges[i];
         if (codepoint >= r->first_codepoint && codepoint < r->first_codepoint + r->num_codepoints) {
+            if (UNLIKELY(r->first_glyph < 0)) {
+                assert(fnt->sparse_range);
+                return __rdpq_font_glyph_sparse(fnt, codepoint);
+            }
             return r->first_glyph + codepoint - r->first_codepoint;
         }
     }
@@ -408,16 +461,22 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     return ch - chars;
 }
 
-bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start, uint32_t *end)
+bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start, uint32_t *end, bool *sparse)
 {
     if (idx < 0 || idx >= fnt->num_ranges)
         return false;
     *start = fnt->ranges[idx].first_codepoint;
     *end = fnt->ranges[idx].first_codepoint + fnt->ranges[idx].num_codepoints - 1;
+    if (sparse) *sparse = fnt->ranges[idx].first_glyph < 0;
     return true;
 }
 
-bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt,  uint32_t codepoint, rdpq_font_gmetrics_t *metrics)
+int rdpq_font_get_glyph_index(const rdpq_font_t *fnt, uint32_t codepoint)
+{
+    return __rdpq_font_glyph(fnt, codepoint);
+}
+
+bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt, uint32_t codepoint, rdpq_font_gmetrics_t *metrics)
 {
     int16_t glyph = __rdpq_font_glyph(fnt, codepoint);
     if (glyph < 0)

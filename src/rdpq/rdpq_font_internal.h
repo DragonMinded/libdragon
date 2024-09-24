@@ -30,8 +30,28 @@ typedef enum {
 typedef struct {
     uint32_t first_codepoint;    ///< First codepoint in the range
     uint32_t num_codepoints;     ///< Number of codepoints in the range
-    uint32_t first_glyph;        ///< Index of the first glyph in the range
+    int32_t first_glyph;         ///< Index of the first glyph in the range (-1 if range is sparse)
 } range_t;
+
+/** 
+ * @brief Sparse range table. 
+ * 
+ * This is a perfect hash table used to encode glyph indices for codepoints.
+ * It is used for all sparse ranges, that is ranges where only some codepoints
+ * are defined within the min/max of the range, to avoid wasting too much
+ * memory in the glyph table for empty entries.
+ * 
+ * This uses the CHD (compress hash displace) perfect hash table algorithm,
+ * that is very fast at runtime and has very little complexity. Since we
+ * handle small tables by today's standard, this algorithm is a good fit.
+ */
+typedef struct {
+    uint32_t seed;                      ///< Seed for the hashing algorithm
+    uint32_t r;                         ///< Number of elements in the displacement table
+    uint32_t m;                         ///< Number of elements in the values table
+    uint16_t *g;                        ///< Displacement table
+    int16_t *values;                    ///< Values table (actual glyph indices)
+} sparse_range_t;
 
 /** @brief A glyph in the font (part of #rdpq_font_t) */
 typedef struct glyph_s {
@@ -92,6 +112,7 @@ typedef struct rdpq_font_s {
     uint32_t num_styles;                ///< Number of styles in the font
     style_t builtin_style;              ///< Default style for the font
     range_t *ranges;                    ///< Array of ranges
+    sparse_range_t *sparse_range;       ///< Sparse table of glyph indices
     glyph_t *glyphs;                    ///< Array of glyphs
     glyph_krange_t *glyphs_kranges;     ///< Array of glyph kerning ranges
     atlas_t *atlases;                   ///< Array of atlases

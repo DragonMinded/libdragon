@@ -296,6 +296,9 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         font.make_atlases();
     }
 
+    // Create the sparse range table
+    font.make_sparse_ranges();
+
     // Add kerning information, if enabled on command line and available in the font
     if (flag_kerning && FT_HAS_KERNING(face)) {
         const int ascii_range_start = 0x20;

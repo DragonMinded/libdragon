@@ -172,14 +172,40 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
  * 
  * The ranges are guranteed to be sorted in ascending order.
  * 
+ * Notice that font64 support "sparse ranges", which are ranges where not all
+ * glyphs are defined. To avoid excess memory usage, the font doesn't store
+ * exactly *which* glyphs are stored, so it is not possible to retrieve this
+ * information.
+ * 
  * @param[in] fnt       Font to query
  * @param[in] idx       Index of the range to query
  * @param[out] start    Start of the range
  * @param[out] end      End of the range (inclusive)
+ * @param[out] sparse   Set to true if not all glyphs in the range are defined
  * @return true         If the index is valid
  * @return false        If the index is out of bounds
  */
-bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start, uint32_t *end);
+bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start, uint32_t *end, bool *sparse);
+
+/**
+ * @brief Get the internal index of a glyoh given the codepoint
+ * 
+ * This function returns the internal index of a glyph given its unicode codepoint.
+ * The index can be used to perform further lookups (eg: get the metrics), or
+ * just to verify whether a glyph exists in the font or not.
+ * 
+ * When calling this query for a glyph that falls within a sparse range, false
+ * positives can be returned. That is, for a certain unicode codepoint within the
+ * range but that is not present in the font, this function might return a wrong
+ * index (actually referring to a different glyph). This happens because font64
+ * does not store the codepoints for glyphs in sparse ranges, and querying a
+ * non existing glyph is considered undefined behavior.
+ * 
+ * @param fnt           Font to query
+ * @param codepoint     Unicode codepoint of the glyph
+ * @return int          Internal index of the glyph, or -1 if the glyph does not exist
+ */
+int rdpq_font_get_glyph_index(const rdpq_font_t *fnt, uint32_t codepoint);
 
 /**
  * @brief Get the metrics of a glyph in a font
@@ -194,6 +220,7 @@ bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start
  * @return bool         true if the glyph was found, false otherwise
  */
 bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt, uint32_t codepoint, rdpq_font_gmetrics_t *metrics);
+
 
 #ifdef __cplusplus
 }
