@@ -233,6 +233,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
 
         // Add character to the layout
         if (UNLIKELY(builder.layout->nchars >= builder.layout->capacity)) paragraph_extend();
+        assertf(xcur < 2048, "Paragraph width %d exceeds maximum width", (int)xcur);
+        assertf(ycur < 2048, "Paragraph height %d exceeds maximum height", (int)ycur);
         builder.layout->chars[builder.layout->nchars++] = (rdpq_paragraph_char_t) {
             .font_id = builder.font_id,
             .atlas_id = atlas_id,
