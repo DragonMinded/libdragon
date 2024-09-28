@@ -367,8 +367,8 @@ void print_args( char * name )
     fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
     fprintf(stderr, "   --char-spacing <width>    Add extra spacing between characters (default: 0)\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "   Glyph selection modes (choose one of the follwing):\n");
-    fprintf(stderr, "   --charset <file>          Create a font that covers all and only the glyphs used in the");
+    fprintf(stderr, "   Glyph selection modes (choose one of the following):\n");
+    fprintf(stderr, "   --charset <file>          Create a font that covers all and only the glyphs used in the\n");
     fprintf(stderr, "                             specified file (in UTF-8 format).\n");
     fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
     fprintf(stderr, "                             Can be specified multiple times. Use \"--range all\" to extract all\n");

@@ -194,7 +194,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 continue;
             if (is_combined_glyph(g)) {
                 if (!flag_charset.empty() && !warned_combined) {
-                    fprintf(stderr, "WARNING: charset file contains combined diatritical marks, which are not supported\n");
+                    fprintf(stderr, "WARNING: charset file contains combined diacritical marks, which are not supported\n");
                     warned_combined = true;
                 }
                 continue;
