@@ -3,8 +3,10 @@
 #include "surface.h"
 #include "sprite.h"
 #include <map>
+#include <mutex>
 #include "phf.h"
 #include "phf.cpp"
+#include "../common/thread_utils.h"
 
 static std::string codepoint_to_utf8(uint32_t codepoint) {
     std::string utf8;
@@ -801,34 +803,44 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
 
     // Try to find a better packing for this sheet group. Set the maximum number
     // of sheets to the expected one so that we can early abort.
-    int best_area = group_width * group_height;
+    std::atomic_int best_area = group_width * group_height;
+    int best_h = 1024;
     settings.max_sheets = merge_layers;
+    std::mutex best_lock;
 
-    for (int h=MAX(min_area/256, 8); h<=256; h++) {
+    thParaLoop(256, [&](int h){
+        if (++h < MAX(min_area/256, 8)) return;
         int w = MAX(ROUND_UP(min_area / h, settings.align_width), settings.align_width);
         for (; w <= 256; w += settings.align_width) {
-            if (h * w >= best_area)
-                break;
+            // Early exit if w is too big to win against best_area.
+            // If h*w matches, to guarantee consistency of output, we want to keep the result
+            // with the smallest h.
+            if (h * w > best_area) break;
 
             // printf("    trying %dx%d\n", w, h);
-            settings.min_width = w;
-            settings.min_height = h;
-            settings.max_width = w;
-            settings.max_height = h;
-            std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(settings, sizes2);
+            rect_pack::Settings s = settings;
+            s.min_width = w;
+            s.min_height = h;
+            s.max_width = w;
+            s.max_height = h;
+            std::vector<rect_pack::Sheet> new_sheets = rect_pack::pack(s, sizes2);
 
             // Check if all glyphs fit this size, by counting how many of them were packed
             int packed_glyphs = 0;
             for (auto &sheet : new_sheets) packed_glyphs += sheet.rects.size();
             if (packed_glyphs == sizes2.size()) {
-                group_sheets = new_sheets;
-                best_area = w*h;
-                if (flag_verbose >= 1)
-                    printf("    found better packing: %d x %d (%d bytes)\n", w, h, TEX_FORMAT_PIX2BYTES(cfmt, w*h));
+                std::lock_guard<std::mutex> g(best_lock);
+                if (h * w < best_area || (h * w == best_area && h < best_h)) {
+                    group_sheets = new_sheets;
+                    best_h = h;
+                    best_area = w*h;
+                    if (flag_verbose >= 1)
+                        printf("    found better packing: %d x %d (%d bytes)\n", w, h, TEX_FORMAT_PIX2BYTES(cfmt, w*h));
+                }
                 break;
             }
         }
-    }
+    });
 
     // Append the best sheets to the calculated sheets
     sheets.insert(sheets.end(), group_sheets.begin(), group_sheets.end());
