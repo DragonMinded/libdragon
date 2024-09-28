@@ -1275,8 +1275,8 @@ void Font::build_perfect_hash(std::vector<uint32_t>& keys, std::vector<int16_t>&
     // which reduces d_max (eg: in a loop until d_max fits 16 bits again).
     assert(phash.d_max < 65536);
 
-    if (flag_verbose) fprintf(stderr, "    perfect hash table: %zu glyphs, %u bytes\n",
-        keys.size(), (int)(phash.m * sizeof(int16_t) + phash.r * sizeof(uint16_t)));
+    if (flag_verbose) fprintf(stderr, "    perfect hash table: %zu glyphs, %u bytes (d_max:%zu)\n",
+        keys.size(), (int)(phash.m * sizeof(int16_t) + phash.r * sizeof(uint16_t)), phash.d_max);
 }
 
 void Font::make_sparse_ranges(void)
