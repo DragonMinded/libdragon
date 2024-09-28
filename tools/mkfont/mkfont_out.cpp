@@ -737,7 +737,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
         sheets = rect_pack::pack(settings, sizes);
         
         // Check whether the number of atlases is below the threshold to keep them in TMEM
-        fit_tmem = sheets.size() / merge_layers <= MAX_TMEM_ATLASES;
+        fit_tmem = sheets.size() <= MAX_TMEM_ATLASES * merge_layers;
     }
 
     if (!fit_tmem) {    
