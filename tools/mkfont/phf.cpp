@@ -523,12 +523,12 @@ static inline uint32_t phf_f(uint32_t d, uint64_t k, uint32_t seed) {
 /* g() and f() which parameterize modular reduction */
 template<bool nodiv, typename T>
 static inline uint32_t phf_g_mod_r(T k, uint32_t seed, size_t r) {
-	return (nodiv)? (phf_g(k, seed) & (r - 1)) : (phf_g(k, seed) % r);
+	return (nodiv)? (phf_g(k, seed) & (r - 1)) : (((uint64_t)phf_g(k, seed) * r) >> 32);
 } /* phf_g_mod_r() */
 
 template<bool nodiv, typename T>
 static inline uint32_t phf_f_mod_m(uint32_t d, T k, uint32_t seed, size_t m) {
-	return (nodiv)? (phf_f(d, k, seed) & (m - 1)) : (phf_f(d, k, seed) % m);
+	return (nodiv)? (phf_f(d, k, seed) & (m - 1)) : (((uint64_t)phf_f(d, k, seed) * m) >> 32);
 } /* phf_f_mod_m() */
 
 
@@ -826,15 +826,8 @@ template int PHF::init<std::string, false>(struct phf *, const std::string[], co
 
 template<bool nodiv, typename map_t, typename key_t>
 static inline phf_hash_t phf_hash_(map_t *g, key_t k, uint32_t seed, size_t r, size_t m) {
-	if (nodiv) {
-		uint32_t d = g[phf_g(k, seed) & (r - 1)];
-
-		return phf_f(d, k, seed) & (m - 1);
-	} else {
-		uint32_t d = g[phf_g(k, seed) % r];
-
-		return phf_f(d, k, seed) % m;
-	}
+	uint32_t d = g[phf_g_mod_r<nodiv>(k, seed, r)];
+	return phf_f_mod_m<nodiv>(d, k, seed, m);
 } /* phf_hash_() */
 
 template<typename T>
