@@ -60,8 +60,6 @@ typedef struct {
 } wav64_opus_state;
 
 static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
-    static int callcount = 0;
-    callcount += 1;
 	wav64_t *wav = (wav64_t*)ctx;
 	wav64_opus_state *st = (wav64_opus_state*)wav->ext;
 
@@ -93,7 +91,7 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
             // Read frame size
             uint16_t nb = 0;
             read(wav->current_fd, &nb, 2);
-            assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %08X (%ld) %d", nb, st->xhead.max_cmp_frame_size, callcount);
+            assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %08X (%ld)", nb, st->xhead.max_cmp_frame_size);
 
             unsigned long aligned_frame_size = nb; 
             if (aligned_frame_size & 1) {
