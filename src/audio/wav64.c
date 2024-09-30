@@ -155,8 +155,9 @@ void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen,
 	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
 	int bytes = wlen << bps;
 
+	// FIXME: remove CachedAddr() when read() supports uncached addresses
 	uint32_t t0 = TICKS_READ();
-	read(current_fd, ram_addr, bytes);
+	read(current_fd, CachedAddr(ram_addr), bytes);
 	__wav64_profile_dma += TICKS_READ() - t0;
 }
 
