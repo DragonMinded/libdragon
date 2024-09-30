@@ -31,8 +31,8 @@ typedef struct __attribute__((aligned(8))) {
 typedef struct __attribute__((packed, aligned(8))) {
 	int8_t npredictors;					///< Number of predictors
 	int8_t order;						///< Order of the predictors
-	int16_t padding;					///< Padding				
-	uint32_t current_rom_addr;			///< Current address in ROM
+	uint16_t padding;					///< padding
+	uint32_t padding1;					///< padding1
 	wav64_vadpcm_vector_t loop_state[2];///< State at the loop point
 	wav64_vadpcm_vector_t state[2];		///< Current decompression state
 	wav64_vadpcm_vector_t codebook[];	///< Codebook of the predictors
@@ -43,8 +43,15 @@ typedef struct samplebuffer_s samplebuffer_t;
 /**
  * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
  * 
- * This function uses PI DMA to load samples from ROM into the sample buffer.
+ * This function uses a file descriptor to load samples from ROM into the sample buffer.
  */  
-void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps);
+void raw_waveform_read(samplebuffer_t *sbuf, int fd, int wpos, int wlen, int bps);
 
+/**
+ * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
+ * 
+ * This function uses PI DMA to load samples from ROM into the sample buffer.
+ * Note: Tempory function should be removed when XM64 moves to using FILE*.
+ */  
+void raw_waveform_read_address(samplebuffer_t *sbuf, int rom_addr, int wpos, int wlen, int bps);
 #endif

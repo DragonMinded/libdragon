@@ -8,6 +8,7 @@
 #define LIBDRAGON_AUDIO_WAV64_OPUS_INTERNAL_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include "wav64.h"
 
 /** @brief Initialize opus decompression on a wav64 file */

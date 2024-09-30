@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "utils.h"
 #include "rspq.h"
+#include "asset_internal.h"
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
@@ -23,6 +24,8 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdalign.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 /** @brief Set to 1 to use the reference C decode for VADPCM */
 #define VADPCM_REFERENCE_DECODER     0
@@ -148,7 +151,16 @@ static inline void rsp_vadpcm_decompress(void *input, int16_t *output, bool ster
 
 #endif /* VADPCM_REFERENCE_DECODER */
 
-void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps) {
+void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen, int bps) {
+	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
+	int bytes = wlen << bps;
+
+	uint32_t t0 = TICKS_READ();
+	read(current_fd, ram_addr, bytes);
+	__wav64_profile_dma += TICKS_READ() - t0;
+}
+
+void raw_waveform_read_address(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps) {
 	uint32_t rom_addr = base_rom_addr + (wpos << bps);
 	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
 	int bytes = wlen << bps;
@@ -165,7 +177,10 @@ void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wl
 static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	wav64_t *wav = (wav64_t*)ctx;
 	int bps = (wav->wave.bits == 8 ? 0 : 1) + (wav->wave.channels == 2 ? 1 : 0);
-	raw_waveform_read(sbuf, wav->rom_addr, wpos, wlen, bps);
+	if (seeking) {
+		lseek(wav->current_fd, wav->base_offset + (wpos << bps), SEEK_SET);
+	}
+	raw_waveform_read(sbuf, wav->current_fd, wpos, wlen, bps);
 }
 
 static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
@@ -175,12 +190,12 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	if (seeking) {
 		if (wpos == 0) {
 			memset(&vhead->state, 0, sizeof(vhead->state));
-			vhead->current_rom_addr = wav->rom_addr;
+			lseek(wav->current_fd, wav->base_offset, SEEK_SET);
 		} else {
 			assertf(wpos == wav->wave.len - wav->wave.loop_len,
 				"wav64: seeking to %x not supported (%x %x)\n", wpos, wav->wave.len, wav->wave.loop_len);
 			memcpy(&vhead->state, &vhead->loop_state, sizeof(vhead->state));
-			vhead->current_rom_addr = wav->rom_addr + (wav->wave.len - wav->wave.loop_len) / 16 * 9;
+			lseek(wav->current_fd, (wav->wave.len - wav->wave.loop_len) / 16 * 9, SEEK_CUR);
 		}
 	}
 
@@ -208,8 +223,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		void *src = (void*)dest + ((nframes*16) << SAMPLES_BPS_SHIFT(sbuf)) - src_bytes;
 
 		// Fetch compressed data
-		dma_read(src, vhead->current_rom_addr, src_bytes);
-		vhead->current_rom_addr += src_bytes;
+		read(wav->current_fd, src, src_bytes);
 
 		#if VADPCM_REFERENCE_DECODER
 		if (wav->wave.channels == 1) {
@@ -252,38 +266,30 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		rspq_highpri_end();
 }
 
-void wav64_open(wav64_t *wav, const char *fn) {
+void wav64_open(wav64_t *wav, const char *file_name) {
 	memset(wav, 0, sizeof(*wav));
 
-	// Currently, we only support streaming WAVs from DFS (ROMs). Any other
-	// filesystem is unsupported.
-	// For backward compatibility, we also silently accept a non-prefixed path.
-	if (strstr(fn, ":/")) {
-		assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: wav64 only supports files in ROM (rom:/)", fn);
-		fn += 5;
-	}
-
-	int fh = dfs_open(fn);
-	assertf(fh >= 0, "error opening file %s: %s (%d)\n", fn, dfs_strerror(fh), fh);
-
+	// Open the input file.
+	int file_handle = must_open(file_name);
 	wav64_header_t head = {0};
-	dfs_read(&head, 1, sizeof(head), fh);
+	read(file_handle, &head, sizeof(head));
 	if (memcmp(head.id, WAV64_ID, 4) != 0) {
 		assertf(memcmp(head.id, WAV_RIFF_ID, 4) != 0 && memcmp(head.id, WAV_RIFX_ID, 4) != 0,
-			"wav64 %s: use audioconv64 to convert to wav64 format", fn);
+			"wav64 %s: use audioconv64 to convert to wav64 format", file_name);
 		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
-			fn, head.id[0], head.id[1], head.id[2], head.id[3]);
+			file_name, head.id[0], head.id[1], head.id[2], head.id[3]);
 	}
 	assertf(head.version == WAV64_FILE_VERSION, "wav64 %s: invalid version: %02x\n",
-		fn, head.version);
+		file_name, head.version);
 
-	wav->wave.name = fn;
+	wav->wave.name = file_name;
 	wav->wave.channels = head.channels;
 	wav->wave.bits = head.nbits;
 	wav->wave.frequency = head.freq;
 	wav->wave.len = head.len;
 	wav->wave.loop_len = head.loop_len; 
-	wav->rom_addr = dfs_rom_addr(fn) + head.start_offset;
+	wav->current_fd = file_handle;
+	wav->base_offset = head.start_offset;
 	wav->format = head.format;
 
 	switch (head.format) {
@@ -294,29 +300,28 @@ void wav64_open(wav64_t *wav, const char *fn) {
 
 	case WAV64_FORMAT_VADPCM: {
 		wav64_header_vadpcm_t vhead = {0};
-		dfs_read(&vhead, 1, sizeof(vhead), fh);
-
+		read(file_handle, &vhead, sizeof(vhead));
 		int codebook_size = vhead.npredictors * vhead.order * head.channels * sizeof(wav64_vadpcm_vector_t);
 
 		void *ext = malloc_uncached(sizeof(vhead) + codebook_size);
 		memcpy(ext, &vhead, sizeof(vhead));
-		dfs_read(ext + sizeof(vhead), 1, codebook_size, fh);
+		read(file_handle, ext + sizeof(vhead), codebook_size);
 		wav->ext = ext;
 		wav->wave.read = waveform_vadpcm_read;
 		wav->wave.ctx = wav;
 		assertf(head.loop_len == 0 || head.loop_len % 16 == 0, 
-			"wav64 %s: invalid loop length: %ld\n", fn, head.loop_len);
+			"wav64 %s: invalid loop length: %ld\n", file_name, head.loop_len);
 	}	break;
 
 	case WAV64_FORMAT_OPUS: {
-		wav64_opus_init(wav, fh);
+		wav64_opus_init(wav, file_handle);
 	}	break;
 	
 	default:
-		assertf(0, "wav64 %s: invalid format: %02x\n", fn, head.format);
+		assertf(0, "wav64 %s: invalid format: %02x\n", file_name, head.format);
 	}
 
-	dfs_close(fh);
+	lseek(wav->current_fd, wav->base_offset, SEEK_SET);
 }
 
 void wav64_play(wav64_t *wav, int ch)
@@ -324,7 +329,7 @@ void wav64_play(wav64_t *wav, int ch)
 	// Update the context pointer, so that we try to catch cases where the
 	// wav64_t instance was moved.
 	wav->wave.ctx = wav;
-    mixer_ch_play(ch, &wav->wave);
+	mixer_ch_play(ch, &wav->wave);
 }
 
 void wav64_set_loop(wav64_t *wav, bool loop) {
@@ -362,5 +367,9 @@ void wav64_close(wav64_t *wav)
 			break;
 		}
 		wav->ext = NULL;
+		if (wav->current_fd >= 0) {
+			close(wav->current_fd);
+			wav->current_fd = -1;
+		}
 	}
 }
