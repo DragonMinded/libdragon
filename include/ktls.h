@@ -1,6 +1,8 @@
 #ifndef LIBDRAGON_KERNEL_TLS_H
 #define LIBDRAGON_KERNEL_TLS_H
 
+#define KERNEL_TP_INVALID ((void *)0xDFFF8001)
+
 #ifdef N64_DSO
 __asm__ (
     ".macro rdhwr rt, rd" "\n"
@@ -14,5 +16,7 @@ __asm__ (
     ".endm"               "\n"
 );
 #endif
+
+extern void *th_cur_tp;
 
 #endif
