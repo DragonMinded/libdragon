@@ -29,12 +29,15 @@
 
 #define FMT_ZBUF   (64 + 0)
 #define FMT_IHQ    (64 + 1)
+#define FMT_SHQ    (64 + 2)
 
 #define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
 })
+#define MIN(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
+#define MAX(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
 
 const char* tex_format_name(tex_format_t fmt) {
     switch ((int)fmt) {
@@ -50,6 +53,7 @@ const char* tex_format_name(tex_format_t fmt) {
     case FMT_IA4: return "IA4";
     case FMT_ZBUF: return "ZBUF";
     case FMT_IHQ: return "IHQ";
+    case FMT_SHQ: return "SHQ";
     default: assert(0); return ""; // should not happen
     }
 }
@@ -66,6 +70,7 @@ tex_format_t tex_format_from_name(const char *name) {
     if (!strcasecmp(name, "IA4"))    return FMT_IA4;
     if (!strcasecmp(name, "ZBUF"))   return FMT_ZBUF;
     if (!strcasecmp(name, "IHQ"))    return FMT_IHQ;
+    if (!strcasecmp(name, "SHQ"))    return FMT_SHQ;
     return FMT_NONE;
 }
 
@@ -347,7 +352,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     // Setup the info_raw structure with the desired pixel conversion,
     // depending on the output format.
     switch ((int)fmt) {
-    case FMT_RGBA32: case FMT_RGBA16: case FMT_IHQ:
+    case FMT_RGBA32: case FMT_RGBA16: case FMT_IHQ: case FMT_SHQ:
         // PNG does not support RGBA555 (aka RGBA16), so just convert
         // to 32-bit version we will downscale later.
         state.info_raw.colortype = LCT_RGBA;
@@ -960,6 +965,256 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     return true;
 }
 
+typedef struct {
+    int r,g,b;
+} shq_rgb;
+
+typedef struct {
+    float l,a,b;
+} shq_lab;
+
+typedef struct {
+    shq_rgb pix[4];
+    shq_lab lab[4];
+
+    int i[4];
+    shq_rgb avg;
+} shq_box;
+
+static float gamma_correction(float value) {
+    if (value > 0.04045f) {
+        return powf((value + 0.055f) / 1.055f, 2.4f);
+    } else {
+        return value / 12.92f;
+    }
+}
+
+static float xyz_to_lab_helper(float value) {
+    if (value > 0.008856f) {
+        return powf(value, 1.0f / 3.0f);
+    } else {
+        return (7.787f * value) + (16.0f / 116.0f);
+    }
+}
+
+static shq_lab rgb_to_lab(shq_rgb in) {
+    float r = in.r / 255.0f;
+    float g = in.g / 255.0f;
+    float b = in.b / 255.0f;
+
+    r = gamma_correction(r);
+    g = gamma_correction(g);
+    b = gamma_correction(b);
+
+    float x = r * 0.4124564f + g * 0.3575761f + b * 0.1804375f;
+    float y = r * 0.2126729f + g * 0.7151522f + b * 0.0721750f;
+    float z = r * 0.0193339f + g * 0.1191920f + b * 0.9503041f;
+
+    x *= 100.0f;
+    y *= 100.0f;
+    z *= 100.0f;
+
+    x = x / 95.047f;
+    y = y / 100.000f;
+    z = z / 108.883f;
+
+    float fx = xyz_to_lab_helper(x);
+    float fy = xyz_to_lab_helper(y);
+    float fz = xyz_to_lab_helper(z);
+
+    return (shq_lab){
+        (116.0f * fy) - 16.0f,
+        500.0f * (fx - fy),
+        200.0f * (fy - fz),
+    };
+}
+
+static float shq_error(shq_box *box)
+{
+    float error = 0.0f;
+    int r8 = (box->avg.r << 3) + (box->avg.r >> 2);
+    int g8 = (box->avg.g << 3) + (box->avg.g >> 2);
+    int b8 = (box->avg.b << 3) + (box->avg.b >> 2);
+
+    for (int i=0; i<4; i++) {
+        assert(box->i[i] >= 0 && box->i[i] <= 15);
+        int i8 = box->i[i] * 0x11;
+        shq_lab lab = rgb_to_lab((shq_rgb){ MAX(i8-r8,0), MAX(i8-g8,0), MAX(i8-b8,0) });
+
+        error +=
+            (lab.l - box->lab[i].l) * (lab.l - box->lab[i].l) +
+            (lab.a - box->lab[i].a) * (lab.a - box->lab[i].a) +
+            (lab.b - box->lab[i].b) * (lab.b - box->lab[i].b);        
+    }
+    return error;
+}
+
+static float shq_optimize(shq_box *box)
+{
+    // Convert input pixels into CIELAB space
+    for (int i=0; i<4; i++)
+        box->lab[i] = rgb_to_lab(box->pix[i]);
+
+    float error = shq_error(box);
+    while (1) {
+        // Calculate gradient of the error function on each variable
+        int *parms[7] = {
+            &box->i[0], &box->i[1], &box->i[2], &box->i[3],
+            &box->avg.r, &box->avg.g, &box->avg.b,
+        };
+
+        // Try increment and decrement each parameter, and find the best move
+        float best_err = error;
+        int best_idx = -1;
+        int best_val = 0;
+        for (int i=0; i<7; i++) {
+            int old_val = *parms[i];
+            for (int j=-3; j<=3; j++) {
+                if (j == 0) continue;
+                *parms[i] = old_val + j;
+                if (*parms[i] >= 0 && *parms[i] <= (i<4 ? 15 : 31)) {
+                    float new_err = shq_error(box);
+                    if (new_err < best_err) {
+                        best_err = new_err;
+                        best_idx = i;
+                        best_val = *parms[i];
+                    }
+                }
+            }
+            *parms[i] = old_val;
+        }
+
+        // If we found a better value, apply it
+        if (best_idx != -1) {
+            *parms[best_idx] = best_val;
+            error = best_err;
+        } else {
+            break;
+        }
+    }
+
+    return error;
+}
+
+bool spritemaker_convert_shq(spritemaker_t *spr)
+{
+    int width = spr->images[0].width;
+    int height = spr->images[0].height;
+
+    if (width % 2 != 0 || height % 2 != 0) {
+        fprintf(stderr, "ERROR: SHQ mode requires width and height to be a multiple of 2\n");
+        return false;
+    }
+
+    // Go though each 2x2 pixel box
+    uint8_t *img = spr->images[0].image;
+    uint8_t *shq_i = malloc(width * height);
+    uint8_t *shq_rgb = malloc((width/2) * (height/2) * 4);
+    float error = 0.0f;
+
+    for (int y=0; y<height; y+=2) {
+        for (int x=0; x<width; x+=2) {
+            shq_box box = {0};
+
+            // Fetch first 4 pixels
+            box.pix[0].r = img[(y*width + x)*4 + 0];
+            box.pix[0].g = img[(y*width + x)*4 + 1];
+            box.pix[0].b = img[(y*width + x)*4 + 2];
+
+            box.pix[1].r = img[(y*width + x+1)*4 + 0];
+            box.pix[1].g = img[(y*width + x+1)*4 + 1];
+            box.pix[1].b = img[(y*width + x+1)*4 + 2];
+
+            box.pix[2].r = img[((y+1)*width + x)*4 + 0];
+            box.pix[2].g = img[((y+1)*width + x)*4 + 1];
+            box.pix[2].b = img[((y+1)*width + x)*4 + 2];
+
+            box.pix[3].r = img[((y+1)*width + x+1)*4 + 0];
+            box.pix[3].g = img[((y+1)*width + x+1)*4 + 1];
+            box.pix[3].b = img[((y+1)*width + x+1)*4 + 2];
+
+            // Compute average color
+            box.avg.r = (box.pix[0].r + box.pix[1].r + box.pix[2].r + box.pix[3].r) / 4;
+            box.avg.g = (box.pix[0].g + box.pix[1].g + box.pix[2].g + box.pix[3].g) / 4;
+            box.avg.b = (box.pix[0].b + box.pix[1].b + box.pix[2].b + box.pix[3].b) / 4;
+            box.i[0] = 0xff;
+            box.i[1] = 0xff;
+            box.i[2] = 0xff;
+            box.i[3] = 0xff;
+
+            // Normalize the I/RGB values to 4/5 bits which is the actual resolution
+            box.i[0] >>= 4;
+            box.i[1] >>= 4;
+            box.i[2] >>= 4;
+            box.i[3] >>= 4;
+            box.avg.r >>= 3;
+            box.avg.g >>= 3;
+            box.avg.b >>= 3;
+
+            // Run optimization step
+            error += shq_optimize(&box);
+
+            assert(box.i[0] >= 0 && box.i[0] <= 15);
+            assert(box.i[1] >= 0 && box.i[1] <= 15);
+            assert(box.i[2] >= 0 && box.i[2] <= 15);
+            assert(box.i[3] >= 0 && box.i[3] <= 15);
+            assert(box.avg.r >= 0 && box.avg.r <= 31);
+            assert(box.avg.g >= 0 && box.avg.g <= 31);
+            assert(box.avg.b >= 0 && box.avg.b <= 31);
+
+            // Store the optimized I value, upscaled to 8 bit
+            shq_i[(y+0)*width + x+0] = box.i[0] | (box.i[0] << 4);
+            shq_i[(y+0)*width + x+1] = box.i[1] | (box.i[1] << 4);
+            shq_i[(y+1)*width + x+0] = box.i[2] | (box.i[2] << 4);
+            shq_i[(y+1)*width + x+1] = box.i[3] | (box.i[3] << 4);
+
+            // Store the average color, again upscaled to 8 bit
+            shq_rgb[(y/2*width/2 + x/2)*4 + 0] = (box.avg.r << 3) | (box.avg.r >> 2);
+            shq_rgb[(y/2*width/2 + x/2)*4 + 1] = (box.avg.g << 3) | (box.avg.g >> 2);
+            shq_rgb[(y/2*width/2 + x/2)*4 + 2] = (box.avg.b << 3) | (box.avg.b >> 2);
+            shq_rgb[(y/2*width/2 + x/2)*4 + 3] = 0xFF;
+        }
+    }
+
+    if (flag_verbose)
+        fprintf(stderr, "computed SHQ planes (rmsd=%.4f)\n", sqrtf(error / (width * height * 3)));
+
+    // Store the SHQ image
+    free(spr->images[0].image);
+    spr->images[0].fmt = FMT_I4;
+    spr->images[0].image = shq_i;
+    spr->images[0].width = width;
+    spr->images[0].height = height;
+    spr->images[0].ct = LCT_GREY;
+
+    // Store the RGBA image as first mipmap
+    spr->images[1].fmt = FMT_RGBA16;
+    spr->images[1].image = shq_rgb;
+    spr->images[1].width = width / 2;
+    spr->images[1].height = height / 2;
+    spr->images[1].ct = LCT_RGBA;
+#if 0
+    // Construct resulting image
+    uint8_t *output = malloc(width * height * 4);
+    for (int y=0; y<height; y++) {
+        for (int x=0; x<width; x++) {
+            int i = shq_i[y*width + x];
+            uint8_t *rgb = &shq_rgb[(y/2*width/2 + x/2)*4];
+            output[(y*width + x)*4 + 0] = MAX(i - rgb[0], 0);
+            output[(y*width + x)*4 + 1] = MAX(i - rgb[1], 0);
+            output[(y*width + x)*4 + 2] = MAX(i - rgb[2], 0);
+            output[(y*width + x)*4 + 3] = 0xFF;
+        }
+    }
+    spr->images[2].fmt = FMT_RGBA16;
+    spr->images[2].image = output;
+    spr->images[2].width = width;
+    spr->images[2].height = height;
+    spr->images[2].ct = LCT_RGBA;
+#endif
+    return true;
+}
+
 bool spritemaker_write(spritemaker_t *spr) {
     FILE *out;
     if (strcmp(spr->outfn, "(stdout)") == 0) {
@@ -1274,6 +1529,14 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
             goto error;
         // Compute mipmaps for IHQ
         mipmap_algo = MIPMAP_ALGO_BOX;
+    } else if (spr.images[0].fmt == FMT_SHQ) {
+        if (!spritemaker_convert_shq(&spr))
+            goto error;
+        // Compute mipmaps for IHQ
+        if (mipmap_algo != MIPMAP_ALGO_NONE) {
+            fprintf(stderr, "WARNiNG: mipmap generation is not supported for SHQ mode\n");
+            mipmap_algo = MIPMAP_ALGO_NONE;
+        }
     } else if (spr.detail.enabled && !spr.detail.use_main_tex) {
         // Load the detail PNG, passing the desired output format (or FMT_NONE if autodetect).
         if (!spritemaker_load_detail_png(&spr, pm->detail.outfmt))
