@@ -121,7 +121,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/mi.h $(INSTALLDIR)/mips64-elf/include/mi.h
 	install -Cv -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
 	install -Cv -m 0644 include/kernel.h $(INSTALLDIR)/mips64-elf/include/kernel.h
-	install -Cv -m 0644 include/cthreads.h $(INSTALLDIR)/mips64-elf/include/cthreads.h
+	install -Cv -m 0644 include/threads.h $(INSTALLDIR)/mips64-elf/include/threads.h
 	install -Cv -m 0644 include/ksemaphore.h $(INSTALLDIR)/mips64-elf/include/ksemaphore.h
 	install -Cv -m 0644 include/kqueue.h $(INSTALLDIR)/mips64-elf/include/kqueue.h
 	install -Cv -m 0644 include/kirq.h $(INSTALLDIR)/mips64-elf/include/kirq.h
