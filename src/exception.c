@@ -16,6 +16,9 @@
 #include <stdbool.h>
 #include <math.h>
 
+#define TLS_INVALID_MIN (uint32_t)(KERNEL_TP_INVALID-28672)
+#define TLS_SIZE ((uint32_t)(__tls_end)-(uint32_t)(__tls_base))
+
 /**
  * @brief Syscall exception handler entry
  */
@@ -37,6 +40,10 @@ static void (*__exception_handler)(exception_t*) = exception_default_handler;
 extern volatile reg_block_t __baseRegAddr;
 /** @brief Syscall exception handlers */
 static syscall_handler_entry_t __syscall_handlers[MAX_SYSCALL_HANDLERS];
+
+/* TLS Linker symbols */
+extern char __tls_base[];
+extern char __tls_end[];
 
 exception_handler_t register_exception_handler( exception_handler_t cb )
 {
@@ -338,13 +345,21 @@ static const char* __get_exception_name(exception_t *ex)
 			// so leave some margin to the actual faulting address.
 			return "NULL pointer dereference (read)";
 		} else {
-			return "Read from invalid memory address";
+            if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+                return "Read from TLS in Interrupt Handler";
+            } else {
+                return "Read from invalid memory address";
+            }
 		}
 	case EXCEPTION_CODE_TLB_STORE_MISS:
 		if (badvaddr < 128) {
 			return "NULL pointer dereference (write)";
 		} else {
-			return "Write to invalid memory address";
+            if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+                return "Write to TLS in Interrupt Handler";
+            } else {
+                return "Write to invalid memory address";
+            }
 		}
 	case EXCEPTION_CODE_TLB_MODIFICATION:
 		return "Write to read-only memory";
@@ -357,11 +372,20 @@ static const char* __get_exception_name(exception_t *ex)
 		} else {
 			if (is_unmapped_kx64(badvaddr))
 				return "Read from invalid 64-bit address";
-			else
-				return "Misaligned read from memory";
+			else {
+                if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+                    return "Read from TLS in Interrupt Handler";
+                } else {
+                    return "Misaligned read from memory";
+                }
+            }
 		}
 	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
-		return "Misaligned write to memory";
+        if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+            return "Write to TLS in Interrupt Handler";
+        } else {
+            return "Misaligned write to memory";
+        }
 	case EXCEPTION_CODE_SYS_CALL:
 		return "Unhandled syscall";
 	case EXCEPTION_CODE_TRAP: {

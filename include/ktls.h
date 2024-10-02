@@ -1,7 +1,7 @@
 #ifndef LIBDRAGON_KERNEL_TLS_H
 #define LIBDRAGON_KERNEL_TLS_H
 
-#define KERNEL_TP_INVALID ((void *)0xDFFF8001)
+#define KERNEL_TP_INVALID ((void *)0x5FFF8001)
 
 #ifdef N64_DSO
 __asm__ (
