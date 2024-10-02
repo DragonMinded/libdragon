@@ -41,20 +41,14 @@
  * to kthread_t) that can be used to externally manage the
  * thread like changing its priority or killing it.
  */
-typedef struct kthread_s
+typedef struct __attribute__((aligned (8))) kthread_s
 {
 	/** Pointer to the top of the stack, which contains the thread register state */
 	reg_block_t* stack_state;
-    struct {
-        /** Mirror of __interrupt_depth */
-        int interrupt_depth;
-        /** Mirror of __interrupt_sr */
-        int interrupt_sr;
-		#ifdef __NEWLIB__
-		/** Newlib reentrancy */
-		struct _reent *reent_ptr;
-		#endif
-    } tls;  ///< Thread-local storage
+    /** TLS Pointer */
+    void *tp_value;
+    /** Newlib reentrancy */
+    struct _reent *reent_ptr;
 	/** Size of the stack in bytes */
 	int stack_size;
 	/** Name of thread (for debugging purposes) */

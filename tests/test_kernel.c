@@ -250,7 +250,7 @@ void test_kernel_thread_local(TestContext *ctx) {
 	tls_var = 0x1234;
 	tls_var_bss = 0x5678;
 	ASSERT_EQUAL_SIGNED(tls_var, 0x1234, "tls_var not set");
-	ASSERT_EQUAL_SIGNED(tls_var_bss, 0x5678, "tls_var not set");
+	ASSERT_EQUAL_SIGNED(tls_var_bss, 0x5678, "tls_var_bss not set");
 
 	kcond_t stepper;
 	kcond_init(&stepper);
@@ -260,12 +260,13 @@ void test_kernel_thread_local(TestContext *ctx) {
 
 	int func_th(void *arg)
 	{
+        tls_var = (int)arg;
 		thval[thval_idx++] = tls_var;
-		tls_var = (int)arg;
 		kcond_wait(&stepper, NULL);
+        tls_var = (int)arg+1;
 		thval[thval_idx++] = tls_var;
-		tls_var = (int)arg;
 		kcond_wait(&stepper, NULL);
+        tls_var = (int)arg+2;
 		thval[thval_idx++] = tls_var;
 		return 0;
 	}
