@@ -4,7 +4,7 @@
 #ifdef N64_DSO
 __asm__ (
     ".macro rdhwr rt, rd" "\n"
-    "   .error \" Usage of thread-local variables is not supported in this context. \"" "\n"
+    "   .error \" Usage of thread-local variables is not supported in DSOs. \"" "\n"
     ".endm"               "\n"
 );
 #else
