@@ -85,8 +85,5 @@
 #include "bbfs.h"
 #include "ioctl.h"
 
-#ifndef __cplusplus
-#include "cthreads.h"
-#endif
 
 #endif
