@@ -1133,20 +1133,20 @@ bool spritemaker_convert_shq(spritemaker_t *spr)
             box.pix[3].g = img[((y+1)*width + x+1)*4 + 1];
             box.pix[3].b = img[((y+1)*width + x+1)*4 + 2];
 
-            // Compute average color
-            box.avg.r = (box.pix[0].r + box.pix[1].r + box.pix[2].r + box.pix[3].r) / 4;
-            box.avg.g = (box.pix[0].g + box.pix[1].g + box.pix[2].g + box.pix[3].g) / 4;
-            box.avg.b = (box.pix[0].b + box.pix[1].b + box.pix[2].b + box.pix[3].b) / 4;
-            box.i[0] = 0xff;
-            box.i[1] = 0xff;
-            box.i[2] = 0xff;
-            box.i[3] = 0xff;
+            // Start with the I values as the maximum of the RGB values, and convert
+            // them to 4 bits, making sure we are sitll above the original value.
+            for (int i=0; i<4; i++) {
+                int i8 = MAX(box.pix[i].r, MAX(box.pix[i].g, box.pix[i].b));
+                int i4 = i8 >> 4;
+                if (i4 * 0x11 < i8) i4++;
+                box.i[i] = i4;
+            }
 
-            // Normalize the I/RGB values to 4/5 bits which is the actual resolution
-            box.i[0] >>= 4;
-            box.i[1] >>= 4;
-            box.i[2] >>= 4;
-            box.i[3] >>= 4;
+            // Start with RGB values as the average of the subtractive blending
+            // Notice that *0x11 is just the proper conversion from 4 bit to 8 bit.
+            box.avg.r = (MAX(box.i[0]*0x11 - box.pix[0].r,0) + MAX(box.i[1]*0x11 - box.pix[1].r,0) + MAX(box.i[2]*0x11 - box.pix[2].r,0) + MAX(box.i[3]*0x11 - box.pix[3].r,0)) / 4;
+            box.avg.g = (MAX(box.i[0]*0x11 - box.pix[0].g,0) + MAX(box.i[1]*0x11 - box.pix[1].g,0) + MAX(box.i[2]*0x11 - box.pix[2].g,0) + MAX(box.i[3]*0x11 - box.pix[3].g,0)) / 4;
+            box.avg.b = (MAX(box.i[0]*0x11 - box.pix[0].b,0) + MAX(box.i[1]*0x11 - box.pix[1].b,0) + MAX(box.i[2]*0x11 - box.pix[2].b,0) + MAX(box.i[3]*0x11 - box.pix[3].b,0)) / 4;
             box.avg.r >>= 3;
             box.avg.g >>= 3;
             box.avg.b >>= 3;
