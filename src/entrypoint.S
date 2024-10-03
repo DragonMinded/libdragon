@@ -42,10 +42,7 @@ _start:
 	la t0, debug_assert_func    /* install assert function in system.c */
 	la t1, __assert_func_ptr
 	sw t0, 0(t1)	
-	
-	jal __kernel_tls_init /* Initialize TLS */
-	nop
-	
+
 	jal __do_global_ctors		/* call global constructors */
 	nop
 	li a0, 0

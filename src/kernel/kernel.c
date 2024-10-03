@@ -45,7 +45,7 @@
 #define KTHREAD_SWITCH_ISR()  ({ __isr_force_schedule = true; })
 
 /** @brief Current thread TLS */
-void *th_cur_tp;
+void *th_cur_tp = KERNEL_TP_INVALID;
 /** @brief Main thread TLS */
 static void *th_main_tp;
 /** @brief Main thread */
@@ -79,7 +79,7 @@ extern char __th_tdata_copy[];
 kthread_t *__kernel_all_threads;
 #endif
 
-void __kernel_tls_init(void)
+static void __kernel_tls_init(void)
 {
     memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
     th_cur_tp = th_main_tp = __tls_base+TP_OFFSET;
@@ -358,6 +358,7 @@ static int __kthread_idle(void *arg)
 kthread_t* kernel_init(void)
 {
 	assert(!__kernel);
+    __kernel_tls_init();
 	#ifdef __NEWLIB__
 	// Check if __malloc_lock is a nop. This happens with old toolchains where
 	// newlib was compiled with --disable-threads.
@@ -430,7 +431,7 @@ void kernel_close(void)
 	th_cur = NULL;
 	__kernel = false;
 	__isr_force_schedule = false;
-    th_cur_tp = th_main_tp;
+    th_cur_tp = KERNEL_TP_INVALID;
 }
 
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)

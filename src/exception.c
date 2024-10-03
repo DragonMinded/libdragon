@@ -43,6 +43,8 @@ extern volatile reg_block_t __baseRegAddr;
 /** @brief Syscall exception handlers */
 static syscall_handler_entry_t __syscall_handlers[MAX_SYSCALL_HANDLERS];
 
+/** Flag for kernel being initialized */
+extern bool __kernel;
 /** TLS Base Linker Symbol */
 extern char __tls_base[];
 /** TLS End Linker Symbol */
@@ -349,7 +351,12 @@ static const char* __get_exception_name(exception_t *ex)
 			return "NULL pointer dereference (read)";
 		} else {
             if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-                return "Read from TLS in interrupt handler";
+                if(__kernel) {
+                    return "Read from TLS in interrupt handler";
+                } else {
+                    return "Cannot access TLS before calling kernel_init()";
+                }
+                
             } else {
                 return "Read from invalid memory address";
             }
@@ -359,7 +366,11 @@ static const char* __get_exception_name(exception_t *ex)
 			return "NULL pointer dereference (write)";
 		} else {
             if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-                return "Write to TLS in interrupt handler";
+                if(__kernel) {
+                    return "Write to TLS in interrupt handler";
+                } else {
+                    return "Cannot access TLS before calling kernel_init()";
+                }
             } else {
                 return "Write to invalid memory address";
             }
@@ -377,7 +388,11 @@ static const char* __get_exception_name(exception_t *ex)
 				return "Read from invalid 64-bit address";
 			else {
                 if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-                    return "Read from TLS in interrupt handler";
+                    if(__kernel) {
+                        return "Read from TLS in interrupt handler";
+                    } else {
+                        return "Cannot access TLS before calling kernel_init()";
+                    }
                 } else {
                     return "Misaligned read from memory";
                 }
@@ -385,7 +400,11 @@ static const char* __get_exception_name(exception_t *ex)
 		}
 	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
         if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-            return "Write to TLS in interrupt handler";
+            if(__kernel) {
+                return "Write to TLS in interrupt handler";
+            } else {
+                return "Cannot access TLS before calling kernel_init()";
+            }
         } else {
             return "Misaligned write to memory";
         }
