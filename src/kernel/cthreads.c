@@ -1,4 +1,4 @@
-#include "cthreads.h"
+#include "threads.h"
 #include "kernel.h"
 #include "kernel_internal.h"
 #include "interrupt.h"
