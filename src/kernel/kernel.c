@@ -63,6 +63,9 @@ static int th_count;
 bool __kernel = false;
 /** @brief True if a context switch must be done at the end of current interrupt. */
 bool __isr_force_schedule = false;
+/* Global current interrupt depth (defined in interrupt.c) */ 
+extern int __interrupt_depth;
+extern int __interrupt_sr;
 /* TLS Linker symbols */
 extern char __tls_base[];
 extern char __tdata_start[];
@@ -300,6 +303,11 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 				assertf(!(th_cur->flags & TH_FLAG_INLIST), "thread %s[%p] in list? flags=%x", th_cur->name, th_cur, th_cur->flags);
 				__thlist_add_pri(&th_ready, th_cur);
 			}
+            // Save the current interrupt depth. Interrupt depth is actually
+			// per-thread, so we just save/restore it every time a thread is
+			// scheduled.
+			th_cur->interrupt_depth = __interrupt_depth;
+			th_cur->interrupt_sr = __interrupt_sr;
 		}
 	}
 
@@ -314,6 +322,11 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	} while (th_cur->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
 	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx SR=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc, th_cur->stack_state->sr);
 	assert(!(th_cur->flags & TH_FLAG_INLIST));
+    
+    // Set the current interrupt depth to that of the current thread.
+	__interrupt_depth = th_cur->interrupt_depth;
+	__interrupt_sr = th_cur->interrupt_sr;
+    
     th_cur_tp = th_cur->tp_value;
     
 	#ifdef __NEWLIB__

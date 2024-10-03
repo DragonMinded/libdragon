@@ -27,12 +27,12 @@
  * interrupt enable calls that need to be made to re-enable interrupts.  A negative
  * number means that the interrupt system hasn't been initialized yet.
  */
-_Thread_local int __interrupt_depth = -1;
+int __interrupt_depth = -1;
 
 /** @brief Value of the status register at the moment interrupts
  *         got disabled.
  */
-_Thread_local int __interrupt_sr = 0;
+int __interrupt_sr = 0;
 
 /** @brief Number of interrupts that have been triggered since boot */
 volatile int64_t __interrupt_counter = 0;
