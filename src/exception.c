@@ -354,7 +354,7 @@ static const char* __get_exception_name(exception_t *ex)
                 if(__kernel) {
                     return "Read from TLS in interrupt handler";
                 } else {
-                    return "Cannot access TLS before calling kernel_init()";
+                    return "Cannot access TLS without kernel_init()";
                 }
                 
             } else {
@@ -369,7 +369,7 @@ static const char* __get_exception_name(exception_t *ex)
                 if(__kernel) {
                     return "Write to TLS in interrupt handler";
                 } else {
-                    return "Cannot access TLS before calling kernel_init()";
+                    return "Cannot access TLS without kernel_init()";
                 }
             } else {
                 return "Write to invalid memory address";
@@ -391,7 +391,7 @@ static const char* __get_exception_name(exception_t *ex)
                     if(__kernel) {
                         return "Read from TLS in interrupt handler";
                     } else {
-                        return "Cannot access TLS before calling kernel_init()";
+                        return "Cannot access TLS without kernel_init()";
                     }
                 } else {
                     return "Misaligned read from memory";
@@ -403,7 +403,7 @@ static const char* __get_exception_name(exception_t *ex)
             if(__kernel) {
                 return "Write to TLS in interrupt handler";
             } else {
-                return "Cannot access TLS before calling kernel_init()";
+                return "Cannot access TLS without kernel_init()";
             }
         } else {
             return "Misaligned write to memory";
