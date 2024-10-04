@@ -24,9 +24,9 @@
 #define TH_FLAG_INSPECTOR1  (1<<7)      ///< Flag reserved for usage in the inspector
 
 
-#define TDATA_SIZE ((uint32_t)(__tdata_end)-(uint32_t)(__tdata_start))
-#define TLS_SIZE ((uint32_t)(__tls_end)-(uint32_t)(__tls_base))
-#define TP_OFFSET 0x7000
+#define TDATA_SIZE ((uint32_t)(__tdata_end)-(uint32_t)(__tdata_start)) ///< Size of .tdata section
+#define TLS_SIZE ((uint32_t)(__tls_end)-(uint32_t)(__tls_base)) ///< Size of .tdata and .tbss sections combined
+#define TP_OFFSET 0x7000 ///< Offset of Pointer for TLS accesses
 
 /**
  * @brief a kernel thread for parallel execution
