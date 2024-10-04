@@ -55,6 +55,9 @@ SECTIONS {
         *(.rodata)
         *(.rodata.*)
         *(.gnu.linkonce.r.*)
+        . = ALIGN(4);
+        __tdata_align = .;
+        LONG (ALIGNOF(.tdata));
         . = ALIGN(8);
     }
 
@@ -169,6 +172,7 @@ SECTIONS {
         *(.bss*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
+        . = ALIGN(8);
         __th_tdata_copy = .;
         . = .+(__tdata_end-__tdata_start);
         . = ALIGN(8);

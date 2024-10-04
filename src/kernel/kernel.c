@@ -69,6 +69,7 @@ extern char __tbss_start[];
 extern char __tbss_end[];
 extern char __tls_end[];
 extern char __th_tdata_copy[];
+extern __attribute__((section(".data"))) size_t __tdata_align;
 
 #ifndef NDEBUG
 kthread_t *__kernel_all_threads;
@@ -351,6 +352,7 @@ static int __kthread_idle(void *arg)
 
 kthread_t* kernel_init(void)
 {
+	assertf(__tdata_align <= 8, "Unsupported TLS data alignment of %d", __tdata_align);
 	assert(!__kernel);
 	#ifdef __NEWLIB__
 	// Check if __malloc_lock is a nop. This happens with old toolchains where
