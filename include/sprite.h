@@ -268,6 +268,16 @@ int sprite_get_lod_count(sprite_t *sprite);
  */
 bool sprite_fits_tmem(sprite_t *sprite);
 
+/** 
+ * @brief Return true if the sprite is in SHQ format
+ * 
+ * This is a special sprite made of two mipmaps (one I4 and one RGBA16)
+ * that must be displayed using subtractive blending.
+ * 
+ * @param sprite        The sprite to access
+ * @return              True if the sprite is in SHQ format, false otherwise
+ */
+bool sprite_is_shq(sprite_t *sprite);
 
 #ifdef __cplusplus
 }

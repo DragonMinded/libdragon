@@ -224,4 +224,12 @@ bool sprite_fits_tmem(sprite_t *sprite)
     return (sx->flags & SPRITE_FLAG_FITS_TMEM) != 0;
 }
 
+bool sprite_is_shq(sprite_t *sprite)
+{
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx)
+        return false;
+    return (sx->flags & SPRITE_FLAG_SHQ) != 0;
+}
+
 extern inline tex_format_t sprite_get_format(sprite_t *sprite);

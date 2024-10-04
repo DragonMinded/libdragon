@@ -51,6 +51,7 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
     sprite_detail_t detail; rdpq_texparms_t detailtexparms = {0};
     surface_t detailsurf = sprite_get_detail_pixels(sprite, &detail, &detailtexparms);
     bool use_detail = detailsurf.buffer != NULL;
+    bool is_shq = sprite_is_shq(sprite);
 
     rdpq_tex_multi_begin();
 
@@ -112,7 +113,11 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
 
     if (__builtin_expect(set_mode, 1)) {
         // Enable/disable mipmapping
-        if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
+        if(is_shq) {
+            rdpq_mode_mipmap(MIPMAP_INTERPOLATE_SHQ, num_mipmaps+1);
+            rdpq_set_yuv_parms(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF);
+        } 
+        else if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
         else if (num_mipmaps)   rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
         else                    rdpq_mode_mipmap(MIPMAP_NONE, 0);
     }

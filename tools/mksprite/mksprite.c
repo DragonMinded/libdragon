@@ -234,6 +234,7 @@ typedef struct {
     int vslices;            // Number of vertical slices (deprecated API for old rdp.c)
     int hslices;            // Number of horizontal slices (deprecated API for old rdp.c)
     texparms_t texparms;    // Texture parameters
+    int out_flags;          // Flags to store into output
     struct{
         const char   *infn;         // Input file for detail texture
         texparms_t   texparms;      // Texture parameters for the detail
@@ -1366,7 +1367,7 @@ bool spritemaker_write(spritemaker_t *spr) {
                 w16(out, spr->images[i].height);
                 w_lodpos[i-1] = w32_placeholder(out); // placeholder for position of LOD
             }
-            uint16_t flags = 0;
+            uint16_t flags = spr->out_flags;
             assert(numlods <= 7); // 3 bits
             flags |= numlods;
             if (spr->texparms.defined) flags |= 0x8;
@@ -1530,6 +1531,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         // Compute mipmaps for IHQ
         mipmap_algo = MIPMAP_ALGO_BOX;
     } else if (spr.images[0].fmt == FMT_SHQ) {
+        spr.out_flags |= 0x40;
         if (!spritemaker_convert_shq(&spr))
             goto error;
         // Compute mipmaps for IHQ

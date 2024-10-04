@@ -513,6 +513,7 @@ typedef uint32_t rdpq_blender_t;
 ///@{
 #define SOMX_NUMLODS_MASK      ((cast64(7))<<59)            ///< Rdpq extension: number of LODs
 #define SOMX_NUMLODS_SHIFT     59                           ///< Rdpq extension: number of LODs shift
+#define SOMX_FOG               ((cast64(1))<<58)            ///< RDPQ special state: fogging is enabled
 
 #define SOM_ATOMIC_PRIM        ((cast64(1))<<55)            ///< Atomic: serialize command execution 
 
@@ -563,10 +564,12 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_ALPHADITHER_MASK   ((cast64(3))<<36)            ///< Alpha Dithering mask
 #define SOM_ALPHADITHER_SHIFT  36                           ///< Alpha Dithering mask shift
 
-#define SOMX_FOG               ((cast64(1))<<32)            ///< RDPQ special state: fogging is enabled
-#define SOMX_UPDATE_FREEZE     ((cast64(1))<<33)            ///< RDPQ special state: render mode update is frozen (see #rdpq_mode_begin)
-#define SOMX_AA_REDUCED        ((cast64(1))<<34)            ///< RDPQ special state: reduced antialiasing is enabled
-#define SOMX_LOD_INTERPOLATE   ((cast64(1))<<35)            ///< RDPQ special state: mimap interpolation (aka trilinear) requested
+#define SOMX_LOD_INTERPOLATE     ((cast64(1))<<32)          ///< RDPQ special state: mimap interpolation (aka trilinear) requested
+#define SOMX_LOD_INTERPOLATE_SHQ ((cast64(1))<<33)          ///< RDPQ special state: mimap interpolation for SHC texture format
+#define SOMX_LOD_INTERP_MASK     ((cast64(3))<<32)          ///< RDPQ special state: mask for LOD interpolation formulas
+#define SOMX_LOD_INTERP_SHIFT    32                         ///< RDPQ special state: shift for LOD interpolation formulas
+#define SOMX_AA_REDUCED          ((cast64(1))<<34)          ///< RDPQ special state: reduced antialiasing is enabled
+#define SOMX_UPDATE_FREEZE       ((cast64(1))<<35)          ///< RDPQ special state: render mode update is frozen (see #rdpq_mode_begin)
 
 #define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 0
 #define SOM_BLEND1_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 1

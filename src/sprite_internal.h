@@ -8,6 +8,7 @@
 #define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
 #define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
+#define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
 
 /** 
  * @brief Internal structure used as additional sprite header

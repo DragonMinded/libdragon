@@ -218,7 +218,8 @@ AA_BLEND_DEFAULT_FORMULA:
     .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))                      # Standard AA
     .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG)) & ~SOM_READ_ENABLE   # Reduced AA
 
-#define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
+#define RDPQ_COMB_LOD_INTERP    RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
+#define RDPQ_COMB_LOD_SHQ       RDPQ_COMBINER2((TEX1, TEX0, K5,       0   ), (0,    0,    0,        TEX1), (0,0,0,0), (0,0,0,0))
 #define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
 #define RDPQ_COMB_TEX_SHADE_FOG RDPQ_COMBINER1((TEX0,0,SHADE,0),   (0,0,0,TEX0))
 
@@ -228,7 +229,9 @@ COMBINER_SHADE_FOG:     .quad RDPQ_COMB_SHADE_FOG
 COMBINER_TEX_SHADE:     .quad RDPQ_COMBINER_TEX_SHADE
 COMBINER_TEX_SHADE_FOG: .quad RDPQ_COMB_TEX_SHADE_FOG
 
-COMBINER_MIPMAP2:       .quad (RDPQ_COMB_MIPMAP2 & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
+COMBINER_MIPMAPS:       
+                        .quad (RDPQ_COMB_LOD_INTERP & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
+                        .quad (RDPQ_COMB_LOD_SHQ    & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
 
     .section .bss.rdpq_mode_api
 
@@ -351,7 +354,8 @@ RDPQ_UpdateRenderMode:
 
 calc_comb_1cyc:    
     # Check if fogging is active
-    andi t0, som_hi, SOMX_FOG >> 32
+    li t1, SOMX_FOG >> 32
+    and t0, som_hi, t1
     beqz t0, check_mipmap_interp
 
     # Create a copy of comb_hi without the cmd ID in the top MSB.
@@ -383,10 +387,11 @@ fog_change:
     lw comb_lo, 4(s0)
 
 check_mipmap_interp:
-    and t0, som_hi, SOMX_LOD_INTERPOLATE >> 32
-    beqz t0, store_comb_1cyc
+    andi t2, som_hi, SOMX_LOD_INTERP_MASK >> 32
+    beqz t2, store_comb_1cyc
+    sll t2, 3 - (SOMX_LOD_INTERP_SHIFT - 32)       # Prepare offset for the current mipmap interpolation mode
 
-    # Interpolated mipmapping is active. We want to add RDPQ_COMB_MIPMAP as step0
+    # Interpolated mipmapping is active. We want to add a special combiner step as step0
     # and use only step 1 of the incoming formula. Unfortunately, this
     # also means that all TEX0 slots must be converted into COMBINED slots.
     # We do this by using the mask already loaded in a2/a3
@@ -397,8 +402,8 @@ check_mipmap_interp:
     # Since this combiner now requires two-cycle mode, we can simply store in the
     # 2-cycle mode slot. No need to touch the 1-cycle mode slot as it will not
     # be used anyway.
-    lw t0, %lo(COMBINER_MIPMAP2) + 0
-    lw t1, %lo(COMBINER_MIPMAP2) + 4
+    lw t0, %lo(COMBINER_MIPMAPS) - 8(t2)
+    lw t1, %lo(COMBINER_MIPMAPS) - 4(t2)
     or comb_hi, t0
     j store_comb_2cyc
     or comb_lo, t1
