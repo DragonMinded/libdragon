@@ -45,14 +45,14 @@ typedef struct __attribute__((aligned (8))) kthread_s
 {
 	/** Pointer to the top of the stack, which contains the thread register state */
 	reg_block_t* stack_state;
-    /** TLS Pointer */
-    void *tp_value;
-    /** Mirror of __interrupt_depth */
-    int interrupt_depth;
-    /** Mirror of __interrupt_sr  */
-    int interrupt_sr;
-    /** Newlib reentrancy */
-    struct _reent *reent_ptr;
+	/** TLS Pointer */
+	void *tp_value;
+	/** Mirror of __interrupt_depth */
+	int interrupt_depth;
+	/** Mirror of __interrupt_sr  */
+	int interrupt_sr;
+	/** Newlib reentrancy */
+	struct _reent *reent_ptr;
 	/** Size of the stack in bytes */
 	int stack_size;
 	/** Name of thread (for debugging purposes) */
