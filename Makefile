@@ -125,6 +125,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/ksemaphore.h $(INSTALLDIR)/mips64-elf/include/ksemaphore.h
 	install -Cv -m 0644 include/kqueue.h $(INSTALLDIR)/mips64-elf/include/kqueue.h
 	install -Cv -m 0644 include/kirq.h $(INSTALLDIR)/mips64-elf/include/kirq.h
+	install -Cv -m 0644 include/ktls.h $(INSTALLDIR)/mips64-elf/include/ktls.h
 	install -Cv -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
 	install -Cv -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
 	install -Cv -m 0644 include/asset.h $(INSTALLDIR)/mips64-elf/include/asset.h

@@ -23,6 +23,11 @@
 #define TH_FLAG_SUSPENDED   (1<<4)      ///< The thread is suspended (will not be scheduled)
 #define TH_FLAG_INSPECTOR1  (1<<7)      ///< Flag reserved for usage in the inspector
 
+
+#define TDATA_SIZE ((uint32_t)(__tdata_end)-(uint32_t)(__tdata_start)) ///< Size of .tdata section
+#define TLS_SIZE ((uint32_t)(__tls_end)-(uint32_t)(__tls_base)) ///< Size of .tdata and .tbss sections combined
+#define TP_OFFSET 0x7000 ///< Offset of Pointer for TLS accesses
+
 /**
  * @brief a kernel thread for parallel execution
  *
@@ -41,20 +46,22 @@
  * to kthread_t) that can be used to externally manage the
  * thread like changing its priority or killing it.
  */
-typedef struct kthread_s
+typedef struct __attribute__((aligned (8))) kthread_s
 {
 	/** Pointer to the top of the stack, which contains the thread register state */
 	reg_block_t* stack_state;
-    struct {
-        /** Mirror of __interrupt_depth */
-        int interrupt_depth;
-        /** Mirror of __interrupt_sr */
-        int interrupt_sr;
+	/** TLS Pointer + TP_OFFSET */
+	void *tp_value;
+	struct {
+		/** Mirror of __interrupt_depth */
+		int interrupt_depth;
+		/** Mirror of __interrupt_sr  */
+		int interrupt_sr;
 		#ifdef __NEWLIB__
 		/** Newlib reentrancy */
 		struct _reent *reent_ptr;
 		#endif
-    } tls;  ///< Thread-local storage
+	} tls; ///< Thread-local storage
 	/** Size of the stack in bytes */
 	int stack_size;
 	/** Name of thread (for debugging purposes) */
@@ -83,6 +90,12 @@ typedef struct kthread_s
 
 /** Kernel initialization flag. */
 extern bool __kernel;
+
+/** TLS Base Linker Symbol */
+extern char __tls_base[];
+/** TLS End Linker Symbol */
+extern char __tls_end[];
+
 
 extern kcond_t __kirq_cond_sp;      ///< Condition variable for SP interrupt
 extern kcond_t __kirq_cond_dp;      ///< Condition variable for DP interrupt

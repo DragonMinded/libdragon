@@ -109,6 +109,9 @@ static uint32_t __prenmi_tick;
  */
 static void __call_callback( struct callback_link * head )
 {
+    /* Invalidate TP Value */
+    void *tp = th_cur_tp;
+    th_cur_tp = KERNEL_TP_INVALID;
     /* Call each registered callback */
     while( head )
     {
@@ -120,6 +123,8 @@ static void __call_callback( struct callback_link * head )
         /* Go to next */
 	    head=head->next;
     }
+    /* Restore TP Value */
+    th_cur_tp = tp;
 }
 
 /**

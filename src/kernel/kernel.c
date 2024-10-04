@@ -15,6 +15,7 @@
 #define STACK_COOKIE   0xDEADBEEFBAADC0DE
 #define STACK_GUARD    64
 
+
 /** @brief Read the current value of the gp register */
 #define REG_GP()     ({ uint64_t gp; __asm("move %0, $28": "=r" (gp)); gp; })
 
@@ -40,6 +41,8 @@
  */
 #define KTHREAD_SWITCH_ISR()  ({ __isr_force_schedule = true; })
 
+/** @brief Current thread TLS */
+void *th_cur_tp = KERNEL_TP_INVALID;
 /** @brief Main thread */
 kthread_t th_main;
 /** @brief Pointer to the current thread */
@@ -58,10 +61,24 @@ bool __isr_force_schedule = false;
 /* Global current interrupt depth (defined in interrupt.c) */ 
 extern int __interrupt_depth;
 extern int __interrupt_sr;
+/* TLS Linker symbols */
+extern char __tls_base[];
+extern char __tdata_start[];
+extern char __tdata_end[];
+extern char __tbss_start[];
+extern char __tbss_end[];
+extern char __tls_end[];
+extern char __th_tdata_copy[];
+extern __attribute__((section(".data"))) size_t __tdata_align;
 
 #ifndef NDEBUG
 kthread_t *__kernel_all_threads;
 #endif
+
+__attribute__((constructor)) void __kernel_tls_init(void)
+{
+	memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
+}
 
 /** 
  * @brief Boot function for a kthread.
@@ -281,7 +298,6 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 				assertf(!(th_cur->flags & TH_FLAG_INLIST), "thread %s[%p] in list? flags=%x", th_cur->name, th_cur, th_cur->flags);
 				__thlist_add_pri(&th_ready, th_cur);
 			}
-
 			// Save the current interrupt depth. Interrupt depth is actually
 			// per-thread, so we just save/restore it every time a thread is
 			// scheduled.
@@ -301,10 +317,13 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	} while (th_cur->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
 	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx SR=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc, th_cur->stack_state->sr);
 	assert(!(th_cur->flags & TH_FLAG_INLIST));
-
+    
 	// Set the current interrupt depth to that of the current thread.
 	__interrupt_depth = th_cur->tls.interrupt_depth;
 	__interrupt_sr = th_cur->tls.interrupt_sr;
+    
+	th_cur_tp = th_cur->tp_value;
+    
 	#ifdef __NEWLIB__
 	_REENT = th_cur->tls.reent_ptr;
 	#endif
@@ -333,6 +352,7 @@ static int __kthread_idle(void *arg)
 
 kthread_t* kernel_init(void)
 {
+	assertf(__tdata_align <= 8, "Unsupported TLS alignment of %d (Maximum 8)", __tdata_align);
 	assert(!__kernel);
 	#ifdef __NEWLIB__
 	// Check if __malloc_lock is a nop. This happens with old toolchains where
@@ -359,6 +379,8 @@ kthread_t* kernel_init(void)
 	th_main.name = "main";
 	th_main.stack_size = 0x10000; // see STACK_SIZE in system.c
 	th_main.flags = TH_FLAG_DETACHED; // main thread cannot be joined
+	th_main.tp_value = __tls_base+TP_OFFSET;
+    
 	#ifdef __NEWLIB__
 	th_main.tls.reent_ptr = _REENT;
 	#endif
@@ -387,6 +409,7 @@ kthread_t* kernel_init(void)
 	__kirq_init();
 
 	__kernel = true;
+	th_cur_tp = __tls_base+TP_OFFSET;
 	return th_cur;
 }
 
@@ -404,6 +427,7 @@ void kernel_close(void)
 	th_cur = NULL;
 	__kernel = false;
 	__isr_force_schedule = false;
+	th_cur_tp = KERNEL_TP_INVALID;
 }
 
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)
@@ -423,7 +447,7 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	// overflowing the stack doesn't corrupt the thread structure, which might
 	// make debugging more difficult and might even cause the kernel to crash.
 
-	int extra_size = 0;
+	int extra_size = TLS_SIZE;
 	#ifdef __NEWLIB__
 	extra_size += sizeof(struct _reent);
 	#endif
@@ -483,7 +507,12 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	__kernel_all_threads = th;
 	#endif
 	enable_interrupts();
-
+    
+	//Initialize TLS Data
+	memcpy(extra, __th_tdata_copy, TDATA_SIZE);
+	memset(extra+TDATA_SIZE, 0, TLS_SIZE-TDATA_SIZE);
+	th->tp_value = extra+TP_OFFSET;
+	extra += TLS_SIZE;
 	// TLS initial configuration
 	#ifdef __NEWLIB__
 	th->tls.reent_ptr = extra;

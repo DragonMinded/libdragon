@@ -16,6 +16,8 @@
 #include <stdbool.h>
 #include <math.h>
 
+/** Invalid TLS Minimum Address */
+#define TLS_INVALID_MIN (uint32_t)(KERNEL_TP_INVALID-TP_OFFSET)
 /**
  * @brief Syscall exception handler entry
  */
@@ -338,13 +340,30 @@ static const char* __get_exception_name(exception_t *ex)
 			// so leave some margin to the actual faulting address.
 			return "NULL pointer dereference (read)";
 		} else {
-			return "Read from invalid memory address";
+			if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+				if(__kernel) {
+					return "Read from TLS in interrupt handler";
+				} else {
+					return "Cannot access TLS without kernel_init()";
+				}
+				
+			} else {
+				return "Read from invalid memory address";
+			}
 		}
 	case EXCEPTION_CODE_TLB_STORE_MISS:
 		if (badvaddr < 128) {
 			return "NULL pointer dereference (write)";
 		} else {
-			return "Write to invalid memory address";
+			if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+				if(__kernel) {
+					return "Write to TLS in interrupt handler";
+				} else {
+					return "Cannot access TLS without kernel_init()";
+				}
+			} else {
+				return "Write to invalid memory address";
+			}
 		}
 	case EXCEPTION_CODE_TLB_MODIFICATION:
 		return "Write to read-only memory";
@@ -357,11 +376,28 @@ static const char* __get_exception_name(exception_t *ex)
 		} else {
 			if (is_unmapped_kx64(badvaddr))
 				return "Read from invalid 64-bit address";
-			else
-				return "Misaligned read from memory";
+			else {
+				if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+					if(__kernel) {
+						return "Read from TLS in interrupt handler";
+					} else {
+						return "Cannot access TLS without kernel_init()";
+					}
+				} else {
+					return "Misaligned read from memory";
+				}
+			}
 		}
 	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
-		return "Misaligned write to memory";
+		if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+			if(__kernel) {
+				return "Write to TLS in interrupt handler";
+			} else {
+				return "Cannot access TLS without kernel_init()";
+			}
+		} else {
+			return "Misaligned write to memory";
+		}
 	case EXCEPTION_CODE_SYS_CALL:
 		return "Unhandled syscall";
 	case EXCEPTION_CODE_TRAP: {

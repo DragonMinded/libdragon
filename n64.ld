@@ -44,9 +44,9 @@ SECTIONS {
 
    .eh_frame_hdr : { *(.eh_frame_hdr) }
    .eh_frame : { 
-		__EH_FRAME_BEGIN__ = .; /* Define symbol for accessing eh_frame section */
-		KEEP (*(.eh_frame)) 
-	}
+        __EH_FRAME_BEGIN__ = .; /* Define symbol for accessing eh_frame section */
+        KEEP (*(.eh_frame)) 
+    }
    .gcc_except_table : { *(.gcc_except_table*) } 
    .jcr : { KEEP (*(.jcr)) } 
 
@@ -55,6 +55,9 @@ SECTIONS {
         *(.rodata)
         *(.rodata.*)
         *(.gnu.linkonce.r.*)
+        . = ALIGN(4);
+        __tdata_align = .;
+        LONG (ALIGNOF(.tdata));
         . = ALIGN(8);
     }
 
@@ -103,7 +106,29 @@ SECTIONS {
         *(.gnu.linkonce.d.*)
         . = ALIGN(8);
     }
-
+    
+    .tdata : {
+        __tls_base = .;
+        __tdata_start = .;
+        *(.tdata)
+        *(.tdata.*)
+        *(.gnu.linkonce.td.*)
+        __tdata_end = .;
+    }
+    
+    .tbss : {
+        __tbss_start = .;
+        *(.tbss)
+        *(.tbss.*)
+        *(.gnu.linkonce.tb.*)
+        . = ALIGN(8);
+        __tbss_end = .;
+        __tls_end = .;
+    }
+    
+    /* Fix dot for TBSS Sections */
+    . = .+(__tbss_end-__tbss_start);
+    
     /* Small data START */
 
     .sdata : {
@@ -147,6 +172,9 @@ SECTIONS {
         *(.bss*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
+        . = ALIGN(8);
+        __th_tdata_copy = .;
+        . = .+(__tdata_end-__tdata_start);
         . = ALIGN(8);
          __bss_end = .;
     }

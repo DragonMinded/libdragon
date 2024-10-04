@@ -406,6 +406,8 @@ bool elf_reloc_check_gp_relative(Elf32_Rel *reloc)
         || reloc_type == R_MIPS_GOT_OFST //Global offset table offset
         || reloc_type == R_MIPS_GOT_HI16 //Global offset table entry offset high 16 bits
         || reloc_type == R_MIPS_GOT_LO16 //Global offset table entry offset low 16 bits
+        || reloc_type == R_MIPS_TLS_TPREL_HI16 //Thread local storage offset high 16 bits
+        || reloc_type == R_MIPS_TLS_TPREL_LO16 //Thread local storage entry offset low 16 bits
         || reloc_type == R_MIPS_CALL_HI16 //GP-Relative call high 16 bits
         || reloc_type == R_MIPS_CALL_LO16; //GP-Relative call low 16 bits
 }
