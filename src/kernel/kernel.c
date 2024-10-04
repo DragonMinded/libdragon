@@ -61,6 +61,8 @@ static int th_count;
 
 /** @brief True if the multithreading kernel has been initialized and is running. */
 bool __kernel = false;
+/** @brief True if .tdata section is copied. */
+static bool tdata_copy = false;
 /** @brief True if a context switch must be done at the end of current interrupt. */
 bool __isr_force_schedule = false;
 /* Global current interrupt depth (defined in interrupt.c) */ 
@@ -81,7 +83,10 @@ kthread_t *__kernel_all_threads;
 
 static void __kernel_tls_init(void)
 {
-    memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
+    if(!tdata_copy) {
+        memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
+        tdata_copy = true;
+    }
     th_cur_tp = th_main_tp = __tls_base+TP_OFFSET;
 }
 
