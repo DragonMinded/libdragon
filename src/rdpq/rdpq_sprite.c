@@ -114,8 +114,8 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
     if (__builtin_expect(set_mode, 1)) {
         // Enable/disable mipmapping
         if(is_shq) {
-            rdpq_mode_mipmap(MIPMAP_INTERPOLATE_SHQ, num_mipmaps+1);
-            rdpq_set_yuv_parms(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF);
+            rdpq_mode_mipmap(MIPMAP_INTERPOLATE_SHQ, num_mipmaps);
+            rdpq_set_yuv_parms(0, 0, 0, 0, 0, 0xFF);
         } 
         else if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
         else if (num_mipmaps)   rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);

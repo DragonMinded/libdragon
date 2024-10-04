@@ -248,7 +248,7 @@ typedef enum rdpq_mipmap_s {
     MIPMAP_INTERPOLATE = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear")
     MIPMAP_INTERPOLATE_SHARPEN = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOM_TEXTURE_SHARPEN) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear") with sharpening enabled
     MIPMAP_INTERPOLATE_DETAIL = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOM_TEXTURE_DETAIL) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear") with detail texture enabled
-    MIPMAP_INTERPOLATE_SHQ = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE_SHQ) >> 32,       ///< Special mipmap mode that must be used for SHC textures
+    MIPMAP_INTERPOLATE_SHQ = (SOMX_LOD_INTERPOLATE_SHQ) >> 32,       ///< Special mipmap mode that must be used for SHC textures
 } rdpq_mipmap_t;
 
 /**
