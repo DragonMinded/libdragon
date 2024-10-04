@@ -17,10 +17,7 @@
 #include <math.h>
 
 /** Invalid TLS Minimum Address */
-#define TLS_INVALID_MIN (uint32_t)(KERNEL_TP_INVALID-28672)
-/** TLS Size */
-#define TLS_SIZE ((uint32_t)(__tls_end)-(uint32_t)(__tls_base))
-
+#define TLS_INVALID_MIN (uint32_t)(KERNEL_TP_INVALID-TP_OFFSET)
 /**
  * @brief Syscall exception handler entry
  */
@@ -42,13 +39,6 @@ static void (*__exception_handler)(exception_t*) = exception_default_handler;
 extern volatile reg_block_t __baseRegAddr;
 /** @brief Syscall exception handlers */
 static syscall_handler_entry_t __syscall_handlers[MAX_SYSCALL_HANDLERS];
-
-/** Flag for kernel being initialized */
-extern bool __kernel;
-/** TLS Base Linker Symbol */
-extern char __tls_base[];
-/** TLS End Linker Symbol */
-extern char __tls_end[];
 
 exception_handler_t register_exception_handler( exception_handler_t cb )
 {

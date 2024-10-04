@@ -15,9 +15,6 @@
 #define STACK_COOKIE   0xDEADBEEFBAADC0DE
 #define STACK_GUARD    64
 
-#define TDATA_SIZE ((uint32_t)(__tdata_end)-(uint32_t)(__tdata_start))
-#define TLS_SIZE ((uint32_t)(__tls_end)-(uint32_t)(__tls_base))
-#define TP_OFFSET 28672
 
 /** @brief Read the current value of the gp register */
 #define REG_GP()     ({ uint64_t gp; __asm("move %0, $28": "=r" (gp)); gp; })
@@ -46,8 +43,6 @@
 
 /** @brief Current thread TLS */
 void *th_cur_tp = KERNEL_TP_INVALID;
-/** @brief Main thread TLS */
-static void *th_main_tp;
 /** @brief Main thread */
 kthread_t th_main;
 /** @brief Pointer to the current thread */
@@ -61,8 +56,6 @@ static int th_count;
 
 /** @brief True if the multithreading kernel has been initialized and is running. */
 bool __kernel = false;
-/** @brief True if .tdata section is copied. */
-static bool tdata_copy = false;
 /** @brief True if a context switch must be done at the end of current interrupt. */
 bool __isr_force_schedule = false;
 /* Global current interrupt depth (defined in interrupt.c) */ 
@@ -81,13 +74,9 @@ extern char __th_tdata_copy[];
 kthread_t *__kernel_all_threads;
 #endif
 
-static void __kernel_tls_init(void)
+__attribute__((constructor)) void __kernel_tls_init(void)
 {
-	if(!tdata_copy) {
-		memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
-		tdata_copy = true;
-	}
-	th_cur_tp = th_main_tp = __tls_base+TP_OFFSET;
+	memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
 }
 
 /** 
@@ -311,8 +300,8 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 			// Save the current interrupt depth. Interrupt depth is actually
 			// per-thread, so we just save/restore it every time a thread is
 			// scheduled.
-			th_cur->interrupt_depth = __interrupt_depth;
-			th_cur->interrupt_sr = __interrupt_sr;
+			th_cur->tls.interrupt_depth = __interrupt_depth;
+			th_cur->tls.interrupt_sr = __interrupt_sr;
 		}
 	}
 
@@ -329,13 +318,13 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	assert(!(th_cur->flags & TH_FLAG_INLIST));
     
 	// Set the current interrupt depth to that of the current thread.
-	__interrupt_depth = th_cur->interrupt_depth;
-	__interrupt_sr = th_cur->interrupt_sr;
+	__interrupt_depth = th_cur->tls.interrupt_depth;
+	__interrupt_sr = th_cur->tls.interrupt_sr;
     
 	th_cur_tp = th_cur->tp_value;
     
 	#ifdef __NEWLIB__
-	_REENT = th_cur->reent_ptr;
+	_REENT = th_cur->tls.reent_ptr;
 	#endif
 
 	return th_cur->stack_state;
@@ -363,7 +352,6 @@ static int __kthread_idle(void *arg)
 kthread_t* kernel_init(void)
 {
 	assert(!__kernel);
-	__kernel_tls_init();
 	#ifdef __NEWLIB__
 	// Check if __malloc_lock is a nop. This happens with old toolchains where
 	// newlib was compiled with --disable-threads.
@@ -389,10 +377,10 @@ kthread_t* kernel_init(void)
 	th_main.name = "main";
 	th_main.stack_size = 0x10000; // see STACK_SIZE in system.c
 	th_main.flags = TH_FLAG_DETACHED; // main thread cannot be joined
-	th_main.tp_value = th_main_tp;
+	th_main.tp_value = __tls_base+TP_OFFSET;
     
 	#ifdef __NEWLIB__
-	th_main.reent_ptr = _REENT;
+	th_main.tls.reent_ptr = _REENT;
 	#endif
 
 	// NOTE: keep this in sync with system.c
@@ -419,6 +407,7 @@ kthread_t* kernel_init(void)
 	__kirq_init();
 
 	__kernel = true;
+	th_cur_tp = __tls_base+TP_OFFSET;
 	return th_cur;
 }
 
@@ -524,8 +513,8 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	extra += TLS_SIZE;
 	// TLS initial configuration
 	#ifdef __NEWLIB__
-	th->reent_ptr = extra;
-	_REENT_INIT_PTR(th->reent_ptr);
+	th->tls.reent_ptr = extra;
+	_REENT_INIT_PTR(th->tls.reent_ptr);
 	#endif
 
 	// If the new thread has a priority higher or equal to the current one,
