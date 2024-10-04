@@ -2,7 +2,7 @@
 #include <sys/stat.h>
 
 _Thread_local int tls_var = 5;
-_Thread_local int tls_var_bss;
+_Thread_local __attribute__((aligned(16))) int tls_var_bss;
 
 void test_kernel_basic(TestContext *ctx) {
 	kernel_init();

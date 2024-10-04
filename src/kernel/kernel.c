@@ -352,7 +352,7 @@ static int __kthread_idle(void *arg)
 
 kthread_t* kernel_init(void)
 {
-	assertf(__tdata_align <= 8, "Unsupported TLS data alignment of %d", __tdata_align);
+	assertf(__tdata_align <= 8, "Unsupported TLS alignment of %d (Maximum 8)", __tdata_align);
 	assert(!__kernel);
 	#ifdef __NEWLIB__
 	// Check if __malloc_lock is a nop. This happens with old toolchains where
