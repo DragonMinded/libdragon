@@ -83,11 +83,11 @@ kthread_t *__kernel_all_threads;
 
 static void __kernel_tls_init(void)
 {
-    if(!tdata_copy) {
-        memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
-        tdata_copy = true;
-    }
-    th_cur_tp = th_main_tp = __tls_base+TP_OFFSET;
+	if(!tdata_copy) {
+		memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
+		tdata_copy = true;
+	}
+	th_cur_tp = th_main_tp = __tls_base+TP_OFFSET;
 }
 
 /** 
@@ -308,7 +308,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 				assertf(!(th_cur->flags & TH_FLAG_INLIST), "thread %s[%p] in list? flags=%x", th_cur->name, th_cur, th_cur->flags);
 				__thlist_add_pri(&th_ready, th_cur);
 			}
-            // Save the current interrupt depth. Interrupt depth is actually
+			// Save the current interrupt depth. Interrupt depth is actually
 			// per-thread, so we just save/restore it every time a thread is
 			// scheduled.
 			th_cur->interrupt_depth = __interrupt_depth;
@@ -328,11 +328,11 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx SR=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc, th_cur->stack_state->sr);
 	assert(!(th_cur->flags & TH_FLAG_INLIST));
     
-    // Set the current interrupt depth to that of the current thread.
+	// Set the current interrupt depth to that of the current thread.
 	__interrupt_depth = th_cur->interrupt_depth;
 	__interrupt_sr = th_cur->interrupt_sr;
     
-    th_cur_tp = th_cur->tp_value;
+	th_cur_tp = th_cur->tp_value;
     
 	#ifdef __NEWLIB__
 	_REENT = th_cur->reent_ptr;
@@ -363,7 +363,7 @@ static int __kthread_idle(void *arg)
 kthread_t* kernel_init(void)
 {
 	assert(!__kernel);
-    __kernel_tls_init();
+	__kernel_tls_init();
 	#ifdef __NEWLIB__
 	// Check if __malloc_lock is a nop. This happens with old toolchains where
 	// newlib was compiled with --disable-threads.
@@ -389,7 +389,7 @@ kthread_t* kernel_init(void)
 	th_main.name = "main";
 	th_main.stack_size = 0x10000; // see STACK_SIZE in system.c
 	th_main.flags = TH_FLAG_DETACHED; // main thread cannot be joined
-    th_main.tp_value = th_main_tp;
+	th_main.tp_value = th_main_tp;
     
 	#ifdef __NEWLIB__
 	th_main.reent_ptr = _REENT;
@@ -436,7 +436,7 @@ void kernel_close(void)
 	th_cur = NULL;
 	__kernel = false;
 	__isr_force_schedule = false;
-    th_cur_tp = KERNEL_TP_INVALID;
+	th_cur_tp = KERNEL_TP_INVALID;
 }
 
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)
@@ -517,11 +517,11 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	#endif
 	enable_interrupts();
     
-    //Initialize TLS Data
-    memcpy(extra, __th_tdata_copy, TDATA_SIZE);
-    memset(extra+TDATA_SIZE, 0, TLS_SIZE-TDATA_SIZE);
-    th->tp_value = extra+TP_OFFSET;
-    extra += TLS_SIZE;
+	//Initialize TLS Data
+	memcpy(extra, __th_tdata_copy, TDATA_SIZE);
+	memset(extra+TDATA_SIZE, 0, TLS_SIZE-TDATA_SIZE);
+	th->tp_value = extra+TP_OFFSET;
+	extra += TLS_SIZE;
 	// TLS initial configuration
 	#ifdef __NEWLIB__
 	th->reent_ptr = extra;

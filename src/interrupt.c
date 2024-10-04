@@ -748,10 +748,6 @@ __attribute__((constructor)) void __init_interrupts()
 
 void disable_interrupts()
 {
-    /* Don't do anything if TLS Pointer is invalid */
-    if(th_cur_tp == KERNEL_TP_INVALID) {
-        return;
-    }
     /* Don't do anything if we haven't initialized */
     if( __interrupt_depth < 0 ) { return; }
 
@@ -777,10 +773,6 @@ void disable_interrupts()
 
 void enable_interrupts()
 {
-    /* Don't do anything if TLS Pointer is invalid */
-    if(th_cur_tp == KERNEL_TP_INVALID) {
-        return;
-    }
     /* Don't do anything if we aren't initialized */
     if( __interrupt_depth < 0 ) { return; }
 

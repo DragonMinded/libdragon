@@ -260,13 +260,13 @@ void test_kernel_thread_local(TestContext *ctx) {
 
 	int func_th(void *arg)
 	{
-        tls_var = (int)arg;
+		tls_var = (int)arg;
 		thval[thval_idx++] = tls_var;
 		kcond_wait(&stepper, NULL);
-        tls_var++;
+		tls_var++;
 		thval[thval_idx++] = tls_var;
 		kcond_wait(&stepper, NULL);
-        tls_var++;
+		tls_var++;
 		thval[thval_idx++] = tls_var;
 		return 0;
 	}
