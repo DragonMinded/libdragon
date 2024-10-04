@@ -37,7 +37,7 @@ JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 # Clean, build, and install libdragon + tools
 sudoMakeWithParams install-mk
 makeWithParams clobber
-makeWithParams libdragon tools
+makeWithParams libdragon tools regen
 sudoMakeWithParams install tools-install
 
 # Build examples and tests - libdragon must be already installed at this point,

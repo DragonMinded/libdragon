@@ -211,6 +211,11 @@ clean:
 	rm -f *.o *.a
 	rm -rf $(CURDIR)/build
 
+regen:
+# Regenerate generated files that are committed. If they are changed, they will
+# be marked as modified in git.
+	cd $(SOURCE_DIR)/rdpq && ./mkfontbuiltin.sh
+
 test:
 	$(MAKE) -C tests
 
