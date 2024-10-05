@@ -1,5 +1,6 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
+DFS_ROOTDIR ?= # Set this to the root directory of your ROM filesystem if you want to use DragonFS
 N64_DFS_OFFSET ?= 1M # Override this to offset where the DFS file will be located inside the ROM
 
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
@@ -97,10 +98,18 @@ RSPASFLAGS+=-MMD
 	@echo "    [V64] $@"
 	$(N64_OBJCOPY) -I binary -O binary --reverse-bytes=2 $< $@
 
+ifneq ($(DFS_ROOTDIR),)
 %.dfs:
 	@mkdir -p $(dir $@)
 	@echo "    [DFS] $@"
+	$(N64_MKDFS) $@ "$(DFS_ROOTDIR)" >/dev/null
+else
+%.dfs:
+	@echo "n64.mk WARNING: Set DFS_ROOTDIR to specify your ROM filesystem root directory"
+	@mkdir -p $(dir $@)
+	@echo "    [DFS] $@"
 	$(N64_MKDFS) $@ $(<D) >/dev/null
+endif
 
 # Assembly rule. We use .S for both RSP and MIPS assembly code, and we differentiate
 # using the prefix of the filename: if it starts with "rsp", it is RSP ucode, otherwise
