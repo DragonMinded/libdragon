@@ -80,6 +80,13 @@ DWORD get_fattime(void)
  * FAT newlib wrappers
  *********************************************************************/
 
+#define MAKE_FAT_NAME(volid, name) ({ \
+	char *fat_name = alloca(strlen(name)+2+1); \
+	fat_name[0] = '0'+volid; fat_name[1] = ':'; \
+	strcpy(fat_name+2, name); \
+	fat_name; \
+})
+
 /** Maximum number of FAT files that can be concurrently opened */
 #define MAX_FAT_FILES 4
 static FIL fat_files[MAX_FAT_FILES] = {0};
@@ -142,11 +149,7 @@ static void *__fat_open(char *name, int flags, int volid)
 	} else
 		 fatfs_flags |= FA_OPEN_EXISTING;
 
-    char *fat_name = alloca(strlen(name)+2+1);
-    fat_name[0] = '0'; fat_name[1] = ':'; 
-    strcpy(fat_name+2, name);
-
-	FRESULT res = f_open(&fat_files[i], fat_name, fatfs_flags);
+	FRESULT res = f_open(&fat_files[i], MAKE_FAT_NAME(volid, name), fatfs_flags);
 	if (res != FR_OK)
 	{
 		__fresult_set_errno(res);
@@ -170,10 +173,10 @@ static void __fat_stat_fill(FSIZE_t size, BYTE attr, struct stat *st)
 		st->st_mode |= S_IFREG;
 }
 
-static int __fat_stat(char *name, struct stat *st)
+static int __fat_stat(char *name, struct stat *st, int volid)
 {
 	FILINFO fno;
-	FRESULT res = f_stat(name, &fno);
+	FRESULT res = f_stat(MAKE_FAT_NAME(volid, name), &fno);
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
 		return -1;
@@ -248,9 +251,9 @@ static int __fat_lseek(void *file, int offset, int whence)
 	return f_tell(f);
 }
 
-static int __fat_unlink(char *name)
+static int __fat_unlink(char *name, int volid)
 {
-	FRESULT res = f_unlink(name);
+	FRESULT res = f_unlink(MAKE_FAT_NAME(volid, name));
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
 		return -1;
@@ -288,11 +291,7 @@ static int __fat_findnext(dir_t *dir)
 
 static int __fat_findfirst(char *name, dir_t *dir, int volid)
 {
-    char *fat_name = alloca(strlen(name)+2+1);
-    fat_name[0] = '0'+volid; fat_name[1] = ':';
-    strcpy(fat_name+2, name);
-
-	FRESULT res = f_opendir(&find_dir, fat_name);
+	FRESULT res = f_opendir(&find_dir, MAKE_FAT_NAME(volid, name));
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
 		return -2;
@@ -300,9 +299,9 @@ static int __fat_findfirst(char *name, dir_t *dir, int volid)
 	return __fat_findnext(dir);
 }
 
-static int __fat_mkdir(char *path, mode_t mode)
+static int __fat_mkdir(char *path, mode_t mode, int volid)
 {
-	FRESULT res = f_mkdir(path);
+	FRESULT res = f_mkdir(MAKE_FAT_NAME(volid, path));
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
 		return -1;
@@ -311,17 +310,17 @@ static int __fat_mkdir(char *path, mode_t mode)
 }
 
 static const filesystem_t fat_newlib_fs = {
-	.open = NULL,   // will be patched later
-	.stat = __fat_stat,
+	.open = NULL,   		// per-volume function
+	.stat = NULL,			// per-volume function
 	.fstat = __fat_fstat,
 	.lseek = __fat_lseek,
 	.read = __fat_read,
 	.write = __fat_write,
 	.close = __fat_close,
-	.unlink = __fat_unlink,
-	.findfirst = NULL, // will be patched later
+	.unlink = NULL, 		// per-volume function
+	.findfirst = NULL, 		// per-volume function
 	.findnext = __fat_findnext,
-	.mkdir = __fat_mkdir,
+	.mkdir = NULL,			// per-volume function
 };
 
 static void *__fat_open_vol0(char *name, int flags) { return __fat_open(name, flags, 0); }
@@ -334,23 +333,46 @@ static int __fat_findfirst_vol1(char *name, dir_t *dir) { return __fat_findfirst
 static int __fat_findfirst_vol2(char *name, dir_t *dir) { return __fat_findfirst(name, dir, 2); }
 static int __fat_findfirst_vol3(char *name, dir_t *dir) { return __fat_findfirst(name, dir, 3); }
 
+static int __fat_stat_vol0(char *name, struct stat *st) { return __fat_stat(name, st, 0); }
+static int __fat_stat_vol1(char *name, struct stat *st) { return __fat_stat(name, st, 1); }
+static int __fat_stat_vol2(char *name, struct stat *st) { return __fat_stat(name, st, 2); }
+static int __fat_stat_vol3(char *name, struct stat *st) { return __fat_stat(name, st, 3); }
+
+static int __fat_unlink_vol0(char *name) { return __fat_unlink(name, 0); }
+static int __fat_unlink_vol1(char *name) { return __fat_unlink(name, 1); }
+static int __fat_unlink_vol2(char *name) { return __fat_unlink(name, 2); }
+static int __fat_unlink_vol3(char *name) { return __fat_unlink(name, 3); }
+
+static int __fat_mkdir_vol0(char *path, mode_t mode) { return __fat_mkdir(path, mode, 0); }
+static int __fat_mkdir_vol1(char *path, mode_t mode) { return __fat_mkdir(path, mode, 1); }
+static int __fat_mkdir_vol2(char *path, mode_t mode) { return __fat_mkdir(path, mode, 2); }
+static int __fat_mkdir_vol3(char *path, mode_t mode) { return __fat_mkdir(path, mode, 3); }
+
 static const void (*__fat_open_func[4]) = { __fat_open_vol0, __fat_open_vol1, __fat_open_vol2, __fat_open_vol3 };
 static const void (*__fat_findfirst_func[4]) = { __fat_findfirst_vol0, __fat_findfirst_vol1, __fat_findfirst_vol2, __fat_findfirst_vol3 };
+static const void (*__fat_stat_func[4]) = { __fat_stat_vol0, __fat_stat_vol1, __fat_stat_vol2, __fat_stat_vol3 };
+static const void (*__fat_unlink_func[4]) = { __fat_unlink_vol0, __fat_unlink_vol1, __fat_unlink_vol2, __fat_unlink_vol3 };
+static const void (*__fat_mkdir_func[4]) = { __fat_mkdir_vol0, __fat_mkdir_vol1, __fat_mkdir_vol2, __fat_mkdir_vol3 };
 
-int fat_mount(const char *prefix, int fatfs_volume_id, const fat_disk_t* disk)
+int fat_mount(const char *prefix, const fat_disk_t* disk)
 {
-    assertf(fatfs_volume_id >= 0 && fatfs_volume_id < FF_VOLUMES, "Invalid volume ID %d", fatfs_volume_id);
-    assertf(fat_disks[fatfs_volume_id].disk_initialize, "Volume %d already mounted", fatfs_volume_id);
+	int vol_id;
 
-    fat_disks[fatfs_volume_id] = *disk;
+	for (vol_id = 0; vol_id < FF_VOLUMES; vol_id++) {
+		if (fat_disks[vol_id].disk_initialize == NULL)
+			break;
+	}
+	assertf(vol_id != FF_VOLUMES, "Not enough FAT volumes available (max: %d)", FF_VOLUMES);
+
+    fat_disks[vol_id] = *disk;
 
     FATFS *fs = malloc(sizeof(FATFS));
-    char path[3] = {'0' + fatfs_volume_id, ':', 0};
+    char path[3] = {'0' + vol_id, ':', 0};
 
     FRESULT err = f_mount(fs, path, 1);
     if (err != FR_OK) {
         __fresult_set_errno(err);
-        fat_disks[fatfs_volume_id] = (fat_disk_t){0};
+        fat_disks[vol_id] = (fat_disk_t){0};
         return -1;
     }
 
@@ -358,11 +380,14 @@ int fat_mount(const char *prefix, int fatfs_volume_id, const fat_disk_t* disk)
         filesystem_t *fs = malloc(sizeof(filesystem_t));
         memcpy(fs, &fat_newlib_fs, sizeof(filesystem_t));
 
-        fs->open = __fat_open_func[fatfs_volume_id];
-        fs->findfirst = __fat_findfirst_func[fatfs_volume_id];
+        fs->open = __fat_open_func[vol_id];
+        fs->findfirst = __fat_findfirst_func[vol_id];
+		fs->stat = __fat_stat_func[vol_id];
+		fs->unlink = __fat_unlink_func[vol_id];
+		fs->mkdir = __fat_mkdir_func[vol_id];
 
         attach_filesystem(prefix, fs);
     }
 
-    return 0;
+    return vol_id;
 }

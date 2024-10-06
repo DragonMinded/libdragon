@@ -313,7 +313,7 @@ bool debug_init_sdfs(const char *prefix, int npart)
 		return false;
 
 	strlcpy(sdfs_prefix, prefix, sizeof(sdfs_prefix));
-	fat_mount(sdfs_prefix, FAT_VOLUME_SD, &fat_disk_sd);
+	fat_mount(sdfs_prefix, &fat_disk_sd);
 	enabled_features |= DEBUG_FEATURE_FILE_SD;
 	return true;
 }

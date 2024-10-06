@@ -30,20 +30,6 @@
 extern "C" {
 #endif
 
-/** 
- * @brief Definition of the various FAT volumes.
- * 
- * Currently, we only allocate a single volume, which is used for the SD card
- * in flashcarts.
- * 
- * If you need to mount a FAT volume coming from some other sources, you
- * can use the #FAT_VOLUME_CUSTOM volume.
- */
-enum {
-    FAT_VOLUME_SD = 0,          ///< Volume for SD cards
-    FAT_VOLUME_CUSTOM = 1,      ///< Custom volume, free for usage
-};
-
 /**
  * @brief Interface for disk operations required to implement a volume.
  * 
@@ -69,19 +55,37 @@ typedef struct {
  * Access to the actual disk is done through the provided disk operations,
  * so that the volume can be backed by any kind of storage.
  * 
- * After calling this function, you will be able to access the volume via
- * standard C file operations.
+ * After calling this function, you will be able to access the files on the
+ * volume using two different APIs:
+ * 
+ * * Standard C file operations (fopen, fread, fwrite, fclose, etc), or 
+ *   POSIX file operations (open, read, write, close, etc). This is the preferred
+ *   way to access files, as it is the most portable and the most familiar to
+ *   most developers. Files will be accessed using the prefix provided in the
+ *   call to this function. For instance, if you provide "sd:" as the prefix,
+ *   you will be able to access the files on the volume using paths like
+ *   "sd:/path/to/file.txt".
+ * * Direct FatFs API calls. This is the low-level API provided by the FatFs
+ *   library itself. It is less portable and less familiar to most developers,
+ *   but it might be required for certain very low level operations, like
+ *   inspecting the actual FAT chains of a file. The volume ID for direct
+ *   FatFs API usage will be returned by this function. To use this API, you
+ *   will need to include the FatFs headers in your source files ("fatfs/fs.h"),
+ *   and then refer to filename paths using the volume ID. For instance, if
+ *   the volume ID is 2, you will be able to access the files on the volume
+ *   using paths like "2:/path/to/file.txt".
  * 
  * @param prefix            Prefix to use for the volume in stdio calls like 
  *                          fopen (eg: "sd:"). If this is NULL, the volume
- *                          will not be accessible via stdio calls, but only
+ *                          will not be accessible via standard C API, but only
  *                          via the FatFs API.
- * @param fatfs_volume_id   ID of the volume within FatFs (eg: #FAT_VOLUME_CUSTOM)
  * @param disk              Table of disk operations to use for this volume
  * 
- * @return 0 on success, -1 on failure (errno will be set)
+ * @return >= 0 on success: the value will be the volume ID for direct FatFs API
+ *         usage
+ * @return -1 on mount failure (errno will be set). Eg: corrupted FAT header
  */
-int fat_mount(const char *prefix, int fatfs_volume_id, const fat_disk_t* disk);
+int fat_mount(const char *prefix, const fat_disk_t* disk);
 
 #ifdef __cplusplus
 }
