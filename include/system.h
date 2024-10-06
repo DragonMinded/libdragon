@@ -48,6 +48,7 @@ extern "C" {
 #endif
 
 #include <dir.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 
 /**
@@ -263,29 +264,30 @@ typedef struct
 } stdio_t;
 
 /**
- * @brief Register a filesystem with newlib
+ * @brief Time hook structure
  *
- * This function will take a prefix in the form of 'prefix:/' and a pointer
- * to a filesystem structure of relevant callbacks and register it with newlib.
- * Any standard open/fopen calls with the registered prefix will be passed
- * to this filesystem.  Userspace code does not need to know the underlying
- * filesystem, only the prefix that it has been registered under.
- *
- * The filesystem pointer passed in to this function should not go out of scope
- * for the lifetime of the filesystem.
- *
- * @param[in] prefix
- *            Prefix of the filesystem
- * @param[in] filesystem
- *            Structure of callbacks for various functions in the filesystem.
- *            If the registered filesystem doesn't support an operation, it
- *            should leave the callback null.
- * 
- * @retval -1 if the parameters are invalid
- * @retval -2 if the prefix is already in use
- * @retval -3 if there are no more slots for filesystems
- * @retval 0 if the filesystem was registered successfully
+ * This structure provides optional callback hooks for code wishing to
+ * implement C time functions.  Any function that code does not wish to handle
+ * should be left as a NULL pointer.
  */
+typedef struct
+{
+    /** 
+     * @brief Function to call to retrieve the current date/time
+     * 
+     * @return number of seconds since 1970-01-01 00:00:00 UTC
+     */
+    time_t (*gettime)( void );
+    /** 
+     * @brief Function to call to set the current date/time
+     * 
+     * @param time number of seconds since 1970-01-01 00:00:00 UTC
+     * 
+     * @return whether the time was set successfully
+     */
+    bool (*settime)( time_t );
+} time_hooks_t;
+
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem );
 
 /**
@@ -324,26 +326,14 @@ int hook_stdio_calls( stdio_t *stdio_calls );
  */
 int unhook_stdio_calls( stdio_t *stdio_calls );
 
-
-/**
- * @brief Hook into gettimeofday with a current time callback.
- *
- * @param[in] time_fn
- *            Pointer to callback for the current time function
- *
- * @return 0 if successful or a negative value on failure.
- */
+__attribute__((deprecated("use hook_time_calls instead")))
 int hook_time_call( time_t (*time_fn)( void ) );
 
-/**
- * @brief Unhook from gettimeofday current time callback.
- *
- * @param[in] time_fn
- *            Pointer to callback for the current time function
- *
- * @return 0 if successful or a negative value on failure.
- */
+__attribute__((deprecated("use unhook_time_calls instead")))
 int unhook_time_call( time_t (*time_fn)( void ) );
+
+int hook_time_calls( time_hooks_t *hooks );
+int unhook_time_calls( time_hooks_t *hooks );
 
 #ifdef __cplusplus
 }
