@@ -39,7 +39,6 @@ sudoMakeWithParams install-mk
 makeWithParams clobber
 makeWithParams libdragon tools
 sudoMakeWithParams install tools-install
-makeWithParams regen
 
 # Build examples and tests - libdragon must be already installed at this point,
 # so first clobber the build to make sure that everything works against the
