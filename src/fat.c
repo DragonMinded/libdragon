@@ -354,7 +354,7 @@ static const void (*__fat_stat_func[4]) = { __fat_stat_vol0, __fat_stat_vol1, __
 static const void (*__fat_unlink_func[4]) = { __fat_unlink_vol0, __fat_unlink_vol1, __fat_unlink_vol2, __fat_unlink_vol3 };
 static const void (*__fat_mkdir_func[4]) = { __fat_mkdir_vol0, __fat_mkdir_vol1, __fat_mkdir_vol2, __fat_mkdir_vol3 };
 
-int fat_mount(const char *prefix, const fat_disk_t* disk)
+int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
 {
 	int vol_id;
 
@@ -369,7 +369,7 @@ int fat_mount(const char *prefix, const fat_disk_t* disk)
     FATFS *fs = malloc(sizeof(FATFS));
     char path[3] = {'0' + vol_id, ':', 0};
 
-    FRESULT err = f_mount(fs, path, 1);
+    FRESULT err = f_mount(fs, path, (flags & FAT_MOUNT_DEFERRED) ? 0 : 1);
     if (err != FR_OK) {
         __fresult_set_errno(err);
         fat_disks[vol_id] = (fat_disk_t){0};

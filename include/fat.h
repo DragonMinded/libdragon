@@ -16,9 +16,8 @@
  * The APIs exported by this file are useful only if you need to mount a FAT
  * volume coming from some other sources (eg: a FAT image within a ROM, or
  * a FAT volume accessible via some custom USB protocol, or whatever else).
- * If you need this, call #fat_mount to configure a FatFs volume (eg:
- * #FAT_VOLUME_CUSTOM), which you will then be able to access via standard
- * C file operations.
+ * If you need this, call #fat_mount to configure a FatFs volume, which you
+ * will then be able to access via standard C file operations.
  */
 
 #ifndef LIBDRAGON_FAT_H
@@ -47,6 +46,21 @@ typedef struct {
 	int (*disk_ioctl)(uint8_t cmd, void* buff);
 	///@endcond
 } fat_disk_t;
+
+
+/** 
+ * @brief Mount the volume only when it is accessed for the first time.
+ * 
+ * This flag can be passed to #fat_mount to defer the actual mounting of the
+ * volume until it is accessed for the first time. This can be useful to
+ * avoid blocking the application for a long time during the mount operation.
+ * 
+ * When you pass this flag, fat_mount will return immediately after configuring
+ * the internal data structure, but no I/O operation will be performed on the
+ * volume.
+ */
+#define FAT_MOUNT_DEFERRED        0x0001  
+
 
 /**
  * @brief Mount a new FAT volume through the FatFs library.
@@ -80,12 +94,15 @@ typedef struct {
  *                          will not be accessible via standard C API, but only
  *                          via the FatFs API.
  * @param disk              Table of disk operations to use for this volume
+ * @param flags             Flags to affect the behavior of the mount operation.
+ *                          You can pass 0 as default, or one of the various
+ *                          FAT_MOUNT_ flags.
  * 
  * @return >= 0 on success: the value will be the volume ID for direct FatFs API
  *         usage
  * @return -1 on mount failure (errno will be set). Eg: corrupted FAT header
  */
-int fat_mount(const char *prefix, const fat_disk_t* disk);
+int fat_mount(const char *prefix, const fat_disk_t* disk, int flags);
 
 #ifdef __cplusplus
 }
