@@ -30,9 +30,9 @@ SECTIONS {
     * the first byte of the cart domain in cached, unmapped memory
     */
     .text 0x80000400 : {
+        __text_start = .;
         *(.boot)
         . = ALIGN(16);
-        __text_start = .;
         *(.text)
         *(.text.*)
         *(.init)
