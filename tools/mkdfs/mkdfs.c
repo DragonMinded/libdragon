@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -151,11 +152,15 @@ static uint32_t prime_hash(const char *str, uint32_t prime)
     return hash;
 }
 
-uint32_t add_directory(const char * const base_path, const char * const path)
+static int file_name_sort(const void *a, const void *b)
 {
-    directory_entry_t *tmp_entry;
-    uint32_t first_entry = 0;
-    uint32_t cur_entry = 0;
+    // Use basic strcmp because it's well defined for any two strings without
+    // locale issues. We just care about consistent order.
+    return strcmp(*(const char **)a, *(const char **)b);
+}
+
+char **read_directory(const char * path)
+{
     DIR *dirp;
     struct dirent *dp;
 
@@ -163,129 +168,136 @@ uint32_t add_directory(const char * const base_path, const char * const path)
     {
         return 0;
     }
-
-    do {
-        if((dp = readdir(dirp)) != NULL)
-        {
-            if(strcmp(dp->d_name, ".") == 0)
-            {
-                /* Ignore */
-            }
-            else if(strcmp(dp->d_name, "..") == 0)
-            {
-                /* Ignore */
-            }
-            else
-            {
-                char *file = malloc(strlen(path) + strlen(dp->d_name) + 2);
-                struct stat stats;
-
-                if(!file)
-                {
-                    /* Out of memory */
-                    return 0;
-                }
-
-                strcpy(file, path);
-
-                /* Only add a / if there isn't one */
-                if(path[strlen(path) - 1] != '/')
-                {
-                    strcat(file, "/");
-                }
-
-                strcat(file, dp->d_name);
-
-                /* Figure out if it is a directory or regular (windows doesn't include d_type in dirent) */
-                stat( file, &stats );
-
-                if(S_ISREG(stats.st_mode))
-                {
-                    uint32_t new_entry = new_sector();
-                    uint32_t file_size = 0;
-
-                    tmp_entry = sector_to_memory(new_entry);
-                    tmp_entry->next_entry = 0;
-
-                    /* Copy over filename */
-                    strncpy(tmp_entry->path, dp->d_name, MAX_FILENAME_LEN);
-                    tmp_entry->path[MAX_FILENAME_LEN] = 0;
-
-                    uint32_t new_file = add_file(file, &file_size);
-
-                    if(!new_file)
-                    {
-                        free(file);
-                        return 0;
-                    }
-                    dfs_file_t temp_file;
-                    temp_file.path = strdup(file+strlen(base_path)+1);
-                    temp_file.path_hash = prime_hash(temp_file.path, DFS_LOOKUP_PRIME);
-                    temp_file.data_ofs = new_file;
-                    temp_file.data_len = file_size;
-                    stbds_arrpush(dfs_files, temp_file);
-                    
-                    tmp_entry = sector_to_memory(new_entry);
-                    tmp_entry->file_pointer = SWAPLONG(new_file);
-                    tmp_entry->flags = SWAPLONG((FLAGS_FILE << 28) | (file_size & 0x0FFFFFFF));
-
-                    if(cur_entry)
-                    {
-                        /* Link up! */
-                        tmp_entry = sector_to_memory(cur_entry);
-                        tmp_entry->next_entry = SWAPLONG(new_entry);
-                    }
-
-                    /* This is now the current working entry */
-                    cur_entry = new_entry;
-                }
-                else if(S_ISDIR(stats.st_mode))
-                {
-                    uint32_t new_entry = new_sector();
-
-                    tmp_entry = sector_to_memory(new_entry);
-                    tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
-                    tmp_entry->next_entry = 0;
-
-                    /* Copy over filename */
-                    strncpy(tmp_entry->path, dp->d_name, MAX_FILENAME_LEN);
-                    tmp_entry->path[MAX_FILENAME_LEN] = 0;
-
-                    uint32_t new_directory = add_directory(base_path, file);
-
-                    if(!new_directory)
-                    {
-                        fprintf(stderr, "Skipping empty directory: %s\n", file);
-                        free(file);
-                        continue;
-                    }
-
-                    tmp_entry = sector_to_memory(new_entry);
-                    tmp_entry->file_pointer = SWAPLONG(new_directory);
-
-                    if(cur_entry)
-                    {
-                        /* Link up! */
-                        tmp_entry = sector_to_memory(cur_entry);
-                        tmp_entry->next_entry = SWAPLONG(new_entry);
-                    }
-
-                    /* This is now the current working entry */
-                    cur_entry = new_entry;
-                }
-
-                free(file);
-
-                if(!first_entry)
-                {
-                    /* Return pointer to first file on list */
-                    first_entry = cur_entry;
-                }
-            }
-        }
-    } while (dp != NULL);
+    
+    // Read all file names into an array
+    char **files = NULL;
+    while((dp = readdir(dirp)) != NULL)
+    {
+        if(strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+            continue;
+        
+        char *fn;
+        asprintf(&fn, "%s/%s", path, dp->d_name);
+        stbds_arrpush(files, fn);
+    }
 
     closedir(dirp);
+
+    // Sort the array by name, to ensure consistent order. We are only
+    // interested in making sure the order is consistent across different
+    // runs of the tool, on different computers. We don't care about the
+    // actual order.
+    qsort(files, stbds_arrlenu(files), sizeof(char *), file_name_sort);
+
+    return files;
+}
+
+const char *basename(const char *path)
+{
+    const char *base = strrchr(path, '/');
+    return base ? base + 1 : path;
+}
+
+uint32_t add_directory(const char * const base_path, const char * const path)
+{
+    directory_entry_t *tmp_entry;
+    uint32_t first_entry = 0;
+    uint32_t cur_entry = 0;
+    char **files = read_directory(path);
+
+    for (int i = 0; i < stbds_arrlen(files); i++)
+    {
+        char *file = files[i];
+        struct stat stats;
+
+        /* Figure out if it is a directory or regular (windows doesn't include d_type in dirent) */
+        stat( file, &stats );
+
+        if(S_ISREG(stats.st_mode))
+        {
+            uint32_t new_entry = new_sector();
+            uint32_t file_size = 0;
+
+            tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->next_entry = 0;
+
+            /* Copy over filename */
+            strncpy(tmp_entry->path, basename(file), MAX_FILENAME_LEN);
+            tmp_entry->path[MAX_FILENAME_LEN] = 0;
+
+            uint32_t new_file = add_file(file, &file_size);
+
+            if(!new_file)
+            {
+                free(file);
+                return 0;
+            }
+            dfs_file_t temp_file;
+            temp_file.path = strdup(file+strlen(base_path)+1);
+            temp_file.path_hash = prime_hash(temp_file.path, DFS_LOOKUP_PRIME);
+            temp_file.data_ofs = new_file;
+            temp_file.data_len = file_size;
+            stbds_arrpush(dfs_files, temp_file);
+            
+            tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->file_pointer = SWAPLONG(new_file);
+            tmp_entry->flags = SWAPLONG((FLAGS_FILE << 28) | (file_size & 0x0FFFFFFF));
+
+            if(cur_entry)
+            {
+                /* Link up! */
+                tmp_entry = sector_to_memory(cur_entry);
+                tmp_entry->next_entry = SWAPLONG(new_entry);
+            }
+
+            /* This is now the current working entry */
+            cur_entry = new_entry;
+        }
+        else if(S_ISDIR(stats.st_mode))
+        {
+            uint32_t new_entry = new_sector();
+
+            tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
+            tmp_entry->next_entry = 0;
+
+            /* Copy over filename */
+            strncpy(tmp_entry->path, basename(file), MAX_FILENAME_LEN);
+            tmp_entry->path[MAX_FILENAME_LEN] = 0;
+
+            uint32_t new_directory = add_directory(base_path, file);
+
+            if(!new_directory)
+            {
+                fprintf(stderr, "Skipping empty directory: %s\n", file);
+                free(file);
+                continue;
+            }
+
+            tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->file_pointer = SWAPLONG(new_directory);
+
+            if(cur_entry)
+            {
+                /* Link up! */
+                tmp_entry = sector_to_memory(cur_entry);
+                tmp_entry->next_entry = SWAPLONG(new_entry);
+            }
+
+            /* This is now the current working entry */
+            cur_entry = new_entry;
+        }
+
+        free(file);
+
+        if(!first_entry)
+        {
+            /* Return pointer to first file on list */
+            first_entry = cur_entry;
+        }
+    }
+
+    stbds_arrfree(files);
 
     /* Will return 0 if we don't find any entries (don't support directories without files) */
     return first_entry;
@@ -382,7 +394,12 @@ int main(int argc, char *argv[])
     id->next_entry = SWAPLONG(ROOT_NEXT_ENTRY);
     strcpy(id->path, ROOT_PATH);
 
-    if(!add_directory(argv[2], argv[2]))
+    // Remove trailing slash if present
+    char *path = strdup(argv[2]);
+    if (path[strlen(path) - 1] == '/')
+        path[strlen(path) - 1] = 0;
+
+    if(!add_directory(path, path))
     {
         /* Error adding directory */
         fprintf(stderr, "Error creating filesystem: directory is empty or does not exist: %s\n", argv[2]);
