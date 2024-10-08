@@ -255,6 +255,19 @@ typedef struct rdpq_textmetrics_t {
 void rdpq_text_register_font(uint8_t font_id, const rdpq_font_t *font);
 
 /**
+ * @brief Unregister a font from the text engine.
+ * 
+ * This call will remove the font that was previously registered with @p font_id
+ * from the text engine. Afterwards, @p font_id can be used again to register other fonts.
+ * If @p font_id is not registered, this function will fail by asserting.
+ * 
+ * @param font_id      Font ID
+ * 
+ * @note Font ID 0 is reserved and cannot be used.
+ */
+void rdpq_text_unregister_font(uint8_t font_id);
+
+/**
  * @brief Get a registered font by its ID.
  * 
  * @param font_id      Font ID

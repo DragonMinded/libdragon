@@ -16,6 +16,13 @@ void rdpq_text_register_font(uint8_t font_id, const rdpq_font_t *font)
     fonts[font_id] = font;
 }
 
+void rdpq_text_unregister_font(uint8_t font_id)
+{
+    assertf(font_id != 0, "font id 0 is reserved");
+    assertf(fonts[font_id], "font 0x%02x is not registered", font_id);
+    fonts[font_id] = NULL;
+}
+
 const rdpq_font_t* rdpq_text_get_font(uint8_t font_id) {
     return fonts[font_id];
 }
