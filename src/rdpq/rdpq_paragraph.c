@@ -343,6 +343,50 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     builder.y = ycur;
 }
 
+static void __rdpq_paragraph_builder_update_bbox_width(int ix0, int ix1)
+{
+    if (ix0 == ix1) return;
+
+    rdpq_paragraph_char_t *ch0 = &builder.layout->chars[ix0];
+    rdpq_paragraph_char_t *ch1 = &builder.layout->chars[ix1-1];
+
+    const rdpq_font_t *fnt0 = rdpq_text_get_font(ch0->font_id); assert(fnt0);
+    const rdpq_font_t *fnt1 = rdpq_text_get_font(ch1->font_id); assert(fnt1);
+
+    // Extract X of first pixel of first char, and last pixel of last char
+    // This is a slightly more accurate centering than just using the glyph position
+    int8_t off_x0, off_x1;
+    __rdpq_font_glyph_metrics(fnt0, ch0->glyph, NULL, &off_x0, NULL,    NULL, NULL);
+    __rdpq_font_glyph_metrics(fnt1, ch1->glyph, NULL, NULL,    &off_x1, NULL, NULL);
+
+    // Compute absolute x0/x1 in the paragraph
+    float x0 = ch0->x + off_x0 * builder.xscale;
+    float x1 = ch1->x + off_x1 * builder.xscale;
+
+    // Do right/center alignment of the row (and adjust extents)
+    if (UNLIKELY(builder.parms->width && builder.parms->align)) {
+        float offset = builder.parms->width - (x1 + 1 - x0);
+        if (builder.parms->align == ALIGN_CENTER) offset *= 0.5f;
+
+        int16_t offset_fx = offset;
+        for (rdpq_paragraph_char_t *ch = ch0; ch <= ch1; ++ch)
+            ch->x += offset_fx;
+        x0 += offset;
+        x1 += offset;
+    }
+    if (UNLIKELY(builder.parms->width && off_x0 < 0 && builder.parms->align == ALIGN_LEFT)) {
+        for (rdpq_paragraph_char_t *ch = ch0; ch <= ch1; ++ch)
+            ch->x += -off_x0;
+        x0 += -off_x0;
+        x1 += -off_x0;
+    }
+
+    // Update bounding box
+    bool first_line = builder.layout->nlines == 1;
+    if (first_line || builder.layout->bbox.x0 > x0) builder.layout->bbox.x0 = x0;
+    if (first_line || builder.layout->bbox.x1 < x1) builder.layout->bbox.x1 = x1;
+}
+
 void __rdpq_paragraph_builder_newline(int ch_newline)
 {
     float line_height = 0.0f;
@@ -355,50 +399,8 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
     builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
     builder.layout->nlines += 1;
 
-    int ix0 = builder.ch_line_start;
-    int ix1 = ch_newline;
-
-    // If there's at least one character on this line
-    if (ix0 != ix1) {
-        rdpq_paragraph_char_t* ch0 = &builder.layout->chars[ix0];
-        rdpq_paragraph_char_t* ch1 = &builder.layout->chars[ix1-1];
-
-        const rdpq_font_t *fnt0 = rdpq_text_get_font(ch0->font_id); assert(fnt0);
-        const rdpq_font_t *fnt1 = rdpq_text_get_font(ch1->font_id); assert(fnt1);
-
-        // Extract X of first pixel of first char, and last pixel of last char
-        // This is a slightly more accurate centering than just using the glyph position
-        int8_t off_x0, off_x1;
-        __rdpq_font_glyph_metrics(fnt0, ch0->glyph, NULL, &off_x0, NULL,    NULL, NULL);
-        __rdpq_font_glyph_metrics(fnt1, ch1->glyph, NULL, NULL,    &off_x1, NULL, NULL);
-
-        // Compute absolute x0/x1 in the paragraph
-        float x0 = ch0->x + off_x0 * builder.xscale;
-        float x1 = ch1->x + off_x1 * builder.xscale;
-
-        // Do right/center alignment of the row (and adjust extents)
-        if (UNLIKELY(builder.parms->width && builder.parms->align)) {
-            float offset = builder.parms->width - (x1 + 1 - x0);
-            if (builder.parms->align == ALIGN_CENTER) offset *= 0.5f;
-
-            int16_t offset_fx = offset;
-            for (rdpq_paragraph_char_t *ch = ch0; ch <= ch1; ++ch)
-                ch->x += offset_fx;
-            x0 += offset;
-            x1 += offset;
-        }
-        if (UNLIKELY(builder.parms->width && off_x0 < 0 && builder.parms->align == ALIGN_LEFT)) {
-            for (rdpq_paragraph_char_t *ch = ch0; ch <= ch1; ++ch)
-                ch->x += -off_x0;
-            x0 += -off_x0;
-            x1 += -off_x0;
-        }
-
-        // Update bounding box
-        bool first_line = builder.layout->nlines == 1;
-        if (first_line || builder.layout->bbox.x0 > x0) builder.layout->bbox.x0 = x0;
-        if (first_line || builder.layout->bbox.x1 < x1) builder.layout->bbox.x1 = x1;
-    }
+    // On newline, update the bbox width using the last line, in case it grew
+    __rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, ch_newline);
 
     builder.ch_line_start = ch_newline;
 }
@@ -430,10 +432,13 @@ static void insertion_sort_char_array(rdpq_paragraph_char_t *chars, int nchars)
 
 rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
 {
-    // Check if we need to terminate the current line (to calculate alignment,
-    // bounding box, etc.).
-    if (builder.ch_line_start != builder.layout->nchars)
-        __rdpq_paragraph_builder_newline(builder.layout->nchars);
+    // Recalculate the bbox width using the last line, even if it doesn't end
+    // with a newline
+    __rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, builder.layout->nchars);
+
+    // Finish filling the metrics
+    builder.layout->advance_x = builder.x;
+    builder.layout->advance_y = builder.y;
 
     // Update bounding box (vertically)
     float y0 = builder.layout->chars[0].y - builder.font->ascent;
@@ -447,6 +452,7 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
         builder.layout->y0 = offset;
         y0 += offset;
         y1 += offset;
+        builder.layout->advance_y += offset;
     }
 
     builder.layout->bbox.y0 = y0;
@@ -467,10 +473,6 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
     assertf(builder.layout->nchars <= builder.layout->capacity,
         "paragraph too long (%d/%d chars)", builder.layout->nchars, builder.layout->capacity);
     builder.layout->chars[builder.layout->nchars].sort_key = 0;
-
-    // Finish filling the metrics
-    builder.layout->advance_x = builder.x;
-    builder.layout->advance_y = builder.y;
 
     return builder.layout;
 }
