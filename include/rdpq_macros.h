@@ -329,7 +329,11 @@ typedef uint32_t rdpq_blender_t;
  * This is the list of all possible slots. Not all slots are
  * available for the four variables (see the table below).
  *  
- *  * `TEX0`: texel of the texture being drawn.
+ *  * `TEX0`: texel of the first texture being drawn.
+ *  * `TEX1`: texel of the second texture being drawn.
+ *  * `TEX0_BUG`: due to a hardware bug, when using TEX0 in the second pass,
+ *    RDP will actually sample the next texel in the scanline. We call this
+ *    slot `TEX0_BUG` to make it clear that there is a potential issue.
  *  * `SHADE`: per-pixel interpolated color. This can be set on each
  *    vertex of a triangle, and is interpolated across each pixel. It
  *    cannot be used while drawing rectangles.
