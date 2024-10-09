@@ -268,7 +268,7 @@ bool elf_section_fully_inside_prog(elf_info_t *elf_info, Elf32_Shdr *shdr)
     section_max = section_min+shdr->sh_size;
     //Get program range
     prog_min = elf_info->load_seg.offset;
-    prog_max = prog_min+elf_info->load_seg.mem_size;
+    prog_max = prog_min+elf_info->load_seg.file_size;
     if(section_min < prog_min || section_max > prog_max) {
         //Section is at least partially outside program
         return false;
