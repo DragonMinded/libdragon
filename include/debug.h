@@ -116,6 +116,9 @@ extern "C" {
 #define DEBUG_FEATURE_FILE_SD       (1 << 3)
 
 
+#define DEBUG_FEATURE_HOST_COMMANDS (1 << 4)
+
+
 /**
  * @brief Flag to activate all supported debugging features.
  *
@@ -142,6 +145,10 @@ extern "C" {
 	/** @brief Shutdown SD filesystem. */
 	void debug_close_sdfs(void);
 
+
+	bool debug_init_host_commands(void);
+	void debug_close_host_commands(void);
+
 	/**
 	 * @brief Initialize debugging features of libdragon.
 	 *
@@ -163,7 +170,9 @@ extern "C" {
 		if (features & DEBUG_FEATURE_FILE_SD)
 			ok = debug_init_sdfs("sd:/", -1) || ok;
 		if (features & DEBUG_FEATURE_LOG_SD)
-			ok = debug_init_sdlog("sd:/libdragon.log", "a");
+			ok = debug_init_sdlog("sd:/libdragon.log", "a") || ok;
+		if (features & DEBUG_FEATURE_HOST_COMMANDS)
+			ok = debug_init_host_commands() || ok;
 		return ok;
 	}
 

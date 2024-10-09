@@ -41,6 +41,22 @@ extern "C" {
 #define PI_STATUS       ((volatile uint32_t*)0xA4600010)  ///< PI: status register
 
 /**
+ * @name PI Status Register Bit Definitions
+ * @{
+ */
+/** @brief PI DMA Busy */
+#define PI_STATUS_DMA_BUSY          ( 1 << 0 )
+/** @brief PI IO Busy */
+#define PI_STATUS_IO_BUSY           ( 1 << 1 )
+/** @brief PI Error */
+#define PI_STATUS_ERROR             ( 1 << 2 )
+/** @brief PI Reset */
+#define PI_STATUS_RESET             ( 1 << 0 )
+/** @brief PI Clear interrupt */
+#define PI_STATUS_CLEAR_INTERRUPT   ( 1 << 1 )
+/** @} */
+
+/**
  * @brief Start writing data to a peripheral through PI DMA (low-level)
  *
  * This function should be used when writing to a cartridge peripheral (typically

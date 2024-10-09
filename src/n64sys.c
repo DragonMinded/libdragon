@@ -10,6 +10,7 @@
 #include <malloc.h>
 #include "n64sys.h"
 #include "regsinternal.h"
+#include "dma.h"
 #include "interrupt.h"
 #include "vi.h"
 #include "rsp.h"
@@ -17,6 +18,7 @@
 #include "utils.h"
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
+int __boot_romtype;        ///< ROM type as detected by IPL3 
 int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
@@ -26,6 +28,9 @@ static uint32_t ticks64_base_tick;
 
 /** @brief Last value of the 64-bit counter */
 static uint64_t ticks64_base;
+
+/** @brief Structure used to interact with the PI registers */
+static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)0xa4600000;
 
 /**
  * @brief Helper macro to perform cache refresh operations
@@ -175,6 +180,41 @@ void wait_ms( unsigned long wait_ms )
     wait_ticks(TICKS_FROM_MS(wait_ms));
 }
 
+void sys_rcp_halt(void)
+{
+    // Can't have any interrupts here
+    disable_interrupts();
+
+    // Stop PI transaction
+    *PI_STATUS = PI_STATUS_CLEAR_INTERRUPT | PI_STATUS_RESET;
+
+    // Halt the RSP
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+
+    // Wait for RSP to halt execution
+    while( !(*SP_STATUS & SP_STATUS_HALTED) );
+
+    // Wait for RSP IO and DMA operations to finish
+    while( *SP_STATUS & (SP_STATUS_IO_BUSY | SP_STATUS_DMA_BUSY) );
+
+    // Flush the RDP and wait for DMA to finish fetching commands
+    *DP_STATUS = DP_WSTATUS_SET_FLUSH;
+    RSP_WAIT_LOOP(200) {
+        if ( !(*DP_STATUS & DP_STATUS_DMA_BUSY) ) {
+            break;
+        }
+    }
+    *DP_STATUS = DP_WSTATUS_RESET_FLUSH;
+
+    // Shut the video off
+    if ( vi_is_active() ) { vi_wait_for_vblank(); }
+    vi_set_blank_image();
+
+    // Turn off and clear VI interrupt
+    *VI_V_INTR = 0x3FF;
+    *VI_V_CURRENT = 0;
+}
+
 /**
  * @brief Force a complete halt of all processors
  *
@@ -187,16 +227,60 @@ void wait_ms( unsigned long wait_ms )
  */
 void die(void)
 {
-    // Can't have any interrupts here
-    disable_interrupts();
-    // Halt the RSP
-    *SP_STATUS = SP_WSTATUS_SET_HALT;
-    // Flush the RDP
-    *DP_STATUS = DP_WSTATUS_SET_FLUSH | DP_WSTATUS_SET_FREEZE;
-    *DP_STATUS = DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
-    // Shut the video off
-    *VI_CTRL = *VI_CTRL & (~VI_CTRL_TYPE);
+    // Terminate the RCP execution
+    sys_rcp_halt();
+
     // Terminate the CPU execution
+    abort();
+}
+
+void sys_reboot(void)
+{
+    const uint32_t ROM_ADDRESS = __boot_romtype ? 0x06000000 : 0x10000000;
+    const int IPL3_SIZE = 0xFC0;
+    const uint32_t IPL3_OFFSET = 0x40;
+
+    uint8_t ipl3_data[IPL3_SIZE] __attribute__((aligned(8)));
+
+    // Halt RCP execution before soft rebooting
+    sys_rcp_halt();
+
+    // Set the default PI DOM1 timings
+    PI_regs->dom1_latency = 0xFF;
+    PI_regs->dom1_pulse_width = 0xFF;
+    PI_regs->dom1_page_size = 0x0F;
+    PI_regs->dom1_release = 0x03;
+
+    // Read and set PI DOM1 timings from the ROM header
+    uint32_t pi_config = io_read(ROM_ADDRESS);
+    PI_regs->dom1_latency = pi_config;
+    PI_regs->dom1_pulse_width = (pi_config >> 8);
+    PI_regs->dom1_page_size = (pi_config >> 16);
+    PI_regs->dom1_release = (pi_config >> 20);
+
+    // Load IPL3 into RSP DMEM
+    dma_read_raw_async(&ipl3_data, (ROM_ADDRESS + IPL3_OFFSET), sizeof(ipl3_data));
+    dma_wait();
+    rsp_load_data(ipl3_data, sizeof(ipl3_data), IPL3_OFFSET);
+
+    // Prepare entry arguments
+    void (*run_ipl3)(void) = (void (*)(void))((uint32_t)(SP_DMEM) + IPL3_OFFSET);
+    register uint32_t rom_type asm ("s3") = __boot_romtype;
+    register uint32_t tv_type asm ("s4") = __boot_tvtype;
+    register uint32_t reset_type asm ("s5") = RESET_WARM;
+
+    // Set CU1, CU0 and FR bits
+    C0_WRITE_STATUS((1 << 29) | (1 << 28) | (1 << 26));
+
+    // Jump to IPL3
+    asm volatile (
+        "jalr %[run_ipl3] \n" ::
+        [run_ipl3] "r" (run_ipl3),
+        [rom_type] "r" (rom_type),
+        [tv_type] "r" (tv_type),
+        [reset_type] "r" (reset_type)
+    );
+
     abort();
 }
 

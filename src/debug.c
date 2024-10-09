@@ -669,6 +669,103 @@ void debug_close_sdfs(void)
 	}
 }
 
+#define SC64_REG_SCR (0x1FFF0000)
+#define SC64_REG_IRQ (0x1FFF0014)
+#define SC64_REG_AUX (0x1FFF0018)
+
+#define SC64_SCR_AUX_IRQ_PENDING (1 << 23)
+#define SC64_SCR_AUX_IRQ_MASK (1 << 22)
+
+#define SC64_IRQ_AUX_CLEAR (1 << 28)
+#define SC64_IRQ_AUX_DISABLE (1 << 9)
+#define SC64_IRQ_AUX_ENABLE (1 << 8)
+
+#define SC64_AUX_MSG_PING (0xFF000000)
+#define SC64_AUX_MSG_HALT (0xFF000001)
+#define SC64_AUX_MSG_REBOOT (0xFF000002)
+
+static void debug_cart_interrupt_handler_sc64(void)
+{
+	bool rcp_halted = false;
+
+	do {
+		uint32_t scr = io_read(SC64_REG_SCR);
+
+		if ((scr & SC64_SCR_AUX_IRQ_MASK) && (scr & SC64_SCR_AUX_IRQ_PENDING)) {
+			io_write(SC64_REG_IRQ, SC64_IRQ_AUX_CLEAR);
+
+			switch (io_read(SC64_REG_AUX)) {
+				case SC64_AUX_MSG_PING:
+					io_write(SC64_REG_AUX, SC64_AUX_MSG_PING);
+					break;
+
+				case SC64_AUX_MSG_HALT:
+					if (!rcp_halted) {
+						sys_rcp_halt();
+						rcp_halted = true;
+					}
+					io_write(SC64_REG_AUX, SC64_AUX_MSG_HALT);
+					break;
+
+				case SC64_AUX_MSG_REBOOT:
+					io_write(SC64_REG_IRQ, SC64_IRQ_AUX_DISABLE);
+					io_write(SC64_REG_AUX, SC64_AUX_MSG_REBOOT);
+					sys_reboot();
+					break;
+
+				default:
+					break;
+			}
+		}
+	} while (rcp_halted);
+}
+
+bool debug_poll_host_commands(void)
+{
+	if (!(enabled_features & DEBUG_FEATURE_HOST_COMMANDS))
+		return false;
+
+	if (cart_type == CART_SC) {
+		debug_cart_interrupt_handler_sc64();
+		return true;
+	}
+
+	return false;
+}
+
+bool debug_init_host_commands(void)
+{
+	if (!sd_initialize_once())
+		return false;
+
+	if (cart_type == CART_SC) {
+		register_CART_handler(debug_cart_interrupt_handler_sc64);
+		set_CART_interrupt(true);
+
+		io_write(SC64_REG_IRQ, SC64_IRQ_AUX_ENABLE);
+
+		enabled_features |= DEBUG_FEATURE_HOST_COMMANDS;
+
+		return true;
+	}
+
+	return false;
+}
+
+void debug_close_host_commands(void)
+{
+	if (enabled_features & DEBUG_FEATURE_HOST_COMMANDS) {
+		enabled_features &= ~(DEBUG_FEATURE_HOST_COMMANDS);
+
+		if (cart_type == CART_SC) {
+			io_write(SC64_REG_IRQ, SC64_IRQ_AUX_DISABLE);
+
+			set_CART_interrupt(false);
+			unregister_CART_handler(debug_cart_interrupt_handler_sc64);
+		}
+	}
+}
+
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
 {
 	disable_interrupts();

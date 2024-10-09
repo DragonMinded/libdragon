@@ -671,6 +671,9 @@ static void inspector(exception_t* ex, enum Mode mode) {
                 backtrace = true;
                 break;
             }
+            // Poll incoming commands from the host
+            extern bool debug_poll_host_commands(void);
+            debug_poll_host_commands();
             // Avoid constantly banging the PIF with controller reads, that
             // would prevent the RESET button from working.
             wait_ms(1);
