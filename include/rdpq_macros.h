@@ -58,7 +58,8 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_SUBA_0         cast64(8)
 
 #define _RDPQ_COMB2B_RGB_SUBA_COMBINED  cast64(0)
-#define _RDPQ_COMB2B_RGB_SUBA_TEX1      cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
+#define _RDPQ_COMB2B_RGB_SUBA_TEX1      cast64(1)
+#define _RDPQ_COMB2B_RGB_SUBA_TEX0_BUG  cast64(2) // TEX0 is buggy in 2nd cycle: it refers to *next* pixel in the scanline
 #define _RDPQ_COMB2B_RGB_SUBA_PRIM      cast64(3)
 #define _RDPQ_COMB2B_RGB_SUBA_SHADE     cast64(4)
 #define _RDPQ_COMB2B_RGB_SUBA_ENV       cast64(5)
@@ -88,7 +89,8 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_SUBB_0         cast64(8)
 
 #define _RDPQ_COMB2B_RGB_SUBB_COMBINED  cast64(0)
-#define _RDPQ_COMB2B_RGB_SUBB_TEX1      cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
+#define _RDPQ_COMB2B_RGB_SUBB_TEX1      cast64(1)
+#define _RDPQ_COMB2B_RGB_SUBA_TEX0_BUG  cast64(2) // TEX0 is buggy in 2nd cycle: it refers to *next* pixel in the scanline
 #define _RDPQ_COMB2B_RGB_SUBB_PRIM      cast64(3)
 #define _RDPQ_COMB2B_RGB_SUBB_SHADE     cast64(4)
 #define _RDPQ_COMB2B_RGB_SUBB_ENV       cast64(5)
@@ -130,13 +132,15 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_MUL_0              cast64(16)
 
 #define _RDPQ_COMB2B_RGB_MUL_COMBINED       cast64(0)
-#define _RDPQ_COMB2B_RGB_MUL_TEX1           cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
+#define _RDPQ_COMB2B_RGB_MUL_TEX1           cast64(1)
+#define _RDPQ_COMB2B_RGB_MUL_TEX0_BUG       cast64(2)  // TEX0 is buggy in 2nd cycle: it refers to *next* pixel in the scanline
 #define _RDPQ_COMB2B_RGB_MUL_PRIM           cast64(3)
 #define _RDPQ_COMB2B_RGB_MUL_SHADE          cast64(4)
 #define _RDPQ_COMB2B_RGB_MUL_ENV            cast64(5)
 #define _RDPQ_COMB2B_RGB_MUL_KEYSCALE       cast64(6)
 #define _RDPQ_COMB2B_RGB_MUL_COMBINED_ALPHA cast64(7)
-#define _RDPQ_COMB2B_RGB_MUL_TEX1_ALPHA     cast64(8) // TEX0_ALPHA not available in 2nd cycle (pipelined)
+#define _RDPQ_COMB2B_RGB_MUL_TEX1_ALPHA     cast64(8)
+#define _RDPQ_COMB2B_RGB_MUL_TEX0_ALPHA     cast64(9) // TEX0_ALPHA is buggy in 2nd cycle: it refers to *next* pixel in the scanline
 #define _RDPQ_COMB2B_RGB_MUL_PRIM_ALPHA     cast64(10)
 #define _RDPQ_COMB2B_RGB_MUL_SHADE_ALPHA    cast64(11)
 #define _RDPQ_COMB2B_RGB_MUL_ENV_ALPHA      cast64(12)
@@ -166,7 +170,8 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_ADD_0         cast64(7)
 
 #define _RDPQ_COMB2B_RGB_ADD_COMBINED  cast64(0)
-#define _RDPQ_COMB2B_RGB_ADD_TEX1      cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
+#define _RDPQ_COMB2B_RGB_ADD_TEX1      cast64(1)
+#define _RDPQ_COMB2B_RGB_ADD_TEX0_BUG  cast64(2)  // TEX0 is buggy in 2nd cycle: it refers to *next* pixel in the scanline
 #define _RDPQ_COMB2B_RGB_ADD_PRIM      cast64(3)
 #define _RDPQ_COMB2B_RGB_ADD_SHADE     cast64(4)
 #define _RDPQ_COMB2B_RGB_ADD_ENV       cast64(5)
