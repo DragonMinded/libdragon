@@ -4,9 +4,10 @@
  * @ingroup controllerpak
  */
 #include <string.h>
-#include "libdragon.h"
 #include "regsinternal.h"
 #include <unistd.h>
+#include "joybus_accessory.h"
+#include "mempak.h"
 
 /**
  * @name Inode values

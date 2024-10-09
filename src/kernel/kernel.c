@@ -1,8 +1,10 @@
-#include <libdragon.h>
 #include "kernel.h"
 #include "kernel_internal.h"
 #include "backtrace_internal.h"
 #include "timer.h"
+#include "debug.h"
+#include "interrupt.h"
+#include "backtrace.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <memory.h>

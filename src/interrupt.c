@@ -4,9 +4,12 @@
  * @ingroup interrupt
  */
 #include <malloc.h>
-#include "libdragon.h"
+#include "mi.h"
 #include "regsinternal.h"
 #include "kernel/kernel_internal.h"
+#include "n64sys.h"
+#include "interrupt.h"
+#include "debug.h"
 
 /** @brief Bit to set to clear the PI interrupt */
 #define PI_CLEAR_INTERRUPT 0x02

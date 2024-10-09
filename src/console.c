@@ -6,13 +6,16 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <malloc.h>
 #include <string.h>
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "system.h"
-#include "libdragon.h"
+#include "cop0.h"
+#include "console.h"
+#include "graphics.h"
 
 /* Prototypes */
 static void __console_render(void);
