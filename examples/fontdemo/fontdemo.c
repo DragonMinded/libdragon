@@ -88,7 +88,6 @@ int main()
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     rdpq_init();
     // rdpq_debug_start();
-    // rdpq_debug_log(true);
 
     rdpq_font_t *fnt1 = rdpq_font_load("rom:/Pacifico.font64");
     rdpq_font_t *fnt5 = rdpq_font_load("rom:/FerriteCoreDX.font64");
@@ -151,21 +150,35 @@ int main()
         rdpq_set_mode_fill(RGBA32(0x30,0x63,0x8E,0xFF));
         rdpq_fill_rectangle((320-box_width)/2, (240-box_height)/2, (320+box_width)/2, (240+box_height)/2);
 
-        //rspq_wait();
+        // rspq_wait();
         disable_interrupts();
         uint32_t t0 = get_ticks();
-        int nbytes = rdpq_text_print(&(rdpq_textparms_t){
+
+        int x0 = (320-box_width)/2;
+        int y0 = (240-box_height)/2;   
+
+        int nbytes = strlen(text);
+        rdpq_paragraph_t* par = rdpq_paragraph_build(&(rdpq_textparms_t){
             // .line_spacing = -3,
             .align = ALIGN_LEFT,
             .valign = VALIGN_CENTER,
             .width = box_width,
             .height = box_height,
             .wrap = WRAP_WORD,
-        }, FONT_PACIFICO, (320-box_width)/2, (240-box_height)/2, text).utf8_text_advance;
-        // rdpq_paragraph_render(partext, (320-box_width)/2, (240-box_height)/2);
+        }, FONT_PACIFICO, text, &nbytes);
+
+        rdpq_paragraph_render(par, x0, y0);
+        rdpq_paragraph_free(par);
+
         uint32_t t1 = get_ticks();
         enable_interrupts();
         debugf("rdpq_text_print: %d us (%dx%d) - %d bytes\n", TIMER_MICROS(t1-t0), box_width, box_height, nbytes);
+
+        rdpq_set_mode_standard();
+        rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+        rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+        rdpq_set_prim_color(RGBA32(0xFF,0xFF,0xFF,0x30));
+        rdpq_fill_rectangle(par->bbox.x0+x0, par->bbox.y0+y0, par->bbox.x1+x0, par->bbox.y1+y0);
 
         rdpq_detach_show();
     }
