@@ -4,12 +4,19 @@
  * @ingroup mixer
  */
 
-#include <libdragon.h>
+#include "xm64.h"
+#include "mixer.h"
+#include "audio.h"
+#include <assert.h>
+#include "debug.h"
+#include "interrupt.h"
+#include "dragonfs.h"
 #include "wav64internal.h"
 #include "asset_internal.h"
 #include "libxm/xm.h"
 #include "libxm/xm_internal.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 static void wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	xm_sample_t *samp = (xm_sample_t*)ctx;

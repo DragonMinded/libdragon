@@ -6,8 +6,12 @@
 
 #include <string.h>
 #include <time.h>
-#include "libdragon.h"
+#include <stdbool.h>
 #include "system.h"
+#include "n64sys.h"
+#include "joybus.h"
+#include "timer.h"
+#include "rtc.h"
 
 /**
  * @brief Joybus real-time clock identifier.

@@ -36,6 +36,10 @@
 #ifndef __LIBDRAGON_AUDIO_XM64_H
 #define __LIBDRAGON_AUDIO_XM64_H
 
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
