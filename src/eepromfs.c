@@ -6,9 +6,10 @@
 #include <string.h>
 #include <stdint.h>
 #include <malloc.h>
-#include "libdragon.h"
 #include "system.h"
 #include "utils.h"
+#include "eeprom.h"
+#include "eepromfs.h"
 
 /**
  * @brief EEPROM Filesystem file descriptor.

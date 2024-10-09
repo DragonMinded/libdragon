@@ -8,7 +8,12 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include "libdragon.h"
+#include <malloc.h>
+#include <stdalign.h>
+#include "dragonfs.h"
+#include "n64sys.h"
+#include "dma.h"
+#include "debug.h"
 #include "system.h"
 #include "dfsinternal.h"
 #include "rompak_internal.h"
