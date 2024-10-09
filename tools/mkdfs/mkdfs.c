@@ -192,7 +192,7 @@ char **read_directory(const char * path)
     return files;
 }
 
-const char *basename(const char *path)
+const char *mybasename(const char *path)
 {
     const char *base = strrchr(path, '/');
     return base ? base + 1 : path;
@@ -222,7 +222,7 @@ uint32_t add_directory(const char * const base_path, const char * const path)
             tmp_entry->next_entry = 0;
 
             /* Copy over filename */
-            strncpy(tmp_entry->path, basename(file), MAX_FILENAME_LEN);
+            strncpy(tmp_entry->path, mybasename(file), MAX_FILENAME_LEN);
             tmp_entry->path[MAX_FILENAME_LEN] = 0;
 
             uint32_t new_file = add_file(file, &file_size);
@@ -262,7 +262,7 @@ uint32_t add_directory(const char * const base_path, const char * const path)
             tmp_entry->next_entry = 0;
 
             /* Copy over filename */
-            strncpy(tmp_entry->path, basename(file), MAX_FILENAME_LEN);
+            strncpy(tmp_entry->path, mybasename(file), MAX_FILENAME_LEN);
             tmp_entry->path[MAX_FILENAME_LEN] = 0;
 
             uint32_t new_directory = add_directory(base_path, file);
