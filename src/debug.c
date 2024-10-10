@@ -185,18 +185,21 @@ static int fat_disk_initialize_sd(void)
 	return cart_card_init() ? STA_NOINIT : 0;
 }
 
-static int fat_disk_read_sd(uint8_t* buff, int sector, int count)
+static int fat_disk_read_sd(uint8_t* buff, int64_t sector, int count)
 {
+	assertf((uint32_t)sector == sector, "unsupported access to SD card > 2 TiB");
 	return cart_card_rd_dram(buff, sector, count) ? RES_ERROR : RES_OK;
 }
 
-static int fat_disk_read_sdram_sd(uint8_t* buff, int sector, int count)
+static int fat_disk_read_sdram_sd(uint8_t* buff, int64_t sector, int count)
 {
+	assertf((uint32_t)sector == sector, "unsupported access to SD card > 2 TiB");
 	return cart_card_rd_cart(PhysicalAddr(buff), sector, count) ? RES_ERROR : RES_OK;
 }
 
-static int fat_disk_write_sd(const uint8_t* buff, int sector, int count)
+static int fat_disk_write_sd(const uint8_t* buff, int64_t sector, int count)
 {
+	assertf((uint32_t)sector == sector, "unsupported access to SD card > 2 TiB");
 	return cart_card_wr_dram(buff, sector, count) ? RES_ERROR : RES_OK;
 }
 

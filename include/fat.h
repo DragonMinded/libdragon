@@ -40,9 +40,9 @@ typedef struct {
 	///@cond
 	int (*disk_initialize)(void);
 	int (*disk_status)(void);
-	int (*disk_read)(uint8_t* buff, int sector, int count);
-	int (*disk_read_sdram)(uint8_t* buff, int sector, int count);
-	int (*disk_write)(const uint8_t* buff, int sector, int count);
+	int (*disk_read)(uint8_t* buff, int64_t sector, int count);
+	int (*disk_read_sdram)(uint8_t* buff, int64_t sector, int count);
+	int (*disk_write)(const uint8_t* buff, int64_t sector, int count);
 	int (*disk_ioctl)(uint8_t cmd, void* buff);
 	///@endcond
 } fat_disk_t;
