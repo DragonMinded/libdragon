@@ -101,6 +101,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     builder.x = builder.parms->indent;
     builder.y = (builder.parms->height ? builder.font->ascent : 0);
     builder.skip_current_line = rdpq_paragraph_builder_full();
+    builder.layout->nlines = 1;
     builder.ch_last_space = -1;
 }
 
@@ -343,9 +344,9 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     builder.y = ycur;
 }
 
-static void __rdpq_paragraph_builder_update_bbox_width(int ix0, int ix1)
+static bool __rdpq_paragraph_builder_update_bbox_width(int ix0, int ix1)
 {
-    if (ix0 == ix1) return;
+    if (ix0 == ix1) return false;
 
     rdpq_paragraph_char_t *ch0 = &builder.layout->chars[ix0];
     rdpq_paragraph_char_t *ch1 = &builder.layout->chars[ix1-1];
@@ -385,6 +386,7 @@ static void __rdpq_paragraph_builder_update_bbox_width(int ix0, int ix1)
     bool first_line = builder.layout->nlines == 1;
     if (first_line || builder.layout->bbox.x0 > x0) builder.layout->bbox.x0 = x0;
     if (first_line || builder.layout->bbox.x1 < x1) builder.layout->bbox.x1 = x1;
+    return true;
 }
 
 void __rdpq_paragraph_builder_newline(int ch_newline)
@@ -397,12 +399,12 @@ void __rdpq_paragraph_builder_newline(int ch_newline)
     builder.y += line_height * builder.yscale;
     builder.x = 0;
     builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
-    builder.layout->nlines += 1;
 
     // On newline, update the bbox width using the last line, in case it grew
     __rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, ch_newline);
 
     builder.ch_line_start = ch_newline;
+    builder.layout->nlines += 1;
 }
 
 void rdpq_paragraph_builder_newline(void)
@@ -434,7 +436,8 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
 {
     // Recalculate the bbox width using the last line, even if it doesn't end
     // with a newline
-    __rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, builder.layout->nchars);
+    if (!__rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, builder.layout->nchars))
+        builder.layout->nlines -= 1;
 
     // Finish filling the metrics
     builder.layout->advance_x = builder.x;
