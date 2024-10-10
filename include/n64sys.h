@@ -483,6 +483,19 @@ int get_memory_size();
 bool is_memory_expanded();
 
 /**
+ * @brief Heap statistics
+ */
+typedef struct {
+    int total;      ///< Total heap size in bytes
+    int used;       ///< Used heap size in bytes
+} heap_stats_t;
+
+/**
+ * @brief Return information about memory usage of the heap
+ */
+void sys_get_heap_stats(heap_stats_t *stats);
+
+/**
  * @brief Allocate a buffer that will be accessed as uncached memory.
  * 
  * This function allocates a memory buffer that can be safely read and written
