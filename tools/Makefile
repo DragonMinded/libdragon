@@ -38,10 +38,9 @@ mkdfs_OBJS = mkdfs/mkdfs.o
 dumpdfs_OBJS = dumpdfs/dumpdfs.o
 n64tool_OBJS = n64tool.o
 n64sym_OBJS = n64sym.o
-chksum64_OBJS = chksum64.o
 ed64romconfig_OBJS = ed64romconfig.o
 
-TOOLS = n64tool n64sym chksum64 ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite
+TOOLS = n64tool n64sym ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)
