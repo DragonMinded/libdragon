@@ -44,8 +44,7 @@ sudoMakeWithParams install tools-install
 # so first clobber the build to make sure that everything works against the
 # installed version rather than using local artifacts.
 makeWithParams clobber
-makeWithParams examples
-makeWithParams test
+makeWithParams examples test
 
 echo
 echo Libdragon built successfully!
