@@ -28,7 +28,8 @@
 */
 
 #ifdef N64
-#include <libdragon.h>
+#include <n64sys.h>
+#include <rspq.h>
 #else
 #define debugf(...)
 #endif
