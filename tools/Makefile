@@ -1,4 +1,4 @@
-hN64_GCCPREFIX ?= $(N64_INST)
+N64_GCCPREFIX ?= $(N64_INST)
 INSTALLDIR ?= $(N64_INST)
 CFLAGS   += -std=gnu11 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare -I../include -MMD
 CXXFLAGS += -std=gnu++17 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare -Wno-c++11-narrowing -Wno-narrowing -Wno-error=conversion-null -MMD
@@ -29,6 +29,18 @@ common-clean:
 common/assetcomp.a: common/assetcomp.o common/lz4_compress.o \
 				    common/aplib_compress.o common/shrinkler_compress.o
 
+DECOMP_STUBS=common/mips_decomp_l1.bin common/mips_decomp_l2.bin common/mips_decomp_l3.bin
+
+common/mips_decomp_l1.bin: ../src/compress/lz4_dec_fast.S
+common/mips_decomp_l2.bin: ../src/compress/aplib_dec_fast.S
+common/mips_decomp_l3.bin: ../src/compress/shrinkler_dec_fast.S
+
+$(DECOMP_STUBS):
+	@echo "    [MIPS] $@"
+	$(N64_GCCPREFIX)/bin/mips64-elf-gcc -c -o $@.o $<
+	$(N64_GCCPREFIX)/bin/mips64-elf-objcopy -O binary $@.o $@
+	rm $@.o
+
 -include $(wildcard common/*.d)
 
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
@@ -39,8 +51,10 @@ dumpdfs_OBJS = dumpdfs/dumpdfs.o
 n64tool_OBJS = n64tool.o
 n64sym_OBJS = n64sym.o
 ed64romconfig_OBJS = ed64romconfig.o
+n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
+n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
-TOOLS = n64tool n64sym ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite
+TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)
