@@ -63,8 +63,6 @@ char *__env[1] = { 0 };
  */
 void (*__assert_func_ptr)(const char *file, int line, const char *func, const char *failedexpr) = 0;
 
-/* Externs from libdragon */
-extern int __bootcic;
 /// @cond
 extern void enable_interrupts();
 extern void disable_interrupts();
