@@ -1,7 +1,7 @@
 var searchData=
 [
-  ['a_0',['a',['../group__graphics.html#a56f318d39568f62bc8c09e3cddb76216',1,'color_t']]],
-  ['addr_1',['addr',['../structAY8910.html#a32675765868b0795c2c497f9bdedd11f',1,'AY8910::addr()'],['../group__backtrace.html#acb07c1948de8cb88001b17c67ad8175e',1,'backtrace_frame_t::addr()']]],
+  ['a_0',['a',['../group__graphics.html#a56f318d39568f62bc8c09e3cddb76216',1,'color_t::a'],['../group__controller.html#a7fc56270e7a70fa81a5935b72eacbe29',1,'_SI_condat.__unnamed20__.__unnamed24__::A']]],
+  ['addr_1',['addr',['../structAY8910.html#a32675765868b0795c2c497f9bdedd11f',1,'AY8910::addr'],['../group__backtrace.html#acb07c1948de8cb88001b17c67ad8175e',1,'backtrace_frame_t::addr']]],
   ['address_2',['address',['../group__lowlevel.html#a3aea9c8992d775f599ea5520cdfbb460',1,'AI_regs_t']]],
   ['addrtab_5foff_3',['addrtab_off',['../backtrace_8c.html#ad54c656ef890c41d3aef1d4cb9936285',1,'symtable_header_t']]],
   ['addrtab_5fsize_4',['addrtab_size',['../backtrace_8c.html#a4a1affd946e6ba60194be5b2604b0cf6',1,'symtable_header_t']]],

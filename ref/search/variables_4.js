@@ -5,7 +5,7 @@ var searchData=
   ['d_5fsize_2',['d_size',['../group__system.html#a8f237846d3c050fb73a91eec10e9e23c',1,'dir_t']]],
   ['d_5ftype_3',['d_type',['../group__system.html#ab2c5b8a974282fbcffde31b32e1e4c43',1,'dir_t']]],
   ['dacrate_4',['dacrate',['../group__lowlevel.html#a40ae398ad46a66a11eaf6d67bb1d0c32',1,'AI_regs_t']]],
-  ['data_5',['data',['../rspq__internal_8h.html#ab57b97d3a08046be85e1c8b317643730',1,'rspq_overlay_t::data()'],['../structrsp__ucode__t.html#ad5c028086c782260a7ac34dcbe67547e',1,'rsp_ucode_t::data()'],['../sprite_8h.html#afdba8565120d2719452a1c5c30c9ecdd',1,'sprite_t::data()']]],
+  ['data_5',['data',['../rspq__internal_8h.html#ab57b97d3a08046be85e1c8b317643730',1,'rspq_overlay_t::data'],['../structrsp__ucode__t.html#ad5c028086c782260a7ac34dcbe67547e',1,'rsp_ucode_t::data'],['../sprite_8h.html#afdba8565120d2719452a1c5c30c9ecdd',1,'sprite_t::data'],['../group__controller.html#a8d777f385d3dfec8815d20f7496026dc',1,'_SI_condat.__unnamed20__.__unnamed22__::data'],['../group__controller.html#a8d777f385d3dfec8815d20f7496026dc',1,'_SI_condat_gc.__unnamed26__.__unnamed28__::data']]],
   ['data_5fend_6',['data_end',['../structrsp__ucode__t.html#aa8dab65f79da7a820769f7a6e9ba69ae',1,'rsp_ucode_t']]],
   ['data_5fsize_7',['data_size',['../rspq__internal_8h.html#ae1297acf518013982275cf0fc9d55213',1,'rspq_overlay_t']]],
   ['day_8',['day',['../group__rtc.html#abcae6772be689db12a9a97451b9accb7',1,'rtc_time_t']]],
@@ -20,6 +20,7 @@ var searchData=
   ['dmem_17',['dmem',['../rsp_8h.html#a828abbd16a038db42094df8831602934',1,'rsp_snapshot_t']]],
   ['dom1_5flatency_18',['dom1_latency',['../group__lowlevel.html#a0879372fbf44dfa7a81c304909a1b910',1,'PI_regs_t']]],
   ['dom1_5fpulse_5fwidth_19',['dom1_pulse_width',['../group__lowlevel.html#a31dcc75804223b3af9d5303a52abd7f1',1,'PI_regs_t']]],
-  ['dp_5fcallback_20',['DP_callback',['../interrupt_8c.html#a5d91906f92df789296192c5b4b0ba072',1,'interrupt.c']]],
-  ['dram_5faddr_21',['DRAM_addr',['../group__lowlevel.html#ab2e4d926b99faddaa5a7716f74ce5185',1,'SI_regs_t::DRAM_addr()'],['../group__lowlevel.html#a1785954c779d289d08208e30b44d0482',1,'SP_regs_t::DRAM_addr()']]]
+  ['down_20',['down',['../group__controller.html#a74e8333ad11685ff3bdae589c8f6e34d',1,'_SI_condat.__unnamed20__.__unnamed24__']]],
+  ['dp_5fcallback_21',['DP_callback',['../interrupt_8c.html#a5d91906f92df789296192c5b4b0ba072',1,'interrupt.c']]],
+  ['dram_5faddr_22',['dram_addr',['../group__lowlevel.html#ab2e4d926b99faddaa5a7716f74ce5185',1,'SI_regs_t::DRAM_addr'],['../group__lowlevel.html#a1785954c779d289d08208e30b44d0482',1,'SP_regs_t::DRAM_addr']]]
 ];

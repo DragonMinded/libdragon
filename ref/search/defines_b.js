@@ -102,6 +102,6 @@ var searchData=
   ['mixer_5fmax_5fchannels_99',['MIXER_MAX_CHANNELS',['../mixer_8h.html#a8c4e507c0d1930fd5bd9a9d5f5ca3b13',1,'mixer.h']]],
   ['mixer_5fpoll_5fper_5fsecond_100',['MIXER_POLL_PER_SECOND',['../mixer_8c.html#acf679d48fd22fa095552abc65a72b198',1,'mixer.c']]],
   ['mixer_5fstate_5fsize_101',['MIXER_STATE_SIZE',['../mixer_8c.html#a5df3bed5fd6578afbe01235d44993b18',1,'mixer.c']]],
-  ['mixer_5ftrace_102',['MIXER_TRACE',['../mixer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE():&#160;mixer.c'],['../samplebuffer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE():&#160;samplebuffer.c']]],
+  ['mixer_5ftrace_102',['mixer_trace',['../mixer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE:&#160;mixer.c'],['../samplebuffer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE:&#160;samplebuffer.c']]],
   ['move_5fbuffer_103',['move_buffer',['../console_8c.html#a0493bc0de60ff266e7f4e9a4256d27f0',1,'console.c']]]
 ];

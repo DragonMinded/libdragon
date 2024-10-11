@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['peripherals_20subsystem_0',['Peripherals subsystem',['../group__peripherals.html',1,'']]]
+  ['math_20routines_0',['Fast math routines',['../group__fastmath.html',1,'']]],
+  ['mixer_1',['Audio mixer',['../group__mixer.html',1,'']]]
 ];

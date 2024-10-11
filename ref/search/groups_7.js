@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['fast_20math_20routines_0',['Fast math routines',['../group__fastmath.html',1,'']]]
+  ['graphics_0',['2D Graphics',['../group__graphics.html',1,'']]]
 ];
