@@ -28,6 +28,9 @@
 #include <sys/errno.h>
 #endif
 
+// Default header to use if none is specified
+#include "ipl3.h"
+
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
@@ -49,6 +52,8 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 //    tools like UNFloader and g64drive work around this bug by padding ROMs,
 //    but others (like the official one) don't. So it's better in general to
 //    pad to 512 bytes.
+//	* EverDrive64 also requires ROMs to be transferred in blocks of 512 bytes,
+//    which means that the ROM has to be padded.
 //  * iQue player only allows loading ROMs which are multiple of 16 KiB in size.
 //  
 // To allow the maximum compatibility, we pad to 16 KiB by default. Users can still
@@ -56,18 +61,18 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 #define PAD_ALIGN    16384
 
 #define WRITE_SIZE   (1024 * 1024)
-#define HEADER_SIZE  0x1000          // Size of the header (which includes IPL3)
-#define MIN_SIZE     0x100000        // Minimum size of a ROM after header (mandated by IPL3)
 
 #define TITLE_OFFSET 0x20
 #define TITLE_SIZE   20
+
+#define IQUE_ENTRYPOINT_OFFSET 0x8
 
 #define STATUS_OK       0
 #define STATUS_ERROR    1
 #define STATUS_BADUSAGE 2
 
 #define TOC_SIZE         1024
-#define TOC_ALIGN        8            // This must match the ALIGN directive in the linker script before __rom_end
+#define TOC_ALIGN        16
 #define TOC_ENTRY_SIZE   64
 #define TOC_MAX_ENTRIES  ((TOC_SIZE - 16) / 64)
 
@@ -79,6 +84,7 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 
 static const unsigned char zero[1024] = {0};
 static char * tmp_output = NULL;
+static uint32_t elf_loadpoint = 0xFFFFFFFF;
 
 struct toc_s {
 	char magic[4];
@@ -100,18 +106,18 @@ _Static_assert(sizeof(toc) <= TOC_SIZE, "invalid table size");
 
 int print_usage(const char * prog_name)
 {
-	fprintf(stderr, "Usage: %s [flags] <file> [[file-flags] <file> ...]\n\n", prog_name);
+	fprintf(stderr, "Usage: %s [flags] [file-flags] <file> [[file-flags] <file> ...]\n\n", prog_name);
 	fprintf(stderr, "This program creates an N64 ROM from a header and a list of files,\n");
 	fprintf(stderr, "the first being an Nintendo 64 binary and the rest arbitrary data.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "General flags (to be used before any file):\n");
 	fprintf(stderr, "\t-t, --title <title>    Title of ROM (max %d characters).\n", TITLE_SIZE);
 	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
-	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header.\n");
+	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header (default: use libdragon IPL3).\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
-	fprintf(stderr, "\t-T, --toc              Create a table of contents file after the first binary.\n");
+	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "File flags (to be used between files):\n");
+	fprintf(stderr, "File flags (to be used before each file):\n");
 	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (minimum: 4).\n");
 	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 4-byte aligned.\n");
 	fprintf(stderr, "\n");
@@ -236,6 +242,82 @@ void remove_tmp_file(void)
 		remove(tmp_output);
 }
 
+static uint32_t fread32be_at(FILE *fp, int offset)
+{
+	uint8_t buf[4];
+	fseek(fp, offset, SEEK_SET);
+	fread(buf, 1, 4, fp);
+	return (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+}
+
+static uint16_t fread16be_at(FILE *fp, int offset)
+{
+	uint8_t buf[2];
+	fseek(fp, offset, SEEK_SET);
+	fread(buf, 1, 2, fp);
+	return (buf[0] << 8) | buf[1];
+}
+
+int parse_elf_loadpoint(const char *elf_fn, uint32_t *loadpoint)
+{
+	FILE *elf = fopen(elf_fn, "rb");
+
+	if(!elf)
+	{
+		fprintf(stderr, "ERROR: Cannot open %s for reading!\n", elf_fn);
+		return -1;
+	}
+
+	char id[4];
+	fread(id, 1, 4, elf);
+	if (memcmp(id, "\x7F" "ELF", 4) != 0) {
+		fprintf(stderr, "WARNING: %s is not an ELF file, boot may fail\n", elf_fn);
+		fclose(elf);
+		return -1;
+	}
+
+	bool elf64 = fgetc(elf) == 2;
+	if (fgetc(elf) == 1) {
+		fprintf(stderr, "WARNING: %s is a little-endian ELF file, boot may fail\n", elf_fn);
+		fclose(elf);
+		return -1;
+	}
+
+	int phoff = fread32be_at(elf, (elf64 ? 0x20+4 : 0x1C));
+	int phnum = fread16be_at(elf, (elf64 ? 0x38 : 0x2C));
+
+	enum { PF_N64_COMPRESSED = 0x1000 };
+	enum { PT_LOAD = 0x1 };
+
+	bool found_loadpoint = false;
+	for (int i=0; i<phnum; i++) {
+		uint32_t type  = fread32be_at(elf, phoff + 0);
+		uint32_t vaddr = fread32be_at(elf, phoff + (elf64 ? 5 : 2)*4);
+		uint32_t paddr = fread32be_at(elf, phoff + (elf64 ? 7 : 3)*4);
+		uint32_t flags = fread32be_at(elf, phoff + (elf64 ? 1 : 6)*4);
+
+		if (flags & PF_N64_COMPRESSED)
+			vaddr = paddr;
+
+		if (type == PT_LOAD && !(vaddr >= 0x80000000 && vaddr < 0x80000400)) {
+			*loadpoint = vaddr;
+			found_loadpoint = true;
+			break;
+		}
+		
+		phoff += elf64 ? 0x38 : 0x20;
+	}
+
+	if (!found_loadpoint) {
+		fprintf(stderr, "WARNING: No suitable loading point found in %s, boot may fail on iQue\n", elf_fn);
+		fclose(elf);
+		return -1;
+	}	
+
+	fclose(elf);
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	FILE * write_file = NULL;
@@ -246,6 +328,8 @@ int main(int argc, char *argv[])
 	char title[TITLE_SIZE + 1] = { 0, };
 	bool create_toc = false;
 	size_t toc_offset = 0;
+	int header_size = 0;
+	int align_next = 0;
 
 
 	if(argc <= 1)
@@ -325,12 +409,6 @@ int main(int argc, char *argv[])
 
 			ssize_t size = parse_bytes(argv[i++]);
 
-			if(size < MIN_SIZE)
-			{
-				/* Invalid size */
-				fprintf(stderr, "ERROR: Invalid size argument: %s; must be at least %d bytes\nSmaller ROMs have compatibility problems with some flashcarts or emulators.\n", argv[i-1], MIN_SIZE);
-				return print_usage(argv[0]);
-			}
 			if (size % 4 != 0)
 			{
 				/* Invalid size */
@@ -357,9 +435,9 @@ int main(int argc, char *argv[])
 		}
 		if(check_flag(arg, "-s", "--offset"))
 		{
-			if(!header || !output)
+			if(!output)
 			{
-				fprintf(stderr, "ERROR: Need header and output flags before offset\n\n");
+				fprintf(stderr, "ERROR: Need output flag before offset\n\n");
 				return print_usage(argv[0]);
 			}
 
@@ -405,15 +483,9 @@ int main(int argc, char *argv[])
 		}
 		if(check_flag(arg, "-a", "--align"))
 		{
-			if(!header || !output)
+			if(!output)
 			{
-				fprintf(stderr, "ERROR: Need header and output flags before alignment\n\n");
-				return print_usage(argv[0]);
-			}
-
-			if(!total_bytes_written)
-			{
-				fprintf(stderr, "ERROR: The first file cannot have an alignment\n\n");
+				fprintf(stderr, "ERROR: Need output flag before alignment\n\n");
 				return print_usage(argv[0]);
 			}
 
@@ -431,18 +503,7 @@ int main(int argc, char *argv[])
 				return print_usage(argv[0]);
 			}
 
-			if (total_bytes_written % align)
-			{
-				ssize_t num_zeros = align - (total_bytes_written % align);
-
-				if(output_zeros(write_file, num_zeros))
-				{
-					fprintf(stderr, "ERROR: Invalid alignment %d to seek to in %s!\n", align, output);
-					return STATUS_ERROR;
-				}
-
-				total_bytes_written += num_zeros;
-			}
+			align_next = align;
 			continue;
 		}
 		if(check_flag(arg, "-t", "--title"))
@@ -470,9 +531,9 @@ int main(int argc, char *argv[])
 		/* Argument is not a flag; treat it as an input file */
 
 		/* Can't copy input file unless header and output set */
-		if(!header || !output)
+		if(!output)
 		{
-			fprintf(stderr, "ERROR: Need header and output before first file\n\n");
+			fprintf(stderr, "ERROR: Need output flag before first file\n\n");
 			return print_usage(argv[0]);
 		}
 
@@ -492,13 +553,64 @@ int main(int argc, char *argv[])
 			atexit(remove_tmp_file);
 
 			/* Copy over the ROM header */
-			ssize_t bytes_copied = copy_file(write_file, header);
-
-			if(bytes_copied != HEADER_SIZE)
+			if (header)
 			{
-				fprintf(stderr, "ERROR: Unable to copy ROM header from '%s' to '%s'\n", header, output);
+				header_size = copy_file(write_file, header);
+			}
+			else
+			{
+				header_size = sizeof(default_ipl3);
+				fwrite(default_ipl3, 1, header_size, write_file);
+				if (parse_elf_loadpoint(arg, &elf_loadpoint) < 0)
+					return STATUS_ERROR;
+			}
+
+			if(header_size < 0x100)
+			{
+				fprintf(stderr, "ERROR: Header file '%s' is too small (minimum is 4096 bytes)\n", header);
 				return STATUS_ERROR;
 			}
+
+			/* HACK. Unfortunately, n64tool handles both --align and --offset with respect
+			   to file positions/sizes *excluding* the header. The header used to be of
+			   fixed size (4096 bytes), but that's now just a minimum. For full backward
+			   compatibility, we still consider the header to always be 4096 bytes, and
+			   just offset from there. */
+			total_bytes_written += header_size - 4096;
+			header_size = 4096;
+
+			/* Leave space for the table, if asked to do so. */
+			if(create_toc && !toc_offset)
+			{
+				if (total_bytes_written % TOC_ALIGN)
+				{
+					ssize_t num_zeros = TOC_ALIGN - (total_bytes_written % TOC_ALIGN);
+					output_zeros(write_file, num_zeros);
+					total_bytes_written += num_zeros;
+				}
+
+				toc_offset = ftell(write_file);
+				output_zeros(write_file, TOC_SIZE);
+				total_bytes_written += TOC_SIZE;
+			}
+		}
+
+		if (align_next)
+		{
+			if (total_bytes_written % align_next)
+			{
+				ssize_t num_zeros = align_next - (total_bytes_written % align_next);
+
+				if(output_zeros(write_file, num_zeros))
+				{
+					fprintf(stderr, "ERROR: Invalid alignment %d to seek to in %s!\n", align_next, output);
+					return STATUS_ERROR;
+				}
+
+				total_bytes_written += num_zeros;
+			}
+
+			align_next = 0;
 		}
 
 		size_t offset = ftell(write_file);
@@ -536,21 +648,6 @@ int main(int argc, char *argv[])
 
 		/* Keep track to be sure we align properly when they request a memory alignment */
 		total_bytes_written += bytes_copied;
-
-		/* Leave space for the table, if asked to do so. */
-		if(create_toc && !toc_offset)
-		{	
-			if (total_bytes_written % TOC_ALIGN)
-			{
-				ssize_t num_zeros = TOC_ALIGN - (total_bytes_written % TOC_ALIGN);
-				output_zeros(write_file, num_zeros);
-				total_bytes_written += num_zeros;
-			}
-
-			toc_offset = ftell(write_file);
-			output_zeros(write_file, TOC_SIZE);
-			total_bytes_written += TOC_SIZE;
-		}
 	}
 
 	if(!total_bytes_written)
@@ -573,7 +670,7 @@ int main(int argc, char *argv[])
 		   size that is padded to the correct alignment. Notice that this variable
 		   declares the size WITHOUT header, but the padding refers to the final
 		   ROM and so it must be calculated with the header. */
-		declared_size = ROUND_UP(MIN_SIZE+HEADER_SIZE, PAD_ALIGN)-HEADER_SIZE;
+		declared_size = ROUND_UP(header_size, PAD_ALIGN)-header_size;
 	}
 	if(declared_size > total_bytes_written)
 	{
@@ -585,10 +682,10 @@ int main(int argc, char *argv[])
 			return print_usage(argv[0]);
 		}
 	}
-	else if(((total_bytes_written+HEADER_SIZE) % PAD_ALIGN) != 0)
+	else if(((total_bytes_written+header_size) % PAD_ALIGN) != 0)
 	{
 		/* Pad size as required. */
-		ssize_t num_zeros = PAD_ALIGN - ((total_bytes_written+HEADER_SIZE) % PAD_ALIGN);
+		ssize_t num_zeros = PAD_ALIGN - ((total_bytes_written+header_size) % PAD_ALIGN);
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, total_bytes_written+num_zeros);
@@ -599,6 +696,17 @@ int main(int argc, char *argv[])
 	/* Set title in header */
 	fseek(write_file, TITLE_OFFSET, SEEK_SET);
 	fwrite(title, 1, TITLE_SIZE, write_file);
+
+	/* If we are using libdragon's IPL3, set the entrypoint in the header
+	   for iQue to match the first valid loadpoint found in the ELF. This make
+	   sure that the iQue OS, in its initial flat-binary loading, will use
+	   the same memory region as the ELF.  */
+	if (elf_loadpoint != 0xFFFFFFFF)
+	{
+		elf_loadpoint = SWAPLONG(elf_loadpoint);
+		fseek(write_file, IQUE_ENTRYPOINT_OFFSET, SEEK_SET);
+		fwrite(&elf_loadpoint, 1, 4, write_file);
+	}
 
 	/* Write table of contents */
 	if(create_toc)

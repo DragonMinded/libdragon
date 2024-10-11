@@ -31,20 +31,19 @@
  * @{
  */
 
-/**
- * @brief Indicates whether we are running on a vanilla N64 or a iQue player
- */
-extern int __bbplayer;
+///@cond
+extern int __boot_consoletype;
+///@endcond
 
 /**
  * @brief Frequency of the RCP
  */
-#define RCP_FREQUENCY    (__bbplayer ? 96000000 : 62500000)
+#define RCP_FREQUENCY    (__boot_consoletype ? 96000000 : 62500000)
 
 /**
  * @brief Frequency of the MIPS R4300 CPU
  */
-#define CPU_FREQUENCY    (__bbplayer ? 144000000 : 93750000)
+#define CPU_FREQUENCY    (__boot_consoletype ? 144000000 : 93750000)
 
 /**
  * @brief void pointer to cached and non-mapped memory start address
@@ -226,25 +225,10 @@ extern "C" {
 #endif
 
 /** @brief Return true if we are running on a iQue player */
-bool sys_bbplayer(void);
-
-/**
- * @brief Return the boot CIC
- *
- * @return The boot CIC as an integer
- */
-int sys_get_boot_cic();
-
-/**
- * @brief Set the boot CIC
- *
- * This function will set the boot CIC.  If the value isn't in the range
- * of 6102-6106, the boot CIC is set to the default of 6102.
- *
- * @param[in] bc
- *            Boot CIC value
- */
-void sys_set_boot_cic(int bc);
+inline bool sys_bbplayer(void) {
+    extern int __boot_consoletype;
+    return __boot_consoletype != 0;
+}
 
 /**
  * @brief Read the number of ticks since system startup
@@ -495,6 +479,22 @@ typedef enum {
  */
 tv_type_t get_tv_type();
 
+/** @brief Reset types */
+typedef enum {
+    RESET_COLD = 0,  ///< Cold reset (power on)
+    RESET_WARM = 1,  ///< Warm reset (reset button)
+} reset_type_t;
+
+/** 
+ * @brief Get reset type
+ * 
+ * This function returns the reset type, that can be used to differentiate
+ * a cold boot from a warm boot (that is, after pressing the reset button).
+ * 
+ * For instance, a game might want to skip mandatory intros (eg: logos)
+ * on a warm boot.
+ */
+reset_type_t sys_reset_type(void);
 
 /** @cond */
 /* Deprecated version of get_ticks */

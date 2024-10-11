@@ -9,6 +9,24 @@
 
 #include "regs.S"
 
+	.section .intvectors, "ax"
+	.set reorder
+
+	.org 0
+	j inthandler
+
+	.org 0x80
+	j inthandler
+
+	.org 0x100
+	j inthandler
+
+	.org 0x180
+	j inthandler
+
+
+	.section .text
+
 	.global inthandler
 	.global inthandler_end
 
