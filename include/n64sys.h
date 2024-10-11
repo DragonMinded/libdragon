@@ -502,6 +502,15 @@ __attribute__((deprecated("use get_ticks instead")))
 static inline volatile unsigned long read_count(void) {
     return get_ticks();
 }
+
+/* Deprecated functions to tell libdragon which CIC is installed.
+   This was only used to cope with differences in boot flags with
+   official IPL3s, but it's not required anymore with open source
+   IPL3. */
+__attribute__((deprecated("querying CIC type is not supported")))
+static inline int sys_get_boot_cic() { return 6102; }
+__attribute__((deprecated("cannot set CIC type at runtime, but this is not required anymore")))
+static inline void sys_set_boot_cic(int bc) {}
 /** @endcond */
 
 #ifdef __cplusplus
