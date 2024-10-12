@@ -209,7 +209,7 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
     getline(&line_buf, &line_buf_size, addr2line_r);
 }
 
-void elf_find_callsites(const char *elf)
+bool elf_find_callsites(const char *elf)
 {
     // Start objdump to parse the disassembly of the ELF file
     char *cmd = NULL;
@@ -236,8 +236,13 @@ void elf_find_callsites(const char *elf)
         }
     }
     free(line);
-    pclose(disasm);
     free(cmd);
+    int status = pclose(disasm);
+#ifdef __MINGW32__
+    return status == 0;
+#else
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#endif
 }
 
 void compute_function_offsets(void)
@@ -281,7 +286,10 @@ void process(const char *infn, const char *outfn)
 
     // First, find all functions and call sites. We do this by disassembling
     // the ELF file and grepping it.
-    elf_find_callsites(infn);
+    if (!elf_find_callsites(infn)) {
+        fprintf(stderr, "Error: objdump failed\n");
+        exit(1);
+    }
     verbose("Found %d callsites\n", stbds_arrlen(symtable));
 
     // Sort the symbole table by symbol length. We want longer symbols
