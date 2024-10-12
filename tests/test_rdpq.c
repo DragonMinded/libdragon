@@ -2068,13 +2068,13 @@ void test_rdpq_mipmap_interpolate(TestContext *ctx) {
 
     ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 
         (SOM_CYCLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK), 
-         SOM_CYCLE_2    | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE_SHQ,
+         SOM_CYCLE_2    |                   SOMX_LOD_INTERPOLATE_SHQ,
         "invalid SOM configuration: %08llx", debug_rdp_stream_last_som());
     ASSERT_EQUAL_HEX(debug_rdp_stream_last_cc() & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
-        RDPQ_COMBINER2((TEX1,TEX0,K5,0), (0,0,0,TEX1), (COMBINED,0,PRIM,0),(COMBINED,0,PRIM,0)) & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        RDPQ_COMBINER2((TEX0,TEX1,K5,0), (0,0,0,TEX1), (COMBINED,0,PRIM,0),(COMBINED,0,PRIM,0)) & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
         "invalid combiner configuration:\n%s", debug_rdp_stream_last_cc_disasm());
 
-    rdpq_mode_mipmap(MIPMAP_NONE, 4);
+    rdpq_mode_mipmap(MIPMAP_NONE, 0);
     rspq_wait();
 
     ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 

@@ -805,7 +805,7 @@ inline void rdpq_mode_mipmap(rdpq_mipmap_t mode, int num_levels) {
         num_levels = 0;
     if (num_levels)
         num_levels -= 1;
-    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK | SOM_TEXTURE_SHARPEN | SOM_TEXTURE_DETAIL, 
+    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK | SOMX_NUMLODS_MASK | SOM_TEXTURE_SHARPEN | SOM_TEXTURE_DETAIL,
         ((uint64_t)mode << 32) | ((uint64_t)num_levels << SOMX_NUMLODS_SHIFT));
 };
 
