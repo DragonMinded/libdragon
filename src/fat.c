@@ -81,10 +81,8 @@ DWORD get_fattime(void)
 	fat_name; \
 })
 
-/** Maximum number of FAT files that can be concurrently opened */
-#define MAX_FAT_FILES 4
-static FIL fat_files[MAX_FAT_FILES] = {0};
-static DIR find_dir;
+#define NUM_STATIC_FAT_FILES 4
+static FIL static_fat_files[NUM_STATIC_FAT_FILES] = {0};
 
 static void __fresult_set_errno(FRESULT err)
 {
@@ -115,14 +113,14 @@ static void __fresult_set_errno(FRESULT err)
 
 static void *__fat_open(char *name, int flags, int volid)
 {
-	int i;
-	for (i=0;i<MAX_FAT_FILES;i++)
-		if (fat_files[i].obj.fs == NULL)
+	FIL *fp = NULL;
+	for (int i=0; i<NUM_STATIC_FAT_FILES; i++)
+		if (static_fat_files[i].obj.fs == NULL) {
+			fp = &static_fat_files[i];
 			break;
-	if (i == MAX_FAT_FILES) {
-		errno = EMFILE;
-		return NULL;
-	}
+		}
+	if (!fp)
+		fp = malloc(sizeof(FIL));
 
 	int fatfs_flags = 0;
 	if ((flags & O_ACCMODE) == O_RDONLY)
@@ -143,14 +141,17 @@ static void *__fat_open(char *name, int flags, int volid)
 	} else
 		 fatfs_flags |= FA_OPEN_EXISTING;
 
-	FRESULT res = f_open(&fat_files[i], MAKE_FAT_NAME(volid, name), fatfs_flags);
+	FRESULT res = f_open(fp, MAKE_FAT_NAME(volid, name), fatfs_flags);
 	if (res != FR_OK)
 	{
 		__fresult_set_errno(res);
-		fat_files[i].obj.fs = NULL;
+		if (fp >= static_fat_files && fp < static_fat_files+NUM_STATIC_FAT_FILES)
+			fp->obj.fs = NULL;
+		else
+			free(fp);
 		return NULL;
 	}
-	return &fat_files[i];
+	return fp;
 }
 
 static void __fat_stat_fill(FSIZE_t size, BYTE attr, struct stat *st)
@@ -219,7 +220,14 @@ static int __fat_write(void *file, uint8_t *ptr, int len)
 
 static int __fat_close(void *file)
 {
-	FRESULT res = f_close(file);
+	FIL *fp = file;
+	FRESULT res = f_close(fp);
+
+	if (fp >= static_fat_files && fp < static_fat_files+NUM_STATIC_FAT_FILES)
+		fp->obj.fs = NULL;
+	else
+		free(fp);
+
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
 		return -1;
@@ -257,8 +265,9 @@ static int __fat_unlink(char *name, int volid)
 
 static int __fat_findnext(dir_t *dir)
 {
+	DIR *find_dir = (DIR*)dir->d_cookie;
 	FILINFO info;
-	FRESULT res = f_readdir(&find_dir, &info);
+	FRESULT res = f_readdir(find_dir, &info);
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
 		return -2;
@@ -266,7 +275,9 @@ static int __fat_findnext(dir_t *dir)
 
 	// Check if we reached the end of the directory
 	if (info.fname[0] == 0) {
-		res = f_closedir(&find_dir);
+		res = f_closedir(find_dir);
+		free(find_dir);
+		dir->d_cookie = 0;
 		if (res != FR_OK) {
 			__fresult_set_errno(res);
 			return -2;
@@ -285,11 +296,14 @@ static int __fat_findnext(dir_t *dir)
 
 static int __fat_findfirst(char *name, dir_t *dir, int volid)
 {
-	FRESULT res = f_opendir(&find_dir, MAKE_FAT_NAME(volid, name));
+	DIR *find_dir = malloc(sizeof(DIR));
+	FRESULT res = f_opendir(find_dir, MAKE_FAT_NAME(volid, name));
 	if (res != FR_OK) {
+		free(find_dir);
 		__fresult_set_errno(res);
 		return -2;
 	}
+	dir->d_cookie = (uint32_t)find_dir;
 	return __fat_findnext(dir);
 }
 
