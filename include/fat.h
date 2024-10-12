@@ -37,14 +37,63 @@ extern "C" {
  * volume.
  */
 typedef struct {
-	///@cond
+    /**
+     * @brief Initialize the underlying device.
+     * 
+     * This function is called at mount time.
+     * 
+     * @return Disk status codes (see fatfs/diskio.h)
+     * @see http://elm-chan.org/fsw/ff/doc/dinit.html
+     */
 	int (*disk_initialize)(void);
+
+    /**
+     * @brief Return the current status of the underlying device.
+     * 
+     * Return the current status of the device. The status can be
+     * a combination of:
+     * 
+     *  * STA_NOINIT: device must be reinitialized
+     *  * STA_NODISK: no medium in the device
+     *  * STA_PROTECT: write protected
+     * 
+     * @return Disk status codes (see fatfs/diskio.h)
+     * @see http://elm-chan.org/fsw/ff/doc/dstat.html
+     */
 	int (*disk_status)(void);
+
+    /**
+     * @brief Read sectors from the underlying device into RDRAM.
+     * 
+     * This function reads sectors from the underlying device into RDRAM.
+     * 
+     * @return Result code (see fatfs/diskio.h)
+     * @see http://elm-chan.org/fsw/ff/doc/dread.html
+     */
 	int (*disk_read)(uint8_t* buff, int64_t sector, int count);
-	int (*disk_read_sdram)(uint8_t* buff, int64_t sector, int count);
+
+    /**
+     * @brief Write sectors from RDRAM to the underlying device.
+     * 
+     * This function writes sectors from RDRAM to the underlying device.
+     * 
+     * @return Result code (see fatfs/diskio.h)
+     * @see http://elm-chan.org/fsw/ff/doc/dwrite.html
+     */
 	int (*disk_write)(const uint8_t* buff, int64_t sector, int count);
+
+    /**
+     * @brief Perform a I/O request on the underlying device.
+     * 
+     * This function performs a I/O request on the underlying device.
+     * FatFs uses this function to perform various operations like
+     * getting the sector count, the sector size, etc. It can be
+     * used to implement custom operations as well.
+     * 
+     * @return Result code (see fatfs/diskio.h)
+     * @see http://elm-chan.org/fsw/ff/doc/dioctl.html
+     */
 	int (*disk_ioctl)(uint8_t cmd, void* buff);
-	///@endcond
 } fat_disk_t;
 
 

@@ -30,19 +30,13 @@ DSTATUS disk_status(BYTE pdrv)
 
 DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-	if (fat_disks[pdrv].disk_read && PhysicalAddr(buff) < 0x00800000)
+	if (fat_disks[pdrv].disk_read)
 		return fat_disks[pdrv].disk_read(buff, sector, count);
-	if (fat_disks[pdrv].disk_read_sdram && io_accessible(PhysicalAddr(buff)))
-		return fat_disks[pdrv].disk_read_sdram(buff, sector, count);
 	return RES_PARERR;
 }
 
 DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
 	if (fat_disks[pdrv].disk_write)
 		return fat_disks[pdrv].disk_write(buff, sector, count);
 	return RES_PARERR;
