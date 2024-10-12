@@ -253,6 +253,27 @@ static int __fat_lseek(void *file, int offset, int whence)
 	return f_tell(f);
 }
 
+static int __fat_ioctl(void *file, unsigned long request, void *arg)
+{
+	FIL *f = file;
+	switch (request) {
+		case IOFAT_GET_CLUSTER: {
+			int32_t *cluster = arg;
+			*cluster = f->clust;
+			return 0;
+		}
+		case IOFAT_GET_SECTOR: {
+			int64_t *sector = arg;
+			*sector = f->sect;
+			return 0;
+		}
+		default: {
+			errno = ENOTTY;
+			return -1;
+		}
+	}
+}
+
 static int __fat_unlink(char *name, int volid)
 {
 	FRESULT res = f_unlink(MAKE_FAT_NAME(volid, name));
@@ -325,6 +346,7 @@ static const filesystem_t fat_newlib_fs = {
 	.read = __fat_read,
 	.write = __fat_write,
 	.close = __fat_close,
+	.ioctl = __fat_ioctl,
 	.unlink = NULL, 		// per-volume function
 	.findfirst = NULL, 		// per-volume function
 	.findnext = __fat_findnext,

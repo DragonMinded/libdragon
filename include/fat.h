@@ -24,6 +24,7 @@
 #define LIBDRAGON_FAT_H
 
 #include <stdint.h>
+#include "ioctl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,6 +96,33 @@ typedef struct {
      */
 	int (*disk_ioctl)(uint8_t cmd, void* buff);
 } fat_disk_t;
+
+
+/**
+ * @brief Return the current cluster number
+ * 
+ * The cluster number is a 32-bit integer value.
+ * 
+ * \code{.c}
+ *    FILE *f = fopen("sd:/myfile.dat", "rb");
+ *    int32_t cluster = 0;
+ *    ioctl(fileno(f), IOFAT_GET_CLUSTER, &cluster);
+ * \endcode
+ */
+#define IOFAT_GET_CLUSTER       _IO('F', 1)
+
+/**
+ * @brief Return the current sector number
+ * 
+ * The sector number is a 64-bit integer value.
+ * 
+ * \code{.c}
+ *   FILE *f = fopen("sd:/myfile.dat", "rb");
+ *   int64_t sector = 0;
+ *   ioctl(fileno(f), IOFAT_GET_SECTOR, &sector);
+ * \endcode
+ */
+#define IOFAT_GET_SECTOR        _IO('F', 2)
 
 
 /** 
