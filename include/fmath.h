@@ -70,7 +70,7 @@ extern "C" {
  *
  * This version is type-punning safe and produces optimal code when optimizing. 
  **/
-#define BITCAST_F2I(f) ({ int32_t i; memcpy(&i, &f, 4); i; })
+#define BITCAST_F2I(f) ({ int32_t i; float _f = (f); memcpy(&i, &_f, 4); i; })
 
 /** @brief Reinterpret the bits composing a int32 as a float.
  *
