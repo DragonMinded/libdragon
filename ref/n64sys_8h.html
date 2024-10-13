@@ -91,11 +91,11 @@ $(function() {
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
 <tr class="memitem:ga6e477d818abebb429103b0c3101e6a92" id="r_ga6e477d818abebb429103b0c3101e6a92"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>RCP_FREQUENCY</b>&#160;&#160;&#160;(<a class="el" href="group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5">__bbplayer</a> ? 96000000 : 62500000)</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>RCP_FREQUENCY</b>&#160;&#160;&#160;(<a class="el" href="n64sys_8c.html#a1112ce48cee6b38f93b465c3fb6de8af">__boot_consoletype</a> ? 96000000 : 62500000)</td></tr>
 <tr class="memdesc:ga6e477d818abebb429103b0c3101e6a92"><td class="mdescLeft">&#160;</td><td class="mdescRight">Frequency of the RCP. <br /></td></tr>
 <tr class="separator:ga6e477d818abebb429103b0c3101e6a92"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf73acdf7fb3be35ff98322b7e827d349" id="r_gaf73acdf7fb3be35ff98322b7e827d349"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>CPU_FREQUENCY</b>&#160;&#160;&#160;(<a class="el" href="group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5">__bbplayer</a> ? 144000000 : 93750000)</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>CPU_FREQUENCY</b>&#160;&#160;&#160;(<a class="el" href="n64sys_8c.html#a1112ce48cee6b38f93b465c3fb6de8af">__boot_consoletype</a> ? 144000000 : 93750000)</td></tr>
 <tr class="memdesc:gaf73acdf7fb3be35ff98322b7e827d349"><td class="mdescLeft">&#160;</td><td class="mdescRight">Frequency of the MIPS R4300 CPU. <br /></td></tr>
 <tr class="separator:gaf73acdf7fb3be35ff98322b7e827d349"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3f0580f61dc7654194a76aed5b60b362" id="r_ga3f0580f61dc7654194a76aed5b60b362"><td class="memItemLeft" align="right" valign="top">
@@ -174,6 +174,11 @@ Enumerations</h2></td></tr>
  }</td></tr>
 <tr class="memdesc:ga7f74bd3e9215d217f484cb5441a04e09"><td class="mdescLeft">&#160;</td><td class="mdescRight">Type of TV video output.  <a href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">More...</a><br /></td></tr>
 <tr class="separator:ga7f74bd3e9215d217f484cb5441a04e09"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga26192e81cb759946e1a943b3f242ef7a" id="r_ga26192e81cb759946e1a943b3f242ef7a"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga26192e81cb759946e1a943b3f242ef7a">reset_type_t</a> { <a class="el" href="group__n64sys.html#gga26192e81cb759946e1a943b3f242ef7aa3196b74971170ed62c9cdae363daa8b3">RESET_COLD</a> = 0
+, <a class="el" href="group__n64sys.html#gga26192e81cb759946e1a943b3f242ef7aa86706a91fd9585546eca167533d60339">RESET_WARM</a> = 1
+ }</td></tr>
+<tr class="memdesc:ga26192e81cb759946e1a943b3f242ef7a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reset types.  <a href="group__n64sys.html#ga26192e81cb759946e1a943b3f242ef7a">More...</a><br /></td></tr>
+<tr class="separator:ga26192e81cb759946e1a943b3f242ef7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -181,12 +186,6 @@ Functions</h2></td></tr>
 bool&#160;</td><td class="memItemRight" valign="bottom"><b>sys_bbplayer</b> (void)</td></tr>
 <tr class="memdesc:ga599033222ecb746e183c1d30d1df5bc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return true if we are running on a iQue player. <br /></td></tr>
 <tr class="separator:ga599033222ecb746e183c1d30d1df5bc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gadf0a7fb10dd4580b87d1c88536bf1ff2" id="r_gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gadf0a7fb10dd4580b87d1c88536bf1ff2">sys_get_boot_cic</a> ()</td></tr>
-<tr class="memdesc:gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the boot CIC.  <br /></td></tr>
-<tr class="separator:gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaa3abd91a3b4d2ff33ad07556f7e7856e" id="r_gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa3abd91a3b4d2ff33ad07556f7e7856e">sys_set_boot_cic</a> (int bc)</td></tr>
-<tr class="memdesc:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the boot CIC.  <br /></td></tr>
-<tr class="separator:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3686b92a0667e9774993808f4d2ac2b4" id="r_ga3686b92a0667e9774993808f4d2ac2b4"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">get_ticks</a> (void)</td></tr>
 <tr class="memdesc:ga3686b92a0667e9774993808f4d2ac2b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of ticks since system startup.  <br /></td></tr>
 <tr class="separator:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -248,13 +247,12 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:ga4cd768cc5d84485110ecf4991727b00b" id="r_ga4cd768cc5d84485110ecf4991727b00b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">get_tv_type</a> ()</td></tr>
 <tr class="memdesc:ga4cd768cc5d84485110ecf4991727b00b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <br /></td></tr>
 <tr class="separator:ga4cd768cc5d84485110ecf4991727b00b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga47a0e268efc40af2363e375440df2552" id="r_ga47a0e268efc40af2363e375440df2552"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga26192e81cb759946e1a943b3f242ef7a">reset_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga47a0e268efc40af2363e375440df2552">sys_reset_type</a> (void)</td></tr>
+<tr class="memdesc:ga47a0e268efc40af2363e375440df2552"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get reset type.  <br /></td></tr>
+<tr class="separator:ga47a0e268efc40af2363e375440df2552"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:gacd3b316e4428bf20c80fa403921feeb5" id="r_gacd3b316e4428bf20c80fa403921feeb5"><td class="memItemLeft" align="right" valign="top">
-int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></tr>
-<tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
-<tr class="separator:gacd3b316e4428bf20c80fa403921feeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaeee0500fc15a8edadab5e50494669416" id="r_gaeee0500fc15a8edadab5e50494669416"><td class="memItemLeft" align="right" valign="top">
 char&#160;</td><td class="memItemRight" valign="bottom"><b>__libdragon_text_start</b> []</td></tr>
 <tr class="memdesc:gaeee0500fc15a8edadab5e50494669416"><td class="mdescLeft">&#160;</td><td class="mdescRight">Symbol at the start of code (start of ROM contents after header) <br /></td></tr>
@@ -273,7 +271,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Oct 13 2024 18:46:35 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Oct 13 2024 18:48:01 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

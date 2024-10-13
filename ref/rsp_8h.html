@@ -592,8 +592,8 @@ Contents of IMEM. </td></tr>
 <b>Value:</b><div class="fragment"><div class="line">    <span class="keywordflow">for</span> (uint32_t __t = <a class="code hl_define" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a>() + <a class="code hl_define" href="group__n64sys.html#gac393c76be44d9322b9b06c2b334f38ad">TICKS_FROM_MS</a>(timeout_ms); \</div>
 <div class="line">         TICKS_BEFORE(<a class="code hl_define" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a>(), __t) || (<a class="code hl_define" href="rsp_8h.html#a67ef683f18a90998c1711cd03a220ca9">rsp_crashf</a>(<span class="stringliteral">&quot;wait loop timed out (%d ms)&quot;</span>, timeout_ms), <span class="keyword">false</span>); \</div>
 <div class="line">         __rsp_check_assert(__FILE__, __LINE__, __func__))</div>
-<div class="ttc" id="agroup__n64sys_html_ga3f00b2f3f7a3bb391282d0b2da8969f1"><div class="ttname"><a href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a></div><div class="ttdeci">#define TICKS_READ()</div><div class="ttdoc">Returns the 32-bit hardware tick counter.</div><div class="ttdef"><b>Definition</b> n64sys.h:169</div></div>
-<div class="ttc" id="agroup__n64sys_html_gac393c76be44d9322b9b06c2b334f38ad"><div class="ttname"><a href="group__n64sys.html#gac393c76be44d9322b9b06c2b334f38ad">TICKS_FROM_MS</a></div><div class="ttdeci">#define TICKS_FROM_MS(val)</div><div class="ttdoc">Returns equivalent count ticks for the given milliseconds.</div><div class="ttdef"><b>Definition</b> n64sys.h:206</div></div>
+<div class="ttc" id="agroup__n64sys_html_ga3f00b2f3f7a3bb391282d0b2da8969f1"><div class="ttname"><a href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a></div><div class="ttdeci">#define TICKS_READ()</div><div class="ttdoc">Returns the 32-bit hardware tick counter.</div><div class="ttdef"><b>Definition</b> n64sys.h:168</div></div>
+<div class="ttc" id="agroup__n64sys_html_gac393c76be44d9322b9b06c2b334f38ad"><div class="ttname"><a href="group__n64sys.html#gac393c76be44d9322b9b06c2b334f38ad">TICKS_FROM_MS</a></div><div class="ttdeci">#define TICKS_FROM_MS(val)</div><div class="ttdoc">Returns equivalent count ticks for the given milliseconds.</div><div class="ttdef"><b>Definition</b> n64sys.h:205</div></div>
 <div class="ttc" id="arsp_8h_html_a67ef683f18a90998c1711cd03a220ca9"><div class="ttname"><a href="rsp_8h.html#a67ef683f18a90998c1711cd03a220ca9">rsp_crashf</a></div><div class="ttdeci">#define rsp_crashf(msg,...)</div><div class="ttdoc">Abort the program showing a RSP crash screen with a symptom message.</div><div class="ttdef"><b>Definition</b> rsp.h:505</div></div>
 </div><!-- fragment -->
 <p>Create a loop that waits for some condition that is related to RSP, aborting with a RSP crash after a timeout. </p>
@@ -901,7 +901,7 @@ Contents of IMEM. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Oct 13 2024 18:46:35 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Oct 13 2024 18:48:01 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

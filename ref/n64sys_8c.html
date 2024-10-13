@@ -90,23 +90,9 @@ Macros</h2></td></tr>
 <tr class="memitem:ac69e8a7b3752d227238ff76b56b3fa17" id="r_ac69e8a7b3752d227238ff76b56b3fa17"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="n64sys_8c.html#ac69e8a7b3752d227238ff76b56b3fa17">cache_op</a>(op,  linesize)</td></tr>
 <tr class="memdesc:ac69e8a7b3752d227238ff76b56b3fa17"><td class="mdescLeft">&#160;</td><td class="mdescRight">Helper macro to perform cache refresh operations.  <br /></td></tr>
 <tr class="separator:ac69e8a7b3752d227238ff76b56b3fa17"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a16a9cb3b1d15189bd1c21327cd77ca1f" id="r_a16a9cb3b1d15189bd1c21327cd77ca1f"><td class="memItemLeft" align="right" valign="top"><a id="a16a9cb3b1d15189bd1c21327cd77ca1f" name="a16a9cb3b1d15189bd1c21327cd77ca1f"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>TV_TYPE_LOC</b>&#160;&#160;&#160;0x80000300</td></tr>
-<tr class="memdesc:a16a9cb3b1d15189bd1c21327cd77ca1f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Memory location to read which determines the TV type. <br /></td></tr>
-<tr class="separator:a16a9cb3b1d15189bd1c21327cd77ca1f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ga599033222ecb746e183c1d30d1df5bc4" id="r_ga599033222ecb746e183c1d30d1df5bc4"><td class="memItemLeft" align="right" valign="top">
-bool&#160;</td><td class="memItemRight" valign="bottom"><b>sys_bbplayer</b> (void)</td></tr>
-<tr class="memdesc:ga599033222ecb746e183c1d30d1df5bc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return true if we are running on a iQue player. <br /></td></tr>
-<tr class="separator:ga599033222ecb746e183c1d30d1df5bc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gadf0a7fb10dd4580b87d1c88536bf1ff2" id="r_gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gadf0a7fb10dd4580b87d1c88536bf1ff2">sys_get_boot_cic</a> ()</td></tr>
-<tr class="memdesc:gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the boot CIC.  <br /></td></tr>
-<tr class="separator:gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaa3abd91a3b4d2ff33ad07556f7e7856e" id="r_gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa3abd91a3b4d2ff33ad07556f7e7856e">sys_set_boot_cic</a> (int bc)</td></tr>
-<tr class="memdesc:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the boot CIC.  <br /></td></tr>
-<tr class="separator:gaa3abd91a3b4d2ff33ad07556f7e7856e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga9365c415a472036d7c8dbbf71239e707" id="r_ga9365c415a472036d7c8dbbf71239e707"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga9365c415a472036d7c8dbbf71239e707">data_cache_hit_writeback</a> (volatile const void *addr, unsigned long length)</td></tr>
 <tr class="memdesc:ga9365c415a472036d7c8dbbf71239e707"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback over a memory region.  <br /></td></tr>
 <tr class="separator:ga9365c415a472036d7c8dbbf71239e707"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -153,6 +139,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:ga4cd768cc5d84485110ecf4991727b00b" id="r_ga4cd768cc5d84485110ecf4991727b00b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">get_tv_type</a> ()</td></tr>
 <tr class="memdesc:ga4cd768cc5d84485110ecf4991727b00b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <br /></td></tr>
 <tr class="separator:ga4cd768cc5d84485110ecf4991727b00b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga47a0e268efc40af2363e375440df2552" id="r_ga47a0e268efc40af2363e375440df2552"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga26192e81cb759946e1a943b3f242ef7a">reset_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga47a0e268efc40af2363e375440df2552">sys_reset_type</a> (void)</td></tr>
+<tr class="memdesc:ga47a0e268efc40af2363e375440df2552"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get reset type.  <br /></td></tr>
+<tr class="separator:ga47a0e268efc40af2363e375440df2552"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3686b92a0667e9774993808f4d2ac2b4" id="r_ga3686b92a0667e9774993808f4d2ac2b4"><td class="memItemLeft" align="right" valign="top">uint64_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4">get_ticks</a> (void)</td></tr>
 <tr class="memdesc:ga3686b92a0667e9774993808f4d2ac2b4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read the number of ticks since system startup.  <br /></td></tr>
 <tr class="separator:ga3686b92a0667e9774993808f4d2ac2b4"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -174,13 +163,22 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
-<tr class="memitem:gacd3b316e4428bf20c80fa403921feeb5" id="r_gacd3b316e4428bf20c80fa403921feeb5"><td class="memItemLeft" align="right" valign="top">
-int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b> = 0</td></tr>
-<tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
-<tr class="separator:gacd3b316e4428bf20c80fa403921feeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7bde5bc5b3121ab6d4d1293f29a2718b" id="r_a7bde5bc5b3121ab6d4d1293f29a2718b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="n64sys_8c.html#a7bde5bc5b3121ab6d4d1293f29a2718b">__bootcic</a> = 6102</td></tr>
-<tr class="memdesc:a7bde5bc5b3121ab6d4d1293f29a2718b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Boot CIC.  <br /></td></tr>
-<tr class="separator:a7bde5bc5b3121ab6d4d1293f29a2718b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abb78ab4964144f3c86d0b8041f4db161" id="r_abb78ab4964144f3c86d0b8041f4db161"><td class="memItemLeft" align="right" valign="top"><a id="abb78ab4964144f3c86d0b8041f4db161" name="abb78ab4964144f3c86d0b8041f4db161"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>__boot_memsize</b></td></tr>
+<tr class="memdesc:abb78ab4964144f3c86d0b8041f4db161"><td class="mdescLeft">&#160;</td><td class="mdescRight">Memory size as detected by IPL3. <br /></td></tr>
+<tr class="separator:abb78ab4964144f3c86d0b8041f4db161"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a85f9f5f0a5930b45ff8666366a947f22" id="r_a85f9f5f0a5930b45ff8666366a947f22"><td class="memItemLeft" align="right" valign="top"><a id="a85f9f5f0a5930b45ff8666366a947f22" name="a85f9f5f0a5930b45ff8666366a947f22"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>__boot_tvtype</b></td></tr>
+<tr class="memdesc:a85f9f5f0a5930b45ff8666366a947f22"><td class="mdescLeft">&#160;</td><td class="mdescRight">TV type as detected by IPL3. <br /></td></tr>
+<tr class="separator:a85f9f5f0a5930b45ff8666366a947f22"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aac5393a3116eb108004c71e76fc58295" id="r_aac5393a3116eb108004c71e76fc58295"><td class="memItemLeft" align="right" valign="top"><a id="aac5393a3116eb108004c71e76fc58295" name="aac5393a3116eb108004c71e76fc58295"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>__boot_resettype</b></td></tr>
+<tr class="memdesc:aac5393a3116eb108004c71e76fc58295"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reset type as detected by IPL3. <br /></td></tr>
+<tr class="separator:aac5393a3116eb108004c71e76fc58295"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1112ce48cee6b38f93b465c3fb6de8af" id="r_a1112ce48cee6b38f93b465c3fb6de8af"><td class="memItemLeft" align="right" valign="top"><a id="a1112ce48cee6b38f93b465c3fb6de8af" name="a1112ce48cee6b38f93b465c3fb6de8af"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><b>__boot_consoletype</b></td></tr>
+<tr class="memdesc:a1112ce48cee6b38f93b465c3fb6de8af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Console type as detected by IPL3. <br /></td></tr>
+<tr class="separator:a1112ce48cee6b38f93b465c3fb6de8af"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>N64 System Interface. </p>
@@ -252,28 +250,10 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b> = 0</td
 
 </div>
 </div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="a7bde5bc5b3121ab6d4d1293f29a2718b" name="a7bde5bc5b3121ab6d4d1293f29a2718b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7bde5bc5b3121ab6d4d1293f29a2718b">&#9670;&#160;</a></span>__bootcic</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int __bootcic = 6102</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Boot CIC. </p>
-<p>Defaults to 6102. </p>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Oct 13 2024 18:46:35 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Oct 13 2024 18:48:02 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
