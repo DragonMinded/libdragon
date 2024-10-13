@@ -60,7 +60,7 @@ typedef struct waveform_s waveform_t;
 typedef struct xm64player_s {
 	xm_context_t *ctx;        ///< libxm context
 	waveform_t *waves;        ///< array of all waveforms (one per XM "sample")
-	int nwaves;               ///< number of wavers (XM "samples")
+	int nwaves;               ///< number of waves (XM "samples")
 	FILE *fh;                 ///< open handle of XM64 file
 	int first_ch;             ///< first channel used in the mixer
 	bool playing;             ///< playing flag
