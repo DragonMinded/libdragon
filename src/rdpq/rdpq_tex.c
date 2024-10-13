@@ -682,9 +682,9 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
 
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
-    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, num_colors, 1);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*2*4, num_colors, NULL);
-    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, 0, num_colors);
+    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256, 1);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*4*2, 256, NULL);
+    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, color_idx, num_colors);
 }
 
 void rdpq_tex_multi_begin(void)
