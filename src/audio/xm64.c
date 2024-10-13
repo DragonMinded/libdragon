@@ -131,12 +131,11 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 
 	// Count samples
 	int ninst = xm_get_number_of_instruments(player->ctx);
-	int nwaves = 0;
 	for (int i=0;i<ninst;i++)
-		nwaves += xm_get_number_of_samples(player->ctx, i+1);
+		player->nwaves += xm_get_number_of_samples(player->ctx, i+1);
 
 	// Allocate waveforms (one per XM64's "samples" aka waveforms)
-	player->waves = malloc(sizeof(waveform_t) * nwaves);
+	player->waves = malloc(sizeof(waveform_t) * player->nwaves);
 	assert(player->waves);
 	int nw = 0;
 	for (int i=0;i<ninst;i++) {
