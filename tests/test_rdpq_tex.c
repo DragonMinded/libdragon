@@ -1,4 +1,4 @@
-#include <graphics.h>
+#include <libdragon.h>
 
 static inline void surface_set_pixel(surface_t *surf, int x, int y, uint32_t value)
 {
@@ -358,6 +358,7 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
     surface_clear(&fb, 0);
 
     uint16_t* tlut = malloc_uncached(256*2);
+    DEFER(free_uncached(tlut));
     for (int i=0;i<256;i++) {
         tlut[i] = color_to_packed16(palette_debug_color(i));
     }
@@ -401,6 +402,61 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
                     return surface_debug_expected_color(&surf_full, x+s0, y+t0);
                 });
             }
+        }
+    }
+}
+
+void test_rdpq_tex_upload_tlut(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0xFF);
+
+    surface_t tex = surface_alloc(FMT_CI8, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&tex));
+    for (int y=0; y<FBWIDTH; y++) for (int x=0; x<FBWIDTH; x++)
+        surface_set_pixel(&tex, x, y, y*FBWIDTH+x);
+
+    uint16_t* tlut_black = malloc_uncached(256*2);
+    DEFER(free_uncached(tlut_black));
+    memset(tlut_black, 0, 256*2);
+
+    uint16_t* tlut = malloc_uncached(256*2);
+    DEFER(free_uncached(tlut));
+    memset(tlut, 0, 256*2);
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_mode_tlut(TLUT_RGBA16);
+
+    rdpq_tex_upload_tlut(tlut_black, 0, 256);
+    rdpq_tex_blit(&tex, 0, 0, NULL);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return color_from_packed32(0xE0); });
+
+    for (int first_color=8; first_color<16; first_color++) {
+        for (int i=1; i<9; i++) {
+            surface_clear(&fb, 0xFF);
+            rdpq_tex_upload_tlut(tlut_black, 0, 256);
+
+            memset(tlut, 0, 256*2);
+            for (int j=0;j<i;j++)
+                tlut[first_color+j] = color_to_packed16(palette_debug_color(first_color+j));
+            
+            rdpq_tex_upload_tlut(tlut, first_color, i);
+            rdpq_tex_blit(&tex, 0, 0, NULL);
+            rspq_wait();
+
+            ASSERT_SURFACE(&fb, { 
+                int pos = y*16+x;
+                if (pos >= first_color && pos < first_color+i)
+                    return surface_debug_expected_color(&fb, x, y);
+                else
+                    return color_from_packed32(0xE0); 
+            });
         }
     }
 }
