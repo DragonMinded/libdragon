@@ -437,6 +437,13 @@ void test_rdpq_tex_upload_tlut(TestContext *ctx)
     rspq_wait();
     ASSERT_SURFACE(&fb, { return color_from_packed32(0xE0); });
 
+    color_t expected_fb[256];
+    for (int i=0; i<256; i++) {
+        uint16_t c16 = color_to_packed16(palette_debug_color(i));
+        expected_fb[i] = color_from_packed16(c16);
+        expected_fb[i].a = 0xE0; // full coverage value
+    }
+
     for (int first_color=8; first_color<16; first_color++) {
         for (int i=1; i<9; i++) {
             surface_clear(&fb, 0xFF);
@@ -444,7 +451,7 @@ void test_rdpq_tex_upload_tlut(TestContext *ctx)
 
             memset(tlut, 0, 256*2);
             for (int j=0;j<i;j++)
-                tlut[first_color+j] = color_to_packed16(palette_debug_color(first_color+j));
+                tlut[j] = color_to_packed16(palette_debug_color(first_color+j));
             
             rdpq_tex_upload_tlut(tlut, first_color, i);
             rdpq_tex_blit(&tex, 0, 0, NULL);
@@ -453,7 +460,7 @@ void test_rdpq_tex_upload_tlut(TestContext *ctx)
             ASSERT_SURFACE(&fb, { 
                 int pos = y*16+x;
                 if (pos >= first_color && pos < first_color+i)
-                    return surface_debug_expected_color(&fb, x, y);
+                    return expected_fb[pos];
                 else
                     return color_from_packed32(0xE0); 
             });

@@ -190,8 +190,8 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texpa
  * for 256 colors in total, which allows for one palette for a CI8 texture, or up
  * to 16 palettes for CI4 textures.
  * 
- * @param tlut          Pointer to the color entries to load 
- * @param color_idx     First color entry in TMEM that will be written to (0-255)
+ * @param tlut          Pointer to the first color entry to load (must be 8-byte aligned) 
+ * @param color_idx     Index of the first color entry in TMEM (0-255)
  * @param num_colors    Number of color entries to load (1-256)
  */
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors);
