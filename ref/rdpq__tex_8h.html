@@ -586,8 +586,8 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 <p>When using palettes, the upper half of TMEM is allocated to them. There is room for 256 colors in total, which allows for one palette for a CI8 texture, or up to 16 palettes for CI4 textures.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramname">tlut</td><td>Pointer to the color entries to load </td></tr>
-    <tr><td class="paramname">color_idx</td><td>First color entry in TMEM that will be written to (0-255) </td></tr>
+    <tr><td class="paramname">tlut</td><td>Pointer to the first color entry to load (must be 8-byte aligned) </td></tr>
+    <tr><td class="paramname">color_idx</td><td>Index of the first color entry in TMEM (0-255) </td></tr>
     <tr><td class="paramname">num_colors</td><td>Number of color entries to load (1-256) </td></tr>
   </table>
   </dd>
@@ -846,7 +846,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Oct 13 2024 20:02:20 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Mon Oct 14 2024 15:41:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

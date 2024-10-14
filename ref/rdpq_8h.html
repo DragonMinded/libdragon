@@ -265,9 +265,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rdpq_set_yuv_parms</b
 <tr class="memitem:ad8b4d13e0d4ce86f251cfbf5e9a53b85" id="r_ad8b4d13e0d4ce86f251cfbf5e9a53b85"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq_8h.html#ad8b4d13e0d4ce86f251cfbf5e9a53b85">rdpq_load_tile_fx</a> (<a class="el" href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931e">rdpq_tile_t</a> tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)</td></tr>
 <tr class="memdesc:ad8b4d13e0d4ce86f251cfbf5e9a53b85"><td class="mdescLeft">&#160;</td><td class="mdescRight">Load a portion of a texture into TMEM &ndash; fixed point version (RDP command: LOAD_TILE)  <br /></td></tr>
 <tr class="separator:ad8b4d13e0d4ce86f251cfbf5e9a53b85"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae3029f2513832b5884bf37f83bbb1b0d" id="r_ae3029f2513832b5884bf37f83bbb1b0d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq_8h.html#ae3029f2513832b5884bf37f83bbb1b0d">rdpq_load_tlut_raw</a> (<a class="el" href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931e">rdpq_tile_t</a> tile, uint8_t color_idx, uint8_t num_colors)</td></tr>
-<tr class="memdesc:ae3029f2513832b5884bf37f83bbb1b0d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Load a palette of colors into TMEM (RDP command: LOAD_TLUT)  <br /></td></tr>
-<tr class="separator:ae3029f2513832b5884bf37f83bbb1b0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac7b11f606fbb06ff035d196cee5b456f" id="r_ac7b11f606fbb06ff035d196cee5b456f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq_8h.html#ac7b11f606fbb06ff035d196cee5b456f">rdpq_load_tlut_raw</a> (<a class="el" href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931e">rdpq_tile_t</a> tile, int color_idx, int num_colors)</td></tr>
+<tr class="memdesc:ac7b11f606fbb06ff035d196cee5b456f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Load a palette of colors into TMEM (RDP command: LOAD_TLUT)  <br /></td></tr>
+<tr class="separator:ac7b11f606fbb06ff035d196cee5b456f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa2d58ba9ae6ea05e8576b7735420f0b6" id="r_aa2d58ba9ae6ea05e8576b7735420f0b6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq_8h.html#aa2d58ba9ae6ea05e8576b7735420f0b6">rdpq_set_tile_size_fx</a> (<a class="el" href="rdpq_8h.html#a8d34f311d2e71435652a57adb1d6931e">rdpq_tile_t</a> tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)</td></tr>
 <tr class="memdesc:aa2d58ba9ae6ea05e8576b7735420f0b6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Configure the extents of a tile descriptor &ndash; fixed point version (RDP command: SET_TILE_SIZE)  <br /></td></tr>
 <tr class="separator:aa2d58ba9ae6ea05e8576b7735420f0b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -1098,8 +1098,8 @@ Power of 2 scale of the texture to wrap on. Range is [-5..10];. </td></tr>
 
 </div>
 </div>
-<a id="ae3029f2513832b5884bf37f83bbb1b0d" name="ae3029f2513832b5884bf37f83bbb1b0d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae3029f2513832b5884bf37f83bbb1b0d">&#9670;&#160;</a></span>rdpq_load_tlut_raw()</h2>
+<a id="ac7b11f606fbb06ff035d196cee5b456f" name="ac7b11f606fbb06ff035d196cee5b456f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac7b11f606fbb06ff035d196cee5b456f">&#9670;&#160;</a></span>rdpq_load_tlut_raw()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1116,13 +1116,13 @@ Power of 2 scale of the texture to wrap on. Range is [-5..10];. </td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>color_idx</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>num_colors</em>&#160;</td>
         </tr>
         <tr>
@@ -2553,7 +2553,7 @@ Power of 2 scale of the texture to wrap on. Range is [-5..10];. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Oct 13 2024 20:02:20 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Mon Oct 14 2024 15:41:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
