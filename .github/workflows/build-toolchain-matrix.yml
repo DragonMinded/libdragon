@@ -1,4 +1,4 @@
-name: Build-Native
+name: Build-Toolchain
 
 # This workflow will build the libdragon N64 GCC toolchain to keep it up-to-date.
 on:
@@ -27,8 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         include: [
-          { host-os: ubuntu-20.04, target-platform: Windows-x86_64, host: x86_64-w64-mingw32, makefile-version: 4.4 },
-          { host-os: ubuntu-20.04, target-platform: Linux-x86_64, host: '', makefile-version: '' }
+          #{ host-os: ubuntu-20.04, target-platform: Windows-x86_64, host: x86_64-w64-mingw32, makefile-version: 4.4 },
+          #{ host-os: ubuntu-20.04, target-platform: Linux-x86_64, host: '', makefile-version: '' },
+          #{ host-os: ubuntu-24.04, target-platform: Linux-arm64, host: '', makefile-version: '' },
+          { host-os: macos-14, target-platform: Linux-arm64, host: '', makefile-version: '' }
         ]
     runs-on: ${{ matrix.host-os }}
 
@@ -36,7 +38,9 @@ jobs:
       Build_Directory: libdragon
 
     steps:
-      - name: Install native system build dependencies
+
+      - name: Install native linux system build dependencies
+        if: ${{ matrix.host-os != 'macos-14' }}
         run: |
           sudo apt-get install libmpfr-dev
           sudo apt-get install texinfo

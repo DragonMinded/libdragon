@@ -60,7 +60,7 @@ download () {
 }
 
 # Compilation on macOS via homebrew
-if [[ $OSTYPE == 'darwin'* ]]; then
+if [[ $OSTYPE == *'darwin'* ]]; then
     if ! command_exists brew; then
         echo "Compilation on macOS is supported via Homebrew (https://brew.sh)"
         echo "Please install homebrew and try again"
