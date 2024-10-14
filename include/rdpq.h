@@ -584,7 +584,7 @@ inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16
  * 
  * @see #rdpq_tex_upload_tlut
  */
-inline void rdpq_load_tlut_raw(rdpq_tile_t tile, uint8_t color_idx, uint8_t num_colors)
+inline void rdpq_load_tlut_raw(rdpq_tile_t tile, int color_idx, int num_colors)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TLUT, 
