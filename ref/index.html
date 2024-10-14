@@ -127,6 +127,7 @@ Welcome to libdragon</h1>
 </li>
 <li>Support for standard N64 controllers and memory paks.</li>
 <li>Support for saving to flashes and EEPROMs (including a mini EEPROM filesystem to simplify serialization of structures).</li>
+<li>Improved boot using open-source IPL3 bootcode, which boots ROMs up to 5x faster and allows for compressed game code (using libdragon compression library).</li>
 </ul>
 <p>The <a href="https://github.com/DragonMinded/libdragon/wiki/Preview-branch">preview branch</a> features many more features:</p>
 <ul>
@@ -142,7 +143,6 @@ Welcome to libdragon</h1>
 <li>Very simple to use also for render-to-texture scenarios, where a movie is played back as part of a 3D scene or as background in a 2D game.</li>
 </ul>
 </li>
-<li>Improved boot using open-source IPL3 bootcode, which boots ROMs up to 5x faster and allows for compressed game code (using libdragon compression library).</li>
 <li>Dynamic library support (DSO, sometimes called "overlays") for dynamically loading and unloading part of game code and data. This is implemented using the standard <code>dlopen()</code> / <code>dlsym()</code>.</li>
 <li>Support for <a href="https://github.com/DragonMinded/libdragon/wiki/Opus-decompression">Opus audio compression</a> for ultra-compressed music streaming.<ul>
 <li>Same state-of-the-art audio algorithm that is currently mainstream on PCs.</li>
@@ -191,7 +191,7 @@ Resources</h1>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Oct 14 2024 15:41:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Mon Oct 14 2024 21:40:45 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
