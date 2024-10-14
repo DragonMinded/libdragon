@@ -2014,7 +2014,7 @@ void test_rdpq_mipmap_interpolate(TestContext *ctx) {
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
 
-    rdpq_attach(&fb, NULL);
+    rdpq_set_color_image(&fb);
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER_TEX_SHADE);
     rspq_wait();

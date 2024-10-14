@@ -496,6 +496,7 @@ void rdpq_close()
         return;
     
     rspq_overlay_unregister(RDPQ_OVL_ID);
+    __rdpq_attach_close();
 
     set_DP_interrupt( 0 );
     unregister_DP_handler(__rdpq_interrupt);
