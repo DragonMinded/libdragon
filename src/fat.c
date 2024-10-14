@@ -267,6 +267,11 @@ static int __fat_ioctl(void *file, unsigned long request, void *arg)
 			*sector = f->sect;
 			return 0;
 		}
+		case IOFAT_GET_CLUSTER_SIZE: {
+			int32_t *cluster_size = arg;
+			*cluster_size = f->obj.fs->csize;
+			return 0;
+		}
 		default: {
 			errno = ENOTTY;
 			return -1;

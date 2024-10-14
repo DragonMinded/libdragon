@@ -124,6 +124,21 @@ typedef struct {
  */
 #define IOFAT_GET_SECTOR        _IO('F', 2)
 
+/**
+ * @brief Return the size of a cluster, as number of sectors (not bytes)
+ * 
+ * The cluster size is a 32-bit integer value. It is a property of the filesystem
+ * so it is not file-dependent, but access to a file is still currently required
+ * to retrieve it.
+ * 
+ * \code{.c}
+ *    FILE *f = fopen("sd:/myfile.dat", "rb");
+ *    int32_t cluster_size = 0;
+ *    ioctl(fileno(f), IOFAT_GET_CLUSTER_SIZE, &cluster_size);
+ * \endcode
+ */
+#define IOFAT_GET_CLUSTER_SIZE  _IO('F', 3)
+
 
 /** 
  * @brief Mount the volume only when it is accessed for the first time.
