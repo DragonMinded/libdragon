@@ -86,7 +86,10 @@ inline uint32_t color_to_packed32(color_t c) {
 }
 /** @brief Create a #color_t from the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline color_t color_from_packed16(uint16_t c) {
-    return (color_t){ .r=(uint8_t)(((c>>11)&0x1F)<<3), .g=(uint8_t)(((c>>6)&0x1F)<<3), .b=(uint8_t)(((c>>1)&0x1F)<<3), .a=(uint8_t)((c&0x1) ? 0xFF : 0) };
+    int r = (c >> 11) & 0x1F;
+    int g = (c >> 6) & 0x1F;
+    int b = (c >> 1) & 0x1F;
+    return (color_t){ .r=(uint8_t)((r << 3) | (r >> 2)), .g=(uint8_t)((g << 3) | (g >> 2)), .b=(uint8_t)((b << 3) | (b >> 2)), .a=(uint8_t)((c&0x1) ? 0xFF : 0) };
 }
 
 /** @brief Create a #color_t from the 32-bit packed format used by a #FMT_RGBA32 surface (RGBA 8888) */
