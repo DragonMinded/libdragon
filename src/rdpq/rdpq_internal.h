@@ -116,6 +116,7 @@ void __rdpq_block_next_buffer(void);
 void __rdpq_block_update(volatile uint32_t *wptr);
 void __rdpq_block_reserve(int num_rdp_commands);
 
+/** Close rdpq_attach subsystem */
 void __rdpq_attach_close(void);
 
 inline void __rdpq_autosync_use(uint32_t res)
