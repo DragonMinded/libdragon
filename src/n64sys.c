@@ -202,11 +202,10 @@ void die(void)
 
 void sys_get_heap_stats(heap_stats_t *stats)
 {
-    extern char *__heap_end;
-    extern char *__heap_top;
+    extern int __heap_total_size;
     struct mallinfo m = mallinfo();
 
-    stats->total = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
+    stats->total = __heap_total_size;
     stats->used = m.uordblks;
 }
 
