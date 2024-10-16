@@ -137,12 +137,15 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		SYMPREFIX="$(subst .,_,$(subst /,_,$(basename $@)))"; \
 		TEXTSECTION="$(basename $@).text"; \
 		DATASECTION="$(basename $@).data"; \
+		METASECTION="$(basename $@).meta"; \
 		BINARY="$(basename $@).elf"; \
 		echo "    [RSP] $<"; \
 		$(N64_CC) $(RSPASFLAGS) -L$(N64_LIBDIR) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections  -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map -o $@ $<; \
 		mv "$@" $$BINARY; \
 		$(N64_OBJCOPY) -O binary -j .text $$BINARY $$TEXTSECTION.bin; \
 		$(N64_OBJCOPY) -O binary -j .data $$BINARY $$DATASECTION.bin; \
+		$(N64_OBJCOPY) -O binary -j .meta $$BINARY $$METASECTION.bin --set-section-flags .meta=alloc,load; \
+		[ -s $$METASECTION.bin ] || printf '\0' > $$METASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \
@@ -155,9 +158,15 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 				--redefine-sym _binary_$${SYMPREFIX}_data_bin_size=$${FILENAME}_data_size \
 				--set-section-alignment .data=16 \
 				--rename-section .text=.data $$DATASECTION.bin $$DATASECTION.o; \
+		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
+				--redefine-sym _binary_$${SYMPREFIX}_meta_bin_start=$${FILENAME}_meta_start \
+				--redefine-sym _binary_$${SYMPREFIX}_meta_bin_end=$${FILENAME}_meta_end \
+				--redefine-sym _binary_$${SYMPREFIX}_meta_bin_size=$${FILENAME}_meta_size \
+				--set-section-alignment .data=16 \
+				--rename-section .text=.data $$METASECTION.bin $$METASECTION.o; \
 		$(N64_SIZE) -G $$BINARY; \
-		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o -o $@; \
-		rm $$TEXTSECTION.bin $$DATASECTION.bin $$TEXTSECTION.o $$DATASECTION.o; \
+		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o $$METASECTION.o -o $@; \
+		rm $$TEXTSECTION.bin $$DATASECTION.bin $$METASECTION.bin $$TEXTSECTION.o $$DATASECTION.o $$METASECTION.o; \
 	else \
 		echo "    [AS] $<"; \
 		$(CC) -c $(ASFLAGS) -o $@ $<; \
