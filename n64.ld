@@ -35,6 +35,7 @@ SECTIONS {
         . = ALIGN(16);
         *(.text)
         *(.text.*)
+        KEEP(*(keep.text.*))
         *(.init)
         *(.fini)
         *(.gnu.linkonce.t.*)
@@ -54,6 +55,7 @@ SECTIONS {
         *(.rdata)
         *(.rodata)
         *(.rodata.*)
+        KEEP(*(keep.rodata.*))
         *(.gnu.linkonce.r.*)
         . = ALIGN(8);
     }
@@ -100,6 +102,7 @@ SECTIONS {
         __data_start = .;
         *(.data)
         *(.data.*)
+        KEEP(*(keep.data.*))
         *(.gnu.linkonce.d.*)
         . = ALIGN(8);
     }
