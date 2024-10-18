@@ -3,6 +3,7 @@ all: libdragon
 V = 1  # force verbose (at least until we have converted all sub-Makefiles)
 SOURCE_DIR = src
 BUILD_DIR = build
+FILE_PREFIX=libdragon
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
@@ -11,7 +12,7 @@ INSTALLDIR = $(N64_INST)
 # When building libdragon, override it to use the source include files instead (./include)
 N64_INCLUDEDIR = $(CURDIR)/include
 
-LIBDRAGON_CFLAGS = -I$(CURDIR)/src -ffile-prefix-map=$(CURDIR)=libdragon
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
