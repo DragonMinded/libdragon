@@ -3,7 +3,6 @@ all: libdragon
 V = 1  # force verbose (at least until we have converted all sub-Makefiles)
 SOURCE_DIR = src
 BUILD_DIR = build
-FILE_PREFIX=libdragon
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
@@ -11,6 +10,11 @@ INSTALLDIR = $(N64_INST)
 # (e.g. /opt/libdragon/mips64-elf/include), set in n64.mk
 # When building libdragon, override it to use the source include files instead (./include)
 N64_INCLUDEDIR = $(CURDIR)/include
+
+# N64_BACKTRACE_FILE_PREFIX is exposed from n64.mk, so we can use it to set the
+# prefix for libdragon. It is still possible to override this when running make
+# for libdragon specifically via a make override.
+N64_BACKTRACE_FILE_PREFIX=libdragon
 
 LIBDRAGON_CFLAGS = -I$(CURDIR)/src
 
