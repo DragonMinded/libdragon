@@ -393,12 +393,6 @@ typedef uint32_t rdpq_blender_t;
  * 
  *        rdpq_mode_combiner(RDPQ1_COMBINER((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)));
  *
- * Notice that this is just a way to obtain the formula above. Another possibility is:
- * 
- *        rdpq_mode_combiner(RDPQ1_COMBINER((1, 0, SHADE, TEX0), (1, 0, SHADE, TEX0)));
- * 
- * which will obtain exactly the same result.
- * 
  * A complete example drawing a textured rectangle with a fixed semi-transparency of 0.7:
  * 
  * @code{.c}
