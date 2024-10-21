@@ -168,7 +168,7 @@ to check the relevant header files yourself to check what is changed.
 
 ## Resources
 
- * [API reference](https://dragonminded.github.io/libdragon/ref/modules.html)
+ * [API reference](https://dragonminded.github.io/libdragon/ref/topics.html)
  * [Examples](https://github.com/DragonMinded/libdragon/tree/trunk/examples)
  * [Wiki](https://github.com/DragonMinded/libdragon/wiki) (contains tutorials
    and troubleshooting guides)
