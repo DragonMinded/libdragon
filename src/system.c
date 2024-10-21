@@ -45,6 +45,9 @@
  */
 #define STACK_SIZE 0x10000
 
+
+/** Total Size of the heap */
+int __heap_total_size = 0;
 /** End of the heap */
 char *__heap_end = 0;
 /** Top of the heap */
@@ -1024,6 +1027,7 @@ void *sbrk( int incr )
     {
         __heap_end = (char*)HEAP_START_ADDR;
         __heap_top = (char*)KSEG0_START_ADDR + get_memory_size() - STACK_SIZE;
+        __heap_total_size = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
     }
 
     prev_heap_end = __heap_end;

@@ -11,7 +11,12 @@ INSTALLDIR = $(N64_INST)
 # When building libdragon, override it to use the source include files instead (./include)
 N64_INCLUDEDIR = $(CURDIR)/include
 
-LIBDRAGON_CFLAGS = -I$(CURDIR)/src -ffile-prefix-map=$(CURDIR)=libdragon
+# N64_BACKTRACE_FILE_PREFIX is exposed from n64.mk, so we can use it to set the
+# prefix for libdragon. It is still possible to override this when running make
+# for libdragon specifically via a make override.
+N64_BACKTRACE_FILE_PREFIX=libdragon
+
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
@@ -31,7 +36,7 @@ LIBDRAGON_OBJS += \
              $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtrace.o \
 			 $(BUILD_DIR)/fmath.o $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
 			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
-			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
+			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/fat.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
 			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
 			 $(BUILD_DIR)/console.o $(BUILD_DIR)/asset.o $(BUILD_DIR)/pifile.o \
 			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/lz4_dec_fast.o $(BUILD_DIR)/compress/ringbuf.o \
@@ -146,6 +151,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h
 	install -Cv -m 0644 include/debug.h $(INSTALLDIR)/mips64-elf/include/debug.h
 	install -Cv -m 0644 include/debugcpp.h $(INSTALLDIR)/mips64-elf/include/debugcpp.h
+	install -Cv -m 0644 include/fat.h $(INSTALLDIR)/mips64-elf/include/fat.h
 	install -Cv -m 0644 include/usb.h $(INSTALLDIR)/mips64-elf/include/usb.h
 	install -Cv -m 0644 include/console.h $(INSTALLDIR)/mips64-elf/include/console.h
 	install -Cv -m 0644 include/joybus.h $(INSTALLDIR)/mips64-elf/include/joybus.h

@@ -25,6 +25,7 @@
 #include "audio.h"
 #include "console.h"
 #include "debug.h"
+#include "fat.h"
 #include "joybus.h"
 #include "joybus_accessory.h"
 #include "pixelfx.h"

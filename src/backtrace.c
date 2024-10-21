@@ -620,7 +620,7 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg, uint3
 
 int backtrace(void **buffer, int size)
 {
-    int i = -2; // skip backtrace_foreach() and backtrace())
+    int i = -1; // Skip backtrace() itself
     void cb(void *arg, void *ptr) {
         if (i >= size) return;
         if (i >= 0)

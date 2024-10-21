@@ -11,6 +11,10 @@
 #include <stdalign.h>
 #include <sys/stat.h>
 
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
 #ifdef N64
 #include <malloc.h>
 #include "debug.h"
@@ -68,7 +72,7 @@ void __asset_init_compression_lvl3(void)
 
 int must_open(const char *fn)
 {
-    int fd = open(fn, O_RDONLY);
+    int fd = open(fn, O_RDONLY|O_BINARY);
     if (fd < 0) {
         // File not found.
         int errnum = errno;

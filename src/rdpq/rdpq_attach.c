@@ -168,6 +168,12 @@ void rdpq_detach_show(void)
     rdpq_detach_cb((void (*)(void*))display_show, (void*)attach_stack[attach_stack_ptr-1][0]);
 }
 
+void __rdpq_attach_close(void)
+{
+    assertf(attach_stack_ptr == 0, "rdpq_close called but attach stack is not empty");
+    attach_stack_ptr = 0;
+}
+
 const surface_t* rdpq_get_attached(void)
 {
     if (rdpq_is_attached()) {

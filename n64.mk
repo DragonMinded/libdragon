@@ -13,6 +13,14 @@ N64_ROM_CONTROLLER2 = # Sets the type of Controller 2 in the Advanced Homebrew H
 N64_ROM_CONTROLLER3 = # Sets the type of Controller 3 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
 N64_ROM_CONTROLLER4 = # Sets the type of Controller 4 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
 
+# Override this to use a different file prefix for the debug symbols. This is
+# useful when building multiple projects in the same directory and you can set
+# this to the project name to differentiate between similar paths. Example:
+# .PHONY: tiny3d
+# tiny3d:
+# 	$(MAKE) -C $(T3D_INST) N64_BACKTRACE_FILE_PREFIX=tiny3d
+N64_BACKTRACE_FILE_PREFIX=
+
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
 N64_ROOTDIR = $(N64_INST)
@@ -49,7 +57,7 @@ N64_DSOMSYM = $(N64_BINDIR)/n64dso-msym
 
 N64_C_AND_CXX_FLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR) -include ktls.h
 N64_C_AND_CXX_FLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
-N64_C_AND_CXX_FLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map="$(CURDIR)"=
+N64_C_AND_CXX_FLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map="$(CURDIR)"=$(N64_BACKTRACE_FILE_PREFIX)
 N64_C_AND_CXX_FLAGS += -ffast-math -ftrapping-math -fno-associative-math
 N64_C_AND_CXX_FLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
 N64_C_AND_CXX_FLAGS += -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=unused-function -Wno-error=unused-parameter -Wno-error=unused-but-set-parameter -Wno-error=unused-label -Wno-error=unused-local-typedefs -Wno-error=unused-const-variable

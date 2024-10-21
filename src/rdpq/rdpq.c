@@ -496,6 +496,7 @@ void rdpq_close()
         return;
     
     rspq_overlay_unregister(RDPQ_OVL_ID);
+    __rdpq_attach_close();
 
     set_DP_interrupt( 0 );
     unregister_DP_handler(__rdpq_interrupt);
@@ -1163,7 +1164,7 @@ extern inline void rdpq_set_prim_lod_frac(uint8_t value);
 extern inline void rdpq_set_prim_register_raw(color_t color, uint8_t minlod, uint8_t primlod);
 extern inline void rdpq_set_env_color(color_t color);
 extern inline void rdpq_set_prim_depth_raw(uint16_t primitive_z, int16_t primitive_delta_z);
-extern inline void rdpq_load_tlut_raw(rdpq_tile_t tile, uint8_t lowidx, uint8_t highidx);
+extern inline void rdpq_load_tlut_raw(rdpq_tile_t tile, int first_color, int num_colors);
 extern inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
 extern inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);
 extern inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt);

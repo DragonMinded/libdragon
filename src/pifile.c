@@ -58,7 +58,9 @@ static int __pifile_fstat(void *file, struct stat *st)
 {
     pifile_t *f = file;
     memset(st, 0, sizeof(struct stat));
+    st->st_mode = S_IFREG;
     st->st_size = f->size;
+    st->st_nlink = 1;
     return 0;
 }
 

@@ -70,6 +70,8 @@ programming and debugging. These are the main features:
 * Support for standard N64 controllers and memory paks.
 * Support for saving to flashes and EEPROMs (including a mini EEPROM
   filesystem to simplify serialization of structures).
+* Improved boot using open-source IPL3 bootcode, which boots ROMs up to 5x
+  faster and allows for compressed game code (using libdragon compression library).
 
 The [preview branch](https://github.com/DragonMinded/libdragon/wiki/Preview-branch) features
 many more features:
@@ -88,8 +90,6 @@ many more features:
    * Very simple to use also for render-to-texture scenarios, where
      a movie is played back as part of a 3D scene or as background in
      a 2D game.
- * Improved boot using open-source IPL3 bootcode, which boots ROMs up to 5x
-   faster and allows for compressed game code (using libdragon compression library).
  * Dynamic library support (DSO, sometimes called "overlays") for dynamically
    loading and unloading part of game code and data. This is implemented using
    the standard `dlopen()` / `dlsym()`.
