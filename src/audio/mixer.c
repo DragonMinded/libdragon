@@ -159,7 +159,6 @@ static struct {
 	int num_events;
 	mixer_event_t events[MAX_EVENTS];
 
-	uint8_t *ch_buf_mem;
 	samplebuffer_t ch_buf[MIXER_MAX_CHANNELS];
 	channel_limit_t limits[MIXER_MAX_CHANNELS];
 
@@ -200,43 +199,24 @@ void mixer_init(int num_channels) {
     __mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
 }
 
-static void mixer_init_samplebuffers(void) {
-	// Initialize the samplebuffers. This is done lazily so to allow the
-	// client to configure the limits of the channels.
-	int totsize = 0;
-	int bufsize[MIXER_MAX_CHANNELS];
+static int mixer_calc_buffer_size(int ch)
+{
+	// Get maximum frequency for this channel
+	int nsamples = Mixer.limits[ch].max_frequency;
 
-	for (int i=0;i<Mixer.num_channels;i++) {
-		// Get maximum frequency for this channel
-		int nsamples = Mixer.limits[i].max_frequency;
+	// Multiple by maximum byte per sample
+	nsamples *= Mixer.limits[ch].max_bits / 8;
 
-		// Multiple by maximum byte per sample
-		nsamples *= Mixer.limits[i].max_bits / 8;
+	// Calculate buffer size according to number of expected polls per second.
+	int size = ROUND_UP((int)ceilf((float)nsamples / (float)MIXER_POLL_PER_SECOND), 8);
 
-		// Calculate buffer size according to number of expected polls per second.
-		bufsize[i] = ROUND_UP((int)ceilf((float)nsamples / (float)MIXER_POLL_PER_SECOND), 8);
+	// If we're over the allowed maximum, clamp to it
+	if (Mixer.limits[ch].max_buf_sz && size > Mixer.limits[ch].max_buf_sz)
+		size = Mixer.limits[ch].max_buf_sz;
 
-		// If we're over the allowed maximum, clamp to it
-		if (Mixer.limits[i].max_buf_sz && bufsize[i] > Mixer.limits[i].max_buf_sz)
-			bufsize[i] = Mixer.limits[i].max_buf_sz;
-
-		assert((bufsize[i] % 8) == 0);
-		totsize += bufsize[i];
-	}
-
-	// Do one large allocations for all sample buffers
-	assert(Mixer.ch_buf_mem == NULL);
-	Mixer.ch_buf_mem = malloc_uncached(totsize);
-	assert(Mixer.ch_buf_mem != NULL);
-	uint8_t *cur = Mixer.ch_buf_mem;
-
-	// Initialize the sample buffers
-	for (int i=0;i<Mixer.num_channels;i++) {
-		samplebuffer_init(&Mixer.ch_buf[i], cur, bufsize[i]);
-		cur += bufsize[i];
-	}
-
-	assert(cur == Mixer.ch_buf_mem+totsize);
+	assert((size % 8) == 0);
+	
+	return size;
 }
 
 void mixer_set_vol(float vol) {
@@ -249,9 +229,10 @@ void mixer_close(void) {
 	rspq_overlay_unregister(__mixer_overlay_id);
 	__mixer_overlay_id = 0;
 
-	if (Mixer.ch_buf_mem) {
-		free_uncached(Mixer.ch_buf_mem);
-		Mixer.ch_buf_mem = NULL;
+	for (int i=0; i<Mixer.num_channels; i++)
+	{
+		if (samplebuffer_is_inited(&Mixer.ch_buf[i]))
+			samplebuffer_close(&Mixer.ch_buf[i]);
 	}
 
 	Mixer.num_channels = 0;
@@ -379,11 +360,13 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
 	mixer_channel_t *c = &Mixer.channels[ch];
 
-	if (!Mixer.ch_buf_mem) {
+	if (!samplebuffer_is_inited(sbuf)) {
 		// If we have not yet allocated the memory for the sample buffers,
 		// this is a good moment to do so, as we might need the configure
 		// the samplebuffer in a moment.
-		mixer_init_samplebuffers();
+		int size = mixer_calc_buffer_size(ch);
+		void *ptr = malloc_uncached(size);
+		samplebuffer_init(sbuf, ptr, size);
 	}
 
 	// Configure the waveform on this channel, if we have not
@@ -460,6 +443,8 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	assert(max_bits == 0 || max_bits == 8 || max_bits == 16);
 	assert(max_frequency >= 0);
 	assert(max_buf_sz >= 0 && max_buf_sz % 8 == 0);
+	assert(ch >= 0 && ch < MIXER_MAX_CHANNELS);
+	assert(!mixer_ch_playing(ch));
 	tracef("mixer_ch_set_limits: ch=%d bits=%d maxfreq:%.2f bufsz:%d\n", ch, max_bits, max_frequency, max_buf_sz);
 
 	Mixer.limits[ch] = (channel_limit_t){
@@ -468,23 +453,13 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 		.max_buf_sz = max_buf_sz,
 	};
 
-	// Changing the limits will invalidate the whole sample buffer
-	// memory area. Invalidate all sample buffers.
-	if (Mixer.ch_buf_mem) {
-		for (int i=0;i<Mixer.num_channels;i++)
-			samplebuffer_close(&Mixer.ch_buf[i]);
-		free_uncached(Mixer.ch_buf_mem);
-		Mixer.ch_buf_mem = NULL;
-	}
+	// Free the memory immediately, as it doesn't match the new limits anymore.
+	// We will reallocate it later lazily if needed.
+	if (samplebuffer_is_inited(&Mixer.ch_buf[ch]))
+		samplebuffer_close(&Mixer.ch_buf[ch]);
 }
 
 static void mixer_exec(int32_t *out, int num_samples) {
-	if (!Mixer.ch_buf_mem) {
-		// If we have not yet allocated the memory for the sample buffers,
-		// this is a good moment to do so.
-		mixer_init_samplebuffers();
-	}
-
 	tracef("mixer_exec: 0x%x samples\n", num_samples);
 
 	uint32_t fake_loop = 0;

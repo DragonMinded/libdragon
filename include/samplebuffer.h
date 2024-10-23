@@ -147,6 +147,8 @@ typedef struct samplebuffer_s {
  */
 void samplebuffer_init(samplebuffer_t *buf, uint8_t *uncached_mem, int size);
 
+bool samplebuffer_is_inited(samplebuffer_t *buf);
+
 /**
  * @brief Configure the bit width of the samples stored in the buffer.
  * 
