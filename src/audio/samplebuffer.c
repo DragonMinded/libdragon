@@ -103,7 +103,9 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if ((buf->wpos << bps) & 1) {
 			buf->wpos--; len++;
 		}
-		buf->wv_read(buf->wv_ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
+		if (buf->wv_read) {
+			buf->wv_read(buf->wv_ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
+		}
 		buf->wnext = buf->wpos + buf->widx;
 	} else {
 		// Record first sample that we still need to keep in the sample
@@ -124,12 +126,14 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if (reuse < *wlen) {
 			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
 			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
-			buf->wv_read(buf->wv_ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
+			if (buf->wv_read) {
+				buf->wv_read(buf->wv_ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
+			}
 			buf->wnext = buf->wpos + buf->widx;
 		}
 	}
 
-	assertf(wpos >= buf->wpos && wpos < buf->wpos+buf->widx, 
+	assertf((wpos >= buf->wpos && wpos < buf->wpos+buf->widx) || (buf->wv_read == NULL), 
 		"samplebuffer_get: logic error\n"
 		"wpos:%x buf->wpos:%x buf->widx:%x", wpos, buf->wpos, buf->widx);
 

@@ -24,11 +24,6 @@ typedef struct {
 
 static void *__pifile_open(char *name, int flags)
 {
-    if (flags != O_RDONLY) {
-        errno = EACCES;
-        return NULL;
-    }
-
     // Parse the name in the foramt "ADDR:SIZE" as hexdecimal numbers
     char *end;
     uint32_t base = strtoul(name, &end, 16);
@@ -40,6 +35,13 @@ static void *__pifile_open(char *name, int flags)
     if (*end != '\0') {
         errno = EINVAL;
         return NULL;
+    }
+
+    if ((base < 0x08000000) || (base >= 0x09000000)) {
+        if (flags != O_RDONLY) {
+            errno = EACCES;
+            return NULL;
+        }
     }
 
     pifile_t *file = malloc(sizeof(pifile_t));
@@ -123,6 +125,41 @@ static int __pifile_read(void *file, uint8_t *buf, int len)
     return len;
 }
 
+
+static int __pifile_write(void *file, uint8_t *buf, int len)
+{
+    pifile_t *f = file;
+    if (f->ptr + len > f->size)
+        len = f->size - f->ptr;
+    if (len <= 0)
+        return 0;
+
+    // Check if we can DMA directly to the output buffer
+    if ((((f->base + f->ptr) ^ (uint32_t)buf) & 1) == 0) {
+        data_cache_hit_writeback_invalidate(buf, len);
+        dma_write_raw_async(buf, f->base + f->ptr, len);
+        dma_wait();
+        f->ptr += len;
+    } else {
+        // Go through a temporary buffer
+        uint8_t *tmp = alloca(512+1);
+        if ((f->base + f->ptr) & 1) tmp++;
+
+        while (len > 0) {
+            int n = len > 512 ? 512 : len;
+            data_cache_hit_writeback_invalidate(tmp, n);
+            dma_write_raw_async(tmp, f->base + f->ptr, n);
+            dma_wait();
+            memcpy(buf, tmp, n);
+            buf += n;
+            f->ptr += n;
+            len -= n;
+        }
+    }
+
+    return len;
+}
+
 static int __pifile_close(void *file)
 {
     free(file);
@@ -135,6 +172,7 @@ static filesystem_t pifile_fs = {
 	.lseek = __pifile_lseek,
 	.read = __pifile_read,
 	.close = __pifile_close,
+	.write = __pifile_write,
 };
 
 void pifile_init(void)
