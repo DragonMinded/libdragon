@@ -148,6 +148,15 @@ typedef struct samplebuffer_s {
 void samplebuffer_init(samplebuffer_t *buf, uint8_t *uncached_mem, int size);
 
 /**
+ * @brief Return true if the samplebuffer is initialized.
+ * 
+ * @param buf               Sample buffer
+ * @return true             If the sample buffer is initialized.
+ * @return false            If the sample buffer is not initialized.
+ */
+bool samplebuffer_is_inited(samplebuffer_t *buf);
+
+/**
  * @brief Configure the bit width of the samples stored in the buffer.
  * 
  * Valid values for "bps" are 1, 2, or 4: 1 can be used for 8-bit mono samples,
