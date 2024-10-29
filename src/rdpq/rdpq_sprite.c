@@ -1,7 +1,7 @@
 /**
  * @file rdpq_sprite.c
  * @brief RDP Command queue: high-level sprite loading and blitting
- * @ingroup rdp
+ * @ingroup rdpq
  */
 
 #include "rspq.h"

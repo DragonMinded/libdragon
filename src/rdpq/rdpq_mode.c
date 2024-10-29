@@ -1,7 +1,7 @@
 /**
  * @file rdpq_mode.c
  * @brief RDP Command queue: mode setting
- * @ingroup rdp
+ * @ingroup rdpq
  */
 
 #include "rdpq_mode.h"

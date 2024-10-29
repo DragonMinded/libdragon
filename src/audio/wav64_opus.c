@@ -83,30 +83,27 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     int16_t *out = samplebuffer_append(sbuf, st->xhead.frame_size*nframes);
 
     for (int i=0; i<nframes; i++) {
-        if (wpos >= wav->wave.len) {
-            // End of file. This request can happen because of the RSP mixer overread.
-            // FIXME: maybe the mixer should handle this case?
-            memset(out, 0, st->xhead.frame_size * wav->wave.channels * sizeof(int16_t));
-        } else {
-            // Read frame size
-            uint16_t nb = 0;
-            read(wav->current_fd, &nb, 2);
-            assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %08X (%ld)", nb, st->xhead.max_cmp_frame_size);
+        assert(wpos < wav->wave.len);
 
-            unsigned long aligned_frame_size = nb; 
-            if (aligned_frame_size & 1) {
-                aligned_frame_size += 1;
-            }
+        // Read frame size
+        uint16_t nb = 0;
+        read(wav->current_fd, &nb, 2);
+        assertf(nb <= st->xhead.max_cmp_frame_size, "opus frame size too large: %08X (%ld)", nb, st->xhead.max_cmp_frame_size);
 
-            // Read frame
-            data_cache_hit_writeback_invalidate(buf, aligned_frame_size);
-            read(wav->current_fd, buf, aligned_frame_size);
-
-            // Decode frame
-            int err = opus_custom_decode(st->dec, buf, nb, out, st->xhead.frame_size);
-            assertf(err > 0, "opus decode error: %s", opus_strerror(err));
-            assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
+        unsigned long aligned_frame_size = nb; 
+        if (aligned_frame_size & 1) {
+            aligned_frame_size += 1;
         }
+
+        // Read frame
+        data_cache_hit_writeback_invalidate(buf, aligned_frame_size);
+        int size = read(wav->current_fd, buf, aligned_frame_size);
+        assertf(size == aligned_frame_size, "opus read past end: %d", size);
+
+        // Decode frame
+        int err = opus_custom_decode(st->dec, buf, nb, out, st->xhead.frame_size);
+        assertf(err > 0, "opus decode error: %s", opus_strerror(err));
+        assertf(err == st->xhead.frame_size, "opus wrong frame size: %d (exp: %lx)", err, st->xhead.frame_size);
 
         out += st->xhead.frame_size * wav->wave.channels;
         wpos += st->xhead.frame_size;

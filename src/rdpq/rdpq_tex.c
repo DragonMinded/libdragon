@@ -1,7 +1,7 @@
 /**
  * @file rdpq_tex.c
  * @brief RDP Command queue: texture loading
- * @ingroup rdp
+ * @ingroup rdpq
  */
 
 ///@cond

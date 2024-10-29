@@ -252,7 +252,7 @@ void xm64player_close(xm64player_t *player) {
 	}
 	for (int i=0;i<player->ctx->module.num_channels;i++) {
 		mixer_ch_stop(player->first_ch+i);
-		mixer_ch_set_limits(player->first_ch, 0, 0, 0);
+		mixer_ch_set_limits(player->first_ch+i, 0, 0, 0);
 	}
 	enable_interrupts();
 

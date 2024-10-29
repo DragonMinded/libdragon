@@ -200,6 +200,10 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		}
 	}
 
+	// Round up wlen to 32 because our RSP decompressor only supports multiples
+	// of 32 samples (2 frames) because of DMA alignment issues. audioconv64
+	// makes sure files are padded to that length, so this is valid also at the
+	// end of the file.
 	wlen = ROUND_UP(wlen, 32);
 	if (wlen == 0) return;
 
@@ -224,7 +228,9 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		void *src = (void*)dest + ((nframes*16) << SAMPLES_BPS_SHIFT(sbuf)) - src_bytes;
 
 		// Fetch compressed data
-		read(wav->current_fd, src, src_bytes);
+		// FIXME: remove CachedAddr() when read() supports uncached addresses
+		int read_bytes = read(wav->current_fd, CachedAddr(src), src_bytes);
+		assertf(src_bytes == read_bytes, "invalid read past end: %d vs %d", src_bytes, read_bytes);
 
 		#if VADPCM_REFERENCE_DECODER
 		if (wav->wave.channels == 1) {
@@ -306,7 +312,8 @@ void wav64_open(wav64_t *wav, const char *file_name) {
 
 		void *ext = malloc_uncached(sizeof(vhead) + codebook_size);
 		memcpy(ext, &vhead, sizeof(vhead));
-		read(file_handle, ext + sizeof(vhead), codebook_size);
+		// FIXME: remove CachedAddr() when read() supports uncached addresses
+		read(file_handle, CachedAddr(ext + sizeof(vhead)), codebook_size);
 		wav->ext = ext;
 		wav->wave.read = waveform_vadpcm_read;
 		wav->wave.ctx = wav;

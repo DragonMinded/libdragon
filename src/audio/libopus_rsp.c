@@ -429,7 +429,8 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
     static uint8_t *rsp_workram = NULL;
     if (!rsp_workram) rsp_workram = malloc_uncached(3840+4096);
 
-    data_cache_hit_writeback_invalidate(out, N*2*stride+overlap*2); // FIXME: maybe *stride is wrong? 
+    if (out == CachedAddr(out))
+        data_cache_hit_writeback_invalidate(out, N*2*stride+overlap*2); // FIXME: maybe *stride is wrong? 
     data_cache_hit_writeback_invalidate(in, N*2*stride); // FIXME: maybe *stride is wrong?
     assertf(PhysicalAddr(in) % 8 == 0, "in=%p", in);
     assert(PhysicalAddr(l->kfft[shift]->bitrev) % 8 == 0);
@@ -678,7 +679,8 @@ void rsp_opus_comb_filter_const(opus_val32 *y, opus_val32 *x, int T, int N,
     comb_filter_const_c(yref+T+2, yref+T+2, T, N, g10, g11, g12);
 #endif
 
-    data_cache_hit_writeback_invalidate(x-T-2, (N+T+5)*sizeof(opus_val32));
+    if (x == CachedAddr(x))
+        data_cache_hit_writeback_invalidate(x-T-2, (N+T+5)*sizeof(opus_val32));
 
     // Calculate the best DMEM layout for this filter
     int T0 = -T-2;
@@ -891,6 +893,8 @@ void rsp_opus_deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int down
       assertf(nn % 8 == 0, "nn:%d", nn);
       int nnO = nn * C / downsample;
 
+      assert(PhysicalAddr(incur[0]) % 8 == 0);
+      if (C>1) assert(PhysicalAddr(incur[1]) % 8 == 0);
       rsp_cmd_deemphasis(incur[0], (C>1 ? incur[1] : 0), pcmcur, mem, nn, downsample);
 
       incur[0] += nn;

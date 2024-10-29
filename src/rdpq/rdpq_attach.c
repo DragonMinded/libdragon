@@ -1,7 +1,7 @@
 /**
  * @file rdpq_attach.c
  * @brief RDP Command queue: surface attachment API
- * @ingroup rdp
+ * @ingroup rdpq
  */
 
 #include "rdpq.h"

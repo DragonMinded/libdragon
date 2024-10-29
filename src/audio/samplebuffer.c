@@ -54,8 +54,16 @@ void samplebuffer_set_waveform(samplebuffer_t *buf, WaveformRead read, void *ctx
 	buf->wv_ctx = ctx;
 }
 
+bool samplebuffer_is_inited(samplebuffer_t *buf)
+{
+	return SAMPLES_PTR(buf) != NULL;
+}
+
 void samplebuffer_close(samplebuffer_t *buf) {
-	buf->ptr_and_flags = 0;
+	void *ptr = SAMPLES_PTR(buf);
+	if (ptr)
+		free_uncached(ptr);
+	memset(buf, 0, sizeof(samplebuffer_t));
 }
 
 void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {

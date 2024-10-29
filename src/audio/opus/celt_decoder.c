@@ -1354,13 +1354,14 @@ int opus_custom_decoder_ctl(CELTDecoder * OPUS_RESTRICT st, int request, ...)
 
          int st_size = opus_custom_decoder_get_size(st->mode, st->channels);
          OPUS_CLEAR((char*)&st->DECODER_RESET_START,
-               (char*)&st->_decode_mem[0] - (char*)&st->DECODER_RESET_START);
+               (char*)&st->preemph_memD[0] - (char*)&st->DECODER_RESET_START);
          OPUS_CLEAR((char*)lpc,
                (char*)st + st_size - (char*)lpc);
          #ifdef N64
          data_cache_hit_writeback_invalidate(st->preemph_memD, sizeof(st->preemph_memD));
          data_cache_hit_writeback_invalidate(st->_decode_mem, (DECODE_BUFFER_SIZE+st->overlap)*st->channels*sizeof(celt_sig));
          rspq_highpri_begin();
+         rsp_opus_clear(st->preemph_memD, 2);
          rsp_opus_clear(st->_decode_mem, (DECODE_BUFFER_SIZE+st->overlap)*st->channels);
          rspq_highpri_end();
          #else

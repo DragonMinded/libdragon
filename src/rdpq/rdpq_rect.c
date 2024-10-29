@@ -1,7 +1,7 @@
 /**
  * @file rdpq.h
  * @brief RDP Command queue
- * @ingroup rdp
+ * @ingroup rdpq
  * 
  */
 

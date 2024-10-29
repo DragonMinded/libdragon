@@ -1,7 +1,7 @@
 /**
  * @file rdpq_tri.c
  * @brief RDP Command queue: triangle drawing routine
- * @ingroup rdp
+ * @ingroup rdpq
  * 
  * This file contains the implementation of a single function: #rdpq_triangle.
  * 

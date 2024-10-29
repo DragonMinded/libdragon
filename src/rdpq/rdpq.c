@@ -1,7 +1,7 @@
 /**
  * @file rdpq.c
  * @brief RDP Command queue
- * @ingroup rdp
+ * @ingroup rdpq
  *
  * # RDP Queue: implementation details
  * 

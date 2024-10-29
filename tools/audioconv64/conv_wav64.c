@@ -252,31 +252,16 @@ int wav_convert(const char *infn, const char *outfn) {
 			fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
 			sptr++;
 		}
-
-		// Amount of data that can be overread by the player.
-		const int OVERREAD_BYTES = 64;
-		if (loop_len == 0) {
-			for (int i=0;i<OVERREAD_BYTES;i++)
-				fputc(0, out);
-		} else {
-			int idx = cnt - loop_len;
-			int nb = 0;
-			while (nb < OVERREAD_BYTES) {
-				int16_t *sptr = wav.samples + idx*wav.channels;
-				for (int ch=0;ch<wav.channels;ch++) {
-					nb += fwrite(sptr, 1, nbits==8 ? 1 : 2, out);
-					sptr++;
-				}
-				idx++;
-				if (idx == cnt)
-					idx -= loop_len;
-			}
-		}
 	} break;
 
 	case 1: { // vadpcm
-		if (cnt % kVADPCMFrameSampleCount) {
-			int newcnt = (cnt + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
+		// We need cnt to be a multiple of kVADPCMFrameSampleCount (16) because
+		// VADPCM are compressed using 16-sample frames.
+		// In addition to that, our RSP decompressor at the moment only supports
+		// multiples of 32 (for DMA alignment issues), so pad it to that.
+		const int VADPCM_ALIGN = kVADPCMFrameSampleCount*2;
+		if (cnt % VADPCM_ALIGN) {
+			int newcnt = (cnt + VADPCM_ALIGN - 1) / VADPCM_ALIGN * VADPCM_ALIGN;
 			wav.samples = realloc(wav.samples, newcnt * wav.channels * sizeof(int16_t));
 			memset(wav.samples + cnt, 0, (newcnt - cnt) * wav.channels * sizeof(int16_t));
 			cnt = newcnt;

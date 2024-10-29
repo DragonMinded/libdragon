@@ -1,7 +1,7 @@
 /**
  * @file rdpq_internal.h
  * @brief RDP Command queue: internal functions
- * @ingroup rdp
+ * @ingroup rdpq
  */
 
 #ifndef __LIBDRAGON_RDPQ_INTERNAL_H

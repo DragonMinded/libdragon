@@ -519,7 +519,7 @@ OPUS_deemphasis:
     li t0, DMA_SIZE(4*2, 1)
 
     li out_step, 2
-    li s4, %lo(DEEMPH_OUT) - 2*8
+    li dmem_out, %lo(DEEMPH_OUT) - 2*8
 
     # Check if there is a second buffer
     srl downsample_factor, a1, 24;          vxor vmtx7, vmtx7     
@@ -534,11 +534,14 @@ OPUS_deemphasis:
 
     li out_step, 4
     li dmem_out, %lo(DEEMPH_OUT) - 4*8
-    andi t0, rdram_out, 7
+
+    # Handle misalignment of RDRAM output buffer by shifting
+    # our DMEM buffer by the same amount.
+1:  andi t0, rdram_out, 7
     addu dmem_out, t0
 
     # Load coefficient matrix
-1:  li s0, %lo(KEMPHTABLE)
+    li s0, %lo(KEMPHTABLE)
     lqv vmtx0.e0, 0x00,s0
     lqv vmtx1.e1, 0x00,s0
     lqv vmtx2.e2, 0x00,s0

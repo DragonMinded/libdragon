@@ -1,7 +1,7 @@
 /**
  * @file rdpq_attach.h
  * @brief RDP Command queue: surface attachment API
- * @ingroup rdp
+ * @ingroup rdpq
  * 
  * This module implements a higher level API for attaching surfaces to the RDP.
  * 

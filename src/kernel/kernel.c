@@ -623,12 +623,10 @@ void kthread_resume(kthread_t *th)
 void kthread_detach(kthread_t *th)
 {
 	if (th == NULL) th = th_cur;
-	// disable_interrupts();
-	kernel_preempt_disable();
+	disable_interrupts();
 	assertf((th->flags & TH_FLAG_WAITFORJOIN) == 0, "cannot detach thread %s[%p] which is already exited", th->name, th);
 	th->flags |= TH_FLAG_DETACHED;
-	kernel_preempt_enable();
-	// enable_interrupts();
+	enable_interrupts();
 }
 
 int kthread_join(kthread_t *th)

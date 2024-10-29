@@ -1,7 +1,7 @@
 /**
  * @file rdpq_mode.h
  * @brief RDP Command queue: mode setting
- * @ingroup rdp
+ * @ingroup rdpq
  * 
  * The mode API is a high level API to simplify mode setting with RDP. Configuring
  * render modes is possibly the most complex task with RDP programming, as the RDP

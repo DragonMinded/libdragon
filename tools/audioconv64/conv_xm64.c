@@ -75,9 +75,8 @@ int xm_convert(const char *infn, const char *outfn) {
 			default:
 				fatal("invalid loop type: %d\n", s->loop_type);
 			case XM_NO_LOOP:
-				sout = malloc(length + MIXER_LOOP_OVERREAD);
+				sout = malloc(length);
 				memcpy(sout, s->data8, length);
-				memset(sout+length, 0, MIXER_LOOP_OVERREAD);
 				break;
 			case XM_FORWARD_LOOP:
 				// Special case for odd-sized loops of 8-bit samples. We cannot
@@ -93,35 +92,30 @@ int xm_convert(const char *infn, const char *outfn) {
 				// error made by xm64 when shortening is < 0.1%, which isn't
 				// audible.
 				if (bps == 1 && loop_length%2 == 1 && loop_length < XM64_SHORT_ODD_LOOP_LENGTH) {
-					sout = malloc(loop_end + loop_length + MIXER_LOOP_OVERREAD);
+					sout = malloc(loop_end + loop_length);
 					length = loop_end+loop_length;
 					// Copy waveform until loop end
 					memcpy(sout, s->data8, loop_end);
 					// Duplicate loop
 					memmove(sout + loop_end, s->data8 + loop_end - loop_length, loop_length);
-					// Add overread
-					memmove(sout + loop_end + loop_length, s->data8 + loop_end - loop_length, MIXER_LOOP_OVERREAD);
 					loop_end += loop_length;
 					loop_length *= 2;
 				} else {				
-					sout = malloc(loop_end + MIXER_LOOP_OVERREAD);
+					sout = malloc(loop_end);
 					length = loop_end;
 					// Copy waveform until loop end
 					memcpy(sout, s->data8, loop_end);
-					// Add overread
-					memmove(sout + loop_end, s->data8 + loop_end - loop_length, MIXER_LOOP_OVERREAD);
 				}
 				break;
 			case XM_PING_PONG_LOOP:
 				length = loop_end + loop_length;
-				sout = malloc(length + MIXER_LOOP_OVERREAD);
+				sout = malloc(length);
 				out = sout;
 
 				memcpy(out, s->data8, loop_end);
 				out += loop_end;
 				for (int x=0;x<loop_length;x++)
 					*out++ = s->data8[(loop_end-x-1) ^ (bps>>1)];
-				memmove(out, s->data8 + loop_end - loop_length, MIXER_LOOP_OVERREAD);
 
 				loop_end += loop_length;
 				loop_length *= 2;

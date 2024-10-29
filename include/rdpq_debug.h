@@ -1,7 +1,7 @@
 /**
  * @file rdpq_debug.h
  * @brief RDP Command queue: debugging helpers
- * @ingroup rdp
+ * @ingroup rdpq
  */
 
 #ifndef LIBDRAGON_RDPQ_DEBUG_H
