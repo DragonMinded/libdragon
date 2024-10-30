@@ -15,24 +15,25 @@
 DEFINE_RSP_UCODE(rsp_opus_dsp);         ///< RSP ucode for DSP functions
 DEFINE_RSP_UCODE(rsp_opus_imdct);       ///< RSP ucode for IMDCT
 
+static uint32_t RSP_OPUS_DSP_ID = 0;
+static uint32_t RSP_OPUS_IMDCT_ID = 0;
+
 static void fft_init(void);
 
 /** @brief Initialize Opus RSP acceleration */
 void rsp_opus_init(void)
 {
-    static bool init = false;
-    if (!init) {
+    if (!RSP_OPUS_DSP_ID) {
         rspq_init();
-        rspq_overlay_register_static(&rsp_opus_dsp, 0x8<<28);
-        rspq_overlay_register_static(&rsp_opus_imdct, 0x9<<28);
+        RSP_OPUS_DSP_ID = rspq_overlay_register(&rsp_opus_dsp);
+        RSP_OPUS_IMDCT_ID = rspq_overlay_register(&rsp_opus_imdct);
         fft_init();
-        init = true;
     }
 }
 
 static void rsp_cmd_deemphasis(int32_t *inch0, int32_t *inch1, int16_t *out, int32_t state[2], int nn, int downsample)
 {
-    rspq_write(0x8<<28, 0x0, 
+    rspq_write(RSP_OPUS_DSP_ID, 0x0, 
         PhysicalAddr(inch0),
         PhysicalAddr(inch1) | (downsample<<24),
         PhysicalAddr(out)   | ((nn/4-1) << 24),
@@ -42,7 +43,7 @@ static void rsp_cmd_deemphasis(int32_t *inch0, int32_t *inch1, int16_t *out, int
 
 static void rsp_cmd_comb_fetch(opus_val32 *x, int dmem_idx, int nsamples)
 {
-   rspq_write(0x8<<28, 0x1,
+   rspq_write(RSP_OPUS_DSP_ID, 0x1,
       PhysicalAddr(x), 
       (dmem_idx<<16) | nsamples);
 }
@@ -50,7 +51,7 @@ static void rsp_cmd_comb_fetch(opus_val32 *x, int dmem_idx, int nsamples)
 static void rsp_cmd_comb_single(int nsamples, int i_idx, int t0_idx,
     int16_t g10, int16_t g11, int16_t g12)
 {
-    rspq_write(0x8<<28, 0x2,
+    rspq_write(RSP_OPUS_DSP_ID, 0x2,
         (nsamples/8-1)<<8 | (i_idx/4)<<0,
         (uint16_t)g10 | ((uint16_t)g11 << 16),
         ((uint16_t)g12),
@@ -61,7 +62,7 @@ static void rsp_cmd_comb_dual(int nsamples, int i_idx, int t0_idx, int t1_idx,
     int16_t g00, int16_t g01, int16_t g02,
     int16_t g10, int16_t g11, int16_t g12)
 {
-   rspq_write(0x8<<28, 0x4,
+   rspq_write(RSP_OPUS_DSP_ID, 0x4,
       (nsamples/8-1)<<8 | (i_idx/4)<<0,
       (uint16_t)g00 | ((uint16_t)g01 << 16),
       ((uint16_t)g02) | ((uint16_t)g10 << 16),
@@ -71,14 +72,14 @@ static void rsp_cmd_comb_dual(int nsamples, int i_idx, int t0_idx, int t1_idx,
 
 static void rsp_cmd_comb_result(opus_val32 *x, int i_idx, int nsamples)
 {
-   rspq_write(0x8<<28, 0x3,
+   rspq_write(RSP_OPUS_DSP_ID, 0x3,
       PhysicalAddr(x),
       (i_idx<<16) | nsamples);
 }
 
 static void rsp_cmd_memmove(int32_t *dst, int32_t *src, int nsamples)
 {
-   rspq_write(0x9<<28, 0x2,
+   rspq_write(RSP_OPUS_IMDCT_ID, 0x2,
       PhysicalAddr(dst),
       PhysicalAddr(src),
       nsamples * sizeof(int32_t));
@@ -86,7 +87,7 @@ static void rsp_cmd_memmove(int32_t *dst, int32_t *src, int nsamples)
 
 static void rsp_cmd_clear(int32_t *dst, int nsamples)
 {
-   rspq_write(0x9<<28, 0x3,
+   rspq_write(RSP_OPUS_IMDCT_ID, 0x3,
       PhysicalAddr(dst),
       nsamples * sizeof(int32_t));
 }
@@ -434,7 +435,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
     data_cache_hit_writeback_invalidate(in, N*2*stride); // FIXME: maybe *stride is wrong?
     assertf(PhysicalAddr(in) % 8 == 0, "in=%p", in);
     assert(PhysicalAddr(l->kfft[shift]->bitrev) % 8 == 0);
-    rspq_write(0x9<<28, 0x0,
+    rspq_write(RSP_OPUS_IMDCT_ID, 0x0,
         PhysicalAddr(in),
         (l->n-1) | ((stride-1)<<12) | (shift<<16),
         PhysicalAddr(rsp_workram),
@@ -479,7 +480,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
 
     assert(overlap < 256);
     for (int b=0; b<B; b++) {
-        rspq_write(0x9<<28, 0x1,
+        rspq_write(RSP_OPUS_IMDCT_ID, 0x1,
             PhysicalAddr(out+NB*b),
             (overlap << 24) | PhysicalAddr(rsp_window)
         );

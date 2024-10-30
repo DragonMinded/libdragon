@@ -119,8 +119,6 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
 void wav64_opus_init(wav64_t *wav, int fh) {
     wav64_opus_header_ext xhead;
     read(fh, &xhead, sizeof(xhead));
-    debugf("opus header: frame_size=%ld, max_cmp_frame_size=%ld, bitrate_bps=%ld\n", xhead.frame_size, xhead.max_cmp_frame_size, xhead.bitrate_bps);
-    debugf("frequency: %f\n", wav->wave.frequency);
 
     rsp_opus_init();
 

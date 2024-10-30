@@ -20,7 +20,20 @@
 #if !RDPQ_TRIANGLE_CUSTOM_VTX
     #define VTX_ATTR_XY          0
     #define VTX_ATTR_Z           4
-    #define VTX_ATTR_CLIPFLAGS   6         // Clipping codes + Negated trivial-reject codes
+    /**
+     * Clipping flags:
+     * Bit 0..5:   Clipping flags for frustum planes. 1=outside, 0=inside.
+     *
+     * Given clip1,clip2,clip3, a triangle will be clipped if (clip1|clip2|clip3) & 0x3F != 0.
+     */
+    #define VTX_ATTR_CLIPFLAGS   6
+    /**
+     * Negated trivial-reject flags (clipping flags for enlarged frustum planes).
+     * Bit 0..5:   Clipping lags for enlarged frustum planes. 1=inside, 0=outside.
+     *
+     * Given rej1,rej2,rej3, a triangle will be trivially rejected if (rej1|rej2|rej3) & 0x3F != 0x3F.
+     */
+    #define VTX_ATTR_REJFLAGS    7
     #define VTX_ATTR_RGBA        8
     #define VTX_ATTR_ST         12
     #define VTX_ATTR_Wi         16
@@ -258,20 +271,20 @@ RDPQ_Triangle_Send_Async:
     # Do a sort-of-three (min, mid, max), using vyN as key of the sort,
     # and vallN as values to sort. We compare the keys with vlt/vge,
     # and then use vmrg to apply the swap.
-    lbu t6, %lo(RDPQ_OTHER_MODES) + 0;          vge vytmp1, vy1, vy2;               
+    li t6, 0x3F;                                vge vytmp1, vy1, vy2;
     or clip1, clip3;                            vmrg valltmp1, vall1, vall2;        
     or clip1, clip2;                            vlt vy1, vy1, vy2;                  
     cfc2 did_swap_0, COP2_CTRL_VCC;             vmrg vall1, vall1, vall2;
 
-    andi t1, clip1, 0x3F00;                     vxor vhmlupp, vhmlupp
+    andi t1, clip1, 0x3F;                       vxor vhmlupp, vhmlupp
 
-    bnez t1, RDPQ_Triangle_Clip;                vge vytmp2, vy1, vy3;
-    andi clip1, 0xFF;                           vmrg valltmp2, vall1, vall3;
-    andi t6, 0x38;                              vlt vy1, vy1, vy3;                  
+    bne t1, t6, RDPQ_Triangle_Cull;             vge vytmp2, vy1, vy3;
+    andi clip1, 0x3F00;                         vmrg valltmp2, vall1, vall3;
+    lbu t6, %lo(RDPQ_OTHER_MODES) + 0;          vlt vy1, vy1, vy3;
     cfc2 did_swap_1, COP2_CTRL_VCC;             vmrg vall1, vall1, vall3;           
 
-    xori clip1, 0xFF;                           vge vy3, vytmp1, vytmp2;            
-    or tricmd, t6;                              vmrg vall3, valltmp1, valltmp2;
+    nop;                                        vge vy3, vytmp1, vytmp2;
+    andi t6, 0x38;                              vmrg vall3, valltmp1, valltmp2;
     ssv vy1.e0, 6,s3;                           vlt vy2, vytmp1, vytmp2;
     cfc2 did_swap_2, COP2_CTRL_VCC;             vmrg vall2, valltmp1, valltmp2;
 
@@ -279,23 +292,25 @@ RDPQ_Triangle_Send_Async:
     # vector.
     #  vy3:   Y1 Y2 Y3 Y3  Y3 Y3 Y3 Y3 
 
+    #define final_cull    t0  // did_swap_0
+
     # Build vhml:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
-    beqz clip1, RDPQ_Triangle_Cull;             xor did_swap_0, did_swap_1
-    vsubc vhml, vall3, vall1;                   xor did_swap_0, did_swap_2
+    bnez clip1, RDPQ_Triangle_Clip;             xor final_cull, did_swap_1
+    vsubc vhml, vall3, vall1;                   xor final_cull, did_swap_2
     vsubc vm, vall2, vall1;                     mfc2 vtx1, vall1.e3
     vsubc vl, vall3, vall2;                     mfc2 vtx2, vall2.e3
 
     # vx12 = X1 -- X2 --  -- -- -- --
-    vmov vx12_f.e0, vall1.e0;                   andi did_swap_0, 1
-    vmov vx12_f.e2, vall2.e0;                   xor cull, did_swap_0
+    vmov vx12_f.e0, vall1.e0;                   or tricmd, t6
+    vmov vx12_f.e2, vall2.e0;                   andi final_cull, 1
 
     # Prepare -MY for crossprod
     vsubc v__, vzero, my;                       mfc2 vtx3, vall3.e3
     
     # FY.e4 = Y1 (s15.16)
     vsll8 vfy_f, vy1, 14;                       ssv vy2.e0, 4,s3
-    vsra  vfy_i, vy1, 2;                        
+    vsra  vfy_i, vy1, 2;                        xor final_cull, cull
     vmudh vnz_f, vm, hy;                        ssv vy3.e0, 2,s3
     vmadh vnz_f, vhml, v__;                     slv vm.e0,   8,s3
     vsar vnz_i, COP2_ACC_HI;                    slv vl.e0,  12,s3
@@ -322,13 +337,13 @@ RDPQ_Triangle_Send_Async:
     # slope    =  1/HY -- 1/MY --   1/LY -- -- 1/NZ
 
     # Calculate reciprocal of normal            # Backface culling
-    vrcph vslope_i.e7, vnz_i.e0;                mfc2 t0, vnz_i.e0
+    vrcph vslope_i.e7, vnz_i.e0;                mfc2 t1, vnz_i.e0
     vrcpl vslope_f.e7, vnz_f.e0;                lsv vw_f.e2, VTX_ATTR_Wf,vtx2
     vrcph vslope_i.e7, vzero.e0;                lsv vw_f.e4, VTX_ATTR_Wf,vtx3
                                         
     # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  vslope_f.e0, hy;                      slt t0, t0, zero
-    vrcph vslope_i.e0, hy;                      beq t0, cull, RDPQ_Triangle_Cull
+    vrcp  vslope_f.e0, hy;                      slt t1, t1, zero
+    vrcph vslope_i.e0, hy;                      beq t1, final_cull, RDPQ_Triangle_Cull
     # Compute ISM (M slope). 1/MY  (s14.1)
     vrcp  vslope_f.e2, my;                      # <delay slot>
     vrcph vslope_i.e2, my;                      lsv vw_i.e0, VTX_ATTR_Wi,vtx1
@@ -336,6 +351,7 @@ RDPQ_Triangle_Send_Async:
     vrcp  vslope_f.e4, ly;                      lsv vw_i.e2, VTX_ATTR_Wi,vtx2
     vrcph vslope_i.e4, ly;                      lsv vw_i.e4, VTX_ATTR_Wi,vtx3
 
+    #undef final_cull 
     #undef vm
     #undef vl
     #undef hx
@@ -366,8 +382,8 @@ RDPQ_Triangle_Send_Async:
     #    vhml      =   HX HY MX MY    LX LY  0  NZf
     #    vhmlupp   =    0 0  0  0     0  0   0  NZi
                                                 # Write left flag into tricmd
-    vmov vhml.e7, vnz_f.e0;                     xori t0, 1 
-    vmov vhmlupp.e7, vnz_i.e0;                  sll t0, 7
+    vmov vhml.e7, vnz_f.e0;                     xori t1, 1 
+    vmov vhmlupp.e7, vnz_i.e0;                  sll t1, 7
 
     # vslopem2  = X/2 * (-4) = -2*X             
     vmudn vslopem2_f, vslope_f, VKM4;           luv attr3_r, VTX_ATTR_RGBA,vtx3
@@ -375,7 +391,7 @@ RDPQ_Triangle_Send_Async:
 
     # Calculate minimum W (between e0 and e2) 
     vsubc v__,  vw_f, vw_f.e2;                  luv attr2_r, VTX_ATTR_RGBA,vtx2
-    vlt   vw_i, vw_i, vw_i.e2;                  or tricmd, t0
+    vlt   vw_i, vw_i, vw_i.e2;                  or tricmd, t1
     vmrg  vw_f, vw_f, vw_f.e2;                  lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
 
     # NR: R*(X/2)                               # Load other invw components

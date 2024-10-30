@@ -687,6 +687,9 @@ RDPQCmd_TriangleData:
     sw a2, %lo(RDPQ_TRI_DATA0) + 4(a0)  # Z
     sw a3, %lo(RDPQ_TRI_DATA0) + 8(a0)  # RGBA
 
+    li t0, 0xFF
+    sb t0, %lo(RDPQ_TRI_DATA0) + 7(a0)  # TR flags
+
     lw t0, CMD_ADDR(16, 28)
     lw t1, CMD_ADDR(20, 28)
     lw t2, CMD_ADDR(24, 28)
