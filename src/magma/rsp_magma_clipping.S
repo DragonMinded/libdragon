@@ -318,6 +318,7 @@ mg_clip_plane_loop_end:
 
     #define cache_vtx   s3
     #define cache_end   s5
+    #define clip_codes  t1
     #define vinvw_i     $v23
     #define vinvw_f     $v24
     #define vpos_scr_i  $v25
@@ -329,6 +330,7 @@ mg_clip_plane_loop_end:
     # TODO: maybe iterate over out_list instead
     li cache_vtx, %lo(MG_CLIP_CACHE)
     li cache_end, %lo(MG_CLIP_CACHE_END) - MG_VTX_SIZE
+    li clip_codes, 0x00FF
 mg_clip_finalize_loop:
     lb t0, MG_VTX_TR_CODE(cache_vtx)
 
@@ -361,7 +363,7 @@ mg_clip_finalize_loop:
     ssv vnormw_f.e3, MG_VTX_Wf,   cache_vtx
     ssv vinvw_i.e3,  MG_VTX_INVWi,cache_vtx
     ssv vinvw_f.e3,  MG_VTX_INVWf,cache_vtx
-    sh zero, MG_VTX_CLIP_CODE(cache_vtx)
+    sh clip_codes, MG_VTX_CLIP_CODE(cache_vtx)
 
 mg_clip_finalize_loop_end:
     blt cache_vtx, cache_end, mg_clip_finalize_loop
@@ -369,6 +371,7 @@ mg_clip_finalize_loop_end:
 
     #undef cache_vtx
     #undef cache_end
+    #undef clip_codes
     #undef vinvw_i
     #undef vinvw_f
     #undef vpos_scr_i
@@ -413,6 +416,7 @@ mg_clip_finalize_loop_end:
     #define out_end k0
 
     lbu t7, %lo(MG_OUTPUT_OFFSET)
+    lbu v0, %lo(MG_CULL_MODE)
 
     move out_ptr, out_list
     add out_end, out_list, out_count
@@ -420,7 +424,6 @@ mg_clip_finalize_loop_end:
 mg_draw_clipped_triangles_loop:
     bge out_ptr, out_end, RSPQ_Loop
     lhu a3, %lo(MG_TRI_CMD)
-    lbu v0, %lo(MG_CULL_MODE)
     lhu vtx1, 0(out_list)
     lhu vtx2, 2(out_ptr)
     lhu vtx3, 4(out_ptr)

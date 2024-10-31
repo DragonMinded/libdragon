@@ -311,8 +311,8 @@ vertex_loop:
     andi t2, 0x707;                                                     vrsql vinvdist_f.e4, vsqdist_f.e4
     srl t1, t0, 5;                                                      vrsqh vinvdist_i.e4, vzero.e0
     srl t3, t2, 5;                                                      vsubc vfogtmp, vfog_i.h1
-    or tr1, t0, t1;                                                     vch v___, vguard_i, vguard_i.h3
-    or tr2, t2, t3;                                                     vcl v___, vguard_f, vguard_f.h3
+    nor tr1, t0, t1;                                                    vch v___, vguard_i, vguard_i.h3
+    nor tr2, t2, t3;                                                    vcl v___, vguard_f, vguard_f.h3
     cfc2 t0, COP2_CTRL_VCC;                                             vmudm v___,  vnorm, vinvdist_f.h0
     sdv vrgba_in.e0, 0,vtx_out_ptr;                                     vmadh vnorm, vnorm, vinvdist_i.h0
                                                                         
