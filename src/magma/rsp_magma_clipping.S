@@ -205,7 +205,6 @@ mg_clip_edge_loop:
     addi intersection, %lo(MG_CLIP_CACHE) - MG_VTX_SIZE
 
     # Store the cache offset in unused memory (used later when finding the cache slot to mark as unused)
-    ori t0, 0x80
     sb t0, MG_VTX_TR_CODE(intersection)
 
     # Compute dot products of both positions with the clip plane
@@ -276,6 +275,8 @@ mg_clip_edge_loop:
     andi t0, 0x707
     srl t1, t0, 5
     or t0, t1
+    # Set the MSB of clip codes to 1 to mark this vertex as used
+    ori t0, 0x80
     sb t0, MG_VTX_CLIP_CODE(intersection)
 
     # Add intersection to the output list
@@ -295,14 +296,15 @@ mg_clip_no_intersection:
 
 1:
     # Check if the vertex is stored in the clip cache
-    lb t0, MG_VTX_TR_CODE(cur_vtx)
+    lb t0, MG_VTX_CLIP_CODE(cur_vtx)
     bgez t0, mg_clip_edge_loop_end
-    andi t0, 0x7F
+    lb t1, MG_VTX_TR_CODE(cur_vtx)
 
-    # Reset the padding field to zero, so the screen space values won't be recalculated below
-    sb zero, MG_VTX_TR_CODE(cur_vtx)
-    # If so, mark it as unused
-    sh zero, %lo(MG_CLIP_CACHE_USED)-2(t0)
+    # Set the MSB of the clip codes to 0 to mark this vertex as unused
+    andi t0, 0x7F
+    sb t0, MG_VTX_CLIP_CODE(cur_vtx)
+    # Also mark it as unused within the cache so it can be found again when searching for unused vertices
+    sh zero, %lo(MG_CLIP_CACHE_USED)-2(t1)
     
 mg_clip_edge_loop_end:
     # Advance to the next edge
@@ -332,9 +334,9 @@ mg_clip_plane_loop_end:
     li cache_end, %lo(MG_CLIP_CACHE_END) - MG_VTX_SIZE
     li clip_codes, 0x00FF
 mg_clip_finalize_loop:
-    lb t0, MG_VTX_TR_CODE(cache_vtx)
+    lb t0, MG_VTX_CLIP_CODE(cache_vtx)
 
-    # Only calculate screen space values if the vertex is actually used
+    # Only calculate screen space values if the vertex is actually used (MSB of clip codes is set)
     beqz t0, mg_clip_finalize_loop_end
     ldv vint_i,  MG_VTX_CS_POSi,cache_vtx
     ldv vint_f,  MG_VTX_CS_POSf,cache_vtx
