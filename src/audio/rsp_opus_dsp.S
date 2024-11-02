@@ -708,7 +708,6 @@ OPUS_deemphasis_out:
 
     # Handle unaligned output buffer: we need to fetch and merge
     # existing samples on misaligned addresses
-    emux_breakpoint
     move s0, rdram_out
     jal DMAIn
     li s4, %lo(DEEMPH_IN_L)

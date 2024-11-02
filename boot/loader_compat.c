@@ -36,11 +36,6 @@ static void pi_wait(void)
 __attribute__((used))
 void stage2(void)
 {
-    // Invalidate the stack1 area, where the first stage put its stack.
-    // We don't need it anymore, and we don't want it to be flushed to RDRAM
-    // that will be cleared anyway.
-    data_cache_hit_invalidate(STACK1_BASE, STACK1_SIZE);
-
     uint32_t entrypoint = io_read32(0x10000008);
     uint32_t size = io_read32(0x10000010);
     if (size == 0 || size > (8<<20) - (entrypoint & 0x1FFFFFFF) - TOTAL_RESERVED_SIZE)

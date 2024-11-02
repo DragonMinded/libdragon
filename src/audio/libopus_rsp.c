@@ -102,7 +102,7 @@ void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len) {
     rspq_flush();
 }
 
-/** @brief Clear output buffer with RSP */
+/** @brief Clear output buffer with RSP. Len must be in 32-bit samples (not bytes) */
 void rsp_opus_clear(celt_sig *dst, opus_int32 len) {
     rsp_cmd_clear(dst, len);
     rspq_flush();

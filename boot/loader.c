@@ -246,11 +246,6 @@ void stage2(void)
 {
     debugf("Hello from RDRAM ", __builtin_frame_address(0));
 
-    // Invalidate the stack1 area, where the first stage put its stack.
-    // We don't need it anymore, and we don't want it to be flushed to RDRAM
-    // that will be cleared anyway.
-    data_cache_hit_invalidate(STACK1_BASE, STACK1_SIZE);
-
     // Search for the ELF header. We search for a 256-byte aligned header
     // starting at offset 0x1000 in the ROM area (after the IPL3).
     // We search for 64 MiB of ROM space (takes only a couple of seconds)

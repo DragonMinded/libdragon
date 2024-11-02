@@ -623,26 +623,26 @@ OPUS_clear:
 1:  sqv vzero, 0x00,s4
     addiu t4, -16
     bgtz t4, 1b
-    nop
+     addiu s4, 16
 
 OPUS_clear_loop:
     move t4, a1
     ble t4, MOVE_BUFFER_SIZE, 1f
-    nop
+     nop
     li t4, MOVE_BUFFER_SIZE
 1:
     move s0, a0
     li s4, %lo(MOVE_BUFFER)
     jal DMAOut
-    addiu t0, t4, -1
+     addiu t0, t4, -1
 
     addu a0, t4
     addiu a1, -MOVE_BUFFER_SIZE
     bgtz a1, OPUS_clear_loop
-    nop
+     nop
 
     j RSPQ_Loop
-    nop
+     nop
 
     .endfunc
 

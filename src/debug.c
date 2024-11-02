@@ -389,7 +389,7 @@ void debug_hexdump(const void *vbuf, int size)
             lineskip = true;
         } else {
             lineskip = false;
-            debugf("%04x  ", i);
+            debugf("%08lx %04x  ", (uint32_t)d, i);
             for (int j=0;j<16;j++) {
 				if (i+j < size)
 					debugf("%02x ", d[j]);

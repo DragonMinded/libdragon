@@ -80,6 +80,9 @@
 /** Decoder state
  @brief Decoder state
  */
+#ifdef N64
+__attribute__((aligned(16)))
+#endif
 struct OpusCustomDecoder {
    const OpusCustomMode *mode;
    int overlap;
@@ -107,9 +110,16 @@ struct OpusCustomDecoder {
    int postfilter_tapset;
    int postfilter_tapset_old;
 
+   #ifdef N64
+   /* Everything beyond this point, before lpc, is cleared with RSP on reset.
+    * We want it to sit on separate cachelines to avoid cache bugs. */
+   __attribute__((aligned(16)))
+   #endif
    celt_sig preemph_memD[2];
+   celt_sig __padding[2]; /* make sure the size of the RSP cleared area is 16-byte multiple */
 
    celt_sig _decode_mem[1]; /* Size = channels*(DECODE_BUFFER_SIZE+mode->overlap) */
+   /**************** Everything beyond this point is CPU cleared on reset */
    /* opus_val16 lpc[],  Size = channels*LPC_ORDER */
    /* opus_val16 oldEBands[], Size = 2*mode->nbEBands */
    /* opus_val16 oldLogE[], Size = 2*mode->nbEBands */
@@ -174,7 +184,11 @@ OPUS_CUSTOM_NOSTATIC int opus_custom_decoder_get_size(const CELTMode *mode, int 
 CELTDecoder *opus_custom_decoder_create(const CELTMode *mode, int channels, int *error)
 {
    int ret;
+   #ifdef N64
+   CELTDecoder *st = (CELTDecoder *)memalign(16, opus_custom_decoder_get_size(mode, channels));
+   #else
    CELTDecoder *st = (CELTDecoder *)opus_alloc(opus_custom_decoder_get_size(mode, channels));
+   #endif
    ret = opus_custom_decoder_init(st, mode, channels);
    if (ret != OPUS_OK)
    {
@@ -1358,13 +1372,17 @@ int opus_custom_decoder_ctl(CELTDecoder * OPUS_RESTRICT st, int request, ...)
          OPUS_CLEAR((char*)lpc,
                (char*)st + st_size - (char*)lpc);
          #ifdef N64
-         data_cache_hit_writeback_invalidate(st->preemph_memD, sizeof(st->preemph_memD));
-         data_cache_hit_writeback_invalidate(st->_decode_mem, (DECODE_BUFFER_SIZE+st->overlap)*st->channels*sizeof(celt_sig));
+         void *rsp_clear_data_start = (char*)&st->preemph_memD[0];
+         void *rsp_clear_data_end = (char*)lpc;
+         int rsp_clear_data_size = rsp_clear_data_end - rsp_clear_data_start;
+         assert((uint32_t)rsp_clear_data_start % 16 == 0);
+         assert(rsp_clear_data_size % 16 == 0);
+         data_cache_hit_writeback_invalidate(rsp_clear_data_start, rsp_clear_data_size);
          rspq_highpri_begin();
-         rsp_opus_clear(st->preemph_memD, 2);
-         rsp_opus_clear(st->_decode_mem, (DECODE_BUFFER_SIZE+st->overlap)*st->channels);
+         rsp_opus_clear(rsp_clear_data_start, rsp_clear_data_size/4);
          rspq_highpri_end();
          #else
+         OPUS_CLEAR(st->preemph_memD, 2);
          OPUS_CLEAR(st->_decode_mem, (DECODE_BUFFER_SIZE+st->overlap)*st->channels);
          #endif
 
