@@ -77,7 +77,7 @@ int main(void)
 
 	// Open the audio track and start playing it in channel 0.
 	wav64_t audio_track;
-	wav64_open(&audio_track, "movie.wav64");
+	wav64_open(&audio_track, "rom:/movie.wav64");
 	mixer_ch_play(0, &audio_track.wave);
 
 	int nframes = 0;
