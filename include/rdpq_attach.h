@@ -34,7 +34,9 @@ extern "C" {
  * or to render to an offscreen buffer created with #surface_alloc or #surface_make.
  * 
  * This function should be called before any rendering operations to ensure that the RDP
- * has a valid render target to operate on. 
+ * has a valid render target to operate on. It also resets the scissor rectangle
+ * to match the buffer being passed, so that the whole buffer will be writable
+ * after attaching to it.
  * 
  * The previous render targets are stored away in a small stack, so that they can be
  * restored later when #rdpq_detach is called. This allows to temporarily switch

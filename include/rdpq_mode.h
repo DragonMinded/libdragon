@@ -512,9 +512,11 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  *    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY_CONST);
  * @endcode
  * 
- * Notice that the alpha value coming out of the combiner is ignored. This
- * means that you can use this blender formula even for blending textures without
- * alpha channel.
+ * Notice that the alpha value coming out of the combiner is ignored for the
+ * effect of blending, but it still used for alpha compare. This is very useful
+ * because for instance you can have a sprite with a 1-bit alpha channel to
+ * perform alpha compare masking, but still have a semi-transparency effect
+ * applied to the visible portions of the sprite.
  */
 #define RDPQ_BLENDER_MULTIPLY_CONST     RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
 
@@ -536,8 +538,18 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * 
  * The standard blending formulas are:
  * 
- *  * #RDPQ_BLENDER_MULTIPLY: multiplicative alpha blending
- *  * #RDPQ_BLENDER_ADDITIVE: additive alpha blending
+ *  * #RDPQ_BLENDER_MULTIPLY: multiplicative alpha blending using texture's alpha
+ *  * #RDPQ_BLENDER_MULTIPLY_CONST: multiplicative alpha blending using a constant alpha
+ *  * #RDPQ_BLENDER_ADDITIVE: additive alpha blending (mostly broken).
+ * 
+ * Normally, you would use #RDPQ_BLENDER_MULTIPLY when your source texture has
+ * an internal alpha channel that you want to use for blending. Otherwise, if
+ * you just want to add a fixed-level semi-transparency to an existing texture,
+ * use #RDPQ_BLENDER_MULTIPLY_CONST.
+ * 
+ * #RDPQ_BLENDER_ADDITIVE is mostly broken on RDP, as it doesn't handle correctly
+ * overflowing values. Basically, values up to 1.5 are correctly clamped to 1,
+ * but values above 1.5 are wrapped back to 0, which makes the mode almost useless.
  * 
  * It is possible to also create custom formulas. The blender unit
  * allows for up to two passes. Use #RDPQ_BLENDER to create a one-pass
@@ -558,16 +570,11 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  *      // Set standard mode
  *      rdpq_set_mode_standard();
  * 
- *      // Configure the formula:
- *      //      (IN_RGB * FOG_ALPHA) + (MEMORY_RGB * (1 - FOG_ALPHA))
- *      //
- *      // where FOG_ALPHA is the fixed alpha value coming from the FOG register.
- *      // Notice that the FOG register is not necessarily about fogging... it is
- *      // just one of the two registers that can be used in blending formulas.
- *      rdpq_mode_blender(RDPQ_BLENDER(IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+ *      // Use blending with a constant semi-transparency value
+ *      rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY_CONST);
  * 
- *      // Configure the FOG_ALPHA value to 128 (= 0.5). The RGB components are
- *      // not used.
+ *      // Configure the blending value to 128 (0.5). Notice that RGB
+ *      // values are ignored in this formula.
  *      rdpq_set_fog_color(RGBA32(0,0,0, 128));
  * 
  *      // Load a texture into TMEM
@@ -586,6 +593,7 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * @see #rdpq_mode_fog
  * @see #RDPQ_BLENDER
  * @see #RDPQ_BLENDER_MULTIPLY
+ * @see #RDPQ_BLENDER_MULTIPLY_CONST
  * @see #RDPQ_BLENDER_ADDITIVE
  */
 inline void rdpq_mode_blender(rdpq_blender_t blend) {
@@ -750,10 +758,8 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
  * @brief Activate palette lookup during drawing
  * 
  * This function allows to enable / disable palette lookup during
- * drawing. To draw using a texture with palette, it is necessary
- * to first load the texture into TMEM (eg: via #rdpq_tex_upload), 
- * then load the palette (eg: via #rdpq_tex_upload_tlut),
- * and finally activate the palette drawing mode via #rdpq_mode_tlut.
+ * drawing. Uploading a palette to TMEM can be done via #rdpq_tex_upload_tlut,
+ * or lower-level functions such as #rdpq_load_tlut_raw.
  * 
  * @param tlut     Palette type, or 0 to disable.
  * 

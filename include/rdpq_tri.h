@@ -116,6 +116,8 @@ extern const rdpq_trifmt_t TRIFMT_FILL;
  * @brief Format descriptor for a shaded triangle.
  * 
  * Vertex array format: `(float){X, Y, R, G, B, A}` (6 floats)
+ * 
+ * The suggested standard color combiner for this format is #RDPQ_COMBINER_SHADE.
  */
 extern const rdpq_trifmt_t TRIFMT_SHADE;
 
@@ -123,6 +125,8 @@ extern const rdpq_trifmt_t TRIFMT_SHADE;
  * @brief Format descriptor for a textured triangle.
  * 
  * Vertex array format: `(float){X, Y, S, T, INV_W}` (5 floats)
+ * 
+ * The suggested standard color combiner for this format is #RDPQ_COMBINER_TEX.
  */
 extern const rdpq_trifmt_t TRIFMT_TEX;
 
@@ -130,6 +134,8 @@ extern const rdpq_trifmt_t TRIFMT_TEX;
  * @brief Format descriptor for a shaded, textured triangle.
  * 
  * Vertex array format: `(float){X, Y, R, G, B, A, S, T, INV_W}` (9 floats)
+ * 
+ * The suggested standard color combiner for this format is #RDPQ_COMBINER_TEX_SHADE.
  */
 extern const rdpq_trifmt_t TRIFMT_SHADE_TEX;
 
