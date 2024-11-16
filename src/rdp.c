@@ -15,6 +15,7 @@
 #include "n64sys.h"
 #include "utils.h"
 #include "sprite.h"
+#include "sprite_internal.h"
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
@@ -196,6 +197,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
 uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
 {
     if( !sprite ) { return 0; }
+    __sprite_upgrade(sprite);
     assertf(sprite_get_format(sprite) == FMT_RGBA16 || sprite_get_format(sprite) == FMT_RGBA32,
         "only sprites in FMT_RGBA16 or FMT_RGBA32 are supported");
 
@@ -206,6 +208,7 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, s
 uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite, int offset )
 {
     if( !sprite ) { return 0; }
+    __sprite_upgrade(sprite);
     assertf(sprite_get_format(sprite) == FMT_RGBA16 || sprite_get_format(sprite) == FMT_RGBA32,
         "only sprites in FMT_RGBA16 or FMT_RGBA32 are supported");
 
