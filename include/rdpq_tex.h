@@ -61,6 +61,7 @@ enum tex_load_mode {
 
 typedef struct tex_loader_s {
     const surface_t *tex;
+    tex_format_t fmt;
     rdpq_tile_t tile;
     const rdpq_texparms_t *texparms;
     rdpq_tileparms_t tileparms;

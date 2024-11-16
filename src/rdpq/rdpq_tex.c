@@ -116,7 +116,7 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     // additional logic here to select the proper pixels
     assertf(s1 <= tload->tex->width && t1 <= tload->tex->height, "rdpq tex loader does not support clamping/mirroring");
 
-    tex_format_t fmt = surface_get_format(tload->tex);
+    tex_format_t fmt = tload->fmt;
     if (TEX_FORMAT_BITDEPTH(fmt) == 4) {
         s0 &= ~1; s1 = (s1+1) & ~1;
     }
@@ -204,7 +204,7 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         assertf(ROUND_UP(tload->tex->width, 2) % 4 == 0, "Internal Error: invalid width for LOAD_BLOCK (%d)", tload->tex->width);
         rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), FMT_RGBA16, (tload->tex->width+1)/4, tload->tex->height);
         rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, NULL);
-        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
+        rdpq_set_tile(tload->tile, tload->fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
@@ -221,7 +221,7 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
 static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
     rdpq_tile_t tile_internal = (tload->tile + 1) & 7;
-    tex_format_t fmt = surface_get_format(tload->tex);
+    tex_format_t fmt = tload->fmt;
     if (tload->load_mode != TEX_LOAD_BLOCK) {
         // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
@@ -244,7 +244,7 @@ static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
 static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
     rdpq_tile_t tile_internal = (tload->tile + 1) & 7;
-    tex_format_t fmt = surface_get_format(tload->tex);
+    tex_format_t fmt = tload->fmt;
     if (tload->load_mode != TEX_LOAD_BLOCK) {
         // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
@@ -270,7 +270,7 @@ static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t
     if (tload->load_mode != TEX_LOAD_TILE) {
         rdpq_set_texture_image_raw(surface_get_placeholder_index(tload->tex), PhysicalAddr(tload->tex->buffer), FMT_I8, tload->tex->stride, tload->tex->height);
         rdpq_set_tile(tile_internal, FMT_I8, tload->tmem_addr, tload->rect.tmem_pitch, NULL);
-        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
+        rdpq_set_tile(tload->tile, tload->fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_TILE;
     }
 
@@ -285,7 +285,7 @@ static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t
 
 static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
-    tex_format_t fmt = surface_get_format(tload->tex);
+    tex_format_t fmt = tload->fmt;
     if (tload->load_mode != TEX_LOAD_TILE) {
         rdpq_set_texture_image(tload->tex);
         rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
@@ -303,7 +303,7 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 
 static void texload_settile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
-    tex_format_t fmt = surface_get_format(tload->tex);
+    tex_format_t fmt = tload->fmt;
 
     rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
 
@@ -334,6 +334,7 @@ tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex) {
     bool is_8bpp = bpp == 8;
     return (tex_loader_t){
         .tex = tex,
+        .fmt = surface_get_format(tex),
         .tile = tile,
         .load_block = is_4bpp ? texload_block_4bpp : (is_8bpp ? texload_block_8bpp : texload_block),
         .load_tile = is_4bpp ? texload_tile_4bpp : texload_tile,
@@ -393,6 +394,11 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texpa
         #endif
     }
 
+    // We can't guarantee the surface pointer will be valid after this function return
+    // so clean it. Our code shouldn't reuse the surface anyway, but let's make sure
+    // it triggers a crash if it does.
+    last_tload.tex = NULL;
+
     return nbytes;
 }
 
@@ -404,7 +410,7 @@ int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_
 int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
     assertf(multi_upload.used, "Reusing existing texture needs to be done through multi-texture upload");
-    assertf(last_tload.tex, "Reusing existing texture is not possible without uploading at least one texture first");  
+    assertf(last_tload.fmt != FMT_NONE, "Reusing existing texture is not possible without uploading at least one texture first");
     assertf(parms == NULL || parms->tmem_addr == 0, "Do not specify a TMEM address while reusing an existing texture");
 
     // Check if just copying a tile descriptor is enough
@@ -423,10 +429,9 @@ int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, i
     assertf(s0 >= 0 && t0 >= 0 && s1 <= tload.rect.width && t1 <= tload.rect.height, "Sub coordinates (%i,%i)-(%i,%i) must be within bounds of the texture reused (%ix%i)", s0, t0, s1, t1,  tload.rect.width, tload.rect.height);
     assertf(t0 % 2 == 0, "t0=%i must be in multiples of 2 pixels", t0);
 
-    tex_format_t fmt = surface_get_format(tload.tex);
-    int tmem_offset = TEX_FORMAT_PIX2BYTES(fmt, s0);
+    int tmem_offset = TEX_FORMAT_PIX2BYTES(tload.fmt, s0);
 
-    assertf(tmem_offset % 8 == 0, "Due to 8-byte texture alignment, for %s format, s0=%i must be in multiples of %i pixels", tex_format_name(fmt), s0, TEX_FORMAT_BYTES2PIX(fmt, 8));
+    assertf(tmem_offset % 8 == 0, "Due to 8-byte texture alignment, for %s format, s0=%i must be in multiples of %i pixels", tex_format_name(tload.fmt), s0, TEX_FORMAT_BYTES2PIX(tload.fmt, 8));
     
     tmem_offset += tload.rect.tmem_pitch*t0;
     tload.tmem_addr = RDPQ_AUTOTMEM_REUSE(tmem_offset);
@@ -689,6 +694,7 @@ void rdpq_tex_multi_begin(void)
         multi_upload.bytes = 0;
         multi_upload.limit = 4096;
         last_tload.tex = 0;
+        last_tload.fmt = FMT_NONE;
     }
 }
 
