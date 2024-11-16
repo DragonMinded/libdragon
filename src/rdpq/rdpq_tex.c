@@ -52,6 +52,7 @@ static void texload_recalc_tileparms(tex_loader_t *tload)
     int ymask = 0;
 
     rdpq_tileparms_t *res = &tload->tileparms;
+    res->palette = parms->palette;
 
     if(parms->s.repeats > 1){
         xmask = integer_to_pow2(width);
