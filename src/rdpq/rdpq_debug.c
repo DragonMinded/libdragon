@@ -1290,8 +1290,10 @@ static void validate_use_tile_internal(int tidx, int cycles, float *texcoords, i
             // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
             // In copy mode, YUV textures are copied as-is
             if (tile->fmt == 1) {
-                VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>cycle)),
-                    "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, cycle);
+                if (cycles & 1) VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>0)),
+                        "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, 0);
+                if (cycles & 2) VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>1)),
+                        "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, 1);
                 if (rdp.som.sample_type > 1) {
                     static const char* texinterp[] = { "point", "point", "bilinear", "median" };
                     VALIDATE_ERR_SOM(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
@@ -1300,8 +1302,10 @@ static void validate_use_tile_internal(int tidx, int cycles, float *texcoords, i
                         "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured", tidx, texinterp[rdp.som.sample_type]);
                 }
             } else {
-                VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>cycle)),
-                    "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, cycle, cycle);
+                if (cycles & 1) VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>0)),
+                    "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, 0, 0);
+                if (cycles & 2) VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>1)),
+                    "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, 1, 1);
             }
             // Validate clamp/mirror/wrap modes
             if (use_outside) {
