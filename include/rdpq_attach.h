@@ -93,6 +93,17 @@ inline void rdpq_clear(color_t color) {
 /**
  * @brief Reset the current Z buffer to a given value.
  * 
+ * This function clears the Z-buffer with the specified packed 16-bit value. This
+ * value is composed as follows:
+ * 
+ * * The top 16-bit contains the Z value in a custom floating point format.
+ * * The bottom 2-bits (plus the 2 hidden bits) contain the Delta-Z value. The
+ *   Delta-Z value to use while clearing does not matter in practice for
+ *   normal Z buffer usages, so it can be left as 0.
+ * 
+ * The default value to use for clearing the Z-buffer is #ZBUF_MAX. To set the
+ * clear value to a custom Z value, use the #ZBUF_VAL macro.
+ * 
  * Note that this function will respect the current scissor rectangle, if
  * configured.
  * 
