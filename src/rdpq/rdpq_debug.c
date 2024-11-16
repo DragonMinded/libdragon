@@ -381,8 +381,13 @@ void rdpq_debug_start(void)
 
 void rdpq_debug_log(bool log)
 {
-    assertf(rdpq_trace, "rdpq trace engine not started");
-    rdpq_passthrough_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_SHOWLOG, log ? 1 : 0));
+    static bool warning = false;
+    if (log && !rdpq_trace && !warning) {
+        debugf("WARNING: rdpq_debug_log(true) ignored because trace engine was not started\n");
+        warning = true;
+    }
+    if (rdpq_trace)
+        rdpq_passthrough_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_SHOWLOG, log ? 1 : 0));
 }
 
 void rdpq_debug_log_msg(const char *msg)
