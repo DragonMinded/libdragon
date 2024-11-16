@@ -1012,6 +1012,14 @@ void rdpq_set_color_image(const surface_t *surface)
     }
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
         "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP color image");
+    if (rdpq_config & RDPQ_CFG_AUTOSCISSOR) {
+        // Max horizontal scissor value is 1023, and that allows for a 1023-pixel
+        // surface in standard mode, and 1024-pixel surface in copy/fill mode.
+        // Here, for simplicity, we just allow only up to 1023.
+        // Height is always exclusive, so the maximum height is always 1023.
+        assertf(surface->width <= 1023, "surface width is too large for auto-scissoring (max: 1023)");
+        assertf(surface->height <= 1023, "surface height is too large for auto-scissoring (max: 1023)");
+    }
     rdpq_set_color_image_raw(0, PhysicalAddr(surface->buffer), 
         surface_get_format(surface), surface->width, surface->height, surface->stride);
 }
