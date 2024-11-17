@@ -640,4 +640,13 @@ void display_set_fps_limit(float fps)
     enable_interrupts();
 }
 
+surface_t display_get_current_framebuffer(void)
+{
+    return surface_make_linear(
+        VirtualUncachedAddr(*VI_ORIGIN), 
+        display_get_bitdepth() == 2 ? FMT_RGBA16 : FMT_RGBA32,
+        display_get_width(),
+        display_get_height());
+}
+
 extern inline void vi_write_config(const vi_config_t* config);

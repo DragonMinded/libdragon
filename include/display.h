@@ -342,6 +342,11 @@ float display_get_delta_time(void);
  */
 void display_set_fps_limit(float fps);
 
+/**
+ * @brief Returns a surface that points to the framebuffer currently being shown on screen.
+ */
+surface_t display_get_current_framebuffer(void);
+
 /** @cond */
 __attribute__((deprecated("use display_get or display_try_get instead")))
 static inline surface_t* display_lock(void) {
