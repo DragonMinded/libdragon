@@ -66,6 +66,9 @@
 extern "C" {
 #endif
 
+#define FM_EPSILON  1e-4f
+#define FM_PI       3.14159265358979f
+
 /** @brief Reinterpret the bits composing a float as a int32. 
  *
  * This version is type-punning safe and produces optimal code when optimizing. 
@@ -198,6 +201,13 @@ void fm_sincosf(float x, float *sin, float *cos);
  * than enough in the context of angles.
  */
 float fm_atan2f(float y, float x);
+
+inline float fm_lerp(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
+
+float fm_lerp_angle(float a, float b, float t);
 
 #ifdef LIBDRAGON_FAST_MATH
     #define truncf(x)     fm_truncf(x)
