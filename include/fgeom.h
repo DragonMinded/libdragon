@@ -39,37 +39,37 @@ typedef struct {
 
 inline void fm_vec3_negate(fm_vec3_t *out, const fm_vec3_t *v)
 {
-    *out = (fm_vec3_t){{ -v->v[0], -v->v[1], -v->v[2] }};
+    for (int i = 0; i < 3; i++) out->v[i] = -v->v[i];
 }
 
 inline void fm_vec3_add(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
-    *out = (fm_vec3_t){{ a->v[0] + b->v[0], a->v[1] + b->v[1], a->v[2] + b->v[2] }};
+    for (int i = 0; i < 3; i++) out->v[i] = a->v[i] + b->v[i];
 }
 
 inline void fm_vec3_sub(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
-    *out = (fm_vec3_t){{ a->v[0] - b->v[0], a->v[1] - b->v[1], a->v[2] - b->v[2] }};
+    for (int i = 0; i < 3; i++) out->v[i] = a->v[i] - b->v[i];
 }
 
 inline void fm_vec3_mul(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
-    *out = (fm_vec3_t){{ a->v[0] * b->v[0], a->v[1] * b->v[1], a->v[2] * b->v[2] }};
+    for (int i = 0; i < 3; i++) out->v[i] = a->v[i] * b->v[i];
 }
 
 inline void fm_vec3_div(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
-    *out = (fm_vec3_t){{ a->v[0] / b->v[0], a->v[1] / b->v[1], a->v[2] / b->v[2] }};
+    for (int i = 0; i < 3; i++) out->v[i] = a->v[i] / b->v[i];
 }
 
 inline void fm_vec3_scale(fm_vec3_t *out, const fm_vec3_t *a, float s)
 {
-    *out = (fm_vec3_t){{ a->v[0] * s, a->v[1] * s, a->v[2] * s }};
+    for (int i = 0; i < 3; i++) out->v[i] = a->v[i] * s;
 }
 
 inline float fm_vec3_dot(const fm_vec3_t *a, const fm_vec3_t *b)
 {
-    return a->v[0] * b->v[0] + a->v[1] * b->v[1] + a->v[2] * b->v[2];
+    return a->x * b->x + a->y * b->y + a->z * b->z;
 }
 
 inline float fm_vec3_len2(const fm_vec3_t *a)
@@ -101,21 +101,19 @@ inline void fm_vec3_norm(fm_vec3_t *out, const fm_vec3_t *a)
         *out = (fm_vec3_t){};
         return;
     }
-    *out = (fm_vec3_t){{ a->v[0] / len, a->v[1] / len, a->v[2] / len }};
+    *out = (fm_vec3_t){{ a->x / len, a->y / len, a->z / len }};
 }
 
 inline void fm_vec3_cross(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
-    *out = (fm_vec3_t){{ a->v[1] * b->v[2] - a->v[2] * b->v[1],
-                         a->v[2] * b->v[0] - a->v[0] * b->v[2],
-                         a->v[0] * b->v[1] - a->v[1] * b->v[0] }};
+    *out = (fm_vec3_t){{ a->y * b->z - a->z * b->y,
+                         a->z * b->x - a->x * b->z,
+                         a->x * b->y - a->y * b->x }};
 }
 
 inline void fm_vec3_lerp(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b, float t)
 {
-    *out = (fm_vec3_t){{ a->v[0] + (b->v[0] - a->v[0]) * t,
-                         a->v[1] + (b->v[1] - a->v[1]) * t,
-                         a->v[2] + (b->v[2] - a->v[2]) * t }};
+    for (int i = 0; i < 3; i++) out->v[i] = a->v[i] + (b->v[i] - a->v[i]) * t;
 }
 
 void fm_vec3_reflect(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n);
@@ -143,7 +141,7 @@ void fm_quat_rotate(fm_quat_t *out, const fm_quat_t *q, const float axis[3], flo
 
 inline float fm_quat_dot(const fm_quat_t *a, const fm_quat_t *b)
 {
-    return a->v[0] * b->v[0] + a->v[1] * b->v[1] + a->v[2] * b->v[2] + a->v[3] * b->v[3];
+    return a->x * b->x + a->y * b->y + a->z * b->z + a->w * b->w;
 }
 
 inline void fm_quat_norm(fm_quat_t *out, const fm_quat_t *q)
@@ -153,7 +151,7 @@ inline void fm_quat_norm(fm_quat_t *out, const fm_quat_t *q)
         fm_quat_identity(out);
         return;
     }
-    *out = (fm_quat_t){{ q->v[0] / len, q->v[1] / len, q->v[2] / len, q->v[3] / len }};
+    *out = (fm_quat_t){{ q->x / len, q->y / len, q->z / len, q->w / len }};
 }
 
 void fm_quat_nlerp(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b, float t);
@@ -223,9 +221,9 @@ inline void fm_mat4_mul_vec3(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec3_t
 {
     for (int i = 0; i < 4; i++)
     {
-        out->v[i] = m->m[0][i] * v->v[0] +
-                    m->m[1][i] * v->v[1] +
-                    m->m[2][i] * v->v[2] +
+        out->v[i] = m->m[0][i] * v->x +
+                    m->m[1][i] * v->y +
+                    m->m[2][i] * v->z +
                     m->m[3][i];
     }
 }
