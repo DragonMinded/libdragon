@@ -60,15 +60,7 @@ inline void fm_quat_mul(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b)
                          a->v[3] * b->v[3] - a->v[0] * b->v[0] - a->v[1] * b->v[1] - a->v[2] * b->v[2] }};
 }
 
-void fm_quat_from_euler_zxy(fm_quat_t *out, const float rot[3])
-{
-    fm_quat_identity(out);
-    fm_quat_rotate(out, out, (float[]){0,0,1}, rot[0]);
-    fm_quat_rotate(out, out, (float[]){1,0,0}, rot[1]);
-    fm_quat_rotate(out, out, (float[]){0,1,0}, rot[2]);
-}
-
-void fm_quat_rotate(fm_quat_t *out, const fm_quat_t *q, const float axis[3], float angle)
+void fm_quat_rotate(fm_quat_t *out, const fm_quat_t *q, const fm_vec3_t *axis, float angle)
 {
     fm_quat_t r;
     fm_quat_from_rotation(&r, axis, angle);
@@ -108,13 +100,13 @@ void fm_quat_slerp(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b, float
 }
 
 
-void fm_mat4_rotate(fm_mat4_t *out, const float axis[3], float angle)
+void fm_mat4_rotate(fm_mat4_t *out, const fm_vec3_t *axis, float angle)
 {
     float s, c;
     fm_sincosf(angle, &s, &c);
 
     float t = 1.0f - c;
-    float x = axis[0], y = axis[1], z = axis[2];
+    float x = axis->x, y = axis->y, z = axis->z;
 
     *out = (fm_mat4_t){{
         { t * x * x + c,     t * x * y - s * z, t * x * z + s * y, 0 },
@@ -124,24 +116,24 @@ void fm_mat4_rotate(fm_mat4_t *out, const float axis[3], float angle)
     }};
 }
 
-void fm_mat4_from_srt(fm_mat4_t *out, const float scale[3], const float quat[4], const float translate[3])
+void fm_mat4_from_srt(fm_mat4_t *out, const fm_vec3_t *scale, const fm_quat_t *quat, const fm_vec3_t *translate)
 {
-    float x = quat[0], y = quat[1], z = quat[2], w = quat[3];
+    float x = quat->x, y = quat->y, z = quat->z, w = quat->w;
     float x2 = x + x, y2 = y + y, z2 = z + z;
     float xx = x * x2, xy = x * y2, xz = x * z2;
     float yy = y * y2, yz = y * z2, zz = z * z2;
     float wx = w * x2, wy = w * y2, wz = w * z2;
-    float sx = scale[0], sy = scale[1], sz = scale[2];
+    float sx = scale->x, sy = scale->y, sz = scale->z;
 
     *out = (fm_mat4_t){{
         { (1.0f - (yy + zz)) * sx, (xy + wz) * sx, (xz - wy) * sx, 0 },
         { (xy - wz) * sy, (1.0f - (xx + zz)) * sy, (yz + wx) * sy, 0 },
         { (xz + wy) * sz, (yz - wx) * sz, (1.0f - (xx + yy)) * sz, 0 },
-        { translate[0], translate[1], translate[2], 1 }
+        { translate->x, translate->y, translate->z, 1 }
     }};
 }
 
-void fm_mat4_from_srt_euler(fm_mat4_t *out, const float scale[3], const float rot[3], const float translate[3])
+void fm_mat4_from_srt_euler(fm_mat4_t *out, const fm_vec3_t *scale, const float rot[3], const fm_vec3_t *translate)
 {
     float s0, c0, s1, c1, s2, c2;
     fm_sincosf(rot[0], &s0, &c0);
@@ -149,10 +141,10 @@ void fm_mat4_from_srt_euler(fm_mat4_t *out, const float scale[3], const float ro
     fm_sincosf(rot[2], &s2, &c2);
 
     *out = (fm_mat4_t){{
-        { scale[0] * c2 * c1, scale[0] * (c2 * s1 * s0 - s2 * c0), scale[0] * (c2 * s1 * c0 + s2 * s0), 0 },
-        { scale[1] * s2 * c1, scale[1] * (s2 * s1 * s0 + c2 * c0), scale[1] * (s2 * s1 * c0 - c2 * s0), 0 },
-        {-scale[2] * s1,      scale[2] * c1 * s0,                  scale[2] * c1 * c0,                  0 },
-        { translate[0],       translate[1],                        translate[2],                        1 }
+        { scale->x * c2 * c1, scale->x * (c2 * s1 * s0 - s2 * c0), scale->x * (c2 * s1 * c0 + s2 * s0), 0 },
+        { scale->y * s2 * c1, scale->y * (s2 * s1 * s0 + c2 * c0), scale->y * (s2 * s1 * c0 - c2 * s0), 0 },
+        {-scale->z * s1,      scale->z * c1 * s0,                  scale->z * c1 * c0,                  0 },
+        { translate->x,       translate->y,                        translate->z,                        1 }
     }};
 }
 

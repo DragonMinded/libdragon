@@ -66,8 +66,20 @@
 extern "C" {
 #endif
 
-#define FM_EPSILON  1e-4f
-#define FM_PI       3.14159265358979f
+/**
+ * @brief Error constant for approximate comparisons.
+ */
+#define FM_EPSILON      1e-4f
+
+/**
+ * @brief Single precision pi constant.
+ */
+#define FM_PI           3.14159265358979f
+
+/**
+ * @brief Convert degrees to radians.
+ */
+#define FM_DEG2RAD(deg) ((deg) * 0.01745329252f)
 
 /** @brief Reinterpret the bits composing a float as a int32. 
  *
@@ -202,11 +214,22 @@ void fm_sincosf(float x, float *sin, float *cos);
  */
 float fm_atan2f(float y, float x);
 
+/**
+ * @brief Linearly interpolate between two scalar values.
+ */
 inline float fm_lerp(float a, float b, float t)
 {
     return a + (b - a) * t;
 }
 
+/**
+ * @brief Linearly interpolate between two angles, using the shortest path.
+ * 
+ * @param a The start angle in radians
+ * @param b The end angle in radians
+ * @param t The interpolation factor
+ * @return The interpolated angle.
+ */
 float fm_lerp_angle(float a, float b, float t);
 
 #ifdef LIBDRAGON_FAST_MATH
