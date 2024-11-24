@@ -2,6 +2,76 @@
  * @file vi.h
  * @brief Video Interface Subsystem
  * @ingroup display
+ * 
+ * This module offers a low-level interface to VI programming. Most applications
+ * should use display.h, which sits on top of vi.h, and offers a higher level
+ * interface, plus automatic memory management of multiple framebuffers,
+ * FPS utilities, and much more.
+ * 
+ * ## Framebuffer resizing and video display size
+ * 
+ * VI has a powerful resampling engine: the framebuffer is not displayed as-is
+ * on TV, but it is actually resampled (scaled, stretched), optionally with
+ * bilinear filtering. This is a very powerful hardware feature that is a bit
+ * complicated to configure, so an effort was made to expose an intuitive API
+ * to programmers.
+ *
+ * By default, this module configures the VI to resample an arbitrary framebuffer
+ * picture into a virtual 640x480 display output with 4:3 aspect ratio (on NTSC
+ * and MPAL), or a virtual 640x576 display output though with the same 4:3
+ * aspect ratio on PAL. This is done to achieve TV type independence: since
+ * both resolution share the same aspect ratio on their respective TV standards
+ * (given that dots are square on NTSC but they are not on PAL), it means
+ * that the framebuffer will look the same on all TVs; on PAL, you will be
+ * trading additional vertical resolution (assuming the framebuffer is big
+ * enough to have that detail). 
+ * 
+ * This also means that games don't have to do anything special to handle NTSC
+ * vs PAL (besides maybe accounting for the different refresh rate), which is
+ * an important goal.
+ * 
+ * In reality, TVs didn't have a 480-lines vertical resolution so the actual
+ * output depends on whether you request interlaced display or not:
+ * 
+ *  * In case of non interlaced display, the actual resolution is 640x240, but
+ *    since dots will be configured to be twice as big vertically, the aspect
+ *    ratio will be 4:3 as-if the image was 640x480 (with duplicated scanlines)
+ *  * In case of interlaced display, you do get to display 480 scanlines, by
+ *    alternating two slightly-shifted 640x240 pictures.
+ * 
+ * As an example, if you configure a framebuffer resolution like 512x320, with
+ * interlacing turned off, what happens is that the image gets scaled into
+ * 640x240, so horizontally some pixels will be duplicated to enlarge the
+ * resolution to 640, but vertically some scanlines will be dropped. The
+ * output display aspect ratio will still be 4:3, which is not the source aspect
+ * ratio of the framebuffer (512 / 320 = 1.6666 = 16:10), so the image will
+ * appear squished, unless obviously this was accounted for while drawing to
+ * the framebuffer.
+ * 
+ * While resampling the framebuffer into the display output, the VI can use either
+ * bilinear filtering or simple nearest sampling (duplicating or dropping pixels).
+ * See #filter_options_t for more information on configuring
+ * the VI image filters.
+ * 
+ * The 640x480 virtual display output can be fully viewed on emulators and on
+ * modern screens (via grabbers, converters, etc.). When displaying on old
+ * CRTs though, part of the display will be hidden because of the overscan.
+ * To account for that, it is possible to reduce the 640x480 display output
+ * by adding black borders. For instance, if you specify 12 dots of borders
+ * on all the four edges, you will get a 616x456 display output, plus
+ * the requested 12 dots of borders on all sides; the actual display output
+ * will thus be smaller, and possibly get fully out of overscan. The value
+ * #DEFAULT_CRT_MARGIN is a good default you can use for overscan compensation on
+ * most CRT TVs.
+ * 
+ * Notice that adding borders also affect the aspect ratio of the display output;
+ * for instance, in the above example, the 616x456 display output is not
+ * exactly 4:3 anymore, but more like 4.05:3. By carefully calculating borders,
+ * thus, it is possible to obtain specific display outputs with custom aspect
+ * ratios (eg: 16:9).
+ * 
+ * To help calculating the borders by taking both potential goals into account
+ * (overscan compensation and aspect ratio changes), you can use #vi_calc_borders.
  */
 #ifndef __LIBDRAGON_VI_H
 #define __LIBDRAGON_VI_H
@@ -194,15 +264,11 @@ typedef struct vi_config_s{
 
 /**  Under VI_X_SCALE   */
 /** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */
-#define VI_X_SCALE_SET(value)               (( 1024*(value) + 320 ) / 640)
+#define VI_X_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
 
 /**  Under VI_Y_SCALE   */
 /** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
-#define VI_Y_SCALE_SET_240_LINES(value)               (( 1024*(value) + 120 ) / 240)
-
-/**  Under VI_Y_SCALE   */
-/** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
-#define VI_Y_SCALE_SET_288_LINES(value)               (( 1024*(value) + 144 ) / 288)
+#define VI_Y_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
 
 /** @brief VI period for showing one NTSC and MPAL picture in ms. */
 #define VI_PERIOD_NTSC_MPAL                 ((float)1000/60)
@@ -227,8 +293,8 @@ static const vi_config_t vi_ntsc_p = {.regs = {
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 515),
     VI_V_BURST_SET(14, 516),
-    VI_X_SCALE_SET(0),
-    VI_Y_SCALE_SET_240_LINES(0),
+    VI_X_SCALE_SET(0, 640),
+    VI_Y_SCALE_SET(0, 240),
 }};
 static const vi_config_t vi_pal_p =  {.regs = {
     0,
@@ -243,8 +309,8 @@ static const vi_config_t vi_pal_p =  {.regs = {
     VI_H_VIDEO_SET(128, 768),
     VI_V_VIDEO_SET(45, 621),
     VI_V_BURST_SET(9, 619),
-    VI_X_SCALE_SET(0),
-    VI_Y_SCALE_SET_288_LINES(0),
+    VI_X_SCALE_SET(0, 640),
+    VI_Y_SCALE_SET(0, 288),
 }};
 static const vi_config_t vi_mpal_p = {.regs = {
     0,
@@ -259,8 +325,8 @@ static const vi_config_t vi_mpal_p = {.regs = {
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(37, 511),
     VI_V_BURST_SET(14, 516),
-    VI_X_SCALE_SET(0),
-    VI_Y_SCALE_SET_240_LINES(0)
+    VI_X_SCALE_SET(0, 640),
+    VI_Y_SCALE_SET(0, 240)
 }};
 static const vi_config_t vi_ntsc_i = {.regs = {
     0,
@@ -275,8 +341,8 @@ static const vi_config_t vi_ntsc_i = {.regs = {
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 515),
     VI_V_BURST_SET(14, 516),
-    VI_X_SCALE_SET(0),
-    VI_Y_SCALE_SET_240_LINES(0)
+    VI_X_SCALE_SET(0, 640),
+    VI_Y_SCALE_SET(0, 240)
 }};
 static const vi_config_t vi_pal_i = {.regs = {
     0,
@@ -291,8 +357,8 @@ static const vi_config_t vi_pal_i = {.regs = {
     VI_H_VIDEO_SET(128, 768),
     VI_V_VIDEO_SET(45, 621),
     VI_V_BURST_SET(9, 619),
-    VI_X_SCALE_SET(0),
-    VI_Y_SCALE_SET_288_LINES(0)
+    VI_X_SCALE_SET(0, 640),
+    VI_Y_SCALE_SET(0, 288)
 }};
 static const vi_config_t vi_mpal_i = {.regs = {
     0,
@@ -307,8 +373,8 @@ static const vi_config_t vi_mpal_i = {.regs = {
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 509),
     VI_V_BURST_SET(11, 514),
-    VI_X_SCALE_SET(0),
-    VI_Y_SCALE_SET_240_LINES(0)
+    VI_X_SCALE_SET(0, 640),
+    VI_Y_SCALE_SET(0, 240)
 }};
 /** @} */
 
@@ -317,6 +383,87 @@ static const vi_config_t vi_config_presets[2][3] = {
     {vi_pal_p, vi_ntsc_p, vi_mpal_p},
     {vi_pal_i, vi_ntsc_i, vi_mpal_i}
 };
+
+/**
+ * @brief Video Interface borders structure
+ *
+ * This structure defines how thick (in dots) should the borders around
+ * a framebuffer be.
+ * 
+ * The dots refer to the VI virtual display output (640x480, on both NTSC, PAL,
+ * and M-PAL), and thus reduce the actual display output, and even potentially
+ * modify the aspect ratio. The framebuffer will be scaled to fit under them.
+ * 
+ * For example, when displaying on CRT TVs, one can add borders around a
+ * framebuffer so that the whole image can be seen on the screen. 
+ * 
+ * If no borders are applied, the output will use the entire virtual dsplay
+ * output (640x480) for showing a framebuffer. This is useful for emulators,
+ * upscalers, and LCD TVs.
+ * 
+ * Notice that borders can also be *negative*: this obtains the effect of
+ * actually enlarging the output, growing from 640x480. Doing so will very
+ * likely create problems with most TV grabbers and upscalers, but it might
+ * work correctly on most CRTs (though the added pixels will surely be
+ * part of the overscan so not really visible). Horizontally, the maximum display
+ * output will probably be ~700-ish on CRTs, after which the sync will be lost.
+ * Vertically, any negative number will likely create immediate syncing problems,
+ */
+typedef struct vi_borders_s {
+    int16_t left, right, up, down;
+} vi_borders_t;
+
+/**
+ * @brief Calculate correct VI borders for a target aspect ratio.
+ * 
+ * This function calculates the appropriate VI borders to obtain the specified
+ * aspect ratio, and optionally adding a margin to make the picture CRT-safe.
+ * 
+ * The margin is expressed as a percentage relative to the virtual VI display
+ * output (640x480). A good default for this margin for most CRTs is
+ * #DEFAULT_CRT_MARGIN (5%).
+ * 
+ * For instance, to create a 16:9 resolution, you can do:
+ * 
+ * \code{.c}
+ *      vi_borders_t borders = vi_calc_borders(TV_NTSC, 16./9, false);
+ * \endcode
+ * 
+ * @param tv_type           TV type for which the calculation should be performed
+ * @param aspect_ratio      Target aspect ratio
+ * @param overscan_margin   Margin to add to compensate for TV overscan. Use 0
+ *                          to use full picture (eg: for emulators), and something
+ *                          like #DEFAULT_CRT_MARGIN to get a good CRT default.
+ * 
+ * @return vi_borders_t The requested border settings
+ */
+static inline vi_borders_t vi_calc_borders(int tv_type, float aspect_ratio, float overscan_margin)
+{
+    const int vi_width = 640;
+    const int vi_height = tv_type == TV_PAL ? 576 : 480;
+    const float vi_par = (float)vi_width / vi_height;
+    const float vi_dar = 4.0f / 3.0f;
+    float correction = (aspect_ratio / vi_dar) * vi_par;
+
+    vi_borders_t b;
+    b.left = b.right = vi_width * overscan_margin;
+    b.up = b.down = vi_height * overscan_margin;
+
+    int width = vi_width - b.left - b.right;
+    int height = vi_height - b.up - b.down;
+
+    if (correction > 1) {
+        int vborders = (int)(height - width / correction + 0.5f);
+        b.up += vborders / 2;
+        b.down += vborders / 2;
+    } else {
+        int hborders = (int)(width - height * correction + 0.5f);
+        b.left += hborders / 2;
+        b.right += hborders / 2;
+    }
+
+    return b;
+}
 
 /**
  * @brief Write a set of video registers to the VI

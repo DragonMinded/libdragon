@@ -16,15 +16,17 @@ $(BUILD_DIR)/videoplayer.elf: $(src:%.c=$(BUILD_DIR)/%.o)
 
 # If the movie file could not be encoded, build the ROM without it.
 $(BUILD_DIR)/videoplayer.dfs: $(DFS_FILES)
+	@echo "    [DFS] $@"
 	if [ ! -s "$<" ]; then rm -f "$<" ; fi
 	$(N64_MKDFS) "$@" filesystem >/dev/null
 
 # Re-encode the movie's video stream if ffmpeg is available
 filesystem/movie.m1v: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
+	@echo "    [FFMPEG] $@"
 	if [ -s "$<" ]; then \
-		if command -v ffmpeg; then \
-			ffmpeg -y -i "$<" -vb 800K -vf 'scale=288x160' -r 24 "$@" ; \
+		if command -v ffmpeg >/dev/null; then \
+			ffmpeg -hide_banner -loglevel error -y -i "$<" -vb 800K -vf 'scale=288x160' -r 24 "$@" ; \
 		else \
 			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
 			touch "$@" ; \
@@ -35,8 +37,9 @@ filesystem/movie.m1v: $(MOVIE_FILE)
 	fi
 
 # Convert the movie's audio if it was extracted to wav
-filesystem/movie.wav64: movie.wav
+filesystem/movie.wav64: $(BUILD_DIR)/movie.wav
 	@mkdir -p "$(dir $@)"
+	@echo "    [AUDIO] $@"
 	if [ -s "$<" ]; then \
 		$(N64_AUDIOCONV) -o "$(dir $@)" "$<" ; \
 	else \
@@ -45,10 +48,12 @@ filesystem/movie.wav64: movie.wav
 	fi
 
 # Extract the movie's audio stream to wav if ffmpeg is available
-movie.wav: $(MOVIE_FILE)
+$(BUILD_DIR)/movie.wav: $(MOVIE_FILE)
+	@mkdir -p "$(dir $@)"
+	@echo "    [FFMPEG] $@"
 	if [ -s "$<" ]; then \
-		if command -v ffmpeg; then \
-			ffmpeg -y -i "$<" -vn -acodec pcm_s16le -ar 32000 -ac 1 "$@" ; \
+		if command -v ffmpeg >/dev/null; then \
+			ffmpeg -hide_banner -loglevel error -y -i "$<" -vn -acodec pcm_s16le -ar 32000 -ac 1 "$@" ; \
 		else \
 			echo "videoplayer: Skipping audio extraction because ffmpeg is not installed" ; \
 			touch "$@" ; \

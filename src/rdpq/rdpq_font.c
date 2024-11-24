@@ -187,7 +187,6 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
                     rdpq_set_tile(TILE3, sprite_get_format(spr), 0    , 48, &(rdpq_tileparms_t){ .palette = 3 });
                     rdpq_set_tile(TILE4, FMT_CI8, 0    , 48, NULL);
                 }
-                rdpq_sync_load(); // FIXME: revisit once we have the new auto-sync engine
                 break;
             }
             case FONT_TYPE_MONO_OUTLINE: {
@@ -205,7 +204,6 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
                     rdpq_set_tile(TILE2, sprite_get_format(spr), 0    , 48, &(rdpq_tileparms_t){ .palette = 1 });
                     rdpq_set_tile(TILE4, FMT_CI8, 0    , 48, NULL);
                 }
-                rdpq_sync_load(); // FIXME: revisit once we have the new auto-sync engine
                 break;
             }
             case FONT_TYPE_ALIASED_OUTLINE:
@@ -229,6 +227,7 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
                 break;
             }
 
+        rdpq_sync_load(); // FIXME: revisit once we have the new auto-sync engine
         fnt->atlases[i].up = rspq_block_end();
     }
 

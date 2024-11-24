@@ -13,30 +13,11 @@
 // which means we can use the real frequency of the audio track.
 #define AUDIO_HZ 32000.0f
 
-// Target screen resolution that we render at.
-// Choosing a resolution above 240p (interlaced) can't be recommended for video playback.
-#define SCREEN_WIDTH 320
-#define SCREEN_HEIGHT 240
-
 int main(void)
 {
 	joypad_init();
 	debug_init_isviewer();
 	debug_init_usblog();
-
-	display_init((resolution_t)
-	{
-		.width = SCREEN_WIDTH,
-		.height = SCREEN_HEIGHT,
-		.interlaced = INTERLACE_OFF
-	},
-	// 32-bit display mode is mandatory for video playback.
-	DEPTH_32_BPP,
-	NUM_DISPLAY, GAMMA_NONE,
-	// FILTERS_DISABLED disables all VI post-processing to achieve the sharpest
-	// possible image. If you'd like to soften the image a little bit, switch to
-	// FITLERS_RESAMPLE.
-	FILTERS_DISABLED);
 
 	dfs_init(DFS_DEFAULT_LOCATION);
 	rdpq_init();
@@ -54,21 +35,53 @@ int main(void)
 
 	// Open the movie using the mpeg2 module and create a YUV blitter to draw it.
 	mpeg2_t* video_track = mpeg2_open("rom:/movie.m1v");
+
+	int video_width = mpeg2_get_width(video_track);
+	int video_height = mpeg2_get_height(video_track);
+
+	// When playing back a video, there are essentially two options:
+	// 1) Configure a fixed resolution (eg: 320x240), and then make
+	//    the video fit it, with letterboxing if necessary. This is requires
+	//    actually drawing / rescaling the video with RDP and filling the
+	//    rest of the framebuffers with black.
+	// 2) Configure a resolution which exactly matches the video resolution,
+	//     and let VI perform the necessary centering / letterboxing.
+	//
+	// 2 is more efficient for full motion videos because no additional memory
+	// is wasted in framebuffers to hold black pixels, so we go with it.
+
+	display_init((resolution_t){
+			// Initialize a framebuffer resolution which precisely matches the video
+			.width = video_width, .height = video_height,
+			.interlaced = INTERLACE_OFF,
+			// Set the desired aspect ratio to that of the video. By default,
+			// display_init would force 4:3 instead, which would be wrong here.
+			// eg: if a video is 320x176, we want to display it as 16:9-ish.
+			.aspect_ratio = (float)video_width / video_height,
+			// Uncomment this line if you want to have some additional black
+			// borders to fully display the video on real CRTs.
+			// .overscan_margin = DEFAULT_CRT_MARGIN,
+		},
+		// 32-bit display mode is mandatory for video playback.
+		DEPTH_32_BPP,
+		NUM_DISPLAY, GAMMA_NONE,
+		// Activate bilinear filtering while rescaling the video
+		FILTERS_RESAMPLE
+	);
+
 	yuv_blitter_t yuv = yuv_blitter_new_fmv(
 		// Resolution of the video we expect to play.
 		// Video needs to have a width divisible by 32 and a height divisible by 16.
-		//
-		// Here we have a video resolution of 288x160 which is a nice, valid resolution
-		// that leaves a margin of 32 pixels on the side - great for making sure
-		// CRT TVs with overscan still display the entire frame of your video.
-		// The resolution is not an exact 16:9 ratio (16:8.88) but it's close enough that
-		// most people won't notice. The lower resolution can also help with performance.
-		mpeg2_get_width(video_track), mpeg2_get_height(video_track),
-		// Set blitter's output area to our entire display
+		video_width, video_height,
+		// Set blitter's output area to our entire display. Given the above
+		// initialization, this will actually match the video width/height, but
+		// if we instead opted for a fixed resolution (eg: 320x240), it would be
+		// the YUV blitter that would letterbox the video by adding black borders
+		// where necessary.
 		display_get_width(), display_get_height(),
-		// Override default FMV parms to not zoom the video.
-		// This will leave our desired CRT TV-friendly margin around the video.
-		&(yuv_fmv_parms_t) {.zoom = YUV_ZOOM_NONE}
+		// You can further customize YUV options through this parameter structure
+		// if necessary.
+		&(yuv_fmv_parms_t) {}
 	);
 
 	// Engage the fps limiter to ensure proper video pacing.
@@ -77,7 +90,7 @@ int main(void)
 
 	// Open the audio track and start playing it in channel 0.
 	wav64_t audio_track;
-	wav64_open(&audio_track, "movie.wav64");
+	wav64_open(&audio_track, "rom:/movie.wav64");
 	mixer_ch_play(0, &audio_track.wave);
 
 	int nframes = 0;

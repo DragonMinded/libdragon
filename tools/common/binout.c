@@ -18,18 +18,18 @@ struct {
 	struct placeholder_data value;
 } *placeholder_hash = NULL;
 
-void w8(FILE *f, uint8_t v) 
+void _w8(FILE *f, uint8_t v) 
 {
     fputc(v, f);
 }
 
-void w16(FILE *f, uint16_t v)
+void _w16(FILE *f, uint16_t v)
 {
     w8(f, v >> 8);
     w8(f, v & 0xff);
 }
 
-void w32(FILE *f, uint32_t v)
+void _w32(FILE *f, uint32_t v)
 {
     w16(f, v >> 16);
     w16(f, v & 0xffff);

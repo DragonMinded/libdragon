@@ -80,3 +80,9 @@ float fm_atan2f(float y, float x) {
     return copysignf(r, y);
 }
 
+float fm_lerp_angle(float a, float b, float t)
+{
+    float diff = fm_fmodf((b - a), FM_PI*2);
+    float dist = fm_fmodf(diff*2, FM_PI*2) - diff;
+    return a + dist * t;
+}

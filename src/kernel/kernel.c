@@ -910,7 +910,7 @@ void kcond_wait(kcond_t *cond, kmutex_t *mutex)
 	disable_interrupts();
 	if (mutex) {
 		assertf(mutex->owner == PhysicalAddr(th), "kcond_wait() called, but mutex is not locked by %s[%p]", th->name, th);
-		assertf(mutex->counter != 1, "kcond_wait() called, but mutex is locked multiple times");
+		assertf(mutex->counter == 1, "kcond_wait() called, but mutex is locked multiple times");
 
 		// Unlock the mutex, and put the thread in the cond waiting list
 		kmutex_unlock_internal(mutex);
@@ -932,7 +932,7 @@ bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mutex, uint32_t ticks)
 
 	disable_interrupts();
 	assertf(mutex->owner == PhysicalAddr(th), "kcond_wait_timeout() called, but mutex is not locked by %s[%p]", th->name, th);
-	assertf(mutex->counter != 1, "kcond_wait_timeout() called, but mutex is locked multiple times");
+	assertf(mutex->counter == 1, "kcond_wait_timeout() called, but mutex is locked multiple times");
 
 	// Unlock the mutex, and put the thread in the cond waiting list
 	kmutex_unlock_internal(mutex);

@@ -57,16 +57,52 @@ typedef enum {
 /**
  * @brief Video resolution structure
  *
- * You can either use one of the pre-defined constants
- * (such as #RESOLUTION_320x240) or define a custom resolution.
+ * This structure allows to configure the video resolution, which includes both
+ * the framebuffer size and some parameters of how the framebuffer is displayed
+ * on the screen (aspect ratio, TV overscan margins, etc.).
+ * 
+ * Most users should just use one of the pre-defined constants (such as 
+ * #RESOLUTION_320x240), but it is possible to configure custom resolutions
+ * by manually filling fields in this structure.
  */
 typedef struct {
-    /** @brief Screen width (must be between 2 and 800) */
+    /** @brief Framebuffer width (must be between 2 and 800) */
     int32_t width;
-    /** @brief Screen height (must be between 1 and 720) */
+    /** @brief Framebuffer height (must be between 1 and 720) */
     int32_t height;
     /** @brief Interlace mode */
     interlace_mode_t interlaced;
+    /** 
+     * @brief Configure the desired aspect ratio of the output display picture.
+     * 
+     * By default (when this value is 0), the framebuffer will be displayed as
+     * a 4:3 picture, irrespective of its width and height. By tweaking this
+     * value, the image will instead be letterboxed (with black bars) to
+     * achieve the requested aspect ratio.
+     * 
+     * For instance, to display the framebuffer as letterboxed 16:9, specify
+     * `16.0f / 9.0f` (aka `1.777777777f`) here.
+     */
+    float aspect_ratio;
+    /**
+     * @brief Add a margin to the display output to compensate for the TV overscan.
+     * 
+     * Leave 0 for emulators, upscaler or LCD TVs. Use #DEFAULT_CRT_MARGIN for
+     * adding some margin that will allow the picture to be fully visible on
+     * most TV CRTs.
+     * 
+     * By default (when this value is 0), the framebuffer will be displayed at
+     * the maximum extents allowed by VI (not a physical maximum, but a good
+     * maximum that doesn't compromise compatibility of the video signal).
+     * This picture will be good for emulators, upscalers, or LCD TVs.
+     * 
+     * On TV CRTs, instead, part of the picture will be displayed by the TV
+     * overscan. To compensate for this, you can reduce the picture size by this
+     * specified amount (expressed in percentage of the original picture).
+     * #DEFAULT_CRT_MARGIN (which is 0.05, aka 5%) is the suggested value you can
+     * use for this field
+     */
+    float overscan_margin;
     /** 
      * @brief Use PAL60 mode if on PAL
      * 
@@ -83,18 +119,23 @@ typedef struct {
 ///@cond
 #define const static const /* fool doxygen to document these static members */
 ///@endcond
-/** @brief 256x240 mode */
-const resolution_t RESOLUTION_256x240 = {256, 240, INTERLACE_OFF};
-/** @brief 320x240 mode */
-const resolution_t RESOLUTION_320x240 = {320, 240, INTERLACE_OFF};
-/** @brief 512x240 mode, high-res progressive */
-const resolution_t RESOLUTION_512x240 = {512, 240, INTERLACE_OFF};
-/** @brief 640x240 mode, high-res progressive */
-const resolution_t RESOLUTION_640x240 = {640, 240, INTERLACE_OFF};
-/** @brief 512x480 mode, interlaced */
-const resolution_t RESOLUTION_512x480 = {512, 480, INTERLACE_HALF};
-/** @brief 640x480 mode, interlaced */
-const resolution_t RESOLUTION_640x480 = {640, 480, INTERLACE_HALF};
+
+/** Good default for a safe CRT overscan margin (5%) */
+#define DEFAULT_CRT_MARGIN      0.05f
+
+/** @brief 256x240 mode, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_256x240 = {.width = 256, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 320x240 mode, no borders */
+const resolution_t RESOLUTION_320x240 = {.width = 320, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 512x240 mode, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_512x240 = {.width = 512, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 640x240 mode, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_640x240 = {.width = 640, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 512x480 mode, interlaced, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_512x480 = {.width = 512, .height = 480, .interlaced = INTERLACE_HALF};
+/** @brief 640x480 mode, interlaced, no borders */
+const resolution_t RESOLUTION_640x480 = {.width = 640, .height = 480, .interlaced = INTERLACE_HALF};
+
 #undef const
 
 /** @brief Valid bit depths */
@@ -296,11 +337,12 @@ uint32_t display_get_bitdepth(void);
 uint32_t display_get_num_buffers(void);
 
 /**
- * @brief Get the current refreshed rate of the TV in Hz
+ * @brief Get the current refresh rate of the video output in Hz
  * 
  * The refresh rate is normally 50 for PAL and 60 for NTSC, but this function
- * will also account for advanced VI configurations affecting the refresh rate,
- * like PAL60.
+ * returns the hardware-accurate number which is close to those but not quite
+ * exact. Moreover, this will also account for advanced VI configurations
+ * affecting the refresh rate, like PAL60.
  * 
  * @return float        Refresh rate in Hz (frames per second)
  */
@@ -340,6 +382,11 @@ float display_get_delta_time(void);
  * @param fps           The maximum number of frames per second to render (fractionals allowed)
  */
 void display_set_fps_limit(float fps);
+
+/**
+ * @brief Returns a surface that points to the framebuffer currently being shown on screen.
+ */
+surface_t display_get_current_framebuffer(void);
 
 /** @cond */
 __attribute__((deprecated("use display_get or display_try_get instead")))

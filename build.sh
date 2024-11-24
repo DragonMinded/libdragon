@@ -20,6 +20,11 @@ if [[ $OSTYPE == 'msys' ]]; then
   fi
 fi
 
+# Check if ccache is installed, and if so, use it
+if command -v ccache &> /dev/null; then
+  export CCACHE=ccache
+fi
+
 makeWithParams(){
   make -j"${JOBS}" "$@"
 }

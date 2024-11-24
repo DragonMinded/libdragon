@@ -40,6 +40,8 @@ static uint32_t __width;
 static uint32_t __height;
 /** @brief Currently active video interlace mode */
 static interlace_mode_t __interlace_mode = INTERLACE_OFF;
+/** @brief Current VI display borders */
+static vi_borders_t __borders;
 /** @brief Number of active buffers */
 static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
@@ -323,19 +325,28 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
             break;
         case FILTERS_RESAMPLE_ANTIALIAS:
-            /* Set AA on resample and fetch as well as divot on */
-            control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
-
+            /* Set AA on resample and fetch as well as divot on.
+             * FETCH_ALWAYS seems to change the way VI operates on the bus
+             * to work better when there is bandwidth saturation; so
+             * even if the RDRAM bus is very busy, the VI will still get the
+             * data it needs.
+             *
+             * Note that FETCH_ALWAYS appears to be broken in 32bpp modes, so
+             * we cannot use it there; this means that it'll be much easier
+             * to get image corruption for VI bandwidth saturation in 32bpp modes.
+             */
+            if ( bit == DEPTH_16_BPP )
+                control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DIVOT_ENABLE;
+            else
+                control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
             break;
         case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
             /* Set AA on resample always and fetch as well as dedither on 
-            (only on 16bpp mode, act as FILTERS_RESAMPLE_ANTIALIAS on 32bpp) */
-
-            /* Enable dither filter in 16bpp mode to give gradients
-               a slightly smoother look */
+               (only on 16bpp mode, act as FILTERS_RESAMPLE_ANTIALIAS on 32bpp) */
             if ( bit == DEPTH_16_BPP ) 
-                 control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DEDITHER_FILTER_ENABLE | VI_DIVOT_ENABLE; 
-            else control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
+                control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DEDITHER_FILTER_ENABLE | VI_DIVOT_ENABLE;
+            else
+                control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
             break;
     }
 
@@ -357,6 +368,9 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __height = res.height;
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
     __interlace_mode = res.interlaced;
+
+    float aspect_ratio = res.aspect_ratio ? res.aspect_ratio : 4.0f / 3.0f;
+    __borders = vi_calc_borders(__tv_type, aspect_ratio, res.overscan_margin);
 
     surfaces = malloc(sizeof(surface_t) * __buffers);
 
@@ -400,18 +414,16 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
     }
 
+    // Configure scaling and positioning, taking into account VI border settings.
+    vi_write_safe(VI_H_VIDEO, *VI_H_VIDEO + VI_H_VIDEO_SET(__borders.left, 0) - VI_H_VIDEO_SET(0, __borders.right));
+    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(__width, 640 - __borders.left - __borders.right));
+    vi_write_safe(VI_V_VIDEO, *VI_V_VIDEO + VI_V_VIDEO_SET(__borders.up, 0) - VI_V_VIDEO_SET(0, __borders.down)); 
+    const uint32_t base_height = (__tv_type == TV_PAL) ? 288 : 240;
+    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(__height, base_height - ((__borders.up + __borders.down) / 2)));
+
     /* Configure other VI registers */
     vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
     vi_write_safe(VI_WIDTH, res.width);
-    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(res.width));
-    if (__tv_type == TV_PAL)
-    {
-        vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET_288_LINES(res.height));
-    }
-    else
-    {
-        vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET_240_LINES(res.height));
-    }
     vi_write_safe(VI_CTRL, control);
 
     /* Calculate actual refresh rate for this configuration */
@@ -638,6 +650,15 @@ void display_set_fps_limit(float fps)
     min_refresh_period_rounded = 1.0f / (fps ? fps : roundf(refresh_rate));
 
     enable_interrupts();
+}
+
+surface_t display_get_current_framebuffer(void)
+{
+    return surface_make_linear(
+        VirtualUncachedAddr(*VI_ORIGIN), 
+        display_get_bitdepth() == 2 ? FMT_RGBA16 : FMT_RGBA32,
+        display_get_width(),
+        display_get_height());
 }
 
 extern inline void vi_write_config(const vi_config_t* config);

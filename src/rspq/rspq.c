@@ -510,12 +510,15 @@ static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear
     // Notice that the buffer must have been cleared before, as the
     // command queue are expected to always contain 0 on unwritten data.
     // We don't do this for performance reasons.
-    assert(size >= RSPQ_MAX_COMMAND_SIZE);
+    assert(size >= RSPQ_MAX_COMMAND_SIZE+2);
     if (clear) memset(new, 0, size * sizeof(uint32_t));
 
-    // Switch to the new buffer, and calculate the new sentinel.
+    // Switch to the new buffer, and calculate the new sentinel. The sentinel
+    // must allow for a maximum size command (RSPQ_MAX_SHORT_COMMAND_SIZE) to
+    // be written, plus the special block terminator written by rspq_next_buffer
+    // which is 2 words.
     rspq_cur_pointer = new;
-    rspq_cur_sentinel = new + size - RSPQ_MAX_SHORT_COMMAND_SIZE;
+    rspq_cur_sentinel = new + size - (RSPQ_MAX_SHORT_COMMAND_SIZE + 2);
 
     // Return a pointer to the previous buffer
     return prev;
@@ -980,7 +983,7 @@ void rspq_next_buffer(void) {
     // the new buffer.
     rspq_append1(prev, RSPQ_CMD_WRITE_STATUS, rspq_ctx->sp_wstatus_set_bufdone);
     rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(new));
-    assert(prev+1 < (uint32_t*)(rspq_ctx->buffers[1-rspq_ctx->buf_idx]) + rspq_ctx->buf_size);
+    assert(prev <= (uint32_t*)(rspq_ctx->buffers[1-rspq_ctx->buf_idx]) + rspq_ctx->buf_size);
     rspq_flush_internal();
 }
 

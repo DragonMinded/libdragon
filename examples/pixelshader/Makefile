@@ -10,7 +10,7 @@ assets_conv = $(addprefix filesystem/,$(notdir $(assets_ttf:%.ttf=%.font64))) \
               $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
 
 MKSPRITE_FLAGS ?= --compress
-MKFONT_FLAGS ?= --compress --verbose --size 20 --range 20-7F
+MKFONT_FLAGS ?= --compress --size 20 --range 20-7F
 
 all: pixelshader.z64
 

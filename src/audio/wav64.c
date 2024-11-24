@@ -207,16 +207,15 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	wlen = ROUND_UP(wlen, 32);
 	if (wlen == 0) return;
 
+	// Maximum number of VADPCM frames that can be decompressed in a single
+	// RSP call. Keep this in sync with rsp_mixer.S.
+	enum { MAX_VADPCM_FRAMES = 94 };
+
 	bool highpri = false;
 	while (wlen > 0) {
-		int nframes = wlen / 16;
-		// Most of the code here would be ready to loop over multiple blocks of
-		// 256 frames, but the problem is that we don't doublebuffer the RDRAM
-		// buffers, so the RSP doesn't get to process the data in time. This
-		// would require CPU-spinning here. Since it's a very rare case, just
-		// block it for now.
-		assert(nframes <= 256);
-		nframes = MIN(nframes, 256);
+		// Calculate number of frames to decompress in this iteration
+		int max_vadpcm_frames = (wav->wave.channels == 1) ? MAX_VADPCM_FRAMES : MAX_VADPCM_FRAMES / 2;
+		int nframes = MIN(wlen / 16, max_vadpcm_frames);
 
 		// Acquire destination buffer from the sample buffer
 		int16_t *dest = (int16_t*)samplebuffer_append(sbuf, nframes*16);
@@ -267,14 +266,30 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		#endif
 
 		wlen -= 16*nframes;
+		wpos += 16*nframes;
 	}
 
 	if (highpri)
 		rspq_highpri_end();
+
+    if (wav->wave.loop_len && wpos >= wav->wave.len) {
+        assert(wav->wave.loop_len == wav->wave.len);
+        samplebuffer_undo(sbuf, wpos - wav->wave.len);
+    }
 }
 
 void wav64_open(wav64_t *wav, const char *file_name) {
 	memset(wav, 0, sizeof(*wav));
+
+	// For backwards compatibility with old versions of this file, we support
+	// an unprefixed file name as a dfs file. This is deprecated and not documented
+	// but we just want to avoid breaking existing code
+	if (strchr(file_name, ':') == NULL) {
+		char* dfs_name = alloca(5 + strlen(file_name) + 1);
+		strcpy(dfs_name, "rom:/");
+		strcat(dfs_name, file_name);
+		file_name = dfs_name;
+	}
 
 	// Open the input file.
 	int file_handle = must_open(file_name);
@@ -365,6 +380,9 @@ int wav64_get_bitrate(wav64_t *wav) {
 
 void wav64_close(wav64_t *wav)
 {
+	// Stop playing the waveform on all channels
+	__mixer_wave_stopall(&wav->wave);
+
 	if (wav->ext) {
 		switch (wav->format) {
 		case WAV64_FORMAT_VADPCM:
@@ -375,9 +393,10 @@ void wav64_close(wav64_t *wav)
 			break;
 		}
 		wav->ext = NULL;
-		if (wav->current_fd >= 0) {
-			close(wav->current_fd);
-			wav->current_fd = -1;
-		}
+	}
+
+	if (wav->current_fd >= 0) {
+		close(wav->current_fd);
+		wav->current_fd = -1;
 	}
 }
