@@ -79,7 +79,12 @@ extern "C" {
 /**
  * @brief Convert degrees to radians.
  */
-#define FM_DEG2RAD(deg) ((deg) * 0.01745329252f)
+#define FM_DEG2RAD(deg) ((deg) * (FM_PI / 180.0f))
+
+/**
+ * @brief Convert radians to degrees.
+ */
+#define FM_RAD2DEG(rad) ((rad) * (180.0f / FM_PI))
 
 /** @brief Reinterpret the bits composing a float as a int32. 
  *
@@ -231,6 +236,14 @@ inline float fm_lerp(float a, float b, float t)
  * @return The interpolated angle.
  */
 float fm_lerp_angle(float a, float b, float t);
+
+/**
+ * @brief Wrap an angle into [0..pi*2] range.
+ * 
+ * @param[in] angle An angle in radians.
+ * @return The wrapped angle.
+ */
+float fm_wrap_angle(float angle);
 
 #ifdef LIBDRAGON_FAST_MATH
     #define truncf(x)     fm_truncf(x)

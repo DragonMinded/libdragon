@@ -228,9 +228,19 @@ inline void fm_quat_identity(fm_quat_t *out)
  * @brief Create a quaternion from euler angles.
  * 
  * @param[out] out  Will contain the created quaternion.
- * @param[in]  rot  Array containing euler angles in radians.
+ * @param[in]  euler  Array containing euler angles in radians.
  */
-void fm_quat_from_euler(fm_quat_t *out, const float rot[3]);
+void fm_quat_from_euler(fm_quat_t *out, const float euler[3]);
+
+/**
+ * @brief Create a quaternion from euler angles, applying the rotations in ZYX order.
+ * 
+ * @param[out] out  Will contain the created quaternion.
+ * @param[in]  x    Rotation around the X axis in radians.
+ * @param[in]  y    Rotation around the Y axis in radians.
+ * @param[in]  z    Rotation around the Z axis in radians.
+ */
+void fm_quat_from_euler_zyx(fm_quat_t *out, float x, float y, float z);
 
 /**
  * @brief Create a quaternion from an axis of rotation and an angle.
@@ -238,7 +248,7 @@ void fm_quat_from_euler(fm_quat_t *out, const float rot[3]);
  * @param[in]  axis     The axis of rotation. Must be normalized.
  * @param[in]  angle    The angle in radians.
  */
-inline void fm_quat_from_rotation(fm_quat_t *out, const fm_vec3_t *axis, float angle)
+inline void fm_quat_from_axis_angle(fm_quat_t *out, const fm_vec3_t *axis, float angle)
 {
     float s, c;
     fm_sincosf(angle * 0.5f, &s, &c);
@@ -253,7 +263,7 @@ void fm_quat_mul(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b);
 
 /**
  * @brief Rotate a quaternion around an axis by some angle.
- * @note This is just a shorthand for #fm_quat_from_rotation and #fm_quat_mul.
+ * @note This is just a shorthand for #fm_quat_from_axis_angle and #fm_quat_mul.
  */
 void fm_quat_rotate(fm_quat_t *out, const fm_quat_t *q, const fm_vec3_t *axis, float angle);
 
@@ -263,6 +273,16 @@ void fm_quat_rotate(fm_quat_t *out, const fm_quat_t *q, const fm_vec3_t *axis, f
 inline float fm_quat_dot(const fm_quat_t *a, const fm_quat_t *b)
 {
     return a->x * b->x + a->y * b->y + a->z * b->z + a->w * b->w;
+}
+
+/**
+ * @brief Compute the inverse of a quaternion.
+ */
+inline void fm_quat_inverse(fm_quat_t *out, const fm_quat_t *q)
+{
+    float inv_mag2 = 1.0f / fm_quat_dot(q, q);
+    for (int i = 0; i < 3; i++) out->v[i] = -q->v[i] * inv_mag2;
+    out->w = q->w * inv_mag2;
 }
 
 /**
@@ -325,9 +345,14 @@ inline void fm_mat4_translate(fm_mat4_t *out, const fm_vec3_t *translate)
 }
 
 /**
- * @brief Apply rotation to a 4x4 matrix, specified by an axis of rotation and an angle.
+ * @brief Apply rotation to a 4x4 matrix.
  */
-void fm_mat4_rotate(fm_mat4_t *out, const fm_vec3_t *axis, float angle);
+void fm_mat4_rotate(fm_mat4_t *out, const fm_quat_t *rotation);
+
+/**
+ * @brief Create a rotation matrix from an axis of rotation and an angle.
+ */
+void fm_mat4_from_axis_angle(fm_mat4_t *out, const fm_vec3_t *axis, float angle);
 
 /**
  * @brief Create an affine transformation matrix from scale, rotation and translation.
@@ -341,7 +366,56 @@ void fm_mat4_from_srt(fm_mat4_t *out, const fm_vec3_t *scale, const fm_quat_t *q
  * 
  * The rotation is accepted as euler angles.
  */
-void fm_mat4_from_srt_euler(fm_mat4_t *out, const fm_vec3_t *scale, const float rot[3], const fm_vec3_t *translate);
+void fm_mat4_from_srt_euler(fm_mat4_t *out, const fm_vec3_t *scale, const float euler[3], const fm_vec3_t *translate);
+
+/**
+ * @brief Create a rigid transformation matrix from rotation and translation.
+ * 
+ * The rotation is accepted as a quaternion.
+ */
+inline void fm_mat4_from_rt(fm_mat4_t *out, const fm_quat_t *quat, const fm_vec3_t *translate)
+{
+    const fm_vec3_t scale = {{1, 1, 1}};
+    fm_mat4_from_srt(out, &scale, quat, translate);
+}
+
+/**
+ * @brief Create a rigid transformation matrix from rotation and translation.
+ * 
+ * The rotation is accepted as euler angles.
+ */
+inline void fm_mat4_from_rt_euler(fm_mat4_t *out, const float euler[3], const fm_vec3_t *translate)
+{
+    const fm_vec3_t scale = {{1, 1, 1}};
+    fm_mat4_from_srt_euler(out, &scale, euler, translate);
+}
+
+/**
+ * @brief Create a translation matrix.
+ */
+inline void fm_mat4_from_translation(fm_mat4_t *out, const fm_vec3_t *translate)
+{
+    fm_mat4_identity(out);
+    fm_mat4_translate(out, translate);
+}
+
+/**
+ * @brief Create a rotation matrix from a quaternion.
+ */
+inline void fm_mat4_from_rotation(fm_mat4_t *out, const fm_quat_t *rotation)
+{
+    const fm_vec3_t translate = {{0, 0, 0}};
+    fm_mat4_from_rt(out, rotation, &translate);
+}
+
+/**
+ * @brief Create a scale matrix.
+ */
+inline void fm_mat4_from_scale(fm_mat4_t *out, const fm_vec3_t *scale)
+{
+    fm_mat4_identity(out);
+    fm_mat4_scale(out, scale);
+}
 
 /**
  * @brief Multiply two 4x4 matrices.
@@ -353,10 +427,10 @@ inline void fm_mat4_mul(fm_mat4_t *out, const fm_mat4_t *a, const fm_mat4_t *b)
     {
         for (int j = 0; j < 4; j++)
         {
-            tmp.m[i][j] = a->m[i][0] * b->m[0][j] +
-                          a->m[i][1] * b->m[1][j] +
-                          a->m[i][2] * b->m[2][j] +
-                          a->m[i][3] * b->m[3][j];
+            tmp.m[i][j] = a->m[0][j] * b->m[i][0] +
+                          a->m[1][j] * b->m[i][1] +
+                          a->m[2][j] * b->m[i][2] +
+                          a->m[3][j] * b->m[i][3];
         }
     }
     *out = tmp;
@@ -387,6 +461,39 @@ float fm_mat4_det(const fm_mat4_t *m);
 void fm_mat4_inverse(fm_mat4_t *out, const fm_mat4_t *m);
 
 /**
+ * @brief Compute a normal matrix from an affine 4x4 matrix.
+ * 
+ * The resulting matrix can be used to transform face normal vectors while preserving
+ * their property of being perpendicular to the surface.
+ * In general, such a matrix is obtained by computing the transpose inverse of the
+ * matrix in question. If the input matrix is affine, however, it is possible to
+ * take a shortcut and only compute the transpose inverse of the upper left 3x3 part.
+ * Accordingly, this function only produces valid results if the input matrix is affine.
+ * 
+ * Also note that computing the transpose inverse is technically only necessary if
+ * the input matrix represents any non-rigid transformations (scaling, shearing etc.).
+ * If your matrix is rigid (only translation and rotation), then the transpose inverse
+ * is in fact the same as the input and this function can be skipped.
+ * Additionally, if your matrix contains only uniform scaling (the same scale factor on all 3 axes)
+ * you may skip computing the inverse transpose as well, provided you re-normalize
+ * the normal vectors after transformation.
+ * 
+ * @param[out]  out The resulting matrix.
+ * @param[in]   m   The input matrix. Must be affine.
+ */
+void fm_mat4_affine_to_normal_mat(fm_mat4_t *out, const fm_mat4_t *m);
+
+/**
+ * @brief Create a view matrix that represents a camera looking in a certain direction from some position.
+ */
+void fm_mat4_look(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *dir, const fm_vec3_t *up);
+
+/**
+ * @brief Create a view matrix that represents a camera looking at a target point from some position.
+ */
+void fm_mat4_lookat(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *target, const fm_vec3_t *up);
+
+/**
  * @brief Multiply a 3D vector by a 4x4 matrix by assuming 1 as the hypothetical 4th component of the vector.
  */
 inline void fm_mat4_mul_vec3(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec3_t *v)
@@ -398,6 +505,22 @@ inline void fm_mat4_mul_vec3(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec3_t
                     m->m[2][i] * v->z +
                     m->m[3][i];
     }
+}
+
+/**
+ * @brief Multiply a 4D vector by a 4x4 matrix.
+ */
+inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t *v)
+{
+    fm_vec4_t tmp;
+    for (int i = 0; i < 4; i++)
+    {
+        tmp.v[i] = m->m[0][i] * v->x +
+                   m->m[1][i] * v->y +
+                   m->m[2][i] * v->z +
+                   m->m[3][i] * v->w;
+    }
+    *out = tmp;
 }
 
 #ifdef __cplusplus
