@@ -26,12 +26,12 @@ bool fm_vec3_refract(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n, flo
 }
 
 // Create a quaternion 
-void fm_quat_from_euler(fm_quat_t *out, const float rot[3])
+void fm_quat_from_euler(fm_quat_t *out, const float euler[3])
 {
     float c1, c2, c3, s1, s2, s3;
-    fm_sincosf(rot[0] * 0.5f, &s1, &c1);
-    fm_sincosf(rot[1] * 0.5f, &s2, &c2);
-    fm_sincosf(rot[2] * 0.5f, &s3, &c3);
+    fm_sincosf(euler[0] * 0.5f, &s1, &c1);
+    fm_sincosf(euler[1] * 0.5f, &s2, &c2);
+    fm_sincosf(euler[2] * 0.5f, &s3, &c3);
 
     *out = (fm_quat_t){{ c1 * c2 * c3 + s1 * s2 * s3,
                          s1 * c2 * c3 - c1 * s2 * s3,
@@ -39,17 +39,18 @@ void fm_quat_from_euler(fm_quat_t *out, const float rot[3])
                          c1 * c2 * s3 - s1 * s2 * c3 }};
 }
 
-void fm_quat_from_euler_xyz(fm_quat_t *out, const float rot[3])
+void fm_quat_from_euler_zyx(fm_quat_t *out, float x, float y, float z)
 {
-    float c1, c2, c3, s1, s2, s3;
-    fm_sincosf(rot[0] * 0.5f, &s1, &c1);
-    fm_sincosf(rot[1] * 0.5f, &s2, &c2);
-    fm_sincosf(rot[2] * 0.5f, &s3, &c3);
+    float xs, xc, ys, yc, zs, zc;
 
-    *out = (fm_quat_t){{ s1 * c2 * c3 + c1 * s2 * s3,
-                         c1 * s2 * c3 - s1 * c2 * s3,
-                         c1 * c2 * s3 - s1 * s2 * c3,
-                         c1 * c2 * c3 - s1 * s2 * s3 }};
+    fm_sincosf(x * 0.5f, &xs, &xc);
+    fm_sincosf(y * 0.5f, &ys, &yc);
+    fm_sincosf(z * 0.5f, &zs, &zc);
+
+    out->v[0] =  xs * yc * zc - xc * ys * zs;
+    out->v[1] =  xc * ys * zc + xs * yc * zs;
+    out->v[2] = -xs * ys * zc + xc * yc * zs;
+    out->v[3] =  xc * yc * zc + xs * ys * zs;
 }
 
 inline void fm_quat_mul(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b)
@@ -63,7 +64,7 @@ inline void fm_quat_mul(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b)
 void fm_quat_rotate(fm_quat_t *out, const fm_quat_t *q, const fm_vec3_t *axis, float angle)
 {
     fm_quat_t r;
-    fm_quat_from_rotation(&r, axis, angle);
+    fm_quat_from_axis_angle(&r, axis, angle);
     fm_quat_mul(out, q, &r);
 }
 
@@ -99,8 +100,14 @@ void fm_quat_slerp(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b, float
                          a->v[3] * ws + b->v[3] * we }};
 }
 
+void fm_mat4_rotate(fm_mat4_t *out, const fm_quat_t *rotation)
+{
+    fm_mat4_t rotation_matrix;
+    fm_mat4_from_rotation(&rotation_matrix, rotation);
+    fm_mat4_mul(out, &rotation_matrix, out);
+}
 
-void fm_mat4_rotate(fm_mat4_t *out, const fm_vec3_t *axis, float angle)
+void fm_mat4_from_axis_angle(fm_mat4_t *out, const fm_vec3_t *axis, float angle)
 {
     float s, c;
     fm_sincosf(angle, &s, &c);
@@ -133,12 +140,12 @@ void fm_mat4_from_srt(fm_mat4_t *out, const fm_vec3_t *scale, const fm_quat_t *q
     }};
 }
 
-void fm_mat4_from_srt_euler(fm_mat4_t *out, const fm_vec3_t *scale, const float rot[3], const fm_vec3_t *translate)
+void fm_mat4_from_srt_euler(fm_mat4_t *out, const fm_vec3_t *scale, const float euler[3], const fm_vec3_t *translate)
 {
     float s0, c0, s1, c1, s2, c2;
-    fm_sincosf(rot[0], &s0, &c0);
-    fm_sincosf(rot[1], &s1, &c1);
-    fm_sincosf(rot[2], &s2, &c2);
+    fm_sincosf(euler[0], &s0, &c0);
+    fm_sincosf(euler[1], &s1, &c1);
+    fm_sincosf(euler[2], &s2, &c2);
 
     *out = (fm_mat4_t){{
         { scale->x * c2 * c1, scale->x * (c2 * s1 * s0 - s2 * c0), scale->x * (c2 * s1 * c0 + s2 * s0), 0 },
@@ -228,4 +235,57 @@ void fm_mat4_inverse(fm_mat4_t *out, const fm_mat4_t *m)
             out->m[i][j] = tmp.m[i][j] * det;
         }
     }    
+}
+
+void fm_mat4_affine_to_normal_mat(fm_mat4_t *out, const fm_mat4_t *m)
+{
+    float m00 = m->m[0][0], m01 = m->m[0][1], m02 = m->m[0][2],
+          m10 = m->m[1][0], m11 = m->m[1][1], m12 = m->m[1][2],
+          m20 = m->m[2][0], m21 = m->m[2][1], m22 = m->m[2][2];
+    
+    float tmp[3][3];
+
+    tmp[0][0] =   m11 * m22 - m12 * m21;
+    tmp[0][1] = -(m01 * m22 - m21 * m02);
+    tmp[0][2] =   m01 * m12 - m11 * m02;
+    tmp[1][0] = -(m10 * m22 - m20 * m12);
+    tmp[1][1] =   m00 * m22 - m02 * m20;
+    tmp[1][2] = -(m00 * m12 - m10 * m02);
+    tmp[2][0] =   m10 * m21 - m20 * m11;
+    tmp[2][1] = -(m00 * m21 - m20 * m01);
+    tmp[2][2] =   m00 * m11 - m01 * m10;
+
+    float det = 1.0f / (m00 * tmp[0][0] + m01 * tmp[1][0] + m02 * tmp[2][0]);
+
+    *out = (fm_mat4_t){{
+        {tmp[0][0] * det, tmp[1][0] * det, tmp[2][0] * det, 0},
+        {tmp[0][1] * det, tmp[1][1] * det, tmp[2][1] * det, 0},
+        {tmp[0][2] * det, tmp[1][2] * det, tmp[2][2] * det, 0},
+        {0,               0,               0,               1},
+    }};
+}
+
+void fm_mat4_look(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *dir, const fm_vec3_t *up)
+{
+    fm_vec3_t s, u;
+
+    fm_vec3_cross(&s, dir, up);
+    fm_vec3_norm(&s, &s);
+
+    fm_vec3_cross(&u, &s, dir);
+
+    *out = (fm_mat4_t){{
+        {s.x, u.x, -dir->x, 0},
+        {s.y, u.y, -dir->y, 0},
+        {s.z, u.z, -dir->z, 0},
+        {-fm_vec3_dot(&s, eye), -fm_vec3_dot(&u, eye), fm_vec3_dot(dir, eye), 1},
+    }};
+}
+
+void fm_mat4_lookat(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *target, const fm_vec3_t *up)
+{
+    fm_vec3_t dir;
+    fm_vec3_sub(&dir, target, eye);
+    fm_vec3_norm(&dir, &dir);
+    fm_mat4_look(out, eye, &dir, up);
 }

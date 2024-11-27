@@ -86,3 +86,9 @@ float fm_lerp_angle(float a, float b, float t)
     float dist = fm_fmodf(diff*2, FM_PI*2) - diff;
     return a + dist * t;
 }
+
+float fm_wrap_angle(float angle)
+{
+    float a = fm_fmodf(angle, FM_PI*2);
+    return a < 0.0f ? a + FM_PI*2 : a;
+}
