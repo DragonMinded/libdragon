@@ -1,9 +1,6 @@
 #include <libdragon.h>
 #include <rspq_profile.h>
 
-#include "matrix.h"
-#include "quat.h"
-#include "utility.h"
 #include "scene_data.h"
 #include "debug_overlay.h"
 
@@ -25,12 +22,16 @@
 #define STICK_DEADZONE       10
 #define IGNORE_DEADZONE(v)   ((v) > STICK_DEADZONE || (v) < -STICK_DEADZONE ? (v) : 0)
 
-#define CAMERA_AZIMUTH_SPEED        0.015f
-#define CAMERA_INCLINATION_SPEED    0.015f
+#define CAMERA_YAW_SPEED            0.015f
+#define CAMERA_PITCH_SPEED          0.015f
 #define CAMERA_DISTANCE_SPEED       0.05f
 #define CAMERA_DISTANCE_SPEED_FAST  0.5f
-#define CAMERA_MIN_INCLINATION      (-M_PI_2 * 0.9)
-#define CAMERA_MAX_INCLINATION      (M_PI_2 * 0.9)
+#define CAMERA_MIN_PITCH            (-M_PI_2 * 0.9)
+#define CAMERA_MAX_PITCH            (M_PI_2 * 0.9)
+
+#define ARRAY_COUNT(a) (sizeof(a)/sizeof(a[0]))
+
+#define RAND_FLT() ((float)rand()/RAND_MAX)
 
 typedef struct
 {
@@ -78,12 +79,12 @@ typedef struct
 
 typedef struct
 {
-    mat4x4_t mvp_matrix;
-    mat4x4_t mv_matrix;
-    mat4x4_t n_matrix;
-    quat_t rotation;
-    float position[3];
-    float rotation_axis[3];
+    fm_mat4_t mvp_matrix;
+    fm_mat4_t mv_matrix;
+    fm_mat4_t n_matrix;
+    fm_quat_t rotation;
+    fm_vec3_t position;
+    fm_vec3_t rotation_axis;
     float rotation_angle;
     float rotation_rate;
     uint32_t mesh_id;
@@ -128,14 +129,13 @@ static draw_call *draw_calls;
 static uint32_t draw_call_count;
 static bool draw_calls_dirty = true;
 
-static mat4x4_t projection_matrix;
-static mat4x4_t view_matrix;
-static mat4x4_t vp_matrix;
+static fm_mat4_t projection_matrix;
+static fm_mat4_t view_matrix;
+static fm_mat4_t vp_matrix;
 
-static float camera_position[3];
-static quat_t camera_rotation;
-static float camera_azimuth;
-static float camera_inclination;
+static fm_vec3_t camera_position;
+static float camera_yaw;
+static float camera_pitch;
 
 static uint32_t current_object_count = OBJECT_COUNT;
 static bool animation_enabled = false;
@@ -270,14 +270,14 @@ void init()
             .mesh_id = object_mesh_ids[i],
         };
         memcpy(objects[i].material_ids, object_material_ids[i], sizeof(objects[i].material_ids));
-        memcpy(objects[i].position, object_positions[i], sizeof(objects[i].position));
-        quat_make_identity(&objects[i].rotation);
+        objects[i].position = object_positions[i];
+        fm_quat_identity(&objects[i].rotation);
 
         // Create a random rotation axis (just an approximation, not actually uniformly distributed)
-        objects[i].rotation_axis[0] = RAND_FLT() * 2.0f - 1.0f;
-        objects[i].rotation_axis[1] = RAND_FLT() * 2.0f - 1.0f;
-        objects[i].rotation_axis[2] = RAND_FLT() * 2.0f - 1.0f;
-        vec3_normalize(objects[i].rotation_axis, objects[i].rotation_axis);
+        objects[i].rotation_axis.x = RAND_FLT() * 2.0f - 1.0f;
+        objects[i].rotation_axis.y = RAND_FLT() * 2.0f - 1.0f;
+        objects[i].rotation_axis.z = RAND_FLT() * 2.0f - 1.0f;
+        fm_vec3_norm(&objects[i].rotation_axis, &objects[i].rotation_axis);
 
         objects[i].rotation_rate = RAND_FLT() * 5.0f;
         objects[i].rotation_angle = RAND_FLT() * M_TWOPI;
@@ -289,8 +289,8 @@ void init()
 
     // Initialize camera properties
     float aspect_ratio = (float)resolution.width / (float)resolution.height;
-    mat4x4_make_projection(&projection_matrix, camera_fov, aspect_ratio, camera_near_plane, camera_far_plane);
-    memcpy(camera_position, camera_start_position, sizeof(camera_position));
+    mg_mat4_perspective(&projection_matrix, FM_DEG2RAD(camera_fov), aspect_ratio, camera_near_plane, camera_far_plane);
+    camera_position = camera_start_position;
 }
 
 void material_create(material_data *material, sprite_t *texture, mgfx_modes_parms_t *mode_parms, mg_geometry_flags_t geometry_flags, color_t color)
@@ -476,7 +476,19 @@ void mesh_create(mesh_data *mesh, const char *model_file, vertex_layout *vertex_
 
 void update_object_transform(object_data *object)
 {
-    quat_from_axis_angle(&object->rotation, object->rotation_axis, objects->rotation_angle);
+    fm_quat_from_axis_angle(&object->rotation, &object->rotation_axis, objects->rotation_angle);
+}
+
+void direction_from_pitch_yaw(fm_vec3_t *out, float pitch, float yaw)
+{
+    float ys, yc, ps, pc;
+    fm_sincosf(yaw, &ys, &yc);
+    fm_sincosf(pitch, &ps, &pc);
+    *out = (fm_vec3_t){{
+        -pc * ys,
+        ps,
+        -pc * yc
+    }};
 }
 
 void update(float delta_time)
@@ -490,34 +502,27 @@ void update(float delta_time)
     int8_t cstick_x = IGNORE_DEADZONE(inputs.cstick_x);
     int8_t cstick_y = IGNORE_DEADZONE(inputs.cstick_y);
 
-    camera_azimuth -= cstick_x * delta_time * CAMERA_AZIMUTH_SPEED;
-    camera_inclination -= cstick_y * delta_time * CAMERA_INCLINATION_SPEED;
+    camera_yaw -= cstick_x * delta_time * CAMERA_YAW_SPEED;
+    camera_pitch -= cstick_y * delta_time * CAMERA_PITCH_SPEED;
 
-    if (camera_azimuth > M_TWOPI) camera_azimuth -= M_TWOPI;
-    if (camera_azimuth < 0.0f) camera_azimuth += M_TWOPI;
+    if (camera_yaw > M_TWOPI) camera_yaw -= M_TWOPI;
+    if (camera_yaw < 0.0f) camera_yaw += M_TWOPI;
 
-    if (camera_inclination > CAMERA_MAX_INCLINATION) camera_inclination = CAMERA_MAX_INCLINATION;
-    if (camera_inclination < CAMERA_MIN_INCLINATION) camera_inclination = CAMERA_MIN_INCLINATION;
-
-    quat_from_euler_zyx(&camera_rotation, camera_inclination, camera_azimuth, 0.0f);
+    if (camera_pitch > CAMERA_MAX_PITCH) camera_pitch = CAMERA_MAX_PITCH;
+    if (camera_pitch < CAMERA_MIN_PITCH) camera_pitch = CAMERA_MIN_PITCH;
 
     float distance_speed = delta_time * (inputs.btn.z ? CAMERA_DISTANCE_SPEED : CAMERA_DISTANCE_SPEED_FAST);
 
-    float sin_azimuth, cos_azimuth, sin_inclination, cos_inclination;
-    fm_sincosf(camera_azimuth, &sin_azimuth, &cos_azimuth);
-    fm_sincosf(camera_inclination, &sin_inclination, &cos_inclination);
-    float forward[3] = {
-        -cos_inclination * sin_azimuth,
-        sin_inclination,
-        -cos_inclination * cos_azimuth
-    };
-    float up[3] = {0, 1, 0};
-    float right[3];
-    vec3_cross(right, forward, up);
-
-    camera_position[0] += (forward[0] * stick_y + right[0] * stick_x) * distance_speed;
-    camera_position[1] += (forward[1] * stick_y + right[1] * stick_x) * distance_speed;
-    camera_position[2] += (forward[2] * stick_y + right[2] * stick_x) * distance_speed;
+    fm_vec3_t up = {{0, 1, 0}};
+    fm_vec3_t right;
+    fm_vec3_t forward;
+    direction_from_pitch_yaw(&forward, camera_pitch, camera_yaw);
+    fm_vec3_cross(&right, &forward, &up);
+    fm_vec3_scale(&forward, &forward, stick_y);
+    fm_vec3_scale(&right, &right, stick_x);
+    fm_vec3_add(&forward, &forward, &right);
+    fm_vec3_scale(&forward, &forward, distance_speed);
+    fm_vec3_add(&camera_position, &camera_position, &forward);
 
     // Increase/Decrease the number of drawn objects with the D-pad.
     if (btn.d_up && current_object_count < OBJECT_COUNT) {
@@ -544,7 +549,7 @@ void update(float delta_time)
         // Compute animation based on delta time. It's enough for this demo.
         for (size_t i = 0; i < current_object_count; i++)
         {
-            objects[i].rotation_angle = wrap_angle(objects[i].rotation_angle + objects[i].rotation_rate * delta_time);
+            objects[i].rotation_angle = fm_wrap_angle(objects[i].rotation_angle + objects[i].rotation_rate * delta_time);
             update_object_transform(&objects[i]);
         }
     }
@@ -553,22 +558,11 @@ void update(float delta_time)
 void update_camera()
 {
     // Update camera matrices.
-    quat_t inverse_camera_rotation;
-    quat_inverse(&inverse_camera_rotation, &camera_rotation);
-
-    mat4x4_t camera_rotation_matrix;
-    mat4x4_make_rotation(&camera_rotation_matrix, inverse_camera_rotation.v);
-
-    float inverse_camera_position[3] = {
-        -camera_position[0],
-        -camera_position[1],
-        -camera_position[2]
-    };
-    mat4x4_t camera_translation_matrix;
-    mat4x4_make_translation(&camera_translation_matrix, inverse_camera_position);
-    
-    mat4x4_mult(&view_matrix, &camera_rotation_matrix, &camera_translation_matrix);
-    mat4x4_mult(&vp_matrix, &projection_matrix, &view_matrix);
+    fm_vec3_t forward;
+    fm_vec3_t up = {{0, 1, 0}};
+    direction_from_pitch_yaw(&forward, camera_pitch, camera_yaw);
+    fm_mat4_look(&view_matrix, &camera_position, &forward, &up);
+    fm_mat4_mul(&vp_matrix, &projection_matrix, &view_matrix);
 }
 
 void update_lights()
@@ -580,7 +574,7 @@ void update_lights()
     for (size_t i = 0; i < LIGHT_COUNT; i++)
     {
         // Transform light position into eye space
-        mat4x4_mult_vec(lights[i].position, &view_matrix, light_positions[i]);
+        fm_mat4_mul_vec4(&lights[i].position, &view_matrix, &light_positions[i]);
     }
 
     // These mgfx_get_* functions will take the parameters in a convenient format and convert them into the RSP-optimized format that the buffer is supposed to contain.
@@ -603,11 +597,11 @@ void update_objects()
         object_data *object = &objects[i];
         // Update object matrices from its current transform.
 
-        mat4x4_t model_matrix;
-        mat4x4_make_rotation_translation(&model_matrix, object->position, object->rotation.v);
-        mat4x4_mult(&object->mvp_matrix, &vp_matrix, &model_matrix);
-        mat4x4_mult(&object->mv_matrix, &view_matrix, &model_matrix);
-        mat4x4_to_normal_matrix(&object->n_matrix, &object->mv_matrix);
+        fm_mat4_t model_matrix;
+        fm_mat4_from_rt(&model_matrix, &object->rotation, &object->position);
+        fm_mat4_mul(&object->mvp_matrix, &vp_matrix, &model_matrix);
+        fm_mat4_mul(&object->mv_matrix, &view_matrix, &model_matrix);
+        fm_mat4_affine_to_normal_mat(&object->n_matrix, &object->mv_matrix);
     }
 }
 

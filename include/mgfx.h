@@ -10,6 +10,7 @@
 #include <magma.h>
 #include <mgfx_constants.h>
 #include <mgfx_macros.h>
+#include <fgeom.h>
 
 /** @brief Enumeration of mode flags */
 typedef enum
@@ -85,10 +86,10 @@ typedef struct
     /**
      * @brief The light's position/direction.
      * 
-     * If the fourth value in this array is 0, the light is directional. In this case the first 3 values specify the light's (normalized) direction in eye space.
-     * Otherwise, the light is positional. In this case the first 3 values specify the light's position in eye space.
+     * If w is 0, the light is directional. In this case x, y and z specify the light's (normalized) direction in eye space.
+     * Otherwise, the light is positional. In this case x, y and z specify the light's position in eye space.
      */
-    float position[4];
+    fm_vec4_t position;
 
     color_t color;      ///< The light's color.
     float radius;       ///< The light's radius. Must only be set if the light is positional.

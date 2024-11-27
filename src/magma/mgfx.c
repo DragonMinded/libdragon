@@ -60,21 +60,21 @@ static void mgfx_get_light(mgfx_light_t *dst, const mgfx_light_parms_t *parms)
 
     // The user should pre-transform positional lights into eye-space
 
-    const float *p = parms->position;
+    const fm_vec4_t *p = &parms->position;
     // If W is zero then the light is directional
-    if (p[3] == 0.0f) {
+    if (p->w == 0.0f) {
         // Pre-normalize the light direction
-        float magnitude = sqrtf(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
-        dst->position[0] = -FLOAT_TO_I16(p[0] / magnitude);
-        dst->position[1] = -FLOAT_TO_I16(p[1] / magnitude);
-        dst->position[2] = -FLOAT_TO_I16(p[2] / magnitude);
+        float magnitude = sqrtf(p->x * p->x + p->y * p->y + p->z * p->z);
+        dst->position[0] = -FLOAT_TO_I16(p->x / magnitude);
+        dst->position[1] = -FLOAT_TO_I16(p->y / magnitude);
+        dst->position[2] = -FLOAT_TO_I16(p->z / magnitude);
         dst->position[3] = FLOAT_TO_I16(0.0f);
     } else {
         assertf(parms->radius > 0.0f, "Light radius must be greater than zero!");
         
-        dst->position[0] = FLOAT_TO_S10_5(p[0]);
-        dst->position[1] = FLOAT_TO_S10_5(p[1]);
-        dst->position[2] = FLOAT_TO_S10_5(p[2]);
+        dst->position[0] = FLOAT_TO_S10_5(p->x);
+        dst->position[1] = FLOAT_TO_S10_5(p->y);
+        dst->position[2] = FLOAT_TO_S10_5(p->z);
         dst->position[3] = FLOAT_TO_S10_5(1.0f);
 
         float const_att = 1.0f;

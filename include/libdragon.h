@@ -87,6 +87,7 @@
 #include "bbfs.h"
 #include "ioctl.h"
 #include "magma.h"
+#include "magma_math.h"
 #include "mgfx.h"
 
 

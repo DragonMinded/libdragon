@@ -1,7 +1,7 @@
 #ifndef SCENE_DATA_H
 #define SCENE_DATA_H
 
-#include "utility.h"
+#include <fgeom.h>
 
 /*
     A minimalistic "asset database" for this demo.
@@ -70,17 +70,17 @@ static const uint32_t object_material_ids[][MAX_SUBMESH_COUNT] = {
     { 0 }, 
     { 4 }
 };
-static const float object_positions[][3] = {
-    { 0.0f, 0.0f, 0.0f },
-    { -10.0f, 0.0f, 0.0f },
-    { 10.0f, 0.0f, 0.0f },
-    { 0.0f, 10.0f, -10.0f },
-    { 10.0f, 10.0f, 0.0f },
-    { 5.0f, -5.0f, 9.0f },
-    { -15.0f, -8.0f, 0.0f },
-    { 4.0f, 3.0f, -12.0f },
-    { -14.0f, 6.0f, 8.0f },
-    { -4.0f, 16.0f, 0.0f },
+static const fm_vec3_t object_positions[] = {
+    {{ 0.0f, 0.0f, 0.0f }},
+    {{ -10.0f, 0.0f, 0.0f }},
+    {{ 10.0f, 0.0f, 0.0f }},
+    {{ 0.0f, 10.0f, -10.0f }},
+    {{ 10.0f, 10.0f, 0.0f }},
+    {{ 5.0f, -5.0f, 9.0f }},
+    {{ -15.0f, -8.0f, 0.0f }},
+    {{ 4.0f, 3.0f, -12.0f }},
+    {{ -14.0f, 6.0f, 8.0f }},
+    {{ -4.0f, 16.0f, 0.0f }},
 };
 
 
@@ -89,9 +89,9 @@ static const uint32_t light_colors[] = {
     0x868686ff,
     0xdbbc72ff
 };
-static const float light_positions[][4] = {
-    { 0.196116f, -0.784465f, -0.588348f, 0.0f },
-    { 0.0f, 10.0f, 0.0f, 1.0f }
+static const fm_vec4_t light_positions[] = {
+    {{ 0.196116f, -0.784465f, -0.588348f, 0.0f }},
+    {{ 0.0f, 10.0f, 0.0f, 1.0f }}
 };
 static const float light_radii[] = {
     0.0f,
@@ -108,6 +108,6 @@ static const float fog_end = 100.0f;
 static const float camera_fov = 65.0f;
 static const float camera_near_plane = 1.0f;
 static const float camera_far_plane = 100.0f;
-static const float camera_start_position[] = {0,0,30};
+static const fm_vec3_t camera_start_position = {{0,0,30}};
 
 #endif

@@ -76,7 +76,7 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/math/fgeom.o \
 			 $(BUILD_DIR)/magma/magma.o $(BUILD_DIR)/magma/mgfx.o \
 			 $(BUILD_DIR)/magma/rsp_magma.o $(BUILD_DIR)/magma/rsp_magma_clipping.o \
-			 $(BUILD_DIR)/magma/rsp_mgfx.o
+			 $(BUILD_DIR)/magma/rsp_mgfx.o $(BUILD_DIR)/magma/math.o
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
@@ -218,6 +218,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/nand.h $(INSTALLDIR)/mips64-elf/include/nand.h
 	install -Cv -m 0644 include/bbfs.h $(INSTALLDIR)/mips64-elf/include/bbfs.h
 	install -Cv -m 0644 include/magma.h $(INSTALLDIR)/mips64-elf/include/magma.h
+	install -Cv -m 0644 include/magma_math.h $(INSTALLDIR)/mips64-elf/include/magma_math.h
 	install -Cv -m 0644 include/magma_constants.h $(INSTALLDIR)/mips64-elf/include/magma_constants.h
 	install -Cv -m 0644 include/rsp_magma.inc $(INSTALLDIR)/mips64-elf/include/rsp_magma.inc
 	install -Cv -m 0644 include/mgfx.h $(INSTALLDIR)/mips64-elf/include/mgfx.h

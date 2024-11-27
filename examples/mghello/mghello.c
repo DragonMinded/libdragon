@@ -49,16 +49,12 @@ int main()
     });
 
     // Initialize all matrices to identity
-    const float identity[] = {
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-    };
+    fm_mat4_t identity;
+    fm_mat4_identity(&identity);
     mgfx_get_matrices(&uniform_data->matrices, &(mgfx_matrices_parms_t) {
-        .model_view_projection = identity,
-        .model_view = identity,
-        .normal = identity,
+        .model_view_projection = identity.m[0],
+        .model_view = identity.m[0],
+        .normal = identity.m[0],
     });
 
     const mg_uniform_t *fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
