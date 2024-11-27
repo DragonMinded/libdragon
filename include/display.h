@@ -87,7 +87,7 @@ typedef struct {
     /**
      * @brief Add a margin to the display output to compensate for the TV overscan.
      * 
-     * Leave 0 for emulators, upscaler or LCD TVs. Use #DEFAULT_CRT_MARGIN for
+     * Leave 0 for emulators, upscaler or LCD TVs. Use #VI_CRT_MARGIN for
      * adding some margin that will allow the picture to be fully visible on
      * most TV CRTs.
      * 
@@ -99,7 +99,7 @@ typedef struct {
      * On TV CRTs, instead, part of the picture will be displayed by the TV
      * overscan. To compensate for this, you can reduce the picture size by this
      * specified amount (expressed in percentage of the original picture).
-     * #DEFAULT_CRT_MARGIN (which is 0.05, aka 5%) is the suggested value you can
+     * #VI_CRT_MARGIN (which is 0.05, aka 5%) is the suggested value you can
      * use for this field
      */
     float overscan_margin;
@@ -121,7 +121,7 @@ typedef struct {
 ///@endcond
 
 /** Good default for a safe CRT overscan margin (5%) */
-#define DEFAULT_CRT_MARGIN      0.05f
+#define VI_CRT_MARGIN      0.05f
 
 /** @brief 256x240 mode, stretched to 4:3, no borders */
 const resolution_t RESOLUTION_256x240 = {.width = 256, .height = 240, .interlaced = INTERLACE_OFF};

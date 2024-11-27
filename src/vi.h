@@ -61,7 +61,7 @@
  * on all the four edges, you will get a 616x456 display output, plus
  * the requested 12 dots of borders on all sides; the actual display output
  * will thus be smaller, and possibly get fully out of overscan. The value
- * #DEFAULT_CRT_MARGIN is a good default you can use for overscan compensation on
+ * #VI_CRT_MARGIN is a good default you can use for overscan compensation on
  * most CRT TVs.
  * 
  * Notice that adding borders also affect the aspect ratio of the display output;
@@ -421,7 +421,7 @@ typedef struct vi_borders_s {
  * 
  * The margin is expressed as a percentage relative to the virtual VI display
  * output (640x480). A good default for this margin for most CRTs is
- * #DEFAULT_CRT_MARGIN (5%).
+ * #VI_CRT_MARGIN (5%).
  * 
  * For instance, to create a 16:9 resolution, you can do:
  * 
@@ -433,7 +433,7 @@ typedef struct vi_borders_s {
  * @param aspect_ratio      Target aspect ratio
  * @param overscan_margin   Margin to add to compensate for TV overscan. Use 0
  *                          to use full picture (eg: for emulators), and something
- *                          like #DEFAULT_CRT_MARGIN to get a good CRT default.
+ *                          like #VI_CRT_MARGIN to get a good CRT default.
  * 
  * @return vi_borders_t The requested border settings
  */

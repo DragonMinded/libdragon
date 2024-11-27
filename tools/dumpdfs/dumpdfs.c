@@ -835,13 +835,13 @@ int main( int argc, char *argv[] )
             int offset = 0;
             if (!strstr(argv[2], ".dfs"))
             {
-                void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
+                void *fs = memmem(filesystem, lSize, ((uint8_t *)&root_dirent)+4, sizeof(root_dirent)-8); //Exclude ROOT_NEXT_ENTRY and root file_pointer
                 if (!fs)
                 {
                     fprintf(stderr, "cannot find DragonFS in ROM\n");
                     return -1;
                 }
-                offset = fs - filesystem;
+                offset = (fs - filesystem) - 4;
             }
 
             if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)

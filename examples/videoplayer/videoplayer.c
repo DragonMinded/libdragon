@@ -60,7 +60,7 @@ int main(void)
 			.aspect_ratio = (float)video_width / video_height,
 			// Uncomment this line if you want to have some additional black
 			// borders to fully display the video on real CRTs.
-			// .overscan_margin = DEFAULT_CRT_MARGIN,
+			// .overscan_margin = VI_CRT_MARGIN,
 		},
 		// 32-bit display mode is mandatory for video playback.
 		DEPTH_32_BPP,
