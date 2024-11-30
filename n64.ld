@@ -78,6 +78,8 @@ SECTIONS {
         __wrap___do_global_ctors and enables it via the --wrap linker option.
         When linking with ld, we should use __do_global_ctors, which is the default
         if you don't provide the --wrap option. */
+        KEEP(*(EXCLUDE_FILE (*crtend.o) .ctors))
+        KEEP(*(SORT(.ctors.*)))
         KEEP(*(.ctors))
          /* Similarly we should have a;
 

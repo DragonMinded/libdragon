@@ -28,8 +28,8 @@ SECTIONS {
     /* Write constructors and destructors which each must be 4-byte aligned */
     .ctors ALIGN(4) : {
         LONG(0); /* Add terminator to CTOR list */
-        KEEP(*(SORT(.ctors.*)))
         KEEP(*(.ctors))
+        KEEP(*(SORT(.ctors.*)))
         __CTOR_LIST__ = .-4; /* Define symbol for CTOR list */
     }
     
