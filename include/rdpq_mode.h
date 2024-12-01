@@ -28,9 +28,11 @@
  *     render mode. It allows to use all RDP render states (that must be activated via the
  *     various `rdpq_mode_*` functions). 
  *   * **Copy** (#rdpq_set_mode_copy). This is a fast (4x) mode in which the RDP
- *     can perform fast blitting of textured rectangles (aka sprites). All texture
- *     formats are supported, and color 0 can be masked for transparency. Textures
- *     can be scaled and rotated, but not mirrored. Blending is not supported.
+ *     can perform fast blitting of textured rectangles (aka sprites). It does
+ *     support a limited subset of features: framebuffer must be 16-bit (not 32-bit);
+ *     texture format must be CI4, CI8 or RGBA16; only Y scaling is supported
+ *     (not X scaling); rotation and mirroring is not supported; transparency
+ *     is supported (color 0 masking via alpha compare), but not blending.
  *   * **Fill** (#rdpq_set_mode_fill). This is a fast (4x) mode in which the RDP
  *     is able to quickly fill a rectangular portion of the target buffer with a
  *     fixed color. It can be used to clear the screen. Blending is not supported.

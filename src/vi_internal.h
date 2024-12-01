@@ -71,24 +71,21 @@
  * ratios (eg: 16:9).
  * 
  * To help calculating the borders by taking both potential goals into account
- * (overscan compensation and aspect ratio changes), you can use #vi_calc_borders.
+ * (overscan compensation and aspect ratio changes), you can use #vi_calc_borders_int.
  */
-#ifndef __LIBDRAGON_VI_H
-#define __LIBDRAGON_VI_H
+#ifndef __LIBDRAGON_VI_INTERNAL_H
+#define __LIBDRAGON_VI_INTERNAL_H
 
 #include <stdint.h>
 #include <stdbool.h>
 #include "n64sys.h"
+#include "vi.h"
 
 /**
  * @addtogroup display
  * @{
  */
 
-/** @brief Register uncached location in memory of VI */
-#define VI_REGISTERS_ADDR       0xA4400000
-/** @brief Number of useful 32-bit registers at the register base */
-#define VI_REGISTERS_COUNT      14
 
 /**
  * @brief Video Interface register structure
@@ -100,45 +97,6 @@
 typedef struct vi_config_s{
     uint32_t regs[VI_REGISTERS_COUNT];
 } vi_config_t;
-
-/** @brief Base pointer to hardware Video interface registers that control various aspects of VI configuration.
- * Shouldn't be used by itself, use VI_ registers to get/set their values. */
-#define VI_REGISTERS      ((volatile uint32_t*)VI_REGISTERS_ADDR)
-/** @brief VI Index register of controlling general display filters/bitdepth configuration */
-#define VI_CTRL           (&VI_REGISTERS[0])
-/** @brief VI Index register of RDRAM base address of the video output Frame Buffer. This can be changed as needed to implement double or triple buffering. */
-#define VI_ORIGIN         (&VI_REGISTERS[1])
-/** @brief VI Index register of width in pixels of the frame buffer. */
-#define VI_WIDTH          (&VI_REGISTERS[2])
-/** @brief VI Index register of vertical interrupt. */
-#define VI_V_INTR         (&VI_REGISTERS[3])
-/** @brief VI Index register of the current half line, sampled once per line. */
-#define VI_V_CURRENT      (&VI_REGISTERS[4])
-/** @brief VI Index register of sync/burst values */
-#define VI_BURST          (&VI_REGISTERS[5])
-/** @brief VI Index register of total visible and non-visible lines. 
- * This should match either NTSC (non-interlaced: 0x20D, interlaced: 0x20C) or PAL (non-interlaced: 0x271, interlaced: 0x270) */
-#define VI_V_SYNC         (&VI_REGISTERS[6])
-/** @brief VI Index register of total width of a line */
-#define VI_H_SYNC         (&VI_REGISTERS[7])
-/** @brief VI Index register of an alternate scanline length for one scanline during vsync. */
-#define VI_H_SYNC_LEAP    (&VI_REGISTERS[8])
-/** @brief VI Index register of start/end of the active video image, in screen pixels */
-#define VI_H_VIDEO        (&VI_REGISTERS[9])
-/** @brief VI Index register of start/end of the active video image, in screen half-lines. */
-#define VI_V_VIDEO        (&VI_REGISTERS[10])
-/** @brief VI Index register of start/end of the color burst enable, in half-lines. */
-#define VI_V_BURST        (&VI_REGISTERS[11])
-/** @brief VI Index register of horizontal subpixel offset and 1/horizontal scale up factor. */
-#define VI_X_SCALE        (&VI_REGISTERS[12])
-/** @brief VI Index register of vertical subpixel offset and 1/vertical scale up factor. */
-#define VI_Y_SCALE        (&VI_REGISTERS[13])
-
-/** @brief VI register by index (0-13)*/
-#define VI_TO_REGISTER(index) (((index) >= 0 && (index) <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
-
-/** @brief VI index from register */
-#define VI_TO_INDEX(reg) ((reg) - VI_REGISTERS)
 
 /** Under VI_CTRL */
 
@@ -188,8 +146,6 @@ typedef struct vi_config_s{
 /** Under VI_V_INTR    */
 /** @brief VI_V_INTR Register: set value for vertical interrupt. */
 #define VI_V_INTR_SET(value)                ((value & 0x3FF) << 0)
-/** @brief VI_V_INTR Register: default value for vertical interrupt. */
-#define VI_V_INTR_DEFAULT                   0x3FF
 
 /** Under VI_BURST     */
 /** @brief VI_BURST Register: set start of color burst in pixels from hsync. */
@@ -238,17 +194,17 @@ typedef struct vi_config_s{
 /** @brief VI_BURST Register: MPAL default setting. */
 #define VI_BURST_MPAL                       VI_BURST_SET(VI_BURST_START_MPAL, VI_VSYNC_WIDTH_MPAL, VI_BURST_WIDTH_MPAL, VI_HSYNC_WIDTH_MPAL)
 
-/**  Under VI_V_SYNC */
-/** @brief VI_V_SYNC Register: set the total number of visible and non-visible half-lines (-1). */
-#define VI_V_SYNC_SET(vsync)                (vsync)
+/**  Under VI_V_TOTAL */
+/** @brief VI_V_TOTAL Register: set the total number of visible and non-visible half-lines (-1). */
+#define VI_V_TOTAL_SET(vsync)               (vsync)
 
-/**  Under VI_H_SYNC */
-/** @brief VI_H_SYNC Register: set the total width of a line in quarter-pixel units (-1), and the 5-bit leap pattern. */
-#define VI_H_SYNC_SET(leap_pattern, hsync)  ((((leap_pattern) & 0x1F) << 16) | ((hsync) & 0xFFF))
+/**  Under VI_H_TOTAL */
+/** @brief VI_H_TOTAL Register: set the total width of a line in quarter-pixel units (-1), and the 5-bit leap pattern. */
+#define VI_H_TOTAL_SET(leap_pattern, hsync)  ((((leap_pattern) & 0x1F) << 16) | ((hsync) & 0xFFF))
 
-/**  Under VI_H_SYNC_LEAP */
-/** @brief VI_H_SYNC_LEAP Register: set alternate scanline lengths for one scanline during vsync, leap_a and leap_b are selected based on the leap pattern in VI_H_SYNC. */
-#define VI_H_SYNC_LEAP_SET(leap_a, leap_b)  ((((leap_a) & 0xFFF) << 16) | ((leap_b) & 0xFFF))
+/**  Under VI_H_TOTAL_LEAP */
+/** @brief VI_H_TOTAL_LEAP Register: set alternate scanline lengths for one scanline during vsync, leap_a and leap_b are selected based on the leap pattern in VI_H_SYNC. */
+#define VI_H_TOTAL_LEAP_SET(leap_a, leap_b)  ((((leap_a) & 0xFFF) << 16) | ((leap_b) & 0xFFF))
 
 /**  Under VI_H_VIDEO */
 /** @brief VI_H_VIDEO Register: set the horizontal start and end of the active video area, in screen pixels */
@@ -270,11 +226,6 @@ typedef struct vi_config_s{
 /** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
 #define VI_Y_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
 
-/** @brief VI period for showing one NTSC and MPAL picture in ms. */
-#define VI_PERIOD_NTSC_MPAL                 ((float)1000/60)
-/** @brief VI period for showing one PAL picture in ms. */
-#define VI_PERIOD_PAL                       ((float)1000/50)
-
 /**
  * @name Video Mode Register Presets
  * @brief Presets to begin with when setting a particular video mode
@@ -287,9 +238,9 @@ static const vi_config_t vi_ntsc_p = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_NTSC,
-    VI_V_SYNC_SET(525),
-    VI_H_SYNC_SET(0b00000, 3093),
-    VI_H_SYNC_LEAP_SET(3093, 3093),
+    VI_V_TOTAL_SET(525),
+    VI_H_TOTAL_SET(0b00000, 3093),
+    VI_H_TOTAL_LEAP_SET(3093, 3093),
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 515),
     VI_V_BURST_SET(14, 516),
@@ -303,9 +254,9 @@ static const vi_config_t vi_pal_p =  {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_PAL,
-    VI_V_SYNC_SET(625),
-    VI_H_SYNC_SET(0b10101, 3177),
-    VI_H_SYNC_LEAP_SET(3183, 3182),
+    VI_V_TOTAL_SET(625),
+    VI_H_TOTAL_SET(0b10101, 3177),
+    VI_H_TOTAL_LEAP_SET(3183, 3182),
     VI_H_VIDEO_SET(128, 768),
     VI_V_VIDEO_SET(45, 621),
     VI_V_BURST_SET(9, 619),
@@ -319,9 +270,9 @@ static const vi_config_t vi_mpal_p = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_MPAL,
-    VI_V_SYNC_SET(525),
-    VI_H_SYNC_SET(0b00100, 3089),
-    VI_H_SYNC_LEAP_SET(3097, 3098),
+    VI_V_TOTAL_SET(525),
+    VI_H_TOTAL_SET(0b00100, 3089),
+    VI_H_TOTAL_LEAP_SET(3097, 3098),
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(37, 511),
     VI_V_BURST_SET(14, 516),
@@ -335,9 +286,9 @@ static const vi_config_t vi_ntsc_i = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_NTSC,
-    VI_V_SYNC_SET(524),
-    VI_H_SYNC_SET(0b00000, 3093),
-    VI_H_SYNC_LEAP_SET(3093, 3093),
+    VI_V_TOTAL_SET(524),
+    VI_H_TOTAL_SET(0b00000, 3093),
+    VI_H_TOTAL_LEAP_SET(3093, 3093),
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 515),
     VI_V_BURST_SET(14, 516),
@@ -351,9 +302,9 @@ static const vi_config_t vi_pal_i = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_PAL,
-    VI_V_SYNC_SET(624),
-    VI_H_SYNC_SET(0b10101, 3177),
-    VI_H_SYNC_LEAP_SET(3183, 3182),
+    VI_V_TOTAL_SET(624),
+    VI_H_TOTAL_SET(0b10101, 3177),
+    VI_H_TOTAL_LEAP_SET(3183, 3182),
     VI_H_VIDEO_SET(128, 768),
     VI_V_VIDEO_SET(45, 621),
     VI_V_BURST_SET(9, 619),
@@ -367,9 +318,9 @@ static const vi_config_t vi_mpal_i = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_MPAL,
-    VI_V_SYNC_SET(524),
-    VI_H_SYNC_SET(0b00000, 3088),
-    VI_H_SYNC_LEAP_SET(3100, 3100),
+    VI_V_TOTAL_SET(524),
+    VI_H_TOTAL_SET(0b00000, 3088),
+    VI_H_TOTAL_LEAP_SET(3100, 3100),
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 509),
     VI_V_BURST_SET(11, 514),
@@ -385,35 +336,6 @@ static const vi_config_t vi_config_presets[2][3] = {
 };
 
 /**
- * @brief Video Interface borders structure
- *
- * This structure defines how thick (in dots) should the borders around
- * a framebuffer be.
- * 
- * The dots refer to the VI virtual display output (640x480, on both NTSC, PAL,
- * and M-PAL), and thus reduce the actual display output, and even potentially
- * modify the aspect ratio. The framebuffer will be scaled to fit under them.
- * 
- * For example, when displaying on CRT TVs, one can add borders around a
- * framebuffer so that the whole image can be seen on the screen. 
- * 
- * If no borders are applied, the output will use the entire virtual dsplay
- * output (640x480) for showing a framebuffer. This is useful for emulators,
- * upscalers, and LCD TVs.
- * 
- * Notice that borders can also be *negative*: this obtains the effect of
- * actually enlarging the output, growing from 640x480. Doing so will very
- * likely create problems with most TV grabbers and upscalers, but it might
- * work correctly on most CRTs (though the added pixels will surely be
- * part of the overscan so not really visible). Horizontally, the maximum display
- * output will probably be ~700-ish on CRTs, after which the sync will be lost.
- * Vertically, any negative number will likely create immediate syncing problems,
- */
-typedef struct vi_borders_s {
-    int16_t left, right, up, down;
-} vi_borders_t;
-
-/**
  * @brief Calculate correct VI borders for a target aspect ratio.
  * 
  * This function calculates the appropriate VI borders to obtain the specified
@@ -426,7 +348,7 @@ typedef struct vi_borders_s {
  * For instance, to create a 16:9 resolution, you can do:
  * 
  * \code{.c}
- *      vi_borders_t borders = vi_calc_borders(TV_NTSC, 16./9, false);
+ *      vi_borders_t borders = vi_calc_borders_int(TV_NTSC, 16./9, false);
  * \endcode
  * 
  * @param tv_type           TV type for which the calculation should be performed
@@ -437,7 +359,7 @@ typedef struct vi_borders_s {
  * 
  * @return vi_borders_t The requested border settings
  */
-static inline vi_borders_t vi_calc_borders(int tv_type, float aspect_ratio, float overscan_margin)
+static inline vi_borders_t vi_calc_borders_int(int tv_type, float aspect_ratio, float overscan_margin)
 {
     const int vi_width = 640;
     const int vi_height = tv_type == TV_PAL ? 576 : 480;

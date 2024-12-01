@@ -31,10 +31,10 @@
  * @{
  */
 
-/**
- * @brief Indicates whether we are running on a vanilla N64 or a iQue player
- */
+///@cond
 extern int __boot_consoletype;
+extern int __boot_tvtype;
+///@endcond
 
 /**
  * @brief Frequency of the RCP
@@ -556,7 +556,10 @@ typedef enum {
  * 
  * @return enum value indicating PAL, NTSC or MPAL
  */
-tv_type_t get_tv_type();
+inline tv_type_t get_tv_type(void)
+{
+    return (tv_type_t)__boot_tvtype;
+}
 
 /** @brief Reset types */
 typedef enum {

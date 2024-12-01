@@ -174,8 +174,8 @@ typedef enum
     /** @brief All display filters are disabled */
     FILTERS_DISABLED,
     /** @brief Resize the output image with a bilinear filter. 
-     * In general, VI is in charge of resizing the framebuffer to fit the TV resolution 
-     * (which is always NTSC 640x480 or PAL 640x512). 
+     * In general, VI is in charge of resizing the framebuffer to fit the virtual
+     * TV resolution (which is always 640x480 on NTSC/MPAL, 640x576 on PAL).
      * This option enables a bilinear interpolation that can be used during this resize. */
     FILTERS_RESAMPLE,
     /** @brief Reconstruct a 32-bit output from dithered 16-bit framebuffer. */

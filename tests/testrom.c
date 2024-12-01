@@ -215,8 +215,8 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_mpeg1.c"
 #include "test_gl.c"
 #include "test_dl.c"
-#include "test_magma.c"
 #include "test_math.c"
+#include "test_magma.c"
 
 /**********************************************************************
  * MAIN
@@ -355,6 +355,8 @@ static const struct Testsuite
 	TEST_FUNC(test_dlsym_rtld_default,         			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dlclose,                    			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_ctors,                   			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mat4_mul_two_identities,				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mat4_mul_scale_translation,			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_set_viewport, 					0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_draw_triangle_list, 				0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_draw_triangle_list_full_cache, 	0, TEST_FLAGS_NO_BENCHMARK),
@@ -377,8 +379,6 @@ static const struct Testsuite
 	TEST_FUNC(test_mg_draw_indexed_fan_full, 			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_draw_indexed_restart_strip, 		0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_draw_indexed_restart_fan, 		0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_mat4_mul_two_identities,				0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_mat4_mul_scale_translation,			0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

@@ -11,7 +11,7 @@
 #include "regsinternal.h"
 #include "system_internal.h"
 #include "n64sys.h"
-#include "vi.h"
+#include "vi_internal.h"
 #include "display.h"
 #include "interrupt.h"
 #include "utils.h"
@@ -121,9 +121,9 @@ static float calc_refresh_rate(void)
         case TV_MPAL:   clock = 48628322; break;
         default:        clock = 48681818; break;
     }
-    uint32_t HSYNC = *VI_H_SYNC;
-    uint32_t VSYNC = *VI_V_SYNC;
-    uint32_t HSYNC_LEAP = *VI_H_SYNC_LEAP;
+    uint32_t HSYNC = *VI_H_TOTAL;
+    uint32_t VSYNC = *VI_V_TOTAL;
+    uint32_t HSYNC_LEAP = *VI_H_TOTAL_LEAP;
 
     int h_sync = (HSYNC & 0xFFF) + 1;
     int v_sync = (VSYNC & 0x3FF) + 1;
@@ -197,11 +197,8 @@ static void update_fps(bool newframe)
 static void __display_callback()
 {
     // If a reset has occured and its the last VI interrupt before RESET_TIME_LENGTH grace period, stop all work and exit
-    uint32_t next_call = __tv_type == TV_PAL? 
-        TICKS_FROM_MS(VI_PERIOD_PAL) : 
-        TICKS_FROM_MS(VI_PERIOD_NTSC_MPAL);
-
-    if(exception_reset_time() + next_call >= RESET_TIME_LENGTH) die();
+    uint32_t next_time = TICKS_FROM_MS(refresh_period*1000);
+    if(exception_reset_time() + next_time >= RESET_TIME_LENGTH) die();
 
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
@@ -370,7 +367,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __interlace_mode = res.interlaced;
 
     float aspect_ratio = res.aspect_ratio ? res.aspect_ratio : 4.0f / 3.0f;
-    __borders = vi_calc_borders(__tv_type, aspect_ratio, res.overscan_margin);
+    __borders = vi_calc_borders_int(__tv_type, aspect_ratio, res.overscan_margin);
 
     surfaces = malloc(sizeof(surface_t) * __buffers);
 
@@ -410,7 +407,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
                 of almost all devices.
                 Alternatively we could have elected to shorten H_SYNC, however H_SYNC is expected
                 to be less tolerant than V_SYNC so we opt to leave it alone at the nominal value. */
-        vi_write_safe(VI_V_SYNC, VI_V_SYNC_SET(525 - 6 - serrate));
+        vi_write_safe(VI_V_TOTAL, VI_V_TOTAL_SET(525 - 6 - serrate));
         vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
     }
 
