@@ -2,7 +2,7 @@
 #include "debug.h"
 #include <malloc.h>
 
-extern gl_state_t state;
+extern gl_state_t *state;
 
 typedef struct {
     GLboolean et, ec, en;
@@ -127,8 +127,8 @@ void gl_array_object_init(gl_array_object_t *obj)
 
 void gl_array_init()
 {
-    gl_array_object_init(&state.default_array_object);
-    state.array_object = &state.default_array_object;
+    gl_array_object_init(&state->default_array_object);
+    state->array_object = &state->default_array_object;
 }
 
 void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -145,18 +145,18 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
     // ARRAY_BUFFER buffer object, and the pointer is not NULL[fn].
     //     [fn: This error makes it impossible to create a vertex array
     //           object containing client array pointers.]
-    if (state.array_object != &state.default_array_object && state.array_buffer == NULL && pointer != NULL) {
+    if (state->array_object != &state->default_array_object && state->array_buffer == NULL && pointer != NULL) {
         gl_set_error(GL_INVALID_OPERATION, "Vertex array objects can only be used in conjunction with vertex buffer objects");
         return;
     }
 
-    gl_array_t *array = &state.array_object->arrays[array_type];
+    gl_array_t *array = &state->array_object->arrays[array_type];
 
     array->size = size;
     array->type = type;
     array->stride = stride;
     array->pointer = pointer;
-    array->binding = state.array_buffer;
+    array->binding = state->array_buffer;
 
     gl_update_array(array, array_type);
 }
@@ -294,7 +294,7 @@ void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvo
 
 void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
 {
-    gl_array_t *array = &state.array_object->arrays[array_type];
+    gl_array_t *array = &state->array_object->arrays[array_type];
     array->enabled = enabled;
 }
 
@@ -421,7 +421,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
             continue;
         }
 
-        if (obj == state.array_object) {
+        if (obj == state->array_object) {
             glBindVertexArray(0);
         }
 
@@ -438,10 +438,10 @@ void glBindVertexArray(GLuint array)
     gl_array_object_t *obj = (gl_array_object_t*)array;
 
     if (obj == NULL) {
-        obj = &state.default_array_object;
+        obj = &state->default_array_object;
     }
 
-    state.array_object = obj;
+    state->array_object = obj;
 }
 
 GLboolean glIsVertexArray(GLuint array)

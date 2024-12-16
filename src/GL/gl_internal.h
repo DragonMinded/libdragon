@@ -49,19 +49,19 @@
 })
 
 #define gl_set_error(error, message, ...)  ({ \
-    state.current_error = error; \
+    state->current_error = error; \
     assertf(error == GL_NO_ERROR, "%s: " message, #error, ##__VA_ARGS__); \
 })
 
 #define gl_ensure_no_begin_end() ({ \
-    if (state.begin_end_active) { \
+    if (state->begin_end_active) { \
         gl_set_error(GL_INVALID_OPERATION, "%s is not allowed between glBegin/glEnd", __func__); \
         false; \
     } \
     true; \
 })
 
-#define gl_assert_no_display_list() assertf(state.current_list == 0, "%s cannot be recorded into a display list", __func__)
+#define gl_assert_no_display_list() assertf(state->current_list == 0, "%s cannot be recorded into a display list", __func__)
 
 typedef int16_t int16u_t __attribute__((aligned(1)));
 typedef uint16_t uint16u_t __attribute__((aligned(1)));
@@ -641,7 +641,7 @@ inline uint32_t gl_type_to_index(GLenum type)
     }
 }
 
-#define next_prim_id() (state.prim_id++)
+#define next_prim_id() (state->prim_id++)
 
 inline const void *gl_get_attrib_element(const gl_array_t *src, uint32_t index)
 {

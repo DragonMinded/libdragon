@@ -8,7 +8,40 @@
  * interface, plus automatic memory management of multiple framebuffers,
  * FPS utilities, and much more.
  * 
- * ## Framebuffer resizing and video display size
+ * ## Register read/write access
+ * 
+ * This module defines a set of macros to directly access the VI registers,
+ * including macros to compose different fields in the registers. While read
+ * access is straightforward, write access is generally more complicated
+ * because VI is quite picky about the timing of register writes: most registers
+ * can only be written during vblank. 
+ * 
+ * To help with that, this module provides a set of functions to write registers
+ * that will be applied at the next vblank: #vi_write and #vi_write_masked.
+ * To batch multiple register writes, you can use #vi_write_begin and #vi_write_end,
+ * so that you can be sure that all the registers will be written atomically
+ * at the next vblank.
+ * 
+ * #vi_read can be used to read the current state of a register, including any
+ * pending changes (applied via #vi_write) that were not yet applied.
+ * 
+ * ## Higher level APIs
+ * 
+ * This module also includes some higher level APIs to configure the VI:
+ * 
+ * * #vi_show is a simple function to just show a #surface_t to the screen.
+ * * #vi_set_origin, #vi_set_xscale and #vi_set_yscale are more granular
+ *   functions to configure the framebuffer.
+ * * #vi_set_aa_mode, #vi_set_divot, #vi_set_dedither and #vi_set_gamma
+ *   are functions to configure various filters and modes of the VI.
+ * * #vi_set_interlaced is a function to turn on and off interlaced display mode.
+ * * #vi_set_output defines the active display area on the screen.
+ *   #vi_get_output_bounds will provide the limits for it, while
+ *   #vi_move_output and #vi_scroll_output can be used to just pan the display.
+ * * #vi_set_borders is an alternative to #vi_set_output, that specifies the
+ *   display area in terms of borders (with respect to the default one).
+ * 
+ * ## Active display area and framebuffer scaling
  * 
  * VI has a powerful resampling engine: the framebuffer is not displayed as-is
  * on TV, but it is actually resampled (scaled, stretched), optionally with
@@ -50,19 +83,27 @@
  * 
  * While resampling the framebuffer into the display output, the VI can use either
  * bilinear filtering or simple nearest sampling (duplicating or dropping pixels).
- * See #filter_options_t for more information on configuring
- * the VI image filters.
+ * See #vi_aa_mode_t for more information on configuring the VI image filters.
  * 
  * The 640x480 virtual display output can be fully viewed on emulators and on
  * modern screens (via grabbers, converters, etc.). When displaying on old
  * CRTs though, part of the display will be hidden because of the overscan.
- * To account for that, it is possible to reduce the 640x480 display output
- * by adding black borders. For instance, if you specify 12 dots of borders
- * on all the four edges, you will get a 616x456 display output, plus
- * the requested 12 dots of borders on all sides; the actual display output
- * will thus be smaller, and possibly get fully out of overscan. The value
- * #VI_CRT_MARGIN is a good default you can use for overscan compensation on
- * most CRT TVs.
+ * To account for this, you can configure a smaller display output via two
+ * different APIs which are just two ways to express the same concept:
+ * 
+ *  * #vi_set_borders: this function configures the display output on the screen
+ *    by specifying the size of the borders, with respect the default 640x480
+ *    display output.
+ *  * #vi_set_output: this function configures the display output on the screen
+ *    by specifying the top-left and bottom-right corners of the display area,
+ *    as absolute coordinates in the VI coordinate system.
+ * 
+ * For instance, if you specify 12 dots of borders on all the four edges, you
+ * will get a 616x456 display output (on NTSC), plus the requested 12 dots of
+ * borders on all sides; The same effect can be obtained by specifying the
+ * display output area as (120, 47) - (736, 503) with #vi_set_output. This
+ * is because the default display area on NTSC is (108, 35) - (748, 515)
+ * (which can be found out via #vi_get_output).
  * 
  * Notice that adding borders also affect the aspect ratio of the display output;
  * for instance, in the above example, the 616x456 display output is not
@@ -83,7 +124,9 @@
 extern "C" {
 #endif
 
+///@cond
 typedef struct surface_s surface_t;
+///@endcond
 
 /** @brief Number of useful 32-bit registers at the register base */
 #define VI_REGISTERS_COUNT      14
@@ -91,41 +134,117 @@ typedef struct surface_s surface_t;
 /** @brief Base pointer to hardware Video interface registers that control various aspects of VI configuration.
  * Shouldn't be used by itself, use VI_ registers to get/set their values. */
 #define VI_REGISTERS      ((volatile uint32_t*)0xA4400000)
-/** @brief VI Index register of controlling general display filters/bitdepth configuration */
+/** @brief VI register of controlling general display filters/bitdepth configuration */
 #define VI_CTRL           (&VI_REGISTERS[0])
-/** @brief VI Index register of RDRAM base address of the video output Frame Buffer. This can be changed as needed to implement double or triple buffering. */
+/** @brief VI register of RDRAM base address of the video output Frame Buffer. */
 #define VI_ORIGIN         (&VI_REGISTERS[1])
-/** @brief VI Index register of width in pixels of the frame buffer. */
+/** @brief VI register of width in pixels of the frame buffer. */
 #define VI_WIDTH          (&VI_REGISTERS[2])
-/** @brief VI Index register of vertical interrupt. */
+/** @brief VI register of vertical interrupt. */
 #define VI_V_INTR         (&VI_REGISTERS[3])
-/** @brief VI Index register of the current half line, sampled once per line. */
+/** @brief VI register of the current half line, sampled once per line. */
 #define VI_V_CURRENT      (&VI_REGISTERS[4])
-/** @brief VI Index register of sync/burst values */
+/** @brief VI register of sync/burst values */
 #define VI_BURST          (&VI_REGISTERS[5])
-/** @brief VI Index register of total visible and non-visible lines. 
- * This should match either NTSC (non-interlaced: 0x20D, interlaced: 0x20C) or PAL (non-interlaced: 0x271, interlaced: 0x270) */
+/** @brief VI register of total visible and non-visible lines. */
 #define VI_V_TOTAL        (&VI_REGISTERS[6])
-/** @brief VI Index register of total width of a line */
+/** @brief VI register of total width of a line */
 #define VI_H_TOTAL        (&VI_REGISTERS[7])
-/** @brief VI Index register of an alternate scanline length for one scanline during vsync. */
+/** @brief VI register of an alternate scanline length for one scanline during vsync. */
 #define VI_H_TOTAL_LEAP   (&VI_REGISTERS[8])
-/** @brief VI Index register of start/end of the active video image, in screen pixels */
+/** @brief VI register of start/end of the active video image, in screen pixels */
 #define VI_H_VIDEO        (&VI_REGISTERS[9])
-/** @brief VI Index register of start/end of the active video image, in screen half-lines. */
+/** @brief VI register of start/end of the active video image, in screen half-lines. */
 #define VI_V_VIDEO        (&VI_REGISTERS[10])
-/** @brief VI Index register of start/end of the color burst enable, in half-lines. */
+/** @brief VI register of start/end of the color burst enable, in half-lines. */
 #define VI_V_BURST        (&VI_REGISTERS[11])
-/** @brief VI Index register of horizontal subpixel offset and 1/horizontal scale up factor. */
+/** @brief VI register of horizontal subpixel offset and 1/horizontal scale up factor. */
 #define VI_X_SCALE        (&VI_REGISTERS[12])
-/** @brief VI Index register of vertical subpixel offset and 1/vertical scale up factor. */
+/** @brief VI register of vertical subpixel offset and 1/vertical scale up factor. */
 #define VI_Y_SCALE        (&VI_REGISTERS[13])
 
 /** @brief VI register by index (0-13)*/
 #define VI_TO_REGISTER(index) (((index) >= 0 && (index) <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
 
-/** @brief VI index from register */
-#define VI_TO_INDEX(reg) ((reg) - VI_REGISTERS)
+/** Under VI_CTRL */
+
+/** @brief VI_CTRL Register setting: enable dedither filter. */
+#define VI_DEDITHER_FILTER_ENABLE           (1<<16)
+/** @brief VI_CTRL Register setting: default value for pixel advance. */
+#define VI_PIXEL_ADVANCE_DEFAULT            (0b0011 << 12)
+/** @brief VI_CTRL Register setting: default value for pixel advance on iQue. */
+#define VI_PIXEL_ADVANCE_BBPLAYER           (0b0001 << 12)
+/** @brief VI_CTRL Register setting: mask for AA mode configuration */
+#define VI_AA_MODE_MASK                     (0b11 << 8)
+/** @brief VI_CTRL Register setting: enable interlaced output. */
+#define VI_CTRL_SERRATE                     (1<<6)
+/** @brief VI_CTRL Register setting: enable divot filter (fixes 1 pixel holes after AA). */
+#define VI_DIVOT_ENABLE                     (1<<4)
+/** @brief VI_CTRL Register setting: enable gamma correction filter. */
+#define VI_GAMMA_ENABLE                     (1<<3)
+/** @brief VI_CTRL Register setting: enable gamma correction filter and hardware dither the least significant color bit on output. */
+#define VI_GAMMA_DITHER_ENABLE              (1<<2)
+/** @brief VI_CTRL Register setting: framebuffer source format */
+#define VI_CTRL_TYPE                        (0b11)
+/** @brief VI_CTRL Register setting: set the framebuffer source as 32-bit. */
+#define VI_CTRL_TYPE_32_BPP                 (0b11)
+/** @brief VI_CTRL Register setting: set the framebuffer source as 16-bit (5-5-5-3). */
+#define VI_CTRL_TYPE_16_BPP                 (0b10)
+/** @brief VI_CTRL Register setting: set the framebuffer source as blank (no data and no sync, TV screens will either show static or nothing). */
+#define VI_CTRL_TYPE_BLANK                  (0b00)
+
+/** Under VI_ORIGIN  */
+/** @brief VI_ORIGIN Register: set the address of a framebuffer. */
+#define VI_ORIGIN_SET(value)                ((value & 0xFFFFFF) << 0)
+
+/** Under VI_WIDTH   */
+/** @brief VI_ORIGIN Register: set the width of a framebuffer. */
+#define VI_WIDTH_SET(value)                 ((value & 0xFFF) << 0)
+
+/** Under VI_V_CURRENT  */
+/** @brief VI_V_CURRENT Register: default value for vblank begin line. */
+#define VI_V_CURRENT_VBLANK                 2
+
+/** Under VI_V_INTR    */
+/** @brief VI_V_INTR Register: set value for vertical interrupt. */
+#define VI_V_INTR_SET(value)                ((value & 0x3FF) << 0)
+
+/**  Under VI_V_TOTAL */
+/** @brief VI_V_TOTAL Register: set the total number of visible and non-visible half-lines. */
+#define VI_V_TOTAL_SET(vsync)               ((vsync)-1)
+
+/**  Under VI_H_TOTAL */
+/** @brief VI_H_TOTAL Register: set the total width of a line in quarter-pixel units (-1), and the 5-bit leap pattern. */
+#define VI_H_TOTAL_SET(leap_pattern, hsync)  ((((leap_pattern) & 0x1F) << 16) | ((int)((hsync)*4-1) & 0xFFF))
+
+/**  Under VI_H_TOTAL_LEAP */
+/** @brief VI_H_TOTAL_LEAP Register: set alternate scanline lengths for one scanline during vsync, leap_a and leap_b are selected based on the leap pattern in VI_H_SYNC. */
+#define VI_H_TOTAL_LEAP_SET(leap_a, leap_b)  ((((int)((leap_a)*4-1) & 0xFFF) << 16) | ((int)((leap_b)*4-1) & 0xFFF))
+
+/**  Under VI_H_VIDEO */
+/** @brief VI_H_VIDEO Register: set the horizontal start and end of the active video area, in screen pixels */
+#define VI_H_VIDEO_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
+
+/**  Under VI_V_VIDEO */
+/** @brief VI_V_VIDEO Register: set the vertical start and end of the active video area, in half-lines */
+#define VI_V_VIDEO_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
+
+/**  Under VI_V_BURST */
+/** @brief VI_V_BURST Register: set the start and end of color burst enable, in half-lines */
+#define VI_V_BURST_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
+
+/**  Under VI_X_SCALE   */
+/** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */
+#define VI_X_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
+
+/**  Under VI_Y_SCALE   */
+/** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
+#define VI_Y_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
+
+///@cond
+// Private symbols, do not use
+extern uint32_t __vi_cfg[VI_REGISTERS_COUNT];
+///@endcond
 
 /**
  * @brief Video Interface borders structure
@@ -156,6 +275,80 @@ typedef struct vi_borders_s {
     int16_t left, right, up, down;
 } vi_borders_t;
 
+/** 
+ * @brief VI AA Mode
+ * 
+ * This setting configures the resampling and AA filters performed
+ * by VI during the framebuffer display.
+ * 
+ * Notice that VI seems a bit incomplete / buggy in this area, so
+ * not all filter-related settings are guaranteed to work in all
+ * contexts. 
+ */
+typedef enum vi_aa_mode_e {
+    /** 
+     * @brief Disable the resampling and AA filter.
+     * 
+     * @note Because of a hardware bug on NTSC units, don't use
+     *       this mode in 16 bpp mode and framebuffer widths lower or
+     *       equal to 320 pixels.
+     */
+    VI_AA_MODE_NONE                  = (0b11 << 8),
+
+    /**
+     * @brief Enable bilinear filtering during resampling
+     * 
+     * With this setting, the VI will perform true 2x2 bilinear filtering
+     * while resampling the framebuffer into the display output.
+     * 
+     * @note This mode is not compatible with dedithering
+     *       (#vi_set_dedither).
+     */
+    VI_AA_MODE_RESAMPLE              = (0b10 << 8),
+
+    /**
+     * @brief Enable AA filter (in addition to bilinear resampling).
+     * 
+     * This filter is useful to reduce aliasing artifacts. It works by
+     * smoothing pixels that represent external edges of polygons/meshes.
+     * Since VI works on the final framebuffer picture, it has no knowledge
+     * of the 3D scene that was drawn over it, so it uses pixel coverage
+     * information (left by RDP in the framebuffer), to identify which
+     * pixels to smooth.
+     * 
+     * Doing AA filter will have a performance impact (compared to pure 
+     * bilinear resampling, which is #VI_AA_MODE_RESAMPLE) because of the
+     * extra memory bandwidth required.
+     * 
+     * @note This setting seems to cause image corruption in high-bandwidth
+     *       scenarios, like high-resolution framebuffers. Use
+     *       #VI_AA_MODE_RESAMPLE_FETCH_ALWAYS in those cases (though it will 
+     *       impact general performance more).
+     * 
+     * @note This setting is not compatible with dedithering
+     *       (#vi_set_dedither).
+     */
+    VI_AA_MODE_RESAMPLE_FETCH_NEEDED = (0b01 << 8),
+
+    /**
+     * @brief Enable AA filter (in addition to bilinear resampling).
+     * 
+     * This is similar to #VI_AA_MODE_RESAMPLE_FETCH_NEEDED. The exact
+     * difference is not known at this time: it seems to impact the way
+     * internally VI fetches pixels from memory. The AA filter itself is
+     * identical, so the picture will look the same on the screen.
+     * 
+     * The known outcomes of setting this mode are:
+     * 
+     *  * It seems completely broken in 32-bpp mode. It's not clear if it's
+     *    a bandwidth issue or it's just a bug in the hardware.
+     *  * It seems to fix screen artifacts that appear with #VI_AA_MODE_RESAMPLE_FETCH_NEEDED
+     *    in high-bandwidth scenarios, like high-resolution framebuffers.
+     *  * It causes a bit more performance impact.
+     */
+    VI_AA_MODE_RESAMPLE_FETCH_ALWAYS = (0b00 << 8),
+} vi_aa_mode_t;
+
 
 /** @brief Initialize the VI module */
 void vi_init(void);
@@ -183,7 +376,9 @@ void vi_init(void);
  * @param reg               Register to read
  * @return uint32_t         Current value of the register (or pending value if any)
  */
-uint32_t vi_read(volatile uint32_t *reg);
+inline uint32_t vi_read(volatile uint32_t *reg) {
+    return __vi_cfg[reg - VI_REGISTERS];
+}
 
 /**
  * @brief Partially write a VI register at next vblank
@@ -258,6 +453,31 @@ void vi_write_end(void);
  * If the VI is not active, this function will return immediately.
  */
 void vi_wait_vblank(void);
+
+/**
+ * @brief Dump the current status of all VI registers
+ * 
+ * @param verbose      Verbosity mode of dump
+ *                     0=just hex values, 1=decoded values
+ */
+void vi_debug_dump(int verbose);
+
+/**
+ * @brief Stabilize the value of a VI register by rewriting it at vblank
+ * 
+ * @note This is an advanced function, which is normally not needed.
+ * 
+ * This function forces a certain register to be rewritten with its programmed
+ * value (last value written via #vi_write functions) at every vblank.
+ * 
+ * This can be useful in cases where you are playing with a certain register
+ * mid-frame, and you want to ensure that the original value is reset at the
+ * beginning of each frame.
+ * 
+ * @param reg           Register to stabilize
+ * @param enable        Whether to enable or disable the stabilization
+ */
+void vi_stabilize(volatile uint32_t *reg, bool enable);
 
 /** @} */
 
@@ -360,6 +580,31 @@ void vi_get_output_bounds(int *x0, int *y0, int *x1, int *y1);
  */
 vi_borders_t vi_get_borders(void);
 
+/**
+ * @brief Return the current scanline, and optionally the current field
+ * 
+ * This function returns the current scanline being displayed on the screen.
+ * This counter is sometimes called "half-line", it is a *even* value between
+ * 0 and 524 (or 624 on PAL), which can be doubt as two times the actual TV
+ * scanline (which is 262 or 312 on PAL).
+ * 
+ * This scanline number is in the same coordinate system as the one used by
+ * other VI registers and functions such as #vi_set_output.
+ * 
+ * If the \p field parameter is not NULL, it will be filled with the current
+ * field being displayed. The field is 0 for the first field, and 1 for the
+ * second field, in interlaced mode. In progressive mode, the field is
+ * undefined (normally it is 0, but it's not guaranteed).
+ * 
+ * @param[out] field            Field number (0 or 1) in interlaced mode (undefined in progressive mode)
+ * @return int                  Current scanline (always an even number)
+ */
+inline int vi_get_scanline(int *field) {
+    uint32_t v_current = *VI_V_CURRENT;
+    if (field) *field = v_current & 1;
+    return v_current & ~1;
+}
+
 /** @} */
 
 /**
@@ -405,8 +650,13 @@ void vi_set_origin(void *buffer, int pixel_stride, int bpp);
  * This function calculates and configures the horizontal scale factor
  * needed to display the specified framebuffer width on the screen, so
  * that it fits exactly the active display area.
+ * 
+ * If OUT_WIDTH is the width of the output area (as returned by #vi_get_output),
+ * this function is equivalent to calling `vi_set_xscale_factor(fb_width / OUT_WIDTH)`.
  *  
  * @param fb_width      Width of the framebuffer in pixels
+ * 
+ * @ßee #vi_set_xscale_factor
  */
 void vi_set_xscale(float fb_width);
 
@@ -422,12 +672,101 @@ void vi_set_xscale(float fb_width);
 void vi_set_yscale(float fb_height);
 
 /**
+ * @brief Set the horizontal scaling factor.
+ * 
+ * Set the scale factor applied to the framebuffer width to display it on the screen.
+ * The \p xfactor term describes how many framebuffer pixels advance for each
+ * output dot. For instance, a factor of 0.5 means that each framebuffer pixel
+ * will be repeated twice horizontally on the screen, onto two output dots.
+ * 
+ * You can use #vi_set_xscale to automatically calculate the factor needed
+ * to display the framebuffer width on the screen.
+ * 
+ * @param xfactor        Horizontal scale factor to set
+ * 
+ * @see #vi_set_xscale
+ */
+void vi_set_xscale_factor(float xfactor);
+
+/**
+ * @brief Set the vertical scaling factor.
+ * 
+ * Set the scale factor applied to the framebuffer height to display it on the screen.
+ * The \p yfactor term describes how many framebuffer pixels advance for each
+ * output scanline. For instance, a factor of 0.5 means that each framebuffer pixel
+ * will be repeated twice vertically on the screen, onto two scanlines.
+ * 
+ * @param yfactor        Horizontal scale factor to set
+ */
+void vi_set_yscale_factor(float yfactor);
+
+/**
  * @brief Enable or disable the interlaced mode
  * 
  * @param interlaced     If true, the VI will display the framebuffer in
  *                       interlaced mode.
  */
 void vi_set_interlaced(bool interlaced);
+
+/** 
+ * @brief Enable / disable AA mode for the VI
+ * 
+ * The AA mode specifies a set of filters to apply to the framebuffer
+ * during the resampling process. See #vi_aa_mode_t for more information.
+ * 
+ * @param aa_mode       AA mode to set
+ */
+void vi_set_aa_mode(vi_aa_mode_t aa_mode);
+
+/**
+ * @brief Enable / disable the divot filter
+ * 
+ * Divot filter is a post-processing filter, on top of anti-alias filters,
+ * that is designed to remove a few single-point artifacts that can appear
+ * in the framebuffer.
+ * 
+ * Divot only makes sense if you are using an AA filter, that is, the AA mode
+ * is set to either #VI_AA_MODE_RESAMPLE_FETCH_NEEDED or
+ * #VI_AA_MODE_RESAMPLE_FETCH_ALWAYS.
+ * 
+ * @param divot         If true, the divot filter will be enabled
+ */
+void vi_set_divot(bool divot);
+
+/**
+ * @brief Enable / disable dedithering
+ * 
+ * Dedithering (or "dither filter") is a filter that tries to apply an
+ * error correction on top of a dithered 16-bit framebuffer, trying to 
+ * restore part of the original 32-bit color information. It works best
+ * when the framebuffer was drawn with the RDP "magic square" dithering
+ * pattern, as it's designed to reverse exactly that.
+ * 
+ * Dedithering only makes sense for 16-bit, dithered framebuffers.
+ * 
+ * @note Dedithering is not compatible with all AA filters. In particular, it
+ *       only works with #VI_AA_MODE_NONE and #VI_AA_MODE_RESAMPLE_FETCH_ALWAYS.
+ */
+void vi_set_dedither(bool dedither);
+
+/**
+ * @brief Enable / disable gamma correction
+ * 
+ * VI is able to apply a gamma correction filter to the framebuffer. 
+ * 
+ * Gamma correction is meant to convert a framebuffer with pixels in linear
+ * RGB space, into the non-linear sRGB space expected by most displays.
+ * Normally, this is not required because all assets are already provided in
+ * sRGB color space, which is how most authoring tools save PNGs nowadays. 
+ * 
+ * Drawing in linear space would in theory be useful to produce more accurate
+ * lighting and blending effects, though testing showed that this is really
+ * only visible with 32 bpp framebuffers, which are normally not used. If you
+ * want to experiment with working in linear space, make sure to provide
+ * assets in that format (which normally means using the --gamma option to
+ * mksprite to convert sRGB PNG pixels into linear space).
+ */
+void vi_set_gamma(bool gamma);
 
 /**
  * @brief Set the active display output area
@@ -466,9 +805,9 @@ void vi_set_output(int x0, int y0, int x1, int y1);
  * @param x             Horizontal scroll offset
  * @param y             Vertical scroll offset
  * 
- * @see #vi_get_scroll_bounds
- * @see #vi_get_scroll
- * @see #vi_scroll
+ * @see #vi_get_output_bounds
+ * @see #vi_get_output
+ * @see #vi_scroll_output
  */
 void vi_move_output(int x, int y);
 

@@ -81,22 +81,25 @@ DEFINE_RSP_UCODE(rsp_yuv,
 #define CMD_YUV_INTERLEAVE4_32X16  0x2
 #define CMD_YUV_INTERLEAVE2_32X16  0x3
 
-static bool yuv_initialized = false;
+static int8_t yuv_initialized = 0;
 
 void yuv_init(void)
 {
-    if (yuv_initialized)
-        return;
-
-    rspq_init();
-    ovl_yuv = rspq_overlay_register(&rsp_yuv);
-    yuv_initialized = true;
+    if (yuv_initialized == 0) {
+        rspq_init();
+        ovl_yuv = rspq_overlay_register(&rsp_yuv);
+    }
+    yuv_initialized++;
 }
 
 void yuv_close(void)
 {
-    surface_free(&internal_buffer);
-    yuv_initialized = false;	
+    assert(yuv_initialized > 0);
+    yuv_initialized--;
+    if (yuv_initialized == 0) {
+        surface_free(&internal_buffer);
+        rspq_overlay_unregister(ovl_yuv);
+    }
 }
 
 yuv_colorspace_t yuv_new_colorspace(float kr, float kb, int y0i, int yrangei, int crangei)

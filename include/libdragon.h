@@ -35,6 +35,7 @@
 #include "rtc.h"
 #include "mempak.h"
 #include "vi.h"
+#include "eia608.h"
 #include "tpak.h"
 #include "display.h"
 #include "dma.h"

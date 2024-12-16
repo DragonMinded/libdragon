@@ -27,7 +27,7 @@ static struct {
     bool must_sort;
 } builder;
 
-static uint32_t utf8_decode(const char **str)
+uint32_t __utf8_decode(const char **str)
 {
     const uint8_t *s = (const uint8_t*)*str;
     uint32_t c = *s++;
@@ -186,7 +186,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     bool is_tab = false;
 
     #define UTF8_DECODE_NEXT() ({ \
-        uint32_t codepoint = *utf8_text > 0 ? *utf8_text++ : utf8_decode(&utf8_text); \
+        uint32_t codepoint = *utf8_text > 0 ? *utf8_text++ : __utf8_decode(&utf8_text); \
         is_tab = (codepoint == '\t'); \
         if (is_tab) codepoint = ' '; \
         __rdpq_font_glyph(builder.font, codepoint); \

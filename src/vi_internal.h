@@ -98,54 +98,9 @@ typedef struct vi_config_s{
     uint32_t regs[VI_REGISTERS_COUNT];
 } vi_config_t;
 
-/** Under VI_CTRL */
+/** @brief VI index from register */
+#define VI_TO_INDEX(reg) ((reg) - VI_REGISTERS)
 
-/** @brief VI_CTRL Register setting: enable dedither filter. */
-#define VI_DEDITHER_FILTER_ENABLE           (1<<16)
-/** @brief VI_CTRL Register setting: default value for pixel advance. */
-#define VI_PIXEL_ADVANCE_DEFAULT            (0b0011 << 12)
-/** @brief VI_CTRL Register setting: default value for pixel advance on iQue. */
-#define VI_PIXEL_ADVANCE_BBPLAYER           (0b0001 << 12)
-/** @brief VI_CTRL Register setting: disable AA / resamp. */
-#define VI_AA_MODE_NONE                     (0b11 << 8)
-/** @brief VI_CTRL Register setting: disable AA / enable resamp. */
-#define VI_AA_MODE_RESAMPLE                 (0b10 << 8)
-/** @brief VI_CTRL Register setting: enable AA / enable resamp, fetch pixels when needed. */
-#define VI_AA_MODE_RESAMPLE_FETCH_NEEDED    (0b01 << 8)
-/** @brief VI_CTRL Register setting: enable AA / enable resamp, fetch pixels always. */
-#define VI_AA_MODE_RESAMPLE_FETCH_ALWAYS    (0b00 << 8)
-/** @brief VI_CTRL Register setting: enable interlaced output. */
-#define VI_CTRL_SERRATE                     (1<<6)
-/** @brief VI_CTRL Register setting: enable divot filter (fixes 1 pixel holes after AA). */
-#define VI_DIVOT_ENABLE                     (1<<4)
-/** @brief VI_CTRL Register setting: enable gamma correction filter. */
-#define VI_GAMMA_ENABLE                     (1<<3)
-/** @brief VI_CTRL Register setting: enable gamma correction filter and hardware dither the least significant color bit on output. */
-#define VI_GAMMA_DITHER_ENABLE              (1<<2)
-/** @brief VI_CTRL Register setting: framebuffer source format */
-#define VI_CTRL_TYPE                        (0b11)
-/** @brief VI_CTRL Register setting: set the framebuffer source as 32-bit. */
-#define VI_CTRL_TYPE_32_BPP                 (0b11)
-/** @brief VI_CTRL Register setting: set the framebuffer source as 16-bit (5-5-5-3). */
-#define VI_CTRL_TYPE_16_BPP                 (0b10)
-/** @brief VI_CTRL Register setting: set the framebuffer source as blank (no data and no sync, TV screens will either show static or nothing). */
-#define VI_CTRL_TYPE_BLANK                  (0b00)
-
-/** Under VI_ORIGIN  */
-/** @brief VI_ORIGIN Register: set the address of a framebuffer. */
-#define VI_ORIGIN_SET(value)                ((value & 0xFFFFFF) << 0)
-
-/** Under VI_WIDTH   */
-/** @brief VI_ORIGIN Register: set the width of a framebuffer. */
-#define VI_WIDTH_SET(value)                 ((value & 0xFFF) << 0)
-
-/** Under VI_V_CURRENT  */
-/** @brief VI_V_CURRENT Register: default value for vblank begin line. */
-#define VI_V_CURRENT_VBLANK                 2
-
-/** Under VI_V_INTR    */
-/** @brief VI_V_INTR Register: set value for vertical interrupt. */
-#define VI_V_INTR_SET(value)                ((value & 0x3FF) << 0)
 
 /** Under VI_BURST     */
 /** @brief VI_BURST Register: set start of color burst in pixels from hsync. */
@@ -194,38 +149,6 @@ typedef struct vi_config_s{
 /** @brief VI_BURST Register: MPAL default setting. */
 #define VI_BURST_MPAL                       VI_BURST_SET(VI_BURST_START_MPAL, VI_VSYNC_WIDTH_MPAL, VI_BURST_WIDTH_MPAL, VI_HSYNC_WIDTH_MPAL)
 
-/**  Under VI_V_TOTAL */
-/** @brief VI_V_TOTAL Register: set the total number of visible and non-visible half-lines (-1). */
-#define VI_V_TOTAL_SET(vsync)               (vsync)
-
-/**  Under VI_H_TOTAL */
-/** @brief VI_H_TOTAL Register: set the total width of a line in quarter-pixel units (-1), and the 5-bit leap pattern. */
-#define VI_H_TOTAL_SET(leap_pattern, hsync)  ((((leap_pattern) & 0x1F) << 16) | ((hsync) & 0xFFF))
-
-/**  Under VI_H_TOTAL_LEAP */
-/** @brief VI_H_TOTAL_LEAP Register: set alternate scanline lengths for one scanline during vsync, leap_a and leap_b are selected based on the leap pattern in VI_H_SYNC. */
-#define VI_H_TOTAL_LEAP_SET(leap_a, leap_b)  ((((leap_a) & 0xFFF) << 16) | ((leap_b) & 0xFFF))
-
-/**  Under VI_H_VIDEO */
-/** @brief VI_H_VIDEO Register: set the horizontal start and end of the active video area, in screen pixels */
-#define VI_H_VIDEO_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
-
-/**  Under VI_V_VIDEO */
-/** @brief VI_V_VIDEO Register: set the vertical start and end of the active video area, in half-lines */
-#define VI_V_VIDEO_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
-
-/**  Under VI_V_BURST */
-/** @brief VI_V_BURST Register: set the start and end of color burst enable, in half-lines */
-#define VI_V_BURST_SET(start, end)          ((((start) & 0x3FF) << 16) | ((end) & 0x3FF))
-
-/**  Under VI_X_SCALE   */
-/** @brief VI_X_SCALE Register: set 1/horizontal scale up factor (value is converted to 2.10 format) */
-#define VI_X_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
-
-/**  Under VI_Y_SCALE   */
-/** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
-#define VI_Y_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
-
 /**
  * @name Video Mode Register Presets
  * @brief Presets to begin with when setting a particular video mode
@@ -238,9 +161,9 @@ static const vi_config_t vi_ntsc_p = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_NTSC,
-    VI_V_TOTAL_SET(525),
-    VI_H_TOTAL_SET(0b00000, 3093),
-    VI_H_TOTAL_LEAP_SET(3093, 3093),
+    VI_V_TOTAL_SET(526),
+    VI_H_TOTAL_SET(0b00000, 773.5),
+    VI_H_TOTAL_LEAP_SET(773.5, 773.5),
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 515),
     VI_V_BURST_SET(14, 516),
@@ -254,9 +177,9 @@ static const vi_config_t vi_pal_p =  {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_PAL,
-    VI_V_TOTAL_SET(625),
-    VI_H_TOTAL_SET(0b10101, 3177),
-    VI_H_TOTAL_LEAP_SET(3183, 3182),
+    VI_V_TOTAL_SET(626),
+    VI_H_TOTAL_SET(0b10101, 794.5),
+    VI_H_TOTAL_LEAP_SET(796, 795.75),
     VI_H_VIDEO_SET(128, 768),
     VI_V_VIDEO_SET(45, 621),
     VI_V_BURST_SET(9, 619),
@@ -270,9 +193,9 @@ static const vi_config_t vi_mpal_p = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_MPAL,
-    VI_V_TOTAL_SET(525),
-    VI_H_TOTAL_SET(0b00100, 3089),
-    VI_H_TOTAL_LEAP_SET(3097, 3098),
+    VI_V_TOTAL_SET(526),
+    VI_H_TOTAL_SET(0b00100, 772.5),
+    VI_H_TOTAL_LEAP_SET(774.5, 774.75),
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(37, 511),
     VI_V_BURST_SET(14, 516),
@@ -286,9 +209,9 @@ static const vi_config_t vi_ntsc_i = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_NTSC,
-    VI_V_TOTAL_SET(524),
-    VI_H_TOTAL_SET(0b00000, 3093),
-    VI_H_TOTAL_LEAP_SET(3093, 3093),
+    VI_V_TOTAL_SET(525),
+    VI_H_TOTAL_SET(0b00000, 773.5),
+    VI_H_TOTAL_LEAP_SET(773.5, 773.5),
     VI_H_VIDEO_SET(108, 748),
     VI_V_VIDEO_SET(35, 515),
     VI_V_BURST_SET(14, 516),
@@ -302,9 +225,9 @@ static const vi_config_t vi_pal_i = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_PAL,
-    VI_V_TOTAL_SET(624),
-    VI_H_TOTAL_SET(0b10101, 3177),
-    VI_H_TOTAL_LEAP_SET(3183, 3182),
+    VI_V_TOTAL_SET(625),
+    VI_H_TOTAL_SET(0b10101, 794.5),
+    VI_H_TOTAL_LEAP_SET(796, 795.75),
     VI_H_VIDEO_SET(128, 768),
     VI_V_VIDEO_SET(45, 621),
     VI_V_BURST_SET(9, 619),
@@ -318,7 +241,7 @@ static const vi_config_t vi_mpal_i = {.regs = {
     VI_V_INTR_SET(2),
     0,
     VI_BURST_MPAL,
-    VI_V_TOTAL_SET(524),
+    VI_V_TOTAL_SET(525),
     VI_H_TOTAL_SET(0b00000, 3088),
     VI_H_TOTAL_LEAP_SET(3100, 3100),
     VI_H_VIDEO_SET(108, 748),
@@ -454,6 +377,8 @@ static inline void vi_set_blank_image()
     vi_write_safe(VI_H_VIDEO, 0);
 }
 
+/** @brief Install an interrupt on a specific screen line */
+void vi_set_line_interrupt(int line, void (*handler)(void));
 
 #ifdef __cplusplus
 extern "C" {

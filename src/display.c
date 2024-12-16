@@ -407,7 +407,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
                 of almost all devices.
                 Alternatively we could have elected to shorten H_SYNC, however H_SYNC is expected
                 to be less tolerant than V_SYNC so we opt to leave it alone at the nominal value. */
-        vi_write_safe(VI_V_TOTAL, VI_V_TOTAL_SET(525 - 6 - serrate));
+        vi_write_safe(VI_V_TOTAL, VI_V_TOTAL_SET(526 - 6 - serrate));
         vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
     }
 
@@ -635,16 +635,18 @@ float display_get_delta_time(void)
 
 void display_set_fps_limit(float fps)
 {
+    assert(fps >= 0.0f);
+
     disable_interrupts();
 
-    min_refresh_period = 1.0f / (fps ? fps : refresh_rate);
+    min_refresh_period = 1.0f / (fps ? MIN(fps, refresh_rate) : refresh_rate);
     frame_skip = refresh_period / min_refresh_period;
     delta_time = min_refresh_period;
 
     // Calculate also the minimum period using a rounded refresh rate
     // This will be used only for display purposes, so that FPS are capped
     // to 60 Hz rather than 59.83 Hz, which would be the hw-accurate value.
-    min_refresh_period_rounded = 1.0f / (fps ? fps : roundf(refresh_rate));
+    min_refresh_period_rounded = 1.0f / (fps ? MIN(fps, roundf(refresh_rate)) : roundf(refresh_rate));
 
     enable_interrupts();
 }

@@ -37,7 +37,7 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/math/fmath.o $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
 			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
 			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/fat.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
-			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/vi.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
+			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/vi.o $(BUILD_DIR)/eia608.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
 			 $(BUILD_DIR)/console.o $(BUILD_DIR)/asset.o $(BUILD_DIR)/pifile.o \
 			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/lz4_dec_fast.o $(BUILD_DIR)/compress/ringbuf.o \
 			 $(BUILD_DIR)/compress/aplib_dec_fast.o $(BUILD_DIR)/compress/aplib_dec.o \
@@ -150,6 +150,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/audio.h $(INSTALLDIR)/mips64-elf/include/audio.h
 	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
 	install -Cv -m 0644 include/vi.h $(INSTALLDIR)/mips64-elf/include/vi.h
+	install -Cv -m 0644 include/eia608.h $(INSTALLDIR)/mips64-elf/include/eia608.h
 	install -Cv -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h
 	install -Cv -m 0644 include/debug.h $(INSTALLDIR)/mips64-elf/include/debug.h
 	install -Cv -m 0644 include/debugcpp.h $(INSTALLDIR)/mips64-elf/include/debugcpp.h

@@ -19,7 +19,7 @@ uint32_t gl_overlay_id;
 uint32_t glp_overlay_id;
 uint32_t gl_rsp_state;
 
-gl_state_t state;
+gl_state_t *state;
 
 uint32_t gl_get_type_size(GLenum type)
 {
@@ -51,17 +51,17 @@ void gl_init()
 {
     rdpq_init();
 
-    memset(&state, 0, sizeof(state));
+    state = calloc(1, sizeof(gl_state_t));
 
     gl_texture_init();
 
     gl_server_state_t *server_state = UncachedAddr(rspq_overlay_get_state(&rsp_gl));
     memset(server_state, 0, sizeof(gl_server_state_t));
 
-    memcpy(&server_state->bound_textures[0], state.default_textures[0].srv_object, sizeof(gl_srv_texture_object_t));
-    memcpy(&server_state->bound_textures[1], state.default_textures[1].srv_object, sizeof(gl_srv_texture_object_t));
-    server_state->texture_ids[0] = PhysicalAddr(state.default_textures[0].srv_object);
-    server_state->texture_ids[1] = PhysicalAddr(state.default_textures[1].srv_object);
+    memcpy(&server_state->bound_textures[0], state->default_textures[0].srv_object, sizeof(gl_srv_texture_object_t));
+    memcpy(&server_state->bound_textures[1], state->default_textures[1].srv_object, sizeof(gl_srv_texture_object_t));
+    server_state->texture_ids[0] = PhysicalAddr(state->default_textures[0].srv_object);
+    server_state->texture_ids[1] = PhysicalAddr(state->default_textures[1].srv_object);
 
     server_state->color[0] = 0x7FFF;
     server_state->color[1] = 0x7FFF;
@@ -89,16 +89,16 @@ void gl_init()
     server_state->tex_gen.integer[1][0][1] = 1;
     server_state->tex_gen.integer[1][1][1] = 1;
 
-    state.matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
-    state.matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
-    state.matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);
-    state.matrix_palette = malloc_uncached(sizeof(gl_matrix_srv_t) * MATRIX_PALETTE_SIZE * 2); // Double size for mvp-matrices
+    state->matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
+    state->matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
+    state->matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);
+    state->matrix_palette = malloc_uncached(sizeof(gl_matrix_srv_t) * MATRIX_PALETTE_SIZE * 2); // Double size for mvp-matrices
 
-    server_state->matrix_pointers[0] = PhysicalAddr(state.matrix_stacks[0]);
-    server_state->matrix_pointers[1] = PhysicalAddr(state.matrix_stacks[1]);
-    server_state->matrix_pointers[2] = PhysicalAddr(state.matrix_stacks[2]);
-    server_state->matrix_pointers[3] = PhysicalAddr(state.matrix_palette);
-    server_state->matrix_pointers[4] = PhysicalAddr(state.matrix_palette + MATRIX_PALETTE_SIZE);
+    server_state->matrix_pointers[0] = PhysicalAddr(state->matrix_stacks[0]);
+    server_state->matrix_pointers[1] = PhysicalAddr(state->matrix_stacks[1]);
+    server_state->matrix_pointers[2] = PhysicalAddr(state->matrix_stacks[2]);
+    server_state->matrix_pointers[3] = PhysicalAddr(state->matrix_palette);
+    server_state->matrix_pointers[4] = PhysicalAddr(state->matrix_palette + MATRIX_PALETTE_SIZE);
     server_state->loaded_mtx_index[0] = -1;
     server_state->loaded_mtx_index[1] = -1;
 
@@ -164,10 +164,12 @@ void gl_close()
     // So we need another rspq_wait.
     rspq_wait();
 
-    free_uncached(state.matrix_stacks[0]);
-    free_uncached(state.matrix_stacks[1]);
-    free_uncached(state.matrix_stacks[2]);
-    free_uncached(state.matrix_palette);    
+    free_uncached(state->matrix_stacks[0]);
+    free_uncached(state->matrix_stacks[1]);
+    free_uncached(state->matrix_stacks[2]);
+    free_uncached(state->matrix_palette);    
+
+    free(state);
 }
 
 void gl_reset_uploaded_texture()
@@ -177,13 +179,13 @@ void gl_reset_uploaded_texture()
 
 void gl_context_begin()
 {
-    const surface_t *old_color_buffer = state.color_buffer;
+    const surface_t *old_color_buffer = state->color_buffer;
     
-    state.color_buffer = rdpq_get_attached();
-    assertf(state.color_buffer, "GL: Tried to begin rendering without framebuffer attached");
+    state->color_buffer = rdpq_get_attached();
+    assertf(state->color_buffer, "GL: Tried to begin rendering without framebuffer attached");
 
-    uint32_t width = state.color_buffer->width;
-    uint32_t height = state.color_buffer->height;
+    uint32_t width = state->color_buffer->width;
+    uint32_t height = state->color_buffer->height;
 
     if (old_color_buffer == NULL || old_color_buffer->width != width || old_color_buffer->height != height) {
         uint32_t packed_size = ((uint32_t)width) << 16 | (uint32_t)height;
@@ -203,8 +205,8 @@ GLenum glGetError(void)
 {
     if (!gl_ensure_no_begin_end()) return 0;
 
-    GLenum error = state.current_error;
-    state.current_error = GL_NO_ERROR;
+    GLenum error = state->current_error;
+    state->current_error = GL_NO_ERROR;
     return error;
 }
 
@@ -223,7 +225,7 @@ void gl_set_flag2(GLenum target, bool value)
         break;
     case GL_DEPTH_TEST:
         gl_set_flag(GL_UPDATE_NONE, FLAG_DEPTH_TEST, value);
-        state.depth_test = value;
+        state->depth_test = value;
         break;
     case GL_BLEND:
         gl_set_flag(GL_UPDATE_NONE, FLAG_BLEND, value);
@@ -236,26 +238,26 @@ void gl_set_flag2(GLenum target, bool value)
         break;
     case GL_FOG:
         gl_set_flag(GL_UPDATE_NONE, FLAG_FOG, value);
-        state.fog = value;
+        state->fog = value;
         break;
     case GL_MULTISAMPLE_ARB:
         gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_MULTISAMPLE, value);
         break;
     case GL_TEXTURE_1D:
         gl_set_flag(GL_UPDATE_NONE, FLAG_TEXTURE_1D, value);
-        state.texture_1d = value;
+        state->texture_1d = value;
         break;
     case GL_TEXTURE_2D:
         gl_set_flag(GL_UPDATE_NONE, FLAG_TEXTURE_2D, value);
-        state.texture_2d = value;
+        state->texture_2d = value;
         break;
     case GL_CULL_FACE:
         gl_set_flag(GL_UPDATE_NONE, FLAG_CULL_FACE, value);
-        state.cull_face = value;
+        state->cull_face = value;
         break;
     case GL_LIGHTING:
         gl_set_flag(GL_UPDATE_NONE, FLAG_LIGHTING, value);
-        state.lighting = value;
+        state->lighting = value;
         set_can_use_rsp_dirty();
         break;
     case GL_LIGHT0:
@@ -268,11 +270,11 @@ void gl_set_flag2(GLenum target, bool value)
     case GL_LIGHT7:
         uint32_t light_index = target - GL_LIGHT0;
         gl_set_flag(GL_UPDATE_NONE, FLAG_LIGHT0 << light_index, value);
-        state.lights[light_index].enabled = value;
+        state->lights[light_index].enabled = value;
         break;
     case GL_COLOR_MATERIAL:
         gl_set_flag(GL_UPDATE_NONE, FLAG_COLOR_MATERIAL, value);
-        state.color_material = value;
+        state->color_material = value;
         break;
     case GL_TEXTURE_GEN_S:
     case GL_TEXTURE_GEN_T:
@@ -280,20 +282,20 @@ void gl_set_flag2(GLenum target, bool value)
     case GL_TEXTURE_GEN_Q:
         uint32_t tex_gen_index = target - GL_TEXTURE_GEN_S;
         gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_S << tex_gen_index, value);
-        state.tex_gen[tex_gen_index].enabled = value;
+        state->tex_gen[tex_gen_index].enabled = value;
         set_can_use_rsp_dirty();
         break;
     case GL_NORMALIZE:
         gl_set_flag(GL_UPDATE_NONE, FLAG_NORMALIZE, value);
-        state.normalize = value;
+        state->normalize = value;
         break;
     case GL_MATRIX_PALETTE_ARB:
         gl_set_flag(GL_UPDATE_NONE, FLAG_MATRIX_PALETTE, value);
-        state.matrix_palette_enabled = value;
+        state->matrix_palette_enabled = value;
         break;
     case GL_TEXTURE_FLIP_T_N64:
         gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_TEX_FLIP_T, value);
-        state.tex_flip_t = value;
+        state->tex_flip_t = value;
         break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:
