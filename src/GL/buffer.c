@@ -3,7 +3,7 @@
 #include <malloc.h>
 #include <string.h>
 
-extern gl_state_t state;
+extern gl_state_t *state;
 
 
 GLboolean glIsBufferARB(GLuint buffer)
@@ -24,10 +24,10 @@ void glBindBufferARB(GLenum target, GLuint buffer)
 
     switch (target) {
     case GL_ARRAY_BUFFER_ARB:
-        state.array_buffer = obj;
+        state->array_buffer = obj;
         break;
     case GL_ELEMENT_ARRAY_BUFFER_ARB:
-        state.element_array_buffer = obj;
+        state->element_array_buffer = obj;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer target", target);
@@ -56,8 +56,8 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
             continue;
         }
         
-        gl_unbind_buffer(obj, &state.array_buffer);
-        gl_unbind_buffer(obj, &state.element_array_buffer);
+        gl_unbind_buffer(obj, &state->array_buffer);
+        gl_unbind_buffer(obj, &state->element_array_buffer);
 
         for (uint32_t a = 0; a < ATTRIB_COUNT; a++)
         {
@@ -68,7 +68,7 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
             // A buffer object that is deleted while attached to a non-current VAO
             // is treated just like a buffer object bound to another context (or to
             // a current VAO in another context).
-            gl_unbind_buffer(obj, &state.array_object->arrays[a].binding);
+            gl_unbind_buffer(obj, &state->array_object->arrays[a].binding);
         }
 
         // TODO: keep alive until no longer in use
@@ -99,10 +99,10 @@ bool gl_get_buffer_object(GLenum target, gl_buffer_object_t **obj)
 {
     switch (target) {
     case GL_ARRAY_BUFFER_ARB:
-        *obj = state.array_buffer;
+        *obj = state->array_buffer;
         break;
     case GL_ELEMENT_ARRAY_BUFFER_ARB:
-        *obj = state.element_array_buffer;
+        *obj = state->element_array_buffer;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer target", target);

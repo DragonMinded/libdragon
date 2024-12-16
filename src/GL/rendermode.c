@@ -12,7 +12,7 @@ _Static_assert(FLAG_BLEND << ZMODE_BLEND_FLAG_SHIFT == SOM_ZMODE_TRANSPARENT);
 _Static_assert(FLAG_TEXTURE_ACTIVE == (1 << TEXTURE_ACTIVE_SHIFT));
 _Static_assert(FLAG_TEXTURE_ACTIVE >> TEX_ACTIVE_COMBINER_SHIFT == COMBINER_FLAG_TEXTURE);
 
-extern gl_state_t state;
+extern gl_state_t *state;
 
 // All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.
 // NOTE: We always set fog alpha to one to support GL_ONE in both factors
@@ -71,8 +71,8 @@ static const rdpq_blender_t blend_configs[64] = {
 
 void gl_rendermode_init()
 {
-    state.fog_start = 0.0f;
-    state.fog_end = 1.0f;
+    state->fog_start = 0.0f;
+    state->fog_end = 1.0f;
 
     glEnable(GL_DITHER);
     glBlendFunc(GL_ONE, GL_ZERO);
@@ -87,14 +87,14 @@ void gl_rendermode_init()
 
 void gl_update_fog()
 {
-    float fog_diff = state.fog_end - state.fog_start;
+    float fog_diff = state->fog_end - state->fog_start;
     // start == end is undefined, so disable fog by setting the factor to 0
-    state.fog_factor = fabsf(fog_diff) < FLT_MIN ? 0.0f : 1.0f / fog_diff;
-    state.fog_offset = state.fog_start;
+    state->fog_factor = fabsf(fog_diff) < FLT_MIN ? 0.0f : 1.0f / fog_diff;
+    state->fog_offset = state->fog_start;
 
     // Convert to s15.16 and premultiply with 1.15 conversion factor
-    int32_t factor_fx = state.fog_factor * (1<<(16 + 7 + (8 - VTX_SHIFT)));
-    int16_t offset_fx = state.fog_offset * (1<<VTX_SHIFT);
+    int32_t factor_fx = state->fog_factor * (1<<(16 + 7 + (8 - VTX_SHIFT)));
+    int16_t offset_fx = state->fog_offset * (1<<VTX_SHIFT);
 
     int16_t factor_i = factor_fx >> 16;
     uint16_t factor_f = factor_fx & 0xFFFF;
@@ -106,13 +106,13 @@ void gl_update_fog()
 
 void gl_set_fog_start(GLfloat param)
 {
-    state.fog_start = param;
+    state->fog_start = param;
     gl_update_fog();
 }
 
 void gl_set_fog_end(GLfloat param)
 {
-    state.fog_end = param;
+    state->fog_end = param;
     gl_update_fog();
 }
 

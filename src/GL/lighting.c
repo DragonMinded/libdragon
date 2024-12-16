@@ -5,7 +5,7 @@
 
 _Static_assert((1<<LIGHT0_SHIFT) == FLAG_LIGHT0);
 
-extern gl_state_t state;
+extern gl_state_t *state;
 
 void gl_init_material(gl_material_t *material)
 {
@@ -38,26 +38,26 @@ void gl_init_light(gl_light_t *light)
 
 void gl_lighting_init()
 {
-    gl_init_material(&state.material);
+    gl_init_material(&state->material);
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        gl_init_light(&state.lights[i]);
+        gl_init_light(&state->lights[i]);
     }
 
-    state.lights[0].diffuse[0] = 0.2f;
-    state.lights[0].diffuse[1] = 0.2f;
-    state.lights[0].diffuse[2] = 0.2f;
+    state->lights[0].diffuse[0] = 0.2f;
+    state->lights[0].diffuse[1] = 0.2f;
+    state->lights[0].diffuse[2] = 0.2f;
 
-    state.lights[0].specular[0] = 0.8f;
-    state.lights[0].specular[1] = 0.8f;
-    state.lights[0].specular[2] = 0.8f;
+    state->lights[0].specular[0] = 0.8f;
+    state->lights[0].specular[1] = 0.8f;
+    state->lights[0].specular[2] = 0.8f;
 
-    state.light_model_ambient[0] = 0.2f;
-    state.light_model_ambient[1] = 0.2f;
-    state.light_model_ambient[2] = 0.2f;
-    state.light_model_ambient[3] = 1.0f;
-    state.light_model_local_viewer = false;
+    state->light_model_ambient[0] = 0.2f;
+    state->light_model_ambient[1] = 0.2f;
+    state->light_model_ambient[2] = 0.2f;
+    state->light_model_ambient[3] = 1.0f;
+    state->light_model_local_viewer = false;
 }
 
 float gl_mag2(const GLfloat *v)
@@ -124,13 +124,13 @@ const GLfloat * gl_material_get_color(const gl_material_t *material, GLenum colo
 
     switch (color) {
     case GL_EMISSION:
-        return state.color_material && target == GL_EMISSION ? input : material->emissive;
+        return state->color_material && target == GL_EMISSION ? input : material->emissive;
     case GL_AMBIENT:
-        return state.color_material && (target == GL_AMBIENT || target == GL_AMBIENT_AND_DIFFUSE) ? input : material->ambient;
+        return state->color_material && (target == GL_AMBIENT || target == GL_AMBIENT_AND_DIFFUSE) ? input : material->ambient;
     case GL_DIFFUSE:
-        return state.color_material && (target == GL_DIFFUSE || target == GL_AMBIENT_AND_DIFFUSE) ? input : material->diffuse;
+        return state->color_material && (target == GL_DIFFUSE || target == GL_AMBIENT_AND_DIFFUSE) ? input : material->diffuse;
     case GL_SPECULAR:
-        return state.color_material && target == GL_SPECULAR ? input : material->specular;
+        return state->color_material && target == GL_SPECULAR ? input : material->specular;
     default:
         assertf(0, "Invalid material color!");
         return NULL;
@@ -145,14 +145,14 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
     const GLfloat *specular = gl_material_get_color(material, GL_SPECULAR, input);
 
     // Emission and ambient
-    color[0] = emissive[0] + ambient[0] * state.light_model_ambient[0];
-    color[1] = emissive[1] + ambient[1] * state.light_model_ambient[1];
-    color[2] = emissive[2] + ambient[2] * state.light_model_ambient[2];
+    color[0] = emissive[0] + ambient[0] * state->light_model_ambient[0];
+    color[1] = emissive[1] + ambient[1] * state->light_model_ambient[1];
+    color[2] = emissive[2] + ambient[2] * state->light_model_ambient[2];
     color[3] = diffuse[3];
 
     for (uint32_t l = 0; l < LIGHT_COUNT; l++)
     {
-        const gl_light_t *light = &state.lights[l];
+        const gl_light_t *light = &state->lights[l];
         if (!light->enabled) {
             continue;
         }
@@ -221,7 +221,7 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
                 vpl[1],
                 vpl[2],
             };
-            if (state.light_model_local_viewer) {
+            if (state->light_model_local_viewer) {
                 GLfloat pe[4] = { 0, 0, 0, 1 };
                 gl_homogeneous_unit_diff(pe, v, pe);
                 h[0] += pe[0];
@@ -284,28 +284,28 @@ void gl_set_color(GLfloat *dst, uint32_t offset, GLfloat r, GLfloat g, GLfloat b
 
 void gl_set_material_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state.material.ambient, offsetof(gl_server_state_t, mat_ambient), r, g, b, a);
+    gl_set_color(state->material.ambient, offsetof(gl_server_state_t, mat_ambient), r, g, b, a);
 }
 
 void gl_set_material_diffuse(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state.material.diffuse, offsetof(gl_server_state_t, mat_diffuse), r, g, b, a);
+    gl_set_color(state->material.diffuse, offsetof(gl_server_state_t, mat_diffuse), r, g, b, a);
 }
 
 void gl_set_material_specular(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state.material.specular, offsetof(gl_server_state_t, mat_specular), r, g, b, a);
+    gl_set_color(state->material.specular, offsetof(gl_server_state_t, mat_specular), r, g, b, a);
     set_can_use_rsp_dirty();
 }
 
 void gl_set_material_emissive(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state.material.emissive, offsetof(gl_server_state_t, mat_emissive), r, g, b, a);
+    gl_set_color(state->material.emissive, offsetof(gl_server_state_t, mat_emissive), r, g, b, a);
 }
 
 void gl_set_material_shininess(GLfloat param)
 {    
-    state.material.shininess = param;
+    state->material.shininess = param;
     gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_shininess), param * 32.f);
 }
 
@@ -465,7 +465,7 @@ gl_light_t * gl_get_light(GLenum light)
         return NULL;
     }
 
-    return &state.lights[light - GL_LIGHT0];
+    return &state->lights[light - GL_LIGHT0];
 }
 
 void gl_light_set_ambient(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -485,7 +485,7 @@ void gl_light_set_specular(gl_light_t *light, uint32_t offset, GLfloat r, GLfloa
 
 void gl_light_set_position(gl_light_t *light, uint32_t offset, const GLfloat *pos)
 {
-    gl_matrix_mult(light->position, gl_matrix_stack_get_matrix(&state.modelview_stack), pos);
+    gl_matrix_mult(light->position, gl_matrix_stack_get_matrix(&state->modelview_stack), pos);
 
     int16_t x, y, z, w;
 
@@ -514,7 +514,7 @@ void gl_light_set_position(gl_light_t *light, uint32_t offset, const GLfloat *po
 
 void gl_light_set_direction(gl_light_t *light, uint32_t offset, const GLfloat *dir)
 {
-    gl_matrix_mult3x3(light->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), dir);
+    gl_matrix_mult3x3(light->direction, gl_matrix_stack_get_matrix(&state->modelview_stack), dir);
 
 /*
     int16_t x = dir[0] * 0x7FFF;
@@ -731,12 +731,12 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
 
 void gl_set_light_model_local_viewer(bool param)
 {
-    state.light_model_local_viewer = param;
+    state->light_model_local_viewer = param;
 }
 
 void gl_set_light_model_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state.light_model_ambient, offsetof(gl_server_state_t, light_ambient), r, g, b, a);
+    gl_set_color(state->light_model_ambient, offsetof(gl_server_state_t, light_ambient), r, g, b, a);
 }
 
 void glLightModeli(GLenum pname, GLint param) 
@@ -837,7 +837,7 @@ void glColorMaterial(GLenum face, GLenum mode)
     }
 
     gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_color_target), color_target);
-    state.material.color_target = mode;
+    state->material.color_target = mode;
 }
 
 void glShadeModel(GLenum mode)
@@ -848,7 +848,7 @@ void glShadeModel(GLenum mode)
     case GL_FLAT:
     case GL_SMOOTH:
         gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, shade_model), mode);
-        state.shade_model = mode;
+        state->shade_model = mode;
         set_can_use_rsp_dirty();
         break;
     default:

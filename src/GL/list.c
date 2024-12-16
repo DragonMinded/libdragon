@@ -3,7 +3,7 @@
 
 #define EMPTY_LIST ((rspq_block_t*)1)
 
-extern gl_state_t state;
+extern gl_state_t *state;
 
 typedef GLuint (*read_list_id_func)(const GLvoid*, GLsizei);
 
@@ -22,18 +22,18 @@ void block_free_safe(rspq_block_t *block)
 void gl_list_init()
 {
     // TODO: Get rid of the hash map. This will be difficult due to the semantics of glGenLists (it's guaranteed to generate consecutive IDs)
-    obj_map_new(&state.list_objects);
-    state.next_list_name = 1;
+    obj_map_new(&state->list_objects);
+    state->next_list_name = 1;
 }
 
 void gl_list_close()
 {
-    obj_map_iter_t list_iter = obj_map_iterator(&state.list_objects);
+    obj_map_iter_t list_iter = obj_map_iterator(&state->list_objects);
     while (obj_map_iterator_next(&list_iter)) {
         block_free_safe((rspq_block_t*)list_iter.value);
     }
 
-    obj_map_free(&state.list_objects);
+    obj_map_free(&state->list_objects);
 }
 
 void glNewList(GLuint n, GLenum mode)
@@ -56,12 +56,12 @@ void glNewList(GLuint n, GLenum mode)
         return;
     }
 
-    if (state.current_list != 0) {
+    if (state->current_list != 0) {
         gl_set_error(GL_INVALID_OPERATION, "A display list is already being recorded");
         return;
     }
 
-    state.current_list = n;
+    state->current_list = n;
 
     rspq_block_begin();
 }
@@ -70,26 +70,26 @@ void glEndList(void)
 {
     if (!gl_ensure_no_begin_end()) return;
     
-    if (state.current_list == 0) {
+    if (state->current_list == 0) {
         gl_set_error(GL_INVALID_OPERATION, "No display list is currently being recorded");
         return;
     }
 
     rspq_block_t *block = rspq_block_end();
 
-    block = obj_map_set(&state.list_objects, state.current_list, block);
+    block = obj_map_set(&state->list_objects, state->current_list, block);
     block_free_safe(block);
 
-    state.current_list = 0;
+    state->current_list = 0;
 }
 
 void glCallList(GLuint n)
 {
     // The spec allows glCallList in within glBegin/glEnd pairs, but our current architecture doesn't allow for this.
     // During display list recording, we cannot anticipate whether it will be called within a glBegin/glEnd pair or not.
-    assertf(!state.begin_end_active, "glCallList between glBegin/glEnd is not supported!");
+    assertf(!state->begin_end_active, "glCallList between glBegin/glEnd is not supported!");
 
-    rspq_block_t *block = obj_map_get(&state.list_objects, n);
+    rspq_block_t *block = obj_map_get(&state->list_objects, n);
     // Silently ignore NULL and EMPTY_LIST
     if (is_non_empty_list(block)) {
         rspq_block_run(block);
@@ -187,7 +187,7 @@ read_list_id_func get_read_list_id_func(GLenum type)
 void glCallLists(GLsizei n, GLenum type, const GLvoid *lists)
 {
     // See glCallList for an explanation
-    assertf(!state.begin_end_active, "glCallLists between glBegin/glEnd is not supported!");
+    assertf(!state->begin_end_active, "glCallLists between glBegin/glEnd is not supported!");
 
     read_list_id_func func = get_read_list_id_func(type);
     if (func == NULL) return;
@@ -195,7 +195,7 @@ void glCallLists(GLsizei n, GLenum type, const GLvoid *lists)
     for (GLsizei i = 0; i < n; i++)
     {
         GLuint l = func(lists, i);
-        glCallList(l + state.list_base);
+        glCallList(l + state->list_base);
     }
 }
 
@@ -203,7 +203,7 @@ void glListBase(GLuint base)
 {
     if (!gl_ensure_no_begin_end()) return;
     
-    state.list_base = base;
+    state->list_base = base;
 }
 
 GLuint glGenLists(GLsizei s)
@@ -212,12 +212,12 @@ GLuint glGenLists(GLsizei s)
 
     if (s == 0) return 0;
 
-    GLuint result = state.next_list_name;
+    GLuint result = state->next_list_name;
 
     // Set newly used indices to empty lists (which marks them as used without actually creating a block)
     for (size_t i = 0; i < s; i++)
     {
-        obj_map_set(&state.list_objects, state.next_list_name++, EMPTY_LIST);
+        obj_map_set(&state->list_objects, state->next_list_name++, EMPTY_LIST);
     }
     
     return result;
@@ -228,7 +228,7 @@ GLboolean glIsList(GLuint list)
     if (!gl_ensure_no_begin_end()) return 0;
     
     // We do not check for EMPTY_LIST here because that also denotes a used list index
-    return obj_map_get(&state.list_objects, list) != NULL;
+    return obj_map_get(&state->list_objects, list) != NULL;
 }
 
 void glDeleteLists(GLuint list, GLsizei range)
@@ -237,7 +237,7 @@ void glDeleteLists(GLuint list, GLsizei range)
     
     for (GLuint i = 0; i < range; i++)
     {
-        rspq_block_t *block = obj_map_remove(&state.list_objects, list + i);
+        rspq_block_t *block = obj_map_remove(&state->list_objects, list + i);
         block_free_safe(block);
     }
 }

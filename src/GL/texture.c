@@ -21,7 +21,7 @@ _Static_assert((1<<NEED_EYE_SPACE_SHIFT) == FLAG_NEED_EYE_SPACE);
 _Static_assert((SOM_SAMPLE_BILINEAR >> 32) >> BILINEAR_TEX_OFFSET_SHIFT == HALF_TEXEL);
 _Static_assert(TEX_FLAG_DETAIL << TEX_DETAIL_SHIFT == SOM_TEXTURE_DETAIL >> 32);
 
-extern gl_state_t state;
+extern gl_state_t *state;
 static inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
 
 void gl_texture_set_min_filter(gl_texture_object_t *obj, uint32_t offset, GLenum param);
@@ -96,27 +96,27 @@ void gl_cleanup_texture_object(gl_texture_object_t *obj)
 
 void gl_texture_init()
 {
-    state.default_textures = malloc_uncached(sizeof(gl_texture_object_t) * 2);
+    state->default_textures = malloc_uncached(sizeof(gl_texture_object_t) * 2);
 
-    gl_init_texture_object(&state.default_textures[0]);
-    gl_init_texture_object(&state.default_textures[1]);
+    gl_init_texture_object(&state->default_textures[0]);
+    gl_init_texture_object(&state->default_textures[1]);
 
-    state.default_textures[0].dimensionality = GL_TEXTURE_1D;
-    state.default_textures[1].dimensionality = GL_TEXTURE_2D;
+    state->default_textures[0].dimensionality = GL_TEXTURE_1D;
+    state->default_textures[1].dimensionality = GL_TEXTURE_2D;
 
-    state.default_textures[0].flags |= TEX_IS_DEFAULT;
-    state.default_textures[1].flags |= TEX_IS_DEFAULT;
+    state->default_textures[0].flags |= TEX_IS_DEFAULT;
+    state->default_textures[1].flags |= TEX_IS_DEFAULT;
 
-    state.texture_1d_object = &state.default_textures[0];
-    state.texture_2d_object = &state.default_textures[1];
+    state->texture_1d_object = &state->default_textures[0];
+    state->texture_2d_object = &state->default_textures[1];
 }
 
 void gl_texture_close()
 {
-    gl_cleanup_texture_object(&state.default_textures[0]);
-    gl_cleanup_texture_object(&state.default_textures[1]);
+    gl_cleanup_texture_object(&state->default_textures[0]);
+    gl_cleanup_texture_object(&state->default_textures[1]);
 
-    free_uncached(state.default_textures);
+    free_uncached(state->default_textures);
 }
 
 uint32_t gl_log2(uint32_t s)
@@ -168,12 +168,12 @@ GLenum rdp_tex_format_to_gl(tex_format_t format)
 
 gl_texture_object_t * gl_get_active_texture()
 {
-    if (state.texture_2d) {
-        return state.texture_2d_object;
+    if (state->texture_2d) {
+        return state->texture_2d_object;
     }
 
-    if (state.texture_1d) {
-        return state.texture_1d_object;
+    if (state->texture_1d) {
+        return state->texture_1d_object;
     }
 
     return NULL;
@@ -196,9 +196,9 @@ gl_texture_object_t * gl_get_texture_object(GLenum target)
 {
     switch (target) {
     case GL_TEXTURE_1D:
-        return state.texture_1d_object;
+        return state->texture_1d_object;
     case GL_TEXTURE_2D:
-        return state.texture_2d_object;
+        return state->texture_2d_object;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture target", target);
         return NULL;
@@ -589,10 +589,10 @@ void glBindTexture(GLenum target, GLuint texture)
 
     switch (target) {
     case GL_TEXTURE_1D:
-        target_obj = &state.texture_1d_object;
+        target_obj = &state->texture_1d_object;
         break;
     case GL_TEXTURE_2D:
-        target_obj = &state.texture_2d_object;
+        target_obj = &state->texture_2d_object;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture target", target);
@@ -602,10 +602,10 @@ void glBindTexture(GLenum target, GLuint texture)
     if (texture == 0) {
         switch (target) {
         case GL_TEXTURE_1D:
-            *target_obj = &state.default_textures[0];
+            *target_obj = &state->default_textures[0];
             break;
         case GL_TEXTURE_2D:
-            *target_obj = &state.default_textures[1];
+            *target_obj = &state->default_textures[1];
             break;
         }
     } else {
@@ -658,9 +658,9 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
             continue;
         }
 
-        if (obj == state.texture_1d_object) {
+        if (obj == state->texture_1d_object) {
             glBindTexture(GL_TEXTURE_1D, 0);
-        } else if (obj == state.texture_2d_object) {
+        } else if (obj == state->texture_2d_object) {
             glBindTexture(GL_TEXTURE_2D, 0);
         }
 
@@ -1024,11 +1024,11 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
 
     tex_format_t dest_tex_fmt = gl_tex_format_to_rdp(dest_format);
 
-    uint32_t row_length = state.unpack_row_length > 0 ? state.unpack_row_length : width;
+    uint32_t row_length = state->unpack_row_length > 0 ? state->unpack_row_length : width;
 
-    uint32_t src_stride = ROUND_UP(row_length * src_pixel_size, state.unpack_alignment);
+    uint32_t src_stride = ROUND_UP(row_length * src_pixel_size, state->unpack_alignment);
 
-    const GLvoid *src_ptr = data + src_stride * state.unpack_skip_rows + src_pixel_size * state.unpack_skip_pixels;
+    const GLvoid *src_ptr = data + src_stride * state->unpack_skip_rows + src_pixel_size * state->unpack_skip_pixels;
     GLvoid *dest_ptr = dest;
 
     uint32_t component_offset = 0;
@@ -1045,7 +1045,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
     }
 
     bool formats_match = gl_do_formats_match(dest_format, format, type);
-    bool can_mempcy = formats_match && state.transfer_is_noop;
+    bool can_mempcy = formats_match && state->transfer_is_noop;
 
     for (uint32_t r = 0; r < height; r++)
     {
@@ -1055,7 +1055,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
             for (uint32_t c = 0; c < width; c++)
             {
                 GLfloat components[4] = { 0, 0, 0, 1 };
-                unpack_func(&components[component_offset], num_elements, state.unpack_swap_bytes, src_ptr + c * src_pixel_size);
+                unpack_func(&components[component_offset], num_elements, state->unpack_swap_bytes, src_ptr + c * src_pixel_size);
 
                 if (format == GL_LUMINANCE) {
                     components[2] = components[1] = components[0];
@@ -1066,14 +1066,14 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
 
                 for (uint32_t i = 0; i < 4; i++)
                 {
-                    components[i] = CLAMP01(components[i] * state.transfer_scale[i] + state.transfer_bias[i]);
+                    components[i] = CLAMP01(components[i] * state->transfer_scale[i] + state->transfer_bias[i]);
                 }
                 
-                if (state.map_color) {
+                if (state->map_color) {
                     for (uint32_t i = 0; i < 4; i++)
                     {
-                        uint32_t index = floorf(components[i]) * (state.pixel_maps[i].size - 1);
-                        components[i] = CLAMP01(state.pixel_maps[i].entries[index]);
+                        uint32_t index = floorf(components[i]) * (state->pixel_maps[i].size - 1);
+                        components[i] = CLAMP01(state->pixel_maps[i].entries[index]);
                     }
                 }
 
