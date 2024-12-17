@@ -289,3 +289,35 @@ void fm_mat4_lookat(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *targe
     fm_vec3_norm(&dir, &dir);
     fm_mat4_look(out, eye, &dir, up);
 }
+
+extern inline void fm_vec3_negate(fm_vec3_t *out, const fm_vec3_t *v);
+extern inline void fm_vec3_add(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline void fm_vec3_sub(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline void fm_vec3_mul(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline void fm_vec3_div(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline void fm_vec3_scale(fm_vec3_t *out, const fm_vec3_t *a, float s);
+extern inline float fm_vec3_dot(const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline float fm_vec3_len2(const fm_vec3_t *a);
+extern inline float fm_vec3_len(const fm_vec3_t *a);
+extern inline float fm_vec3_distance2(const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline float fm_vec3_distance(const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline void fm_vec3_norm(fm_vec3_t *out, const fm_vec3_t *a);
+extern inline void fm_vec3_cross(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b);
+extern inline void fm_vec3_lerp(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b, float t);
+extern inline void fm_quat_identity(fm_quat_t *out);
+extern inline void fm_quat_from_axis_angle(fm_quat_t *out, const fm_vec3_t *axis, float angle);
+extern inline float fm_quat_dot(const fm_quat_t *a, const fm_quat_t *b);
+extern inline void fm_quat_inverse(fm_quat_t *out, const fm_quat_t *q);
+extern inline void fm_quat_norm(fm_quat_t *out, const fm_quat_t *q);
+extern inline void fm_mat4_identity(fm_mat4_t *out);
+extern inline void fm_mat4_scale(fm_mat4_t *out, const fm_vec3_t *scale);
+extern inline void fm_mat4_translate(fm_mat4_t *out, const fm_vec3_t *translate);
+extern inline void fm_mat4_from_rt(fm_mat4_t *out, const fm_quat_t *quat, const fm_vec3_t *translate);
+extern inline void fm_mat4_from_rt_euler(fm_mat4_t *out, const float euler[3], const fm_vec3_t *translate);
+extern inline void fm_mat4_from_translation(fm_mat4_t *out, const fm_vec3_t *translate);
+extern inline void fm_mat4_from_rotation(fm_mat4_t *out, const fm_quat_t *rotation);
+extern inline void fm_mat4_from_scale(fm_mat4_t *out, const fm_vec3_t *scale);
+extern inline void fm_mat4_mul(fm_mat4_t *out, const fm_mat4_t *a, const fm_mat4_t *b);
+extern inline void fm_mat4_transpose(fm_mat4_t *out, const fm_mat4_t *m);
+extern inline void fm_mat4_mul_vec3(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec3_t *v);
+extern inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t *v);

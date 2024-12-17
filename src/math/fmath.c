@@ -92,3 +92,5 @@ float fm_wrap_angle(float angle)
     float a = fm_fmodf(angle, FM_PI*2);
     return a < 0.0f ? a + FM_PI*2 : a;
 }
+
+extern inline float fm_lerp(float a, float b, float t);
