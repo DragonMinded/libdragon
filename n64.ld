@@ -80,7 +80,7 @@ SECTIONS {
         if you don't provide the --wrap option. */
         KEEP(*(EXCLUDE_FILE (*crtend.o) .ctors))
         KEEP(*(SORT(.ctors.*)))
-        KEEP(*(.ctors))
+        KEEP(*crtend.o(.ctors))
          /* Similarly we should have a;
 
         LONG(0)
