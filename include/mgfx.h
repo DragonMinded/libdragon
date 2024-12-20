@@ -124,6 +124,8 @@ typedef struct
     const float *normal;                    ///< The normal matrix in column-major order.
 } mgfx_matrices_parms_t;
 
+typedef struct mgfx_pipeline_cache_s    mgfx_pipeline_cache_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -164,6 +166,10 @@ void mgfx_set_modes_inline(const mg_uniform_t *uniform, const mgfx_modes_parms_t
 
 /** @brief Set the value of the matrices uniform inline. */
 void mgfx_set_matrices_inline(const mg_uniform_t *uniform, const mgfx_matrices_parms_t *parms);
+
+mgfx_pipeline_cache_t *mgfx_pipeline_cache_create();
+void mgfx_pipeline_cache_free(mgfx_pipeline_cache_t *cache);
+mg_pipeline_t *mgfx_pipeline_cache_get_or_create(const mg_pipeline_parms_t *parms);
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,7 @@
 N64_GCCPREFIX ?= $(N64_INST)
 INSTALLDIR ?= $(N64_INST)
 
-C_CXX_FLAGS += -O2 -pthread -Wall -Werror
+C_CXX_FLAGS += -g -Og -pthread -Wall -Werror
 C_CXX_FLAGS += -I../include -MMD
 C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
@@ -55,7 +55,7 @@ $(DECOMP_STUBS):
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
 mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o common/assetcomp.a
-mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a mkmodel/meshoptimizer/vcacheoptimizer.o
+mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a common/meshoptimizer/vcacheoptimizer.o
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
 n64dso-extern_OBJS = n64dso/n64dso-extern.o
 n64dso-msym_OBJS = n64dso/n64dso-msym.o
@@ -67,9 +67,10 @@ n64tool_OBJS = n64tool.o
 n64sym_OBJS = n64sym.o
 ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
+mgfx_OBJS = mgfx/mgfx.o common/assetcomp.a common/meshoptimizer/vcacheoptimizer.o
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
-TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate
+TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate mgfx
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)

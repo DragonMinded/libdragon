@@ -19,10 +19,10 @@
 #include "../../src/model64_internal.h"
 #include "../../src/model64_catmull.h"
 
-#include "meshoptimizer/meshoptimizer.h"
+#include "../common/meshoptimizer/meshoptimizer.h"
 
 #define CGLTF_IMPLEMENTATION
-#include "cgltf.h"
+#include "../common/cgltf.h"
 
 //Macros copied from utils.h in libdragon src directory
 #define ROUND_UP(n, d) ({ \

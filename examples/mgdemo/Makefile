@@ -20,7 +20,7 @@ filesystem/%.sprite: assets/%.png
 filesystem/%.model64: assets/%.glb
 	@mkdir -p $(dir $@)
 	@echo "    [MODEL] $@"
-	@$(N64_MKMODEL) -f mgfx -o "$(dir $@)" "$<"
+	@$(N64_MGFX) -o "$(dir $@)" "$<"
 
 $(BUILD_DIR)/mgdemo.dfs: $(assets_conv)
 $(BUILD_DIR)/mgdemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)
