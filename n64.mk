@@ -1,6 +1,9 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 
+# Override this if your project uses a different directory for your DFS filesystem root
+N64_MKDFS_ROOT ?= filesystem
+
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
 N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
 N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
@@ -102,12 +105,7 @@ RSPASFLAGS+=-MMD
 %.dfs:
 	@mkdir -p $(dir $@)
 	@echo "    [DFS] $@"
-	set -e; \
-	MKDFSROOT="$(shell python3 -c 'import os.path; print( os.path.commonpath( """$^""".split() ) ) ')"; \
-	if [ -z "$$MKDFSROOT" ]; then \
-		echo "Error creating filesystem: DFS files must share a common root directory"; exit 1; \
-	fi; \
-	$(N64_MKDFS) $@ "$$MKDFSROOT" >/dev/null
+	$(N64_MKDFS) $@ "$(N64_MKDFS_ROOT)" >/dev/null
 
 # Assembly rule. We use .S for both RSP and MIPS assembly code, and we differentiate
 # using the prefix of the filename: if it starts with "rsp", it is RSP ucode, otherwise
