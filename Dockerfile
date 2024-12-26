@@ -50,5 +50,6 @@ RUN apt-get update \
     g++ \
     make \
     git \
+    xxd \
     && apt-get clean \
     && apt autoremove -yq
