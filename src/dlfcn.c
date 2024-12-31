@@ -214,7 +214,7 @@ static dso_sym_t *search_global_sym(const char *name)
     return search_module_next_sym(__dl_list_head, name);
 }
 
-static void resolve_syms(dso_module_t *module)
+static void resolve_syms(dso_module_t *module, const char *filename)
 {
     for(uint32_t i=0; i<module->num_syms; i++) {
         if(i >= 1 && i < module->num_import_syms+1) {
@@ -229,10 +229,10 @@ static void resolve_syms(dso_module_t *module)
                         //Output symbol find error with demangled name if one exists
                         char *demangle_name = __dl_demangle_func(module->syms[i].name);
                         if(demangle_name) {
-                            assertf(0, "Failed to find symbol %s(%s)", module->syms[i].name, demangle_name);
+                            assertf(0, "Failed to find symbol %s(%s) needed by %s", module->syms[i].name, demangle_name, filename);
                         }
                     }
-                    assertf(0, "Failed to find symbol %s", module->syms[i].name);
+                    assertf(0, "Failed to find symbol %s needed by %s", module->syms[i].name, filename);
                 }
                 module->syms[i].value = found_sym->value;
             } else {
@@ -350,7 +350,7 @@ static void relocate_module(dso_module_t *module)
     }
 }
 
-static void link_module(dso_module_t *module)
+static void link_module(dso_module_t *module, const char *filename)
 {
     //Relocate module pointers
     module->syms = PTR_DECODE(module, module->syms);
@@ -359,7 +359,7 @@ static void link_module(dso_module_t *module)
     module->src_elf = PTR_DECODE(module, module->src_elf);
     module->filename = PTR_DECODE(module, module->filename);
     fixup_sym_names(module->syms, (uint8_t *)module, module->num_syms);
-    resolve_syms(module);
+    resolve_syms(module, filename);
     relocate_module(module);
     flush_module(module);
 }
@@ -419,7 +419,7 @@ void *dlopen(const char *filename, int mode)
     } else {
         handle = asset_load(filename, NULL);
         assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
-        link_module(handle);
+        link_module(handle, filename);
         handle->mode = mode;
 		if(strncmp(filename, "rom:/", 5) == 0) {
 			sprintf(handle->filename, "%s.sym", filename+5);

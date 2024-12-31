@@ -7,6 +7,8 @@
 #include "../common/binout.c"
 #include "../common/assetcomp.h"
 
+#include "../common/utils.h"
+#include "asset.h"
 #include "../../src/asset_internal.h"
 
 bool flag_verbose = false;
@@ -35,6 +37,10 @@ int main(int argc, char *argv[])
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     int compression = DEFAULT_COMPRESSION;
     int winsize = DEFAULT_WINSIZE_STREAMING;
+
+    // Initialize all compression levels
+    asset_init_compression(2);
+    asset_init_compression(3);
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -100,7 +106,23 @@ int main(int argc, char *argv[])
         if (flag_verbose)
             printf("Compressing: %s => %s [algo=%d]\n", infn, outfn, compression);
 
-        asset_compress(infn, outfn, compression, winsize);
+        if (!file_exists(infn)) {
+            fprintf(stderr, "error: input file not found: %s\n", infn);
+            return 1;
+        }
+
+        // Use asset_load to load the file; if it was already compressed,
+        // it will be decompressed in memory.
+        int sz;
+        void *data = asset_load(infn, &sz);
+
+        FILE *out = fopen(outfn, "wb");
+        if (!out) {
+            fprintf(stderr, "error opening output file: %s\n", outfn);
+            return 1;
+        }
+        asset_compress_mem(data, sz, out, compression, winsize);
+        fclose(out);
 
         free(outfn);
     }

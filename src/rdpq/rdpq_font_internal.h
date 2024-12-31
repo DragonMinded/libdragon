@@ -89,6 +89,8 @@ typedef struct kerning_s {
 typedef struct style_s {
     color_t color;                      ///< Color of the text
     color_t outline_color;              ///< Color of the outline (if any)
+    void (*custom)(void* arg);          ///< Custom function that'll be called before rendering the text
+    void *custom_arg;                   ///< Argument to pass to the custom function
 } style_t;
 
 /** @brief A font64 file containing a font */

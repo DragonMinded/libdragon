@@ -36,7 +36,7 @@ N64_ASFLAGS += -mabi=32 -mgp32 -mfp32 -msingle-float -G0
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
 N64_LDFLAGS = -Wl,-T$(IPL3_LDSCRIPT) -Wl,-Map=build/ipl3.map -Wl,--gc-sections
 
-OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/ique_trampoline.o build/entropy.o
+OBJS = build/ipl3.o build/minidragon.o build/rdram.o build/ique_trampoline.o build/entropy.o build/cleanup.o
 
 ifeq ($(PROD),1)
 OBJS += build/loader.o 

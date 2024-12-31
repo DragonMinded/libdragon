@@ -865,6 +865,10 @@ typedef uint32_t rdpq_blender_t;
  */
 #define RDPQ_BLENDER2(bl0, bl1) castbl(__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | SOMX_BLEND_2PASS)
 
+/** @brief Fogging mode: standard.
+ * You can pass this macro to #rdpq_mode_fog. */
+#define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
+
 /** 
  * @brief The maximum Z value, which is the default reset value for the Z-Buffer.
  * 

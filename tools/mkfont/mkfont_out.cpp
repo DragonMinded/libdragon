@@ -354,7 +354,7 @@ struct Font {
         fonttype = ftype;
         fnt = (rdpq_font_t*)calloc(1, sizeof(rdpq_font_t));
         memcpy(fnt->magic, FONT_MAGIC, 3);
-        fnt->version = 10;
+        fnt->version = 11;
         fnt->flags = fonttype;
         fnt->point_size = point_size;
         fnt->ascent = ascent;
@@ -438,6 +438,8 @@ void Font::write()
     uint32_t offset_builtin_style = ftell(out);
     w32(out, 0xFFFFFFFF); // color
     w32(out, 0x40404040); // outline
+    w32(out, 0); // custom
+    w32(out, 0); // custom_arg
 
     int off_placeholders = ftell(out);
     w32(out, (uint32_t)0); // placeholder

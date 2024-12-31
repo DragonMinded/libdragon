@@ -35,6 +35,12 @@ void _w32(FILE *f, uint32_t v)
     w16(f, v & 0xffff);
 }
 
+void _w64(FILE *f, uint64_t v)
+{
+    w32(f, v >> 32);
+    w32(f, v & 0xffffffff);
+}
+
 int w32_placeholder(FILE *f)
 {
     int pos = ftell(f);

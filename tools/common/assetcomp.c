@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "binout.h"
+#include "assetcomp.h"
 #include "aplib_compress.h"
 #include "shrinkler_compress.h"
 #undef SWAP
@@ -21,7 +22,21 @@
 
 #include "lz4_compress.h"
 
-void asset_compress_mem(int compression, const uint8_t *data, int sz, uint8_t **output, int *cmp_size, int *winsize, int *margin)
+static uint8_t* slurp(const char *fn, int *size)
+{
+    FILE *f = fopen(fn, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    int sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *buf = (uint8_t*)malloc(sz);
+    fread(buf, 1, sz, f);
+    fclose(f);
+    if (size) *size = sz;
+    return buf;
+}
+
+void asset_compress_mem_raw(int compression, const uint8_t *data, int sz, uint8_t **output, int *cmp_size, int *winsize, int *margin)
 {
     switch (compression) {
     case 1: { // lz4hc
@@ -100,29 +115,33 @@ void asset_compress_mem(int compression, const uint8_t *data, int sz, uint8_t **
  */
 bool asset_compress(const char *infn, const char *outfn, int compression, int winsize)
 {
-    asset_init_compression(2);
-    asset_init_compression(3);
-
-    // Make sure the file exists before calling asset_load,
-    // which would just assert.
-    FILE *in = fopen(infn, "rb");
-    if (!in) {
-        fprintf(stderr, "error opening input file: %s\n", infn);
+    int sz;
+    void *data = slurp(infn, &sz);
+    if (!data) {
+        fprintf(stderr, "error loading input file: %s\n", infn);
         return false;
     }
-    fclose(in);
 
+    FILE *out = fopen(outfn, "wb");
+    if (!out) {
+        fprintf(stderr, "error opening output file: %s\n", outfn);
+        return false;
+    }
+
+    int cmp_size = asset_compress_mem(data, sz, out, compression, winsize);
+    free(data);
+    fclose(out);
+    if (cmp_size < 0) unlink(outfn);
+    return (cmp_size >= 0);
+}
+
+int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsize)
+{
     if (winsize && asset_winsize_to_flags(winsize) < 0) {
         fprintf(stderr, "unsupported window size: %d\n", winsize);
         fprintf(stderr, "supported window sizes: 2, 4, 8, 16, 32, 64, 128, 256\n");
-        return false;
+        return -1;
     }
-
-    // Load the file. This will transparently decompresses it if it was compressed,
-    // so that this function can be used to also recompress an already compressed
-    // file.
-    int sz;
-    uint8_t *data = asset_load(infn, &sz);
 
     // The caller specified a certain window size. We can still silently decrease it
     // if the file is smaller, as there is no functional difference and we can save
@@ -132,16 +151,11 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
             winsize /= 2;
     }
 
-    // FIXME: use asset_compress_mem() instead of duplicating the code here
+    // FIXME: use asset_compress_mem_raw() instead of duplicating the code here
     switch (compression) {
     case 0: { // none
-        FILE *out = fopen(outfn, "wb");
-        if (!out) {
-            fprintf(stderr, "error opening output file: %s\n", outfn);
-            return 1;
-        }
         fwrite(data, 1, sz, out);
-        fclose(out);
+        return sz;
     }   break;
     case 3: { // shrinkler
         winsize = 256*1024; // FIXME
@@ -151,7 +165,6 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         // verify using 4 byte reads. Just clamp to zero.
         inplace_margin = inplace_margin > 0 ? inplace_margin : 0;
 
-        FILE *out = fopen(outfn, "wb");
         fwrite("DCA3", 1, 4, out);
         w16(out, 3); // algo
         w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
@@ -159,8 +172,8 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         w32(out, sz); // dec_size
         w32(out, inplace_margin); // inplace margin
         fwrite(output, 1, cmp_size, out);
-        fclose(out);
         free(output);
+        return cmp_size + 20;
     }   break;
     case 2: { // aplib
         if (winsize == 0) {
@@ -180,7 +193,6 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
             &stats);
 
         int inplace_margin = stats.safe_dist + cmp_size - sz;
-        FILE *out = fopen(outfn, "wb");
         fwrite("DCA3", 1, 4, out);
         w16(out, 2); // algo
         w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
@@ -188,8 +200,8 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         w32(out, sz); // dec_size
         w32(out, inplace_margin); // inplace margin
         fwrite(output, 1, cmp_size, out);
-        fclose(out);
         free(output);
+        return cmp_size + 20;
     }   break;
     case 1: { // lz4hc
         // Default for LZ4HC is 8 KiB, which makes sense given the little
@@ -219,7 +231,6 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         LZ4_freeStreamHC(state);
         assert(cmp_size <= cmp_max_size);
 
-        FILE *out = fopen(outfn, "wb");
         fwrite("DCA3", 1, 4, out);
         w16(out, 1); // algo
         w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
@@ -227,12 +238,11 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         w32(out, sz); // dec_size
         w32(out, LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size)); // inplace margin
         fwrite(output, 1, cmp_size, out);
-        fclose(out);
         free(output);
+        return cmp_size + 20;
     }   break;
     default:
         assert(0);
+        return -1;
     }
-
-    return true;
 }

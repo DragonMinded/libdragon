@@ -469,6 +469,10 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
 {
     memcpy((void *)joypad_read_output, out_dwords, JOYBUS_BLOCK_SIZE);
     joypad_read_pending = false;
+
+    // Use some bytes from the joypad inputs to feed the entropy pool
+    extern void __entropy_add(uint64_t);
+    __entropy_add(out_dwords[0]);
 }
 
 /**

@@ -102,7 +102,8 @@ typedef struct {
     struct { uint8_t rgb, alpha; } dither;
     struct blender_s { uint8_t p, a, q, b; } blender[2];
     bool blend, read, aa;
-    struct { uint8_t mode; bool color, sel_alpha, mul_alpha; } cvg;
+    struct { uint8_t mode; bool color; } cvg;
+    struct { bool cvg; bool mul_cc; } blalpha;
     struct { uint8_t mode; bool upd, cmp, prim; } z;
     struct { bool enable, noise; } alphacmp;
     struct { bool fog, freeze, bl2; } rdpqx;     // rdpq extensions
@@ -445,7 +446,8 @@ static inline setothermodes_t decode_som(uint64_t som) {
             { BITS(som, 28, 29), BITS(som, 24, 25), BITS(som, 20, 21), BITS(som, 16, 17) },
         },
         .blend = BIT(som, 14), .read = BIT(som, 6), .aa = BIT(som, 3),
-        .cvg = { .mode = BITS(som, 8, 9), .color = BIT(som, 7), .mul_alpha = BIT(som, 12), .sel_alpha=BIT(som, 13) },
+        .cvg = { .mode = BITS(som, 8, 9), .color = BIT(som, 7) },
+        .blalpha = { .cvg = BIT(som, 13), .mul_cc = BIT(som, 12) },
         .z = { .mode = BITS(som, 10, 11), .upd = BIT(som, 5), .cmp = BIT(som, 4), .prim = BIT(som, 2) },
         .alphacmp = { .enable = BIT(som, 0), .noise = BIT(som, 1) },
         .rdpqx = { .fog = BIT(som, 32), .freeze = BIT(som, 33), .bl2 = BIT(som, 15) },
@@ -466,6 +468,38 @@ int rdpq_debug_disasm_size(uint64_t *buf) {
     case 0x0E: return 20; // TRI_SHADE_TEX
     case 0x0F: return 22; // TRI_SHADE_TEX_ZBUF
     }
+}
+
+char* rdpq_debug_disasm_cc(uint64_t cc64)
+{
+    static const char* rgb_suba1[16] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "1", "NOISE", "0","0","0","0","0","0","0","0"};
+    static const char* rgb_suba2[16] = {"COMBINED", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "1", "NOISE", "0","0","0","0","0","0","0","0"};
+    static const char* rgb_subb1[16] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "KEYCENTER", "K4", "0","0","0","0","0","0","0","0"};
+    static const char* rgb_subb2[16] = {"COMBINED", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "KEYCENTER", "K4", "0","0","0","0","0","0","0","0"};
+    static const char* rgb_mul1[32] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "KEYSCALE", "COMBINED_ALPHA", "TEX0_ALPHA", "TEX1_ALPHA", "PRIM_ALPHA", "SHADE_ALPHA", "ENV_ALPHA", "LOD_FRAC", "PRIM_LOD_FRAC", "K5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
+    static const char* rgb_mul2[32] = {"COMBINED", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "KEYSCALE", "COMBINED_ALPHA", "TEX0_ALPHA", "TEX1_ALPHA", "PRIM_ALPHA", "SHADE_ALPHA", "ENV_ALPHA", "LOD_FRAC", "PRIM_LOD_FRAC", "K5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
+    static const char* rgb_add1[8] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "1", "0"};
+    static const char* rgb_add2[8] = {"COMBINED", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "1", "0"};
+    static const char* alpha_addsub1[8] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "1", "0"};
+    static const char* alpha_mul1[8] = {"LOD_FRAC", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "PRIM_LOD_FRAC", "0"};
+    static const char* alpha_addsub2[8] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "1", "0"};
+    static const char* alpha_mul2[8] = {"LOD_FRAC", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "PRIM_LOD_FRAC", "0"};
+
+    char buf[256];
+    colorcombiner_t cc = decode_cc(cc64);
+    if (!(cc64 & (1ull<<63)) && memcmp(&cc.cyc[0], &cc.cyc[1], sizeof(struct cc_cycle_s)) == 0) {
+        snprintf(buf, sizeof(buf), "RDPQ_COMBINER1((%s,%s,%s,%s),(%s,%s,%s,%s))", 
+            rgb_suba1[cc.cyc[0].rgb.suba], rgb_subb1[cc.cyc[0].rgb.subb], rgb_mul1[cc.cyc[0].rgb.mul], rgb_add1[cc.cyc[0].rgb.add],
+            alpha_addsub1[cc.cyc[0].alpha.suba], alpha_addsub1[cc.cyc[0].alpha.subb], alpha_mul1[cc.cyc[0].alpha.mul], alpha_addsub1[cc.cyc[0].alpha.add]);
+    } else {
+        snprintf(buf, sizeof(buf), "RDPQ_COMBINER2((%s,%s,%s,%s),(%s,%s,%s,%s),(%s,%s,%s,%s),(%s,%s,%s,%s))",
+            rgb_suba1[cc.cyc[0].rgb.suba], rgb_subb1[cc.cyc[0].rgb.subb], rgb_mul1[cc.cyc[0].rgb.mul], rgb_add1[cc.cyc[0].rgb.add],
+            alpha_addsub1[cc.cyc[0].alpha.suba], alpha_addsub1[cc.cyc[0].alpha.subb], alpha_mul1[cc.cyc[0].alpha.mul], alpha_addsub1[cc.cyc[0].alpha.add],
+            rgb_suba2[cc.cyc[1].rgb.suba], rgb_subb2[cc.cyc[1].rgb.subb], rgb_mul2[cc.cyc[1].rgb.mul], rgb_add2[cc.cyc[1].rgb.add],
+            alpha_addsub2[cc.cyc[1].alpha.suba], alpha_addsub2[cc.cyc[1].alpha.subb], alpha_mul2[cc.cyc[1].alpha.mul], alpha_addsub2[cc.cyc[1].alpha.add]);
+    }
+
+    return strdup(buf);
 }
 
 /** @brief Multiplication factor to convert a number to fixed point with precision n */
@@ -559,10 +593,14 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
 
         if(som.alphacmp.enable) fprintf(out, " alpha_compare%s", som.alphacmp.noise ? "[noise]" : "");
         if((som.cycle_type < 2) && (som.dither.rgb != 3 || som.dither.alpha != 3)) fprintf(out, " dither=[%s,%s]", rgbdither[som.dither.rgb], alphadither[som.dither.alpha]);
-        if(som.cvg.mode || som.cvg.color || som.cvg.sel_alpha || som.cvg.mul_alpha) {
+        if(som.cvg.mode || som.cvg.color) {
             fprintf(out, " cvg=["); FLAG_RESET();
-            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color_ovf"); 
-            FLAG(som.cvg.mul_alpha, "mul_alpha"); FLAG(som.cvg.sel_alpha, "sel_alpha");
+            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color_on_ovf"); 
+            fprintf(out, "]");
+        }
+        if(som.blalpha.cvg || som.blalpha.mul_cc) {
+            fprintf(out, " blend_inalpha=["); FLAG_RESET();
+            FLAG(som.blalpha.cvg, "cvg"); FLAG(som.blalpha.mul_cc, "mul_cc");
             fprintf(out, "]");
         }
         if(som.rdpqx.bl2 || som.rdpqx.freeze || som.rdpqx.fog) {

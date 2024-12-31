@@ -35,6 +35,7 @@ SECTIONS {
         . = ALIGN(16);
         *(.text)
         *(.text.*)
+        KEEP(*(keep.text.*))
         *(.init)
         *(.fini)
         *(.gnu.linkonce.t.*)
@@ -54,6 +55,7 @@ SECTIONS {
         *(.rdata)
         *(.rodata)
         *(.rodata.*)
+        KEEP(*(keep.rodata.*))
         *(.gnu.linkonce.r.*)
         . = ALIGN(4);
         __tdata_align = .;
@@ -78,7 +80,9 @@ SECTIONS {
         __wrap___do_global_ctors and enables it via the --wrap linker option.
         When linking with ld, we should use __do_global_ctors, which is the default
         if you don't provide the --wrap option. */
-        KEEP(*(.ctors))
+        KEEP(*(EXCLUDE_FILE (*crtend.o) .ctors))
+        KEEP(*(SORT(.ctors.*)))
+        KEEP(*crtend.o(.ctors))
          /* Similarly we should have a;
 
         LONG(0)
@@ -103,6 +107,7 @@ SECTIONS {
         __data_start = .;
         *(.data)
         *(.data.*)
+        KEEP(*(keep.data.*))
         *(.gnu.linkonce.d.*)
         . = ALIGN(8);
     }

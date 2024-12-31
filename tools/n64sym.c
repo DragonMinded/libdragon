@@ -344,16 +344,6 @@ void process(const char *infn, const char *outfn)
     fclose(out);
 }
 
-// Change filename extension
-char *change_ext(const char *fn, const char *ext)
-{
-    char *out = strdup(fn);
-    char *dot = strrchr(out, '.');
-    if (dot) *dot = 0;
-    strcat(out, ext);
-    return out;
-}
-
 int main(int argc, char *argv[])
 {
     const char *outfn = NULL;

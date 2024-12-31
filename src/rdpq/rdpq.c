@@ -1099,6 +1099,12 @@ uint64_t rdpq_get_other_modes_raw(void)
     return state->rdp_mode.other_modes;
 }
 
+uint64_t rdpq_get_combiner_raw(void)
+{
+    rsp_queue_t *state = __rspq_get_state();
+    return state->rdp_mode.combiner;
+}
+
 void rdpq_set_tile_autotmem(int16_t tmem_bytes)
 {
     if (tmem_bytes >= 0) {

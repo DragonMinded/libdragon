@@ -26,8 +26,6 @@ SECTIONS {
     } > dmem
 
     .text.stage23 0xB0000000 + SIZEOF(.text.dmem) : AT ( 0xA4000000 + SIZEOF(.text.dmem) ) {
-        KEEP(build/loader_compat.o(.text.stage3))
-        . = ALIGN(8);
         __stage2_start = .;
         LONG(__stage2_end - __stage2_start);
         LONG(0);
@@ -36,6 +34,7 @@ SECTIONS {
         KEEP(build/loader_compat.o(.data .data.*))
         . = ALIGN(8);
         __stage2_end = .;
+        KEEP(build/cleanup.o(.text .text.* .data .rodata .rodata.*))
         *(.bss)
     } > rom
 

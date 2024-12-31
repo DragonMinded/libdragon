@@ -281,8 +281,8 @@ typedef struct {
     void    *code_end;     ///< Pointer past the end of the code segment
     uint8_t *data;         ///< Pointer to the data segment
     void    *data_end;     ///< Pointer past the end of the data segment
-    uint8_t *meta;         ///< Pointer to the data segment
-    void    *meta_end;     ///< Pointer past the end of the data segment
+    uint8_t *meta;         ///< Pointer to the meta segment
+    void    *meta_end;     ///< Pointer past the end of the meta segment
 
     const char *name;      ///< Name of the ucode
     uint32_t start_pc;     ///< Initial RSP PC

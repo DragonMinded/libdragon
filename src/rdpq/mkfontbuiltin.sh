@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# cd to the script directory
+cd "$(dirname "$0")"
+
 TMPDIR=/tmp
 FONTDB=../../examples/fontgallery/assets
 

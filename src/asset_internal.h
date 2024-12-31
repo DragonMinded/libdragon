@@ -101,5 +101,6 @@ typedef struct {
 
 FILE *must_fopen(const char *fn);
 int must_open(const char *fn);
+void *asset_loadfd(int fd, int *sz);
 
 #endif

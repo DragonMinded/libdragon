@@ -80,6 +80,8 @@ typedef struct {
  */
 typedef enum {
     EIA608_NOP = EIA608_CTRL(0x0000),       // No operation
+    EAI608_CC1_TS = EIA608_CTRL(0x1139),    // CC1: Transparent space
+    EAI608_CC2_TS = EIA608_CTRL(0x1939),    // CC2: Transparent space
 
     EIA608_CC1_RCL = EIA608_CTRL(0x1420),   // CC1: Resume caption loading
     EIA608_CC2_RCL = EIA608_CTRL(0x1C20),   // CC2: Resume caption loading

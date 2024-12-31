@@ -1493,6 +1493,17 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
 }
 
 /**
+ * @brief Read the current combiner register.
+ * 
+ * This function executes a full sync (#rspq_wait) and then extracts the
+ * current raw combiner from the RSP state. This should be used only
+ * for debugging purposes.
+ *
+ * @return     THe current value of the combiner register.
+ */
+uint64_t rdpq_get_combiner_raw(void);
+
+/**
  * @brief Add a fence to synchronize RSP with RDP commands.
  * 
  * This function schedules a fence in the RSP queue that makes RSP waits until

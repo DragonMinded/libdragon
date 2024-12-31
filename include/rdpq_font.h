@@ -120,6 +120,8 @@ void rdpq_font_free(rdpq_font_t *fnt);
 typedef struct rdpq_fontstyle_s {
     color_t color;                  ///< Color of the text
     color_t outline_color;          ///< Color of the outline (if any)
+    void (*custom)(void* arg);      ///< Custom function that'll be called before rendering the text
+    void *custom_arg;               ///< Argument to pass to the custom function
 } rdpq_fontstyle_t;
 
 /**

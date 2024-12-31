@@ -217,7 +217,7 @@ yuv_colorspace_t yuv_new_colorspace(float Kr, float Kb, int y0, int yrange, int 
 color_t yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v, const yuv_colorspace_t *cs);
 
 /** @brief A YUV frame, made of three distinct planes */
-typedef struct {
+typedef struct yuv_frame_s {
 	surface_t y;           ///< Luminance plane (Y)
     surface_t u;           ///< Chrominance plane (U)
     surface_t v;           ///< Chrominance plane (V)

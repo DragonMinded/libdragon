@@ -227,8 +227,9 @@ typedef struct {
 #define MAX_IMAGES 8
 
 typedef struct {
-    const char *infn;       // Input file
-    const char *outfn;      // Output file
+    const char *infn;       // Input file name
+    const char *outfn;      // Output file name
+    FILE *out;              // Output file
     image_t images[MAX_IMAGES]; // Pixel images (one per lod level).
     palette_t palette;      // Palette (if any)
     int vslices;            // Number of vertical slices (deprecated API for old rdp.c)
@@ -270,7 +271,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     // Initialize lodepng and load the input file into memory (without decoding).
     lodepng_state_init(&state);
 
-    if (strcmp(infn, "(stdin)") != 0) {
+    if (!strstr(infn, "(stdin)")) {
         error = lodepng_load_file(&png, &pngsize, infn);
         if(error) {
             fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
@@ -1217,22 +1218,7 @@ bool spritemaker_convert_shq(spritemaker_t *spr)
 }
 
 bool spritemaker_write(spritemaker_t *spr) {
-    FILE *out;
-    if (strcmp(spr->outfn, "(stdout)") == 0) {
-        // We can't directly write to stdout because we need to seek.
-        // So use a temporary file, and then copy it to stdout.
-        out = tmpfile();
-        if (!out) {
-            perror("ERROR: cannot create temporary file");
-            return false;
-        }
-    } else {
-        out = fopen(spr->outfn, "wb");
-        if (!out) {
-            fprintf(stderr, "ERROR: cannot open output file %s\n", spr->outfn);
-            return false;
-        }
-    }
+    FILE *out = spr->out;
 
     // Write the sprite header
     // For Z-buffer image, we currently encode them as RGBA16 though that's not really correct.
@@ -1424,17 +1410,6 @@ bool spritemaker_write(spritemaker_t *spr) {
         walign(out, 8);
     }
 
-    if (strcmp(spr->outfn, "(stdout)") == 0) {
-        // Copy the temporary file to stdout
-        char buf[4096]; size_t n;
-        rewind(out);
-        while ((n = fread(buf, 1, sizeof(buf), out)) > 0)
-            fwrite(buf, 1, n, stdout);
-        fclose(out);
-        return true;
-    }
-
-    fclose(out);
     return true;
 }
 
@@ -1483,7 +1458,9 @@ void spritemaker_free(spritemaker_t *spr) {
     memset(spr, 0, sizeof(*spr));
 }
 
-int convert(const char *infn, const char *outfn, const parms_t *pm) {
+int convert(const char *infn, const char *outfn, const parms_t *pm, int compression) {
+    FILE *out = tmpfile();
+
     if (flag_verbose)
         fprintf(stderr, "Converting: %s -> %s [fmt=%s tiles=%d,%d mipmap=%s dither=%s]\n",
             infn, outfn, tex_format_name(pm->outfmt), pm->tilew, pm->tileh, mipmap_algo_name(pm->mipmap_algo), dither_algo_name(pm->dither_algo));
@@ -1491,7 +1468,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     spritemaker_t spr = {0};
 
     spr.infn = infn;
-    spr.outfn = outfn;
+    spr.out = out;
     spr.texparms = pm->texparms;
     if (!spr.texparms.defined) {
         spr.texparms.s.translate = 0.0f;
@@ -1632,10 +1609,47 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         spritemaker_write_pngs(&spr);
 
     spritemaker_free(&spr);
+
+    // Read back the temporary file contents into RAM
+    int sz = ftell(out);
+    rewind(out);
+    uint8_t *data = malloc(sz);
+    fread(data, 1, sz, out);
+    fclose(out);
+
+    // Compress the data and store it into output file
+    // This is a nop if compression is disabled, but at least
+    // we don't have two different code paths.
+    if (strstr(outfn, "(stdout)")) {
+        out = stdout;
+    } else {
+        out = fopen(outfn, "wb");
+        if (!out) {
+            fprintf(stderr, "ERROR: can't open output file %s\n", outfn);
+            free(data);
+            return 1;
+        }
+    }
+
+    if (compression == -1) compression = DEFAULT_COMPRESSION;
+    int cmp_size = asset_compress_mem(data, sz, out, compression, 256*1024);
+    free(data);
+
+    if (flag_verbose) {
+        if (compression > 0) {
+            fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
+                (int)sz, cmp_size, 100.0 * (float)cmp_size / (float)(sz == 0 ? 1 : sz));
+        } else {
+            fprintf(stderr, "written: %s (%d bytes)\n", outfn, sz);
+        }
+    }
+
+    fclose(out);
     return 0;
 
 error:
     spritemaker_free(&spr);
+    fclose(out);
     return 1;
 }
 
@@ -1702,7 +1716,7 @@ int main(int argc, char *argv[])
         infn = argv[i++];
         outfn = argv[i++];
         printf("WARNING: deprecated command-line syntax was used, please switch to new syntax\n");
-        return convert(infn, outfn, &pm);
+        return convert(infn, outfn, &pm, 0);
     }
 
     bool error = false;
@@ -1914,39 +1928,32 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
-        if (convert(infn, outfn, &pm) != 0) {
+        if (convert(infn, outfn, &pm, compression) != 0)
             error = true;
-        } else {
-            if (compression == -1)
-                compression = DEFAULT_COMPRESSION;
-            if (compression) {
-                struct stat st_decomp = {0}, st_comp = {0};
-                stat(outfn, &st_decomp);
-                asset_compress(outfn, outfn, compression, 0);
-                stat(outfn, &st_comp);
-                if (flag_verbose)
-                    fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
-                    (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
-            }
-        }
 
         free(outfn);
     }
 
     if (!at_least_one_file) {
-        infn = "(stdin)";
-        outfn = "(stdout)";
-        if (compression > 0) {
-            fprintf(stderr, "cannot use compression when processing stdin/stdout\n");
-            return 1;
-        }
+        infn = getenv("MKSPRITE_INFN");
+        outfn = getenv("MKSPRITE_OUTFN");
+        if (infn) 
+            asprintf(&infn, "%s (stdin)", infn);
+        else 
+            infn = "(stdin)";
+        if (outfn)
+            asprintf(&outfn, "%s (stdout)", outfn);
+        else
+            outfn = "(stdout)";
+
         #ifdef _WIN32
         // Switch stdin/stdout to binary mode
         #define _O_BINARY 0x8000
         setmode(0, _O_BINARY);
         setmode(1, _O_BINARY);
         #endif
-        if (convert(infn, outfn, &pm) != 0) {
+
+        if (convert(infn, outfn, &pm, compression) != 0) {
             error = true;
         }
     }

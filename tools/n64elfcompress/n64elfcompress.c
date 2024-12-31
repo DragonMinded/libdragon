@@ -305,7 +305,7 @@ bool process(char *infn, char *outfn, int compression)
 
             int dec_size = elf->phdrs[i].p_filesz;
             uint8_t *outbuf; int cmp_size; int winsize = 0; int margin;
-            asset_compress_mem(compression,
+            asset_compress_mem_raw(compression,
                 elf->phdr_body[i], dec_size,
                 &outbuf, &cmp_size,
                 &winsize, &margin);

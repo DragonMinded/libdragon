@@ -75,6 +75,23 @@ _Static_assert(sizeof(color_t) == 4, "invalid sizeof for color_t");
     (color_t){.r=rx, .g=gx, .b=bx, .a=ax}; \
 })
 
+/** @brief Create a #color_t from the R,G,B,A components in the linear 16bit color space (that is: RGB in 0-31 squared, A in 0-1), use with #GAMMA_CORRECT display. */
+#define LINEAR16(rx,gx,bx,ax) ({ \
+    int rx0 = rx, gx0 = gx, bx0 = bx; \
+    int rx1 = (rx0<<3)|(rx0>>3), gx1 = (gx0<<3)|(gx0>>3), bx1 = (bx0<<3)|(bx0>>3); \
+    rx1 *= rx1; gx1 *= gx1; bx1 *= bx1; \
+    rx1 >>= 8; gx1 >>= 8; bx1 >>= 8; \
+    (color_t){.r=rx1, .g=gx1, .b=bx1, .a=ax ? 0xFF : 0}; \
+})
+
+/** @brief Create a #color_t from the R,G,B,A components in the linear color space (0-255 squared), use with #GAMMA_CORRECT display. */
+#define LINEAR32(rx,gx,bx,ax) ({ \
+    int rx1 = rx, gx1 = gx, bx1 = bx; \
+    rx1 *= rx1; gx1 *= gx1; bx1 *= bx1; \
+    rx1 >>= 8; gx1 >>= 8; bx1 >>= 8; \
+    (color_t){.r=rx1, .g=gx1, .b=bx1, .a=ax}; \
+})
+
 /** @brief Convert a #color_t to the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline uint16_t color_to_packed16(color_t c) {
     return (((int)c.r >> 3) << 11) | (((int)c.g >> 3) << 6) | (((int)c.b >> 3) << 1) | (c.a >> 7);

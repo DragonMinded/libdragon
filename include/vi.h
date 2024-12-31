@@ -92,7 +92,7 @@
  * different APIs which are just two ways to express the same concept:
  * 
  *  * #vi_set_borders: this function configures the display output on the screen
- *    by specifying the size of the borders, with respect the default 640x480
+ *    by specifying the size of the borders, with respect to the default 640x480
  *    display output.
  *  * #vi_set_output: this function configures the display output on the screen
  *    by specifying the top-left and bottom-right corners of the display area,
@@ -105,7 +105,7 @@
  * is because the default display area on NTSC is (108, 35) - (748, 515)
  * (which can be found out via #vi_get_output).
  * 
- * Notice that adding borders also affect the aspect ratio of the display output;
+ * Notice that adding borders also affects the aspect ratio of the display output;
  * for instance, in the above example, the 616x456 display output is not
  * exactly 4:3 anymore, but more like 4.05:3. By carefully calculating borders,
  * thus, it is possible to obtain specific display outputs with custom aspect

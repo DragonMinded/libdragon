@@ -146,36 +146,62 @@ int xm_convert(const char *infn, const char *outfn) {
 	// frequency, calculate the sample buffer size required at that tick,
 	// and keep the maximum.
 	int ch_buf[32] = {0};
+	int num_orders = xm_get_module_length(ctx);
+	bool played_orders[PATTERN_ORDER_TABLE_LENGTH] = {0};
 
-	while (xm_get_loop_count(ctx) == 0) {
-		xm_tick(ctx);
+	while (1) {
+		do {
+			xm_tick(ctx);
 
-		// Number of samples that will be generated for this tick.
-		int nsamples = ceilf(ctx->remaining_samples_in_tick);
-		for(int i = 0; i < ctx->module.num_channels; ++i) {
-			xm_channel_context_t *ch = &ctx->channels[i];
+			// Remember which pattern index we already played
+			uint8_t pat_idx;
+			xm_get_position(ctx, &pat_idx, NULL, NULL, NULL);
+			played_orders[pat_idx] = true;
 
-			if (ch->instrument && ch->sample) {
-				// Number of samples for this waveform at this playback frequency
-				// (capped at the waveform length)
-				int n = ceilf(ch->step * nsamples);
-				if (n > ch->sample->length) {
-					n = ch->sample->length;
+			// Number of samples that will be generated for this tick.
+			int nsamples = ceilf(ctx->remaining_samples_in_tick);
+			for(int i = 0; i < ctx->module.num_channels; ++i) {
+				xm_channel_context_t *ch = &ctx->channels[i];
+
+				if (ch->instrument && ch->sample) {
+					// Number of samples for this waveform at this playback frequency
+					// (capped at the waveform length)
+					int n = ceilf(ch->step * nsamples);
+					if (n > ch->sample->length) {
+						n = ch->sample->length;
+					}
+
+					// Convert samples to bytes
+					if (ch->sample->bits == 16)
+						n *= 2;
+
+					// Take overread buffer into account
+					n += MIXER_LOOP_OVERREAD;
+
+					// Keep the maximum
+					if (ch_buf[i] < n)
+						ch_buf[i] = n;
 				}
+			}
+			ctx->remaining_samples_in_tick -= nsamples;
+		} while (xm_get_loop_count(ctx) == 0);
 
-				// Convert samples to bytes
-				if (ch->sample->bits == 16)
-					n *= 2;
-
-				// Take overread buffer into account
-				n += MIXER_LOOP_OVERREAD;
-
-				// Keep the maximum
-				if (ch_buf[i] < n)
-					ch_buf[i] = n;
+		// Check if we played all pattern orders, otherwise go to the first free one
+		// This is made to support the XM files that contain multiple sub-tracks.
+		// If we just play them from the start, we don't play all the patterns,
+		// as the user is expected to manually seek to each sub-song. So we force
+		// playing back all non-empty patterns at least one.
+		bool fully_played = true;
+		for (int i=0; i<num_orders; i++) {
+			if (!played_orders[i]) {
+				if (flag_verbose) fprintf(stderr, "  * found potential sub-song starting at pattern index: %d\n", i);
+				xm_seek(ctx, i, 0, 0);
+				fully_played = false;
+				break;
 			}
 		}
-		ctx->remaining_samples_in_tick -= nsamples;
+		if (fully_played)
+			break;
 	}
 
 	int sam_size = 0;

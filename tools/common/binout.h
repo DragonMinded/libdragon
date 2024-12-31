@@ -39,9 +39,11 @@ void placeholder_clear();
 void _w8(FILE *f, uint8_t v);
 void _w16(FILE *f, uint16_t v);
 void _w32(FILE *f, uint32_t v);
+void _w64(FILE *f, uint64_t v);
 #define w8(f, v) _w8(f, _wconv(uint8_t, v))
 #define w16(f, v) _w16(f, _wconv(uint16_t, v))
 #define w32(f, v) _w32(f, _wconv(uint32_t, v))
+#define w64(f, v) _w64(f, _wconv(uint64_t, v))
 #define wf32(f, v) _w32(f, BITCAST_F2I(v))
 #define wf32approx(f, v, prec) wf32(f, roundf((v)/(prec))*(prec))
 

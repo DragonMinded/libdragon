@@ -181,6 +181,18 @@ bool rdpq_debug_disasm(uint64_t *buf, FILE *out);
  */
 int rdpq_debug_disasm_size(uint64_t *buf);
 
+/**
+ * @brief Disassemble a RDP combiner command
+ * 
+ * This function disassembles a combiner command, which is a 64-bit word
+ * that configures the color combiner of the RDP. The command is disassembled
+ * in the same format of the RDPQ_COMBINER1 / RDPQ_COMBINER2 macros, and
+ * returned as a heap-allocated string (to be freed when not needed anymore).
+ * 
+ * @param   cc64    64-bit combiner command
+ * @return  Disassembled string (must be freed with free())
+ */
+char* rdpq_debug_disasm_cc(uint64_t cc64);
 
 #ifdef __cplusplus
 }

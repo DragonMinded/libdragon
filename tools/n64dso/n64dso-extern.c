@@ -12,10 +12,20 @@
 #include "../../src/compress/ringbuf.c"
 #include "../../src/compress/shrinkler_dec.c"
 
+//Data structures
+#define STB_DS_IMPLEMENTATION
+#define STBDS_NO_SHORT_NAMES
+#include "../common/stb_ds.h"
+
 //DSO Format Internals
 #include "../../src/dso_format.h"
 
 bool verbose_flag = false;
+
+struct { 
+    char *key;      // name of the extern symbol
+    char **value;   // stdbs array of DSOs filenames referencing this symbol
+} *externs;         // stdbs hash table of symbols
 
 // Printf to stderr if verbose
 void verbose(const char *fmt, ...) {
@@ -46,17 +56,35 @@ uint32_t read_buf_u32(void *buf)
 	return (temp[0] << 24)|(temp[1] << 16)|(temp[2] << 8)|temp[3];
 }
 
-void write_externs(uint8_t *dso_sym_table, uint8_t *name_base, uint32_t num_externs, FILE *out_file)
+void add_externs(char *filename, uint8_t *dso_sym_table, uint8_t *name_base, uint32_t num_externs)
 {
     dso_sym_table += DSO_SYM_SIZE;
 	//Iterate through each external symbol and output their name to out_file
 	for(uint32_t i=0; i<num_externs; i++) {
-		fprintf(out_file, "EXTERN(%s)\n", name_base+read_buf_u32(dso_sym_table));
+        char *ext_name = (char*)name_base+read_buf_u32(dso_sym_table);
+
+        // Register the extern to the hash table
+        char **names = stbds_shgetp(externs, ext_name)->value;
+        stbds_arrput(names, filename);
+        stbds_shput(externs, ext_name, names);
+
+		//fprintf(out_file, "EXTERN(%s)\n", name_base+read_buf_u32(dso_sym_table));
         dso_sym_table += DSO_SYM_SIZE;
 	}
 }
 
-void process(const char *infn, FILE *out_file)
+int compare_ext_indices(const void *a, const void *b) {
+    int ia = *(int*)a, ib = *(int*)b;
+    return strcmp(externs[ia].key, externs[ib].key);
+}
+
+const char *mybasename(const char *path)
+{
+    const char *base = strrchr(path, '/');
+    return base ? base + 1 : path;
+}
+
+void process(const char *infn)
 {
 	int sz;
     verbose("Processing DSO %s\n", infn);
@@ -70,7 +98,8 @@ void process(const char *infn, FILE *out_file)
 	}
 	//Write data externs
 	verbose("Writing external symbols in DSO to output file");
-	write_externs(data+read_buf_u32(data+DSO_SYMS_OFS), data, read_buf_u32(data+DSO_NUM_IMPORT_SYMS_OFS), out_file);
+    char *filename = strdup(mybasename(infn));
+	add_externs(filename, data+read_buf_u32(data+DSO_SYMS_OFS), data, read_buf_u32(data+DSO_NUM_IMPORT_SYMS_OFS));
 	//Free DSO file data
 	free(orig_data);
 }
@@ -85,6 +114,9 @@ int main(int argc, char **argv)
     }
     asset_init_compression(2);
     asset_init_compression(3);
+
+    stbds_sh_new_strdup(externs);
+
     for(int i=1; i<argc; i++) {
         if(argv[i][0] == '-') {
             if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
@@ -114,8 +146,26 @@ int main(int argc, char **argv)
             }
             continue;
         }
-        process(argv[i], out_file);
+        process(argv[i]);
     }
+
+    // Sort the keys by name
+    int num_externs = stbds_hmlen(externs);
+    int *indices = malloc(num_externs * sizeof(int));
+    for (int i=0; i<num_externs; i++)
+        indices[i] = i;
+    qsort(indices, num_externs, sizeof(int), compare_ext_indices);
+
+    // Write the extern file
+    for (int i=0; i<stbds_hmlen(externs); i++) {
+        int idx = indices[i];
+        fprintf(out_file, "EXTERN(%s) /* ", externs[idx].key);
+        int numfiles =stbds_arrlen(externs[idx].value);
+        for (int j=0; j<numfiles; j++)
+            fprintf(out_file, "%s%s", externs[idx].value[j], j==numfiles-1 ? "" : ", ");
+        fprintf(out_file, " */\n");
+    }
+
     fclose(out_file);
     return 0;
 }

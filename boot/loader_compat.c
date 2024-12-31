@@ -5,7 +5,7 @@
  * 
  * This module implements the "compatibility" version of the second stage of
  * the loader, which is responsible for loading a flat binary from a fixed
- * ROM address and jumping to it.
+ * ROM address.
  */
 #include "minidragon.h"
 #include "loader.h"
@@ -49,32 +49,4 @@ void stage2(void)
 
     // Jump to the ROM finish function
     stage3(entrypoint);
-}
-
-// This is the last stage of IPL3. It runs directly from ROM so that we are
-// free of cleaning up our breadcrumbs in both DMEM and RDRAM.
-__attribute__((far, noreturn))
-void stage3(uint32_t entrypoint)
-{
-    // Read memory size from boot flags
-    int memsize = *(volatile uint32_t*)0x80000318;
-
-    // Reset the CPU cache, so that the application starts from a pristine state
-    cop0_clear_cache();
-
-    // Clear DMEM and RDRAM stage 2 area
-    while (*SP_DMA_FULL) {}
-    *SP_RSP_ADDR = 0xA4001000;
-    *SP_DRAM_ADDR = memsize - TOTAL_RESERVED_SIZE;
-    _Static_assert((TOTAL_RESERVED_SIZE % 1024) == 0, "TOTAL_RESERVED_SIZE must be multiple of 1024");
-    *SP_WR_LEN = (((TOTAL_RESERVED_SIZE >> 10) - 1) << 12) | (1024-1);
-    while (*SP_DMA_FULL) {}
-    *SP_RSP_ADDR = 0xA4000000;
-    *SP_DRAM_ADDR = 0x00802000;  // Area > 8 MiB which is guaranteed to be empty
-    *SP_RD_LEN = 4096-1;
-
-    // Wait until the DMA is done
-    while (*SP_DMA_BUSY) {}
-
-    goto *(void*)entrypoint;
 }

@@ -1335,6 +1335,44 @@ int truncate( const char *path, off_t length )
 }
 
 /**
+ * @brief Add some non-deterministic data to the entropy pool.
+ * 
+ * This is an internal function that can be used by libdragon libraries to add
+ * some non-deterministic data to the entropy pool. One example of such data
+ * would be the joypad inputs at any given point.
+ * 
+ * The entropy pool is then used t
+ * 
+ * @param k         Non-deterministic data (up to 64 bits)
+ */
+void __entropy_add(uint64_t k) {
+    // This is half of MurMurHash3-128.
+    k *= __entropy_K[0];
+    k = k<<31 | k>>33;
+    k *= __entropy_K[1];
+    disable_interrupts();
+    __entropy_state ^= k;
+    __entropy_state = __entropy_state<<27 | __entropy_state>>37;
+    __entropy_state = __entropy_state * 5 + 0x52dce729;
+    enable_interrupts();
+}
+
+// Extract data from the entropy pool. This is kept here for symmetry with
+// __entropy_add, but it is not an API; the API to use to extract entropy is
+// #getentropy.
+static uint64_t __entropy_get(void) {
+    disable_interrupts();
+    uint64_t h = __entropy_state;
+    enable_interrupts();
+    h ^= h >> 33;
+    h *= __entropy_K[2];
+    h ^= h >> 33;
+    h *= __entropy_K[3];
+    h ^= h >> 33;
+    return h;
+}
+
+/**
  * @brief Generate an array of unpredictable random numbers
  * 
  * This function can be used to generate an array of random data. The function
@@ -1367,24 +1405,13 @@ int getentropy(uint8_t *buf, size_t buflen)
 
     // Mix in some hardware state / counters that are likely to be random
     // at the point of sampling, especially during hardware activity.
-    // This is half of MurMurHash3-128.
     for (int i=0; i<sizeof(entropic_regs)/sizeof(entropic_regs[0]); i+=2) {
         uint64_t k = ((uint64_t)*entropic_regs[i+0] << 32) | *entropic_regs[i+1];
-        k *= __entropy_K[0];
-        k = k<<31 | k>>33;
-        k *= __entropy_K[1];
-        __entropy_state ^= k;
-        __entropy_state = __entropy_state<<27 | __entropy_state>>37;
-        __entropy_state = __entropy_state * 5 + 0x52dce729;
+        __entropy_add(k);
     }
 
-    // Extract the current hash value
-    uint64_t h = __entropy_state;
-    h ^= h >> 33;
-    h *= __entropy_K[2];
-    h ^= h >> 33;
-    h *= __entropy_K[3];
-    h ^= h >> 33;
+    // Extract the current entropy value
+    uint64_t h = __entropy_get();
 
     // Generate output buffer
     typedef uint64_t u_uint64_t __attribute__((aligned(1)));

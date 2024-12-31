@@ -555,9 +555,10 @@ void eia608_caption_prepare(eia608_channel_t cc, const char *utf8_str, eia608_ca
 
         // Calculate indentation to center the line
         // rounding it to the nearest multiple of 4
-        int indent = (32 - ch) / 2;        
-        indent = (indent + 2) & ~3;
-        eia608_write_indent(cc, first_row, indent, parms->underline);
+        int indent = (32 - ch) / 2;
+        eia608_write_indent(cc, first_row, indent & ~3, parms->underline);
+        for (int i=0; i<(indent & 3); i++)
+            eia608_write_raw(cc == EIA608_CC1 ? EAI608_CC1_TS : EAI608_CC2_TS, false);
 
         // Now emit the characters.
         uint16_t accum = 0;

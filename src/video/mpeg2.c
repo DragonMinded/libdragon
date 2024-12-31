@@ -1,5 +1,6 @@
 #include "mpeg2.h"
 #include "n64sys.h"
+#include "rspq.h"
 #include "rdpq.h"
 #include "rdpq_rect.h"
 #include "rdpq_mode.h"
