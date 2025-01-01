@@ -228,6 +228,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/mgfx.h $(INSTALLDIR)/mips64-elf/include/mgfx.h
 	install -Cv -m 0644 include/mgfx_constants.h $(INSTALLDIR)/mips64-elf/include/mgfx_constants.h
 	install -Cv -m 0644 include/mgfx_macros.h $(INSTALLDIR)/mips64-elf/include/mgfx_macros.h
+	install -Cv -m 0644 include/mgfx_mesh.h $(INSTALLDIR)/mips64-elf/include/mgfx_mesh.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/libcart
 	install -Cv -m 0644 src/libcart/cart.h $(INSTALLDIR)/mips64-elf/include/libcart/cart.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/fatfs
