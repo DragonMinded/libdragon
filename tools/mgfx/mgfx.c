@@ -120,7 +120,7 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh)
     }
 
     // Create new buffers
-    uint8_t *vertex_buffer = calloc(submesh->vertices_count, submesh->vertex_layout.stride);
+    uint8_t *vertex_buffer = calloc(submesh->vertices_count*2, submesh->vertex_layout.stride);
     uint16_t *index_buffer = calloc(submesh->indices_count, sizeof(uint16_t));
 
     // Optimize buffers
@@ -194,7 +194,7 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh)
                 // Emit vertex (copy to new buffer)
                 size_t size = submesh->vertex_layout.stride;
                 uint8_t *dst = vertex_buffer + new_index*size;
-                uint8_t *src = (uint8_t*)submesh->vertices + old_index*size;
+                const uint8_t *src = (const uint8_t*)submesh->vertices + old_index*size;
                 memcpy(dst, src, size);
             }
 
@@ -417,8 +417,8 @@ void mesh_write(mgfx_mesh_t *mesh, FILE *out)
 
         walign(out, sizeof(submesh->vertices_count));
         w32(out, submesh->vertices_count);
-        w32_placeholderf(out, "vertices%d", i);
         w32(out, submesh->indices_count);
+        w32_placeholderf(out, "vertices%d", i);
         if (submesh->indices != NULL) {
             w32_placeholderf(out, "indices%d", i);
         } else {
@@ -433,7 +433,7 @@ void mesh_write(mgfx_mesh_t *mesh, FILE *out)
         placeholder_set(out, "vtx_attributes%d", i);
         for (size_t j = 0; j < submesh->vertex_layout.attribute_count; j++)
         {
-            mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[i];
+            mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[j];
             w32(out, attr->input);
             w32(out, attr->offset);
         }
