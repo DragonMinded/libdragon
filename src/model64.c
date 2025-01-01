@@ -223,7 +223,6 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
             primitive->normal.pointer = PTR_DECODE(model, primitive->normal.pointer);
             primitive->mtx_index.pointer = PTR_DECODE(model, primitive->mtx_index.pointer);
             primitive->indices = PTR_DECODE(model, primitive->indices);
-            primitive->vertices = PTR_DECODE(model, primitive->vertices);
 
             if (primitive->local_texture != TEXTURE_INDEX_MISSING) {
                 uint32_t idx = texture_table_get(model->texture_paths[primitive->local_texture]);
@@ -447,7 +446,6 @@ static void unload_model_data(model64_data_t *model)
             primitive->normal.pointer = PTR_ENCODE(model, primitive->normal.pointer);
             primitive->mtx_index.pointer = PTR_ENCODE(model, primitive->mtx_index.pointer);
             primitive->indices = PTR_ENCODE(model, primitive->indices);
-            primitive->vertices = PTR_ENCODE(model, primitive->vertices);
             texture_table_dec_ref_count(primitive->shared_texture);
             primitive->shared_texture = TEXTURE_INDEX_MISSING;
         }
@@ -506,11 +504,6 @@ void model64_free(model64_t *model)
     }
     free_model64_data(model->data);
     free(model);
-}
-
-model64_vtx_fmt_t model64_get_vertex_format(model64_t *model)
-{
-    return model->data->vtx_fmt;
 }
 
 uint32_t model64_get_mesh_count(model64_t *model)
@@ -616,85 +609,6 @@ uint32_t model64_get_primitive_count(mesh_t *mesh)
 primitive_t *model64_get_primitive(mesh_t *mesh, uint32_t primitive_index)
 {
     return &mesh->primitives[primitive_index];
-}
-
-void *model64_get_primitive_vertices(primitive_t *primitive)
-{
-    return primitive->position.pointer;
-}
-
-uint32_t model64_get_primitive_vertex_count(primitive_t *primitive)
-{
-    return primitive->num_vertices;
-}
-
-void *model64_get_primitive_indices(primitive_t *primitive)
-{
-    return primitive->indices;
-}
-
-uint32_t model64_get_primitive_index_count(primitive_t *primitive)
-{
-    return primitive->num_indices;
-}
-
-static model64_attr_type_t get_attr_type(uint32_t type)
-{
-    switch (type)
-    {
-    case GL_BYTE:
-        return MODEL64_ATTR_TYPE_I8;
-    case GL_UNSIGNED_BYTE:
-        return MODEL64_ATTR_TYPE_U8;
-    case GL_SHORT:
-        return MODEL64_ATTR_TYPE_I16;
-    case GL_UNSIGNED_SHORT:
-        return MODEL64_ATTR_TYPE_U16;
-    case GL_HALF_FIXED_N64:
-        return MODEL64_ATTR_TYPE_FX16;
-    case GL_INT:
-        return MODEL64_ATTR_TYPE_I32;
-    case GL_UNSIGNED_INT:
-        return MODEL64_ATTR_TYPE_U32;
-    case GL_FLOAT:
-        return MODEL64_ATTR_TYPE_F32;
-    case MGFX_PACKED_NORMAL:
-        return MODEL64_ATTR_TYPE_PACKED_NORMAL_16;
-    default:
-        assertf(0, "Unknown vertex attribute type");
-    }
-}
-
-static void get_vertex_attribute(model64_vertex_attr_t *vertex_attribute, model64_attr_t attr, attribute_t *attribute, void* base_ptr)
-{
-    vertex_attribute->attribute = attr;
-    vertex_attribute->type = get_attr_type(attribute->type);
-    vertex_attribute->component_count = attribute->size;
-    vertex_attribute->offset = (uint8_t*)attribute->pointer - (uint8_t*)base_ptr;
-}
-
-void model64_get_primitive_vertex_layout(primitive_t* primitive, model64_vertex_layout_t *layout)
-{
-    attribute_t *input_attributes[] = {
-        &primitive->position,
-        &primitive->color,
-        &primitive->texcoord,
-        &primitive->normal,
-        &primitive->mtx_index
-    };
-
-    uint32_t attribute_count = 0;
-    for (size_t i = 0; i < sizeof(input_attributes)/sizeof(input_attributes[0]); i++)
-    {
-        if (input_attributes[i]->size == 0) {
-            continue;
-        }
-
-        get_vertex_attribute(&layout->attributes[attribute_count++], i, input_attributes[i], primitive->vertices);
-    }
-
-    layout->attribute_count = attribute_count;
-    layout->stride = primitive->position.stride;
 }
 
 void model64_draw_primitive(primitive_t *primitive)
