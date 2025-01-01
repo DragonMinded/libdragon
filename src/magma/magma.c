@@ -901,3 +901,16 @@ void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, cons
     The implementation might simply use dynamically assembled rspq blocks internally.
     So perhaps this could be a generic feature of rspq instead of being specific to magma.
 */       
+
+
+extern inline void mg_cmd_set_byte(uint32_t offset, uint8_t value);
+extern inline void mg_cmd_set_short(uint32_t offset, uint16_t value);
+extern inline void mg_cmd_set_word(uint32_t offset, uint32_t value);
+extern inline void mg_cmd_set_quad(uint32_t offset, uint32_t value0, uint32_t value1, uint32_t value2, uint32_t value3);
+extern inline uint8_t mg_culling_parms_to_rsp_state(const mg_culling_parms_t *culling);
+extern inline void mg_set_culling(const mg_culling_parms_t *culling);
+extern inline void mg_set_geometry_flags(mg_geometry_flags_t flags);
+extern inline void mg_set_clip_factor(uint32_t factor);
+extern inline void mg_uniform_load(const mg_uniform_t *uniform, const void *data);
+extern inline void mg_uniform_load_inline(const mg_uniform_t *uniform, const void *data);
+extern inline void mg_bind_vertex_buffer(const void *buffer);
