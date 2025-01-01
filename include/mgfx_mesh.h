@@ -16,6 +16,7 @@ typedef struct mgfx_mesh_s mgfx_mesh_t;
 mgfx_mesh_t *mgfx_mesh_load(const char *fn);
 mgfx_mesh_t *mgfx_mesh_load_buf(void *buf, int sz);
 void mgfx_mesh_free(mgfx_mesh_t *mesh);
+uint32_t mgfx_mesh_get_submesh_count(mgfx_mesh_t *mesh);
 mgfx_submesh_t *mgfx_mesh_get_submesh(mgfx_mesh_t *mesh, uint32_t index);
 void mgfx_mesh_draw(const mgfx_mesh_t *mesh);
 

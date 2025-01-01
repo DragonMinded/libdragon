@@ -70,6 +70,11 @@ void mgfx_mesh_free(mgfx_mesh_t *mesh)
     }
 }
 
+uint32_t mgfx_mesh_get_submesh_count(mgfx_mesh_t *mesh)
+{
+    return mesh->submesh_count;
+}
+
 mgfx_submesh_t *mgfx_mesh_get_submesh(mgfx_mesh_t *mesh, uint32_t index)
 {
     return &mesh->submeshes[index];
