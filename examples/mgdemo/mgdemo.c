@@ -63,16 +63,14 @@ typedef struct
 
 typedef struct
 {
-    const void *vertex_buffer;
-    const uint16_t *indices;
-    uint32_t index_count;
+    mgfx_submesh_t *submesh;
     uint32_t pipeline_id;
     rspq_block_t *block;
 } submesh_data;
 
 typedef struct
 {
-    model64_t *model;
+    mgfx_mesh_t *mesh;
     submesh_data *submeshes;
     uint32_t submesh_count;
 } mesh_data;
@@ -325,63 +323,6 @@ void material_create(material_data *material, sprite_t *texture, mgfx_modes_parm
     material->color = color;
 }
 
-void get_vertex_layout_from_primitive_layout(const model64_vertex_layout_t *primitive_layout, vertex_layout *vertex_layout)
-{
-    uint32_t attribute_count = 0;
-
-    for (size_t i = 0; i < primitive_layout->attribute_count; i++)
-    {
-        const model64_vertex_attr_t *prim_attribute = &primitive_layout->attributes[i];
-
-        switch (prim_attribute->attribute)
-        {
-        case MODEL64_ATTR_POSITION:
-            assertf(prim_attribute->component_count == 3, "Postition must consist of 3 components!");
-            assertf(prim_attribute->type == MODEL64_ATTR_TYPE_FX16, "Postition must be in fixed point format!");
-
-            vertex_layout->attributes[attribute_count++] = (mg_vertex_attribute_t) {
-                .input = MGFX_ATTRIBUTE_POS_NORM,
-                .offset = prim_attribute->offset
-            };
-            break;
-
-        case MODEL64_ATTR_NORMAL:
-            assertf(prim_attribute->component_count == 3, "Normal must consist of 3 components!");
-            assertf(prim_attribute->type == MODEL64_ATTR_TYPE_PACKED_NORMAL_16, "Normal must be in packed format!");
-            break;
-
-        case MODEL64_ATTR_COLOR:
-            assertf(prim_attribute->component_count == 4, "Color must consist of 4 components!");
-            assertf(prim_attribute->type == MODEL64_ATTR_TYPE_U8, "Color must be in u8 format!");
-
-            vertex_layout->attributes[attribute_count++] = (mg_vertex_attribute_t) {
-                .input = MGFX_ATTRIBUTE_COLOR,
-                .offset = prim_attribute->offset
-            };
-            break;
-
-        case MODEL64_ATTR_TEXCOORD:
-            assertf(prim_attribute->component_count == 2, "Texcoord must consist of 2 components!");
-            assertf(prim_attribute->type == MODEL64_ATTR_TYPE_FX16, "Texcoord must be in fixed point format!");
-
-            vertex_layout->attributes[attribute_count++] = (mg_vertex_attribute_t) {
-                .input = MGFX_ATTRIBUTE_TEXCOORD,
-                .offset = prim_attribute->offset
-            };
-            break;
-
-        default:
-            break;
-        }
-    }
-
-    vertex_layout->vertex_layout = (mg_vertex_layout_t) {
-        .attribute_count = attribute_count,
-        .attributes = vertex_layout->attributes,
-        .stride = primitive_layout->stride
-    };
-}
-
 bool are_vertex_layouts_equal(const mg_vertex_layout_t *p0, const mg_vertex_layout_t *p1)
 {
     if (p0->stride != p1->stride) return false;
@@ -400,16 +341,12 @@ bool are_vertex_layouts_equal(const mg_vertex_layout_t *p0, const mg_vertex_layo
     return true;
 }
 
-uint32_t get_or_create_pipeline_from_primitive_layout(const model64_vertex_layout_t *primitive_layout, vertex_layout *vertex_layout_cache)
+uint32_t get_or_create_pipeline_from_primitive_layout(const mg_vertex_layout_t *primitive_layout, vertex_layout *vertex_layout_cache)
 {
-    // Convert the primitive layout to magma vertex layout
-    static vertex_layout tmp_vertex_layout;
-    get_vertex_layout_from_primitive_layout(primitive_layout, &tmp_vertex_layout);
-
     // Try to find a pipeline with the same vertex layout
     for (uint32_t i = 0; i < pipelines_count; i++)
     {
-        if (are_vertex_layouts_equal(&tmp_vertex_layout.vertex_layout, &vertex_layout_cache[i].vertex_layout)) {
+        if (are_vertex_layouts_equal(primitive_layout, &vertex_layout_cache[i].vertex_layout)) {
             return i;
         }
     }
@@ -419,47 +356,31 @@ uint32_t get_or_create_pipeline_from_primitive_layout(const model64_vertex_layou
     // which is why a separate pipeline needs to be created for each layout.
     pipelines[pipelines_count] = mg_pipeline_create(&(mg_pipeline_parms_t) {
         .vertex_shader_ucode = mgfx_get_shader_ucode(),
-        .vertex_layout = tmp_vertex_layout.vertex_layout
+        .vertex_layout = *primitive_layout
     });
 
     // Store the vertex layout in the cache
-    vertex_layout_cache[pipelines_count] = tmp_vertex_layout;
+    vertex_layout *cache_entry = &vertex_layout_cache[pipelines_count];
+    memcpy(cache_entry->attributes, primitive_layout->attributes, sizeof(mg_vertex_attribute_t) * primitive_layout->attribute_count);
+    memcpy(&cache_entry->vertex_layout, primitive_layout, sizeof(mg_vertex_layout_t));
+    cache_entry->vertex_layout.attributes = cache_entry->attributes;
 
     return pipelines_count++;
 }
 
 void mesh_create(mesh_data *mesh, const char *model_file, vertex_layout *vertex_layout_cache)
 {
-    model64_t *model = model64_load(model_file);
-
-    model64_vtx_fmt_t vertex_format = model64_get_vertex_format(model);
-    assertf(vertex_format == MODEL64_VTX_FMT_MGFX, "The model %s has an unsupported vertex format!", model_file);
-
-    uint32_t mesh_count = model64_get_mesh_count(model);
-    assertf(mesh_count == 1, "The model %s contains more than one mesh!", model_file);
-    mesh_t *in_mesh = model64_get_mesh(model, 0);
-
-    mesh->model = model;
-    mesh->submesh_count = model64_get_primitive_count(in_mesh);
+    mesh->mesh = mgfx_mesh_load(model_file);
+    mesh->submesh_count = mgfx_mesh_get_submesh_count(mesh->mesh);
     mesh->submeshes = calloc(mesh->submesh_count, sizeof(submesh_data));
 
     for (size_t i = 0; i < mesh->submesh_count; i++)
     {
         submesh_data *submesh = &mesh->submeshes[i];
-        primitive_t *primitive = model64_get_primitive(in_mesh, i);
+        submesh->submesh = mgfx_mesh_get_submesh(mesh->mesh, i);
 
         // Some meshes might have different vertex layouts. To account for this, we need to create a separate pipeline for each distinct layout.
-
-        model64_vertex_layout_t primitive_layout;
-        model64_get_primitive_vertex_layout(primitive, &primitive_layout);
-        submesh->pipeline_id = get_or_create_pipeline_from_primitive_layout(&primitive_layout, vertex_layout_cache);
-
-        // Preparing mesh data is straightforward. Just get pointers to the vertex and index buffers.
-
-        submesh->vertex_buffer = model64_get_primitive_vertices(primitive);
-
-        submesh->indices = model64_get_primitive_indices(primitive);
-        submesh->index_count = model64_get_primitive_index_count(primitive);
+        submesh->pipeline_id = get_or_create_pipeline_from_primitive_layout(mgfx_submesh_get_vertex_layout(submesh->submesh), vertex_layout_cache);
 
         // To increase performance, we can record the drawing command into a block, since the topology of the mesh doesn't change in this case.
         // Note that we could still modify the vertices themselves if we wanted, by writing to the vertex buffer. This would require some manual
@@ -467,9 +388,7 @@ void mesh_create(mesh_data *mesh, const char *model_file, vertex_layout *vertex_
         rspq_block_begin();
             // This function internally just reads the list of indices and emits a sequence of calls to mg_load_vertices and mg_draw_indices.
             // Those function can also be called manually, if more customisation of the mesh layout is desired.
-            mg_draw_indexed(&(mg_input_assembly_parms_t) {
-                .primitive_topology = MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
-            }, submesh->indices, submesh->index_count, 0);
+            mgfx_submesh_draw(submesh->submesh);
         submesh->block = rspq_block_end();
     }
 }
@@ -734,7 +653,7 @@ void render()
             uint16_t mesh_id = current_mesh_id >> 16;
             uint16_t submesh_id = current_mesh_id & 0xFFFF;
             current_submesh = &meshes[mesh_id].submeshes[submesh_id];
-            mg_bind_vertex_buffer(current_submesh->vertex_buffer);
+            mgfx_submesh_bind(current_submesh->submesh);
         }
 
         if (draw_call->object_id != current_object_id) {
