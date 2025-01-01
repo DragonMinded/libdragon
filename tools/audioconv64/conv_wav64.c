@@ -41,12 +41,14 @@ typedef struct {
 	int channels;
 	int bitsPerSample;
 	int sampleRate;
+	bool looping;
+	int loopOffset;
 } wav_data_t;
 
 static size_t read_wav(const char *infn, wav_data_t *out)
 {
 	drwav wav;
-	if (!drwav_init_file(&wav, infn, NULL)) {
+	if (!drwav_init_file_with_metadata(&wav, infn, 0, NULL)) {
 		fprintf(stderr, "ERROR: %s: not a valid WAV/RIFF/AIFF file\n", infn);
 		return 0;
 	}
@@ -64,6 +66,33 @@ static size_t read_wav(const char *infn, wav_data_t *out)
 	out->channels = wav.channels;
 	out->bitsPerSample = wav.bitsPerSample;
 	out->sampleRate = wav.sampleRate;
+
+	// Check if we find smpl metadata, and if so, extract the loop points.
+	for (int i=0; i<wav.metadataCount; i++) {
+		if (wav.pMetadata[i].type == drwav_metadata_type_smpl) {
+			drwav_smpl* smpl = &wav.pMetadata[i].data.smpl;
+			if (smpl->sampleLoopCount > 0) {
+				if (flag_verbose)
+					fprintf(stderr, "  found %d loop points [start=%d end=%d cnt=%zu]\n", smpl->sampleLoopCount,
+						smpl->pLoops[0].firstSampleByteOffset, smpl->pLoops[0].lastSampleByteOffset, cnt);
+
+				// If we have multiple loops, we just take the first one.
+				drwav_smpl_loop* loop = &smpl->pLoops[0];
+				if (loop->type != 0) {
+					fprintf(stderr, "WARNING: %s: loop type %d not supported\n", infn, loop->type);
+					break;
+				}
+				// NOTE: the offset appears to be in samples, not bytes.
+				// See also https://github.com/mackron/dr_libs/issues/267
+				out->looping = true;
+				out->loopOffset = loop->firstSampleByteOffset;
+				if (cnt > loop->lastSampleByteOffset+1)
+					cnt = loop->lastSampleByteOffset+1;
+				break;
+			}
+		}
+	}
+
 	drwav_uninit(&wav);
 	return cnt;
 }
@@ -98,7 +127,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	}
 
 	bool failed = false;
-	wav_data_t wav; size_t cnt;
+	wav_data_t wav = {0}; size_t cnt;
 
 	// Read the input file
 	if (strcasestr(infn, ".mp3"))
@@ -111,6 +140,12 @@ int wav_convert(const char *infn, const char *outfn) {
 
 	if (flag_verbose)
 		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
+
+	// Apply command line flags if not provided by WAV itself
+	if (flag_wav_looping_offset > 0 && wav.loopOffset == 0)
+		wav.loopOffset = flag_wav_looping_offset;
+	if (flag_wav_looping && !wav.looping)
+		wav.looping = true;
 
 	// Check if the user requested conversion to mono
 	if (flag_wav_mono && wav.channels == 2) {
@@ -197,7 +232,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		wav.sampleRate = flag_wav_resample;
 
 		// Update also the loop offset to the new sample rate
-		flag_wav_looping_offset = flag_wav_looping_offset * flag_wav_resample / wav.sampleRate;
+		wav.loopOffset = wav.loopOffset * flag_wav_resample / wav.sampleRate;
 	}
 
 	// Keep 8 bits file if original is 8 bit, otherwise expand to 16 bit.
@@ -206,9 +241,9 @@ int wav_convert(const char *infn, const char *outfn) {
 	if (flag_wav_compress != 0)
 		nbits = 16;
 
-	int loop_len = flag_wav_looping ? cnt - flag_wav_looping_offset : 0;
+	int loop_len = wav.looping ? cnt - wav.loopOffset : 0;
 	if (loop_len < 0) {
-		fprintf(stderr, "WARNING: %s: invalid looping offset: %d (size: %zu)\n", infn, flag_wav_looping_offset, cnt);
+		fprintf(stderr, "WARNING: %s: invalid looping offset: %d (size: %zu)\n", infn, wav.loopOffset, cnt);
 		loop_len = 0;
 	}
 	if (loop_len&1 && nbits==8) {
