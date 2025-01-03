@@ -6,6 +6,7 @@ EXAMPLES += eepromfstest
 EXAMPLES += mixertest
 EXAMPLES += cpaktest
 EXAMPLES += cpak-utest
+EXAMPLES += overlays
 EXAMPLES += rdpqdemo
 EXAMPLES += rspqdemo
 EXAMPLES += spritemap
