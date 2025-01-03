@@ -5,6 +5,7 @@
 
 #include "debug.h"
 #include "exception_internal.h"
+#include "dlfcn_internal.h"
 #include <exception>
 #include <cxxabi.h>
 #include <cstdlib>
@@ -33,11 +34,17 @@ static void terminate_handler(void)
     }    
 }
 
+static char *demangle_name(char *name)
+{
+    return abi::__cxa_demangle(name, NULL, NULL, NULL);
+}
+
 /** @brief Initialize debug support for C++ programs */
 void __debug_init_cpp(void)
 {
     static bool init = false;
     if (init) return;
     std::set_terminate(terminate_handler);
+    __dl_demangle_func = demangle_name;
     init = true;
 }

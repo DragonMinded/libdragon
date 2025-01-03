@@ -19,6 +19,8 @@ typedef struct {
 
 bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, bool from_exception);
 
+/** @brief Like #backtrace, but start from an arbitrary context. Useful for backtracing a thread */
+int __backtrace_from(void **buffer, int size, uint32_t *pc, uint32_t *sp, uint32_t *fp, uint32_t *exception_ra);
 
 /**
  * @brief Return the symbol associated to a given address.

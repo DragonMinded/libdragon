@@ -47,6 +47,9 @@ mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
 mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
 audioconv64_OBJS = audioconv64/audioconv64.o
 mkdfs_OBJS = mkdfs/mkdfs.o
+n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
+n64dso-extern_OBJS = n64dso/n64dso-extern.o
+n64dso-msym_OBJS = n64dso/n64dso-msym.o
 dumpdfs_OBJS = dumpdfs/dumpdfs.o
 n64tool_OBJS = n64tool.o
 n64sym_OBJS = n64sym.o
@@ -54,7 +57,7 @@ ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
-TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite
+TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite n64dso n64dso-msym n64dso-extern
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)

@@ -68,6 +68,7 @@
 #include "exception.h"
 #include "interrupt.h"
 #include "rompak_internal.h"
+#include "dlfcn_internal.h"
 
 /** @brief Enable to debug why a backtrace is wrong */
 #define BACKTRACE_DEBUG 0
@@ -150,11 +151,20 @@ extern uint32_t inthandler[];
 /** @brief End of exception handler (see inthandler.S) */
 extern uint32_t inthandler_end[];
 
+/** @brief Start of main executable text section */
+extern uint32_t __text_start[];
+/** @brief End of main executable text section */
+extern uint32_t __text_end[];
+
 /** @brief Address of the SYMT symbol table in the rompak. */
 static uint32_t SYMT_ROM = 0xFFFFFFFF;
 
 /** @brief Placeholder used in frames where symbols are not available */
 static const char *UNKNOWN_SYMBOL = "???";
+
+/** @brief Base address for addresses in address table */
+static uint32_t addrtable_base = 0;
+
 
 /** @brief Check if addr is a valid PC address */
 static bool is_valid_address(uint32_t addr)
@@ -164,18 +174,45 @@ static bool is_valid_address(uint32_t addr)
     return addr >= 0x80000400 && addr < 0x80800000 && (addr & 3) == 0;
 }
 
+/** @brief Check if addr is inside main executable text section */
+static bool is_main_exe_text_address(uint32_t addr)
+{
+    // TODO: for now we only handle RAM (cached access). This should be extended to handle
+    // TLB-mapped addresses for instance.
+    return addr >= (uint32_t)__text_start && addr < (uint32_t)__text_end;
+}
+
 /** 
  * @brief Open the SYMT symbol table in the rompak.
  * 
  * If not found, return a null header.
  */
-static symtable_header_t symt_open(void) {
-    if (SYMT_ROM == 0xFFFFFFFF) {
-        SYMT_ROM = rompak_search_ext(".sym");
-        if (!SYMT_ROM)
-            debugf("backtrace: no symbol table found in the rompak\n");
-    }
-
+static symtable_header_t symt_open(void *addr) {
+	if(is_main_exe_text_address((uint32_t)addr)) {
+		//Open SYMT from rompak
+        static uint32_t mainexe_symt = 0xFFFFFFFF;
+        if (mainexe_symt == 0xFFFFFFFF) {
+            mainexe_symt = rompak_search_ext(".sym");
+            if (!mainexe_symt)
+                debugf("backtrace: no symbol table found in the rompak\n");
+        }
+        addrtable_base = 0;
+        SYMT_ROM = mainexe_symt;
+	} else {
+		dl_module_t *module = NULL;
+		if(__dl_lookup_module) {
+			module = __dl_lookup_module(addr);
+		}
+		if(module && module->sym_romofs != 0) {
+			//Read module SYMT
+			SYMT_ROM = module->sym_romofs;
+			addrtable_base = (uint32_t)module->prog_base;
+		} else {
+			SYMT_ROM = 0;
+			addrtable_base = 0;
+		}
+	}
+    
     if (!SYMT_ROM) {
         return (symtable_header_t){0};
     }
@@ -208,7 +245,7 @@ static symtable_header_t symt_open(void) {
 static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
 {
     assert(idx >= 0 && idx < symt->addrtab_size);
-    return io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
+    return addrtable_base+io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
 }
 
 /**
@@ -303,7 +340,7 @@ static char* symt_entry_file(symtable_header_t *symt, symtable_entry_t *entry, u
 
 char* __symbolize(void *vaddr, char *buf, int size)
 {
-    symtable_header_t symt = symt_open();
+    symtable_header_t symt = symt_open(vaddr);
     if (symt.head[0]) {
         uint32_t addr = (uint32_t)vaddr;
         int idx = 0;
@@ -450,7 +487,7 @@ bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, bool
     return true;
 }
 
-static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
+static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg, uint32_t *ra, uint32_t *sp, uint32_t *fp, uint32_t *exception_ra)
 {
     /*
      * This function is called in very risky contexts, for instance as part of an exception
@@ -464,25 +501,14 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
      *    to wrong addresses.
      */
 
-    // Current value of SP/RA/FP registers.
-    uint32_t *sp, *ra, *fp;
-    asm volatile (
-        "move %0, $ra\n"
-        "move %1, $sp\n"
-        "move %2, $fp\n"
-        : "=r"(ra), "=r"(sp), "=r"(fp)
-    );
-
     #if BACKTRACE_DEBUG
     debugf("backtrace: start\n"); 
     #endif
 
-    uint32_t* exception_ra = NULL;      // If != NULL, 
     uint32_t func_start = 0;            // Start of the current function (when known)
 
-    // Start from the backtrace function itself. Put the start pointer somewhere after the initial
-    // prolog (eg: 64 instructions after start), so that we parse the prolog itself to find sp/fp/ra offsets.
-    ra = (uint32_t*)backtrace_foreach + 64;
+    // Start calling the callback for the backtrace entry point
+    cb(arg, ra);
 
     while (1) {
         // Analyze the function pointed by ra, passing information about the previous exception frame if any.
@@ -564,7 +590,7 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
                 // to find a stack frame. It is useful to try finding the function start.
                 // Try to open the symbol table: if we find it, we can search for the start
                 // address of the function.
-                symtable_header_t symt = symt_open();
+                symtable_header_t symt = symt_open(ra);
                 if (symt.head[0]) {
                     int idx;
                     addrtable_entry_t entry = symt_addrtab_search(&symt, (uint32_t)ra, &idx);
@@ -594,15 +620,46 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
 
 int backtrace(void **buffer, int size)
 {
-    int i = -1; // skip backtrace itself
+    int i = -1; // Skip backtrace() itself
     void cb(void *arg, void *ptr) {
-        if (i >= 0 && i < size)
+        if (i >= size) return;
+        if (i >= 0)
             buffer[i] = ptr;
         i++;
     }
-    backtrace_foreach(cb, NULL);
+
+    // Current value of SP/RA/FP registers.
+    uint32_t *sp, *fp;
+    asm volatile (
+        "move %0, $sp\n"
+        "move %1, $fp\n"
+        : "=r"(sp), "=r"(fp)
+    );
+
+    // Start from the backtrace function itself. Put the start pointer
+    // somewhere after the initial prolog, so that we parse the prolog
+    // itself to find sp/fp/ra offsets.
+    // Since we don't come from an exception, exception_ra must be NULL.
+    uint32_t *pc = (uint32_t*)backtrace + 24;
+
+    backtrace_foreach(cb, NULL, pc, sp, fp, NULL);
     return i;
 }
+
+int __backtrace_from(void **buffer, int size, uint32_t *pc, uint32_t *sp, uint32_t *fp, uint32_t *exception_ra)
+{
+    int i = 0;
+    void cb(void *arg, void *ptr) {
+        if (i >= size) return;
+        if (i >= 0)
+            buffer[i] = ptr;
+        i++;
+    }
+
+    backtrace_foreach(cb, NULL, pc, sp, fp, exception_ra);
+    return i;
+}
+
 
 static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
     symtable_header_t *symt, int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)
@@ -626,13 +683,12 @@ static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
 bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     void (*cb)(void *, backtrace_frame_t *), void *cb_arg)
 {
-    // Open the symbol table. If not found, we will still invoke the
-    // callback but using unsymbolized addresses.
-    symtable_header_t symt_header = symt_open();
-    bool has_symt = symt_header.head[0];
-
     for (int i=0; i<size; i++) {
         uint32_t needle = (uint32_t)buffer[i];
+        // Open the symbol table. If not found, we will still invoke the
+        // callback but using unsymbolized addresses.
+        symtable_header_t symt_header = symt_open(buffer[i]);
+        bool has_symt = symt_header.head[0];
         if (!is_valid_address(needle)) {
             // If the address is before the first symbol, we call it a NULL pointer, as that is the most likely case
             cb(cb_arg, &(backtrace_frame_t){
