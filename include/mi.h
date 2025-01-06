@@ -32,7 +32,7 @@
 #define MI_WMODE_CLR_REPEAT         0x00000080      ///< Disable repeat mode
 
 #define MI_BB_INTERRUPT_MD_STATE    0x02000000      ///< 1 if the memory card is present, 0 if missing (iQue)
-#define MI_BB_INTERRUPT_BTN_STATE   0x01004000      ///< 1 if the power button is pressed, 0 if not (iQue)
+#define MI_BB_INTERRUPT_BTN_STATE   0x01000000      ///< 1 if the power button is pressed, 0 if not (iQue)
 #define MI_BB_INTERRUPT_MD          0x00002000      ///< Pending interrupt: Memory card removed or inserted (iQue)
 #define MI_BB_INTERRUPT_BTN         0x00001000      ///< Pending interrupt: Power button pressed (iQue)
 #define MI_BB_INTERRUPT_USB1        0x00000800      ///< Pending interrupt: USB1 (iQue)
