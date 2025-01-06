@@ -9,6 +9,11 @@
 #include <string.h>
 #include <errno.h>
 #include <stdalign.h>
+#include <sys/stat.h>
+
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 
 #ifdef N64
 #include <malloc.h>
@@ -67,7 +72,7 @@ void __asset_init_compression_lvl3(void)
 
 int must_open(const char *fn)
 {
-    int fd = open(fn, O_RDONLY);
+    int fd = open(fn, O_RDONLY|O_BINARY);
     if (fd < 0) {
         // File not found.
         int errnum = errno;
@@ -76,13 +81,13 @@ int must_open(const char *fn)
                 // A common mistake is to forget the filesystem prefix.
                 // Try to give a hint if that's the case.
                 assertf(fd >= 0, "File not found: %s\n"
-                    "Did you forget the filesystem prefix? (e.g. \"rom:/\")\n", fn);
+                    "Did you forget the filesystem prefix? (e.g. \"rom:/\")", fn);
                 return -1;
             } else if (strstr(fn, "rom:/")) {
                 // Another common mistake is to forget to initialize the rom filesystem.
                 // Suggest that if the filesystem prefix is "rom:/".
                 assertf(fd >= 0, "File not found: %s\n"
-                    "Did you forget to call dfs_init(), or did it return an error?\n", fn);
+                    "Did you forget to call dfs_init(), or did it return an error?", fn);
                 return -1;
             }
         }
