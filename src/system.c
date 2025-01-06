@@ -1232,23 +1232,14 @@ int dir_findfirst( const char * const path, dir_t *dir )
         return -1;
     }
 
+    /* Initialize dir_t structure. Set size to -1 in case the filesystem
+       does not report it. */
+    __builtin_memset( dir, 0, sizeof( dir_t ) );
+    dir->d_size = -1;
+
     return fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
 }
 
-/**
- * @brief Find the next file in a directory
- *
- * After finding the first file in a directory using #dir_findfirst, call this to retrieve
- * the rest of the directory entries.  Call this repeatedly until a negative error is returned
- * signifying that there are no more directory entries in the directory.
- *
- * @param[in]  path
- *             Path to the directory structure
- * @param[out] dir
- *             Directory entry structure to populate with next entry
- *
- * @return 0 on successful lookup or a negative value on error.
- */
 int dir_findnext( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
