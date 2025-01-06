@@ -1561,6 +1561,8 @@ makeMxc2Op mfc2, 0x0
     .endm
     .macro assert_lt v0, v1, code
     .endm
+    .macro assert_le v0, v1, code
+    .endm
 #endif
 
 #endif /* RSP_INC */
