@@ -1,3 +1,4 @@
 * text=auto
 # These are all bash scripts and should use lf
 *.sh text eol=lf
+tools/ipl3.h linguist-generated=true
