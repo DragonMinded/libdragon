@@ -542,7 +542,14 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
                             BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
     case 0x38: fprintf(out, "SET_FOG_COLOR    rgba32=(%d,%d,%d,%d)\n", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
     case 0x39: fprintf(out, "SET_BLEND_COLOR  rgba32=(%d,%d,%d,%d)\n", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
-    case 0x3A: fprintf(out, "SET_PRIM_COLOR   rgba32=(%d,%d,%d,%d)\n", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
+    case 0x3A: {
+        fprintf(out, "SET_PRIM_COLOR   rgba32=(%d,%d,%d,%d)", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7));
+        int prim_lod_frac = BITS(buf[0], 32, 39);
+        if (prim_lod_frac) fprintf(out, " prim_lod_frac=%d", prim_lod_frac);
+        int min_lod = BITS(buf[0], 40, 44);
+        if (min_lod) fprintf(out, " min_lod=%d", min_lod);
+        fprintf(out, "\n");
+    }   return;
     case 0x3B: fprintf(out, "SET_ENV_COLOR    rgba32=(%d,%d,%d,%d)\n", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
     case 0x2F: { fprintf(out, "SET_OTHER_MODES  ");
         static const char* cyc[] = { "1cyc", "2cyc", "copy", "fill" };
