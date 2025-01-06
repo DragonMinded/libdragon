@@ -37,7 +37,7 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
     }
 
     if (*lineptr == NULL) {
-        *lineptr = malloc(128);
+        *lineptr = (char*)malloc(128);
         if (*lineptr == NULL) {
             return -1;
         }
@@ -51,7 +51,7 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
             if (new_size < 128) {
                 new_size = 128;
             }
-            char *new_ptr = realloc(*lineptr, new_size);
+            char *new_ptr = (char*)realloc(*lineptr, new_size);
             if (new_ptr == NULL) {
                 return -1;
             }
@@ -74,7 +74,7 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
 char *strndup(const char *s, size_t n)
 {
   size_t len = strnlen(s, n);
-  char *ret = malloc(len + 1);
+  char *ret = (char*)malloc(len + 1);
   if (!ret) return NULL;
   memcpy(ret, s, len);
   ret[len] = '\0';
@@ -126,7 +126,7 @@ char* strcasestr(const char* haystack, const char* needle)
 // Implementation from FreeBSD
 void *memmem(const void *l, size_t l_len, const void *s, size_t s_len)
 {
-	register char *cur, *last;
+	char *cur, *last;
 	const char *cl = (const char *)l;
 	const char *cs = (const char *)s;
 
