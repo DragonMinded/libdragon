@@ -28,9 +28,11 @@
  *     render mode. It allows to use all RDP render states (that must be activated via the
  *     various `rdpq_mode_*` functions). 
  *   * **Copy** (#rdpq_set_mode_copy). This is a fast (4x) mode in which the RDP
- *     can perform fast blitting of textured rectangles (aka sprites). All texture
- *     formats are supported, and color 0 can be masked for transparency. Textures
- *     can be scaled and rotated, but not mirrored. Blending is not supported.
+ *     can perform fast blitting of textured rectangles (aka sprites). It does
+ *     support a limited subset of features: framebuffer must be 16-bit (not 32-bit);
+ *     texture format must be CI4, CI8 or RGBA16; only Y scaling is supported
+ *     (not X scaling); rotation and mirroring is not supported; transparency
+ *     is supported (color 0 masking via alpha compare), but not blending.
  *   * **Fill** (#rdpq_set_mode_fill). This is a fast (4x) mode in which the RDP
  *     is able to quickly fill a rectangular portion of the target buffer with a
  *     fixed color. It can be used to clear the screen. Blending is not supported.
@@ -790,13 +792,23 @@ inline void rdpq_mode_filter(rdpq_filter_t filt) {
  * 
  * This function can be used to turn on mip-mapping.
  * 
- * TMEM must have been loaded with multiple level of details (LOds) of the texture
- * (a task for which rdpq is currently missing a helper, so it has to be done manually).
- * Also, multiple consecutive tile descriptors (one for each LOD) must have been configured.
+ * To use mip-mapping, you must have prepared multiple textures in TMEM. The
+ * simplest way is to let mksprite generate the mipmaps automatically (via
+ * the --mipmap option), so they get embedded within the sprite file; in this
+ * case, mipmaps are automatically uploaded to TMEM when you call #rdpq_sprite_upload,
+ * and this function is also called automatically for you by #rdpq_sprite_upload.
  * 
- * If you call #rdpq_triangle when mipmap is active via #rdpq_mode_mipmap, pass 0
- * to the number of mipmaps in #rdpq_trifmt_t, as the number of levels set here
- * will win over it.
+ * Alternatively, you can upload the mipmaps manually to TMEM using #rdpq_tex_multi_begin,
+ * #rdpq_tex_upload, and #rdpq_tex_multi_end. You must configure multiple consecutive
+ * tiles in TMEM, each one containing a mipmap level, and then call this function
+ * to activate mip-mapping and specifying how many levels you want to use.
+ * 
+ * If you manually draw screen-space triangles via #rdpq_triangle when mipmap
+ * is active via #rdpq_mode_mipmap, pass 0 to the number of mipmaps in
+ * #rdpq_trifmt_t, as the number of levels set here will win over it.
+ * 
+ * @note Mip-mapping is not compatible with two-pass combiner formulas. if you
+ *       do so, you will hit a RSP assertion.
  * 
  * @param mode          Mipmapping mode (use #MIPMAP_NONE to disable)
  * @param num_levels    Number of mipmap levels to use. Pass 0 when setting MIPMAP_NONE.
