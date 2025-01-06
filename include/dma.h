@@ -123,14 +123,14 @@ void dma_read_raw_async(void *ram_address, unsigned long pi_address, unsigned lo
  * ROM at loading time, a better option is to use DragonFS, where #dfs_read
  * falls back to a CPU memory copy to realign the data when required.
  * 
- * @param[out] ram_address
+ * @param[out] ram_pointer
  *             Pointer to a buffer in RDRAM to place read data
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from
  * @param[in]  len
  *             Length in bytes to read into ram_pointer
  */
-void dma_read_async(void *ram_address, unsigned long pi_address, unsigned long len);
+void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long len);
 
 /** 
  * @brief Read data from a peripheral through PI DMA, waiting for completion.
