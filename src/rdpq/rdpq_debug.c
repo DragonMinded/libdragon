@@ -102,7 +102,8 @@ typedef struct {
     struct { uint8_t rgb, alpha; } dither;
     struct blender_s { uint8_t p, a, q, b; } blender[2];
     bool blend, read, aa;
-    struct { uint8_t mode; bool color, sel_alpha, mul_alpha; } cvg;
+    struct { uint8_t mode; bool color; } cvg;
+    struct { bool cvg; bool mul_cc; } blalpha;
     struct { uint8_t mode; bool upd, cmp, prim; } z;
     struct { bool enable, noise; } alphacmp;
     struct { bool fog, freeze, bl2; } rdpqx;     // rdpq extensions
@@ -445,7 +446,8 @@ static inline setothermodes_t decode_som(uint64_t som) {
             { BITS(som, 28, 29), BITS(som, 24, 25), BITS(som, 20, 21), BITS(som, 16, 17) },
         },
         .blend = BIT(som, 14), .read = BIT(som, 6), .aa = BIT(som, 3),
-        .cvg = { .mode = BITS(som, 8, 9), .color = BIT(som, 7), .mul_alpha = BIT(som, 12), .sel_alpha=BIT(som, 13) },
+        .cvg = { .mode = BITS(som, 8, 9), .color = BIT(som, 7) },
+        .blalpha = { .cvg = BIT(som, 13), .mul_cc = BIT(som, 12) },
         .z = { .mode = BITS(som, 10, 11), .upd = BIT(som, 5), .cmp = BIT(som, 4), .prim = BIT(som, 2) },
         .alphacmp = { .enable = BIT(som, 0), .noise = BIT(som, 1) },
         .rdpqx = { .fog = BIT(som, 32), .freeze = BIT(som, 33), .bl2 = BIT(som, 15) },
@@ -598,10 +600,14 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
 
         if(som.alphacmp.enable) fprintf(out, " alpha_compare%s", som.alphacmp.noise ? "[noise]" : "");
         if((som.cycle_type < 2) && (som.dither.rgb != 3 || som.dither.alpha != 3)) fprintf(out, " dither=[%s,%s]", rgbdither[som.dither.rgb], alphadither[som.dither.alpha]);
-        if(som.cvg.mode || som.cvg.color || som.cvg.sel_alpha || som.cvg.mul_alpha) {
+        if(som.cvg.mode || som.cvg.color) {
             fprintf(out, " cvg=["); FLAG_RESET();
-            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color_ovf"); 
-            FLAG(som.cvg.mul_alpha, "mul_alpha"); FLAG(som.cvg.sel_alpha, "sel_alpha");
+            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color_on_ovf"); 
+            fprintf(out, "]");
+        }
+        if(som.blalpha.cvg || som.blalpha.mul_cc) {
+            fprintf(out, " blend_inalpha=["); FLAG_RESET();
+            FLAG(som.blalpha.cvg, "cvg"); FLAG(som.blalpha.mul_cc, "mul_cc");
             fprintf(out, "]");
         }
         if(som.rdpqx.bl2 || som.rdpqx.freeze || som.rdpqx.fog) {
