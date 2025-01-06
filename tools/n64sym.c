@@ -157,9 +157,10 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
     // Send the address to addr2line and fetch back the symbol and the function name
     // Since we activated the "--inlines" option, addr2line produces an unknown number
     // of output lines. This is a problem with pipes, as we don't know when to stop.
-    // Thus, we always add a dummy second address (0x0) so that we stop when we see the
-    // reply for it
-    fprintf(addr2line_w, "%08x\n0\n", addr);
+    // Thus, we always add a dummy second address (0xffffffff) so that we stop when we see the
+    // reply for it. NOTE: we can't use 0x0 as dummy address as DSOs are partially
+    // linked so there are really symbols at 0.
+    fprintf(addr2line_w, "%08x\n0xffffffff\n", addr);
     fflush(addr2line_w);
 
     // First line is the address. It's just an echo, so ignore it.
@@ -172,14 +173,15 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         // First line is the function name. If instead it's the dummy 0x0 address,
         // it means that we're done.
         int n = getline(&line_buf, &line_buf_size, addr2line_r);
-        assert(n != -1);
-        if (strncmp(line_buf, "0x00000000", 10) == 0) break;
+        if (strncmp(line_buf, "0xffffffff", 10) == 0) break;
+        n--;
+        if (line_buf[n-1] == '\r') n--; // Remove trailing \r (Windows)
 
         // If the function of name is longer than 64 bytes, truncate it. This also
         // avoid paradoxically long function names like in C++ that can even be
         // several thousands of characters long.
-        char *func = strndup(line_buf, MIN(n-1, flag_max_sym_len));
-        if (n-1 > flag_max_sym_len) strcpy(&func[flag_max_sym_len-3], "...");
+        char *func = strndup(line_buf, MIN(n, flag_max_sym_len));
+        if (n > flag_max_sym_len) strcpy(&func[flag_max_sym_len-3], "...");
 
         // Second line is the file name and line number
         int ret = getline(&line_buf, &line_buf_size, addr2line_r);
