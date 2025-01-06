@@ -730,13 +730,36 @@ RSPQCmd_RdpSetBuffer:
     # RDPQ_Send will switch to the next dynamic buffer.
     sw a2, %lo(RDPQ_SENTINEL)
     beqz a2, JrRa
+     mfc0 t0, COP0_DP_START
+
     move ra2, ra
 
-    # Wait for RDP DMA FIFO to be not full. If there's another
-    # pending buffer, we cannot do anything but wait.
-    lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
-    jal RSPQ_RdpWait
-    ori t3, DP_STATUS_END_VALID
+    # Wait for RDP DMA FIFO. Normally, we would just wait for the status to be
+    # "not full" (DP_STATUS_END_VALID=0) because otherwise we cannot schedule
+    # the new buffer (as another one is pending already). However, there are
+    # two situations in which we instead need to wait for RDP DMA to be fully
+    # idle (either DP_STATUS_BUSY=0 or DP_STATUS_DMA_BUSY=0):
+    #
+    # 1) If there is a SYNC_FULL ongoing, we cannot schedule a new buffer until
+    #    the RDP is idle, to workaround a hardware bug. RDPQ_SYNCFULL_ONGOING
+    #    contains DP_STATUS_BUSY if a SYNC_FULL is ongoing, or 0 otherwise. SO
+    #    it can be OR'd with DP_STATUS_END_VALID.
+    # 2) If the buffer that we are going to schedule is the same as the current
+    #    one, it would be risky to put it pending: be it a static or dynamic buffer,
+    #    the RSP might write to it new data, while the RDP is still reading the
+    #    previous data. Note this also happens for static buffers (those associated
+    #    with rspq blocks), for two reasons:
+    #    a) we always write additinal dynamic command at the tail of theml, in the
+    #       overallocated area.
+    #    b) even in the static part, there are often "RDP fixups" commands that are
+    #       modified by the RSP during the block executio.
+    #    In this case we wait for DP_STATUS_DMA_BUSY=0 which happens when the
+    #    RDP DMA is finished.
+    bne t0, a1, 1f
+     lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
+    ori t3, DP_STATUS_DMA_BUSY
+1:  jal RSPQ_RdpWait
+     ori t3, DP_STATUS_END_VALID
 
     # In case there was a SYNC_FULL pending, before switching to next buffer, we need
     # to actually write the current one to RDP. Notice that the following two instructions
@@ -749,7 +772,7 @@ RSPQCmd_RdpSetBuffer:
     # Check if the RDPQ debug mode is active (validator)
     lbu t2, %lo(RDPQ_DEBUG)
     beqz t2, 1f
-    mtc0 t0, COP0_DP_END
+     mtc0 t0, COP0_DP_END
 
     # Generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END.
     # Then also wait until the CPU has acknowledged fetching the buffer (via SIG0)
