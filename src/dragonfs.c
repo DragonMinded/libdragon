@@ -45,6 +45,10 @@ enum
 
 /** @brief Base filesystem pointer */
 static uint32_t base_ptr = 0;
+/** @brief Base pointer for lookup data */
+static dfs_lookup_t *lookup;
+/** @brief Base ROM address for path data */
+static uint32_t lookup_path_ofs;
 /** @brief Directory pointer stack */
 static uint32_t directories[MAX_DIRECTORY_DEPTH];
 /** @brief Depth into directory pointer stack */
@@ -546,6 +550,21 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
     return ret;
 }
 
+
+static bool init_dfs_lookup(directory_entry_t *id_node)
+{
+    uint32_t romaddr = get_start_location(id_node);
+    if(romaddr == 0) {
+        return false;
+    }
+    uint32_t size = id_node->next_entry;
+    lookup = malloc(size);
+    data_cache_hit_writeback_invalidate(lookup, size);
+    dma_read(lookup, romaddr, size);
+    lookup_path_ofs = base_ptr+lookup->path_ofs;
+    return true;
+}
+
 /**
  * @brief Helper functioner to initialize the filesystem
  *
@@ -560,22 +579,20 @@ static int __dfs_init(uint32_t base_fs_loc)
     directory_entry_t id_node;
     grab_sector((void *)base_fs_loc, &id_node);
 
-    if(id_node.flags == ROOT_FLAGS && id_node.next_entry == ROOT_NEXT_ENTRY && 
-        !strcmp(id_node.path, ROOT_PATH))
+    if(id_node.flags == ROOT_FLAGS && !strcmp(id_node.path, ROOT_PATH))
     {
         /* Passes, set up the FS */
         base_ptr = base_fs_loc;
         clear_directory();
-
-        /* Good FS */
-        return DFS_ESUCCESS;
+        /* Initialize lookup data */
+        return (init_dfs_lookup(&id_node)) ? DFS_ESUCCESS : DFS_EBADFS;
     }
 
     /* Failed! */
     return DFS_EBADFS;
 }
 
-int dfs_chdir(const char * const path)
+static int __dfs_chdir(const char * const path)
 {
     /* Reset directory listing */
     next_entry = 0;
@@ -589,13 +606,28 @@ int dfs_chdir(const char * const path)
     return recurse_path(path, WALK_CHDIR, 0, TYPE_ANY);
 }
 
-int dfs_dir_findfirst(const char * const path, char *buf)
+/**
+ * @brief Change directories to the specified path.  
+ *
+ * Supports absolute and relative 
+ *
+ * @param[in] path
+ *            Relative or absolute path to change directories to
+ * 
+ * @return DFS_ESUCCESS on success or a negative value on error.
+ */
+int dfs_chdir(const char * const path)
+{
+    return __dfs_chdir(path);
+}
+
+static int __dfs_findfirst(const char * const path, char *buf, directory_entry_t **next_entry)
 {
     directory_entry_t *dirent;
     int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_DIR);
 
     /* Ensure that if this fails, they can't call findnext */
-    next_entry = 0;
+    *next_entry = 0;
 
     if(ret != DFS_ESUCCESS)
     {
@@ -613,14 +645,14 @@ int dfs_dir_findfirst(const char * const path, char *buf)
     }
     
     /* Set up directory to point to next entry */
-    next_entry = get_next_entry(&t_node);
+    *next_entry = get_next_entry(&t_node);
 
     return get_flags(&t_node);
 }
 
-int dfs_dir_findnext(char *buf)
+static int __dfs_findnext(char *buf, directory_entry_t **next_entry)
 {
-    if(!next_entry)
+    if(!*next_entry)
     {
         /* No file found */
         return FLAGS_EOF;
@@ -628,7 +660,7 @@ int dfs_dir_findnext(char *buf)
 
     /* We already calculated the pointer, just grab the information */
     directory_entry_t t_node;
-    grab_sector(next_entry, &t_node);
+    grab_sector(*next_entry, &t_node);
 
     if(buf)
     {
@@ -636,9 +668,108 @@ int dfs_dir_findnext(char *buf)
     }
     
     /* Set up directory to point to next entry */
-    next_entry = get_next_entry(&t_node);
+    *next_entry = get_next_entry(&t_node);
 
     return get_flags(&t_node);
+}
+
+/**
+ * @brief Find the first file or directory in a directory listing.
+ *
+ * Supports absolute and relative.  If the path is invalid, returns a negative DFS_errno.  If
+ * a file or directory is found, returns the flags of the entry and copies the name into buf.
+ *
+ * @param[in]  path
+ *             The path to look for files in
+ * @param[out] buf
+ *             Buffer to place the name of the file or directory found
+ *
+ * @return The flags (#FLAGS_FILE, #FLAGS_DIR, #FLAGS_EOF) or a negative value on error.
+ */
+int dfs_dir_findfirst(const char * const path, char *buf)
+{
+    return __dfs_findfirst(path, buf, &next_entry);
+}
+
+/**
+ * @brief Find the next file or directory in a directory listing. 
+ *
+ * @note Should be called after doing a #dfs_dir_findfirst.
+ *
+ * @param[out] buf
+ *             Buffer to place the name of the next file or directory found
+ *
+ * @return The flags (#FLAGS_FILE, #FLAGS_DIR, #FLAGS_EOF) or a negative value on error.
+ */
+int dfs_dir_findnext(char *buf)
+{
+    return __dfs_findnext(buf, &next_entry);
+}
+
+static bool can_use_hash(const char *path)
+{
+    //Check for chdir
+    if(directory_top != 0) {
+        return false;
+    }
+    //Check for ./ or .. in path
+    while(*path) {
+        if(path[0] == '.') {
+            if(path[1] == '.' || path[1] == '/') {
+                return false;
+            }
+        }
+        path++;
+    }
+    return true;
+}
+
+static uint32_t prime_hash(const char *str, uint32_t prime)
+{
+    uint32_t hash = 0;
+    while(*str) {
+        char c = *str++;
+        hash = (hash * prime) + c;
+    }
+    return hash;
+}
+
+static dfs_lookup_file_t *lookup_file(const char *const path)
+{
+    uint32_t hash = prime_hash(path, DFS_LOOKUP_PRIME);
+    int32_t left = 0;
+    int32_t right = lookup->num_files-1;
+    int32_t index = -1;
+    while(left <= right) {
+        int32_t mid = left+((right-left)/2);
+        if(lookup->files[mid].path_hash == hash) {
+            index = mid;
+            right = mid-1;
+        } else if(lookup->files[mid].path_hash < hash) {
+            left = mid+1;
+        } else {
+            right = mid-1;
+        }
+    }
+    if(index == -1) {
+        return NULL;
+    }
+    uint32_t src_path_len = strlen(path)+1;
+    for(int32_t i=index; lookup->files[i].path_hash == hash; i++) {
+        uint32_t path_ofs = lookup->files[i].path_ofs;
+        uint32_t path_len = path_ofs >> 20;
+        if(src_path_len != path_len) {
+            continue;
+        }
+        char alignas(16) path_buf[ROUND_UP(path_len, 16)];
+        path_ofs &= (1 << 20)-1;
+        data_cache_hit_writeback_invalidate(path_buf, path_len);
+        dma_read(path_buf, lookup_path_ofs+path_ofs, path_len);
+        if(strcmp(path, path_buf) == 0) {
+            return &lookup->files[i];
+        }
+    }
+    return NULL;
 }
 
 /**
@@ -653,35 +784,58 @@ int dfs_dir_findnext(char *buf)
  *
  * @return A valid file handle to reference the file by or a negative error on failure.
  */
-int dfs_open(const char * const path)
+int dfs_open(const char *path)
 {
-    /* Try to find file */
-    directory_entry_t *dirent;
-    int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
-
-    if(ret != DFS_ESUCCESS)
-    {
-        /* File not found, or other error */
-        return ret;
+    dfs_open_file_t *file;
+    //Skip initial slash
+    if(path[0] == '/') {
+        path++;
     }
+    if(can_use_hash(path)) {
+        dfs_lookup_file_t *entry = lookup_file(path);
+        if(!entry)
+        {
+            //File not found
+            return DFS_ENOFILE;
+        }
+        /* Try to find a free slot */
+        file = malloc(sizeof(dfs_open_file_t));
+        if(!file)
+        {
+            return DFS_ENOMEM;
+        }
+        //Set file data
+        file->size = entry->data_len;
+        file->loc = 0;
+        file->cart_start_loc = base_ptr+entry->data_ofs;
+    } else {
+        /* Try to find file */
+        directory_entry_t *dirent;
+        int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
 
-    /* Try to find a free slot */
-    dfs_open_file_t *file = malloc(sizeof(dfs_open_file_t));
+        if(ret != DFS_ESUCCESS)
+        {
+            /* File not found, or other error */
+            return ret;
+        }
 
-    if(!file)
-    {
-        return DFS_ENOMEM;
+        /* Try to find a free slot */
+        file = malloc(sizeof(dfs_open_file_t));
+
+        if(!file)
+        {
+            return DFS_ENOMEM;
+        }
+
+        /* We now have the pointer to the file entry */
+        directory_entry_t t_node;
+        grab_sector(dirent, &t_node);
+
+        /* Set up file handle */
+        file->size = get_size(&t_node);
+        file->loc = 0;
+        file->cart_start_loc = get_start_location(&t_node);
     }
-
-    /* We now have the pointer to the file entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
-
-    /* Set up file handle */
-    file->size = get_size(&t_node);
-    file->loc = 0;
-    file->cart_start_loc = get_start_location(&t_node);
-
     return OPENFILE_TO_HANDLE(file);
 }
 
@@ -947,22 +1101,36 @@ int dfs_size(uint32_t handle)
  */
 uint32_t dfs_rom_addr(const char *path)
 {
-    /* Try to find file */
-    directory_entry_t *dirent;
-    int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
-
-    if(ret != DFS_ESUCCESS)
-    {
-        /* File not found, or other error */
-        return 0;
+    //Skip initial slash
+    if(path[0] == '/') {
+        path++;
     }
+    if(can_use_hash(path)) {
+        dfs_lookup_file_t *entry = lookup_file(path);
+        if(!entry)
+        {
+            //File not found
+            return 0;
+        }
+        return base_ptr+entry->data_ofs;
+    } else {
+        /* Try to find file */
+        directory_entry_t *dirent;
+        int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
 
-    /* We now have the pointer to the file entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
+        if(ret != DFS_ESUCCESS)
+        {
+            /* File not found, or other error */
+            return 0;
+        }
 
-    /* Return the starting location in ROM */
-    return get_start_location(&t_node);
+        /* We now have the pointer to the file entry */
+        directory_entry_t t_node;
+        grab_sector(dirent, &t_node);
+
+        /* Return the starting location in ROM */
+        return get_start_location(&t_node);
+    }
 }
 
 /**
@@ -1006,7 +1174,7 @@ int dfs_eof(uint32_t handle)
 static void *__open( char *name, int flags )
 {
     /* Always want a consistent interface */
-    dfs_chdir("/");
+    __dfs_chdir("/");
 
     /* We disregard flags here */
     int handle = dfs_open( name );
@@ -1116,7 +1284,7 @@ static int __close( void *file )
 static int __findfirst( char *path, dir_t *dir )
 {
     /* Grab first entry, return if bad */
-    int flags = dfs_dir_findfirst( path, dir->d_name );
+    int flags = __dfs_findfirst( path, dir->d_name, (struct directory_entry**)&dir->d_cookie );
     if( flags < 0 ) { return -1; }
 
     if( flags == FLAGS_FILE )
@@ -1148,7 +1316,7 @@ static int __findfirst( char *path, dir_t *dir )
 static int __findnext( dir_t *dir )
 {
     /* Grab first entry, return if bad */
-    int flags = dfs_dir_findnext( dir->d_name );
+    int flags = __dfs_findnext( dir->d_name, (struct directory_entry**)&dir->d_cookie );
     if( flags < 0 ) { return -1; }
 
     if( flags == FLAGS_FILE )
@@ -1245,9 +1413,6 @@ int dfs_init(uint32_t base_fs_loc)
     return DFS_ESUCCESS;
 }
 
-/**
- * @brief Convert DFS error code into an error string
- */
 const char *dfs_strerror(int error)
 {
     switch (error) {

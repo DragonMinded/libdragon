@@ -15,7 +15,6 @@
 #endif
 
 struct directory_entry root_dirent = {
-    .next_entry = SWAPLONG(ROOT_NEXT_ENTRY),
     .flags = SWAPLONG(ROOT_FLAGS),
     .path = ROOT_PATH,
 };
@@ -418,8 +417,7 @@ int dfs_init_pc(void *base_fs_loc, int tries)
         directory_entry_t id_node;
         grab_sector(base_fs_loc, &id_node);
 
-        if(SWAPLONG(id_node.flags) == ROOT_FLAGS && SWAPLONG(id_node.next_entry) == ROOT_NEXT_ENTRY
-            && !strcmp(id_node.path, ROOT_PATH))
+        if(SWAPLONG(id_node.flags) == ROOT_FLAGS && !strcmp(id_node.path, ROOT_PATH))
         {
             /* Passes, set up the FS */
             base_ptr = base_fs_loc;
@@ -457,7 +455,7 @@ int dfs_chdir(const char * const path)
    and relative.  If the path is invalid, returns a negative DFS_errno.  If
    a file or directory is found, returns the flags of the entry and copies the
    name into buf. */
-int dfs_dir_findfirst(const char * const path, char *buf)
+int dumpdfs_dir_findfirst(const char * const path, char *buf)
 {
     directory_entry_t *dirent;
     int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_DIR);
@@ -488,7 +486,7 @@ int dfs_dir_findfirst(const char * const path, char *buf)
 
 /* Find the next file or directory in a directory listing.  Should be called
    after doing a dfs_dir_findfirst. */
-int dfs_dir_findnext(char *buf)
+int dumpdfs_dir_findnext(char *buf)
 {
     if(!next_entry)
     {
@@ -719,18 +717,34 @@ void list_dir( char *directory, int depth )
 {
     char path[512];
 
-    int dir = dfs_dir_findfirst( directory, path );
+    int dir = dumpdfs_dir_findfirst( directory, path );
 
     do
     {
+        char full_path[1024];
+        snprintf( full_path, sizeof(full_path), "%s%s/", directory, path );
+
         pr_depth( depth );
-        printf( "%s\n", path );
+        if( FILETYPE( dir ) == FLAGS_DIR )
+            printf( "%s/\n", path);
+        else {
+            int fd = dfs_open( full_path );
+            int sz = dfs_size( fd );
+            dfs_close( fd );
+
+            char human_size[32];
+            snprintf( human_size, sizeof(human_size), "%6.1f KiB", (float)sz / 1024 );
+
+            printf( "%-*s %s\n", 40 - depth, path, human_size );
+        }
 
         if( FILETYPE( dir ) == FLAGS_DIR )
         {
-            list_dir( path, depth + 2 );
+            struct directory_entry *e = next_entry;
+            list_dir( full_path, depth + 2 );
+            next_entry = e;
         }
-    } while( (dir = dfs_dir_findnext( path )) != FLAGS_EOF );
+    } while( (dir = dumpdfs_dir_findnext( path )) != FLAGS_EOF );
 }
 
 void usage(void)
@@ -776,15 +790,15 @@ int main( int argc, char *argv[] )
             fclose( fp );
 
             int offset = 0;
-            if (strstr(argv[2], ".z64"))
+            if (!strstr(argv[2], ".dfs"))
             {
-                void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
+                void *fs = memmem(filesystem, lSize, ((uint8_t *)&root_dirent)+4, sizeof(root_dirent)-8); //Exclude ROOT_NEXT_ENTRY and root file_pointer
                 if (!fs)
                 {
                     fprintf(stderr, "cannot find DragonFS in ROM\n");
                     return -1;
                 }
-                offset = fs - filesystem;
+                offset = (fs - filesystem) - 4;
             }
 
             if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)
@@ -819,15 +833,15 @@ int main( int argc, char *argv[] )
             fclose( fp );
 
             int offset = 0;
-            if (strstr(argv[2], ".z64"))
+            if (!strstr(argv[2], ".dfs"))
             {
-                void *fs = memmem(filesystem, lSize, &root_dirent, sizeof(root_dirent));
+                void *fs = memmem(filesystem, lSize, ((uint8_t *)&root_dirent)+4, sizeof(root_dirent)-8); //Exclude ROOT_NEXT_ENTRY and root file_pointer
                 if (!fs)
                 {
                     fprintf(stderr, "cannot find DragonFS in ROM\n");
                     return -1;
                 }
-                offset = fs - filesystem;
+                offset = (fs - filesystem) - 4;
             }
 
             if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)
