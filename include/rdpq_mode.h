@@ -602,10 +602,6 @@ inline void rdpq_mode_blender(rdpq_blender_t blend) {
     __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, blend);
 }
 
-/** @brief Fogging mode: standard.
- * You can pass this macro to #rdpq_mode_fog. */
-#define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
-
 /**
  * @brief Enable or disable fog 
  * 
