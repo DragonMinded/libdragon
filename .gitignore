@@ -15,7 +15,6 @@ tools/**/*.exe
 website/ref/
 
 ## Generated assets
-examples/fontdemo/filesystem/*.font64
 tests/filesystem/*.sprite
 
 ## OSX junk
