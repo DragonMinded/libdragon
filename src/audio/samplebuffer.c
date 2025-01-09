@@ -54,6 +54,11 @@ void samplebuffer_set_waveform(samplebuffer_t *buf, WaveformRead read, void *ctx
 	buf->wv_ctx = ctx;
 }
 
+bool samplebuffer_is_inited(samplebuffer_t *buf)
+{
+	return SAMPLES_PTR(buf) != NULL;
+}
+
 void samplebuffer_close(samplebuffer_t *buf) {
 	buf->ptr_and_flags = 0;
 }
@@ -172,6 +177,11 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 	void *data = SAMPLES_PTR(buf) + (buf->widx << SAMPLES_BPS_SHIFT(buf));
 	buf->widx += wlen;
 	return data;
+}
+
+void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
+	assertf(buf->widx >= wlen, "samplebuffer_append_undo: invalid wlen:%x widx:%x", wlen, buf->widx);
+	buf->widx -= wlen;
 }
 
 void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
