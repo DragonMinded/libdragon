@@ -20,7 +20,7 @@
 
 static void wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	xm_sample_t *samp = (xm_sample_t*)ctx;
-	raw_waveform_read(sbuf, samp->data8_offset, wpos, wlen, samp->bits >> 4);
+	raw_waveform_read_address(sbuf, samp->data8_offset, wpos, wlen, samp->bits >> 4);
 }
 
 static int tick(void *arg) {
