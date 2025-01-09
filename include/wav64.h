@@ -59,6 +59,11 @@ void wav64_set_loop(wav64_t *wav, bool loop);
  * waveform (#wav64_t::wave). For advanced usages, please call directly the
  * mixer functions.
  * 
+ * It is possible to start the same waveform on multiple independent channels.
+ * Playback will automatically stop when the waveform is finished, unless it
+ * is looping. To stop playing a wav64 file before it is normally finished,
+ * call #mixer_ch_stop on the channel used for playback. 
+ * 
  * @param   wav         Pointer to wav64_t structure
  * @param   ch          Channel of the mixer to use for playback.
  */
@@ -72,13 +77,15 @@ void wav64_play(wav64_t *wav, int ch);
  */
 int wav64_get_bitrate(wav64_t *wav);
 
-
 /**
  * @brief Close a WAV64 file.
  * 
+ * This function closes the file and frees any resources associated with it.
+ * If the file is currently playing, playback will be stopped.
+ * 
  * @param wav 			Pointer to wav64_t structure
  */
-void 	wav64_close(wav64_t *wav);
+void wav64_close(wav64_t *wav);
 
 #ifdef __cplusplus
 }

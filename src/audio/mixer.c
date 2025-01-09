@@ -457,6 +457,15 @@ void mixer_ch_stop(int ch) {
 	Mixer.ch_buf[ch].wv_ctx = NULL;
 }
 
+void __mixer_wave_stopall(waveform_t *wave)
+{
+	for (int i=0; i<Mixer.num_channels; i++)
+	{
+		mixer_channel_t *c = &Mixer.channels[i];
+		samplebuffer_t *sbuf = &Mixer.ch_buf[i];
+		if (c->ptr && sbuf->wv_ctx == wave)
+			mixer_ch_stop(i);
+	}
 }
 
 bool mixer_ch_playing(int ch) {

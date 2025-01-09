@@ -354,6 +354,9 @@ int wav64_get_bitrate(wav64_t *wav) {
 
 void wav64_close(wav64_t *wav)
 {
+	// Stop playing the waveform on all channels
+	__mixer_wave_stopall(&wav->wave);
+
 	if (wav->ext) {
 		switch (wav->format) {
 		case WAV64_FORMAT_VADPCM:
