@@ -1184,23 +1184,20 @@ Mix8Loop:
 	# VADPCM State and Codebook
 #define VADPCM_CODEBOOK_SIZE  8
 
+#define MAX_VADPCM_FRAMES     94
+
 	.section .bssovl1
 
-					.align 8
+					# Codebook must be aligned to allow for xor trick
+					# to switch channels
+					.balign VADPCM_CODEBOOK_SIZE*16 
 VADPCM_CODEBOOK:   	.space VADPCM_CODEBOOK_SIZE*16*2
 
-	# Over-align double-buffers so that we can swap with a single xor
-					.align 8
-VADPCM_OUTPUT:      .space 32,32   # 1 frame, left / right, buffer 0
-					.space 32,32   # 1 frame, left / right, buffer 1
-
-					.align 8
-VADPCM_INPUT:		.space 9,9     # 1 frame, left / right, buffer 0
-					.align 5
-					.space 9,9     # 1 frame, left / right, buffer 1
-
-					.align 5
+					.align 4
 VADPCM_STATE:    	.space 16*2   # state, left/right
+VADPCM_BUFFER:      .space MAX_VADPCM_FRAMES*16*2		
+VADPCM_BUFFER_END:	.space 8    # Extra 8 bytes for misalignment
+
 
 	.text
 
@@ -1211,11 +1208,11 @@ VADPCM_STATE:    	.space 16*2   # state, left/right
 #define dmem_codebook       s2
 #define dmem_output         s3
 #define dmem_input          s5
-#define input_aligned       s6
-#define next_input_aligned  s7
+#define buffer_in_size      v0
+#define buffer_out_size     v1
 #define stereo_toggle       k1
-#define input_incr     		v0
-#define output_incr    		v1
+#define rdram_input		    a0
+#define rdram_output	    a1
 
 #define vscale  $v01
 #define vstatef $v02
@@ -1274,56 +1271,60 @@ VADPCM_Decompress:
 	ltv pred1a.e0,    0,s0
 
 	srl nframes, a1, 24
-	addiu nframes, 1
+	bgez a2, 1f
+	 addiu nframes, 1
+	sll nframes, 1
 
-	li dmem_input, %lo(VADPCM_INPUT)
-	li input_incr, 9
-	li dmem_output, %lo(VADPCM_OUTPUT)
-	li output_incr, 32
+1:	# Calculate offset of input buffer inside the output buffer
+	li dmem_output, %lo(VADPCM_BUFFER)
+	and rdram_input, 0x00FFFFFF
+	and a1, 0x00FFFFFF
+	sub t0, rdram_input, rdram_output
+	add dmem_input, t0, dmem_output
 
-	bgez a2, VADPCM_FetchFirstFrame
-	move stereo_toggle, a2
+	# Shift buffer by output misalignment
+	andi t1, rdram_output, 7
+	add dmem_output, t1
+	add dmem_input, t1
 
-	# If the waveform is stereo, double increments
-	sll input_incr, 1
-	sll output_incr, 1
+	beqz t1, 1f
+ 	 sll buffer_out_size, nframes, 5		# buffer_out_size = nframes*32
+	addiu buffer_out_size, 8
+1:
 
-VADPCM_FetchFirstFrame:
-	# Fetch the first frame. Wait for the transfer to finish
-	move s4, dmem_input
-	move s0, a0
+	sll buffer_in_size, nframes, 3			# buffer_in_size = nframes*8
+	andi t1, rdram_input, 7
+	beqz t1, 1f	
+	 add buffer_in_size, nframes             #  + nframes
+	addiu buffer_in_size, 8
+1:
+
+	#ifndef NDEBUG
+	# Check that dmem_input and RDRAM input have the same misalignment
+	andi t3, dmem_input, 7
+	andi t2, rdram_input, 7
+	assert_eq t3, t2, 0x1234
+	#endif
+
+	# Fetch the input buffer. Calculate size as nframes*9+misalignemnt
+	move s0, rdram_input
+	addiu t0, buffer_in_size, -1
 	jal DMAIn
-	addiu t0, input_incr, -1
-	add a0, input_incr
+	 move s4, dmem_input
 
-	move next_input_aligned, s4
+	move stereo_toggle, a2
 	lqv vstate1, 0x00,dmem_state
 	lqv vstate3, 0x10,dmem_state
+	addiu dmem_input, 1
 
 	##################################################################
 
 VADPCM_DecompressLoop:
-	# Start fetching next input buffer (async)
-	mfc0 t0, COP0_DMA_FULL
-	bnez t0, VADPCM_DecompressLoop
-	move input_aligned, next_input_aligned
-
-	# Run next DMA in background
-	xori dmem_input, 32   # swap
-	mtc0 dmem_input, COP0_DMA_SPADDR
-	mtc0 a0, COP0_DMA_RAMADDR
-	addiu t0, input_incr, -1
-	mtc0 t0, COP0_DMA_READ
-	andi t0, a0, 7
-	add next_input_aligned, dmem_input, t0
-	add a0, input_incr
-
 VADPCM_DecompressMono:
 	# Read from input: control byte, plus residuals
-	lbu t0, 0(input_aligned)
-	addiu input_aligned, 1
-	lpv vres0, 0,input_aligned
-	lpv vres1, 0,input_aligned
+	lbu t0, -1(dmem_input)
+	lpv vres0, 0,dmem_input
+	lpv vres1, 0,dmem_input
 
 	# Process control byte: scaling
 	li t1, 1
@@ -1384,13 +1385,17 @@ VADPCM_DecompressMono:
 	vmadh vstate1, vstate1, vshift.e2
 
 	sqv vstate0, 0x00,dmem_output
-	bgez a2, VADPCM_Output
+	srv vstate0, 0x10,dmem_output
 	sqv vstate1, 0x10,dmem_output
+	srv vstate1, 0x20,dmem_output
+
+	addiu nframes, -1
+	addiu dmem_input, 9
+	bgez a2, VADPCM_Output
+	 addiu dmem_output, 32
 
 	vcopy vstate1, vstate3
 	xori dmem_codebook, VADPCM_CODEBOOK_SIZE*16
-	addiu input_aligned, 8
-	addiu dmem_output, 32
 	bltz stereo_toggle, VADPCM_DecompressMono
 	xor stereo_toggle, a2
 
@@ -1398,9 +1403,13 @@ VADPCM_DecompressMono:
 	addiu dmem_output, -64
 
 	lqv vstate0, 0x00,dmem_output
+	lrv vstate0, 0x10,dmem_output
 	lqv vstate1, 0x10,dmem_output
+	lrv vstate1, 0x20,dmem_output
 	lqv vstate2, 0x20,dmem_output
+	lrv vstate2, 0x30,dmem_output
 	lqv vstate3, 0x30,dmem_output
+	lrv vstate3, 0x40,dmem_output
 VADPCM_InterleaveStereo:
 	ssv vstate0.e0, 0x00,dmem_output
 	ssv vstate2.e0, 0x02,dmem_output
@@ -1425,26 +1434,9 @@ VADPCM_InterleaveStereo:
 	addiu dmem_output, 0x20
 	bltz stereo_toggle, VADPCM_InterleaveStereo 
 	xor stereo_toggle, a2
-	addiu dmem_output, -0x40
 
 	# Write output into RDRAM (async)
 VADPCM_Output:
-	# FIXME: this should work with COP0_DMA_FULL but it doesn't on real hardware (it cause cracks).
-	# Not sure why that happens: at any time we should have max one DMA in and one DMA out pending/running,
-	# so there shouldn't be any contention. Maybe there is something I don't understand about how
-	# the DMA engine works?
-	mfc0 t0, COP0_DMA_BUSY
-	bnez t0, VADPCM_Output
-	addiu t0, output_incr, -1
-
-	mtc0 dmem_output, COP0_DMA_SPADDR
-	mtc0 a1, COP0_DMA_RAMADDR
-	mtc0 t0, COP0_DMA_WRITE 
-
-	add a1, output_incr
-	xori dmem_output, 64   # swap
-
-	addiu nframes, -1
 	bgtz nframes, VADPCM_DecompressLoop
 	nop
 
@@ -1458,6 +1450,35 @@ VADPCM_Output:
 	jal DMAOutAsync
 	li t0, DMA_SIZE(32, 1)
 
+	# Check if the output buffer is misaligned
+	and t0, rdram_output, 7
+    beqz t0, VADPM_OutputDma
+    nop
+
+    # Handle unaligned output buffer: we need to fetch and merge
+    # existing samples on misaligned addresses. Use dmem_state
+	# as scratch buffer
+    move s0, rdram_output
+    jal DMAIn
+    move s4, dmem_state
+
+    li s0, %lo(VADPCM_BUFFER)
+	move s4, dmem_state
+VADPCM_OutputMergeLoop:
+    lhu t1, 0(s4)
+    addiu s4, 2
+    addiu t0, -2
+    sh t1, 0(s0)
+    bnez t0, VADPCM_OutputMergeLoop
+    addiu s0, 2
+
+VADPM_OutputDma:
+	# Save back output buffer
+	li s4, %lo(VADPCM_BUFFER)
+	move s0, rdram_output
+	jal DMAOut
+	addiu t0, buffer_out_size, -1
+	
 	#if VADPCM_PROFILING
 	mfc0 k1, COP0_DP_CLOCK
 	subu k1, k1, k0

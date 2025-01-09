@@ -183,19 +183,22 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		}
 	}
 
+	// Round up wlen to 32 because our RSP decompressor only supports multiples
+	// of 32 samples (2 frames) because of DMA alignment issues. audioconv64
+	// makes sure files are padded to that length, so this is valid also at the
+	// end of the file.
 	wlen = ROUND_UP(wlen, 32);
 	if (wlen == 0) return;
 
+	// Maximum number of VADPCM frames that can be decompressed in a single
+	// RSP call. Keep this in sync with rsp_mixer.S.
+	enum { MAX_VADPCM_FRAMES = 94 };
+
 	bool highpri = false;
 	while (wlen > 0) {
-		int nframes = wlen / 16;
-		// Most of the code here would be ready to loop over multiple blocks of
-		// 256 frames, but the problem is that we don't doublebuffer the RDRAM
-		// buffers, so the RSP doesn't get to process the data in time. This
-		// would require CPU-spinning here. Since it's a very rare case, just
-		// block it for now.
-		assert(nframes <= 256);
-		nframes = MIN(nframes, 256);
+		// Calculate number of frames to decompress in this iteration
+		int max_vadpcm_frames = (wav->wave.channels == 1) ? MAX_VADPCM_FRAMES : MAX_VADPCM_FRAMES / 2;
+		int nframes = MIN(wlen / 16, max_vadpcm_frames);
 
 		// Acquire destination buffer from the sample buffer
 		int16_t *dest = (int16_t*)samplebuffer_append(sbuf, nframes*16);
@@ -245,10 +248,16 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		#endif
 
 		wlen -= 16*nframes;
+		wpos += 16*nframes;
 	}
 
 	if (highpri)
 		rspq_highpri_end();
+
+    if (wav->wave.loop_len && wpos >= wav->wave.len) {
+        assert(wav->wave.loop_len == wav->wave.len);
+        samplebuffer_undo(sbuf, wpos - wav->wave.len);
+    }
 }
 
 void wav64_open(wav64_t *wav, const char *fn) {
