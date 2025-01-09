@@ -257,8 +257,11 @@ void mixer_close(void) {
 
 void mixer_ch_set_freq(int ch, float frequency) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_freq: cannot call on secondary stereo channel %d", ch);
-	assertf(frequency >= 0, "mixer_ch_set_freq: cannot set negative frequency on channel %d: %f", ch, frequency);
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "cannot call on secondary stereo channel %d", ch);
+	assertf(frequency >= 0, "cannot set negative frequency on channel %d: %f", ch, frequency);
+	// Check if the frequency is within the configured limit. Allow for a 1% margin because of rounding errors
+	// for default maximum frequency being the output sample rate converted from fixed point.
+	assertf(frequency <= Mixer.limits[ch].max_frequency*1.01, "frequency %.1f exceeds configured limit %.1f on channel %d; use mixer_ch_set_limit to change the limit for this channel", frequency, Mixer.limits[ch].max_frequency, ch);
 	c->step = MIXER_FX64(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
 
