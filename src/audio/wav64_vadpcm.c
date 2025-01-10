@@ -1,5 +1,5 @@
 #include "wav64.h"
-#include "wav64internal.h"
+#include "wav64_internal.h"
 #include "wav64_vadpcm_internal.h"
 #include "n64sys.h"
 #include "rspq.h"

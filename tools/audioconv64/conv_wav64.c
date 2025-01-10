@@ -1,4 +1,4 @@
-#include "../../src/audio/wav64internal.h"
+#include "../../src/audio/wav64_internal.h"
 
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav.h"

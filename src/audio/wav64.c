@@ -5,7 +5,7 @@
  */
 
 #include "wav64.h"
-#include "wav64internal.h"
+#include "wav64_internal.h"
 #include "wav64_vadpcm_internal.h"
 #include "mixer.h"
 #include "mixer_internal.h"
