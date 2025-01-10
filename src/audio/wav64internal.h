@@ -5,6 +5,10 @@
 #define WAV64_FILE_VERSION  2
 #define WAV64_FORMAT_RAW    0
 #define WAV64_FORMAT_VADPCM 1
+#define WAV64_NUM_FORMATS   2
+
+typedef struct wav64_s wav64_t;
+typedef struct samplebuffer_s samplebuffer_t;
 
 /** @brief Header of a WAV64 file. */
 typedef struct __attribute__((packed)) {
@@ -37,7 +41,15 @@ typedef struct __attribute__((packed, aligned(8))) {
 	wav64_vadpcm_vector_t codebook[];	///< Codebook of the predictors
 } wav64_header_vadpcm_t;
 
-typedef struct samplebuffer_s samplebuffer_t;
+/** @brief WAV64 pluggable compression algorithm */
+typedef struct {
+	/** @brief Init function: parses extra header information for the specific codec */
+	void (*init)(wav64_t *wav);
+	/** @brief Close function: deallocates memory for codec-specific data */
+	void (*close)(wav64_t *wav);
+	/** @brief Return the compressed bitrate, mainly used for statistics */
+	int (*get_bitrate)(wav64_t *wav);
+} wav64_compression_t;
 
 /**
  * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.

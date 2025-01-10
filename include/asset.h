@@ -87,8 +87,8 @@ extern void __asset_init_compression_lvl3(void);
  * a non-default compression level. The default compression level is 1,
  * for which no initialization is required.
  * 
- * Currently, only level 2 requires initialization. If you have any assets
- * compressed with level 2, you must call this function before loading them.
+ * Currently, level 2 and 3 requires initialization. If you have any assets
+ * compressed with level 2 or 3, you must call this function before loading them.
  * 
  * @code{.c}
  *      asset_init_compression(2); 
@@ -104,6 +104,7 @@ extern void __asset_init_compression_lvl3(void);
  */
 #define asset_init_compression(level) ({ \
     switch (level) { \
+    case 0: break; \
     case 1: break; \
     case 2: __asset_init_compression_lvl2(); break; \
     case 3: __asset_init_compression_lvl3(); break; \

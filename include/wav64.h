@@ -25,7 +25,7 @@ extern "C" {
  * Use #wav64_play to playback. For more advanced usage, call directly the
  * mixer functions, accessing the #wave structure field.
  */
-typedef struct {
+typedef struct wav64_s {
 	/** @brief #waveform_t for this WAV64. 
 	 * 
 	 * Access and use this field directly with the mixer, if needed.
@@ -56,7 +56,7 @@ void wav64_set_loop(wav64_t *wav, bool loop);
 /** @brief Start playing a WAV64 file.
  * 
  * This is just a simple wrapper that calls #mixer_ch_play on the WAV64's
- * waveform (#wav64_t::wave). For advanced usages, please call directly the
+ * waveform (wav64_t::wave). For advanced usages, please call directly the
  * mixer functions.
  * 
  * It is possible to start the same waveform on multiple independent channels.
