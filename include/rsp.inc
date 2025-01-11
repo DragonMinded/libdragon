@@ -1159,184 +1159,183 @@ makeMxc2Op mfc2, 0x0
 .macro vsll_data
         .align 4
     V_SHIFT:    .half 0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1
+.endm
 
-    .macro setup_vsll vshiftreg, emitload
-        .ifnb \emitload
-            .ifgt \emitload
-                .set noat
-                la $1,%lo(V_SHIFT)
-                lqv \vshiftreg,0,  0,$1
-                .set at
-            .endif
-        .else
+.macro setup_vsll vshiftreg, emitload
+    .ifnb \emitload
+        .ifgt \emitload
             .set noat
             la $1,%lo(V_SHIFT)
             lqv \vshiftreg,0,  0,$1
             .set at
         .endif
+    .else
+        .set noat
+        la $1,%lo(V_SHIFT)
+        lqv \vshiftreg,0,  0,$1
+        .set at
+    .endif
 
-        .macro vsll vdstreg, vsrcreg, qty
-            .if (\qty == 7)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(0)
-            .elseif (\qty == 6)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(1)
-            .elseif (\qty == 5)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(2)
-            .elseif (\qty == 4)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(3)
-            .elseif (\qty == 3)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(4)
-            .elseif (\qty == 2)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(5)
-            .elseif (\qty == 1)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(6)
-            .elseif (\qty == 0)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(7)
-            .elseif (\qty >= 8 && \qty <= 15)
-                .error "Use vsll8 for quantities in range 8-15"
-            .else
-                .error "Invalid quantity in vsll"
-            .endif
-        .endm
-
-        .macro vsrl8 vdstreg, vsrcreg, qty
-            .if (\qty == 9)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(0)
-            .elseif (\qty == 10)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(1)
-            .elseif (\qty == 11)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(2)
-            .elseif (\qty == 12)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(3)
-            .elseif (\qty == 13)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(4)
-            .elseif (\qty == 14)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(5)
-            .elseif (\qty == 15)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(6)
-            .elseif (\qty >= 1 && \qty <= 8)
-                .error "Use vsrl for quantities in range 1-8"
-            .else
-                .error "Invalid quantity in vsrl8"
-            .endif
-        .endm
-
-        .macro vsra8 vdstreg, vsrcreg, qty
-            .if (\qty == 9)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(0)
-            .elseif (\qty == 10)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(1)
-            .elseif (\qty == 11)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(2)
-            .elseif (\qty == 12)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(3)
-            .elseif (\qty == 13)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(4)
-            .elseif (\qty == 14)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(5)
-            .elseif (\qty == 15)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(6)
-            .elseif (\qty >= 1 && \qty <= 8)
-                .error "Use vsra for quantities in range 1-8"
-            .else
-                .error "Invalid quantity in vsra8"
-            .endif
-        .endm
-
+    .macro vsll vdstreg, vsrcreg, qty
+        .if (\qty == 7)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(0)
+        .elseif (\qty == 6)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(1)
+        .elseif (\qty == 5)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(2)
+        .elseif (\qty == 4)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(3)
+        .elseif (\qty == 3)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(4)
+        .elseif (\qty == 2)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(5)
+        .elseif (\qty == 1)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(6)
+        .elseif (\qty == 0)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(7)
+        .elseif (\qty >= 8 && \qty <= 15)
+            .error "Use vsll8 for quantities in range 8-15"
+        .else
+            .error "Invalid quantity in vsll"
+        .endif
     .endm
+
+    .macro vsrl8 vdstreg, vsrcreg, qty
+        .if (\qty == 9)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(0)
+        .elseif (\qty == 10)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(1)
+        .elseif (\qty == 11)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(2)
+        .elseif (\qty == 12)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(3)
+        .elseif (\qty == 13)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(4)
+        .elseif (\qty == 14)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(5)
+        .elseif (\qty == 15)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(6)
+        .elseif (\qty >= 1 && \qty <= 8)
+            .error "Use vsrl for quantities in range 1-8"
+        .else
+            .error "Invalid quantity in vsrl8"
+        .endif
+    .endm
+
+    .macro vsra8 vdstreg, vsrcreg, qty
+        .if (\qty == 9)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(0)
+        .elseif (\qty == 10)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(1)
+        .elseif (\qty == 11)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(2)
+        .elseif (\qty == 12)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(3)
+        .elseif (\qty == 13)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(4)
+        .elseif (\qty == 14)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(5)
+        .elseif (\qty == 15)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(6)
+        .elseif (\qty >= 1 && \qty <= 8)
+            .error "Use vsra for quantities in range 1-8"
+        .else
+            .error "Invalid quantity in vsra8"
+        .endif
+    .endm
+
 .endm
 
 .macro vsll8_data
         .align 4
     V_SHIFT8:   .half 0x8000, 0x4000, 0x2000, 0x1000, 0x800, 0x400, 0x200, 0x100
+.endm
 
-
-    .macro setup_vsll8 vshiftreg, emitload
-        .ifnb \emitload
-            .ifgt \emitload
-                .set noat
-                la $1,%lo(V_SHIFT8)
-                lqv \vshiftreg,0,  0,$1
-                .set at
-            .endif
-        .else
+.macro setup_vsll8 vshiftreg, emitload
+    .ifnb \emitload
+        .ifgt \emitload
             .set noat
             la $1,%lo(V_SHIFT8)
             lqv \vshiftreg,0,  0,$1
             .set at
         .endif
+    .else
+        .set noat
+        la $1,%lo(V_SHIFT8)
+        lqv \vshiftreg,0,  0,$1
+        .set at
+    .endif
 
-        .macro vsll8 vdstreg, vsrcreg, qty
-            .if (\qty == 15)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(0)
-            .elseif (\qty == 14)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(1)
-            .elseif (\qty == 13)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(2)
-            .elseif (\qty == 12)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(3)
-            .elseif (\qty == 11)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(4)
-            .elseif (\qty == 10)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(5)
-            .elseif (\qty == 9)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(6)
-            .elseif (\qty == 8)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(7)
-            .elseif (\qty >= 0 && \qty <= 7)
-                .error "Use vsll for quantities in range 0-7"
-            .else
-                .error "Invalid quantity in vsll8"
-            .endif
-        .endm
+    .macro vsll8 vdstreg, vsrcreg, qty
+        .if (\qty == 15)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(0)
+        .elseif (\qty == 14)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(1)
+        .elseif (\qty == 13)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(2)
+        .elseif (\qty == 12)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(3)
+        .elseif (\qty == 11)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(4)
+        .elseif (\qty == 10)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(5)
+        .elseif (\qty == 9)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(6)
+        .elseif (\qty == 8)
+            vmudn \vdstreg, \vsrcreg, \vshiftreg, e(7)
+        .elseif (\qty >= 0 && \qty <= 7)
+            .error "Use vsll for quantities in range 0-7"
+        .else
+            .error "Invalid quantity in vsll8"
+        .endif
+    .endm
 
-        .macro vsrl vdstreg, vsrcreg, qty
-            .if (\qty == 1)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(0)
-            .elseif (\qty == 2)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(1)
-            .elseif (\qty == 3)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(2)
-            .elseif (\qty == 4)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(3)
-            .elseif (\qty == 5)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(4)
-            .elseif (\qty == 6)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(5)
-            .elseif (\qty == 7)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(6)
-            .elseif (\qty == 8)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(7)
-            .elseif (\qty >= 9 && \qty <= 15)
-                .error "Use vsrl8 for quantities in range 9-15"
-            .else
-                .error "Invalid quantity in vsrl"
-            .endif
-        .endm
+    .macro vsrl vdstreg, vsrcreg, qty
+        .if (\qty == 1)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(0)
+        .elseif (\qty == 2)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(1)
+        .elseif (\qty == 3)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(2)
+        .elseif (\qty == 4)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(3)
+        .elseif (\qty == 5)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(4)
+        .elseif (\qty == 6)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(5)
+        .elseif (\qty == 7)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(6)
+        .elseif (\qty == 8)
+            vmudl \vdstreg, \vsrcreg, \vshiftreg, e(7)
+        .elseif (\qty >= 9 && \qty <= 15)
+            .error "Use vsrl8 for quantities in range 9-15"
+        .else
+            .error "Invalid quantity in vsrl"
+        .endif
+    .endm
 
-        .macro vsra vdstreg, vsrcreg, qty
-            .if (\qty == 1)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(0)
-            .elseif (\qty == 2)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(1)
-            .elseif (\qty == 3)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(2)
-            .elseif (\qty == 4)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(3)
-            .elseif (\qty == 5)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(4)
-            .elseif (\qty == 6)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(5)
-            .elseif (\qty == 7)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(6)
-            .elseif (\qty == 8)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(7)
-            .elseif (\qty >= 9 && \qty <= 15)
-                .error "Use vsra8 for quantities in range 9-15"
-            .else
-                .error "Invalid quantity in vsra"
-            .endif
-        .endm
+    .macro vsra vdstreg, vsrcreg, qty
+        .if (\qty == 1)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(0)
+        .elseif (\qty == 2)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(1)
+        .elseif (\qty == 3)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(2)
+        .elseif (\qty == 4)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(3)
+        .elseif (\qty == 5)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(4)
+        .elseif (\qty == 6)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(5)
+        .elseif (\qty == 7)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(6)
+        .elseif (\qty == 8)
+            vmudm \vdstreg, \vsrcreg, \vshiftreg, e(7)
+        .elseif (\qty >= 9 && \qty <= 15)
+            .error "Use vsra8 for quantities in range 9-15"
+        .else
+            .error "Invalid quantity in vsra"
+        .endif
     .endm
 .endm
 
