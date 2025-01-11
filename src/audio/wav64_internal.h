@@ -5,7 +5,8 @@
 #define WAV64_FILE_VERSION  2
 #define WAV64_FORMAT_RAW    0
 #define WAV64_FORMAT_VADPCM 1
-#define WAV64_NUM_FORMATS   2
+#define WAV64_FORMAT_OPUS   3
+#define WAV64_NUM_FORMATS   4
 
 typedef struct wav64_s wav64_t;
 typedef struct samplebuffer_s samplebuffer_t;

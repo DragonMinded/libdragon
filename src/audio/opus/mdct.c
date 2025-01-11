@@ -341,3 +341,26 @@ void clt_mdct_backward_c(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_sca
    }
 }
 #endif /* OVERRIDE_clt_mdct_backward */
+
+void clt_mdct_backward_multiband(const mdct_lookup *l, kiss_fft_scalar *in,
+      kiss_fft_scalar * OPUS_RESTRICT out,
+      const opus_val16 * OPUS_RESTRICT window,
+      int overlap, int shift, int stride, int B, int NB, int arch)
+{
+   int b;
+   #ifdef N64
+   assertf(PhysicalAddr(in) % 8 == 0, "in=%p", in);
+   #if RSP_IMDCT
+   rsp_clt_mdct_backward(l, in, out, window, overlap, shift, stride, B, NB, arch);
+   return;
+   #endif
+   #endif
+
+   for (b=0;b<B;b++) {
+      clt_mdct_backward(l, &in[b], out+NB*b, window, overlap, shift, stride, arch);
+   }      
+   
+   #ifdef N64
+   data_cache_hit_writeback_invalidate(out, l->n*2*sizeof(kiss_fft_scalar));
+   #endif
+}

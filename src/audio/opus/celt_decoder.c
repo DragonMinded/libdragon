@@ -27,6 +27,13 @@
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#ifdef N64
+#include <n64sys.h>
+#include <rspq.h>
+#else
+#define debugf(...)
+#endif
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -37,6 +44,7 @@
 #include "os_support.h"
 #include "mdct.h"
 #include <math.h>
+#include <assert.h>
 #include "celt.h"
 #include "pitch.h"
 #include "bands.h"
@@ -72,6 +80,9 @@
 /** Decoder state
  @brief Decoder state
  */
+#ifdef N64
+__attribute__((aligned(16)))
+#endif
 struct OpusCustomDecoder {
    const OpusCustomMode *mode;
    int overlap;
@@ -99,9 +110,16 @@ struct OpusCustomDecoder {
    int postfilter_tapset;
    int postfilter_tapset_old;
 
+   #ifdef N64
+   /* Everything beyond this point, before lpc, is cleared with RSP on reset.
+    * We want it to sit on separate cachelines to avoid cache bugs. */
+   __attribute__((aligned(16)))
+   #endif
    celt_sig preemph_memD[2];
+   celt_sig __padding[2]; /* make sure the size of the RSP cleared area is 16-byte multiple */
 
    celt_sig _decode_mem[1]; /* Size = channels*(DECODE_BUFFER_SIZE+mode->overlap) */
+   /**************** Everything beyond this point is CPU cleared on reset */
    /* opus_val16 lpc[],  Size = channels*LPC_ORDER */
    /* opus_val16 oldEBands[], Size = 2*mode->nbEBands */
    /* opus_val16 oldLogE[], Size = 2*mode->nbEBands */
@@ -166,7 +184,11 @@ OPUS_CUSTOM_NOSTATIC int opus_custom_decoder_get_size(const CELTMode *mode, int 
 CELTDecoder *opus_custom_decoder_create(const CELTMode *mode, int channels, int *error)
 {
    int ret;
+   #ifdef N64
+   CELTDecoder *st = (CELTDecoder *)memalign(16, opus_custom_decoder_get_size(mode, channels));
+   #else
    CELTDecoder *st = (CELTDecoder *)opus_alloc(opus_custom_decoder_get_size(mode, channels));
+   #endif
    ret = opus_custom_decoder_init(st, mode, channels);
    if (ret != OPUS_OK)
    {
@@ -260,9 +282,7 @@ static void deemphasis_stereo_simple(celt_sig *in[], opus_val16 *pcm, int N, con
 }
 #endif
 
-#ifndef RESYNTH
-static
-#endif
+__attribute__((used))
 void deemphasis(celt_sig *in[], opus_val16 *pcm, int N, int C, int downsample, const opus_val16 *coef,
       celt_sig *mem, int accum)
 {
@@ -373,20 +393,33 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
 {
    int c, i;
    int M;
-   int b;
    int B;
    int N, NB;
    int shift;
    int nbEBands;
    int overlap;
-   VARDECL(celt_sig, freq);
    SAVE_STACK;
 
    overlap = mode->overlap;
    nbEBands = mode->nbEBands;
    N = mode->shortMdctSize<<LM;
-   ALLOC(freq, N, celt_sig); /**< Interleaved signal MDCTs */
    M = 1<<LM;
+
+   #ifdef N64
+   static celt_sig *freq[2] = {0}; static int freq_N = 0;
+   if (freq_N < N) {
+      freq[0] = realloc(freq[0], N * 2 * sizeof(celt_sig));
+      freq[1] = freq[0] + N;
+      freq_N = N;
+   }
+   #else
+   // Note that libopus is smarter than this and only use one buffer. We need
+   // two because we want the RSP to process data in background, so to keep
+   // the code more aligned, we dumb down the PC version as well.
+   VARDECL(celt_sig, freq[2]);
+   ALLOC(freq[0], N, celt_sig); /**< Interleaved signal MDCTs */
+   ALLOC(freq[1], N, celt_sig); /**< Interleaved signal MDCTs */
+   #endif
 
    if (isTransient)
    {
@@ -402,45 +435,36 @@ void celt_synthesis(const CELTMode *mode, celt_norm *X, celt_sig * out_syn[],
    if (CC==2&&C==1)
    {
       /* Copying a mono streams to two channels */
-      celt_sig *freq2;
-      denormalise_bands(mode, X, freq, oldBandE, start, effEnd, M,
+      denormalise_bands(mode, X, freq[0], oldBandE, start, effEnd, M,
             downsample, silence);
-      /* Store a temporary copy in the output buffer because the IMDCT destroys its input. */
-      freq2 = out_syn[1]+overlap/2;
-      OPUS_COPY(freq2, freq, N);
-      for (b=0;b<B;b++)
-         clt_mdct_backward(&mode->mdct, &freq2[b], out_syn[0]+NB*b, mode->window, overlap, shift, B, arch);
-      for (b=0;b<B;b++)
-         clt_mdct_backward(&mode->mdct, &freq[b], out_syn[1]+NB*b, mode->window, overlap, shift, B, arch);
+      clt_mdct_backward_multiband(&mode->mdct, freq[0], out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
+      clt_mdct_backward_multiband(&mode->mdct, freq[0], out_syn[1], mode->window, overlap, shift, B, B, NB, arch);
    } else if (CC==1&&C==2)
    {
       /* Downmixing a stereo stream to mono */
-      celt_sig *freq2;
-      freq2 = out_syn[0]+overlap/2;
-      denormalise_bands(mode, X, freq, oldBandE, start, effEnd, M,
+      denormalise_bands(mode, X, freq[0], oldBandE, start, effEnd, M,
             downsample, silence);
-      /* Use the output buffer as temp array before downmixing. */
-      denormalise_bands(mode, X+N, freq2, oldBandE+nbEBands, start, effEnd, M,
+      denormalise_bands(mode, X+N, freq[1], oldBandE+nbEBands, start, effEnd, M,
             downsample, silence);
       for (i=0;i<N;i++)
-         freq[i] = ADD32(HALF32(freq[i]), HALF32(freq2[i]));
-      for (b=0;b<B;b++)
-         clt_mdct_backward(&mode->mdct, &freq[b], out_syn[0]+NB*b, mode->window, overlap, shift, B, arch);
+         freq[0][i] = ADD32(HALF32(freq[0][i]), HALF32(freq[1][i]));
+      clt_mdct_backward_multiband(&mode->mdct, freq[0], out_syn[0], mode->window, overlap, shift, B, B, NB, arch);
    } else {
       /* Normal case (mono or stereo) */
       c=0; do {
-         denormalise_bands(mode, X+c*N, freq, oldBandE+c*nbEBands, start, effEnd, M,
+         denormalise_bands(mode, X+c*N, freq[c], oldBandE+c*nbEBands, start, effEnd, M,
                downsample, silence);
-         for (b=0;b<B;b++)
-            clt_mdct_backward(&mode->mdct, &freq[b], out_syn[c]+NB*b, mode->window, overlap, shift, B, arch);
+         clt_mdct_backward_multiband(&mode->mdct, freq[c], out_syn[c], mode->window, overlap, shift, B, B, NB, arch);
       } while (++c<CC);
    }
    /* Saturate IMDCT output so that we can't overflow in the pitch postfilter
       or in the */
+   #if !RSP_IMDCT
    c=0; do {
       for (i=0;i<N;i++)
          out_syn[c][i] = SATURATE(out_syn[c][i], SIG_SAT);
    } while (++c<CC);
+   #endif
    RESTORE_STACK;
 }
 
@@ -483,6 +507,7 @@ static void tf_decode(int start, int end, int isTransient, int *tf_res, int LM, 
    }
 }
 
+#ifndef N64
 static int celt_plc_pitch_search(celt_sig *decode_mem[2], int C, int arch)
 {
    int pitch_index;
@@ -816,6 +841,7 @@ static void celt_decode_lost(CELTDecoder * OPUS_RESTRICT st, int N, int LM)
 
    RESTORE_STACK;
 }
+#endif /* N64 */
 
 int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *data,
       int len, opus_val16 * OPUS_RESTRICT pcm, int frame_size, ec_dec *dec, int accum)
@@ -926,6 +952,10 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    N = M*mode->shortMdctSize;
    c=0; do {
       decode_mem[c] = st->_decode_mem + c*(DECODE_BUFFER_SIZE+overlap);
+      #ifdef N64
+      data_cache_hit_writeback_invalidate(decode_mem[c], (DECODE_BUFFER_SIZE+overlap)*sizeof(celt_sig));
+      decode_mem[c] = UncachedAddr(decode_mem[c]);
+      #endif
       out_syn[c] = decode_mem[c]+DECODE_BUFFER_SIZE-N;
    } while (++c<CC);
 
@@ -933,6 +963,10 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    if (effEnd > mode->effEBands)
       effEnd = mode->effEBands;
 
+#ifdef N64
+   // We don't need lost packet support on N64
+   assert(data != NULL && len > 1);
+#else
    if (data == NULL || len<=1)
    {
       celt_decode_lost(st, N, LM);
@@ -940,6 +974,7 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
       RESTORE_STACK;
       return frame_size/st->downsample;
    }
+#endif
 
    /* Check if there are at least two packets received consecutively before
     * turning on the pitch-based PLC */
@@ -1072,9 +1107,11 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
 
    unquant_fine_energy(mode, start, end, oldBandE, fine_quant, dec, C);
 
+#ifdef NORM_ALIASING_HACK
    c=0; do {
       OPUS_MOVE(decode_mem[c], decode_mem[c]+N, DECODE_BUFFER_SIZE-N+overlap/2);
    } while (++c<CC);
+#endif
 
    /* Decode fixed codebook */
    ALLOC(collapse_masks, C*nbEBands, unsigned char);
@@ -1110,6 +1147,22 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
          oldBandE[i] = -QCONST16(28.f,DB_SHIFT);
    }
 
+   #ifdef N64
+   rspq_highpri_begin();
+   #endif
+
+#ifndef NORM_ALIASING_HACK
+   // We want to do this memmove as late as possible, specifically after
+   // quant_all_bands which is the bulk of CPU work right now. This allows
+   // a previous frame's RSP tasks to finish in background.
+   c=0; do {
+      #ifdef N64
+      rsp_opus_memmove(decode_mem[c], decode_mem[c]+N, DECODE_BUFFER_SIZE-N+overlap/2);
+      #else
+      OPUS_MOVE(decode_mem[c], decode_mem[c]+N, DECODE_BUFFER_SIZE-N+overlap/2);
+      #endif
+   } while (++c<CC);
+#endif
    celt_synthesis(mode, X, out_syn, oldBandE, start, effEnd,
                   C, CC, isTransient, LM, st->downsample, silence, st->arch);
 
@@ -1171,13 +1224,22 @@ int celt_decode_with_ec(CELTDecoder * OPUS_RESTRICT st, const unsigned char *dat
    } while (++c<2);
    st->rng = dec->rng;
 
+   #if RSP_DEEMPHASIS
+   rsp_opus_deemphasis(out_syn, pcm, N, CC, st->downsample, mode->preemph, st->preemph_memD, accum);
+   #else
    deemphasis(out_syn, pcm, N, CC, st->downsample, mode->preemph, st->preemph_memD, accum);
+   #endif
    st->loss_duration = 0;
    RESTORE_STACK;
    if (ec_tell(dec) > 8*len)
       return OPUS_INTERNAL_ERROR;
    if(ec_get_error(dec))
       st->error = 1;
+
+   #ifdef N64
+   rspq_highpri_end();
+   #endif
+
    return frame_size/st->downsample;
 }
 
@@ -1303,9 +1365,27 @@ int opus_custom_decoder_ctl(CELTDecoder * OPUS_RESTRICT st, int request, ...)
          oldBandE = lpc+st->channels*LPC_ORDER;
          oldLogE = oldBandE + 2*st->mode->nbEBands;
          oldLogE2 = oldLogE + 2*st->mode->nbEBands;
+
+         int st_size = opus_custom_decoder_get_size(st->mode, st->channels);
          OPUS_CLEAR((char*)&st->DECODER_RESET_START,
-               opus_custom_decoder_get_size(st->mode, st->channels)-
-               ((char*)&st->DECODER_RESET_START - (char*)st));
+               (char*)&st->preemph_memD[0] - (char*)&st->DECODER_RESET_START);
+         OPUS_CLEAR((char*)lpc,
+               (char*)st + st_size - (char*)lpc);
+         #ifdef N64
+         void *rsp_clear_data_start = (char*)&st->preemph_memD[0];
+         void *rsp_clear_data_end = (char*)lpc;
+         int rsp_clear_data_size = rsp_clear_data_end - rsp_clear_data_start;
+         assert((uint32_t)rsp_clear_data_start % 16 == 0);
+         assert(rsp_clear_data_size % 16 == 0);
+         data_cache_hit_writeback_invalidate(rsp_clear_data_start, rsp_clear_data_size);
+         rspq_highpri_begin();
+         rsp_opus_clear(rsp_clear_data_start, rsp_clear_data_size/4);
+         rspq_highpri_end();
+         #else
+         OPUS_CLEAR(st->preemph_memD, 2);
+         OPUS_CLEAR(st->_decode_mem, (DECODE_BUFFER_SIZE+st->overlap)*st->channels);
+         #endif
+
          for (i=0;i<2*st->mode->nbEBands;i++)
             oldLogE[i]=oldLogE2[i]=-QCONST16(28.f,DB_SHIFT);
          st->skip_plc = 1;

@@ -74,6 +74,12 @@ void clt_mdct_backward_c(const mdct_lookup *l, kiss_fft_scalar *in,
       const opus_val16 * OPUS_RESTRICT window,
       int overlap, int shift, int stride, int arch);
 
+void clt_mdct_backward_multiband(const mdct_lookup *l, kiss_fft_scalar *in,
+      kiss_fft_scalar * OPUS_RESTRICT out,
+      const opus_val16 * OPUS_RESTRICT window,
+      int overlap, int shift, int stride, int B, int NB, int arch);
+
+
 #if !defined(OVERRIDE_OPUS_MDCT)
 /* Is run-time CPU detection enabled on this platform? */
 #if defined(OPUS_HAVE_RTCD) && defined(HAVE_ARM_NE10)

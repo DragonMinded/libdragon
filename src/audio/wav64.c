@@ -7,6 +7,7 @@
 #include "wav64.h"
 #include "wav64_internal.h"
 #include "wav64_vadpcm_internal.h"
+#include "wav64_opus_internal.h"
 #include "mixer.h"
 #include "mixer_internal.h"
 #include "dragonfs.h"
@@ -180,4 +181,14 @@ void wav64_close(wav64_t *wav)
 		close(wav->current_fd);
 		wav->current_fd = -1;
 	}
+}
+
+/** @brief Initialize wav64 compression level 3 */
+void __wav64_init_compression_lvl3(void)
+{
+	algos[WAV64_FORMAT_OPUS] = (wav64_compression_t){
+		.init = wav64_opus_init,
+		.close = wav64_opus_close,
+		.get_bitrate = wav64_opus_get_bitrate,
+	};
 }

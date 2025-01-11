@@ -1004,6 +1004,9 @@ static opus_val16 dynalloc_analysis(const opus_val16 *bandLogE, const opus_val16
       VARDECL(opus_val16, sig);
       ALLOC(mask, nbEBands, opus_val16);
       ALLOC(sig, nbEBands, opus_val16);
+
+      memset(mask, 0, nbEBands * sizeof(opus_val16));
+
       for (i=0;i<end;i++)
          mask[i] = bandLogE[i]-noise_floor[i];
       if (C==2)

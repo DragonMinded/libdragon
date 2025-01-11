@@ -156,9 +156,7 @@ void comb_filter_const_c(opus_val32 *y, opus_val32 *x, int T, int N,
 #endif
 }
 #else
-#ifndef NON_STATIC_COMB_FILTER_CONST_C
-static
-#endif
+__attribute__((used))
 void comb_filter_const_c(opus_val32 *y, opus_val32 *x, int T, int N,
       opus_val16 g10, opus_val16 g11, opus_val16 g12)
 {
@@ -171,11 +169,18 @@ void comb_filter_const_c(opus_val32 *y, opus_val32 *x, int T, int N,
    for (i=0;i<N;i++)
    {
       x0=x[i-T+2];
+      // if (i==0) {
+      //    debugf("x[%d]:%08lx\n", i, x[i]);
+      //    debugf("x[%p]:%08lx,%08lx,%08lx,%08lx,%08lx\n", &x[-T-2], x0, x1, x2, x3, x4);
+      // }
       y[i] = x[i]
                + MULT16_32_Q15(g10,x2)
                + MULT16_32_Q15(g11,ADD32(x1,x3))
                + MULT16_32_Q15(g12,ADD32(x0,x4));
       y[i] = SATURATE(y[i], SIG_SAT);
+      // if (i==0) {
+      //    debugf("y[%d]:%08lx\n", i, y[i]);
+      // }      
       x4=x3;
       x3=x2;
       x2=x1;
@@ -183,6 +188,7 @@ void comb_filter_const_c(opus_val32 *y, opus_val32 *x, int T, int N,
    }
 
 }
+
 #endif
 #endif
 
@@ -194,19 +200,28 @@ void comb_filter(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
    int i;
    /* printf ("%d %d %f %f\n", T0, T1, g0, g1); */
    opus_val16 g00, g01, g02, g10, g11, g12;
-   opus_val32 x0, x1, x2, x3, x4;
    static const opus_val16 gains[3][3] = {
          {QCONST16(0.3066406250f, 15), QCONST16(0.2170410156f, 15), QCONST16(0.1296386719f, 15)},
          {QCONST16(0.4638671875f, 15), QCONST16(0.2680664062f, 15), QCONST16(0.f, 15)},
          {QCONST16(0.7998046875f, 15), QCONST16(0.1000976562f, 15), QCONST16(0.f, 15)}};
 
+   #ifdef N64
+   // In decoding mode, we always work in-place
+   assert(x==y);
+   #endif
    if (g0==0 && g1==0)
    {
       /* OPT: Happens to work without the OPUS_MOVE(), but only because the current encoder already copies x to y */
       if (x!=y)
          OPUS_MOVE(y, x, N);
+      #ifdef N64
+      #if !RSP_IMDCT
+      data_cache_hit_writeback_invalidate(y, N*sizeof(opus_val32));
+      #endif
+      #endif
       return;
    }
+
    /* When the gain is zero, T0 and/or T1 is set to zero. We need
       to have then be at least 2 to avoid processing garbage data. */
    T0 = IMAX(T0, COMBFILTER_MINPERIOD);
@@ -217,13 +232,19 @@ void comb_filter(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
    g10 = MULT16_16_P15(g1, gains[tapset1][0]);
    g11 = MULT16_16_P15(g1, gains[tapset1][1]);
    g12 = MULT16_16_P15(g1, gains[tapset1][2]);
+   /* If the filter didn't change, we don't need the overlap */
+   if (g0==g1 && T0==T1 && tapset0==tapset1)
+      overlap=0;
+#if RSP_COMB_FILTER
+   if (overlap)
+      rsp_opus_comb_filter_dual(y, x, T0, T1, overlap, g00, g01, g02, g10, g11, g12, window);
+   i = overlap;
+#else
+   opus_val32 x0, x1, x2, x3, x4;
    x1 = x[-T1+1];
    x2 = x[-T1  ];
    x3 = x[-T1-1];
    x4 = x[-T1-2];
-   /* If the filter didn't change, we don't need the overlap */
-   if (g0==g1 && T0==T1 && tapset0==tapset1)
-      overlap=0;
    for (i=0;i<overlap;i++)
    {
       opus_val16 f;
@@ -243,18 +264,29 @@ void comb_filter(opus_val32 *y, opus_val32 *x, int T0, int T1, int N,
       x1=x0;
 
    }
+#endif
    if (g1==0)
    {
       /* OPT: Happens to work without the OPUS_MOVE(), but only because the current encoder already copies x to y */
       if (x!=y)
          OPUS_MOVE(y+overlap, x+overlap, N-overlap);
+      #ifdef N64
+      #if !RSP_IMDCT
+      data_cache_hit_writeback_invalidate(y+overlap, (N-overlap)*sizeof(opus_val32));
+      #endif
+      #endif
       return;
    }
 
    /* Compute the part with the constant filter. */
+   #if RSP_COMB_FILTER
+   rsp_opus_comb_filter_const(y+i, x+i, T1, N-i, g10, g11, g12, arch);
+   #else
    comb_filter_const(y+i, x+i, T1, N-i, g10, g11, g12, arch);
+   #endif
 }
 #endif /* OVERRIDE_comb_filter */
+
 
 /* TF change table. Positive values mean better frequency resolution (longer
    effective window), whereas negative values mean better time resolution
