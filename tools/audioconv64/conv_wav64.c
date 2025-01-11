@@ -232,26 +232,6 @@ int wav_convert(const char *infn, const char *outfn) {
 			fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
 			sptr++;
 		}
-
-		// Amount of data that can be overread by the player.
-		const int OVERREAD_BYTES = 64;
-		if (loop_len == 0) {
-			for (int i=0;i<OVERREAD_BYTES;i++)
-				fputc(0, out);
-		} else {
-			int idx = cnt - loop_len;
-			int nb = 0;
-			while (nb < OVERREAD_BYTES) {
-				int16_t *sptr = wav.samples + idx*wav.channels;
-				for (int ch=0;ch<wav.channels;ch++) {
-					nb += fwrite(sptr, 1, nbits==8 ? 1 : 2, out);
-					sptr++;
-				}
-				idx++;
-				if (idx == cnt)
-					idx -= loop_len;
-			}
-		}
 	} break;
 
 	case 1: { // vadpcm
