@@ -14,7 +14,7 @@ all: mixertest.z64
 filesystem/%.wav64: assets/%.wav
 	@mkdir -p $(dir $@)
 	@echo "    [AUDIO] $@"
-	@$(N64_AUDIOCONV) -o filesystem $<
+	@$(N64_AUDIOCONV) --wav-compress 3 -o filesystem $<
 
 $(BUILD_DIR)/mixertest.dfs: $(assets_conv)
 $(BUILD_DIR)/mixertest.elf: $(OBJS)
