@@ -13,10 +13,10 @@ all:
 
 %.o: %.c
 	@echo "    [CC] $@"
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CCACHE) $(CC) $(CFLAGS) -c -o $@ $<
 %.o: %.cpp
 	@echo "    [CXX] $@"
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(CCACHE) $(CXX) $(CXXFLAGS) -c -o $@ $<
 %.a:
 	@echo "    [AR] $@"
 	rm -f $@
