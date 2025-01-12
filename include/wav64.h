@@ -13,6 +13,10 @@
 extern "C" {
 #endif
 
+/// @cond
+extern void __wav64_init_compression_lvl3(void);
+/// @endcond
+
 /** 
  * @brief WAV64 structure
  * 
@@ -38,6 +42,38 @@ typedef struct wav64_s {
 	int format;			     ///< Internal format of the file
 	void *ext;               ///< Pointer to extended data (internal use)
 } wav64_t;
+
+/**
+ * @brief Enable a non-default compression level
+ * 
+ * This function must be called if any wav64 that will be loaded use
+ * a non-default compression level. The default compression level is 1 (VADPCM)
+ * for which no initialization is required. Level 0 (uncompressed) also
+ * requires no initialization.
+ * 
+ * Currently, only level 3 requires initialization (level 2 does not exist yet).
+ * If you have any wav64 compressed with level 3, you must call this function
+ * before opening them.
+ * 
+ * @code{.c}
+ *      wav64_init_compression(3); 
+ * 
+ *      wav64_open(&jingle, "rom:/jingle.wav64");
+ * @endcode
+ * 
+ * @param level     Compression level to initialize
+ * 
+ * @see #wav64_open
+ * @hideinitializer
+ */
+#define wav64_init_compression(level) ({ \
+    switch (level) { \
+    case 0: break; \
+    case 1: break; \
+    case 3: __wav64_init_compression_lvl3(); break; \
+    default: assertf(0, "Unsupported compression level: %d", level); \
+    } \
+})
 
 /** @brief Open a WAV64 file for playback.
  * 
