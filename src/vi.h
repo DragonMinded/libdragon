@@ -209,7 +209,7 @@ static const vi_config_t vi_config_presets[2][3] = {
  * @param[in] value
  *            Value to be written to the register
  */
-inline void vi_write_safe(volatile uint32_t *reg, uint32_t value){
+static inline void vi_write_safe(volatile uint32_t *reg, uint32_t value){
     assert(reg); /* This should never happen */
     *reg = value;
     MEMORY_BARRIER();
@@ -221,7 +221,7 @@ inline void vi_write_safe(volatile uint32_t *reg, uint32_t value){
  * @param[in] config
  *            A pointer to a set of register values to be written
  */
-inline void vi_write_config(const vi_config_t* config)
+static inline void vi_write_config(const vi_config_t* config)
 {
     /* This should never happen */
     assert(config);
