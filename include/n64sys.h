@@ -225,7 +225,7 @@ extern "C" {
 #endif
 
 /** @brief Return true if we are running on a iQue player */
-inline bool sys_bbplayer(void) {
+static inline bool sys_bbplayer(void) {
     extern int __boot_consoletype;
     return __boot_consoletype != 0;
 }
