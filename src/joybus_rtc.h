@@ -13,7 +13,7 @@
 #include <time.h>
 
 /**
- * @defgroup joybus_rtc
+ * @defgroup joybus_rtc Joybus Real-Time Clock
  * @ingroup rtc
  * @brief Joybus Real-Time Clock interface.
  * @author Christopher Bonhage
@@ -63,7 +63,7 @@
  * Some notable examples of RTC support in the ecosystem (as of July 2021):
  *
  * 64drive hw2 fully implements Joybus RTC including writes, but requires
- * delays after setting the time (see #JOYBUS_RTC_WRITE_FINISHED_DELAY).
+ * a 500ms delay after setting the time in order to read it back correctly.
  *
  * EverDrive64 3.0 and X7 partially support Joybus RTC, with caveats: The RTC
  * must be explicitly enabled in the OS or with a ROM header configuration;
