@@ -1,7 +1,16 @@
 N64_GCCPREFIX ?= $(N64_INST)
 INSTALLDIR ?= $(N64_INST)
-CFLAGS   += -std=gnu11 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare -I../include -MMD
-CXXFLAGS += -std=gnu++17 -O2 -Wall -Werror -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare -Wno-c++11-narrowing -Wno-narrowing -Wno-error=conversion-null -MMD
+
+C_CXX_FLAGS += -O2 -pthread -Wall -Werror
+C_CXX_FLAGS += -I../include -MMD
+C_CXX_FLAGS += -fdiagnostics-color=always
+C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
+
+LDFLAGS += -pthread
+
+CFLAGS   += -std=gnu11 $(C_CXX_FLAGS) 
+CXXFLAGS += -std=gnu++17 $(C_CXX_FLAGS) 
+CXXFLAGS += -Wno-c++11-narrowing -Wno-narrowing -Wno-error=conversion-null
 
 ifeq ($(OS),Windows_NT)
 	CFLAGS += -static
