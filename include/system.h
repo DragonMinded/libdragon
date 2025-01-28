@@ -292,11 +292,14 @@ typedef struct
  * @brief Register a filesystem with newlib
  *
  * @param[in] prefix
- *            The prefix that was used to register the filesystem
+ *            The prefix that will be used to register the filesystem
  * @param[in] filesystem
  *            Pointer to structure containing filesystem callbacks
  *
- * @return 0 on successful registration or a negative value on failure.
+ * @retval -1 if the parameters are invalid
+ * @retval -2 if the prefix is already in use
+ * @retval -3 if there are no more slots for filesystems
+ * @retval 0 if the filesystem was registered successfully
  */
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem );
 
