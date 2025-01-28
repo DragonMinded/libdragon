@@ -88,6 +88,22 @@
 extern "C" {
 #endif
 
+/** @brief Callback function signature for #joybus_rtc_detect_async */
+typedef void (*joybus_rtc_detect_callback_t)(bool detected);
+
+/** @brief Callback function signature for #joybus_rtc_set_stopped_async */
+typedef void (*joybus_rtc_set_stopped_callback_t)(void);
+
+/** @brief Callback function signature for #joybus_rtc_read_time_async */
+typedef void (*joybus_rtc_read_time_callback_t)(time_t time);
+
+/**
+ * @brief Detect the presence of the Joybus real-time clock asynchronously.
+ *
+ * @param callback function to call when detection is complete
+ */
+void joybus_rtc_detect_async( joybus_rtc_detect_callback_t callback );
+
 /**
  * @brief Detect the presence of the Joybus real-time clock.
  *
@@ -104,6 +120,17 @@ bool joybus_rtc_detect( void );
 bool joybus_rtc_is_stopped( void );
 
 /**
+ * @brief Set the stop state of the Joybus real-time clock asynchronously.
+ *
+ * The clock must be stopped in order to set the time,
+ * and should not be stopped during normal operation.
+ *
+ * @param stop whether to stop the clock
+ * @param callback function to call when the stop state has been set
+ */
+void joybus_rtc_set_stopped_async( bool stop, joybus_rtc_set_stopped_callback_t callback );
+
+/**
  * @brief Change the stop state of the Joybus real-time clock.
  *
  * The clock must be stopped in order to set the time,
@@ -112,6 +139,13 @@ bool joybus_rtc_is_stopped( void );
  * @param stop whether to stop the clock
  */
 void joybus_rtc_set_stopped( bool stop );
+
+/**
+ * @brief Read the date/time of the Joybus real-time clock asynchronously.
+ *
+ * @param callback function to call when the time has been read
+ */
+void joybus_rtc_read_time_async( joybus_rtc_read_time_callback_t callback );
 
 /**
  * @brief Read the current date/time from the Joybus real-time clock.

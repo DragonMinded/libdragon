@@ -96,6 +96,78 @@ typedef union
 
 // MARK: Static functions
 
+/** @brief Decode the Joybus RTC date/time block data into a struct tm */
+static time_t joybus_rtc_decode_time( const joybus_rtc_data_t * data )
+{
+    if (data->dword == 0) return 0;
+    struct tm rtc_time = (struct tm){
+        .tm_sec   = bcd_decode( data->bytes[0] ),
+        .tm_min   = bcd_decode( data->bytes[1] ),
+        .tm_hour  = bcd_decode( data->bytes[2] - 0x80 ),
+        .tm_mday  = bcd_decode( data->bytes[3] ),
+        .tm_wday  = bcd_decode( data->bytes[4] ),
+        .tm_mon   = bcd_decode( data->bytes[5] ) - 1,
+        .tm_year  = bcd_decode( data->bytes[6] ) + (bcd_decode( data->bytes[7] ) * 100),
+    };
+    return mktime( &rtc_time );
+}
+
+static void joybus_rtc_read_async(
+    joybus_rtc_block_t block,
+    joybus_callback_t callback,
+    void *ctx
+)
+{
+    joybus_cmd_rtc_read_block_t cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_RTC_READ_BLOCK,
+        .block = block,
+    } };
+    // Allocate the Joybus operation block input and output buffers
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    // Skip commands on ports before the desired port offset
+    size_t i = JOYBUS_RTC_PORT;
+    // Set the command metadata
+    input[i++] = sizeof(cmd.send);
+    input[i++] = sizeof(cmd.recv);
+    // Copy the send_data into the input buffer
+    memcpy(&input[i], (void *)&cmd.send, sizeof(cmd.send));
+    i += sizeof(cmd.send) + sizeof(cmd.recv);
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+    // Execute the Joybus operation asynchronously
+    joybus_exec_async(input, callback, ctx);
+}
+
+static void joybus_rtc_write_async(
+    joybus_rtc_block_t block,
+    const joybus_rtc_data_t * data,
+    joybus_callback_t callback,
+    void *ctx
+)
+{
+    joybus_cmd_rtc_write_block_t cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_RTC_WRITE_BLOCK,
+        .block = block,
+        .dword = data->dword
+    } };
+    // Allocate the Joybus operation block input and output buffers
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    // Skip commands on ports before the desired port offset
+    size_t i = JOYBUS_RTC_PORT;
+    // Set the command metadata
+    input[i++] = sizeof(cmd.send);
+    input[i++] = sizeof(cmd.recv);
+    // Copy the send_data into the input buffer
+    memcpy(&input[i], (void *)&cmd.send, sizeof(cmd.send));
+    i += sizeof(cmd.send) + sizeof(cmd.recv);
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+    // Execute the Joybus operation asynchronously
+    joybus_exec_async(input, callback, ctx);
+}
+
 /**
  * @brief Read a Joybus RTC block.
  *
@@ -134,20 +206,111 @@ static joybus_rtc_status_t joybus_rtc_write( joybus_rtc_block_t block, const joy
     return (joybus_rtc_status_t) { .byte = cmd.recv.status };
 }
 
-// MARK: Public functions
+// MARK: Detect functions
 
-bool joybus_rtc_detect( void )
+/** @brief Joybus RTC detect state enumeration */
+typedef enum {
+    JOYBUS_RTC_DETECT_INIT = 0, ///< Initial state
+    JOYBUS_RTC_DETECT_PENDING,  ///< Detection is pending
+    JOYBUS_RTC_DETECTED,        ///< RTC detected
+    JOYBUS_RTC_NOT_DETECTED,    ///< RTC not detected
+} joybus_rtc_detect_state_t;
+
+static volatile joybus_rtc_detect_state_t joybus_rtc_detect_state = JOYBUS_RTC_DETECT_INIT;
+
+static void joybus_rtc_detect_callback( uint64_t *out_dwords, void *ctx )
 {
-    static int detected = -1;
-    if (detected > -1) return detected;
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joybus_rtc_detect_callback_t callback = ctx;
+    joybus_cmd_identify_port_t *cmd = (void *)&out_bytes[JOYBUS_RTC_PORT + JOYBUS_COMMAND_METADATA_SIZE];
+    bool detected = cmd->recv.identifier == JOYBUS_IDENTIFIER_CART_RTC;
+    joybus_rtc_detect_state = detected ? JOYBUS_RTC_DETECTED : JOYBUS_RTC_NOT_DETECTED;
+    callback( detected );
+}
 
+void joybus_rtc_detect_async( joybus_rtc_detect_callback_t callback )
+{
+    joybus_rtc_detect_state = JOYBUS_RTC_DETECT_PENDING;
     joybus_cmd_identify_port_t cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_RTC_IDENTIFY,
     } };
-    joybus_exec_cmd_struct(JOYBUS_RTC_PORT, cmd);
+    // Allocate the Joybus operation block input and output buffers
+    uint8_t input[JOYBUS_BLOCK_SIZE] = {0};
+    // Skip commands on ports before the desired port offset
+    size_t i = JOYBUS_RTC_PORT;
+    // Set the command metadata
+    input[i++] = sizeof(cmd.send);
+    input[i++] = sizeof(cmd.recv);
+    // Copy the send_data into the input buffer
+    memcpy( &input[i], (void *)&cmd.send, sizeof(cmd.send) );
+    i += sizeof(cmd.send) + sizeof(cmd.recv);
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[sizeof(input) - 1] = 0x01;
+    // Execute the Joybus operation asynchronously
+    joybus_exec_async( input, joybus_rtc_detect_callback, callback );
+}
 
-    detected = cmd.recv.identifier == JOYBUS_IDENTIFIER_CART_RTC;
-    return detected;
+bool joybus_rtc_detect( void )
+{
+    switch( joybus_rtc_detect_state )
+    {
+        case JOYBUS_RTC_DETECTED:
+            return true;
+        case JOYBUS_RTC_NOT_DETECTED:
+            return false;
+        case JOYBUS_RTC_DETECT_INIT:
+            joybus_rtc_detect_async(NULL);
+            break;
+        case JOYBUS_RTC_DETECT_PENDING:
+            break;
+    }
+    while( joybus_rtc_detect_state == JOYBUS_RTC_DETECT_PENDING ){ /* Spinlock! */}
+    return joybus_rtc_detect_state == JOYBUS_RTC_DETECTED;
+}
+
+// MARK: Control functions
+
+static void joybus_rtc_set_stopped_write_callback( uint64_t *out_dwords, void *ctx )
+{
+    joybus_rtc_set_stopped_callback_t callback = ctx;
+    if( callback ) callback();
+}
+
+static void joybus_rtc_set_stopped_read_callback( uint64_t *out_dwords, void *ctx )
+{
+    // Parse the Joybus command response
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joybus_cmd_rtc_read_block_t *cmd = (void *)&out_bytes[JOYBUS_RTC_PORT + JOYBUS_COMMAND_METADATA_SIZE];
+    joybus_rtc_control_t control = { .data = { .dword = cmd->recv.dword } };
+
+    // Unpack the stop bit and the callback pointer from the context
+    bool stop = ((uint32_t)ctx & 0x1);
+    joybus_rtc_set_stopped_callback_t callback = (void *)((uint32_t)ctx & ~0x1);
+
+    if( control.stop == stop )
+    {
+        if( callback ) callback();
+    }
+    else
+    {
+        control.stop = stop;
+        control.lock_block1 = !stop;
+        control.lock_block2 = !stop;
+        joybus_rtc_write_async(
+            JOYBUS_RTC_BLOCK_CONTROL,
+            &control.data,
+            joybus_rtc_set_stopped_write_callback,
+            callback
+        );
+    }
+}
+
+void joybus_rtc_set_stopped_async( bool stop, joybus_rtc_set_stopped_callback_t callback )
+{
+    // Pack the stop bit and the callback pointer into the context value
+    void *ctx = (void *)((uint32_t)callback | (stop & 0x1));
+    joybus_rtc_read_async( JOYBUS_RTC_BLOCK_TIME, joybus_rtc_set_stopped_read_callback, ctx );
 }
 
 void joybus_rtc_set_stopped( bool stop )
@@ -161,7 +324,6 @@ void joybus_rtc_set_stopped( bool stop )
         control.lock_block1 = !stop;
         control.lock_block2 = !stop;
         joybus_rtc_write( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
-        wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
     }
 }
 
@@ -175,34 +337,32 @@ bool joybus_rtc_is_stopped( void )
     return status.stopped;
 }
 
+// MARK: Time functions
+
+static void joybus_rtc_read_time_callback( uint64_t *out_dwords, void *ctx )
+{
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joybus_rtc_read_time_callback_t callback = ctx;
+    joybus_cmd_rtc_read_block_t *cmd = (void *)&out_bytes[JOYBUS_RTC_PORT + JOYBUS_COMMAND_METADATA_SIZE];
+    joybus_rtc_data_t data = { .dword = cmd->recv.dword };
+    time_t decoded_time = joybus_rtc_decode_time( &data );
+    callback( decoded_time );
+}
+
+void joybus_rtc_read_time_async( joybus_rtc_read_time_callback_t callback )
+{
+    joybus_rtc_read_async( JOYBUS_RTC_BLOCK_TIME, joybus_rtc_read_time_callback, callback );
+}
+
 time_t joybus_rtc_read_time( void )
 {
-    if (!joybus_rtc_detect()) return false;
-
     joybus_rtc_data_t data = {0};
     joybus_rtc_read( JOYBUS_RTC_BLOCK_TIME, &data );
-    if (data.dword == 0) return 0;
-
-    /* Decode the RTC date/time into a struct tm */
-    struct tm rtc_time = (struct tm){
-        .tm_sec   = bcd_decode( data.bytes[0] ),
-        .tm_min   = bcd_decode( data.bytes[1] ),
-        .tm_hour  = bcd_decode( data.bytes[2] - 0x80 ),
-        .tm_mday  = bcd_decode( data.bytes[3] ),
-        .tm_wday  = bcd_decode( data.bytes[4] ),
-        .tm_mon   = bcd_decode( data.bytes[5] ) - 1,
-        .tm_year  = bcd_decode( data.bytes[6] ) + (bcd_decode( data.bytes[7] ) * 100),
-    };
-    return mktime( &rtc_time );
+    return joybus_rtc_decode_time( &data );
 }
 
 bool joybus_rtc_set_time( time_t new_time )
 {
-    if (!joybus_rtc_detect())
-    {
-        return false;
-    }
-
     if (cart_type == CART_ED)
     {
         // Joybus RTC write is not supported on EverDrive 64 V3.

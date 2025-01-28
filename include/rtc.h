@@ -85,10 +85,7 @@ extern "C" {
 #endif
 
 /**
- * @brief High-level convenience helper to initialize the RTC subsystem.
- *
- * The RTC subsystem depends on the libdragon Timer subsystem, so make sure
- * to call #timer_init before calling #rtc_init!
+ * @brief Initialize the RTC subsystem asynchronously.
  *
  * Some flash carts require the RTC to be explicitly enabled before loading
  * the ROM file. Some emulators and flash carts do not support RTC at all.
@@ -96,10 +93,29 @@ extern "C" {
  * This function will detect if the RTC is available and if so, will
  * prepare the RTC so that the current time can be read from it.
  *
- * This operation may take up to 50 milliseconds to complete.
+ * This will also hook the RTC into the newlib gettimeofday and settimeofday
+ * functions, so you will be able to use the ISO C time functions.
+ *
+ * This operation may take up to 50 milliseconds to complete, but does not
+ * block the CPU while detecting and initializing the RTC hardware.
+ *
+ * Use #rtc_get_source to determine if a hardware RTC source was detected.
+ */
+void rtc_init_async( void );
+
+/**
+ * @brief Initialize the RTC subsystem.
+ *
+ * Some flash carts require the RTC to be explicitly enabled before loading
+ * the ROM file. Some emulators and flash carts do not support RTC at all.
+ *
+ * This function will detect if the RTC is available and if so, will
+ * prepare the RTC so that the current time can be read from it.
  *
  * This will also hook the RTC into the newlib gettimeofday and settimeofday
  * functions, so you will be able to use the ISO C time functions.
+ *
+ * This operation may take up to 50 milliseconds to complete.
  *
  * @return whether any supported hardware RTC source was initialized
  */
