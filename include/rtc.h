@@ -32,7 +32,7 @@
  * seconds elapsed since the UNIX epoch (January 1, 1970 at 00:00:00).
  * To check if the real-time clock supports writes, call #rtc_is_persistent.
  * To write a new time to the real-time clock, use the ISO C Time function
- * `settimeofday` or call #rtc_set_time.
+ * `settimeofday`.
  *
  * This subsystem handles decoding and encoding the date/time from its internal
  * format into a standard `struct tm` structure. You can use convert between
@@ -126,7 +126,7 @@ rtc_source_t rtc_get_source( void );
  * By default, the subsytem will use to the first available source,
  * but some games may wish to specify the preferred RTC source.
  *
- * Make sure you call #rtc_resync_time after switching sources!
+ * This function will automatically resynchronize the time with the new clock.
  *
  * @return whether the new source clock was successfully selected
  */
@@ -181,10 +181,10 @@ typedef struct rtc_time_t
 __attribute__((deprecated("use rtc_is_persistent instead")))
 bool rtc_is_writable( void );
 
-__attribute__((deprecated("use rtc_get_time instead")))
+__attribute__((deprecated("use time(NULL) instead")))
 bool rtc_get( rtc_time_t *rtc_time );
 
-__attribute__((deprecated("use rtc_set_time instead")))
+__attribute__((deprecated("use settimeofday instead")))
 bool rtc_set( rtc_time_t *rtc_time );
 
 /// @endcond
