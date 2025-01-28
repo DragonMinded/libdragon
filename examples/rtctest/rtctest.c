@@ -114,7 +114,8 @@ int main(void)
 
         if( !edit_mode && pad_pressed.r )
         {
-            rtc_resync_time();
+            /* Resync the time from the hardware RTC */
+            rtc_set_source( RTC_SOURCE_JOYBUS );
         }
 
         if( edit_mode )

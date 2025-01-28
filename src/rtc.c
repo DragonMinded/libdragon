@@ -39,6 +39,63 @@ static int64_t rtc_cache_ticks = 0;
  */
 static time_t rtc_cache_time = 820454400;
 
+// MARK: Internal functions
+
+/**
+ * @brief Read the current date/time from the real-time clock.
+ *
+ * @return the current RTC time as a UNIX timestamp
+ */
+static time_t rtc_get_time( void )
+{
+    long long now_ticks = get_ticks();
+    long long seconds_since = (now_ticks - rtc_cache_ticks) / TICKS_PER_SECOND;
+    return (time_t)(rtc_cache_time + seconds_since);
+}
+
+/**
+ * @brief Set a new date/time for the real-time clock.
+ *
+ * @param new_time the new time to set the RTC to
+ *
+ * @return whether the time was written to the RTC
+ */
+static bool rtc_set_time( time_t new_time )
+{
+    if( new_time < RTC_TIMESTAMP_MIN || new_time > RTC_TIMESTAMP_MAX )
+    {
+        return false;
+    }
+
+    bool written = false;
+    if( rtc_source == RTC_SOURCE_JOYBUS )
+    {
+        written = joybus_rtc_set_time( new_time );
+    }
+    /* Update cache state */
+    rtc_cache_time = new_time;
+    rtc_cache_ticks = get_ticks();
+    return written;
+}
+
+/**
+ * @brief Resynchronize the subsystem's time with the source clock.
+ *
+ * You should only need to do this after switching sources.
+ *
+ * @return whether the source clock was successfully synchronized
+ */
+static void rtc_resync_time( void )
+{
+    if( rtc_source == RTC_SOURCE_JOYBUS )
+    {
+        rtc_cache_time = joybus_rtc_read_time();
+        rtc_cache_ticks = get_ticks();
+    }
+    // TODO: 64DD RTC is not yet implemented.
+    // TODO: BBPlayer RTC is not yet implemented.
+}
+
 // MARK: Public functions
 
 bool rtc_init( void )
@@ -92,9 +149,15 @@ rtc_source_t rtc_get_source( void )
 
 bool rtc_set_source( rtc_source_t source )
 {
+    if( source == RTC_SOURCE_NONE )
+    {
+        rtc_source = RTC_SOURCE_NONE;
+        return true;
+    }
     if( rtc_is_source_available( source ))
     {
         rtc_source = source;
+        rtc_resync_time();
         return true;
     }
     return false;
@@ -113,42 +176,6 @@ bool rtc_is_source_available( rtc_source_t source )
     // TODO: 64DD RTC is not yet implemented.
     // TODO: BBPlayer RTC is not yet implemented.
     return false;
-}
-
-bool rtc_resync_time( void )
-{
-    if( rtc_source == RTC_SOURCE_JOYBUS )
-    {
-        rtc_cache_time = joybus_rtc_read_time();
-        rtc_cache_ticks = get_ticks();
-        return true;
-    }
-    return false;
-}
-
-time_t rtc_get_time( void )
-{
-    long long now_ticks = get_ticks();
-    long long seconds_since = (now_ticks - rtc_cache_ticks) / TICKS_PER_SECOND;
-    return (time_t)(rtc_cache_time + seconds_since);
-}
-
-bool rtc_set_time( time_t new_time )
-{
-    if( new_time < RTC_TIMESTAMP_MIN || new_time > RTC_TIMESTAMP_MAX )
-    {
-        return false;
-    }
-
-    bool written = false;
-    if( rtc_source == RTC_SOURCE_JOYBUS )
-    {
-        written = joybus_rtc_set_time( new_time );
-    }
-    /* Update cache state */
-    rtc_cache_time = new_time;
-    rtc_cache_ticks = get_ticks();
-    return written;
 }
 
 bool rtc_is_persistent( void )

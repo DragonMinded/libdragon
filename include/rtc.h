@@ -42,8 +42,9 @@
  * In anticipation of support for the 64DD and iQue real-time clocks, the
  * subsystem has APIs that allow homebrew to specify the preferred RTC source.
  * Use #rtc_is_source_available to determine if a specific RTC source can be
- * used, and #rtc_set_source to switch between available sources. Make sure
- * to call #rtc_resync_time after switching sources!
+ * used, and #rtc_set_source to switch between available sources. The subsystem
+ * will automatically resynchronize the time with the new clock when the source
+ * is changed.
  *
  * Internally, Joybus RTC cannot represent dates before 1990-01-01, although
  * some RTC implementations (like UltraPIF) only support dates after
@@ -53,7 +54,11 @@
  * treated as 1996-1999 and 00-95 are treated as 2000-2095.
  *
  * For consistency, the RTC subsystem only supports dates between 1996-2095.
- * Attempting to set the clock beyond this range will fail.
+ * Attempting to set the clock beyond this range will fail. RTC subsystem
+ * should only be set to the "actual" date and time, and not for
+ * arbitrary time manipulation. If your game uses some form of
+ * time travel or real-time clock that does not match the actual
+ * date/time, you should use an offset from the actual time.
  *
  * @{
  */
@@ -126,31 +131,6 @@ rtc_source_t rtc_get_source( void );
  * @return whether the new source clock was successfully selected
  */
 bool rtc_set_source( rtc_source_t source );
-
-/**
- * @brief Resynchronize the subsystem's time with the source clock.
- *
- * You should only need to do this after switching sources.
- *
- * @return whether the source clock was successfully synchronized
- */
-bool rtc_resync_time( void );
-
-/**
- * @brief Read the current date/time from the real-time clock.
- *
- * @return the current RTC time as a UNIX timestamp
- */
-time_t rtc_get_time( void );
-
-/**
- * @brief Set a new date/time for the real-time clock.
- *
- * @param new_time the new time to set the RTC to
- *
- * @return whether the time was written to the RTC
- */
-bool rtc_set_time( time_t new_time );
 
 /**
  * @brief Determine whether the RTC supports persistent writing of the time.
