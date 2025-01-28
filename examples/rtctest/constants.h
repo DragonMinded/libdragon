@@ -46,9 +46,9 @@
 
 /* SCREEN_WIDTH_GUIDE:                "----------------------------------------" */
 static const char* RUN_SOFT_MESSAGE = "        RTC source detected: None       ";
-static const char* RUN_JOY_MESSAGE  = "    RTC source detected: Joybus RTC     ";
-static const char* RUN_DD_MESSAGE   = "       RTC source detected: 64DD        ";
-static const char* RUN_BB_MESSAGE   = "       RTC source detected: iQue        ";
+static const char* RUN_JOY_MESSAGE  = "       RTC source detected: Joybus      ";
+static const char* RUN_DD_MESSAGE   = "        RTC source detected: 64DD       ";
+static const char* RUN_BB_MESSAGE   = "        RTC source detected: iQue       ";
 static const char* PAUSED_MESSAGE   = "      Adjust the current date/time:     ";
 static const char* RTC_DATE_FORMAT  = "            YYYY-MM-DD (DoW)            ";
 static const char* RTC_TIME_FORMAT  = "                HH:MM:SS                ";
