@@ -371,11 +371,12 @@ void vi_show(surface_t *fb)
 
     tex_format_t fmt = surface_get_format(fb);
     assert(fmt == FMT_RGBA16 || fmt == FMT_RGBA32);
-    assert(TEX_FORMAT_PIX2BYTES(fmt, fb->width) == fb->stride);
+    int bpp_shift = fmt == FMT_RGBA16 ? 1 : 2;
+    int bpp = 1 << bpp_shift;
     assert(PhysicalAddr(fb->buffer) % 8 == 0);
     assert(fb->stride % 8 == 0);
     vi_write_begin();
-    vi_set_origin(fb->buffer, fb->width, fmt == FMT_RGBA16 ? 16 : 32);
+    vi_set_origin(fb->buffer, fb->stride >> bpp_shift, bpp * 8);
     vi_set_xscale(fb->width);
     vi_set_yscale(fb->height);
     vi_write_end();

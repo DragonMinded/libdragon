@@ -6,6 +6,8 @@ C_CXX_FLAGS += -I../include -MMD
 C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
 
+LDFLAGS += -pthread
+
 CFLAGS   += -std=gnu11 $(C_CXX_FLAGS) 
 CXXFLAGS += -std=gnu++17 $(C_CXX_FLAGS) 
 CXXFLAGS += -Wno-c++11-narrowing -Wno-narrowing -Wno-error=conversion-null

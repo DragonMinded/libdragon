@@ -527,8 +527,8 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * You can pass this macro to #rdpq_mode_blender.
  * 
  * NOTE: additive blending is broken on RDP because it can overflow. Basically,
- *       if the result of the sum is larger than 1.5 (in scale 0..1), instead
- *       of being clamped to 1, it overflows back to 0, which makes the
+ *       as soon as the result of the sum is slightly larger than 1.0 (in scale 0..1),
+ *       instead of being clamped to 1, it overflows back to 0, which makes the
  *       mode almost useless. It is defined it for completeness.
  */
 #define RDPQ_BLENDER_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      

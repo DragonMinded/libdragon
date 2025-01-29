@@ -52,6 +52,7 @@
 #include "kqueue.h"
 #include "ksemaphore.h"
 #include "n64sys.h"
+#include "dd.h"
 #include "backtrace.h"
 #include "rdp.h"
 #include "rsp.h"

@@ -77,6 +77,7 @@ LIBDRAGON_OBJS += \
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
+include $(SOURCE_DIR)/dd/libdragon.mk
 
 libdragon.a: $(LIBDRAGON_OBJS)
 
@@ -120,6 +121,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/n64types.h $(INSTALLDIR)/mips64-elf/include/n64types.h
 	install -Cv -m 0644 include/pputils.h $(INSTALLDIR)/mips64-elf/include/pputils.h
 	install -Cv -m 0644 include/n64sys.h $(INSTALLDIR)/mips64-elf/include/n64sys.h
+	install -Cv -m 0644 include/dd.h $(INSTALLDIR)/mips64-elf/include/dd.h
 	install -Cv -m 0644 include/fmath.h $(INSTALLDIR)/mips64-elf/include/fmath.h
 	install -Cv -m 0644 include/fgeom.h $(INSTALLDIR)/mips64-elf/include/fgeom.h
 	install -Cv -m 0644 include/backtrace.h $(INSTALLDIR)/mips64-elf/include/backtrace.h
