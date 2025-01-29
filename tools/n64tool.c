@@ -65,6 +65,7 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 #define TITLE_OFFSET 0x20
 #define TITLE_SIZE   20
 
+#define CATEGORY_OFFSET 0x3B
 #define REGION_OFFSET 0x3E
 
 #define IQUE_ENTRYPOINT_OFFSET 0x8
@@ -117,6 +118,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
 	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header (default: use libdragon IPL3).\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
+	fprintf(stderr, "\t-C, --category <cat>   N64 Media Category Code (default: 'N' - N64 Game Pak).\n");
 	fprintf(stderr, "\t-R, --region <reg>     Specify ROM region (default: 'E' - North America).\n");
 	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
 	fprintf(stderr, "\n");
@@ -334,6 +336,7 @@ int main(int argc, char *argv[])
 	int header_size = 0;
 	int align_next = 0;
 
+	char category = 'N';
 	// Some flashcarts (at least Everdrive X7) seem to automatically set the TV type based on the region field.
 	// As a result, some users might not be able to play the ROM because their TV or capture device doesn't 
 	// support either PAL or NTSC. If the field is 0, the flashcart seems to not overwrite the console's region,
@@ -536,6 +539,25 @@ int main(int argc, char *argv[])
 			memcpy(title, title_arg, title_len);
 			continue;
 		}
+		if(check_flag(arg, "-C", "--category"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to category flag\n\n");
+				return print_usage(argv[0]);
+			}
+
+			const char * category_arg = argv[i++];
+			if(strlen(category_arg) != 1)
+			{
+				fprintf(stderr, "ERROR: Category must be a single character\n\n");
+				return print_usage(argv[0]);
+			}
+
+			category = category_arg[0];
+			continue;
+		}
 		if(check_flag(arg, "-R", "--region"))
 		{
 			if(i >= argc)
@@ -724,6 +746,10 @@ int main(int argc, char *argv[])
 	/* Set title in header */
 	fseek(write_file, TITLE_OFFSET, SEEK_SET);
 	fwrite(title, 1, TITLE_SIZE, write_file);
+
+	/* Set category in header */
+	fseek(write_file, CATEGORY_OFFSET, SEEK_SET);
+	fwrite(&category, 1, 1, write_file);
 
 	/* Set region in header */
 	fseek(write_file, REGION_OFFSET, SEEK_SET);
