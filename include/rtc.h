@@ -96,7 +96,7 @@ extern "C" {
  * This will also hook the RTC into the newlib gettimeofday and settimeofday
  * functions, so you will be able to use the ISO C time functions.
  *
- * This operation may take up to 50 milliseconds to complete, but does not
+ * This operation may take up to 5 milliseconds to complete, but does not
  * block the CPU while detecting and initializing the RTC hardware.
  *
  * Use #rtc_get_source to determine if a hardware RTC source was detected.
@@ -115,7 +115,7 @@ void rtc_init_async( void );
  * This will also hook the RTC into the newlib gettimeofday and settimeofday
  * functions, so you will be able to use the ISO C time functions.
  *
- * This operation may take up to 50 milliseconds to complete.
+ * This operation may take up to 5 milliseconds to complete.
  *
  * @return whether any supported hardware RTC source was initialized
  */
@@ -147,6 +147,27 @@ rtc_source_t rtc_get_source( void );
  * @return whether the new source clock was successfully selected
  */
 bool rtc_set_source( rtc_source_t source );
+
+/**
+ * @brief Determine whether a specific clock source supports persistent
+ * writing of the time.
+ *
+ * Some emulators and flash carts do not support writing to the RTC, so
+ * this function makes an attempt to detect silent write failures and will
+ * return `false` if it is unable to change the time on the RTC.
+ *
+ * This function is useful if your program wants to conditionally offer the
+ * ability to set the time based on hardware/emulator support.
+ *
+ * Unfortunately this operation may introduce a slight drift in the clock,
+ * but it is the only reliable way to determine if the RTC actually persists
+ * the time.
+ *
+ * @param source the RTC source to check
+ *
+ * @return whether RTC write persistence appears to be supported for the source
+ */
+bool rtc_is_source_persistent( rtc_source_t source );
 
 /**
  * @brief Determine whether the RTC supports persistent writing of the time.

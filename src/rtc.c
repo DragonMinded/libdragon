@@ -4,6 +4,8 @@
  * @ingroup rtc
  */
 
+#include "dd.h"
+#include "debug.h"
 #include "joybus_rtc.h"
 #include "libcart/cart.h"
 #include "n64sys.h"
@@ -88,19 +90,18 @@ static bool rtc_set_time( time_t new_time )
     {
         written = joybus_rtc_set_time( new_time );
     }
+    else if( rtc_source == RTC_SOURCE_DD )
+    {
+        written = dd_set_time( new_time );
+    }
+    else if( rtc_source == RTC_SOURCE_BB )
+    {
+        // TODO: BBPlayer RTC is not yet implemented.
+    }
     /* Update cache state */
     rtc_cache_time = new_time;
     rtc_cache_ticks = get_ticks();
     return written;
-}
-
-static void rtc_resync_time_joybus_callback( time_t rtc_time )
-{
-    if( rtc_source == RTC_SOURCE_JOYBUS )
-    {
-        rtc_cache_time = rtc_time;
-        rtc_cache_ticks = get_ticks();
-    }
 }
 
 /**
@@ -108,12 +109,24 @@ static void rtc_resync_time_joybus_callback( time_t rtc_time )
  */
 static void rtc_resync_time( void )
 {
-    if( rtc_source == RTC_SOURCE_JOYBUS )
+    if( rtc_source == RTC_SOURCE_NONE)
     {
-        joybus_rtc_read_time_async( rtc_resync_time_joybus_callback );
+        // Software RTC has no hardware clock to synchronize wtih
     }
-    // TODO: 64DD RTC is not yet implemented.
-    // TODO: BBPlayer RTC is not yet implemented.
+   else if( rtc_source == RTC_SOURCE_JOYBUS )
+    {
+        rtc_cache_time = joybus_rtc_read_time();
+        rtc_cache_ticks = get_ticks();
+    }
+    else if( rtc_source == RTC_SOURCE_DD )
+    {
+        rtc_cache_time = dd_get_time();
+        rtc_cache_ticks = get_ticks();
+    }
+    else if( rtc_source == RTC_SOURCE_BB )
+    {
+        // TODO: BBPlayer RTC is not yet implemented.
+    }
 }
 
 // MARK: Public functions
@@ -158,8 +171,8 @@ void rtc_init_async( void )
 
     /* Reset subsystem state */
     rtc_source = RTC_SOURCE_NONE;
-    rtc_cache_ticks = get_ticks();
     rtc_cache_time = RTC_CACHE_TIME_INIT;
+    rtc_cache_ticks = get_ticks();
 
     /* Enable newlib time integration */
     time_hooks_t hooks = { &rtc_get_time, &rtc_set_time };
@@ -172,7 +185,12 @@ void rtc_init_async( void )
     }
     else
     {
-        // TODO: 64DD RTC is not yet implemented.
+        if( sys_dd() )
+        {
+            rtc_source = RTC_SOURCE_DD;
+            rtc_cache_time = dd_get_time();
+            rtc_cache_ticks = get_ticks();
+        }
 
         // Initialize libcart (if necessary) to detect common flashcart types
         if( cart_type <= CART_NULL ) cart_init();
@@ -231,16 +249,53 @@ bool rtc_is_source_available( rtc_source_t source )
 {
     WAIT_FOR_RTC_READY();
 
-    if( source == RTC_SOURCE_NONE )
+    switch( source )
     {
-        return true;
+        case RTC_SOURCE_NONE: return true;
+        case RTC_SOURCE_JOYBUS: return joybus_rtc_detect();
+        case RTC_SOURCE_DD: return sys_dd();
+        case RTC_SOURCE_BB: return sys_bbplayer();
+        default: return false;
+    }
+}
+
+bool rtc_is_source_persistent( rtc_source_t source )
+{
+    static int _joybus_persistent = -1;
+    static int _dd_persistent = -1;
+
+    WAIT_FOR_RTC_READY();
+
+    if( !rtc_is_source_available( source ))
+    {
+        return false;
     }
     if( source == RTC_SOURCE_JOYBUS )
     {
-        return joybus_rtc_detect();
+        // Only perform the persistent test once and cache the result
+        if( _joybus_persistent == -1 )
+        {
+            // Test writability by attempting to perform a write
+            _joybus_persistent = joybus_rtc_set_time( joybus_rtc_read_time() );
+        }
+        return _joybus_persistent;
     }
-    // TODO: 64DD RTC is not yet implemented.
-    // TODO: BBPlayer RTC is not yet implemented.
+    if( source == RTC_SOURCE_DD )
+    {
+        // Only perform the persistent test once and cache the result
+        if( _dd_persistent == -1 )
+        {
+            // Test writability by attempting to perform a write
+            _dd_persistent = dd_set_time( dd_get_time() );
+        }
+        return _dd_persistent;
+    }
+    if( source == RTC_SOURCE_BB )
+    {
+        // TODO: BBPlayer RTC is not yet implemented.
+        return false;
+    }
+    // Software RTC does not persist across reset/power-off
     return false;
 }
 
@@ -248,15 +303,7 @@ bool rtc_is_persistent( void )
 {
     WAIT_FOR_RTC_READY();
 
-    if( rtc_source == RTC_SOURCE_JOYBUS )
-    {
-        // Test writability by performing a write
-        return rtc_set_time( rtc_get_time() );
-    }
-    // TODO: 64DD RTC is not yet implemented.
-    // TODO: BBPlayer RTC is not yet implemented.
-    // Software RTC cannot be persistent.
-    return false;
+    return rtc_is_source_persistent( rtc_source );
 }
 
 /** @deprecated Use #rtc_get_time instead. */

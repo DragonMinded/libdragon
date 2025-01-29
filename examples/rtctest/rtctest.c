@@ -79,10 +79,18 @@ int main(void)
         graphics_draw_text( disp, 0, LINE4, line4_text );
 
         /* Line 5 */
+        graphics_set_color( WHITE, BLACK );
         if( !persistent )
         {
-            graphics_set_color( WHITE, BLACK );
             graphics_draw_text( disp, 0, LINE5, NOWRITE_MESSAGE );
+        }
+        else if( rtc_get_source() == RTC_SOURCE_JOYBUS && rtc_is_source_available( RTC_SOURCE_DD ) )
+        {
+            graphics_draw_text( disp, 0, LINE5, SRC_DD_MESSAGE );
+        }
+        else if( rtc_get_source() == RTC_SOURCE_DD && rtc_is_source_available( RTC_SOURCE_JOYBUS ) )
+        {
+            graphics_draw_text( disp, 0, LINE5, SRC_JOY_MESSAGE );
         }
 
         display_show(disp);
@@ -114,8 +122,20 @@ int main(void)
 
         if( !edit_mode && pad_pressed.r )
         {
-            /* Resync the time from the hardware RTC */
-            rtc_set_source( RTC_SOURCE_JOYBUS );
+            /* Resync the time from the RTC source */
+            rtc_set_source( rtc_get_source() );
+        }
+
+        if( !edit_mode && pad_pressed.l )
+        {
+            if( rtc_get_source() == RTC_SOURCE_JOYBUS )
+            {
+                rtc_set_source( RTC_SOURCE_DD );
+            }
+            else if( rtc_get_source() == RTC_SOURCE_DD )
+            {
+                rtc_set_source( RTC_SOURCE_JOYBUS );
+            }
         }
 
         if( edit_mode )
