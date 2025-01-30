@@ -225,6 +225,7 @@ static void joybus_rtc_detect_callback( uint64_t *out_dwords, void *ctx )
     joybus_cmd_identify_port_t *cmd = (void *)&out_bytes[JOYBUS_RTC_PORT + JOYBUS_COMMAND_METADATA_SIZE];
     bool detected = cmd->recv.identifier == JOYBUS_IDENTIFIER_CART_RTC;
     joybus_rtc_detect_state = detected ? JOYBUS_RTC_DETECTED : JOYBUS_RTC_NOT_DETECTED;
+    debugf("joybus_rtc_detect_async: %s status 0x%02x\n", detected ? "detected" : "not detected", cmd->recv.status);
     callback( detected );
 }
 
@@ -248,6 +249,7 @@ void joybus_rtc_detect_async( joybus_rtc_detect_callback_t callback )
     input[i] = 0xFE;
     input[sizeof(input) - 1] = 0x01;
     // Execute the Joybus operation asynchronously
+    debugf("joybus_rtc_detect_async: probing\n");
     joybus_exec_async( input, joybus_rtc_detect_callback, callback );
 }
 
@@ -275,6 +277,7 @@ static void joybus_rtc_set_stopped_write_callback( uint64_t *out_dwords, void *c
 {
     joybus_rtc_set_stopped_callback_t callback = ctx;
     if( callback ) callback();
+    debugf("joybus_rtc_set_stopped_async: done\n");
 }
 
 static void joybus_rtc_set_stopped_read_callback( uint64_t *out_dwords, void *ctx )
@@ -283,6 +286,7 @@ static void joybus_rtc_set_stopped_read_callback( uint64_t *out_dwords, void *ct
     const uint8_t *out_bytes = (void *)out_dwords;
     joybus_cmd_rtc_read_block_t *cmd = (void *)&out_bytes[JOYBUS_RTC_PORT + JOYBUS_COMMAND_METADATA_SIZE];
     joybus_rtc_control_t control = { .data = { .dword = cmd->recv.dword } };
+    debugf("joybus_rtc_set_stopped_async: control state (0x%llx)\n", control.data.dword);
 
     // Unpack the stop bit and the callback pointer from the context
     bool stop = ((uint32_t)ctx & 0x1);
@@ -290,6 +294,7 @@ static void joybus_rtc_set_stopped_read_callback( uint64_t *out_dwords, void *ct
 
     if( control.stop == stop )
     {
+        debugf("joybus_rtc_set_stopped_async: already in desired state\n");
         if( callback ) callback();
     }
     else
@@ -297,6 +302,7 @@ static void joybus_rtc_set_stopped_read_callback( uint64_t *out_dwords, void *ct
         control.stop = stop;
         control.lock_block1 = !stop;
         control.lock_block2 = !stop;
+        debugf("joybus_rtc_set_stopped_async: writing control block (0x%llx)\n", control.data.dword);
         joybus_rtc_write_async(
             JOYBUS_RTC_BLOCK_CONTROL,
             &control.data,
@@ -310,20 +316,28 @@ void joybus_rtc_set_stopped_async( bool stop, joybus_rtc_set_stopped_callback_t 
 {
     // Pack the stop bit and the callback pointer into the context value
     void *ctx = (void *)((uint32_t)callback | (stop & 0x1));
+    debugf("joybus_rtc_set_stopped_async: reading control block\n");
     joybus_rtc_read_async( JOYBUS_RTC_BLOCK_TIME, joybus_rtc_set_stopped_read_callback, ctx );
 }
 
 void joybus_rtc_set_stopped( bool stop )
 {
     joybus_rtc_control_t control;
+    debugf("joybus_rtc_set_stopped: reading control block\n");
     joybus_rtc_read( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
+    debugf("joybus_rtc_set_stopped: control state (0x%llx)\n", control.data.dword);
 
     if ( control.stop != stop )
     {
         control.stop = stop;
         control.lock_block1 = !stop;
         control.lock_block2 = !stop;
+        debugf("joybus_rtc_set_stopped: writing control block (0x%llx)\n", control.data.dword);
         joybus_rtc_write( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
+    }
+    else
+    {
+        debugf("joybus_rtc_set_stopped: already in desired state\n");
     }
 }
 
@@ -334,6 +348,7 @@ bool joybus_rtc_is_stopped( void )
     } };
     joybus_exec_cmd_struct(JOYBUS_RTC_PORT, cmd);
     joybus_rtc_status_t status = { .byte = cmd.recv.status };
+    debugf("joybus_rtc_is_stopped: status (0x%02x)\n", status.byte);
     return status.stopped;
 }
 
@@ -345,20 +360,39 @@ static void joybus_rtc_read_time_callback( uint64_t *out_dwords, void *ctx )
     joybus_rtc_read_time_callback_t callback = ctx;
     joybus_cmd_rtc_read_block_t *cmd = (void *)&out_bytes[JOYBUS_RTC_PORT + JOYBUS_COMMAND_METADATA_SIZE];
     joybus_rtc_data_t data = { .dword = cmd->recv.dword };
+    debugf("joybus_rtc_read_time_async: raw time (0x%llx)\n", data.dword);
     time_t decoded_time = joybus_rtc_decode_time( &data );
+
+    struct tm * parsed_tm = gmtime( &decoded_time );
+    debugf("joybus_rtc_read_time: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
+        parsed_tm->tm_year + 1900, parsed_tm->tm_mon + 1, parsed_tm->tm_mday,
+        parsed_tm->tm_hour, parsed_tm->tm_min, parsed_tm->tm_sec
+    );
+
     callback( decoded_time );
 }
 
 void joybus_rtc_read_time_async( joybus_rtc_read_time_callback_t callback )
 {
+    debugf("joybus_rtc_read_time_async: reading time block\n");
     joybus_rtc_read_async( JOYBUS_RTC_BLOCK_TIME, joybus_rtc_read_time_callback, callback );
 }
 
 time_t joybus_rtc_read_time( void )
 {
     joybus_rtc_data_t data = {0};
+    debugf("joybus_rtc_read_time: reading time block\n");
     joybus_rtc_read( JOYBUS_RTC_BLOCK_TIME, &data );
-    return joybus_rtc_decode_time( &data );
+    debugf("joybus_rtc_read_time: raw time (0x%llx)\n", data.dword);
+    time_t decoded_time = joybus_rtc_decode_time( &data );
+
+    struct tm * parsed_tm = gmtime( &decoded_time );
+    debugf("joybus_rtc_read_time: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
+        parsed_tm->tm_year + 1900, parsed_tm->tm_mon + 1, parsed_tm->tm_mday,
+        parsed_tm->tm_hour, parsed_tm->tm_min, parsed_tm->tm_sec
+    );
+
+    return decoded_time;
 }
 
 bool joybus_rtc_set_time( time_t new_time )
@@ -377,21 +411,32 @@ bool joybus_rtc_set_time( time_t new_time )
         return false;
     }
 
+    debugf("joybus_rtc_set_time: reading control block\n");
     joybus_rtc_control_t control;
     joybus_rtc_read( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
+    debugf("joybus_rtc_read_time: control state (0x%llx)\n", control.data.dword);
 
     /* Prepare the RTC to write the time */
     control.stop = true;
     control.lock_block1 = false;
     control.lock_block2 = false;
+    debugf("joybus_rtc_set_time: writing control block (0x%llx)\n", control.data.dword);
     joybus_rtc_write( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
     wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
 
     /* Determine if the RTC implementation supports writes. */
-    if( !joybus_rtc_is_stopped() ) return false;
+    if( !joybus_rtc_is_stopped() )
+    {
+        debugf("joybus_rtc_set_time: rtc did not stop; aborting!\n");
+        return false;
+    }
 
     /* Write the time block to RTC */
     struct tm * rtc_time = gmtime( &new_time );
+    debugf("joybus_rtc_set_time: parsed time (%02d:%02d:%02d %02d/%02d/%04d)\n",
+        rtc_time->tm_hour, rtc_time->tm_min, rtc_time->tm_sec,
+        rtc_time->tm_mon + 1, rtc_time->tm_mday, rtc_time->tm_year + 1900
+    );
     joybus_rtc_data_t data = { .bytes = {
         bcd_encode( rtc_time->tm_sec ),
         bcd_encode( rtc_time->tm_min ),
@@ -402,6 +447,7 @@ bool joybus_rtc_set_time( time_t new_time )
         bcd_encode( rtc_time->tm_year ),
         bcd_encode( rtc_time->tm_year / 100 ),
     } };
+    debugf("joybus_rtc_set_time: writing time block (0x%llx)\n", data.dword);
     joybus_rtc_write( JOYBUS_RTC_BLOCK_TIME, &data );
     wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
 
@@ -409,7 +455,13 @@ bool joybus_rtc_set_time( time_t new_time )
     control.stop = false;
     control.lock_block1 = true;
     control.lock_block2 = true;
+    debugf("joybus_rtc_set_time: writing control block (0x%llx)\n", control.data.dword);
     joybus_rtc_write( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
+
+    if( joybus_rtc_is_stopped() )
+    {
+        debugf("joybus_rtc_set_time: rtc did not restart?\n");
+    }
 
     return true;
 }
