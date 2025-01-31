@@ -15,6 +15,8 @@
 #include "system.h"
 #include "timer.h"
 
+time_t bb_rtc_get_time( void );
+
 /**
  * @addtogroup rtc
  * @{
