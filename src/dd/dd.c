@@ -53,6 +53,9 @@ uint16_t dd_command(dd_cmd_t cmd) {
 __attribute__((constructor))
 void dd_init(void)
 {
+    // iQue doesn't like PI accesses outside of ROM
+    if (sys_bbplayer()) return;
+
 	uint32_t magic = 0x36344444; // "64DD"
 	dd_found = io_read(0x06000020) == magic;
     if (!dd_found) return;
