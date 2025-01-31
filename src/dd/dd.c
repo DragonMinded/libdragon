@@ -5,6 +5,7 @@
 #include "debug.h"
 #include "interrupt.h"
 #include "dma.h"
+#include "n64sys.h"
 #include "rtc_utils.h"
 
 #define DD_ASIC_STATUS_MECHA_IRQ_LINE    (1<<9)
