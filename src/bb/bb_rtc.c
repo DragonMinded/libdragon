@@ -13,14 +13,21 @@
 #define I2C_DATA_BIT     (1<<4)     ///< Data bit
 #define I2C_CLOCK_BIT    (1<<3)     ///< Clock bit
 
+static uint32_t gpio_cache;
+
+/** @brief Initialize a I2C transaction */
+#define I2C_INIT()  ({ \
+    gpio_cache = *PI_BB_GPIO & ~(I2C_DATA_OUT | I2C_CLOCK_OUT | I2C_DATA_BIT | I2C_CLOCK_BIT); \
+})
+
 /** @brief Write SCL/SDA I2C lines */
 #define I2C_WRITE(clock, data)  ({ \
-    *PI_BB_GPIO = I2C_DATA_OUT | I2C_CLOCK_OUT | ((data) ? I2C_DATA_BIT : 0) | ((clock) ? I2C_CLOCK_BIT : 0); \
+    *PI_BB_GPIO = gpio_cache | I2C_DATA_OUT | I2C_CLOCK_OUT | ((data) ? I2C_DATA_BIT : 0) | ((clock) ? I2C_CLOCK_BIT : 0); \
 })
 
 /** @brief Read SDA I2C line */
 #define I2C_READ(clock) ({ \
-    *PI_BB_GPIO = I2C_CLOCK_OUT | ((clock) ? I2C_CLOCK_BIT : 0); \
+    *PI_BB_GPIO = gpio_cache | I2C_CLOCK_OUT | ((clock) ? I2C_CLOCK_BIT : 0); \
     (*PI_BB_GPIO & I2C_DATA_BIT) ? 1 : 0; \
 })
 
