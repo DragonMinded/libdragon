@@ -72,11 +72,11 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/GL/rsp_gl_pipeline.o $(BUILD_DIR)/GL/glu.o \
 			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o \
 			 $(BUILD_DIR)/dlfcn.o $(BUILD_DIR)/model64.o \
-			 $(BUILD_DIR)/bb/skc.o $(BUILD_DIR)/bb/nand.o $(BUILD_DIR)/bb/bbfs.o \
 			 $(BUILD_DIR)/math/fgeom.o
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
+include $(SOURCE_DIR)/bb/libdragon.mk
 include $(SOURCE_DIR)/dd/libdragon.mk
 
 libdragon.a: $(LIBDRAGON_OBJS)

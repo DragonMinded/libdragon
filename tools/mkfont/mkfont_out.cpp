@@ -408,6 +408,10 @@ private:
 
 void Font::write()
 {
+    if (flag_verbose) 
+        fprintf(stderr, "total glyphs packed in the font: %d\n", fnt->num_glyphs);
+
+
     FILE *out = fopen(outfn.c_str(), "wb");
     if (!out) {
         fprintf(stderr, "Error: cannot open output file %s\n", outfn.c_str());
@@ -759,7 +763,8 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
         sheets = rect_pack::pack(settings, sizes);
     }
 
-    if (flag_verbose) fprintf(stderr, "packed %zu glyphs into %zu sheets\n", sizes.size(), sheets.size());
+    if (flag_verbose >= 2)
+        fprintf(stderr, "packed %zu glyphs into %zu sheets\n", sizes.size(), sheets.size());
 
     // We can save bytes on the last group of sheets by checking for many different
     // sizes. This is not something at which rect_pack excels at, so a bruteforce
@@ -800,7 +805,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
     }
     min_area /= merge_layers;
 
-    if (flag_verbose >= 1)
+    if (flag_verbose >= 2)
         fprintf(stderr, "repacking last %zu sheets: %d x %d (%d bytes)\n", group_sheets.size(), group_width, group_height, TEX_FORMAT_PIX2BYTES(cfmt, group_width * group_height));
 
     // Try to find a better packing for this sheet group. Set the maximum number
@@ -836,7 +841,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
                     group_sheets = new_sheets;
                     best_h = h;
                     best_area = w*h;
-                    if (flag_verbose >= 1)
+                    if (flag_verbose >= 2)
                         printf("    found better packing: %d x %d (%d bytes)\n", w, h, TEX_FORMAT_PIX2BYTES(cfmt, w*h));
                 }
                 break;
@@ -854,7 +859,6 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
 void Font::make_atlases(void)
 {
     if (glyphs.empty()) {
-        if (flag_verbose) fprintf(stderr, "WARNING: no glyphs found in this range\n");
         return;
     }
 
@@ -943,7 +947,7 @@ void Font::make_atlases(void)
             gout->yoff2 = gout->yoff + glyph.img.h;
             gout->xadvance = glyph.xadv;
 
-            if (flag_verbose >= 2) {
+            if (flag_verbose >= 3) {
                 fprintf(stderr, "  glyph %s [U+%04X]: %d x %d, %d,%d %d,%d %.2f\n", 
                     codepoint_to_utf8(glyph.codepoint).c_str(), glyph.codepoint, 
                     glyph.img.w, glyph.img.h, gout->xoff, gout->yoff, gout->xoff2, gout->yoff2, glyph.xadv/64.f);
@@ -1091,7 +1095,7 @@ void Font::add_atlas(Image& img)
 
     cmd_addr[i++] = "--compress";  // don't compress the individual sprite (the font itself will be compressed)
     cmd_addr[i++] = "0";
-    if (flag_verbose >= 2)
+    if (flag_verbose >= 3)
         cmd_addr[i++] = "--verbose";
     
     // Start mksprite
@@ -1232,7 +1236,7 @@ void Font::make_kernings()
     }
 
     if (flag_verbose)
-        fprintf(stderr, "added %zu kernings\n", kernings.size());
+        fprintf(stderr, "added %zu kerning pairs\n", kernings.size());
 
     kernings.clear();
 }
@@ -1276,9 +1280,6 @@ void Font::build_perfect_hash(std::vector<uint32_t>& keys, std::vector<int16_t>&
     // hit, probably the best solution is to decrease the load factor a bit,
     // which reduces d_max (eg: in a loop until d_max fits 16 bits again).
     assert(phash.d_max < 65536);
-
-    if (flag_verbose) fprintf(stderr, "    perfect hash table: %zu glyphs, %u bytes (d_max:%zu)\n",
-        keys.size(), (int)(phash.m * sizeof(int16_t) + phash.r * sizeof(uint16_t)), phash.d_max);
 }
 
 void Font::make_sparse_ranges(void)
@@ -1307,7 +1308,7 @@ void Font::make_sparse_ranges(void)
             }
             if ((num_codepoints - num_glyphs) * sizeof(glyph_t) >= WASTED_MEMORY_THRESHOLD) {
                 sparse = true;
-                if (flag_verbose) fprintf(stderr, "range %x-%x is sparse (%d glyphs out of %d)\n", 
+                if (flag_verbose >= 2) fprintf(stderr, "range %x-%x is sparse (%d glyphs out of %d)\n", 
                     fnt->ranges[i].first_codepoint, fnt->ranges[i].first_codepoint + num_codepoints - 1, 
                     num_glyphs, num_codepoints);
             }
@@ -1341,7 +1342,9 @@ void Font::make_sparse_ranges(void)
 
     build_perfect_hash(sparse_codepoints, sparse_indices);
     
-    if (flag_verbose) fprintf(stderr, "total glyphs: %d\n", fnt->num_glyphs);
+    if (flag_verbose)
+        fprintf(stderr, "built perfect hash table for %zu sparse glyphs: %u bytes (d_max:%zu)\n",
+            sparse_codepoints.size(), (int)(phash.m * sizeof(int16_t) + phash.r * sizeof(uint16_t)), phash.d_max);
 }
 
 void Font::add_ellipsis(int ellipsis_cp, int ellipsis_repeats)

@@ -202,7 +202,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
 
             int ttf_idx = FT_Get_Char_Index(face, g);
             if (ttf_idx == 0) {
-                if (flag_verbose >= 2)
+                if (flag_verbose >= 3)
                     fprintf(stderr, "  glyph %s [U+%04X]: not found\n", codepoint_to_utf8(g).c_str(), g);
                 continue;
             }
@@ -310,6 +310,11 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
             }
         }
 
+        if (font.glyphs.empty()) {
+            fprintf(stderr, "WARNING: %s: no glyphs found in range %X-%X\n", infn, ranges[r], ranges[r+1]);
+            continue;
+        }
+
         // Create atlases for glyphs in this range
         font.make_atlases();
     }
@@ -322,7 +327,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         const int ascii_range_start = 0x20;
         const int ascii_range_len = 0x80 - 0x20;
 
-        if (flag_verbose)
+        if (flag_verbose >= 2)
             fprintf(stderr, "collecting kerning information\n");
 
         // Prepare the kerning table. Go through all ranges, and within each range, construct a N*N table
@@ -358,7 +363,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                         // smaller). This makes good use of the available precision.
                         font.add_kerning(gidx1, gidx2, kerning.x >> 6);
 
-                        if (flag_verbose >= 2) {
+                        if (flag_verbose >= 3) {
                             int codepoint1 = (i >= range->num_codepoints) ? ascii_range_start + i - range->num_codepoints : range->first_codepoint + i;
                             int codepoint2 = (j >= range->num_codepoints) ? ascii_range_start + j - range->num_codepoints : range->first_codepoint + j;
                             fprintf(stderr, "  kerning %s -> %s: %ld\n", codepoint_to_utf8(codepoint1).c_str(), codepoint_to_utf8(codepoint2).c_str(), kerning.x >> 6);
