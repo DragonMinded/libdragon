@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "debug.h"
 #include "n64sys.h"
 
 // Simple implementation of 2-wire I2C protocol
@@ -30,6 +31,7 @@ static inline void i2c_write_stop(void)
 
 static inline void i2c_write_bit(bool data)
 {
+    debugf("i2c_write_bit: %d\n", data);
     I2C_WRITE(0, data);
     I2C_WRITE(1, data);
     I2C_WRITE(0, data);
@@ -43,6 +45,7 @@ static inline bool i2c_read_bit(void)
     wait_ticks(I2C_READ_DELAY);  // FIXME
     bool data = I2C_READ(1);
     I2C_WRITE(0, 1);
+    debugf("i2c_read_bit: %d\n", data);
     return data;
 }
 
@@ -53,6 +56,7 @@ static inline bool i2c_read_ack(void)
     bool ack = I2C_READ(1);
     I2C_WRITE(0, 1);
     wait_ticks(I2C_READ_DELAY);  // FIXME
+    debugf("i2c_read_ack: %d\n", ack);
     return ack;
 }
 
@@ -98,7 +102,7 @@ static bool i2c_read_data(uint8_t slave_addr, uint8_t addr, int len, uint8_t *da
         data[i] = i2c_read_byte();
         if (i < len-1)
             i2c_write_ack();
-        else 
+        else
             i2c_write_nack();
     }
     i2c_write_stop();

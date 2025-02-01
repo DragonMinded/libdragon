@@ -4,6 +4,7 @@
  * @ingroup rtc
  */
 
+#include "bb_rtc.h"
 #include "dd.h"
 #include "debug.h"
 #include "joybus_rtc.h"
@@ -96,7 +97,7 @@ static bool rtc_set_time( time_t new_time )
     }
     else if( rtc_source == RTC_SOURCE_BB )
     {
-        // TODO: BBPlayer RTC is not yet implemented.
+        // TODO: BBPlayer RTC writes are not yet implemented.
     }
     /* Update cache state */
     rtc_cache_time = new_time;
@@ -125,7 +126,8 @@ static void rtc_resync_time( void )
     }
     else if( rtc_source == RTC_SOURCE_BB )
     {
-        // TODO: BBPlayer RTC is not yet implemented.
+        rtc_cache_time = bb_rtc_get_time();
+        rtc_cache_ticks = get_ticks();
     }
 }
 
@@ -180,7 +182,9 @@ void rtc_init_async( void )
 
     if( sys_bbplayer() )
     {
-        // TODO: BBPlayer RTC is not yet implemented.
+        rtc_source = RTC_SOURCE_BB;
+        rtc_cache_time = bb_rtc_get_time();
+        rtc_cache_ticks = get_ticks();
         rtc_state = RTC_STATE_READY;
     }
     else
@@ -292,7 +296,7 @@ bool rtc_is_source_persistent( rtc_source_t source )
     }
     if( source == RTC_SOURCE_BB )
     {
-        // TODO: BBPlayer RTC is not yet implemented.
+        // TODO: BBPlayer RTC writes are not yet implemented.
         return false;
     }
     // Software RTC does not persist across reset/power-off

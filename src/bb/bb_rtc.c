@@ -3,8 +3,11 @@
  * @author Giovanni Bajo (giovannibajo@gmail.com)
  * @brief iQue Player (BB) Real-Time Clock (RTC) driver.
  */
+
+#include "debug.h"
 #include "dma.h"
 #include <string.h>
+#include <time.h>
 
 #define PI_BB_GPIO      ((volatile uint32_t*)0xA4600060)            ///< BB GPIO register
 
@@ -41,7 +44,7 @@ static uint32_t gpio_cache;
 
 /**
  * @brief RTC state
- * 
+ *
  * This structure contains a dump of the internal state of the RTC chip.
  */
 typedef struct {
@@ -66,11 +69,14 @@ static int bcd_decode(uint8_t bcd)
 }
 
 /** @brief Read the internal state of the RTC chip */
-bool bbrtc_get_state(bb_rtc_state_t *state)
+bool bb_rtc_get_state(bb_rtc_state_t *state)
 {
     uint8_t data[8];
     if (!i2c_read_data(RTC_SLAVE_ADDR, 0, sizeof(data), data))
         return false;
+
+    uint64_t *ptr = (uint64_t*)data;
+    debugf("bb_rtc_get_state: raw (0x%llx)\n", *ptr);
 
     memset(state, 0, sizeof(bb_rtc_state_t));
     state->secs  = bcd_decode(data[0] & 0x7F);
@@ -87,4 +93,29 @@ bool bbrtc_get_state(bb_rtc_state_t *state)
     state->century_enable  = (data[2] & 0x80) ? true : false;
     state->output_level    = (data[7] & 0x80) ? true : false;
     return true;
+}
+
+time_t bb_rtc_get_time( void )
+{
+    bb_rtc_state_t state;
+    if (!bb_rtc_get_state(&state))
+    {
+        debugf("bb_rtc_get_time: failed to read state\n");
+        return 0;
+    }
+
+    struct tm rtc_tm;
+    rtc_tm.tm_sec   = state.secs;
+    rtc_tm.tm_min   = state.mins;
+    rtc_tm.tm_hour  = state.hours;
+    rtc_tm.tm_mday  = state.day;
+    rtc_tm.tm_mon   = state.month - 1;
+    rtc_tm.tm_year  = state.year + 100;
+    rtc_tm.tm_wday  = state.dow;
+
+    char buff[20];
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &rtc_tm);
+    debugf("bb_rtc_get_time: parsed time: %s\n", buff);
+
+    return mktime( &rtc_tm );
 }
