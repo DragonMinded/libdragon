@@ -6,6 +6,7 @@
 
 #include "debug.h"
 #include "dma.h"
+#include "n64sys.h"
 #include <string.h>
 #include <time.h>
 
@@ -13,10 +14,17 @@
 
 #define I2C_DATA_OUT     (1<<7)     ///< Data input/output
 #define I2C_CLOCK_OUT    (1<<6)     ///< Clock input/output
-#define I2C_DATA_BIT     (1<<4)     ///< Data bit
-#define I2C_CLOCK_BIT    (1<<3)     ///< Clock bit
+#define I2C_DATA_BIT     (1<<3)     ///< Data bit
+#define I2C_CLOCK_BIT    (1<<2)     ///< Clock bit
 
 static uint32_t gpio_cache;
+
+#define BB_TICKS_FROM_NS(ns)  ((int64_t)(ns) * (144000000 / 2) / 1000000000)
+
+static inline void wait_ns( unsigned long wait_ns )
+{
+    wait_ticks(BB_TICKS_FROM_NS(wait_ns));
+}
 
 /** @brief Initialize a I2C transaction */
 #define I2C_INIT()  ({ \
@@ -25,12 +33,13 @@ static uint32_t gpio_cache;
 
 /** @brief Write SCL/SDA I2C lines */
 #define I2C_WRITE(clock, data)  ({ \
-    *PI_BB_GPIO = gpio_cache | I2C_DATA_OUT | I2C_CLOCK_OUT | ((data) ? I2C_DATA_BIT : 0) | ((clock) ? I2C_CLOCK_BIT : 0); \
+    *PI_BB_GPIO = gpio_cache | (!(data) ? I2C_DATA_OUT : 0) | (!(clock) ? I2C_CLOCK_OUT : 0); \
+    wait_ns((clock) ? 600 : 1300); \
 })
 
 /** @brief Read SDA I2C line */
 #define I2C_READ(clock) ({ \
-    *PI_BB_GPIO = gpio_cache | I2C_CLOCK_OUT | ((clock) ? I2C_CLOCK_BIT : 0); \
+    *PI_BB_GPIO = gpio_cache | (!(clock) ? I2C_CLOCK_OUT : 0); \
     (*PI_BB_GPIO & I2C_DATA_BIT) ? 1 : 0; \
 })
 

@@ -11,14 +11,14 @@
 // - I2C_INIT()           : Initialize a I2C transaction
 // - I2C_WRITE(scl, sda)  : Write values to the SCL (clock) and SDA (data) lines
 // - I2C_READ(scl)        : Read the value of the SDA (data) line, while setting the SCL (clock) line
-// - I2C_READ_DELAY       : Delay in CPU ticks to wait for the slave to respond
 
-#if !defined(I2C_INIT) || !defined(I2C_WRITE) || !defined(I2C_READ) || !defined(I2C_READ_DELAY)
+#if !defined(I2C_INIT) || !defined(I2C_WRITE) || !defined(I2C_READ)
 #error "I2C_WRITE, I2C_READ, and I2C_READ_DELAY must be defined before including i2c_internal.h"
 #endif
 
 static inline void i2c_write_start(void)
 {
+    I2C_WRITE(0, 1);
     I2C_WRITE(1, 1);
     I2C_WRITE(1, 0);
 }
@@ -27,11 +27,11 @@ static inline void i2c_write_stop(void)
 {
     I2C_WRITE(1, 0);
     I2C_WRITE(1, 1);
+    I2C_WRITE(0, 1);
 }
 
 static inline void i2c_write_bit(bool data)
 {
-    debugf("i2c_write_bit: %d\n", data);
     I2C_WRITE(0, data);
     I2C_WRITE(1, data);
     I2C_WRITE(0, data);
@@ -40,23 +40,18 @@ static inline void i2c_write_bit(bool data)
 static inline bool i2c_read_bit(void)
 {
     I2C_WRITE(0, 1);
-    wait_ticks(I2C_READ_DELAY);  // FIXME
     I2C_WRITE(1, 1);
-    wait_ticks(I2C_READ_DELAY);  // FIXME
     bool data = I2C_READ(1);
     I2C_WRITE(0, 1);
-    debugf("i2c_read_bit: %d\n", data);
     return data;
 }
 
-static inline bool i2c_read_ack(void)
+static inline bool i2c_read_ack(int ackid)
 {
     I2C_WRITE(1, 1);
-    wait_ticks(I2C_READ_DELAY);  // FIXME
-    bool ack = I2C_READ(1);
+    bool ack = !I2C_READ(1);
     I2C_WRITE(0, 1);
-    wait_ticks(I2C_READ_DELAY);  // FIXME
-    debugf("i2c_read_ack: %d\n", ack);
+    assertf(ack, "I2C ACK%d failed: expected 0, got 1", ackid);
     return ack;
 }
 
@@ -92,12 +87,12 @@ static bool i2c_read_data(uint8_t slave_addr, uint8_t addr, int len, uint8_t *da
     I2C_INIT();
     i2c_write_start();
     i2c_write_byte(slave_addr << 1);
-    i2c_read_ack();
+    i2c_read_ack(0);
     i2c_write_byte(addr);
-    i2c_read_ack();
+    i2c_read_ack(1);
     i2c_write_start();
     i2c_write_byte((slave_addr << 1) | 1);  // read mode
-    i2c_read_ack();
+    i2c_read_ack(2);
     for (int i=0; i<len; i++) {
         data[i] = i2c_read_byte();
         if (i < len-1)
@@ -115,12 +110,12 @@ static bool i2c_write_data(uint8_t slave_addr, uint8_t addr, int len, uint8_t *d
     I2C_INIT();
     i2c_write_start();
     i2c_write_byte(slave_addr << 1);
-    i2c_read_ack();
+    i2c_read_ack(0);
     i2c_write_byte(addr);
-    i2c_read_ack();
+    i2c_read_ack(1);
     for (int i=0; i<len; i++) {
         i2c_write_byte(data[i]);
-        i2c_read_ack();
+        i2c_read_ack(2);
     }
     i2c_write_stop();
     return true;
