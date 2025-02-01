@@ -47,7 +47,7 @@ static uint32_t gpio_cache;
  *
  * This structure contains a dump of the internal state of the RTC chip.
  */
-typedef struct {
+typedef struct bb_rtc_state {
     uint8_t secs;           ///< Seconds [0-59]
     uint8_t mins;           ///< Minutes [0-59]
     uint8_t hours;          ///< Hours [0-23]
@@ -69,30 +69,38 @@ static int bcd_decode(uint8_t bcd)
 }
 
 /** @brief Read the internal state of the RTC chip */
-bool bb_rtc_get_state(bb_rtc_state_t *state)
+uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
 {
-    uint8_t data[8];
-    if (!i2c_read_data(RTC_SLAVE_ADDR, 0, sizeof(data), data))
-        return false;
+    uint64_t dword;
+    uint8_t *bytes = (uint8_t*)&dword;
 
-    uint64_t *ptr = (uint64_t*)data;
-    debugf("bb_rtc_get_state: raw (0x%llx)\n", *ptr);
+    if (!i2c_read_data(RTC_SLAVE_ADDR, 0, sizeof(dword), bytes))
+    {
+        debugf("bb_rtc_get_state: failed to read over i2c\n");
+        return 0;
+    }
 
-    memset(state, 0, sizeof(bb_rtc_state_t));
-    state->secs  = bcd_decode(data[0] & 0x7F);
-    state->mins  = bcd_decode(data[1] & 0x7F);
-    state->hours = bcd_decode(data[2] & 0x3F);
-    state->dow   = bcd_decode(data[3] & 0x07);
-    state->day   = bcd_decode(data[4] & 0x3F);
-    state->month = bcd_decode(data[5] & 0x1F);
-    state->year  = bcd_decode(data[6] & 0xFF);
+    debugf("bb_rtc_get_state: raw (0x%llx)\n", dword);
 
-    state->stop            = (data[0] & 0x80) ? true : false;
-    state->oscillator_fail = (data[1] & 0x80) ? true : false;
-    state->century         = (data[2] & 0x40) ? true : false;
-    state->century_enable  = (data[2] & 0x80) ? true : false;
-    state->output_level    = (data[7] & 0x80) ? true : false;
-    return true;
+    if( state != NULL )
+    {
+        memset(state, 0, sizeof(bb_rtc_state_t));
+        state->secs  = bcd_decode(bytes[0] & 0x7F);
+        state->mins  = bcd_decode(bytes[1] & 0x7F);
+        state->hours = bcd_decode(bytes[2] & 0x3F);
+        state->dow   = bcd_decode(bytes[3] & 0x07);
+        state->day   = bcd_decode(bytes[4] & 0x3F);
+        state->month = bcd_decode(bytes[5] & 0x1F);
+        state->year  = bcd_decode(bytes[6] & 0xFF);
+
+        state->stop            = (bytes[0] & 0x80) ? true : false;
+        state->oscillator_fail = (bytes[1] & 0x80) ? true : false;
+        state->century         = (bytes[2] & 0x40) ? true : false;
+        state->century_enable  = (bytes[2] & 0x80) ? true : false;
+        state->output_level    = (bytes[7] & 0x80) ? true : false;
+    }
+
+    return dword;
 }
 
 time_t bb_rtc_get_time( void )

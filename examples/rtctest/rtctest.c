@@ -5,6 +5,10 @@
 
 #include "constants.h"
 
+typedef struct bb_rtc_state *bb_rtc_state_t;
+
+uint64_t bb_rtc_get_state(bb_rtc_state_t *state);
+
 static surface_t* disp = 0;
 static joypad_inputs_t pad_inputs = {0};
 static joypad_buttons_t pad_pressed = {0};
@@ -80,7 +84,13 @@ int main(void)
 
         /* Line 5 */
         graphics_set_color( WHITE, BLACK );
-        if( !persistent )
+        if( sys_bbplayer() )
+        {
+            char bb_line[40];
+            sprintf( bb_line, "    BB RTC STATE 0x%llx     ", bb_rtc_get_state( NULL ));
+            graphics_draw_text( disp, 0, LINE5, bb_line );
+        }
+        else if( !persistent )
         {
             graphics_draw_text( disp, 0, LINE5, NOWRITE_MESSAGE );
         }
