@@ -466,6 +466,7 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
                 break;
             case 2: // 8bpp: all tiles can be used for both loading and rendering. ntile is always 0
                 rdpq_load_tile(tile_offset, g->s, g->t, g->s+width, g->t+height);
+                ntile = tile_offset;
                 tile_offset = (tile_offset + 1) & 7;
                 break;
             default:
