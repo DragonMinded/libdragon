@@ -77,6 +77,11 @@ static int bcd_decode(uint8_t bcd)
     return (bcd & 0x0F) + ((bcd >> 4) * 10);
 }
 
+static int bcd_encode(int dec)
+{
+    return ((dec / 10) << 4) | (dec % 10);
+}
+
 /** @brief Read the internal state of the RTC chip */
 uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
 {
@@ -110,6 +115,27 @@ uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
     }
 
     return dword;
+}
+
+bool bb_rtc_set_state(bb_rtc_state_t *state)
+{
+    uint8_t bytes[8];
+
+    bytes[0] = bcd_encode(state->secs);
+    bytes[1] = bcd_encode(state->mins);
+    bytes[2] = bcd_encode(state->hours);
+    bytes[3] = bcd_encode(state->dow);
+    bytes[4] = bcd_encode(state->day);
+    bytes[5] = bcd_encode(state->month);
+    bytes[6] = bcd_encode(state->year);
+
+    bytes[0] |= state->stop            ? 0x80 : 0x00;
+    bytes[1] |= state->oscillator_fail ? 0x80 : 0x00;
+    bytes[2] |= state->century         ? 0x40 : 0x00;
+    bytes[2] |= state->century_enable  ? 0x80 : 0x00;
+    bytes[7] |= state->output_level    ? 0x80 : 0x00;
+
+    return i2c_write_data(RTC_SLAVE_ADDR, 0, sizeof(bytes), bytes);
 }
 
 time_t bb_rtc_get_time( void )
