@@ -84,15 +84,16 @@ static inline uint8_t i2c_read_byte(void)
 __attribute__((used))
 static bool i2c_read_data(uint8_t slave_addr, uint8_t addr, int len, uint8_t *data)
 {
+    bool ok = true;
     I2C_INIT();
     i2c_write_start();
     i2c_write_byte(slave_addr << 1);
-    i2c_read_ack(0);
+    if (!i2c_read_ack(0)) { ok = false; goto finish; }
     i2c_write_byte(addr);
-    i2c_read_ack(1);
+    if (!i2c_read_ack(1)) { ok = false; goto finish; }
     i2c_write_start();
     i2c_write_byte((slave_addr << 1) | 1);  // read mode
-    i2c_read_ack(2);
+    if (!i2c_read_ack(2)) { ok = false; goto finish; }
     for (int i=0; i<len; i++) {
         data[i] = i2c_read_byte();
         if (i < len-1)
@@ -100,25 +101,30 @@ static bool i2c_read_data(uint8_t slave_addr, uint8_t addr, int len, uint8_t *da
         else
             i2c_write_nack();
     }
+finish:
     i2c_write_stop();
-    return true;
+    I2C_WRITE(1,1);
+    return ok;
 }
 
 __attribute__((used))
 static bool i2c_write_data(uint8_t slave_addr, uint8_t addr, int len, uint8_t *data)
 {
+    bool ok = true;
     I2C_INIT();
     i2c_write_start();
     i2c_write_byte(slave_addr << 1);
-    i2c_read_ack(0);
+    if (!i2c_read_ack(0)) { ok = false; goto finish; }
     i2c_write_byte(addr);
-    i2c_read_ack(1);
+    if (!i2c_read_ack(1)) { ok = false; goto finish; }
     for (int i=0; i<len; i++) {
         i2c_write_byte(data[i]);
-        i2c_read_ack(2);
+        if (!i2c_read_ack(2)) { ok = false; goto finish; }
     }
+finish:
     i2c_write_stop();
-    return true;
+    I2C_WRITE(1,1);
+    return ok;
 }
 
 #endif
