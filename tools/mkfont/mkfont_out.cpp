@@ -6,6 +6,7 @@
 #include <mutex>
 #include "phf.h"
 #include "phf.cpp"
+#include "crc64.c"
 #include "../common/thread_utils.h"
 
 static std::string codepoint_to_utf8(uint32_t codepoint) {
@@ -317,6 +318,21 @@ struct Image {
         }
     }
 
+    uint64_t crc64() {
+        uint64_t crc = 0;
+        uint64_t sizes = ((uint64_t)w << 32) | (uint64_t)h;
+
+        // CRC also the sizes. This avoids false positives for very small
+        // glyphs like 4x1 vs 2x2 where the sequence of pixels is the same
+        // but the layout is different (think a dash vs a small box).
+        crc = ::crc64(crc, (uint8_t*)&sizes, 8);
+        for_each_pixel([&](Pixel px) {
+            uint32_t px32 = px.to_rgba32();
+            crc = ::crc64(crc, (uint8_t*)&px32, 4);
+        });
+        return crc;
+    }
+
     void write_png(const char *fn) {
         const auto &img = fmt == FMT_RGBA32 ? *this : convert(FMT_RGBA32);
         lodepng_encode32_file(fn, img.pixels.data(), img.w, img.h);
@@ -330,9 +346,10 @@ struct Glyph {
     Image img;              // Pixel image (see add_glyph for valid formats)
     int xoff, yoff;
     int xadv;
+    int dupidx;             // >= 0 if the glyph is a dupe of another one
 
-    Glyph(int idx, uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
-        : gidx(idx), codepoint(cp), img(img), xoff(xoff), yoff(yoff), xadv(xadv) {}
+    Glyph(int idx, uint32_t cp, Image&& img, int xoff, int yoff, int xadv, int dupidx=-1)
+        : gidx(idx), codepoint(cp), img(img), xoff(xoff), yoff(yoff), xadv(xadv), dupidx(dupidx) {}
 };
 
 struct Font {
@@ -341,12 +358,14 @@ struct Font {
     rdpq_font_t *fnt = nullptr;
     std::vector<Glyph> glyphs;
     std::vector<Kerning> kernings;
+    std::map<uint64_t, int> glyphs_crc;
     int num_atlases = 0;
     std::string outfn;
     fonttype_t fonttype;
     tex_format_t bmp_outfmt = FMT_RGBA16;  // output format in case fonttype is FONT_TYPE_BITMAP
     phf phash;  // perfect hash table for sparse ranges
     std::vector<int16_t> phash_values;
+    int dupes_count = 0;  // number of duplicate glyphs
 
     Font(std::string fn, fonttype_t ftype, int point_size, int ascent, int descent, int line_gap, int space_width)
     {
@@ -408,9 +427,12 @@ private:
 
 void Font::write()
 {
-    if (flag_verbose) 
-        fprintf(stderr, "total glyphs packed in the font: %d\n", fnt->num_glyphs);
-
+    if (flag_verbose) {
+        if (dupes_count == 0)
+            fprintf(stderr, "total glyphs packed in the font: %d\n", fnt->num_glyphs);
+        else
+            fprintf(stderr, "total glyphs packed in the font: %d (+ %d duplicates)\n", fnt->num_glyphs - dupes_count, dupes_count);
+    }
 
     FILE *out = fopen(outfn.c_str(), "wb");
     if (!out) {
@@ -597,6 +619,28 @@ int Font::get_glyph_index(uint32_t cp)
     return -1;
 }
 
+static bool image_fits_tmem(Image& img, tex_format_t fmt)
+{
+    switch (fmt) {
+    case FMT_I4:
+    case FMT_IA4:
+        return (ROUND_UP((img.w+1)/2, 8) * img.h) <= 4096;
+    case FMT_CI4:
+        return (ROUND_UP((img.w+1)/2, 8) * img.h) <= 2048;
+    case FMT_I8:
+    case FMT_IA8:
+        return (ROUND_UP(img.w, 8) * img.h) <= 4096;
+    case FMT_CI8:
+        return (ROUND_UP(img.w, 8) * img.h) <= 2048;
+    case FMT_RGBA16:
+        return (ROUND_UP(img.w*2, 8) * img.h) <= 4096;
+    case FMT_RGBA32:
+        return (ROUND_UP(img.w*2, 8) * img.h) <= 2048;
+    default:
+        assert(!"unimplmented format");
+    }
+}
+
 int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
 {
     int gidx = get_glyph_index(cp);
@@ -605,6 +649,7 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
         return -1;
     }
 
+    tex_format_t tmem_fmt;
     switch (fonttype) {
     case FONT_TYPE_MONO:
         if (img.fmt != FMT_I8) assert(!"glyph image must be I8 for monochrome fonts");
@@ -613,9 +658,11 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
             if (px.data[0] > 0 && px.data[0] < 0xF0)
                 assert(!"monochrome glyph must not contains shades of gray");
         });
+        tmem_fmt = FMT_CI4;
         break;
     case FONT_TYPE_ALIASED:
         if (img.fmt != FMT_I8) assert(!"glyph image must be I8 for aliased fonts");
+        tmem_fmt = FMT_I4;
         break;
     case FONT_TYPE_MONO_OUTLINE:
         // Outline fonts are IA16. Intensity goes between 0x00 for the outline
@@ -627,15 +674,18 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
             if (px.data[0] != 0 && px.data[1] != 0x00 && px.data[1] != 0xFF)
                 assert(!"monochrome glyph must not contains shades of gray");
         });
+        tmem_fmt = FMT_CI4;
         break;
     case FONT_TYPE_ALIASED_OUTLINE:
         // Outline fonts are IA16. Intensity goes between 0x00 for the outline
         // to 0xFF for the fill, while the alpha channel is the coverage of each pixel.
         if (img.fmt != FMT_IA16) assert(!"glyph image must be IA16 for outlined fonts");
+        tmem_fmt = FMT_IA8;
         break;
     case FONT_TYPE_BITMAP:
         if (img.fmt != FMT_RGBA16 && img.fmt != FMT_RGBA32 && img.fmt != FMT_CI8)
             assert(!"glyph image must be RGBA16/RGBA32/CI8 for bitmap fonts");
+        tmem_fmt = img.fmt;
         break;
     default:
         assert(!"unsupported font type");
@@ -645,7 +695,27 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
     int x0=0, y0=0;
     img = img.crop_transparent(&x0, &y0);
 
+    if (!image_fits_tmem(img, tmem_fmt)) {
+        fprintf(stderr, "Error: glyph %s [U+%04X] does not fit in TMEM (%dx%d in I4 format)\n",
+            codepoint_to_utf8(cp).c_str(), cp, img.w, img.h);
+        exit(1);
+    }
+
     glyphs.push_back(Glyph(gidx, cp, std::move(img), xoff + x0, yoff + y0, xadv));
+
+    // Check if it's a duplicate glyph
+    uint64_t crc64 = img.crc64();
+    if (glyphs_crc.find(crc64) == glyphs_crc.end()) {
+        glyphs_crc[crc64] = gidx;
+    } else {
+        glyphs[glyphs.size()-1].dupidx = glyphs_crc[crc64];
+        if (flag_verbose >= 3) {
+            fprintf(stderr, "  glyph %s [U+%04X] is a duplicate (%d)\n",
+                codepoint_to_utf8(cp).c_str(), cp, glyphs_crc[crc64]);
+        }
+        dupes_count++;
+    }
+
     return gidx;
 }
 
@@ -667,6 +737,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
     std::vector<rect_pack::Sheet> sheets;
     for (int i=0; i<glyphs.size(); i++) {
         if (glyphs[i].img.w == 0 || glyphs[i].img.h == 0) continue;
+        if (glyphs[i].dupidx >= 0) continue;
         rect_pack::Size size;
         size.id = i;
         size.width = glyphs[i].img.w + settings.border_padding;
@@ -674,6 +745,9 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
         total_glyph_area += size.width * size.height;
         sizes.push_back(size);
     }
+    // If all glyphs are dupes, there's nothing to pack here
+    if (sizes.empty())
+        return std::vector<rect_pack::Sheet>();
 
     tex_format_t cfmt; 
     switch (fonttype) {
@@ -740,10 +814,15 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
     if (total_glyph_area <= merge_layers * MAX_TMEM_ATLASES * settings.max_width * settings.max_height) {
 
         // Do the packing with TMEM limits
+        assert(sizes.size() > 0);
         sheets = rect_pack::pack(settings, sizes);
         
         // Check whether the number of atlases is below the threshold to keep them in TMEM
-        fit_tmem = sheets.size() <= MAX_TMEM_ATLASES * merge_layers;
+        // Also check that it's bigger than 0, otherwise it means that none of the input
+        // glyph fit the atlas size; they're probably too big (even though they would still
+        // fit a specially-sized atlas that just covers them, otherwise we would have
+        // asserted already in Font::add_glyph). Try the RDRAM approach too in this case.
+        fit_tmem = sheets.size() > 0 && sheets.size() <= MAX_TMEM_ATLASES * merge_layers;
     }
 
     if (!fit_tmem) {    
@@ -761,6 +840,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
         // put 4 here to avoid a too slow optimization process for a modest saving.
         settings.align_width = 4;
         sheets = rect_pack::pack(settings, sizes);
+        assert(sheets.size() > 0);
     }
 
     if (flag_verbose >= 2)
@@ -770,6 +850,7 @@ std::vector<rect_pack::Sheet> Font::pack_atlases(std::vector<Glyph>& glyphs, int
     // sizes. This is not something at which rect_pack excels at, so a bruteforce
     // approach is used here.
     int num_sheets = sheets.size();
+    assert(num_sheets > 0);
     int last_group = (num_sheets-1) / merge_layers * merge_layers;
 
     // Move the last group of sheets to a temporary array. Calculate also the
@@ -902,6 +983,15 @@ void Font::make_atlases(void)
         }
     }
 
+    if (flag_verbose > 0) {
+        int dupes = 0;
+        for (auto& g : glyphs) {
+            if (g.dupidx >= 0) dupes++;
+        }
+        if (dupes > 0)
+            fprintf(stderr, "found %d duplicate glyphs\n", dupes);
+    }
+
     // Determine how many different layers the final atlases will be:
     //  Aliased font: single layer (either I4 or IA8, depending on outline)
     //  Mono, no outline: we can use 1bpp, so we can merge 4 layers
@@ -980,6 +1070,32 @@ void Font::make_atlases(void)
 
         atlases.push_back(std::move(img));
         num_atlases++;
+    }
+
+    // Process duplicate glyphs: they weren't put in the atlases.
+    // Copy all the metadata from the original glyph
+    for (auto& glyph : glyphs) {
+        if (glyph.dupidx >= 0) {
+            // Use positioning from this glyph, and texture coordinates
+            // from the duplicate. This allows us to merge also glyphs with
+            // identical pixels (after cropping!) but different positioning
+            // (eg: _ and - in some fonts).
+            glyph_t *gout = &fnt->glyphs[glyph.gidx];
+            gout->xoff = glyph.xoff;
+            gout->yoff = glyph.yoff;
+            gout->xoff2 = gout->xoff + glyph.img.w;
+            gout->yoff2 = gout->yoff + glyph.img.h;
+            gout->xadvance = glyph.xadv;
+
+            glyph_t *gdup = &fnt->glyphs[glyph.dupidx];
+            gout->s = gdup->s;
+            gout->t = gdup->t;
+            gout->natlas = gdup->natlas;
+            gout->ntile = gdup->ntile;
+
+            assert(gout->xoff2 - gout->xoff == gdup->xoff2 - gdup->xoff);
+            assert(gout->yoff2 - gout->yoff == gdup->yoff2 - gdup->yoff);
+        }
     }
 
     if (merge_layers > 1) {

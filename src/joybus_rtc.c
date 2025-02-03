@@ -28,6 +28,8 @@ typedef enum
     JOYBUS_RTC_BLOCK_UNUSED = 1,
     /** @brief Time block */
     JOYBUS_RTC_BLOCK_TIME = 2,
+    /** @brief Empty block */
+    JOYBUS_RTC_BLOCK_EMPTY = 3,
 } joybus_rtc_block_t;
 
 /** @brief Joybus RTC Status Byte */
@@ -39,9 +41,13 @@ typedef union
     struct __attribute__((packed))
     {
     /// @endcond
-        /** @brief "RTC is stopped" bit */
-        unsigned stopped : 1;
-        unsigned         : 7;
+        /** @brief Set if the RTC is stopped. */
+        unsigned stopped     : 1;
+        unsigned             : 5;
+        /** @brief Set if RTC crystal is not working. */
+        unsigned crystal_bad : 1;
+        /** @brief Set if the RTC battery voltage is too low. */
+        unsigned battery_bad : 1;
     /// @cond
     };
     /// @endcond
@@ -225,7 +231,12 @@ static void joybus_rtc_detect_callback( uint64_t *out_dwords, void *ctx )
     joybus_cmd_identify_port_t *cmd = (void *)&out_bytes[JOYBUS_RTC_PORT + JOYBUS_COMMAND_METADATA_SIZE];
     bool detected = cmd->recv.identifier == JOYBUS_IDENTIFIER_CART_RTC;
     joybus_rtc_detect_state = detected ? JOYBUS_RTC_DETECTED : JOYBUS_RTC_NOT_DETECTED;
-    debugf("joybus_rtc_detect_async: %s status 0x%02x\n", detected ? "detected" : "not detected", cmd->recv.status);
+    joybus_rtc_status_t status = { .byte = cmd->recv.status };
+
+    debugf("joybus_rtc_detect_async: %s %s\n",
+        detected ? "detected" : "not detected",
+        status.stopped ? "stopped" : "running");
+
     callback( detected );
 }
 
@@ -275,9 +286,9 @@ bool joybus_rtc_detect( void )
 
 static void joybus_rtc_set_stopped_write_callback( uint64_t *out_dwords, void *ctx )
 {
+    debugf("joybus_rtc_set_stopped_async: done\n");
     joybus_rtc_set_stopped_callback_t callback = ctx;
     if( callback ) callback();
-    debugf("joybus_rtc_set_stopped_async: done\n");
 }
 
 static void joybus_rtc_set_stopped_read_callback( uint64_t *out_dwords, void *ctx )
@@ -292,24 +303,16 @@ static void joybus_rtc_set_stopped_read_callback( uint64_t *out_dwords, void *ct
     bool stop = ((uint32_t)ctx & 0x1);
     joybus_rtc_set_stopped_callback_t callback = (void *)((uint32_t)ctx & ~0x1);
 
-    if( control.stop == stop )
-    {
-        debugf("joybus_rtc_set_stopped_async: already in desired state\n");
-        if( callback ) callback();
-    }
-    else
-    {
-        control.stop = stop;
-        control.lock_block1 = !stop;
-        control.lock_block2 = !stop;
-        debugf("joybus_rtc_set_stopped_async: writing control block (0x%llx)\n", control.data.dword);
-        joybus_rtc_write_async(
-            JOYBUS_RTC_BLOCK_CONTROL,
-            &control.data,
-            joybus_rtc_set_stopped_write_callback,
-            callback
-        );
-    }
+    control.stop = stop;
+    control.lock_block1 = !stop;
+    control.lock_block2 = !stop;
+    debugf("joybus_rtc_set_stopped_async: writing control block (0x%llx)\n", control.data.dword);
+    joybus_rtc_write_async(
+        JOYBUS_RTC_BLOCK_CONTROL,
+        &control.data,
+        joybus_rtc_set_stopped_write_callback,
+        callback
+    );
 }
 
 void joybus_rtc_set_stopped_async( bool stop, joybus_rtc_set_stopped_callback_t callback )
@@ -317,7 +320,7 @@ void joybus_rtc_set_stopped_async( bool stop, joybus_rtc_set_stopped_callback_t 
     // Pack the stop bit and the callback pointer into the context value
     void *ctx = (void *)((uint32_t)callback | (stop & 0x1));
     debugf("joybus_rtc_set_stopped_async: reading control block\n");
-    joybus_rtc_read_async( JOYBUS_RTC_BLOCK_TIME, joybus_rtc_set_stopped_read_callback, ctx );
+    joybus_rtc_read_async( JOYBUS_RTC_BLOCK_CONTROL, joybus_rtc_set_stopped_read_callback, ctx );
 }
 
 void joybus_rtc_set_stopped( bool stop )
@@ -327,18 +330,11 @@ void joybus_rtc_set_stopped( bool stop )
     joybus_rtc_read( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
     debugf("joybus_rtc_set_stopped: control state (0x%llx)\n", control.data.dword);
 
-    if ( control.stop != stop )
-    {
-        control.stop = stop;
-        control.lock_block1 = !stop;
-        control.lock_block2 = !stop;
-        debugf("joybus_rtc_set_stopped: writing control block (0x%llx)\n", control.data.dword);
-        joybus_rtc_write( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
-    }
-    else
-    {
-        debugf("joybus_rtc_set_stopped: already in desired state\n");
-    }
+    control.stop = stop;
+    control.lock_block1 = !stop;
+    control.lock_block2 = !stop;
+    debugf("joybus_rtc_set_stopped: writing control block (0x%llx)\n", control.data.dword);
+    joybus_rtc_write( JOYBUS_RTC_BLOCK_CONTROL, &control.data );
 }
 
 bool joybus_rtc_is_stopped( void )
@@ -364,7 +360,7 @@ static void joybus_rtc_read_time_callback( uint64_t *out_dwords, void *ctx )
     time_t decoded_time = joybus_rtc_decode_time( &data );
 
     struct tm * parsed_tm = gmtime( &decoded_time );
-    debugf("joybus_rtc_read_time: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
+    debugf("joybus_rtc_read_time_async: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
         parsed_tm->tm_year + 1900, parsed_tm->tm_mon + 1, parsed_tm->tm_mday,
         parsed_tm->tm_hour, parsed_tm->tm_min, parsed_tm->tm_sec
     );

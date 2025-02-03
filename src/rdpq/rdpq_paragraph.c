@@ -561,11 +561,7 @@ void rdpq_paragraph_render(const rdpq_paragraph_t *layout, float x0, float y0)
 {
     const rdpq_paragraph_char_t *ch = layout->chars;
 
-    // FIXME: this code causes crash on real hardware. It seems
-    // like the fill rectangle is responsible, and needs *lots*
-    // of syncing afterwards to avoid that (eg: 3 sync pipe).
-    // Reenable after we investigate better the issue.
-    if (layout->flags & RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX && false) {
+    if (layout->flags & RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX) {
         rdpq_mode_begin();
             rdpq_set_mode_standard();
             rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);

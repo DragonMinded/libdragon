@@ -31,7 +31,12 @@ static float sinf_approx(float x, int approx) {
     if (LIKELY(--approx < 0)) p += - 1.73503853e-4f,  p *= s;
     if (LIKELY(--approx < 0)) p +=   6.62087463e-3f,  p *= s;
     if (LIKELY(--approx < 0)) p += - 1.01321176e-1f;
-    return x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;   
+    x = x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;
+    // FIXME: workaround for a bug in our sinf approximation. We found at least
+    // one input (0xbfc915a2 => -1.570973) that produces an out of bounds result
+    // -1.000000119209289551 (0xbf800001).
+    x = CLAMP(x, -1.0f, 1.0f);
+    return x;
 }
 
 float fm_sinf_approx(float x, int approx) {
@@ -41,10 +46,6 @@ float fm_sinf_approx(float x, int approx) {
     // to the 5 ULP figure.
     x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
     x = sinf_approx(x, approx);
-    // FIXME: workaround for a bug in our sinf approximation. We found at least
-    // one input (0xbfc915a2 => -1.570973) that produces an out of bounds result
-    // -1.000000119209289551 (0xbf800001).
-    x = CLAMP(x, -1.0f, 1.0f);
     return x;
 }
 

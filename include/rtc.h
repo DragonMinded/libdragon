@@ -8,7 +8,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/types.h>
 
 /**
  * @defgroup rtc Real-Time Clock Subsystem
