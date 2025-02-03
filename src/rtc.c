@@ -97,7 +97,7 @@ static bool rtc_set_time( time_t new_time )
     }
     else if( rtc_source == RTC_SOURCE_BB )
     {
-        // TODO: BBPlayer RTC writes are not yet implemented.
+        written = bb_rtc_set_time( new_time );
     }
     /* Update cache state */
     rtc_cache_time = new_time;
@@ -267,6 +267,7 @@ bool rtc_is_source_persistent( rtc_source_t source )
 {
     static int _joybus_persistent = -1;
     static int _dd_persistent = -1;
+    static int _bb_persistent = -1;
 
     WAIT_FOR_RTC_READY();
 
@@ -296,8 +297,11 @@ bool rtc_is_source_persistent( rtc_source_t source )
     }
     if( source == RTC_SOURCE_BB )
     {
-        // TODO: BBPlayer RTC writes are not yet implemented.
-        return false;
+        if( _bb_persistent == -1 )
+        {
+            _bb_persistent = bb_rtc_set_time( bb_rtc_get_time() );
+        }
+        return _bb_persistent;
     }
     // Software RTC does not persist across reset/power-off
     return false;

@@ -151,14 +151,38 @@ time_t bb_rtc_get_time( void )
     rtc_tm.tm_sec   = state.secs;
     rtc_tm.tm_min   = state.mins;
     rtc_tm.tm_hour  = state.hours;
+    rtc_tm.tm_wday  = state.dow;
     rtc_tm.tm_mday  = state.day;
     rtc_tm.tm_mon   = state.month - 1;
+    // TODO: Handle BBPlayer "century" flag
     rtc_tm.tm_year  = state.year + 100;
-    rtc_tm.tm_wday  = state.dow;
 
     char buff[20];
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &rtc_tm);
     debugf("bb_rtc_get_time: parsed time: %s\n", buff);
 
     return mktime( &rtc_tm );
+}
+
+bool bb_rtc_set_time( time_t new_time )
+{
+    bb_rtc_state_t state;
+    if (!bb_rtc_get_state(&state))
+    {
+        debugf("bb_rtc_set_time: failed to read state\n");
+        return 0;
+    }
+
+    struct tm * new_tm = gmtime( &new_time );
+
+    state.secs = new_tm->tm_sec;
+    state.mins = new_tm->tm_min;
+    state.hours = new_tm->tm_hour;
+    state.dow = new_tm->tm_wday;
+    state.day = new_tm->tm_mday;
+    state.month = new_tm->tm_mon + 1;
+    // TODO: Handle BBPlayer "century" flag
+    state.year = new_tm->tm_year - 100;
+
+    return bb_rtc_set_state( &state );
 }
