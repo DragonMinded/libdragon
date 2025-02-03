@@ -19,6 +19,7 @@
 
 static uint32_t gpio_cache;
 
+/** @brief Convert nanoseconds to BBPlayer CPU ticks. */
 #define BB_TICKS_FROM_NS(ns)  ((int64_t)(ns) * (144000000 / 2) / 1000000000)
 
 static inline void wait_ns( unsigned long wait_ns )
@@ -82,7 +83,7 @@ static int bcd_encode(int dec)
     return ((dec / 10) << 4) | (dec % 10);
 }
 
-/** @brief Read the internal state of the RTC chip */
+/** @brief Read the internal state of the BBPlayer RTC chip */
 uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
 {
     uint64_t dword;
@@ -117,6 +118,7 @@ uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
     return dword;
 }
 
+/** @brief Write the internal state of the BBPlayer RTC chip */
 bool bb_rtc_set_state(bb_rtc_state_t *state)
 {
     uint8_t bytes[8];
