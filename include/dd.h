@@ -34,9 +34,9 @@ typedef enum {
 
 uint16_t dd_command(dd_cmd_t cmd);
 
-time_t dd_get_time( void );
+time_t dd_rtc_get_time( void );
 
-bool dd_set_time( time_t new_time );
+bool dd_rtc_set_time( time_t new_time );
 
 inline bool sys_dd(void) {
     return dd_found;

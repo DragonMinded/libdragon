@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
 
 /**
  * @defgroup rtc Real-Time Clock Subsystem
@@ -62,11 +63,6 @@
  * @{
  */
 
-/** @brief RTC minimum timestamp (1996-01-01 00:00:00) */
-#define RTC_TIMESTAMP_MIN 820454400
-/** @brief RTC maximum timestamp (2095-12-31 23:59:59) */
-#define RTC_TIMESTAMP_MAX 3976214399
-
 /** @brief RTC source values. */
 typedef enum {
     /** @brief Software RTC source */
@@ -79,9 +75,34 @@ typedef enum {
     RTC_SOURCE_BB = 3,
 } rtc_source_t;
 
+/** @brief Software RTC minimum timestamp (1900-01-01 00:00:00) */
+#define RTC_SOURCE_NONE_TIMESTAMP_MIN -2208988800
+/** @brief Software RTC maximum timestamp (2199-12-31 23:59:59) */
+#define RTC_SOURCE_NONE_TIMESTAMP_MAX 7258118399
+
+/** @brief Joybus RTC minimum timestamp (1900-01-01 00:00:00) */
+#define RTC_SOURCE_JOYBUS_TIMESTAMP_MIN -2208988800
+/** @brief Joybus RTC maximum timestamp (2099-12-31 23:59:59) */
+#define RTC_SOURCE_JOYBUS_TIMESTAMP_MAX 4102444799
+
+/** @brief 64DD RTC minimum timestamp (1996-01-01 00:00:00) */
+#define RTC_SOURCE_DD_TIMESTAMP_MIN 820454400
+/** @brief 64DD RTC maximum timestamp (2095-12-31 23:59:59) */
+#define RTC_SOURCE_DD_TIMESTAMP_MAX 3976214399
+
+/** @brief BBPlayer RTC minimum timestamp (2000-01-01 00:00:00) */
+#define RTC_SOURCE_BB_TIMESTAMP_MIN 946684800
+/** @brief BBPlayer RTC maximum timestamp (2199-12-31 23:59:59) */
+#define RTC_SOURCE_BB_TIMESTAMP_MAX 7258118399
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct {
+    time_t min;
+    time_t max;
+} rtc_range_t;
 
 /**
  * @brief Initialize the RTC subsystem asynchronously.
@@ -146,6 +167,22 @@ rtc_source_t rtc_get_source( void );
  * @return whether the new source clock was successfully selected
  */
 bool rtc_set_source( rtc_source_t source );
+
+/**
+ * @brief Get the supported timestamp range for the given RTC source.
+ *
+ * @param source the RTC source to check
+ *
+ * @return the supported timestamp range for the source
+ */
+rtc_range_t rtc_get_source_supported_range( rtc_source_t source );
+
+/**
+ * @brief Get the supported timestamp range for the current RTC source.
+ *
+ * @return the supported timestamp range for the current source clock
+ */
+rtc_range_t rtc_get_supported_range( void );
 
 /**
  * @brief Determine whether a specific clock source supports persistent

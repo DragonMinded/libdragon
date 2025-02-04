@@ -81,7 +81,8 @@ static time_t rtc_get_time( void )
  */
 static bool rtc_set_time( time_t new_time )
 {
-    if( new_time < RTC_TIMESTAMP_MIN || new_time > RTC_TIMESTAMP_MAX )
+    rtc_range_t range = rtc_get_supported_range();
+    if( new_time < range.min || new_time > range.max )
     {
         return false;
     }
@@ -93,7 +94,7 @@ static bool rtc_set_time( time_t new_time )
     }
     else if( rtc_source == RTC_SOURCE_DD )
     {
-        written = dd_set_time( new_time );
+        written = dd_rtc_set_time( new_time );
     }
     else if( rtc_source == RTC_SOURCE_BB )
     {
@@ -121,7 +122,7 @@ static void rtc_resync_time( void )
     }
     else if( rtc_source == RTC_SOURCE_DD )
     {
-        rtc_cache_time = dd_get_time();
+        rtc_cache_time = dd_rtc_get_time();
         rtc_cache_ticks = get_ticks();
     }
     else if( rtc_source == RTC_SOURCE_BB )
@@ -192,7 +193,7 @@ void rtc_init_async( void )
         if( sys_dd() )
         {
             rtc_source = RTC_SOURCE_DD;
-            rtc_cache_time = dd_get_time();
+            rtc_cache_time = dd_rtc_get_time();
             rtc_cache_ticks = get_ticks();
         }
 
@@ -291,7 +292,7 @@ bool rtc_is_source_persistent( rtc_source_t source )
         if( _dd_persistent == -1 )
         {
             // Test writability by attempting to perform a write
-            _dd_persistent = dd_set_time( dd_get_time() );
+            _dd_persistent = dd_rtc_set_time( dd_rtc_get_time() );
         }
         return _dd_persistent;
     }
@@ -312,6 +313,40 @@ bool rtc_is_persistent( void )
     WAIT_FOR_RTC_READY();
 
     return rtc_is_source_persistent( rtc_source );
+}
+
+rtc_range_t rtc_get_source_supported_range( rtc_source_t source )
+{
+    if( source == RTC_SOURCE_JOYBUS )
+    {
+        return (rtc_range_t){
+            .min = RTC_SOURCE_JOYBUS_TIMESTAMP_MIN,
+            .max = RTC_SOURCE_JOYBUS_TIMESTAMP_MAX,
+        };
+    }
+    if( source == RTC_SOURCE_DD )
+    {
+        return (rtc_range_t){
+            .min = RTC_SOURCE_DD_TIMESTAMP_MIN,
+            .max = RTC_SOURCE_DD_TIMESTAMP_MAX,
+        };
+    }
+    if( source == RTC_SOURCE_BB )
+    {
+        return (rtc_range_t){
+            .min = RTC_SOURCE_BB_TIMESTAMP_MIN,
+            .max = RTC_SOURCE_BB_TIMESTAMP_MAX,
+        };
+    }
+    return (rtc_range_t){
+        .min = RTC_SOURCE_NONE_TIMESTAMP_MIN,
+        .max = RTC_SOURCE_NONE_TIMESTAMP_MAX,
+    };
+}
+
+rtc_range_t rtc_get_supported_range( void )
+{
+    return rtc_get_source_supported_range( rtc_source );
 }
 
 /** @deprecated Use #rtc_get_time instead. */

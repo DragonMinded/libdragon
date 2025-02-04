@@ -140,6 +140,18 @@ bool bb_rtc_set_state(bb_rtc_state_t *state)
     return i2c_write_data(RTC_SLAVE_ADDR, 0, sizeof(bytes), bytes);
 }
 
+bool bb_rtc_set_century_enable( bool enabled )
+{
+    bb_rtc_state_t state;
+    if (!bb_rtc_get_state(&state))
+    {
+        debugf("bb_rtc_set_century_enable: failed to read state\n");
+        return false;
+    }
+    state.century_enable = enabled;
+    return bb_rtc_set_state(&state);
+}
+
 time_t bb_rtc_get_time( void )
 {
     bb_rtc_state_t state;
@@ -149,6 +161,8 @@ time_t bb_rtc_get_time( void )
         return 0;
     }
 
+    bool century = state.century_enable && state.century;
+
     struct tm rtc_tm;
     rtc_tm.tm_sec   = state.secs;
     rtc_tm.tm_min   = state.mins;
@@ -156,8 +170,8 @@ time_t bb_rtc_get_time( void )
     rtc_tm.tm_wday  = state.dow;
     rtc_tm.tm_mday  = state.day;
     rtc_tm.tm_mon   = state.month - 1;
-    // TODO: Handle BBPlayer "century" flag
-    rtc_tm.tm_year  = state.year + 100;
+    // BBPlayer was released in 2003; does not support 19XX year
+    rtc_tm.tm_year  = state.year + (century ? 200 : 100);
 
     char buff[20];
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &rtc_tm);
@@ -183,8 +197,12 @@ bool bb_rtc_set_time( time_t new_time )
     state.dow = new_tm->tm_wday;
     state.day = new_tm->tm_mday;
     state.month = new_tm->tm_mon + 1;
-    // TODO: Handle BBPlayer "century" flag
-    state.year = new_tm->tm_year - 100;
+    // BBPlayer was released in 2003; does not support 19XX year
+    state.year = new_tm->tm_year % 100;
+    if( state.century_enable )
+    {
+        state.century = new_tm->tm_year >= 200;
+    }
 
     return bb_rtc_set_state( &state );
 }

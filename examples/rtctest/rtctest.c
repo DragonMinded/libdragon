@@ -8,6 +8,7 @@
 typedef struct bb_rtc_state *bb_rtc_state_t;
 
 uint64_t bb_rtc_get_state(bb_rtc_state_t *state);
+bool bb_rtc_set_century_enable( bool enabled );
 
 static surface_t* disp = 0;
 static joypad_inputs_t pad_inputs = {0};
@@ -148,6 +149,19 @@ int main(void)
             }
         }
 
+        /* iQue-specific testing */
+        if( sys_bbplayer() )
+        {
+            if( !edit_mode && pad_pressed.c_up )
+            {
+                bb_rtc_set_century_enable( true );
+            }
+            if( !edit_mode && pad_pressed.c_down )
+            {
+                bb_rtc_set_century_enable( false );
+            }
+        }
+
         if( edit_mode )
         {
             /* Move between fields */
@@ -187,10 +201,14 @@ static void set_edit_color( uint16_t edit_mode_mask )
 
 static void adjust_rtc_time( struct tm * t, int incr )
 {
+    rtc_range_t rtc_range = rtc_get_supported_range();
+    int year_min = TIMESTAMP_TO_YEAR(rtc_range.min);
+    int year_max = TIMESTAMP_TO_YEAR(rtc_range.max) - 1;
+
     switch( edit_mode )
     {
         case EDIT_YEAR:
-            t->tm_year = WRAP( t->tm_year + incr, YEAR_MIN - 1900, YEAR_MAX - 1900 );
+            t->tm_year = WRAP( t->tm_year + incr, year_min - 1900, year_max - 1900 );
             break;
         case EDIT_MONTH:
             t->tm_mon = WRAP( t->tm_mon + incr, 0, 11 );
@@ -215,6 +233,10 @@ static void adjust_rtc_time( struct tm * t, int incr )
 
 static void draw_rtc_time( void )
 {
+    rtc_range_t rtc_range = rtc_get_supported_range();
+    int year_min = TIMESTAMP_TO_YEAR(rtc_range.min);
+    int year_max = TIMESTAMP_TO_YEAR(rtc_range.max) - 1;
+
     char year[sizeof("YYYY")];
     char month[sizeof("MM")];
     char day[sizeof("DD")];
@@ -224,7 +246,7 @@ static void draw_rtc_time( void )
     char sec[sizeof("SS")];
 
     /* Format RTC date/time as strings */
-    sprintf( year, "%04d", CLAMP(rtc_tm.tm_year + 1900, YEAR_MIN, YEAR_MAX) );
+    sprintf( year, "%04d", CLAMP(rtc_tm.tm_year + 1900, year_min, year_max) );
     sprintf( month, "%02d", CLAMP(rtc_tm.tm_mon + 1, 1, 12) );
     sprintf( day, "%02d", CLAMP(rtc_tm.tm_mday, 1, 31) );
     dow = DAYS_OF_WEEK[CLAMP(rtc_tm.tm_wday, 0, 6)];

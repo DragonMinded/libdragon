@@ -68,7 +68,7 @@ void dd_init(void)
     register_CART_handler(dd_handler);
 }
 
-time_t dd_get_time( void )
+time_t dd_rtc_get_time( void )
 {
     // NOTE: the order of these commands is important, because reading MINSEC
     // is what actually triggers the handshake with the RTC. The other two
@@ -77,7 +77,7 @@ time_t dd_get_time( void )
     uint16_t dh = dd_command(DD_CMD_RTC_GET_DAYHOUR);
     uint16_t ym = dd_command(DD_CMD_RTC_GET_YEARMONTH);
 
-    debugf("dd_get_time: raw time: %02x-%02x-%02x %02x:%02x:%02x\n",
+    debugf("dd_rtc_get_time: raw time: %02x-%02x-%02x %02x:%02x:%02x\n",
         ym >> 8, ym & 0xFF, dh >> 8, dh & 0xFF, ms >> 8, ms & 0xFF);
 
     // By convention, 2-digit year is interpreted as 20YY if it's 96 or later
@@ -94,18 +94,18 @@ time_t dd_get_time( void )
 
     char buff[20];
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &rtc_time);
-    debugf("dd_get_time: parsed time: %s\n", buff);
+    debugf("dd_rtc_get_time: parsed time: %s\n", buff);
 
     return mktime( &rtc_time );
 }
 
-bool dd_set_time( time_t new_time )
+bool dd_rtc_set_time( time_t new_time )
 {
     struct tm * rtc_time = gmtime( &new_time );
 
     char buff[20];
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", rtc_time);
-    debugf("dd_set_time: parsed time: %s\n", buff);
+    debugf("dd_rtc_set_time: parsed time: %s\n", buff);
 
     uint8_t year = bcd_encode( rtc_time->tm_year % 100 );
     uint8_t month = bcd_encode( rtc_time->tm_mon + 1 );
@@ -114,7 +114,7 @@ bool dd_set_time( time_t new_time )
     uint8_t min = bcd_encode( rtc_time->tm_min );
     uint8_t sec = bcd_encode( rtc_time->tm_sec );
 
-    debugf("dd_set_time raw time: %02x-%02x-%02x %02x:%02x:%02x\n",
+    debugf("dd_rtc_set_time raw time: %02x-%02x-%02x %02x:%02x:%02x\n",
         year, month, day, hour, min, sec);
 
     uint16_t ym_write = year << 8 | month;
@@ -130,7 +130,7 @@ bool dd_set_time( time_t new_time )
     dd_write( DD_ASIC_DATA, ms_write );
     uint16_t ms_read = dd_command( DD_CMD_RTC_SET_MINSEC );
 
-    debugf("dd_set_time: result: %04x %04x %04x\n", ym_read, dh_read, ms_read);
+    debugf("dd_rtc_set_time: result: %04x %04x %04x\n", ym_read, dh_read, ms_read);
 
     return ym_write == ym_read && dh_write == dh_read && ms_write == ms_read;
 }
