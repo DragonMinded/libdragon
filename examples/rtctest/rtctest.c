@@ -5,8 +5,8 @@
 
 #include "constants.h"
 
+// TODO: REMOVE TEMPORARY BBPLAYER TESTING
 typedef struct bb_rtc_state *bb_rtc_state_t;
-
 uint64_t bb_rtc_get_state(bb_rtc_state_t *state);
 bool bb_rtc_set_century_enable( bool enabled );
 
@@ -87,6 +87,7 @@ int main(void)
         graphics_set_color( WHITE, BLACK );
         if( sys_bbplayer() )
         {
+            // TODO: REMOVE TEMPORARY BBPLAYER TESTING
             char bb_line[40];
             sprintf( bb_line, "    BB RTC STATE 0x%llx     ", bb_rtc_get_state( NULL ));
             graphics_draw_text( disp, 0, LINE5, bb_line );
@@ -149,7 +150,7 @@ int main(void)
             }
         }
 
-        /* iQue-specific testing */
+        // TODO: REMOVE TEMPORARY BBPLAYER TESTING
         if( sys_bbplayer() )
         {
             if( !edit_mode && pad_pressed.c_up )

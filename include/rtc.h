@@ -99,9 +99,10 @@ typedef enum {
 extern "C" {
 #endif
 
+/** @brief Structure representing an RTC timestamp range. */
 typedef struct {
-    time_t min;
-    time_t max;
+    time_t min; ///< Minimum timestamp
+    time_t max; ///< Maximum timestamp
 } rtc_range_t;
 
 /**

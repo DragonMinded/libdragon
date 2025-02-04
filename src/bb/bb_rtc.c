@@ -83,7 +83,13 @@ static int bcd_encode(int dec)
     return ((dec / 10) << 4) | (dec % 10);
 }
 
-/** @brief Read the internal state of the BBPlayer RTC chip */
+/**
+ * @brief Read the internal state of the BBPlayer RTC chip
+ *
+ * @param state pointer to BBPlayer RTC state struct or NULL
+ *
+ * @return the raw state of the BBPlayer RTC chip as a 64-bit integer
+ **/
 uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
 {
     uint64_t dword;
@@ -118,7 +124,13 @@ uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
     return dword;
 }
 
-/** @brief Write the internal state of the BBPlayer RTC chip */
+/**
+ * @brief Write the internal state of the BBPlayer RTC chip
+ *
+ * @param state pointer to BBPlayer RTC state struct
+ *
+ * @return whether the operation was successful
+ **/
 bool bb_rtc_set_state(bb_rtc_state_t *state)
 {
     uint8_t bytes[8];
@@ -140,6 +152,13 @@ bool bb_rtc_set_state(bb_rtc_state_t *state)
     return i2c_write_data(RTC_SLAVE_ADDR, 0, sizeof(bytes), bytes);
 }
 
+/**
+ * @brief Enable or disable the BBPlayer RTC century bit
+ *
+ * @param enabled true to enable the century bit, false to disable
+ *
+ * @return whether the operation was successful
+ */
 bool bb_rtc_set_century_enable( bool enabled )
 {
     bb_rtc_state_t state;
