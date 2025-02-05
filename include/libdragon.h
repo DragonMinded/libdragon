@@ -34,6 +34,7 @@
 #include "controller.h"
 #include "rtc.h"
 #include "mempak.h"
+#include "cpak.h"
 #include "vi.h"
 #include "eia608.h"
 #include "tpak.h"
