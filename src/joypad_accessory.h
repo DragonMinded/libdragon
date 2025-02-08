@@ -42,6 +42,10 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF,
     JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_WRITE,
     JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ,
+    // Accessory read states
+    JOYPAD_ACCESSORY_STATE_READ,
+    // Accessory write states
+    JOYPAD_ACCESSORY_STATE_WRITE,
     // Rumble Pak motor control states
     JOYPAD_ACCESSORY_STATE_RUMBLE_WRITE,
     // Transfer Pak power control states
@@ -91,6 +95,19 @@ typedef enum
     JOYPAD_ACCESSORY_ERROR_UNKNOWN,
 } joypad_accessory_error_t;
 
+/** @brief Callback function signature for #joypad_accessory_read_async and #joypad_accessory_write_async */
+typedef void (*joypad_accessory_io_callback_t)(int error, void *ctx);
+
+/** @brief Joypad Accessory I/O operation state */
+typedef struct
+{
+    uint8_t *start;
+    uint8_t *end;
+    uint8_t *cursor;
+    joypad_accessory_io_callback_t callback;
+    void *ctx;
+} joypad_accessory_io_t;
+
 /** @brief Joypad N64 Transfer Pak I/O operation state */
 typedef struct
 {
@@ -110,6 +127,7 @@ typedef struct joypad_accessory_s
     joypad_accessory_state_t state;
     joypad_accessory_error_t error;
     unsigned retries;
+    joypad_accessory_io_t io;
     timer_link_t *transfer_pak_wait_timer;
     joybus_transfer_pak_status_t transfer_pak_status;
     joypad_transfer_pak_io_t transfer_pak_io;
@@ -132,6 +150,24 @@ typedef struct joypad_accessory_s
  * @param port Joypad port to detect the accessory on (#joypad_port_t)
  */
 void joypad_accessory_detect_async(joypad_port_t port);
+
+void joypad_accessory_read_async(
+    joypad_port_t port,
+    uint16_t start_addr,
+    void *dst,
+    size_t len,
+    joypad_accessory_io_callback_t callback,
+    void *ctx
+);
+
+void joypad_accessory_write_async(
+    joypad_port_t port,
+    uint16_t start_addr,
+    void *src,
+    size_t len,
+    joypad_accessory_io_callback_t callback,
+    void *ctx
+);
 
 /**
  * @brief Turn the Rumble Pak motor on or off for a Joypad port.
