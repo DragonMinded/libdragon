@@ -4,11 +4,13 @@
  * @brief iQue Player (BB) Real-Time Clock (RTC) driver.
  */
 
+#include <string.h>
+#include <time.h>
+#include "bb_rtc.h"
 #include "debug.h"
 #include "dma.h"
 #include "n64sys.h"
-#include <string.h>
-#include <time.h>
+#include "rtc_internal.h"
 
 #define PI_BB_GPIO      ((volatile uint32_t*)0xA4600060)            ///< BB GPIO register
 
@@ -73,46 +75,36 @@ typedef struct bb_rtc_state {
     bool output_level;      ///< Level of the OUT pin
 } bb_rtc_state_t;
 
-static int bcd_decode(uint8_t bcd)
-{
-    return (bcd & 0x0F) + ((bcd >> 4) * 10);
-}
-
-static int bcd_encode(int dec)
-{
-    return ((dec / 10) << 4) | (dec % 10);
-}
-
 /**
  * @brief Read the internal state of the BBPlayer RTC chip
  *
  * @param state pointer to BBPlayer RTC state struct or NULL
+ * @param raw pointer to a uint64 to store the raw state or NULL
  *
- * @return the raw state of the BBPlayer RTC chip as a 64-bit integer
+ * @retval RTC_ESUCCESS if the operation was successful.
+ * @retval RTC_EBADCLOCK if an I/O error occurred.
  **/
-uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
+int bb_rtc_get_state( bb_rtc_state_t *state, uint64_t *raw )
 {
     uint64_t dword;
-    uint8_t *bytes = (uint8_t*)&dword;
+    uint8_t *bytes = (uint8_t *)&dword;
 
-    if (!i2c_read_data(RTC_SLAVE_ADDR, 0, sizeof(dword), bytes))
+    if ( !i2c_read_data( RTC_SLAVE_ADDR, 0, sizeof(dword), bytes ) )
     {
         debugf("bb_rtc_get_state: failed to read over i2c\n");
-        return 0;
+        return RTC_EBADCLOCK;
     }
-
-    debugf("bb_rtc_get_state: raw (0x%llx)\n", dword);
 
     if( state != NULL )
     {
-        memset(state, 0, sizeof(bb_rtc_state_t));
-        state->secs  = bcd_decode(bytes[0] & 0x7F);
-        state->mins  = bcd_decode(bytes[1] & 0x7F);
-        state->hours = bcd_decode(bytes[2] & 0x3F);
-        state->dow   = bcd_decode(bytes[3] & 0x07);
-        state->day   = bcd_decode(bytes[4] & 0x3F);
-        state->month = bcd_decode(bytes[5] & 0x1F);
-        state->year  = bcd_decode(bytes[6] & 0xFF);
+        memset( state, 0, sizeof(bb_rtc_state_t) );
+        state->secs  = bcd_decode( bytes[0] & 0x7F );
+        state->mins  = bcd_decode( bytes[1] & 0x7F );
+        state->hours = bcd_decode( bytes[2] & 0x3F );
+        state->dow   = bcd_decode( bytes[3] & 0x07 );
+        state->day   = bcd_decode( bytes[4] & 0x3F );
+        state->month = bcd_decode( bytes[5] & 0x1F );
+        state->year  = bcd_decode( bytes[6] & 0xFF );
 
         state->stop            = (bytes[0] & 0x80) ? true : false;
         state->oscillator_fail = (bytes[1] & 0x80) ? true : false;
@@ -121,7 +113,12 @@ uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
         state->output_level    = (bytes[7] & 0x80) ? true : false;
     }
 
-    return dword;
+    if( raw != NULL )
+    {
+        *raw = dword;
+    }
+
+    return RTC_ESUCCESS;
 }
 
 /**
@@ -129,9 +126,10 @@ uint64_t bb_rtc_get_state(bb_rtc_state_t *state)
  *
  * @param state pointer to BBPlayer RTC state struct
  *
- * @return whether the operation was successful
+ * @retval RTC_ESUCCESS if the operation was successful.
+ * @retval RTC_EBADCLOCK if an I/O error occurred.
  **/
-bool bb_rtc_set_state(bb_rtc_state_t *state)
+int bb_rtc_set_state( bb_rtc_state_t *state )
 {
     uint8_t bytes[8];
 
@@ -149,7 +147,16 @@ bool bb_rtc_set_state(bb_rtc_state_t *state)
     bytes[2] |= state->century_enable  ? 0x80 : 0x00;
     bytes[7] |= state->output_level    ? 0x80 : 0x00;
 
-    return i2c_write_data(RTC_SLAVE_ADDR, 0, sizeof(bytes), bytes);
+    if( i2c_write_data( RTC_SLAVE_ADDR, 0, sizeof(bytes), bytes ) )
+    {
+        debugf("bb_rtc_set_state: success");
+        return RTC_ESUCCESS;
+    }
+    else
+    {
+        debugf("bb_rtc_set_state: failed to write over i2c\n");
+        return RTC_EBADCLOCK;
+    }
 }
 
 /**
@@ -157,29 +164,50 @@ bool bb_rtc_set_state(bb_rtc_state_t *state)
  *
  * @param enabled true to enable the century bit, false to disable
  *
- * @return whether the operation was successful
+ * @return RTC_ESUCCESS if the operation was successful,
+ *         or RTC_EBADCLOCK if an I/O error occurred.
  */
-bool bb_rtc_set_century_enable( bool enabled )
+int bb_rtc_set_century_enable( bool enabled )
 {
     bb_rtc_state_t state;
-    if (!bb_rtc_get_state(&state))
+    int error = bb_rtc_get_state( &state, NULL );
+    if ( error != RTC_ESUCCESS )
     {
         debugf("bb_rtc_set_century_enable: failed to read state\n");
-        return false;
+        return error;
     }
     state.century_enable = enabled;
     return bb_rtc_set_state(&state);
 }
 
-time_t bb_rtc_get_time( void )
+int bb_rtc_get_time( time_t *out )
 {
     bb_rtc_state_t state;
-    if (!bb_rtc_get_state(&state))
+    int error = bb_rtc_get_state( &state, NULL );
+    if( error != RTC_ESUCCESS )
     {
         debugf("bb_rtc_get_time: failed to read state\n");
-        return 0;
+        return error;
     }
 
+    if( state.oscillator_fail )
+    {
+        debugf("bb_rtc_get_time: oscillator fail\n");
+        return RTC_EBADCLOCK;
+    }
+
+    // Extremely basic sanity-check on the date and time
+    if(
+        state.month == 0 || state.month > 12 ||
+        state.day == 0 || state.day > 31 ||
+        state.hours >= 24 || state.mins >= 60 || state.secs >= 60
+    )
+    {
+        debugf("bb_rtc_get_time: invalid date/time\n");
+        return RTC_EBADTIME;
+    }
+
+    // NOTE: Official iQue menu disables the century bit!
     bool century = state.century_enable && state.century;
 
     struct tm rtc_tm;
@@ -192,24 +220,43 @@ time_t bb_rtc_get_time( void )
     // BBPlayer was released in 2003; does not support 19XX year
     rtc_tm.tm_year  = state.year + (century ? 200 : 100);
 
-    char buff[20];
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &rtc_tm);
-    debugf("bb_rtc_get_time: parsed time: %s\n", buff);
+    debugf("bb_rtc_get_time: parsed time: %04d-%02d-%02d %02d:%02d:%02d\n",
+        rtc_tm.tm_year + 1900, rtc_tm.tm_mon + 1, rtc_tm.tm_mday,
+        rtc_tm.tm_hour, rtc_tm.tm_min, rtc_tm.tm_sec);
 
-    return mktime( &rtc_tm );
+    *out = mktime( &rtc_tm );
+    return RTC_ESUCCESS;
 }
 
-bool bb_rtc_set_time( time_t new_time )
+int bb_rtc_set_time( time_t new_time )
 {
+    if( new_time < BB_RTC_TIMESTAMP_MIN || new_time > BB_RTC_TIMESTAMP_MAX )
+    {
+        debugf("bb_rtc_set_time: time out of range\n");
+        return RTC_EBADTIME;
+    }
+
     bb_rtc_state_t state;
-    if (!bb_rtc_get_state(&state))
+    int error = bb_rtc_get_state( &state, NULL );
+    if( error != RTC_ESUCCESS )
     {
         debugf("bb_rtc_set_time: failed to read state\n");
-        return 0;
+        return error;
+    }
+
+    if( state.oscillator_fail )
+    {
+        debugf("bb_rtc_get_time: oscillator fail\n");
+        return RTC_EBADCLOCK;
     }
 
     struct tm * new_tm = gmtime( &new_time );
 
+    debugf("bb_rtc_set_time: parsed time: %04d-%02d-%02d %02d:%02d:%02d\n",
+        new_tm->tm_year + 1900, new_tm->tm_mon + 1, new_tm->tm_mday,
+        new_tm->tm_hour, new_tm->tm_min, new_tm->tm_sec);
+
+    state.stop = false;
     state.secs = new_tm->tm_sec;
     state.mins = new_tm->tm_min;
     state.hours = new_tm->tm_hour;
@@ -218,6 +265,7 @@ bool bb_rtc_set_time( time_t new_time )
     state.month = new_tm->tm_mon + 1;
     // BBPlayer was released in 2003; does not support 19XX year
     state.year = new_tm->tm_year % 100;
+    // NOTE: Official iQue menu disables the century bit!
     if( state.century_enable )
     {
         state.century = new_tm->tm_year >= 200;

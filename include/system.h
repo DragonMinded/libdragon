@@ -264,7 +264,7 @@ typedef struct
 } stdio_t;
 
 /**
- * @brief Time hook structure
+ * @brief Real-time clock hook structure
  *
  * This structure provides optional callback hooks for code wishing to
  * implement C time functions.  Any function that code does not wish to handle
@@ -275,18 +275,26 @@ typedef struct
     /** 
      * @brief Function to call to retrieve the current date/time
      * 
-     * @return number of seconds since 1970-01-01 00:00:00 UTC
+     * @param[out] out pointer to time_t (number of seconds since 1970-01-01 00:00:00 UTC)
+     *
+     * @retval RTC_ESUCCESS if the operation was successful
+     * @retval RTC_ENOCLOCK if the RTC is not available
+     * @retval RTC_EBADCLOCK if the RTC is not operational
+     * @retval RTC_EBADTIME if the RTC clock time is not representable
      */
-    time_t (*gettime)( void );
+    int (*gettime)( time_t * );
     /** 
      * @brief Function to call to set the current date/time
      * 
      * @param time number of seconds since 1970-01-01 00:00:00 UTC
      * 
-     * @return whether the time was set successfully
+     * @retval RTC_ESUCCESS if the operation was successful
+     * @retval RTC_ENOCLOCK if the RTC is not available
+     * @retval RTC_EBADCLOCK if the RTC is not operational
+     * @retval RTC_EBADTIME if the RTC cannot represent the new time
      */
-    bool (*settime)( time_t );
-} time_hooks_t;
+    int (*settime)( time_t );
+} rtc_hooks_t;
 
 /**
  * @brief Register a filesystem with newlib
@@ -342,26 +350,58 @@ int unhook_stdio_calls( stdio_t *stdio_calls );
 /**
  * @brief Hook into POSIX time callbacks
  *
- * @param[in] hooks Pointer to time callbacks structure
+ * @param[in] hooks Pointer to real-time clock callbacks structure
  *
  * @return 0 on a successful hook or a negative value on failure
  */
-int hook_time_calls( time_hooks_t *hooks );
+int hook_rtc_calls( rtc_hooks_t *hooks );
 
 /**
  * @brief Unhook from POSIX time callbacks
  *
- * @param[in] hooks Pointer to time callbacks structure
+ * @param[in] hooks Pointer to real-time clock callbacks structure
  *
  * @return 0 on a successful unhook or a negative value on failure
  */
-int unhook_time_calls( time_hooks_t *hooks );
+int unhook_rtc_calls( rtc_hooks_t *hooks );
 
 /**************************************
  *  DEPRECATED FUNCTIONS
  **************************************/
 
 /// @cond
+
+/**
+ * @brief Time hook structure
+ * @deprecated Use rtc_hooks_t instead
+ *
+ * This structure provides optional callback hooks for code wishing to
+ * implement C time functions.  Any function that code does not wish to handle
+ * should be left as a NULL pointer.
+ */
+typedef struct
+{
+    /** 
+     * @brief Function to call to retrieve the current date/time
+     * 
+     * @return number of seconds since 1970-01-01 00:00:00 UTC
+     */
+    time_t (*gettime)( void );
+    /** 
+     * @brief Function to call to set the current date/time
+     * 
+     * @param time number of seconds since 1970-01-01 00:00:00 UTC
+     * 
+     * @return whether the time was set successfully
+     */
+    bool (*settime)( time_t );
+} time_hooks_t;
+
+__attribute__((deprecated("use hook_rtc_calls instead")))
+int hook_time_calls( time_hooks_t *hooks );
+
+__attribute__((deprecated("use unhook_rtc_calls instead")))
+int unhook_time_calls( time_hooks_t *hooks );
 
 __attribute__((deprecated("use hook_time_calls instead")))
 int hook_time_call( time_t (*time_fn)( void ) );

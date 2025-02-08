@@ -63,41 +63,40 @@
  * @{
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @brief RTC source values. */
 typedef enum {
     /** @brief Software RTC source */
     RTC_SOURCE_NONE = 0,
     /** @brief Joybus RTC source */
     RTC_SOURCE_JOYBUS = 1,
-    /** @brief 64DD RTC source (Not implemented yet) */
+    /** @brief 64DD RTC source */
     RTC_SOURCE_DD = 2,
-    /** @brief iQue RTC source (Not implemented yet) */
+    /** @brief iQue/BBPlayer RTC source */
     RTC_SOURCE_BB = 3,
 } rtc_source_t;
 
-/** @brief Software RTC minimum timestamp (1900-01-01 00:00:00) */
-#define RTC_SOURCE_NONE_TIMESTAMP_MIN -2208988800
-/** @brief Software RTC maximum timestamp (2199-12-31 23:59:59) */
-#define RTC_SOURCE_NONE_TIMESTAMP_MAX 7258118399
+/**
+ * @name RTC error codes
+ * @{
+ */
+/** @brief RTC Operation successful */
+#define RTC_ESUCCESS   0
+/** @brief RTC source in unavailable. */
+#define RTC_ENOCLOCK  -1
+/** @brief RTC source is not operational. */
+#define RTC_EBADCLOCK -2
+/** @brief RTC clock time is not representable.  */
+#define RTC_EBADTIME  -3
+/** @} */
 
-/** @brief Joybus RTC minimum timestamp (1900-01-01 00:00:00) */
-#define RTC_SOURCE_JOYBUS_TIMESTAMP_MIN -2208988800
-/** @brief Joybus RTC maximum timestamp (2099-12-31 23:59:59) */
-#define RTC_SOURCE_JOYBUS_TIMESTAMP_MAX 4102444799
-
-/** @brief 64DD RTC minimum timestamp (1996-01-01 00:00:00) */
-#define RTC_SOURCE_DD_TIMESTAMP_MIN 820454400
-/** @brief 64DD RTC maximum timestamp (2095-12-31 23:59:59) */
-#define RTC_SOURCE_DD_TIMESTAMP_MAX 3976214399
-
-/** @brief BBPlayer RTC minimum timestamp (2000-01-01 00:00:00) */
-#define RTC_SOURCE_BB_TIMESTAMP_MIN 946684800
-/** @brief BBPlayer RTC maximum timestamp (2199-12-31 23:59:59) */
-#define RTC_SOURCE_BB_TIMESTAMP_MAX 7258118399
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+/** @brief Software RTC minimum timestamp (1970-01-01 00:00:00) */
+#define RTC_SOFT_TIMESTAMP_MIN 0
+/** @brief Software RTC maximum timestamp (2099-12-31 23:59:59) */
+#define RTC_SOFT_TIMESTAMP_MAX 4102444799
 
 /** @brief Structure representing an RTC timestamp range. */
 typedef struct {
@@ -165,9 +164,11 @@ rtc_source_t rtc_get_source( void );
  *
  * This function will automatically resynchronize the time with the new clock.
  *
- * @return whether the new source clock was successfully selected
+ * @retval RTC_ESUCCESS if the source was successfully set
+ * @retval RTC_ENOCLOCK if the source is not available
+ * @retval RTC_EBADCLOCK if the source is not operational
  */
-bool rtc_set_source( rtc_source_t source );
+int rtc_set_source( rtc_source_t source );
 
 /**
  * @brief Get the supported timestamp range for the given RTC source.

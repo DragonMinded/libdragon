@@ -5,11 +5,6 @@
 
 #include "constants.h"
 
-// TODO: REMOVE TEMPORARY BBPLAYER TESTING
-typedef struct bb_rtc_state *bb_rtc_state_t;
-uint64_t bb_rtc_get_state(bb_rtc_state_t *state);
-bool bb_rtc_set_century_enable( bool enabled );
-
 static surface_t* disp = 0;
 static joypad_inputs_t pad_inputs = {0};
 static joypad_buttons_t pad_pressed = {0};
@@ -32,7 +27,6 @@ int main(void)
     timer_init();
 
     rtc_init();
-    bool persistent = rtc_is_persistent();
 
     while(1)
     {
@@ -40,7 +34,7 @@ int main(void)
         {
             /* Read the current timestamp from RTC subsystem */
             time_t now = time( NULL );
-            /* Convert the timestamp into date/time */
+            /* Convert the timestamp into date/time struct */
             rtc_tm = *gmtime( &now );
         }
 
@@ -85,14 +79,7 @@ int main(void)
 
         /* Line 5 */
         graphics_set_color( WHITE, BLACK );
-        if( sys_bbplayer() )
-        {
-            // TODO: REMOVE TEMPORARY BBPLAYER TESTING
-            char bb_line[40];
-            sprintf( bb_line, "    BB RTC STATE 0x%llx     ", bb_rtc_get_state( NULL ));
-            graphics_draw_text( disp, 0, LINE5, bb_line );
-        }
-        else if( !persistent )
+        if( !rtc_is_persistent() )
         {
             graphics_draw_text( disp, 0, LINE5, NOWRITE_MESSAGE );
         }
@@ -127,11 +114,6 @@ int main(void)
             }
         }
 
-        if( !edit_mode && pad_pressed.b )
-        {
-            persistent = rtc_is_persistent();
-        }
-
         if( !edit_mode && pad_pressed.r )
         {
             /* Resync the time from the RTC source */
@@ -147,19 +129,6 @@ int main(void)
             else if( rtc_get_source() == RTC_SOURCE_DD )
             {
                 rtc_set_source( RTC_SOURCE_JOYBUS );
-            }
-        }
-
-        // TODO: REMOVE TEMPORARY BBPLAYER TESTING
-        if( sys_bbplayer() )
-        {
-            if( !edit_mode && pad_pressed.c_up )
-            {
-                bb_rtc_set_century_enable( true );
-            }
-            if( !edit_mode && pad_pressed.c_down )
-            {
-                bb_rtc_set_century_enable( false );
             }
         }
 
