@@ -131,12 +131,19 @@ static int rtc_resync_time( void )
 
 // MARK: Public functions
 
-static void rtc_init_joybus_read_time_callback( time_t rtc_time )
+static void rtc_init_joybus_read_time_callback( int error, time_t rtc_time )
 {
     // If the state has changed, abort the callback
     if( rtc_state != RTC_STATE_JOYBUS_READING ) return;
 
-    if( rtc_time < RTC_ESUCCESS )
+    if( error == RTC_ESUCCESS )
+    {
+        // Set the RTC subsystem to Joybus RTC time
+        rtc_cache_time = rtc_time;
+        rtc_cache_ticks = get_ticks();
+        rtc_sync_result = RTC_ESUCCESS;
+    }
+    else
     {
         // Don't initialize into a broken state; try to fall-back to DD!
         // DD RTC should already be synced during rtc_init_async
@@ -150,13 +157,6 @@ static void rtc_init_joybus_read_time_callback( time_t rtc_time )
             rtc_source = RTC_SOURCE_NONE;
             rtc_sync_result = RTC_ESUCCESS;
         }
-    }
-    else
-    {
-        // Set the RTC subsystem to Joybus RTC time
-        rtc_cache_time = rtc_time;
-        rtc_cache_ticks = get_ticks();
-        rtc_sync_result = RTC_ESUCCESS;
     }
 
     rtc_state = RTC_STATE_READY;

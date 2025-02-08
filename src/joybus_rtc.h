@@ -121,7 +121,7 @@ typedef void (*joybus_rtc_detect_callback_t)(bool detected, joybus_rtc_status_t 
 typedef void (*joybus_rtc_set_stopped_callback_t)(void);
 
 /** @brief Callback function signature for #joybus_rtc_get_time_async */
-typedef void (*joybus_rtc_get_time_callback_t)(time_t time);
+typedef void (*joybus_rtc_get_time_callback_t)(int error, time_t time);
 
 /**
  * @brief Detect the presence of the Joybus real-time clock asynchronously.

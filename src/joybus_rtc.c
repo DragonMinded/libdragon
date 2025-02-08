@@ -372,7 +372,7 @@ static void joybus_rtc_get_time_callback( uint64_t *out_dwords, void *ctx )
         parsed_tm->tm_hour, parsed_tm->tm_min, parsed_tm->tm_sec
     );
 
-    callback( decoded_time );
+    callback( RTC_ESUCCESS, decoded_time );
 }
 
 void joybus_rtc_get_time_async( joybus_rtc_get_time_callback_t callback )
@@ -380,14 +380,14 @@ void joybus_rtc_get_time_async( joybus_rtc_get_time_callback_t callback )
     if( joybus_rtc_detect_state != JOYBUS_RTC_DETECTED )
     {
         debugf("joybus_rtc_get_time_async: RTC not detected; aborting!\n");
-        callback( RTC_ENOCLOCK );
+        callback( RTC_ENOCLOCK, 0 );
         return;
     }
 
     if( joybus_rtc_detect_status.crystal_bad )
     {
         debugf("joybus_rtc_get_time_async: crystal is bad; aborting!\n");
-        callback( RTC_EBADCLOCK );
+        callback( RTC_EBADCLOCK, 0 );
         return;
     }
 
