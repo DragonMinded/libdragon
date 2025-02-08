@@ -19,11 +19,11 @@ static volatile int mecha_irq_count = 0;
 static volatile int bm_irq_count = 0;
 
 void dd_write(uint32_t address, uint16_t value) {
-	io_write(address, value << 16);
+    io_write(address, value << 16);
 }
 
 uint16_t dd_read(uint32_t address) {
-	return io_read(address) >> 16;
+    return io_read(address) >> 16;
 }
 
 static void dd_handler(void)
@@ -45,10 +45,10 @@ static void dd_handler(void)
 
 uint16_t dd_command(dd_cmd_t cmd) {
     int irq_count = mecha_irq_count;
-	dd_write(DD_ASIC_WCMD, cmd);
+    dd_write(DD_ASIC_WCMD, cmd);
 
     while (mecha_irq_count == irq_count) {}
-	return dd_read(DD_ASIC_DATA);
+    return dd_read(DD_ASIC_DATA);
 }
 
 __attribute__((constructor))
@@ -57,8 +57,8 @@ void dd_init(void)
     // iQue doesn't like PI accesses outside of ROM
     if (sys_bbplayer()) return;
 
-	uint32_t magic = 0x36344444; // "64DD"
-	dd_found = io_read(0x06000020) == magic;
+    uint32_t magic = 0x36344444; // "64DD"
+    dd_found = io_read(0x06000020) == magic;
     if (!dd_found) return;
 
     // Install the cart interrupt handler immediately, because the DD will generate
