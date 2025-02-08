@@ -45,7 +45,7 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/joybus.o $(BUILD_DIR)/joybus_accessory.o $(BUILD_DIR)/joybus_rtc.o $(BUILD_DIR)/pixelfx.o \
 			 $(BUILD_DIR)/joypad.o $(BUILD_DIR)/joypad_accessory.o \
 			 $(BUILD_DIR)/controller.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/rtc_internal.o \
-			 $(BUILD_DIR)/eeprom.o $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o \
+			 $(BUILD_DIR)/eeprom.o $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o $(BUILD_DIR)/cpak.o \
 			 $(BUILD_DIR)/tpak.o $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
 			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/rsp_crash.o \
 			 $(BUILD_DIR)/inspector.o $(BUILD_DIR)/sprite.o \
@@ -153,6 +153,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/pixelfx.h $(INSTALLDIR)/mips64-elf/include/pixelfx.h
 	install -Cv -m 0644 include/joypad.h $(INSTALLDIR)/mips64-elf/include/joypad.h
 	install -Cv -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
+	install -Cv -m 0644 include/cpak.h $(INSTALLDIR)/mips64-elf/include/cpak.h
 	install -Cv -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
 	install -Cv -m 0644 include/rtc.h $(INSTALLDIR)/mips64-elf/include/rtc.h
 	install -Cv -m 0644 include/eeprom.h $(INSTALLDIR)/mips64-elf/include/eeprom.h
