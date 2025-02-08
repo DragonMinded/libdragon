@@ -92,17 +92,11 @@ static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
  */
 static void joypad_device_changed(joypad_port_t port, joybus_identifier_t identifier)
 {
-    timer_link_t *timer = joypad_accessories_hot[port].transfer_pak_wait_timer;
-    if (timer) { stop_timer(timer); }
-
     joypad_identifiers_hot[port] = identifier;
     joypad_origins_hot[port] = JOYPAD_GCN_ORIGIN_INIT;
     memset((void *)&joypad_devices_cold[port], 0, sizeof(joypad_devices_cold[port]));
     memset((void *)&joypad_devices_hot[port], 0, sizeof(joypad_devices_hot[port]));
-    memset((void *)&joypad_accessories_hot[port], 0, sizeof(joypad_accessories_hot[port]));
-
-    // Restore the timer pointer on the cleared accessory
-    joypad_accessories_hot[port].transfer_pak_wait_timer = timer;
+    joypad_accessory_reset(port);
 }
 
 /**
