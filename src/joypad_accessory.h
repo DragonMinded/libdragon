@@ -96,7 +96,7 @@ typedef enum
 } joypad_accessory_error_t;
 
 /** @brief Callback function signature for #joypad_accessory_read_async and #joypad_accessory_write_async */
-typedef void (*joypad_accessory_io_callback_t)(int error, void *ctx);
+typedef void (*joypad_accessory_io_callback_t)(joypad_accessory_error_t error, void *ctx);
 
 /** @brief Joypad Accessory I/O operation state */
 typedef struct
@@ -132,6 +132,13 @@ typedef struct joypad_accessory_s
     joybus_transfer_pak_status_t transfer_pak_status;
     joypad_transfer_pak_io_t transfer_pak_io;
 } joypad_accessory_t;
+
+/**
+ * @brief Reset the accessory state for a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ */
+void joypad_accessory_reset(joypad_port_t port);
 
 /**
  * @brief Detect which accessory is inserted in an N64 controller.
