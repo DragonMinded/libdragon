@@ -1644,6 +1644,7 @@ int unhook_rtc_calls( rtc_hooks_t *hooks )
     return 0;
 }
 
+/** @deprecated Use #hook_rtc_calls instead. */
 int hook_time_calls( time_hooks_t *hooks )
 {
     if( hooks == NULL ) return -1;
@@ -1654,6 +1655,7 @@ int hook_time_calls( time_hooks_t *hooks )
     return 0;
 }
 
+/** @deprecated Use #unhook_rtc_calls instead. */
 int unhook_time_calls( time_hooks_t *hooks )
 {
     if( hooks == NULL ) return -1;
