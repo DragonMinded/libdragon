@@ -208,7 +208,12 @@ void rtc_init_async( void )
     if( sys_bbplayer() )
     {
         rtc_source = RTC_SOURCE_BB;
-        rtc_resync_time();
+        if( rtc_resync_time() != RTC_ESUCCESS )
+        {
+            // If BB RTC is broken, fall-back to software RTC
+            rtc_source = RTC_SOURCE_NONE;
+            rtc_sync_result = RTC_ESUCCESS;
+        }
         rtc_state = RTC_STATE_READY;
     }
     else
