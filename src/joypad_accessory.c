@@ -518,6 +518,187 @@ void joypad_rumble_pak_toggle_async(joypad_port_t port, bool active)
     );
 }
 
+static void joypad_accessory_read_callback(uint64_t *out_dwords, void *ctx)
+{
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joypad_port_t port = (joypad_port_t)ctx;
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    volatile joypad_accessory_io_t *io = &accessory->io;
+    joypad_accessory_state_t state = accessory->state;
+    if (state != JOYPAD_ACCESSORY_STATE_READ)
+    {
+         // TODO Call callback with error code
+        if (io->callback)
+        {
+            io->callback(-1, io->ctx);
+        }
+        memset( (void *)io, 0, sizeof(joypad_accessory_io_t) );
+        return; // Unexpected accessory state!
+    }
+
+    const joybus_cmd_n64_accessory_read_port_t *cmd =
+        (void *)&out_bytes[port + JOYBUS_COMMAND_METADATA_SIZE];
+    joybus_callback_t retry_callback = joypad_accessory_read_callback;
+    if (joypad_accessory_check_read_crc_error(port, cmd, retry_callback, ctx))
+    {
+        // TODO Call callback with error code
+        if (io->callback)
+        {
+            io->callback(-1, io->ctx);
+        }
+        memset( (void *)io, 0, sizeof(joypad_accessory_io_t) );
+        return; // Accessory communication error!
+    }
+
+    memcpy(io->cursor, cmd->recv.data, JOYBUS_ACCESSORY_DATA_SIZE);
+    io->cursor += JOYBUS_ACCESSORY_DATA_SIZE;
+    if (io->cursor < io->end)
+    {
+        // Read the next block of data
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        uint16_t next_addr = cmd->send.addr_checksum & JOYBUS_ACCESSORY_ADDR_MASK_OFFSET;
+        next_addr += JOYBUS_ACCESSORY_DATA_SIZE;
+        joybus_accessory_read_async(
+            port, next_addr,
+            joypad_accessory_read_callback, ctx
+        );
+    }
+    else
+    {
+        // Read operation is complete
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        if (io->callback)
+        {
+            io->callback(0, io->ctx);
+        }
+        memset( (void *)io, 0, sizeof(joypad_accessory_io_t) );
+    }
+}
+
+void joypad_accessory_read_async(
+    joypad_port_t port,
+    uint16_t start_addr,
+    void *dst,
+    size_t len,
+    joypad_accessory_io_callback_t callback,
+    void *ctx
+)
+{
+    ASSERT_JOYPAD_PORT_VALID(port);
+    assert(len % JOYBUS_ACCESSORY_DATA_SIZE == 0);
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    if (accessory->state != JOYPAD_ACCESSORY_STATE_IDLE)
+    {
+        callback(-1, ctx);
+        return; // Accessory is busy with another operation
+    }
+    accessory->io = (joypad_accessory_io_t){
+        .start = dst,
+        .end = dst + len,
+        .cursor = dst,
+        .callback = callback,
+        .ctx = ctx,
+    };
+
+    accessory->state = JOYPAD_ACCESSORY_STATE_READ;
+    accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+    accessory->retries = 0;
+    joybus_accessory_read_async(
+        port, start_addr,
+        joypad_accessory_read_callback, (void *)port
+    );
+}
+
+static void joypad_accessory_write_callback(uint64_t *out_dwords, void *ctx)
+{
+    const uint8_t *out_bytes = (void *)out_dwords;
+    joypad_port_t port = (joypad_port_t)ctx;
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    volatile joypad_accessory_io_t *io = &accessory->io;
+    joypad_accessory_state_t state = accessory->state;
+    if (state != JOYPAD_ACCESSORY_STATE_WRITE)
+    {
+        if (io->callback)
+        {
+            io->callback(-1, io->ctx);
+        }
+        memset( (void *)io, 0, sizeof(joypad_accessory_io_t) );
+        return; // Unexpected accessory state!
+    }
+
+    const joybus_cmd_n64_accessory_write_port_t *cmd =
+        (void *)&out_bytes[port + JOYBUS_COMMAND_METADATA_SIZE];
+    joybus_callback_t retry_callback = joypad_accessory_write_callback;
+    if (joypad_accessory_write_crc_error_check(port, cmd, retry_callback, ctx))
+    {
+        if (io->callback)
+        {
+            io->callback(-1, io->ctx);
+        }
+        memset( (void *)io, 0, sizeof(joypad_accessory_io_t) );
+        return; // Accessory communication error!
+    }
+
+    uint8_t *cursor = io->cursor += JOYBUS_ACCESSORY_DATA_SIZE;
+    if (cursor < io->end)
+    {
+        // Read the next block of data
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        uint16_t next_addr = cmd->send.addr_checksum & JOYBUS_ACCESSORY_ADDR_MASK_OFFSET;
+        next_addr += JOYBUS_ACCESSORY_DATA_SIZE;
+        joybus_accessory_write_async(
+            port, next_addr, cursor,
+            joypad_accessory_write_callback, ctx
+        );
+    }
+    else
+    {
+        // Read operation is complete
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        if (io->callback)
+        {
+            io->callback(0, io->ctx);
+        }
+        memset( (void *)io, 0, sizeof(joypad_accessory_io_t) );
+    }
+}
+
+void joypad_accessory_write_async(
+    joypad_port_t port,
+    uint16_t start_addr,
+    void *src,
+    size_t len,
+    joypad_accessory_io_callback_t callback,
+    void *ctx
+)
+{
+    ASSERT_JOYPAD_PORT_VALID(port);
+    assert(len % JOYBUS_ACCESSORY_DATA_SIZE == 0);
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    if (accessory->state != JOYPAD_ACCESSORY_STATE_IDLE)
+    {
+        callback(-1, ctx);
+        return; // Accessory is busy with another operation
+    }
+    accessory->io = (joypad_accessory_io_t){
+        .start = src,
+        .end = src + len,
+        .cursor = src,
+        .callback = callback,
+        .ctx = ctx,
+    };
+
+    accessory->state = JOYPAD_ACCESSORY_STATE_WRITE;
+    accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+    accessory->retries = 0;
+    joybus_accessory_write_async(
+        port, start_addr, src,
+        joypad_accessory_write_callback, (void *)port
+    );
+}
+
 /**
  * @brief Callback for the accessory read commands used by #joypad_transfer_pak_enable_async.
  * 
