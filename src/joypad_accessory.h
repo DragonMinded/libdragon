@@ -104,6 +104,7 @@ typedef struct
     uint8_t *start;
     uint8_t *end;
     uint8_t *cursor;
+    uint16_t cart_addr;
     joypad_accessory_io_callback_t callback;
     void *ctx;
 } joypad_accessory_io_t;
@@ -161,12 +162,18 @@ void joypad_accessory_detect_async(joypad_port_t port);
 /**
  * @brief Read data from a Joypad accessory asynchronously.
  * 
- * @param port Joypad port number (#joypad_port_t)
- * @param start_addr Starting address in the accessory to read from.
- * @param dst Destination buffer to read accessory data into.
- * @param len Number of bytes to read.
- * @param callback Callback function to call when the read operation completes.
- * @param ctx Opaque pointer to pass to the callback function.
+ * This function can perform a bulk transfer of data from a Joypad accessory.
+ * Compared to #joybus_accessory_read_async, this function is not limited
+ * to a single data block (32 bytes) but can transfer any number of bytes,
+ * from any starting address in the accessory (including misaligned addresses).
+ * 
+ * @param port          Joypad port number (#joypad_port_t)
+ * @param start_addr    Starting address in the accessory to read from.
+ *                      There is no alignment requirement for this address.
+ * @param dst           Destination buffer to read accessory data into.
+ * @param len           Number of bytes to read. Any number of bytes can be read.
+ * @param callback      Callback function to call when the read operation completes.
+ * @param ctx           Opaque pointer to pass to the callback function.
  */
 void joypad_accessory_read_async(
     joypad_port_t port,
@@ -176,6 +183,22 @@ void joypad_accessory_read_async(
     joypad_accessory_io_callback_t callback,
     void *ctx
 );
+
+/**
+ * @brief Read data from a Joypad accessory.alignas
+ * 
+ * This is the blocking version of #joypad_accessory_read_async. Like the
+ * asynchronous version, this function can read any number of bytes from any
+ * starting address in the accessory.
+ * 
+ * @param port          Joypad port number (#joypad_port_t)
+ * @param start_addr    Starting address in the accessory to read from.
+ *                      There is no alignment requirement for this address.
+ * @param dst           Destination buffer to read accessory data into.
+ * @param len           Number of bytes to read. Any number of bytes can be read.
+ * @return joypad_accessory_error_t     Error code indicating the result of the read operation.
+ */
+joypad_accessory_error_t joypad_accessory_read(joypad_port_t port, uint16_t start_addr, void *dst, size_t len);
 
 /**
  * @brief Write data to a Joypad accessory asynchronously.
