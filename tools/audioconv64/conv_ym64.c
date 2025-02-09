@@ -55,7 +55,7 @@ _Static_assert(sizeof(ym5header) == 22, "invalid ym5header size");
 
 static FILE *ym_f;
 static bool ym_compressed;
-static uint8_t alignas(8) ym_decoder[DECOMPRESS_LZH5_STATE_SIZE];
+static uint8_t alignas(8) ym_decoder[DECOMPRESS_LZH5_STATE_SIZE + DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE];
 
 static void ymread(void *buf, int sz) {
     if (ym_compressed) {

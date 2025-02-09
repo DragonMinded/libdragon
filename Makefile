@@ -42,10 +42,10 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/lz4_dec_fast.o $(BUILD_DIR)/compress/ringbuf.o \
 			 $(BUILD_DIR)/compress/aplib_dec_fast.o $(BUILD_DIR)/compress/aplib_dec.o \
 			 $(BUILD_DIR)/compress/shrinkler_dec_fast.o $(BUILD_DIR)/compress/shrinkler_dec.o \
-			 $(BUILD_DIR)/joybus.o $(BUILD_DIR)/joybus_accessory.o $(BUILD_DIR)/pixelfx.o \
+			 $(BUILD_DIR)/joybus.o $(BUILD_DIR)/joybus_accessory.o $(BUILD_DIR)/joybus_rtc.o $(BUILD_DIR)/pixelfx.o \
 			 $(BUILD_DIR)/joypad.o $(BUILD_DIR)/joypad_accessory.o \
-			 $(BUILD_DIR)/controller.o $(BUILD_DIR)/rtc.o \
-			 $(BUILD_DIR)/eeprom.o $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o \
+			 $(BUILD_DIR)/controller.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/rtc_utils.o \
+			 $(BUILD_DIR)/eeprom.o $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o $(BUILD_DIR)/cpak.o \
 			 $(BUILD_DIR)/tpak.o $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
 			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/rsp_crash.o \
 			 $(BUILD_DIR)/inspector.o $(BUILD_DIR)/sprite.o \
@@ -72,7 +72,6 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/GL/rsp_gl_pipeline.o $(BUILD_DIR)/GL/glu.o \
 			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o \
 			 $(BUILD_DIR)/dlfcn.o $(BUILD_DIR)/model64.o \
-			 $(BUILD_DIR)/bb/skc.o $(BUILD_DIR)/bb/nand.o $(BUILD_DIR)/bb/bbfs.o \
 			 $(BUILD_DIR)/math/fgeom.o \
 			 $(BUILD_DIR)/magma/magma.o $(BUILD_DIR)/magma/mgfx.o \
 			 $(BUILD_DIR)/magma/rsp_magma.o $(BUILD_DIR)/magma/rsp_magma_clipping.o \
@@ -81,6 +80,8 @@ LIBDRAGON_OBJS += \
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
+include $(SOURCE_DIR)/bb/libdragon.mk
+include $(SOURCE_DIR)/dd/libdragon.mk
 
 # TODO: Make this generically available in n64.mk somehow
 $(SOURCE_DIR)/magma/rsp_magma.h: $(BUILD_DIR)/magma/rsp_magma.o
@@ -132,6 +133,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/n64types.h $(INSTALLDIR)/mips64-elf/include/n64types.h
 	install -Cv -m 0644 include/pputils.h $(INSTALLDIR)/mips64-elf/include/pputils.h
 	install -Cv -m 0644 include/n64sys.h $(INSTALLDIR)/mips64-elf/include/n64sys.h
+	install -Cv -m 0644 include/dd.h $(INSTALLDIR)/mips64-elf/include/dd.h
 	install -Cv -m 0644 include/fmath.h $(INSTALLDIR)/mips64-elf/include/fmath.h
 	install -Cv -m 0644 include/fgeom.h $(INSTALLDIR)/mips64-elf/include/fgeom.h
 	install -Cv -m 0644 include/backtrace.h $(INSTALLDIR)/mips64-elf/include/backtrace.h
@@ -163,6 +165,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/pixelfx.h $(INSTALLDIR)/mips64-elf/include/pixelfx.h
 	install -Cv -m 0644 include/joypad.h $(INSTALLDIR)/mips64-elf/include/joypad.h
 	install -Cv -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
+	install -Cv -m 0644 include/cpak.h $(INSTALLDIR)/mips64-elf/include/cpak.h
 	install -Cv -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
 	install -Cv -m 0644 include/rtc.h $(INSTALLDIR)/mips64-elf/include/rtc.h
 	install -Cv -m 0644 include/eeprom.h $(INSTALLDIR)/mips64-elf/include/eeprom.h

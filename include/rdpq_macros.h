@@ -90,7 +90,7 @@ typedef uint32_t rdpq_blender_t;
 
 #define _RDPQ_COMB2B_RGB_SUBB_COMBINED  cast64(0)
 #define _RDPQ_COMB2B_RGB_SUBB_TEX1      cast64(1)
-#define _RDPQ_COMB2B_RGB_SUBA_TEX0_BUG  cast64(2) // TEX0 is buggy in 2nd cycle: it refers to *next* pixel in the scanline
+#define _RDPQ_COMB2B_RGB_SUBB_TEX0_BUG  cast64(2) // TEX0 is buggy in 2nd cycle: it refers to *next* pixel in the scanline
 #define _RDPQ_COMB2B_RGB_SUBB_PRIM      cast64(3)
 #define _RDPQ_COMB2B_RGB_SUBB_SHADE     cast64(4)
 #define _RDPQ_COMB2B_RGB_SUBB_ENV       cast64(5)

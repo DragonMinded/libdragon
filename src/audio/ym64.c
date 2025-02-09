@@ -216,6 +216,7 @@ int ym64player_num_channels(ym64player_t *player) {
 
 void ym64player_play(ym64player_t *player, int first_ch) {
 	player->first_ch = first_ch;
+	mixer_ch_set_limits(first_ch, 0, player->wave.frequency, 0);
 	mixer_ch_play(first_ch, &player->wave);
 	mixer_ch_set_vol(first_ch, 1.0f, 1.0f);
 	mixer_ch_set_pos(first_ch, (float)player->curframe * player->wave.frequency / player->playfreq);
@@ -224,7 +225,8 @@ void ym64player_play(ym64player_t *player, int first_ch) {
 void ym64player_stop(ym64player_t *player) {
 	if (player->first_ch >= 0) {
 		mixer_ch_stop(player->first_ch);
-		player->first_ch = 0;
+		mixer_ch_set_limits(player->first_ch, 0, 0, 0);
+		player->first_ch = -1;
 	}
 }
 

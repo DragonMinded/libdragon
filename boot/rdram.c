@@ -140,7 +140,7 @@ static void rdram_reg_init(void) {
     }
 
     // We must initialize the Delay timing register before accessing any other register.
-    // This is tricky before RI hardcodes the write delay to 1 cycle, but the RDRAM
+    // This is tricky because RI hardcodes the write delay to 1 cycle, but the RDRAM
     // chips default to 4, so writing the Delay register is a chicken-egg problem.
     // The solution here is to use the special "MI repeat mode" where the same
     // written value is repeated N times. On top of that, we need to also half-rotate

@@ -354,8 +354,10 @@ void stage2(void)
     // Reset the RCP hardware
     rcp_reset();
 
-    // Write the accumulated entropy to the pool
-    *(uint32_t*)0xA4000004 = entropy_get();
+    // Write the accumulated entropy to the pool, and to the low-RDRAM location
+    uint32_t entropy = entropy_get();
+    *(uint32_t*)0xA4000004 = entropy;
+    *RDRAM_ENTROPY_STATE = entropy;
     debugf("Boot flags: ", *(uint32_t*)0xA4000000, *(uint32_t*)0xA4000004, *(uint32_t*)0xA4000008, *(uint32_t*)0xA400000C);
 
     // Jump to the ROM finish function

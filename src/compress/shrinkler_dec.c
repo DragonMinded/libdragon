@@ -18,10 +18,10 @@
 #define unlikely(x)     (x)
 #endif
 
-#if defined(__LITTLE_ENDIAN__)
-#define read32be(ptr) __builtin_bswap32(*(uint32_t*)(ptr))
-#else
+#ifdef N64
 #define read32be(ptr) (*(uint32_t*)(ptr))
+#else
+#define read32be(ptr) __builtin_bswap32(*(uint32_t*)(ptr))
 #endif
 
 #define ADJUST_SHIFT 4

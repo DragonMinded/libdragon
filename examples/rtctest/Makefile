@@ -7,6 +7,7 @@ include $(N64_INST)/include/n64.mk
 OBJS = $(BUILD_DIR)/rtctest.o
 
 rtctest.z64: N64_ROM_TITLE = "RTC Test"
+rtctest.z64: N64_ROM_CATEGORY = C
 rtctest.z64: N64_ROM_RTC = true
 
 $(BUILD_DIR)/rtctest.elf: $(OBJS)

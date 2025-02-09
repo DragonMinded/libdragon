@@ -33,7 +33,7 @@
 #include <malloc.h>
 #include <stdalign.h>
 #include "wav64.h"
-#include "wav64internal.h"
+#include "wav64_internal.h"
 #include "samplebuffer.h"
 #include "debug.h"
 #include "dragonfs.h"
@@ -116,9 +116,9 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     }
 }
 
-void wav64_opus_init(wav64_t *wav, int fh) {
+void wav64_opus_init(wav64_t *wav) {
     wav64_opus_header_ext xhead;
-    read(fh, &xhead, sizeof(xhead));
+    read(wav->current_fd, &xhead, sizeof(xhead));
 
     rsp_opus_init();
 
@@ -145,6 +145,7 @@ void wav64_opus_close(wav64_t *wav) {
     opus_custom_decoder_destroy(st->dec);
     opus_custom_mode_destroy(st->mode);
     free(st);
+    wav->ext = NULL;
 }
 
 int wav64_opus_get_bitrate(wav64_t *wav) {

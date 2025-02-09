@@ -511,10 +511,6 @@ void font_atlas_build(font_info *fi, font_atlas *atlas, rdpq_textparms_t *tparms
         int bufidx = 0;
         for (uint32_t c = block->first; c <= block->last; c++) {
             if (c == '\n' || c == '\t' || c == '\r' || c == ' ') continue;
-            if (c == '^' || c == '$') {  // escape correctly the rdpq_font special chars
-                buffer[bufidx++] = c; buffer[bufidx++] = c;
-                continue;
-            }
             codepoint_to_utf8(c, buffer, &bufidx);
         }
 

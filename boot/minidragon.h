@@ -155,6 +155,8 @@ typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 #define DP_CLEAR_INTERRUPT                  0x0800
 #define AI_CLEAR_INTERRUPT                  0
 
+#define DP_CLOCK                            ((volatile uint32_t*)0xA4100010)
+
 #define UncachedAddr(x)                     ((void*)((uint32_t)(x) | 0x20000000))
 
 #define cache_op(addr, op, linesize, length) ({ \

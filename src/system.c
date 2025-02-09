@@ -143,8 +143,8 @@ static int handle_open_count;
 static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
 /** @brief Current stdio hook structure */
 static stdio_t stdio_hooks = { 0 };
-/** @brief Function to provide the current time */
-time_t (*time_hook)( void ) = NULL;
+/** @brief Current time hooks structure */
+static time_hooks_t time_hooks = { 0 };
 /** @brief Current entropy state */
 uint64_t __entropy_state = 0;
 /** @brief Entropy calculation constants (MurMurHash3-128)
@@ -749,15 +749,45 @@ int getpid( void )
  */
 int gettimeofday( struct timeval *ptimeval, void *ptimezone )
 {
-    if( time_hook != NULL )
+    if( time_hooks.gettime != NULL )
     {
-        time_t time = time_hook();
+        time_t time = time_hooks.gettime();
         if( time != -1 )
         {
             ptimeval->tv_sec = time;
             ptimeval->tv_usec = 0;
             return 0;
         }
+    }
+
+    errno = ENOSYS;
+    return -1;
+}
+
+/**
+ * @brief Set the current time
+ *
+ * @param[out] ptimeval
+ *             Time structure containing the new current time.
+ * @param[out] ptimezone
+ *             Timezone information. (Not supported)
+ *
+ * @retval 0 Success
+ * @retval -1 Operation not available (errno is set)
+ * @retval -2 Operation failed (errno is set)
+ */
+int settimeofday( const struct timeval *ptimeval, const void *ptimezone )
+{
+    if( time_hooks.settime != NULL )
+    {
+        time_t time = ptimeval->tv_sec;
+        if( time_hooks.settime( time ) )
+        {
+            return 0;
+        }
+
+        errno = EIO;
+        return -2;
     }
 
     errno = ENOSYS;
@@ -1544,26 +1574,38 @@ int unhook_stdio_calls( stdio_t *stdio_calls )
     return 0;
 }
 
-int hook_time_call( time_t (*time_fn)( void ) )
+int hook_time_calls( time_hooks_t *hooks )
 {
-    if( time_fn == NULL )
-    {
-        return -1;
-    }
+    if( hooks == NULL ) return -1;
 
-    time_hook = time_fn;
+    time_hooks.gettime = hooks->gettime;
+    time_hooks.settime = hooks->settime;
 
     return 0;
 }
 
-int unhook_time_call( time_t (*time_fn)( void ) )
+int unhook_time_calls( time_hooks_t *hooks )
 {
-    if( time_hook == time_fn )
-    {
-        time_hook = NULL;
-    }
+    if( hooks == NULL ) return -1;
+
+    if( time_hooks.gettime == hooks->gettime ) time_hooks.gettime = NULL;
+    if( time_hooks.settime == hooks->settime ) time_hooks.settime = NULL;
 
     return 0;
+}
+
+/** @deprecated Use #hook_time_calls instead. */
+int hook_time_call( time_t (*time_fn)( void ) )
+{
+    time_hooks_t hooks = { time_fn, NULL };
+    return hook_time_calls( &hooks );
+}
+
+/** @deprecated Use #unhook_time_calls instead. */
+int unhook_time_call( time_t (*time_fn)( void ) )
+{
+    time_hooks_t hooks = { time_fn, NULL };
+    return unhook_time_calls( &hooks );
 }
 
 /**

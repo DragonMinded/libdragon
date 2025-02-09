@@ -16,6 +16,7 @@ with open(sys.argv[1], "w") as f:
 			f.write("#include <ultra64.h>\n")
 			f.write("#include <cart.h>\n")
 		else:
+			f.write("#include <string.h>\n")
 			f.write("#include \"n64types.h\"\n")
 			f.write("#include \"n64sys.h\"\n")
 			f.write("#include \"dma.h\"\n")

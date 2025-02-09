@@ -196,9 +196,10 @@ static void update_fps(bool newframe)
  */
 static void __display_callback()
 {
-    // If a reset has occured and its the last VI interrupt before RESET_TIME_LENGTH grace period, stop all work and exit
+    // If a reset has occured and this is almost the last VI interrupt
+    // before RESET_TIME_LENGTH grace period, stop all work and exit
     uint32_t next_time = TICKS_FROM_MS(refresh_period*1000);
-    if(exception_reset_time() + next_time >= RESET_TIME_LENGTH) die();
+    if(exception_reset_time() + next_time*3 >= RESET_TIME_LENGTH) die();
 
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */

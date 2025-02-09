@@ -13,6 +13,10 @@
 extern "C" {
 #endif
 
+/// @cond
+extern void __wav64_init_compression_lvl3(void);
+/// @endcond
+
 /** 
  * @brief WAV64 structure
  * 
@@ -25,7 +29,7 @@ extern "C" {
  * Use #wav64_play to playback. For more advanced usage, call directly the
  * mixer functions, accessing the #wave structure field.
  */
-typedef struct {
+typedef struct wav64_s {
 	/** @brief #waveform_t for this WAV64. 
 	 * 
 	 * Access and use this field directly with the mixer, if needed.
@@ -38,6 +42,38 @@ typedef struct {
 	int format;			     ///< Internal format of the file
 	void *ext;               ///< Pointer to extended data (internal use)
 } wav64_t;
+
+/**
+ * @brief Enable a non-default compression level
+ * 
+ * This function must be called if any wav64 that will be loaded use
+ * a non-default compression level. The default compression level is 1 (VADPCM)
+ * for which no initialization is required. Level 0 (uncompressed) also
+ * requires no initialization.
+ * 
+ * Currently, only level 3 requires initialization (level 2 does not exist yet).
+ * If you have any wav64 compressed with level 3, you must call this function
+ * before opening them.
+ * 
+ * @code{.c}
+ *      wav64_init_compression(3); 
+ * 
+ *      wav64_open(&jingle, "rom:/jingle.wav64");
+ * @endcode
+ * 
+ * @param level     Compression level to initialize
+ * 
+ * @see #wav64_open
+ * @hideinitializer
+ */
+#define wav64_init_compression(level) ({ \
+    switch (level) { \
+    case 0: break; \
+    case 1: break; \
+    case 3: __wav64_init_compression_lvl3(); break; \
+    default: assertf(0, "Unsupported compression level: %d", level); \
+    } \
+})
 
 /** @brief Open a WAV64 file for playback.
  * 
@@ -56,7 +92,7 @@ void wav64_set_loop(wav64_t *wav, bool loop);
 /** @brief Start playing a WAV64 file.
  * 
  * This is just a simple wrapper that calls #mixer_ch_play on the WAV64's
- * waveform (#wav64_t::wave). For advanced usages, please call directly the
+ * waveform (wav64_t::wave). For advanced usages, please call directly the
  * mixer functions.
  * 
  * It is possible to start the same waveform on multiple independent channels.

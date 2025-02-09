@@ -125,7 +125,7 @@ void test_timer_slow_callback(TestContext *ctx) {
 		called_slow++;
 	}
 
-	timer_link_t *t4;
+	timer_link_t *t4 = NULL;
 	void fast(int ovlf) {
 		called_fast++;
 	}

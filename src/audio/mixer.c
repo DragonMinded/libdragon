@@ -377,6 +377,7 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 	assert(ch < Mixer.num_channels);
 	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
 	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_play: cannot call on secondary stereo channel %d", ch);
 
 	// If we're going to play a stereo waveform on a channel that was allocated
 	// for mono, we need to reallocate the buffer.
@@ -412,7 +413,8 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
 		assertf(wave->len != WAVEFORM_UNKNOWN_LEN || wave->loop_len == 0, "waveform %s with unknown length cannot loop", wave->name);
 		int bps = SAMPLES_BPS_SHIFT(sbuf);
-		c->flags = bps | (wave->channels == 2 ? CH_FLAGS_STEREO : 0) | (wave->bits == 16 ? CH_FLAGS_16BIT : 0);
+		c->flags &= ~(CH_FLAGS_BPS_SHIFT | CH_FLAGS_16BIT | CH_FLAGS_STEREO);
+		c->flags |= bps | (wave->channels == 2 ? CH_FLAGS_STEREO : 0) | (wave->bits == 16 ? CH_FLAGS_16BIT : 0);
 		c->len = MIXER_FX64((int64_t)wave->len) << bps;
 		c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
 		mixer_ch_set_freq(ch, wave->frequency);

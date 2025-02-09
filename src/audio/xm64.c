@@ -11,7 +11,7 @@
 #include "debug.h"
 #include "interrupt.h"
 #include "dragonfs.h"
-#include "wav64internal.h"
+#include "wav64_internal.h"
 #include "asset_internal.h"
 #include "libxm/xm.h"
 #include "libxm/xm_internal.h"

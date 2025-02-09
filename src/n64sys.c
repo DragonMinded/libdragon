@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <malloc.h>
+#include <unistd.h>
 #include "n64sys.h"
 #include "regsinternal.h"
 #include "interrupt.h"
@@ -247,6 +248,13 @@ __attribute__((constructor)) void __init_cop1(void)
 
     /* Write back updated cop1 control register */
     C1_WRITE_FCR31(fcr31);
+}
+
+uint32_t getentropy32(void)
+{
+    uint32_t value;
+    getentropy(&value, 4);
+    return value;
 }
 
 /************* BSS CHECK **************/

@@ -527,8 +527,8 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * You can pass this macro to #rdpq_mode_blender.
  * 
  * NOTE: additive blending is broken on RDP because it can overflow. Basically,
- *       if the result of the sum is larger than 1.5 (in scale 0..1), instead
- *       of being clamped to 1, it overflows back to 0, which makes the
+ *       as soon as the result of the sum is slightly larger than 1.0 (in scale 0..1),
+ *       instead of being clamped to 1, it overflows back to 0, which makes the
  *       mode almost useless. It is defined it for completeness.
  */
 #define RDPQ_BLENDER_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
@@ -793,13 +793,23 @@ inline void rdpq_mode_filter(rdpq_filter_t filt) {
  * 
  * This function can be used to turn on mip-mapping.
  * 
- * TMEM must have been loaded with multiple level of details (LOds) of the texture
- * (a task for which rdpq is currently missing a helper, so it has to be done manually).
- * Also, multiple consecutive tile descriptors (one for each LOD) must have been configured.
+ * To use mip-mapping, you must have prepared multiple textures in TMEM. The
+ * simplest way is to let mksprite generate the mipmaps automatically (via
+ * the --mipmap option), so they get embedded within the sprite file; in this
+ * case, mipmaps are automatically uploaded to TMEM when you call #rdpq_sprite_upload,
+ * and this function is also called automatically for you by #rdpq_sprite_upload.
  * 
- * If you call #rdpq_triangle when mipmap is active via #rdpq_mode_mipmap, pass 0
- * to the number of mipmaps in #rdpq_trifmt_t, as the number of levels set here
- * will win over it.
+ * Alternatively, you can upload the mipmaps manually to TMEM using #rdpq_tex_multi_begin,
+ * #rdpq_tex_upload, and #rdpq_tex_multi_end. You must configure multiple consecutive
+ * tiles in TMEM, each one containing a mipmap level, and then call this function
+ * to activate mip-mapping and specifying how many levels you want to use.
+ * 
+ * If you manually draw screen-space triangles via #rdpq_triangle when mipmap
+ * is active via #rdpq_mode_mipmap, pass 0 to the number of mipmaps in
+ * #rdpq_trifmt_t, as the number of levels set here will win over it.
+ * 
+ * @note Mip-mapping is not compatible with two-pass combiner formulas. if you
+ *       do so, you will hit a RSP assertion.
  * 
  * @param mode          Mipmapping mode (use #MIPMAP_NONE to disable)
  * @param num_levels    Number of mipmap levels to use. Pass 0 when setting MIPMAP_NONE.

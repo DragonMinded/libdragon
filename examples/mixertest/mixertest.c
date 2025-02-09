@@ -17,6 +17,9 @@ int main(void) {
 	audio_init(48000, 4);
 	mixer_init(16);  // Initialize up to 16 channels
 
+	// Initialize wav64 compression level 3 as we're going to use it
+	wav64_init_compression(3);
+
 	// Bump maximum frequency of music channel to 128k.
 	// The default is the same of the output frequency (44100), but we want to
 	// let user increase it.

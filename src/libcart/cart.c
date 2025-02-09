@@ -2,6 +2,7 @@
 /*  Adapted for use with libdragon - https://github.com/devwizard64/libcart   */
 /******************************************************************************/
 
+#include <string.h>
 #include "n64types.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -621,11 +622,20 @@ int ci_card_wr_cart(uint32_t cart, uint32_t lba, uint32_t count)
 
 #define __edx_sd_dat_wr(val)    io_write(EDX_SD_DAT_WR_REG, (val) << 8 | 0xFF)
 
+static const char edx_bootx[20] = "EverDrive bootloader";
+static const char edx_boot3[12] = "ED64 SD boot";
+
 int edx_init(void)
 {
     __cart_acs_get();
     io_write(EDX_KEY_REG, EDX_KEY);
-    if (io_read(EDX_EDID_REG) >> 16 != 0xED64) CART_ABORT();
+    io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_OFF);
+    /* Check bootloader ROM label */
+    __cart_dma_rd(__cart_buf, 0x10000020, 20);
+    if (memcmp(__cart_buf, edx_bootx, 20) && memcmp(__cart_buf, edx_boot3, 12))
+    {
+        CART_ABORT();
+    }
     io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_ON);
     __cart_dom1 = 0x80370C04;
     cart_size = 0x4000000; /* 64 MiB */
@@ -1642,6 +1652,7 @@ int sc_init(void)
             cart_size = 0x4000000; /* 64 MiB */
         }
     }
+    __cart_dom1 = 0x802F0C05;
     __cart_acs_rel();
     return 0;
 }

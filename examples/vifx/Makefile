@@ -22,4 +22,4 @@ clean:
 	rm -rf $(BUILD_DIR) *.z64
 .PHONY: clean
 
--include $(wildcard $(BUILD_DIR)/*.d))
+-include $(wildcard $(BUILD_DIR)/*.d)

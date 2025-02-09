@@ -6,6 +6,9 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 
 LIBDRAGON_OBJS += \
+	$(BUILD_DIR)/audio/wav64_vadpcm.o
+
+LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/audio/wav64_opus.o \
 	$(BUILD_DIR)/audio/libopus.o \
 	$(BUILD_DIR)/audio/libopus_rsp.o \

@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <assert.h>
 #include "cop0.h"
 #include "cop1.h"
@@ -579,6 +580,16 @@ typedef enum {
 reset_type_t sys_reset_type(void);
 
 /**
+ * @brief Return 32-bit of entropy.
+ * 
+ * This is a simplified API for getentropy() to just return 32-bit of entropy
+ * instead of an arbitrary buffer. Useful for instance to seed srand().
+ * 
+ * @return uint32_t         32-bit of entropy
+ */
+uint32_t getentropy32(void);
+
+/**
  * @name 64-bit address space access
  * @brief Functions to access the full 64-bit address space
  *
@@ -665,6 +676,14 @@ inline uint64_t mem_read64(uint64_t vaddr) {
 /** @} */
 
 /** @cond */
+
+/* Error out if srand(time(NULL)) is used. We cannot */
+#define srand(seed)  ({ \
+    if (strstr(#seed, "time") && strstr(#seed, "NULL")) \
+        assertf(0, "srand(time(NULL)) will not work on N64 where RTC is not guaranteed. Use srand(getentropy32()) instead"); \
+    srand(seed); \
+})
+
 /* Deprecated version of get_ticks */
 __attribute__((deprecated("use get_ticks instead")))
 static inline volatile unsigned long read_count(void) {

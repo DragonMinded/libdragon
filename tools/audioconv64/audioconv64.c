@@ -39,6 +39,7 @@ void fatal(const char *str, ...) {
 	va_list va;
 	va_start(va, str);
 	vfprintf(stderr, str, va);
+	fprintf(stderr, "\n");
 	va_end(va);
 	exit(1);
 }
@@ -80,6 +81,8 @@ void usage(void) {
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
 	printf("\n");
+	printf("XM options:\n");
+	printf("   --xm-8bit                 Convert all samples ot 8-bit\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  Compress output file\n");
 	printf("\n");
@@ -251,6 +254,8 @@ int main(int argc, char *argv[]) {
 					fprintf(stderr, "invalid argument for --wav-resample: %s\n", argv[i]);
 					return 1;
 				}
+			} else if (!strcmp(argv[i], "--xm-8bit")) {
+				flag_xm_8bit = true;
 			} else if (!strcmp(argv[i], "--ym-compress")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --ym-compress\n");

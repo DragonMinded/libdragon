@@ -5,11 +5,9 @@
  */
 #include "fmath.h"
 #include "debug.h"
+#include "utils.h"
 #include <string.h>
 #include <stdint.h>
-
-/// Mark a branch as likely to be taken
-#define LIKELY(x)       __builtin_expect((x),1)
 
 static const float pi_hi            = 3.14159274e+00f; // 0x1.921fb6p+01
 static const float pi_lo            =-8.74227766e-08f; // -0x1.777a5cp-24
@@ -33,7 +31,12 @@ static float sinf_approx(float x, int approx) {
     if (LIKELY(--approx < 0)) p += - 1.73503853e-4f,  p *= s;
     if (LIKELY(--approx < 0)) p +=   6.62087463e-3f,  p *= s;
     if (LIKELY(--approx < 0)) p += - 1.01321176e-1f;
-    return x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;   
+    x = x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;
+    // FIXME: workaround for a bug in our sinf approximation. We found at least
+    // one input (0xbfc915a2 => -1.570973) that produces an out of bounds result
+    // -1.000000119209289551 (0xbf800001).
+    x = CLAMP(x, -1.0f, 1.0f);
+    return x;
 }
 
 float fm_sinf_approx(float x, int approx) {
@@ -42,7 +45,8 @@ float fm_sinf_approx(float x, int approx) {
     // very accurate for large numbers, so it will introduce more error compared
     // to the 5 ULP figure.
     x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
-    return sinf_approx(x, approx);
+    x = sinf_approx(x, approx);
+    return x;
 }
 
 float fm_sinf(float x) {

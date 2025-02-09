@@ -81,7 +81,7 @@ void test_exception(TestContext *ctx) {
     reg_block_t exception_regs;
 
     // This is only used to make sure we break after setting all the registers
-    uint32_t dependency;
+    uint32_t dependency = 0;
 
     void ex_handler(exception_t* ex) {
         // Fill as many regs as possible with invalid values

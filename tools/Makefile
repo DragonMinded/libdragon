@@ -6,6 +6,8 @@ C_CXX_FLAGS += -I../include -MMD
 C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
 
+LDFLAGS += -pthread
+
 CFLAGS   += -std=gnu11 $(C_CXX_FLAGS) 
 CXXFLAGS += -std=gnu++17 $(C_CXX_FLAGS) 
 CXXFLAGS += -Wno-c++11-narrowing -Wno-narrowing -Wno-error=conversion-null
@@ -56,6 +58,7 @@ mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
 mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o common/assetcomp.a
 mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a common/meshoptimizer/vcacheoptimizer.o
+combexpr_OBJS = mkmaterial/combexpr_cli.o mkmaterial/combexpr_disasm.o
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
 n64dso-extern_OBJS = n64dso/n64dso-extern.o
 n64dso-msym_OBJS = n64dso/n64dso-msym.o
@@ -70,7 +73,7 @@ n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 mgfx_OBJS = mgfx/mgfx.o common/assetcomp.a common/meshoptimizer/vcacheoptimizer.o
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
-TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate mgfx
+TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate combexpr mgfx
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)

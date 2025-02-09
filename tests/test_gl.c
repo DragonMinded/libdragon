@@ -99,7 +99,7 @@ void test_gl_texture_completeness(TestContext *ctx)
         DEFER(surface_free(&tex));
 
         glEnable(GL_TEXTURE_2D);
-        GLuint handle;
+        GLuint handle = 0;
         glGenTextures(1, &handle);
         DEFER(glDeleteTextures(1, &handle));
 
