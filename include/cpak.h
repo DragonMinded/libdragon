@@ -61,9 +61,13 @@ int cpak_mount(joypad_port_t port, const char *prefix);
 /**
  * @brief Unmount the controller pak filesystem
  * 
+ * This function unmounts the controller pak filesystem, waiting for all
+ * pending operations to complete.
+ * 
  * @param port              The controller pak to unmount
+ * @return 0 if success, negative value in case of error (and errno is set)
  */
-void cpak_unmount(joypad_port_t port);
+int cpak_unmount(joypad_port_t port);
 
 
 /**
@@ -81,6 +85,16 @@ void cpak_unmount(joypad_port_t port);
  * @return false        if an error occurred (eg: no cpak on the specified port)
  */
 bool cpak_get_serial(joypad_port_t port, uint8_t serial[24]);
+
+
+/**
+ * @brief 
+ * 
+ * @param port 
+ * @return int 
+ */
+int cpak_fsck(joypad_port_t port, bool fix_errors);
+
 
 #ifdef __cplusplus
 }
