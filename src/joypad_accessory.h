@@ -158,6 +158,16 @@ void joypad_accessory_reset(joypad_port_t port);
  */
 void joypad_accessory_detect_async(joypad_port_t port);
 
+/**
+ * @brief Read data from a Joypad accessory asynchronously.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param start_addr Starting address in the accessory to read from.
+ * @param dst Destination buffer to read accessory data into.
+ * @param len Number of bytes to read.
+ * @param callback Callback function to call when the read operation completes.
+ * @param ctx Opaque pointer to pass to the callback function.
+ */
 void joypad_accessory_read_async(
     joypad_port_t port,
     uint16_t start_addr,
@@ -167,6 +177,16 @@ void joypad_accessory_read_async(
     void *ctx
 );
 
+/**
+ * @brief Write data to a Joypad accessory asynchronously.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param start_addr Starting address in the accessory to write to.
+ * @param src Source buffer of data to write to the accessory.
+ * @param len Number of bytes to write.
+ * @param callback Callback function to call when the write operation completes.
+ * @param ctx Opaque pointer to pass to the callback function.
+ */
 void joypad_accessory_write_async(
     joypad_port_t port,
     uint16_t start_addr,
