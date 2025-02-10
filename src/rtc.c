@@ -52,7 +52,17 @@ static time_t rtc_cache_time = RTC_CACHE_TIME_INIT;
 
 // MARK: Internal functions
 
-int rtc_get_time( time_t *out )
+/**
+ * @brief Read the current date/time from the real-time clock subsystem.
+ *
+ * @param[out] out pointer to the output time_t
+ *
+ * @retval RTC_ESUCCESS if the operation was successful
+ * @retval RTC_ENOCLOCK if the RTC is not available
+ * @retval RTC_EBADCLOCK if the RTC is not operational
+ * @retval RTC_EBADTIME if the RTC clock time is not representable
+ */
+static int rtc_get_time( time_t *out )
 {
     // Act like a dumb software clock if not initialized
     if( rtc_state != RTC_STATE_INIT ) WAIT_FOR_RTC_READY();
@@ -68,7 +78,17 @@ int rtc_get_time( time_t *out )
     return RTC_ESUCCESS;
 }
 
-int rtc_set_time( time_t new_time )
+/**
+ * @brief Set a new date/time for the real-time clock subsystem.
+ *
+ * @param new_time the new time to set the RTC to
+ *
+ * @retval RTC_ESUCCESS if the operation was successful
+ * @retval RTC_ENOCLOCK if the RTC is not available
+ * @retval RTC_EBADCLOCK if the RTC is not operational
+ * @retval RTC_EBADTIME if the RTC cannot represent the new time
+ */
+static int rtc_set_time( time_t new_time )
 {
     // Act like a dumb software clock if not initialized
     if( rtc_state != RTC_STATE_INIT ) WAIT_FOR_RTC_READY();
@@ -403,6 +423,18 @@ rtc_range_t rtc_get_source_supported_range( rtc_source_t source )
 rtc_range_t rtc_get_supported_range( void )
 {
     return rtc_get_source_supported_range( rtc_source );
+}
+
+const char *rtc_error_str( int error )
+{
+    switch( error )
+    {
+        case RTC_ESUCCESS: return "Success";
+        case RTC_ENOCLOCK: return "Clock not available";
+        case RTC_EBADCLOCK: return "Clock not operational";
+        case RTC_EBADTIME: return "Invalid clock time";
+        default: return "Unknown clock error";
+    }
 }
 
 /** @deprecated Use #rtc_get_time instead. */

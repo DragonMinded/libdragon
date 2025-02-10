@@ -19,43 +19,6 @@
 extern "C" {
 #endif
 
-/**
- * @name RTC error codes
- * @{
- */
-/** @brief RTC Operation successful */
-#define RTC_ESUCCESS   0
-/** @brief RTC source in unavailable. */
-#define RTC_ENOCLOCK  -1
-/** @brief RTC source is not operational. */
-#define RTC_EBADCLOCK -2
-/** @brief RTC clock time is not representable.  */
-#define RTC_EBADTIME  -3
-/** @} */
-
-/**
- * @brief Read the current date/time from the real-time clock subsystem.
- *
- * @param[out] out pointer to the output time_t
- *
- * @retval RTC_ESUCCESS if the operation was successful
- * @retval RTC_ENOCLOCK if the RTC is not available
- * @retval RTC_EBADCLOCK if the RTC is not operational
- * @retval RTC_EBADTIME if the RTC clock time is not representable
- */
-int rtc_get_time( time_t *out );
-
-/**
- * @brief Set a new date/time for the real-time clock subsystem.
- *
- * @param new_time the new time to set the RTC to
- *
- * @retval RTC_ESUCCESS if the operation was successful
- * @retval RTC_ENOCLOCK if the RTC is not available
- * @retval RTC_EBADCLOCK if the RTC is not operational
- * @retval RTC_EBADTIME if the RTC cannot represent the new time
- */
-int rtc_set_time( time_t new_time );
 
 /**
  * @brief Decode a packed binary-coded decimal number.

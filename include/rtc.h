@@ -93,6 +93,9 @@ typedef enum {
 #define RTC_EBADTIME  -3
 /** @} */
 
+/** @brief Get the string representation of an RTC error code. */
+const char *rtc_error_str( int error );
+
 /** @brief Software RTC minimum timestamp (1970-01-01 00:00:00) */
 #define RTC_SOFT_TIMESTAMP_MIN 0
 /** @brief Software RTC maximum timestamp (2099-12-31 23:59:59) */
