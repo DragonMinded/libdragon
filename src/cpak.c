@@ -612,6 +612,7 @@ static int __cpak_lseek(void *file, int offset, int whence)
 
 static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
 {
+    assert(note_id >= 0 && note_id < MAX_NOTES);
     cpakfs_note_t *note = &fs->notes[note_id];
     if (!(fs->notes_mask & (1 << note_id))) {
         int note_start = 0x100 + fs->fat_size*2;
@@ -723,7 +724,7 @@ static void *__cpak_open(char *name, int flags, int port)
 
         // Free the FAT chain for this file, unless it's a new file
         uint16_t *prevpage = &file->note->first_page;
-        while (FAT_VALID(be16(*prevpage))) {
+        while (FAT_VALID(be16(*prevpage)) || be16(*prevpage) == FAT_TERMINATOR) {
             uint16_t page = be16(*prevpage);
             *prevpage = be16(FAT_UNUSED);
             prevpage = &fs->fat[page];
@@ -794,7 +795,7 @@ static int __cpak_findnext(dir_t *dir, int port) {
 
     if ((int)dir->d_cookie < MAX_NOTES) {
         note = read_note(fs, ++dir->d_cookie);
-        while ((int)dir->d_cookie < MAX_NOTES && (be16(note->status) & NOTE_STATUS_OCCUPIED) == 0) {
+        while ((int)dir->d_cookie < MAX_NOTES-1 && (be16(note->status) & NOTE_STATUS_OCCUPIED) == 0) {
             note = read_note(fs, ++dir->d_cookie);
         }
     }
