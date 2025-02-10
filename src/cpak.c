@@ -92,29 +92,10 @@ typedef struct {
 static cpakfs_t *filesystems[4];
 static char *prefixes[4];
 
-static int single_block_write(joypad_port_t port, uint16_t addr, void *data)
-{
-    const int RETRIES = 2;
-
-    for (int i=0; i<RETRIES; i++) {
-        int status = joybus_accessory_write(port, addr, data);
-        if (status == JOYBUS_ACCESSORY_IO_STATUS_OK)
-            return 0;
-        if (status != JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC) {
-            // THe cpak or joypad was abruply disconnected
-            errno = ENXIO;
-            return -1;
-        }
-    }
-
-    // I/O error on the wire detected by CRC, probably a faulty connection
-    errno = EIO;
-    return -1;
-}
-
 static int block_read(joypad_port_t port, uint16_t addr, void *data, int nbytes)
 {
-    if (joypad_accessory_read(port, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
+    debugf("block_read(%d, %04X, %p, %d)\n", port, addr, data, nbytes);
+    if (joypad_accessory_xfer(port, JOYPAD_ACCESSORY_XFER_READ, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
         errno = EIO;
         return -1;
     }
@@ -123,13 +104,10 @@ static int block_read(joypad_port_t port, uint16_t addr, void *data, int nbytes)
 
 static int block_write(joypad_port_t port, uint16_t addr, void *data, int nbytes)
 {
-    assert(nbytes % 32 == 0);
-    while (nbytes > 0) {
-        if (single_block_write(port, addr, data) < 0)
-            return -1;
-        data += 32;
-        addr += 32;
-        nbytes -= 32;
+    debugf("block_write(%d, %04X, %p, %d)\n", port, addr, data, nbytes);
+    if (joypad_accessory_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
+        errno = EIO;
+        return -1;
     }
     return 0;
 }
@@ -161,8 +139,9 @@ static int fsid_read(joypad_port_t port, cpakfs_id_t *id)
     // Check if one of the ID sectors is correct
     int sectors[4] = { 0x20, 0x60, 0x80, 0xC0 };
     for (int i=0; i<4; i++) {
-        if (block_read(port, sectors[i], id->data8, 32) < 0)
+        if (block_read(port, sectors[i], id->data8, 32) < 0) {
             return -1;
+        }
 
         // Check device ID
         if ((be16(id->device_id_lsb) & 0x01) != 0x01)
@@ -416,53 +395,6 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
     return out - start_out;
 }
 
-static int write_page(cpakfs_openfile_t *f, uint8_t *ptr, int len)
-{
-    int offset = f->pos % BLOCK_SIZE;
-
-    if (!FAT_VALID(be16(*f->cur_page_ptr))) {
-        errno = EFTYPE;
-        return -1;
-    }
-
-    if (offset > 0) {
-        int n = MIN(len, BLOCK_SIZE - offset);
-        uint8_t buf[BLOCK_SIZE];
-        if (block_read(f->port, be16(*f->cur_page_ptr) * PAGE_SIZE + (f->pos % PAGE_SIZE) - offset, buf, BLOCK_SIZE) < 0)
-            return -1;
-        memcpy(buf + offset, ptr, n);
-        if (block_write(f->port, be16(*f->cur_page_ptr) * PAGE_SIZE + (f->pos % PAGE_SIZE) - offset, buf, BLOCK_SIZE) < 0)
-            return -1;
-        ptr += n;
-        len -= n;
-        f->pos += n;
-    }
-
-    if (len >= BLOCK_SIZE) {
-        assert(f->pos % BLOCK_SIZE == 0);
-        int n = len - (len % BLOCK_SIZE);
-        if (block_write(f->port, be16(*f->cur_page_ptr) * PAGE_SIZE + (f->pos % PAGE_SIZE), ptr, n) < 0)
-            return -1;
-        ptr += n;
-        len -= n;
-        f->pos += n;
-    }
-
-    if (len > 0) {
-        assert(f->pos % BLOCK_SIZE == 0);
-        assert(len < BLOCK_SIZE);
-        uint8_t buf[BLOCK_SIZE];
-        if (block_read(f->port, be16(*f->cur_page_ptr) * PAGE_SIZE + (f->pos % PAGE_SIZE), buf, BLOCK_SIZE) < 0)
-            return -1;
-        memcpy(buf, ptr, len);
-        if (block_write(f->port, be16(*f->cur_page_ptr) * PAGE_SIZE + (f->pos % PAGE_SIZE), buf, BLOCK_SIZE) < 0)
-            return -1;
-        f->pos += len;
-    }
-
-    return 0;
-}
-
 static int __cpak_read(void *file, uint8_t *ptr, int len)
 {
     cpakfs_openfile_t *f = file;
@@ -479,9 +411,10 @@ static int __cpak_read(void *file, uint8_t *ptr, int len)
 
     len = MIN(len, f->size - f->pos);
     while (len > 0) {
+        // Perform the maximum read operation within the current page
+        int page_base = be16(*f->cur_page_ptr) * PAGE_SIZE;
         int page_offset = f->pos % PAGE_SIZE;
         int n = MIN(len, PAGE_SIZE - page_offset);
-        int page_base = be16(*f->cur_page_ptr) * PAGE_SIZE;
 
         // See if we can read multiple pages at once. This is only possible if
         // they are consecutive in the filesystem.
@@ -490,9 +423,11 @@ static int __cpak_read(void *file, uint8_t *ptr, int len)
             f->cur_page_ptr = &fs->fat[be16(*f->cur_page_ptr)];
         }
 
+        // Perform the read
         if (block_read(f->port, page_base + page_offset, ptr, n) < 0)
             return -1;
 
+        // Update counters and optionally move to the next page
         f->pos += n;
         ptr += n;
         len -= n;
@@ -536,8 +471,8 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
         int page_offset = f->pos % PAGE_SIZE;
         int n = MIN(len, PAGE_SIZE - page_offset);
 
+        // Allocate a new page if necessary
         if (page_offset == 0 && !FAT_VALID(be16(*f->cur_page_ptr))) {
-            // Allocate a new page
             int new_page = allocate_page(fs);
             if (new_page < 0)
                 return -1;
@@ -546,9 +481,11 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
             f->flags |= FLAG_FAT_DIRTY;
         }
 
-        if (write_page(f, ptr, n) < 0)
+        int page_base = be16(*f->cur_page_ptr) * PAGE_SIZE;
+        if (block_write(f->port, page_base + page_offset, ptr, n) < 0)
             return -1;
 
+        f->pos += n;
         ptr += n;
         len -= n;
         written += n;

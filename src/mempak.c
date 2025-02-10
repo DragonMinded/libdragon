@@ -28,38 +28,24 @@
 #define BLOCK_VALID_LAST    0x7F
 /** @} */
 
-static void mempak_async_callback( joypad_accessory_error_t result, void *ctx )
-{
-    volatile joypad_accessory_error_t *result_ptr = (volatile joypad_accessory_error_t *)ctx;
-    *result_ptr = result;
-}
-
 int read_mempak_sector( int controller, int sector, uint8_t *sector_data )
 {
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
-    uint16_t start_addr = sector * MEMPAK_BLOCK_SIZE;
-    volatile joypad_accessory_error_t result = JOYPAD_ACCESSORY_ERROR_PENDING;
-    kirq_wait_t w = kirq_begin_wait_si();
-
-    joypad_accessory_read_async(
+    joypad_accessory_error_t result = joypad_accessory_xfer(
         controller,
-        start_addr,
+        JOYPAD_ACCESSORY_XFER_READ,
+        sector * MEMPAK_BLOCK_SIZE,
         sector_data,
-        MEMPAK_BLOCK_SIZE,
-        mempak_async_callback,
-        (void *)&result
+        MEMPAK_BLOCK_SIZE
     );
 
-    while( result == JOYPAD_ACCESSORY_ERROR_PENDING )
-    {
-        if (__kernel) {
-            kirq_wait(&w);
-        }
+    if (result != JOYPAD_ACCESSORY_ERROR_NONE) {
+        return -2;
     }
 
-    return result;
+    return 0;
 }
 
 int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
@@ -67,27 +53,19 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
-    uint16_t start_addr = sector * MEMPAK_BLOCK_SIZE;
-    volatile joypad_accessory_error_t result = JOYPAD_ACCESSORY_ERROR_PENDING;
-    kirq_wait_t w = kirq_begin_wait_si();
-
-    joypad_accessory_write_async(
+    joypad_accessory_error_t result = joypad_accessory_xfer(
         controller,
-        start_addr,
+        JOYPAD_ACCESSORY_XFER_WRITE,
+        sector * MEMPAK_BLOCK_SIZE,
         sector_data,
-        MEMPAK_BLOCK_SIZE,
-        mempak_async_callback,
-        (void *)&result
+        MEMPAK_BLOCK_SIZE
     );
 
-    while( result == JOYPAD_ACCESSORY_ERROR_PENDING )
-    {
-        if (__kernel) {
-            kirq_wait(&w);
-        }
+    if (result != JOYPAD_ACCESSORY_ERROR_NONE) {
+        return -2;
     }
 
-    return result;
+    return 0;
 }
 
 /**
