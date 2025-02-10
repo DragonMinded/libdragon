@@ -460,7 +460,8 @@ int main(int argc, char *argv[])
                 free(line);
                 fclose(f);
 
-                fprintf(stderr, "charset of %zu glyphs loaded from file: %s\n", flag_charset.size(), argv[i]);
+                if (flag_verbose >= 1)
+                    fprintf(stderr, "charset of %zu glyphs loaded from file: %s\n", flag_charset.size(), argv[i]);
 
                 // Always add the ASCII space. Sometimes people forgot to add it
                 // in the charset because they assume whitespaces is implicit.
@@ -493,7 +494,8 @@ int main(int argc, char *argv[])
                     int max_ch = sorted_charset[char_idx-1];
                     flag_ranges.push_back(min_ch);
                     flag_ranges.push_back(max_ch);
-                    fprintf(stderr, "  range added from charset: %s [%x-%x]\n", block.name, min_ch, max_ch);
+                    if (flag_verbose >= 2)
+                        fprintf(stderr, "  range added from charset: %s [%x-%x]\n", block.name, min_ch, max_ch);
                 }
             } else if (!strcmp(argv[i], "--monochrome")) {
                 flag_ttf_monochrome = true;

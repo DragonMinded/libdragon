@@ -4,9 +4,13 @@
  * @ingroup controllerpak
  */
 #include <string.h>
-#include "regsinternal.h"
 #include <unistd.h>
+#include "kernel/kernel_internal.h"
+#include "kirq.h"
+#include "regsinternal.h"
+#include "joybus.h"
 #include "joybus_accessory.h"
+#include "joypad_accessory.h"
 #include "mempak.h"
 
 /**
@@ -29,14 +33,16 @@ int read_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
-    /* Sectors are 256 bytes, a Controller Pak reads 32 bytes at a time */
-    for( int i = 0; i < 8; i++ )
-    {
-        if( joybus_accessory_read( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
-        {
-            /* Failed to read a block */
-            return -2;
-        }
+    joypad_accessory_error_t result = joypad_accessory_xfer(
+        controller,
+        JOYPAD_ACCESSORY_XFER_READ,
+        sector * MEMPAK_BLOCK_SIZE,
+        sector_data,
+        MEMPAK_BLOCK_SIZE
+    );
+
+    if (result != JOYPAD_ACCESSORY_ERROR_NONE) {
+        return -2;
     }
 
     return 0;
@@ -47,14 +53,16 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
-    /* Sectors are 256 bytes, a Controller Pak writes 32 bytes at a time */
-    for( int i = 0; i < 8; i++ )
-    {
-        if( joybus_accessory_write( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
-        {
-            /* Failed to read a block */
-            return -2;
-        }
+    joypad_accessory_error_t result = joypad_accessory_xfer(
+        controller,
+        JOYPAD_ACCESSORY_XFER_WRITE,
+        sector * MEMPAK_BLOCK_SIZE,
+        sector_data,
+        MEMPAK_BLOCK_SIZE
+    );
+
+    if (result != JOYPAD_ACCESSORY_ERROR_NONE) {
+        return -2;
     }
 
     return 0;
@@ -165,7 +173,7 @@ static int __validate_toc( uint8_t *sector )
 
 /**
  * @brief Convert a Controller Pak character to UTF-8
- * 
+ *
  * The codepage used by the controller pak contains a subset of ASCII and
  * some Katakana.
  *
@@ -173,7 +181,7 @@ static int __validate_toc( uint8_t *sector )
  *            A character read from a Controller Pak entry title
  * @param[out] out
  *            Output buffer to write the bytes to (at least 3 bytes).
- * 
+ *
  * @return    The number of bytes written to the output buffer
  */
 static int __n64_to_utf8( uint8_t c, char *out )
