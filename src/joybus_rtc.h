@@ -73,9 +73,10 @@
  * UltraPIF fully implements an emulated Joybus RTC that can be accessed even
  * when the cartridge does not include the real-time clock circuitry.
  *
- * Internally, Joybus RTC cannot represent dates before 1990-01-01, although
+ * Internally, Joybus RTC cannot represent dates before 1900-01-01, although
  * some RTC implementations (like UltraPIF) only support dates after
- * 2000-01-01.
+ * 2000-01-01. Joybus RTC cannot represent dates after 2099-12-31. If the
+ * clock goes beyond this range, it will wrap around to 1900-01-01.
  *
  * Special thanks to korgeaux, marshallh and jago85 for their hard work
  * and research reverse-engineering and documenting the inner-workings
@@ -88,8 +89,8 @@
 extern "C" {
 #endif
 
-/** @brief Joybus RTC minimum timestamp (1970-01-01 00:00:00) */
-#define JOYBUS_RTC_TIMESTAMP_MIN 0
+/** @brief Joybus RTC minimum timestamp (1900-01-01 00:00:00) */
+#define JOYBUS_RTC_TIMESTAMP_MIN -2208988800
 /** @brief Joybus RTC maximum timestamp (2099-12-31 23:59:59) */
 #define JOYBUS_RTC_TIMESTAMP_MAX 4102444799
 

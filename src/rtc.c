@@ -74,7 +74,13 @@ static int rtc_get_time( time_t *out )
 
     long long now_ticks = get_ticks();
     long long seconds_since = (now_ticks - rtc_cache_ticks) / TICKS_PER_SECOND;
-    *out = rtc_cache_time + seconds_since;
+    time_t new_time = rtc_cache_time + seconds_since;
+    rtc_range_t range = rtc_get_supported_range();
+    // Wrap the time around if it goes out of bounds
+    while( new_time < range.min ) new_time += range.max - range.min;
+    while( new_time > range.max ) new_time -= range.max - range.min;
+
+    *out = new_time;
     return RTC_ESUCCESS;
 }
 

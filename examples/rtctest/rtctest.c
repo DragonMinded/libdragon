@@ -193,7 +193,7 @@ static void adjust_rtc_time( struct tm * t, int incr )
 {
     rtc_range_t rtc_range = rtc_get_supported_range();
     int year_min = TIMESTAMP_TO_YEAR(rtc_range.min);
-    int year_max = TIMESTAMP_TO_YEAR(rtc_range.max) - 1;
+    int year_max = TIMESTAMP_TO_YEAR(rtc_range.max + 1) - 1;
 
     switch( edit_mode )
     {
@@ -225,7 +225,7 @@ static void draw_rtc_time( void )
 {
     rtc_range_t rtc_range = rtc_get_supported_range();
     int year_min = TIMESTAMP_TO_YEAR(rtc_range.min);
-    int year_max = TIMESTAMP_TO_YEAR(rtc_range.max) - 1;
+    int year_max = TIMESTAMP_TO_YEAR(rtc_range.max + 1) - 1;
 
     char year[sizeof("YYYY")];
     char month[sizeof("MM")];
