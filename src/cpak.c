@@ -952,11 +952,13 @@ int cpak_unmount(joypad_port_t port)
     return 0;
 }
 
-bool cpak_get_serial(joypad_port_t port, uint8_t serial[24])
+int cpak_get_serial(joypad_port_t port, uint8_t serial[24])
 {
     joypad_accessory_type_t type = joypad_get_accessory_type(port);
-    if (type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
+    if (type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK) {
+        errno = ENODEV;
         return -1;
+    }
 
     cpakfs_id_t fsid;
     if (!fsid_read(port, &fsid))
@@ -964,6 +966,35 @@ bool cpak_get_serial(joypad_port_t port, uint8_t serial[24])
 
     memcpy(serial, fsid.serial, 24);
     return true;
+}
+
+int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats)
+{
+    cpakfs_t *fs = filesystems[port];
+    if (fs == NULL) {
+        errno = ENODEV;
+        return -1;
+    }
+
+    memset(stats, 0, sizeof(*stats));
+    stats->notes.total = MAX_NOTES;
+    stats->pages.total = fs->fat_size;
+    stats->pages.used = 5; // first 5 pages are reserved
+
+    for (int i=0; i<MAX_NOTES; i++) {
+        cpakfs_note_t *note = read_note(fs, i);
+        if (be16(note->status) & NOTE_STATUS_OCCUPIED) {
+            stats->notes.used++;
+        }
+    }
+
+    for (int i=0; i<fs->fat_size - 5; i++) {
+        if (FAT_VALID(be16(fs->fat[i]))) {
+            stats->pages.used++;
+        }
+    }
+
+    return 0;
 }
 
 static int probe_size(joypad_port_t port)
