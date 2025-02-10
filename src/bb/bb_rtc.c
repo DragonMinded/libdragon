@@ -86,6 +86,12 @@ typedef struct bb_rtc_state {
  **/
 int bb_rtc_get_state( bb_rtc_state_t *state, uint64_t *raw )
 {
+    if( !sys_bbplayer() )
+    {
+        debugf("bb_rtc_get_state: BBPlayer not detected\n");
+        return RTC_ENOCLOCK;
+    }
+
     uint64_t dword;
     uint8_t *bytes = (uint8_t *)&dword;
 
@@ -131,6 +137,12 @@ int bb_rtc_get_state( bb_rtc_state_t *state, uint64_t *raw )
  **/
 int bb_rtc_set_state( bb_rtc_state_t *state )
 {
+    if( !sys_bbplayer() )
+    {
+        debugf("bb_rtc_set_state: BBPlayer not detected\n");
+        return RTC_ENOCLOCK;
+    }
+
     uint8_t bytes[8];
 
     bytes[0] = bcd_encode(state->secs);
@@ -230,12 +242,6 @@ int bb_rtc_get_time( time_t *out )
 
 int bb_rtc_set_time( time_t new_time )
 {
-    if( new_time < BB_RTC_TIMESTAMP_MIN || new_time > BB_RTC_TIMESTAMP_MAX )
-    {
-        debugf("bb_rtc_set_time: time out of range\n");
-        return RTC_EBADTIME;
-    }
-
     bb_rtc_state_t state;
     int error = bb_rtc_get_state( &state, NULL );
     if( error != RTC_ESUCCESS )
@@ -248,6 +254,14 @@ int bb_rtc_set_time( time_t new_time )
     {
         debugf("bb_rtc_get_time: oscillator fail\n");
         return RTC_EBADCLOCK;
+    }
+
+    // NOTE: Official iQue menu disables the century bit!
+    time_t max_time = state.century_enable ? BB_RTC_CENTURY_TIMESTAMP_MAX : BB_RTC_TIMESTAMP_MAX;
+    if( new_time < BB_RTC_TIMESTAMP_MIN || new_time > max_time )
+    {
+        debugf("bb_rtc_set_time: time out of range\n");
+        return RTC_EBADTIME;
     }
 
     struct tm * new_tm = gmtime( &new_time );

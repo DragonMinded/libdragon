@@ -25,6 +25,8 @@
 #define LINE3 (14 * GLYPH_HEIGHT)
 #define LINE4 (18 * GLYPH_HEIGHT)
 #define LINE5 (20 * GLYPH_HEIGHT)
+#define LINE6 (22 * GLYPH_HEIGHT)
+#define LINE7 (24 * GLYPH_HEIGHT)
 
 /* Line 2 */
 #define YEAR_X  (12 * GLYPH_WIDTH)

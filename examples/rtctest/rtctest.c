@@ -92,6 +92,26 @@ int main(void)
             graphics_draw_text( disp, 0, LINE5, SRC_JOY_MESSAGE );
         }
 
+        if( sys_bbplayer() )
+        {
+            // TODO: Remove BBPlayer RTC internal API usage for debugging
+            int bb_rtc_get_state( void *state, uint64_t *raw );
+            int bb_rtc_get_time( time_t *out );
+
+            uint64_t bb_state = 0;
+            time_t bb_time = 0;
+            int bb_result;
+            char line_buf[41];
+
+            bb_result = bb_rtc_get_state( NULL, &bb_state );
+            sprintf( line_buf, " %016llx %21s", bb_state, rtc_error_str( bb_result ) );
+            graphics_draw_text( disp, 0, LINE6, line_buf );
+
+            bb_result = bb_rtc_get_time( &bb_time );
+            sprintf( line_buf, " %016lld %21s", bb_time, rtc_error_str( bb_result ) );
+            graphics_draw_text( disp, 0, LINE7, line_buf );
+        }
+
         display_show(disp);
 
         joypad_poll();
