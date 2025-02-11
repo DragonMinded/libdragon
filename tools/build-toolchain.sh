@@ -41,6 +41,7 @@ NEWLIB_V=4.4.0.20231231
 GMP_V=6.3.0 
 MPC_V=1.3.1 
 MPFR_V=4.2.1
+GDB_V=${GDB_V:-""}
 MAKE_V=${MAKE_V:-""}
 
 # Check if a command-line tool is available: status 0 means "yes"; status 1 means "no"
@@ -129,6 +130,11 @@ if [ "$MPFR_V" != "" ]; then
     pushd "gcc-$GCC_V"
     ln -sf ../"mpfr-$MPFR_V" "mpfr"
     popd
+fi
+
+if [ "$GDB_V" != "" ]; then
+    test -f "gdb-$GDB_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gdb/gdb-$GDB_V.tar.gz"
+    test -d "gdb-$GDB_V"                  || tar -xzf "gdb-$GDB_V.tar.gz"
 fi
 
 if [ "$MAKE_V" != "" ]; then
@@ -304,6 +310,26 @@ else
     # Finish compiling GCC
     mkdir -p gcc_compile
     pushd gcc_compile
+    make all -j "$JOBS"
+    make install-strip || sudo make install-strip || su -c "make install-strip"
+    popd
+fi
+
+if [ "$GDB_V" != "" ]; then
+    # Compile GDB
+    pushd "gdb-$GDB_V"
+    ./configure "${GCC_CONFIGURE_ARGS[@]}" \
+        --prefix="$INSTALL_PATH" \
+        --target="$N64_TARGET" \
+        --build="$N64_BUILD" \
+        --host="$N64_HOST" \
+        --disable-docs \
+        --disable-gdbserver \
+        --disable-binutils \
+        --disable-gas \
+        --disable-sim \
+        --disable-gprof \
+        --disable-inprocess-agent
     make all -j "$JOBS"
     make install-strip || sudo make install-strip || su -c "make install-strip"
     popd
