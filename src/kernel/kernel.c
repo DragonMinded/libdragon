@@ -402,16 +402,18 @@ kthread_t* kernel_init(void)
 
 	// The main thread is the currently scheduled one.
 	th_cur = &th_main;
+	th_cur_tp = __tls_base+TP_OFFSET;
+
+	// Initialize IRQ condition variables
+	__kirq_init();
+
+	// Kernel is now initialized
+	__kernel = true;
 
 	// Allocate the idle thread
 	th_idle = kthread_new("idle", 4096, -128, __kthread_idle, 0);
 	kthread_detach(th_idle);
 
-	// Initialize IRQ condition variables
-	__kirq_init();
-
-	__kernel = true;
-	th_cur_tp = __tls_base+TP_OFFSET;
 	return th_cur;
 }
 
@@ -435,6 +437,7 @@ void kernel_close(void)
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)
 {
 	assert((stack_size % 8) == 0);
+	assertf(__kernel, "kernel not initialized");
 
 	// Allocate memory for the stack, the stack guard area, and the kthread_t
 	// structure
