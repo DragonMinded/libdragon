@@ -23,7 +23,7 @@ typedef enum
     BB_SAVE_XFER_WRITE,
 } bb_save_xfer_t;
 
-/** @brief BBPlayer Save Pak types */
+/** @brief BBPlayer Save types */
 typedef enum
 {
     BB_SAVE_PAK1 = 0,
