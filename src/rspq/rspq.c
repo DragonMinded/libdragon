@@ -863,7 +863,7 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     }
 
     // Fill information in the overlay header
-    overlay_header->text_size = overlay_code_size;
+    overlay_header->text_size = overlay_code_size - 1;
     overlay_header->text_rdram = PhysicalAddr(overlay_code);
     overlay_header->state_rdram = PhysicalAddr(overlay_ucode->data) + overlay_header->state_start;
     overlay_header->command_base = id << 5;

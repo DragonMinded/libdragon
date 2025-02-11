@@ -11,6 +11,24 @@ extern "C" {
 #endif
 
 /**
+ * @brief Usage statistics for a Controller Pak
+ * 
+ * This structure is returned by #cpak_get_stats and contains the usage
+ * statistics for a controller pak.
+ */
+typedef struct {
+    struct {
+        int total;      ///< Total number of pages in the controller pak
+        int used;       ///< Number of pages used in the controller pak
+    } pages;            ///< Statistics on pages in the controller pak
+    struct {
+        int total;      ///< Total number of notes in the controller pak
+        int used;       ///< Number of notes used in the controller pak
+    } notes;            ///< Statistics on notes in the controller pak
+} cpak_stats_t;
+
+
+/**
  * @brief Mount the controller pak as filesystem
  * 
  * This function mounts the contents of a controller pak as a virtual
@@ -61,10 +79,13 @@ int cpak_mount(joypad_port_t port, const char *prefix);
 /**
  * @brief Unmount the controller pak filesystem
  * 
+ * This function unmounts the controller pak filesystem, waiting for all
+ * pending operations to complete.
+ * 
  * @param port              The controller pak to unmount
+ * @return 0 if success, negative value in case of error (and errno is set)
  */
-void cpak_unmount(joypad_port_t port);
-
+int cpak_unmount(joypad_port_t port);
 
 /**
  * @brief Read the serial number of a controller pak
@@ -77,10 +98,32 @@ void cpak_unmount(joypad_port_t port);
  * 
  * @param port          The controller pak to read the serial from
  * @param serial        The buffer where to store the serial number (24 bytes)
- * @return true         if the serial number was successfully read
- * @return false        if an error occurred (eg: no cpak on the specified port)
+ * @return 0            if the serial was successfully read
+ * @return negative     if an error occurred (eg: no cpak on the specified port),
+ *                      and errno is set accordingly.
  */
-bool cpak_get_serial(joypad_port_t port, uint8_t serial[24]);
+int cpak_get_serial(joypad_port_t port, uint8_t serial[24]);
+
+/**
+ * @brief Read the usage state of a controller pak
+ * 
+ * @param port          The controller pak to read the usage state from
+ * @param stats         The structure where to store the usage statistics
+ * @return 0            if the serial was successfully read
+ * @return negative     if an error occurred (eg: no cpak on the specified port),
+ *                      and errno is set accordingly.
+ */
+int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats);
+
+
+/**
+ * @brief 
+ * 
+ * @param port 
+ * @return int 
+ */
+int cpak_fsck(joypad_port_t port, bool fix_errors);
+
 
 #ifdef __cplusplus
 }

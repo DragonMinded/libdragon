@@ -95,7 +95,14 @@ typedef enum
     JOYPAD_ACCESSORY_ERROR_UNKNOWN,
 } joypad_accessory_error_t;
 
-/** @brief Callback function signature for #joypad_accessory_read_async and #joypad_accessory_write_async */
+/** @brief Type of transfer performed by #joypad_accessory_xfer_async */
+typedef enum
+{
+    JOYPAD_ACCESSORY_XFER_READ,
+    JOYPAD_ACCESSORY_XFER_WRITE,
+} joypad_accessory_xfer_t;
+
+/** @brief Callback function signature for #joypad_accessory_xfer_async */
 typedef void (*joypad_accessory_io_callback_t)(joypad_accessory_error_t error, void *ctx);
 
 /** @brief Joypad Accessory I/O operation state */
@@ -104,6 +111,7 @@ typedef struct
     uint8_t *start;
     uint8_t *end;
     uint8_t *cursor;
+    uint16_t cart_addr;
     joypad_accessory_io_callback_t callback;
     void *ctx;
 } joypad_accessory_io_t;
@@ -159,22 +167,61 @@ void joypad_accessory_reset(joypad_port_t port);
 void joypad_accessory_detect_async(joypad_port_t port);
 
 /**
- * @brief Read data from a Joypad accessory asynchronously.
+ * @brief Read or write data from a Joypad accessory asynchronously.
  * 
- * @param port Joypad port number (#joypad_port_t)
- * @param start_addr Starting address in the accessory to read from.
- * @param dst Destination buffer to read accessory data into.
- * @param len Number of bytes to read.
- * @param callback Callback function to call when the read operation completes.
- * @param ctx Opaque pointer to pass to the callback function.
+ * This function can perform a bulk transfer of data from a Joypad accessory.
+ * A bulk transfer can read or write any number of bytes from any starting
+ * address in the accessory, including misaligned addresses.
+ * 
+ * This builds upon the lower level primitives #joybus_accessory_read and
+ * #joybus_accessory_write, which are limited to 32-byte, aligned data blocks.
+ * 
+ * To perform misaligned writes, this function will perform read-modify-write
+ * operations on the accessory when needed.
+ * 
+ * @param port          Joypad port number (#joypad_port_t)
+ * @param xfer          Transfer direction (#JOYPAD_ACCESSORY_XFER_READ or #JOYPAD_ACCESSORY_XFER_WRITE)
+ * @param start_addr    Starting address in the accessory to read from.
+ *                      There is no alignment requirement for this address.
+ * @param dst           Destination buffer to read accessory data into.
+ * @param len           Number of bytes to read. Any number of bytes can be read.
+ * @param callback      Callback function to call when the read operation completes.
+ * @param ctx           Opaque pointer to pass to the callback function.
  */
-void joypad_accessory_read_async(
+void joypad_accessory_xfer_async(
     joypad_port_t port,
+    joypad_accessory_xfer_t xfer,
     uint16_t start_addr,
     void *dst,
     size_t len,
     joypad_accessory_io_callback_t callback,
     void *ctx
+);
+
+/**
+ * @brief Read or write data from a joypad accessory.
+ * 
+ * This is the blocking version of #joypad_accessory_xfer_async. Like the
+ * asynchronous version, this function can read or write any number of bytes
+ * from any starting address in the accessory.
+ * 
+ * This builds upon the lower level primitives #joybus_accessory_read and
+ * #joybus_accessory_write, which are limited to 32-byte, aligned data blocks.
+ * 
+ * @param port          Joypad port number (#joypad_port_t)
+ * @param xfer          Transfer direction (#JOYPAD_ACCESSORY_XFER_READ or #JOYPAD_ACCESSORY_XFER_WRITE)
+ * @param start_addr    Starting address in the accessory to read from.
+ *                      There is no alignment requirement for this address.
+ * @param dst           Destination buffer to read accessory data into.
+ * @param len           Number of bytes to read. Any number of bytes can be read.
+ * @return joypad_accessory_error_t     Error code indicating the result of the read operation.
+ */
+joypad_accessory_error_t joypad_accessory_xfer(
+    joypad_port_t port,
+    joypad_accessory_xfer_t xfer,
+    uint16_t start_addr,
+    void *dst,
+    size_t len
 );
 
 /**
