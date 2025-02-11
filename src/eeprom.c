@@ -6,8 +6,11 @@
 
 #include <string.h>
 #include <stdlib.h>
+
+#include "bb_save.h"
 #include "eeprom.h"
 #include "joybus.h"
+#include "n64sys.h"
 
 /**
  * @brief Read the status of the EEPROM.
@@ -46,6 +49,14 @@ static uint32_t eeprom_status( void )
 
 eeprom_type_t eeprom_present( void )
 {
+    if( sys_bbplayer() )
+    {
+        uint32_t size = bb_save_size( BB_SAVE_EEPROM );
+        if( size >= 0x800 ) return EEPROM_16K;
+        if( size >= 0x200 ) return EEPROM_4K;
+        return EEPROM_NONE;
+    }
+
     switch( eeprom_status() >> 8 )
     {
         case 0xC000: return EEPROM_16K;
@@ -56,6 +67,11 @@ eeprom_type_t eeprom_present( void )
 
 size_t eeprom_total_blocks( void )
 {
+    if( sys_bbplayer() )
+    {
+        return bb_save_size( BB_SAVE_EEPROM ) / EEPROM_BLOCK_SIZE;
+    }
+
     switch ( eeprom_present() )
     {
         case EEPROM_16K: return 256;
@@ -66,6 +82,18 @@ size_t eeprom_total_blocks( void )
 
 void eeprom_read( uint8_t block, uint8_t * dest )
 {
+    if( sys_bbplayer() )
+    {
+        bb_save_xfer(
+            BB_SAVE_EEPROM,
+            BB_SAVE_XFER_READ,
+            block * EEPROM_BLOCK_SIZE,
+            dest,
+            EEPROM_BLOCK_SIZE
+        );
+        return;
+    }
+
     const uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
         0x0000000002080400 | block,
@@ -86,6 +114,18 @@ void eeprom_read( uint8_t block, uint8_t * dest )
 
 uint8_t eeprom_write( uint8_t block, const uint8_t * src )
 {
+    if( sys_bbplayer() )
+    {
+        bb_save_xfer(
+            BB_SAVE_EEPROM,
+            BB_SAVE_XFER_WRITE,
+            block * EEPROM_BLOCK_SIZE,
+            (void *)src,
+            EEPROM_BLOCK_SIZE
+        );
+        return 0;
+    }
+
     uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
         0x000000000a010500 | block,
@@ -108,6 +148,12 @@ uint8_t eeprom_write( uint8_t block, const uint8_t * src )
 
 void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
 {
+    if( sys_bbplayer() )
+    {
+        bb_save_xfer( BB_SAVE_EEPROM, BB_SAVE_XFER_READ, start, dest, len );
+        return;
+    }
+
     size_t bytes_left = len;
     uint8_t buf[EEPROM_BLOCK_SIZE];
     uint8_t current_block = start / EEPROM_BLOCK_SIZE;
@@ -139,6 +185,12 @@ void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
 
 void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len )
 {
+    if( sys_bbplayer() )
+    {
+        bb_save_xfer( BB_SAVE_EEPROM, BB_SAVE_XFER_WRITE, start, (void *)src, len );
+        return;
+    }
+
     size_t bytes_left = len;
     uint8_t buf[EEPROM_BLOCK_SIZE];
     uint8_t current_block = start / EEPROM_BLOCK_SIZE;

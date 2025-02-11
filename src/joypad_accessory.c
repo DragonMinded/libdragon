@@ -8,6 +8,7 @@
 
 #include <string.h>
 
+#include "bb_save.h"
 #include "debug.h"
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
@@ -674,14 +675,24 @@ void joypad_accessory_xfer_async(
     joypad_port_t port,
     joypad_accessory_xfer_t xfer,
     uint16_t start_addr,
-    void *dst,
-    size_t len,
+    void *data,
+    size_t nbytes,
     joypad_accessory_io_callback_t callback,
     void *ctx
 )
 {
     ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+
+    if (sys_bbplayer()) {
+        if( bb_save_xfer(port, xfer, start_addr, data, nbytes) == BB_SAVE_ERROR_NONE ) {
+            accessory->error = JOYPAD_ACCESSORY_ERROR_NONE;
+        } else {
+            accessory->error = JOYPAD_ACCESSORY_ERROR_UNKNOWN;
+        }
+        if (callback != NULL) callback(accessory->error, ctx);
+        return;
+    }
 
     // We can only handle one async transfer at a time. If the accessory is
     // busy, we will wait for it to become idle before starting the new transfer.
@@ -691,9 +702,9 @@ void joypad_accessory_xfer_async(
     }
 
     accessory->io = (joypad_accessory_io_t){
-        .start = dst,
-        .end = dst + len,
-        .cursor = dst,
+        .start = data,
+        .end = data + nbytes,
+        .cursor = data,
         .cart_addr = start_addr,
         .callback = callback,
         .ctx = ctx,
@@ -711,10 +722,10 @@ void joypad_accessory_xfer_async(
         break;
     case JOYPAD_ACCESSORY_XFER_WRITE:
         // If we're wriring
-        if ((start_addr & 0x1F) == 0 && len >= JOYBUS_ACCESSORY_DATA_SIZE) {
+        if ((start_addr & 0x1F) == 0 && nbytes >= JOYBUS_ACCESSORY_DATA_SIZE) {
             accessory->state = JOYPAD_ACCESSORY_STATE_WRITE;
             joybus_accessory_write_async(
-                port, start_addr & JOYBUS_ACCESSORY_ADDR_MASK_OFFSET, dst,
+                port, start_addr & JOYBUS_ACCESSORY_ADDR_MASK_OFFSET, data,
                 joypad_accessory_write_callback, (void *)port
             );
         } else {
@@ -729,12 +740,19 @@ void joypad_accessory_xfer_async(
 }
 
 joypad_accessory_error_t joypad_accessory_xfer(
-    joypad_port_t port, 
+    joypad_port_t port,
     joypad_accessory_xfer_t xfer,
-    uint16_t start_addr, 
-    void *dst,
-    size_t len)
+    uint16_t start_addr,
+    void *data,
+    size_t nbytes)
 {
+    if (sys_bbplayer()) {
+        switch( bb_save_xfer(port, xfer, start_addr, data, nbytes) ) {
+            case BB_SAVE_ERROR_NONE: return JOYPAD_ACCESSORY_ERROR_NONE;
+            default:                 return JOYPAD_ACCESSORY_ERROR_UNKNOWN;
+        }
+    }
+
     volatile bool done = false;
     volatile joypad_accessory_error_t error = JOYPAD_ACCESSORY_ERROR_NONE;
 
@@ -745,7 +763,7 @@ joypad_accessory_error_t joypad_accessory_xfer(
     }
 
     kirq_wait_t w = kirq_begin_wait_si();
-    joypad_accessory_xfer_async(port, xfer, start_addr, dst, len, callback, NULL);
+    joypad_accessory_xfer_async(port, xfer, start_addr, data, nbytes, callback, NULL);
 
     while (!done) {
         if (__kernel) kirq_wait(&w);

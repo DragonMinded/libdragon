@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "bb_save.h"
 #include "debug.h"
 #include "interrupt.h"
 #include "joypad_internal.h"
@@ -385,7 +386,20 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
                 device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
                 device->rumble_active = false;
             }
-            if (accessory_changed)
+            if (sys_bbplayer())
+            {
+                // BBPlayer only supports Controller Paks.
+                // Controller Paks must be set up in the iQue menu.
+                if (bb_save_size( port ) == 0)
+                {
+                    accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
+                    accessory_status = JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT;
+                } else {
+                    accessory->type = JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK;
+                    accessory_status = JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT;
+                }
+            }
+            else if (accessory_changed)
             {
                 accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
                 joypad_accessory_detect_async(port);
