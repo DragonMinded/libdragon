@@ -204,8 +204,10 @@ int bb_rtc_get_time( time_t *out )
 
     if( state.oscillator_fail )
     {
-        debugf("bb_rtc_get_time: oscillator fail\n");
-        return RTC_EBADCLOCK;
+        debugf("bb_rtc_get_time: oscillator failure reported\n");
+        // Oscillator failures are not necessarily fatal.
+        // It could mean that the battery is dead, or has been replaced.
+        // TODO: Message this up to RTC subsystem so it can be reported/handled.
     }
 
     // Extremely basic sanity-check on the date and time
@@ -252,8 +254,10 @@ int bb_rtc_set_time( time_t new_time )
 
     if( state.oscillator_fail )
     {
-        debugf("bb_rtc_get_time: oscillator fail\n");
-        return RTC_EBADCLOCK;
+        debugf("bb_rtc_set_time: resetting oscillator fail bit\n");
+        // Oscillator failures are not necessarily fatal.
+        // It could mean that the battery is dead, or has been replaced.
+        // If the bit is set again on the next read, it's a real problem.
     }
 
     // NOTE: Official iQue menu disables the century bit!
