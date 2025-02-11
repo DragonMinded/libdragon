@@ -258,6 +258,7 @@ int bb_rtc_set_time( time_t new_time )
         // Oscillator failures are not necessarily fatal.
         // It could mean that the battery is dead, or has been replaced.
         // If the bit is set again on the next read, it's a real problem.
+        state.oscillator_fail = false;
     }
 
     // NOTE: Official iQue menu disables the century bit!
