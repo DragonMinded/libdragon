@@ -14,6 +14,9 @@
     _x < _min ? _max : _x > _max ? _min : _x; \
 })
 
+#define SECONDS_PER_YEAR (60.0f * 60.0f * 24.0f * 365.2422f)
+#define TIMESTAMP_TO_YEAR(ts) CLAMP((int)(roundf((ts) / SECONDS_PER_YEAR)) + 1970, 1900, 2199)
+
 #define GLYPH_WIDTH  8
 #define GLYPH_HEIGHT 8
 
@@ -22,6 +25,8 @@
 #define LINE3 (14 * GLYPH_HEIGHT)
 #define LINE4 (18 * GLYPH_HEIGHT)
 #define LINE5 (20 * GLYPH_HEIGHT)
+#define LINE6 (22 * GLYPH_HEIGHT)
+#define LINE7 (24 * GLYPH_HEIGHT)
 
 /* Line 2 */
 #define YEAR_X  (12 * GLYPH_WIDTH)
@@ -41,8 +46,6 @@
 #define EDIT_SEC   0x0001
 #define EDIT_NONE  0x0000
 
-#define YEAR_MIN 1996
-#define YEAR_MAX 2095
 
 /* SCREEN_WIDTH_GUIDE:                "----------------------------------------" */
 static const char* RUN_SOFT_MESSAGE = "        RTC source detected: None       ";

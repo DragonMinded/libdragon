@@ -1,6 +1,6 @@
 /**
- * @file rtc_utils.c
- * @brief Real-Time Clock Subsystem Utilities
+ * @file rtc_internal.c
+ * @brief Real-Time Clock subsystem internal API
  * @ingroup rtc
  */
 
@@ -60,4 +60,4 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
     *rtc_time = rtc_time_from_tm( &t );
 }
 
-/** @} */ /* rtc_utils */
+/** @} */ /* rtc_internal */

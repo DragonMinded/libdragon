@@ -18,6 +18,7 @@
 #include <time.h>
 #include "system.h"
 #include "n64sys.h"
+#include "rtc_internal.h"
 
 /**
  * @name STDIN/STDOUT/STDERR definitions from unistd.h
@@ -145,6 +146,8 @@ static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
 static stdio_t stdio_hooks = { 0 };
 /** @brief Current time hooks structure */
 static time_hooks_t time_hooks = { 0 };
+/** @brief Current real-time clock hooks structure */
+static rtc_hooks_t rtc_hooks = { 0 };
 /** @brief Current entropy state */
 uint64_t __entropy_state = 0;
 /** @brief Entropy calculation constants (MurMurHash3-128)
@@ -749,14 +752,40 @@ int getpid( void )
  */
 int gettimeofday( struct timeval *ptimeval, void *ptimezone )
 {
+    time_t time;
     if( time_hooks.gettime != NULL )
     {
-        time_t time = time_hooks.gettime();
+        time = time_hooks.gettime();
         if( time != -1 )
         {
             ptimeval->tv_sec = time;
             ptimeval->tv_usec = 0;
             return 0;
+        }
+        errno = EIO;
+        return -2;
+    }
+
+    if( rtc_hooks.gettime != NULL )
+    {
+        switch( rtc_hooks.gettime( &time ) )
+        {
+            case RTC_ESUCCESS:
+                ptimeval->tv_sec = time;
+                ptimeval->tv_usec = 0;
+                return 0;
+            case RTC_ENOCLOCK:
+                errno = ENODEV;
+                return -2;
+            case RTC_EBADCLOCK:
+                errno = EIO;
+                return -2;
+            case RTC_EBADTIME:
+                errno = EBADMSG;
+                return -2;
+            default:
+                errno = ENOMSG;
+                return -1;
         }
     }
 
@@ -778,9 +807,9 @@ int gettimeofday( struct timeval *ptimeval, void *ptimezone )
  */
 int settimeofday( const struct timeval *ptimeval, const void *ptimezone )
 {
+    time_t time = ptimeval->tv_sec;
     if( time_hooks.settime != NULL )
     {
-        time_t time = ptimeval->tv_sec;
         if( time_hooks.settime( time ) )
         {
             return 0;
@@ -788,6 +817,27 @@ int settimeofday( const struct timeval *ptimeval, const void *ptimezone )
 
         errno = EIO;
         return -2;
+    }
+
+    if( rtc_hooks.settime != NULL )
+    {
+        switch( rtc_hooks.settime( time ) )
+        {
+            case RTC_ESUCCESS:
+                return 0;
+            case RTC_ENOCLOCK:
+                errno = ENODEV;
+                return -2;
+            case RTC_EBADCLOCK:
+                errno = EIO;
+                return -2;
+            case RTC_EBADTIME:
+                errno = EINVAL;
+                return -2;
+            default:
+                errno = ENOMSG;
+                return -1;
+        }
     }
 
     errno = ENOSYS;
@@ -1574,6 +1624,27 @@ int unhook_stdio_calls( stdio_t *stdio_calls )
     return 0;
 }
 
+int hook_rtc_calls( rtc_hooks_t *hooks )
+{
+    if( hooks == NULL ) return -1;
+
+    rtc_hooks.gettime = hooks->gettime;
+    rtc_hooks.settime = hooks->settime;
+
+    return 0;
+}
+
+int unhook_rtc_calls( rtc_hooks_t *hooks )
+{
+    if( hooks == NULL ) return -1;
+
+    if( rtc_hooks.gettime == hooks->gettime ) rtc_hooks.gettime = NULL;
+    if( rtc_hooks.settime == hooks->settime ) rtc_hooks.settime = NULL;
+
+    return 0;
+}
+
+/** @deprecated Use #hook_rtc_calls instead. */
 int hook_time_calls( time_hooks_t *hooks )
 {
     if( hooks == NULL ) return -1;
@@ -1584,6 +1655,7 @@ int hook_time_calls( time_hooks_t *hooks )
     return 0;
 }
 
+/** @deprecated Use #unhook_rtc_calls instead. */
 int unhook_time_calls( time_hooks_t *hooks )
 {
     if( hooks == NULL ) return -1;
