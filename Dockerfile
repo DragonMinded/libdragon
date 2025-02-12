@@ -8,14 +8,17 @@ FROM ${BASE_IMAGE} AS builder
 
 # Setup paths for the libdragon toolchain
 ARG N64_INST=/n64_toolchain
-ARG BUILD_PATH=/tmp/n64_toolchain
+ARG BUILD_PATH=/tmp/build
+ARG DOWNLOAD_PATH=/tmp/download
 ENV N64_INST=${N64_INST}
 ENV BUILD_PATH=${BUILD_PATH}
+ENV DOWNLOAD_PATH=${DOWNLOAD_PATH}
 
 # Install system dependencies
 RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
     --mount=target=/var/cache/apt,type=cache,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
+    && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
     && apt update \
     && apt upgrade -y \
     && apt install -y --no-install-recommends \
@@ -37,7 +40,8 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
 COPY ./tools/build-toolchain.sh ./tools/build-gdb.sh /tools/
 
 # Run the build scripts and cleanup unnecessary files
-RUN /tools/build-toolchain.sh && \
+RUN --mount=target=${DOWNLOAD_PATH},type=cache,sharing=locked \
+    /tools/build-toolchain.sh && \
     /tools/build-gdb.sh && \
     rm -rf ${N64_INST}/share/locale/*
 
@@ -53,6 +57,7 @@ ENV PATH="${N64_INST}/bin:$PATH"
 RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
     --mount=target=/var/cache/apt,type=cache,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
+    && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
     && apt update \
     && apt upgrade -y \
     && apt install -y --no-install-recommends \
