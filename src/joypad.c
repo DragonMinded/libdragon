@@ -678,8 +678,9 @@ void joypad_poll(void)
         if (sys_bbplayer()) {
             // iQue has a very fixed layout for commands, and it also tends
             // to corrupt other parts of PIF-RAM. So better jump to fixed positions
-            // while parsing.
-            i = (port * 8) + 1;
+            // while parsing. Also, respect the BBPlayer "Hack Flags" register for
+            // swapping the first controller with another port.
+            i = (bb_hack_flags_swap_port(port) * 8) + 1;
         }
         device = &joypad_devices_cold[port];
         // Check send_len to figure out if this port has a command on it
@@ -743,61 +744,29 @@ void joypad_poll(void)
             memset(device, 0, sizeof(*device));
             i += command_len;
         }
+        // Copy the hot identifier to the cold device state
+        device->identifier = identifiers[port];
     }
 
     if (check_origins) joypad_gcn_origin_check_async();
-
-    if (sys_bbplayer())
-    {
-        joypad_device_cold_t swap = joypad_devices_cold[JOYPAD_PORT_1];
-        // Respect the BBPlayer "Hack Flags" register to swap controller ports
-        switch( BB_HACK_FLAGS_SWAP_PORT1 )
-        {
-            case 1:
-                // Swap port 1 and 2
-                joypad_devices_cold[JOYPAD_PORT_1] = joypad_devices_cold[JOYPAD_PORT_2];
-                joypad_devices_cold[JOYPAD_PORT_2] = swap;
-                break;
-            case 2:
-                // Swap port 1 and 3
-                joypad_devices_cold[JOYPAD_PORT_1] = joypad_devices_cold[JOYPAD_PORT_3];
-                joypad_devices_cold[JOYPAD_PORT_3] = swap;
-                break;
-            case 3:
-                // Swap port 1 and 4
-                joypad_devices_cold[JOYPAD_PORT_1] = joypad_devices_cold[JOYPAD_PORT_4];
-                joypad_devices_cold[JOYPAD_PORT_4] = swap;
-                break;
-        }
-    }
 }
 
 bool joypad_is_connected(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-
-    // Respect the BBPlayer "Hack Flags" register to swap controller ports.
-    // The device state is swapped during poll, but identifiers need to be swapped on read.
-    port = bb_hack_flags_swap_port(port);
-
-    joybus_identifier_t identifier = joypad_identifiers_hot[port];
-    return (
-        identifier != JOYBUS_IDENTIFIER_NONE &&
-        identifier != JOYBUS_IDENTIFIER_UNKNOWN
-    );
+    switch( joypad_devices_cold[port].identifier ) {
+        case JOYBUS_IDENTIFIER_NONE:
+        case JOYBUS_IDENTIFIER_UNKNOWN: return false;
+        default:                        return true;
+    }
 }
 
 joybus_identifier_t joypad_get_identifier(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-
-    // Respect the BBPlayer "Hack Flags" register to swap controller ports.
-    // The device state is swapped during poll, but identifiers need to be swapped on read.
-    port = bb_hack_flags_swap_port(port);
-
-    return joypad_identifiers_hot[port];
+    return joypad_devices_cold[port].identifier;
 }
 
 joypad_style_t joypad_get_style(joypad_port_t port)
