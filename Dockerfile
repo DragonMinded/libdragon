@@ -33,9 +33,11 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         zlib1g-dev \
     && apt autoremove -yq
 
-# Build toolchain
-RUN --mount=type=bind,source=./tools,target=/tools \
-    /tools/build-toolchain.sh && \
+# Copy the build scripts into the container
+COPY ./tools/build-toolchain.sh ./tools/build-gdb.sh /tools/
+
+# Run the build scripts and cleanup unnecessary files
+RUN /tools/build-toolchain.sh && \
     /tools/build-gdb.sh && \
     rm -rf ${N64_INST}/share/locale/*
 
