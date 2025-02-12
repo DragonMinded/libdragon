@@ -390,7 +390,7 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
             {
                 // BBPlayer only supports Controller Paks.
                 // Controller Paks must be set up in the iQue menu.
-                if (bb_save_size( port ) == 0)
+                if (bb_save_size( BB_SAVE_PAK1 + port ) == 0)
                 {
                     accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
                     accessory_status = JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT;

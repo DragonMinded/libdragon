@@ -685,7 +685,11 @@ void joypad_accessory_xfer_async(
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
 
     if (sys_bbplayer()) {
-        if( bb_save_xfer(port, xfer, start_addr, data, nbytes) == BB_SAVE_ERROR_NONE ) {
+        bb_save_t bb_save_pak = BB_SAVE_PAK1 + port;
+        bb_save_xfer_t bb_xfer_mode = xfer == JOYPAD_ACCESSORY_XFER_READ
+            ? BB_SAVE_XFER_READ
+            : BB_SAVE_XFER_WRITE;
+        if( bb_save_xfer(bb_save_pak, bb_xfer_mode, start_addr, data, nbytes) == BB_SAVE_ERROR_NONE ) {
             accessory->error = JOYPAD_ACCESSORY_ERROR_NONE;
         } else {
             accessory->error = JOYPAD_ACCESSORY_ERROR_UNKNOWN;
@@ -747,7 +751,11 @@ joypad_accessory_error_t joypad_accessory_xfer(
     size_t nbytes)
 {
     if (sys_bbplayer()) {
-        switch( bb_save_xfer(port, xfer, start_addr, data, nbytes) ) {
+        bb_save_t bb_save_pak = BB_SAVE_PAK1 + port;
+        bb_save_xfer_t bb_xfer_mode = xfer == JOYPAD_ACCESSORY_XFER_READ
+            ? BB_SAVE_XFER_READ
+            : BB_SAVE_XFER_WRITE;
+        switch( bb_save_xfer(bb_save_pak, bb_xfer_mode, start_addr, data, nbytes) ) {
             case BB_SAVE_ERROR_NONE: return JOYPAD_ACCESSORY_ERROR_NONE;
             default:                 return JOYPAD_ACCESSORY_ERROR_UNKNOWN;
         }
