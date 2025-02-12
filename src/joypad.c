@@ -32,6 +32,27 @@
     assertf(joypad_init_refcount > 0, "joypad_init() was not called")
 
 /**
+ * @brief BBPlayer "Hack Flags" register value.
+ *
+ * The only known purpose of this register is to hold the iQue menu configuration
+ * setting for swapping the first controller with another port.
+ *
+ * The value of the register is the controller to swap with (0-indexed).
+ */
+#define BB_HACK_FLAGS_SWAP_PORT1 ((*(uint32_t *)0x8000038c) & 3)
+
+/** @brief Respect BBPlayer "Hack Flags" register for a given port. */
+static joypad_port_t bb_hack_flags_swap_port( joypad_port_t port )
+{
+    if (sys_bbplayer())
+    {
+        if (port == JOYPAD_PORT_1) return BB_HACK_FLAGS_SWAP_PORT1;
+        if (port == BB_HACK_FLAGS_SWAP_PORT1) return JOYPAD_PORT_1;
+    }
+    return port;
+}
+
+/**
  * @anchor joypad_hot_state
  * @name "Hot" (interrupt-driven) global state
  * @{
@@ -657,8 +678,9 @@ void joypad_poll(void)
         if (sys_bbplayer()) {
             // iQue has a very fixed layout for commands, and it also tends
             // to corrupt other parts of PIF-RAM. So better jump to fixed positions
-            // while parsing.
-            i = (port * 8) + 1;
+            // while parsing. Also, respect the BBPlayer "Hack Flags" register for
+            // swapping the first controller with another port.
+            i = (bb_hack_flags_swap_port(port) * 8) + 1;
         }
         device = &joypad_devices_cold[port];
         // Check send_len to figure out if this port has a command on it
@@ -722,6 +744,8 @@ void joypad_poll(void)
             memset(device, 0, sizeof(*device));
             i += command_len;
         }
+        // Copy the hot identifier to the cold device state
+        device->identifier = identifiers[port];
     }
 
     if (check_origins) joypad_gcn_origin_check_async();
@@ -731,18 +755,18 @@ bool joypad_is_connected(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    joybus_identifier_t identifier = joypad_identifiers_hot[port];
-    return (
-        identifier != JOYBUS_IDENTIFIER_NONE &&
-        identifier != JOYBUS_IDENTIFIER_UNKNOWN
-    );
+    switch( joypad_devices_cold[port].identifier ) {
+        case JOYBUS_IDENTIFIER_NONE:
+        case JOYBUS_IDENTIFIER_UNKNOWN: return false;
+        default:                        return true;
+    }
 }
 
 joybus_identifier_t joypad_get_identifier(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    return joypad_identifiers_hot[port];
+    return joypad_devices_cold[port].identifier;
 }
 
 joypad_style_t joypad_get_style(joypad_port_t port)
