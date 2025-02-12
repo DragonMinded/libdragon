@@ -25,6 +25,7 @@ N64_TARGET=${N64_TARGET:-mips64-elf}
 INSTALL_PATH="${N64_INST}"
 # Path where the toolchain will be built.
 BUILD_PATH="${BUILD_PATH:-toolchain}"
+DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 
 # Determine how many parallel Make jobs to run based on CPU count
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
@@ -32,6 +33,10 @@ JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # GDB configure arguments to use system GMP/MPC/MFPF
 GDB_CONFIGURE_ARGS=()
+
+# Resolve absolute paths for build and download directories
+BUILD_PATH=$(cd "$BUILD_PATH" && pwd)
+DOWNLOAD_PATH=$(cd "$DOWNLOAD_PATH" && pwd)
 
 # Check if a command-line tool is available: status 0 means "yes"; status 1 means "no"
 command_exists () {
@@ -41,21 +46,17 @@ command_exists () {
 
 # Download the file URL using wget or curl (depending on which is installed)
 download () {
-    if   command_exists wget ; then wget -c  "$1"
-    elif command_exists curl ; then curl -LO "$1"
+    if   command_exists wget ; then (cd "$DOWNLOAD_PATH" && wget -c  "$1")
+    elif command_exists curl ; then (cd "$DOWNLOAD_PATH" && curl -LO "$1")
     else
         echo "Install wget or curl to download toolchain sources" 1>&2
         return 1
     fi
 }
 
-# Create build path and enter it
-mkdir -p "$BUILD_PATH"
-cd "$BUILD_PATH"
-
 # Dependency downloads and unpack
-test -f "gdb-$GDB_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gdb/gdb-$GDB_V.tar.gz"
-test -d "gdb-$GDB_V"                  || tar -xzf "gdb-$GDB_V.tar.gz"
+test -f "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" || download "https://ftp.gnu.org/gnu/gdb/gdb-$GDB_V.tar.gz"
+test -d "$BUILD_PATH/gdb-$GDB_V"           || tar -xzf "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" -C "$BUILD_PATH"
 
 # Resolve dependencies on macOS via homebrew
 if [[ $OSTYPE == 'darwin'* ]]; then
@@ -83,7 +84,7 @@ if [[ -n "${N64_TARGET}" ]]; then
 fi
 
 # Compile GDB
-pushd "gdb-$GDB_V"
+pushd "$BUILD_PATH/gdb-$GDB_V"
 ./configure "${GDB_CONFIGURE_ARGS[@]}" \
     --prefix="$INSTALL_PATH" \
     --disable-docs \
