@@ -35,7 +35,6 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
 
 # Build toolchain
 RUN --mount=type=bind,source=./tools,target=/tools \
-    --mount=type=cache,target=${BUILD_PATH} \
     /tools/build-toolchain.sh && \
     /tools/build-gdb.sh && \
     rm -rf ${N64_INST}/share/locale/*
