@@ -7,10 +7,12 @@ on:
   push:
     paths:
       - 'tools/build-toolchain.sh'
+      - 'tools/build-gdb.sh'
   pull_request:
     paths:
       - 'tools/build-toolchain.sh'
-  
+      - 'tools/build-gdb.sh'
+
 jobs:
   Build-Toolchain:
     # targets the oldest ubuntu image available to create valid packages for as many versions possible.
@@ -22,6 +24,7 @@ jobs:
       gmp-version: ${{ steps.gcc-version-generator.outputs.GMP_VERSION }}
       mpc-version: ${{ steps.gcc-version-generator.outputs.MPC_VERSION }}
       mpfr-version: ${{ steps.gcc-version-generator.outputs.MPFR_VERSION }}
+      gdb-version: ${{ steps.gcc-version-generator.outputs.GDB_VERSION }}
       make-version: ${{ steps.gcc-version-generator.outputs.MAKE_VERSION }}
     strategy:
       fail-fast: false
@@ -33,7 +36,8 @@ jobs:
     runs-on: ${{ matrix.host-os }}
 
     env:
-      Build_Directory: libdragon
+      Install_Directory: libdragon
+      Build_Directory: scratch
 
     steps:
       - name: Install native system build dependencies
@@ -89,6 +93,7 @@ jobs:
           echo "BINUTILS_VERSION=$(grep -Po 'BINUTILS_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           echo "GCC_VERSION=$(grep -Po 'GCC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           echo "NEWLIB_VERSION=$(grep -Po 'NEWLIB_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "GDB_VERSION=$(grep -Po 'GDB_V=\K[^"]*' ./tools/build-gdb.sh)" >> $GITHUB_OUTPUT
 
           echo "GMP_VERSION=$(grep -Po 'GMP_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           echo "MPC_VERSION=$(grep -Po 'MPC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
@@ -100,11 +105,14 @@ jobs:
       - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }}
         run: |
           # required for newlib (as not the default?!)
-          export PATH="$PATH:${{ runner.temp }}/${{ env.Build_Directory }}"
+          export PATH="$PATH:${{ runner.temp }}/${{ env.Install_Directory }}"
+          export BUILD_PATH=${{ runner.temp }}/${{ env.Build_Directory }}
+          export N64_INST=${{ runner.temp }}/${{ env.Install_Directory }}
+          export N64_HOST=${{ matrix.host }}
           cd ./tools/
-          N64_INST=${{ runner.temp }}/${{ env.Build_Directory }} N64_HOST=${{ matrix.host }} MAKE_V=${{ matrix.makefile-version }} ./build-toolchain.sh
-
-          echo Remove un-necessary content
+          MAKE_V=${{ matrix.makefile-version }} ./build-toolchain.sh
+          ./build-gdb.sh
+          echo "Removing un-necessary content"
           rm -rf ${N64_INST}/share/locale/*
         continue-on-error: true
 
@@ -152,8 +160,8 @@ jobs:
             $Package_Name-env.sh=/etc/profile.d/$Package_Name-env.sh
         continue-on-error: true
         env:
-          Package_Source_Directory: ${{ runner.temp }}/${{ env.Build_Directory }}/
-          Package_Installation_Directory: /opt/${{ env.Build_Directory }}
+          Package_Source_Directory: ${{ runner.temp }}/${{ env.Install_Directory }}/
+          Package_Installation_Directory: /opt/${{ env.Install_Directory }}
           Package_Name: gcc-toolchain-mips64
           Package_Version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
           Package_Revision: ${{ github.run_id }}
@@ -169,7 +177,7 @@ jobs:
         with:
           name: gcc-toolchain-mips64-${{ matrix.target-platform }}
           path: |
-            ${{ runner.temp }}/${{ env.Build_Directory }}
+            ${{ runner.temp }}/${{ env.Install_Directory }}
         continue-on-error: true
 
       - name: Publish Linux-x86_64 Build Artifacts
@@ -219,6 +227,7 @@ jobs:
           CHANGELOG_TEXT+="  * GCC:      V${{ needs.build-toolchain.outputs.gcc-version }}</br>"
           CHANGELOG_TEXT+="  * Newlib:   V${{ needs.build-toolchain.outputs.newlib-version }}</br>"
           CHANGELOG_TEXT+="  * BinUtils: V${{ needs.build-toolchain.outputs.binutils-version }}</br>"
+          CHANGELOG_TEXT+="  * GDB:      V${{ needs.build-toolchain.outputs.gdb-version }}</br>"
           CHANGELOG_TEXT+='</br>'
           CHANGELOG_TEXT+="With dependencies:</br>"
           CHANGELOG_TEXT+="  * GMP:      V${{ needs.build-toolchain.outputs.gmp-version }}</br>"
