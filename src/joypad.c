@@ -120,6 +120,63 @@ static void joypad_device_changed(joypad_port_t port, joybus_identifier_t identi
     joypad_accessory_reset(port);
 }
 
+static void joybus_input_identify( uint8_t input[JOYBUS_BLOCK_SIZE], bool reset )
+{
+    const joybus_cmd_identify_port_t cmd = { .send = {
+        .command = reset ? JOYBUS_COMMAND_ID_RESET : JOYBUS_COMMAND_ID_IDENTIFY,
+    } };
+    const size_t recv_offset = offsetof(typeof(cmd), recv);
+    size_t i = 0;
+
+    // Populate the Joybus commands on each port
+    memset(input, 0x00, JOYBUS_BLOCK_SIZE);
+    JOYPAD_PORT_FOREACH (port)
+    {
+        // iQue PIF requires a NOP (0xFF) before each command
+        if (sys_bbplayer()) input[i++] = 0xFF;
+        // Set the command metadata
+        input[i++] = sizeof(cmd.send);
+        input[i++] = sizeof(cmd.recv);
+        // Micro-optimization: Minimize copy length
+        memcpy(&input[i], &cmd, recv_offset);
+        i += sizeof(cmd);
+        // iQue PIF requires commands to be 8-byte aligned
+        if (sys_bbplayer()) while (i & 7) input[i++] = 0xFF;
+    }
+
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[JOYBUS_BLOCK_SIZE - 1] = 0x01;
+}
+
+static void joybus_input_read_n64_controllers( uint8_t input[JOYBUS_BLOCK_SIZE] )
+{
+    const joybus_cmd_n64_controller_read_port_t cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
+    } };
+    const size_t recv_offset = offsetof(typeof(cmd), recv);
+    size_t i = 0;
+    // Populate the Joybus commands on each port
+    memset(input, 0x00, JOYBUS_BLOCK_SIZE);
+    // iQue requires all four controllers to be polled even if disconnected
+    JOYPAD_PORT_FOREACH (port)
+    {
+        // iQue PIF requires a NOP (0xFF) before each command
+        if (sys_bbplayer()) input[i++] = 0xFF;
+        // Set the command metadata
+        input[i++] = sizeof(cmd.send);
+        input[i++] = sizeof(cmd.recv);
+        // Micro-optimization: Minimize copy length
+        memcpy(&input[i], &cmd, recv_offset);
+        i += sizeof(cmd);
+        // iQue PIF requires commands to be 8-byte aligned
+        if (sys_bbplayer()) while (i & 7) input[i++] = 0xFF;
+    }
+    // Close out the Joybus operation block
+    input[i] = 0xFE;
+    input[JOYBUS_BLOCK_SIZE - 1] = 0x01;
+}
+
 /**
  * @brief Convert a "N64 Controller Read" command response to Joypad inputs.
  * 
@@ -441,32 +498,7 @@ static void joypad_identify_async(bool reset)
     // Reset invalidates the cached input block
     if (!joypad_identify_input_valid || reset)
     {
-        const joybus_cmd_identify_port_t cmd = { .send = {
-            .command = reset ? JOYBUS_COMMAND_ID_RESET : JOYBUS_COMMAND_ID_IDENTIFY,
-        } };
-        const size_t recv_offset = offsetof(typeof(cmd), recv);
-        size_t i = 0;
-
-        // Populate the Joybus commands on each port
-        memset(input, 0, JOYBUS_BLOCK_SIZE);
-        JOYPAD_PORT_FOREACH (port)
-        {
-            // iQue has a very lousy PIF emulator that requires identification
-            // commands to be prepended by a nop (0xff) or they are not recognized.
-            if (sys_bbplayer()) input[i++] = 0xff;
-            // Set the command metadata
-            input[i++] = sizeof(cmd.send);
-            input[i++] = sizeof(cmd.recv);
-            // Micro-optimization: Minimize copy length
-            memcpy(&input[i], &cmd, recv_offset);
-            i += sizeof(cmd);
-            if (sys_bbplayer()) while (i & 7) input[i++] = 0xff;
-        }
-
-        // Close out the Joybus operation block
-        input[i] = 0xFE;
-        input[JOYBUS_BLOCK_SIZE - 1] = 0x01;
-
+        joybus_input_identify(input, reset);
         // Identify is more common than reset, so don't cache resets
         joypad_identify_input_valid = !reset;
     }
@@ -500,6 +532,11 @@ static void joypad_read_async(void)
     joypad_read_pending = true;
 
     uint8_t * const input = (void *)joypad_read_input;
+    if (!joypad_read_input_valid && sys_bbplayer())
+    {
+        joybus_input_read_n64_controllers(input);
+        joypad_read_input_valid = true;
+    }
     if (!joypad_read_input_valid)
     {
         volatile joypad_device_hot_t *device;
@@ -531,16 +568,12 @@ static void joypad_read_async(void)
             }
             else if (
                 identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER ||
-                identifier == JOYBUS_IDENTIFIER_N64_MOUSE ||
-                sys_bbplayer() // on iQue, we must always poll the 4 controllers even if disconnected
+                identifier == JOYBUS_IDENTIFIER_N64_MOUSE
             )
             {
                 const joybus_cmd_n64_controller_read_port_t cmd = { .send = {
                     .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
                 } };
-                // iQue has a very lousy PIF emulator that requires commands
-                // to be prepended by a nop (0xff) or they are not recognized.
-                if (sys_bbplayer()) input[i++] = 0xff;
                 // Set the command metadata
                 input[i++] = sizeof(cmd.send);
                 input[i++] = sizeof(cmd.recv);
@@ -548,7 +581,6 @@ static void joypad_read_async(void)
                 const size_t recv_offset = offsetof(typeof(cmd), recv);
                 memcpy(&input[i], &cmd, recv_offset);
                 i += sizeof(cmd);
-                if (sys_bbplayer()) while (i & 7) input[i++] = 0xff;
             }
             else
             {
@@ -609,13 +641,28 @@ static void joypad_read(void)
 
 joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port)
 {
+    ASSERT_JOYPAD_PORT_VALID(port);
+    // iQue PIF requires that all 4 controllers are read, even if disconnected.
+    if (sys_bbplayer())
+    {
+        // Respect the BBPlayer "Hack Flags" register
+        port = bb_hack_flags_swap_port(port);
+        uint8_t input[JOYBUS_BLOCK_SIZE], output[JOYBUS_BLOCK_SIZE];
+        joybus_input_read_n64_controllers(input);
+        joybus_exec( input, output );
 
-    joybus_cmd_n64_controller_read_port_t cmd = { .send = {
-        .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
-    } };
-    joybus_exec_cmd_struct(port, cmd);
-
-    return joypad_inputs_from_n64_controller_read(&cmd);
+        const joybus_cmd_n64_controller_read_port_t *cmd;
+        cmd = (void *)&output[(port * 8) + 1 + JOYBUS_COMMAND_METADATA_SIZE];
+        return joypad_inputs_from_n64_controller_read(cmd);
+    }
+    else
+    {
+        const joybus_cmd_n64_controller_read_port_t cmd = { .send = {
+            .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
+        } };
+        joybus_exec_cmd_struct(port, cmd);
+        return joypad_inputs_from_n64_controller_read(&cmd);
+    }
 }
 
 void joypad_init(void)
