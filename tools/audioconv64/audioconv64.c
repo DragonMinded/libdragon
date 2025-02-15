@@ -239,10 +239,45 @@ int main(int argc, char *argv[]) {
 					fprintf(stderr, "missing argument for --wav-compress\n");
 					return 1;
 				}
-				flag_wav_compress = atoi(argv[i]);
-				if (flag_wav_compress != 0 && flag_wav_compress != 1 && flag_wav_compress != 3) {
+				char *opts = strchr(argv[i], ',');
+				if (opts) *opts++ = '\0';
+				if (!strcmp(argv[i], "0") || !strcmp(argv[i], "none"))
+					flag_wav_compress = 0;
+				else if (!strcmp(argv[i], "1") || !strcmp(argv[i], "vadpcm"))
+					flag_wav_compress = 1;
+				else if (!strcmp(argv[i], "3") || !strcmp(argv[i], "opus"))
+					flag_wav_compress = 3;
+				else {
 					fprintf(stderr, "invalid argument for --wav-compress: %s\n", argv[i]);
 					return 1;
+				}
+				while (opts && *opts) {
+					char *key = opts;
+					char *value = strchr(opts, '=');
+					if (!value) {
+						fprintf(stderr, "invalid option for --wav-compress: %s\n", opts);
+						return 1;
+					}
+					*value = '\0';
+					value++;
+					opts = strchr(value, ',');
+					if (opts) {
+						*opts = '\0';
+						opts++;
+					}
+					if (!strcmp(key, "huffman")) {
+						if (!strcmp(value, "true") || !strcmp(value, "1"))
+							flag_wav_compress_huffman = true;
+						else if (!strcmp(value, "false") || !strcmp(value, "0"))
+							flag_wav_compress_huffman = false;
+						else {
+							fprintf(stderr, "invalid value for compression option 'huffman': %s\n", value);
+							return 1;
+						}
+					} else {
+						fprintf(stderr, "invalid option for --wav-compress: %s\n", key);
+						return 1;
+					}
 				}
 			} else if (!strcmp(argv[i], "--wav-resample")) {
 				if (++i == argc) {

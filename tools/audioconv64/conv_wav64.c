@@ -35,6 +35,7 @@
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
+bool flag_wav_compress_huffman = true;
 int flag_wav_resample = 0;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
@@ -162,8 +163,6 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	} break;
 
 	case 1: { // vadpcm
-		bool huffman = true;
-
 		// The state is 16 bytes per channel, but the runtime code requires to
 		// always allocate both channels even for mono files.
 		placeholder_set_offset(out, 48, "state_size");
@@ -212,16 +211,17 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		uint8_t *compbuf = malloc(maxcompbuflen);
 		uint8_t *ctxbuf = calloc(HUFF_CONTEXT_LEN, 1);
 		int compbuflen = 0;
-		if (huffman) 
+		if (flag_wav_compress_huffman) {
 			compbuflen = huffv_compress(dest, nframes * kVADPCMFrameByteSize * wav->channels, compbuf, maxcompbuflen, ctxbuf, HUFF_CONTEXT_LEN);
 
-		if (flag_verbose)
-			fprintf(stderr, "  huffman compressed %d bytes into %d bytes (ratio: %.1f)\n", 
-				nframes * kVADPCMFrameByteSize * wav->channels, compbuflen,
-				100.0f * compbuflen / (nframes * kVADPCMFrameByteSize * wav->channels));
+			if (flag_verbose)
+				fprintf(stderr, "  huffman compressed %d bytes into %d bytes (ratio: %.1f%%)\n",
+					nframes * kVADPCMFrameByteSize * wav->channels, compbuflen,
+					100.0f * compbuflen / (nframes * kVADPCMFrameByteSize * wav->channels));
+		}
 
 		uint8_t flags = 0;
-		if (huffman) flags |= (1<<0);
+		if (flag_wav_compress_huffman) flags |= (1<<0);
 
 		struct vadpcm_vector state = {0};
 		w8(out, kPREDICTORS);
@@ -238,7 +238,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		// Start of samples data
 		placeholder_set(out, "samples");
-		if (huffman)
+		if (flag_wav_compress_huffman)
 			fwrite(compbuf, 1, compbuflen, out);
 		else
 			fwrite(dest, 1, nframes * kVADPCMFrameByteSize * wav->channels, out);
