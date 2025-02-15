@@ -102,6 +102,9 @@ typedef enum
     JOYPAD_ACCESSORY_XFER_WRITE,
 } joypad_accessory_xfer_t;
 
+/** @brief Controller pak address to perform bank switching */
+#define JOYPAD_CONTROLLER_PAK_BANK_SWITCH_ADDRESS       0x8000
+
 /** @brief Callback function signature for #joypad_accessory_xfer_async */
 typedef void (*joypad_accessory_io_callback_t)(joypad_accessory_error_t error, void *ctx);
 
@@ -173,15 +176,29 @@ void joypad_accessory_detect_async(joypad_port_t port);
  * A bulk transfer can read or write any number of bytes from any starting
  * address in the accessory, including misaligned addresses.
  * 
- * This builds upon the lower level primitives #joybus_accessory_read and
+ * It builds upon the lower level primitives #joybus_accessory_read and
  * #joybus_accessory_write, which are limited to 32-byte, aligned data blocks.
- * 
  * To perform misaligned writes, this function will perform read-modify-write
  * operations on the accessory when needed.
  * 
+ * This function can operate on any Joypad accessory.
+ * 
+ * The joybus protocol for accessories includes a builtin checksum to detect
+ * corruptions on the wire (that can indeed happen during normal operation).
+ * This function will automatically retry the transfer in case of a checksum
+ * error (up to some hardcoded number of times) and then eventually fail
+ * with a #JOYPAD_ACCESSORY_ERROR_CHECKSUM error. If you get this error,
+ * it might be useless to try again and you can just assume the connection
+ * to the accessory is electrically faulty.
+ * 
+ * @note Multi-bank Controller Paks (with sizes > 32 KiB), require an explicit
+ *       bank switch operation to access data beyond the first 32 KiB. See
+ *       #joypad_controller_pak_set_bank; notice also that only 32 KiB at a time will be
+ *       available so the valid address range for Controller Paks is 0x0000-0x7FFF.
+ * 
  * @param port          Joypad port number (#joypad_port_t)
  * @param xfer          Transfer direction (#JOYPAD_ACCESSORY_XFER_READ or #JOYPAD_ACCESSORY_XFER_WRITE)
- * @param start_addr    Starting address in the accessory to read from.
+ * @param start_addr    Starting address in the accessory to read from, or write to.
  *                      There is no alignment requirement for this address.
  * @param dst           Destination buffer to read accessory data into.
  * @param len           Number of bytes to read. Any number of bytes can be read.
@@ -242,6 +259,28 @@ void joypad_accessory_write_async(
     joypad_accessory_io_callback_t callback,
     void *ctx
 );
+
+/**
+ * @brief Select the active bank for a Controller Pak.
+ * 
+ * Most controller paks (including all first-party ones) have a single bank
+ * of 32 KiB of storage. However, some third-party controller paks have
+ * multiple banks, and require an explicit bank switch operation to access
+ * data beyond the first 32 KiB.
+ * 
+ * Generic transfer functions for accessories like #joypad_accessory_xfer_async
+ * will only access the active bank.
+ * 
+ * There is no way to probe the number of banks in a Controller Pak at the
+ * hardware level. In situation where probing is necessary (eg: formatting
+ * functions), write tests can be performed to determine the number of banks.
+ * 
+ * @param port          Joypad port number (#joypad_port_t)
+ * @param bank          Bank number to switch to.
+ * @return joypad_accessory_error_t    Error code for the transfer operation. 
+ */
+joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint8_t bank);
+
 
 /**
  * @brief Turn the Rumble Pak motor on or off for a Joypad port.

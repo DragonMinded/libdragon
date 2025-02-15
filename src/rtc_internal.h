@@ -1,12 +1,12 @@
 /**
- * @file rtc_utils.h
+ * @file rtc_internal.h
  * @author Christopher Bonhage (me@christopherbonhage.com)
- * @brief Real-Time Clock Subsystem Utilities
+ * @brief Real-Time Clock subsystem internal API
  * @ingroup rtc
  */
 
-#ifndef __LIBDRAGON_RTC_UTILS_H
-#define __LIBDRAGON_RTC_UTILS_H
+#ifndef __LIBDRAGON_RTC_INTERNAL_H
+#define __LIBDRAGON_RTC_INTERNAL_H
 
 #include "rtc.h"
 
@@ -18,6 +18,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 /**
  * @brief Decode a packed binary-coded decimal number.
@@ -41,7 +42,7 @@ uint8_t bcd_encode( int value );
 
 /**
  * @brief Convert rtc_time_t into struct tm.
- * 
+ *
  * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
  *
  * @param[in]   rtc_time
@@ -53,7 +54,7 @@ struct tm rtc_time_to_tm( const rtc_time_t * rtc_time );
 
 /**
  * @brief Convert a struct tm into rtc_time_t.
- * 
+ *
  * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
  *
  * @param[in]   time
@@ -75,7 +76,7 @@ rtc_time_t rtc_time_from_tm( const struct tm * time );
  * input to ensure that the date being set always makes sense before they
  * actually confirm and commit the updated date/time. The rtctest example
  * demonstrates a user-interface for setting the time with live validation.
- * 
+ *
  * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
  *
  * @param[in,out] rtc_time

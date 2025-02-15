@@ -6,7 +6,7 @@
 #include "interrupt.h"
 #include "dma.h"
 #include "n64sys.h"
-#include "rtc_utils.h"
+#include "rtc_internal.h"
 
 #define DD_ASIC_STATUS_MECHA_IRQ_LINE    (1<<9)
 #define DD_ASIC_STATUS_BM_IRQ_LINE       (1<<10)
@@ -68,8 +68,13 @@ void dd_init(void)
     register_CART_handler(dd_handler);
 }
 
-time_t dd_get_time( void )
+int dd_rtc_get_time( time_t *out )
 {
+    if( !dd_found )
+    {
+        return RTC_ENOCLOCK;
+    }
+
     // NOTE: the order of these commands is important, because reading MINSEC
     // is what actually triggers the handshake with the RTC. The other two
     // reads just fetch cached values.
@@ -77,35 +82,76 @@ time_t dd_get_time( void )
     uint16_t dh = dd_command(DD_CMD_RTC_GET_DAYHOUR);
     uint16_t ym = dd_command(DD_CMD_RTC_GET_YEARMONTH);
 
-    debugf("dd_get_time: raw time: %02x-%02x-%02x %02x:%02x:%02x\n",
-        ym >> 8, ym & 0xFF, dh >> 8, dh & 0xFF, ms >> 8, ms & 0xFF);
+    bool clock_error = ms >> 15;
+    uint8_t sec_enc = ms & 0xFF;
+    uint8_t min_enc = (ms >> 8) & 0x7F;
+    uint8_t hour_enc = dh & 0xFF;
+    uint8_t day_enc = dh >> 8;
+    uint8_t month_enc = ym & 0xFF;
+    uint8_t year_enc = ym >> 8;
 
-    // By convention, 2-digit year is interpreted as 20YY if it's 96 or later
-    int year = bcd_decode( ym >> 8 );
+    debugf("dd_rtc_get_time: raw ms:%04x dh:%04x ym:%04x\n", ms, dh, ym);
+
+    if( clock_error )
+    {
+        debugf("dd_rtc_get_time: clock error\n");
+        return RTC_EBADCLOCK;
+    }
+
+    int sec = bcd_decode( sec_enc );
+    int min = bcd_decode( min_enc );
+    int hour = bcd_decode( hour_enc );
+    int day = bcd_decode( day_enc );
+    int month = bcd_decode( month_enc );
+    int year = bcd_decode( year_enc );
+
+    // Extremely basic sanity-check on the date and time
+    if(
+        month == 0 || month > 12 ||
+        day == 0 || day > 31 ||
+        hour >= 24 || min >= 60 || sec >= 60
+    )
+    {
+        debugf("dd_rtc_get_time: invalid date/time\n");
+        return RTC_EBADTIME;
+    }
 
     struct tm rtc_time = (struct tm){
-        .tm_sec   = bcd_decode( ms & 0xFF ),
-        .tm_min   = bcd_decode( ms >> 8 ),
-        .tm_hour  = bcd_decode( dh & 0xFF ),
-        .tm_mday  = bcd_decode( dh >> 8 ),
-        .tm_mon   = bcd_decode (ym & 0xFF ) - 1,
+        .tm_sec   = sec,
+        .tm_min   = min,
+        .tm_hour  = hour,
+        .tm_mday  = day,
+        .tm_mon   = month - 1,
+        // By convention, 2-digit year is interpreted as 20YY if it's 96 or later
         .tm_year  = year + (year >= 96 ? 0 : 100),
     };
 
-    char buff[20];
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &rtc_time);
-    debugf("dd_get_time: parsed time: %s\n", buff);
+    debugf("dd_rtc_get_time: parsed time: %04d-%02d-%02d %02d:%02d:%02d\n",
+        rtc_time.tm_year + 1900, rtc_time.tm_mon + 1, rtc_time.tm_mday,
+        rtc_time.tm_hour, rtc_time.tm_min, rtc_time.tm_sec);
 
-    return mktime( &rtc_time );
+    *out = mktime( &rtc_time );
+    return RTC_ESUCCESS;
 }
 
-bool dd_set_time( time_t new_time )
+int dd_rtc_set_time( time_t new_time )
 {
+    if( !dd_found )
+    {
+        return RTC_ENOCLOCK;
+    }
+
+    if( new_time < DD_RTC_TIMESTAMP_MIN || new_time > DD_RTC_TIMESTAMP_MAX )
+    {
+        debugf("dd_rtc_set_time: time out of range\n");
+        return RTC_EBADTIME;
+    }
+
     struct tm * rtc_time = gmtime( &new_time );
 
-    char buff[20];
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", rtc_time);
-    debugf("dd_set_time: parsed time: %s\n", buff);
+    debugf("dd_rtc_set_time: parsed time: %04d-%02d-%02d %02d:%02d:%02d\n",
+        rtc_time->tm_year + 1900, rtc_time->tm_mon + 1, rtc_time->tm_mday,
+        rtc_time->tm_hour, rtc_time->tm_min, rtc_time->tm_sec);
 
     uint8_t year = bcd_encode( rtc_time->tm_year % 100 );
     uint8_t month = bcd_encode( rtc_time->tm_mon + 1 );
@@ -114,12 +160,11 @@ bool dd_set_time( time_t new_time )
     uint8_t min = bcd_encode( rtc_time->tm_min );
     uint8_t sec = bcd_encode( rtc_time->tm_sec );
 
-    debugf("dd_set_time raw time: %02x-%02x-%02x %02x:%02x:%02x\n",
-        year, month, day, hour, min, sec);
-
     uint16_t ym_write = year << 8 | month;
     uint16_t dh_write = day << 8 | hour;
     uint16_t ms_write = min << 8 | sec;
+
+    debugf("dd_rtc_set_time: raw ms:%04x dh:%04x ym:%04x\n", ms_write, dh_write, ym_write);
 
     dd_write( DD_ASIC_DATA, ym_write );
     uint16_t ym_read = dd_command( DD_CMD_RTC_SET_YEARMONTH );
@@ -130,7 +175,18 @@ bool dd_set_time( time_t new_time )
     dd_write( DD_ASIC_DATA, ms_write );
     uint16_t ms_read = dd_command( DD_CMD_RTC_SET_MINSEC );
 
-    debugf("dd_set_time: result: %04x %04x %04x\n", ym_read, dh_read, ms_read);
+    debugf("dd_rtc_set_time: result ms:%04x dh:%04x ym:%04x\n", ms_read, dh_read, ym_read);
 
-    return ym_write == ym_read && dh_write == dh_read && ms_write == ms_read;
+    bool clock_error = ms_read >> 15;
+    if( clock_error )
+    {
+        return RTC_EBADCLOCK;
+    }
+
+    if( ym_write != ym_read || dh_write != dh_read || ms_write != ms_read )
+    {
+        return RTC_EBADTIME;
+    }
+
+    return RTC_ESUCCESS;
 }

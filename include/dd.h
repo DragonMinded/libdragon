@@ -34,9 +34,34 @@ typedef enum {
 
 uint16_t dd_command(dd_cmd_t cmd);
 
-time_t dd_get_time( void );
+/** @brief 64DD RTC minimum timestamp (1996-01-01 00:00:00) */
+#define DD_RTC_TIMESTAMP_MIN 820454400
+/** @brief 64DD RTC maximum timestamp (2095-12-31 23:59:59) */
+#define DD_RTC_TIMESTAMP_MAX 3976214399
 
-bool dd_set_time( time_t new_time );
+/**
+ * @brief Read the time from the 64DD real-time clock as a UNIX timestamp
+ *
+ * @param[out] out pointer to the output time_t
+ *
+ * @retval RTC_ESUCCESS if the operation was successful
+ * @retval RTC_ENOCLOCK if the RTC is not available
+ * @retval RTC_EBADCLOCK if the RTC is not operational
+ * @retval RTC_EBADTIME if the RTC time is not representable
+ */
+int dd_rtc_get_time( time_t *out );
+
+/**
+ * @brief Set the date/time on the 64DD real-time clock.
+ *
+ * @param new_time the new RTC time as a UNIX timestamp
+ *
+ * @retval RTC_ESUCCESS if the operation was successful
+ * @retval RTC_ENOCLOCK if the RTC is not available
+ * @retval RTC_EBADCLOCK if the RTC is not operational
+ * @retval RTC_EBADTIME if the RTC cannot represent the new time
+ */
+int dd_rtc_set_time( time_t new_time );
 
 inline bool sys_dd(void) {
     return dd_found;
