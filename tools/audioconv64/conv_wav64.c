@@ -533,7 +533,7 @@ int wav_convert(const char *infn, const char *outfn) {
 
 		// Allocate output buffer, estimating the size based on the ratio.
 		// We add some margin because we are not sure of rounding errors.
-		int newcnt = wav.cnt * wavResampleTo / wav.sampleRate + 16;
+		int newcnt = (int64_t)wav.cnt * wavResampleTo / wav.sampleRate + 16;
 		float *fsamples_out = malloc(newcnt * wav.channels * sizeof(float));
 
 		// Do the conversion
