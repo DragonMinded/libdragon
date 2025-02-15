@@ -139,7 +139,6 @@ static inline void rsp_vadpcm_copystate(wav64_vadpcm_vector_t *dst, wav64_vadpcm
 
 #endif /* VADPCM_REFERENCE_DECODER */
 
-__attribute__((noinline))
 static void huffv_decompress(int nframe, wav64_t *wav, wav64_state_vadpcm_t *vstate, uint8_t *dst, int len, uint8_t *scratch, int slen) {
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 
