@@ -754,6 +754,23 @@ joypad_accessory_error_t joypad_accessory_xfer(
     return error;
 }
 
+joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint8_t bank)
+{
+    ASSERT_JOYPAD_PORT_VALID(port);
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+
+    if (accessory->type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
+    {
+        return JOYPAD_ACCESSORY_ERROR_ABSENT; // This is not a Controller Pak!
+    }
+    
+    uint8_t data[32];
+    memset(data, bank, sizeof(data));
+    return joypad_accessory_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE,
+        JOYPAD_CONTROLLER_PAK_BANK_SWITCH_ADDRESS, 
+        data, sizeof(data));
+}
+
 /**
  * @brief Callback for the accessory read commands used by #joypad_transfer_pak_enable_async.
  * 
