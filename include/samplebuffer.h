@@ -14,6 +14,10 @@
 extern "C" {
 #endif
 
+/// @cond
+typedef struct waveform_s waveform_t;
+/// @endcond
+
 /** 
  * Tagged pointer to an array of samples. It contains both the void*
  * sample pointer, and byte-per-sample information (encoded as shift value).
@@ -120,6 +124,11 @@ typedef struct samplebuffer_s {
     int wnext;
 
     /**
+     * Waveform being played back on this sample buffer.
+     */
+    waveform_t *wave;
+
+    /**
      * wv_read is invoked by samplebuffer_get whenever more samples are
      * requested by the mixer. See #WaveformRead for more information.
      */
@@ -179,11 +188,12 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bps);
  * information.
  * 
  * @param[in]       buf     Sample buffer
- * @param[in]       read    Waveform reading function, that produces samples.
- * @param[in]       ctx     Opaque context that will be passed to the read
+ * @param[in]       wave    Waveform to connect to the sample buffer
+ * @param[in]       read    Waveform read function
+ * @param[in]       ctx     Opaque context that will be passed to the read/stop
  *                          function.
  */
-void samplebuffer_set_waveform(samplebuffer_t *buf, WaveformRead read, void *ctx);
+void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read, void *ctx);
 
 /**
  * @brief Get a pointer to specific set of samples in the buffer (zero-copy).

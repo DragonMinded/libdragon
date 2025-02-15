@@ -49,7 +49,8 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
 	buf->size = nbytes >> bps;
 }
 
-void samplebuffer_set_waveform(samplebuffer_t *buf, WaveformRead read, void *ctx) {
+void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read, void *ctx) {
+	buf->wave = wave;
 	buf->wv_read = read;
 	buf->wv_ctx = ctx;
 }
