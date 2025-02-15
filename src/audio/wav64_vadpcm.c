@@ -151,8 +151,6 @@ static void huffv_decompress(int nframe, wav64_t *wav, wav64_state_vadpcm_t *vst
     read(wav->st->current_fd, CachedAddr(scratch), slen);
     uint8_t *src = CachedAddr(scratch);
 
-    uint64_t t0 = get_ticks_us();
-
     // Decompress the data
     uint64_t buffer = 0;
     int buffer_bits = 0;
@@ -201,12 +199,6 @@ static void huffv_decompress(int nframe, wav64_t *wav, wav64_state_vadpcm_t *vst
     vstate->bitpos = bitpos;
     assertf((void*)src <= CachedAddr(scratch) + slen, "invalid read past end: %p vs %p", src, scratch + slen);
     data_cache_hit_invalidate(CachedAddr(scratch), slen);
-
-    uint64_t t1 = get_ticks_us();
-    // debugf("huffv_decompress: %d us / %d (%d ns/sample) (leftover: %d/%d, bitpos: 0x%x.%d)\n", 
-    //     (int)(t1 - t0), len/9*16, (int)((t1 - t0) * 1000 / (len/9*16)),
-    //     CachedAddr(scratch) + slen - (void*)src, slen,
-    //     bitpos/8, bitpos&7);
 }
 
 static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
