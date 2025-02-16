@@ -266,12 +266,26 @@ int main(int argc, char *argv[]) {
 						opts++;
 					}
 					if (!strcmp(key, "huffman")) {
+						if (flag_wav_compress != 1) {
+							fprintf(stderr, "compression option 'huffman' only allowed for VADPCM (--wav-compress 1)\n");
+							return 1;
+						}
 						if (!strcmp(value, "true") || !strcmp(value, "1"))
-							flag_wav_compress_huffman = true;
+							flag_wav_compress_vadpcm_huffman = true;
 						else if (!strcmp(value, "false") || !strcmp(value, "0"))
-							flag_wav_compress_huffman = false;
+							flag_wav_compress_vadpcm_huffman = false;
 						else {
 							fprintf(stderr, "invalid value for compression option 'huffman': %s\n", value);
+							return 1;
+						}
+					} else if (!strcmp(key, "bits")) {
+						if (flag_wav_compress != 1) {
+							fprintf(stderr, "compression option 'bits' only allowed for VADPCM (--wav-compress 1)\n");
+							return 1;
+						}
+						flag_wav_compress_vadpcm_bits = atoi(value);
+						if (flag_wav_compress_vadpcm_bits < 2 || flag_wav_compress_vadpcm_bits > 4) {
+							fprintf(stderr, "invalid value for compression option 'bits': %s\n", value);
 							return 1;
 						}
 					} else {

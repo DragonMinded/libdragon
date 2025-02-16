@@ -35,7 +35,8 @@
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
-bool flag_wav_compress_huffman = true;
+bool flag_wav_compress_vadpcm_huffman = true;
+int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
@@ -185,7 +186,11 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		int nframes = wav->cnt / kVADPCMFrameSampleCount;
 		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		struct vadpcm_vector *codebook = alloca(kPREDICTORS * kVADPCMEncodeOrder * wav->channels * sizeof(struct vadpcm_vector));
-		struct vadpcm_params parms = { .predictor_count = kPREDICTORS };
+		struct vadpcm_params parms = { 
+			.predictor_count = kPREDICTORS,
+			.min_residual = -(1 << (flag_wav_compress_vadpcm_bits-1)),
+			.max_residual = (1 << (flag_wav_compress_vadpcm_bits-1)) - 1
+		};
 		void *dest = malloc(nframes * kVADPCMFrameByteSize * wav->channels);
 		
 		if (flag_verbose)
@@ -211,7 +216,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		uint8_t *compbuf = malloc(maxcompbuflen);
 		uint8_t *ctxbuf = calloc(HUFF_CONTEXT_LEN, 1);
 		int compbuflen = 0;
-		if (flag_wav_compress_huffman) {
+		if (flag_wav_compress_vadpcm_huffman) {
 			compbuflen = huffv_compress(dest, nframes * kVADPCMFrameByteSize * wav->channels, compbuf, maxcompbuflen, ctxbuf, HUFF_CONTEXT_LEN);
 
 			if (flag_verbose)
@@ -221,7 +226,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		}
 
 		uint8_t flags = 0;
-		if (flag_wav_compress_huffman) flags |= (1<<0);
+		if (flag_wav_compress_vadpcm_huffman) flags |= (1<<0);
 
 		struct vadpcm_vector state = {0};
 		w8(out, kPREDICTORS);
@@ -238,7 +243,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		// Start of samples data
 		placeholder_set(out, "samples");
-		if (flag_wav_compress_huffman)
+		if (flag_wav_compress_vadpcm_huffman)
 			fwrite(compbuf, 1, compbuflen, out);
 		else
 			fwrite(dest, 1, nframes * kVADPCMFrameByteSize * wav->channels, out);

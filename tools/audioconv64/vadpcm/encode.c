@@ -363,9 +363,11 @@ static void vadpcm_make_codebook(size_t frame_count, int predictor_count,
     }
 }
 
-static int vadpcm_getshift(int min, int max) {
+#define VADPCM_MAX_SHIFT    12
+
+static int vadpcm_getshift(int min, int max, int minres, int maxres) {
     int shift = 0;
-    while (shift < 12 && (min < -8 || 7 < max)) {
+    while (shift < VADPCM_MAX_SHIFT && (min < minres || maxres < max)) {
         min >>= 1;
         max >>= 1;
         shift++;
@@ -387,15 +389,19 @@ static uint32_t vadpcm_rng(uint32_t state) {
 }
 
 // Encode audio as VADPCM, given the assignment of each frame to a predictor.
-static void vadpcm_encode_data(size_t frame_count, void *restrict dest,
+static double vadpcm_encode_data(const struct vadpcm_params *restrict params,
+                               size_t frame_count, void *restrict dest,
                                const int16_t *restrict src,
                                const uint8_t *restrict predictors,
                                const struct vadpcm_vector *restrict codebook) {
     uint32_t rng_state = 0;
     uint8_t *destptr = dest;
+    int minres = params->min_residual ? params->min_residual : -8;
+    int maxres = params->max_residual ? params->max_residual : 7;
     int state[4];
     state[0] = 0;
     state[1] = 0;
+    double total_error = 0.0;
     for (size_t frame = 0; frame < frame_count; frame++) {
         unsigned predictor = predictors[frame];
         const struct vadpcm_vector *restrict pvec = codebook + 2 * predictor;
@@ -427,13 +433,13 @@ static void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                 }
             }
         }
-        int shift = vadpcm_getshift(min, max);
+        int shift = vadpcm_getshift(min, max, minres, maxres);
 
         // Try a range of 3 shift values, and use the shift value that produces
         // the lowest error.
         double best_error = 0.0;
         int min_shift = shift > 0 ? shift - 1 : 0;
-        int max_shift = shift < 12 ? shift + 1 : 12;
+        int max_shift = shift < VADPCM_MAX_SHIFT ? shift + 1 : VADPCM_MAX_SHIFT;
         uint32_t init_state = rng_state;
         for (shift = min_shift; shift <= max_shift; shift++) {
             rng_state = init_state;
@@ -452,10 +458,10 @@ static void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                     int bias = (rng_state >> 16) >> (16 - shift);
                     rng_state = vadpcm_rng(rng_state);
                     r = (s - a + bias) >> shift;
-                    if (r > 7) {
-                        r = 7;
-                    } else if (r < -8) {
-                        r = -8;
+                    if (r > maxres) {
+                        r = maxres;
+                    } else if (r < minres) {
+                        r = minres;
                     }
                     accumulator[i] = r;
                     // Update state to match decoder.
@@ -483,9 +489,12 @@ static void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                 best_error = error;
             }
         }
+        total_error += best_error;
         state[0] = state[2];
         state[1] = state[3];
     }
+    // Return PSNR in dB.
+    return 10.0 * log10(32768.0 * 32768.0 * frame_count / total_error);
 }
 
 vadpcm_error vadpcm_encode(const struct vadpcm_params *restrict params,
@@ -530,7 +539,7 @@ vadpcm_error vadpcm_encode(const struct vadpcm_params *restrict params,
     }
     vadpcm_make_codebook(frame_count, predictor_count, corr, predictors,
                          codebook);
-    vadpcm_encode_data(frame_count, dest, src, predictors, codebook);
+    vadpcm_encode_data(params, frame_count, dest, src, predictors, codebook);
     return 0;
 }
 
