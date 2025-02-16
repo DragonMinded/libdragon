@@ -370,6 +370,11 @@ static const char* __get_exception_name(exception_t *ex)
 			}
 		}
 
+		// Check for truncation overflow
+		if (((opcode & 0x3F) == 0x0D || (opcode & 0x3F) == 0x09) && 
+			(ex->regs->fc31 & C1_CAUSE_NOT_IMPLEMENTED))
+			return "Floating point integer cast overflow";
+
 		if (ex->regs->fc31 & C1_CAUSE_DIV_BY_0) {
 			return "Floating point divide by zero";
 		} else if (ex->regs->fc31 & C1_CAUSE_INVALID_OP) {
