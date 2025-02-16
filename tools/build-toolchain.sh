@@ -16,6 +16,7 @@ fi
 
 # Path where the toolchain will be built.
 BUILD_PATH="${BUILD_PATH:-toolchain}"
+DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
@@ -38,10 +39,17 @@ GCC_CONFIGURE_ARGS=()
 BINUTILS_V=2.43.1
 GCC_V=14.2.0
 NEWLIB_V=4.4.0.20231231
-GMP_V=6.3.0 
-MPC_V=1.3.1 
+GMP_V=6.3.0
+MPC_V=1.3.1
 MPFR_V=4.2.1
 MAKE_V=${MAKE_V:-""}
+
+# Create build and download directories
+mkdir -p "$BUILD_PATH" "$DOWNLOAD_PATH"
+
+# Resolve absolute paths for build and download directories
+BUILD_PATH=$(cd "$BUILD_PATH" && pwd)
+DOWNLOAD_PATH=$(cd "$DOWNLOAD_PATH" && pwd)
 
 # Check if a command-line tool is available: status 0 means "yes"; status 1 means "no"
 command_exists () {
@@ -51,8 +59,8 @@ command_exists () {
 
 # Download the file URL using wget or curl (depending on which is installed)
 download () {
-    if   command_exists wget ; then wget -c  "$1"
-    elif command_exists curl ; then curl -LO "$1"
+    if   command_exists wget ; then (cd "$DOWNLOAD_PATH" && wget -c  "$1")
+    elif command_exists curl ; then (cd "$DOWNLOAD_PATH" && curl -LO "$1")
     else
         echo "Install wget or curl to download toolchain sources" 1>&2
         return 1
@@ -93,48 +101,47 @@ else
     # Configure GCC arguments for non-macOS platforms
     GCC_CONFIGURE_ARGS+=("--with-system-zlib")
 fi
-# Create build path and enter it
-mkdir -p "$BUILD_PATH"
-cd "$BUILD_PATH"
 
 # Dependency downloads and unpack
-test -f "binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
-test -d "binutils-$BINUTILS_V"        || tar -xzf "binutils-$BINUTILS_V.tar.gz"
+test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
+test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
 
-test -f "gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
-test -d "gcc-$GCC_V"                  || tar -xzf "gcc-$GCC_V.tar.gz"
+test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
+test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
 
-test -f "newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
-test -d "newlib-$NEWLIB_V"            || tar -xzf "newlib-$NEWLIB_V.tar.gz"
+test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
+test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
 
 if [ "$GMP_V" != "" ]; then
-    test -f "gmp-$GMP_V.tar.bz2"           || download "https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
-    test -d "gmp-$GMP_V"                  || tar -xf "gmp-$GMP_V.tar.bz2" # note: no .gz download file currently available
-    pushd "gcc-$GCC_V"
+    test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
+    test -d "$BUILD_PATH/gmp-$GMP_V"                 || tar -xf "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2" -C "$BUILD_PATH" # note: no .gz download file currently available
+    pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"gmp-$GMP_V" "gmp"
     popd
 fi
 
 if [ "$MPC_V" != "" ]; then
-    test -f "mpc-$MPC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/mpc/mpc-$MPC_V.tar.gz"
-    test -d "mpc-$MPC_V"                  || tar -xzf "mpc-$MPC_V.tar.gz"
-    pushd "gcc-$GCC_V"
+    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download "https://ftp.gnu.org/gnu/mpc/mpc-$MPC_V.tar.gz"
+    test -d "$BUILD_PATH/mpc-$MPC_V"                 || tar -xzf "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz" -C "$BUILD_PATH"
+    pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpc-$MPC_V" "mpc"
     popd
 fi
 
 if [ "$MPFR_V" != "" ]; then
-    test -f "mpfr-$MPFR_V.tar.gz"         || download "https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_V.tar.gz"
-    test -d "mpfr-$MPFR_V"                || tar -xzf "mpfr-$MPFR_V.tar.gz"
-    pushd "gcc-$GCC_V"
+    test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz"     || download "https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_V.tar.gz"
+    test -d "$BUILD_PATH/mpfr-$MPFR_V"               || tar -xzf "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz" -C "$BUILD_PATH"
+    pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpfr-$MPFR_V" "mpfr"
     popd
 fi
 
 if [ "$MAKE_V" != "" ]; then
-    test -f "make-$MAKE_V.tar.gz"       || download "https://ftp.gnu.org/gnu/make/make-$MAKE_V.tar.gz"
-    test -d "make-$MAKE_V"              || tar -xzf "make-$MAKE_V.tar.gz"
+    test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download "https://ftp.gnu.org/gnu/make/make-$MAKE_V.tar.gz"
+    test -d "$BUILD_PATH/make-$MAKE_V"               || tar -xzf "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz" -C "$BUILD_PATH"
 fi
+
+cd "$BUILD_PATH"
 
 # Deduce build triplet using config.guess (if not specified)
 # This is by the definition the current system so it should be OK.
@@ -329,3 +336,4 @@ echo "***********************************************"
 echo "Libdragon toolchain correctly built and installed"
 echo "Installation directory: \"${N64_INST}\""
 echo "Build directory: \"${BUILD_PATH}\" (can be removed now)"
+echo "If you would like to install GDB in your toolchain, run build-gdb.sh"
