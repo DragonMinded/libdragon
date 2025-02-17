@@ -48,8 +48,6 @@ Mg_Clipping:
     #define vcache1         $v17
     #define vclip_factors   $v18
     #define vviewscale      $v19
-    #define vviewscale_i    $v20
-    #define vviewscale_f    $v21
     #define vviewoff        $v22
     #define v___            $v29
 
@@ -82,9 +80,6 @@ Mg_Clipping:
     li t0, %lo(MG_VIEWPORT)
     ldv vviewscale, 0,t0
     ldv vviewoff,   8,t0
-
-    vmudm vviewscale_i, vviewscale, vviewscale.h3
-    vmadn vviewscale_f, vzero, vzero
 
     li t0, %lo(MG_CLIP_FACTORS)
     ldv vclip_factors.e0, 0x0,t0
@@ -321,12 +316,6 @@ mg_clip_plane_loop_end:
     #define cache_vtx   s3
     #define cache_end   s5
     #define clip_codes  t1
-    #define vinvw_i     $v23
-    #define vinvw_f     $v24
-    #define vpos_scr_i  $v25
-    #define vpos_scr_f  $v26
-    #define vnormw_i    $v27
-    #define vnormw_f    $v28
 
     # Calculate screen space values for new vertices (in the clip cache)
     # TODO: maybe iterate over out_list instead
@@ -341,30 +330,30 @@ mg_clip_finalize_loop:
     ldv vint_i,  MG_VTX_CS_POSi,cache_vtx
     ldv vint_f,  MG_VTX_CS_POSf,cache_vtx
 
-    vmudl v___,     vint_f, vviewscale.h3
-    vmadm vnormw_i, vint_i, vviewscale.h3
-    vmadn vnormw_f, vzero, vzero
+    vmudl v___,   vint_f, vviewscale.h3
+    vmadm vint_i, vint_i, vviewscale.h3
+    vmadn vint_f, vzero, vzero
 
-    vrcph v___.e3,    vnormw_i.e3
-    vrcpl vinvw_f.e3, vnormw_f.e3
-    vrcph vinvw_i.e3, vzero.e0
+    ssv vint_i.e3, MG_VTX_Wi,cache_vtx
+    ssv vint_f.e3, MG_VTX_Wf,cache_vtx
 
-    vmudl v___,       vint_f, vinvw_f.h3
-    vmadm v___,       vint_i, vinvw_f.h3
-    vmadn vpos_scr_f, vint_f, vinvw_i.h3
-    vmadh vpos_scr_i, vint_i, vinvw_i.h3
+    vrcph v___.e3,   vint_i.e3
+    vrcpl vint_f.e3, vint_f.e3
+    vrcph vint_i.e3, vzero.e0
+
+    ssv vint_i.e3, MG_VTX_INVWi,cache_vtx
+    ssv vint_f.e3, MG_VTX_INVWf,cache_vtx
+
+    vmudl v___,   vint_f, vint_f.h3
+    vmadm v___,   vint_i, vint_f.h3
+    vmadn vint_f, vint_f, vint_i.h3
+    vmadh vint_i, vint_i, vint_i.h3
 
     vmudh v___, vviewoff, K1
-    vmadl v___, vpos_scr_f, vviewscale_f
-    vmadm v___, vpos_scr_i, vviewscale_f
-    vmadn vpos_scr_f, vpos_scr_f, vviewscale_i
-    vmadh vpos_scr_i, vpos_scr_i, vviewscale_i
+    vmadn vint_f, vint_f, vviewscale
+    vmadh vint_i, vint_i, vviewscale
 
-    sdv vpos_scr_i,  MG_VTX_XYZ,  cache_vtx
-    ssv vnormw_i.e3, MG_VTX_Wi,   cache_vtx
-    ssv vnormw_f.e3, MG_VTX_Wf,   cache_vtx
-    ssv vinvw_i.e3,  MG_VTX_INVWi,cache_vtx
-    ssv vinvw_f.e3,  MG_VTX_INVWf,cache_vtx
+    sdv vint_i, MG_VTX_XYZ,cache_vtx
     sh clip_codes, MG_VTX_CLIP_CODE(cache_vtx)
 
 mg_clip_finalize_loop_end:
@@ -374,10 +363,6 @@ mg_clip_finalize_loop_end:
     #undef cache_vtx
     #undef cache_end
     #undef clip_codes
-    #undef vinvw_i
-    #undef vinvw_f
-    #undef vpos_scr_i
-    #undef vpos_scr_f
 
     #undef clip_flags
     #undef plane_flag

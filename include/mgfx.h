@@ -55,7 +55,8 @@ typedef struct
 /** @brief Data structure of the modes uniform. */
 typedef struct
 {
-    uint32_t flags;     ///< Mode flags
+    uint8_t fog_mask;
+    uint8_t env_map_mask;
 } __attribute__((packed, aligned(16))) mgfx_modes_t;
 
 /** @brief Data structure of a single matrix in the matrices uniform. */
@@ -70,7 +71,7 @@ typedef struct
 {
     mgfx_matrix_t mvp;      ///< The model-view-projection matrix.
     mgfx_matrix_t mv;       ///< The model-view matrix.
-    mgfx_matrix_t normal;   ///< The normal matrix.
+    int16_t normal[16];     ///< The normal matrix.
 } __attribute__((packed, aligned(16))) mgfx_matrices_t;
 
 /** @brief Fog parameters. */

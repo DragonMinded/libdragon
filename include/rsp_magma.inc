@@ -353,13 +353,11 @@ MgCmd_DrawIndices:
     addi s1, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 6
     move s2, s1
     lbu v0, %lo(MG_CULL_MODE)
-    
     lbu t7, %lo(MG_OUTPUT_OFFSET)
-    addi s3, t7, %lo(MG_OUTPUT_BUFFER)
-
     li sp, %lo(RSPQ_Loop)
-    jal RDPQ_Triangle_Send_Async
     lhu a3, %lo(MG_TRI_CMD)
+    jal RDPQ_Triangle_Send_Async
+    addi s3, t7, %lo(MG_OUTPUT_BUFFER)
 
     xor t7, TRIANGLE_SIZE
     j RSPQ_Loop

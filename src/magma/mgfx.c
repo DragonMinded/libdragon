@@ -120,7 +120,8 @@ void mgfx_get_texturing(mgfx_texturing_t *dst, const mgfx_texturing_parms_t *par
 
 void mgfx_get_modes(mgfx_modes_t *dst, const mgfx_modes_parms_t *parms)
 {
-    dst->flags = parms->flags;
+    dst->fog_mask = (parms->flags & MGFX_MODES_FLAGS_FOG_ENABLED) ? 0x88 : 0x0;
+    dst->env_map_mask = (parms->flags & MGFX_MODES_FLAGS_ENV_MAP_ENABLED) ? 0xFF : 0x0;
 }
 
 static void mgfx_convert_matrix(mgfx_matrix_t *dst, const float *src)
@@ -137,7 +138,11 @@ void mgfx_get_matrices(mgfx_matrices_t *dst, const mgfx_matrices_parms_t *parms)
 {
     mgfx_convert_matrix(&dst->mvp, parms->model_view_projection);
     mgfx_convert_matrix(&dst->mv, parms->model_view);
-    mgfx_convert_matrix(&dst->normal, parms->normal);
+    
+    for (uint32_t i = 0; i < 16; i++)
+    {
+        dst->normal[i] = parms->normal[i] * (1<<15);
+    }
 }
 
 void mgfx_set_fog_inline(const mg_uniform_t *uniform, const mgfx_fog_parms_t *parms)
