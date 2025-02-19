@@ -99,6 +99,9 @@ typedef struct mixer_channel_s {
 	mixer_fx64_t loop_len; ///< Length of the loop in the waveform (in bytes)
 	void *ptr;             ///< Pointer to the waveform
 	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
+	waveform_t *wave;      ///< Waveform being played back on this channel
+	void *ctx;			   ///< Custom context pointer for read/stop functions
+	uint32_t wave_uuid;    ///< UUID of the waveform being played back
 } mixer_channel_t;
 
 /** @brief Mixer channel state - RSP side
@@ -155,6 +158,7 @@ static struct {
 	float vol;
 	float max_samples;
 	bool throttled;
+	uint32_t uuid_counter;
 
 	int64_t ticks;
 	int num_events;
@@ -309,7 +313,7 @@ static int waveform_wrap_wpos(int wpos, int len, int loop_len) {
 // and convert it in a sequence of calls to read callbacks using only positions
 // in the range [0, len].
 static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
-	waveform_t *wave = (waveform_t*)ctx;
+	waveform_t *wave = sbuf->wave;
 
 	if (!wave->loop_len) {
 		// If we're asked to read past the waveform length (because overread),
@@ -321,7 +325,7 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		int len2 = wlen-len1;
 
 		if (len1 > 0)
-			wave->read(wave->ctx, sbuf, wpos, len1, seeking);
+			wave->read(ctx, sbuf, wpos, len1, seeking);
 		if (len2 > 0) {
 			void *dest = samplebuffer_append(sbuf, len2);
 			memset(dest, 0, len2 << SAMPLES_BPS_SHIFT(sbuf));
@@ -359,7 +363,7 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 			wave->name, wpos, wlen, wave->len, wave->loop_len);
 
 		// Perform the first read
-		wave->read(wave->ctx, sbuf, wpos, len1, seeking);
+		wave->read(ctx, sbuf, wpos, len1, seeking);
 
 		// See if we need to perform a second read for the loop. Because of
 		// overread, we need to read the loop as many times as necessary
@@ -367,17 +371,22 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		while (len2 > 0) {
 			int loop_start = wave->len - wave->loop_len;
 			int ns = MIN(len2, wave->loop_len);
-			wave->read(wave->ctx, sbuf, loop_start, ns, true);
+			wave->read(ctx, sbuf, loop_start, ns, true);
 			len2 -= ns;
 		}
 	}
 }
 
-void mixer_ch_play(int ch, waveform_t *wave) {
+static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool channel_specific_context)
+{
 	assert(ch < Mixer.num_channels);
 	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_play: cannot call on secondary stereo channel %d", ch);
+
+	// Initialize uuid for this waveform if it wasn't already
+	if (wave->__uuid == 0) 
+		wave->__uuid = ++Mixer.uuid_counter;
 
 	// If we're going to play a stereo waveform on a channel that was allocated
 	// for mono, we need to reallocate the buffer.
@@ -400,14 +409,25 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 	// wants to play the same waveform on the same channel multiple
 	// times, and the waveform has been already decoded and cached
 	// in the sample buffer.
-	if (wave != sbuf->wv_ctx) {
+	// We compare:
+	//  - The UUID of the waveform (not the wave pointer, as that
+	//    could have been even recycled by the caller)
+	//  - The context pointer: if that changes, probably the internal
+	//    state of the callback is also different (eg: compression state),
+	//    so the next (not already buffered) sample could cause
+	//    an error because it'd be decompressed with the wrong state.
+	if (wave->__uuid != c->wave_uuid || channel_specific_context) {
 		samplebuffer_flush(sbuf);
+
+		// If this channel is playing something else, stop it
+		if (mixer_ch_playing(ch))
+			mixer_ch_stop(ch);
 
 		// Configure the sample buffer for this waveform
 		assert(wave->channels == 1 || wave->channels == 2);
 		assert(wave->bits == 8 || wave->bits == 16);
 		samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
-		samplebuffer_set_waveform(sbuf, wave->read ? waveform_read : NULL, wave);
+		samplebuffer_set_waveform(sbuf, wave, wave->read ? waveform_read : NULL, ctx);
 
 		// Configure the mixer channel structured used by the RSP ucode
 		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
@@ -419,20 +439,39 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 		c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
 		mixer_ch_set_freq(ch, wave->frequency);
 
-		if (wave->channels == 2) {
-			assertf(ch != Mixer.num_channels-1, "cannot configure last channel (%d) as stereo", ch);
-			Mixer.channels[ch+1].flags |= CH_FLAGS_STEREO_SUB;
-		} else if (ch != Mixer.num_channels-1) {
-			Mixer.channels[ch+1].flags &= ~CH_FLAGS_STEREO_SUB;
-		}
-
-		tracef("mixer_ch_play: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+bps), c->loop_len >> (MIXER_FX64_FRAC+bps), wave->name);
+		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);
+	} else {
+		tracef("mixer_ch_play[old]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);
 	}
 
 	// Restart from the beginning of the waveform
+	c->wave = wave;
+	c->ctx = ctx;
+	c->wave_uuid = wave->__uuid;
 	c->ptr = SAMPLES_PTR(sbuf);
 	c->pos = 0;
+
+	// If we start playing a stereo waveform, configure channel ch+1 as stereo sub,
+	// to help catching errors where it is used as a separate channel.
+	if (c->flags & CH_FLAGS_STEREO) {
+		assertf(ch != Mixer.num_channels-1, "cannot configure last channel (%d) as stereo", ch);
+		assertf(!mixer_ch_playing(ch+1), "cannot play stereo waveform on channel %d because channel %d is active", ch, ch+1);
+		Mixer.channels[ch+1].flags |= CH_FLAGS_STEREO_SUB;
+	} else if (ch != Mixer.num_channels-1) {
+		Mixer.channels[ch+1].flags &= ~CH_FLAGS_STEREO_SUB;
+	}
 }
+
+void mixer_ch_play(int ch, waveform_t *wave)
+{
+	mixer_ch_play_internal(ch, wave, wave->ctx, false);
+}
+
+void mixer_ch_play_ctx(int ch, waveform_t *wave, void *ctx)
+{
+	mixer_ch_play_internal(ch, wave, ctx, true);
+}
+
 
 void mixer_ch_set_pos(int ch, float pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
@@ -449,25 +488,25 @@ float mixer_ch_get_pos(int ch) {
 
 void mixer_ch_stop(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	c->ptr = 0;
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+
+	tracef("mixer_ch_stop: ch=%d ctx=%p/%p\n", ch, c->ctx, sbuf->wv_ctx);
+
 	if (c->flags & CH_FLAGS_STEREO)
 		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
 
-	// Restart caching if played again. We need this guarantee
-	// because after calling stop(), the caller must be able
-	// to free waveform, and thus this pointer might become invalid.
-	Mixer.ch_buf[ch].wv_ctx = NULL;
-}
+	if (c->wave && c->wave->stop)
+		c->wave->stop(c->ctx, sbuf);
+	c->ptr = 0;
 
-void __mixer_wave_stopall(waveform_t *wave)
-{
-	for (int i=0; i<Mixer.num_channels; i++)
-	{
-		mixer_channel_t *c = &Mixer.channels[i];
-		samplebuffer_t *sbuf = &Mixer.ch_buf[i];
-		if (c->ptr && sbuf->wv_ctx == wave)
-			mixer_ch_stop(i);
-	}
+	// Invalidate the wave pointer, as it might become dangling
+	// anyway, as the user can free the waveform memory at any time after stop.
+	// Keep the uuid valid instead. This allows
+	// for an optimization: if mixer_ch_play is called again on the same
+	// waveform, we will realize that by the uuid, and reuse the same
+	// samplebuffer contents.
+	c->wave = NULL;
+	c->ctx = NULL;
 }
 
 bool mixer_ch_playing(int ch) {
@@ -532,9 +571,7 @@ static void mixer_exec(int32_t *out, int num_samples) {
 				// If we reached the end of the waveform, stop the channel
 				// by NULL-ing the buffer pointer.
 				if (wpos >= len) {
-					ch->ptr = 0;
-					if (ch->flags & CH_FLAGS_STEREO)
-						ch[1].flags &= ~CH_FLAGS_STEREO_SUB;
+					mixer_ch_stop(i);
 					continue;
 				}
 				// When there's no loop, do not ask for more samples then

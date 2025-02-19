@@ -176,6 +176,7 @@
 	RSPQ_BeginOverlayHeader
 		RSPQ_DefineCommand command_exec, 16				# 0x0
 		RSPQ_DefineCommand VADPCM_Decompress, 16		# 0x1
+		RSPQ_DefineCommand VADPCM_SetState, 8			# 0x2
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -1494,3 +1495,68 @@ VADPM_OutputDma:
 
 	.endfunc
 
+	#undef v_out_l
+	#undef v_out_r
+	#undef v_sample_0
+	#undef v_sample_1
+	#undef v_sample_2
+	#undef v_sample_3
+	#undef v_mix_l
+	#undef v_mix_r
+	#undef vscale
+	#undef vstatef
+	#undef pred0
+	#undef pred1
+	#undef pred1a
+	#undef pred1b
+	#undef pred1c
+	#undef pred1d
+	#undef pred1e
+	#undef pred1f
+	#undef pred1g
+	#undef pred1h
+	#undef vres0
+	#undef vres1
+	#undef vstate0
+	#undef vstate1
+	#undef vstate2
+	#undef vstate3
+	#undef v____
+	#undef scaling
+	#undef predictor
+	#undef nframes
+	#undef dmem_state
+	#undef dmem_codebook
+	#undef dmem_output
+	#undef dmem_input
+	#undef buffer_in_size
+	#undef buffer_out_size
+	#undef stereo_toggle
+	#undef rdram_input
+	#undef rdram_output
+
+
+	########################################
+	# VADPCM_SetState
+	#
+	# Args:
+	#   a0: pointer to RDRAM state (destination)
+	#   a1: pointer to RDRAM buffer with source state
+    #       or 0 if state must be cleared
+	########################################
+
+	.func VADPCM_SetState
+VADPCM_SetState:
+	li s4, %lo(VADPCM_STATE)
+	sqv vzero, 0x00,s4
+	sqv vzero, 0x10,s4
+	beqz a1, VADPCM_SetState_Write
+	 li t0, DMA_SIZE(16*2, 1)
+	jal DMAIn
+	 move s0, a1
+
+VADPCM_SetState_Write:
+	move s0, a0
+	jal_and_j DMAOut, RSPQ_Loop
+
+	.endfunc

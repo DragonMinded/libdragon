@@ -74,6 +74,7 @@ typedef struct {
     joypad_port_t port;                 ///< Joypad port
     cpakfs_note_t notes[MAX_NOTES];     ///< Cache of all the notes
     uint16_t notes_mask;                ///< Bitmask of read notes
+    int cur_bank;                       ///< Current bank for multi-bank cpaks
     int fat_idx;                        ///< Index of the FAT that was read (0 or 1)
     int fat_size;                       ///< Size of the FAT in bytes
     uint16_t fat[];                     ///< FAT entries
@@ -92,24 +93,35 @@ typedef struct {
 static cpakfs_t *filesystems[4];
 static char *prefixes[4];
 
-static int block_read(joypad_port_t port, uint16_t addr, void *data, int nbytes)
+static int block_xfer(joypad_port_t port, joypad_accessory_xfer_t xfer, uint32_t addr, void *data, int nbytes)
 {
-    debugf("block_read(%d, %04X, %p, %d)\n", port, addr, data, nbytes);
-    if (joypad_accessory_xfer(port, JOYPAD_ACCESSORY_XFER_READ, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
+    cpakfs_t *fs = filesystems[port];
+    int bank = addr >> 15;
+    assert((addr+nbytes-1) >> 15 == bank);  // this function only reads/writes from one bank
+    
+    if (fs && bank != fs->cur_bank) { // filesystem might not exist yet, in which case always switch
+        if (joypad_controller_pak_set_bank(port, bank) != JOYPAD_ACCESSORY_ERROR_NONE) {
+            errno = EIO;
+            return -1;
+        }
+        fs->cur_bank = bank;
+    }
+
+    if (joypad_accessory_xfer(port, xfer, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
         errno = EIO;
         return -1;
     }
     return 0;
 }
 
-static int block_write(joypad_port_t port, uint16_t addr, void *data, int nbytes)
+static inline int block_read(joypad_port_t port, uint32_t addr, void *data, int nbytes)
 {
-    debugf("block_write(%d, %04X, %p, %d)\n", port, addr, data, nbytes);
-    if (joypad_accessory_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
-        errno = EIO;
-        return -1;
-    }
-    return 0;
+    return block_xfer(port, JOYPAD_ACCESSORY_XFER_READ, addr, data, nbytes);
+}
+
+static inline int block_write(joypad_port_t port, uint32_t addr, void *data, int nbytes)
+{
+    return block_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE, addr, data, nbytes);
 }
 
 static void fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *checksum2)
@@ -555,7 +567,6 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
         int note_start = 0x100 + fs->fat_size*2;
         if (block_read(fs->port, note_start + note_id*32, note, sizeof(cpakfs_note_t)) < 0)
             return NULL;
-        fs->notes_mask |= 1 << note_id;
     }
     return note;
 }
@@ -852,9 +863,12 @@ int cpak_mount(joypad_port_t port, const char *prefix)
 
     int fat_size = be16(fsid.bank_size_msb) & 0xFF00;
     cpakfs_t *fs = malloc(sizeof(cpakfs_t) + fat_size);
+    memset(fs, 0, sizeof(cpakfs_t));
     fs->port = port;
     fs->fat_size = fat_size;
-    fs->notes_mask = 0;
+    
+    // Force a bank switch first, as we can't know the current selected bank
+    fs->cur_bank = -1;
 
     if (read_fat(fs) < 0) {
         free(fs);

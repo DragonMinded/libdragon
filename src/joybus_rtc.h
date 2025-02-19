@@ -73,9 +73,10 @@
  * UltraPIF fully implements an emulated Joybus RTC that can be accessed even
  * when the cartridge does not include the real-time clock circuitry.
  *
- * Internally, Joybus RTC cannot represent dates before 1990-01-01, although
+ * Internally, Joybus RTC cannot represent dates before 1900-01-01, although
  * some RTC implementations (like UltraPIF) only support dates after
- * 2000-01-01.
+ * 2000-01-01. Joybus RTC cannot represent dates after 2099-12-31. If the
+ * clock goes beyond this range, it will wrap around to 1900-01-01.
  *
  * Special thanks to korgeaux, marshallh and jago85 for their hard work
  * and research reverse-engineering and documenting the inner-workings
@@ -88,14 +89,40 @@
 extern "C" {
 #endif
 
+/** @brief Joybus RTC minimum timestamp (1900-01-01 00:00:00) */
+#define JOYBUS_RTC_TIMESTAMP_MIN -2208988800
+/** @brief Joybus RTC maximum timestamp (2099-12-31 23:59:59) */
+#define JOYBUS_RTC_TIMESTAMP_MAX 4102444799
+
+/** @brief Joybus RTC status byte */
+typedef union
+{
+    /** @brief raw byte value */
+    uint8_t byte;
+    /// @cond
+    struct __attribute__((packed))
+    {
+    /// @endcond
+        /** @brief Set if the RTC is stopped. */
+        unsigned stopped     : 1;
+        unsigned             : 5;
+        /** @brief Set if RTC crystal is not working. */
+        unsigned crystal_bad : 1;
+        /** @brief Set if the RTC battery voltage is too low. */
+        unsigned battery_bad : 1;
+    /// @cond
+    };
+    /// @endcond
+} joybus_rtc_status_t;
+
 /** @brief Callback function signature for #joybus_rtc_detect_async */
-typedef void (*joybus_rtc_detect_callback_t)(bool detected);
+typedef void (*joybus_rtc_detect_callback_t)(bool detected, joybus_rtc_status_t status);
 
 /** @brief Callback function signature for #joybus_rtc_set_stopped_async */
 typedef void (*joybus_rtc_set_stopped_callback_t)(void);
 
-/** @brief Callback function signature for #joybus_rtc_read_time_async */
-typedef void (*joybus_rtc_read_time_callback_t)(time_t time);
+/** @brief Callback function signature for #joybus_rtc_get_time_async */
+typedef void (*joybus_rtc_get_time_callback_t)(int error, time_t time);
 
 /**
  * @brief Detect the presence of the Joybus real-time clock asynchronously.
@@ -107,7 +134,7 @@ void joybus_rtc_detect_async( joybus_rtc_detect_callback_t callback );
 /**
  * @brief Detect the presence of the Joybus real-time clock.
  *
- * @return whether the Joybus RTC was detected
+ * @return whether the Joybus RTC was detected and operational
  */
 bool joybus_rtc_detect( void );
 
@@ -145,14 +172,19 @@ void joybus_rtc_set_stopped( bool stop );
  *
  * @param callback function to call when the time has been read
  */
-void joybus_rtc_read_time_async( joybus_rtc_read_time_callback_t callback );
+void joybus_rtc_get_time_async( joybus_rtc_get_time_callback_t callback );
 
 /**
  * @brief Read the current date/time from the Joybus real-time clock.
  *
- * @return the current time as a UNIX timestamp, or 0 if RTC is unavailable.
+ * @param[out] out pointer to the output time_t
+ *
+ * @retval RTC_ESUCCESS if the operation was successful
+ * @retval RTC_ENOCLOCK if the RTC is not available
+ * @retval RTC_EBADCLOCK if the RTC crystal is bad
+ * @retval RTC_EBADTIME if the RTC cannot represent the new time
  */
-time_t joybus_rtc_read_time( void );
+int joybus_rtc_get_time( time_t *out );
 
 /**
  * @brief Set the date/time on the Joybus real-time clock.
@@ -161,9 +193,12 @@ time_t joybus_rtc_read_time( void );
  *
  * @param new_time the new RTC time as a UNIX timestamp
  *
- * @return false if the RTC does not support being set
+ * @retval RTC_ESUCCESS if the operation was successful
+ * @retval RTC_ENOCLOCK if the RTC is not available
+ * @retval RTC_EBADCLOCK if the RTC crystal is bad
+ * @retval RTC_EBADTIME if the RTC cannot represent the new time
  */
-bool joybus_rtc_set_time( time_t new_time );
+int joybus_rtc_set_time( time_t new_time );
 
 #ifdef __cplusplus
 }

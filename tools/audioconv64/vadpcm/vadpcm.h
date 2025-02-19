@@ -131,6 +131,10 @@ vadpcm_error vadpcm_decode(int predictor_count, int order,
 struct vadpcm_params {
     // The number of predictors to put in the codebook.
     int predictor_count;
+    // LIBDRAGON: The minimum/maximum residual value. This is useful
+    // to increase compression efficiency for the huffman layer
+    int min_residual;
+    int max_residual;
 };
 
 // Return the amount of scratch space needed to encode a file with the given

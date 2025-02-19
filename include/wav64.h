@@ -14,6 +14,7 @@ extern "C" {
 #endif
 
 /// @cond
+typedef struct wav64_state_s wav64_state_t;
 extern void __wav64_init_compression_lvl3(void);
 /// @endcond
 
@@ -36,11 +37,9 @@ typedef struct wav64_s {
 	 */
 	waveform_t wave;
 
-	/** @brief File descriptor to read WAV64 */
-	int current_fd;			 ///< File descriptor for the wav64 file
-	int base_offset;		 ///< Start of Wav64 data.
-	int format;			     ///< Internal format of the file
-	void *ext;               ///< Pointer to extended data (internal use)
+	///@cond
+	wav64_state_t *st;				 // Extra opaque data
+	///@endcond
 } wav64_t;
 
 /**
@@ -85,6 +84,75 @@ typedef struct wav64_s {
  *                      only files on DFS ("rom:/") are supported.
  */ 
 void wav64_open(wav64_t *wav, const char *fn);
+
+/** @brief WAV64 streaming mode */
+typedef enum {
+	/** 
+	 * @brief Full streaming
+	 * 
+	 * This is the default mode for streaming. All samples of the files are
+	 * streamed from the file (typically, from ROM but could also be SD) on-demand.
+	 * 
+	 * This uses the least amount of memory but requires data transfers from
+	 * the storage device during playback.
+	 */
+	WAV64_STREAMING_FULL,
+
+	/**
+	 * @brief Preload and decompress the whole file
+	 * 
+	 * This mode preloads the whole file into memory and decompresses it in full
+	 * at the beginning. This is useful for small files that can fit in memory,
+	 * and for which you do not want to pay for the streaming overhead.
+	 */
+	WAV64_STREAMING_NONE,
+
+} wav64_streaming_mode_t;
+
+/** @brief WAV64 loading parameters (to be passed to #wav64_load) */
+typedef struct {
+	/** 
+	 * @brief Maximum number of simultaneous playbacks 
+	 * 
+	 * This setting specifies the maximum number of channels that will play
+	 * this wav64 file at the same time. 
+	 * 
+ 	 * The default for this setting depends on the compression level of the file:
+	 *  
+	 *   * Level 0 (uncompressed): default to 32
+	 *   * Level 1 (VADPCM): default to 4
+	 *   * Level 3 (Opus): default to 1
+	 * 
+	 * This is done to obtain a balance between memory usage and flexibility.
+	 * 
+     * If you try to playback the same wav64 on more channels than the maximum, 
+	 * the playback will stop a random playing channel to make room for the new one.
+	 */
+	int max_simultaneous_playbacks;
+
+	/**
+	 * @brief Streaming mode for the wav64
+	 * 
+	 * See #wav64_streaming_mode_t for details.
+	 */
+	wav64_streaming_mode_t streaming_mode;
+
+} wav64_loadparms_t;
+
+/** 
+ * @brief Load a WAV64 file for playback.
+ * 
+ * This function opens the file, parses the header, and initializes for
+ * playing back through the audio mixer. 
+ * 
+ * You can use the #wav64_loadparms_t structure to specify additional parameters
+ * for the loading process, like the maximum number of simultaneous playbacks
+ * or the streaming mode.
+ * 
+ * @param   fn          Filename of the wav64 (with filesystem prefix).
+ * @param   parms       Optional loading parameters (or NULL for defaults).
+ */ 
+wav64_t *wav64_load(const char *fn, wav64_loadparms_t *parms);
 
 /** @brief Configure a WAV64 file for looping playback. */
 void wav64_set_loop(wav64_t *wav, bool loop);
