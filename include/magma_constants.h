@@ -42,6 +42,7 @@
 #define MG_VTX_CS_POSi                  24
 #define MG_VTX_CS_POSf                  32
 #define MG_VTX_SIZE                     40
+#define MG_VTX_SIZE2                    80
 
 /// @endcond
 

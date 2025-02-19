@@ -15,8 +15,8 @@
 /** @brief Enumeration of mode flags */
 typedef enum
 {
-    MGFX_MODES_FLAGS_FOG_ENABLED        = MGFX_FLAG_FOG,        ///< Enables fog if set.
-    MGFX_MODES_FLAGS_ENV_MAP_ENABLED    = MGFX_FLAG_ENV_MAP,    ///< Enables environment mapping if set.
+    MGFX_MODES_FLAGS_FOG_ENABLED        = 1<<0,  ///< Enables fog if set.
+    MGFX_MODES_FLAGS_ENV_MAP_ENABLED    = 1<<1,  ///< Enables environment mapping if set.
 } mgfx_modes_flags_t;
 
 /** @brief Data structure of the fog uniform. */

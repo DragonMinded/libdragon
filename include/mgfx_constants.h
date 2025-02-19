@@ -36,9 +36,6 @@
 
 /// @cond
 
-#define MGFX_FLAG_FOG               (1<<0)
-#define MGFX_FLAG_ENV_MAP           (1<<1)
-
 #define MGFX_LIGHT_POSITION     0
 #define MGFX_LIGHT_COLOR        8
 #define MGFX_LIGHT_ATT_INT      16

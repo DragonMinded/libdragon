@@ -1,52 +1,5 @@
-#define MG_VTX_XYZ                      0
-#define MG_VTX_CLIP_CODE                6
-#define MG_VTX_TR_CODE                  7
-#define MG_VTX_RGBA                     8
-#define MG_VTX_ST                       12
-#define MG_VTX_Wi                       16
-#define MG_VTX_Wf                       18
-#define MG_VTX_INVWi                    20
-#define MG_VTX_INVWf                    22
-#define MG_VTX_CS_POSi                  24
-#define MG_VTX_CS_POSf                  32
-#define MG_VTX_SIZE                     40
-#define MG_VTX_SIZE2                    80
-
-/** @brief Input number of the "Position/Normal" vertex input. */
-#define MGFX_ATTRIBUTE_POS_NORM         0
-
-/** @brief Input number of the "Color" vertex input. */
-#define MGFX_ATTRIBUTE_COLOR            1
-
-/** @brief Input number of the "Texture coordinate" vertex input. */
-#define MGFX_ATTRIBUTE_TEXCOORD         2
-
-/** @brief Binding number of the "Fog" uniform. */
-#define MGFX_BINDING_FOG                0
-
-/** @brief Binding number of the "Lighting" uniform. */
-#define MGFX_BINDING_LIGHTING           1
-
-/** @brief Binding number of the "Texturing" uniform. */
-#define MGFX_BINDING_TEXTURING          2
-
-/** @brief Binding number of the "Modes" uniform. */
-#define MGFX_BINDING_MODES              3
-
-/** @brief Binding number of the "Matrices" uniform. */
-#define MGFX_BINDING_MATRICES           4
-
-/** @brief The maximum number of lights. */
-#define MGFX_LIGHT_COUNT_MAX    8
-
-#define MGFX_LIGHT_POSITION     0
-#define MGFX_LIGHT_POSITIONW    6
-#define MGFX_LIGHT_COLOR        8
-#define MGFX_LIGHT_ATT_INT      16
-#define MGFX_LIGHT_ATT_FRAC     24
-#define MGFX_LIGHT_SIZE         32
-
-#define MGFX_MATRIX_SIZE        64
+#include "../../include/magma_constants.h"
+#include "../../include/mgfx_constants.h"
 
 //#define ENABLE_NORMALIZE        1
 //#define ENABLE_POINT_LIGHTS     1
