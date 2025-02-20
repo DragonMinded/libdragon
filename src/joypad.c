@@ -722,6 +722,7 @@ void joypad_emergency_rumble_stop(void)
     JOYPAD_PORT_FOREACH (port)
     {
         identify_cmd = (void *)&identify_block[i + JOYBUS_COMMAND_METADATA_SIZE];
+        i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*identify_cmd);
         identifier = identify_cmd->recv.identifier;
         if( identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER )
         {
@@ -761,7 +762,6 @@ void joypad_emergency_rumble_stop(void)
             // Stop the GameCube controller rumble motor
             joybus_exec_cmd_struct(port, gcn_motor_cmd);
         }
-        i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*identify_cmd);
     }
 }
 
