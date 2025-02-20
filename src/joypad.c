@@ -613,6 +613,38 @@ static void joypad_vi_interrupt_callback(void)
 }
 
 /**
+ * @brief Callback for NMI/Reset interrupt to stop rumble motors.
+ */
+static void joypad_reset_interrupt_callback(void)
+{
+    // BBPlayer does not support rumble
+    if( sys_bbplayer() ) return;
+
+    uint8_t n64_motor_data[JOYBUS_ACCESSORY_DATA_SIZE] = {0};
+    const joybus_cmd_gcn_controller_read_port_t gcn_motor_cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ,
+        .mode = 3,
+        .rumble = false,
+    } };
+
+    JOYPAD_PORT_FOREACH (port)
+    {
+        if( !joypad_get_rumble_supported(port) ) continue;
+        switch( joypad_get_style(port) )
+        {
+            case JOYPAD_STYLE_N64:
+                joybus_accessory_write(port, JOYBUS_ACCESSORY_ADDR_RUMBLE_MOTOR, n64_motor_data);
+                break;
+            case JOYPAD_STYLE_GCN:
+                joybus_exec_cmd_struct(port, gcn_motor_cmd);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+/**
  * @brief Re-identify and reset all Joypads and wait for completion.
  */
 static void joypad_reset(void)
@@ -665,6 +697,74 @@ joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port)
     }
 }
 
+void joypad_emergency_rumble_stop(void)
+{
+    // BBPlayer does not support rumble
+    if( sys_bbplayer() ) return;
+
+    uint8_t identify_block[JOYBUS_BLOCK_SIZE];
+    uint8_t write_data[JOYBUS_ACCESSORY_DATA_SIZE];
+    uint8_t read_data[JOYBUS_ACCESSORY_DATA_SIZE];
+    const joybus_cmd_identify_port_t *identify_cmd;
+    joybus_identifier_t identifier;
+    size_t i = 0;
+
+    const joybus_cmd_gcn_controller_read_port_t gcn_motor_cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ,
+        .mode = 3,
+        .rumble = false,
+    } };
+
+    // Identify all connected controllers
+    joybus_input_identify(identify_block, false);
+    joybus_exec(identify_block, identify_block);
+
+    JOYPAD_PORT_FOREACH (port)
+    {
+        identify_cmd = (void *)&identify_block[i + JOYBUS_COMMAND_METADATA_SIZE];
+        identifier = identify_cmd->recv.identifier;
+        if( identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER )
+        {
+            uint8_t accessory_status = identify_cmd->recv.status & JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK;
+            // Check if an accessory is present
+            if( accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT ||
+                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED )
+            {
+                continue;
+            }
+            // Probe the accessory to see if it is a Rumble Pak
+            memset(write_data, JOYBUS_ACCESSORY_PROBE_RUMBLE_PAK, JOYBUS_ACCESSORY_DATA_SIZE);
+            if( joybus_accessory_write(port, JOYBUS_ACCESSORY_ADDR_PROBE, write_data) != JOYBUS_ACCESSORY_IO_STATUS_OK )
+            {
+                continue;
+            }
+            // Read back the probe value to confirm the accessory type
+            if( joybus_accessory_read(port, JOYBUS_ACCESSORY_ADDR_PROBE, read_data) != JOYBUS_ACCESSORY_IO_STATUS_OK )
+            {
+                continue;
+            }
+            // Confirm that the accessory is a Rumble Pak
+            if( memcmp(read_data, write_data, JOYBUS_ACCESSORY_DATA_SIZE) != 0 )
+            {
+                continue;
+            }
+            // Stop the Rumble Pak motor
+            memset(write_data, 0x00, JOYBUS_ACCESSORY_DATA_SIZE);
+            joybus_accessory_write(port, JOYBUS_ACCESSORY_ADDR_RUMBLE_MOTOR, write_data);
+        }
+        else if (
+            (identifier & JOYBUS_IDENTIFIER_MASK_PLATFORM) == JOYBUS_IDENTIFIER_PLATFORM_GCN &&
+            (identifier & JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER) &&
+            !(identifier & JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE)
+        )
+        {
+            // Stop the GameCube controller rumble motor
+            joybus_exec_cmd_struct(port, gcn_motor_cmd);
+        }
+        i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*identify_cmd);
+    }
+}
+
 void joypad_init(void)
 {
     // Just increment the refcount if already initialized
@@ -685,6 +785,8 @@ void joypad_init(void)
 
     // Update the Joypads on VI interrupt
     register_VI_handler(joypad_vi_interrupt_callback);
+    // Stop rumble on console reset
+    register_RESET_handler(joypad_reset_interrupt_callback);
 }
 
 void joypad_close(void)
@@ -694,7 +796,8 @@ void joypad_close(void)
 
     // Stop updating the Joypads on VI interrupt
     unregister_VI_handler(joypad_vi_interrupt_callback);
-    
+    unregister_RESET_handler(joypad_reset_interrupt_callback);
+
     // Decrement the timer subsystem refcount (possibly closing it)
     timer_close();
 }

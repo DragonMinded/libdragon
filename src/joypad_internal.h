@@ -126,6 +126,14 @@ extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
 joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port);
 
 /**
+ * @brief Stop the rumble motors on all controllers synchronously.
+ *
+ * This function is intended for use in situations where interrupts may
+ * be disabled or where joypad_init may not have been called.
+ */
+void joypad_emergency_rumble_stop(void);
+
+/**
  * @brief Get the Joypad accessory state for a Joypad port.
  * 
  * @param port Joypad port number (#joypad_port_t)
