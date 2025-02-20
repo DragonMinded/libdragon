@@ -721,8 +721,11 @@ void joypad_emergency_rumble_stop(void)
 
     JOYPAD_PORT_FOREACH (port)
     {
+        // Find the identify command for this port in the joybus block
         identify_cmd = (void *)&identify_block[i + JOYBUS_COMMAND_METADATA_SIZE];
+        // Skip to the next command for the next loop iteration
         i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*identify_cmd);
+        // Determine how to handle the controller based on its identifier
         identifier = identify_cmd->recv.identifier;
         if( identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER )
         {
