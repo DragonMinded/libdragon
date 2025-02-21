@@ -741,4 +741,5 @@ void vi_init(void)
 }
 
 extern inline int vi_get_scanline(int *field);
+extern inline void vi_write(volatile uint32_t *reg, uint32_t value);
 extern inline uint32_t vi_read(volatile uint32_t *reg);
