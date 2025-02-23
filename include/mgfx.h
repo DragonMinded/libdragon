@@ -12,12 +12,10 @@
 #include <mgfx_macros.h>
 #include <fgeom.h>
 
-/** @brief Enumeration of mode flags */
 typedef enum
 {
-    MGFX_MODES_FLAGS_FOG_ENABLED        = 1<<0,  ///< Enables fog if set.
-    MGFX_MODES_FLAGS_ENV_MAP_ENABLED    = 1<<1,  ///< Enables environment mapping if set.
-} mgfx_modes_flags_t;
+    MGFX_FEATURE_ENV_MAP = (1<<0)
+} mgfx_features_t;
 
 /** @brief Data structure of the fog uniform. */
 typedef struct
@@ -26,6 +24,7 @@ typedef struct
     int16_t offset_int;     ///< Integer part of the fog offset.
     uint16_t factor_frac;   ///< Fractional part of the fog factor.
     uint16_t offset_frac;   ///< Fractional part of the fog offset.
+    uint8_t mask;           ///< Mask that determines whether the fog factor is loaded into vertex alpha.
 } __attribute__((packed, aligned(16))) mgfx_fog_t;
 
 /** @brief Data structure of a single light in the lighting uniform. */
@@ -51,13 +50,6 @@ typedef struct
     int16_t tex_scale[2];       ///< Texture coordinate scale.
     int16_t tex_offset[2];      ///< Texture coordinate offset.
 } __attribute__((packed, aligned(16))) mgfx_texturing_t;
-
-/** @brief Data structure of the modes uniform. */
-typedef struct
-{
-    uint8_t fog_mask;
-    uint8_t env_map_mask;
-} __attribute__((packed, aligned(16))) mgfx_modes_t;
 
 /** @brief Data structure of a single matrix in the matrices uniform. */
 typedef struct
@@ -111,12 +103,6 @@ typedef struct
     int16_t offset[2];      ///< Offsets that are added to texture coordinates after scaling.
 } mgfx_texturing_parms_t;
 
-/** @brief Modes parameters. */
-typedef struct
-{
-    mgfx_modes_flags_t flags;   ///< Bitflags that specify the enabled modes.
-} mgfx_modes_parms_t;
-
 /** @brief Matrices parameters. */
 typedef struct
 {
@@ -131,12 +117,19 @@ typedef struct mgfx_pipeline_cache_s    mgfx_pipeline_cache_t;
 extern "C" {
 #endif
 
+extern rsp_ucode_t rsp_mgfx;
+extern rsp_ucode_t rsp_mgfx_env;
+
 /** 
  * @brief Returns a pointer to the mgfx shader ucode. Use this to create a pipeline with this shader.
  * 
  * @see #mg_pipeline_create
  */
-rsp_ucode_t *mgfx_get_shader_ucode(void);
+inline rsp_ucode_t *mgfx_get_shader_ucode(mgfx_features_t features)
+{
+    if (features & MGFX_FEATURE_ENV_MAP) return &rsp_mgfx_env;
+    return &rsp_mgfx;
+}
 
 /** @brief Convert fog parameters to the internal data structure of the fog uniform. */
 void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms);
@@ -146,9 +139,6 @@ void mgfx_get_lighting(mgfx_lighting_t *dst, const mgfx_lighting_parms_t *parms)
 
 /** @brief Convert texturing parameters to the internal data structure of the texturing uniform. */
 void mgfx_get_texturing(mgfx_texturing_t *dst, const mgfx_texturing_parms_t *parms);
-
-/** @brief Convert modes parameters to the internal data structure of the modes uniform. */
-void mgfx_get_modes(mgfx_modes_t *dst, const mgfx_modes_parms_t *parms);
 
 /** @brief Convert matrices parameters to the internal data structure of the matrices uniform. */
 void mgfx_get_matrices(mgfx_matrices_t *dst, const mgfx_matrices_parms_t *parms);
@@ -161,9 +151,6 @@ void mgfx_set_lighting_inline(const mg_uniform_t *uniform, const mgfx_lighting_p
 
 /** @brief Set the value of the texturing uniform inline. */
 void mgfx_set_texturing_inline(const mg_uniform_t *uniform, const mgfx_texturing_parms_t *parms);
-
-/** @brief Set the value of the modes uniform inline. */
-void mgfx_set_modes_inline(const mg_uniform_t *uniform, const mgfx_modes_parms_t *parms);
 
 /** @brief Set the value of the matrices uniform inline. */
 void mgfx_set_matrices_inline(const mg_uniform_t *uniform, const mgfx_matrices_parms_t *parms);

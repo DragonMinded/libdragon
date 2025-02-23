@@ -17,17 +17,14 @@ _Static_assert(sizeof(mgfx_light_t) == MGFX_LIGHT_SIZE);
 #define FLOAT_TO_I16(x) (CLAMP(x, -1.f, 1.f) * 0x7FFF)
 
 DEFINE_RSP_UCODE(rsp_mgfx);
-
-rsp_ucode_t *mgfx_get_shader_ucode()
-{
-    return &rsp_mgfx;
-}
+DEFINE_RSP_UCODE(rsp_mgfx_env);
 
 void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms)
 {
     float diff = parms->end - parms->start;
     // start == end is undefined, so disable fog by setting the factor to 0
-    float factor = fabsf(diff) < FLT_MIN ? 0.0f : 1.0f / diff;
+    bool is_disabled = fabsf(diff) < FLT_MIN;
+    float factor = is_disabled ? 0.0f : 1.0f / diff;
     float offset = parms->start;
 
     // Convert to s15.16 and premultiply with 1.15 conversion factor
@@ -41,6 +38,7 @@ void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms)
     dst->offset_int = offset_fx;
     dst->factor_frac = factor_f;
     dst->offset_frac = 0;
+    dst->mask = is_disabled ? 0x00 : 0x88;
 }
 
 static inline void color_to_i16(int16_t *dst, color_t color)
@@ -118,12 +116,6 @@ void mgfx_get_texturing(mgfx_texturing_t *dst, const mgfx_texturing_parms_t *par
     dst->tex_offset[1] = parms->offset[1];
 }
 
-void mgfx_get_modes(mgfx_modes_t *dst, const mgfx_modes_parms_t *parms)
-{
-    dst->fog_mask = (parms->flags & MGFX_MODES_FLAGS_FOG_ENABLED) ? 0x88 : 0x0;
-    dst->env_map_mask = (parms->flags & MGFX_MODES_FLAGS_ENV_MAP_ENABLED) ? 0xFF : 0x0;
-}
-
 static void mgfx_convert_matrix(mgfx_matrix_t *dst, const float *src)
 {
     for (uint32_t i = 0; i < 16; i++)
@@ -164,13 +156,6 @@ void mgfx_set_texturing_inline(const mg_uniform_t *uniform, const mgfx_texturing
     mgfx_texturing_t texturing = {};
     mgfx_get_texturing(&texturing, parms);
     mg_uniform_load_inline(uniform, &texturing);
-}
-
-void mgfx_set_modes_inline(const mg_uniform_t *uniform, const mgfx_modes_parms_t *parms)
-{
-    mgfx_modes_t modes = {};
-    mgfx_get_modes(&modes, parms);
-    mg_uniform_load_inline(uniform, &modes);
 }
 
 void mgfx_set_matrices_inline(const mg_uniform_t *uniform, const mgfx_matrices_parms_t *parms)

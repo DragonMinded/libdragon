@@ -75,8 +75,8 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/math/fgeom.o \
 			 $(BUILD_DIR)/magma/magma.o $(BUILD_DIR)/magma/mgfx.o \
 			 $(BUILD_DIR)/magma/rsp_magma.o $(BUILD_DIR)/magma/rsp_magma_clipping.o \
-			 $(BUILD_DIR)/magma/rsp_mgfx.o $(BUILD_DIR)/magma/math.o \
-			 $(BUILD_DIR)/magma/mgfx_mesh.o
+			 $(BUILD_DIR)/magma/rsp_mgfx.o $(BUILD_DIR)/magma/rsp_mgfx_env.o \
+			 $(BUILD_DIR)/magma/math.o $(BUILD_DIR)/magma/mgfx_mesh.o
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
