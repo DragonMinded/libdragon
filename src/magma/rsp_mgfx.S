@@ -145,204 +145,205 @@ MgEndShaderUniforms
 
 MgBeginVertexInput
   MgBeginVertexAttribute 0, 0
-    MgVertexAttributeLoaders LOAD_POS_NORM310, LOAD_POS_NORM308, LOAD_POS_NORM309, LOAD_POS_NORM311, LOAD_POS_NORM592, LOAD_POS_NORM593, LOAD_POS_NORM591, LOAD_POS_NORM590
+    MgVertexAttributeLoaders LOAD_POS_NORM306, LOAD_POS_NORM308, LOAD_POS_NORM307, LOAD_POS_NORM309, LOAD_POS_NORM596, LOAD_POS_NORM594, LOAD_POS_NORM595, LOAD_POS_NORM597
   MgEndVertexAttribute
 
   MgBeginVertexAttribute 1, 1
-    MgVertexAttributeLoaders LOAD_COLOR335, LOAD_COLOR338
-    MgBeginVertexAttributePatch PATCH_COLOR513
+    MgVertexAttributeLoaders LOAD_COLOR333, LOAD_COLOR336
+    MgBeginVertexAttributePatch PATCH_COLOR510
       vnop
     MgEndVertexAttributePatch
   MgEndVertexAttribute
 
   MgBeginVertexAttribute 2, 1
-    MgVertexAttributeLoaders LOAD_TEXCOORD345, LOAD_TEXCOORD348
+    MgVertexAttributeLoaders LOAD_TEXCOORD343, LOAD_TEXCOORD346
   MgEndVertexAttribute
 
 MgEndVertexInput
 
 MgBeginShader
 T3DCmd_VertLoad:
+  ori $at, $zero, %lo(MG_VERTEX_SIZE)
   addiu $t0, $gp, %lo(RSPQ_DMEM_BUFFER)  -6
+  ldv $v01, 0, 0, $at
   ldv $v02, 0, 0, $t0
   lsv $v02, 6, 4, $t0
-  ori $at, $zero, %lo(MG_VERTEX_SIZE)
-  ldv $v01, 0, 0, $at
   vmudh $v04, $v02, $v01.v
-  vsar $v03, COP2_ACC_HI
-  vsar $v04, COP2_ACC_MD
   lw $s0, %lo(MG_VERTEX_BUFFER + 0)
+  vsar $v04, COP2_ACC_MD
+  vsar $v03, COP2_ACC_HI
   ori $at, $zero, %lo(RSPQ_SCRATCH_MEM) ## Barrier: 0x1
-  ssv $v03, 0, 8, $at ## Barrier: 0x2
   sdv $v04, 0, 0, $at ## Barrier: 0x1
+  ssv $v03, 0, 8, $at ## Barrier: 0x2
   ssv $v04, 0, 10, $at ## Barrier: 0x2
   lw $t2, %lo(RSPQ_SCRATCH_MEM + 8) ## Barrier: 0x2
   lhu $s7, %lo(RSPQ_SCRATCH_MEM + 2) ## Barrier: 0x1
   lhu $t1, %lo(RSPQ_SCRATCH_MEM + 6) ## Barrier: 0x1
-  andi $t3, $t2, 7
   lh $t4, %lo(RSPQ_SCRATCH_MEM + 4) ## Barrier: 0x1
-  addu $t0, $t1, $t3
-  addiu $t0, $t0, 7
-  andi $t0, $t0, 4088
+  andi $t3, $t2, 7
   addu $s0, $s0, $t2
+  addu $t0, $t1, $t3
   addiu $s4, $t4, %lo(MG_VERTEX_OVERFLOW)
-  addiu $t0, $t0, -1
-  addiu $t2, $zero, 12
-  jal DMAExec ## Args: $t0, $t1, $s0, $s4, $t2
+  addiu $t0, $t0, 7
   andi $s4, $s4, 4088
-  addu $s6, $s4, $t1
+  andi $t0, $t0, 4088
+  addiu $t0, $t0, -1
+  jal DMAExec ## Args: $t0, $t1, $s0, $s4, $t2
+  addiu $t2, $zero, 12
+  LOAD_POS_NORM306: ldv $v21, 0, 0, $s4
+  ori $t0, $zero, %lo(MATRICES_MVP)
+  LOAD_POS_NORM308: ldv $v28, 0, 0, $s4
   ori $at, $zero, %lo(MG_NORMAL_MASK)
+  ldv $v11, 0, 56, $t0
   ldv $v01, 0, 0, $at
-  lhu $t8, %lo(MG_VERTEX_SIZE + 0)
   ldv $v02, 0, 8, $at
   ldv $v02, 8, 8, $at
   ldv $v01, 8, 0, $at
   ori $at, $zero, %lo(MG_CLIP_FACTORS)
-  ldv $v03, 0, 0, $at
-  ori $t0, $zero, %lo(MATRICES_MVP)
-  addu $t1, $s4, $t8
-  ldv $v03, 8, 0, $at
-  ori $at, $zero, %lo(MATRICES_NORMAL)
-  ldv $v12, 0, 0, $at
   ldv $v07, 0, 40, $t0
+  lhu $t8, %lo(MG_VERTEX_SIZE + 0)
   ldv $v10, 0, 24, $t0
-  ldv $v05, 0, 32, $t0
-  ldv $v13, 0, 8, $at
-  ldv $v11, 0, 56, $t0
-  ldv $v05, 8, 32, $t0
-  ldv $v14, 0, 16, $at
-  ldv $v09, 0, 48, $t0
-  ldv $v11, 8, 56, $t0
-  ori $t3, $zero, %lo(MG_CLIP_CACHE)
+  ldv $v08, 0, 16, $t0
+  ldv $v03, 0, 0, $at
+  addiu $s7, $s7, %lo(MG_VERTEX_CACHE)
+  ldv $v10, 8, 24, $t0
   ldv $v06, 0, 8, $t0
+  ldv $v05, 0, 32, $t0
+  ldv $v09, 0, 48, $t0
+  ldv $v09, 8, 48, $t0
+  ldv $v03, 8, 0, $at
+  addiu $t2, $s7, 40
+  ldv $v04, 0, 0, $t0
+  ldv $v04, 8, 0, $t0
+  ldv $v07, 8, 40, $t0
+  ori $at, $zero, %lo(MATRICES_NORMAL)
+  ori $t4, $zero, %lo(MG_CLIP_CACHE)
+  ldv $v08, 8, 16, $t0
+  ldv $v11, 8, 56, $t0
+  addu $s6, $s4, $t1
+  ldv $v13, 0, 8, $at
+  ldv $v12, 0, 0, $at
+  ldv $v14, 0, 16, $at
   ldv $v12, 8, 0, $at
   ldv $v14, 8, 16, $at
-  addiu $s7, $s7, %lo(MG_VERTEX_CACHE)
-  ldv $v04, 0, 0, $t0
   ldv $v13, 8, 8, $at
+  ldv $v05, 8, 32, $t0
   ori $at, $zero, %lo(MG_VIEWPORT)
-  ldv $v09, 8, 48, $t0
-  ldv $v08, 0, 16, $t0
-  ldv $v15, 0, 0, $at
-  ldv $v04, 8, 0, $t0
-  LOAD_POS_NORM310: ldv $v28, 0, 0, $s4
-  LOAD_POS_NORM308: ldv $v21, 0, 0, $s4
-  ldv $v10, 8, 24, $t0
-  ldv $v16, 0, 8, $at
-  ldv $v16, 8, 8, $at
   ldv $v06, 8, 8, $t0
-  ori $t4, $zero, %lo(MG_CLIP_CACHE)
-  ldv $v15, 8, 0, $at
-  ldv $v08, 8, 16, $t0
-  LOAD_POS_NORM309: ldv $v21, 8, 0, $t1
-  ldv $v07, 8, 40, $t0
-  ori $at, $zero, %lo(TEXTURING_SCALE)
+  ldv $v16, 0, 8, $at
+  addu $t1, $s4, $t8
+  ldv $v16, 8, 8, $at
   lbu $t0, %lo(FOG_MASK + 0)
-  LOAD_POS_NORM311: ldv $v28, 8, 0, $t1
+  ldv $v15, 0, 0, $at
+  LOAD_POS_NORM307: ldv $v21, 8, 0, $t1
+  ldv $v15, 8, 0, $at
+  ori $at, $zero, %lo(TEXTURING_SCALE)
   llv $v17, 0, 0, $at
+  LOAD_POS_NORM309: ldv $v28, 8, 0, $t1
   llv $v17, 8, 0, $at
+  sll $t9, $t8, 1
   ori $at, $zero, %lo(TEXTURING_OFFSET)
+  ori $t3, $zero, %lo(MG_CLIP_CACHE)
   llv $v18, 0, 0, $at
   llv $v18, 8, 0, $at
-  addiu $t2, $s7, 40
-  sll $t9, $t8, 1
   VERTEX_LOOP:
   vand $v21, $v01, $v21.h3
+  LOAD_COLOR333: llv $v24, 0, 0, $s4 ## Barrier: 0x3F00
   vmov $v28.e3, $v30.e2
-  LOAD_COLOR335: llv $v24, 0, 0, $s4 ## Barrier: 0x3F00
-  sdv $v22, 8, 0, $t4 ## Barrier: 0x30
+  LOAD_COLOR336: llv $v24, 4, 0, $t1 ## Barrier: 0x3F00
   vmov $v28.e7, $v30.e2
-  suv $v20, 4, 8, $t4 ## Barrier: 0x80
-  suv $v20, 0, 8, $t3 ## Barrier: 0x40
+  ori $at, $zero, %lo(RSPQ_SCRATCH_MEM) ## Barrier: 0x4000
   vmudn $v21, $v21, $v02.v
   sdv $v22, 0, 0, $t3 ## Barrier: 0xC
+  suv $v20, 0, 8, $t3 ## Barrier: 0x40
   vmudn $v29, $v05, $v28.h0
   vmadh $v29, $v04, $v28.h0
-  sb $k0, 7($t4) ## Barrier: 0x20
+  sdv $v22, 8, 0, $t4 ## Barrier: 0x30
   vmadn $v29, $v09, $v28.h2
-  slv $v19, 8, 12, $t4 ## Barrier: 0x80
-  sb $t6, 6($t4) ## Barrier: 0x10
-  vmadh $v29, $v08, $v28.h2
-  vmadn $v29, $v07, $v28.h1
-  ori $at, $zero, %lo(RSPQ_SCRATCH_MEM) ## Barrier: 0x4000
-  LOAD_COLOR338: llv $v24, 4, 0, $t1 ## Barrier: 0x3F00
-  vmadh $v29, $v06, $v28.h1
-  vmadn $v23, $v11, $v28.h3
-  slv $v19, 0, 12, $t3 ## Barrier: 0x40
-  vmadh $v22, $v10, $v28.h3
-  vmulf $v29, $v12, $v21.h0
   sb $t7, 7($t3) ## Barrier: 0x8
+  suv $v20, 4, 8, $t4 ## Barrier: 0x80
+  vmadh $v29, $v08, $v28.h2
+  sdv $v24, 0, 0, $at ## Barrier: 0x4000
+  vmadn $v29, $v07, $v28.h1
+  vmadh $v29, $v06, $v28.h1
+  slv $v19, 0, 12, $t3 ## Barrier: 0x40
+  vmadn $v23, $v11, $v28.h3
+  sb $t6, 6($t4) ## Barrier: 0x10
+  vmadh $v22, $v10, $v28.h3
+  slv $v19, 8, 12, $t4 ## Barrier: 0x80
+  vmulf $v29, $v12, $v21.h0
+  LOAD_TEXCOORD343: llv $v19, 0, 0, $s4 ## Barrier: 0x3F00
   vmacf $v29, $v13, $v21.h1
-  LOAD_TEXCOORD345: llv $v19, 0, 0, $s4 ## Barrier: 0x3F00
+  luv $v24, 0, 0, $at ## Barrier: 0x4000
   vmacf $v21, $v14, $v21.h2
   vmudn $v26, $v23, $v03.v
-  LOAD_TEXCOORD348: llv $v19, 8, 0, $t1 ## Barrier: 0x3F00
+  ori $at, $zero, %lo(FOG_PARAMS)
   vmadh $v25, $v22, $v03.v
-  sdv $v24, 0, 0, $at ## Barrier: 0x4000
-  sdv $v22, 8, 24, $t2 ## Barrier: 0x200
-  sdv $v23, 8, 32, $t2 ## Barrier: 0x200
+  LOAD_TEXCOORD346: llv $v19, 8, 0, $t1 ## Barrier: 0x3F00
   sb $t5, 6($t3) ## Barrier: 0x4
+  sdv $v22, 0, 24, $s7 ## Barrier: 0x100
+  sdv $v22, 8, 24, $t2 ## Barrier: 0x200
   vch $v29, $v25, $v25.h3
   vcl $v29, $v26, $v26.h3
-  sdv $v22, 0, 24, $s7 ## Barrier: 0x100
+  sdv $v23, 8, 32, $t2 ## Barrier: 0x200
   cfc2 $k1, $vcc
   vch $v29, $v22, $v22.h3
   sdv $v23, 0, 32, $s7 ## Barrier: 0x100
-  luv $v24, 0, 0, $at ## Barrier: 0x4000
-  andi $fp, $k1, 1799
-  srl $sp, $k1, 4
   vcl $v29, $v23, $v23.h3
-  ori $at, $zero, %lo(FOG_PARAMS)
+  llv $v26, 0, 0, $at
   vmudl $v23, $v23, $v15.h3
-  srl $s0, $fp, 5
   vmadm $v22, $v22, $v15.h3
-  or $t5, $fp, $s0
-  vmadn $v23, $v00, $v00
-  andi $fp, $sp, 1799
+  srl $sp, $k1, 4
+  andi $fp, $k1, 1799
   srl $s0, $fp, 5
-  ssv $v22, 14, 16, $t2 ## Barrier: 0x800
-  vsubc $v25, $v00, $v22.h2
+  or $t5, $fp, $s0
+  andi $fp, $sp, 1799
+  vmadn $v23, $v00, $v00
   ssv $v22, 6, 16, $s7 ## Barrier: 0x400
-  vrcph $v22.e3, $v22.e3
-  or $t6, $fp, $s0
+  vsubc $v25, $v00, $v22.h2
+  ssv $v22, 14, 16, $t2 ## Barrier: 0x800
   cfc2 $sp, $vcc
   ssv $v23, 14, 18, $t2 ## Barrier: 0x800
-  llv $v26, 0, 0, $at
+  vrcph $v22.e3, $v22.e3
+  srl $s0, $fp, 5
   ssv $v23, 6, 18, $s7 ## Barrier: 0x400
   vrcpl $v23.e3, $v23.e3
-  llv $v26, 8, 0, $at
+  or $t6, $fp, $s0
   andi $s0, $sp, 1799
   vge $v25, $v25, $v22.h2
-  llv $v27, 0, 4, $at
-  vrcph $v22.e3, $v22.e7
-  llv $v27, 8, 4, $at
-  vrcpl $v23.e7, $v23.e7
-  ori $at, $zero, %lo(LIGHTING_AMBIENT)
-  vrcph $v22.e7, $v00.e7
-  srl $fp, $sp, 4
-  vsubc $v25, $v25, $v26.h1
-  ssv $v22, 14, 20, $t2 ## Barrier: 0x2000
-  ori $sp, $zero, %lo(LIGHTING_LIGHTS)
-  vmudm $v29, $v25, $v27.h0
+  llv $v26, 8, 0, $at
   srl $s1, $s0, 5
-  vmadh $v25, $v25, $v26.h0
+  vrcph $v22.e3, $v22.e7
+  vrcpl $v23.e7, $v23.e7
+  llv $v27, 0, 4, $at
+  srl $fp, $sp, 4
   nor $t7, $s0, $s1
-  ssv $v23, 14, 22, $t2 ## Barrier: 0x2000
-  ssv $v22, 6, 20, $s7 ## Barrier: 0x1000
+  vrcph $v22.e7, $v00.e7
+  llv $v27, 8, 4, $at
+  vsubc $v25, $v25, $v26.h1
   andi $s0, $fp, 1799
+  ori $at, $zero, %lo(LIGHTING_AMBIENT)
+  sb $k0, 7($t4) ## Barrier: 0x20
+  ssv $v22, 6, 20, $s7 ## Barrier: 0x1000
+  vmudm $v29, $v25, $v27.h0
+  ssv $v22, 14, 20, $t2 ## Barrier: 0x2000
+  vmadh $v25, $v25, $v26.h0
+  ssv $v23, 14, 22, $t2 ## Barrier: 0x2000
+  srl $s1, $s0, 5
+  ssv $v23, 6, 22, $s7 ## Barrier: 0x1000
+  lw $k1, %lo(LIGHTING_COUNT + 0)
   vge $v25, $v00, $v25.h0
   vmudl $v29, $v23, $v23.h3
-  ldv $v20, 0, 0, $at
   vmadm $v29, $v22, $v23.h3
-  ssv $v23, 6, 22, $s7 ## Barrier: 0x1000
-  vmadn $v23, $v23, $v22.h3
-  srl $s1, $s0, 5
-  lw $k1, %lo(LIGHTING_COUNT + 0)
-  vmadh $v22, $v22, $v22.h3
-  ldv $v20, 8, 0, $at
-  vmudh $v29, $v16, $v30.e7
+  ldv $v20, 0, 0, $at
   nor $k0, $s0, $s1
+  vmadn $v23, $v23, $v22.h3
+  vmadh $v22, $v22, $v22.h3
+  ori $sp, $zero, %lo(LIGHTING_LIGHTS)
+  vmudh $v29, $v16, $v30.e7
+  ldv $v20, 8, 0, $at
   vmadn $v23, $v23, $v15.v
+  beq $k1, $zero, LIGHT_END
   vmadh $v22, $v22, $v15.v
   LIGHT_LOOP:
   ldv $v27, 0, 0, $sp
@@ -350,42 +351,43 @@ T3DCmd_VertLoad:
   ldv $v26, 0, 8, $sp
   ldv $v26, 8, 8, $sp
   vmulf $v27, $v27, $v21.v
-  vmulf $v29, $v26, $v27.h0
   addiu $k1, $k1, 65535
   addiu $sp, $sp, 32
+  vmulf $v29, $v26, $v27.h0
   vmacf $v29, $v26, $v27.h1
   vmacf $v26, $v26, $v27.h2
   vge $v26, $v26, $v00
   bne $k1, $zero, LIGHT_LOOP
   vadd $v20, $v20, $v26.v
-  addu $t1, $t1, $t9
+  LIGHT_END:
+  or $t4, $zero, $t2
   addu $s4, $s4, $t9
   or $t3, $zero, $s7
-  sltu $at, $s4, $s6
-  or $t4, $zero, $t2
-  PATCH_COLOR513: vmulf $v20, $v20, $v24.v
-  addiu $t2, $t2, 80
-  LOAD_POS_NORM592: ldv $v28, 0, 0, $s4
   ctc2 $t0, $vcc
-  LOAD_POS_NORM593: ldv $v28, 8, 0, $t1
-  LOAD_POS_NORM591: ldv $v21, 8, 0, $t1
+  PATCH_COLOR510: vmulf $v20, $v20, $v24.v
+  LOAD_POS_NORM596: ldv $v28, 0, 0, $s4
+  addiu $s7, $s7, 80
+  sltu $at, $s4, $s6
+  LOAD_POS_NORM594: ldv $v21, 0, 0, $s4
+  addu $t1, $t1, $t9
   vmrg $v20, $v25, $v20
-  LOAD_POS_NORM590: ldv $v21, 0, 0, $s4
   vmudh $v29, $v18, $v30.e7
+  LOAD_POS_NORM595: ldv $v21, 8, 0, $t1
+  LOAD_POS_NORM597: ldv $v28, 8, 0, $t1
   vmadh $v19, $v19, $v17.v
   bne $at, $zero, VERTEX_LOOP
-  addiu $s7, $s7, 80
-  sdv $v22, 0, 0, $t3 ## Barrier: 0xC
-  suv $v20, 4, 8, $t4 ## Barrier: 0x80
-  suv $v20, 0, 8, $t3 ## Barrier: 0x40
+  addiu $t2, $t2, 80
   sdv $v22, 8, 0, $t4 ## Barrier: 0x30
   sb $k0, 7($t4) ## Barrier: 0x20
-  slv $v19, 8, 12, $t4 ## Barrier: 0x80
-  slv $v19, 0, 12, $t3 ## Barrier: 0x40
+  sdv $v22, 0, 0, $t3 ## Barrier: 0xC
   sb $t7, 7($t3) ## Barrier: 0x8
-  sb $t6, 6($t4) ## Barrier: 0x10
-  j RSPQ_Loop
+  suv $v20, 4, 8, $t4 ## Barrier: 0x80
+  suv $v20, 0, 8, $t3 ## Barrier: 0x40
   sb $t5, 6($t3) ## Barrier: 0x4
+  slv $v19, 0, 12, $t3 ## Barrier: 0x40
+  slv $v19, 8, 12, $t4 ## Barrier: 0x80
+  j RSPQ_Loop
+  sb $t6, 6($t4) ## Barrier: 0x10
 
 MgEndShader
 

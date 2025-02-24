@@ -361,6 +361,7 @@ shader T3DCmd_VertLoad()
             vinvdist:sfract = VZERO;
             #endif
             
+            if (light_count == 0) goto LIGHT_END;
             {
             LIGHT_LOOP:
                 vec16 vlcol = load(light_ptr, MGFX_LIGHT_COLOR).xyzwxyzw;
@@ -406,6 +407,7 @@ shader T3DCmd_VertLoad()
                 if (light_count != 0) goto LIGHT_LOOP;
             }
             
+        LIGHT_END:
             @AttrPatch("COLOR:vnop") vrgba:sfract *= vrgba_in:sfract;
             undef vrgba_in;
         }
