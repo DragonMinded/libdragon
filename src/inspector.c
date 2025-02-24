@@ -580,8 +580,6 @@ static void inspector(exception_t* ex, enum Mode mode) {
         *MI_MASK = MI_WMASK_CLR_DP | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI;
     }
 
-    joypad_emergency_rumble_stop();
-
 	display_close();
 	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
