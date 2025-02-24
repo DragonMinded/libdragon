@@ -6,7 +6,7 @@
 
 #define FB_COUNT    3
 
-#define MAX_PIPELINE_COUNT          (1<<3)
+#define MAX_PIPELINE_COUNT          (1<<4)
 #define MAX_VERTEX_ATTRIBUTE_COUNT  3
 
 #define ENABLE_RDPQ_DEBUG 0
@@ -42,7 +42,6 @@ typedef struct
 typedef struct
 {
     mgfx_texturing_t texturing;
-    mgfx_modes_t modes;
 } material_raw_data;
 
 typedef struct
@@ -53,10 +52,17 @@ typedef struct
 
 typedef struct
 {
+    mg_pipeline_t *pipeline;
+    vertex_layout layout;
+    mgfx_features_t features;
+} pipeline_data;
+
+typedef struct
+{
     material_raw_data *buffer;
     sprite_t *texture;
     rdpq_texparms_t rdpq_tex_parms;
-    mgfx_modes_t modes;
+    mgfx_features_t features;
     mg_geometry_flags_t geometry_flags;
     color_t color;
 } material_data;
@@ -64,7 +70,6 @@ typedef struct
 typedef struct
 {
     mgfx_submesh_t *submesh;
-    uint32_t pipeline_id;
     rspq_block_t *block;
 } submesh_data;
 
@@ -87,6 +92,7 @@ typedef struct
     float rotation_rate;
     uint32_t mesh_id;
     uint32_t material_ids[MAX_SUBMESH_COUNT];
+    uint32_t pipeline_ids[MAX_SUBMESH_COUNT];
 } object_data;
 
 typedef struct
@@ -100,8 +106,9 @@ typedef struct
 void init();
 void update(float delta_time);
 void render();
-void material_create(material_data *mat, sprite_t *texture, mgfx_modes_parms_t *mode_parms, mg_geometry_flags_t geometry_flags, color_t color);
-void mesh_create(mesh_data *mesh, const char *model_file, vertex_layout *vertex_layout_cache);
+void material_create(material_data *mat, sprite_t *texture, mgfx_features_t features, mg_geometry_flags_t geometry_flags, color_t color);
+void mesh_create(mesh_data *mesh, const char *model_file);
+uint32_t pipeline_get_or_create(submesh_data* submesh, material_data *material);
 void update_object_transform(object_data *object);
 
 static surface_t zbuffer;
@@ -112,11 +119,10 @@ static scene_raw_data *scene_uniform_buffer[FB_COUNT];
 static const mg_uniform_t *fog_uniform;
 static const mg_uniform_t *lighting_uniform;
 static const mg_uniform_t *texturing_uniform;
-static const mg_uniform_t *modes_uniform;
 static const mg_uniform_t *matrices_uniform;
 
 static uint32_t pipelines_count = 0;
-static mg_pipeline_t *pipelines[MAX_PIPELINE_COUNT];
+static pipeline_data pipelines[MAX_PIPELINE_COUNT];
 static sprite_t *textures[TEXTURE_COUNT];
 static material_data materials[MATERIAL_COUNT];
 static mesh_data meshes[MESH_COUNT];
@@ -210,19 +216,10 @@ void init()
     }
 
     // Create meshes and initialize pipelines
-    vertex_layout vertex_layout_cache[MAX_PIPELINE_COUNT];
     for (size_t i = 0; i < MESH_COUNT; i++)
     {
-        mesh_create(&meshes[i], mesh_files[i], vertex_layout_cache);
+        mesh_create(&meshes[i], mesh_files[i]);
     }
-
-    assertf(pipelines_count > 0, "No pipelines were created during scene initialization!");
-
-    fog_uniform = mg_pipeline_get_uniform(pipelines[0], MGFX_BINDING_FOG);
-    lighting_uniform = mg_pipeline_get_uniform(pipelines[0], MGFX_BINDING_LIGHTING);
-    texturing_uniform = mg_pipeline_get_uniform(pipelines[0], MGFX_BINDING_TEXTURING);
-    modes_uniform = mg_pipeline_get_uniform(pipelines[0], MGFX_BINDING_MODES);
-    matrices_uniform = mg_pipeline_get_uniform(pipelines[0], MGFX_BINDING_MATRICES);
 
     // Load textures
     for (size_t i = 0; i < TEXTURE_COUNT; i++)
@@ -236,9 +233,7 @@ void init()
         material_create(
             &materials[i], 
             textures[material_texture_indices[i]], 
-            &(mgfx_modes_parms_t) {
-                .flags = MGFX_MODES_FLAGS_FOG_ENABLED | material_flags[i]
-            },
+            material_features[i],
             MG_GEOMETRY_FLAGS_Z_ENABLED | MG_GEOMETRY_FLAGS_TEX_ENABLED | MG_GEOMETRY_FLAGS_SHADE_ENABLED,
             color_from_packed32(material_diffuse_colors[i]));
     }
@@ -280,7 +275,21 @@ void init()
         objects[i].rotation_rate = RAND_FLT() * 5.0f;
         objects[i].rotation_angle = RAND_FLT() * M_TWOPI;
         update_object_transform(&objects[i]);
+
+        mesh_data *mesh = &meshes[objects[i].mesh_id];
+        for (size_t j = 0; j < mesh->submesh_count; j++)
+        {
+            material_data *material = &materials[objects[i].material_ids[j]];
+            objects[i].pipeline_ids[j] = pipeline_get_or_create(&mesh->submeshes[j], material);
+        }
     }
+
+    assertf(pipelines_count > 0, "No pipelines were created during scene initialization!");
+    mg_pipeline_t *pipeline = pipelines[0].pipeline;
+    fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
+    lighting_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_LIGHTING);
+    texturing_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_TEXTURING);
+    matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
 
     // Initialize draw calls.
     draw_calls = calloc(MAX_DRAW_CALL_COUNT, sizeof(draw_call));
@@ -291,7 +300,7 @@ void init()
     camera_position = camera_start_position;
 }
 
-void material_create(material_data *material, sprite_t *texture, mgfx_modes_parms_t *mode_parms, mg_geometry_flags_t geometry_flags, color_t color)
+void material_create(material_data *material, sprite_t *texture, mgfx_features_t features, mg_geometry_flags_t geometry_flags, color_t color)
 {
     // Similarly to the scene uniforms, we will provide materials to the shader via uniform buffers.
     // We separate the material from scene uniforms, because they are expected to change during the scene.
@@ -302,7 +311,7 @@ void material_create(material_data *material, sprite_t *texture, mgfx_modes_parm
     // Initialize the raw material data by using the functions provided by the fixed function pipeline.
 
     // Flip the texture upside down if environment mapping is enabled, because it will appear upside down otherwise.
-    int tex_y_scale = (mode_parms->flags & MGFX_MODES_FLAGS_ENV_MAP_ENABLED) ? -1 : 1;
+    int tex_y_scale = (features & MGFX_FEATURE_ENV_MAP) ? -1 : 1;
     material->buffer = malloc_uncached(sizeof(material_raw_data));
     mgfx_get_texturing(&material->buffer->texturing, &(mgfx_texturing_parms_t) {
         .scale[0] = texture->width  >> TEX_SIZE_SHIFT,
@@ -310,7 +319,7 @@ void material_create(material_data *material, sprite_t *texture, mgfx_modes_parm
         .offset[0] = -RDP_HALF_TEXEL,
         .offset[1] = -RDP_HALF_TEXEL
     });
-    mgfx_get_modes(&material->buffer->modes, mode_parms);
+    material->features = features;
 
     // Additionally prepare texture data for rdpq, but this is completely unrelated to magma.
     material->texture = texture;
@@ -341,12 +350,17 @@ bool are_vertex_layouts_equal(const mg_vertex_layout_t *p0, const mg_vertex_layo
     return true;
 }
 
-uint32_t get_or_create_pipeline_from_primitive_layout(const mg_vertex_layout_t *primitive_layout, vertex_layout *vertex_layout_cache)
+uint32_t pipeline_get_or_create(submesh_data* submesh, material_data *material)
 {
-    // Try to find a pipeline with the same vertex layout
+    const mg_vertex_layout_t *submesh_layout = mgfx_submesh_get_vertex_layout(submesh->submesh);
+    // Try to find a pipeline with the same vertex layout and feature set
     for (uint32_t i = 0; i < pipelines_count; i++)
     {
-        if (are_vertex_layouts_equal(primitive_layout, &vertex_layout_cache[i].vertex_layout)) {
+        if (material->features != pipelines[i].features) {
+            continue;
+        }
+
+        if (are_vertex_layouts_equal(submesh_layout, &pipelines[i].layout.vertex_layout)) {
             return i;
         }
     }
@@ -354,21 +368,23 @@ uint32_t get_or_create_pipeline_from_primitive_layout(const mg_vertex_layout_t *
     // If none was found, create a new pipeline with the vertex layout.
     // Internally, magma will patch the shader ucode to be compatible with the configured vertex layout,
     // which is why a separate pipeline needs to be created for each layout.
-    pipelines[pipelines_count] = mg_pipeline_create(&(mg_pipeline_parms_t) {
-        .vertex_shader_ucode = mgfx_get_shader_ucode(),
-        .vertex_layout = *primitive_layout
+    pipeline_data *new_pipeline = &pipelines[pipelines_count];
+    new_pipeline->pipeline = mg_pipeline_create(&(mg_pipeline_parms_t) {
+        .vertex_shader_ucode = mgfx_get_shader_ucode(material->features),
+        .vertex_layout = *submesh_layout
     });
+    new_pipeline->features = material->features;
 
     // Store the vertex layout in the cache
-    vertex_layout *cache_entry = &vertex_layout_cache[pipelines_count];
-    memcpy(cache_entry->attributes, primitive_layout->attributes, sizeof(mg_vertex_attribute_t) * primitive_layout->attribute_count);
-    memcpy(&cache_entry->vertex_layout, primitive_layout, sizeof(mg_vertex_layout_t));
-    cache_entry->vertex_layout.attributes = cache_entry->attributes;
+    vertex_layout *new_layout = &new_pipeline->layout;
+    memcpy(new_layout->attributes, submesh_layout->attributes, sizeof(mg_vertex_attribute_t) * submesh_layout->attribute_count);
+    memcpy(&new_layout->vertex_layout, submesh_layout, sizeof(mg_vertex_layout_t));
+    new_layout->vertex_layout.attributes = new_layout->attributes;
 
     return pipelines_count++;
 }
 
-void mesh_create(mesh_data *mesh, const char *model_file, vertex_layout *vertex_layout_cache)
+void mesh_create(mesh_data *mesh, const char *model_file)
 {
     mesh->mesh = mgfx_mesh_load(model_file);
     mesh->submesh_count = mgfx_mesh_get_submesh_count(mesh->mesh);
@@ -378,9 +394,6 @@ void mesh_create(mesh_data *mesh, const char *model_file, vertex_layout *vertex_
     {
         submesh_data *submesh = &mesh->submeshes[i];
         submesh->submesh = mgfx_mesh_get_submesh(mesh->mesh, i);
-
-        // Some meshes might have different vertex layouts. To account for this, we need to create a separate pipeline for each distinct layout.
-        submesh->pipeline_id = get_or_create_pipeline_from_primitive_layout(mgfx_submesh_get_vertex_layout(submesh->submesh), vertex_layout_cache);
 
         // To increase performance, we can record the drawing command into a block, since the topology of the mesh doesn't change in this case.
         // Note that we could still modify the vertices themselves if we wanted, by writing to the vertex buffer. This would require some manual
@@ -550,7 +563,7 @@ void update_draw_calls()
         for (size_t j = 0; j < mesh->submesh_count; j++)
         {
             draw_calls[draw_call_count++] = (draw_call) {
-                .pipeline_id = mesh->submeshes[j].pipeline_id,
+                .pipeline_id = object->pipeline_ids[j],
                 .material_id = object->material_ids[j],
                 // Pack both mesh id and submesh id into a 32 bit value for faster comparison
                 .mesh_id = (object->mesh_id << 16) | (j & 0xFFFF),
@@ -621,7 +634,7 @@ void render()
         // Bind the correct pipeline for the current draw call.
         if (draw_call->pipeline_id != current_pipeline_id) {
             current_pipeline_id = draw_call->pipeline_id;
-            mg_pipeline_bind(pipelines[current_pipeline_id]);
+            mg_pipeline_bind(pipelines[current_pipeline_id].pipeline);
         }
 
         // Set the current material uniforms.
@@ -632,7 +645,6 @@ void render()
             current_material_id = draw_call->material_id;
             current_material = &materials[current_material_id];
             mg_uniform_load(texturing_uniform, &current_material->buffer->texturing);
-            mg_uniform_load(modes_uniform, &current_material->buffer->modes);
 
             // Also set the geometry flags, which determine the type of triangle to be drawn.
             mg_set_geometry_flags(current_material->geometry_flags);

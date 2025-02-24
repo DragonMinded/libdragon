@@ -8,7 +8,6 @@ typedef struct {
     mgfx_fog_t fog;
     mgfx_lighting_t lighting;
     mgfx_texturing_t texturing;
-    mgfx_modes_t modes;
     mgfx_matrices_t matrices;
 } uniforms;
 
@@ -30,7 +29,7 @@ int main()
         },
     };
     mg_pipeline_t *pipeline = mg_pipeline_create(&(mg_pipeline_parms_t) {
-        .vertex_shader_ucode = mgfx_get_shader_ucode(),
+        .vertex_shader_ucode = mgfx_get_shader_ucode(0),
         .vertex_layout.attribute_count = sizeof(vertex_attributes)/sizeof(vertex_attributes[0]),
         .vertex_layout.attributes = vertex_attributes,
         .vertex_layout.stride = sizeof(vertex)
@@ -60,7 +59,6 @@ int main()
     const mg_uniform_t *fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
     const mg_uniform_t *lighting_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_LIGHTING);
     const mg_uniform_t *texturing_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_TEXTURING);
-    const mg_uniform_t *modes_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MODES);
     const mg_uniform_t *matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
 
     // Create and fill a vertex buffer.
@@ -112,7 +110,6 @@ int main()
         mg_uniform_load(fog_uniform, &uniform_data->fog);
         mg_uniform_load(lighting_uniform, &uniform_data->lighting);
         mg_uniform_load(texturing_uniform, &uniform_data->texturing);
-        mg_uniform_load(modes_uniform, &uniform_data->modes);
         mg_uniform_load(matrices_uniform, &uniform_data->matrices);
 
         // Bind the vertex buffer that was created above. All subsequent drawing

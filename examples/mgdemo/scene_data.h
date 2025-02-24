@@ -37,12 +37,12 @@ static const uint32_t material_diffuse_colors[] = {
     0xffffffff,
     0xffffffff,
 };
-static const mgfx_modes_flags_t material_flags[] = {
+static const mgfx_features_t material_features[] = {
     0,
     0,
     0,
     0,
-    MGFX_MODES_FLAGS_ENV_MAP_ENABLED
+    MGFX_FEATURE_ENV_MAP
 };
 
 
