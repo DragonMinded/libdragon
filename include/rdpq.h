@@ -779,6 +779,7 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
     else {
         assertf(parms->s.shift >= -5 && parms->s.shift <= 10, "invalid s shift %d: must be in [-5..10]", parms->s.shift);
         assertf(parms->t.shift >= -5 && parms->t.shift <= 10, "invalid t shift %d: must be in [-5..10]", parms->t.shift);
+        assertf(parms->palette < 16, "invalid palette %d: must be in [0..15]", parms->palette);
     }
     bool fixup = false;
     bool reuse = false;
