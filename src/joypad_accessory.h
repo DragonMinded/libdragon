@@ -33,8 +33,11 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_IDLE = 0,
     // Accessory detection routine states
     JOYPAD_ACCESSORY_STATE_DETECT_INIT,
-    JOYPAD_ACCESSORY_STATE_DETECT_LABEL_WRITE,
-    JOYPAD_ACCESSORY_STATE_DETECT_LABEL_READ,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_BACKUP,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_RESTORE,
     JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_WRITE,
     JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON,
@@ -138,6 +141,7 @@ typedef struct joypad_accessory_s
     joypad_accessory_state_t state;
     joypad_accessory_error_t error;
     unsigned retries;
+    uint8_t cpak_label_backup[JOYBUS_ACCESSORY_DATA_SIZE];
     joypad_accessory_io_t io;
     timer_link_t *transfer_pak_wait_timer;
     joybus_transfer_pak_status_t transfer_pak_status;
@@ -155,8 +159,11 @@ void joypad_accessory_reset(joypad_port_t port);
  * @brief Detect which accessory is inserted in an N64 controller.
  *
  * * Step 1: Ensure Transfer Pak is turned off
- * * Step 2A: Overwrite "label" area to detect Controller Pak
- * * Step 2B: Read back the "label" area to detect Controller Pak
+ * * Step 2A: Set Controller Pak "linear paging bank" to 0
+ * * Step 2B: Backup the Controller Pak "label" area
+ * * Step 2C: Overwrite the Controller Pak "label" area
+ * * Step 2D: Read back the "label" area to detect Controller Pak
+ * * Step 2E: Restore the Controller Pak "label" area
  * * Step 3A: Write probe value to detect Rumble Pak
  * * Step 3B: Read probe value to detect Rumble Pak
  * * Step 4A: Write probe value to detect Transfer Pak
