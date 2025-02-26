@@ -779,6 +779,7 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
     else {
         assertf(parms->s.shift >= -5 && parms->s.shift <= 10, "invalid s shift %d: must be in [-5..10]", parms->s.shift);
         assertf(parms->t.shift >= -5 && parms->t.shift <= 10, "invalid t shift %d: must be in [-5..10]", parms->t.shift);
+        assertf(parms->palette < 16, "invalid palette %d: must be in [0..15]", parms->palette);
     }
     bool fixup = false;
     bool reuse = false;
@@ -1267,6 +1268,30 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
         _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31),
         AUTOSYNC_PIPE);
+}
+
+/**
+ * @brief Load a block of memory to TMEM with a single contiguous memory transfer.
+ *
+ * Loads data from RDRAM to TMEM but takes in byte offsets and sizes unlike #rdpq_load_block.
+ *
+ * @param[in] offset    Destination TMEM offset
+ * @param[in] buffer    Pointer to data in RDRAM to load
+ * @param[in] size      Number of bytes to load (max: 4096)
+ *
+ * @see #rdpq_load_block
+ * @see #rdpq_load_block_fx
+ */
+inline void rdpq_load_block_linear(int32_t offset, void *buffer, uint16_t size)
+{
+    assertf((offset & 7) == 0, "invalid TMEM offset %ld: must be 8-byte aligned", offset);
+    assertf((PhysicalAddr(buffer) & 7) == 0, "invalid buffer: %p, must be 8-byte aligned", buffer);
+    assertf((size & 7) == 0, "invalid size %d: must be a multiple of 8", size);
+    assertf(size <= 4096, "invalid size %d: must fit TMEM", size);
+    rdpq_set_texture_image_raw(0, PhysicalAddr(buffer), FMT_RGBA16, 8, size / 8);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, offset, 0, NULL);
+    uint32_t num_texels = size / 2;
+    rdpq_load_block(RDPQ_TILE_INTERNAL, 0, 0, num_texels, 16);
 }
 
 /**

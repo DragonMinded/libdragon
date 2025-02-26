@@ -275,3 +275,5 @@ void joybus_exec( const void * input, void * output )
         }
     }
 }
+
+extern inline void joybus_exec_cmd(int port, size_t send_len, size_t recv_len, const void *send_data, void *recv_data);

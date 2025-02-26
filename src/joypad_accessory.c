@@ -291,15 +291,34 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
     {
         return; // Accessory communication error!
     }
-    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_LABEL_READ)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_BACKUP)
+    {
+        memcpy((void *)accessory->cpak_label_backup, cmd->recv.data, sizeof(cmd->recv.data));
+        // Step 2C: Overwrite the Controller Pak "label" area
+        for (size_t i = 0; i < sizeof(write_data); ++i) write_data[i] = i;
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_accessory_write_async(
+            port, JOYBUS_ACCESSORY_ADDR_LABEL, write_data,
+            joypad_accessory_detect_write_callback, ctx
+        );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ)
     {
         // Compare the expected label with what was actually read back
         for (size_t i = 0; i < sizeof(write_data); ++i) write_data[i] = i;
         if (memcmp(cmd->recv.data, write_data, sizeof(write_data)) == 0)
         {
-            // Success: Label write persisted; this appears to be a Controller Pak
-            accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
-            accessory->type = JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK;
+            // Step 2E: Restore the Controller Pak "label" area
+            memcpy(write_data, (void *)accessory->cpak_label_backup, sizeof(write_data));
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_RESTORE;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+            accessory->retries = 0;
+            joybus_accessory_write_async(
+                port, JOYBUS_ACCESSORY_ADDR_LABEL, write_data,
+                joypad_accessory_detect_write_callback, ctx
+            );
         }
         else
         {
@@ -418,27 +437,43 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
     {
         // Transfer Pak has been turned off; reset Transfer Pak status
         accessory->transfer_pak_status.raw = 0x00;
-        // Step 2A: Overwrite "label" area to detect Controller Pak
-        uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE];
-        for (size_t i = 0; i < sizeof(data); ++i) data[i] = i;
-        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_LABEL_WRITE;
+        // Step 2A: Set Controller Pak "linear paging bank" to 0
+        uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE] = {0};
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
         joybus_accessory_write_async(
-            port, JOYBUS_ACCESSORY_ADDR_LABEL, data,
+            port, JOYPAD_CONTROLLER_PAK_BANK_SWITCH_ADDRESS, data,
             joypad_accessory_detect_write_callback, ctx
         );
     }
-    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_LABEL_WRITE)
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE)
     {
-        // Step 2B: Read back the "label" area to detect Controller Pak
-        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_LABEL_READ;
+        // Step 2B: Backup the Controller Pak "label" area
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_BACKUP;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
         joybus_accessory_read_async(
             port, JOYBUS_ACCESSORY_ADDR_LABEL,
             joypad_accessory_detect_read_callback, ctx
         );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE)
+    {
+        // Step 2D: Read back the "label" area to detect Controller Pak
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_accessory_read_async(
+            port, JOYBUS_ACCESSORY_ADDR_LABEL,
+            joypad_accessory_detect_read_callback, ctx
+        );
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_RESTORE)
+    {
+        // Success: Controller Pak detected
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        accessory->type = JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK;
     }
     else if (state == JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_WRITE)
     {
