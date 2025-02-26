@@ -25,20 +25,19 @@ void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms)
     // start == end is undefined, so disable fog by setting the factor to 0
     bool is_disabled = fabsf(diff) < FLT_MIN;
     float factor = is_disabled ? 0.0f : 1.0f / diff;
-    float offset = parms->start;
+    float offset = -parms->start;
 
-    // Convert to s15.16 and premultiply with 1.15 conversion factor
-    int32_t factor_fx = factor * (1<<(16 + 7 + (8 - MGFX_VTX_POS_SHIFT)));
-    int16_t offset_fx = offset * (1<<MGFX_VTX_POS_SHIFT);
+    int32_t offset_fx = offset * (1<<(16 + MGFX_VTX_POS_SHIFT));
+    // Premultiply with 1.15 conversion factor
+    int16_t factor_fx = factor * (1<<(15 - MGFX_VTX_POS_SHIFT));
 
-    int16_t factor_i = factor_fx >> 16;
-    uint16_t factor_f = factor_fx & 0xFFFF;
+    int16_t offset_i = offset_fx >> 16;
+    uint16_t offset_f = offset_fx & 0xFFFF;
 
-    dst->factor_int = factor_i;
-    dst->offset_int = offset_fx;
-    dst->factor_frac = factor_f;
-    dst->offset_frac = 0;
-    dst->mask = is_disabled ? 0x00 : 0x88;
+    dst->factor_int = factor_fx;
+    dst->offset_int = offset_i;
+    dst->offset_frac = offset_f;
+    dst->mask = is_disabled ? 0x00 : 0x77;
 }
 
 static inline void color_to_i16(int16_t *dst, color_t color)

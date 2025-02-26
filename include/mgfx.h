@@ -20,10 +20,9 @@ typedef enum
 /** @brief Data structure of the fog uniform. */
 typedef struct
 {
-    int16_t factor_int;     ///< Integer part of the fog factor.
     int16_t offset_int;     ///< Integer part of the fog offset.
-    uint16_t factor_frac;   ///< Fractional part of the fog factor.
     uint16_t offset_frac;   ///< Fractional part of the fog offset.
+    int16_t factor_int;     ///< Integer part of the fog factor.
     uint8_t mask;           ///< Mask that determines whether the fog factor is loaded into vertex alpha.
 } __attribute__((packed, aligned(16))) mgfx_fog_t;
 

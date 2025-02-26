@@ -33,7 +33,7 @@ state
 
 uniform<MGFX_BINDING_FOG> FOG
 {
-    s16 FOG_PARAMS[4];
+    s16 FOG_PARAMS[3];
     u8 FOG_MASK;
 }
 
@@ -296,6 +296,19 @@ shader T3DCmd_VertLoad()
         @Barrier("st_cp0") store(vpos_clip.xyzw, vtx_out0_ptr, MG_VTX_CS_POSi);
         @Barrier("st_cp1") store(vpos_clip.XYZW, vtx_out1_ptr, MG_VTX_CS_POSi);
 
+        vec16 vfog;
+        {   // Fog
+            vec16 vfog_parms;
+            vfog_parms = load(FOG_PARAMS).xyzwxyzw;
+
+            vec16 vtmp:ufract = vpos_clip:ufract + vfog_parms:ufract.yyyyYYYY;
+            vfog:sint = vpos_clip:sint + vfog_parms:sint.xxxxXXXX;
+            
+            VTEMP = vtmp:ufract * vfog_parms:sint.zzzzZZZZ;
+            vfog = vfog:sint +* vfog_parms:sint.zzzzZZZZ;
+            vfog = max(VZERO, vfog.zzzzZZZZ);
+        }   
+
         #ifdef NEED_EYE_SPACE
         vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
         vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
@@ -312,20 +325,6 @@ shader T3DCmd_VertLoad()
 
         @Barrier("st_iw0") store(vpos_clip.w, vtx_out0_ptr, MG_VTX_INVWi);
         @Barrier("st_iw1") store(vpos_clip.W, vtx_out1_ptr, MG_VTX_INVWi);
-
-        vec16 vfog;
-        {   // Fog
-            vec32 vfog_parms;
-            vfog_parms.xy = load(FOG_PARAMS).xy;
-            vfog_parms.XY = load(FOG_PARAMS).xy;
-            
-            vfog = VZERO - vpos_clip:sint.zzzzZZZZ;
-            vfog = max(vfog, vpos_clip:sint.zzzzZZZZ);
-            vfog -= vfog_parms:sint.yyyyYYYY;
-            
-            vfog *= vfog_parms.xxxxXXXX;
-            vfog = max(VZERO, vfog.xxxxXXXX);
-        }   
         
         vpos_clip *= vpos_clip.wwwwWWWW;
         
@@ -413,7 +412,8 @@ shader T3DCmd_VertLoad()
         }
 
         set_vcc(fog_mask);
-        vrgba = select(vfog, vrgba);
+        vrgba = select(vrgba, vfog.zzzzZZZZ);
+        undef vfog;
 
         #ifdef NEED_EYE_SPACE
         {

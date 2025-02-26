@@ -17,7 +17,7 @@ void mg_mat4_perspective(fm_mat4_t *out, float fovy, float aspect, float z_near,
     *out = (fm_mat4_t){{
         { cotangent / aspect, 0, 0, 0 },
         { 0, -cotangent, 0, 0 },
-        { 0, 0, (z_far + z_near) / deltaZ, -1 },
+        { 0, 0, z_far / deltaZ, -1 },
         { 0, 0, z_near * z_far / deltaZ, 0 },
     }};
 }
