@@ -16,17 +16,17 @@
 /** @brief Input number of the "Texture coordinate" vertex input. */
 #define MGFX_ATTRIBUTE_TEXCOORD         2
 
-/** @brief Binding number of the "Fog" uniform. */
-#define MGFX_BINDING_FOG                0
-
-/** @brief Binding number of the "Lighting" uniform. */
-#define MGFX_BINDING_LIGHTING           1
+/** @brief Binding number of the "Matrices" uniform. */
+#define MGFX_BINDING_MATRICES           0
 
 /** @brief Binding number of the "Texturing" uniform. */
-#define MGFX_BINDING_TEXTURING          2
+#define MGFX_BINDING_TEXTURING          1
 
-/** @brief Binding number of the "Matrices" uniform. */
-#define MGFX_BINDING_MATRICES           3
+/** @brief Binding number of the "Lighting" uniform. */
+#define MGFX_BINDING_LIGHTING           2
+
+/** @brief Binding number of the "Fog" uniform. */
+#define MGFX_BINDING_FOG                3
 
 /** @brief The maximum number of lights. */
 #define MGFX_LIGHT_COUNT_MAX    8

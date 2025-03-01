@@ -1,35 +1,5 @@
 ## Auto-generated file, transpiled with RSPL
 #include <rsp_magma.inc>
-#define __MAGMA_CONSTANTS 
-#define MG_VTX_XYZ 0
-#define MG_VTX_CLIP_CODE 6
-#define MG_VTX_TR_CODE 7
-#define MG_VTX_RGBA 8
-#define MG_VTX_ST 12
-#define MG_VTX_Wi 16
-#define MG_VTX_Wf 18
-#define MG_VTX_INVWi 20
-#define MG_VTX_INVWf 22
-#define MG_VTX_CS_POSi 24
-#define MG_VTX_CS_POSf 32
-#define MG_VTX_SIZE 40
-#define MG_VTX_SIZE2 80
-#define __MGFX_CONSTANTS 
-#define MGFX_ATTRIBUTE_POS_NORM 0
-#define MGFX_ATTRIBUTE_COLOR 1
-#define MGFX_ATTRIBUTE_TEXCOORD 2
-#define MGFX_BINDING_FOG 0
-#define MGFX_BINDING_LIGHTING 1
-#define MGFX_BINDING_TEXTURING 2
-#define MGFX_BINDING_MATRICES 3
-#define MGFX_LIGHT_COUNT_MAX 8
-#define MGFX_LIGHT_POSITION 0
-#define MGFX_LIGHT_COLOR 8
-#define MGFX_LIGHT_ATT_INT 16
-#define MGFX_LIGHT_ATT_FRAC 24
-#define MGFX_LIGHT_SIZE 32
-#define MGFX_MATRIX_SIZE 64
-#define MGFX_VTX_POS_SHIFT 5
 
 .set noreorder
 .set noat
@@ -104,7 +74,7 @@
 #define vce 2
 
 MgBeginShaderUniforms
-  MgBeginUniform MATRICES, 3
+  MgBeginUniform MATRICES, 0
     .align 4
     MATRICES_MVP: .ds.b 64
     .align 4
@@ -113,14 +83,14 @@ MgBeginShaderUniforms
     MATRICES_NORMAL: .ds.b 32
   MgEndUniform
 
-  MgBeginUniform TEXTURING, 2
+  MgBeginUniform TEXTURING, 1
     .align 1
     TEXTURING_SCALE: .ds.b 4
     .align 1
     TEXTURING_OFFSET: .ds.b 4
   MgEndUniform
 
-  MgBeginUniform LIGHTING, 1
+  MgBeginUniform LIGHTING, 2
     LIGHTING_LIGHTS: .ds.b 256
     .align 1
     LIGHTING_AMBIENT: .ds.b 8
@@ -128,7 +98,7 @@ MgBeginShaderUniforms
     LIGHTING_COUNT: .ds.b 4
   MgEndUniform
 
-  MgBeginUniform FOG, 0
+  MgBeginUniform FOG, 3
     .align 1
     FOG_PARAMS: .ds.b 6
     FOG_MASK: .ds.b 1
