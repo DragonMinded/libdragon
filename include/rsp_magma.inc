@@ -2,7 +2,7 @@
 #include "magma_constants.h"
 
 #define TRIANGLE_SIZE       0xB0
-#define MAX_UNIFORMS_SIZE   0x400
+#define MAX_UNIFORMS_SIZE   0x200
 
 .macro MgBeginShaderUniforms
     .section .meta.mg_uniforms
@@ -32,7 +32,7 @@ MG_STATE:
     MG_CULL_MODE:               .byte   0
     MG_OUTPUT_OFFSET:           .byte   0
 
-    .align 4
+    .align 3
 _MG_VTX_SHADER_UNIFORMS:
 .endm
 
@@ -57,7 +57,7 @@ _MG_VTX_SHADER_UNIFORMS_END:
     .long \binding
     .long \name - _MG_VTX_SHADER_UNIFORMS
     .data
-    .align 4
+    .align 3
 \name:
 .endm
 

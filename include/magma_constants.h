@@ -13,7 +13,7 @@
  * @see #mg_load_vertices
  * @see #mg_draw_triangle
  */
-#define MG_VERTEX_CACHE_COUNT           32
+#define MG_VERTEX_CACHE_COUNT           48
 
 /** @brief Default value of the clipping guard factor. 
  * 

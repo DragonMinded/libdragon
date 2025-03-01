@@ -1,12 +1,6 @@
 ## Auto-generated file, transpiled with RSPL
+#include <rsp_magma.inc>
 #define __MAGMA_CONSTANTS 
-#define MG_VERTEX_CACHE_COUNT 32
-#define MG_DEFAULT_GUARD_BAND 2
-#define MG_INLINE_UNIFORM_HEADER 12
-#define MG_MAX_UNIFORM_PAYLOAD_SIZE (RSPQ_MAX_COMMAND_SIZE*4 - MG_INLINE_UNIFORM_HEADER)
-#define MG_CLIP_PLANE_COUNT 6
-#define MG_CLIP_PLANE_SIZE 8
-#define MG_CLIP_CACHE_SIZE 9
 #define MG_VTX_XYZ 0
 #define MG_VTX_CLIP_CODE 6
 #define MG_VTX_TR_CODE 7
@@ -36,7 +30,6 @@
 #define MGFX_LIGHT_SIZE 32
 #define MGFX_MATRIX_SIZE 64
 #define MGFX_VTX_POS_SHIFT 5
-#include <rsp_magma.inc>
 
 .set noreorder
 .set noat
@@ -111,10 +104,20 @@
 #define vce 2
 
 MgBeginShaderUniforms
-  MgBeginUniform FOG, 0
+  MgBeginUniform MATRICES, 3
+    .align 4
+    MATRICES_MVP: .ds.b 64
+    .align 4
+    MATRICES_MV: .ds.b 64
+    .align 4
+    MATRICES_NORMAL: .ds.b 32
+  MgEndUniform
+
+  MgBeginUniform TEXTURING, 2
     .align 1
-    FOG_PARAMS: .ds.b 6
-    FOG_MASK: .ds.b 1
+    TEXTURING_SCALE: .ds.b 4
+    .align 1
+    TEXTURING_OFFSET: .ds.b 4
   MgEndUniform
 
   MgBeginUniform LIGHTING, 1
@@ -125,20 +128,10 @@ MgBeginShaderUniforms
     LIGHTING_COUNT: .ds.b 4
   MgEndUniform
 
-  MgBeginUniform TEXTURING, 2
+  MgBeginUniform FOG, 0
     .align 1
-    TEXTURING_SCALE: .ds.b 4
-    .align 1
-    TEXTURING_OFFSET: .ds.b 4
-  MgEndUniform
-
-  MgBeginUniform MATRICES, 3
-    .align 4
-    MATRICES_MVP: .ds.b 64
-    .align 4
-    MATRICES_MV: .ds.b 64
-    .align 4
-    MATRICES_NORMAL: .ds.b 32
+    FOG_PARAMS: .ds.b 6
+    FOG_MASK: .ds.b 1
   MgEndUniform
 
 MgEndShaderUniforms

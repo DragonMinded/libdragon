@@ -1,3 +1,4 @@
+include "rsp_magma.inc"
 #include "../../include/magma_constants.h"
 #include "../../include/mgfx_constants.h"
 
@@ -13,7 +14,6 @@
 #define NEED_EYE_SPACE  1
 #endif
 
-include "rsp_magma.inc"
 
 state
 {
@@ -31,10 +31,17 @@ state
     extern u32    MG_VERTEX_BUFFER;
 }
 
-uniform<MGFX_BINDING_FOG> FOG
+uniform<MGFX_BINDING_MATRICES> MATRICES
 {
-    s16 FOG_PARAMS[3];
-    u8 FOG_MASK;
+    vec16 MATRICES_MVP[4];
+    vec16 MATRICES_MV[4];
+    vec16 MATRICES_NORMAL[2];
+}
+
+uniform<MGFX_BINDING_TEXTURING> TEXTURING
+{
+    s16 TEXTURING_SCALE[2];
+    s16 TEXTURING_OFFSET[2];
 }
 
 uniform<MGFX_BINDING_LIGHTING> LIGHTING
@@ -44,17 +51,10 @@ uniform<MGFX_BINDING_LIGHTING> LIGHTING
     u32 LIGHTING_COUNT;
 }
 
-uniform<MGFX_BINDING_TEXTURING> TEXTURING
+uniform<MGFX_BINDING_FOG> FOG
 {
-    s16 TEXTURING_SCALE[2];
-    s16 TEXTURING_OFFSET[2];
-}
-
-uniform<MGFX_BINDING_MATRICES> MATRICES
-{
-    vec16 MATRICES_MVP[4];
-    vec16 MATRICES_MV[4];
-    vec16 MATRICES_NORMAL[2];
+    s16 FOG_PARAMS[3];
+    u8 FOG_MASK;
 }
 
 attribute<MGFX_ATTRIBUTE_POS_NORM>  s16 POS_NORM[4];
