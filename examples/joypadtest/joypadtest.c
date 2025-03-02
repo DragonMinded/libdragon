@@ -95,7 +95,11 @@ int main(void)
     {
         console_clear();
 
-        printf("LibDragon Joypad Subsystem Test\n\n");
+        printf("\n");
+        printf("LibDragon Joypad Subsystem Test\n");
+        printf("Hold A to test rumble motors.\n");
+        printf("Press B to trigger an exception.\n");
+        printf("\n");
 
         joypad_poll();
 
@@ -117,6 +121,11 @@ int main(void)
                 {
                     joypad_set_rumble_active(port, false);
                 }
+            }
+
+            if (inputs.btn.b)
+            {
+                debugf((char *)0x1);
             }
 
             printf("Port %d ", port + 1);

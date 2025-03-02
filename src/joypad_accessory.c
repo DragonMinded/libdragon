@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "debug.h"
+#include "interrupt.h"
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
 #include "joypad_internal.h"
@@ -241,7 +242,15 @@ static void joypad_transfer_pak_wait_timer_callback(int ovfl, void *ctx)
     joypad_port_t port = (joypad_port_t)ctx;
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     joypad_accessory_state_t state = accessory->state;
-    if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WAIT)
+
+    // Cancel accessory detection during reset
+    if( exception_reset_time() > 0 )
+    {
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_UNKNOWN;
+    }
+    else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WAIT)
     {
         uint8_t write_data[JOYBUS_ACCESSORY_DATA_SIZE];
         memset(write_data, JOYBUS_TRANSFER_PAK_STATUS_ACCESS, sizeof(write_data));
@@ -281,6 +290,15 @@ static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ct
     if (!joypad_accessory_state_is_detecting(state))
     {
         return; // Unexpected accessory state!
+    }
+
+    // Cancel accessory detection during reset
+    if( exception_reset_time() > 0 )
+    {
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_UNKNOWN;
+        return;
     }
 
     uint8_t write_data[JOYBUS_ACCESSORY_DATA_SIZE];
@@ -426,6 +444,15 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
         return; // Unexpected accessory state!
     }
 
+    // Cancel accessory detection during reset
+    if( exception_reset_time() > 0 )
+    {
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_UNKNOWN;
+        return;
+    }
+
     const joybus_cmd_n64_accessory_write_port_t *cmd =
         (void *)&out_bytes[port + JOYBUS_COMMAND_METADATA_SIZE];
     joybus_callback_t retry_callback = joypad_accessory_detect_write_callback;
@@ -519,6 +546,9 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
 
 void joypad_accessory_detect_async(joypad_port_t port)
 {
+    // Disable accessory detection during reset
+    if( exception_reset_time() > 0 ) return;
+
     ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     // Ensure Transfer Pak wait timer has been initialized
@@ -559,6 +589,13 @@ static void joypad_rumble_pak_motor_write_callback(uint64_t *out_dwords, void *c
         return; // Unexpected accessory state!
     }
 
+    // Do not attempt to retry rumble motor control commands during reset
+    if( exception_reset_time() > 0 )
+    {
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        return;
+    }
+
     const joybus_cmd_n64_accessory_write_port_t *cmd =
         (void *)&out_bytes[port + JOYBUS_COMMAND_METADATA_SIZE];
     joybus_callback_t retry_callback = joypad_rumble_pak_motor_write_callback;
@@ -570,6 +607,9 @@ static void joypad_rumble_pak_motor_write_callback(uint64_t *out_dwords, void *c
 
 void joypad_rumble_pak_toggle_async(joypad_port_t port, bool active)
 {
+    // Disable rumble motor control during reset
+    if( exception_reset_time() > 0 ) return;
+
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     device->rumble_active = active;
@@ -715,6 +755,13 @@ void joypad_accessory_xfer_async(
     void *ctx
 )
 {
+    // Disable accessory transfers during reset
+    if( exception_reset_time() > 0 )
+    {
+        if (callback != NULL) callback( JOYPAD_ACCESSORY_ERROR_UNKNOWN, ctx );
+        return;
+    }
+
     ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
 
@@ -770,6 +817,9 @@ joypad_accessory_error_t joypad_accessory_xfer(
     void *dst,
     size_t len)
 {
+    // Disable accessory transfers during reset
+    if( exception_reset_time() > 0 ) return JOYPAD_ACCESSORY_ERROR_UNKNOWN;
+
     volatile bool done = false;
     volatile joypad_accessory_error_t error = JOYPAD_ACCESSORY_ERROR_NONE;
 
