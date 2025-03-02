@@ -14,7 +14,7 @@ _MG_META_UNIFORMS:
     
     .align 3
     MG_VERTEX_CACHE:            .dcb.b  MG_VERTEX_CACHE_COUNT * MG_VTX_SIZE
-    MG_VERTEX_OVERFLOW:         .dcb.b  MG_VTX_SIZE
+    MG_VERTEX_CACHE_END:
 
     .align 4
 MG_STATE:
@@ -204,7 +204,7 @@ Mg_Clipping:
     .ascii "Code by snacchus"
 
     .align 4
-MG_NORMAL_MASK:                 .half   0xF800, 0x07E0, 0x001F, 0, 1, 1<<5, 1<<11, 0
+MG_NORMAL_MASK:                 .half   0xF800, 0x07E0, 0x001F, 0x7FFF, 1, 1<<5, 1<<11, 0
 MG_CLIP_CACHE_OFFSETS:          .half   2,4,6,8,10,12,14,16,18
 
 MG_CLIP_PLANES:              

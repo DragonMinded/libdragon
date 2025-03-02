@@ -4,16 +4,6 @@ include "rsp_magma.inc"
 
 //#define TRACE_VTX_LOOP          1
 //#define ENABLE_NORMALIZE        1
-//#define ENABLE_POINT_LIGHTS     1
-
-#ifdef ENABLE_POINT_LIGHTS
-#define NEED_EYE_SPACE  1
-#endif
-
-#ifdef ENABLE_ENV_MAP
-#define NEED_EYE_SPACE  1
-#endif
-
 
 state
 {
@@ -23,7 +13,7 @@ state
     extern vec16  MG_NORMAL_MASK[8];
     
     extern u16    MG_VERTEX_CACHE;
-    extern u16    MG_VERTEX_OVERFLOW;
+    extern u16    MG_VERTEX_CACHE_END;
     
     extern vec16  MG_VIEWPORT[8];
     extern vec16  MG_CLIP_FACTORS[4];
@@ -47,8 +37,9 @@ uniform<MGFX_BINDING_TEXTURING> TEXTURING
 uniform<MGFX_BINDING_LIGHTING> LIGHTING
 {
     u8 LIGHTING_LIGHTS[MGFX_LIGHT_SIZE][MGFX_LIGHT_COUNT_MAX];
-    s16 LIGHTING_AMBIENT[4];
-    u32 LIGHTING_COUNT;
+    s16 LIGHTING_AMBIENT[3];
+    u8 LIGHTING_HAS_POINTS;
+    u8 LIGHTING_COUNT;
 }
 
 uniform<MGFX_BINDING_FOG> FOG
@@ -145,7 +136,7 @@ shader T3DCmd_VertLoad()
         
         s16 off_from_end;
         @Barrier("inputs0") off_from_end = load(RSPQ_SCRATCH_MEM, 0x4);
-        vtx_in0_ptr = off_from_end + MG_VERTEX_OVERFLOW;
+        vtx_in0_ptr = off_from_end + MG_VERTEX_CACHE_END;
         vtx_in0_ptr &= 0xFF8;
         
         dma_in(vtx_in0_ptr, vtx_buffer, dma_size);
@@ -157,14 +148,10 @@ shader T3DCmd_VertLoad()
         vtx_out0_ptr += MG_VERTEX_CACHE;
     }
     
-    vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
-    vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
-
-    #ifndef ENABLE_ENV_MAP
-    vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
-    #endif
-    
-    vec32 vmvp0, vmvp1, vmvp2, vmvp3;
+    vec32<$v01> vmvp0;
+    vec32<$v03> vmvp1;
+    vec32<$v05> vmvp2;
+    vec32<$v07> vmvp3;
     {
         u16 mvpaddr = MATRICES_MVP;
         load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, mvpaddr);
@@ -174,20 +161,25 @@ shader T3DCmd_VertLoad()
     vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
     vmn1 = load(MATRICES_NORMAL, 0x08).xyzwxyzw;
     vmn2 = load(MATRICES_NORMAL, 0x10).xyzwxyzw;
-
-    #ifndef NEED_EYE_SPACE
-    vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
-    vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
-    #endif
+    
+    vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
+    vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
 
     #ifndef ENABLE_ENV_MAP
+    vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
+    vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
+
     vec16 vtexscale, vtexoffset;
     vtexscale.xy = load(TEXTURING_SCALE).xy;
     vtexscale.XY = load(TEXTURING_SCALE).xy;
     vtexoffset.xy = load(TEXTURING_OFFSET).xy;
     vtexoffset.XY = load(TEXTURING_OFFSET).xy;
+
+    u8 has_points = load(LIGHTING_HAS_POINTS);
     #endif
 
+    vec16 vfog_parms;
+    vfog_parms = load(FOG_PARAMS).xyzwxyzw;
     u8 fog_mask = load(FOG_MASK);
 
     u16 vtx_in1_ptr = vtx_in0_ptr + vtx_size;
@@ -200,14 +192,14 @@ shader T3DCmd_VertLoad()
     vec16 vtex;
     vec16 vrgba;
     
-    vec16<$v28> vpos_obj;
+    vec16 vpos;
     vec16 vnorm;
     vec32 vpos_clip;
 
     @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
     @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-    @AttrLoader("POS_NORM") vpos_obj.xyzw = load(vtx_in0_ptr).xyzw;
-    @AttrLoader("POS_NORM") vpos_obj.XYZW = load(vtx_in1_ptr).xyzw;
+    @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+    @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
 
     #ifdef TRACE_VTX_LOOP
         asm("emux_trace_start");
@@ -250,16 +242,16 @@ shader T3DCmd_VertLoad()
         // Eye space normals
         vnorm = vnormmask & vnorm.wwwwWWWW;
 
-        vpos_obj.w = 0x20;
-        vpos_obj.W = 0x20;
+        vpos.w = 0x20;
+        vpos.W = 0x20;
 
         vnorm *= vnormfactor;
 
         // Clip space position
-        VTEMP = vmvp0  * vpos_obj.xxxxXXXX;
-        VTEMP = vmvp2 +* vpos_obj.zzzzZZZZ;
-        VTEMP = vmvp1 +* vpos_obj.yyyyYYYY;
-        vpos_clip = vmvp3 +* vpos_obj.wwwwWWWW;
+        VTEMP = vmvp0  * vpos.xxxxXXXX;
+        VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+        VTEMP = vmvp1 +* vpos.yyyyYYYY;
+        vpos_clip = vmvp3 +* vpos.wwwwWWWW;
 
         VTEMP = vmn0:sfract  * vnorm:sfract.xxxxXXXX;
         VTEMP = vmn1:sfract +* vnorm:sfract.yyyyYYYY;
@@ -281,9 +273,7 @@ shader T3DCmd_VertLoad()
 
         {   // Clip codes
 
-            #ifdef ENABLE_ENV_MAP
             vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
-            #endif
             vec32 vguard = vpos_clip * vclip_factors;
             u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
             pack_clip_codes2(c0, c1, clip_codes);
@@ -298,9 +288,6 @@ shader T3DCmd_VertLoad()
 
         vec16 vfog;
         {   // Fog
-            vec16 vfog_parms;
-            vfog_parms = load(FOG_PARAMS).xyzwxyzw;
-
             vec16 vtmp:ufract = vpos_clip:ufract + vfog_parms:ufract.yyyyYYYY;
             vfog:sint = vpos_clip:sint + vfog_parms:sint.xxxxXXXX;
             
@@ -309,7 +296,7 @@ shader T3DCmd_VertLoad()
             vfog = max(VZERO, vfog.zzzzZZZZ);
         }   
 
-        #ifdef NEED_EYE_SPACE
+        #ifdef ENABLE_ENV_MAP
         vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
         vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
         #endif
@@ -320,45 +307,42 @@ shader T3DCmd_VertLoad()
         @Barrier("st_w0") store(vpos_clip.w, vtx_out0_ptr, MG_VTX_Wi);
         @Barrier("st_w1") store(vpos_clip.W, vtx_out1_ptr, MG_VTX_Wi);
         
-        vpos_clip.w = invert_half(vpos_clip).w;
-        vpos_clip.W = invert_half(vpos_clip).W;
+        vec32 vinvw;
+        vinvw.w = invert_half(vpos_clip).w;
+        vinvw.W = invert_half(vpos_clip).W;
 
-        @Barrier("st_iw0") store(vpos_clip.w, vtx_out0_ptr, MG_VTX_INVWi);
-        @Barrier("st_iw1") store(vpos_clip.W, vtx_out1_ptr, MG_VTX_INVWi);
+        @Barrier("st_iw0") store(vinvw.w, vtx_out0_ptr, MG_VTX_INVWi);
+        @Barrier("st_iw1") store(vinvw.W, vtx_out1_ptr, MG_VTX_INVWi);
         
-        vpos_clip *= vpos_clip.wwwwWWWW;
+        vpos_clip *= vinvw.wwwwWWWW;
+
+        undef vinvw;
         
         VTEMP = vviewoff:sint * 1;
         vpos_clip = vpos_clip +* vviewscale;
 
-        #ifdef NEED_EYE_SPACE
+        #ifdef ENABLE_ENV_MAP
         undef vviewscale;
         undef vviewoff;
+        #endif
 
-        vec16 vpos_eye;
+        #ifndef ENABLE_ENV_MAP
+        if (has_points != 0)
+        #endif
         {
             u16 addr = MATRICES_MV;
             load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
             
-            VTEMP = vmvp0  * vpos_obj.xxxxXXXX;
-            VTEMP = vmvp1 +* vpos_obj.yyyyYYYY;
-            VTEMP = vmvp2 +* vpos_obj.zzzzZZZZ;
-            vpos_eye = vmvp3 +* vpos_obj.wwwwWWWW;
+            VTEMP = vmvp0  * vpos.xxxxXXXX;
+            VTEMP = vmvp1 +* vpos.yyyyYYYY;
+            VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+            vpos = vmvp3 +* vpos.wwwwWWWW;
         }
-        #endif
-        undef vpos_obj;
 
         {   // Lighting
             vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
-            s32 light_count = load(LIGHTING_COUNT);
+            u8 light_count = load(LIGHTING_COUNT);
             u16 light_ptr = LIGHTING_LIGHTS;
-
-            #ifdef ENABLE_POINT_LIGHTS
-            vec32 vinvdist;
-            vinvdist:sint.z = 1;
-            vinvdist:sint.Z = 1;
-            vinvdist:sfract = VZERO;
-            #endif
             
             if (light_count == 0) goto LIGHT_END;
             {
@@ -366,32 +350,36 @@ shader T3DCmd_VertLoad()
                 vec16 vlcol = load(light_ptr, MGFX_LIGHT_COLOR).xyzwxyzw;
                 vec16 vlpos = load(light_ptr, MGFX_LIGHT_POSITION).xyzwxyzw;
                 
-                #ifdef ENABLE_POINT_LIGHTS
                 s16 light_w = load(light_ptr, MGFX_LIGHT_POSITIONW);
                 if (light_w != 0)
                 {
-                    vec32 vatten = load(light_ptr, MGFX_LIGHT_ATT_INT).xyzwxyzw;
-                    vlpos -= vpos_eye;
-                    vec32 vsqdist = vlpos * vlpos;
-                    vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-                    vsqdist = vtmp + vsqdist.zzzzZZZZ;
-                    undef vtmp;
-                    
-                    vinvdist.y = invert_half_sqrt(vsqdist).x;
-                    vinvdist.Y = invert_half_sqrt(vsqdist).X;
-                    
-                    vec32 vdist = vinvdist * vsqdist.xxxxXXXX;
-                    vdist *= vatten;
-                    vatten += vdist.yyyyYYYY;
-                    vatten += vdist.zzzzZZZZ;
-                    
-                    vatten.x = invert_half(vatten).x;
-                    vatten.X = invert_half(vatten).X;
-                    
-                    vlpos *= vinvdist.yyyyYYYY;
-                    vlcol *= vatten.xxxxXXXX;
+                    undef vmvp0;
+                    undef vmvp1;
+                    undef vmvp2;
+                    undef vmvp3;
+
+                    {
+                        vlpos -= vpos;
+                        vec32 vsqdist = vlpos * vlpos;
+                        vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+                        vsqdist = vtmp + vsqdist.zzzzZZZZ;
+                        
+                        vtmp.x = invert_half_sqrt(vsqdist).x;
+                        vtmp.X = invert_half_sqrt(vsqdist).X;
+                        
+                        vlpos *= vtmp.xxxxXXXX;
+                        vec16 vatten = vtmp * vlcol.wwwwWWWW;
+                        vatten:sfract *= vatten:sfract;
+                        vlcol:sfract *= vatten:sfract.xxxxXXXX;
+                    }
+
+                    vec32<$v01> vmvp0;
+                    vec32<$v03> vmvp1;
+                    vec32<$v05> vmvp2;
+                    vec32<$v07> vmvp3;
+                    u16 addr = MATRICES_MVP;
+                    load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
                 }
-                #endif
                 
                 vlpos *= vnorm:sfract;
                 VTEMP = vlcol:sfract  * vlpos:sfract.xxxxXXXX;
@@ -407,6 +395,8 @@ shader T3DCmd_VertLoad()
             }
             
         LIGHT_END:
+            vrgba.w = vnormmask.w;
+            vrgba.W = vnormmask.w;
             @AttrPatch("COLOR:vnop") vrgba:sfract *= vrgba_in:sfract;
             undef vrgba_in;
         }
@@ -414,44 +404,33 @@ shader T3DCmd_VertLoad()
         set_vcc(fog_mask);
         vrgba = select(vrgba, vfog.zzzzZZZZ);
         undef vfog;
-
-        #ifdef NEED_EYE_SPACE
-        {
-            u16 addr = MATRICES_MVP;
-            load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
-        }
-        #endif
         
         #ifdef ENABLE_ENV_MAP
         {   // Environment mapping
-            vec32 vsqdist = vpos_eye * vpos_eye;
+            vec32 vsqdist = vpos * vpos;
             vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
             vsqdist = vtmp + vsqdist.zzzzZZZZ;
+            
+            vtmp.x = invert_half_sqrt(vsqdist).x;
+            vtmp.X = invert_half_sqrt(vsqdist).X;
+            
+            vpos *= vtmp.xxxxXXXX;
             undef vtmp;
             
-            vsqdist.x = invert_half_sqrt(vsqdist).x;
-            vsqdist.X = invert_half_sqrt(vsqdist).X;
-            
-            vpos_eye *= vsqdist.xxxxXXXX;
-            
-            vec16 vdot = vpos_eye:sfract * vnorm:sfract;
+            vec16 vdot = vpos:sfract * vnorm:sfract;
             vec16 vtmp:sint = vdot + vdot.yyyyYYYY;
             vdot:sint = vtmp + vdot.zzzzZZZZ;
             undef vtmp;
             vdot = min(vdot, VZERO);
             vdot = VZERO - vdot;
 
-            s16 one = 0x7FFF;
-            @Barrier("unpack_col") @Barrier("init_zunit0") @Barrier("init_zunit1") 
-            store(one, RSPQ_SCRATCH_MEM);
-            
             vec16 vzunit = VZERO;
-            @Barrier("init_zunit0") vzunit.z = load(RSPQ_SCRATCH_MEM).x;
-            @Barrier("init_zunit1") vzunit.Z = load(RSPQ_SCRATCH_MEM).x;
+            vzunit.z = vnormmask.w;
+            vzunit.Z = vnormmask.w;
             
             VTEMP = vnorm:sfract  * vdot.xxxxXXXX;
             VTEMP = vnorm:sfract +* vdot.xxxxXXXX;
-            VTEMP = vpos_eye:sint +* 1;
+            VTEMP = vpos:sint +* 1;
             VTEMP = vzunit:sint +* 1;
             undef vzunit;
             undef vdot;
@@ -460,18 +439,15 @@ shader T3DCmd_VertLoad()
             vsqdist = vrefl * vrefl;
             vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
             vsqdist = vtmp + vsqdist.zzzzZZZZ;
-            undef vtmp;
             
-            vsqdist.x = invert_half_sqrt(vsqdist).x;
-            vsqdist.X = invert_half_sqrt(vsqdist).X;
+            vtmp.x = invert_half_sqrt(vsqdist).x;
+            vtmp.X = invert_half_sqrt(vsqdist).X;
             
             vtex = 0x80;
             VTEMP = vtex:sint * 1;
-            vtex:sint = vrefl +* vsqdist.xxxxXXXX;
+            vtex:sint = vrefl +* vtmp.xxxxXXXX;
         }
-        #endif
 
-        #ifdef ENABLE_ENV_MAP
         vec16 vtexscale, vtexoffset;
         vtexscale.xy = load(TEXTURING_SCALE).xy;
         vtexscale.XY = load(TEXTURING_SCALE).xy;
@@ -490,12 +466,10 @@ shader T3DCmd_VertLoad()
         vtx_out0_ptr += MG_VTX_SIZE2;
         vtx_out1_ptr += MG_VTX_SIZE2;
 
-        vec16<$v28> vpos_obj;
-
         @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
         @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-        @AttrLoader("POS_NORM") vpos_obj.xyzw = load(vtx_in0_ptr).xyzw;
-        @AttrLoader("POS_NORM") vpos_obj.XYZW = load(vtx_in1_ptr).xyzw;
+        @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+        @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
 
         if (vtx_in0_ptr < vtx_in_end) goto VERTEX_LOOP;
 

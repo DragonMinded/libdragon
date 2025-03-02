@@ -93,9 +93,9 @@ static const fm_vec4_t light_positions[] = {
     {{ 0.196116f, -0.784465f, -0.588348f, 0.0f }},
     {{ 0.0f, 10.0f, 0.0f, 1.0f }}
 };
-static const float light_radii[] = {
+static const float light_intensities[] = {
     0.0f,
-    50.0f
+    30.0f
 };
 static const uint32_t ambient_light_color = 0x101010ff;
 

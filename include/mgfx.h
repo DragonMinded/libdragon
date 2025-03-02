@@ -43,17 +43,17 @@ typedef struct
 typedef struct
 {
     int16_t position[4];            ///< The light's position.
-    int16_t color[4];               ///< The light's color.
-    int16_t attenuation_int[4];     ///< Integer parts of the attenuation coefficients.
-    uint16_t attenuation_frac[4];   ///< Fractional parts of the attenuation coefficients.
+    int16_t color[3];               ///< The light's color.
+    int16_t intensity;              ///< The light's intensity.
 } __attribute__((packed, aligned(16))) mgfx_light_t;
 
 /** @brief Data structure of the lighting uniform. */
 typedef struct
 {
     mgfx_light_t lights[MGFX_LIGHT_COUNT_MAX];  ///< Array of lights.
-    int16_t ambient[4];                         ///< The ambient color.
-    uint32_t count;                             ///< Number of lights.
+    int16_t ambient[3];                         ///< The ambient color.
+    uint8_t has_points;                         ///< Non-zero if there are any point lights.
+    uint8_t count;                              ///< Number of lights.
 } __attribute__((packed, aligned(16))) mgfx_lighting_t;
 
 /** @brief Data structure of the fog uniform. */
@@ -92,7 +92,7 @@ typedef struct
     fm_vec4_t position;
 
     color_t color;      ///< The light's color.
-    float radius;       ///< The light's radius. Must only be set if the light is positional.
+    float intensity;    ///< The light's intensity. Must only be set if the light is positional.
 } mgfx_light_parms_t;
 
 /** @brief Lighting parameters. */

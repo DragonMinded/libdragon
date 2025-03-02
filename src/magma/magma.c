@@ -81,9 +81,10 @@ void mg_draw_end(void)
 
 void mg_load_vertices(uint32_t buffer_index, uint8_t cache_index, uint32_t count)
 {
+    uint32_t count2 = ROUND_UP(count, 2);
     assertf(count > 0, "count must be greater than 0");
-    assertf(count <= MG_VERTEX_CACHE_COUNT, "too many vertices");
-    assertf(cache_index + count <= MG_VERTEX_CACHE_COUNT, "offset out of range");
+    assertf(count2 <= MG_VERTEX_CACHE_COUNT, "too many vertices");
+    assertf(cache_index + count2 <= MG_VERTEX_CACHE_COUNT, "offset out of range");
     mg_cmd_write(MG_CMD_LOAD_VERTICES, buffer_index, (cache_index<<16) | count);
 }
 

@@ -34,10 +34,10 @@
 /// @cond
 
 #define MGFX_LIGHT_POSITION     0
+#define MGFX_LIGHT_POSITIONW    6
 #define MGFX_LIGHT_COLOR        8
-#define MGFX_LIGHT_ATT_INT      16
-#define MGFX_LIGHT_ATT_FRAC     24
-#define MGFX_LIGHT_SIZE         32
+#define MGFX_LIGHT_INTENSITY    14
+#define MGFX_LIGHT_SIZE         16
 
 #define MGFX_MATRIX_SIZE        64
 

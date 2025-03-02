@@ -212,7 +212,7 @@ void init()
     for (size_t i = 0; i < LIGHT_COUNT; i++)
     {
         lights[i].color = color_from_packed32(light_colors[i]);
-        lights[i].radius = light_radii[i];
+        lights[i].intensity = light_intensities[i];
     }
 
     // Create meshes and initialize pipelines
