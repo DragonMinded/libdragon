@@ -252,6 +252,9 @@ shader T3DCmd_VertLoad()
         VTEMP = vmn1:sfract +* vnorm:sfract.yyyyYYYY;
         vnorm = vmn2:sfract +* vnorm:sfract.zzzzZZZZ;
 
+        vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
+        u8 light_count = load(LIGHTING_COUNT);
+
         #ifdef ENABLE_NORMALIZE
         {
             vec32 vsqdist = vnorm * vnorm;
@@ -333,67 +336,62 @@ shader T3DCmd_VertLoad()
             VTEMP = vmvp2 +* vpos.zzzzZZZZ;
             vpos = vmvp3 +* vpos.wwwwWWWW;
         }
-
-        {   // Lighting
-            vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
-            u8 light_count = load(LIGHTING_COUNT);
-            u16 light_ptr = LIGHTING_LIGHTS;
+        
+        u16 light_ptr = LIGHTING_LIGHTS;
+        if (light_count == 0) goto LIGHT_END;
+        {
+        LIGHT_LOOP:
+            vec16 vlcol = load(light_ptr, MGFX_LIGHT_COLOR).xyzwxyzw;
+            vec16 vlpos = load(light_ptr, MGFX_LIGHT_POSITION).xyzwxyzw;
             
-            if (light_count == 0) goto LIGHT_END;
+            s16 light_w = load(light_ptr, MGFX_LIGHT_POSITIONW);
+            if (light_w != 0)
             {
-            LIGHT_LOOP:
-                vec16 vlcol = load(light_ptr, MGFX_LIGHT_COLOR).xyzwxyzw;
-                vec16 vlpos = load(light_ptr, MGFX_LIGHT_POSITION).xyzwxyzw;
-                
-                s16 light_w = load(light_ptr, MGFX_LIGHT_POSITIONW);
-                if (light_w != 0)
+                undef vmvp0;
+                undef vmvp1;
+                undef vmvp2;
+                undef vmvp3;
+
                 {
-                    undef vmvp0;
-                    undef vmvp1;
-                    undef vmvp2;
-                    undef vmvp3;
-
-                    {
-                        vlpos -= vpos;
-                        vec32 vsqdist = vlpos * vlpos;
-                        vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-                        vsqdist = vtmp + vsqdist.zzzzZZZZ;
-                        
-                        vtmp.x = invert_half_sqrt(vsqdist).x;
-                        vtmp.X = invert_half_sqrt(vsqdist).X;
-                        
-                        vlpos *= vtmp.xxxxXXXX;
-                        vec16 vatten = vtmp * vlcol.wwwwWWWW;
-                        vatten:sfract *= vatten:sfract;
-                        vlcol:sfract *= vatten:sfract.xxxxXXXX;
-                    }
-
-                    vec32<$v01> vmvp0;
-                    vec32<$v03> vmvp1;
-                    vec32<$v05> vmvp2;
-                    vec32<$v07> vmvp3;
-                    u16 addr = MATRICES_MVP;
-                    load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
+                    vlpos -= vpos;
+                    vec32 vsqdist = vlpos * vlpos;
+                    vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+                    vsqdist = vtmp + vsqdist.zzzzZZZZ;
+                    
+                    vtmp.x = invert_half_sqrt(vsqdist).x;
+                    vtmp.X = invert_half_sqrt(vsqdist).X;
+                    
+                    vlpos *= vtmp.xxxxXXXX;
+                    vec16 vatten = vtmp * vlcol.wwwwWWWW;
+                    vatten:sfract *= vatten:sfract;
+                    vlcol:sfract *= vatten:sfract.xxxxXXXX;
                 }
-                
-                vlpos *= vnorm:sfract;
-                VTEMP = vlcol:sfract  * vlpos:sfract.xxxxXXXX;
-                VTEMP = vlcol:sfract +* vlpos:sfract.yyyyYYYY;
-                vlcol = vlcol:sfract +* vlpos:sfract.zzzzZZZZ;
-                vlcol = max(vlcol, VZERO);
-                
-                vrgba:sint += vlcol; // Cast to sint to force saturated addition
-                
-                light_ptr += MGFX_LIGHT_SIZE;
-                light_count -= 1;
-                if (light_count != 0) goto LIGHT_LOOP;
+
+                vec32<$v01> vmvp0;
+                vec32<$v03> vmvp1;
+                vec32<$v05> vmvp2;
+                vec32<$v07> vmvp3;
+                u16 addr = MATRICES_MVP;
+                load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
             }
             
-        LIGHT_END:
-            vrgba.w = vnormmask.w;
-            vrgba.W = vnormmask.w;
-            @AttrPatch("COLOR:vnop") vrgba:sfract *= vrgba_in:sfract;
+            vlpos *= vnorm:sfract;
+            VTEMP = vlcol:sfract  * vlpos:sfract.xxxxXXXX;
+            VTEMP = vlcol:sfract +* vlpos:sfract.yyyyYYYY;
+            vlcol = vlcol:sfract +* vlpos:sfract.zzzzZZZZ;
+            vlcol = max(vlcol, VZERO);
+            
+            vrgba:sint += vlcol; // Cast to sint to force saturated addition
+            
+            light_ptr += MGFX_LIGHT_SIZE;
+            light_count -= 1;
+            if (light_count != 0) goto LIGHT_LOOP;
         }
+        
+    LIGHT_END:
+        vrgba.w = vnormmask.w;
+        vrgba.W = vnormmask.w;
+        @AttrPatch("COLOR:vnop") vrgba:sfract *= vrgba_in:sfract;
 
         set_vcc(fog_mask);
         vrgba = select(vrgba, vfog.zzzzZZZZ);
