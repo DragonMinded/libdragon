@@ -46,9 +46,6 @@ static inline void wait_ns( unsigned long wait_ns )
     (*PI_BB_GPIO & I2C_DATA_BIT) ? 1 : 0; \
 })
 
-/** @brief Delay to wait the RTC chip to reply */
-#define I2C_READ_DELAY   1000
-
 #include "i2c_internal.h"
 
 /** @brief RTC slave address on the I2C bus */
