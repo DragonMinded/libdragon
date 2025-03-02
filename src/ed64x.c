@@ -1,6 +1,7 @@
 /**
  * @file ed64x.c
  * @brief EverDrive 64 X-series utilities
+ * @ingroup peripherals
  */
 
 #include "debug.h"
@@ -9,10 +10,7 @@
 #include "rtc_internal.h"
 #include "utils.h"
 
-/**
- * @addtogroup ed64x
- * @{
- */
+#define DS1337_DEVICE_ADDR      0x68            ///< DS1337 I2C device address
 
 static const uint32_t ED64X_REG_I2C_CMD = 0x1F800018;
 static const uint32_t ED64X_REG_I2C_DAT = 0x1F80001C;
@@ -29,6 +27,7 @@ static int ed64x_i2c_cmd(uint8_t cmd)
     return ed64x_i2c_status();
 }
 
+__attribute__((used))
 static uint8_t ed64x_i2c_dat(uint8_t cmd)
 {
     io_write(ED64X_REG_I2C_DAT, cmd);
@@ -52,11 +51,13 @@ static void ed64x_i2c_end(void)
     while (io_read(ED64X_REG_I2C_CMD) & 0x80) {}
 }
 
+__attribute__((used))
 static void ed64x_i2c_setwr(void)
 {
     io_write(ED64X_REG_I2C_CMD, io_read(ED64X_REG_I2C_CMD) | 0x11);
 }
 
+__attribute__((used))
 static void ed64x_i2c_setrd(void)
 {
     io_write(ED64X_REG_I2C_CMD, io_read(ED64X_REG_I2C_CMD) | 0x10);
@@ -87,22 +88,7 @@ static int ed64x_i2c_write(uint16_t addr, const uint8_t* data, int len)
     return 0;
 }
 
-int ed64x_rtc_write( time_t new_time )
+int ed64x_rtc_write(uint8_t buf[7])
 {
-    struct tm * rtc_time = gmtime( &new_time );
-    uint8_t buf[7];
-
-    // The RTC is a DS1337. Encode time according to its datasheet
-    enum { DS1337_BUS_ADDR = 0xD000 };
-
-    buf[0] = bcd_encode( rtc_time->tm_sec );
-    buf[1] = bcd_encode( rtc_time->tm_min );
-    buf[2] = bcd_encode( rtc_time->tm_hour );  // bit 6 toggles 12/24 hour mode
-    buf[3] = bcd_encode( rtc_time->tm_wday + 1 );
-    buf[4] = bcd_encode( rtc_time->tm_mday );
-    buf[5] = bcd_encode( rtc_time->tm_mon + 1 ); // bit 7 is the century bit
-    buf[6] = bcd_encode( rtc_time->tm_year % 100 );
-    return ed64x_i2c_write( DS1337_BUS_ADDR + 0, buf, sizeof(buf) );
+    return ed64x_i2c_write((DS1337_DEVICE_ADDR << 9) + 0, buf, 7);
 }
-
- /** @} */ /* ed64x */

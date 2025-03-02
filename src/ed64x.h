@@ -4,31 +4,34 @@
  * @ingroup peripherals
  */
 
- #ifndef __LIBDRAGON_ED64X_H
- #define __LIBDRAGON_ED64X_H
+#ifndef __LIBDRAGON_ED64X_H
+#define __LIBDRAGON_ED64X_H
 
- #include <stdbool.h>
- #include <stdint.h>
- #include <time.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <time.h>
 
- /**
-  * @defgroup ed64x EverDrive 64 X-series
-  * @ingroup peripherals
-  * @brief EverDrive 64 X-series utilities.
-  *
-  * @{
-  */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
- #ifdef __cplusplus
- extern "C" {
- #endif
+/**
+ * @brief Write an encoded time to the EverDrive 64 X7 RTC.
+ * 
+ * This function writes an encoded time to the EverDrive 64 X7 RTC, using
+ * direct I2C access via hardware registers. It can be used to change the time,
+ * as ED64 X7 does not support using the joybus RTC write commands.
+ * 
+ * @param buf        The encoded time to write (see #ed64_rtc_encode).
+ * @return int       0 on success, -1 on failure.
+ * 
+ * @see #ed64_rtc_encode
+ * @see #ed64_rtc_write
+ */
+int ed64x_rtc_write( uint8_t buf[7] );
 
- int ed64x_rtc_write( time_t new_time );
+#ifdef __cplusplus
+}
+#endif
 
- #ifdef __cplusplus
- }
- #endif
-
- /** @} */ /* ed64x */
-
- #endif
+#endif

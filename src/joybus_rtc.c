@@ -5,6 +5,7 @@
  */
 
 #include "debug.h"
+#include "ed64.h"
 #include "ed64x.h"
 #include "joybus_commands.h"
 #include "joybus_internal.h"
@@ -444,24 +445,30 @@ int joybus_rtc_set_time( time_t new_time )
         return RTC_EBADCLOCK;
     }
 
-    if (cart_type == CART_ED)
+    if (cart_type == CART_ED || cart_type == CART_EDX)
     {
-        // Joybus RTC write is not supported on EverDrive 64 V3.
-        debugf("joybus_rtc_set_time: EverDrive 64 V3 not supported!\n");
-        // TODO: Research and implement ED64 V3-specific RTC write
-        return RTC_EBADCLOCK;
-    }
+        uint8_t buf[7];
+        ed64_rtc_encode( new_time, buf );
 
-    if (cart_type == CART_EDX)
-    {
-        // Joybus RTC write is not supported on EverDrive 64 X7.
-        // Attempt to use the ED64X i2c interface to set the time instead.
-        if( ed64x_rtc_write( new_time ) != 0 )
+        // Joybus RTC write is not supported on EverDrive 64.
+        // Attempt to use the ED64 i2c interface to set the time instead.
+        switch( cart_type )
         {
-            debugf("joybus_rtc_set_time: EverDrive 64 X7 i2c write failed!\n");
-            return RTC_EBADCLOCK;
+        case CART_ED:
+            if( ed64_rtc_write( buf ) != 0 )
+            {
+                debugf("joybus_rtc_set_time: EverDrive 64 i2c write failed!\n");
+                return RTC_EBADCLOCK;
+            }
+            return RTC_ESUCCESS;
+        case CART_EDX:
+            if( ed64x_rtc_write( buf ) != 0 )
+            {
+                debugf("joybus_rtc_set_time: EverDrive 64 X7 i2c write failed!\n");
+                return RTC_EBADCLOCK;
+            }
+            return RTC_ESUCCESS;
         }
-        return RTC_ESUCCESS;
     }
 
     debugf("joybus_rtc_set_time: reading control block\n");
