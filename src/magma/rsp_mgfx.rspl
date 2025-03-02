@@ -3,7 +3,6 @@ include "rsp_magma.inc"
 #include "../../include/mgfx_constants.h"
 
 //#define TRACE_VTX_LOOP          1
-//#define ENABLE_NORMALIZE        1
 
 state
 {
@@ -189,17 +188,20 @@ shader T3DCmd_VertLoad()
     u16 prev_out1 = MG_CLIP_CACHE;
 
     u8 c0, c1, tr0, tr1;
-    vec16 vtex;
-    vec16 vrgba;
     
     vec16 vpos;
     vec16 vnorm;
+    vec16 vtex;
+    vec16 vrgba;
+    vec16 vrgba_in;
     vec32 vpos_clip;
 
     @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
     @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
     @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
     @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+    @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
+    @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
 
     #ifdef TRACE_VTX_LOOP
         asm("emux_trace_start");
@@ -220,13 +222,6 @@ shader T3DCmd_VertLoad()
 
         @Barrier("st_tex0") store(vtex.xy, prev_out0, MG_VTX_ST);
         @Barrier("st_tex1") store(vtex.XY, prev_out1, MG_VTX_ST);
-
-        vec16 vrgba_in;
-        @Barrier("st_cp0") @Barrier("st_cp1") @Barrier("st_w0") @Barrier("st_w1") @Barrier("st_iw0") @Barrier("st_iw1") 
-        @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
-
-        @Barrier("st_cp0") @Barrier("st_cp1") @Barrier("st_w0") @Barrier("st_w1") @Barrier("st_iw0") @Barrier("st_iw1") 
-        @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
 
         @Barrier("unpack_col") store(vrgba_in.xyzw, RSPQ_SCRATCH_MEM);
         @Barrier("unpack_col") vrgba_in = load_vec_u8(RSPQ_SCRATCH_MEM);
@@ -398,7 +393,6 @@ shader T3DCmd_VertLoad()
             vrgba.w = vnormmask.w;
             vrgba.W = vnormmask.w;
             @AttrPatch("COLOR:vnop") vrgba:sfract *= vrgba_in:sfract;
-            undef vrgba_in;
         }
 
         set_vcc(fog_mask);
@@ -470,6 +464,8 @@ shader T3DCmd_VertLoad()
         @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
         @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
         @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+        @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
+        @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
 
         if (vtx_in0_ptr < vtx_in_end) goto VERTEX_LOOP;
 
