@@ -1,7 +1,7 @@
 N64_GCCPREFIX ?= $(N64_INST)
 INSTALLDIR ?= $(N64_INST)
 
-C_CXX_FLAGS += -g -Og -pthread -Wall -Werror
+C_CXX_FLAGS += -O2 -pthread -Wall -Werror
 C_CXX_FLAGS += -I../include -MMD
 C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
