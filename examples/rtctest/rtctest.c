@@ -79,11 +79,7 @@ int main(void)
 
         /* Line 5 */
         graphics_set_color( WHITE, BLACK );
-        if( !rtc_is_persistent() )
-        {
-            graphics_draw_text( disp, 0, LINE5, NOWRITE_MESSAGE );
-        }
-        else if( rtc_get_source() == RTC_SOURCE_JOYBUS && rtc_is_source_available( RTC_SOURCE_DD ) )
+        if( rtc_get_source() == RTC_SOURCE_JOYBUS && rtc_is_source_available( RTC_SOURCE_DD ) )
         {
             graphics_draw_text( disp, 0, LINE5, SRC_DD_MESSAGE );
         }

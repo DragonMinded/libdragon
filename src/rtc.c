@@ -41,10 +41,6 @@ static volatile rtc_state_t rtc_state = RTC_STATE_INIT;
 static rtc_source_t rtc_source = RTC_SOURCE_NONE;
 static int rtc_sync_result = RTC_ESUCCESS;
 
-static int rtc_source_joybus_persistent = -1;
-static int rtc_source_dd_persistent = -1;
-static int rtc_source_bb_persistent = -1;
-
 /** @brief Tick counter state when rtc_cache_time was last updated. */
 static int64_t rtc_cache_ticks = 0;
 /** @brief Internal cache of the time from the last sync with the hardware RTC. */
@@ -202,7 +198,6 @@ static void rtc_init_joybus_detecting_callback( bool detected, joybus_rtc_status
     // If the state has changed, abort the callback
     if( rtc_state != RTC_STATE_JOYBUS_DETECTING ) return;
 
-    rtc_source_joybus_persistent = detected && !status.battery_bad;
     if( detected && !status.crystal_bad && !status.battery_bad )
     {
         // Always prefer Joybus RTC if it is available and operational
@@ -319,84 +314,6 @@ bool rtc_is_source_available( rtc_source_t source )
     }
 }
 
-bool rtc_is_source_persistent( rtc_source_t source )
-{
-    assert( rtc_state != RTC_STATE_INIT );
-    WAIT_FOR_RTC_READY();
-
-    if( !rtc_is_source_available( source ))
-    {
-        return false;
-    }
-
-    time_t check_time;
-    int result;
-    if( source == RTC_SOURCE_JOYBUS )
-    {
-        // Only perform the persistent test once and cache the result
-        if( rtc_source_joybus_persistent == -1 )
-        {
-            // Test writability by attempting to perform a read/write
-            result = joybus_rtc_get_time( &check_time );
-            if( result != RTC_ESUCCESS )
-            {
-                rtc_source_joybus_persistent = false;
-            }
-            else
-            {
-                result = joybus_rtc_set_time( check_time );
-                rtc_source_joybus_persistent = (result == RTC_ESUCCESS);
-            }
-        }
-        return rtc_source_joybus_persistent;
-    }
-    if( source == RTC_SOURCE_DD )
-    {
-        // Only perform the persistent test once and cache the result
-        if( rtc_source_dd_persistent == -1 )
-        {
-            // Test writability by attempting to perform a write
-            result = dd_rtc_get_time( &check_time );
-            if( result != RTC_ESUCCESS )
-            {
-                rtc_source_dd_persistent = false;
-            }
-            else
-            {
-                result = dd_rtc_set_time( check_time );
-                rtc_source_dd_persistent = (result == RTC_ESUCCESS);
-            }
-        }
-        return rtc_source_dd_persistent;
-    }
-    if( source == RTC_SOURCE_BB )
-    {
-            // Only perform the persistent test once and cache the result
-        if( rtc_source_bb_persistent == -1 )
-        {
-            // Test writability by attempting to perform a write
-            result = bb_rtc_get_time( &check_time );
-            if( result != RTC_ESUCCESS )
-            {
-                rtc_source_bb_persistent = false;
-            }
-            else
-            {
-                result = bb_rtc_set_time( check_time );
-                rtc_source_bb_persistent = (result == RTC_ESUCCESS);
-            }
-        }
-        return rtc_source_bb_persistent;
-    }
-    // Software RTC does not persist across reset/power-off
-    return false;
-}
-
-bool rtc_is_persistent( void )
-{
-    return rtc_is_source_persistent( rtc_source );
-}
-
 rtc_range_t rtc_get_source_supported_range( rtc_source_t source )
 {
     if( source == RTC_SOURCE_JOYBUS )
@@ -461,12 +378,6 @@ bool rtc_set( rtc_time_t * write_time )
     struct tm timeinfo = rtc_time_to_tm( write_time );
     time_t new_time = mktime( &timeinfo );
     return rtc_set_time( new_time ) == RTC_ESUCCESS;
-}
-
-/** @deprecated Use #rtc_is_persistent instead. */
-bool rtc_is_writable( void )
-{
-    return rtc_is_persistent();
 }
 
 /** @} */ /* rtc */

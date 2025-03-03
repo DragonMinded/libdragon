@@ -30,7 +30,6 @@
  * Once the RTC subsystem is initialized, you can use ISO C Time functions
  * to get the current time, for example: `time(NULL)` will return the number of
  * seconds elapsed since the UNIX epoch (January 1, 1970 at 00:00:00).
- * To check if the real-time clock supports writes, call #rtc_is_persistent.
  * To write a new time to the real-time clock, use the ISO C Time function
  * `settimeofday`.
  *
@@ -189,45 +188,6 @@ rtc_range_t rtc_get_source_supported_range( rtc_source_t source );
  */
 rtc_range_t rtc_get_supported_range( void );
 
-/**
- * @brief Determine whether a specific clock source supports persistent
- * writing of the time.
- *
- * Some emulators and flash carts do not support writing to the RTC, so
- * this function makes an attempt to detect silent write failures and will
- * return `false` if it is unable to change the time on the RTC.
- *
- * This function is useful if your program wants to conditionally offer the
- * ability to set the time based on hardware/emulator support.
- *
- * Unfortunately this operation may introduce a slight drift in the clock,
- * but it is the only reliable way to determine if the RTC actually persists
- * the time.
- *
- * @param source the RTC source to check
- *
- * @return whether RTC write persistence appears to be supported for the source
- */
-bool rtc_is_source_persistent( rtc_source_t source );
-
-/**
- * @brief Determine whether the RTC supports persistent writing of the time.
- *
- * Some emulators and flash carts do not support writing to the RTC, so
- * this function makes an attempt to detect silent write failures and will
- * return `false` if it is unable to change the time on the RTC.
- *
- * This function is useful if your program wants to conditionally offer the
- * ability to set the time based on hardware/emulator support.
- *
- * Unfortunately this operation may introduce a slight drift in the clock,
- * but it is the only reliable way to determine if the RTC actually persists
- * the time.
- *
- * @return whether RTC write persistence appears to be supported
- */
-bool rtc_is_persistent( void );
-
 /**************************************
  *  DEPRECATED
  **************************************/
@@ -256,8 +216,8 @@ typedef struct rtc_time_t
     uint8_t week_day;
 } rtc_time_t;
 
-__attribute__((deprecated("use rtc_is_persistent instead")))
-bool rtc_is_writable( void );
+__attribute__((deprecated("just assume it's always writable")))
+static inline bool rtc_is_writable( void ) { return true; }
 
 __attribute__((deprecated("use time(NULL) instead")))
 bool rtc_get( rtc_time_t *rtc_time );
