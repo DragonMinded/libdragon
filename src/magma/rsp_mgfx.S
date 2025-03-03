@@ -125,7 +125,6 @@ MgBeginVertexInput
 MgEndVertexInput
 
 MgBeginShader
-T3DCmd_VertLoad:
   addiu $t0, $gp, %lo(RSPQ_DMEM_BUFFER)  -6
   ldv $v02, 0, 0, $t0
   lsv $v02, 6, 4, $t0

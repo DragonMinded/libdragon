@@ -97,7 +97,7 @@ macro load_mat4x4(vec32 m0, vec32 m1, vec32 m2, vec32 m3, u16 address)
     m3:ufract = load(address, 0x38).xyzwxyzw;
 }
 
-shader T3DCmd_VertLoad()
+shader mgfx()
 {
     u16<$t8> vtx_size;
     u16<$t9> vtx_size2;
