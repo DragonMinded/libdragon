@@ -99,22 +99,25 @@ int ed64x_rtc_write(uint8_t buf[7])
 
     // Now that the RTC has been changed, update the cached value exposed via the
     // joybus interface
-    uint8_t buffer[8] = {0};
-
-    // Stop the clock
-    io_write(ED64X_REG_RTC_CACHE + 0, *(u_uint32_t*)(buffer + 0));
-    io_write(ED64X_REG_RTC_CACHE + 4, *(u_uint32_t*)(buffer + 4));
+    // Stop the clock first.
+    io_write(ED64X_REG_RTC_CACHE + 0, 0);
+    io_write(ED64X_REG_RTC_CACHE + 4, 0);
 
     // Setup the buffer in *joybus* format. This is quite similar to DS1337 format,
     // but there is a swap between the day of week and the day of month.
+    // NOTE: day of week is 1-indexed in DS1337, and 0-indexed on joybus. *BUT*
+    // ED64 OS has a bug and store the day as 0-indexed in DS1337. We do the same
+    // to be bug-by-bug compatible, and it doesn't affect our joybus reading
+    // as we ignore dow in joybus_rtc_decode_time anyway.
+    uint8_t buffer[8];
     memcpy(buffer, buf, 7);
-    buffer[0] = buf[0];
-    buffer[1] = buf[1];
-    buffer[2] = buf[2];
-    buffer[3] = buf[4];     
-    buffer[4] = buf[3] - 1; // day of week is 1-indexed in DS1337, and 0-indexed on joybus
-    buffer[5] = buf[5];
-    buffer[6] = buf[6];
+    buffer[0] = buf[0]; // ss
+    buffer[1] = buf[1]; // mm
+    buffer[2] = buf[2]; // hh
+    buffer[3] = buf[4]; // day
+    buffer[4] = buf[3]; // day-of-week
+    buffer[5] = buf[5]; // mon
+    buffer[6] = buf[6]; // year
     buffer[7] = 0x01; // special start-stop register value (?)
 
     io_write(ED64X_REG_RTC_CACHE + 0, *(u_uint32_t*)(buffer + 0));
