@@ -490,6 +490,9 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
  */
 static void joypad_identify_async(bool reset)
 {
+    // Async operations are disabled during reset
+    if( exception_reset_time() > 0 ) { return; }
+
     // Bail if this operation is already in-progress
     if (joypad_identify_pending) { return; }
     joypad_identify_pending = true;
@@ -527,6 +530,9 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
  */
 static void joypad_read_async(void)
 {
+    // Async operations are disabled during reset
+    if( exception_reset_time() > 0 ) { return; }
+
     // Bail if this operation is already in-progress
     if (joypad_read_pending) { return; }
     joypad_read_pending = true;
@@ -613,11 +619,51 @@ static void joypad_vi_interrupt_callback(void)
 }
 
 /**
+ * @brief Callback for NMI/Reset interrupt to stop rumble motors.
+ */
+static void joypad_reset_interrupt_callback(void)
+{
+    // BBPlayer does not support rumble
+    if( sys_bbplayer() ) return;
+
+    const joybus_cmd_n64_accessory_write_port_t n64_motor_cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
+        .addr_checksum = joybus_accessory_calculate_addr_checksum(JOYBUS_ACCESSORY_ADDR_RUMBLE_MOTOR),
+        .data = { 0 },
+    } };
+
+    const joybus_cmd_gcn_controller_read_port_t gcn_motor_cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ,
+        .mode = 3,
+        .rumble = false,
+    } };
+
+    JOYPAD_PORT_FOREACH (port)
+    {
+        if( !joypad_get_rumble_supported(port) ) continue;
+        switch( joypad_get_style(port) )
+        {
+            case JOYPAD_STYLE_N64:
+                joybus_exec_cmd_struct(port, n64_motor_cmd);
+                break;
+            case JOYPAD_STYLE_GCN:
+                joybus_exec_cmd_struct(port, gcn_motor_cmd);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+/**
  * @brief Re-identify and reset all Joypads and wait for completion.
  */
 static void joypad_reset(void)
 {
     ASSERT_JOYPAD_INITIALIZED();
+    // Async operations are disabled during reset
+    if( exception_reset_time() > 0 ) { return; }
+
     // Wait for pending identify/reset operation to resolve
     while (joypad_identify_pending) { /* Spinlock */ }
     // Enqueue this identify/reset operation
@@ -634,6 +680,9 @@ static void joypad_reset(void)
 static void joypad_read(void)
 {
     ASSERT_JOYPAD_INITIALIZED();
+    // Async operations are disabled during reset
+    if( exception_reset_time() > 0 ) { return; }
+
     joypad_read_async();
     while (joypad_read_pending) { /* Spinlock */ }
     joypad_poll();
@@ -685,6 +734,8 @@ void joypad_init(void)
 
     // Update the Joypads on VI interrupt
     register_VI_handler(joypad_vi_interrupt_callback);
+    // Stop rumble on console reset
+    register_RESET_handler(joypad_reset_interrupt_callback);
 }
 
 void joypad_close(void)
@@ -694,7 +745,8 @@ void joypad_close(void)
 
     // Stop updating the Joypads on VI interrupt
     unregister_VI_handler(joypad_vi_interrupt_callback);
-    
+    unregister_RESET_handler(joypad_reset_interrupt_callback);
+
     // Decrement the timer subsystem refcount (possibly closing it)
     timer_close();
 }
@@ -702,6 +754,8 @@ void joypad_close(void)
 void joypad_poll(void)
 {
     ASSERT_JOYPAD_INITIALIZED();
+    // Controller inputs are disabled during reset
+    if( exception_reset_time() > 0 ) { return; }
 
     uint8_t output[JOYBUS_BLOCK_SIZE];
     joypad_gcn_origin_t origins[JOYPAD_PORT_COUNT];
@@ -869,6 +923,10 @@ void joypad_set_rumble_active(joypad_port_t port, bool active)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
+
+    // Rumble motor operations are disabled during reset
+    if( exception_reset_time() > 0 ) { return; }
+
     disable_interrupts();
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
     joypad_rumble_method_t rumble_method = device->rumble_method;

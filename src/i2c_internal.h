@@ -13,7 +13,7 @@
 // - I2C_READ(scl)        : Read the value of the SDA (data) line, while setting the SCL (clock) line
 
 #if !defined(I2C_INIT) || !defined(I2C_WRITE) || !defined(I2C_READ)
-#error "I2C_WRITE, I2C_READ, and I2C_READ_DELAY must be defined before including i2c_internal.h"
+#error "I2C_WRITE, I2C_READ, and I2C_INIT must be defined before including i2c_internal.h"
 #endif
 
 static inline void i2c_write_start(void)
