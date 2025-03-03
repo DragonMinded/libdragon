@@ -28,11 +28,15 @@ void ed64_rtc_encode(time_t new_time, uint8_t buf[7])
 {
     struct tm * rtc_time = gmtime(&new_time);
 
+    // ED64 stores the day of week encoded as 1=Monday 7=Sunday
+    int ed64_wday = rtc_time->tm_wday;
+    if (ed64_wday == 0) ed64_wday = 7;
+
     // Encoding according to DS1337 datasheet
     buf[0] = bcd_encode(rtc_time->tm_sec);
     buf[1] = bcd_encode(rtc_time->tm_min);
     buf[2] = bcd_encode(rtc_time->tm_hour);  // bit 6 toggles 12/24 hour mode
-    buf[3] = bcd_encode(rtc_time->tm_wday);  // NOTE: this should be changed to 1-based, but ED64 OS has a bug, so we mimic it
+    buf[3] = bcd_encode(ed64_wday);
     buf[4] = bcd_encode(rtc_time->tm_mday);
     buf[5] = bcd_encode(rtc_time->tm_mon + 1); // bit 7 is the century bit
     buf[6] = bcd_encode(rtc_time->tm_year % 100);

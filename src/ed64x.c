@@ -105,10 +105,6 @@ int ed64x_rtc_write(uint8_t buf[7])
 
     // Setup the buffer in *joybus* format. This is quite similar to DS1337 format,
     // but there is a swap between the day of week and the day of month.
-    // NOTE: day of week is 1-indexed in DS1337, and 0-indexed on joybus. *BUT*
-    // ED64 OS has a bug and store the day as 0-indexed in DS1337. We do the same
-    // to be bug-by-bug compatible, and it doesn't affect our joybus reading
-    // as we ignore dow in joybus_rtc_decode_time anyway.
     uint8_t buffer[8];
     memcpy(buffer, buf, 7);
     buffer[0] = buf[0]; // ss
