@@ -23,6 +23,13 @@ static void wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool 
 	raw_waveform_read_address(sbuf, samp->data8_offset, wpos, wlen, samp->bits >> 4);
 }
 
+static void stop(xm_context_t *ctx, xm64player_t *xmp) {
+	for (int i=0;i<ctx->module.num_channels;i++)
+		mixer_ch_stop(xmp->first_ch+i);
+	xmp->playing = false;
+	xmp->stop_requested = false;
+}
+
 static int tick(void *arg) {
 	xm64player_t *xmp = (xm64player_t*)arg;
 	xm_context_t *ctx = xmp->ctx;
@@ -34,12 +41,8 @@ static int tick(void *arg) {
 	}
 
 	// If we're requested to stop playback, do it.
-	if (xmp->stop_requested || (!xmp->looping && ctx->loop_count > 0)) {
-		for (int i=0;i<ctx->module.num_channels;i++)
-			mixer_ch_stop(xmp->first_ch+i);
-		xmp->playing = false;
-		xmp->stop_requested = false;
-		// Do not reschedule again
+	if (xmp->stop_requested) {
+		stop(ctx, xmp);
 		return 0;
 	}
 
@@ -55,6 +58,11 @@ static int tick(void *arg) {
 
 	assert(ctx->remaining_samples_in_tick <= 0);
 	xm_tick(ctx);
+
+	if (!xmp->looping && ctx->loop_count > 0) {
+		stop(ctx, xmp);
+		return 0;
+	}
 
 	float gvol = ctx->global_volume * ctx->amplification;
 
