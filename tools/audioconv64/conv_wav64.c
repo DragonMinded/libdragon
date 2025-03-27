@@ -477,8 +477,10 @@ int wav_convert(const char *infn, const char *outfn) {
 		return 1;
 	}
 
+	int uncompressedSize;
 	if (flag_verbose)
 		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
+	uncompressedSize = wav.cnt * wav.channels * wav.bitsPerSample / 8;
 
 	// Apply command line flags if not provided by WAV itself
 	if (flag_wav_looping_offset > 0 && wav.loopOffset == 0)
@@ -600,6 +602,11 @@ int wav_convert(const char *infn, const char *outfn) {
 	}
 
 	failed = !wav64_write(infn, outfn, out, &wav, loop_len, nbits, flag_wav_compress);
+
+	// Show a message with the final compression ratio between original file and output file
+	if (flag_verbose)
+		fprintf(stderr, "  uncompressed: %ld bytes, compressed: %ld bytes (ratio: %.1f%%)\n",
+			(long)uncompressedSize, (long)ftell(out), (long)ftell(out) * 100.0 / uncompressedSize);			
 
 	fclose(out);
 	free(wav.samples);
