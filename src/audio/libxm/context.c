@@ -233,6 +233,14 @@ void xm_context_save(xm_context_t* ctx, FILE* out) {
 	pat_off_idx = 0;
 	sam_off_idx = 0;
 
+	struct sample_checksum {
+		uint32_t hash;
+		uint32_t pos;
+	};
+
+	struct sample_checksum wave_sums[totsamples+1];
+	memset(wave_sums, 0, sizeof(wave_sums));
+
 	WA("WAVE", 4);
 	uint32_t wv_overred = XM_WAVEFORM_OVERREAD;
 	W32(wv_overred);
@@ -240,19 +248,46 @@ void xm_context_save(xm_context_t* ctx, FILE* out) {
 		xm_instrument_t *ins = &ctx->module.instruments[i];
 		for (int j=0;j<ins->num_samples;j++) {
 			xm_sample_t *s = &ins->samples[j];
-			WALIGN();
+			assert(s->bits == 8 || s->bits == 16);
+			uint32_t hash = 2166136261u;
+			if (s->bits == 8) {
+				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD;k++)
+					hash = (hash ^ s->data8[k]) * 16777619;
+			} else {
+				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
+					hash = (hash ^ s->data16[k]) * 16777619;
+			}
 
-			uint32_t pos = ftell(out);
+			uint32_t pos = 0;
+			bool new_sample;
+			int k = 0;
+			while (wave_sums[k].pos > 0 && wave_sums[k].hash != hash) {
+				k++;
+			}
+			if (wave_sums[k].pos == 0) {
+				WALIGN();
+				pos = ftell(out);
+				wave_sums[k].hash = hash;
+				wave_sums[k].pos = pos;
+				new_sample = true;
+			} else {
+				// Deduplicate sample, use the same position
+				pos = wave_sums[k].pos;
+				new_sample = false;
+			}
+
+			uint32_t here = ftell(out);
 			fseek(out, sam_off[sam_off_idx++], SEEK_SET);
 			W32(pos);
-			fseek(out, pos, SEEK_SET);
+			fseek(out, here, SEEK_SET);
 
-			assert(s->bits == 8 || s->bits == 16);
-			if (s->bits == 8)
-				WA(s->data8, s->length+XM_WAVEFORM_OVERREAD);
-			else {
-				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
-					W16(s->data16[k]);
+			if (new_sample) {
+				if (s->bits == 8)
+					WA(s->data8, s->length+XM_WAVEFORM_OVERREAD);
+				else {
+					for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
+						W16(s->data16[k]);
+				}
 			}
 		}
 	}
