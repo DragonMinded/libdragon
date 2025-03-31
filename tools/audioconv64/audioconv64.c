@@ -83,6 +83,7 @@ void usage(void) {
 	printf("\n");
 	printf("XM options:\n");
 	printf("   --xm-8bit                 Convert all samples ot 8-bit\n");
+	printf("\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  Compress output file\n");
 	printf("\n");
