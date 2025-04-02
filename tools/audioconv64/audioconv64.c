@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include "../common/binout.c"
+#include "../common/binout.h"
+#include "../common/polyfill.h"
+
 bool flag_verbose = false;
 bool flag_debug = false;
 

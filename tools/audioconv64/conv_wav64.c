@@ -11,10 +11,6 @@
 #include "vadpcm/decode.c"
 #include "vadpcm/error.c"
 
-#include "../common/binout.c"
-#include "../common/binout.h"
-#include "../common/polyfill.h"
-
 #define ENABLE_SINC_BEST_CONVERTER
 #define PACKAGE "libsamplerate"
 #define VERSION "0.1.9"

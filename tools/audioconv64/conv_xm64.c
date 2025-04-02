@@ -32,6 +32,271 @@ bool flag_xm_8bit = false;
 #include "../../src/audio/libxm/context.c"
 #include "../../src/audio/libxm/load.c"
 
+
+static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, int totsamples)
+{
+	struct sample_checksum {
+		uint32_t hash;
+		uint32_t pos;
+	};
+
+	struct sample_checksum wave_sums[totsamples+1];
+	memset(wave_sums, 0, sizeof(wave_sums));
+
+	wa(out, "WAVE", 4);
+	uint32_t wv_overred = XM_WAVEFORM_OVERREAD;
+	w32(out, wv_overred);
+	for (int i=0;i<ctx->module.num_instruments;i++) {
+		xm_instrument_t *ins = &ctx->module.instruments[i];
+		for (int j=0;j<ins->num_samples;j++) {
+			xm_sample_t *s = &ins->samples[j];
+			assert(s->bits == 8 || s->bits == 16);
+			uint32_t hash = 2166136261u;
+			if (s->bits == 8) {
+				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD;k++)
+					hash = (hash ^ s->data8[k]) * 16777619;
+			} else {
+				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
+					hash = (hash ^ s->data16[k]) * 16777619;
+			}
+
+			int k = 0;
+			while (wave_sums[k].pos > 0 && wave_sums[k].hash != hash) {
+				k++;
+			}
+			if (wave_sums[k].pos == 0) {
+				walign(out, 8);
+				placeholder_set(out, "sample_%d_%d", i, j);
+				wave_sums[k].hash = hash;
+				wave_sums[k].pos = ftell(out);
+				if (s->bits == 8)
+					wa(out, s->data8, s->length+XM_WAVEFORM_OVERREAD);
+				else {
+					for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
+						w16(out, s->data16[k]);
+				}
+			} else {
+				// Deduplicate sample, use the same position
+				placeholder_set_offset(out, wave_sums[k].pos, "sample_%d_%d", i, j);
+			}
+		}
+	}
+}
+
+static void xm_context_save(xm_context_t* ctx, FILE* out) {
+	const uint8_t version = 6;
+	wa(out, "XM64", 4);
+	w8(out, version);
+	w32(out, ctx->ctx_size);
+	w32(out, ctx->ctx_size_all_patterns);
+	w32(out, ctx->ctx_size_all_samples);
+	w32(out, ctx->ctx_size_stream_pattern_buf);
+	for (int i=0; i<32; i++) w32(out, ctx->ctx_size_stream_sample_buf[i]);
+
+	w16(out, ctx->module.tempo);
+	w16(out, ctx->module.bpm);
+
+#if XM_STRINGS
+	wa(out, ctx->module.name, sizeof(ctx->module.name));
+	wa(out, ctx->module.trackername, sizeof(ctx->module.trackername));
+#else
+	char name[MODULE_NAME_LENGTH+1] = {0}; char trackername[TRACKER_NAME_LENGTH+1] = {0};
+	wa(out, name, sizeof(name)); wa(out, trackername, sizeof(trackername));
+#endif
+	w16(out, ctx->module.length);
+	w16(out, ctx->module.restart_position);
+	w16(out, ctx->module.num_channels);
+	w16(out, ctx->module.num_patterns);
+	w16(out, ctx->module.num_instruments);
+	w32(out, ctx->module.frequency_type);
+	wa(out, ctx->module.pattern_table, sizeof(ctx->module.pattern_table));
+
+	int totsamples = 0;
+	for (int i=0;i<ctx->module.num_instruments;i++) {
+		xm_instrument_t *ins = &ctx->module.instruments[i];
+		totsamples += ins->num_samples;
+	}
+
+	for (int i=0;i<ctx->module.num_patterns;i++) {
+		w16(out, ctx->module.patterns[i].num_rows);
+		w32_placeholderf(out, "pattern_%d", i);
+		w16_placeholderf(out, "pattern_size_%d", i);
+	}
+
+	for (int i=0;i<ctx->module.num_instruments;i++) {
+		xm_instrument_t *ins = &ctx->module.instruments[i];
+#if XM_STRINGS
+		wa(out, ins->name, sizeof(ins->name));
+#else
+		char name[INSTRUMENT_NAME_LENGTH + 1] = {0};
+		wa(out, name);
+#endif
+		wa(out, ins->sample_of_notes, sizeof(ins->sample_of_notes));
+
+		w8(out, ins->volume_envelope.num_points);
+		for (int j=0;j<ins->volume_envelope.num_points;j++) {
+			w16(out, ins->volume_envelope.points[j].frame);
+			w16(out, ins->volume_envelope.points[j].value);
+		}
+		w8(out, ins->volume_envelope.sustain_point);
+		w8(out, ins->volume_envelope.loop_start_point);
+		w8(out, ins->volume_envelope.loop_end_point);
+		w8(out, ins->volume_envelope.enabled);
+		w8(out, ins->volume_envelope.sustain_enabled);
+		w8(out, ins->volume_envelope.loop_enabled);
+
+		w8(out, ins->panning_envelope.num_points);
+		for (int j=0;j<ins->panning_envelope.num_points;j++) {
+			w16(out, ins->panning_envelope.points[j].frame);
+			w16(out, ins->panning_envelope.points[j].value);
+		}
+		w8(out, ins->panning_envelope.sustain_point);
+		w8(out, ins->panning_envelope.loop_start_point);
+		w8(out, ins->panning_envelope.loop_end_point);
+		w8(out, ins->panning_envelope.enabled);
+		w8(out, ins->panning_envelope.sustain_enabled);
+		w8(out, ins->panning_envelope.loop_enabled);
+
+		w32(out, ins->vibrato_type);
+		w8(out, ins->vibrato_sweep);
+		w8(out, ins->vibrato_depth);
+		w8(out, ins->vibrato_rate);
+		w16(out, ins->volume_fadeout);
+		w64(out, ins->latest_trigger);
+
+		w16(out, ins->num_samples);
+		for (int j=0;j<ins->num_samples;j++) {
+			xm_sample_t *s = &ins->samples[j];
+			w8(out, s->bits);
+			w32(out, s->length);
+			w32(out, s->loop_start);
+			w32(out, s->loop_length);
+			w32(out, s->loop_end);
+			wf32(out, s->volume);
+			w8(out, s->finetune);
+			w32(out, s->loop_type);
+			wf32(out, s->panning);
+			w8(out, s->relative_note);
+			w32_placeholderf(out, "sample_%d_%d", i, j);
+		}
+	}
+
+	xm_save_wave_internally(ctx, out, totsamples);
+
+	wa(out, "PATT", 4);
+	for (int i=0;i<ctx->module.num_patterns;i++) {
+		walign(out, 8);
+		placeholder_set(out, "pattern_%d", i);
+		int pos = ftell(out);
+
+		xm_pattern_t *p = &ctx->module.patterns[i];
+
+		int pat_size = p->num_rows*ctx->module.num_channels*5;
+		uint8_t cur_pat[pat_size];
+		uint8_t *pp = cur_pat;
+
+		xm_pattern_slot_t *s = &p->slots[0];
+		for (int j=0;j<p->num_rows;j++) {
+			for (int k=0;k<ctx->module.num_channels;k++) {
+				*pp++ = s->note;
+				*pp++ = s->instrument;
+				*pp++ = s->volume_column;
+				*pp++ = s->effect_type;
+				*pp++ = s->effect_param;
+				s++;
+			}
+		}
+
+		// RLE-compress pattern
+		//
+		// The compressed stream is a sequence of "blocks". The number of blocks
+		// is not encoded, so the compressed size must be provided off-band.
+		// The following describes the format of a block.
+		//
+		// Each block begins with one varint-encoded number. The lowest 3 bits
+		// of this number represents the number of "runs" in this block, while
+		// the remaining bits are the number of "zeros". If the number of "runs"
+		// is 7, another varint-encoded number follows, that must be added to 7
+		// to obtain the real number of runs. After this, the block contains
+		// "runs" bytes, which are the literal data.
+		// The decompressor must first emit the specified number of zeros,
+		// and then copy the literal data.
+		//
+		// Varint encoding: a sequence of bytes where for each byte, the MSB
+		// is the continuation bit (1=another byte follow, 0=this is the last byte),
+		// while the other 7 bits are the actual payload that must be concatenated
+		// across all bytes. Notice that the encoding is big-endian, so the first
+		// byte contains the highest 7 bits of the encoded number. 
+		//
+		int x = 0;
+		while (x < pat_size) {
+			// Detect sequence of zeros
+			int zeros = 0;
+			while (x+zeros < pat_size && cur_pat[x+zeros] == 0)
+				zeros++;
+			x += zeros;
+
+			// Detect sequence of runs
+			// NOTE: we don't stop the sequence for a single zero byte, because
+			// that would be less efficient. So the runs finish when two zero
+			// bytes are detected.
+			int runs = 0;
+			while (x+runs < pat_size && (cur_pat[x+runs] != 0 || x+runs+1 >= pat_size || cur_pat[x+runs+1] != 0))
+				runs++;
+
+			// Prepare the encoded zeros number (with the lowest bits that encode
+			// part of runs), and the encoded runs (leftover).
+			int runs_low = (runs > 7) ? 7 : runs;
+			int enc_zeros = (zeros << 3) | runs_low;
+			int enc_runs  = runs - runs_low;
+
+			#define UINT32_NUM_BITS(n)   (32 - ((n) == 0 ? 32 : __builtin_clz(n)))
+			#define CEIL_DIV(n, d)       (((n) + (d) - 1) / (d))
+
+			// Varint-encode the zeros
+			int nb = CEIL_DIV(UINT32_NUM_BITS(enc_zeros), 7) - 1;
+			while (nb>0) {
+				w8(out, (uint8_t)(0x80 | ((enc_zeros >> (nb*7)) & 0x7F)));
+				nb--;
+			}
+			w8(out, (uint8_t)(enc_zeros & 0x7F));
+
+			// Varint-encode the lefotver runs (if any)
+			if (runs_low == 7) {			
+				int nb = CEIL_DIV(UINT32_NUM_BITS(enc_runs), 7) - 1;
+				while (nb>0) {
+					w8(out, (uint8_t)(0x80 | ((enc_runs >> (nb*7)) & 0x7F)));
+					nb--;
+				}
+				w8(out, (uint8_t)(enc_runs & 0x7F));
+			}
+
+			// Write the actual literal data
+			wa(out, cur_pat+x, runs);
+			x += runs;
+		}
+
+		placeholder_set_offset(out, ftell(out) - pos, "pattern_size_%d", i);
+	}
+
+	wa(out, "END!", 4);
+
+	#undef _CHKSZ
+	#undef _W8
+	#undef _W16
+	#undef _W32
+	#undef _W64
+	#undef _WA
+	#undef W8
+	#undef W16
+	#undef W32
+	#undef W64
+	#undef WA
+	#undef WB
+	#undef WF
+	#undef WALIGN
+}
+
 int xm_convert(const char *infn, const char *outfn) {
 	if (flag_verbose)
 		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);

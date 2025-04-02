@@ -79,15 +79,6 @@ void xm_create_context_from_libxmize(xm_context_t**, char* libxmizeddata, uint32
 /** Free a XM context created by xm_create_context(). */
 void xm_free_context(xm_context_t*);
 
-/** Save a context into a XM64 file.
- * 
- * Saving a context can be done only on PC, and with a non-streaming loader that 
- * fetched everything.
- */
-#if !defined(N64) && !XM_STREAM_PATTERNS && !XM_STREAM_WAVEFORMS
-void xm_context_save(xm_context_t* ctx, FILE* out);
-#endif
-
 /** Load a context from a XM64 file.
  * 
  * Returns 0 in case of success, 1 in case of generic error (file corrupted),
