@@ -9,8 +9,11 @@
 #include "stb_ds.h"
 
 struct placeholder_data {
-	int offset;
-	int *pending_offsets;
+	int64_t offset;
+	uint64_t *pending_offsets_64;
+	uint32_t *pending_offsets_32;
+	uint16_t *pending_offsets_16;
+	uint8_t *pending_offsets_8;
 };
 
 struct {
@@ -48,13 +51,40 @@ int w32_placeholder(FILE *f)
     return pos;
 }
 
-void w32_at(FILE *f, int pos, uint32_t v)
+void _w64_at(FILE *f, int pos, uint64_t v)
+{
+	int cur = ftell(f);
+	assert(cur >= 0);  // fail on pipes
+	fseek(f, pos, SEEK_SET);
+	w64(f, v);
+	fseek(f, cur, SEEK_SET);
+}
+
+void _w32_at(FILE *f, int pos, uint32_t v)
 {
     int cur = ftell(f);
     assert(cur >= 0);  // fail on pipes
     fseek(f, pos, SEEK_SET);
     w32(f, v);
     fseek(f, cur, SEEK_SET);
+}
+
+void _w16_at(FILE *f, int pos, uint16_t v)
+{
+	int cur = ftell(f);
+	assert(cur >= 0);  // fail on pipes
+	fseek(f, pos, SEEK_SET);
+	w16(f, v);
+	fseek(f, cur, SEEK_SET);
+}
+
+void _w8_at(FILE *f, int pos, uint8_t v)
+{
+	int cur = ftell(f);
+	assert(cur >= 0);  // fail on pipes
+	fseek(f, pos, SEEK_SET);
+	w8(f, v);
+	fseek(f, cur, SEEK_SET);
 }
 
 void walign(FILE *f, int align)
@@ -73,6 +103,9 @@ void wpad(FILE *f, int size)
 
 struct placeholder_data *__placeholder_get_data(const char *name)
 {
+	if(placeholder_hash == NULL) {
+		stbds_sh_new_arena(placeholder_hash);
+	}
 	ptrdiff_t index = stbds_shgeti(placeholder_hash, name);
 	if(index == -1) {
 		struct placeholder_data default_value = {-1, NULL};
@@ -82,17 +115,26 @@ struct placeholder_data *__placeholder_get_data(const char *name)
 	return &placeholder_hash[index].value;
 }
 
-void __placeholder_make(FILE *file, int offset, const char *name)
+void __placeholder_make(FILE *file, int64_t offset, const char *name)
 {
-	if(placeholder_hash == NULL) {
-		stbds_sh_new_arena(placeholder_hash);
-	}
 	struct placeholder_data *data = __placeholder_get_data(name);
 	data->offset = offset;
-	for(size_t i=0; i<stbds_arrlenu(data->pending_offsets); i++) {
-		w32_at(file, data->pending_offsets[i], data->offset);
+	for (int i=0; i<stbds_arrlen(data->pending_offsets_64); i++) {
+		w32_at(file, data->pending_offsets_64[i], data->offset);
 	}
-	stbds_arrfree(data->pending_offsets);
+	for(int i=0; i<stbds_arrlen(data->pending_offsets_32); i++) {
+		w32_at(file, data->pending_offsets_32[i], data->offset);
+	}
+	for(int i=0; i<stbds_arrlen(data->pending_offsets_16); i++) {
+		w16_at(file, data->pending_offsets_16[i], data->offset);
+	}
+	for(int i=0; i<stbds_arrlen(data->pending_offsets_8); i++) {
+		w8_at(file, data->pending_offsets_8[i], data->offset);
+	}
+	stbds_arrfree(data->pending_offsets_64);
+	stbds_arrfree(data->pending_offsets_32);
+	stbds_arrfree(data->pending_offsets_16);
+	stbds_arrfree(data->pending_offsets_8);
 }
 
 void placeholder_setv(FILE *file, const char *format, va_list arg)
@@ -111,7 +153,7 @@ void placeholder_set(FILE *file, const char *format, ...)
 	va_end(args);
 }
 
-void placeholder_setv_offset(FILE *file, int offset, const char *format, va_list arg)
+void placeholder_setv_offset(FILE *file, int64_t offset, const char *format, va_list arg)
 {
 	char *name = NULL;
 	vasprintf(&name, format, arg);
@@ -119,7 +161,7 @@ void placeholder_setv_offset(FILE *file, int offset, const char *format, va_list
 	free(name);
 }
 
-void placeholder_set_offset(FILE *file, int offset, const char *format, ...)
+void placeholder_set_offset(FILE *file, int64_t offset, const char *format, ...)
 {
 	va_list args;
 	va_start(args, format);
@@ -127,19 +169,64 @@ void placeholder_set_offset(FILE *file, int offset, const char *format, ...)
 	va_end(args);
 }
 
+void __w64_placeholder_named(FILE *file, const char *name)
+{
+	struct placeholder_data *data = __placeholder_get_data(name);
+	if(data->offset == -1) {
+		stbds_arrpush(data->pending_offsets_64, ftell(file));
+		w64(file, 0);
+	} else {
+		w64(file, data->offset);
+	}
+}
 
 void __w32_placeholder_named(FILE *file, const char *name)
 {
-	if(placeholder_hash == NULL) {
-		stbds_sh_new_arena(placeholder_hash);
-	}
 	struct placeholder_data *data = __placeholder_get_data(name);
 	if(data->offset == -1) {
-		stbds_arrpush(data->pending_offsets, ftell(file));
+		stbds_arrpush(data->pending_offsets_32, ftell(file));
 		w32(file, 0);
 	} else {
 		w32(file, data->offset);
 	}
+}
+
+void __w16_placeholder_named(FILE *file, const char *name)
+{
+	struct placeholder_data *data = __placeholder_get_data(name);
+	if(data->offset == -1) {
+		stbds_arrpush(data->pending_offsets_16, ftell(file));
+		w16(file, 0);
+	} else {
+		w16(file, data->offset);
+	}
+}
+
+void __w8_placeholder_named(FILE *file, const char *name)
+{
+	struct placeholder_data *data = __placeholder_get_data(name);
+	if(data->offset == -1) {
+		stbds_arrpush(data->pending_offsets_8, ftell(file));
+		w8(file, 0);
+	} else {
+		w8(file, data->offset);
+	}
+}
+
+void w64_placeholdervf(FILE *file, const char *format, va_list arg)
+{
+	char *name = NULL;
+	vasprintf(&name, format, arg);
+	__w64_placeholder_named(file, name);
+	free(name);
+}
+
+void w64_placeholderf(FILE *file, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	w64_placeholdervf(file, format, args);
+	va_end(args);
 }
 
 void w32_placeholdervf(FILE *file, const char *format, va_list arg)
@@ -158,10 +245,45 @@ void w32_placeholderf(FILE *file, const char *format, ...)
 	va_end(args);
 }
 
+void w16_placeholdervf(FILE *file, const char *format, va_list arg)
+{
+	char *name = NULL;
+	vasprintf(&name, format, arg);
+	__w16_placeholder_named(file, name);
+	free(name);
+}
+
+void w16_placeholderf(FILE *file, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	w16_placeholdervf(file, format, args);
+	va_end(args);
+}
+
+void w8_placeholdervf(FILE *file, const char *format, va_list arg)
+{
+	char *name = NULL;
+	vasprintf(&name, format, arg);
+	__w8_placeholder_named(file, name);
+	free(name);
+}
+
+void w8_placeholderf(FILE *file, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	w8_placeholdervf(file, format, args);
+	va_end(args);
+}
+
 void placeholder_clear()
 {
-	for(size_t i=0; i<stbds_shlenu(placeholder_hash); i++) {
-		stbds_arrfree(placeholder_hash[i].value.pending_offsets);
+	for(int i=0; i<stbds_shlen(placeholder_hash); i++) {
+		stbds_arrfree(placeholder_hash[i].value.pending_offsets_64);
+		stbds_arrfree(placeholder_hash[i].value.pending_offsets_32);
+		stbds_arrfree(placeholder_hash[i].value.pending_offsets_16);
+		stbds_arrfree(placeholder_hash[i].value.pending_offsets_8);
 	}
 	stbds_shfree(placeholder_hash);
 }
