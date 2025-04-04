@@ -224,6 +224,7 @@ typedef struct rdpq_textparms_s {
     rdpq_align_t align;      ///< Horizontal alignment (0=left, 1=center, 2=right)
     rdpq_valign_t valign;    ///< Vertical alignment (0=top, 1=center, 2=bottom)
     int16_t indent;          ///< Indentation of the first line, in pixels (only valid for left alignment)
+    int16_t max_chars;       ///< Maximum number of characters to print (0 if unbounded), useful for typewriting effect
     int16_t char_spacing;    ///< Extra spacing between chars (in addition to glyph width and kerning)
     int16_t line_spacing;    ///< Extra spacing between lines (in addition to font height)
     rdpq_textwrap_t wrap;    ///< Wrap mode
