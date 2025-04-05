@@ -1519,7 +1519,7 @@ void spritemaker_write_pngs(spritemaker_t *spr, const char *outfn) {
     for (int i=0; i<MAX_IMAGES; i++) {
         if (spr->images[i].image == NULL)
             continue;
-        char lodext[16]; sprintf(lodext, ".%d.png", i);
+        char lodext[16]; snprintf(lodext, sizeof(lodext), ".%d.png", i);
         char debugfn[2048];
         strcpy(debugfn, outfn);
         strcpy(strrchr(debugfn, '.'), lodext);
