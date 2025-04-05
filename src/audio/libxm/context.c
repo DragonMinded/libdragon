@@ -402,7 +402,7 @@ int xm_context_decompress_pattern(uint8_t *in, int sz, xm_pattern_slot_t *pat) {
 		int runs = zeros & 7; if (runs == 7) runs += varint_get(&in);
 		zeros >>= 3;
 		memset(out, 0, zeros); out += zeros;
-		memcpy(out, in, runs); out += runs; in += runs;
+		memmove(out, in, runs); out += runs; in += runs;
 		assert((out<=in) == direction);  // check for overruns during in-place decompression
 	}
 	return out - (uint8_t*)pat;
