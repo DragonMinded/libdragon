@@ -8,8 +8,10 @@
 #define WAV64_NUM_FORMATS   4
 
 #define WAV64_FLAG_WARN_SIMULTANEITY	 (1 << 0)
+#define WAV64_FLAG_OWNED_FD			 	 (1 << 1)
 
 typedef struct wav64_s wav64_t;
+typedef struct wav64_loadparms_s wav64_loadparms_t;
 typedef struct samplebuffer_s samplebuffer_t;
 
 /** @brief Header of a WAV64 file. */
@@ -52,6 +54,11 @@ typedef struct {
 	/** @brief Return the compressed bitrate, mainly used for statistics */
 	int (*get_bitrate)(wav64_t *wav);
 } wav64_compression_t;
+
+/**
+ * Similar to #wav64_load, but uses a file descriptor instead of a filename.
+ */
+wav64_t *wav64_loadfd(int fd, wav64_loadparms_t *parms);
 
 /**
  * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.

@@ -119,7 +119,7 @@ static int wav64_none_get_bitrate(wav64_t *wav) {
 	return wav->wave.frequency * wav->wave.channels * wav->wave.bits;
 }
 
-static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadparms_t *parms)
+static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_name, wav64_loadparms_t *parms)
 {
 	wav64_loadparms_t default_parms = {0};
 	if (!parms) parms = &default_parms;
@@ -127,7 +127,7 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 	// For backwards compatibility with old versions of this file, we support
 	// an unprefixed file name as a dfs file. This is deprecated and not documented
 	// but we just want to avoid breaking existing code
-	if (strchr(file_name, ':') == NULL) {
+	if (file_name && strchr(file_name, ':') == NULL) {
 		char* dfs_name = alloca(5 + strlen(file_name) + 1);
 		strcpy(dfs_name, "rom:/");
 		strcat(dfs_name, file_name);
@@ -135,7 +135,14 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 	}
 
 	// Open the input file, and read the header
-	int file_handle = must_open(file_name);
+	int start_offset = 0;
+	bool owned_fd = false;
+	if (file_handle < 0) {
+		file_handle = must_open(file_name);
+		owned_fd = true;
+	} else {
+		start_offset = lseek(file_handle, 0, SEEK_CUR);
+	}
 
 	wav64_header_t head;
 	read(file_handle, &head, sizeof(head));
@@ -203,9 +210,9 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 	// Finish initialization of wav64 state
 	wav->st->format = head.format;
 	wav->st->current_fd = file_handle;
-	wav->st->base_offset = head.start_offset;
+	wav->st->base_offset = head.start_offset + start_offset;
 	wav->st->nsimul = nsimul;
-	wav->st->flags = 0;
+	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
 	if (nsimul > 0)
 		memset(wav->st->mixer_channels, -1, nsimul * sizeof(int8_t));
 
@@ -246,12 +253,17 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 
 void wav64_open(wav64_t *wav, const char *file_name)
 {
-	internal_open(wav, file_name, NULL);
+	internal_open(wav, -1, file_name, NULL);
 }
 
 wav64_t* wav64_load(const char *file_name, wav64_loadparms_t *parms)
 {
-	return internal_open(NULL, file_name, parms);
+	return internal_open(NULL, -1, file_name, parms);
+}
+
+wav64_t* wav64_loadfd(int fd, wav64_loadparms_t *parms)
+{
+	return internal_open(NULL, fd, NULL, parms);
 }
 
 
@@ -326,7 +338,7 @@ void wav64_close(wav64_t *wav)
 	if (algos[wav->st->format].close)
 		algos[wav->st->format].close(wav);
 
-	if (wav->st->current_fd >= 0) {
+	if (wav->st->current_fd >= 0 && (wav->st->flags & WAV64_FLAG_OWNED_FD)) {
 		close(wav->st->current_fd);
 		wav->st->current_fd = -1;
 	}
