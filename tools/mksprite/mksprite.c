@@ -181,7 +181,7 @@ uint16_t conv_rgb5551(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8) {
 }
 
 /*dither matrix*/
-unsigned int dith[4][4] = {{1, 9, 3, 11}, {13, 5, 15, 7}, {4, 12, 2, 10}, {16, 8, 14, 6}};
+unsigned int dith[4][4] = {{0, 6, 1, 7}, {4, 2, 5, 3}, {3, 5, 2, 4}, {7, 1, 6, 0}};
 
 int check_color(int val){
     if(val > 255) val = 255;
@@ -193,14 +193,14 @@ uint16_t conv_rgb5551_dither(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8, uns
     int value = 0;
     switch(dither){
         case DITHER_ALGO_ORDERED: value = dith[x & 0x3][y & 0x3]; break;
-        case DITHER_ALGO_RANDOM:  value = rand() & 0xf; break;
+        case DITHER_ALGO_RANDOM:  value = rand() & 0x7; break;
         case DITHER_ALGO_NONE: return conv_rgb5551(r8, g8, b8, a8); break;
         default: fprintf(stderr, "ERROR: conv RGBA5551 unimplemented dithering mode %s\n", dither_algo_name(dither)); assert(0);
     }
 
-    int r = r8 + value - 8;
-    int g = g8 + value - 8;
-    int b = b8 + value - 8;
+    int r = r8 + value - 4;
+    int g = g8 + value - 4;
+    int b = b8 + value - 4;
     r = check_color(r);
     g = check_color(g);
     b = check_color(b);
