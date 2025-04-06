@@ -58,27 +58,13 @@ static wav64_compression_t algos[4] = {
 	},
 };
 
-void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen, int bps) {
+static void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen, int bps) {
 	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
 	int bytes = wlen << bps;
 
 	// FIXME: remove CachedAddr() when read() supports uncached addresses
 	uint32_t t0 = TICKS_READ();
 	read(current_fd, CachedAddr(ram_addr), bytes);
-	__wav64_profile_dma += TICKS_READ() - t0;
-}
-
-void raw_waveform_read_address(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps) {
-	uint32_t rom_addr = base_rom_addr + (wpos << bps);
-	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
-	int bytes = wlen << bps;
-
-	uint32_t t0 = TICKS_READ();
-	// Run the DMA transfer. We rely on libdragon's PI DMA function which works
-	// also for misaligned addresses and odd lengths.
-	// The mixer/samplebuffer guarantees that ROM/RAM addresses are always
-	// on the same 2-byte phase, as the only requirement of dma_read.
-	dma_read(ram_addr, rom_addr, bytes);
 	__wav64_profile_dma += TICKS_READ() - t0;
 }
 

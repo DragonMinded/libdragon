@@ -413,6 +413,7 @@ int main(void) {
 		} while (dfs_dir_findnext(sbuf+5) == FLAGS_FILE);
 	}
 
+	xm64_set_extsampledir("rom:/samples");
 
 	enum Page page = PAGE_INTRO;
 	if (num_songs == 0)

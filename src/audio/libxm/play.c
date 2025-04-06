@@ -10,6 +10,7 @@
 #include "xm_internal.h"
 #include <inttypes.h>
 #include <assert.h>
+#include <unistd.h>
 
 /* ----- Static functions ----- */
 
@@ -886,9 +887,9 @@ static void xm_row(xm_context_t* ctx) {
 		int dec_size = sizeof(xm_pattern_slot_t) * cur->num_rows * ctx->module.num_channels;
 		uint8_t *cmp_data = (uint8_t*)ctx->slot_buffer + dec_size - cmp_size;
 
-		fseek(ctx->fh, cur->slots_offset, SEEK_SET);
-		fread(cmp_data, cmp_size, 1, ctx->fh);
-
+		lseek(ctx->fd, cur->slots_offset, SEEK_SET);
+		read(ctx->fd, cmp_data, cmp_size);
+		
 		int sz = xm_context_decompress_pattern(cmp_data, cmp_size, ctx->slot_buffer);
 		assert(sz == dec_size);
 

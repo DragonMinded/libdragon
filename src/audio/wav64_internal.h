@@ -60,21 +60,6 @@ typedef struct {
  */
 wav64_t *wav64_loadfd(int fd, wav64_loadparms_t *parms);
 
-/**
- * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
- * 
- * This function uses a file descriptor to load samples from ROM into the sample buffer.
- */  
-void raw_waveform_read(samplebuffer_t *sbuf, int fd, int wpos, int wlen, int bps);
-
-/**
- * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
- * 
- * This function uses PI DMA to load samples from ROM into the sample buffer.
- * Note: Tempory function should be removed when XM64 moves to using FILE*.
- */  
-void raw_waveform_read_address(samplebuffer_t *sbuf, int rom_addr, int wpos, int wlen, int bps);
-
 /** 
  * @brief Inform wav64 that a certain channel has finished playback.
  * 

@@ -18,9 +18,17 @@
  *    module.
  */
 
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
 #include "mixer.h"
 
+#include "../common/crc32.c"
+#include "../common/nanotime.h"
+#include "../common/polyfill.h"
+
 bool flag_xm_8bit = false;
+const char *flag_xm_extsampledir = NULL;
 
 // Loops made by an odd number of bytes and shorter than this length are
 // duplicated to prevent frequency changes during playback. See below for more
@@ -32,34 +40,62 @@ bool flag_xm_8bit = false;
 #include "../../src/audio/libxm/context.c"
 #include "../../src/audio/libxm/load.c"
 
-
-static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, int totsamples)
+static uint32_t xm_sample_crc32(xm_sample_t *s)
 {
+	if (s->bits == 8)
+		return crc32((void*)s->data8, s->length);
+	else
+		return crc32((void*)s->data16, s->length * 2);
+} 
+
+static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
+{
+	int16_t *samples16 = malloc(s->length * sizeof(int16_t));
+	if (s->bits == 8) {
+		for (int k=0;k<s->length;k++)
+			samples16[k] = (s->data8[k] << 8) | (uint8_t)s->data8[k];
+	} else {
+		memcpy(samples16, s->data16, s->length * sizeof(int16_t));
+	}
+
+	wav_data_t wav = {
+		.cnt = s->length,
+		.channels = 1,
+		.sampleRate = 44100,
+		.bitsPerSample = s->bits,
+		.loopOffset = s->loop_start,
+		.looping = s->loop_type != 0,
+		.samples = samples16,
+	};
+
+	if (!wav64_write("xm", outfn, out, &wav, s->bits, flag_wav_compress))
+		fatal("ERROR: failure while writing %s\n", outfn);
+
+	free(wav.samples);
+}
+
+static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, const char *outfn, int totsamples)
+{
+	// Use a sample structure to do internal de-duplication of samples
 	struct sample_checksum {
 		uint32_t hash;
 		uint32_t pos;
 	};
-
 	struct sample_checksum wave_sums[totsamples+1];
 	memset(wave_sums, 0, sizeof(wave_sums));
 
 	wa(out, "WAVE", 4);
-	uint32_t wv_overred = XM_WAVEFORM_OVERREAD;
-	w32(out, wv_overred);
+	w32_placeholderf(out, "wave_size");
+	int beginpos = ftell(out);
+
 	for (int i=0;i<ctx->module.num_instruments;i++) {
 		xm_instrument_t *ins = &ctx->module.instruments[i];
 		for (int j=0;j<ins->num_samples;j++) {
 			xm_sample_t *s = &ins->samples[j];
 			assert(s->bits == 8 || s->bits == 16);
-			uint32_t hash = 2166136261u;
-			if (s->bits == 8) {
-				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD;k++)
-					hash = (hash ^ s->data8[k]) * 16777619;
-			} else {
-				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
-					hash = (hash ^ s->data16[k]) * 16777619;
-			}
 
+			// Check if the sample has been already seen in this module
+			uint32_t hash = xm_sample_crc32(s);
 			int k = 0;
 			while (wave_sums[k].pos > 0 && wave_sums[k].hash != hash) {
 				k++;
@@ -69,22 +105,70 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, int totsamples
 				placeholder_set(out, "sample_%d_%d", i, j);
 				wave_sums[k].hash = hash;
 				wave_sums[k].pos = ftell(out);
-				if (s->bits == 8)
-					wa(out, s->data8, s->length+XM_WAVEFORM_OVERREAD);
-				else {
-					for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
-						w16(out, s->data16[k]);
-				}
+
+				char *wavfn = NULL; asprintf(&wavfn, "%s.%d.%d.wav64", outfn, i, j); // used only for --debug
+				xm_save_wave64(s, out, wavfn);
+				free(wavfn);
 			} else {
 				// Deduplicate sample, use the same position
 				placeholder_set_offset(out, wave_sums[k].pos, "sample_%d_%d", i, j);
 			}
 		}
 	}
+
+	// Save size of WAVE section
+	placeholder_set_offset(out, ftell(out)-beginpos, "wave_size");
 }
 
-static void xm_context_save(xm_context_t* ctx, FILE* out) {
-	const uint8_t version = 6;
+static void xm_save_wave_externally(xm_context_t* ctx, FILE* out, const char *outfn, int totsamples)
+{
+	for (int i=0;i<ctx->module.num_instruments;i++) {
+		xm_instrument_t *ins = &ctx->module.instruments[i];
+		for (int j=0;j<ins->num_samples;j++) {
+			xm_sample_t *s = &ins->samples[j];
+			assert(s->bits == 8 || s->bits == 16);
+
+			// Rewrite the file atomically. Notice that the file might already
+			// exist since it's a shared archive of wavs, but we want to rewrite
+			// it anyway using our own settings (eg: compression). This gives a
+			// better developer experience as changes in Makefile are effective even
+			// with "make -B" or in general if any input file is changed.
+			uint32_t hash = xm_sample_crc32(s);
+			char *filename = NULL;
+			asprintf(&filename, "%s/%08x.wav64", flag_xm_extsampledir, hash);
+
+			// Create a temporary unique file name embedding a random number
+			char *tmpname = NULL;
+			asprintf(&tmpname, "%s/%x.%llx.tmp", flag_xm_extsampledir, getpid(), nanotime());
+
+			int fd = open(tmpname, O_WRONLY | O_CREAT | O_EXCL, 0644);
+			if (fd < 0) {
+				fprintf(stderr, "FATAL: cannot create %s: %s\n", filename, strerror(errno));
+				exit(1);
+			}
+			
+			// Write the file
+			FILE *wavf = fdopen(fd, "wb");
+			if (!wavf) fatal("ERROR: cannot create %s: %s\n", filename, strerror(errno));
+			char *wavfn=NULL; asprintf(&wavfn, "%s.%d.%d.wav64", outfn, i, j); // used only for --debug
+
+			xm_save_wave64(s, wavf, wavfn);
+
+			fclose(wavf);
+			free(wavfn);
+			rename(tmpname, filename);
+
+			// Save the WAV hash in the XM64 file as "offset" of the waveform
+			placeholder_set_offset(out, hash, "sample_%d_%d", i, j);
+			free(filename);
+			free(tmpname);
+		}
+	}
+}
+
+
+static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
+	const uint8_t version = 7;
 	wa(out, "XM64", 4);
 	w8(out, version);
 	w32(out, ctx->ctx_size);
@@ -181,9 +265,15 @@ static void xm_context_save(xm_context_t* ctx, FILE* out) {
 		}
 	}
 
-	xm_save_wave_internally(ctx, out, totsamples);
+	if (flag_xm_extsampledir)
+		xm_save_wave_externally(ctx, out, outfn, totsamples);
+	else
+		xm_save_wave_internally(ctx, out, outfn, totsamples);
 
 	wa(out, "PATT", 4);
+	w32_placeholderf(out, "pattern_size");
+	int patt_beginpos = ftell(out);
+
 	for (int i=0;i<ctx->module.num_patterns;i++) {
 		walign(out, 8);
 		placeholder_set(out, "pattern_%d", i);
@@ -279,6 +369,8 @@ static void xm_context_save(xm_context_t* ctx, FILE* out) {
 		placeholder_set_offset(out, ftell(out) - pos, "pattern_size_%d", i);
 	}
 
+	placeholder_set_offset(out, ftell(out) - patt_beginpos, "pattern_size");
+
 	wa(out, "END!", 4);
 
 	#undef _CHKSZ
@@ -297,9 +389,44 @@ static void xm_context_save(xm_context_t* ctx, FILE* out) {
 	#undef WALIGN
 }
 
+static void xm_remove_empty_samples(xm_context_t *ctx)
+{
+	// Some instruments may have empty samples (length=0). Remove them and
+	// remap the sample numbers in the instrument.
+	for (int i=0;i<ctx->module.num_instruments;i++) {
+		xm_instrument_t *ins = &ctx->module.instruments[i];
+		int sample_remap[ins->num_samples];
+
+		int j = 0;
+		for (int k=0;k<ins->num_samples;k++) {
+			if (ins->samples[k].length > 0) {
+				sample_remap[k] = j;
+				if (j != k) ins->samples[j] = ins->samples[k];
+				j++;
+			} else {
+				sample_remap[k] = -1;
+			}
+		}
+
+		// Update sample_of_notes
+		for (int k=0;k<NUM_NOTES;k++) {
+			if (ins->sample_of_notes[k] < ins->num_samples)
+				ins->sample_of_notes[k] = sample_remap[ins->sample_of_notes[k]];
+		}
+
+		// Update total count of samples
+		ins->num_samples = j;
+	}
+}
+
+
 int xm_convert(const char *infn, const char *outfn) {
 	if (flag_verbose)
 		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);
+
+	// FIXME: force compression to 0 for now, as VADPCM doesn't support
+	// loop points yet.
+	flag_wav_compress = 0;
 
 	FILE *xm = fopen(infn, "rb");
 	if (!xm) fatal("cannot open: %s\n", infn);
@@ -321,6 +448,9 @@ int xm_convert(const char *infn, const char *outfn) {
 	xm_create_context_safe(&ctx, xmdata, fsize, 48000);
 	if (!ctx) fatal("cannot read XM file: invalid format?");
 	free(xmdata);
+
+	// Remove 0-length samples
+	xm_remove_empty_samples(ctx);
 
 	// Pre-process all waveforms:
 	//   1) Ping-pong loops will be unrolled as regular forward
@@ -530,7 +660,7 @@ int xm_convert(const char *infn, const char *outfn) {
 
 	FILE *out = fopen(outfn, "wb");
 	if (!out) fatal("cannot create: %s", outfn);
-	xm_context_save(ctx, out);
+	xm_context_save(ctx, out, outfn);
 	int romsize = ftell(out);
 	fclose(out);
 

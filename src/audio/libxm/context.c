@@ -172,8 +172,9 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	//  5: first public version
 	//  6: added overread for non-looping samples. The size of optimal
 	//     stream sample buffer size must change, hance the version bump.
+	//  7: switch to wav64 for samples, and add support for external samples
 	R8(version);
-	if (version != 5 && version != 6) {
+	if (version != 7) {
 		DEBUG("invalid XM64 version %d\n", version);
 		return 1;		
 	}
@@ -185,14 +186,6 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	R32(ctx_size_all_samples);
 	R32(ctx_size_stream_pattern_buf);
 	for (int i=0;i<32;i++) R32(ctx_size_stream_sample_buf[i]);
-	if (version == 5) {
-		for (int i=0;i<32;i++) {
-			// Add the overread size to all (non-empty) channels. This is a small pessimization,
-			// but it's trivial and we allow loading v5 files (albeit consuming a little bit more RAM).
-			if (ctx_size_stream_sample_buf[i])
-				ctx_size_stream_sample_buf[i] += 64;
-		}
-	}
 
 	uint32_t alloc_bytes = ctx_size;
 	#if XM_STREAM_PATTERNS
@@ -218,7 +211,7 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	for (int i=0;i<32;i++) ctx->ctx_size_stream_sample_buf[i] = ctx_size_stream_sample_buf[i];
 
 #if XM_STREAM_WAVEFORMS || XM_STREAM_PATTERNS
-	ctx->fh = in;   /* Save the file if we need to stream later */
+	ctx->fd = fileno(in);   /* Save the file if we need to stream later */
 #endif
 
 	R16(ctx->module.tempo);
@@ -306,59 +299,31 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	}
 
 	RA(head, 4);
-	if (head[0] != 'W' && head[1] != 'A' && head[2] != 'V' && head[3] != 'E') {
-		DEBUG("invalid WAVE header\n");
-		free(*ctxp);
-		*ctxp = NULL;
-		return 1;
+	if (head[0] == 'W' && head[1] == 'A' && head[2] == 'V' && head[3] == 'E') {
+		uint32_t body_size;
+		R32(body_size);
+
+		// Record that wav64 are embedded
+		ctx->external_samples = false;
+
+		// Skip the wav64 embedded files. We don't have much to do with it, as the various
+		// wav64 in the file will be referenced at runtime by their offset.
+		fseek(in, body_size, SEEK_CUR);
+
+		// This is actually not guaranteed by the file format, but since the
+		// save function laids out waveforms in order, after reading the last one
+		// we should have arrived on the pattern magic string.
+		RA(head, 4);
+	} else {
+		ctx->external_samples = true;
 	}
 
-	uint32_t wv_overread;
-	R32(wv_overread);
-	if (wv_overread < XM_WAVEFORM_OVERREAD) {
-		DEBUG("waveform overread too little (%d < %d)\n", (int)wv_overread, XM_WAVEFORM_OVERREAD);
-		free(*ctxp);
-		*ctxp = NULL;
-		return 1;
-	}
-
-
-#if !XM_STREAM_WAVEFORMS
-	for (int i=0;i<ctx->module.num_instruments;i++) {
-		xm_instrument_t *ins = &ctx->module.instruments[i];
-
-		for (int j=0;j<ins->num_samples;j++) {
-			xm_sample_t *s = &ins->samples[j];
-
-			fseek(in, s->data8_offset, SEEK_SET);
-
-			s->data8 = (int8_t*)mempool;
-			mempool += s->length * (s->bits / 8) + XM_WAVEFORM_OVERREAD;
-			if ((size_t)mempool & 7) mempool += 8 - ((size_t)mempool & 7);
-
-			if (s->bits == 8)
-				RA(s->data8, s->length+XM_WAVEFORM_OVERREAD);
-			else {
-				RA(s->data8, s->length*2+XM_WAVEFORM_OVERREAD);
-				#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
-					s->data16[k] = __builtin_bswap16(s->data16[k]);
-				#endif
-			}
-		}
-	}
-
-	// This is actually not guaranteed by the file format, but since the
-	// save function laids out waveforms in order, after reading the last one
-	// we should have arrived on the pattern magic string.
-	RA(head, 4);
 	if (head[0] != 'P' || head[1] != 'A' || head[2] != 'T' || head[3] != 'T') {
 		DEBUG("invalid PATT header\n");
 		free(*ctxp);
 		*ctxp = NULL;
 		return 1;
 	}
-#endif
 
 #if !XM_STREAM_PATTERNS
 	for (int i=0;i<ctx->module.num_patterns;i++) {

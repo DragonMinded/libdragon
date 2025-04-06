@@ -79,14 +79,16 @@ void usage(void) {
 	printf("   -d / --debug              Dump uncompressed files in output directory for debugging\n");
 	printf("\n");
 	printf("WAV/MP3 options:\n");
+	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
+	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
+	printf("XM options:\n");
+	printf("   --xm-8bit                 Convert all samples ot 8-bit\n");
+	printf("   --xm-ext-samples <dir>    Export samples externally as wav64 files in the specified directory\n");
+	printf("\n");
+	printf("WAV64 format options (also valid for samples within XM):\n");
 	printf("   --wav-mono                Force mono output\n");
 	printf("   --wav-resample <N>        Resample to a different sample rate\n");
 	printf("   --wav-compress <0|1|3>    Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
-	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
-	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
-	printf("\n");
-	printf("XM options:\n");
-	printf("   --xm-8bit                 Convert all samples ot 8-bit\n");
 	printf("\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  Compress output file\n");
@@ -306,6 +308,13 @@ int main(int argc, char *argv[]) {
 				}
 			} else if (!strcmp(argv[i], "--xm-8bit")) {
 				flag_xm_8bit = true;
+			} else if (!strcmp(argv[i], "--xm-ext-samples")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --xm-ext-samples\n");
+					return 1;
+				}
+				flag_xm_extsampledir = argv[i];
+				mkdir(flag_xm_extsampledir, 0777);
 			} else if (!strcmp(argv[i], "--ym-compress")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --ym-compress\n");

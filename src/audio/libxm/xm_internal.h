@@ -16,9 +16,7 @@
 // this amount of bytes. See also rspxm.S for details.
 #define XM_WAVEFORM_OVERREAD      64
 
-#if XM_STREAM_WAVEFORMS
-typedef struct waveform_s waveform_t;
-#endif
+typedef struct wav64_s wav64_t;
 
 #if XM_DEBUG
 #include <stdio.h>
@@ -111,10 +109,9 @@ struct xm_sample_s {
 	int8_t relative_note;
 	uint64_t latest_trigger;
 
-#if XM_STREAM_WAVEFORMS
-	// libdragon mixer's waveform
-	waveform_t *wave;
-#endif
+	#ifdef N64
+	wav64_t *wave;	// libdragon wav64 sample
+	#endif
 
 	union {
 		int8_t* data8;
@@ -325,7 +322,7 @@ struct xm_context_s {
 		uint64_t channels_offset;
 	};
 
-	FILE* fh;  /* open file for streaming content (if requested) */
+	int fd;  /* open file for streaming content (if requested) */
 	xm_effect_callback_t effect_callback;
 	void *effect_callback_ctx;
 
@@ -333,6 +330,8 @@ struct xm_context_s {
 	xm_pattern_slot_t *slot_buffer;
 	int slot_buffer_index;
 #endif
+
+	bool external_samples; /* True if samples are external, false if embedded */
 };
 
 /* ----- Internal API ----- */
