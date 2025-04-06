@@ -139,7 +139,7 @@ static void xm_save_wave_externally(xm_context_t* ctx, FILE* out, const char *ou
 
 			// Create a temporary unique file name embedding a random number
 			char *tmpname = NULL;
-			asprintf(&tmpname, "%s/%x.%llx.tmp", flag_xm_extsampledir, getpid(), nanotime());
+			asprintf(&tmpname, "%s/%x.%" PRIx64 ".tmp", flag_xm_extsampledir, getpid(), nanotime());
 
 			int fd = open(tmpname, O_WRONLY | O_CREAT | O_EXCL, 0644);
 			if (fd < 0) {
