@@ -76,7 +76,7 @@ static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 	free(wav.samples);
 }
 
-static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, const char *outfn, int totsamples)
+static void xm_save_wave_internally(xm_context_t* ctx, FILE* meta, FILE* out, const char *outfn, int totsamples)
 {
 	// Use a sample structure to do internal de-duplication of samples
 	struct sample_checksum {
@@ -85,10 +85,6 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, const char *ou
 	};
 	struct sample_checksum wave_sums[totsamples+1];
 	memset(wave_sums, 0, sizeof(wave_sums));
-
-	wa(out, "WAVE", 4);
-	w32_placeholderf(out, "wave_size");
-	int beginpos = ftell(out);
 
 	for (int i=0;i<ctx->module.num_instruments;i++) {
 		xm_instrument_t *ins = &ctx->module.instruments[i];
@@ -104,7 +100,7 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, const char *ou
 			}
 			if (wave_sums[k].pos == 0) {
 				walign(out, 8);
-				placeholder_set(out, "sample_%d_%d", i, j);
+				placeholder_set(meta, "sample_%d_%d", i, j);
 				wave_sums[k].hash = hash;
 				wave_sums[k].pos = ftell(out);
 
@@ -113,16 +109,13 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* out, const char *ou
 				free(wavfn);
 			} else {
 				// Deduplicate sample, use the same position
-				placeholder_set_offset(out, wave_sums[k].pos, "sample_%d_%d", i, j);
+				placeholder_set_offset(meta, wave_sums[k].pos, "sample_%d_%d", i, j);
 			}
 		}
 	}
-
-	// Save size of WAVE section
-	placeholder_set_offset(out, ftell(out)-beginpos, "wave_size");
 }
 
-static void xm_save_wave_externally(xm_context_t* ctx, FILE* out, const char *outfn, int totsamples)
+static void xm_save_wave_externally(xm_context_t* ctx, FILE *meta, FILE* out, const char *outfn, int totsamples)
 {
 	for (int i=0;i<ctx->module.num_instruments;i++) {
 		xm_instrument_t *ins = &ctx->module.instruments[i];
@@ -161,7 +154,7 @@ static void xm_save_wave_externally(xm_context_t* ctx, FILE* out, const char *ou
 			rename(tmpname, filename);
 
 			// Save the WAV hash in the XM64 file as "offset" of the waveform
-			placeholder_set_offset(out, hash, "sample_%d_%d", i, j);
+			placeholder_set_offset(meta, hash, "sample_%d_%d", i, j);
 			free(filename);
 			free(tmpname);
 		}
@@ -169,33 +162,45 @@ static void xm_save_wave_externally(xm_context_t* ctx, FILE* out, const char *ou
 }
 
 
-static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
-	const uint8_t version = 8;
-	wa(out, "XM64", 4);
-	w8(out, version);
-	w32(out, ctx->ctx_size);
-	w32(out, ctx->ctx_size_all_patterns);
-	w32(out, ctx->ctx_size_all_samples);
-	w32_placeholderf(out, "ctx_size_stream_pattern_buf");
-	for (int i=0; i<32; i++) w32(out, ctx->ctx_size_stream_sample_buf[i]);
+static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
+	// Version log:
+	//  5: first public version
+	//  6: added overread for non-looping samples. The size of optimal
+	//     stream sample buffer size must change, hance the version bump.
+	//  7: switch to wav64 for samples, and add support for external samples
+	//  8: patterns are compressed with asset library
+	//  9: metadata compressed with asset library
+	const uint8_t version = 9;
+	wa(xm64, "XM64", 4);
+	w8(xm64, version);
+	w32_placeholderf(xm64, "metadata_offset");
+	w32_placeholderf(xm64, "metadata_size");
 
-	w16(out, ctx->module.tempo);
-	w16(out, ctx->module.bpm);
+	// Write metadata into a temporary file
+	FILE *meta = tmpfile();
+	w32(meta, ctx->ctx_size);
+	w32(meta, ctx->ctx_size_all_patterns);
+	w32(meta, ctx->ctx_size_all_samples);
+	w32_placeholderf(meta, "ctx_size_stream_pattern_buf");
+	for (int i=0; i<32; i++) w32(meta, ctx->ctx_size_stream_sample_buf[i]);
+
+	w16(meta, ctx->module.tempo);
+	w16(meta, ctx->module.bpm);
 
 #if XM_STRINGS
-	wa(out, ctx->module.name, sizeof(ctx->module.name));
-	wa(out, ctx->module.trackername, sizeof(ctx->module.trackername));
+	wa(meta, ctx->module.name, sizeof(ctx->module.name));
+	wa(meta, ctx->module.trackername, sizeof(ctx->module.trackername));
 #else
 	char name[MODULE_NAME_LENGTH+1] = {0}; char trackername[TRACKER_NAME_LENGTH+1] = {0};
-	wa(out, name, sizeof(name)); wa(out, trackername, sizeof(trackername));
+	wa(meta, name, sizeof(name)); wa(meta, trackername, sizeof(trackername));
 #endif
-	w16(out, ctx->module.length);
-	w16(out, ctx->module.restart_position);
-	w16(out, ctx->module.num_channels);
-	w16(out, ctx->module.num_patterns);
-	w16(out, ctx->module.num_instruments);
-	w32(out, ctx->module.frequency_type);
-	wa(out, ctx->module.pattern_table, sizeof(ctx->module.pattern_table));
+	w16(meta, ctx->module.length);
+	w16(meta, ctx->module.restart_position);
+	w16(meta, ctx->module.num_channels);
+	w16(meta, ctx->module.num_patterns);
+	w16(meta, ctx->module.num_instruments);
+	w32(meta, ctx->module.frequency_type);
+	wa(meta, ctx->module.pattern_table, sizeof(ctx->module.pattern_table));
 
 	int totsamples = 0;
 	for (int i=0;i<ctx->module.num_instruments;i++) {
@@ -204,81 +209,81 @@ static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
 	}
 
 	for (int i=0;i<ctx->module.num_patterns;i++) {
-		w16(out, ctx->module.patterns[i].num_rows);
-		w32_placeholderf(out, "pattern_%d", i);
-		w16_placeholderf(out, "pattern_size_%d", i);
+		w16(meta, ctx->module.patterns[i].num_rows);
+		w32_placeholderf(meta, "pattern_%d", i);
+		w16_placeholderf(meta, "pattern_size_%d", i);
 	}
 
 	for (int i=0;i<ctx->module.num_instruments;i++) {
 		xm_instrument_t *ins = &ctx->module.instruments[i];
 #if XM_STRINGS
-		wa(out, ins->name, sizeof(ins->name));
+		wa(meta, ins->name, sizeof(ins->name));
 #else
 		char name[INSTRUMENT_NAME_LENGTH + 1] = {0};
-		wa(out, name);
+		wa(meta, name);
 #endif
-		wa(out, ins->sample_of_notes, sizeof(ins->sample_of_notes));
+		wa(meta, ins->sample_of_notes, sizeof(ins->sample_of_notes));
 
-		w8(out, ins->volume_envelope.num_points);
+		w8(meta, ins->volume_envelope.num_points);
 		for (int j=0;j<ins->volume_envelope.num_points;j++) {
-			w16(out, ins->volume_envelope.points[j].frame);
-			w16(out, ins->volume_envelope.points[j].value);
+			w16(meta, ins->volume_envelope.points[j].frame);
+			w16(meta, ins->volume_envelope.points[j].value);
 		}
-		w8(out, ins->volume_envelope.sustain_point);
-		w8(out, ins->volume_envelope.loop_start_point);
-		w8(out, ins->volume_envelope.loop_end_point);
-		w8(out, ins->volume_envelope.enabled);
-		w8(out, ins->volume_envelope.sustain_enabled);
-		w8(out, ins->volume_envelope.loop_enabled);
+		w8(meta, ins->volume_envelope.sustain_point);
+		w8(meta, ins->volume_envelope.loop_start_point);
+		w8(meta, ins->volume_envelope.loop_end_point);
+		w8(meta, ins->volume_envelope.enabled);
+		w8(meta, ins->volume_envelope.sustain_enabled);
+		w8(meta, ins->volume_envelope.loop_enabled);
 
-		w8(out, ins->panning_envelope.num_points);
+		w8(meta, ins->panning_envelope.num_points);
 		for (int j=0;j<ins->panning_envelope.num_points;j++) {
-			w16(out, ins->panning_envelope.points[j].frame);
-			w16(out, ins->panning_envelope.points[j].value);
+			w16(meta, ins->panning_envelope.points[j].frame);
+			w16(meta, ins->panning_envelope.points[j].value);
 		}
-		w8(out, ins->panning_envelope.sustain_point);
-		w8(out, ins->panning_envelope.loop_start_point);
-		w8(out, ins->panning_envelope.loop_end_point);
-		w8(out, ins->panning_envelope.enabled);
-		w8(out, ins->panning_envelope.sustain_enabled);
-		w8(out, ins->panning_envelope.loop_enabled);
+		w8(meta, ins->panning_envelope.sustain_point);
+		w8(meta, ins->panning_envelope.loop_start_point);
+		w8(meta, ins->panning_envelope.loop_end_point);
+		w8(meta, ins->panning_envelope.enabled);
+		w8(meta, ins->panning_envelope.sustain_enabled);
+		w8(meta, ins->panning_envelope.loop_enabled);
 
-		w32(out, ins->vibrato_type);
-		w8(out, ins->vibrato_sweep);
-		w8(out, ins->vibrato_depth);
-		w8(out, ins->vibrato_rate);
-		w16(out, ins->volume_fadeout);
-		w64(out, ins->latest_trigger);
+		w32(meta, ins->vibrato_type);
+		w8(meta, ins->vibrato_sweep);
+		w8(meta, ins->vibrato_depth);
+		w8(meta, ins->vibrato_rate);
+		w16(meta, ins->volume_fadeout);
+		w64(meta, ins->latest_trigger);
 
-		w16(out, ins->num_samples);
+		w16(meta, ins->num_samples);
 		for (int j=0;j<ins->num_samples;j++) {
 			xm_sample_t *s = &ins->samples[j];
-			w8(out, s->bits);
-			w32(out, s->length);
-			w32(out, s->loop_start);
-			w32(out, s->loop_length);
-			w32(out, s->loop_end);
-			wf32(out, s->volume);
-			w8(out, s->finetune);
-			w32(out, s->loop_type);
-			wf32(out, s->panning);
-			w8(out, s->relative_note);
-			w32_placeholderf(out, "sample_%d_%d", i, j);
+			w8(meta, s->bits);
+			w32(meta, s->length);
+			w32(meta, s->loop_start);
+			w32(meta, s->loop_length);
+			w32(meta, s->loop_end);
+			wf32(meta, s->volume);
+			w8(meta, s->finetune);
+			w32(meta, s->loop_type);
+			wf32(meta, s->panning);
+			w8(meta, s->relative_note);
+			w32_placeholderf(meta, "sample_%d_%d", i, j);
 		}
 	}
+	w8(meta, (flag_xm_extsampledir != NULL));
 
+	// Write the samples (either internally or externally)
 	if (flag_xm_extsampledir)
-		xm_save_wave_externally(ctx, out, outfn, totsamples);
+		xm_save_wave_externally(ctx, meta, xm64, outfn, totsamples);
 	else
-		xm_save_wave_internally(ctx, out, outfn, totsamples);
+		xm_save_wave_internally(ctx, meta, xm64, outfn, totsamples);
 
-	wa(out, "PATT", 4);
-
+	// Write the patterns (potentially compressed)
 	int max_inplace_margin = 0;
 	for (int i=0;i<ctx->module.num_patterns;i++) {
-		walign(out, 2);
-		placeholder_set(out, "pattern_%d", i);
-		int pos = ftell(out);
+		walign(xm64, 2);
+		int pos = ftell(xm64);
 
 		xm_pattern_t *p = &ctx->module.patterns[i];
 
@@ -299,10 +304,11 @@ static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
 		}
 
 		int inplace_margin;
-		asset_compress_mem(cur_pat, pat_size, out, flag_xm_compress_meta, 0, &inplace_margin);
+		asset_compress_mem(cur_pat, pat_size, xm64, flag_xm_compress_meta, 0, &inplace_margin);
 		if (inplace_margin > max_inplace_margin)
 			max_inplace_margin = inplace_margin;
-		placeholder_set_offset(out, ftell(out) - pos, "pattern_size_%d", i);
+		placeholder_set_offset(meta, pos, "pattern_%d", i);
+		placeholder_set_offset(meta, ftell(xm64) - pos, "pattern_size_%d", i);
 	}
 
 	// Add the necessary maximum margin to the size of the pattern buffer
@@ -310,7 +316,22 @@ static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
 	ctx->ctx_size_stream_pattern_buf += max_inplace_margin;
 	ctx->ctx_size_stream_pattern_buf += 8;  // margin for OOB writes of decompressors
 	ctx->ctx_size_stream_pattern_buf = (ctx->ctx_size_stream_pattern_buf + 15) / 16 * 16;
-	placeholder_set_offset(out, ctx->ctx_size_stream_pattern_buf, "ctx_size_stream_pattern_buf");
+	placeholder_set_offset(meta, ctx->ctx_size_stream_pattern_buf, "ctx_size_stream_pattern_buf");
+
+	// Now we have completed the file. Read back the metadata and compress them
+	// to the xm64 output file.
+	int metadata_size = ftell(meta);
+	walign(xm64, 2);
+	placeholder_set(xm64, "metadata_offset");
+	placeholder_set_offset(xm64, metadata_size, "metadata_size");
+
+	rewind(meta);
+	uint8_t *metadata = malloc(metadata_size);
+	fread(metadata, 1, metadata_size, meta);
+	fclose(meta);
+
+	asset_compress_mem(metadata, metadata_size, xm64, flag_xm_compress_meta, 0, NULL);
+	free(metadata);
 }
 
 static void xm_remove_empty_samples(xm_context_t *ctx)

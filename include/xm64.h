@@ -59,7 +59,7 @@ typedef struct waveform_s waveform_t;
  */
 typedef struct xm64player_s {
 	xm_context_t *ctx;        ///< libxm context
-	FILE *fh;                 ///< open handle of XM64 file
+	int fd;                   ///< open handle of XM64 file
 	int first_ch;             ///< first channel used in the mixer
 	bool playing;             ///< playing flag
 	bool stop_requested;      ///< user requested stop playing

@@ -105,37 +105,55 @@ static int tick(void *arg) {
 	return delay;
 }
 
+typedef struct __attribute__((packed)) {
+	char magic[4]; 					// "XM64"
+	uint8_t version;
+	uint32_t metadata_offset; 		// offset of the metadata
+	uint32_t metadata_size;			// size of the metadata
+} xm64_header_t;
+
 void xm64player_open(xm64player_t *player, const char *fn) {
 	memset(player, 0, sizeof(*player));
+	player->fd = -1;
 
 	// No pending seek at the moment, we start from beginning anyway.
 	player->seek.patidx = -1;
 
-	// Open the file as a buffered stream, which speeds up reading it.
-	player->fh = must_fopen(fn);
+	// Open the file as a file descriptor
+	int fd = must_open(fn);
+
+	// Read the header to check if this is a valid XM64 file
+	xm64_header_t header;
+	read(fd, &header, sizeof(header));
+	if (memcmp(header.magic, "XM64", 4) != 0) {
+		if (memcmp(header.magic, "Exte", 4) == 0) {
+			assertf(0, "cannot load XM file: %s\nPlease convert to XM64 with audioconv64", fn);
+		}
+		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
+	}
+	assertf(header.version == 9, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+
+	// Seek to the beginning of the metadata, that are asset-compressed. We need
+	// to read the metadata in small chunks, so we use asset_fopen() for this.
+	lseek(fd, header.metadata_offset, SEEK_SET);
+	FILE *fh = asset_fdopen(fd, NULL);
 
 	// Load the XM context
 	int sample_rate = audio_get_frequency();
 	assertf(sample_rate >= 0, "audio_init() and mixer_init() must be called before xm64player_open()");
-	int err = xm_context_load(&player->ctx, player->fh, sample_rate);
+	int err = xm_context_load(&player->ctx, fh, sample_rate);
 	if (err != 0) {
 		if (err == 2) {
 			assertf(0, "error loading XM64 file: %s\nMemory size estimation by audioconv64 was wrong\n", fn);
 		}
-
-		// Check if the file looks like a standard XM, so to provide
-		// a clear message in that case.
-		char signature[16] = {0};
-		fseek(player->fh, 0, SEEK_SET);
-		fread(signature, 1, 15, player->fh);
-		if (strcmp(signature, "Extended Module") == 0) {
-			assertf(0, "cannot load XM file: %s\nPlease convert to XM64 with audioconv64", fn);
-		}
 		assertf(0, "error loading XM64 file: %s\nFile corrupted", fn);
 	}
 
+	fclose(fh);
+
 	// Reopen as unbuffered file descriptor. This will be used for streaming.
-	int fd = fileno(player->fh);
+	player->fd = must_open(fn);
+	player->ctx->fd = player->fd;
 
 	char *extfn = NULL;
 	if (player->ctx->external_samples) {
@@ -150,8 +168,8 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 			xm_sample_t *samp = &inst->samples[j];
 
 			if (!player->ctx->external_samples) {
-				lseek(fd, samp->data8_offset, SEEK_SET);
-				samp->wave = wav64_loadfd(fd, NULL);
+				lseek(player->fd, samp->data8_offset, SEEK_SET);
+				samp->wave = wav64_loadfd(player->fd, NULL);
 			} else {
 				sprintf(extfn, "%s/%08lx.wav64", xm64_extsampledir, samp->data8_offset);
 				samp->wave = wav64_load(extfn, NULL);
@@ -257,9 +275,9 @@ void xm64player_close(xm64player_t *player) {
 		}
 	}
 
-	if (player->fh != NULL) {
-		fclose(player->fh);
-		player->fh = NULL;
+	if (player->fd >= 0) {
+		close(player->fd);
+		player->fd = -1;
 	}
 
 	if (player->ctx) {

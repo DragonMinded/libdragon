@@ -129,26 +129,6 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	#define RS(x,n)   fseek(in, n, SEEK_CUR)  // just skip the string
 	#endif
 
-	uint8_t version;
-	char head[4];
-	RA(head, 4);
-	if (head[0] != 'X' || head[1] != 'M' || head[2] != '6' || head[3] != '4') {
-		DEBUG("invalid header\n");
-		return 1;
-	}
-
-	// Version log:
-	//  5: first public version
-	//  6: added overread for non-looping samples. The size of optimal
-	//     stream sample buffer size must change, hance the version bump.
-	//  7: switch to wav64 for samples, and add support for external samples
-	//  8: patterns are compressed with asset library
-	R8(version);
-	if (version != 8) {
-		DEBUG("invalid XM64 version %d\n", version);
-		return 1;		
-	}
-
 	uint32_t ctx_size, ctx_size_all_samples, ctx_size_all_patterns, ctx_size_stream_pattern_buf, ctx_size_stream_sample_buf[32];
 
 	R32(ctx_size);
@@ -205,6 +185,8 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 		R16(ctx->module.patterns[i].num_rows);
 		R32(ctx->module.patterns[i].slots_offset);
 		R16(ctx->module.patterns[i].slots_size);
+		fprintf(stderr, "pattern %d: %d rows, offset %x size %x\n", i, ctx->module.patterns[i].num_rows, (int)ctx->module.patterns[i].slots_offset, (int)ctx->module.patterns[i].slots_size);
+		
 	}
 
 	ctx->module.instruments = (xm_instrument_t*)mempool;
@@ -268,32 +250,7 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 		}
 	}
 
-	RA(head, 4);
-	if (head[0] == 'W' && head[1] == 'A' && head[2] == 'V' && head[3] == 'E') {
-		uint32_t body_size;
-		R32(body_size);
-
-		// Record that wav64 are embedded
-		ctx->external_samples = false;
-
-		// Skip the wav64 embedded files. We don't have much to do with it, as the various
-		// wav64 in the file will be referenced at runtime by their offset.
-		fseek(in, body_size, SEEK_CUR);
-
-		// This is actually not guaranteed by the file format, but since the
-		// save function laids out waveforms in order, after reading the last one
-		// we should have arrived on the pattern magic string.
-		RA(head, 4);
-	} else {
-		ctx->external_samples = true;
-	}
-
-	if (head[0] != 'P' || head[1] != 'A' || head[2] != 'T' || head[3] != 'T') {
-		DEBUG("invalid PATT header\n");
-		free(*ctxp);
-		*ctxp = NULL;
-		return 1;
-	}
+	R8(ctx->external_samples);
 
 #if XM_STREAM_PATTERNS
 	if ((size_t)mempool & 15) mempool += 16 - ((size_t)mempool & 15);
