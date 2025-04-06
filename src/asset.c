@@ -214,16 +214,19 @@ static bool asset_read(int fd, asset_header_t *header, int *sz, void *buf, int *
     }
 }
 
-bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
+bool asset_loadfd_into(int fd, int *sz, void *buf, int *buf_size)
 {
-    int fd;
-    
-    fd = fileno(f);
-    fflush(f);
-    assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
     asset_header_t header;
     asset_read_header(fd, &header, sz);
     return asset_read(fd, &header, sz, buf, buf_size);
+}
+
+bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
+{
+    int fd = fileno(f);
+    fflush(f);
+    assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
+    return asset_loadfd_into(fd, sz, buf, buf_size);
 }
 
 void *asset_loadfd(int fd, int *sz)
