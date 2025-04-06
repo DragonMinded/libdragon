@@ -18,6 +18,10 @@ ifeq ($(OS),Windows_NT)
   	LDFLAGS += -static
 endif
 
+# Decomment to rebuild tools with ASAN
+#C_CXX_FLAGS += -O0 -g -fsanitize=address
+#LDFLAGS += -g -fsanitize=address
+
 all:
 
 %.o: %.c
