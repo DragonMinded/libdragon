@@ -185,8 +185,6 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 		R16(ctx->module.patterns[i].num_rows);
 		R32(ctx->module.patterns[i].slots_offset);
 		R16(ctx->module.patterns[i].slots_size);
-		fprintf(stderr, "pattern %d: %d rows, offset %x size %x\n", i, ctx->module.patterns[i].num_rows, (int)ctx->module.patterns[i].slots_offset, (int)ctx->module.patterns[i].slots_size);
-		
 	}
 
 	ctx->module.instruments = (xm_instrument_t*)mempool;

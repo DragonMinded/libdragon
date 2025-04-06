@@ -99,18 +99,16 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* meta, FILE* out, co
 				k++;
 			}
 			if (wave_sums[k].pos == 0) {
-				walign(out, 8);
-				placeholder_set(meta, "sample_%d_%d", i, j);
+				walign(out, 2);
 				wave_sums[k].hash = hash;
 				wave_sums[k].pos = ftell(out);
 
 				char *wavfn = NULL; asprintf(&wavfn, "%s.%d.%d.wav64", outfn, i, j); // used only for --debug
 				xm_save_wave64(s, out, wavfn);
 				free(wavfn);
-			} else {
-				// Deduplicate sample, use the same position
-				placeholder_set_offset(meta, wave_sums[k].pos, "sample_%d_%d", i, j);
 			}
+
+			placeholder_set_offset(meta, wave_sums[k].pos, "sample_%d_%d", i, j);
 		}
 	}
 }
