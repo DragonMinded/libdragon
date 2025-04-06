@@ -152,11 +152,7 @@ void walkdir(char *inpath, char *outpath, void (*func)(char *, char*)) {
 				fprintf(stderr, "ERROR: %s is a file but should be a directory\n", outpath);
 				return;
 			}
-			#ifndef __MINGW32__
 			mkdir(outpath, 0777);
-			#else
-			mkdir(outpath);
-			#endif
 		}
 		DIR* d = opendir(inpath);
 		struct dirent *de;
