@@ -240,7 +240,9 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 			/* This isn't your typical for loop */
 			for(uint16_t j = 0, k = 0; j < packed_patterndata_size; ++k) {
 				uint8_t note = READ_U8(offset + j);
-				xm_pattern_slot_t* slot = pat->slots + k;
+				int krow = k / mod->num_channels;
+				int kchan = k % mod->num_channels;
+				xm_pattern_slot_t* slot = pat->slots + (kchan * pat->num_rows) + krow;
 
 				if(note & (1 << 7)) {
 					/* MSB is set, this is a compressed packet */

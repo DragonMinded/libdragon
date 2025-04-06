@@ -286,14 +286,15 @@ static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
 		uint8_t cur_pat[pat_size];
 		uint8_t *pp = cur_pat;
 
+		xm_pattern_slot_t *s = &p->slots[0];
 		for (int k=0;k<ctx->module.num_channels;k++) {
 			for (int j=0;j<p->num_rows;j++) {
-				xm_pattern_slot_t *s = &p->slots[j*ctx->module.num_channels + k];
 				*pp++ = s->note;
 				*pp++ = s->instrument;
 				*pp++ = s->volume_column;
 				*pp++ = s->effect_type;
 				*pp++ = s->effect_param;
+				s++;
 			}
 		}
 
