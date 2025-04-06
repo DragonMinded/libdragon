@@ -103,5 +103,6 @@ FILE *must_fopen(const char *fn);
 int must_open(const char *fn);
 void *asset_loadfd(int fd, int *sz);
 bool asset_loadfd_into(int fd, int *sz, void *buf, int *buf_size);
+FILE *asset_fdopen(int fd, int *sz);
 
 #endif
