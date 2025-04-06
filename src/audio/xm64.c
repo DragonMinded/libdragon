@@ -105,9 +105,10 @@ static int tick(void *arg) {
 	return delay;
 }
 
+/** @brief Header of the XM64 file */
 typedef struct __attribute__((packed)) {
 	char magic[4]; 					// "XM64"
-	uint8_t version;
+	uint8_t version;				// version of the file format
 	uint32_t metadata_offset; 		// offset of the metadata
 	uint32_t metadata_size;			// size of the metadata
 } xm64_header_t;
