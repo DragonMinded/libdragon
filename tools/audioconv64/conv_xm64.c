@@ -26,7 +26,9 @@
 #include "../common/crc32.c"
 #include "../common/nanotime.h"
 #include "../common/polyfill.h"
+#include "../common/assetcomp.h"
 
+int flag_xm_compress_meta = DEFAULT_COMPRESSION;
 bool flag_xm_8bit = false;
 const char *flag_xm_extsampledir = NULL;
 
@@ -168,13 +170,13 @@ static void xm_save_wave_externally(xm_context_t* ctx, FILE* out, const char *ou
 
 
 static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
-	const uint8_t version = 7;
+	const uint8_t version = 8;
 	wa(out, "XM64", 4);
 	w8(out, version);
 	w32(out, ctx->ctx_size);
 	w32(out, ctx->ctx_size_all_patterns);
 	w32(out, ctx->ctx_size_all_samples);
-	w32(out, ctx->ctx_size_stream_pattern_buf);
+	w32_placeholderf(out, "ctx_size_stream_pattern_buf");
 	for (int i=0; i<32; i++) w32(out, ctx->ctx_size_stream_sample_buf[i]);
 
 	w16(out, ctx->module.tempo);
@@ -271,11 +273,10 @@ static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
 		xm_save_wave_internally(ctx, out, outfn, totsamples);
 
 	wa(out, "PATT", 4);
-	w32_placeholderf(out, "pattern_size");
-	int patt_beginpos = ftell(out);
 
+	int max_inplace_margin = 0;
 	for (int i=0;i<ctx->module.num_patterns;i++) {
-		walign(out, 8);
+		walign(out, 2);
 		placeholder_set(out, "pattern_%d", i);
 		int pos = ftell(out);
 
@@ -285,108 +286,30 @@ static void xm_context_save(xm_context_t* ctx, FILE* out, const char *outfn) {
 		uint8_t cur_pat[pat_size];
 		uint8_t *pp = cur_pat;
 
-		xm_pattern_slot_t *s = &p->slots[0];
-		for (int j=0;j<p->num_rows;j++) {
-			for (int k=0;k<ctx->module.num_channels;k++) {
+		for (int k=0;k<ctx->module.num_channels;k++) {
+			for (int j=0;j<p->num_rows;j++) {
+				xm_pattern_slot_t *s = &p->slots[j*ctx->module.num_channels + k];
 				*pp++ = s->note;
 				*pp++ = s->instrument;
 				*pp++ = s->volume_column;
 				*pp++ = s->effect_type;
 				*pp++ = s->effect_param;
-				s++;
 			}
 		}
 
-		// RLE-compress pattern
-		//
-		// The compressed stream is a sequence of "blocks". The number of blocks
-		// is not encoded, so the compressed size must be provided off-band.
-		// The following describes the format of a block.
-		//
-		// Each block begins with one varint-encoded number. The lowest 3 bits
-		// of this number represents the number of "runs" in this block, while
-		// the remaining bits are the number of "zeros". If the number of "runs"
-		// is 7, another varint-encoded number follows, that must be added to 7
-		// to obtain the real number of runs. After this, the block contains
-		// "runs" bytes, which are the literal data.
-		// The decompressor must first emit the specified number of zeros,
-		// and then copy the literal data.
-		//
-		// Varint encoding: a sequence of bytes where for each byte, the MSB
-		// is the continuation bit (1=another byte follow, 0=this is the last byte),
-		// while the other 7 bits are the actual payload that must be concatenated
-		// across all bytes. Notice that the encoding is big-endian, so the first
-		// byte contains the highest 7 bits of the encoded number. 
-		//
-		int x = 0;
-		while (x < pat_size) {
-			// Detect sequence of zeros
-			int zeros = 0;
-			while (x+zeros < pat_size && cur_pat[x+zeros] == 0)
-				zeros++;
-			x += zeros;
-
-			// Detect sequence of runs
-			// NOTE: we don't stop the sequence for a single zero byte, because
-			// that would be less efficient. So the runs finish when two zero
-			// bytes are detected.
-			int runs = 0;
-			while (x+runs < pat_size && (cur_pat[x+runs] != 0 || x+runs+1 >= pat_size || cur_pat[x+runs+1] != 0))
-				runs++;
-
-			// Prepare the encoded zeros number (with the lowest bits that encode
-			// part of runs), and the encoded runs (leftover).
-			int runs_low = (runs > 7) ? 7 : runs;
-			int enc_zeros = (zeros << 3) | runs_low;
-			int enc_runs  = runs - runs_low;
-
-			#define UINT32_NUM_BITS(n)   (32 - ((n) == 0 ? 32 : __builtin_clz(n)))
-			#define CEIL_DIV(n, d)       (((n) + (d) - 1) / (d))
-
-			// Varint-encode the zeros
-			int nb = CEIL_DIV(UINT32_NUM_BITS(enc_zeros), 7) - 1;
-			while (nb>0) {
-				w8(out, (uint8_t)(0x80 | ((enc_zeros >> (nb*7)) & 0x7F)));
-				nb--;
-			}
-			w8(out, (uint8_t)(enc_zeros & 0x7F));
-
-			// Varint-encode the lefotver runs (if any)
-			if (runs_low == 7) {			
-				int nb = CEIL_DIV(UINT32_NUM_BITS(enc_runs), 7) - 1;
-				while (nb>0) {
-					w8(out, (uint8_t)(0x80 | ((enc_runs >> (nb*7)) & 0x7F)));
-					nb--;
-				}
-				w8(out, (uint8_t)(enc_runs & 0x7F));
-			}
-
-			// Write the actual literal data
-			wa(out, cur_pat+x, runs);
-			x += runs;
-		}
-
+		int inplace_margin;
+		asset_compress_mem(cur_pat, pat_size, out, flag_xm_compress_meta, 0, &inplace_margin);
+		if (inplace_margin > max_inplace_margin)
+			max_inplace_margin = inplace_margin;
 		placeholder_set_offset(out, ftell(out) - pos, "pattern_size_%d", i);
 	}
 
-	placeholder_set_offset(out, ftell(out) - patt_beginpos, "pattern_size");
-
-	wa(out, "END!", 4);
-
-	#undef _CHKSZ
-	#undef _W8
-	#undef _W16
-	#undef _W32
-	#undef _W64
-	#undef _WA
-	#undef W8
-	#undef W16
-	#undef W32
-	#undef W64
-	#undef WA
-	#undef WB
-	#undef WF
-	#undef WALIGN
+	// Add the necessary maximum margin to the size of the pattern buffer
+	// See the code in asset_buf_size() for more information.
+	ctx->ctx_size_stream_pattern_buf += max_inplace_margin;
+	ctx->ctx_size_stream_pattern_buf += 8;  // margin for OOB writes of decompressors
+	ctx->ctx_size_stream_pattern_buf = (ctx->ctx_size_stream_pattern_buf + 15) / 16 * 16;
+	placeholder_set_offset(out, ctx->ctx_size_stream_pattern_buf, "ctx_size_stream_pattern_buf");
 }
 
 static void xm_remove_empty_samples(xm_context_t *ctx)
@@ -681,18 +604,6 @@ int xm_convert(const char *infn, const char *outfn) {
 		}
 		fprintf(stderr, "]\n");
 	}
-
-
-	// Try reloading the just-created file. This is just a safety net to catch
-	// serialization bugs and other mistakes immediately at conversion time.
-	// It's not required if we can't trust our own code, but it's not a big
-	// deal anyway, so better safe than sorry.
-	xm_context_t *ctx2;
-	out = fopen(outfn, "rb");
-	if (!out) fatal("cannot open: %s", outfn);
-	int ret = xm_context_load(&ctx2, out, 48000);
-	if (ret != 0) fatal("internal error: loading just created module: %s (ret:%d)", outfn, ret);
-	fclose(out);
 
 	return 0;
 }

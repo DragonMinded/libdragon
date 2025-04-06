@@ -105,37 +105,6 @@ int xm_create_context_safe(xm_context_t** ctxp, const char* moddata, size_t modd
 	return 0;
 }
 
-static uint32_t varint_get(uint8_t **pp) {
-	int8_t *p = (int8_t*)*pp; // trick: get GCC to generate better code in the loop
-	uint32_t x = 0;
-	int8_t y;
-	do {
-		y = *p++;
-		x <<= 7; x |= y & 0x7F;
-	} while (y & 0x80);
-	*pp = (uint8_t*)p;
-	return x;
-}
-
-// Decompress a pattern that was compressed with our custom RLE algorithm (see above).
-// Notice that in-place decompression is supported, by loading compressed data
-// at the end of the decompression buffer, so that no additional memory is required.
-int xm_context_decompress_pattern(uint8_t *in, int sz, xm_pattern_slot_t *pat) {
-	uint8_t *in_end = in+sz;
-	uint8_t *out = (uint8_t*)pat;
-	bool direction = (out<=in);
-	while (in < in_end) {
-		int zeros = varint_get(&in);
-		int runs = zeros & 7; if (runs == 7) runs += varint_get(&in);
-		zeros >>= 3;
-		memset(out, 0, zeros); out += zeros;
-		memmove(out, in, runs); out += runs; in += runs;
-		assert((out<=in) == direction);  // check for overruns during in-place decompression
-	}
-	return out - (uint8_t*)pat;
-}
-
-
 int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 
 	#define _CHKSZ(x,n) ({ _Static_assert(sizeof(x) == n, "invalid type size"); })
@@ -173,8 +142,9 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	//  6: added overread for non-looping samples. The size of optimal
 	//     stream sample buffer size must change, hance the version bump.
 	//  7: switch to wav64 for samples, and add support for external samples
+	//  8: patterns are compressed with asset library
 	R8(version);
-	if (version != 7) {
+	if (version != 8) {
 		DEBUG("invalid XM64 version %d\n", version);
 		return 1;		
 	}
@@ -325,39 +295,8 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 		return 1;
 	}
 
-#if !XM_STREAM_PATTERNS
-	for (int i=0;i<ctx->module.num_patterns;i++) {
-		xm_pattern_t *p = &ctx->module.patterns[i];
-
-		int cmp_size = p->slots_size;
-		int dec_size = sizeof(xm_pattern_slot_t) * p->num_rows * ctx->module.num_channels;
-
-		fseek(in, p->slots_offset, SEEK_SET);
-
-		assert(((size_t)mempool & 7) == 0);
-		p->slots = (xm_pattern_slot_t*)mempool;
-		mempool += sizeof(xm_pattern_slot_t) * ctx->module.num_channels * p->num_rows;
-		if ((size_t)mempool & 7) mempool += 8 - ((size_t)mempool & 7);
-
-		uint8_t *cmp_data = (uint8_t*)p->slots + dec_size - cmp_size;
-		RA(cmp_data, cmp_size);
-
-		// Decompress the slots
-		int sz = xm_context_decompress_pattern(cmp_data, cmp_size, p->slots);
-		assert(sz == dec_size);
-	}
-
-	// This is actually not guaranteed by the file format, but since the
-	// save function laids out patterns in order, after reading the last one
-	// we should have arrived on the end magic string.
-	RA(head, 4);
-	if (head[0] != 'E' || head[1] != 'N' || head[2] != 'D' || head[3] != '!') {
-		DEBUG("invalid END header (%x)\n", (unsigned)ftell(in));
-		free(*ctxp);
-		*ctxp = NULL;
-		return 1;
-	}
-#else
+#if XM_STREAM_PATTERNS
+	if ((size_t)mempool & 15) mempool += 16 - ((size_t)mempool & 15);
 	ctx->slot_buffer_index = -1;
 	ctx->slot_buffer = (xm_pattern_slot_t*)mempool;
 	mempool += ctx->ctx_size_stream_pattern_buf;
