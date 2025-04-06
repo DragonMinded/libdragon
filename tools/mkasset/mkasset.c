@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "error opening output file: %s\n", outfn);
             return 1;
         }
-        asset_compress_mem(data, sz, out, compression, winsize);
+        asset_compress_mem(data, sz, out, compression, winsize, NULL);
         fclose(out);
 
         free(outfn);

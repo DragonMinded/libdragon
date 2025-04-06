@@ -1765,7 +1765,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     }
 
     if (compression == -1) compression = DEFAULT_COMPRESSION;
-    int cmp_size = asset_compress_mem(data, sz, out, compression, 256*1024);
+    int cmp_size = asset_compress_mem(data, sz, out, compression, 256*1024, NULL);
     free(data);
 
     if (flag_verbose) {
