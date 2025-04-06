@@ -148,7 +148,7 @@ the vendors are usually less feature-rich.
 
 ## Libdragon stable vs preview
 
-Currently, there are two main libragon versions: 
+Currently, there are two main libdragon versions: 
 
  * The **stable** version is the one in the `trunk`. Stable means that we strive never
    to break backward compatibility, that is we will never do changes in a way
