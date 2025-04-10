@@ -509,10 +509,10 @@ void mixer_ch_stop(int ch) {
 	c->ctx = NULL;
 }
 
-bool mixer_ch_playing(int ch) {
+waveform_t* mixer_ch_playing(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_playing: cannot call on secondary stereo channel %d", ch);
-	return c->ptr != 0;
+	return c->ptr != 0 ? c->wave : NULL;
 }
 
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz) {
