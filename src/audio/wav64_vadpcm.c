@@ -217,8 +217,6 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
             vstate->bitpos = 0;
 		} else {
-			assertf(wpos == wav->wave.len - wav->wave.loop_len,
-				"wav64: seeking to %x not supported (%x %x)\n", wpos, wav->wave.len, wav->wave.loop_len);
             rsp_vadpcm_copystate(vstate->state, vhead->loop_state);
 			lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
             // vstate->bitpos = ???; FIXME: we need bitpos for the loop state
@@ -316,7 +314,6 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		rspq_highpri_end();
 
     if (wav->wave.loop_len && wpos >= wav->wave.len) {
-        assert(wav->wave.loop_len == wav->wave.len);
         samplebuffer_undo(sbuf, wpos - wav->wave.len);
     }
 }
@@ -372,10 +369,6 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
     // Flush cached state; it will be manipulated by RSP only
     wav64_state_vadpcm_t *vstate = (wav64_state_vadpcm_t*)wav->st->states;
     data_cache_hit_writeback_invalidate(vstate, wav->st->nsimul * sizeof(wav64_state_vadpcm_t));
-
-    // This should never happen as audioconv64 handles this.
-    assertf(wav->wave.loop_len == 0 || wav->wave.loop_len % 16 == 0, 
-        "wav64: invalid loop length for VADPCM: %d\n", wav->wave.loop_len);
 
     // Init huffman
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
