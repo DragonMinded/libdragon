@@ -44,7 +44,7 @@ typedef struct {
 	int bitsPerSample;			// Original bits per sample in input file
 	int sampleRate;
 	bool looping;
-	int loopOffset;
+	int loopOffset;				// Offset of the beginning of the loop in samples
 } wav_data_t;
 
 static bool read_wav(const char *infn, wav_data_t *out)
@@ -129,26 +129,69 @@ static size_t read_mp3(const char *infn, wav_data_t *out)
  * @param outfn 		Output file name (used only to create debug dump files if requested)
  * @param out 			Output file handle
  * @param wav 			Input WAV data (always pre-converted to 16 bit)
- * @param nbits 		Expected output number of bits. Only meaningful for uncompressed files.
  * @param format 		Compression format. 0=none, 1=VADPCM, 3=opus.
  * @return true 		if the file was written successfully
  * @return false 		if any error occurred
+ * 
+ * After the call:
+ *   wav->samples might have been reallocated to a different buffer, and the original one freed
+ * 
+ * Consider the function might have to change the wav->cnt and wav->loopOffset
+ * values to make them compatible with the compression format (eg: padding, realigning).
  */
-bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int nbits, int format)
+bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int format)
 {
 	bool failed = false;
 	int basepos = ftell(out);
 	
+	// Adjust loops for playback constraints
 	int loop_len = wav->looping ? wav->cnt - wav->loopOffset : 0;
 	if (loop_len < 0) {
 		fprintf(stderr, "WARNING: %s: invalid looping offset: %d (size: %d)\n", infn, wav->loopOffset, wav->cnt);
 		loop_len = 0;
 	}
-	if (loop_len&1 && nbits==8) {
-		// Odd loop lengths are not supported for 8-bit waveforms because they would
-		// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.
-		// We shorten the loop by 1 sample which shouldn't matter.
-		loop_len -= 1;
+
+	switch (format) {
+	case 0:
+		if (loop_len&1 && wav->bitsPerSample ==8) {
+			// Odd loop lengths are not supported for 8-bit waveforms because they would
+			// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.
+			// We shorten the loop by 1 sample which shouldn't matter.
+			wav->loopOffset += 1;
+			loop_len -= 1;
+		}
+		break;
+
+	case 1: { // vadpcm 
+		// We need the loop point to be aligned to the VADPCM frame size (16 samples).
+		// This allows the VADPCM decoder to be simpler when looping, as it doesn't
+		// have to decode and discard partial frames.
+		// Moreover, we even force an alignment to *even* frames (32 samples) because
+		// this gurantees the source ROM pointer is even, which means that direct DMA
+		// will be performed during decoding, with no memcpy.
+		// To do so, move forward the loop point until the next frame boundary,
+		// and copy the skipped samples to the end of the buffer.
+		enum { VADCPM_ALIGN = 32 };
+		if (wav->looping && (wav->loopOffset % VADCPM_ALIGN) != 0) {
+			int ncopy = VADCPM_ALIGN - (wav->loopOffset % VADCPM_ALIGN);
+			
+			wav->samples = realloc(wav->samples, (wav->cnt + ncopy) * wav->channels * sizeof(int16_t));
+			// Manually copy the samples to the end of the buffer, so that
+			// we handle the case of a loop length smaller than the copy size.
+			for (int i=0; i<ncopy * wav->channels; i++) {
+				wav->samples[wav->cnt * wav->channels + i] = wav->samples[wav->loopOffset * wav->channels + i];
+			}
+			wav->cnt += ncopy;
+			wav->loopOffset += ncopy;
+			loop_len = wav->cnt - wav->loopOffset;
+		}
+
+		wav->bitsPerSample = 16; // VADPCM always uses 16-bit samples
+	} 	break;
+
+	case 3: // opus:
+		wav->bitsPerSample = 16; // Opus always uses 16-bit samples
+		break;
 	}
 
 	char id[4] = "WV64";
@@ -156,7 +199,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	w8(out, 3); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
-	w8(out, nbits);							// bits
+	w8(out, wav->bitsPerSample);			// bits
 	w32(out, wav->sampleRate);				// frequency
 	w32(out, wav->cnt);						// len
 	w32(out, loop_len);						// loop_len
@@ -179,7 +222,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			// Write the sample as 16bit or 8bit. Since *sptr is 16-bit big-endian,
 			// the 8bit representation is just the first byte (MSB). Notice
 			// that WAV64 8bit is signed anyway.
-			fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
+			fwrite(sptr, 1, wav->bitsPerSample == 8 ? 1 : 2, out);
 			sptr++;
 		}
 	} break;
@@ -205,8 +248,8 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		assert(wav->cnt % kVADPCMFrameSampleCount == 0);
 		int nframes = wav->cnt / kVADPCMFrameSampleCount;
-		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		struct vadpcm_vector *codebook = alloca(kPREDICTORS * kVADPCMEncodeOrder * wav->channels * sizeof(struct vadpcm_vector));
+		struct vadpcm_vector loop_state[2] = {0};
 		struct vadpcm_params parms = { 
 			.predictor_count = kPREDICTORS,
 			.min_residual = -(1 << (flag_wav_compress_vadpcm_bits-1)),
@@ -217,20 +260,25 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		if (flag_verbose)
 			fprintf(stderr, "  compressing into VADPCM format (%d frames)\n", nframes);
 
+		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		int16_t *schan = malloc(wav->cnt * sizeof(int16_t));
 		for (int i=0; i<wav->channels; i++) {
 			uint8_t *destchan = malloc(nframes * kVADPCMFrameByteSize);
 			for (int j=0; j<wav->cnt; j++)
 				schan[j] = wav->samples[i + j*wav->channels];
-			vadpcm_error err = vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
-			if (err != 0) {
-				fprintf(stderr, "VADPCM encoding error: %s\n", vadpcm_error_name(err));
-				return 1;
+			vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
+			if (wav->looping) {
+				// Decode the whole buffer until the loop point to get the state
+				// at the beginning of the loop.
+				vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
+					codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
+					&loop_state[i], wav->loopOffset / kVADPCMFrameSampleCount, schan, destchan);
 			}
 			for (int j=0; j<nframes; j++)
 				memcpy(dest + (i + wav->channels * j) * kVADPCMFrameByteSize, destchan + j * kVADPCMFrameByteSize, kVADPCMFrameByteSize);
 			free(destchan);
 		}
+		free(schan);
 		free(scratch);
 
 		const int maxcompbuflen = nframes * kVADPCMFrameByteSize * wav->channels;
@@ -255,9 +303,10 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		w8(out, flags);
 		w8(out, 0);  // padding
 		w32(out, 0); // padding
-		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // TBC: loop_state[0]
-		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // TBC: loop_state[1]
-		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);				// Huffman context
+		for (int i=0; i<2; i++)	// loop_state
+			for (int j=0; j<8; j++)
+				w16(out, loop_state[i].v[j]);
+		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);					 // Huffman context
 		for (int i=0; i<kPREDICTORS * kVADPCMEncodeOrder * wav->channels; i++)    // codebook
 			for (int j=0; j<8; j++)
 				w16(out, codebook[i].v[j]);
@@ -596,12 +645,6 @@ int wav_convert(const char *infn, const char *outfn) {
 		wav.loopOffset = wav.loopOffset * wavResampleTo / wav.sampleRate;
 	}
 
-	// Keep 8 bits file if original is 8 bit, otherwise expand to 16 bit.
-	// Compressed waveforms always expand to 16 (both vadpcm and opus only supports 16 bits)
-	int nbits = wav.bitsPerSample == 8 ? 8 : 16;
-	if (flag_wav_compress != 0)
-		nbits = 16;
-
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {
 		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
@@ -609,7 +652,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		return 1;
 	}
 
-	failed = !wav64_write(infn, outfn, out, &wav, nbits, flag_wav_compress);
+	failed = !wav64_write(infn, outfn, out, &wav, flag_wav_compress);
 
 	// Show a message with the final compression ratio between original file and output file
 	if (flag_verbose)

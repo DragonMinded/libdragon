@@ -49,6 +49,10 @@ static int tick(void *arg) {
 		// Seek was requested. Do it.
 		xm_seek(ctx, xmp->seek.patidx, xmp->seek.row, xmp->seek.tick);
 		xmp->seek.patidx = -1;
+		for (int i=0;i<ctx->module.num_channels;i++) {
+			xm_channel_context_t *ch = &ctx->channels[i];
+			ch->sample_position = 0;
+		}
 		// Turn off all currently-playing samples, so that we don't risk keep
 		// playing them.
 		for (int i=0;i<ctx->module.num_channels;i++)
@@ -84,7 +88,8 @@ static int tick(void *arg) {
 			// have changed it since last tick, because there is a XM effect
 			// to force the position in the sample. So it's better to
 			// set it every time with mixer_ch_set_pos.
-			wav64_play(w, first_ch+i);
+			if (mixer_ch_playing(first_ch+i) != &w->wave)
+				wav64_play(w, first_ch+i);
 			mixer_ch_set_pos(first_ch+i, ch->sample_position);
 
 			// Configure also frequency and volume that might have changed

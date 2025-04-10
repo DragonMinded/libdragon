@@ -29,6 +29,7 @@
 #include "../common/assetcomp.h"
 
 int flag_xm_compress_meta = DEFAULT_COMPRESSION;
+int flag_xm_compress_samples = DEFAULT_COMPRESSION;
 bool flag_xm_8bit = false;
 const char *flag_xm_extsampledir = NULL;
 
@@ -70,10 +71,19 @@ static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 		.samples = samples16,
 	};
 
-	if (!wav64_write("xm", outfn, out, &wav, s->bits, flag_wav_compress))
+	if (!wav64_write("xm", outfn, out, &wav, flag_xm_compress_samples))
 		fatal("ERROR: failure while writing %s\n", outfn);
 
 	free(wav.samples);
+
+	if (wav.looping) {
+		// Adjust loop information as they might have changed during compression
+		s->loop_start = wav.loopOffset;
+		s->loop_length = wav.cnt - wav.loopOffset;
+		s->loop_end = wav.cnt;
+		s->length = wav.cnt;
+		printf("  %s: loop start: %x, length: %x, end: %x\n", outfn, s->loop_start, s->loop_length, s->loop_end);
+	}
 }
 
 static void xm_save_wave_internally(xm_context_t* ctx, FILE* meta, FILE* out, const char *outfn, int totsamples)
@@ -82,6 +92,7 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* meta, FILE* out, co
 	struct sample_checksum {
 		uint32_t hash;
 		uint32_t pos;
+		xm_sample_t *s;
 	};
 	struct sample_checksum wave_sums[totsamples+1];
 	memset(wave_sums, 0, sizeof(wave_sums));
@@ -102,10 +113,21 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* meta, FILE* out, co
 				walign(out, 2);
 				wave_sums[k].hash = hash;
 				wave_sums[k].pos = ftell(out);
+				wave_sums[k].s = s;
 
 				char *wavfn = NULL; asprintf(&wavfn, "%s.%d.%d.wav64", outfn, i, j); // used only for --debug
 				xm_save_wave64(s, out, wavfn);
 				free(wavfn);
+			} else {
+				// Sample already seen. Make sure to update the sample
+				// with information that might change during compression
+				if (s->loop_type != 0) {
+					s->length = wave_sums[k].s->length;
+					s->loop_start = wave_sums[k].s->loop_start;
+					s->loop_length = wave_sums[k].s->loop_length;
+					s->loop_end = wave_sums[k].s->loop_end;
+					s->loop_type = wave_sums[k].s->loop_type;
+				}
 			}
 
 			placeholder_set_offset(meta, wave_sums[k].pos, "sample_%d_%d", i, j);
@@ -176,6 +198,21 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 
 	// Write metadata into a temporary file
 	FILE *meta = tmpfile();
+
+	int totsamples = 0;
+	for (int i=0;i<ctx->module.num_instruments;i++) {
+		xm_instrument_t *ins = &ctx->module.instruments[i];
+		totsamples += ins->num_samples;
+	}
+
+	// Write the samples (either internally or externally). We do this before
+	// writing the metadata as the process might cause change some samples
+	// (eg for compression requirements).
+	if (flag_xm_extsampledir)
+		xm_save_wave_externally(ctx, meta, xm64, outfn, totsamples);
+	else
+		xm_save_wave_internally(ctx, meta, xm64, outfn, totsamples);
+
 	w32(meta, ctx->ctx_size);
 	w32(meta, ctx->ctx_size_all_patterns);
 	w32(meta, ctx->ctx_size_all_samples);
@@ -199,12 +236,6 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	w16(meta, ctx->module.num_instruments);
 	w32(meta, ctx->module.frequency_type);
 	wa(meta, ctx->module.pattern_table, sizeof(ctx->module.pattern_table));
-
-	int totsamples = 0;
-	for (int i=0;i<ctx->module.num_instruments;i++) {
-		xm_instrument_t *ins = &ctx->module.instruments[i];
-		totsamples += ins->num_samples;
-	}
 
 	for (int i=0;i<ctx->module.num_patterns;i++) {
 		w16(meta, ctx->module.patterns[i].num_rows);
@@ -256,7 +287,11 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 		w16(meta, ins->num_samples);
 		for (int j=0;j<ins->num_samples;j++) {
 			xm_sample_t *s = &ins->samples[j];
-			w8(meta, s->bits);
+			int bits = s->bits;
+			if (flag_xm_compress_samples > 0)
+				bits = 16;
+			w8(meta, bits);
+			printf(" ins: %d.%d: len=%x\n", i, j, s->length);
 			w32(meta, s->length);
 			w32(meta, s->loop_start);
 			w32(meta, s->loop_length);
@@ -270,12 +305,6 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 		}
 	}
 	w8(meta, (flag_xm_extsampledir != NULL));
-
-	// Write the samples (either internally or externally)
-	if (flag_xm_extsampledir)
-		xm_save_wave_externally(ctx, meta, xm64, outfn, totsamples);
-	else
-		xm_save_wave_internally(ctx, meta, xm64, outfn, totsamples);
 
 	// Write the patterns (potentially compressed)
 	int max_inplace_margin = 0;
@@ -577,6 +606,9 @@ int xm_convert(const char *infn, const char *outfn) {
 
 		// Round up to 8 bytes, which is the required alignment for a sample buffer.
 		ch_buf[i] = ((ch_buf[i] + 7) / 8) * 8;
+
+		// FIXME: simplify debugging for now, to be removed
+		ch_buf[i] *= 4;
 
 		// Save the size in the context structure. It will be used at playback
 		// time to allocate the correct amount of sample buffers.

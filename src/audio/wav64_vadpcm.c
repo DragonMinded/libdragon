@@ -220,7 +220,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			assertf(wpos == wav->wave.len - wav->wave.loop_len,
 				"wav64: seeking to %x not supported (%x %x)\n", wpos, wav->wave.len, wav->wave.loop_len);
             rsp_vadpcm_copystate(vstate->state, vhead->loop_state);
-			lseek(wav->st->current_fd, (wav->wave.len - wav->wave.loop_len) / 16 * 9, SEEK_CUR);
+			lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
             // vstate->bitpos = ???; FIXME: we need bitpos for the loop state
 		}
         rspq_highpri_end();
@@ -382,6 +382,9 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
     if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
         wav64_vadpcm_init_huffman(wav);
     }
+
+    // Flush loop state as it can read via RSP
+    data_cache_hit_writeback(vhead->loop_state, sizeof(wav64_vadpcm_vector_t)*2);
 }
 
 void wav64_vadpcm_close(wav64_t *wav)
