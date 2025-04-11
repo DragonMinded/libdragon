@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include "mixer.h"
 
 #include "../common/crc32.c"
@@ -38,22 +39,19 @@ const char *flag_xm_extsampledir = NULL;
 // information.
 #define XM64_SHORT_ODD_LOOP_LENGTH  1024
 
-// Bring libxm in
-#include "../../src/audio/libxm/play.c"
-#include "../../src/audio/libxm/context.c"
-#include "../../src/audio/libxm/load.c"
+#include "libxm.h"
 
 static uint32_t xm_sample_crc32(xm_sample_t *s)
 {
 	if (s->bits == 8)
-		return crc32((void*)s->data8, s->length);
+		return crc32((uint8_t*)s->data8, s->length);
 	else
-		return crc32((void*)s->data16, s->length * 2);
+		return crc32((uint8_t*)s->data16, s->length * 2);
 } 
 
 static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 {
-	int16_t *samples16 = malloc(s->length * sizeof(int16_t));
+	int16_t *samples16 = (int16_t*)malloc(s->length * sizeof(int16_t));
 	if (s->bits == 8) {
 		for (int k=0;k<s->length;k++)
 			samples16[k] = (s->data8[k] << 8) | (uint8_t)s->data8[k];
@@ -353,7 +351,7 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	placeholder_set_offset(xm64, metadata_size, "metadata_size");
 
 	rewind(meta);
-	uint8_t *metadata = malloc(metadata_size);
+	uint8_t *metadata = (uint8_t*)malloc(metadata_size);
 	fread(metadata, 1, metadata_size, meta);
 	fclose(meta);
 
@@ -407,7 +405,7 @@ int xm_convert(const char *infn, const char *outfn) {
 	int fsize = ftell(xm);
 	fseek(xm, 0, SEEK_SET);
 
-	char *xmdata = malloc(fsize);
+	char *xmdata = (char*)malloc(fsize);
 	fread(xmdata, 1, fsize, xm);
 
 	size_t mem_ctx, mem_pat, mem_sam;
@@ -437,7 +435,7 @@ int xm_convert(const char *infn, const char *outfn) {
 
 			if (flag_xm_8bit && bps == 2) {
 				// Convert 16-bit samples to 8-bit
-				int8_t *data8 = malloc(s->length);
+				int8_t *data8 = (int8_t*)malloc(s->length);
 				for (int k=0;k<s->length;k++)
 					data8[k] = s->data16[k] >> 8;
 				memcpy(s->data8, data8, s->length);
@@ -455,7 +453,7 @@ int xm_convert(const char *infn, const char *outfn) {
 			default:
 				fatal("invalid loop type: %d\n", s->loop_type);
 			case XM_NO_LOOP:
-				sout = malloc(length);
+				sout = (uint8_t*)malloc(length);
 				memcpy(sout, s->data8, length);
 				break;
 			case XM_FORWARD_LOOP:
@@ -472,7 +470,7 @@ int xm_convert(const char *infn, const char *outfn) {
 				// error made by xm64 when shortening is < 0.1%, which isn't
 				// audible.
 				if (bps == 1 && loop_length%2 == 1 && loop_length < XM64_SHORT_ODD_LOOP_LENGTH) {
-					sout = malloc(loop_end + loop_length);
+					sout = (uint8_t*)malloc(loop_end + loop_length);
 					length = loop_end+loop_length;
 					// Copy waveform until loop end
 					memcpy(sout, s->data8, loop_end);
@@ -481,7 +479,7 @@ int xm_convert(const char *infn, const char *outfn) {
 					loop_end += loop_length;
 					loop_length *= 2;
 				} else {				
-					sout = malloc(loop_end);
+					sout = (uint8_t*)malloc(loop_end);
 					length = loop_end;
 					// Copy waveform until loop end
 					memcpy(sout, s->data8, loop_end);
@@ -489,7 +487,7 @@ int xm_convert(const char *infn, const char *outfn) {
 				break;
 			case XM_PING_PONG_LOOP:
 				length = loop_end + loop_length;
-				sout = malloc(length);
+				sout = (uint8_t*)malloc(length);
 				out = sout;
 
 				memcpy(out, s->data8, loop_end);
@@ -530,10 +528,10 @@ int xm_convert(const char *infn, const char *outfn) {
 	bool played_orders[PATTERN_ORDER_TABLE_LENGTH] = {0};
 
 	// Keep information of which samples in which instruments are used
-	bool** used_samples = calloc(ctx->module.num_instruments, sizeof(bool*));
+	bool** used_samples = (bool**)calloc(ctx->module.num_instruments, sizeof(bool*));
 	for (int i=0; i<ctx->module.num_instruments; i++)
 		if (ctx->module.instruments[i].num_samples > 0)
-			used_samples[i] = calloc(ctx->module.instruments[i].num_samples, sizeof(bool));
+			used_samples[i] = (bool*)calloc(ctx->module.instruments[i].num_samples, sizeof(bool));
 
 	while (1) {
 		do {
@@ -575,6 +573,19 @@ int xm_convert(const char *infn, const char *outfn) {
 					// Keep the maximum
 					if (ch_buf[i] < n)
 						ch_buf[i] = n;
+
+					// Check if the current effect is the "set offset" effect. This
+					// is used to play samples at different positions in the waveform.
+					// We must record the target position as skip point for the
+					// current sample.
+					if (ch->current->effect_type == 0x9) {
+						int offset = ch->current->effect_param << (ch->sample->bits == 8 ? 8 : 7);
+						if (offset < ch->sample->length)
+							printf("  * set offset: ins%ld.%ld offset=0x%x\n",
+								ch->instrument - ctx->module.instruments + 1,
+								ch->sample - ch->instrument->samples + 1,
+								offset);
+					}
 				}
 			}
 			ctx->remaining_samples_in_tick -= nsamples;

@@ -48,7 +48,7 @@ void fatal(const char *str, ...) {
 	exit(1);
 }
 
-char* changeext(const char* fn, char *ext);
+char* changeext(const char* fn, const char *ext);
 
 /************************************************************************************
  *  CONVERTERS
@@ -95,7 +95,7 @@ void usage(void) {
 	printf("\n");
 }
 
-char* changeext(const char* fn, char *ext) {
+char* changeext(const char* fn, const char *ext) {
 	char buf[4096];
 	strcpy(buf, fn);
 	*strrchr(buf, '.') = '\0';
@@ -103,8 +103,8 @@ char* changeext(const char* fn, char *ext) {
 	return strdup(buf);
 }
 
-void convert(char *infn, char *outfn1) {
-	char *ext = strrchr(infn, '.');
+void convert(const char *infn, const char *outfn1) {
+	const char *ext = strrchr(infn, '.');
 	if (!ext) {
 		fprintf(stderr, "unknown file type: %s\n", infn);
 		return;
@@ -144,7 +144,7 @@ bool isdir(const char *path) {
 	return (st.st_mode & S_IFDIR) != 0;
 }
 
-void walkdir(char *inpath, char *outpath, void (*func)(char *, char*)) {
+void walkdir(char *inpath, const char *outpath, void (*func)(const char *, const char*)) {
 	if (isdir(inpath)) {
 		// We're walking a directory. Make sure there's also a matching
 		// output directory or create it otherwise.
@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	char *outdir = ".";
+	const char *outdir = ".";
 
 	int i;
 	for (i=1; i<argc; i++) {

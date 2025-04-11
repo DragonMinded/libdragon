@@ -217,7 +217,11 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
             vstate->bitpos = 0;
 		} else {
-            rsp_vadpcm_copystate(vstate->state, vhead->loop_state);
+			assertf(wpos == wav->wave.len - wav->wave.loop_len,
+				"wav64: seeking to %x not supported (%x %x)\n", wpos, wav->wave.len, wav->wave.loop_len);
+            assert(vhead->num_skippoints > 0);
+            debug_hexdump(vhead->skip_points[0].state, sizeof(vhead->skip_points[0].state));
+            rsp_vadpcm_copystate(vstate->state, vhead->skip_points[0].state);
 			lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
             // vstate->bitpos = ???; FIXME: we need bitpos for the loop state
 		}
@@ -376,8 +380,13 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
         wav64_vadpcm_init_huffman(wav);
     }
 
-    // Flush loop state as it can read via RSP
-    data_cache_hit_writeback(vhead->loop_state, sizeof(wav64_vadpcm_vector_t)*2);
+    // Decode the skip pointer table pointer. The table is stored after the codebook,
+    // and the exact byte offset is stored in the pointer itself to simplify initialization.
+    if (vhead->num_skippoints > 0) {
+        int tbl_off = (int)vhead->skip_points;
+        vhead->skip_points = (void*)vhead->codebook + tbl_off;
+        data_cache_hit_writeback(vhead->skip_points, sizeof(wav64_vadpcm_skippoint_t) * vhead->num_skippoints);
+    }
 }
 
 void wav64_vadpcm_close(wav64_t *wav)

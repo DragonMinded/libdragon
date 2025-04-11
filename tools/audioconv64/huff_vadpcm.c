@@ -120,7 +120,7 @@ int huffv_compress(uint8_t *input_data, int data_len, uint8_t *output, int outpu
     HuffFreq freq;
     calculate_frequencies(input_data, data_len, &freq);
 
-    HuffCtx ctx[HUFF_CONTEXTS] = {0};
+    HuffCtx ctx[HUFF_CONTEXTS] = {{0}};
     for (int i = 0; i < HUFF_CONTEXTS; i++) {
         while (1) {
             // Initialize codes with invalid length so we can detect if we can't encode this context
