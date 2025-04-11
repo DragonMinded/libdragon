@@ -1,3 +1,4 @@
+#include <vector>
 #include "../../src/audio/wav64_internal.h"
 
 #define DR_WAV_IMPLEMENTATION
@@ -29,8 +30,7 @@ typedef struct {
 	int sampleRate;
 	bool looping;
 	int loopOffset;				// Offset of the beginning of the loop in samples
-	int numSkipPoints;			// Number of skip points (excluding looppoint)
-	int skipPoints[64];			// Skip points for the file (in addition to looppoint)
+	std::vector<int> skipPoints;		// Skip points in the waveform
 } wav_data_t;
 
 static bool read_wav(const char *infn, wav_data_t *out)
@@ -106,11 +106,6 @@ static size_t read_mp3(const char *infn, wav_data_t *out)
 	out->sampleRate = mp3.sampleRate;
 	drmp3_uninit(&mp3);
 	return true;
-}
-
-static int cmp_int(const void *a, const void *b)
-{
-	return (*(int*)a - *(int*)b);
 }
 
 /**
@@ -249,15 +244,14 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		if (flag_verbose)
 			fprintf(stderr, "  compressing into VADPCM format (%d frames)\n", nframes);
 
-		int numSkipPoints = wav->numSkipPoints + wav->looping;
-		int skip_points[numSkipPoints];
-		int skip_bitpos[numSkipPoints];
-		struct vadpcm_vector skip_state[numSkipPoints][2];
+		std::vector<int> skip_points = wav->skipPoints;
+		if (wav->looping) skip_points.push_back(wav->loopOffset);
+		std::sort(skip_points.begin(), skip_points.end());
+
+		std::vector<int> skip_bitpos(skip_points.size(), 0);
+
+		struct vadpcm_vector skip_state[skip_points.size()][2];
 		memset(skip_state, 0, sizeof(skip_state));
-		memcpy(&skip_points, wav->skipPoints, wav->numSkipPoints);
-		if (wav->looping)
-			skip_points[numSkipPoints-1] = wav->loopOffset;
-		qsort(skip_points, numSkipPoints, sizeof(int), cmp_int);
 
 		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		int16_t *schan = (int16_t*)malloc(wav->cnt * sizeof(int16_t));
@@ -266,8 +260,8 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			for (int j=0; j<wav->cnt; j++)
 				schan[j] = wav->samples[i + j*wav->channels];
 			vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
-			if (numSkipPoints > 0) {
-				for (int j=0; j<numSkipPoints; j++) {
+			if (!skip_points.empty()) {
+				for (int j=0; j<skip_points.size(); j++) {
 					// Skip points are in samples, but vadpcm_encode() works in frames.
 					// Use rounding up because we feel it's better to skip a few additional samples
 					// rather than going back before the skippoint
@@ -316,23 +310,21 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		w8(out, kPREDICTORS);
 		w8(out, kVADPCMEncodeOrder);
 		w8(out, flags);
-		w8(out, numSkipPoints);
+		w8(out, skip_points.size());
 		w32(out, 0); // huff_tbl_ptr
-		w32(out, numSkipPoints ? CODEBOOK_SIZE*16 : 0); // skip_points_ptr
+		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 : 0); // skip_points_ptr
 		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);					 // Huffman context
 		w32(out, 0); // padding
 		for (int i=0; i<CODEBOOK_SIZE; i++)    // codebook
 			for (int j=0; j<8; j++)
 				w16(out, codebook[i].v[j]);
-		if (numSkipPoints > 0) {
-			// Write the skip points
-			for (int i=0; i<numSkipPoints; i++) {
-				for (int k=0;k<2;k++) // always serialize two channels
-					for (int j=0; j<8; j++)
-						w16(out, skip_state[i][k].v[j]);
-					w32(out, skip_bitpos[i]);
-				w32(out, skip_points[i]);
-			}
+		// Write the skip points
+		for (int i=0; i<skip_points.size(); i++) {
+			for (int k=0;k<2;k++) // always serialize two channels
+				for (int j=0; j<8; j++)
+					w16(out, skip_state[i][k].v[j]);
+				w32(out, skip_bitpos[i]);
+			w32(out, skip_points[i]);
 		}
 
 		// Start of samples data

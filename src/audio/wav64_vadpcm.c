@@ -217,13 +217,21 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
             vstate->bitpos = 0;
 		} else {
-			assertf(wpos == wav->wave.len - wav->wave.loop_len,
-				"wav64: seeking to %x not supported (%x %x)\n", wpos, wav->wave.len, wav->wave.loop_len);
-            assert(vhead->num_skippoints > 0);
-            debug_hexdump(vhead->skip_points[0].state, sizeof(vhead->skip_points[0].state));
-            rsp_vadpcm_copystate(vstate->state, vhead->skip_points[0].state);
-			lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
-            // vstate->bitpos = ???; FIXME: we need bitpos for the loop state
+            bool found = false;
+            for (int i=0; i<vhead->num_skippoints; i++) {
+                if (wpos == vhead->skip_points[i].offset) {
+                    rsp_vadpcm_copystate(vstate->state, vhead->skip_points[i].state);
+                    lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                for (int i=0; i<vhead->num_skippoints; i++) {
+                    debugf("skip point %d: %d\n", i, vhead->skip_points[i].offset);
+                }
+                assertf(found, "invalid VADPCM seeking point: 0x%x", wpos);
+            }
 		}
         rspq_highpri_end();
 	} else {

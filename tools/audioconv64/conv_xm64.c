@@ -23,7 +23,10 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include "mixer.h"
+#include <map>
+#include <set>
 
+#include "libxm.h"
 #include "../common/crc32.c"
 #include "../common/nanotime.h"
 #include "../common/polyfill.h"
@@ -34,12 +37,12 @@ int flag_xm_compress_samples = DEFAULT_COMPRESSION;
 bool flag_xm_8bit = false;
 const char *flag_xm_extsampledir = NULL;
 
+std::map<xm_sample_t*, std::set<int>> sample_skip_points;
+
 // Loops made by an odd number of bytes and shorter than this length are
 // duplicated to prevent frequency changes during playback. See below for more
 // information.
 #define XM64_SHORT_ODD_LOOP_LENGTH  1024
-
-#include "libxm.h"
 
 static uint32_t xm_sample_crc32(xm_sample_t *s)
 {
@@ -68,6 +71,8 @@ static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 		.looping = s->loop_type != 0,
 		.samples = samples16,
 	};
+	for (auto pos : sample_skip_points[s])
+		wav.skipPoints.push_back(pos);
 
 	if (!wav64_write("xm", outfn, out, &wav, flag_xm_compress_samples))
 		fatal("ERROR: failure while writing %s\n", outfn);
@@ -80,7 +85,6 @@ static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 		s->loop_length = wav.cnt - wav.loopOffset;
 		s->loop_end = wav.cnt;
 		s->length = wav.cnt;
-		printf("  %s: loop start: %x, length: %x, end: %x\n", outfn, s->loop_start, s->loop_length, s->loop_end);
 	}
 }
 
@@ -285,11 +289,12 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 		w16(meta, ins->num_samples);
 		for (int j=0;j<ins->num_samples;j++) {
 			xm_sample_t *s = &ins->samples[j];
-			int bits = s->bits;
-			if (flag_xm_compress_samples > 0)
-				bits = 16;
-			w8(meta, bits);
-			printf(" ins: %d.%d: len=%x\n", i, j, s->length);
+			// NOTE: use original bitsize here (even if VADPCM is always 16-bit)
+			// This is useful at least for 0x9 command (set sample offset) that
+			// requires to know the original bitsize of the sample.
+			// The WAV64 will be marked as 16-bit with VADPCM instead, so that
+			// playback will be correct.
+			w8(meta, s->bits); 
 			w32(meta, s->length);
 			w32(meta, s->loop_start);
 			w32(meta, s->loop_length);
@@ -393,10 +398,6 @@ static void xm_remove_empty_samples(xm_context_t *ctx)
 int xm_convert(const char *infn, const char *outfn) {
 	if (flag_verbose)
 		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);
-
-	// FIXME: force compression to 0 for now, as VADPCM doesn't support
-	// loop points yet.
-	flag_wav_compress = 0;
 
 	FILE *xm = fopen(infn, "rb");
 	if (!xm) fatal("cannot open: %s\n", infn);
@@ -533,6 +534,8 @@ int xm_convert(const char *infn, const char *outfn) {
 		if (ctx->module.instruments[i].num_samples > 0)
 			used_samples[i] = (bool*)calloc(ctx->module.instruments[i].num_samples, sizeof(bool));
 
+	sample_skip_points.clear();
+
 	while (1) {
 		do {
 			xm_tick(ctx);
@@ -581,10 +584,7 @@ int xm_convert(const char *infn, const char *outfn) {
 					if (ch->current->effect_type == 0x9) {
 						int offset = ch->current->effect_param << (ch->sample->bits == 8 ? 8 : 7);
 						if (offset < ch->sample->length)
-							printf("  * set offset: ins%ld.%ld offset=0x%x\n",
-								ch->instrument - ctx->module.instruments + 1,
-								ch->sample - ch->instrument->samples + 1,
-								offset);
+							sample_skip_points[ch->sample].insert(offset);
 					}
 				}
 			}
