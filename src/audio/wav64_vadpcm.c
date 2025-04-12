@@ -220,6 +220,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
             bool found = false;
             for (int i=0; i<vhead->num_skippoints; i++) {
                 if (wpos == vhead->skip_points[i].offset) {
+                    vstate->bitpos = vhead->skip_points[i].bitpos;
                     rsp_vadpcm_copystate(vstate->state, vhead->skip_points[i].state);
                     lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
                     found = true;

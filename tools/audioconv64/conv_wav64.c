@@ -248,6 +248,18 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		if (wav->looping) skip_points.push_back(wav->loopOffset);
 		std::sort(skip_points.begin(), skip_points.end());
 
+		// Abort if skip points are out of bound
+		for (int i=0; i<skip_points.size(); i++) {
+			// Align skip points to *next* frame boundary
+			skip_points[i] = (skip_points[i] + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
+
+			if (skip_points[i] < 0 || skip_points[i] >= wav->cnt) {
+				fprintf(stderr, "ERROR: %s: invalid skip point: %d\n", infn, skip_points[i]);
+				failed = true;
+				break;
+			}
+		}
+
 		std::vector<int> skip_bitpos(skip_points.size(), 0);
 
 		struct vadpcm_vector skip_state[skip_points.size()][2];
@@ -262,22 +274,12 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
 			if (!skip_points.empty()) {
 				for (int j=0; j<skip_points.size(); j++) {
-					// Skip points are in samples, but vadpcm_encode() works in frames.
-					// Use rounding up because we feel it's better to skip a few additional samples
-					// rather than going back before the skippoint
-					int frame = (skip_points[j] + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount;
-					if (frame >= nframes) {
-						fprintf(stderr, "WARNING: %s: skip point %d is out of range\n", infn, skip_points[j]);
-						continue;
-					}
 					// Decode the whole buffer until the loop point to get the state
 					// at the beginning of the loop.
 					// FIXME: optimize by avoiding to redecode the whole buffer from scratch for each skip point
 					vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
 						codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
-						&skip_state[j][i], frame, schan, destchan);
-
-					skip_bitpos[j] = frame*9 * 8;  // FIXME: fix for huffman
+						&skip_state[j][i], skip_points[j] / kVADPCMFrameSampleCount, schan, destchan);
 				}
 			}
 
@@ -289,17 +291,32 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		free(schan);
 		free(scratch);
 
-		const int maxcompbuflen = nframes * kVADPCMFrameByteSize * wav->channels;
+		const int dest_size = nframes * kVADPCMFrameByteSize * wav->channels;
+		const int maxcompbuflen = dest_size;
 		uint8_t *compbuf = (uint8_t*)malloc(maxcompbuflen);
 		uint8_t *ctxbuf = (uint8_t*)calloc(HUFF_CONTEXT_LEN, 1);
 		int compbuflen = 0;
 		if (flag_wav_compress_vadpcm_huffman) {
-			compbuflen = huffv_compress(dest, nframes * kVADPCMFrameByteSize * wav->channels, compbuf, maxcompbuflen, ctxbuf, HUFF_CONTEXT_LEN);
+			compbuflen = huffv_compress(dest, dest_size, compbuf, maxcompbuflen, ctxbuf, HUFF_CONTEXT_LEN);
 
 			if (flag_verbose)
 				fprintf(stderr, "  huffman compressed %d bytes into %d bytes (ratio: %.1f%%)\n",
 					nframes * kVADPCMFrameByteSize * wav->channels, compbuflen,
 					100.0f * compbuflen / (nframes * kVADPCMFrameByteSize * wav->channels));
+
+			// Try decompressing now, just to double check there are no bugs
+			std::vector<uint8_t> scratch(dest_size);
+			HuffLookup tbl[HUFF_CONTEXTS];
+			huffv_decompress_init(ctxbuf, HUFF_CONTEXT_LEN, tbl);
+			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size);
+			assert(bitpos = compbuflen*8);
+			assert(memcmp(&scratch[0], dest, dest_size) == 0);
+
+			// Compute bit offset for each skip point
+			for (int i=0; i<skip_points.size(); i++) {
+				skip_bitpos[i] = huffv_decompress(compbuf, compbuflen, tbl,
+					&scratch[0], skip_points[i] / 16 * 9 * wav->channels);
+			}
 		}
 
 		uint8_t flags = 0;
