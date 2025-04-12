@@ -566,8 +566,13 @@ int xm_convert(const char *infn, const char *outfn) {
 						n = ch->sample->length;
 					}
 
-					// Convert samples to bytes
-					if (ch->sample->bits == 16)
+					if (flag_xm_compress_samples > 0) {
+						// In VADPCM mode, we always decompress in chunks of 32 bytes
+						n = (n + 31) / 32 * 32; // round up to 32 bytes
+					}
+
+					// Convert samples to bytes (compressed samples are always 16-bit)
+					if (ch->sample->bits == 16 || flag_xm_compress_samples > 0)
 						n *= 2;
 
 					// Take overread buffer into account
@@ -617,9 +622,6 @@ int xm_convert(const char *infn, const char *outfn) {
 
 		// Round up to 8 bytes, which is the required alignment for a sample buffer.
 		ch_buf[i] = ((ch_buf[i] + 7) / 8) * 8;
-
-		// FIXME: simplify debugging for now, to be removed
-		ch_buf[i] *= 4;
 
 		// Save the size in the context structure. It will be used at playback
 		// time to allocate the correct amount of sample buffers.
