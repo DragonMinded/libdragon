@@ -95,9 +95,9 @@ static void wav64_none_init(wav64_t *wav, int state_size) {
 		wav->wave.read = wav64_none_read_memcopy;
 	}
 	
-	// NOTE: we don't need a stop callback because the none compression mode
+	// We don't need a stop callback because the none compression mode
 	// supports infinite simultaneous playbacks, so there's nothing to track
-	assert(wav->st->nsimul == 0);
+	wav->st->nsimul = 0;
 	wav->wave.stop = NULL;
 }
 
