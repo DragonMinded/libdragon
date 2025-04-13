@@ -335,9 +335,9 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		if (wpos >= wave->len)
 			wpos = waveform_wrap_wpos(wpos, wave->len, wave->loop_len);
 
-		// If we are requesting a read from 0, we force seeking because it
+		// If we are requesting a read from loop start, we force seeking because it
 		// means that previous read finished just exactly at the loop point.
-		if (wpos == 0)
+		if (wpos == wave->len - wave->loop_len)
 			seeking = true;
 
 		// The read might cross the end point of the waveform
