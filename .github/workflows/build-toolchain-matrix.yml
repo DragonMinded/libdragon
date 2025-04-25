@@ -51,14 +51,14 @@ jobs:
         continue-on-error: true
 
       - name: Install x-compile system build dependencies
-        if: ${{ matrix.target-platform == 'Windows-x86_64' }}
+        if: ${{ matrix.target-os == 'Windows' }}
         run: |
           sudo apt-get install -y mingw-w64
           # If there are other dependencies, we should add them here and make sure the documentation is updated!
 
       # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-ruby
       - name: Set up Ruby
-        if: ${{ matrix.target-platform != 'Windows-x86_64' }}
+        if: ${{ matrix.target-os != 'Windows' }}
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
@@ -66,7 +66,7 @@ jobs:
         continue-on-error: true
 
       - name: Install Package Creator
-        if: ${{ matrix.target-platform != 'Windows-x86_64' }}
+        if: ${{ matrix.target-os != 'Windows' }}
         run: |
           echo installing jordansissel/fpm ruby package
           gem install fpm
@@ -103,7 +103,7 @@ jobs:
           echo "MAKE_VERSION=4.4" >> $GITHUB_OUTPUT
         continue-on-error: false
 
-      - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }}
+      - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-os }}-${{ matrix.target-platform }}
         run: |
           # required for newlib (as not the default?!)
           export PATH="$PATH:${{ runner.temp }}/${{ env.Install_Directory }}"
@@ -120,7 +120,7 @@ jobs:
       # https://fpm.readthedocs.io/en/v1.15.0/getting-started.html
       # TODO: add --deb-changelog with versions (like we do in release)
       - name: Generate toolchain packages for Linux based OS
-        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+        if: ${{ matrix.target-os == 'Linux' }}
         run: |
           echo Generate environment var file
           echo 'export N64_INST=${{ env.Package_Installation_Directory }}' > "$Package_Name-env.sh"
@@ -166,26 +166,26 @@ jobs:
           Package_Name: gcc-toolchain-mips64
           Package_Version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
           Package_Revision: ${{ github.run_id }}
-          Package_Architecture: x86_64
+          Package_Architecture: ${{ matrix.target-platform }}
           Package_License: GPL
           Package_Description: MIPS GCC toolchain for the N64
           Package_Url: https://n64brew.com
           Package_Maintainer: N64 Brew Community
 
       - name: Publish Windows-x86_64 Build Artifact
-        if: ${{ matrix.target-platform == 'Windows-x86_64' }}
+        if: ${{ matrix.target-os == 'Windows' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64-${{ matrix.target-os }}-${{ matrix.target-platform }}
           path: |
             ${{ runner.temp }}/${{ env.Install_Directory }}
         continue-on-error: true
 
-      - name: Publish Linux-x86_64 Build Artifacts
-        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+      - name: Publish ${{ matrix.target-os }}-${{ matrix.target-platform }} Build Artifacts
+        if: ${{ matrix.target-os == 'Linux' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64-${{ matrix.target-os }}-${{ matrix.target-platform }}
           path: |
             ./**/*.deb
             ./**/*.rpm
