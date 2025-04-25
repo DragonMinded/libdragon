@@ -30,8 +30,9 @@ jobs:
       fail-fast: false
       matrix:
         include: [
-          { host-os: ubuntu-24.04, target-platform: Windows-x86_64, host: x86_64-w64-mingw32, makefile-version: 4.4 },
-          { host-os: ubuntu-24.04, target-platform: Linux-x86_64, host: '', makefile-version: '' }
+          { host-os: ubuntu-24.04, target-os: Windows, target-platform: x86_64, host: x86_64-w64-mingw32, makefile-version: 4.4 },
+          { host-os: ubuntu-24.04, target-os: Linux, target-platform: x86_64, host: '', makefile-version: '' },
+          { host-os: ubuntu-24.04-arm, target-os: Linux, target-platform: aarch64, host: '', makefile-version: '' }
         ]
     runs-on: ${{ matrix.host-os }}
 
@@ -57,7 +58,7 @@ jobs:
 
       # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-ruby
       - name: Set up Ruby
-        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+        if: ${{ matrix.target-platform != 'Windows-x86_64' }}
         uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
@@ -65,7 +66,7 @@ jobs:
         continue-on-error: true
 
       - name: Install Package Creator
-        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+        if: ${{ matrix.target-platform != 'Windows-x86_64' }}
         run: |
           echo installing jordansissel/fpm ruby package
           gem install fpm
