@@ -34,7 +34,8 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         texinfo \
         wget \
         zlib1g-dev \
-    && apt autoremove -yq
+    && apt autoremove -yq \
+    && apt autoclean -yq
 
 # Copy the build scripts into the container
 COPY ./tools/build-toolchain.sh ./tools/build-gdb.sh /tools/
@@ -66,7 +67,8 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         git \
         make \
         xxd \
-    && apt autoremove -yq
+    && apt autoremove -yq \
+    && apt autoclean -yq
 
 # Copy over built toolchain from previous stage
 COPY --from=builder ${N64_INST} ${N64_INST}
