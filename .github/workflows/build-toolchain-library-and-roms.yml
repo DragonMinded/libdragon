@@ -73,7 +73,7 @@ jobs:
 
       - name: Build and push image
         if: ${{ steps.path_diff.outputs.changed == 1}}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           # Only push image if this is a push event. Otherwise it will fail because
           # of permission issues on PRs. Also see https://github.com/DragonMinded/libdragon/issues/230
@@ -91,7 +91,7 @@ jobs:
       # cached, it should not take long to build.
       - name: Load image for libdragon build
         if: ${{ steps.path_diff.outputs.changed == 1}}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           # Do not push the image yet, we also want to make sure libdragon builds
           # with the fresh image.
@@ -125,7 +125,7 @@ jobs:
       # build with this freshly built image.
       - name: Push latest image
         if: ${{ steps.path_diff.outputs.changed == 1 && github.ref == steps.vars.outputs.default_ref }}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           push: true
           tags: ghcr.io/${{ steps.vars.outputs.repository_name }}:latest
