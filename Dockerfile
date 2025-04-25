@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # V0 - Use this comment to force a re-build without changing the contents
 
-ARG BASE_IMAGE=ubuntu:22.04
+ARG BASE_IMAGE=ubuntu:24.04
 
 # Stage 1 - Build the toolchain
 FROM ${BASE_IMAGE} AS builder
@@ -41,8 +41,8 @@ COPY ./tools/build-toolchain.sh ./tools/build-gdb.sh /tools/
 
 # Run the build scripts and cleanup unnecessary files
 RUN --mount=target=${DOWNLOAD_PATH},type=cache,sharing=locked \
-    /tools/build-toolchain.sh && \
-    /tools/build-gdb.sh && \
+   /tools/build-toolchain.sh && \
+   /tools/build-gdb.sh && \
     rm -rf ${N64_INST}/share/locale/*
 
 # Stage 2 - Prepare minimal image
@@ -67,7 +67,8 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         git \
         make \
         xxd \
-    && apt autoremove -yq
+    && apt autoremove -yq \
+    && apt autoclean -yq
 
 # Copy over built toolchain from previous stage
 COPY --from=builder ${N64_INST} ${N64_INST}
