@@ -61,6 +61,7 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
     && apt update \
     && apt upgrade -y \
     && apt install -y --no-install-recommends \
+        ca-certificates \
         g++ \
         gcc \
         git \
