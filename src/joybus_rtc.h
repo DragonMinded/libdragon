@@ -48,13 +48,6 @@
  * after resetting or powering-off. You can run the `rtctest` example ROM on
  * your preferred emulator or flash cart to what RTC support is available.
  *
- * The only reliable way to check if writes are actually supported is to write
- * a time to the RTC and read the time back out. Many emulators that do
- * support RTC reads will silently ignore RTC writes. You should detect
- * whether writes are supported using #rtc_is_persistent so that you can
- * conditionally show the option to change the time if it's supported. If the
- * RTC supports writes, it is safe to call #rtc_set to set the date and time.
- *
  * Due to the inaccurate and inconsistent behavior of RTC reproductions that
  * currently exist, this subsystem trades-off complete accuracy with the actual
  * Animal Forest RTC in favor of broader compatibility with the various quirks

@@ -128,14 +128,14 @@ bool asset_compress(const char *infn, const char *outfn, int compression, int wi
         return false;
     }
 
-    int cmp_size = asset_compress_mem(data, sz, out, compression, winsize);
+    int cmp_size = asset_compress_mem(data, sz, out, compression, winsize, NULL);
     free(data);
     fclose(out);
     if (cmp_size < 0) unlink(outfn);
     return (cmp_size >= 0);
 }
 
-int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsize)
+int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsize, int *margin)
 {
     if (winsize && asset_winsize_to_flags(winsize) < 0) {
         fprintf(stderr, "unsupported window size: %d\n", winsize);
@@ -155,6 +155,7 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
     switch (compression) {
     case 0: { // none
         fwrite(data, 1, sz, out);
+        if (margin) *margin = 0;
         return sz;
     }   break;
     case 3: { // shrinkler
@@ -173,6 +174,7 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         w32(out, inplace_margin); // inplace margin
         fwrite(output, 1, cmp_size, out);
         free(output);
+        if (margin) *margin = inplace_margin;
         return cmp_size + 20;
     }   break;
     case 2: { // aplib
@@ -201,6 +203,7 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         w32(out, inplace_margin); // inplace margin
         fwrite(output, 1, cmp_size, out);
         free(output);
+        if (margin) *margin = inplace_margin;
         return cmp_size + 20;
     }   break;
     case 1: { // lz4hc
@@ -231,14 +234,16 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         LZ4_freeStreamHC(state);
         assert(cmp_size <= cmp_max_size);
 
+        int inplace_margin = LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size);
         fwrite("DCA3", 1, 4, out);
         w16(out, 1); // algo
         w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
         w32(out, cmp_size); // cmp_size
         w32(out, sz); // dec_size
-        w32(out, LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size)); // inplace margin
+        w32(out, inplace_margin); // inplace margin
         fwrite(output, 1, cmp_size, out);
         free(output);
+        if (margin) *margin = inplace_margin;
         return cmp_size + 20;
     }   break;
     default:

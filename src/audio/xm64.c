@@ -5,6 +5,7 @@
  */
 
 #include "xm64.h"
+#include "wav64.h"
 #include "mixer.h"
 #include "audio.h"
 #include <assert.h>
@@ -17,10 +18,15 @@
 #include "libxm/xm_internal.h"
 #include <stdbool.h>
 #include <stdio.h>
+#include <unistd.h>
 
-static void wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
-	xm_sample_t *samp = (xm_sample_t*)ctx;
-	raw_waveform_read_address(sbuf, samp->data8_offset, wpos, wlen, samp->bits >> 4);
+static char *xm64_extsampledir = NULL;
+
+static void stop(xm_context_t *ctx, xm64player_t *xmp) {
+	for (int i=0;i<ctx->module.num_channels;i++)
+		mixer_ch_stop(xmp->first_ch+i);
+	xmp->playing = false;
+	xmp->stop_requested = false;
 }
 
 static int tick(void *arg) {
@@ -34,12 +40,8 @@ static int tick(void *arg) {
 	}
 
 	// If we're requested to stop playback, do it.
-	if (xmp->stop_requested || (!xmp->looping && ctx->loop_count > 0)) {
-		for (int i=0;i<ctx->module.num_channels;i++)
-			mixer_ch_stop(xmp->first_ch+i);
-		xmp->playing = false;
-		xmp->stop_requested = false;
-		// Do not reschedule again
+	if (xmp->stop_requested) {
+		stop(ctx, xmp);
 		return 0;
 	}
 
@@ -56,12 +58,17 @@ static int tick(void *arg) {
 	assert(ctx->remaining_samples_in_tick <= 0);
 	xm_tick(ctx);
 
+	if (!xmp->looping && ctx->loop_count > 0) {
+		stop(ctx, xmp);
+		return 0;
+	}
+
 	float gvol = ctx->global_volume * ctx->amplification;
 
 	for (int i=0;i<ctx->module.num_channels;i++) {
 		xm_channel_context_t *ch = &ctx->channels[i];
 		if (ch->sample) {
-			waveform_t *w = ch->sample->wave;
+			wav64_t *w = ch->sample->wave;
 
 			// Check if this sample is muted. This is an user-level muting
 			// control exposed via the xm.h API that we respect in case the
@@ -77,7 +84,7 @@ static int tick(void *arg) {
 			// have changed it since last tick, because there is a XM effect
 			// to force the position in the sample. So it's better to
 			// set it every time with mixer_ch_set_pos.
-			mixer_ch_play(first_ch+i, w);
+			wav64_play(w, first_ch+i);
 			mixer_ch_set_pos(first_ch+i, ch->sample_position);
 
 			// Configure also frequency and volume that might have changed
@@ -98,72 +105,76 @@ static int tick(void *arg) {
 	return delay;
 }
 
+/** @brief Header of the XM64 file */
+typedef struct __attribute__((packed)) {
+	char magic[4]; 					// "XM64"
+	uint8_t version;				// version of the file format
+	uint32_t metadata_offset; 		// offset of the metadata
+	uint32_t metadata_size;			// size of the metadata
+} xm64_header_t;
+
 void xm64player_open(xm64player_t *player, const char *fn) {
 	memset(player, 0, sizeof(*player));
+	player->fd = -1;
 
 	// No pending seek at the moment, we start from beginning anyway.
 	player->seek.patidx = -1;
 
-	player->fh = must_fopen(fn);
+	// Open the file as a file descriptor
+	int fd = must_open(fn);
+
+	// Read the header to check if this is a valid XM64 file
+	xm64_header_t header;
+	read(fd, &header, sizeof(header));
+	if (memcmp(header.magic, "XM64", 4) != 0) {
+		if (memcmp(header.magic, "Exte", 4) == 0) {
+			assertf(0, "cannot load XM file: %s\nPlease convert to XM64 with audioconv64", fn);
+		}
+		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
+	}
+	assertf(header.version == 9, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+
+	// Seek to the beginning of the metadata, that are asset-compressed. We need
+	// to read the metadata in small chunks, so we use asset_fopen() for this.
+	lseek(fd, header.metadata_offset, SEEK_SET);
+	FILE *fh = asset_fdopen(fd, NULL);
 
 	// Load the XM context
 	int sample_rate = audio_get_frequency();
 	assertf(sample_rate >= 0, "audio_init() and mixer_init() must be called before xm64player_open()");
-	int err = xm_context_load(&player->ctx, player->fh, sample_rate);
+	int err = xm_context_load(&player->ctx, fh, sample_rate);
 	if (err != 0) {
 		if (err == 2) {
 			assertf(0, "error loading XM64 file: %s\nMemory size estimation by audioconv64 was wrong\n", fn);
 		}
-
-		// Check if the file looks like a standard XM, so to provide
-		// a clear message in that case.
-		char signature[16] = {0};
-		fseek(player->fh, 0, SEEK_SET);
-		fread(signature, 1, 15, player->fh);
-		if (strcmp(signature, "Extended Module") == 0) {
-			assertf(0, "cannot load XM file: %s\nPlease convert to XM64 with audioconv64", fn);
-		}
 		assertf(0, "error loading XM64 file: %s\nFile corrupted", fn);
 	}
 
-	assertf(strncmp(fn, "rom:/", 5) == 0, "xm64player only supports files in ROM (rom:/)");
-	uint32_t base_rom_addr = dfs_rom_addr(fn+5);
+	fclose(fh);
 
-	// Count samples
-	int ninst = xm_get_number_of_instruments(player->ctx);
-	for (int i=0;i<ninst;i++)
-		player->nwaves += xm_get_number_of_samples(player->ctx, i+1);
+	// Reopen as unbuffered file descriptor. This will be used for streaming.
+	player->fd = must_open(fn);
+	player->ctx->fd = player->fd;
 
-	// Allocate waveforms (one per XM64's "samples" aka waveforms)
-	player->waves = malloc(sizeof(waveform_t) * player->nwaves);
-	assert(player->waves);
-	int nw = 0;
-	for (int i=0;i<ninst;i++) {
+	char *extfn = NULL;
+	if (player->ctx->external_samples) {
+		assertf(xm64_extsampledir != NULL, "%s: external samples enabled but no directory set. Call xm64_set_extsampledir() first", fn);
+		extfn = alloca(strlen(xm64_extsampledir) + 1 + 8 + 1 + 5 + 1);
+	}
+		
+	// Open all embedded wav64 files
+	for (int i=0; i<xm_get_number_of_instruments(player->ctx); i++) {
 		xm_instrument_t *inst = &player->ctx->module.instruments[i];
 		for (int j=0;j<inst->num_samples;j++) {
 			xm_sample_t *samp = &inst->samples[j];
 
-			// Convert offset of samples from relative to absolute
-			samp->data8_offset += base_rom_addr;
-
-			// Initialize the waveform_t structures with information
-			// coming from the XM "sample".
-			samp->wave = &player->waves[nw++];
-			memset(samp->wave, 0, sizeof(waveform_t));
-			samp->wave->name = strdup(fn); // FIXME: maybe better use a proper name here
-			samp->wave->bits = samp->bits;
-			samp->wave->channels = 1;
-			samp->wave->frequency = sample_rate; // fake, will be changed at every key-on
-			samp->wave->len = samp->length;
-			samp->wave->loop_len = samp->loop_type == XM_NO_LOOP ? 0 : samp->loop_length;
-			// raw_waveform_read does not support looping with odd lengths
-			// because they break the 2-byte alignment phase which makes it
-			// impossible to use dma_read. In this case, just shorten the
-			// loop by 1 sample to define an even-length loop.
-			if (samp->wave->bits == 8 && samp->wave->loop_len&1)
-				samp->wave->loop_len -= 1;
-			samp->wave->read = wave_read;
-			samp->wave->ctx = samp;
+			if (!player->ctx->external_samples) {
+				lseek(player->fd, samp->data8_offset, SEEK_SET);
+				samp->wave = wav64_loadfd(player->fd, NULL);
+			} else {
+				sprintf(extfn, "%s/%08lx.wav64", xm64_extsampledir, samp->data8_offset);
+				samp->wave = wav64_load(extfn, NULL);
+			}
 		}
 	}
 
@@ -243,33 +254,44 @@ void xm64player_set_effect_callback(xm64player_t *player, void (*cb)(void*, uint
 }
 
 void xm64player_close(xm64player_t *player) {
-	// FIXME: we need to stop playing without racing with the audio thread.
-	// This is not correct and may crash.
-	disable_interrupts();
 	if (player->playing) {
 		mixer_remove_event(tick, player);
 		player->playing = false;
 	}
+
 	for (int i=0;i<player->ctx->module.num_channels;i++) {
 		mixer_ch_stop(player->first_ch+i);
 		mixer_ch_set_limits(player->first_ch+i, 0, 0, 0);
 	}
-	enable_interrupts();
 
-	if (player->fh != NULL) {
-		fclose(player->fh);
-		player->fh = NULL;
+	// Close all embedded wav64 files
+	for (int i=0; i<player->ctx->module.num_instruments; i++) {
+		xm_instrument_t *inst = &player->ctx->module.instruments[i];
+		for (int j=0; j<inst->num_samples; j++) {
+			xm_sample_t *samp = &inst->samples[j];
+			if (samp->wave) {
+				wav64_close(samp->wave);
+				samp->wave = NULL;
+			}
+		}
 	}
 
-	if (player->waves) {
-		for (int i=0;i<player->nwaves;i++)
-			free((void*)player->waves[i].name);
-		free(player->waves);
-		player->waves = NULL;
+	if (player->fd >= 0) {
+		close(player->fd);
+		player->fd = -1;
 	}
 
 	if (player->ctx) {
 		xm_free_context(player->ctx);
 		player->ctx = NULL;
+	}
+}
+
+void xm64_set_extsampledir(const char *dir) {
+	if (dir == NULL) {
+		free(xm64_extsampledir);
+		xm64_extsampledir = NULL;
+	} else {
+		xm64_extsampledir = strdup(dir);
 	}
 }

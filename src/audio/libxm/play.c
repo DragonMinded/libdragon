@@ -10,6 +10,12 @@
 #include "xm_internal.h"
 #include <inttypes.h>
 #include <assert.h>
+#include <unistd.h>
+
+#if XM_STREAM_PATTERNS
+#include "debug.h"
+#include "asset_internal.h"
+#endif
 
 /* ----- Static functions ----- */
 
@@ -879,19 +885,11 @@ static void xm_row(xm_context_t* ctx) {
 
 #if XM_STREAM_PATTERNS
 	if (ctx->slot_buffer_index != pat_idx) {
-		// Read the compressed data at the end of the pattern buffer, that is
-		// at the end of the buffer where data will be uncompressed. The chosen
-		// RLE compression guarantees that this is safe.
 		int cmp_size = cur->slots_size;
-		int dec_size = sizeof(xm_pattern_slot_t) * cur->num_rows * ctx->module.num_channels;
-		uint8_t *cmp_data = (uint8_t*)ctx->slot_buffer + dec_size - cmp_size;
-
-		fseek(ctx->fh, cur->slots_offset, SEEK_SET);
-		fread(cmp_data, cmp_size, 1, ctx->fh);
-
-		int sz = xm_context_decompress_pattern(cmp_data, cmp_size, ctx->slot_buffer);
-		assert(sz == dec_size);
-
+		int dec_size = ctx->ctx_size_stream_pattern_buf;
+		lseek(ctx->fd, cur->slots_offset, SEEK_SET);
+		bool ret = asset_loadfd_into(ctx->fd, &cmp_size, ctx->slot_buffer, &dec_size);
+		assertf(ret, "Failed to load pattern %d (dec_size=%d buf=%ld)", pat_idx, dec_size, ctx->ctx_size_stream_pattern_buf);
 		ctx->slot_buffer_index = pat_idx;
 	}
 #endif
@@ -899,9 +897,9 @@ static void xm_row(xm_context_t* ctx) {
 	/* Read notes… */
 	for(uint8_t i = 0; i < ctx->module.num_channels; ++i) {
 		#if !XM_STREAM_PATTERNS
-		xm_pattern_slot_t* s = cur->slots + ctx->current_row * ctx->module.num_channels + i;
+		xm_pattern_slot_t* s = cur->slots + i * cur->num_rows + ctx->current_row;
 		#else
-		xm_pattern_slot_t* s = ctx->slot_buffer + ctx->current_row * ctx->module.num_channels + i;
+		xm_pattern_slot_t* s = ctx->slot_buffer + i * cur->num_rows + ctx->current_row;
 		#endif
 		xm_channel_context_t* ch = ctx->channels + i;
 

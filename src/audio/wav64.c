@@ -58,27 +58,13 @@ static wav64_compression_t algos[4] = {
 	},
 };
 
-void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen, int bps) {
+static void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen, int bps) {
 	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
 	int bytes = wlen << bps;
 
 	// FIXME: remove CachedAddr() when read() supports uncached addresses
 	uint32_t t0 = TICKS_READ();
 	read(current_fd, CachedAddr(ram_addr), bytes);
-	__wav64_profile_dma += TICKS_READ() - t0;
-}
-
-void raw_waveform_read_address(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps) {
-	uint32_t rom_addr = base_rom_addr + (wpos << bps);
-	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
-	int bytes = wlen << bps;
-
-	uint32_t t0 = TICKS_READ();
-	// Run the DMA transfer. We rely on libdragon's PI DMA function which works
-	// also for misaligned addresses and odd lengths.
-	// The mixer/samplebuffer guarantees that ROM/RAM addresses are always
-	// on the same 2-byte phase, as the only requirement of dma_read.
-	dma_read(ram_addr, rom_addr, bytes);
 	__wav64_profile_dma += TICKS_READ() - t0;
 }
 
@@ -119,7 +105,7 @@ static int wav64_none_get_bitrate(wav64_t *wav) {
 	return wav->wave.frequency * wav->wave.channels * wav->wave.bits;
 }
 
-static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadparms_t *parms)
+static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_name, wav64_loadparms_t *parms)
 {
 	wav64_loadparms_t default_parms = {0};
 	if (!parms) parms = &default_parms;
@@ -127,7 +113,7 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 	// For backwards compatibility with old versions of this file, we support
 	// an unprefixed file name as a dfs file. This is deprecated and not documented
 	// but we just want to avoid breaking existing code
-	if (strchr(file_name, ':') == NULL) {
+	if (file_name && strchr(file_name, ':') == NULL) {
 		char* dfs_name = alloca(5 + strlen(file_name) + 1);
 		strcpy(dfs_name, "rom:/");
 		strcat(dfs_name, file_name);
@@ -135,7 +121,14 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 	}
 
 	// Open the input file, and read the header
-	int file_handle = must_open(file_name);
+	int start_offset = 0;
+	bool owned_fd = false;
+	if (file_handle < 0) {
+		file_handle = must_open(file_name);
+		owned_fd = true;
+	} else {
+		start_offset = lseek(file_handle, 0, SEEK_CUR);
+	}
 
 	wav64_header_t head;
 	read(file_handle, &head, sizeof(head));
@@ -203,9 +196,9 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 	// Finish initialization of wav64 state
 	wav->st->format = head.format;
 	wav->st->current_fd = file_handle;
-	wav->st->base_offset = head.start_offset;
+	wav->st->base_offset = head.start_offset + start_offset;
 	wav->st->nsimul = nsimul;
-	wav->st->flags = 0;
+	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
 	if (nsimul > 0)
 		memset(wav->st->mixer_channels, -1, nsimul * sizeof(int8_t));
 
@@ -246,12 +239,17 @@ static wav64_t* internal_open(wav64_t *wav, const char *file_name, wav64_loadpar
 
 void wav64_open(wav64_t *wav, const char *file_name)
 {
-	internal_open(wav, file_name, NULL);
+	internal_open(wav, -1, file_name, NULL);
 }
 
 wav64_t* wav64_load(const char *file_name, wav64_loadparms_t *parms)
 {
-	return internal_open(NULL, file_name, parms);
+	return internal_open(NULL, -1, file_name, parms);
+}
+
+wav64_t* wav64_loadfd(int fd, wav64_loadparms_t *parms)
+{
+	return internal_open(NULL, fd, NULL, parms);
 }
 
 
@@ -326,7 +324,7 @@ void wav64_close(wav64_t *wav)
 	if (algos[wav->st->format].close)
 		algos[wav->st->format].close(wav);
 
-	if (wav->st->current_fd >= 0) {
+	if (wav->st->current_fd >= 0 && (wav->st->flags & WAV64_FLAG_OWNED_FD)) {
 		close(wav->st->current_fd);
 		wav->st->current_fd = -1;
 	}

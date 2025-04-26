@@ -165,6 +165,8 @@ void console_close()
     /* Unregister ourselves from newlib */
     stdio_t console_calls = { 0, __console_write, 0 };
     unhook_stdio_calls( &console_calls );
+    // Close the display that the console module initialized for itself.
+    display_close();
 }
 
 void console_clear()

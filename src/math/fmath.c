@@ -25,17 +25,13 @@ static float sinf_approx(float x, int approx) {
     s = x * x;
     // Execute only a portion of the series, depending on the approximation level.
     // This generate the most efficient code among similar approaches.
-    if (LIKELY(--approx < 0)) p +=   1.32729383e-10f, p *= s;
-    if (LIKELY(--approx < 0)) p += - 2.33177868e-8f,  p *= s;
-    if (LIKELY(--approx < 0)) p +=   2.52223435e-6f,  p *= s;
-    if (LIKELY(--approx < 0)) p += - 1.73503853e-4f,  p *= s;
-    if (LIKELY(--approx < 0)) p +=   6.62087463e-3f,  p *= s;
-    if (LIKELY(--approx < 0)) p += - 1.01321176e-1f;
+    if (LIKELY(--approx < 0)) p +=   1.3291330536e-10f, p *= s;
+    if (LIKELY(--approx < 0)) p += - 2.3317808128e-8f,  p *= s;
+    if (LIKELY(--approx < 0)) p +=   2.5222900603e-6f,  p *= s;
+    if (LIKELY(--approx < 0)) p += - 1.7350520647e-4f,  p *= s;
+    if (LIKELY(--approx < 0)) p +=   6.6208802163e-3f,  p *= s;
+    if (LIKELY(--approx < 0)) p += - 1.0132116824e-1f;
     x = x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;
-    // FIXME: workaround for a bug in our sinf approximation. We found at least
-    // one input (0xbfc915a2 => -1.570973) that produces an out of bounds result
-    // -1.000000119209289551 (0xbf800001).
-    x = CLAMP(x, -1.0f, 1.0f);
     return x;
 }
 

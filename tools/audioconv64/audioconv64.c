@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include "../common/binout.c"
+#include "../common/binout.h"
+#include "../common/polyfill.h"
+
 bool flag_verbose = false;
 bool flag_debug = false;
 
@@ -80,9 +84,11 @@ void usage(void) {
 	printf("   --wav-compress <0|1|3>    Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
-	printf("\n");
 	printf("XM options:\n");
 	printf("   --xm-8bit                 Convert all samples ot 8-bit\n");
+	printf("   --xm-ext-samples <dir>    Export samples externally as wav64 files in the specified directory\n");
+	printf("   --xm-compress <0..3>      Compression level for XM metadata (default: 1)\n");
+	printf("\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  Compress output file\n");
 	printf("\n");
@@ -147,11 +153,7 @@ void walkdir(char *inpath, char *outpath, void (*func)(char *, char*)) {
 				fprintf(stderr, "ERROR: %s is a file but should be a directory\n", outpath);
 				return;
 			}
-			#ifndef __MINGW32__
 			mkdir(outpath, 0777);
-			#else
-			mkdir(outpath);
-			#endif
 		}
 		DIR* d = opendir(inpath);
 		struct dirent *de;
@@ -305,6 +307,23 @@ int main(int argc, char *argv[]) {
 				}
 			} else if (!strcmp(argv[i], "--xm-8bit")) {
 				flag_xm_8bit = true;
+			} else if (!strcmp(argv[i], "--xm-ext-samples")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --xm-ext-samples\n");
+					return 1;
+				}
+				flag_xm_extsampledir = argv[i];
+				mkdir(flag_xm_extsampledir, 0777);
+			} else if (!strcmp(argv[i], "--xm-compress")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --xm-compress\n");
+					return 1;
+				}
+				flag_xm_compress_meta = atoi(argv[i]);
+				if (flag_xm_compress_meta < 0 || flag_xm_compress_meta > MAX_COMPRESSION) {
+					fprintf(stderr, "invalid argument for --xm-compress: %s\n", argv[i]);
+					return 1;
+				}
 			} else if (!strcmp(argv[i], "--ym-compress")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --ym-compress\n");

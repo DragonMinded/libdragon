@@ -149,6 +149,7 @@ int bb_rtc_set_state( bb_rtc_state_t *state )
     bytes[4] = bcd_encode(state->day);
     bytes[5] = bcd_encode(state->month);
     bytes[6] = bcd_encode(state->year);
+    bytes[7] = 0;
 
     bytes[0] |= state->stop            ? 0x80 : 0x00;
     bytes[1] |= state->oscillator_fail ? 0x80 : 0x00;

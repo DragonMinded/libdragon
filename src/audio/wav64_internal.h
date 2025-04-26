@@ -8,8 +8,10 @@
 #define WAV64_NUM_FORMATS   4
 
 #define WAV64_FLAG_WARN_SIMULTANEITY	 (1 << 0)
+#define WAV64_FLAG_OWNED_FD			 	 (1 << 1)
 
 typedef struct wav64_s wav64_t;
+typedef struct wav64_loadparms_s wav64_loadparms_t;
 typedef struct samplebuffer_s samplebuffer_t;
 
 /** @brief Header of a WAV64 file. */
@@ -54,19 +56,9 @@ typedef struct {
 } wav64_compression_t;
 
 /**
- * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
- * 
- * This function uses a file descriptor to load samples from ROM into the sample buffer.
- */  
-void raw_waveform_read(samplebuffer_t *sbuf, int fd, int wpos, int wlen, int bps);
-
-/**
- * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
- * 
- * This function uses PI DMA to load samples from ROM into the sample buffer.
- * Note: Tempory function should be removed when XM64 moves to using FILE*.
- */  
-void raw_waveform_read_address(samplebuffer_t *sbuf, int rom_addr, int wpos, int wlen, int bps);
+ * Similar to #wav64_load, but uses a file descriptor instead of a filename.
+ */
+wav64_t *wav64_loadfd(int fd, wav64_loadparms_t *parms);
 
 /** 
  * @brief Inform wav64 that a certain channel has finished playback.

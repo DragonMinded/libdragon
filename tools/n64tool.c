@@ -776,7 +776,7 @@ int main(int argc, char *argv[])
 		toc.entry_size = SWAPLONG(toc.entry_size);
 
 		fseek(write_file, toc_offset, SEEK_SET);
-		fwrite(&toc, 1, TOC_SIZE, write_file);
+		fwrite(&toc, 1, sizeof(toc), write_file);
 	}
 
 	/* Sync and close the output file */

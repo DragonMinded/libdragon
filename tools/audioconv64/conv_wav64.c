@@ -11,10 +11,6 @@
 #include "vadpcm/decode.c"
 #include "vadpcm/error.c"
 
-#include "../common/binout.c"
-#include "../common/binout.h"
-#include "../common/polyfill.h"
-
 #define ENABLE_SINC_BEST_CONVERTER
 #define PACKAGE "libsamplerate"
 #define VERSION "0.1.9"
@@ -45,7 +41,7 @@ typedef struct {
 	int16_t *samples;			// Samples (always 16-bit signed)
 	int cnt;					// Number of audio frames
 	int channels;				// Number of channels
-	int bitsPerSample;
+	int bitsPerSample;			// Original bits per sample in input file
 	int sampleRate;
 	bool looping;
 	int loopOffset;
@@ -126,9 +122,34 @@ static size_t read_mp3(const char *infn, wav_data_t *out)
 	return true;
 }
 
-bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, size_t loop_len, int nbits, int format)
+/**
+ * @brief Write a WAV64 file, optionally compressing it.
+ * 
+ * @param infn 			Input file name (used only for diagnostics)
+ * @param outfn 		Output file name (used only to create debug dump files if requested)
+ * @param out 			Output file handle
+ * @param wav 			Input WAV data (always pre-converted to 16 bit)
+ * @param nbits 		Expected output number of bits. Only meaningful for uncompressed files.
+ * @param format 		Compression format. 0=none, 1=VADPCM, 3=opus.
+ * @return true 		if the file was written successfully
+ * @return false 		if any error occurred
+ */
+bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int nbits, int format)
 {
 	bool failed = false;
+	int basepos = ftell(out);
+	
+	int loop_len = wav->looping ? wav->cnt - wav->loopOffset : 0;
+	if (loop_len < 0) {
+		fprintf(stderr, "WARNING: %s: invalid looping offset: %d (size: %d)\n", infn, wav->loopOffset, wav->cnt);
+		loop_len = 0;
+	}
+	if (loop_len&1 && nbits==8) {
+		// Odd loop lengths are not supported for 8-bit waveforms because they would
+		// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.
+		// We shorten the loop by 1 sample which shouldn't matter.
+		loop_len -= 1;
+	}
 
 	char id[4] = "WV64";
 	fwrite(id, 1, 4, out);
@@ -148,7 +169,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		placeholder_set_offset(out, 0, "state_size");
 
 		// Start of the samples data
-		placeholder_set(out, "samples");
+		placeholder_set_offset(out, ftell(out)-basepos, "samples");
 		int16_t *sptr = wav->samples;
 		for (int i=0;i<wav->cnt*wav->channels;i++) {
 			// Byteswap *sptr
@@ -242,7 +263,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				w16(out, codebook[i].v[j]);
 
 		// Start of samples data
-		placeholder_set(out, "samples");
+		placeholder_set_offset(out, ftell(out)-basepos, "samples");
 		if (flag_wav_compress_vadpcm_huffman)
 			fwrite(compbuf, 1, compbuflen, out);
 		else
@@ -327,7 +348,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		uint32_t max_cmp_size_pos = w32_placeholder(out);  // max compressed frame size
 		w32(out, bitrate_bps);
 		w32(out, 0);				// custom mode pointer at runtime
-		placeholder_set(out, "samples");
+		placeholder_set_offset(out, ftell(out)-basepos, "samples");
 
 		// Ask the size of the decoder state to the opus library. This is computed on x86-64
 		// so it could be larger than on the N64, but it's a good approximation.
@@ -477,8 +498,10 @@ int wav_convert(const char *infn, const char *outfn) {
 		return 1;
 	}
 
+	int uncompressedSize;
 	if (flag_verbose)
 		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
+	uncompressedSize = wav.cnt * wav.channels * wav.bitsPerSample / 8;
 
 	// Apply command line flags if not provided by WAV itself
 	if (flag_wav_looping_offset > 0 && wav.loopOffset == 0)
@@ -579,19 +602,6 @@ int wav_convert(const char *infn, const char *outfn) {
 	if (flag_wav_compress != 0)
 		nbits = 16;
 
-	int loop_len = wav.looping ? wav.cnt - wav.loopOffset : 0;
-	if (loop_len < 0) {
-		fprintf(stderr, "WARNING: %s: invalid looping offset: %d (size: %d)\n", infn, wav.loopOffset, wav.cnt);
-		loop_len = 0;
-	}
-	if (loop_len&1 && nbits==8) {
-		// Odd loop lengths are not supported for 8-bit waveforms because they would
-		// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.
-		// We shorten the loop by 1 sample which shouldn't matter.
-		fprintf(stderr, "WARNING: %s: invalid looping size: %d\n", infn, loop_len);
-		loop_len -= 1;
-	}
-
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {
 		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
@@ -599,7 +609,12 @@ int wav_convert(const char *infn, const char *outfn) {
 		return 1;
 	}
 
-	failed = !wav64_write(infn, outfn, out, &wav, loop_len, nbits, flag_wav_compress);
+	failed = !wav64_write(infn, outfn, out, &wav, nbits, flag_wav_compress);
+
+	// Show a message with the final compression ratio between original file and output file
+	if (flag_verbose)
+		fprintf(stderr, "  uncompressed: %ld bytes, compressed: %ld bytes (ratio: %.1f%%)\n",
+			(long)uncompressedSize, (long)ftell(out), (long)ftell(out) * 100.0 / uncompressedSize);			
 
 	fclose(out);
 	free(wav.samples);

@@ -93,16 +93,19 @@ static time_t joybus_rtc_decode_time( const joybus_rtc_data_t * data )
     int min = bcd_decode( data->bytes[1] );
     int hour = bcd_decode( data->bytes[2] - 0x80 );
     int day = bcd_decode( data->bytes[3] );
-    int dow = bcd_decode( data->bytes[4] );
+    //int dow = bcd_decode( data->bytes[4] );
     int month = bcd_decode( data->bytes[5] );
     int year = bcd_decode( data->bytes[6] );
     int century = bcd_decode( data->bytes[7] );
 
     // Extremely basic sanity-check on the date and time
+    // We don't use day-of-week so don't validate it. Also 64drive
+    // emulates it with 0=Sun 1=Mon, while ED64 OS uses 1=Mon 7=Sun,
+    // so they are even incompatible.
     if(
         century > 1 ||
         month == 0 || month > 12 ||
-        day == 0 || day > 31 || dow > 6 ||
+        day == 0 || day > 31 ||
         hour >= 24 || min >= 60 || sec >= 60
     )
     {
@@ -366,6 +369,12 @@ static void joybus_rtc_get_time_callback( uint64_t *out_dwords, void *ctx )
     joybus_rtc_data_t data = { .dword = cmd->recv.dword };
     debugf("joybus_rtc_get_time_async: raw time (0x%llx)\n", data.dword);
     time_t decoded_time = joybus_rtc_decode_time( &data );
+    if (decoded_time < 0)
+    {
+        debugf("joybus_rtc_get_time_async: invalid time\n");
+        callback( (int)decoded_time, 0 );
+        return;
+    }
 
     struct tm * parsed_tm = gmtime( &decoded_time );
     debugf("joybus_rtc_get_time_async: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
@@ -414,8 +423,11 @@ int joybus_rtc_get_time( time_t *out )
     debugf("joybus_rtc_get_time: reading time block\n");
     joybus_rtc_read( JOYBUS_RTC_BLOCK_TIME, &data );
     debugf("joybus_rtc_get_time: raw time (0x%llx)\n", data.dword);
-    *out = joybus_rtc_decode_time( &data );
+    time_t time = joybus_rtc_decode_time( &data );
+    if (time < 0)
+        return (int)time;
 
+    *out = time;
     struct tm * parsed_tm = gmtime( out );
     debugf("joybus_rtc_get_time: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
         parsed_tm->tm_year + 1900, parsed_tm->tm_mon + 1, parsed_tm->tm_mday,

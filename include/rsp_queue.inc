@@ -140,7 +140,7 @@ _RSPQ_SAVED_STATE_START:
 ########################################################
 .macro RSPQ_EndSavedState
     .align 3
-#if RSPQ_PROFILE
+#if RSPQ_PROFILE && !RSPQ_PROFILE_MANUAL_SLOT
 _RSPQ_OVL_PROFILESLOT:
     # Profiling data for this overlay
     .long 0, 0
