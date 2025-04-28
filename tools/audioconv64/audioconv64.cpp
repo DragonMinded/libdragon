@@ -94,8 +94,8 @@ void usage(void) {
 	printf("XM options:\n");
 	printf("   --xm-8bit                 	Convert all samples to 8-bit\n");
 	printf("   --xm-ext-samples <dir>    	Export samples externally as wav64 files in the specified directory\n");
-	printf("   --xm-compress <0..3>      	Compression level for XM metadata (default: 1)\n");
-	printf("   --xm-compress-samples <0|1>  Compression level for XM samples (default: 1)\n");
+	printf("   --xm-compress <0|1>  		Compression level for XM samples (default: 1=vadpcm)\n");
+	printf("   --xm-compress-data <0..3>    Compression level for XM binary data (default: 1)\n");
 	printf("\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  	Compress output file\n");
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
 				flag_wav_looping = true;
 			} else if (!strcmp(argv[i], "--wav-mono")) {
 				flag_wav_mono = true;
-			} else if (!strcmp(argv[i], "--wav-compress") || !strcmp(argv[i], "--xm-compress-samples")) {
+			} else if (!strcmp(argv[i], "--wav-compress") || !strcmp(argv[i], "--xm-compress")) {
 				int *flag_compress = (!strcmp(argv[i], "--wav-compress")) ? &flag_wav_compress : &flag_xm_compress_samples;
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -350,7 +350,7 @@ int main(int argc, char *argv[]) {
 				}
 				flag_xm_extsampledir = argv[i];
 				mkdir(flag_xm_extsampledir, 0777);
-			} else if (!strcmp(argv[i], "--xm-compress")) {
+			} else if (!strcmp(argv[i], "--xm-compress-data")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --xm-compress\n");
 					return 1;
