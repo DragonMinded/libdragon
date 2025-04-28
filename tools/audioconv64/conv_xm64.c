@@ -566,17 +566,21 @@ int xm_convert(const char *infn, const char *outfn) {
 						n = ch->sample->length;
 					}
 
-					if (flag_xm_compress_samples > 0) {
-						// In VADPCM mode, we always decompress in chunks of 32 bytes
-						n = (n + 31) / 32 * 32; // round up to 32 bytes
-					}
-
 					// Convert samples to bytes (compressed samples are always 16-bit)
 					if (ch->sample->bits == 16 || flag_xm_compress_samples > 0)
 						n *= 2;
 
 					// Take overread buffer into account
 					n += MIXER_LOOP_OVERREAD;
+
+					if (flag_xm_compress_samples > 0) {
+						// In VADPCM mode, we always decompress in chunks of 32 bytes
+						// Always make space for one more frame than strictly required,
+						// as partially played back frames might exist in the buffer
+						// at any point.
+						n = (n + 31) / 32 * 32; // round up to 32 bytes
+						n += 32; // one more frame
+					}
 
 					// Keep the maximum
 					if (ch_buf[i] < n)
