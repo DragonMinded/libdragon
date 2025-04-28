@@ -592,6 +592,14 @@ int xm_convert(const char *infn, const char *outfn) {
 						// at any point.
 						n = (n + 31) / 32 * 32; // round up to 32 bytes
 						n += 32; // one more frame
+
+						// During loop, decoding of this tick could be split in two
+						// (before loop end and at loop start), and this will require
+						// two different 32-byte roundings. We approximate this by
+						// adding yet another frame to the buffer size for this
+						// sample.
+						if (ch->sample->loop_type)
+							n += 32;
 					}
 
 					// Keep the maximum
