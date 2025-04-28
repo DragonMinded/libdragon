@@ -192,7 +192,8 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	//  7: switch to wav64 for samples, and add support for external samples
 	//  8: patterns are compressed with asset library
 	//  9: metadata compressed with asset library
-	const uint8_t version = 9;
+	// 10: record maximum simultaneous usage of samples
+	const uint8_t version = 10;
 	wa(xm64, "XM64", 4);
 	w8(xm64, version);
 	w32_placeholderf(xm64, "metadata_offset");
@@ -304,6 +305,7 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 			w32(meta, s->loop_type);
 			wf32(meta, s->panning);
 			w8(meta, s->relative_note);
+			w8(meta, s->max_simultaneous_usage);
 			w32_placeholderf(meta, "sample_%d_%d", i, j);
 		}
 	}
@@ -536,8 +538,14 @@ int xm_convert(const char *infn, const char *outfn) {
 
 	sample_skip_points.clear();
 
+	// Calculate also maximum simultaneous usage of each sample, to properly allocate
+	// runtime state for each of them.
+	std::map<xm_sample_t*, int> simultaneous_usage;
+
 	while (1) {
 		do {
+			simultaneous_usage.clear();
+
 			xm_tick(ctx);
 
 			// Remember which pattern index we already played
@@ -554,10 +562,14 @@ int xm_convert(const char *infn, const char *outfn) {
 					// Mark the sample as used. Notice that sometimes ch->sample
 					// is not part of the current ch->instrument->samples array
 					// (the instrument can change before key on).
-					bool *used_samp_inst = used_samples[ch->instrument - ctx->module.instruments];
+					int ins_idx = ch->instrument - ctx->module.instruments;
 					int smp_idx = ch->sample - ch->instrument->samples;
+					bool *used_samp_inst = used_samples[ins_idx];
 					if (smp_idx >= 0 && smp_idx < ch->instrument->num_samples)
 						used_samp_inst[smp_idx] = true;
+
+					// Remember that the sample is used in this tick
+					simultaneous_usage[ch->sample]++;
 
 					// Number of samples for this waveform at this playback frequency
 					// (capped at the waveform length)
@@ -598,6 +610,12 @@ int xm_convert(const char *infn, const char *outfn) {
 				}
 			}
 			ctx->remaining_samples_in_tick -= nsamples;
+
+			// Update the maximum simultaneous usage of each sample
+			for (auto &[smpl, nuses] : simultaneous_usage) {
+				if (nuses > smpl->max_simultaneous_usage)
+					smpl->max_simultaneous_usage = nuses;
+			}
 		} while (xm_get_loop_count(ctx) == 0);
 
 		// Check if we played all pattern orders, otherwise go to the first free one

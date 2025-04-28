@@ -244,6 +244,7 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 			R32(s->loop_type);
 			RF(s->panning);
 			R8(s->relative_note);
+			R8(s->max_simultaneous_usage);
 			R32(s->data8_offset);
 		}
 	}

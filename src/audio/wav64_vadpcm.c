@@ -373,6 +373,7 @@ static void wav64_vadpcm_init_huffman(wav64_t *wav) {
 
 void wav64_vadpcm_init(wav64_t *wav, int state_size)
 {
+    _Static_assert((sizeof(wav64_state_vadpcm_t) % 16) == 0, "wav64: invalid state size for VADPCM");
     assertf(state_size == sizeof(wav64_state_vadpcm_t), 
         "wav64: invalid state size for VADPCM: %d/%d\n", state_size, sizeof(wav64_state_vadpcm_t));
 
