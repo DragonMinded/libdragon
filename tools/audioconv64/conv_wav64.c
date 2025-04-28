@@ -1,4 +1,5 @@
 #include <vector>
+#include <algorithm>
 #include "../../src/audio/wav64_internal.h"
 
 #define DR_WAV_IMPLEMENTATION
@@ -340,7 +341,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			for (int k=0;k<2;k++) // always serialize two channels
 				for (int j=0; j<8; j++)
 					w16(out, skip_state[i][k].v[j]);
-				w32(out, skip_bitpos[i]);
+			w32(out, skip_bitpos[i]);
 			w32(out, skip_points[i]);
 		}
 
@@ -653,8 +654,8 @@ int wav_convert(const char *infn, const char *outfn) {
 		// Do the conversion
 		SRC_DATA data = {
 			.data_in = fsamples_in,
-			.input_frames = wav.cnt,
 			.data_out = fsamples_out,
+			.input_frames = wav.cnt,
 			.output_frames = newcnt,
 			.src_ratio = (double)wavResampleTo / wav.sampleRate,
 		};

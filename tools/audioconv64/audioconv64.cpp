@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#ifdef __MINGW32__
+#define _Static_assert static_assert
+#endif
+
 #include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"

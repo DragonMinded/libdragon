@@ -63,13 +63,13 @@ static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 	}
 
 	wav_data_t wav = {
+		.samples = samples16,
 		.cnt = s->length,
 		.channels = 1,
-		.sampleRate = 44100,
 		.bitsPerSample = s->bits,
-		.loopOffset = s->loop_start,
+		.sampleRate = 44100,
 		.looping = s->loop_type != 0,
-		.samples = samples16,
+		.loopOffset = s->loop_start,
 	};
 	for (auto pos : sample_skip_points[s])
 		wav.skipPoints.push_back(pos);

@@ -8,7 +8,7 @@ typedef struct {
     uint32_t dwHighDateTime;
 } MY_FILETIME;
 
-__declspec(dllimport) void __stdcall GetSystemTimeAsFileTime(MY_FILETIME *lpFileTime);
+extern "C" __declspec(dllimport) void __stdcall GetSystemTimeAsFileTime(MY_FILETIME *lpFileTime);
 
 uint64_t nanotime(void) {
     MY_FILETIME ft;
