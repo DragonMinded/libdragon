@@ -9,6 +9,7 @@
 #include "n64sys.h"
 #include "n64types.h"
 #include "utils.h"
+#include "rspq.h"
 #include "debug.h"
 #include <string.h>
 
@@ -211,6 +212,12 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 	int kept_bytes = (buf->widx - idx) << SAMPLES_BPS_SHIFT(buf);
 	if (kept_bytes > 0) {		
 		tracef("samplebuffer_discard: compacting buffer, moving 0x%x bytes\n", kept_bytes);
+
+		// Samples are normally generated via RSP. Before moving them with the CPU,
+		// we must be sure the RSP is done with.
+		// FIXME: this could be avoided with a RSP memmove command, but it remains
+		// to be seen what is more efficient.
+		rspq_highpri_sync();
 
 		// FIXME: this violates the zero-copy principle as we do a memmove here.
 		// The problem is that the RSP ucode doesn't fully support a circular
