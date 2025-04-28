@@ -16,7 +16,7 @@
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
-bool flag_wav_compress_vadpcm_huffman = true;
+int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
 bool flag_wav_mono = false;
@@ -566,6 +566,10 @@ int wav_convert(const char *infn, const char *outfn) {
 		const char *compr[4] = { "raw", "vadpcm", "raw", "opus" };
 		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, compr[flag_wav_compress]);
 	}
+
+	// For wav64 conversion, activate huffman by default
+	if (flag_wav_compress_vadpcm_huffman < 0) 
+		flag_wav_compress_vadpcm_huffman = 1;
 
 	bool failed = false;
 	wav_data_t wav = {0};

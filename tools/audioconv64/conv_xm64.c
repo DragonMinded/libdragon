@@ -401,6 +401,10 @@ int xm_convert(const char *infn, const char *outfn) {
 	if (flag_verbose)
 		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);
 
+	// For xm64 conversions, deactivate huffman by default
+	if (flag_wav_compress_vadpcm_huffman < 0) 
+		flag_wav_compress_vadpcm_huffman = 0;
+
 	FILE *xm = fopen(infn, "rb");
 	if (!xm) fatal("cannot open: %s\n", infn);
 

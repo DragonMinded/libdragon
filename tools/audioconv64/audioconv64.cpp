@@ -77,6 +77,8 @@ void usage(void) {
 	printf("   -o / --output <dir>       	Specify output directory\n");
 	printf("   -v / --verbose            	Verbose mode\n");
 	printf("   -d / --debug              	Dump uncompressed files in output directory for debugging\n");
+	printf("   -h / --help               	Show this help message\n");
+	printf("        --help-compress      	Show detailed help for compression options\n");
 	printf("\n");
 	printf("WAV/MP3 options:\n");
 	printf("   --wav-mono                	Force mono output\n");
@@ -93,6 +95,26 @@ void usage(void) {
 	printf("\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  	Compress output file\n");
+	printf("\n");
+}
+
+void usage_compress(void)
+{
+	printf("audioconv64 -- Audio conversion tool for libdragon\n");
+	printf("\n");
+	printf("This help describes the compression options that can be passed to --wav-compress or --xm-compress:\n");
+	printf("\n");
+	printf("     none (or 0)            No compression, store raw samples\n");
+	printf("     vadpcm (or 1)          Use RSP-optimized VADPCM codec. This is the default\n");
+	printf("     opus (or 3)            Use RSP-optimized Opus codec. Slower at runtime, smaller disk size\n");
+	printf("                            (unsupported for xm64)\n");
+	printf("\n");
+	printf("It is also possible to specify additional compression flags, separated by commas:\n");
+	printf("\n");
+	printf("     vadpcm,huffman=true    Enable Huffman compression in VADPCM.\n");
+	printf("                            (default: true for wav64, false for xm64))\n");
+	printf("     vadpcm,bits=<2|3|4>    Specify how many bits per sample use in VADPCM coding (default: 4)\n");
+	printf("                            For values less than 4, huffman compression should be enabled.\n");
 	printf("\n");
 }
 
@@ -204,6 +226,9 @@ int main(int argc, char *argv[]) {
 			} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 				usage();
 				return 0;
+			} else if (!strcmp(argv[i], "--help-compress")) {
+				usage_compress();
+				return 0;
 			} else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for -o/--output\n");
@@ -251,7 +276,11 @@ int main(int argc, char *argv[]) {
 				else if (!strcmp(argv[i], "1") || !strcmp(argv[i], "vadpcm"))
 					*flag_compress = 1;
 				else if (!strcmp(argv[i], "3") || !strcmp(argv[i], "opus"))
-					*flag_compress = 3;
+					if (flag_compress == &flag_xm_compress_samples) {
+						fprintf(stderr, "opus compression not supported for XM64\n");
+						return 1;
+					} else
+						*flag_compress = 3;
 				else {
 					fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
 					return 1;
