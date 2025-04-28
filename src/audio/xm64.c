@@ -177,8 +177,10 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 				.max_simultaneous_playbacks = samp->max_simultaneous_usage,
 			};
 			if (!player->ctx->external_samples) {
+				char filename[128];
+				snprintf(filename, sizeof(filename), "%s[%d:%d]", fn, i+1, j);
 				lseek(player->fd, samp->data8_offset, SEEK_SET);
-				samp->wave = wav64_loadfd(player->fd, &parms);
+				samp->wave = wav64_loadfd(player->fd, filename, &parms);
 			} else {
 				sprintf(extfn, "%s/%08lx.wav64", xm64_extsampledir, samp->data8_offset);
 				samp->wave = wav64_load(strdup(extfn), &parms);
