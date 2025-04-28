@@ -10,6 +10,7 @@
 #include "n64types.h"
 #include "utils.h"
 #include "rspq.h"
+#include "../rspq/rspq_internal.h"
 #include "debug.h"
 #include <string.h>
 
@@ -217,7 +218,10 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 		// we must be sure the RSP is done with.
 		// FIXME: this could be avoided with a RSP memmove command, but it remains
 		// to be seen what is more efficient.
+		bool highpri = rspq_in_highpri();
+		if (highpri) rspq_highpri_end();
 		rspq_highpri_sync();
+		if (highpri) rspq_highpri_begin();
 
 		// FIXME: this violates the zero-copy principle as we do a memmove here.
 		// The problem is that the RSP ucode doesn't fully support a circular
