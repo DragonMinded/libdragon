@@ -69,6 +69,16 @@ static int tick(void *arg) {
 
 	float gvol = ctx->global_volume * ctx->amplification;
 
+	// First stop all channels that require to be stopped, that is,
+	// emtpy channels or channels that are going to change sample.
+	// This avoids emitting warnings related to simultaneous usage of
+	// samples that are just changing channel.
+	for (int i=0;i<ctx->module.num_channels;i++) {
+		xm_channel_context_t *ch = &ctx->channels[i];
+		if (!ch->sample || mixer_ch_playing(first_ch+i) != &ch->sample->wave->wave)
+			mixer_ch_stop(first_ch+i);
+	}
+
 	for (int i=0;i<ctx->module.num_channels;i++) {
 		xm_channel_context_t *ch = &ctx->channels[i];
 		if (ch->sample) {
@@ -79,17 +89,13 @@ static int tick(void *arg) {
 			// user wants to mute some channels (usually for debugging).
 			bool muted = ch->muted || ch->instrument->muted;
 
-			// Play the waveform. Notice that the waveform might already
-			// be playing in this channel, in which case the play
-			// command only resets its position to 0, and keep the sample
-			// buffer full, which is what we want.
-			// The mixer doesn't currently allow for mixer_ch_play() to keep
-			// the current position, but even if it did, xm_tick() might
-			// have changed it since last tick, because there is a XM effect
-			// to force the position in the sample. So it's better to
-			// set it every time with mixer_ch_set_pos.
-			if (mixer_ch_playing(first_ch+i) != &w->wave)
+			// Play the waveform, if it was not already playing. We don't handle
+			// explicit key-on events here since it's a bit complex in XM, so
+			// we just passively check whether we need to start playing or not.
+			if (!mixer_ch_playing(first_ch+i))
 				wav64_play(w, first_ch+i);
+
+			// Set the position of the sample expected by the playback engine.
 			mixer_ch_set_pos(first_ch+i, ch->sample_position);
 
 			// Configure also frequency and volume that might have changed
@@ -98,9 +104,6 @@ static int tick(void *arg) {
 			mixer_ch_set_vol(first_ch+i,
 				muted ? 0 : gvol * ch->actual_volume[0],
 				muted ? 0 : gvol * ch->actual_volume[1]);
-		} else {
-			// No sample in this channel: the channel is mute. Just stop it.
-			mixer_ch_stop(first_ch+i);
 		}
 	}
 
