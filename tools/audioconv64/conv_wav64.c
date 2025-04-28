@@ -1,3 +1,4 @@
+#include <vector>
 #include "../../src/audio/wav64_internal.h"
 
 #define DR_WAV_IMPLEMENTATION
@@ -6,32 +7,16 @@
 #define DR_MP3_IMPLEMENTATION
 #include "dr_mp3.h"
 
-#include "vadpcm/vadpcm.h"
-#include "vadpcm/encode.c"
-#include "vadpcm/decode.c"
-#include "vadpcm/error.c"
-
-#define ENABLE_SINC_BEST_CONVERTER
-#define PACKAGE "libsamplerate"
-#define VERSION "0.1.9"
-#include "libsamplerate/samplerate.h"
-#include "libsamplerate/samplerate.c"
-#include "libsamplerate/src_sinc.c"
-#include "libsamplerate/src_zoh.c"
-#include "libsamplerate/src_linear.c"
-#undef PACKAGE
-#undef VERSION
-#undef MIN
-#undef MAX
-
-#include "../../src/audio/libopus.c"
+#include "libvadpcm.h"
+#include "libsamplerate.h"
+#include "libopus.h"
 
 #include "huff_vadpcm.c"
 
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
-bool flag_wav_compress_vadpcm_huffman = true;
+int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
 bool flag_wav_mono = false;
@@ -44,7 +29,8 @@ typedef struct {
 	int bitsPerSample;			// Original bits per sample in input file
 	int sampleRate;
 	bool looping;
-	int loopOffset;
+	int loopOffset;				// Offset of the beginning of the loop in samples
+	std::vector<int> skipPoints;		// Skip points in the waveform
 } wav_data_t;
 
 static bool read_wav(const char *infn, wav_data_t *out)
@@ -58,7 +44,7 @@ static bool read_wav(const char *infn, wav_data_t *out)
 	// Decode the samples as 16bit little-endian. This will decode everything including
 	// compressed formats so that we're able to read any kind of WAV file, though
 	// it will end up as an uncompressed file.
-	int16_t* samples = malloc(wav.totalPCMFrameCount * wav.channels * sizeof(int16_t));
+	int16_t* samples = (int16_t*)malloc(wav.totalPCMFrameCount * wav.channels * sizeof(int16_t));
 	out->cnt = drwav_read_pcm_frames_s16le(&wav, wav.totalPCMFrameCount, samples);
 	if (out->cnt != wav.totalPCMFrameCount) {
 		fprintf(stderr, "WARNING: %s: %d frames found, but only %d decoded\n", infn, (int)wav.totalPCMFrameCount, out->cnt);
@@ -108,7 +94,7 @@ static size_t read_mp3(const char *infn, wav_data_t *out)
 	}
 
 	uint64_t nframes = drmp3_get_pcm_frame_count(&mp3);
-	int16_t* samples = malloc(nframes * mp3.channels * sizeof(int16_t));
+	int16_t* samples = (int16_t*)malloc(nframes * mp3.channels * sizeof(int16_t));
 	out->cnt = drmp3_read_pcm_frames_s16(&mp3, nframes, samples);
 	if (out->cnt != nframes) {
 		fprintf(stderr, "WARNING: %s: %d frames found, but only %d decoded\n", infn, (int)nframes, out->cnt);
@@ -129,47 +115,89 @@ static size_t read_mp3(const char *infn, wav_data_t *out)
  * @param outfn 		Output file name (used only to create debug dump files if requested)
  * @param out 			Output file handle
  * @param wav 			Input WAV data (always pre-converted to 16 bit)
- * @param nbits 		Expected output number of bits. Only meaningful for uncompressed files.
  * @param format 		Compression format. 0=none, 1=VADPCM, 3=opus.
  * @return true 		if the file was written successfully
  * @return false 		if any error occurred
+ * 
+ * After the call:
+ *   wav->samples might have been reallocated to a different buffer, and the original one freed
+ * 
+ * Consider the function might have to change the wav->cnt and wav->loopOffset
+ * values to make them compatible with the compression format (eg: padding, realigning).
  */
-bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int nbits, int format)
+bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int format)
 {
 	bool failed = false;
 	int basepos = ftell(out);
 	
+	// Adjust loops for playback constraints
 	int loop_len = wav->looping ? wav->cnt - wav->loopOffset : 0;
 	if (loop_len < 0) {
 		fprintf(stderr, "WARNING: %s: invalid looping offset: %d (size: %d)\n", infn, wav->loopOffset, wav->cnt);
 		loop_len = 0;
 	}
-	if (loop_len&1 && nbits==8) {
-		// Odd loop lengths are not supported for 8-bit waveforms because they would
-		// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.
-		// We shorten the loop by 1 sample which shouldn't matter.
-		loop_len -= 1;
+
+	switch (format) {
+	case 0:
+		if (loop_len&1 && wav->bitsPerSample ==8) {
+			// Odd loop lengths are not supported for 8-bit waveforms because they would
+			// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.
+			// We shorten the loop by 1 sample which shouldn't matter.
+			wav->loopOffset += 1;
+			loop_len -= 1;
+		}
+		break;
+
+	case 1: { // vadpcm 
+		// We need the loop point to be aligned to the VADPCM frame size (16 samples).
+		// This allows the VADPCM decoder to be simpler when looping, as it doesn't
+		// have to decode and discard partial frames.
+		// Moreover, we even force an alignment to *even* frames (32 samples) because
+		// this gurantees the source ROM pointer is even, which means that direct DMA
+		// will be performed during decoding, with no memcpy.
+		// To do so, move forward the loop point until the next frame boundary,
+		// and copy the skipped samples to the end of the buffer.
+		enum { VADCPM_ALIGN = 32 };
+		if (wav->looping && (wav->loopOffset % VADCPM_ALIGN) != 0) {
+			int ncopy = VADCPM_ALIGN - (wav->loopOffset % VADCPM_ALIGN);
+			
+			wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * wav->channels * sizeof(int16_t));
+			// Manually copy the samples to the end of the buffer, so that
+			// we handle the case of a loop length smaller than the copy size.
+			for (int i=0; i<ncopy * wav->channels; i++) {
+				wav->samples[wav->cnt * wav->channels + i] = wav->samples[wav->loopOffset * wav->channels + i];
+			}
+			wav->cnt += ncopy;
+			wav->loopOffset += ncopy;
+			loop_len = wav->cnt - wav->loopOffset;
+		}
+
+		wav->bitsPerSample = 16; // VADPCM always uses 16-bit samples
+	} 	break;
+
+	case 3: // opus:
+		wav->bitsPerSample = 16; // Opus always uses 16-bit samples
+		break;
 	}
 
-	char id[4] = "WV64";
-	fwrite(id, 1, 4, out);
-	w8(out, 3); 				 			// version
+	fwrite("WV64", 1, 4, out);
+	w8(out, 4); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
-	w8(out, nbits);							// bits
+	w8(out, wav->bitsPerSample);			// bits
 	w32(out, wav->sampleRate);				// frequency
 	w32(out, wav->cnt);						// len
 	w32(out, loop_len);						// loop_len
-	w32_placeholderf(out, "samples");		// offset where samples begin
-	w32_placeholderf(out, "state_size");    // size of per-mixer-channel state to allocate at runtime
+	w32_placeholderf(out, "%s/samples", outfn);		// offset where samples begin
+	w32_placeholderf(out, "%s/state_size", outfn);    // size of per-mixer-channel state to allocate at runtime
 
 	switch (format) {
 	case 0: { // no compression
 		// Uncompressed waveforms need to no state (0 bytes).
-		placeholder_set_offset(out, 0, "state_size");
+		placeholder_set_offset(out, 0, "%s/state_size", outfn);
 
 		// Start of the samples data
-		placeholder_set_offset(out, ftell(out)-basepos, "samples");
+		placeholder_set_offset(out, ftell(out)-basepos, "%s/samples", outfn);
 		int16_t *sptr = wav->samples;
 		for (int i=0;i<wav->cnt*wav->channels;i++) {
 			// Byteswap *sptr
@@ -179,15 +207,15 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			// Write the sample as 16bit or 8bit. Since *sptr is 16-bit big-endian,
 			// the 8bit representation is just the first byte (MSB). Notice
 			// that WAV64 8bit is signed anyway.
-			fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
+			fwrite(sptr, 1, wav->bitsPerSample == 8 ? 1 : 2, out);
 			sptr++;
 		}
 	} break;
 
 	case 1: { // vadpcm
-		// The state is 16 bytes per channel, but the runtime code requires to
+		// The state is 16+4+4 bytes per channel (see wav64_state_vadpcm_t), but the runtime code requires to
 		// always allocate both channels even for mono files.
-		placeholder_set_offset(out, 48, "state_size");
+		placeholder_set_offset(out, 48, "%s/state_size", outfn);
 
 		// We need cnt to be a multiple of kVADPCMFrameSampleCount (16) because
 		// VADPCM are compressed using 16-sample frames.
@@ -196,7 +224,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		const int VADPCM_ALIGN = kVADPCMFrameSampleCount*2;
 		if (wav->cnt % VADPCM_ALIGN) {
 			int newcnt = (wav->cnt + VADPCM_ALIGN - 1) / VADPCM_ALIGN * VADPCM_ALIGN;
-			wav->samples = realloc(wav->samples, newcnt * wav->channels * sizeof(int16_t));
+			wav->samples = (int16_t*)realloc(wav->samples, newcnt * wav->channels * sizeof(int16_t));
 			memset(wav->samples + wav->cnt, 0, (newcnt - wav->cnt) * wav->channels * sizeof(int16_t));
 			wav->cnt = newcnt;
 		}
@@ -205,65 +233,119 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		assert(wav->cnt % kVADPCMFrameSampleCount == 0);
 		int nframes = wav->cnt / kVADPCMFrameSampleCount;
-		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
-		struct vadpcm_vector *codebook = alloca(kPREDICTORS * kVADPCMEncodeOrder * wav->channels * sizeof(struct vadpcm_vector));
+		struct vadpcm_vector *codebook = (struct vadpcm_vector *)alloca(kPREDICTORS * kVADPCMEncodeOrder * wav->channels * sizeof(struct vadpcm_vector));
 		struct vadpcm_params parms = { 
 			.predictor_count = kPREDICTORS,
 			.min_residual = -(1 << (flag_wav_compress_vadpcm_bits-1)),
 			.max_residual = (1 << (flag_wav_compress_vadpcm_bits-1)) - 1
 		};
-		void *dest = malloc(nframes * kVADPCMFrameByteSize * wav->channels);
+		uint8_t *dest = (uint8_t*)malloc(nframes * kVADPCMFrameByteSize * wav->channels);
 		
 		if (flag_verbose)
 			fprintf(stderr, "  compressing into VADPCM format (%d frames)\n", nframes);
 
-		int16_t *schan = malloc(wav->cnt * sizeof(int16_t));
+		std::vector<int> skip_points = wav->skipPoints;
+		if (wav->looping) skip_points.push_back(wav->loopOffset);
+		std::sort(skip_points.begin(), skip_points.end());
+
+		// Abort if skip points are out of bound
+		for (int i=0; i<skip_points.size(); i++) {
+			// Align skip points to *next* frame boundary
+			skip_points[i] = (skip_points[i] + kVADPCMFrameSampleCount - 1) / kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
+
+			if (skip_points[i] < 0 || skip_points[i] >= wav->cnt) {
+				fprintf(stderr, "ERROR: %s: invalid skip point: %d\n", infn, skip_points[i]);
+				failed = true;
+				break;
+			}
+		}
+
+		std::vector<int> skip_bitpos(skip_points.size(), 0);
+
+		struct vadpcm_vector skip_state[skip_points.size()][2];
+		memset(skip_state, 0, sizeof(skip_state));
+
+		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
+		int16_t *schan = (int16_t*)malloc(wav->cnt * sizeof(int16_t));
 		for (int i=0; i<wav->channels; i++) {
-			uint8_t *destchan = malloc(nframes * kVADPCMFrameByteSize);
+			uint8_t *destchan = (uint8_t*)malloc(nframes * kVADPCMFrameByteSize);
 			for (int j=0; j<wav->cnt; j++)
 				schan[j] = wav->samples[i + j*wav->channels];
-			vadpcm_error err = vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
-			if (err != 0) {
-				fprintf(stderr, "VADPCM encoding error: %s\n", vadpcm_error_name(err));
-				return 1;
+			vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
+			if (!skip_points.empty()) {
+				for (int j=0; j<skip_points.size(); j++) {
+					// Decode the whole buffer until the loop point to get the state
+					// at the beginning of the loop.
+					// FIXME: optimize by avoiding to redecode the whole buffer from scratch for each skip point
+					vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
+						codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
+						&skip_state[j][i], skip_points[j] / kVADPCMFrameSampleCount, schan, destchan);
+				}
 			}
+
+			// Copy encoded samples to output buffer
 			for (int j=0; j<nframes; j++)
 				memcpy(dest + (i + wav->channels * j) * kVADPCMFrameByteSize, destchan + j * kVADPCMFrameByteSize, kVADPCMFrameByteSize);
 			free(destchan);
 		}
+		free(schan);
 		free(scratch);
 
-		const int maxcompbuflen = nframes * kVADPCMFrameByteSize * wav->channels;
-		uint8_t *compbuf = malloc(maxcompbuflen);
-		uint8_t *ctxbuf = calloc(HUFF_CONTEXT_LEN, 1);
+		const int dest_size = nframes * kVADPCMFrameByteSize * wav->channels;
+		const int maxcompbuflen = dest_size;
+		uint8_t *compbuf = (uint8_t*)malloc(maxcompbuflen);
+		uint8_t *ctxbuf = (uint8_t*)calloc(HUFF_CONTEXT_LEN, 1);
 		int compbuflen = 0;
 		if (flag_wav_compress_vadpcm_huffman) {
-			compbuflen = huffv_compress(dest, nframes * kVADPCMFrameByteSize * wav->channels, compbuf, maxcompbuflen, ctxbuf, HUFF_CONTEXT_LEN);
+			compbuflen = huffv_compress(dest, dest_size, compbuf, maxcompbuflen, ctxbuf, HUFF_CONTEXT_LEN);
 
 			if (flag_verbose)
 				fprintf(stderr, "  huffman compressed %d bytes into %d bytes (ratio: %.1f%%)\n",
 					nframes * kVADPCMFrameByteSize * wav->channels, compbuflen,
 					100.0f * compbuflen / (nframes * kVADPCMFrameByteSize * wav->channels));
+
+			// Try decompressing now, just to double check there are no bugs
+			std::vector<uint8_t> scratch(dest_size);
+			HuffLookup tbl[HUFF_CONTEXTS];
+			huffv_decompress_init(ctxbuf, HUFF_CONTEXT_LEN, tbl);
+			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size);
+			assert(bitpos = compbuflen*8);
+			assert(memcmp(&scratch[0], dest, dest_size) == 0);
+
+			// Compute bit offset for each skip point
+			for (int i=0; i<skip_points.size(); i++) {
+				skip_bitpos[i] = huffv_decompress(compbuf, compbuflen, tbl,
+					&scratch[0], skip_points[i] / 16 * 9 * wav->channels);
+			}
 		}
 
 		uint8_t flags = 0;
 		if (flag_wav_compress_vadpcm_huffman) flags |= (1<<0);
 
+		const int CODEBOOK_SIZE = kPREDICTORS * kVADPCMEncodeOrder * wav->channels;
 		struct vadpcm_vector state = {0};
 		w8(out, kPREDICTORS);
 		w8(out, kVADPCMEncodeOrder);
 		w8(out, flags);
-		w8(out, 0);  // padding
+		w8(out, skip_points.size());
+		w32(out, 0); // huff_tbl_ptr
+		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 : 0); // skip_points_ptr
+		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);					 // Huffman context
 		w32(out, 0); // padding
-		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // TBC: loop_state[0]
-		fwrite(&state, 1, sizeof(struct vadpcm_vector), out);   // TBC: loop_state[1]
-		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);				// Huffman context
-		for (int i=0; i<kPREDICTORS * kVADPCMEncodeOrder * wav->channels; i++)    // codebook
+		for (int i=0; i<CODEBOOK_SIZE; i++)    // codebook
 			for (int j=0; j<8; j++)
 				w16(out, codebook[i].v[j]);
+		// Write the skip points
+		for (int i=0; i<skip_points.size(); i++) {
+			for (int k=0;k<2;k++) // always serialize two channels
+				for (int j=0; j<8; j++)
+					w16(out, skip_state[i][k].v[j]);
+				w32(out, skip_bitpos[i]);
+			w32(out, skip_points[i]);
+		}
 
 		// Start of samples data
-		placeholder_set_offset(out, ftell(out)-basepos, "samples");
+		placeholder_set_offset(out, ftell(out)-basepos, "%s/samples", outfn);
 		if (flag_wav_compress_vadpcm_huffman)
 			fwrite(compbuf, 1, compbuflen, out);
 		else
@@ -274,10 +356,10 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			if (flag_verbose)
 				fprintf(stderr, "  writing uncompressed file %s\n", wav2fn);
 			
-			int16_t *out_samples = malloc(wav->cnt * wav->channels * sizeof(int16_t));
-			int16_t *out_channel = malloc(wav->cnt * sizeof(int16_t));
+			int16_t *out_samples = (int16_t *)malloc(wav->cnt * wav->channels * sizeof(int16_t));
+			int16_t *out_channel = (int16_t *)malloc(wav->cnt * sizeof(int16_t));
 			for (int i=0;i<wav->channels;i++) {		
-				uint8_t *in_channel = malloc(nframes * kVADPCMFrameByteSize);
+				uint8_t *in_channel = (uint8_t*)malloc(nframes * kVADPCMFrameByteSize);
 				for (int j=0;j<nframes;j++)
 					memcpy(in_channel + j * kVADPCMFrameByteSize, dest + (i + wav->channels * j) * kVADPCMFrameByteSize, kVADPCMFrameByteSize);
 
@@ -348,13 +430,13 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		uint32_t max_cmp_size_pos = w32_placeholder(out);  // max compressed frame size
 		w32(out, bitrate_bps);
 		w32(out, 0);				// custom mode pointer at runtime
-		placeholder_set_offset(out, ftell(out)-basepos, "samples");
+		placeholder_set_offset(out, ftell(out)-basepos, "%s/samples", outfn);
 
 		// Ask the size of the decoder state to the opus library. This is computed on x86-64
 		// so it could be larger than on the N64, but it's a good approximation.
 		// Add 16 because OpusDecoder has a 16-byte internal alingment, so we add
 		// some margin. The value is asserted at runtime anyway.
-		placeholder_set_offset(out, 16+opus_custom_decoder_get_size(custom_mode, wav->channels), "state_size");
+		placeholder_set_offset(out, 16+opus_custom_decoder_get_size(custom_mode, wav->channels), "%s/state_size", outfn);
 
 		// Configure opus encoder. We use VBR as it provides the best
 		// compression/quality balance and we don't have specific constraints
@@ -372,12 +454,12 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		// Pad input samples with zeros, rounding to frame size
 		int newcnt = (wav->cnt + frame_size - 1) / frame_size * frame_size;
-		wav->samples = realloc(wav->samples, newcnt * wav->channels * sizeof(int16_t));
+		wav->samples = (int16_t*)realloc(wav->samples, newcnt * wav->channels * sizeof(int16_t));
 		memset(wav->samples + wav->cnt, 0, (newcnt - wav->cnt) * wav->channels * sizeof(int16_t));
 		
 		int max_nb = 0;
 		int out_max_size = bitrate_bps/8; // overestimation
-		uint8_t *out_buffer = malloc(out_max_size);
+		uint8_t *out_buffer = (uint8_t*)malloc(out_max_size);
 		for (int i=0; i<newcnt; i+=frame_size) {
 			int nb = opus_custom_encode(enc, wav->samples + i*wav->channels, frame_size, out_buffer, out_max_size);
 			if (nb < 0) {
@@ -423,7 +505,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			}
 
 			// Decode the whole file to check for errors
-			int16_t *out_samples = malloc(newcnt * wav->channels * sizeof(int16_t));
+			int16_t *out_samples = (int16_t*)malloc(newcnt * wav->channels * sizeof(int16_t));
 			int outcnt = 0;
 			for (int i=0; i<newcnt; i+=frame_size) {
 				int nb = fgetc(out) << 8;
@@ -485,6 +567,10 @@ int wav_convert(const char *infn, const char *outfn) {
 		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, compr[flag_wav_compress]);
 	}
 
+	// For wav64 conversion, activate huffman by default
+	if (flag_wav_compress_vadpcm_huffman < 0) 
+		flag_wav_compress_vadpcm_huffman = 1;
+
 	bool failed = false;
 	wav_data_t wav = {0};
 
@@ -515,7 +601,7 @@ int wav_convert(const char *infn, const char *outfn) {
 			fprintf(stderr, "  converting to mono\n");
 
 		// Allocate a new buffer for the mono samples
-		int16_t *mono_samples = malloc(wav.cnt * sizeof(int16_t));
+		int16_t *mono_samples = (int16_t*)malloc(wav.cnt * sizeof(int16_t));
 
 		// Convert to mono
 		int16_t *sptr = wav.samples;
@@ -556,13 +642,13 @@ int wav_convert(const char *infn, const char *outfn) {
 			fprintf(stderr, "  resampling to %d Hz\n", wavResampleTo);
 
 		// Convert input samples to float
-		float *fsamples_in = malloc(wav.cnt * wav.channels * sizeof(float));
+		float *fsamples_in = (float*)malloc(wav.cnt * wav.channels * sizeof(float));
 		src_short_to_float_array(wav.samples, fsamples_in, wav.cnt * wav.channels);
 
 		// Allocate output buffer, estimating the size based on the ratio.
 		// We add some margin because we are not sure of rounding errors.
 		int newcnt = (int64_t)wav.cnt * wavResampleTo / wav.sampleRate + 16;
-		float *fsamples_out = malloc(newcnt * wav.channels * sizeof(float));
+		float *fsamples_out = (float*)malloc(newcnt * wav.channels * sizeof(float));
 
 		// Do the conversion
 		SRC_DATA data = {
@@ -583,7 +669,7 @@ int wav_convert(const char *infn, const char *outfn) {
 
 		// Extract the number of samples generated, and convert back to 16-bit
 		wav.cnt = data.output_frames_gen;
-		wav.samples = realloc(wav.samples, wav.cnt * wav.channels * sizeof(int16_t));
+		wav.samples = (int16_t*)realloc(wav.samples, wav.cnt * wav.channels * sizeof(int16_t));
 		src_float_to_short_array(fsamples_out, wav.samples, wav.cnt * wav.channels);
 
 		free(fsamples_in);
@@ -596,12 +682,6 @@ int wav_convert(const char *infn, const char *outfn) {
 		wav.loopOffset = wav.loopOffset * wavResampleTo / wav.sampleRate;
 	}
 
-	// Keep 8 bits file if original is 8 bit, otherwise expand to 16 bit.
-	// Compressed waveforms always expand to 16 (both vadpcm and opus only supports 16 bits)
-	int nbits = wav.bitsPerSample == 8 ? 8 : 16;
-	if (flag_wav_compress != 0)
-		nbits = 16;
-
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {
 		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
@@ -609,7 +689,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		return 1;
 	}
 
-	failed = !wav64_write(infn, outfn, out, &wav, nbits, flag_wav_compress);
+	failed = !wav64_write(infn, outfn, out, &wav, flag_wav_compress);
 
 	// Show a message with the final compression ratio between original file and output file
 	if (flag_verbose)

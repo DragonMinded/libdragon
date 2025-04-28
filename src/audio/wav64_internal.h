@@ -58,7 +58,7 @@ typedef struct {
 /**
  * Similar to #wav64_load, but uses a file descriptor instead of a filename.
  */
-wav64_t *wav64_loadfd(int fd, wav64_loadparms_t *parms);
+wav64_t *wav64_loadfd(int fd, const char *debug_file_name, wav64_loadparms_t *parms);
 
 /** 
  * @brief Inform wav64 that a certain channel has finished playback.

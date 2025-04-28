@@ -261,6 +261,9 @@ static inline bool rspq_in_block(void) {
     return rspq_block != NULL;
 }
 
+/** @brief True if we are currently in highpri mode */
+bool rspq_in_highpri(void);
+
 /** 
  * @brief Return a pointer to a copy of the current RSPQ state. 
  * 

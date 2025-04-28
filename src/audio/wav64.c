@@ -95,9 +95,9 @@ static void wav64_none_init(wav64_t *wav, int state_size) {
 		wav->wave.read = wav64_none_read_memcopy;
 	}
 	
-	// NOTE: we don't need a stop callback because the none compression mode
+	// We don't need a stop callback because the none compression mode
 	// supports infinite simultaneous playbacks, so there's nothing to track
-	assert(wav->st->nsimul == 0);
+	wav->st->nsimul = 0;
 	wav->wave.stop = NULL;
 }
 
@@ -110,20 +110,20 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav64_loadparms_t default_parms = {0};
 	if (!parms) parms = &default_parms;
 
-	// For backwards compatibility with old versions of this file, we support
-	// an unprefixed file name as a dfs file. This is deprecated and not documented
-	// but we just want to avoid breaking existing code
-	if (file_name && strchr(file_name, ':') == NULL) {
-		char* dfs_name = alloca(5 + strlen(file_name) + 1);
-		strcpy(dfs_name, "rom:/");
-		strcat(dfs_name, file_name);
-		file_name = dfs_name;
-	}
-
 	// Open the input file, and read the header
 	int start_offset = 0;
 	bool owned_fd = false;
 	if (file_handle < 0) {
+		// For backwards compatibility with old versions of this file, we support
+		// an unprefixed file name as a dfs file. This is deprecated and not documented
+		// but we just want to avoid breaking existing code
+		if (file_name && strchr(file_name, ':') == NULL) {
+			char* dfs_name = alloca(5 + strlen(file_name) + 1);
+			strcpy(dfs_name, "rom:/");
+			strcat(dfs_name, file_name);
+			file_name = dfs_name;
+		}
+
 		file_handle = must_open(file_name);
 		owned_fd = true;
 	} else {
@@ -139,7 +139,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
 			file_name, head.id[0], head.id[1], head.id[2], head.id[3]);
 	}
-	assertf(head.version == 3, "wav64 %s: invalid version: %02x\n",
+	assertf(head.version == 4, "wav64 %s: invalid version: %02x\n",
 		file_name, head.version);
 	assertf(head.format < WAV64_NUM_FORMATS, "Unknown wav64 compression format %d; corrupted file?", head.format);
 	assertf(head.format < WAV64_NUM_FORMATS && algos[head.format].init != NULL,
@@ -169,6 +169,9 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	int heap_off_chstate = heap_size;
 	heap_size += ROUND_UP(nsimul * head.state_size, 16);			// Per-channel state
+
+	int heap_off_name = heap_size;
+	heap_size += ROUND_UP(strlen(file_name) + 1, 16);				// Filename
 	
 	// Allocate heap memory
 	assert(heap_size % 16 == 0);
@@ -182,7 +185,8 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	// Fill waveforms struct
 	memset(&wav->wave, 0, sizeof(waveform_t));
-	wav->wave.name = file_name;
+	wav->wave.name = heap + heap_off_name;
+	strcpy(heap + heap_off_name, file_name);
 	wav->wave.channels = head.channels;
 	wav->wave.bits = head.nbits;
 	wav->wave.frequency = head.freq;
@@ -247,9 +251,9 @@ wav64_t* wav64_load(const char *file_name, wav64_loadparms_t *parms)
 	return internal_open(NULL, -1, file_name, parms);
 }
 
-wav64_t* wav64_loadfd(int fd, wav64_loadparms_t *parms)
+wav64_t* wav64_loadfd(int fd, const char *debug_file_name, wav64_loadparms_t *parms)
 {
-	return internal_open(NULL, fd, NULL, parms);
+	return internal_open(NULL, fd, debug_file_name, parms);
 }
 
 
@@ -278,8 +282,8 @@ void wav64_play(wav64_t *wav, int ch)
 
 	if (chidx < 0) {
 		if (!(wav->st->flags & WAV64_FLAG_WARN_SIMULTANEITY)) {
-			debugf("wav64: too many simultaneous playbacks for %s\n", wav->wave.name);
-			debugf("wav&4: (this warning will appear only once per waveform)\n");
+			debugf("wav64: too many simultaneous playbacks for %s (max=%d)\n", wav->wave.name, wav->st->nsimul);
+			debugf("wav64: (this warning will appear only once per waveform)\n");
 			wav->st->flags |= WAV64_FLAG_WARN_SIMULTANEITY;
 		}
 

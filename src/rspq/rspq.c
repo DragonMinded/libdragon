@@ -1100,6 +1100,11 @@ void rspq_highpri_sync(void)
     }
 }
 
+bool rspq_in_highpri(void)
+{
+    return (rspq_ctx == &highpri);
+}
+
 void rspq_block_begin(void)
 {
     assertf(!rspq_block, "a block was already being created");

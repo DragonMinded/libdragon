@@ -217,11 +217,23 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
             vstate->bitpos = 0;
 		} else {
-			assertf(wpos == wav->wave.len - wav->wave.loop_len,
-				"wav64: seeking to %x not supported (%x %x)\n", wpos, wav->wave.len, wav->wave.loop_len);
-            rsp_vadpcm_copystate(vstate->state, vhead->loop_state);
-			lseek(wav->st->current_fd, (wav->wave.len - wav->wave.loop_len) / 16 * 9, SEEK_CUR);
-            // vstate->bitpos = ???; FIXME: we need bitpos for the loop state
+            bool found = false;
+            for (int i=0; i<vhead->num_skippoints; i++) {
+                if (wpos == vhead->skip_points[i].offset) {
+                    vstate->bitpos = vhead->skip_points[i].bitpos;
+                    rsp_vadpcm_copystate(vstate->state, vhead->skip_points[i].state);
+                    if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
+                        lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                for (int i=0; i<vhead->num_skippoints; i++) {
+                    debugf("skip point %d: %d\n", i, vhead->skip_points[i].offset);
+                }
+                assertf(found, "invalid VADPCM seeking point: 0x%x", wpos);
+            }
 		}
         rspq_highpri_end();
 	} else {
@@ -316,7 +328,6 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 		rspq_highpri_end();
 
     if (wav->wave.loop_len && wpos >= wav->wave.len) {
-        assert(wav->wave.loop_len == wav->wave.len);
         samplebuffer_undo(sbuf, wpos - wav->wave.len);
     }
 }
@@ -362,6 +373,7 @@ static void wav64_vadpcm_init_huffman(wav64_t *wav) {
 
 void wav64_vadpcm_init(wav64_t *wav, int state_size)
 {
+    _Static_assert((sizeof(wav64_state_vadpcm_t) % 16) == 0, "wav64: invalid state size for VADPCM");
     assertf(state_size == sizeof(wav64_state_vadpcm_t), 
         "wav64: invalid state size for VADPCM: %d/%d\n", state_size, sizeof(wav64_state_vadpcm_t));
 
@@ -373,14 +385,18 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
     wav64_state_vadpcm_t *vstate = (wav64_state_vadpcm_t*)wav->st->states;
     data_cache_hit_writeback_invalidate(vstate, wav->st->nsimul * sizeof(wav64_state_vadpcm_t));
 
-    // This should never happen as audioconv64 handles this.
-    assertf(wav->wave.loop_len == 0 || wav->wave.loop_len % 16 == 0, 
-        "wav64: invalid loop length for VADPCM: %d\n", wav->wave.loop_len);
-
     // Init huffman
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
     if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
         wav64_vadpcm_init_huffman(wav);
+    }
+
+    // Decode the skip pointer table pointer. The table is stored after the codebook,
+    // and the exact byte offset is stored in the pointer itself to simplify initialization.
+    if (vhead->num_skippoints > 0) {
+        int tbl_off = (int)vhead->skip_points;
+        vhead->skip_points = (void*)vhead->codebook + tbl_off;
+        data_cache_hit_writeback(vhead->skip_points, sizeof(wav64_vadpcm_skippoint_t) * vhead->num_skippoints);
     }
 }
 

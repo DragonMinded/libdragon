@@ -48,7 +48,7 @@ void fatal(const char *str, ...) {
 	exit(1);
 }
 
-char* changeext(const char* fn, char *ext);
+char* changeext(const char* fn, const char *ext);
 
 /************************************************************************************
  *  CONVERTERS
@@ -74,27 +74,51 @@ void usage(void) {
 	printf("   * YM  => YM64  (Arkos Tracker II)\n");
 	printf("\n");
 	printf("Global options:\n");
-	printf("   -o / --output <dir>       Specify output directory\n");
-	printf("   -v / --verbose            Verbose mode\n");
-	printf("   -d / --debug              Dump uncompressed files in output directory for debugging\n");
+	printf("   -o / --output <dir>       	Specify output directory\n");
+	printf("   -v / --verbose            	Verbose mode\n");
+	printf("   -d / --debug              	Dump uncompressed files in output directory for debugging\n");
+	printf("   -h / --help               	Show this help message\n");
+	printf("        --help-compress      	Show detailed help for compression options\n");
 	printf("\n");
 	printf("WAV/MP3 options:\n");
-	printf("   --wav-mono                Force mono output\n");
-	printf("   --wav-resample <N>        Resample to a different sample rate\n");
-	printf("   --wav-compress <0|1|3>    Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
-	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
-	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
+	printf("   --wav-mono                	Force mono output\n");
+	printf("   --wav-resample <N>        	Resample to a different sample rate\n");
+	printf("   --wav-compress <0|1|3>    	Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
+	printf("   --wav-loop <true|false>   	Activate playback loop by default\n");
+	printf("   --wav-loop-offset <N>     	Set looping offset (in samples; default: 0)\n");
+	printf("\n");
 	printf("XM options:\n");
-	printf("   --xm-8bit                 Convert all samples ot 8-bit\n");
-	printf("   --xm-ext-samples <dir>    Export samples externally as wav64 files in the specified directory\n");
-	printf("   --xm-compress <0..3>      Compression level for XM metadata (default: 1)\n");
+	printf("   --xm-8bit                 	Convert all samples to 8-bit\n");
+	printf("   --xm-ext-samples <dir>    	Export samples externally as wav64 files in the specified directory\n");
+	printf("   --xm-compress <0..3>      	Compression level for XM metadata (default: 1)\n");
+	printf("   --xm-compress-samples <0|1>  Compression level for XM samples (default: 1)\n");
 	printf("\n");
 	printf("YM options:\n");
-	printf("   --ym-compress <true|false>  Compress output file\n");
+	printf("   --ym-compress <true|false>  	Compress output file\n");
 	printf("\n");
 }
 
-char* changeext(const char* fn, char *ext) {
+void usage_compress(void)
+{
+	printf("audioconv64 -- Audio conversion tool for libdragon\n");
+	printf("\n");
+	printf("This help describes the compression options that can be passed to --wav-compress or --xm-compress:\n");
+	printf("\n");
+	printf("     none (or 0)            No compression, store raw samples\n");
+	printf("     vadpcm (or 1)          Use RSP-optimized VADPCM codec. This is the default\n");
+	printf("     opus (or 3)            Use RSP-optimized Opus codec. Slower at runtime, smaller disk size\n");
+	printf("                            (unsupported for xm64)\n");
+	printf("\n");
+	printf("It is also possible to specify additional compression flags, separated by commas:\n");
+	printf("\n");
+	printf("     vadpcm,huffman=true    Enable Huffman compression in VADPCM.\n");
+	printf("                            (default: true for wav64, false for xm64))\n");
+	printf("     vadpcm,bits=<2|3|4>    Specify how many bits per sample use in VADPCM coding (default: 4)\n");
+	printf("                            For values less than 4, huffman compression should be enabled.\n");
+	printf("\n");
+}
+
+char* changeext(const char* fn, const char *ext) {
 	char buf[4096];
 	strcpy(buf, fn);
 	*strrchr(buf, '.') = '\0';
@@ -102,8 +126,8 @@ char* changeext(const char* fn, char *ext) {
 	return strdup(buf);
 }
 
-void convert(char *infn, char *outfn1) {
-	char *ext = strrchr(infn, '.');
+void convert(const char *infn, const char *outfn1) {
+	const char *ext = strrchr(infn, '.');
 	if (!ext) {
 		fprintf(stderr, "unknown file type: %s\n", infn);
 		return;
@@ -143,7 +167,7 @@ bool isdir(const char *path) {
 	return (st.st_mode & S_IFDIR) != 0;
 }
 
-void walkdir(char *inpath, char *outpath, void (*func)(char *, char*)) {
+void walkdir(char *inpath, const char *outpath, void (*func)(const char *, const char*)) {
 	if (isdir(inpath)) {
 		// We're walking a directory. Make sure there's also a matching
 		// output directory or create it otherwise.
@@ -192,7 +216,7 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	char *outdir = ".";
+	const char *outdir = ".";
 
 	int i;
 	for (i=1; i<argc; i++) {
@@ -201,6 +225,9 @@ int main(int argc, char *argv[]) {
 				flag_verbose = true;
 			} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 				usage();
+				return 0;
+			} else if (!strcmp(argv[i], "--help-compress")) {
+				usage_compress();
 				return 0;
 			} else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
 				if (++i == argc) {
@@ -236,28 +263,33 @@ int main(int argc, char *argv[]) {
 				flag_wav_looping = true;
 			} else if (!strcmp(argv[i], "--wav-mono")) {
 				flag_wav_mono = true;
-			} else if (!strcmp(argv[i], "--wav-compress")) {
+			} else if (!strcmp(argv[i], "--wav-compress") || !strcmp(argv[i], "--xm-compress-samples")) {
+				int *flag_compress = (!strcmp(argv[i], "--wav-compress")) ? &flag_wav_compress : &flag_xm_compress_samples;
 				if (++i == argc) {
-					fprintf(stderr, "missing argument for --wav-compress\n");
+					fprintf(stderr, "missing argument for %s\n", argv[i-1]);
 					return 1;
 				}
 				char *opts = strchr(argv[i], ',');
 				if (opts) *opts++ = '\0';
 				if (!strcmp(argv[i], "0") || !strcmp(argv[i], "none"))
-					flag_wav_compress = 0;
+					*flag_compress = 0;
 				else if (!strcmp(argv[i], "1") || !strcmp(argv[i], "vadpcm"))
-					flag_wav_compress = 1;
+					*flag_compress = 1;
 				else if (!strcmp(argv[i], "3") || !strcmp(argv[i], "opus"))
-					flag_wav_compress = 3;
+					if (flag_compress == &flag_xm_compress_samples) {
+						fprintf(stderr, "opus compression not supported for XM64\n");
+						return 1;
+					} else
+						*flag_compress = 3;
 				else {
-					fprintf(stderr, "invalid argument for --wav-compress: %s\n", argv[i]);
+					fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
 					return 1;
 				}
 				while (opts && *opts) {
 					char *key = opts;
 					char *value = strchr(opts, '=');
 					if (!value) {
-						fprintf(stderr, "invalid option for --wav-compress: %s\n", opts);
+						fprintf(stderr, "invalid option for %s: %s\n", argv[i-1], opts);
 						return 1;
 					}
 					*value = '\0';
@@ -268,8 +300,8 @@ int main(int argc, char *argv[]) {
 						opts++;
 					}
 					if (!strcmp(key, "huffman")) {
-						if (flag_wav_compress != 1) {
-							fprintf(stderr, "compression option 'huffman' only allowed for VADPCM (--wav-compress 1)\n");
+						if (*flag_compress != 1) {
+							fprintf(stderr, "compression option 'huffman' only allowed for VADPCM (%s 1)\n", argv[i-1]);
 							return 1;
 						}
 						if (!strcmp(value, "true") || !strcmp(value, "1"))
@@ -281,8 +313,8 @@ int main(int argc, char *argv[]) {
 							return 1;
 						}
 					} else if (!strcmp(key, "bits")) {
-						if (flag_wav_compress != 1) {
-							fprintf(stderr, "compression option 'bits' only allowed for VADPCM (--wav-compress 1)\n");
+						if (*flag_compress != 1) {
+							fprintf(stderr, "compression option 'bits' only allowed for VADPCM (%s 1)\n", argv[i-1]);
 							return 1;
 						}
 						flag_wav_compress_vadpcm_bits = atoi(value);
@@ -291,7 +323,7 @@ int main(int argc, char *argv[]) {
 							return 1;
 						}
 					} else {
-						fprintf(stderr, "invalid option for --wav-compress: %s\n", key);
+						fprintf(stderr, "invalid option for %s: %s\n", key, argv[i-1]);
 						return 1;
 					}
 				}
