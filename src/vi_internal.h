@@ -378,7 +378,7 @@ static inline void vi_set_blank_image()
 }
 
 /** @brief Install an interrupt on a specific screen line */
-void vi_set_line_interrupt(int line, void (*handler)(void));
+void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg);
 
 #ifdef __cplusplus
 extern "C" {

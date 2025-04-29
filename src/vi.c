@@ -71,7 +71,8 @@ static const vi_preset_t vi_presets[3] = {
 /** @brief Line interrupt callbacks */
 typedef struct {
     int line;                          ///< Line number
-    void (*handler)(void);             ///< Callback function
+    void (*handler)(void*);            ///< Callback function
+    void *arg;
 } line_irqs_t;
 
 #define MAX_LINE_IRQS  16                       ///< Maximum number of line interrupts
@@ -147,7 +148,7 @@ static void __vi_validate_config(void)
     }
 }
 
-static void __vblank_interrupt(void)
+static void __vblank_interrupt(void*)
 {
     // Always rewrite registers for which raster effects are activated,
     // so that they get reset at each vblank
@@ -249,12 +250,13 @@ void __vi_interrupt(void)
         cfg_pending_lineirqs = false;
     }
 
-    void (*handler)(void) = cur_line_irq->handler;
+    void (*handler)(void*) = cur_line_irq->handler;
+    void *arg = cur_line_irq->arg;
     cur_line_irq++;
     if (cur_line_irq->line == 0)
         cur_line_irq = line_irqs;
     *VI_V_INTR = cur_line_irq->line;
-    handler();
+    handler(arg);
 }
 
 void vi_write_begin(void)
@@ -275,7 +277,7 @@ static void vi_write_maybe_flush(void)
     // because the VI does not generate interrupts in that case.
     disable_interrupts();
     if ((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_BLANK)
-        __vblank_interrupt();
+        __vblank_interrupt(NULL);
     enable_interrupts();
 }
 
@@ -638,15 +640,17 @@ void vi_debug_dump(int verbose)
         ((y_scale >> 16) & 0x3FF) / 1024.0f, (y_scale >> 16) & 0x3FF);
 }
 
-void vi_set_line_interrupt(int line, void (*handler)(void))
+void vi_install_vblank_handler(void (*handler)(void *), void *arg)
+{
+
+}
+
+void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
 {
     // When VI_V_INTR bit 0 is set to 0, the interrupt triggers on the line
     // *before* the specified one, in the odd field. This is often surprising
     // (especially across vsync), so let's just force it to 1.
     line |= 1;
-    //line &= ~1; // FIXME: this makes things a bit more stable on ares until we fix it
-
-    debugf("VI: Setting line interrupt at line %d\n", line);
 
     // Insert the new line interrupt at the end of the list of line interrupts,
     // as a negative line number. It will be processed at the beginning of the
@@ -670,6 +674,7 @@ void vi_set_line_interrupt(int line, void (*handler)(void))
             new_line_irqs[j] = new_line_irqs[j-1];
         new_line_irqs[i].line = line;
         new_line_irqs[i].handler = handler;
+        new_line_irqs[i].arg = arg;
     } else {
         // Remove the line interrupt from the interrupt list.
         bool removed = false;
@@ -679,6 +684,7 @@ void vi_set_line_interrupt(int line, void (*handler)(void))
                     new_line_irqs[j] = new_line_irqs[j+1];
                 new_line_irqs[MAX_LINE_IRQS-1].line = 0;
                 new_line_irqs[MAX_LINE_IRQS-1].handler = NULL;
+                new_line_irqs[MAX_LINE_IRQS-1].arg = NULL;
                 removed = true;
                 break;
             }

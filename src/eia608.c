@@ -174,7 +174,7 @@ static void recalc_parms(void)
         "EIA-608: unimplemented support for borders");
 }
 
-static void __eia608_interrupt(void)
+static void __eia608_interrupt(void*)
 {
     static int framecounter = 0; ++framecounter;
 
@@ -283,7 +283,7 @@ void eia608_start(void)
 
     vi_write_begin();
         // Enable the line interrupt
-        vi_set_line_interrupt(sigparms.v_line_start-EIA608_IRQ_SAFEMARGIN, __eia608_interrupt);
+        vi_set_line_interrupt(sigparms.v_line_start-EIA608_IRQ_SAFEMARGIN, __eia608_interrupt, NULL);
         // Increase the output window to include the EIA-608 signal
         vi_set_output(sigparms.out_x0, sigparms.v_line_start, sigparms.out_x1, sigparms.out_y1);
     vi_write_end();
@@ -293,7 +293,7 @@ void eia608_stop(void)
 {
     vi_write_begin();
         vi_set_output(sigparms.out_x0, sigparms.out_y0, sigparms.out_x1, sigparms.out_y1);
-        vi_set_line_interrupt(sigparms.v_line_start-EIA608_IRQ_SAFEMARGIN, NULL);
+        vi_set_line_interrupt(sigparms.v_line_start-EIA608_IRQ_SAFEMARGIN, NULL, NULL);
     vi_write_end();
 }
 
