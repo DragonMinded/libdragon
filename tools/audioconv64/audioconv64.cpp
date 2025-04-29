@@ -94,7 +94,7 @@ void usage(void) {
 	printf("XM options:\n");
 	printf("   --xm-8bit                 	Convert all samples to 8-bit\n");
 	printf("   --xm-ext-samples <dir>    	Export samples externally as wav64 files in the specified directory\n");
-	printf("   --xm-compress <0|1>  		Compression level for XM samples (default: 1=vadpcm)\n");
+	printf("   --xm-compress <0|1>          Compression level for XM samples (default: 1=vadpcm)\n");
 	printf("   --xm-compress-data <0..3>    Compression level for XM binary data (default: 1)\n");
 	printf("\n");
 	printf("YM options:\n");
