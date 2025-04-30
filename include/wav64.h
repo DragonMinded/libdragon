@@ -109,6 +109,19 @@ typedef enum {
 
 } wav64_streaming_mode_t;
 
+/**
+ * @brief Replacement policy to use when a wav64 is played back.
+ * 
+ * If the user requests playback of this wav64 more times than those allowed
+ * by the #max_simultaneous_playbacks parameter, this policy will be used
+ * to select which channel to stop.
+ */
+typedef enum {
+	WAV64_REPLACEMENT_RANDOM = 0,	///< Randomly select a channel to stop
+	WAV64_REPLACEMENT_ASSERT = 1,	///< Assert if the maximum number of playbacks is reached
+} wav64_replacement_policy_t;
+
+
 /** @brief WAV64 loading parameters (to be passed to #wav64_load) */
 typedef struct wav64_loadparms_s {
 	/** 
@@ -136,6 +149,20 @@ typedef struct wav64_loadparms_s {
 	 * See #wav64_streaming_mode_t for details.
 	 */
 	wav64_streaming_mode_t streaming_mode;
+
+	/**
+	 * @brief Configure the replacement policy to use when a wav64 is played back.
+	 * 
+	 * If the user requests playback of this wav64 more times than those allowed
+	 * by the #max_simultaneous_playbacks parameter, this policy will be used
+	 * to select which channel to stop.
+	 * 
+	 * Right now, the only supported policy is #WAV64_REPLACEMENT_RANDOM,
+	 * which is also the default.
+	 * 
+	 * See #wav64_replacement_policy_t for details.
+	 */
+	wav64_replacement_policy_t replacement_policy;
 
 } wav64_loadparms_t;
 

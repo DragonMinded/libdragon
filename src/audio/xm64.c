@@ -178,6 +178,7 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 
 			wav64_loadparms_t parms = {
 				.max_simultaneous_playbacks = samp->max_simultaneous_usage,
+				.replacement_policy = WAV64_REPLACEMENT_ASSERT,
 			};
 			if (!player->ctx->external_samples) {
 				char filename[128];

@@ -203,6 +203,8 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->st->base_offset = head.start_offset + start_offset;
 	wav->st->nsimul = nsimul;
 	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
+	if (parms->replacement_policy == WAV64_REPLACEMENT_ASSERT)
+		wav->st->flags |= WAV64_FLAG_MAXSIMUL_ASSERT;
 	if (nsimul > 0)
 		memset(wav->st->mixer_channels, -1, nsimul * sizeof(int8_t));
 
@@ -281,10 +283,14 @@ void wav64_play(wav64_t *wav, int ch)
 	}
 
 	if (chidx < 0) {
-		if (!(wav->st->flags & WAV64_FLAG_WARN_SIMULTANEITY)) {
-			debugf("wav64: too many simultaneous playbacks for %s (max=%d)\n", wav->wave.name, wav->st->nsimul);
-			debugf("wav64: (this warning will appear only once per waveform)\n");
-			wav->st->flags |= WAV64_FLAG_WARN_SIMULTANEITY;
+		if (wav->st->flags & WAV64_FLAG_MAXSIMUL_ASSERT) {
+			assertf(0, "wav64: too many simultaneous playbacks for %s (max=%d)\n", wav->wave.name, wav->st->nsimul);
+		} else {
+			if (!(wav->st->flags & WAV64_FLAG_WARN_SIMULTANEITY)) {
+				debugf("wav64: too many simultaneous playbacks for %s (max=%d)\n", wav->wave.name, wav->st->nsimul);
+				debugf("wav64: (this warning will appear only once per waveform)\n");
+				wav->st->flags |= WAV64_FLAG_WARN_SIMULTANEITY;
+			}
 		}
 
 		// Stop a random playing channel.

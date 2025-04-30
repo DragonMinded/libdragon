@@ -9,6 +9,7 @@
 
 #define WAV64_FLAG_WARN_SIMULTANEITY	 (1 << 0)
 #define WAV64_FLAG_OWNED_FD			 	 (1 << 1)
+#define WAV64_FLAG_MAXSIMUL_ASSERT       (1 << 2)
 
 typedef struct wav64_s wav64_t;
 typedef struct wav64_loadparms_s wav64_loadparms_t;
