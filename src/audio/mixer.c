@@ -335,9 +335,9 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		if (wpos >= wave->len)
 			wpos = waveform_wrap_wpos(wpos, wave->len, wave->loop_len);
 
-		// If we are requesting a read from 0, we force seeking because it
+		// If we are requesting a read from loop start, we force seeking because it
 		// means that previous read finished just exactly at the loop point.
-		if (wpos == 0)
+		if (wpos == wave->len - wave->loop_len)
 			seeking = true;
 
 		// The read might cross the end point of the waveform
@@ -509,10 +509,10 @@ void mixer_ch_stop(int ch) {
 	c->ctx = NULL;
 }
 
-bool mixer_ch_playing(int ch) {
+waveform_t* mixer_ch_playing(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_playing: cannot call on secondary stereo channel %d", ch);
-	return c->ptr != 0;
+	return c->ptr != 0 ? c->wave : NULL;
 }
 
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz) {

@@ -110,7 +110,7 @@ typedef enum {
 } wav64_streaming_mode_t;
 
 /** @brief WAV64 loading parameters (to be passed to #wav64_load) */
-typedef struct {
+typedef struct wav64_loadparms_s {
 	/** 
 	 * @brief Maximum number of simultaneous playbacks 
 	 * 

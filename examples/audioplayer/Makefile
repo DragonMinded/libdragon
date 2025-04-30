@@ -12,7 +12,7 @@ assets_conv = $(addprefix filesystem/,$(notdir $(assets_xm1:%.xm=%.xm64))) \
               $(addprefix filesystem/,$(notdir $(assets_ym1:%.ym=%.ym64))) \
               $(addprefix filesystem/,$(notdir $(assets_ym2:%.YM=%.ym64)))
 
-AUDIOCONV_FLAGS ?=
+#AUDIOCONV_FLAGS ?= --xm-ext-samples filesystem/samples
 
 all: audioplayer.z64
 

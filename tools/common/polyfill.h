@@ -13,6 +13,9 @@
 #include <fcntl.h>
 #include <time.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // if typedef doesn't exist (msvc, blah)
 typedef intptr_t ssize_t;
@@ -151,6 +154,46 @@ void *memmem(const void *l, size_t l_len, const void *s, size_t s_len)
 
 	return NULL;
 }
+
+// rename() that ovewrites the destination file
+#define rename(a,b)  mingw_rename(a,b)
+
+#define MOVEFILE_REPLACE_EXISTING 0x00000001
+#define MOVEFILE_WRITE_THROUGH    0x00000008
+
+__declspec(dllimport) int __stdcall MoveFileExA(const char *lpExistingFileName,
+                                                const char *lpNewFileName,
+                                                unsigned long dwFlags);
+__declspec(dllimport) unsigned long __stdcall GetLastError(void);
+
+static void map_windows_error_to_errno(unsigned long err) {
+    switch (err) {
+        case 2:    errno = ENOENT; break;        // ERROR_FILE_NOT_FOUND
+        case 3:    errno = ENOENT; break;        // ERROR_PATH_NOT_FOUND
+        case 5:    errno = EACCES; break;        // ERROR_ACCESS_DENIED
+        case 32:   errno = EBUSY; break;         // ERROR_SHARING_VIOLATION
+        case 80:   errno = EEXIST; break;        // ERROR_FILE_EXISTS
+        case 183:  errno = EEXIST; break;        // ERROR_ALREADY_EXISTS
+        default:   errno = EIO; break;           // Generic error
+    }
+}
+
+int mingw_rename(const char *oldpath, const char *newpath) {
+    if (MoveFileExA(oldpath, newpath, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        return 0;
+    } else {
+        map_windows_error_to_errno(GetLastError());
+        return -1;
+    }
+}
+
+// POISX mkdir has a mode argument, but mingw's mkdir doesn't
+#define mkdir(path, mode) mkdir(path)
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

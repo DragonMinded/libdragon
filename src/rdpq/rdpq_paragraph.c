@@ -23,6 +23,7 @@ static struct {
     float x, y;
     int ch_line_start;
     int ch_last_space;
+    int max_chars;
     bool skip_current_line;
     bool must_sort;
 } builder;
@@ -60,7 +61,8 @@ uint32_t __utf8_decode(const char **str)
 
 bool rdpq_paragraph_builder_full(void)
 {
-    return builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
+    return (builder.parms->height && builder.y - builder.font->descent >= builder.parms->height) 
+            || (builder.max_chars == 0);
 }
 
 void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial_font_id, rdpq_paragraph_t *layout)
@@ -100,9 +102,10 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     // start at center of pixel so that all rounds are to nearest
     builder.x = builder.parms->indent;
     builder.y = (builder.parms->height ? builder.font->ascent : 0);
-    builder.skip_current_line = rdpq_paragraph_builder_full();
     builder.layout->nlines = 1;
     builder.ch_last_space = -1;
+    builder.max_chars = builder.parms->max_chars ? builder.parms->max_chars : INT32_MAX;
+    builder.skip_current_line = rdpq_paragraph_builder_full();
 }
 
 void rdpq_paragraph_builder_font(uint8_t font_id)
@@ -193,6 +196,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     })
 
     while (utf8_text < end || next_index >= 0) {
+        if (UNLIKELY(builder.max_chars <= 0))
+            return;
         int16_t index = next_index; next_index = -1;
         if (index < 0) index = UTF8_DECODE_NEXT();
         if (UNLIKELY(index < 0)) continue;
@@ -200,6 +205,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
         float xadvance; int8_t xoff2; bool has_kerning; uint8_t atlas_id;
         __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &atlas_id);
         xadvance += builder.parms->char_spacing;
+        builder.max_chars -= 1;
 
         // Check if this is a space character
         if (UNLIKELY(xoff2 == 0)) {

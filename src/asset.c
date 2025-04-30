@@ -214,16 +214,19 @@ static bool asset_read(int fd, asset_header_t *header, int *sz, void *buf, int *
     }
 }
 
-bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
+bool asset_loadfd_into(int fd, int *sz, void *buf, int *buf_size)
 {
-    int fd;
-    
-    fd = fileno(f);
-    fflush(f);
-    assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
     asset_header_t header;
     asset_read_header(fd, &header, sz);
     return asset_read(fd, &header, sz, buf, buf_size);
+}
+
+bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
+{
+    int fd = fileno(f);
+    fflush(f);
+    assertf(ftell(f) == lseek(fd, 0, SEEK_CUR), "Flushing has data remaining in buffer");
+    return asset_loadfd_into(fd, sz, buf, buf_size);
 }
 
 void *asset_loadfd(int fd, int *sz)
@@ -353,7 +356,11 @@ FILE *asset_fopen(const char *fn, int *sz)
     // Open the file. We use buffering on the outer file created by funopen,
     // so we don't actually need buffering on the underlying one.
     int fd = must_open(fn);
+    return asset_fdopen(fd, sz);
+}
 
+FILE *asset_fdopen(int fd, int *sz)
+{
     // Check if file is compressed
     asset_header_t header;
     read(fd, &header, sizeof(asset_header_t));
@@ -395,8 +402,9 @@ FILE *asset_fopen(const char *fn, int *sz)
 
     // Not compressed. Return a wrapped FILE* without the seeking capability,
     // so that it matches the behavior of the compressed file.
+    int pos = lseek(fd, 0, SEEK_CUR);
     if (sz) *sz = lseek(fd, 0, SEEK_END);
-    lseek(fd, 0, SEEK_SET);
+    lseek(fd, pos - sizeof(asset_header_t), SEEK_SET);
     cookie_none_t *cookie = malloc(sizeof(cookie_none_t));
     cookie->fd = fd;
     cookie->seeked = false;
