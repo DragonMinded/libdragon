@@ -1,5 +1,6 @@
 #ifndef NDEBUG
 #include "graphics.h"
+#include "vi.h"
 #include "display.h"
 #include "debug.h"
 #include "joypad.h"
@@ -656,8 +657,8 @@ static void inspector(exception_t* ex, enum Mode mode) {
 		printf("\t\t\tLibDragon Inspector | Page %d/%d", page+1, PAGE_COUNT);
         fflush(stdout);
 
-        extern void display_show_force(display_context_t disp);
-		display_show_force(disp);
+		display_show(disp);
+        vi_wait_vblank();
 
         // Loop until a keypress
         while (1) {
