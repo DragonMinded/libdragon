@@ -1,4 +1,7 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -9,7 +12,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#ifdef __MINGW32__
+#ifdef __cplusplus
 #define _Static_assert static_assert
 #endif
 
@@ -19,28 +22,6 @@
 
 bool flag_verbose = false;
 bool flag_debug = false;
-
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	#define LE32_TO_HOST(i) __builtin_bswap32(i)
-	#define HOST_TO_LE32(i) __builtin_bswap32(i)
-	#define LE16_TO_HOST(i) __builtin_bswap16(i)
-	#define HOST_TO_LE16(i) __builtin_bswap16(i)
-
-	#define BE32_TO_HOST(i) (i)
-	#define HOST_TO_BE32(i) (i)
-	#define LE16_TO_HOST(i) (i)
-	#define HOST_TO_BE16(i) (i)
-#else
-	#define BE32_TO_HOST(i) __builtin_bswap32(i)
-	#define HOST_TO_BE32(i) __builtin_bswap32(i)
-	#define BE16_TO_HOST(i) __builtin_bswap16(i)
-	#define HOST_TO_BE16(i) __builtin_bswap16(i)
-
-	#define LE32_TO_HOST(i) (i)
-	#define HOST_TO_LE32(i) (i)
-	#define HOST_TO_LE16(i) (i)
-	#define LE16_TO_HOST(i) (i)
-#endif
 
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...) {
@@ -52,15 +33,13 @@ void fatal(const char *str, ...) {
 	exit(1);
 }
 
-char* changeext(const char* fn, const char *ext);
-
 /************************************************************************************
  *  CONVERTERS
  ************************************************************************************/
 
-#include "conv_wav64.c"
-#include "conv_xm64.c"
-#include "conv_ym64.c"
+#include "conv_wav64.cpp"
+#include "conv_xm64.cpp"
+#include "conv_ym64.cpp"
 
 /************************************************************************************
  *  MAIN

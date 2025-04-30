@@ -12,9 +12,11 @@
  *
  */
 
-#include <stdalign.h>
-#include "liblzh5.h"
+#include <cstdlib>
+#include <cstring>
 
+#include "liblzh5.h"
+#include "conv_common.h"
 
 bool flag_ym_compress = false;
 
@@ -30,7 +32,7 @@ typedef struct __attribute__((packed)) {
     uint8_t filename_len;
 } lhaheader;
 
-_Static_assert(sizeof(lhaheader) == 22, "invalid lhaheader size");
+static_assert(sizeof(lhaheader) == 22, "invalid lhaheader size");
 
 typedef struct __attribute__((packed)) {
     uint32_t nvbl;
@@ -42,7 +44,7 @@ typedef struct __attribute__((packed)) {
     uint16_t sizeext;
 } ym5header;
 
-_Static_assert(sizeof(ym5header) == 22, "invalid ym5header size");
+static_assert(sizeof(ym5header) == 22, "invalid ym5header size");
 
 static FILE *ym_f;
 static bool ym_compressed;

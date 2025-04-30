@@ -28,9 +28,11 @@
 
 #include "libxm.h"
 #include "../common/crc32.c"
+#include "../common/binout.h"
 #include "../common/nanotime.h"
 #include "../common/polyfill.h"
 #include "../common/assetcomp.h"
+#include "conv_common.h"
 
 int flag_xm_compress_meta = DEFAULT_COMPRESSION;
 int flag_xm_compress_samples = DEFAULT_COMPRESSION;

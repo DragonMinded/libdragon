@@ -1,6 +1,12 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#include <string.h>
 #include <vector>
 #include <algorithm>
 #include "../../src/audio/wav64_internal.h"
+#include "../common/binout.h"
 
 #define DR_WAV_IMPLEMENTATION
 #include "dr_wav.h"
@@ -13,6 +19,7 @@
 #include "libopus.h"
 
 #include "huff_vadpcm.c"
+#include "conv_common.h"
 
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
@@ -22,17 +29,6 @@ int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
-
-typedef struct {
-	int16_t *samples;			// Samples (always 16-bit signed)
-	int cnt;					// Number of audio frames
-	int channels;				// Number of channels
-	int bitsPerSample;			// Original bits per sample in input file
-	int sampleRate;
-	bool looping;
-	int loopOffset;				// Offset of the beginning of the loop in samples
-	std::vector<int> skipPoints;		// Skip points in the waveform
-} wav_data_t;
 
 static bool read_wav(const char *infn, wav_data_t *out)
 {
@@ -310,7 +306,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			HuffLookup tbl[HUFF_CONTEXTS];
 			huffv_decompress_init(ctxbuf, HUFF_CONTEXT_LEN, tbl);
 			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size);
-			assert(bitpos = compbuflen*8);
+			assert(bitpos == compbuflen*8);
 			assert(memcmp(&scratch[0], dest, dest_size) == 0);
 
 			// Compute bit offset for each skip point
