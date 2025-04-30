@@ -113,8 +113,8 @@ typedef enum {
  * @brief Replacement policy to use when a wav64 is played back.
  * 
  * If the user requests playback of this wav64 more times than those allowed
- * by the #max_simultaneous_playbacks parameter, this policy will be used
- * to select which channel to stop.
+ * by the #wav64_loadparms_t's max_simultaneous_playbacks parameter, this policy
+ * will be used to select which channel to stop.
  */
 typedef enum {
 	WAV64_REPLACEMENT_RANDOM = 0,	///< Randomly select a channel to stop
