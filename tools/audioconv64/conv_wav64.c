@@ -310,7 +310,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			HuffLookup tbl[HUFF_CONTEXTS];
 			huffv_decompress_init(ctxbuf, HUFF_CONTEXT_LEN, tbl);
 			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size);
-			assert(bitpos = compbuflen*8);
+			assert((bitpos+7)/8 == compbuflen);
 			assert(memcmp(&scratch[0], dest, dest_size) == 0);
 
 			// Compute bit offset for each skip point
