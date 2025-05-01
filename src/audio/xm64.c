@@ -140,7 +140,7 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		}
 		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
 	}
-	assertf(header.version == 10, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+	assertf(header.version == 9, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
 
 	// Seek to the beginning of the metadata, that are asset-compressed. We need
 	// to read the metadata in small chunks, so we use asset_fopen() for this.
@@ -176,18 +176,14 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		for (int j=0;j<inst->num_samples;j++) {
 			xm_sample_t *samp = &inst->samples[j];
 
-			wav64_loadparms_t parms = {
-				.max_simultaneous_playbacks = samp->max_simultaneous_usage,
-				.replacement_policy = WAV64_REPLACEMENT_ASSERT,
-			};
 			if (!player->ctx->external_samples) {
 				char filename[128];
 				snprintf(filename, sizeof(filename), "%s[%d:%d]", fn, i+1, j);
 				lseek(player->fd, samp->data8_offset, SEEK_SET);
-				samp->wave = wav64_loadfd(player->fd, filename, &parms);
+				samp->wave = wav64_loadfd(player->fd, filename, NULL);
 			} else {
 				sprintf(extfn, "%s/%08lx.wav64", xm64_extsampledir, samp->data8_offset);
-				samp->wave = wav64_load(strdup(extfn), &parms);
+				samp->wave = wav64_load(strdup(extfn), NULL);
 			}
 		}
 	}

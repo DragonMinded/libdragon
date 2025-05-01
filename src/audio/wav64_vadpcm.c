@@ -205,9 +205,8 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 
     // Access the per-channel state
-    int chidx = (int)ctx;
-    assert(chidx >= 0 && chidx <= wav->st->nsimul);
-    wav64_state_vadpcm_t *vstate = &((wav64_state_vadpcm_t*)wav->st->states)[chidx];
+    wav64_state_vadpcm_t *vstate = sbuf->state;
+    assert(sbuf->state_size >= sizeof(wav64_state_vadpcm_t));
 	bool highpri = false;
 
 	if (seeking) {
@@ -332,15 +331,6 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
     }
 }
 
-static void waveform_vadpcm_stop(void *ctx, samplebuffer_t *sbuf) {
-	wav64_t *wav = (wav64_t*)sbuf->wave;
-
-    // Inform wav64 that the channel has stopped
-    int chidx = (int)ctx;
-    assert(chidx >= 0 && chidx <= wav->st->nsimul);
-    __wav64_channel_stopped(wav, chidx);
-}
-
 static void wav64_vadpcm_init_huffman(wav64_t *wav) {
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
     wav64_vadpcm_huffctx_t *ctx = vhead->huff_ctx;
@@ -379,11 +369,6 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
 
     // Set wave callback functions
     wav->wave.read = waveform_vadpcm_read;
-    wav->wave.stop = waveform_vadpcm_stop;
-
-    // Flush cached state; it will be manipulated by RSP only
-    wav64_state_vadpcm_t *vstate = (wav64_state_vadpcm_t*)wav->st->states;
-    data_cache_hit_writeback_invalidate(vstate, wav->st->nsimul * sizeof(wav64_state_vadpcm_t));
 
     // Init huffman
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;

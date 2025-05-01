@@ -109,60 +109,14 @@ typedef enum {
 
 } wav64_streaming_mode_t;
 
-/**
- * @brief Replacement policy to use when a wav64 is played back.
- * 
- * If the user requests playback of this wav64 more times than those allowed
- * by the #wav64_loadparms_t's max_simultaneous_playbacks parameter, this policy
- * will be used to select which channel to stop.
- */
-typedef enum {
-	WAV64_REPLACEMENT_RANDOM = 0,	///< Randomly select a channel to stop
-	WAV64_REPLACEMENT_ASSERT = 1,	///< Assert if the maximum number of playbacks is reached
-} wav64_replacement_policy_t;
-
-
 /** @brief WAV64 loading parameters (to be passed to #wav64_load) */
 typedef struct wav64_loadparms_s {
-	/** 
-	 * @brief Maximum number of simultaneous playbacks 
-	 * 
-	 * This setting specifies the maximum number of channels that will play
-	 * this wav64 file at the same time. 
-	 * 
- 	 * The default for this setting depends on the compression level of the file:
-	 *  
-	 *   * Level 0 (uncompressed): default to 32
-	 *   * Level 1 (VADPCM): default to 4
-	 *   * Level 3 (Opus): default to 1
-	 * 
-	 * This is done to obtain a balance between memory usage and flexibility.
-	 * 
-     * If you try to playback the same wav64 on more channels than the maximum, 
-	 * the playback will stop a random playing channel to make room for the new one.
-	 */
-	int max_simultaneous_playbacks;
-
 	/**
 	 * @brief Streaming mode for the wav64
 	 * 
 	 * See #wav64_streaming_mode_t for details.
 	 */
 	wav64_streaming_mode_t streaming_mode;
-
-	/**
-	 * @brief Configure the replacement policy to use when a wav64 is played back.
-	 * 
-	 * If the user requests playback of this wav64 more times than those allowed
-	 * by the #max_simultaneous_playbacks parameter, this policy will be used
-	 * to select which channel to stop.
-	 * 
-	 * Right now, the only supported policy is #WAV64_REPLACEMENT_RANDOM,
-	 * which is also the default.
-	 * 
-	 * See #wav64_replacement_policy_t for details.
-	 */
-	wav64_replacement_policy_t replacement_policy;
 
 } wav64_loadparms_t;
 

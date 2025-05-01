@@ -100,7 +100,6 @@ typedef struct mixer_channel_s {
 	void *ptr;             ///< Pointer to the waveform
 	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
 	waveform_t *wave;      ///< Waveform being played back on this channel
-	void *ctx;			   ///< Custom context pointer for read/stop functions
 	uint32_t wave_uuid;    ///< UUID of the waveform being played back
 } mixer_channel_t;
 
@@ -377,7 +376,7 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 	}
 }
 
-static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool channel_specific_context)
+void mixer_ch_play(int ch, waveform_t *wave)
 {
 	assert(ch < Mixer.num_channels);
 	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
@@ -392,15 +391,19 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 	// for mono, we need to reallocate the buffer.
 	if (wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC))
 		samplebuffer_close(sbuf);
+	// Check if the state buffer is big enough, otherwise we need to reallocate
+	if (sbuf->state_size < wave->state_size)
+		samplebuffer_close(sbuf);
 
 	if (!samplebuffer_is_inited(sbuf)) {
 		// If we have not yet allocated the memory for the sample buffers,
 		// this is a good moment to do so, as we might need the configure
 		// the samplebuffer in a moment.
-		int size = mixer_calc_buffer_size(ch, wave->channels);
-		void *ptr = malloc_uncached(size);
+		int size = ROUND_UP(mixer_calc_buffer_size(ch, wave->channels), 16);
+		int state_size = ROUND_UP(wave->state_size, 16);
+		void *ptr = malloc_uncached(size + state_size);
 		assertf(ptr, "out of memory (size=%d)", size);
-		samplebuffer_init(sbuf, ptr, size);
+		samplebuffer_init(sbuf, ptr, size, state_size);
 		if (wave->channels == 2) c->flags |= CH_FLAGS_STEREO_ALLOC;
 	}
 
@@ -416,7 +419,7 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 	//    state of the callback is also different (eg: compression state),
 	//    so the next (not already buffered) sample could cause
 	//    an error because it'd be decompressed with the wrong state.
-	if (wave->__uuid != c->wave_uuid || channel_specific_context) {
+	if (wave->__uuid != c->wave_uuid) {
 		samplebuffer_flush(sbuf);
 
 		// If this channel is playing something else, stop it
@@ -427,7 +430,7 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 		assert(wave->channels == 1 || wave->channels == 2);
 		assert(wave->bits == 8 || wave->bits == 16);
 		samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
-		samplebuffer_set_waveform(sbuf, wave, wave->read ? waveform_read : NULL, ctx);
+		samplebuffer_set_waveform(sbuf, wave, wave->read ? waveform_read : NULL);
 
 		// Configure the mixer channel structured used by the RSP ucode
 		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
@@ -446,7 +449,6 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 
 	// Restart from the beginning of the waveform
 	c->wave = wave;
-	c->ctx = ctx;
 	c->wave_uuid = wave->__uuid;
 	c->ptr = SAMPLES_PTR(sbuf);
 	c->pos = 0;
@@ -461,17 +463,6 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 		Mixer.channels[ch+1].flags &= ~CH_FLAGS_STEREO_SUB;
 	}
 }
-
-void mixer_ch_play(int ch, waveform_t *wave)
-{
-	mixer_ch_play_internal(ch, wave, wave->ctx, false);
-}
-
-void mixer_ch_play_ctx(int ch, waveform_t *wave, void *ctx)
-{
-	mixer_ch_play_internal(ch, wave, ctx, true);
-}
-
 
 void mixer_ch_set_pos(int ch, float pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
@@ -488,15 +479,12 @@ float mixer_ch_get_pos(int ch) {
 
 void mixer_ch_stop(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
 
 	tracef("mixer_ch_stop: ch=%d ctx=%p/%p\n", ch, c->ctx, sbuf->wv_ctx);
 
 	if (c->flags & CH_FLAGS_STEREO)
 		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
 
-	if (c->wave && c->wave->stop)
-		c->wave->stop(c->ctx, sbuf);
 	c->ptr = 0;
 
 	// Invalidate the wave pointer, as it might become dangling
@@ -506,7 +494,6 @@ void mixer_ch_stop(int ch) {
 	// waveform, we will realize that by the uuid, and reuse the same
 	// samplebuffer contents.
 	c->wave = NULL;
-	c->ctx = NULL;
 }
 
 waveform_t* mixer_ch_playing(int ch) {

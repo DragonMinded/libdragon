@@ -107,7 +107,6 @@ struct xm_sample_s {
 	xm_loop_type_t loop_type;
 	float panning;
 	int8_t relative_note;
-	int8_t max_simultaneous_usage;
 	uint64_t latest_trigger;
 
 	#ifdef N64
