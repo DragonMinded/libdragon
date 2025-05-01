@@ -442,6 +442,12 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
 		mixer_ch_set_freq(ch, wave->frequency);
 
+		// Invoke start callback if specified. This is only done when the
+		// waveform is assigned to this channel, and not at the start of all
+		// subsequent playbacks.
+		if (wave->start)
+			wave->start(wave->ctx, sbuf);
+
 		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);
 	} else {
 		tracef("mixer_ch_play[old]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);

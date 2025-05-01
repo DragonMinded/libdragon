@@ -485,6 +485,21 @@ void mixer_remove_event(MixerEvent cb, void *ctx);
 typedef void (*WaveformRead)(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking);
 
 /**
+ * @brief Notify the start of playback of a waveform.
+ * 
+ * This is the callback that will be invoked by the mixer when a waveform
+ * is first "assigned" to a channel. Notice that if the waveform is
+ * then played back multiple times (either by loops or even manual
+ * triggers, even with pauses inbetween), this function is still called
+ * only once.
+ *  
+ * @param[in]  ctx     Opaque pointer that is provided as context to the function,
+ *                     and is specified in the waveform.
+ * @param[in]  sbuf    Samplebuffer into which read samples should be stored.
+ */
+typedef void (*WaveformStart)(void *ctx, samplebuffer_t *sbuf);
+
+/**
  * @brief A waveform that can be played back through the mixer.
  * 
  * waveform_t represents a waveform that can be played back by the mixer.
@@ -542,7 +557,15 @@ typedef struct waveform_s {
      */
 	int loop_len;
 
-	/** 
+     /** 
+     * @brief Callback to notify the start of playback of the waveform.
+     * 
+     * This might be useful to perform one-time initializations of the channel state.
+     * See #WaveformStart for more information.
+     */
+     WaveformStart start;
+
+    /** 
      * @brief Read function of the waveform.
      * 
      * This is the callback that will be invoked by the mixer to generate the
@@ -555,7 +578,7 @@ typedef struct waveform_s {
       */
 	void *ctx;
 
-     /**
+    /**
       * @brief State size required for this waveform to operate
       * 
       * The waveform can request the mixer to allocate a specific amount of
