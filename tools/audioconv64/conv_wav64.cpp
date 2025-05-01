@@ -648,13 +648,13 @@ int wav_convert(const char *infn, const char *outfn) {
 		float *fsamples_out = (float*)malloc(newcnt * wav.channels * sizeof(float));
 
 		// Do the conversion
-		SRC_DATA data = {
-			.data_in = fsamples_in,
-			.data_out = fsamples_out,
-			.input_frames = wav.cnt,
-			.output_frames = newcnt,
-			.src_ratio = (double)wavResampleTo / wav.sampleRate,
-		};
+		SRC_DATA data{};
+		data.data_in = fsamples_in;
+		data.data_out = fsamples_out;
+		data.input_frames = wav.cnt;
+		data.output_frames = newcnt;
+		data.src_ratio = (double)wavResampleTo / wav.sampleRate;
+
 		int err = src_simple(&data, SRC_SINC_BEST_QUALITY, wav.channels);
 		if (err != 0) {
 			fprintf(stderr, "ERROR: %s: resampling failed: %s\n", infn, src_strerror(err));
