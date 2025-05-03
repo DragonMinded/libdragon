@@ -257,6 +257,8 @@ struct xm_channel_context_s {
 	uint8_t tremor_param;
 	bool tremor_on;
 
+	int sample_starting_position_bytes; /* set by 9xx command */
+
 	uint64_t latest_trigger;
 	bool muted;
 

@@ -194,7 +194,8 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	//  7: switch to wav64 for samples, and add support for external samples
 	//  8: patterns are compressed with asset library
 	//  9: metadata compressed with asset library
-	const uint8_t version = 9;
+	// 10: added sample position memory to xm_channel_context_t
+	const uint8_t version = 10;
 	wa(xm64, "XM64", 4);
 	w8(xm64, version);
 	w32_placeholderf(xm64, "metadata_offset");
@@ -605,10 +606,9 @@ int xm_convert(const char *infn, const char *outfn) {
 					// is used to play samples at different positions in the waveform.
 					// We must record the target position as skip point for the
 					// current sample.
-					if (ch->current->effect_type == 0x9) {
-						int offset = ch->current->effect_param << (ch->sample->bits == 8 ? 8 : 7);
-						if (offset < ch->sample->length)
-							sample_skip_points[ch->sample].insert(offset);
+					bool key_on = ch->current->note > 0 && ch->current->note < 97;
+					if (key_on && ch->current->effect_type == 0x9) {
+						sample_skip_points[ch->sample].insert(ch->sample_position);
 					}
 				}
 			}
