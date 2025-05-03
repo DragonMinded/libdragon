@@ -267,6 +267,12 @@ void wav64_close(wav64_t *wav)
 	// Heap allocation always begins at wav->st.
 	void *heap = wav->st;
 
+	// For user-allocated wav64_t instances (opened via wav64_open), we allowed
+	// in the past to call this function multiple times without crashing. Let's
+	// keep this working, as it's easy to do.
+	if (!heap)
+		return;
+
 	// Stop playing the waveform on all channels
 	for (int i=0; i<MIXER_MAX_CHANNELS; i++) {
 		if (mixer_ch_playing_waveform(i) == &wav->wave)
