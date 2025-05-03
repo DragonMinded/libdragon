@@ -269,9 +269,8 @@ void wav64_close(wav64_t *wav)
 
 	// Stop playing the waveform on all channels
 	for (int i=0; i<MIXER_MAX_CHANNELS; i++) {
-		if (mixer_ch_playing(i) == &wav->wave) {
+		if (mixer_ch_playing_waveform(i) == &wav->wave)
 			mixer_ch_stop(i);
-		}
 	}
 
 	if (algos[wav->st->format].close)

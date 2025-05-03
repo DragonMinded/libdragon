@@ -448,9 +448,9 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		if (wave->start)
 			wave->start(wave->ctx, sbuf);
 
-		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);
+		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name);
 	} else {
-		tracef("mixer_ch_play[old]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);
+		tracef("mixer_ch_play[old]: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name);
 	}
 
 	// Restart from the beginning of the waveform
@@ -486,12 +486,13 @@ float mixer_ch_get_pos(int ch) {
 void mixer_ch_stop(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 
-	tracef("mixer_ch_stop: ch=%d ctx=%p/%p\n", ch, c->ctx, sbuf->wv_ctx);
+	tracef("mixer_ch_stop: ch=%d\n", ch);
 
 	if (c->flags & CH_FLAGS_STEREO)
 		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
 
 	c->ptr = 0;
+	c->pos = 0;
 
 	// Invalidate the wave pointer, as it might become dangling
 	// anyway, as the user can free the waveform memory at any time after stop.
@@ -502,10 +503,17 @@ void mixer_ch_stop(int ch) {
 	c->wave = NULL;
 }
 
-waveform_t* mixer_ch_playing(int ch) {
+waveform_t *mixer_ch_playing_waveform(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_playing: cannot call on secondary stereo channel %d", ch);
+	if (c->flags & CH_FLAGS_STEREO_SUB) {
+		assert(ch > 0);
+		c--;
+	}
 	return c->ptr != 0 ? c->wave : NULL;
+}
+
+bool mixer_ch_playing(int ch) {
+	return mixer_ch_playing_waveform(ch) != NULL;
 }
 
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz) {

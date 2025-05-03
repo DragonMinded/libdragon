@@ -238,7 +238,10 @@ float mixer_ch_get_pos(int ch);
 void mixer_ch_stop(int ch);
 
 /** @brief  Return true if the channel is currently playing samples. */
-waveform_t* mixer_ch_playing(int ch);
+bool mixer_ch_playing(int ch);
+
+/** @brief  Return the waveform being played on this channel, or NULL if none. */
+waveform_t* mixer_ch_playing_waveform(int ch);
 
 /**
  * @brief Configure the limits of a channel with respect to sample bit size, and
