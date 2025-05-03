@@ -133,7 +133,7 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		}
 		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
 	}
-	assertf(header.version == 10, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+	assertf(header.version == 11, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
 
 	// Seek to the beginning of the metadata, that are asset-compressed. We need
 	// to read the metadata in small chunks, so we use asset_fopen() for this.

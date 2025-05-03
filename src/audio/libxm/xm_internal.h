@@ -205,7 +205,7 @@ struct xm_channel_context_s {
 	xm_sample_t* sample; /* Could be NULL */
 	xm_pattern_slot_t* current;
 
-	float sample_position;
+	double sample_position;
 	float period;
 	float frequency;
 	float step;

@@ -195,7 +195,8 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	//  8: patterns are compressed with asset library
 	//  9: metadata compressed with asset library
 	// 10: added sample position memory to xm_channel_context_t
-	const uint8_t version = 10;
+	// 11: change sample_position to double
+	const uint8_t version = 11;
 	wa(xm64, "XM64", 4);
 	w8(xm64, version);
 	w32_placeholderf(xm64, "metadata_offset");

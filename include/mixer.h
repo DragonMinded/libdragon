@@ -221,7 +221,7 @@ void mixer_ch_set_freq(int ch, float frequency);
  * @param[in]   ch              Channel index
  * @param[in]   pos             Playback position (in number of samples)
  */
-void mixer_ch_set_pos(int ch, float pos);
+void mixer_ch_set_pos(int ch, double pos);
 
 /** 
  * Read the current playback position of the waveform in the channel.
@@ -232,7 +232,7 @@ void mixer_ch_set_pos(int ch, float pos);
  * @param[in]   ch              Channel index
  * @return                      Playback position (in number of samples)
  */
-float mixer_ch_get_pos(int ch);
+double mixer_ch_get_pos(int ch);
 
 /** @brief Stop playing samples on the specified channel. */
 void mixer_ch_stop(int ch);

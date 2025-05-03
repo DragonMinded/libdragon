@@ -470,17 +470,18 @@ void mixer_ch_play(int ch, waveform_t *wave)
 	}
 }
 
-void mixer_ch_set_pos(int ch, float pos) {
+void mixer_ch_set_pos(int ch, double pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_pos: cannot call on secondary stereo channel %d", ch);
 	c->pos = MIXER_FX64(pos) << (c->flags & CH_FLAGS_BPS_SHIFT);
+	tracef("mixer_ch_set_pos: ch=%d pos=%.32g(%lx)(%llx)\n", ch, pos, F2I(pos), c->pos);
 }
 
-float mixer_ch_get_pos(int ch) {
+double mixer_ch_get_pos(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_get_pos: cannot call on secondary stereo channel %d", ch);
 	uint64_t pos = c->pos >> (c->flags & CH_FLAGS_BPS_SHIFT);
-	return (float)pos / (float)(1<<MIXER_FX64_FRAC);
+	return (double)pos / (double)(1<<MIXER_FX64_FRAC);
 }
 
 void mixer_ch_stop(int ch) {
