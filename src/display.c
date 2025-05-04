@@ -251,12 +251,16 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
                It would work on PAL consoles, but we think users are better
                served by prohibiting it altogether.
 
-               For people that absolutely need this on PAL consoles, it can
-               be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
-               after the display_init call. */
+               For the very common case of width=320 exactly, we can do a workaround,
+               which is setting a slightly higher VI XSCALE (0x201 instead of 0x200)
+               which workarounds the bug without any artifact. See below where the
+               fix is applied.
+
+               For people that absolutely need this on PAL consoles, call display_init()
+               with FILTERS_RESAMPLE, and then call vi_set_aa_mode(VI_AA_MODE_NONE); */
             if ( bit == DEPTH_16_BPP )
             {
-                assertf(res.width > 320,
+                assertf(res.width >= 320,
                     "FILTERS_DISABLED is not supported by the hardware for widths <= 320.\n"
                     "Please use FILTERS_RESAMPLE instead.");
             }
@@ -376,6 +380,19 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     drawing_mask = 0;
     ready_mask = 0;
     vi_show(&surfaces[0]);
+
+    /* Workaround for VI bug */
+    if ( res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED )
+    {
+        /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
+           and resampling is disabled (see vi.c for this). HSTART < 128 is the
+           default border configuration on NTSC. Since X_SCALE=0x200 means
+           width=320 which happens to be the most common resolution, let's apply
+           a simple workaround.
+           A X_SCALE of 0x201 will behave exactly like 0x200 would if it worked,
+           and introduce zero rendering artifacts (without resampling, that is). */
+        vi_write(VI_X_SCALE, 0x201);
+    }
 
     /* Calculate actual refresh rate for this configuration */
     refresh_rate = calc_refresh_rate();
