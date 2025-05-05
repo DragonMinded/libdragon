@@ -545,13 +545,16 @@ static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const 
     {
         int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
 
-        if (parms->flip_x) { ks0 = os1 - s0 + os0 - 1; ks1 = os1 - s1 + os0 - 1;  }
-        if (parms->flip_y) { kt0 = ot1 - t0 + ot0 - 1; kt1 = ot1 - t1 + ot0 - 1; }
+        if (parms->flip_x) { ks0 = os1 - s0 + os0; ks1 = os1 - s1 + os0; }
+        if (parms->flip_y) { kt0 = ot1 - t0 + ot0; kt1 = ot1 - t1 + ot0; }
 
         float k0x = mtx[0][0] * ks0 + mtx[1][0] * kt0 + mtx[2][0];
         float k0y = mtx[0][1] * ks0 + mtx[1][1] * kt0 + mtx[2][1];
         float k2x = mtx[0][0] * ks1 + mtx[1][0] * kt1 + mtx[2][0];
         float k2y = mtx[0][1] * ks1 + mtx[1][1] * kt1 + mtx[2][1];
+
+        if (parms->flip_x) { ks0 -= 1; ks1 -= 1; }
+        if (parms->flip_y) { kt0 -= 1; kt1 -= 1; }
 
         rdpq_texture_rectangle_scaled(tile, k0x, k0y, k2x, k2y, s0, t0, s1, t1);
     }
