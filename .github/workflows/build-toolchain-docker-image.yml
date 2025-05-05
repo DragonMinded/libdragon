@@ -34,6 +34,7 @@ concurrency:
 jobs:
 
   build-toolchain-docker-image:
+  # This job builds the toolchain docker image for the host platforms using the DockerFile.
     strategy:
       fail-fast: false
       matrix:
@@ -99,6 +100,8 @@ jobs:
           retention-days: 1
 
   generate-multiplatform-image:
+  # This job will create a merged image for all platforms using the digests generated in the previous job.
+  # It will also create a manifest list for the image and push it to the registry for use.
     runs-on: ubuntu-24.04
 
     permissions:
@@ -160,6 +163,8 @@ jobs:
           docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ steps.meta.outputs.version }}
 
   smoketest-multiplatform-image:
+  # Ensure that the image built in the previous job is working properly and is able to build libdragon (lib, tests and examples).
+  # across all platforms.
     strategy:
       fail-fast: false
       matrix:
@@ -218,6 +223,8 @@ jobs:
             ${{ github.workspace }}/tests/*.z64
 
   push-latest-image:
+  # Finally push the verified image to the registry with the latest tag if
+  # we are on the default branch.
     runs-on: ubuntu-24.04
 
     permissions:

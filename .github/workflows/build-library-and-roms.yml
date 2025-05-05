@@ -1,8 +1,10 @@
 name: build-library-and-roms
 # This workflow always runs to test the libdragon library builds against examples
-# and test roms using the latest toolchain available, generated in multiple
-# scenarios. It will build the tests and examples and upload the resulting ROMs as
-# artifacts.
+# and test roms using the latest toolchain available from the `dragonminded` repo,
+# generated in multiple scenarios. It will build the tests and examples and upload
+# the resulting ROMs as artifacts.
+# See build-toolchain-docker-image.yml for the actual toolchain image build
+# (and where to look for checking compatibilty against GCC changes).
 
 on:
   push:
