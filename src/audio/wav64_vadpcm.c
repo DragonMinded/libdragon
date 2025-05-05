@@ -231,7 +231,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
                 for (int i=0; i<vhead->num_skippoints; i++) {
                     debugf("skip point %d: %d\n", i, vhead->skip_points[i].offset);
                 }
-                assertf(found, "invalid VADPCM seeking point: 0x%x", wpos);
+                assertf(found, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, wpos);
             }
 		}
         rspq_highpri_end();
