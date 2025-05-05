@@ -213,3 +213,57 @@ jobs:
           path: |
             ${{ github.workspace }}/examples/**/*.z64
             ${{ github.workspace }}/tests/*.z64
+
+  push-latest-image:
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+      packages: write
+      attestations: read
+      id-token: write
+    needs:
+      - smoketest-multiplatform-image
+
+    steps:
+      - name: Prepare environment variables
+        run: |
+          # Create a lower cased version of the repo name for images
+          # as docker supports only lowercase names in the registry.
+          echo "GITHUB_REPOSITORY_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          echo "default_ref=${{ format('refs/heads/{0}', github.event.repository.default_branch) }}" >> $GITHUB_OUTPUT
+          echo "default_remote=${{ format('refs/remotes/origin/{0}', github.event.repository.default_branch) }}" >> $GITHUB_OUTPUT
+
+      # - name: Compare files
+      #   uses: ./.github/actions/path-diff
+      #   id: path_diff
+      #   with:
+      #     # If it is a push to the default branch, then we should use event.before
+      #     # as we cannot just use the default branch ref. Compare to default
+      #     # branch otherwise because only the default branch pushes the latest
+      #     # image. This assumption may not be true on forks and cause false
+      #     # negatives preventing an image build. In that case we might need to
+      #     # ask the committer for a fix. OTOH pull requests against the upstream
+      #     # repository will always compare against its default branch and cause a
+      #     # rebuild, making a valid test run.
+      #     base: ${{
+      #         (github.event_name == 'push' && (github.ref == steps.vars.outputs.default_ref)) &&
+      #           github.event.before ||
+      #           steps.vars.outputs.default_remote
+      #       }}
+      #     head: ${{ github.sha }}
+
+      # - name: Pull image
+      #   run: |
+      #     docker pull ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ needs.generate-multiplatform-image.outputs.version }}
+
+      # # Finally push the verified image to the registry with the latest tag if
+      # # we are on the default branch. At this point, we know that libdragon can
+      # # build with this freshly built image.
+      # - name: Push latest image
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     push: true
+      #     tags: ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:latest
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
