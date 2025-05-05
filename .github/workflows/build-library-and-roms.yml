@@ -117,9 +117,9 @@ jobs:
           export N64_INST=/opt/libdragon
             ./build.sh > $GITHUB_WORKSPACE/build.log 2>&1
 
-      - name: Adding Warnings Summary markdown
+      - name: Adding summary markdown
         run: |
-          echo '### Warnings Summary! 🚀' >> $GITHUB_STEP_SUMMARY
+          echo '### Build Warnings for ${{ matrix.runs-on }} :warning:' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           grep -i warning $GITHUB_WORKSPACE/build.log >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
