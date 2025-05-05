@@ -3,7 +3,7 @@ name: Build-Native-Toolchain-Linux-Packages
 # This workflow will build the libdragon N64 GCC toolchain to keep it up-to-date.
 on:
   # This action will take about 40-70 minutes to run!
-  # It is designed to only fire if the GCC toolchain build file changes.
+  # It is designed to only fire if the GCC toolchain build file dependencies change.
   push:
     paths:
       - '.github/workflows/build-toolchain-linux-packages.yml'
@@ -14,6 +14,13 @@ on:
       - '.github/workflows/build-toolchain-linux-packages.yml'
       - 'tools/build-toolchain.sh'
       - 'tools/build-gdb.sh'
+
+# Make sure we don't have more than one active workflow to prevent race conditions
+# e.g a previous toolchain build may tag and push `latest` later if we don't have
+# this. It is ok to have parallel runs for push and PR events and from different
+# branches. We can cancel previous runs for non-trunk events.
+concurrency:
+  group: build-native-toolchain-linux-packages-${{ github.ref }}-${{ github.event_name }}
 
 jobs:
   Build-Native-Toolchain:

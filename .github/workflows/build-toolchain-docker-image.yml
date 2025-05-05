@@ -1,8 +1,11 @@
 name: build-toolchain-docker-image
-# This workflow builds and pushes Docker images for multiple platforms.
-# When running on a fork, it will push the image to the fork's registry, although you may need to allow it.
-
+# This workflow will build the libdragon N64 GCC toolchain to keep it up-to-date.
+# Utilising Docker images for multiple platforms.
+# When running on a fork, it will push the image to the fork's registry,
+# although you may need to allow it.
 on:
+  # This action will take about 30-70 minutes to run!
+  # It is designed to only fire if the GCC toolchain build file dependecies change.
   push:
     paths:
       - 'Dockerfile'
