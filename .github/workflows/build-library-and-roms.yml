@@ -43,7 +43,7 @@ jobs:
       matrix:
           include: [
               { runs-on: ubuntu-24.04 } #,
-            #  { runs-on: ubuntu-24.04-arm }
+            #  { runs-on: ubuntu-24.04-arm } # FIXME: This is ready in this fork but not yet in the main repo.
           ]
     runs-on: ${{ matrix.runs-on }}
 
@@ -93,7 +93,7 @@ jobs:
       matrix:
           include: [
               { runs-on: ubuntu-24.04 } #,
-              # { runs-on: ubuntu-24.04-arm }
+              # { runs-on: ubuntu-24.04-arm } # FIXME: This is ready in this fork but not yet in the main repo.
           ]
     runs-on: ${{ matrix.runs-on }}
 
@@ -112,7 +112,8 @@ jobs:
 
       - name: Build libdragon
         run: |
-          # set the toolchain path to the default location
+          # Set the toolchain path to the default location
+          # FIXME: this should be set in the toolchain package
           export N64_INST=/opt/libdragon
           ./build.sh
 
