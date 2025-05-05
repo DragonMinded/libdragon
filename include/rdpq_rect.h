@@ -256,8 +256,9 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * This function enqueues a RDP TEXTURE_RECTANGLE command, that allows to draw a
  * textured rectangle onto the framebuffer (similar to a sprite).
  * 
- * The texture must have been already loaded into TMEM via #rdpq_load_tile or
- * #rdpq_load_block, and a tile descriptor referring to it must be passed to this
+ * The texture must have been already loaded into TMEM via #rdpq_sprite_upload,
+ * #rdpq_tex_upload or the lower level #rdpq_load_tile and #rdpq_load_block,
+ * and a tile descriptor referring to it must be passed to this
  * function.
  * 
  * Input X and Y coordinates are automatically clipped to the screen boundaries (and
