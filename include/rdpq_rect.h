@@ -89,11 +89,11 @@ inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile,
 
     if (__UNLIKELY(x0 > x1)) {
         int32_t tmp = x0; x0 = x1; x1 = tmp;
-        s0 += ((x0 - x1 - 4) * dsdx) >> 7;
+        s0 += ((x0 - x1 + 4) * dsdx) >> 7;
     }
     if (__UNLIKELY(y0 > y1)) {
         int32_t tmp = y0; y0 = y1; y1 = tmp;
-        t0 += ((y0 - y1 - 4) * dtdy) >> 7;
+        t0 += ((y0 - y1 + 4) * dtdy) >> 7;
     }
     if (__UNLIKELY(x0 < 0)) {
         s0 -= (x0 * dsdx) >> 7;
