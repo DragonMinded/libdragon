@@ -436,10 +436,6 @@ void display_close()
         }
     }
 
-    __width = 0;
-    __height = 0;
-    __buffers = 0;
-
     // Blank the image and wait until it actually happens, before
     // freeing the buffers.
     vi_show(NULL);
@@ -455,8 +451,11 @@ void display_close()
         }
         free(surfaces);
         surfaces = NULL;
-        __buffers = 0;
     }
+
+    __width = 0;
+    __height = 0;
+    __buffers = 0;
 }
 
 surface_t* display_try_get(void)
