@@ -115,7 +115,14 @@ jobs:
           # Set the toolchain path to the default location
           # FIXME: this should be set in the toolchain package
           export N64_INST=/opt/libdragon
-          ./build.sh
+            ./build.sh > $GITHUB_WORKSPACE/build.log 2>&1
+
+      - name: Adding Warnings Summary markdown
+        run: |
+          echo '### Warnings Summary! 🚀' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -i warning $GITHUB_WORKSPACE/build.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload built ROMs to artifacts generated on ${{ matrix.runs-on }}
         uses: actions/upload-artifact@v4
