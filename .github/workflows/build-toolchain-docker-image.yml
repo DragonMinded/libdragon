@@ -6,13 +6,13 @@ on:
   push:
     paths:
       - 'Dockerfile'
-      - '.github/workflows/build-multiplatform-docker-image.yml'
+      - '.github/workflows/build-toolchain-docker-image.yml'
       - 'tools/build-toolchain.sh'
       - 'tools/build-gdb.sh'
   pull_request:
     paths:
       - 'Dockerfile'
-      - '.github/workflows/build-multiplatform-docker-image.yml'
+      - '.github/workflows/build-toolchain-docker-image.yml'
       - 'tools/build-toolchain.sh'
       - 'tools/build-gdb.sh'
 
@@ -38,7 +38,7 @@ jobs:
             { host-os: ubuntu-24.04, platform: linux/amd64 },
             { host-os: ubuntu-24.04-arm, platform: linux/arm64, }
           ]
-    runs-on: ${{ matrix.host-os}}
+    runs-on: ${{ matrix.host-os }}
 
     permissions:
       contents: write
@@ -107,6 +107,9 @@ jobs:
     needs:
       - build-toolchain-docker-image
 
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+
     steps:
       - name: Prepare environment variables
         run: |
@@ -148,7 +151,65 @@ jobs:
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}@sha256:%s ' *)
-          
+
       - name: Inspect image
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ steps.meta.outputs.version }}
+
+  smoketest-multiplatform-image:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: [
+            { host-os: ubuntu-24.04 },
+            { host-os: ubuntu-24.04-arm }
+          ]
+    runs-on: ${{ matrix.host-os }}
+
+    permissions:
+      contents: read
+      packages: read
+      attestations: read
+      id-token: write
+    needs:
+      - generate-multiplatform-image
+
+    steps:
+      - name: Prepare environment variables
+        run: |
+          # Create a lower cased version of the repo name for images
+          # as docker supports only lowercase names in the registry.
+          echo "GITHUB_REPOSITORY_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
+
+      - name: Login to Docker Package Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ needs.generate-multiplatform-image.outputs.version }}
+
+      # Verify everything is building properly using the image built in the previous job.
+      - name: Build libdragon
+        run: |
+          docker run \
+          --mount type=bind,source=$(pwd),target=/libdragon \
+          --workdir=/libdragon \
+          ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ needs.generate-multiplatform-image.outputs.version }} \
+          ./build.sh
+
+      - name: Upload built ROMs to artifacts generated on ${{ matrix.host-os }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: roms_${{ matrix.host-os }}
+          path: |
+            ${{ github.workspace }}/examples/**/*.z64
+            ${{ github.workspace }}/tests/*.z64
