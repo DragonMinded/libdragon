@@ -297,6 +297,15 @@ void vi_write_end(void)
     vi_write_maybe_flush();
 }
 
+void vi_write_end_forced(void)
+{
+    if (cfg_refcount > 0) {
+        cfg_refcount = 0;
+        vi_write_maybe_flush();
+    }
+}
+
+
 static void vi_write_idx_masked(int reg_idx, uint32_t wmask, uint32_t value)
 {
     assert(reg_idx >= 0 && reg_idx < VI_REGISTERS_COUNT);

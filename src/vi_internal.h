@@ -32,6 +32,15 @@
  */
 void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg);
 
+/**
+ * @brief Force the end of any batched VI calls
+ * 
+ * This can be useful in emergency situations to unblock the VI. For instance,
+ * an assertion that triggers within vi_write_begin() can be unblocked by this
+ * call.
+ */
+void vi_write_end_forced(void);
+
 #ifdef __cplusplus
 extern "C" {
 #endif

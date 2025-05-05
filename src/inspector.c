@@ -1,6 +1,6 @@
 #ifndef NDEBUG
 #include "graphics.h"
-#include "vi.h"
+#include "vi_internal.h"
 #include "display.h"
 #include "debug.h"
 #include "joypad.h"
@@ -581,6 +581,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
         *MI_MASK = MI_WMASK_CLR_DP | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI;
     }
 
+    vi_write_end_forced();
 	display_close();
 	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 

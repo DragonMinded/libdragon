@@ -438,6 +438,7 @@ void display_close()
 
     __width = 0;
     __height = 0;
+    __buffers = 0;
 
     // Blank the image and wait until it actually happens, before
     // freeing the buffers.
