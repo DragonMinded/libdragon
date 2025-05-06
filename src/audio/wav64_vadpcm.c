@@ -326,8 +326,20 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	if (highpri)
 		rspq_highpri_end();
 
-    if (wav->wave.loop_len && wpos >= wav->wave.len) {
+    if (wav->wave.loop_len && wpos > wav->wave.len) {
         samplebuffer_undo(sbuf, wpos - wav->wave.len);
+
+        // We are forced to sync here. The reason is the following:
+        //  * We reached the end of a looping sample
+        //  * The code in waveform_read could now immediately decode another
+        //    chunk of samples at the beginning of the loop.
+        //  * This other read will call read() on the file to read the compressed
+        //    frames *into the output buffer*
+        //  * The bytes into which we load them could overlap with the bytes
+        //    that were just "undo'd". But on those bytes, the RSP is going to
+        //    write soon as part of the just-scheduled decoding.
+        //  This might cause a race condition.
+        rspq_highpri_sync();
     }
 }
 
