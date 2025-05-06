@@ -219,6 +219,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		// In addition to that, our RSP decompressor at the moment only supports
 		// multiples of 32 (for DMA alignment issues), so pad it to that.
 		const int VADPCM_ALIGN = kVADPCMFrameSampleCount*2;
+		int prepad_cnt = wav->cnt;
 		if (wav->cnt % VADPCM_ALIGN) {
 			int newcnt = (wav->cnt + VADPCM_ALIGN - 1) / VADPCM_ALIGN * VADPCM_ALIGN;
 			wav->samples = (int16_t*)realloc(wav->samples, newcnt * wav->channels * sizeof(int16_t));
@@ -382,9 +383,11 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				fprintf(stderr, "ERROR: %s: cannot create WAV file\n", outfn);
 				failed = true;
 			} else {
-				drwav_write_pcm_frames(&wav2, wav->cnt, out_samples);
+				drwav_write_pcm_frames(&wav2, prepad_cnt, out_samples);
 				drwav_uninit(&wav2);
 			}
+
+			free(out_samples);
 		}
 
 		free(dest);
