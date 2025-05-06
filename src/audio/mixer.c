@@ -591,7 +591,7 @@ static void mixer_exec(int32_t *out, int num_samples) {
 				// To do so, we discard everything that comes before the loop 
 				// (once we enter the loop).
 				int loop_pos = len - loop_len;
-				if (wpos >= loop_pos) {
+				if (sbuf->size < len && wpos >= loop_pos && sbuf->wpos != loop_pos) {
 					tracef("ch:%d discard to align loop wpos:%x loop_pos:%x\n", i, wpos, loop_pos);
 					samplebuffer_discard(sbuf, loop_pos);
 				}
