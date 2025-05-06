@@ -128,8 +128,8 @@ _Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
  * This struct reflects the settings defined in rsp_mixer.S.
  */
 typedef struct rsp_mixer_settings_s {
-	uint32_t lvol[MIXER_MAX_CHANNELS/2] __attribute__((aligned(16)));
-	uint32_t rvol[MIXER_MAX_CHANNELS/2];
+	uint16_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
+	uint16_t rvol[MIXER_MAX_CHANNELS];
 	rsp_mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
 } rsp_mixer_settings_t;
 
@@ -643,10 +643,7 @@ static void mixer_exec(int32_t *out, int num_samples) {
 	}
 
 	volatile rsp_mixer_settings_t *settings = UncachedAddr(&Mixer.ucode_settings);
-
 	volatile rsp_mixer_channel_t *rsp_wv = settings->channels;
-	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
-	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
 
 	for (int ch=0;ch<Mixer.num_channels;ch++) {
 		mixer_channel_t *c = &Mixer.channels[ch];
@@ -655,8 +652,8 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		// volume correctly.
 		if (c->flags & CH_FLAGS_STEREO_SUB) {
 			rsp_wv[ch].ptr = 0;
-			lvol[ch] = 0;
-			rvol[ch] = Mixer.rvol[ch-1];
+			settings->lvol[ch] = 0;
+			settings->rvol[ch] = Mixer.rvol[ch-1];
 			continue;
 		}
 
@@ -667,8 +664,8 @@ static void mixer_exec(int32_t *out, int num_samples) {
 			// makes sure that we smooth volume correctly even for waveforms
 			// where the sequencer creates an a attack ramp (which would nullify
 			// the one-tap volume filter if the volume started from max).
-			lvol[ch] = 0;
-			rvol[ch] = 0;
+			settings->lvol[ch] = 0;
+			settings->rvol[ch] = 0;
 			continue;
 		}
 
@@ -697,19 +694,12 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		}
 
 		if (c->flags & CH_FLAGS_STEREO) {
-			lvol[ch] = Mixer.lvol[ch];
-			rvol[ch] = 0;
+			settings->lvol[ch] = Mixer.lvol[ch];
+			settings->rvol[ch] = 0;
 		} else {
-			lvol[ch] = Mixer.lvol[ch];
-			rvol[ch] = Mixer.rvol[ch];
+			settings->lvol[ch] = Mixer.lvol[ch];
+			settings->rvol[ch] = Mixer.rvol[ch];
 		}
-	}
-
-	uint32_t *lvol32 = (uint32_t*)lvol;
-	uint32_t *rvol32 = (uint32_t*)rvol;
-	for (int ch=0;ch<MIXER_MAX_CHANNELS/2;ch++)  {
-		settings->lvol[ch] = lvol32[ch];
-		settings->rvol[ch] = rvol32[ch];
 	}
 
 	// Check if we the user pressed RESET. If so, we can apply
