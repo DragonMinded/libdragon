@@ -57,23 +57,45 @@ static bool read_wav(const char *infn, wav_data_t *out)
 		if (wav.pMetadata[i].type == drwav_metadata_type_smpl) {
 			drwav_smpl* smpl = &wav.pMetadata[i].data.smpl;
 			if (smpl->sampleLoopCount > 0) {
-				if (flag_verbose)
-					fprintf(stderr, "  found %d loop points [start=%d end=%d cnt=%d]\n", smpl->sampleLoopCount,
-						smpl->pLoops[0].firstSampleByteOffset, smpl->pLoops[0].lastSampleByteOffset, out->cnt);
-
 				// If we have multiple loops, we just take the first one.
 				drwav_smpl_loop* loop = &smpl->pLoops[0];
-				if (loop->type != 0) {
-					fprintf(stderr, "WARNING: %s: loop type %d not supported\n", infn, loop->type);
-					break;
-				}
 				// NOTE: the offset appears to be in samples, not bytes.
 				// See also https://github.com/mackron/dr_libs/issues/267
 				out->looping = true;
 				out->loopOffset = loop->firstSampleByteOffset;
 				if (out->cnt > loop->lastSampleByteOffset+1)
 					out->cnt = loop->lastSampleByteOffset+1;
-				break;
+
+				switch (loop->type) {
+				case 0: // standard forward loop
+					if (flag_verbose)
+						fprintf(stderr, "  found forward loop [start=%d end=%d cnt=%d]\n", loop->firstSampleByteOffset,
+							loop->lastSampleByteOffset, out->cnt);
+					break;
+				case 1: { // ping-pong loop
+					if (flag_verbose)
+						fprintf(stderr, "  found ping-pong loop [start=%d end=%d cnt=%d]\n", loop->firstSampleByteOffset,
+							loop->lastSampleByteOffset, out->cnt);
+					// Unroll the ping-pong loop in the buffer.
+					int last_offset = loop->lastSampleByteOffset / (wav.bitsPerSample / 8);
+					int first_offset = loop->firstSampleByteOffset / (wav.bitsPerSample / 8);
+					int loop_len = last_offset - first_offset + 1;
+					int16_t* new_samples = (int16_t*)malloc((out->cnt + loop_len) * out->channels * sizeof(int16_t));
+					memcpy(new_samples, samples, out->cnt * out->channels * sizeof(int16_t));
+					for (int i=0; i<loop_len; i++) {
+						for (int j=0; j<wav.channels; j++) {
+							new_samples[out->cnt * wav.channels + i * wav.channels + j] = samples[(last_offset - i) * wav.channels + j];
+						}
+					}
+					free(samples);
+					out->samples = new_samples;
+					out->cnt += loop_len;
+					out->loopOffset = out->cnt - loop_len;
+				}	break;
+				default:
+					fprintf(stderr, "WARNING: %s: loop type %d not supported\n", infn, loop->type);
+					break;
+				}
 			}
 		}
 	}
