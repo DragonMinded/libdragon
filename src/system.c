@@ -1644,11 +1644,7 @@ int unhook_rtc_calls( rtc_hooks_t *hooks )
     return 0;
 }
 
-/**************************************
- *  DEPRECATED FUNCTIONS 
- **************************************/
-
-/** deprecated - Use #hook_rtc_calls instead. */
+/** @deprecated Use #hook_rtc_calls instead. */
 int hook_time_calls( time_hooks_t *hooks )
 {
     if( hooks == NULL ) return -1;
@@ -1659,7 +1655,7 @@ int hook_time_calls( time_hooks_t *hooks )
     return 0;
 }
 
-/** deprecated - Use #unhook_rtc_calls instead. */
+/** @deprecated Use #unhook_rtc_calls instead. */
 int unhook_time_calls( time_hooks_t *hooks )
 {
     if( hooks == NULL ) return -1;
@@ -1670,23 +1666,19 @@ int unhook_time_calls( time_hooks_t *hooks )
     return 0;
 }
 
-/** deprecated - Use #hook_time_calls instead. */
+/** @deprecated Use #hook_time_calls instead. */
 int hook_time_call( time_t (*time_fn)( void ) )
 {
     time_hooks_t hooks = { time_fn, NULL };
     return hook_time_calls( &hooks );
 }
 
-/** deprecated - Use #unhook_time_calls instead. */
+/** @deprecated Use #unhook_time_calls instead. */
 int unhook_time_call( time_t (*time_fn)( void ) )
 {
     time_hooks_t hooks = { time_fn, NULL };
     return unhook_time_calls( &hooks );
 }
-
-/**************************************
- *  END DEPRECATED FUNCTIONS 
- **************************************/
 
 /**
  * @brief Implement _flush_cache as required by GCC for nested functions.

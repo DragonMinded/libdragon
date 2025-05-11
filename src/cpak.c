@@ -967,7 +967,6 @@ int cpak_fsck(joypad_port_t port, bool fix_errors)
         if (fix_errors) {
             debugf("fsck: generating new sector ID\n");
             int fat_size = probe_size(port);
-            debugf("fsck: size = %d\n", fat_size);
             fsid_new(&fsid, be16(fsid.bank_size_msb) & 0xFF00);
             if (fsid_write(port, &fsid) < 0) {
                 return -2;
