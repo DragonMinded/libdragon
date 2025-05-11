@@ -41,8 +41,8 @@ COPY ./tools/build-toolchain.sh ./tools/build-gdb.sh /tools/
 
 # Run the build scripts and cleanup unnecessary files
 RUN --mount=target=${DOWNLOAD_PATH},type=cache,sharing=locked \
-   /tools/build-toolchain.sh && \
-   /tools/build-gdb.sh && \
+    /tools/build-toolchain.sh && \
+    /tools/build-gdb.sh && \
     rm -rf ${N64_INST}/share/locale/*
 
 # Stage 2 - Prepare minimal image
