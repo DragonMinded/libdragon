@@ -150,6 +150,9 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	int heap_off_waveform = heap_size;
 	if (!wav) heap_size += ROUND_UP(sizeof(waveform_t), 16);		// Waveform
 
+	int heap_off_name = heap_size;
+	heap_size += ROUND_UP(strlen(file_name) + 1, 16);				// Filename
+
 	int heap_off_samples = heap_size;
 	if (preload) heap_size += preload_size;							// Preloaded samples
 
@@ -158,9 +161,6 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	int heap_off_ext = heap_size;
 	heap_size += ROUND_UP(ext_size, 16);							// Extended header data
-
-	int heap_off_name = heap_size;
-	heap_size += ROUND_UP(strlen(file_name) + 1, 16);				// Filename
 	
 	// Allocate heap memory
 	assert(heap_size % 16 == 0);
