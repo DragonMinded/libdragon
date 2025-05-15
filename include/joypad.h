@@ -631,6 +631,17 @@ int joypad_get_axis_released(joypad_port_t port, joypad_axis_t axis);
  */
 int joypad_get_axis_held(joypad_port_t port, joypad_axis_t axis);
 
+/**
+ * @brief Sends the player ID to each controller.
+ *
+ * This function sends the player ID to each controller coresponding to the
+ * joybus slot the controller is plugged in to.
+ *
+ * This is a custom command which is not supported by official controllers.
+ *
+ */
+ void joypad_send_player_id(void);
+
 #ifdef __cplusplus
 }
 #endif

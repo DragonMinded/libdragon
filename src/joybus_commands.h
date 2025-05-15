@@ -129,6 +129,13 @@
  * extended controller data, including analog A and B button values.
  */
 #define JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ_LONG    0x43
+
+/**
+ * @brief "Player ID" Joybus command identifier.
+ * 
+ * Custom command that is not supported by official controllers.
+ */
+#define JOYBUS_COMMAND_ID_PLAYER_IDENTIFY 0xF0
 /** @} */ /* JOYBUS_COMMAND_ID */
 
 #ifdef __cplusplus
@@ -505,6 +512,27 @@ typedef joybus_cmd_gcn_controller_read_long_port_t joybus_cmd_gcn_controller_rec
  * @see #JOYBUS_COMMAND_ID_GCN_CONTROLLER_ORIGIN
  */
 typedef joybus_cmd_gcn_controller_read_long_port_t joybus_cmd_gcn_controller_origin_port_t;
+
+/**
+ * @brief "Player ID" Joybus command structure.
+ *
+ * This is a custom command not supported by official controllers.
+ * 
+ * @see #JOYBUS_COMMAND_ID_PLAYER_IDENTIFY
+ */
+ typedef struct __attribute__((packed)) joybus_cmd_player_id_s
+ {
+    /** @brief "Player ID" command send data */
+    struct __attribute__((__packed__))
+    {
+        /** @brief Joybus command ID (#JOYBUS_COMMAND_ID_PLAYER_IDENTIFY) */
+        uint8_t command;
+        /** @brief Bitmask with a single bit set indicating the port number */
+        uint8_t bitmask;
+    } send;
+    /** @brief Controller responds with the old bitmask */
+     uint8_t recv;
+ } joybus_cmd_player_id_t;
 
 #ifdef __cplusplus
 }
