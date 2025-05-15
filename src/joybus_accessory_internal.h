@@ -12,7 +12,6 @@
 
 #include "joybus.h"
 #include "joybus_commands.h"
-#include "joybus_internal.h"
 #include "joybus_accessory.h"
 
 /**
