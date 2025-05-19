@@ -26,7 +26,7 @@ EXAMPLES += test
 EXAMPLES += timers
 EXAMPLES += videoplayer
 EXAMPLES += vifx
-EXAMPLES += vrutest
+#EXAMPLES += vrutest # Disabled because it is not really a representation of the API
 EXAMPLES += vtest
 
 all: $(EXAMPLES)
