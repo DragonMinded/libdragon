@@ -1,0 +1,135 @@
+name: build-library-and-roms
+# This workflow always runs to test the libdragon library builds against examples
+# and test roms using the latest toolchain available from the `dragonminded` repo,
+# generated in multiple scenarios. It will build the tests and examples and upload
+# the resulting ROMs as artifacts.
+# See build-toolchain-docker-image.yml for the actual toolchain image build
+# (and where to look for checking compatibilty against GCC changes).
+
+on:
+  push:
+    paths-ignore:
+      - 'Dockerfile'
+      - '.github/workflows/build-documentation.yml'
+      - '.github/workflows/build-toolchain-docker-image.yml'
+      - '.github/workflows/build-toolchain-linux-packages.yml'
+      - '.github/workflows/build-tools-windows.yml'
+      - 'tools/build-toolchain.sh'
+      - 'tools/build-gdb.sh'
+  pull_request:
+    paths-ignore:
+      - 'Dockerfile'
+      - '.github/workflows/build-documentation.yml'
+      - '.github/workflows/build-toolchain-docker-image.yml'
+      - '.github/workflows/build-toolchain-linux-packages.yml'
+      - '.github/workflows/build-tools-windows.yml'
+      - 'tools/build-toolchain.sh'
+      - 'tools/build-gdb.sh'
+
+env:
+  REGISTRY: ghcr.io
+
+
+# Make sure we don't have more than one active workflow to prevent race conditions
+# e.g a previous toolchain build may tag and push `latest` later if we don't have
+# this. It is ok to have parallel runs for push and PR events and from different
+# branches. We can cancel previous runs for non-trunk events.
+concurrency:
+  group: build-test-example-roms-${{ github.ref }}-${{ github.event_name }}
+
+jobs:
+
+  smoketest-multiplatform-docker-images:
+    strategy:
+      fail-fast: false
+      matrix:
+          include: [
+              { runs-on: ubuntu-24.04 } #,
+            #  { runs-on: ubuntu-24.04-arm } # FIXME: This is ready in this fork but not yet in the main repo.
+          ]
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+      - name: Prepare environment variables
+        run: |
+          # Create a lower cased version of the repo name for images
+          # as docker supports only lowercase names in the registry.
+          echo "GITHUB_REPOSITORY_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
+
+      - name: Login to Docker Package Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:latest
+
+      # Verify everything is building properly using the image built in the previous job.
+      - name: Build libdragon
+        run: |
+          docker run \
+          --mount type=bind,source=$(pwd),target=/libdragon \
+          --workdir=/libdragon \
+          ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:latest \
+          ./build.sh
+
+      - name: Upload built ROMs to artifacts generated on ${{ matrix.runs-on }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker_roms_${{ matrix.runs-on }}
+          path: |
+              ${{ github.workspace }}/examples/**/*.z64
+              ${{ github.workspace }}/tests/*.z64
+
+  smoketest-linux-packages:
+    strategy:
+      fail-fast: false
+      matrix:
+          include: [
+              { runs-on: ubuntu-24.04 } #,
+              # { runs-on: ubuntu-24.04-arm } # FIXME: This is ready in this fork but not yet in the main repo.
+          ]
+    runs-on: ${{ matrix.runs-on }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
+
+      - name: Get and install latest toolchain
+        run: |
+          wget https://github.com/DragonMinded/libdragon/releases/download/toolchain-continuous-prerelease/gcc-toolchain-mips64-x86_64.deb
+          sudo dpkg -i gcc-toolchain-mips64-x86_64.deb
+          rm gcc-toolchain-mips64-x86_64.deb
+
+      - name: Build libdragon
+        run: |
+          # Set the toolchain path to the default location
+          # FIXME: this should be set in the toolchain package
+          export N64_INST=/opt/libdragon
+            ./build.sh > $GITHUB_WORKSPACE/build.log 2>&1
+
+      - name: Adding summary markdown
+        run: |
+          echo '### Build Warnings for ${{ matrix.runs-on }} :warning:' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -i warning $GITHUB_WORKSPACE/build.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload built ROMs to artifacts generated on ${{ matrix.runs-on }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux_roms_${{ matrix.runs-on }}
+          path: |
+              ${{ github.workspace }}/examples/**/*.z64
+              ${{ github.workspace }}/tests/*.z64
