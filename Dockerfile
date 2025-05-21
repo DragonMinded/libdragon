@@ -67,8 +67,8 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         git \
         make \
         xxd \
-    && apt autoremove -yq \
-    && apt autoclean -yq
+        && apt autoremove -yq \
+        && apt autoclean -yq
 
 # Copy over built toolchain from previous stage
 COPY --from=builder ${N64_INST} ${N64_INST}
