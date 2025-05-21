@@ -94,8 +94,8 @@ jobs:
       fail-fast: false
       matrix:
           include: [
-              { runs-on: ubuntu-24.04 } #,
-              # { runs-on: ubuntu-24.04-arm } # FIXME: This is ready in this fork but not yet in the main repo.
+              { runs-on: ubuntu-24.04, package-platform: x86_64 } #,
+              # { runs-on: ubuntu-24.04-arm, package-platform: aarch64 } # FIXME: this is not available yet
           ]
     runs-on: ${{ matrix.runs-on }}
 
@@ -108,16 +108,16 @@ jobs:
 
       - name: Get and install latest toolchain
         run: |
-          wget https://github.com/DragonMinded/libdragon/releases/download/toolchain-continuous-prerelease/gcc-toolchain-mips64-x86_64.deb
-          sudo dpkg -i gcc-toolchain-mips64-x86_64.deb
-          rm gcc-toolchain-mips64-x86_64.deb
+          wget https://github.com/DragonMinded/libdragon/releases/download/toolchain-continuous-prerelease/gcc-toolchain-mips64-${{ matrix.package-platform }}.deb
+          sudo dpkg -i gcc-toolchain-mips64-${{ matrix.package-platform }}.deb
+          sudo rm gcc-toolchain-mips64-${{ matrix.package-platform }}.deb
 
       - name: Build libdragon
         run: |
           # Set the toolchain path to the default location
           # FIXME: this should be set in the toolchain package
           export N64_INST=/opt/libdragon
-            ./build.sh > $GITHUB_WORKSPACE/build.log 2>&1
+          ./build.sh > $GITHUB_WORKSPACE/build.log 2>&1
 
       - name: Adding summary markdown
         run: |
