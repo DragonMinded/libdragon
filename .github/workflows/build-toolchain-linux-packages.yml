@@ -234,18 +234,18 @@ jobs:
           CHANGELOG_TEXT+='Installation instructions are [available in the wiki](https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon)</br>'
           CHANGELOG_TEXT+='</br>'
           CHANGELOG_TEXT+="Builds toolchain dependencies:</br>"
-          CHANGELOG_TEXT+="  * GCC:      V${{ needs.build-toolchain.outputs.gcc-version }}</br>"
-          CHANGELOG_TEXT+="  * Newlib:   V${{ needs.build-toolchain.outputs.newlib-version }}</br>"
-          CHANGELOG_TEXT+="  * BinUtils: V${{ needs.build-toolchain.outputs.binutils-version }}</br>"
-          CHANGELOG_TEXT+="  * GDB:      V${{ needs.build-toolchain.outputs.gdb-version }}</br>"
+          CHANGELOG_TEXT+="  * GCC:      V${{ needs.Build-Native-Toolchain.outputs.gcc-version }}</br>"
+          CHANGELOG_TEXT+="  * Newlib:   V${{ needs.Build-Native-Toolchain.outputs.newlib-version }}</br>"
+          CHANGELOG_TEXT+="  * BinUtils: V${{ needs.Build-Native-Toolchain.outputs.binutils-version }}</br>"
+          CHANGELOG_TEXT+="  * GDB:      V${{ needs.Build-Native-Toolchain.outputs.gdb-version }}</br>"
           CHANGELOG_TEXT+='</br>'
           CHANGELOG_TEXT+="With dependencies:</br>"
-          CHANGELOG_TEXT+="  * GMP:      V${{ needs.build-toolchain.outputs.gmp-version }}</br>"
-          CHANGELOG_TEXT+="  * MPC:      V${{ needs.build-toolchain.outputs.mpc-version }}</br>"
-          CHANGELOG_TEXT+="  * MPFR:     V${{ needs.build-toolchain.outputs.mpfr-version }}</br>"
+          CHANGELOG_TEXT+="  * GMP:      V${{ needs.Build-Native-Toolchain.outputs.gmp-version }}</br>"
+          CHANGELOG_TEXT+="  * MPC:      V${{ needs.Build-Native-Toolchain.outputs.mpc-version }}</br>"
+          CHANGELOG_TEXT+="  * MPFR:     V${{ needs.Build-Native-Toolchain.outputs.mpfr-version }}</br>"
           CHANGELOG_TEXT+='</br>'
           CHANGELOG_TEXT+="Also generates Windows toolchain dependencies:</br>"
-          CHANGELOG_TEXT+="  * MAKEFILE: V${{ needs.build-toolchain.outputs.make-version }}</br>"
+          CHANGELOG_TEXT+="  * MAKEFILE: V${{ needs.Build-Native-Toolchain.outputs.make-version }}</br>"
           CHANGELOG_TEXT+='</br>'
           CHANGELOG_TEXT+='The GCC toolchain is licensed under GPLv3</br>'
           CHANGELOG_TEXT+='</br>'
@@ -265,7 +265,7 @@ jobs:
           prerelease: false
           body_path: CHANGELOG
           generate_release_notes: false
-          name: 'V${{ needs.build-toolchain.outputs.gcc-version }}-${{ github.run_id }}'
+          name: 'V${{ needs.Build-Native-Toolchain.outputs.gcc-version }}-${{ github.run_id }}'
           tag_name: "toolchain-continuous-prerelease"
           files: |
             ${{ runner.temp }}/**/*.deb
