@@ -233,6 +233,7 @@ jobs:
       attestations: read
       id-token: write
     needs:
+      - generate-multiplatform-image
       - smoketest-multiplatform-image
 
     steps:
