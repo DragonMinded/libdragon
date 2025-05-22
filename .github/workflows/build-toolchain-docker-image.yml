@@ -80,7 +80,7 @@ jobs:
 
   build-toolchain-docker-image:
   # This job builds the toolchain docker image for the host platforms using the DockerFile.
-  # Beccause this is not a PR, it will start to build a multiplatform compatible image for the host platforms.
+  # Because this is not a PR, it will start to build a platform compatible container image for the multi-platform image.
   # It will also push the image to the registry.
     if: ${{ github.event_name != 'pull_request' }}
     strategy:
@@ -214,7 +214,7 @@ jobs:
           docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ steps.meta.outputs.version }}
 
   smoketest-multiplatform-image:
-  # Ensure that the image built in the previous job is working properly and is able to build libdragon (lib, tests and examples).
+  # Ensure that the multi-platform image built in the previous job is working properly and is able to build libdragon (lib, tests and examples).
   # across all platforms.
     if: ${{ github.event_name != 'pull_request' }}
     strategy:
@@ -253,7 +253,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull docker image
+      - name: Pull container image
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ needs.generate-multiplatform-image.outputs.version }}
 
@@ -296,7 +296,7 @@ jobs:
           # as docker supports only lowercase names in the registry.
           echo "GITHUB_REPOSITORY_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
-      - name: Pull docker image
+      - name: Pull container image
         if: github.ref_name == github.event.repository.default_branch
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_LC }}:${{ needs.generate-multiplatform-image.outputs.version }}
@@ -304,7 +304,7 @@ jobs:
       # Finally push the verified image to the registry with the latest tag if
       # we are on the default branch. At this point, we know that libdragon can
       # build with this freshly built image.
-      - name: Push latest docker image
+      - name: Push latest container image
         if: github.ref_name == github.event.repository.default_branch
         uses: docker/build-push-action@v6
         with:
