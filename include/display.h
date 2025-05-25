@@ -98,6 +98,21 @@ typedef enum {
     INTERLACE_HALF,
     /** @brief Video output is interlaced and buffer is swapped only on even fields */
     INTERLACE_FULL,
+    /** @brief Video output is interlaced and rdp is interlaced too, the buffer is swapped partially only when rdp has drawn the field buffer
+     * 
+     * Libdragon is rendering internally at a 480p even in interlaced mode, but the TV output is still 480i, 
+     * so this special mode makes use of the RDP's interlacing as well for the optimization. 
+     * But to actually make proper use of it, it needs a tight phased frame schedule between the RDP and VI to make sure that the frames drawn are latest and complete. 
+     * Moreover since the AA/dedithering algorithms use adjasent lines which may still be rendering by the RDP, 
+     * the phased schedule needs to account for that and only use fully drawn framebuffers for the VI.
+     * 
+     * Using this VI/RDP interlacing halvs the required fillrate to draw a frame and ideally doubles the framerate in high-res mode.
+     * It only works if the Y scale is exactly 1.0 (i.e vertical resolution + borders should be = 640 (in NTSC) or 576 (in PAL)) and the number of buffers should be 3.
+     * 
+     * If you use this interlacing mode, make sure to enable rdpq_enable_interlaced() after rdpq_attach() as well. 
+     * Use display_interlace_rdp_field() to know which field you should draw each frame. 
+     */
+    INTERLACE_RDP
 } interlace_mode_t;
 
 /**
@@ -437,6 +452,15 @@ float display_get_delta_time(void);
  * @param fps           The maximum number of frames per second to render (fractionals allowed)
  */
 void display_set_fps_limit(float fps);
+
+/**
+ * @brief Returns whether to enable the RDP interlacing feature in each frame, used with INTERLACE_RDP mode. 
+ * 
+ * Use the return value of it in the rdp_enable_interlaced() function.
+ * 
+ * @return int        <0 if the rdp interlacing should be disabled, 0 to draw only even lines, 1 to draw only odd lines, changed on each frame
+ */
+int display_interlace_rdp_field();
 
 /**
  * @brief Returns a surface that points to the framebuffer currently being shown on screen.
