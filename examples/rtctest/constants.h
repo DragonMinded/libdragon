@@ -57,7 +57,6 @@ static const char* RTC_DATE_FORMAT  = "            YYYY-MM-DD (DoW)            "
 static const char* RTC_TIME_FORMAT  = "                HH:MM:SS                ";
 static const char* ADJUST_MESSAGE   = "      Press A to adjust date/time       ";
 static const char* CONFIRM_MESSAGE  = "        Press A to write to RTC         ";
-static const char* NOWRITE_MESSAGE  = "      RTC source is not persistent!     ";
 static const char* SRC_JOY_MESSAGE  = "    Press L to switch to Joybus RTC     ";
 static const char* SRC_DD_MESSAGE   = "     Press L to switch to 64DD RTC      ";
 

@@ -9,8 +9,8 @@
 
 #include "controller.h"
 #include "interrupt.h"
+#include "joybus.h"
 #include "joybus_commands.h"
-#include "joybus_internal.h"
 
 /**
  * @defgroup controller Controller Subsystem

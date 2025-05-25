@@ -6,8 +6,8 @@
 
 #include <string.h>
 
+#include "joybus.h"
 #include "joybus_commands.h"
-#include "joybus_internal.h"
 
 /**
  * @addtogroup pixelfx

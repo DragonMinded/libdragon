@@ -248,6 +248,46 @@ typedef uint16_t joybus_identifier_t;
 #define JOYBUS_IDENTIFY_STATUS_EEPROM_BUSY                0x80
 /** @} */
 
+/**
+ * @brief Callback function signature for #joybus_exec_async
+ *
+ * Note that this function will be called under interrupt, so your callback:
+ *   - should not block or perform any intensive calculations
+ *   - should not call non-reentrant functions such as malloc or free
+ *   - should be careful accessing memory due to possible race conditions
+ */
+typedef void (*joybus_callback_t)(uint64_t *out_dwords, void *ctx);
+
+/**
+ * @brief Execute an asynchronous joybus message.
+ *
+ * This function executes an asynchronous joybus protocol exchange, sending
+ * a message block (input), and receiving a reply (output). The message is
+ * sent in background and a completion function "callback" is called when
+ * the output is ready to be processed.
+ *
+ * It is possible to schedule multiple joybus messages by calling this
+ * function multiple times. They will be automatically executed in order.
+ * The maximum number of pending messages at any given time is #MAX_JOYBUS_MSGS.
+ *
+ * @note The callback function will be called under interrupt.
+ *
+ * @note This function is not part of the public API yet because we want
+ *       to evaluate the use of threading rather than asynchronous programming.
+ *       It should only be used internally without exposing a asynchronous
+ *       API externally.
+ *
+ * @param[in]   input       The input block (must be of JOYBUS_BLOCK_SIZE bytes).
+ *                          No specific alignment is required for this data block.
+ * @param[in]   callback    A callback completion function that will be called
+ *                          when the joybus command is finished. The function
+ *                          will receive a pointer to the output buffer and the
+ *                          opaque pointer to the callback's context.
+ *                          Can be NULL if no callback is required.
+ * @param[in]   ctx         Context opaque pointer to pass to the callback.
+ *                          Can be NULL if no context is required.
+ */
+void joybus_exec_async(const void * input, joybus_callback_t callback, void *ctx);
 
 /**
  * @brief Write a 64-byte block of data to the PIF and read the 64-byte result.
