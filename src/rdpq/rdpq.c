@@ -1194,3 +1194,5 @@ extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
 extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int32_t tmem_addr, uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
 extern inline void rdpq_call_deferred(void (*func)(void *), void *arg);
 extern inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16_t k4, uint16_t k5);
+extern inline void rdpq_enable_interlaced(int draw_field);
+extern inline void rdpq_disable_interlaced();
