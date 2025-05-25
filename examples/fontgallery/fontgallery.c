@@ -599,7 +599,7 @@ int main()
     joypad_init();
 
     dfs_init(DFS_DEFAULT_LOCATION);
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_DISABLED);
     rdpq_init();
     // rdpq_debug_start();
 
