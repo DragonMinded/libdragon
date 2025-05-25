@@ -1,16 +1,10 @@
-name: Build-Tools-msys2-Windows
+name: Build-Tools
 
-on:
-  push:
-    paths:
-      - 'tools/*'
-  pull_request:
-    paths:
-      - 'tools/*'
+on: [push, pull_request]
 
 jobs:
   Build-Tools-Windows:
-    runs-on: windows-2022
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
