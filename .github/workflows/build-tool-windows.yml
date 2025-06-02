@@ -1,12 +1,6 @@
 name: Build-Tools-msys2-Windows
 
-on:
-  push:
-    paths:
-      - 'tools/*'
-  pull_request:
-    paths:
-      - 'tools/*'
+on: [push, pull_request]
 
 jobs:
   Build-Tools-Windows:
