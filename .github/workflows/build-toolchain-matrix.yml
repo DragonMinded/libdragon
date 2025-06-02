@@ -1,4 +1,4 @@
-name: Build-Native-Toolchain-Linux-Packages
+name: Build-Native-Toolchain-Packages
 
 # This workflow will build the libdragon N64 GCC toolchain to keep it up-to-date.
 on:
@@ -20,7 +20,7 @@ on:
 # this. It is ok to have parallel runs for push and PR events and from different
 # branches. We can cancel previous runs for non-trunk events.
 concurrency:
-  group: build-native-toolchain-linux-packages-${{ github.ref }}-${{ github.event_name }}
+  group: build-native-toolchain-packages-${{ github.ref }}-${{ github.event_name }}
 
 jobs:
   Build-Native-Toolchain:
