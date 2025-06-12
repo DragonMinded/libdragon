@@ -42,6 +42,7 @@ NEWLIB_V=4.4.0.20231231
 GMP_V=6.3.0
 MPC_V=1.3.1
 MPFR_V=4.2.1
+ZLIB_V=${ZLIB_V:-""}
 MAKE_V=${MAKE_V:-""}
 
 # Create build and download directories
@@ -141,6 +142,11 @@ if [ "$MAKE_V" != "" ]; then
     test -d "$BUILD_PATH/make-$MAKE_V"               || tar -xzf "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz" -C "$BUILD_PATH"
 fi
 
+if [ "$ZLIB_V" != "" ]; then
+    test -f "$DOWNLOAD_PATH/zlib-$ZLIB_V.tar.gz"     || download "https://zlib.net/fossils/zlib-$ZLIB_V.tar.gz"
+    test -d "$BUILD_PATH/zlib-$ZLIB_V"               || tar -xzf "$DOWNLOAD_PATH/zlib-$ZLIB_V.tar.gz" -C "$BUILD_PATH"
+fi
+
 cd "$BUILD_PATH"
 
 # Deduce build triplet using config.guess (if not specified)
@@ -188,6 +194,49 @@ else
             echo "Unimplemented option: we support building a Windows toolchain only, for now."
         fi
     fi
+fi
+
+if [ "$ZLIB_V" != "" ]; then
+    pushd "zlib-$ZLIB_V"
+    if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
+        sed -e s/"PREFIX ="/"PREFIX = $N64_HOST-"/ -i win32/Makefile.gcc
+        make -f win32/Makefile.gcc -j "$JOBS"
+        (
+            export \
+                BINARY_PATH="$INSTALL_PATH/bin" \
+                INCLUDE_PATH="$INSTALL_PATH/include" \
+                LIBRARY_PATH="$INSTALL_PATH/lib"
+            make -f win32/Makefile.gcc install || \
+            sudo make -f win32/Makefile.gcc install || \
+            su -c "make -f win32/Makefile.gcc install"
+        )
+    fi
+    popd
+fi
+
+if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
+    pushd "gmp-$GMP_V"
+    ./configure \
+        --prefix="$INSTALL_PATH" \
+        --host="$N64_HOST" \
+        --enable-static \
+        --disable-shared
+    make -j "$JOBS"
+    make install-strip || sudo make install-strip || su -c "make install-strip"
+    make distclean
+    popd
+
+    pushd "mpfr-$MPFR_V"
+    ./configure \
+        --prefix="$INSTALL_PATH" \
+        --host="$N64_HOST" \
+        --with-gmp="$INSTALL_PATH" \
+        --enable-static \
+        --disable-shared
+    make -j "$JOBS"
+    make install-strip || sudo make install-strip || su -c "make install-strip"
+    make distclean
+    popd
 fi
 
 # Compile BUILD->TARGET binutils
@@ -319,7 +368,7 @@ fi
 if [ "$MAKE_V" != "" ]; then
     pushd "make-$MAKE_V"
     ./configure \
-      --prefix="$INSTALL_PATH" \
+        --prefix="$INSTALL_PATH" \
         --disable-largefile \
         --disable-nls \
         --disable-rpath \

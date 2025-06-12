@@ -68,6 +68,11 @@ if [[ $OSTYPE == 'darwin'* ]]; then
         "--with-mpc=$(brew --prefix)"
         "--with-zlib=$(brew --prefix)"
     )
+elif [ "$N64_HOST" == "x86_64-w64-mingw32" ]; then
+    # Configure GDB arguments for Windows cross-compilation
+    GDB_CONFIGURE_ARGS+=("--with-zlib=$N64_INST")
+    GDB_CONFIGURE_ARGS+=("--with-gmp=$N64_INST")
+    GDB_CONFIGURE_ARGS+=("--with-mpfr=$N64_INST")
 else
     # Configure GDB arguments for non-macOS platforms
     GDB_CONFIGURE_ARGS+=("--with-system-zlib")
