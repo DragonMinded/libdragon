@@ -33,9 +33,9 @@ jobs:
       fail-fast: false
       matrix:
         include: [
-          { host-os: ubuntu-22.04, target-platform: Windows-x86_64, deb-architecture: '', rpm-architecture: '', host: x86_64-w64-mingw32, makefile-version: 4.4 },
-          { host-os: ubuntu-22.04, target-platform: Linux-x86_64, deb-architecture: amd64, rpm-architecture: x86_64, host: '', makefile-version: '' },
-          { host-os: ubuntu-22.04-arm, target-platform: Linux-aarch64, deb-architecture: arm64, rpm-architecture: aarch64, host: '', makefile-version: '' }
+          { host-os: ubuntu-22.04, target-platform: Windows-x86_64, deb-architecture: '', rpm-architecture: '', host: x86_64-w64-mingw32, makefile-version: 4.4, zlib-version: 1.2.13 },
+          { host-os: ubuntu-22.04, target-platform: Linux-x86_64, deb-architecture: amd64, rpm-architecture: x86_64, host: '', makefile-version: '', zlib-version: '' },
+          { host-os: ubuntu-22.04-arm, target-platform: Linux-aarch64, deb-architecture: arm64, rpm-architecture: aarch64, host: '', makefile-version: '', zlib-version: '' }
         ]
     runs-on: ${{ matrix.host-os }}
 
@@ -56,7 +56,7 @@ jobs:
       - name: Install x-compile system build dependencies
         if: ${{ matrix.target-platform == 'Windows-x86_64' }}
         run: |
-          sudo apt-get install -y mingw-w64
+          sudo apt-get install -y m4 mingw-w64
           # If there are other dependencies, we should add them here and make sure the documentation is updated!
 
       # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-ruby
@@ -114,7 +114,9 @@ jobs:
           export N64_INST=${{ runner.temp }}/${{ env.Install_Directory }}
           export N64_HOST=${{ matrix.host }}
           cd ./tools/
-          MAKE_V=${{ matrix.makefile-version }} ./build-toolchain.sh
+          MAKE_V=${{ matrix.makefile-version }} \
+          ZLIB_V=${{ matrix.zlib-version }} \
+          ./build-toolchain.sh
           ./build-gdb.sh
           echo "Removing un-necessary content"
           rm -rf ${N64_INST}/share/locale/*
