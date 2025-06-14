@@ -196,6 +196,8 @@ else
     fi
 fi
 
+# Build zlib. This is only required on mingw, as all other systems do have
+# zlib installed by default. So we only implement build process for mingw.
 if [ "$ZLIB_V" != "" ]; then
     pushd "zlib-$ZLIB_V"
     if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
@@ -214,6 +216,8 @@ if [ "$ZLIB_V" != "" ]; then
     popd
 fi
 
+# Build GMP/MFPR and install them. This will be useful later for the gdb build,
+# for mingw32 where those dependencies are not easily available.
 if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
     pushd "gmp-$GMP_V"
     ./configure \
