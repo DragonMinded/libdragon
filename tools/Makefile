@@ -38,10 +38,6 @@ all:
 # Avoid many warnings for vendored code that we don't intend to ever modify
 common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
 mkfont/freetype/FreeTypeAmalgam.o: CFLAGS += -Wno-all -Wno-error
-# Treat Clang VLA warnings as non-fatal
-ifeq ($(shell $(CC) --version | grep -c clang),1)
-audioconv64/audioconv64.o:         CXXFLAGS += -Wno-error=vla-cxx-extension
-endif
 
 common-clean:
 	rm -f common/*.o common/*.a common/*.d
