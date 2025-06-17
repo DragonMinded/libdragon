@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include <vector>
+#include <array>
 #include <algorithm>
 #include "../../src/audio/wav64_internal.h"
 #include "../common/binout.h"
@@ -281,9 +282,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		}
 
 		std::vector<int> skip_bitpos(skip_points.size(), 0);
-
-		struct vadpcm_vector skip_state[skip_points.size()][2];
-		memset(skip_state, 0, sizeof(skip_state));
+		std::vector<std::array<vadpcm_vector, 2>> skip_state(skip_points.size());
 
 		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		int16_t *schan = (int16_t*)malloc(wav->cnt * sizeof(int16_t));
@@ -538,11 +537,11 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 					break;
 				}
 
-				uint8_t in_samples[nb];
-				fread(in_samples, 1, nb, out);
+				std::vector<uint8_t> in_samples(nb);
+				fread(&in_samples[0], 1, nb, out);
 				if (nb & 1) fgetc(out); // align to 2-byte boundary
 
-				int ret = opus_custom_decode(dec, in_samples, nb, out_samples + outcnt*wav->channels, frame_size);
+				int ret = opus_custom_decode(dec, &in_samples[0], nb, out_samples + outcnt*wav->channels, frame_size);
 				if (ret < 0) {
 					fprintf(stderr, "ERROR: %s: opus decoding failed: %s\n", infn, opus_strerror(ret));
 					failed = true;

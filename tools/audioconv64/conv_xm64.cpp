@@ -98,8 +98,7 @@ static void xm_save_wave_internally(xm_context_t* ctx, FILE* meta, FILE* out, co
 		uint32_t pos;
 		xm_sample_t *s;
 	};
-	struct sample_checksum wave_sums[totsamples+1];
-	memset(wave_sums, 0, sizeof(wave_sums));
+	std::vector<sample_checksum> wave_sums(totsamples+1);
 
 	for (int i=0;i<ctx->module.num_instruments;i++) {
 		xm_instrument_t *ins = &ctx->module.instruments[i];
@@ -322,8 +321,8 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 		xm_pattern_t *p = &ctx->module.patterns[i];
 
 		int pat_size = p->num_rows*ctx->module.num_channels*5;
-		uint8_t cur_pat[pat_size];
-		uint8_t *pp = cur_pat;
+		std::vector<uint8_t> cur_pat(pat_size);
+		uint8_t *pp = &cur_pat[0];
 
 		xm_pattern_slot_t *s = &p->slots[0];
 		for (int k=0;k<ctx->module.num_channels;k++) {
@@ -338,7 +337,7 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 		}
 
 		int inplace_margin;
-		asset_compress_mem(cur_pat, pat_size, xm64, flag_xm_compress_meta, 0, &inplace_margin);
+		asset_compress_mem(&cur_pat[0], pat_size, xm64, flag_xm_compress_meta, 0, &inplace_margin);
 		if (inplace_margin > max_inplace_margin)
 			max_inplace_margin = inplace_margin;
 		placeholder_set_offset(meta, pos, "pattern_%d", i);
@@ -374,7 +373,7 @@ static void xm_remove_empty_samples(xm_context_t *ctx)
 	// remap the sample numbers in the instrument.
 	for (int i=0;i<ctx->module.num_instruments;i++) {
 		xm_instrument_t *ins = &ctx->module.instruments[i];
-		int sample_remap[ins->num_samples];
+		std::vector<int> sample_remap(ins->num_samples);
 
 		int j = 0;
 		for (int k=0;k<ins->num_samples;k++) {
