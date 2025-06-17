@@ -82,8 +82,10 @@ build/ipl3.elf: $(IPL3_LDSCRIPT) $(OBJS)
 	$(N64_CC) $(N64_CFLAGS) $(N64_LDFLAGS) -o $@ $(filter %.o,$^)
 	$(N64_READELF) --wide --sections $@ | grep .text
 
+# Install the IPL3 ROM in the tools directory as a C header file for n64tool.
 install: $(IPL3_ROM)
-	xxd -i -n default_ipl3 $< >../tools/ipl3.h
+	BIN_VAR_NAME=$$(echo "$<" | ${SED} 's/[^a-zA-Z0-9]/_/g') ; \
+	xxd -i "$<" | ${SED} "s/$${BIN_VAR_NAME}/default_ipl3/" >../tools/ipl3.h
 
 run: ipl3.z64
 	g64drive upload --autocic=false ipl3.z64 && g64drive cic 6102 && g64drive debug
