@@ -42,11 +42,8 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/lz4_dec_fast.o $(BUILD_DIR)/compress/ringbuf.o \
 			 $(BUILD_DIR)/compress/aplib_dec_fast.o $(BUILD_DIR)/compress/aplib_dec.o \
 			 $(BUILD_DIR)/compress/shrinkler_dec_fast.o $(BUILD_DIR)/compress/shrinkler_dec.o \
-			 $(BUILD_DIR)/joybus.o $(BUILD_DIR)/joybus_accessory.o $(BUILD_DIR)/joybus_rtc.o $(BUILD_DIR)/pixelfx.o \
-			 $(BUILD_DIR)/joypad.o $(BUILD_DIR)/joypad_accessory.o \
-			 $(BUILD_DIR)/controller.o $(BUILD_DIR)/ed64x.o $(BUILD_DIR)/ed64.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/rtc_internal.o \
-			 $(BUILD_DIR)/eeprom.o $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o $(BUILD_DIR)/cpak.o \
-			 $(BUILD_DIR)/tpak.o $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
+			 $(BUILD_DIR)/ed64x.o $(BUILD_DIR)/ed64.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/rtc_internal.o \
+			 $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
 			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/rsp_crash.o \
 			 $(BUILD_DIR)/inspector.o $(BUILD_DIR)/sprite.o \
 			 $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
@@ -78,6 +75,7 @@ include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
 include $(SOURCE_DIR)/bb/libdragon.mk
 include $(SOURCE_DIR)/dd/libdragon.mk
+include $(SOURCE_DIR)/joybus/libdragon.mk
 
 libdragon.a: $(LIBDRAGON_OBJS)
 

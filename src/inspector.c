@@ -4,7 +4,7 @@
 #include "display.h"
 #include "debug.h"
 #include "joypad.h"
-#include "joypad_internal.h"
+#include "joybus/joypad_internal.h"
 #include "exception_internal.h"
 #include "system.h"
 #include "utils.h"
