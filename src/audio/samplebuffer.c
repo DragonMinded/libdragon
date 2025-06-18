@@ -60,6 +60,7 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
 void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read) {
 	buf->wave = wave;
 	buf->wv_read = read;
+	buf->wave_uuid = wave->__uuid;
 	assert(wave->state_size <= buf->state_size);
 }
 

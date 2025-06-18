@@ -146,6 +146,11 @@ typedef struct samplebuffer_s {
      * requested by the mixer. See #WaveformRead for more information.
      */
     WaveformRead wv_read;
+
+    /**
+     * @brief UUID of the waveform being played back on this sample buffer.
+     */
+    uint32_t wave_uuid;
 } samplebuffer_t;
 
 /**

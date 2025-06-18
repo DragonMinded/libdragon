@@ -100,7 +100,6 @@ typedef struct mixer_channel_s {
 	void *ptr;             ///< Pointer to the waveform
 	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
 	waveform_t *wave;      ///< Waveform being played back on this channel
-	uint32_t wave_uuid;    ///< UUID of the waveform being played back
 } mixer_channel_t;
 
 /** @brief Mixer channel state - RSP side
@@ -419,7 +418,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 	//    state of the callback is also different (eg: compression state),
 	//    so the next (not already buffered) sample could cause
 	//    an error because it'd be decompressed with the wrong state.
-	if (wave->__uuid != c->wave_uuid) {
+	if (wave->__uuid != sbuf->wave_uuid) {
 		samplebuffer_flush(sbuf);
 
 		// If this channel is playing something else, stop it
@@ -451,11 +450,13 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name);
 	} else {
 		tracef("mixer_ch_play[old]: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name);
+
+		// There is a UUID match. There must also be a pointer match then.
+		assertf(sbuf->wave == wave, "%s: uuid match (%ld) but pointer mismatch: %p != %p", wave->name, wave->__uuid, sbuf->wave, wave);
 	}
 
 	// Restart from the beginning of the waveform
 	c->wave = wave;
-	c->wave_uuid = wave->__uuid;
 	c->ptr = SAMPLES_PTR(sbuf);
 	c->pos = 0;
 
