@@ -1,3 +1,8 @@
+############################################################
+# rsp_yuv.S
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 #include <rsp_queue.inc>
 #include "yuv_internal.h"
 

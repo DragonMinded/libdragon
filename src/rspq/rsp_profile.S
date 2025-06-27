@@ -1,3 +1,8 @@
+############################################################
+# rsp_profile.S
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 #include <rsp_queue.inc>
 #if RSPQ_PROFILE
 

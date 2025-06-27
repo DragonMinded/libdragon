@@ -1,3 +1,8 @@
+/**
+ * @file ktls.h
+ * @author Liam Coleman <gamemasterplc@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_KERNEL_TLS_H
 #define LIBDRAGON_KERNEL_TLS_H
 

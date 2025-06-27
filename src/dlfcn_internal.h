@@ -1,3 +1,8 @@
+/**
+ * @file dlfcn_internal.h
+ * @author gamemasterplc <gamemasterplc@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __DLFCN_INTERNAL_H
 #define __DLFCN_INTERNAL_H
 

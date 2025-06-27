@@ -1,5 +1,6 @@
 /**
  * @file console.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @brief Console Support
  * @ingroup console
  */

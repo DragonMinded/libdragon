@@ -1,5 +1,7 @@
 /**
  * @file cop1.h
+ * @author Ali Naci Erdem <anacierdem@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief N64 COP1 Interface
  * @ingroup n64sys
  * 

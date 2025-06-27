@@ -1,5 +1,6 @@
 /**
  * @file n64types.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Custom types used by libdragon
  * @ingroup libdragon
  */

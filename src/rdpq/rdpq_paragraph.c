@@ -1,3 +1,7 @@
+/**
+ * @file rdpq_paragraph.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "rdpq_paragraph.h"
 #include "rdpq_text.h"
 #include "rdpq_font.h"

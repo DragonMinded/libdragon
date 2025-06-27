@@ -1,5 +1,6 @@
 /**
  * @file pixelfx.c
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief PixelFX integration routines
  * @ingroup pixelfx
  */

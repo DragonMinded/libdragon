@@ -1,6 +1,6 @@
 /**
  * @file joypad.c
- * @author Christopher Bonhage (me@christopherbonhage.com)
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Joypad Subsystem
  * @ingroup joypad
  */

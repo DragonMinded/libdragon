@@ -1,3 +1,8 @@
+/**
+ * @file asset.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Liam Coleman <gamemasterplc@gmail.com>
+ */
 #include "asset.h"
 #include "asset_internal.h"
 #include "compress/aplib_dec_internal.h"

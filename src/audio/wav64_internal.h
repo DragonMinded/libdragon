@@ -1,3 +1,7 @@
+/**
+ * @file wav64_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_WAV64_INTERNAL_H
 #define __LIBDRAGON_WAV64_INTERNAL_H
 

@@ -1,3 +1,7 @@
+/**
+ * @file cthreads.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "threads.h"
 #include "kernel.h"
 #include "kernel_internal.h"

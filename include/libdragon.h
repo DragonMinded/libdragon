@@ -1,5 +1,7 @@
 /**
  * @file libdragon.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Main include file for programs seeking to link against libdragon
  * @ingroup libdragon
  */

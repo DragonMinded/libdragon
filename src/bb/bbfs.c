@@ -1,3 +1,7 @@
+/**
+ * @file bbfs.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <string.h>
 #include <assert.h>
 #include <fcntl.h>

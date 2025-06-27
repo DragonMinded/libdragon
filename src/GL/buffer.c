@@ -1,3 +1,7 @@
+/**
+ * @file buffer.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "gl_internal.h"
 #include <n64sys.h>
 #include <malloc.h>

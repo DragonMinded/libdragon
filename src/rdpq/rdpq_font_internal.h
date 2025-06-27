@@ -1,3 +1,7 @@
+/**
+ * @file rdpq_font_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __RDPQ_FONT_INTERNAL_H
 #define __RDPQ_FONT_INTERNAL_H
 

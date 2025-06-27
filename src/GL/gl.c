@@ -1,3 +1,7 @@
+/**
+ * @file gl.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "GL/gl.h"
 #include "rdpq.h"
 #include "rdpq_rect.h"

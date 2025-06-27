@@ -1,3 +1,7 @@
+/**
+ * @file ay8910.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_AY8910_H
 #define __LIBDRAGON_AY8910_H
 

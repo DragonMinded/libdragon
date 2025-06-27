@@ -1,3 +1,7 @@
+/**
+ * @file lzh5_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_COMPRESS_LZH5_h
 #define LIBDRAGON_COMPRESS_LZH5_h
 

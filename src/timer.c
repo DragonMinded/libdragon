@@ -1,5 +1,7 @@
 /**
  * @file timer.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Timer Subsystem
  * @ingroup timer
  */

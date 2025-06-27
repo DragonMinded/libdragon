@@ -1,3 +1,7 @@
+/**
+ * @file gl.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef __LIBDRAGON_GL_H
 #define __LIBDRAGON_GL_H
 

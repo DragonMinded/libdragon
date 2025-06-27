@@ -1,5 +1,6 @@
 /**
  * @file mixer.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP Audio mixer 
  * @ingroup mixer
  */

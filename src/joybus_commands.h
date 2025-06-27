@@ -1,6 +1,6 @@
 /**
  * @file joybus_commands.h
- * @author Christopher Bonhage (me@christopherbonhage.com)
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Joybus command helpers
  * @ingroup joybus_commands
  */

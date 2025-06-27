@@ -1,3 +1,7 @@
+/**
+ * @file kqueue.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "kernel.h"
 #include "kqueue.h"
 #include <stdlib.h>

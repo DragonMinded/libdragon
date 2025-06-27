@@ -1,5 +1,8 @@
 ##################################################
 # RSP.INC - Main include file to write RSP ucode
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+#          Dennis Heinze <dennisjp.heinze@gmail.com>
 ##################################################
 
 #ifndef RSP_INC

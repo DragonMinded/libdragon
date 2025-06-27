@@ -1,5 +1,6 @@
 /**
  * @file bbfs.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief iQue BBFS flash filesytem
  * @ingroup ique
  * 

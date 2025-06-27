@@ -1,3 +1,7 @@
+/**
+ * @file throttle.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 /* 
  * Throttle: helper for speed throttling.
  *

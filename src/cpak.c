@@ -1,3 +1,7 @@
+/**
+ * @file cpak.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/errno.h>

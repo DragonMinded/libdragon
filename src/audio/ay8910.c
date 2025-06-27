@@ -1,3 +1,7 @@
+/**
+ * @file ay8910.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "ay8910.h"
 #include <assert.h>
 #include <memory.h>

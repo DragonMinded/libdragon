@@ -1,6 +1,6 @@
 /**
  * @file joybus_rtc.h
- * @author Christopher Bonhage (me@christopherbonhage.com)
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Joybus Real-Time Clock Utilities
  * @ingroup rtc
  */

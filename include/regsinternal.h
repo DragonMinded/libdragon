@@ -1,5 +1,6 @@
 /**
  * @file regsinternal.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @brief Register definitions for various hardware in the N64
  * @ingroup lowlevel
  */

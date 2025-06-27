@@ -1,3 +1,8 @@
+/**
+ * @file dd.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Christopher Bonhage <me@christopherbonhage.com>
+ */
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>

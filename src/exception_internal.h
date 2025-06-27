@@ -1,3 +1,7 @@
+/**
+ * @file exception_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_EXCEPTION_INTERNAL_H
 #define __LIBDRAGON_EXCEPTION_INTERNAL_H
 

@@ -1,6 +1,6 @@
 /**
  * @file loader_compat.c
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief IPL3: Stage 2 (Flat binary loader)
  * 
  * This module implements the "compatibility" version of the second stage of

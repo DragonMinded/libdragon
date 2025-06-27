@@ -1,3 +1,7 @@
+/**
+ * @file debug.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef BOOT_DEBUG_H
 #define BOOT_DEBUG_H
 

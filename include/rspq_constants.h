@@ -1,3 +1,8 @@
+/**
+ * @file rspq_constants.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __RSPQ_INTERNAL
 #define __RSPQ_INTERNAL
 

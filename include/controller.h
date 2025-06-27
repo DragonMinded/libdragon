@@ -1,5 +1,7 @@
 /**
  * @file controller.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Controller Subsystem
  * @ingroup controller
  */

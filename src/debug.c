@@ -1,5 +1,6 @@
 /**
  * @file debug.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Debugging Support
  */
 #ifndef NDEBUG

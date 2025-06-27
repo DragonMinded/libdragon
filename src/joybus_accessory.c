@@ -1,6 +1,6 @@
 /**
  * @file joybus_accessory.c
- * @author Christopher Bonhage (me@christopherbonhage.com)
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Joybus Accessory utilities
  * @ingroup joybus
  */

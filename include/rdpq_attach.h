@@ -1,5 +1,6 @@
 /**
  * @file rdpq_attach.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: surface attachment API
  * @ingroup rdpq
  * 

@@ -1,4 +1,11 @@
 /**
+ * @file obj_map.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ *
+ *
+ *
+ *
+ *
  * This is a very simple hash map that uses open adressing (linear probing).
  * The hash function is the identity for now, since it uses integer keys.
  */

@@ -1,3 +1,8 @@
+/**
+ * @file model64.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author gamemasterplc <gamemasterplc@gmail.com>
+ */
 #ifndef __LIBDRAGON_MODEL64_H
 #define __LIBDRAGON_MODEL64_H
 

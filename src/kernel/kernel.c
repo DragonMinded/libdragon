@@ -1,3 +1,7 @@
+/**
+ * @file kernel.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "kernel.h"
 #include "kernel_internal.h"
 #include "backtrace_internal.h"

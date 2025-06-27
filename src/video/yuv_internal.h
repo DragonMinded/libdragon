@@ -1,3 +1,7 @@
+/**
+ * @file yuv_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_YUV_INTERNAL_H
 #define __LIBDRAGON_YUV_INTERNAL_H
 

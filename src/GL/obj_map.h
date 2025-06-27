@@ -1,3 +1,7 @@
+/**
+ * @file obj_map.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef _GL_OBJ_MAP_H
 #define _GL_OBJ_MAP_H
 

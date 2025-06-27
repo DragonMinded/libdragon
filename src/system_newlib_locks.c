@@ -1,5 +1,6 @@
 /**
  * @file system_newlib_locks.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief newlib lock implementation
  * @ingroup system
  * 

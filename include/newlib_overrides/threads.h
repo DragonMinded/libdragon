@@ -1,3 +1,8 @@
+/**
+ * @file threads.h
+ * @author Simon Eriksson <simon.eriksson.1187@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_KERNEL_CTHREADS_H
 #define LIBDRAGON_KERNEL_CTHREADS_H
 

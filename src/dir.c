@@ -1,5 +1,6 @@
 /**
  * @file dir.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Directory handling
  * @ingroup system
  */

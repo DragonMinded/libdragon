@@ -1,3 +1,7 @@
+/**
+ * @file utils.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_UTILS_H
 #define __LIBDRAGON_UTILS_H
 

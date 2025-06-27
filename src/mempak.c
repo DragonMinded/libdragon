@@ -1,5 +1,6 @@
 /**
  * @file mempak.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @brief Controller Pak Filesystem Routine
  * @ingroup controllerpak
  */

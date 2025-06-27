@@ -1,5 +1,7 @@
 /**
  * @file asset.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Liam Coleman <gamemasterplc@gmail.com>
  * @brief Asset Subsystem
  * @ingroup asset
  */

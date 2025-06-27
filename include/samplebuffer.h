@@ -1,5 +1,6 @@
 /**
  * @file samplebuffer.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Sample buffer 
  * @ingroup mixer
  */

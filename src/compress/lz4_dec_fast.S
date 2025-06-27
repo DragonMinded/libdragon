@@ -1,5 +1,7 @@
 ##############################################
 #  LZ4 - Fast decompressor in assembly
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ##############################################
 
 # NOTE: to optimize for speed, this decompressor can write up to 8 bytes

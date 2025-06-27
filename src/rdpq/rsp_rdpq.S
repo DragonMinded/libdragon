@@ -1,3 +1,9 @@
+############################################################
+# rsp_rdpq.S
+#
+# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 #include <rsp_queue.inc>
 #include "rdpq_constants.h"
 #include "rdpq_macros.h"

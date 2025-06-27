@@ -1,5 +1,6 @@
 /**
  * @file rompak_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief ROM bundle support
  * @ingroup rompak
  */

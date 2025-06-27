@@ -1,5 +1,7 @@
 /**
  * @file rdpq_rect.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RDP Command queue
  * @ingroup rdpq
  */

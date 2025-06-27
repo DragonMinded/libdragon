@@ -1,5 +1,7 @@
 /**
  * @file rsp.c
+ * @author Ali Naci Erdem <anacierdem@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Low-level RSP hardware library
  * @ingroup rsp
  */

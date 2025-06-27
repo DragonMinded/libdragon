@@ -1,3 +1,7 @@
+/**
+ * @file array.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "gl_internal.h"
 #include "debug.h"
 #include <malloc.h>

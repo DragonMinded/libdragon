@@ -1,3 +1,7 @@
+/**
+ * @file gl_enums.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef __LIBDRAGON_GL_ENUMS_H
 #define __LIBDRAGON_GL_ENUMS_H
 

@@ -1,5 +1,7 @@
 /**
  * @file exception.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Exception Handler
  * @ingroup exceptions
  */

@@ -1,3 +1,8 @@
+/**
+ * @file model64.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author gamemasterplc <gamemasterplc@gmail.com>
+ */
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>

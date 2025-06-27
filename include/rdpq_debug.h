@@ -1,5 +1,6 @@
 /**
  * @file rdpq_debug.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: debugging helpers
  * @ingroup rdpq
  */

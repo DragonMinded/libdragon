@@ -1,6 +1,7 @@
 /**
  * @file bb_rtc.c
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief iQue Player (BB) Real-Time Clock (RTC) driver.
  */
 

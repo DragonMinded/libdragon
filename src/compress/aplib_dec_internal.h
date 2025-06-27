@@ -1,3 +1,7 @@
+/**
+ * @file aplib_dec_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_COMPRESS_APLIB_DEC_INTERNAL_H
 #define LIBDRAGON_COMPRESS_APLIB_DEC_INTERNAL_H
 

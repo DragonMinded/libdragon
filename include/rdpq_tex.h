@@ -1,5 +1,6 @@
 /**
  * @file rdpq_tex.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: high-level texture/surface loading and blitting
  * @ingroup rdpq
  */

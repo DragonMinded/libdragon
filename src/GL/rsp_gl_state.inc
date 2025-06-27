@@ -1,3 +1,9 @@
+############################################################
+# rsp_gl_state.inc
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+#          Dennis Heinze <dennisjp.heinze@gmail.com>
+############################################################
 GL_STATE:
     # This is the GL state that is also used by the pipeline.
     GL_MATRICES:

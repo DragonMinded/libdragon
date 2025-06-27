@@ -1,6 +1,6 @@
 /**
  * @file joypad_internal.h
- * @author Christopher Bonhage (me@christopherbonhage.com)
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Joypad internal
  * @ingroup joypad
  */

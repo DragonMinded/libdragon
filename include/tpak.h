@@ -1,5 +1,8 @@
 /**
  * @file tpak.h
+ * @author joeldipops <joeldipops@gmail.com>
+ * @author Christopher Bonhage <me@christopherbonhage.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief Transfer Pak interface
  * @ingroup transferpak
  */

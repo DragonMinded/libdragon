@@ -1,3 +1,9 @@
+############################################################
+# entrypoint.S
+#
+# Authors: Jennifer Taylor <dragonminded@dragonminded.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 /*
  *   N64 init code for GNU as
  */

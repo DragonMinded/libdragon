@@ -1,3 +1,7 @@
+/**
+ * @file lz4_dec.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <stdio.h>
 #include <stdalign.h>
 #include <stdint.h>

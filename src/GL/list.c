@@ -1,3 +1,7 @@
+/**
+ * @file list.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "gl_internal.h"
 #include "rspq.h"
 

@@ -1,5 +1,6 @@
 /**
  * @file vi.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Video Interface Subsystem
  * @ingroup display
  * 

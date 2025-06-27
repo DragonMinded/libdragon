@@ -1,5 +1,6 @@
 /**
  * @file dragonfs.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @brief DragonFS
  * @ingroup dfs
  */

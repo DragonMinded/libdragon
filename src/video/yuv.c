@@ -1,5 +1,6 @@
 /**
  * @file yuv.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Hardware accelerated YUV conversion
  * @ingroup video
  */

@@ -1,3 +1,8 @@
+/**
+ * @file glu.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "GL/glu.h"
 #include "gl_internal.h"
 

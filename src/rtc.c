@@ -1,5 +1,6 @@
 /**
  * @file rtc.c
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Real-Time Clock Subsystem
  * @ingroup rtc
  */

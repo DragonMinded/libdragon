@@ -1,3 +1,7 @@
+/**
+ * @file rendermode.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include <float.h>
 
 #include "gl_internal.h"

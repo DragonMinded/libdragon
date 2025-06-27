@@ -1,3 +1,7 @@
+/**
+ * @file rsp_pipeline.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include <limits.h>
 
 #include "gl_internal.h"

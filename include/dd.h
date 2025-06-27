@@ -1,3 +1,8 @@
+/**
+ * @file dd.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Christopher Bonhage <me@christopherbonhage.com>
+ */
 #ifndef LIBDRAGON_DD_H
 #define LIBDRAGON_DD_H
 

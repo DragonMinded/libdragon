@@ -1,3 +1,7 @@
+/**
+ * @file wav64_vadpcm_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_AUDIO_VADPCM_INTERNAL_H
 #define LIBDRAGON_AUDIO_VADPCM_INTERNAL_H
 

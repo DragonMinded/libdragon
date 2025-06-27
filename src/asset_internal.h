@@ -1,3 +1,8 @@
+/**
+ * @file asset_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Liam Coleman <gamemasterplc@gmail.com>
+ */
 #ifndef __LIBDRAGON_ASSET_INTERNAL_H
 #define __LIBDRAGON_ASSET_INTERNAL_H
 

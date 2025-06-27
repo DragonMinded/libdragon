@@ -1,3 +1,7 @@
+/**
+ * @file fat.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <string.h>
 #include <fcntl.h>
 #include <stdlib.h>

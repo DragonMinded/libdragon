@@ -1,3 +1,8 @@
+############################################################
+# rsp_mpeg1.S
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 #include <rsp_queue.inc>
 #include "mpeg1_internal.h"
 

@@ -1,3 +1,7 @@
+/**
+ * @file inspector.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef NDEBUG
 #include "graphics.h"
 #include "vi_internal.h"

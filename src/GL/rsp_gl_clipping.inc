@@ -1,3 +1,8 @@
+############################################################
+# rsp_gl_clipping.inc
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 
     .section .data.gl_clipping
 

@@ -1,3 +1,7 @@
+/**
+ * @file texture.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "gl_internal.h"
 #include "../rspq/rspq_internal.h"
 #include "../rdpq/rdpq_sprite_internal.h"

@@ -1,5 +1,6 @@
 /**
  * @file nand.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief iQue NAND (flash) support
  * @ingroup ique
  * 

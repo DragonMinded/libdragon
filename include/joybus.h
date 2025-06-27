@@ -1,5 +1,6 @@
 /**
  * @file joybus.h
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Joybus Subsystem
  * @ingroup joybus
  */

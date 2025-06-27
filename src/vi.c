@@ -1,3 +1,7 @@
+/**
+ * @file vi.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "vi.h"
 #include "vi_internal.h"
 #include "interrupt.h"

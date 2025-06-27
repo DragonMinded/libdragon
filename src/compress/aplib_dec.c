@@ -1,3 +1,7 @@
+/**
+ * @file aplib_dec.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>

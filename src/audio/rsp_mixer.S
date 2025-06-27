@@ -2,6 +2,7 @@
 	#
 	# Libdragon RSP ucode for audio mixer
 	#
+	# Authors: Giovanni Bajo <giovannibajo@gmail.com>
 	####################################################################
 
 	##############################################################

@@ -1,3 +1,7 @@
+/**
+ * @file cpak.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_CPAK_H
 #define LIBDRAGON_CPAK_H
 

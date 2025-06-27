@@ -1,3 +1,7 @@
+/**
+ * @file gl_integration.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef __LIBDRAGON_GL_INTEGRATION
 #define __LIBDRAGON_GL_INTEGRATION
 

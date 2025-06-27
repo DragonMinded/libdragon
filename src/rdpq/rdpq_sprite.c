@@ -1,5 +1,6 @@
 /**
  * @file rdpq_sprite.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: high-level sprite loading and blitting
  * @ingroup rdpq
  */

@@ -1,3 +1,7 @@
+/**
+ * @file throttle.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "throttle.h"
 #include "n64sys.h"
 #include "timer.h"

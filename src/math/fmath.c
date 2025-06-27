@@ -1,5 +1,7 @@
 /**
  * @file fmath.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Fast math routines, optimized for 3D graphics calculations
  * @ingroup fastmath
  */

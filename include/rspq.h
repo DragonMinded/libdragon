@@ -1,5 +1,7 @@
 /**
  * @file rspq.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP Command queue
  * @ingroup rsp
  * 

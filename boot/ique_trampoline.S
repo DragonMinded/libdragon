@@ -1,3 +1,9 @@
+############################################################
+# ique_trampoline.S
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+#
+############################################################
 # iQue trampoline code
 # --------------------
 # On iQue, the OS does not run the IPL3 when a ROM is booted,

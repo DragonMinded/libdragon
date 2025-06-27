@@ -1,3 +1,7 @@
+/**
+ * @file rdpq_constants.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_RDPQ_CONSTANTS_H
 #define __LIBDRAGON_RDPQ_CONSTANTS_H
 

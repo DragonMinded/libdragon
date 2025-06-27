@@ -1,3 +1,7 @@
+/**
+ * @file glu.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_GLU_H
 #define __LIBDRAGON_GLU_H
 

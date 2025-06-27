@@ -1,3 +1,7 @@
+/**
+ * @file nand.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <stdint.h>
 #include <assert.h>
 #include "n64sys.h"

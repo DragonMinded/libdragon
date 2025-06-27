@@ -1,3 +1,9 @@
+############################################################
+# inthandler.S
+#
+# Authors: Jennifer Taylor <dragonminded@dragonminded.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 /*
    Simple interrupt handler, hands off MIPS interrupts to higher level processes.
    Based on INITS.inc from Neon64.

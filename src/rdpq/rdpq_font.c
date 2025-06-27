@@ -1,3 +1,7 @@
+/**
+ * @file rdpq_font.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>

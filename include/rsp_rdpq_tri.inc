@@ -2,6 +2,7 @@
 #
 #  RDPQ_Triangle: assemble a RDP triangle command
 #
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ##########################################################################
 
     .section .text.rdpq_triangle_send_async

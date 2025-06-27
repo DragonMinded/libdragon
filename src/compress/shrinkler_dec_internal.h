@@ -1,3 +1,7 @@
+/**
+ * @file shrinkler_dec_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_COMPRESS_SHRINKLER_DEC_INTERNAL_H
 #define LIBDRAGON_COMPRESS_SHRINKLER_DEC_INTERNAL_H
 

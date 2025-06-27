@@ -1,3 +1,7 @@
+/**
+ * @file gl_internal.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef __GL_INTERNAL
 #define __GL_INTERNAL
 
