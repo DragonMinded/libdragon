@@ -1,6 +1,7 @@
 /**
  * @file lighting.c
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL lighting calculations and material/light state management.
  */
 #include "gl_internal.h"
 #include "utils.h"

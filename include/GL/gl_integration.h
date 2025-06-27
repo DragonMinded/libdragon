@@ -1,6 +1,7 @@
 /**
  * @file gl_integration.h
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief Integration hooks for OpenGL context and lifecycle management.
  */
 #ifndef __LIBDRAGON_GL_INTEGRATION
 #define __LIBDRAGON_GL_INTEGRATION

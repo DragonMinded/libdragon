@@ -1,6 +1,7 @@
 /**
  * @file texture.c
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL texture object management and image operations.
  */
 #include "gl_internal.h"
 #include "../rspq/rspq_internal.h"

@@ -1,6 +1,7 @@
 /**
  * @file fat.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief FAT filesystem interface and newlib wrappers.
  */
 #include <string.h>
 #include <fcntl.h>

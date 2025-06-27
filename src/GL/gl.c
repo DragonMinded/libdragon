@@ -1,6 +1,7 @@
 /**
  * @file gl.c
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL core initialization and state management.
  */
 #include "GL/gl.h"
 #include "rdpq.h"

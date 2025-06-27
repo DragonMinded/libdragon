@@ -1,6 +1,7 @@
 /**
  * @file pixelrect.c
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL pixel transfer and pixel storage operations.
  */
 #include "gl_internal.h"
 #include <debug.h>

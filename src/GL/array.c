@@ -1,6 +1,7 @@
 /**
  * @file array.c
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL array and attribute pointer management for vertex data.
  */
 #include "gl_internal.h"
 #include "debug.h"

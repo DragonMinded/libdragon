@@ -1,6 +1,7 @@
 /**
  * @file kqueue.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Thread-safe FIFO queue implementation for kernel use.
  */
 #include "kernel.h"
 #include "kqueue.h"

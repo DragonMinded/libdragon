@@ -1,6 +1,7 @@
 /**
  * @file query.c
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL query object and state management.
  */
 #include "gl_internal.h"
 #include "gl_constants.h"
