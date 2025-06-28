@@ -88,22 +88,26 @@ typedef enum
     ((state) >= JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_STATUS_READ && \
      (state) <= JOYPAD_ACCESSORY_STATE_TRANSFER_STORE_DATA_WRITE)
 
-/** @brief Joypad accessory errors enumeration */
+/**
+ * @brief Joypad accessory error codes
+ */
 typedef enum
 {
-    JOYPAD_ACCESSORY_ERROR_PENDING = -1,
-    JOYPAD_ACCESSORY_ERROR_NONE = 0,
-    JOYPAD_ACCESSORY_ERROR_ABSENT,
-    JOYPAD_ACCESSORY_ERROR_CHECKSUM,
-    JOYPAD_ACCESSORY_ERROR_TRANSFER_PAK_STATUS_CHANGE,
-    JOYPAD_ACCESSORY_ERROR_UNKNOWN,
+    JOYPAD_ACCESSORY_ERROR_PENDING = -1,                    ///< Operation is pending   
+    JOYPAD_ACCESSORY_ERROR_NONE = 0,                        ///< No error
+    JOYPAD_ACCESSORY_ERROR_ABSENT,                          ///< Accessory is absent
+    JOYPAD_ACCESSORY_ERROR_CHECKSUM,                        ///< Checksum error
+    JOYPAD_ACCESSORY_ERROR_TRANSFER_PAK_STATUS_CHANGE,      ///< Transfer Pak status changed
+    JOYPAD_ACCESSORY_ERROR_UNKNOWN,                         ///< Unknown error
 } joypad_accessory_error_t;
 
-/** @brief Type of transfer performed by #joypad_accessory_xfer_async */
+/**
+ * @brief Type of transfer performed by #joypad_accessory_xfer_async
+ */
 typedef enum
 {
-    JOYPAD_ACCESSORY_XFER_READ,
-    JOYPAD_ACCESSORY_XFER_WRITE,
+    JOYPAD_ACCESSORY_XFER_READ,         ///< Read operation
+    JOYPAD_ACCESSORY_XFER_WRITE,        ///< Write operation
 } joypad_accessory_xfer_t;
 
 /** @brief Controller pak address to perform bank switching */
@@ -195,7 +199,7 @@ void joypad_accessory_detect_async(joypad_port_t port);
  * corruptions on the wire (that can indeed happen during normal operation).
  * This function will automatically retry the transfer in case of a checksum
  * error (up to some hardcoded number of times) and then eventually fail
- * with a #JOYPAD_ACCESSORY_ERROR_CHECKSUM error. If you get this error,
+ * with a @ref JOYPAD_ACCESSORY_ERROR_CHECKSUM error. If you get this error,
  * it might be useless to try again and you can just assume the connection
  * to the accessory is electrically faulty.
  * 
@@ -205,7 +209,7 @@ void joypad_accessory_detect_async(joypad_port_t port);
  *       available so the valid address range for Controller Paks is 0x0000-0x7FFF.
  * 
  * @param port          Joypad port number (#joypad_port_t)
- * @param xfer          Transfer direction (#JOYPAD_ACCESSORY_XFER_READ or #JOYPAD_ACCESSORY_XFER_WRITE)
+ * @param xfer          Transfer direction ( @ref JOYPAD_ACCESSORY_XFER_READ or @ref JOYPAD_ACCESSORY_XFER_WRITE)
  * @param start_addr    Starting address in the accessory to read from, or write to.
  *                      There is no alignment requirement for this address.
  * @param dst           Destination buffer to read accessory data into.
@@ -234,7 +238,7 @@ void joypad_accessory_xfer_async(
  * #joybus_accessory_write, which are limited to 32-byte, aligned data blocks.
  * 
  * @param port          Joypad port number (#joypad_port_t)
- * @param xfer          Transfer direction (#JOYPAD_ACCESSORY_XFER_READ or #JOYPAD_ACCESSORY_XFER_WRITE)
+ * @param xfer          Transfer direction (@ref JOYPAD_ACCESSORY_XFER_READ or @ref JOYPAD_ACCESSORY_XFER_WRITE)
  * @param start_addr    Starting address in the accessory to read from.
  *                      There is no alignment requirement for this address.
  * @param dst           Destination buffer to read accessory data into.

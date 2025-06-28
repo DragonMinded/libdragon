@@ -13,6 +13,7 @@
 extern "C" {
 #endif
 
+/** @brief Animation slot enumeration for model64 animations */
 typedef enum {
     MODEL64_ANIM_SLOT_0 = 0,
     MODEL64_ANIM_SLOT_1 = 1,
@@ -20,6 +21,7 @@ typedef enum {
     MODEL64_ANIM_SLOT_3 = 3
 } model64_anim_slot_t;
 
+/// @cond
 struct model64_s;
 typedef struct model64_s model64_t;
 
@@ -31,6 +33,7 @@ typedef struct primitive_s primitive_t;
 
 struct model64_node_s;
 typedef struct model64_node_s model64_node_t;
+/// @endcond
 
 model64_t *model64_load(const char *fn);
 model64_t *model64_load_buf(void *buf, int sz);

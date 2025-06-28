@@ -14,6 +14,7 @@
 
 #endif
 
+/// @cond
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
@@ -27,21 +28,21 @@
 #else
 #define read32be(ptr) __builtin_bswap32(*(uint32_t*)(ptr))
 #endif
+/// @endcond
 
-#define ADJUST_SHIFT 4
+#define ADJUST_SHIFT 4             ///< Shift amount for context probability adjustment
 
-#define NUM_SINGLE_CONTEXTS 1
-#define NUM_CONTEXT_GROUPS 4
-#define CONTEXT_GROUP_SIZE 256
-#define NUM_CONTEXTS  (NUM_SINGLE_CONTEXTS + NUM_CONTEXT_GROUPS * CONTEXT_GROUP_SIZE)
+#define NUM_SINGLE_CONTEXTS 1      ///< Number of single contexts
+#define NUM_CONTEXT_GROUPS 4       ///< Number of context groups  
+#define CONTEXT_GROUP_SIZE 256     ///< Size of each context group
+#define NUM_CONTEXTS  (NUM_SINGLE_CONTEXTS + NUM_CONTEXT_GROUPS * CONTEXT_GROUP_SIZE)  ///< Total number of contexts
 
+#define CONTEXT_KIND 0             ///< Context kind index
+#define CONTEXT_REPEATED -1        ///< Context repeated index
 
-#define CONTEXT_KIND 0
-#define CONTEXT_REPEATED -1
-
-#define CONTEXT_GROUP_LIT 0
-#define CONTEXT_GROUP_OFFSET 2
-#define CONTEXT_GROUP_LENGTH 3
+#define CONTEXT_GROUP_LIT 0        ///< Context group for literals
+#define CONTEXT_GROUP_OFFSET 2     ///< Context group for offsets
+#define CONTEXT_GROUP_LENGTH 3     ///< Context group for lengths
 
 /** @brief Decompressor state (for assembly) */
 typedef struct {
@@ -131,7 +132,7 @@ static inline int lzDecodeNumber(shrinkler_ctx_t *ctx, int context_group) {
     return shr_decode_number(ctx, NUM_SINGLE_CONTEXTS + (context_group << 8));
 }
 
-int shr_unpack(uint8_t *dst, uint8_t *src)
+static int shr_unpack(uint8_t *dst, uint8_t *src)
 {
     const int parity_mask = 1;
 
@@ -184,6 +185,16 @@ int shr_unpack(uint8_t *dst, uint8_t *src)
     return dst - dst_start;
 }
 
+/**
+ * @brief Decompress a full Shrinkler-compressed file into a buffer.
+ *
+ * @param fd File descriptor to read compressed data from.
+ * @param cmp_size Size of the compressed data.
+ * @param size Size of the decompressed data.
+ * @param buf Buffer to store decompressed data.
+ * @param buf_size Pointer to the size of the buffer; updated with required size.
+ * @return true on success, false on failure.
+ */
 bool decompress_shrinkler_full(int fd, size_t cmp_size, size_t size, void *buf, int *buf_size)
 {
     void *in = malloc(cmp_size);

@@ -19,27 +19,11 @@
 #include "dragonfs.h"
 #include "n64sys.h"
 #endif
+#define MIN_MATCH_SIZE  4      ///< Minimum match size for LZ4.
+#define LITERALS_RUN_LEN 15    ///< Maximum run length for literals in LZ4.
+#define MATCH_RUN_LEN 15       ///< Maximum run length for matches in LZ4.
 
-#define MIN_MATCH_SIZE  4
-#define LITERALS_RUN_LEN 15
-#define MATCH_RUN_LEN 15
-
-#define LZ4ULTRA_HEADER_SIZE        4
-#define LZ4ULTRA_MAX_HEADER_SIZE    7
-#define LZ4ULTRA_FRAME_SIZE         4
-
-#define LZ4ULTRA_ENCODE_ERR         (-1)
-
-#define LZ4ULTRA_DECODE_OK          0
-#define LZ4ULTRA_DECODE_ERR_FORMAT  (-1)
-#define LZ4ULTRA_DECODE_ERR_SUM     (-2)
-
-/* Compression flags */
-#define LZ4ULTRA_FLAG_FAVOR_RATIO    (1<<0)           /**< 1 to compress with the best ratio, 0 to trade some compression ratio for extra decompression speed */
-#define LZ4ULTRA_FLAG_RAW_BLOCK      (1<<1)           /**< 1 to emit raw block */
-#define LZ4ULTRA_FLAG_INDEP_BLOCKS   (1<<2)           /**< 1 if blocks are independent, 0 if using inter-block back references */
-#define LZ4ULTRA_FLAG_LEGACY_FRAMES  (1<<3)           /**< 1 if using the legacy frames format, 0 if using the modern lz4 frame format */
-
+/// @cond
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
@@ -47,7 +31,9 @@
 #define likely(x)       (x)
 #define unlikely(x)     (x)
 #endif
+/// @endcond
 
+/** @brief Decode multi-byte length. */
 #define LZ4ULTRA_DECOMPRESSOR_BUILD_LEN(__len) { \
    unsigned int byte; \
    do { \
@@ -91,7 +77,6 @@ static void wait_dma(const void *pIn) {
  * @param pInBlock pointer to compressed data
  * @param nBlockSize size of compressed data, in bytes
  * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
- * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
  * @param nBlockMaxSize total size of output decompression buffer, in bytes
  *
  * @return size of decompressed data in bytes, or -1 for error

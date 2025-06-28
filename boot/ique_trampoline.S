@@ -2,7 +2,6 @@
 # ique_trampoline.S
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#
 ############################################################
 # iQue trampoline code
 # --------------------

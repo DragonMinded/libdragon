@@ -52,7 +52,7 @@ LIBDRAGON_OBJS += \
 			 $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
 			 $(BUILD_DIR)/exception.o $(BUILD_DIR)/do_ctors.o \
 			 $(BUILD_DIR)/video/mpeg2.o $(BUILD_DIR)/video/yuv.o \
-			 $(BUILD_DIR)/video/profile.o $(BUILD_DIR)/video/throttle.o \
+			 $(BUILD_DIR)/video/profile.o \
 			 $(BUILD_DIR)/video/rsp_yuv.o $(BUILD_DIR)/video/rsp_mpeg1.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
 			 $(BUILD_DIR)/rspq/rspq_profile.o $(BUILD_DIR)/rspq/rsp_profile.o \
@@ -175,7 +175,6 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rsp_highpri.inc $(INSTALLDIR)/mips64-elf/include/rsp_highpri.inc
 	install -Cv -m 0644 include/mpeg2.h $(INSTALLDIR)/mips64-elf/include/mpeg2.h
 	install -Cv -m 0644 include/yuv.h $(INSTALLDIR)/mips64-elf/include/yuv.h
-	install -Cv -m 0644 include/throttle.h $(INSTALLDIR)/mips64-elf/include/throttle.h
 	install -Cv -m 0644 include/mixer.h $(INSTALLDIR)/mips64-elf/include/mixer.h
 	install -Cv -m 0644 include/samplebuffer.h $(INSTALLDIR)/mips64-elf/include/samplebuffer.h
 	install -Cv -m 0644 include/wav64.h $(INSTALLDIR)/mips64-elf/include/wav64.h

@@ -20,17 +20,18 @@
 #include "debug.h"
 #endif
 
-#define MAX_NOTES       16
-#define PAGE_SIZE       256
-#define BLOCK_SIZE      32
+#define MAX_NOTES       16      ///< Maximum number of notes in a controller pak
+#define PAGE_SIZE       256     ///< Page size in bytes
+#define BLOCK_SIZE      32      ///< Block size in bytes
 
-#define FAT_TERMINATOR  1
-#define FAT_UNUSED      3
-#define FAT_VALID(n)    ((n) >= 5)
+#define FAT_TERMINATOR  1            ///< FAT value marking the end of the file
+#define FAT_UNUSED      3            ///< FAT value marking an unused block
+#define FAT_VALID(n)    ((n) >= 5)   ///< Check if the FAT value refers to a block (rather than being a control value)
 
-#define NOTE_STATUS_OCCUPIED     (1<<9)
-#define NOTE_STATUS_SIZE         (1<<0)     // libdragon extension
+#define NOTE_STATUS_OCCUPIED     (1<<9)     ///< Flag to mark a note as occupied (not empty)
+#define NOTE_STATUS_SIZE         (1<<0)     ///< Libdragon extension to store the size of the note (not implemented yet)
 
+/// @cond
 #ifndef N64
 #define be16(x)   __builtin_bswap16(x)
 #define be16i(x)  (int16_t)__builtin_bswap16(x)
@@ -43,11 +44,12 @@
 #define be32(x)   (x)
 #define RAND()    C0_COUNT()
 #endif
+/// @endcond
 
-#define FLAG_READING            (1<<0)
-#define FLAG_WRITING            (1<<1)
-#define FLAG_NOTE_DIRTY         (1<<2)
-#define FLAG_FAT_DIRTY          (1<<3)
+#define FLAG_READING            (1<<0)     ///< Flag to mark a file as being read
+#define FLAG_WRITING            (1<<1)     ///< Flag to mark a file as being written
+#define FLAG_NOTE_DIRTY         (1<<2)     ///< Flag to mark a file whose note requires being rewritten
+#define FLAG_FAT_DIRTY          (1<<3)     ///< Flag to mark a file whose FAT requires being rewritten
 
 /** @brief ID sector */
 typedef union {

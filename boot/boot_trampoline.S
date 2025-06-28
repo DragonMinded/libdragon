@@ -2,7 +2,6 @@
 # boot_trampoline.S
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#
 ############################################################
 # IPL3 trampoline code
 # --------------------

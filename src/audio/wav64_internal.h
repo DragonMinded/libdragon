@@ -5,17 +5,19 @@
 #ifndef __LIBDRAGON_WAV64_INTERNAL_H
 #define __LIBDRAGON_WAV64_INTERNAL_H
 
-#define WAV64_ID            "WV64"
-#define WAV64_FORMAT_RAW    0
-#define WAV64_FORMAT_VADPCM 1
-#define WAV64_FORMAT_OPUS   3
-#define WAV64_NUM_FORMATS   4
+#define WAV64_ID            "WV64"    ///< WAV64 file identifier
+#define WAV64_FORMAT_RAW    0         ///< Raw audio format
+#define WAV64_FORMAT_VADPCM 1         ///< VADPCM compressed format
+#define WAV64_FORMAT_OPUS   3         ///< Opus compressed format
+#define WAV64_NUM_FORMATS   4         ///< Number of supported formats
 
-#define WAV64_FLAG_OWNED_FD			 	 (1 << 0)
+#define WAV64_FLAG_OWNED_FD (1 << 0)  ///< Flag indicating the file descriptor is owned by the wav64 structure
 
+/// @cond
 typedef struct wav64_s wav64_t;
 typedef struct wav64_loadparms_s wav64_loadparms_t;
 typedef struct samplebuffer_s samplebuffer_t;
+/// @endcond
 
 /** @brief Header of a WAV64 file. */
 typedef struct __attribute__((packed)) {

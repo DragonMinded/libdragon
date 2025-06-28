@@ -1,6 +1,7 @@
 /**
  * @file utils.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Misc utilities functions and macros
  */
 #ifndef __LIBDRAGON_UTILS_H
 #define __LIBDRAGON_UTILS_H
@@ -8,14 +9,14 @@
 #include <string.h>  // memcpy
 #include <stdint.h>
 
-/**
- * Misc utilities functions and macros. Internal header.
- */
-
+/** @brief Swap two values */
 #define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
 
+/** @brief Return the maximum of two values */
 #define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
+/** @brief Return the minimum of two values */
 #define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
+/** @brief Clamp a value between min and max */
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 
 /** @brief Round n up to the next multiple of d */

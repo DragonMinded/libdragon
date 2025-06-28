@@ -19,10 +19,37 @@ extern "C" {
  * configured by libdragon is 64KB.
  */
 #define DECOMPRESS_LZH5_STATE_SIZE            (6096+16)
+
+/**
+ * @brief Default window size for LZH5 decompression.
+ */
 #define DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE   (8192)
 
+/**
+ * @brief Initialize the LZH5 decompressor state.
+ *
+ * @param state Pointer to the decompressor state buffer.
+ * @param fp FILE pointer to read compressed data from.
+ * @param winsize Window size for the decompressor.
+ */
 void decompress_lzh5_init(void *state, FILE *fp, int winsize);
+
+/**
+ * @brief Read decompressed data from the LZH5 stream.
+ *
+ * @param state Pointer to the decompressor state buffer.
+ * @param buf Buffer to store decompressed data.
+ * @param len Number of bytes to read.
+ * @return Number of bytes read, or -1 on error.
+ */
 ssize_t decompress_lzh5_read(void *state, void *buf, size_t len);
+
+/**
+ * @brief Get the current position in the decompressed stream.
+ *
+ * @param state Pointer to the decompressor state buffer.
+ * @return Current position in the decompressed stream.
+ */
 int decompress_lzh5_pos(void *state);
 
 /**

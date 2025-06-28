@@ -22,6 +22,9 @@ typedef struct rspq_block_s rspq_block_t;
 
 #define FONT_FLAG_TYPE_MASK     0x0000000F  ///< Mask for the font type
 
+/**
+ * @brief Type of the font
+ */
 typedef enum {
     FONT_TYPE_ALIASED         = 0,      ///< Aliased font (I4)
     FONT_TYPE_MONO            = 1,      ///< Mono font (CI4, which are 4 1bpp layers)
@@ -135,6 +138,17 @@ typedef struct rdpq_font_s {
  */
 int16_t __rdpq_font_glyph(const rdpq_font_t *font, uint32_t codepoint);
 
+/**
+ * @brief Get glyph metrics for a font glyph.
+ *
+ * @param fnt           Font to query.
+ * @param index         Index of the glyph in the font.
+ * @param xadvance      Pointer to store the advance width (can be NULL).
+ * @param xoff          Pointer to store the start x offset (can be NULL).
+ * @param xoff2         Pointer to store the end x offset (can be NULL).
+ * @param has_kerning   Pointer to store whether the glyph has kerning (can be NULL).
+ * @param atlas_id      Pointer to store the atlas ID (can be NULL).
+ */
 inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *atlas_id)
 {
     glyph_t *g = &fnt->glyphs[index];

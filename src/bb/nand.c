@@ -12,14 +12,14 @@
 #include "utils.h"
 #include "interrupt.h"
 
-#define PI_DRAM_ADDR                        ((volatile uint32_t*)0xA4600000)
-#define PI_CART_ADDR                        ((volatile uint32_t*)0xA4600004)
-#define PI_BB_ATB_UPPER                     ((volatile uint32_t*)0xA4600040)        
-#define PI_BB_NAND_CTRL                     ((volatile uint32_t*)0xA4600048)
-#define PI_BB_NAND_CFG                      ((volatile uint32_t*)0xA460004C)
-#define PI_BB_RD_LEN                        ((volatile uint32_t*)0xA4600058)
-#define PI_BB_WR_LEN                        ((volatile uint32_t*)0xA460005C)
-#define PI_BB_NAND_ADDR                     ((volatile uint32_t*)0xA4600070)
+#define PI_DRAM_ADDR                        ((volatile uint32_t*)0xA4600000)    ///< PI DRAM address register for NAND operations.
+#define PI_CART_ADDR                        ((volatile uint32_t*)0xA4600004)    ///< PI CART address register for NAND operations.
+#define PI_BB_ATB_UPPER                     ((volatile uint32_t*)0xA4600040)    ///< PI BB ATB upper register.
+#define PI_BB_NAND_CTRL                     ((volatile uint32_t*)0xA4600048)    ///< PI BB NAND control register.
+#define PI_BB_NAND_CFG                      ((volatile uint32_t*)0xA460004C)    ///< PI BB NAND configuration register.
+#define PI_BB_RD_LEN                        ((volatile uint32_t*)0xA4600058)    ///< PI BB read length register.
+#define PI_BB_WR_LEN                        ((volatile uint32_t*)0xA460005C)    ///< PI BB write length register.
+#define PI_BB_NAND_ADDR                     ((volatile uint32_t*)0xA4600070)    ///< PI BB NAND address register.
 
 #define PI_BB_BUFFER_0                      ((volatile uint32_t*)0xA4610000)    ///< NAND buffer 0
 #define PI_BB_BUFFER_1                      ((volatile uint32_t*)0xA4610200)    ///< NAND buffer 1
@@ -27,26 +27,37 @@
 #define PI_BB_SPARE_1                       ((volatile uint32_t*)0xA4610410)    ///< NAND spare data 1
 #define PI_BB_AES_KEY                       ((volatile uint32_t*)0xA4610420)    ///< AES expanded key
 #define PI_BB_AES_IV                        ((volatile uint32_t*)0xA46104D0)    ///< AES initialization vector
-#define PI_BB_ATB_LOWER                     ((volatile uint32_t*)0xA4610500)
+#define PI_BB_ATB_LOWER                     ((volatile uint32_t*)0xA4610500)    ///< PI BB ATB lower register.
 
-#define PI_BB_NAND_CTRL_BUSY                (1 << 31)
-#define PI_BB_NAND_CTRL_ECC_ERROR           (1 << 10)
-#define PI_BB_NAND_CTRL_ECC_CORRECTED       (1 << 11)
+#define PI_BB_NAND_CTRL_BUSY                (1 << 31)                           ///< PI BB NAND control busy flag.
+#define PI_BB_NAND_CTRL_ECC_ERROR           (1 << 10)                           ///< PI BB NAND control ECC error flag.
+#define PI_BB_NAND_CTRL_ECC_CORRECTED       (1 << 11)                           ///< PI BB NAND control ECC corrected flag.
 
-#define PI_BB_WNAND_CTRL_CMD_SHIFT          16
-#define PI_BB_WNAND_CTRL_LEN_SHIFT          0
-#define PI_BB_WNAND_CTRL_MULTICYCLE         (1 << 10)
-#define PI_BB_WNAND_CTRL_ECC                (1 << 11)
-#define PI_BB_WNAND_CTRL_BUF(n)             ((n) << 14)
-#define PI_BB_WNAND_CTRL_INTERRUPT          (1 << 30)
-#define PI_BB_WNAND_CTRL_EXECUTE            (1 << 31)
+#define PI_BB_WNAND_CTRL_CMD_SHIFT          16                                  ///< PI BB write NAND control command shift.
+#define PI_BB_WNAND_CTRL_LEN_SHIFT          0                                   ///< PI BB write NAND control length shift.
+#define PI_BB_WNAND_CTRL_MULTICYCLE         (1 << 10)                           ///< PI BB write NAND control multicyle flag.
+#define PI_BB_WNAND_CTRL_ECC                (1 << 11)                           ///< PI BB write NAND control ECC flag.
+#define PI_BB_WNAND_CTRL_BUF(n)             ((n) << 14)                         ///< PI BB write NAND control buffer select.
+#define PI_BB_WNAND_CTRL_INTERRUPT          (1 << 30)                           ///< PI BB write NAND control interrupt flag.
+#define PI_BB_WNAND_CTRL_EXECUTE            (1 << 31)                           ///< PI BB write NAND control execute flag.
 
-#define PI_BB_WATB_UPPER_DMAREAD            (1 << 4)        ///< This ATB entry will be enabled for DMA
-#define PI_BB_WATB_UPPER_CPUREAD            (1 << 5)        ///< This ATB entry will be enabled for CPU read
-#define PI_BB_WATB_UPPER_IVSOURCE           (1 << 8)
+#define PI_BB_WATB_UPPER_DMAREAD            (1 << 4)                            ///< This ATB entry will be enabled for DMA.
+#define PI_BB_WATB_UPPER_CPUREAD            (1 << 5)                            ///< This ATB entry will be enabled for CPU read.
+#define PI_BB_WATB_UPPER_IVSOURCE           (1 << 8)                            ///< PI BB ATB upper IV source flag.
 
-#define PI_BB_ATB_MAX_ENTRIES               192
+#define PI_BB_ATB_MAX_ENTRIES               192                                 ///< Maximum number of ATB entries.
 
+/** 
+ * @brief NAND hardware commands 
+ *
+ * These macro contain the command code for the NAND hardware (that can be
+ * found in the datasheet) plus the configuration for the NAND controller to
+ * perform the command. 
+ *
+ * The various bits for the controller are still underspecified. n64brew has
+ * some guesses, but mostly this was verified with hardware tests. This is why
+ * the bits don't have a macro name yet.
+ */
 typedef enum {
     NAND_CMD_READ1_H0   = (0x00 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<27) | (1<<26)| (1<<25) | (1<<24) | (1<<15),
     NAND_CMD_READ1_H1   = (0x01 << PI_BB_WNAND_CTRL_CMD_SHIFT) | (1<<28) | (1<<27) | (1<<26)| (1<<25) | (1<<24) | (1<<15),
@@ -140,7 +151,7 @@ static void nand_cmd_erase(uint32_t addr)
     nand_cmd_wait();
 }
 
-void nand_read_id(uint8_t id[4])
+static void nand_read_id(uint8_t id[4])
 {
     uint8_t aligned_buf[16] __attribute__((aligned(16)));
     data_cache_hit_invalidate(aligned_buf, 16);

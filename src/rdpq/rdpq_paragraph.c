@@ -13,9 +13,11 @@
 #include <stdlib.h>
 #include <assert.h>
 
+/// @cond
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
+/// @endcond
 
-void __rdpq_paragraph_builder_newline(int ch_newline);
+static void __rdpq_paragraph_builder_newline(int ch_newline);
 
 static struct {
     rdpq_paragraph_t *layout;
@@ -63,7 +65,7 @@ uint32_t __utf8_decode(const char **str)
     return 0xFFFD;
 }
 
-bool rdpq_paragraph_builder_full(void)
+static bool rdpq_paragraph_builder_full(void)
 {
     return (builder.parms->height && builder.y - builder.font->descent >= builder.parms->height) 
             || (builder.max_chars == 0);
@@ -192,12 +194,14 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     int16_t next_index = -1;
     bool is_tab = false;
 
+    /// @cond
     #define UTF8_DECODE_NEXT() ({ \
         uint32_t codepoint = *utf8_text > 0 ? *utf8_text++ : __utf8_decode(&utf8_text); \
         is_tab = (codepoint == '\t'); \
         if (is_tab) codepoint = ' '; \
         __rdpq_font_glyph(builder.font, codepoint); \
     })
+    /// @endcond
 
     while (utf8_text < end || next_index >= 0) {
         if (UNLIKELY(builder.max_chars <= 0))
@@ -400,7 +404,7 @@ static bool __rdpq_paragraph_builder_update_bbox_width(int ix0, int ix1)
     return true;
 }
 
-void __rdpq_paragraph_builder_newline(int ch_newline)
+static void __rdpq_paragraph_builder_newline(int ch_newline)
 {
     float line_height = 0.0f;
     
@@ -501,6 +505,7 @@ static uint8_t must_hex_digit(uint8_t ch, bool *error)
     return 0;
 }
 
+/** @brief Inner implementation of #rdpq_paragraph_build, with explicit memory handling. */
 rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes, rdpq_paragraph_t *layout)
 {
     rdpq_paragraph_builder_begin(parms, initial_font_id, layout);
@@ -602,6 +607,7 @@ void rdpq_paragraph_free(rdpq_paragraph_t *layout)
     free(layout);
 }
 
+/** @brief Global constructor to perform a sanity check on code generation for rdpq_paragraph. */
 __attribute__((constructor))
 void __rdpq_paragraph_char_check_bitfield(void)
 {

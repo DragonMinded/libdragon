@@ -251,6 +251,7 @@ static void __vblank_interrupt(void*)
     }
 }
 
+/** @brief VI interrupt handler for line interrupts */
 void __vi_interrupt(void)
 {
     // Check if there are pending line interrupts to install on this frame.

@@ -20,9 +20,12 @@
 #include "aplib_dec_internal.h"
 #include "ringbuf_internal.h"
 
+/** @brief Minimum match offset for 3-byte matches */
 #define MINMATCH3_OFFSET 1280
+/** @brief Minimum match offset for 4-byte matches */
 #define MINMATCH4_OFFSET 32000
 
+/// @cond
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
@@ -30,6 +33,7 @@
 #define likely(x)       (x)
 #define unlikely(x)     (x)
 #endif
+/// @endcond
 
 /** @brief APLib decompressor */
 typedef struct {

@@ -46,8 +46,10 @@ typedef struct texture_table_s {
     int ref_count;            ///< How many models have shared textures
 } texture_table_t;
 
+/** @brief Global shared texture table */
 static texture_table_t* shared_textures;
 
+/** @brief Allocates the global texture table */
 void texture_table_allocate()
 {
     shared_textures = calloc(1, sizeof(texture_table_t));
@@ -56,6 +58,7 @@ void texture_table_allocate()
     shared_textures->ref_count = 1;
 }
 
+/** @brief Frees a texture entry and its resources */
 void free_texture_entry(texture_entry_t *entry) {
     assertf(entry->ref_count == 0, "Leaked a texture entry %p", entry);
     free(entry->path);
@@ -68,6 +71,7 @@ void free_texture_entry(texture_entry_t *entry) {
     entry->sprite = NULL;
 }
 
+/** @brief Frees the global texture table */
 void texture_table_free()
 {
     assertf(shared_textures->ref_count == 0, "Tried freeing texture table while still in use");
@@ -81,6 +85,7 @@ void texture_table_free()
     shared_textures = NULL;
 }
 
+/** @brief Gets texture index by path */
 uint32_t texture_table_get(const char* path)
 {
     for (uint32_t i = 0; i < shared_textures->size; i++) {
@@ -95,6 +100,7 @@ uint32_t texture_table_get(const char* path)
     return TEXTURE_INDEX_MISSING;
 }
 
+/** @brief Adds a texture to the shared table */
 uint32_t texture_table_add(const char* path, const char* prefix)
 {
     uint32_t idx = TEXTURE_INDEX_MISSING;
@@ -146,6 +152,7 @@ uint32_t texture_table_add(const char* path, const char* prefix)
     return idx;
 }
 
+/** @brief Increments reference count for a texture */
 void texture_table_inc_ref_count(uint32_t idx)
 {
     if (idx == TEXTURE_INDEX_MISSING) return;
@@ -154,6 +161,7 @@ void texture_table_inc_ref_count(uint32_t idx)
     shared_textures->entries[idx].ref_count++;
 }
 
+/** @brief Decrements reference count for a texture */
 void texture_table_dec_ref_count(uint32_t idx)
 {
     if (idx == TEXTURE_INDEX_MISSING) return;
@@ -168,7 +176,9 @@ void texture_table_dec_ref_count(uint32_t idx)
     }
 }
 
+/** @brief Decodes a pointer relative to model base address */
 #define PTR_DECODE(model, ptr)    ((void*)(((uint8_t*)(model)) + (uint32_t)(ptr)))
+/** @brief Encodes a pointer relative to model base address */
 #define PTR_ENCODE(model, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(model)))
 
 static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix)
@@ -403,25 +413,28 @@ static model64_data_t *load_model64_data(const char *fn)
     return data;
 }
 
+/** @brief Loads model from buffer */
 model64_t *model64_load_buf(void *buf, int sz)
 {
     model64_data_t *data = load_model64_data_buf(buf, sz);
     return make_model_instance(data);
 }
 
+/** @brief Loads model from file */
 model64_t *model64_load(const char *fn)
 {
     model64_data_t *data = load_model64_data(fn);
     return make_model_instance(data);
 }
 
-
+/** @brief Clones a model instance */
 model64_t *model64_clone(model64_t *model)
 {
     model->data->ref_count++;
     return make_model_instance(model->data);
 }
 
+/** @brief Unloads model data and encodes pointers */
 static void unload_model_data(model64_data_t *model)
 {
     for(uint32_t i=0; i<model->num_nodes; i++)
@@ -500,6 +513,7 @@ static void free_model64_data(model64_data_t *data)
     }
 }
 
+/** @brief Frees a model instance and its data */
 void model64_free(model64_t *model)
 {
     for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
@@ -511,26 +525,31 @@ void model64_free(model64_t *model)
     free(model);
 }
 
+/** @brief Gets the number of meshes in a model */
 uint32_t model64_get_mesh_count(model64_t *model)
 {
     return model->data->num_meshes;
 }
 
+/** @brief Gets a mesh by index */
 mesh_t *model64_get_mesh(model64_t *model, uint32_t mesh_index)
 {
     return &model->data->meshes[mesh_index];
 }
 
+/** @brief Gets the number of nodes in a model */
 uint32_t model64_get_node_count(model64_t *model)
 {
     return model->data->num_nodes;
 }
 
+/** @brief Gets a node by index */
 model64_node_t *model64_get_node(model64_t *model, uint32_t node_index)
 {
     return &model->data->nodes[node_index];
 }
 
+/** @brief Searches for a node by name */
 model64_node_t *model64_search_node(model64_t *model, const char *name)
 {
     for(uint32_t i=0; i<model->data->num_nodes; i++)
@@ -544,11 +563,13 @@ model64_node_t *model64_search_node(model64_t *model, const char *name)
     return NULL;
 }
 
+/** @brief Gets the index of a node */
 static uint32_t get_node_idx(model64_t *model, model64_node_t *node)
 {
     return node - model->data->nodes;
 }
 
+/** @brief Sets the position of a node */
 void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float y, float z)
 {
     uint32_t node_idx = get_node_idx(model, node);
@@ -561,6 +582,7 @@ void model64_set_node_pos(model64_t *model, model64_node_t *node, float x, float
     update_node_matrices(model);
 }
 
+/** @brief Sets the rotation of a node using Euler angles */
 void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float y, float z)
 {
     float cr, sr, cp, sp, cy, sy;
@@ -574,6 +596,7 @@ void model64_set_node_rot(model64_t *model, model64_node_t *node, float x, float
     model64_set_node_rot_quat(model, node, x, y, z, w);
 }
 
+/** @brief Sets the rotation of a node using quaternion */
 void model64_set_node_rot_quat(model64_t *model, model64_node_t *node, float x, float y, float z, float w)
 {
     uint32_t node_idx = get_node_idx(model, node);
@@ -587,6 +610,7 @@ void model64_set_node_rot_quat(model64_t *model, model64_node_t *node, float x, 
     update_node_matrices(model);
 }
 
+/** @brief Sets the scale of a node */
 void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, float y, float z)
 {
     uint32_t node_idx = get_node_idx(model, node);
@@ -599,6 +623,7 @@ void model64_set_node_scale(model64_t *model, model64_node_t *node, float x, flo
     update_node_matrices(model);
 }
 
+/** @brief Gets the world matrix of a node */
 void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float dst[16])
 {
     uint32_t node_idx = get_node_idx(model, node);
@@ -606,16 +631,19 @@ void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float ds
     mtx_copy(dst, model->transforms[node_idx].world_mtx);
 }
 
+/** @brief Gets the number of primitives in a mesh */
 uint32_t model64_get_primitive_count(mesh_t *mesh)
 {
     return mesh->num_primitives;
 }
 
+/** @brief Gets a primitive by index */
 primitive_t *model64_get_primitive(mesh_t *mesh, uint32_t primitive_index)
 {
     return &mesh->primitives[primitive_index];
 }
 
+/** @brief Draws a single primitive */
 void model64_draw_primitive(primitive_t *primitive)
 {
     if (primitive->shared_texture != TEXTURE_INDEX_MISSING) {
@@ -687,6 +715,7 @@ void model64_draw_primitive(primitive_t *primitive)
     }
 }
 
+/** @brief Draws all primitives in a mesh */
 void model64_draw_mesh(mesh_t *mesh)
 {
     for (uint32_t i = 0; i < model64_get_primitive_count(mesh); i++)
@@ -695,6 +724,7 @@ void model64_draw_mesh(mesh_t *mesh)
     }
 }
 
+/** @brief Draws a node and its mesh */
 void model64_draw_node(model64_t *model, model64_node_t *node)
 {
     uint32_t node_idx = get_node_idx(model, node);
@@ -727,6 +757,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
     }
 }
 
+/** @brief Draws all nodes in a model */
 void model64_draw(model64_t *model)
 {
     for (uint32_t i = 0; i < model64_get_node_count(model); i++)
@@ -769,6 +800,7 @@ static bool is_anim_slot_valid(model64_anim_slot_t slot)
     return (slot >= 0) && (slot < MAX_ACTIVE_ANIMS);
 }
 
+/** @brief Plays an animation in a slot */
 void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t slot, bool paused, float start_time)
 {
     int32_t anim_index = search_anim_index(model, anim);
@@ -786,6 +818,7 @@ void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t s
     model->active_anims[slot]->speed = 1.0f;
 }
 
+/** @brief Stops an animation in a slot */
 void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -795,6 +828,7 @@ void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
     model->active_anims[slot]->index = -1;
 }
 
+/** @brief Gets the length of an animation */
 float model64_anim_get_length(model64_t *model, const char *anim)
 {
     int32_t anim_index = search_anim_index(model, anim);
@@ -802,6 +836,7 @@ float model64_anim_get_length(model64_t *model, const char *anim)
     return (float)model->data->anims[anim_index].duration;
 }
 
+/** @brief Gets the current time of an animation slot */
 float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -811,6 +846,7 @@ float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
     return model->active_anims[slot]->time;
 }
 
+/** @brief Sets the time of an animation slot */
 float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float time)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -826,6 +862,7 @@ float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float ti
     return old_time;
 }
 
+/** @brief Sets the speed of an animation slot */
 float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -838,6 +875,7 @@ float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float s
     return old_speed;
 }
 
+/** @brief Sets the loop state of an animation slot */
 bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -849,6 +887,7 @@ bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop
     return old_loop;
 }
 
+/** @brief Sets the pause state of an animation slot */
 bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool paused)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -1045,6 +1084,7 @@ static void calc_anim_pose(model64_t *model, model64_anim_slot_t anim_slot)
     }
 }
 
+/** @brief Updates model animations and transforms */
 void model64_update(model64_t *model, float deltatime)
 {
     assertf(deltatime >= 0, "Delta time must not be negative");

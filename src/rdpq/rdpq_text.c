@@ -31,6 +31,7 @@ const rdpq_font_t* rdpq_text_get_font(uint8_t font_id) {
     return fonts[font_id];
 }
 
+/** @brief Inner implementation of #rdpq_text_printn, with explicit memory handling. */
 extern rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes, rdpq_paragraph_t *layout, bool optimize);
 
 rdpq_textmetrics_t rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t initial_font_id, float x0, float y0, 

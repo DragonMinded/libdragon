@@ -13,11 +13,12 @@
 #include "n64sys.h"
 #include "rtc_internal.h"
 
-#define DD_ASIC_STATUS_MECHA_IRQ_LINE    (1<<9)
-#define DD_ASIC_STATUS_BM_IRQ_LINE       (1<<10)
+#define DD_ASIC_STATUS_MECHA_IRQ_LINE    (1<<9)  ///< DD ASIC status: Mecha IRQ line
+#define DD_ASIC_STATUS_BM_IRQ_LINE       (1<<10) ///< DD ASIC status: BM IRQ line
 
-#define DD_ASIC_WCTRL_MECHA_IRQ_CLEAR    (1<<8)
+#define DD_ASIC_WCTRL_MECHA_IRQ_CLEAR    (1<<8)  ///< DD ASIC write control: Mecha IRQ clear
 
+/** @brief True if a 64DD drive is found. */
 bool dd_found = false;
 
 static volatile int mecha_irq_count = 0;
@@ -56,6 +57,7 @@ uint16_t dd_command(dd_cmd_t cmd) {
     return dd_read(DD_ASIC_DATA);
 }
 
+/** @brief Initialize the DD (global constructor run before main). */
 __attribute__((constructor))
 void dd_init(void)
 {
