@@ -1,12 +1,12 @@
 ############################################################
-# entrypoint.S
+# Libdragon entrypoint
+#
+# This is the entrypoint for all Libdragon applications. It
+# is the first code run after the IPL3.
 #
 # Authors: Jennifer Taylor <dragonminded@dragonminded.com>
 #          Giovanni Bajo <giovannibajo@gmail.com>
 ############################################################
-/*
- *   N64 init code for GNU as
- */
 
 #include "regs.S"
 

@@ -1,5 +1,5 @@
 ############################################################
-# aplib_dec_fast.S
+# Aplib - Fast decompressor in assembly
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ############################################################

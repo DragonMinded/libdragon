@@ -1,5 +1,5 @@
 ############################################################
-# rsp_rdpq.S
+# RSP microcode for RDPQ
 #
 # Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
 #          Giovanni Bajo <giovannibajo@gmail.com>

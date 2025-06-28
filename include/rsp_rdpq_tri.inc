@@ -1,5 +1,4 @@
 #########################################################################
-#
 #  RDPQ_Triangle: assemble a RDP triangle command
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
