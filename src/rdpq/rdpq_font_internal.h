@@ -9,7 +9,9 @@
 #include <stdbool.h>
 #include "../../include/graphics.h"
 
+/// @cond
 typedef struct rspq_block_s rspq_block_t;
+/// @endcond
 
 /** @brief font64 file magic header */
 #define FONT_MAGIC              "FNT"
