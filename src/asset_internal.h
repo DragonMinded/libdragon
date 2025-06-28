@@ -72,8 +72,9 @@ typedef struct {
     int (*decompress_full_inplace)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);
 } asset_compression_t;
 
-
+/** @brief Open a file as FILE* and assert on error */
 FILE *must_fopen(const char *fn);
+/** @brief Open a file and assert on error */
 int must_open(const char *fn);
 
 #endif

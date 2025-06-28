@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+/** @brief The mode of the inspector (what caused it to be triggered). */
 enum Mode {
     MODE_EXCEPTION,
     MODE_ASSERTION,
@@ -28,9 +29,11 @@ enum {
     YEND = 240-8-8,
 };
 
+/** @brief Pack a 16-bit color into a 32-bit word. */
 #define pack32(x16)        ((x16) | ((x16) << 16))
 
-// Colors are coming from the Solarized color scheme
+// Colors come from the Solarized color scheme
+/// @cond
 #define COLOR_BACKGROUND   pack32(color_to_packed16(RGBA32(0x00, 0x2b, 0x36, 255)))
 #define COLOR_HIGHLIGHT    pack32(color_to_packed16(RGBA32(0x07, 0x36, 0x42, 128)))
 #define COLOR_TEXT         pack32(color_to_packed16(RGBA32(0x83, 0x94, 0x96, 255)))
@@ -43,6 +46,7 @@ enum {
 #define COLOR_MAGENTA      pack32(color_to_packed16(RGBA32(0xd3, 0x36, 0x82, 255)))
 #define COLOR_CYAN         pack32(color_to_packed16(RGBA32(0x2a, 0xa1, 0x98, 255)))
 #define COLOR_WHITE        pack32(color_to_packed16(RGBA32(0xee, 0xe8, 0xd5, 255)))
+/// @endcond
 
 static int cursor_x, cursor_y, cursor_columns, cursor_wordwrap;
 static surface_t *disp;
@@ -166,7 +170,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	}
 }
 
-bool disasm_valid_pc(uint32_t pc) {
+static bool disasm_valid_pc(uint32_t pc) {
     // TODO: handle TLB ranges?
     return pc >= 0x80000000 && pc < 0x80800000 && (pc & 3) == 0;
 }
@@ -575,7 +579,7 @@ void __inspector_cppexception(const char *exctype, const char *what) {
     __builtin_unreachable();    
 }
 
-#ifndef NDEBUG
+/** @brief Register the inspector as a syscall handler (global constructor run before main). */
 __attribute__((constructor))
 void __inspector_init(void) {
     // Register SYSCALL 0x1 for assertion failures
@@ -585,4 +589,3 @@ void __inspector_init(void) {
     }
     register_syscall_handler(handler, 0x00001, 0x00002);
 }
-#endif

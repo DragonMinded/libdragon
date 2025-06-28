@@ -32,6 +32,7 @@ void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1)
     rdpq_write(1, RDPQ_OVL_ID, RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1);
 }
 
+/** @brief Out of line implementation of #rdpq_fill_rectangle */
 void __rdpq_fill_rectangle_offline(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
     __rdpq_fill_rectangle_inline(x0, y0, x1, y1);
 }
@@ -56,14 +57,17 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
     rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3);
 }
 
+/** @brief Out of line implementation of #rdpq_texture_rectangle */
 void __rdpq_texture_rectangle_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0) {
     __rdpq_texture_rectangle_inline(tile, x0, y0, x1, y1, s0, t0);
 }
 
+/** @brief Out of line implementation of #rdpq_texture_rectangle_scaled */
 void __rdpq_texture_rectangle_scaled_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1) {
     __rdpq_texture_rectangle_scaled_inline(tile, x0, y0, x1, y1, s0, t0, s1, t1);
 }
 
+/// @cond
 extern inline void __rdpq_fill_rectangle_inline(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
 extern inline void __rdpq_fill_rectangle_fx(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
 extern inline void __rdpq_texture_rectangle_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s, int32_t t);
@@ -72,3 +76,4 @@ extern inline void __rdpq_texture_rectangle_raw_fx(rdpq_tile_t tile, uint16_t x0
 extern inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdy, int16_t dtdx);
 extern inline void __rdpq_texture_rectangle_inline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0);
 extern inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1);
+/// @endcond
