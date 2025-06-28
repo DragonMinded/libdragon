@@ -1,10 +1,8 @@
 ############################################################
-# ique_trampoline.S
+# iQue trampoline code
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ############################################################
-# iQue trampoline code
-# --------------------
 # On iQue, the OS does not run the IPL3 when a ROM is booted,
 # but rather emulates its behavior by loading the first MiB of
 # data from offset 0x1000 in ROM to 0x80000400 in RDRAM (or
@@ -16,6 +14,7 @@
 # To do so, we store at 0x1000 this trampoling code, which
 # basically just loads the IPL3 from the ROM to DMEM and jumps
 # to it.
+############################################################
 
     .set noreorder
     .section .text.ique_trampoline
