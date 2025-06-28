@@ -14,5 +14,12 @@ var searchData=
   ['audio_5fwrite_11',['audio_write',['../group__audio.html#gab06cc34952ebf6952af37f7080743c98',1,'audio_write(const short *const buffer):&#160;audio.c'],['../group__audio.html#gab06cc34952ebf6952af37f7080743c98',1,'audio_write(const short *const buffer):&#160;audio.c']]],
   ['audio_5fwrite_5fbegin_12',['audio_write_begin',['../group__audio.html#ga8aee840f13aa6903fef4c092d0ffa704',1,'audio_write_begin(void):&#160;audio.c'],['../group__audio.html#ga8aee840f13aa6903fef4c092d0ffa704',1,'audio_write_begin(void):&#160;audio.c']]],
   ['audio_5fwrite_5fend_13',['audio_write_end',['../group__audio.html#gac872c4749acb1685ebeabc1f9d02c0bf',1,'audio_write_end(void):&#160;audio.c'],['../group__audio.html#gac872c4749acb1685ebeabc1f9d02c0bf',1,'audio_write_end(void):&#160;audio.c']]],
-  ['audio_5fwrite_5fsilence_14',['audio_write_silence',['../group__audio.html#gad0c6a38d6ce470872e4016ecc6d9abd3',1,'audio_write_silence():&#160;audio.c'],['../group__audio.html#gad0c6a38d6ce470872e4016ecc6d9abd3',1,'audio_write_silence():&#160;audio.c']]]
+  ['audio_5fwrite_5fsilence_14',['audio_write_silence',['../group__audio.html#gad0c6a38d6ce470872e4016ecc6d9abd3',1,'audio_write_silence():&#160;audio.c'],['../group__audio.html#gad0c6a38d6ce470872e4016ecc6d9abd3',1,'audio_write_silence():&#160;audio.c']]],
+  ['ay8910_5fgen_15',['ay8910_gen',['../ay8910_8c.html#a5438aacec2a97706bd251f3bae7907ba',1,'ay8910.c']]],
+  ['ay8910_5fis_5fmute_16',['ay8910_is_mute',['../ay8910_8c.html#a4088400897b0b7fec4fca468e643c122',1,'ay8910.c']]],
+  ['ay8910_5fread_5fdata_17',['ay8910_read_data',['../ay8910_8c.html#a9f17d027f0f27cf50ad2d34cbb5571f8',1,'ay8910.c']]],
+  ['ay8910_5freset_18',['ay8910_reset',['../ay8910_8c.html#a2e65f6fd657e37dc7c806380a821fc4b',1,'ay8910.c']]],
+  ['ay8910_5fset_5fports_19',['ay8910_set_ports',['../ay8910_8c.html#a11b97ab2fa7d32285498d3f640b5f997',1,'ay8910.c']]],
+  ['ay8910_5fwrite_5faddr_20',['ay8910_write_addr',['../ay8910_8c.html#a1220becac2a0c7c06420567620f38d43',1,'ay8910.c']]],
+  ['ay8910_5fwrite_5fdata_21',['ay8910_write_data',['../ay8910_8c.html#aea07413b18bf747c1551cc00ceebe40c',1,'ay8910.c']]]
 ];

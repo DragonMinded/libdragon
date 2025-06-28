@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['id_0',['id',['../structwav64__header__t.html#a731e481e8b944449ba2574fe96292192',1,'wav64_header_t']]],
+  ['id_0',['id',['../wav64__internal_8h.html#a731e481e8b944449ba2574fe96292192',1,'wav64_header_t']]],
   ['imem_1',['imem',['../rsp_8h.html#ae1405b13440ab3b2280cdddde0e9ab67',1,'rsp_snapshot_t']]],
   ['info_2',['info',['../structdso__sym__t.html#a225dd00cdf7060226a9ce29121048400',1,'dso_sym_t::info'],['../structdso__reloc__t.html#a8c13dd13b665b4abe3599cb08f8cbc4a',1,'dso_reloc_t::info'],['../group__exceptions.html#a05e27f4f7ffca11f72050238adf56e14',1,'exception_t::info']]],
   ['init_3',['init',['../structwav64__compression__t.html#ad58f6b0ede556771eb1377a5770525e1',1,'wav64_compression_t']]],

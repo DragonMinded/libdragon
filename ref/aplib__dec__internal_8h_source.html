@@ -82,34 +82,39 @@ $(document).ready(function() { init_codefold(0); });
   <div class="headertitle"><div class="title">aplib_dec_internal.h</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span><span class="preprocessor">#ifndef LIBDRAGON_COMPRESS_APLIB_DEC_INTERNAL_H</span></div>
-<div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="preprocessor">#define LIBDRAGON_COMPRESS_APLIB_DEC_INTERNAL_H</span></div>
-<div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span> </div>
-<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#ifdef N64</span></div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#define DECOMPRESS_APLIB_FULL_USE_ASM             1</span></div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#else</span></div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#define DECOMPRESS_APLIB_FULL_USE_ASM             0</span></div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span> </div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span> </div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#define DECOMPRESS_APLIB_STATE_SIZE       348</span></div>
+<a href="aplib__dec__internal_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
+<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#ifndef LIBDRAGON_COMPRESS_APLIB_DEC_INTERNAL_H</span></div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#define LIBDRAGON_COMPRESS_APLIB_DEC_INTERNAL_H</span></div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span> </div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#ifdef N64</span></div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#define DECOMPRESS_APLIB_FULL_USE_ASM             1</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno"><a class="line" href="aplib__dec__internal_8h.html#a1969de0df300d246f87fd3c01751dfff">   12</a></span><span class="preprocessor">#define DECOMPRESS_APLIB_FULL_USE_ASM             0</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#endif</span></div>
 <div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="keywordtype">void</span> decompress_aplib_init(<span class="keywordtype">void</span> *state, <span class="keywordtype">int</span> fd, <span class="keywordtype">int</span> winsize);</div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span>ssize_t decompress_aplib_read(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="keywordtype">void</span> decompress_aplib_reset(<span class="keywordtype">void</span> *state);</div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#if DECOMPRESS_APLIB_FULL_USE_ASM</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="keywordtype">int</span> decompress_aplib_full_inplace(<span class="keyword">const</span> uint8_t* in, <span class="keywordtype">size_t</span> cmp_size, uint8_t *out, <span class="keywordtype">size_t</span> size);</div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#else</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="keywordtype">void</span>* decompress_aplib_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <span class="keywordtype">int</span> fd, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span> </div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno"><a class="line" href="aplib__dec__internal_8h.html#a4077fe5daec3282e7b09adef570a6289">   18</a></span><span class="preprocessor">#define DECOMPRESS_APLIB_STATE_SIZE       348</span></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span> </div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="keywordtype">void</span> <a class="code hl_function" href="aplib__dec__internal_8h.html#aeef2ee19c129dbe26a969a9f49ef45ba">decompress_aplib_init</a>(<span class="keywordtype">void</span> *state, <span class="keywordtype">int</span> fd, <span class="keywordtype">int</span> winsize);</div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span>ssize_t <a class="code hl_function" href="aplib__dec__internal_8h.html#a8c442566f30fac4ef091aca664182845">decompress_aplib_read</a>(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="keywordtype">void</span> <a class="code hl_function" href="aplib__dec__internal_8h.html#a1567f8998dea51f2948c0bc079e38cb5">decompress_aplib_reset</a>(<span class="keywordtype">void</span> *state);</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span> </div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#if DECOMPRESS_APLIB_FULL_USE_ASM</span></div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="keywordtype">int</span> decompress_aplib_full_inplace(<span class="keyword">const</span> uint8_t* in, <span class="keywordtype">size_t</span> cmp_size, uint8_t *out, <span class="keywordtype">size_t</span> size);</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#else</span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="keywordtype">void</span>* <a class="code hl_function" href="aplib__dec__internal_8h.html#a7308d98f2359874ee7492ec01e4b1738">decompress_aplib_full</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <span class="keywordtype">int</span> fd, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span> </div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="aaplib__dec__internal_8h_html_a1567f8998dea51f2948c0bc079e38cb5"><div class="ttname"><a href="aplib__dec__internal_8h.html#a1567f8998dea51f2948c0bc079e38cb5">decompress_aplib_reset</a></div><div class="ttdeci">void decompress_aplib_reset(void *state)</div><div class="ttdoc">Reset APLIB decompressor state.</div><div class="ttdef"><b>Definition</b> aplib_dec.c:312</div></div>
+<div class="ttc" id="aaplib__dec__internal_8h_html_a7308d98f2359874ee7492ec01e4b1738"><div class="ttname"><a href="aplib__dec__internal_8h.html#a7308d98f2359874ee7492ec01e4b1738">decompress_aplib_full</a></div><div class="ttdeci">void * decompress_aplib_full(const char *fn, int fd, size_t cmp_size, size_t size)</div><div class="ttdoc">Decompress entire APLIB file.</div><div class="ttdef"><b>Definition</b> aplib_dec.c:324</div></div>
+<div class="ttc" id="aaplib__dec__internal_8h_html_a8c442566f30fac4ef091aca664182845"><div class="ttname"><a href="aplib__dec__internal_8h.html#a8c442566f30fac4ef091aca664182845">decompress_aplib_read</a></div><div class="ttdeci">ssize_t decompress_aplib_read(void *state, void *buf, size_t len)</div><div class="ttdoc">Read decompressed data from APLIB decompressor.</div><div class="ttdef"><b>Definition</b> aplib_dec.c:318</div></div>
+<div class="ttc" id="aaplib__dec__internal_8h_html_aeef2ee19c129dbe26a969a9f49ef45ba"><div class="ttname"><a href="aplib__dec__internal_8h.html#aeef2ee19c129dbe26a969a9f49ef45ba">decompress_aplib_init</a></div><div class="ttdeci">void decompress_aplib_init(void *state, int fd, int winsize)</div><div class="ttdoc">Initialize APLIB decompressor.</div><div class="ttdef"><b>Definition</b> aplib_dec.c:305</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jun 18 2025 00:00:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sat Jun 28 2025 23:59:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

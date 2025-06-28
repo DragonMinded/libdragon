@@ -149,25 +149,32 @@ $(document).ready(function() { init_codefold(0); });
 <div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span>} <a class="code hl_struct" href="structAY8910.html">AY8910</a>;</div>
 </div>
 <div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span> </div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="keywordtype">void</span> ay8910_reset(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay);</div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="keywordtype">void</span> <a class="code hl_function" href="ay8910_8c.html#a2e65f6fd657e37dc7c806380a821fc4b">ay8910_reset</a>(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay);</div>
 <div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
-<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="keywordtype">void</span> ay8910_set_ports(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, uint8_t (*PortRead)(<span class="keywordtype">int</span>), <span class="keywordtype">void</span> (*PortWrite)(<span class="keywordtype">int</span>, uint8_t));</div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno">  114</span><span class="keywordtype">void</span> <a class="code hl_function" href="ay8910_8c.html#a11b97ab2fa7d32285498d3f640b5f997">ay8910_set_ports</a>(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, uint8_t (*PortRead)(<span class="keywordtype">int</span>), <span class="keywordtype">void</span> (*PortWrite)(<span class="keywordtype">int</span>, uint8_t));</div>
 <div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span> </div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="keywordtype">void</span> ay8910_write_addr(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, uint8_t addr);</div>
+<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="keywordtype">void</span> <a class="code hl_function" href="ay8910_8c.html#a1220becac2a0c7c06420567620f38d43">ay8910_write_addr</a>(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, uint8_t addr);</div>
 <div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span> </div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="keywordtype">void</span> ay8910_write_data(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, uint8_t val);</div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="keywordtype">void</span> <a class="code hl_function" href="ay8910_8c.html#aea07413b18bf747c1551cc00ceebe40c">ay8910_write_data</a>(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, uint8_t val);</div>
 <div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span> </div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>uint8_t ay8910_read_data(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay);</div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span>uint8_t <a class="code hl_function" href="ay8910_8c.html#a9f17d027f0f27cf50ad2d34cbb5571f8">ay8910_read_data</a>(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay);</div>
 <div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span> </div>
-<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="keywordtype">bool</span> ay8910_is_mute(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay);</div>
+<div class="line"><a id="l00126" name="l00126"></a><span class="lineno">  126</span><span class="keywordtype">bool</span> <a class="code hl_function" href="ay8910_8c.html#a4088400897b0b7fec4fca468e643c122">ay8910_is_mute</a>(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay);</div>
 <div class="line"><a id="l00127" name="l00127"></a><span class="lineno">  127</span> </div>
-<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="keywordtype">int</span> ay8910_gen(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, int16_t *out, <span class="keywordtype">int</span> nsamples);</div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno">  133</span><span class="keywordtype">int</span> <a class="code hl_function" href="ay8910_8c.html#a5438aacec2a97706bd251f3bae7907ba">ay8910_gen</a>(<a class="code hl_struct" href="structAY8910.html">AY8910</a> *ay, int16_t *out, <span class="keywordtype">int</span> nsamples);</div>
 <div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span> </div>
 <div class="line"><a id="l00135" name="l00135"></a><span class="lineno">  135</span><span class="preprocessor">#ifdef __cplusplus</span></div>
 <div class="line"><a id="l00136" name="l00136"></a><span class="lineno">  136</span>}</div>
 <div class="line"><a id="l00137" name="l00137"></a><span class="lineno">  137</span><span class="preprocessor">#endif</span></div>
 <div class="line"><a id="l00138" name="l00138"></a><span class="lineno">  138</span> </div>
 <div class="line"><a id="l00139" name="l00139"></a><span class="lineno">  139</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="aay8910_8c_html_a11b97ab2fa7d32285498d3f640b5f997"><div class="ttname"><a href="ay8910_8c.html#a11b97ab2fa7d32285498d3f640b5f997">ay8910_set_ports</a></div><div class="ttdeci">void ay8910_set_ports(AY8910 *ay, uint8_t(*PortRead)(int), void(*PortWrite)(int, uint8_t))</div><div class="ttdoc">Configure the I/O port callbacks.</div><div class="ttdef"><b>Definition</b> ay8910.c:495</div></div>
+<div class="ttc" id="aay8910_8c_html_a1220becac2a0c7c06420567620f38d43"><div class="ttname"><a href="ay8910_8c.html#a1220becac2a0c7c06420567620f38d43">ay8910_write_addr</a></div><div class="ttdeci">void ay8910_write_addr(AY8910 *ay, uint8_t addr)</div><div class="ttdoc">Write to the AY8910 address line.</div><div class="ttdef"><b>Definition</b> ay8910.c:507</div></div>
+<div class="ttc" id="aay8910_8c_html_a2e65f6fd657e37dc7c806380a821fc4b"><div class="ttname"><a href="ay8910_8c.html#a2e65f6fd657e37dc7c806380a821fc4b">ay8910_reset</a></div><div class="ttdeci">void ay8910_reset(AY8910 *ay)</div><div class="ttdoc">Reset the AY8910 emulator.</div><div class="ttdef"><b>Definition</b> ay8910.c:479</div></div>
+<div class="ttc" id="aay8910_8c_html_a4088400897b0b7fec4fca468e643c122"><div class="ttname"><a href="ay8910_8c.html#a4088400897b0b7fec4fca468e643c122">ay8910_is_mute</a></div><div class="ttdeci">bool ay8910_is_mute(AY8910 *ay)</div><div class="ttdoc">Return true if ay8910 is currently muted (all channels disabled)</div><div class="ttdef"><b>Definition</b> ay8910.c:500</div></div>
+<div class="ttc" id="aay8910_8c_html_a5438aacec2a97706bd251f3bae7907ba"><div class="ttname"><a href="ay8910_8c.html#a5438aacec2a97706bd251f3bae7907ba">ay8910_gen</a></div><div class="ttdeci">int ay8910_gen(AY8910 *ay, int16_t *out, int nsamples)</div><div class="ttdoc">Generate audio for the specified number of samples.</div><div class="ttdef"><b>Definition</b> ay8910.c:169</div></div>
+<div class="ttc" id="aay8910_8c_html_a9f17d027f0f27cf50ad2d34cbb5571f8"><div class="ttname"><a href="ay8910_8c.html#a9f17d027f0f27cf50ad2d34cbb5571f8">ay8910_read_data</a></div><div class="ttdeci">uint8_t ay8910_read_data(AY8910 *ay)</div><div class="ttdoc">Read from the AY8910 data line.</div><div class="ttdef"><b>Definition</b> ay8910.c:511</div></div>
+<div class="ttc" id="aay8910_8c_html_aea07413b18bf747c1551cc00ceebe40c"><div class="ttname"><a href="ay8910_8c.html#aea07413b18bf747c1551cc00ceebe40c">ay8910_write_data</a></div><div class="ttdeci">void ay8910_write_data(AY8910 *ay, uint8_t val)</div><div class="ttdoc">Write to the AY8910 data line.</div><div class="ttdef"><b>Definition</b> ay8910.c:524</div></div>
 <div class="ttc" id="astructAY8910_html"><div class="ttname"><a href="structAY8910.html">AY8910</a></div><div class="ttdoc">A AY-3-8910 emulator.</div><div class="ttdef"><b>Definition</b> ay8910.h:100</div></div>
 <div class="ttc" id="astructAY8910_html_a1461e7bf08c19a89e61aca7796afc30e"><div class="ttname"><a href="structAY8910.html#a1461e7bf08c19a89e61aca7796afc30e">AY8910::ns</a></div><div class="ttdeci">AYNoise ns</div><div class="ttdoc">Configuration and state of the noise.</div><div class="ttdef"><b>Definition</b> ay8910.h:106</div></div>
 <div class="ttc" id="astructAY8910_html_a32675765868b0795c2c497f9bdedd11f"><div class="ttname"><a href="structAY8910.html#a32675765868b0795c2c497f9bdedd11f">AY8910::addr</a></div><div class="ttdeci">uint8_t addr</div><div class="ttdoc">Current value on the address line.</div><div class="ttdef"><b>Definition</b> ay8910.h:103</div></div>
@@ -196,7 +203,7 @@ $(document).ready(function() { init_codefold(0); });
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jun 18 2025 00:00:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sat Jun 28 2025 23:59:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

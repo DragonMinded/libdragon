@@ -274,7 +274,7 @@ Pointer to extended data (internal use) </td></tr>
 </div><div class="memdoc">
 
 <p>Start playing a WAV64 file. </p>
-<p>This is just a simple wrapper that calls <a class="el" href="mixer_8c.html#a1aa94701f22d086d624fb7d938ba0062" title="Start playing the specified waveform on the specified channel.">mixer_ch_play</a> on the WAV64's waveform (wav64_t::wave). For advanced usages, please call directly the mixer functions.</p>
+<p>This is just a simple wrapper that calls <a class="el" href="mixer_8c.html#a1aa94701f22d086d624fb7d938ba0062" title="Start playing the specified waveform on the specified channel.">mixer_ch_play</a> on the WAV64's waveform (<a class="el" href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd" title="waveform_t for this WAV64.">wav64_t::wave</a>). For advanced usages, please call directly the mixer functions.</p>
 <p>It is possible to start the same waveform on multiple independent channels. Playback will automatically stop when the waveform is finished, unless it is looping. To stop playing a wav64 file before it is normally finished, call <a class="el" href="mixer_8c.html#ae21b093a1283e06ede42363498c490cb" title="Stop playing samples on the specified channel.">mixer_ch_stop</a> on the channel used for playback.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -343,7 +343,7 @@ Pointer to extended data (internal use) </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jun 18 2025 00:00:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sat Jun 28 2025 23:59:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

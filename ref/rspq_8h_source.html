@@ -169,7 +169,7 @@ $(document).ready(function() { init_codefold(0); });
 <div class="line"><a id="l00476" name="l00476"></a><span class="lineno">  476</span>    <span class="keyword">extern</span> <span class="keyword">volatile</span> uint32_t *<a class="code hl_variable" href="rspq_8c.html#a721480d7b2d18bf1ad5b0d92c4b7e24b">rspq_cur_pointer</a>, *<a class="code hl_variable" href="rspq_8c.html#af6ef4eabdbb9a204474c2b7fe58975e8">rspq_cur_sentinel</a>;</div>
 <div class="line"><a id="l00477" name="l00477"></a><span class="lineno">  477</span>    <span class="keyword">extern</span> <span class="keywordtype">void</span> <a class="code hl_function" href="rspq_8c.html#a6d24ce57cd1b2cdb69297c97dab0eb21">rspq_next_buffer</a>(<span class="keywordtype">void</span>);</div>
 <div class="line"><a id="l00478" name="l00478"></a><span class="lineno">  478</span> </div>
-<div class="line"><a id="l00479" name="l00479"></a><span class="lineno">  479</span>    assertf(size &lt;= <a class="code hl_define" href="rspq_8h.html#a5c35e691b9651ffc302d590a47d47418">RSPQ_MAX_COMMAND_SIZE</a>, <span class="stringliteral">&quot;The maximum command size is %d!&quot;</span>, <a class="code hl_define" href="rspq_8h.html#a5c35e691b9651ffc302d590a47d47418">RSPQ_MAX_COMMAND_SIZE</a>);</div>
+<div class="line"><a id="l00479" name="l00479"></a><span class="lineno">  479</span>    <a class="code hl_define" href="debug_8h.html#a66673aad3e392c6b58054aebe66fe28e">assertf</a>(size &lt;= <a class="code hl_define" href="rspq_8h.html#a5c35e691b9651ffc302d590a47d47418">RSPQ_MAX_COMMAND_SIZE</a>, <span class="stringliteral">&quot;The maximum command size is %d!&quot;</span>, <a class="code hl_define" href="rspq_8h.html#a5c35e691b9651ffc302d590a47d47418">RSPQ_MAX_COMMAND_SIZE</a>);</div>
 <div class="line"><a id="l00480" name="l00480"></a><span class="lineno">  480</span> </div>
 <div class="line"><a id="l00481" name="l00481"></a><span class="lineno">  481</span>    <span class="keywordflow">if</span> (__builtin_expect(<a class="code hl_variable" href="rspq_8c.html#a721480d7b2d18bf1ad5b0d92c4b7e24b">rspq_cur_pointer</a> &gt; <a class="code hl_variable" href="rspq_8c.html#af6ef4eabdbb9a204474c2b7fe58975e8">rspq_cur_sentinel</a> - size, 0))</div>
 <div class="line"><a id="l00482" name="l00482"></a><span class="lineno">  482</span>        <a class="code hl_function" href="rspq_8c.html#a6d24ce57cd1b2cdb69297c97dab0eb21">rspq_next_buffer</a>();</div>
@@ -244,6 +244,7 @@ $(document).ready(function() { init_codefold(0); });
 <div class="line"><a id="l00847" name="l00847"></a><span class="lineno">  847</span> </div>
 <div class="line"><a id="l00848" name="l00848"></a><span class="lineno">  848</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="adebug_8h_html"><div class="ttname"><a href="debug_8h.html">debug.h</a></div><div class="ttdoc">Debugging Support.</div></div>
+<div class="ttc" id="adebug_8h_html_a66673aad3e392c6b58054aebe66fe28e"><div class="ttname"><a href="debug_8h.html#a66673aad3e392c6b58054aebe66fe28e">assertf</a></div><div class="ttdeci">#define assertf(expr, msg,...)</div><div class="ttdoc">assertf() is like assert() with an attached printf().</div><div class="ttdef"><b>Definition</b> debug.h:195</div></div>
 <div class="ttc" id="an64sys_8h_html"><div class="ttname"><a href="n64sys_8h.html">n64sys.h</a></div><div class="ttdoc">N64 System Interface.</div></div>
 <div class="ttc" id="arsp_8h_html"><div class="ttname"><a href="rsp_8h.html">rsp.h</a></div><div class="ttdoc">Low-level RSP hardware library.</div></div>
 <div class="ttc" id="arspq_8c_html_a6d24ce57cd1b2cdb69297c97dab0eb21"><div class="ttname"><a href="rspq_8c.html#a6d24ce57cd1b2cdb69297c97dab0eb21">rspq_next_buffer</a></div><div class="ttdeci">void rspq_next_buffer(void)</div><div class="ttdoc">Switch to the next write buffer for the current RSP queue.</div><div class="ttdef"><b>Definition</b> rspq.c:946</div></div>
@@ -285,7 +286,7 @@ $(document).ready(function() { init_codefold(0); });
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jun 18 2025 00:00:04 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sat Jun 28 2025 23:59:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

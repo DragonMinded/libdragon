@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['v_0',['v',['../structwav64__vadpcm__vector__t.html#acd915e801499ad26dddf97829edc52c0',1,'wav64_vadpcm_vector_t']]],
+  ['v_0',['v',['../ay8910_8c.html#a3e042ba9348b720dfffda8612911c94f',1,'V:&#160;ay8910.c'],['../wav64__internal_8h.html#acd915e801499ad26dddf97829edc52c0',1,'wav64_vadpcm_vector_t::v']]],
   ['v_5fint_1',['v_int',['../group__lowlevel.html#a78d31d9148d84ffe2e31b4c8314eb59e',1,'VI_regs_t']]],
   ['v_5flimits_2',['v_limits',['../group__lowlevel.html#a0a7255f9219ef588808846d57882b5fa',1,'VI_regs_t']]],
   ['v_5fscale_3',['v_scale',['../group__lowlevel.html#a7154f52a793a1229191cb8171c520d9e',1,'VI_regs_t']]],
@@ -31,7 +31,7 @@ var searchData=
   ['vctx_28',['vctx',['../rdpq__debug_8c.html#a70939eed667878128b83da6ab093e5fb',1,'rdpq_debug.c']]],
   ['vector_20coprocessor_29',['RSP: vector coprocessor',['../group__rsp.html',1,'']]],
   ['vendor_30',['vendor',['../group__controllerpak.html#a4e65c83bc81eb966642da54ae8c885f5',1,'entry_structure_t']]],
-  ['version_31',['version',['../structsprite__ext__t.html#a3bfa3f371fd2e730dcdb71c923be078d',1,'sprite_ext_t::version'],['../backtrace_8c.html#a49df133ec55445f03fd42411feafd66c',1,'symtable_header_t::version'],['../structwav64__header__t.html#a41f089df9c3a1121a13adeecca288596',1,'wav64_header_t::version'],['../structasset__header__t.html#a27a6d9b3639eee4a44c290b23e90ae95',1,'asset_header_t::version']]],
+  ['version_31',['version',['../structsprite__ext__t.html#a3bfa3f371fd2e730dcdb71c923be078d',1,'sprite_ext_t::version'],['../backtrace_8c.html#a49df133ec55445f03fd42411feafd66c',1,'symtable_header_t::version'],['../wav64__internal_8h.html#a41f089df9c3a1121a13adeecca288596',1,'wav64_header_t::version'],['../structasset__header__t.html#a27a6d9b3639eee4a44c290b23e90ae95',1,'asset_header_t::version']]],
   ['version_5fnumber_32',['version_number',['../tpak_8h.html#ab742ef846978b3ffe4a313374479c0b8',1,'gameboy_cartridge_header']]],
   ['vertical_5fpadding_33',['VERTICAL_PADDING',['../group__console.html#gaccc507054fe340b5b4c9db0d233a2f31',1,'console.h']]],
   ['vi_2eh_34',['vi.h',['../vi_8h.html',1,'']]],
