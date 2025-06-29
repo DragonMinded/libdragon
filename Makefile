@@ -97,66 +97,9 @@ install: install-mk libdragon
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/mips64-elf/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
 	mkdir -p $(INSTALLDIR)/mips64-elf/include
-	install -Cv -m 0644 include/n64types.h $(INSTALLDIR)/mips64-elf/include/n64types.h
-	install -Cv -m 0644 include/pputils.h $(INSTALLDIR)/mips64-elf/include/pputils.h
-	install -Cv -m 0644 include/n64sys.h $(INSTALLDIR)/mips64-elf/include/n64sys.h
-	install -Cv -m 0644 include/fmath.h $(INSTALLDIR)/mips64-elf/include/fmath.h
-	install -Cv -m 0644 include/backtrace.h $(INSTALLDIR)/mips64-elf/include/backtrace.h
-	install -Cv -m 0644 include/cop0.h $(INSTALLDIR)/mips64-elf/include/cop0.h
-	install -Cv -m 0644 include/cop1.h $(INSTALLDIR)/mips64-elf/include/cop1.h
-	install -Cv -m 0644 include/mi.h $(INSTALLDIR)/mips64-elf/include/mi.h
-	install -Cv -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
-	install -Cv -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
-	install -Cv -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
-	install -Cv -m 0644 include/asset.h $(INSTALLDIR)/mips64-elf/include/asset.h
-	install -Cv -m 0644 include/audio.h $(INSTALLDIR)/mips64-elf/include/audio.h
-	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
-	install -Cv -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h
-	install -Cv -m 0644 include/debug.h $(INSTALLDIR)/mips64-elf/include/debug.h
-	install -Cv -m 0644 include/debugcpp.h $(INSTALLDIR)/mips64-elf/include/debugcpp.h
-	install -Cv -m 0644 include/usb.h $(INSTALLDIR)/mips64-elf/include/usb.h
-	install -Cv -m 0644 include/console.h $(INSTALLDIR)/mips64-elf/include/console.h
-	install -Cv -m 0644 include/joybus.h $(INSTALLDIR)/mips64-elf/include/joybus.h
-	install -Cv -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
-	install -Cv -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
-	install -Cv -m 0644 include/rtc.h $(INSTALLDIR)/mips64-elf/include/rtc.h
-	install -Cv -m 0644 include/eeprom.h $(INSTALLDIR)/mips64-elf/include/eeprom.h
-	install -Cv -m 0644 include/eepromfs.h $(INSTALLDIR)/mips64-elf/include/eepromfs.h
-	install -Cv -m 0644 include/tpak.h $(INSTALLDIR)/mips64-elf/include/tpak.h
-	install -Cv -m 0644 include/sprite.h $(INSTALLDIR)/mips64-elf/include/sprite.h
-	install -Cv -m 0644 include/graphics.h $(INSTALLDIR)/mips64-elf/include/graphics.h
-	install -Cv -m 0644 include/rdp.h $(INSTALLDIR)/mips64-elf/include/rdp.h
-	install -Cv -m 0644 include/rsp.h $(INSTALLDIR)/mips64-elf/include/rsp.h
-	install -Cv -m 0644 include/timer.h $(INSTALLDIR)/mips64-elf/include/timer.h
-	install -Cv -m 0644 include/exception.h $(INSTALLDIR)/mips64-elf/include/exception.h
-	install -Cv -m 0644 include/system.h $(INSTALLDIR)/mips64-elf/include/system.h
-	install -Cv -m 0644 include/dir.h $(INSTALLDIR)/mips64-elf/include/dir.h
-	install -Cv -m 0644 include/libdragon.h $(INSTALLDIR)/mips64-elf/include/libdragon.h
+	install -Cv -m 0644 include/*.h $(INSTALLDIR)/mips64-elf/include/
+	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/mips64-elf/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/mips64-elf/include/ucode.S
-	install -Cv -m 0644 include/rsp.inc $(INSTALLDIR)/mips64-elf/include/rsp.inc
-	install -Cv -m 0644 include/rsp_dma.inc $(INSTALLDIR)/mips64-elf/include/rsp_dma.inc
-	install -Cv -m 0644 include/rsp_assert.inc $(INSTALLDIR)/mips64-elf/include/rsp_assert.inc
-	install -Cv -m 0644 include/mixer.h $(INSTALLDIR)/mips64-elf/include/mixer.h
-	install -Cv -m 0644 include/samplebuffer.h $(INSTALLDIR)/mips64-elf/include/samplebuffer.h
-	install -Cv -m 0644 include/wav64.h $(INSTALLDIR)/mips64-elf/include/wav64.h
-	install -Cv -m 0644 include/xm64.h $(INSTALLDIR)/mips64-elf/include/xm64.h
-	install -Cv -m 0644 include/ym64.h $(INSTALLDIR)/mips64-elf/include/ym64.h
-	install -Cv -m 0644 include/ay8910.h $(INSTALLDIR)/mips64-elf/include/ay8910.h
-	install -Cv -m 0644 include/rspq.h $(INSTALLDIR)/mips64-elf/include/rspq.h
-	install -Cv -m 0644 include/rspq_constants.h $(INSTALLDIR)/mips64-elf/include/rspq_constants.h
-	install -Cv -m 0644 include/rsp_queue.inc $(INSTALLDIR)/mips64-elf/include/rsp_queue.inc
-	install -Cv -m 0644 include/rdpq.h $(INSTALLDIR)/mips64-elf/include/rdpq.h
-	install -Cv -m 0644 include/rdpq_tri.h $(INSTALLDIR)/mips64-elf/include/rdpq_tri.h
-	install -Cv -m 0644 include/rdpq_rect.h $(INSTALLDIR)/mips64-elf/include/rdpq_rect.h
-	install -Cv -m 0644 include/rdpq_attach.h $(INSTALLDIR)/mips64-elf/include/rdpq_attach.h
-	install -Cv -m 0644 include/rdpq_mode.h $(INSTALLDIR)/mips64-elf/include/rdpq_mode.h
-	install -Cv -m 0644 include/rdpq_tex.h $(INSTALLDIR)/mips64-elf/include/rdpq_tex.h
-	install -Cv -m 0644 include/rdpq_sprite.h $(INSTALLDIR)/mips64-elf/include/rdpq_sprite.h
-	install -Cv -m 0644 include/rdpq_debug.h $(INSTALLDIR)/mips64-elf/include/rdpq_debug.h
-	install -Cv -m 0644 include/rdpq_macros.h $(INSTALLDIR)/mips64-elf/include/rdpq_macros.h
-	install -Cv -m 0644 include/rdpq_constants.h $(INSTALLDIR)/mips64-elf/include/rdpq_constants.h
-	install -Cv -m 0644 include/dlfcn.h $(INSTALLDIR)/mips64-elf/include/dlfcn.h
-	install -Cv -m 0644 include/rsp_rdpq.inc $(INSTALLDIR)/mips64-elf/include/rsp_rdpq.inc
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/libcart
 	install -Cv -m 0644 src/libcart/cart.h $(INSTALLDIR)/mips64-elf/include/libcart/cart.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/fatfs
