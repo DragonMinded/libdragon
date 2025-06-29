@@ -1,6 +1,8 @@
 /*
-	ed64romconfig V1.0, a program to set EverDrive64 ROM Header Configuration.
+	ed64romconfig V1.0, a program to configure the homebrew ROM header of an N64 ROM.
 	Copyright (C) 2021  Christopher Bonhage (me@christopherbonhage.com)
+
+	This tool is part of the Libdragon SDK.
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -63,9 +65,8 @@ int print_usage(const char * prog_name)
 {
 	fprintf(stderr, "Usage: %s [-r] [-c] [-w <savetype>] <file>\n\n", prog_name);
 	fprintf(stderr, "This program takes a big-endian N64 ROM and sets the header so that\n");
-	fprintf(stderr, "EverDrive64 will respect the declared save type, RTC, and region-free\n");
-	fprintf(stderr, "settings without needing to create a save_db.txt entry for it.\n");
-	fprintf(stderr, "See: https://github.com/krikzz/ED64/blob/master/docs/rom_config_database.md#developer-override\n");
+	fprintf(stderr, "it follows the Homebrew ROM header format as specified by:\n");
+	fprintf(stderr, "https://n64brew.dev/wiki/ROM_Header#Advanced_Homebrew_ROM_Header\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Command-line flags:\n");
 	fprintf(stderr, "\t-w, --savetype <type>           Declare cartridge save type.\n");

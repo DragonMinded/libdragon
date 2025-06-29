@@ -1,3 +1,13 @@
+/*
+    mkdfs: create a DFS filesystem
+    Written by DragonMinded <dragonminded@dragonminded.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>

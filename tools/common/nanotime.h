@@ -1,3 +1,13 @@
+/*
+    nanotime: get the current time in nanoseconds
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #include <stdint.h>
 
 #ifdef _WIN32

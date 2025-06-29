@@ -1,4 +1,14 @@
 /*
+    conv_xm64: convert XM files to XM64 format
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
+/*
  * We convert XM files to XM64 format. XM64 is a dump of the internal datastructure
  * of libxm, similar to the official "libxmize" but portable across different
  * architectures (and endian friendly).
@@ -17,7 +27,6 @@
  *    size depends on the playing speed, sample pitch, etc. across the whole
  *    module.
  */
-
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
