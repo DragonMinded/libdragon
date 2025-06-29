@@ -115,10 +115,10 @@ install: install-mk libdragon
 	install -Cv -m 0644 dso.ld $(INSTALLDIR)/mips64-elf/lib/dso.ld
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/mips64-elf/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
-	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/mips64-elf/include/
-	# Install all header files from include directory
+	mkdir -p $(INSTALLDIR)/mips64-elf/include
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/mips64-elf/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/mips64-elf/include/
+	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/mips64-elf/include/
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/GL
 	install -Cv -m 0644 include/GL/*.h $(INSTALLDIR)/mips64-elf/include/GL/
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/newlib_overrides
