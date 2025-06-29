@@ -1,3 +1,13 @@
+/*
+    mksprite: convert a PNG image into a sprite file
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>

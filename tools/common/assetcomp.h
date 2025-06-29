@@ -1,3 +1,13 @@
+/*
+    assetcomp: compression library for the N64
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #ifndef COMMON_ASSETCOMP_H
 #define COMMON_ASSETCOMP_H
 

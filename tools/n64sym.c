@@ -1,3 +1,12 @@
+/*
+    n64sym: generate a symbol table for an N64 ROM
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+    For more information, please refer to <http://unlicense.org/>
+ */
 #define _GNU_SOURCE
 #include <assert.h>
 #include <stdio.h>
@@ -29,7 +38,7 @@ void verbose(const char *fmt, ...) {
 
 void usage(const char *progname)
 {
-    fprintf(stderr, "%s - Prepare symbol table for N64 ROMs\n", progname);
+    fprintf(stderr, "%s - Generate symbol tables for N64 ROMs\n", progname);
     fprintf(stderr, "\n");
     fprintf(stderr, "Usage: %s [flags] <program.elf> [<program.sym>]\n", progname);
     fprintf(stderr, "\n");

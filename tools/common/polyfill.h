@@ -1,3 +1,13 @@
+/*
+    polyfill: mingw32 polyfills for missing C/POSIX functions
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #ifndef LIBDRAGON_TOOLS_POLYFILL_H
 #define LIBDRAGON_TOOLS_POLYFILL_H
 

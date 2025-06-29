@@ -1,4 +1,14 @@
 /*
+ * conv_ym64: convert YM files to YM64 format
+ * Written by Giovanni Bajo <giovannibajo@gmail.com>
+ *
+ * This tool is part of the Libdragon SDK.
+ *
+ * This is free and unencumbered software released into the public domain.
+ *
+ * For more information, please refer to <http://unlicense.org/>
+ */
+/*
  * At runtime, ym64.c supports streaming directly from a YM5/YM6
  * "interleaved" file, that is a file where frames are laid out linearly in the
  * file. We also support streaming from LHA-compressed files (using algorithm
