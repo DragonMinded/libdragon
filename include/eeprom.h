@@ -1,5 +1,6 @@
 /**
  * @file eeprom.h
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @author thekovic <https://github.com/thekovic>
  * @brief EEPROM support

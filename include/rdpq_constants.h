@@ -1,5 +1,6 @@
 /**
  * @file rdpq_constants.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
 #ifndef __LIBDRAGON_RDPQ_CONSTANTS_H

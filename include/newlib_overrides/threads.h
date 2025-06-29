@@ -1,6 +1,5 @@
 /**
  * @file threads.h
- * @author Simon Eriksson <simon.eriksson.1187@gmail.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Newlib override for threads.h, for C11 thread implementation.
  */

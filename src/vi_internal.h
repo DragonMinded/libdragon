@@ -1,7 +1,7 @@
 /**
  * @file vi_internal.h
- * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @author SpookyIluha <https://github.com/SpookyIluha>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
 #ifndef __LIBDRAGON_VI_INTERNAL_H
 #define __LIBDRAGON_VI_INTERNAL_H
