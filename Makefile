@@ -33,49 +33,57 @@ libdragon: libdragon.a libdragonsys.a
 libdragonsys.a: $(BUILD_DIR)/system.o
 
 LIBDRAGON_OBJS += \
-             $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtrace.o $(BUILD_DIR)/dir.o \
-			 $(BUILD_DIR)/math/fmath.o $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o  \
-			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
-			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/fat.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
-			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/vi.o $(BUILD_DIR)/eia608.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
-			 $(BUILD_DIR)/console.o $(BUILD_DIR)/asset.o $(BUILD_DIR)/pifile.o \
-			 $(BUILD_DIR)/compress/lzh5.o $(BUILD_DIR)/compress/lz4_dec.o $(BUILD_DIR)/compress/lz4_dec_fast.o $(BUILD_DIR)/compress/ringbuf.o \
-			 $(BUILD_DIR)/compress/aplib_dec_fast.o $(BUILD_DIR)/compress/aplib_dec.o \
-			 $(BUILD_DIR)/compress/shrinkler_dec_fast.o $(BUILD_DIR)/compress/shrinkler_dec.o \
-			 $(BUILD_DIR)/ed64x.o $(BUILD_DIR)/ed64.o $(BUILD_DIR)/rtc.o $(BUILD_DIR)/rtc_internal.o \
-			 $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
-			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/rsp_crash.o \
-			 $(BUILD_DIR)/inspector.o $(BUILD_DIR)/sprite.o \
-			 $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
-			 $(BUILD_DIR)/exception.o $(BUILD_DIR)/do_ctors.o \
-			 $(BUILD_DIR)/video/mpeg2.o $(BUILD_DIR)/video/yuv.o \
-			 $(BUILD_DIR)/video/profile.o \
-			 $(BUILD_DIR)/video/rsp_yuv.o $(BUILD_DIR)/video/rsp_mpeg1.o \
-			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
-			 $(BUILD_DIR)/rspq/rspq_profile.o $(BUILD_DIR)/rspq/rsp_profile.o \
-			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
-			 $(BUILD_DIR)/rdpq/rdpq_debug.o $(BUILD_DIR)/rdpq/rdpq_tri.o \
-			 $(BUILD_DIR)/rdpq/rdpq_rect.o $(BUILD_DIR)/rdpq/rdpq_mode.o \
-			 $(BUILD_DIR)/rdpq/rdpq_sprite.o $(BUILD_DIR)/rdpq/rdpq_tex.o \
-			 $(BUILD_DIR)/rdpq/rdpq_attach.o $(BUILD_DIR)/rdpq/rdpq_font.o \
-			 $(BUILD_DIR)/rdpq/rdpq_text.o $(BUILD_DIR)/rdpq/rdpq_paragraph.o \
-			 $(BUILD_DIR)/surface.o $(BUILD_DIR)/GL/gl.o \
-			 $(BUILD_DIR)/GL/lighting.o $(BUILD_DIR)/GL/matrix.o \
-			 $(BUILD_DIR)/GL/primitive.o $(BUILD_DIR)/GL/query.o \
-			 $(BUILD_DIR)/GL/rendermode.o $(BUILD_DIR)/GL/texture.o \
-			 $(BUILD_DIR)/GL/array.o $(BUILD_DIR)/GL/pixelrect.o \
-			 $(BUILD_DIR)/GL/obj_map.o $(BUILD_DIR)/GL/list.o \
-			 $(BUILD_DIR)/GL/buffer.o $(BUILD_DIR)/GL/rsp_gl.o \
-			 $(BUILD_DIR)/GL/rsp_gl_pipeline.o $(BUILD_DIR)/GL/glu.o \
-			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o \
-			 $(BUILD_DIR)/dlfcn.o $(BUILD_DIR)/model64.o \
-			 $(BUILD_DIR)/math/fgeom.o
+	$(BUILD_DIR)/n64sys.o \
+	$(BUILD_DIR)/interrupt.o \
+	$(BUILD_DIR)/backtrace.o \
+	$(BUILD_DIR)/dir.o \
+	$(BUILD_DIR)/inthandler.o \
+	$(BUILD_DIR)/entrypoint.o \
+	$(BUILD_DIR)/debug.o \
+	$(BUILD_DIR)/debugcpp.o \
+	$(BUILD_DIR)/usb.o \
+	$(BUILD_DIR)/libcart/cart.o \
+	$(BUILD_DIR)/fatfs/ff.o \
+	$(BUILD_DIR)/fatfs/ffunicode.o \
+	$(BUILD_DIR)/fat.o \
+	$(BUILD_DIR)/rompak.o \
+	$(BUILD_DIR)/dragonfs.o \
+	$(BUILD_DIR)/audio.o \
+	$(BUILD_DIR)/vi.o \
+	$(BUILD_DIR)/eia608.o \
+	$(BUILD_DIR)/display.o \
+	$(BUILD_DIR)/surface.o \
+	$(BUILD_DIR)/console.o \
+	$(BUILD_DIR)/asset.o \
+	$(BUILD_DIR)/pifile.o \
+	$(BUILD_DIR)/ed64x.o \
+	$(BUILD_DIR)/ed64.o \
+	$(BUILD_DIR)/rtc.o \
+	$(BUILD_DIR)/rtc_internal.o \
+	$(BUILD_DIR)/graphics.o \
+	$(BUILD_DIR)/rdp.o \
+	$(BUILD_DIR)/rsp.o \
+	$(BUILD_DIR)/rsp_crash.o \
+	$(BUILD_DIR)/inspector.o \
+	$(BUILD_DIR)/sprite.o \
+	$(BUILD_DIR)/dma.o \
+	$(BUILD_DIR)/timer.o \
+	$(BUILD_DIR)/exception.o \
+	$(BUILD_DIR)/do_ctors.o \
+	$(BUILD_DIR)/dlfcn.o \
+	$(BUILD_DIR)/model64.o
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
 include $(SOURCE_DIR)/bb/libdragon.mk
 include $(SOURCE_DIR)/dd/libdragon.mk
 include $(SOURCE_DIR)/joybus/libdragon.mk
+include $(SOURCE_DIR)/GL/libdragon.mk
+include $(SOURCE_DIR)/video/libdragon.mk
+include $(SOURCE_DIR)/rspq/libdragon.mk
+include $(SOURCE_DIR)/rdpq/libdragon.mk
+include $(SOURCE_DIR)/math/libdragon.mk
+include $(SOURCE_DIR)/compress/libdragon.mk
 
 libdragon.a: $(LIBDRAGON_OBJS)
 
