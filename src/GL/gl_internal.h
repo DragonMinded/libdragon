@@ -58,6 +58,7 @@
 })
 
 #define gl_ensure_no_begin_end() ({ \
+    assertf(state, "gl_init() not called"); \
     if (state->begin_end_active) { \
         gl_set_error(GL_INVALID_OPERATION, "%s is not allowed between glBegin/glEnd", __func__); \
     } \
