@@ -254,25 +254,6 @@ joypad_accessory_error_t joypad_accessory_xfer(
 );
 
 /**
- * @brief Write data to a Joypad accessory asynchronously.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * @param start_addr Starting address in the accessory to write to.
- * @param src Source buffer of data to write to the accessory.
- * @param len Number of bytes to write.
- * @param callback Callback function to call when the write operation completes.
- * @param ctx Opaque pointer to pass to the callback function.
- */
-void joypad_accessory_write_async(
-    joypad_port_t port,
-    uint16_t start_addr,
-    void *src,
-    size_t len,
-    joypad_accessory_io_callback_t callback,
-    void *ctx
-);
-
-/**
  * @brief Select the active bank for a Controller Pak.
  * 
  * Most controller paks (including all first-party ones) have a single bank
