@@ -96,7 +96,7 @@ static void texload_recalc_tileparms(tex_loader_t *tload)
     tload->rect.s0fx = parms->s.translate*4;
     tload->rect.t0fx = parms->t.translate*4;
     tload->rect.s1fx = (parms->s.translate + (srepeats - 1) * width * res->s.clamp)*4;
-    tload->rect.t1fx = (parms->t.translate + (trepeats - 1) * height * res->s.clamp)*4;
+    tload->rect.t1fx = (parms->t.translate + (trepeats - 1) * height * res->t.clamp)*4;
 }
 
 
