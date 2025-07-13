@@ -1,8 +1,3 @@
-############################################################
-# rsp_gl_lighting.inc
-#
-# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
-############################################################
 
     .section .text.gl_lighting
 

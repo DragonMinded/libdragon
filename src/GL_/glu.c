@@ -1,9 +1,3 @@
-/**
- * @file glu.c
- * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
- * @brief OpenGL Utility Library (GLU) convenience functions.
- */
 #include "GL/glu.h"
 #include "gl_internal.h"
 

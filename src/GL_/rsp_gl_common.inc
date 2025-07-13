@@ -1,8 +1,3 @@
-############################################################
-# rsp_gl_common.inc
-#
-# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
-############################################################
 #ifndef RSP_GL_COMMON_INC
 #define RSP_GL_COMMON_INC
 

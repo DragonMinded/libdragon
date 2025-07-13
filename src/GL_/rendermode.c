@@ -1,8 +1,3 @@
-/**
- * @file rendermode.c
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
- * @brief OpenGL render mode and state configuration.
- */
 #include <float.h>
 
 #include "gl_internal.h"

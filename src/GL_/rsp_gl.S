@@ -1,8 +1,3 @@
-############################################################
-# rsp_gl.S
-#
-# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
-############################################################
 #include <rsp_queue.inc>
 #include <rdpq_macros.h>
 #include "gl_constants.h"

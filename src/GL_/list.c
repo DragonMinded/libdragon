@@ -1,8 +1,3 @@
-/**
- * @file list.c
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
- * @brief OpenGL display list management and execution.
- */
 #include "gl_internal.h"
 #include "rspq.h"
 

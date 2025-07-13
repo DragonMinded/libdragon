@@ -1,9 +1,3 @@
-############################################################
-# rsp_gl_pipeline.S
-#
-# Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#          Dennis Heinze <dennisjp.heinze@gmail.com>
-############################################################
 #include <rsp_queue.inc>
 #include <rdpq_macros.h>
 #include "gl_constants.h"
