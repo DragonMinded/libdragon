@@ -76,8 +76,9 @@ void (*__assert_func_ptr)(const char *file, int line, const char *func, const ch
 
 /* Externs from libdragon */
 /// @cond
-extern void enable_interrupts();
-extern void disable_interrupts();
+extern void enable_interrupts(void);
+extern void disable_interrupts(void);
+extern bool __expanded_memory_asserted;
 /// @endcond
 
 /**
@@ -163,6 +164,7 @@ uint64_t __entropy_K[4] = {
 
 /* Forward definitions */
 int close( int fildes );
+int write( int file, char *ptr, int len );
 
 /**
  * @brief Simple implementation of strlen
@@ -1108,7 +1110,7 @@ void *sbrk( int incr )
     if( __heap_end == 0 )
     {
         __heap_end = (char*)HEAP_START_ADDR;
-        __heap_top = (char*)KSEG0_START_ADDR + get_memory_size() - STACK_SIZE;
+        __heap_top = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
         __heap_total_size = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
     }
 
@@ -1121,6 +1123,13 @@ void *sbrk( int incr )
         __heap_end -= incr;
         prev_heap_end = (char *)-1;
         errno = ENOMEM;
+    }
+
+    if (__heap_end - (char*)KSEG0_START_ADDR >= 4*1024*1024 - STACK_SIZE && !__expanded_memory_asserted)
+    {
+        static char warning[] = "WARNING: Allocations beyond 4 MiB: this ROM requires the expansion pak to work properly.\nWARNING: Call assert_memory_expanded() or is_memory_expanded() in main to disable this warning.\n";
+        write( STDERR_FILENO, warning, sizeof(warning) - 1 );
+        __expanded_memory_asserted = true; // only emit the warning once
     }
 
     enable_interrupts();
