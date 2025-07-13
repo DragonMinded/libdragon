@@ -1,5 +1,6 @@
 /**
  * @file rdpq_mode.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: mode setting
  * @ingroup rdpq
  */

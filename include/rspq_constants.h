@@ -1,84 +1,81 @@
+/**
+ * @file rspq_constants.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Constants for the RSPQ subsystem.
+ */
 #ifndef __RSPQ_INTERNAL
 #define __RSPQ_INTERNAL
 
-#define RSPQ_DEBUG                     1
-#define RSPQ_PROFILE                   0
+#define RSPQ_DEBUG                     1       ///< Enable RSPQ debug mode
+#define RSPQ_PROFILE                   0       ///< Enable RSPQ profiling
 
 #define RSPQ_DRAM_LOWPRI_BUFFER_SIZE   0x200   ///< Size of each RSPQ RDRAM buffer for lowpri queue (in 32-bit words)
 #define RSPQ_DRAM_HIGHPRI_BUFFER_SIZE  0x80    ///< Size of each RSPQ RDRAM buffer for highpri queue (in 32-bit words)
 
 #define RSPQ_DMEM_BUFFER_SIZE          0x100   ///< Size of the RSPQ DMEM buffer (in bytes)
 
-#define RSPQ_OVERLAY_ID_BITS           4                             ///< Number of overlay ID bits (0-F)
-#define RSPQ_OVERLAY_ID_SHIFT          (32 - RSPQ_OVERLAY_ID_BITS)   ///< Shift to isolate overlay ID bits
-#define RSPQ_OVERLAY_CMD_BITS          (8 - RSPQ_OVERLAY_ID_BITS)    ///< Number of overlay command bits
-#define RSPQ_MAX_OVERLAYS              (1 << RSPQ_OVERLAY_ID_BITS)   ///< Maximum number of overlays that can be registered
+#define RSPQ_OVERLAY_ID_BITS           4                            ///< Number of overlay ID bits (0-F)
+#define RSPQ_OVERLAY_ID_SHIFT          (32 - RSPQ_OVERLAY_ID_BITS)  ///< Shift to isolate overlay ID bits
+#define RSPQ_OVERLAY_CMD_BITS          (8 - RSPQ_OVERLAY_ID_BITS)   ///< Number of overlay command bits
+#define RSPQ_MAX_OVERLAYS              (1 << RSPQ_OVERLAY_ID_BITS)  ///< Maximum number of overlays that can be registered
 
-#define RSPQ_MAX_OVERLAY_COMMAND_COUNT ((1 << RSPQ_OVERLAY_CMD_BITS) * (RSPQ_MAX_OVERLAYS-1))
-#define RSPQ_DESCRIPTOR_SIZE_MASK      0xFC
-#define RSPQ_DESCRIPTOR_MAX_SIZE       RSPQ_DESCRIPTOR_SIZE_MASK
+#define RSPQ_MAX_OVERLAY_COMMAND_COUNT ((1 << RSPQ_OVERLAY_CMD_BITS) * (RSPQ_MAX_OVERLAYS-1))  ///< Maximum overlay command count
+#define RSPQ_DESCRIPTOR_SIZE_MASK      0xFC                                                    ///< Descriptor size mask
+#define RSPQ_DESCRIPTOR_MAX_SIZE       RSPQ_DESCRIPTOR_SIZE_MASK                               ///< Maximum descriptor size
 
+/** @brief Internal overlay header size in bytes */
 #if RSPQ_PROFILE
-#define RSPQ_OVERLAY_HEADER_SIZE     18         ///< Internal overlay header size in bytes
+#define RSPQ_OVERLAY_HEADER_SIZE     18
 #else
-#define RSPQ_OVERLAY_HEADER_SIZE     16         ///< Internal overlay header size in bytes
+#define RSPQ_OVERLAY_HEADER_SIZE     16
 #endif
 
-/** Minimum / maximum size of a block's chunk (contiguous memory buffer) */
-#define RSPQ_BLOCK_MIN_SIZE            64
-#define RSPQ_BLOCK_MAX_SIZE            8192
+#define RSPQ_BLOCK_MIN_SIZE            64       ///< Minimum / maximum size of a block's chunk (contiguous memory buffer)
+#define RSPQ_BLOCK_MAX_SIZE            8192     ///< Maximum block size
 
-/** Maximum number of nested block calls */
-#define RSPQ_MAX_BLOCK_NESTING_LEVEL   8
-#define RSPQ_LOWPRI_CALL_SLOT          (RSPQ_MAX_BLOCK_NESTING_LEVEL+0)  ///< Special slot used to store the current lowpri pointer
-#define RSPQ_HIGHPRI_CALL_SLOT         (RSPQ_MAX_BLOCK_NESTING_LEVEL+1)  ///< Special slot used to store the current highpri pointer
+#define RSPQ_MAX_BLOCK_NESTING_LEVEL   8                                    ///< Maximum number of nested block calls
+#define RSPQ_LOWPRI_CALL_SLOT          (RSPQ_MAX_BLOCK_NESTING_LEVEL+0)     ///< Special slot used to store the current lowpri pointer
+#define RSPQ_HIGHPRI_CALL_SLOT         (RSPQ_MAX_BLOCK_NESTING_LEVEL+1)     ///< Special slot used to store the current highpri pointer
 
-/** Signal used by RDP SYNC_FULL command to notify that an interrupt is pending */
-#define SP_STATUS_SIG_RDPSYNCFULL              SP_STATUS_SIG1
-#define SP_WSTATUS_SET_SIG_RDPSYNCFULL         SP_WSTATUS_SET_SIG1
-#define SP_WSTATUS_CLEAR_SIG_RDPSYNCFULL       SP_WSTATUS_CLEAR_SIG1
+#define SP_STATUS_SIG_RDPSYNCFULL              SP_STATUS_SIG1               ///< Signal used by RDP SYNC_FULL command to notify that an interrupt is pending
+#define SP_WSTATUS_SET_SIG_RDPSYNCFULL         SP_WSTATUS_SET_SIG1          ///< Set RDP SYNC_FULL signal
+#define SP_WSTATUS_CLEAR_SIG_RDPSYNCFULL       SP_WSTATUS_CLEAR_SIG1        ///< Clear RDP SYNC_FULL signal
 
-/** Signal used by RSP to notify that a syncpoint was reached */
-#define SP_STATUS_SIG_SYNCPOINT                SP_STATUS_SIG2
-#define SP_WSTATUS_SET_SIG_SYNCPOINT           SP_WSTATUS_SET_SIG2
-#define SP_WSTATUS_CLEAR_SIG_SYNCPOINT         SP_WSTATUS_CLEAR_SIG2
+#define SP_STATUS_SIG_SYNCPOINT                SP_STATUS_SIG2               ///< Signal used by RSP to notify that a syncpoint was reached
+#define SP_WSTATUS_SET_SIG_SYNCPOINT           SP_WSTATUS_SET_SIG2          ///< Set syncpoint signal
+#define SP_WSTATUS_CLEAR_SIG_SYNCPOINT         SP_WSTATUS_CLEAR_SIG2        ///< Clear syncpoint signal
 
-/** Signal used to notify that RSP is executing the highpri queue */
-#define SP_STATUS_SIG_HIGHPRI_RUNNING          SP_STATUS_SIG3
-#define SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING     SP_WSTATUS_SET_SIG3
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING   SP_WSTATUS_CLEAR_SIG3
+#define SP_STATUS_SIG_HIGHPRI_RUNNING          SP_STATUS_SIG3               ///< Signal used to notify that RSP is executing the highpri queue
+#define SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING     SP_WSTATUS_SET_SIG3          ///< Set high priority running signal
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING   SP_WSTATUS_CLEAR_SIG3        ///< Clear high priority running signal
 
-/** Signal used to notify that the CPU has requested that the RSP switches to the highpri queue */
-#define SP_STATUS_SIG_HIGHPRI_REQUESTED        SP_STATUS_SIG4
-#define SP_WSTATUS_SET_SIG_HIGHPRI_REQUESTED   SP_WSTATUS_SET_SIG4
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED SP_WSTATUS_CLEAR_SIG4
+#define SP_STATUS_SIG_HIGHPRI_REQUESTED        SP_STATUS_SIG4               ///< Signal used to notify that the CPU has requested that the RSP switches to the highpri queue
+#define SP_WSTATUS_SET_SIG_HIGHPRI_REQUESTED   SP_WSTATUS_SET_SIG4          ///< Set high priority requested signal
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED SP_WSTATUS_CLEAR_SIG4        ///< Clear high priority requested signal
 
-/** Signal used by RSP to notify that has finished one of the two buffers of the highpri queue */
-#define SP_STATUS_SIG_BUFDONE_HIGH             SP_STATUS_SIG5
-#define SP_WSTATUS_SET_SIG_BUFDONE_HIGH        SP_WSTATUS_SET_SIG5
-#define SP_WSTATUS_CLEAR_SIG_BUFDONE_HIGH      SP_WSTATUS_CLEAR_SIG5
+#define SP_STATUS_SIG_BUFDONE_HIGH             SP_STATUS_SIG5               ///< Signal used by RSP to notify that has finished one of the two buffers of the highpri queue
+#define SP_WSTATUS_SET_SIG_BUFDONE_HIGH        SP_WSTATUS_SET_SIG5          ///< Set buffer done (highpri) signal
+#define SP_WSTATUS_CLEAR_SIG_BUFDONE_HIGH      SP_WSTATUS_CLEAR_SIG5        ///< Clear buffer done (highpri) signal
 
-/** Signal used by RSP to notify that has finished one of the two buffers of the lowpri queue */
-#define SP_STATUS_SIG_BUFDONE_LOW              SP_STATUS_SIG6
-#define SP_WSTATUS_SET_SIG_BUFDONE_LOW         SP_WSTATUS_SET_SIG6
-#define SP_WSTATUS_CLEAR_SIG_BUFDONE_LOW       SP_WSTATUS_CLEAR_SIG6
+#define SP_STATUS_SIG_BUFDONE_LOW              SP_STATUS_SIG6               ///< Signal used by RSP to notify that has finished one of the two buffers of the lowpri queue
+#define SP_WSTATUS_SET_SIG_BUFDONE_LOW         SP_WSTATUS_SET_SIG6          ///< Set buffer done (lowpri) signal
+#define SP_WSTATUS_CLEAR_SIG_BUFDONE_LOW       SP_WSTATUS_CLEAR_SIG6        ///< Clear buffer done (lowpri) signal
 
-/** Signal used by the CPU to notify the RSP that more data has been written in the current queue */
-#define SP_STATUS_SIG_MORE                     SP_STATUS_SIG7
-#define SP_WSTATUS_SET_SIG_MORE                SP_WSTATUS_SET_SIG7
-#define SP_WSTATUS_CLEAR_SIG_MORE              SP_WSTATUS_CLEAR_SIG7
+#define SP_STATUS_SIG_MORE                     SP_STATUS_SIG7               ///< Signal used by the CPU to notify the RSP that more data has been written in the current queue
+#define SP_WSTATUS_SET_SIG_MORE                SP_WSTATUS_SET_SIG7          ///< Set more data signal
+#define SP_WSTATUS_CLEAR_SIG_MORE              SP_WSTATUS_CLEAR_SIG7        ///< Clear more data signal
 
 // RSP assert codes (for assers generated by rsp_queue.S)
-#define ASSERT_INVALID_OVERLAY       0xFF01    ///< A command is referencing an overlay that is not registered
-#define ASSERT_INVALID_COMMAND       0xFF02    ///< The requested command is not defined in the overlay
+#define ASSERT_INVALID_OVERLAY       0xFF01                           ///< A command is referencing an overlay that is not registered
+#define ASSERT_INVALID_COMMAND       0xFF02                           ///< The requested command is not defined in the overlay
 
-
-#define RSPQ_PROFILE_CSLOT_WAIT_CPU                 (RSPQ_MAX_OVERLAYS+0)
-#define RSPQ_PROFILE_CSLOT_WAIT_RDP                 (RSPQ_MAX_OVERLAYS+1)
-#define RSPQ_PROFILE_CSLOT_WAIT_RDP_SYNCFULL        (RSPQ_MAX_OVERLAYS+2)
-#define RSPQ_PROFILE_CSLOT_WAIT_RDP_SYNCFULL_MULTI  (RSPQ_MAX_OVERLAYS+3)
-#define RSPQ_PROFILE_CSLOT_OVL_SWITCH               (RSPQ_MAX_OVERLAYS+4)
-#define RSPQ_PROFILE_CSLOT_COUNT                    5
-#define RSPQ_PROFILE_SLOT_COUNT                     (RSPQ_MAX_OVERLAYS+5)
+#define RSPQ_PROFILE_CSLOT_WAIT_CPU                 (RSPQ_MAX_OVERLAYS+0)  ///< Profile slot for CPU wait
+#define RSPQ_PROFILE_CSLOT_WAIT_RDP                 (RSPQ_MAX_OVERLAYS+1)  ///< Profile slot for RDP wait
+#define RSPQ_PROFILE_CSLOT_WAIT_RDP_SYNCFULL        (RSPQ_MAX_OVERLAYS+2)  ///< Profile slot for RDP SYNC_FULL wait
+#define RSPQ_PROFILE_CSLOT_WAIT_RDP_SYNCFULL_MULTI  (RSPQ_MAX_OVERLAYS+3)  ///< Profile slot for RDP SYNC_FULL multi wait
+#define RSPQ_PROFILE_CSLOT_OVL_SWITCH               (RSPQ_MAX_OVERLAYS+4)  ///< Profile slot for overlay switch
+#define RSPQ_PROFILE_CSLOT_COUNT                    5                      ///< Profile slot count
+#define RSPQ_PROFILE_SLOT_COUNT                     (RSPQ_MAX_OVERLAYS+5)  ///< Total profile slot count
 
 #endif

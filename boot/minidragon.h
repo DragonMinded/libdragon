@@ -1,3 +1,7 @@
+/**
+ * @file minidragon.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef BOOT_MINIDRAGON_H
 #define BOOT_MINIDRAGON_H
 

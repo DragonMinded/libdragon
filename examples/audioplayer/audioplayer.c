@@ -196,6 +196,17 @@ enum Page page_song(void) {
 		xm64player_play(&xm, 0);
 		song_name = xm_get_module_name(xm.ctx);
 		song_channels = xm64player_num_channels(&xm);	
+		#if 0
+		// Seek to a specific position in the song
+		// Isolate a specific channel
+		xm64player_seek(&xm, 8, 0, 0);
+		// for (int i=0;i<32;i++) {
+		// 	if (i != 0) {
+		// 		mute[i] = 1;
+		// 		xm_mute_channel(xm.ctx, i+1, 1);
+		// 	}
+		// }
+		#endif
 
 		song_ramsz = sizeof(xm64player_t) + xm.ctx->ctx_size;
 		#if XM_STREAM_PATTERNS

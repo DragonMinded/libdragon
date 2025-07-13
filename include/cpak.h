@@ -1,3 +1,7 @@
+/**
+ * @file cpak.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_CPAK_H
 #define LIBDRAGON_CPAK_H
 
@@ -117,10 +121,16 @@ int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats);
 
 
 /**
- * @brief 
+ * @brief Check the integrity of a controller pak
  * 
- * @param port 
- * @return int 
+ * This function checks the integrity of a controller pak. It is useful to
+ * check if the controller pak is corrupted or if the filesystem is corrupted.
+ * 
+ * @param port          The controller pak to check the integrity of
+ * @param fix_errors    Whether to fix the errors found
+ * @return 0            if the integrity check was successful
+ * @return negative     if an error occurred (eg: no cpak on the specified port),
+ *                      and errno is set accordingly.
  */
 int cpak_fsck(joypad_port_t port, bool fix_errors);
 

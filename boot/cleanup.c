@@ -1,5 +1,6 @@
 /**
  * @file cleanup.c
+ * @author thekovic <https://github.com/thekovic>
  * @brief IPL3: Stage 3 (Cleanup)
  * 
  * This module implements the third and final stage of the loader,

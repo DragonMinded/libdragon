@@ -1,6 +1,6 @@
 /**
  * @file wav64_opus_internal.h
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Support for opus-compressed WAV64 files
  */
 

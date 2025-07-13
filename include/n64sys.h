@@ -1,5 +1,8 @@
 /**
  * @file n64sys.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief N64 System Interface
  * @ingroup n64sys
  */
@@ -365,18 +368,12 @@ void die(void);
  * that first writebacks the affected cachelines to RDRAM, guaranteeing integrity
  * of memory areas that share cachelines with the region that must be invalidated.
  *
- * @param[in] addr_
+ * @param[in] addr
  *            Pointer to memory in question
- * @param[in] sz_
+ * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-#define data_cache_hit_invalidate(addr_, sz_) ({ \
-	void *addr = (addr_); unsigned long sz = (sz_); \
-	assert(((uint32_t)addr % 16) == 0 && (sz % 16) == 0); \
-	__data_cache_hit_invalidate(addr, sz); \
-})
-
-void __data_cache_hit_invalidate(volatile void * addr, unsigned long length);
+void data_cache_hit_invalidate(volatile void* addr, unsigned long length);
 
 /**
  * @brief Force a data cache writeback over a memory region

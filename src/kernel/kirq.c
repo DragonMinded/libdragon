@@ -1,3 +1,7 @@
+/**
+ * @file kirq.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "kirq.h"
 #include "kernel.h"
 #include "kernel_internal.h"

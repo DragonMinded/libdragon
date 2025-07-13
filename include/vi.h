@@ -1,5 +1,6 @@
 /**
  * @file vi.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Video Interface Subsystem
  * @ingroup display
  * 
@@ -113,6 +114,20 @@
  * 
  * To help calculating the borders by taking both potential goals into account
  * (overscan compensation and aspect ratio changes), you can use #vi_calc_borders.
+ * 
+ * ## Working with interrupts disabled
+ * 
+ * Sometimes, the VI library can be used in highly specified contexts where
+ * interrupts are disabled (special test ROMs, emergency debug outputs, etc.)
+ * 
+ * In these cases, after you change any setting with this library (eg: 
+ * call #vi_show to display a new buffer), you must also call #vi_wait_vblank.
+ * This will block execution until the next vblank happens, and at that point
+ * all pending VI settings will also be applied. 
+ * 
+ * Normally, this is not necessary as interrupts are used to synchronize with
+ * vblank. But missing that possibility, the synchronization must be performed
+ * explicitly via #vi_wait_vblank.
  */
 #ifndef __LIBDRAGON_VI_H
 #define __LIBDRAGON_VI_H
@@ -166,6 +181,9 @@ typedef struct surface_s surface_t;
 /** @brief VI register by index (0-13)*/
 #define VI_TO_REGISTER(index) (((index) >= 0 && (index) <= VI_REGISTERS_COUNT)? &VI_REGISTERS[index] : NULL)
 
+/** @brief VI index from register */
+#define VI_TO_INDEX(reg) ((reg) - VI_REGISTERS)
+
 /** Under VI_CTRL */
 
 /** @brief VI_CTRL Register setting: enable dedither filter. */
@@ -180,18 +198,14 @@ typedef struct surface_s surface_t;
 #define VI_CTRL_SERRATE                     (1<<6)
 /** @brief VI_CTRL Register setting: enable divot filter (fixes 1 pixel holes after AA). */
 #define VI_DIVOT_ENABLE                     (1<<4)
-/** @brief VI_CTRL Register setting: enable gamma correction filter. */
-#define VI_GAMMA_ENABLE                     (1<<3)
-/** @brief VI_CTRL Register setting: enable gamma correction filter and hardware dither the least significant color bit on output. */
-#define VI_GAMMA_DITHER_ENABLE              (1<<2)
 /** @brief VI_CTRL Register setting: framebuffer source format */
 #define VI_CTRL_TYPE                        (0b11)
 /** @brief VI_CTRL Register setting: set the framebuffer source as 32-bit. */
 #define VI_CTRL_TYPE_32_BPP                 (0b11)
 /** @brief VI_CTRL Register setting: set the framebuffer source as 16-bit (5-5-5-3). */
 #define VI_CTRL_TYPE_16_BPP                 (0b10)
-/** @brief VI_CTRL Register setting: set the framebuffer source as blank (no data and no sync, TV screens will either show static or nothing). */
-#define VI_CTRL_TYPE_BLANK                  (0b00)
+/** @brief VI_CTRL Register setting: turn off the VI, emitting no sync, TV screens will either show static, black, or a "no signal" message). */
+#define VI_CTRL_TYPE_OFF                    (0b00)
 
 /** Under VI_ORIGIN  */
 /** @brief VI_ORIGIN Register: set the address of a framebuffer. */
@@ -240,6 +254,20 @@ typedef struct surface_s surface_t;
 /**  Under VI_Y_SCALE   */
 /** @brief VI_Y_SCALE Register: set 1/vertical scale up factor (value is converted to 2.10 format) */
 #define VI_Y_SCALE_SET(from, to)            ((1024 * (from) + (to) / 2 ) / (to))
+
+/**  Under VI_BURST   */
+/** @brief VI_BURST Register: set start of color burst in pixels from hsync. */
+#define VI_BURST_START(value)               ((value & 0x3FF) << 20)
+/** @brief VI_BURST Register: set vertical sync width in half lines. */
+#define VI_VSYNC_WIDTH(value)               ((value & 0xF)  << 16)
+/** @brief VI_BURST Register: set color burst width in pixels. */
+#define VI_BURST_WIDTH(value)               ((value & 0xFF) << 8)
+/** @brief VI_BURST Register: set horizontal sync width in pixels. */
+#define VI_HSYNC_WIDTH(value)               ((value & 0xFF) << 0)
+/** @brief VI_BURST Register: set all values. */
+#define VI_BURST_SET(burst_start, vsync_width, burst_width, hsync_width)                                \
+                                            VI_BURST_START(burst_start) | VI_VSYNC_WIDTH(vsync_width) | \
+                                            VI_BURST_WIDTH(burst_width) | VI_HSYNC_WIDTH(hsync_width)
 
 ///@cond
 // Private symbols, do not use
@@ -349,9 +377,42 @@ typedef enum vi_aa_mode_e {
     VI_AA_MODE_RESAMPLE_FETCH_ALWAYS = (0b00 << 8),
 } vi_aa_mode_t;
 
+/**
+ * @brief VI gamma correction mode
+ * 
+ * See #vi_set_gamma for more information.
+ */
+typedef enum vi_gamma_e {
+    /** @brief Disable gamma correction */
+    VI_GAMMA_DISABLE = 0,
+    /** @brief Enable gamma correction */
+    VI_GAMMA_ENABLE = (1<<2),
+    /** @brief Enable gamma correction with dithering */
+    VI_GAMMA_DITHER_ENABLE = (1<<2) | (1<<3),
+} vi_gamma_t;
 
-/** @brief Initialize the VI module */
+
+/** 
+ * @brief Initialize the VI module 
+ * 
+ * This also calls #vi_reset to reset the VI configuration to the default state.
+ */
 void vi_init(void);
+
+/**
+ * @brief Reset VI configuration
+ * 
+ * This brings back the VI configuration to the default state.
+ * Since there is no meaningful hardware default, the default is the one
+ * chosen by this library:
+ * 
+ * * Correct video timings for NTSC, PAL, and M-PAL
+ * * Default active display area ("borderless")
+ * * AA mode: resample
+ * * Interlaced, divot, dedithering, and gamma correction disabled
+ * * Turned off (no video signal)
+ */
+void vi_reset(void);
 
 /** 
  * @name Low-level register access 
@@ -463,6 +524,41 @@ void vi_wait_vblank(void);
 void vi_debug_dump(int verbose);
 
 /**
+ * @brief Install a custom vblank handler
+ * 
+ * This function installs a custom callback that will be run at the beginning
+ * of the vblank period. The most common use of this function is to
+ * switch framebuffers, by calling #vi_show, #vi_set_origin, or even just
+ * #vi_write to change #VI_ORIGIN or other registers.
+ * 
+ * Notice that you can call vi_show() at any time, but using the callback
+ * handler allows you more sophisticated logics like keeping
+ * a queue of framebuffers to show (eg: for triple buffering).
+ * 
+ * @param handler       Function to call at the beginning of the vblank
+ * @param arg           Argument to pass to the handler
+ * 
+ * @see #vi_show
+ * @see #vi_set_origin
+ * @see #vi_uninstall_vblank_handler
+ */
+void vi_install_vblank_handler(void (*handler)(void *), void *arg);
+
+/**
+ * @brief Uninstall a custom vblank handler
+ *
+ * This function removes a previously installed vblank handler. The
+ * handler and the argument must be the same as the ones used in
+ * #vi_install_vblank_handler.
+ * 
+ * @param handler       Function to remove
+ * @param arg           Argument associated with the handler
+ * 
+ * @see #vi_install_vblank_handler
+ */
+void vi_uninstall_vblank_handler(void (*handler)(void *), void *arg);
+
+/**
  * @brief Stabilize the value of a VI register by rewriting it at vblank
  * 
  * @note This is an advanced function, which is normally not needed.
@@ -478,6 +574,24 @@ void vi_debug_dump(int verbose);
  * @param enable        Whether to enable or disable the stabilization
  */
 void vi_stabilize(volatile uint32_t *reg, bool enable);
+
+/**
+ * @brief Set blanking mode
+ * 
+ * This function sets the VI to blanking mode, which means that the VI
+ * will display fully black frames, but *without* turning off the video
+ * signal (and thus losing sync with the TV).
+ * 
+ * This can be useful for instance during transitions where we might not have
+ * a framebuffer ready to display yet, but at the same time we don't want
+ * to cause a sync loss.
+ * 
+ * @note This function is not the same as vi_set_type(VI_CTRL_TYPE_OFF),
+ *       which will turn off the video signal and cause a sync loss.
+ * 
+ * @param blank         Whether to enable or disable blanking mode
+ */
+void vi_blank(bool blank);
 
 /** @} */
 
@@ -765,8 +879,10 @@ void vi_set_dedither(bool dedither);
  * want to experiment with working in linear space, make sure to provide
  * assets in that format (which normally means using the --gamma option to
  * mksprite to convert sRGB PNG pixels into linear space).
+ * 
+ * @param gamma         Gamma correction mode to set
  */
-void vi_set_gamma(bool gamma);
+void vi_set_gamma(vi_gamma_t gamma);
 
 /**
  * @brief Set the active display output area
@@ -872,9 +988,10 @@ void vi_set_borders(vi_borders_t b);
  *  * Call #vi_set_origin to specify the new buffer, stride and bpp
  *  * Call #vi_set_xscale to set the horizontal scale factor
  *  * Call #vi_set_yscale to set the vertical scale factor
+ *  * Call #vi_blank to disable blanking mode (if it was enabled)
  * 
- * If the specified surface is NULL, the VI will be turned off altogether,
- * and will stop issuing any video signal.
+ * If the specified surface is NULL, instead, blanking mode will be
+ * enabled (via #vi_blank), so that the screen will be black.
  * 
  * @param fb      Surface to show
  */

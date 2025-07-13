@@ -1,5 +1,6 @@
 /**
  * @file mixer.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP Audio mixer 
  * @ingroup mixer
  */
@@ -100,8 +101,6 @@ typedef struct mixer_channel_s {
 	void *ptr;             ///< Pointer to the waveform
 	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
 	waveform_t *wave;      ///< Waveform being played back on this channel
-	void *ctx;			   ///< Custom context pointer for read/stop functions
-	uint32_t wave_uuid;    ///< UUID of the waveform being played back
 } mixer_channel_t;
 
 /** @brief Mixer channel state - RSP side
@@ -129,8 +128,8 @@ _Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
  * This struct reflects the settings defined in rsp_mixer.S.
  */
 typedef struct rsp_mixer_settings_s {
-	uint32_t lvol[MIXER_MAX_CHANNELS/2] __attribute__((aligned(16)));
-	uint32_t rvol[MIXER_MAX_CHANNELS/2];
+	uint16_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
+	uint16_t rvol[MIXER_MAX_CHANNELS];
 	rsp_mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
 } rsp_mixer_settings_t;
 
@@ -335,9 +334,9 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		if (wpos >= wave->len)
 			wpos = waveform_wrap_wpos(wpos, wave->len, wave->loop_len);
 
-		// If we are requesting a read from 0, we force seeking because it
+		// If we are requesting a read from loop start, we force seeking because it
 		// means that previous read finished just exactly at the loop point.
-		if (wpos == 0)
+		if (wpos == wave->len - wave->loop_len)
 			seeking = true;
 
 		// The read might cross the end point of the waveform
@@ -377,7 +376,7 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 	}
 }
 
-static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool channel_specific_context)
+void mixer_ch_play(int ch, waveform_t *wave)
 {
 	assert(ch < Mixer.num_channels);
 	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
@@ -392,15 +391,19 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 	// for mono, we need to reallocate the buffer.
 	if (wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC))
 		samplebuffer_close(sbuf);
+	// Check if the state buffer is big enough, otherwise we need to reallocate
+	if (sbuf->state_size < wave->state_size)
+		samplebuffer_close(sbuf);
 
 	if (!samplebuffer_is_inited(sbuf)) {
 		// If we have not yet allocated the memory for the sample buffers,
 		// this is a good moment to do so, as we might need the configure
 		// the samplebuffer in a moment.
-		int size = mixer_calc_buffer_size(ch, wave->channels);
-		void *ptr = malloc_uncached(size);
+		int size = ROUND_UP(mixer_calc_buffer_size(ch, wave->channels), 16);
+		int state_size = ROUND_UP(wave->state_size, 16);
+		void *ptr = malloc_uncached(size + state_size);
 		assertf(ptr, "out of memory (size=%d)", size);
-		samplebuffer_init(sbuf, ptr, size);
+		samplebuffer_init(sbuf, ptr, size, state_size);
 		if (wave->channels == 2) c->flags |= CH_FLAGS_STEREO_ALLOC;
 	}
 
@@ -416,7 +419,7 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 	//    state of the callback is also different (eg: compression state),
 	//    so the next (not already buffered) sample could cause
 	//    an error because it'd be decompressed with the wrong state.
-	if (wave->__uuid != c->wave_uuid || channel_specific_context) {
+	if (wave->__uuid != sbuf->wave_uuid) {
 		samplebuffer_flush(sbuf);
 
 		// If this channel is playing something else, stop it
@@ -427,7 +430,7 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 		assert(wave->channels == 1 || wave->channels == 2);
 		assert(wave->bits == 8 || wave->bits == 16);
 		samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
-		samplebuffer_set_waveform(sbuf, wave, wave->read ? waveform_read : NULL, ctx);
+		samplebuffer_set_waveform(sbuf, wave, wave->read ? waveform_read : NULL);
 
 		// Configure the mixer channel structured used by the RSP ucode
 		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
@@ -439,15 +442,22 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 		c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
 		mixer_ch_set_freq(ch, wave->frequency);
 
-		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);
+		// Invoke start callback if specified. This is only done when the
+		// waveform is assigned to this channel, and not at the start of all
+		// subsequent playbacks.
+		if (wave->start)
+			wave->start(wave->ctx, sbuf);
+
+		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name);
 	} else {
-		tracef("mixer_ch_play[old]: ch=%d len=%llx loop_len=%llx wave=%s ctx=%p\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name, ctx);
+		tracef("mixer_ch_play[old]: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), c->loop_len >> (MIXER_FX64_FRAC+SAMPLES_BPS_SHIFT(sbuf)), wave->name);
+
+		// There is a UUID match. There must also be a pointer match then.
+		assertf(sbuf->wave == wave, "%s: uuid match (%ld) but pointer mismatch: %p != %p", wave->name, wave->__uuid, sbuf->wave, wave);
 	}
 
 	// Restart from the beginning of the waveform
 	c->wave = wave;
-	c->ctx = ctx;
-	c->wave_uuid = wave->__uuid;
 	c->ptr = SAMPLES_PTR(sbuf);
 	c->pos = 0;
 
@@ -462,42 +472,30 @@ static void mixer_ch_play_internal(int ch, waveform_t *wave, void *ctx, bool cha
 	}
 }
 
-void mixer_ch_play(int ch, waveform_t *wave)
-{
-	mixer_ch_play_internal(ch, wave, wave->ctx, false);
-}
-
-void mixer_ch_play_ctx(int ch, waveform_t *wave, void *ctx)
-{
-	mixer_ch_play_internal(ch, wave, ctx, true);
-}
-
-
-void mixer_ch_set_pos(int ch, float pos) {
+void mixer_ch_set_pos(int ch, double pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_pos: cannot call on secondary stereo channel %d", ch);
 	c->pos = MIXER_FX64(pos) << (c->flags & CH_FLAGS_BPS_SHIFT);
+	tracef("mixer_ch_set_pos: ch=%d pos=%.32g(%lx)(%llx)\n", ch, pos, F2I(pos), c->pos);
 }
 
-float mixer_ch_get_pos(int ch) {
+double mixer_ch_get_pos(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_get_pos: cannot call on secondary stereo channel %d", ch);
 	uint64_t pos = c->pos >> (c->flags & CH_FLAGS_BPS_SHIFT);
-	return (float)pos / (float)(1<<MIXER_FX64_FRAC);
+	return (double)pos / (double)(1<<MIXER_FX64_FRAC);
 }
 
 void mixer_ch_stop(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
 
-	tracef("mixer_ch_stop: ch=%d ctx=%p/%p\n", ch, c->ctx, sbuf->wv_ctx);
+	tracef("mixer_ch_stop: ch=%d\n", ch);
 
 	if (c->flags & CH_FLAGS_STEREO)
 		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
 
-	if (c->wave && c->wave->stop)
-		c->wave->stop(c->ctx, sbuf);
 	c->ptr = 0;
+	c->pos = 0;
 
 	// Invalidate the wave pointer, as it might become dangling
 	// anyway, as the user can free the waveform memory at any time after stop.
@@ -506,13 +504,19 @@ void mixer_ch_stop(int ch) {
 	// waveform, we will realize that by the uuid, and reuse the same
 	// samplebuffer contents.
 	c->wave = NULL;
-	c->ctx = NULL;
+}
+
+waveform_t *mixer_ch_playing_waveform(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	if (c->flags & CH_FLAGS_STEREO_SUB) {
+		assert(ch > 0);
+		c--;
+	}
+	return c->ptr != 0 ? c->wave : NULL;
 }
 
 bool mixer_ch_playing(int ch) {
-	mixer_channel_t *c = &Mixer.channels[ch];
-	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_playing: cannot call on secondary stereo channel %d", ch);
-	return c->ptr != 0;
+	return mixer_ch_playing_waveform(ch) != NULL;
 }
 
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz) {
@@ -589,7 +593,7 @@ static void mixer_exec(int32_t *out, int num_samples) {
 				// To do so, we discard everything that comes before the loop 
 				// (once we enter the loop).
 				int loop_pos = len - loop_len;
-				if (wpos >= loop_pos) {
+				if (sbuf->size < len && wpos >= loop_pos && sbuf->wpos != loop_pos) {
 					tracef("ch:%d discard to align loop wpos:%x loop_pos:%x\n", i, wpos, loop_pos);
 					samplebuffer_discard(sbuf, loop_pos);
 				}
@@ -641,10 +645,7 @@ static void mixer_exec(int32_t *out, int num_samples) {
 	}
 
 	volatile rsp_mixer_settings_t *settings = UncachedAddr(&Mixer.ucode_settings);
-
 	volatile rsp_mixer_channel_t *rsp_wv = settings->channels;
-	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
-	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
 
 	for (int ch=0;ch<Mixer.num_channels;ch++) {
 		mixer_channel_t *c = &Mixer.channels[ch];
@@ -653,8 +654,8 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		// volume correctly.
 		if (c->flags & CH_FLAGS_STEREO_SUB) {
 			rsp_wv[ch].ptr = 0;
-			lvol[ch] = 0;
-			rvol[ch] = Mixer.rvol[ch-1];
+			settings->lvol[ch] = 0;
+			settings->rvol[ch] = Mixer.rvol[ch-1];
 			continue;
 		}
 
@@ -665,8 +666,8 @@ static void mixer_exec(int32_t *out, int num_samples) {
 			// makes sure that we smooth volume correctly even for waveforms
 			// where the sequencer creates an a attack ramp (which would nullify
 			// the one-tap volume filter if the volume started from max).
-			lvol[ch] = 0;
-			rvol[ch] = 0;
+			settings->lvol[ch] = 0;
+			settings->rvol[ch] = 0;
 			continue;
 		}
 
@@ -695,19 +696,12 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		}
 
 		if (c->flags & CH_FLAGS_STEREO) {
-			lvol[ch] = Mixer.lvol[ch];
-			rvol[ch] = 0;
+			settings->lvol[ch] = Mixer.lvol[ch];
+			settings->rvol[ch] = 0;
 		} else {
-			lvol[ch] = Mixer.lvol[ch];
-			rvol[ch] = Mixer.rvol[ch];
+			settings->lvol[ch] = Mixer.lvol[ch];
+			settings->rvol[ch] = Mixer.rvol[ch];
 		}
-	}
-
-	uint32_t *lvol32 = (uint32_t*)lvol;
-	uint32_t *rvol32 = (uint32_t*)rvol;
-	for (int ch=0;ch<MIXER_MAX_CHANNELS/2;ch++)  {
-		settings->lvol[ch] = lvol32[ch];
-		settings->rvol[ch] = rvol32[ch];
 	}
 
 	// Check if we the user pressed RESET. If so, we can apply

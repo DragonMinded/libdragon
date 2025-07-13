@@ -1,5 +1,6 @@
 /**
  * @file kirq.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Kernel IRQ Wait Functions
  * @ingroup kernel
  * 

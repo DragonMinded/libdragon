@@ -1,18 +1,28 @@
+/**
+ * @file ay8910.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief AY8910 PSG implementation
+ */
 #include "ay8910.h"
 #include <assert.h>
 #include <memory.h>
 
+/** @brief Enable AY8910 tracing */
 #define AY8910_TRACE   0
 
 #if AY8910_TRACE
+/** @brief Trace function for AY8910 debugging */
 #define tracef(fmt, ...)  debugf(fmt, ##__VA_ARGS__)
 #else
+/** @brief Trace function for AY8910 debugging */
 #define tracef(fmt, ...)  ({ })
 #endif
 
 #if AY8910_CENTER_SILENCE
+/** @brief Volume conversion function with center silence */
 #define V(f)  ((f) * 0.5f * AY8910_VOLUME_ATTENUATE + 0.5f)
 #else
+/** @brief Volume conversion function */
 #define V(f)  ((f) * AY8910_VOLUME_ATTENUATE)
 #endif
 
@@ -20,8 +30,10 @@ static const float VOL_TABLE[16] = { V(0.0), V(0.002300939285824675), V(0.005554
 
 #undef V
 
+/** @brief Sample conversion function */
 #define SAMPLE_CONV(f)   ((f) * 65535.0f - 32768.0f)
 
+/** @brief Output sample in stereo mode */
 #define OUTS(s) ({ \
 	*out++ = (int16_t)SAMPLE_CONV(s); \
 	if (AY8910_OUTPUT_STEREO) *out++ = (int16_t)SAMPLE_CONV(s); \
@@ -31,17 +43,20 @@ static const float VOL_TABLE[16] = { V(0.0), V(0.002300939285824675), V(0.005554
 #ifdef N64
 	// Store 32-bits at once. This is twice as faster when accessing uncached
 	// addresses like the audio buffers.
+	/** @brief Output stereo sample optimized for N64 */
 	#define OUT(sl_, sr_) ({ \
 		*(uint32_t*)out = ((uint32_t)(int16_t)(sl_) << 16) | (uint32_t)(int16_t)(sr_); \
 		out += 2; \
 	})
 #else
+	/** @brief Output stereo sample */
 	#define OUT(sl_, sr_) ({ \
 		*out++ = (int16_t)(sl_); \
 		*out++ = (int16_t)(sr_); \
 	})
 #endif
 #else
+	/** @brief Output mono sample */
 	#define OUT(s_) ({ \
 		int16_t s = (int16_t)(s_); \
 		*out++ = (int16_t)(s); \

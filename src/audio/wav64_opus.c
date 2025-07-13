@@ -1,6 +1,6 @@
 /**
  * @file wav64_opus.c
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Support for opus-compressed WAV64 files
  * 
  * Opus notes
@@ -53,13 +53,22 @@ typedef struct {
     OpusCustomMode *mode;           ///< Opus custom mode for this file
 } wav64_opus_header_ext;
 
+static void waveform_opus_start(void *ctx, samplebuffer_t *sbuf) {
+	wav64_t *wav = (wav64_t*)sbuf->wave;
+	wav64_opus_header_ext *ext = wav->st->ext;
+
+    OpusCustomDecoder *dec = (OpusCustomDecoder*)CachedAddr(sbuf->state);
+    int err = opus_custom_decoder_init(dec, ext->mode, wav->wave.channels);
+    assert(err == OPUS_OK);
+}
+
 static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	wav64_t *wav = (wav64_t*)sbuf->wave;
 	wav64_opus_header_ext *ext = wav->st->ext;
-    OpusCustomDecoder *dec = (OpusCustomDecoder*)wav->st->states;
+    OpusCustomDecoder *dec = (OpusCustomDecoder*)CachedAddr(sbuf->state);
     
 	if (seeking) {
-		if (wpos == 0) {
+		if (wpos == 0) {            
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
 			opus_custom_decoder_ctl(dec, OPUS_RESET_STATE);
 		} else {
@@ -111,15 +120,6 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     }
 }
 
-static void waveform_opus_stop(void *ctx, samplebuffer_t *sbuf) {
-	wav64_t *wav = (wav64_t*)sbuf->wave;
-
-    // Inform wav64 that the channel has stopped
-    int chidx = (int)ctx;
-    assert(chidx >= 0 && chidx <= wav->st->nsimul);
-    __wav64_channel_stopped(wav, chidx);
-}
-
 void wav64_opus_init(wav64_t *wav, int state_size) {
     rsp_opus_init();
     wav64_opus_header_ext *ext = wav->st->ext;
@@ -127,18 +127,11 @@ void wav64_opus_init(wav64_t *wav, int state_size) {
     int err = OPUS_OK;
     ext->mode = opus_custom_mode_create(wav->wave.frequency, ext->frame_size, &err);
     assertf(err == OPUS_OK, "%i", err);
-
-    assertf(state_size >= opus_custom_decoder_get_size(ext->mode, wav->wave.channels), "wav64: opus state_size=%d calc_size=%d\n", state_size, opus_custom_decoder_get_size(ext->mode, wav->wave.channels));
-    debugf("wav64: opus state_size=%d calc_size=%d\n", state_size, opus_custom_decoder_get_size(ext->mode, wav->wave.channels));
-
-    OpusCustomDecoder *dec = (OpusCustomDecoder*)wav->st->states;
-    assert(wav->st->nsimul == 1); 
-    opus_custom_decoder_init(dec, ext->mode, wav->wave.channels);
-    assert(err == OPUS_OK);
+    assertf(state_size >= opus_custom_decoder_get_size(ext->mode, wav->wave.channels), 
+        "wav64: opus state_size=%d calc_size=%d\n", state_size, opus_custom_decoder_get_size(ext->mode, wav->wave.channels));
 
     wav->wave.read = waveform_opus_read;
-    wav->wave.stop = waveform_opus_stop;
-    wav->wave.ctx = 0;
+    wav->wave.start = waveform_opus_start;
 }
 
 void wav64_opus_close(wav64_t *wav) {

@@ -1,3 +1,8 @@
+/**
+ * @file buffer.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL buffer object management and data transfer.
+ */
 #include "gl_internal.h"
 #include <n64sys.h>
 #include <malloc.h>

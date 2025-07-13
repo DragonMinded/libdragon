@@ -1,5 +1,6 @@
 /**
  * @file rdpq_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: internal functions
  * @ingroup rdpq
  */

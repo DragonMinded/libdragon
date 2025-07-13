@@ -1,5 +1,7 @@
 /**
  * @file rspq.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP Command queue
  * @ingroup rsp
  * 
@@ -167,10 +169,10 @@
 #define __LIBDRAGON_RSPQ_H
 
 #include <stdint.h>
-#include <rsp.h>
-#include <debug.h>
-#include <n64sys.h>
-#include <pputils.h>
+#include "rsp.h"
+#include "debug.h"
+#include "n64sys.h"
+#include "pputils.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -399,10 +401,12 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 
 /// @cond
 
+// Extern references, not part of rspq public API
+extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel;
+extern void rspq_next_buffer(void);
+
 // Helpers used to implement rspq_write
 #define _rspq_write_prolog() \
-    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
-    extern void rspq_next_buffer(void); \
     volatile uint32_t *ptr = rspq_cur_pointer+1; \
     (void)ptr;
 

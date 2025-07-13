@@ -205,7 +205,7 @@ struct xm_channel_context_s {
 	xm_sample_t* sample; /* Could be NULL */
 	xm_pattern_slot_t* current;
 
-	float sample_position;
+	double sample_position;
 	float period;
 	float frequency;
 	float step;
@@ -256,6 +256,8 @@ struct xm_channel_context_s {
 	float tremolo_volume;
 	uint8_t tremor_param;
 	bool tremor_on;
+
+	int sample_starting_position_bytes; /* set by 9xx command */
 
 	uint64_t latest_trigger;
 	bool muted;

@@ -1,5 +1,6 @@
 /**
  * @file mixer.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP Audio mixer 
  * @ingroup mixer
  */
@@ -190,27 +191,9 @@ void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
  * @param[in]   ch              Channel index
  * @param[in]   wave            Waveform to playback
  * 
- * @see #mixer_ch_play_ctx
  * @see #mixer_ch_stop
  */
 void mixer_ch_play(int ch, waveform_t *wave);
-
-/**
- * @brief Start playing the specified waveform on the specified channel, with
- *        a custom context pointer.
- * 
- * This function is similar to #mixer_ch_play, but allows to specify a custom
- * context pointer that will be passed to the waveform read function. This is
- * useful to provide some per-channel state to the waveform read function.
- * 
- * @param[in]   ch              Channel index
- * @param[in]   wave            Waveform to playback
- * @param[in]   ctx             Custom context pointer
- * 
- * @see #mixer_ch_play
- * @see #mixer_ch_stop
- */
-void mixer_ch_play_ctx(int ch, waveform_t *wave, void *ctx);
 
 /**
  * @brief Change the frequency for the specified channel.
@@ -239,7 +222,7 @@ void mixer_ch_set_freq(int ch, float frequency);
  * @param[in]   ch              Channel index
  * @param[in]   pos             Playback position (in number of samples)
  */
-void mixer_ch_set_pos(int ch, float pos);
+void mixer_ch_set_pos(int ch, double pos);
 
 /** 
  * Read the current playback position of the waveform in the channel.
@@ -250,13 +233,16 @@ void mixer_ch_set_pos(int ch, float pos);
  * @param[in]   ch              Channel index
  * @return                      Playback position (in number of samples)
  */
-float mixer_ch_get_pos(int ch);
+double mixer_ch_get_pos(int ch);
 
 /** @brief Stop playing samples on the specified channel. */
 void mixer_ch_stop(int ch);
 
 /** @brief  Return true if the channel is currently playing samples. */
 bool mixer_ch_playing(int ch);
+
+/** @brief  Return the waveform being played on this channel, or NULL if none. */
+waveform_t* mixer_ch_playing_waveform(int ch);
 
 /**
  * @brief Configure the limits of a channel with respect to sample bit size, and
@@ -503,27 +489,19 @@ void mixer_remove_event(MixerEvent cb, void *ctx);
 typedef void (*WaveformRead)(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking);
 
 /**
- * @brief Waveform callback function invoked by the mixer whenever the playback
- *        is stopped.
+ * @brief Notify the start of playback of a waveform.
  * 
- * The callback function is invoked whenever a waveform playback stops, which is
- * one of the following reasons:
- * 
- *  * The waveform reaches its end, and it does not contain any loop.
- *  * Another waveform was started in the same channel via #mixer_ch_play,
- *    causing the current waveform to stop.
- *  * #mixer_ch_stop was explicitly called to stop playback of the waveform.
- * 
- * The function is optional, and can be set to NULL if not needed. It is useful
- * to perform cleanup operations when the waveform stops, like closing a file
- * or freeing resources.
- * 
+ * This is the callback that will be invoked by the mixer when a waveform
+ * is first "assigned" to a channel. Notice that if the waveform is
+ * then played back multiple times (either by loops or even manual
+ * triggers, even with pauses inbetween), this function is still called
+ * only once.
+ *  
  * @param[in]  ctx     Opaque pointer that is provided as context to the function,
- *                     and is specified in the waveform (or via #mixer_ch_play_ctx).
- * @param[in]  sbuf    Samplebuffer that was used to store the waveform samples.
- *                     You can access the waveform_t instance via sbuf->wave.
+ *                     and is specified in the waveform.
+ * @param[in]  sbuf    Samplebuffer into which read samples should be stored.
  */
-typedef void (*WaveformStop)(void *ctx, samplebuffer_t *sbuf);
+typedef void (*WaveformStart)(void *ctx, samplebuffer_t *sbuf);
 
 /**
  * @brief A waveform that can be played back through the mixer.
@@ -583,7 +561,15 @@ typedef struct waveform_s {
      */
 	int loop_len;
 
-	/** 
+     /** 
+     * @brief Callback to notify the start of playback of the waveform.
+     * 
+     * This might be useful to perform one-time initializations of the channel state.
+     * See #WaveformStart for more information.
+     */
+     WaveformStart start;
+
+    /** 
      * @brief Read function of the waveform.
      * 
      * This is the callback that will be invoked by the mixer to generate the
@@ -591,23 +577,23 @@ typedef struct waveform_s {
      */
 	WaveformRead read;
 
-     /**
-      * @brief Waveform stop function
-      * 
-      * This optional function is invoked by the mixer when the waveform
-      * playback is stopped.
-      */
-     WaveformStop stop;
-
 	/** 
-      * @brief Opaque pointer provided as context to the read and stop functions. 
-      * 
-      * This is the default context that will be passed to the read and stop
-      * functions, when using #mixer_ch_play. Notice that if you need to
-      * pass a different context per each channel, you should use
-      * #mixer_ch_play_ctx instead.
+      * @brief Opaque pointer provided as context to the read function. 
       */
 	void *ctx;
+
+    /**
+      * @brief State size required for this waveform to operate
+      * 
+      * The waveform can request the mixer to allocate a specific amount of
+      * memory for its internal state. This is useful to store a per-channel
+      * state (eg: decompressor state). 
+      * 
+      * If this variable is not 0, the mixer will allocate the specified amount
+      * of memory for the waveform, and make it available to the read
+      * function via the "state" field of the #samplebuffer_t.
+      */
+     int state_size;
 
      ///@cond
      ///  Mixer private state. Do not touch, initialize to zero

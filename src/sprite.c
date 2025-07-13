@@ -1,3 +1,7 @@
+/**
+ * @file sprite.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "sprite.h"
 #include "n64sys.h"
 #include "debug.h"
@@ -117,7 +121,7 @@ surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level) {
     return surface_make_linear(pixels, fmt, lod->width, lod->height);
 }
 
-void sprite_get_detail_texparms(sprite_t *sprite, rdpq_texparms_t *parms) {
+static void sprite_get_detail_texparms(sprite_t *sprite, rdpq_texparms_t *parms) {
     sprite_ext_t *sx = __sprite_ext(sprite);
     if (!sx)
         return;

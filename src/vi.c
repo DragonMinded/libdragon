@@ -1,3 +1,7 @@
+/**
+ * @file vi.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "vi.h"
 #include "vi_internal.h"
 #include "interrupt.h"
@@ -71,12 +75,14 @@ static const vi_preset_t vi_presets[3] = {
 /** @brief Line interrupt callbacks */
 typedef struct {
     int line;                          ///< Line number
-    void (*handler)(void);             ///< Callback function
+    void (*handler)(void*);            ///< Callback function
+    void *arg;                         ///< Argument to pass to the callback
 } line_irqs_t;
 
-#define MAX_LINE_IRQS  16                       ///< Maximum number of line interrupts
-line_irqs_t line_irqs[MAX_LINE_IRQS] = {0};     ///< Line interrupt callbacks
-line_irqs_t new_line_irqs[MAX_LINE_IRQS] = {0}; ///< New line interrupt callbacks
+#define MAX_VBLANK_HANDLERS   4                             ///< Maximum number of vblank handlers
+#define MAX_LINE_IRQS  16                                   ///< Maximum number of line interrupts
+static line_irqs_t line_irqs[MAX_LINE_IRQS] = {0};          ///< Line interrupt callbacks
+static line_irqs_t new_line_irqs[MAX_LINE_IRQS] = {0};      ///< New line interrupt callbacks
 
 uint32_t __vi_cfg[VI_REGISTERS_COUNT]; ///< Current VI configuration
 static const vi_preset_t *preset;      ///< Active TV preset
@@ -87,6 +93,7 @@ static volatile int cfg_refcount;      ///< Number of active write transactions
 static bool pending_blank;             ///< True if blanking was requested
 static line_irqs_t *cur_line_irq;      ///< Current line IRQ pointer
 static int interlacing_parms[2];       ///< Interlaced parameters (offsets for ORIGIN, YSCALE)
+static line_irqs_t vblank_handlers[MAX_VBLANK_HANDLERS]; ///< Vertical blank handlers
 
 static void __vi_validate_config(void)
 {
@@ -147,8 +154,15 @@ static void __vi_validate_config(void)
     }
 }
 
-static void __vblank_interrupt(void)
+static void __vblank_interrupt(void*)
 {
+    // Call vblank handlers that might change some configuration
+    for (int i=0; i<MAX_VBLANK_HANDLERS; i++) {
+        if (vblank_handlers[i].handler) {
+            vblank_handlers[i].handler(vblank_handlers[i].arg);
+        }
+    }
+
     // Always rewrite registers for which raster effects are activated,
     // so that they get reset at each vblank
     uint32_t writeregs = cfg_raster;
@@ -237,6 +251,7 @@ static void __vblank_interrupt(void)
     }
 }
 
+/** @brief VI interrupt handler for line interrupts */
 void __vi_interrupt(void)
 {
     // Check if there are pending line interrupts to install on this frame.
@@ -249,12 +264,13 @@ void __vi_interrupt(void)
         cfg_pending_lineirqs = false;
     }
 
-    void (*handler)(void) = cur_line_irq->handler;
+    void (*handler)(void*) = cur_line_irq->handler;
+    void *arg = cur_line_irq->arg;
     cur_line_irq++;
     if (cur_line_irq->line == 0)
         cur_line_irq = line_irqs;
     *VI_V_INTR = cur_line_irq->line;
-    handler();
+    handler(arg);
 }
 
 void vi_write_begin(void)
@@ -274,8 +290,8 @@ static void vi_write_maybe_flush(void)
     // it is mandatory when VI is disabled (VI_CTRL=0, which makes VI_V_CURRENT=0),
     // because the VI does not generate interrupts in that case.
     disable_interrupts();
-    if ((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_BLANK)
-        __vblank_interrupt();
+    if ((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
+        __vblank_interrupt(NULL);
     enable_interrupts();
 }
 
@@ -285,6 +301,15 @@ void vi_write_end(void)
     --cfg_refcount;
     vi_write_maybe_flush();
 }
+
+void vi_write_end_forced(void)
+{
+    if (cfg_refcount > 0) {
+        cfg_refcount = 0;
+        vi_write_maybe_flush();
+    }
+}
+
 
 static void vi_write_idx_masked(int reg_idx, uint32_t wmask, uint32_t value)
 {
@@ -362,9 +387,9 @@ void vi_show(surface_t *fb)
 {
     if (!fb) {
         vi_write_begin();
+        vi_blank(true);
         vi_write(VI_ORIGIN, 0);
         vi_write(VI_WIDTH, 0);
-        vi_write_masked(VI_CTRL, VI_CTRL_TYPE, VI_CTRL_TYPE_BLANK);
         vi_write_end();
         return;
     }
@@ -376,6 +401,7 @@ void vi_show(surface_t *fb)
     assert(PhysicalAddr(fb->buffer) % 8 == 0);
     assert(fb->stride % 8 == 0);
     vi_write_begin();
+    vi_blank(false);
     vi_set_origin(fb->buffer, fb->stride >> bpp_shift, bpp * 8);
     vi_set_xscale(fb->width);
     vi_set_yscale(fb->height);
@@ -407,9 +433,9 @@ void vi_set_dedither(bool enable)
     vi_write_masked(VI_CTRL, VI_DEDITHER_FILTER_ENABLE, enable ? VI_DEDITHER_FILTER_ENABLE : 0);
 }
 
-void vi_set_gamma(bool enable)
+void vi_set_gamma(vi_gamma_t gamma)
 {
-    vi_write_masked(VI_CTRL, VI_GAMMA_ENABLE, enable ? VI_GAMMA_ENABLE : 0);
+    vi_write_masked(VI_CTRL, VI_GAMMA_DITHER_ENABLE, gamma);
 }
 
 float vi_get_refresh_rate(void)
@@ -580,16 +606,20 @@ void vi_scroll_output(int dx, int dy)
 
 void vi_blank(bool set_blank)
 {
-    if (set_blank)
+    disable_interrupts();
+    if (set_blank) {
         pending_blank = true;
-    else
+    } else {
+        pending_blank = false;
         vi_write(VI_H_VIDEO, vi_read(VI_H_VIDEO));
+    }
+    enable_interrupts();
 }
 
 void vi_wait_vblank(void)
 {
     uint32_t ctrl = vi_read(VI_CTRL);
-    if ((ctrl & VI_CTRL_TYPE) == VI_CTRL_TYPE_BLANK)
+    if ((ctrl & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
         return;
 
     if (__kernel) {
@@ -602,6 +632,13 @@ void vi_wait_vblank(void)
         // would cause multiple subsequent calls not to wait the next vblank.
         while (vi_get_scanline(NULL) != VI_V_CURRENT_VBLANK-2) {}
         while (vi_get_scanline(NULL) != VI_V_CURRENT_VBLANK) {}
+
+        // To support operating the VI with interrupts disabled, manually call
+        // our vblank handler here
+        uint32_t c0_status = C0_STATUS();
+        if ((c0_status & C0_STATUS_IE) == 0 || ((c0_status & (C0_STATUS_EXL|C0_STATUS_ERL)) != 0)) {
+            __vblank_interrupt(NULL);
+        }
     }
 }
 
@@ -638,15 +675,36 @@ void vi_debug_dump(int verbose)
         ((y_scale >> 16) & 0x3FF) / 1024.0f, (y_scale >> 16) & 0x3FF);
 }
 
-void vi_set_line_interrupt(int line, void (*handler)(void))
+void vi_install_vblank_handler(void (*handler)(void *), void *arg)
+{
+    for (int i=0; i<MAX_VBLANK_HANDLERS; i++) {
+        if (vblank_handlers[i].handler == NULL) {
+            vblank_handlers[i].handler = handler;
+            vblank_handlers[i].arg = arg;
+            return;
+        }
+    }
+    assertf(false, "Too many vblank handlers");
+}
+
+void vi_uninstall_vblank_handler(void (*handler)(void *), void *arg)
+{
+    for (int i=0; i<MAX_VBLANK_HANDLERS; i++) {
+        if (vblank_handlers[i].handler == handler && vblank_handlers[i].arg == arg) {
+            vblank_handlers[i].handler = NULL;
+            vblank_handlers[i].arg = NULL;
+            return;
+        }
+    }
+    assertf(false, "VBlank handler not found");
+}
+
+void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
 {
     // When VI_V_INTR bit 0 is set to 0, the interrupt triggers on the line
     // *before* the specified one, in the odd field. This is often surprising
     // (especially across vsync), so let's just force it to 1.
     line |= 1;
-    //line &= ~1; // FIXME: this makes things a bit more stable on ares until we fix it
-
-    debugf("VI: Setting line interrupt at line %d\n", line);
 
     // Insert the new line interrupt at the end of the list of line interrupts,
     // as a negative line number. It will be processed at the beginning of the
@@ -670,6 +728,7 @@ void vi_set_line_interrupt(int line, void (*handler)(void))
             new_line_irqs[j] = new_line_irqs[j-1];
         new_line_irqs[i].line = line;
         new_line_irqs[i].handler = handler;
+        new_line_irqs[i].arg = arg;
     } else {
         // Remove the line interrupt from the interrupt list.
         bool removed = false;
@@ -679,6 +738,7 @@ void vi_set_line_interrupt(int line, void (*handler)(void))
                     new_line_irqs[j] = new_line_irqs[j+1];
                 new_line_irqs[MAX_LINE_IRQS-1].line = 0;
                 new_line_irqs[MAX_LINE_IRQS-1].handler = NULL;
+                new_line_irqs[MAX_LINE_IRQS-1].arg = NULL;
                 removed = true;
                 break;
             }
@@ -688,22 +748,8 @@ void vi_set_line_interrupt(int line, void (*handler)(void))
     enable_interrupts();
 }
 
-void vi_init(void)
+void vi_reset(void)
 {
-    static bool inited = false;
-    if (inited) return;
-    inited = true;
-
-    // Initialize the preset to the current TV type (progressive mode),
-    // and set the pending mask to all registers, so that the whole
-    // VI will be programmed at next vblank.
-    memset(&__vi_cfg, 0, sizeof(__vi_cfg));
-    cfg_pending = cfg_raster = 0;
-    cfg_refcount = 0;
-    pending_blank = 0;
-    cur_line_irq = line_irqs;
-    preset = &vi_presets[get_tv_type()];
-
     vi_write_begin();
 
     // Configure the timing registers from the preset. These will not change
@@ -724,11 +770,28 @@ void vi_init(void)
     ctrl |= VI_AA_MODE_RESAMPLE;
     vi_write(VI_CTRL, ctrl);
 
-    // Mark all registers as pending, so that they will be written at next vblank.
-    // This make sure we fully reset the 
-    cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
-
     vi_write_end();
+}
+
+void vi_init(void)
+{
+    static bool inited = false;
+    if (inited) return;
+    inited = true;
+
+    memset(&__vi_cfg, 0, sizeof(__vi_cfg));
+    cfg_pending = cfg_raster = 0;
+    cfg_refcount = 0;
+    pending_blank = 0;
+    cur_line_irq = line_irqs;
+    preset = &vi_presets[get_tv_type()];
+
+    // Reset the VI to its default state.
+    vi_reset();
+
+    // Set the pending mask to all registers, so that the whole
+    // VI will be programmed at next vblank.
+    cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
 
     memset(line_irqs, 0, sizeof(line_irqs));
     line_irqs[0].line = VI_V_CURRENT_VBLANK;

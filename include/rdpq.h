@@ -1,5 +1,7 @@
 /**
  * @file rdpq.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue
  * @ingroup rdpq
  */
@@ -1637,18 +1639,25 @@ void rdpq_call_deferred(void (*func)(void *), void *arg);
  *       of #rdpq_write, please treat @p num_rdp_commands as it was the
  *       "number of 64-bit words". So for instance if the RSP command generates
  *       a single RDP TEXTURE_RECTANGLE command, pass 2 as @p num_rdp_commands.
+ * 
+ * @hideinitializer
  */
 #define rdpq_write(num_rdp_commands, ovl_id, cmd_id, ...) ({ \
     int __num_rdp_commands = (num_rdp_commands); \
     if (!__builtin_constant_p(__num_rdp_commands) || __num_rdp_commands != 0) { \
-        extern rspq_block_t *rspq_block; \
         if (__builtin_expect(rspq_block != NULL, 0)) { \
-            extern void __rdpq_block_reserve(int); \
             __rdpq_block_reserve(__num_rdp_commands); \
         } \
     } \
     rspq_write(ovl_id, cmd_id, ##__VA_ARGS__); \
 })
+
+/// @cond
+// Declarations used by rdpq_write, not part of the public API.
+typedef struct rspq_block_s rspq_block_t;
+extern rspq_block_t *rspq_block;
+extern void __rdpq_block_reserve(int); \
+/// @endcond
 
 
 #ifdef __cplusplus

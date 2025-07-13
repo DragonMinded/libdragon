@@ -1,5 +1,7 @@
 /**
  * @file rdpq_macros.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP command macros
  * @ingroup rdpq
  * 
@@ -365,7 +367,7 @@ typedef uint32_t rdpq_blender_t;
  *     <th>A</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `NOISE`, `1`, `0`</td></tr>
  * <tr><th>B</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `KEYCENTER`, `K4`, `0`</td></tr>
  * <tr><th>C</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `TEX0_ALPHA`, `SHADE_ALPHA`, `PRIM_ALPHA`, `ENV_ALPHA`, `LOD_FRAC`, `PRIM_LOD_FRAC`, `K5`, 'KEYSCALE', `0`</td></tr>
- * <tr><th>D</th></tr><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `1`, `0`</td></tr>
+ * <tr><th>D</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `1`, `0`</td></tr>
  * </table>
  * 
  * <table>

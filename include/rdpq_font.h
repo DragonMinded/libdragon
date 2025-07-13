@@ -1,5 +1,6 @@
 /**
  * @file rdpq_font.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Text layout engine: font loading and rendering
  * @ingroup rdpq
  */

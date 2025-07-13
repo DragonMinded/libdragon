@@ -1,3 +1,8 @@
+/**
+ * @file asset_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Liam Coleman <gamemasterplc@gmail.com>
+ */
 #ifndef __LIBDRAGON_ASSET_INTERNAL_H
 #define __LIBDRAGON_ASSET_INTERNAL_H
 
@@ -98,11 +103,15 @@ typedef struct {
     int (*decompress_full_inplace)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);
 } asset_compression_t;
 
-
+/** @brief Open a file as FILE* and assert on error */
 FILE *must_fopen(const char *fn);
+/** @brief Open a file and assert on error */
 int must_open(const char *fn);
+/** @brief Load an asset from file descriptor with automatic memory allocation */
 void *asset_loadfd(int fd, int *sz);
+/** @brief Load an asset from file descriptor into a provided buffer */
 bool asset_loadfd_into(int fd, int *sz, void *buf, int *buf_size);
+/** @brief Open a file descriptor as a FILE* with asset support */
 FILE *asset_fdopen(int fd, int *sz);
 
 #endif

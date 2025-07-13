@@ -1,5 +1,6 @@
 /**
  * @file samplebuffer.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Sample buffer 
  * @ingroup mixer
  */
@@ -124,6 +125,19 @@ typedef struct samplebuffer_s {
     int wnext;
 
     /**
+     * @brief Pointer to the state of the waveform decoder.
+     * 
+     * The waveform decoder can use this pointer to store its internal
+     * state.
+     */
+    void *state;
+
+    /**
+     * @brief Allocated state size
+     */
+    int state_size;
+
+    /**
      * Waveform being played back on this sample buffer.
      */
     waveform_t *wave;
@@ -135,9 +149,9 @@ typedef struct samplebuffer_s {
     WaveformRead wv_read;
 
     /**
-     * wv_ctx is the opaque pointer to pass as context to decoder functions.
+     * @brief UUID of the waveform being played back on this sample buffer.
      */
-    void *wv_ctx;
+    uint32_t wave_uuid;
 } samplebuffer_t;
 
 /**
@@ -149,12 +163,15 @@ typedef struct samplebuffer_s {
  * strongly advised to allocate the buffer via #malloc_uncached, that takes
  * care of these constraints.
  * 
+ * The memory buffer will be used for storing samples and for the state.
+ * 
  * @param[in]   buf              Sample buffer
  * @param[in]   uncached_mem     Memory buffer to use. Must be 8-byte aligned,
  *                               and in the uncached segment.
- * @param[in]   size             Size of the memory buffer, in bytes.
+ * @param[in]   size             Size of the memory buffer portion to use for samples (in bytes)
+ * @param[in]   state_size       Size of the memory buffer portion to use for the state (in bytes)
  */
-void samplebuffer_init(samplebuffer_t *buf, uint8_t *uncached_mem, int size);
+void samplebuffer_init(samplebuffer_t *buf, uint8_t *uncached_mem, int size, int state_size);
 
 /**
  * @brief Return true if the samplebuffer is initialized.
@@ -190,10 +207,8 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bps);
  * @param[in]       buf     Sample buffer
  * @param[in]       wave    Waveform to connect to the sample buffer
  * @param[in]       read    Waveform read function
- * @param[in]       ctx     Opaque context that will be passed to the read/stop
- *                          function.
  */
-void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read, void *ctx);
+void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read);
 
 /**
  * @brief Get a pointer to specific set of samples in the buffer (zero-copy).

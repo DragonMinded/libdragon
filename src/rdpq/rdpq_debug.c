@@ -1,5 +1,6 @@
 /**
  * @file rdpq_debug.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: debugging helpers
  * @ingroup rdpq
  */
@@ -481,8 +482,8 @@ char* rdpq_debug_disasm_cc(uint64_t cc64)
     static const char* rgb_add1[8] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "1", "0"};
     static const char* rgb_add2[8] = {"COMBINED", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "1", "0"};
     static const char* alpha_addsub1[8] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "1", "0"};
-    static const char* alpha_mul1[8] = {"LOD_FRAC", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "PRIM_LOD_FRAC", "0"};
-    static const char* alpha_addsub2[8] = {"COMBINED", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "1", "0"};
+    static const char* alpha_mul1[8] = {"LOD_FRAC", "TEX0", "TEX1", "PRIM", "SHADE", "ENV", "PRIM_LOD_FRAC", "0"};
+    static const char* alpha_addsub2[8] = {"COMBINED", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "1", "0"};
     static const char* alpha_mul2[8] = {"LOD_FRAC", "TEX1", "TEX0_BUG", "PRIM", "SHADE", "ENV", "PRIM_LOD_FRAC", "0"};
 
     char buf[256];

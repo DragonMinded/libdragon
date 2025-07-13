@@ -1,3 +1,7 @@
+/**
+ * @file dso_format.h
+ * @author gamemasterplc <gamemasterplc@gmail.com>
+ */
 #ifndef __DSO_FORMAT_H
 #define __DSO_FORMAT_H
 

@@ -1,3 +1,7 @@
+/**
+ * @file bb_rtc.h
+ * @author Christopher Bonhage <me@christopherbonhage.com>
+ */
 #ifndef LIBDRAGON_BB_RTC_H
 #define LIBDRAGON_BB_RTC_H
 

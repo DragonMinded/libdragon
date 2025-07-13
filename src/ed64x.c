@@ -1,5 +1,7 @@
 /**
  * @file ed64x.c
+ * @author Christopher Bonhage <me@christopherbonhage.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief EverDrive 64 X-series utilities
  * @ingroup peripherals
  */

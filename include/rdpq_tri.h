@@ -1,5 +1,6 @@
 /**
- * @file rdpq.h
+ * @file rdpq_tri.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue
  * @ingroup rdpq
  * 

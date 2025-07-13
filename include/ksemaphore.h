@@ -1,5 +1,6 @@
 /**
  * @file ksemaphore.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Kernel Semaphore prmitive
  * @ingroup kernel
  * 

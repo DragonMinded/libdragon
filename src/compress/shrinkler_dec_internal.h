@@ -1,3 +1,7 @@
+/**
+ * @file shrinkler_dec_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_COMPRESS_SHRINKLER_DEC_INTERNAL_H
 #define LIBDRAGON_COMPRESS_SHRINKLER_DEC_INTERNAL_H
 
@@ -8,11 +12,24 @@
 #define DECOMPRESS_SHRINKLER_FULL_USE_ASM             0
 #endif
 
+/**
+ * @brief Size of the Shrinkler decompressor state structure, in bytes.
+ */
 #define DECOMPRESS_SHRINKLER_STATE_SIZE       512
 
 #if DECOMPRESS_SHRINKLER_FULL_USE_ASM
 int decompress_shrinkler_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size);
 #else
+/**
+ * @brief Decompress a full Shrinkler-compressed file into a buffer.
+ *
+ * @param fd File descriptor to read compressed data from.
+ * @param cmp_size Size of the compressed data.
+ * @param size Size of the decompressed data.
+ * @param buf Buffer to store decompressed data.
+ * @param buf_size Pointer to the size of the buffer; updated with required size.
+ * @return true on success, false on failure.
+ */
 bool decompress_shrinkler_full(int fd, size_t cmp_size, size_t size, void *buf, int *buf_size);
 #endif
 

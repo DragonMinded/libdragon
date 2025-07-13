@@ -1,3 +1,7 @@
+/**
+ * @file profile.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef PROFILE_H
 #define PROFILE_H
 

@@ -1,5 +1,7 @@
 /**
  * @file rspq.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP Command queue
  * @ingroup rsp
  *
@@ -1098,6 +1100,11 @@ void rspq_highpri_sync(void)
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING)))
             break;
     }
+}
+
+bool rspq_in_highpri(void)
+{
+    return (rspq_ctx == &highpri);
 }
 
 void rspq_block_begin(void)

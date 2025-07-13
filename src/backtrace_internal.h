@@ -1,3 +1,7 @@
+/**
+ * @file backtrace_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_BACKTRACE_INTERNAL_H
 #define __LIBDRAGON_BACKTRACE_INTERNAL_H
 

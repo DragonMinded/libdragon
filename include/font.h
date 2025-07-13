@@ -1,5 +1,7 @@
 /**
  * @file font.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Simon Eriksson <simon.eriksson.1187@gmail.com>
  * @brief Font Data
  * @ingroup graphics
  */

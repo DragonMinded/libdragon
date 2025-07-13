@@ -1,5 +1,7 @@
 /**
  * @file surface.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Surface buffers used to draw images
  * @ingroup graphics
  * 

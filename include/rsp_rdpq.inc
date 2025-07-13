@@ -1,6 +1,9 @@
 
 ##############################################################################
 #  RDPQ library
+#
+# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
 ##############################################################################
 #
 # This library allows rspq overlays to emit RDP commands.

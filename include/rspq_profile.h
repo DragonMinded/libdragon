@@ -1,3 +1,7 @@
+/**
+ * @file rspq_profile.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef __LIBDRAGON_RSPQ_PROFILE_H
 #define __LIBDRAGON_RSPQ_PROFILE_H
 

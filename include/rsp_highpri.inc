@@ -1,5 +1,7 @@
 ########################################################
 # Include this file wherever you prefer in your text segment
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ########################################################
     
     ############################################################

@@ -16,6 +16,18 @@ ifeq ($(OS),Windows_NT)
 	CFLAGS += -static
 	CXXFLAGS += -static
   	LDFLAGS += -static
+
+# Check that $CC and $CXX are set to a mingw compiler. Many users are not really
+# familiar with msys2 and they tend to have weirdly broken environments. Let's try
+# to help them.
+	CHECK_CC := $(shell $(CC) -dumpmachine 2>/dev/null | grep -i "mingw" >/dev/null && echo ok || echo fail)
+	CHECK_CXX := $(shell $(CXX) -dumpmachine 2>/dev/null | grep -i "mingw" >/dev/null && echo ok || echo fail)
+	ifeq ($(CHECK_CC),fail)
+		$(error "CC is not set to a mingw compiler: ${CC}")
+	endif
+	ifeq ($(CHECK_CXX),fail)
+		$(error "CXX is not set to a mingw compiler: ${CXX}")
+	endif
 endif
 
 # Decomment to rebuild tools with ASAN
@@ -66,7 +78,7 @@ combexpr_OBJS = mkmaterial/combexpr_cli.o mkmaterial/combexpr_disasm.o
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
 n64dso-extern_OBJS = n64dso/n64dso-extern.o
 n64dso-msym_OBJS = n64dso/n64dso-msym.o
-audioconv64_OBJS = audioconv64/audioconv64.o common/assetcomp.a
+audioconv64_OBJS = audioconv64/audioconv64.o audioconv64/libvadpcm.o audioconv64/libopus.o audioconv64/libsamplerate.o audioconv64/liblzh5.o audioconv64/libxm.o common/assetcomp.a
 rdpvalidate_OBJS = rdpvalidate/rdpvalidate.o
 mkdfs_OBJS = mkdfs/mkdfs.o
 dumpdfs_OBJS = dumpdfs/dumpdfs.o

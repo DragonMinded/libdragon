@@ -1,3 +1,13 @@
+/*
+    n64dso-extern: generate a symbol table from a DSO file
+    Written by Liam Coleman <gamemaster@gamemaster.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>

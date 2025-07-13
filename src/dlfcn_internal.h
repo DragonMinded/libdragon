@@ -1,9 +1,19 @@
+/**
+ * @file dlfcn_internal.h
+ * @author gamemasterplc <gamemasterplc@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __DLFCN_INTERNAL_H
 #define __DLFCN_INTERNAL_H
 
 #include <stdbool.h>
 #include "dso_format.h"
 
+/**
+ * @brief Handle to a dynamically loaded module.
+ *
+ * This is an alias for #dso_module_t.
+ */
 typedef dso_module_t dl_module_t;
 
 /** @brief Generic function pointer */

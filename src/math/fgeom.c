@@ -1,3 +1,7 @@
+/**
+ * @file fgeom.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "fgeom.h"
 
 void fm_vec3_reflect(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n)

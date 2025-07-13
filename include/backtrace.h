@@ -1,5 +1,6 @@
 /**
  * @file backtrace.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Backtrace (call stack) support
  * @ingroup backtrace
  */

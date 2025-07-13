@@ -1,5 +1,7 @@
 /**
  * @file dfsinternal.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Liam Coleman <gamemasterplc@gmail.com>
  * @brief Internal DFS Definitions
  * @ingroup dfs
  */

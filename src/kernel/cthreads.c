@@ -1,3 +1,8 @@
+/**
+ * @file cthreads.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief C11 thread and synchronization primitive implementations.
+ */
 #include "threads.h"
 #include "kernel.h"
 #include "kernel_internal.h"

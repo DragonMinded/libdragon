@@ -1,3 +1,13 @@
+/*
+    mkfont_bmfont: convert BMFont files to N64 font format
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #include <map>
 #include <memory>
 

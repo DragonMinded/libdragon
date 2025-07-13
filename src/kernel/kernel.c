@@ -1,3 +1,7 @@
+/**
+ * @file kernel.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "kernel.h"
 #include "kernel_internal.h"
 #include "backtrace_internal.h"
@@ -9,13 +13,11 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#define DEBUG_KERNEL   0
+#define DEBUG_KERNEL   0    ///< Enable kernel debugging
+#define KERNEL_CHECKS  1    ///< Enable stack-smashing checks of threads
 
-/** @brief Enable stack-smashing checks of threads. */
-#define KERNEL_CHECKS  1
-
-#define STACK_COOKIE   0xDEADBEEFBAADC0DE
-#define STACK_GUARD    64
+#define STACK_COOKIE   0xDEADBEEFBAADC0DE     ///< Stack cookie value for overflow detection  
+#define STACK_GUARD    64                     ///< Stack guard size in bytes
 
 
 /** @brief Read the current value of the gp register */
@@ -29,7 +31,7 @@
  * that will call #__kthread_syscall_schedule.
  *
  * This macro is very low level and is called as part of higher-level primitives
- * that force a context switch like #thread_yield.
+ * that force a context switch like #kthread_yield.
  *
  * Do not call this under interrupt; use #KTHREAD_SWITCH_ISR instead.
  */
@@ -64,19 +66,28 @@ bool __isr_force_schedule = false;
 extern int __interrupt_depth;
 extern int __interrupt_sr;
 /* TLS Linker symbols */
+/** @brief TLS base address (linker symbol) */
 extern char __tls_base[];
+/** @brief TLS data start (linker symbol) */
 extern char __tdata_start[];
+/** @brief TLS data end (linker symbol) */
 extern char __tdata_end[];
+/** @brief TLS BSS start (linker symbol) */
 extern char __tbss_start[];
+/** @brief TLS BSS end (linker symbol) */
 extern char __tbss_end[];
+/** @brief TLS end (linker symbol) */
 extern char __tls_end[];
+/** @brief Thread TLS data copy (linker symbol) */
 extern char __th_tdata_copy[];
+/** @brief TLS data alignment (linker symbol) */
 extern __attribute__((section(".data"))) size_t __tdata_align;
 
 #ifndef NDEBUG
 kthread_t *__kernel_all_threads;
 #endif
 
+/** @brief Initializes TLS support for the kernel */
 __attribute__((constructor)) void __kernel_tls_init(void)
 {
 	memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
@@ -99,6 +110,7 @@ void __kthread_boot(void)
 	kthread_exit(res);
 }
 
+/** @brief Checks for stack overflow in a thread */
 void __kthread_check_overflow(kthread_t *th)
 {
 	// If the current stack pointer is beyond the end of the stack,
@@ -121,6 +133,7 @@ void __kthread_check_overflow(kthread_t *th)
 	}
 }
 
+/** @brief Frees a thread and its resources */
 static void kthread_free(kthread_t *th)
 {
 	if (DEBUG_KERNEL) debugf("[kernel] freeing %s[%p]\n", th->name, th);
@@ -155,6 +168,7 @@ void __thlist_add_pri(kthread_t **list, kthread_t *th)
 	__thlist_add(list, th);
 }
 
+/** @brief Add a thread to a physical address list sorted by priority */
 #define __phys_thlist_add_pri(list, th) ({ \
 	kthread_t *__list = (list) ? VirtualCachedAddr(list) : NULL; \
 	__thlist_add_pri(&__list, (th)); \
@@ -198,6 +212,7 @@ bool __thlist_remove(kthread_t **list, kthread_t *th)
 	return false;
 }
 
+/** @brief Remove an element from a physical address thread list */
 #define __phys_thlist_remove(list, th) ({ \
 	kthread_t *__list = (list) ? VirtualCachedAddr(list) : NULL; \
 	bool __ret = __thlist_remove(&__list, (th)); \
@@ -227,6 +242,7 @@ bool __thlist_splice_pri(kthread_t **dst, kthread_t **src)
 	return highpri;
 }
 
+/** @brief Splice threads from physical address list respecting priority */
 #define __phys_thlist_splice_pri(dst, src) ({ \
 	kthread_t *__src = (src) ? VirtualCachedAddr(src) : NULL; \
 	bool __ret = __thlist_splice_pri(dst, &__src); \
@@ -388,7 +404,7 @@ kthread_t* kernel_init(void)
 	#endif
 
 	// NOTE: keep this in sync with system.c
-	#define STACK_SIZE 0x10000
+	const int STACK_SIZE = 0x10000;
 	th_main.stack = (char*)0x80000000 + get_memory_size() - STACK_SIZE;
 
 	uint64_t *s = (uint64_t*)th_main.stack;
@@ -618,10 +634,6 @@ void kthread_resume(kthread_t *th)
 	th->flags &= ~TH_FLAG_SUSPENDED;
 	enable_interrupts();
 }
-
-
-#define kernel_preempt_disable() asm volatile ("addiu $k1, 1")
-#define kernel_preempt_enable()  asm volatile ("addi $k1, -1")
 
 void kthread_detach(kthread_t *th)
 {

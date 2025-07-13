@@ -1,5 +1,6 @@
 /**
  * @file pifile.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Load a PI-mapped file
  * @ingroup asset
  * 

@@ -1,5 +1,6 @@
 /**
  * @file fgeom.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief Structs and functions for common 3D geometry calculations.
  * @ingroup fastmath
  */

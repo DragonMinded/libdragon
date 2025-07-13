@@ -1,5 +1,6 @@
 /**
  * @file rtc.c
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Real-Time Clock Subsystem
  * @ingroup rtc
  */
@@ -7,7 +8,7 @@
 #include "bb_rtc.h"
 #include "dd.h"
 #include "debug.h"
-#include "joybus_rtc.h"
+#include "joybus/joybus_rtc.h"
 #include "libcart/cart.h"
 #include "n64sys.h"
 #include "rtc.h"

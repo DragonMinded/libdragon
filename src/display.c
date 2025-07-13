@@ -1,5 +1,7 @@
 /**
  * @file display.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Display Subsystem
  * @ingroup display
  */
@@ -11,7 +13,6 @@
 #include "regsinternal.h"
 #include "system_internal.h"
 #include "n64sys.h"
-#include "vi_internal.h"
 #include "display.h"
 #include "interrupt.h"
 #include "utils.h"
@@ -31,7 +32,9 @@ static surface_t *surfaces;
 /** @brief Currently allocated Z-buffer */
 static surface_t surf_zbuf;
 /** @brief Record whehter the Z-buffer as allocated via sbrk_top */
-bool zbuf_sbrk_top = false;
+static bool zbuf_sbrk_top = false;
+/** @brief True if the vblank handler is installed */
+static bool handler_installed = false;
 /** @brief Currently active bit depth */
 static uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
@@ -40,8 +43,6 @@ static uint32_t __width;
 static uint32_t __height;
 /** @brief Currently active video interlace mode */
 static interlace_mode_t __interlace_mode = INTERLACE_OFF;
-/** @brief Current VI display borders */
-static vi_borders_t __borders;
 /** @brief Number of active buffers */
 static uint32_t __buffers = 0;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
@@ -52,8 +53,6 @@ static int now_showing = -1;
 static uint32_t drawing_mask = 0;
 /** @brief Bitmask of surfaces that are ready to be shown */
 static volatile uint32_t ready_mask = 0;
-/** @brief Auto detected TV region for display */
-static uint32_t __tv_type;
 /** @brief Actual display refresh rate */
 static float refresh_rate;
 /** @brief Actual display refresh period */
@@ -116,7 +115,7 @@ static inline int buffer_next(int idx) {
 static float calc_refresh_rate(void)
 {
     int clock;
-    switch (__tv_type) {
+    switch (get_tv_type()) {
         case TV_PAL:    clock = 49656530; break;
         case TV_MPAL:   clock = 48628322; break;
         default:        clock = 48681818; break;
@@ -194,7 +193,7 @@ static void update_fps(bool newframe)
  *
  * If there is another frame to display, display the frame
  */
-static void __display_callback()
+static void __display_callback(void *arg)
 {
     // If a reset has occured and this is almost the last VI interrupt
     // before RESET_TIME_LENGTH grace period, stop all work and exit
@@ -204,7 +203,6 @@ static void __display_callback()
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
     bool field = (*VI_V_CURRENT) & 1;
-    bool interlaced = (*VI_CTRL) & (VI_CTRL_SERRATE);
 
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame. If full interlace mode is selected
@@ -220,60 +218,25 @@ static void __display_callback()
         update_fps(newframe);
     }
 
-    vi_write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
-
-    // FIXME: PAL-M on old boards like NUS-CPU-02 requires changing V_BURST every field, otherwise
-    // the image seems garbled at the top. It is probably a bug in old revisions of the VI chip,
-    // since the problem doesn't exist on newer boards.
-    if (__tv_type == TV_MPAL && interlaced) {
-        if (field == 0) {
-            *VI_V_BURST = 0x000b0202;
-        } else {
-            *VI_V_BURST = 0x000e0204;
-        }
-    }
+    vi_write(VI_ORIGIN, PhysicalAddr(__safe_buffer[now_showing]));
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
 {
-    __tv_type = get_tv_type();
-    uint32_t control = !sys_bbplayer()? VI_PIXEL_ADVANCE_DEFAULT : VI_PIXEL_ADVANCE_BBPLAYER;
-
-    /* Can't have the video interrupt happening here */
-    disable_interrupts();
-
     assertf(__buffers == 0, "display_init() called while the display is already initialized.\nPlease close the current display with display_close() first.");
+
+    vi_init();
+    vi_write_begin();
+
+    // Reset VI configuration to default, before proceeding to configure the
+    // current display mode.
+    vi_reset();
 
     // Minimum is at least one buffer.
     __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
-    bool serrate = res.interlaced != INTERLACE_OFF;
-    /* Serrate on to stop vertical jitter */
-    if(serrate) control |= VI_CTRL_SERRATE;
-
-    /* Figure out control register based on input given */
-    switch( bit )
-    {
-        case DEPTH_16_BPP:
-            control |= VI_CTRL_TYPE_16_BPP;
-            break;
-        case DEPTH_32_BPP:
-            control |= VI_CTRL_TYPE_32_BPP;
-            break;
-    }
-
-    switch( gamma )
-    {
-        case GAMMA_NONE:
-            /* Nothing to set here */
-            break;
-        case GAMMA_CORRECT:
-            control |= VI_GAMMA_ENABLE;
-            break;
-        case GAMMA_CORRECT_DITHER:
-            control |= VI_GAMMA_ENABLE | VI_GAMMA_DITHER_ENABLE;
-            break;  
-    }
+    vi_set_interlaced(res.interlaced != INTERLACE_OFF);
+    vi_set_gamma((vi_gamma_t)gamma);
 
     switch( filters )
     {
@@ -290,23 +253,25 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
                It would work on PAL consoles, but we think users are better
                served by prohibiting it altogether.
 
-               For people that absolutely need this on PAL consoles, it can
-               be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
-               after the display_init call. */
+               For the very common case of width=320 exactly, we can do a workaround,
+               which is setting a slightly higher VI XSCALE (0x201 instead of 0x200)
+               which workarounds the bug without any artifact. See below where the
+               fix is applied.
+
+               For people that absolutely need this on PAL consoles, call display_init()
+               with FILTERS_RESAMPLE, and then call vi_set_aa_mode(VI_AA_MODE_NONE); */
             if ( bit == DEPTH_16_BPP )
             {
-                assertf(res.width > 320,
+                assertf(res.width >= 320,
                     "FILTERS_DISABLED is not supported by the hardware for widths <= 320.\n"
                     "Please use FILTERS_RESAMPLE instead.");
             }
 
-            /* Set AA off flag */
-            control |= VI_AA_MODE_NONE;
-
+            vi_set_aa_mode(VI_AA_MODE_NONE);
             break;
         case FILTERS_RESAMPLE:
             /* Set AA on resample */
-            control |= VI_AA_MODE_RESAMPLE;
+            vi_set_aa_mode(VI_AA_MODE_RESAMPLE);
 
             /* Dither filter should not be enabled with this AA mode
                as it will cause ugly vertical streaks */
@@ -319,10 +284,11 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
                 assertf(res.width > 320,
                     "FILTERS_DEDITHER is not supported by the hardware for widths <= 320.\n"
                     "Please use FILTERS_RESAMPLE instead.");
-                control |= VI_AA_MODE_NONE | VI_DEDITHER_FILTER_ENABLE;
+                vi_set_aa_mode(VI_AA_MODE_NONE);
+                vi_set_dedither(true);
+            } else {
+                vi_set_aa_mode(VI_AA_MODE_NONE);
             }
-            else control |= VI_AA_MODE_NONE;
-
             break;
         case FILTERS_RESAMPLE_ANTIALIAS:
             /* Set AA on resample and fetch as well as divot on.
@@ -336,17 +302,23 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
              * to get image corruption for VI bandwidth saturation in 32bpp modes.
              */
             if ( bit == DEPTH_16_BPP )
-                control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DIVOT_ENABLE;
+                vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_ALWAYS);
             else
-                control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
+                vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_NEEDED);
+            vi_set_divot(true);
             break;
         case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
             /* Set AA on resample always and fetch as well as dedither on 
                (only on 16bpp mode, act as FILTERS_RESAMPLE_ANTIALIAS on 32bpp) */
-            if ( bit == DEPTH_16_BPP ) 
-                control |= VI_AA_MODE_RESAMPLE_FETCH_ALWAYS | VI_DEDITHER_FILTER_ENABLE | VI_DIVOT_ENABLE;
-            else
-                control |= VI_AA_MODE_RESAMPLE_FETCH_NEEDED | VI_DIVOT_ENABLE;
+            if ( bit == DEPTH_16_BPP ) {
+                vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_ALWAYS);
+                vi_set_dedither(true);
+                vi_set_divot(true);
+            } else {
+                vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_NEEDED);
+                vi_set_dedither(false);
+                vi_set_divot(true);
+            }
             break;
     }
 
@@ -370,7 +342,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __interlace_mode = res.interlaced;
 
     float aspect_ratio = res.aspect_ratio ? res.aspect_ratio : 4.0f / 3.0f;
-    __borders = vi_calc_borders_int(__tv_type, aspect_ratio, res.overscan_margin);
+    vi_set_borders(vi_calc_borders(aspect_ratio, res.overscan_margin));
 
     surfaces = malloc(sizeof(surface_t) * __buffers);
     assert(surfaces != NULL);
@@ -389,19 +361,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
     }
 
-    /* Set the first buffer as the displaying buffer */
-    now_showing = 0;
-    drawing_mask = 0;
-    ready_mask = 0;
-
-    /* Show our screen normally. If display is already active, do that during vblank
-       to avoid confusing the VI chip with in-frame modifications. */
-    if ( vi_is_active() ) { vi_wait_for_vblank(); }
-
-    /* Set basic preset */
-    vi_write_config(&vi_config_presets[serrate][__tv_type]);
-
-    if( __tv_type == TV_PAL && res.pal60 )
+#if 0
+    if( get_tv_type() == TV_PAL && res.pal60 )
     {
         /* 60Hz PAL is a regular PAL video mode with NTSC-like V_SYNC and V_VIDEO */
 
@@ -414,18 +375,26 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         vi_write_safe(VI_V_TOTAL, VI_V_TOTAL_SET(526 - 6 - serrate));
         vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
     }
+#endif
 
-    // Configure scaling and positioning, taking into account VI border settings.
-    vi_write_safe(VI_H_VIDEO, *VI_H_VIDEO + VI_H_VIDEO_SET(__borders.left, 0) - VI_H_VIDEO_SET(0, __borders.right));
-    vi_write_safe(VI_X_SCALE, VI_X_SCALE_SET(__width, 640 - __borders.left - __borders.right));
-    vi_write_safe(VI_V_VIDEO, *VI_V_VIDEO + VI_V_VIDEO_SET(__borders.up, 0) - VI_V_VIDEO_SET(0, __borders.down)); 
-    const uint32_t base_height = (__tv_type == TV_PAL) ? 288 : 240;
-    vi_write_safe(VI_Y_SCALE, VI_Y_SCALE_SET(__height, base_height - ((__borders.up + __borders.down) / 2)));
+    /* Set the first buffer as the displaying buffer */
+    now_showing = 0;
+    drawing_mask = 0;
+    ready_mask = 0;
+    vi_show(&surfaces[0]);
 
-    /* Configure other VI registers */
-    vi_write_safe(VI_ORIGIN, PhysicalAddr(__safe_buffer[0]));
-    vi_write_safe(VI_WIDTH, res.width);
-    vi_write_safe(VI_CTRL, control);
+    /* Workaround for VI bug */
+    if ( res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED )
+    {
+        /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
+           and resampling is disabled (see vi.c for this). HSTART < 128 is the
+           default border configuration on NTSC. Since X_SCALE=0x200 means
+           width=320 which happens to be the most common resolution, let's apply
+           a simple workaround.
+           A X_SCALE of 0x201 will behave exactly like 0x200 would if it worked,
+           and introduce zero rendering artifacts (without resampling, that is). */
+        vi_write(VI_X_SCALE, 0x201);
+    }
 
     /* Calculate actual refresh rate for this configuration */
     refresh_rate = calc_refresh_rate();
@@ -435,20 +404,25 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     kalman_init(&k_fps, 1.0f, 0.01f);
     kalman_init(&k_delta, 1.0f, 1.0f);
 
-    enable_interrupts();
+    vi_write_end();
 
-    /* Set which line to call back on in order to flip screens */
-    register_VI_handler( __display_callback );
-    set_VI_interrupt( 1, VI_V_CURRENT_VBLANK );
+    vi_install_vblank_handler(__display_callback, NULL);
+    handler_installed = true;
 }
 
 void display_close()
 {
-    /* Can't have the video interrupt happening here */
-    disable_interrupts();
+    // Contrary to most other subsystems, for display we want to handle
+    // correctly failed display_init() calls followed by
+    // display_close(), because this is a common pattern during eg
+    // exception handling. So we need to be a bit more careful than usual
+    // to make sure to deinitialize piece-wise.
 
-    set_VI_interrupt( 0, 0 );
-    unregister_VI_handler( __display_callback );
+    if ( handler_installed )
+    {
+        vi_uninstall_vblank_handler(__display_callback, NULL);
+        handler_installed = false;
+    }
 
     now_showing = -1;
     drawing_mask = 0;
@@ -464,14 +438,10 @@ void display_close()
         }
     }
 
-    __width = 0;
-    __height = 0;
-
-    /* If display is active, wait for vblank before touching the registers */
-    if( vi_is_active() ) { vi_wait_for_vblank(); }
-
-    vi_set_blank_image();
-    vi_write_dram_register( 0 );
+    // Blank the image and wait until it actually happens, before
+    // freeing the buffers.
+    vi_show(NULL);
+    vi_wait_vblank();
 
     if( surfaces )
     {
@@ -483,10 +453,11 @@ void display_close()
         }
         free(surfaces);
         surfaces = NULL;
-        __buffers = 0;
     }
 
-    enable_interrupts();
+    __width = 0;
+    __height = 0;
+    __buffers = 0;
 }
 
 surface_t* display_try_get(void)
@@ -584,27 +555,6 @@ void display_show( surface_t* surf )
     enable_interrupts();
 }
 
-/**
- * @brief Force-display a previously locked buffer
- *
- * Display a valid display context to the screen right away, without waiting
- * for vblank interrupt. This function works also with interrupts disabled.
- *
- * NOTE: this is currently not part of the public API as we use it only
- * internally.
- *
- * @param[in] disp
- *            A display context retrieved using #display_get
- */
-void display_show_force( display_context_t disp )
-{
-    /* Can't have the video interrupt screwing this up */
-    disable_interrupts();
-    display_show(disp);
-    __display_callback();
-    enable_interrupts();
-}
-
 uint32_t display_get_width(void)
 {
     return __width;
@@ -666,5 +616,3 @@ surface_t display_get_current_framebuffer(void)
         display_get_width(),
         display_get_height());
 }
-
-extern inline void vi_write_config(const vi_config_t* config);

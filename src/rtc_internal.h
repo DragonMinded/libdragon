@@ -1,6 +1,6 @@
 /**
  * @file rtc_internal.h
- * @author Christopher Bonhage (me@christopherbonhage.com)
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Real-Time Clock subsystem internal API
  * @ingroup rtc
  */

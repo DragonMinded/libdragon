@@ -1,3 +1,8 @@
+/**
+ * @file rsp_pipeline.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL RSP-based rendering pipeline implementation.
+ */
 #include <limits.h>
 
 #include "gl_internal.h"

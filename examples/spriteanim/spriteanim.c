@@ -69,7 +69,7 @@ int main()
     debug_init_usblog();
     
     //Init display
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_DISABLED);
     //Init DragonFS
     dfs_init(DFS_DEFAULT_LOCATION);
     //Init RDPQ

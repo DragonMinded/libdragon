@@ -1,5 +1,8 @@
 /**
  * @file rdp.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP: Hardware Display Interface
  * @ingroup rdp
  */

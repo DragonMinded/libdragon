@@ -1,5 +1,6 @@
 /**
  * @file kernel.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Multi-threading kernel
  * @ingroup kernel
  */

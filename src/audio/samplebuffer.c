@@ -1,5 +1,6 @@
 /**
  * @file samplebuffer.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Sample buffer
  * @ingroup mixer
  */
@@ -9,6 +10,8 @@
 #include "n64sys.h"
 #include "n64types.h"
 #include "utils.h"
+#include "rspq.h"
+#include "../rspq/rspq_internal.h"
 #include "debug.h"
 #include <string.h>
 
@@ -23,7 +26,7 @@
 #define tracef(fmt, ...)  ({ })
 #endif
 
-void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes) {
+void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes, int state_size) {
 	memset(buf, 0, sizeof(samplebuffer_t));
 
 	// Store the buffer pointer as uncached address. We don't want to access
@@ -34,6 +37,12 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes) {
 	buf->ptr_and_flags = (uint32_t)uncached_mem;
 	assert((buf->ptr_and_flags & 7) == 0);
 	buf->size = nbytes;
+
+	if (state_size) {
+		buf->state = uncached_mem + nbytes;
+		buf->state_size = state_size;
+	} 
+		
 	buf->wnext = -1;
 }
 
@@ -49,10 +58,11 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
 	buf->size = nbytes >> bps;
 }
 
-void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read, void *ctx) {
+void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read) {
 	buf->wave = wave;
 	buf->wv_read = read;
-	buf->wv_ctx = ctx;
+	buf->wave_uuid = wave->__uuid;
+	assert(wave->state_size <= buf->state_size);
 }
 
 bool samplebuffer_is_inited(samplebuffer_t *buf)
@@ -104,7 +114,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if ((buf->wpos << bps) & 1) {
 			buf->wpos--; len++;
 		}
-		buf->wv_read(buf->wv_ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
+		buf->wv_read(buf->wave->ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
 		buf->wnext = buf->wpos + buf->widx;
 	} else {
 		// Record first sample that we still need to keep in the sample
@@ -125,7 +135,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if (reuse < *wlen) {
 			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
 			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
-			buf->wv_read(buf->wv_ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
+			buf->wv_read(buf->wave->ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
 			buf->wnext = buf->wpos + buf->widx;
 		}
 	}
@@ -211,6 +221,15 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 	int kept_bytes = (buf->widx - idx) << SAMPLES_BPS_SHIFT(buf);
 	if (kept_bytes > 0) {		
 		tracef("samplebuffer_discard: compacting buffer, moving 0x%x bytes\n", kept_bytes);
+
+		// Samples are normally generated via RSP. Before moving them with the CPU,
+		// we must be sure the RSP is done with.
+		// FIXME: this could be avoided with a RSP memmove command, but it remains
+		// to be seen what is more efficient.
+		bool highpri = rspq_in_highpri();
+		if (highpri) rspq_highpri_end();
+		rspq_highpri_sync();
+		if (highpri) rspq_highpri_begin();
 
 		// FIXME: this violates the zero-copy principle as we do a memmove here.
 		// The problem is that the RSP ucode doesn't fully support a circular

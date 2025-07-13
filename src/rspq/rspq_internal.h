@@ -1,5 +1,7 @@
 /**
  * @file rspq_internal.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP Command queue
  * @ingroup rsp
  */
@@ -260,6 +262,9 @@ static inline bool rspq_in_block(void) {
     extern rspq_block_t *rspq_block;
     return rspq_block != NULL;
 }
+
+/** @brief True if we are currently in highpri mode */
+bool rspq_in_highpri(void);
 
 /** 
  * @brief Return a pointer to a copy of the current RSPQ state. 

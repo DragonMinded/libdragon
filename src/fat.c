@@ -1,3 +1,8 @@
+/**
+ * @file fat.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief FAT filesystem interface and newlib wrappers.
+ */
 #include <string.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -14,6 +19,7 @@
 
 static fat_disk_t fat_disks[FF_VOLUMES] = {0};
 
+/** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DSTATUS disk_initialize(BYTE pdrv)
 {
 	if (fat_disks[pdrv].disk_initialize)
@@ -21,6 +27,7 @@ DSTATUS disk_initialize(BYTE pdrv)
 	return STA_NOINIT;
 }
 
+/** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DSTATUS disk_status(BYTE pdrv)
 {
 	if (fat_disks[pdrv].disk_status)
@@ -28,6 +35,7 @@ DSTATUS disk_status(BYTE pdrv)
 	return STA_NOINIT;
 }
 
+/** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 {
 	if (fat_disks[pdrv].disk_read)
@@ -35,6 +43,7 @@ DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 	return RES_PARERR;
 }
 
+/** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 {
 	if (fat_disks[pdrv].disk_write)
@@ -42,6 +51,7 @@ DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 	return RES_PARERR;
 }
 
+/** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 {
 	if (fat_disks[pdrv].disk_ioctl)
@@ -49,6 +59,7 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 	return RES_PARERR;
 }
 
+/** @brief FatFS API: read the current time from the RTC using standard C functions. */
 DWORD get_fattime(void)
 {
 	time_t t = time(NULL);
@@ -74,6 +85,12 @@ DWORD get_fattime(void)
  * FAT newlib wrappers
  *********************************************************************/
 
+/**
+ * @brief Create a FAT filename string for a given volume and name.
+ * @param volid Volume ID (0-3).
+ * @param name File name string.
+ * @return Pointer to the constructed FAT filename string.
+ */
 #define MAKE_FAT_NAME(volid, name) ({ \
 	char *fat_name = alloca(strlen(name)+2+1); \
 	fat_name[0] = '0'+volid; fat_name[1] = ':'; \
@@ -81,6 +98,7 @@ DWORD get_fattime(void)
 	fat_name; \
 })
 
+/** @brief Number of static FAT file objects. */
 #define NUM_STATIC_FAT_FILES 4
 static FIL static_fat_files[NUM_STATIC_FAT_FILES] = {0};
 
