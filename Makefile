@@ -82,6 +82,7 @@ include $(SOURCE_DIR)/GL/libdragon.mk
 include $(SOURCE_DIR)/video/libdragon.mk
 include $(SOURCE_DIR)/rspq/libdragon.mk
 include $(SOURCE_DIR)/rdpq/libdragon.mk
+include $(SOURCE_DIR)/magma/libdragon.mk
 include $(SOURCE_DIR)/math/libdragon.mk
 include $(SOURCE_DIR)/compress/libdragon.mk
 
