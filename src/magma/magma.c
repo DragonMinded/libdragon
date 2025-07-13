@@ -114,6 +114,7 @@ void mg_init(void)
 {
     if (is_initialized) return;
 
+    rspq_init();
     mg_overlay_id = rspq_overlay_register(&rsp_magma);
 
     // Pass the location and size of the clipping code overlay to the RSP state
