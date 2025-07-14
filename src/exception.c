@@ -73,7 +73,7 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 
 		case EXCEPTION_CODE_FLOATING_POINT: {
 			const char *space = "";
-			fprintf(out, "FPU status: %08lX [", C1_FCR31());
+			fprintf(out, "FPU status: %08lX [", fcr31);
 			if (fcr31 & C1_CAUSE_INEXACT_OP) fprintf(out, "%sINEXACT", space), space=" ";
 			if (fcr31 & C1_CAUSE_OVERFLOW) fprintf(out, "%sOVERFLOW", space), space=" ";
 			if (fcr31 & C1_CAUSE_UNDERFLOW) fprintf(out, "%sUNDERFLOW", space), space=" ";
