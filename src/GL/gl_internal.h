@@ -7,8 +7,17 @@
 
 #include "GL/gl.h"
 #include "GL/gl_integration.h"
+#include "gl_constants.h"
 #include "magma.h"
+#include "mgfx.h"
 #include "rdpq.h"
+#include "utils.h"
+
+#define VERTEX_UNIT_COUNT     1
+#define ATTRIB_TYPE_COUNT     9
+
+#define MAX_PIPELINE_COUNT          (1<<4)
+#define MAX_VERTEX_ATTRIBUTE_COUNT  3
 
 #define CLAMP01(x) CLAMP((x), 0, 1)
 
@@ -45,12 +54,159 @@
     true; \
 })
 
+typedef int16_t int16u_t __attribute__((aligned(1)));
+typedef uint16_t uint16u_t __attribute__((aligned(1)));
+typedef int32_t int32u_t __attribute__((aligned(1)));
+typedef uint32_t uint32u_t __attribute__((aligned(1)));
+typedef float floatu __attribute__((aligned(1)));
+typedef double doubleu __attribute__((aligned(1)));
+
 typedef struct {
-    uint32_t flags;
+    GLfloat x, y, w, h, n, f;
+} gl_viewport_t;
+
+typedef enum {
+    ATTRIB_VERTEX,
+    ATTRIB_COLOR,
+    ATTRIB_TEXCOORD,
+    ATTRIB_NORMAL,
+    ATTRIB_MTX_INDEX,
+    ATTRIB_COUNT
+} gl_array_type_t;
+
+typedef struct {
+    GLvoid *data;
+    uint32_t size;
+} gl_storage_t;
+
+typedef struct {
+    GLenum usage;
+    GLenum access;
+    GLvoid *pointer;
+    gl_storage_t storage;
+    bool mapped;
+} gl_buffer_object_t;
+
+typedef struct
+{
+    mg_vertex_attribute_t attributes[MAX_VERTEX_ATTRIBUTE_COUNT];
+    mg_vertex_layout_t vertex_layout;
+} vertex_layout;
+
+typedef void (*read_attrib_func)(void*,const void*,uint32_t);
+
+typedef struct {
+    GLint size;
+    GLenum type;
+    GLsizei stride;
+    const GLvoid *pointer;
+    gl_buffer_object_t *binding;
+    bool enabled;
+
+    const GLvoid *final_pointer;
+    uint16_t final_stride;
+    read_attrib_func read_func;
+} gl_array_t;
+
+typedef struct {
+    gl_array_t arrays[ATTRIB_COUNT];
+    vertex_layout layout;
+    uint32_t pipeline_index;
+    void *buffer;
+    bool is_dirty;
+} gl_array_object_t;
+
+typedef struct {
+    mgfx_fog_t fog;
+    mgfx_lighting_t lighting;
+    mgfx_texturing_t texturing;
+    mgfx_matrices_t matrices;
+} gl_uniform_data;
+
+typedef struct {
+    GLuint target_precision;
+    GLuint precision;
+    GLint shift_amount;
+    GLfloat to_float_factor;
+} gl_fixed_precision_t;
+
+typedef struct
+{
+    mg_pipeline_t *pipeline;
+    vertex_layout layout;
+    mgfx_features_t features;
+} pipeline_data;
+
+typedef struct {
+    GLenum cull_face_mode;
+    GLenum front_face;
     GLenum current_error;
+    GLfloat fog_start;
+    GLfloat fog_end;
     color_t clear_color;
     uint16_t clear_depth;
+    gl_array_object_t default_array_object;
+    gl_array_object_t *array_object;
+    gl_buffer_object_t *array_buffer;
+    gl_buffer_object_t *element_array_buffer;
+    const surface_t *color_buffer;
+    gl_viewport_t viewport;
+    gl_uniform_data *uniform_data;
+    gl_fixed_precision_t vertex_halfx_precision;
+    gl_fixed_precision_t texcoord_halfx_precision;
+    uint32_t pipelines_count;
+    pipeline_data pipelines[MAX_PIPELINE_COUNT]; // TODO: change this to a hashmap
     bool begin_end_active;
+    bool is_pipeline_dirty;
+    bool is_drawing_anything;
+    bool cull_face;
+    bool texture_1d;
+    bool texture_2d;
+    bool depth_test;
+    bool lighting;
+    bool fog;
+    bool color_material;
+    bool normalize;
+    bool matrix_palette_enabled;
+    bool tex_flip_t;
 } gl_state_t;
+
+inline bool is_in_heap_memory(void *ptr)
+{
+    ptr = CachedAddr(ptr);
+    return ptr >= HEAP_START_ADDR && ptr < ((void*)KSEG0_START_ADDR + get_memory_size());
+}
+
+inline bool is_valid_object_id(GLuint id)
+{
+    return is_in_heap_memory((void*)id);
+}
+
+bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
+void gl_storage_free(gl_storage_t *storage);
+bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
+
+uint32_t pipeline_get_or_create(const mg_vertex_layout_t *submesh_layout, mgfx_features_t features);
+void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
+
+inline uint32_t gl_type_to_index(GLenum type)
+{
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+    case GL_SHORT:
+    case GL_UNSIGNED_SHORT:
+    case GL_INT:
+    case GL_UNSIGNED_INT:
+    case GL_FLOAT:
+        return type - GL_BYTE;
+    case GL_DOUBLE:
+        return 7;
+    case GL_HALF_FIXED_N64:
+        return 8;
+    default:
+        return -1;
+    }
+}
 
 #endif

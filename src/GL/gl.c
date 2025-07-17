@@ -6,10 +6,15 @@
 #include "GL/gl.h"
 #include "gl_internal.h"
 #include "magma.h"
+#include "mgfx.h"
 #include "rdpq.h"
 #include "rdpq_attach.h"
 
 gl_state_t *state;
+
+void gl_rendermode_init();
+void gl_array_init();
+void gl_primitive_init();
 
 void gl_init(void)
 {
@@ -17,34 +22,200 @@ void gl_init(void)
     rdpq_init();
 
     state = calloc(1, sizeof(gl_state_t));
+    state->is_pipeline_dirty = true;
+    state->uniform_data = malloc_uncached(sizeof(gl_uniform_data));
+
+    mgfx_get_lighting(&state->uniform_data->lighting, &(mgfx_lighting_parms_t) {
+        .light_count = 0,
+        .ambient_color = color_from_packed32(0xFFFFFFFF)
+    });
+
+    fm_mat4_t identity;
+    fm_mat4_identity(&identity);
+    mgfx_get_matrices(&state->uniform_data->matrices, &(mgfx_matrices_parms_t) {
+        .model_view_projection = identity.m[0],
+        .model_view = identity.m[0],
+        .normal = identity.m[0],
+    });
+
+    gl_rendermode_init();
+    gl_array_init();
+    gl_primitive_init();
+
+
     glClearColor(0, 0, 0, 0);
-    glClearDepth(1.0);
+    glClearDepth(1);
 }
 
 void gl_close(void)
 {
     rspq_wait();
+    free(state->uniform_data);
     free(state);
 
     mg_close();
     rdpq_close();
 }
+
 void gl_context_begin()
 {
+    const surface_t *old_color_buffer = state->color_buffer;
+    
+    state->color_buffer = rdpq_get_attached();
+    assertf(state->color_buffer, "GL: Tried to begin rendering without framebuffer attached");
+
+    uint32_t width = state->color_buffer->width;
+    uint32_t height = state->color_buffer->height;
+
+    if (old_color_buffer == NULL || old_color_buffer->width != width || old_color_buffer->height != height) {
+        glViewport(0, 0, width, height);
+        glScissor(0, 0, width, height);
+    }
 }
 
 void gl_context_end()
 {
 }
 
+void update_geometry_flags()
+{
+    mg_geometry_flags_t flags = MG_GEOMETRY_FLAGS_SHADE_ENABLED;
+    if (state->depth_test) {
+        flags |= MG_GEOMETRY_FLAGS_Z_ENABLED;
+    }
+    // TODO: texture
+    mg_set_geometry_flags(flags);
+}
+
+void set_enable_flag(GLenum target, bool value)
+{
+    switch (target) {
+    case GL_RDPQ_MATERIAL_N64:
+        break;
+    case GL_RDPQ_TEXTURING_N64:
+        break;
+    case GL_SCISSOR_TEST:
+        break;
+    case GL_DEPTH_TEST:
+        state->depth_test = value;
+        update_geometry_flags();
+        break;
+    case GL_BLEND:
+        break;
+    case GL_ALPHA_TEST:
+        break;
+    case GL_DITHER:
+        break;
+    case GL_FOG:
+        state->fog = value;
+        break;
+    case GL_MULTISAMPLE_ARB:
+        break;
+    case GL_TEXTURE_1D:
+        state->texture_1d = value;
+        update_geometry_flags();
+        break;
+    case GL_TEXTURE_2D:
+        state->texture_2d = value;
+        update_geometry_flags();
+        break;
+    case GL_CULL_FACE:
+        state->cull_face = value;
+        break;
+    case GL_LIGHTING:
+        break;
+    case GL_LIGHT0:
+    case GL_LIGHT1:
+    case GL_LIGHT2:
+    case GL_LIGHT3:
+    case GL_LIGHT4:
+    case GL_LIGHT5:
+    case GL_LIGHT6:
+    case GL_LIGHT7:
+        break;
+    case GL_COLOR_MATERIAL:
+        break;
+    case GL_TEXTURE_GEN_S:
+    case GL_TEXTURE_GEN_T:
+    case GL_TEXTURE_GEN_R:
+    case GL_TEXTURE_GEN_Q:
+        break;
+    case GL_NORMALIZE:
+        break;
+    case GL_MATRIX_PALETTE_ARB:
+        break;
+    case GL_TEXTURE_FLIP_T_N64:
+        break;
+    case GL_CLIP_PLANE0:
+    case GL_CLIP_PLANE1:
+    case GL_CLIP_PLANE2:
+    case GL_CLIP_PLANE3:
+    case GL_CLIP_PLANE4:
+    case GL_CLIP_PLANE5:
+        assertf(!value, "User clip planes are not supported!");
+        break;
+    case GL_STENCIL_TEST:
+        assertf(!value, "Stencil test is not supported!");
+        break;
+    case GL_COLOR_LOGIC_OP:
+    case GL_INDEX_LOGIC_OP:
+        assertf(!value, "Logical pixel operation is not supported!");
+        break;
+    case GL_POINT_SMOOTH:
+    case GL_LINE_SMOOTH:
+    case GL_POLYGON_SMOOTH:
+        assertf(!value, "Smooth rendering is not supported (Use multisampling instead)!");
+        break;
+    case GL_LINE_STIPPLE:
+    case GL_POLYGON_STIPPLE:
+        assertf(!value, "Stipple is not supported!");
+        break;
+    case GL_POLYGON_OFFSET_FILL:
+    case GL_POLYGON_OFFSET_LINE:
+    case GL_POLYGON_OFFSET_POINT:
+        assertf(!value, "Polygon offset is not supported!");
+        break;
+    case GL_SAMPLE_ALPHA_TO_COVERAGE_ARB:
+    case GL_SAMPLE_ALPHA_TO_ONE_ARB:
+    case GL_SAMPLE_COVERAGE_ARB:
+        assertf(!value, "Coverage value manipulation is not supported!");
+        break;
+    case GL_MAP1_COLOR_4:
+    case GL_MAP1_INDEX:
+    case GL_MAP1_NORMAL:
+    case GL_MAP1_TEXTURE_COORD_1:
+    case GL_MAP1_TEXTURE_COORD_2:
+    case GL_MAP1_TEXTURE_COORD_3:
+    case GL_MAP1_TEXTURE_COORD_4:
+    case GL_MAP1_VERTEX_3:
+    case GL_MAP1_VERTEX_4:
+    case GL_MAP2_COLOR_4:
+    case GL_MAP2_INDEX:
+    case GL_MAP2_NORMAL:
+    case GL_MAP2_TEXTURE_COORD_1:
+    case GL_MAP2_TEXTURE_COORD_2:
+    case GL_MAP2_TEXTURE_COORD_3:
+    case GL_MAP2_TEXTURE_COORD_4:
+    case GL_MAP2_VERTEX_3:
+    case GL_MAP2_VERTEX_4:
+        assertf(!value, "Evaluators are not supported!");
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid enable target", target);
+        return;
+    }
+}
+
 void glEnable(GLenum target)
 {
-
+    if (!gl_ensure_no_begin_end()) return;
+    set_enable_flag(target, true);
 }
 
 void glDisable(GLenum target)
 {
-
+    if (!gl_ensure_no_begin_end()) return;
+    set_enable_flag(target, false);
 }
 
 void glClear(GLbitfield buf)
@@ -80,46 +251,95 @@ void glClearDepth(GLclampd d)
     state->clear_depth = ZBUF_VAL(d);
 }
 
-static mg_primitive_topology_t get_primitive_topology(GLenum mode)
+bool gl_storage_alloc(gl_storage_t *storage, uint32_t size)
 {
-    switch (mode)
-    {
-    case GL_TRIANGLES:
-        return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    case GL_TRIANGLE_STRIP:
-        return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-    case GL_TRIANGLE_FAN:
-        return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+    GLvoid *mem = malloc_uncached(size);
+    if (mem == NULL) {
+        return false;
+    }
 
-    case GL_POINTS:
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
-    case GL_POLYGON:
-    default:
-        assertf(0, "Draw mode %ld is not supported", mode);
+    storage->data = mem;
+    storage->size = size;
+
+    return true;
+}
+
+void gl_storage_free(gl_storage_t *storage)
+{
+    // TODO: need to wait until buffer is no longer used!
+
+    if (storage->data != NULL) {
+        free(storage->data);
+        storage->data = NULL;
     }
 }
 
-void glDrawArrays(GLenum mode, GLint first, GLsizei count)
+bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
 {
-    mg_draw_begin();
-    mg_draw(&(mg_input_assembly_parms_t) {
-        .primitive_topology = get_primitive_topology(mode)
-    }, count, first);
-    mg_draw_end();
+    if (storage->size >= new_size) {
+        return true;
+    }
+
+    GLvoid *mem = malloc(new_size);
+    if (mem == NULL) {
+        return false;
+    }
+
+    gl_storage_free(storage);
+
+    storage->data = mem;
+    storage->size = new_size;
+
+    return true;
 }
 
-void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
+bool are_vertex_layouts_equal(const mg_vertex_layout_t *p0, const mg_vertex_layout_t *p1)
 {
-    assertf(type == GL_UNSIGNED_SHORT, "Index type must be GL_UNSIGNED_SHORT");
+    if (p0->stride != p1->stride) return false;
+    if (p0->attribute_count != p1->attribute_count) return false;
 
-    mg_draw_begin();
-    mg_draw_indexed(&(mg_input_assembly_parms_t) {
-        .primitive_topology = get_primitive_topology(mode)
-    }, indices, count, 0);
-    mg_draw_end();
+    for (size_t i = 0; i < p0->attribute_count; i++)
+    {
+        const mg_vertex_attribute_t *a0 = &p0->attributes[i];
+        const mg_vertex_attribute_t *a1 = &p1->attributes[i];
+
+        // TODO: handle differently ordered attributes
+        if (a0->input != a1->input) return false;
+        if (a0->offset != a1->offset) return false;
+    }
+    
+    return true;
 }
 
+uint32_t pipeline_get_or_create(const mg_vertex_layout_t *submesh_layout, mgfx_features_t features)
+{
+    // Try to find a pipeline with the same vertex layout and feature set
+    for (uint32_t i = 0; i < state->pipelines_count; i++)
+    {
+        if (features != state->pipelines[i].features) {
+            continue;
+        }
+
+        if (are_vertex_layouts_equal(submesh_layout, &state->pipelines[i].layout.vertex_layout)) {
+            return i;
+        }
+    }
+
+    // If none was found, create a new pipeline with the vertex layout.
+    // Internally, magma will patch the shader ucode to be compatible with the configured vertex layout,
+    // which is why a separate pipeline needs to be created for each layout.
+    pipeline_data *new_pipeline = &state->pipelines[state->pipelines_count];
+    new_pipeline->pipeline = mg_pipeline_create(&(mg_pipeline_parms_t) {
+        .vertex_shader_ucode = mgfx_get_shader_ucode(features),
+        .vertex_layout = *submesh_layout
+    });
+    new_pipeline->features = features;
+
+    // Store the vertex layout in the cache
+    vertex_layout *new_layout = &new_pipeline->layout;
+    memcpy(new_layout->attributes, submesh_layout->attributes, sizeof(mg_vertex_attribute_t) * submesh_layout->attribute_count);
+    memcpy(&new_layout->vertex_layout, submesh_layout, sizeof(mg_vertex_layout_t));
+    new_layout->vertex_layout.attributes = new_layout->attributes;
+
+    return state->pipelines_count++;
+}

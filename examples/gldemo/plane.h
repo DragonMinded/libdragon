@@ -28,9 +28,9 @@ void setup_plane()
     
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, plane_buffers[0]);
 
-    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(0*sizeof(float)));
-    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(3*sizeof(float)));
-    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(5*sizeof(float)));
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, position)));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, texcoord)));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, normal)));
     
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 

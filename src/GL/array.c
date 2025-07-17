@@ -1,0 +1,685 @@
+#include "gl_internal.h"
+#include "debug.h"
+#include "mgfx_macros.h"
+#include <malloc.h>
+#include <limits.h>
+
+extern gl_state_t *state;
+
+typedef struct {
+    GLboolean et, ec, en;
+    GLint st, sc, sv;
+    GLenum tc;
+    GLuint pc, pn, pv;
+    GLsizei s;
+} gl_interleaved_array_t;
+
+#define ILA_F (sizeof(GLfloat))
+#define ILA_C (sizeof(GLubyte) * 4)
+
+static const gl_interleaved_array_t interleaved_arrays[] = {
+    /* GL_V2F */             { .et = false, .ec = false, .en = false,                   .sv = 2,                                                       .pv = 0,               .s = 2*ILA_F },
+    /* GL_V3F */             { .et = false, .ec = false, .en = false,                   .sv = 3,                                                       .pv = 0,               .s = 3*ILA_F },
+    /* GL_C4UB_V2F */        { .et = false, .ec = true,  .en = false,          .sc = 4, .sv = 2, .tc = GL_UNSIGNED_BYTE, .pc = 0,                      .pv = ILA_C,           .s = ILA_C + 2*ILA_F },
+    /* GL_C4UB_V3F */        { .et = false, .ec = true,  .en = false,          .sc = 4, .sv = 3, .tc = GL_UNSIGNED_BYTE, .pc = 0,                      .pv = ILA_C,           .s = ILA_C + 3*ILA_F },
+    /* GL_C3F_V3F */         { .et = false, .ec = true,  .en = false,          .sc = 3, .sv = 3, .tc = GL_FLOAT,         .pc = 0,                      .pv = 3*ILA_F,         .s = 6*ILA_F },
+    /* GL_N3F_V3F */         { .et = false, .ec = false, .en = true,                    .sv = 3,                                        .pn = 0,       .pv = 3*ILA_F,         .s = 6*ILA_F },
+    /* GL_C4F_N3F_V3F */     { .et = false, .ec = true,  .en = true,           .sc = 4, .sv = 3, .tc = GL_FLOAT,         .pc = 0,       .pn = 4*ILA_F, .pv = 7*ILA_F,         .s = 10*ILA_F },
+    /* GL_T2F_V3F */         { .et = true,  .ec = false, .en = false, .st = 2,          .sv = 3,                                                       .pv = 2*ILA_F,         .s = 5*ILA_F },
+    /* GL_T4F_V4F */         { .et = true,  .ec = false, .en = false, .st = 4,          .sv = 4,                                                       .pv = 4*ILA_F,         .s = 8*ILA_F },
+    /* GL_T2F_C4UB_V3F */    { .et = true,  .ec = true,  .en = false, .st = 2, .sc = 4, .sv = 3, .tc = GL_UNSIGNED_BYTE, .pc = 2*ILA_F,                .pv = ILA_C + 2*ILA_F, .s = ILA_C + 5*ILA_F },
+    /* GL_T2F_C3F_V3F */     { .et = true,  .ec = true,  .en = false, .st = 2, .sc = 3, .sv = 3, .tc = GL_FLOAT,         .pc = 2*ILA_F,                .pv = 5*ILA_F,         .s = 8*ILA_F },
+    /* GL_T2F_N3F_V3F */     { .et = true,  .ec = false, .en = true,  .st = 2,          .sv = 3,                                        .pn = 2*ILA_F, .pv = 5*ILA_F,         .s = 8*ILA_F },
+    /* GL_T2F_C4F_N3F_V3F */ { .et = true,  .ec = true,  .en = true,  .st = 2, .sc = 4, .sv = 3, .tc = GL_FLOAT,         .pc = 2*ILA_F, .pn = 6*ILA_F, .pv = 9*ILA_F,         .s = 12*ILA_F },
+    /* GL_T4F_C4F_N3F_V4F */ { .et = true,  .ec = true,  .en = true,  .st = 4, .sc = 4, .sv = 4, .tc = GL_FLOAT,         .pc = 4*ILA_F, .pn = 8*ILA_F, .pv = 11*ILA_F,        .s = 15*ILA_F },
+};
+
+// TODO: Fill missing components with 0,0,0,1 where applicable
+
+#define DEFINE_READ_FUNC(name, dst_type, src_type, convert) \
+    static void name(dst_type *dst, const src_type *src, uint32_t count) \
+    { \
+        for (uint32_t i = 0; i < count; i++) dst[i] = convert(src[i]); \
+    }
+
+#define DEFINE_FIXED_READ_FUNC(name, dst_type, precision) \
+    static void name(dst_type *dst, const int16_t *src, uint32_t count) \
+    { \
+        int shift = precision.shift_amount; \
+        if (shift < 0) { \
+            for (uint32_t i = 0; i < count; i++) dst[i] = src[i] >> -shift; \
+        } else { \
+            for (uint32_t i = 0; i < count; i++) { \
+                int16_t value = src[i]; \
+                assertf(value <= SHRT_MAX>>shift && value >= SHRT_MIN>>shift, "Fixed point overflow: %d << %d", value, shift); \
+                dst[i] = value << shift; \
+            } \
+        } \
+    }
+
+#define DEFINE_NORMAL_FLT_READ_FUNC(name, src_type) \
+    static void name(int16_t *dst, const src_type *src, uint32_t count) \
+    { \
+        int16_t x = CLAMP(roundf(src[0] * 15.5f), -16.0f, 15.0f); \
+        int16_t y = CLAMP(roundf(src[1] * 31.5f), -32.0f, 31.0f); \
+        int16_t z = CLAMP(roundf(src[2] * 15.5f), -16.0f, 15.0f); \
+        *dst = MGFX_NRM(x, y, z); \
+    }
+
+#define DEFINE_NORMAL_INT_READ_FUNC(name, src_type, shift) \
+    static void name(int16_t *dst, const src_type *src, uint32_t count) \
+    { \
+        int16_t x = src[0] >> shift; \
+        int16_t y = src[0] >> (shift-1); \
+        int16_t z = src[0] >> shift; \
+        *dst = MGFX_NRM(x, y, z); \
+    }
+
+DEFINE_READ_FUNC(vtx_read_i8, int16_t, int8_t, MGFX_S10_5)
+DEFINE_READ_FUNC(vtx_read_i16, int16_t, int16u_t, MGFX_S10_5)
+DEFINE_READ_FUNC(vtx_read_i32, int16_t, int32u_t, MGFX_S10_5)
+DEFINE_READ_FUNC(vtx_read_f32, int16_t, floatu, MGFX_S10_5)
+DEFINE_READ_FUNC(vtx_read_f64, int16_t, doubleu, MGFX_S10_5)
+DEFINE_FIXED_READ_FUNC(vtx_read_x16, int16_t, state->vertex_halfx_precision)
+
+#define COL_CONVERT_U8(v) ((v))
+#define COL_CONVERT_I8(v) (MAX(v, 0) << 1)
+#define COL_CONVERT_U16(v) ((v) >> 8)
+#define COL_CONVERT_I16(v) (MAX(v, 0) >> 7)
+#define COL_CONVERT_U32(v) ((v) >> 24)
+#define COL_CONVERT_I32(v) (MAX(v, 0) >> 23)
+#define COL_CONVERT_F32(v) (FLOAT_TO_U8(v))
+#define COL_CONVERT_F64(v) (FLOAT_TO_U8(v))
+
+DEFINE_READ_FUNC(col_read_u8, uint8_t,  uint8_t,   COL_CONVERT_U8)
+DEFINE_READ_FUNC(col_read_i8, uint8_t,  int8_t,    COL_CONVERT_I8)
+DEFINE_READ_FUNC(col_read_u16, uint8_t, uint16u_t, COL_CONVERT_U16)
+DEFINE_READ_FUNC(col_read_i16, uint8_t, int16u_t,  COL_CONVERT_I16)
+DEFINE_READ_FUNC(col_read_u32, uint8_t, uint32u_t, COL_CONVERT_U32)
+DEFINE_READ_FUNC(col_read_i32, uint8_t, int32u_t,  COL_CONVERT_I32)
+DEFINE_READ_FUNC(col_read_f32, uint8_t, floatu,    COL_CONVERT_F32)
+DEFINE_READ_FUNC(col_read_f64, uint8_t, doubleu,   COL_CONVERT_F64)
+
+DEFINE_READ_FUNC(tex_read_i8, int16_t, int8_t, MGFX_S8_8)
+DEFINE_READ_FUNC(tex_read_i16, int16_t, int16u_t, MGFX_S8_8)
+DEFINE_READ_FUNC(tex_read_i32, int16_t, int32u_t, MGFX_S8_8)
+DEFINE_READ_FUNC(tex_read_f32, int16_t, floatu, MGFX_S8_8)
+DEFINE_READ_FUNC(tex_read_f64, int16_t, doubleu, MGFX_S8_8)
+DEFINE_FIXED_READ_FUNC(tex_read_x16, int16_t, state->texcoord_halfx_precision)
+
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i8,  int8_t,    3)
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i16, int16u_t,  11)
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i32, int32u_t,  27)
+DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f32, floatu)
+DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f64, doubleu)
+
+#define MTX_INDEX_CONVERT(v) (v)
+
+DEFINE_READ_FUNC(mtx_index_read_u8, uint8_t,  uint8_t,   MTX_INDEX_CONVERT)
+DEFINE_READ_FUNC(mtx_index_read_u16, uint8_t, uint16u_t, MTX_INDEX_CONVERT)
+DEFINE_READ_FUNC(mtx_index_read_u32, uint8_t, uint32u_t, MTX_INDEX_CONVERT)
+
+static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
+    {
+        (read_attrib_func)vtx_read_i8,
+        NULL,
+        (read_attrib_func)vtx_read_i16,
+        NULL,
+        (read_attrib_func)vtx_read_i32,
+        NULL,
+        (read_attrib_func)vtx_read_f32,
+        (read_attrib_func)vtx_read_f64,
+        (read_attrib_func)vtx_read_x16,
+    },
+    {
+        (read_attrib_func)col_read_i8,
+        (read_attrib_func)col_read_u8,
+        (read_attrib_func)col_read_i16,
+        (read_attrib_func)col_read_u16,
+        (read_attrib_func)col_read_i32,
+        (read_attrib_func)col_read_u32,
+        (read_attrib_func)col_read_f32,
+        (read_attrib_func)col_read_f64,
+        NULL,
+    },
+    {
+        (read_attrib_func)tex_read_i8,
+        NULL,
+        (read_attrib_func)tex_read_i16,
+        NULL,
+        (read_attrib_func)tex_read_i32,
+        NULL,
+        (read_attrib_func)tex_read_f32,
+        (read_attrib_func)tex_read_f64,
+        (read_attrib_func)tex_read_x16,
+    },
+    {
+        (read_attrib_func)nrm_read_i8,
+        NULL,
+        (read_attrib_func)nrm_read_i16,
+        NULL,
+        (read_attrib_func)nrm_read_i32,
+        NULL,
+        (read_attrib_func)nrm_read_f32,
+        (read_attrib_func)nrm_read_f64,
+        NULL,
+    },
+    {
+        NULL,
+        (read_attrib_func)mtx_index_read_u8,
+        NULL,
+        (read_attrib_func)mtx_index_read_u16,
+        NULL,
+        (read_attrib_func)mtx_index_read_u32,
+        NULL,
+        NULL,
+        NULL,
+    },
+};
+
+gl_array_type_t gl_array_type_from_enum(GLenum array)
+{
+    switch (array) {
+    case GL_VERTEX_ARRAY:
+        return ATTRIB_VERTEX;
+    case GL_TEXTURE_COORD_ARRAY:
+        return ATTRIB_TEXCOORD;
+    case GL_NORMAL_ARRAY:
+        return ATTRIB_NORMAL;
+    case GL_COLOR_ARRAY:
+        return ATTRIB_COLOR;
+    case GL_MATRIX_INDEX_ARRAY_ARB:
+        return ATTRIB_MTX_INDEX;
+    default:
+        return -1;
+    }
+}
+
+void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
+{
+    uint32_t size_shift = 0;
+    
+    switch (array->type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+        size_shift = 0;
+        break;
+    case GL_SHORT:
+    case GL_UNSIGNED_SHORT:
+    case GL_HALF_FIXED_N64:
+        size_shift = 1;
+        break;
+    case GL_INT:
+    case GL_UNSIGNED_INT:
+    case GL_FLOAT:
+        size_shift = 2;
+        break;
+    case GL_DOUBLE:
+        size_shift = 3;
+        break;
+    }
+
+    array->final_stride = array->stride == 0 ? array->size << size_shift : array->stride;
+
+    uint32_t func_index = gl_type_to_index(array->type);
+    array->read_func = read_funcs[array_type][func_index];
+
+    assertf(array->read_func != NULL, "CPU read function is missing");
+}
+
+void gl_update_array_pointer(gl_array_t *array)
+{
+    if (array->binding != NULL) {
+        array->final_pointer = array->binding->storage.data + (uint32_t)array->pointer;
+    } else {
+        array->final_pointer = array->pointer;
+    }
+}
+
+void gl_update_array_pointers(gl_array_object_t *obj)
+{
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        gl_update_array_pointer(&obj->arrays[i]);
+    }
+}
+
+void gl_array_object_init(gl_array_object_t *obj)
+{
+    obj->arrays[ATTRIB_VERTEX].size = 4;
+    obj->arrays[ATTRIB_VERTEX].type = GL_FLOAT;
+    obj->arrays[ATTRIB_COLOR].size = 4;
+    obj->arrays[ATTRIB_COLOR].type = GL_FLOAT;
+    obj->arrays[ATTRIB_TEXCOORD].size = 4;
+    obj->arrays[ATTRIB_TEXCOORD].type = GL_FLOAT;
+    obj->arrays[ATTRIB_NORMAL].size = 3;
+    obj->arrays[ATTRIB_NORMAL].type = GL_FLOAT;
+    obj->arrays[ATTRIB_MTX_INDEX].size = 0;
+    obj->arrays[ATTRIB_MTX_INDEX].type = GL_UNSIGNED_BYTE;
+
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        gl_update_array(&obj->arrays[i], i);
+    }
+
+    obj->is_dirty = true;
+}
+
+void gl_array_init()
+{
+    gl_array_object_init(&state->default_array_object);
+    state->array_object = &state->default_array_object;
+}
+
+void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+    if (stride < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Stride must not be negative");
+        return;
+    }
+
+    // From the spec (https://registry.khronos.org/OpenGL/extensions/ARB/ARB_vertex_array_object.txt):
+    // An INVALID_OPERATION error is generated if any of the *Pointer commands
+    // specifying the location and organization of vertex data are called while
+    // a non-zero vertex array object is bound, zero is bound to the
+    // ARRAY_BUFFER buffer object, and the pointer is not NULL[fn].
+    //     [fn: This error makes it impossible to create a vertex array
+    //           object containing client array pointers.]
+    if (state->array_object != &state->default_array_object && state->array_buffer == NULL && pointer != NULL) {
+        gl_set_error(GL_INVALID_OPERATION, "Vertex array objects can only be used in conjunction with vertex buffer objects");
+        return;
+    }
+
+    gl_array_t *array = &state->array_object->arrays[array_type];
+
+    array->size = size;
+    array->type = type;
+    array->stride = stride;
+    array->pointer = pointer;
+    array->binding = state->array_buffer;
+
+    gl_update_array(array, array_type);
+
+    state->array_object->is_dirty = true;
+}
+
+void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    switch (size) {
+    case 2:
+    case 3:
+    case 4:
+        break;
+    default:
+        gl_set_error(GL_INVALID_VALUE, "Size must be 2, 3 or 4");
+        return;
+    }
+
+    switch (type) {
+    case GL_SHORT:
+    case GL_INT:
+    case GL_FLOAT:
+    case GL_DOUBLE:
+    case GL_HALF_FIXED_N64:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid vertex data type", type);
+        return;
+    }
+
+    gl_set_array(ATTRIB_VERTEX, size, type, stride, pointer);
+}
+
+void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    switch (size) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+        break;
+    default:
+        gl_set_error(GL_INVALID_VALUE, "Size must be 1, 2, 3 or 4");
+        return;
+    }
+
+    switch (type) {
+    case GL_SHORT:
+    case GL_INT:
+    case GL_FLOAT:
+    case GL_DOUBLE:
+    case GL_HALF_FIXED_N64:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture coordinate data type", type);
+        return;
+    }
+
+    gl_set_array(ATTRIB_TEXCOORD, size, type, stride, pointer);
+}
+
+void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    switch (type) {
+    case GL_BYTE:
+    case GL_SHORT:
+    case GL_INT:
+    case GL_FLOAT:
+    case GL_DOUBLE:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid normal data type", type);
+        return;
+    }
+
+    gl_set_array(ATTRIB_NORMAL, 3, type, stride, pointer);
+}
+
+void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    switch (size) {
+    case 3:
+    case 4:
+        break;
+    default:
+        gl_set_error(GL_INVALID_VALUE, "Size must be 3 or 4");
+        return;
+    }
+
+    switch (type) {
+    case GL_BYTE:
+    case GL_UNSIGNED_BYTE:
+    case GL_SHORT:
+    case GL_UNSIGNED_SHORT:
+    case GL_INT:
+    case GL_UNSIGNED_INT:
+    case GL_FLOAT:
+    case GL_DOUBLE:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid color data type", type);
+        return;
+    }
+
+    gl_set_array(ATTRIB_COLOR, size, type, stride, pointer);
+}
+
+void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    if (size < 1 || size > VERTEX_UNIT_COUNT) {
+        gl_set_error(GL_INVALID_VALUE, "Size must be 1");
+        return;
+    }
+
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+    case GL_UNSIGNED_SHORT:
+    case GL_UNSIGNED_INT:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid matrix index data type", type);
+        return;
+    }
+
+    gl_set_array(ATTRIB_MTX_INDEX, size, type, stride, pointer);
+}
+
+void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
+{
+    gl_array_t *array = &state->array_object->arrays[array_type];
+    if (array->enabled != enabled) {
+        array->enabled = enabled;
+        state->array_object->is_dirty = true;
+    }
+}
+
+void glEnableClientState(GLenum array)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    switch (array) {
+    case GL_VERTEX_ARRAY:
+    case GL_TEXTURE_COORD_ARRAY:
+    case GL_NORMAL_ARRAY:
+    case GL_COLOR_ARRAY:
+    case GL_MATRIX_INDEX_ARRAY_ARB:
+        gl_set_array_enabled(gl_array_type_from_enum(array), true);
+        break;
+    case GL_EDGE_FLAG_ARRAY:
+    case GL_INDEX_ARRAY:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid client state", array);
+        break;
+    }
+}
+void glDisableClientState(GLenum array)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    switch (array) {
+    case GL_VERTEX_ARRAY:
+    case GL_TEXTURE_COORD_ARRAY:
+    case GL_NORMAL_ARRAY:
+    case GL_COLOR_ARRAY:
+    case GL_MATRIX_INDEX_ARRAY_ARB:
+        gl_set_array_enabled(gl_array_type_from_enum(array), false);
+        break;
+    case GL_EDGE_FLAG_ARRAY:
+    case GL_INDEX_ARRAY:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid client state", array);
+        break;
+    }
+}
+
+void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    switch (format) {
+    case GL_V2F:
+    case GL_V3F:
+    case GL_C4UB_V2F:
+    case GL_C4UB_V3F:
+    case GL_C3F_V3F:
+    case GL_N3F_V3F:
+    case GL_C4F_N3F_V3F:
+    case GL_T2F_V3F:
+    case GL_T4F_V4F:
+    case GL_T2F_C4UB_V3F:
+    case GL_T2F_C3F_V3F:
+    case GL_T2F_N3F_V3F:
+    case GL_T2F_C4F_N3F_V3F:
+    case GL_T4F_C4F_N3F_V4F:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid interleaved array format", format);
+        return;
+    }
+
+    const gl_interleaved_array_t *a = &interleaved_arrays[format - GL_V2F];
+
+    if (stride == 0) {
+        stride = a->s;
+    }
+
+    if (a->et) {
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glTexCoordPointer(a->st, GL_FLOAT, stride, pointer);
+    } else {
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    }
+
+    if (a->ec) {
+        glEnableClientState(GL_COLOR_ARRAY);
+        glColorPointer(a->sc, a->tc, stride, pointer + a->pc);
+    } else {
+        glDisableClientState(GL_COLOR_ARRAY);
+    }
+
+    if (a->en) {
+        glEnableClientState(GL_NORMAL_ARRAY);
+        glNormalPointer(GL_FLOAT, stride, pointer + a->pn);
+    } else {
+        glDisableClientState(GL_NORMAL_ARRAY);
+    }
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(a->sv, GL_FLOAT, stride, pointer + a->pv);
+}
+
+void glGenVertexArrays(GLsizei n, GLuint *arrays)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    for (GLsizei i = 0; i < n; i++)
+    {
+        gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
+        gl_array_object_init(new_obj);
+        arrays[i] = (GLuint)new_obj;
+    }
+}
+
+void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    for (GLsizei i = 0; i < n; i++)
+    {
+        assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), 
+            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", arrays[i]);
+
+        gl_array_object_t *obj = (gl_array_object_t*)arrays[i];
+        if (obj == NULL) {
+            continue;
+        }
+
+        if (obj == state->array_object) {
+            glBindVertexArray(0);
+        }
+
+        free(obj);
+    }
+}
+
+void glBindVertexArray(GLuint array)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    assertf(array == 0 || is_valid_object_id(array), 
+        "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
+
+    gl_array_object_t *obj = (gl_array_object_t*)array;
+
+    if (obj == NULL) {
+        obj = &state->default_array_object;
+    }
+
+    state->array_object = obj;
+}
+
+GLboolean glIsVertexArray(GLuint array)
+{
+    if (!gl_ensure_no_begin_end()) return 0;
+    
+    // FIXME: This doesn't actually guarantee that it's a valid array object, but just uses the heuristic of
+    //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
+    //        which used to be valid array IDs in legacy OpenGL.
+    return is_valid_object_id(array);
+}
+
+void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+{
+    if (!array_object->is_dirty) return;
+    array_object->is_dirty = false;
+
+    uint32_t stride = 0;
+    uint32_t attribute_count = 0;
+    uint32_t conversion_count = 0;
+    static struct conversion {
+        gl_array_type_t array_type;
+        uint32_t out_offset;
+    } conversions[4];
+
+    if (array_object->arrays[ATTRIB_VERTEX].enabled) {
+        array_object->layout.attributes[attribute_count++] = (mg_vertex_attribute_t) {
+            .input = MGFX_ATTRIBUTE_POS_NORM,
+            .offset = stride
+        };
+        conversions[conversion_count++] = (struct conversion) {
+            .array_type = ATTRIB_VERTEX,
+            .out_offset = stride
+        };
+        stride += sizeof(int16_t) * 4;
+    }
+
+    if (array_object->arrays[ATTRIB_NORMAL].enabled) {
+        conversions[conversion_count++] = (struct conversion) {
+            .array_type = ATTRIB_NORMAL,
+            .out_offset = stride - sizeof(uint16_t)
+        };
+    }
+
+    if (array_object->arrays[ATTRIB_COLOR].enabled) {
+        array_object->layout.attributes[attribute_count++] = (mg_vertex_attribute_t) {
+            .input = MGFX_ATTRIBUTE_COLOR,
+            .offset = stride
+        };
+        conversions[conversion_count++] = (struct conversion) {
+            .array_type = ATTRIB_COLOR,
+            .out_offset = stride
+        };
+        stride += sizeof(uint32_t);
+    }
+
+    if (array_object->arrays[ATTRIB_TEXCOORD].enabled) {
+        array_object->layout.attributes[attribute_count++] = (mg_vertex_attribute_t) {
+            .input = MGFX_ATTRIBUTE_TEXCOORD,
+            .offset = stride
+        };
+        conversions[conversion_count++] = (struct conversion) {
+            .array_type = ATTRIB_TEXCOORD,
+            .out_offset = stride
+        };
+        stride += sizeof(int16_t) * 2;
+    }
+
+    array_object->layout.vertex_layout.stride = stride;
+    array_object->layout.vertex_layout.attribute_count = attribute_count;
+    array_object->layout.vertex_layout.attributes = array_object->layout.attributes;
+
+    // TODO: features will be derived from other settings -> pipeline abstraction should be abstracted
+    array_object->pipeline_index = pipeline_get_or_create(&array_object->layout.vertex_layout, 0);
+
+    // TODO: allocate from a pool?
+    // TODO: detect if still in use
+    if (array_object->buffer != NULL) {
+        free_uncached(array_object->buffer);
+    }
+    array_object->buffer = malloc_uncached(stride * count);
+
+    gl_update_array_pointers(array_object);
+
+    for (size_t i = 0; i < conversion_count; i++)
+    {
+        gl_array_t *array = &array_object->arrays[conversions[i].array_type];
+        for (size_t j = 0; j < count; j++)
+        {
+            uint8_t *dst = ((uint8_t*)array_object->buffer) + conversions[i].out_offset + j * stride;
+            const uint8_t *src = ((const uint8_t*)array->final_pointer) + (j+first) * array->final_stride;
+            array->read_func(dst, src, array->size);
+        }
+    }
+}
+
