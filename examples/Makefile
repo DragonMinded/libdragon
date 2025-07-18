@@ -14,7 +14,6 @@ EXAMPLES += test
 EXAMPLES += timers
 EXAMPLES += vrutest
 EXAMPLES += vtest
-EXAMPLES += ucodetest
 
 all: $(EXAMPLES)
 clean: $(foreach example,$(EXAMPLES),$(example)-clean)
