@@ -574,10 +574,10 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
 
     // In case we're autodetecting the output format and the PNG is a RGBA image
     // but only 16/256 colors are used, we can use a FMT_CI4/FMT_CI8.
-    if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 16)
-        fmt = FMT_CI4;
     if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 256)
         fmt = FMT_CI8;
+    if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 16)
+        fmt = FMT_CI4;
     
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
