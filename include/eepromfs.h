@@ -1,5 +1,7 @@
 /**
  * @file eepromfs.h
+ * @author Christopher Bonhage <me@christopherbonhage.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief EEPROM Filesystem
  * @ingroup eeprom
  */
