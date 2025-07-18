@@ -1,5 +1,7 @@
 /**
  * @file n64sys.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief N64 System Interface
  * @ingroup n64sys
  */

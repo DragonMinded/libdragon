@@ -1,5 +1,5 @@
 /**
- * @file ipl3.c
+ * @file rdram.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDRAM initialization module
  * 

@@ -1,3 +1,7 @@
+/**
+ * @file wav64_vadpcm.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "wav64.h"
 #include "wav64_internal.h"
 #include "wav64_vadpcm_internal.h"

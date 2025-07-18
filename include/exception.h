@@ -1,5 +1,8 @@
 /**
  * @file exception.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief Exception Handler
  * @ingroup exceptions
  */

@@ -1,5 +1,6 @@
 /**
  * @file ym64.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Player for the .YM64 module format (Arkos Tracker 2)
  * @ingroup mixer
  */

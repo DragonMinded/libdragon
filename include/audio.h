@@ -1,5 +1,7 @@
 /**
  * @file audio.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief Audio Subsystem
  * @ingroup audio
  */
@@ -211,6 +213,6 @@ void audio_write(const short * const buffer);
 }
 #endif
 
-/** @} */ /* audio */
+/** @} */ /* display */
 
 #endif

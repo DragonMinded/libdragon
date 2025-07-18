@@ -1,3 +1,7 @@
+/**
+ * @file inspector.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "graphics.h"
 #include "debug.h"
 #include "controller.h"

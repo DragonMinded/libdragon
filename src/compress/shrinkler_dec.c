@@ -1,3 +1,7 @@
+/**
+ * @file shrinkler_dec.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>

@@ -1,5 +1,6 @@
 /**
  * @file surface.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Surface buffers used to draw images
  * @ingroup graphics
  */

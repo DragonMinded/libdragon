@@ -1,5 +1,6 @@
 /**
  * @file vi.h
+ * @author SpookyIluha <https://github.com/SpookyIluha>
  * @brief Video Interface Subsystem
  * @ingroup display
  */

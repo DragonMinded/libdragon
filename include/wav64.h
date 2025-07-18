@@ -1,5 +1,6 @@
 /**
  * @file wav64.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Support for WAV64 audio files
  * @ingroup mixer
  */

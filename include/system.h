@@ -1,5 +1,7 @@
 /**
  * @file system.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief newlib Interface Hooks
  * @ingroup system
  */

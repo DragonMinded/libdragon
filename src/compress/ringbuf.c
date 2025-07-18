@@ -1,3 +1,7 @@
+/**
+ * @file ringbuf.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "ringbuf_internal.h"
 #include "../utils.h"
 #include <assert.h>

@@ -1,3 +1,7 @@
+/**
+ * @file loader.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef BOOT_LOADER_H
 #define BOOT_LOADER_H
 

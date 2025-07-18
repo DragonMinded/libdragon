@@ -1,3 +1,7 @@
+/**
+ * @file asset_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_ASSET_INTERNAL_H
 #define __LIBDRAGON_ASSET_INTERNAL_H
 
@@ -15,7 +19,7 @@
 #define ASSET_FLAG_WINSIZE_128K     0x0006  ///< 128 KiB window size
 #define ASSET_FLAG_WINSIZE_256K     0x0007  ///< 256 KiB window size
 #define ASSET_FLAG_INPLACE          0x0100  ///< Decompress in-place
-#define ASSET_ALIGNMENT             32
+#define ASSET_ALIGNMENT             32      ///< Aligned to instruction cacheline
 
 __attribute__((used))
 static inline int asset_winsize_from_flags(uint16_t flags) {

@@ -1,5 +1,6 @@
 /**
  * @file system.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @brief newlib Interface Hooks
  * @ingroup system
  */

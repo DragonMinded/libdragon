@@ -1,5 +1,6 @@
 /**
  * @file eeprom.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief EEPROM support
  * @ingroup eeprom
  */

@@ -1,7 +1,6 @@
 /**
  * @file joypad_accessory.h
  * @author Christopher Bonhage <me@christopherbonhage.com>
- * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Joypad accessory helpers
  * @ingroup joypad
  */

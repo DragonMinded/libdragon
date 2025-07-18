@@ -1,5 +1,7 @@
 /**
  * @file sprite.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief 2D Graphics
  * @ingroup graphics
  */

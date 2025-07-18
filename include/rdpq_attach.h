@@ -1,5 +1,6 @@
 /**
  * @file rdpq_attach.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RDP Command queue: surface attachment API
  * @ingroup rdpq
  * 

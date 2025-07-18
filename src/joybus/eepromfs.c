@@ -1,5 +1,6 @@
 /**
  * @file eepromfs.c
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief EEPROM Filesystem
  * @ingroup eeprom
  */

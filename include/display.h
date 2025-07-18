@@ -1,5 +1,8 @@
 /**
  * @file display.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author SpookyIluha <https://github.com/SpookyIluha>
  * @brief Display Subsystem
  * @ingroup display
  */

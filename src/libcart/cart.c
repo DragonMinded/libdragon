@@ -1,3 +1,7 @@
+/**
+ * @file cart.c
+ * @author devwizard <https://github.com/devwizard64>
+ */
 /******************************************************************************/
 /*  Adapted for use with libdragon - https://github.com/devwizard64/libcart   */
 /******************************************************************************/

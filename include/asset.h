@@ -1,5 +1,6 @@
 /**
  * @file asset.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Asset Subsystem
  * @ingroup asset
  */

@@ -1,3 +1,7 @@
+/**
+ * @file ym64.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef __LIBDRAGON_YM64_H
 #define __LIBDRAGON_YM64_H
 

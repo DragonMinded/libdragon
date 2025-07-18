@@ -1,3 +1,7 @@
+/**
+ * @file ringbuf_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_COMPRESS_RINGBUF_INTERNAL_H
 #define LIBDRAGON_COMPRESS_RINGBUF_INTERNAL_H
 

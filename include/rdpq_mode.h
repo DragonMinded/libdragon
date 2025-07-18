@@ -1,5 +1,6 @@
 /**
  * @file rdpq_mode.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RDP Command queue: mode setting
  * @ingroup rdpq
  * 

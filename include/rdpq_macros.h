@@ -1,7 +1,6 @@
 /**
  * @file rdpq_macros.h
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
- * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP command macros
  * @ingroup rdpq
  * 

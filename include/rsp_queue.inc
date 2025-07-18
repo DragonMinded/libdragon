@@ -1,6 +1,8 @@
 ########################################################
 # RSP_QUEUE.INC - Include this file before any text or data segment
 # to write an overlay that is compatible with the rsp queue engine.
+#
+# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
 ########################################################
 
 #ifndef RSP_QUEUE_INC
