@@ -14,10 +14,7 @@ int main(void)
     timer_init();
 
     /* Read in the custom font */
-    int fp = dfs_open("/libdragon-font.sprite");
-    sprite_t *custom_font = malloc( dfs_size( fp ) );
-    dfs_read( custom_font, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
+    sprite_t *custom_font = sprite_load("rom:/libdragon-font.sprite");
 
     static display_context_t disp = 0;
 
