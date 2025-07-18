@@ -38,17 +38,17 @@ SpriteTest::~SpriteTest()
 
 void SpriteTest::Update()
 {
-    struct controller_data cont_data = get_keys_down();
-    if(cont_data.c[0].start) {
+    joypad_buttons_t cont_data = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+    if(cont_data.start) {
         SceneMgr::SetNextScene("bg_test");
         return;
     }
     //Add new sprite when pressing A
-    if(cont_data.c[0].A && m_num_sprites < MAX_SPRITES) {
+    if(cont_data.a && m_num_sprites < MAX_SPRITES) {
         SpawnSprite();
     }
     //Remove last sprite when pressing B
-    if(cont_data.c[0].B && m_num_sprites > 0) {
+    if(cont_data.b && m_num_sprites > 0) {
         m_num_sprites--;
     }
     UpdateSprites();

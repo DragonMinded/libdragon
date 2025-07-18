@@ -36,11 +36,11 @@ static void do_crash()
     debugf((char *)0x1);
 }
 
-static bool update(actor_t *actor, struct controller_data pressed_keys)
+static bool update(actor_t *actor, joypad_buttons_t pressed_keys)
 {
     n64brew_actor_t *this = (n64brew_actor_t *)actor;
     do_rotation(this);
-    if(pressed_keys.c[0].C_right) {
+    if(pressed_keys.c_right) {
         do_crash();
     }
     //Despawn after existing for too long
@@ -48,7 +48,7 @@ static bool update(actor_t *actor, struct controller_data pressed_keys)
         return false;
     }
     //Fast forward to flickering when pressing C-up
-    if(pressed_keys.c[0].C_up) {
+    if(pressed_keys.c_up) {
         this->num_ticks = SPAWN_DURATION-FLICKER_DURATION;
     }
     if(this->num_ticks > SPAWN_DURATION-FLICKER_DURATION) {
