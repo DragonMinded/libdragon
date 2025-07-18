@@ -1,5 +1,7 @@
 /**
  * @file interrupt.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief Interrupt Controller
  * @ingroup interrupt
  */

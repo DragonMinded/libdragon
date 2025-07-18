@@ -1,3 +1,7 @@
+/**
+ * @file minidragon.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "minidragon.h"
 #include <stdint.h>
 

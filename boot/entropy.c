@@ -1,6 +1,6 @@
 /**
  * @file entropy.c
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Entropy accumulator
  * 
  * This module implements a simple entropy accumulator. During IPL3, we

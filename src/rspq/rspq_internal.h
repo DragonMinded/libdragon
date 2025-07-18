@@ -1,5 +1,6 @@
 /**
  * @file rspq_internal.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RSP Command queue
  * @ingroup rsp
  */

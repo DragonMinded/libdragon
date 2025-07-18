@@ -1,3 +1,9 @@
+############################################################
+# rsp_opus_dsp.S
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+#
+############################################################
 #include <rsp_queue.inc>
 
     .data

@@ -1,5 +1,6 @@
 /**
  * @file debug.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Debugging Support
  */
 

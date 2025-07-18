@@ -1,3 +1,8 @@
+/**
+ * @file sprite.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #include "sprite.h"
 #include "n64sys.h"
 #include "debug.h"

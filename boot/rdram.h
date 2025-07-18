@@ -1,3 +1,7 @@
+/**
+ * @file rdram.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef BOOT_RDRAM_H
 #define BOOT_RDRAM_H
 

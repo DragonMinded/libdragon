@@ -1,6 +1,6 @@
 /**
  * @file loader.c
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief IPL3: Stage 2 (ELF loader)
  * 
  * This module implements the second stage of the loader, which is responsible

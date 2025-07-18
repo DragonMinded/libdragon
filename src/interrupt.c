@@ -1,5 +1,7 @@
 /**
  * @file interrupt.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Interrupt Controller
  * @ingroup interrupt
  */

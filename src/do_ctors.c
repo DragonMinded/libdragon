@@ -1,5 +1,8 @@
 /**
  * @file do_ctors.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Ali Naci Erdem <anacierdem@gmail.com>
+ * @author gamemasterplc <gamemasterplc@gmail.com>
  * @brief C++ constructor handling
  * @ingroup system
  */

@@ -5,6 +5,8 @@
 #    * Forward decoding
 #    * Parity mask: 1. This has been tested to provide
 #      the best compression ratio on average.
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ##############################################
 
 #define inbuf           $a0

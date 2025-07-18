@@ -1,5 +1,6 @@
 /**
  * @file rdpq_tex.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RDP Command queue: texture loading
  * @ingroup rdpq
  */

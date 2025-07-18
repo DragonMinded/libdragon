@@ -1,5 +1,6 @@
 /**
  * @file graphics.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @brief 2D Graphics
  * @ingroup graphics
  */

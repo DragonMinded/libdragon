@@ -1,3 +1,7 @@
+/**
+ * @file rdpq_tex_internal.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef LIBDRAGON_RDPQ_TEX_INTERNAL_H
 #define LIBDRAGON_RDPQ_TEX_INTERNAL_H
 

@@ -1,3 +1,7 @@
+/**
+ * @file entropy.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef BOOT_ENTROPY_H
 #define BOOT_ENTROPY_H
 

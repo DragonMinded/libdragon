@@ -1,4 +1,7 @@
 /**
+ * @file rsp.h
+ * @author Ali Naci Erdem <anacierdem@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @defgroup rsp RSP: vector coprocessor
  * @ingroup lowlevel
  * @brief RSP basic library and command queue

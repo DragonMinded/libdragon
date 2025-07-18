@@ -1,5 +1,6 @@
 /**
  * @file joybus_internal.h
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Joybus internal API
  * @ingroup joybus
  */

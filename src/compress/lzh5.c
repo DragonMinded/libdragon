@@ -1,3 +1,7 @@
+/**
+ * @file lzh5.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 // Decoder for algorithm -lh5- of the LZH family.
 // This code is adapted from https://github.com/jca02266/lha
 // and has been turned into a single file with the -lh5- algo.

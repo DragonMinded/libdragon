@@ -1,5 +1,6 @@
 /**
  * @file rdpq.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RDP Command queue
  * @ingroup rdpq
  *

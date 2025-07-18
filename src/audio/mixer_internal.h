@@ -1,3 +1,7 @@
+/**
+ * @file mixer_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_MIXER_INTERNAL_H
 #define LIBDRAGON_MIXER_INTERNAL_H
 

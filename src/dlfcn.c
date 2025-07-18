@@ -1,5 +1,6 @@
 /**
  * @file dlfcn.c
+ * @author gamemasterplc <gamemasterplc@gmail.com>
  * @brief Dynamic linker subsystem
  * @ingroup dl
  */
