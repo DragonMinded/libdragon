@@ -26,6 +26,7 @@
 #include "console.h"
 #include "debug.h"
 #include "joybus.h"
+#include "joypad.h"
 #include "controller.h"
 #include "rtc.h"
 #include "mempak.h"

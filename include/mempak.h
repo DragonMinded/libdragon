@@ -1,5 +1,7 @@
 /**
  * @file mempak.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief Controller Pak Filesystem Routines
  * @ingroup controllerpak
  */
@@ -11,10 +13,10 @@
  * @ingroup controller
  * @brief Managed Controller Pak interface.
  *
- * The Controller Pak system is a subsystem of the @ref controller.  Before attempting to
- * read from or write to a Controller Pak, be sure you have initialized the controller system
- * with #controller_init and verified that you have a mempak in the correct controller
- * using #identify_accessory.
+ * The Controller Pak system is a subsystem of the @ref controller. Before attempting to
+ * read from or write to a Controller Pak, be sure you have initialized the Joypad subsystem
+ * with #joypad_init and verified that you have a Controller Pak in the correct controller
+ * using #joypad_get_accessory_type.
  *
  * To read and write to the Controller Pak in an organized way compatible with official software,
  * first check that the Controller Pak is valid using #validate_mempak.  If the Controller Pak is
@@ -159,14 +161,14 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
 /**
  * @brief Format a Controller Pak
  *
- * Formats a Controller Pak.  Should only be done to wipe a Controller Pak or to initialize
- * the filesystem in case of a blank or corrupt Controler Pak.
+ * Formats a Controller Pak. This should only be done to totally wipe and re-initialize
+ * the filesystem in case of a blank or corrupt Controller Pak after a repair has failed.
  *
  * @param[in] controller
- *            The controller (0-3) to format the Controller Pak on
+ *            The Controller (0-3) that the Controller Pak is inserted.
  *
- * @retval 0 if the Controller Pak was formatted successfully
- * @retval -2 if the Controller Pak was not present or couldn't be formatted
+ * @retval 0 if the Controller Pak was formatted successfully.
+ * @retval -2 if the Controller Pak was not present or couldn't be formatted.
  */
 int format_mempak( int controller );
 
