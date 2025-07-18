@@ -3,6 +3,7 @@ EXAMPLES += cpptest
 EXAMPLES += ctest 
 EXAMPLES += dfsdemo
 EXAMPLES += eepromfstest
+EXAMPLES += joypadtest
 EXAMPLES += mixertest
 EXAMPLES += cpaktest
 EXAMPLES += cpak-utest
