@@ -9,6 +9,7 @@ EXAMPLES += cpak-utest
 EXAMPLES += overlays
 EXAMPLES += rdpqdemo
 EXAMPLES += rspqdemo
+EXAMPLES += spriteanim
 EXAMPLES += spritemap
 EXAMPLES += test
 EXAMPLES += timers
