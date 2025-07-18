@@ -404,15 +404,15 @@ int main(void) {
 	dfs_init(DFS_DEFAULT_LOCATION);
 
 	char sbuf[1024];
-	strcpy(sbuf, "rom:/");
-	if (dfs_dir_findfirst(".", sbuf+5) == FLAGS_FILE) {
-		do {
-			if (strendswith(sbuf, ".xm64") || strendswith(sbuf, ".XM64") || 
-				strendswith(sbuf, ".ym64") || strendswith(sbuf, ".YM64"))
-				songfiles[num_songs++] = strdup(sbuf);
-		} while (dfs_dir_findnext(sbuf+5) == FLAGS_FILE);
-	}
+	dir_t dir;
+	if (dir_findfirst("rom:/", &dir) == 0) do {
+		if (strendswith(dir.d_name, ".xm64") || strendswith(dir.d_name, ".XM64") || 
+			strendswith(dir.d_name, ".ym64") || strendswith(dir.d_name, ".YM64")) {
+			sprintf(sbuf, "rom:/%s", dir.d_name);
+			songfiles[num_songs++] = strdup(sbuf);
+		}
 
+	} while (dir_findnext("rom:/", &dir) == 0);
 
 	enum Page page = PAGE_INTRO;
 	if (num_songs == 0)
