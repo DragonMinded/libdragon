@@ -32,7 +32,7 @@ static void apply_accel(float *pos, float *origin_pos, float *vel, float accel)
     *pos += *vel;
 }
 
-static bool update(actor_t *actor, struct controller_data pressed_keys)
+static bool update(actor_t *actor, joypad_buttons_t pressed_keys)
 {
     circle_actor_t *this = (circle_actor_t *)actor;
     apply_accel(&actor->x, &this->home_x, &this->vel_x, 0.2f);
@@ -42,7 +42,7 @@ static bool update(actor_t *actor, struct controller_data pressed_keys)
         return false;
     }
     //Fast forward to flickering when pressing B
-    if(pressed_keys.c[0].B) {
+    if(pressed_keys.b) {
         this->num_ticks = SPAWN_DURATION-FLICKER_DURATION;
     }
     if(this->num_ticks > SPAWN_DURATION-FLICKER_DURATION) {

@@ -40,7 +40,7 @@ int main(void)
     /* Initialize peripherals */
     display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
     dfs_init( DFS_DEFAULT_LOCATION );
-    controller_init();
+    joypad_init();
 
     /* Read in sprite */
     sprite_t *mario = read_sprite( "rom://mario.sprite" );
@@ -119,39 +119,39 @@ int main(void)
         display_show(disp);
 
         /* Do we need to switch video displays? */
-        controller_scan();
-        struct controller_data keys = get_keys_down();
+        joypad_poll();
+        joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
-        if( keys.c[0].up )
+        if( keys.d_up )
         {
             display_close();
 
             res = RESOLUTION_640x480;
-            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_DISABLED );
         }
 
-        if( keys.c[0].down )
+        if( keys.d_down )
         {
             display_close();
 
             res = RESOLUTION_320x240;
-            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_DISABLED );
         }
 
-        if( keys.c[0].left )
+        if( keys.d_left )
         {
             display_close();
 
             bit = DEPTH_16_BPP;
-            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_DISABLED );
         }
 
-        if( keys.c[0].right )
+        if( keys.d_right )
         {
             display_close();
 
             bit = DEPTH_32_BPP;
-            display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
+            display_init( res, bit, 2, GAMMA_NONE, FILTERS_DISABLED );
         }
     }
 }

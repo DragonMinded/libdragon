@@ -38,12 +38,12 @@ typedef struct
 static void press_a_to_continue(void)
 {
     printf( "Press A to continue\n" );
-    struct controller_data keys;
+    joypad_buttons_t keys;
     while (1)
     {
-        controller_scan();
-        keys = get_keys_down();
-        if (keys.c[0].A)
+        joypad_poll();
+        keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+        if (keys.a)
         {
             console_clear();
             break;
@@ -55,17 +55,17 @@ static void keep_or_erase_data(void)
 {
     printf( "Press A to keep EEPROM data\n" );
     printf( "Press B to erase EEPROM data\n" );
-    struct controller_data keys;
+    joypad_buttons_t keys;
     while (1)
     {
-        controller_scan();
-        keys = get_keys_down();
-        if (keys.c[0].A)
+        joypad_poll();
+        keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+        if (keys.a)
         {
             console_clear();
             break;
         }
-        if (keys.c[0].B)
+        if (keys.b)
         {   
             printf( "Wiping EEPROM...\n" );
             eepfs_wipe();
@@ -454,7 +454,7 @@ int main(void)
 {
     /* Initialize peripherals */
     console_init();
-    controller_init();
+    joypad_init();
 
     console_set_render_mode(RENDER_AUTOMATIC);
     console_clear();

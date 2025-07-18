@@ -2,6 +2,13 @@ BUILD_DIR=build
 include $(N64_INST)/include/n64.mk
 
 src = rdpqdemo.c
+assets_xm = $(wildcard assets/*.xm)
+assets_wav = $(wildcard assets/*.wav)
+assets_png = $(wildcard assets/*.png)
+
+assets_conv = $(addprefix filesystem/,$(notdir $(assets_xm:%.xm=%.xm64))) \
+              $(addprefix filesystem/,$(notdir $(assets_wav:%.wav=%.wav64))) \
+              $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
 assets_png = $(wildcard assets/*.png)
 
 assets_conv = $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))

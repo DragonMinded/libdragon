@@ -49,7 +49,7 @@ int main(void)
 {
     debug_init_isviewer();
     debug_init_usblog();
-    controller_init();
+    joypad_init();
 
     auto localClass = std::make_unique<TestClass>();
 
@@ -66,9 +66,9 @@ int main(void)
         printf("\nPress A to crash (test uncaught C++ exceptions)\n");
         console_render();
 
-        controller_scan();
-        struct controller_data keys = get_keys_down();
-        if (keys.c[0].A)
+        joypad_poll();
+        joypad_buttons_t keys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+        if (keys.a)
             localClass->crash();
         
     }

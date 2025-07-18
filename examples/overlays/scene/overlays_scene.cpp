@@ -12,7 +12,7 @@ int main()
     rdpq_debug_start();
     //Init miscellaneous system
     dfs_init(DFS_DEFAULT_LOCATION);
-    controller_init();
+    joypad_init();
     //Init scene manager to load bg_test as first scene
     SceneMgr::Init();
     SceneMgr::SetNextScene("bg_test");
@@ -20,7 +20,7 @@ int main()
         //Load new scene
         SceneMgr::LoadNextScene();
         while(!SceneMgr::ChangingScene()) {
-            controller_scan(); //Read controller
+            joypad_poll(); //Read controller
             SceneMgr::Update(); //Update scene
             //Draw scene
             surface_t *disp = display_get();
