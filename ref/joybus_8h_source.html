@@ -83,33 +83,120 @@ $(document).ready(function() { init_codefold(0); });
 </div><!--header-->
 <div class="contents">
 <a href="joybus_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#ifndef __LIBDRAGON_JOYBUS_H</span></div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#define __LIBDRAGON_JOYBUS_H</span></div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span> </div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#include &lt;stddef.h&gt;</span></div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span> </div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno"><a class="line" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">   56</a></span><span class="preprocessor">#define JOYBUS_BLOCK_SIZE 64</span></div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno"><a class="line" href="group__joybus.html#gabd5f84cf2323e720ab0b79fff05e8383">   60</a></span><span class="preprocessor">#define JOYBUS_BLOCK_DWORDS ( JOYBUS_BLOCK_SIZE / sizeof(uint64_t) )</span></div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a>( <span class="keyword">const</span> <span class="keywordtype">void</span>* input, <span class="keywordtype">void</span>* output );</div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span> </div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>}</div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span> </div>
- <span class="comment">/* joybus */</span><div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span> </div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="preprocessor">#endif</span></div>
-<div class="ttc" id="agroup__joybus_html_ga6d62432ce8ecd83cd1588716fd28fdb7"><div class="ttname"><a href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a></div><div class="ttdeci">void joybus_exec(const void *input, void *output)</div><div class="ttdoc">Write a 64-byte block of data to the PIF and read the 64-byte result.</div><div class="ttdef"><b>Definition</b> joybus.c:251</div></div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#ifndef __LIBDRAGON_JOYBUS_H</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#define __LIBDRAGON_JOYBUS_H</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#include &lt;assert.h&gt;</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#include &lt;stddef.h&gt;</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#include &lt;string.h&gt;</span></div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno"><a class="line" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">   68</a></span><span class="preprocessor">#define JOYBUS_BLOCK_SIZE 64</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno"><a class="line" href="group__joybus.html#gabd5f84cf2323e720ab0b79fff05e8383">   72</a></span><span class="preprocessor">#define JOYBUS_BLOCK_DWORDS ( JOYBUS_BLOCK_SIZE / sizeof(uint64_t) )</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno"><a class="line" href="group__joybus.html#ga8c0ca9fee7249e4d6e08d5bf4196ff24">   76</a></span><span class="preprocessor">#define JOYBUS_ACCESSORY_DATA_SIZE  32</span></div>
+ <span class="comment">/* JOYBUS_PAYLOAD_SIZES */</span><span class="preprocessor"></span><div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span> </div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno"><a class="line" href="group__joybus.html#ga9e1b79695ea3cde099212a15b8553bc1">   85</a></span><span class="preprocessor">#define JOYBUS_PORT_COUNT 5</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span> </div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno"><a class="line" href="group__joybus.html#gad91e902f4c8cb12fb4f5aa288d423b44">   96</a></span><span class="keyword">typedef</span> uint16_t <a class="code hl_typedef" href="group__joybus.html#gad91e902f4c8cb12fb4f5aa288d423b44">joybus_identifier_t</a>;</div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span> </div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno"><a class="line" href="group__joybus.html#ga2b7e5db8ee4ab401afa2b16eda7f77ae">  106</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_UNKNOWN               0x0000</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno"><a class="line" href="group__joybus.html#gae4add21eabfd4f9ef2c948735fe3d888">  110</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_NONE                  0xFFFF</span></div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno"><a class="line" href="group__joybus.html#gab66d0a557e5436063c475fb17dbea216">  116</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_N64_VOICE_RECOGNITION 0x0001</span></div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno"><a class="line" href="group__joybus.html#gad3d7eefcc7efb6dc727a354ff4c2f6be">  120</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_N64_RANDNET_KEYBOARD  0x0002</span></div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno"><a class="line" href="group__joybus.html#ga662f92afa4a66274f9a23e413fab28a0">  124</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_64GB_LINK_CABLE       0x0003</span></div>
+<div class="line"><a id="l00128" name="l00128"></a><span class="lineno"><a class="line" href="group__joybus.html#ga7bbea460bd4c67c6e3a1f4d92afc37fc">  128</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_GBA_LINK_CABLE        0x0004</span></div>
+<div class="line"><a id="l00132" name="l00132"></a><span class="lineno"><a class="line" href="group__joybus.html#gad7a9db4234943f7f184e99c63080c85b">  132</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_CART_RTC              0x0010</span></div>
+<div class="line"><a id="l00136" name="l00136"></a><span class="lineno"><a class="line" href="group__joybus.html#ga048806afe0f25cc3c66bebaae163715a">  136</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_CART_EEPROM_4KBIT     0x0080</span></div>
+<div class="line"><a id="l00140" name="l00140"></a><span class="lineno"><a class="line" href="group__joybus.html#gafc31d9207fd140d10b9c13f286275710">  140</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_CART_EEPROM_16KBIT    0x00C0</span></div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno"><a class="line" href="group__joybus.html#gae39cb1248f7f9023f8cf5511a786642e">  144</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_N64_CONTROLLER        0x0500</span></div>
+<div class="line"><a id="l00148" name="l00148"></a><span class="lineno"><a class="line" href="group__joybus.html#ga762f7d451e4dd65a6962a0beb2a85849">  148</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_N64_MOUSE             0x0200</span></div>
+<div class="line"><a id="l00175" name="l00175"></a><span class="lineno"><a class="line" href="group__joybus.html#ga6ada8ee8d924ff05a2a2ed7e98c02ae3">  175</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_MASK_PLATFORM         0x1800</span></div>
+<div class="line"><a id="l00182" name="l00182"></a><span class="lineno"><a class="line" href="group__joybus.html#ga01d8a332fb379a3540be01dd5a13401d">  182</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_PLATFORM_GCN          0x0800</span></div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno"><a class="line" href="group__joybus.html#ga70c0c5ba555606cd69c15937fbe06b9d">  188</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER   0x0100</span></div>
+<div class="line"><a id="l00194" name="l00194"></a><span class="lineno"><a class="line" href="group__joybus.html#gab6d477cfb1f6e2a51f163575dd6f54ee">  194</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE     0x2000</span></div>
+<div class="line"><a id="l00200" name="l00200"></a><span class="lineno"><a class="line" href="group__joybus.html#ga9f02e446b4cc6eadfb13a8bb216fc8b8">  200</a></span><span class="preprocessor">#define JOYBUS_IDENTIFIER_MASK_GCN_WIRELESS     0x8000</span></div>
+ <span class="comment">/* JOYBUS_IDENTIFIER_GCN_BITFIELD */</span><span class="preprocessor"></span><div class="line"><a id="l00202" name="l00202"></a><span class="lineno">  202</span> </div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno"><a class="line" href="group__joybus.html#gab8800bb58a6c542f24e3d1c0e609dbff">  211</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK             0x03</span></div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno"><a class="line" href="group__joybus.html#gafe43144f812642193a627d152f6c6adb">  218</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED      0x00</span></div>
+<div class="line"><a id="l00222" name="l00222"></a><span class="lineno"><a class="line" href="group__joybus.html#gadf4b888f34ae975b787ae8838871d01b">  222</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT          0x01</span></div>
+<div class="line"><a id="l00226" name="l00226"></a><span class="lineno"><a class="line" href="group__joybus.html#ga87fbaf483083862e11c9ec2e5b74dc0a">  226</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT           0x02</span></div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno"><a class="line" href="group__joybus.html#ga05b5b4ae0febddcf5739f30e538b58a5">  231</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED          0x03</span></div>
+<div class="line"><a id="l00235" name="l00235"></a><span class="lineno"><a class="line" href="group__joybus.html#ga2539284553ef0faa96297e9ad5a51dd7">  235</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_VOICE_RECOGNITON_READY     0x01</span></div>
+<div class="line"><a id="l00240" name="l00240"></a><span class="lineno"><a class="line" href="group__joybus.html#ga43595188cc663796720f3296e3ac13f1">  240</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_COMMAND_CHECKSUM_ERROR     0x04</span></div>
+<div class="line"><a id="l00245" name="l00245"></a><span class="lineno"><a class="line" href="group__joybus.html#ga2798f796fd03ba614e780500331f6c52">  245</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_GCN_RUMBLE_ACTIVE          0x08</span></div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno"><a class="line" href="group__joybus.html#ga09f5e586412001a8b8e64ee6fc7bcef2">  249</a></span><span class="preprocessor">#define JOYBUS_IDENTIFY_STATUS_EEPROM_BUSY                0x80</span></div>
+<div class="line"><a id="l00260" name="l00260"></a><span class="lineno"><a class="line" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">  260</a></span><span class="keyword">typedef</span> void (*<a class="code hl_typedef" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a>)(uint64_t *out_dwords, <span class="keywordtype">void</span> *ctx);</div>
+<div class="line"><a id="l00261" name="l00261"></a><span class="lineno">  261</span> </div>
+<div class="line"><a id="l00291" name="l00291"></a><span class="lineno"><a class="line" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1">  291</a></span><span class="keywordtype">void</span> <a class="code hl_function" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1">joybus_exec_async</a>(<span class="keyword">const</span> <span class="keywordtype">void</span> * input, <a class="code hl_typedef" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a> callback, <span class="keywordtype">void</span> *ctx);</div>
+<div class="line"><a id="l00292" name="l00292"></a><span class="lineno">  292</span> </div>
+<div class="line"><a id="l00308" name="l00308"></a><span class="lineno">  308</span><span class="keywordtype">void</span> <a class="code hl_function" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a>( <span class="keyword">const</span> <span class="keywordtype">void</span>* input, <span class="keywordtype">void</span>* output );</div>
+<div class="line"><a id="l00309" name="l00309"></a><span class="lineno">  309</span> </div>
+<div class="foldopen" id="foldopen00345" data-start="{" data-end="}">
+<div class="line"><a id="l00345" name="l00345"></a><span class="lineno"><a class="line" href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0">  345</a></span><span class="keyword">inline</span> <span class="keywordtype">void</span> <a class="code hl_function" href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0">joybus_exec_cmd</a>(</div>
+<div class="line"><a id="l00346" name="l00346"></a><span class="lineno">  346</span>    <span class="keywordtype">int</span> port,</div>
+<div class="line"><a id="l00347" name="l00347"></a><span class="lineno">  347</span>    <span class="keywordtype">size_t</span> send_len,</div>
+<div class="line"><a id="l00348" name="l00348"></a><span class="lineno">  348</span>    <span class="keywordtype">size_t</span> recv_len,</div>
+<div class="line"><a id="l00349" name="l00349"></a><span class="lineno">  349</span>    <span class="keyword">const</span> <span class="keywordtype">void</span> *send_data,</div>
+<div class="line"><a id="l00350" name="l00350"></a><span class="lineno">  350</span>    <span class="keywordtype">void</span> *recv_data</div>
+<div class="line"><a id="l00351" name="l00351"></a><span class="lineno">  351</span>)</div>
+<div class="line"><a id="l00352" name="l00352"></a><span class="lineno">  352</span>{</div>
+<div class="line"><a id="l00353" name="l00353"></a><span class="lineno">  353</span>    <span class="comment">// Validate the desired Joybus port offset</span></div>
+<div class="line"><a id="l00354" name="l00354"></a><span class="lineno">  354</span>    assert((port &gt;= 0) &amp;&amp; (port &lt; <a class="code hl_define" href="group__joybus.html#ga9e1b79695ea3cde099212a15b8553bc1">JOYBUS_PORT_COUNT</a>));</div>
+<div class="line"><a id="l00355" name="l00355"></a><span class="lineno">  355</span>    <span class="comment">// Ensure the send_len and recv_len fit in the Joybus operation block</span></div>
+<div class="line"><a id="l00356" name="l00356"></a><span class="lineno">  356</span>    assert((port + send_len + recv_len) &lt; (<a class="code hl_define" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a> - 4));</div>
+<div class="line"><a id="l00357" name="l00357"></a><span class="lineno">  357</span>    <span class="comment">// Allocate the Joybus operation block input and output buffers</span></div>
+<div class="line"><a id="l00358" name="l00358"></a><span class="lineno">  358</span>    uint8_t input[<a class="code hl_define" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a>] = {0};</div>
+<div class="line"><a id="l00359" name="l00359"></a><span class="lineno">  359</span>    uint8_t output[<a class="code hl_define" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a>] = {0};</div>
+<div class="line"><a id="l00360" name="l00360"></a><span class="lineno">  360</span>    <span class="comment">// Skip commands on ports before the desired port offset</span></div>
+<div class="line"><a id="l00361" name="l00361"></a><span class="lineno">  361</span>    <span class="keywordtype">size_t</span> i = port;</div>
+<div class="line"><a id="l00362" name="l00362"></a><span class="lineno">  362</span>    <span class="comment">// Set the command metadata</span></div>
+<div class="line"><a id="l00363" name="l00363"></a><span class="lineno">  363</span>    input[i++] = send_len;</div>
+<div class="line"><a id="l00364" name="l00364"></a><span class="lineno">  364</span>    input[i++] = recv_len;</div>
+<div class="line"><a id="l00365" name="l00365"></a><span class="lineno">  365</span>    <span class="comment">// Copy the send_data into the input buffer</span></div>
+<div class="line"><a id="l00366" name="l00366"></a><span class="lineno">  366</span>    memcpy(&amp;input[i], send_data, send_len);</div>
+<div class="line"><a id="l00367" name="l00367"></a><span class="lineno">  367</span>    i += send_len + recv_len;</div>
+<div class="line"><a id="l00368" name="l00368"></a><span class="lineno">  368</span>    <span class="comment">// Close out the Joybus operation block</span></div>
+<div class="line"><a id="l00369" name="l00369"></a><span class="lineno">  369</span>    input[i] = 0xFE;</div>
+<div class="line"><a id="l00370" name="l00370"></a><span class="lineno">  370</span>    input[<span class="keyword">sizeof</span>(input) - 1] = 0x01;</div>
+<div class="line"><a id="l00371" name="l00371"></a><span class="lineno">  371</span>    <span class="comment">// Execute the Joybus operation synchronously</span></div>
+<div class="line"><a id="l00372" name="l00372"></a><span class="lineno">  372</span>    <a class="code hl_function" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a>(input, output);</div>
+<div class="line"><a id="l00373" name="l00373"></a><span class="lineno">  373</span>    <span class="comment">// Copy recv_data from the output buffer</span></div>
+<div class="line"><a id="l00374" name="l00374"></a><span class="lineno">  374</span>    memcpy(recv_data, &amp;output[i - recv_len], recv_len);</div>
+<div class="line"><a id="l00375" name="l00375"></a><span class="lineno">  375</span>}</div>
+</div>
+<div class="line"><a id="l00376" name="l00376"></a><span class="lineno">  376</span> </div>
+<div class="foldopen" id="foldopen00398" data-start="" data-end="">
+<div class="line"><a id="l00398" name="l00398"></a><span class="lineno"><a class="line" href="group__joybus.html#gab66a8f8b5399fc6a3499fee9bf62c477">  398</a></span><span class="preprocessor">#define joybus_exec_cmd_struct(port, cmd) \</span></div>
+<div class="line"><a id="l00399" name="l00399"></a><span class="lineno">  399</span><span class="preprocessor">    joybus_exec_cmd(                      \</span></div>
+<div class="line"><a id="l00400" name="l00400"></a><span class="lineno">  400</span><span class="preprocessor">        port,                             \</span></div>
+<div class="line"><a id="l00401" name="l00401"></a><span class="lineno">  401</span><span class="preprocessor">        sizeof(cmd.send),                 \</span></div>
+<div class="line"><a id="l00402" name="l00402"></a><span class="lineno">  402</span><span class="preprocessor">        sizeof(cmd.recv),                 \</span></div>
+<div class="line"><a id="l00403" name="l00403"></a><span class="lineno">  403</span><span class="preprocessor">        (void *)&amp;cmd.send,                \</span></div>
+<div class="line"><a id="l00404" name="l00404"></a><span class="lineno">  404</span><span class="preprocessor">        (void *)&amp;cmd.recv                 \</span></div>
+<div class="line"><a id="l00405" name="l00405"></a><span class="lineno">  405</span><span class="preprocessor">    )</span></div>
+</div>
+<div class="line"><a id="l00406" name="l00406"></a><span class="lineno">  406</span> </div>
+<div class="line"><a id="l00407" name="l00407"></a><span class="lineno">  407</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00408" name="l00408"></a><span class="lineno">  408</span>}</div>
+<div class="line"><a id="l00409" name="l00409"></a><span class="lineno">  409</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00410" name="l00410"></a><span class="lineno">  410</span> </div>
+ <span class="comment">/* joybus */</span><div class="line"><a id="l00412" name="l00412"></a><span class="lineno">  412</span> </div>
+<div class="line"><a id="l00413" name="l00413"></a><span class="lineno">  413</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="agroup__joybus_html_ga244b4723690e3c15da23bdbfda2cb7d1"><div class="ttname"><a href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1">joybus_exec_async</a></div><div class="ttdeci">void joybus_exec_async(const void *input, joybus_callback_t callback, void *ctx)</div><div class="ttdoc">Execute an asynchronous joybus message.</div></div>
+<div class="ttc" id="agroup__joybus_html_ga6d62432ce8ecd83cd1588716fd28fdb7"><div class="ttname"><a href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a></div><div class="ttdeci">void joybus_exec(const void *input, void *output)</div><div class="ttdoc">Write a 64-byte block of data to the PIF and read the 64-byte result.</div><div class="ttdef"><b>Definition</b> joybus.c:253</div></div>
+<div class="ttc" id="agroup__joybus_html_ga96357e747d908aa6c354b507d9b0fdc4"><div class="ttname"><a href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a></div><div class="ttdeci">#define JOYBUS_BLOCK_SIZE</div><div class="ttdoc">Size of a Joybus input/output block in bytes.</div><div class="ttdef"><b>Definition</b> joybus.h:68</div></div>
+<div class="ttc" id="agroup__joybus_html_ga9e1b79695ea3cde099212a15b8553bc1"><div class="ttname"><a href="group__joybus.html#ga9e1b79695ea3cde099212a15b8553bc1">JOYBUS_PORT_COUNT</a></div><div class="ttdeci">#define JOYBUS_PORT_COUNT</div><div class="ttdoc">Count of Joybus ports.</div><div class="ttdef"><b>Definition</b> joybus.h:85</div></div>
+<div class="ttc" id="agroup__joybus_html_gaaf2e487c05f4f27e3b36af3c54ff66c1"><div class="ttname"><a href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a></div><div class="ttdeci">void(* joybus_callback_t)(uint64_t *out_dwords, void *ctx)</div><div class="ttdoc">Callback function signature for joybus_exec_async.</div><div class="ttdef"><b>Definition</b> joybus.h:260</div></div>
+<div class="ttc" id="agroup__joybus_html_gab9ed6f44c13006456f30709a48e122d0"><div class="ttname"><a href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0">joybus_exec_cmd</a></div><div class="ttdeci">void joybus_exec_cmd(int port, size_t send_len, size_t recv_len, const void *send_data, void *recv_data)</div><div class="ttdoc">Execute a Joybus command synchronously on the given port.</div><div class="ttdef"><b>Definition</b> joybus.h:345</div></div>
+<div class="ttc" id="agroup__joybus_html_gad91e902f4c8cb12fb4f5aa288d423b44"><div class="ttname"><a href="group__joybus.html#gad91e902f4c8cb12fb4f5aa288d423b44">joybus_identifier_t</a></div><div class="ttdeci">uint16_t joybus_identifier_t</div><div class="ttdoc">Joypad Identifier type.</div><div class="ttdef"><b>Definition</b> joybus.h:96</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

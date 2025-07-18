@@ -82,119 +82,120 @@ $(document).ready(function() { init_codefold(0); });
   <div class="headertitle"><div class="title">pputils.h</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span><span class="comment">/*</span></div>
-<div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="comment"> * Preprocessor metaprogramming utils</span></div>
-<div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span><span class="comment"> * </span></div>
-<div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="comment"> * This file contains some generic macros that are useful to implement</span></div>
-<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="comment"> * preprocessor metaprogramming, that is sometimes useful in providing</span></div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="comment"> * nice APIs.</span></div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="comment"> * </span></div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="comment"> * They are not documented via doxygen because they are not part of the</span></div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="comment"> * libdragon public API, though they might be used in header files.</span></div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="comment"> */</span></div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#ifndef __LIBDRAGON_PPUTILS_H</span></div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="preprocessor">#define __LIBDRAGON_PPUTILS_H</span></div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span> </div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span> </div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="comment">// FOREACH helpers. These macros are internally used by __CALL_FOREACH later.</span></div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="preprocessor">#define __FE_0(_call, ...)</span></div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span><span class="preprocessor">#define __FE_1(_call, x)       _call(x)</span></div>
-<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#define __FE_2(_call, x, ...)  _call(x) __FE_1(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#define __FE_3(_call, x, ...)  _call(x) __FE_2(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#define __FE_4(_call, x, ...)  _call(x) __FE_3(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#define __FE_5(_call, x, ...)  _call(x) __FE_4(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#define __FE_6(_call, x, ...)  _call(x) __FE_5(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">#define __FE_7(_call, x, ...)  _call(x) __FE_6(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#define __FE_8(_call, x, ...)  _call(x) __FE_7(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="preprocessor">#define __FE_9(_call, x, ...)  _call(x) __FE_8(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#define __FE_10(_call, x, ...) _call(x) __FE_9(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="preprocessor">#define __FE_11(_call, x, ...) _call(x) __FE_10(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="preprocessor">#define __FE_12(_call, x, ...) _call(x) __FE_11(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#define __FE_13(_call, x, ...) _call(x) __FE_12(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="preprocessor">#define __FE_14(_call, x, ...) _call(x) __FE_13(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="preprocessor">#define __FE_15(_call, x, ...) _call(x) __FE_14(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="preprocessor">#define __FE_16(_call, x, ...) _call(x) __FE_15(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#define __FE_17(_call, x, ...) _call(x) __FE_16(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="preprocessor">#define __FE_18(_call, x, ...) _call(x) __FE_17(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="preprocessor">#define __FE_19(_call, x, ...) _call(x) __FE_18(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="preprocessor">#define __FE_20(_call, x, ...) _call(x) __FE_19(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="preprocessor">#define __FE_21(_call, x, ...) _call(x) __FE_20(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="preprocessor">#define __FE_22(_call, x, ...) _call(x) __FE_21(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="preprocessor">#define __FE_23(_call, x, ...) _call(x) __FE_22(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="preprocessor">#define __FE_24(_call, x, ...) _call(x) __FE_23(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">#define __FE_25(_call, x, ...) _call(x) __FE_24(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="preprocessor">#define __FE_26(_call, x, ...) _call(x) __FE_25(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="preprocessor">#define __FE_27(_call, x, ...) _call(x) __FE_26(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="preprocessor">#define __FE_28(_call, x, ...) _call(x) __FE_27(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="preprocessor">#define __FE_29(_call, x, ...) _call(x) __FE_28(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="preprocessor">#define __FE_30(_call, x, ...) _call(x) __FE_29(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="preprocessor">#define __FE_31(_call, x, ...) _call(x) __FE_30(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span> </div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="comment">// Get the 33rd argument to this call. This is an useful building block for later macros</span></div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="preprocessor">#define __GET_33RD_ARG(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, N, ...)  N</span></div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="comment">// Return the number of variadic arguments</span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="preprocessor">#define __COUNT_VARARGS(...)     __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)</span></div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span> </div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="comment">// Return 1 if there is at least one variadic argument, otherwise 0</span></div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="preprocessor">#define __HAS_VARARGS(...)       __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)</span></div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="comment">// Call macro fn for each variadic argument</span></div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="preprocessor">#define __CALL_FOREACH(fn, ...)  __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, __FE_31, __FE_30, __FE_29, __FE_28, __FE_27, __FE_26, __FE_25, __FE_24, __FE_23, __FE_22, __FE_21, __FE_20, __FE_19, __FE_18, __FE_17, __FE_16, __FE_15, __FE_14, __FE_13, __FE_12, __FE_11, __FE_10, __FE_9, __FE_8, __FE_7, __FE_6, __FE_5, __FE_4, __FE_3, __FE_2, __FE_1, __FE_0)(fn, ##__VA_ARGS__)</span></div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="comment">// Preprocessor token paste</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="preprocessor">#define __PPCAT2(n,x) n ## x</span></div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="preprocessor">#define __PPCAT(n,x) __PPCAT2(n,x)</span></div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="comment">// __CALL_FOREACH_BIS. Like __CALL_FOREACH, but it allows to be called without the expansion</span></div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">// of a __CALL_FOREACH.</span></div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#define __FEB_0(_call, ...)</span></div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="preprocessor">#define __FEB_1(_call, x)       _call(x)</span></div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="preprocessor">#define __FEB_2(_call, x, ...)  _call(x) __FEB_1(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="preprocessor">#define __FEB_3(_call, x, ...)  _call(x) __FEB_2(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="preprocessor">#define __FEB_4(_call, x, ...)  _call(x) __FEB_3(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="preprocessor">#define __FEB_5(_call, x, ...)  _call(x) __FEB_4(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="preprocessor">#define __FEB_6(_call, x, ...)  _call(x) __FEB_5(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="preprocessor">#define __FEB_7(_call, x, ...)  _call(x) __FEB_6(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="preprocessor">#define __FEB_8(_call, x, ...)  _call(x) __FEB_7(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="preprocessor">#define __FEB_9(_call, x, ...)  _call(x) __FEB_8(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="preprocessor">#define __FEB_10(_call, x, ...) _call(x) __FEB_9(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="preprocessor">#define __FEB_11(_call, x, ...) _call(x) __FEB_10(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="preprocessor">#define __FEB_12(_call, x, ...) _call(x) __FEB_11(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="preprocessor">#define __FEB_13(_call, x, ...) _call(x) __FEB_12(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="preprocessor">#define __FEB_14(_call, x, ...) _call(x) __FEB_13(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="preprocessor">#define __FEB_15(_call, x, ...) _call(x) __FEB_14(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="preprocessor">#define __FEB_16(_call, x, ...) _call(x) __FEB_15(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="preprocessor">#define __FEB_17(_call, x, ...) _call(x) __FEB_16(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="preprocessor">#define __FEB_18(_call, x, ...) _call(x) __FEB_17(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="preprocessor">#define __FEB_19(_call, x, ...) _call(x) __FEB_18(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="preprocessor">#define __FEB_20(_call, x, ...) _call(x) __FEB_19(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="preprocessor">#define __FEB_21(_call, x, ...) _call(x) __FEB_20(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="preprocessor">#define __FEB_22(_call, x, ...) _call(x) __FEB_21(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="preprocessor">#define __FEB_23(_call, x, ...) _call(x) __FEB_22(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="preprocessor">#define __FEB_24(_call, x, ...) _call(x) __FEB_23(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="preprocessor">#define __FEB_25(_call, x, ...) _call(x) __FEB_24(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="preprocessor">#define __FEB_26(_call, x, ...) _call(x) __FEB_25(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="preprocessor">#define __FEB_27(_call, x, ...) _call(x) __FEB_26(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="preprocessor">#define __FEB_28(_call, x, ...) _call(x) __FEB_27(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="preprocessor">#define __FEB_29(_call, x, ...) _call(x) __FEB_28(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="preprocessor">#define __FEB_30(_call, x, ...) _call(x) __FEB_29(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="preprocessor">#define __FEB_31(_call, x, ...) _call(x) __FEB_30(_call, __VA_ARGS__)</span></div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="preprocessor">#define __CALL_FOREACH_BIS(fn, ...)  __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, __FEB_31, __FEB_30, __FEB_29, __FEB_28, __FEB_27, __FEB_26, __FEB_25, __FEB_24, __FEB_23, __FEB_22, __FEB_21, __FEB_20, __FEB_19, __FEB_18, __FEB_17, __FEB_16, __FEB_15, __FEB_14, __FEB_13, __FEB_12, __FEB_11, __FEB_10, __FEB_9, __FEB_8, __FEB_7, __FEB_6, __FEB_5, __FEB_4, __FEB_3, __FEB_2, __FEB_1, __FEB_0)(fn, ##__VA_ARGS__)</span></div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="comment">// Check that GNU extensions are active and macros work correctly. Specifically</span></div>
-<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="comment">// we require the extension that allows ##__VA_ARGS__ to elide the previous comma</span></div>
-<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="comment">// when no variadic arguments are specified.</span></div>
-<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="preprocessor">#if __COUNT_VARARGS() != 0</span></div>
-<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span><span class="preprocessor">#error GNU extensions are required -- please specify a -std=gnuXX/gnu++XX option to the compiler</span></div>
-<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span> </div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span> </div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="preprocessor">#endif</span></div>
+<a href="pputils_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="comment"> * Preprocessor metaprogramming utils</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="comment"> * </span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="comment"> * This file contains some generic macros that are useful to implement</span></div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="comment"> * preprocessor metaprogramming, that is sometimes useful in providing</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="comment"> * nice APIs.</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="comment"> * </span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="comment"> * They are not documented via doxygen because they are not part of the</span></div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="comment"> * libdragon public API, though they might be used in header files.</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span><span class="preprocessor">#ifndef __LIBDRAGON_PPUTILS_H</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="preprocessor">#define __LIBDRAGON_PPUTILS_H</span></div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span> </div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="comment">// FOREACH helpers. These macros are internally used by __CALL_FOREACH later.</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#define __FE_0(_call, ...)</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#define __FE_1(_call, x)       _call(x)</span></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">#define __FE_2(_call, x, ...)  _call(x) __FE_1(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="preprocessor">#define __FE_3(_call, x, ...)  _call(x) __FE_2(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="preprocessor">#define __FE_4(_call, x, ...)  _call(x) __FE_3(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#define __FE_5(_call, x, ...)  _call(x) __FE_4(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="preprocessor">#define __FE_6(_call, x, ...)  _call(x) __FE_5(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="preprocessor">#define __FE_7(_call, x, ...)  _call(x) __FE_6(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="preprocessor">#define __FE_8(_call, x, ...)  _call(x) __FE_7(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="preprocessor">#define __FE_9(_call, x, ...)  _call(x) __FE_8(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="preprocessor">#define __FE_10(_call, x, ...) _call(x) __FE_9(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span><span class="preprocessor">#define __FE_11(_call, x, ...) _call(x) __FE_10(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#define __FE_12(_call, x, ...) _call(x) __FE_11(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span><span class="preprocessor">#define __FE_13(_call, x, ...) _call(x) __FE_12(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span><span class="preprocessor">#define __FE_14(_call, x, ...) _call(x) __FE_13(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span><span class="preprocessor">#define __FE_15(_call, x, ...) _call(x) __FE_14(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span><span class="preprocessor">#define __FE_16(_call, x, ...) _call(x) __FE_15(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="preprocessor">#define __FE_17(_call, x, ...) _call(x) __FE_16(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="preprocessor">#define __FE_18(_call, x, ...) _call(x) __FE_17(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="preprocessor">#define __FE_19(_call, x, ...) _call(x) __FE_18(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">#define __FE_20(_call, x, ...) _call(x) __FE_19(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="preprocessor">#define __FE_21(_call, x, ...) _call(x) __FE_20(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="preprocessor">#define __FE_22(_call, x, ...) _call(x) __FE_21(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="preprocessor">#define __FE_23(_call, x, ...) _call(x) __FE_22(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="preprocessor">#define __FE_24(_call, x, ...) _call(x) __FE_23(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="preprocessor">#define __FE_25(_call, x, ...) _call(x) __FE_24(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="preprocessor">#define __FE_26(_call, x, ...) _call(x) __FE_25(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="preprocessor">#define __FE_27(_call, x, ...) _call(x) __FE_26(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="preprocessor">#define __FE_28(_call, x, ...) _call(x) __FE_27(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="preprocessor">#define __FE_29(_call, x, ...) _call(x) __FE_28(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="preprocessor">#define __FE_30(_call, x, ...) _call(x) __FE_29(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="preprocessor">#define __FE_31(_call, x, ...) _call(x) __FE_30(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span> </div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="comment">// Get the 33rd argument to this call. This is an useful building block for later macros</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="preprocessor">#define __GET_33RD_ARG(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, N, ...)  N</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="comment">// Return the number of variadic arguments</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="preprocessor">#define __COUNT_VARARGS(...)     __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span> </div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="comment">// Return 1 if there is at least one variadic argument, otherwise 0</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="preprocessor">#define __HAS_VARARGS(...)       __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="comment">// Call macro fn for each variadic argument</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="preprocessor">#define __CALL_FOREACH(fn, ...)  __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, __FE_31, __FE_30, __FE_29, __FE_28, __FE_27, __FE_26, __FE_25, __FE_24, __FE_23, __FE_22, __FE_21, __FE_20, __FE_19, __FE_18, __FE_17, __FE_16, __FE_15, __FE_14, __FE_13, __FE_12, __FE_11, __FE_10, __FE_9, __FE_8, __FE_7, __FE_6, __FE_5, __FE_4, __FE_3, __FE_2, __FE_1, __FE_0)(fn, ##__VA_ARGS__)</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span> </div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">// Preprocessor token paste</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#define __PPCAT2(n,x) n ## x</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="preprocessor">#define __PPCAT(n,x) __PPCAT2(n,x)</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span> </div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="comment">// __CALL_FOREACH_BIS. Like __CALL_FOREACH, but it allows to be called without the expansion</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="comment">// of a __CALL_FOREACH.</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="preprocessor">#define __FEB_0(_call, ...)</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="preprocessor">#define __FEB_1(_call, x)       _call(x)</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="preprocessor">#define __FEB_2(_call, x, ...)  _call(x) __FEB_1(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="preprocessor">#define __FEB_3(_call, x, ...)  _call(x) __FEB_2(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="preprocessor">#define __FEB_4(_call, x, ...)  _call(x) __FEB_3(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="preprocessor">#define __FEB_5(_call, x, ...)  _call(x) __FEB_4(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="preprocessor">#define __FEB_6(_call, x, ...)  _call(x) __FEB_5(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="preprocessor">#define __FEB_7(_call, x, ...)  _call(x) __FEB_6(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="preprocessor">#define __FEB_8(_call, x, ...)  _call(x) __FEB_7(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="preprocessor">#define __FEB_9(_call, x, ...)  _call(x) __FEB_8(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="preprocessor">#define __FEB_10(_call, x, ...) _call(x) __FEB_9(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="preprocessor">#define __FEB_11(_call, x, ...) _call(x) __FEB_10(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="preprocessor">#define __FEB_12(_call, x, ...) _call(x) __FEB_11(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="preprocessor">#define __FEB_13(_call, x, ...) _call(x) __FEB_12(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="preprocessor">#define __FEB_14(_call, x, ...) _call(x) __FEB_13(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="preprocessor">#define __FEB_15(_call, x, ...) _call(x) __FEB_14(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="preprocessor">#define __FEB_16(_call, x, ...) _call(x) __FEB_15(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="preprocessor">#define __FEB_17(_call, x, ...) _call(x) __FEB_16(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="preprocessor">#define __FEB_18(_call, x, ...) _call(x) __FEB_17(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="preprocessor">#define __FEB_19(_call, x, ...) _call(x) __FEB_18(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="preprocessor">#define __FEB_20(_call, x, ...) _call(x) __FEB_19(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="preprocessor">#define __FEB_21(_call, x, ...) _call(x) __FEB_20(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="preprocessor">#define __FEB_22(_call, x, ...) _call(x) __FEB_21(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="preprocessor">#define __FEB_23(_call, x, ...) _call(x) __FEB_22(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="preprocessor">#define __FEB_24(_call, x, ...) _call(x) __FEB_23(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="preprocessor">#define __FEB_25(_call, x, ...) _call(x) __FEB_24(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="preprocessor">#define __FEB_26(_call, x, ...) _call(x) __FEB_25(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="preprocessor">#define __FEB_27(_call, x, ...) _call(x) __FEB_26(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="preprocessor">#define __FEB_28(_call, x, ...) _call(x) __FEB_27(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="preprocessor">#define __FEB_29(_call, x, ...) _call(x) __FEB_28(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span><span class="preprocessor">#define __FEB_30(_call, x, ...) _call(x) __FEB_29(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="preprocessor">#define __FEB_31(_call, x, ...) _call(x) __FEB_30(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="preprocessor">#define __CALL_FOREACH_BIS(fn, ...)  __GET_33RD_ARG(&quot;ignored&quot;, ##__VA_ARGS__, __FEB_31, __FEB_30, __FEB_29, __FEB_28, __FEB_27, __FEB_26, __FEB_25, __FEB_24, __FEB_23, __FEB_22, __FEB_21, __FEB_20, __FEB_19, __FEB_18, __FEB_17, __FEB_16, __FEB_15, __FEB_14, __FEB_13, __FEB_12, __FEB_11, __FEB_10, __FEB_9, __FEB_8, __FEB_7, __FEB_6, __FEB_5, __FEB_4, __FEB_3, __FEB_2, __FEB_1, __FEB_0)(fn, ##__VA_ARGS__)</span></div>
+<div class="line"><a id="l00106" name="l00106"></a><span class="lineno">  106</span> </div>
+<div class="line"><a id="l00107" name="l00107"></a><span class="lineno">  107</span><span class="comment">// Check that GNU extensions are active and macros work correctly. Specifically</span></div>
+<div class="line"><a id="l00108" name="l00108"></a><span class="lineno">  108</span><span class="comment">// we require the extension that allows ##__VA_ARGS__ to elide the previous comma</span></div>
+<div class="line"><a id="l00109" name="l00109"></a><span class="lineno">  109</span><span class="comment">// when no variadic arguments are specified.</span></div>
+<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="preprocessor">#if __COUNT_VARARGS() != 0</span></div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="preprocessor">#error GNU extensions are required -- please specify a -std=gnuXX/gnu++XX option to the compiler</span></div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00113" name="l00113"></a><span class="lineno">  113</span> </div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span> </div>
+<div class="line"><a id="l00116" name="l00116"></a><span class="lineno">  116</span><span class="preprocessor">#endif</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

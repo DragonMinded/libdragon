@@ -1,7 +1,7 @@
 var searchData=
 [
   ['asset_5ffopen_0',['asset_fopen',['../asset_8h.html#ac731b2beb346c99f36fa8f355fb84509',1,'asset.h']]],
-  ['asset_5fload_1',['asset_load',['../asset_8h.html#abfc5939446d9920b884df034e89428a9',1,'asset.c']]],
+  ['asset_5fload_1',['asset_load',['../asset_8c.html#abfc5939446d9920b884df034e89428a9',1,'asset_load(const char *fn, int *sz):&#160;asset.c'],['../asset_8h.html#abfc5939446d9920b884df034e89428a9',1,'asset_load(const char *fn, int *sz):&#160;asset.c']]],
   ['attach_5ffilesystem_2',['attach_filesystem',['../group__system.html#gacca6d970a0153055aa8c962067cdfdf1',1,'attach_filesystem(const char *const prefix, filesystem_t *filesystem):&#160;system.c'],['../group__system.html#gacca6d970a0153055aa8c962067cdfdf1',1,'attach_filesystem(const char *const prefix, filesystem_t *filesystem):&#160;system.c']]],
   ['audio_5fcan_5fwrite_3',['audio_can_write',['../group__audio.html#ga762b8b0c8957798c66ee158ce513e05e',1,'audio_can_write():&#160;audio.c'],['../group__audio.html#ga762b8b0c8957798c66ee158ce513e05e',1,'audio_can_write():&#160;audio.c']]],
   ['audio_5fclose_4',['audio_close',['../group__audio.html#gad927b510bc46c3e0ebcfae81706fec06',1,'audio_close():&#160;audio.c'],['../group__audio.html#gad927b510bc46c3e0ebcfae81706fec06',1,'audio_close():&#160;audio.c']]],
@@ -15,11 +15,11 @@ var searchData=
   ['audio_5fwrite_5fbegin_12',['audio_write_begin',['../group__audio.html#ga8aee840f13aa6903fef4c092d0ffa704',1,'audio_write_begin(void):&#160;audio.c'],['../group__audio.html#ga8aee840f13aa6903fef4c092d0ffa704',1,'audio_write_begin(void):&#160;audio.c']]],
   ['audio_5fwrite_5fend_13',['audio_write_end',['../group__audio.html#gac872c4749acb1685ebeabc1f9d02c0bf',1,'audio_write_end(void):&#160;audio.c'],['../group__audio.html#gac872c4749acb1685ebeabc1f9d02c0bf',1,'audio_write_end(void):&#160;audio.c']]],
   ['audio_5fwrite_5fsilence_14',['audio_write_silence',['../group__audio.html#gad0c6a38d6ce470872e4016ecc6d9abd3',1,'audio_write_silence():&#160;audio.c'],['../group__audio.html#gad0c6a38d6ce470872e4016ecc6d9abd3',1,'audio_write_silence():&#160;audio.c']]],
-  ['ay8910_5fgen_15',['ay8910_gen',['../ay8910_8c.html#a5438aacec2a97706bd251f3bae7907ba',1,'ay8910.c']]],
-  ['ay8910_5fis_5fmute_16',['ay8910_is_mute',['../ay8910_8c.html#a4088400897b0b7fec4fca468e643c122',1,'ay8910.c']]],
-  ['ay8910_5fread_5fdata_17',['ay8910_read_data',['../ay8910_8c.html#a9f17d027f0f27cf50ad2d34cbb5571f8',1,'ay8910.c']]],
-  ['ay8910_5freset_18',['ay8910_reset',['../ay8910_8c.html#a2e65f6fd657e37dc7c806380a821fc4b',1,'ay8910.c']]],
-  ['ay8910_5fset_5fports_19',['ay8910_set_ports',['../ay8910_8c.html#a11b97ab2fa7d32285498d3f640b5f997',1,'ay8910.c']]],
-  ['ay8910_5fwrite_5faddr_20',['ay8910_write_addr',['../ay8910_8c.html#a1220becac2a0c7c06420567620f38d43',1,'ay8910.c']]],
-  ['ay8910_5fwrite_5fdata_21',['ay8910_write_data',['../ay8910_8c.html#aea07413b18bf747c1551cc00ceebe40c',1,'ay8910.c']]]
+  ['ay8910_5fgen_15',['ay8910_gen',['../ay8910_8c.html#a5438aacec2a97706bd251f3bae7907ba',1,'ay8910_gen(AY8910 *ay, int16_t *out, int nsamples):&#160;ay8910.c'],['../ay8910_8h.html#a5438aacec2a97706bd251f3bae7907ba',1,'ay8910_gen(AY8910 *ay, int16_t *out, int nsamples):&#160;ay8910.c']]],
+  ['ay8910_5fis_5fmute_16',['ay8910_is_mute',['../ay8910_8h.html#a4088400897b0b7fec4fca468e643c122',1,'ay8910_is_mute(AY8910 *ay):&#160;ay8910.c'],['../ay8910_8c.html#a4088400897b0b7fec4fca468e643c122',1,'ay8910_is_mute(AY8910 *ay):&#160;ay8910.c']]],
+  ['ay8910_5fread_5fdata_17',['ay8910_read_data',['../ay8910_8c.html#a9f17d027f0f27cf50ad2d34cbb5571f8',1,'ay8910_read_data(AY8910 *ay):&#160;ay8910.c'],['../ay8910_8h.html#a9f17d027f0f27cf50ad2d34cbb5571f8',1,'ay8910_read_data(AY8910 *ay):&#160;ay8910.c']]],
+  ['ay8910_5freset_18',['ay8910_reset',['../ay8910_8c.html#a2e65f6fd657e37dc7c806380a821fc4b',1,'ay8910_reset(AY8910 *ay):&#160;ay8910.c'],['../ay8910_8h.html#a2e65f6fd657e37dc7c806380a821fc4b',1,'ay8910_reset(AY8910 *ay):&#160;ay8910.c']]],
+  ['ay8910_5fset_5fports_19',['ay8910_set_ports',['../ay8910_8c.html#a11b97ab2fa7d32285498d3f640b5f997',1,'ay8910_set_ports(AY8910 *ay, uint8_t(*PortRead)(int), void(*PortWrite)(int, uint8_t)):&#160;ay8910.c'],['../ay8910_8h.html#a11b97ab2fa7d32285498d3f640b5f997',1,'ay8910_set_ports(AY8910 *ay, uint8_t(*PortRead)(int), void(*PortWrite)(int, uint8_t)):&#160;ay8910.c']]],
+  ['ay8910_5fwrite_5faddr_20',['ay8910_write_addr',['../ay8910_8c.html#a1220becac2a0c7c06420567620f38d43',1,'ay8910_write_addr(AY8910 *ay, uint8_t addr):&#160;ay8910.c'],['../ay8910_8h.html#a1220becac2a0c7c06420567620f38d43',1,'ay8910_write_addr(AY8910 *ay, uint8_t addr):&#160;ay8910.c']]],
+  ['ay8910_5fwrite_5fdata_21',['ay8910_write_data',['../ay8910_8c.html#aea07413b18bf747c1551cc00ceebe40c',1,'ay8910_write_data(AY8910 *ay, uint8_t val):&#160;ay8910.c'],['../ay8910_8h.html#aea07413b18bf747c1551cc00ceebe40c',1,'ay8910_write_data(AY8910 *ay, uint8_t val):&#160;ay8910.c']]]
 ];

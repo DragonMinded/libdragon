@@ -1,12 +1,12 @@
 var searchData=
 [
-  ['y_0',['y',['../group__controller.html#a415290769594460e2e485922904f345d',1,'_SI_condat.__unnamed20__.__unnamed24__']]],
+  ['y_0',['y',['../group__joypad.html#a4ebcd5efb573dae914a65548e03557da',1,'joypad_buttons_t::y'],['../group__joybus__commands.html#a415290769594460e2e485922904f345d',1,'joybus_cmd_gcn_controller_read_port_t.recv::y'],['../group__joybus__commands.html#a415290769594460e2e485922904f345d',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::y'],['../group__controller.html#a415290769594460e2e485922904f345d',1,'_SI_condat.__unnamed41__.__unnamed45__::y']]],
   ['y1_1',['y1',['../rdpq__debug_8c.html#a29361885c98c7f19165aa53829149ae4',1,'.clip']]],
   ['year_2',['year',['../group__rtc.html#a812da29fb4a23cf0e138f530283c7bb8',1,'rtc_time_t']]],
   ['ym5header_3',['ym5header',['../ym64_8c.html#structym5header',1,'']]],
   ['ym64_2ec_4',['ym64.c',['../ym64_8c.html',1,'']]],
   ['ym64_2eh_5',['ym64.h',['../ym64_8h.html',1,'']]],
-  ['ym64player_5fclose_6',['ym64player_close',['../ym64_8h.html#a891c2ba2606980baaf63988847b43d66',1,'ym64player_close(ym64player_t *player):&#160;ym64.c'],['../ym64_8c.html#a891c2ba2606980baaf63988847b43d66',1,'ym64player_close(ym64player_t *player):&#160;ym64.c']]],
+  ['ym64player_5fclose_6',['ym64player_close',['../ym64_8c.html#a891c2ba2606980baaf63988847b43d66',1,'ym64player_close(ym64player_t *player):&#160;ym64.c'],['../ym64_8h.html#a891c2ba2606980baaf63988847b43d66',1,'ym64player_close(ym64player_t *player):&#160;ym64.c']]],
   ['ym64player_5fduration_7',['ym64player_duration',['../ym64_8c.html#a62bcf1bff28a16722a7f7b6ddb80a4ad',1,'ym64player_duration(ym64player_t *player, int *len, float *secs):&#160;ym64.c'],['../ym64_8h.html#a62bcf1bff28a16722a7f7b6ddb80a4ad',1,'ym64player_duration(ym64player_t *player, int *len, float *secs):&#160;ym64.c']]],
   ['ym64player_5fnum_5fchannels_8',['ym64player_num_channels',['../ym64_8c.html#a199d02446b392cf78f2feec784daa94a',1,'ym64player_num_channels(ym64player_t *player):&#160;ym64.c'],['../ym64_8h.html#a199d02446b392cf78f2feec784daa94a',1,'ym64player_num_channels(ym64player_t *player):&#160;ym64.c']]],
   ['ym64player_5fopen_9',['ym64player_open',['../ym64_8c.html#abcdd214e679c150f55bf8bd5797709ce',1,'ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t *info):&#160;ym64.c'],['../ym64_8h.html#abcdd214e679c150f55bf8bd5797709ce',1,'ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t *info):&#160;ym64.c']]],

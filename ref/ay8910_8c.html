@@ -95,7 +95,7 @@ Macros</h2></td></tr>
 <tr class="memdesc:a1fb613ddfceb7573a840c84b146f273c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Trace function for <a class="el" href="structAY8910.html" title="A AY-3-8910 emulator.">AY8910</a> debugging. <br /></td></tr>
 <tr class="separator:a1fb613ddfceb7573a840c84b146f273c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3e042ba9348b720dfffda8612911c94f" id="r_a3e042ba9348b720dfffda8612911c94f"><td class="memItemLeft" align="right" valign="top"><a id="a3e042ba9348b720dfffda8612911c94f" name="a3e042ba9348b720dfffda8612911c94f"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>V</b>(f)&#160;&#160;&#160;((f) * AY8910_VOLUME_ATTENUATE)</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>V</b>(f)&#160;&#160;&#160;((f) * <a class="el" href="ay8910_8h.html#a8dd56aea19a2dc412eb6f1dee50693cc">AY8910_VOLUME_ATTENUATE</a>)</td></tr>
 <tr class="memdesc:a3e042ba9348b720dfffda8612911c94f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Volume conversion function. <br /></td></tr>
 <tr class="separator:a3e042ba9348b720dfffda8612911c94f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaae66749ea51e88d0b89a4e4b4bb13b8" id="r_aaae66749ea51e88d0b89a4e4b4bb13b8"><td class="memItemLeft" align="right" valign="top"><a id="aaae66749ea51e88d0b89a4e4b4bb13b8" name="aaae66749ea51e88d0b89a4e4b4bb13b8"></a>
@@ -160,9 +160,10 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>ay8910_write_data</b>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
 <div class="line">    *out++ = (int16_t)<a class="code hl_define" href="ay8910_8c.html#aaae66749ea51e88d0b89a4e4b4bb13b8">SAMPLE_CONV</a>(s); \</div>
-<div class="line">    if (AY8910_OUTPUT_STEREO) *out++ = (int16_t)<a class="code hl_define" href="ay8910_8c.html#aaae66749ea51e88d0b89a4e4b4bb13b8">SAMPLE_CONV</a>(s); \</div>
+<div class="line">    if (<a class="code hl_define" href="ay8910_8h.html#ad0faec4c420ff3afe0de618af7999677">AY8910_OUTPUT_STEREO</a>) *out++ = (int16_t)<a class="code hl_define" href="ay8910_8c.html#aaae66749ea51e88d0b89a4e4b4bb13b8">SAMPLE_CONV</a>(s); \</div>
 <div class="line">})</div>
 <div class="ttc" id="aay8910_8c_html_aaae66749ea51e88d0b89a4e4b4bb13b8"><div class="ttname"><a href="ay8910_8c.html#aaae66749ea51e88d0b89a4e4b4bb13b8">SAMPLE_CONV</a></div><div class="ttdeci">#define SAMPLE_CONV(f)</div><div class="ttdoc">Sample conversion function.</div><div class="ttdef"><b>Definition</b> ay8910.c:34</div></div>
+<div class="ttc" id="aay8910_8h_html_ad0faec4c420ff3afe0de618af7999677"><div class="ttname"><a href="ay8910_8h.html#ad0faec4c420ff3afe0de618af7999677">AY8910_OUTPUT_STEREO</a></div><div class="ttdeci">#define AY8910_OUTPUT_STEREO</div><div class="ttdoc">Generate stereo output.</div><div class="ttdef"><b>Definition</b> ay8910.h:34</div></div>
 </div><!-- fragment -->
 <p>Output sample in stereo mode. </p>
 
@@ -233,7 +234,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>ay8910_write_data</b>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

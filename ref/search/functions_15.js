@@ -1,18 +1,6 @@
 var searchData=
 [
-  ['wait_0',['wait',['../system_8c.html#a6655447bab00753d59759423bf28e22e',1,'system.c']]],
-  ['wait_5fms_1',['wait_ms',['../group__n64sys.html#ga2ae016ad196fd951c5ce81d0f775f4ed',1,'wait_ms(unsigned long wait_ms):&#160;n64sys.c'],['../group__n64sys.html#ga2ae016ad196fd951c5ce81d0f775f4ed',1,'wait_ms(unsigned long wait_ms):&#160;n64sys.c']]],
-  ['wait_5fticks_2',['wait_ticks',['../group__n64sys.html#gaf92492d6d351321a5974768b17e16d82',1,'wait_ticks(unsigned long wait):&#160;n64sys.c'],['../group__n64sys.html#gaf92492d6d351321a5974768b17e16d82',1,'wait_ticks(unsigned long wait):&#160;n64sys.c']]],
-  ['wav64_5fclose_3',['wav64_close',['../wav64_8c.html#add7b6d597315e268857bd2a55fc49ad7',1,'wav64_close(wav64_t *wav):&#160;wav64.c'],['../wav64_8h.html#add7b6d597315e268857bd2a55fc49ad7',1,'wav64_close(wav64_t *wav):&#160;wav64.c']]],
-  ['wav64_5fget_5fbitrate_4',['wav64_get_bitrate',['../wav64_8c.html#aef5241ddfcc85ded464dc3c57e1e75be',1,'wav64_get_bitrate(wav64_t *wav):&#160;wav64.c'],['../wav64_8h.html#aef5241ddfcc85ded464dc3c57e1e75be',1,'wav64_get_bitrate(wav64_t *wav):&#160;wav64.c']]],
-  ['wav64_5fopen_5',['wav64_open',['../wav64_8c.html#a62b743c8c56bd67b3f2231f770c99e78',1,'wav64_open(wav64_t *wav, const char *file_name):&#160;wav64.c'],['../wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9',1,'wav64_open(wav64_t *wav, const char *fn):&#160;wav64.c']]],
-  ['wav64_5fopus_5fclose_6',['wav64_opus_close',['../wav64__opus_8c.html#a27c860b6445e13ba1acfc2c2da3eda0b',1,'wav64_opus_close(wav64_t *wav):&#160;wav64_opus.c'],['../wav64__opus__internal_8h.html#a27c860b6445e13ba1acfc2c2da3eda0b',1,'wav64_opus_close(wav64_t *wav):&#160;wav64_opus.c']]],
-  ['wav64_5fopus_5fget_5fbitrate_7',['wav64_opus_get_bitrate',['../wav64__opus_8c.html#a2ee980d59d42416d36918f2374a0a2ef',1,'wav64_opus_get_bitrate(wav64_t *wav):&#160;wav64_opus.c'],['../wav64__opus__internal_8h.html#a2ee980d59d42416d36918f2374a0a2ef',1,'wav64_opus_get_bitrate(wav64_t *wav):&#160;wav64_opus.c']]],
-  ['wav64_5fopus_5finit_8',['wav64_opus_init',['../wav64__opus_8c.html#a4e09e450b0eb6c8db6476cec970f69a6',1,'wav64_opus_init(wav64_t *wav):&#160;wav64_opus.c'],['../wav64__opus__internal_8h.html#a4e09e450b0eb6c8db6476cec970f69a6',1,'wav64_opus_init(wav64_t *wav):&#160;wav64_opus.c']]],
-  ['wav64_5fplay_9',['wav64_play',['../wav64_8c.html#af0355ddf406260d86dd082bfd4f1ed0b',1,'wav64_play(wav64_t *wav, int ch):&#160;wav64.c'],['../wav64_8h.html#af0355ddf406260d86dd082bfd4f1ed0b',1,'wav64_play(wav64_t *wav, int ch):&#160;wav64.c']]],
-  ['wav64_5fset_5floop_10',['wav64_set_loop',['../wav64_8c.html#ac8b7880f777dec27e73713a6e78cd9e3',1,'wav64_set_loop(wav64_t *wav, bool loop):&#160;wav64.c'],['../wav64_8h.html#ac8b7880f777dec27e73713a6e78cd9e3',1,'wav64_set_loop(wav64_t *wav, bool loop):&#160;wav64.c']]],
-  ['write_11',['write',['../system_8c.html#aeb8090da2a212e27317ea48ead1a19d6',1,'system.c']]],
-  ['write_5fmempak_5faddress_12',['write_mempak_address',['../group__controller.html#ga2fb5932eaaa737aaad4fabe43dcf2bbd',1,'controller.c']]],
-  ['write_5fmempak_5fentry_5fdata_13',['write_mempak_entry_data',['../group__controllerpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'write_mempak_entry_data(int controller, entry_structure_t *entry, uint8_t *data):&#160;mempak.c'],['../group__controllerpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc',1,'write_mempak_entry_data(int controller, entry_structure_t *entry, uint8_t *data):&#160;mempak.c']]],
-  ['write_5fmempak_5fsector_14',['write_mempak_sector',['../group__controllerpak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'write_mempak_sector(int controller, int sector, uint8_t *sector_data):&#160;mempak.c'],['../group__controllerpak.html#gacb6424e211071cbb4fa7990fca01b96c',1,'write_mempak_sector(int controller, int sector, uint8_t *sector_data):&#160;mempak.c']]]
+  ['validate_5fmempak_0',['validate_mempak',['../group__controllerpak.html#gaf245021aed55de7a17cf417d41cdc32f',1,'validate_mempak(int controller):&#160;mempak.c'],['../group__controllerpak.html#gaf245021aed55de7a17cf417d41cdc32f',1,'validate_mempak(int controller):&#160;mempak.c']]],
+  ['vi_5fwrite_5fconfig_1',['vi_write_config',['../group__display.html#ga4ea824b2e1bf1a5ecda800172e3b2bf7',1,'vi.h']]],
+  ['vi_5fwrite_5fsafe_2',['vi_write_safe',['../group__display.html#ga63c36f09c3c333e7b98ae87728a0294e',1,'vi.h']]]
 ];

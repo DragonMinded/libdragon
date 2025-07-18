@@ -84,7 +84,7 @@ $(function() {
 <li>samplebuffer_is_inited()&#160;:&#160;<a class="el" href="samplebuffer_8c.html#a7252a6b63af132338f6e1b8a10cb1c03">samplebuffer.c</a>, <a class="el" href="samplebuffer_8h.html#a7252a6b63af132338f6e1b8a10cb1c03">samplebuffer.h</a></li>
 <li>samplebuffer_set_bps()&#160;:&#160;<a class="el" href="samplebuffer_8c.html#aa16bbcb1683deb8206e06bd9128f9b09">samplebuffer.c</a>, <a class="el" href="samplebuffer_8h.html#ab36c29dc062a982b02d90c8515121b9a">samplebuffer.h</a></li>
 <li>samplebuffer_set_waveform()&#160;:&#160;<a class="el" href="samplebuffer_8c.html#ae1ed7b8b55c07c6c6a4c6471e94e6145">samplebuffer.c</a>, <a class="el" href="samplebuffer_8h.html#ae1ed7b8b55c07c6c6a4c6471e94e6145">samplebuffer.h</a></li>
-<li>samplebuffer_undo()&#160;:&#160;<a class="el" href="samplebuffer_8h.html#ac38268641091505733db16c3b79c569d">samplebuffer.h</a>, <a class="el" href="samplebuffer_8c.html#ac38268641091505733db16c3b79c569d">samplebuffer.c</a></li>
+<li>samplebuffer_undo()&#160;:&#160;<a class="el" href="samplebuffer_8c.html#ac38268641091505733db16c3b79c569d">samplebuffer.c</a>, <a class="el" href="samplebuffer_8h.html#ac38268641091505733db16c3b79c569d">samplebuffer.h</a></li>
 <li>SAMPLES_BPS_SHIFT&#160;:&#160;<a class="el" href="samplebuffer_8h.html#a31279a3669c49567f9a00608cf37fd7f">samplebuffer.h</a></li>
 <li>SAMPLES_PTR&#160;:&#160;<a class="el" href="samplebuffer_8h.html#a6b5bbcbef2291aa1528e5846a867394b">samplebuffer.h</a></li>
 <li>SAMPLES_PTR_MAKE&#160;:&#160;<a class="el" href="samplebuffer_8h.html#a1d53989292b861ff3e246c550fc9be31">samplebuffer.h</a></li>
@@ -95,8 +95,8 @@ $(function() {
 <li>set_AI_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#a87288d9e8d2c178572957295ff64ec40">interrupt.c</a>, <a class="el" href="interrupt_8h.html#a87288d9e8d2c178572957295ff64ec40">interrupt.h</a></li>
 <li>set_CART_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#ac7ddaefc83763af0e97886beb7600d8b">interrupt.c</a>, <a class="el" href="interrupt_8h.html#ac7ddaefc83763af0e97886beb7600d8b">interrupt.h</a></li>
 <li>set_DP_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#ad0b3939ccf8c8eff2289c08a75cbc624">interrupt.c</a>, <a class="el" href="interrupt_8h.html#ad0b3939ccf8c8eff2289c08a75cbc624">interrupt.h</a></li>
-<li>set_PI_interrupt()&#160;:&#160;<a class="el" href="interrupt_8h.html#a6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.h</a>, <a class="el" href="interrupt_8c.html#a6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.c</a></li>
-<li>set_RESET_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#adcf484e0e3594849dfcaea7e5c69ffe7">interrupt.c</a>, <a class="el" href="interrupt_8h.html#adcf484e0e3594849dfcaea7e5c69ffe7">interrupt.h</a></li>
+<li>set_PI_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#a6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.c</a>, <a class="el" href="interrupt_8h.html#a6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.h</a></li>
+<li>set_RESET_interrupt()&#160;:&#160;<a class="el" href="interrupt_8h.html#adcf484e0e3594849dfcaea7e5c69ffe7">interrupt.h</a>, <a class="el" href="interrupt_8c.html#adcf484e0e3594849dfcaea7e5c69ffe7">interrupt.c</a></li>
 <li>set_SI_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#a2852664ce3950d66868cf39d8d633d62">interrupt.c</a>, <a class="el" href="interrupt_8h.html#a2852664ce3950d66868cf39d8d633d62">interrupt.h</a></li>
 <li>set_SP_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#a24c9ae3233fc77e0f6a1a22843c88298">interrupt.c</a>, <a class="el" href="interrupt_8h.html#a24c9ae3233fc77e0f6a1a22843c88298">interrupt.h</a></li>
 <li>set_TI_interrupt()&#160;:&#160;<a class="el" href="interrupt_8c.html#a67483ed4435081b227aa799465cb7436">interrupt.c</a>, <a class="el" href="interrupt_8h.html#a67483ed4435081b227aa799465cb7436">interrupt.h</a></li>
@@ -267,24 +267,28 @@ $(function() {
 <li>SP_WSTATUS_SET_SIG_RDPSYNCFULL&#160;:&#160;<a class="el" href="rspq__constants_8h.html#aef77ae1c2b2d65c3e62bafacc49e5e7b">rspq_constants.h</a></li>
 <li>SP_WSTATUS_SET_SIG_SYNCPOINT&#160;:&#160;<a class="el" href="rspq__constants_8h.html#a3516bbc4e267a3a99d64e95a419464f4">rspq_constants.h</a></li>
 <li>SP_WSTATUS_SET_SSTEP&#160;:&#160;<a class="el" href="rsp_8h.html#a6f63f4f37aead63d765d93472cb10dc8">rsp.h</a></li>
-<li>sprite_fits_tmem()&#160;:&#160;<a class="el" href="sprite_8h.html#a540e860f84fff6a665b296d6956e80d3">sprite.h</a></li>
+<li>sprite_fits_tmem()&#160;:&#160;<a class="el" href="sprite_8c.html#a540e860f84fff6a665b296d6956e80d3">sprite.c</a>, <a class="el" href="sprite_8h.html#a540e860f84fff6a665b296d6956e80d3">sprite.h</a></li>
+<li>SPRITE_FLAG_FITS_TMEM&#160;:&#160;<a class="el" href="sprite__internal_8h.html#a6855ed23e5200aec20d6d4909d908d19">sprite_internal.h</a></li>
+<li>SPRITE_FLAG_HAS_DETAIL&#160;:&#160;<a class="el" href="sprite__internal_8h.html#a6e0e801f0af5e77b664adeb2eb3dfad7">sprite_internal.h</a></li>
+<li>SPRITE_FLAG_HAS_TEXPARMS&#160;:&#160;<a class="el" href="sprite__internal_8h.html#a492062b9b0c0234030ebc260d470c279">sprite_internal.h</a></li>
+<li>SPRITE_FLAG_NUMLODS&#160;:&#160;<a class="el" href="sprite__internal_8h.html#abc0076b01c8f4370d95f6b2447d3ca6f">sprite_internal.h</a></li>
 <li>SPRITE_FLAGS_EXT&#160;:&#160;<a class="el" href="sprite_8h.html#a9563f809bb96ffd9f64a3619142daa74">sprite.h</a></li>
 <li>SPRITE_FLAGS_OWNEDBUFFER&#160;:&#160;<a class="el" href="sprite_8h.html#a33ef3442b2f9f95efbe25ccf07da49c0">sprite.h</a></li>
 <li>SPRITE_FLAGS_TEXFORMAT&#160;:&#160;<a class="el" href="sprite_8h.html#a765ba7d5d9b35c6c60d958d2b35e81f7">sprite.h</a></li>
-<li>sprite_free()&#160;:&#160;<a class="el" href="sprite_8h.html#a9fce7f826a4a6aff92ed3f4e280abdf9">sprite.h</a></li>
-<li>sprite_get_detail_pixels()&#160;:&#160;<a class="el" href="sprite_8h.html#a3a867668cd0119fe7182e992698d1193">sprite.h</a></li>
-<li>sprite_get_format()&#160;:&#160;<a class="el" href="sprite_8h.html#a768f8dbfba277e7b3cb84fc0198307ed">sprite.h</a></li>
-<li>sprite_get_lod_count()&#160;:&#160;<a class="el" href="sprite_8h.html#a39f3cd068455a50b3f53306c5ba985a8">sprite.h</a></li>
-<li>sprite_get_lod_pixels()&#160;:&#160;<a class="el" href="sprite_8h.html#a1b27ea3c16dcd2b151b44d2ce616fec6">sprite.h</a></li>
-<li>sprite_get_palette()&#160;:&#160;<a class="el" href="sprite_8h.html#adfc7bf5e68991099a3ec86ae05d4aca9">sprite.h</a></li>
-<li>sprite_get_pixels()&#160;:&#160;<a class="el" href="sprite_8h.html#a53a943109546503af068fc0d1c46252d">sprite.h</a></li>
-<li>sprite_get_texparms()&#160;:&#160;<a class="el" href="sprite_8h.html#aeafae923dfd53e64c533e40b68dfb012">sprite.h</a></li>
-<li>sprite_get_tile()&#160;:&#160;<a class="el" href="sprite_8h.html#ac2569c0dd2df7c58ebe684f4d21de550">sprite.h</a></li>
-<li>sprite_load()&#160;:&#160;<a class="el" href="sprite_8h.html#a746970338ac3f8db984b4f08fc6e9a21">sprite.h</a></li>
-<li>sprite_load_buf()&#160;:&#160;<a class="el" href="sprite_8h.html#a73fe062e6e5b91224190aece57a9d5d4">sprite.h</a></li>
+<li>sprite_free()&#160;:&#160;<a class="el" href="sprite_8c.html#ac027f161c101d8505ca1c73bae07f3a8">sprite.c</a>, <a class="el" href="sprite_8h.html#a9fce7f826a4a6aff92ed3f4e280abdf9">sprite.h</a></li>
+<li>sprite_get_detail_pixels()&#160;:&#160;<a class="el" href="sprite_8c.html#a3a867668cd0119fe7182e992698d1193">sprite.c</a>, <a class="el" href="sprite_8h.html#a3a867668cd0119fe7182e992698d1193">sprite.h</a></li>
+<li>sprite_get_format()&#160;:&#160;<a class="el" href="sprite_8c.html#a768f8dbfba277e7b3cb84fc0198307ed">sprite.c</a>, <a class="el" href="sprite_8h.html#a768f8dbfba277e7b3cb84fc0198307ed">sprite.h</a></li>
+<li>sprite_get_lod_count()&#160;:&#160;<a class="el" href="sprite_8c.html#a39f3cd068455a50b3f53306c5ba985a8">sprite.c</a>, <a class="el" href="sprite_8h.html#a39f3cd068455a50b3f53306c5ba985a8">sprite.h</a></li>
+<li>sprite_get_lod_pixels()&#160;:&#160;<a class="el" href="sprite_8c.html#a1b27ea3c16dcd2b151b44d2ce616fec6">sprite.c</a>, <a class="el" href="sprite_8h.html#a1b27ea3c16dcd2b151b44d2ce616fec6">sprite.h</a></li>
+<li>sprite_get_palette()&#160;:&#160;<a class="el" href="sprite_8c.html#adfc7bf5e68991099a3ec86ae05d4aca9">sprite.c</a>, <a class="el" href="sprite_8h.html#adfc7bf5e68991099a3ec86ae05d4aca9">sprite.h</a></li>
+<li>sprite_get_pixels()&#160;:&#160;<a class="el" href="sprite_8c.html#a53a943109546503af068fc0d1c46252d">sprite.c</a>, <a class="el" href="sprite_8h.html#a53a943109546503af068fc0d1c46252d">sprite.h</a></li>
+<li>sprite_get_texparms()&#160;:&#160;<a class="el" href="sprite_8c.html#aeafae923dfd53e64c533e40b68dfb012">sprite.c</a>, <a class="el" href="sprite_8h.html#aeafae923dfd53e64c533e40b68dfb012">sprite.h</a></li>
+<li>sprite_get_tile()&#160;:&#160;<a class="el" href="sprite_8c.html#ac2569c0dd2df7c58ebe684f4d21de550">sprite.c</a>, <a class="el" href="sprite_8h.html#ac2569c0dd2df7c58ebe684f4d21de550">sprite.h</a></li>
+<li>sprite_load()&#160;:&#160;<a class="el" href="sprite_8c.html#a746970338ac3f8db984b4f08fc6e9a21">sprite.c</a>, <a class="el" href="sprite_8h.html#a746970338ac3f8db984b4f08fc6e9a21">sprite.h</a></li>
+<li>sprite_load_buf()&#160;:&#160;<a class="el" href="sprite_8c.html#a73fe062e6e5b91224190aece57a9d5d4">sprite.c</a>, <a class="el" href="sprite_8h.html#a73fe062e6e5b91224190aece57a9d5d4">sprite.h</a></li>
 <li>STACK_SIZE&#160;:&#160;<a class="el" href="system_8c.html#a6423a880df59733d2d9b509c7718d3a9">system.c</a></li>
-<li>start_timer()&#160;:&#160;<a class="el" href="timer_8c.html#a184d552ddc1205ce11d04ddeadb309fa">timer.c</a>, <a class="el" href="timer_8h.html#a184d552ddc1205ce11d04ddeadb309fa">timer.h</a></li>
-<li>start_timer_context()&#160;:&#160;<a class="el" href="timer_8h.html#aafbc0512fcbed64bc28e38e34e73bad1">timer.h</a>, <a class="el" href="timer_8c.html#aafbc0512fcbed64bc28e38e34e73bad1">timer.c</a></li>
+<li>start_timer()&#160;:&#160;<a class="el" href="timer_8h.html#a184d552ddc1205ce11d04ddeadb309fa">timer.h</a>, <a class="el" href="timer_8c.html#a184d552ddc1205ce11d04ddeadb309fa">timer.c</a></li>
+<li>start_timer_context()&#160;:&#160;<a class="el" href="timer_8c.html#aafbc0512fcbed64bc28e38e34e73bad1">timer.c</a>, <a class="el" href="timer_8h.html#aafbc0512fcbed64bc28e38e34e73bad1">timer.h</a></li>
 <li>stat()&#160;:&#160;<a class="el" href="system_8c.html#a6267ee98ea4ca67296665534d549132a">system.c</a></li>
 <li>STDERR_FILENO&#160;:&#160;<a class="el" href="system_8c.html#ae2fe1725bb5e9823d089c46b9ed5266e">system.c</a></li>
 <li>STDIN_FILENO&#160;:&#160;<a class="el" href="system_8c.html#afcf80a6d91178952d107ad00b165752b">system.c</a></li>
@@ -295,7 +299,7 @@ $(function() {
 <li>SURFACE_FLAGS_TEXFORMAT&#160;:&#160;<a class="el" href="surface_8h.html#af987b5a73ec05cead979f8295555b666">surface.h</a></li>
 <li>SURFACE_FLAGS_TEXINDEX&#160;:&#160;<a class="el" href="surface_8h.html#a7d8834b7841c0b42bdba9db6e482f1b2">surface.h</a></li>
 <li>surface_free()&#160;:&#160;<a class="el" href="surface_8c.html#abb7940ed434b55044bf078472f59173e">surface.c</a>, <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e">surface.h</a></li>
-<li>surface_get_format()&#160;:&#160;<a class="el" href="surface_8c.html#af87295c49590f004305ce1d5e36e42f7">surface.c</a>, <a class="el" href="surface_8h.html#af87295c49590f004305ce1d5e36e42f7">surface.h</a></li>
+<li>surface_get_format()&#160;:&#160;<a class="el" href="surface_8h.html#af87295c49590f004305ce1d5e36e42f7">surface.h</a>, <a class="el" href="surface_8c.html#af87295c49590f004305ce1d5e36e42f7">surface.c</a></li>
 <li>surface_get_placeholder_index()&#160;:&#160;<a class="el" href="surface_8h.html#a4f3cbb3a8c49dba329cd9c816c152825">surface.h</a></li>
 <li>surface_has_owned_buffer()&#160;:&#160;<a class="el" href="surface_8c.html#a0366404adb987076f9b28e34cc15820b">surface.c</a>, <a class="el" href="surface_8h.html#a0366404adb987076f9b28e34cc15820b">surface.h</a></li>
 <li>surface_make()&#160;:&#160;<a class="el" href="surface_8c.html#a47bd38809ff7938c1d0123d540a2851a">surface.c</a>, <a class="el" href="surface_8h.html#a47bd38809ff7938c1d0123d540a2851a">surface.h</a></li>
@@ -312,7 +316,7 @@ $(function() {
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:39 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:10 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

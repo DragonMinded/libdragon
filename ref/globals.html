@@ -75,14 +75,16 @@ $(function() {
 <h3><a id="index__5F" name="index__5F"></a>- _ -</h3><ul>
 <li>__assert_func()&#160;:&#160;<a class="el" href="system_8c.html#a620a4f992f76741d22c71a8736391bf6">system.c</a></li>
 <li>__assert_func_ptr&#160;:&#160;<a class="el" href="system_8c.html#a6e83120dfc32290b3dfff131819edf38">system.c</a></li>
-<li>__backtrace_from()&#160;:&#160;<a class="el" href="backtrace_8c.html#a9b88fa9e4a83a768240718684a8c2de5">backtrace.c</a></li>
+<li>__asset_init_compression_lvl2()&#160;:&#160;<a class="el" href="asset_8c.html#a3e0ede56befb743a20e6f49f947dfb96">asset.c</a></li>
+<li>__asset_init_compression_lvl3()&#160;:&#160;<a class="el" href="asset_8c.html#a935d3c6dea995cb2164ee29657852aa8">asset.c</a></li>
+<li>__backtrace_from()&#160;:&#160;<a class="el" href="backtrace__internal_8h.html#a9b88fa9e4a83a768240718684a8c2de5">backtrace_internal.h</a>, <a class="el" href="backtrace_8c.html#a9b88fa9e4a83a768240718684a8c2de5">backtrace.c</a></li>
 <li>__baseRegAddr&#160;:&#160;<a class="el" href="exception_8c.html#aeb336a150cd15bd969c9067b0bca7ef9">exception.c</a></li>
 <li>__boot_consoletype&#160;:&#160;<a class="el" href="n64sys_8c.html#a1112ce48cee6b38f93b465c3fb6de8af">n64sys.c</a></li>
 <li>__boot_memsize&#160;:&#160;<a class="el" href="n64sys_8c.html#abb78ab4964144f3c86d0b8041f4db161">n64sys.c</a></li>
 <li>__boot_resettype&#160;:&#160;<a class="el" href="n64sys_8c.html#aac5393a3116eb108004c71e76fc58295">n64sys.c</a></li>
 <li>__boot_tvtype&#160;:&#160;<a class="el" href="n64sys_8c.html#a85f9f5f0a5930b45ff8666366a947f22">n64sys.c</a></li>
 <li>__bss_end&#160;:&#160;<a class="el" href="group__n64sys.html#gad07593be6cf1d4ebe605cbdb85f8956b">n64sys.h</a></li>
-<li>__bt_analyze_func()&#160;:&#160;<a class="el" href="backtrace_8c.html#a494fc6d2dd8e5e79b57c7a4a49d31afb">backtrace.c</a></li>
+<li>__bt_analyze_func()&#160;:&#160;<a class="el" href="backtrace_8c.html#a494fc6d2dd8e5e79b57c7a4a49d31afb">backtrace.c</a>, <a class="el" href="backtrace__internal_8h.html#a494fc6d2dd8e5e79b57c7a4a49d31afb">backtrace_internal.h</a></li>
 <li>__CART_handler()&#160;:&#160;<a class="el" href="interrupt_8c.html#a9cb68df23ed3587601ffac775b9a953c">interrupt.c</a></li>
 <li>__CTOR_END__&#160;:&#160;<a class="el" href="group__system.html#ga537f421bb42d6566f23aabcdcc0aa0f3">do_ctors.c</a></li>
 <li>__CTOR_LIST__&#160;:&#160;<a class="el" href="group__system.html#ga85d9cd4c96818595113f38830217f2f9">do_ctors.c</a></li>
@@ -91,29 +93,35 @@ $(function() {
 <li>__debug_backtrace()&#160;:&#160;<a class="el" href="debug_8c.html#a65d2f3596d42c5a91abe1ac969bf7db5">debug.c</a></li>
 <li>__debug_init_cpp()&#160;:&#160;<a class="el" href="debugcpp_8cpp.html#a0e2bf52ac82fae21edbf2880ec9556c7">debugcpp.cpp</a></li>
 <li>__deregister_frame_info()&#160;:&#160;<a class="el" href="group__dl.html#ga924b1592ff77469a4a69c5f2fdd5cd00">dlfcn.c</a></li>
-<li>__dl_demangle_func&#160;:&#160;<a class="el" href="group__dl.html#ga452a3bca50606a9b7d383f78c32fda66">dlfcn.c</a></li>
+<li>__dl_demangle_func&#160;:&#160;<a class="el" href="group__dl.html#ga452a3bca50606a9b7d383f78c32fda66">dlfcn.c</a>, <a class="el" href="group__dl.html#ga452a3bca50606a9b7d383f78c32fda66">dlfcn_internal.h</a></li>
 <li>__dl_insert_module()&#160;:&#160;<a class="el" href="group__dl.html#ga5af2f2033afc688ce49b1fda3f13b0d0">dlfcn.c</a></li>
-<li>__dl_list_head&#160;:&#160;<a class="el" href="group__dl.html#ga0ff5b9ea5e1793650e5fc6af9e431b14">dlfcn.c</a></li>
-<li>__dl_list_tail&#160;:&#160;<a class="el" href="group__dl.html#ga0e81728722c451fa755174573f0f740f">dlfcn.c</a></li>
-<li>__dl_lookup_module&#160;:&#160;<a class="el" href="group__dl.html#ga37b8707ed548a3304c09b60375cb8cc5">dlfcn.c</a></li>
-<li>__dl_num_loaded_modules&#160;:&#160;<a class="el" href="group__dl.html#gad6b4a7d41fd01bc3993e79fdf2c71715">dlfcn.c</a></li>
+<li>__dl_list_head&#160;:&#160;<a class="el" href="group__dl.html#ga0ff5b9ea5e1793650e5fc6af9e431b14">dlfcn.c</a>, <a class="el" href="group__dl.html#ga0ff5b9ea5e1793650e5fc6af9e431b14">dlfcn_internal.h</a></li>
+<li>__dl_list_tail&#160;:&#160;<a class="el" href="group__dl.html#ga0e81728722c451fa755174573f0f740f">dlfcn.c</a>, <a class="el" href="group__dl.html#ga0e81728722c451fa755174573f0f740f">dlfcn_internal.h</a></li>
+<li>__dl_lookup_module&#160;:&#160;<a class="el" href="group__dl.html#ga37b8707ed548a3304c09b60375cb8cc5">dlfcn.c</a>, <a class="el" href="group__dl.html#ga37b8707ed548a3304c09b60375cb8cc5">dlfcn_internal.h</a></li>
+<li>__dl_num_loaded_modules&#160;:&#160;<a class="el" href="group__dl.html#gad6b4a7d41fd01bc3993e79fdf2c71715">dlfcn.c</a>, <a class="el" href="group__dl.html#gad6b4a7d41fd01bc3993e79fdf2c71715">dlfcn_internal.h</a></li>
 <li>__dl_remove_module()&#160;:&#160;<a class="el" href="group__dl.html#ga1f83b521e91752ed76b554707e8b94ca">dlfcn.c</a></li>
 <li>__do_global_ctors()&#160;:&#160;<a class="el" href="group__system.html#ga2d1bf5fe189639067937a3af7a0028e0">do_ctors.c</a></li>
 <li>__EH_FRAME_BEGIN__&#160;:&#160;<a class="el" href="group__system.html#ga9efca5b23bc6ea3165cab5b4ebfb4c77">do_ctors.c</a></li>
 <li>__env&#160;:&#160;<a class="el" href="system_8c.html#a5428d66981cb84e60b899495874618b2">system.c</a></li>
-<li>__exception_dump_fpr()&#160;:&#160;<a class="el" href="exception_8c.html#a832fbc2ed1f8b5653cfbab04333015f8">exception.c</a></li>
-<li>__exception_dump_gpr()&#160;:&#160;<a class="el" href="exception_8c.html#a5c282d6503102d85e52682a974c18d7d">exception.c</a></li>
-<li>__exception_dump_header()&#160;:&#160;<a class="el" href="exception_8c.html#a72b5bc4d67c381300360c1a543924f1e">exception.c</a></li>
+<li>__exception_dump_fpr()&#160;:&#160;<a class="el" href="exception__internal_8h.html#a832fbc2ed1f8b5653cfbab04333015f8">exception_internal.h</a>, <a class="el" href="exception_8c.html#a832fbc2ed1f8b5653cfbab04333015f8">exception.c</a></li>
+<li>__exception_dump_gpr()&#160;:&#160;<a class="el" href="exception_8c.html#a5c282d6503102d85e52682a974c18d7d">exception.c</a>, <a class="el" href="exception__internal_8h.html#a5c282d6503102d85e52682a974c18d7d">exception_internal.h</a></li>
+<li>__exception_dump_header()&#160;:&#160;<a class="el" href="exception_8c.html#a72b5bc4d67c381300360c1a543924f1e">exception.c</a>, <a class="el" href="exception__internal_8h.html#a72b5bc4d67c381300360c1a543924f1e">exception_internal.h</a></li>
 <li>__get_buffer&#160;:&#160;<a class="el" href="graphics_8c.html#a2e1fdb4ef4905d44d91a156f896e8272">graphics.c</a></li>
 <li>__get_pixel&#160;:&#160;<a class="el" href="graphics_8c.html#a59ad026c57ccca2cfcd1b58937a42a2f">graphics.c</a></li>
 <li>__init_cop1()&#160;:&#160;<a class="el" href="n64sys_8c.html#aaa30315f523b6cfab1efbcf15a32ecab">n64sys.c</a></li>
 <li>__init_interrupts()&#160;:&#160;<a class="el" href="interrupt_8c.html#a72e02641a29de5f343f8507140b46b8e">interrupt.c</a></li>
+<li>__inspector_assertion()&#160;:&#160;<a class="el" href="inspector_8c.html#a6d809642016de542387228c4feded1a1">inspector.c</a>, <a class="el" href="exception__internal_8h.html#a6d809642016de542387228c4feded1a1">exception_internal.h</a></li>
+<li>__inspector_cppexception()&#160;:&#160;<a class="el" href="exception__internal_8h.html#a531f223028220b3c3183f47ab95c5279">exception_internal.h</a>, <a class="el" href="inspector_8c.html#a531f223028220b3c3183f47ab95c5279">inspector.c</a></li>
+<li>__inspector_exception()&#160;:&#160;<a class="el" href="exception__internal_8h.html#ad2e16fc5dca48ad841080022f956d7ae">exception_internal.h</a>, <a class="el" href="inspector_8c.html#ad2e16fc5dca48ad841080022f956d7ae">inspector.c</a></li>
+<li>__inspector_init()&#160;:&#160;<a class="el" href="inspector_8c.html#aad6449126ee874b8ffbfd4bfc11ede14">inspector.c</a></li>
 <li>__joybus_init()&#160;:&#160;<a class="el" href="joybus_8c.html#aa482f587d5604a7f878f78b1bf092654">joybus.c</a></li>
 <li>__libdragon_text_start&#160;:&#160;<a class="el" href="group__n64sys.html#gaeee0500fc15a8edadab5e50494669416">n64sys.h</a></li>
 <li>__MI_handler()&#160;:&#160;<a class="el" href="interrupt_8c.html#a35d016d7a4cff493528719125cf54e8d">interrupt.c</a></li>
-<li>__mixer_overlay_id&#160;:&#160;<a class="el" href="mixer_8c.html#a728b6be978ab3d502aa747add3151db3">mixer.c</a></li>
+<li>__mips_fpreg&#160;:&#160;<a class="el" href="inspector_8c.html#a7f8a070462386d05c0d3edf0964acbdc">inspector.c</a>, <a class="el" href="exception__internal_8h.html#a7f8a070462386d05c0d3edf0964acbdc">exception_internal.h</a></li>
+<li>__mips_gpr&#160;:&#160;<a class="el" href="exception__internal_8h.html#ace279895ac4c18378d7eb5d455c94a6f">exception_internal.h</a>, <a class="el" href="inspector_8c.html#ace279895ac4c18378d7eb5d455c94a6f">inspector.c</a></li>
+<li>__mixer_overlay_id&#160;:&#160;<a class="el" href="mixer_8c.html#a728b6be978ab3d502aa747add3151db3">mixer.c</a>, <a class="el" href="mixer__internal_8h.html#a728b6be978ab3d502aa747add3151db3">mixer_internal.h</a></li>
 <li>__mixer_profile_rsp&#160;:&#160;<a class="el" href="mixer_8c.html#adb6462ba394e665c815abb852d8e341f">mixer.c</a></li>
-<li>__mixer_wave_stopall()&#160;:&#160;<a class="el" href="mixer_8c.html#a83a24f4828f1642a657e7442ab2f1fee">mixer.c</a></li>
+<li>__mixer_wave_stopall()&#160;:&#160;<a class="el" href="mixer_8c.html#a83a24f4828f1642a657e7442ab2f1fee">mixer.c</a>, <a class="el" href="mixer__internal_8h.html#a83a24f4828f1642a657e7442ab2f1fee">mixer_internal.h</a></li>
 <li>__onCriticalException()&#160;:&#160;<a class="el" href="exception_8c.html#a16798befa2f7beac6fc7c574de0810c1">exception.c</a></li>
 <li>__onSyscallException()&#160;:&#160;<a class="el" href="exception_8c.html#ae435d7992edb8cc7907a7f3e6d208c2f">exception.c</a></li>
 <li>__rdpq_autosync_change()&#160;:&#160;<a class="el" href="rdpq_8c.html#a160540e0fbb288415a097fdbde5b8812">rdpq.c</a>, <a class="el" href="rdpq__internal_8h.html#a160540e0fbb288415a097fdbde5b8812">rdpq_internal.h</a></li>
@@ -128,7 +136,9 @@ $(function() {
 <li>__rdpq_change_other_modes()&#160;:&#160;<a class="el" href="rdpq_8c.html#a7bfe6bf84d390a3fa13b2af080b009e4">rdpq.c</a></li>
 <li>__rdpq_clear()&#160;:&#160;<a class="el" href="rdpq__attach_8c.html#a37782c2d5ab0567073bbd2c9ff902f09">rdpq_attach.c</a></li>
 <li>__rdpq_clear_z()&#160;:&#160;<a class="el" href="rdpq__attach_8c.html#ad6ca3012a24a3ad46caa288981d5bf4e">rdpq_attach.c</a></li>
-<li>__rdpq_debug_log_flags&#160;:&#160;<a class="el" href="rdpq__debug_8c.html#aaa37cd789b76388600a01ef2b0445355">rdpq_debug.c</a></li>
+<li>__rdpq_debug_log_flags&#160;:&#160;<a class="el" href="rdpq__debug_8c.html#aaa37cd789b76388600a01ef2b0445355">rdpq_debug.c</a>, <a class="el" href="rdpq__debug__internal_8h.html#aaa37cd789b76388600a01ef2b0445355">rdpq_debug_internal.h</a></li>
+<li>__rdpq_fill_rectangle()&#160;:&#160;<a class="el" href="rdpq__rect_8c.html#a04201a73faa14d0107127a21dbcee44d">rdpq_rect.c</a></li>
+<li>__rdpq_fill_rectangle_offline()&#160;:&#160;<a class="el" href="rdpq__rect_8c.html#aff757ba6fbae12cca9c82977bafb84e6">rdpq_rect.c</a></li>
 <li>__rdpq_fixup_mode()&#160;:&#160;<a class="el" href="rdpq__mode_8c.html#a55895f6ada7238b40eeea2aab76c0b74">rdpq_mode.c</a></li>
 <li>__rdpq_fixup_mode3()&#160;:&#160;<a class="el" href="rdpq__mode_8c.html#a69d7da08385fd7985778252f6f16d725">rdpq_mode.c</a></li>
 <li>__rdpq_fixup_mode4()&#160;:&#160;<a class="el" href="rdpq__mode_8c.html#a9da86d8c386467649ee38ec123954c5f">rdpq_mode.c</a></li>
@@ -140,22 +150,30 @@ $(function() {
 <li>__rdpq_set_mode_fill()&#160;:&#160;<a class="el" href="rdpq__mode_8c.html#a9e4a80b2ea1d800fa1ccaf6a062cd2af">rdpq_mode.c</a></li>
 <li>__rdpq_set_other_modes()&#160;:&#160;<a class="el" href="rdpq_8c.html#a95aef1ad3d83a977414e2046b3ae7208">rdpq.c</a></li>
 <li>__rdpq_set_scissor()&#160;:&#160;<a class="el" href="rdpq_8c.html#a25829986a163ef2d44f49143f31dd0ff">rdpq.c</a></li>
-<li>__rdpq_sprite_upload()&#160;:&#160;<a class="el" href="rdpq__sprite_8c.html#a32143c5a5d63d32c6f953863c8763903">rdpq_sprite.c</a></li>
-<li>__rdpq_tex_blit()&#160;:&#160;<a class="el" href="rdpq__tex_8c.html#af3036fad32c89c664f95cb5f7eb3f025">rdpq_tex.c</a></li>
-<li>__rdpq_write16()&#160;:&#160;<a class="el" href="rdpq__internal_8h.html#a8b69979da879d66599898b973d2932d4">rdpq_internal.h</a>, <a class="el" href="rdpq_8c.html#a8b69979da879d66599898b973d2932d4">rdpq.c</a></li>
+<li>__rdpq_sprite_upload()&#160;:&#160;<a class="el" href="rdpq__sprite_8c.html#a32143c5a5d63d32c6f953863c8763903">rdpq_sprite.c</a>, <a class="el" href="rdpq__sprite__internal_8h.html#a32143c5a5d63d32c6f953863c8763903">rdpq_sprite_internal.h</a></li>
+<li>__rdpq_tex_blit()&#160;:&#160;<a class="el" href="rdpq__tex_8c.html#af3036fad32c89c664f95cb5f7eb3f025">rdpq_tex.c</a>, <a class="el" href="rdpq__tex__internal_8h.html#af3036fad32c89c664f95cb5f7eb3f025">rdpq_tex_internal.h</a></li>
+<li>__rdpq_texture_rectangle()&#160;:&#160;<a class="el" href="rdpq__rect_8c.html#afc4f10ad6253e77e70491d6c48388533">rdpq_rect.c</a></li>
+<li>__rdpq_texture_rectangle_offline()&#160;:&#160;<a class="el" href="rdpq__rect_8c.html#a4d0e57d3b017dfaf2a21222924be0803">rdpq_rect.c</a></li>
+<li>__rdpq_texture_rectangle_scaled_offline()&#160;:&#160;<a class="el" href="rdpq__rect_8c.html#ad404a010ce296e81686bbe1ef86b47cb">rdpq_rect.c</a></li>
+<li>__rdpq_write16()&#160;:&#160;<a class="el" href="rdpq_8c.html#a8b69979da879d66599898b973d2932d4">rdpq.c</a>, <a class="el" href="rdpq__internal_8h.html#a8b69979da879d66599898b973d2932d4">rdpq_internal.h</a></li>
 <li>__rdpq_write16_syncuse()&#160;:&#160;<a class="el" href="rdpq_8c.html#a570d8fd6e1f449d8a8682f3c0d48956a">rdpq.c</a></li>
-<li>__rdpq_write8()&#160;:&#160;<a class="el" href="rdpq_8c.html#aee535835045a8c36477418f77240effe">rdpq.c</a>, <a class="el" href="rdpq__internal_8h.html#aee535835045a8c36477418f77240effe">rdpq_internal.h</a></li>
+<li>__rdpq_write8()&#160;:&#160;<a class="el" href="rdpq__internal_8h.html#aee535835045a8c36477418f77240effe">rdpq_internal.h</a>, <a class="el" href="rdpq_8c.html#aee535835045a8c36477418f77240effe">rdpq.c</a></li>
 <li>__rdpq_write8_syncchange()&#160;:&#160;<a class="el" href="rdpq_8c.html#ad2b402721d5123a8b4e9fa603f845dec">rdpq.c</a></li>
 <li>__rdpq_write8_syncchangeuse()&#160;:&#160;<a class="el" href="rdpq_8c.html#a89b50637660bc96993efcd4a8cfd8e12">rdpq.c</a></li>
 <li>__rdpq_write8_syncuse()&#160;:&#160;<a class="el" href="rdpq_8c.html#a1a327df0dcf2b5efe68dcb4101dfab97">rdpq.c</a></li>
 <li>__register_frame_info()&#160;:&#160;<a class="el" href="group__dl.html#ga24ff296ca1faaea3b994e94edccb20f4">dlfcn.c</a>, <a class="el" href="group__system.html#ga0ca440485e44289536afddc8b55d415a">do_ctors.c</a></li>
 <li>__RESET_handler()&#160;:&#160;<a class="el" href="interrupt_8c.html#a2d2950dd0d587a88e65537694b721544">interrupt.c</a></li>
+<li>__ringbuf_copy()&#160;:&#160;<a class="el" href="ringbuf_8c.html#a086ff63bee7a4d4958b46652f7c2d268">ringbuf.c</a>, <a class="el" href="ringbuf__internal_8h.html#a086ff63bee7a4d4958b46652f7c2d268">ringbuf_internal.h</a></li>
+<li>__ringbuf_init()&#160;:&#160;<a class="el" href="ringbuf_8c.html#af883f0a0b70a6a2b09fc936c06abca2d">ringbuf.c</a>, <a class="el" href="ringbuf__internal_8h.html#aa3ee64a0d93b44841502912a143dd71f">ringbuf_internal.h</a></li>
+<li>__ringbuf_write()&#160;:&#160;<a class="el" href="ringbuf_8c.html#ab2c71b3a234840bc378a26405ee5f9b3">ringbuf.c</a>, <a class="el" href="ringbuf__internal_8h.html#ab2c71b3a234840bc378a26405ee5f9b3">ringbuf_internal.h</a></li>
 <li>__rom_end&#160;:&#160;<a class="el" href="group__n64sys.html#ga4e07cc711f6f6d1853ee441b43cb54cb">n64sys.h</a></li>
 <li>__rsp_run_async()&#160;:&#160;<a class="el" href="rsp_8c.html#a59afeb53c45d1c7956187b7c8059e23a">rsp.c</a></li>
-<li>__rspq_get_state()&#160;:&#160;<a class="el" href="rspq__internal_8h.html#ad8d8f0c474f13dded0cf8bcc811ebc32">rspq_internal.h</a>, <a class="el" href="rspq_8c.html#ad8d8f0c474f13dded0cf8bcc811ebc32">rspq.c</a></li>
+<li>__rspq_get_state()&#160;:&#160;<a class="el" href="rspq_8c.html#ad8d8f0c474f13dded0cf8bcc811ebc32">rspq.c</a>, <a class="el" href="rspq__internal_8h.html#ad8d8f0c474f13dded0cf8bcc811ebc32">rspq_internal.h</a></li>
 <li>__rspq_syncpoints_done&#160;:&#160;<a class="el" href="rspq_8c.html#a4bb2ee1cdad42a176be51abf5530bc0f">rspq.c</a>, <a class="el" href="rspq__internal_8h.html#a4bb2ee1cdad42a176be51abf5530bc0f">rspq_internal.h</a></li>
 <li>__set_pixel&#160;:&#160;<a class="el" href="graphics_8c.html#a0618e64d65eb97581303293fe6b26d96">graphics.c</a></li>
-<li>__symbolize()&#160;:&#160;<a class="el" href="backtrace_8c.html#acecc4685d595bbe1ceefe87ddb2f032e">backtrace.c</a></li>
+<li>__sprite_ext()&#160;:&#160;<a class="el" href="sprite_8c.html#ae5807da177fc7a64c331b22bb59b80f1">sprite.c</a></li>
+<li>__sprite_upgrade()&#160;:&#160;<a class="el" href="sprite_8c.html#a88ac3b2a2fe3e7a6a26c87b0c98b0c7a">sprite.c</a>, <a class="el" href="sprite__internal_8h.html#a88ac3b2a2fe3e7a6a26c87b0c98b0c7a">sprite_internal.h</a></li>
+<li>__symbolize()&#160;:&#160;<a class="el" href="backtrace_8c.html#acecc4685d595bbe1ceefe87ddb2f032e">backtrace.c</a>, <a class="el" href="backtrace__internal_8h.html#acecc4685d595bbe1ceefe87ddb2f032e">backtrace_internal.h</a></li>
 <li>__text_end&#160;:&#160;<a class="el" href="backtrace_8c.html#a1a8d2090f0bcd60292b07a1d1ce0b8c0">backtrace.c</a></li>
 <li>__text_start&#160;:&#160;<a class="el" href="backtrace_8c.html#ac58864163c732d77c77afceb285542c5">backtrace.c</a></li>
 <li>__TI_handler()&#160;:&#160;<a class="el" href="interrupt_8c.html#ac0eece989af0383b0994b3a22c6d1960">interrupt.c</a></li>
@@ -169,7 +187,7 @@ $(function() {
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:39 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:10 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

@@ -5,5 +5,6 @@ var searchData=
   ['eepromfs_2ec_2',['eepromfs.c',['../eepromfs_8c.html',1,'']]],
   ['eepromfs_2eh_3',['eepromfs.h',['../eepromfs_8h.html',1,'']]],
   ['exception_2ec_4',['exception.c',['../exception_8c.html',1,'']]],
-  ['exception_2eh_5',['exception.h',['../exception_8h.html',1,'']]]
+  ['exception_2eh_5',['exception.h',['../exception_8h.html',1,'']]],
+  ['exception_5finternal_2eh_6',['exception_internal.h',['../exception__internal_8h.html',1,'']]]
 ];

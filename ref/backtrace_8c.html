@@ -161,7 +161,7 @@ Functions</h2></td></tr>
 <tr class="memitem:acecc4685d595bbe1ceefe87ddb2f032e" id="r_acecc4685d595bbe1ceefe87ddb2f032e"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="backtrace_8c.html#acecc4685d595bbe1ceefe87ddb2f032e">__symbolize</a> (void *vaddr, char *buf, int size)</td></tr>
 <tr class="memdesc:acecc4685d595bbe1ceefe87ddb2f032e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the symbol associated to a given address.  <br /></td></tr>
 <tr class="separator:acecc4685d595bbe1ceefe87ddb2f032e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a494fc6d2dd8e5e79b57c7a4a49d31afb" id="r_a494fc6d2dd8e5e79b57c7a4a49d31afb"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="backtrace_8c.html#a494fc6d2dd8e5e79b57c7a4a49d31afb">__bt_analyze_func</a> (<a class="el" href="structbt__func__t.html">bt_func_t</a> *func, uint32_t *ptr, uint32_t func_start, bool from_exception)</td></tr>
+<tr class="memitem:a494fc6d2dd8e5e79b57c7a4a49d31afb" id="r_a494fc6d2dd8e5e79b57c7a4a49d31afb"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="backtrace_8c.html#a494fc6d2dd8e5e79b57c7a4a49d31afb">__bt_analyze_func</a> (<a class="el" href="backtrace__internal_8h.html#structbt__func__t">bt_func_t</a> *func, uint32_t *ptr, uint32_t func_start, bool from_exception)</td></tr>
 <tr class="memdesc:a494fc6d2dd8e5e79b57c7a4a49d31afb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Analyze a function to find out its stack frame layout and properties (useful for backtracing).  <br /></td></tr>
 <tr class="separator:a494fc6d2dd8e5e79b57c7a4a49d31afb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3747bea884034d32d4d558872223969e" id="r_ga3747bea884034d32d4d558872223969e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__backtrace.html#ga3747bea884034d32d4d558872223969e">backtrace</a> (void **buffer, int size)</td></tr>
@@ -205,6 +205,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__text_end</b> []
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Backtrace (call stack) support. </p>
+<dl class="section author"><dt>Author</dt><dd>Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'ba'+'jo@'+'gm'+'ail'+'.c'+'om'; return false;">giova<span class="obfuscator">.nosp@m.</span>nnib<span class="obfuscator">.nosp@m.</span>ajo@g<span class="obfuscator">.nosp@m.</span>mail<span class="obfuscator">.nosp@m.</span>.com</a> </dd></dl>
 <p>This file contains the implementation of the backtrace support. See <a class="el" href="backtrace_8h.html" title="Backtrace (call stack) support.">backtrace.h</a> for an overview of the API. Here follows some implementation details.</p>
 <h1><a class="anchor" id="autotoc_md10"></a>
 Backtrace</h1>
@@ -439,7 +440,7 @@ Offset of the symbol within its function. </td></tr>
         <tr>
           <td class="memname">bool __bt_analyze_func </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="structbt__func__t.html">bt_func_t</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="backtrace__internal_8h.html#structbt__func__t">bt_func_t</a> *&#160;</td>
           <td class="paramname"><em>func</em>, </td>
         </tr>
         <tr>
@@ -499,7 +500,7 @@ Offset of the symbol within its function. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

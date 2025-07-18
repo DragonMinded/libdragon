@@ -1,7 +1,7 @@
 var searchData=
 [
   ['u_5fuint16_5ft_0',['u_uint16_t',['../n64types_8h.html#aea7e5d6606c0426b4ba3238babfacf8a',1,'n64types.h']]],
-  ['u_5fuint32_5ft_1',['u_uint32_t',['../n64types_8h.html#ab47b5649673d81f2ae2e8342091d0523',1,'n64types.h']]],
+  ['u_5fuint32_5ft_1',['u_uint32_t',['../n64types_8h.html#ab47b5649673d81f2ae2e8342091d0523',1,'u_uint32_t:&#160;n64types.h'],['../dlfcn__internal_8h.html#ab47b5649673d81f2ae2e8342091d0523',1,'u_uint32_t:&#160;dlfcn_internal.h']]],
   ['u_5fuint64_5ft_2',['u_uint64_t',['../n64types_8h.html#ad5b610fe97ee5f2bb97959c1d77c3fc3',1,'n64types.h']]],
   ['ucode_20crash_20handlers_3',['Custom ucode crash handlers',['../rsp_8h.html#autotoc_md44',1,'']]],
   ['ucode_20definition_20and_20loading_4',['Ucode definition and loading',['../rsp_8h.html#autotoc_md41',1,'']]],
@@ -19,16 +19,17 @@ var searchData=
   ['unregister_5fdp_5fhandler_16',['unregister_dp_handler',['../interrupt_8c.html#a576a9619c9c5e42863664ed1dcbb7d11',1,'unregister_DP_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8h.html#a576a9619c9c5e42863664ed1dcbb7d11',1,'unregister_DP_handler(void(*callback)()):&#160;interrupt.c']]],
   ['unregister_5fpi_5fhandler_17',['unregister_pi_handler',['../interrupt_8c.html#a7d6944493768b6d604359d0cdbe5bed4',1,'unregister_PI_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8h.html#a7d6944493768b6d604359d0cdbe5bed4',1,'unregister_PI_handler(void(*callback)()):&#160;interrupt.c']]],
   ['unregister_5freset_5fhandler_18',['unregister_reset_handler',['../interrupt_8c.html#a2b29ebe8db68cdbee591e8d15693cb5f',1,'unregister_RESET_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8h.html#a2b29ebe8db68cdbee591e8d15693cb5f',1,'unregister_RESET_handler(void(*callback)()):&#160;interrupt.c']]],
-  ['unregister_5fsi_5fhandler_19',['unregister_si_handler',['../interrupt_8c.html#a082b7cf2be05e8d07404572f0d5a96b0',1,'unregister_SI_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8h.html#a082b7cf2be05e8d07404572f0d5a96b0',1,'unregister_SI_handler(void(*callback)()):&#160;interrupt.c']]],
+  ['unregister_5fsi_5fhandler_19',['unregister_si_handler',['../interrupt_8h.html#a082b7cf2be05e8d07404572f0d5a96b0',1,'unregister_SI_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8c.html#a082b7cf2be05e8d07404572f0d5a96b0',1,'unregister_SI_handler(void(*callback)()):&#160;interrupt.c']]],
   ['unregister_5fsp_5fhandler_20',['unregister_sp_handler',['../interrupt_8h.html#ad3983fa9ec9de4022655d4153b39bead',1,'unregister_SP_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8c.html#ad3983fa9ec9de4022655d4153b39bead',1,'unregister_SP_handler(void(*callback)()):&#160;interrupt.c']]],
   ['unregister_5fti_5fhandler_21',['unregister_ti_handler',['../interrupt_8c.html#a1cc1089f8fe22245df63d22f314a95d6',1,'unregister_TI_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8h.html#a1cc1089f8fe22245df63d22f314a95d6',1,'unregister_TI_handler(void(*callback)()):&#160;interrupt.c']]],
   ['unregister_5fvi_5fhandler_22',['unregister_vi_handler',['../interrupt_8c.html#a432eef7630772dfe5a26b2440122c379',1,'unregister_VI_handler(void(*callback)()):&#160;interrupt.c'],['../interrupt_8h.html#a432eef7630772dfe5a26b2440122c379',1,'unregister_VI_handler(void(*callback)()):&#160;interrupt.c']]],
-  ['up_23',['up',['../group__controller.html#a46c48bec0d282018b9d167eef7711b2c',1,'_SI_condat.__unnamed20__.__unnamed24__']]],
+  ['up_23',['up',['../group__controller.html#a46c48bec0d282018b9d167eef7711b2c',1,'_SI_condat.__unnamed41__.__unnamed45__']]],
   ['upgrading_20libdragon_24',['Upgrading libdragon',['../index.html#autotoc_md7',1,'']]],
   ['usage_20of_20inline_20functions_20vs_20no_20inline_25',['Usage of inline functions vs no-inline',['../rdpq_8c.html#autotoc_md20',1,'']]],
   ['use_5fmain_5ftex_26',['use_main_tex',['../sprite_8h.html#aa64a020b664e48963668b8cf8a440e49',1,'sprite_detail_t']]],
-  ['use_5fmain_5ftexture_27',['use_main_texture',['../structsprite__ext__t.html#a37c084a7a90c1d5008ef58cb47cfeb27',1,'sprite_ext_t::detail_s']]],
-  ['using_20a_20development_20cartridge_20on_20a_20real_20n64_28',['Using a development cartridge on a real N64',['../index.html#autotoc_md5',1,'']]],
-  ['using_20emulators_29',['Using emulators',['../index.html#autotoc_md4',1,'']]],
-  ['utils_2eh_30',['utils.h',['../utils_8h.html',1,'']]]
+  ['use_5fmain_5ftexture_27',['use_main_texture',['../sprite__internal_8h.html#a37c084a7a90c1d5008ef58cb47cfeb27',1,'sprite_ext_t::detail_s']]],
+  ['use_5forigin_28',['use_origin',['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_port_t.recv::use_origin'],['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::use_origin']]],
+  ['using_20a_20development_20cartridge_20on_20a_20real_20n64_29',['Using a development cartridge on a real N64',['../index.html#autotoc_md5',1,'']]],
+  ['using_20emulators_30',['Using emulators',['../index.html#autotoc_md4',1,'']]],
+  ['utils_2eh_31',['utils.h',['../utils_8h.html',1,'']]]
 ];

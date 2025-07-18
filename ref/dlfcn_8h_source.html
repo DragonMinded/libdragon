@@ -83,93 +83,93 @@ $(document).ready(function() { init_codefold(0); });
 </div><!--header-->
 <div class="contents">
 <a href="dlfcn_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#ifndef __LIBDRAGON_DLFCN_H</span></div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#define __LIBDRAGON_DLFCN_H</span></div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span> </div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a5c83709ee3bd7d316f8f47e122f3be20">   10</a></span><span class="preprocessor">#define RTLD_LAZY 0x0</span></div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a98a6517467cf7d1dd27d6c6dce78a6cf">   12</a></span><span class="preprocessor">#define RTLD_NOW 0x0</span></div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#ace65454279c135fe5e6168d456c31263">   14</a></span><span class="preprocessor">#define RTLD_GLOBAL 0x1</span></div>
-<div class="line"><a id="l00016" name="l00016"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a233010260f7e61c5dab09e2bca10a590">   16</a></span><span class="preprocessor">#define RTLD_LOCAL 0x0</span></div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a63b65253a063469ae964534ab38fe635">   18</a></span><span class="preprocessor">#define RTLD_NODELETE 0x2</span></div>
-<div class="line"><a id="l00020" name="l00020"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a65cc8226321c99d43c9d854b0fb86081">   20</a></span><span class="preprocessor">#define RTLD_NOLOAD 0x4</span></div>
-<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span> </div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a58d13c5dcabbb85848fa97b446086247">   23</a></span><span class="preprocessor">#define RTLD_DEFAULT ((void *)-1)</span></div>
-<div class="line"><a id="l00025" name="l00025"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a51d4212b17b1edeb2fc5a48c7c497267">   25</a></span><span class="preprocessor">#define RTLD_NEXT ((void *)-2)</span></div>
-<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span> </div>
-<div class="foldopen" id="foldopen00028" data-start="{" data-end="};">
-<div class="line"><a id="l00028" name="l00028"></a><span class="lineno"><a class="line" href="dlfcn_8h.html">   28</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#abec29d3a98b5b69fd6bf077979d2c3c5">   30</a></span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="dlfcn_8h.html#abec29d3a98b5b69fd6bf077979d2c3c5">dli_fname</a>;</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#ae1bb9463ad67a5953172a08722f1b9db">   32</a></span>    <span class="keywordtype">void</span>       *<a class="code hl_variable" href="dlfcn_8h.html#ae1bb9463ad67a5953172a08722f1b9db">dli_fbase</a>;</div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a92a9c5892ca0eb36e4b0457967d2201b">   34</a></span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="dlfcn_8h.html#a92a9c5892ca0eb36e4b0457967d2201b">dli_sname</a>;</div>
-<div class="line"><a id="l00036" name="l00036"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a8df357b133c0a04d70c5c69f7297c1cf">   36</a></span>    <span class="keywordtype">void</span>       *<a class="code hl_variable" href="dlfcn_8h.html#a8df357b133c0a04d70c5c69f7297c1cf">dli_saddr</a>;</div>
-<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>} <a class="code hl_struct" href="dlfcn_8h.html#structDl__info">Dl_info</a>;</div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#ifndef __LIBDRAGON_DLFCN_H</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#define __LIBDRAGON_DLFCN_H</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a5c83709ee3bd7d316f8f47e122f3be20">   11</a></span><span class="preprocessor">#define RTLD_LAZY 0x0</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a98a6517467cf7d1dd27d6c6dce78a6cf">   13</a></span><span class="preprocessor">#define RTLD_NOW 0x0</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#ace65454279c135fe5e6168d456c31263">   15</a></span><span class="preprocessor">#define RTLD_GLOBAL 0x1</span></div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a233010260f7e61c5dab09e2bca10a590">   17</a></span><span class="preprocessor">#define RTLD_LOCAL 0x0</span></div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a63b65253a063469ae964534ab38fe635">   19</a></span><span class="preprocessor">#define RTLD_NODELETE 0x2</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a65cc8226321c99d43c9d854b0fb86081">   21</a></span><span class="preprocessor">#define RTLD_NOLOAD 0x4</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span> </div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a58d13c5dcabbb85848fa97b446086247">   24</a></span><span class="preprocessor">#define RTLD_DEFAULT ((void *)-1)</span></div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a51d4212b17b1edeb2fc5a48c7c497267">   26</a></span><span class="preprocessor">#define RTLD_NEXT ((void *)-2)</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span> </div>
+<div class="foldopen" id="foldopen00029" data-start="{" data-end="};">
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno"><a class="line" href="dlfcn_8h.html">   29</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#abec29d3a98b5b69fd6bf077979d2c3c5">   31</a></span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="dlfcn_8h.html#abec29d3a98b5b69fd6bf077979d2c3c5">dli_fname</a>;</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#ae1bb9463ad67a5953172a08722f1b9db">   33</a></span>    <span class="keywordtype">void</span>       *<a class="code hl_variable" href="dlfcn_8h.html#ae1bb9463ad67a5953172a08722f1b9db">dli_fbase</a>;</div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a92a9c5892ca0eb36e4b0457967d2201b">   35</a></span>    <span class="keyword">const</span> <span class="keywordtype">char</span> *<a class="code hl_variable" href="dlfcn_8h.html#a92a9c5892ca0eb36e4b0457967d2201b">dli_sname</a>;</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="dlfcn_8h.html#a8df357b133c0a04d70c5c69f7297c1cf">   37</a></span>    <span class="keywordtype">void</span>       *<a class="code hl_variable" href="dlfcn_8h.html#a8df357b133c0a04d70c5c69f7297c1cf">dli_saddr</a>;</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span>} <a class="code hl_struct" href="dlfcn_8h.html#structDl__info">Dl_info</a>;</div>
 </div>
-<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span> </div>
-<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span> </div>
-<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span><span class="comment">// Embedded GDB script to auto-load DSO symbols</span></div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="preprocessor">#ifndef N64_DSO</span></div>
-<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="keyword">asm</span>(</div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="stringliteral">&quot;.pushsection \&quot;.debug_gdb_scripts\&quot;, \&quot;MS\&quot;,@progbits,1\n&quot;</span></div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="stringliteral">&quot;.byte 4\n&quot;</span></div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="stringliteral">&quot;.ascii \&quot;gdb.inlined-script-dso-autoload\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="stringliteral">&quot;.ascii \&quot;import gdb\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="stringliteral">&quot;.ascii \&quot;class BreakpointDsoLoad(gdb.Breakpoint):\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="stringliteral">&quot;.ascii \&quot;  def stop(self):\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="stringliteral">&quot;.ascii \&quot;    frame = gdb.selected_frame()\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="stringliteral">&quot;.ascii \&quot;    src_elf = gdb.execute(&#39;printf \\\&quot;%s\\\&quot;, module-&gt;src_elf&#39;, False, True)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="stringliteral">&quot;.ascii \&quot;    prog_base = int(gdb.execute(&#39;printf \\\&quot;%x\\\&quot;, module-&gt;prog_base&#39;, False, True), 16)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="stringliteral">&quot;.ascii \&quot;    print(\\\&quot;Loading overlay: \\\&quot;, src_elf, \\\&quot;(text:\\\&quot;, hex(prog_base), \\\&quot;)\\\&quot;)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="stringliteral">&quot;.ascii \&quot;    gdb.execute(\\\&quot;add-symbol-file -readnow \\\&quot; + src_elf + \\\&quot; \\\&quot; + hex(prog_base), False, True)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="stringliteral">&quot;.ascii \&quot;    return False\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="stringliteral">&quot;.ascii \&quot;class BreakpointDsoFree(gdb.Breakpoint):\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="stringliteral">&quot;.ascii \&quot;  def stop(self):\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="stringliteral">&quot;.ascii \&quot;    frame = gdb.selected_frame()\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="stringliteral">&quot;.ascii \&quot;    src_elf = gdb.execute(&#39;printf \\\&quot;%s\\\&quot;, module-&gt;src_elf&#39;, False, True)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="stringliteral">&quot;.ascii \&quot;    prog_base = int(gdb.execute(&#39;printf \\\&quot;%x\\\&quot;, module-&gt;prog_base&#39;, False, True), 16)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="stringliteral">&quot;.ascii \&quot;    print(\\\&quot;Unloading overlay: \\\&quot;, src_elf, \\\&quot;(text:\\\&quot;, hex(prog_base), \\\&quot;)\\\&quot;)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="stringliteral">&quot;.ascii \&quot;    gdb.execute(\\\&quot;remove-symbol-file -a \\\&quot; + hex(prog_base), False, True)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="stringliteral">&quot;.ascii \&quot;    return False\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="stringliteral">&quot;.ascii \&quot;bp_load = BreakpointDsoLoad(\\\&quot;__dl_insert_module\\\&quot;)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="stringliteral">&quot;.ascii \&quot;bp_load.silent = True\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="stringliteral">&quot;.ascii \&quot;bl_free = BreakpointDsoFree(\\\&quot;__dl_remove_module\\\&quot;)\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="stringliteral">&quot;.ascii \&quot;bl_free.silent = True\\n\&quot;\n&quot;</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="stringliteral">&quot;.byte 0\n&quot;</span></div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="stringliteral">&quot;.popsection\n&quot;</span></div>
-<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>);</div>
-<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span> </div>
-<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="keywordtype">void</span> *<a class="code hl_function" href="group__dl.html#ga14646fd24e2b10d29e3fb95003a91f61">dlopen</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *filename, <span class="keywordtype">int</span> mode);</div>
-<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span> </div>
-<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="keywordtype">void</span> *<a class="code hl_function" href="group__dl.html#ga5fd30ae080719aa9281eb909b646246b">dlsym</a>(<span class="keywordtype">void</span> *handle, <span class="keyword">const</span> <span class="keywordtype">char</span> *symbol);</div>
-<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span> </div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="keywordtype">int</span> <a class="code hl_function" href="group__dl.html#gaf483b6c4400965aa885f9f1a144138a5">dlclose</a>(<span class="keywordtype">void</span> *handle);</div>
-<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span> </div>
-<div class="line"><a id="l00110" name="l00110"></a><span class="lineno">  110</span><span class="keywordtype">int</span> <a class="code hl_function" href="group__dl.html#ga877f79a0fbf248d1c47ba5322f7470b2">dladdr</a>(<span class="keyword">const</span> <span class="keywordtype">void</span> *addr, <a class="code hl_struct" href="dlfcn_8h.html#structDl__info">Dl_info</a> *info);</div>
-<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span> </div>
-<div class="line"><a id="l00117" name="l00117"></a><span class="lineno">  117</span><span class="keywordtype">char</span> *<a class="code hl_function" href="group__dl.html#ga2bbbe680edd6e3918311f5dbf33b3996">dlerror</a>(<span class="keywordtype">void</span>);</div>
-<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span> </div>
-<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span>}</div>
-<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span><span class="preprocessor">#endif</span></div>
-<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span> </div>
-<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span><span class="preprocessor">#endif</span></div>
-<div class="ttc" id="adlfcn_8h_html_a8df357b133c0a04d70c5c69f7297c1cf"><div class="ttname"><a href="dlfcn_8h.html#a8df357b133c0a04d70c5c69f7297c1cf">Dl_info::dli_saddr</a></div><div class="ttdeci">void * dli_saddr</div><div class="ttdoc">Exact address of symbol named in dli_sname.</div><div class="ttdef"><b>Definition</b> dlfcn.h:36</div></div>
-<div class="ttc" id="adlfcn_8h_html_a92a9c5892ca0eb36e4b0457967d2201b"><div class="ttname"><a href="dlfcn_8h.html#a92a9c5892ca0eb36e4b0457967d2201b">Dl_info::dli_sname</a></div><div class="ttdeci">const char * dli_sname</div><div class="ttdoc">Name of symbol whose definition overlaps addr.</div><div class="ttdef"><b>Definition</b> dlfcn.h:34</div></div>
-<div class="ttc" id="adlfcn_8h_html_abec29d3a98b5b69fd6bf077979d2c3c5"><div class="ttname"><a href="dlfcn_8h.html#abec29d3a98b5b69fd6bf077979d2c3c5">Dl_info::dli_fname</a></div><div class="ttdeci">const char * dli_fname</div><div class="ttdoc">Pathname of shared object that contains address.</div><div class="ttdef"><b>Definition</b> dlfcn.h:30</div></div>
-<div class="ttc" id="adlfcn_8h_html_ae1bb9463ad67a5953172a08722f1b9db"><div class="ttname"><a href="dlfcn_8h.html#ae1bb9463ad67a5953172a08722f1b9db">Dl_info::dli_fbase</a></div><div class="ttdeci">void * dli_fbase</div><div class="ttdoc">Base address at which shared object is loaded.</div><div class="ttdef"><b>Definition</b> dlfcn.h:32</div></div>
-<div class="ttc" id="adlfcn_8h_html_structDl__info"><div class="ttname"><a href="dlfcn_8h.html#structDl__info">Dl_info</a></div><div class="ttdoc">dl_addr info structure</div><div class="ttdef"><b>Definition</b> dlfcn.h:28</div></div>
-<div class="ttc" id="agroup__dl_html_ga14646fd24e2b10d29e3fb95003a91f61"><div class="ttname"><a href="group__dl.html#ga14646fd24e2b10d29e3fb95003a91f61">dlopen</a></div><div class="ttdeci">void * dlopen(const char *filename, int mode)</div><div class="ttdoc">Open dynamic library.</div><div class="ttdef"><b>Definition</b> dlfcn.c:401</div></div>
-<div class="ttc" id="agroup__dl_html_ga2bbbe680edd6e3918311f5dbf33b3996"><div class="ttname"><a href="group__dl.html#ga2bbbe680edd6e3918311f5dbf33b3996">dlerror</a></div><div class="ttdeci">char * dlerror(void)</div><div class="ttdoc">Return last error that occurred in dynamic linker.</div><div class="ttdef"><b>Definition</b> dlfcn.c:630</div></div>
-<div class="ttc" id="agroup__dl_html_ga5fd30ae080719aa9281eb909b646246b"><div class="ttname"><a href="group__dl.html#ga5fd30ae080719aa9281eb909b646246b">dlsym</a></div><div class="ttdeci">void * dlsym(void *handle, const char *symbol)</div><div class="ttdoc">Grab symbol from loaded dynamic library.</div><div class="ttdef"><b>Definition</b> dlfcn.c:466</div></div>
-<div class="ttc" id="agroup__dl_html_ga877f79a0fbf248d1c47ba5322f7470b2"><div class="ttname"><a href="group__dl.html#ga877f79a0fbf248d1c47ba5322f7470b2">dladdr</a></div><div class="ttdeci">int dladdr(const void *addr, Dl_info *info)</div><div class="ttdoc">Convert address to symbol.</div><div class="ttdef"><b>Definition</b> dlfcn.c:595</div></div>
-<div class="ttc" id="agroup__dl_html_gaf483b6c4400965aa885f9f1a144138a5"><div class="ttname"><a href="group__dl.html#gaf483b6c4400965aa885f9f1a144138a5">dlclose</a></div><div class="ttdeci">int dlclose(void *handle)</div><div class="ttdoc">Close loaded dynamic library.</div><div class="ttdef"><b>Definition</b> dlfcn.c:569</div></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="comment">// Embedded GDB script to auto-load DSO symbols</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span><span class="preprocessor">#ifndef N64_DSO</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="keyword">asm</span>(</div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="stringliteral">&quot;.pushsection \&quot;.debug_gdb_scripts\&quot;, \&quot;MS\&quot;,@progbits,1\n&quot;</span></div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="stringliteral">&quot;.byte 4\n&quot;</span></div>
+<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span><span class="stringliteral">&quot;.ascii \&quot;gdb.inlined-script-dso-autoload\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="stringliteral">&quot;.ascii \&quot;import gdb\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span><span class="stringliteral">&quot;.ascii \&quot;class BreakpointDsoLoad(gdb.Breakpoint):\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno">   53</span><span class="stringliteral">&quot;.ascii \&quot;  def stop(self):\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span><span class="stringliteral">&quot;.ascii \&quot;    frame = gdb.selected_frame()\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00055" name="l00055"></a><span class="lineno">   55</span><span class="stringliteral">&quot;.ascii \&quot;    src_elf = gdb.execute(&#39;printf \\\&quot;%s\\\&quot;, module-&gt;src_elf&#39;, False, True)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno">   56</span><span class="stringliteral">&quot;.ascii \&quot;    prog_base = int(gdb.execute(&#39;printf \\\&quot;%x\\\&quot;, module-&gt;prog_base&#39;, False, True), 16)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="stringliteral">&quot;.ascii \&quot;    print(\\\&quot;Loading overlay: \\\&quot;, src_elf, \\\&quot;(text:\\\&quot;, hex(prog_base), \\\&quot;)\\\&quot;)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="stringliteral">&quot;.ascii \&quot;    gdb.execute(\\\&quot;add-symbol-file -readnow \\\&quot; + src_elf + \\\&quot; \\\&quot; + hex(prog_base), False, True)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span><span class="stringliteral">&quot;.ascii \&quot;    return False\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="stringliteral">&quot;.ascii \&quot;class BreakpointDsoFree(gdb.Breakpoint):\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno">   61</span><span class="stringliteral">&quot;.ascii \&quot;  def stop(self):\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="stringliteral">&quot;.ascii \&quot;    frame = gdb.selected_frame()\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="stringliteral">&quot;.ascii \&quot;    src_elf = gdb.execute(&#39;printf \\\&quot;%s\\\&quot;, module-&gt;src_elf&#39;, False, True)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="stringliteral">&quot;.ascii \&quot;    prog_base = int(gdb.execute(&#39;printf \\\&quot;%x\\\&quot;, module-&gt;prog_base&#39;, False, True), 16)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span><span class="stringliteral">&quot;.ascii \&quot;    print(\\\&quot;Unloading overlay: \\\&quot;, src_elf, \\\&quot;(text:\\\&quot;, hex(prog_base), \\\&quot;)\\\&quot;)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="stringliteral">&quot;.ascii \&quot;    gdb.execute(\\\&quot;remove-symbol-file -a \\\&quot; + hex(prog_base), False, True)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="stringliteral">&quot;.ascii \&quot;    return False\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="stringliteral">&quot;.ascii \&quot;bp_load = BreakpointDsoLoad(\\\&quot;__dl_insert_module\\\&quot;)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="stringliteral">&quot;.ascii \&quot;bp_load.silent = True\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="stringliteral">&quot;.ascii \&quot;bl_free = BreakpointDsoFree(\\\&quot;__dl_remove_module\\\&quot;)\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="stringliteral">&quot;.ascii \&quot;bl_free.silent = True\\n\&quot;\n&quot;</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="stringliteral">&quot;.byte 0\n&quot;</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="stringliteral">&quot;.popsection\n&quot;</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>);</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span> </div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="keywordtype">void</span> *<a class="code hl_function" href="group__dl.html#ga14646fd24e2b10d29e3fb95003a91f61">dlopen</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *filename, <span class="keywordtype">int</span> mode);</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span> </div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="keywordtype">void</span> *<a class="code hl_function" href="group__dl.html#ga5fd30ae080719aa9281eb909b646246b">dlsym</a>(<span class="keywordtype">void</span> *handle, <span class="keyword">const</span> <span class="keywordtype">char</span> *symbol);</div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span> </div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span><span class="keywordtype">int</span> <a class="code hl_function" href="group__dl.html#gaf483b6c4400965aa885f9f1a144138a5">dlclose</a>(<span class="keywordtype">void</span> *handle);</div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
+<div class="line"><a id="l00111" name="l00111"></a><span class="lineno">  111</span><span class="keywordtype">int</span> <a class="code hl_function" href="group__dl.html#ga877f79a0fbf248d1c47ba5322f7470b2">dladdr</a>(<span class="keyword">const</span> <span class="keywordtype">void</span> *addr, <a class="code hl_struct" href="dlfcn_8h.html#structDl__info">Dl_info</a> *info);</div>
+<div class="line"><a id="l00112" name="l00112"></a><span class="lineno">  112</span> </div>
+<div class="line"><a id="l00118" name="l00118"></a><span class="lineno">  118</span><span class="keywordtype">char</span> *<a class="code hl_function" href="group__dl.html#ga2bbbe680edd6e3918311f5dbf33b3996">dlerror</a>(<span class="keywordtype">void</span>);</div>
+<div class="line"><a id="l00119" name="l00119"></a><span class="lineno">  119</span> </div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno">  120</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span>}</div>
+<div class="line"><a id="l00122" name="l00122"></a><span class="lineno">  122</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00123" name="l00123"></a><span class="lineno">  123</span> </div>
+<div class="line"><a id="l00124" name="l00124"></a><span class="lineno">  124</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="adlfcn_8h_html_a8df357b133c0a04d70c5c69f7297c1cf"><div class="ttname"><a href="dlfcn_8h.html#a8df357b133c0a04d70c5c69f7297c1cf">Dl_info::dli_saddr</a></div><div class="ttdeci">void * dli_saddr</div><div class="ttdoc">Exact address of symbol named in dli_sname.</div><div class="ttdef"><b>Definition</b> dlfcn.h:37</div></div>
+<div class="ttc" id="adlfcn_8h_html_a92a9c5892ca0eb36e4b0457967d2201b"><div class="ttname"><a href="dlfcn_8h.html#a92a9c5892ca0eb36e4b0457967d2201b">Dl_info::dli_sname</a></div><div class="ttdeci">const char * dli_sname</div><div class="ttdoc">Name of symbol whose definition overlaps addr.</div><div class="ttdef"><b>Definition</b> dlfcn.h:35</div></div>
+<div class="ttc" id="adlfcn_8h_html_abec29d3a98b5b69fd6bf077979d2c3c5"><div class="ttname"><a href="dlfcn_8h.html#abec29d3a98b5b69fd6bf077979d2c3c5">Dl_info::dli_fname</a></div><div class="ttdeci">const char * dli_fname</div><div class="ttdoc">Pathname of shared object that contains address.</div><div class="ttdef"><b>Definition</b> dlfcn.h:31</div></div>
+<div class="ttc" id="adlfcn_8h_html_ae1bb9463ad67a5953172a08722f1b9db"><div class="ttname"><a href="dlfcn_8h.html#ae1bb9463ad67a5953172a08722f1b9db">Dl_info::dli_fbase</a></div><div class="ttdeci">void * dli_fbase</div><div class="ttdoc">Base address at which shared object is loaded.</div><div class="ttdef"><b>Definition</b> dlfcn.h:33</div></div>
+<div class="ttc" id="adlfcn_8h_html_structDl__info"><div class="ttname"><a href="dlfcn_8h.html#structDl__info">Dl_info</a></div><div class="ttdoc">dl_addr info structure</div><div class="ttdef"><b>Definition</b> dlfcn.h:29</div></div>
+<div class="ttc" id="agroup__dl_html_ga14646fd24e2b10d29e3fb95003a91f61"><div class="ttname"><a href="group__dl.html#ga14646fd24e2b10d29e3fb95003a91f61">dlopen</a></div><div class="ttdeci">void * dlopen(const char *filename, int mode)</div><div class="ttdoc">Open dynamic library.</div><div class="ttdef"><b>Definition</b> dlfcn.c:402</div></div>
+<div class="ttc" id="agroup__dl_html_ga2bbbe680edd6e3918311f5dbf33b3996"><div class="ttname"><a href="group__dl.html#ga2bbbe680edd6e3918311f5dbf33b3996">dlerror</a></div><div class="ttdeci">char * dlerror(void)</div><div class="ttdoc">Return last error that occurred in dynamic linker.</div><div class="ttdef"><b>Definition</b> dlfcn.c:631</div></div>
+<div class="ttc" id="agroup__dl_html_ga5fd30ae080719aa9281eb909b646246b"><div class="ttname"><a href="group__dl.html#ga5fd30ae080719aa9281eb909b646246b">dlsym</a></div><div class="ttdeci">void * dlsym(void *handle, const char *symbol)</div><div class="ttdoc">Grab symbol from loaded dynamic library.</div><div class="ttdef"><b>Definition</b> dlfcn.c:467</div></div>
+<div class="ttc" id="agroup__dl_html_ga877f79a0fbf248d1c47ba5322f7470b2"><div class="ttname"><a href="group__dl.html#ga877f79a0fbf248d1c47ba5322f7470b2">dladdr</a></div><div class="ttdeci">int dladdr(const void *addr, Dl_info *info)</div><div class="ttdoc">Convert address to symbol.</div><div class="ttdef"><b>Definition</b> dlfcn.c:596</div></div>
+<div class="ttc" id="agroup__dl_html_gaf483b6c4400965aa885f9f1a144138a5"><div class="ttname"><a href="group__dl.html#gaf483b6c4400965aa885f9f1a144138a5">dlclose</a></div><div class="ttdeci">int dlclose(void *handle)</div><div class="ttdoc">Close loaded dynamic library.</div><div class="ttdef"><b>Definition</b> dlfcn.c:570</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

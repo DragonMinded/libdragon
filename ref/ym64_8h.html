@@ -125,6 +125,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>ym64player_close</b> 
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Player for the .YM64 module format (Arkos Tracker 2) </p>
+<dl class="section author"><dt>Author</dt><dd>Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'ba'+'jo@'+'gm'+'ail'+'.c'+'om'; return false;">giova<span class="obfuscator">.nosp@m.</span>nnib<span class="obfuscator">.nosp@m.</span>ajo@g<span class="obfuscator">.nosp@m.</span>mail<span class="obfuscator">.nosp@m.</span>.com</a></dd></dl>
 <p><a class="el" href="ym64_8h.html#structym64player__t" title="Player of a .YM64 file.">ym64player_t</a> is a player of the .YM64 file format, which is based on the .YM module format, a format first popularized in the Atari ST emulator scene.</p>
 <p>The format is based around the very popular AY-3-8910 sound chip, that was powering a few successful 8-bit consoles such as Atari ST, ZX Spectrum and Amstrad CPC. It is a 3-channel PSG with envelope support. It can produce typical 8-bit "chiptune" music scores. Nowadays, it is possible to compose soundtracks using the Arkos Tracker 2 tool, that exports in the YM format.</p>
 <p>The YM format is a simple dump of the state of all registers of the AY chip at a fixed time step. To playback, it is necessary to emulate the AY PSG. The implementation has been carefully optimized for the N64 MIPS CPU for high-performance, so that playback typically takes less than 5% of CPU time, plus a few percents of RSP time for resampling and mixing (done by the mixer).</p>
@@ -517,7 +518,7 @@ Comment of the song. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

@@ -76,8 +76,9 @@ $(function() {
 <div class="header">
   <div class="summary">
 <a href="#define-members">Macros</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
 <a href="#func-members">Functions</a>  </div>
-  <div class="headertitle"><div class="title">joybus.h File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__lowlevel.html">Low Level Hardware Interfaces</a></div></div></div>
+  <div class="headertitle"><div class="title">joybus.h File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__peripherals.html">Peripherals subsystem</a> &raquo; <a class="el" href="group__joybus.html">Joybus Subsystem</a></div></div></div>
 </div><!--header-->
 <div class="contents">
 
@@ -88,6 +89,15 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
+<tr class="memitem:ga9e1b79695ea3cde099212a15b8553bc1" id="r_ga9e1b79695ea3cde099212a15b8553bc1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga9e1b79695ea3cde099212a15b8553bc1">JOYBUS_PORT_COUNT</a>&#160;&#160;&#160;5</td></tr>
+<tr class="memdesc:ga9e1b79695ea3cde099212a15b8553bc1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Count of Joybus ports.  <br /></td></tr>
+<tr class="separator:ga9e1b79695ea3cde099212a15b8553bc1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab66a8f8b5399fc6a3499fee9bf62c477" id="r_gab66a8f8b5399fc6a3499fee9bf62c477"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab66a8f8b5399fc6a3499fee9bf62c477">joybus_exec_cmd_struct</a>(port,  cmd)</td></tr>
+<tr class="memdesc:gab66a8f8b5399fc6a3499fee9bf62c477"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute a Joybus command struct synchronously.  <br /></td></tr>
+<tr class="separator:gab66a8f8b5399fc6a3499fee9bf62c477"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr><td colspan="2"><div class="groupHeader">Joybus payload sizes</div></td></tr>
+<tr><td colspan="2"><div class="groupText"><p><a class="anchor" id="JOYBUS_PAYLOAD_SIZES"></a></p>
+</div></td></tr>
 <tr class="memitem:ga96357e747d908aa6c354b507d9b0fdc4" id="r_ga96357e747d908aa6c354b507d9b0fdc4"><td class="memItemLeft" align="right" valign="top">
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_SIZE</b>&#160;&#160;&#160;64</td></tr>
 <tr class="memdesc:ga96357e747d908aa6c354b507d9b0fdc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in bytes. <br /></td></tr>
@@ -96,19 +106,144 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_DWORDS</b>&#160;&#160;&#160;( <a class="el" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a> / sizeof(uint64_t) )</td></tr>
 <tr class="memdesc:gabd5f84cf2323e720ab0b79fff05e8383"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in double-words. <br /></td></tr>
 <tr class="separator:gabd5f84cf2323e720ab0b79fff05e8383"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga8c0ca9fee7249e4d6e08d5bf4196ff24" id="r_ga8c0ca9fee7249e4d6e08d5bf4196ff24"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_DATA_SIZE</b>&#160;&#160;&#160;32</td></tr>
+<tr class="memdesc:ga8c0ca9fee7249e4d6e08d5bf4196ff24"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus N64 accessory read/write payload in bytes. <br /></td></tr>
+<tr class="separator:ga8c0ca9fee7249e4d6e08d5bf4196ff24"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr><td colspan="2"><div class="groupHeader">Joybus identifier values</div></td></tr>
+<tr><td colspan="2"><div class="groupText"><p><a class="anchor" id="JOYBUS_IDENTIFIER"></a></p>
+</div></td></tr>
+<tr class="memitem:ga2b7e5db8ee4ab401afa2b16eda7f77ae" id="r_ga2b7e5db8ee4ab401afa2b16eda7f77ae"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_UNKNOWN</b>&#160;&#160;&#160;0x0000</td></tr>
+<tr class="memdesc:ga2b7e5db8ee4ab401afa2b16eda7f77ae"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for an unknown or malfunctioning device. <br /></td></tr>
+<tr class="separator:ga2b7e5db8ee4ab401afa2b16eda7f77ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae4add21eabfd4f9ef2c948735fe3d888" id="r_gae4add21eabfd4f9ef2c948735fe3d888"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_NONE</b>&#160;&#160;&#160;0xFFFF</td></tr>
+<tr class="memdesc:gae4add21eabfd4f9ef2c948735fe3d888"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for a port with no device connected. <br /></td></tr>
+<tr class="separator:gae4add21eabfd4f9ef2c948735fe3d888"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab66d0a557e5436063c475fb17dbea216" id="r_gab66d0a557e5436063c475fb17dbea216"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab66d0a557e5436063c475fb17dbea216">JOYBUS_IDENTIFIER_N64_VOICE_RECOGNITION</a>&#160;&#160;&#160;0x0001</td></tr>
+<tr class="memdesc:gab66d0a557e5436063c475fb17dbea216"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the Nintendo 64 voice recognition peripheral (NUS-020).  <br /></td></tr>
+<tr class="separator:gab66d0a557e5436063c475fb17dbea216"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad3d7eefcc7efb6dc727a354ff4c2f6be" id="r_gad3d7eefcc7efb6dc727a354ff4c2f6be"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_N64_RANDNET_KEYBOARD</b>&#160;&#160;&#160;0x0002</td></tr>
+<tr class="memdesc:gad3d7eefcc7efb6dc727a354ff4c2f6be"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the Nintendo 64 Randnet keyboard peripheral (RND-001). <br /></td></tr>
+<tr class="separator:gad3d7eefcc7efb6dc727a354ff4c2f6be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga662f92afa4a66274f9a23e413fab28a0" id="r_ga662f92afa4a66274f9a23e413fab28a0"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_64GB_LINK_CABLE</b>&#160;&#160;&#160;0x0003</td></tr>
+<tr class="memdesc:ga662f92afa4a66274f9a23e413fab28a0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the unreleased 64GB Link Cable. <br /></td></tr>
+<tr class="separator:ga662f92afa4a66274f9a23e413fab28a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga7bbea460bd4c67c6e3a1f4d92afc37fc" id="r_ga7bbea460bd4c67c6e3a1f4d92afc37fc"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_GBA_LINK_CABLE</b>&#160;&#160;&#160;0x0004</td></tr>
+<tr class="memdesc:ga7bbea460bd4c67c6e3a1f4d92afc37fc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for a Game Boy Advance Link Cable (DOL-011). <br /></td></tr>
+<tr class="separator:ga7bbea460bd4c67c6e3a1f4d92afc37fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad7a9db4234943f7f184e99c63080c85b" id="r_gad7a9db4234943f7f184e99c63080c85b"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_CART_RTC</b>&#160;&#160;&#160;0x0010</td></tr>
+<tr class="memdesc:gad7a9db4234943f7f184e99c63080c85b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for cartridge-based real-time clock. <br /></td></tr>
+<tr class="separator:gad7a9db4234943f7f184e99c63080c85b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga048806afe0f25cc3c66bebaae163715a" id="r_ga048806afe0f25cc3c66bebaae163715a"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_CART_EEPROM_4KBIT</b>&#160;&#160;&#160;0x0080</td></tr>
+<tr class="memdesc:ga048806afe0f25cc3c66bebaae163715a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for cartridge-based 4Kbit EEPROM save type. <br /></td></tr>
+<tr class="separator:ga048806afe0f25cc3c66bebaae163715a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafc31d9207fd140d10b9c13f286275710" id="r_gafc31d9207fd140d10b9c13f286275710"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_CART_EEPROM_16KBIT</b>&#160;&#160;&#160;0x00C0</td></tr>
+<tr class="memdesc:gafc31d9207fd140d10b9c13f286275710"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for cartridge-based 16Kbit EEPROM save type. <br /></td></tr>
+<tr class="separator:gafc31d9207fd140d10b9c13f286275710"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae39cb1248f7f9023f8cf5511a786642e" id="r_gae39cb1248f7f9023f8cf5511a786642e"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_N64_CONTROLLER</b>&#160;&#160;&#160;0x0500</td></tr>
+<tr class="memdesc:gae39cb1248f7f9023f8cf5511a786642e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for a standard Nintendo 64 controller (NUS-005). <br /></td></tr>
+<tr class="separator:gae39cb1248f7f9023f8cf5511a786642e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga762f7d451e4dd65a6962a0beb2a85849" id="r_ga762f7d451e4dd65a6962a0beb2a85849"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_N64_MOUSE</b>&#160;&#160;&#160;0x0200</td></tr>
+<tr class="memdesc:ga762f7d451e4dd65a6962a0beb2a85849"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the Nintendo 64 mouse peripheral (NUS-017). <br /></td></tr>
+<tr class="separator:ga762f7d451e4dd65a6962a0beb2a85849"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr><td colspan="2"><div class="groupHeader">Joybus identifier bitfield for GameCube peripherals</div></td></tr>
+<tr><td colspan="2"><div class="groupText"><p><a class="anchor" id="JOYBUS_IDENTIFIER_GCN_BITFIELD"></a></p>
+<p>Note that for GameCube peripherals, the Joybus identifier is interpreted as a bitfield rather than a single value.</p>
+<p>In particular, Wavebird controllers will return a different identifiers depending on wireless state.</p>
+<p>To identify a device that acts like a standard GameCube controller, check the <a class="el" href="group__joybus.html#ga6ada8ee8d924ff05a2a2ed7e98c02ae3" title="Joybus identifier platform bitfield mask.">JOYBUS_IDENTIFIER_MASK_PLATFORM</a> and the <a class="el" href="group__joybus.html#ga70c0c5ba555606cd69c15937fbe06b9d" title="Joybus identifier GameCube standard controller flag.">JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER</a> values. </p>
+</div></td></tr>
+<tr class="memitem:ga6ada8ee8d924ff05a2a2ed7e98c02ae3" id="r_ga6ada8ee8d924ff05a2a2ed7e98c02ae3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga6ada8ee8d924ff05a2a2ed7e98c02ae3">JOYBUS_IDENTIFIER_MASK_PLATFORM</a>&#160;&#160;&#160;0x1800</td></tr>
+<tr class="memdesc:ga6ada8ee8d924ff05a2a2ed7e98c02ae3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier platform bitfield mask.  <br /></td></tr>
+<tr class="separator:ga6ada8ee8d924ff05a2a2ed7e98c02ae3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga01d8a332fb379a3540be01dd5a13401d" id="r_ga01d8a332fb379a3540be01dd5a13401d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga01d8a332fb379a3540be01dd5a13401d">JOYBUS_IDENTIFIER_PLATFORM_GCN</a>&#160;&#160;&#160;0x0800</td></tr>
+<tr class="memdesc:ga01d8a332fb379a3540be01dd5a13401d"><td class="mdescLeft">&#160;</td><td class="mdescRight">GameCube Joybus identifier platform value.  <br /></td></tr>
+<tr class="separator:ga01d8a332fb379a3540be01dd5a13401d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga70c0c5ba555606cd69c15937fbe06b9d" id="r_ga70c0c5ba555606cd69c15937fbe06b9d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga70c0c5ba555606cd69c15937fbe06b9d">JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER</a>&#160;&#160;&#160;0x0100</td></tr>
+<tr class="memdesc:ga70c0c5ba555606cd69c15937fbe06b9d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier GameCube standard controller flag.  <br /></td></tr>
+<tr class="separator:ga70c0c5ba555606cd69c15937fbe06b9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab6d477cfb1f6e2a51f163575dd6f54ee" id="r_gab6d477cfb1f6e2a51f163575dd6f54ee"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab6d477cfb1f6e2a51f163575dd6f54ee">JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE</a>&#160;&#160;&#160;0x2000</td></tr>
+<tr class="memdesc:gab6d477cfb1f6e2a51f163575dd6f54ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier GameCube rumble support flag.  <br /></td></tr>
+<tr class="separator:gab6d477cfb1f6e2a51f163575dd6f54ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9f02e446b4cc6eadfb13a8bb216fc8b8" id="r_ga9f02e446b4cc6eadfb13a8bb216fc8b8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga9f02e446b4cc6eadfb13a8bb216fc8b8">JOYBUS_IDENTIFIER_MASK_GCN_WIRELESS</a>&#160;&#160;&#160;0x8000</td></tr>
+<tr class="memdesc:ga9f02e446b4cc6eadfb13a8bb216fc8b8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier GameCube wireless flag.  <br /></td></tr>
+<tr class="separator:ga9f02e446b4cc6eadfb13a8bb216fc8b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr><td colspan="2"><div class="groupHeader">Joybus identify status values</div></td></tr>
+<tr><td colspan="2"><div class="groupText"><p><a class="anchor" id="JOYBUS_IDENTIFY_STATUS"></a></p>
+</div></td></tr>
+<tr class="memitem:gab8800bb58a6c542f24e3d1c0e609dbff" id="r_gab8800bb58a6c542f24e3d1c0e609dbff"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK</b>&#160;&#160;&#160;0x03</td></tr>
+<tr class="memdesc:gab8800bb58a6c542f24e3d1c0e609dbff"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status byte mask for N64 accessory presence values. <br /></td></tr>
+<tr class="separator:gab8800bb58a6c542f24e3d1c0e609dbff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafe43144f812642193a627d152f6c6adb" id="r_gafe43144f812642193a627d152f6c6adb"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gafe43144f812642193a627d152f6c6adb">JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED</a>&#160;&#160;&#160;0x00</td></tr>
+<tr class="memdesc:gafe43144f812642193a627d152f6c6adb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller that does not support accessories.  <br /></td></tr>
+<tr class="separator:gafe43144f812642193a627d152f6c6adb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gadf4b888f34ae975b787ae8838871d01b" id="r_gadf4b888f34ae975b787ae8838871d01b"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT</b>&#160;&#160;&#160;0x01</td></tr>
+<tr class="memdesc:gadf4b888f34ae975b787ae8838871d01b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller with an accessory present. <br /></td></tr>
+<tr class="separator:gadf4b888f34ae975b787ae8838871d01b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga87fbaf483083862e11c9ec2e5b74dc0a" id="r_ga87fbaf483083862e11c9ec2e5b74dc0a"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT</b>&#160;&#160;&#160;0x02</td></tr>
+<tr class="memdesc:ga87fbaf483083862e11c9ec2e5b74dc0a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller with no accessory present. <br /></td></tr>
+<tr class="separator:ga87fbaf483083862e11c9ec2e5b74dc0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga05b5b4ae0febddcf5739f30e538b58a5" id="r_ga05b5b4ae0febddcf5739f30e538b58a5"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED</b>&#160;&#160;&#160;0x03</td></tr>
+<tr class="memdesc:ga05b5b4ae0febddcf5739f30e538b58a5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller with an accessory present that has changed since it was last identified. <br /></td></tr>
+<tr class="separator:ga05b5b4ae0febddcf5739f30e538b58a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2539284553ef0faa96297e9ad5a51dd7" id="r_ga2539284553ef0faa96297e9ad5a51dd7"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_VOICE_RECOGNITON_READY</b>&#160;&#160;&#160;0x01</td></tr>
+<tr class="memdesc:ga2539284553ef0faa96297e9ad5a51dd7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit for a VRU/VRS that is initialized and ready. <br /></td></tr>
+<tr class="separator:ga2539284553ef0faa96297e9ad5a51dd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga43595188cc663796720f3296e3ac13f1" id="r_ga43595188cc663796720f3296e3ac13f1"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_COMMAND_CHECKSUM_ERROR</b>&#160;&#160;&#160;0x04</td></tr>
+<tr class="memdesc:ga43595188cc663796720f3296e3ac13f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit that signifies the previous accessory command had a checksum error. <br /></td></tr>
+<tr class="separator:ga43595188cc663796720f3296e3ac13f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2798f796fd03ba614e780500331f6c52" id="r_ga2798f796fd03ba614e780500331f6c52"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_GCN_RUMBLE_ACTIVE</b>&#160;&#160;&#160;0x08</td></tr>
+<tr class="memdesc:ga2798f796fd03ba614e780500331f6c52"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit for GameCube controllers that indicates whether the rumble motor is currently active. <br /></td></tr>
+<tr class="separator:ga2798f796fd03ba614e780500331f6c52"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga09f5e586412001a8b8e64ee6fc7bcef2" id="r_ga09f5e586412001a8b8e64ee6fc7bcef2"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_EEPROM_BUSY</b>&#160;&#160;&#160;0x80</td></tr>
+<tr class="memdesc:ga09f5e586412001a8b8e64ee6fc7bcef2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit for EEPROM devices that indicates a write is in-progress. <br /></td></tr>
+<tr class="separator:ga09f5e586412001a8b8e64ee6fc7bcef2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr class="memitem:gad91e902f4c8cb12fb4f5aa288d423b44" id="r_gad91e902f4c8cb12fb4f5aa288d423b44"><td class="memItemLeft" align="right" valign="top">typedef uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gad91e902f4c8cb12fb4f5aa288d423b44">joybus_identifier_t</a></td></tr>
+<tr class="memdesc:gad91e902f4c8cb12fb4f5aa288d423b44"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joypad Identifier type.  <br /></td></tr>
+<tr class="separator:gad91e902f4c8cb12fb4f5aa288d423b44"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaaf2e487c05f4f27e3b36af3c54ff66c1" id="r_gaaf2e487c05f4f27e3b36af3c54ff66c1"><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a>) (uint64_t *out_dwords, void *ctx)</td></tr>
+<tr class="memdesc:gaaf2e487c05f4f27e3b36af3c54ff66c1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function signature for <a class="el" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1" title="Execute an asynchronous joybus message.">joybus_exec_async</a>.  <br /></td></tr>
+<tr class="separator:gaaf2e487c05f4f27e3b36af3c54ff66c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ga244b4723690e3c15da23bdbfda2cb7d1" id="r_ga244b4723690e3c15da23bdbfda2cb7d1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1">joybus_exec_async</a> (const void *input, <a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a> callback, void *ctx)</td></tr>
+<tr class="memdesc:ga244b4723690e3c15da23bdbfda2cb7d1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute an asynchronous joybus message.  <br /></td></tr>
+<tr class="separator:ga244b4723690e3c15da23bdbfda2cb7d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga6d62432ce8ecd83cd1588716fd28fdb7" id="r_ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a> (const void *input, void *output)</td></tr>
 <tr class="memdesc:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a 64-byte block of data to the PIF and read the 64-byte result.  <br /></td></tr>
 <tr class="separator:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab9ed6f44c13006456f30709a48e122d0" id="r_gab9ed6f44c13006456f30709a48e122d0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0">joybus_exec_cmd</a> (int port, size_t send_len, size_t recv_len, const void *send_data, void *recv_data)</td></tr>
+<tr class="memdesc:gab9ed6f44c13006456f30709a48e122d0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute a Joybus command synchronously on the given port.  <br /></td></tr>
+<tr class="separator:gab9ed6f44c13006456f30709a48e122d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Joybus Subsystem. </p>
+<dl class="section author"><dt>Author</dt><dd>Christopher Bonhage <a href="#" onclick="location.href='mai'+'lto:'+'me@'+'ch'+'ris'+'to'+'phe'+'rb'+'onh'+'ag'+'e.c'+'om'; return false;">me@ch<span class="obfuscator">.nosp@m.</span>rist<span class="obfuscator">.nosp@m.</span>opher<span class="obfuscator">.nosp@m.</span>bonh<span class="obfuscator">.nosp@m.</span>age.c<span class="obfuscator">.nosp@m.</span>om</a> </dd></dl>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

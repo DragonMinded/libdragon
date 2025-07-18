@@ -195,7 +195,7 @@ Macros</h2></td></tr>
 <p>DragonFS does not support writing, renaming or symlinking of files. It supports only file and directory types.</p>
 <p>DFS files have a maximum size of 256 MiB. Directories can have an unlimited number of files in them. Each token (separated by a / in the path) can be 243 characters maximum. Directories can be 100 levels deep at maximum. There can be 4 files open simultaneously.</p>
 <p>When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix. Files can be accessed either with standard POSIX functions (open, fopen) using the 'rom:/' prefix or the lower-level DFS API calls without prefix. In most cases, it is not necessary to use the DFS API directly, given that the standard C functions are more comprehensive. Files can be opened using both sets of API calls simultaneously as long as no more than four files are open at any one time.</p>
-<p>DragonFS does not support file compression; if you want to compress your assets, use the asset API (asset_load / <a class="el" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509" title="Open an asset file for reading (with transparent decompression)">asset_fopen</a>). </p>
+<p>DragonFS does not support file compression; if you want to compress your assets, use the asset API (<a class="el" href="asset_8c.html#abfc5939446d9920b884df034e89428a9" title="Load an asset file (possibly uncompressing it)">asset_load</a> / <a class="el" href="asset_8h.html#ac731b2beb346c99f36fa8f355fb84509" title="Open an asset file for reading (with transparent decompression)">asset_fopen</a>). </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structdirectory__entry" id="structdirectory__entry"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structdirectory__entry">&#9670;&#160;</a></span>directory_entry</h2>
@@ -419,7 +419,7 @@ Array of file entries. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:10 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

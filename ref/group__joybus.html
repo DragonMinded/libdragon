@@ -72,7 +72,10 @@ $(function() {
 <div class="header">
   <div class="summary">
 <a href="#files">Files</a> &#124;
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
+<a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">Joybus Subsystem<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__peripherals.html">Peripherals subsystem</a></div></div></div>
 </div><!--header-->
@@ -86,12 +89,233 @@ Files</h2></td></tr>
 <tr class="memitem:joybus_8c" id="r_joybus_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="joybus_8c.html">joybus.c</a></td></tr>
 <tr class="memdesc:joybus_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus Subsystem. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:joybus__accessory_8c" id="r_joybus__accessory_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="joybus__accessory_8c.html">joybus_accessory.c</a></td></tr>
+<tr class="memdesc:joybus__accessory_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus Accessory utilities. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:joybus__accessory__internal_8h" id="r_joybus__accessory__internal_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="joybus__accessory__internal_8h.html">joybus_accessory_internal.h</a></td></tr>
+<tr class="memdesc:joybus__accessory__internal_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus accessory internal utilities. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:joybus__internal_8h" id="r_joybus__internal_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="joybus__internal_8h.html">joybus_internal.h</a></td></tr>
 <tr class="memdesc:joybus__internal_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus internal API. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:joybus_8h" id="r_joybus_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="joybus_8h.html">joybus.h</a></td></tr>
+<tr class="memdesc:joybus_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus Subsystem. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:joybus__accessory_8h" id="r_joybus__accessory_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="joybus__accessory_8h.html">joybus_accessory.h</a></td></tr>
+<tr class="memdesc:joybus__accessory_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus accessory utilities. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:unionjoybus__transfer__pak__status__t" id="r_unionjoybus__transfer__pak__status__t"><td class="memItemLeft" align="right" valign="top">union &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#unionjoybus__transfer__pak__status__t">joybus_transfer_pak_status_t</a></td></tr>
+<tr class="memdesc:unionjoybus__transfer__pak__status__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus N64 Transfer Pak Status wrapper.  <a href="group__joybus.html#unionjoybus__transfer__pak__status__t">More...</a><br /></td></tr>
+<tr class="separator:unionjoybus__transfer__pak__status__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
+<tr class="memitem:gad75f8f3cfc93f91288956f22a6c45c1d" id="r_gad75f8f3cfc93f91288956f22a6c45c1d"><td class="memItemLeft" align="right" valign="top"><a id="gad75f8f3cfc93f91288956f22a6c45c1d" name="gad75f8f3cfc93f91288956f22a6c45c1d"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_TRANSFER_BANK_SIZE</b>&#160;&#160;&#160;0x4000</td></tr>
+<tr class="memdesc:gad75f8f3cfc93f91288956f22a6c45c1d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of Transfer Pak bank area in bytes. <br /></td></tr>
+<tr class="separator:gad75f8f3cfc93f91288956f22a6c45c1d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gadadb4f54fe884fa9a1ec7316ceba96d5" id="r_gadadb4f54fe884fa9a1ec7316ceba96d5"><td class="memItemLeft" align="right" valign="top"><a id="gadadb4f54fe884fa9a1ec7316ceba96d5" name="gadadb4f54fe884fa9a1ec7316ceba96d5"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_TRANSFER_BANK_MASK</b>&#160;&#160;&#160;0x3FFF</td></tr>
+<tr class="memdesc:gadadb4f54fe884fa9a1ec7316ceba96d5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mask for Transfer Pak bank area address. <br /></td></tr>
+<tr class="separator:gadadb4f54fe884fa9a1ec7316ceba96d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9e1b79695ea3cde099212a15b8553bc1" id="r_ga9e1b79695ea3cde099212a15b8553bc1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga9e1b79695ea3cde099212a15b8553bc1">JOYBUS_PORT_COUNT</a>&#160;&#160;&#160;5</td></tr>
+<tr class="memdesc:ga9e1b79695ea3cde099212a15b8553bc1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Count of Joybus ports.  <br /></td></tr>
+<tr class="separator:ga9e1b79695ea3cde099212a15b8553bc1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab66a8f8b5399fc6a3499fee9bf62c477" id="r_gab66a8f8b5399fc6a3499fee9bf62c477"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab66a8f8b5399fc6a3499fee9bf62c477">joybus_exec_cmd_struct</a>(port,  cmd)</td></tr>
+<tr class="memdesc:gab66a8f8b5399fc6a3499fee9bf62c477"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute a Joybus command struct synchronously.  <br /></td></tr>
+<tr class="separator:gab66a8f8b5399fc6a3499fee9bf62c477"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr class="memitem:gad91e902f4c8cb12fb4f5aa288d423b44" id="r_gad91e902f4c8cb12fb4f5aa288d423b44"><td class="memItemLeft" align="right" valign="top">typedef uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gad91e902f4c8cb12fb4f5aa288d423b44">joybus_identifier_t</a></td></tr>
+<tr class="memdesc:gad91e902f4c8cb12fb4f5aa288d423b44"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joypad Identifier type.  <br /></td></tr>
+<tr class="separator:gad91e902f4c8cb12fb4f5aa288d423b44"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaaf2e487c05f4f27e3b36af3c54ff66c1" id="r_gaaf2e487c05f4f27e3b36af3c54ff66c1"><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a>) (uint64_t *out_dwords, void *ctx)</td></tr>
+<tr class="memdesc:gaaf2e487c05f4f27e3b36af3c54ff66c1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Callback function signature for <a class="el" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1" title="Execute an asynchronous joybus message.">joybus_exec_async</a>.  <br /></td></tr>
+<tr class="separator:gaaf2e487c05f4f27e3b36af3c54ff66c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
+Enumerations</h2></td></tr>
+<tr class="memitem:ga4aa970f937fe45430c4490663a67910e" id="r_ga4aa970f937fe45430c4490663a67910e"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga4aa970f937fe45430c4490663a67910e">joybus_accessory_io_status_t</a> { <a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea9ce54cfcb94ead9daf96c43c39bada0b">JOYBUS_ACCESSORY_IO_STATUS_OK</a> = 0
+, <a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ead7328eab584fbe96bc2850fabe4f4d5f">JOYBUS_ACCESSORY_IO_STATUS_NO_DEVICE</a> = -1
+, <a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea69bd7db4470c1206bd098fec411baea4">JOYBUS_ACCESSORY_IO_STATUS_NO_PAK</a> = -2
+, <a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910eab7ae0bc8cab32f0a3a550daa69f62a9f">JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC</a> = -3
+ }</td></tr>
+<tr class="memdesc:ga4aa970f937fe45430c4490663a67910e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus accessory read/write status values.  <a href="group__joybus.html#ga4aa970f937fe45430c4490663a67910e">More...</a><br /></td></tr>
+<tr class="separator:ga4aa970f937fe45430c4490663a67910e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
+Functions</h2></td></tr>
+<tr class="memitem:ga0352d91d1b4a117c53415111cf97ee8d" id="r_ga0352d91d1b4a117c53415111cf97ee8d"><td class="memItemLeft" align="right" valign="top">uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga0352d91d1b4a117c53415111cf97ee8d">joybus_accessory_calculate_addr_checksum</a> (uint16_t addr)</td></tr>
+<tr class="memdesc:ga0352d91d1b4a117c53415111cf97ee8d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Applies the checksum to a Joybus N64 accessory read/write address.  <br /></td></tr>
+<tr class="separator:ga0352d91d1b4a117c53415111cf97ee8d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0c846543c844cf52c73ab199140eb961" id="r_ga0c846543c844cf52c73ab199140eb961"><td class="memItemLeft" align="right" valign="top">uint8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga0c846543c844cf52c73ab199140eb961">joybus_accessory_calculate_data_crc</a> (const uint8_t *data)</td></tr>
+<tr class="memdesc:ga0c846543c844cf52c73ab199140eb961"><td class="mdescLeft">&#160;</td><td class="mdescRight">Calculates the CRC8 checksum for a Joybus N64 accessory read/write data block.  <br /></td></tr>
+<tr class="separator:ga0c846543c844cf52c73ab199140eb961"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga60afe3b8424e017a279435fc2fdf702f" id="r_ga60afe3b8424e017a279435fc2fdf702f"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__joybus.html#ga4aa970f937fe45430c4490663a67910e">joybus_accessory_io_status_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga60afe3b8424e017a279435fc2fdf702f">joybus_accessory_compare_data_crc</a> (const uint8_t *data, uint8_t data_crc)</td></tr>
+<tr class="memdesc:ga60afe3b8424e017a279435fc2fdf702f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Calculates the CRC8 checksum for an accessory read/write data block and compares it against the provided checksum.  <br /></td></tr>
+<tr class="separator:ga60afe3b8424e017a279435fc2fdf702f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gabafa5b0984682ca50f494608976fa0f6" id="r_gabafa5b0984682ca50f494608976fa0f6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gabafa5b0984682ca50f494608976fa0f6">joybus_accessory_read_async</a> (int port, uint16_t addr, <a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a> callback, void *ctx)</td></tr>
+<tr class="memdesc:gabafa5b0984682ca50f494608976fa0f6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Asynchronously perform a Joybus N64 accessory read command.  <br /></td></tr>
+<tr class="separator:gabafa5b0984682ca50f494608976fa0f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2a0672a10589ba626e078d7313b62326" id="r_ga2a0672a10589ba626e078d7313b62326"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga2a0672a10589ba626e078d7313b62326">joybus_accessory_write_async</a> (int port, uint16_t addr, const uint8_t *data, <a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a> callback, void *ctx)</td></tr>
+<tr class="memdesc:ga2a0672a10589ba626e078d7313b62326"><td class="mdescLeft">&#160;</td><td class="mdescRight">Asynchronously perform a Joybus N64 accessory write command.  <br /></td></tr>
+<tr class="separator:ga2a0672a10589ba626e078d7313b62326"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4ebee442e458278436daa756d21c2f08" id="r_ga4ebee442e458278436daa756d21c2f08"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga4ebee442e458278436daa756d21c2f08">joybus_accessory_read</a> (int port, uint16_t addr, uint8_t *data)</td></tr>
+<tr class="memdesc:ga4ebee442e458278436daa756d21c2f08"><td class="mdescLeft">&#160;</td><td class="mdescRight">Synchronously perform a Joybus N64 accessory read command.  <br /></td></tr>
+<tr class="separator:ga4ebee442e458278436daa756d21c2f08"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gabfdc256e8162679fb5b7adc1e24a7827" id="r_gabfdc256e8162679fb5b7adc1e24a7827"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gabfdc256e8162679fb5b7adc1e24a7827">joybus_accessory_write</a> (int port, uint16_t addr, const uint8_t *data)</td></tr>
+<tr class="memdesc:gabfdc256e8162679fb5b7adc1e24a7827"><td class="mdescLeft">&#160;</td><td class="mdescRight">Synchronously perform a Joybus N64 accessory write command.  <br /></td></tr>
+<tr class="separator:gabfdc256e8162679fb5b7adc1e24a7827"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga244b4723690e3c15da23bdbfda2cb7d1" id="r_ga244b4723690e3c15da23bdbfda2cb7d1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1">joybus_exec_async</a> (const void *input, <a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a> callback, void *ctx)</td></tr>
+<tr class="memdesc:ga244b4723690e3c15da23bdbfda2cb7d1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute an asynchronous joybus message.  <br /></td></tr>
+<tr class="separator:ga244b4723690e3c15da23bdbfda2cb7d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6d62432ce8ecd83cd1588716fd28fdb7" id="r_ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a> (const void *input, void *output)</td></tr>
+<tr class="memdesc:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a 64-byte block of data to the PIF and read the 64-byte result.  <br /></td></tr>
+<tr class="separator:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab9ed6f44c13006456f30709a48e122d0" id="r_gab9ed6f44c13006456f30709a48e122d0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0">joybus_exec_cmd</a> (int port, size_t send_len, size_t recv_len, const void *send_data, void *recv_data)</td></tr>
+<tr class="memdesc:gab9ed6f44c13006456f30709a48e122d0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute a Joybus command synchronously on the given port.  <br /></td></tr>
+<tr class="separator:gab9ed6f44c13006456f30709a48e122d0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus N64 accessory address masks</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_ACCESSORY_ADDR_MASK"></a></p>
+</td></tr>
+<tr class="memitem:ga5016f5a7ad732de37618fc4cbea9b0bc" id="r_ga5016f5a7ad732de37618fc4cbea9b0bc"><td class="memItemLeft" align="right" valign="top"><a id="ga5016f5a7ad732de37618fc4cbea9b0bc" name="ga5016f5a7ad732de37618fc4cbea9b0bc"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_MASK_OFFSET</b>&#160;&#160;&#160;0xFFE0</td></tr>
+<tr class="memdesc:ga5016f5a7ad732de37618fc4cbea9b0bc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mask for Joybus N64 accessory read/write address offset. <br /></td></tr>
+<tr class="separator:ga5016f5a7ad732de37618fc4cbea9b0bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad3c399c65c02d11a02f406d5f38425af" id="r_gad3c399c65c02d11a02f406d5f38425af"><td class="memItemLeft" align="right" valign="top"><a id="gad3c399c65c02d11a02f406d5f38425af" name="gad3c399c65c02d11a02f406d5f38425af"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_MASK_CHECKSUM</b>&#160;&#160;&#160;0x001F</td></tr>
+<tr class="memdesc:gad3c399c65c02d11a02f406d5f38425af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mask for Joybus N64 accessory read/write address checksum. <br /></td></tr>
+<tr class="separator:gad3c399c65c02d11a02f406d5f38425af"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus N64 accessory known address values</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_ACCESSORY_ADDR"></a></p>
+</td></tr>
+<tr class="memitem:ga46b6cc858e92a25003e59b12ddc3f741" id="r_ga46b6cc858e92a25003e59b12ddc3f741"><td class="memItemLeft" align="right" valign="top"><a id="ga46b6cc858e92a25003e59b12ddc3f741" name="ga46b6cc858e92a25003e59b12ddc3f741"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_LABEL</b>&#160;&#160;&#160;0x0000</td></tr>
+<tr class="memdesc:ga46b6cc858e92a25003e59b12ddc3f741"><td class="mdescLeft">&#160;</td><td class="mdescRight">Controller Pak label address. <br /></td></tr>
+<tr class="separator:ga46b6cc858e92a25003e59b12ddc3f741"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga58ca8f25bca861fd5fb3bb3ff7576900" id="r_ga58ca8f25bca861fd5fb3bb3ff7576900"><td class="memItemLeft" align="right" valign="top"><a id="ga58ca8f25bca861fd5fb3bb3ff7576900" name="ga58ca8f25bca861fd5fb3bb3ff7576900"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_PROBE</b>&#160;&#160;&#160;0x8000</td></tr>
+<tr class="memdesc:ga58ca8f25bca861fd5fb3bb3ff7576900"><td class="mdescLeft">&#160;</td><td class="mdescRight">Accessory probe address. <br /></td></tr>
+<tr class="separator:ga58ca8f25bca861fd5fb3bb3ff7576900"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga1f05af611eb513054d80d784892ffe28" id="r_ga1f05af611eb513054d80d784892ffe28"><td class="memItemLeft" align="right" valign="top"><a id="ga1f05af611eb513054d80d784892ffe28" name="ga1f05af611eb513054d80d784892ffe28"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_RUMBLE_MOTOR</b>&#160;&#160;&#160;0xC000</td></tr>
+<tr class="memdesc:ga1f05af611eb513054d80d784892ffe28"><td class="mdescLeft">&#160;</td><td class="mdescRight">Rumble Pak motor control address. <br /></td></tr>
+<tr class="separator:ga1f05af611eb513054d80d784892ffe28"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga26fda6f103b65fd0a7d2a87c62a9bc89" id="r_ga26fda6f103b65fd0a7d2a87c62a9bc89"><td class="memItemLeft" align="right" valign="top"><a id="ga26fda6f103b65fd0a7d2a87c62a9bc89" name="ga26fda6f103b65fd0a7d2a87c62a9bc89"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_BIO_PULSE</b>&#160;&#160;&#160;0xC000</td></tr>
+<tr class="memdesc:ga26fda6f103b65fd0a7d2a87c62a9bc89"><td class="mdescLeft">&#160;</td><td class="mdescRight">Bio Sensor pulse read address. <br /></td></tr>
+<tr class="separator:ga26fda6f103b65fd0a7d2a87c62a9bc89"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3f604717419aa98ac4b0f140e68822a6" id="r_ga3f604717419aa98ac4b0f140e68822a6"><td class="memItemLeft" align="right" valign="top"><a id="ga3f604717419aa98ac4b0f140e68822a6" name="ga3f604717419aa98ac4b0f140e68822a6"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_SNAP_STATE</b>&#160;&#160;&#160;0xC000</td></tr>
+<tr class="memdesc:ga3f604717419aa98ac4b0f140e68822a6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pokemon Snap Station state address. <br /></td></tr>
+<tr class="separator:ga3f604717419aa98ac4b0f140e68822a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab4d34a7f79494b33ad9e74627b165d88" id="r_gab4d34a7f79494b33ad9e74627b165d88"><td class="memItemLeft" align="right" valign="top"><a id="gab4d34a7f79494b33ad9e74627b165d88" name="gab4d34a7f79494b33ad9e74627b165d88"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_TRANSFER_BANK</b>&#160;&#160;&#160;0xA000</td></tr>
+<tr class="memdesc:gab4d34a7f79494b33ad9e74627b165d88"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak bank selection address. <br /></td></tr>
+<tr class="separator:gab4d34a7f79494b33ad9e74627b165d88"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga28036ef7f9765535ef8737a2248284a8" id="r_ga28036ef7f9765535ef8737a2248284a8"><td class="memItemLeft" align="right" valign="top"><a id="ga28036ef7f9765535ef8737a2248284a8" name="ga28036ef7f9765535ef8737a2248284a8"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_TRANSFER_STATUS</b>&#160;&#160;&#160;0xB000</td></tr>
+<tr class="memdesc:ga28036ef7f9765535ef8737a2248284a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak status registers address. <br /></td></tr>
+<tr class="separator:ga28036ef7f9765535ef8737a2248284a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga73b3208aede5cea125c71ff7e583a1ed" id="r_ga73b3208aede5cea125c71ff7e583a1ed"><td class="memItemLeft" align="right" valign="top"><a id="ga73b3208aede5cea125c71ff7e583a1ed" name="ga73b3208aede5cea125c71ff7e583a1ed"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_ADDR_TRANSFER_CART</b>&#160;&#160;&#160;0xC000</td></tr>
+<tr class="memdesc:ga73b3208aede5cea125c71ff7e583a1ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak GB cartridge read/write address. <br /></td></tr>
+<tr class="separator:ga73b3208aede5cea125c71ff7e583a1ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus N64 accessory probe values</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_ACCESSORY_PROBE"></a></p>
+</td></tr>
+<tr class="memitem:ga34b0fb5333a587576a9444758c003547" id="r_ga34b0fb5333a587576a9444758c003547"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga34b0fb5333a587576a9444758c003547">JOYBUS_ACCESSORY_PROBE_ABSENT</a>&#160;&#160;&#160;0x00</td></tr>
+<tr class="memdesc:ga34b0fb5333a587576a9444758c003547"><td class="mdescLeft">&#160;</td><td class="mdescRight">Absent accessory identifier value.  <br /></td></tr>
+<tr class="separator:ga34b0fb5333a587576a9444758c003547"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga7482911c3d37e2a9937b981daab35cc1" id="r_ga7482911c3d37e2a9937b981daab35cc1"><td class="memItemLeft" align="right" valign="top"><a id="ga7482911c3d37e2a9937b981daab35cc1" name="ga7482911c3d37e2a9937b981daab35cc1"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_PROBE_RUMBLE_PAK</b>&#160;&#160;&#160;0x80</td></tr>
+<tr class="memdesc:ga7482911c3d37e2a9937b981daab35cc1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Rumble Pak identifier value. <br /></td></tr>
+<tr class="separator:ga7482911c3d37e2a9937b981daab35cc1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga31b63f0dfa4c91c7cc976f34772e73ed" id="r_ga31b63f0dfa4c91c7cc976f34772e73ed"><td class="memItemLeft" align="right" valign="top"><a id="ga31b63f0dfa4c91c7cc976f34772e73ed" name="ga31b63f0dfa4c91c7cc976f34772e73ed"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_PROBE_BIO_SENSOR</b>&#160;&#160;&#160;0x81</td></tr>
+<tr class="memdesc:ga31b63f0dfa4c91c7cc976f34772e73ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Bio Sensor identifier value. <br /></td></tr>
+<tr class="separator:ga31b63f0dfa4c91c7cc976f34772e73ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac0bc43868b013b9b582b0c398a86d4f1" id="r_gac0bc43868b013b9b582b0c398a86d4f1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gac0bc43868b013b9b582b0c398a86d4f1">JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_ON</a>&#160;&#160;&#160;0x84</td></tr>
+<tr class="memdesc:gac0bc43868b013b9b582b0c398a86d4f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak power-on identifier value.  <br /></td></tr>
+<tr class="separator:gac0bc43868b013b9b582b0c398a86d4f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gace157ed8b31b6f881a44f912d13aa4da" id="r_gace157ed8b31b6f881a44f912d13aa4da"><td class="memItemLeft" align="right" valign="top"><a id="gace157ed8b31b6f881a44f912d13aa4da" name="gace157ed8b31b6f881a44f912d13aa4da"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_PROBE_SNAP_STATION</b>&#160;&#160;&#160;0x85</td></tr>
+<tr class="memdesc:gace157ed8b31b6f881a44f912d13aa4da"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pokemon Snap Station identifier value. <br /></td></tr>
+<tr class="separator:gace157ed8b31b6f881a44f912d13aa4da"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4c88a2f7d7c289d09d4be923f5593ec3" id="r_ga4c88a2f7d7c289d09d4be923f5593ec3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga4c88a2f7d7c289d09d4be923f5593ec3">JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_OFF</a>&#160;&#160;&#160;0xFE</td></tr>
+<tr class="memdesc:ga4c88a2f7d7c289d09d4be923f5593ec3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak power-off identifier value.  <br /></td></tr>
+<tr class="separator:ga4c88a2f7d7c289d09d4be923f5593ec3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus N64 Snap Station state values</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_SNAP_STATION_STATE"></a></p>
+</td></tr>
+<tr class="memitem:gacaa8e1bf57a710aff57adcedf5e24c54" id="r_gacaa8e1bf57a710aff57adcedf5e24c54"><td class="memItemLeft" align="right" valign="top"><a id="gacaa8e1bf57a710aff57adcedf5e24c54" name="gacaa8e1bf57a710aff57adcedf5e24c54"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_IDLE</b>&#160;&#160;&#160;0x00</td></tr>
+<tr class="memdesc:gacaa8e1bf57a710aff57adcedf5e24c54"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Idle" state. <br /></td></tr>
+<tr class="separator:gacaa8e1bf57a710aff57adcedf5e24c54"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gada123ef8c5b7722423b8abe494d114bd" id="r_gada123ef8c5b7722423b8abe494d114bd"><td class="memItemLeft" align="right" valign="top"><a id="gada123ef8c5b7722423b8abe494d114bd" name="gada123ef8c5b7722423b8abe494d114bd"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_PRE_SAVE</b>&#160;&#160;&#160;0xCC</td></tr>
+<tr class="memdesc:gada123ef8c5b7722423b8abe494d114bd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Pre-Save" state. <br /></td></tr>
+<tr class="separator:gada123ef8c5b7722423b8abe494d114bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad45ae0c983fd768c6082787bb8fc9318" id="r_gad45ae0c983fd768c6082787bb8fc9318"><td class="memItemLeft" align="right" valign="top"><a id="gad45ae0c983fd768c6082787bb8fc9318" name="gad45ae0c983fd768c6082787bb8fc9318"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_POST_SAVE</b>&#160;&#160;&#160;0x33</td></tr>
+<tr class="memdesc:gad45ae0c983fd768c6082787bb8fc9318"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Post-Save" state. <br /></td></tr>
+<tr class="separator:gad45ae0c983fd768c6082787bb8fc9318"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga89629f6c0798c01b6b7604951eec3c6f" id="r_ga89629f6c0798c01b6b7604951eec3c6f"><td class="memItemLeft" align="right" valign="top"><a id="ga89629f6c0798c01b6b7604951eec3c6f" name="ga89629f6c0798c01b6b7604951eec3c6f"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_RESET_CONSOLE</b>&#160;&#160;&#160;0x5A</td></tr>
+<tr class="memdesc:ga89629f6c0798c01b6b7604951eec3c6f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Reset Console" state. <br /></td></tr>
+<tr class="separator:ga89629f6c0798c01b6b7604951eec3c6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga8ab5f6db1a5b1415618c325bc859d22f" id="r_ga8ab5f6db1a5b1415618c325bc859d22f"><td class="memItemLeft" align="right" valign="top"><a id="ga8ab5f6db1a5b1415618c325bc859d22f" name="ga8ab5f6db1a5b1415618c325bc859d22f"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_PRE_ROLL</b>&#160;&#160;&#160;0x01</td></tr>
+<tr class="memdesc:ga8ab5f6db1a5b1415618c325bc859d22f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Pre-Roll" state. <br /></td></tr>
+<tr class="separator:ga8ab5f6db1a5b1415618c325bc859d22f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4d41e6f44ffd145047efd855fd6d58cd" id="r_ga4d41e6f44ffd145047efd855fd6d58cd"><td class="memItemLeft" align="right" valign="top"><a id="ga4d41e6f44ffd145047efd855fd6d58cd" name="ga4d41e6f44ffd145047efd855fd6d58cd"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_CAPTURE_PHOTO</b>&#160;&#160;&#160;0x02</td></tr>
+<tr class="memdesc:ga4d41e6f44ffd145047efd855fd6d58cd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Capture Photo" state. <br /></td></tr>
+<tr class="separator:ga4d41e6f44ffd145047efd855fd6d58cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga8ecd1b8816a9f3df3d13ba351e3ea5ad" id="r_ga8ecd1b8816a9f3df3d13ba351e3ea5ad"><td class="memItemLeft" align="right" valign="top"><a id="ga8ecd1b8816a9f3df3d13ba351e3ea5ad" name="ga8ecd1b8816a9f3df3d13ba351e3ea5ad"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_POST_ROLL</b>&#160;&#160;&#160;0x04</td></tr>
+<tr class="memdesc:ga8ecd1b8816a9f3df3d13ba351e3ea5ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Post-Roll" state. <br /></td></tr>
+<tr class="separator:ga8ecd1b8816a9f3df3d13ba351e3ea5ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0c2b8dec41dc84b6e00bbd727d39ac61" id="r_ga0c2b8dec41dc84b6e00bbd727d39ac61"><td class="memItemLeft" align="right" valign="top"><a id="ga0c2b8dec41dc84b6e00bbd727d39ac61" name="ga0c2b8dec41dc84b6e00bbd727d39ac61"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_SNAP_STATION_STATE_BUSY</b>&#160;&#160;&#160;0x08</td></tr>
+<tr class="memdesc:ga0c2b8dec41dc84b6e00bbd727d39ac61"><td class="mdescLeft">&#160;</td><td class="mdescRight">Snap Station "Busy" state. <br /></td></tr>
+<tr class="separator:ga0c2b8dec41dc84b6e00bbd727d39ac61"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus N64 Transfer Pak status flags</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_TRANSFER_PAK_STATUS"></a></p>
+</td></tr>
+<tr class="memitem:ga5e15fc5ef3ca875a7b3f45f69182f3ec" id="r_ga5e15fc5ef3ca875a7b3f45f69182f3ec"><td class="memItemLeft" align="right" valign="top"><a id="ga5e15fc5ef3ca875a7b3f45f69182f3ec" name="ga5e15fc5ef3ca875a7b3f45f69182f3ec"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_TRANSFER_PAK_STATUS_ACCESS</b>&#160;&#160;&#160;(1&lt;&lt;0)</td></tr>
+<tr class="memdesc:ga5e15fc5ef3ca875a7b3f45f69182f3ec"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak "Access" status bit. <br /></td></tr>
+<tr class="separator:ga5e15fc5ef3ca875a7b3f45f69182f3ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga119b4860881860548d02bc22a1b9d297" id="r_ga119b4860881860548d02bc22a1b9d297"><td class="memItemLeft" align="right" valign="top"><a id="ga119b4860881860548d02bc22a1b9d297" name="ga119b4860881860548d02bc22a1b9d297"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_TRANSFER_PAK_STATUS_BOOTING</b>&#160;&#160;&#160;(1&lt;&lt;2)</td></tr>
+<tr class="memdesc:ga119b4860881860548d02bc22a1b9d297"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak "Booting" status bit. <br /></td></tr>
+<tr class="separator:ga119b4860881860548d02bc22a1b9d297"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga52fc05b2bc770735f07efea1680fc152" id="r_ga52fc05b2bc770735f07efea1680fc152"><td class="memItemLeft" align="right" valign="top"><a id="ga52fc05b2bc770735f07efea1680fc152" name="ga52fc05b2bc770735f07efea1680fc152"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_TRANSFER_PAK_STATUS_RESET</b>&#160;&#160;&#160;(1&lt;&lt;3)</td></tr>
+<tr class="memdesc:ga52fc05b2bc770735f07efea1680fc152"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak "Reset" status bit. <br /></td></tr>
+<tr class="separator:ga52fc05b2bc770735f07efea1680fc152"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaed8274ac3a93f9c3987fef52cf511529" id="r_gaed8274ac3a93f9c3987fef52cf511529"><td class="memItemLeft" align="right" valign="top"><a id="gaed8274ac3a93f9c3987fef52cf511529" name="gaed8274ac3a93f9c3987fef52cf511529"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_TRANSFER_PAK_STATUS_CART_PULLED</b>&#160;&#160;&#160;(1&lt;&lt;6)</td></tr>
+<tr class="memdesc:gaed8274ac3a93f9c3987fef52cf511529"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak "Cart Pulled" status bit. <br /></td></tr>
+<tr class="separator:gaed8274ac3a93f9c3987fef52cf511529"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga47a89e28eb0d1ac79c4509a0c21dee88" id="r_ga47a89e28eb0d1ac79c4509a0c21dee88"><td class="memItemLeft" align="right" valign="top"><a id="ga47a89e28eb0d1ac79c4509a0c21dee88" name="ga47a89e28eb0d1ac79c4509a0c21dee88"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_TRANSFER_PAK_STATUS_POWER</b>&#160;&#160;&#160;(1&lt;&lt;7)</td></tr>
+<tr class="memdesc:ga47a89e28eb0d1ac79c4509a0c21dee88"><td class="mdescLeft">&#160;</td><td class="mdescRight">Transfer Pak "Powered-On" status bit. <br /></td></tr>
+<tr class="separator:ga47a89e28eb0d1ac79c4509a0c21dee88"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus payload sizes</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_PAYLOAD_SIZES"></a></p>
+</td></tr>
 <tr class="memitem:ga96357e747d908aa6c354b507d9b0fdc4" id="r_ga96357e747d908aa6c354b507d9b0fdc4"><td class="memItemLeft" align="right" valign="top"><a id="ga96357e747d908aa6c354b507d9b0fdc4" name="ga96357e747d908aa6c354b507d9b0fdc4"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_SIZE</b>&#160;&#160;&#160;64</td></tr>
 <tr class="memdesc:ga96357e747d908aa6c354b507d9b0fdc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in bytes. <br /></td></tr>
@@ -100,12 +324,118 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_BLOCK_DWORDS</b>&#160;&#160;&#160;( <a class="el" href="group__joybus.html#ga96357e747d908aa6c354b507d9b0fdc4">JOYBUS_BLOCK_SIZE</a> / sizeof(uint64_t) )</td></tr>
 <tr class="memdesc:gabd5f84cf2323e720ab0b79fff05e8383"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus input/output block in double-words. <br /></td></tr>
 <tr class="separator:gabd5f84cf2323e720ab0b79fff05e8383"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga8c0ca9fee7249e4d6e08d5bf4196ff24" id="r_ga8c0ca9fee7249e4d6e08d5bf4196ff24"><td class="memItemLeft" align="right" valign="top"><a id="ga8c0ca9fee7249e4d6e08d5bf4196ff24" name="ga8c0ca9fee7249e4d6e08d5bf4196ff24"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_ACCESSORY_DATA_SIZE</b>&#160;&#160;&#160;32</td></tr>
+<tr class="memdesc:ga8c0ca9fee7249e4d6e08d5bf4196ff24"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of a Joybus N64 accessory read/write payload in bytes. <br /></td></tr>
+<tr class="separator:ga8c0ca9fee7249e4d6e08d5bf4196ff24"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
-Functions</h2></td></tr>
-<tr class="memitem:ga6d62432ce8ecd83cd1588716fd28fdb7" id="r_ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a> (const void *input, void *output)</td></tr>
-<tr class="memdesc:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a 64-byte block of data to the PIF and read the 64-byte result.  <br /></td></tr>
-<tr class="separator:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus identifier values</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_IDENTIFIER"></a></p>
+</td></tr>
+<tr class="memitem:ga2b7e5db8ee4ab401afa2b16eda7f77ae" id="r_ga2b7e5db8ee4ab401afa2b16eda7f77ae"><td class="memItemLeft" align="right" valign="top"><a id="ga2b7e5db8ee4ab401afa2b16eda7f77ae" name="ga2b7e5db8ee4ab401afa2b16eda7f77ae"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_UNKNOWN</b>&#160;&#160;&#160;0x0000</td></tr>
+<tr class="memdesc:ga2b7e5db8ee4ab401afa2b16eda7f77ae"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for an unknown or malfunctioning device. <br /></td></tr>
+<tr class="separator:ga2b7e5db8ee4ab401afa2b16eda7f77ae"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae4add21eabfd4f9ef2c948735fe3d888" id="r_gae4add21eabfd4f9ef2c948735fe3d888"><td class="memItemLeft" align="right" valign="top"><a id="gae4add21eabfd4f9ef2c948735fe3d888" name="gae4add21eabfd4f9ef2c948735fe3d888"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_NONE</b>&#160;&#160;&#160;0xFFFF</td></tr>
+<tr class="memdesc:gae4add21eabfd4f9ef2c948735fe3d888"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for a port with no device connected. <br /></td></tr>
+<tr class="separator:gae4add21eabfd4f9ef2c948735fe3d888"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab66d0a557e5436063c475fb17dbea216" id="r_gab66d0a557e5436063c475fb17dbea216"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab66d0a557e5436063c475fb17dbea216">JOYBUS_IDENTIFIER_N64_VOICE_RECOGNITION</a>&#160;&#160;&#160;0x0001</td></tr>
+<tr class="memdesc:gab66d0a557e5436063c475fb17dbea216"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the Nintendo 64 voice recognition peripheral (NUS-020).  <br /></td></tr>
+<tr class="separator:gab66d0a557e5436063c475fb17dbea216"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad3d7eefcc7efb6dc727a354ff4c2f6be" id="r_gad3d7eefcc7efb6dc727a354ff4c2f6be"><td class="memItemLeft" align="right" valign="top"><a id="gad3d7eefcc7efb6dc727a354ff4c2f6be" name="gad3d7eefcc7efb6dc727a354ff4c2f6be"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_N64_RANDNET_KEYBOARD</b>&#160;&#160;&#160;0x0002</td></tr>
+<tr class="memdesc:gad3d7eefcc7efb6dc727a354ff4c2f6be"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the Nintendo 64 Randnet keyboard peripheral (RND-001). <br /></td></tr>
+<tr class="separator:gad3d7eefcc7efb6dc727a354ff4c2f6be"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga662f92afa4a66274f9a23e413fab28a0" id="r_ga662f92afa4a66274f9a23e413fab28a0"><td class="memItemLeft" align="right" valign="top"><a id="ga662f92afa4a66274f9a23e413fab28a0" name="ga662f92afa4a66274f9a23e413fab28a0"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_64GB_LINK_CABLE</b>&#160;&#160;&#160;0x0003</td></tr>
+<tr class="memdesc:ga662f92afa4a66274f9a23e413fab28a0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the unreleased 64GB Link Cable. <br /></td></tr>
+<tr class="separator:ga662f92afa4a66274f9a23e413fab28a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga7bbea460bd4c67c6e3a1f4d92afc37fc" id="r_ga7bbea460bd4c67c6e3a1f4d92afc37fc"><td class="memItemLeft" align="right" valign="top"><a id="ga7bbea460bd4c67c6e3a1f4d92afc37fc" name="ga7bbea460bd4c67c6e3a1f4d92afc37fc"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_GBA_LINK_CABLE</b>&#160;&#160;&#160;0x0004</td></tr>
+<tr class="memdesc:ga7bbea460bd4c67c6e3a1f4d92afc37fc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for a Game Boy Advance Link Cable (DOL-011). <br /></td></tr>
+<tr class="separator:ga7bbea460bd4c67c6e3a1f4d92afc37fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad7a9db4234943f7f184e99c63080c85b" id="r_gad7a9db4234943f7f184e99c63080c85b"><td class="memItemLeft" align="right" valign="top"><a id="gad7a9db4234943f7f184e99c63080c85b" name="gad7a9db4234943f7f184e99c63080c85b"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_CART_RTC</b>&#160;&#160;&#160;0x0010</td></tr>
+<tr class="memdesc:gad7a9db4234943f7f184e99c63080c85b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for cartridge-based real-time clock. <br /></td></tr>
+<tr class="separator:gad7a9db4234943f7f184e99c63080c85b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga048806afe0f25cc3c66bebaae163715a" id="r_ga048806afe0f25cc3c66bebaae163715a"><td class="memItemLeft" align="right" valign="top"><a id="ga048806afe0f25cc3c66bebaae163715a" name="ga048806afe0f25cc3c66bebaae163715a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_CART_EEPROM_4KBIT</b>&#160;&#160;&#160;0x0080</td></tr>
+<tr class="memdesc:ga048806afe0f25cc3c66bebaae163715a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for cartridge-based 4Kbit EEPROM save type. <br /></td></tr>
+<tr class="separator:ga048806afe0f25cc3c66bebaae163715a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafc31d9207fd140d10b9c13f286275710" id="r_gafc31d9207fd140d10b9c13f286275710"><td class="memItemLeft" align="right" valign="top"><a id="gafc31d9207fd140d10b9c13f286275710" name="gafc31d9207fd140d10b9c13f286275710"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_CART_EEPROM_16KBIT</b>&#160;&#160;&#160;0x00C0</td></tr>
+<tr class="memdesc:gafc31d9207fd140d10b9c13f286275710"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for cartridge-based 16Kbit EEPROM save type. <br /></td></tr>
+<tr class="separator:gafc31d9207fd140d10b9c13f286275710"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae39cb1248f7f9023f8cf5511a786642e" id="r_gae39cb1248f7f9023f8cf5511a786642e"><td class="memItemLeft" align="right" valign="top"><a id="gae39cb1248f7f9023f8cf5511a786642e" name="gae39cb1248f7f9023f8cf5511a786642e"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_N64_CONTROLLER</b>&#160;&#160;&#160;0x0500</td></tr>
+<tr class="memdesc:gae39cb1248f7f9023f8cf5511a786642e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for a standard Nintendo 64 controller (NUS-005). <br /></td></tr>
+<tr class="separator:gae39cb1248f7f9023f8cf5511a786642e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga762f7d451e4dd65a6962a0beb2a85849" id="r_ga762f7d451e4dd65a6962a0beb2a85849"><td class="memItemLeft" align="right" valign="top"><a id="ga762f7d451e4dd65a6962a0beb2a85849" name="ga762f7d451e4dd65a6962a0beb2a85849"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFIER_N64_MOUSE</b>&#160;&#160;&#160;0x0200</td></tr>
+<tr class="memdesc:ga762f7d451e4dd65a6962a0beb2a85849"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier for the Nintendo 64 mouse peripheral (NUS-017). <br /></td></tr>
+<tr class="separator:ga762f7d451e4dd65a6962a0beb2a85849"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus identifier bitfield for GameCube peripherals</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_IDENTIFIER_GCN_BITFIELD"></a></p>
+<p>Note that for GameCube peripherals, the Joybus identifier is interpreted as a bitfield rather than a single value.</p>
+<p>In particular, Wavebird controllers will return a different identifiers depending on wireless state.</p>
+<p>To identify a device that acts like a standard GameCube controller, check the <a class="el" href="group__joybus.html#ga6ada8ee8d924ff05a2a2ed7e98c02ae3" title="Joybus identifier platform bitfield mask.">JOYBUS_IDENTIFIER_MASK_PLATFORM</a> and the <a class="el" href="group__joybus.html#ga70c0c5ba555606cd69c15937fbe06b9d" title="Joybus identifier GameCube standard controller flag.">JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER</a> values. </p>
+</td></tr>
+<tr class="memitem:ga6ada8ee8d924ff05a2a2ed7e98c02ae3" id="r_ga6ada8ee8d924ff05a2a2ed7e98c02ae3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga6ada8ee8d924ff05a2a2ed7e98c02ae3">JOYBUS_IDENTIFIER_MASK_PLATFORM</a>&#160;&#160;&#160;0x1800</td></tr>
+<tr class="memdesc:ga6ada8ee8d924ff05a2a2ed7e98c02ae3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier platform bitfield mask.  <br /></td></tr>
+<tr class="separator:ga6ada8ee8d924ff05a2a2ed7e98c02ae3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga01d8a332fb379a3540be01dd5a13401d" id="r_ga01d8a332fb379a3540be01dd5a13401d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga01d8a332fb379a3540be01dd5a13401d">JOYBUS_IDENTIFIER_PLATFORM_GCN</a>&#160;&#160;&#160;0x0800</td></tr>
+<tr class="memdesc:ga01d8a332fb379a3540be01dd5a13401d"><td class="mdescLeft">&#160;</td><td class="mdescRight">GameCube Joybus identifier platform value.  <br /></td></tr>
+<tr class="separator:ga01d8a332fb379a3540be01dd5a13401d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga70c0c5ba555606cd69c15937fbe06b9d" id="r_ga70c0c5ba555606cd69c15937fbe06b9d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga70c0c5ba555606cd69c15937fbe06b9d">JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER</a>&#160;&#160;&#160;0x0100</td></tr>
+<tr class="memdesc:ga70c0c5ba555606cd69c15937fbe06b9d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier GameCube standard controller flag.  <br /></td></tr>
+<tr class="separator:ga70c0c5ba555606cd69c15937fbe06b9d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab6d477cfb1f6e2a51f163575dd6f54ee" id="r_gab6d477cfb1f6e2a51f163575dd6f54ee"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gab6d477cfb1f6e2a51f163575dd6f54ee">JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE</a>&#160;&#160;&#160;0x2000</td></tr>
+<tr class="memdesc:gab6d477cfb1f6e2a51f163575dd6f54ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier GameCube rumble support flag.  <br /></td></tr>
+<tr class="separator:gab6d477cfb1f6e2a51f163575dd6f54ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9f02e446b4cc6eadfb13a8bb216fc8b8" id="r_ga9f02e446b4cc6eadfb13a8bb216fc8b8"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga9f02e446b4cc6eadfb13a8bb216fc8b8">JOYBUS_IDENTIFIER_MASK_GCN_WIRELESS</a>&#160;&#160;&#160;0x8000</td></tr>
+<tr class="memdesc:ga9f02e446b4cc6eadfb13a8bb216fc8b8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identifier GameCube wireless flag.  <br /></td></tr>
+<tr class="separator:ga9f02e446b4cc6eadfb13a8bb216fc8b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader">Joybus identify status values</h2></td></tr>
+<tr><td class="ititle" colspan="2"><p><a class="anchor" id="JOYBUS_IDENTIFY_STATUS"></a></p>
+</td></tr>
+<tr class="memitem:gab8800bb58a6c542f24e3d1c0e609dbff" id="r_gab8800bb58a6c542f24e3d1c0e609dbff"><td class="memItemLeft" align="right" valign="top"><a id="gab8800bb58a6c542f24e3d1c0e609dbff" name="gab8800bb58a6c542f24e3d1c0e609dbff"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK</b>&#160;&#160;&#160;0x03</td></tr>
+<tr class="memdesc:gab8800bb58a6c542f24e3d1c0e609dbff"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status byte mask for N64 accessory presence values. <br /></td></tr>
+<tr class="separator:gab8800bb58a6c542f24e3d1c0e609dbff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafe43144f812642193a627d152f6c6adb" id="r_gafe43144f812642193a627d152f6c6adb"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#gafe43144f812642193a627d152f6c6adb">JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED</a>&#160;&#160;&#160;0x00</td></tr>
+<tr class="memdesc:gafe43144f812642193a627d152f6c6adb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller that does not support accessories.  <br /></td></tr>
+<tr class="separator:gafe43144f812642193a627d152f6c6adb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gadf4b888f34ae975b787ae8838871d01b" id="r_gadf4b888f34ae975b787ae8838871d01b"><td class="memItemLeft" align="right" valign="top"><a id="gadf4b888f34ae975b787ae8838871d01b" name="gadf4b888f34ae975b787ae8838871d01b"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT</b>&#160;&#160;&#160;0x01</td></tr>
+<tr class="memdesc:gadf4b888f34ae975b787ae8838871d01b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller with an accessory present. <br /></td></tr>
+<tr class="separator:gadf4b888f34ae975b787ae8838871d01b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga87fbaf483083862e11c9ec2e5b74dc0a" id="r_ga87fbaf483083862e11c9ec2e5b74dc0a"><td class="memItemLeft" align="right" valign="top"><a id="ga87fbaf483083862e11c9ec2e5b74dc0a" name="ga87fbaf483083862e11c9ec2e5b74dc0a"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT</b>&#160;&#160;&#160;0x02</td></tr>
+<tr class="memdesc:ga87fbaf483083862e11c9ec2e5b74dc0a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller with no accessory present. <br /></td></tr>
+<tr class="separator:ga87fbaf483083862e11c9ec2e5b74dc0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga05b5b4ae0febddcf5739f30e538b58a5" id="r_ga05b5b4ae0febddcf5739f30e538b58a5"><td class="memItemLeft" align="right" valign="top"><a id="ga05b5b4ae0febddcf5739f30e538b58a5" name="ga05b5b4ae0febddcf5739f30e538b58a5"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED</b>&#160;&#160;&#160;0x03</td></tr>
+<tr class="memdesc:ga05b5b4ae0febddcf5739f30e538b58a5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status for an N64 controller with an accessory present that has changed since it was last identified. <br /></td></tr>
+<tr class="separator:ga05b5b4ae0febddcf5739f30e538b58a5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2539284553ef0faa96297e9ad5a51dd7" id="r_ga2539284553ef0faa96297e9ad5a51dd7"><td class="memItemLeft" align="right" valign="top"><a id="ga2539284553ef0faa96297e9ad5a51dd7" name="ga2539284553ef0faa96297e9ad5a51dd7"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_VOICE_RECOGNITON_READY</b>&#160;&#160;&#160;0x01</td></tr>
+<tr class="memdesc:ga2539284553ef0faa96297e9ad5a51dd7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit for a VRU/VRS that is initialized and ready. <br /></td></tr>
+<tr class="separator:ga2539284553ef0faa96297e9ad5a51dd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga43595188cc663796720f3296e3ac13f1" id="r_ga43595188cc663796720f3296e3ac13f1"><td class="memItemLeft" align="right" valign="top"><a id="ga43595188cc663796720f3296e3ac13f1" name="ga43595188cc663796720f3296e3ac13f1"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_COMMAND_CHECKSUM_ERROR</b>&#160;&#160;&#160;0x04</td></tr>
+<tr class="memdesc:ga43595188cc663796720f3296e3ac13f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit that signifies the previous accessory command had a checksum error. <br /></td></tr>
+<tr class="separator:ga43595188cc663796720f3296e3ac13f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2798f796fd03ba614e780500331f6c52" id="r_ga2798f796fd03ba614e780500331f6c52"><td class="memItemLeft" align="right" valign="top"><a id="ga2798f796fd03ba614e780500331f6c52" name="ga2798f796fd03ba614e780500331f6c52"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_GCN_RUMBLE_ACTIVE</b>&#160;&#160;&#160;0x08</td></tr>
+<tr class="memdesc:ga2798f796fd03ba614e780500331f6c52"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit for GameCube controllers that indicates whether the rumble motor is currently active. <br /></td></tr>
+<tr class="separator:ga2798f796fd03ba614e780500331f6c52"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga09f5e586412001a8b8e64ee6fc7bcef2" id="r_ga09f5e586412001a8b8e64ee6fc7bcef2"><td class="memItemLeft" align="right" valign="top"><a id="ga09f5e586412001a8b8e64ee6fc7bcef2" name="ga09f5e586412001a8b8e64ee6fc7bcef2"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>JOYBUS_IDENTIFY_STATUS_EEPROM_BUSY</b>&#160;&#160;&#160;0x80</td></tr>
+<tr class="memdesc:ga09f5e586412001a8b8e64ee6fc7bcef2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Joybus identify status bit for EEPROM devices that indicates a write is in-progress. <br /></td></tr>
+<tr class="separator:ga09f5e586412001a8b8e64ee6fc7bcef2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>Joybus peripheral interface. </p>
@@ -114,8 +444,748 @@ Functions</h2></td></tr>
 <p>For controllers: <a class="el" href="group__controller.html">Controller Subsystem</a>.</p>
 <p>For EEPROM, RTC and other peripherals: <a class="el" href="group__peripherals.html">Peripherals Subsystem</a>.</p>
 <p>Internally, the JoyBus subsystem communicates with the PIF controller via the SI DMA, via the JoyBus protocol which is a standard master/slave binary protocol. Each message of the protocol is a block of 64 bytes, and can contain multiple commands. Currently, there are no macros or functions to help composing a JoyBus message, so higher-level libraries currently hard code the binary messages.</p>
-<p>All communications is made asynchronously because SI DMA is quite slow: its completion is bound to the PIF actually processing the data, rather than just being the memory transfer. A queue of pending JoyBus messages is kept in a ring buffer, and is then executed under interrupt when the previous SI DMA completes. The internal entry point is <a class="el" href="joybus_8c.html#a67a0b9a8881c8ca94d35be1db9e6030f" title="Execute an asynchronous joybus message.">joybus_exec_async</a>, that schedules a message to be sent to PIF, and calls a callback with the reply whenever it is available. A blocking API (<a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a>) is made available for simpler usage. </p>
+<p>All communications is made asynchronously because SI DMA is quite slow: its completion is bound to the PIF actually processing the data, rather than just being the memory transfer. A queue of pending JoyBus messages is kept in a ring buffer, and is then executed under interrupt when the previous SI DMA completes. The internal entry point is <a class="el" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1" title="Execute an asynchronous joybus message.">joybus_exec_async</a>, that schedules a message to be sent to PIF, and calls a callback with the reply whenever it is available. A blocking API (<a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a>) is made available for simpler usage. </p>
+<hr/><h2 class="groupheader">Data Structure Documentation</h2>
+<a name="unionjoybus__transfer__pak__status__t" id="unionjoybus__transfer__pak__status__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#unionjoybus__transfer__pak__status__t">&#9670;&#160;</a></span>joybus_transfer_pak_status_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">union joybus_transfer_pak_status_t</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p>Joybus N64 Transfer Pak Status wrapper. </p>
+<p>Type union that unpacks the raw Transfer Pak status byte to conveniently access the flags through a struct. If you prefer bitwise operations, you can use <a class="el" href="group__joybus.html#JOYBUS_TRANSFER_PAK_STATUS">JOYBUS_TRANSFER_PAK_STATUS</a> values as masks. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="ab06826c80ee79d7dfb92d66ec3d63828" name="ab06826c80ee79d7dfb92d66ec3d63828"></a>uint8_t</td>
+<td class="fieldname">
+raw</td>
+<td class="fielddoc">
+Transfer Pak raw status byte. </td></tr>
+<tr><td class="fieldtype">
+<a id="af2bd5bc394849d47abc49e6d4a4c575e" name="af2bd5bc394849d47abc49e6d4a4c575e"></a>unsigned</td>
+<td class="fieldname">
+access: 1</td>
+<td class="fielddoc">
+Transfer Pak "Access" status bit. </td></tr>
+<tr><td class="fieldtype">
+<a id="aab6932c95ed6af6c38cccfb4d20b9647" name="aab6932c95ed6af6c38cccfb4d20b9647"></a>unsigned</td>
+<td class="fieldname">
+__pad0__: 1</td>
+<td class="fielddoc">
+Unused padding. </td></tr>
+<tr><td class="fieldtype">
+<a id="a40391101c2fe06e53daa9eb96d155983" name="a40391101c2fe06e53daa9eb96d155983"></a>unsigned</td>
+<td class="fieldname">
+booting: 1</td>
+<td class="fielddoc">
+Transfer Pak "Booting" status bit. </td></tr>
+<tr><td class="fieldtype">
+<a id="a620e17e4f8a405f67ff334e2ebce8261" name="a620e17e4f8a405f67ff334e2ebce8261"></a>unsigned</td>
+<td class="fieldname">
+reset: 1</td>
+<td class="fielddoc">
+Transfer Pak "Reset" status bit. </td></tr>
+<tr><td class="fieldtype">
+<a id="a0b86dcc6fb23f3a82ff0c0a2f34347b6" name="a0b86dcc6fb23f3a82ff0c0a2f34347b6"></a>unsigned</td>
+<td class="fieldname">
+__pad1__: 2</td>
+<td class="fielddoc">
+Unused padding. </td></tr>
+<tr><td class="fieldtype">
+<a id="a5abd47d371e7c833c0c47684039c8e32" name="a5abd47d371e7c833c0c47684039c8e32"></a>unsigned</td>
+<td class="fieldname">
+cart_pulled: 1</td>
+<td class="fielddoc">
+Transfer Pak "Cart Pulled" status bit. </td></tr>
+<tr><td class="fieldtype">
+<a id="a64dc05864511a70fb9774a2d8fd93699" name="a64dc05864511a70fb9774a2d8fd93699"></a>unsigned</td>
+<td class="fieldname">
+power: 1</td>
+<td class="fielddoc">
+Transfer Pak "Powered-On" status bit. </td></tr>
+</table>
+
+</div>
+</div>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="ga34b0fb5333a587576a9444758c003547" name="ga34b0fb5333a587576a9444758c003547"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga34b0fb5333a587576a9444758c003547">&#9670;&#160;</a></span>JOYBUS_ACCESSORY_PROBE_ABSENT</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_ACCESSORY_PROBE_ABSENT&#160;&#160;&#160;0x00</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Absent accessory identifier value. </p>
+<p>For Rumble Pak, Transfer Pak, and Snap Station, you must write the expected identifier to the probe address and then read it back. If the expected accessory is not connected, this value will be returned. </p>
+
+</div>
+</div>
+<a id="gac0bc43868b013b9b582b0c398a86d4f1" name="gac0bc43868b013b9b582b0c398a86d4f1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac0bc43868b013b9b582b0c398a86d4f1">&#9670;&#160;</a></span>JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_ON</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_ON&#160;&#160;&#160;0x84</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Transfer Pak power-on identifier value. </p>
+<p>When this value is written to the probe address, the Transfer Pak will power on and respond to probe reads with this value.</p>
+<p>If the accessory is not a Transfer Pak or the Transfer Pak is not powered on, the probe read will return the <a class="el" href="group__joybus.html#ga34b0fb5333a587576a9444758c003547" title="Absent accessory identifier value.">JOYBUS_ACCESSORY_PROBE_ABSENT</a> value. </p>
+
+</div>
+</div>
+<a id="ga4c88a2f7d7c289d09d4be923f5593ec3" name="ga4c88a2f7d7c289d09d4be923f5593ec3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4c88a2f7d7c289d09d4be923f5593ec3">&#9670;&#160;</a></span>JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_OFF</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_OFF&#160;&#160;&#160;0xFE</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Transfer Pak power-off identifier value. </p>
+<p>When this value is written to the probe address, the Transfer Pak will power off and respond to probe reads with the <a class="el" href="group__joybus.html#ga34b0fb5333a587576a9444758c003547" title="Absent accessory identifier value.">JOYBUS_ACCESSORY_PROBE_ABSENT</a> value. </p>
+
+</div>
+</div>
+<a id="ga9e1b79695ea3cde099212a15b8553bc1" name="ga9e1b79695ea3cde099212a15b8553bc1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9e1b79695ea3cde099212a15b8553bc1">&#9670;&#160;</a></span>JOYBUS_PORT_COUNT</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_PORT_COUNT&#160;&#160;&#160;5</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Count of Joybus ports. </p>
+<p>The N64 has four joypad ports, plus one additional port exposed on the cartridge connector for EEPROM and real-time clock support. </p>
+
+</div>
+</div>
+<a id="gab66d0a557e5436063c475fb17dbea216" name="gab66d0a557e5436063c475fb17dbea216"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab66d0a557e5436063c475fb17dbea216">&#9670;&#160;</a></span>JOYBUS_IDENTIFIER_N64_VOICE_RECOGNITION</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_IDENTIFIER_N64_VOICE_RECOGNITION&#160;&#160;&#160;0x0001</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joybus identifier for the Nintendo 64 voice recognition peripheral (NUS-020). </p>
+<p>Also known as VRU in North America and VRS in Japan. </p>
+
+</div>
+</div>
+<a id="ga6ada8ee8d924ff05a2a2ed7e98c02ae3" name="ga6ada8ee8d924ff05a2a2ed7e98c02ae3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6ada8ee8d924ff05a2a2ed7e98c02ae3">&#9670;&#160;</a></span>JOYBUS_IDENTIFIER_MASK_PLATFORM</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_IDENTIFIER_MASK_PLATFORM&#160;&#160;&#160;0x1800</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joybus identifier platform bitfield mask. </p>
+<p>Bits 11-12 of the Joybus identifier signify the intended platform:</p>
+<ul>
+<li>Bit 11 is set for GameCube devices.</li>
+<li>Bit 12 is zero for all known devices. </li>
+</ul>
+
+</div>
+</div>
+<a id="ga01d8a332fb379a3540be01dd5a13401d" name="ga01d8a332fb379a3540be01dd5a13401d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga01d8a332fb379a3540be01dd5a13401d">&#9670;&#160;</a></span>JOYBUS_IDENTIFIER_PLATFORM_GCN</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_IDENTIFIER_PLATFORM_GCN&#160;&#160;&#160;0x0800</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>GameCube Joybus identifier platform value. </p>
+<p>Bit 11 of the Joybus identifier is one for GameCube devices. Bit 12 of the Joybus identifier is zero for all known devices. </p>
+
+</div>
+</div>
+<a id="ga70c0c5ba555606cd69c15937fbe06b9d" name="ga70c0c5ba555606cd69c15937fbe06b9d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga70c0c5ba555606cd69c15937fbe06b9d">&#9670;&#160;</a></span>JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER&#160;&#160;&#160;0x0100</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joybus identifier GameCube standard controller flag. </p>
+<p>For GameCube platform devices, this bit is set if the device acts like a standard controller. </p>
+
+</div>
+</div>
+<a id="gab6d477cfb1f6e2a51f163575dd6f54ee" name="gab6d477cfb1f6e2a51f163575dd6f54ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab6d477cfb1f6e2a51f163575dd6f54ee">&#9670;&#160;</a></span>JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_IDENTIFIER_MASK_GCN_NORUMBLE&#160;&#160;&#160;0x2000</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joybus identifier GameCube rumble support flag. </p>
+<p>For GameCube controllers, this bit is set if the controller DOES NOT support rumble functionality. </p>
+
+</div>
+</div>
+<a id="ga9f02e446b4cc6eadfb13a8bb216fc8b8" name="ga9f02e446b4cc6eadfb13a8bb216fc8b8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9f02e446b4cc6eadfb13a8bb216fc8b8">&#9670;&#160;</a></span>JOYBUS_IDENTIFIER_MASK_GCN_WIRELESS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_IDENTIFIER_MASK_GCN_WIRELESS&#160;&#160;&#160;0x8000</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joybus identifier GameCube wireless flag. </p>
+<p>For GameCube controllers, this bit is set if the controller is a wireless controller. </p>
+
+</div>
+</div>
+<a id="gafe43144f812642193a627d152f6c6adb" name="gafe43144f812642193a627d152f6c6adb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gafe43144f812642193a627d152f6c6adb">&#9670;&#160;</a></span>JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED&#160;&#160;&#160;0x00</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joybus identify status for an N64 controller that does not support accessories. </p>
+<p>Some third-party controllers incorrectly use this status to mean absence of an accessory. Therefore, this value is treated as a synonym for JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT. </p>
+
+</div>
+</div>
+<a id="gab66a8f8b5399fc6a3499fee9bf62c477" name="gab66a8f8b5399fc6a3499fee9bf62c477"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab66a8f8b5399fc6a3499fee9bf62c477">&#9670;&#160;</a></span>joybus_exec_cmd_struct</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define joybus_exec_cmd_struct</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">port, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">cmd&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    <a class="code hl_function" href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0">joybus_exec_cmd</a>(                      \</div>
+<div class="line">        port,                             \</div>
+<div class="line">        <span class="keyword">sizeof</span>(cmd.send),                 \</div>
+<div class="line">        <span class="keyword">sizeof</span>(cmd.recv),                 \</div>
+<div class="line">        (<span class="keywordtype">void</span> *)&amp;cmd.send,                \</div>
+<div class="line">        (<span class="keywordtype">void</span> *)&amp;cmd.recv                 \</div>
+<div class="line">    )</div>
+<div class="ttc" id="agroup__joybus_html_gab9ed6f44c13006456f30709a48e122d0"><div class="ttname"><a href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0">joybus_exec_cmd</a></div><div class="ttdeci">void joybus_exec_cmd(int port, size_t send_len, size_t recv_len, const void *send_data, void *recv_data)</div><div class="ttdoc">Execute a Joybus command synchronously on the given port.</div><div class="ttdef"><b>Definition</b> joybus.h:345</div></div>
+</div><!-- fragment -->
+<p>Execute a Joybus command struct synchronously. </p>
+<p>This macro is a convenience wrapper around <a class="el" href="group__joybus.html#gab9ed6f44c13006456f30709a48e122d0" title="Execute a Joybus command synchronously on the given port.">joybus_exec_cmd</a> that uses the send and recv fields of the struct to set the proper arguments.</p>
+<p>This is not a stable feature of the libdragon API and should be considered experimental!</p>
+<p>The usage of this macro will likely change as a result of the ongoing effort to integrate the multitasking kernel with asynchronous operations.</p>
+<dl class="section note"><dt>Note</dt><dd>This operation is slow: it blocks until the command completes. Calling this multiple times per frame may cause audio and video stuttering.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir"></td><td class="paramname">port</td><td>The Joybus port to execute the command on. </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">cmd</td><td>The command struct to execute with. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<h2 class="groupheader">Typedef Documentation</h2>
+<a id="gad91e902f4c8cb12fb4f5aa288d423b44" name="gad91e902f4c8cb12fb4f5aa288d423b44"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad91e902f4c8cb12fb4f5aa288d423b44">&#9670;&#160;</a></span>joybus_identifier_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef uint16_t <a class="el" href="group__joybus.html#gad91e902f4c8cb12fb4f5aa288d423b44">joybus_identifier_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joypad Identifier type. </p>
+<p>For known values, see <a class="el" href="group__joybus.html#JOYBUS_IDENTIFIER">JOYBUS_IDENTIFIER</a> and <a class="el" href="group__joybus.html#JOYBUS_IDENTIFIER_GCN_BITFIELD">JOYBUS_IDENTIFIER_GCN_BITFIELD</a>.</p>
+<dl class="section note"><dt>Note</dt><dd>For GameCube peripherals, the Joybus identifier should be interpreted as a bitfield rather than a single value. </dd></dl>
+
+</div>
+</div>
+<a id="gaaf2e487c05f4f27e3b36af3c54ff66c1" name="gaaf2e487c05f4f27e3b36af3c54ff66c1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaaf2e487c05f4f27e3b36af3c54ff66c1">&#9670;&#160;</a></span>joybus_callback_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">typedef void(* joybus_callback_t) (uint64_t *out_dwords, void *ctx)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Callback function signature for <a class="el" href="group__joybus.html#ga244b4723690e3c15da23bdbfda2cb7d1" title="Execute an asynchronous joybus message.">joybus_exec_async</a>. </p>
+<p>Note that this function will be called under interrupt, so your callback:</p><ul>
+<li>should not block or perform any intensive calculations</li>
+<li>should not call non-reentrant functions such as malloc or free</li>
+<li>should be careful accessing memory due to possible race conditions </li>
+</ul>
+
+</div>
+</div>
+<h2 class="groupheader">Enumeration Type Documentation</h2>
+<a id="ga4aa970f937fe45430c4490663a67910e" name="ga4aa970f937fe45430c4490663a67910e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4aa970f937fe45430c4490663a67910e">&#9670;&#160;</a></span>joybus_accessory_io_status_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="group__joybus.html#ga4aa970f937fe45430c4490663a67910e">joybus_accessory_io_status_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Joybus accessory read/write status values. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="gga4aa970f937fe45430c4490663a67910ea9ce54cfcb94ead9daf96c43c39bada0b" name="gga4aa970f937fe45430c4490663a67910ea9ce54cfcb94ead9daf96c43c39bada0b"></a>JOYBUS_ACCESSORY_IO_STATUS_OK&#160;</td><td class="fielddoc"><p>Joybus accessory data communcation was successful. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="gga4aa970f937fe45430c4490663a67910ead7328eab584fbe96bc2850fabe4f4d5f" name="gga4aa970f937fe45430c4490663a67910ead7328eab584fbe96bc2850fabe4f4d5f"></a>JOYBUS_ACCESSORY_IO_STATUS_NO_DEVICE&#160;</td><td class="fielddoc"><p>No N64 controller is connected. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="gga4aa970f937fe45430c4490663a67910ea69bd7db4470c1206bd098fec411baea4" name="gga4aa970f937fe45430c4490663a67910ea69bd7db4470c1206bd098fec411baea4"></a>JOYBUS_ACCESSORY_IO_STATUS_NO_PAK&#160;</td><td class="fielddoc"><p>No N64 accessory is connected. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="gga4aa970f937fe45430c4490663a67910eab7ae0bc8cab32f0a3a550daa69f62a9f" name="gga4aa970f937fe45430c4490663a67910eab7ae0bc8cab32f0a3a550daa69f62a9f"></a>JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC&#160;</td><td class="fielddoc"><p>Joybus accessory communication was not successful. </p>
+</td></tr>
+</table>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ga0352d91d1b4a117c53415111cf97ee8d" name="ga0352d91d1b4a117c53415111cf97ee8d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0352d91d1b4a117c53415111cf97ee8d">&#9670;&#160;</a></span>joybus_accessory_calculate_addr_checksum()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint16_t joybus_accessory_calculate_addr_checksum </td>
+          <td>(</td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>addr</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Applies the checksum to a Joybus N64 accessory read/write address. </p>
+<p>When reading or writing a particular address on the accessory, the command will send the top 11 bits of a 16 bit address, plus a 5 bit checksum.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">addr</td><td>The address to calculate the checksum for.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The address with the checksum applied. </dd></dl>
+
+</div>
+</div>
+<a id="ga0c846543c844cf52c73ab199140eb961" name="ga0c846543c844cf52c73ab199140eb961"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0c846543c844cf52c73ab199140eb961">&#9670;&#160;</a></span>joybus_accessory_calculate_data_crc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t joybus_accessory_calculate_data_crc </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Calculates the CRC8 checksum for a Joybus N64 accessory read/write data block. </p>
+<p>Uses a CRC8 algorithm with a seed of 0x00 and a polynomial of 0x85.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>The 32-byte accessory read/write data block</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The calculated CRC8 checksum for the data block </dd></dl>
+
+</div>
+</div>
+<a id="ga60afe3b8424e017a279435fc2fdf702f" name="ga60afe3b8424e017a279435fc2fdf702f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga60afe3b8424e017a279435fc2fdf702f">&#9670;&#160;</a></span>joybus_accessory_compare_data_crc()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__joybus.html#ga4aa970f937fe45430c4490663a67910e">joybus_accessory_io_status_t</a> joybus_accessory_compare_data_crc </td>
+          <td>(</td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramname"><em>data_crc</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Calculates the CRC8 checksum for an accessory read/write data block and compares it against the provided checksum. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>The 32-byte accessory read/write data block </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">data_crc</td><td>The CRC8 checksum to compare against</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea9ce54cfcb94ead9daf96c43c39bada0b" title="Joybus accessory data communcation was successful.">JOYBUS_ACCESSORY_IO_STATUS_OK</a></td><td>The checksums match. </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea69bd7db4470c1206bd098fec411baea4" title="No N64 accessory is connected.">JOYBUS_ACCESSORY_IO_STATUS_NO_PAK</a></td><td>The checksum indicates that no accessory is present. </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910eab7ae0bc8cab32f0a3a550daa69f62a9f" title="Joybus accessory communication was not successful.">JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC</a></td><td>The data checksum does not match the provided checksum. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gabafa5b0984682ca50f494608976fa0f6" name="gabafa5b0984682ca50f494608976fa0f6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gabafa5b0984682ca50f494608976fa0f6">&#9670;&#160;</a></span>joybus_accessory_read_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void joybus_accessory_read_async </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>port</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a>&#160;</td>
+          <td class="paramname"><em>callback</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Asynchronously perform a Joybus N64 accessory read command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">port</td><td>The controller port of the accessory to read from. </td></tr>
+    <tr><td class="paramname">addr</td><td>The accessory address to read from. </td></tr>
+    <tr><td class="paramname">callback</td><td>A function pointer to call when the operation completes. </td></tr>
+    <tr><td class="paramname">ctx</td><td>A user data pointer to pass into the callback function. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga2a0672a10589ba626e078d7313b62326" name="ga2a0672a10589ba626e078d7313b62326"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga2a0672a10589ba626e078d7313b62326">&#9670;&#160;</a></span>joybus_accessory_write_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void joybus_accessory_write_async </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>port</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a>&#160;</td>
+          <td class="paramname"><em>callback</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Asynchronously perform a Joybus N64 accessory write command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir"></td><td class="paramname">port</td><td>The controller port of the accessory to write to. </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">addr</td><td>The accessory address to write to. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>The data to write to the accessory. </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">callback</td><td>A function pointer to call when the operation completes. </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">ctx</td><td>A user data pointer to pass into the callback function. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga4ebee442e458278436daa756d21c2f08" name="ga4ebee442e458278436daa756d21c2f08"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4ebee442e458278436daa756d21c2f08">&#9670;&#160;</a></span>joybus_accessory_read()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int joybus_accessory_read </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>port</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>data</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Synchronously perform a Joybus N64 accessory read command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir"></td><td class="paramname">port</td><td>The controller port of the accessory to read from. </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">addr</td><td>The accessory address to start reading from. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">data</td><td>The 32 bytes of data that was read from the accessory.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea9ce54cfcb94ead9daf96c43c39bada0b" title="Joybus accessory data communcation was successful.">JOYBUS_ACCESSORY_IO_STATUS_OK</a></td><td>The data was read successfully. </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea69bd7db4470c1206bd098fec411baea4" title="No N64 accessory is connected.">JOYBUS_ACCESSORY_IO_STATUS_NO_PAK</a></td><td>No accessory is present. </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910eab7ae0bc8cab32f0a3a550daa69f62a9f" title="Joybus accessory communication was not successful.">JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC</a></td><td>The data was not read successfully. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gabfdc256e8162679fb5b7adc1e24a7827" name="gabfdc256e8162679fb5b7adc1e24a7827"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gabfdc256e8162679fb5b7adc1e24a7827">&#9670;&#160;</a></span>joybus_accessory_write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int joybus_accessory_write </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>port</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>data</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Synchronously perform a Joybus N64 accessory write command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir"></td><td class="paramname">port</td><td>The controller port of the accessory to write to. </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">addr</td><td>The accessory address to start writing to. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>The 32 bytes of data to write to the accessory.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea9ce54cfcb94ead9daf96c43c39bada0b" title="Joybus accessory data communcation was successful.">JOYBUS_ACCESSORY_IO_STATUS_OK</a></td><td>The data was written successfully. </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910ea69bd7db4470c1206bd098fec411baea4" title="No N64 accessory is connected.">JOYBUS_ACCESSORY_IO_STATUS_NO_PAK</a></td><td>No accessory is present. </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__joybus.html#gga4aa970f937fe45430c4490663a67910eab7ae0bc8cab32f0a3a550daa69f62a9f" title="Joybus accessory communication was not successful.">JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC</a></td><td>The data was not written successfully. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga244b4723690e3c15da23bdbfda2cb7d1" name="ga244b4723690e3c15da23bdbfda2cb7d1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga244b4723690e3c15da23bdbfda2cb7d1">&#9670;&#160;</a></span>joybus_exec_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void joybus_exec_async </td>
+          <td>(</td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__joybus.html#gaaf2e487c05f4f27e3b36af3c54ff66c1">joybus_callback_t</a>&#160;</td>
+          <td class="paramname"><em>callback</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Execute an asynchronous joybus message. </p>
+<p>This function executes an asynchronous joybus protocol exchange, sending a message block (input), and receiving a reply (output). The message is sent in background and a completion function "callback" is called when the output is ready to be processed.</p>
+<p>It is possible to schedule multiple joybus messages by calling this function multiple times. They will be automatically executed in order. The maximum number of pending messages at any given time is <a class="el" href="joybus_8c.html#a42220dfa963618e170f0c794440a02c7" title="Maximum number of pending joybus messages.">MAX_JOYBUS_MSGS</a>.</p>
+<dl class="section note"><dt>Note</dt><dd>The callback function will be called under interrupt.</dd>
+<dd>
+This function is not part of the public API yet because we want to evaluate the use of threading rather than asynchronous programming. It should only be used internally without exposing a asynchronous API externally.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>The input block (must be of JOYBUS_BLOCK_SIZE bytes). No specific alignment is required for this data block. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>A callback completion function that will be called when the joybus command is finished. The function will receive a pointer to the output buffer and the opaque pointer to the callback's context. Can be NULL if no callback is required. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ctx</td><td>Context opaque pointer to pass to the callback. Can be NULL if no context is required. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ga6d62432ce8ecd83cd1588716fd28fdb7" name="ga6d62432ce8ecd83cd1588716fd28fdb7"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga6d62432ce8ecd83cd1588716fd28fdb7">&#9670;&#160;</a></span>joybus_exec()</h2>
 
@@ -155,10 +1225,82 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="gab9ed6f44c13006456f30709a48e122d0" name="gab9ed6f44c13006456f30709a48e122d0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab9ed6f44c13006456f30709a48e122d0">&#9670;&#160;</a></span>joybus_exec_cmd()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void joybus_exec_cmd </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>port</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>send_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>recv_len</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>send_data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>recv_data</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Execute a Joybus command synchronously on the given port. </p>
+<p>For convenience, there is a <a class="el" href="group__joybus.html#gab66a8f8b5399fc6a3499fee9bf62c477" title="Execute a Joybus command struct synchronously.">joybus_exec_cmd_struct</a> macro that uses the send and recv fields of a command struct to call this function with the proper send_len and recv_len arguments.</p>
+<p>This function only sends a single command to a single port. For sending a command to multiple ports simultaneously, use <a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a> instead.</p>
+<p>For reading controllers, use the <a class="el" href="group__joypad.html">Joypad Subsystem</a> instead.</p>
+<p>This function is not a stable feature of the libdragon API and should be considered experimental!</p>
+<p>The usage of this function will likely change as a result of the ongoing effort to integrate the multitasking kernel with asynchronous operations.</p>
+<dl class="section note"><dt>Note</dt><dd>This function is slow: it blocks until the command completes. Calling this function multiple times per frame may cause audio and video stuttering.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir"></td><td class="paramname">port</td><td>The Joybus port (0-4) to send the command to. </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">send_len</td><td>Number of bytes in the send_data request payload (including the command ID). </td></tr>
+    <tr><td class="paramdir"></td><td class="paramname">recv_len</td><td>Number of bytes in the recv_data response payload. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">send_data</td><td>Buffer of send_len bytes to send to the Joybus device (including the command ID byte). </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">recv_data</td><td>Buffer of recv_len bytes for the reply from the Joybus device. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:10 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

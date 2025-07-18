@@ -136,7 +136,7 @@ Functions</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>Managed Controller Pak interface. </p>
-<p>The Controller Pak system is a subsystem of the <a class="el" href="group__controller.html">Controller Subsystem</a>. Before attempting to read from or write to a Controller Pak, be sure you have initialized the controller system with <a class="el" href="group__controller.html#gad13ec5f696a3c69997b9fc57246a0238" title="Initialize the controller subsystem.">controller_init</a> and verified that you have a mempak in the correct controller using <a class="el" href="group__controller.html#ga61f79691c93aed5a6abaf2d962823680" title="Identify the accessory connected to a controller.">identify_accessory</a>.</p>
+<p>The Controller Pak system is a subsystem of the <a class="el" href="group__controller.html">Controller Subsystem</a>. Before attempting to read from or write to a Controller Pak, be sure you have initialized the Joypad subsystem with <a class="el" href="group__joypad.html#gac5e6c45f691d77eaa9f4c4a82b3b7fe4" title="Initialize the Joypad subsystem.">joypad_init</a> and verified that you have a Controller Pak in the correct controller using <a class="el" href="group__joypad.html#gab9f9440ae434b228dbd49f1c70009417" title="Get the Joypad accessory type for a Joypad port.">joypad_get_accessory_type</a>.</p>
 <p>To read and write to the Controller Pak in an organized way compatible with official software, first check that the Controller Pak is valid using <a class="el" href="group__controllerpak.html#gaf245021aed55de7a17cf417d41cdc32f" title="Return whether a Controller Pak is valid.">validate_mempak</a>. If the Controller Pak is invalid, it will need to be formatted using <a class="el" href="group__controllerpak.html#ga14df2d1b0aeb7436cabd95294eb29b9f" title="Format a Controller Pak.">format_mempak</a>. Once the Controller Pak is considered valid, existing notes can be enumerated using <a class="el" href="group__controllerpak.html#gaaa54d6b5cea4be11738f951318ebc758" title="Read an entry on a Controller Pak.">get_mempak_entry</a>. To read the data associated with a note, use <a class="el" href="group__controllerpak.html#ga7e07b0ab92a7f383b355f5ed99c5f727" title="Read the data associated with an entry on a Controller Pak.">read_mempak_entry_data</a>. To write a new note to the Controller Pak, use <a class="el" href="group__controllerpak.html#ga520a9d2a4eb81c7f40ed2fcc9ecafecc" title="Write associated data to a Controller Pak entry.">write_mempak_entry_data</a>. Note that there is no append functionality so if a note is being updated, ensure you have deleted the old note first using <a class="el" href="group__controllerpak.html#gaa56a78fe3d1d2b9427afe8d5894156df" title="Delete a Controller Pak entry and associated data.">delete_mempak_entry</a>. Code should be careful to check how many blocks are free before writing using <a class="el" href="group__controllerpak.html#ga5b092c36dbd886af01b0c4be86554946" title="Return the number of free blocks on a Controller Pak.">get_mempak_free_space</a>. </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structentry__structure__t" id="structentry__structure__t"></a>
@@ -450,17 +450,17 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZ!"#`*+,-./:=?@
 </div><div class="memdoc">
 
 <p>Format a Controller Pak. </p>
-<p>Formats a Controller Pak. Should only be done to wipe a Controller Pak or to initialize the filesystem in case of a blank or corrupt Controler Pak.</p>
+<p>Formats a Controller Pak. This should only be done to totally wipe and re-initialize the filesystem in case of a blank or corrupt Controller Pak after a repair has failed.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to format the Controller Pak on</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The Controller (0-3) that the Controller Pak is inserted.</td></tr>
   </table>
   </dd>
 </dl>
 <dl class="retval"><dt>Return values</dt><dd>
   <table class="retval">
-    <tr><td class="paramname">0</td><td>if the Controller Pak was formatted successfully </td></tr>
-    <tr><td class="paramname">-2</td><td>if the Controller Pak was not present or couldn't be formatted </td></tr>
+    <tr><td class="paramname">0</td><td>if the Controller Pak was formatted successfully. </td></tr>
+    <tr><td class="paramname">-2</td><td>if the Controller Pak was not present or couldn't be formatted. </td></tr>
   </table>
   </dd>
 </dl>
@@ -626,7 +626,7 @@ ABCDEFGHIJKLMNOPQRSTUVWXYZ!"#`*+,-./:=?@
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:10 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

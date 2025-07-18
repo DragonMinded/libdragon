@@ -96,8 +96,8 @@ Files</h2></td></tr>
 <tr class="memitem:rdpq__mode_8c" id="r_rdpq__mode_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__mode_8c.html">rdpq_mode.c</a></td></tr>
 <tr class="memdesc:rdpq__mode_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue: mode setting. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:rdpq_8h" id="r_rdpq_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq_8h.html">rdpq.h</a></td></tr>
-<tr class="memdesc:rdpq_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue. <br /></td></tr>
+<tr class="memitem:rdpq__rect_8c" id="r_rdpq__rect_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__rect_8c.html">rdpq_rect.c</a></td></tr>
+<tr class="memdesc:rdpq__rect_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:rdpq__sprite_8c" id="r_rdpq__sprite_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__sprite_8c.html">rdpq_sprite.c</a></td></tr>
 <tr class="memdesc:rdpq__sprite_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue: high-level sprite loading and blitting. <br /></td></tr>
@@ -107,6 +107,9 @@ Files</h2></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:rdpq__tri_8c" id="r_rdpq__tri_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__tri_8c.html">rdpq_tri.c</a></td></tr>
 <tr class="memdesc:rdpq__tri_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue: triangle drawing routine. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:rdpq_8h" id="r_rdpq_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq_8h.html">rdpq.h</a></td></tr>
+<tr class="memdesc:rdpq_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:rdpq__attach_8h" id="r_rdpq__attach_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__attach_8h.html">rdpq_attach.h</a></td></tr>
 <tr class="memdesc:rdpq__attach_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue: surface attachment API. <br /></td></tr>
@@ -129,6 +132,9 @@ Files</h2></td></tr>
 <tr class="memitem:rdpq__tex_8h" id="r_rdpq__tex_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__tex_8h.html">rdpq_tex.h</a></td></tr>
 <tr class="memdesc:rdpq__tex_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue: high-level texture/surface loading and blitting. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:rdpq__tri_8h" id="r_rdpq__tri_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rdpq__tri_8h.html">rdpq_tri.h</a></td></tr>
+<tr class="memdesc:rdpq__tri_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">RDP Command queue. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>Interface to the RDP (graphics hardware) for 2D/3D rasterization. </p>
@@ -137,7 +143,7 @@ Files</h2></td></tr>
 <p>Since the API is wide, the library is split in several header files. Make sure to read them all to have a general overview:</p>
 <ul>
 <li><a class="el" href="rdpq_8h.html" title="RDP Command queue.">rdpq.h</a>: General low-level RDP command generation.</li>
-<li><a class="el" href="rdpq__tri_8h_source.html">rdpq_tri.h</a>: Low-level screen-space triangle drawing API.</li>
+<li><a class="el" href="rdpq__tri_8h.html" title="RDP Command queue.">rdpq_tri.h</a>: Low-level screen-space triangle drawing API.</li>
 <li><a class="el" href="rdpq__rect_8h.html" title="RDP Command queue.">rdpq_rect.h</a>: Low-level screen-space rectangle drawing API.</li>
 <li><a class="el" href="rdpq__attach_8h.html" title="RDP Command queue: surface attachment API.">rdpq_attach.h</a>: Attachment API (optional), to simplify configuring the render target</li>
 <li><a class="el" href="rdpq__mode_8h.html" title="RDP Command queue: mode setting.">rdpq_mode.h</a>: Mode API (optional), to simplify configuring the render modes</li>
@@ -186,7 +192,7 @@ Debugging: tracer and validator</h2>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:10 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

@@ -82,32 +82,38 @@ $(document).ready(function() { init_codefold(0); });
   <div class="headertitle"><div class="title">lz4_dec_internal.h</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span><span class="preprocessor">#ifndef LIBDRAGON_COMPRESS_LZ4_DEC_INTERNAL_H</span></div>
-<div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="preprocessor">#define LIBDRAGON_COMPRESS_LZ4_DEC_INTERNAL_H</span></div>
-<div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span> </div>
-<div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
-<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#include &lt;stdbool.h&gt;</span></div>
+<a href="lz4__dec__internal_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
+<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#ifndef LIBDRAGON_COMPRESS_LZ4_DEC_INTERNAL_H</span></div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#define LIBDRAGON_COMPRESS_LZ4_DEC_INTERNAL_H</span></div>
 <div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span> </div>
-<div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span><span class="preprocessor">#define LZ4_DECOMPRESS_INPLACE_MARGIN(compressed_size)    (((compressed_size) &gt;&gt; 8) + 32)</span></div>
-<div class="line"><a id="l00035" name="l00035"></a><span class="lineno">   35</span> </div>
-<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span><span class="keywordtype">int</span> decompress_lz4_full_inplace(<span class="keyword">const</span> uint8_t *src, <span class="keywordtype">size_t</span> src_size, uint8_t *dst, <span class="keywordtype">size_t</span> dst_size);</div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span> </div>
-<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="preprocessor">#define DECOMPRESS_LZ4_STATE_SIZE  176</span></div>
-<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="keywordtype">void</span> decompress_lz4_init(<span class="keywordtype">void</span> *state, <span class="keywordtype">int</span> fd, <span class="keywordtype">int</span> winsize);</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span> </div>
-<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>ssize_t decompress_lz4_read(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
-<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span> </div>
-<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="keywordtype">void</span> decompress_lz4_reset(<span class="keywordtype">void</span> *state);</div>
-<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span> </div>
-<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="keywordtype">void</span>* decompress_lz4_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
-<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span> </div>
-<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#include &lt;stdbool.h&gt;</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span> </div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno"><a class="line" href="lz4__dec__internal_8h.html#a9f72fb4b02669a5e7e2259e414afac4a">   38</a></span><span class="preprocessor">#define LZ4_DECOMPRESS_INPLACE_MARGIN(compressed_size)    (((compressed_size) &gt;&gt; 8) + 32)</span></div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span> </div>
+<div class="line"><a id="l00061" name="l00061"></a><span class="lineno"><a class="line" href="lz4__dec__internal_8h.html#ae8539bca9091cb0fc92f43e108c5de9e">   61</a></span><span class="keywordtype">int</span> <a class="code hl_function" href="lz4__dec__internal_8h.html#ae8539bca9091cb0fc92f43e108c5de9e">decompress_lz4_full_inplace</a>(<span class="keyword">const</span> uint8_t *src, <span class="keywordtype">size_t</span> src_size, uint8_t *dst, <span class="keywordtype">size_t</span> dst_size);</div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span> </div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno"><a class="line" href="lz4__dec__internal_8h.html#aaddd2acb3053ec2728cdecb2e2036be1">   66</a></span><span class="preprocessor">#define DECOMPRESS_LZ4_STATE_SIZE  176</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="keywordtype">void</span> <a class="code hl_function" href="lz4__dec__internal_8h.html#a0e28ef29d9a4db34de65d4ce302a5cfb">decompress_lz4_init</a>(<span class="keywordtype">void</span> *state, <span class="keywordtype">int</span> fd, <span class="keywordtype">int</span> winsize);</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span> </div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>ssize_t <a class="code hl_function" href="lz4__dec__internal_8h.html#ac0c6fa67a095446f3005374d57a9b46f">decompress_lz4_read</a>(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span> </div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="keywordtype">void</span> <a class="code hl_function" href="lz4__dec__internal_8h.html#aac84199fc046db934f2a66ce46ada071">decompress_lz4_reset</a>(<span class="keywordtype">void</span> *state);</div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span> </div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno"><a class="line" href="lz4__dec__internal_8h.html#aff01dd4979bddfa015e7fd0301b815f5">  103</a></span><span class="keywordtype">void</span>* <a class="code hl_function" href="lz4__dec__internal_8h.html#aff01dd4979bddfa015e7fd0301b815f5">decompress_lz4_full</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
+<div class="line"><a id="l00105" name="l00105"></a><span class="lineno">  105</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="alz4__dec__internal_8h_html_a0e28ef29d9a4db34de65d4ce302a5cfb"><div class="ttname"><a href="lz4__dec__internal_8h.html#a0e28ef29d9a4db34de65d4ce302a5cfb">decompress_lz4_init</a></div><div class="ttdeci">void decompress_lz4_init(void *state, int fd, int winsize)</div><div class="ttdoc">Initialize the LZ4 decompressor state.</div><div class="ttdef"><b>Definition</b> lz4_dec.c:232</div></div>
+<div class="ttc" id="alz4__dec__internal_8h_html_aac84199fc046db934f2a66ce46ada071"><div class="ttname"><a href="lz4__dec__internal_8h.html#aac84199fc046db934f2a66ce46ada071">decompress_lz4_reset</a></div><div class="ttdeci">void decompress_lz4_reset(void *state)</div><div class="ttdoc">Reset the LZ4 decompressor state.</div><div class="ttdef"><b>Definition</b> lz4_dec.c:240</div></div>
+<div class="ttc" id="alz4__dec__internal_8h_html_ac0c6fa67a095446f3005374d57a9b46f"><div class="ttname"><a href="lz4__dec__internal_8h.html#ac0c6fa67a095446f3005374d57a9b46f">decompress_lz4_read</a></div><div class="ttdeci">ssize_t decompress_lz4_read(void *state, void *buf, size_t len)</div><div class="ttdoc">Read decompressed data from the LZ4 stream.</div><div class="ttdef"><b>Definition</b> lz4_dec.c:250</div></div>
+<div class="ttc" id="alz4__dec__internal_8h_html_ae8539bca9091cb0fc92f43e108c5de9e"><div class="ttname"><a href="lz4__dec__internal_8h.html#ae8539bca9091cb0fc92f43e108c5de9e">decompress_lz4_full_inplace</a></div><div class="ttdeci">int decompress_lz4_full_inplace(const uint8_t *src, size_t src_size, uint8_t *dst, size_t dst_size)</div><div class="ttdoc">Decompress a block of LZ4 data (mem to mem).</div></div>
+<div class="ttc" id="alz4__dec__internal_8h_html_aff01dd4979bddfa015e7fd0301b815f5"><div class="ttname"><a href="lz4__dec__internal_8h.html#aff01dd4979bddfa015e7fd0301b815f5">decompress_lz4_full</a></div><div class="ttdeci">void * decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)</div><div class="ttdoc">Decompress a full LZ4 file from a FILE pointer.</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

@@ -82,37 +82,42 @@ $(document).ready(function() { init_codefold(0); });
   <div class="headertitle"><div class="title">lzh5_internal.h</div></div>
 </div><!--header-->
 <div class="contents">
-<div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span><span class="preprocessor">#ifndef LIBDRAGON_COMPRESS_LZH5_h</span></div>
-<div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="preprocessor">#define LIBDRAGON_COMPRESS_LZH5_h</span></div>
-<div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span> </div>
-<div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
-<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
-<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span> </div>
-<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#endif</span></div>
+<a href="lzh5__internal_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
+<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="preprocessor">#ifndef LIBDRAGON_COMPRESS_LZH5_h</span></div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="preprocessor">#define LIBDRAGON_COMPRESS_LZH5_h</span></div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span> </div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
 <div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span> </div>
-<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="preprocessor">#define DECOMPRESS_LZH5_STATE_SIZE            (6096+16)</span></div>
-<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
-<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#define DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE   (8192)</span></div>
-<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
-<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="keywordtype">void</span> decompress_lzh5_init(<span class="keywordtype">void</span> *state, FILE *fp, <span class="keywordtype">int</span> winsize);</div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span> </div>
-<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>ssize_t decompress_lzh5_read(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
-<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span> </div>
-<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span><span class="keywordtype">int</span> decompress_lzh5_pos(<span class="keywordtype">void</span> *state);</div>
-<div class="line"><a id="l00050" name="l00050"></a><span class="lineno">   50</span> </div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="keywordtype">void</span>* decompress_lzh5_full(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
-<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span> </div>
-<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="preprocessor">#ifdef __cplusplus</span></div>
-<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span>}</div>
-<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno"><a class="line" href="lzh5__internal_8h.html#a108632424570d00136a076a6472cc4fa">   21</a></span><span class="preprocessor">#define DECOMPRESS_LZH5_STATE_SIZE            (6096+16)</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span> </div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno"><a class="line" href="lzh5__internal_8h.html#a5a93b80bf7d6b3ca60c512eebcf3450a">   26</a></span><span class="preprocessor">#define DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE   (8192)</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span> </div>
+<div class="line"><a id="l00035" name="l00035"></a><span class="lineno"><a class="line" href="lzh5__internal_8h.html#afb405020bfe332d291afa729192abb98">   35</a></span><span class="keywordtype">void</span> <a class="code hl_function" href="lzh5__internal_8h.html#afb405020bfe332d291afa729192abb98">decompress_lzh5_init</a>(<span class="keywordtype">void</span> *state, FILE *fp, <span class="keywordtype">int</span> winsize);</div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno">   36</span> </div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno"><a class="line" href="lzh5__internal_8h.html#aa5845d01809bf065e407169adf47cb59">   45</a></span>ssize_t <a class="code hl_function" href="lzh5__internal_8h.html#aa5845d01809bf065e407169adf47cb59">decompress_lzh5_read</a>(<span class="keywordtype">void</span> *state, <span class="keywordtype">void</span> *buf, <span class="keywordtype">size_t</span> len);</div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span> </div>
+<div class="line"><a id="l00053" name="l00053"></a><span class="lineno"><a class="line" href="lzh5__internal_8h.html#ae911127398af8ddaba3307c042faf9c4">   53</a></span><span class="keywordtype">int</span> <a class="code hl_function" href="lzh5__internal_8h.html#ae911127398af8ddaba3307c042faf9c4">decompress_lzh5_pos</a>(<span class="keywordtype">void</span> *state);</div>
+<div class="line"><a id="l00054" name="l00054"></a><span class="lineno">   54</span> </div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno"><a class="line" href="lzh5__internal_8h.html#af21959c9f371720b08b27cbb1398a0c7">   72</a></span><span class="keywordtype">void</span>* <a class="code hl_function" href="lzh5__internal_8h.html#af21959c9f371720b08b27cbb1398a0c7">decompress_lzh5_full</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, FILE *fp, <span class="keywordtype">size_t</span> cmp_size, <span class="keywordtype">size_t</span> size);</div>
 <div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span> </div>
-<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>}</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span> </div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="alzh5__internal_8h_html_aa5845d01809bf065e407169adf47cb59"><div class="ttname"><a href="lzh5__internal_8h.html#aa5845d01809bf065e407169adf47cb59">decompress_lzh5_read</a></div><div class="ttdeci">ssize_t decompress_lzh5_read(void *state, void *buf, size_t len)</div><div class="ttdoc">Read decompressed data from the LZH5 stream.</div></div>
+<div class="ttc" id="alzh5__internal_8h_html_ae911127398af8ddaba3307c042faf9c4"><div class="ttname"><a href="lzh5__internal_8h.html#ae911127398af8ddaba3307c042faf9c4">decompress_lzh5_pos</a></div><div class="ttdeci">int decompress_lzh5_pos(void *state)</div><div class="ttdoc">Get the current position in the decompressed stream.</div></div>
+<div class="ttc" id="alzh5__internal_8h_html_af21959c9f371720b08b27cbb1398a0c7"><div class="ttname"><a href="lzh5__internal_8h.html#af21959c9f371720b08b27cbb1398a0c7">decompress_lzh5_full</a></div><div class="ttdeci">void * decompress_lzh5_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)</div><div class="ttdoc">Decompress a full LZH5 file into a buffer.</div></div>
+<div class="ttc" id="alzh5__internal_8h_html_afb405020bfe332d291afa729192abb98"><div class="ttname"><a href="lzh5__internal_8h.html#afb405020bfe332d291afa729192abb98">decompress_lzh5_init</a></div><div class="ttdeci">void decompress_lzh5_init(void *state, FILE *fp, int winsize)</div><div class="ttdoc">Initialize the LZH5 decompressor state.</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jul 14 2025 23:44:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Jul 18 2025 23:56:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
