@@ -20,30 +20,46 @@
 static const surface_t* attach_stack[ATTACH_STACK_SIZE][2] = { { NULL, NULL } };
 static int attach_stack_ptr = 0;
 
+// Compute the RSP DMA size (in the RSP hardware register format)
+// for a given number of bytes.
+static uint32_t calc_rspdma_size(int nbytes)
+{
+    int len, count;
+    for (len = 0x1000; len >= 8; len -= 8) {
+        if (nbytes % len == 0) {
+            count = nbytes / len;
+            if (count <= 0x100)
+                return ((count-1) << 12) | (len - 1);
+        }
+    }
+    return 0;
+}
+ 
 static bool __rdpq_clear_z_with_rsp(const surface_t *surf_z, uint16_t zvalue)
 {
     static uint8_t temp_buffer[1280] __attribute__((aligned(16)));
+    static int last_buffer_size = 0;
+    static uint32_t last_rspsize = 0;
 
     int nbytes = surf_z->height * surf_z->stride;
-    uint32_t rsp_size;
-    if ((nbytes & 0xFFF) == 0) 
-        rsp_size = (((nbytes >> 12) - 1) << 12) | 0xFFF;
-    else if ((nbytes & 0x7FF) == 0)
-        rsp_size = (((nbytes >> 11) - 1) << 12) | 0x7FF;
-    else if ((nbytes & 0x3FF) == 0)
-        rsp_size = (((nbytes >> 10) - 1) << 12) | 0x3FF;
-    else if ((nbytes & 0x1FF) == 0)
-        rsp_size = (((nbytes >>  9) - 1) << 12) | 0x1FF;
-    else if ((nbytes & 0x0FF) == 0)
-        rsp_size = (((nbytes >>  8) - 1) << 12) | 0x0FF;
-    else
+
+    // Check if we need to recalculate the RSP DMA size for a buffer of this size.
+    // Since the calculation is marginally expensive, we cache it across frames.
+    if (nbytes != last_buffer_size) {
+        last_buffer_size = nbytes;
+        last_rspsize = calc_rspdma_size(nbytes);
+    }
+
+    // If RSP size is 0, it means that we cannot represent the current size with
+    // a single RSP DMA command. In this case, we fall back to the normal RDP clear
+    if (last_rspsize == 0)
         return false;
 
     // We need a RDP fence here because the RDP might be drawing to the Z buffer
     // at this point. So first force the RSP to wait for the RDP to finish.
     rdpq_fence();
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_CLEAR_ZBUFFER, 
-        PhysicalAddr(surf_z->buffer), rsp_size, PhysicalAddr(temp_buffer), zvalue);
+        PhysicalAddr(surf_z->buffer), last_rspsize, PhysicalAddr(temp_buffer), zvalue);
     return true;
 }
 
