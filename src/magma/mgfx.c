@@ -113,7 +113,7 @@ void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms)
     dst->factor_int = factor_fx;
     dst->offset_int = offset_i;
     dst->offset_frac = offset_f;
-    dst->mask = is_disabled ? 0x00 : 0x77;
+    dst->mask = is_disabled ? 0xFF : 0x77;
 }
 
 void mgfx_set_matrices_inline(const mg_uniform_t *uniform, const mgfx_matrices_parms_t *parms)
