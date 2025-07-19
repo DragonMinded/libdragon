@@ -60,7 +60,17 @@ void prepare_pipeline()
     mg_uniform_load(fog_uniform, &state->uniform_data->fog);
     mg_uniform_load(lighting_uniform, &state->uniform_data->lighting);
     mg_uniform_load(texturing_uniform, &state->uniform_data->texturing);
-    mg_uniform_load(matrices_uniform, &state->uniform_data->matrices);
+
+    gl_update_matrix_targets();
+
+    gl_matrix_target_t *mtx_target = &state->default_matrix_target;
+    fm_mat4_t *mv = gl_matrix_stack_get_matrix(mtx_target->mv_stack);
+
+    mgfx_set_matrices_inline(matrices_uniform, &(mgfx_matrices_parms_t) {
+        .model_view_projection = mtx_target->mvp.m[0],
+        .model_view = mv->m[0],
+        .normal = mv->m[0] // TODO: transpose inverse
+    });
 }
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
@@ -96,7 +106,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         if (indices_i16[i] > max_index) max_index = indices_i16[i];
     }
 
-    prepare_vertex_buffer(min_index, max_index - min_index);
+    prepare_vertex_buffer(min_index, max_index - min_index + 1);
     prepare_pipeline();
     mg_draw_begin();
     mg_draw_indexed(&(mg_input_assembly_parms_t) {
@@ -112,11 +122,13 @@ void update_viewport()
 
     mg_set_viewport(&(mg_viewport_t) {
         .x = state->viewport.x,
-        .y = fb->height - (state->viewport.y + state->viewport.h),
+        .y = fb->height - state->viewport.y,
         .width = state->viewport.w,
-        .height = state->viewport.h,
+        .height = -state->viewport.h,
         .minDepth = state->viewport.n,
-        .maxDepth = state->viewport.f
+        .maxDepth = state->viewport.f,
+        .z_near = state->near_plane,
+        .z_far = state->far_plane
     });
 }
 
@@ -136,9 +148,13 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
     update_viewport();
 }
 
-mg_cull_mode_t get_cull_mode(GLenum cull_face)
+mg_cull_mode_t get_cull_mode()
 {
-    switch (cull_face)
+    if (!state->cull_face) {
+        return MG_CULL_MODE_NONE;
+    }
+
+    switch (state->cull_face_mode)
     {
     case GL_BACK:
         return MG_CULL_MODE_BACK;
@@ -149,9 +165,9 @@ mg_cull_mode_t get_cull_mode(GLenum cull_face)
     }
 }
 
-mg_front_face_t get_front_face(GLenum front_face)
+mg_front_face_t get_front_face()
 {
-    switch (front_face)
+    switch (state->front_face)
     {
     case GL_CW:
         return MG_FRONT_FACE_CLOCKWISE;
@@ -168,8 +184,8 @@ void update_culling()
     if (!state->is_drawing_anything) return;
 
     mg_set_culling(&(mg_culling_parms_t) {
-        .cull_mode = get_cull_mode(state->cull_face_mode),
-        .front_face = get_front_face(state->front_face)
+        .cull_mode = get_cull_mode(),
+        .front_face = get_front_face()
     });
 }
 

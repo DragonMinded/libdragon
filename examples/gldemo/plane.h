@@ -8,7 +8,7 @@
 #include "vertex.h"
 
 #define PLANE_SIZE       20.0f
-#define PLANE_SEGMENTS   16
+#define PLANE_SEGMENTS   1
 
 static GLuint plane_buffers[2];
 static GLuint plane_array;

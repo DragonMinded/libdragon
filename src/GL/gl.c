@@ -15,6 +15,7 @@ gl_state_t *state;
 void gl_rendermode_init();
 void gl_array_init();
 void gl_primitive_init();
+void gl_matrix_init();
 
 void gl_init(void)
 {
@@ -25,23 +26,19 @@ void gl_init(void)
     state->is_pipeline_dirty = true;
     state->uniform_data = malloc_uncached(sizeof(gl_uniform_data));
 
+    mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {});
     mgfx_get_lighting(&state->uniform_data->lighting, &(mgfx_lighting_parms_t) {
         .light_count = 0,
         .ambient_color = color_from_packed32(0xFFFFFFFF)
     });
-
-    fm_mat4_t identity;
-    fm_mat4_identity(&identity);
-    mgfx_get_matrices(&state->uniform_data->matrices, &(mgfx_matrices_parms_t) {
-        .model_view_projection = identity.m[0],
-        .model_view = identity.m[0],
-        .normal = identity.m[0],
+    mgfx_get_texturing(&state->uniform_data->texturing, &(mgfx_texturing_parms_t) {
+        .scale = {1, 1}
     });
 
     gl_rendermode_init();
     gl_array_init();
     gl_primitive_init();
-
+    gl_matrix_init();
 
     glClearColor(0, 0, 0, 0);
     glClearDepth(1);
@@ -121,6 +118,7 @@ void set_enable_flag(GLenum target, bool value)
         break;
     case GL_CULL_FACE:
         state->cull_face = value;
+        update_culling();
         break;
     case GL_LIGHTING:
         break;

@@ -16,6 +16,11 @@
 #define VERTEX_UNIT_COUNT     1
 #define ATTRIB_TYPE_COUNT     9
 
+#define MODELVIEW_STACK_SIZE  32
+#define PROJECTION_STACK_SIZE 2
+#define TEXTURE_STACK_SIZE    2
+#define PALETTE_STACK_SIZE    1
+
 #define MAX_PIPELINE_COUNT          (1<<4)
 #define MAX_VERTEX_ATTRIBUTE_COUNT  3
 
@@ -64,6 +69,18 @@ typedef double doubleu __attribute__((aligned(1)));
 typedef struct {
     GLfloat x, y, w, h, n, f;
 } gl_viewport_t;
+
+typedef struct {
+    fm_mat4_t *storage;
+    int32_t size;
+    int32_t cur_depth;
+} gl_matrix_stack_t;
+
+typedef struct {
+    gl_matrix_stack_t *mv_stack;
+    fm_mat4_t mvp;
+    bool is_mvp_dirty;
+} gl_matrix_target_t;
 
 typedef enum {
     ATTRIB_VERTEX,
@@ -120,7 +137,6 @@ typedef struct {
     mgfx_fog_t fog;
     mgfx_lighting_t lighting;
     mgfx_texturing_t texturing;
-    mgfx_matrices_t matrices;
 } gl_uniform_data;
 
 typedef struct {
@@ -156,6 +172,31 @@ typedef struct {
     gl_fixed_precision_t texcoord_halfx_precision;
     uint32_t pipelines_count;
     pipeline_data pipelines[MAX_PIPELINE_COUNT]; // TODO: change this to a hashmap
+
+    GLenum matrix_mode;
+    GLint current_palette_matrix;
+
+    fm_mat4_t *current_matrix;
+
+    fm_mat4_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
+    fm_mat4_t projection_stack_storage[PROJECTION_STACK_SIZE];
+    fm_mat4_t texture_stack_storage[TEXTURE_STACK_SIZE];
+    fm_mat4_t palette_stack_storage[MATRIX_PALETTE_SIZE][PALETTE_STACK_SIZE];
+
+    gl_matrix_stack_t modelview_stack;
+    gl_matrix_stack_t projection_stack;
+    gl_matrix_stack_t texture_stack;
+    gl_matrix_stack_t palette_stacks[MATRIX_PALETTE_SIZE];
+    gl_matrix_stack_t *current_matrix_stack;
+
+    gl_matrix_target_t default_matrix_target;
+    gl_matrix_target_t palette_matrix_targets[MATRIX_PALETTE_SIZE];
+
+    gl_matrix_target_t *current_matrix_target;
+
+    float near_plane;
+    float far_plane;
+    
     bool begin_end_active;
     bool is_pipeline_dirty;
     bool is_drawing_anything;
@@ -188,6 +229,10 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
 uint32_t pipeline_get_or_create(const mg_vertex_layout_t *submesh_layout, mgfx_features_t features);
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
+
+fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
+void gl_update_matrix_targets();
+void update_culling();
 
 inline uint32_t gl_type_to_index(GLenum type)
 {
