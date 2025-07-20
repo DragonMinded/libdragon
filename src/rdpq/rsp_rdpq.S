@@ -18,8 +18,8 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC3
         RSPQ_DefineCommand RDPQCmd_ResetMode,               16  # 0xC4 Reset Mode (set mode standard)
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
-        RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC6 Push Mode
-        RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC7 Pop Mode
+        RSPQ_DefineCommand RDPQCmd_PushMode,                4   # 0xC6 Push Mode
+        RSPQ_DefineCommand RDPQCmd_PopMode,                 4   # 0xC7 Pop Mode
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     32  # 0xC8 Filled
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     48  # 0xC9 Filled ZBuffered
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     96  # 0xCA Textured
@@ -595,8 +595,11 @@ RDPQCmd_PopMode:
     sqv $v02,0, 0x00,s0
     sqv $v03,0, 0x10,s0
     sqv $v04,0, 0x20,s0
-    j RDPQ_UpdateRenderMode
     sqv $v05,0, 0x30,s0
+
+    lw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
+    lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
+    jal_and_j RDPQ_WriteSetScissor, RDPQ_UpdateRenderMode
     .endfunc
 
     .func RDPQCmd_SetBlendingMode

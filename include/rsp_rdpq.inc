@@ -680,6 +680,9 @@ RDPQ_WriteSetScissor:
     sw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
 
     # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
+    # Subpixels don't seem to have any effect in COPY/FILL mode,
+    # and they are useful if we try to draw after detaching
+    # (for which we set the scissor to 0,0-1,0).
     addiu a1, -(1 << 12)
 
 1:

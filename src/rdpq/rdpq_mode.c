@@ -64,12 +64,15 @@ void rdpq_mode_push(void)
 {
     // Push is not a RDP passthrough/fixup command, it's just a standard
     // RSP command. Use rspq_write.
-    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_PUSH_RENDER_MODE, 0, 0);
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_PUSH_RENDER_MODE);
 }
 
 void rdpq_mode_pop(void)
 {
-    __rdpq_fixup_mode(RDPQ_CMD_POP_RENDER_MODE, 0, 0);
+    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    // ModePop can generate: SCISSOR+COMBINE+SOM when not frozen,
+    // or just SCISSOR when frozen.
+    rdpq_mode_write(3, 1, RDPQ_OVL_ID, RDPQ_CMD_POP_RENDER_MODE);
 }
 
 /** @brief Like #rdpq_set_mode_fill, but without fill color configuration */
