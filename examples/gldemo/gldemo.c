@@ -4,6 +4,7 @@
 #include <GL/gl_integration.h>
 
 #include "plane.h"
+#include "debug_overlay.h"
 
 #define TICKRATE   30
 #define DELTATIME  (1.0f/(double)TICKRATE)
@@ -28,6 +29,11 @@ static fm_vec3_t camera_position = {{0, 10, 10}};
 static float camera_yaw;
 static float camera_pitch = -0.83f;
 
+static uint64_t frames = 0;
+static bool display_metrics = false;
+static bool request_display_metrics = false;
+static float last_3d_fps = 0.0f;
+
 void init()
 {
 	debug_init(DEBUG_FEATURE_LOG_ISVIEWER | DEBUG_FEATURE_LOG_USB);
@@ -38,6 +44,9 @@ void init()
     gl_init();
     rdpq_debug_start();
     //rdpq_debug_log(true);
+
+    rspq_profile_start();
+    debug_overlay_init();
 
     setup_plane();
     make_plane_mesh();
@@ -93,6 +102,14 @@ void update_fixed(float deltatime)
 
 void update(float deltatime)
 {
+    joypad_buttons_t btn = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+
+    // L toggles the debug/profiler overlay on/off
+    if (btn.l) {
+        request_display_metrics = !request_display_metrics;
+        if (!request_display_metrics) display_metrics = false;
+    }
+
     surface_t *framebuffer = display_get();
     rdpq_attach(framebuffer, zbuffer);
 
@@ -131,7 +148,27 @@ void update(float deltatime)
 
     gl_context_end();
 
+    if (display_metrics) {
+        debug_draw_perf_overlay(last_3d_fps);
+    }
+
     rdpq_detach_show();
+
+    rspq_profile_next_frame();
+
+    if (frames == 30) {
+        if (!display_metrics) {
+            last_3d_fps = display_get_fps();
+            rspq_wait();
+            rspq_profile_get_data(&profile_data);
+            if (request_display_metrics) display_metrics = true;
+        }
+
+        frames = 0;
+        rspq_profile_reset();
+    }
+
+    frames++;
 }
 
 int main()
