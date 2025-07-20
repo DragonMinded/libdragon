@@ -307,6 +307,8 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
             sect = strtok(NULL, ".");
         }
         if (fmt != FMT_NONE) {
+            // If the user specified via command line, this is not "autoformat" anymore
+            autofmt = false;
             if (flag_verbose)
                 fprintf(stderr, "detected format from filename: %s\n", tex_format_name(fmt));
         }
