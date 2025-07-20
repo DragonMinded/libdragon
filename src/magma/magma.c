@@ -342,10 +342,9 @@ void mg_pipeline_bind(mg_pipeline_t *pipeline)
 
     int16_t v0 = pipeline->vertex_stride;
     int16_t v1 = MG_VTX_SIZE;
-    int16_t v2 = -pipeline->vertex_stride;
-    int16_t v3 = pipeline->vertex_stride;
+    int16_t v2 = pipeline->vertex_stride;
     mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size), (v0 << 16) | v1);
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16) | v3);
+    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16));
 }
 
 static mg_rsp_viewport_t viewport_to_rsp_state(const mg_viewport_t *viewport)

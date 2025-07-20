@@ -109,7 +109,6 @@ shader mgfx()
         u32 inputs_ptr = get_cmd_address(0x2);
         vec16 vvtx_size = load(MG_VERTEX_SIZE).xyzw;
         vec16 vinputs = load(inputs_ptr).xyzw;
-        vinputs.w = load(inputs_ptr).z;
         
         vec32 vproducts = vinputs * vvtx_size;
         @Barrier("inputs0") store(vproducts:ufract.xyzw, RSPQ_SCRATCH_MEM);
@@ -121,7 +120,7 @@ shader mgfx()
 
         @Barrier("inputs0") vtx_out0_ptr = load(RSPQ_SCRATCH_MEM, 0x2);
         u16 vertices_size;
-        @Barrier("inputs0") vertices_size = load(RSPQ_SCRATCH_MEM, 0x6);
+        @Barrier("inputs0") vertices_size = load(RSPQ_SCRATCH_MEM, 0x4);
         u32 buffer_offset;
         @Barrier("inputs1") buffer_offset = load(RSPQ_SCRATCH_MEM, 0x8);
         
@@ -133,10 +132,8 @@ shader mgfx()
         dma_size += 0x7;
         dma_size &= 0xFF8;
         
-        s16 off_from_end;
-        @Barrier("inputs0") off_from_end = load(RSPQ_SCRATCH_MEM, 0x4);
-        vtx_in0_ptr = off_from_end + MG_VERTEX_CACHE_END;
-        vtx_in0_ptr &= 0xFF8;
+        vtx_in0_ptr = MG_VERTEX_CACHE_END;
+        vtx_in0_ptr -= dma_size;
         
         dma_in(vtx_in0_ptr, vtx_buffer, dma_size);
 
