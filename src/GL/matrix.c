@@ -133,6 +133,28 @@ void glCurrentPaletteMatrixARB(GLint index)
     gl_update_current_matrix_stack();
 }
 
+static void update_near_far_planes()
+{
+    // Attempt to extract near and far plane from projection matrix 
+    // for perspective renormalization
+    fm_mat4_t *proj = gl_matrix_stack_get_matrix(&state->projection_stack);
+
+    // Check for perspective projection
+    if (proj->m[2][3] != 0.f) {
+        float a = proj->m[2][2] - 1.f;
+        float b = proj->m[2][2] + 1.f;
+        state->near_plane = fabsf(a) > FM_EPSILON ? proj->m[3][2] / a : 0.f;
+        state->far_plane = fabsf(b) > FM_EPSILON ? proj->m[3][2] / b : 0.f;
+    } else {
+        // There is no perspective divide, so we set both planes to zero.
+        // This will disable the perspective renormalization
+        state->near_plane = 0.0f;
+        state->far_plane = 0.0f;
+    }
+
+    update_viewport();
+}
+
 static void gl_mark_matrix_target_dirty()
 {
     if (state->current_matrix_target != NULL) {
@@ -143,6 +165,8 @@ static void gl_mark_matrix_target_dirty()
         {
             state->palette_matrix_targets[i].is_mvp_dirty = true;
         }
+
+        update_near_far_planes();
     }
 }
 

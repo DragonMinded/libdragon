@@ -233,6 +233,7 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void gl_update_matrix_targets();
 void update_culling();
+void update_viewport();
 
 inline uint32_t gl_type_to_index(GLenum type)
 {
