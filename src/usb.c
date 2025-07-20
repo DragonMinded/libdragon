@@ -74,8 +74,8 @@ https://github.com/buu342/N64-UNFLoader
           64Drive macros
 *********************************/
 
-#define D64_COMMAND_TIMEOUT       1000
-#define D64_WRITE_TIMEOUT         1000
+#define D64_COMMAND_TIMEOUT       100
+#define D64_WRITE_TIMEOUT         100
 
 #define D64_BASE                  0x10000000
 #define D64_REGS_BASE             0x18000000
@@ -119,7 +119,7 @@ https://github.com/buu342/N64-UNFLoader
          EverDrive macros
 *********************************/
 
-#define ED_TIMEOUT        1000
+#define ED_TIMEOUT        100
 
 #define ED_BASE           0x10000000
 #define ED_BASE_ADDRESS   0x1F800000
@@ -152,7 +152,7 @@ https://github.com/buu342/N64-UNFLoader
             SC64 macros
 *********************************/
 
-#define SC64_WRITE_TIMEOUT          1000
+#define SC64_WRITE_TIMEOUT          100
 
 #define SC64_BASE                   0x10000000
 #define SC64_REGS_BASE              0x1FFF0000
@@ -477,7 +477,7 @@ char usb_initialize(void)
     }
 
     // Send a heartbeat
-    //usb_sendheartbeat();
+    usb_sendheartbeat();
     return 1;
 }
 
