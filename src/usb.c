@@ -10,9 +10,7 @@ https://github.com/buu342/N64-UNFLoader
 #ifndef LIBDRAGON
     #include <ultra64.h>
 #else
-    #include <stdint.h>
-    #include <n64sys.h>
-    #include <dma.h>
+    #include <libdragon.h>
 #endif
 #include <string.h>
 
@@ -81,15 +79,16 @@ https://github.com/buu342/N64-UNFLoader
 
 #define D64_BASE                  0x10000000
 #define D64_REGS_BASE             0x18000000
+#define D64_REGS_BASE_EXTENDED    0x1F800000
 
-#define D64_REG_STATUS            (D64_REGS_BASE + 0x0200)
-#define D64_REG_COMMAND           (D64_REGS_BASE + 0x0208)
+#define D64_REG_STATUS            (usb_64drive_get_baseaddr() + 0x0200)
+#define D64_REG_COMMAND           (usb_64drive_get_baseaddr() + 0x0208)
 
-#define D64_REG_MAGIC             (D64_REGS_BASE + 0x02EC)
+#define D64_REG_MAGIC             (usb_64drive_get_baseaddr() + 0x02EC)
 
-#define D64_REG_USBCOMSTAT        (D64_REGS_BASE + 0x0400)
-#define D64_REG_USBP0R0           (D64_REGS_BASE + 0x0404)
-#define D64_REG_USBP1R1           (D64_REGS_BASE + 0x0408)
+#define D64_REG_USBCOMSTAT        (usb_64drive_get_baseaddr() + 0x0400)
+#define D64_REG_USBP0R0           (usb_64drive_get_baseaddr() + 0x0404)
+#define D64_REG_USBP1R1           (usb_64drive_get_baseaddr() + 0x0408)
 
 #define D64_CI_BUSY               0x1000
 
@@ -98,13 +97,18 @@ https://github.com/buu342/N64-UNFLoader
 #define D64_CI_ENABLE_ROMWR       0xF0
 #define D64_CI_DISABLE_ROMWR      0xF1
 
+#define D64_CI_ENABLE_EXTADDR     0xF8
+#define D64_CI_DISABLE_EXTADDR    0xF9
+
 #define D64_CUI_ARM               0x0A
 #define D64_CUI_DISARM            0x0F
 #define D64_CUI_WRITE             0x08
 
 #define D64_CUI_ARM_MASK          0x0F
 #define D64_CUI_ARM_IDLE          0x00
+#define D64_CUI_ARM_ARMED         0x01
 #define D64_CUI_ARM_UNARMED_DATA  0x02
+#define D64_CUI_ARM_BUSY          0x0F
 
 #define D64_CUI_WRITE_MASK        0xF0
 #define D64_CUI_WRITE_IDLE        0x00
@@ -215,16 +219,19 @@ https://github.com/buu342/N64-UNFLoader
 *********************************/
 
 static void usb_findcart(void);
+static u32  usb_getaddr();
 
-static void usb_64drive_write(int datatype, const void* data, int size);
+static s8   usb_64drive_write(int datatype, const void* data, int size);
 static u32  usb_64drive_poll(void);
 static void usb_64drive_read(void);
+static void usb_64drive_set_extendedaddress(u8 enable);
+static u32  usb_64drive_get_baseaddr();
 
-static void usb_everdrive_write(int datatype, const void* data, int size);
+static s8   usb_everdrive_write(int datatype, const void* data, int size);
 static u32  usb_everdrive_poll(void);
 static void usb_everdrive_read(void);
 
-static void usb_sc64_write(int datatype, const void* data, int size);
+static s8   usb_sc64_write(int datatype, const void* data, int size);
 static u32  usb_sc64_poll(void);
 static void usb_sc64_read(void);
 
@@ -234,7 +241,7 @@ static void usb_sc64_read(void);
 *********************************/
 
 // Function pointers
-void (*funcPointer_write)(int datatype, const void* data, int size);
+s8   (*funcPointer_write)(int datatype, const void* data, int size);
 u32  (*funcPointer_poll)(void);
 void (*funcPointer_read)(void);
 
@@ -247,6 +254,10 @@ static int usb_datatype = 0;
 static int usb_datasize = 0;
 static int usb_dataleft = 0;
 static int usb_readblock = -1;
+
+// Cart specific globals
+static vu8 d64_wasarmed = FALSE;
+static u8 d64_extendedaddr = FALSE;
 
 #ifndef LIBDRAGON
     // Message globals
@@ -363,7 +374,7 @@ static inline void usb_dma_write(void *ram_address, u32 pi_address, size_t size)
             osPiRawStartDma(OS_WRITE, pi_address, ram_address, size);
         #else
             osPiStartDma(&dmaIOMessageBuf, OS_MESG_PRI_NORMAL, OS_WRITE, pi_address, ram_address, size, &dmaMessageQ);
-            osRecvMesg(&dmaMessageQ, NULL, OS_MESG_BLOCK);
+            while (osRecvMesg(&dmaMessageQ, NULL, OS_MESG_NOBLOCK) != 0);
         #endif
     #else
         data_cache_hit_writeback(ram_address, size);
@@ -424,7 +435,7 @@ static char usb_timeout_check(u32 start_ticks, u32 duration)
 /*==============================
     usb_initialize
     Initializes the USB buffers and pointers
-    @returns 1 if the USB initialization was successful, 0 if not
+    @return 1 if the USB initialization was successful, 0 if not
 ==============================*/
 
 char usb_initialize(void)
@@ -563,26 +574,42 @@ char usb_getcart(void)
 
 
 /*==============================
+    usb_getaddr
+    Gets the base address for the USB data to be stored in
+    @return The base data address
+==============================*/
+
+u32 usb_getaddr()
+{
+    if (usb_cart == CART_64DRIVE && d64_extendedaddr)
+        return 0x10000000 - DEBUG_ADDRESS_SIZE;
+    else
+        return DEBUG_ADDRESS;
+}
+
+
+/*==============================
     usb_write
     Writes data to the USB.
     Will not write if there is data to read from USB
-    @param The DATATYPE that is being sent
-    @param A buffer with the data to send
-    @param The size of the data being sent
+    @param  The DATATYPE that is being sent
+    @param  A buffer with the data to send
+    @param  The size of the data being sent
+    @return 1 on success, 0 on fail, -1 on timeout
 ==============================*/
 
-void usb_write(int datatype, const void* data, int size)
+char usb_write(int datatype, const void* data, int size)
 {
     // If no debug cart exists, stop
     if (usb_cart == CART_NONE)
-        return;
+        return 0;
     
     // If there's data to read first, stop
     if (usb_dataleft != 0)
-        return;
+        return 0;
     
     // Call the correct write function
-    funcPointer_write(datatype, data, size);
+    return funcPointer_write(datatype, data, size);
 }
 
 
@@ -668,6 +695,10 @@ void usb_read(void* buffer, int nbytes)
         block = BUFFER_SIZE;
         copystart = 0;
     }
+    
+    // Due to hardware issues, we should re-poll the 64Drive for data (which will unarm the buffer if there really isn't any more data)
+    if (usb_dataleft == 0 && usb_cart == CART_64DRIVE)
+        usb_64drive_poll();
 }
 
 
@@ -682,7 +713,13 @@ void usb_skip(int nbytes)
     // Subtract the amount of bytes to skip to the data pointers
     usb_dataleft -= nbytes;
     if (usb_dataleft < 0)
+    {
         usb_dataleft = 0;
+    
+        // Due to hardware issues, we should re-poll the 64Drive for data (which will unarm the buffer if there really isn't any more data)
+        if (usb_cart == CART_64DRIVE)
+            usb_64drive_poll();
+    }
 }
 
 
@@ -712,6 +749,10 @@ void usb_purge(void)
     usb_datatype = 0;
     usb_datasize = 0;
     usb_readblock = -1;
+
+    // Due to hardware issues, we should re-poll the 64Drive for data (which will unarm the buffer if there really isn't any more data)
+    if (usb_cart == CART_64DRIVE)
+        usb_64drive_poll();
 }
 
 
@@ -810,16 +851,101 @@ static void usb_64drive_set_writable(u32 enable)
 
 
 /*==============================
-    usb_64drive_cui_write
-    Writes data from buffer in the 64drive through USB
-    @param Data type
-    @param Offset in CARTROM memory space
-    @param Transfer size
+    usb_64drive_get_baseaddr
+    Gets the 64Drive's base address for CI commands
+    @return The CI base address
 ==============================*/
 
-static void usb_64drive_cui_write(u8 datatype, u32 offset, u32 size)
+static u32 usb_64drive_get_baseaddr()
+{
+    return d64_extendedaddr ? D64_REGS_BASE_EXTENDED : D64_REGS_BASE;
+}
+
+
+/*==============================
+    usb_64drive_set_extendedaddress
+    Enables or disables 64Drive's extended address mode
+    @param Enables/disables extended address mode
+==============================*/
+
+static void usb_64drive_set_extendedaddress(u8 enable)
+{
+    // Wait until CI is not busy
+    usb_64drive_wait();
+
+    // Send enable extended address command
+    usb_io_write(D64_REG_COMMAND, enable ? D64_CI_ENABLE_EXTADDR : D64_CI_DISABLE_EXTADDR);
+    d64_extendedaddr = enable;
+
+    // Wait until operation is finished
+    usb_64drive_wait();
+}
+
+
+/*==============================
+    usb_64drive_cui_arm
+    Arms the 64Drive's USB with the guarantee that we will receive data
+    @param The address to put the data into
+    @param The size of the buffer
+==============================*/
+
+static void usb_64drive_cui_arm(u32 offset, u32 size)
+{
+    usb_io_write(D64_REG_USBP0R0, offset >> 1);
+    usb_io_write(D64_REG_USBP1R1, size & 0x00FFFFFF);
+    usb_io_write(D64_REG_USBCOMSTAT, D64_CUI_ARM);
+    while ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) != D64_CUI_ARM_UNARMED_DATA)
+        ;
+}
+
+
+/*==============================
+    usb_64drive_cui_armcheck
+    Arms the 64Drive's USB to check if we have data or not
+    @param The address to put the data into
+    @param The size of the buffer
+==============================*/
+
+static void usb_64drive_cui_armcheck(u32 offset, u32 size)
+{
+    usb_io_write(D64_REG_USBP0R0, offset >> 1);
+    usb_io_write(D64_REG_USBP1R1, size & 0x00FFFFFF);
+    usb_io_write(D64_REG_USBCOMSTAT, D64_CUI_ARM);
+    while ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) == D64_CUI_ARM_BUSY)
+        ;
+}
+
+
+/*==============================
+    usb_64drive_cui_disarm
+    Disarms the 64Drive's USB
+==============================*/
+
+static void usb_64drive_cui_disarm()
+{
+    usb_io_write(D64_REG_USBCOMSTAT, D64_CUI_DISARM);
+    while ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) != D64_CUI_ARM_IDLE)
+        ;
+}
+
+
+/*==============================
+    usb_64drive_cui_write
+    Writes data from buffer in the 64drive through USB
+    @param  Data type
+    @param  Offset in CARTROM memory space
+    @param  Transfer size
+    @return 1 on success, 0 on fail, -1 on timeout
+==============================*/
+
+static s8 usb_64drive_cui_write(u8 datatype, u32 offset, u32 size)
 {
     u32 timeout;
+    u32 comstat = usb_io_read(D64_REG_USBCOMSTAT);
+    
+    // Check the arm status. If it's not idle, then we have to bail
+    if ((comstat & D64_CUI_ARM_MASK) != D64_CUI_ARM_IDLE)
+        return 0;
 
     // Start USB write
     usb_io_write(D64_REG_USBP0R0, offset >> 1);
@@ -834,86 +960,71 @@ static void usb_64drive_cui_write(u8 datatype, u32 offset, u32 size)
         if (usb_timeout_check(timeout, D64_WRITE_TIMEOUT))
         {
             usb_didtimeout = TRUE;
-            return;
+            return -1;
         }
     }
     while((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_WRITE_MASK) != D64_CUI_WRITE_IDLE);
-}
-
-
-/*==============================
-    usb_64drive_cui_poll
-    Checks if there is data waiting to be read from USB FIFO
-    @return TRUE if data is waiting, FALSE if otherwise
-==============================*/
-
-static char usb_64drive_cui_poll(void)
-{
-    // Check if we have data waiting in buffer
-    if ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) == D64_CUI_ARM_UNARMED_DATA)
-        return TRUE;
-    return FALSE;
+    usb_didtimeout = FALSE;
+    return 1;
 }
 
 
 /*==============================
     usb_64drive_cui_read
-    Reads data from USB FIFO to buffer in the 64drive
+    Reads data from USB FIFO to buffer in the 64Drive
+    This code is structured a bit differently from the 
+    instructions in the hardware spec sheet. Reasons for 
+    this are complicated and are down to a firmware bug 
+    that I wasted an entire week figuring out.
+    More info about this bug here:
+    https://github.com/buu342/N64-UNFLoader/wiki/3)-The-64Drive#pc---n64-usb-communication
     @param  Offset in CARTROM memory space
     @return USB header (datatype + size)
 ==============================*/
 
 static u32 usb_64drive_cui_read(u32 offset)
 {
-    u32 header;
-    u32 left;
     u32 datatype;
-    u32 size;
-
-    // Arm USB FIFO with 8 byte sized transfer
-    usb_io_write(D64_REG_USBP0R0, offset >> 1);
-    usb_io_write(D64_REG_USBP1R1, 8);
-    usb_io_write(D64_REG_USBCOMSTAT, D64_CUI_ARM);
-
-    // Wait until data is received
-    while ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) != D64_CUI_ARM_UNARMED_DATA)
-        ;
-
-    // Get datatype and bytes remaining
-    header = usb_io_read(D64_REG_USBP0R0);
-    left = usb_io_read(D64_REG_USBP1R1) & 0x00FFFFFF;
-    datatype = header & 0xFF000000;
-    size = header & 0x00FFFFFF;
-
-    // Determine if we need to read more data
-    if (left > 0)
+    u32 size = 0;
+    u32 left = 0;
+    
+    // Arm the USB to check if we have data to read
+    do
     {
-        // Arm USB FIFO with known transfer size
-        usb_io_write(D64_REG_USBP0R0, (offset + 8) >> 1);
-        usb_io_write(D64_REG_USBP1R1, left);
-        usb_io_write(D64_REG_USBCOMSTAT, D64_CUI_ARM);
-
-        // Wait until data is received
-        while ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) != D64_CUI_ARM_UNARMED_DATA)
-            ;
-
-        // Calculate total transfer length
-        size += left;
-    }
-
-    // Disarm USB FIFO
-    usb_io_write(D64_REG_USBCOMSTAT, D64_CUI_DISARM);
-
-    // Wait until USB FIFO is disarmed
-    while ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) != D64_CUI_ARM_IDLE)
-        ;
+        // Arm the USB to take the data
+        if (!d64_wasarmed || left > 0)
+        {
+            d64_wasarmed = TRUE;
+            usb_64drive_cui_arm(offset + size, DEBUG_ADDRESS_SIZE - size);
+        }
+        else // We recently armed and took data, arm again but check if we have more to serve
+        {
+            usb_64drive_cui_armcheck(offset, DEBUG_ADDRESS_SIZE);
+            
+            // No data, disarm
+            if ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) == D64_CUI_ARM_ARMED)
+            {
+                usb_64drive_cui_disarm();
+                d64_wasarmed = FALSE;
+                return 0;
+            }
+            
+            // Otherwise, we have more data to read
+        }
         
-    // Due to a 64drive bug, we need to ignore the last 512 bytes of the transfer if it's larger than 512 bytes
+        // Read the result
+        datatype = usb_io_read(D64_REG_USBP0R0);
+        size += (datatype & 0x00FFFFFF);
+        left = (usb_io_read(D64_REG_USBP1R1) & 0x00FFFFFF);
+    }
+    while (left > 0);
+    
+    // Due to a 64Drive bug, we need to ignore the last 512 bytes of the transfer if it's larger than 512 bytes
     if (size > 512)
         size -= 512;
 
     // Return data header (datatype and size)
-    return (datatype | size);
+    return ((datatype & 0xFF000000) | size);
 }
 
 
@@ -924,18 +1035,24 @@ static u32 usb_64drive_cui_read(u32 offset)
     @param The DATATYPE that is being sent
     @param A buffer with the data to send
     @param The size of the data being sent
+    @return 1 on success, 0 on fail, -1 on timeout
 ==============================*/
 
-static void usb_64drive_write(int datatype, const void* data, int size)
+static s8 usb_64drive_write(int datatype, const void* data, int size)
 {
     s32 left = size;
-    u32 pi_address = D64_BASE + DEBUG_ADDRESS;
+    u32 pi_address = D64_BASE + usb_getaddr();
+    u32 comstat = usb_io_read(D64_REG_USBCOMSTAT);
+    
+    // Check the arm status. If there's data, for some reason, we have to bail
+    if ((comstat & D64_CUI_ARM_MASK) != D64_CUI_ARM_IDLE)
+        return 0;
 
     // Return if previous transfer timed out
-    if ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_WRITE_MASK) == D64_CUI_WRITE_BUSY)
+    if ((comstat & D64_CUI_WRITE_MASK) == D64_CUI_WRITE_BUSY)
     {
         usb_didtimeout = TRUE;
-        return;
+        return -1;
     }
 
     // Set the cartridge to write mode
@@ -967,8 +1084,7 @@ static void usb_64drive_write(int datatype, const void* data, int size)
     usb_64drive_set_writable(FALSE);
 
     // Send the data through USB
-    usb_64drive_cui_write(datatype, DEBUG_ADDRESS, size);
-    usb_didtimeout = FALSE;
+    return usb_64drive_cui_write(datatype, usb_getaddr(), size);
 }
 
 
@@ -982,19 +1098,23 @@ static void usb_64drive_write(int datatype, const void* data, int size)
 static u32 usb_64drive_poll(void)
 {
     u32 header;
-
-    // If there's data to service
-    if (usb_64drive_cui_poll())
+    
+    // Check if the CUI is telling us to read data
+    if ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_ARM_MASK) == D64_CUI_ARM_UNARMED_DATA)
     {
         // Read data to the buffer in 64drive SDRAM memory
-        header = usb_64drive_cui_read(DEBUG_ADDRESS);
-
+        header = usb_64drive_cui_read(usb_getaddr());
+        
+        // Check if we actually had data
+        if (header == 0)
+            return 0;
+        
         // Get the data header
         usb_datatype = USBHEADER_GETTYPE(header);
         usb_dataleft = USBHEADER_GETSIZE(header);
         usb_datasize = usb_dataleft;
         usb_readblock = -1;
-
+        
         // Return the data header
         return USBHEADER_CREATE(usb_datatype, usb_datasize);
     }
@@ -1012,7 +1132,7 @@ static u32 usb_64drive_poll(void)
 static void usb_64drive_read(void)
 {
     // Set up DMA transfer between RDRAM and the PI
-    usb_dma_read(usb_buffer, D64_BASE + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
+    usb_dma_read(usb_buffer, D64_BASE + usb_getaddr() + usb_readblock, BUFFER_SIZE);
 }
 
 
@@ -1103,12 +1223,13 @@ static void usb_everdrive_readusb(void* buffer, int size)
     usb_everdrive_write
     Sends data through USB from the EverDrive
     Will not write if there is data to read from USB
-    @param The DATATYPE that is being sent
-    @param A buffer with the data to send
-    @param The size of the data being sent
+    @param  The DATATYPE that is being sent
+    @param  A buffer with the data to send
+    @param  The size of the data being sent
+    @return 1 on success, 0 on fail, -1 on timeout
 ==============================*/
 
-static void usb_everdrive_write(int datatype, const void* data, int size)
+static s8 usb_everdrive_write(int datatype, const void* data, int size)
 {
     char wrotecmp = 0;
     char cmp[] = {'C', 'M', 'P', 'H'};
@@ -1162,7 +1283,7 @@ static void usb_everdrive_write(int datatype, const void* data, int size)
         if (usb_everdrive_usbbusy())
         {
             usb_didtimeout = TRUE;
-            return;
+            return -1;
         }
         
         // Keep track of what we've read so far
@@ -1171,6 +1292,7 @@ static void usb_everdrive_write(int datatype, const void* data, int size)
         offset = 0;
     }
     usb_didtimeout = FALSE;
+    return 1;
 }
 
 
@@ -1221,7 +1343,7 @@ static u32 usb_everdrive_poll(void)
         usb_everdrive_readusb(usb_buffer, bytes_do);
         
         // Copy received block to ROM
-        usb_dma_write(usb_buffer, ED_BASE + DEBUG_ADDRESS + offset, bytes_do);
+        usb_dma_write(usb_buffer, ED_BASE + usb_getaddr() + offset, bytes_do);
         offset += bytes_do;
         len -= bytes_do;
     }
@@ -1253,7 +1375,7 @@ static u32 usb_everdrive_poll(void)
 static void usb_everdrive_read(void)
 {
     // Set up DMA transfer between RDRAM and the PI
-    usb_dma_read(usb_buffer, ED_BASE + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
+    usb_dma_read(usb_buffer, ED_BASE + usb_getaddr() + usb_readblock, BUFFER_SIZE);
 }
 
 
@@ -1333,15 +1455,16 @@ static u32 usb_sc64_set_writable(u32 enable)
 /*==============================
     usb_sc64_write
     Sends data through USB from the SC64
-    @param The DATATYPE that is being sent
-    @param A buffer with the data to send
-    @param The size of the data being sent
+    @param  The DATATYPE that is being sent
+    @param  A buffer with the data to send
+    @param  The size of the data being sent
+    @return 1 on success, 0 on fail, -1 on timeout
 ==============================*/
 
-static void usb_sc64_write(int datatype, const void* data, int size)
+static s8 usb_sc64_write(int datatype, const void* data, int size)
 {
     u32 left = size;
-    u32 pi_address = SC64_BASE + DEBUG_ADDRESS;
+    u32 pi_address = SC64_BASE + usb_getaddr();
     u32 writable_restore;
     u32 timeout;
     u32 args[2];
@@ -1352,7 +1475,7 @@ static void usb_sc64_write(int datatype, const void* data, int size)
     if (result[0] & SC64_USB_WRITE_STATUS_BUSY)
     {
         usb_didtimeout = TRUE;
-        return;
+        return -1;
     }
 
     // Enable SDRAM writes and get previous setting
@@ -1379,12 +1502,12 @@ static void usb_sc64_write(int datatype, const void* data, int size)
     usb_sc64_set_writable(writable_restore);
 
     // Start sending data from buffer in SDRAM
-    args[0] = SC64_BASE + DEBUG_ADDRESS;
+    args[0] = SC64_BASE + usb_getaddr();
     args[1] = USBHEADER_CREATE(datatype, size);
     if (usb_sc64_execute_cmd(SC64_CMD_USB_WRITE, args, NULL))
     {
         usb_didtimeout = TRUE;
-        return; // Return if USB write was unsuccessful
+        return 0; // Return if USB write was unsuccessful
     }
 
     // Wait for transfer to end
@@ -1395,12 +1518,13 @@ static void usb_sc64_write(int datatype, const void* data, int size)
         if (usb_timeout_check(timeout, SC64_WRITE_TIMEOUT))
         {
             usb_didtimeout = TRUE;
-            return;
+            return -1;
         }
         usb_sc64_execute_cmd(SC64_CMD_USB_WRITE_STATUS, NULL, result);
     }
     while (result[0] & SC64_USB_WRITE_STATUS_BUSY);
     usb_didtimeout = FALSE;
+    return 1;
 }
 
 
@@ -1434,7 +1558,7 @@ static u32 usb_sc64_poll(void)
     usb_readblock = -1;
 
     // Start receiving data to buffer in SDRAM
-    args[0] = SC64_BASE + DEBUG_ADDRESS;
+    args[0] = SC64_BASE + usb_getaddr();
     args[1] = size;
     if (usb_sc64_execute_cmd(SC64_CMD_USB_READ, args, NULL))
         return 0; // Return 0 if USB read was unsuccessful
@@ -1459,5 +1583,5 @@ static u32 usb_sc64_poll(void)
 static void usb_sc64_read(void)
 {
     // Set up DMA transfer between RDRAM and the PI
-    usb_dma_read(usb_buffer, SC64_BASE + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
+    usb_dma_read(usb_buffer, SC64_BASE + usb_getaddr() + usb_readblock, BUFFER_SIZE);
 }
