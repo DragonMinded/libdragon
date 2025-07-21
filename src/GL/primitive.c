@@ -40,13 +40,7 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     }
 }
 
-void prepare_vertex_buffer(uint32_t first, uint32_t count)
-{
-    array_object_update(state->array_object, first, count);
-    mg_bind_vertex_buffer(state->array_object->buffer);
-}
-
-void prepare_pipeline()
+static void prepare_pipeline()
 {
     mg_pipeline_t *pipeline = state->pipelines[state->array_object->pipeline_index].pipeline;
     mg_pipeline_bind(pipeline);
@@ -73,12 +67,18 @@ void prepare_pipeline()
     });
 }
 
+static void prepare_vertex_buffer(uint32_t first, uint32_t count)
+{
+    array_object_update(state->array_object, first, count);
+    mg_bind_vertex_buffer(state->array_object->buffer);
+    prepare_pipeline();
+}
+
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     if (!state->is_drawing_anything || count == 0) return;
     
     prepare_vertex_buffer(first, count);
-    prepare_pipeline();
     mg_draw_begin(); // TODO: detect if modes have actually changed to batch draw commands
     mg_draw(&(mg_input_assembly_parms_t) {
         .primitive_topology = get_primitive_topology(mode)
@@ -106,6 +106,37 @@ static void find_index_bounds(const uint16_t *indices, uint32_t count, uint16_t 
     *max_index = max;
 }
 
+static void update_element_array_cache(gl_buffer_object_t *element_buffer, uint32_t count, uint32_t offset, const mg_input_assembly_parms_t *input_assembly_parms, uint16_t *min_index, uint16_t *max_index)
+{
+    if (element_buffer->element_cache == NULL) {
+        element_buffer->element_cache = calloc(1, sizeof(gl_element_array_cache_t));
+    }
+
+    const uint16_t *indices_i16 = (const uint16_t*)((const uint8_t*)element_buffer->storage.data + offset);
+
+    gl_element_array_cache_t *cache = element_buffer->element_cache;
+    bool is_dirty = false;
+    if (cache->is_data_dirty || cache->count != count || cache->offset != offset) {
+        find_index_bounds(indices_i16, count, &cache->min_index, &cache->max_index);
+        cache->count = count;
+        cache->offset = offset;
+        is_dirty = true;
+    }
+    if (is_dirty || !input_assembly_parms_equal(&cache->parms, input_assembly_parms)) {
+        cache->parms = *input_assembly_parms;
+
+        if (cache->block != NULL) rspq_block_free(cache->block);
+
+        rspq_block_begin();
+        mg_draw_indexed(input_assembly_parms, indices_i16, count, -cache->min_index);
+        cache->block = rspq_block_end();
+        cache->is_data_dirty = false;
+    }
+
+    *min_index = cache->min_index;
+    *max_index = cache->max_index;
+}
+
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
     assertf(type == GL_UNSIGNED_SHORT, "Index type must be GL_UNSIGNED_SHORT");
@@ -119,40 +150,12 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
     gl_buffer_object_t *element_buffer = state->array_object->element_array_buffer;
     if (element_buffer != NULL) {
-        if (element_buffer->element_cache == NULL) {
-            element_buffer->element_cache = calloc(1, sizeof(gl_element_array_cache_t));
-        }
-
-        uint32_t offset = (uint32_t)indices;
-        const uint16_t *indices_i16 = element_buffer->storage.data + offset;
-
-        gl_element_array_cache_t *cache = element_buffer->element_cache;
-        bool is_dirty = false;
-        if (cache->is_data_dirty || cache->count != count || cache->offset != offset) {
-            find_index_bounds(indices_i16, count, &cache->min_index, &cache->max_index);
-            cache->count = count;
-            cache->offset = offset;
-            is_dirty = true;
-        }
-        min_index = cache->min_index;
-        max_index = cache->max_index;
-        if (is_dirty || !input_assembly_parms_equal(&cache->parms, &input_assembly_parms)) {
-            cache->parms = input_assembly_parms;
-
-            if (cache->block != NULL) rspq_block_free(cache->block);
-
-            rspq_block_begin();
-            mg_draw_indexed(&input_assembly_parms, indices_i16, count, -min_index);
-            cache->block = rspq_block_end();
-            cache->is_data_dirty = false;
-        }
-
+        update_element_array_cache(element_buffer, count, (uint32_t)indices, &input_assembly_parms, &min_index, &max_index);
     } else {
         find_index_bounds(indices, count, &min_index, &max_index);
     }
 
     prepare_vertex_buffer(min_index, max_index - min_index + 1);
-    prepare_pipeline();
 
     mg_draw_begin();
     if (element_buffer != NULL) {
