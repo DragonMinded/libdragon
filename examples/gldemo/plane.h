@@ -8,7 +8,7 @@
 #include "vertex.h"
 
 #define PLANE_SIZE       20.0f
-#define PLANE_SEGMENTS   1
+#define PLANE_SEGMENTS   16
 
 static GLuint plane_buffers[2];
 static GLuint plane_array;
@@ -33,6 +33,8 @@ void setup_plane()
     glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, normal)));
     
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, plane_buffers[1]);
 
     glBindVertexArray(0);
 }
@@ -103,13 +105,9 @@ void make_plane_mesh()
 
 void draw_plane()
 {
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, plane_buffers[1]);
     glBindVertexArray(plane_array);
-
     glDrawElements(GL_TRIANGLES, plane_index_count, GL_UNSIGNED_SHORT, 0);
-
     glBindVertexArray(0);
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 void render_plane()

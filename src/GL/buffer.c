@@ -27,7 +27,7 @@ void glBindBufferARB(GLenum target, GLuint buffer)
         state->array_buffer = obj;
         break;
     case GL_ELEMENT_ARRAY_BUFFER_ARB:
-        state->element_array_buffer = obj;
+        state->array_object->element_array_buffer = obj;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer target", target);
@@ -57,7 +57,7 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
         }
         
         gl_unbind_buffer(obj, &state->array_buffer);
-        gl_unbind_buffer(obj, &state->element_array_buffer);
+        gl_unbind_buffer(obj, &state->array_object->element_array_buffer);
 
         for (uint32_t a = 0; a < ATTRIB_COUNT; a++)
         {
@@ -76,6 +76,11 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
         if (obj->storage.data != NULL)
         {
             free_uncached(obj->storage.data);
+        }
+
+        if (obj->element_cache != NULL)
+        {
+            free(obj->element_cache);
         }
 
         free(obj);
@@ -102,7 +107,7 @@ bool gl_get_buffer_object(GLenum target, gl_buffer_object_t **obj)
         *obj = state->array_buffer;
         break;
     case GL_ELEMENT_ARRAY_BUFFER_ARB:
-        *obj = state->element_array_buffer;
+        *obj = state->array_object->element_array_buffer;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer target", target);
@@ -115,6 +120,13 @@ bool gl_get_buffer_object(GLenum target, gl_buffer_object_t **obj)
     }
 
     return true;
+}
+
+void buffer_set_data_dirty(gl_buffer_object_t *obj)
+{
+    if (obj->element_cache != NULL) {
+        obj->element_cache->is_data_dirty = true;
+    }
 }
 
 void glBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid *data, GLenum usage)
@@ -160,6 +172,8 @@ void glBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid *data, GLen
     obj->access = GL_READ_WRITE_ARB;
     obj->mapped = false;
     obj->pointer = NULL;
+
+    buffer_set_data_dirty(obj);
 }
 
 void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, const GLvoid *data)
@@ -187,6 +201,8 @@ void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, c
     }
 
     memcpy(obj->storage.data + offset, data, size);
+
+    buffer_set_data_dirty(obj);
 }
 
 void glGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, GLvoid *data)
@@ -264,6 +280,9 @@ GLboolean glUnmapBufferARB(GLenum target)
     obj->mapped = false;
     obj->pointer = NULL;
 
+    if (obj->access != GL_READ_ONLY_ARB) {
+        buffer_set_data_dirty(obj);
+    }
     return GL_TRUE;
 }
 

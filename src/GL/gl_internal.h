@@ -97,11 +97,22 @@ typedef struct {
 } gl_storage_t;
 
 typedef struct {
+    uint32_t offset;
+    uint32_t count;
+    mg_input_assembly_parms_t parms;
+    rspq_block_t *block;
+    uint16_t min_index;
+    uint16_t max_index;
+    bool is_data_dirty;
+} gl_element_array_cache_t;
+
+typedef struct {
     GLenum usage;
     GLenum access;
     GLvoid *pointer;
     gl_storage_t storage;
     bool mapped;
+    gl_element_array_cache_t *element_cache;
 } gl_buffer_object_t;
 
 typedef struct
@@ -127,6 +138,7 @@ typedef struct {
 
 typedef struct {
     gl_array_t arrays[ATTRIB_COUNT];
+    gl_buffer_object_t *element_array_buffer;
     vertex_layout layout;
     uint32_t pipeline_index;
     void *buffer;
@@ -164,7 +176,6 @@ typedef struct {
     gl_array_object_t default_array_object;
     gl_array_object_t *array_object;
     gl_buffer_object_t *array_buffer;
-    gl_buffer_object_t *element_array_buffer;
     const surface_t *color_buffer;
     gl_viewport_t viewport;
     gl_uniform_data *uniform_data;
@@ -196,7 +207,7 @@ typedef struct {
 
     float near_plane;
     float far_plane;
-    
+
     bool begin_end_active;
     bool is_pipeline_dirty;
     bool is_drawing_anything;
