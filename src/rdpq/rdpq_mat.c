@@ -18,6 +18,7 @@
 #include "rdpq_mat.h"
 #include "rdpq_mat_internal.h"
 
+/** Fetch a value from the binary packed material */
 #define FETCH(data, type) ({ \
     typedef type unaligned_type __attribute__((aligned(1))); \
     unaligned_type* __value = (unaligned_type*)data; \
@@ -25,6 +26,7 @@
     *__value; \
 })
 
+/** Decode a binary packed pointer offset */
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
 
 static void mat_load_texture(rdpq_matdb_t *mdb, uint16_t texid)
@@ -184,7 +186,7 @@ static void mat_end(rdpq_matdb_t *mdb, const char *mat_name, void *data)
         rdpq_mode_pop();
 }
 
-void mat_load(rdpq_matdb_t *mdb, const char *mat_name, void *data)
+static void mat_load(rdpq_matdb_t *mdb, const char *mat_name, void *data)
 {
     uint16_t flags = FETCH(data, uint16_t);
 
@@ -195,7 +197,7 @@ void mat_load(rdpq_matdb_t *mdb, const char *mat_name, void *data)
     }
 }
 
-void mat_unload(rdpq_matdb_t *mdb, const char *mat_name, void *data)
+static void mat_unload(rdpq_matdb_t *mdb, const char *mat_name, void *data)
 {
     uint16_t flags = FETCH(data, uint16_t);
 

@@ -29,6 +29,8 @@ typedef struct rdpq_matdb_s rdpq_matdb_t;
  * @return rdpq_matdb_t*        Pointer to the material database
  */
 rdpq_matdb_t* rdpq_matdb_open(const char *filename, bool autoload);
+
+/** @brief Close a material database */
 void rdpq_matdb_close(rdpq_matdb_t* mdb);
 
 /**
@@ -51,6 +53,8 @@ void rdpq_matdb_close(rdpq_matdb_t* mdb);
  * @param mat_name          Name of the material whose textures must be loaded
  */
 void rdpq_matdb_load(rdpq_matdb_t* mdb, const char *mat_name);
+
+/** @brief Unload the material */
 void rdpq_matdb_unload(rdpq_matdb_t* mdb, const char *mat_name);
 
 /**
@@ -78,8 +82,11 @@ void rdpq_matdb_unload(rdpq_matdb_t* mdb, const char *mat_name);
  * @param mat_name          Name of the material to activate
  */
 void rdpq_matdb_begin(rdpq_matdb_t* mdb, const char *mat_name);
+
+/** @brief Finish rendering with the current material */
 void rdpq_matdb_end(rdpq_matdb_t* mdb, const char *mat_name);
 
+/** @brief Dump debug information about a material */
 void rdpq_matdb_debug_dump(rdpq_matdb_t* mdb, const char *mat_name);
 
 #ifdef __cplusplus
