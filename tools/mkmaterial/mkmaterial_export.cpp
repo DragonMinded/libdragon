@@ -39,10 +39,10 @@ void texconvert(Texture &tex)
         cmd_addr[i++] = "--verbose";
 
     std::string env1 = "MKSPRITE_INFN="; env1 += tex.name;
-    const char *environ[] = { env1.c_str(), NULL, };
+    const char *env[] = { env1.c_str(), NULL, };
     
     // Start mksprite
-    if (subprocess_create_ex(cmd_addr, subprocess_option_no_window, environ, &subp) != 0) {
+    if (subprocess_create_ex(cmd_addr, subprocess_option_no_window, env, &subp) != 0) {
         fprintf(stderr, "Error: cannot run: %s\n", mksprite);
         exit(1);
     }

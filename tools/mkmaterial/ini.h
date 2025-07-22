@@ -14,6 +14,23 @@ https://github.com/benhoyt/inih
 #ifndef INI_H
 #define INI_H
 
+/* Typedef for prototype of handler function. */
+#if INI_HANDLER_LINENO
+#ifdef __cplusplus
+#include <functional>
+typedef std::function<int(void* user, const char* section,
+                           const char* name, const char* value,
+                           int lineno)> ini_handler;
+#else
+typedef int (*ini_handler)(void* user, const char* section,
+                           const char* name, const char* value,
+                           int lineno);
+#endif
+#else
+typedef int (*ini_handler)(void* user, const char* section,
+                           const char* name, const char* value);
+#endif
+
 /* Make this header file easier to include in C++ code */
 #ifdef __cplusplus
 extern "C" {
@@ -45,23 +62,6 @@ extern "C" {
 #		define INI_API
 #	endif
 #endif
-#endif
-
-/* Typedef for prototype of handler function. */
-#if INI_HANDLER_LINENO
-#ifdef __cplusplus
-#include <functional>
-typedef std::function<int(void* user, const char* section,
-                           const char* name, const char* value,
-                           int lineno)> ini_handler;
-#else
-typedef int (*ini_handler)(void* user, const char* section,
-                           const char* name, const char* value,
-                           int lineno);
-#endif
-#else
-typedef int (*ini_handler)(void* user, const char* section,
-                           const char* name, const char* value);
 #endif
 
 /* Typedef for prototype of fgets-style reader function. */
