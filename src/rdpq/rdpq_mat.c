@@ -1,3 +1,7 @@
+/**
+ * @file rdpq_mat.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>

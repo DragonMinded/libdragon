@@ -1,3 +1,7 @@
+/**
+ * @file rdpq_mat_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_RDPQ_MAT_INTERNAL_H
 #define LIBDRAGON_RDPQ_MAT_INTERNAL_H
 
