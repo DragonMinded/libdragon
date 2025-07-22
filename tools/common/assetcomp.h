@@ -12,6 +12,7 @@
 #define COMMON_ASSETCOMP_H
 
 #include <stdio.h>
+#include <stdint.h>
 
 #define DEFAULT_COMPRESSION     1
 #define MAX_COMPRESSION         3
