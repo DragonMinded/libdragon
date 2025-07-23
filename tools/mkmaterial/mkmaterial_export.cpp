@@ -1,3 +1,31 @@
+#include "../common/assetcomp.h"
+#include "../common/atomic_file.h"
+
+static uint32_t murmurhash3_32(const void *key, size_t len, uint32_t seed) {
+    const uint8_t *data = (const uint8_t*)key;
+    uint32_t h = seed, k;
+    const uint32_t c1 = 0xcc9e2d51, c2 = 0x1b873593;
+
+    for (size_t i = 0; i + 4 <= len; i += 4) {
+        k = (uint32_t)data[i] | (data[i+1]<<8) | (data[i+2]<<16) | (data[i+3]<<24);
+        k *= c1; k = (k<<15)|(k>>17); k *= c2;
+        h ^= k; h = ((h<<13)|(h>>19))*5+0xe6546b64;
+    }
+
+    k = 0;
+    switch (len & 3) {
+        case 3: k ^= data[len-1]<<16;
+        case 2: k ^= data[len-2]<<8;
+        case 1: k ^= data[len-3];
+                k *= c1; k = (k<<15)|(k>>17); k *= c2; h ^= k;
+    }
+
+    h ^= (uint32_t)len;
+    h ^= h>>16; h *= 0x85ebca6b;
+    h ^= h>>13; h *= 0xc2b2ae35;
+    h ^= h>>16;
+    return h;
+}
 
 void texconvert(Texture &tex)
 {
@@ -32,9 +60,8 @@ void texconvert(Texture &tex)
     cmd_addr[i++] = "--texparms";
     cmd_addr[i++] = texparms;
 
-    char compress[2] = { '0' + flag_compress, 0 };
-    cmd_addr[i++] = "--compress"; // can't compress on stdin/stout anyway
-    cmd_addr[i++] = compress;
+    cmd_addr[i++] = "--compress";
+    cmd_addr[i++] = "0"; // no compression as we need to calculate hash on the bits
     if (flag_verbose >= 2)
         cmd_addr[i++] = "--verbose";
 
@@ -53,12 +80,12 @@ void texconvert(Texture &tex)
 
     // Read stdout
     FILE *mksprite_out = subprocess_stdout(&subp);
-    assert(tex.sprite.empty());
+    std::vector<uint8_t> sprite;
     while (1) {
         uint8_t buf[4096];
         int n = fread(buf, 1, sizeof(buf), mksprite_out);
         if (n == 0) break;
-        tex.sprite.insert(tex.sprite.end(), buf, buf + n);
+        sprite.insert(sprite.end(), buf, buf + n);
     }    
 
     // Dump mksprite's stderr. Whatever is printed there (if anything) is useful to see
@@ -77,6 +104,27 @@ void texconvert(Texture &tex)
         fprintf(stderr, "Error: mksprite failed with return code %d\n", retcode);
         exit(1);
     }
+
+    // Compute murmur32 hash of the sprite
+    tex.hash = murmurhash3_32(sprite.data(), sprite.size(), 0x11111111);
+
+    // Create an atomic file to write the sprite
+    char *sprite_outfn;
+    asprintf(&sprite_outfn, "%s/%08x.sprite", flag_texdb_path, tex.hash);
+    verbose("Writing sprite %s...\n", sprite_outfn);
+
+    try {
+        AtomicFile af(sprite_outfn);
+        if (asset_compress_mem(sprite.data(), sprite.size(), af.stream(), flag_compress, 0, NULL) < 0) {
+            throw std::runtime_error("Error compressing sprite data");
+        }
+        af.commit();
+    } catch (const std::exception &e) {
+        fprintf(stderr, "Error: %s\n", e.what());
+        exit(1);
+    }
+
+    free(sprite_outfn);
 }
 
 void mat_convert(Material &mat)
@@ -116,7 +164,8 @@ void Material::write(FILE *f)
     w16(f, flags);
     
     if (flags & MATFLAG_TEXTURE) {
-        w16(f, 0); // texid FIXME
+        w32(f, tex[0].hash);
+        w32(f, tex[1].hash);
     }
     if (flags & MATFLAG_COMBINER) {
         uint64_t cmd = cc.to_rdpq_mode_arg();
@@ -176,90 +225,27 @@ void Material::write(FILE *f)
     w8(f, 0xAB); // end of material
 }
 
-static uint32_t prime_hash(const char *str, uint32_t prime)
+void mat_writedb(FILE *f, std::vector<Material> &materials)
 {
-    uint32_t hash = 0;
-    while(*str) {
-        char c = *str++;
-        hash = (hash * prime) + c;
-    }
-    return hash;
-}
-
-void mat_writedb(FILE *f, std::map<std::string, Material> &materials)
-{
-    // Count textures
-    int ntextures = 0;
-    for (auto& [name, mat] : materials) {
-        if (mat.tex[0]) ntextures++;
-        if (mat.tex[1]) ntextures++;
-    }
-
-    // Prepare hashtable
-    const int primes[] = { 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 };
-    int hash_prime = -1;
-    std::map<uint32_t, std::string> hashes;
-    for (int i=0; i<sizeof(primes)/sizeof(primes[0]); i++) {
-        // Check if this prime makes hashes of all material names unique
-        bool unique = true;
-        hashes.clear();
-        for (auto& [name, mat] : materials) {
-            uint32_t hash = prime_hash(name.c_str(), primes[i]);
-            if (hashes.count(hash)) {
-                unique = false;
-                break;
-            }
-            hashes[hash] = name;
-        }
-        if (unique) {
-            verbose("using prime %d for hash table\n", primes[i]);
-            hash_prime = primes[i];
-            break;
-        }
-    }
-    assert(hash_prime > 0);
-
     // Write header
-    fwrite("MDB", 1, 3, f);
+    fwrite("MAT", 1, 3, f);
     w8(f, 1); // version
-    w32_placeholderf(f, "meta_size");
-    w16(f, ntextures); // num_textures
     w16(f, materials.size()); // num_materials
-    w16(f, hash_prime); // hash_prime
     w16(f, 0); // flags
-    w32_placeholderf(f, "textures");
 
-    // Write hash table
-    for (auto& [h, name] : hashes) {  // hash table
-        w32(f, h);
-        w32_placeholderf(f, "mat.%s", name.c_str());
-    }
-
-    // Write textures
-    placeholder_set(f, "textures");
-    for (int i=0; i<ntextures; i++) {
-        w32_placeholderf(f, "tex.%d.offset", i);
-        w32_placeholderf(f, "tex.%d.size", i);
+    // Write material name length and byte size. This makes for a very
+    // compact representation that's very efficient to query linearly at
+    // runtime.
+    for (auto& mat : materials) {
+        w8(f, mat.name.size());
+        w8_placeholderf(f, "size.%s", mat.name.c_str());
     }
 
     // Write materials
-    for (auto& [name, mat] : materials) {
-        placeholder_set(f, "mat.%s", name.c_str());
+    for (auto& mat : materials) {
+        int pos = ftell(f);
         mat.write(f);
-    }
-
-    placeholder_set(f, "meta_size");
-
-    // Write texture data
-    int texid = 0;
-    for (auto& [name, mat] : materials) {
-        for (int i=0; i<2; i++) {
-            if (mat.tex[i]) {
-                walign(f, 2);
-                placeholder_set(f, "tex.%d.offset", texid);
-                placeholder_set_offset(f, mat.tex[i].sprite.size(), "tex.%d.size", texid);
-                fwrite(&mat.tex[i].sprite[0], 1, mat.tex[i].sprite.size(), f);
-            }
-        }
+        int size = ftell(f) - pos;
+        placeholder_set_offset(f, size, "size.%s", mat.name.c_str());
     }
 }

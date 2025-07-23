@@ -1,4 +1,6 @@
 #include <regex>
+#include <fstream>
+#include "json.hpp"
 
 #define INI_HANDLER_LINENO 1
 #define INI_INLINE_COMMENT_PREFIXES ";#"
@@ -245,10 +247,11 @@ std::string dirname(std::string path)
     return path.substr(0, pos);
 }   
 
-int parse_mat(const char *fn, std::function<void(Material &&)> cb)
+std::vector<Material> parse_mat(const char *fn)
 {
     Material mat;
     bool mat_error = false;
+    std::vector<Material> materials;
 
     auto finish_material = [&]() -> int {
         if (!mat.name.empty() && !mat_error) {
@@ -258,8 +261,19 @@ int parse_mat(const char *fn, std::function<void(Material &&)> cb)
                 fprintf(stderr, "%s: error: %s (material: %s)\n", fn, e.what(), mat.name.c_str());
                 return 1;
             }
-            
-            cb(std::move(mat));
+
+            // Check if the material already exists
+            for (const auto &existing : materials) {
+                if (existing.name == mat.name) {
+                    fprintf(stderr, "%s:%d: duplicate material: %s (previous occurrence: %s:%d)\n", 
+                            mat.parse_info.filename.c_str(), mat.parse_info.lineno, 
+                            mat.name.c_str(), existing.parse_info.filename.c_str(), existing.parse_info.lineno);
+                    return 1;
+                }
+            }
+
+            verbose("%s: parsed material: %s\n", fn, mat.name.c_str());
+            materials.push_back(std::move(mat));
         }
         return 0;
     };
@@ -290,14 +304,111 @@ int parse_mat(const char *fn, std::function<void(Material &&)> cb)
         }
     }, nullptr);
 
-    if (!finish_material()) {
-        err = 1;
-    }
-
     if (err < 0) {
         fprintf(stderr, "error: file not found: %s\n", fn);
+        return {};
+    }
+
+    if (finish_material() != 0) {
+        return {};
+    }
+
+    if (materials.empty()) {
+        fprintf(stderr, "%s: error: no valid materials found\n", fn);
+        return {};
     }
 
     texture_dirs.pop_front();
-    return err;
+    return materials;
+}
+
+std::vector<Material> parse_jmat(const char *fn)
+{
+    using json = nlohmann::json;
+    
+    std::vector<Material> materials;
+    
+    // Read JSON file
+    std::ifstream file(fn);
+    if (!file.is_open()) {
+        fprintf(stderr, "error: file not found: %s\n", fn);
+        return {};
+    }
+    
+    json j;
+    try {
+        file >> j;
+    } catch (const json::exception& e) {
+        fprintf(stderr, "%s: error: JSON parsing error: %s\n", fn, e.what());
+        return {};
+    }
+    
+    if (!j.is_object()) {
+        fprintf(stderr, "%s: error: JSON root must be an object\n", fn);
+        return {};
+    }
+    
+    texture_dirs.push_front(dirname(fn));
+    
+    // Iterate through each material in the JSON
+    for (auto& [material_name, material_obj] : j.items()) {
+        if (!material_obj.is_object()) {
+            fprintf(stderr, "%s: error: material '%s' must be an object\n", fn, material_name.c_str());
+            continue;
+        }
+        
+        Material mat = {};
+        mat.name = material_name;
+        mat.parse_info.filename = fn;
+        mat.parse_info.lineno = 0; // Line numbers not available for JSON format
+        
+        bool mat_error = false;
+        
+        // Parse all key-value pairs for this material
+        for (auto& [key, value] : material_obj.items()) {
+            if (!value.is_string()) {
+                fprintf(stderr, "%s: error: value for key '%s' must be a string (material: %s)\n", 
+                       fn, key.c_str(), material_name.c_str());
+                mat_error = true;
+                continue;
+            }
+            
+            try {
+                mat.parse_attr(key, value.get<std::string>());
+            } catch (std::runtime_error &e) {
+                fprintf(stderr, "%s: error: %s (material: %s)\n", fn, e.what(), material_name.c_str());
+                mat_error = true;
+            }
+        }
+        
+        if (!mat_error) {
+            try {
+                mat.validate();
+                
+                // Check if the material already exists
+                for (const auto &existing : materials) {
+                    if (existing.name == mat.name) {
+                        fprintf(stderr, "%s: duplicate material: %s (previous occurrence: %s)\n", 
+                                fn, mat.name.c_str(), existing.parse_info.filename.c_str());
+                        texture_dirs.pop_front();
+                        return {};
+                    }
+                }
+                
+                verbose("%s: parsed material: %s\n", fn, mat.name.c_str());
+                materials.push_back(std::move(mat));
+            } catch (std::runtime_error &e) {
+                fprintf(stderr, "%s: error: %s (material: %s)\n", fn, e.what(), material_name.c_str());
+            }
+        }
+    }
+    
+    if (materials.empty()) {
+        fprintf(stderr, "%s: error: no valid materials found\n", fn);
+        texture_dirs.pop_front();
+        return {};
+    }
+    
+    texture_dirs.pop_front();
+    return materials;
 }
