@@ -37,8 +37,9 @@ typedef struct rdpq_blitparms_s rdpq_blitparms_t;
  *    (via #rdpq_mode_mipmap).
  *  * If the sprite contains a palette, it is uploaded to TMEM as well, and the
  *    palette is also activated in the render mode (via #rdpq_mode_tlut).
- *  * If the sprite is optimized (via mksprite --optimize), the upload function
- *    will be faster.
+ *  * If the sprite contains pre-configured texture parameters (eg: mirroring,
+ *    wrapping, translation, etc), they are automatically configured in the
+ *    RDP for drawing (on the specified RDP tile descriptor).
  * 
  * After calling this function, the specified tile descriptor will be ready
  * to be used in drawing primitives like #rdpq_triangle or #rdpq_texture_rectangle.
