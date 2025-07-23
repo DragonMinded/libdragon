@@ -227,15 +227,16 @@ int main(int argc, char *argv[])
             char *out = change_ext(argv[i], ".mdb");
             verbose("writing material database: %s\n", out);
             FILE *f = fopen(out, "wb");
-            free(out);
             if (!f) {
                 fprintf(stderr, "error: cannot open output file: %s\n", out);
+                free(out);
                 return 1;
             }
 
             // Write the material database
             mat_writedb(f, materials);
             fclose(f);
+            free(out);
         }
     }
 
