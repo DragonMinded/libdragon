@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
     int nfiles = 0;
 
     for (int i = 1; i < argc; i++) {
-        if (argv[i][0] == '-') {
+        if (argv[i][0] == '-' && argv[i][1] != '\0') {
             if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
                 flag_verbose++;
                 continue;
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
             }
 
             std::vector<Material> materials;
-            if (strstr(argv[i], ".jmat")) {
+            if (strstr(argv[i], ".jmat") || strcmp(argv[i], "-") == 0) {
                 materials = parse_jmat(argv[i]);
             } else if (strstr(argv[i], ".mat")) {
                 materials = parse_mat(argv[i]);
@@ -223,20 +223,35 @@ int main(int argc, char *argv[])
                 mat_convert(mat);
             }
 
-            // Open output file, named after the filename
-            char *out = change_ext(argv[i], ".mdb");
-            verbose("writing material database: %s\n", out);
-            FILE *f = fopen(out, "wb");
-            if (!f) {
-                fprintf(stderr, "error: cannot open output file: %s\n", out);
-                free(out);
-                return 1;
+            // Open output file, named after the filename. Use stdout
+            // if the input file is stdin.
+            FILE *f;
+            char *out = nullptr;
+            
+            if (strcmp(argv[i], "-") == 0) {
+                // Write to stdout when input is stdin
+                f = stdout;
+                verbose("writing material database to stdout\n");
+            } else {
+                out = change_ext(argv[i], ".mdb");
+                verbose("writing material database: %s\n", out);
+                f = fopen(out, "wb");
+                if (!f) {
+                    fprintf(stderr, "error: cannot open output file: %s\n", out);
+                    free(out);
+                    return 1;
+                }
             }
 
             // Write the material database
             mat_writedb(f, materials);
-            fclose(f);
-            free(out);
+            
+            if (f != stdout) {
+                fclose(f);
+            }
+            if (out) {
+                free(out);
+            }
         }
     }
 

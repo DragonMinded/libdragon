@@ -325,19 +325,23 @@ std::vector<Material> parse_mat(const char *fn)
 std::vector<Material> parse_jmat(const char *fn)
 {
     using json = nlohmann::json;
-    
     std::vector<Material> materials;
-    
-    // Read JSON file
-    std::ifstream file(fn);
-    if (!file.is_open()) {
-        fprintf(stderr, "error: file not found: %s\n", fn);
-        return {};
-    }
     
     json j;
     try {
-        file >> j;
+        if (strcmp(fn, "-") == 0) {
+            // Read from stdin
+            fn = "<stdin>";
+            std::cin >> j;
+        } else {
+            // Read JSON file
+            std::ifstream file(fn);
+            if (!file.is_open()) {
+                fprintf(stderr, "error: file not found: %s\n", fn);
+                return {};
+            }
+            file >> j;
+        }
     } catch (const json::exception& e) {
         fprintf(stderr, "%s: error: JSON parsing error: %s\n", fn, e.what());
         return {};
@@ -348,7 +352,12 @@ std::vector<Material> parse_jmat(const char *fn)
         return {};
     }
     
-    texture_dirs.push_front(dirname(fn));
+    // Use current directory if reading from stdin, otherwise use dirname of the file
+    if (strcmp(fn, "<stdin>") == 0) {
+        texture_dirs.push_front(".");
+    } else {
+        texture_dirs.push_front(dirname(fn));
+    }
     
     // Iterate through each material in the JSON
     for (auto& [material_name, material_obj] : j.items()) {
