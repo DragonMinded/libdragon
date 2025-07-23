@@ -137,7 +137,7 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__rdpq_sprite_upload</
 <ul>
 <li>If the sprite contains mipmaps, the whole mipmap chain is uploaded to TMEM as well. Moreover, mipmaps are automatically enabled in the render mode (via <a class="el" href="rdpq__mode_8c.html#a3501e4de775e105112bf4efcc7717926" title="Activate mip-mapping.">rdpq_mode_mipmap</a>).</li>
 <li>If the sprite contains a palette, it is uploaded to TMEM as well, and the palette is also activated in the render mode (via <a class="el" href="rdpq__mode_8c.html#aeb5d5cab3092397225bfc40fffd1ab7d" title="Activate palette lookup during drawing.">rdpq_mode_tlut</a>).</li>
-<li>If the sprite is optimized (via mksprite &ndash;optimize), the upload function will be faster.</li>
+<li>If the sprite contains pre-configured texture parameters (eg: mirroring, wrapping, translation, etc), they are automatically configured in the RDP for drawing (on the specified RDP tile descriptor).</li>
 </ul>
 <p>After calling this function, the specified tile descriptor will be ready to be used in drawing primitives like <a class="el" href="rdpq__tri_8c.html#afb11d915a7ce8903b2b3e5ed9ef7936e" title="Draw a triangle (RDP command: TRI_*)">rdpq_triangle</a> or <a class="el" href="rdpq__rect_8h.html#a7196362c567172a2012f414c8a412743" title="Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)">rdpq_texture_rectangle</a>.</p>
 <p>This function is meant for sprites that can be loaded in full into TMEM; it will assert if the sprite does not fit TMEM. For larger sprites, either use <a class="el" href="rdpq__sprite_8h.html#ab9e9585ca159243d7ccae04c7ca38837" title="Blit a sprite to the active framebuffer.">rdpq_sprite_blit</a> to directly draw then (handling partial uploads transparently), or use <a class="el" href="rdpq__tex_8c.html#a02d0ec8eab1907101928c226831e6af3" title="Load a portion of texture into TMEM.">rdpq_tex_upload_sub</a> to manually upload a smaller portion of the sprite.</p>
@@ -255,7 +255,7 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__rdpq_sprite_upload</
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Jul 20 2025 07:47:45 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Wed Jul 23 2025 09:56:44 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
