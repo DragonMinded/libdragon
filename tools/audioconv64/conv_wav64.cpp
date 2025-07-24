@@ -38,6 +38,7 @@ int flag_wav_compress = 1;
 int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
+std::vector<int> flag_wav_seek_offset;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
 
@@ -319,6 +320,9 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		}
 		free(schan);
 		free(scratch);
+
+		if (!skip_points.empty() && flag_verbose)
+			fprintf(stderr, "  state generated for %zu seek points\n", skip_points.size());
 
 		const int dest_size = nframes * kVADPCMFrameByteSize * wav->channels;
 		const int maxcompbuflen = dest_size;
@@ -711,6 +715,16 @@ int wav_convert(const char *infn, const char *outfn) {
 
 		// Update also the loop offset to the new sample rate
 		wav.loopOffset = wav.loopOffset * wavResampleTo / wav.sampleRate;
+	}
+
+	// Apply additional seek offsets specified on the command line.
+	if (flag_wav_seek_offset.size() > 0) {
+		if (flag_wav_compress != 0 && flag_wav_compress != 1) {
+			fprintf(stderr, "ERROR: %s: seek points are only supported for VADPCM files\n", infn);
+			free(wav.samples);
+			return 1;
+		}
+		wav.skipPoints = flag_wav_seek_offset;
 	}
 
 	FILE *out = fopen(outfn, "wb");
