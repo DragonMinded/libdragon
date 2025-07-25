@@ -71,6 +71,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/exception.o \
 	$(BUILD_DIR)/do_ctors.o \
 	$(BUILD_DIR)/dlfcn.o \
+	$(BUILD_DIR)/hashtable.o \
 	$(BUILD_DIR)/model64.o
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
