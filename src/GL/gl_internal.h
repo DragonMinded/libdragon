@@ -84,9 +84,9 @@ typedef struct {
 
 typedef enum {
     ATTRIB_VERTEX,
+    ATTRIB_NORMAL,
     ATTRIB_COLOR,
     ATTRIB_TEXCOORD,
-    ATTRIB_NORMAL,
     ATTRIB_MTX_INDEX,
     ATTRIB_COUNT
 } gl_array_type_t;
@@ -133,6 +133,7 @@ typedef struct {
 
     const GLvoid *final_pointer;
     uint16_t final_stride;
+    uint16_t out_offset;
     read_attrib_func read_func;
 } gl_array_t;
 
@@ -142,7 +143,10 @@ typedef struct {
     vertex_layout layout;
     uint32_t pipeline_index;
     void *buffer;
-    bool is_dirty;
+    uint32_t cached_first;
+    uint32_t cached_count;
+    bool is_layout_dirty;
+    bool is_data_dirty;
 } gl_array_object_t;
 
 typedef struct {

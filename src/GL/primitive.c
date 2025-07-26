@@ -70,7 +70,12 @@ static void prepare_pipeline()
 static void prepare_vertex_buffer(uint32_t first, uint32_t count)
 {
     array_object_update(state->array_object, first, count);
-    mg_bind_vertex_buffer(state->array_object->buffer);
+
+    // It's possible that we are now accessing a sub-range of a previously cached buffer.
+    // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
+    uint32_t buffer_offset = first - state->array_object->cached_first;
+    mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
+
     prepare_pipeline();
 }
 
