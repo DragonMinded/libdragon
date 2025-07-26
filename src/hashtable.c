@@ -27,21 +27,9 @@ static inline uint8_t refcount(counted_ptr_t v) { return v >> 24; }
 static inline void set_refcount(counted_ptr_t *v, uint8_t r) {
     *v = (*v & 0xFFFFFF) | ((uint32_t)r << 24);
 }
-
-/** Bucket structure for the hashtable */
-typedef struct __attribute__((aligned(16))) {
-    uint32_t kv[8]; // [0..3]=keys, [4..7]=vals
-} Bucket;
-
-/** Loader function type */
-typedef void* (*loader_fn)(uint32_t key);
-
-/** @brief Opaque hashtable type */
-typedef struct hashtable_s {
-    Bucket    *buckets;
-    size_t     n_buckets, size;
-    loader_fn  loader;
-} hashtable_t;
+static inline void* cached_addr(counted_ptr_t v) {
+    return CachedAddr(v & 0xFFFFFF);
+}
 
 static inline uint32_t hash32(uint32_t x) {
     x ^= x >> 16; x *= 0x7feb352d; x ^= x >> 15; x *= 0x846ca68b; x ^= x >> 16;
@@ -54,8 +42,8 @@ static uint32_t* hashtable_lookup_slot(hashtable_t *h, uint32_t k) {
     size_t b = hash32(k) & mask;
     uint32_t *tomb_key = NULL;
 
-    for (;;) {
-        Bucket *bk = &h->buckets[b];
+    while (1) {
+        hashtable_bucket_t *bk = &h->buckets[b];
         for (int i = 0; i < 4; i++) {
             uint32_t *kk = &bk->kv[i];
             if (*kk == k) return kk;
@@ -66,12 +54,12 @@ static uint32_t* hashtable_lookup_slot(hashtable_t *h, uint32_t k) {
     }
 }
 
-int hashtable_init(hashtable_t *h, size_t initial_entries, loader_fn loader) {
+int hashtable_init(hashtable_t *h, size_t initial_entries, hashtable_loader_fn loader) {
     size_t n = 1; while (n * 4 < initial_entries) n <<= 1;
     h->n_buckets = n;
-    h->buckets = aligned_alloc(16, sizeof(Bucket) * n);
+    h->buckets = aligned_alloc(16, sizeof(hashtable_bucket_t) * n);
     assert(h->buckets);
-    memset(h->buckets, 0, sizeof(Bucket) * n);
+    memset(h->buckets, 0, sizeof(hashtable_bucket_t) * n);
     h->size = 0;
     h->loader = loader;
     return 1;
@@ -82,12 +70,12 @@ void hashtable_free(hashtable_t *h) {
     h->buckets = NULL;
 }
 
-static int hashtable_resize(hashtable_t *h, size_t new_buckets) {
-    Bucket *newb = aligned_alloc(16, sizeof(Bucket) * new_buckets);
+static void hashtable_resize(hashtable_t *h, size_t new_buckets) {
+    hashtable_bucket_t *newb = aligned_alloc(16, sizeof(hashtable_bucket_t) * new_buckets);
     assert(newb);
-    memset(newb, 0, sizeof(Bucket) * new_buckets);
+    memset(newb, 0, sizeof(hashtable_bucket_t) * new_buckets);
 
-    Bucket *old = h->buckets;
+    hashtable_bucket_t *old = h->buckets;
     size_t old_n = h->n_buckets;
 
     h->buckets = newb;
@@ -107,15 +95,11 @@ static int hashtable_resize(hashtable_t *h, size_t new_buckets) {
         }
     }
     free(old);
-    return 1;
 }
 
-void hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
+void* hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
     size_t threshold = (h->n_buckets << 2) * 12 / 16;
-    if (h->size > threshold) {
-        int ok = hashtable_resize(h, h->n_buckets * 2);
-        assert(ok);
-    }
+    if (h->size > threshold) hashtable_resize(h, h->n_buckets * 2);
 
     uint32_t *kk = hashtable_lookup_slot(h, k);
     counted_ptr_t *vv = (counted_ptr_t*)(kk + 4);
@@ -130,27 +114,31 @@ void hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
         *vv = (1u << 24) | PhysicalAddr(p);
         h->size++;
     }
+    return cached_addr(*vv);
 }
 
 void* hashtable_lookup(hashtable_t *h, uint32_t k) {
     uint32_t *kk = hashtable_lookup_slot(h, k);
-    return (*kk == k) ? CachedAddr(kk[4]) : NULL;
+    return (*kk == k) ? cached_addr(kk[4]) : NULL;
 }
 
-int hashtable_remove(hashtable_t *h, uint32_t k) {
+void* hashtable_remove(hashtable_t *h, uint32_t k) {
     size_t mask = h->n_buckets - 1;
     size_t b = hash32(k) & mask;
 
-    for (;;) {
-        Bucket *bk = &h->buckets[b];
+    while (1) {
+        hashtable_bucket_t *bk = &h->buckets[b];
         for (int i = 0; i < 4; i++) {
             if (bk->kv[i] == k) {
                 uint8_t r = refcount(bk->kv[i+4]);
-                if (--r == 0) { bk->kv[i] = TOMBSTONE_KEY; bk->kv[i+4] = 0; h->size--; }
-                else set_refcount(&bk->kv[i+4], r);
-                return 1;
+                void *v = cached_addr(bk->kv[i+4]);
+                if (--r > 0) { set_refcount(&bk->kv[i+4], r); return NULL; }
+                bk->kv[i] = TOMBSTONE_KEY;
+                bk->kv[i+4] = 0;
+                h->size--;
+                return v;
             }
-            if (!bk->kv[i]) return 0;
+            if (!bk->kv[i]) return NULL; // Key not found
         }
         b = (b + 1) & mask;
     }
