@@ -5,6 +5,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/rdpq/rdpq_tri.o \
 	$(BUILD_DIR)/rdpq/rdpq_rect.o \
 	$(BUILD_DIR)/rdpq/rdpq_mode.o \
+	$(BUILD_DIR)/rdpq/rdpq_mat.o \
 	$(BUILD_DIR)/rdpq/rdpq_sprite.o \
 	$(BUILD_DIR)/rdpq/rdpq_tex.o \
 	$(BUILD_DIR)/rdpq/rdpq_attach.o \

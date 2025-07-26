@@ -230,7 +230,7 @@ typedef struct {
 inline bool is_in_heap_memory(void *ptr)
 {
     ptr = CachedAddr(ptr);
-    return ptr >= HEAP_START_ADDR && ptr < ((void*)KSEG0_START_ADDR + get_memory_size());
+    return ptr >= HEAP_START_ADDR && ptr < ((void*)KSEG0_START_ADDR + __boot_memsize);
 }
 
 inline bool is_valid_object_id(GLuint id)

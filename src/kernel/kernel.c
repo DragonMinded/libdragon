@@ -405,7 +405,7 @@ kthread_t* kernel_init(void)
 
 	// NOTE: keep this in sync with system.c
 	const int STACK_SIZE = 0x10000;
-	th_main.stack = (char*)0x80000000 + get_memory_size() - STACK_SIZE;
+	th_main.stack = (char*)0x80000000 + __boot_memsize - STACK_SIZE;
 
 	uint64_t *s = (uint64_t*)th_main.stack;
 	for (int i=0;i<STACK_GUARD/8;i++)
