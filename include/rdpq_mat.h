@@ -124,42 +124,6 @@ void rdpq_mat_free(rdpq_mat_t *mat);
  */
 void rdpq_mat_set_texture_path(const char *path);
 
-
-#if 0
-/**
- * @brief Load textures associated with a material into RDRAM
- * 
- * This function loads the textures associated with a material into RDRAM.
- * It must be called before #rdpq_matdb_begin if the material contains
- * textures (it is a no-op if it doesn't, so it is safe to always call it
- * just in case).
- * 
- * Notice that each call to #rdpq_matdb_load must be paired by a call to
- * #rdpq_matdb_unload, to unload the textures, before the material DB is closed.
- * This is done to enforce proper resource management, and avoid silent memory
- * leaks.
- * 
- * You can call #rdpq_matdb_load multiple times for the same material, but
- * you must call #rdpq_matdb_unload the same number of times.
- * 
- * @param mdb               Material database
- * @param mat_name          Name of the material whose textures must be loaded
- */
-void rdpq_matdb_load(rdpq_matdb_t* mdb, const char *mat_name);
-
-/** @brief Unload the material */
-void rdpq_matdb_unload(rdpq_matdb_t* mdb, const char *mat_name);
-
-void rdpq_matdb_begin(rdpq_matdb_t* mdb, const char *mat_name);
-
-/** @brief Finish rendering with the current material */
-void rdpq_matdb_end(rdpq_matdb_t* mdb, const char *mat_name);
-
-/** @brief Dump debug information about a material */
-void rdpq_matdb_debug_dump(rdpq_matdb_t* mdb, const char *mat_name);
-#endif
-
-
 #ifdef __cplusplus
 }
 #endif
