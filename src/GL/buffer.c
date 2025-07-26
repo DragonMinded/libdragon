@@ -80,6 +80,10 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 
         if (obj->element_cache != NULL)
         {
+            if (obj->element_cache->block != NULL)
+            {
+                rspq_block_free(obj->element_cache->block);
+            }
             free(obj->element_cache);
         }
 
