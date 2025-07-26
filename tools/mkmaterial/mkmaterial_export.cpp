@@ -238,7 +238,7 @@ void Material::write(FILE *f)
 void mat_writedb(FILE *f, std::vector<Material> &materials)
 {
     // Write header
-    fwrite("MAT", 1, 3, f);
+    fwrite("MDB", 1, 3, f);
     w8(f, 1); // version
     w16(f, materials.size()); // num_materials
     w16(f, 0); // flags

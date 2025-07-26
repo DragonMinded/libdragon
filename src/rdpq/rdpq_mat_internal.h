@@ -1,6 +1,8 @@
 /**
  * @file rdpq_mat_internal.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief RDP Command queue: material system
+ * @ingroup rdpq
  */
 #ifndef LIBDRAGON_RDPQ_MAT_INTERNAL_H
 #define LIBDRAGON_RDPQ_MAT_INTERNAL_H
@@ -32,43 +34,13 @@ typedef struct sprite_s sprite_t;
 #define MATFLAG_UNIFORM_ENV             (1 << 14)   ///< Combiner uniforms: env color
 #define MATFLAG_UNIFORM_PRIM            (1 << 15)   ///< Combiner uniforms: prim color
 
-
-/** Hashtable indexing materials */
-typedef struct {
-    uint32_t hash;                  ///< Hash value of the name of the material
-    void *data;                     ///< Pointer to material data
-} rdpq_matdb_hashtable_t;
-
-/** Texture table */
-typedef struct {
-    uint32_t offset;                ///< Offset in the file to the texture data
-    int size;                       ///< Size of the texture data
-} rdpq_matdb_textable_t;
-
-/** Entry of the cache of loaded textures */
-typedef struct {
-    uint32_t sprite_ptr  : 24;      ///< Pointer to the sprite data in RDRAM
-    int8_t refcount      : 8;       ///< Reference count
-} rdpq_matdb_texcache_t;
-
-/** Material database */
-typedef struct rdpq_matdb_header_s {
-    char id[3];                         ///< ID: "MDB"
-    uint8_t version;                    ///< Current version
-    uint32_t meta_size;                 ///< Size of the header and all metadata
-    int16_t num_textures;               ///< Number of textures
-    int16_t num_materials;              ///< Number of materials
-    uint16_t hash_prime;                ///< Prime number for hash
-    uint16_t flags;                     ///< Flags
-    rdpq_matdb_textable_t *textures;    ///< Table of textures
-    rdpq_matdb_hashtable_t ht[];        ///< Hash table to lookup a material
-} rdpq_matdb_header_t;
-
-/** Material Database */
+/** Material database structure */
 typedef struct rdpq_matdb_s {
-    rdpq_matdb_header_t *head;          ///< Pointer to the header data (including all materials)
-    int fd;                             ///< Open file descriptor
-    rdpq_matdb_texcache_t texcache[];   ///< Texture cache
+    uint8_t id[3];                ///< ID: "MDB"
+    uint8_t version;              ///< Version of the database
+    uint16_t num_materials;       ///< Number of materials
+    uint16_t flags;               ///< Flags
+    uint8_t index[];              ///< Material index (name length + size)
 } rdpq_matdb_t;
 
 #endif

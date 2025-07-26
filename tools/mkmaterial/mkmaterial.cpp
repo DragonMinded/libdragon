@@ -161,6 +161,7 @@ void usage(void)
     fprintf(stderr, "  -I, --include [path]     specify additional texture path\n");
     fprintf(stderr, "  -o, --output [path]      specify output path (default: .)\n");
     fprintf(stderr, "  -c. --compress [level]   specify compression level for textures (default: %d)\n", DEFAULT_COMPRESSION);
+    fprintf(stderr, "  --raw-material           generate a single raw headerless material instead of a database\n");
 }
 
 int main(int argc, char *argv[])
@@ -168,6 +169,7 @@ int main(int argc, char *argv[])
     std::map<std::string, Material> materials;
     bool error = false;
     int nfiles = 0;
+    bool raw_material = false;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] != '\0') {
@@ -199,6 +201,8 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid compression level: %d\n", flag_compress);
                     return 1;
                 }
+            } else if (!strcmp(argv[i], "--raw-material")) {
+                raw_material = true;
             } else {
                 fprintf(stderr, "error: unknown option: %s\n", argv[i]);
                 return 1;
@@ -230,6 +234,12 @@ int main(int argc, char *argv[])
                 continue;
             }
 
+            if (raw_material && materials.size() > 1) {
+                fprintf(stderr, "error: cannot generate raw material when input contains multiple materials\n");
+                error = true;
+                continue;
+            }
+
             for (auto& mat : materials) {
                 verbose("converting material: %s\n", mat.name.c_str());
                 mat_convert(mat);
@@ -245,8 +255,14 @@ int main(int argc, char *argv[])
                 f = stdout;
                 verbose("writing material database to stdout\n");
             } else {
-                out = change_ext(argv[i], ".mdb");
-                verbose("writing material database: %s\n", out);
+                if (raw_material) {
+                    out = change_ext(argv[i], ".mraw");
+                    verbose("writing raw material: %s\n", out);
+                } else {
+                    out = change_ext(argv[i], ".mdb");
+                    verbose("writing material: %s\n", out);
+                }
+
                 f = fopen(out, "wb");
                 if (!f) {
                     fprintf(stderr, "error: cannot open output file: %s\n", out);
@@ -256,7 +272,11 @@ int main(int argc, char *argv[])
             }
 
             // Write the material database
-            mat_writedb(f, materials);
+            if (raw_material) {
+                materials[0].write(f);
+            } else {
+                mat_writedb(f, materials);
+            }
             
             if (f != stdout) {
                 fclose(f);
