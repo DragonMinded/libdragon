@@ -111,7 +111,7 @@ static int hashtable_resize(hashtable_t *h, size_t new_buckets) {
 }
 
 void hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
-    size_t threshold = (h->n_buckets << 2) * 7 / 10;
+    size_t threshold = (h->n_buckets << 2) * 12 / 16;
     if (h->size > threshold) {
         int ok = hashtable_resize(h, h->n_buckets * 2);
         assert(ok);
