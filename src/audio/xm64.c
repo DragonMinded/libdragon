@@ -291,11 +291,8 @@ void xm64player_close(xm64player_t *player) {
 	}
 }
 
-void xm64_set_extsampledir(const char *dir) {
-	if (dir == NULL) {
-		free(xm64_extsampledir);
-		xm64_extsampledir = NULL;
-	} else {
-		xm64_extsampledir = strdup(dir);
-	}
+void xm64_set_extsampledir(const char *dir)
+{
+	free(xm64_extsampledir);
+	xm64_extsampledir = dir ? strdup(dir) : NULL;
 }
