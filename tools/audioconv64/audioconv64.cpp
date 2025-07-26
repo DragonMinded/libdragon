@@ -79,6 +79,7 @@ void usage(void) {
 	printf("   --wav-compress <0|1|3>    	Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
 	printf("   --wav-loop <true|false>   	Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     	Set looping offset (in samples; default: 0)\n");
+	printf("   --wav-seek-offset <N>[,<N>]	Add additional seeking offsets (in samples; can specify multiple times)\n");
 	printf("\n");
 	printf("XM options:\n");
 	printf("   --xm-8bit                 	Convert all samples to 8-bit\n");
@@ -330,6 +331,25 @@ int main(int argc, char *argv[]) {
 					fprintf(stderr, "invalid argument for --wav-resample: %s\n", argv[i]);
 					return 1;
 				}
+			} else if (!strcmp(argv[i], "--wav-seek-offset")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --wav-seek-offset\n");
+					return 1;
+				}
+				// Parse one or multiple seek offsets separated by commas
+				char *offsets = strdup(argv[i]);
+				char *offset = strtok(offsets, ",");
+				while (offset) {
+					int off = atoi(offset);
+					if (off < 0) {
+						fprintf(stderr, "invalid seek offset: %s\n", offset);
+						free(offsets);
+						return 1;
+					}
+					flag_wav_seek_offset.push_back(off);
+					offset = strtok(NULL, ",");
+				}
+				free(offsets);
 			} else if (!strcmp(argv[i], "--xm-8bit")) {
 				flag_xm_8bit = true;
 			} else if (!strcmp(argv[i], "--xm-ext-samples")) {

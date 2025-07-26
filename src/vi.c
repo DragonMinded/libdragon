@@ -149,8 +149,8 @@ static void __vi_validate_config(void)
     if (dedither) {
         if (!bpp16)
             debugf("VI WARNING: dedithering is only useful with 16 bpp\n");
-        if (mode != VI_AA_MODE_RESAMPLE_FETCH_ALWAYS)
-            debugf("VI WARNING: dedithering requires VI_AA_MODE_RESAMPLE_FETCH_ALWAYS\n");
+        if (mode != VI_AA_MODE_RESAMPLE_FETCH_ALWAYS && mode != VI_AA_MODE_NONE)
+            debugf("VI WARNING: dedithering requires VI_AA_MODE_NONE or VI_AA_MODE_RESAMPLE_FETCH_ALWAYS\n");
     }
 }
 

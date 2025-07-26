@@ -2,6 +2,8 @@ BUILD_DIR=build
 DSO_COMPRESS_LEVEL=0
 include $(N64_INST)/include/n64.mk
 
+N64_MKMATERIAL = $(N64_INST)/bin/mkmaterial
+
 all: testrom.z64 testrom_emu.z64
 
 MAIN_ELF_EXTERNS := $(BUILD_DIR)/testrom.externs
@@ -13,7 +15,8 @@ $(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*) $(DSO_LIST)
 ASSETS = filesystem/grass1.ci8.sprite \
 		 filesystem/grass1.rgba32.sprite \
 		 filesystem/grass1sq.rgba32.sprite \
-		 filesystem/grass2.rgba32.sprite
+		 filesystem/grass2.rgba32.sprite \
+		 filesystem/materials.mdb
 
 OBJS = $(BUILD_DIR)/test_constructors_cpp.o \
 	   $(BUILD_DIR)/rsp_test.o \
@@ -26,7 +29,12 @@ filesystem/grass2.rgba32.sprite: MKSPRITE_FLAGS=--mipmap BOX
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
 	@echo "    [SPRITE] $@"
-	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
+	$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
+
+filesystem/materials.mdb: $(wildcard assets/*.mat)
+	@mkdir -p $(dir $@)
+	@echo "    [MDB] $@"
+	$(N64_MKMATERIAL) -o "$@" "$^"
 
 $(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(OBJS) $(MAIN_ELF_EXTERNS) $(ASSETS)
 testrom.z64: N64_ROM_TITLE="Libdragon Test ROM"
