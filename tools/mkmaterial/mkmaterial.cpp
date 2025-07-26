@@ -28,7 +28,7 @@
 #include "../../src/rdpq/rdpq_mat_internal.h"
 #include "combexpr.cpp"
 
-const char *flag_texdb_path = "texdb";
+char *flag_texdb_path = NULL;
 const char *flag_output_path = ".";
 int flag_compress = DEFAULT_COMPRESSION;
 int flag_verbose = 0;
@@ -240,11 +240,6 @@ int main(int argc, char *argv[])
                 continue;
             }
 
-            for (auto& mat : materials) {
-                verbose("converting material: %s\n", mat.name.c_str());
-                mat_convert(mat);
-            }
-
             // Open output file, named after the filename. Use stdout
             // if the input file is stdin.
             FILE *f;
@@ -254,14 +249,36 @@ int main(int argc, char *argv[])
                 // Write to stdout when input is stdin
                 f = stdout;
                 verbose("writing material database to stdout\n");
+
+                if (!flag_texdb_path) {
+                    fprintf(stderr, "error: cannot write to stdout without a texture database path\n");
+                    return 1;
+                }
             } else {
+                char *infn = argv[i];
+                char *basename = strrchr(infn, '/');
+                if (!basename) basename = infn; else basename += 1;
+                char* basename_noext = strdup(basename);
+                char* ext = strrchr(basename_noext, '.');
+                if (ext) *ext = '\0';
+
                 if (raw_material) {
-                    out = change_ext(argv[i], ".mraw");
+                    asprintf(&out, "%s/%s.mraw", flag_output_path, basename_noext);
                     verbose("writing raw material: %s\n", out);
                 } else {
-                    out = change_ext(argv[i], ".mdb");
+                    asprintf(&out, "%s/%s.mdb", flag_output_path, basename_noext);
                     verbose("writing material: %s\n", out);
                 }
+
+                // If the texdb path is not set, use the default
+                if (!flag_texdb_path)
+                    asprintf(&flag_texdb_path, "%s/texdb", flag_output_path);
+                if (mkdir(flag_texdb_path, 0755) && errno != EEXIST) {
+                    fprintf(stderr, "error: cannot create texture database directory: %s\n", flag_texdb_path);
+                    return 1;
+                }
+
+                verbose("texture DB: %s\n", flag_texdb_path);
 
                 f = fopen(out, "wb");
                 if (!f) {
@@ -269,6 +286,11 @@ int main(int argc, char *argv[])
                     free(out);
                     return 1;
                 }
+            }
+
+            for (auto& mat : materials) {
+                verbose("converting material: %s\n", mat.name.c_str());
+                mat_convert(mat);
             }
 
             // Write the material database

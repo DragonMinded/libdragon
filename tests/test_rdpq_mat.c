@@ -19,25 +19,29 @@ void test_rdpq_mat_basic(TestContext *ctx)
     RDPQ_INIT();
     rdpq_set_mode_standard();
     rdpq_mode_antialias(AA_STANDARD);
+    rdpq_mat_set_texture_path("rom:/texdb");
 
-    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/materials.mdb", true);
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
     DEFER(rdpq_matdb_close(mdb));
 
+    rdpq_mat_t *glass = rdpq_matdb_load(mdb, "glass");
+    ASSERT(glass != NULL, "Failed to load material 'glass'");
+
     ASSERT_MAT_SOM("<none>", SOM_ALPHACOMPARE_MASK | SOM_AA_ENABLE, SOM_AA_ENABLE);
-    rdpq_matdb_begin(mdb, "glass");
+    rdpq_mat_draw_begin(glass);
     ASSERT_MAT_SOM("glass", SOM_ALPHACOMPARE_MASK | SOM_AA_ENABLE, SOM_ALPHACOMPARE_THRESHOLD);
     ASSERT_MAT_CC("glass", RDPQ_COMBINER1((TEX0, PRIM, K5, 0), (0, 0, 0, TEX0)));
-    rdpq_matdb_end(mdb, "glass");
+    rdpq_mat_draw_end(glass);
     ASSERT_MAT_SOM("<none>", SOM_ALPHACOMPARE_MASK | SOM_AA_ENABLE, SOM_AA_ENABLE);
 
     // Verify we can successfully record a block for both the begin and end
     rspq_block_begin();
-        rdpq_matdb_begin(mdb, "glass"); 
+        rdpq_mat_draw_begin(glass);
     rspq_block_t *bl_mat_begin = rspq_block_end();
     DEFER(rspq_block_free(bl_mat_begin));
 
     rspq_block_begin();
-        rdpq_matdb_end(mdb, "glass");
+        rdpq_mat_draw_end(glass);
     rspq_block_t *bl_mat_end = rspq_block_end();
     DEFER(rspq_block_free(bl_mat_end));
 
@@ -53,6 +57,6 @@ void test_rdpq_mat_basic(TestContext *ctx)
     rspq_block_run(bl_mat_begin);
     ASSERT_MAT_SOM("glass", SOM_ALPHACOMPARE_MASK | SOM_AA_ENABLE, SOM_ALPHACOMPARE_THRESHOLD);
     ASSERT_MAT_CC("glass", RDPQ_COMBINER1((TEX0, PRIM, K5, 0), (0, 0, 0, TEX0)));
-    rdpq_matdb_end(mdb, "glass");
+    rdpq_mat_draw_end(glass);
     ASSERT_MAT_SOM("<none>", SOM_ALPHACOMPARE_MASK | SOM_AA_ENABLE, SOM_AA_ENABLE);
 }

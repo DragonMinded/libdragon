@@ -34,7 +34,7 @@ filesystem/%.sprite: assets/%.png
 filesystem/materials.mdb: $(wildcard assets/*.mat)
 	@mkdir -p $(dir $@)
 	@echo "    [MDB] $@"
-	$(N64_MKMATERIAL) -o "$@" "$^"
+	$(N64_MKMATERIAL) -o filesystem "$^"
 
 $(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(OBJS) $(MAIN_ELF_EXTERNS) $(ASSETS)
 testrom.z64: N64_ROM_TITLE="Libdragon Test ROM"

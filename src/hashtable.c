@@ -28,7 +28,7 @@ static inline void set_refcount(counted_ptr_t *v, uint8_t r) {
     *v = (*v & 0xFFFFFF) | ((uint32_t)r << 24);
 }
 static inline void* cached_addr(counted_ptr_t v) {
-    return CachedAddr(v & 0xFFFFFF);
+    return VirtualCachedAddr(v & 0xFFFFFF);
 }
 
 static inline uint32_t hash32(uint32_t x) {

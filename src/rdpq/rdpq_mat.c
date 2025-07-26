@@ -59,7 +59,7 @@ void rdpq_mat_set_texture_path(const char *path)
     }
 }
 
-static void mat_load(rdpq_mat_t *mat)
+static void mat_load(void *mat)
 {
     mat += FETCH(mat, uint8_t); // skip the name
     uint16_t flags = FETCH(mat, uint16_t);
@@ -73,7 +73,7 @@ static void mat_load(rdpq_mat_t *mat)
     }
 }
 
-static void mat_unload(rdpq_mat_t *mat)
+static void mat_unload(void *mat)
 {
     mat += FETCH(mat, uint8_t); // skip the name
     uint16_t flags = FETCH(mat, uint16_t);
@@ -143,8 +143,9 @@ rdpq_mat_t* rdpq_mat_load_buf(void *buf, int size)
     return ptr;
 }
 
-void rdpq_mat_draw_begin(rdpq_mat_t *mat)
+void rdpq_mat_draw_begin(rdpq_mat_t *mat_ptr)
 {
+    void *mat = mat_ptr;
     int namelen = FETCH(mat, uint8_t);
     char *name = (char*)mat;
     mat += namelen;
@@ -162,7 +163,8 @@ void rdpq_mat_draw_begin(rdpq_mat_t *mat)
         int tex1 = FETCH(mat, uint32_t);
         if (tex0) {
             if (tex1) rdpq_tex_multi_begin(); 
-            rdpq_sprite_upload(TILE0, hashtable_lookup(&tex_cache, tex0), NULL);
+            sprite_t *tex0_sprite = hashtable_lookup(&tex_cache, tex0);
+            rdpq_sprite_upload(TILE0, tex0_sprite, NULL);
             if (tex1) {
                 rdpq_sprite_upload(TILE1, hashtable_lookup(&tex_cache, tex1), NULL);
                 rdpq_tex_multi_end();
@@ -235,8 +237,9 @@ void rdpq_mat_draw_begin(rdpq_mat_t *mat)
     rdpq_mode_end();
 }
 
-void rdpq_mat_draw_end(rdpq_mat_t *mat)
+void rdpq_mat_draw_end(rdpq_mat_t *mat_ptr)
 {
+    void *mat = mat_ptr;
     mat += FETCH(mat, uint8_t); // skip the name
     uint16_t flags = FETCH(mat, uint16_t);
     bool has_overrides = flags & MATFLAG_RMO_MASK;
