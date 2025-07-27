@@ -118,8 +118,11 @@ int main()
         "From forth the fatal loins of these $02two foes$01\n"
         "A pair of $02star-cross'd lovers$01 take their life;\n";
 
-    int box_width = 262;
-    int box_height = 150;
+    int screen_width = display_get_width();
+    int screen_height = display_get_height();
+
+    int box_width = screen_width * 0.8f;
+    int box_height = screen_height * 0.8f;
 
     int drawn_chars = 0;
     int total_chars = strlen(text);
@@ -146,16 +149,16 @@ int main()
         surface_t *screen = display_get();
 
         rdpq_attach_clear(screen, NULL);
-        
+                
         rdpq_set_mode_fill(RGBA32(0x30,0x63,0x8E,0xFF));
-        rdpq_fill_rectangle((320-box_width)/2, (240-box_height)/2, (320+box_width)/2, (240+box_height)/2);
+        rdpq_fill_rectangle((screen_width-box_width)/2, (screen_height-box_height)/2, (screen_width+box_width)/2, (screen_height+box_height)/2);
 
         // rspq_wait();
         disable_interrupts();
         uint32_t t0 = get_ticks();
 
-        int x0 = (320-box_width)/2;
-        int y0 = (240-box_height)/2;   
+        int x0 = (screen_width-box_width)/2;
+        int y0 = (screen_height-box_height)/2;
 
         int nbytes = strlen(text);
         rdpq_paragraph_t* par = rdpq_paragraph_build(&(rdpq_textparms_t){
