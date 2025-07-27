@@ -292,6 +292,8 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
 
     gl_array_t *array = &state->array_object->arrays[array_type];
 
+    gl_buffer_object_t *old_binding = array->binding;
+
     array->size = size;
     array->type = type;
     array->stride = stride;
@@ -301,6 +303,16 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
     gl_update_array(array, array_type);
 
     state->array_object->is_layout_dirty = true;
+
+    // Update back-references from buffer objects to array object
+    if (array->binding != old_binding) {
+        if (old_binding != NULL) {
+            gl_buffer_remove_array_ref(old_binding, state->array_object);
+        }
+        if (array->binding != NULL) {
+            gl_buffer_add_array_ref(array->binding, state->array_object);
+        }
+    }
 }
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -546,6 +558,7 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
 
     for (GLsizei i = 0; i < n; i++)
     {
+        // TODO: allocate in a row
         gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
         gl_array_object_init(new_obj);
         arrays[i] = (GLuint)new_obj;
@@ -571,7 +584,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
         }
 
         if (obj->buffer != NULL) {
-            free_uncached(obj->buffer);
+            rspq_call_deferred(free_uncached, obj->buffer);
         }
 
         free(obj);
@@ -647,6 +660,20 @@ static void array_object_update_layout(gl_array_object_t *array_object)
     array_object->pipeline_index = pipeline_get_or_create(&array_object->layout.vertex_layout, 0);
 }
 
+static void array_object_update_is_all_vbos(gl_array_object_t *array_object)
+{
+    bool is_all_vbos = true;
+    for (size_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        if (array_object->arrays[i].enabled && array_object->arrays[i].binding == NULL) {
+            is_all_vbos = false;
+            break;
+        }
+    }
+    
+    array_object->is_all_vbos = is_all_vbos;
+}
+
 static void array_object_convert_data(gl_array_object_t *array_object, uint32_t first, uint32_t count)
 {
     uint32_t stride = array_object->layout.vertex_layout.stride;
@@ -680,6 +707,7 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
     // TODO: cache first and count
     if (array_object->is_layout_dirty) {
         array_object_update_layout(array_object);
+        array_object_update_is_all_vbos(array_object);
         array_object->is_layout_dirty = false;
         array_object->is_data_dirty = true;
     }
@@ -687,7 +715,9 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
     uint32_t end = first + count;
     uint32_t cached_end = array_object->cached_first + array_object->cached_count;
 
-    if (array_object->is_data_dirty || first < array_object->cached_first || end > cached_end) {
+    // If one or more arrays are not bound to VBOs, we cannot track when vertex data has actually changed.
+    // Therefore, we must always assume the data has changed and re-convert.
+    if (array_object->is_data_dirty || !array_object->is_all_vbos || first < array_object->cached_first || end > cached_end) {
         array_object_convert_data(array_object, first, count);
         array_object->cached_first = first;
         array_object->cached_count = count;

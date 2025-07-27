@@ -87,6 +87,13 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
             free(obj->element_cache);
         }
 
+        gl_array_object_ref_t *array_ref = obj->array_obj_ref;
+        while (array_ref != NULL) {
+            gl_array_object_ref_t *tmp = array_ref;
+            array_ref = array_ref->next;
+            free(tmp);
+        }
+
         free(obj);
     }
 }
@@ -97,6 +104,7 @@ void glGenBuffersARB(GLsizei n, GLuint *buffers)
 
     for (GLsizei i = 0; i < n; i++)
     {
+        // TODO: allocate in a row
         gl_buffer_object_t *new_obj = calloc(sizeof(gl_buffer_object_t), 1);
         new_obj->usage = GL_STATIC_DRAW_ARB;
         new_obj->access = GL_READ_WRITE_ARB;
@@ -130,6 +138,13 @@ void buffer_set_data_dirty(gl_buffer_object_t *obj)
 {
     if (obj->element_cache != NULL) {
         obj->element_cache->is_data_dirty = true;
+    }
+
+    // Inform all array objects that are bound to this buffer
+    gl_array_object_ref_t *array_ref = obj->array_obj_ref;
+    while (array_ref != NULL) {
+        array_ref->array_object->is_data_dirty = true;
+        array_ref = array_ref->next;
     }
 }
 
@@ -333,4 +348,37 @@ void glGetBufferPointervARB(GLenum target, GLenum pname, GLvoid **params)
     }
 
     *params = obj->pointer;
+}
+
+void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array)
+{
+    // Add to linked list of references, if not already present
+    gl_array_object_ref_t **ref = &buffer->array_obj_ref;
+
+    while (*ref != NULL) {
+        // array object is already in the list
+        if ((*ref)->array_object == array) return;
+        ref = &(*ref)->next;
+    }
+
+    // Append to the end of the list
+    *ref = malloc(sizeof(gl_array_object_ref_t));
+    (*ref)->array_object = array;
+    (*ref)->next = NULL;
+}
+
+void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array)
+{
+    // Remove from linked list of references
+    gl_array_object_ref_t **ref = &buffer->array_obj_ref;
+
+    while (*ref != NULL) {
+        if ((*ref)->array_object == array) {
+            // If found, remove item
+            gl_array_object_ref_t *current = *ref;
+            *ref = current->next;
+            free(current);
+        }
+        ref = &(*ref)->next;
+    }
 }

@@ -130,7 +130,7 @@ static void update_element_array_cache(gl_buffer_object_t *element_buffer, uint3
     if (is_dirty || !input_assembly_parms_equal(&cache->parms, input_assembly_parms)) {
         cache->parms = *input_assembly_parms;
 
-        if (cache->block != NULL) rspq_block_free(cache->block);
+        if (cache->block != NULL) rspq_call_deferred((void(*)(void*))rspq_block_free, cache->block);
 
         rspq_block_begin();
         mg_draw_indexed(input_assembly_parms, indices_i16, count, -cache->min_index);

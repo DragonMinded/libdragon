@@ -106,12 +106,21 @@ typedef struct {
     bool is_data_dirty;
 } gl_element_array_cache_t;
 
+typedef struct gl_array_object_s gl_array_object_t;
+typedef struct gl_array_object_ref_s gl_array_object_ref_t;
+
+typedef struct gl_array_object_ref_s {
+    gl_array_object_t *array_object;
+    gl_array_object_ref_t *next;
+} gl_array_object_ref_t;
+
 typedef struct {
     GLenum usage;
     GLenum access;
     GLvoid *pointer;
     gl_storage_t storage;
     bool mapped;
+    gl_array_object_ref_t *array_obj_ref;
     gl_element_array_cache_t *element_cache;
 } gl_buffer_object_t;
 
@@ -137,7 +146,7 @@ typedef struct {
     read_attrib_func read_func;
 } gl_array_t;
 
-typedef struct {
+typedef struct gl_array_object_s {
     gl_array_t arrays[ATTRIB_COUNT];
     gl_buffer_object_t *element_array_buffer;
     vertex_layout layout;
@@ -147,6 +156,7 @@ typedef struct {
     uint32_t cached_count;
     bool is_layout_dirty;
     bool is_data_dirty;
+    bool is_all_vbos;
 } gl_array_object_t;
 
 typedef struct {
@@ -249,6 +259,9 @@ fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void gl_update_matrix_targets();
 void update_culling();
 void update_viewport();
+
+void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
+void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 
 inline uint32_t gl_type_to_index(GLenum type)
 {
