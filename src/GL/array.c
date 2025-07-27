@@ -556,12 +556,11 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
 {
     if (!gl_ensure_no_begin_end()) return;
 
+    gl_array_object_t *new_objs = calloc(n, sizeof(gl_array_object_t));
     for (GLsizei i = 0; i < n; i++)
     {
-        // TODO: allocate in a row
-        gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
-        gl_array_object_init(new_obj);
-        arrays[i] = (GLuint)new_obj;
+        gl_array_object_init(&new_objs[i]);
+        arrays[i] = (GLuint)&new_objs[i];
     }
 }
 
@@ -586,6 +585,8 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
         if (obj->buffer != NULL) {
             rspq_call_deferred(free_uncached, obj->buffer);
         }
+
+        // TODO: delete back-references from VBOs
 
         free(obj);
     }
@@ -679,9 +680,8 @@ static void array_object_convert_data(gl_array_object_t *array_object, uint32_t 
     uint32_t stride = array_object->layout.vertex_layout.stride;
 
     // TODO: allocate from a pool?
-    // TODO: detect if still in use
     if (array_object->buffer != NULL) {
-        free_uncached(array_object->buffer);
+        rspq_call_deferred(free_uncached, array_object->buffer);
     }
     array_object->buffer = malloc_uncached(stride * count);
 
@@ -704,7 +704,6 @@ static void array_object_convert_data(gl_array_object_t *array_object, uint32_t 
 
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count)
 {
-    // TODO: cache first and count
     if (array_object->is_layout_dirty) {
         array_object_update_layout(array_object);
         array_object_update_is_all_vbos(array_object);

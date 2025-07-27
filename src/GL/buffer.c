@@ -73,16 +73,13 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 
         // TODO: keep alive until no longer in use
 
-        if (obj->storage.data != NULL)
-        {
-            free_uncached(obj->storage.data);
-        }
+        gl_storage_free(&obj->storage);
 
         if (obj->element_cache != NULL)
         {
             if (obj->element_cache->block != NULL)
             {
-                rspq_block_free(obj->element_cache->block);
+                rspq_call_deferred((void(*)(void*))rspq_block_free, obj->element_cache->block);
             }
             free(obj->element_cache);
         }
@@ -102,13 +99,12 @@ void glGenBuffersARB(GLsizei n, GLuint *buffers)
 {
     if (!gl_ensure_no_begin_end()) return;
 
+    gl_buffer_object_t *new_objs = calloc(n, sizeof(gl_buffer_object_t));
     for (GLsizei i = 0; i < n; i++)
     {
-        // TODO: allocate in a row
-        gl_buffer_object_t *new_obj = calloc(sizeof(gl_buffer_object_t), 1);
-        new_obj->usage = GL_STATIC_DRAW_ARB;
-        new_obj->access = GL_READ_WRITE_ARB;
-        buffers[i] = (GLuint)new_obj;
+        new_objs[i].usage = GL_STATIC_DRAW_ARB;
+        new_objs[i].access = GL_READ_WRITE_ARB;
+        buffers[i] = (GLuint)&new_objs[i];
     }
 }
 
