@@ -49,6 +49,21 @@ static bool is_combined_glyph(uint32_t cp)
            (cp >= 0x20D0 && cp <= 0x20FF) || (cp >= 0xFE20 && cp <= 0xFE2F);
 }
 
+static void apply_aspect_ratio_to_request(FT_Size_RequestRec *req)
+{
+    // Apply custom aspect ratio by modifying the width request
+    // If aspect_ratio > 1.0, glyphs will be wider
+    // If aspect_ratio < 1.0, glyphs will be narrower
+    if (flag_ttf_aspect_ratio != 1.0) {
+        if (req->type == FT_SIZE_REQUEST_TYPE_SCALES) {
+            req->width = (FT_Fixed)(req->width * flag_ttf_aspect_ratio);
+        } else {
+            // For nominal sizes, we need to adjust the width proportionally
+            req->width = (FT_F26Dot6)(req->height * flag_ttf_aspect_ratio);
+        }
+    }
+}
+
 static int font_set_default_size(FT_Face face)
 {
     FT_Size_RequestRec req;
@@ -61,6 +76,7 @@ static int font_set_default_size(FT_Face face)
     req.type = FT_SIZE_REQUEST_TYPE_SCALES;
     req.width = 1 << 16;
     req.height =1 << 16;
+    apply_aspect_ratio_to_request(&req);
     FT_Request_Size(face, &req);
 
     if (is_monochrome(face))
@@ -74,6 +90,7 @@ static int font_set_default_size(FT_Face face)
         memset(&req, 0, sizeof(req));
         req.type = FT_SIZE_REQUEST_TYPE_NOMINAL;
         req.height = sz << 6;
+        apply_aspect_ratio_to_request(&req);
         FT_Request_Size(face, &req);
 
         if (is_monochrome(face)) {
@@ -92,6 +109,7 @@ static int font_set_default_size(FT_Face face)
     memset(&req, 0, sizeof(req));
     req.type = FT_SIZE_REQUEST_TYPE_NOMINAL;
     req.height = DEFAULT_SIZE << 6;
+    apply_aspect_ratio_to_request(&req);
     FT_Request_Size(face, &req);
     return DEFAULT_SIZE;
 }
@@ -124,6 +142,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         memset(&req, 0, sizeof(req));
         req.type = FT_SIZE_REQUEST_TYPE_NOMINAL;
         req.height = flag_ttf_point_size << 6;
+        apply_aspect_ratio_to_request(&req);
         FT_Request_Size(face, &req);
         point_size = flag_ttf_point_size;
     }
