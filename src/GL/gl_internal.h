@@ -122,6 +122,7 @@ typedef struct {
     bool mapped;
     gl_array_object_ref_t *array_obj_ref;
     gl_element_array_cache_t *element_cache;
+    uint32_t ref_count;
 } gl_buffer_object_t;
 
 typedef struct
@@ -157,6 +158,7 @@ typedef struct gl_array_object_s {
     bool is_layout_dirty;
     bool is_data_dirty;
     bool is_all_vbos;
+    bool are_bindings_dirty;
 } gl_array_object_t;
 
 typedef struct {
@@ -248,6 +250,12 @@ inline bool is_valid_object_id(GLuint id)
     return is_in_heap_memory((void*)id);
 }
 
+void gl_rendermode_init();
+void gl_array_init();
+void gl_array_close();
+void gl_primitive_init();
+void gl_matrix_init();
+
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
@@ -262,6 +270,9 @@ void update_viewport();
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
+void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
+
+void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
 
 inline uint32_t gl_type_to_index(GLenum type)
 {

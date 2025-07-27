@@ -14,6 +14,52 @@ GLboolean glIsBufferARB(GLuint buffer)
     return is_valid_object_id(buffer);
 }
 
+static void buffer_object_free(gl_buffer_object_t *obj)
+{
+    gl_storage_free(&obj->storage);
+
+    if (obj->element_cache != NULL)
+    {
+        if (obj->element_cache->block != NULL)
+        {
+            rspq_call_deferred((void(*)(void*))rspq_block_free, obj->element_cache->block);
+        }
+        free(obj->element_cache);
+    }
+
+    assertf(obj->array_obj_ref == NULL, "Freeing a buffer object that still had references to array objects: %p", obj);
+
+    free(obj);
+}
+
+void buffer_object_refcount_incr(gl_buffer_object_t *obj)
+{
+    ++obj->ref_count;
+}
+
+void buffer_object_refcount_decr(gl_buffer_object_t *obj)
+{
+    assertf(obj->ref_count > 0, "Decreasing reference count of a buffer object that already has 0 references: %p", obj);
+
+    if (--obj->ref_count == 0) {
+        buffer_object_free(obj);
+    }
+}
+
+void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding)
+{
+    if (obj == *binding) return;
+
+    gl_buffer_object_t *old_binding = *binding;
+    if (old_binding != NULL) {
+        buffer_object_refcount_decr(old_binding);
+    }
+    if (obj != NULL) {
+        buffer_object_refcount_incr(obj);
+    }
+    *binding = obj;
+}
+
 void glBindBufferARB(GLenum target, GLuint buffer)
 {
     if (!gl_ensure_no_begin_end()) return;
@@ -24,10 +70,10 @@ void glBindBufferARB(GLenum target, GLuint buffer)
 
     switch (target) {
     case GL_ARRAY_BUFFER_ARB:
-        state->array_buffer = obj;
+        buffer_object_set_binding(obj, &state->array_buffer);
         break;
     case GL_ELEMENT_ARRAY_BUFFER_ARB:
-        state->array_object->element_array_buffer = obj;
+        buffer_object_set_binding(obj, &state->array_object->element_array_buffer);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer target", target);
@@ -35,10 +81,10 @@ void glBindBufferARB(GLenum target, GLuint buffer)
     }
 }
 
-void gl_unbind_buffer(gl_buffer_object_t *obj, gl_buffer_object_t **binding)
+static void buffer_object_unbind(gl_buffer_object_t *obj, gl_buffer_object_t **binding)
 {
     if (*binding == obj) {
-        *binding = NULL;
+        buffer_object_set_binding(NULL, binding);
     }
 }
 
@@ -56,42 +102,19 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
             continue;
         }
         
-        gl_unbind_buffer(obj, &state->array_buffer);
-        gl_unbind_buffer(obj, &state->array_object->element_array_buffer);
+        // Deleting a buffer object will automatically unbind it from GL_ARRAY_BUFFER and GL_ELEMENT_ARRAY_BUFFER
+        buffer_object_unbind(obj, &state->array_buffer);
+        buffer_object_unbind(obj, &state->array_object->element_array_buffer);
 
-        for (uint32_t a = 0; a < ATTRIB_COUNT; a++)
-        {
-            // FIXME: From the spec:
-            // (2) What happens when a buffer object that is attached to a non-current
-            // VAO is deleted?
-            // RESOLUTION: Nothing (though a reference count may be decremented). 
-            // A buffer object that is deleted while attached to a non-current VAO
-            // is treated just like a buffer object bound to another context (or to
-            // a current VAO in another context).
-            gl_unbind_buffer(obj, &state->array_object->arrays[a].binding);
-        }
-
-        // TODO: keep alive until no longer in use
-
-        gl_storage_free(&obj->storage);
-
-        if (obj->element_cache != NULL)
-        {
-            if (obj->element_cache->block != NULL)
-            {
-                rspq_call_deferred((void(*)(void*))rspq_block_free, obj->element_cache->block);
+        // Deleting a buffer object will automatically unbind it from all arrays in the currently bound VAO
+        for (gl_array_type_t a = 0; a < ATTRIB_COUNT; a++) {
+            if (state->array_object->arrays[a].binding == obj) {
+                array_object_set_buffer_binding(state->array_object, a, NULL);
             }
-            free(obj->element_cache);
         }
 
-        gl_array_object_ref_t *array_ref = obj->array_obj_ref;
-        while (array_ref != NULL) {
-            gl_array_object_ref_t *tmp = array_ref;
-            array_ref = array_ref->next;
-            free(tmp);
-        }
-
-        free(obj);
+        // Remove the reference that corresponds to the name that is being deleted
+        buffer_object_refcount_decr(obj);
     }
 }
 
@@ -104,6 +127,9 @@ void glGenBuffersARB(GLsizei n, GLuint *buffers)
     {
         new_objs[i].usage = GL_STATIC_DRAW_ARB;
         new_objs[i].access = GL_READ_WRITE_ARB;
+        // Being assigned a "name" (the ID returned by this function) counts as a reference.
+        // Deleting the name using glDeleteBuffersARB removes that reference.
+        new_objs[i].ref_count = 1;
         buffers[i] = (GLuint)&new_objs[i];
     }
 }
@@ -361,6 +387,8 @@ void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *arra
     *ref = malloc(sizeof(gl_array_object_ref_t));
     (*ref)->array_object = array;
     (*ref)->next = NULL;
+
+    buffer_object_refcount_incr(buffer);
 }
 
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array)
@@ -374,6 +402,8 @@ void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *a
             gl_array_object_ref_t *current = *ref;
             *ref = current->next;
             free(current);
+            buffer_object_refcount_decr(buffer);
+            break;
         }
         ref = &(*ref)->next;
     }

@@ -177,6 +177,12 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
     },
 };
 
+inline void assert_valid_array(GLuint array)
+{
+    assertf(array == 0 || is_valid_object_id(array),
+            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
+}
+
 gl_array_type_t gl_array_type_from_enum(GLenum array)
 {
     switch (array) {
@@ -238,13 +244,13 @@ void gl_update_array_pointer(gl_array_t *array)
 
 void gl_update_array_pointers(gl_array_object_t *obj)
 {
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
     {
         gl_update_array_pointer(&obj->arrays[i]);
     }
 }
 
-void gl_array_object_init(gl_array_object_t *obj)
+static void array_object_init(gl_array_object_t *obj)
 {
     obj->arrays[ATTRIB_VERTEX].size = 4;
     obj->arrays[ATTRIB_VERTEX].type = GL_FLOAT;
@@ -257,7 +263,7 @@ void gl_array_object_init(gl_array_object_t *obj)
     obj->arrays[ATTRIB_MTX_INDEX].size = 0;
     obj->arrays[ATTRIB_MTX_INDEX].type = GL_UNSIGNED_BYTE;
 
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
     {
         gl_update_array(&obj->arrays[i], i);
     }
@@ -265,10 +271,48 @@ void gl_array_object_init(gl_array_object_t *obj)
     obj->is_layout_dirty = true;
 }
 
+static void array_object_free(gl_array_object_t *obj)
+{
+    if (obj->buffer != NULL) {
+        rspq_call_deferred(free_uncached, obj->buffer);
+    }
+
+    buffer_object_set_binding(NULL, &obj->element_array_buffer);
+
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        array_object_set_buffer_binding(obj, i, NULL);
+    }
+
+    free(obj);
+}
+
 void gl_array_init()
 {
-    gl_array_object_init(&state->default_array_object);
-    state->array_object = &state->default_array_object;
+    array_object_init(&state->default_array_object);
+    glBindVertexArray(0);
+}
+
+void gl_array_close()
+{
+    glBindVertexArray(0);
+    array_object_free(&state->default_array_object);
+}
+
+void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer)
+{
+    gl_array_t *array = &obj->arrays[array_type];
+    if (array->binding == buffer) return;
+
+    gl_buffer_object_t *old_binding = array->binding;
+    if (old_binding != NULL) {
+        gl_buffer_remove_array_ref(old_binding, state->array_object);
+    }
+    if (buffer != NULL) {
+        gl_buffer_add_array_ref(buffer, state->array_object);
+    }
+    array->binding = buffer;
+    obj->are_bindings_dirty = true;
 }
 
 void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -292,27 +336,15 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
 
     gl_array_t *array = &state->array_object->arrays[array_type];
 
-    gl_buffer_object_t *old_binding = array->binding;
-
     array->size = size;
     array->type = type;
     array->stride = stride;
     array->pointer = pointer;
-    array->binding = state->array_buffer;
+    array_object_set_buffer_binding(state->array_object, array_type, state->array_buffer);
 
     gl_update_array(array, array_type);
 
     state->array_object->is_layout_dirty = true;
-
-    // Update back-references from buffer objects to array object
-    if (array->binding != old_binding) {
-        if (old_binding != NULL) {
-            gl_buffer_remove_array_ref(old_binding, state->array_object);
-        }
-        if (array->binding != NULL) {
-            gl_buffer_add_array_ref(array->binding, state->array_object);
-        }
-    }
 }
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -559,7 +591,7 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
     gl_array_object_t *new_objs = calloc(n, sizeof(gl_array_object_t));
     for (GLsizei i = 0; i < n; i++)
     {
-        gl_array_object_init(&new_objs[i]);
+        array_object_init(&new_objs[i]);
         arrays[i] = (GLuint)&new_objs[i];
     }
 }
@@ -570,8 +602,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 
     for (GLsizei i = 0; i < n; i++)
     {
-        assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), 
-            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", arrays[i]);
+        assert_valid_array(arrays[i]);
 
         gl_array_object_t *obj = (gl_array_object_t*)arrays[i];
         if (obj == NULL) {
@@ -582,21 +613,14 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
             glBindVertexArray(0);
         }
 
-        if (obj->buffer != NULL) {
-            rspq_call_deferred(free_uncached, obj->buffer);
-        }
-
-        // TODO: delete back-references from VBOs
-
-        free(obj);
+        array_object_free(obj);
     }
 }
 
 void glBindVertexArray(GLuint array)
 {
     if (!gl_ensure_no_begin_end()) return;
-    assertf(array == 0 || is_valid_object_id(array), 
-        "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
+    assert_valid_array(array);
 
     gl_array_object_t *obj = (gl_array_object_t*)array;
 
@@ -664,7 +688,7 @@ static void array_object_update_layout(gl_array_object_t *array_object)
 static void array_object_update_is_all_vbos(gl_array_object_t *array_object)
 {
     bool is_all_vbos = true;
-    for (size_t i = 0; i < ATTRIB_COUNT; i++)
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
     {
         if (array_object->arrays[i].enabled && array_object->arrays[i].binding == NULL) {
             is_all_vbos = false;
@@ -688,7 +712,7 @@ static void array_object_convert_data(gl_array_object_t *array_object, uint32_t 
     gl_update_array_pointers(array_object);
 
     // TODO: convert matrix indices too as soon as they are supported
-    for (size_t i = 0; i < ATTRIB_MTX_INDEX; i++)
+    for (gl_array_type_t i = 0; i < ATTRIB_MTX_INDEX; i++)
     {
         gl_array_t *array = &array_object->arrays[i];
         if (!array->enabled) continue;
@@ -704,10 +728,17 @@ static void array_object_convert_data(gl_array_object_t *array_object, uint32_t 
 
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count)
 {
+    // TODO: throw INVALID OPERATION if any VBOs are currently mapped
+
     if (array_object->is_layout_dirty) {
         array_object_update_layout(array_object);
-        array_object_update_is_all_vbos(array_object);
         array_object->is_layout_dirty = false;
+        array_object->is_data_dirty = true;
+    }
+
+    if (array_object->are_bindings_dirty) {
+        array_object_update_is_all_vbos(array_object);
+        array_object->are_bindings_dirty = false;
         array_object->is_data_dirty = true;
     }
 

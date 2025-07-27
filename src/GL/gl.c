@@ -12,11 +12,6 @@
 
 gl_state_t *state;
 
-void gl_rendermode_init();
-void gl_array_init();
-void gl_primitive_init();
-void gl_matrix_init();
-
 void gl_init(void)
 {
     mg_init();
@@ -46,6 +41,7 @@ void gl_init(void)
 
 void gl_close(void)
 {
+    gl_array_close();
     rspq_wait();
     free(state->uniform_data);
     free(state);
