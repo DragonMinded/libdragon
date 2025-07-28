@@ -12,8 +12,8 @@
 #include "n64sys.h"
 #else
 /// @cond
-#define PhysicalAddr(p) ((uint32_t)(uintptr_t)(p) & 0xFFFFFF)
-#define CachedAddr(v)   ((void*)(uintptr_t)((v) & 0xFFFFFF))
+#define PhysicalAddr(p)        ((uint32_t)(uintptr_t)(p) & 0xFFFFFF)
+#define VirtualCachedAddr(v)   ((void*)(uintptr_t)((v) & 0xFFFFFF))
 /// @endcond
 #endif
 
@@ -38,71 +38,76 @@ static inline uint32_t hash32(uint32_t x) {
 
 /* Returns pointer to key slot: existing key or first free/tombstone slot */
 static uint32_t* hashtable_lookup_slot(hashtable_t *h, uint32_t k) {
-    size_t mask = h->n_buckets - 1;
-    size_t b = hash32(k) & mask;
+    size_t mask = h->capacity - 1;  // capacity is power of 2, so this works
+    size_t hash = hash32(k);
     uint32_t *tomb_key = NULL;
 
-    while (1) {
-        hashtable_bucket_t *bk = &h->buckets[b];
-        for (int i = 0; i < 4; i++) {
-            uint32_t *kk = &bk->kv[i];
-            if (*kk == k) return kk;
-            if (*kk == TOMBSTONE_KEY && !tomb_key) tomb_key = kk;
-            if (!*kk) return tomb_key ? tomb_key : kk;
-        }
-        b = (b + 1) & mask;
+    for (size_t i = 0; i < h->capacity; i++) {
+        size_t idx = ((hash + i) & mask) * 2; // Each slot is 2 elements apart
+        uint32_t *kk = &h->entries[idx];
+        if (*kk == k) return kk;
+        if (*kk == TOMBSTONE_KEY && !tomb_key) tomb_key = kk;
+        if (!*kk) return tomb_key ? tomb_key : kk;
     }
+    
+    // Should never reach here if load factor is kept reasonable
+    assert(0 && "hashtable full");
+    return NULL;
 }
 
 int hashtable_init(hashtable_t *h, size_t initial_entries, hashtable_loader_fn loader) {
-    size_t n = 1; while (n * 4 < initial_entries) n <<= 1;
-    h->n_buckets = n;
-    h->buckets = aligned_alloc(16, sizeof(hashtable_bucket_t) * n);
-    assert(h->buckets);
-    memset(h->buckets, 0, sizeof(hashtable_bucket_t) * n);
+    // Round up to next power of 2, ensuring capacity is at least initial_entries
+    size_t capacity = 1;
+    while (capacity < initial_entries) capacity <<= 1;
+    
+    h->capacity = capacity;
+    // Allocate interleaved key/value array: capacity pairs = capacity * 2 uint32_t
+    h->entries = aligned_alloc(16, sizeof(uint32_t) * capacity * 2);
+    assert(h->entries);
+    memset(h->entries, 0, sizeof(uint32_t) * capacity * 2);
     h->size = 0;
     h->loader = loader;
     return 1;
 }
 
 void hashtable_free(hashtable_t *h) {
-    free(h->buckets);
-    h->buckets = NULL;
+    free(h->entries);
+    h->entries = NULL;
 }
 
-static void hashtable_resize(hashtable_t *h, size_t new_buckets) {
-    hashtable_bucket_t *newb = aligned_alloc(16, sizeof(hashtable_bucket_t) * new_buckets);
+static void hashtable_resize(hashtable_t *h, size_t new_capacity) {
+    uint32_t *newb = aligned_alloc(16, sizeof(uint32_t) * new_capacity * 2);
     assert(newb);
-    memset(newb, 0, sizeof(hashtable_bucket_t) * new_buckets);
+    memset(newb, 0, sizeof(uint32_t) * new_capacity * 2);
 
-    hashtable_bucket_t *old = h->buckets;
-    size_t old_n = h->n_buckets;
+    uint32_t *old = h->entries;
+    size_t old_capacity = h->capacity;
 
-    h->buckets = newb;
-    h->n_buckets = new_buckets;
+    h->entries = newb;
+    h->capacity = new_capacity;
     h->size = 0;
 
-    for (size_t i = 0; i < old_n; i++) {
-        for (int j = 0; j < 4; j++) {
-            uint32_t k = old[i].kv[j];
-            if (!k || k == TOMBSTONE_KEY) continue;
-            counted_ptr_t v = old[i].kv[j+4];
+    // Rehash all existing entries
+    for (size_t i = 0; i < old_capacity * 2; i += 2) {
+        uint32_t k = old[i];     // key
+        if (!k || k == TOMBSTONE_KEY) continue;
+        counted_ptr_t v = old[i + 1]; // value
 
-            uint32_t *kk = hashtable_lookup_slot(h, k);
-            *kk = k;
-            kk[4] = v;
-            h->size++;
-        }
+        uint32_t *kk = hashtable_lookup_slot(h, k);
+        *kk = k;
+        kk[1] = v; // value is immediately after key
+        h->size++;
     }
     free(old);
 }
 
 void* hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
-    size_t threshold = (h->n_buckets << 2) * 12 / 16;
-    if (h->size > threshold) hashtable_resize(h, h->n_buckets * 2);
+    // Resize when load factor exceeds 75%
+    size_t threshold = h->capacity * 3 / 4;
+    if (h->size > threshold) hashtable_resize(h, h->capacity * 2);
 
     uint32_t *kk = hashtable_lookup_slot(h, k);
-    counted_ptr_t *vv = (counted_ptr_t*)(kk + 4);
+    counted_ptr_t *vv = (counted_ptr_t*)(kk + 1); // value is immediately after key
 
     if (*kk == k) {
         uint8_t r = refcount(*vv); assert(r < 255);
@@ -119,27 +124,26 @@ void* hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
 
 void* hashtable_lookup(hashtable_t *h, uint32_t k) {
     uint32_t *kk = hashtable_lookup_slot(h, k);
-    return (*kk == k) ? cached_addr(kk[4]) : NULL;
+    return (*kk == k) ? cached_addr(kk[1]) : NULL; // value is immediately after key
 }
 
 void* hashtable_remove(hashtable_t *h, uint32_t k) {
-    size_t mask = h->n_buckets - 1;
-    size_t b = hash32(k) & mask;
+    size_t mask = h->capacity - 1;  // capacity is power of 2, so this works
+    size_t hash = hash32(k);
 
-    while (1) {
-        hashtable_bucket_t *bk = &h->buckets[b];
-        for (int i = 0; i < 4; i++) {
-            if (bk->kv[i] == k) {
-                uint8_t r = refcount(bk->kv[i+4]);
-                void *v = cached_addr(bk->kv[i+4]);
-                if (--r > 0) { set_refcount(&bk->kv[i+4], r); return NULL; }
-                bk->kv[i] = TOMBSTONE_KEY;
-                bk->kv[i+4] = 0;
-                h->size--;
-                return v;
-            }
-            if (!bk->kv[i]) return NULL; // Key not found
+    for (size_t i = 0; i < h->capacity; i++) {
+        size_t idx = ((hash + i) & mask) * 2; // Each slot is 2 elements apart
+        uint32_t *kk = &h->entries[idx];
+        if (*kk == k) {
+            uint8_t r = refcount(kk[1]); // value immediately after key
+            void *v = cached_addr(kk[1]);
+            if (--r > 0) { set_refcount(&kk[1], r); return NULL; }
+            kk[0] = TOMBSTONE_KEY; // mark key as tombstone
+            kk[1] = 0;             // clear value
+            h->size--;
+            return v;
         }
-        b = (b + 1) & mask;
+        if (!*kk) return NULL; // Key not found
     }
+    return NULL; // Key not found
 }

@@ -20,11 +20,6 @@
 extern "C" {
 #endif
 
-/** Bucket structure for the hashtable */
-typedef struct __attribute__((aligned(16))) {
-    uint32_t kv[8]; // [0..3]=keys, [4..7]=vals
-} hashtable_bucket_t;
-
 /**
  * @brief Loader callback used to lazily create a value for a given key.
  *
@@ -38,8 +33,8 @@ typedef void* (*hashtable_loader_fn)(uint32_t key);
 
 /** @brief A hashtable structure */
 typedef struct hashtable_s {
-    hashtable_bucket_t *buckets;    ///< Pointer to the array of buckets
-    size_t n_buckets;               ///< Number of buckets in the hashtable
+    uint32_t *entries;              ///< Pointer to the interleaved key/value array
+    size_t capacity;                ///< Total capacity (number of key/value pairs)
     size_t size;                    ///< Current number of entries in the hashtable
     hashtable_loader_fn loader;     ///< Loader function to lazily create values
 } hashtable_t;
