@@ -82,6 +82,12 @@ DEFINE_READ_FUNC(vtx_read_f32, int16_t, floatu, MGFX_S10_5)
 DEFINE_READ_FUNC(vtx_read_f64, int16_t, doubleu, MGFX_S10_5)
 DEFINE_FIXED_READ_FUNC(vtx_read_x16, int16_t, state->vertex_halfx_precision)
 
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i8,  int8_t,    3)
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i16, int16u_t,  11)
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i32, int32u_t,  27)
+DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f32, floatu)
+DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f64, doubleu)
+
 #define COL_CONVERT_U8(v) ((v))
 #define COL_CONVERT_I8(v) (MAX(v, 0) << 1)
 #define COL_CONVERT_U16(v) ((v) >> 8)
@@ -107,12 +113,6 @@ DEFINE_READ_FUNC(tex_read_f32, int16_t, floatu, MGFX_S8_8)
 DEFINE_READ_FUNC(tex_read_f64, int16_t, doubleu, MGFX_S8_8)
 DEFINE_FIXED_READ_FUNC(tex_read_x16, int16_t, state->texcoord_halfx_precision)
 
-DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i8,  int8_t,    3)
-DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i16, int16u_t,  11)
-DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i32, int32u_t,  27)
-DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f32, floatu)
-DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f64, doubleu)
-
 #define MTX_INDEX_CONVERT(v) (v)
 
 DEFINE_READ_FUNC(mtx_index_read_u8, uint8_t,  uint8_t,   MTX_INDEX_CONVERT)
@@ -130,6 +130,17 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (read_attrib_func)vtx_read_f32,
         (read_attrib_func)vtx_read_f64,
         (read_attrib_func)vtx_read_x16,
+    },
+    {
+        (read_attrib_func)nrm_read_i8,
+        NULL,
+        (read_attrib_func)nrm_read_i16,
+        NULL,
+        (read_attrib_func)nrm_read_i32,
+        NULL,
+        (read_attrib_func)nrm_read_f32,
+        (read_attrib_func)nrm_read_f64,
+        NULL,
     },
     {
         (read_attrib_func)col_read_i8,
@@ -152,17 +163,6 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (read_attrib_func)tex_read_f32,
         (read_attrib_func)tex_read_f64,
         (read_attrib_func)tex_read_x16,
-    },
-    {
-        (read_attrib_func)nrm_read_i8,
-        NULL,
-        (read_attrib_func)nrm_read_i16,
-        NULL,
-        (read_attrib_func)nrm_read_i32,
-        NULL,
-        (read_attrib_func)nrm_read_f32,
-        (read_attrib_func)nrm_read_f64,
-        NULL,
     },
     {
         NULL,
@@ -656,7 +656,7 @@ static void array_object_update_layout(gl_array_object_t *array_object)
     }
 
     if (array_object->arrays[ATTRIB_NORMAL].enabled) {
-        array_object->arrays[ATTRIB_NORMAL].out_offset = stride;
+        array_object->arrays[ATTRIB_NORMAL].out_offset = stride - sizeof(int16_t);
     }
 
     if (array_object->arrays[ATTRIB_COLOR].enabled) {
