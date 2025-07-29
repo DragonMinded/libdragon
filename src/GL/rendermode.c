@@ -66,10 +66,16 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
 
+void set_fog_dirty()
+{
+    state->is_fog_dirty = true;
+}
+
 void gl_rendermode_init()
 {
     state->fog_start = 0.0f;
     state->fog_end = 1.0f;
+    set_fog_dirty();
 
     glEnable(GL_DITHER);
     glBlendFunc(GL_ONE, GL_ZERO);
@@ -82,24 +88,34 @@ void gl_rendermode_init()
     glFogfv(GL_FOG_COLOR, fog_color);
 }
 
-void gl_update_fog()
+void gl_upload_fog(const mg_uniform_t *uniform)
 {
+    if (!state->is_fog_dirty) return;
+
     mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {
-        .start = state->fog_start,
-        .end = state->fog_end
+        .start = state->fog ? state->fog_start : 0.0f,
+        .end = state->fog ? state->fog_end : 0.0f
     });
+
+    mg_uniform_load(uniform, &state->uniform_data->fog);
+}
+
+void gl_set_fog_enabled(bool enabled)
+{
+    state->fog = enabled;
+    set_fog_dirty();
 }
 
 void gl_set_fog_start(GLfloat param)
 {
     state->fog_start = param;
-    gl_update_fog();
+    set_fog_dirty();
 }
 
 void gl_set_fog_end(GLfloat param)
 {
     state->fog_end = param;
-    gl_update_fog();
+    set_fog_dirty();
 }
 
 void glFogi(GLenum pname, GLint param)

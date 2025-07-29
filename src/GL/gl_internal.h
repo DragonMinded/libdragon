@@ -258,6 +258,7 @@ typedef struct {
     GLenum shade_model;
 
     bool is_lighting_dirty;
+    bool is_fog_dirty;
 
     bool begin_end_active;
     bool is_pipeline_dirty;
@@ -310,9 +311,11 @@ void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **bin
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
 
 void gl_set_light_enabled(GLenum light, bool enabled);
+void gl_set_fog_enabled(bool enabled);
 
 void gl_upload_matrices(const mg_uniform_t *uniform);
 void gl_upload_lighting(const mg_uniform_t *uniform);
+void gl_upload_fog(const mg_uniform_t *uniform);
 
 inline uint32_t gl_type_to_index(GLenum type)
 {

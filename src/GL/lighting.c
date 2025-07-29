@@ -5,6 +5,18 @@
 
 extern gl_state_t *state;
 
+void set_lighting_dirty()
+{
+    state->is_lighting_dirty = true;
+}
+
+void set_light_dirty(gl_light_t *light)
+{
+    if (light->enabled) {
+        set_lighting_dirty();
+    }
+}
+
 void gl_init_material(gl_material_t *material)
 {
     *material = (gl_material_t) {
@@ -57,19 +69,7 @@ void gl_lighting_init()
     state->light_model_ambient[3] = 1.0f;
     state->light_model_local_viewer = false;
 
-    state->is_lighting_dirty = true;
-}
-
-void set_lighting_dirty()
-{
-    state->is_lighting_dirty = true;
-}
-
-void set_light_dirty(gl_light_t *light)
-{
-    if (light->enabled) {
-        set_lighting_dirty();
-    }
+    set_lighting_dirty();
 }
 
 bool gl_validate_material_face(GLenum face)

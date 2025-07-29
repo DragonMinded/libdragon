@@ -22,10 +22,6 @@ void gl_init(void)
     state->uniform_data = malloc_uncached(sizeof(gl_uniform_data));
 
     mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {});
-    mgfx_get_lighting(&state->uniform_data->lighting, &(mgfx_lighting_parms_t) {
-        .light_count = 0,
-        .ambient_color = color_from_packed32(0xFFFFFFFF)
-    });
     mgfx_get_texturing(&state->uniform_data->texturing, &(mgfx_texturing_parms_t) {
         .scale = {1, 1}
     });
@@ -101,7 +97,7 @@ void set_enable_flag(GLenum target, bool value)
     case GL_DITHER:
         break;
     case GL_FOG:
-        state->fog = value;
+        gl_set_fog_enabled(value);
         break;
     case GL_MULTISAMPLE_ARB:
         break;
