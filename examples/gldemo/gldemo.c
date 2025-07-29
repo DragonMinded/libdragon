@@ -6,7 +6,7 @@
 #include "plane.h"
 #include "debug_overlay.h"
 
-#define TICKRATE   30
+#define TICKRATE   60
 #define DELTATIME  (1.0f/(double)TICKRATE)
 
 #define STICK_DEADZONE       10
@@ -54,6 +54,28 @@ void init()
     glMatrixMode(GL_PROJECTION);
     float aspect_ratio = (float)resolution.width / (float)resolution.height;
     gluPerspective(65.f, aspect_ratio, 1.f, 100.f);
+
+    float ambient[4] = {0};
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
+
+    float light_radius = 5.0f;
+    float light_color[4] = { 0.5f, 1.0f, 0.2f, 1.0f };
+
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_color);
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/(light_radius*light_radius));
+
+    glEnable(GL_LIGHT4);
+    float light_color2[4] = { 0.4f, 0.4f, 0.4f, 1.0f };
+    glLightfv(GL_LIGHT4, GL_DIFFUSE, light_color2);
+
+    GLfloat mat_diffuse[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, mat_diffuse);
+
+    glEnable(GL_FOG);
+    glFogf(GL_FOG_START, 20);
+    glFogf(GL_FOG_END, 80);
+    glFogfv(GL_FOG_COLOR, environment_color);
 }
 
 void direction_from_pitch_yaw(fm_vec3_t *out, float pitch, float yaw)
@@ -110,6 +132,24 @@ void update(float deltatime)
         if (!request_display_metrics) display_metrics = false;
     }
 
+    if (btn.d_up) {
+        if (end_idx < plane_index_count) end_idx += 3;
+    }
+    if (btn.d_down) {
+        if (end_idx > first_idx) end_idx -= 3;
+    }
+    if (btn.d_right) {
+        if (first_idx < end_idx) first_idx += 3;
+    }
+    if (btn.d_left) {
+        if (first_idx > 0) first_idx -= 3;
+    }
+
+    joypad_buttons_t btn_held = joypad_get_buttons_held(JOYPAD_PORT_1);
+    if (btn_held.z) {
+        modify_vertices(get_ticks_ms() / 1000.0f);
+    }
+
     surface_t *framebuffer = display_get();
     rdpq_attach(framebuffer, zbuffer);
 
@@ -122,6 +162,7 @@ void update(float deltatime)
         rdpq_mode_persp(true);
         rdpq_mode_filter(FILTER_BILINEAR);
         rdpq_mode_combiner(RDPQ_COMBINER_SHADE);
+        rdpq_mode_fog(RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_mode_end();
 
     gl_context_begin();
@@ -140,9 +181,15 @@ void update(float deltatime)
         forward.x, forward.y, forward.z,
         0.f, 1.f, 0.f);
 
+    fm_vec4_t light_position = {{ 5, 5, 0, 1 }};
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position.v);
+    fm_vec4_t light_position2 = {{ 0, -1, 0, 0 }};
+    glLightfv(GL_LIGHT4, GL_POSITION, light_position2.v);
+
     glEnable(GL_NORMALIZE);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
+    glEnable(GL_LIGHTING);
 
     render_plane();
 

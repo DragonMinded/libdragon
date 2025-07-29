@@ -15,6 +15,8 @@ static GLuint plane_array;
 static uint32_t plane_vertex_count;
 static uint32_t plane_index_count;
 
+static uint32_t first_idx, end_idx;
+
 void setup_plane()
 {
     glGenBuffersARB(2, plane_buffers);
@@ -23,14 +25,14 @@ void setup_plane()
     glBindVertexArray(plane_array);
 
     glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
     
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, plane_buffers[0]);
 
     glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, position)));
-    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, texcoord)));
     glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, normal)));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(offsetof(vertex_t, texcoord)));
     
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
@@ -75,6 +77,8 @@ void make_plane_mesh()
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
     plane_index_count = PLANE_SEGMENTS * PLANE_SEGMENTS * 6;
+    first_idx = 0;
+    end_idx = plane_index_count;
 
     glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, plane_buffers[1]);
     glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, plane_index_count * sizeof(uint16_t), NULL, GL_STATIC_DRAW_ARB);
@@ -103,10 +107,23 @@ void make_plane_mesh()
     glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
+void modify_vertices(float t)
+{
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, plane_buffers[0]);
+    vertex_t *vertices = glMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_READ_WRITE_ARB);
+    for (size_t i = 0; i < plane_vertex_count; i++)
+    {
+        fm_vec3_t xz = {{ vertices[i].position[0], 0.f, vertices[i].position[2] }};
+        float len = fm_vec3_len(&xz);
+        vertices[i].position[1] = fm_sinf(len + t*10);
+    }
+    glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+}
+
 void draw_plane()
 {
     glBindVertexArray(plane_array);
-    glDrawElements(GL_TRIANGLES, plane_index_count, GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLES, end_idx - first_idx, GL_UNSIGNED_SHORT, (const GLvoid*)(sizeof(uint16_t) * first_idx));
     glBindVertexArray(0);
 }
 
