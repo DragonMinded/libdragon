@@ -21,6 +21,8 @@
 #define TEXTURE_STACK_SIZE    2
 #define PALETTE_STACK_SIZE    1
 
+#define LIGHT_COUNT     8
+
 #define MAX_PIPELINE_COUNT          (1<<4)
 #define MAX_VERTEX_ATTRIBUTE_COUNT  3
 
@@ -182,6 +184,29 @@ typedef struct
 } pipeline_data;
 
 typedef struct {
+    GLfloat ambient[4];
+    GLfloat diffuse[4];
+    GLfloat specular[4];
+    GLfloat emissive[4];
+    GLfloat shininess;
+    GLenum color_target;
+} gl_material_t;
+
+typedef struct {
+    GLfloat ambient[4];
+    GLfloat diffuse[4];
+    GLfloat specular[4];
+    fm_vec4_t position;
+    fm_vec3_t direction;
+    GLfloat spot_exponent;
+    GLfloat spot_cutoff_cos;
+    GLfloat constant_attenuation;
+    GLfloat linear_attenuation;
+    GLfloat quadratic_attenuation;
+    bool enabled;
+} gl_light_t;
+
+typedef struct {
     GLenum cull_face_mode;
     GLenum front_face;
     GLenum current_error;
@@ -224,6 +249,16 @@ typedef struct {
     float near_plane;
     float far_plane;
 
+    gl_material_t material;
+    gl_light_t lights[LIGHT_COUNT];
+
+    GLfloat light_model_ambient[4];
+    bool light_model_local_viewer;
+
+    GLenum shade_model;
+
+    bool is_lighting_dirty;
+
     bool begin_end_active;
     bool is_pipeline_dirty;
     bool is_drawing_anything;
@@ -255,6 +290,7 @@ void gl_array_init();
 void gl_array_close();
 void gl_primitive_init();
 void gl_matrix_init();
+void gl_lighting_init();
 
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
@@ -264,7 +300,6 @@ uint32_t pipeline_get_or_create(const mg_vertex_layout_t *submesh_layout, mgfx_f
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
 
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
-void gl_update_matrix_targets();
 void update_culling();
 void update_viewport();
 
@@ -273,6 +308,11 @@ void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *a
 void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
 
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
+
+void gl_set_light_enabled(GLenum light, bool enabled);
+
+void gl_upload_matrices(const mg_uniform_t *uniform);
+void gl_upload_lighting(const mg_uniform_t *uniform);
 
 inline uint32_t gl_type_to_index(GLenum type)
 {

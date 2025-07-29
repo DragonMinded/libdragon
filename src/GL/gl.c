@@ -34,6 +34,7 @@ void gl_init(void)
     gl_array_init();
     gl_primitive_init();
     gl_matrix_init();
+    gl_lighting_init();
 
     glClearColor(0, 0, 0, 0);
     glClearDepth(1);
@@ -117,6 +118,7 @@ void set_enable_flag(GLenum target, bool value)
         update_culling();
         break;
     case GL_LIGHTING:
+        state->lighting = value;
         break;
     case GL_LIGHT0:
     case GL_LIGHT1:
@@ -126,6 +128,7 @@ void set_enable_flag(GLenum target, bool value)
     case GL_LIGHT5:
     case GL_LIGHT6:
     case GL_LIGHT7:
+        gl_set_light_enabled(target, value);
         break;
     case GL_COLOR_MATERIAL:
         break;
@@ -137,6 +140,7 @@ void set_enable_flag(GLenum target, bool value)
     case GL_NORMALIZE:
         break;
     case GL_MATRIX_PALETTE_ARB:
+        state->matrix_palette_enabled = value;
         break;
     case GL_TEXTURE_FLIP_T_N64:
         break;

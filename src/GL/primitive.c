@@ -52,19 +52,10 @@ static void prepare_pipeline()
     const mg_uniform_t *matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
 
     mg_uniform_load(fog_uniform, &state->uniform_data->fog);
-    mg_uniform_load(lighting_uniform, &state->uniform_data->lighting);
     mg_uniform_load(texturing_uniform, &state->uniform_data->texturing);
 
-    gl_update_matrix_targets();
-
-    gl_matrix_target_t *mtx_target = &state->default_matrix_target;
-    fm_mat4_t *mv = gl_matrix_stack_get_matrix(mtx_target->mv_stack);
-
-    mgfx_set_matrices_inline(matrices_uniform, &(mgfx_matrices_parms_t) {
-        .model_view_projection = mtx_target->mvp.m[0],
-        .model_view = mv->m[0],
-        .normal = mv->m[0] // TODO: transpose inverse
-    });
+    gl_upload_lighting(lighting_uniform);
+    gl_upload_matrices(matrices_uniform);
 }
 
 static void prepare_vertex_buffer(uint32_t first, uint32_t count)
@@ -113,6 +104,8 @@ static void find_index_bounds(const uint16_t *indices, uint32_t count, uint16_t 
 
 static void update_element_array_cache(gl_buffer_object_t *element_buffer, uint32_t count, uint32_t offset, const mg_input_assembly_parms_t *input_assembly_parms, uint16_t *min_index, uint16_t *max_index)
 {
+    // TODO: throw INVALID OPERATION if buffer is currently mapped
+
     if (element_buffer->element_cache == NULL) {
         element_buffer->element_cache = calloc(1, sizeof(gl_element_array_cache_t));
     }
