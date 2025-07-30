@@ -160,6 +160,7 @@ void usage(void)
     fprintf(stderr, "  -h, --help               print this help message\n");
     fprintf(stderr, "  -I, --include [path]     specify additional texture path\n");
     fprintf(stderr, "  -o, --output [path]      specify output path (default: .)\n");
+    fprintf(stderr, "  -t, --texdb [path]       specify texture database path (default: {output}/texdb)\n");
     fprintf(stderr, "  -c. --compress [level]   specify compression level for textures (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "  --raw-material           generate a single raw headerless material instead of a database\n");
 }
@@ -191,6 +192,12 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 flag_output_path = argv[i];
+            } else if (!strcmp(argv[i], "-t") || !strcmp(argv[i], "--texdb")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                flag_texdb_path = argv[i];
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
