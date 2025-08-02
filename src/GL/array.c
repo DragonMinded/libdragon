@@ -588,11 +588,11 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
 {
     if (!gl_ensure_no_begin_end()) return;
 
-    gl_array_object_t *new_objs = calloc(n, sizeof(gl_array_object_t));
     for (GLsizei i = 0; i < n; i++)
     {
-        array_object_init(&new_objs[i]);
-        arrays[i] = (GLuint)&new_objs[i];
+        gl_array_object_t *new_obj = calloc(1, sizeof(gl_array_object_t));
+        array_object_init(new_obj);
+        arrays[i] = (GLuint)new_obj;
     }
 }
 

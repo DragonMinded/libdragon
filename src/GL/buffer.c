@@ -122,15 +122,15 @@ void glGenBuffersARB(GLsizei n, GLuint *buffers)
 {
     if (!gl_ensure_no_begin_end()) return;
 
-    gl_buffer_object_t *new_objs = calloc(n, sizeof(gl_buffer_object_t));
     for (GLsizei i = 0; i < n; i++)
     {
-        new_objs[i].usage = GL_STATIC_DRAW_ARB;
-        new_objs[i].access = GL_READ_WRITE_ARB;
+        gl_buffer_object_t *new_obj = calloc(1, sizeof(gl_buffer_object_t));
+        new_obj->usage = GL_STATIC_DRAW_ARB;
+        new_obj->access = GL_READ_WRITE_ARB;
         // Being assigned a "name" (the ID returned by this function) counts as a reference.
         // Deleting the name using glDeleteBuffersARB removes that reference.
-        new_objs[i].ref_count = 1;
-        buffers[i] = (GLuint)&new_objs[i];
+        new_obj->ref_count = 1;
+        buffers[i] = (GLuint)new_obj;
     }
 }
 
