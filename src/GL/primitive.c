@@ -51,11 +51,10 @@ static void prepare_pipeline()
     const mg_uniform_t *texturing_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_TEXTURING);
     const mg_uniform_t *matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
 
-    mg_uniform_load(texturing_uniform, &state->uniform_data->texturing);
-
     gl_upload_fog(fog_uniform);
     gl_upload_lighting(lighting_uniform);
     gl_upload_matrices(matrices_uniform);
+    gl_upload_texture(texturing_uniform);
 }
 
 static void prepare_vertex_buffer(uint32_t first, uint32_t count)

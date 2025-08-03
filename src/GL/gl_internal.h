@@ -11,6 +11,7 @@
 #include "magma.h"
 #include "mgfx.h"
 #include "rdpq.h"
+#include "rdpq_tex.h"
 #include "utils.h"
 
 #define VERTEX_UNIT_COUNT     1
@@ -22,6 +23,19 @@
 #define PALETTE_STACK_SIZE    1
 
 #define LIGHT_COUNT     8
+
+#define MAX_TEXTURE_SIZE      64
+#define MAX_TEXTURE_LEVELS    7
+
+#define MAX_PIXEL_MAP_SIZE    32
+
+#define RDP_TEX_SHIFT   5
+#define TEX_SIZE_SHIFT  (MGFX_VTX_TEX_SHIFT-RDP_TEX_SHIFT)
+#define RDP_HALF_TEXEL  (1<<(RDP_TEX_SHIFT-1))
+
+#define TEXTURE_BILINEAR_MASK       0x001
+#define TEXTURE_INTERPOLATE_MASK    0x002
+#define TEXTURE_MIPMAP_MASK         0x100
 
 #define MAX_PIPELINE_COUNT          (1<<4)
 #define MAX_VERTEX_ATTRIBUTE_COUNT  3
@@ -60,6 +74,9 @@
     } \
     true; \
 })
+
+//#define gl_assert_no_display_list() assertf(state->current_list == 0, "%s cannot be recorded into a display list", __func__)
+#define gl_assert_no_display_list()
 
 typedef int16_t int16u_t __attribute__((aligned(1)));
 typedef uint16_t uint16u_t __attribute__((aligned(1)));
@@ -166,7 +183,6 @@ typedef struct gl_array_object_s {
 typedef struct {
     mgfx_fog_t fog;
     mgfx_lighting_t lighting;
-    mgfx_texturing_t texturing;
 } gl_uniform_data;
 
 typedef struct {
@@ -182,6 +198,39 @@ typedef struct
     vertex_layout layout;
     mgfx_features_t features;
 } pipeline_data;
+
+typedef enum {
+    TEX_IS_DEFAULT          = (1 << 0),
+    TEX_IS_COMPLETE         = (1 << 1),
+    TEX_HAS_IMAGE           = (1 << 2),
+    TEX_IS_BLOCK_DIRTY      = (1 << 3),
+    TEX_IS_UNIFORM_DIRTY    = (1 << 4),
+} gl_texture_flag_t;
+
+typedef struct {
+    surface_t surface;
+    rdpq_texparms_t parms;
+} gl_texture_image_t;
+
+typedef struct {
+    uint32_t flags;
+    GLenum dimensionality;
+    GLenum wrap_s;
+    GLenum wrap_t;
+    GLenum min_filter;
+    GLenum mag_filter;
+    
+    uint32_t levels_count;
+    gl_texture_image_t levels[MAX_TEXTURE_LEVELS]; // TODO: allocate lazily
+    sprite_t *sprite;
+    rspq_block_t *upload_block;
+    mgfx_texturing_t *uniform_data;
+} gl_texture_object_t;
+
+typedef struct {
+    GLsizei size;
+    GLfloat entries[MAX_PIXEL_MAP_SIZE];
+} gl_pixel_map_t;
 
 typedef struct {
     GLfloat ambient[4];
@@ -257,8 +306,30 @@ typedef struct {
 
     GLenum shade_model;
 
+    gl_texture_object_t *texture_1d_object;
+    gl_texture_object_t *texture_2d_object;
+    gl_texture_object_t *default_textures;
+
+    GLboolean unpack_swap_bytes;
+    GLboolean unpack_lsb_first;
+    GLint unpack_row_length;
+    GLint unpack_skip_rows;
+    GLint unpack_skip_pixels;
+    GLint unpack_alignment;
+
+    GLboolean map_color;
+    GLfloat transfer_scale[4];
+    GLfloat transfer_bias[4];
+
+    gl_pixel_map_t pixel_maps[4];
+
+    bool transfer_is_noop;
+
+    rdpq_dither_t dither_mode;
+
     bool is_lighting_dirty;
     bool is_fog_dirty;
+    bool is_texturing_dirty;
 
     bool begin_end_active;
     bool is_pipeline_dirty;
@@ -273,6 +344,7 @@ typedef struct {
     bool normalize;
     bool matrix_palette_enabled;
     bool tex_flip_t;
+    bool reduced_aa;
 } gl_state_t;
 
 inline bool is_in_heap_memory(void *ptr)
@@ -292,6 +364,8 @@ void gl_array_close();
 void gl_primitive_init();
 void gl_matrix_init();
 void gl_lighting_init();
+void gl_texture_init();
+void gl_texture_close();
 
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
@@ -303,6 +377,7 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void update_culling();
 void update_viewport();
+void update_geometry_flags();
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
@@ -313,9 +388,14 @@ void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t arr
 void gl_set_light_enabled(GLenum light, bool enabled);
 void gl_set_fog_enabled(bool enabled);
 
+void gl_set_texture_enabled(GLenum target, bool enabled);
+
+bool gl_is_texture_active();
+
 void gl_upload_matrices(const mg_uniform_t *uniform);
 void gl_upload_lighting(const mg_uniform_t *uniform);
 void gl_upload_fog(const mg_uniform_t *uniform);
+void gl_upload_texture(const mg_uniform_t *uniform);
 
 inline uint32_t gl_type_to_index(GLenum type)
 {

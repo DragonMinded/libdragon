@@ -653,20 +653,6 @@ GLubyte *glGetString(GLenum name);
 #define glPopAttrib() _GL_UNSUPPORTED(glPopAttrib)
 #define glPopClientAttrib() _GL_UNSUPPORTED(glPopClientAttrib)
 
-/* Deprecated functions (will be removed on trunk) */
-
-__attribute__((deprecated("use glSurfaceTexImageN64 instead")))
-inline void glTexImageN64(GLenum target, GLint level, surface_t *surface)
-{
-    glSurfaceTexImageN64(target, level, surface, NULL);
-}
-
-__attribute__((deprecated("use glSpriteTextureN64 instead")))
-inline void glTexSpriteN64(GLenum target, sprite_t *sprite)
-{
-    glSpriteTextureN64(target, sprite, NULL);
-}
-
 #ifdef __cplusplus
 }
 #endif

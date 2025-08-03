@@ -34,9 +34,20 @@ static bool display_metrics = false;
 static bool request_display_metrics = false;
 static float last_3d_fps = 0.0f;
 
+static const char *texture_path[4] = {
+    "rom:/circle0.sprite",
+    "rom:/diamond0.sprite",
+    "rom:/pentagon0.sprite",
+    "rom:/triangle0.sprite",
+};
+
+static sprite_t *sprites[4];
+static GLuint textures[4];
+
 void init()
 {
 	debug_init(DEBUG_FEATURE_LOG_ISVIEWER | DEBUG_FEATURE_LOG_USB);
+    dfs_init(DFS_DEFAULT_LOCATION);
     joypad_init();
     resolution_t resolution = RESOLUTION_320x240;
     display_init(resolution, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE_ANTIALIAS_DEDITHER);
@@ -47,6 +58,14 @@ void init()
 
     rspq_profile_start();
     debug_overlay_init();
+
+    glGenTextures(4, textures);
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        sprites[i] = sprite_load(texture_path[i]);
+        glBindTexture(GL_TEXTURE_2D, textures[i]);
+        glSpriteTextureN64(GL_TEXTURE_2D, sprites[i], &(rdpq_texparms_t){.s.repeats = REPEAT_INFINITE, .t.repeats = REPEAT_INFINITE});
+    }
 
     setup_plane();
     make_plane_mesh();
@@ -160,8 +179,7 @@ void update(float deltatime)
         rdpq_mode_zbuf(true, true);
         rdpq_mode_antialias(AA_STANDARD);
         rdpq_mode_persp(true);
-        rdpq_mode_filter(FILTER_BILINEAR);
-        rdpq_mode_combiner(RDPQ_COMBINER_SHADE);
+        rdpq_mode_combiner(RDPQ_COMBINER_TEX_SHADE);
         rdpq_mode_fog(RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_mode_end();
 
@@ -190,7 +208,9 @@ void update(float deltatime)
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glEnable(GL_LIGHTING);
+    glEnable(GL_TEXTURE_2D);
 
+    glBindTexture(GL_TEXTURE_2D, textures[0]);
     render_plane();
 
     gl_context_end();

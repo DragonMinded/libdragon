@@ -6,4 +6,6 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/GL/rendermode.o \
 	$(BUILD_DIR)/GL/primitive.o \
 	$(BUILD_DIR)/GL/matrix.o \
-	$(BUILD_DIR)/GL/lighting.o
+	$(BUILD_DIR)/GL/lighting.o \
+	$(BUILD_DIR)/GL/texture.o \
+	$(BUILD_DIR)/GL/pixelrect.o

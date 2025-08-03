@@ -22,15 +22,13 @@ void gl_init(void)
     state->uniform_data = malloc_uncached(sizeof(gl_uniform_data));
 
     mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {});
-    mgfx_get_texturing(&state->uniform_data->texturing, &(mgfx_texturing_parms_t) {
-        .scale = {1, 1}
-    });
 
     gl_rendermode_init();
     gl_array_init();
     gl_primitive_init();
     gl_matrix_init();
     gl_lighting_init();
+    gl_texture_init();
 
     glClearColor(0, 0, 0, 0);
     glClearDepth(1);
@@ -39,6 +37,7 @@ void gl_init(void)
 void gl_close(void)
 {
     gl_array_close();
+    gl_texture_close();
     rspq_wait();
     free(state->uniform_data);
     free(state);
@@ -69,11 +68,14 @@ void gl_context_end()
 
 void update_geometry_flags()
 {
+    // TODO: only mark dirty, submit command before draw call
     mg_geometry_flags_t flags = MG_GEOMETRY_FLAGS_SHADE_ENABLED;
     if (state->depth_test) {
         flags |= MG_GEOMETRY_FLAGS_Z_ENABLED;
     }
-    // TODO: texture
+    if (gl_is_texture_active()) {
+        flags |= MG_GEOMETRY_FLAGS_TEX_ENABLED;
+    }
     mg_set_geometry_flags(flags);
 }
 
@@ -102,12 +104,8 @@ void set_enable_flag(GLenum target, bool value)
     case GL_MULTISAMPLE_ARB:
         break;
     case GL_TEXTURE_1D:
-        state->texture_1d = value;
-        update_geometry_flags();
-        break;
     case GL_TEXTURE_2D:
-        state->texture_2d = value;
-        update_geometry_flags();
+        gl_set_texture_enabled(target, value);
         break;
     case GL_CULL_FACE:
         state->cull_face = value;
