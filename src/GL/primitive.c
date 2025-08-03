@@ -40,7 +40,17 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     }
 }
 
-static void prepare_pipeline()
+static void update_vertex_buffer(uint32_t first, uint32_t count)
+{
+    array_object_update(state->array_object, first, count);
+
+    // It's possible that we are now accessing a sub-range of a previously cached buffer.
+    // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
+    uint32_t buffer_offset = first - state->array_object->cached_first;
+    mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
+}
+
+static void update_pipeline()
 {
     mg_pipeline_t *pipeline = state->pipelines[state->array_object->pipeline_index].pipeline;
     mg_pipeline_bind(pipeline);
@@ -57,24 +67,20 @@ static void prepare_pipeline()
     gl_upload_texture(texturing_uniform);
 }
 
-static void prepare_vertex_buffer(uint32_t first, uint32_t count)
+static void prepare_draw_call(uint32_t first, uint32_t count)
 {
-    array_object_update(state->array_object, first, count);
-
-    // It's possible that we are now accessing a sub-range of a previously cached buffer.
-    // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
-    uint32_t buffer_offset = first - state->array_object->cached_first;
-    mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
-
-    prepare_pipeline();
+    update_rendermode();
+    update_vertex_buffer(first, count);
+    update_pipeline();
 }
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     if (!state->is_drawing_anything || count == 0) return;
     
-    prepare_vertex_buffer(first, count);
+    prepare_draw_call(first, count);
     mg_draw_begin(); // TODO: detect if modes have actually changed to batch draw commands
+    // TODO: record into block?
     mg_draw(&(mg_input_assembly_parms_t) {
         .primitive_topology = get_primitive_topology(mode)
     }, count, first);
@@ -152,7 +158,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         find_index_bounds(indices, count, &min_index, &max_index);
     }
 
-    prepare_vertex_buffer(min_index, max_index - min_index + 1);
+    prepare_draw_call(min_index, max_index - min_index + 1);
 
     mg_draw_begin();
     if (element_buffer != NULL) {

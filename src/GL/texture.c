@@ -15,7 +15,7 @@ static inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, r
 
 void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param);
 
-void set_texturing_dirty()
+void gl_set_texturing_dirty()
 {
     state->is_texturing_dirty = true;
 }
@@ -31,7 +31,8 @@ void gl_set_texture_enabled(GLenum target, bool enabled)
         break;
     }
     
-    set_texturing_dirty();
+    gl_set_texturing_dirty();
+    gl_set_rendermode_dirty();
     update_geometry_flags();
 }
 
@@ -225,7 +226,7 @@ void set_texture_dirty(gl_texture_object_t *obj)
 {
     gl_texture_object_t *active_obj = gl_get_active_texture();
     if (active_obj == obj) {
-        set_texturing_dirty();
+        gl_set_texturing_dirty();
     }
 }
 
@@ -320,6 +321,7 @@ void gl_update_texture_completeness(gl_texture_object_t *obj)
     if (is_complete != was_complete) {
         set_block_dirty(obj);
         update_geometry_flags();
+        gl_set_rendermode_dirty();
     }
 }
 
@@ -663,7 +665,7 @@ void glBindTexture(GLenum target, GLuint texture)
         *target_obj = obj;
     }
 
-    set_texturing_dirty();
+    gl_set_texturing_dirty();
 }
 
 void glGenTextures(GLsizei n, GLuint *textures)

@@ -11,6 +11,22 @@
 
 extern gl_state_t *state;
 
+// Table of combiner configurations
+static const rdpq_combiner_t combiner_configs[] = {
+
+    // No texture
+    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "modulate"
+    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "modulate"
+    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "replace"
+    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "replace"
+
+    // Texture enabled
+    RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)),   // modulate
+    RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0)),     // constant modulate
+    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // replace
+    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // constant replace
+};
+
 // All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.
 // NOTE: We always set fog alpha to one to support GL_ONE in both factors
 // TODO: src = ZERO, dst = ONE_MINUS_SRC_ALPHA could be done with BLEND_RGB * IN_ALPHA + MEMORY_RGB * INV_MUX_ALPHA
@@ -86,6 +102,8 @@ void gl_rendermode_init()
 
     GLfloat fog_color[] = {0, 0, 0, 0};
     glFogfv(GL_FOG_COLOR, fog_color);
+
+    state->persp_correct = true;
 }
 
 void gl_upload_fog(const mg_uniform_t *uniform)
@@ -104,6 +122,7 @@ void gl_set_fog_enabled(bool enabled)
 {
     state->fog = enabled;
     set_fog_dirty();
+    gl_set_rendermode_dirty();
 }
 
 void gl_set_fog_start(GLfloat param)
@@ -275,11 +294,14 @@ void glBlendFunc(GLenum src, GLenum dst)
     }
 
     uint32_t config_index = ((src & 0x7) << 3) | (dst & 0x7);
-
     rdpq_blender_t blender = blend_configs[config_index];
     assertf(blender != 0, "Unsupported blend function");
 
-    rdpq_mode_blender(blender);
+    state->blender = blender;
+    state->blend_src = src;
+    state->blend_dst = dst;
+
+    gl_set_rendermode_dirty();
 }
 
 void glDepthFunc(GLenum func)
@@ -291,7 +313,6 @@ void glDepthFunc(GLenum func)
     case GL_ALWAYS:
     case GL_EQUAL:
     case GL_LESS_INTERPENETRATING_N64:
-        // TODO
         break;
     case GL_NEVER:
     case GL_LEQUAL:
@@ -304,13 +325,32 @@ void glDepthFunc(GLenum func)
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid depth function", func);
         return;
     }
+
+    state->depth_func = func;
+    gl_set_rendermode_dirty();
 }
 
 void glDepthMask(GLboolean mask)
 {
     if (!gl_ensure_no_begin_end()) return;
     
-    // TODO
+    state->depth_mask = mask;
+    gl_set_rendermode_dirty();
+}
+
+bool is_depth_compare_active()
+{
+    return state->depth_test && state->depth_func != GL_ALWAYS;
+}
+
+bool is_depth_update_active()
+{
+    return state->depth_test && state->depth_mask != GL_FALSE;
+}
+
+bool gl_is_depth_active()
+{
+    return is_depth_compare_active() || is_depth_update_active();
 }
 
 void glAlphaFunc(GLenum func, GLclampf ref)
@@ -320,8 +360,6 @@ void glAlphaFunc(GLenum func, GLclampf ref)
     switch (func) {
     case GL_GREATER:
     case GL_ALWAYS:
-        // TODO
-        rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
         break;
     case GL_NEVER:
     case GL_EQUAL:
@@ -335,6 +373,10 @@ void glAlphaFunc(GLenum func, GLclampf ref)
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid alpha function", func);
         return;
     }
+
+    state->alpha_func = func;
+    state->alpha_ref = ref;
+    gl_set_rendermode_dirty();
 }
 
 void glTexEnvi(GLenum target, GLenum pname, GLint param)
@@ -354,7 +396,8 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     switch (param) {
     case GL_MODULATE:
     case GL_REPLACE:
-        // TODO
+        state->tex_env_mode = param;
+        gl_set_rendermode_dirty();
         break;
     case GL_DECAL:
     case GL_BLEND:
@@ -408,4 +451,62 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
         glTexEnvf(target, pname, params[0]);
         break;
     }
+}
+
+void gl_set_rendermode_dirty()
+{
+    state->is_rendermode_dirty = true;
+}
+
+rdpq_antialias_t get_antialias()
+{
+    if (!state->multisample) {
+        return AA_NONE;
+    } else {
+        return state->reduced_aa ? AA_REDUCED : AA_STANDARD;
+    }
+}
+
+rdpq_dither_t get_dither()
+{
+    return state->dither ? state->dither_mode : DITHER_NONE_NONE;
+}
+
+rdpq_combiner_t get_combiner()
+{
+    uint32_t tex = gl_is_texture_active() ? 4 : 0;
+    uint32_t env = state->tex_env_mode == GL_REPLACE ? 2 : 0;
+    // TODO: constant material color
+    uint32_t config_index = tex | env;
+    return combiner_configs[config_index];
+}
+
+void update_rendermode()
+{
+    if (!state->is_rendermode_dirty) return;
+    state->is_rendermode_dirty = false;
+
+    rdpq_mode_begin();
+        rdpq_set_mode_standard();
+
+        rdpq_mode_antialias(get_antialias());
+        rdpq_mode_dithering(get_dither());
+
+        rdpq_mode_combiner(get_combiner());
+
+        if (state->blend) {
+            rdpq_mode_blender(state->blender);
+        }
+        if (state->fog) {
+            rdpq_mode_fog(RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)));
+        }
+        if (state->alpha_test && state->alpha_func != GL_ALWAYS) {
+            rdpq_mode_alphacompare(FLOAT_TO_U8(state->alpha_ref));
+        }
+
+        rdpq_mode_zbuf(is_depth_compare_active(), is_depth_update_active());
+        // TODO: depth mode
+
+        rdpq_mode_persp(state->persp_correct);
+    rdpq_mode_end();
 }

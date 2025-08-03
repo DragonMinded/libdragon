@@ -5,7 +5,7 @@
 
 extern gl_state_t *state;
 
-void set_lighting_dirty()
+void gl_set_lighting_dirty()
 {
     state->is_lighting_dirty = true;
 }
@@ -13,7 +13,7 @@ void set_lighting_dirty()
 void set_light_dirty(gl_light_t *light)
 {
     if (light->enabled) {
-        set_lighting_dirty();
+        gl_set_lighting_dirty();
     }
 }
 
@@ -69,7 +69,7 @@ void gl_lighting_init()
     state->light_model_ambient[3] = 1.0f;
     state->light_model_local_viewer = false;
 
-    set_lighting_dirty();
+    gl_set_lighting_dirty();
 }
 
 bool gl_validate_material_face(GLenum face)
@@ -280,7 +280,7 @@ void gl_set_light_enabled(GLenum light, bool enabled)
     }
 
     l->enabled = enabled;
-    set_lighting_dirty();
+    gl_set_lighting_dirty();
 }
 
 void gl_light_set_ambient(gl_light_t *light, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -501,7 +501,7 @@ void gl_set_light_model_local_viewer(bool param)
 void gl_set_light_model_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     gl_set_color(state->light_model_ambient, r, g, b, a);
-    set_lighting_dirty();
+    gl_set_lighting_dirty();
 }
 
 void glLightModeli(GLenum pname, GLint param) 

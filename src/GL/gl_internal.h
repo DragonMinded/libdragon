@@ -259,8 +259,17 @@ typedef struct {
     GLenum cull_face_mode;
     GLenum front_face;
     GLenum current_error;
+    GLenum blend_src;
+    GLenum blend_dst;
+    GLenum depth_func;
+    GLenum alpha_func;
+    GLenum tex_env_mode;
+    GLclampf alpha_ref;
+    rdpq_blender_t blender;
+    GLboolean depth_mask;
     GLfloat fog_start;
     GLfloat fog_end;
+    color_t fog_color;
     color_t clear_color;
     uint16_t clear_depth;
     gl_array_object_t default_array_object;
@@ -330,6 +339,7 @@ typedef struct {
     bool is_lighting_dirty;
     bool is_fog_dirty;
     bool is_texturing_dirty;
+    bool is_rendermode_dirty;
 
     bool begin_end_active;
     bool is_pipeline_dirty;
@@ -338,13 +348,19 @@ typedef struct {
     bool texture_1d;
     bool texture_2d;
     bool depth_test;
+    bool blend;
+    bool alpha_test;
+    bool dither;
+    bool scissor_test;
     bool lighting;
     bool fog;
     bool color_material;
     bool normalize;
     bool matrix_palette_enabled;
     bool tex_flip_t;
+    bool multisample;
     bool reduced_aa;
+    bool persp_correct;
 } gl_state_t;
 
 inline bool is_in_heap_memory(void *ptr)
@@ -378,6 +394,11 @@ fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void update_culling();
 void update_viewport();
 void update_geometry_flags();
+void update_rendermode();
+
+void gl_set_lighting_dirty();
+void gl_set_texturing_dirty();
+void gl_set_rendermode_dirty();
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
@@ -391,6 +412,7 @@ void gl_set_fog_enabled(bool enabled);
 void gl_set_texture_enabled(GLenum target, bool enabled);
 
 bool gl_is_texture_active();
+bool gl_is_depth_active();
 
 void gl_upload_matrices(const mg_uniform_t *uniform);
 void gl_upload_lighting(const mg_uniform_t *uniform);

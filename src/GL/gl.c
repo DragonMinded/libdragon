@@ -60,6 +60,9 @@ void gl_context_begin()
         glViewport(0, 0, width, height);
         glScissor(0, 0, width, height);
     }
+
+    gl_set_rendermode_dirty();
+    gl_set_texturing_dirty();
 }
 
 void gl_context_end()
@@ -78,8 +81,9 @@ GLenum glGetError(void)
 void update_geometry_flags()
 {
     // TODO: only mark dirty, submit command before draw call
+    // TODO: shade can be disabled if: texture is active and env mode is GL_REPLACE, or lighting is disabled and color is constant
     mg_geometry_flags_t flags = MG_GEOMETRY_FLAGS_SHADE_ENABLED;
-    if (state->depth_test) {
+    if (gl_is_depth_active()) {
         flags |= MG_GEOMETRY_FLAGS_Z_ENABLED;
     }
     if (gl_is_texture_active()) {
@@ -96,21 +100,31 @@ void set_enable_flag(GLenum target, bool value)
     case GL_RDPQ_TEXTURING_N64:
         break;
     case GL_SCISSOR_TEST:
+        state->scissor_test = value;
         break;
     case GL_DEPTH_TEST:
         state->depth_test = value;
         update_geometry_flags();
+        gl_set_rendermode_dirty();
         break;
     case GL_BLEND:
+        state->blend = value;
+        gl_set_rendermode_dirty();
         break;
     case GL_ALPHA_TEST:
+        state->alpha_test = value;
+        gl_set_rendermode_dirty();
         break;
     case GL_DITHER:
+        state->dither = value;
+        gl_set_rendermode_dirty();
         break;
     case GL_FOG:
         gl_set_fog_enabled(value);
         break;
     case GL_MULTISAMPLE_ARB:
+        state->multisample = value;
+        gl_set_rendermode_dirty();
         break;
     case GL_TEXTURE_1D:
     case GL_TEXTURE_2D:
@@ -122,6 +136,7 @@ void set_enable_flag(GLenum target, bool value)
         break;
     case GL_LIGHTING:
         state->lighting = value;
+        gl_set_lighting_dirty();
         break;
     case GL_LIGHT0:
     case GL_LIGHT1:
@@ -255,6 +270,7 @@ void glClearDepth(GLclampd d)
 void glDitherModeN64(rdpq_dither_t mode)
 {
     state->dither_mode = mode;
+    gl_set_rendermode_dirty();
 }
 
 void glFlush(void)
@@ -278,7 +294,9 @@ void glHint(GLenum target, GLenum hint)
     switch (target)
     {
     case GL_PERSPECTIVE_CORRECTION_HINT:
-        // TODO: enable/disable texture perspective correction?
+        // Use perspective correction by default, unless it was explicitly turned off
+        state->persp_correct = hint != GL_FASTEST;
+        gl_set_rendermode_dirty();
         break;
     case GL_FOG_HINT:
         // TODO: per-pixel fog
@@ -286,6 +304,7 @@ void glHint(GLenum target, GLenum hint)
     case GL_MULTISAMPLE_HINT_N64:
         // Use full AA by default, unless RA has been requested
         state->reduced_aa = hint == GL_FASTEST;
+        gl_set_rendermode_dirty();
         break;
     case GL_POINT_SMOOTH_HINT:
     case GL_LINE_SMOOTH_HINT:

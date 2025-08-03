@@ -172,17 +172,6 @@ void update(float deltatime)
     surface_t *framebuffer = display_get();
     rdpq_attach(framebuffer, zbuffer);
 
-    // TODO: remove rdpq stuff by implementing it in GL
-    rdpq_mode_begin();
-        rdpq_set_mode_standard();
-        rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
-        rdpq_mode_zbuf(true, true);
-        rdpq_mode_antialias(AA_STANDARD);
-        rdpq_mode_persp(true);
-        rdpq_mode_combiner(RDPQ_COMBINER_TEX_SHADE);
-        rdpq_mode_fog(RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)));
-    rdpq_mode_end();
-
     gl_context_begin();
 
     glClearColor(environment_color[0], environment_color[1], environment_color[2], environment_color[3]);
@@ -204,6 +193,7 @@ void update(float deltatime)
     fm_vec4_t light_position2 = {{ 0, -1, 0, 0 }};
     glLightfv(GL_LIGHT4, GL_POSITION, light_position2.v);
 
+    glEnable(GL_MULTISAMPLE_ARB);
     glEnable(GL_NORMALIZE);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
