@@ -44,7 +44,11 @@
 })
 
 /** @brief Type-safe bitcast from float to integer */
-#define F2I(f)   ({ uint32_t __i; memcpy(&__i, &(f), 4); __i; })
+#define F2I(f)   ({ \
+	_Static_assert(__builtin_types_compatible_p(typeof(f), float) || \
+				   __builtin_types_compatible_p(typeof(f), const float), \
+				   "F2I requires a float argument"); \
+	uint32_t __i; memcpy(&__i, &(f), 4); __i; })
 
 /** @brief Type-safe bitcast from integer to float */
 #define I2F(i)   ({ float __f; memcpy(&__f, &(i), 4); __f; })
