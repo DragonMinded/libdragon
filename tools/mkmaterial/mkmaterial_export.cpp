@@ -172,6 +172,8 @@ void Material::write(FILE *f)
     if (has_uni(combexpr::UNIFORM_ENV))           flags |= MATFLAG_UNIFORM_ENV;
 
     w16(f, flags);
+    int ext_off_pos = ftell(f);
+    w8_placeholderf(f, "%s.ext_offset", name.c_str());
     
     if (flags & MATFLAG_TEXTURE) {
         w32(f, tex[0].hash);
@@ -233,6 +235,44 @@ void Material::write(FILE *f)
         w32(f, uniforms[combexpr::UNIFORM_ENV]);
     }
     w8(f, 0xAB); // end of material
+
+    if (ext.size() == 0) {
+        placeholder_set_offset(f, 0, "%s.ext_offset", name.c_str());
+        return;
+    }
+    placeholder_set_offset(f, ftell(f) - ext_off_pos, "%s.ext_offset", name.c_str());
+
+    // Sort extensions by hash key
+    std::sort(ext.begin(), ext.end(), [](const Extension &a, const Extension &b) {
+        return a.hash < b.hash;
+    });
+
+    w8(f, ext.size());
+    for (const auto &e : ext) {
+        w16(f, e.hash);
+    }
+    for (const auto &e : ext) {
+        uint8_t type = e.type;
+        if (type == 0 && e.value == "true")
+            type |= 0x8;
+        w8(f, type);
+        w8_placeholderf(f, "%s.offset_%s", name.c_str(), e.name.c_str());
+    }
+    uint32_t ext_pos = ftell(f);
+    for (const auto &e : ext) {
+        placeholder_set_offset(f, ftell(f) - ext_pos, "%s.offset_%s", name.c_str(), e.name.c_str());
+        if (e.type.to_str() == "bool") {
+        } else if (e.type.to_str() == "int") {
+            w32(f, parse_int(e.value, INT32_MIN, INT32_MAX));
+        } else if (e.type.to_str() == "string") {
+            fwrite(e.value.c_str(), 1, e.value.size()+1, f);
+        } else if (e.type.to_str() == "float") {
+            wf32(f, parse_float(e.value, -FLT_MAX, FLT_MAX));
+        } else {
+            fprintf(stderr, "Error: unknown extension type '%s' (%d) for extension '%s'\n", e.type.to_str().c_str(), (int)e.type, e.name.c_str());
+            exit(1);
+        }
+    }
 }
 
 void mat_writedb(FILE *f, std::vector<Material> &materials)

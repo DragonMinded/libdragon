@@ -120,6 +120,14 @@ struct Blender {
     void validate(void);
 };
 
+struct Extension {
+    MyEnum type{0, {"bool", "int", "string", "float"}};
+    std::string name;
+    std::string value;
+
+    uint32_t hash{0};
+};
+
 struct Material {
     std::string name;
     struct {
@@ -130,6 +138,7 @@ struct Material {
     RenderModes rm;
     Combiner cc;
     Blender bl;
+    std::vector<Extension> ext; // extension attributes
 
     Material() = default;
 
