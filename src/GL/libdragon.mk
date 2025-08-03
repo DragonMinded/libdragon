@@ -8,4 +8,5 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/GL/matrix.o \
 	$(BUILD_DIR)/GL/lighting.o \
 	$(BUILD_DIR)/GL/texture.o \
-	$(BUILD_DIR)/GL/pixelrect.o
+	$(BUILD_DIR)/GL/pixelrect.o \
+	$(BUILD_DIR)/GL/query.o

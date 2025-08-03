@@ -66,6 +66,15 @@ void gl_context_end()
 {
 }
 
+GLenum glGetError(void)
+{
+    if (!gl_ensure_no_begin_end()) return 0;
+
+    GLenum error = state->current_error;
+    state->current_error = GL_NO_ERROR;
+    return error;
+}
+
 void update_geometry_flags()
 {
     // TODO: only mark dirty, submit command before draw call
@@ -241,6 +250,52 @@ void glClearDepth(GLclampd d)
 {
     if (!gl_ensure_no_begin_end()) return;
     state->clear_depth = ZBUF_VAL(d);
+}
+
+void glDitherModeN64(rdpq_dither_t mode)
+{
+    state->dither_mode = mode;
+}
+
+void glFlush(void)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    
+    rspq_flush();
+}
+
+void glFinish(void)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    
+    rspq_wait();
+}
+
+void glHint(GLenum target, GLenum hint)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    
+    switch (target)
+    {
+    case GL_PERSPECTIVE_CORRECTION_HINT:
+        // TODO: enable/disable texture perspective correction?
+        break;
+    case GL_FOG_HINT:
+        // TODO: per-pixel fog
+        break;
+    case GL_MULTISAMPLE_HINT_N64:
+        // Use full AA by default, unless RA has been requested
+        state->reduced_aa = hint == GL_FASTEST;
+        break;
+    case GL_POINT_SMOOTH_HINT:
+    case GL_LINE_SMOOTH_HINT:
+    case GL_POLYGON_SMOOTH_HINT:
+        // Ignored
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid hint target", target);
+        break;
+    }
 }
 
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size)
