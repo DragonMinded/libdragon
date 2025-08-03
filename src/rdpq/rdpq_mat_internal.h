@@ -9,12 +9,6 @@
 
 #include <stdint.h>
 
-/// @cond
-typedef struct sprite_s sprite_t;
-/// @endcond
-
-#define MATDBFLAG_AUTOLOAD              (1 << 0)    ///< Textures were loaded into memory automatically
-
 #define MATFLAG_RMO_AA                  (1 << 0)    ///< Render mode override: antialias
 #define MATFLAG_RMO_FOG                 (1 << 1)    ///< Render mode override: fog
 #define MATFLAG_RMO_DITHERING           (1 << 2)    ///< Render mode override: dithering
