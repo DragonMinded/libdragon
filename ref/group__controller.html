@@ -130,7 +130,8 @@ Data Structures</h2></td></tr>
 <tr class="separator:struct__SI__condat__gc_8____unnamed47_____8____unnamed51____"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader">Bitmasks for controller status</h2></td></tr>
-<tr><td class="ititle" colspan="2"></td></tr>
+<tr><td class="ititle" colspan="2"><dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000003">Deprecated:</a></b></dt><dd>Use <a class="el" href="group__joypad.html#ga8ca4e5897f1463f83beec7c2d42af598" title="Whether a Joybus device is plugged in to a Joypad port.">joypad_is_connected</a> instead.</dd></dl>
+</td></tr>
 <tr class="memitem:ga1f0ad743a77d38d91bc89c3c503ffabb" id="r_ga1f0ad743a77d38d91bc89c3c503ffabb"><td class="memItemLeft" align="right" valign="top"><a id="ga1f0ad743a77d38d91bc89c3c503ffabb" name="ga1f0ad743a77d38d91bc89c3c503ffabb"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>CONTROLLER_1_INSERTED</b>&#160;&#160;&#160;0xF000</td></tr>
 <tr class="memdesc:ga1f0ad743a77d38d91bc89c3c503ffabb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Controller 1 Inserted. <br /></td></tr>
@@ -149,7 +150,8 @@ Data Structures</h2></td></tr>
 <tr class="separator:gab038c3cbedcb291b7a8dd6949708d483"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader">Accessory ID Values</h2></td></tr>
-<tr><td class="ititle" colspan="2"></td></tr>
+<tr><td class="ititle" colspan="2"><dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000004">Deprecated:</a></b></dt><dd>Use <a class="el" href="group__joypad.html#ga9c09e519d92917bcc942a634ec6f5fda" title="Joypad Accessories enumeration.">joypad_accessory_type_t</a> instead.</dd></dl>
+</td></tr>
 <tr class="memitem:gaa20aa25432487e902807c68553ce3767" id="r_gaa20aa25432487e902807c68553ce3767"><td class="memItemLeft" align="right" valign="top"><a id="gaa20aa25432487e902807c68553ce3767" name="gaa20aa25432487e902807c68553ce3767"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>ACCESSORY_NONE</b>&#160;&#160;&#160;0</td></tr>
 <tr class="memdesc:gaa20aa25432487e902807c68553ce3767"><td class="mdescLeft">&#160;</td><td class="mdescRight">No accessory present. <br /></td></tr>
@@ -172,7 +174,8 @@ Data Structures</h2></td></tr>
 <tr class="separator:ga58cd90360dac7543fca4c7db1c463c49"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader">SI Error Values</h2></td></tr>
-<tr><td class="ititle" colspan="2"></td></tr>
+<tr><td class="ititle" colspan="2"><dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000005">Deprecated:</a></b></dt><dd>These values are no longer used. They will be removed in the future.</dd></dl>
+</td></tr>
 <tr class="memitem:gabe670cc5ceed3fad3be682fc0c1bb62e" id="r_gabe670cc5ceed3fad3be682fc0c1bb62e"><td class="memItemLeft" align="right" valign="top"><a id="gabe670cc5ceed3fad3be682fc0c1bb62e" name="gabe670cc5ceed3fad3be682fc0c1bb62e"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>ERROR_NONE</b>&#160;&#160;&#160;0x0</td></tr>
 <tr class="memdesc:gabe670cc5ceed3fad3be682fc0c1bb62e"><td class="mdescLeft">&#160;</td><td class="mdescRight">No error occured. <br /></td></tr>
@@ -188,6 +191,7 @@ Data Structures</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>Controller and accessory interface. </p>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000001">Deprecated:</a></b></dt><dd>This module is now deprecated. Please use the <a class="el" href="group__joypad.html">Joypad Subsystem</a> instead.</dd></dl>
 <p>This module contains an old API to communicate with controllers and accessories. The API had several deficiencies, notably implementing partial support for GameCube controllers, but only supporting asynchronous reading of N64 controllers. It has been deprecated in favor of the <a class="el" href="group__joypad.html">Joypad Subsystem</a>, which offers full support for both N64 and GameCube controllers, and implements asynchronous detection of controller port devices and accessories.</p>
 <p>All controller subsystem functions are now implemented as thin compatibility shims that call the corresponding <a class="el" href="group__joypad.html">Joypad Subsystem</a> functions. They will continue to work just as before, but there will be no further work on them. The functions have all been explicitly marked as deprecated, and will generate a warning at compile time. The warning suggests the alternative Joypad API to use instead. In most cases, the change should be straightforward. </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
@@ -204,6 +208,7 @@ Data Structures</h2></td></tr>
 </div><div class="memdoc">
 <div class="textblock"><p>SI Nintendo 64 controller data. </p>
 <p>Data structure for Joybus response to <code>0x01</code> (Read N64 controller state) command.</p>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000006">Deprecated:</a></b></dt><dd>The <a class="el" href="group__joypad.html">Joypad Subsystem</a> now automatically normalizes Nintendo 64 and GameCube controller inputs. This structure is no longer needed. Use <a class="el" href="group__joypad.html#structjoypad__inputs__t" title="Joypad Inputs Unified State Structure.">joypad_inputs_t</a> instead. </dd></dl>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
@@ -247,6 +252,7 @@ __unnamed__</td>
 </div><div class="memdoc">
 <div class="textblock"><p>SI GameCube controller data. </p>
 <p>Data structure for Joybus response to <code>0x40</code> (Read GC controller state) command.</p>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000007">Deprecated:</a></b></dt><dd>The <a class="el" href="group__joypad.html">Joypad Subsystem</a> now automatically normalizes Nintendo 64 and GameCube controller inputs. This structure is no longer needed. Use <a class="el" href="group__joypad.html#structjoypad__inputs__t" title="Joypad Inputs Unified State Structure.">joypad_inputs_t</a> instead. </dd></dl>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
@@ -272,6 +278,7 @@ __unnamed__</td>
 </div><div class="memdoc">
 <div class="textblock"><p>SI GameCube controller origin data. </p>
 <p>Data structure for Joybus response to <code>0x41</code> (Read GC controller origin) command.</p>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000008">Deprecated:</a></b></dt><dd>The <a class="el" href="group__joypad.html">Joypad Subsystem</a> now handles GameCube controller origins automatically. This structure is no longer needed. </dd></dl>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
@@ -309,6 +316,7 @@ deadzone1</td>
 </div><div class="memdoc">
 <div class="textblock"><p>SI controller data for all controller ports. </p>
 <p>When reading N64 controller state, only the <code>c</code> member array will be populated. When reading GC controller state, only the <code>gc</code> member array will be populated.</p>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000009">Deprecated:</a></b></dt><dd>The <a class="el" href="group__joypad.html">Joypad Subsystem</a> now automatically normalizes Nintendo 64 and GameCube controller inputs. This structure is no longer needed. Use <a class="el" href="group__joypad.html#structjoypad__inputs__t" title="Joypad Inputs Unified State Structure.">joypad_inputs_t</a> instead. </dd></dl>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
@@ -339,6 +347,7 @@ Array of GameCube controller state for each controller port. </td></tr>
       </table>
 </div><div class="memdoc">
 <div class="textblock"><p>SI GameCube controller origin data for all controller ports. </p>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000010">Deprecated:</a></b></dt><dd>The <a class="el" href="group__joypad.html">Joypad Subsystem</a> now handles GameCube controller origins automatically. This structure is no longer needed. </dd></dl>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
@@ -720,7 +729,7 @@ analog_r: 8</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Aug 3 2025 13:41:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Mon Aug 4 2025 07:24:06 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

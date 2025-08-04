@@ -264,6 +264,7 @@ Functions</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>Interface to the hardware sprite/triangle rasterizer (RDP). </p>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000002">Deprecated:</a></b></dt><dd>This module is now deprecated. Please use the new RDPQ API instead.</dd></dl>
 <p>This module contains an old API to draw using the RDP. The API was not extensible enough and in general did not provide a good enough foundation for RDP programming. So it has been deprecated in favor of the new RDPQ API, which is much more flexible.</p>
 <p>All RDP functions are now implemented as wrappers of the RDPQ API. They continue to work just like before, but there will be no further work on them. Also, most of them are explicitly marked as deprecated, and will generate a warning at compile time. The warning suggests the alternative RDPQ API to use instead. In most cases, the change should be straightforward.</p>
 <p>Functions not explicitly marked as deprecated do not have a direct equivalent in RDPQ API yet. </p>
@@ -883,7 +884,7 @@ Height of the texture rounded up to next power of 2. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Aug 3 2025 13:41:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Mon Aug 4 2025 07:24:06 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

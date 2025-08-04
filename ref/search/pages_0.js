@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['libdragon_0',['Libdragon',['../index.html',1,'']]]
+  ['deprecated_20list_0',['Deprecated List',['../deprecated.html',1,'']]]
 ];
