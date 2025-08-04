@@ -101,6 +101,36 @@
  * 
  * Notice that currently this function does not check the integrity of the
  * data stored in the filesystem (via ECC), only the filesystem structure.
+ * 
+ * ## Error codes
+ * 
+ * The filesystem tries to be POSIX compliant, so make sure to check error
+ * codes via errno if an operation fails. In particular, the following error
+ * codes can be returned:
+ * 
+ * ### BBFS specific errors
+ * 
+ *  * EIO: Input/output error during NAND flash operations. This can indicate
+ *    hardware failure, corrupted ECC data, or other flash-related issues.
+ *  * ENOSPC: No space left on the filesystem. All available blocks have been
+ *    allocated and no free space remains for new files or file extensions.
+ *  * EEXIST: File exists. Attempting to create a file with O_CREAT|O_EXCL
+ *    when a file with the same name already exists.
+ *  * ENOENT: No such file or directory. The requested file does not exist,
+ *    or no more directory entries are available during directory iteration.
+ *  * EINVAL: Invalid argument. The filename format is invalid (longer than
+ *    8.3 format), or invalid path for directory operations (must be "/").
+ *  * ENOTTY: Inappropriate ioctl for device. The ioctl request is not
+ *    supported by the BBFS filesystem.
+ * 
+ * ### Generic filesystem errors
+ * 
+ *  * EBADF: Bad file descriptor. The file was not opened for the attempted
+ *    operation (e.g., trying to read from a file opened only for writing,
+ *    or trying to write to a file opened only for reading).
+ * 
+ * Additional error codes may be returned by the underlying filesystem layer
+ * in system.c, such as ENOMEM, EPERM, ENFILE, and ENOSYS.
  */
 
 #ifndef LIBDRAGON_BBFS_H
