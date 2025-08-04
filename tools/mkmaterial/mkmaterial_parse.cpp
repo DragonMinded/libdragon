@@ -8,11 +8,12 @@
 
     For more information, please refer to <http://unlicense.org/>
 */
+#include "mkmaterial.h"
 #include <regex>
 #include <fstream>
 #include <float.h>
 #include "json.hpp"
-
+#include "../common/utils.h"
 
 #define INI_HANDLER_LINENO 1
 #define INI_INLINE_COMMENT_PREFIXES ";#"
@@ -29,14 +30,14 @@ static uint32_t string_hash(const std::string &str)
     return hash;
 }
 
-static bool parse_bool(std::string value)
+bool parse_bool(std::string value)
 {
     if (value == "true" || value == "1" || value == "True") return true;
     if (value == "false" || value == "0" || value == "False") return false;
     throw std::runtime_error("invalid boolean value: " + value);
 }
 
-static float parse_float(std::string value, float min, float max)
+float parse_float(std::string value, float min, float max)
 {
     try {
         size_t idx;
@@ -51,7 +52,7 @@ static float parse_float(std::string value, float min, float max)
     }
 }
 
-static int parse_int(std::string value, int min, int max)
+int parse_int(std::string value, int min, int max)
 {
     try {
         size_t idx; int ival;
@@ -70,7 +71,7 @@ static int parse_int(std::string value, int min, int max)
     }
 }
 
-static std::string parse_enum(std::string value, const std::vector<std::string> &enums)
+std::string parse_enum(std::string value, const std::vector<std::string> &enums)
 {
     for (size_t i = 0; i < enums.size(); i++) {
         if (value == enums[i]) return value;

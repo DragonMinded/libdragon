@@ -8,8 +8,20 @@
 
     For more information, please refer to <http://unlicense.org/>
 */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include "mkmaterial.h"
+#include <algorithm>
+#include <float.h>
 #include "../common/assetcomp.h"
 #include "../common/atomic_file.h"
+#include "../common/binout.h"
+#include "../common/binout.c"
+#include "../common/subprocess.h"
+#include "../common/utils.h"
+#include "../../include/rdpq_macros.h"
+#include "../../src/rdpq/rdpq_mat_internal.h"
 
 static uint32_t murmurhash3_32(const void *key, size_t len, uint32_t seed) {
     const uint8_t *data = (const uint8_t*)key;

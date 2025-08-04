@@ -11,22 +11,10 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <utility>
-#include <map>
-#include <set>
-#include <deque>
+#include <stdarg.h>
+#include "mkmaterial.h"
 #include "../common/assetcomp.h"
 #include "../common/utils.h"
-#include "../common/subprocess.h"
-#include "../common/binout.h"
-#include "../common/binout.c"
-#include "../../include/rdpq_macros.h"
-#include "../../src/rdpq/rdpq_mat_internal.h"
-#include "combexpr.cpp"
 
 char *flag_texdb_path = NULL;
 const char *flag_output_path = ".";
@@ -34,118 +22,6 @@ int flag_compress = DEFAULT_COMPRESSION;
 int flag_verbose = 0;
 const char *n64_inst = NULL;
 std::deque<std::string> texture_dirs;
-
-struct MyEnum {
-    std::vector<std::string> values;
-    int idx{-1};
-
-    MyEnum(std::vector<std::string> values_) : values(std::move(values_)) {}
-    MyEnum(int def, std::vector<std::string> values_) : values(std::move(values_)), idx(def) {
-        if (idx < 0 || idx >= (int)values.size())
-            throw std::runtime_error("invalid enum value: " + std::to_string(idx));        
-    }
-    operator int() const { return idx; }
-    std::string to_str() const { return values[idx]; }
-
-    void operator=(int i) {
-        if (i < 0 || i >= (int)values.size())
-            throw std::runtime_error("invalid enum value: " + std::to_string(i));
-        idx = i;
-    }
-
-    void operator=(std::string value) {
-        for (size_t i = 0; i < values.size(); i++) {
-            if (value == values[i]) {
-                idx = i;
-                return;
-            }
-        }
-
-        std::string error = "invalid value: " + value + "; expected one of: ";
-        for (size_t i = 0; i < values.size(); i++) {
-            error += values[i];
-            if (i < values.size() - 1) error += ", ";
-        }
-        throw std::runtime_error(error);
-    }
-};
-
-struct Texture {
-    std::string name{""};
-    std::string fmt{"auto"};
-    std::string mipmap{"none"};
-    std::string dithering{"none"};
-    struct {
-        float translate{0};
-        int scale{1};
-        float repeats{2048};
-        bool mirror{false};
-    } s, t;
-
-    operator bool() const { return !name.empty(); }
-    void parse_attr(std::string key, std::string value);
-    void validate_name(void);
-
-    uint32_t hash{0};
-};
-
-struct RenderModes {
-    MyEnum antialias{{"none", "standard", "reduced"}};
-    MyEnum fog{{"none", "standard"}};
-    MyEnum dither[2]{ {{"none", "noise", "bayer", "square"}}, {{"none", "noise", "bayer", "square", "invbayer", "invsquare"}} };
-    MyEnum filtering{{"point", "bilinear", "median"}};
-    int perspective{-1};
-    int alpha_compare{-1};
-    MyEnum zmode{{"none", "compare", "update", "compare+update"}};
-    int z_override{-1};
-    int deltaz_override{0};
-
-    void parse_attr(std::string key, std::string value);
-};
-
-struct Combiner {
-    combexpr::CombinerExpr rgb{combexpr::CombinerChannel::RGB, "0", "0", "0", "tex0"};
-    combexpr::CombinerExpr alpha{combexpr::CombinerChannel::ALPHA, "0", "0", "0", "tex0"};
-    combexpr::CombinerExprFull full;
-
-    void parse_attr(std::string key, std::string value);
-    uint64_t to_rdpq_mode_arg(void);
-};
-
-struct Blender {
-    MyEnum mode{0, {"off", "multiply", "multiply_const", "additive"}};
-    float constant{-1};
-
-    void parse_attr(std::string key, std::string value);
-    void validate(void);
-};
-
-struct Extension {
-    MyEnum type{0, {"bool", "int", "string", "float"}};
-    std::string name;
-    std::string value;
-
-    uint32_t hash{0};
-};
-
-struct Material {
-    std::string name;
-    struct {
-        std::string filename;
-        int lineno{0};
-    } parse_info;
-    Texture tex[2];
-    RenderModes rm;
-    Combiner cc;
-    Blender bl;
-    std::vector<Extension> ext; // extension attributes
-
-    Material() = default;
-
-    void parse_attr(std::string key, std::string value);
-    void validate(void);
-    void write(FILE *f);
-};
 
 void verbose(const char *fmt, ...)
 {
@@ -155,11 +31,6 @@ void verbose(const char *fmt, ...)
     vfprintf(stderr, fmt, args);
     va_end(args);
 }
-
-
-#include "mkmaterial_parse.cpp"
-#include "mkmaterial_export.cpp"
-
 
 void usage(void)
 {
