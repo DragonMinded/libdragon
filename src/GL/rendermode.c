@@ -11,22 +11,6 @@
 
 extern gl_state_t *state;
 
-// Table of combiner configurations
-static const rdpq_combiner_t combiner_configs[] = {
-
-    // No texture
-    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "modulate"
-    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "modulate"
-    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "replace"
-    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "replace"
-
-    // Texture enabled
-    RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)),   // modulate
-    RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0)),     // constant modulate
-    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // replace
-    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // constant replace
-};
-
 // All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.
 // NOTE: We always set fog alpha to one to support GL_ONE in both factors
 // TODO: src = ZERO, dst = ONE_MINUS_SRC_ALPHA could be done with BLEND_RGB * IN_ALPHA + MEMORY_RGB * INV_MUX_ALPHA
@@ -123,6 +107,7 @@ void gl_set_fog_enabled(bool enabled)
     state->fog = enabled;
     set_fog_dirty();
     gl_set_rendermode_dirty();
+    gl_set_geom_flags_dirty();
 }
 
 void gl_set_fog_start(GLfloat param)
@@ -397,7 +382,8 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     case GL_MODULATE:
     case GL_REPLACE:
         state->tex_env_mode = param;
-        gl_set_rendermode_dirty();
+        gl_set_combiner_dirty();
+        gl_set_geom_flags_dirty();
         break;
     case GL_DECAL:
     case GL_BLEND:
@@ -458,6 +444,13 @@ void gl_set_rendermode_dirty()
     state->is_rendermode_dirty = true;
 }
 
+void gl_set_combiner_dirty()
+{
+    state->is_combiner_dirty = true;
+    // TODO: Maybe don't update the entire rendermode if only combiner is affected?
+    gl_set_rendermode_dirty();
+}
+
 rdpq_antialias_t get_antialias()
 {
     if (!state->multisample) {
@@ -472,17 +465,87 @@ rdpq_dither_t get_dither()
     return state->dither ? state->dither_mode : DITHER_NONE_NONE;
 }
 
+bool is_texture_replace()
+{
+    return state->tex_env_mode == GL_REPLACE;
+}
+
+bool is_color_constant()
+{
+    // TODO: this will no longer be sufficient when glBegin/glEnd is implemented
+    return !state->array_object->arrays[ATTRIB_COLOR].enabled;
+}
+
+bool gl_is_shade_active()
+{
+    // Fog always requires shade
+    if (state->fog) 
+        return true;
+
+    // Shade is unused if texture replaces it
+    if (gl_is_texture_active() && is_texture_replace())
+        return false;
+
+    // Otherwise it is only used if lighting is active or if vertex color is not constant
+    // (If not, prim color is used instead)
+    return state->lighting || !is_color_constant();
+}
+
+void update_combiner()
+{
+    if (!state->is_combiner_dirty) return;
+    state->is_combiner_dirty = false;
+
+    bool has_tex = gl_is_texture_active();
+    if (has_tex && is_texture_replace()) {
+        state->combiner = RDPQ_COMBINER_TEX;
+        return;
+    }
+
+    // TODO: emissive color
+    static const rdpq_combiner_t table[] = {
+        RDPQ_COMBINER_SHADE,                                                                            // No tex, no light, var color
+        RDPQ_COMBINER_FLAT,                                                                             // No tex, no light, const color
+        RDPQ_COMBINER_SHADE,                                                                            // No tex, light,    var color
+        RDPQ_COMBINER1((SHADE,0,PRIM,0), (SHADE,0,PRIM,0)),                                             // No tex, light,    const color
+        RDPQ_COMBINER_TEX_SHADE,                                                                        // tex,    no light, var color
+        RDPQ_COMBINER_TEX_FLAT,                                                                         // tex,    no light, const color
+        RDPQ_COMBINER_TEX_SHADE,                                                                        // tex,    light,    var color
+        // TODO: doesn't work with mipmapping
+        RDPQ_COMBINER2((TEX0,0,SHADE,0), (TEX0,0,SHADE,0), (COMBINED,0,PRIM,0), (COMBINED,0,PRIM,0)),   // tex,    light,    const color
+    };
+
+    bool constant_color = is_color_constant();
+    if (state->lighting) constant_color = constant_color || !gl_is_diffuse_tracking_color();
+
+    uint32_t index = 0;
+    if (has_tex) index |= 4;
+    if (state->lighting) index |= 2;
+    if (constant_color) index |= 1;
+
+    state->combiner = table[index];
+}
+
 rdpq_combiner_t get_combiner()
 {
-    uint32_t tex = gl_is_texture_active() ? 4 : 0;
-    uint32_t env = state->tex_env_mode == GL_REPLACE ? 2 : 0;
-    // TODO: constant material color
-    uint32_t config_index = tex | env;
-    return combiner_configs[config_index];
+    update_combiner();
+    return state->combiner;
+}
+
+const float *get_prim_color()
+{
+    if (state->lighting) {
+        return gl_get_material_diffuse();
+    } else {
+        return state->current.color;
+    }
 }
 
 void update_rendermode()
 {
+    // TODO: Is it worth adding a dirty flag for this?
+    rdpq_set_prim_color(color_from_floats(get_prim_color()));
+
     if (!state->is_rendermode_dirty) return;
     state->is_rendermode_dirty = false;
 

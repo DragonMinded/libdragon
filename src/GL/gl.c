@@ -78,20 +78,6 @@ GLenum glGetError(void)
     return error;
 }
 
-void update_geometry_flags()
-{
-    // TODO: only mark dirty, submit command before draw call
-    // TODO: shade can be disabled if: texture is active and env mode is GL_REPLACE, or lighting is disabled and color is constant
-    mg_geometry_flags_t flags = MG_GEOMETRY_FLAGS_SHADE_ENABLED;
-    if (gl_is_depth_active()) {
-        flags |= MG_GEOMETRY_FLAGS_Z_ENABLED;
-    }
-    if (gl_is_texture_active()) {
-        flags |= MG_GEOMETRY_FLAGS_TEX_ENABLED;
-    }
-    mg_set_geometry_flags(flags);
-}
-
 void set_enable_flag(GLenum target, bool value)
 {
     switch (target) {
@@ -104,7 +90,7 @@ void set_enable_flag(GLenum target, bool value)
         break;
     case GL_DEPTH_TEST:
         state->depth_test = value;
-        update_geometry_flags();
+        gl_set_geom_flags_dirty();
         gl_set_rendermode_dirty();
         break;
     case GL_BLEND:
@@ -137,6 +123,7 @@ void set_enable_flag(GLenum target, bool value)
     case GL_LIGHTING:
         state->lighting = value;
         gl_set_lighting_dirty();
+        gl_set_geom_flags_dirty();
         break;
     case GL_LIGHT0:
     case GL_LIGHT1:
@@ -149,6 +136,8 @@ void set_enable_flag(GLenum target, bool value)
         gl_set_light_enabled(target, value);
         break;
     case GL_COLOR_MATERIAL:
+        state->color_material = value;
+        gl_set_combiner_dirty();
         break;
     case GL_TEXTURE_GEN_S:
     case GL_TEXTURE_GEN_T:

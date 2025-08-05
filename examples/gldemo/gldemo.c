@@ -200,6 +200,11 @@ void update(float deltatime)
     glEnable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
 
+    fm_vec4_t mat_color = {{0, 1, 1, 1}};
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, mat_color.v);
+
+    //glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+
     glBindTexture(GL_TEXTURE_2D, textures[0]);
     render_plane();
 

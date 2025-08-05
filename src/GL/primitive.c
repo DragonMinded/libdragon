@@ -12,6 +12,22 @@ void gl_primitive_init()
     state->viewport.n = 0;
     state->viewport.f = 1;
 
+    state->current.normal[0] = 0;
+    state->current.normal[1] = 0;
+    state->current.normal[2] = 1;
+    
+    state->current.color[0] = 1;
+    state->current.color[1] = 1;
+    state->current.color[2] = 1;
+    state->current.color[3] = 1;
+
+    state->current.texcoord[0] = 0;
+    state->current.texcoord[1] = 0;
+    state->current.texcoord[2] = 0;
+    state->current.texcoord[3] = 1;
+
+    state->current.mtx_index[0] = 0;
+
     state->cull_face_mode = GL_BACK;
     state->front_face = GL_CCW;
     update_culling();
@@ -38,6 +54,24 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     default:
         assertf(0, "Draw mode %ld is not supported", mode);
     }
+}
+
+void gl_set_geom_flags_dirty()
+{
+    state->is_geom_flags_dirty = true;
+}
+
+void update_geom_flags()
+{
+    if (!state->is_geom_flags_dirty) return;
+    state->is_geom_flags_dirty = false;
+
+    mg_geometry_flags_t flags = 0;
+    if (gl_is_shade_active()) flags |= MG_GEOMETRY_FLAGS_SHADE_ENABLED;
+    if (gl_is_depth_active()) flags |= MG_GEOMETRY_FLAGS_Z_ENABLED;
+    if (gl_is_texture_active()) flags |= MG_GEOMETRY_FLAGS_TEX_ENABLED;
+
+    mg_set_geometry_flags(flags);
 }
 
 static void update_vertex_buffer(uint32_t first, uint32_t count)
@@ -72,6 +106,7 @@ static void prepare_draw_call(uint32_t first, uint32_t count)
     update_rendermode();
     update_vertex_buffer(first, count);
     update_pipeline();
+    update_geom_flags();
 }
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)

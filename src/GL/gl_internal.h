@@ -266,6 +266,8 @@ typedef struct {
     GLenum tex_env_mode;
     GLclampf alpha_ref;
     rdpq_blender_t blender;
+    rdpq_combiner_t combiner;
+    rdpq_dither_t dither_mode;
     GLboolean depth_mask;
     GLfloat fog_start;
     GLfloat fog_end;
@@ -334,12 +336,20 @@ typedef struct {
 
     bool transfer_is_noop;
 
-    rdpq_dither_t dither_mode;
+    struct {
+        GLfloat position[4];
+        GLfloat normal[3];
+        GLfloat color[4];
+        GLfloat texcoord[4];
+        GLubyte mtx_index[VERTEX_UNIT_COUNT];
+    } current;
 
+    bool is_geom_flags_dirty;
     bool is_lighting_dirty;
     bool is_fog_dirty;
     bool is_texturing_dirty;
     bool is_rendermode_dirty;
+    bool is_combiner_dirty;
 
     bool begin_end_active;
     bool is_pipeline_dirty;
@@ -393,12 +403,13 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void update_culling();
 void update_viewport();
-void update_geometry_flags();
 void update_rendermode();
 
+void gl_set_geom_flags_dirty();
 void gl_set_lighting_dirty();
 void gl_set_texturing_dirty();
 void gl_set_rendermode_dirty();
+void gl_set_combiner_dirty();
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
@@ -409,8 +420,12 @@ void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t arr
 void gl_set_light_enabled(GLenum light, bool enabled);
 void gl_set_fog_enabled(bool enabled);
 
+bool gl_is_diffuse_tracking_color();
+const float *gl_get_material_diffuse();
+
 void gl_set_texture_enabled(GLenum target, bool enabled);
 
+bool gl_is_shade_active();
 bool gl_is_texture_active();
 bool gl_is_depth_active();
 
@@ -437,6 +452,16 @@ inline uint32_t gl_type_to_index(GLenum type)
     default:
         return -1;
     }
+}
+
+inline color_t color_from_floats(const float color[4])
+{
+    return RGBA32(
+        FLOAT_TO_U8(color[0]),
+        FLOAT_TO_U8(color[1]),
+        FLOAT_TO_U8(color[2]),
+        FLOAT_TO_U8(color[3])
+    );
 }
 
 #endif

@@ -69,6 +69,8 @@ void gl_lighting_init()
     state->light_model_ambient[3] = 1.0f;
     state->light_model_local_viewer = false;
 
+    state->material.color_target = GL_AMBIENT_AND_DIFFUSE;
+
     gl_set_lighting_dirty();
 }
 
@@ -608,14 +610,18 @@ void glShadeModel(GLenum mode)
     }
 }
 
-color_t color_from_floats(const float color[4])
+bool gl_is_diffuse_tracking_color()
 {
-    return RGBA32(
-        FLOAT_TO_U8(color[0]),
-        FLOAT_TO_U8(color[1]),
-        FLOAT_TO_U8(color[2]),
-        FLOAT_TO_U8(color[3])
-    );
+    return state->color_material && (state->material.color_target == GL_DIFFUSE || state->material.color_target == GL_AMBIENT_AND_DIFFUSE);
+}
+
+const float *gl_get_material_diffuse()
+{
+    if (gl_is_diffuse_tracking_color()) {
+        return state->current.color;
+    } else {
+        return state->material.diffuse;
+    }
 }
 
 void get_lighting_parms(mgfx_lighting_parms_t *parms)

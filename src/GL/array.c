@@ -197,7 +197,7 @@ gl_array_type_t gl_array_type_from_enum(GLenum array)
     case GL_MATRIX_INDEX_ARRAY_ARB:
         return ATTRIB_MTX_INDEX;
     default:
-        return -1;
+        assertf(0, "Invalid array type!");
     }
 }
 
@@ -484,6 +484,10 @@ void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
     if (array->enabled != enabled) {
         array->enabled = enabled;
         state->array_object->is_layout_dirty = true;
+
+        if (array_type == ATTRIB_COLOR) {
+            gl_set_geom_flags_dirty();
+        }
     }
 }
 
@@ -659,6 +663,7 @@ static void array_object_update_layout(gl_array_object_t *array_object)
         array_object->arrays[ATTRIB_NORMAL].out_offset = stride - sizeof(int16_t);
     }
 
+    // TODO: must be forced disabled when lighting is enabled and material diffuse is not tracking color
     if (array_object->arrays[ATTRIB_COLOR].enabled) {
         array_object->arrays[ATTRIB_COLOR].out_offset = stride;
         array_object->layout.attributes[attribute_count++] = (mg_vertex_attribute_t) {

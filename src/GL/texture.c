@@ -32,8 +32,8 @@ void gl_set_texture_enabled(GLenum target, bool enabled)
     }
     
     gl_set_texturing_dirty();
-    gl_set_rendermode_dirty();
-    update_geometry_flags();
+    gl_set_combiner_dirty();
+    gl_set_geom_flags_dirty();
 }
 
 void gl_init_texture_object(gl_texture_object_t *obj)
@@ -320,8 +320,8 @@ void gl_update_texture_completeness(gl_texture_object_t *obj)
 
     if (is_complete != was_complete) {
         set_block_dirty(obj);
-        update_geometry_flags();
-        gl_set_rendermode_dirty();
+        gl_set_geom_flags_dirty();
+        gl_set_combiner_dirty();
     }
 }
 
@@ -1368,5 +1368,6 @@ void gl_upload_texture(const mg_uniform_t *uniform)
 
 bool gl_is_texture_active()
 {
+    // TODO: cache this
     return gl_get_active_complete_texture() != NULL;
 }
