@@ -579,3 +579,5 @@ reg_block_t* __onSyscallException( reg_block_t* regs )
 	e.regs->epc += 4;
 	return regs;
 }
+
+extern inline bool exception_is_running(void);
