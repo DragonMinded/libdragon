@@ -60,7 +60,7 @@ void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z);
  *
  * This function is similar to #rdpq_attach, but it also clears the surface
  * to full black (color 0) immediately after attaching. If a z-buffer is
- * specified, it is also cleared (to 0xFFFC).
+ * specified, it is also cleared (to #ZBUF_MAX).
  * 
  * This function is just a shortcut for calling #rdpq_attach, #rdpq_clear and
  * #rdpq_clear_z.
