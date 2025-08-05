@@ -88,6 +88,11 @@ DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i32, int32u_t,  27)
 DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f32, floatu)
 DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f64, doubleu)
 
+static void nrm_read_packed565(int16_t *dst, const int16_t *src, uint32_t count)
+{
+    *dst = *src;
+}
+
 #define COL_CONVERT_U8(v) ((v))
 #define COL_CONVERT_I8(v) (MAX(v, 0) << 1)
 #define COL_CONVERT_U16(v) ((v) >> 8)
@@ -130,6 +135,7 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (read_attrib_func)vtx_read_f32,
         (read_attrib_func)vtx_read_f64,
         (read_attrib_func)vtx_read_x16,
+        NULL,
     },
     {
         (read_attrib_func)nrm_read_i8,
@@ -141,6 +147,7 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (read_attrib_func)nrm_read_f32,
         (read_attrib_func)nrm_read_f64,
         NULL,
+        (read_attrib_func)nrm_read_packed565,
     },
     {
         (read_attrib_func)col_read_i8,
@@ -151,6 +158,7 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (read_attrib_func)col_read_u32,
         (read_attrib_func)col_read_f32,
         (read_attrib_func)col_read_f64,
+        NULL,
         NULL,
     },
     {
@@ -163,6 +171,7 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (read_attrib_func)tex_read_f32,
         (read_attrib_func)tex_read_f64,
         (read_attrib_func)tex_read_x16,
+        NULL,
     },
     {
         NULL,
@@ -171,6 +180,7 @@ static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (read_attrib_func)mtx_index_read_u16,
         NULL,
         (read_attrib_func)mtx_index_read_u32,
+        NULL,
         NULL,
         NULL,
         NULL,
@@ -201,11 +211,15 @@ gl_array_type_t gl_array_type_from_enum(GLenum array)
     }
 }
 
-void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
+uint16_t get_stride_from_size_and_type(GLint size, GLenum type)
 {
+    if (type == GL_SHORT_5_6_5_N64) {
+        return sizeof(GLshort);
+    }
+
     uint32_t size_shift = 0;
     
-    switch (array->type) {
+    switch (type) {
     case GL_BYTE:
     case GL_UNSIGNED_BYTE:
         size_shift = 0;
@@ -225,7 +239,12 @@ void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
         break;
     }
 
-    array->final_stride = array->stride == 0 ? array->size << size_shift : array->stride;
+    return size << size_shift;
+}
+
+void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
+{
+    array->final_stride = array->stride == 0 ? get_stride_from_size_and_type(array->size, array->type) : array->stride;
 
     uint32_t func_index = gl_type_to_index(array->type);
     array->read_func = read_funcs[array_type][func_index];
@@ -416,6 +435,7 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
     case GL_INT:
     case GL_FLOAT:
     case GL_DOUBLE:
+    case GL_SHORT_5_6_5_N64:
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid normal data type", type);
