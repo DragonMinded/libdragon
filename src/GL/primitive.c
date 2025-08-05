@@ -313,3 +313,21 @@ void glFrontFace(GLenum dir)
     update_culling();
 }
 
+static void set_precision_bits(gl_fixed_precision_t *dst, GLuint bits)
+{
+    // One bit is reserved for the sign
+    static const GLuint max_bits = sizeof(GLhalfxN64) * 8 - 1;
+
+    if (bits > max_bits) {
+        gl_set_error(GL_INVALID_VALUE, "Bits must not be greater than %ld", max_bits);
+        return;
+    }
+
+    dst->precision = bits;
+    dst->shift_amount = dst->target_precision - bits;
+    dst->to_float_factor = 1.0f / (1<<bits);
+}
+
+void glVertexHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state->vertex_halfx_precision, bits); }
+void glTexCoordHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state->texcoord_halfx_precision, bits); }
+
