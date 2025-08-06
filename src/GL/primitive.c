@@ -61,6 +61,11 @@ void gl_set_geom_flags_dirty()
     state->is_geom_flags_dirty = true;
 }
 
+void gl_set_pipeline_dirty()
+{
+    state->is_pipeline_dirty = true;    
+}
+
 void update_geom_flags()
 {
     if (!state->is_geom_flags_dirty) return;
@@ -86,19 +91,39 @@ static void update_vertex_buffer(uint32_t first, uint32_t count)
 
 static void update_pipeline()
 {
-    mg_pipeline_t *pipeline = state->pipelines[state->array_object->pipeline_index].pipeline;
-    mg_pipeline_bind(pipeline);
+    if (!state->is_pipeline_dirty) return;
+    state->is_pipeline_dirty = false;
 
-    // TODO: cache these
-    const mg_uniform_t *fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
-    const mg_uniform_t *lighting_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_LIGHTING);
-    const mg_uniform_t *texturing_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_TEXTURING);
-    const mg_uniform_t *matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
+    vertex_layout *layout = &state->array_object->layout;
 
-    gl_upload_fog(fog_uniform);
-    gl_upload_lighting(lighting_uniform);
-    gl_upload_matrices(matrices_uniform);
-    gl_upload_texture(texturing_uniform);
+    vertex_layout vl;
+    if (state->lighting && !gl_is_diffuse_tracking_color())
+    {
+        // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
+        // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute
+        // from the vertex shader by copying the vertex layout and omitting the color attribute.
+        // All other attributes will keep their original offsets, so we can use the existing data as-is.
+        vertex_layout_init(&vl);
+        vertex_layout_copy_without(&vl, layout, MGFX_ATTRIBUTE_COLOR);
+        layout = &vl;
+    }
+
+    uint32_t pipeline_index = pipeline_get_or_create(&layout->vertex_layout, 0);
+    state->current_pipeline = state->pipelines[pipeline_index].pipeline;
+    mg_pipeline_bind(state->current_pipeline);
+
+    state->fog_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_FOG);
+    state->lighting_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_LIGHTING);
+    state->texturing_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_TEXTURING);
+    state->matrices_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_MATRICES);
+}
+
+static void update_uniforms()
+{
+    gl_upload_fog(state->fog_uniform);
+    gl_upload_lighting(state->lighting_uniform);
+    gl_upload_matrices(state->matrices_uniform);
+    gl_upload_texture(state->texturing_uniform);
 }
 
 static void prepare_draw_call(uint32_t first, uint32_t count)
@@ -106,6 +131,7 @@ static void prepare_draw_call(uint32_t first, uint32_t count)
     update_rendermode();
     update_vertex_buffer(first, count);
     update_pipeline();
+    update_uniforms();
     update_geom_flags();
 }
 

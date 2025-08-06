@@ -653,6 +653,7 @@ void glBindVertexArray(GLuint array)
     }
 
     state->array_object = obj;
+    gl_set_pipeline_dirty();
 }
 
 GLboolean glIsVertexArray(GLuint array)
@@ -667,47 +668,31 @@ GLboolean glIsVertexArray(GLuint array)
 
 static void array_object_update_layout(gl_array_object_t *array_object)
 {
-    uint32_t stride = 0;
-    uint32_t attribute_count = 0;
+    vertex_layout *vl = &array_object->layout;
+    vertex_layout_init(vl);
 
     if (array_object->arrays[ATTRIB_VERTEX].enabled) {
-        array_object->arrays[ATTRIB_VERTEX].out_offset = stride;
-        array_object->layout.attributes[attribute_count++] = (mg_vertex_attribute_t) {
-            .input = MGFX_ATTRIBUTE_POS_NORM,
-            .offset = stride
-        };
-        stride += sizeof(int16_t) * 4;
+        array_object->arrays[ATTRIB_VERTEX].out_offset = vl->vertex_layout.stride;
+        vertex_layout_append(vl, MGFX_ATTRIBUTE_POS_NORM, sizeof(int16_t) * 4);
     }
 
     if (array_object->arrays[ATTRIB_NORMAL].enabled) {
-        array_object->arrays[ATTRIB_NORMAL].out_offset = stride - sizeof(int16_t);
+        array_object->arrays[ATTRIB_NORMAL].out_offset = vl->vertex_layout.stride - sizeof(int16_t);
     }
 
-    // TODO: must be forced disabled when lighting is enabled and material diffuse is not tracking color
     if (array_object->arrays[ATTRIB_COLOR].enabled) {
-        array_object->arrays[ATTRIB_COLOR].out_offset = stride;
-        array_object->layout.attributes[attribute_count++] = (mg_vertex_attribute_t) {
-            .input = MGFX_ATTRIBUTE_COLOR,
-            .offset = stride
-        };
-        stride += sizeof(uint32_t);
+        array_object->arrays[ATTRIB_COLOR].out_offset = vl->vertex_layout.stride;
+        vertex_layout_append(vl, MGFX_ATTRIBUTE_COLOR, sizeof(uint32_t));
     }
 
     if (array_object->arrays[ATTRIB_TEXCOORD].enabled) {
-        array_object->arrays[ATTRIB_TEXCOORD].out_offset = stride;
-        array_object->layout.attributes[attribute_count++] = (mg_vertex_attribute_t) {
-            .input = MGFX_ATTRIBUTE_TEXCOORD,
-            .offset = stride
-        };
-        stride += sizeof(int16_t) * 2;
+        array_object->arrays[ATTRIB_TEXCOORD].out_offset = vl->vertex_layout.stride;
+        vertex_layout_append(vl, MGFX_ATTRIBUTE_TEXCOORD, sizeof(int16_t) * 2);
     }
 
-    array_object->layout.vertex_layout.stride = stride;
-    array_object->layout.vertex_layout.attribute_count = attribute_count;
-    array_object->layout.vertex_layout.attributes = array_object->layout.attributes;
-
-    // TODO: features will be derived from other settings -> pipeline creation should be abstracted
-    array_object->pipeline_index = pipeline_get_or_create(&array_object->layout.vertex_layout, 0);
+    if (array_object == state->array_object) {
+        gl_set_pipeline_dirty();
+    }
 }
 
 static void array_object_update_is_all_vbos(gl_array_object_t *array_object)

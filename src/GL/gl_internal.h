@@ -8,6 +8,7 @@
 #include "GL/gl.h"
 #include "GL/gl_integration.h"
 #include "gl_constants.h"
+#include "vertex_layout.h"
 #include "magma.h"
 #include "mgfx.h"
 #include "rdpq.h"
@@ -38,7 +39,6 @@
 #define TEXTURE_MIPMAP_MASK         0x100
 
 #define MAX_PIPELINE_COUNT          (1<<4)
-#define MAX_VERTEX_ATTRIBUTE_COUNT  3
 
 #define CLAMP01(x) CLAMP((x), 0, 1)
 
@@ -144,12 +144,6 @@ typedef struct {
     uint32_t ref_count;
 } gl_buffer_object_t;
 
-typedef struct
-{
-    mg_vertex_attribute_t attributes[MAX_VERTEX_ATTRIBUTE_COUNT];
-    mg_vertex_layout_t vertex_layout;
-} vertex_layout;
-
 typedef void (*read_attrib_func)(void*,const void*,uint32_t);
 
 typedef struct {
@@ -170,7 +164,6 @@ typedef struct gl_array_object_s {
     gl_array_t arrays[ATTRIB_COUNT];
     gl_buffer_object_t *element_array_buffer;
     vertex_layout layout;
-    uint32_t pipeline_index;
     void *buffer;
     uint32_t cached_first;
     uint32_t cached_count;
@@ -284,7 +277,12 @@ typedef struct {
     gl_fixed_precision_t texcoord_halfx_precision;
     uint32_t pipelines_count;
     pipeline_data pipelines[MAX_PIPELINE_COUNT]; // TODO: change this to a hashmap
-
+    mg_pipeline_t *current_pipeline;
+    const mg_uniform_t *fog_uniform;
+    const mg_uniform_t *lighting_uniform;
+    const mg_uniform_t *texturing_uniform;
+    const mg_uniform_t *matrices_uniform;
+    
     GLenum matrix_mode;
     GLint current_palette_matrix;
 
@@ -344,6 +342,8 @@ typedef struct {
         GLubyte mtx_index[VERTEX_UNIT_COUNT];
     } current;
 
+    // TODO: Generic system that tracks state changes and applies changes automatically
+    bool is_pipeline_dirty;
     bool is_geom_flags_dirty;
     bool is_lighting_dirty;
     bool is_fog_dirty;
@@ -352,7 +352,6 @@ typedef struct {
     bool is_combiner_dirty;
 
     bool begin_end_active;
-    bool is_pipeline_dirty;
     bool is_drawing_anything;
     bool cull_face;
     bool texture_1d;
@@ -372,6 +371,10 @@ typedef struct {
     bool reduced_aa;
     bool persp_correct;
 } gl_state_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 inline bool is_in_heap_memory(void *ptr)
 {
@@ -405,6 +408,7 @@ void update_culling();
 void update_viewport();
 void update_rendermode();
 
+void gl_set_pipeline_dirty();
 void gl_set_geom_flags_dirty();
 void gl_set_lighting_dirty();
 void gl_set_texturing_dirty();
@@ -465,5 +469,9 @@ inline color_t color_from_floats(const float color[4])
         FLOAT_TO_U8(color[3])
     );
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

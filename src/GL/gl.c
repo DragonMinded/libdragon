@@ -18,7 +18,6 @@ void gl_init(void)
     rdpq_init();
 
     state = calloc(1, sizeof(gl_state_t));
-    state->is_pipeline_dirty = true;
     state->uniform_data = malloc_uncached(sizeof(gl_uniform_data));
 
     mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {});
