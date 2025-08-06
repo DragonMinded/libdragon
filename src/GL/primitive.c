@@ -61,11 +61,6 @@ void gl_set_geom_flags_dirty()
     state->is_geom_flags_dirty = true;
 }
 
-void gl_set_pipeline_dirty()
-{
-    state->is_pipeline_dirty = true;    
-}
-
 void update_geom_flags()
 {
     if (!state->is_geom_flags_dirty) return;
@@ -87,35 +82,6 @@ static void update_vertex_buffer(uint32_t first, uint32_t count)
     // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
     uint32_t buffer_offset = first - state->array_object->cached_first;
     mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
-}
-
-static void update_pipeline()
-{
-    if (!state->is_pipeline_dirty) return;
-    state->is_pipeline_dirty = false;
-
-    vertex_layout *layout = &state->array_object->layout;
-
-    vertex_layout vl;
-    if (state->lighting && !gl_is_diffuse_tracking_color())
-    {
-        // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
-        // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute
-        // from the vertex shader by copying the vertex layout and omitting the color attribute.
-        // All other attributes will keep their original offsets, so we can use the existing data as-is.
-        vertex_layout_init(&vl);
-        vertex_layout_copy_without(&vl, layout, MGFX_ATTRIBUTE_COLOR);
-        layout = &vl;
-    }
-
-    uint32_t pipeline_index = pipeline_get_or_create(&layout->vertex_layout, 0);
-    state->current_pipeline = state->pipelines[pipeline_index].pipeline;
-    mg_pipeline_bind(state->current_pipeline);
-
-    state->fog_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_FOG);
-    state->lighting_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_LIGHTING);
-    state->texturing_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_TEXTURING);
-    state->matrices_uniform = mg_pipeline_get_uniform(state->current_pipeline, MGFX_BINDING_MATRICES);
 }
 
 static void update_uniforms()

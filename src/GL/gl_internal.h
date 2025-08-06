@@ -14,6 +14,7 @@
 #include "rdpq.h"
 #include "rdpq_tex.h"
 #include "utils.h"
+#include "hashtable_internal.h"
 
 #define VERTEX_UNIT_COUNT     1
 #define ATTRIB_TYPE_COUNT     10
@@ -185,13 +186,6 @@ typedef struct {
     GLfloat to_float_factor;
 } gl_fixed_precision_t;
 
-typedef struct
-{
-    mg_pipeline_t *pipeline;
-    vertex_layout layout;
-    mgfx_features_t features;
-} pipeline_data;
-
 typedef enum {
     TEX_IS_DEFAULT          = (1 << 0),
     TEX_IS_COMPLETE         = (1 << 1),
@@ -275,9 +269,9 @@ typedef struct {
     gl_uniform_data *uniform_data;
     gl_fixed_precision_t vertex_halfx_precision;
     gl_fixed_precision_t texcoord_halfx_precision;
-    uint32_t pipelines_count;
-    pipeline_data pipelines[MAX_PIPELINE_COUNT]; // TODO: change this to a hashmap
-    mg_pipeline_t *current_pipeline;
+    
+    hashtable_t pipeline_cache;
+    uint32_t current_pipeline_key;
     const mg_uniform_t *fog_uniform;
     const mg_uniform_t *lighting_uniform;
     const mg_uniform_t *texturing_uniform;
@@ -400,10 +394,10 @@ bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
-uint32_t pipeline_get_or_create(const mg_vertex_layout_t *submesh_layout, mgfx_features_t features);
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
 
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
+void update_pipeline();
 void update_culling();
 void update_viewport();
 void update_rendermode();

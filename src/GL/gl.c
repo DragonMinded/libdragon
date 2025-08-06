@@ -19,6 +19,7 @@ void gl_init(void)
 
     state = calloc(1, sizeof(gl_state_t));
     state->uniform_data = malloc_uncached(sizeof(gl_uniform_data));
+    hashtable_init(&state->pipeline_cache, MAX_PIPELINE_COUNT, NULL);
 
     mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {});
 
@@ -38,6 +39,10 @@ void gl_close(void)
     gl_array_close();
     gl_texture_close();
     rspq_wait();
+
+    // TODO: free all pipelines!
+    hashtable_free(&state->pipeline_cache);
+
     free(state->uniform_data);
     free(state);
 
@@ -347,53 +352,68 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
     return true;
 }
 
-bool are_vertex_layouts_equal(const mg_vertex_layout_t *p0, const mg_vertex_layout_t *p1)
+inline void fnv1a(uint32_t *hash, uint32_t v)
 {
-    if (p0->stride != p1->stride) return false;
-    if (p0->attribute_count != p1->attribute_count) return false;
-
-    for (size_t i = 0; i < p0->attribute_count; i++)
-    {
-        const mg_vertex_attribute_t *a0 = &p0->attributes[i];
-        const mg_vertex_attribute_t *a1 = &p1->attributes[i];
-
-        // TODO: handle differently ordered attributes
-        if (a0->input != a1->input) return false;
-        if (a0->offset != a1->offset) return false;
-    }
-    
-    return true;
+    *hash ^= v;
+    *hash *= 0x01000193; // FNV prime
 }
 
-uint32_t pipeline_get_or_create(const mg_vertex_layout_t *submesh_layout, mgfx_features_t features)
+static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout, mgfx_features_t features)
 {
-    // Try to find a pipeline with the same vertex layout and feature set
-    for (uint32_t i = 0; i < state->pipelines_count; i++)
+    // Get pipeline key by creating a hash from all pipeline parameters using FNV-1a hash
+    uint32_t key = 0x811c9dc5; // FNV offset basis
+    for (size_t i = 0; i < layout->attribute_count; i++)
     {
-        if (features != state->pipelines[i].features) {
-            continue;
-        }
+        fnv1a(&key, layout->attributes[i].input);
+        fnv1a(&key, layout->attributes[i].offset);
+    }
+    fnv1a(&key, layout->stride);
+    fnv1a(&key, features);
+    return key;
+}
 
-        if (are_vertex_layouts_equal(submesh_layout, &state->pipelines[i].layout.vertex_layout)) {
-            return i;
-        }
+void gl_set_pipeline_dirty()
+{
+    state->is_pipeline_dirty = true;    
+}
+
+void update_pipeline()
+{
+    if (!state->is_pipeline_dirty) return;
+    state->is_pipeline_dirty = false;
+
+    mgfx_features_t features = 0;
+    vertex_layout *layout = &state->array_object->layout;
+
+    vertex_layout vl;
+    if (state->lighting && !gl_is_diffuse_tracking_color())
+    {
+        // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
+        // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute
+        // from the vertex shader by copying the vertex layout and omitting the color attribute.
+        // All other attributes will keep their original offsets, so we can use the existing data as-is.
+        vertex_layout_init(&vl);
+        vertex_layout_copy_without(&vl, layout, MGFX_ATTRIBUTE_COLOR);
+        layout = &vl;
     }
 
-    // If none was found, create a new pipeline with the vertex layout.
-    // Internally, magma will patch the shader ucode to be compatible with the configured vertex layout,
-    // which is why a separate pipeline needs to be created for each layout.
-    pipeline_data *new_pipeline = &state->pipelines[state->pipelines_count];
-    new_pipeline->pipeline = mg_pipeline_create(&(mg_pipeline_parms_t) {
-        .vertex_shader_ucode = mgfx_get_shader_ucode(features),
-        .vertex_layout = *submesh_layout
-    });
-    new_pipeline->features = features;
+    uint32_t new_key = get_pipeline_key(&layout->vertex_layout, features);
+    if (new_key == state->current_pipeline_key) return;
 
-    // Store the vertex layout in the cache
-    vertex_layout *new_layout = &new_pipeline->layout;
-    memcpy(new_layout->attributes, submesh_layout->attributes, sizeof(mg_vertex_attribute_t) * submesh_layout->attribute_count);
-    memcpy(&new_layout->vertex_layout, submesh_layout, sizeof(mg_vertex_layout_t));
-    new_layout->vertex_layout.attributes = new_layout->attributes;
+    mg_pipeline_t *pipeline = hashtable_lookup(&state->pipeline_cache, new_key);
+    if (pipeline == NULL) {
+        pipeline = mg_pipeline_create(&(mg_pipeline_parms_t) {
+            .vertex_shader_ucode = mgfx_get_shader_ucode(features),
+            .vertex_layout = layout->vertex_layout
+        });
+        hashtable_insert(&state->pipeline_cache, new_key, pipeline);
+    }
 
-    return state->pipelines_count++;
+    state->current_pipeline_key = new_key;
+    mg_pipeline_bind(pipeline);
+
+    state->fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
+    state->lighting_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_LIGHTING);
+    state->texturing_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_TEXTURING);
+    state->matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
 }
