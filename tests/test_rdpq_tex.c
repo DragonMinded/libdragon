@@ -467,3 +467,39 @@ void test_rdpq_tex_upload_tlut(TestContext *ctx)
         }
     }
 }
+
+void test_rdpq_tex_4bpp_odd(TestContext *ctx) {
+    // Make sure loading a 4bpp texture with odd starting coordinates work
+    // correctly. We used to have a bug in this case.
+    RDPQ_INIT();
+
+    const int FBWIDTH = 164;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+
+    surface_t tex = surface_alloc(FMT_I4, 164, 164);
+    DEFER(surface_free(&tex));
+    for (int y=0; y<FBWIDTH; y++) for (int x=0; x<FBWIDTH; x++)
+        surface_set_pixel(&tex, x, y, 0x33);
+
+    surface_clear(&fb, 0xFF);
+    rdpq_set_mode_standard();
+    rdpq_tex_blit(&tex, 2, 2, &(rdpq_blitparms_t){
+        .s0 = 0, .t0 = 0, .width = 160, .height = 160,
+    });
+    rspq_wait();
+
+    ASSERT_SURFACE(&fb, { return (x >= 2 && x < 162 && y >= 2 && y < 162) ? 
+        color_from_packed32(0x333333E0) : color_from_packed32(0xFFFFFFFF); });
+
+    surface_clear(&fb, 0xFF);
+    rdpq_set_mode_standard();
+    rdpq_tex_blit(&tex, 2, 2, &(rdpq_blitparms_t){
+        .s0 = 1, .t0 = 1, .width = 160, .height = 160,
+    });
+    rspq_wait();
+
+    ASSERT_SURFACE(&fb, { return (x >= 2 && x < 162 && y >= 2 && y < 162) ? 
+        color_from_packed32(0x333333E0) : color_from_packed32(0xFFFFFFFF); });
+}

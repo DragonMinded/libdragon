@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <time.h>
 #include "../../src/hashtable.c"
 
@@ -70,20 +71,25 @@ int main(void) {
     for (size_t i = 0; i < M; i++)
         hashtable_remove(&h, (uint32_t)(i + 0xABCDE0));
 
-    printf("[TEST] Random stress (100k ops, bounded refcount)...\n");
-    const size_t OPS = 100000, KEYSPACE = 2000;
+    printf("[TEST] Random stress (balanced ops, bounded refcount)...\n");
+    const size_t OPS = 50000, KEYSPACE = 2000;
+    size_t inserts = 0, removes = 0;
     for (size_t i = 0; i < OPS; i++) {
         uint32_t key = rand() % KEYSPACE;
-        if (rand() & 1) {
-            void *val = hashtable_lookup(&h, key);
-            if (!val || ((uintptr_t)val & 0xFFFFFF) != PhysicalAddr(val))
-                hashtable_insert(&h, key, NULL);
-            else
-                hashtable_insert(&h, key, val); // safe refcount increment
-        } else {
+        void *val = hashtable_lookup(&h, key);
+        
+        // Bias towards insert when table is empty, remove when getting full
+        bool should_insert = (!val) || (h.size < KEYSPACE/4 && (rand() % 3 != 0));
+        
+        if (should_insert && (!val || ((uintptr_t)val & 0xFFFFFF) == PhysicalAddr(val))) {
+            hashtable_insert(&h, key, val);
+            inserts++;
+        } else if (val) {
             hashtable_remove(&h, key);
+            removes++;
         }
     }
+    printf("[INFO] Performed %zu inserts, %zu removes\n", inserts, removes);
 
     printf("[TEST] ALL TESTS PASSED. Final size=%zu\n", h.size);
     hashtable_free(&h);

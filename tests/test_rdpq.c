@@ -1808,6 +1808,57 @@ void test_rdpq_mode_alphacompare(TestContext *ctx) {
         "invalid SOM configuration: %08llx", som);
 }
 
+void test_rdpq_mode_zmode(TestContext *ctx) {
+    RDPQ_INIT();
+
+    rdpq_debug_log_msg("standard mode");
+    rdpq_set_mode_standard();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("AA standard");
+    rdpq_mode_antialias(AA_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("blending+AA");
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("blending");
+    rdpq_mode_antialias(AA_NONE);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Interpenetrating+blending");
+    rdpq_mode_zmode(ZMODE_INTERPENETRATING);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_INTERPENETRATING, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal+blending");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard+blending");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    rdpq_mode_blender(0);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+}
+
+
 void test_rdpq_mode_freeze(TestContext *ctx) {
     RDPQ_INIT();
     debug_rdp_stream_init();

@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-/** @brief Opaque hashtable type. */
-typedef struct hashtable_s hashtable_t;
-
 /**
  * @brief Loader callback used to lazily create a value for a given key.
  *
@@ -33,6 +30,14 @@ typedef struct hashtable_s hashtable_t;
  * @return A pointer to the created value (may be NULL if no value).
  */
 typedef void* (*hashtable_loader_fn)(uint32_t key);
+
+/** @brief A hashtable structure */
+typedef struct hashtable_s {
+    uint32_t *entries;              ///< Pointer to the interleaved key/value array
+    size_t capacity;                ///< Total capacity (number of key/value pairs)
+    size_t size;                    ///< Current number of entries in the hashtable
+    hashtable_loader_fn loader;     ///< Loader function to lazily create values
+} hashtable_t;
 
 /**
  * @brief Initialize a hashtable.
@@ -62,8 +67,9 @@ void hashtable_free(hashtable_t *h);
  * @param h Pointer to a hashtable_t.
  * @param key 32-bit key to insert.
  * @param value Optional value to associate with the key, or NULL to use the loader.
+ * @return The stored value (void*).
  */
-void hashtable_insert(hashtable_t *h, uint32_t key, void *value);
+void* hashtable_insert(hashtable_t *h, uint32_t key, void *value);
 
 /**
  * @brief Lookup a value associated with a key.
@@ -82,9 +88,10 @@ void* hashtable_lookup(hashtable_t *h, uint32_t key);
  *
  * @param h Pointer to a hashtable_t.
  * @param key 32-bit key to remove.
- * @return 1 if the key existed, 0 otherwise.
+ * @return void* The value associated with the key before removal, or NULL
+ * if the key did not exist or its reference count did not reach zero.
  */
-int hashtable_remove(hashtable_t *h, uint32_t key);
+void* hashtable_remove(hashtable_t *h, uint32_t key);
 
 #ifdef __cplusplus
 }

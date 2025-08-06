@@ -356,9 +356,9 @@ void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr)
     tload->load_mode = TEX_LOAD_UNKNOWN;
 }
 
-int tex_loader_calc_max_height(tex_loader_t *tload, int width)
+int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1)
 {
-    texload_set_rect(tload, 0, 0, width, 1);
+    texload_set_rect(tload, s0, 0, s1, 1);
 
     tex_format_t fmt = surface_get_format(tload->tex);
     int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
@@ -472,7 +472,7 @@ static void ltd_texloader(rdpq_tile_t tile, const surface_t *tex, int s0, int t0
     tex_loader_t tload = tex_loader_init(tile, tex);
 
     // Calculate the optimal height for a strip, based on strips of maximum length.
-    int tile_h = tex_loader_calc_max_height(&tload, s1 - s0);
+    int tile_h = tex_loader_calc_max_height(&tload, s0, s1);
     
     // Go through the surface
     while (t0 < t1) 
