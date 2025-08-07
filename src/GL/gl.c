@@ -34,13 +34,18 @@ void gl_init(void)
     glClearDepth(1);
 }
 
+static void free_pipeline(uint32_t key, void *value, int refcount)
+{
+    mg_pipeline_free((mg_pipeline_t*)value);
+}
+
 void gl_close(void)
 {
     gl_array_close();
     gl_texture_close();
     rspq_wait();
 
-    // TODO: free all pipelines!
+    hashtable_visit(&state->pipeline_cache, free_pipeline);
     hashtable_free(&state->pipeline_cache);
 
     free(state->uniform_data);
