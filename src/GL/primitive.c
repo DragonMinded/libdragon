@@ -28,6 +28,17 @@ void gl_primitive_init()
 
     state->current.mtx_index[0] = 0;
 
+    state->tex_gen[0].mode = GL_SPHERE_MAP;
+    state->tex_gen[0].object_plane[0] = 1;
+    state->tex_gen[0].eye_plane[0] = 1;
+
+    state->tex_gen[1].mode = GL_SPHERE_MAP;
+    state->tex_gen[1].object_plane[1] = 1;
+    state->tex_gen[1].eye_plane[1] = 1;
+
+    state->tex_gen[2].mode = GL_EYE_LINEAR;
+    state->tex_gen[3].mode = GL_EYE_LINEAR;
+
     state->cull_face_mode = GL_BACK;
     state->front_face = GL_CCW;
     update_culling();
@@ -323,3 +334,162 @@ static void set_precision_bits(gl_fixed_precision_t *dst, GLuint bits)
 void glVertexHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state->vertex_halfx_precision, bits); }
 void glTexCoordHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state->texcoord_halfx_precision, bits); }
 
+void gl_set_tex_gen_enabled(GLenum target, bool enabled)
+{
+    state->tex_gen[target - GL_TEXTURE_GEN_S].enabled = enabled;
+    gl_set_pipeline_dirty();
+}
+
+void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
+{
+    switch (param) {
+    case GL_OBJECT_LINEAR:
+    case GL_EYE_LINEAR:
+        assertf(0, "Only sphere mapping is currently supported");
+        break;
+    case GL_SPHERE_MAP:
+        if (coord == GL_R || coord == GL_Q) {
+            gl_set_error(GL_INVALID_ENUM, "Sphere mapping can only be applied to S or T coordinates");
+            return;
+        }
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid tex gen mode", param);
+        return;
+    }
+
+    gen->mode = param;
+    gl_set_pipeline_dirty();
+}
+
+void gl_tex_gen_i(GLenum coord, GLenum pname, GLint param)
+{
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    if (pname != GL_TEXTURE_GEN_MODE) {
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
+        return;
+    }
+
+    gl_tex_gen_set_mode(gen, coord, param);
+}
+
+void glTexGeni(GLenum coord, GLenum pname, GLint param)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    gl_tex_gen_i(coord, pname, param);
+}
+
+void glTexGenf(GLenum coord, GLenum pname, GLfloat param)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    gl_tex_gen_i(coord, pname, param);
+}
+
+void glTexGend(GLenum coord, GLenum pname, GLdouble param)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    gl_tex_gen_i(coord, pname, param);
+}
+
+void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        gl_tex_gen_set_mode(gen, coord, params[0]);
+        break;
+    case GL_OBJECT_PLANE:
+        gen->object_plane[0] = params[0];
+        gen->object_plane[1] = params[1];
+        gen->object_plane[2] = params[2];
+        gen->object_plane[3] = params[3];
+        break;
+    case GL_EYE_PLANE:
+        gen->eye_plane[0] = params[0];
+        gen->eye_plane[1] = params[1];
+        gen->eye_plane[2] = params[2];
+        gen->eye_plane[3] = params[3];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
+        return;
+    }
+}
+
+void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        gl_tex_gen_set_mode(gen, coord, params[0]);
+        break;
+    case GL_OBJECT_PLANE:
+        gen->object_plane[0] = params[0];
+        gen->object_plane[1] = params[1];
+        gen->object_plane[2] = params[2];
+        gen->object_plane[3] = params[3];
+        break;
+    case GL_EYE_PLANE:
+        gen->eye_plane[0] = params[0];
+        gen->eye_plane[1] = params[1];
+        gen->eye_plane[2] = params[2];
+        gen->eye_plane[3] = params[3];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
+        return;
+    }
+}
+
+void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        gl_tex_gen_set_mode(gen, coord, params[0]);
+        break;
+    case GL_OBJECT_PLANE:
+        gen->object_plane[0] = params[0];
+        gen->object_plane[1] = params[1];
+        gen->object_plane[2] = params[2];
+        gen->object_plane[3] = params[3];
+        break;
+    case GL_EYE_PLANE:
+        gen->eye_plane[0] = params[0];
+        gen->eye_plane[1] = params[1];
+        gen->eye_plane[2] = params[2];
+        gen->eye_plane[3] = params[3];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
+        return;
+    }
+}
+
+bool gl_is_env_map_enabled()
+{
+    return state->tex_gen[0].enabled && state->tex_gen[0].mode == GL_SPHERE_MAP
+        && state->tex_gen[1].enabled && state->tex_gen[1].mode == GL_SPHERE_MAP;
+}

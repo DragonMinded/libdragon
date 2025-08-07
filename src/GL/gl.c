@@ -152,6 +152,7 @@ void set_enable_flag(GLenum target, bool value)
     case GL_TEXTURE_GEN_T:
     case GL_TEXTURE_GEN_R:
     case GL_TEXTURE_GEN_Q:
+        gl_set_tex_gen_enabled(target, value);
         break;
     case GL_NORMALIZE:
         break;
@@ -387,7 +388,7 @@ void update_pipeline()
     if (!state->is_pipeline_dirty) return;
     state->is_pipeline_dirty = false;
 
-    mgfx_features_t features = 0;
+    mgfx_features_t features = gl_is_env_map_enabled() ? MGFX_FEATURE_ENV_MAP : 0;
     vertex_layout *layout = &state->array_object->layout;
 
     vertex_layout vl;

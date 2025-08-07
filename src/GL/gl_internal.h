@@ -31,6 +31,9 @@
 
 #define MAX_PIXEL_MAP_SIZE    32
 
+#define TEX_COORD_COUNT         4
+#define TEX_GEN_COUNT           TEX_COORD_COUNT
+
 #define RDP_TEX_SHIFT   5
 #define TEX_SIZE_SHIFT  (MGFX_VTX_TEX_SHIFT-RDP_TEX_SHIFT)
 #define RDP_HALF_TEXEL  (1<<(RDP_TEX_SHIFT-1))
@@ -186,6 +189,13 @@ typedef struct {
     GLfloat to_float_factor;
 } gl_fixed_precision_t;
 
+typedef struct {
+    GLenum mode;
+    GLfloat eye_plane[TEX_COORD_COUNT];
+    GLfloat object_plane[TEX_COORD_COUNT];
+    bool enabled;
+} gl_tex_gen_t;
+
 typedef enum {
     TEX_IS_DEFAULT          = (1 << 0),
     TEX_IS_COMPLETE         = (1 << 1),
@@ -328,6 +338,8 @@ typedef struct {
 
     bool transfer_is_noop;
 
+    gl_tex_gen_t tex_gen[TEX_GEN_COUNT];
+
     struct {
         GLfloat position[4];
         GLfloat normal[3];
@@ -417,15 +429,17 @@ void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t arr
 
 void gl_set_light_enabled(GLenum light, bool enabled);
 void gl_set_fog_enabled(bool enabled);
+void gl_set_texture_enabled(GLenum target, bool enabled);
+void gl_set_tex_gen_enabled(GLenum target, bool enabled);
 
 bool gl_is_diffuse_tracking_color();
 const float *gl_get_material_diffuse();
 
-void gl_set_texture_enabled(GLenum target, bool enabled);
-
 bool gl_is_shade_active();
 bool gl_is_texture_active();
 bool gl_is_depth_active();
+
+bool gl_is_env_map_enabled();
 
 void gl_upload_matrices(const mg_uniform_t *uniform);
 void gl_upload_lighting(const mg_uniform_t *uniform);
