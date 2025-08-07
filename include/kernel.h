@@ -330,6 +330,31 @@ void kthread_set_pri(kthread_t *th, int8_t pri);
  */
 void kthread_kill(kthread_t *th, int res);
 
+/**
+ * @brief Lock the current thread (disable preemption)
+ * 
+ * This function makes the current thread "locked": the kernel will not switch
+ * away from it, and keep it running until #kthread_unlock is called.
+ * 
+ * This function is extremely fast, and lighter than a mutex. On the other
+ * hand, it does not allow for granular locking of resources since preemption
+ * is fully disabled.
+ * 
+ * The intended use case to create *small* critical sections where you want
+ * only the current thread to manipulate some shared data structure.
+ * 
+ * You can nest calls to kthread_lock() multiple times, as long as you then
+ * call #kthread_unlock the same number of times.
+ */
+// TODO: implement a proper kernel locking that doesn't disable interrupts, to
+// avoid adding interrupt latency
+#define kthread_lock()      disable_interrupts()
+
+/**
+ * @brief Unlock the current thread (reenable preemption)
+ */
+#define kthread_unlock()    enable_interrupts()
+
 
 /**
  * @brief Exit from a thread, providing a result value
