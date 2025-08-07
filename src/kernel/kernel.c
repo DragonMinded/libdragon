@@ -10,6 +10,7 @@
 #include "exception.h"
 #include "interrupt.h"
 #include "backtrace.h"
+#include "backtrace_internal.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -251,6 +252,16 @@ bool __thlist_splice_pri(kthread_t **dst, kthread_t **src)
 	__ret; \
 })
 
+/* Symbolize the function interrupted by the exception */
+static char* __symbolize_caller(reg_block_t *state)
+{
+	void *buffer[2];
+	__backtrace_from(buffer, 2, (uint32_t*)state->epc, (uint32_t*)(uint32_t)state->sp, (uint32_t*)(uint32_t)state->fp, NULL);
+	static char buf[64];
+	return __symbolize(buffer[1], buf, sizeof(buf));
+}
+
+
 /** 
  * @brief Kernel scheduler: park the current thread and schedule the next thread
  *
@@ -279,7 +290,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	 	{
 	 		// If the current thread is marked as zombie, it means that it must
 	 		// be freed.
-	 		if (DEBUG_KERNEL) debugf("[kernel] killing zombie: %s(%p) PC=%lx\n", th_cur->name, th_cur, stack_state->epc);
+	 		if (DEBUG_KERNEL) debugf("[kernel] killing zombie: %s(%p) PC=%lx(%s)\n", th_cur->name, th_cur, stack_state->epc, __symbolize_caller(stack_state));
 			assert(!(th_cur->flags & TH_FLAG_INLIST));
 			assert(th_cur->flags & TH_FLAG_DETACHED);
 			kthread_free(th_cur);
@@ -294,7 +305,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 		else
 		{
 			// Save the current thread state.
-			if (DEBUG_KERNEL) debugf("[kernel] parking %s(%p) PC=%lx\n", th_cur->name, th_cur, stack_state->epc);
+			if (DEBUG_KERNEL) debugf("[kernel] parking %s(%p) PC=%lx(%s) SP=%llx\n", th_cur->name, th_cur, stack_state->epc, __symbolize_caller(stack_state), stack_state->sp);
 
 			// Check how we got here. There are two possibilities: explicit
 			// syscall forcing a thread switch (THREAD_SWITCH), or an interrupt
@@ -336,7 +347,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 		assert(th_next != NULL);
 	} while (th_next->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
 
-	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) SP=%lx PC=%lx flags=%x\n", th_next->name, th_next, (uint32_t)th_next->stack_state->sp, th_next->stack_state->epc, th_next->flags);
+	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) SP=%lx PC=%lx(%s) flags=%x\n", th_next->name, th_next, (uint32_t)th_next->stack_state->sp, th_next->stack_state->epc, __symbolize_caller(th_next->stack_state), th_next->flags);
 	assert(!(th_next->flags & TH_FLAG_INLIST));
 
 	// Set the current interrupt depth to that of the current thread.
