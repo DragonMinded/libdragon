@@ -47,7 +47,7 @@ static uint32_t* hashtable_lookup_slot(hashtable_t *h, uint32_t k) {
         uint32_t *kk = &h->entries[idx];
         if (*kk == k) return kk;
         if (*kk == TOMBSTONE_KEY && !tomb_key) tomb_key = kk;
-        if (!*kk) return tomb_key ? tomb_key : kk;
+        if (*kk == EMPTY_KEY) return tomb_key ? tomb_key : kk;
     }
     
     // Should never reach here if load factor is kept reasonable
@@ -90,7 +90,7 @@ static void hashtable_resize(hashtable_t *h, size_t new_capacity) {
     // Rehash all existing entries
     for (size_t i = 0; i < old_capacity * 2; i += 2) {
         uint32_t k = old[i];     // key
-        if (!k || k == TOMBSTONE_KEY) continue;
+        if (k == EMPTY_KEY || k == TOMBSTONE_KEY) continue;
         counted_ptr_t v = old[i + 1]; // value
 
         uint32_t *kk = hashtable_lookup_slot(h, k);
@@ -102,6 +102,8 @@ static void hashtable_resize(hashtable_t *h, size_t new_capacity) {
 }
 
 void* hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
+    assert(k != EMPTY_KEY && k != TOMBSTONE_KEY);
+
     // Resize when load factor exceeds 75%
     size_t threshold = h->capacity * 3 / 4;
     if (h->size > threshold) hashtable_resize(h, h->capacity * 2);
@@ -123,11 +125,13 @@ void* hashtable_insert(hashtable_t *h, uint32_t k, void *value) {
 }
 
 void* hashtable_lookup(hashtable_t *h, uint32_t k) {
+    assert(k != EMPTY_KEY && k != TOMBSTONE_KEY);
     uint32_t *kk = hashtable_lookup_slot(h, k);
     return (*kk == k) ? cached_addr(kk[1]) : NULL; // value is immediately after key
 }
 
 void* hashtable_remove(hashtable_t *h, uint32_t k) {
+    assert(k != EMPTY_KEY && k != TOMBSTONE_KEY);
     size_t mask = h->capacity - 1;  // capacity is power of 2, so this works
     size_t hash = hash32(k);
 
@@ -143,7 +147,16 @@ void* hashtable_remove(hashtable_t *h, uint32_t k) {
             h->size--;
             return v;
         }
-        if (!*kk) return NULL; // Key not found
+        if (*kk == EMPTY_KEY) return NULL; // Key not found
     }
     return NULL; // Key not found
+}
+
+void hashtable_visit(hashtable_t *h, void (*visitor)(uint32_t key, void *value, int refcount)) {
+    for (size_t i = 0; i < h->capacity * 2; i += 2) {
+        uint32_t k = h->entries[i];
+        if (k == EMPTY_KEY || k == TOMBSTONE_KEY) continue;
+        counted_ptr_t v = h->entries[i + 1];
+        visitor(k, cached_addr(v), refcount(v));
+    }
 }

@@ -7,8 +7,10 @@
 #include "backtrace_internal.h"
 #include "timer.h"
 #include "debug.h"
+#include "exception.h"
 #include "interrupt.h"
 #include "backtrace.h"
+#include "backtrace_internal.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -250,6 +252,16 @@ bool __thlist_splice_pri(kthread_t **dst, kthread_t **src)
 	__ret; \
 })
 
+/* Symbolize the function interrupted by the exception */
+static char* __symbolize_caller(reg_block_t *state)
+{
+	void *buffer[2];
+	__backtrace_from(buffer, 2, (uint32_t*)state->epc, (uint32_t*)(uint32_t)state->sp, (uint32_t*)(uint32_t)state->fp, NULL);
+	static char buf[64];
+	return __symbolize(buffer[1], buf, sizeof(buf));
+}
+
+
 /** 
  * @brief Kernel scheduler: park the current thread and schedule the next thread
  *
@@ -278,7 +290,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	 	{
 	 		// If the current thread is marked as zombie, it means that it must
 	 		// be freed.
-	 		if (DEBUG_KERNEL) debugf("[kernel] killing zombie: %s(%p) PC=%lx\n", th_cur->name, th_cur, stack_state->epc);
+	 		if (DEBUG_KERNEL) debugf("[kernel] killing zombie: %s(%p) PC=%lx(%s)\n", th_cur->name, th_cur, stack_state->epc, __symbolize_caller(stack_state));
 			assert(!(th_cur->flags & TH_FLAG_INLIST));
 			assert(th_cur->flags & TH_FLAG_DETACHED);
 			kthread_free(th_cur);
@@ -293,7 +305,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 		else
 		{
 			// Save the current thread state.
-			if (DEBUG_KERNEL) debugf("[kernel] parking %s(%p) PC=%lx\n", th_cur->name, th_cur, stack_state->epc);
+			if (DEBUG_KERNEL) debugf("[kernel] parking %s(%p) PC=%lx(%s) SP=%llx\n", th_cur->name, th_cur, stack_state->epc, __symbolize_caller(stack_state), stack_state->sp);
 
 			// Check how we got here. There are two possibilities: explicit
 			// syscall forcing a thread switch (THREAD_SWITCH), or an interrupt
@@ -329,17 +341,21 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	// at least a thread here that matches this condition: the idle thread.
 	// Wait-for-join threads are purposedly skipped and we lose the reference to
 	// them: it's required for someone to call kthread_join() to free them.
+	kthread_t *th_next = NULL;
 	do {
-		th_cur = __thlist_pop(&th_ready);
-		assert(th_cur != NULL);
-	} while (th_cur->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
-	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx SR=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc, th_cur->stack_state->sr);
-	assert(!(th_cur->flags & TH_FLAG_INLIST));
-    
+		th_next = __thlist_pop(&th_ready);
+		assert(th_next != NULL);
+	} while (th_next->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
+
+	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) SP=%lx PC=%lx(%s) flags=%x\n", th_next->name, th_next, (uint32_t)th_next->stack_state->sp, th_next->stack_state->epc, __symbolize_caller(th_next->stack_state), th_next->flags);
+	assert(!(th_next->flags & TH_FLAG_INLIST));
+
 	// Set the current interrupt depth to that of the current thread.
+	th_cur = th_next;
+	
 	__interrupt_depth = th_cur->tls.interrupt_depth;
 	__interrupt_sr = th_cur->tls.interrupt_sr;
-    
+
 	th_cur_tp = th_cur->tp_value;
     
 	#ifdef __NEWLIB__
@@ -608,6 +624,7 @@ void kthread_yield(void)
 	// higher than or equal to the current thread, otherwise it's
 	// useless to force a context switch: the current thread would
 	// be rescheduled again.
+	assertf(!exception_is_running(), "cannot yield while an exception is running");
 	kthread_t *th = __thlist_head(&th_ready);
 	if (th && th->pri >= th_cur->pri)
 	{
@@ -772,6 +789,8 @@ void kmutex_lock(kmutex_t *mutex)
 	kthread_t *th = th_cur;
 
 	disable_interrupts();
+	assertf(!exception_is_running(), "cannot lock a mutex from an exception handler");
+
 	if (mutex->owner == PhysicalAddr(th))
 	{
 		assertf(mutex->flags & KMUTEX_RECURSIVE, "a non-recursive mutex cannot be locked twice");
@@ -781,11 +800,18 @@ void kmutex_lock(kmutex_t *mutex)
 	{
 		while (mutex->owner)
 		{
+			// Make owner thread inherit a higher priority, so that
+			// we avoid priority inversion.
+			kthread_t *owner = (void*)(mutex->owner | 0x80000000);
+			if (th->pri > owner->pri)
+				owner->pri = th->pri;
+
 			__phys_thlist_add_pri(mutex->waiting, th);
 			KTHREAD_SWITCH();
 		}
 		mutex->owner = PhysicalAddr(th);
 		mutex->counter = 1;
+		mutex->original_pri = th->pri;
 	}
 	enable_interrupts();
 }
@@ -806,6 +832,7 @@ bool kmutex_try_lock(kmutex_t *mutex, uint32_t ticks)
 	{
 		mutex->owner = PhysicalAddr(th);
 		mutex->counter = 1;
+		mutex->original_pri = th->pri;
 		locked = true;
 	}
 	else if (ticks > 0)
@@ -833,6 +860,11 @@ bool kmutex_try_lock(kmutex_t *mutex, uint32_t ticks)
 
 		while (mutex->owner && !timeout)
 		{
+			// Make owner thread inherit a higher priority, so that
+			// we avoid priority inversion.
+			kthread_t *owner = (void*)(mutex->owner | 0x80000000);
+			if (th->pri > owner->pri)
+				owner->pri = th->pri;
 			__phys_thlist_add_pri(mutex->waiting, th);
 			KTHREAD_SWITCH();
 		}
@@ -841,6 +873,7 @@ bool kmutex_try_lock(kmutex_t *mutex, uint32_t ticks)
 			stop_timer(&timer);
 			mutex->owner = PhysicalAddr(th);
 			mutex->counter = 1;
+			mutex->original_pri = th->pri;
 			locked = true;
 		}
 	}
@@ -858,6 +891,7 @@ static bool kmutex_unlock_internal(kmutex_t *mutex)
 	if (mutex->counter == 0)
 	{
 		mutex->owner = 0;
+		th_cur->pri = mutex->original_pri;
 		highpri = __phys_thlist_splice_pri(&th_ready, mutex->waiting);
 	}
 	return highpri;
@@ -923,6 +957,7 @@ void kcond_wait(kcond_t *cond, kmutex_t *mutex)
 	kthread_t *th = th_cur;
 
 	disable_interrupts();
+	assertf(!exception_is_running(), "cannot wait on a condition variable from an exception handler");
 	if (mutex) {
 		assertf(mutex->owner == PhysicalAddr(th), "kcond_wait() called, but mutex is not locked by %s[%p]", th->name, th);
 		assertf(mutex->counter == 1, "kcond_wait() called, but mutex is locked multiple times");

@@ -474,4 +474,5 @@ inthandler_end:
 
     .section .bss
     .p2align 2
+	.global interrupt_exception_frame
     .lcomm interrupt_exception_frame, 4

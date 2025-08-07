@@ -408,8 +408,8 @@ void rdpq_font_style(rdpq_font_t *fnt, uint8_t style_id, const rdpq_fontstyle_t 
     }
 
     style_t *s = &fnt->styles[style_id];
-    s->color = style->color;
-    s->outline_color = style->outline_color;
+    s->color = color_to_packed32(style->color) == 0 ? RGBA32(0,0,0,255) : style->color;
+    s->outline_color = color_to_packed32(style->outline_color) == 0 ? RGBA32(0,0,0,255) : style->outline_color;
     s->custom = style->custom;
     s->custom_arg = style->custom_arg;
 }

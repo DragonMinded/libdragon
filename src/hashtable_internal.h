@@ -57,12 +57,23 @@ int hashtable_init(hashtable_t *h, size_t initial_entries, hashtable_loader_fn l
 void hashtable_free(hashtable_t *h);
 
 /**
- * @brief Insert a key into the hashtable.
+ * @brief Insert an object into the hashtable.
+ * 
+ * The function expects a 32-bit *unique* key as input. The caller must ensure
+ * that the key is unique for each possible value. Eg: you can use the
+ * value itself as key (the 32-bit pointer). 
+ * 
+ * Notice that the special values 0x0000000 and 0xFFFFFFFF are reserved and
+ * cannot be used as keys.
+ * 
+ * If the specified key is not found in the table:
+ *   - If @p value is not NULL, it is stored directly, with reference count 1.
+ *   - If @p value is NULL, the loader (specified in #hashtable_init, if any)
+ *     is called to create it.
  *
- * If the key already exists, its reference count is incremented.
- * If the key does not exist:
- *   - If @p value is not NULL, it is stored directly.
- *   - If @p value is NULL, the loader (if any) is called to create it.
+ * It is possible to insert the same object multiple times. In this case, the
+ * reference count of the value is incremented. You will then need to call
+ * #hashtable_remove the same number of times to actually remove the object.
  *
  * @param h Pointer to a hashtable_t.
  * @param key 32-bit key to insert.
@@ -73,7 +84,7 @@ void* hashtable_insert(hashtable_t *h, uint32_t key, void *value);
 
 /**
  * @brief Lookup a value associated with a key.
- *
+ * 
  * @param h Pointer to a hashtable.
  * @param key 32-bit key to search.
  * @return The stored value (void*), or NULL if the key does not exist.
@@ -81,10 +92,11 @@ void* hashtable_insert(hashtable_t *h, uint32_t key, void *value);
 void* hashtable_lookup(hashtable_t *h, uint32_t key);
 
 /**
- * @brief Remove a key from the hashtable.
+ * @brief Remove an object from the hashtable (or decrement its reference count).
  *
  * Decrements the reference count. If the reference count reaches 0,
- * the key is deleted.
+ * the object is removed from the hashtable and returned back to the caller
+ * (in case it needs to be freed).
  *
  * @param h Pointer to a hashtable_t.
  * @param key 32-bit key to remove.
@@ -92,6 +104,14 @@ void* hashtable_lookup(hashtable_t *h, uint32_t key);
  * if the key did not exist or its reference count did not reach zero.
  */
 void* hashtable_remove(hashtable_t *h, uint32_t key);
+
+/**
+ * @brief Visit all objects in the hashtable.
+ *
+ * @param h Pointer to a hashtable_t.
+ * @param visitor Callback function to call for each key/value pair.
+ */
+void hashtable_visit(hashtable_t *h, void (*visitor)(uint32_t key, void *value, int refcount));
 
 #ifdef __cplusplus
 }
