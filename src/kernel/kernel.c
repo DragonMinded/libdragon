@@ -781,11 +781,18 @@ void kmutex_lock(kmutex_t *mutex)
 	{
 		while (mutex->owner)
 		{
+			// Make owner thread inherit a higher priority, so that
+			// we avoid priority inversion.
+			kthread_t *owner = (void*)(mutex->owner | 0x80000000);
+			if (th->pri > owner->pri)
+				owner->pri = th->pri;
+
 			__phys_thlist_add_pri(mutex->waiting, th);
 			KTHREAD_SWITCH();
 		}
 		mutex->owner = PhysicalAddr(th);
 		mutex->counter = 1;
+		mutex->original_pri = th->pri;
 	}
 	enable_interrupts();
 }
@@ -806,6 +813,7 @@ bool kmutex_try_lock(kmutex_t *mutex, uint32_t ticks)
 	{
 		mutex->owner = PhysicalAddr(th);
 		mutex->counter = 1;
+		mutex->original_pri = th->pri;
 		locked = true;
 	}
 	else if (ticks > 0)
@@ -833,6 +841,11 @@ bool kmutex_try_lock(kmutex_t *mutex, uint32_t ticks)
 
 		while (mutex->owner && !timeout)
 		{
+			// Make owner thread inherit a higher priority, so that
+			// we avoid priority inversion.
+			kthread_t *owner = (void*)(mutex->owner | 0x80000000);
+			if (th->pri > owner->pri)
+				owner->pri = th->pri;
 			__phys_thlist_add_pri(mutex->waiting, th);
 			KTHREAD_SWITCH();
 		}
@@ -841,6 +854,7 @@ bool kmutex_try_lock(kmutex_t *mutex, uint32_t ticks)
 			stop_timer(&timer);
 			mutex->owner = PhysicalAddr(th);
 			mutex->counter = 1;
+			mutex->original_pri = th->pri;
 			locked = true;
 		}
 	}
@@ -858,6 +872,7 @@ static bool kmutex_unlock_internal(kmutex_t *mutex)
 	if (mutex->counter == 0)
 	{
 		mutex->owner = 0;
+		th_cur->pri = mutex->original_pri;
 		highpri = __phys_thlist_splice_pri(&th_ready, mutex->waiting);
 	}
 	return highpri;

@@ -88,6 +88,8 @@ typedef struct kthread_s kthread_t;
  * In this case, the mutex must be unlocked the same number of times
  * it was locked.
  * 
+ * To create a mutex, you can either zero-initialize it or use #kmutex_init.
+ * 
  * @note The contents of this structure are subject to change and should be
  * considered internal. Do not access or modify any field directly. The structure
  * is exposed only to allow creation in a static context (that is, without malloc).
@@ -98,11 +100,16 @@ typedef struct kthread_s kthread_t;
  * @see #kmutex_destroy
  */
 typedef struct kmutex_s {
-    uint8_t flags : 8;          ///< Flags for the mutex
-    phys_addr_t owner : 24;     ///< Owner thread
-    uint8_t counter : 8;        ///< Recursive lock counter
-    phys_addr_t waiting : 24;   ///< List of waiting threads
+    ///@cond
+    int8_t original_pri : 8;    // Original priority of the owner thread
+    uint8_t flags : 1;          // Flags for the mutex
+    phys_addr_t owner : 23;     // Owner thread
+    uint8_t counter : 8;        // Recursive lock counter
+    phys_addr_t waiting : 24;   // List of waiting threads
+    ///@endcond
 } kmutex_t;
+
+_Static_assert(sizeof(kmutex_t) == 8, "kmutex_t size mismatch");
     
 #define KMUTEX_STANDARD		0			///< Standard mutex
 #define KMUTEX_RECURSIVE	(1<<0)		///< Recursive mutex
@@ -411,6 +418,9 @@ const char* kthread_name(kthread_t *th);
  * the same thread can lock the mutex multiple times without blocking.
  * In this case, the mutex must be unlocked the same number of times
  * it was locked.
+ * 
+ * Notice that it's not mandatory to initialize a mutex with this functions,
+ * as zeroing the memory is enough to create a valid, non-recursive mutex.
  * 
  * @note Mutexes are not recursive by default.
  * 
