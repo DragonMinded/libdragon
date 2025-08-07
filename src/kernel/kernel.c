@@ -330,17 +330,21 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	// at least a thread here that matches this condition: the idle thread.
 	// Wait-for-join threads are purposedly skipped and we lose the reference to
 	// them: it's required for someone to call kthread_join() to free them.
+	kthread_t *th_next = NULL;
 	do {
-		th_cur = __thlist_pop(&th_ready);
-		assert(th_cur != NULL);
-	} while (th_cur->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
-	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) PC=%lx SR=%lx\n", th_cur->name, th_cur, th_cur->stack_state->epc, th_cur->stack_state->sr);
-	assert(!(th_cur->flags & TH_FLAG_INLIST));
-    
+		th_next = __thlist_pop(&th_ready);
+		assert(th_next != NULL);
+	} while (th_next->flags & (TH_FLAG_WAITFORJOIN | TH_FLAG_SUSPENDED));
+
+	if (DEBUG_KERNEL) debugf("[kernel] switching to %s(%p) SP=%lx PC=%lx flags=%x\n", th_next->name, th_next, (uint32_t)th_next->stack_state->sp, th_next->stack_state->epc, th_next->flags);
+	assert(!(th_next->flags & TH_FLAG_INLIST));
+
 	// Set the current interrupt depth to that of the current thread.
+	th_cur = th_next;
+	
 	__interrupt_depth = th_cur->tls.interrupt_depth;
 	__interrupt_sr = th_cur->tls.interrupt_sr;
-    
+
 	th_cur_tp = th_cur->tp_value;
     
 	#ifdef __NEWLIB__
