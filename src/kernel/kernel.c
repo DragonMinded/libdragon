@@ -7,6 +7,7 @@
 #include "backtrace_internal.h"
 #include "timer.h"
 #include "debug.h"
+#include "exception.h"
 #include "interrupt.h"
 #include "backtrace.h"
 #include <assert.h>
@@ -608,6 +609,7 @@ void kthread_yield(void)
 	// higher than or equal to the current thread, otherwise it's
 	// useless to force a context switch: the current thread would
 	// be rescheduled again.
+	assertf(!exception_is_running(), "cannot yield while an exception is running");
 	kthread_t *th = __thlist_head(&th_ready);
 	if (th && th->pri >= th_cur->pri)
 	{
@@ -772,6 +774,8 @@ void kmutex_lock(kmutex_t *mutex)
 	kthread_t *th = th_cur;
 
 	disable_interrupts();
+	assertf(!exception_is_running(), "cannot lock a mutex from an exception handler");
+
 	if (mutex->owner == PhysicalAddr(th))
 	{
 		assertf(mutex->flags & KMUTEX_RECURSIVE, "a non-recursive mutex cannot be locked twice");
@@ -938,6 +942,7 @@ void kcond_wait(kcond_t *cond, kmutex_t *mutex)
 	kthread_t *th = th_cur;
 
 	disable_interrupts();
+	assertf(!exception_is_running(), "cannot wait on a condition variable from an exception handler");
 	if (mutex) {
 		assertf(mutex->owner == PhysicalAddr(th), "kcond_wait() called, but mutex is not locked by %s[%p]", th->name, th);
 		assertf(mutex->counter == 1, "kcond_wait() called, but mutex is locked multiple times");
