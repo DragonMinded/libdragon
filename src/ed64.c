@@ -1,5 +1,6 @@
 /**
  * @file ed64.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief EverDrive 64 V-series utilities
  * @ingroup peripherals
  */

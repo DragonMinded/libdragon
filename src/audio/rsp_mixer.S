@@ -2,6 +2,7 @@
 	#
 	# Libdragon RSP ucode for audio mixer
 	#
+	# Authors: Giovanni Bajo <giovannibajo@gmail.com>
 	####################################################################
 
 	##############################################################
@@ -17,7 +18,7 @@
 	# in RDRAM.
 	#
 	# The ucode fetches the samples from RDRAM via DMA, resample them 
-	# (that is, operating a frequency change using a linear interpolation),
+	# (that is, operating a frequency change using point sampling),
 	# apply volume/panning, and mix them together. The final output
 	# samples are sent to RDRAM via DMA.
 	#
@@ -33,12 +34,12 @@
 	# into a buffer called CHANNEL_BUFFER, which holds the resampled samples
 	# for all channels.
 	#
-	# Resampling means doing a linear interpolation on the index used to go
-	# through the input sample, according to the resampling frequency. The
-	# channel configuration already contains a fixed-point "step" value for
-	# each channel, that is used as increment in the loop. For instance, if
-	# the step is 2, it means that every other sample will be skipped, thus
-	# achieving a 0.5x resampling (= playing a 88Khz sample on a 44Khz output).
+	# Resampling means doing a point sampling on the input sample,
+	# according to the resampling frequency. The channel configuration
+	# already contains a fixed-point "step" value for each channel, that
+	# is used as increment in the loop. For instance, if the step is 2, it
+	# means that every other sample will be skipped, thus achieving a 0.5x
+	# resampling (= playing a 88Khz sample on a 44Khz output).
 	#
 	# Resampling requires thus copying one sample at at time from DMEM_SAMPLE_CACHE
 	# into CHANNEL_BUFFER, with a fixed-point increment. This is actually

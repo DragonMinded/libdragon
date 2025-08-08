@@ -1,3 +1,7 @@
+/**
+ * @file gl_rsp_asm.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef __GL_RSP_ASM
 #define __GL_RSP_ASM
 

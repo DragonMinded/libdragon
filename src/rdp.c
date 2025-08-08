@@ -1,5 +1,7 @@
 /**
  * @file rdp.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief (Deprecated) Old RDP library
  * @ingroup rdp
  */

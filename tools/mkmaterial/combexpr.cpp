@@ -1,3 +1,13 @@
+/*
+    combexpr: combiner expression parser
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #include <iostream>
 #include <vector>
 #include <string>
@@ -99,7 +109,7 @@ struct CombinerStep {
     };
 };
 
-uint64_t to_rdp_command(bool two_steps, int rgb_indices[8], int alpha_indices[8]) {
+inline uint64_t to_rdp_command(bool two_steps, int rgb_indices[8], int alpha_indices[8]) {
     int second = two_steps ? 4 : 0;
     uint64_t command = 0;
     command |= (uint64_t)rgb_indices[0] << 52;
@@ -362,7 +372,7 @@ enum UniformId {
 };
 
 // Return the name of the uniform as a string
-std::string uniform_name(UniformId id) {
+inline std::string uniform_name(UniformId id) {
     switch (id) {
     case UNIFORM_K4K5: return "k4k5";
     case UNIFORM_CHROMAKEY: return "chromakey";
@@ -1032,7 +1042,7 @@ private:
     }
 };
 
-void printTree(const std::shared_ptr<Node>& node, int depth = 0) {
+inline void printTree(const std::shared_ptr<Node>& node, int depth = 0) {
     if (!node) return;
     printTree(node->left, depth + 1);
     std::cout << std::string(depth * 4, ' ') << node->value << "\n";
@@ -1058,7 +1068,7 @@ void printTree(const std::shared_ptr<Node>& node, int depth = 0) {
  * @param error                 A pointer to a string that will be filled with the error message
  * @return CombinerExprFull     The combiner configuration
  */
-CombinerExprFull parse(const std::string& expr_rgb, const std::string& expr_alpha, std::string *error)
+inline CombinerExprFull parse(const std::string& expr_rgb, const std::string& expr_alpha, std::string *error)
 {
     // STEP 1: parse the combiner expression into an AST tree. This can fail
     // if the expression contains invalid terms, that is identifier words that

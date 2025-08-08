@@ -1,3 +1,8 @@
+/**
+ * @file model64_internal.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author gamemasterplc <gamemasterplc@gmail.com>
+ */
 #ifndef __LIBDRAGON_MODEL64_INTERNAL_H
 #define __LIBDRAGON_MODEL64_INTERNAL_H
 
@@ -13,10 +18,14 @@
 /** @brief Current version of model64 */
 #define MODEL64_VERSION         2
 
+/** @brief Animation component index for position. */
 #define ANIM_COMPONENT_POS 0
+/** @brief Animation component index for rotation. */
 #define ANIM_COMPONENT_ROT 1
+/** @brief Animation component index for scale. */
 #define ANIM_COMPONENT_SCALE 2
 
+/** @brief Maximum number of active animations per model instance. */
 #define MAX_ACTIVE_ANIMS 4
 
 /** @brief A special empty value for both local_texture and shared_texture fields */

@@ -1,5 +1,7 @@
 /**
  * @file rdpq_tex.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author SpookyIluha <https://github.com/SpookyIluha>
  * @brief RDP Command queue: texture loading
  * @ingroup rdpq
  */
@@ -94,7 +96,7 @@ static void texload_recalc_tileparms(tex_loader_t *tload)
     tload->rect.s0fx = parms->s.translate*4;
     tload->rect.t0fx = parms->t.translate*4;
     tload->rect.s1fx = (parms->s.translate + (srepeats - 1) * width * res->s.clamp)*4;
-    tload->rect.t1fx = (parms->t.translate + (trepeats - 1) * height * res->s.clamp)*4;
+    tload->rect.t1fx = (parms->t.translate + (trepeats - 1) * height * res->t.clamp)*4;
 }
 
 
@@ -354,9 +356,9 @@ void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr)
     tload->load_mode = TEX_LOAD_UNKNOWN;
 }
 
-int tex_loader_calc_max_height(tex_loader_t *tload, int width)
+int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1)
 {
-    texload_set_rect(tload, 0, 0, width, 1);
+    texload_set_rect(tload, s0, 0, s1, 1);
 
     tex_format_t fmt = surface_get_format(tload->tex);
     int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
@@ -470,7 +472,7 @@ static void ltd_texloader(rdpq_tile_t tile, const surface_t *tex, int s0, int t0
     tex_loader_t tload = tex_loader_init(tile, tex);
 
     // Calculate the optimal height for a strip, based on strips of maximum length.
-    int tile_h = tex_loader_calc_max_height(&tload, s1 - s0);
+    int tile_h = tex_loader_calc_max_height(&tload, s0, s1);
     
     // Go through the surface
     while (t0 < t1) 
@@ -545,13 +547,16 @@ static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const 
     {
         int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
 
-        if (parms->flip_x) { ks0 = os1 - s0 + os0 - 1; ks1 = os1 - s1 + os0 - 1;  }
-        if (parms->flip_y) { kt0 = ot1 - t0 + ot0 - 1; kt1 = ot1 - t1 + ot0 - 1; }
+        if (parms->flip_x) { ks0 = os1 - s0 + os0; ks1 = os1 - s1 + os0; }
+        if (parms->flip_y) { kt0 = ot1 - t0 + ot0; kt1 = ot1 - t1 + ot0; }
 
         float k0x = mtx[0][0] * ks0 + mtx[1][0] * kt0 + mtx[2][0];
         float k0y = mtx[0][1] * ks0 + mtx[1][1] * kt0 + mtx[2][1];
         float k2x = mtx[0][0] * ks1 + mtx[1][0] * kt1 + mtx[2][0];
         float k2y = mtx[0][1] * ks1 + mtx[1][1] * kt1 + mtx[2][1];
+
+        if (parms->flip_x) { ks0 -= 1; ks1 -= 1; }
+        if (parms->flip_y) { kt0 -= 1; kt1 -= 1; }
 
         rdpq_texture_rectangle_scaled(tile, k0x, k0y, k2x, k2y, s0, t0, s1, t1);
     }

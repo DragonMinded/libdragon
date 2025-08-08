@@ -1,3 +1,7 @@
+/**
+ * @file ringbuf_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_COMPRESS_RINGBUF_INTERNAL_H
 #define LIBDRAGON_COMPRESS_RINGBUF_INTERNAL_H
 
@@ -13,8 +17,21 @@ typedef struct {
 } decompress_ringbuf_t;
 
 
+/**
+ * @brief Initialize a ring buffer for streaming decompression.
+ *
+ * @param ringbuf       Pointer to the ring buffer structure to initialize.
+ * @param buf           Buffer to use as the ring buffer storage.
+ * @param winsize       Window size (must be a power of 2).
+ */
 void __ringbuf_init(decompress_ringbuf_t *ringbuf, uint8_t *buf, int winsize);
 
+/**
+ * @brief Write a single byte into the ring buffer.
+ * 
+ * @param ringbuf       Pointer to the ring buffer structure.
+ * @param byte          The byte to write.
+ */
 static inline void __ringbuf_writebyte(decompress_ringbuf_t *ringbuf, uint8_t byte)
 {
     ringbuf->ringbuf[ringbuf->ringbuf_pos++] = byte;

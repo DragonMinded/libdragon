@@ -1,6 +1,6 @@
 /**
  * @file mpeg2.h
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP-accelerated MPEG video player
  * 
  * @note Even though the library is called "mpeg2.h", it only supports MPEG 1.

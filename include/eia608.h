@@ -1,5 +1,6 @@
 /**
  * @file eia608.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Library to generate NTSC EIA-608 closed captions
  * @ingroup display
  *

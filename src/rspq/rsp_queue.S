@@ -1,5 +1,7 @@
 ##########################################################################
 # RSP QUEUE UCODE
+#
+# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
 ##########################################################################
 #
 # The documentation for the RSP Queue engine is in rspq.h (API) and

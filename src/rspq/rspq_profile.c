@@ -1,3 +1,7 @@
+/**
+ * @file rspq_profile.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "rspq_profile.h"
 #include <stdio.h>
 #include <stdbool.h>

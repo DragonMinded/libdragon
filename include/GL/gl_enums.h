@@ -1,3 +1,8 @@
+/**
+ * @file gl_enums.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL enumeration and constant definitions for N64 implementation.
+ */
 #ifndef __LIBDRAGON_GL_ENUMS_H
 #define __LIBDRAGON_GL_ENUMS_H
 

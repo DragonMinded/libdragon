@@ -1,5 +1,6 @@
 /**
  * @file wav64.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Support for WAV64 audio files
  * @ingroup mixer
  */
@@ -46,7 +47,6 @@ static wav64_compression_t algos[4] = {
     [WAV64_FORMAT_RAW] = {
 		.init = wav64_none_init,
 		.get_bitrate = wav64_none_get_bitrate,
-		.default_simul = 0, // infinite
     },
 	// VADPCM compression. This is always linked in as it's the default algorithm
 	// for audioconv64, and it's very little code at runtime.
@@ -54,7 +54,6 @@ static wav64_compression_t algos[4] = {
 		.init = wav64_vadpcm_init,
 		.close = wav64_vadpcm_close,
 		.get_bitrate = wav64_vadpcm_get_bitrate,
-		.default_simul = 4,
 	},
 };
 
@@ -94,11 +93,6 @@ static void wav64_none_init(wav64_t *wav, int state_size) {
 	} else {
 		wav->wave.read = wav64_none_read_memcopy;
 	}
-	
-	// We don't need a stop callback because the none compression mode
-	// supports infinite simultaneous playbacks, so there's nothing to track
-	wav->st->nsimul = 0;
-	wav->wave.stop = NULL;
 }
 
 static int wav64_none_get_bitrate(wav64_t *wav) {
@@ -146,17 +140,19 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
         "wav64: compression level %d not initialized. Call wav64_init_compression(%d) at initialization time", head.format, head.format);
 
 	int ext_size = head.start_offset - sizeof(wav64_header_t);
-	int nsimul = parms->max_simultaneous_playbacks ? parms->max_simultaneous_playbacks : algos[head.format].default_simul;
 	bool preload = parms->streaming_mode == WAV64_STREAMING_NONE;
 	int preload_size = ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);
 	int preload_extra_alloc = ROUND_UP(head.format == WAV64_FORMAT_RAW ? 0 : 4096, 16);
 
 	// Calculate required allocation
 	int heap_size = 0;
-	heap_size += ROUND_UP(sizeof(wav64_state_t) + nsimul, 16);		// wav64_state_t
+	heap_size += ROUND_UP(sizeof(wav64_state_t), 16);				// wav64_state_t
 
 	int heap_off_waveform = heap_size;
 	if (!wav) heap_size += ROUND_UP(sizeof(waveform_t), 16);		// Waveform
+
+	int heap_off_name = heap_size;
+	heap_size += ROUND_UP(strlen(file_name) + 1, 16);				// Filename
 
 	int heap_off_samples = heap_size;
 	if (preload) heap_size += preload_size;							// Preloaded samples
@@ -166,12 +162,6 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	int heap_off_ext = heap_size;
 	heap_size += ROUND_UP(ext_size, 16);							// Extended header data
-
-	int heap_off_chstate = heap_size;
-	heap_size += ROUND_UP(nsimul * head.state_size, 16);			// Per-channel state
-
-	int heap_off_name = heap_size;
-	heap_size += ROUND_UP(strlen(file_name) + 1, 16);				// Filename
 	
 	// Allocate heap memory
 	assert(heap_size % 16 == 0);
@@ -180,7 +170,6 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	if (!wav) wav = heap + heap_off_waveform;
 	wav->st = heap;
 	wav->st->ext = heap + heap_off_ext;
-	wav->st->states = heap + heap_off_chstate;
 	wav->st->samples = NULL;
 
 	// Fill waveforms struct
@@ -192,6 +181,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->wave.frequency = head.freq;
 	wav->wave.len = head.len;
 	wav->wave.loop_len = head.loop_len;
+	wav->wave.state_size = head.state_size;
 
 	// Read ext data
 	read(file_handle, wav->st->ext, ext_size);
@@ -201,10 +191,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->st->format = head.format;
 	wav->st->current_fd = file_handle;
 	wav->st->base_offset = head.start_offset + start_offset;
-	wav->st->nsimul = nsimul;
 	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
-	if (nsimul > 0)
-		memset(wav->st->mixer_channels, -1, nsimul * sizeof(int8_t));
 
 	// Initialize the compression algorithm
 	algos[wav->st->format].init(wav, head.state_size);
@@ -216,9 +203,9 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 		int wlen = wav->wave.len;
 		samplebuffer_t sbuf;
-		samplebuffer_init(&sbuf, wav->st->samples, preload_size + preload_extra_alloc);
+		samplebuffer_init(&sbuf, wav->st->samples, preload_size + preload_extra_alloc, head.state_size);
 		samplebuffer_set_bps(&sbuf, wav->wave.bits);
-		samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read, 0);
+		samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);
 		samplebuffer_get(&sbuf, 0, &wlen);
 		rspq_highpri_sync();
 		assertf(wlen == wav->wave.len, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, wav->wave.len);
@@ -229,8 +216,6 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 		wav->st = realloc(wav->st, heap_off_preload_end);
 		wav->st->ext = NULL;
-		wav->st->states = NULL;
-		wav->st->nsimul = 0;
 
 		// Reinitialize as RAW format after preloading
 		wav->st->format = WAV64_FORMAT_RAW;
@@ -256,45 +241,9 @@ wav64_t* wav64_loadfd(int fd, const char *debug_file_name, wav64_loadparms_t *pa
 	return internal_open(NULL, fd, debug_file_name, parms);
 }
 
-
-void __wav64_channel_stopped(wav64_t *wav, int chidx) {
-	assert(chidx >= 0 && chidx < wav->st->nsimul);
-	assert(wav->st->mixer_channels[chidx] >= 0);
-	wav->st->mixer_channels[chidx] = -1;
-}
-
 void wav64_play(wav64_t *wav, int ch)
 {
-	if (wav->st->nsimul == 0) {
-		// Infinite simultaneous playbacks, no need to track anything
-		mixer_ch_play(ch, &wav->wave);
-		return;
-	}
-
-	// Find a state slot
-	int chidx = -1;
-	for (int i = 0; i < wav->st->nsimul; i++) {
-		if (wav->st->mixer_channels[i] == ch || wav->st->mixer_channels[i] < 0) {
-			chidx = i;
-			break;
-		}
-	}
-
-	if (chidx < 0) {
-		if (!(wav->st->flags & WAV64_FLAG_WARN_SIMULTANEITY)) {
-			debugf("wav64: too many simultaneous playbacks for %s (max=%d)\n", wav->wave.name, wav->st->nsimul);
-			debugf("wav64: (this warning will appear only once per waveform)\n");
-			wav->st->flags |= WAV64_FLAG_WARN_SIMULTANEITY;
-		}
-
-		// Stop a random playing channel.
-		chidx = TICKS_READ() % wav->st->nsimul;
-		mixer_ch_stop(wav->st->mixer_channels[chidx]);
-		assert(wav->st->mixer_channels[chidx] < 0);
-	}
-
-	mixer_ch_play_ctx(ch, &wav->wave, (void*)chidx);
-	wav->st->mixer_channels[chidx] = ch;
+	mixer_ch_play(ch, &wav->wave);
 }
 
 void wav64_set_loop(wav64_t *wav, bool loop) {
@@ -319,10 +268,16 @@ void wav64_close(wav64_t *wav)
 	// Heap allocation always begins at wav->st.
 	void *heap = wav->st;
 
+	// For user-allocated wav64_t instances (opened via wav64_open), we allowed
+	// in the past to call this function multiple times without crashing. Let's
+	// keep this working, as it's easy to do.
+	if (!heap)
+		return;
+
 	// Stop playing the waveform on all channels
-	for (int i=0; i<wav->st->nsimul; i++) {
-		if (wav->st->mixer_channels[i] >= 0)
-			mixer_ch_stop(wav->st->mixer_channels[i]);
+	for (int i=0; i<MIXER_MAX_CHANNELS; i++) {
+		if (mixer_ch_playing_waveform(i) == &wav->wave)
+			mixer_ch_stop(i);
 	}
 
 	if (algos[wav->st->format].close)
@@ -346,6 +301,5 @@ void __wav64_init_compression_lvl3(void)
 		.init = wav64_opus_init,
 		.close = wav64_opus_close,
 		.get_bitrate = wav64_opus_get_bitrate,
-		.default_simul = 1,
 	};
 }

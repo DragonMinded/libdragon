@@ -1,5 +1,6 @@
 /**
  * @file skc.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief SKC - Secure Kernel Calls
  * @ingroup ique
  * 

@@ -48,6 +48,15 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r9 (4ed3e5fd564235a844af74366dba7f92)
+* Stop using auto current calibration in RAC (for output current) as it
+  seems to be the cause for random corruptions when transferring long
+  sequences of 1s via RSP DMA. See https://github.com/rasky/n64_corruption_bug.
+* Improve entropy collection on warm boots by storing some randomness in low
+  RDRAM area (hopefully not destroyed by the running application).
+* Add a fatal error in case an ELF segment doesn't fit RDRAM
+* Remove spurious cache invalidations on high RDRAM that were leftovers.
+
 r8 (419c213307cdb855934852c67759102b)
 * Add ROM type to bootflags (byte 8). This will allow in the future to use
   IPL3 as part of a replacement 64DD IPL.
@@ -223,7 +232,7 @@ This will create a file called `ipl3_prod.z64`. This contains the
 non-debug version of IPL3. This version must be correctly signed
 before being usable on real hardware and on accurate emulators.
 To sign the ROM, the best option is to perform GPU cracking using
-[ipl3hasher](https://github.com/awygle/ipl3hasher).
+[ipl3hasher](https://github.com/Polprzewodnikowy/ipl3hasher-new).
 
 After you have correctly signed the ROM, you can follow the same
 instructions above to use it: you can either set `N64_ROM_HEADER`,

@@ -1,3 +1,7 @@
+/**
+ * @file model64_catmull.h
+ * @author gamemasterplc <gamemasterplc@gmail.com>
+ */
 #ifndef __LIBDRAGON_MODEL64_CATMULL_H
 #define __LIBDRAGON_MODEL64_CATMULL_H
 

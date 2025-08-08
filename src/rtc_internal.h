@@ -1,6 +1,6 @@
 /**
  * @file rtc_internal.h
- * @author Christopher Bonhage (me@christopherbonhage.com)
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief Real-Time Clock subsystem internal API
  * @ingroup rtc
  */
@@ -43,7 +43,7 @@ uint8_t bcd_encode( int value );
 /**
  * @brief Convert rtc_time_t into struct tm.
  *
- * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
+ * @deprecated use `struct tm` from <time.h> instead of rtc_time_t
  *
  * @param[in]   rtc_time
  *              rtc_time_t to convert
@@ -55,7 +55,7 @@ struct tm rtc_time_to_tm( const rtc_time_t * rtc_time );
 /**
  * @brief Convert a struct tm into rtc_time_t.
  *
- * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
+ * @deprecated use `struct tm` from <time.h> instead of rtc_time_t
  *
  * @param[in]   time
  *              struct tm to convert
@@ -77,7 +77,7 @@ rtc_time_t rtc_time_from_tm( const struct tm * time );
  * actually confirm and commit the updated date/time. The rtctest example
  * demonstrates a user-interface for setting the time with live validation.
  *
- * @deprecated use `struct tm` from <time.h> instead of #rtc_time_t
+ * @deprecated use `struct tm` from <time.h> instead of rtc_time_t
  *
  * @param[in,out] rtc_time
  *                Pointer to the RTC time data structure

@@ -1,3 +1,8 @@
+/**
+ * @file matrix.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL matrix stack and transformation operations.
+ */
 #include "gl_internal.h"
 #include <string.h>
 

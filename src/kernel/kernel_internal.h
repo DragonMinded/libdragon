@@ -1,5 +1,6 @@
 /**
  * @file kernel_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Internal Kernel Definitions
  * @ingroup kernel
  */

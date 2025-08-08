@@ -1,3 +1,7 @@
+/**
+ * @file lz4_dec_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_COMPRESS_LZ4_DEC_INTERNAL_H
 #define LIBDRAGON_COMPRESS_LZ4_DEC_INTERNAL_H
 
@@ -11,7 +15,7 @@
  * It is possible to perform in-place decompression of LZ4 data: to do so,
  * allocate a buffer large enough to hold the decompressed data, plus some
  * margin calculated through this function. Then, read the compressed
- * data at the end of the buffer. Finally, call #decompress_lz4_full_mem.
+ * data at the end of the buffer. Finally, call the decompression function (see below).
  * 
  * Example:
  * 
@@ -56,12 +60,46 @@
  */
 int decompress_lz4_full_inplace(const uint8_t *src, size_t src_size, uint8_t *dst, size_t dst_size);
 
-
+/**
+ * @brief Size of the LZ4 decompressor state structure, in bytes.
+ */
 #define DECOMPRESS_LZ4_STATE_SIZE  176
 
+/**
+ * @brief Initialize the LZ4 decompressor state.
+ *
+ * @param state Pointer to the decompressor state buffer.
+ * @param fd File descriptor to read compressed data from.
+ * @param winsize Window size for the decompressor.
+ */
 void decompress_lz4_init(void *state, int fd, int winsize);
+
+/**
+ * @brief Read decompressed data from the LZ4 stream.
+ *
+ * @param state Pointer to the decompressor state buffer.
+ * @param buf Buffer to store decompressed data.
+ * @param len Number of bytes to read.
+ * @return Number of bytes read, or -1 on error.
+ */
 ssize_t decompress_lz4_read(void *state, void *buf, size_t len);
+
+/**
+ * @brief Reset the LZ4 decompressor state.
+ *
+ * @param state Pointer to the decompressor state buffer.
+ */
 void decompress_lz4_reset(void *state);
+
+/**
+ * @brief Decompress a full LZ4 file from a FILE pointer.
+ *
+ * @param fn Filename (for error messages).
+ * @param fp FILE pointer to read compressed data from.
+ * @param cmp_size Size of the compressed data.
+ * @param size Size of the decompressed data.
+ * @return Pointer to the decompressed data buffer, or NULL on error.
+ */
 void* decompress_lz4_full(const char *fn, FILE *fp, size_t cmp_size, size_t size);
 
 #endif

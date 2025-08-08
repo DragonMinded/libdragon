@@ -1,5 +1,6 @@
 /**
  * @file cop0.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief N64 COP0 Interface
  * @ingroup n64sys
  */

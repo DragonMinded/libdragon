@@ -1,13 +1,58 @@
 /**
  * @file display.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Display Subsystem
  * @ingroup display
+ * 
+ * The display subsystem module is responsible for initializing the proper video
+ * mode for displaying 2D, 3D and software graphics. It is the higher level module
+ * that most applications should use to configure the video output.
+ * 
+ * To set up video on the N64, code should call #display_init with the appropriate
+ * options. It is a powerful API with many options (see #resolution_t) but
+ * it can still be a simple one-liner for basic cases. It allows to configure
+ * any resolution including custom ones, any aspect ratio, any kind of
+ * letterboxing, overscan, interlacing, and so on. It also allocates a
+ * framebuffer chain.
+ * 
+ * Once the display has been set, a surface can be requested from the display
+ * subsystem using #display_get.  To draw to the acquired surface, code should
+ * use functions present in the @ref rdpq or @ref graphics modules (the latter
+ * being just a simpler, CPU-only small graphic library).
+ * 
+ * Once drawing to a surface is complete, the rendered graphic can be displayed
+ * to the screen using  #display_show.  Once code has finished rendering all
+ * graphics, #display_close can be used to shut down the display subsystem.
+ * 
+ * To obtain a Z-buffer, simply call #display_get_zbuf(). This is preferrable
+ * to manually allocating it, as display.h will manage the memory allocations
+ * spreading them across RDRAM banks to maximize rendering performance.
+ * 
+ * ## Frame counter, delta time and frame limiter
+ * 
+ * You can acquire at any time a very accurate frame rate estimation using
+ * #display_get_fps. This is measure the actual time that it takes for a 
+ * frame to reach the display, rather than the time it takes to be calculated,
+ * so it is more accurate especially when there's a high variance or long
+ * framebuffer chains.
+ * 
+ * Use #display_get_delta_time to get an estimation of the best delta time
+ * that can be used to calculate the next frame. This builds up on the
+ * FPS calculator, so again it is more accurate and smoother than just
+ * taking the time yourself in your main loop.acos
+ * 
+ * If you want to limit frame rate, call #display_set_fps_limit. This allows
+ * to limit the frame rate to a specific value, and not only submultiples of
+ * the TV refresh rate. For instance, you can call "display_set_fps_limit(45)"
+ * and it will work as expected, as smooth as possible.
  */
 #ifndef __LIBDRAGON_DISPLAY_H
 #define __LIBDRAGON_DISPLAY_H
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "vi.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -17,22 +62,25 @@
  *
  * The display subsystem handles interfacing with the video interface (VI)
  * and the hardware rasterizer (RDP) to allow software and hardware graphics
- * operations.  It consists of the @ref display, the @ref graphics and the
- * @ref rdp modules.  A separate module, the @ref console, provides a rudimentary
- * console for developers.  Only the display subsystem or the console can be
- * used at the same time.  However, commands to draw console text to the display
- * subsystem are available.
- *
- * The display subsystem module is responsible for initializing the proper video
- * mode for displaying 2D, 3D and software graphics.  To set up video on the N64,
- * code should call #display_init with the appropriate options.  Once the display
- * has been set, a surface can be requested from the display subsystem using
- * #display_get.  To draw to the acquired surface, code should use functions
- * present in the @ref graphics and the @ref rdp modules.  Once drawing to a surface
- * is complete, the rendered graphic can be displayed to the screen using 
- * #display_show.  Once code has finished rendering all graphics, #display_close can 
- * be used to shut down the display subsystem.
- *
+ * operations.  It consists of:
+ * 
+ * * vi.h: the low-level VI programming module. This is useful for people
+ *   wanting to tinker with low-level video programming such as custom
+ *   timings or weird effects, 
+ * * display.h: the higher-level display module. This is the basic module
+ *   most libdragon applications will use to setup a screen resolution,
+ *   a framebuffer chain, and draw onto the screen. display.h builds upon
+ *   vi.h for low-level access.
+ * * graphics.h: this is a simple graphics library that uses CPU to draw on
+ *   the screen. It is meant for very simple graphic applications like basic
+ *   test ROMs, or situations where you don't want to touch the RDP
+ *   (eg: exception handlers). Most applications should instead use
+ *   the @ref rdpq library to draw graphics.
+ * * console.h: it provides a rudimentary textual console for developers,
+ *   where you can simply write text using printf(). This is useful just for
+ *   very basic tests. Notice that this console is not meant to be running
+ *   while the display subsystem is active, as it will conflict with it.
+ * 
  */
 
 ///@cond
@@ -150,13 +198,22 @@ typedef enum
 /** @brief Valid gamma correction settings */
 typedef enum
 {
-    /** @brief Uncorrected gamma, should be used by default and with assets built by libdragon tools */
-    GAMMA_NONE,
-    /** @brief Corrected gamma, should be used on a 32-bit framebuffer
-     * only when assets have been produced in linear color space and accurate blending is important */
-    GAMMA_CORRECT,
+    /** 
+     * @brief Uncorrected gamma.
+     * 
+     * This is the default settings, and should be used with assets
+     * built by libdragon tools
+     */
+    GAMMA_NONE = 0,
+    /** 
+     * @brief Corrected gamma.
+     * 
+     * It should be used on a 32-bit framebuffer, only when assets have been
+     * produced in linear color space and accurate blending is important
+     */
+    GAMMA_CORRECT = VI_GAMMA_ENABLE,
     /** @brief Corrected gamma with hardware dithered output */
-    GAMMA_CORRECT_DITHER
+    GAMMA_CORRECT_DITHER = VI_GAMMA_DITHER_ENABLE,
 } gamma_t;
 
 /** @brief Valid display filter options.

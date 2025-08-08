@@ -1,5 +1,8 @@
 /**
  * @file n64sys.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief N64 System Interface
  * @ingroup n64sys
  */
@@ -33,6 +36,7 @@
  */
 
 ///@cond
+extern int __boot_memsize;
 extern int __boot_consoletype;
 extern int __boot_tvtype;
 ///@endcond
@@ -365,18 +369,12 @@ void die(void);
  * that first writebacks the affected cachelines to RDRAM, guaranteeing integrity
  * of memory areas that share cachelines with the region that must be invalidated.
  *
- * @param[in] addr_
+ * @param[in] addr
  *            Pointer to memory in question
- * @param[in] sz_
+ * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-#define data_cache_hit_invalidate(addr_, sz_) ({ \
-	void *addr = (addr_); unsigned long sz = (sz_); \
-	assert(((uint32_t)addr % 16) == 0 && (sz % 16) == 0); \
-	__data_cache_hit_invalidate(addr, sz); \
-})
-
-void __data_cache_hit_invalidate(volatile void * addr, unsigned long length);
+void data_cache_hit_invalidate(volatile void* addr, unsigned long length);
 
 /**
  * @brief Force a data cache writeback over a memory region
@@ -469,19 +467,38 @@ void inst_cache_invalidate_all(void);
  *
  * @return amount of total available memory in bytes.
  */
-int get_memory_size();
+int get_memory_size(void);
 
 /**
  * @brief Is expansion pak in use.
  *
- * Checks whether the maximum available memory has been expanded to 8 MiB
+ * Checks whether the maximum available memory has been expanded to 8 MiB.
+ * If your application needs to the use of the expansion pak, you should provide
+ * an error message to the user if it is not present. Libdragon offers a
+ * function to do this, #assert_memory_expanded, which will emit an error
  *
  * @return true if expansion pak detected, false otherwise.
  * 
  * @note On iQue, this function returns true only if the game has been assigned
  *       exactly 8 MiB of RAM.
  */
-bool is_memory_expanded();
+bool is_memory_expanded(void);
+
+/**
+ * @brief Assert that the expansion pak is present.
+ *
+ * This function will emit an error screen if the expansion pak is not present,
+ * and will halt the system. It should be called in main() to ensure that the
+ * expansion pak is present before proceeding with the rest of
+ * the application. This enforces a good pattern to make the application fails
+ * early with a proper error message (rather than a crash) if the expansion pak
+ * is not present.
+ *
+ * If you want to provide your own graphical error screen, use 
+ * #is_memory_expanded instead to check if the expansion pak is present,
+ * and then show your own error screen if it is not present.
+ */
+void assert_memory_expanded(void);
 
 /**
  * @brief Heap statistics

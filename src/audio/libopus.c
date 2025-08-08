@@ -1,3 +1,7 @@
+/**
+ * @file libopus.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "libopus_internal.h"
 
 #ifdef __clang__

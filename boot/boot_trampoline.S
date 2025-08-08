@@ -1,6 +1,9 @@
+############################################################
 # IPL3 trampoline code
-# --------------------
+# Originally written by devwizard
 #
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 # This is technically just a very small IPL3 which loads
 # the real IPL3 from ROM from a fixed address (0x10001000).
 # Basically, the ROM layout is:
@@ -13,21 +16,19 @@
 #    0x1040     Real IPL3 (unsigned)
 #    0x2000     Rest of ROM
 #
-# This trampoling is used to workaround the need of signing
+# This trampoline is used to workaround the need of signing
 # IPL3 during development. Being itself signed, it can run
 # an unsigned piece of code and run it.
 #
 # Credits go to hcs64 for the IPL3 trampoline idea, and
 # having first released it (https://github.com/hcs64/boot_stub).
 #
-# This trampoling is an improvement over the above, and
-# was written by devwizard (originally for armips).
-#
 # This trampoline is completely transparent because it does
 # restore the value of the CPU registers at the end of IPL2.
 # 
 # Register values at the end of IPL2:
 # t1 = 0, t2 = 0x40, t3 = 0xA4000040, ra = 0xA4001550
+############################################################
 
     .set noreorder
     .section .text.boot_trampoline

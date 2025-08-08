@@ -1,5 +1,6 @@
 /**
  * @file fat.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief FAT filesystem interface
  * @ingroup lowlevel
  * 

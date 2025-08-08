@@ -1,3 +1,7 @@
+/**
+ * @file gl_internal.h
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ */
 #ifndef __GL_INTERNAL
 #define __GL_INTERNAL
 
@@ -54,6 +58,7 @@
 })
 
 #define gl_ensure_no_begin_end() ({ \
+    assertf(state, "gl_init() not called"); \
     if (state->begin_end_active) { \
         gl_set_error(GL_INVALID_OPERATION, "%s is not allowed between glBegin/glEnd", __func__); \
     } \
@@ -693,7 +698,7 @@ inline void gl_cmd_stream_end(gl_cmd_stream_t *s)
 inline bool is_in_heap_memory(void *ptr)
 {
     ptr = CachedAddr(ptr);
-    return ptr >= HEAP_START_ADDR && ptr < ((void*)KSEG0_START_ADDR + get_memory_size());
+    return ptr >= HEAP_START_ADDR && ptr < ((void*)KSEG0_START_ADDR + __boot_memsize);
 }
 
 inline bool is_valid_object_id(GLuint id)

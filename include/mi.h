@@ -1,5 +1,6 @@
 /**
  * @file mi.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @ingroup lowlevel
  * @brief MI register definitions
  */

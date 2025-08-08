@@ -1,5 +1,8 @@
 /**
  * @file exception.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author thekovic <https://github.com/thekovic>
  * @brief Exception Handler
  * @ingroup exceptions
  */
@@ -7,6 +10,7 @@
 #define __LIBDRAGON_EXCEPTION_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @defgroup exceptions Exception Handler
@@ -191,6 +195,16 @@ exception_handler_t register_exception_handler( exception_handler_t cb );
  */
 void exception_default_handler( exception_t* ex );
 
+/**
+ * @brief Check if we are currently running within an exception handler
+ * 
+ * @return true if an exception handler is currently running, false otherwise.
+ */
+inline bool exception_is_running(void) 
+{
+	extern void* interrupt_exception_frame;
+	return interrupt_exception_frame != 0;
+}
 
 /**
  * @brief Register a handler that will be called when a syscall exception

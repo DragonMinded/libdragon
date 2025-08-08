@@ -1,5 +1,7 @@
 /**
  * @file system.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief newlib Interface Hooks
  * @ingroup system
  */
@@ -63,6 +65,33 @@ extern "C" {
  */
 typedef struct
 {
+    /** 
+     * @brief True if the filesystem is thread safe
+     * 
+     * This flag is used to determine if the filesystem can be accessed
+     * concurrently by multiple threads, through *different* file handles.
+     * 
+     * If the filesystem is not thread safe, system code will protect
+     * all accesses to the filesystem with a mutex. This guarantees that if
+     * eg. a thread is suspended while reading a file, another thread will
+     * not be able to read or write any other file until the first thread
+     * resumes.
+     * 
+     * On the other hand, if the filesystem is thread safe, the system code
+     * will not use a mutex to protect accesses to the filesystem. This means
+     * that the filesystem code must be able to handle concurrent accesses
+     * to different files without any protection.
+     * 
+     * In general, read-only filesystems are easily thread safe: only pay
+     * attention to some shared mutable state like eg some global cache.
+     * On the other hand, read-write filesystems are usually not thread safe
+     * because of shared mutable structures like directories or inode tables.
+     * 
+     * Notice that concurrent accesses to the same file handle are always
+     * meant to be unsafe and must be protected by the user code itself.
+     */
+    bool thread_safe;
+
     /** 
      * @brief Function to call when performing an open command
      *

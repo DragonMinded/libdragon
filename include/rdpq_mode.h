@@ -1,5 +1,7 @@
 /**
  * @file rdpq_mode.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RDP Command queue: mode setting
  * @ingroup rdpq
  * 
@@ -261,6 +263,17 @@ typedef enum rdpq_antialias_s {
     AA_STANDARD = 1,        ///< Standard antialiasing
     AA_REDUCED = 2,         ///< Reduced antialiasing
 } rdpq_antialias_t;
+
+/**
+ * @brief Types of Z-buffering modes supported by RDP
+ * 
+ * See #rdpq_mode_zmode for more information.
+ */
+typedef enum rdpq_zmode_s {
+    ZMODE_STANDARD = 0,             ///< Standard Z-buffer mode
+    ZMODE_INTERPENETRATING = 1,     ///< Z-buffer mode for interpenetrating surfaces
+    ZMODE_DECAL = 3,                ///< Z-buffer mode for decal surfaces
+} rdpq_zmode_t;
 
 
 /**
@@ -752,6 +765,29 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
     );
 }
 
+/**
+ * @brief Configure the Z buffering mode
+ * 
+ * This function allows to tune the internal Z buffer formula to obtain several
+ * different effects. In addition to the standard operating mode (#ZMODE_STANDARD),
+ * there are two special modes that can be activated:
+ * 
+ *  * #ZMODE_DECAL: this mode can be used to draw polygons that are coplanar with
+ *    already drawn polygons, normally called "decals". NOTE: this will never
+ *    be bulletproof. If you still get some Z-fighting flickering in this mode,
+ *    try to subdivide the background polygons so that they share vertices
+ *    exactly with the decal.
+ *  * #ZMODE_INTERPENETRATING: this mode can be used to reduce z-fighting when
+ *    two objects intersect each other, and anti-aliasing is enabled. A common
+ *    case can be objects like trees positioned slightly under the terrain.
+ * 
+ * @param mode      Z-buffering mode to use
+ * 
+ * @see #rdpq_zmode_t
+ */
+inline void rdpq_mode_zmode(rdpq_zmode_t mode) {
+    __rdpq_mode_change_som(SOM_ZMODE_MASK, (uint64_t)mode << SOM_ZMODE_SHIFT);
+}
 
 /**
  * @brief Activate palette lookup during drawing

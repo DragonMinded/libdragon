@@ -1,3 +1,7 @@
+/**
+ * @file bbfs.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include <string.h>
 #include <assert.h>
 #include <fcntl.h>
@@ -10,12 +14,15 @@
 #include "bbfs.h"
 #include "utils.h"
 
+/** @brief Enable or disable BBFS log tracing. */
 #ifndef BBFS_TRACE
 #define BBFS_TRACE      0
 #endif
 
+/** @brief Print a debug trace message if the level is less than or equal to BBFS_TRACE. */
 #define tracef(lvl, str, ...)    ({ if ((lvl) <= BBFS_TRACE) debugf("[bbfs] " str "\n", ##__VA_ARGS__); })
 
+/// @cond
 #ifndef N64
 #define be16(x)   __builtin_bswap16(x)
 #define be16i(x)  (int16_t)__builtin_bswap16(x)
@@ -25,19 +32,20 @@
 #define be16i(x)  (x)
 #define be32(x)   (x)
 #endif
+/// @endcond
 
 /** @brief Calculate a random number in range [0..n), assuming RAND_MAX = (1<<31)-1 */
 #define RANDN(n)                (((uint64_t)rand() * (n)) >> 31)
 
+/** @brief Create a 32-bit FOURCC code from four characters. */
 #define FOURCC(d, c, b, a)      ((a) | ((b) << 8) | ((c) << 16) | ((d) << 24))
+#define FAT_UNUSED               0    ///< FAT entry value indicating an unused block.
+#define FAT_TERMINATOR          -1    ///< FAT entry value indicating the end of a chain.
+#define FAT_BADBLOCK            -2    ///< FAT entry value indicating a bad block.
+#define FAT_RESERVED            -3    ///< FAT entry value indicating a reserved block.
 
-#define FAT_UNUSED               0
-#define FAT_TERMINATOR          -1
-#define FAT_BADBLOCK            -2
-#define FAT_RESERVED            -3
-
-#define BBFS_MAX_ENTRIES        409
-#define BBFS_CHECKSUM           0xCAD7
+#define BBFS_MAX_ENTRIES        409    ///< Maximum number of file entries in BBFS
+#define BBFS_CHECKSUM           0xCAD7 ///< Magic checksum value for BBFS
 
 #define BBFS_FLAGS_READING          (1<<0)     ///< The file is open for reading
 #define BBFS_FLAGS_WRITING          (1<<1)     ///< The file is open for writing
@@ -99,6 +107,10 @@ typedef struct {
 static bbfs_superblock_t bbfs_superblock[2];
 static bbfs_state_t bbfs_state;
 
+/**
+ * @brief Access the FAT entry for a given block index.
+ * @param bidx Block index.
+ */
 #define SB_FAT(bidx)   bbfs_superblock[(bidx) >> 12].fat[(bidx) & 0xFFF]
 
 static void bbfs_small_area_update(void);
@@ -196,6 +208,9 @@ static void sb_record_write(void *data, int len)
         bbfs_state.sb_dirty[sbidx] |= 1 << i;
 }
 
+/**
+ * @brief Write a value to a superblock field and record it as dirty.
+ */
 #define SB_WRITE(a, b)  ({ \
     a = b; \
     sb_record_write(&a, sizeof(a)); \

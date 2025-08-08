@@ -1,3 +1,7 @@
+/**
+ * @file kqueue.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_KERNEL_KQUEUE_H
 #define LIBDRAGON_KERNEL_KQUEUE_H
 

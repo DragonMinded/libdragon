@@ -1,5 +1,6 @@
 /**
  * @file debugcpp.cpp
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Debugging Support (C++)
  */
 

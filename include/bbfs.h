@@ -1,5 +1,6 @@
 /**
  * @file bbfs.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief iQue BBFS flash filesytem
  * @ingroup ique
  * 
@@ -14,9 +15,12 @@
  * ---------------------
  * 
  * Most standard operations are supported, including reading, writing, seeking.
- * All write operations also update the ECC code for each page, and all read
- * operations verify the ECC code and use it to correct single-bit errors.
- * If the ECC code cannot correct the error, the read operation will fail
+ * Notice that directories are not supported by the filesystem, so all files
+ * are treated as part of a "root" directory ("/").
+ * 
+ * All write operations update the ECC code stored by the NAND on each page,
+ * and all read operations verify the ECC code and use it to correct single-bit
+ * errors. If the ECC code cannot correct the error, the read operation will fail
  * and errno will be set to EIO. In this case, the data in the filesystem
  * is likely corrupted.
  * 
@@ -34,8 +38,11 @@
  * data to it without causing a performance penalty.
  * 
  * ROMs and memory mapping
- * ----------------------
+ * -----------------------
  * 
+ * One common content of the filesystem is ROMs, which can be memory-mapped
+ * into the emulated PI address space.
+ *
  * To be able to boot a ROM, the ROM must be written in the filesystem, and
  * then memory mapped via #nand_mmap. This requires providing the list of the
  * blocks that contain the ROM data. To facilitate this, #bbfs_get_file_blocks
@@ -57,7 +64,7 @@
  * but the rest will be stored in the large area and will be contiguous.
  * 
  * While this is a suboptimal allocation, it will not create any immediate issue.
- * Anyway to perform an optimal allocation, there are two possible ways:
+ * Anyway, to perform an optimal allocation, there are two possible ways:
  * 
  *  * #ftruncate the file immediately after opening it, to communicate the final
  *    size right away. This will force the filesystem to allocate the file in
@@ -100,6 +107,36 @@
  * 
  * Notice that currently this function does not check the integrity of the
  * data stored in the filesystem (via ECC), only the filesystem structure.
+ * 
+ * ## Error codes
+ * 
+ * The filesystem tries to be POSIX compliant, so make sure to check error
+ * codes via errno if an operation fails. In particular, the following error
+ * codes can be returned:
+ * 
+ * ### BBFS specific errors
+ * 
+ *  * EIO: Input/output error during NAND flash operations. This can indicate
+ *    hardware failure, corrupted ECC data, or other flash-related issues.
+ *  * ENOSPC: No space left on the filesystem. All available blocks have been
+ *    allocated and no free space remains for new files or file extensions.
+ *  * EEXIST: File exists. Attempting to create a file with O_CREAT|O_EXCL
+ *    when a file with the same name already exists.
+ *  * ENOENT: No such file. The requested file does not exist, or no more
+ *    directory entries are available during directory iteration.
+ *  * EINVAL: Invalid argument. The filename format is invalid (longer than
+ *    8.3 format), or invalid path for directory operations (must be "/").
+ *  * ENOTTY: Inappropriate ioctl for device. The ioctl request is not
+ *    supported by the BBFS filesystem.
+ * 
+ * ### Generic filesystem errors
+ * 
+ *  * EBADF: Bad file descriptor. The file was not opened for the attempted
+ *    operation (e.g., trying to read from a file opened only for writing,
+ *    or trying to write to a file opened only for reading).
+ * 
+ * Additional error codes may be returned by the underlying filesystem layer
+ * in system.c, such as ENOMEM, EPERM, ENFILE, and ENOSYS.
  */
 
 #ifndef LIBDRAGON_BBFS_H

@@ -1,5 +1,6 @@
 /**
  * @file xm64.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Efficient XM module player
  * @ingroup mixer
  */
@@ -36,7 +37,8 @@ static int tick(void *arg) {
 
 	for (int i=0;i<ctx->module.num_channels;i++) {
 		xm_channel_context_t *ch = &ctx->channels[i];
-		ch->sample_position = mixer_ch_get_pos(first_ch+i);
+		if (mixer_ch_playing(first_ch+i))
+			ch->sample_position = mixer_ch_get_pos(first_ch+i);
 	}
 
 	// If we're requested to stop playback, do it.
@@ -69,21 +71,11 @@ static int tick(void *arg) {
 
 	float gvol = ctx->global_volume * ctx->amplification;
 
-	// First stop all channels that require to be stopped, that is,
-	// emtpy channels or channels that are going to change sample.
-	// This avoids emitting warnings related to simultaneous usage of
-	// samples that are just changing channel.
 	for (int i=0;i<ctx->module.num_channels;i++) {
 		xm_channel_context_t *ch = &ctx->channels[i];
-		if (!ch->sample || mixer_ch_playing(first_ch+i) != &ch->sample->wave->wave)
-			mixer_ch_stop(first_ch+i);
-	}
-
-	for (int i=0;i<ctx->module.num_channels;i++) {
-		xm_channel_context_t *ch = &ctx->channels[i];
-		if (ch->sample) {
+		if (ch->sample && ch->sample_position >= 0) {
 			wav64_t *w = ch->sample->wave;
-
+			
 			// Check if this sample is muted. This is an user-level muting
 			// control exposed via the xm.h API that we respect in case the
 			// user wants to mute some channels (usually for debugging).
@@ -92,7 +84,7 @@ static int tick(void *arg) {
 			// Play the waveform, if it was not already playing. We don't handle
 			// explicit key-on events here since it's a bit complex in XM, so
 			// we just passively check whether we need to start playing or not.
-			if (!mixer_ch_playing(first_ch+i))
+			if (mixer_ch_playing_waveform(first_ch+i) != &w->wave)
 				wav64_play(w, first_ch+i);
 
 			// Set the position of the sample expected by the playback engine.
@@ -104,6 +96,8 @@ static int tick(void *arg) {
 			mixer_ch_set_vol(first_ch+i,
 				muted ? 0 : gvol * ch->actual_volume[0],
 				muted ? 0 : gvol * ch->actual_volume[1]);
+		} else {
+			mixer_ch_stop(first_ch+i);
 		}
 	}
 
@@ -140,7 +134,7 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		}
 		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
 	}
-	assertf(header.version == 10, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+	assertf(header.version == 11, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
 
 	// Seek to the beginning of the metadata, that are asset-compressed. We need
 	// to read the metadata in small chunks, so we use asset_fopen() for this.
@@ -176,17 +170,14 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		for (int j=0;j<inst->num_samples;j++) {
 			xm_sample_t *samp = &inst->samples[j];
 
-			wav64_loadparms_t parms = {
-				.max_simultaneous_playbacks = samp->max_simultaneous_usage,
-			};
 			if (!player->ctx->external_samples) {
 				char filename[128];
 				snprintf(filename, sizeof(filename), "%s[%d:%d]", fn, i+1, j);
 				lseek(player->fd, samp->data8_offset, SEEK_SET);
-				samp->wave = wav64_loadfd(player->fd, filename, &parms);
+				samp->wave = wav64_loadfd(player->fd, filename, NULL);
 			} else {
 				sprintf(extfn, "%s/%08lx.wav64", xm64_extsampledir, samp->data8_offset);
-				samp->wave = wav64_load(strdup(extfn), &parms);
+				samp->wave = wav64_load(strdup(extfn), NULL);
 			}
 		}
 	}
@@ -300,11 +291,8 @@ void xm64player_close(xm64player_t *player) {
 	}
 }
 
-void xm64_set_extsampledir(const char *dir) {
-	if (dir == NULL) {
-		free(xm64_extsampledir);
-		xm64_extsampledir = NULL;
-	} else {
-		xm64_extsampledir = strdup(dir);
-	}
+void xm64_set_extsampledir(const char *dir)
+{
+	free(xm64_extsampledir);
+	xm64_extsampledir = dir ? strdup(dir) : NULL;
 }

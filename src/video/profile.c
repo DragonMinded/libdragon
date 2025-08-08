@@ -1,3 +1,7 @@
+/**
+ * @file profile.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "profile.h"
 #include "debug.h"
 #include "n64sys.h"

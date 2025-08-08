@@ -1,6 +1,7 @@
 /**
  * @file dir.c
- * @brief Directory handling
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Directory traversal, pattern matching, and globbing utilities.
  * @ingroup system
  */
 #include "dir.h"

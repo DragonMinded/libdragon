@@ -1,3 +1,13 @@
+/*
+    huff_vadpcm: Huffman VADPCM compression and decompression
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This is a tool part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #include <stdio.h>
 #include <assert.h>
 #include <stdint.h>
@@ -322,8 +332,9 @@ void huffv_decompress_init(const uint8_t *ctx_data, int ctx_len, HuffLookup look
 //                 as each original block consists of 9 bytes (18 4-bit symbols)
 // Returns:
 //   The number of bits used/consumed from the compressed input buffer.
-//   (This value may be less than compressed_len * 8 if the output buffer is too short
-//    to contain all the decompressed data.)
+//   This value may be less than compressed_len * 8 if the output buffer is too short
+//    to contain all the decompressed data. Also the last byte might always
+//    be only partially consumed.
 //=====================================================================
 int huffv_decompress(uint8_t *compressed, int compressed_len,
                      const HuffLookup lookup[HUFF_CONTEXTS],
@@ -355,6 +366,8 @@ int huffv_decompress(uint8_t *compressed, int compressed_len,
                 bit_buffer <<= 8;
                 if (comp_index < compressed_len)
                     bit_buffer |= compressed[comp_index++];
+                else
+                    comp_index++; // just for statistics
                 bit_count += 8;
             }
             // Extract the top 8 bits (without removing them yet) to use as index.

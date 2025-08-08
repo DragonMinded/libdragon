@@ -475,6 +475,11 @@ static void xm_handle_note_and_instrument(xm_context_t* ctx, xm_channel_context_
 				xm_cut_note(ch);
 			}
 		}
+
+		/* If this key-on doesn't contain 9xx, reset start position memory */
+		if(s->effect_type != 9)
+			ch->sample_starting_position_bytes = 0;
+	
 	} else if(s->note == 97) {
 		/* Key Off */
 		xm_key_off(ch);
@@ -582,13 +587,14 @@ static void xm_handle_note_and_instrument(xm_context_t* ctx, xm_channel_context_
 
 	case 9: /* 9xx: Sample offset */
 		if(ch->sample != NULL && NOTE_IS_VALID(s->note)) {
-			uint32_t final_offset = s->effect_param << (ch->sample->bits == 16 ? 7 : 8);
-			if(final_offset >= ch->sample->length) {
-				/* Pretend the sample dosen't loop and is done playing */
-				ch->sample_position = -1;
-				break;
+			int final_offset = s->effect_param << 8;
+			if (final_offset > 0) {
+				ch->sample_starting_position_bytes = final_offset;
 			}
-			ch->sample_position = final_offset;
+			ch->sample_position = ch->sample_starting_position_bytes >> (ch->sample->bits == 16 ? 1 : 0);
+			if (ch->sample_position >= ch->sample->length) {
+				ch->sample_position = -1;
+			}
 		}
 		break;
 

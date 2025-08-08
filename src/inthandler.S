@@ -1,11 +1,13 @@
-/*
-   Simple interrupt handler, hands off MIPS interrupts to higher level processes.
-   Based on INITS.inc from Neon64.
-
-   It is not reentrant, so interrupts are disabled for the duration.
-   Safe for doing most things, including FPU operations, within handlers.
-   Reentrant exceptions are supported.
-*/
+############################################################
+# Libdragon interrupt handler
+#
+# It is not reentrant, so interrupts are disabled for the duration.
+# Safe for doing most things, including FPU operations, within handlers.
+# Reentrant exceptions are supported.
+#
+# Authors: Jennifer Taylor <dragonminded@dragonminded.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
+############################################################
 
 #include "regs.S"
 
@@ -472,4 +474,5 @@ inthandler_end:
 
     .section .bss
     .p2align 2
+	.global interrupt_exception_frame
     .lcomm interrupt_exception_frame, 4

@@ -1,3 +1,8 @@
+/**
+ * @file asset.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Liam Coleman <gamemasterplc@gmail.com>
+ */
 #include "asset.h"
 #include "asset_internal.h"
 #include "compress/aplib_dec_internal.h"
@@ -11,9 +16,11 @@
 #include <stdalign.h>
 #include <sys/stat.h>
 
+/// @cond
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+/// @endcond
 
 #ifdef N64
 #include <malloc.h>
@@ -24,8 +31,10 @@
 #else
 #include <stdlib.h>
 #include <assert.h>
+/// @cond
 #define memalign(a, b) malloc(b)
 #define assertf(x, ...) assert(x)
+/// @endcond
 #endif
 
 /** 
@@ -44,6 +53,7 @@ static asset_compression_t algos[3] = {
     }
 };
 
+/** @brief Initialize compression level 2 (APLIB) */
 void __asset_init_compression_lvl2(void)
 {
     algos[1] = (asset_compression_t){
@@ -59,6 +69,7 @@ void __asset_init_compression_lvl2(void)
     };
 }
 
+/** @brief Initialize compression level 3 (SHRINKLER) */
 void __asset_init_compression_lvl3(void)
 {
     algos[2] = (asset_compression_t){
@@ -235,6 +246,7 @@ void *asset_loadfd(int fd, int *sz)
     asset_header_t header;
     buf_size = asset_read_header(fd, &header, sz);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
+    assertf(buf, "Out of memory: cannot allocate %d bytes", buf_size);
     asset_read(fd, &header, sz, buf, &buf_size);
     return buf;
 }
@@ -258,6 +270,7 @@ void *asset_load(const char *fn, int *sz)
     asset_header_t header;
     buf_size = asset_read_header(fd, &header, &size);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
+    assertf(buf, "Out of memory: cannot allocate %d bytes", buf_size);
     asset_read(fd, &header, &size, buf, &buf_size);
     if (sz) *sz = size;
     close(fd);

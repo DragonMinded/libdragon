@@ -1,7 +1,8 @@
 	####################################################################
     #
     # Opus FFT implementation (for IMDCT)
-    #
+	#
+	# Authors: Giovanni Bajo <giovannibajo@gmail.com>
 	####################################################################
     #    
     # This file is part of the rsp_opus_imdct ucode. It implements

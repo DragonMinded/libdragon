@@ -609,18 +609,18 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 {
     RDPQ_INIT();
 
-    const color_t TEST_COLOR = RGBA32(0xFF,0xFF,0xFF,0xFF);
+    const color_t TEST_COLOR = RGBA32(0xFF,0xFF,0xFF,0xE0);
 
     const int WIDTH = 16;
-    surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
+    surface_t fb = surface_alloc(FMT_RGBA32, WIDTH, WIDTH);
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
 
-    uint16_t expected_fb[WIDTH*WIDTH];
+    uint32_t expected_fb[WIDTH*WIDTH];
     memset(expected_fb, 0, sizeof(expected_fb));
     for (int y=4;y<WIDTH-4;y++) {
         for (int x=4;x<WIDTH-4;x++) {
-            expected_fb[y * WIDTH + x] = color_to_packed16(TEST_COLOR);
+            expected_fb[y * WIDTH + x] = color_to_packed32(TEST_COLOR);
         }
     }
 
@@ -632,19 +632,22 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
     rspq_wait();
-    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, 
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*4, 
         "Wrong data in framebuffer (fill mode)");
 
     rdpq_debug_log_msg("1-cycle mode");
     surface_clear(&fb, 0);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
-    rdpq_mode_blender(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
-    rdpq_set_blend_color(TEST_COLOR);
+    rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+    rdpq_set_prim_color(TEST_COLOR);
+    // NOTE: set coverage to clamp so that we see the actual coverage calculated.
+    // This is important as fractional scissor values affect the coverage and
+    // we want to make sure not to generate those in our fixup.
+    rdpq_change_other_modes_raw(SOM_COVERAGE_DEST_MASK, SOM_COVERAGE_DEST_CLAMP);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
     rspq_wait();
-    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, 
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*4, 
         "Wrong data in framebuffer (1 cycle mode)");
 
     rdpq_debug_log_msg("Fill mode (update)");
@@ -654,20 +657,32 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
     rspq_wait();
-    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, 
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*4, 
         "Wrong data in framebuffer (fill mode, update)");
 
     rdpq_debug_log_msg("1-cycle mode (update)");
     surface_clear(&fb, 0);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
-    rdpq_mode_blender(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
-    rdpq_set_blend_color(TEST_COLOR);
+    rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+    rdpq_set_prim_color(TEST_COLOR);
+    rdpq_change_other_modes_raw(SOM_COVERAGE_DEST_MASK, SOM_COVERAGE_DEST_CLAMP);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
     rspq_wait();
-    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, 
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*4, 
         "Wrong data in framebuffer (1 cycle mode, update)");
+
+    rdpq_debug_log_msg("Fill mode (push/pop)");
+    surface_clear(&fb, 0);
+    rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
+    rdpq_set_mode_fill(TEST_COLOR);
+    rdpq_mode_push();
+        rdpq_set_mode_standard();
+    rdpq_mode_pop();
+    rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*4, 
+        "Wrong data in framebuffer (fill mode, push/pop)");
 }
 
 void test_rdpq_fixup_texturerect(TestContext *ctx)
@@ -1792,6 +1807,57 @@ void test_rdpq_mode_alphacompare(TestContext *ctx) {
          SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
         "invalid SOM configuration: %08llx", som);
 }
+
+void test_rdpq_mode_zmode(TestContext *ctx) {
+    RDPQ_INIT();
+
+    rdpq_debug_log_msg("standard mode");
+    rdpq_set_mode_standard();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("AA standard");
+    rdpq_mode_antialias(AA_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("blending+AA");
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("blending");
+    rdpq_mode_antialias(AA_NONE);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Interpenetrating+blending");
+    rdpq_mode_zmode(ZMODE_INTERPENETRATING);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_INTERPENETRATING, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal+blending");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard+blending");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    rdpq_mode_blender(0);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+}
+
 
 void test_rdpq_mode_freeze(TestContext *ctx) {
     RDPQ_INIT();

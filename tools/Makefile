@@ -16,6 +16,18 @@ ifeq ($(OS),Windows_NT)
 	CFLAGS += -static
 	CXXFLAGS += -static
   	LDFLAGS += -static
+
+# Check that $CC and $CXX are set to a mingw compiler. Many users are not really
+# familiar with msys2 and they tend to have weirdly broken environments. Let's try
+# to help them.
+	CHECK_CC := $(shell $(CC) -dumpmachine 2>/dev/null | grep -i "mingw" >/dev/null && echo ok || echo fail)
+	CHECK_CXX := $(shell $(CXX) -dumpmachine 2>/dev/null | grep -i "mingw" >/dev/null && echo ok || echo fail)
+	ifeq ($(CHECK_CC),fail)
+		$(error "CC is not set to a mingw compiler: ${CC}")
+	endif
+	ifeq ($(CHECK_CXX),fail)
+		$(error "CXX is not set to a mingw compiler: ${CXX}")
+	endif
 endif
 
 # Decomment to rebuild tools with ASAN
@@ -62,6 +74,7 @@ mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
 mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o common/assetcomp.a
 mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a
+mkmaterial_OBJS = mkmaterial/mkmaterial.o mkmaterial/mkmaterial_parse.o mkmaterial/mkmaterial_export.o common/assetcomp.a 
 combexpr_OBJS = mkmaterial/combexpr_cli.o mkmaterial/combexpr_disasm.o
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
 n64dso-extern_OBJS = n64dso/n64dso-extern.o
@@ -76,7 +89,7 @@ ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
-TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel n64dso n64dso-msym n64dso-extern rdpvalidate combexpr
+TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)

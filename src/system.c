@@ -1,5 +1,7 @@
 /**
  * @file system.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief newlib Interface Hooks
  * @ingroup system
  */
@@ -17,6 +19,9 @@
 #include <malloc.h>
 #include <time.h>
 #include "system.h"
+#include "kernel.h"
+#include "debug.h"
+#include "kernel/kernel_internal.h"
 #include "n64sys.h"
 #include "rtc_internal.h"
 
@@ -74,8 +79,9 @@ void (*__assert_func_ptr)(const char *file, int line, const char *func, const ch
 
 /* Externs from libdragon */
 /// @cond
-extern void enable_interrupts();
-extern void disable_interrupts();
+extern void enable_interrupts(void);
+extern void disable_interrupts(void);
+extern bool __expanded_memory_asserted;
 /// @endcond
 
 /**
@@ -94,6 +100,10 @@ typedef struct
     char *prefix;
     /** @brief Filesystem callback pointers */
     filesystem_t *fs;
+    /** @brief Mutex used to protect concurrent accesses to the filesystem */
+    kmutex_t lock;
+    /** @brief True if a lock is needed for this filesystem */
+    bool need_lock;
 } fs_mapping_t;
 
 /** @brief Extract bits from word */
@@ -161,6 +171,7 @@ uint64_t __entropy_K[4] = {
 
 /* Forward definitions */
 int close( int fildes );
+int write( int file, char *ptr, int len );
 
 /**
  * @brief Simple implementation of strlen
@@ -365,6 +376,10 @@ int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
     /* Attach the inputted filesystem */
     filesystems[handle].fs = filesystem;
 
+    /* Initialize the mutex */
+    kmutex_init(&filesystems[handle].lock, KMUTEX_STANDARD);
+    filesystems[handle].need_lock = __kernel && !filesystem->thread_safe;
+
     /* All went well */
     return 0;
 }
@@ -409,6 +424,8 @@ int detach_filesystem( const char * const prefix )
  */
 static int __allocate_fileno( void *handle, int fs_index )
 {
+    kthread_lock();
+
     /* Allocate whenever the handle map is full at 75% to avoid wasting too
      * much time looking for an empty ID. */
     if( !handle_buckets_count || 
@@ -418,6 +435,7 @@ static int __allocate_fileno( void *handle, int fs_index )
         void *mem = calloc( HANDLE_BUCKET_SIZE, sizeof( void* ) );
         if( !mem ) 
         {
+            kthread_unlock();
             errno = ENOMEM;
             return -1;
         }
@@ -441,6 +459,7 @@ static int __allocate_fileno( void *handle, int fs_index )
             {
                 handle_map[bkt_idx][bkt_pos] = handle;
                 handle_open_count++;
+                kthread_unlock();
                 return FILENO_MAKE( bkt_idx, bkt_pos, fs_index );
             }
             bkt_pos = (bkt_pos+1) % HANDLE_BUCKET_SIZE;
@@ -452,6 +471,7 @@ static int __allocate_fileno( void *handle, int fs_index )
     }
 
     /* All slots are full. Set ENFILE and return error */
+    kthread_unlock();
     errno = ENFILE;
     return -1;
 }
@@ -466,7 +486,7 @@ static int __allocate_fileno( void *handle, int fs_index )
  * 
  * @return Pointer to a filesystem callback structure or null if not found.
  */
-static filesystem_t *__get_fs_pointer_by_handle( int fileno )
+static fs_mapping_t *__get_fs_pointer_by_handle( int fileno )
 {
     /* Invalid */
     if( fileno <= 0 )
@@ -481,7 +501,7 @@ static filesystem_t *__get_fs_pointer_by_handle( int fileno )
         return 0;
     }
 
-    return filesystems[fs_index].fs;
+    return &filesystems[fs_index];
 }
 
 /**
@@ -525,13 +545,13 @@ static int __get_fs_link_by_name( const char * const name )
  *
  * @return Pointer to a filesystem callback structure or null if not found.
  */
-static filesystem_t *__get_fs_pointer_by_name( const char * const name )
+static fs_mapping_t *__get_fs_pointer_by_name( const char * const name )
 {
     int fs = __get_fs_link_by_name( name );
 
     if( fs >= 0 )
     {
-        return filesystems[fs].fs;
+        return &filesystems[fs];
     }
     else
     {
@@ -598,15 +618,15 @@ int chown( const char *path, uid_t owner, gid_t group )
  */
 int close( int fileno )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+    fs_mapping_t *fsm = __get_fs_pointer_by_handle( fileno );
 
-    if( fs == 0 )
+    if( fsm == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->close == 0 )
+    if( fsm->fs->close == 0 )
     {
         /* Filesystem doesn't support close */
         errno = ENOSYS;
@@ -621,15 +641,19 @@ int close( int fileno )
         return -1;
     }
 
-    /* Access the filesystem handle */
-    void *handle = *handle_ptr;
 
     /* Clear the map slot */
+    kthread_lock();
+    void *handle = *handle_ptr;
     *handle_ptr = 0;
     handle_open_count--;
+    kthread_unlock();
 
     /* Tell the filesystem to close the file */
-    return fs->close( handle );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->close( handle );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -706,23 +730,26 @@ int fstat( int fileno, struct stat *st )
     }
     else
     {
-        filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+        fs_mapping_t *fsm = __get_fs_pointer_by_handle( fileno );
         void **handle_ptr = __get_fs_handle( fileno );
 
-        if( fs == 0 || handle_ptr == 0 )
+        if( fsm == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
         }
 
-        if( fs->fstat == 0 )
+        if( fsm->fs->fstat == 0 )
         {
             /* Filesystem doesn't support fstat */
             errno = ENOSYS;
             return -1;
         }
 
-        return fs->fstat( *handle_ptr, st );
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->fstat( *handle_ptr, st );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
     }
 }
 
@@ -923,23 +950,26 @@ int link( char *existing, char *new )
  */
 int lseek( int file, int ptr, int dir )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( file );
+    fs_mapping_t *fsm = __get_fs_pointer_by_handle( file );
     void **handle_ptr = __get_fs_handle( file );
 
-    if( fs == 0 || handle_ptr == 0 )
+    if( fsm == 0 || handle_ptr == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->lseek == 0 )
+    if( fsm->fs->lseek == 0 )
     {
         /* Filesystem doesn't support lseek */
         errno = ENOSYS;
         return -1;
     }
 
-    return fs->lseek( *handle_ptr, ptr, dir );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->lseek( *handle_ptr, ptr, dir );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -956,15 +986,15 @@ int lseek( int file, int ptr, int dir )
  */
 int open( const char *file, int flags, ... )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( file );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( file );
 
-    if( fs == 0 )
+    if( fsm == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->open == 0 )
+    if( fsm->fs->open == 0 )
     {
         /* Filesystem doesn't support open */
         errno = ENOSYS;
@@ -997,7 +1027,9 @@ int open( const char *file, int flags, ... )
     errno = 0;
 
     /* Use the old open() call that will cause an additional allocation */
-    void *handle = fs->open( (char *)( file + __strlen( filesystems[fs_index].prefix ) ), flags );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    void *handle = fsm->fs->open( (char *)( file + __strlen( filesystems[fs_index].prefix ) ), flags );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
 
     if( handle )
     {
@@ -1048,23 +1080,26 @@ int read( int fileno, char *ptr, int len )
     else
     {
         /* Read from file */
-        filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+        fs_mapping_t *fsm = __get_fs_pointer_by_handle( fileno );
         void **handle_ptr = __get_fs_handle( fileno );
 
-        if( fs == 0 || handle_ptr == 0 )
+        if( fsm == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
         }
 
-        if( fs->read == 0 )
+        if( fsm->fs->read == 0 )
         {
             /* Filesystem doesn't support read */
             errno = ENOSYS;
             return -1;
         }
 
-        return fs->read( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->read( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
     }
 }
 
@@ -1106,7 +1141,7 @@ void *sbrk( int incr )
     if( __heap_end == 0 )
     {
         __heap_end = (char*)HEAP_START_ADDR;
-        __heap_top = (char*)KSEG0_START_ADDR + get_memory_size() - STACK_SIZE;
+        __heap_top = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
         __heap_total_size = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
     }
 
@@ -1119,6 +1154,13 @@ void *sbrk( int incr )
         __heap_end -= incr;
         prev_heap_end = (char *)-1;
         errno = ENOMEM;
+    }
+
+    if (__heap_end - (char*)KSEG0_START_ADDR >= 4*1024*1024 - STACK_SIZE && !__expanded_memory_asserted)
+    {
+        static char warning[] = "WARNING: Allocations beyond 4 MiB: this ROM requires the expansion pak to work properly.\nWARNING: Call assert_memory_expanded() or is_memory_expanded() in main to disable this warning.\n";
+        write( STDERR_FILENO, warning, sizeof(warning) - 1 );
+        __expanded_memory_asserted = true; // only emit the warning once
     }
 
     enable_interrupts();
@@ -1172,12 +1214,17 @@ int stat( const char *file, struct stat *st )
         return -1;
     }
 
-    filesystem_t *fs = __get_fs_pointer_by_name( file );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( file );
     int mapping = __get_fs_link_by_name( file );
 
     /* Use stat function when available, and fstat as a fallback */
-    if( fs != 0 && mapping >= 0 && fs->stat )
-        return fs->stat( (char *)file + __strlen( filesystems[mapping].prefix ) - 1, st );
+    if( fsm != 0 && mapping >= 0 && fsm->fs->stat )
+    {
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->stat( (char *)file + __strlen( filesystems[mapping].prefix ) - 1, st );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
+    }
 
     /* Dirty hack, open read only */
     int fd = open( (char *)file, O_RDONLY );
@@ -1236,16 +1283,16 @@ clock_t times( struct tms *buf )
  */
 int unlink( char *name )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( name );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( name );
     int mapping = __get_fs_link_by_name( name );
 
-    if( fs == 0 || mapping < 0 )
+    if( fsm == 0 || mapping < 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->unlink == 0 )
+    if( fsm->fs->unlink == 0 )
     {
         /* Filesystem doesn't support unlink */
         errno = ENOSYS;
@@ -1253,7 +1300,10 @@ int unlink( char *name )
     }
 
     /* Must offset past the prefix */
-    return fs->unlink( name + __strlen( filesystems[mapping].prefix ) );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->unlink( name + __strlen( filesystems[mapping].prefix ) );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1275,20 +1325,23 @@ int wait( int *status )
 
 int ioctl(int fd, unsigned long cmd, void *argp)
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle(fd);
+    fs_mapping_t *fsm = __get_fs_pointer_by_handle(fd);
     void **handle_ptr = __get_fs_handle(fd);
-    if(fs == 0 || handle_ptr == 0)
+    if(fsm == 0 || handle_ptr == 0)
     {
         errno = EBADF;
         return -1;
     }
-    if(fs->ioctl == 0 )
+    if(fsm->fs->ioctl == 0 )
     {
         /* Filesystem doesn't support ioctl */
         errno = ENOTTY;
         return -1;
     }
-    return fs->ioctl(*handle_ptr, cmd, argp);
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->ioctl(*handle_ptr, cmd, argp);
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1338,23 +1391,26 @@ int write( int file, char *ptr, int len )
     else
     {
         /* Filesystem write */
-        filesystem_t *fs = __get_fs_pointer_by_handle( file );
+        fs_mapping_t *fsm = __get_fs_pointer_by_handle( file );
         void **handle_ptr = __get_fs_handle( file );
 
-        if( fs == 0 || handle_ptr == 0 )
+        if( fsm == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
         }
 
-        if( fs->write == 0 )
+        if( fsm->fs->write == 0 )
         {
             /* Filesystem doesn't support write */
             errno = ENOSYS;
             return -1;
         }
 
-        return fs->write( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->write( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
     }
 }
 
@@ -1372,23 +1428,26 @@ int write( int file, char *ptr, int len )
  */
 int ftruncate( int file, off_t length )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( file );
+    fs_mapping_t *fsm = __get_fs_pointer_by_handle( file );
     void **handle_ptr = __get_fs_handle( file );
 
-    if( fs == 0 || handle_ptr == 0 || length < 0 )
+    if( fsm == 0 || handle_ptr == 0 || length < 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->ftruncate == 0 )
+    if( fsm->fs->ftruncate == 0 )
     {
         /* Filesystem doesn't support ftruncate */
         errno = ENOSYS;
         return -1;
     }
 
-    return fs->ftruncate( *handle_ptr, length );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->ftruncate( *handle_ptr, length );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1485,6 +1544,7 @@ int getentropy(uint8_t *buf, size_t buflen)
 
     // Mix in some hardware state / counters that are likely to be random
     // at the point of sampling, especially during hardware activity.
+    disable_interrupts();
     for (int i=0; i<sizeof(entropic_regs)/sizeof(entropic_regs[0]); i+=2) {
         uint64_t k = ((uint64_t)*entropic_regs[i+0] << 32) | *entropic_regs[i+1];
         __entropy_add(k);
@@ -1492,6 +1552,7 @@ int getentropy(uint8_t *buf, size_t buflen)
 
     // Extract the current entropy value
     uint64_t h = __entropy_get();
+    enable_interrupts();
 
     // Generate output buffer
     typedef uint64_t u_uint64_t __attribute__((aligned(1)));
@@ -1516,16 +1577,16 @@ int getentropy(uint8_t *buf, size_t buflen)
 
 int dir_findfirst( const char * const path, dir_t *dir )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( path );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
     int mapping = __get_fs_link_by_name( path );
 
-    if( fs == 0 || mapping < 0 || dir == 0 )
+    if( fsm == 0 || mapping < 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->findfirst == 0 )
+    if( fsm->fs->findfirst == 0 )
     {
         /* Filesystem doesn't support findfirst */
         errno = ENOSYS;
@@ -1537,27 +1598,33 @@ int dir_findfirst( const char * const path, dir_t *dir )
     __builtin_memset( dir, 0, sizeof( dir_t ) );
     dir->d_size = -1;
 
-    return fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 int dir_findnext( const char * const path, dir_t *dir )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( path );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
 
-    if( fs == 0 || dir == 0 )
+    if( fsm == 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->findnext == 0 )
+    if( fsm->fs->findnext == 0 )
     {
         /* Filesystem doesn't support findfirst */
         errno = ENOSYS;
         return -1;
     }
 
-    return fs->findnext( dir );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->findnext( dir );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1571,23 +1638,26 @@ int dir_findnext( const char * const path, dir_t *dir )
  */
 int mkdir( const char * path, mode_t mode )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( path );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
     int mapping = __get_fs_link_by_name( path );
 
-    if( fs == 0 || mapping < 0 )
+    if( fsm == 0 || mapping < 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->mkdir == 0 )
+    if( fsm->fs->mkdir == 0 )
     {
         /* Filesystem doesn't support mkdir */
         errno = ENOSYS;
         return -1;
     }
     
-    return fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 int hook_stdio_calls( stdio_t *stdio_calls )

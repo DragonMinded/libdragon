@@ -1,3 +1,8 @@
+/**
+ * @file primitive.c
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @brief OpenGL primitive drawing and vertex processing routines.
+ */
 #include "gl_internal.h"
 #include "utils.h"
 #include "rdpq.h"

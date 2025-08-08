@@ -1,5 +1,6 @@
 /**
  * @file xm64.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Efficient XM module player
  * @ingroup mixer
  *

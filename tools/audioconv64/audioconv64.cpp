@@ -1,4 +1,17 @@
+/*
+    audioconv64: convert audio files to the format used by the Libdragon SDK
+	Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -9,7 +22,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#ifdef __MINGW32__
+#ifdef __cplusplus
 #define _Static_assert static_assert
 #endif
 
@@ -19,28 +32,6 @@
 
 bool flag_verbose = false;
 bool flag_debug = false;
-
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-	#define LE32_TO_HOST(i) __builtin_bswap32(i)
-	#define HOST_TO_LE32(i) __builtin_bswap32(i)
-	#define LE16_TO_HOST(i) __builtin_bswap16(i)
-	#define HOST_TO_LE16(i) __builtin_bswap16(i)
-
-	#define BE32_TO_HOST(i) (i)
-	#define HOST_TO_BE32(i) (i)
-	#define LE16_TO_HOST(i) (i)
-	#define HOST_TO_BE16(i) (i)
-#else
-	#define BE32_TO_HOST(i) __builtin_bswap32(i)
-	#define HOST_TO_BE32(i) __builtin_bswap32(i)
-	#define BE16_TO_HOST(i) __builtin_bswap16(i)
-	#define HOST_TO_BE16(i) __builtin_bswap16(i)
-
-	#define LE32_TO_HOST(i) (i)
-	#define HOST_TO_LE32(i) (i)
-	#define HOST_TO_LE16(i) (i)
-	#define LE16_TO_HOST(i) (i)
-#endif
 
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...) {
@@ -52,15 +43,13 @@ void fatal(const char *str, ...) {
 	exit(1);
 }
 
-char* changeext(const char* fn, const char *ext);
-
 /************************************************************************************
  *  CONVERTERS
  ************************************************************************************/
 
-#include "conv_wav64.c"
-#include "conv_xm64.c"
-#include "conv_ym64.c"
+#include "conv_wav64.cpp"
+#include "conv_xm64.cpp"
+#include "conv_ym64.cpp"
 
 /************************************************************************************
  *  MAIN
@@ -90,12 +79,13 @@ void usage(void) {
 	printf("   --wav-compress <0|1|3>    	Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
 	printf("   --wav-loop <true|false>   	Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     	Set looping offset (in samples; default: 0)\n");
+	printf("   --wav-seek-offset <N>[,<N>]	Add additional seeking offsets (in samples; can specify multiple times)\n");
 	printf("\n");
 	printf("XM options:\n");
 	printf("   --xm-8bit                 	Convert all samples to 8-bit\n");
 	printf("   --xm-ext-samples <dir>    	Export samples externally as wav64 files in the specified directory\n");
-	printf("   --xm-compress <0..3>      	Compression level for XM metadata (default: 1)\n");
-	printf("   --xm-compress-samples <0|1>  Compression level for XM samples (default: 1)\n");
+	printf("   --xm-compress <0|1>          Compression level for XM samples (default: 1=vadpcm)\n");
+	printf("   --xm-compress-data <0..3>    Compression level for XM binary data (default: 1)\n");
 	printf("\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  	Compress output file\n");
@@ -267,7 +257,7 @@ int main(int argc, char *argv[]) {
 				flag_wav_looping = true;
 			} else if (!strcmp(argv[i], "--wav-mono")) {
 				flag_wav_mono = true;
-			} else if (!strcmp(argv[i], "--wav-compress") || !strcmp(argv[i], "--xm-compress-samples")) {
+			} else if (!strcmp(argv[i], "--wav-compress") || !strcmp(argv[i], "--xm-compress")) {
 				int *flag_compress = (!strcmp(argv[i], "--wav-compress")) ? &flag_wav_compress : &flag_xm_compress_samples;
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -341,6 +331,25 @@ int main(int argc, char *argv[]) {
 					fprintf(stderr, "invalid argument for --wav-resample: %s\n", argv[i]);
 					return 1;
 				}
+			} else if (!strcmp(argv[i], "--wav-seek-offset")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --wav-seek-offset\n");
+					return 1;
+				}
+				// Parse one or multiple seek offsets separated by commas
+				char *offsets = strdup(argv[i]);
+				char *offset = strtok(offsets, ",");
+				while (offset) {
+					int off = atoi(offset);
+					if (off < 0) {
+						fprintf(stderr, "invalid seek offset: %s\n", offset);
+						free(offsets);
+						return 1;
+					}
+					flag_wav_seek_offset.push_back(off);
+					offset = strtok(NULL, ",");
+				}
+				free(offsets);
 			} else if (!strcmp(argv[i], "--xm-8bit")) {
 				flag_xm_8bit = true;
 			} else if (!strcmp(argv[i], "--xm-ext-samples")) {
@@ -350,7 +359,7 @@ int main(int argc, char *argv[]) {
 				}
 				flag_xm_extsampledir = argv[i];
 				mkdir(flag_xm_extsampledir, 0777);
-			} else if (!strcmp(argv[i], "--xm-compress")) {
+			} else if (!strcmp(argv[i], "--xm-compress-data")) {
 				if (++i == argc) {
 					fprintf(stderr, "missing argument for --xm-compress\n");
 					return 1;

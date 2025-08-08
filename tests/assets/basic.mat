@@ -1,0 +1,26 @@
+[glass]
+tex0.name = grass1sq.rgba32.png
+tex0.fmt = RGBA32
+tex0.s.repeats = inf
+tex0.t.repeats = inf
+tex0.s.mirror = true
+tex0.t.mirror = false
+
+combiner.rgb = tex0 - prim
+
+rm.antialias = none
+rm.alpha_compare = 1
+
+#combiner.rgb.raw = (prim, 0, tex0, 0)
+#blender.mode = multiply_const
+#blender.fog.a = 0.3
+
+[ext_test]
+combiner.rgb = prim
+
+ext.test.b = true
+ext.test.i1 = 0x12345678
+ext.test.i2 = -1234567
+ext.test.f = 12345.67
+ext.test.s = this is a string
+

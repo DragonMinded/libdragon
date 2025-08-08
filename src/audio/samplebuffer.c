@@ -1,5 +1,6 @@
 /**
  * @file samplebuffer.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Sample buffer
  * @ingroup mixer
  */
@@ -25,7 +26,7 @@
 #define tracef(fmt, ...)  ({ })
 #endif
 
-void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes) {
+void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes, int state_size) {
 	memset(buf, 0, sizeof(samplebuffer_t));
 
 	// Store the buffer pointer as uncached address. We don't want to access
@@ -36,6 +37,12 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes) {
 	buf->ptr_and_flags = (uint32_t)uncached_mem;
 	assert((buf->ptr_and_flags & 7) == 0);
 	buf->size = nbytes;
+
+	if (state_size) {
+		buf->state = uncached_mem + nbytes;
+		buf->state_size = state_size;
+	} 
+		
 	buf->wnext = -1;
 }
 
@@ -51,10 +58,11 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
 	buf->size = nbytes >> bps;
 }
 
-void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read, void *ctx) {
+void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read) {
 	buf->wave = wave;
 	buf->wv_read = read;
-	buf->wv_ctx = ctx;
+	buf->wave_uuid = wave->__uuid;
+	assert(wave->state_size <= buf->state_size);
 }
 
 bool samplebuffer_is_inited(samplebuffer_t *buf)
@@ -106,7 +114,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if ((buf->wpos << bps) & 1) {
 			buf->wpos--; len++;
 		}
-		buf->wv_read(buf->wv_ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
+		buf->wv_read(buf->wave->ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
 		buf->wnext = buf->wpos + buf->widx;
 	} else {
 		// Record first sample that we still need to keep in the sample
@@ -127,7 +135,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if (reuse < *wlen) {
 			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
 			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
-			buf->wv_read(buf->wv_ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
+			buf->wv_read(buf->wave->ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
 			buf->wnext = buf->wpos + buf->widx;
 		}
 	}

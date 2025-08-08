@@ -1,17 +1,22 @@
+/**
+ * @file utils.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Misc utilities functions and macros
+ */
 #ifndef __LIBDRAGON_UTILS_H
 #define __LIBDRAGON_UTILS_H
 
 #include <string.h>  // memcpy
 #include <stdint.h>
 
-/**
- * Misc utilities functions and macros. Internal header.
- */
-
+/** @brief Swap two values */
 #define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
 
+/** @brief Return the maximum of two values */
 #define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
+/** @brief Return the minimum of two values */
 #define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
+/** @brief Clamp a value between min and max */
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 
 /** @brief Round n up to the next multiple of d */
@@ -39,7 +44,11 @@
 })
 
 /** @brief Type-safe bitcast from float to integer */
-#define F2I(f)   ({ uint32_t __i; memcpy(&__i, &(f), 4); __i; })
+#define F2I(f)   ({ \
+	_Static_assert(__builtin_types_compatible_p(typeof(f), float) || \
+				   __builtin_types_compatible_p(typeof(f), const float), \
+				   "F2I requires a float argument"); \
+	uint32_t __i; memcpy(&__i, &(f), 4); __i; })
 
 /** @brief Type-safe bitcast from integer to float */
 #define I2F(i)   ({ float __f; memcpy(&__f, &(i), 4); __f; })

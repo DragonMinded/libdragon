@@ -1,3 +1,13 @@
+/*
+    rdpvalidate: validate a dump of RDP commands
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>

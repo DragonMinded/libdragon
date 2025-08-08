@@ -1,5 +1,7 @@
 /**
  * @file n64sys.c
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief N64 System Interface
  * @ingroup n64sys
  */
@@ -12,7 +14,6 @@
 #include "n64sys.h"
 #include "regsinternal.h"
 #include "interrupt.h"
-#include "vi_internal.h"
 #include "rsp.h"
 #include "rdp.h"
 #include "utils.h"
@@ -22,11 +23,47 @@ int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
 
+/** @brief Records whether the user called a function to check for the presence of expanded memory */
+bool __expanded_memory_asserted = false;
+
 /** @brief Last tick at which the 64-bit counter was updated */
 static uint32_t ticks64_base_tick;
 
 /** @brief Last value of the 64-bit counter */
 static uint64_t ticks64_base;
+
+/// @cond
+
+// Instruction cache defines.
+#define CACHE_INST_FLAG                 (0)
+#define CACHE_INST_SIZE                 (16 * 1024)
+#define CACHE_INST_LINESIZE             (32)
+// Data cache defines.
+#define CACHE_DATA_FLAG                 (1)
+#define CACHE_DATA_SIZE                 (8 * 1024)
+#define CACHE_DATA_LINESIZE             (16)
+// Cache ops described in VR4300 manual on page 404.
+#define INDEX_INVALIDATE                (0)
+#define INDEX_LOAD_TAG                  (1)
+#define INDEX_STORE_TAG                 (2)
+#define INDEX_CREATE_DIRTY              (3)
+#define HIT_INVALIDATE                  (4)
+#define HIT_WRITEBACK_INVALIDATE        (5)
+#define HIT_WRITEBACK                   (6)
+
+/// @endcond
+
+/**
+ * @brief Helper macro to create the opcode for a cache operation.
+ * Operation is encoded in 5 bits where bits 4..2 contain the operation type
+ * and bits 0..1 determine the cache that is to be operated on. 
+ * 
+ * @param[in] op
+ *            Operation type to perform.
+ * @param[in] cache
+ *            Specific cache to perform the operation on.
+ */
+#define build_opcode(op, cache)             (((op) << 2) | (cache))
 
 /**
  * @brief Helper macro to perform cache refresh operations
@@ -47,50 +84,48 @@ static uint64_t ticks64_base;
 
 void data_cache_hit_writeback(volatile const void * addr, unsigned long length)
 {
-    cache_op(0x19, 16);
+    cache_op(build_opcode(HIT_WRITEBACK, CACHE_DATA_FLAG), CACHE_DATA_LINESIZE);
 }
 
-/** @brief Underlying implementation of data_cache_hit_invalidate */
-void __data_cache_hit_invalidate(volatile void * addr, unsigned long length)
+void data_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x11, 16);
+    assert(((uint32_t)addr % 16) == 0 && (length % 16) == 0);
+    cache_op(build_opcode(HIT_INVALIDATE, CACHE_DATA_FLAG), CACHE_DATA_LINESIZE);
 }
 
 void data_cache_hit_writeback_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x15, 16);
+    cache_op(build_opcode(HIT_WRITEBACK_INVALIDATE, CACHE_DATA_FLAG), CACHE_DATA_LINESIZE);
 }
 
 void data_cache_index_writeback_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x01, 16);
+    cache_op(build_opcode(INDEX_INVALIDATE, CACHE_DATA_FLAG), CACHE_DATA_LINESIZE);
 }
 
 void data_cache_writeback_invalidate_all(void)
 {
-    // TODO: do an index op instead for better performance
-    data_cache_hit_writeback_invalidate(KSEG0_START_ADDR, get_memory_size());
+    data_cache_index_writeback_invalidate(KSEG0_START_ADDR, 0x2000);
 }
 
 void inst_cache_hit_writeback(volatile const void * addr, unsigned long length)
 {
-    cache_op(0x18, 32);
+    cache_op(build_opcode(HIT_WRITEBACK, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
 }
 
 void inst_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x10, 32);
+    cache_op(build_opcode(HIT_INVALIDATE, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
 }
 
 void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x00, 32);
+    cache_op(build_opcode(INDEX_INVALIDATE, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
 }
 
 void inst_cache_invalidate_all(void)
 {
-    // TODO: do an index op instead for better performance
-    inst_cache_hit_invalidate(KSEG0_START_ADDR, get_memory_size());
+    inst_cache_index_invalidate(KSEG0_START_ADDR, 0x4000);
 }
 
 void *malloc_uncached(size_t size)
@@ -125,14 +160,29 @@ void free_uncached(void *buf)
     free(CachedAddr(buf));
 }
 
-int get_memory_size()
+int get_memory_size(void)
 {
+    // If the application checked the size of the memory, we can assume that
+    // they know what they are doing and we can avoid emitting the expansion
+    // pak warning.
+    __expanded_memory_asserted = true;
     return __boot_memsize;
 }
 
-bool is_memory_expanded()
+bool is_memory_expanded(void)
 {
     return get_memory_size() >= 0x7C0000;
+}
+
+void assert_memory_expanded(void)
+{
+    bool expanded = is_memory_expanded();
+    if (sys_bbplayer()) 
+        assertf(expanded, 
+            "This application requires more memory to run. Please allocate 8 MiB (0x800000 bytes) in the ticket and run it again.");
+    else
+        assertf(expanded, 
+            "This application requires the expansion pak to run. Please insert the expansion pak and restart the console.");
 }
 
 reset_type_t sys_reset_type(void)

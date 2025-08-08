@@ -1,3 +1,7 @@
+/**
+ * @file wav64_vadpcm.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "wav64.h"
 #include "wav64_internal.h"
 #include "wav64_vadpcm_internal.h"
@@ -205,9 +209,8 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 
     // Access the per-channel state
-    int chidx = (int)ctx;
-    assert(chidx >= 0 && chidx <= wav->st->nsimul);
-    wav64_state_vadpcm_t *vstate = &((wav64_state_vadpcm_t*)wav->st->states)[chidx];
+    wav64_state_vadpcm_t *vstate = sbuf->state;
+    assert(sbuf->state_size >= sizeof(wav64_state_vadpcm_t));
 	bool highpri = false;
 
 	if (seeking) {
@@ -232,7 +235,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
                 for (int i=0; i<vhead->num_skippoints; i++) {
                     debugf("skip point %d: %d\n", i, vhead->skip_points[i].offset);
                 }
-                assertf(found, "invalid VADPCM seeking point: 0x%x", wpos);
+                assertf(found, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, wpos);
             }
 		}
         rspq_highpri_end();
@@ -327,18 +330,21 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 	if (highpri)
 		rspq_highpri_end();
 
-    if (wav->wave.loop_len && wpos >= wav->wave.len) {
+    if (wav->wave.loop_len && wpos > wav->wave.len) {
         samplebuffer_undo(sbuf, wpos - wav->wave.len);
+
+        // We are forced to sync here. The reason is the following:
+        //  * We reached the end of a looping sample
+        //  * The code in waveform_read could now immediately decode another
+        //    chunk of samples at the beginning of the loop.
+        //  * This other read will call read() on the file to read the compressed
+        //    frames *into the output buffer*
+        //  * The bytes into which we load them could overlap with the bytes
+        //    that were just "undo'd". But on those bytes, the RSP is going to
+        //    write soon as part of the just-scheduled decoding.
+        //  This might cause a race condition.
+        rspq_highpri_sync();
     }
-}
-
-static void waveform_vadpcm_stop(void *ctx, samplebuffer_t *sbuf) {
-	wav64_t *wav = (wav64_t*)sbuf->wave;
-
-    // Inform wav64 that the channel has stopped
-    int chidx = (int)ctx;
-    assert(chidx >= 0 && chidx <= wav->st->nsimul);
-    __wav64_channel_stopped(wav, chidx);
 }
 
 static void wav64_vadpcm_init_huffman(wav64_t *wav) {
@@ -379,11 +385,6 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
 
     // Set wave callback functions
     wav->wave.read = waveform_vadpcm_read;
-    wav->wave.stop = waveform_vadpcm_stop;
-
-    // Flush cached state; it will be manipulated by RSP only
-    wav64_state_vadpcm_t *vstate = (wav64_state_vadpcm_t*)wav->st->states;
-    data_cache_hit_writeback_invalidate(vstate, wav->st->nsimul * sizeof(wav64_state_vadpcm_t));
 
     // Init huffman
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;

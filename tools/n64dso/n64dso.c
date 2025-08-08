@@ -1,3 +1,13 @@
+/*
+    n64dso: convert an ELF file into a DSO file
+    Written by Liam Coleman  <gamemasterplc@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>

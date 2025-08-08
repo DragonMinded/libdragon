@@ -1,3 +1,7 @@
+/**
+ * @file i2c_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_I2C_INTERNAL_H
 #define LIBDRAGON_I2C_INTERNAL_H
 

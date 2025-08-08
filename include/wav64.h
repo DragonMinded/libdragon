@@ -1,5 +1,6 @@
 /**
  * @file wav64.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Support for WAV64 audio files
  * @ingroup mixer
  */
@@ -111,25 +112,6 @@ typedef enum {
 
 /** @brief WAV64 loading parameters (to be passed to #wav64_load) */
 typedef struct wav64_loadparms_s {
-	/** 
-	 * @brief Maximum number of simultaneous playbacks 
-	 * 
-	 * This setting specifies the maximum number of channels that will play
-	 * this wav64 file at the same time. 
-	 * 
- 	 * The default for this setting depends on the compression level of the file:
-	 *  
-	 *   * Level 0 (uncompressed): default to 32
-	 *   * Level 1 (VADPCM): default to 4
-	 *   * Level 3 (Opus): default to 1
-	 * 
-	 * This is done to obtain a balance between memory usage and flexibility.
-	 * 
-     * If you try to playback the same wav64 on more channels than the maximum, 
-	 * the playback will stop a random playing channel to make room for the new one.
-	 */
-	int max_simultaneous_playbacks;
-
 	/**
 	 * @brief Streaming mode for the wav64
 	 * 

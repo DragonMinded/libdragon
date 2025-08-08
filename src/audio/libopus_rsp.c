@@ -1,6 +1,6 @@
 /**
  * @file libopus_rsp.c
- * @author Giovanni Bajo (giovannibajo@gmail.com)
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief C-level glue for RSP ucode for Opus decoding
  */
 

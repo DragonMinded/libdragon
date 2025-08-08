@@ -1,5 +1,6 @@
 /**
  * @file fmath.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Fast math routines, optimized for 3D graphics calculations
  * @ingroup fastmath
  */

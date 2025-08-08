@@ -1,4 +1,13 @@
+/*
+    mkfont_out: common conversion code for mkfont
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
 
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 // Bring in tex_format_t definition
 #include "surface.h"
 #include "sprite.h"

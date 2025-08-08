@@ -1,5 +1,6 @@
 /**
  * @file rdpq_tex.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: high-level texture/surface loading and blitting
  * @ingroup rdpq
  */
@@ -80,7 +81,7 @@ typedef struct tex_loader_s {
 tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex);
 int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1);
 void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr);
-int tex_loader_calc_max_height(tex_loader_t *tload, int width);
+int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1);
 ///@endcond
 
 

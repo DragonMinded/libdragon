@@ -1,5 +1,6 @@
 /**
  * @file rdpq_paragraph.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Text paragraph layout engine
  * @ingroup rdpq
  */

@@ -1,5 +1,7 @@
 /**
  * @file libdragon.h
+ * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Main include file for programs seeking to link against libdragon
  * @ingroup libdragon
  */
@@ -62,7 +64,6 @@
 #include "dir.h"
 #include "yuv.h"
 #include "mpeg2.h"
-#include "throttle.h"
 #include "mixer.h"
 #include "samplebuffer.h"
 #include "wav64.h"
@@ -81,6 +82,7 @@
 #include "rdpq_font.h"
 #include "rdpq_debug.h"
 #include "rdpq_macros.h"
+#include "rdpq_mat.h"
 #include "surface.h"
 #include "sprite.h"
 #include "debugcpp.h"

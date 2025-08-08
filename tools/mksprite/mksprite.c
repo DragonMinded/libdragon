@@ -1,3 +1,13 @@
+/*
+    mksprite: convert a PNG image into a sprite file
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -334,6 +344,8 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
             sect = strtok(NULL, ".");
         }
         if (fmt != FMT_NONE) {
+            // If the user specified via command line, this is not "autoformat" anymore
+            autofmt = false;
             if (flag_verbose)
                 fprintf(stderr, "detected format from filename: %s\n", tex_format_name(fmt));
         }
@@ -523,6 +535,34 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
             }
         }
     }
+    if (state.info_raw.colortype == LCT_RGBA && state.info_raw.bitdepth <= 8) {
+        // Count the number of actually used 32-bit colors, to see if it's less than 256
+        // So keep space for 256 colors, and count how many are actually used.
+        uint32_t used_colors[256] = {0};
+        palout->used_colors = 0;
+        for (int i=0; i < width*height; i++) {
+            uint32_t color = (image[i*4+0] << 24) |
+                             (image[i*4+1] << 16) |
+                             (image[i*4+2] << 8) |
+                             (image[i*4+3] << 0);
+            // If the color is not already used, add it to the list
+            bool found = false;
+            for (int j=0; j < palout->used_colors; j++) {
+                if (used_colors[j] == color) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                used_colors[palout->used_colors++] = color;
+            }
+            if (palout->used_colors >= 256) {
+                // We can only use 256 colors, so stop counting
+                palout->used_colors = 99999;
+                break;
+            }
+        }
+    }
 
     // In case we're autodetecting the output format and the PNG had a palette, and only
     // indices 0-15 are used, we can use a FMT_CI4.
@@ -534,6 +574,13 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     if (autofmt && state.info_raw.colortype == LCT_GREY && palout->used_colors <= 16)
         fmt = FMT_I4;
 
+    // In case we're autodetecting the output format and the PNG is a RGBA image
+    // but only 16/256 colors are used, we can use a FMT_CI4/FMT_CI8.
+    if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 256)
+        fmt = FMT_CI8;
+    if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 16)
+        fmt = FMT_CI4;
+    
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
         fprintf(stderr, "auto selected format: %s\n", tex_format_name(fmt));
@@ -767,6 +814,7 @@ bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, i
 
     // Initialize the quantizer engine
     exq_data *exq = exq_init();
+    exq_no_transparency(exq);     // Ignore alpha during quantization (CI4/CI8 don't have real alpha anyway)
     exq->numBitsPerChannel = 5;   // force calculations using rgb555
 
     // Feed the input images, so that all of them will be quantized at once

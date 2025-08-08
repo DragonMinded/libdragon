@@ -1,5 +1,6 @@
 /**
  * @file debug.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Debugging Support
  */
 
@@ -197,11 +198,11 @@ extern "C" {
 	})
 
 #else
-	#define debug_init(ch)             ({ false; })
-	#define debug_init_usblog()        ({ false; })
-	#define debug_init_isviewer()      ({ false; })
-	#define debug_init_sdlog(fn,fmt)   ({ false; })
-	#define debug_init_sdfs(prefix,np) ({ false; })
+	#define debug_init(ch)             ((void)(false), false)
+	#define debug_init_usblog()        ((void)(false), false)
+	#define debug_init_isviewer()      ((void)(false), false)
+	#define debug_init_sdlog(fn,fmt)   ((void)(false), false)
+	#define debug_init_sdfs(prefix,np) ((void)(false), false)
 	#define debugf(msg, ...)           ({ })
 	#define assertf(expr, msg, ...)    ({ })
 #endif
