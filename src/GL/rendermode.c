@@ -465,6 +465,19 @@ rdpq_dither_t get_dither()
     return state->dither ? state->dither_mode : DITHER_NONE_NONE;
 }
 
+rdpq_zmode_t get_zmode()
+{
+    switch (state->depth_func)
+    {
+    case GL_EQUAL:
+        return ZMODE_DECAL;
+    case GL_LESS_INTERPENETRATING_N64:
+        return ZMODE_INTERPENETRATING;
+    default:
+        return ZMODE_STANDARD;
+    }
+}
+
 bool is_texture_replace()
 {
     return state->tex_env_mode == GL_REPLACE;
@@ -567,8 +580,12 @@ void update_rendermode()
             rdpq_mode_alphacompare(FLOAT_TO_U8(state->alpha_ref));
         }
 
-        rdpq_mode_zbuf(is_depth_compare_active(), is_depth_update_active());
-        // TODO: depth mode
+        bool compare_depth = is_depth_compare_active();
+        rdpq_mode_zbuf(compare_depth, is_depth_update_active());
+        
+        if (compare_depth) {
+            rdpq_mode_zmode(get_zmode());
+        }
 
         rdpq_mode_persp(state->persp_correct);
     rdpq_mode_end();
