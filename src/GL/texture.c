@@ -42,7 +42,6 @@ void gl_init_texture_object(gl_texture_object_t *obj)
     obj->mag_filter = GL_LINEAR;
     obj->wrap_s = GL_REPEAT;
     obj->wrap_t = GL_REPEAT;
-    obj->uniform_data = malloc_uncached(sizeof(mgfx_texturing_t));
 }
 
 void surface_free_safe(surface_t *surface)
@@ -68,8 +67,6 @@ void gl_cleanup_texture_object(gl_texture_object_t *obj)
     if (obj->upload_block != NULL) {
         rspq_block_free(obj->upload_block);
     }
-
-    free_uncached(obj->uniform_data);
 }
 
 void gl_texture_init()
@@ -196,11 +193,6 @@ inline bool texture_is_block_dirty(gl_texture_object_t *obj)
     return (obj->flags & TEX_IS_BLOCK_DIRTY) != 0 || obj->upload_block == NULL;
 }
 
-inline bool texture_is_uniform_dirty(gl_texture_object_t *obj)
-{
-    return (obj->flags & TEX_IS_UNIFORM_DIRTY) != 0;
-}
-
 inline bool texture_is_bilinear(gl_texture_object_t *obj)
 {
     return ((obj->min_filter | obj->mag_filter) & TEXTURE_BILINEAR_MASK) != 0;
@@ -236,12 +228,6 @@ void set_block_dirty(gl_texture_object_t *obj)
     if (texture_is_sprite(obj)) return;
 
     obj->flags |= TEX_IS_BLOCK_DIRTY;
-    set_texture_dirty(obj);
-}
-
-void set_uniform_dirty(gl_texture_object_t *obj)
-{
-    obj->flags |= TEX_IS_UNIFORM_DIRTY;
     set_texture_dirty(obj);
 }
 
@@ -357,7 +343,7 @@ void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texpar
     rspq_block_begin();
     rdpq_sprite_upload(TILE0, sprite, texparms);
     set_upload_block(obj, rspq_block_end());
-    set_uniform_dirty(obj);
+    set_texture_dirty(obj);
 }
 
 void on_image_assigned(gl_texture_object_t *obj, GLint level)
@@ -366,7 +352,7 @@ void on_image_assigned(gl_texture_object_t *obj, GLint level)
     gl_update_texture_completeness(obj);
 
     if (level == 0) {
-        set_uniform_dirty(obj);
+        set_texture_dirty(obj);
     }
 }
 
@@ -475,7 +461,7 @@ void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
         gl_update_texture_completeness(obj);
     }
 
-    set_uniform_dirty(obj);
+    set_texture_dirty(obj);
 }
 
 void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
@@ -490,7 +476,7 @@ void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
     }
 
     obj->mag_filter = param;
-    set_uniform_dirty(obj);
+    set_texture_dirty(obj);
 }
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
@@ -1323,24 +1309,38 @@ void upload_texture(gl_texture_object_t *obj)
 
 void update_uniform(gl_texture_object_t *obj)
 {
-    if (!texture_is_uniform_dirty(obj)) return;
+    uint16_t tex_width, tex_height;
+    get_texture_size(obj, &tex_width, &tex_height);
 
-    bool is_bilinear = texture_is_bilinear(obj);
+    // Extract offset and scale from the texture matrix
+    const fm_mat4_t *matrix = gl_matrix_stack_get_matrix(&state->texture_stack);
 
-    uint16_t width, height;
-    get_texture_size(obj, &width, &height);
+    // Get translation from 4th column
+    float offset_x = matrix->m[3][0] * (tex_width << RDP_TEX_SHIFT);
+    float offset_y = matrix->m[3][1] * (tex_height << RDP_TEX_SHIFT);
 
-    mgfx_get_texturing(obj->uniform_data, &(mgfx_texturing_parms_t) {
-        .offset = {
-            is_bilinear ? -RDP_HALF_TEXEL : 0, 
-            is_bilinear ? -RDP_HALF_TEXEL : 0
-        },
-        .scale = {
-            width >> TEX_SIZE_SHIFT,
-            height >> TEX_SIZE_SHIFT
-        }
-    });
-    obj->flags &= ~TEX_IS_UNIFORM_DIRTY;
+    // Get scale from upper left 3x3 submatrix
+    fm_vec3_t c0, c1;
+    memcpy(c0.v, matrix->m[0], sizeof(fm_vec3_t));
+    memcpy(c1.v, matrix->m[1], sizeof(fm_vec3_t));
+    float scale_x = fm_vec3_len(&c0) * tex_width;
+    float scale_y = fm_vec3_len(&c1) * tex_height;
+
+    mgfx_texturing_parms_t parms = {
+        .offset = { offset_x, offset_y },
+        .scale = { scale_x, scale_y }
+    };
+
+    // TODO: Improve tex scale by making it 32 bit
+    parms.scale[0] >>= TEX_SIZE_SHIFT;
+    parms.scale[1] >>= TEX_SIZE_SHIFT;
+
+    if (texture_is_bilinear(obj)) {
+        parms.offset[0] -= RDP_HALF_TEXEL;
+        parms.offset[1] -= RDP_HALF_TEXEL;
+    }
+
+    mgfx_get_texturing(&state->uniform_data->texturing, &parms);
 }
 
 void gl_upload_texture(const mg_uniform_t *uniform)
@@ -1363,7 +1363,7 @@ void gl_upload_texture(const mg_uniform_t *uniform)
     rdpq_mode_filter(is_bilinear ? FILTER_BILINEAR : FILTER_POINT);
 
     update_uniform(obj);
-    mg_uniform_load(uniform, obj->uniform_data);
+    mg_uniform_load(uniform, &state->uniform_data->texturing);
 }
 
 bool gl_is_texture_active()

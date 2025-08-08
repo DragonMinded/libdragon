@@ -34,9 +34,9 @@
 #define TEX_COORD_COUNT         4
 #define TEX_GEN_COUNT           TEX_COORD_COUNT
 
-#define RDP_TEX_SHIFT   5
-#define TEX_SIZE_SHIFT  (MGFX_VTX_TEX_SHIFT-RDP_TEX_SHIFT)
-#define RDP_HALF_TEXEL  (1<<(RDP_TEX_SHIFT-1))
+#define RDP_TEX_SHIFT       5
+#define TEX_SIZE_SHIFT      (MGFX_VTX_TEX_SHIFT-RDP_TEX_SHIFT)
+#define RDP_HALF_TEXEL      (1<<(RDP_TEX_SHIFT-1))
 
 #define TEXTURE_BILINEAR_MASK       0x001
 #define TEXTURE_INTERPOLATE_MASK    0x002
@@ -180,6 +180,7 @@ typedef struct gl_array_object_s {
 typedef struct {
     mgfx_fog_t fog;
     mgfx_lighting_t lighting;
+    mgfx_texturing_t texturing;
 } gl_uniform_data;
 
 typedef struct {
@@ -201,7 +202,6 @@ typedef enum {
     TEX_IS_COMPLETE         = (1 << 1),
     TEX_HAS_IMAGE           = (1 << 2),
     TEX_IS_BLOCK_DIRTY      = (1 << 3),
-    TEX_IS_UNIFORM_DIRTY    = (1 << 4),
 } gl_texture_flag_t;
 
 typedef struct {
@@ -221,7 +221,6 @@ typedef struct {
     gl_texture_image_t levels[MAX_TEXTURE_LEVELS]; // TODO: allocate lazily
     sprite_t *sprite;
     rspq_block_t *upload_block;
-    mgfx_texturing_t *uniform_data;
 } gl_texture_object_t;
 
 typedef struct {

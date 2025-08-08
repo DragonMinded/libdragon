@@ -47,7 +47,7 @@ void gl_matrix_init()
     glLoadIdentity();
 }
 
-fm_mat4_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack)
+fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack)
 {
     return &stack->storage[stack->cur_depth];
 }
@@ -167,6 +167,10 @@ static void gl_mark_matrix_target_dirty()
         }
 
         update_near_far_planes();
+    }
+
+    if (state->current_matrix_stack == &state->texture_stack) {
+        gl_set_texturing_dirty();
     }
 }
 

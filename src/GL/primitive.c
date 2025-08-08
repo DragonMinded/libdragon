@@ -340,6 +340,23 @@ void gl_set_tex_gen_enabled(GLenum target, bool enabled)
     gl_set_pipeline_dirty();
 }
 
+gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
+{
+    switch (coord) {
+    case GL_S:
+        return &state->tex_gen[0];
+    case GL_T:
+        return &state->tex_gen[1];
+    case GL_R:
+        return &state->tex_gen[2];
+    case GL_Q:
+        return &state->tex_gen[3];
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid tex gen coordinate", coord);
+        return NULL;
+    }
+}
+
 void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
 {
     switch (param) {
