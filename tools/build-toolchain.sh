@@ -36,7 +36,7 @@ JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
-BINUTILS_V=2.44
+BINUTILS_V=2.45
 GCC_V=15.1.0
 NEWLIB_V=4.5.0.20241231
 GMP_V=6.3.0
@@ -107,8 +107,8 @@ else
 fi
 
 # Dependency downloads and unpack
-test -f "$DOWNLOAD_PATH/binutils-with-gold-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-with-gold-$BINUTILS_V.tar.gz"
-test -d "$BUILD_PATH/binutils-with-gold-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-with-gold-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
+test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
+test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
 
 test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
 test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
@@ -150,7 +150,7 @@ cd "$BUILD_PATH"
 # Deduce build triplet using config.guess (if not specified)
 # This is by the definition the current system so it should be OK.
 if [ "$N64_BUILD" == "" ]; then
-    N64_BUILD=$("binutils-with-gold-$BINUTILS_V"/config.guess)
+    N64_BUILD=$("binutils-$BINUTILS_V"/config.guess)
 fi
 
 if [ "$N64_HOST" == "" ]; then
@@ -197,7 +197,7 @@ fi
 # Compile BUILD->TARGET binutils
 mkdir -p binutils_compile_target
 pushd binutils_compile_target
-../"binutils-with-gold-$BINUTILS_V"/configure \
+../"binutils-$BINUTILS_V"/configure \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
@@ -259,10 +259,10 @@ else
     # with this commit: https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=2952f10cd79af4645222f124f28c7928287d8113
     # This is due to the fact that pkg-config is used to activate compilation with msgpack
     # but that it is not correct in the case of a canadian cross.
-    echo "Compiling binutils-with-gold-$BINUTILS_V for foreign host"
+    echo "Compiling binutils-$BINUTILS_V for foreign host"
     mkdir -p binutils_compile_host
     pushd binutils_compile_host
-    ../"binutils-with-gold-$BINUTILS_V"/configure \
+    ../"binutils-$BINUTILS_V"/configure \
         --prefix="$INSTALL_PATH" \
         --build="$N64_BUILD" \
         --host="$N64_HOST" \
