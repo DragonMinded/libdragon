@@ -12,21 +12,9 @@ void gl_primitive_init()
     state->viewport.n = 0;
     state->viewport.f = 1;
 
-    state->current.normal[0] = 0;
-    state->current.normal[1] = 0;
-    state->current.normal[2] = 1;
-    
-    state->current.color[0] = 1;
-    state->current.color[1] = 1;
-    state->current.color[2] = 1;
-    state->current.color[3] = 1;
-
-    state->current.texcoord[0] = 0;
-    state->current.texcoord[1] = 0;
-    state->current.texcoord[2] = 0;
-    state->current.texcoord[3] = 1;
-
-    state->current.mtx_index[0] = 0;
+    glNormal3f(0, 0, 1);
+    glColor4f(1, 1, 1, 1);
+    glTexCoord4f(0, 0, 0, 1);
 
     state->tex_gen[0].mode = GL_SPHERE_MAP;
     state->tex_gen[0].object_plane[0] = 1;
@@ -42,6 +30,25 @@ void gl_primitive_init()
     state->cull_face_mode = GL_BACK;
     state->front_face = GL_CCW;
     update_culling();
+
+    state->vertex_halfx_precision.target_precision = MGFX_VTX_POS_SHIFT;
+    state->texcoord_halfx_precision.target_precision = MGFX_VTX_TEX_SHIFT;
+
+    glVertexHalfFixedPrecisionN64(MGFX_VTX_POS_SHIFT);
+    glTexCoordHalfFixedPrecisionN64(MGFX_VTX_TEX_SHIFT);
+
+    vertex_layout_init(&state->begin_end_layout);
+    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
+    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
+    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
+    state->begin_end_layout.vertex_layout.stride = sizeof(native_vertex_t);
+}
+
+void gl_primitive_close()
+{
+    if (state->begin_end_buffer != NULL) {
+        free_uncached(state->begin_end_buffer);
+    }
 }
 
 static mg_primitive_topology_t get_primitive_topology(GLenum mode)
@@ -53,6 +60,7 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     case GL_TRIANGLE_STRIP:
         return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
         return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
 
     case GL_POINTS:
@@ -61,9 +69,10 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     case GL_LINE_STRIP:
     case GL_QUADS:
     case GL_QUAD_STRIP:
-    case GL_POLYGON:
-    default:
         assertf(0, "Draw mode %ld is not supported", mode);
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
+        return -1;
     }
 }
 
@@ -103,13 +112,18 @@ static void update_uniforms()
     gl_upload_texture(state->texturing_uniform);
 }
 
-static void prepare_draw_call(uint32_t first, uint32_t count)
+static void prepare_drawing()
 {
     update_rendermode();
-    update_vertex_buffer(first, count);
     update_pipeline();
     update_uniforms();
     update_geom_flags();
+}
+
+static void prepare_draw_call(uint32_t first, uint32_t count)
+{
+    update_vertex_buffer(first, count);
+    prepare_drawing();
 }
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
@@ -206,6 +220,418 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     }
     mg_draw_end();
 }
+
+void begin_end_next_buffer()
+{
+    uint32_t next_buffer_index = (state->begin_end_current_buffer_index + 1) % BEGIN_END_BUFFER_COUNT;
+    rspq_syncpoint_wait(state->begin_end_syncpoints[next_buffer_index]);
+
+    state->begin_end_current_buffer_index = next_buffer_index;
+    state->begin_end_current_buffer = state->begin_end_buffer + next_buffer_index * BEGIN_END_BUFFER_SIZE;
+    state->begin_end_index = 0;
+}
+
+native_vertex_t *begin_end_get_current_vertex()
+{
+    return state->begin_end_current_buffer + state->begin_end_index;
+}
+
+uint32_t get_begin_end_multiple(GLenum mode)
+{
+    switch (mode)
+    {
+    case GL_POINTS:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+        return 1;
+    case GL_LINES:
+    case GL_QUAD_STRIP:
+        return 2;
+    case GL_TRIANGLES:
+        return 3;
+    case GL_QUADS:
+        return 4;
+    default:
+        return 0;
+    }
+}
+
+bool get_begin_end_need_save(GLenum mode)
+{
+    switch (mode)
+    {
+    case GL_LINE_LOOP:
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+        return true;
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    default:
+        return false;
+    }
+}
+
+void glBegin(GLenum mode)
+{
+    if (!gl_ensure_no_begin_end()) return;
+
+    state->begin_end_active = true;
+    state->begin_end_mode = mode;
+    state->begin_end_topology = get_primitive_topology(mode);
+    state->begin_end_multiple = get_begin_end_multiple(mode);
+    state->begin_end_need_save = get_begin_end_need_save(mode);
+
+    gl_set_geom_flags_dirty();
+    gl_set_combiner_dirty();
+    gl_set_pipeline_dirty();
+    prepare_drawing();
+    mg_draw_begin();
+
+    if (state->begin_end_buffer == NULL) {
+        state->begin_end_buffer = malloc_uncached(sizeof(native_vertex_t) * BEGIN_END_BUFFER_COUNT * BEGIN_END_BUFFER_SIZE);
+        state->begin_end_current_buffer_index = 0;
+        state->begin_end_index = 0;
+    }
+
+    begin_end_next_buffer();
+    gl_update_array_pointers(state->array_object);
+}
+
+void begin_end_draw_current_buffer()
+{
+    mg_bind_vertex_buffer(state->begin_end_current_buffer);
+    mg_draw(&(mg_input_assembly_parms_t) {
+        .primitive_topology = state->begin_end_topology
+    }, state->begin_end_index, 0);
+
+    state->begin_end_syncpoints[state->begin_end_current_buffer_index] = rspq_syncpoint_new();
+}
+
+void glEnd(void)
+{
+    if (!state->begin_end_active) {
+        gl_set_error(GL_INVALID_OPERATION, "glEnd must be called after glBegin");
+    }
+
+    // TODO: line loops will need special handling (insert saved vtx at the end)
+
+    if (state->begin_end_index > 0) {
+        begin_end_draw_current_buffer();
+    }
+
+    mg_draw_end();
+
+    state->begin_end_active = false;
+    gl_set_pipeline_dirty();
+}
+
+void begin_end_append_vtx(const native_vertex_t *vtx)
+{
+    memcpy(begin_end_get_current_vertex(), vtx, sizeof(native_vertex_t));
+    state->begin_end_index++;
+}
+
+void begin_end_prep_next_buffer(const native_vertex_t *prev_end)
+{
+    // Appending these vertices is guaranteed to not overflow the buffer since we just started a fresh one
+    switch (state->begin_end_mode) {
+    case GL_TRIANGLE_STRIP:
+    {
+        // The two previous vertices
+        begin_end_append_vtx(prev_end - 2);
+        begin_end_append_vtx(prev_end - 1);
+        break;
+    }
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+    {
+        // The "hub" of the fan
+        begin_end_append_vtx(&state->begin_end_saved_vtx);
+        // The previous vertex
+        begin_end_append_vtx(prev_end - 1);
+        break;
+    }
+    }
+}
+
+void begin_end_advance()
+{
+    begin_end_append_vtx(&state->current_attribs);
+
+    // In some cases, we need to save the very first vertex for later (for example triangle fan, line loop)
+    if (state->begin_end_need_save) {
+        memcpy(&state->begin_end_saved_vtx, &state->current_attribs, sizeof(native_vertex_t));
+        state->begin_end_need_save = false;
+    }
+
+    // Check if we have reached the required multiple of vertices and the next multiple would overflow the current buffer
+    if (state->begin_end_index % state->begin_end_multiple == 0 && 
+        state->begin_end_index + state->begin_end_multiple > BEGIN_END_BUFFER_SIZE) {
+        begin_end_draw_current_buffer();
+        native_vertex_t *prev_end = begin_end_get_current_vertex();
+        begin_end_next_buffer();
+        begin_end_prep_next_buffer(prev_end);
+    }
+}
+
+void glArrayElement(GLint i)
+{
+    // Calling glArrayElement while the vertex array is enabled has, among other things,
+    // the same effect as glVertex. See __gl_vertex for that function's behavior.
+    assertf(!state->array_object->arrays[ATTRIB_VERTEX].enabled || state->begin_end_active, 
+        "glArrayElement was called outside of glBegin/glEnd while vertex array was enabled");
+
+    if (i < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Index must not be negative");
+        return;
+    }
+
+    static const uint32_t out_offsets[ATTRIB_COUNT] = {
+        offsetof(native_vertex_t, position),
+        offsetof(native_vertex_t, normal),
+        offsetof(native_vertex_t, color),
+        offsetof(native_vertex_t, texcoord),
+        offsetof(native_vertex_t, mtx_index),
+    };
+    array_convert(state->array_object, out_offsets, &state->current_attribs, i, 1, sizeof(native_vertex_t));
+
+    if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
+        begin_end_advance();
+    }
+}
+
+void *get_attrib_dst(gl_array_type_t array_type)
+{
+    switch (array_type)
+    {
+    case ATTRIB_VERTEX:
+        return state->current_attribs.position;
+    case ATTRIB_NORMAL:
+        return &state->current_attribs.normal;
+    case ATTRIB_COLOR:
+        return &state->current_attribs.color;
+    case ATTRIB_TEXCOORD:
+        return state->current_attribs.texcoord;
+    case ATTRIB_MTX_INDEX:
+        return state->current_attribs.mtx_index;
+    default:
+        return NULL;
+    }
+}
+
+void read_attrib(gl_array_type_t array_type, GLenum type, const void *value, uint32_t size)
+{
+    read_attrib_func read_func = get_read_func(array_type, type);
+    assertf(read_func != NULL, "Could not find read func");
+    void *dst = get_attrib_dst(array_type);
+    assertf(dst != NULL, "Array type not supported");
+
+    read_func(dst, value, size);
+}
+
+void __gl_vertex(GLenum type, const void *value, uint32_t size)
+{
+    // According to the spec, calling glVertex outside of glBegin/glEnd 
+    // specifically results in UB instead of generating an error, so just assert.
+    assertf(state->begin_end_active, "glVertex was called outside of glBegin/glEnd");
+
+    read_attrib(ATTRIB_VERTEX, type, value, size);
+    begin_end_advance();
+}
+
+void __gl_normal(GLenum type, const void *value, uint32_t size)
+{
+    read_attrib(ATTRIB_NORMAL, type, value, size);
+}
+
+void __gl_color(GLenum type, const void *value, uint32_t size)
+{
+    read_attrib(ATTRIB_COLOR, type, value, size);
+}
+
+void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
+{
+    read_attrib(ATTRIB_TEXCOORD, type, value, size);
+}
+
+void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
+{
+    if (size > VERTEX_UNIT_COUNT) {
+        gl_set_error(GL_INVALID_VALUE, "Size must not be greater than %d", VERTEX_UNIT_COUNT);
+        return;
+    }
+
+    read_attrib(ATTRIB_MTX_INDEX, type, value, size);
+}
+
+#define __ATTR_IMPL(func, argtype, enumtype, ...) ({\
+    argtype tmp[] = { __VA_ARGS__ }; \
+    func(enumtype, tmp, __COUNT_VARARGS(__VA_ARGS__)); \
+})
+
+void glVertex2sv(const GLshort *v)          { __gl_vertex(GL_SHORT,             v, 2); }
+void glVertex2iv(const GLint *v)            { __gl_vertex(GL_INT,               v, 2); }
+void glVertex2fv(const GLfloat *v)          { __gl_vertex(GL_FLOAT,             v, 2); }
+void glVertex2dv(const GLdouble *v)         { __gl_vertex(GL_DOUBLE,            v, 2); }
+void glVertex2hxvN64(const GLhalfxN64 *v)   { __gl_vertex(GL_HALF_FIXED_N64,    v, 2); }
+
+void glVertex3sv(const GLshort *v)          { __gl_vertex(GL_SHORT,             v, 3); }
+void glVertex3iv(const GLint *v)            { __gl_vertex(GL_INT,               v, 3); }
+void glVertex3fv(const GLfloat *v)          { __gl_vertex(GL_FLOAT,             v, 3); }
+void glVertex3dv(const GLdouble *v)         { __gl_vertex(GL_DOUBLE,            v, 3); }
+void glVertex3hxvN64(const GLhalfxN64 *v)   { __gl_vertex(GL_HALF_FIXED_N64,    v, 3); }
+
+void glVertex4sv(const GLshort *v)          { __gl_vertex(GL_SHORT,             v, 4); }
+void glVertex4iv(const GLint *v)            { __gl_vertex(GL_INT,               v, 4); }
+void glVertex4fv(const GLfloat *v)          { __gl_vertex(GL_FLOAT,             v, 4); }
+void glVertex4dv(const GLdouble *v)         { __gl_vertex(GL_DOUBLE,            v, 4); }
+void glVertex4hxvN64(const GLhalfxN64 *v)   { __gl_vertex(GL_HALF_FIXED_N64,    v, 4); }
+
+void glVertex2s(GLshort x, GLshort y)                                       { __ATTR_IMPL(__gl_vertex, GLshort,     GL_SHORT,           x, y); }
+void glVertex2i(GLint x, GLint y)                                           { __ATTR_IMPL(__gl_vertex, GLint,       GL_INT,             x, y); }
+void glVertex2f(GLfloat x, GLfloat y)                                       { __ATTR_IMPL(__gl_vertex, GLfloat,     GL_FLOAT,           x, y); }
+void glVertex2d(GLdouble x, GLdouble y)                                     { __ATTR_IMPL(__gl_vertex, GLdouble,    GL_DOUBLE,          x, y); }
+void glVertex2hxN64(GLhalfxN64 x, GLhalfxN64 y)                             { __ATTR_IMPL(__gl_vertex, GLhalfxN64,  GL_HALF_FIXED_N64,  x, y); }
+
+void glVertex3s(GLshort x, GLshort y, GLshort z)                            { __ATTR_IMPL(__gl_vertex, GLshort,     GL_SHORT,           x, y, z); }
+void glVertex3i(GLint x, GLint y, GLint z)                                  { __ATTR_IMPL(__gl_vertex, GLint,       GL_INT,             x, y, z); }
+void glVertex3f(GLfloat x, GLfloat y, GLfloat z)                            { __ATTR_IMPL(__gl_vertex, GLfloat,     GL_FLOAT,           x, y, z); }
+void glVertex3d(GLdouble x, GLdouble y, GLdouble z)                         { __ATTR_IMPL(__gl_vertex, GLdouble,    GL_DOUBLE,          x, y, z); }
+void glVertex3hxN64(GLhalfxN64 x, GLhalfxN64 y, GLhalfxN64 z)               { __ATTR_IMPL(__gl_vertex, GLhalfxN64,  GL_HALF_FIXED_N64,  x, y, z); }
+
+void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)                 { __ATTR_IMPL(__gl_vertex, GLshort,     GL_SHORT,           x, y, z, w); }
+void glVertex4i(GLint x, GLint y, GLint z, GLint w)                         { __ATTR_IMPL(__gl_vertex, GLint,       GL_INT,             x, y, z, w); }
+void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)                 { __ATTR_IMPL(__gl_vertex, GLfloat,     GL_FLOAT,           x, y, z, w); }
+void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w)             { __ATTR_IMPL(__gl_vertex, GLdouble,    GL_DOUBLE,          x, y, z, w); }
+void glVertex4hxN64(GLhalfxN64 x, GLhalfxN64 y, GLhalfxN64 z, GLhalfxN64 w) { __ATTR_IMPL(__gl_vertex, GLhalfxN64,  GL_HALF_FIXED_N64,  x, y, z, w); }
+
+void glNormal3bv(const GLbyte *v)   { __gl_normal(GL_BYTE,      v, 3); }
+void glNormal3sv(const GLshort *v)  { __gl_normal(GL_SHORT,     v, 3); }
+void glNormal3iv(const GLint *v)    { __gl_normal(GL_INT,       v, 3); }
+void glNormal3fv(const GLfloat *v)  { __gl_normal(GL_FLOAT,     v, 3); }
+void glNormal3dv(const GLdouble *v) { __gl_normal(GL_DOUBLE,    v, 3); }
+
+void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { __ATTR_IMPL(__gl_normal, GLbyte,      GL_BYTE,    nx, ny, nz); }
+void glNormal3s(GLshort nx, GLshort ny, GLshort nz)     { __ATTR_IMPL(__gl_normal, GLshort,     GL_SHORT,   nx, ny, nz); }
+void glNormal3i(GLint nx, GLint ny, GLint nz)           { __ATTR_IMPL(__gl_normal, GLint,       GL_INT,     nx, ny, nz); }
+void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)     { __ATTR_IMPL(__gl_normal, GLfloat,     GL_FLOAT,   nx, ny, nz); }
+void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { __ATTR_IMPL(__gl_normal, GLdouble,    GL_DOUBLE,  nx, ny, nz); }
+
+void glColor3bv(const GLbyte *v)    { __gl_color(GL_BYTE,           v, 3); }
+void glColor3sv(const GLshort *v)   { __gl_color(GL_SHORT,          v, 3); }
+void glColor3iv(const GLint *v)     { __gl_color(GL_INT,            v, 3); }
+void glColor3fv(const GLfloat *v)   { __gl_color(GL_FLOAT,          v, 3); }
+void glColor3dv(const GLdouble *v)  { __gl_color(GL_DOUBLE,         v, 3); }
+void glColor3ubv(const GLubyte *v)  { __gl_color(GL_UNSIGNED_BYTE,  v, 3); }
+void glColor3usv(const GLushort *v) { __gl_color(GL_UNSIGNED_SHORT, v, 3); }
+void glColor3uiv(const GLuint *v)   { __gl_color(GL_UNSIGNED_INT,   v, 3); }
+
+void glColor4bv(const GLbyte *v)    { __gl_color(GL_BYTE,           v, 4); }
+void glColor4sv(const GLshort *v)   { __gl_color(GL_SHORT,          v, 4); }
+void glColor4iv(const GLint *v)     { __gl_color(GL_INT,            v, 4); }
+void glColor4fv(const GLfloat *v)   { __gl_color(GL_FLOAT,          v, 4); }
+void glColor4dv(const GLdouble *v)  { __gl_color(GL_DOUBLE,         v, 4); }
+void glColor4ubv(const GLubyte *v)  { __gl_color(GL_UNSIGNED_BYTE,  v, 4); }
+void glColor4usv(const GLushort *v) { __gl_color(GL_UNSIGNED_SHORT, v, 4); }
+void glColor4uiv(const GLuint *v)   { __gl_color(GL_UNSIGNED_INT,   v, 4); }
+
+void glColor3b(GLbyte r, GLbyte g, GLbyte b)                    { __ATTR_IMPL(__gl_color, GLbyte,   GL_BYTE,            r, g, b); }
+void glColor3s(GLshort r, GLshort g, GLshort b)                 { __ATTR_IMPL(__gl_color, GLshort,  GL_SHORT,           r, g, b); }
+void glColor3i(GLint r, GLint g, GLint b)                       { __ATTR_IMPL(__gl_color, GLint,    GL_INT,             r, g, b); }
+void glColor3f(GLfloat r, GLfloat g, GLfloat b)                 { __ATTR_IMPL(__gl_color, GLfloat,  GL_FLOAT,           r, g, b); }
+void glColor3d(GLdouble r, GLdouble g, GLdouble b)              { __ATTR_IMPL(__gl_color, GLdouble, GL_DOUBLE,          r, g, b); }
+void glColor3ub(GLubyte r, GLubyte g, GLubyte b)                { __ATTR_IMPL(__gl_color, GLubyte,  GL_UNSIGNED_BYTE,   r, g, b); }
+void glColor3us(GLushort r, GLushort g, GLushort b)             { __ATTR_IMPL(__gl_color, GLushort, GL_UNSIGNED_SHORT,  r, g, b); }
+void glColor3ui(GLuint r, GLuint g, GLuint b)                   { __ATTR_IMPL(__gl_color, GLuint,   GL_UNSIGNED_INT,    r, g, b); }
+
+void glColor4b(GLbyte r, GLbyte g, GLbyte b, GLbyte a)          { __ATTR_IMPL(__gl_color, GLbyte,   GL_BYTE,            r, g, b, a); }
+void glColor4s(GLshort r, GLshort g, GLshort b, GLshort a)      { __ATTR_IMPL(__gl_color, GLshort,  GL_SHORT,           r, g, b, a); }
+void glColor4i(GLint r, GLint g, GLint b, GLint a)              { __ATTR_IMPL(__gl_color, GLint,    GL_INT,             r, g, b, a); }
+void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)      { __ATTR_IMPL(__gl_color, GLfloat,  GL_FLOAT,           r, g, b, a); }
+void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { __ATTR_IMPL(__gl_color, GLdouble, GL_DOUBLE,          r, g, b, a); }
+void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)     { __ATTR_IMPL(__gl_color, GLubyte,  GL_UNSIGNED_BYTE,   r, g, b, a); }
+void glColor4us(GLushort r, GLushort g, GLushort b, GLushort a) { __ATTR_IMPL(__gl_color, GLushort, GL_UNSIGNED_SHORT,  r, g, b, a); }
+void glColor4ui(GLuint r, GLuint g, GLuint b, GLuint a)         { __ATTR_IMPL(__gl_color, GLuint,   GL_UNSIGNED_INT,    r, g, b, a); }
+
+void glTexCoord1sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 1); }
+void glTexCoord1iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 1); }
+void glTexCoord1fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 1); }
+void glTexCoord1dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 1); }
+void glTexCoord1hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 1); }
+
+void glTexCoord2sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 2); }
+void glTexCoord2iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 2); }
+void glTexCoord2fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 2); }
+void glTexCoord2dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 2); }
+void glTexCoord2hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 2); }
+
+void glTexCoord3sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 3); }
+void glTexCoord3iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 3); }
+void glTexCoord3fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 3); }
+void glTexCoord3dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 3); }
+void glTexCoord3hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 3); }
+
+void glTexCoord4sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 4); }
+void glTexCoord4iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 4); }
+void glTexCoord4fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 4); }
+void glTexCoord4dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 4); }
+void glTexCoord4hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 4); }
+
+void glTexCoord1s(GLshort s)                                                    { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s); }
+void glTexCoord1i(GLint s)                                                      { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s); }
+void glTexCoord1f(GLfloat s)                                                    { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s); }
+void glTexCoord1d(GLdouble s)                                                   { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s); }
+void glTexCoord1hxN64(GLhalfxN64 s)                                             { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s); }
+
+void glTexCoord2s(GLshort s, GLshort t)                                         { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s, t); }
+void glTexCoord2i(GLint s, GLint t)                                             { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s, t); }
+void glTexCoord2f(GLfloat s, GLfloat t)                                         { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s, t); }
+void glTexCoord2d(GLdouble s, GLdouble t)                                       { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s, t); }
+void glTexCoord2hxN64(GLhalfxN64 s, GLhalfxN64 t)                               { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s, t); }
+
+void glTexCoord3s(GLshort s, GLshort t, GLshort r)                              { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s, t, r); }
+void glTexCoord3i(GLint s, GLint t, GLint r)                                    { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s, t, r); }
+void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)                              { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s, t, r); }
+void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r)                           { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s, t, r); }
+void glTexCoord3hxN64(GLhalfxN64 s, GLhalfxN64 t, GLhalfxN64 r)                 { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s, t, r); }
+
+void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)                   { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s, t, r, q); }
+void glTexCoord4i(GLint s, GLint t, GLint r, GLint q)                           { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s, t, r, q); }
+void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)                   { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s, t, r, q); }
+void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q)               { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s, t, r, q); }
+void glTexCoord4hxN64(GLhalfxN64 s, GLhalfxN64 t, GLhalfxN64 r, GLhalfxN64 q)   { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s, t, r, q); }
+
+void glMatrixIndexubvARB(GLint size, const GLubyte *v)  { __gl_mtx_index(GL_UNSIGNED_BYTE,  v, size); }
+void glMatrixIndexusvARB(GLint size, const GLushort *v) { __gl_mtx_index(GL_UNSIGNED_SHORT, v, size); }
+void glMatrixIndexuivARB(GLint size, const GLuint *v)   { __gl_mtx_index(GL_UNSIGNED_INT,   v, size); }
+
+#define __RECT_IMPL(vertex, x1, y1, x2, y2) ({ \
+    if (!gl_ensure_no_begin_end()) return; \
+    glBegin(GL_POLYGON); \
+    vertex(x1, y1); \
+    vertex(x2, y1); \
+    vertex(x2, y2); \
+    vertex(x1, y2); \
+    glEnd(); \
+})
+
+void glRects(GLshort x1, GLshort y1, GLshort x2, GLshort y2)        { __RECT_IMPL(glVertex2s, x1, y1, x2, y2); }
+void glRecti(GLint x1, GLint y1, GLint x2, GLint y2)                { __RECT_IMPL(glVertex2i, x1, y1, x2, y2); }
+void glRectf(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2)        { __RECT_IMPL(glVertex2f, x1, y1, x2, y2); }
+void glRectd(GLdouble x1, GLdouble y1, GLdouble x2, GLdouble y2)    { __RECT_IMPL(glVertex2d, x1, y1, x2, y2); }
+
+void glRectsv(const GLshort *v1, const GLshort *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectiv(const GLint *v1, const GLint *v2)         { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectfv(const GLfloat *v1, const GLfloat *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
 
 void update_viewport()
 {

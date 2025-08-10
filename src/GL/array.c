@@ -34,27 +34,29 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
     /* GL_T4F_C4F_N3F_V4F */ { .et = true,  .ec = true,  .en = true,  .st = 4, .sc = 4, .sv = 4, .tc = GL_FLOAT,         .pc = 4*ILA_F, .pn = 8*ILA_F, .pv = 11*ILA_F,        .s = 15*ILA_F },
 };
 
-// TODO: Fill missing components with 0,0,0,1 where applicable
-
-#define DEFINE_READ_FUNC(name, dst_type, src_type, convert) \
+#define DEFINE_READ_FUNC(name, dst_type, src_type, convert, max_size, default) \
     static void name(dst_type *dst, const src_type *src, uint32_t count) \
     { \
-        for (uint32_t i = 0; i < count; i++) dst[i] = convert(src[i]); \
+        uint32_t real_count = MIN(count, max_size); \
+        for (uint32_t i = 0; i < real_count; i++) dst[i] = convert(src[i]); \
+        for (uint32_t i = count; i < max_size; i++) dst[i] = default[i]; \
     }
 
-#define DEFINE_FIXED_READ_FUNC(name, dst_type, precision) \
+#define DEFINE_FIXED_READ_FUNC(name, dst_type, precision, max_size, default) \
     static void name(dst_type *dst, const int16_t *src, uint32_t count) \
     { \
         int shift = precision.shift_amount; \
+        uint32_t real_count = MIN(count, max_size); \
         if (shift < 0) { \
-            for (uint32_t i = 0; i < count; i++) dst[i] = src[i] >> -shift; \
+            for (uint32_t i = 0; i < real_count; i++) dst[i] = src[i] >> -shift; \
         } else { \
-            for (uint32_t i = 0; i < count; i++) { \
+            for (uint32_t i = 0; i < real_count; i++) { \
                 int16_t value = src[i]; \
                 assertf(value <= SHRT_MAX>>shift && value >= SHRT_MIN>>shift, "Fixed point overflow: %d << %d", value, shift); \
                 dst[i] = value << shift; \
             } \
         } \
+        for (uint32_t i = count; i < max_size; i++) dst[i] = default[i]; \
     }
 
 #define DEFINE_NORMAL_FLT_READ_FUNC(name, src_type) \
@@ -75,12 +77,15 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
         *dst = MGFX_NRM(x, y, z); \
     }
 
-DEFINE_READ_FUNC(vtx_read_i8, int16_t, int8_t, MGFX_S10_5)
-DEFINE_READ_FUNC(vtx_read_i16, int16_t, int16u_t, MGFX_S10_5)
-DEFINE_READ_FUNC(vtx_read_i32, int16_t, int32u_t, MGFX_S10_5)
-DEFINE_READ_FUNC(vtx_read_f32, int16_t, floatu, MGFX_S10_5)
-DEFINE_READ_FUNC(vtx_read_f64, int16_t, doubleu, MGFX_S10_5)
-DEFINE_FIXED_READ_FUNC(vtx_read_x16, int16_t, state->vertex_halfx_precision)
+static const int16_t vtx_default[3] = {0, 0, 0};
+static const uint8_t col_default[4] = {0, 0, 0, 255};
+
+DEFINE_READ_FUNC(vtx_read_i8, int16_t, int8_t, MGFX_S10_5, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_i16, int16_t, int16u_t, MGFX_S10_5, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_i32, int16_t, int32u_t, MGFX_S10_5, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_f32, int16_t, floatu, MGFX_S10_5, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_f64, int16_t, doubleu, MGFX_S10_5, 3, vtx_default)
+DEFINE_FIXED_READ_FUNC(vtx_read_x16, int16_t, state->vertex_halfx_precision, 3, vtx_default)
 
 DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i8,  int8_t,    3)
 DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i16, int16u_t,  11)
@@ -102,27 +107,27 @@ static void nrm_read_packed565(int16_t *dst, const int16_t *src, uint32_t count)
 #define COL_CONVERT_F32(v) (FLOAT_TO_U8(v))
 #define COL_CONVERT_F64(v) (FLOAT_TO_U8(v))
 
-DEFINE_READ_FUNC(col_read_u8, uint8_t,  uint8_t,   COL_CONVERT_U8)
-DEFINE_READ_FUNC(col_read_i8, uint8_t,  int8_t,    COL_CONVERT_I8)
-DEFINE_READ_FUNC(col_read_u16, uint8_t, uint16u_t, COL_CONVERT_U16)
-DEFINE_READ_FUNC(col_read_i16, uint8_t, int16u_t,  COL_CONVERT_I16)
-DEFINE_READ_FUNC(col_read_u32, uint8_t, uint32u_t, COL_CONVERT_U32)
-DEFINE_READ_FUNC(col_read_i32, uint8_t, int32u_t,  COL_CONVERT_I32)
-DEFINE_READ_FUNC(col_read_f32, uint8_t, floatu,    COL_CONVERT_F32)
-DEFINE_READ_FUNC(col_read_f64, uint8_t, doubleu,   COL_CONVERT_F64)
+DEFINE_READ_FUNC(col_read_u8, uint8_t,  uint8_t,   COL_CONVERT_U8, 4, col_default)
+DEFINE_READ_FUNC(col_read_i8, uint8_t,  int8_t,    COL_CONVERT_I8, 4, col_default)
+DEFINE_READ_FUNC(col_read_u16, uint8_t, uint16u_t, COL_CONVERT_U16, 4, col_default)
+DEFINE_READ_FUNC(col_read_i16, uint8_t, int16u_t,  COL_CONVERT_I16, 4, col_default)
+DEFINE_READ_FUNC(col_read_u32, uint8_t, uint32u_t, COL_CONVERT_U32, 4, col_default)
+DEFINE_READ_FUNC(col_read_i32, uint8_t, int32u_t,  COL_CONVERT_I32, 4, col_default)
+DEFINE_READ_FUNC(col_read_f32, uint8_t, floatu,    COL_CONVERT_F32, 4, col_default)
+DEFINE_READ_FUNC(col_read_f64, uint8_t, doubleu,   COL_CONVERT_F64, 4, col_default)
 
-DEFINE_READ_FUNC(tex_read_i8, int16_t, int8_t, MGFX_S8_8)
-DEFINE_READ_FUNC(tex_read_i16, int16_t, int16u_t, MGFX_S8_8)
-DEFINE_READ_FUNC(tex_read_i32, int16_t, int32u_t, MGFX_S8_8)
-DEFINE_READ_FUNC(tex_read_f32, int16_t, floatu, MGFX_S8_8)
-DEFINE_READ_FUNC(tex_read_f64, int16_t, doubleu, MGFX_S8_8)
-DEFINE_FIXED_READ_FUNC(tex_read_x16, int16_t, state->texcoord_halfx_precision)
+DEFINE_READ_FUNC(tex_read_i8, int16_t, int8_t, MGFX_S8_8, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_i16, int16_t, int16u_t, MGFX_S8_8, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_i32, int16_t, int32u_t, MGFX_S8_8, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_f32, int16_t, floatu, MGFX_S8_8, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_f64, int16_t, doubleu, MGFX_S8_8, 2, vtx_default)
+DEFINE_FIXED_READ_FUNC(tex_read_x16, int16_t, state->texcoord_halfx_precision, 2, vtx_default)
 
 #define MTX_INDEX_CONVERT(v) (v)
 
-DEFINE_READ_FUNC(mtx_index_read_u8, uint8_t,  uint8_t,   MTX_INDEX_CONVERT)
-DEFINE_READ_FUNC(mtx_index_read_u16, uint8_t, uint16u_t, MTX_INDEX_CONVERT)
-DEFINE_READ_FUNC(mtx_index_read_u32, uint8_t, uint32u_t, MTX_INDEX_CONVERT)
+DEFINE_READ_FUNC(mtx_index_read_u8, uint8_t,  uint8_t,   MTX_INDEX_CONVERT, 1, vtx_default)
+DEFINE_READ_FUNC(mtx_index_read_u16, uint8_t, uint16u_t, MTX_INDEX_CONVERT, 1, vtx_default)
+DEFINE_READ_FUNC(mtx_index_read_u32, uint8_t, uint32u_t, MTX_INDEX_CONVERT, 1, vtx_default)
 
 static const read_attrib_func read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
     {
@@ -242,14 +247,18 @@ uint16_t get_stride_from_size_and_type(GLint size, GLenum type)
     return size << size_shift;
 }
 
+read_attrib_func get_read_func(gl_array_type_t array_type, GLenum type)
+{
+    uint32_t func_index = gl_type_to_index(type);
+    return read_funcs[array_type][func_index];
+}
+
 void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
 {
     array->final_stride = array->stride == 0 ? get_stride_from_size_and_type(array->size, array->type) : array->stride;
+    array->read_func = get_read_func(array_type, array->type);
 
-    uint32_t func_index = gl_type_to_index(array->type);
-    array->read_func = read_funcs[array_type][func_index];
-
-    assertf(array->read_func != NULL, "CPU read function is missing");
+    assertf(array->read_func != NULL, "Read function is missing");
 }
 
 void gl_update_array_pointer(gl_array_t *array)
@@ -672,21 +681,21 @@ static void array_object_update_layout(gl_array_object_t *array_object)
     vertex_layout_init(vl);
 
     if (array_object->arrays[ATTRIB_VERTEX].enabled) {
-        array_object->arrays[ATTRIB_VERTEX].out_offset = vl->vertex_layout.stride;
+        array_object->out_offsets[ATTRIB_VERTEX] = vl->vertex_layout.stride;
         vertex_layout_append(vl, MGFX_ATTRIBUTE_POS_NORM, sizeof(int16_t) * 4);
     }
 
     if (array_object->arrays[ATTRIB_NORMAL].enabled) {
-        array_object->arrays[ATTRIB_NORMAL].out_offset = vl->vertex_layout.stride - sizeof(int16_t);
+        array_object->out_offsets[ATTRIB_NORMAL] = vl->vertex_layout.stride - sizeof(int16_t);
     }
 
     if (array_object->arrays[ATTRIB_COLOR].enabled) {
-        array_object->arrays[ATTRIB_COLOR].out_offset = vl->vertex_layout.stride;
+        array_object->out_offsets[ATTRIB_COLOR] = vl->vertex_layout.stride;
         vertex_layout_append(vl, MGFX_ATTRIBUTE_COLOR, sizeof(uint32_t));
     }
 
     if (array_object->arrays[ATTRIB_TEXCOORD].enabled) {
-        array_object->arrays[ATTRIB_TEXCOORD].out_offset = vl->vertex_layout.stride;
+        array_object->out_offsets[ATTRIB_TEXCOORD] = vl->vertex_layout.stride;
         vertex_layout_append(vl, MGFX_ATTRIBUTE_TEXCOORD, sizeof(int16_t) * 2);
     }
 
@@ -709,6 +718,30 @@ static void array_object_update_is_all_vbos(gl_array_object_t *array_object)
     array_object->is_all_vbos = is_all_vbos;
 }
 
+void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride)
+{
+    gl_array_t *arrays[ATTRIB_COUNT];
+    uint32_t offsets[ATTRIB_COUNT];
+    uint32_t array_count = 0;
+    // TODO: convert matrix indices too as soon as they are supported
+    for (size_t i = 0; i < ATTRIB_MTX_INDEX; i++)
+    {
+        if (!obj->arrays[i].enabled) continue;
+        offsets[array_count] = out_offsets[i];
+        arrays[array_count++] = &obj->arrays[i];
+    }    
+
+    for (size_t i = 0; i < count; i++)
+    {
+        for (size_t j = 0; j < array_count; j++)
+        {
+            uint8_t *dst = ((uint8_t*)dst_buffer) + offsets[j] + i * stride;
+            const uint8_t *src = ((const uint8_t*)arrays[j]->final_pointer) + (i+first) * arrays[j]->final_stride;
+            arrays[j]->read_func(dst, src, arrays[j]->size);
+        }
+    }
+}
+
 static void array_object_convert_data(gl_array_object_t *array_object, uint32_t first, uint32_t count)
 {
     uint32_t stride = array_object->layout.vertex_layout.stride;
@@ -720,20 +753,7 @@ static void array_object_convert_data(gl_array_object_t *array_object, uint32_t 
     array_object->buffer = malloc_uncached(stride * count);
 
     gl_update_array_pointers(array_object);
-
-    // TODO: convert matrix indices too as soon as they are supported
-    for (gl_array_type_t i = 0; i < ATTRIB_MTX_INDEX; i++)
-    {
-        gl_array_t *array = &array_object->arrays[i];
-        if (!array->enabled) continue;
-
-        for (size_t j = 0; j < count; j++)
-        {
-            uint8_t *dst = ((uint8_t*)array_object->buffer) + array->out_offset + j * stride;
-            const uint8_t *src = ((const uint8_t*)array->final_pointer) + (j+first) * array->final_stride;
-            array->read_func(dst, src, array->size);
-        }
-    }
+    array_convert(array_object, array_object->out_offsets, array_object->buffer, first, count, stride);
 }
 
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count)

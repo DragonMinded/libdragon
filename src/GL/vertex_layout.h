@@ -6,7 +6,7 @@
 #define __GL_VERTEX_LAYOUT
 
 #include "magma.h"
-#include "utils.h"
+#include "../utils.h"
 
 #define MAX_VERTEX_ATTRIBUTE_COUNT  3
 

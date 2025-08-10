@@ -121,8 +121,18 @@ void gl_set_material_shininess(GLfloat param)
     state->material.shininess = param;
 }
 
+inline void assert_no_begin_end()
+{
+    // This is not using gl_ensure_no_begin_end on purpose, because that macro is used in places
+    // where the spec disallows such usage. In this case, the spec allows using glMaterial* between glBegin/glEnd,
+    // but we cannot support it (currently).
+    assertf(!state->begin_end_active, "Changing material between glBegin/glEnd is not supported");
+}
+
 void gl_set_material_paramf(GLenum pname, const GLfloat *params)
 {
+    assert_no_begin_end();
+
     switch (pname) {
     case GL_AMBIENT:
         gl_set_material_ambient(params[0], params[1], params[2], params[3]);
@@ -151,6 +161,8 @@ void gl_set_material_paramf(GLenum pname, const GLfloat *params)
 
 void gl_set_material_parami(GLenum pname, const GLint *params)
 {
+    assert_no_begin_end();
+
     switch (pname) {
     case GL_AMBIENT:
         gl_set_material_ambient(
@@ -615,12 +627,12 @@ bool gl_is_diffuse_tracking_color()
     return state->color_material && (state->material.color_target == GL_DIFFUSE || state->material.color_target == GL_AMBIENT_AND_DIFFUSE);
 }
 
-const float *gl_get_material_diffuse()
+color_t gl_get_material_diffuse()
 {
     if (gl_is_diffuse_tracking_color()) {
-        return state->current.color;
+        return color_from_packed32(state->current_attribs.color);
     } else {
-        return state->material.diffuse;
+        return color_from_floats(state->material.diffuse);
     }
 }
 

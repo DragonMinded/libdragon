@@ -13,8 +13,8 @@
 #include "mgfx.h"
 #include "rdpq.h"
 #include "rdpq_tex.h"
-#include "utils.h"
-#include "hashtable_internal.h"
+#include "../utils.h"
+#include "../hashtable_internal.h"
 
 #define VERTEX_UNIT_COUNT     1
 #define ATTRIB_TYPE_COUNT     10
@@ -43,6 +43,11 @@
 #define TEXTURE_MIPMAP_MASK         0x100
 
 #define MAX_PIPELINE_COUNT          (1<<4)
+
+#define BEGIN_END_BUFFER_COUNT      2
+
+// divisible by 2, 3, 4, which are all possible required multiples of vertices (see get_begin_end_multiple)
+#define BEGIN_END_BUFFER_SIZE       36
 
 #define CLAMP01(x) CLAMP((x), 0, 1)
 
@@ -160,12 +165,12 @@ typedef struct {
 
     const GLvoid *final_pointer;
     uint16_t final_stride;
-    uint16_t out_offset;
     read_attrib_func read_func;
 } gl_array_t;
 
 typedef struct gl_array_object_s {
     gl_array_t arrays[ATTRIB_COUNT];
+    uint32_t out_offsets[ATTRIB_COUNT];
     gl_buffer_object_t *element_array_buffer;
     vertex_layout layout;
     void *buffer;
@@ -252,6 +257,14 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
+    int16_t position[3];
+    uint16_t normal;
+    uint32_t color;
+    int16_t texcoord[2];
+    uint8_t mtx_index[VERTEX_UNIT_COUNT];
+} native_vertex_t;
+
+typedef struct {
     GLenum cull_face_mode;
     GLenum front_face;
     GLenum current_error;
@@ -276,6 +289,7 @@ typedef struct {
     const surface_t *color_buffer;
     gl_viewport_t viewport;
     gl_uniform_data *uniform_data;
+    // TODO: move this to array object?
     gl_fixed_precision_t vertex_halfx_precision;
     gl_fixed_precision_t texcoord_halfx_precision;
     
@@ -339,13 +353,19 @@ typedef struct {
 
     gl_tex_gen_t tex_gen[TEX_GEN_COUNT];
 
-    struct {
-        GLfloat position[4];
-        GLfloat normal[3];
-        GLfloat color[4];
-        GLfloat texcoord[4];
-        GLubyte mtx_index[VERTEX_UNIT_COUNT];
-    } current;
+    native_vertex_t current_attribs;
+    native_vertex_t begin_end_saved_vtx;
+    native_vertex_t *begin_end_buffer;
+    rspq_syncpoint_t begin_end_syncpoints[BEGIN_END_BUFFER_COUNT];
+    GLenum begin_end_mode;
+    mg_primitive_topology_t begin_end_topology;
+    uint32_t begin_end_current_buffer_index;
+    native_vertex_t *begin_end_current_buffer;
+    uint32_t begin_end_index;
+    uint32_t begin_end_multiple;
+    bool begin_end_need_save;
+    bool begin_end_restore;
+    vertex_layout begin_end_layout;
 
     // TODO: Generic system that tracks state changes and applies changes automatically
     bool is_pipeline_dirty;
@@ -396,6 +416,7 @@ void gl_rendermode_init();
 void gl_array_init();
 void gl_array_close();
 void gl_primitive_init();
+void gl_primitive_close();
 void gl_matrix_init();
 void gl_lighting_init();
 void gl_texture_init();
@@ -405,6 +426,7 @@ bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
+read_attrib_func get_read_func(gl_array_type_t array_type, GLenum type);
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
 
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
@@ -424,15 +446,23 @@ void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *arra
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
 
+void gl_update_array_pointers(gl_array_object_t *obj);
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
+void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
 
 void gl_set_light_enabled(GLenum light, bool enabled);
 void gl_set_fog_enabled(bool enabled);
 void gl_set_texture_enabled(GLenum target, bool enabled);
 void gl_set_tex_gen_enabled(GLenum target, bool enabled);
 
+gl_texture_object_t * gl_get_active_texture();
+inline bool texture_is_complete(gl_texture_object_t *obj)
+{
+    return (obj->flags & TEX_IS_COMPLETE) != 0;
+}
+
 bool gl_is_diffuse_tracking_color();
-const float *gl_get_material_diffuse();
+color_t gl_get_material_diffuse();
 
 bool gl_is_shade_active();
 bool gl_is_texture_active();

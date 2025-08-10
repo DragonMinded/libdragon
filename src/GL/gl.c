@@ -41,9 +41,11 @@ static void free_pipeline(uint32_t key, void *value, int refcount)
 
 void gl_close(void)
 {
+    rspq_wait();
+
     gl_array_close();
     gl_texture_close();
-    rspq_wait();
+    gl_primitive_close();
 
     hashtable_visit(&state->pipeline_cache, free_pipeline);
     hashtable_free(&state->pipeline_cache);
@@ -358,6 +360,20 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
     return true;
 }
 
+mgfx_features_t get_pipeline_features()
+{
+    return gl_is_env_map_enabled() ? MGFX_FEATURE_ENV_MAP : 0;
+}
+
+const vertex_layout *get_current_layout()
+{
+    if (state->begin_end_active) {
+        return &state->begin_end_layout;
+    } else {
+        return &state->array_object->layout;
+    }
+}
+
 inline void fnv1a(uint32_t *hash, uint32_t v)
 {
     *hash ^= v;
@@ -388,8 +404,8 @@ void update_pipeline()
     if (!state->is_pipeline_dirty) return;
     state->is_pipeline_dirty = false;
 
-    mgfx_features_t features = gl_is_env_map_enabled() ? MGFX_FEATURE_ENV_MAP : 0;
-    vertex_layout *layout = &state->array_object->layout;
+    const vertex_layout *layout = get_current_layout();
+    mgfx_features_t features = get_pipeline_features();
 
     vertex_layout vl;
     if (state->lighting && !gl_is_diffuse_tracking_color())

@@ -485,8 +485,8 @@ bool is_texture_replace()
 
 bool is_color_constant()
 {
-    // TODO: this will no longer be sufficient when glBegin/glEnd is implemented
-    return !state->array_object->arrays[ATTRIB_COLOR].enabled;
+    // Color is always considered varying between glBegin/glEnd
+    return !state->begin_end_active && !state->array_object->arrays[ATTRIB_COLOR].enabled;
 }
 
 bool gl_is_shade_active()
@@ -545,22 +545,30 @@ rdpq_combiner_t get_combiner()
     return state->combiner;
 }
 
-const float *get_prim_color()
+color_t get_prim_color()
 {
     if (state->lighting) {
         return gl_get_material_diffuse();
     } else {
-        return state->current.color;
+        return color_from_packed32(state->current_attribs.color);
     }
 }
 
 void update_rendermode()
 {
     // TODO: Is it worth adding a dirty flag for this?
-    rdpq_set_prim_color(color_from_floats(get_prim_color()));
+    rdpq_set_prim_color(get_prim_color());
 
     if (!state->is_rendermode_dirty) return;
     state->is_rendermode_dirty = false;
+
+    // TODO: Re-think this in order to implement RDPQ-interop.
+    //       The full mode update below (including resetting to standard mode) should probably happen during gl_context_begin. 
+    //       Then before each draw call, only incremental updates. If GL_RDPQ_MATERIAL_N64 is enabled, the updates
+    //       for combiner/blender are skipped. Or maybe all updates are skipped?
+
+    //       Idea for GL_RDPQ_TEXTURING_N64: Instead of being a global flag, allow to create placeholder texture objects that only skip the upload block
+    //       (but still upload the mg uniform and set texture filter)
 
     rdpq_mode_begin();
         rdpq_set_mode_standard();
@@ -582,7 +590,7 @@ void update_rendermode()
 
         bool compare_depth = is_depth_compare_active();
         rdpq_mode_zbuf(compare_depth, is_depth_update_active());
-        
+
         if (compare_depth) {
             rdpq_mode_zmode(get_zmode());
         }

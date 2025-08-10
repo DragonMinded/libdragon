@@ -183,11 +183,6 @@ inline bool texture_is_default(gl_texture_object_t *obj)
     return (obj->flags & TEX_IS_DEFAULT) != 0;
 }
 
-inline bool texture_is_complete(gl_texture_object_t *obj)
-{
-    return (obj->flags & TEX_IS_COMPLETE) != 0;
-}
-
 inline bool texture_is_block_dirty(gl_texture_object_t *obj)
 {
     return (obj->flags & TEX_IS_BLOCK_DIRTY) != 0 || obj->upload_block == NULL;
