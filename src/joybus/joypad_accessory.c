@@ -11,6 +11,7 @@
 #include "interrupt.h"
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
+#include "timer.h"
 #include "joypad_internal.h"
 
 static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ctx);

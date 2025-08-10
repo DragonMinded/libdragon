@@ -14,7 +14,10 @@
 
 #include "joybus_accessory_internal.h"
 #include "joypad.h"
-#include "timer.h"
+
+///@cond
+typedef struct timer_link timer_link_t;
+///@endcond
 
 /**
  * @addtogroup joypad

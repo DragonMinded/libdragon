@@ -18,6 +18,9 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <time.h>
+///@cond
+#define SYSTEM_NO_DEPRECATED
+///@endcond
 #include "system.h"
 #include "kernel.h"
 #include "debug.h"
@@ -1607,6 +1610,7 @@ int dir_findfirst( const char * const path, dir_t *dir )
 int dir_findnext( const char * const path, dir_t *dir )
 {
     fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
+    int mapping = __get_fs_link_by_name( path );
 
     if( fsm == 0 || dir == 0 )
     {
@@ -1614,15 +1618,17 @@ int dir_findnext( const char * const path, dir_t *dir )
         return -1;
     }
 
-    if( fsm->fs->findnext == 0 )
+    if( fsm->fs->findnext == 0 && fsm->fs->findnext2 == 0 )
     {
-        /* Filesystem doesn't support findfirst */
+        /* Filesystem doesn't support findnext */
         errno = ENOSYS;
         return -1;
     }
 
     if (fsm->need_lock) kmutex_lock(&fsm->lock);
-    int ret = fsm->fs->findnext( dir );
+    int ret = fsm->fs->findnext2 ? 
+        fsm->fs->findnext2( path + __strlen( filesystems[mapping].prefix ) - 1, dir ) : 
+        fsm->fs->findnext( dir );
     if (fsm->need_lock) kmutex_unlock(&fsm->lock);
     return ret;
 }

@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "n64sys.h"
+#include "timer.h"
 #include "debug.h"
 #include "interrupt.h"
 #include "joypad_internal.h"

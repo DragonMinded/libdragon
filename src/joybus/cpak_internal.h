@@ -1,0 +1,96 @@
+/**
+ * @file cpak_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Internal Controller Pak Filesystem Routines
+ */
+#ifndef LIBDRAGON_CPAK_INTERNAL_H
+#define LIBDRAGON_CPAK_INTERNAL_H
+
+#include "joypad.h"
+#include "joypad_accessory.h"
+#include "joybus_accessory.h"
+
+/// @cond
+#ifndef N64
+#include <sys/random.h>
+#define be16(x)   __builtin_bswap16(x)
+#define be16i(x)  (int16_t)__builtin_bswap16(x)
+#define be32(x)   __builtin_bswap32(x)
+#define RAND()    rand()
+#else
+#define be16(x)   (x)
+#define be16i(x)  (x)
+#define be32(x)   (x)
+#define RAND()    C0_COUNT()
+#endif
+/// @endcond
+
+/** @brief Set to 1 to activate debug logs */
+#define CPAKFS_TRACE   1
+
+#if CPAKFS_TRACE
+/** @brief like tracef(), but writes only if #CPAKFS_TRACE is not 0 */
+#define tracef(fmt, ...)  fprintf(stderr, fmt, ##__VA_ARGS__)
+#else
+/** @brief like tracef(), but writes only if #CPAKFS_TRACE is not 0 */
+#define tracef(fmt, ...)  ({ })
+#endif
+
+#define MAX_NOTES       16      ///< Maximum number of notes in a controller pak
+#define MAX_BANKS       64      ///< Maximum number of banks in a controller pak
+#define NUM_PAGES       128     ///< Number of pages in a bank (128 pages = 32KB)
+#define BANK_SIZE       32768   ///< Size of a bank in bytes (32KB)
+#define PAGE_SIZE       256     ///< Page size in bytes
+#define BLOCK_SIZE      32      ///< Block size in bytes
+
+#define FAT_RESERVED    0            ///< FAT value marking a reserved page
+#define FAT_TERMINATOR  1            ///< FAT value marking the end of the file
+#define FAT_UNUSED      3            ///< FAT value marking an unused block
+#define FAT_VALID(n,fs) ((n) >= fs->reserved && (n) < fs->fat_size/2)   ///< Check if the FAT value refers to a block (rather than being a control value)
+
+#define NOTE_STATUS_OCCUPIED     (1<<9)     ///< Flag to mark a note as occupied (not empty)
+#define NOTE_STATUS_SIZE         (1<<0)     ///< Libdragon extension to store the size of the note (not implemented yet)
+
+#define FSFLAGS_DEFAULT          0x0000     ///< Default flags for a filesystem
+
+/** @brief ID sector */
+typedef union {
+    struct {
+        uint8_t serial[24];         ///< Serial number
+        uint16_t device_id_lsb;     ///< Device ID (in the LSB). Bit 0 should be 1
+        uint16_t bank_size_msb;     ///< Bank size (in the MSB): number of FAT entries
+        uint16_t checksum1;         ///< Checksum of the first 14 words
+        uint16_t checksum2;         ///< Reversed checksum of the first 14 words
+    };
+    uint8_t data8[32];              ///< Raw data (8-bit access)
+    uint16_t data16[16];            ///< Raw data (16-bit access)
+} cpakfs_id_t;
+
+/** @brief A note (similar to inode) */
+typedef struct {
+    char gamecode[4];               ///< Game code (ASCII, 4 chars)
+    char pubcode[2];                ///< Publisher code (ASCII, 2 chars)
+    uint16_t first_page;            ///< First page where data is stored
+    uint16_t status;                ///< Status flags (bit 2: occupied)
+    uint16_t unused;                ///< Unused
+    uint8_t ext[4];                 ///< File extension (custom codepage)
+    uint8_t filename[16];           ///< Filename (custom codepage)
+} cpakfs_note_t;
+
+/** @brief Performa an arbitrary transfer to/from cpak, optionally switch bank */
+int __cpak_block_xfer(joypad_port_t port, joypad_accessory_xfer_t xfer, uint32_t addr, void *data, int nbytes);
+
+/** @brief Calculate the checksum of a cpak sector ID */
+void __cpak_fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *checksum2);
+
+static inline int block_read(joypad_port_t port, uint32_t addr, void *data, int nbytes)
+{
+    return __cpak_block_xfer(port, JOYPAD_ACCESSORY_XFER_READ, addr, data, nbytes);
+}
+
+static inline int block_write(joypad_port_t port, uint32_t addr, void *data, int nbytes)
+{
+    return __cpak_block_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE, addr, data, nbytes);
+}
+
+#endif
