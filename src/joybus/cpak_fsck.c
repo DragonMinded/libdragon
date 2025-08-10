@@ -215,12 +215,12 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
 /** 
  * @brief Compute the checksum of a FAT page, starting from a given entry index. 
  */
-static uint8_t fat_page_checksum(uint16_t *fat_page, int start_idx)
+static uint8_t fat_page_checksum(cpakfs_fat_entry_t *fat_page, int start_idx)
 {
     uint8_t checksum = 0;
     for (int i=start_idx; i<128; i++) {
-        checksum += fat_page[i] >> 0;
-        checksum += fat_page[i] >> 8;
+        checksum += fat_page[i].bank;
+        checksum += fat_page[i].page;
     }
     return checksum;
 }
@@ -233,12 +233,12 @@ static uint8_t fat_page_checksum(uint16_t *fat_page, int start_idx)
  * @param out_fat       Pointer to store the FAT data
  * @return int          0 on success, negative on error
  */
-static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, uint16_t **out_fat)
+static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out_fat)
 {
     // Allocate memory for the FAT
     int fat_size = be16(fsid->bank_size_msb) & 0xFF00;
     int reserved = 1 + (fat_size >> 8) * 2 + 2; // Reserved pages: ID sector, two FAT copies, note table
-    uint16_t *fat = malloc(be16(fsid->bank_size_msb) & 0xFF00);
+    cpakfs_fat_entry_t *fat = malloc(be16(fsid->bank_size_msb) & 0xFF00);
     int count_main_backup = 0;
     uint64_t fat_dirty = 0;
     int retcode = -1;
@@ -259,16 +259,16 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, uint16_t **out_fat)
         // fails, we also try ignoring the reserved pages in case they erroneously
         // contain non-zero entries. We found cpak images around that had the
         // checksum calculated like this.
-        if (fat_page_checksum(fat + i/2, csum_start_idx) == (be16(fat[i/2]) & 0xFF)) {
+        if (fat_page_checksum(fat + i/2, csum_start_idx) == fat[i/2].page) {
             count_main_backup++;
         } else {
-            uint16_t backup[PAGE_SIZE/2];
+            cpakfs_fat_entry_t backup[128];
 
             // Check backup copy
             if (block_read(ctx->port, 0x100 + fat_size + i, backup, PAGE_SIZE) < 0) goto exit;
 
             // Verify backup copy checksum
-            if (fat_page_checksum(backup, csum_start_idx) == (be16(backup[0]) & 0xFF)) {
+            if (fat_page_checksum(backup, csum_start_idx) == backup[0].page) {
                 memcpy(fat + i/2, backup, PAGE_SIZE);
                 count_main_backup--;
             } else {
@@ -298,28 +298,26 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, uint16_t **out_fat)
                 continue;
             
             if (i < reserved) {
-                // Entries for rserved pages should be 0
-                if (be16(fat[i]) != FAT_RESERVED) {
+                // Entries for reserved pages should be 0
+                if (!FAT_IS_RESERVED(fat[i])) {
                     if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_INVALID_RESERVED, CPAKFS_LEVEL_INFO,
-                            "Reserved page %d has invalid FAT entry 0x%04X", i, be16(fat[i]));
+                            "Reserved page %d has an invalid FAT entry (0x%02x%02x)", i, fat[i].bank, fat[i].page);
                     if (ctx->mode == MODE_FIX) {
-                        fat[i] = be16(FAT_RESERVED);
+                        fat[i] = FAT_RESERVED;
                         fat_dirty |= ((uint64_t)1 << (i >> 7));
                     }
                 }
-            } else if (be16(fat[i] <= reserved)) {
-                // If a potentially valid page is marked with a reserved value, we need to check
-                // whether it is one of the allowed ones (FAT_TERMINATOR, FAT_UNUSED) or not.
-                if (be16(fat[i]) != FAT_TERMINATOR && be16(fat[i]) != FAT_UNUSED) {
-                    if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_INVALID_RESERVED, CPAKFS_LEVEL_ERROR,
-                            "FAT entry for page %d is reserved but has invalid value (%04X)", i, be16(fat[i]));
+            // If a potentially valid page is neither a valid, terminator, or unused entry,
+            // we need to report it as an error.
+            } else if (!FAT_IS_VALID(fat[i], reserved) && !FAT_IS_TERMINATOR(fat[i]) && !FAT_IS_UNUSED(fat[i])) {
+                if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_INVALID_RESERVED, CPAKFS_LEVEL_ERROR,
+                        "FAT entry for page %d is reserved but has invalid value (%02x%02x)", i, fat[i].bank, fat[i].page);
 
-                    // Since we can't know whether this is a valid page or not, we will
-                    // mark it as unused, so that it can be allocated later.
-                    if (ctx->mode == MODE_FIX) {
-                        fat[i] = be16(FAT_UNUSED);
-                        fat_dirty |= ((uint64_t)1 << (i >> 7));
-                    }
+                // Since we can't know whether this is a valid page or not, we will
+                // mark it as unused, so that it can be allocated later.
+                if (ctx->mode == MODE_FIX) {
+                    fat[i] = FAT_UNUSED;
+                    fat_dirty |= ((uint64_t)1 << (i >> 7));
                 }
             }
         }
@@ -328,11 +326,11 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, uint16_t **out_fat)
     if (ctx->mode == MODE_FIX) {
         for (int i=0; i<64 && fat_dirty; i++) {
             if (fat_dirty & (1 << i)) {
-                uint16_t *fat_page = fat + i*128;
+                cpakfs_fat_entry_t *fat_page = fat + i*128;
 
                 // Update checksum
                 uint8_t checksum = fat_page_checksum(fat_page, 1);
-                fat_page[0] = be16(checksum);
+                fat_page[0] = (cpakfs_fat_entry_t){0, checksum};
 
                 // Write both copies of the FAT page. Try writing both copies, before
                 // giving up, in case one of them is non writable for some hardware reason.
@@ -355,6 +353,53 @@ exit:
     else
         *out_fat = fat;
     return retcode;
+}
+
+static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fat)
+{
+    int fat_size = be16(fsid->bank_size_msb) & 0xFF00;
+    int reserved = 1 + (fat_size >> 8) * 2 + 2; // Reserved pages: ID sector, two FAT copies, note table
+    const int note_start = 0x100 + fat_size * 2;
+    uint16_t note_dirty = 0;
+
+    // Read all notes
+    cpakfs_note_t notes[MAX_NOTES];
+    if (block_read(ctx->port, note_start, notes, sizeof(notes)) < 0)
+        return -1;
+
+    for (int i=0; i<MAX_NOTES; i++) {
+        cpakfs_note_t *note = &notes[i];
+        uint16_t status = be16(note->status);
+        if (!(status & NOTE_STATUS_OCCUPIED))
+            continue;
+
+        // Gamecode and pubcode are ASCII most of the time, but Datel Gameshark
+        // saves binary codes in there. So what we just consider as invalid
+        // is full zeros.
+        if (note->gamecode[0] == 0 && note->gamecode[1] == 0 &&
+            note->gamecode[2] == 0 && note->gamecode[3] == 0) {
+            if (ctx->report) ctx->report(CPAKFS_ISSUE_NOTE_INVALID_GAMECODE, CPAKFS_LEVEL_ERROR,
+                    "Note %d has invalid gamecode: %02x%02x%02x%02x", i,
+                    note->gamecode[0], note->gamecode[1],
+                    note->gamecode[2], note->gamecode[3]);
+            if (ctx->mode == MODE_FIX) {
+                memset(note, 0, sizeof(cpakfs_note_t));
+                note_dirty |= (1 << i);
+            }
+        }
+
+        if (note->pubcode[0] == 0 && note->pubcode[1] == 0) {
+            if (ctx->report) ctx->report(CPAKFS_ISSUE_NOTE_INVALID_PUBCODE, CPAKFS_LEVEL_ERROR,
+                    "Note %d has invalid publisher code: %02x%02x", i,
+                    note->pubcode[0], note->pubcode[1]);
+            if (ctx->mode == MODE_FIX) {
+                memset(note, 0, sizeof(cpakfs_note_t));
+                note_dirty |= (1 << i);
+            }
+        }
+    }
+
+    return 0;
 }
 
 
@@ -380,9 +425,13 @@ int cpak_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report)
     if (err < 0) return err;
 
     // Check and fix the FAT
-    uint16_t *fat = NULL;
+    cpakfs_fat_entry_t *fat = NULL;
     err = fsck_fat(&ctx, &fsid, &fat);
     if (err < 0) return err;
+
+    // Check and fix notes
+    err = fsck_notes(&ctx, &fsid, fat);
+    if (err < 0) return err; 
 
     free(fat);
     return 0;
@@ -417,16 +466,16 @@ int cpak_format(joypad_port_t port, bool erase)
 
     // First page of the FAT shows reserved pages
     int fat_size = be16(fsid.bank_size_msb) & 0xFF00;
-    uint16_t fat[128];
+    cpakfs_fat_entry_t fat[128];
     int reserved = 1 + (fat_size >> 8) * 2 + 2;
 
     for (int i=0; i<reserved; i++)
-        fat[i] = be16(FAT_RESERVED);
+        fat[i] = FAT_RESERVED;
     for (int i=reserved; i<128; i++)
-        fat[i] = be16(FAT_UNUSED);
+        fat[i] = FAT_UNUSED;
 
     uint8_t checksum = fat_page_checksum(fat, 1);
-    fat[0] = be16(checksum);
+    fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
     // Write the FAT to both copies
     if (block_write(port, 0x100 + 0*fat_size, fat, PAGE_SIZE) < 0)
@@ -437,9 +486,9 @@ int cpak_format(joypad_port_t port, bool erase)
     // Now write subsequent pages as empty
     if (num_banks > 1) {
         for (int i=0; i<reserved; i++)
-            fat[i] = be16(FAT_UNUSED);
+            fat[i] = FAT_UNUSED;
         checksum = fat_page_checksum(fat, 1);
-        fat[0] = be16(checksum);
+        fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
         for (int i=1; i<num_banks; i++) {
             if (block_write(port, 0x100 + 0*fat_size + i*PAGE_SIZE, fat, PAGE_SIZE) < 0)

@@ -43,15 +43,29 @@
 #define PAGE_SIZE       256     ///< Page size in bytes
 #define BLOCK_SIZE      32      ///< Block size in bytes
 
-#define FAT_RESERVED    0            ///< FAT value marking a reserved page
-#define FAT_TERMINATOR  1            ///< FAT value marking the end of the file
-#define FAT_UNUSED      3            ///< FAT value marking an unused block
-#define FAT_VALID(n,fs) ((n) >= fs->reserved && (n) < fs->fat_size/2)   ///< Check if the FAT value refers to a block (rather than being a control value)
-
 #define NOTE_STATUS_OCCUPIED     (1<<9)     ///< Flag to mark a note as occupied (not empty)
 #define NOTE_STATUS_SIZE         (1<<0)     ///< Libdragon extension to store the size of the note (not implemented yet)
 
 #define FSFLAGS_DEFAULT          0x0000     ///< Default flags for a filesystem
+
+/** @brief FAT entry (File Allocation Table) */
+typedef struct {
+    uint8_t bank;                   ///< Bank number (0-61)
+    uint8_t page;                   ///< Page number (0-127)
+} cpakfs_fat_entry_t;
+
+_Static_assert(sizeof(cpakfs_fat_entry_t) == 2, "cpakfs_fat_entry_t must be 2 bytes");
+
+#define FAT_LINEAR(e)               ((e).bank * NUM_PAGES + (e).page)       ///< Convert a FAT entry to linear FAT index
+#define FAT_NEXT(fat, e)            ((fat)[FAT_LINEAR(e)])                  ///< Get the next FAT entry for a given entry
+#define FAT_IS_VALID(e, reserved)   ((e).page > 0 && (e).page < 0x80 && ((e).bank != 0 || (e).page >= reserved))      ///< Check if a FAT entry is valid (point to a valid page)
+#define FAT_IS_RESERVED(e)          ((e).page == 0 && (e).bank == 0)        ///< Check if the FAT entry marks a reserved page
+#define FAT_IS_TERMINATOR(e)        ((e).page == 1 && (e).bank == 0)        ///< Check if a FAT entry marks the terminator of a file
+#define FAT_IS_UNUSED(e)            ((e).page == 3 && (e).bank == 0)        ///< Check if a FAT entry marks an unused page
+
+#define FAT_RESERVED                ((cpakfs_fat_entry_t){0, 0})                   ///< Reserved FAT entry
+#define FAT_TERMINATOR              ((cpakfs_fat_entry_t){0, 1})                   ///< Terminator FAT entry
+#define FAT_UNUSED                  ((cpakfs_fat_entry_t){0, 3})                   ///< Unused FAT entry
 
 /** @brief ID sector */
 typedef union {
@@ -70,7 +84,7 @@ typedef union {
 typedef struct {
     char gamecode[4];               ///< Game code (ASCII, 4 chars)
     char pubcode[2];                ///< Publisher code (ASCII, 2 chars)
-    uint16_t first_page;            ///< First page where data is stored
+    cpakfs_fat_entry_t first_page;  ///< First page where data is stored
     uint16_t status;                ///< Status flags (bit 2: occupied)
     uint16_t unused;                ///< Unused
     uint8_t ext[4];                 ///< File extension (custom codepage)

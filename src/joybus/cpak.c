@@ -33,7 +33,7 @@ typedef struct {
     uint64_t fat_dirty;                 ///< Dirty mask of FAT
     int fat_size;                       ///< Size of the FAT in bytes
     int reserved;                       ///< Number of reserved pages in the first bank
-    uint16_t fat[];                     ///< FAT entries
+    cpakfs_fat_entry_t fat[];           ///< FAT entries
 } cpakfs_t;
 
 /** @brief A open file in the cpakfs */
@@ -42,14 +42,14 @@ typedef struct {
     cpakfs_note_t *note;                ///< Note this file is associated with
     int pos;                            ///< Current position in the file
     int size;                           ///< File size
-    uint16_t *cur_page_ptr;             ///< Pointer to the current page in the FAT (or in the note)
+    cpakfs_fat_entry_t *cur_page_ptr;   ///< Pointer to the current page in the FAT (or in the note)
     uint8_t flags;                      ///< Flags
 } cpakfs_openfile_t;
 
 /** @brief Modify the FAT and mark it as dirty */
 #define FAT_WRITE(fs, lvalue, val) ({ \
-    uint16_t __val = (val); \
-    uint16_t *__ptr = &(lvalue); \
+    cpakfs_fat_entry_t __val = (val); \
+    cpakfs_fat_entry_t *__ptr = &(lvalue); \
     *__ptr = __val; \
     fs->fat_dirty |= 1 << ((__ptr - fs->fat) >> 7); \
 })
@@ -123,7 +123,7 @@ static int read_fat(cpakfs_t *fs)
 {
     int num_pages = fs->fat_size >> 8;
     int addr = 0x100;
-    uint16_t *fat = fs->fat;
+    cpakfs_fat_entry_t *fat = fs->fat;
 
     // Read FAT structure. FAT can be made of multiple pages, and we have two
     // copies of the whole FAT. Each page stores its own checksum, that we
@@ -131,16 +131,16 @@ static int read_fat(cpakfs_t *fs)
     for (int j=0; j<num_pages; j++) {
         bool found = false;
         for (int i=0; i<2; i++) {
-            if (block_read(fs->port, addr + i * fs->fat_size, fat, 0x100) < 0)
+            if (block_read(fs->port, addr + i * fs->fat_size, fat, PAGE_SIZE) < 0)
                 return -1;
 
             // Check FAT checksum
             uint8_t checksum = 0;
             for (int i=1; i<128; i++) {
-                checksum += fat[i] >> 0;
-                checksum += fat[i] >> 8;
+                checksum += fat[i].bank;
+                checksum += fat[i].page;
             }
-            if (checksum == (be16(fat[0]) & 0xFF)) {
+            if (checksum == fat[0].page) {
                 found = true;
                 break;
             }
@@ -163,16 +163,16 @@ static int write_fat(cpakfs_t *fs)
 {
     for (int i=0; i<64 && fs->fat_dirty; i++) {
         if (fs->fat_dirty & (1 << i)) {
-            uint16_t *fat_page = fs->fat + i*128;
+            cpakfs_fat_entry_t *fat_page = fs->fat + i*128;
             int first_idx = i == 0 ? fs->reserved : 1;
 
             // Update checksum
             uint8_t checksum = 0;
             for (int j=first_idx; j<128; j++) {
-                checksum += fat_page[j] >> 0;
-                checksum += fat_page[j] >> 8;
+                checksum += fat_page[j].bank;
+                checksum += fat_page[j].page;
             }
-            fat_page[0] = be16(checksum);
+            fat_page[0] = (cpakfs_fat_entry_t){0, checksum};
 
             // Write both copies of the FAT page
             if (block_write(fs->port, 0x100 + 0*fs->fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
@@ -369,15 +369,18 @@ static int __cpak_read(void *file, uint8_t *ptr, int len)
     len = MIN(len, f->size - f->pos);
     while (len > 0) {
         // Perform the maximum read operation within the current page
-        int page_base = be16(*f->cur_page_ptr) * PAGE_SIZE;
+        int page_base = FAT_LINEAR(*f->cur_page_ptr) * PAGE_SIZE;
         int page_offset = f->pos % PAGE_SIZE;
         int n = MIN(len, PAGE_SIZE - page_offset);
 
         // See if we can read multiple pages at once. This is only possible if
         // they are consecutive in the filesystem.
-        while (n < len && be16(fs->fat[be16(*f->cur_page_ptr)] == be16(*f->cur_page_ptr)+1)) {
+        while (n < len) {
+            cpakfs_fat_entry_t *next = &FAT_NEXT(fs->fat, *f->cur_page_ptr);
+            if (next->bank != f->cur_page_ptr->bank)     break;
+            if (next->page != f->cur_page_ptr->page + 1) break;
             n += MIN(len-n, PAGE_SIZE);
-            f->cur_page_ptr = &fs->fat[be16(*f->cur_page_ptr)];
+            f->cur_page_ptr = next;
         }
 
         // Perform the read
@@ -390,31 +393,30 @@ static int __cpak_read(void *file, uint8_t *ptr, int len)
         len -= n;
         read += n;
         if (f->pos % PAGE_SIZE == 0) {
-            f->cur_page_ptr = &fs->fat[be16(*f->cur_page_ptr)];
+            f->cur_page_ptr = &FAT_NEXT(fs->fat, *f->cur_page_ptr);
         }
     }
     return read;
 }
 
-static int allocate_page(cpakfs_t *fs)
+static cpakfs_fat_entry_t allocate_page(cpakfs_t *fs)
 {
     // Search for a free page, starting from a random position
     int page = RAND() % (fs->fat_size / 2);
-    int reserved = 1 + (fs->fat_size >> 8) * 2 + 2;
 
     tracef("allocate_page: searching for free page, starting from %d\n", page);
     for (int i=0; i<fs->fat_size/2; i++) {
-        tracef("  fat[%d] = %d\n", page, be16(fs->fat[page]));
-        if (page >= reserved && (page % 128) != 0 && be16(fs->fat[page]) == FAT_UNUSED) {
-            FAT_WRITE(fs, fs->fat[page], be16(FAT_TERMINATOR));
-            return page;
+        tracef("  fat[%d] = 0x%02x%02x\n", page, fs->fat[page].bank, fs->fat[page].page);
+        if (page >= fs->reserved && (page % 128) != 0 && FAT_IS_UNUSED(fs->fat[page])) {
+            FAT_WRITE(fs, fs->fat[page], FAT_TERMINATOR);
+            return (cpakfs_fat_entry_t){page>>7, page&0x7F};
         }
         page += 1;
         if (page >= fs->fat_size / 2)
             page = 0;
     }
     errno = ENOSPC;
-    return -1;
+    return FAT_RESERVED;
 }
 
 static int __cpak_write(void *file, uint8_t *ptr, int len)
@@ -436,20 +438,20 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
         int n = MIN(len, PAGE_SIZE - page_offset);
 
         // Allocate a new page if necessary
-        if (page_offset == 0 && !FAT_VALID(be16(*f->cur_page_ptr), fs)) {
-            int new_page = allocate_page(fs);
-            if (new_page < 0) {
+        if (page_offset == 0 && !FAT_IS_VALID(*f->cur_page_ptr, fs->reserved)) {
+            cpakfs_fat_entry_t new_page = allocate_page(fs);
+            if (FAT_IS_RESERVED(new_page)) {
                 tracef("__cpak_write: no space left\n");
                 return -1;
             }
-            tracef("__cpak_write: allocated new page %d\n", new_page);
-            FAT_WRITE(fs, *f->cur_page_ptr, be16(new_page));
-            assert(FAT_VALID(be16(*f->cur_page_ptr), fs));
+            tracef("__cpak_write: allocated new page 0x%02x%02x\n", new_page.bank, new_page.page);
+            FAT_WRITE(fs, *f->cur_page_ptr, new_page);
+            assert(FAT_IS_VALID(new_page, fs->reserved));
             f->flags |= FLAG_FAT_DIRTY;
         }
 
-        int page_base = be16(*f->cur_page_ptr) * PAGE_SIZE;
-        tracef("__cpak_write: writing %d bytes to page %d offset %d\n", n, be16(*f->cur_page_ptr), page_offset);
+        int page_base = FAT_LINEAR(*f->cur_page_ptr) * PAGE_SIZE;
+        tracef("__cpak_write: writing %d bytes to page 0x%02x%02x offset %d\n", n, f->cur_page_ptr->bank, f->cur_page_ptr->page, page_offset);
         if (block_write(f->port, page_base + page_offset, ptr, n) < 0)
             return -1;
 
@@ -460,8 +462,8 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
 
         if (f->pos % PAGE_SIZE == 0) {
             tracef("__cpak_write: moving to next page\n");
-            assert(FAT_VALID(be16(*f->cur_page_ptr), fs));
-            f->cur_page_ptr = &fs->fat[be16(*f->cur_page_ptr)];
+            assert(FAT_IS_VALID(*f->cur_page_ptr, fs->reserved));
+            f->cur_page_ptr = &FAT_NEXT(fs->fat, *f->cur_page_ptr);
         }
 
         tracef("__cpak_write: pos=%d size=%d left=%d\n", f->pos, f->size, len);
@@ -508,11 +510,11 @@ static int __cpak_lseek(void *file, int offset, int whence)
         int page_idx = pos / PAGE_SIZE;
         f->cur_page_ptr = &f->note->first_page;
         for (int i=1; i<page_idx; i++) {
-            if (!FAT_VALID(be16(*f->cur_page_ptr), fs)) {
+            if (!FAT_IS_VALID(*f->cur_page_ptr, fs->reserved)) {
                 errno = EFTYPE;
                 return -1;
             }
-            f->cur_page_ptr = &fs->fat[be16(*f->cur_page_ptr)];
+            f->cur_page_ptr = &FAT_NEXT(fs->fat, *f->cur_page_ptr);
         }
     }
 
@@ -533,17 +535,17 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
     return note;
 }
 
-static int calc_size(cpakfs_t *fs, int first_page)
+static int calc_size(cpakfs_t *fs, cpakfs_fat_entry_t first_page)
 {
     int size = 0;
-    int cur_page = first_page;    
-    while (cur_page != FAT_TERMINATOR) {
-        if (!FAT_VALID(cur_page, fs) || size > PAGE_SIZE * fs->fat_size) { // prevent infinite loop
+    cpakfs_fat_entry_t cur_page = first_page;
+    while (!FAT_IS_TERMINATOR(cur_page)) {
+        if (!FAT_IS_VALID(cur_page, fs->reserved) || size > PAGE_SIZE * fs->fat_size) { // prevent infinite loop
             errno = EFTYPE;
             return -1;
         }
         size += PAGE_SIZE;
-        cur_page = be16(fs->fat[cur_page]);
+        cur_page = FAT_NEXT(fs->fat, cur_page);
     }
     return size;
 }
@@ -630,11 +632,12 @@ static void *__cpak_open(char *name, int flags, int port)
     // If O_APPEND is set, seek to the end of the file
     if (flags & O_CREAT) {
         // Free the FAT chain for this file, unless it's a new file
-        uint16_t *prevpage = &file->note->first_page;
-        while (FAT_VALID(be16(*prevpage), fs) || be16(*prevpage) == FAT_TERMINATOR) {
-            uint16_t page = be16(*prevpage);
-            FAT_WRITE(fs, *prevpage, be16(FAT_UNUSED));
-            prevpage = &fs->fat[page];
+        cpakfs_fat_entry_t *prevpage = &file->note->first_page;
+        while (FAT_IS_VALID(*prevpage, fs->reserved) || FAT_IS_TERMINATOR(*prevpage)) {
+            cpakfs_fat_entry_t page = *prevpage;
+            FAT_WRITE(fs, *prevpage, FAT_UNUSED);
+            if (FAT_IS_TERMINATOR(page)) break;
+            prevpage = &FAT_NEXT(fs->fat, page);
         }
 
         memcpy((char*)note->gamecode, name+0, 4);
@@ -643,11 +646,11 @@ static void *__cpak_open(char *name, int flags, int port)
         memcpy((char*)note->ext, ext, 4);
 
         note->status |= be16(NOTE_STATUS_OCCUPIED);
-        note->first_page = be16(FAT_TERMINATOR);
+        note->first_page = FAT_TERMINATOR;
         file->flags |= FLAG_NOTE_DIRTY | FLAG_FAT_DIRTY;
     } else {
         // Calculate the size
-        file->size = calc_size(fs, be16(note->first_page));
+        file->size = calc_size(fs, note->first_page);
         if (file->size < 0) {
             free(file);
             return NULL;
@@ -741,7 +744,7 @@ static int __cpak_findnext(const char *basepath, dir_t *dir, int port) {
     dir->d_type = DT_REG;
     
     // Calculate file size
-    dir->d_size = calc_size(fs, be16(note->first_page));
+    dir->d_size = calc_size(fs, note->first_page);
     if (dir->d_size < 0) {
         return -2;
     }
@@ -836,7 +839,7 @@ int cpak_mount(joypad_port_t port, const char *prefix)
     fs->port = port;
     fs->fat_size = fat_size;
     fs->reserved = 1 + (fat_size >> 8) * 2 + 2; // Reserved space: sector ID, two FAT copies, note table
-    tracef("cpak_mount: port %d, fat_size %d\n", port, fs->fat_size);
+    tracef("cpak_mount: port %d, fs size %d\n", port, fs->fat_size * PAGE_SIZE);
     
     // Force a bank switch first, as we can't know the current selected bank
     fs->cur_bank = -1;
@@ -922,7 +925,7 @@ int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats)
         // in fact, it's an empty, wasted page that can't be allocated because
         // the relative FAT entry (entry 0 in each FAT page) is reserved for the
         // FAT page checksum.
-        if (be16(fs->fat[i]) > reserved_first_page)
+        if (FAT_IS_VALID(fs->fat[i], fs->reserved) || FAT_IS_TERMINATOR(fs->fat[i]))
             stats->pages.used++;
     }
 

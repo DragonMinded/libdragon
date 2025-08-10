@@ -146,6 +146,9 @@ typedef enum {
     CPAKFS_ISSUE_FAT_CHECKSUM_FAILURE = 5,          ///< FAT page has invalid checksum
     CPAKFS_ISSUE_FAT_INVALID_RESERVED = 6,          ///< Reserved page has invalid FAT entry
     CPAKFS_ISSUE_FAT_INVALID_ENTRY = 7,             ///< Invalid FAT entry
+
+    CPAKFS_ISSUE_NOTE_INVALID_GAMECODE = 8,         ///< Note has invalid gamecode
+    CPAKFS_ISSUE_NOTE_INVALID_PUBCODE = 9,          ///< Note has invalid publisher code
 } cpakfs_issue_t;
 
 /** @brief Cpak filesystem report callback */
