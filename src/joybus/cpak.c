@@ -1,6 +1,7 @@
 /**
  * @file cpak.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Controller Pak Filesystem Routines
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -10,70 +11,18 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "system.h"
-#include "joypad.h"
-#include "joypad_accessory.h"
-#include "joybus_accessory.h"
-#include "utils.h"
+#include "cpak_internal.h"
+#include "../utils.h"
 #ifdef N64
 #include "cop0.h"
 #include "cpak.h"
 #include "debug.h"
 #endif
 
-#define MAX_NOTES       16      ///< Maximum number of notes in a controller pak
-#define PAGE_SIZE       256     ///< Page size in bytes
-#define BLOCK_SIZE      32      ///< Block size in bytes
-
-#define FAT_TERMINATOR  1            ///< FAT value marking the end of the file
-#define FAT_UNUSED      3            ///< FAT value marking an unused block
-#define FAT_VALID(n)    ((n) >= 5)   ///< Check if the FAT value refers to a block (rather than being a control value)
-
-#define NOTE_STATUS_OCCUPIED     (1<<9)     ///< Flag to mark a note as occupied (not empty)
-#define NOTE_STATUS_SIZE         (1<<0)     ///< Libdragon extension to store the size of the note (not implemented yet)
-
-/// @cond
-#ifndef N64
-#define be16(x)   __builtin_bswap16(x)
-#define be16i(x)  (int16_t)__builtin_bswap16(x)
-#define be32(x)   __builtin_bswap32(x)
-#define RAND()    rand()
-#define debugf(...) fprintf(stderr, __VA_ARGS__)
-#else
-#define be16(x)   (x)
-#define be16i(x)  (x)
-#define be32(x)   (x)
-#define RAND()    C0_COUNT()
-#endif
-/// @endcond
-
 #define FLAG_READING            (1<<0)     ///< Flag to mark a file as being read
 #define FLAG_WRITING            (1<<1)     ///< Flag to mark a file as being written
 #define FLAG_NOTE_DIRTY         (1<<2)     ///< Flag to mark a file whose note requires being rewritten
 #define FLAG_FAT_DIRTY          (1<<3)     ///< Flag to mark a file whose FAT requires being rewritten
-
-/** @brief ID sector */
-typedef union {
-    struct {
-        uint8_t serial[24];         ///< Serial number
-        uint16_t device_id_lsb;     ///< Device ID (in the LSB). Bit 0 should be 1
-        uint16_t bank_size_msb;     ///< Bank size (in the MSB): number of FAT entries
-        uint16_t checksum1;         ///< Checksum of the first 14 words
-        uint16_t checksum2;         ///< Reversed checksum of the first 14 words
-    };
-    uint8_t data8[32];              ///< Raw data (8-bit access)
-    uint16_t data16[16];            ///< Raw data (16-bit access)
-} cpakfs_id_t;
-
-/** @brief A note (similar to inode) */
-typedef struct {
-    char gamecode[4];               ///< Game code (ASCII, 4 chars)
-    char pubcode[2];                ///< Publisher code (ASCII, 2 chars)
-    uint16_t first_page;            ///< First page where data is stored
-    uint16_t status;                ///< Status flags (bit 2: occupied)
-    uint16_t unused;                ///< Unused
-    uint8_t ext[4];                 ///< File extension (custom codepage)
-    uint8_t filename[16];           ///< Filename (custom codepage)
-} cpakfs_note_t;
 
 /** @brief A mounted cpak filesystem */
 typedef struct {
@@ -81,8 +30,9 @@ typedef struct {
     cpakfs_note_t notes[MAX_NOTES];     ///< Cache of all the notes
     uint16_t notes_mask;                ///< Bitmask of read notes
     int cur_bank;                       ///< Current bank for multi-bank cpaks
-    int fat_idx;                        ///< Index of the FAT that was read (0 or 1)
+    uint64_t fat_dirty;                 ///< Dirty mask of FAT
     int fat_size;                       ///< Size of the FAT in bytes
+    int reserved;                       ///< Number of reserved pages in the first bank
     uint16_t fat[];                     ///< FAT entries
 } cpakfs_t;
 
@@ -96,21 +46,30 @@ typedef struct {
     uint8_t flags;                      ///< Flags
 } cpakfs_openfile_t;
 
+/** @brief Modify the FAT and mark it as dirty */
+#define FAT_WRITE(fs, lvalue, val) ({ \
+    uint16_t __val = (val); \
+    uint16_t *__ptr = &(lvalue); \
+    *__ptr = __val; \
+    fs->fat_dirty |= 1 << ((__ptr - fs->fat) >> 7); \
+})
+
 static cpakfs_t *filesystems[4];
 static char *prefixes[4];
 
-static int block_xfer(joypad_port_t port, joypad_accessory_xfer_t xfer, uint32_t addr, void *data, int nbytes)
+int __cpak_block_xfer(joypad_port_t port, joypad_accessory_xfer_t xfer, uint32_t addr, void *data, int nbytes)
 {
     cpakfs_t *fs = filesystems[port];
     int bank = addr >> 15;
     assert((addr+nbytes-1) >> 15 == bank);  // this function only reads/writes from one bank
-    
-    if (fs && bank != fs->cur_bank) { // filesystem might not exist yet, in which case always switch
+    addr &= 0x7FFF;
+
+    if (!fs || bank != fs->cur_bank) { // filesystem might not exist yet, in which case always switch
         if (joypad_controller_pak_set_bank(port, bank) != JOYPAD_ACCESSORY_ERROR_NONE) {
             errno = EIO;
             return -1;
         }
-        fs->cur_bank = bank;
+        if (fs) fs->cur_bank = bank;
     }
 
     if (joypad_accessory_xfer(port, xfer, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
@@ -120,36 +79,12 @@ static int block_xfer(joypad_port_t port, joypad_accessory_xfer_t xfer, uint32_t
     return 0;
 }
 
-static inline int block_read(joypad_port_t port, uint32_t addr, void *data, int nbytes)
-{
-    return block_xfer(port, JOYPAD_ACCESSORY_XFER_READ, addr, data, nbytes);
-}
-
-static inline int block_write(joypad_port_t port, uint32_t addr, void *data, int nbytes)
-{
-    return block_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE, addr, data, nbytes);
-}
-
-static void fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *checksum2)
+void __cpak_fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *checksum2)
 {
     *checksum1 = 0;
     for (int i=0; i<14; i++)
         *checksum1 += be16(id->data16[i]);
     *checksum2 = 0xFFF2 - *checksum1;
-}
-
-static void fsid_new(cpakfs_id_t *id, int fat_size)
-{
-    assert((fat_size & (fat_size-1)) == 0);
-    memcpy(id->serial, "DRAGON", 6);
-    getentropy(id->serial+6, 18);
-    id->device_id_lsb = be16(0x0001);
-    id->bank_size_msb = be16(fat_size);
-
-    uint16_t checksum1, checksum2;
-    fsid_checksum(id, &checksum1, &checksum2);
-    id->checksum1 = be16(checksum1);
-    id->checksum2 = be16(checksum2);
 }
 
 static int fsid_read(joypad_port_t port, cpakfs_id_t *id)
@@ -161,13 +96,15 @@ static int fsid_read(joypad_port_t port, cpakfs_id_t *id)
             return -1;
         }
 
-        // Check device ID
-        if ((be16(id->device_id_lsb) & 0x01) != 0x01)
+        // Verify that FAT size is within the valid range. There are no paks
+        // bigger than 2 MiB, and also we currently don't support more than
+        // 64 pages (because fat_dirty has 64 bits).
+        if ((be16(id->bank_size_msb) & 0xFF00) >= 0x4000)
             continue;
 
         // Verify checksum
         uint16_t checksum1, checksum2;
-        fsid_checksum(id, &checksum1, &checksum2);
+        __cpak_fsid_checksum(id, &checksum1, &checksum2);
         if (checksum1 == be16(id->checksum1) && checksum2 == be16(id->checksum2))
             return 0;
 
@@ -182,71 +119,70 @@ static int fsid_read(joypad_port_t port, cpakfs_id_t *id)
     return -1;
 }
 
-static int fsid_write(joypad_port_t port, cpakfs_id_t *id)
-{
-    // Write ID sector
-    int sectors[4] = { 0x20, 0x60, 0x80, 0xC0 };
-    for (int i=0; i<4; i++) {
-        if (block_write(port, sectors[i], id->data8, 32) < 0)
-            return -1;
-    }
-    return 0;
-}
-
 static int read_fat(cpakfs_t *fs)
 {
+    int num_pages = fs->fat_size >> 8;
     int addr = 0x100;
+    uint16_t *fat = fs->fat;
 
-    // Read FAT structure
-    for (int i=0; i<2; i++) {
-        if (block_read(fs->port, addr, fs->fat, fs->fat_size) < 0)
+    // Read FAT structure. FAT can be made of multiple pages, and we have two
+    // copies of the whole FAT. Each page stores its own checksum, that we
+    // verify to check which of the two copies of that page is valid.
+    for (int j=0; j<num_pages; j++) {
+        bool found = false;
+        for (int i=0; i<2; i++) {
+            if (block_read(fs->port, addr + i * fs->fat_size, fat, 0x100) < 0)
+                return -1;
+
+            // Check FAT checksum
+            uint8_t checksum = 0;
+            for (int i=1; i<128; i++) {
+                checksum += fat[i] >> 0;
+                checksum += fat[i] >> 8;
+            }
+            if (checksum == (be16(fat[0]) & 0xFF)) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            // No valid FAT sector found
+            errno = ENODEV;
             return -1;
-
-        // Check FAT checksum
-        uint8_t checksum = 0;
-        for (int i=5; i<128; i++) {
-            checksum += fs->fat[i] >> 0;
-            checksum += fs->fat[i] >> 8;
-        }
-        if (checksum == (be16(fs->fat[0]) & 0xFF)) {
-            fs->fat_idx = i;
-            return 0;
         }
 
-        // Try on second copy
-        addr += fs->fat_size;
+        addr += 0x100;
+        fat += 0x100/2;
     }
 
-    // No valid FAT sector found
-    errno = ENODEV;
-    return -1;
+    return 0;
 }
 
 static int write_fat(cpakfs_t *fs)
 {
-    // Update checksum
-    uint8_t checksum = 0;
-    for (int i=5; i<128; i++) {
-        checksum += fs->fat[i] >> 0;
-        checksum += fs->fat[i] >> 8;
+    for (int i=0; i<64 && fs->fat_dirty; i++) {
+        if (fs->fat_dirty & (1 << i)) {
+            uint16_t *fat_page = fs->fat + i*128;
+            int first_idx = i == 0 ? fs->reserved : 1;
+
+            // Update checksum
+            uint8_t checksum = 0;
+            for (int j=first_idx; j<128; j++) {
+                checksum += fat_page[j] >> 0;
+                checksum += fat_page[j] >> 8;
+            }
+            fat_page[0] = be16(checksum);
+
+            // Write both copies of the FAT page
+            if (block_write(fs->port, 0x100 + 0*fs->fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
+                return -1;
+            if (block_write(fs->port, 0x100 + 1*fs->fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
+                return -1;
+
+            fs->fat_dirty &= ~(1 << i);
+        }
     }
-    fs->fat[0] = be16(checksum);
-
-    // Write FAT structure
-    int new_fat_idx = fs->fat_idx ^ 1;
-    if (block_write(fs->port, 0x100 + new_fat_idx*fs->fat_size, fs->fat, fs->fat_size) < 0)
-        return -1;
-
-    // Invalidate the other FAT copy. Read the initial block, and change the checksum
-    uint8_t block[32];
-    if (block_read(fs->port, 0x100 + fs->fat_idx*fs->fat_size, block, 32) < 0)
-        return -1;
-    block[1]++;
-    if (block_write(fs->port, 0x100 + fs->fat_idx*fs->fat_size, block, 32) < 0)
-        return -1;
-
-    // Remember current copy
-    fs->fat_idx = new_fat_idx;
     return 0;
 }
 
@@ -419,7 +355,10 @@ static int __cpak_read(void *file, uint8_t *ptr, int len)
     cpakfs_t *fs = filesystems[f->port];
     int read = 0;
 
+    tracef("__cpak_read(%p, %p, %d)\n", file, ptr, len);
+
     if (!(f->flags & FLAG_READING)) {
+        tracef("__cpak_read: not reading\n");
         errno = EBADF;
         return -1;
     }
@@ -460,15 +399,19 @@ static int __cpak_read(void *file, uint8_t *ptr, int len)
 static int allocate_page(cpakfs_t *fs)
 {
     // Search for a free page, starting from a random position
-    assert((fs->fat_size & (fs->fat_size-1)) == 0);
-    int page = RAND() & (fs->fat_size/2-1);
+    int page = RAND() % (fs->fat_size / 2);
+    int reserved = 1 + (fs->fat_size >> 8) * 2 + 2;
 
+    tracef("allocate_page: searching for free page, starting from %d\n", page);
     for (int i=0; i<fs->fat_size/2; i++) {
-        if (be16(fs->fat[page]) == FAT_UNUSED) {
-            fs->fat[page] = be16(FAT_TERMINATOR);
+        tracef("  fat[%d] = %d\n", page, be16(fs->fat[page]));
+        if (page >= reserved && (page % 128) != 0 && be16(fs->fat[page]) == FAT_UNUSED) {
+            FAT_WRITE(fs, fs->fat[page], be16(FAT_TERMINATOR));
             return page;
         }
-        page = (page + 1) & (fs->fat_size/2-1);
+        page += 1;
+        if (page >= fs->fat_size / 2)
+            page = 0;
     }
     errno = ENOSPC;
     return -1;
@@ -480,7 +423,10 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
     cpakfs_t *fs = filesystems[f->port];
     int written = 0;
 
+    tracef("__cpak_write(%p, %p, %d) %d\n", file, ptr, len, errno);
+
     if (!(f->flags & FLAG_WRITING)) {
+        tracef("__cpak_write: not writing\n");
         errno = EBADF;
         return -1;
     }
@@ -490,16 +436,20 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
         int n = MIN(len, PAGE_SIZE - page_offset);
 
         // Allocate a new page if necessary
-        if (page_offset == 0 && !FAT_VALID(be16(*f->cur_page_ptr))) {
+        if (page_offset == 0 && !FAT_VALID(be16(*f->cur_page_ptr), fs)) {
             int new_page = allocate_page(fs);
-            if (new_page < 0)
+            if (new_page < 0) {
+                tracef("__cpak_write: no space left\n");
                 return -1;
-            *f->cur_page_ptr = be16(new_page);
-            assert(FAT_VALID(be16(*f->cur_page_ptr)));
+            }
+            tracef("__cpak_write: allocated new page %d\n", new_page);
+            FAT_WRITE(fs, *f->cur_page_ptr, be16(new_page));
+            assert(FAT_VALID(be16(*f->cur_page_ptr), fs));
             f->flags |= FLAG_FAT_DIRTY;
         }
 
         int page_base = be16(*f->cur_page_ptr) * PAGE_SIZE;
+        tracef("__cpak_write: writing %d bytes to page %d offset %d\n", n, be16(*f->cur_page_ptr), page_offset);
         if (block_write(f->port, page_base + page_offset, ptr, n) < 0)
             return -1;
 
@@ -509,9 +459,12 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
         written += n;
 
         if (f->pos % PAGE_SIZE == 0) {
-            assert(FAT_VALID(be16(*f->cur_page_ptr)));
+            tracef("__cpak_write: moving to next page\n");
+            assert(FAT_VALID(be16(*f->cur_page_ptr), fs));
             f->cur_page_ptr = &fs->fat[be16(*f->cur_page_ptr)];
         }
+
+        tracef("__cpak_write: pos=%d size=%d left=%d\n", f->pos, f->size, len);
     }
 
     // If this write increased the file size, record the new size
@@ -529,6 +482,8 @@ static int __cpak_lseek(void *file, int offset, int whence)
     cpakfs_t *fs = filesystems[f->port];
     int size = f->size;
     int pos = f->pos;
+
+    tracef("__cpak_lseek(%p, %d, %d)\n", file, offset, whence);
 
     switch (whence) {
         case SEEK_SET:
@@ -553,7 +508,7 @@ static int __cpak_lseek(void *file, int offset, int whence)
         int page_idx = pos / PAGE_SIZE;
         f->cur_page_ptr = &f->note->first_page;
         for (int i=1; i<page_idx; i++) {
-            if (!FAT_VALID(be16(*f->cur_page_ptr))) {
+            if (!FAT_VALID(be16(*f->cur_page_ptr), fs)) {
                 errno = EFTYPE;
                 return -1;
             }
@@ -573,6 +528,7 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
         int note_start = 0x100 + fs->fat_size*2;
         if (block_read(fs->port, note_start + note_id*32, note, sizeof(cpakfs_note_t)) < 0)
             return NULL;
+        fs->notes_mask |= 1 << note_id;
     }
     return note;
 }
@@ -580,9 +536,9 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
 static int calc_size(cpakfs_t *fs, int first_page)
 {
     int size = 0;
-    int cur_page = first_page;
+    int cur_page = first_page;    
     while (cur_page != FAT_TERMINATOR) {
-        if (!FAT_VALID(cur_page) || size > PAGE_SIZE * fs->fat_size) { // prevent infinite loop
+        if (!FAT_VALID(cur_page, fs) || size > PAGE_SIZE * fs->fat_size) { // prevent infinite loop
             errno = EFTYPE;
             return -1;
         }
@@ -596,7 +552,8 @@ static int calc_size(cpakfs_t *fs, int first_page)
 static void *__cpak_open(char *name, int flags, int port)
 {
     char filename[16+1]={0}, ext[4+1]={0};
-    printf("opening %s\n", name);
+
+    tracef("__cpak_open(%s, %d, %d) %d\n", name, flags, port, errno);
 
     // Check the format is "GAME.PB/..."
     if (strlen(name) < 9 || name[4] != '.' || name[7] != '/') {
@@ -635,7 +592,6 @@ static void *__cpak_open(char *name, int flags, int port)
 
     if (note_id < MAX_NOTES) {
         // Can't create a file that already exists
-        printf("opening note %d\n", note_id);
         if ((flags & (O_CREAT | O_EXCL)) == (O_CREAT | O_EXCL)) {
             errno = EEXIST;
             return NULL;
@@ -651,7 +607,6 @@ static void *__cpak_open(char *name, int flags, int port)
         for (note_id=0; note_id<MAX_NOTES; note_id++) {
             note = read_note(fs, note_id);
             if (!(be16(note->status) & NOTE_STATUS_OCCUPIED)) {
-                printf("creating note %d\n", note_id);
                 break;
             }
         }
@@ -674,13 +629,11 @@ static void *__cpak_open(char *name, int flags, int port)
 
     // If O_APPEND is set, seek to the end of the file
     if (flags & O_CREAT) {
-        file->size = 0;
-
         // Free the FAT chain for this file, unless it's a new file
         uint16_t *prevpage = &file->note->first_page;
-        while (FAT_VALID(be16(*prevpage)) || be16(*prevpage) == FAT_TERMINATOR) {
+        while (FAT_VALID(be16(*prevpage), fs) || be16(*prevpage) == FAT_TERMINATOR) {
             uint16_t page = be16(*prevpage);
-            *prevpage = be16(FAT_UNUSED);
+            FAT_WRITE(fs, *prevpage, be16(FAT_UNUSED));
             prevpage = &fs->fat[page];
         }
 
@@ -690,7 +643,7 @@ static void *__cpak_open(char *name, int flags, int port)
         memcpy((char*)note->ext, ext, 4);
 
         note->status |= be16(NOTE_STATUS_OCCUPIED);
-        note->first_page = be16(FAT_UNUSED);
+        note->first_page = be16(FAT_TERMINATOR);
         file->flags |= FLAG_NOTE_DIRTY | FLAG_FAT_DIRTY;
     } else {
         // Calculate the size
@@ -713,13 +666,17 @@ static int __cpak_close(void *file)
     cpakfs_t *fs = filesystems[f->port];
     int err = 0;
 
+    tracef("__cpak_close(%p)\n", file);
+
     if (f->flags & FLAG_NOTE_DIRTY) {
         int note_start = 0x100 + fs->fat_size*2;
         int note_id = f->note - fs->notes;
+        tracef("__cpak_close: writing note %d\n", note_id);
         if (block_write(f->port, note_start + note_id*32, f->note, 32) < 0)
             err = -1;
     }
-    if (f->flags & FLAG_FAT_DIRTY) {
+    if (f) {
+        tracef("__cpak_close: writing fat\n");
         if (write_fat(fs) < 0)
             err = -1;
     }
@@ -743,23 +700,30 @@ static int __cpak_fstat(void *file, struct stat *st)
     return 0;
 }
 
-static int __cpak_findnext(dir_t *dir, int port) {
+static int __cpak_findnext(const char *basepath, dir_t *dir, int port) {
     cpakfs_t *fs = filesystems[port];
     cpakfs_note_t *note = NULL;
 
-    if ((int)dir->d_cookie < MAX_NOTES) {
-        note = read_note(fs, ++dir->d_cookie);
-        while ((int)dir->d_cookie < MAX_NOTES-1 && (be16(note->status) & NOTE_STATUS_OCCUPIED) == 0) {
-            note = read_note(fs, ++dir->d_cookie);
-        }
+    // tracef("__cpak_findnext(%s, %p, %d) (cookie: %d)\n", basepath, dir, port, (int)dir->d_cookie);
+    while ((int)dir->d_cookie < MAX_NOTES) {
+        note = read_note(fs, dir->d_cookie++);
+        
+        if ((be16(note->status) & NOTE_STATUS_OCCUPIED) == 0)
+            continue;
+        
+        snprintf(dir->d_name, sizeof(dir->d_name), "%.4s.%.2s/", note->gamecode, note->pubcode);
+        if (basepath && strncmp(basepath+1, dir->d_name, strlen(basepath)-1) != 0)
+            continue;
+
+        // Valid filename, optionally matching the basepath: stop searching
+        break;
     }
     if ((int)dir->d_cookie == MAX_NOTES) {
         errno = ENOENT;
         return -1;
     }
 
-    snprintf(dir->d_name, sizeof(dir->d_name), "%.4s.%.2s/", note->gamecode, note->pubcode);
-    int idx = 8;
+    int idx = 8; // Start after "GAME.PB/"
     for (int i=0; i<16; i++) {
         if (note->filename[i] == 0)
             break;
@@ -779,21 +743,20 @@ static int __cpak_findnext(dir_t *dir, int port) {
     // Calculate file size
     dir->d_size = calc_size(fs, be16(note->first_page));
     if (dir->d_size < 0) {
-        errno = EFTYPE;
-        return -1;
+        return -2;
     }
 
     return 0;
 }
 
 static int __cpak_findfirst(char *path, dir_t *dir, int port) {
-    if (!path || strcmp(path, "/")) {
+    if (!path) {
         errno = EINVAL;
         return -2;
     }
 
-    dir->d_cookie = -1;
-    return __cpak_findnext(dir, port);
+    dir->d_cookie = 0;
+    return __cpak_findnext(path, dir, port);
 }
 
 
@@ -807,10 +770,10 @@ static int __cpak_findfirst_port1(char *name, dir_t *dir) { return __cpak_findfi
 static int __cpak_findfirst_port2(char *name, dir_t *dir) { return __cpak_findfirst(name, dir, 2); }
 static int __cpak_findfirst_port3(char *name, dir_t *dir) { return __cpak_findfirst(name, dir, 3); }
 
-static int __cpak_findnext_port0(dir_t *dir) { return __cpak_findnext(dir, 0); }
-static int __cpak_findnext_port1(dir_t *dir) { return __cpak_findnext(dir, 1); }
-static int __cpak_findnext_port2(dir_t *dir) { return __cpak_findnext(dir, 2); }
-static int __cpak_findnext_port3(dir_t *dir) { return __cpak_findnext(dir, 3); }
+static int __cpak_findnext_port0(const char *name, dir_t *dir) { return __cpak_findnext(name, dir, 0); }
+static int __cpak_findnext_port1(const char *name, dir_t *dir) { return __cpak_findnext(name, dir, 1); }
+static int __cpak_findnext_port2(const char *name, dir_t *dir) { return __cpak_findnext(name, dir, 2); }
+static int __cpak_findnext_port3(const char *name, dir_t *dir) { return __cpak_findnext(name, dir, 3); }
 
 static filesystem_t fsdef[4] = {
     [0] = {
@@ -821,7 +784,7 @@ static filesystem_t fsdef[4] = {
         .write = __cpak_write,
         .lseek = __cpak_lseek,
         .findfirst = __cpak_findfirst_port0,
-        .findnext = __cpak_findnext_port0,
+        .findnext2 = __cpak_findnext_port0,
     },
     [1] = {
         .open = __cpak_open_port1,
@@ -831,7 +794,7 @@ static filesystem_t fsdef[4] = {
         .write = __cpak_write,
         .lseek = __cpak_lseek,
         .findfirst = __cpak_findfirst_port1,
-        .findnext = __cpak_findnext_port1,
+        .findnext2 = __cpak_findnext_port1,
     },
     [2] = {
         .open = __cpak_open_port2,
@@ -841,7 +804,7 @@ static filesystem_t fsdef[4] = {
         .write = __cpak_write,
         .lseek = __cpak_lseek,
         .findfirst = __cpak_findfirst_port2,
-        .findnext = __cpak_findnext_port2,
+        .findnext2 = __cpak_findnext_port2,
     },
     [3] = {
         .open = __cpak_open_port3,
@@ -851,7 +814,7 @@ static filesystem_t fsdef[4] = {
         .write = __cpak_write,
         .lseek = __cpak_lseek,
         .findfirst = __cpak_findfirst_port3,
-        .findnext = __cpak_findnext_port3,
+        .findnext2 = __cpak_findnext_port3,
     },
 };
 
@@ -872,6 +835,8 @@ int cpak_mount(joypad_port_t port, const char *prefix)
     memset(fs, 0, sizeof(cpakfs_t));
     fs->port = port;
     fs->fat_size = fat_size;
+    fs->reserved = 1 + (fat_size >> 8) * 2 + 2; // Reserved space: sector ID, two FAT copies, note table
+    tracef("cpak_mount: port %d, fat_size %d\n", port, fs->fat_size);
     
     // Force a bank switch first, as we can't know the current selected bank
     fs->cur_bank = -1;
@@ -933,10 +898,14 @@ int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats)
         return -1;
     }
 
+    // Reserved space: sector ID, two FAT copies, note table
+    int num_banks = fs->fat_size >> 8;
+    int reserved_first_page = 1 + num_banks * 2 + 2;
+    int reserved_others = num_banks - 1;
+
     memset(stats, 0, sizeof(*stats));
     stats->notes.total = MAX_NOTES;
-    stats->pages.total = fs->fat_size;
-    stats->pages.used = 5; // first 5 pages are reserved
+    stats->pages.total = num_banks * 128 - reserved_first_page - reserved_others;
 
     for (int i=0; i<MAX_NOTES; i++) {
         cpakfs_note_t *note = read_note(fs, i);
@@ -945,41 +914,17 @@ int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats)
         }
     }
 
-    for (int i=0; i<fs->fat_size - 5; i++) {
-        if (FAT_VALID(be16(fs->fat[i]))) {
+    for (int i=reserved_first_page; i<fs->fat_size/2; i++) {
+        // Skip first page of each bank, which is reserved
+        if ((i % 128) == 0) continue;
+
+        // Count used pages. Also mark the first page of each bank as used:
+        // in fact, it's an empty, wasted page that can't be allocated because
+        // the relative FAT entry (entry 0 in each FAT page) is reserved for the
+        // FAT page checksum.
+        if (be16(fs->fat[i]) > reserved_first_page)
             stats->pages.used++;
-        }
     }
 
     return 0;
 }
-
-static int probe_size(joypad_port_t port)
-{
-    return 0x100;
-}
-
-int cpak_fsck(joypad_port_t port, bool fix_errors)
-{
-    joypad_accessory_type_t type = joypad_get_accessory_type(port);
-    if (type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK) {
-        errno = ENODEV;
-        return -1;
-    }
-
-    cpakfs_id_t fsid;
-    if (fsid_read(port, &fsid) < 0) {
-        debugf("fsck: failed to read sector ID\n");
-        if (fix_errors) {
-            debugf("fsck: generating new sector ID\n");
-            int fat_size = probe_size(port);
-            fsid_new(&fsid, be16(fsid.bank_size_msb) & 0xFF00);
-            if (fsid_write(port, &fsid) < 0) {
-                return -2;
-            }
-        }
-    }
-
-    return 0;
-}
-
