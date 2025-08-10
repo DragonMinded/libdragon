@@ -9,6 +9,7 @@
 #include "GL/gl_integration.h"
 #include "gl_constants.h"
 #include "vertex_layout.h"
+#include "ringbuffer.h"
 #include "magma.h"
 #include "mgfx.h"
 #include "rdpq.h"
@@ -183,12 +184,6 @@ typedef struct gl_array_object_s {
 } gl_array_object_t;
 
 typedef struct {
-    mgfx_fog_t fog;
-    mgfx_lighting_t lighting;
-    mgfx_texturing_t texturing;
-} gl_uniform_data;
-
-typedef struct {
     GLuint target_precision;
     GLuint precision;
     GLint shift_amount;
@@ -288,7 +283,7 @@ typedef struct {
     gl_buffer_object_t *array_buffer;
     const surface_t *color_buffer;
     gl_viewport_t viewport;
-    gl_uniform_data *uniform_data;
+
     // TODO: move this to array object?
     gl_fixed_precision_t vertex_halfx_precision;
     gl_fixed_precision_t texcoord_halfx_precision;
@@ -299,6 +294,8 @@ typedef struct {
     const mg_uniform_t *lighting_uniform;
     const mg_uniform_t *texturing_uniform;
     const mg_uniform_t *matrices_uniform;
+
+    ringbuffer fog_buffer, lighting_buffer, texturing_buffer;
     
     GLenum matrix_mode;
     GLint current_palette_matrix;
@@ -357,12 +354,10 @@ typedef struct {
 
     native_vertex_t current_attribs;
     native_vertex_t begin_end_saved_vtx;
-    native_vertex_t *begin_end_buffer;
-    rspq_syncpoint_t begin_end_syncpoints[BEGIN_END_BUFFER_COUNT];
+    ringbuffer begin_end_buffer;
+    native_vertex_t *begin_end_current_buffer;
     GLenum begin_end_mode;
     mg_primitive_topology_t begin_end_topology;
-    uint32_t begin_end_current_buffer_index;
-    native_vertex_t *begin_end_current_buffer;
     uint32_t begin_end_index;
     uint32_t begin_end_multiple;
     bool begin_end_need_save;
@@ -420,12 +415,14 @@ inline bool is_valid_object_id(GLuint id)
 }
 
 void gl_rendermode_init();
+void gl_rendermode_close();
 void gl_array_init();
 void gl_array_close();
 void gl_primitive_init();
 void gl_primitive_close();
 void gl_matrix_init();
 void gl_lighting_init();
+void gl_lighting_close();
 void gl_texture_init();
 void gl_texture_close();
 

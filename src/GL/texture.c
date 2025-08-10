@@ -71,6 +71,8 @@ void gl_cleanup_texture_object(gl_texture_object_t *obj)
 
 void gl_texture_init()
 {
+    ringbuffer_init(&state->texturing_buffer, sizeof(mgfx_texturing_t), 32);
+
     // TODO: lazy-init default texture objects
     state->default_textures = calloc(2, sizeof(gl_texture_object_t));
 
@@ -93,6 +95,8 @@ void gl_texture_close()
     gl_cleanup_texture_object(&state->default_textures[1]);
 
     free(state->default_textures);
+
+    ringbuffer_free(&state->texturing_buffer);
 }
 
 uint32_t gl_log2(uint32_t s)
@@ -1312,7 +1316,7 @@ void upload_texture(gl_texture_object_t *obj)
     rdpq_mode_end();
 }
 
-void update_uniform(uint16_t width, uint16_t height, bool is_bilinear)
+void upload_uniform(const mg_uniform_t *uniform, uint16_t width, uint16_t height, bool is_bilinear)
 {
     // Extract offset and scale from the texture matrix
     const fm_mat4_t *matrix = gl_matrix_stack_get_matrix(&state->texture_stack);
@@ -1342,10 +1346,13 @@ void update_uniform(uint16_t width, uint16_t height, bool is_bilinear)
         parms.offset[1] -= RDP_HALF_TEXEL;
     }
 
-    mgfx_get_texturing(&state->uniform_data->texturing, &parms);
+    mgfx_texturing_t *buffer = ringbuffer_alloc_next(&state->texturing_buffer);
+    mgfx_get_texturing(buffer, &parms);
+    mg_uniform_load(uniform, buffer);
+    ringbuffer_release_current(&state->texturing_buffer);
 }
 
-void upload_texture_obj(gl_texture_object_t *obj)
+void upload_texture_obj(gl_texture_object_t *obj, const mg_uniform_t *uniform)
 {
     if (texture_is_block_dirty(obj)) {
         rspq_block_begin();
@@ -1360,7 +1367,7 @@ void upload_texture_obj(gl_texture_object_t *obj)
 
     uint16_t width, height;
     get_texture_size(obj, &width, &height);
-    update_uniform(width, height, texture_is_bilinear(obj));
+    upload_uniform(uniform, width, height, texture_is_bilinear(obj));
 }
 
 void gl_upload_texture(const mg_uniform_t *uniform)
@@ -1371,13 +1378,12 @@ void gl_upload_texture(const mg_uniform_t *uniform)
     if (state->rdpq_texture) {
         // When RDPQ texturing is enabled, only update the uniform with the correct texture transform
         // TODO: how to get texture filter state?
-        update_uniform(state->rdpq_tex_width, state->rdpq_tex_height, false);
+        upload_uniform(uniform, state->rdpq_tex_width, state->rdpq_tex_height, false);
     } else {
         gl_texture_object_t *obj = gl_get_active_complete_texture();
         if (obj == NULL) return;
-        upload_texture_obj(obj);
+        upload_texture_obj(obj, uniform);
     }
-    mg_uniform_load(uniform, &state->uniform_data->texturing);
 }
 
 bool gl_is_texture_active()

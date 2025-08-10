@@ -18,10 +18,7 @@ void gl_init(void)
     rdpq_init();
 
     state = calloc(1, sizeof(gl_state_t));
-    state->uniform_data = malloc_uncached(sizeof(gl_uniform_data));
     hashtable_init(&state->pipeline_cache, MAX_PIPELINE_COUNT, NULL);
-
-    mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {});
 
     gl_rendermode_init();
     gl_array_init();
@@ -43,14 +40,15 @@ void gl_close(void)
 {
     rspq_wait();
 
-    gl_array_close();
     gl_texture_close();
+    gl_lighting_close();
     gl_primitive_close();
+    gl_array_close();
+    gl_rendermode_close();
 
     hashtable_visit(&state->pipeline_cache, free_pipeline);
     hashtable_free(&state->pipeline_cache);
 
-    free(state->uniform_data);
     free(state);
 
     mg_close();

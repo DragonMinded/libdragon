@@ -48,6 +48,8 @@ void gl_init_light(gl_light_t *light)
 
 void gl_lighting_init()
 {
+    ringbuffer_init(&state->lighting_buffer, sizeof(mgfx_lighting_t), 8);
+
     gl_init_material(&state->material);
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
@@ -72,6 +74,11 @@ void gl_lighting_init()
     state->material.color_target = GL_AMBIENT_AND_DIFFUSE;
 
     gl_set_lighting_dirty();
+}
+
+void gl_lighting_close()
+{
+    ringbuffer_free(&state->lighting_buffer);
 }
 
 bool gl_validate_material_face(GLenum face)
@@ -668,9 +675,10 @@ void gl_upload_lighting(const mg_uniform_t *uniform)
     };
 
     get_lighting_parms(&parms);
-    // TODO: create buffers
-    mgfx_get_lighting(&state->uniform_data->lighting, &parms);
-    mg_uniform_load(uniform, &state->uniform_data->lighting);
+    mgfx_lighting_t *buffer = ringbuffer_alloc_next(&state->lighting_buffer);
+    mgfx_get_lighting(buffer, &parms);
+    mg_uniform_load(uniform, buffer);
+    ringbuffer_release_current(&state->lighting_buffer);
 
     state->is_lighting_dirty = false;
 }

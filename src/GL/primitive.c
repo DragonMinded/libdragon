@@ -50,8 +50,8 @@ void gl_primitive_init()
 
 void gl_primitive_close()
 {
-    if (state->begin_end_buffer != NULL) {
-        free_uncached(state->begin_end_buffer);
+    if (state->begin_end_buffer.buffer != NULL) {
+        ringbuffer_free(&state->begin_end_buffer);
     }
 }
 
@@ -227,11 +227,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
 void begin_end_next_buffer()
 {
-    uint32_t next_buffer_index = (state->begin_end_current_buffer_index + 1) % BEGIN_END_BUFFER_COUNT;
-    rspq_syncpoint_wait(state->begin_end_syncpoints[next_buffer_index]);
-
-    state->begin_end_current_buffer_index = next_buffer_index;
-    state->begin_end_current_buffer = state->begin_end_buffer + next_buffer_index * BEGIN_END_BUFFER_SIZE;
+    state->begin_end_current_buffer = ringbuffer_alloc_next(&state->begin_end_buffer);
     state->begin_end_index = 0;
 }
 
@@ -299,10 +295,8 @@ void glBegin(GLenum mode)
     prepare_drawing();
     mg_draw_begin();
 
-    if (state->begin_end_buffer == NULL) {
-        state->begin_end_buffer = malloc_uncached(sizeof(native_vertex_t) * BEGIN_END_BUFFER_COUNT * BEGIN_END_BUFFER_SIZE);
-        state->begin_end_current_buffer_index = 0;
-        state->begin_end_index = 0;
+    if (state->begin_end_buffer.buffer == NULL) {
+        ringbuffer_init(&state->begin_end_buffer, sizeof(native_vertex_t) * BEGIN_END_BUFFER_SIZE, BEGIN_END_BUFFER_COUNT);
     }
 
     begin_end_next_buffer();
@@ -315,8 +309,7 @@ void begin_end_draw_current_buffer()
     mg_draw(&(mg_input_assembly_parms_t) {
         .primitive_topology = state->begin_end_topology
     }, state->begin_end_index, 0);
-
-    state->begin_end_syncpoints[state->begin_end_current_buffer_index] = rspq_syncpoint_new();
+    ringbuffer_release_current(&state->begin_end_buffer);
 }
 
 void glEnd(void)

@@ -73,9 +73,7 @@ void set_fog_dirty()
 
 void gl_rendermode_init()
 {
-    state->fog_start = 0.0f;
-    state->fog_end = 1.0f;
-    set_fog_dirty();
+    ringbuffer_init(&state->fog_buffer, sizeof(mgfx_fog_t), 4);
 
     glEnable(GL_DITHER);
     glBlendFunc(GL_ONE, GL_ZERO);
@@ -86,20 +84,28 @@ void gl_rendermode_init()
 
     GLfloat fog_color[] = {0, 0, 0, 0};
     glFogfv(GL_FOG_COLOR, fog_color);
+    glFogf(GL_FOG_START, 0.0f);
+    glFogf(GL_FOG_END, 1.0f);
 
     state->persp_correct = true;
+}
+
+void gl_rendermode_close()
+{
+    ringbuffer_free(&state->fog_buffer);
 }
 
 void gl_upload_fog(const mg_uniform_t *uniform)
 {
     if (!state->is_fog_dirty) return;
 
-    mgfx_get_fog(&state->uniform_data->fog, &(mgfx_fog_parms_t) {
+    mgfx_fog_t *buffer = ringbuffer_alloc_next(&state->fog_buffer);
+    mgfx_get_fog(buffer, &(mgfx_fog_parms_t) {
         .start = state->fog ? state->fog_start : 0.0f,
         .end = state->fog ? state->fog_end : 0.0f
     });
-
-    mg_uniform_load(uniform, &state->uniform_data->fog);
+    mg_uniform_load(uniform, buffer);
+    ringbuffer_release_current(&state->fog_buffer);
 }
 
 void gl_set_fog_enabled(bool enabled)
