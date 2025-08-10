@@ -37,6 +37,10 @@ void gl_primitive_init()
     glVertexHalfFixedPrecisionN64(MGFX_VTX_POS_SHIFT);
     glTexCoordHalfFixedPrecisionN64(MGFX_VTX_TEX_SHIFT);
 
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glLineWidth(1);
+    glPointSize(1);
+
     vertex_layout_init(&state->begin_end_layout);
     vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
     vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
@@ -632,6 +636,59 @@ void glRectsv(const GLshort *v1, const GLshort *v2)     { __RECT_IMPL(glVertex2s
 void glRectiv(const GLint *v1, const GLint *v2)         { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
 void glRectfv(const GLfloat *v1, const GLfloat *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
 void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+
+void glPointSize(GLfloat size)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    
+    if (size <= 0.0f) {
+        gl_set_error(GL_INVALID_VALUE, "Point size must not be negative");
+        return;
+    }
+
+    state->point_size = size;
+}
+
+void glLineWidth(GLfloat width)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    
+    if (width <= 0.0f) {
+        gl_set_error(GL_INVALID_VALUE, "Line width must not be negative");
+        return;
+    }
+
+    state->line_width = width;
+}
+
+void glPolygonMode(GLenum face, GLenum mode)
+{
+    if (!gl_ensure_no_begin_end()) return;
+    
+    switch (face) {
+    case GL_FRONT:
+    case GL_BACK:
+        assertf(0, "Separate polygon modes for front and back faces are not supported!");
+        break;
+    case GL_FRONT_AND_BACK:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid face target", face);
+        return;
+    }
+
+    switch (mode) {
+    case GL_POINT:
+    case GL_LINE:
+    case GL_FILL:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid polygon mode", mode);
+        return;
+    }
+
+    state->polygon_mode = mode;
+}
 
 void update_viewport()
 {

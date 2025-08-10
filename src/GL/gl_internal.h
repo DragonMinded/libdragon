@@ -367,6 +367,10 @@ typedef struct {
     bool begin_end_restore;
     vertex_layout begin_end_layout;
 
+    GLenum polygon_mode;
+    GLfloat point_size;
+    GLfloat line_width;
+    
     // TODO: Generic system that tracks state changes and applies changes automatically
     bool is_pipeline_dirty;
     bool is_geom_flags_dirty;
