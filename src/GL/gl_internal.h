@@ -353,6 +353,8 @@ typedef struct {
 
     gl_tex_gen_t tex_gen[TEX_GEN_COUNT];
 
+    GLushort rdpq_tex_width, rdpq_tex_height;
+
     native_vertex_t current_attribs;
     native_vertex_t begin_end_saved_vtx;
     native_vertex_t *begin_end_buffer;
@@ -399,6 +401,7 @@ typedef struct {
     bool multisample;
     bool reduced_aa;
     bool persp_correct;
+    bool rdpq_texture;
 } gl_state_t;
 
 #ifdef __cplusplus

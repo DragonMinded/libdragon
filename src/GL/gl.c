@@ -95,6 +95,10 @@ void set_enable_flag(GLenum target, bool value)
     case GL_RDPQ_MATERIAL_N64:
         break;
     case GL_RDPQ_TEXTURING_N64:
+        state->rdpq_texture = value;
+        gl_set_texturing_dirty();
+        gl_set_combiner_dirty();
+        gl_set_geom_flags_dirty();
         break;
     case GL_SCISSOR_TEST:
         state->scissor_test = value;
@@ -135,6 +139,7 @@ void set_enable_flag(GLenum target, bool value)
         state->lighting = value;
         gl_set_lighting_dirty();
         gl_set_geom_flags_dirty();
+        gl_set_combiner_dirty();
         break;
     case GL_LIGHT0:
     case GL_LIGHT1:

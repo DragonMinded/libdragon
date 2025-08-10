@@ -1278,6 +1278,16 @@ void glPrioritizeTextures(GLsizei n, const GLuint *textures, const GLclampf *pri
     // Priorities are ignored
 }
 
+void glTexSizeN64(GLushort width, GLushort height)
+{
+    state->rdpq_tex_width = width;
+    state->rdpq_tex_height = height;
+
+    if (state->rdpq_texture) {
+        gl_set_texturing_dirty();
+    }
+}
+
 rdpq_mipmap_t get_mipmap_mode(gl_texture_object_t *obj)
 {
     if (!texture_has_mipmaps(obj)) {
@@ -1302,24 +1312,21 @@ void upload_texture(gl_texture_object_t *obj)
     rdpq_mode_end();
 }
 
-void update_uniform(gl_texture_object_t *obj)
+void update_uniform(uint16_t width, uint16_t height, bool is_bilinear)
 {
-    uint16_t tex_width, tex_height;
-    get_texture_size(obj, &tex_width, &tex_height);
-
     // Extract offset and scale from the texture matrix
     const fm_mat4_t *matrix = gl_matrix_stack_get_matrix(&state->texture_stack);
 
     // Get translation from 4th column
-    float offset_x = matrix->m[3][0] * (tex_width << RDP_TEX_SHIFT);
-    float offset_y = matrix->m[3][1] * (tex_height << RDP_TEX_SHIFT);
+    float offset_x = matrix->m[3][0] * (width << RDP_TEX_SHIFT);
+    float offset_y = matrix->m[3][1] * (height << RDP_TEX_SHIFT);
 
     // Get scale from upper left 3x3 submatrix
     fm_vec3_t c0, c1;
     memcpy(c0.v, matrix->m[0], sizeof(fm_vec3_t));
     memcpy(c1.v, matrix->m[1], sizeof(fm_vec3_t));
-    float scale_x = fm_vec3_len(&c0) * tex_width;
-    float scale_y = fm_vec3_len(&c1) * tex_height;
+    float scale_x = fm_vec3_len(&c0) * width;
+    float scale_y = fm_vec3_len(&c1) * height;
 
     mgfx_texturing_parms_t parms = {
         .offset = { offset_x, offset_y },
@@ -1330,7 +1337,7 @@ void update_uniform(gl_texture_object_t *obj)
     parms.scale[0] >>= TEX_SIZE_SHIFT;
     parms.scale[1] >>= TEX_SIZE_SHIFT;
 
-    if (texture_is_bilinear(obj)) {
+    if (is_bilinear) {
         parms.offset[0] -= RDP_HALF_TEXEL;
         parms.offset[1] -= RDP_HALF_TEXEL;
     }
@@ -1338,14 +1345,8 @@ void update_uniform(gl_texture_object_t *obj)
     mgfx_get_texturing(&state->uniform_data->texturing, &parms);
 }
 
-void gl_upload_texture(const mg_uniform_t *uniform)
+void upload_texture_obj(gl_texture_object_t *obj)
 {
-    if (!state->is_texturing_dirty) return;
-    state->is_texturing_dirty = false;
-
-    gl_texture_object_t *obj = gl_get_active_complete_texture();
-    if (obj == NULL) return;
-
     if (texture_is_block_dirty(obj)) {
         rspq_block_begin();
         upload_texture(obj);
@@ -1357,12 +1358,30 @@ void gl_upload_texture(const mg_uniform_t *uniform)
     bool is_bilinear = texture_is_bilinear(obj);
     rdpq_mode_filter(is_bilinear ? FILTER_BILINEAR : FILTER_POINT);
 
-    update_uniform(obj);
+    uint16_t width, height;
+    get_texture_size(obj, &width, &height);
+    update_uniform(width, height, texture_is_bilinear(obj));
+}
+
+void gl_upload_texture(const mg_uniform_t *uniform)
+{
+    if (!state->is_texturing_dirty) return;
+    state->is_texturing_dirty = false;
+
+    if (state->rdpq_texture) {
+        // When RDPQ texturing is enabled, only update the uniform with the correct texture transform
+        // TODO: how to get texture filter state?
+        update_uniform(state->rdpq_tex_width, state->rdpq_tex_height, false);
+    } else {
+        gl_texture_object_t *obj = gl_get_active_complete_texture();
+        if (obj == NULL) return;
+        upload_texture_obj(obj);
+    }
     mg_uniform_load(uniform, &state->uniform_data->texturing);
 }
 
 bool gl_is_texture_active()
 {
     // TODO: cache this
-    return gl_get_active_complete_texture() != NULL;
+    return state->rdpq_texture || gl_get_active_complete_texture() != NULL;
 }
