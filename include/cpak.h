@@ -253,12 +253,18 @@ int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats);
  * Found issues can be reported via the report callback, which is called
  * for each issue found.
  * 
+ * The return value will report the number of issues found whose level is at least
+ * CPAKFS_LEVEL_WARNING. In fact, issues of kind CPAKFS_LEVEL_INFO, while fixable,
+ * do not impact filesystem integrity in any way (for instance, a backup copy
+ * of some metadata might be corrupted, but the main copy is still valid).
+ * 
  * @param port          The controller pak to check the integrity of
  * @param fix_errors    Whether to fix the errors found
- * @param report        Callback to report issues found during the check
- * @return 0            if the integrity check was successful
- * @return negative     if an error occurred (eg: no cpak on the specified port),
- *                      and errno is set accordingly.
+ * @param report        Optional callback to report issues found during the check
+ * @return positive     Number of issues found (and possibly fixed if @p fix_errors is true).
+ * @return 0            No issues found.
+ * @return negative     If a physical error occurred (eg: no cpak on the specified port),
+ *                      and errno will be set accordingly. 
  */
 int cpak_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report);
 

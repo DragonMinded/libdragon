@@ -44,6 +44,7 @@ typedef enum {
 typedef struct {
     joypad_port_t port;          ///< Joypad port number
     int mode;                    ///< Fix filesystem problems, or just check
+    int nissues;                 ///< Number of issues found
     __attribute__((format(printf, 3, 4)))
     cpakfs_report_fn report;     ///< Report callback for fsck issues
 } fsck_ctx_t;
@@ -155,6 +156,7 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
 
     if (valid == NULL) {
         // No valid ID sector found. We don't know which one is valid. 
+        ctx->nissues++;
         if (ctx->report) ctx->report(CPAKFS_ISSUE_FSID_CHECKSUM_FAILURE, CPAKFS_LEVEL_WARNING,
                 "Cannot find an ID sector with correct checksum");
                 
@@ -255,6 +257,7 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
         bool backup_csum_ok = __cpak_fat_checksum(backup, csum_start_idx) == backup[0].page;
 
         if (!main_csum_ok && !backup_csum_ok) {
+            ctx->nissues++;
             if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_CHECKSUM_FAILURE, CPAKFS_LEVEL_ERROR,
                     "FAT page at 0x%x/0x%x has invalid checksum", 0x100+i, 0x100+fat_size+i);
 
@@ -302,6 +305,7 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
             // If a potentially valid page is neither a valid, terminator, or unused entry,
             // we need to report it as an error.
             } else if (!FAT_IS_VALID(fat[i], reserved) && !FAT_IS_TERMINATOR(fat[i]) && !FAT_IS_UNUSED(fat[i])) {
+                ctx->nissues++;
                 if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_INVALID_RESERVED, CPAKFS_LEVEL_ERROR,
                         "FAT entry for page %d is reserved but has invalid value (%02x%02x)", i, fat[i].bank, fat[i].page);
 
@@ -370,6 +374,7 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
         // is full zeros.
         if (note->gamecode[0] == 0 && note->gamecode[1] == 0 &&
             note->gamecode[2] == 0 && note->gamecode[3] == 0) {
+            ctx->nissues++;
             if (ctx->report) ctx->report(CPAKFS_ISSUE_NOTE_INVALID_GAMECODE, CPAKFS_LEVEL_ERROR,
                     "Note %d has invalid gamecode: %02x%02x%02x%02x", i,
                     note->gamecode[0], note->gamecode[1],
@@ -381,6 +386,7 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
         }
 
         if (note->pubcode[0] == 0 && note->pubcode[1] == 0) {
+            ctx->nissues++;
             if (ctx->report) ctx->report(CPAKFS_ISSUE_NOTE_INVALID_PUBCODE, CPAKFS_LEVEL_ERROR,
                     "Note %d has invalid publisher code: %02x%02x", i,
                     note->pubcode[0], note->pubcode[1]);
@@ -393,7 +399,6 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
 
     return 0;
 }
-
 
 int cpak_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report)
 {
@@ -426,7 +431,7 @@ int cpak_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report)
     if (err < 0) return err; 
 
     free(fat);
-    return 0;
+    return ctx.nissues;
 }
 
 int cpak_format(joypad_port_t port, bool erase)
