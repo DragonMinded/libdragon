@@ -50,6 +50,9 @@ jobs:
           sudo apt-get install texinfo
           sudo apt-get install libmpc-dev
           sudo apt-get install squashfs-tools
+          sudo apt-get install liblzma-dev
+          sudo apt-get install xz-utils
+          sudo apt-get install xzdec
           # If there are other dependencies, we should add them here and make sure the documentation is updated!
         continue-on-error: true
 
@@ -89,6 +92,7 @@ jobs:
           path: |
             ./tools/**/*.tar.gz
             ./tools/**/*.tar.bz2
+            ./tools/**/*.tar.xz
           key: ${{ runner.os }}-dependency-downloads # TODO: concurrency errors may currently occur due to matrix, but they are the same files.
 
       - name: Get versions from toolchain file
