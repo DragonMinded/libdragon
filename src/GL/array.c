@@ -311,8 +311,6 @@ static void array_object_free(gl_array_object_t *obj)
     {
         array_object_set_buffer_binding(obj, i, NULL);
     }
-
-    free(obj);
 }
 
 void gl_array_init()
@@ -647,6 +645,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
         }
 
         array_object_free(obj);
+        free(obj);
     }
 }
 

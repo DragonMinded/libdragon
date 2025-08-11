@@ -305,10 +305,12 @@ void glBegin(GLenum mode)
 
 void begin_end_draw_current_buffer()
 {
-    mg_bind_vertex_buffer(state->begin_end_current_buffer);
-    mg_draw(&(mg_input_assembly_parms_t) {
-        .primitive_topology = state->begin_end_topology
-    }, state->begin_end_index, 0);
+    if (state->is_drawing_anything) {
+        mg_bind_vertex_buffer(state->begin_end_current_buffer);
+        mg_draw(&(mg_input_assembly_parms_t) {
+            .primitive_topology = state->begin_end_topology
+        }, state->begin_end_index, 0);
+    }
     ringbuffer_release_current(&state->begin_end_buffer);
 }
 
@@ -748,9 +750,10 @@ mg_front_face_t get_front_face()
 
 void update_culling()
 {
-    state->is_drawing_anything = state->cull_face_mode != GL_FRONT_AND_BACK;
+    state->is_drawing_anything = !state->cull_face || state->cull_face_mode != GL_FRONT_AND_BACK;
     if (!state->is_drawing_anything) return;
 
+    // TODO: set before draw call
     mg_set_culling(&(mg_culling_parms_t) {
         .cull_mode = get_cull_mode(),
         .front_face = get_front_face()
