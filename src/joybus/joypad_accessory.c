@@ -17,6 +17,7 @@
 
 static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *ctx);
+static void joypad_accessory_detect_state_machine(joypad_port_t port, const joybus_cmd_n64_accessory_read_port_t *cmdr, const joybus_cmd_n64_accessory_write_port_t *cmdw);
 static void joypad_transfer_pak_enable_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_transfer_pak_enable_write_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_transfer_pak_load_read_callback(uint64_t *out_dwords, void *ctx);
@@ -251,6 +252,10 @@ static void joypad_transfer_pak_wait_timer_callback(int ovfl, void *ctx)
         accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
         accessory->error = JOYPAD_ACCESSORY_ERROR_UNKNOWN;
     }
+    else if (joypad_accessory_state_is_detecting(state))
+    {
+        joypad_accessory_detect_state_machine(port, NULL, NULL);
+    }
     else if (state == JOYPAD_ACCESSORY_STATE_TRANSFER_ENABLE_PROBE_WAIT)
     {
         uint8_t write_data[JOYBUS_ACCESSORY_DATA_SIZE];
@@ -421,7 +426,15 @@ static void joypad_accessory_detect_state_machine(
     }   break;
 
     case JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON:
-        // Step 4B: Read probe value to detect Transfer Pak
+        // Step 4B: Wait for Transfer Pak to power on
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_WAIT;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        restart_timer(accessory->transfer_pak_wait_timer);
+        break;
+
+    case JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_WAIT:
+        // Step 4C: Read probe value to detect Transfer Pak
         accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_READ;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
@@ -435,7 +448,7 @@ static void joypad_accessory_detect_state_machine(
         uint8_t probe_value = cmdr->recv.data[0];
         if (probe_value == JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_ON)
         {
-            // Step 4C: Write probe value to turn off Transfer Pak
+            // Step 4D: Write probe value to turn off Transfer Pak
             memset(write_data, JOYBUS_ACCESSORY_PROBE_TRANSFER_PAK_OFF, sizeof(write_data));
             accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF;
             accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;

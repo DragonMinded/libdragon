@@ -45,6 +45,7 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_WRITE,
     JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON,
+    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_WAIT,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF,
     JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_WRITE,
@@ -175,8 +176,9 @@ void joypad_accessory_reset(joypad_port_t port);
  * * Step 3A: Write probe value to detect Rumble Pak
  * * Step 3B: Read probe value to detect Rumble Pak
  * * Step 4A: Write probe value to detect Transfer Pak
- * * Step 4B: Read probe value to detect Transfer Pak
- * * Step 4C: Write probe value to turn off Transfer Pak
+ * * Step 4B: Wait for Transfer Pak to power on
+ * * Step 4C: Read probe value to detect Transfer Pak
+ * * Step 4D: Write probe value to turn off Transfer Pak
  * * Step 5A: Write probe value to detect Snap Station
  * * Step 5B: Read probe value to detect Snap Station
  *
