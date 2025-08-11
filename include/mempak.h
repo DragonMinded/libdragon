@@ -42,6 +42,7 @@
 /**
  * @brief Structure representing a save entry on a Controller Pak
  */
+__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
 typedef struct entry_structure
 {
     /** @brief Vendor ID */
@@ -141,6 +142,7 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data );
  * @retval -2 if the Controller Pak is not present or couldn't be read
  * @retval -3 if the Controller Pak is bad or unformatted
  */
+__attribute__((deprecated("use cpak_fsck() instead")))
 int validate_mempak( int controller );
 
 /**
@@ -154,7 +156,7 @@ int validate_mempak( int controller );
  *
  * @return The number of blocks free on the memory card or a negative number on failure
  */
-__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
+__attribute__((deprecated("use cpak_get_stats() instead")))
 int get_mempak_free_space( int controller );
 
 /**
@@ -189,6 +191,7 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
  * @retval 0 if the Controller Pak was formatted successfully.
  * @retval -2 if the Controller Pak was not present or couldn't be formatted.
  */
+__attribute__((deprecated("use cpak_format() instead")))
 int format_mempak( int controller );
 
 /**
