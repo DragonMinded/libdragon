@@ -43,6 +43,6 @@ inline float    __randf32(void) { return (float)__rand32() * (1.0f / 4294967296.
 #define __randn(n)  (\
     __builtin_constant_p(n) ? \
         __rand32() % (n) : \
-        ((uin64_t)__rand32() * (n)) >> 32)
+        ((uint64_t)__rand32() * (n)) >> 32)
 
 #endif // LIBDRAGON_RAND_INTERNAL_H
