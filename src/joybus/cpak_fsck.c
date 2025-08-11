@@ -214,19 +214,6 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
     return 0;
 }
 
-/** 
- * @brief Compute the checksum of a FAT page, starting from a given entry index. 
- */
-static uint8_t fat_page_checksum(cpakfs_fat_entry_t *fat_page, int start_idx)
-{
-    uint8_t checksum = 0;
-    for (int i=start_idx; i<128; i++) {
-        checksum += fat_page[i].bank;
-        checksum += fat_page[i].page;
-    }
-    return checksum;
-}
-
 /**
  * @brief Check and fix the FAT of a cpak filesystem.
  * 
@@ -244,13 +231,16 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
     int count_main_backup = 0;
     uint64_t fat_dirty = 0;
     int retcode = -1;
+    cpakfs_fat_entry_t backup[128];
 
     // Read the main FAT copy in one block read
     if (block_read(ctx->port, 0x100, fat, fat_size) < 0) goto exit;
 
-    // Verify checksum of each FAT page. If the checksum is wrong, read the
-    // backup copy
+    // Verify checksum of each FAT page.
     for (int i=0; i<fat_size; i+=PAGE_SIZE) {
+        // Read backup copy
+        if (block_read(ctx->port, 0x100 + fat_size + i, backup, PAGE_SIZE) < 0) goto exit;
+
         // While the checksum was designed to be calculated over the whole page saving
         // for the checksum entry itself, in many cpak images the checksum seems to be
         // computed skipping the reserved entries in the first page.
@@ -261,33 +251,33 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
         // fails, we also try ignoring the reserved pages in case they erroneously
         // contain non-zero entries. We found cpak images around that had the
         // checksum calculated like this.
-        if (fat_page_checksum(fat + i/2, csum_start_idx) == fat[i/2].page) {
-            count_main_backup++;
+        bool main_csum_ok = __cpak_fat_checksum(fat + i/2, csum_start_idx) == fat[i/2].page;
+        bool backup_csum_ok = __cpak_fat_checksum(backup, csum_start_idx) == backup[0].page;
+
+        if (!main_csum_ok && !backup_csum_ok) {
+            if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_CHECKSUM_FAILURE, CPAKFS_LEVEL_ERROR,
+                    "FAT page at 0x%x/0x%x has invalid checksum", 0x100+i, 0x100+fat_size+i);
+
+            // The best we can do now is to still keep either of the copies, hoping for the best.
+            // We keep the page coming from the copy that is being used most.
+            if (count_main_backup < 0)
+                memcpy(fat + i/2, backup, PAGE_SIZE);
         } else {
-            cpakfs_fat_entry_t backup[128];
+            // Report unsynchronized FAT copies
+            if (memcmp(fat + i/2, backup, PAGE_SIZE) != 0) {
+                if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_UNSYNCHRONIZED, CPAKFS_LEVEL_INFO,
+                        "FAT page at 0x%x/0x%x has unsynchronized copies", 0x100+i, 0x100+fat_size+i);
 
-            // Check backup copy
-            if (block_read(ctx->port, 0x100 + fat_size + i, backup, PAGE_SIZE) < 0) goto exit;
+                // If we are in fix mode, write back this page to synchronize the copies.
+                if (ctx->mode == MODE_FIX) fat_dirty |= ((uint64_t)1 << (i >> 7));
+            }
 
-            // Verify backup copy checksum
-            if (fat_page_checksum(backup, csum_start_idx) == backup[0].page) {
+            // At least one of the FAT copies is valid. Keep the good one.
+            if (main_csum_ok) {
+                count_main_backup++;
+            } else {
                 memcpy(fat + i/2, backup, PAGE_SIZE);
                 count_main_backup--;
-            } else {
-                if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_CHECKSUM_FAILURE, CPAKFS_LEVEL_ERROR,
-                        "FAT page at 0x%x/0x%x has invalid checksum", 0x100+i, 0x100+fat_size+i);
-
-                if (ctx->mode == MODE_MOUNT) {
-                    // If we are just mounting, we cannot proceed further.
-                    errno = ENODEV;
-                    retcode = -3;
-                    goto exit;
-                }
-
-                // The best we can do now is to still keep either of the copies, hoping for the best.
-                // We keep the page coming from the copy that is being used most.
-                if (count_main_backup < 0)
-                    memcpy(fat + i/2, backup, PAGE_SIZE);                
             }
         }
     }
@@ -331,7 +321,7 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
                 cpakfs_fat_entry_t *fat_page = fat + i*128;
 
                 // Update checksum
-                uint8_t checksum = fat_page_checksum(fat_page, 1);
+                uint8_t checksum = __cpak_fat_checksum(fat_page, 1);
                 fat_page[0] = (cpakfs_fat_entry_t){0, checksum};
 
                 // Write both copies of the FAT page. Try writing both copies, before
@@ -476,7 +466,7 @@ int cpak_format(joypad_port_t port, bool erase)
     for (int i=reserved; i<128; i++)
         fat[i] = FAT_UNUSED;
 
-    uint8_t checksum = fat_page_checksum(fat, 1);
+    uint8_t checksum = __cpak_fat_checksum(fat, 1);
     fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
     // Write the FAT to both copies
@@ -489,7 +479,7 @@ int cpak_format(joypad_port_t port, bool erase)
     if (num_banks > 1) {
         for (int i=0; i<reserved; i++)
             fat[i] = FAT_UNUSED;
-        checksum = fat_page_checksum(fat, 1);
+        checksum = __cpak_fat_checksum(fat, 1);
         fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
         for (int i=1; i<num_banks; i++) {

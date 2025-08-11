@@ -120,41 +120,42 @@ static int fsid_read(joypad_port_t port, cpakfs_id_t *id)
     return -1;
 }
 
+/** 
+ * @brief Compute the checksum of a FAT page, starting from a given entry index. 
+ */
+uint8_t __cpak_fat_checksum(cpakfs_fat_entry_t *fat_page, int start_idx)
+{
+    uint8_t checksum = 0;
+    for (int i=start_idx; i<128; i++) {
+        checksum += fat_page[i].bank;
+        checksum += fat_page[i].page;
+    }
+    return checksum;
+}
+
 static int read_fat(cpakfs_t *fs)
 {
-    int num_banks = fs->fat_size >> 8;
-    int addr = 0x100;
+    const int num_banks = fs->fat_size >> 8;
+    const int main_addr = 0x100;
+    const int backup_addr = 0x100 + fs->fat_size;
 
-    // Read FAT structure. FAT can be made of multiple pages, and we have two
-    // copies of the whole FAT. Each page stores its own checksum, that we
-    // verify to check which of the two copies of that page is valid.
-    for (int j=0; j<num_banks; j++) {
-        cpakfs_fat_entry_t *fat = fs->fat[j];
+    // Read the main FAT copy
+    if (block_read(fs->port, main_addr, fs->fat[0], fs->fat_size) < 0)
+        return -1;
 
-        bool found = false;
-        for (int i=0; i<2; i++) {
-            if (block_read(fs->port, addr + i * fs->fat_size, fat, PAGE_SIZE) < 0)
+    for (int i=0; i<num_banks; i++) {
+        // Check the checksum of the page
+        int csum_start_idx = (i == 0) ? fs->reserved : 1;
+        if (__cpak_fat_checksum(fs->fat[i], csum_start_idx) != fs->fat[i][0].page) {
+
+            // If the checksum is wrong, read the backup copy and check if the checksum is correct there
+            if (block_read(fs->port, backup_addr + i*PAGE_SIZE, fs->fat[i], PAGE_SIZE) < 0)
                 return -1;
-
-            // Check FAT checksum
-            uint8_t checksum = 0;
-            for (int i=1; i<128; i++) {
-                checksum += fat[i].bank;
-                checksum += fat[i].page;
-            }
-            if (checksum == fat[0].page) {
-                found = true;
-                break;
+            if (__cpak_fat_checksum(fs->fat[i], csum_start_idx) != fs->fat[i][0].page){
+                errno = ENODEV;
+                return -3;
             }
         }
-
-        if (!found) {
-            // No valid FAT sector found
-            errno = ENODEV;
-            return -1;
-        }
-
-        addr += 0x100;
     }
 
     return 0;
@@ -162,23 +163,21 @@ static int read_fat(cpakfs_t *fs)
 
 static int write_fat(cpakfs_t *fs)
 {
+    const int main_addr = 0x100;
+    const int backup_addr = 0x100 + fs->fat_size;
+
     for (int i=0; i<64 && fs->fat_dirty; i++) {
         if (fs->fat_dirty & (1 << i)) {
             cpakfs_fat_entry_t *fat_page = fs->fat[i];
-            int first_idx = i == 0 ? fs->reserved : 1;
 
             // Update checksum
-            uint8_t checksum = 0;
-            for (int j=first_idx; j<128; j++) {
-                checksum += fat_page[j].bank;
-                checksum += fat_page[j].page;
-            }
-            fat_page[0] = (cpakfs_fat_entry_t){0, checksum};
+            int csum_start_idx = i == 0 ? fs->reserved : 1;
+            fat_page[0].page = __cpak_fat_checksum(fat_page, csum_start_idx);
 
             // Write both copies of the FAT page
-            if (block_write(fs->port, 0x100 + 0*fs->fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
+            if (block_write(fs->port, main_addr   + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
                 return -1;
-            if (block_write(fs->port, 0x100 + 1*fs->fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
+            if (block_write(fs->port, backup_addr + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
                 return -1;
 
             fs->fat_dirty &= ~(1 << i);

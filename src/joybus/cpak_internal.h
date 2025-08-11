@@ -95,6 +95,9 @@ int __cpak_block_xfer(joypad_port_t port, joypad_accessory_xfer_t xfer, uint32_t
 /** @brief Calculate the checksum of a cpak sector ID */
 void __cpak_fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *checksum2);
 
+/** @brief  Compute the checksum of a FAT page, starting from a given entry index. */
+uint8_t __cpak_fat_checksum(cpakfs_fat_entry_t *fat_page, int start_idx);
+
 static inline int block_read(joypad_port_t port, uint32_t addr, void *data, int nbytes)
 {
     return __cpak_block_xfer(port, JOYPAD_ACCESSORY_XFER_READ, addr, data, nbytes);
