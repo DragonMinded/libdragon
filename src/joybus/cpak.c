@@ -14,6 +14,7 @@
 #include "cpak_internal.h"
 #include "../utils.h"
 #ifdef N64
+#include "../rand_internal.h"
 #include "cop0.h"
 #include "cpak.h"
 #include "debug.h"
@@ -33,7 +34,7 @@ typedef struct {
     uint64_t fat_dirty;                 ///< Dirty mask of FAT
     int fat_size;                       ///< Size of the FAT in bytes
     int reserved;                       ///< Number of reserved pages in the first bank
-    cpakfs_fat_entry_t fat[];           ///< FAT entries
+    cpakfs_fat_entry_t fat[][NUM_PAGES];///< FAT entries
 } cpakfs_t;
 
 /** @brief A open file in the cpakfs */
@@ -51,7 +52,7 @@ typedef struct {
     cpakfs_fat_entry_t __val = (val); \
     cpakfs_fat_entry_t *__ptr = &(lvalue); \
     *__ptr = __val; \
-    fs->fat_dirty |= 1 << ((__ptr - fs->fat) >> 7); \
+    fs->fat_dirty |= 1 << ((__ptr - &fs->fat[0][0]) >> 7); \
 })
 
 static cpakfs_t *filesystems[4];
@@ -121,14 +122,15 @@ static int fsid_read(joypad_port_t port, cpakfs_id_t *id)
 
 static int read_fat(cpakfs_t *fs)
 {
-    int num_pages = fs->fat_size >> 8;
+    int num_banks = fs->fat_size >> 8;
     int addr = 0x100;
-    cpakfs_fat_entry_t *fat = fs->fat;
 
     // Read FAT structure. FAT can be made of multiple pages, and we have two
     // copies of the whole FAT. Each page stores its own checksum, that we
     // verify to check which of the two copies of that page is valid.
-    for (int j=0; j<num_pages; j++) {
+    for (int j=0; j<num_banks; j++) {
+        cpakfs_fat_entry_t *fat = fs->fat[j];
+
         bool found = false;
         for (int i=0; i<2; i++) {
             if (block_read(fs->port, addr + i * fs->fat_size, fat, PAGE_SIZE) < 0)
@@ -153,7 +155,6 @@ static int read_fat(cpakfs_t *fs)
         }
 
         addr += 0x100;
-        fat += 0x100/2;
     }
 
     return 0;
@@ -163,7 +164,7 @@ static int write_fat(cpakfs_t *fs)
 {
     for (int i=0; i<64 && fs->fat_dirty; i++) {
         if (fs->fat_dirty & (1 << i)) {
-            cpakfs_fat_entry_t *fat_page = fs->fat + i*128;
+            cpakfs_fat_entry_t *fat_page = fs->fat[i];
             int first_idx = i == 0 ? fs->reserved : 1;
 
             // Update checksum
@@ -399,22 +400,23 @@ static int __cpak_read(void *file, uint8_t *ptr, int len)
     return read;
 }
 
-static cpakfs_fat_entry_t allocate_page(cpakfs_t *fs)
+static cpakfs_fat_entry_t allocate_page(cpakfs_t *fs, int bank)
 {
-    // Search for a free page, starting from a random position
-    int page = RAND() % (fs->fat_size / 2);
-
-    tracef("allocate_page: searching for free page, starting from %d\n", page);
-    for (int i=0; i<fs->fat_size/2; i++) {
-        tracef("  fat[%d] = 0x%02x%02x\n", page, fs->fat[page].bank, fs->fat[page].page);
-        if (page >= fs->reserved && (page % 128) != 0 && FAT_IS_UNUSED(fs->fat[page])) {
-            FAT_WRITE(fs, fs->fat[page], FAT_TERMINATOR);
-            return (cpakfs_fat_entry_t){page>>7, page&0x7F};
+    // Search for a free page in the current bank. Otherwise, go through all banks
+    // linearly.
+    for (int i=0; i<fs->fat_size>>8; i++) {
+        int page = __randn(NUM_PAGES);
+        for (int i=0; i<NUM_PAGES; i++) {
+            if (FAT_IS_UNUSED(fs->fat[bank][page]))
+                return (cpakfs_fat_entry_t){bank, page};
+            page += 1;
+            page %= NUM_PAGES;
         }
-        page += 1;
-        if (page >= fs->fat_size / 2)
-            page = 0;
+        bank++;
+        if (bank == fs->fat_size>>8)
+            bank = 0; // wrap around to the first bank
     }
+
     errno = ENOSPC;
     return FAT_RESERVED;
 }
@@ -439,7 +441,10 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
 
         // Allocate a new page if necessary
         if (page_offset == 0 && !FAT_IS_VALID(*f->cur_page_ptr, fs->reserved)) {
-            cpakfs_fat_entry_t new_page = allocate_page(fs);
+            // If this is the first page for this file, use a random bank. Otherwise,
+            // continue with the current one.
+            int bank = FAT_IS_TERMINATOR(*f->cur_page_ptr) ? __randn(fs->fat_size >> 8) : f->cur_page_ptr->bank;
+            cpakfs_fat_entry_t new_page = allocate_page(fs, bank);
             if (FAT_IS_RESERVED(new_page)) {
                 tracef("__cpak_write: no space left\n");
                 return -1;
@@ -839,8 +844,8 @@ int cpak_mount(joypad_port_t port, const char *prefix)
     fs->port = port;
     fs->fat_size = fat_size;
     fs->reserved = 1 + (fat_size >> 8) * 2 + 2; // Reserved space: sector ID, two FAT copies, note table
-    tracef("cpak_mount: port %d, fs size %d\n", port, fs->fat_size * PAGE_SIZE);
-    
+    tracef("cpak_mount: port %d, fs size %d\n", port, (fs->fat_size >> 8) * BANK_SIZE);
+
     // Force a bank switch first, as we can't know the current selected bank
     fs->cur_bank = -1;
 
@@ -903,12 +908,11 @@ int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats)
 
     // Reserved space: sector ID, two FAT copies, note table
     int num_banks = fs->fat_size >> 8;
-    int reserved_first_page = 1 + num_banks * 2 + 2;
     int reserved_others = num_banks - 1;
 
     memset(stats, 0, sizeof(*stats));
     stats->notes.total = MAX_NOTES;
-    stats->pages.total = num_banks * 128 - reserved_first_page - reserved_others;
+    stats->pages.total = num_banks * 128 - fs->reserved - reserved_others;
 
     for (int i=0; i<MAX_NOTES; i++) {
         cpakfs_note_t *note = read_note(fs, i);
@@ -917,16 +921,16 @@ int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats)
         }
     }
 
-    for (int i=reserved_first_page; i<fs->fat_size/2; i++) {
-        // Skip first page of each bank, which is reserved
-        if ((i % 128) == 0) continue;
-
-        // Count used pages. Also mark the first page of each bank as used:
-        // in fact, it's an empty, wasted page that can't be allocated because
-        // the relative FAT entry (entry 0 in each FAT page) is reserved for the
-        // FAT page checksum.
-        if (FAT_IS_VALID(fs->fat[i], fs->reserved) || FAT_IS_TERMINATOR(fs->fat[i]))
-            stats->pages.used++;
+    for (int b=0; b<num_banks; b++) {
+        int first_page = (b == 0) ? fs->reserved : 1;
+        for (int i=first_page; i<NUM_PAGES; i++) {
+            // Count used pages. Also mark the first page of each bank as used:
+            // in fact, it's an empty, wasted page that can't be allocated because
+            // the relative FAT entry (entry 0 in each FAT page) is reserved for the
+            // FAT page checksum.
+            if (FAT_IS_VALID(fs->fat[b][i], fs->reserved) || FAT_IS_TERMINATOR(fs->fat[b][i]))
+                stats->pages.used++;
+        }
     }
 
     return 0;

@@ -9,7 +9,9 @@
 #include <stdlib.h>
 #include "cpak.h"
 #include "cpak_internal.h"
+#ifdef N64
 #include "../rand_internal.h"
+#endif
 
 /** @brief Filesystem check modes */
 typedef enum {

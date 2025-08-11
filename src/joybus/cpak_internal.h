@@ -16,12 +16,10 @@
 #define be16(x)   __builtin_bswap16(x)
 #define be16i(x)  (int16_t)__builtin_bswap16(x)
 #define be32(x)   __builtin_bswap32(x)
-#define RAND()    rand()
 #else
 #define be16(x)   (x)
 #define be16i(x)  (x)
 #define be32(x)   (x)
-#define RAND()    C0_COUNT()
 #endif
 /// @endcond
 
@@ -57,7 +55,7 @@ typedef struct {
 _Static_assert(sizeof(cpakfs_fat_entry_t) == 2, "cpakfs_fat_entry_t must be 2 bytes");
 
 #define FAT_LINEAR(e)               ((e).bank * NUM_PAGES + (e).page)       ///< Convert a FAT entry to linear FAT index
-#define FAT_NEXT(fat, e)            ((fat)[FAT_LINEAR(e)])                  ///< Get the next FAT entry for a given entry
+#define FAT_NEXT(fat, e)            ((fat)[(e).bank][(e).page])                  ///< Get the next FAT entry for a given entry
 #define FAT_IS_VALID(e, reserved)   ((e).page > 0 && (e).page < 0x80 && ((e).bank != 0 || (e).page >= reserved))      ///< Check if a FAT entry is valid (point to a valid page)
 #define FAT_IS_RESERVED(e)          ((e).page == 0 && (e).bank == 0)        ///< Check if the FAT entry marks a reserved page
 #define FAT_IS_TERMINATOR(e)        ((e).page == 1 && (e).bank == 0)        ///< Check if a FAT entry marks the terminator of a file
