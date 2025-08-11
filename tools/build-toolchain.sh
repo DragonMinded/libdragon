@@ -37,7 +37,7 @@ GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
 BINUTILS_V=2.45
-GCC_V=15.2.0
+GCC_V=15-20250809
 NEWLIB_V=4.5.0.20241231
 GMP_V=6.3.0
 MPC_V=1.3.1
@@ -107,8 +107,8 @@ fi
 test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
 test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
 
-test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
-test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
+test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://gcc.gnu.org/pub/gcc/snapshots/$GCC_V/gcc-$GCC_V.tar.xz"
+test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xJf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.xz" -C "$BUILD_PATH"
 
 test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
 test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
