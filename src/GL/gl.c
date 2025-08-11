@@ -26,27 +26,33 @@ void gl_init(void)
     gl_matrix_init();
     gl_lighting_init();
     gl_texture_init();
+    gl_list_init();
 
     glClearColor(0, 0, 0, 0);
     glClearDepth(1);
 }
 
-static void free_pipeline(uint32_t key, void *value, int refcount)
+static void free_pipeline_visitor(uint32_t key, void *value, int refcount)
 {
     mg_pipeline_free((mg_pipeline_t*)value);
 }
 
 void gl_close(void)
 {
+    // First wait for all pending commands to finish
     rspq_wait();
 
+    gl_list_close();
     gl_texture_close();
     gl_lighting_close();
     gl_primitive_close();
     gl_array_close();
     gl_rendermode_close();
 
-    hashtable_visit(&state->pipeline_cache, free_pipeline);
+    // Wait again for any rspq calls that may have been made during cleanup
+    rspq_wait();
+
+    hashtable_visit(&state->pipeline_cache, free_pipeline_visitor);
     hashtable_free(&state->pipeline_cache);
 
     free(state);

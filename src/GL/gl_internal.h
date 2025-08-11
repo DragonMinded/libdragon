@@ -260,6 +260,10 @@ typedef struct {
 } native_vertex_t;
 
 typedef struct {
+
+} gl_list_t;
+
+typedef struct {
     GLenum cull_face_mode;
     GLenum front_face;
     GLenum current_error;
@@ -367,6 +371,12 @@ typedef struct {
     GLenum polygon_mode;
     GLfloat point_size;
     GLfloat line_width;
+
+    hashtable_t lists;
+    GLuint next_list_name;
+    GLuint list_base;
+    GLuint current_list_name;
+    gl_list_t *current_list;
     
     // TODO: Generic system that tracks state changes and applies changes automatically
     bool is_pipeline_dirty;
@@ -425,6 +435,8 @@ void gl_lighting_init();
 void gl_lighting_close();
 void gl_texture_init();
 void gl_texture_close();
+void gl_list_init();
+void gl_list_close();
 
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
