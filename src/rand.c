@@ -11,7 +11,7 @@
 #include <string.h>
 
 /** @brief Constant used in the xorshift64 algorithm */
-uint64_t __xorshift64_mul_K = 0x0139408dcbbf7a44ull;
+uint64_t __xorshift64_mul_K = 0x2545F4914F6CDD1Dull;
 
 __attribute__((noinline))
 uint64_t __xorshift64(_Atomic uint64_t *state) {
