@@ -14,6 +14,7 @@
 #include "kirq.h"
 #include "timer.h"
 #include "joypad_internal.h"
+#include "../rand_internal.h"
 
 static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *ctx);
@@ -305,17 +306,17 @@ static void joypad_accessory_detect_state_machine(
         // Transfer Pak has been turned off; reset Transfer Pak status
         accessory->transfer_pak_status.raw = 0x00;
         // Step 2A: Set Controller Pak "linear paging bank" to 0
-        uint8_t data[JOYBUS_ACCESSORY_DATA_SIZE] = {0};
-        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE;
+        memset(write_data, 0, sizeof(write_data));
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
         joybus_accessory_write_async(
-            port, JOYPAD_CONTROLLER_PAK_BANK_SWITCH_ADDRESS, data,
+            port, JOYPAD_CONTROLLER_PAK_BANK_SWITCH_ADDRESS, write_data,
             joypad_accessory_detect_write_callback, (void*)port
         );
         break;
     
-    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE:
+    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0:
         // Step 2B: Backup the Controller Pak "label" area
         accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_BACKUP;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
@@ -328,20 +329,19 @@ static void joypad_accessory_detect_state_machine(
 
     case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_BACKUP:        
         // Step 2C: Overwrite the Controller Pak "label" area
-        for (int i=0; i<sizeof(write_data); ++i) write_data[i] = i;
-        memcpy((void *)accessory->cpak_label_backup, cmdr->recv.data, sizeof(cmdr->recv.data));        
-        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE;
+        memcpy((void *)accessory->cpak_label_backup, cmdr->recv.data, sizeof(cmdr->recv.data));
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE0;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
         joybus_accessory_write_async(
-            port, JOYBUS_ACCESSORY_ADDR_LABEL, write_data,
+            port, JOYBUS_ACCESSORY_ADDR_LABEL, (uint8_t *)accessory->cpak_probe_label,
             joypad_accessory_detect_write_callback, (void*)port
         );
         break;
 
-    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE:
+    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE0:
         // Step 2D: Read back the "label" area to detect Controller Pak
-        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ;
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ0;
         accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
         accessory->retries = 0;
         joybus_accessory_read_async(
@@ -350,20 +350,18 @@ static void joypad_accessory_detect_state_machine(
         );
         break;
 
-    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ:
+    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ0:
         // Compare the expected label with what was actually read back
-        for (size_t i = 0; i < sizeof(write_data); ++i) write_data[i] = i;
-        if (memcmp(cmdr->recv.data, write_data, sizeof(write_data)) == 0)
+        if (memcmp(cmdr->recv.data, (uint8_t *)accessory->cpak_probe_label, sizeof(accessory->cpak_probe_label)) == 0)
         {
-            // Step 2E: Restore the Controller Pak "label" area
-            memcpy(write_data, (void *)accessory->cpak_label_backup, sizeof(write_data));
-            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_RESTORE;
+            // Step 2E: Set Controller Pak "linear paging bank" to 1
+            memset(write_data, 1, sizeof(write_data));
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE1;
             accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
             accessory->retries = 0;
             joybus_accessory_write_async(
-                port, JOYBUS_ACCESSORY_ADDR_LABEL, write_data,
-                joypad_accessory_detect_write_callback, (void*)port
-            );
+                port, JOYPAD_CONTROLLER_PAK_BANK_SWITCH_ADDRESS, write_data,
+                joypad_accessory_detect_write_callback, (void*)port);
         }
         else
         {
@@ -377,6 +375,48 @@ static void joypad_accessory_detect_state_machine(
                 joypad_accessory_detect_write_callback, (void*)port
             );
         }
+        break;
+
+    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE1:
+        // Step 2F: Read back the "label" area of the bank1
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ1;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_accessory_read_async(
+            port, JOYBUS_ACCESSORY_ADDR_LABEL,
+            joypad_accessory_detect_read_callback, (void*)port
+        );
+        break;
+
+    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ1:
+        // Step 2G: If the label area was corrupted by bankswitch, the Controller Pak is not multi-bank
+        // Single-pak Controller Paks will have misinterprted the bank switch command
+        // as a block #0 write, so we will find here 010101010101010101010.
+        memset(write_data, 1, sizeof(write_data));
+        if (memcmp(cmdr->recv.data, write_data, sizeof(write_data)) != 0) {
+            accessory->cpak_multibank = true;
+            // Step 2H: switch back to bank0
+            memset(write_data, 0, sizeof(write_data));
+            accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0_AGAIN;
+            accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+            accessory->retries = 0;
+            joybus_accessory_write_async(
+                port, JOYPAD_CONTROLLER_PAK_BANK_SWITCH_ADDRESS, write_data,
+                joypad_accessory_detect_write_callback, (void*)port
+            );
+            break;
+        }
+        /* fallthrough: since bankswitching never happened, we're ready to restore the label */
+    case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0_AGAIN:
+        // Step 2H: Restore the Controller Pak "label" area
+        memcpy(write_data, (void *)accessory->cpak_label_backup, sizeof(write_data));
+        accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_RESTORE;
+        accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+        accessory->retries = 0;
+        joybus_accessory_write_async(
+            port, JOYBUS_ACCESSORY_ADDR_LABEL, write_data,
+            joypad_accessory_detect_write_callback, (void*)port
+        );
         break;
 
     case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_RESTORE:
@@ -566,6 +606,8 @@ void joypad_accessory_detect_async(joypad_port_t port)
     {
         joypad_transfer_pak_wait_timer_init(port);
     }
+    // Create a random label for the Controller Pak probe
+    __rand((uint8_t *)accessory->cpak_probe_label, sizeof(accessory->cpak_probe_label));
     // Don't interrupt other accessory operations if they are still running
     if (accessory->state == JOYPAD_ACCESSORY_STATE_IDLE)
     {
@@ -849,16 +891,27 @@ joypad_accessory_error_t joypad_accessory_xfer(
     return error;
 }
 
+bool joypad_controller_pak_is_multibank(joypad_port_t port)
+{
+    ASSERT_JOYPAD_PORT_VALID(port);
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+
+    if (accessory->type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
+        return false; // This is not a Controller Pak!
+
+    return accessory->cpak_multibank;
+}
+
 joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint8_t bank)
 {
     ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
 
     if (accessory->type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
-    {
         return JOYPAD_ACCESSORY_ERROR_ABSENT; // This is not a Controller Pak!
-    }
-    
+    if (!accessory->cpak_multibank)
+        return JOYPAD_ACCESSORY_ERROR_CONTROLLER_PAK_BANK_SWITCH;
+        
     uint8_t data[32];
     memset(data, bank, sizeof(data));
     return joypad_accessory_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE,
