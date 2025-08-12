@@ -29,19 +29,19 @@ const char *format_joypad_accessory_type(joypad_accessory_type_t accessory_type)
     switch (accessory_type)
     {
     case JOYPAD_ACCESSORY_TYPE_NONE:
-        return "None        ";
+        return "None            ";
     case JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK:
-        return "Memory      ";
+        return "Controller Pak  ";
     case JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK:
-        return "Rumble Pak  ";
+        return "Rumble Pak      ";
     case JOYPAD_ACCESSORY_TYPE_TRANSFER_PAK:
-        return "Transfer Pak";
+        return "Transfer Pak    ";
     case JOYPAD_ACCESSORY_TYPE_BIO_SENSOR:
-        return "Bio Sensor  ";
+        return "Bio Sensor      ";
     case JOYPAD_ACCESSORY_TYPE_SNAP_STATION:
-        return "Snap Station";
+        return "Snap Station    ";
     default:
-        return "Unknown     ";
+        return "Unknown         ";
     }
 }
 
@@ -80,9 +80,9 @@ int main(void)
 {
     joypad_style_t style;
     joypad_accessory_type_t accessory_type;
-    bool rumble_supported;
-    bool rumble_active;
     joypad_inputs_t inputs;
+    bool rumble_supported, rumble_active;
+    int cpak_num_banks[4] = {0, 0, 0, 0};
 
     timer_init();
     joypad_init();
@@ -107,12 +107,12 @@ int main(void)
         {
             style = joypad_get_style(port);
             accessory_type = joypad_get_accessory_type(port);
-            rumble_supported = joypad_get_rumble_supported(port);
-            rumble_active = joypad_get_rumble_active(port);
             inputs = joypad_get_inputs(port);
 
-            if (rumble_supported)
+            if (accessory_type == JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK)
             {
+                rumble_supported = joypad_get_rumble_supported(port);
+                rumble_active = joypad_get_rumble_active(port);
                 if (inputs.btn.a && !rumble_active)
                 {
                     joypad_set_rumble_active(port, true);
@@ -121,6 +121,18 @@ int main(void)
                 {
                     joypad_set_rumble_active(port, false);
                 }
+            }
+            
+            if (accessory_type == JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
+            {
+                if (cpak_num_banks[port] == 0)
+                {
+                    cpak_num_banks[port] = cpak_probe_banks(port);
+                }
+            }
+            else
+            {
+                cpak_num_banks[port] = 0; // Reset bank count for non-Controller Paks
             }
 
             if (inputs.btn.b)
@@ -131,7 +143,19 @@ int main(void)
             printf("Port %d ", port + 1);
             printf("Style: %s ", format_joypad_style(style));
             printf("Pak: %s ", format_joypad_accessory_type(accessory_type));
-            printf("Rumble: %s", format_joypad_rumble(rumble_supported, rumble_active));
+            if (accessory_type == JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK)
+            {
+                printf("Rumble: %s", format_joypad_rumble(rumble_supported, rumble_active));
+            } 
+            else if (accessory_type == JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
+            {
+                bool multibank = cpak_is_multibank(port);
+                printf("Banks: %s", multibank ? "Multi" : "Single");
+                if (multibank)
+                {
+                    printf(" (%d)", cpak_num_banks[port]);
+                }
+            }
             printf("\n");
             print_joypad_inputs(inputs);
             printf("\n");
