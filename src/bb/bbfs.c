@@ -13,6 +13,7 @@
 #include "nand.h"
 #include "bbfs.h"
 #include "utils.h"
+#include "../rand_internal.h"
 
 /** @brief Enable or disable BBFS log tracing. */
 #ifndef BBFS_TRACE
@@ -35,7 +36,7 @@
 /// @endcond
 
 /** @brief Calculate a random number in range [0..n), assuming RAND_MAX = (1<<31)-1 */
-#define RANDN(n)                (((uint64_t)rand() * (n)) >> 31)
+#define RANDN(n)                (((uint64_t)__rand32() * (n)) >> 31)
 
 /** @brief Create a 32-bit FOURCC code from four characters. */
 #define FOURCC(d, c, b, a)      ((a) | ((b) << 8) | ((c) << 16) | ((d) << 24))

@@ -25,6 +25,7 @@
 #include "kernel.h"
 #include "debug.h"
 #include "kernel/kernel_internal.h"
+#include "rand_internal.h"
 #include "n64sys.h"
 #include "rtc_internal.h"
 
@@ -284,34 +285,6 @@ static int __strcmp( const char * const a, const char * const b )
     return __strncmp( a, b, -1 );
 }
 
-/**
- * @brief Simple implementation of rand()
- * 
- * @param state         Random state
- * @return uint32_t     New random value
- */
-static uint32_t __rand( uint32_t *state )
-{
-	uint32_t x = *state;
-	x ^= x << 13;
-	x ^= x >> 7;
-	x ^= x << 5;
-	return *state = x;
-}
-
-/**
- * @brief Generate a random number in range [0..n[
- * 
- * @param state         Random state
- * @param n             Upper bound (exclusive)
- * @return uint32_t     Random number
- */
-static inline uint32_t __randn( uint32_t *state, int n )
-{
-    if(__builtin_constant_p( n )) return __rand( state ) % n;
-    return ((uint64_t)__rand( state ) * n) >> 32;
-}
-
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
 {
     /* Sanity checking */
@@ -436,12 +409,12 @@ static int __allocate_fileno( void *handle, int fs_index )
     }
 
     /* Select a random bucket and a random initial position. This should
-     * help finding an empty slot fast enough. Use the handle pointer
-     * as seed; avoid using C0_COUNT because aggressively changing fileno
-     * might cause some headaches during debugging sessions. */
-    uint32_t rand_state = (uint32_t)handle ^ (uint32_t)fs_index;
-    uint32_t bkt_idx = handle_buckets_count > 1 ? __randn( &rand_state, handle_buckets_count ) : 0;
-    uint32_t bkt_pos = __randn( &rand_state, HANDLE_BUCKET_SIZE );
+     * help finding an empty slot fast enough. Avoid using C0_COUNT because
+     * aggressively changing fileno might cause some headaches during debugging
+     * sessions. */
+    uint32_t rn = __rand32();
+    uint32_t bkt_pos = rn % HANDLE_BUCKET_SIZE;
+    uint32_t bkt_idx = handle_buckets_count > 1 ? ( (rn >> 16) % handle_buckets_count ) : 0;
 
     /* Go through all buckets and positions and look for an empty slot. */
     for (int i=0; i<handle_buckets_count; i++)
