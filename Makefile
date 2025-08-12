@@ -39,6 +39,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/dir.o \
 	$(BUILD_DIR)/inthandler.o \
 	$(BUILD_DIR)/entrypoint.o \
+	$(BUILD_DIR)/entropy.o \
 	$(BUILD_DIR)/rand.o \
 	$(BUILD_DIR)/debug.o \
 	$(BUILD_DIR)/debugcpp.o \
