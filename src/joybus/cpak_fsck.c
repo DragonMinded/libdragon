@@ -49,14 +49,17 @@ typedef struct {
     cpakfs_report_fn report;     ///< Report callback for fsck issues
 } fsck_ctx_t;
 
-/* 
- * Probe the cpak to find out the total number of banks.
- * NOTE: this function assumes that the cpak is a multi-bank cpak, which
- * correctly support bank switching (albeit the behavior is undefined if
- * the wrong bank number is accessed).
- */
-static int probe_banks(joypad_port_t port)
+bool cpak_is_multibank(joypad_port_t port)
 {
+    return joypad_controller_pak_is_multibank(port);
+}
+
+int cpak_probe_banks(joypad_port_t port)
+{
+    if (!cpak_is_multibank(port)) {
+        return 1;
+    }
+
     int retcode = -1;
     uint8_t* save_label = malloc(MAX_BANKS * BLOCK_SIZE);
 
@@ -173,7 +176,7 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
         // because we need to know how many banks the cpak has in order to
         // correctly interpret the FAT. We assume the FAT might be valid even if
         // the ID sector is not.
-        int num_banks = probe_banks(ctx->port);
+        int num_banks = cpak_probe_banks(ctx->port);
         if (num_banks < 0) return -1;
 
         // Create a valid ID sector from scratch (and actually write it back if needed).
@@ -443,7 +446,7 @@ int cpak_format(joypad_port_t port, bool erase)
     }
 
     // Detect the number of banks
-    int num_banks = probe_banks(port);
+    int num_banks = cpak_probe_banks(port);
     if (num_banks < 0) return -1;
 
     // Create a new fresh ID sector

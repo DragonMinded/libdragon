@@ -155,6 +155,43 @@ typedef enum {
 /** @brief Cpak filesystem report callback */
 typedef void (*cpakfs_report_fn)(cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...);
 
+/**
+ * @brief Check if a controller pak is multi-bank or not.
+ * 
+ * This function does not perform I/O, as the accessory detection code already
+ * checked if the controller pak is multi-bank or not. This function only returns
+ * this cached information.
+ * 
+ * @param port          Joypad port to check
+ * @return true         if the controller pak is multi-bank, false otherwise
+ */
+bool cpak_is_multibank(joypad_port_t port);
+
+/**
+ * @brief Probe the number of banks in a controller pak
+ * 
+ * This function probes the number of banks in a controller pak, by attempting
+ * to switch to each bank and performing a write test to check if the bank
+ * actually exists. It then restores the existing contents in all banks, so
+ * that the operation is non-destructive.
+ * 
+ * The standard controller paks have a single bank of 32 KiB, so this function
+ * will always return 1 for them.
+ * 
+ * @note This is a low-level operation that is useful during formatting or
+ *       similar operations. For most applications, just mount the filesystem and
+ *       use the #cpak_get_stats function to get the number of banks as recorded
+ *       in the filesystem.
+ * 
+ * @note The function uses the first block in each bank. With the standard filesystem,
+ *       this block is called "label area", is unused, and is often used/corrupted
+ *       by games, so even if the cpak is removed during the operation, the
+ *       filesystem will not be corrupted.
+ * 
+ * @param port      Joypad port to check
+ * @return int      Number of banks found, or negative value in case of error
+ */
+int cpak_probe_banks(joypad_port_t port);
 
 /**
  * @brief Mount the controller pak as filesystem
