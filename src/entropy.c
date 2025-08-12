@@ -6,7 +6,9 @@
 
 #include "entropy.h"
 #include "entropy_internal.h"
+#include "rand_internal.h"
 #include "interrupt.h"
+#include <stdatomic.h>
 #include <string.h>
 
 /** @brief Current entropy state */
@@ -15,10 +17,9 @@ uint64_t __entropy_state = 0;
 /** @brief Entropy calculation constants (MurMurHash3-128)
  * These are not marked as static const to coerce GCC to load them for code efficiency.
  */
-uint64_t __entropy_K[5] = {
+uint64_t __entropy_K[4] = {
     0x87c37b91114253d5ull, 0x4cf5ad432745937full,
     0xff51afd7ed558ccdull, 0xc4ceb9fe1a85ec53ull,
-    0x0139408dcbbf7a44ull,
 };
 
 // Mix the entropy state to ensure it advances a bit in a non predictable way.
@@ -85,44 +86,22 @@ static uint64_t __entropy_get(void) {
     return h;
 }
 
-static uint64_t xs_state = 88172645463325252ULL;
-
-__attribute__((noinline))
-static uint64_t xorshift64_step(void) {
-    disable_interrupts();
-    uint64_t x = xs_state;
-    x ^= x >> 12;
-    x ^= x << 25;
-    x ^= x >> 27;
-    xs_state = x;
-    enable_interrupts();
-    return x * __entropy_K[4];
-}
+static _Atomic uint64_t xs_state = 88172645463325252ULL;
 
 __attribute__((noinline))
 static void reseed_from_entropy(void) {
     __entropy_add_internal();
-    disable_interrupts();
-    xs_state ^= __entropy_get();
-    enable_interrupts();
+    uint64_t e = __entropy_get();
+    atomic_fetch_xor_explicit(&xs_state, e, memory_order_relaxed);
 }
-
 int getentropy(void *buf, size_t len) {
-    uint8_t *p = buf;
     reseed_from_entropy();
-
-    while (len) {
-        uint64_t x = xorshift64_step();
-        size_t m = len < 8 ? len : 8;
-        memcpy(p, &x, m);
-        p += m;
-        len -= m;
-    }
+    __xorshift64_buffer(buf, len, &xs_state);
     return 0;
 }
 
 uint32_t getentropy32(void) {
     reseed_from_entropy();
-    uint64_t x = xorshift64_step();
+    uint64_t x = __xorshift64(&xs_state);
     return (uint32_t)(x >> 32);
 }

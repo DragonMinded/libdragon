@@ -16,6 +16,13 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdatomic.h>
+
+/** @brief Main PRNG (xorshift64*) */
+uint64_t __xorshift64(_Atomic uint64_t *state);
+
+/** @brief Fill a buffer with xorshift64 */
+void __xorshift64_buffer(void *buf, size_t n, _Atomic uint64_t *state);
 
 /** 
  * @brief Generate a random 64-bit unsigned integer.

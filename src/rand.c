@@ -8,6 +8,37 @@
 #include "n64types.h"
 #include <stdatomic.h>
 #include <unistd.h>
+#include <string.h>
+
+/** @brief Constant used in the xorshift64 algorithm */
+uint64_t __xorshift64_mul_K = 0x0139408dcbbf7a44ull;
+
+__attribute__((noinline))
+uint64_t __xorshift64(_Atomic uint64_t *state) {
+    uint64_t old = atomic_load_explicit(state, memory_order_relaxed);
+    while (1) {
+        uint64_t x = old;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        if (atomic_compare_exchange_weak_explicit(
+                state, &old, x,
+                memory_order_relaxed, memory_order_relaxed))  
+            return x * __xorshift64_mul_K;
+    }
+}
+
+__attribute__((noinline))
+void __xorshift64_buffer(void *buf, size_t len, _Atomic uint64_t *state)
+{
+    while (len) {
+        uint64_t x = __xorshift64(state);
+        size_t m = len < 8 ? len : 8;
+        memcpy(buf, &x, m);
+        buf += m;
+        len -= m;
+    }
+}
 
 // Seeded at construction time, but anyway avoid 0 which is invalid
 static _Atomic uint64_t rand_state = 1;
@@ -15,35 +46,12 @@ static _Atomic uint64_t rand_state = 1;
 __attribute__((noinline))
 uint64_t __rand64(void)
 {
-    uint64_t old = atomic_load_explicit(&rand_state, memory_order_relaxed);
-    while (1) {
-        uint64_t h = old;
-        h ^= h << 13;
-        h ^= h >> 7;
-        h ^= h << 17;
-        if (atomic_compare_exchange_weak_explicit(
-                &rand_state, &old, h,
-                memory_order_relaxed, memory_order_relaxed))  
-            return h;
-    }
+    return __xorshift64(&rand_state);
 }
 
 void __rand(void *buf, size_t n)
 {
-    u_uint64_t *p = (u_uint64_t *)buf;
-
-    while (n >= sizeof(uint64_t)) {
-        *p++ = __rand64();
-        n -= sizeof(uint64_t);
-    }
-
-    if (n > 0) {
-        uint64_t r = __rand64();
-        for (size_t i = 0; i < n; i++) {
-            ((uint8_t *)p)[i] = r >> 56;
-            r <<= 8;
-        }
-    }
+    __xorshift64_buffer(buf, n, &rand_state);
 }
 
 /** @brief Initialize the random number generator (constructor) */
