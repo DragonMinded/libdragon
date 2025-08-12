@@ -13,6 +13,21 @@
  * cryptographically secure random number generator, you should fetch some
  * entropy from this module and then use a cryptographic PRNG like ChaCha20
  * or SipHash to generate the random numbers.
+ * 
+ * If you just need some random numbers for your game (standard "game randomness"
+ * for eg: random stage selection), you can use this module just to seed the
+ * standard C library `rand()` function and then use `rand()` in your game
+ * engine:
+ * 
+ * \code{c}
+ *      // Seed the C library random number generator in an unpredictable way
+ *      // using the entropy source, so that the random numbers generated will
+ *      // be different on each boot.
+ *      srand(getentropy32());
+ * 
+ *      // Now you can use rand() to generate random numbers in your game.
+ *      int random_stage = rand() % NUM_STAGES;
+ * \endcode
  */
 #ifndef LIBDRAGON_ENTROPY_H
 #define LIBDRAGON_ENTROPY_H
@@ -30,9 +45,10 @@
  * numbers after each boot on hardware. On each emulator, though, the
  * generate numbers will be consistent.
  * 
- * The code is not cryptographically safe especially by
- * modern standards, but it should be good enough for expected usages on
- * Nintendo 64.
+ * The data returned by this function is not cryptographically secure, but
+ * there aren't currently many known use cases in which this is a problem.
+ * Instead, the numbers are non reproducible and unpredictable, meaning that
+ * will vary on different runs. 
  * 
  * @param buf           Output buffer
  * @param len           Length of the output buffer
@@ -45,9 +61,9 @@ int getentropy(void *buf, size_t len);
  * @brief Return 32-bit of entropy.
  * 
  * This is a simplified API for getentropy() to just return 32-bit of entropy
- * instead of an arbitrary buffer. Useful for instance to seed srand().
+ * instead of an arbitrary buffer. Useful for instance to seed `srand()`.
  * 
- * @return uint32_t         32-bit of entropy
+ * @return uint32_t         Unpredictable 32-bit random number
  */
 uint32_t getentropy32(void);
 
