@@ -40,6 +40,7 @@ static void __entropy_mix(void)
  * 
  * @param k         Non-deterministic data (up to 64 bits)
  */
+__attribute__((noinline))
 void __entropy_add(uint64_t k) {
     // This is half of MurMurHash3-128.
     k *= __entropy_K[0];
@@ -51,23 +52,23 @@ void __entropy_add(uint64_t k) {
     enable_interrupts();
 }
 
+/** @brief Registers used to pull entropy from */
+volatile uint32_t* __entropy_regs[] = {
+    (uint32_t*)0xA3F00200, // RI_BANK0_ROW
+    (uint32_t*)0xA3F00600, // RI_BANK1_ROW
+    (uint32_t*)0xA450000C, // AI_STATUS
+    (uint32_t*)0xA4080000, // SP_PC
+    (uint32_t*)0xA4100010, // DP_CLOCK
+    (uint32_t*)0xA4600034, // PI_UNKNOWN
+};
+
 // Since libdragon doesn't call __entropy_add() enough for now, let's always
 // pull additional entropy from the hardware by reading a few registers that
 // are likely to change at the point of sampling.
 static void __entropy_add_internal(void)
 {
-    volatile uint32_t *const AI_STATUS = (uint32_t*)0xA450000C;
-    volatile uint32_t *const SP_PC = (uint32_t*)0xA4080000;
-    volatile uint32_t *const DP_CLOCK = (uint32_t*)0xA4100010;
-    volatile uint32_t *const PI_UNKNOWN = (uint32_t*)0xA4600034;
-    volatile uint32_t *const RI_BANK0_ROW = (uint32_t*)0xA3F00200;
-    volatile uint32_t *const RI_BANK1_ROW = (uint32_t*)0xA3F00600;
-    static volatile uint32_t* entropic_regs[] = {
-        RI_BANK0_ROW, RI_BANK1_ROW, AI_STATUS, SP_PC, DP_CLOCK, PI_UNKNOWN, 
-    };
-
-    for (int i=0; i<sizeof(entropic_regs)/sizeof(entropic_regs[0]); i+=2) {
-        uint64_t k = ((uint64_t)*entropic_regs[i+0] << 32) | *entropic_regs[i+1];
+    for (int i=0; i<sizeof(__entropy_regs)/sizeof(__entropy_regs[0]); i+=2) {
+        uint64_t k = ((uint64_t)*__entropy_regs[i+0] << 32) | *__entropy_regs[i+1];
         __entropy_add(k);
     }
 }
