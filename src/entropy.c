@@ -7,7 +7,7 @@
 #include "entropy.h"
 #include "entropy_internal.h"
 #include "interrupt.h"
-#include <memory.h>
+#include <string.h>
 
 /** @brief Current entropy state */
 uint64_t __entropy_state = 0;
@@ -20,6 +20,13 @@ uint64_t __entropy_K[5] = {
     0xff51afd7ed558ccdull, 0xc4ceb9fe1a85ec53ull,
     0x0139408dcbbf7a44ull,
 };
+
+// Mix the entropy state to ensure it advances a bit in a non predictable way.
+static void __entropy_mix(void)
+{
+    __entropy_state = __entropy_state<<27 | __entropy_state>>37;
+    __entropy_state = __entropy_state * 5 + 0x52dce729;
+}
 
 /**
  * @brief Add some non-deterministic data to the entropy pool.
@@ -39,8 +46,7 @@ void __entropy_add(uint64_t k) {
     k *= __entropy_K[1];
     disable_interrupts();
     __entropy_state ^= k;
-    __entropy_state = __entropy_state<<27 | __entropy_state>>37;
-    __entropy_state = __entropy_state * 5 + 0x52dce729;
+    __entropy_mix();
     enable_interrupts();
 }
 
@@ -69,6 +75,7 @@ static void __entropy_add_internal(void)
 static uint64_t __entropy_get(void) {
     disable_interrupts();
     uint64_t h = __entropy_state;
+    __entropy_mix();
     enable_interrupts();
     h ^= h >> 33;
     h *= __entropy_K[2];
@@ -82,18 +89,22 @@ static uint64_t xs_state = 88172645463325252ULL;
 
 __attribute__((noinline))
 static uint64_t xorshift64_step(void) {
+    disable_interrupts();
     uint64_t x = xs_state;
     x ^= x >> 12;
     x ^= x << 25;
     x ^= x >> 27;
     xs_state = x;
+    enable_interrupts();
     return x * __entropy_K[4];
 }
 
 __attribute__((noinline))
 static void reseed_from_entropy(void) {
     __entropy_add_internal();
+    disable_interrupts();
     xs_state ^= __entropy_get();
+    enable_interrupts();
 }
 
 int getentropy(void *buf, size_t len) {
