@@ -147,9 +147,16 @@ typedef enum {
     CPAKFS_ISSUE_FAT_UNSYNCHRONIZED = 6,            ///< FAT page has unsynchronized copies
     CPAKFS_ISSUE_FAT_INVALID_RESERVED = 7,          ///< Reserved page has invalid FAT entry
     CPAKFS_ISSUE_FAT_INVALID_ENTRY = 8,             ///< Invalid FAT entry
+    CPAKFS_ISSUE_FAT_INVALID_BANK = 9,              ///< FAT entry has invalid bank number
 
-    CPAKFS_ISSUE_NOTE_INVALID_GAMECODE = 9,         ///< Note has invalid gamecode
-    CPAKFS_ISSUE_NOTE_INVALID_PUBCODE = 10,         ///< Note has invalid publisher code
+    CPAKFS_ISSUE_NOTE_INVALID_GAMECODE = 10,        ///< Note has invalid gamecode
+    CPAKFS_ISSUE_NOTE_INVALID_PUBCODE = 11,         ///< Note has invalid publisher code
+    CPAKFS_ISSUE_NOTE_INVALID_FIRST_PAGE = 12,      ///< Note has invalid first page
+
+    CPAKFS_ISSUE_CHAIN_INFINITE_LOOP = 13,          ///< Chain has infinite loop
+    CPAKFS_ISSUE_CHAIN_NO_TERMINATOR = 14,          ///< Chain does not end with terminator
+    CPAKFS_ISSUE_CHAIN_COLLISION = 15,              ///< Chain collides with another chain
+    CPAKFS_ISSUE_CHAIN_ORPHANED = 16,               ///< Orphaned chain found
 } cpakfs_issue_t;
 
 /** @brief Cpak filesystem report callback */

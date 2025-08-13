@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include "cpak.h"
 #include "cpak_internal.h"
+#include "../utils.h"
 #ifdef N64
 #include "../rand_internal.h"
 #endif
@@ -300,10 +301,8 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
                 if (!FAT_IS_RESERVED(fat[i])) {
                     if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_INVALID_RESERVED, CPAKFS_LEVEL_INFO,
                             "Reserved page %d has an invalid FAT entry (0x%02x%02x)", i, fat[i].bank, fat[i].page);
-                    if (ctx->mode == MODE_FIX) {
-                        fat[i] = FAT_RESERVED;
-                        fat_dirty |= ((uint64_t)1 << (i >> 7));
-                    }
+                    fat[i] = FAT_RESERVED;
+                    fat_dirty |= ((uint64_t)1 << (i >> 7));
                 }
             // If a potentially valid page is neither a valid, terminator, or unused entry,
             // we need to report it as an error.
@@ -314,10 +313,18 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
 
                 // Since we can't know whether this is a valid page or not, we will
                 // mark it as unused, so that it can be allocated later.
-                if (ctx->mode == MODE_FIX) {
-                    fat[i] = FAT_UNUSED;
-                    fat_dirty |= ((uint64_t)1 << (i >> 7));
-                }
+                fat[i] = FAT_UNUSED;
+                fat_dirty |= ((uint64_t)1 << (i >> 7));
+            }
+
+            // Check if the bank number is valid. The bank number should be lower
+            // than the number of banks in the pak, as recorded by the fsid.
+            if (FAT_IS_VALID(fat[i], reserved) && fat[i].bank >= be16(fsid->bank_size_msb) >> 8) {
+                ctx->nissues++;
+                if (ctx->report) ctx->report(CPAKFS_ISSUE_FAT_INVALID_BANK, CPAKFS_LEVEL_ERROR,
+                        "FAT entry for page %d has invalid bank number (%d)", i, fat[i].bank);
+                fat[i] = FAT_UNUSED;
+                fat_dirty |= ((uint64_t)1 << (i >> 7));
             }
         }
     }
@@ -354,12 +361,172 @@ exit:
     return retcode;
 }
 
+/** Maximum number of orphaned notes to track*/
+#define MAX_ORPHAN_NOTES            64
+/** Number of bitset words per bank */
+#define WORDS_PER_BANK              (NUM_PAGES / 64)
+/** Set a bit in a FAT bitset */
+#define BIT_SET(bitset, entry)      ((bitset)[(entry).bank][(entry).page >> 6] |= (1ULL << ((entry).page & 63)))
+/** Test a bit in a FAT bitset */
+#define BIT_TEST(bitset, entry)     (((bitset)[(entry).bank][(entry).page >> 6] >> ((entry).page & 63)) & 1)
+
+static int fsck_chains(fsck_ctx_t *ctx, int num_banks, cpakfs_fat_entry_t fat[][NUM_PAGES], cpakfs_fat_entry_t roots[MAX_NOTES], int nroots)
+{
+    int reserved = 1 + (num_banks * 2) + 2;
+    
+    // Allocate 2D bitsets: [bank][word] where each word covers 64 pages
+    uint64_t (*visited)[WORDS_PER_BANK] = calloc(num_banks, sizeof(*visited));
+    uint64_t (*processed)[WORDS_PER_BANK] = calloc(num_banks, sizeof(*processed));
+    if (!visited || !processed) return -1;
+    
+    // Phase 1: Validate existing root chains
+    for (int i = 0; i < nroots; i++) {
+        cpakfs_fat_entry_t current = roots[i];
+        
+        while (true) {
+            // Check for infinite loop
+            if (BIT_TEST(visited, current)) {
+                ctx->nissues++;
+                if (ctx->report) ctx->report(CPAKFS_ISSUE_CHAIN_INFINITE_LOOP, CPAKFS_LEVEL_ERROR,
+                    "Chain %d has infinite loop at page %02x:%02x", i, current.bank, current.page);
+                break;
+            }
+            
+            // Mark as visited and get next entry
+            BIT_SET(visited, current);
+            cpakfs_fat_entry_t next = fat[current.bank][current.page];
+            
+            if (FAT_IS_TERMINATOR(next)) break;
+            
+            if (!FAT_IS_VALID(next, reserved)) {
+                ctx->nissues++;
+                if (ctx->report) ctx->report(CPAKFS_ISSUE_CHAIN_NO_TERMINATOR, CPAKFS_LEVEL_ERROR,
+                    "Chain %d does not end with terminator (invalid entry %02x:%02x)", 
+                    i, next.bank, next.page);
+                break;
+            }
+            
+            current = next;
+        }
+    }
+    
+    // Phase 2: Find and reconstruct orphaned chains
+    cpakfs_fat_entry_t orphan_roots[MAX_ORPHAN_NOTES];
+    int16_t orphan_len[MAX_ORPHAN_NOTES];
+    int num_orphan_roots = 0;
+    
+    for (int bank = 0; bank < num_banks; bank++) {
+        for (int page = reserved; page < NUM_PAGES; page++) {
+            cpakfs_fat_entry_t current = {bank, page};
+            
+            // Skip if already processed or not orphaned
+            if (BIT_TEST(visited, current) || BIT_TEST(processed, current) || 
+                FAT_IS_UNUSED(fat[bank][page])) continue;
+            
+            // Found orphaned page - follow chain forward to validate and mark
+            cpakfs_fat_entry_t chain_start = current;
+            int chain_len = 0;
+            
+            while (true) {
+                if (BIT_TEST(processed, current)) {
+                    // Hit already processed orphan - check if it's an existing root
+                    for (int j = 0; j < num_orphan_roots; j++) {
+                        if (orphan_roots[j].bank == current.bank && orphan_roots[j].page == current.page) {
+                            // Update existing root with earlier start and new total length
+                            orphan_roots[j] = chain_start;
+                            orphan_len[j] = chain_len + orphan_len[j];
+                            goto next_page;
+                        }
+                    }
+                    // Collision with another orphaned chain that doesn't have a known root
+                    ctx->nissues++;
+                    if (ctx->report) ctx->report(CPAKFS_ISSUE_CHAIN_COLLISION, CPAKFS_LEVEL_ERROR,
+                        "Orphaned chain at %02x:%02x collides with another orphaned chain at %02x:%02x", 
+                        chain_start.bank, chain_start.page, current.bank, current.page);
+                    break;
+                }
+                
+                // Check for collision with legitimate chains
+                if (BIT_TEST(visited, current)) {
+                    ctx->nissues++;
+                    if (ctx->report) ctx->report(CPAKFS_ISSUE_CHAIN_COLLISION, CPAKFS_LEVEL_ERROR,
+                        "Orphaned chain at %02x:%02x collides with legitimate chain at %02x:%02x", 
+                        chain_start.bank, chain_start.page, current.bank, current.page);
+                    break;
+                }
+                
+                BIT_SET(processed, current);
+                chain_len++;
+                
+                cpakfs_fat_entry_t next = fat[current.bank][current.page];
+                if (FAT_IS_TERMINATOR(next)) break;
+                
+                if (!FAT_IS_VALID(next, reserved)) {
+                    ctx->nissues++;
+                    if (ctx->report) ctx->report(CPAKFS_ISSUE_CHAIN_NO_TERMINATOR, CPAKFS_LEVEL_ERROR,
+                        "Orphaned chain at %02x:%02x does not end with terminator", 
+                        chain_start.bank, chain_start.page);
+                    break;
+                }
+                
+                current = next;
+            }
+            
+            // Add new orphaned root
+            if (num_orphan_roots < MAX_ORPHAN_NOTES) {
+                orphan_roots[num_orphan_roots] = chain_start;
+                orphan_len[num_orphan_roots] = chain_len;
+                num_orphan_roots++;
+            }
+            
+            next_page:;
+        }
+    }
+    
+    // Report orphaned chains now that they are definitively identified
+    for (int i = 0; i < num_orphan_roots; i++) {
+        if (ctx->report) ctx->report(CPAKFS_ISSUE_CHAIN_ORPHANED, CPAKFS_LEVEL_WARNING,
+            "Orphaned chain found at %02x:%02x (length %d)", 
+            orphan_roots[i].bank, orphan_roots[i].page, orphan_len[i]);
+    }
+    
+    // Phase 3: Select longest orphaned chains and append to roots
+    int max_to_add = MAX_NOTES - nroots;
+    if (max_to_add > num_orphan_roots) max_to_add = num_orphan_roots;
+    
+    // Iteratively find longest chain, add it to roots, and remove it from orphan_roots
+    for (int added = 0; added < max_to_add; added++) {
+        // Find index of longest remaining orphaned chain
+        int longest_idx = 0;
+        for (int i = 1; i < num_orphan_roots; i++) {
+            if (orphan_len[i] > orphan_len[longest_idx]) {
+                longest_idx = i;
+            }
+        }
+        
+        // Add longest chain to roots
+        roots[nroots++] = orphan_roots[longest_idx];
+        
+        // Remove it by swapping with last element and decreasing count
+        if (longest_idx != num_orphan_roots - 1) {
+            SWAP(orphan_roots[longest_idx], orphan_roots[num_orphan_roots - 1]);
+            SWAP(orphan_len[longest_idx], orphan_len[num_orphan_roots - 1]);
+        }
+        num_orphan_roots--;
+    }
+    
+    free(visited);
+    free(processed);
+    return num_orphan_roots;
+}
+
 static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fat)
 {
     int fat_size = be16(fsid->bank_size_msb) & 0xFF00;
     int reserved = 1 + (fat_size >> 8) * 2 + 2; // Reserved pages: ID sector, two FAT copies, note table
     const int note_start = 0x100 + fat_size * 2;
     uint16_t note_dirty = 0;
+    cpakfs_fat_entry_t roots[MAX_NOTES]; int nroots = 0;
 
     // Read all notes
     cpakfs_note_t notes[MAX_NOTES];
@@ -369,13 +536,13 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
     for (int i=0; i<MAX_NOTES; i++) {
         cpakfs_note_t *note = &notes[i];
         uint16_t status = be16(note->status);
-        if (!(status & NOTE_STATUS_OCCUPIED))
-            continue;
+        bool occupied = (status & NOTE_STATUS_OCCUPIED) != 0;
 
         // Gamecode and pubcode are ASCII most of the time, but Datel Gameshark
         // saves binary codes in there. So what we just consider as invalid
         // is full zeros.
-        if (note->gamecode[0] == 0 && note->gamecode[1] == 0 &&
+        if (occupied &&
+            note->gamecode[0] == 0 && note->gamecode[1] == 0 &&
             note->gamecode[2] == 0 && note->gamecode[3] == 0) {
             ctx->nissues++;
             if (ctx->report) ctx->report(CPAKFS_ISSUE_NOTE_INVALID_GAMECODE, CPAKFS_LEVEL_ERROR,
@@ -388,7 +555,8 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
             }
         }
 
-        if (note->pubcode[0] == 0 && note->pubcode[1] == 0) {
+        if (occupied &&
+            note->pubcode[0] == 0 && note->pubcode[1] == 0) {
             ctx->nissues++;
             if (ctx->report) ctx->report(CPAKFS_ISSUE_NOTE_INVALID_PUBCODE, CPAKFS_LEVEL_ERROR,
                     "Note %d has invalid publisher code: %02x%02x", i,
@@ -398,7 +566,27 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
                 note_dirty |= (1 << i);
             }
         }
+
+        // Check if the first page is valid
+        if (occupied && !FAT_IS_VALID(note->first_page, reserved)) {
+            ctx->nissues++;
+            if (ctx->report) ctx->report(CPAKFS_ISSUE_NOTE_INVALID_FIRST_PAGE, CPAKFS_LEVEL_ERROR,
+                    "Note %d has invalid first page: %02x%02x", i,
+                    note->first_page.bank, note->first_page.page);
+            if (ctx->mode == MODE_FIX) {
+                // If the first page is invalid, we cannot fix it, so we just
+                // clear the note.
+                memset(note, 0, sizeof(cpakfs_note_t));
+                note_dirty |= (1 << i); 
+            }
+        }
+
+        if (FAT_IS_VALID(note->first_page, reserved)) 
+            roots[nroots++] = note->first_page;
     }
+
+    // Check and fix chains
+    fsck_chains(ctx, be16(fsid->bank_size_msb) >> 8, (cpakfs_fat_entry_t (*)[NUM_PAGES])fat, roots, nroots);
 
     return 0;
 }
@@ -432,7 +620,7 @@ int cpak_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report)
     // Check and fix notes
     err = fsck_notes(&ctx, &fsid, fat);
     if (err < 0) return err; 
-
+    
     free(fat);
     return ctx.nissues;
 }
