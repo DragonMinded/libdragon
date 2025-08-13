@@ -35,7 +35,7 @@
 #endif
 
 #define MAX_NOTES       16      ///< Maximum number of notes in a controller pak
-#define MAX_BANKS       64      ///< Maximum number of banks in a controller pak
+#define MAX_BANKS       62      ///< Maximum number of banks in a controller pak
 #define NUM_PAGES       128     ///< Number of pages in a bank (128 pages = 32KB)
 #define BANK_SIZE       32768   ///< Size of a bank in bytes (32KB)
 #define PAGE_SIZE       256     ///< Page size in bytes
