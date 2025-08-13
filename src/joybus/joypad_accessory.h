@@ -156,8 +156,8 @@ typedef struct joypad_accessory_s
     unsigned retries;
     uint8_t cpak_label_backup[JOYBUS_ACCESSORY_DATA_SIZE];
     uint8_t cpak_probe_label[JOYBUS_ACCESSORY_DATA_SIZE];
-    bool cpak_multibank;
-    int cpak_curbank;
+    bool cpak_bankswitching;    ///< Does Controller Pak support bankswitching?
+    int cpak_curbank;           ///< Current Controller Pak bank
     joypad_accessory_io_t io;
     timer_link_t *transfer_pak_wait_timer;
     joybus_transfer_pak_status_t transfer_pak_status;
@@ -185,7 +185,7 @@ void joypad_accessory_reset(joypad_port_t port);
  * * Step 2E: Set Controller Pak "linear paging bank" to 1
  * * Step 2F: Read back the "label" area
  * * Step 2G: If the label area was corrupted by bankswitch, the Controller Pak
- *            is not multi-bank.
+ *            does not support bankswitching.
  *            Otherwise switch back to "linear paging bank" 0.
  * * Step 2H: Restore the original label area. Done: Controller Pak detected.
  * * Step 3A: Write probe value to detect Rumble Pak
@@ -274,26 +274,26 @@ joypad_accessory_error_t joypad_accessory_xfer(
 );
 
 /**
- * @brief Return true if the Controller Pak is multi-bank.
+ * @brief Return true if the Controller Pak supports bankswitching.
  * 
- * Most controller paks (including all first-party ones) have a single bank
- * of 32 KiB of storage. However, some third-party controller paks have
- * multiple banks, and require an explicit bank switch operation to access
- * data beyond the first 32 KiB.
+ * Most controller paks (including all first-party ones) support a bankswitching
+ * protocol, even if they only have only one 32 KiB bank installed. However, some
+ * third-party controller paks did not bother implement the bankswitching
+ * protocol, and in fact trying to change bank can cause data corruption.
  * 
  * During the initial accessory detection, the Controller Pak is probed to verify
- * if it is multi-bank or not. This function returns the result of that probe.
+ * if it supports bankswitching or not. This function returns the result of that probe.
  * 
  * Notice that the joypad accessory detection routine does not perform any
  * write tests to determine the number of banks in a Controller Pak. It can
- * only determine if the Controller Pak is multi-bank or not, but not how
+ * only determine if the Controller Pak supports bankswitching or not, but not how
  * many banks it has.
  * 
  * @param port      Joypad port number (#joypad_port_t)
- * @return true     The Controller Pak is multi-bank
- * @return false    The Controller Pak is single-bank
+ * @return true     The Controller Pak supports bankswitching
+ * @return false    The Controller Pak does not support bankswitching
  */
-bool joypad_controller_pak_is_multibank(joypad_port_t port);
+bool joypad_controller_pak_supports_bankswitching(joypad_port_t port);
 
 /**
  * @brief Select the active bank for a Controller Pak.

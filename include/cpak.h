@@ -81,16 +81,23 @@ int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, 
 int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *buffer, size_t len);
 
 /**
- * @brief Check if a controller pak is multi-bank or not.
+ * @brief Check if a controller pak supports bankswitching or not.
  * 
  * This function does not perform I/O, as the accessory detection code already
- * checked if the controller pak is multi-bank or not. This function only returns
- * this cached information.
+ * checked if the controller pak allows for bankswitching or not.
+ * 
+ * Notice that this function is meant purely for debugging purposes; the whole
+ * cpak module was designed so that there is no need to change behavior based on
+ * whether the controller pak supports bankswitching or not.
+ * 
+ * Notice also that supporting bankswitching does not mean that the controller pak
+ * does actually have multiple banks. Some controller paks (including official
+ * first-party ones) may support bankswitching but only have a single bank available.
  * 
  * @param port          Joypad port to check
- * @return true         if the controller pak is multi-bank, false otherwise
+ * @return true         if the controller pak supports bankswitching, false otherwise
  */
-bool cpak_is_multibank(joypad_port_t port);
+bool cpak_supports_bankswitching(joypad_port_t port);
 
 /**
  * @brief Probe the number of banks in a controller pak

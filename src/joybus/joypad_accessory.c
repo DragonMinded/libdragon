@@ -394,7 +394,7 @@ static void joypad_accessory_detect_state_machine(
         // as a block #0 write, so we will find here 010101010101010101010.
         memset(write_data, 1, sizeof(write_data));
         if (memcmp(cmdr->recv.data, write_data, sizeof(write_data)) != 0) {
-            accessory->cpak_multibank = true;
+            accessory->cpak_bankswitching = true;
             // Step 2H: switch back to bank0
             memset(write_data, 0, sizeof(write_data));
             accessory->state = JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0_AGAIN;
@@ -406,7 +406,7 @@ static void joypad_accessory_detect_state_machine(
             );
             break;
         }
-        accessory->cpak_multibank = false;
+        accessory->cpak_bankswitching = false;
         /* fallthrough: since bankswitching never happened, we're ready to restore the label */
     case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0_AGAIN:
         // Step 2H: Restore the Controller Pak "label" area
@@ -893,7 +893,7 @@ joypad_accessory_error_t joypad_accessory_xfer(
     return error;
 }
 
-bool joypad_controller_pak_is_multibank(joypad_port_t port)
+bool joypad_controller_pak_supports_bankswitching(joypad_port_t port)
 {
     ASSERT_JOYPAD_PORT_VALID(port);
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
@@ -901,7 +901,7 @@ bool joypad_controller_pak_is_multibank(joypad_port_t port)
     if (accessory->type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
         return false; // This is not a Controller Pak!
 
-    return accessory->cpak_multibank;
+    return accessory->cpak_bankswitching;
 }
 
 joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint8_t bank)
@@ -911,7 +911,7 @@ joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint
 
     if (accessory->type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
         return JOYPAD_ACCESSORY_ERROR_ABSENT; // This is not a Controller Pak!
-    if (!accessory->cpak_multibank)
+    if (!accessory->cpak_bankswitching)
         return JOYPAD_ACCESSORY_ERROR_CONTROLLER_PAK_BANK_SWITCH;
     if (accessory->cpak_curbank == bank)
         return JOYPAD_ACCESSORY_ERROR_NONE; // Already in the requested bank

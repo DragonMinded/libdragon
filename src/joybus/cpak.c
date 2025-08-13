@@ -52,14 +52,14 @@ int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *b
 }
 
 
-bool cpak_is_multibank(joypad_port_t port)
+bool cpak_supports_bankswitching(joypad_port_t port)
 {
-    return joypad_controller_pak_is_multibank(port);
+    return joypad_controller_pak_supports_bankswitching(port);
 }
 
 int cpak_probe_banks(joypad_port_t port)
 {
-    if (!cpak_is_multibank(port)) {
+    if (!cpak_supports_bankswitching(port)) {
         return 1;
     }
 

@@ -150,12 +150,9 @@ int main(void)
             } 
             else if (accessory_type == JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK)
             {
-                bool multibank = cpak_is_multibank(port);
-                printf("Banks: %s", multibank ? "Multi" : "Single");
-                if (multibank)
-                {
-                    printf(" (%d)", cpak_num_banks[port]);
-                }
+                printf("Banks: %d", cpak_num_banks[port]);
+                if (!cpak_supports_bankswitching(port))
+                    printf(" (no b/s)");
             }
             printf("\n");
             print_joypad_inputs(inputs);
