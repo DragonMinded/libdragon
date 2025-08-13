@@ -42,7 +42,6 @@
 /**
  * @brief Structure representing a save entry on a Controller Pak
  */
-__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
 typedef struct entry_structure
 {
     /** @brief Vendor ID */

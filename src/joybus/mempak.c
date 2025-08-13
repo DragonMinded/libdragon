@@ -15,6 +15,11 @@
 #include "mempak.h"
 #include "cpak.h"
 
+// Disable deprecation warnings for this file
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
+
 /**
  * @name Inode values
  * @{
