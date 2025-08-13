@@ -157,6 +157,7 @@ typedef struct joypad_accessory_s
     uint8_t cpak_label_backup[JOYBUS_ACCESSORY_DATA_SIZE];
     uint8_t cpak_probe_label[JOYBUS_ACCESSORY_DATA_SIZE];
     bool cpak_multibank;
+    int cpak_curbank;
     joypad_accessory_io_t io;
     timer_link_t *transfer_pak_wait_timer;
     joybus_transfer_pak_status_t transfer_pak_status;

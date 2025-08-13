@@ -406,6 +406,7 @@ static void joypad_accessory_detect_state_machine(
             );
             break;
         }
+        accessory->cpak_multibank = false;
         /* fallthrough: since bankswitching never happened, we're ready to restore the label */
     case JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0_AGAIN:
         // Step 2H: Restore the Controller Pak "label" area
@@ -423,6 +424,7 @@ static void joypad_accessory_detect_state_machine(
         // Success: Controller Pak detected
         accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
         accessory->type = JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK;
+        accessory->cpak_curbank = 0; // Bank 0 is currently selected
         break;
     
     case JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_WRITE:
@@ -911,7 +913,10 @@ joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint
         return JOYPAD_ACCESSORY_ERROR_ABSENT; // This is not a Controller Pak!
     if (!accessory->cpak_multibank)
         return JOYPAD_ACCESSORY_ERROR_CONTROLLER_PAK_BANK_SWITCH;
+    if (accessory->cpak_curbank == bank)
+        return JOYPAD_ACCESSORY_ERROR_NONE; // Already in the requested bank
         
+    accessory->cpak_curbank = bank;
     uint8_t data[32];
     memset(data, bank, sizeof(data));
     return joypad_accessory_xfer(port, JOYPAD_ACCESSORY_XFER_WRITE,

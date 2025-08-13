@@ -14,6 +14,7 @@
 #include "joypad_accessory.h"
 #include "mempak.h"
 #include "cpak.h"
+#include "cpakfs.h"
 
 // Disable deprecation warnings for this file
 #pragma GCC diagnostic push
@@ -689,7 +690,7 @@ static int __get_valid_toc( int controller )
 
 int validate_mempak( int controller )
 {
-    int ret = cpak_fsck( controller, false, NULL );
+    int ret = cpakfs_fsck( controller, false, NULL );
     if (ret > 0)
         return -3; /* Filesystem has issues */
     if (ret < 0)
@@ -753,8 +754,8 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
 
 int get_mempak_free_space( int controller )
 {
-    cpak_stats_t stats;
-    if (cpak_get_stats( controller, &stats ) < 0)
+    cpakfs_stats_t stats;
+    if (cpakfs_get_stats( controller, &stats ) < 0)
         return -2; /* Controller Pak is not inserted or I/O error in general */
 
     return stats.pages.total - stats.pages.used;
@@ -762,7 +763,7 @@ int get_mempak_free_space( int controller )
 
 int format_mempak( int controller )
 {
-    if (cpak_format( controller, false ) < 0)
+    if (cpakfs_format( controller, false ) < 0)
         return -2; /* Controller Pak is not inserted or I/O error in general */
 
     return 0;

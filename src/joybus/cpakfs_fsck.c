@@ -1,5 +1,5 @@
 /**
- * @file cpak_fsck.c
+ * @file cpakfs_fsck.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
 #include <stdint.h>
@@ -8,7 +8,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "cpak.h"
-#include "cpak_internal.h"
+#include "cpakfs.h"
+#include "cpakfs_internal.h"
 #include "../utils.h"
 #ifdef N64
 #include "../rand_internal.h"
@@ -50,60 +51,6 @@ typedef struct {
     cpakfs_report_fn report;     ///< Report callback for fsck issues
 } fsck_ctx_t;
 
-bool cpak_is_multibank(joypad_port_t port)
-{
-    return joypad_controller_pak_is_multibank(port);
-}
-
-int cpak_probe_banks(joypad_port_t port)
-{
-    if (!cpak_is_multibank(port)) {
-        return 1;
-    }
-
-    int retcode = -1;
-    uint8_t* save_label = malloc(MAX_BANKS * BLOCK_SIZE);
-
-    // Create a random probe label that we will use to mark banks that we have already probed.
-    uint8_t probe_label[BLOCK_SIZE];
-    __rand(probe_label, BLOCK_SIZE);
-
-    int bnk;
-    for (bnk = 0; bnk < MAX_BANKS; bnk++) {
-
-        // Read the current label into the save area
-        if (block_read(port, bnk * BANK_SIZE, save_label + bnk * BLOCK_SIZE, BLOCK_SIZE) < 0) {
-            goto exit;
-        }
-
-        // If the label matches the probe label, it means that an already probed
-        // bank was selected (no need to restore it as it doesn't exist).
-        if (bnk > 0 && memcmp(save_label + bnk * BLOCK_SIZE, probe_label, BLOCK_SIZE) == 0)
-            break;
-
-        // Write the probe label to the current bank
-        if (block_write(port, bnk * BANK_SIZE, probe_label, BLOCK_SIZE) < 0) {
-            goto exit;
-        }
-    }
-
-    // Return the number of banks found
-    retcode = bnk;
-
-exit:
-    for (int i=0; i<bnk; i++) {
-        // Restore the label area in the first page of each bank. Normally this
-        // area is unused anyway and can be safely corrupted, but we do this
-        // to preserve also the functionality of custom filesystems that might
-        // instead use those areas.
-        // Do a best effort, ignoring I/O errors.
-        block_write(port, i * BANK_SIZE, save_label + i * BLOCK_SIZE, BLOCK_SIZE);
-    }
-
-    free(save_label);
-    return retcode;
-}
-
 static void fsid_new(cpakfs_id_t *id, int new_banks)
 {
     memset(id, 0, sizeof(cpakfs_id_t));
@@ -118,7 +65,7 @@ static void fsid_new(cpakfs_id_t *id, int new_banks)
     id->device_id_lsb = be16(0x0001);
     id->bank_size_msb = be16(new_banks << 8);
     uint16_t checksum1, checksum2;
-    __cpak_fsid_checksum(id, &checksum1, &checksum2);
+    __cpakfs_fsid_checksum(id, &checksum1, &checksum2);
     id->checksum1 = be16(checksum1);
     id->checksum2 = be16(checksum2);
 }
@@ -141,7 +88,7 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
     for (int i=0; i<4; i++) {
         // Check checksum
         uint16_t checksum1, checksum2;
-        __cpak_fsid_checksum(&sectors[i], &checksum1, &checksum2);
+        __cpakfs_fsid_checksum(&sectors[i], &checksum1, &checksum2);
         if (checksum1 == be16(sectors[i].checksum1) && checksum2 == be16(sectors[i].checksum2)) {
             valid = &sectors[i];
             break;
@@ -257,8 +204,8 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
         // fails, we also try ignoring the reserved pages in case they erroneously
         // contain non-zero entries. We found cpak images around that had the
         // checksum calculated like this.
-        bool main_csum_ok = __cpak_fat_checksum(fat + i/2, csum_start_idx) == fat[i/2].page;
-        bool backup_csum_ok = __cpak_fat_checksum(backup, csum_start_idx) == backup[0].page;
+        bool main_csum_ok = __cpakfs_fat_checksum(fat + i/2, csum_start_idx) == fat[i/2].page;
+        bool backup_csum_ok = __cpakfs_fat_checksum(backup, csum_start_idx) == backup[0].page;
 
         if (!main_csum_ok && !backup_csum_ok) {
             ctx->nissues++;
@@ -335,7 +282,7 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
                 cpakfs_fat_entry_t *fat_page = fat + i*128;
 
                 // Update checksum
-                uint8_t checksum = __cpak_fat_checksum(fat_page, 1);
+                uint8_t checksum = __cpakfs_fat_checksum(fat_page, 1);
                 fat_page[0] = (cpakfs_fat_entry_t){0, checksum};
 
                 // Write both copies of the FAT page. Try writing both copies, before
@@ -591,7 +538,7 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
     return 0;
 }
 
-int cpak_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report)
+int cpakfs_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report)
 {
     int err;
 
@@ -625,7 +572,7 @@ int cpak_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report)
     return ctx.nissues;
 }
 
-int cpak_format(joypad_port_t port, bool erase)
+int cpakfs_format(joypad_port_t port, bool erase)
 {
     joypad_accessory_type_t type = joypad_get_accessory_type(port);
     if (type != JOYPAD_ACCESSORY_TYPE_CONTROLLER_PAK) {
@@ -662,7 +609,7 @@ int cpak_format(joypad_port_t port, bool erase)
     for (int i=reserved; i<128; i++)
         fat[i] = FAT_UNUSED;
 
-    uint8_t checksum = __cpak_fat_checksum(fat, 1);
+    uint8_t checksum = __cpakfs_fat_checksum(fat, 1);
     fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
     // Write the FAT to both copies
@@ -675,7 +622,7 @@ int cpak_format(joypad_port_t port, bool erase)
     if (num_banks > 1) {
         for (int i=0; i<reserved; i++)
             fat[i] = FAT_UNUSED;
-        checksum = __cpak_fat_checksum(fat, 1);
+        checksum = __cpakfs_fat_checksum(fat, 1);
         fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
         for (int i=1; i<num_banks; i++) {

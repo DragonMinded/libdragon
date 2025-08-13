@@ -2,7 +2,8 @@
 LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/joybus/controller.o \
 	$(BUILD_DIR)/joybus/cpak.o \
-	$(BUILD_DIR)/joybus/cpak_fsck.o \
+	$(BUILD_DIR)/joybus/cpakfs.o \
+	$(BUILD_DIR)/joybus/cpakfs_fsck.o \
 	$(BUILD_DIR)/joybus/eeprom.o \
 	$(BUILD_DIR)/joybus/eepromfs.o \
 	$(BUILD_DIR)/joybus/joybus_accessory.o \
