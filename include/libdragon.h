@@ -26,6 +26,7 @@
 #include "fmath.h"
 #include "fgeom.h"
 #include "audio.h"
+#include "entropy.h"
 #include "console.h"
 #include "debug.h"
 #include "fat.h"
