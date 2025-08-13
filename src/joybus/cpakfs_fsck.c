@@ -78,7 +78,7 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
     int sec_idx[4] = { 0x20, 0x60, 0x80, 0xC0 };
     cpakfs_id_t sectors[4];
     for (int i=0; i<4; i++) {
-        if (block_read(ctx->port, sec_idx[i], sectors[i].data8, BLOCK_SIZE) < 0) {
+        if (cpak_read(ctx->port, 0, sec_idx[i], sectors[i].data8, BLOCK_SIZE) < 0) {
             return -1;
         }
     }
@@ -156,7 +156,7 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
     // write the valid ID sector back to all 4 sectors.
     if (writeback && ctx->mode == MODE_FIX) {
         for (int i=0; i<4; i++) {
-            if (block_write(ctx->port, sec_idx[i], valid->data8, BLOCK_SIZE) < 0) {
+            if (cpak_write(ctx->port, 0, sec_idx[i], valid->data8, BLOCK_SIZE) < 0) {
                 return -1;
             }
         }
@@ -187,12 +187,12 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
     cpakfs_fat_entry_t backup[128];
 
     // Read the main FAT copy in one block read
-    if (block_read(ctx->port, 0x100, fat, fat_size) < 0) goto exit;
+    if (cpak_read(ctx->port, 0, 0x100, fat, fat_size) < 0) goto exit;
 
     // Verify checksum of each FAT page.
     for (int i=0; i<fat_size; i+=PAGE_SIZE) {
         // Read backup copy
-        if (block_read(ctx->port, 0x100 + fat_size + i, backup, PAGE_SIZE) < 0) goto exit;
+        if (cpak_read(ctx->port, 0, 0x100 + fat_size + i, backup, PAGE_SIZE) < 0) goto exit;
 
         // While the checksum was designed to be calculated over the whole page saving
         // for the checksum entry itself, in many cpak images the checksum seems to be
@@ -288,8 +288,8 @@ static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out
                 // Write both copies of the FAT page. Try writing both copies, before
                 // giving up, in case one of them is non writable for some hardware reason.
                 bool done = false;
-                if (block_write(ctx->port, 0x100 + 0*fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) >= 0) done = true;
-                if (block_write(ctx->port, 0x100 + 1*fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) >= 0) done = true;
+                if (cpak_write(ctx->port, 0, 0x100 + 0*fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) >= 0) done = true;
+                if (cpak_write(ctx->port, 0, 0x100 + 1*fat_size + i*PAGE_SIZE, fat_page, PAGE_SIZE) >= 0) done = true;
                 if (!done) goto exit;
 
                 fat_dirty &= ~(1 << i);
@@ -477,7 +477,7 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
 
     // Read all notes
     cpakfs_note_t notes[MAX_NOTES];
-    if (block_read(ctx->port, note_start, notes, sizeof(notes)) < 0)
+    if (cpak_read(ctx->port, 0, note_start, notes, sizeof(notes)) < 0)
         return -1;
 
     for (int i=0; i<MAX_NOTES; i++) {
@@ -595,7 +595,7 @@ int cpakfs_format(joypad_port_t port, bool erase)
     // to contain it, otherwise just clear.
     for (int i=0; i<8; i++) {
         uint8_t *data = (0x5A & (1<<i)) ? fsid.data8 : empty;
-        if (block_write(port, i * BLOCK_SIZE, data, BLOCK_SIZE) < 0)
+        if (cpak_write(port, 0, i * BLOCK_SIZE, data, BLOCK_SIZE) < 0)
             return -1;
     }
 
@@ -613,9 +613,9 @@ int cpakfs_format(joypad_port_t port, bool erase)
     fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
     // Write the FAT to both copies
-    if (block_write(port, 0x100 + 0*fat_size, fat, PAGE_SIZE) < 0)
+    if (cpak_write(port, 0, 0x100 + 0*fat_size, fat, PAGE_SIZE) < 0)
         return -1;
-    if (block_write(port, 0x100 + 1*fat_size, fat, PAGE_SIZE) < 0)
+    if (cpak_write(port, 0, 0x100 + 1*fat_size, fat, PAGE_SIZE) < 0)
         return -1;
 
     // Now write subsequent pages as empty
@@ -626,26 +626,26 @@ int cpakfs_format(joypad_port_t port, bool erase)
         fat[0] = (cpakfs_fat_entry_t){0, checksum};
 
         for (int i=1; i<num_banks; i++) {
-            if (block_write(port, 0x100 + 0*fat_size + i*PAGE_SIZE, fat, PAGE_SIZE) < 0)
+            if (cpak_write(port, 0, 0x100 + 0*fat_size + i*PAGE_SIZE, fat, PAGE_SIZE) < 0)
                 return -1;
-            if (block_write(port, 0x100 + 1*fat_size + i*PAGE_SIZE, fat, PAGE_SIZE) < 0)
+            if (cpak_write(port, 0, 0x100 + 1*fat_size + i*PAGE_SIZE, fat, PAGE_SIZE) < 0)
                 return -1;
         }
     }
 
     // Finally, write the note table as fully empty.
-    if (block_write(port, 0x100 + 2*fat_size + 0*PAGE_SIZE, empty, PAGE_SIZE) < 0)
+    if (cpak_write(port, 0, 0x100 + 2*fat_size + 0*PAGE_SIZE, empty, PAGE_SIZE) < 0)
         return -1;
-    if (block_write(port, 0x100 + 2*fat_size + 1*PAGE_SIZE, empty, PAGE_SIZE) < 0)
+    if (cpak_write(port, 0, 0x100 + 2*fat_size + 1*PAGE_SIZE, empty, PAGE_SIZE) < 0)
         return -1;
 
     if (erase) {
         // Erase all pages in all banks
         int addr = 0x100 + 2*fat_size + 2*PAGE_SIZE;
-        int end = num_banks * BANK_SIZE;
+        int end = BANK_SIZE;
 
         while (addr < end) {
-            if (block_write(port, addr, empty, PAGE_SIZE) < 0)
+            if (cpak_write(port, addr >> 7, addr & 0x7FFF, empty, PAGE_SIZE) < 0)
                 return -1;
             addr += PAGE_SIZE;
         }

@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "system.h"
+#include "cpak.h"
 #include "cpakfs_internal.h"
 #include "../utils.h"
 #ifdef N64
@@ -62,28 +63,6 @@ typedef struct {
 static cpakfs_t *filesystems[4];
 static char *prefixes[4];
 
-int __cpak_block_xfer(joypad_port_t port, joypad_accessory_xfer_t xfer, uint32_t addr, void *data, int nbytes)
-{
-    cpakfs_t *fs = filesystems[port];
-    int bank = addr >> 15;
-    assert((addr+nbytes-1) >> 15 == bank);  // this function only reads/writes from one bank
-    addr &= 0x7FFF;
-
-    if (!fs || bank != fs->cur_bank) { // filesystem might not exist yet, in which case always switch
-        if (joypad_controller_pak_set_bank(port, bank) != JOYPAD_ACCESSORY_ERROR_NONE) {
-            errno = EIO;
-            return -1;
-        }
-        if (fs) fs->cur_bank = bank;
-    }
-
-    if (joypad_accessory_xfer(port, xfer, addr, data, nbytes) != JOYPAD_ACCESSORY_ERROR_NONE) {
-        errno = EIO;
-        return -1;
-    }
-    return 0;
-}
-
 void __cpakfs_fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *checksum2)
 {
     *checksum1 = 0;
@@ -97,7 +76,7 @@ static int fsid_read(joypad_port_t port, cpakfs_id_t *id)
     // Check if one of the ID sectors is correct
     int sectors[4] = { 0x20, 0x60, 0x80, 0xC0 };
     for (int i=0; i<4; i++) {
-        if (block_read(port, sectors[i], id->data8, 32) < 0) {
+        if (cpak_read(port, 0, sectors[i], id->data8, 32) < 0) {
             return -1;
         }
 
@@ -144,7 +123,7 @@ static int read_fat(cpakfs_t *fs)
     const int backup_addr = 0x100 + fs->fat_size;
 
     // Read the main FAT copy
-    if (block_read(fs->port, main_addr, fs->fat[0], fs->fat_size) < 0)
+    if (cpak_read(fs->port, 0, main_addr, fs->fat[0], fs->fat_size) < 0)
         return -1;
 
     for (int i=0; i<num_banks; i++) {
@@ -153,7 +132,7 @@ static int read_fat(cpakfs_t *fs)
         if (__cpakfs_fat_checksum(fs->fat[i], csum_start_idx) != fs->fat[i][0].page) {
 
             // If the checksum is wrong, read the backup copy and check if the checksum is correct there
-            if (block_read(fs->port, backup_addr + i*PAGE_SIZE, fs->fat[i], PAGE_SIZE) < 0)
+            if (cpak_read(fs->port, 0, backup_addr + i*PAGE_SIZE, fs->fat[i], PAGE_SIZE) < 0)
                 return -1;
             if (__cpakfs_fat_checksum(fs->fat[i], csum_start_idx) != fs->fat[i][0].page){
                 errno = ENODEV;
@@ -189,9 +168,9 @@ static int write_fat(cpakfs_t *fs)
             fat_page[0].page = __cpakfs_fat_checksum(fat_page, csum_start_idx);
 
             // Write both copies of the FAT page
-            if (block_write(fs->port, main_addr   + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
+            if (cpak_write(fs->port, 0, main_addr   + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
                 return -1;
-            if (block_write(fs->port, backup_addr + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
+            if (cpak_write(fs->port, 0, backup_addr + i*PAGE_SIZE, fat_page, PAGE_SIZE) < 0)
                 return -1;
 
             fs->fat_dirty &= ~(1 << i);
@@ -383,7 +362,6 @@ static int __cpakfs_read(void *file, uint8_t *ptr, int len)
     len = MIN(len, f->size - f->pos);
     while (len > 0) {
         // Perform the maximum read operation within the current page
-        int page_base = FAT_LINEAR(*f->cur_page_ptr) * PAGE_SIZE;
         int page_offset = f->pos % PAGE_SIZE;
         int n = MIN(len, PAGE_SIZE - page_offset);
 
@@ -398,7 +376,7 @@ static int __cpakfs_read(void *file, uint8_t *ptr, int len)
         }
 
         // Perform the read
-        if (block_read(f->port, page_base + page_offset, ptr, n) < 0)
+        if (cpak_read(f->port, f->cur_page_ptr->bank, f->cur_page_ptr->page * PAGE_SIZE + page_offset, ptr, n) < 0)
             return -1;
 
         // Update counters and optionally move to the next page
@@ -537,9 +515,8 @@ static int __cpakfs_write(void *file, uint8_t *ptr, int len)
             f->flags |= FLAG_FAT_DIRTY;
         }
 
-        int page_base = FAT_LINEAR(*f->cur_page_ptr) * PAGE_SIZE;
         tracef("__cpak_write: writing %d bytes to page 0x%02x%02x offset %d\n", n, f->cur_page_ptr->bank, f->cur_page_ptr->page, page_offset);
-        if (block_write(f->port, page_base + page_offset, ptr, n) < 0)
+        if (cpak_write(f->port, f->cur_page_ptr->bank, f->cur_page_ptr->page * PAGE_SIZE + page_offset, ptr, n) < 0)
             return -1;
 
         f->pos += n;
@@ -615,7 +592,7 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
     cpakfs_note_t *note = &fs->notes[note_id];
     if (!(fs->notes_mask & (1 << note_id))) {
         int note_start = 0x100 + fs->fat_size*2;
-        if (block_read(fs->port, note_start + note_id*32, note, sizeof(cpakfs_note_t)) < 0)
+        if (cpak_read(fs->port, 0, note_start + note_id*32, note, sizeof(cpakfs_note_t)) < 0)
             return NULL;
         fs->notes_mask |= 1 << note_id;
     }
@@ -763,7 +740,7 @@ static int __cpakfs_close(void *file)
         int note_start = 0x100 + fs->fat_size*2;
         int note_id = f->note - fs->notes;
         tracef("__cpak_close: writing note %d\n", note_id);
-        if (block_write(f->port, note_start + note_id*32, f->note, 32) < 0)
+        if (cpak_write(f->port, 0, note_start + note_id*32, f->note, 32) < 0)
             err = -1;
     }
     if (f) {

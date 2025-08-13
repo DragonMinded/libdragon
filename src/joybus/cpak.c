@@ -21,9 +21,13 @@ static int cpak_xfer(joypad_port_t port, uint8_t bank, uint16_t addr, void *data
         return -1;
     }
 
-    // Switch the bank (if needed)
+    // Switch the bank (if needed). If the cpak doesn't support bank switching at all,
+    // it will return JOYPAD_ACCESSORY_ERROR_CONTROLLER_PAK_BANK_SWITCH that we ignore,
+    // since we treat all transfers as if they were done to bank 0. 
+    // This makes them behave just like bankswitching ones, where we can't anyway
+    // return an error if the bank number is wrong.
     joypad_accessory_error_t err = joypad_controller_pak_set_bank(port, bank);
-    if (err != JOYPAD_ACCESSORY_ERROR_NONE) {
+    if (err != JOYPAD_ACCESSORY_ERROR_NONE && err != JOYPAD_ACCESSORY_ERROR_CONTROLLER_PAK_BANK_SWITCH) {
         errno = EIO; // FIXME
         return -1; // Bank switch failed
     }
@@ -37,12 +41,12 @@ static int cpak_xfer(joypad_port_t port, uint8_t bank, uint16_t addr, void *data
     return nbytes;
 }
 
-int cpak_read(joypad_port_t port, void *buffer, uint8_t bank, uint16_t address, size_t len)
+int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, size_t len)
 {
     return cpak_xfer(port, bank, address, buffer, len, JOYPAD_ACCESSORY_XFER_READ);
 }
 
-int cpak_write(joypad_port_t port, const void *buffer, uint8_t bank, uint16_t address, size_t len)
+int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *buffer, size_t len)
 {
     return cpak_xfer(port, bank, address, (void *)buffer, len, JOYPAD_ACCESSORY_XFER_WRITE);
 }
@@ -70,7 +74,7 @@ int cpak_probe_banks(joypad_port_t port)
     for (bnk = 0; bnk < MAX_BANKS; bnk++) {
 
         // Read the current label into the save area
-        if (block_read(port, bnk * BANK_SIZE, save_label + bnk * BLOCK_SIZE, BLOCK_SIZE) < 0) {
+        if (cpak_read(port, bnk, 0, save_label + bnk * BLOCK_SIZE, BLOCK_SIZE) < 0) {
             goto exit;
         }
 
@@ -80,7 +84,7 @@ int cpak_probe_banks(joypad_port_t port)
             break;
 
         // Write the probe label to the current bank
-        if (block_write(port, bnk * BANK_SIZE, probe_label, BLOCK_SIZE) < 0) {
+        if (cpak_write(port, bnk, 0, probe_label, BLOCK_SIZE) < 0) {
             goto exit;
         }
     }
@@ -95,7 +99,7 @@ exit:
         // to preserve also the functionality of custom filesystems that might
         // instead use those areas.
         // Do a best effort, ignoring I/O errors.
-        block_write(port, i * BANK_SIZE, save_label + i * BLOCK_SIZE, BLOCK_SIZE);
+        cpak_write(port, i, 0, save_label + i * BLOCK_SIZE, BLOCK_SIZE);
     }
 
     free(save_label);

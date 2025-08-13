@@ -37,17 +37,17 @@
  *       as recorded in the filesystem.
  * 
  * @param port          Joypad port number (#joypad_port_t)
- * @param buffer        Buffer to read the data into
  * @param bank          Bank number to read from (0-61). The caller must ensure
  *                      that the bank exists, otherwise the behavior is undefined.    
  * @param address       Starting address in the controller pak to read from. Allowed
  *                      range is 0-0x7FFF.
+ * @param buffer        Buffer to read the data into
  * @param len           Number of bytes to read. The caller must ensure that the length
  *                      does not exceed the bank size (0x8000).
  * @return int          Number of bytes read, or negative value in case of error
  *                      (errno will be set).
  */
-int cpak_read(joypad_port_t port, void *buffer, uint8_t bank, uint16_t address, size_t len);
+int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, size_t len);
 
 /**
  * @brief Write data to a controller pak
@@ -68,17 +68,17 @@ int cpak_read(joypad_port_t port, void *buffer, uint8_t bank, uint16_t address, 
  *       as recorded in the filesystem.
  * 
  * @param port          Joypad port number (#joypad_port_t)
- * @param buffer        Buffer to write the data from
  * @param bank          Bank number to write to (0-61). The caller must ensure
  *                      that the bank exists, otherwise the behavior is undefined.
  * @param address       Starting address in the controller pak to write to. Allowed
  *                      range is 0-0x7FFF.
+ * @param buffer        Buffer to write the data from
  * @param len           Number of bytes to write. The caller must ensure that the length
  *                      does not exceed the bank size (0x8000).
  * @return int          Number of bytes written, or negative value in case of error
  *                      (errno will be set).
  */
-int cpak_write(joypad_port_t port, const void *buffer, uint8_t bank, uint16_t address, size_t len);
+int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *buffer, size_t len);
 
 /**
  * @brief Check if a controller pak is multi-bank or not.
