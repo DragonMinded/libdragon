@@ -12,12 +12,12 @@
 #include <unistd.h>
 #include "system.h"
 #include "cpak.h"
+#include "cpakfs.h"
 #include "cpakfs_internal.h"
 #include "../utils.h"
 #ifdef N64
 #include "../rand_internal.h"
 #include "cop0.h"
-#include "cpakfs.h"
 #include "debug.h"
 #endif
 

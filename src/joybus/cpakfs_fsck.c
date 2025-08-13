@@ -532,6 +532,8 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
             roots[nroots++] = note->first_page;
     }
 
+    (void)note_dirty;
+
     // Check and fix chains
     fsck_chains(ctx, be16(fsid->bank_size_msb) >> 8, (cpakfs_fat_entry_t (*)[NUM_PAGES])fat, roots, nroots);
 

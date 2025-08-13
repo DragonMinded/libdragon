@@ -8,10 +8,12 @@
 #include "cpak.h"
 #include "cpakfs_internal.h"
 #include "joypad_accessory.h"
-#include "../rand_internal.h"
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#ifdef N64
+#include "../rand_internal.h"
+#endif
 
 static int cpak_xfer(joypad_port_t port, uint8_t bank, uint16_t addr, void *data, int nbytes, joypad_accessory_xfer_t xfer)
 {
