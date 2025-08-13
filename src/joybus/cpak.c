@@ -510,7 +510,6 @@ static int __cpak_write(void *file, uint8_t *ptr, int len)
         return -1;
     }
 
-    cpakfs_fat_entry_t prev_page = *f->cur_page_ptr;
     while (len > 0) {
         int page_offset = f->pos % PAGE_SIZE;
         int n = MIN(len, PAGE_SIZE - page_offset);
