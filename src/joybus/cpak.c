@@ -16,7 +16,7 @@
 static int cpak_xfer(joypad_port_t port, uint8_t bank, uint16_t addr, void *data, int nbytes, joypad_accessory_xfer_t xfer)
 {
     // Check validaty of the address and length. We cannot cross banks
-    if (addr + nbytes >= 0x8000) {
+    if (addr + nbytes > 0x8000) {
         errno = EINVAL;
         return -1;
     }
