@@ -645,7 +645,7 @@ int cpakfs_format(joypad_port_t port, bool erase)
         int end = BANK_SIZE;
 
         while (addr < end) {
-            if (cpak_write(port, addr >> 7, addr & 0x7FFF, empty, PAGE_SIZE) < 0)
+            if (cpak_write(port, addr >> 15, addr & 0x7FFF, empty, PAGE_SIZE) < 0)
                 return -1;
             addr += PAGE_SIZE;
         }
