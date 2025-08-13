@@ -3,17 +3,10 @@
 #include "debug.h"
 #include <stddef.h>
 
-extern gl_state_t *state;
-
-void gl_set_lighting_dirty()
-{
-    state->is_lighting_dirty = true;
-}
-
 void set_light_dirty(gl_light_t *light)
 {
     if (light->enabled) {
-        gl_set_lighting_dirty();
+        gl_set_dirty_flags(DIRTY_LIGHTING);
     }
 }
 
@@ -73,7 +66,7 @@ void gl_lighting_init()
 
     state->material.color_target = GL_AMBIENT_AND_DIFFUSE;
 
-    gl_set_lighting_dirty();
+    gl_set_dirty_flags(DIRTY_LIGHTING);
 }
 
 void gl_lighting_close()
@@ -301,7 +294,7 @@ void gl_set_light_enabled(GLenum light, bool enabled)
     }
 
     l->enabled = enabled;
-    gl_set_lighting_dirty();
+    gl_set_dirty_flags(DIRTY_LIGHTING);
 }
 
 void gl_light_set_ambient(gl_light_t *light, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -522,7 +515,7 @@ void gl_set_light_model_local_viewer(bool param)
 void gl_set_light_model_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     gl_set_color(state->light_model_ambient, r, g, b, a);
-    gl_set_lighting_dirty();
+    gl_set_dirty_flags(DIRTY_LIGHTING);
 }
 
 void glLightModeli(GLenum pname, GLint param) 
@@ -667,7 +660,7 @@ void get_lighting_parms(mgfx_lighting_parms_t *parms)
 
 void gl_upload_lighting(const mg_uniform_t *uniform)
 {
-    if (!state->is_lighting_dirty) return;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_LIGHTING)) return;
 
     mgfx_light_parms_t lights[LIGHT_COUNT];
     mgfx_lighting_parms_t parms = {
@@ -679,6 +672,4 @@ void gl_upload_lighting(const mg_uniform_t *uniform)
     mgfx_get_lighting(buffer, &parms);
     mg_uniform_load(uniform, buffer);
     ringbuffer_release_current(&state->lighting_buffer);
-
-    state->is_lighting_dirty = false;
 }

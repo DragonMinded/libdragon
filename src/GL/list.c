@@ -3,8 +3,6 @@
 
 #define EMPTY_LIST ((gl_list_t*)VirtualCachedAddr(1))
 
-extern gl_state_t *state;
-
 typedef GLuint (*read_list_id_func)(const GLvoid*, GLsizei);
 
 inline bool is_non_empty_list(gl_list_t *list)

@@ -3,8 +3,6 @@
 
 #include <limits.h>
 
-extern gl_state_t *state;
-
 void update_culling();
 
 void gl_primitive_init()
@@ -80,15 +78,9 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     }
 }
 
-void gl_set_geom_flags_dirty()
-{
-    state->is_geom_flags_dirty = true;
-}
-
 void update_geom_flags()
 {
-    if (!state->is_geom_flags_dirty) return;
-    state->is_geom_flags_dirty = false;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_GEOM_FLAGS)) return;
 
     mg_geometry_flags_t flags = 0;
     if (gl_is_shade_active()) flags |= MG_GEOMETRY_FLAGS_SHADE_ENABLED;
@@ -289,9 +281,7 @@ void glBegin(GLenum mode)
     state->begin_end_multiple = get_begin_end_multiple(mode);
     state->begin_end_need_save = get_begin_end_need_save(mode);
 
-    gl_set_geom_flags_dirty();
-    gl_set_combiner_dirty();
-    gl_set_pipeline_dirty();
+    gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_COMBINER | DIRTY_PIPELINE);
     prepare_drawing();
     mg_draw_begin();
 
@@ -329,7 +319,7 @@ void glEnd(void)
     mg_draw_end();
 
     state->begin_end_active = false;
-    gl_set_pipeline_dirty();
+    gl_set_dirty_flags(DIRTY_PIPELINE);
 }
 
 void begin_end_append_vtx(const native_vertex_t *vtx)
@@ -816,7 +806,7 @@ void glTexCoordHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state->t
 void gl_set_tex_gen_enabled(GLenum target, bool enabled)
 {
     state->tex_gen[target - GL_TEXTURE_GEN_S].enabled = enabled;
-    gl_set_pipeline_dirty();
+    gl_set_dirty_flags(DIRTY_PIPELINE);
 }
 
 gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
@@ -855,7 +845,7 @@ void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
     }
 
     gen->mode = param;
-    gl_set_pipeline_dirty();
+    gl_set_dirty_flags(DIRTY_PIPELINE);
 }
 
 void gl_tex_gen_i(GLenum coord, GLenum pname, GLint param)

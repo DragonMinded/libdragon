@@ -4,8 +4,6 @@
 #include <malloc.h>
 #include <limits.h>
 
-extern gl_state_t *state;
-
 typedef struct {
     GLboolean et, ec, en;
     GLint st, sc, sv;
@@ -513,7 +511,7 @@ void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
         state->array_object->is_layout_dirty = true;
 
         if (array_type == ATTRIB_COLOR) {
-            gl_set_geom_flags_dirty();
+            gl_set_dirty_flags(DIRTY_GEOM_FLAGS);
         }
     }
 }
@@ -661,7 +659,7 @@ void glBindVertexArray(GLuint array)
     }
 
     state->array_object = obj;
-    gl_set_pipeline_dirty();
+    gl_set_dirty_flags(DIRTY_PIPELINE);
 }
 
 GLboolean glIsVertexArray(GLuint array)
@@ -699,7 +697,7 @@ static void array_object_update_layout(gl_array_object_t *array_object)
     }
 
     if (array_object == state->array_object) {
-        gl_set_pipeline_dirty();
+        gl_set_dirty_flags(DIRTY_PIPELINE);
     }
 }
 

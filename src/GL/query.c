@@ -2,8 +2,6 @@
 #include "gl_constants.h"
 #include "rspq_constants.h"
 
-extern gl_state_t *state;
-
 typedef enum {
     QUERY_BOOLEAN,
     QUERY_INTEGER,

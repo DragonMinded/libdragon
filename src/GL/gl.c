@@ -76,8 +76,7 @@ void gl_context_begin()
         glScissor(0, 0, width, height);
     }
 
-    gl_set_rendermode_dirty();
-    gl_set_texturing_dirty();
+    gl_set_dirty_flags(DIRTY_RENDERMODE | DIRTY_TEXTURING);
 }
 
 void gl_context_end()
@@ -100,36 +99,34 @@ void set_enable_flag(GLenum target, bool value)
         break;
     case GL_RDPQ_TEXTURING_N64:
         state->rdpq_texture = value;
-        gl_set_texturing_dirty();
-        gl_set_combiner_dirty();
-        gl_set_geom_flags_dirty();
+        gl_set_dirty_flags(DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS);
         break;
     case GL_SCISSOR_TEST:
         state->scissor_test = value;
         break;
     case GL_DEPTH_TEST:
         state->depth_test = value;
-        gl_set_geom_flags_dirty();
-        gl_set_rendermode_dirty();
+        gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_RENDERMODE);
         break;
     case GL_BLEND:
         state->blend = value;
-        gl_set_rendermode_dirty();
+        gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_ALPHA_TEST:
         state->alpha_test = value;
-        gl_set_rendermode_dirty();
+        gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_DITHER:
         state->dither = value;
-        gl_set_rendermode_dirty();
+        gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_FOG:
-        gl_set_fog_enabled(value);
+        state->fog = value;
+        gl_set_dirty_flags(DIRTY_FOG | DIRTY_RENDERMODE | DIRTY_GEOM_FLAGS);
         break;
     case GL_MULTISAMPLE_ARB:
         state->multisample = value;
-        gl_set_rendermode_dirty();
+        gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_TEXTURE_1D:
     case GL_TEXTURE_2D:
@@ -141,9 +138,7 @@ void set_enable_flag(GLenum target, bool value)
         break;
     case GL_LIGHTING:
         state->lighting = value;
-        gl_set_lighting_dirty();
-        gl_set_geom_flags_dirty();
-        gl_set_combiner_dirty();
+        gl_set_dirty_flags(DIRTY_LIGHTING | DIRTY_GEOM_FLAGS | DIRTY_COMBINER);
         break;
     case GL_LIGHT0:
     case GL_LIGHT1:
@@ -157,7 +152,7 @@ void set_enable_flag(GLenum target, bool value)
         break;
     case GL_COLOR_MATERIAL:
         state->color_material = value;
-        gl_set_combiner_dirty();
+        gl_set_dirty_flags(DIRTY_COMBINER);
         break;
     case GL_TEXTURE_GEN_S:
     case GL_TEXTURE_GEN_T:
@@ -280,7 +275,7 @@ void glClearDepth(GLclampd d)
 void glDitherModeN64(rdpq_dither_t mode)
 {
     state->dither_mode = mode;
-    gl_set_rendermode_dirty();
+    gl_set_dirty_flags(DIRTY_RENDERMODE);
 }
 
 void glFlush(void)
@@ -306,7 +301,7 @@ void glHint(GLenum target, GLenum hint)
     case GL_PERSPECTIVE_CORRECTION_HINT:
         // Use perspective correction by default, unless it was explicitly turned off
         state->persp_correct = hint != GL_FASTEST;
-        gl_set_rendermode_dirty();
+        gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_FOG_HINT:
         // TODO: per-pixel fog
@@ -314,7 +309,7 @@ void glHint(GLenum target, GLenum hint)
     case GL_MULTISAMPLE_HINT_N64:
         // Use full AA by default, unless RA has been requested
         state->reduced_aa = hint == GL_FASTEST;
-        gl_set_rendermode_dirty();
+        gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_POINT_SMOOTH_HINT:
     case GL_LINE_SMOOTH_HINT:
@@ -403,15 +398,9 @@ static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout, mgfx_features
     return key;
 }
 
-void gl_set_pipeline_dirty()
-{
-    state->is_pipeline_dirty = true;    
-}
-
 void update_pipeline()
 {
-    if (!state->is_pipeline_dirty) return;
-    state->is_pipeline_dirty = false;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_PIPELINE)) return;
 
     const vertex_layout *layout = get_current_layout();
     mgfx_features_t features = get_pipeline_features();

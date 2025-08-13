@@ -3,9 +3,6 @@
 #include <malloc.h>
 #include <string.h>
 
-extern gl_state_t *state;
-
-
 GLboolean glIsBufferARB(GLuint buffer)
 {
     // FIXME: This doesn't actually guarantee that it's a valid buffer object, but just uses the heuristic of

@@ -10,15 +10,9 @@
 #include <malloc.h>
 #include <stdlib.h>
 
-extern gl_state_t *state;
 static inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
 
 void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param);
-
-void gl_set_texturing_dirty()
-{
-    state->is_texturing_dirty = true;
-}
 
 void gl_set_texture_enabled(GLenum target, bool enabled)
 {
@@ -31,9 +25,7 @@ void gl_set_texture_enabled(GLenum target, bool enabled)
         break;
     }
     
-    gl_set_texturing_dirty();
-    gl_set_combiner_dirty();
-    gl_set_geom_flags_dirty();
+    gl_set_dirty_flags(DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS);
 }
 
 void gl_init_texture_object(gl_texture_object_t *obj)
@@ -217,7 +209,7 @@ void set_texture_dirty(gl_texture_object_t *obj)
 {
     gl_texture_object_t *active_obj = gl_get_active_texture();
     if (active_obj == obj) {
-        gl_set_texturing_dirty();
+        gl_set_dirty_flags(DIRTY_TEXTURING);
     }
 }
 
@@ -305,8 +297,7 @@ void gl_update_texture_completeness(gl_texture_object_t *obj)
 
     if (is_complete != was_complete) {
         set_block_dirty(obj);
-        gl_set_geom_flags_dirty();
-        gl_set_combiner_dirty();
+        gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_COMBINER);
     }
 }
 
@@ -650,7 +641,7 @@ void glBindTexture(GLenum target, GLuint texture)
         *target_obj = obj;
     }
 
-    gl_set_texturing_dirty();
+    gl_set_dirty_flags(DIRTY_TEXTURING);
 }
 
 void glGenTextures(GLsizei n, GLuint *textures)
@@ -1288,7 +1279,7 @@ void glTexSizeN64(GLushort width, GLushort height)
     state->rdpq_tex_height = height;
 
     if (state->rdpq_texture) {
-        gl_set_texturing_dirty();
+        gl_set_dirty_flags(DIRTY_TEXTURING);
     }
 }
 
@@ -1372,8 +1363,7 @@ void upload_texture_obj(gl_texture_object_t *obj, const mg_uniform_t *uniform)
 
 void gl_upload_texture(const mg_uniform_t *uniform)
 {
-    if (!state->is_texturing_dirty) return;
-    state->is_texturing_dirty = false;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_TEXTURING)) return;
 
     if (state->rdpq_texture) {
         // When RDPQ texturing is enabled, only update the uniform with the correct texture transform

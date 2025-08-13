@@ -9,8 +9,6 @@
 #include "rspq.h"
 #include "mgfx.h"
 
-extern gl_state_t *state;
-
 // All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.
 // NOTE: We always set fog alpha to one to support GL_ONE in both factors
 // TODO: src = ZERO, dst = ONE_MINUS_SRC_ALPHA could be done with BLEND_RGB * IN_ALPHA + MEMORY_RGB * INV_MUX_ALPHA
@@ -66,11 +64,6 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
 
-void set_fog_dirty()
-{
-    state->is_fog_dirty = true;
-}
-
 void gl_rendermode_init()
 {
     ringbuffer_init(&state->fog_buffer, sizeof(mgfx_fog_t), 4);
@@ -97,7 +90,7 @@ void gl_rendermode_close()
 
 void gl_upload_fog(const mg_uniform_t *uniform)
 {
-    if (!state->is_fog_dirty) return;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG)) return;
 
     mgfx_fog_t *buffer = ringbuffer_alloc_next(&state->fog_buffer);
     mgfx_get_fog(buffer, &(mgfx_fog_parms_t) {
@@ -108,24 +101,16 @@ void gl_upload_fog(const mg_uniform_t *uniform)
     ringbuffer_release_current(&state->fog_buffer);
 }
 
-void gl_set_fog_enabled(bool enabled)
-{
-    state->fog = enabled;
-    set_fog_dirty();
-    gl_set_rendermode_dirty();
-    gl_set_geom_flags_dirty();
-}
-
 void gl_set_fog_start(GLfloat param)
 {
     state->fog_start = param;
-    set_fog_dirty();
+    gl_set_dirty_flags(DIRTY_FOG);
 }
 
 void gl_set_fog_end(GLfloat param)
 {
     state->fog_end = param;
-    set_fog_dirty();
+    gl_set_dirty_flags(DIRTY_FOG);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -292,7 +277,7 @@ void glBlendFunc(GLenum src, GLenum dst)
     state->blend_src = src;
     state->blend_dst = dst;
 
-    gl_set_rendermode_dirty();
+    gl_set_dirty_flags(DIRTY_RENDERMODE);
 }
 
 void glDepthFunc(GLenum func)
@@ -318,7 +303,7 @@ void glDepthFunc(GLenum func)
     }
 
     state->depth_func = func;
-    gl_set_rendermode_dirty();
+    gl_set_dirty_flags(DIRTY_RENDERMODE);
 }
 
 void glDepthMask(GLboolean mask)
@@ -326,7 +311,7 @@ void glDepthMask(GLboolean mask)
     if (!gl_ensure_no_begin_end()) return;
     
     state->depth_mask = mask;
-    gl_set_rendermode_dirty();
+    gl_set_dirty_flags(DIRTY_RENDERMODE);
 }
 
 bool is_depth_compare_active()
@@ -367,7 +352,7 @@ void glAlphaFunc(GLenum func, GLclampf ref)
 
     state->alpha_func = func;
     state->alpha_ref = ref;
-    gl_set_rendermode_dirty();
+    gl_set_dirty_flags(DIRTY_RENDERMODE);
 }
 
 void glTexEnvi(GLenum target, GLenum pname, GLint param)
@@ -388,8 +373,7 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     case GL_MODULATE:
     case GL_REPLACE:
         state->tex_env_mode = param;
-        gl_set_combiner_dirty();
-        gl_set_geom_flags_dirty();
+        gl_set_dirty_flags(DIRTY_COMBINER | DIRTY_GEOM_FLAGS);
         break;
     case GL_DECAL:
     case GL_BLEND:
@@ -443,18 +427,6 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
         glTexEnvf(target, pname, params[0]);
         break;
     }
-}
-
-void gl_set_rendermode_dirty()
-{
-    state->is_rendermode_dirty = true;
-}
-
-void gl_set_combiner_dirty()
-{
-    state->is_combiner_dirty = true;
-    // TODO: Maybe don't update the entire rendermode if only combiner is affected?
-    gl_set_rendermode_dirty();
 }
 
 rdpq_antialias_t get_antialias()
@@ -512,8 +484,7 @@ bool gl_is_shade_active()
 
 void update_combiner()
 {
-    if (!state->is_combiner_dirty) return;
-    state->is_combiner_dirty = false;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_COMBINER)) return;
 
     bool has_tex = gl_is_texture_active();
     if (has_tex && is_texture_replace()) {
@@ -543,12 +514,7 @@ void update_combiner()
     if (constant_color) index |= 1;
 
     state->combiner = table[index];
-}
-
-rdpq_combiner_t get_combiner()
-{
-    update_combiner();
-    return state->combiner;
+    gl_set_dirty_flags(DIRTY_RENDERMODE);
 }
 
 color_t get_prim_color()
@@ -565,8 +531,9 @@ void update_rendermode()
     // TODO: Is it worth adding a dirty flag for this?
     rdpq_set_prim_color(get_prim_color());
 
-    if (!state->is_rendermode_dirty) return;
-    state->is_rendermode_dirty = false;
+    update_combiner();
+
+    if (!gl_check_and_clear_dirty_flags(DIRTY_RENDERMODE)) return;
 
     // TODO: Re-think this in order to implement RDPQ-interop.
     //       The full mode update below (including resetting to standard mode) should probably happen during gl_context_begin. 
@@ -582,7 +549,7 @@ void update_rendermode()
         rdpq_mode_antialias(get_antialias());
         rdpq_mode_dithering(get_dither());
 
-        rdpq_mode_combiner(get_combiner());
+        rdpq_mode_combiner(state->combiner);
 
         if (state->blend) {
             rdpq_mode_blender(state->blender);

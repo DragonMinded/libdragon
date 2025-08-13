@@ -95,6 +95,35 @@ typedef uint32_t uint32u_t __attribute__((aligned(1)));
 typedef float floatu __attribute__((aligned(1)));
 typedef double doubleu __attribute__((aligned(1)));
 
+typedef enum {
+    ENABLE_SCISSOR_TEST     = 1 << 0,
+    ENABLE_ALPHA_TEST       = 1 << 1,
+    ENABLE_DEPTH_TEST       = 1 << 2,
+    ENABLE_BLEND            = 1 << 3,
+    ENABLE_DITHER           = 1 << 4,
+    ENABLE_MULTISAMPLE      = 1 << 5,
+    ENABLE_FOG              = 1 << 6,
+    ENABLE_LIGHTING         = 1 << 7,
+    ENABLE_COLOR_MATERIAL   = 1 << 8,
+    ENABLE_NORMALIZE        = 1 << 9,
+    ENABLE_TEXTURE_1D       = 1 << 10,
+    ENABLE_TEXTURE_2D       = 1 << 11,
+    ENABLE_CULL_FACE        = 1 << 12,
+    ENABLE_MATRIX_PALETTE   = 1 << 13,
+    ENABLE_RDPQ_TEXTURING   = 1 << 14,
+    ENABLE_RDPQ_MATERIAL    = 1 << 15,
+} gl_enable_flags_t;
+
+typedef enum {
+    DIRTY_PIPELINE      = 1 << 0,
+    DIRTY_GEOM_FLAGS    = 1 << 1,
+    DIRTY_LIGHTING      = 1 << 2,
+    DIRTY_FOG           = 1 << 3,
+    DIRTY_TEXTURING     = 1 << 4,
+    DIRTY_RENDERMODE    = 1 << 5,
+    DIRTY_COMBINER      = 1 << 6,
+} gl_dirty_flags_t;
+
 typedef struct {
     GLfloat x, y, w, h, n, f;
 } gl_viewport_t;
@@ -379,13 +408,7 @@ typedef struct {
     gl_list_t *current_list;
     
     // TODO: Generic system that tracks state changes and applies changes automatically
-    bool is_pipeline_dirty;
-    bool is_geom_flags_dirty;
-    bool is_lighting_dirty;
-    bool is_fog_dirty;
-    bool is_texturing_dirty;
-    bool is_rendermode_dirty;
-    bool is_combiner_dirty;
+    gl_dirty_flags_t dirty_flags;
 
     bool begin_end_active;
     bool is_drawing_anything;
@@ -408,6 +431,8 @@ typedef struct {
     bool persp_correct;
     bool rdpq_texture;
 } gl_state_t;
+
+extern gl_state_t *state;
 
 #ifdef __cplusplus
 extern "C" {
@@ -451,13 +476,6 @@ void update_culling();
 void update_viewport();
 void update_rendermode();
 
-void gl_set_pipeline_dirty();
-void gl_set_geom_flags_dirty();
-void gl_set_lighting_dirty();
-void gl_set_texturing_dirty();
-void gl_set_rendermode_dirty();
-void gl_set_combiner_dirty();
-
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
@@ -467,7 +485,6 @@ void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t arr
 void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
 
 void gl_set_light_enabled(GLenum light, bool enabled);
-void gl_set_fog_enabled(bool enabled);
 void gl_set_texture_enabled(GLenum target, bool enabled);
 void gl_set_tex_gen_enabled(GLenum target, bool enabled);
 
@@ -490,6 +507,30 @@ void gl_upload_matrices(const mg_uniform_t *uniform);
 void gl_upload_lighting(const mg_uniform_t *uniform);
 void gl_upload_fog(const mg_uniform_t *uniform);
 void gl_upload_texture(const mg_uniform_t *uniform);
+
+inline void gl_set_dirty_flags(gl_dirty_flags_t flags)
+{
+    state->dirty_flags |= flags;
+}
+
+inline void gl_clear_dirty_flags(gl_dirty_flags_t flags)
+{
+    state->dirty_flags &= ~flags;
+}
+
+inline bool gl_check_dirty_flags(gl_dirty_flags_t flags)
+{
+    return (state->dirty_flags & flags) == flags;
+}
+
+inline bool gl_check_and_clear_dirty_flags(gl_dirty_flags_t flags)
+{
+    if (gl_check_dirty_flags(flags)) {
+        gl_clear_dirty_flags(flags);
+        return true;
+    }
+    return false;
+}
 
 inline uint32_t gl_type_to_index(GLenum type)
 {

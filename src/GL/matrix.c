@@ -1,8 +1,6 @@
 #include "gl_internal.h"
 #include <string.h>
 
-extern gl_state_t *state;
-
 void gl_matrix_init()
 {
     state->modelview_stack = (gl_matrix_stack_t) {
@@ -170,7 +168,7 @@ static void gl_mark_matrix_target_dirty()
     }
 
     if (state->current_matrix_stack == &state->texture_stack) {
-        gl_set_texturing_dirty();
+        gl_set_dirty_flags(DIRTY_TEXTURING);
     }
 }
 

@@ -1,8 +1,6 @@
 #include "gl_internal.h"
 #include <debug.h>
 
-extern gl_state_t *state;
-
 bool gl_calc_transfer_is_noop()
 {
     if (state->map_color || state->unpack_swap_bytes) {
