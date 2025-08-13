@@ -105,7 +105,7 @@ extern "C" {
  * @retval -1 if the sector was out of bounds or sector_data was null
  * @retval -2 if there was an error reading part of a sector
  */
-__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
+__attribute__((deprecated("use cpak_read instead")))
 int read_mempak_sector( int controller, int sector, uint8_t *sector_data );
 
 /**
@@ -125,7 +125,7 @@ int read_mempak_sector( int controller, int sector, uint8_t *sector_data );
  * @retval -1 if the sector was out of bounds or sector_data was null
  * @retval -2 if there was an error writing part of a sector
  */
-__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
+__attribute__((deprecated("use cpak_write instead")))
 int write_mempak_sector( int controller, int sector, uint8_t *sector_data );
 
 /**

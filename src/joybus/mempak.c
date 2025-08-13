@@ -41,6 +41,12 @@ int read_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
+    // NOTE: don't use cpak_read here, because this function has historically
+    // never supported bankswitching, so it would work on the "current bank".
+    // We can't know if somebody implemented bankswitching manually around it,
+    // so we keep the old behavior of accessing the current pak. To do so,
+    // we use the internal API directly (as the public API doesn't support
+    // accessing implicitly the current bank, for good reasons)
     joypad_accessory_error_t result = joypad_accessory_xfer(
         controller,
         JOYPAD_ACCESSORY_XFER_READ,
@@ -61,6 +67,12 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
+    // NOTE: don't use cpak_write here, because this function has historically
+    // never supported bankswitching, so it would work on the "current bank".
+    // We can't know if somebody implemented bankswitching manually around it,
+    // so we keep the old behavior of accessing the current pak. To do so,
+    // we use the internal API directly (as the public API doesn't support
+    // accessing implicitly the current bank, for good reasons)
     joypad_accessory_error_t result = joypad_accessory_xfer(
         controller,
         JOYPAD_ACCESSORY_XFER_WRITE,
