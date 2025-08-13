@@ -18,6 +18,10 @@
 
 #include "joypad.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Read data from a controller pak
  * 
@@ -124,5 +128,9 @@ bool cpak_supports_bankswitching(joypad_port_t port);
  * @return int      Number of banks found, or negative value in case of error
  */
 int cpak_probe_banks(joypad_port_t port);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
