@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include "system.h"
 #include "cpak.h"
 #include "cpakfs.h"
@@ -222,6 +223,8 @@ static int n64_to_utf8(uint8_t c, char *out)
 /*
  * Function that converts a UTF-8 string (input) into a string using the cpak codepage,
  * writing the output bytes into "out". The function returns the number of bytes written.
+ * 
+ * The function will fail if any unsupported character is encountered, returning -1.
  */
 static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_size) {
     const char *end_input = input + in_size;
@@ -268,6 +271,13 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
         /* Uppercase letters: 'A'-'Z' */
         if (ch >= 'A' && ch <= 'Z') {
             *out++ = 0x1A + (ch - 'A');
+            input++;
+            continue;
+        }
+
+        /* Lowercase letters: 'a'-'z' - convert to uppercase */
+        if (ch >= 'a' && ch <= 'z') {
+            *out++ = 0x1A + (ch - 'a');
             input++;
             continue;
         }
@@ -321,20 +331,12 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
                         }
                     }
                 }
-                /* If no corresponding mapping is found, replace with space */
-                *out++ = 0x0F;
-                continue;
+                return -1;
             } else {
-                /* Invalid UTF-8 sequence: replace with space */
-                *out++ = 0x0F;
-                input++;
-                continue;
+                return -1;
             }
         }
-
-        /* For any other unrecognized character, replace with space */
-        *out++ = 0x0F;
-        input++;
+        return -1;
     }
 
     return out - start_out;
@@ -625,16 +627,39 @@ static void *__cpakfs_open(char *name, int flags, int port)
         return NULL;
     }
 
-    // Extract filename and convert to cpak codepage format
+    // Extract filename and extension from path
     char *fname = name + 8;
     char *dot = strrchr(fname, '.');
-    int fnlen = utf8_to_n64(fname, dot ? dot-fname : strlen(fname), (uint8_t*)filename, 16);
+    
+    // Parse filename and extension
+    int fname_len = dot ? dot - fname : strlen(fname);
+    if (fname_len == 0 || fname_len > 16) {
+        errno = EINVAL;
+        return NULL;
+    }
+    
+    int fnlen = utf8_to_n64(fname, fname_len, (uint8_t*)filename, 16);
+    if (fnlen < 0) {
+        errno = EINVAL;
+        return NULL;
+    }
     filename[fnlen] = 0;
 
-    // Extract extension and convert to cpak codepage format
+    // Extract and validate extension
     if (dot) {
         dot++;
-        int extlen = utf8_to_n64(dot, strlen(dot), (uint8_t*)ext, 4);
+        int ext_len = strlen(dot);
+        
+        // Validate extension length and characters
+        if (ext_len > 4) {
+            errno = EINVAL;
+            return NULL;
+        }
+        int extlen = utf8_to_n64(dot, ext_len, (uint8_t*)ext, 4);
+        if (extlen < 0) {
+            errno = EINVAL;
+            return NULL;
+        }
         ext[extlen] = 0;
     }
 
