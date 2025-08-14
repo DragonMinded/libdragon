@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "../../include/cpak.h"
 #include "../../include/cpakfs.h"
+#include "../../include/dir.h"
 
 // Command types
 typedef enum {
@@ -42,6 +43,8 @@ typedef struct {
     bool create_pak;
     int pak_size;
     bool update_only;
+    const char *gamecode;       // Game code in format "ABCD.EF" (default: "DRAG.ON")
+    int debug_bufsize;          // Debug: buffer size for file operations (default: 4096)
     
     // Delete options
     bool interactive;
@@ -88,11 +91,21 @@ void verbose_log(global_options_t *opts, const char *fmt, ...);
 bool file_exists(const char *path);
 bool is_directory(const char *path);
 
-// Exports from cpaklib.h
+// Exports from cpaklib.c
 extern "C" {
     extern int g_num_banks;
     extern FILE *g_pak;
     extern int g_pak_offset;
+    
+    // C wrapper functions for direct cpak filesystem access
+    void* cpak_file_open(const char *name, int flags);
+    int cpak_file_read(void *file, void *buffer, int len);
+    int cpak_file_write(void *file, const void *buffer, int len);
+    int cpak_file_lseek(void *file, int offset, int whence);
+    int cpak_file_fstat(void *file, struct stat *st);
+    int cpak_file_close(void *file);
+    int cpak_dir_findfirst(const char *path, dir_t *dir);
+    int cpak_dir_findnext(const char *path, dir_t *dir);
 }
 
 #endif // CPAKTOOL_H

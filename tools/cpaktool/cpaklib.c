@@ -1,6 +1,13 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include "../../include/joypad.h"
+#include "../../include/system.h"
+#include "../../include/dir.h"
 
 
 #define __randn(n)  (\
@@ -21,9 +28,10 @@ static void __rand(void *buf, size_t n)
     do { if (!(cond)) { fprintf(stderr, "Assertion failed: " fmt "\n", ##__VA_ARGS__); exit(EXIT_FAILURE); } } while (0)
 
 #ifdef __MINGW32__
-#define EFSCORRUPTED 84
+#ifndef EFTYPE
+#define EFTYPE  84
 #endif
-#define EFTYPE  EFSCORRUPTED
+#endif
 #include "../../src/joybus/cpak.c"
 #include "../../src/joybus/cpakfs.c"
 #include "../../src/joybus/cpakfs_fsck.c"
@@ -69,4 +77,48 @@ joypad_accessory_error_t joypad_accessory_xfer(joypad_port_t port, joypad_access
     } else {
         assert(0 && "Invalid xfer type");
     }
+}
+
+//
+// C wrapper functions for direct access to cpakfs filesystem hooks
+//
+
+void* cpak_file_open(const char *name, int flags) {
+    char name_copy[256];
+    strncpy(name_copy, name, sizeof(name_copy) - 1);
+    name_copy[sizeof(name_copy) - 1] = '\0';
+    
+    return gfs->open(name_copy, flags);
+}
+
+int cpak_file_read(void *file, void *buffer, int len) {
+    return gfs->read(file, (uint8_t*)buffer, len);
+}
+
+int cpak_file_write(void *file, const void *buffer, int len) {
+    return gfs->write(file, (uint8_t*)buffer, len);
+}
+
+int cpak_file_lseek(void *file, int offset, int whence) {
+    return gfs->lseek(file, offset, whence);
+}
+
+int cpak_file_fstat(void *file, struct stat *st) {
+    return gfs->fstat(file, st);
+}
+
+int cpak_file_close(void *file) {
+    return gfs->close(file);
+}
+
+int cpak_dir_findfirst(const char *path, dir_t *dir) {
+    char path_copy[256];
+    strncpy(path_copy, path, sizeof(path_copy) - 1);
+    path_copy[sizeof(path_copy) - 1] = '\0';
+    
+    return gfs->findfirst(path_copy, dir);
+}
+
+int cpak_dir_findnext(const char *path, dir_t *dir) {
+    return gfs->findnext2(path, dir);
 }

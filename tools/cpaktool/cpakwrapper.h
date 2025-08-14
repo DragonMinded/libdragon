@@ -51,3 +51,36 @@ private:
     size_t m_file_size;
     bool m_globals_set;
 };
+
+// RAII wrapper for cpak file operations
+class CPakFile {
+public:
+    // Constructor opens the file
+    explicit CPakFile(const std::string& path, int flags);
+    
+    // Destructor automatically closes the file
+    ~CPakFile();
+    
+    // Delete copy constructor and assignment operator to prevent copying
+    CPakFile(const CPakFile&) = delete;
+    CPakFile& operator=(const CPakFile&) = delete;
+    
+    // Move constructor and assignment operator
+    CPakFile(CPakFile&& other) noexcept;
+    CPakFile& operator=(CPakFile&& other) noexcept;
+    
+    // Check if the file is valid and open
+    bool isValid() const { return m_handle != nullptr; }
+    
+    // File operations with exception handling
+    size_t read(void* buffer, size_t size);
+    size_t write(const void* buffer, size_t size);
+    
+    // Utility methods
+    bool exists() const;
+    
+private:
+    void* m_handle;
+    std::string m_path;
+    int m_flags;
+};

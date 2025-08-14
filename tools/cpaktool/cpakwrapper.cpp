@@ -6,7 +6,9 @@
 #include <ctime>
 #include <cstdlib>
 #include <exception>
+#include <stdexcept>
 #include <unistd.h>
+#include <fcntl.h>
 
 extern "C" {
     int fileno(FILE *stream);
@@ -137,6 +139,14 @@ std::unique_ptr<ControllerPakWrapper> ControllerPakWrapper::create(const std::st
     wrapper->m_num_banks = num_banks;
     wrapper->setupGlobals();
     
+    // Format the filesystem
+    std::srand(std::time(nullptr)); // Initialize random number generator
+    int result = cpakfs_format(JOYPAD_PORT_1, true); // Always erase for fresh format
+    if (result < 0) {
+        unlink(filename.c_str()); // Remove the file on failure
+        return nullptr;
+    }
+    
     return wrapper;
 }
 
@@ -164,4 +174,92 @@ bool ControllerPakWrapper::createEmptyFile(const std::string& filename, size_t s
     
     fclose(file);
     return true;
+}
+
+//
+// CPakFile implementation
+//
+
+CPakFile::CPakFile(const std::string& path, int flags)
+    : m_handle(nullptr)
+    , m_path(path)
+    , m_flags(flags)
+{
+    m_handle = cpak_file_open(path.c_str(), flags);
+    if (!m_handle) {
+        throw std::runtime_error("Failed to open cpak file '" + path + "': " + std::strerror(errno));
+    }
+}
+
+CPakFile::~CPakFile() {
+    if (m_handle) {
+        cpak_file_close(m_handle);
+        m_handle = nullptr;
+    }
+}
+
+CPakFile::CPakFile(CPakFile&& other) noexcept
+    : m_handle(other.m_handle)
+    , m_path(std::move(other.m_path))
+    , m_flags(other.m_flags)
+{
+    other.m_handle = nullptr;
+}
+
+CPakFile& CPakFile::operator=(CPakFile&& other) noexcept {
+    if (this != &other) {
+        // Clean up current state
+        if (m_handle) {
+            cpak_file_close(m_handle);
+        }
+        
+        // Move from other
+        m_handle = other.m_handle;
+        m_path = std::move(other.m_path);
+        m_flags = other.m_flags;
+        
+        other.m_handle = nullptr;
+    }
+    return *this;
+}
+
+size_t CPakFile::read(void* buffer, size_t size) {
+    if (!m_handle) {
+        throw std::runtime_error("Attempt to read from closed cpak file");
+    }
+    
+    int result = cpak_file_read(m_handle, buffer, static_cast<int>(size));
+    if (result < 0) {
+        throw std::runtime_error("Failed to read from cpak file '" + m_path + "': " + std::strerror(errno));
+    }
+    
+    return static_cast<size_t>(result);
+}
+
+size_t CPakFile::write(const void* buffer, size_t size) {
+    if (!m_handle) {
+        throw std::runtime_error("Attempt to write to closed cpak file");
+    }
+    
+    int result = cpak_file_write(m_handle, buffer, static_cast<int>(size));
+    if (result < 0) {
+        throw std::runtime_error("Failed to write to cpak file '" + m_path + "': " + std::strerror(errno));
+    }
+    
+    if (static_cast<size_t>(result) != size) {
+        throw std::runtime_error("Incomplete write to cpak file '" + m_path + "': " + 
+                                std::to_string(result) + " of " + std::to_string(size) + " bytes written");
+    }
+    
+    return static_cast<size_t>(result);
+}
+
+bool CPakFile::exists() const {
+    // Try to open the file for reading to check if it exists
+    void* test_handle = cpak_file_open(m_path.c_str(), O_RDONLY);
+    if (test_handle) {
+        cpak_file_close(test_handle);
+        return true;
+    }
+    return false;
 }

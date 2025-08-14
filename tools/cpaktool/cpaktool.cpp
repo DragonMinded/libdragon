@@ -215,6 +215,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
     memset(cmd_opts, 0, sizeof(*cmd_opts));
     cmd_opts->pak_size = 32;    // Default pak size in KB (32KB = 1 bank)
     cmd_opts->num_banks = 1;    // Default number of banks
+    cmd_opts->debug_bufsize = 4096;  // Default buffer size for file operations
     // Default fsck report level: WARNING
     cmd_opts->report_level = 1;
 
@@ -282,6 +283,21 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->pak_size = atoi(value);
+                    if (!eq) i++; // Skip next argument as it's the value
+                } else if (!strcmp(arg, "-g") || !strcmp(arg, "--gamecode")) {
+                    if (!value) {
+                        fatal_error("Option %s requires a value", arg);
+                    }
+                    cmd_opts->gamecode = value;
+                    if (!eq) i++; // Skip next argument as it's the value
+                } else if (!strcmp(arg, "--debug-bufsize")) {
+                    if (!value) {
+                        fatal_error("Option %s requires a value", arg);
+                    }
+                    cmd_opts->debug_bufsize = atoi(value);
+                    if (cmd_opts->debug_bufsize <= 0) {
+                        fatal_error("Buffer size must be positive: %d", cmd_opts->debug_bufsize);
+                    }
                     if (!eq) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for add command: %s", arg);
@@ -428,6 +444,7 @@ static void print_command_usage(const char *program_name, command_t cmd) {
             printf("  -c, --create            Create pak if it doesn't exist\n");
             printf("  -u, --update            Update existing files only\n");
             printf("  -s, --size SIZE         Pak size in KB (default: 32)\n");
+            printf("  -g, --gamecode CODE     Game code for files (format: ABCD.EF, default: DRAG.ON)\n");
             break;
             
         case CMD_DELETE:
