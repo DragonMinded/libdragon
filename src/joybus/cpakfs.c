@@ -142,10 +142,8 @@ static int read_fat(cpakfs_t *fs)
 
         // Compute the number of free pages in this bank
         for (int j=csum_start_idx; j<NUM_PAGES; j++) {
-            if (FAT_IS_UNUSED(fs->fat[i][j])) {
+            if (FAT_IS_UNUSED(fs->fat[i][j]))
                 fs->free_pages[i]++;
-                break;
-            }
         }
     }
 
