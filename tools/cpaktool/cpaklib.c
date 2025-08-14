@@ -20,6 +20,9 @@ static void __rand(void *buf, size_t n)
 #define assertf(cond, fmt, ...) \
     do { if (!(cond)) { fprintf(stderr, "Assertion failed: " fmt "\n", ##__VA_ARGS__); exit(EXIT_FAILURE); } } while (0)
 
+#ifdef __MINGW32__
+#define EFSCORRUPTED 84
+#endif
 #define EFTYPE  EFSCORRUPTED
 #include "../../src/joybus/cpak.c"
 #include "../../src/joybus/cpakfs.c"

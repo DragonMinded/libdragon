@@ -5,7 +5,7 @@
  */
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/fcntl.h>
 #include <string.h>
 #include <stdlib.h>
@@ -758,8 +758,10 @@ static int __cpakfs_fstat(void *file, struct stat *st)
     memset(st, 0, sizeof(struct stat));
     st->st_dev = f->port;
     st->st_ino = f->note - filesystems[f->port]->notes;
+    #ifndef __MINGW32__
     st->st_blksize = PAGE_SIZE;
     st->st_blocks = (f->size + PAGE_SIZE - 1) / PAGE_SIZE;
+    #endif
     st->st_mode = S_IFREG;
     st->st_size = f->size;
 

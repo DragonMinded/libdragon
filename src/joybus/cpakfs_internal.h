@@ -12,10 +12,12 @@
 
 /// @cond
 #ifndef N64
-#include <sys/random.h>
 #define be16(x)   __builtin_bswap16(x)
 #define be16i(x)  (int16_t)__builtin_bswap16(x)
 #define be32(x)   __builtin_bswap32(x)
+#ifdef __MINGW32__
+#define _Static_assert static_assert
+#endif
 #else
 #define be16(x)   (x)
 #define be16i(x)  (x)
