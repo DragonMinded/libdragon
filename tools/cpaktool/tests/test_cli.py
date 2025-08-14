@@ -139,6 +139,26 @@ class TestCLI(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("test command requires exactly one argument", err)
 
+    def test_add_extract_option_validation(self):
+        """Test ADD and EXTRACT option validation"""
+        # ADD: invalid debug-bufsize
+        code, out, err = run_cpaktool(["add", "--debug-bufsize", "0", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Buffer size must be positive", err)
+        
+        code, out, err = run_cpaktool(["add", "--debug-bufsize", "-5", str(self.pak), "file.txt"]) 
+        self.assertNotEqual(code, 0)
+        
+        # EXTRACT: invalid debug-bufsize
+        code, out, err = run_cpaktool(["extract", "--debug-bufsize", "0", str(self.pak)])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Buffer size must be positive", err)
+        
+        # ADD: gamecode format (should accept any format, not validated at CLI level)
+        code, out, err = run_cpaktool(["add", "--gamecode", "ABCD.EF", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but option is parsed
+        self.assertNotIn("gamecode", err)  # Should not be a gamecode error
+
     def test_error_cases(self):
         """Test invalid command and no command cases"""
         # Invalid command

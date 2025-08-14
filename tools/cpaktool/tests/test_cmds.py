@@ -141,5 +141,218 @@ class TestCommands(unittest.TestCase):
         code, out, err = run_cpaktool(["test", str(pak)])
         self.assertEqual(code, 0)
 
+    def test_add_and_extract_basic(self):
+        """Test basic add and extract functionality"""
+        pak = self._create_pak()
+        
+        # Create test files
+        test1 = self.tmp / "test1.txt"
+        test1.write_text("Hello World!")
+        test2 = self.tmp / "DRAG.ON-test2.dat" 
+        test2.write_bytes(b"\x00\x01\x02\xFF")
+        
+        # Add files (normal name, cpak format name, custom gamecode)
+        code, out, err = run_cpaktool(["add", str(pak), str(test1), str(test2)])
+        self.assertEqual(code, 0, f"Add failed: {err}")
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "ABCD.EF", str(pak), str(test1)])
+        self.assertEqual(code, 0)
+        
+        # Extract all and verify
+        extract_dir = self.tmp / "extracted"
+        extract_dir.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir)
+        self.assertEqual(code, 0)
+        
+        extracted_files = list(extract_dir.glob("*"))
+        self.assertEqual(len(extracted_files), 3)  # Should have 3 files total
+        
+        # Verify file names follow pattern (files get numbered by cpakfs)
+        drag_files = list(extract_dir.glob("DRAG.ON-*"))
+        abcd_files = list(extract_dir.glob("ABCD.EF-*"))
+        self.assertEqual(len(drag_files), 2)  # 2 files with DRAG.ON prefix
+        self.assertEqual(len(abcd_files), 1)  # 1 file with ABCD.EF prefix
+        
+        # Test pattern extraction - look for files that would match the pattern
+        # Clean directory first
+        for f in extract_dir.glob("*"):
+            f.unlink()
+        
+        code, out, err = run_cpaktool(["extract", "--verbose", str(pak), "DRAG.ON-*"], cwd=extract_dir)
+        self.assertEqual(code, 0)
+        # Should extract the DRAG.ON files
+        extracted_drag_files = list(extract_dir.glob("DRAG.ON-*"))
+        self.assertEqual(len(extracted_drag_files), 2)  # The 2 DRAG.ON files
+
+    def test_add_errors_and_overwrite(self):
+        """Test add error conditions and file operations"""
+        pak = self._create_pak()
+        
+        # Create pak that needs creation
+        new_pak = self.tmp / "new.pak"
+        test_file = self.tmp / "test.txt"
+        test_file.write_text("data")
+        
+        # Should fail without --create
+        code, out, err = run_cpaktool(["add", str(new_pak), str(test_file)])
+        self.assertNotEqual(code, 0)
+        self.assertIn("use --create", err)
+        
+        # Should succeed with --create
+        code, out, err = run_cpaktool(["add", "--create", str(new_pak), str(test_file)])
+        self.assertEqual(code, 0)
+        
+        # Add same file twice, test update
+        code, out, err = run_cpaktool(["add", "--verbose", "--update", str(new_pak), str(test_file)])
+        self.assertEqual(code, 0)
+        # Just verify command succeeded, don't rely on specific output format
+        
+        # Non-existent file
+        code, out, err = run_cpaktool(["add", str(pak), str(self.tmp / "missing.txt")])
+        self.assertNotEqual(code, 0)
+
+    def test_add_filename_validation(self):
+        """Test filename validation and character restrictions"""
+        pak = self._create_pak()
+        
+        # Test valid filenames that should work
+        valid_files = [
+            "VALID.TXT",           # Standard uppercase
+            "valid.txt",           # Lowercase (should be converted)
+            "MiXeD.DaT",          # Mixed case
+            "123.BIN",            # Numbers
+            "A-B.C",              # Dash
+            "X.Y",                # Single chars
+            "VERYLONGNAME.EXT",   # Will be truncated with warning
+            "file@test.txt",      # @ is supported
+            "file#test.txt",      # # is supported  
+            "file*test.txt",      # * is supported
+            "file+test.txt",      # + is supported
+            "file,test.txt",      # , is supported
+            "file:test.txt",      # : is supported
+            "file=test.txt",      # = is supported
+            "file?test.txt",      # ? is supported
+            "space file.txt",     # space is supported
+            "FILENOEXT",          # No extension (valid)
+            "FOO.BAR.BAZ",        # Multiple dots - filename=FOO.BAR, ext=BAZ
+            "A.B.C.D",            # Multiple dots - filename=A.B.C, ext=D
+        ]
+        
+        for filename in valid_files:
+            with self.subTest(filename=filename):
+                test_file = self.tmp / filename
+                test_file.write_text("test data")
+                
+                code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+                self.assertEqual(code, 0, f"Valid filename {filename} was rejected: {err}")
+                
+                # Check for truncation warning on long names
+                # Split by last dot to get proper filename and extension
+                parts = filename.rsplit('.', 1) if '.' in filename else [filename]
+                fname_part = parts[0]
+                ext_part = parts[1] if len(parts) > 1 else ""
+                
+                if len(fname_part) > 16 or len(ext_part) > 4:
+                    self.assertIn("truncated", err, f"Expected truncation warning for {filename}")
+        
+        # Test invalid filenames that should be rejected
+        invalid_files = [
+            "invalid_underscore.txt",  # Underscore not supported
+            "file$.txt",               # $ not supported
+            "file%.txt",               # % not supported
+            "file&.txt",               # & not supported
+            "file[].txt",              # [] not supported
+            "file{}.txt",              # {} not supported
+            "file().txt",              # () not supported
+            "file<>.txt",              # <> not supported
+            "file|.txt",               # | not supported
+            "file;.txt",               # ; not supported
+            # Note: Non-ASCII test removed due to encoding issues in test runner
+        ]
+        
+        for filename in invalid_files:
+            with self.subTest(filename=filename):
+                test_file = self.tmp / filename
+                test_file.write_text("test data")
+                
+                code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+                self.assertNotEqual(code, 0, f"Invalid filename {filename} was accepted")
+                self.assertIn("unsupported characters", err, 
+                            f"Expected character validation error for {filename}")
+        
+        # Test edge cases that should be rejected
+        edge_cases_invalid = [
+            (".txt", "no name - only extension"),
+        ]
+        
+        for filename, description in edge_cases_invalid:
+            with self.subTest(filename=filename, description=description):
+                test_file = self.tmp / filename
+                test_file.write_text("test data")
+                code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+                self.assertNotEqual(code, 0, f"Edge case {description} was accepted")
+                self.assertIn("Invalid", err, f"Expected validation error for {description}")
+        
+        # Test edge cases that should be valid
+        edge_cases_valid = [
+            ("file.", "no extension - should work"),
+        ]
+        
+        for filename, description in edge_cases_valid:
+            with self.subTest(filename=filename, description=description):
+                test_file = self.tmp / filename
+                test_file.write_text("test data")
+                code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+                self.assertEqual(code, 0, f"Edge case {description} was rejected: {err}")
+
+    def test_extract_patterns_and_overwrite(self):
+        """Test extract pattern matching and overwrite behavior"""
+        pak = self._create_pak()
+        
+        # Create files with different patterns (will be numbered in cpakfs)
+        for name in ["file1.txt", "file2.dat", "other.bin"]:
+            f = self.tmp / name
+            f.write_text(f"content of {name}")
+            run_cpaktool(["add", str(pak), str(f)])
+        
+        extract_dir = self.tmp / "extract"
+        extract_dir.mkdir()
+        
+        # Pattern extraction tests - files get numbered as DRAG.ON-1., DRAG.ON-2., etc.
+        test_cases = [
+            ("DRAG.ON-*", 3),       # Should match all files with DRAG.ON prefix
+            ("*1.*", 1),            # Should match DRAG.ON-1.
+            ("*2.*", 1),            # Should match DRAG.ON-2.
+            ("nonexistent", 0)      # Should match nothing
+        ]
+        
+        for pattern, expected_count in test_cases:
+            # Clean directory
+            for f in extract_dir.glob("*"):
+                f.unlink()
+            
+            code, out, err = run_cpaktool(["extract", str(pak), pattern], cwd=extract_dir)
+            self.assertEqual(code, 0)
+            # Count actual extracted files instead of parsing output
+            extracted_files = list(extract_dir.glob("*"))
+            self.assertEqual(len(extracted_files), expected_count)
+        
+        # Test overwrite behavior
+        existing = extract_dir / "DRAG.ON-1."  # First file extracted
+        if existing.exists():
+            existing.write_text("modified content")
+            
+            # Should skip without --overwrite  
+            code, out, err = run_cpaktool(["extract", "--verbose", str(pak), "*1.*"], cwd=extract_dir)
+            self.assertEqual(code, 0)
+            # Just verify file wasn't overwritten
+            self.assertEqual(existing.read_text(), "modified content")
+            
+            # Should overwrite with --overwrite
+            code, out, err = run_cpaktool(["extract", "--overwrite", str(pak), "*1.*"], cwd=extract_dir)
+            self.assertEqual(code, 0)
+            # File should be overwritten with padded content
+            self.assertNotEqual(existing.read_text(), "modified content")
+
 if __name__ == "__main__":
     unittest.main()

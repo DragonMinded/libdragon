@@ -268,6 +268,15 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
             case CMD_EXTRACT:
                 if (!strcmp(arg, "-o") || !strcmp(arg, "--overwrite")) {
                     cmd_opts->overwrite = true;
+                } else if (!strcmp(arg, "--debug-bufsize")) {
+                    if (!value) {
+                        fatal_error("Option %s requires a value", arg);
+                    }
+                    cmd_opts->debug_bufsize = atoi(value);
+                    if (cmd_opts->debug_bufsize <= 0) {
+                        fatal_error("Buffer size must be positive: %d", cmd_opts->debug_bufsize);
+                    }
+                    if (!eq) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for extract command: %s", arg);
                 }
