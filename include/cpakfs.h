@@ -161,7 +161,7 @@ typedef enum {
 } cpakfs_issue_t;
 
 /** @brief Cpak filesystem report callback */
-typedef void (*cpakfs_report_fn)(cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...);
+typedef void (*cpakfs_report_fn)(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...);
 
 /**
  * @brief Mount the controller pak as filesystem
@@ -270,12 +270,14 @@ int cpakfs_get_stats(joypad_port_t port, cpakfs_stats_t *stats);
  * @param port          The controller pak to check the integrity of
  * @param fix_errors    Whether to fix the errors found
  * @param report        Optional callback to report issues found during the check
+ * @param report_ctx    Optional context to pass to the report callback
  * @return positive     Number of issues found (and possibly fixed if @p fix_errors is true).
  * @return 0            No issues found.
  * @return negative     If a physical error occurred (eg: no cpak on the specified port),
  *                      and errno will be set accordingly. 
  */
-int cpakfs_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report);
+int cpakfs_fsck(joypad_port_t port, bool fix_errors,
+        cpakfs_report_fn report, void *report_ctx);
 
 /**
  * @brief Format a controller pak

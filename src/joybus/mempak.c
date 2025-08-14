@@ -702,7 +702,7 @@ static int __get_valid_toc( int controller )
 
 int validate_mempak( int controller )
 {
-    int ret = cpakfs_fsck( controller, false, NULL );
+    int ret = cpakfs_fsck( controller, false, NULL, NULL );
     if (ret > 0)
         return -3; /* Filesystem has issues */
     if (ret < 0)
