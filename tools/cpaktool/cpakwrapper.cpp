@@ -14,12 +14,13 @@ extern "C" {
     int fileno(FILE *stream);
 }
 
-ControllerPakWrapper::ControllerPakWrapper(const std::string& filename, const std::string& mode)
+CPakFilesystem::CPakFilesystem(const std::string& filename, const std::string& mode, bool auto_mount)
     : m_filename(filename)
     , m_file(nullptr)
     , m_num_banks(0)
     , m_file_size(0)
     , m_globals_set(false)
+    , m_filesystem_mounted(false)
 {
     m_file = fopen(filename.c_str(), mode.c_str());
     if (!m_file) {
@@ -31,9 +32,15 @@ ControllerPakWrapper::ControllerPakWrapper(const std::string& filename, const st
     
     // Setup global variables for cpaklib
     setupGlobals();
+    
+    // Mount the filesystem only if requested
+    if (auto_mount) {
+        mountFilesystem();
+    }
 }
 
-ControllerPakWrapper::~ControllerPakWrapper() {
+CPakFilesystem::~CPakFilesystem() {
+    unmountFilesystem();
     cleanupGlobals();
     if (m_file) {
         fclose(m_file);
@@ -41,15 +48,17 @@ ControllerPakWrapper::~ControllerPakWrapper() {
     }
 }
 
-ControllerPakWrapper::ControllerPakWrapper(ControllerPakWrapper&& other) noexcept
+CPakFilesystem::CPakFilesystem(CPakFilesystem&& other) noexcept
     : m_filename(std::move(other.m_filename))
     , m_file(other.m_file)
     , m_num_banks(other.m_num_banks)
     , m_file_size(other.m_file_size)
     , m_globals_set(other.m_globals_set)
+    , m_filesystem_mounted(other.m_filesystem_mounted)
 {
     other.m_file = nullptr;
     other.m_globals_set = false;
+    other.m_filesystem_mounted = false;
     
     // Update globals to point to this instance
     if (m_globals_set) {
@@ -57,9 +66,10 @@ ControllerPakWrapper::ControllerPakWrapper(ControllerPakWrapper&& other) noexcep
     }
 }
 
-ControllerPakWrapper& ControllerPakWrapper::operator=(ControllerPakWrapper&& other) noexcept {
+CPakFilesystem& CPakFilesystem::operator=(CPakFilesystem&& other) noexcept {
     if (this != &other) {
         // Clean up current state
+        unmountFilesystem();
         cleanupGlobals();
         if (m_file) {
             fclose(m_file);
@@ -71,9 +81,11 @@ ControllerPakWrapper& ControllerPakWrapper::operator=(ControllerPakWrapper&& oth
         m_num_banks = other.m_num_banks;
         m_file_size = other.m_file_size;
         m_globals_set = other.m_globals_set;
+        m_filesystem_mounted = other.m_filesystem_mounted;
         
         other.m_file = nullptr;
         other.m_globals_set = false;
+        other.m_filesystem_mounted = false;
         
         // Update globals
         if (m_globals_set) {
@@ -83,14 +95,14 @@ ControllerPakWrapper& ControllerPakWrapper::operator=(ControllerPakWrapper&& oth
     return *this;
 }
 
-void ControllerPakWrapper::setupGlobals() {
+void CPakFilesystem::setupGlobals() {
     g_pak = m_file;
     g_num_banks = m_num_banks;
     g_pak_offset = 0;
     m_globals_set = true;
 }
 
-void ControllerPakWrapper::cleanupGlobals() {
+void CPakFilesystem::cleanupGlobals() {
     if (m_globals_set) {
         g_pak = nullptr;
         g_num_banks = 0;
@@ -99,7 +111,7 @@ void ControllerPakWrapper::cleanupGlobals() {
     }
 }
 
-void ControllerPakWrapper::calculateBanks() {
+void CPakFilesystem::calculateBanks() {
     if (!m_file) return;
     
     struct stat st;
@@ -110,13 +122,46 @@ void ControllerPakWrapper::calculateBanks() {
     }
 }
 
+bool CPakFilesystem::mountFilesystem() {
+    if (m_file && !m_filesystem_mounted) {
+        if (cpakfs_mount(JOYPAD_PORT_1, "cpak:/") == 0) {
+            m_filesystem_mounted = true;
+            return true;
+        }
+    }
+    return m_filesystem_mounted;
+}
+
+void CPakFilesystem::unmountFilesystem() {
+    if (m_filesystem_mounted) {
+        cpakfs_unmount(JOYPAD_PORT_1);
+        m_filesystem_mounted = false;
+    }
+}
+
+void CPakFilesystem::iterate_pak_files(const FileCallback& callback) const {
+    if (!isValid()) return;
+    
+    dir_t dir;
+    if (cpak_dir_findfirst("/", &dir) == 0) {
+        do {
+            if (dir.d_type == DT_REG) { // Regular file
+                if (!callback(dir.d_name, dir)) {
+                    break; // Callback returned false, stop iteration
+                }
+            }
+        } while (cpak_dir_findnext("/", &dir) == 0);
+    }
+}
+
 // Static factory method for creating new pak files
-std::unique_ptr<ControllerPakWrapper> ControllerPakWrapper::create(const std::string& filename, 
-                                                                   int num_banks, 
-                                                                   bool overwrite) {
+std::unique_ptr<CPakFilesystem> CPakFilesystem::create(const std::string& filename, 
+                                                       int num_banks, 
+                                                       bool overwrite) {
     // Check if file exists and handle overwrite logic
     struct stat st;
     if (stat(filename.c_str(), &st) == 0 && !overwrite) {
+        errno = EEXIST;
         return nullptr; // File exists and overwrite not allowed
     }
     
@@ -125,13 +170,15 @@ std::unique_ptr<ControllerPakWrapper> ControllerPakWrapper::create(const std::st
     
     // Create empty file
     if (!createEmptyFile(filename, total_size)) {
+        // errno is already set by createEmptyFile
         return nullptr;
     }
     
-    // Create wrapper and set number of banks
-    auto wrapper = std::make_unique<ControllerPakWrapper>(filename, "r+b");
-    if (!wrapper->isValid()) {
+    // Create wrapper and set number of banks (don't auto-mount empty file)
+    auto wrapper = std::make_unique<CPakFilesystem>(filename, "r+b", false);
+    if (!wrapper->getFileHandle()) {  // Check file handle instead of isValid()
         unlink(filename.c_str()); // Remove the file we just created
+        errno = ENOENT; // File access error
         return nullptr;
     }
     
@@ -144,31 +191,41 @@ std::unique_ptr<ControllerPakWrapper> ControllerPakWrapper::create(const std::st
     int result = cpakfs_format(JOYPAD_PORT_1, true); // Always erase for fresh format
     if (result < 0) {
         unlink(filename.c_str()); // Remove the file on failure
+        errno = EIO; // I/O error during format
+        return nullptr;
+    }
+    
+    // Now mount the formatted filesystem
+    if (!wrapper->mountFilesystem()) {
+        unlink(filename.c_str()); // Remove the file on failure
+        errno = EIO; // Filesystem mount error
         return nullptr;
     }
     
     return wrapper;
 }
 
-bool ControllerPakWrapper::createEmptyFile(const std::string& filename, size_t size) {
+bool CPakFilesystem::createEmptyFile(const std::string& filename, size_t size) {
     FILE* file = fopen(filename.c_str(), "wb");
     if (!file) {
         return false;
     }
     
-    // Create file of the right size by seeking to the end and writing a byte
+    // Create file of the right size by writing zeros
     if (size > 0) {
-        if (fseek(file, size - 1, SEEK_SET) != 0) {
-            fclose(file);
-            unlink(filename.c_str());
-            return false;
-        }
+        // Write zeros to create a file of the exact size
+        const size_t buffer_size = 4096;
+        std::vector<uint8_t> buffer(buffer_size, 0);
         
-        uint8_t zero = 0;
-        if (fwrite(&zero, 1, 1, file) != 1) {
-            fclose(file);
-            unlink(filename.c_str());
-            return false;
+        size_t remaining = size;
+        while (remaining > 0) {
+            size_t to_write = std::min(remaining, buffer_size);
+            if (fwrite(buffer.data(), 1, to_write, file) != to_write) {
+                fclose(file);
+                unlink(filename.c_str());
+                return false;
+            }
+            remaining -= to_write;
         }
     }
     

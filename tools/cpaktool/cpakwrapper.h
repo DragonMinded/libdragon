@@ -5,25 +5,26 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <functional>
 
-class ControllerPakWrapper {
+class CPakFilesystem {
 public:
-    // Constructor opens the pak file and sets up the environment
-    explicit ControllerPakWrapper(const std::string& filename, const std::string& mode = "r+b");
+    // Constructor opens the pak file and mounts the filesystem
+    explicit CPakFilesystem(const std::string& filename, const std::string& mode = "r+b", bool auto_mount = true);
     
-    // Destructor automatically closes the file and cleans up
-    ~ControllerPakWrapper();
+    // Destructor automatically unmounts filesystem and closes the file
+    ~CPakFilesystem();
     
     // Delete copy constructor and assignment operator to prevent copying
-    ControllerPakWrapper(const ControllerPakWrapper&) = delete;
-    ControllerPakWrapper& operator=(const ControllerPakWrapper&) = delete;
+    CPakFilesystem(const CPakFilesystem&) = delete;
+    CPakFilesystem& operator=(const CPakFilesystem&) = delete;
     
     // Move constructor and assignment operator
-    ControllerPakWrapper(ControllerPakWrapper&& other) noexcept;
-    ControllerPakWrapper& operator=(ControllerPakWrapper&& other) noexcept;
+    CPakFilesystem(CPakFilesystem&& other) noexcept;
+    CPakFilesystem& operator=(CPakFilesystem&& other) noexcept;
     
-    // Check if the pak file is valid and open
-    bool isValid() const { return m_file != nullptr; }
+    // Check if the pak file is valid and filesystem is mounted
+    bool isValid() const { return m_file != nullptr && m_filesystem_mounted; }
     
     // Get number of banks detected from file size
     int getNumBanks() const { return m_num_banks; }
@@ -34,10 +35,21 @@ public:
     // Low-level file operations (if needed)
     FILE* getFileHandle() const { return m_file; }
     
+    // Callback function type for file iteration
+    using FileCallback = std::function<bool(const char* filename, const dir_t& dir_entry)>;
+    
+    // Iterate through all files in the pak, calling callback for each
+    // Callback should return true to continue iteration, false to stop
+    void iterate_pak_files(const FileCallback& callback) const;
+    
+    // Manual filesystem mounting/unmounting
+    bool mountFilesystem();
+    void unmountFilesystem();
+    
     // Static factory method for creating new pak files
-    static std::unique_ptr<ControllerPakWrapper> create(const std::string& filename, 
-                                                        int num_banks, 
-                                                        bool overwrite = false);
+    static std::unique_ptr<CPakFilesystem> create(const std::string& filename, 
+                                                  int num_banks, 
+                                                  bool overwrite = false);
     
 private:
     void setupGlobals();
@@ -50,6 +62,7 @@ private:
     int m_num_banks;
     size_t m_file_size;
     bool m_globals_set;
+    bool m_filesystem_mounted;
 };
 
 // RAII wrapper for cpak file operations

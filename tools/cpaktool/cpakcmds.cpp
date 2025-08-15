@@ -122,53 +122,44 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         fatal_error("File not found: %s", pak_file);
     }
     
-    // Open the pak file 
+    // Open the pak file and mount filesystem
     try {
-        ControllerPakWrapper pak(pak_file, "rb");
+        CPakFilesystem pak(pak_file, "rb");
         if (!pak.isValid()) {
             fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, strerror(errno));
         }
         
-        // Mount the filesystem - this is essential for the cpak filesystem to work
-        if (cpakfs_mount(JOYPAD_PORT_1, "cpak:/") < 0) {
-            fatal_error("Failed to mount Controller Pak filesystem: %s", strerror(errno));
-        }
-        
         std::vector<file_entry_t> files;
-        dir_t dir;
         
-        // Collect all files
-        if (cpak_dir_findfirst("/", &dir) == 0) {
-            do {
-                if (dir.d_type == DT_REG) { // Regular file
-                    std::string trimmed_filename = trim_spaces(std::string(dir.d_name));
-                    
-                    file_entry_t entry;
-                    entry.size = dir.d_size >= 0 ? dir.d_size : 0;
-                    
-                    if (parse_cpak_path(trimmed_filename, entry)) {
-                        // Check if file matches any patterns
-                        bool should_include = false;
-                        
-                        if (num_patterns == 0) {
+        // Use the new iterate_pak_files method
+        pak.iterate_pak_files([&](const char* filename, const dir_t& dir) -> bool {
+            std::string trimmed_filename = trim_spaces(std::string(filename));
+            
+            file_entry_t entry;
+            entry.size = dir.d_size >= 0 ? dir.d_size : 0;
+            
+            if (parse_cpak_path(trimmed_filename, entry)) {
+                // Check if file matches any patterns
+                bool should_include = false;
+                
+                if (num_patterns == 0) {
+                    should_include = true;
+                } else {
+                    for (int i = 0; i < num_patterns; i++) {
+                        if (fnmatch(patterns[i], entry.full_name.c_str()) || 
+                            fnmatch(patterns[i], trimmed_filename.c_str())) {
                             should_include = true;
-                        } else {
-                            for (int i = 0; i < num_patterns; i++) {
-                                if (fnmatch(patterns[i], entry.full_name.c_str()) || 
-                                    fnmatch(patterns[i], trimmed_filename.c_str())) {
-                                    should_include = true;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if (should_include) {
-                            files.push_back(entry);
+                            break;
                         }
                     }
                 }
-            } while (cpak_dir_findnext("/", &dir) == 0);
-        }
+                
+                if (should_include) {
+                    files.push_back(entry);
+                }
+            }
+            return true; // Continue iteration
+        });
         
         // Sort files if requested
         if (!files.empty()) {
@@ -204,11 +195,6 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
             printf("\nFound %zu file%s\n", files.size(), files.size() == 1 ? "" : "s");
         }
         
-        // Unmount filesystem
-        if (cpakfs_unmount(JOYPAD_PORT_1) < 0) {
-            warning("Failed to unmount Controller Pak filesystem: %s", strerror(errno));
-        }
-        
         return 0;
         
     } catch (...) {
@@ -224,74 +210,61 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
         fatal_error("File not found: %s", pak_file);
     }
     
-    // Open the pak file 
+    // Open the pak file and mount filesystem
     try {
-        ControllerPakWrapper pak(pak_file, "rb");
+        CPakFilesystem pak(pak_file, "rb");
         if (!pak.isValid()) {
             fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, strerror(errno));
-        }
-        
-        // Mount the filesystem - this is essential for the cpak filesystem to work
-        if (cpakfs_mount(JOYPAD_PORT_1, "cpak:/") < 0) {
-            fatal_error("Failed to mount Controller Pak filesystem: %s", strerror(errno));
         }
         
         verbose_log(global_opts, "Note: Controller Pak files are stored in 256-byte blocks with random padding");
         
         int files_extracted = 0;
-        dir_t dir;
         
-        // Start directory listing from root
-        if (cpak_dir_findfirst("/", &dir) == 0) {
-            do {
-                if (dir.d_type == DT_REG) { // Regular file
-                    std::string trimmed_filename = trim_spaces(std::string(dir.d_name));
-                    
-                    // Convert to output filename for pattern matching
-                    std::string output_filename;
-                    const char *slash = strchr(trimmed_filename.c_str(), '/');
-                    if (slash) {
-                        std::string game_pub(trimmed_filename.c_str(), slash - trimmed_filename.c_str());
-                        std::string filename(slash + 1);
-                        output_filename = game_pub + "-" + filename;
-                    } else {
-                        output_filename = trimmed_filename;
-                    }
-                    
-                    bool should_extract = false;
-                    
-                    if (num_patterns == 0) {
-                        // No patterns specified, extract all files
-                        verbose_log(global_opts, "Found file: '%s'", dir.d_name);
+        // Use the new iterate_pak_files method
+        pak.iterate_pak_files([&](const char* filename, const dir_t& dir) -> bool {
+            std::string trimmed_filename = trim_spaces(std::string(filename));
+            
+            // Convert to output filename for pattern matching
+            std::string output_filename;
+            const char *slash = strchr(trimmed_filename.c_str(), '/');
+            if (slash) {
+                std::string game_pub(trimmed_filename.c_str(), slash - trimmed_filename.c_str());
+                std::string file_part(slash + 1);
+                output_filename = game_pub + "-" + file_part;
+            } else {
+                output_filename = trimmed_filename;
+            }
+            
+            bool should_extract = false;
+            
+            if (num_patterns == 0) {
+                // No patterns specified, extract all files
+                verbose_log(global_opts, "Found file: '%s'", filename);
+                should_extract = true;
+            } else {
+                // Check if file matches any of the patterns (check both cpak name and output name)
+                for (int i = 0; i < num_patterns; i++) {
+                    if (fnmatch(patterns[i], trimmed_filename.c_str()) || 
+                        fnmatch(patterns[i], output_filename.c_str())) {
+                        verbose_log(global_opts, "File '%s' (output: '%s') matches pattern '%s'", 
+                                  filename, output_filename.c_str(), patterns[i]);
                         should_extract = true;
-                    } else {
-                        // Check if file matches any of the patterns (check both cpak name and output name)
-                        for (int i = 0; i < num_patterns; i++) {
-                            if (fnmatch(patterns[i], trimmed_filename.c_str()) || 
-                                fnmatch(patterns[i], output_filename.c_str())) {
-                                verbose_log(global_opts, "File '%s' (output: '%s') matches pattern '%s'", 
-                                          dir.d_name, output_filename.c_str(), patterns[i]);
-                                should_extract = true;
-                                break;
-                            }
-                        }
-                        if (!should_extract) {
-                            verbose_log(global_opts, "File '%s' (output: '%s') does not match any pattern", 
-                                      dir.d_name, output_filename.c_str());
-                        }
-                    }
-                    
-                    if (should_extract) {
-                        files_extracted += extract_file(global_opts, cmd_opts, dir.d_name);
+                        break;
                     }
                 }
-            } while (cpak_dir_findnext("/", &dir) == 0);
-        }
-        
-        // Unmount filesystem
-        if (cpakfs_unmount(JOYPAD_PORT_1) < 0) {
-            warning("Failed to unmount Controller Pak filesystem: %s", strerror(errno));
-        }
+                if (!should_extract) {
+                    verbose_log(global_opts, "File '%s' (output: '%s') does not match any pattern", 
+                              filename, output_filename.c_str());
+                }
+            }
+            
+            if (should_extract) {
+                files_extracted += extract_file(global_opts, cmd_opts, filename);
+            }
+            
+            return true; // Continue iteration
+        });
         
         verbose_log(global_opts, "Summary: %d files extracted", files_extracted);
         
@@ -319,7 +292,7 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
         if (num_banks <= 0) num_banks = 1;
         
         try {
-            auto pak = ControllerPakWrapper::create(pak_file, num_banks, global_opts->force);
+            auto pak = CPakFilesystem::create(pak_file, num_banks, global_opts->force);
             if (!pak) {
                 fatal_error("Cannot create Controller Pak file '%s': %s", pak_file, strerror(errno));
             }
@@ -332,16 +305,11 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
         }
     }
     
-    // Open the pak file 
+    // Open the pak file and mount filesystem
     try {
-        ControllerPakWrapper pak(pak_file, "r+b");
+        CPakFilesystem pak(pak_file, "r+b");
         if (!pak.isValid()) {
             fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, strerror(errno));
-        }
-        
-        // Mount the filesystem - this is essential for the cpak filesystem to work
-        if (cpakfs_mount(JOYPAD_PORT_1, "cpak:/") < 0) {
-            fatal_error("Failed to mount Controller Pak filesystem: %s", strerror(errno));
         }
         
         int files_added = 0;
@@ -544,11 +512,6 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
             }
         }
         
-        // Unmount filesystem
-        if (cpakfs_unmount(JOYPAD_PORT_1) < 0) {
-            warning("Failed to unmount Controller Pak filesystem: %s", strerror(errno));
-        }
-        
         verbose_log(global_opts, "Summary: %d files added, %d files updated", files_added, files_updated);
         
         return 0;
@@ -615,8 +578,8 @@ int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const c
     }
 
     try {
-        ControllerPakWrapper pak(pak_file);
-        if (!pak.isValid()) {
+        CPakFilesystem pak(pak_file, "r+b", false); // Don't auto-mount for testing, but use r+b for cpakfs_fsck
+        if (!pak.getFileHandle()) {
             fatal_error("Cannot open file '%s': %s", pak_file, strerror(errno));
         }
 
@@ -652,7 +615,7 @@ int cmd_format(global_options_t *global_opts, command_options_t *cmd_opts, const
     
     try {
         // Use factory method to create and format the pak file
-        auto pak = ControllerPakWrapper::create(pak_file, cmd_opts->num_banks, global_opts->force);
+        auto pak = CPakFilesystem::create(pak_file, cmd_opts->num_banks, global_opts->force);
         if (!pak) {
             fatal_error("Cannot create Controller Pak file '%s': %s", pak_file, strerror(errno));
         }
