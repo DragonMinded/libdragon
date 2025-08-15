@@ -18,14 +18,6 @@
 /** @brief Filesystem check modes */
 typedef enum {
     /**
-     * @brief Just mount the filesystem.
-     * 
-     * This function does not attempt a thorough check of the filesystem,
-     * but just mount it.
-     */
-    MODE_MOUNT = 0,
-
-    /**
      * @brief Check the filesystem for errors.
      * 
      * This function will scan the filesystem for errors and report them
@@ -111,12 +103,6 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
         ctx->nissues++;
         if (ctx->report) ctx->report(ctx->report_ctx, CPAKFS_ISSUE_FSID_CHECKSUM_FAILURE, CPAKFS_LEVEL_WARNING,
                 "Cannot find an ID sector with correct checksum");
-                
-        // If we are just mounting, we cannot proceed further.
-        if (ctx->mode == MODE_MOUNT) {
-            errno = ENODEV;
-            return -2;
-        }
 
         // The only information we would need to extract is how many banks this
         // cpak has. Since we cannot read the ID sector, we will try to
