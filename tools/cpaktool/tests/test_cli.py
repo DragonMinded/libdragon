@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+"""
+CLI Argument Parsing Tests for cpaktool
+
+WHAT TO TEST:
+- Option argument validation (e.g., --debug-bufsize must be positive)
+- Conflicting options (e.g., --size and --banks are mutually exclusive)
+- Complex parsing logic (e.g., human-readable size parsing, special formats)
+- Required arguments and their validation
+- Global option placement (before/after command)
+
+WHAT NOT TO TEST:
+- Simple option acceptance (if tool accepts -l, --long without validation)
+- Basic help output (unless specific format requirements)
+- File existence errors (these are functional, not CLI parsing issues)
+- Options that just set boolean flags without validation
+"""
 import subprocess
 import tempfile
 import unittest
@@ -38,7 +54,7 @@ class TestCLI(unittest.TestCase):
     # Test command help and argument validation
     def test_command_help_and_args(self):
         """Test command help and argument validation"""
-        commands = ["format", "test"]
+        commands = ["format", "test", "list"]
         
         for cmd in commands:
             with self.subTest(command=cmd):
@@ -48,15 +64,16 @@ class TestCLI(unittest.TestCase):
                 self.assertIn("Usage:", out)
                 self.assertIn(cmd, out)
                 
-                # Test missing argument
-                code, out, err = run_cpaktool([cmd])
-                self.assertNotEqual(code, 0)
-                self.assertIn(f"{cmd} command requires exactly one argument", err)
-                
-                # Test extra arguments
-                code, out, err = run_cpaktool([cmd, str(self.pak), "extra"])
-                self.assertNotEqual(code, 0)
-                self.assertIn(f"{cmd} command requires exactly one argument", err)
+                # Test missing argument (except list which can work without patterns)
+                if cmd != "list":
+                    code, out, err = run_cpaktool([cmd])
+                    self.assertNotEqual(code, 0)
+                    self.assertIn(f"{cmd} command requires exactly one argument", err)
+                    
+                    # Test extra arguments
+                    code, out, err = run_cpaktool([cmd, str(self.pak), "extra"])
+                    self.assertNotEqual(code, 0)
+                    self.assertIn(f"{cmd} command requires exactly one argument", err)
 
     # Test global options can be placed before or after command
     def test_verbose_option_placement(self):
@@ -158,6 +175,18 @@ class TestCLI(unittest.TestCase):
         code, out, err = run_cpaktool(["add", "--gamecode", "ABCD.EF", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but option is parsed
         self.assertNotIn("gamecode", err)  # Should not be a gamecode error
+
+    def test_list_options(self):
+        """Test list command option validation"""
+        # Test list command requires pak file argument
+        code, out, err = run_cpaktool(["list"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("list command requires at least one argument", err)
+        
+        # Test --sort option requires value
+        code, out, err = run_cpaktool(["list", "--sort"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Option --sort requires a value", err)
 
     def test_error_cases(self):
         """Test invalid command and no command cases"""

@@ -354,5 +354,155 @@ class TestCommands(unittest.TestCase):
             # File should be overwritten with padded content
             self.assertNotEqual(existing.read_text(), "modified content")
 
+    def test_list_command_basic(self):
+        """Test basic list command functionality"""
+        pak = self._create_pak()
+        
+        # Test empty pak
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertIn("Found 0 files", out)
+        
+        # Add some test files
+        test_file1 = self.tmp / "test1.txt"
+        test_file1.write_text("content1")
+        test_file2 = self.tmp / "data.bin"  
+        test_file2.write_bytes(b"binary_data")
+        test_file3 = self.tmp / "config"  # No extension
+        test_file3.write_text("config_data")
+        
+        # Add files with different game codes
+        code, out, err = run_cpaktool(["add", "--gamecode", "GAME.01", str(pak), str(test_file1)])
+        self.assertEqual(code, 0)
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "TEST.99", str(pak), str(test_file2)])
+        self.assertEqual(code, 0)
+        
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file3)])  # Default DRAG.ON
+        self.assertEqual(code, 0)
+        
+        # Test basic list
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertIn("GAME.01-TEST1.TXT", out)
+        self.assertIn("TEST.99-DATA.BIN", out)
+        self.assertIn("DRAG.ON-CONFIG", out)
+        
+    def test_list_command_formats(self):
+        """Test list command output formats"""
+        pak = self._create_pak("128KB")
+        
+        # Create files of different sizes
+        small_file = self.tmp / "small.txt"
+        small_file.write_text("small")  # ~5 bytes
+        
+        large_file = self.tmp / "large.dat"
+        large_file.write_bytes(b"x" * 1500)  # 1500 bytes
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "ABCD.EF", str(pak), str(small_file)])
+        self.assertEqual(code, 0)
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "WXYZ.12", str(pak), str(large_file)])
+        self.assertEqual(code, 0)
+        
+        # Test long format
+        code, out, err = run_cpaktool(["list", "-l", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertIn("Game   Pub  Filename", out)  # Header
+        self.assertIn("ABCD   EF   SMALL", out)
+        self.assertIn("WXYZ   12   LARGE", out)
+        self.assertIn("256", out)  # Size (cpakfs uses 256-byte blocks minimum)
+        
+        # Test human-readable format
+        code, out, err = run_cpaktool(["list", "-l", "-H", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertIn("256B", out)  # Small file size
+        # Large file should show in KB if > 1024 bytes after padding
+        
+    def test_list_command_sorting(self):
+        """Test list command sorting options"""
+        pak = self._create_pak()
+        
+        # Create files with predictable names for sorting
+        file_a = self.tmp / "a.txt"
+        file_a.write_text("a")
+        file_z = self.tmp / "z.txt"  
+        file_z.write_text("z")
+        file_m = self.tmp / "m.txt"
+        file_m.write_text("m")
+        
+        # Add with different game codes to test name sorting
+        code, out, err = run_cpaktool(["add", "--gamecode", "ZZZZ.99", str(pak), str(file_a)])
+        self.assertEqual(code, 0)
+        code, out, err = run_cpaktool(["add", "--gamecode", "AAAA.01", str(pak), str(file_z)])
+        self.assertEqual(code, 0)
+        code, out, err = run_cpaktool(["add", "--gamecode", "MMMM.50", str(pak), str(file_m)])
+        self.assertEqual(code, 0)
+        
+        # Test name sorting (default)
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        lines = [line for line in out.strip().split('\n') if line and 'Found' not in line]
+        self.assertTrue(lines[0].startswith("AAAA.01"))  # A comes first
+        self.assertTrue(lines[1].startswith("MMMM.50"))  # M comes second
+        self.assertTrue(lines[2].startswith("ZZZZ.99"))  # Z comes last
+        
+        # Test explicit name sorting
+        code, out, err = run_cpaktool(["list", "--sort", "name", str(pak)])
+        self.assertEqual(code, 0)
+        lines = [line for line in out.strip().split('\n') if line and 'Found' not in line]
+        self.assertTrue(lines[0].startswith("AAAA.01"))
+        
+        # Test reverse sorting
+        code, out, err = run_cpaktool(["list", "--sort", "name", "--reverse", str(pak)])
+        self.assertEqual(code, 0)
+        lines = [line for line in out.strip().split('\n') if line and 'Found' not in line]
+        self.assertTrue(lines[0].startswith("ZZZZ.99"))  # Z comes first when reversed
+        self.assertTrue(lines[2].startswith("AAAA.01"))  # A comes last when reversed
+        
+        # Test size sorting (all same size due to cpakfs padding, but should not error)
+        code, out, err = run_cpaktool(["list", "--sort", "size", str(pak)])
+        self.assertEqual(code, 0)
+        
+    def test_list_command_patterns(self):
+        """Test list command with pattern matching"""
+        pak = self._create_pak()
+        
+        # Add files with different patterns
+        txt_file = self.tmp / "doc.txt"
+        txt_file.write_text("text")
+        bin_file = self.tmp / "save.bin" 
+        bin_file.write_text("binary")
+        dat_file = self.tmp / "config.dat"
+        dat_file.write_text("data")
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "GAME.01", str(pak), str(txt_file)])
+        self.assertEqual(code, 0)
+        code, out, err = run_cpaktool(["add", "--gamecode", "SAVE.02", str(pak), str(bin_file)])
+        self.assertEqual(code, 0)
+        code, out, err = run_cpaktool(["add", str(pak), str(dat_file)])  # DRAG.ON
+        self.assertEqual(code, 0)
+        
+        # Test pattern matching
+        code, out, err = run_cpaktool(["list", str(pak), "GAME.*"])
+        self.assertEqual(code, 0)
+        self.assertIn("GAME.01-DOC.TXT", out)
+        self.assertNotIn("SAVE.02", out)
+        self.assertNotIn("DRAG.ON", out)
+        
+        # Test extension pattern
+        code, out, err = run_cpaktool(["list", str(pak), "*.BIN"])
+        self.assertEqual(code, 0)
+        self.assertIn("SAVE.02-SAVE.BIN", out)
+        self.assertNotIn("DOC.TXT", out)
+        self.assertNotIn("CONFIG.DAT", out)
+        
+        # Test multiple patterns
+        code, out, err = run_cpaktool(["list", str(pak), "GAME.*", "DRAG.*"])
+        self.assertEqual(code, 0)
+        self.assertIn("GAME.01-DOC.TXT", out)
+        self.assertIn("DRAG.ON-CONFIG.DAT", out)
+        self.assertNotIn("SAVE.02", out)
+
 if __name__ == "__main__":
     unittest.main()

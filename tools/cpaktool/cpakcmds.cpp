@@ -36,6 +36,85 @@ static int extract_file(global_options_t *global_opts, command_options_t *cmd_op
 // COMMAND IMPLEMENTATIONS
 //
 
+// Helper structure for file listing
+typedef struct {
+    std::string game_code;
+    std::string pub_code;
+    std::string filename;
+    std::string extension;
+    std::string full_name;  // For pattern matching
+    int64_t size;
+} file_entry_t;
+
+// Helper function to format file size for human-readable output
+static std::string format_size(int64_t size, bool human_readable) {
+    if (!human_readable) {
+        return std::to_string(size);
+    }
+    
+    if (size < 1024) {
+        return std::to_string(size) + "B";
+    } else if (size < 1024 * 1024) {
+        double kb = size / 1024.0;
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%.1fK", kb);
+        return std::string(buf);
+    } else {
+        double mb = size / (1024.0 * 1024.0);
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%.1fM", mb);
+        return std::string(buf);
+    }
+}
+
+// Helper function to parse cpak path into components
+static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
+    // Expected format: "GAME.PB/filename.ext"
+    const char *path = cpak_path.c_str();
+    
+    if (strlen(path) < 9 || path[4] != '.' || path[7] != '/') {
+        return false;
+    }
+    
+    entry.game_code = std::string(path, 4);
+    entry.pub_code = std::string(path + 5, 2);
+    
+    std::string filename_part = std::string(path + 8);
+    size_t dot_pos = filename_part.find_last_of('.');
+    
+    if (dot_pos != std::string::npos) {
+        entry.filename = filename_part.substr(0, dot_pos);
+        entry.extension = filename_part.substr(dot_pos + 1);
+    } else {
+        entry.filename = filename_part;
+        entry.extension = "";
+    }
+    
+    // Create full name for pattern matching (GAME.PB-filename.ext format)
+    entry.full_name = entry.game_code + "." + entry.pub_code + "-" + entry.filename;
+    if (!entry.extension.empty()) {
+        entry.full_name += "." + entry.extension;
+    }
+    
+    return true;
+}
+
+// Helper function to compare files for sorting
+static bool compare_files(const file_entry_t& a, const file_entry_t& b, const char* sort_by, bool reverse) {
+    bool result = false;
+    
+    if (!sort_by || !strcmp(sort_by, "name")) {
+        result = a.full_name < b.full_name;
+    } else if (!strcmp(sort_by, "size")) {
+        result = a.size < b.size;
+    } else {
+        // Default to name sorting
+        result = a.full_name < b.full_name;
+    }
+    
+    return reverse ? !result : result;
+}
+
 int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns) {
     verbose_log(global_opts, "Listing contents of %s", pak_file);
     
@@ -43,25 +122,99 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         fatal_error("File not found: %s", pak_file);
     }
     
-    // TODO: Implement actual list functionality
-    printf("LIST command not implemented yet\n");
-    printf("Pak file: %s\n", pak_file);
-    if (num_patterns > 0) {
-        printf("Patterns:\n");
-        for (int i = 0; i < num_patterns; i++) {
-            printf("  %s\n", patterns[i]);
+    // Open the pak file 
+    try {
+        ControllerPakWrapper pak(pak_file, "rb");
+        if (!pak.isValid()) {
+            fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, strerror(errno));
         }
+        
+        // Mount the filesystem - this is essential for the cpak filesystem to work
+        if (cpakfs_mount(JOYPAD_PORT_1, "cpak:/") < 0) {
+            fatal_error("Failed to mount Controller Pak filesystem: %s", strerror(errno));
+        }
+        
+        std::vector<file_entry_t> files;
+        dir_t dir;
+        
+        // Collect all files
+        if (cpak_dir_findfirst("/", &dir) == 0) {
+            do {
+                if (dir.d_type == DT_REG) { // Regular file
+                    std::string trimmed_filename = trim_spaces(std::string(dir.d_name));
+                    
+                    file_entry_t entry;
+                    entry.size = dir.d_size >= 0 ? dir.d_size : 0;
+                    
+                    if (parse_cpak_path(trimmed_filename, entry)) {
+                        // Check if file matches any patterns
+                        bool should_include = false;
+                        
+                        if (num_patterns == 0) {
+                            should_include = true;
+                        } else {
+                            for (int i = 0; i < num_patterns; i++) {
+                                if (fnmatch(patterns[i], entry.full_name.c_str()) || 
+                                    fnmatch(patterns[i], trimmed_filename.c_str())) {
+                                    should_include = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (should_include) {
+                            files.push_back(entry);
+                        }
+                    }
+                }
+            } while (cpak_dir_findnext("/", &dir) == 0);
+        }
+        
+        // Sort files if requested
+        if (!files.empty()) {
+            std::sort(files.begin(), files.end(), [cmd_opts](const file_entry_t& a, const file_entry_t& b) {
+                return compare_files(a, b, cmd_opts->sort_by, cmd_opts->reverse_sort);
+            });
+        }
+        
+        // Display files
+        if (cmd_opts->long_format) {
+            // Long format with table headers
+            printf("Game   Pub  Filename         Ext    Size\n");
+            printf("----   ---  --------         ---    ------\n");
+            
+            for (const auto& file : files) {
+                std::string size_str = format_size(file.size, cmd_opts->human_readable);
+                printf("%-4s   %-2s   %-16s %-4s   %6s\n",
+                       file.game_code.c_str(),
+                       file.pub_code.c_str(),
+                       file.filename.c_str(),
+                       file.extension.c_str(),
+                       size_str.c_str());
+            }
+        } else {
+            // Simple format - one file per line
+            for (const auto& file : files) {
+                printf("%s\n", file.full_name.c_str());
+            }
+        }
+        
+        // Summary
+        if (global_opts->verbose || files.empty()) {
+            printf("\nFound %zu file%s\n", files.size(), files.size() == 1 ? "" : "s");
+        }
+        
+        // Unmount filesystem
+        if (cpakfs_unmount(JOYPAD_PORT_1) < 0) {
+            warning("Failed to unmount Controller Pak filesystem: %s", strerror(errno));
+        }
+        
+        return 0;
+        
+    } catch (...) {
+        fatal_error("Failed to process Controller Pak file: unknown error");
+        return -1;
     }
-    
-    // Show parsed options for debugging
-    if (global_opts->verbose) {
-        printf("Options: long=%d, human=%d, sort=%s, reverse=%d\n",
-               cmd_opts->long_format, cmd_opts->human_readable,
-               cmd_opts->sort_by ? cmd_opts->sort_by : "none",
-               cmd_opts->reverse_sort);
-    }
-    
-    return 0;
 }
 
 int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns) {
