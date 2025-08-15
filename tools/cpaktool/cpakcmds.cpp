@@ -57,6 +57,61 @@ typedef struct {
     int64_t size;
 } file_entry_t;
 
+// Helper function to calculate visual width of a UTF-8 string
+// Takes into account that Japanese characters (fullwidth) take 2 columns
+static size_t visual_width(const std::string& str) {
+    size_t width = 0;
+    for (size_t i = 0; i < str.length(); ) {
+        unsigned char c = str[i];
+        if (c < 0x80) {
+            // ASCII character - 1 column
+            width += 1;
+            i += 1;
+        } else if ((c & 0xE0) == 0xC0) {
+            // 2-byte UTF-8 sequence - 1 column
+            width += 1;
+            i += 2;
+        } else if ((c & 0xF0) == 0xE0) {
+            // 3-byte UTF-8 sequence - check if it's a CJK character
+            if (i + 2 < str.length()) {
+                // CJK characters in range U+3000-U+30FF (including Katakana) are fullwidth
+                unsigned char b1 = str[i];
+                unsigned char b2 = str[i + 1];
+                
+                if (b1 == 0xE3 && b2 >= 0x80 && b2 <= 0x83) {
+                    // CJK symbols and punctuation (U+3000-U+303F), Hiragana (U+3040-U+309F), 
+                    // Katakana (U+30A0-U+30FF) - all fullwidth
+                    width += 2;
+                } else {
+                    // Other 3-byte sequences - assume 1 column
+                    width += 1;
+                }
+            } else {
+                width += 1;
+            }
+            i += 3;
+        } else if ((c & 0xF8) == 0xF0) {
+            // 4-byte UTF-8 sequence - 1 column
+            width += 1;
+            i += 4;
+        } else {
+            // Invalid UTF-8 sequence - count as 1
+            width += 1;
+            i += 1;
+        }
+    }
+    return width;
+}
+
+// Helper function to pad string to visual width
+static std::string pad_to_width(const std::string& str, size_t target_width) {
+    size_t current_width = visual_width(str);
+    if (current_width >= target_width) {
+        return str;
+    }
+    return str + std::string(target_width - current_width, ' ');
+}
+
 // Helper function to format file size for human-readable output
 static std::string format_size(int64_t size, bool human_readable) {
     if (!human_readable) {
@@ -179,16 +234,25 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         // Display files
         if (cmd_opts->long_format) {
             // Long format with table headers
-            printf("Game   Pub  Filename         Ext    Size\n");
-            printf("----   ---  --------         ---    ------\n");
+            printf("Game       Pub    Filename                         Ext        Size\n");
+            printf("----       ---    --------                         ---        ------\n");
             
             for (const auto& file : files) {
                 std::string size_str = format_size(file.size, cmd_opts->human_readable);
-                printf("%-4s   %-2s   %-16s %-4s   %6s\n",
-                       file.game_code.c_str(),
-                       file.pub_code.c_str(),
-                       file.filename.c_str(),
-                       file.extension.c_str(),
+                
+                // Use visual width-aware padding for proper alignment with Japanese characters
+                // Max visual widths: game=8 (4 chars * 2), pub=4 (2 chars * 2), filename=32 (16 chars * 2), ext=8 (4 chars * 2)
+                std::string padded_game = pad_to_width(file.game_code, 10);      // Game column width
+                std::string padded_pub = pad_to_width(file.pub_code, 6);         // Pub column width  
+                std::string padded_filename = pad_to_width(file.filename, 32);   // Filename column width
+                std::string padded_ext = pad_to_width(file.extension, 10);       // Ext column width
+                
+                // Don't use printf width specifiers - just print the padded strings directly
+                printf("%s %s %s %s %s\n",
+                       padded_game.c_str(),
+                       padded_pub.c_str(),
+                       padded_filename.c_str(),
+                       padded_ext.c_str(),
                        size_str.c_str());
             }
         } else {

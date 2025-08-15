@@ -126,6 +126,7 @@ static command_t parse_command(const char *cmd_str) {
     
     static const cmd_entry_t commands[] = {
         {"list", CMD_LIST},
+        {"ls", CMD_LIST},
         {"l", CMD_LIST},
         {"extract", CMD_EXTRACT},
         {"x", CMD_EXTRACT},
@@ -138,6 +139,7 @@ static command_t parse_command(const char *cmd_str) {
         {"i", CMD_INFO},
         {"test", CMD_TEST},
         {"t", CMD_TEST},
+        {"fsck", CMD_TEST},
         {"format", CMD_FORMAT},
         {"fmt", CMD_FORMAT},
         {"convert", CMD_CONVERT},
