@@ -367,12 +367,13 @@ static int __cpakfs_read(void *file, uint8_t *ptr, int len)
 
         // See if we can read multiple pages at once. This is only possible if
         // they are consecutive in the filesystem.
+        cpakfs_fat_entry_t *last = f->cur_page_ptr;
         while (n < len) {
-            cpakfs_fat_entry_t *next = &FAT_NEXT(fs->fat, *f->cur_page_ptr);
-            if (next->bank != f->cur_page_ptr->bank)     break;
-            if (next->page != f->cur_page_ptr->page + 1) break;
+            cpakfs_fat_entry_t *next = &FAT_NEXT(fs->fat, *last);
+            if (next->bank != last->bank)     break;
+            if (next->page != last->page + 1) break;
             n += MIN(len-n, PAGE_SIZE);
-            f->cur_page_ptr = next;
+            last = next;
         }
 
         // Perform the read
@@ -384,6 +385,8 @@ static int __cpakfs_read(void *file, uint8_t *ptr, int len)
         ptr += n;
         len -= n;
         read += n;
+        f->cur_page_ptr = last;
+        
         if (f->pos % PAGE_SIZE == 0) {
             f->cur_page_ptr = &FAT_NEXT(fs->fat, *f->cur_page_ptr);
         }
