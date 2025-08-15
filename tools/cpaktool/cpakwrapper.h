@@ -10,7 +10,7 @@
 class CPakFilesystem {
 public:
     // Constructor opens the pak file and mounts the filesystem
-    explicit CPakFilesystem(const std::string& filename, const std::string& mode = "r+b", bool auto_mount = true);
+    explicit CPakFilesystem(const std::string& filename, bool auto_mount = true);
     
     // Destructor automatically unmounts filesystem and closes the file
     ~CPakFilesystem();
@@ -22,9 +22,6 @@ public:
     // Move constructor and assignment operator
     CPakFilesystem(CPakFilesystem&& other) noexcept;
     CPakFilesystem& operator=(CPakFilesystem&& other) noexcept;
-    
-    // Check if the pak file is valid and filesystem is mounted
-    bool isValid() const { return m_file != nullptr && m_filesystem_mounted; }
     
     // Get number of banks detected from file size
     int getNumBanks() const { return m_num_banks; }
@@ -40,7 +37,7 @@ public:
     
     // Iterate through all files in the pak, calling callback for each
     // Callback should return true to continue iteration, false to stop
-    void iterate_pak_files(const FileCallback& callback) const;
+    void for_each_file(const FileCallback& callback) const;
     
     // Manual filesystem mounting/unmounting
     bool mountFilesystem();

@@ -14,7 +14,7 @@ extern "C" {
     int fileno(FILE *stream);
 }
 
-CPakFilesystem::CPakFilesystem(const std::string& filename, const std::string& mode, bool auto_mount)
+CPakFilesystem::CPakFilesystem(const std::string& filename, bool auto_mount)
     : m_filename(filename)
     , m_file(nullptr)
     , m_num_banks(0)
@@ -22,9 +22,9 @@ CPakFilesystem::CPakFilesystem(const std::string& filename, const std::string& m
     , m_globals_set(false)
     , m_filesystem_mounted(false)
 {
-    m_file = fopen(filename.c_str(), mode.c_str());
+    m_file = fopen(filename.c_str(), "r+b");
     if (!m_file) {
-        return; // isValid() will return false
+        throw std::runtime_error("Cannot open file '" + filename + "': " + strerror(errno));
     }
     
     // Get file size and calculate banks
@@ -139,8 +139,8 @@ void CPakFilesystem::unmountFilesystem() {
     }
 }
 
-void CPakFilesystem::iterate_pak_files(const FileCallback& callback) const {
-    if (!isValid()) return;
+void CPakFilesystem::for_each_file(const FileCallback& callback) const {
+    if (!m_filesystem_mounted) return;
     
     dir_t dir;
     if (cpak_dir_findfirst("/", &dir) == 0) {
@@ -174,35 +174,37 @@ std::unique_ptr<CPakFilesystem> CPakFilesystem::create(const std::string& filena
         return nullptr;
     }
     
-    // Create wrapper and set number of banks (don't auto-mount empty file)
-    auto wrapper = std::make_unique<CPakFilesystem>(filename, "r+b", false);
-    if (!wrapper->getFileHandle()) {  // Check file handle instead of isValid()
-        unlink(filename.c_str()); // Remove the file we just created
+    try {
+        // Create wrapper and set number of banks (don't auto-mount empty file)
+        auto wrapper = std::make_unique<CPakFilesystem>(filename, false);
+        
+        // Override the calculated banks with the requested number
+        wrapper->m_num_banks = num_banks;
+        wrapper->setupGlobals();
+        
+        // Format the filesystem
+        std::srand(std::time(nullptr)); // Initialize random number generator
+        int result = cpakfs_format(JOYPAD_PORT_1, true); // Always erase for fresh format
+        if (result < 0) {
+            unlink(filename.c_str()); // Remove the file on failure
+            errno = EIO; // I/O error during format
+            return nullptr;
+        }
+        
+        // Now mount the formatted filesystem
+        if (!wrapper->mountFilesystem()) {
+            unlink(filename.c_str()); // Remove the file on failure
+            errno = EIO; // Filesystem mount error
+            return nullptr;
+        }
+        
+        return wrapper;
+        
+    } catch (const std::exception&) {
+        unlink(filename.c_str()); // Remove the file on failure
         errno = ENOENT; // File access error
         return nullptr;
     }
-    
-    // Override the calculated banks with the requested number
-    wrapper->m_num_banks = num_banks;
-    wrapper->setupGlobals();
-    
-    // Format the filesystem
-    std::srand(std::time(nullptr)); // Initialize random number generator
-    int result = cpakfs_format(JOYPAD_PORT_1, true); // Always erase for fresh format
-    if (result < 0) {
-        unlink(filename.c_str()); // Remove the file on failure
-        errno = EIO; // I/O error during format
-        return nullptr;
-    }
-    
-    // Now mount the formatted filesystem
-    if (!wrapper->mountFilesystem()) {
-        unlink(filename.c_str()); // Remove the file on failure
-        errno = EIO; // Filesystem mount error
-        return nullptr;
-    }
-    
-    return wrapper;
 }
 
 bool CPakFilesystem::createEmptyFile(const std::string& filename, size_t size) {

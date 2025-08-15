@@ -31,6 +31,7 @@ static std::string trim_spaces(const std::string& str) {
 }
 
 static int extract_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *cpak_path);
+static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *input_file);
 
 //
 // COMMAND IMPLEMENTATIONS
@@ -124,15 +125,12 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
     
     // Open the pak file and mount filesystem
     try {
-        CPakFilesystem pak(pak_file, "rb");
-        if (!pak.isValid()) {
-            fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, strerror(errno));
-        }
+        CPakFilesystem pak(pak_file);
         
         std::vector<file_entry_t> files;
         
-        // Use the new iterate_pak_files method
-        pak.iterate_pak_files([&](const char* filename, const dir_t& dir) -> bool {
+        // Use the new for_each_file method
+        pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
             std::string trimmed_filename = trim_spaces(std::string(filename));
             
             file_entry_t entry;
@@ -197,8 +195,8 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         
         return 0;
         
-    } catch (...) {
-        fatal_error("Failed to process Controller Pak file: unknown error");
+    } catch (const std::exception& e) {
+        fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, e.what());
         return -1;
     }
 }
@@ -212,17 +210,14 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
     
     // Open the pak file and mount filesystem
     try {
-        CPakFilesystem pak(pak_file, "rb");
-        if (!pak.isValid()) {
-            fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, strerror(errno));
-        }
+        CPakFilesystem pak(pak_file);
         
         verbose_log(global_opts, "Note: Controller Pak files are stored in 256-byte blocks with random padding");
         
         int files_extracted = 0;
         
-        // Use the new iterate_pak_files method
-        pak.iterate_pak_files([&](const char* filename, const dir_t& dir) -> bool {
+        // Use the new for_each_file method
+        pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
             std::string trimmed_filename = trim_spaces(std::string(filename));
             
             // Convert to output filename for pattern matching
@@ -270,8 +265,8 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
         
         return 0;
         
-    } catch (...) {
-        fatal_error("Failed to process Controller Pak file: unknown error");
+    } catch (const std::exception& e) {
+        fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, e.what());
         return -1;
     }
 }
@@ -307,217 +302,28 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
     
     // Open the pak file and mount filesystem
     try {
-        CPakFilesystem pak(pak_file, "r+b");
-        if (!pak.isValid()) {
-            fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, strerror(errno));
-        }
+        CPakFilesystem pak(pak_file);
         
         int files_added = 0;
         int files_updated = 0;
         
         // Process each input file
         for (int i = 0; i < num_files; i++) {
-            const char *input_file = files[i];
-            
-            verbose_log(global_opts, "Processing file: %s", input_file);
-            
-            if (!file_exists(input_file)) {
-                fatal_error("File not found: %s", input_file);
+            int result = add_file(global_opts, cmd_opts, files[i]);
+            if (result == 1) {
+                files_added++;
+            } else if (result == 2) {
+                files_updated++;
             }
-            
-            // Parse the input file path to determine cpak path
-            // Expected format: either direct cpak path like "GAME.PUB-filename.ext"
-            // or a regular filename that we'll place in a default game/publisher code
-            char cpak_path[256];
-            const char *basename = strrchr(input_file, '/');
-            basename = basename ? basename + 1 : input_file;
-            
-            // Check for filename length and handle truncation with warning
-            std::string processed_basename = basename;
-            char *dot = strrchr((char*)basename, '.');
-            int name_len = dot ? dot - basename : strlen(basename);
-            int ext_len = dot ? strlen(dot + 1) : 0;
-            
-            // Handle filename truncation if too long
-            if (name_len > 16) {
-                std::string new_name(basename, 16);
-                if (dot) {
-                    new_name += dot;  // Add extension back
-                }
-                warning("Filename too long, truncating '%s' to '%s' (max 16 characters before extension)", 
-                       basename, new_name.c_str());
-                processed_basename = new_name;
-                basename = processed_basename.c_str();
-            }
-            
-            // Handle extension truncation if too long
-            if (ext_len > 4 && dot) {
-                std::string new_name = std::string(basename, dot - basename + 1) + std::string(dot + 1, 4);
-                warning("Extension too long, truncating '%s' to '%s' (max 4 characters)", 
-                       dot + 1, std::string(dot + 1, 4).c_str());
-                processed_basename = new_name;
-                basename = processed_basename.c_str();
-            }
-            
-            // Validate filename characters before proceeding
-            std::string unsupported_chars;
-            for (const char *p = basename; *p; p++) {
-                char c = *p;
-                // cpakfs supports: A-Z, a-z, 0-9, space, and these symbols: ! " # ` * + , - . / : = ? @
-                // (Based on utf8_to_n64_validate function in cpakfs.c)
-                if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || 
-                      c == ' ' || c == '!' || c == '"' || c == '#' || c == '`' || c == '*' || 
-                      c == '+' || c == ',' || c == '-' || c == '.' || c == '/' || c == ':' || 
-                      c == '=' || c == '?' || c == '@')) {
-                    if (unsupported_chars.find(c) == std::string::npos) {
-                        unsupported_chars += c;
-                    }
-                }
-            }
-            if (!unsupported_chars.empty()) {
-                fatal_error("Filename contains unsupported characters: '%s' (unsupported: '%s')", 
-                          basename, unsupported_chars.c_str());
-            }
-            
-            // Default game code - use command line option or default to DRAG.ON
-            const char *default_gamecode = cmd_opts->gamecode ? cmd_opts->gamecode : "DRAG.ON";
-            
-            // Check if the file path already looks like a cpak path (XXXX.XX-...)
-            if (strlen(basename) >= 9 && basename[4] == '.' && basename[7] == '-') {
-                // It's already in cpak format, convert to internal format GAME.PB/filename.ext
-                char game[5], pub[3], *filename;
-                strncpy(game, basename, 4); game[4] = '\0';
-                strncpy(pub, basename + 5, 2); pub[2] = '\0';
-                filename = (char*)basename + 8; // Skip the '-'
-                snprintf(cpak_path, sizeof(cpak_path), "%s.%s/%s", game, pub, filename);
-            } else {
-                // Use default or specified game/publisher code
-                char game[5], pub[3];
-                if (strlen(default_gamecode) >= 7 && default_gamecode[4] == '.') {
-                    strncpy(game, default_gamecode, 4); game[4] = '\0';
-                    strncpy(pub, default_gamecode + 5, 2); pub[2] = '\0';
-                } else {
-                    // Fallback to DRAG.ON if format is invalid
-                    strcpy(game, "DRAG");
-                    strcpy(pub, "ON");
-                }
-                snprintf(cpak_path, sizeof(cpak_path), "%s.%s/%s", game, pub, basename);
-            }
-            
-            verbose_log(global_opts, "Target cpak path: %s", cpak_path);
-            
-            // Check if file already exists
-            bool file_exists_in_pak = false;
-            try {
-                CPakFile existing(cpak_path, O_RDONLY);
-                file_exists_in_pak = true;
-                
-                if (cmd_opts->update_only) {
-                    verbose_log(global_opts, "File already exists in pak, updating: %s", cpak_path);
-                } else {
-                    verbose_log(global_opts, "File already exists in pak, overwriting: %s", cpak_path);
-                }
-            } catch (const std::exception&) {
-                // File doesn't exist, which is fine
-            }
-            
-            // Open source file for reading
-            FILE *src = fopen(input_file, "rb");
-            if (!src) {
-                warning("Cannot open source file '%s': %s", input_file, strerror(errno));
-                continue;
-            }
-            
-            // Get source file size
-            fseek(src, 0, SEEK_END);
-            long file_size = ftell(src);
-            fseek(src, 0, SEEK_SET);
-            
-            try {
-                // Open destination file in pak using our C++ wrapper
-                CPakFile dst(cpak_path, O_WRONLY | O_CREAT);
-                
-                verbose_log(global_opts, "Copying %ld bytes from %s to %s", file_size, input_file, cpak_path);
-                
-                // Copy data using configurable buffer size with RAII
-                size_t buffer_size = cmd_opts->debug_bufsize;
-                std::vector<char> buffer(buffer_size);
-                
-                size_t bytes_copied = 0;
-                size_t n;
-                while ((n = fread(buffer.data(), 1, buffer_size, src)) > 0) {
-                    size_t written = dst.write(buffer.data(), n);
-                    bytes_copied += written;
-                }
-                
-                fclose(src);
-                
-                if (bytes_copied == (size_t)file_size) {
-                    if (file_exists_in_pak) {
-                        files_updated++;
-                        verbose_log(global_opts, "Updated: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
-                    } else {
-                        files_added++;
-                        verbose_log(global_opts, "Added: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
-                    }
-                } else {
-                    warning("Incomplete copy for file '%s': %zu of %ld bytes", input_file, bytes_copied, file_size);
-                }
-                
-            } catch (const std::exception& e) {
-                fclose(src);
-                
-                // Check if it's a filename validation error
-                if (errno == EINVAL) {
-                    // Analyze the filename to provide specific error message
-                    const char *fname = strrchr(input_file, '/');
-                    fname = fname ? fname + 1 : input_file;
-                    
-                    // Check filename length
-                    char *dot = strrchr((char*)fname, '.');
-                    int name_len = dot ? dot - fname : strlen(fname);
-                    int ext_len = dot ? strlen(dot + 1) : 0;
-                    
-                    if (name_len > 16) {
-                        fatal_error("Filename too long: '%s' (max 16 characters before extension, got %d)", fname, name_len);
-                    } else if (ext_len > 4) {
-                        fatal_error("Extension too long: '%s' (max 4 characters, got %d)", dot + 1, ext_len);
-                    } else {
-                        // Check for unsupported characters
-                        std::string unsupported_chars;
-                        for (const char *p = fname; *p; p++) {
-                            char c = *p;
-                            // Check if character is supported (A-Z, a-z, 0-9, space, and specific symbols)
-                            if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || 
-                                  c == ' ' || c == '!' || c == '"' || c == '#' || c == '`' || c == '*' || 
-                                  c == '+' || c == ',' || c == '-' || c == '.' || c == '/' || c == ':' || 
-                                  c == '=' || c == '?' || c == '@')) {
-                                if (unsupported_chars.find(c) == std::string::npos) {
-                                    unsupported_chars += c;
-                                }
-                            }
-                        }
-                        if (!unsupported_chars.empty()) {
-                            fatal_error("Filename contains unsupported characters: '%s' (unsupported: '%s')", 
-                                      fname, unsupported_chars.c_str());
-                        } else {
-                            fatal_error("Invalid filename: '%s' (reason: %s)", fname, e.what());
-                        }
-                    }
-                } else {
-                    warning("Cannot add file '%s': %s", input_file, e.what());
-                }
-                warning("Cannot process file '%s': %s", input_file, e.what());
-                continue;
-            }
+            // result == 0 means error (already handled by add_file)
         }
         
         verbose_log(global_opts, "Summary: %d files added, %d files updated", files_added, files_updated);
         
         return 0;
         
-    } catch (...) {
-        fatal_error("Failed to process Controller Pak file: unknown error");
+    } catch (const std::exception& e) {
+        fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, e.what());
         return -1;
     }
 }
@@ -578,11 +384,8 @@ int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const c
     }
 
     try {
-        CPakFilesystem pak(pak_file, "r+b", false); // Don't auto-mount for testing, but use r+b for cpakfs_fsck
-        if (!pak.getFileHandle()) {
-            fatal_error("Cannot open file '%s': %s", pak_file, strerror(errno));
-        }
-
+        CPakFilesystem pak(pak_file, false); // Don't auto-mount for testing
+        
         verbose_log(global_opts, "Running fsck on %s (%d banks)", pak_file, pak.getNumBanks());
 
         int issues = cpakfs_fsck(JOYPAD_PORT_1, cmd_opts->fix_errors, fsck_report, cmd_opts);
@@ -600,8 +403,8 @@ int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const c
 
         return 0;
         
-    } catch (...) {
-        fatal_error("Failed to test Controller Pak image: unknown error");
+    } catch (const std::exception& e) {
+        fatal_error("Cannot open file '%s': %s", pak_file, e.what());
         return -1;
     }
 }
@@ -670,8 +473,204 @@ int cmd_compare(global_options_t *global_opts, command_options_t *cmd_opts, cons
 }
 
 //
-// HELPER FUNCTIONS FOR EXTRACT
+// HELPER FUNCTIONS FOR ADD/EXTRACT
 //
+
+static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *input_file) {
+    verbose_log(global_opts, "Processing file: %s", input_file);
+    
+    if (!file_exists(input_file)) {
+        fatal_error("File not found: %s", input_file);
+    }
+    
+    // Parse the input file path to determine cpak path
+    // Expected format: either direct cpak path like "GAME.PUB-filename.ext"
+    // or a regular filename that we'll place in a default game/publisher code
+    char cpak_path[256];
+    const char *basename = strrchr(input_file, '/');
+    basename = basename ? basename + 1 : input_file;
+    
+    // Check for filename length and handle truncation with warning
+    std::string processed_basename = basename;
+    char *dot = strrchr((char*)basename, '.');
+    int name_len = dot ? dot - basename : strlen(basename);
+    int ext_len = dot ? strlen(dot + 1) : 0;
+    
+    // Handle filename truncation if too long
+    if (name_len > 16) {
+        std::string new_name(basename, 16);
+        if (dot) {
+            new_name += dot;  // Add extension back
+        }
+        warning("Filename too long, truncating '%s' to '%s' (max 16 characters before extension)", 
+               basename, new_name.c_str());
+        processed_basename = new_name;
+        basename = processed_basename.c_str();
+    }
+    
+    // Handle extension truncation if too long
+    if (ext_len > 4 && dot) {
+        std::string new_name = std::string(basename, dot - basename + 1) + std::string(dot + 1, 4);
+        warning("Extension too long, truncating '%s' to '%s' (max 4 characters)", 
+               dot + 1, std::string(dot + 1, 4).c_str());
+        processed_basename = new_name;
+        basename = processed_basename.c_str();
+    }
+    
+    // Validate filename characters before proceeding
+    std::string unsupported_chars;
+    for (const char *p = basename; *p; p++) {
+        char c = *p;
+        // cpakfs supports: A-Z, a-z, 0-9, space, and these symbols: ! " # ` * + , - . / : = ? @
+        // (Based on utf8_to_n64_validate function in cpakfs.c)
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || 
+              c == ' ' || c == '!' || c == '"' || c == '#' || c == '`' || c == '*' || 
+              c == '+' || c == ',' || c == '-' || c == '.' || c == '/' || c == ':' || 
+              c == '=' || c == '?' || c == '@')) {
+            if (unsupported_chars.find(c) == std::string::npos) {
+                unsupported_chars += c;
+            }
+        }
+    }
+    if (!unsupported_chars.empty()) {
+        fatal_error("Filename contains unsupported characters: '%s' (unsupported: '%s')", 
+                  basename, unsupported_chars.c_str());
+    }
+    
+    // Default game code - use command line option or default to DRAG.ON
+    const char *default_gamecode = cmd_opts->gamecode ? cmd_opts->gamecode : "DRAG.ON";
+    
+    // Check if the file path already looks like a cpak path (XXXX.XX-...)
+    if (strlen(basename) >= 9 && basename[4] == '.' && basename[7] == '-') {
+        // It's already in cpak format, convert to internal format GAME.PB/filename.ext
+        char game[5], pub[3], *filename;
+        strncpy(game, basename, 4); game[4] = '\0';
+        strncpy(pub, basename + 5, 2); pub[2] = '\0';
+        filename = (char*)basename + 8; // Skip the '-'
+        snprintf(cpak_path, sizeof(cpak_path), "%s.%s/%s", game, pub, filename);
+    } else {
+        // Use default or specified game/publisher code
+        char game[5], pub[3];
+        if (strlen(default_gamecode) >= 7 && default_gamecode[4] == '.') {
+            strncpy(game, default_gamecode, 4); game[4] = '\0';
+            strncpy(pub, default_gamecode + 5, 2); pub[2] = '\0';
+        } else {
+            // Fallback to DRAG.ON if format is invalid
+            strcpy(game, "DRAG");
+            strcpy(pub, "ON");
+        }
+        snprintf(cpak_path, sizeof(cpak_path), "%s.%s/%s", game, pub, basename);
+    }
+    
+    verbose_log(global_opts, "Target cpak path: %s", cpak_path);
+    
+    // Check if file already exists
+    bool is_update = false;
+    try {
+        CPakFile existing(cpak_path, O_RDONLY);
+        
+        if (cmd_opts->update_only) {
+            verbose_log(global_opts, "File already exists in pak, updating: %s", cpak_path);
+            is_update = true;
+        } else {
+            verbose_log(global_opts, "File already exists in pak, overwriting: %s", cpak_path);
+            is_update = true;
+        }
+    } catch (const std::exception&) {
+        // File doesn't exist, which is fine
+    }
+    
+    // Open source file for reading
+    FILE *src = fopen(input_file, "rb");
+    if (!src) {
+        warning("Cannot open source file '%s': %s", input_file, strerror(errno));
+        return 0;
+    }
+    
+    // Get source file size
+    fseek(src, 0, SEEK_END);
+    long file_size = ftell(src);
+    fseek(src, 0, SEEK_SET);
+    
+    try {
+        // Open destination file in pak using our C++ wrapper
+        CPakFile dst(cpak_path, O_WRONLY | O_CREAT);
+        
+        verbose_log(global_opts, "Copying %ld bytes from %s to %s", file_size, input_file, cpak_path);
+        
+        // Copy data using configurable buffer size with RAII
+        size_t buffer_size = cmd_opts->debug_bufsize;
+        std::vector<char> buffer(buffer_size);
+        
+        size_t bytes_copied = 0;
+        size_t n;
+        while ((n = fread(buffer.data(), 1, buffer_size, src)) > 0) {
+            size_t written = dst.write(buffer.data(), n);
+            bytes_copied += written;
+        }
+        
+        fclose(src);
+        
+        if (bytes_copied == (size_t)file_size) {
+            if (is_update) {
+                verbose_log(global_opts, "Updated: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
+                return 2; // Indicate update
+            } else {
+                verbose_log(global_opts, "Added: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
+                return 1; // Indicate addition
+            }
+        } else {
+            warning("Incomplete copy for file '%s': %zu of %ld bytes", input_file, bytes_copied, file_size);
+            return 0;
+        }
+        
+    } catch (const std::exception& e) {
+        fclose(src);
+        
+        // Check if it's a filename validation error
+        if (errno == EINVAL) {
+            // Analyze the filename to provide specific error message
+            const char *fname = strrchr(input_file, '/');
+            fname = fname ? fname + 1 : input_file;
+            
+            // Check filename length
+            char *dot = strrchr((char*)fname, '.');
+            int name_len = dot ? dot - fname : strlen(fname);
+            int ext_len = dot ? strlen(dot + 1) : 0;
+            
+            if (name_len > 16) {
+                fatal_error("Filename too long: '%s' (max 16 characters before extension, got %d)", fname, name_len);
+            } else if (ext_len > 4) {
+                fatal_error("Extension too long: '%s' (max 4 characters, got %d)", dot + 1, ext_len);
+            } else {
+                // Check for unsupported characters
+                std::string unsupported_chars;
+                for (const char *p = fname; *p; p++) {
+                    char c = *p;
+                    // Check if character is supported (A-Z, a-z, 0-9, space, and specific symbols)
+                    if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || 
+                          c == ' ' || c == '!' || c == '"' || c == '#' || c == '`' || c == '*' || 
+                          c == '+' || c == ',' || c == '-' || c == '.' || c == '/' || c == ':' || 
+                          c == '=' || c == '?' || c == '@')) {
+                        if (unsupported_chars.find(c) == std::string::npos) {
+                            unsupported_chars += c;
+                        }
+                    }
+                }
+                if (!unsupported_chars.empty()) {
+                    fatal_error("Filename contains unsupported characters: '%s' (unsupported: '%s')", 
+                              fname, unsupported_chars.c_str());
+                } else {
+                    fatal_error("Invalid filename: '%s' (reason: %s)", fname, e.what());
+                }
+            }
+        } else {
+            warning("Cannot add file '%s': %s", input_file, e.what());
+        }
+        warning("Cannot process file '%s': %s", input_file, e.what());
+        return 0;
+    }
+}
 
 static int extract_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *cpak_path) {
     try {
