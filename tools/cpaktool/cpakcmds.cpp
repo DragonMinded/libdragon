@@ -33,13 +33,6 @@
 // FORWARD DECLARATIONS FOR HELPER FUNCTIONS
 //
 
-static std::string trim_spaces(const std::string& str) {
-    size_t start = str.find_first_not_of(' ');
-    if (start == std::string::npos) return "";
-    size_t end = str.find_last_not_of(' ');
-    return str.substr(start, end - start + 1);
-}
-
 static int extract_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *cpak_path);
 static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *input_file);
 
@@ -196,12 +189,10 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         
         // Use the new for_each_file method
         pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
-            std::string trimmed_filename = trim_spaces(std::string(filename));
-            
             file_entry_t entry;
             entry.size = dir.d_size >= 0 ? dir.d_size : 0;
             
-            if (parse_cpak_path(trimmed_filename, entry)) {
+            if (parse_cpak_path(std::string(filename), entry)) {
                 // Check if file matches any patterns
                 bool should_include = false;
                 
@@ -210,7 +201,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 } else {
                     for (int i = 0; i < num_patterns; i++) {
                         if (fnmatch(patterns[i], entry.full_name.c_str()) || 
-                            fnmatch(patterns[i], trimmed_filename.c_str())) {
+                            fnmatch(patterns[i], filename)) {
                             should_include = true;
                             break;
                         }
@@ -292,17 +283,15 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
         
         // Use the new for_each_file method
         pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
-            std::string trimmed_filename = trim_spaces(std::string(filename));
-            
             // Convert to output filename for pattern matching
             std::string output_filename;
-            const char *slash = strchr(trimmed_filename.c_str(), '/');
+            const char *slash = strchr(filename, '/');
             if (slash) {
-                std::string game_pub(trimmed_filename.c_str(), slash - trimmed_filename.c_str());
+                std::string game_pub(filename, slash - filename);
                 std::string file_part(slash + 1);
                 output_filename = game_pub + "-" + file_part;
             } else {
-                output_filename = trimmed_filename;
+                output_filename = filename;
             }
             
             bool should_extract = false;
@@ -314,7 +303,7 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
             } else {
                 // Check if file matches any of the patterns (check both cpak name and output name)
                 for (int i = 0; i < num_patterns; i++) {
-                    if (fnmatch(patterns[i], trimmed_filename.c_str()) || 
+                    if (fnmatch(patterns[i], filename) || 
                         fnmatch(patterns[i], output_filename.c_str())) {
                         verbose_log(global_opts, "File '%s' (output: '%s') matches pattern '%s'", 
                                   filename, output_filename.c_str(), patterns[i]);
@@ -749,19 +738,15 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
 static int extract_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *cpak_path) {
     try {
         // Convert cpak path (GAME.PB/filename.ext) to output filename (GAME.PB-filename.ext)
-        // Note: cpakfs names are padded with spaces, so we need to trim them
         std::string output_filename;
         const char *slash = strchr(cpak_path, '/');
         if (slash) {
             std::string game_pub(cpak_path, slash - cpak_path);
             std::string filename(slash + 1);
-            // Trim spaces from both parts
-            game_pub = trim_spaces(game_pub);
-            filename = trim_spaces(filename);
+            // Filenames from cpakfs are already properly null-terminated without trailing spaces
             output_filename = game_pub + "-" + filename;
         } else {
-            // Also trim spaces when there's no slash
-            output_filename = trim_spaces(std::string(cpak_path));
+            output_filename = std::string(cpak_path);
         }
         
         verbose_log(global_opts, "Extracting %s -> %s", cpak_path, output_filename.c_str());
