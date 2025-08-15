@@ -9,15 +9,13 @@
 #include "joypad.h"
 #include "joypad_accessory.h"
 #include "joybus_accessory.h"
+#include <assert.h>
 
 /// @cond
 #ifndef N64
 #define be16(x)   __builtin_bswap16(x)
 #define be16i(x)  (int16_t)__builtin_bswap16(x)
 #define be32(x)   __builtin_bswap32(x)
-#ifdef __MINGW32__
-#define _Static_assert static_assert
-#endif
 #else
 #define be16(x)   (x)
 #define be16i(x)  (x)
@@ -54,7 +52,7 @@ typedef struct {
     uint8_t page;                   ///< Page number (0-127)
 } cpakfs_fat_entry_t;
 
-_Static_assert(sizeof(cpakfs_fat_entry_t) == 2, "cpakfs_fat_entry_t must be 2 bytes");
+static_assert(sizeof(cpakfs_fat_entry_t) == 2, "cpakfs_fat_entry_t must be 2 bytes");
 
 #define FAT_LINEAR(e)               ((e).bank * NUM_PAGES + (e).page)       ///< Convert a FAT entry to linear FAT index
 #define FAT_NEXT(fat, e)            ((fat)[(e).bank][(e).page])                  ///< Get the next FAT entry for a given entry
