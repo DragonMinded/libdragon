@@ -258,6 +258,10 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * This function is a convenience macro to draw a single pixel on the screen,
  * by using the fill rectangle command.
  * 
+ * Drawing a single pixel is a relatively inefficient operation; sometimes you
+ * need this so the function is provided, but do not expect to be able to draw
+ * thousands of single pixels without performance issues.
+ * 
  * See #rdpq_fill_rectangle for more information on how to configure the
  * color of the pixel.
  */
