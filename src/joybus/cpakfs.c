@@ -49,6 +49,14 @@ typedef struct {
     uint8_t flags;                      ///< Flags
 } cpakfs_openfile_t;
 
+/** @brief Parsed cpakfs path components */
+typedef struct {
+    char gamecode[4];                   ///< Game code (4 chars)
+    char pubcode[2];                    ///< Publisher code (2 chars) 
+    char filename[16+1];                ///< Filename in N64 codepage (null-terminated)
+    char ext[4+1];                      ///< Extension in N64 codepage (null-terminated)
+} parsed_path_t;
+
 /** @brief Modify the FAT and mark it as dirty */
 #define FAT_WRITE(fs, lvalue, val) ({ \
     cpakfs_fat_entry_t __val = (val); \
@@ -340,6 +348,129 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
     return out - start_out;
 }
 
+static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
+{
+    assert(note_id >= 0 && note_id < MAX_NOTES);
+    cpakfs_note_t *note = &fs->notes[note_id];
+    if (!(fs->notes_mask & (1 << note_id))) {
+        int note_start = 0x100 + fs->fat_size*2;
+        if (cpak_read(fs->port, 0, note_start + note_id*32, note, sizeof(cpakfs_note_t)) < 0)
+            return NULL;
+        fs->notes_mask |= 1 << note_id;
+    }
+    return note;
+}
+
+/**
+ * @brief Find a note matching the given parsed path components
+ * 
+ * Searches through all notes to find one that matches the given game code,
+ * publisher code, filename, and extension.
+ * 
+ * @param fs        Mounted filesystem
+ * @param parsed    Parsed path components to search for
+ * @param note_id   Output pointer to store the found note ID
+ * @return cpakfs_note_t* Pointer to the found note, or NULL if not found
+ */
+static cpakfs_note_t* find_note(cpakfs_t *fs, const parsed_path_t *parsed, int *note_id)
+{
+    cpakfs_note_t *note = NULL;
+    
+    for (int i = 0; i < MAX_NOTES; i++) {
+        note = read_note(fs, i);
+        if (!(be16(note->status) & NOTE_STATUS_OCCUPIED))
+            continue;
+
+        if (memcmp(note->gamecode, parsed->gamecode, 4) == 0 &&
+            memcmp(note->pubcode, parsed->pubcode, 2) == 0 &&
+            strncmp((char*)note->filename, parsed->filename, 16) == 0 &&
+            strncmp((char*)note->ext, parsed->ext, 4) == 0) {
+            
+            if (note_id) *note_id = i;
+            return note;
+        }
+    }
+    
+    if (note_id) *note_id = MAX_NOTES;
+    return NULL;
+}
+
+static void truncate_note(cpakfs_t *fs, cpakfs_note_t *note)
+{
+    cpakfs_fat_entry_t cur_page = note->first_page;
+    while (FAT_IS_VALID(cur_page, fs->reserved) || FAT_IS_TERMINATOR(cur_page)) {
+        cpakfs_fat_entry_t next_page = FAT_IS_TERMINATOR(cur_page) ? FAT_UNUSED : FAT_NEXT(fs->fat, cur_page);
+        FAT_WRITE(fs, fs->fat[cur_page.bank][cur_page.page], FAT_UNUSED);
+        fs->free_pages[cur_page.bank]++;
+        if (FAT_IS_TERMINATOR(cur_page)) break;
+        cur_page = next_page;
+    }
+}
+
+/**
+ * @brief Parse a cpakfs path into its components
+ * 
+ * Parses a path in the format "GAME.PB/filename.ext" and extracts the
+ * game code, publisher code, filename, and extension.
+ * 
+ * @param name      Input path to parse
+ * @param parsed    Output structure to fill with parsed components
+ * @return int      0 on success, -1 on error (errno will be set)
+ */
+static int parse_path(const char *name, parsed_path_t *parsed)
+{
+    // Clear the output structure
+    memset(parsed, 0, sizeof(*parsed));
+
+    // Check the format is "GAME.PB/..."
+    if (strlen(name) < 9 || name[4] != '.' || name[7] != '/') {
+        errno = EINVAL;
+        return -1;
+    }
+
+    // Extract gamecode and pubcode
+    memcpy(parsed->gamecode, name + 0, 4);
+    memcpy(parsed->pubcode, name + 5, 2);
+
+    // Extract filename and extension from path
+    char *fname = (char*)name + 8;
+    char *dot = strrchr(fname, '.');
+    
+    // Parse filename and extension
+    int fname_len = dot ? dot - fname : strlen(fname);
+    if (fname_len == 0 || fname_len > 16) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    int fnlen = utf8_to_n64(fname, fname_len, (uint8_t*)parsed->filename, 16);
+    if (fnlen < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    parsed->filename[fnlen] = 0;
+
+    // Extract and validate extension
+    if (dot) {
+        dot++;
+        int ext_len = strlen(dot);
+        
+        // Validate extension length and characters
+        if (ext_len > 4) {
+            errno = EINVAL;
+            return -1;
+        }
+        int extlen = utf8_to_n64(dot, ext_len, (uint8_t*)parsed->ext, 4);
+        if (extlen < 0) {
+            errno = EINVAL;
+            return -1;
+        }
+        parsed->ext[extlen] = 0;
+    }
+
+    return 0;
+}
+
 static int __cpakfs_read(void *file, uint8_t *ptr, int len)
 {
     cpakfs_openfile_t *f = file;
@@ -622,19 +753,6 @@ static int __cpakfs_lseek(void *file, int offset, int whence)
     return pos;
 }
 
-static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
-{
-    assert(note_id >= 0 && note_id < MAX_NOTES);
-    cpakfs_note_t *note = &fs->notes[note_id];
-    if (!(fs->notes_mask & (1 << note_id))) {
-        int note_start = 0x100 + fs->fat_size*2;
-        if (cpak_read(fs->port, 0, note_start + note_id*32, note, sizeof(cpakfs_note_t)) < 0)
-            return NULL;
-        fs->notes_mask |= 1 << note_id;
-    }
-    return note;
-}
-
 static int calc_size(cpakfs_t *fs, cpakfs_fat_entry_t first_page)
 {
     int size = 0;
@@ -653,69 +771,20 @@ static int calc_size(cpakfs_t *fs, cpakfs_fat_entry_t first_page)
 
 static void *__cpakfs_open(char *name, int flags, int port)
 {
-    char filename[16+1]={0}, ext[4+1]={0};
+    parsed_path_t parsed;
 
     tracef("__cpak_open(%s, %d, %d) %d\n", name, flags, port, errno);
 
-    // Check the format is "GAME.PB/..."
-    if (strlen(name) < 9 || name[4] != '.' || name[7] != '/') {
-        errno = EINVAL;
+    // Parse the path
+    if (parse_path(name, &parsed) < 0)
         return NULL;
-    }
 
-    // Extract filename and extension from path
-    char *fname = name + 8;
-    char *dot = strrchr(fname, '.');
-    
-    // Parse filename and extension
-    int fname_len = dot ? dot - fname : strlen(fname);
-    if (fname_len == 0 || fname_len > 16) {
-        errno = EINVAL;
-        return NULL;
-    }
-    
-    int fnlen = utf8_to_n64(fname, fname_len, (uint8_t*)filename, 16);
-    if (fnlen < 0) {
-        errno = EINVAL;
-        return NULL;
-    }
-    filename[fnlen] = 0;
-
-    // Extract and validate extension
-    if (dot) {
-        dot++;
-        int ext_len = strlen(dot);
-        
-        // Validate extension length and characters
-        if (ext_len > 4) {
-            errno = EINVAL;
-            return NULL;
-        }
-        int extlen = utf8_to_n64(dot, ext_len, (uint8_t*)ext, 4);
-        if (extlen < 0) {
-            errno = EINVAL;
-            return NULL;
-        }
-        ext[extlen] = 0;
-    }
-
-    // Go through the notes and see if we can find a match.
+    // Find the note for this file
     cpakfs_t *fs = filesystems[port];
-    cpakfs_note_t *note = NULL;
-    int note_id = MAX_NOTES;
-    for (note_id=0; note_id<MAX_NOTES; note_id++) {
-        note = read_note(fs, note_id);
-        if (!(be16(note->status) & NOTE_STATUS_OCCUPIED))
-            continue;
+    int note_id;
+    cpakfs_note_t *note = find_note(fs, &parsed, &note_id);
 
-        if (memcmp(note->gamecode, name+0, 4) == 0 &&
-            memcmp(note->pubcode,  name+5, 2) == 0 &&
-            strncmp((char*)note->filename, filename, 16) == 0 &&
-            strncmp((char*)note->ext, ext, 4) == 0)
-            break;
-    }
-
-    if (note_id < MAX_NOTES) {
+    if (note) {
         // Can't create a file that already exists
         if ((flags & (O_CREAT | O_EXCL)) == (O_CREAT | O_EXCL)) {
             errno = EEXIST;
@@ -755,19 +824,13 @@ static void *__cpakfs_open(char *name, int flags, int port)
     // If O_APPEND is set, seek to the end of the file
     if (flags & O_CREAT) {
         // Free the FAT chain for this file, unless it's a new file
-        cpakfs_fat_entry_t *prevpage = &file->note->first_page;
-        while (FAT_IS_VALID(*prevpage, fs->reserved) || FAT_IS_TERMINATOR(*prevpage)) {
-            cpakfs_fat_entry_t page = *prevpage;
-            FAT_WRITE(fs, *prevpage, FAT_UNUSED);
-            if (FAT_IS_TERMINATOR(page)) break;
-            prevpage = &FAT_NEXT(fs->fat, page);
-            fs->free_pages[page.bank]++;
-        }
+        truncate_note(fs, file->note);
 
-        memcpy((char*)note->gamecode, name+0, 4);
-        memcpy((char*)note->pubcode, name+5, 2);
-        memcpy((char*)note->filename, filename, 16);
-        memcpy((char*)note->ext, ext, 4);
+        // Populate the note
+        memcpy((char*)note->gamecode, parsed.gamecode, 4);
+        memcpy((char*)note->pubcode, parsed.pubcode, 2);
+        memcpy((char*)note->filename, parsed.filename, 16);
+        memcpy((char*)note->ext, parsed.ext, 4);
 
         note->status |= be16(NOTE_STATUS_OCCUPIED);
         note->first_page = FAT_TERMINATOR;
@@ -825,6 +888,43 @@ static int __cpakfs_fstat(void *file, struct stat *st)
     #endif
     st->st_mode = S_IFREG;
     st->st_size = f->size;
+
+    return 0;
+}
+
+static int __cpakfs_unlink(char *name, int port)
+{
+    parsed_path_t parsed;
+
+    tracef("__cpak_unlink(%s, %d)\n", name, port);
+
+    // Parse the path
+    if (parse_path(name, &parsed) < 0)
+        return -1;
+
+    // Find the note for this file
+    cpakfs_t *fs = filesystems[port];
+    int note_id;
+    cpakfs_note_t *note = find_note(fs, &parsed, &note_id);
+
+    // File not found
+    if (!note) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    // Free all pages in the FAT chain
+    truncate_note(fs, note);
+
+    // Mark the note as empty
+    memset(note, 0, sizeof(cpakfs_note_t));
+    int note_start = 0x100 + fs->fat_size*2;
+    if (cpak_write(port, 0, note_start + note_id*32, note, 32) < 0)
+        return -1;
+
+    // Write the updated FAT to disk
+    if (write_fat(fs) < 0)
+        return -1;
 
     return 0;
 }
@@ -904,6 +1004,11 @@ static int __cpakfs_findnext_port1(const char *name, dir_t *dir) { return __cpak
 static int __cpakfs_findnext_port2(const char *name, dir_t *dir) { return __cpakfs_findnext(name, dir, 2); }
 static int __cpakfs_findnext_port3(const char *name, dir_t *dir) { return __cpakfs_findnext(name, dir, 3); }
 
+static int __cpakfs_unlink_port0(char *name) { return __cpakfs_unlink(name, 0); }
+static int __cpakfs_unlink_port1(char *name) { return __cpakfs_unlink(name, 1); }
+static int __cpakfs_unlink_port2(char *name) { return __cpakfs_unlink(name, 2); }
+static int __cpakfs_unlink_port3(char *name) { return __cpakfs_unlink(name, 3); }
+
 static filesystem_t fsdef[4] = {
     [0] = {
         .open = __cpakfs_open_port0,
@@ -912,6 +1017,7 @@ static filesystem_t fsdef[4] = {
         .fstat = __cpakfs_fstat,
         .write = __cpakfs_write,
         .lseek = __cpakfs_lseek,
+        .unlink = __cpakfs_unlink_port0,
         .findfirst = __cpakfs_findfirst_port0,
         .findnext2 = __cpakfs_findnext_port0,
     },
@@ -922,6 +1028,7 @@ static filesystem_t fsdef[4] = {
         .fstat = __cpakfs_fstat,
         .write = __cpakfs_write,
         .lseek = __cpakfs_lseek,
+        .unlink = __cpakfs_unlink_port1,
         .findfirst = __cpakfs_findfirst_port1,
         .findnext2 = __cpakfs_findnext_port1,
     },
@@ -932,6 +1039,7 @@ static filesystem_t fsdef[4] = {
         .fstat = __cpakfs_fstat,
         .write = __cpakfs_write,
         .lseek = __cpakfs_lseek,
+        .unlink = __cpakfs_unlink_port2,
         .findfirst = __cpakfs_findfirst_port2,
         .findnext2 = __cpakfs_findnext_port2,
     },
@@ -942,6 +1050,7 @@ static filesystem_t fsdef[4] = {
         .fstat = __cpakfs_fstat,
         .write = __cpakfs_write,
         .lseek = __cpakfs_lseek,
+        .unlink = __cpakfs_unlink_port3,
         .findfirst = __cpakfs_findfirst_port3,
         .findnext2 = __cpakfs_findnext_port3,
     },
