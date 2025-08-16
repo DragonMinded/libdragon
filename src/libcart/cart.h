@@ -1,7 +1,3 @@
-/**
- * @file cart.h
- * @author devwizard <https://github.com/devwizard64>
- */
 #ifndef __CART_H__
 #define __CART_H__
 
