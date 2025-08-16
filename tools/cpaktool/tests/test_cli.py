@@ -14,6 +14,7 @@ WHAT NOT TO TEST:
 - Basic help output (unless specific format requirements)
 - File existence errors (these are functional, not CLI parsing issues)
 - Options that just set boolean flags without validation
+- Aliases of commands (unless they have unique parsing logic)
 """
 import subprocess
 import tempfile
@@ -74,6 +75,24 @@ class TestCLI(unittest.TestCase):
                     code, out, err = run_cpaktool([cmd, str(self.pak), "extra"])
                     self.assertNotEqual(code, 0)
                     self.assertIn(f"{cmd} command requires exactly one argument", err)
+
+    def test_delete_command_args(self):
+        """Test delete command argument validation"""
+        # Test help
+        code, out, err = run_cpaktool(["delete", "--help"])
+        self.assertEqual(code, 0)
+        self.assertIn("Usage:", out)
+        self.assertIn("delete", out)
+        
+        # Test missing arguments
+        code, out, err = run_cpaktool(["delete"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("delete command requires at least two arguments", err)
+        
+        # Test only pak file argument (missing pattern)
+        code, out, err = run_cpaktool(["delete", str(self.pak)])
+        self.assertNotEqual(code, 0)
+        self.assertIn("delete command requires at least two arguments", err)
 
     # Test global options can be placed before or after command
     def test_verbose_option_placement(self):

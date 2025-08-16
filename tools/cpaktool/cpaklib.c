@@ -130,3 +130,11 @@ int cpak_dir_findfirst(const char *path, dir_t *dir) {
 int cpak_dir_findnext(const char *path, dir_t *dir) {
     return gfs->findnext2(path, dir);
 }
+
+int cpak_file_unlink(const char *name) {
+    char name_copy[256];
+    strncpy(name_copy, name, sizeof(name_copy) - 1);
+    name_copy[sizeof(name_copy) - 1] = '\0';
+    
+    return gfs->unlink(name_copy);
+}

@@ -398,17 +398,107 @@ int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const
         fatal_error("File not found: %s", pak_file);
     }
     
-    // TODO: Implement actual delete functionality
-    printf("DELETE command not implemented yet\n");
-    printf("Pak file: %s\n", pak_file);
-    printf("Interactive: %s\n", cmd_opts->interactive ? "yes" : "no");
-    
-    printf("Patterns:\n");
-    for (int i = 0; i < num_patterns; i++) {
-        printf("  %s\n", patterns[i]);
+    // Open the pak file and mount filesystem
+    try {
+        CPakFilesystem pak(pak_file);
+        
+        std::vector<std::string> files_to_delete;
+        
+        // First, collect all files that match the patterns
+        pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
+            // Convert to output filename for pattern matching
+            std::string output_filename;
+            const char *slash = strchr(filename, '/');
+            if (slash) {
+                std::string game_pub(filename, slash - filename);
+                std::string file_part(slash + 1);
+                output_filename = game_pub + "-" + file_part;
+            } else {
+                output_filename = filename;
+            }
+            
+            bool should_delete = false;
+            
+            // Check if file matches any of the patterns
+            for (int i = 0; i < num_patterns; i++) {
+                if (fnmatch(patterns[i], filename) || 
+                    fnmatch(patterns[i], output_filename.c_str())) {
+                    verbose_log(global_opts, "File '%s' (output: '%s') matches pattern '%s'", 
+                              filename, output_filename.c_str(), patterns[i]);
+                    should_delete = true;
+                    break;
+                }
+            }
+            
+            if (should_delete) {
+                files_to_delete.push_back(std::string(filename));
+            }
+            
+            return true; // Continue iteration
+        });
+        
+        if (files_to_delete.empty()) {
+            printf("No files match the specified patterns.\n");
+            return 0;
+        }
+        
+        int files_deleted = 0;
+        int files_failed = 0;
+        
+        // Process each file for deletion
+        for (const auto& filename : files_to_delete) {
+            bool delete_file = true;
+            
+            // Interactive confirmation if requested
+            if (cmd_opts->interactive) {
+                printf("Delete '%s'? [y/N] ", filename.c_str());
+                fflush(stdout);
+                
+                char response[16];
+                if (fgets(response, sizeof(response), stdin)) {
+                    if (response[0] != 'y' && response[0] != 'Y') {
+                        delete_file = false;
+                        verbose_log(global_opts, "Skipping '%s'", filename.c_str());
+                    }
+                } else {
+                    delete_file = false;
+                }
+            }
+            
+            if (delete_file && !global_opts->dry_run) {
+                verbose_log(global_opts, "Deleting '%s'", filename.c_str());
+                
+                if (cpak_file_unlink(filename.c_str()) == 0) {
+                    files_deleted++;
+                    if (!global_opts->verbose && !cmd_opts->interactive) {
+                        printf("Deleted: %s\n", filename.c_str());
+                    }
+                } else {
+                    files_failed++;
+                    warning("Failed to delete '%s': %s", filename.c_str(), strerror(errno));
+                }
+            } else if (delete_file && global_opts->dry_run) {
+                printf("Would delete: %s\n", filename.c_str());
+                files_deleted++; // Count as "would be deleted"
+            }
+        }
+        
+        // Summary
+        if (global_opts->dry_run) {
+            verbose_log(global_opts, "Dry run: %d files would be deleted", files_deleted);
+        } else {
+            verbose_log(global_opts, "Summary: %d files deleted, %d failures", files_deleted, files_failed);
+            if (files_failed > 0) {
+                return 1; // Indicate partial failure
+            }
+        }
+        
+        return 0;
+        
+    } catch (const std::exception& e) {
+        fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, e.what());
+        return -1;
     }
-    
-    return 0;
 }
 
 int cmd_info(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file) {

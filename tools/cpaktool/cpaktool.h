@@ -116,6 +116,7 @@ extern "C" {
     int cpak_file_close(void *file);
     int cpak_dir_findfirst(const char *path, dir_t *dir);
     int cpak_dir_findnext(const char *path, dir_t *dir);
+    int cpak_file_unlink(const char *name);
 }
 
 #endif // CPAKTOOL_H

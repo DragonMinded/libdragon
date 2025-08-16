@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+"""
+Functional tests for cpaktool commands
+
+WHAT TO TEST:
+- Command behavior with valid inputs
+- Command error handling with invalid inputs
+- Specific corner cases in implementation 
+
+WHAT NOT TO TEST:
+- CLI argument parsing (this is covered in the CLI tests)
+- Aliases of commands
+- Verbose mode, we assume that works as expected. Verbose mode
+  can be used while performing other tests of course
+- Simple error conditions, like missing command line arguments
+"""
 import subprocess
 import tempfile
 import unittest
@@ -178,7 +193,7 @@ class TestCommands(unittest.TestCase):
         for f in extract_dir.glob("*"):
             f.unlink()
         
-        code, out, err = run_cpaktool(["extract", "--verbose", str(pak), "DRAG.ON-*"], cwd=extract_dir)
+        code, out, err = run_cpaktool(["extract", str(pak), "DRAG.ON-*"], cwd=extract_dir)
         self.assertEqual(code, 0)
         # Should extract the DRAG.ON files
         extracted_drag_files = list(extract_dir.glob("DRAG.ON-*"))
@@ -203,7 +218,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Add same file twice, test update
-        code, out, err = run_cpaktool(["add", "--verbose", "--update", str(new_pak), str(test_file)])
+        code, out, err = run_cpaktool(["add", "--update", str(new_pak), str(test_file)])
         self.assertEqual(code, 0)
         # Just verify command succeeded, don't rely on specific output format
         
@@ -343,7 +358,7 @@ class TestCommands(unittest.TestCase):
             existing.write_text("modified content")
             
             # Should skip without --overwrite  
-            code, out, err = run_cpaktool(["extract", "--verbose", str(pak), "*1.*"], cwd=extract_dir)
+            code, out, err = run_cpaktool(["extract", str(pak), "*1.*"], cwd=extract_dir)
             self.assertEqual(code, 0)
             # Just verify file wasn't overwritten
             self.assertEqual(existing.read_text(), "modified content")
@@ -503,6 +518,177 @@ class TestCommands(unittest.TestCase):
         self.assertIn("GAME.01-DOC.TXT", out)
         self.assertIn("DRAG.ON-CONFIG.DAT", out)
         self.assertNotIn("SAVE.02", out)
+
+    def test_delete_basic(self):
+        """Test basic delete functionality"""
+        pak = self._create_pak()
+        
+        # Create and add test files
+        test1 = self.tmp / "TEST.01-FILE1.DAT"
+        test1.write_text("Test file 1")
+        test2 = self.tmp / "TEST.01-FILE2.DAT"
+        test2.write_text("Test file 2")
+        test3 = self.tmp / "GAME.02-SAVE.DAT"
+        test3.write_text("Save data")
+        
+        code, out, err = run_cpaktool(["add", str(pak), str(test1), str(test2), str(test3)])
+        self.assertEqual(code, 0)
+        
+        # Verify files are there
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertIn("TEST.01-FILE1.DAT", out)
+        self.assertIn("TEST.01-FILE2.DAT", out)
+        self.assertIn("GAME.02-SAVE.DAT", out)
+        
+        # Delete specific file
+        code, out, err = run_cpaktool(["delete", str(pak), "TEST.01-FILE1.DAT"])
+        self.assertEqual(code, 0)
+        self.assertIn("Deleted: TEST.01/FILE1.DAT", out)
+        
+        # Verify file was deleted
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertNotIn("TEST.01-FILE1.DAT", out)
+        self.assertIn("TEST.01-FILE2.DAT", out)
+        self.assertIn("GAME.02-SAVE.DAT", out)
+
+    def test_delete_patterns(self):
+        """Test delete with pattern matching"""
+        pak = self._create_pak()
+        
+        # Create and add test files
+        test_files = [
+            ("TEST.01-FILE1.DAT", "content1"),
+            ("TEST.01-FILE2.DAT", "content2"), 
+            ("TEST.01-FILE3.TXT", "content3"),
+            ("GAME.02-SAVE.DAT", "save data"),
+            ("GAME.02-CONFIG.CFG", "config data")
+        ]
+        
+        for filename, content in test_files:
+            test_file = self.tmp / filename
+            test_file.write_text(content)
+            code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+            self.assertEqual(code, 0)
+        
+        # Delete using wildcard pattern
+        code, out, err = run_cpaktool(["delete", str(pak), "TEST.01-*.DAT"])
+        self.assertEqual(code, 0)
+        
+        # Verify correct files were deleted
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertNotIn("TEST.01-FILE1.DAT", out)
+        self.assertNotIn("TEST.01-FILE2.DAT", out)
+        self.assertIn("TEST.01-FILE3.TXT", out)  # Different extension, should remain
+        self.assertIn("GAME.02-SAVE.DAT", out)  # Different game code, should remain
+        self.assertIn("GAME.02-CONFIG.CFG", out)
+        
+        # Delete all remaining TEST.01 files
+        code, out, err = run_cpaktool(["delete", str(pak), "TEST.01-*"])
+        self.assertEqual(code, 0)
+        
+        # Verify only GAME.02 files remain
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertNotIn("TEST.01", out)
+        self.assertIn("GAME.02-SAVE.DAT", out)
+        self.assertIn("GAME.02-CONFIG.CFG", out)
+
+    def test_delete_dry_run(self):
+        """Test delete dry-run functionality"""
+        pak = self._create_pak()
+        
+        # Create and add test files
+        test1 = self.tmp / "TEST.01-DELETE.DAT"
+        test1.write_text("To be deleted")
+        test2 = self.tmp / "TEST.01-KEEP.DAT"
+        test2.write_text("To be kept")
+        
+        code, out, err = run_cpaktool(["add", str(pak), str(test1), str(test2)])
+        self.assertEqual(code, 0)
+        
+        # Dry run delete
+        code, out, err = run_cpaktool(["--dry-run", "delete", str(pak), "TEST.01-DELETE.DAT"])
+        self.assertEqual(code, 0)
+        self.assertIn("Would delete: TEST.01/DELETE.DAT", out)
+        
+        # Verify file is still there
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertIn("TEST.01-DELETE.DAT", out)
+        self.assertIn("TEST.01-KEEP.DAT", out)
+        
+        # Actually delete now
+        code, out, err = run_cpaktool(["delete", str(pak), "TEST.01-DELETE.DAT"])
+        self.assertEqual(code, 0)
+        
+        # Verify file is gone
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertNotIn("TEST.01-DELETE.DAT", out)
+        self.assertIn("TEST.01-KEEP.DAT", out)
+
+    def test_delete_error_cases(self):
+        """Test delete error handling"""
+        pak = self._create_pak()
+        
+        # Test deleting from non-existent pak
+        fake_pak = self.tmp / "nonexistent.pak"
+        code, out, err = run_cpaktool(["delete", str(fake_pak), "*.DAT"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("File not found", err)
+        
+        # Test pattern that matches no files
+        code, out, err = run_cpaktool(["delete", str(pak), "NONEXISTENT-*"])
+        self.assertEqual(code, 0)
+        self.assertIn("No files match the specified patterns", out)
+        
+        # Test missing arguments
+        code, out, err = run_cpaktool(["delete", str(pak)])
+        self.assertNotEqual(code, 0)
+        self.assertIn("delete command requires at least two arguments", err)
+        
+        code, out, err = run_cpaktool(["delete"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("delete command requires at least two arguments", err)
+
+    def test_delete_multiple_patterns(self):
+        """Test delete with multiple patterns"""
+        pak = self._create_pak()
+        
+        # Create test files
+        test_files = [
+            ("GAME.01-FILE1.DAT", "content1"),
+            ("GAME.01-FILE2.TXT", "content2"),
+            ("SAVE.02-DATA1.DAT", "content3"),
+            ("SAVE.02-DATA2.BIN", "content4"),
+            ("OTHER.03-KEEP.DAT", "content5")
+        ]
+        
+        for filename, content in test_files:
+            test_file = self.tmp / filename
+            test_file.write_text(content)
+            code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+            self.assertEqual(code, 0)
+        
+        # Delete using multiple patterns
+        code, out, err = run_cpaktool(["delete", str(pak), "GAME.01-*", "SAVE.02-*.DAT"])
+        self.assertEqual(code, 0)
+        
+        # Verify correct files were deleted
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        # GAME.01 files should be gone (both patterns)
+        self.assertNotIn("GAME.01-FILE1.DAT", out)
+        self.assertNotIn("GAME.01-FILE2.TXT", out)
+        # SAVE.02 .DAT file should be gone (second pattern)
+        self.assertNotIn("SAVE.02-DATA1.DAT", out)
+        # SAVE.02 .BIN file should remain (doesn't match second pattern)
+        self.assertIn("SAVE.02-DATA2.BIN", out)
+        # OTHER.03 file should remain (doesn't match either pattern)
+        self.assertIn("OTHER.03-KEEP.DAT", out)
 
 if __name__ == "__main__":
     unittest.main()
