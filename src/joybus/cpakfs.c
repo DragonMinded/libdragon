@@ -25,7 +25,6 @@
 #define FLAG_READING            (1<<0)     ///< Flag to mark a file as being read
 #define FLAG_WRITING            (1<<1)     ///< Flag to mark a file as being written
 #define FLAG_NOTE_DIRTY         (1<<2)     ///< Flag to mark a file whose note requires being rewritten
-#define FLAG_FAT_DIRTY          (1<<3)     ///< Flag to mark a file whose FAT requires being rewritten
 
 /** @brief A mounted cpak filesystem */
 typedef struct {
@@ -56,7 +55,6 @@ typedef struct {
     cpakfs_fat_entry_t *__ptr = &(lvalue); \
     *__ptr = __val; \
     if (!(__ptr >= &fs->notes[0].first_page && __ptr <= &fs->notes[MAX_NOTES-1].first_page)) { \
-        tracef("FAT: marking dirty bank: %d\n", (int)((__ptr - &fs->fat[0][0]) >> 7)); \
         fs->fat_dirty |= 1 << ((__ptr - &fs->fat[0][0]) >> 7); \
     } \
 })
@@ -477,6 +475,39 @@ static cpakfs_fat_entry_t allocate_page(cpakfs_t *fs, int bank, int page)
     assert(0);
 }
 
+/**
+ * @brief Allocate one next page in a file.
+ * 
+ * This is meant to be run on the page pointer to the terminator, so that
+ * it appends the next page to the chain. The new page will become the new
+ * terminator.
+ * 
+ * @param page_ptr          Pointer to the page that is the terminator
+ * @param fs                Filesystem to allocate the page in
+ * @return int              0 on success, -1 on error (ENOSPC)
+ */
+static int allocate_next_page(cpakfs_fat_entry_t *page_ptr, cpakfs_t *fs)
+{
+    assert(FAT_IS_TERMINATOR(*page_ptr));
+
+    // If the last page is not valid, allocate a new one
+    int num_bank = -1, num_page = -1;
+    if (page_ptr != &fs->notes[0].first_page) {
+        num_bank = (page_ptr - &fs->fat[0][0]) >> 7;
+        num_page = (page_ptr - &fs->fat[0][0]) & 0x7F;
+    }
+    cpakfs_fat_entry_t new_page = allocate_page(fs, num_bank, num_page);
+    if (FAT_IS_RESERVED(new_page)) {
+        tracef("No space left in the filesystem\n");
+        errno = ENOSPC;
+        return -1;
+    }
+    tracef("Allocated next page %02x:%02x\n", new_page.bank, new_page.page);
+    FAT_WRITE(fs, *page_ptr, new_page);
+    FAT_WRITE(fs, FAT_NEXT(fs->fat, new_page), FAT_TERMINATOR);
+    return 0;
+}
+
 static int __cpakfs_write(void *file, uint8_t *ptr, int len)
 {
     cpakfs_openfile_t *f = file;
@@ -495,27 +526,30 @@ static int __cpakfs_write(void *file, uint8_t *ptr, int len)
         int page_offset = f->pos % PAGE_SIZE;
         int n = MIN(len, PAGE_SIZE - page_offset);
 
-        // Allocate a new page if necessary
-        if (page_offset == 0 && !FAT_IS_VALID(*f->cur_page_ptr, fs->reserved)) {
-            // If this is the first page for this file, use a random bank. Otherwise,
-            // continue with the current one.
-            int prev_bank = -1, prev_page = -1;
-            if (f->cur_page_ptr != &f->note->first_page) {
-                prev_bank = (f->cur_page_ptr - &fs->fat[0][0]) >> 7;
-                prev_page = (f->cur_page_ptr - &fs->fat[0][0]) & 0x7F;
-            }
-            cpakfs_fat_entry_t new_page = allocate_page(fs, prev_bank, prev_page);
-            tracef("__cpak_write: allocating page %02x:%02x\n", new_page.bank, new_page.page);
-            if (FAT_IS_RESERVED(new_page)) {
-                tracef("__cpak_write: no space left\n");
-                errno = ENOSPC;
-                return -1;
-            }
-            tracef("__cpak_write: allocated new page 0x%02x%02x\n", new_page.bank, new_page.page);
-            FAT_WRITE(fs, *f->cur_page_ptr, new_page);
-            FAT_WRITE(fs, FAT_NEXT(fs->fat, new_page), FAT_TERMINATOR);
-            assert(FAT_IS_VALID(new_page, fs->reserved));
-            f->flags |= FLAG_FAT_DIRTY;
+        // If the current page is not valid (eg: beginning of a file, or last
+        // write finished exactly at the end of a page), we need to allocate a new page.
+        assert(FAT_IS_VALID(*f->cur_page_ptr, fs->reserved) || FAT_IS_TERMINATOR(*f->cur_page_ptr));        
+        if (FAT_IS_TERMINATOR(*f->cur_page_ptr) &&
+            allocate_next_page(f->cur_page_ptr, fs) < 0) {
+            return -1;
+        }
+
+        cpakfs_fat_entry_t *last = f->cur_page_ptr;
+        while (n < len) {
+            // We will need to write more bytes, so allocate immediately one more page
+            cpakfs_fat_entry_t *next = &FAT_NEXT(fs->fat, *last);
+            if (allocate_next_page(next, fs) < 0)
+                break;
+
+            // Check if it's consecutive to the current one. If so, just keep writing
+            // in the same large write. Otherwise, stop here: the next page is ready
+            // for next loop anyway.
+            if (next->bank != last->bank)     break;
+            if (next->page != last->page + 1) break;
+
+            // Add this page to the batch write
+            n += MIN(len - n, PAGE_SIZE);
+            last = next;
         }
 
         tracef("__cpak_write: writing %d bytes to page 0x%02x%02x offset %d\n", n, f->cur_page_ptr->bank, f->cur_page_ptr->page, page_offset);
@@ -526,10 +560,9 @@ static int __cpakfs_write(void *file, uint8_t *ptr, int len)
         ptr += n;
         len -= n;
         written += n;
+        f->cur_page_ptr = last;
 
         if (f->pos % PAGE_SIZE == 0) {
-            tracef("__cpak_write: moving to next page\n");
-            assert(FAT_IS_VALID(*f->cur_page_ptr, fs->reserved));
             f->cur_page_ptr = &FAT_NEXT(fs->fat, *f->cur_page_ptr);
         }
 
@@ -738,7 +771,7 @@ static void *__cpakfs_open(char *name, int flags, int port)
 
         note->status |= be16(NOTE_STATUS_OCCUPIED);
         note->first_page = FAT_TERMINATOR;
-        file->flags |= FLAG_NOTE_DIRTY | FLAG_FAT_DIRTY;
+        file->flags |= FLAG_NOTE_DIRTY;
     } else {
         // Calculate the size
         file->size = calc_size(fs, note->first_page);
