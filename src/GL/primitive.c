@@ -113,6 +113,7 @@ static void prepare_drawing()
     update_pipeline();
     update_uniforms();
     update_culling();
+    update_viewport();
     update_geom_flags();
 }
 
@@ -686,8 +687,9 @@ void glPolygonMode(GLenum face, GLenum mode)
 
 void update_viewport()
 {
-    const surface_t *fb = rdpq_get_attached();
-    if (fb == NULL) return;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_VIEWPORT)) return;
+
+    const surface_t *fb = gl_require_color_buffer();
 
     mg_set_viewport(&(mg_viewport_t) {
         .x = state->viewport.x,
@@ -705,7 +707,7 @@ void glDepthRange(GLclampd n, GLclampd f)
 {
     state->viewport.n = n;
     state->viewport.f = f;
-    update_viewport();
+    gl_set_dirty_flags(DIRTY_VIEWPORT);
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
@@ -714,7 +716,7 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
     state->viewport.y = y;
     state->viewport.w = w;
     state->viewport.h = h;
-    update_viewport();
+    gl_set_dirty_flags(DIRTY_VIEWPORT);
 }
 
 mg_cull_mode_t get_cull_mode()

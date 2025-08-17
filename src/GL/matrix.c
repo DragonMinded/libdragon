@@ -150,7 +150,7 @@ static void update_near_far_planes()
         state->far_plane = 0.0f;
     }
 
-    update_viewport();
+    gl_set_dirty_flags(DIRTY_VIEWPORT);
 }
 
 static void gl_mark_matrix_target_dirty()

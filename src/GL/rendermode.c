@@ -498,14 +498,16 @@ void apply_scissor()
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_SCISSOR)) return;
 
+    const surface_t *fb = gl_require_color_buffer();
+
     if (gl_is_enabled(ENABLE_SCISSOR_TEST)) {
         uint16_t x0 = state->scissor.x;
-        uint16_t y0 = state->color_buffer->height - (state->scissor.y + state->scissor.h);
+        uint16_t y0 = fb->height - (state->scissor.y + state->scissor.h);
         uint16_t x1 = state->scissor.x + state->scissor.w;
-        uint16_t y1 = state->color_buffer->height - state->scissor.y;
+        uint16_t y1 = fb->height - state->scissor.y;
         rdpq_set_scissor(x0, y0, x1, y1);
     } else {
-        rdpq_set_scissor(0, 0, state->color_buffer->width, state->color_buffer->height);
+        rdpq_set_scissor(0, 0, fb->width, fb->height);
     }
 }
 

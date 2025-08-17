@@ -85,8 +85,7 @@
     true; \
 })
 
-//#define gl_assert_no_display_list() assertf(state->current_list == 0, "%s cannot be recorded into a display list", __func__)
-#define gl_assert_no_display_list()
+#define gl_assert_no_display_list() assertf(state->current_list == 0, "%s cannot be recorded into a display list", __func__)
 
 typedef int16_t int16u_t __attribute__((aligned(1)));
 typedef uint16_t uint16u_t __attribute__((aligned(1)));
@@ -151,6 +150,7 @@ typedef enum {
     DIRTY_PERSP         = 1 << 15,
     DIRTY_SCISSOR       = 1 << 16,
     DIRTY_FOG_COLOR     = 1 << 17,
+    DIRTY_VIEWPORT      = 1 << 18,
 
     DIRTY_RDPQ_MODE_ALL = DIRTY_ANTIALIAS | DIRTY_DITHER | DIRTY_COMBINER | DIRTY_BLENDER | DIRTY_FOG | DIRTY_ALPHACOMPARE | DIRTY_ZBUF | DIRTY_PERSP,
     DIRTY_RDPQ_ALL      = DIRTY_SCISSOR | DIRTY_PRIM_COLOR | DIRTY_FOG_COLOR | DIRTY_RDPQ_MODE_ALL,
@@ -591,6 +591,12 @@ inline color_t color_from_floats(const float color[4])
         FLOAT_TO_U8(color[2]),
         FLOAT_TO_U8(color[3])
     );
+}
+
+inline const surface_t *gl_require_color_buffer()
+{
+    assertf(state->color_buffer != NULL, "gl_context_begin() not called");
+    return state->color_buffer;
 }
 
 #ifdef __cplusplus
