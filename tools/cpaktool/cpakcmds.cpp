@@ -601,6 +601,8 @@ int cmd_info(global_options_t *global_opts, command_options_t *cmd_opts, const c
     return 0;
 }
 
+int g_fsck_nissues;
+
 static void fsck_report(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
     command_options_t *cmd_opts = (command_options_t *)ctx;
     if ((int)level < cmd_opts->report_level) return;
@@ -609,6 +611,7 @@ static void fsck_report(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t le
     printf("[fsck %s] ", lvl);
     va_list ap; va_start(ap, fmt); vprintf(fmt, ap); va_end(ap);
     printf("\n");
+    g_fsck_nissues++;
 }
 
 int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file) {
@@ -623,18 +626,19 @@ int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const c
         
         verbose_log(global_opts, "Running fsck on %s (%d banks)", pak_file, pak.getNumBanks());
 
-        int issues = cpakfs_fsck(JOYPAD_PORT_1, cmd_opts->fix_errors, fsck_report, cmd_opts);
-        if (issues < 0) {
+        g_fsck_nissues = 0;
+        int err = cpakfs_fsck(JOYPAD_PORT_1, cmd_opts->fix_errors, fsck_report, cmd_opts);
+        if (err < 0) {
             fatal_error("Failed to test Controller Pak image: %s", strerror(errno));
         }
 
-        if (issues == 0) {
+        if (g_fsck_nissues == 0) {
             printf("No issues found\n");
         } else if (cmd_opts->fix_errors) {
-            printf("Fixed %d issue%s\n", issues, issues==1?"":"s");
+            printf("Fixed %d issue%s\n", g_fsck_nissues, g_fsck_nissues==1?"":"s");
         } else {
-            printf("Found %d issue%s\n", issues, issues==1?"":"s");
-            if (issues > 0) return -1;
+            printf("Found %d issue%s\n", g_fsck_nissues, g_fsck_nissues==1?"":"s");
+            if (g_fsck_nissues > 0) return -1;
         }
 
         return 0;
