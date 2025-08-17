@@ -83,8 +83,8 @@ typedef union {
         char gamecode[4];               ///< Game code (ASCII, 4 chars)
         char pubcode[2];                ///< Publisher code (ASCII, 2 chars)
         cpakfs_fat_entry_t first_page;  ///< First page where data is stored
-        uint8_t ext_padding_size;       ///< Size of the padding in the last page
         uint8_t status;                 ///< Status flags (bit 1: occupied)
+        uint8_t ext_padding_size;       ///< Size of the padding in the last page
         uint16_t ext_crc16;             ///< CRC16 checksum (libdragon extension)
         uint8_t ext[4];                 ///< File extension (custom codepage)
         uint8_t filename[16];           ///< Filename (custom codepage)
