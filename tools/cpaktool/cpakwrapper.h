@@ -24,7 +24,9 @@ private:
 
 public:
     // Constructor opens the pak file and mounts the filesystem
-    explicit CPakFilesystem(const std::string& filename, bool auto_mount = true);
+    // skip_header_bytes: >= 0 = skip N bytes, < 0 = auto-detect DexDrive format
+    explicit CPakFilesystem(const std::string& filename, bool auto_mount = true, 
+                           int skip_header_bytes = -1);
     
     // Destructor automatically unmounts filesystem and closes the file
     ~CPakFilesystem();

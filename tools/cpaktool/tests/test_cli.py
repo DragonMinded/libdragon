@@ -233,5 +233,94 @@ class TestCLI(unittest.TestCase):
         code, out, err = run_cpaktool([])
         self.assertNotEqual(code, 0)
 
+    def test_skip_header_option(self):
+        """Test --skip-header option parsing and validation"""
+        # Create a minimal pak file for testing
+        pak_path = self.tmp / "test_skip.pak"
+        code, out, err = run_cpaktool(["format", str(pak_path)])
+        self.assertEqual(code, 0, f"Failed to create test pak: {err}")
+        
+        # Test valid --skip-header values
+        for value in ["0", "10", "100", "4160"]:
+            with self.subTest(value=value):
+                code, out, err = run_cpaktool(["--skip-header", value, "list", str(pak_path)])
+                self.assertEqual(code, 0, f"--skip-header {value} should work: {err}")
+        
+        # Test --skip-header with verbose to check logging
+        code, out, err = run_cpaktool(["--verbose", "--skip-header", "0", "list", str(pak_path)])
+        self.assertEqual(code, 0)
+        self.assertIn("Skipping 0 header bytes (manual setting)", out)
+        
+        code, out, err = run_cpaktool(["--verbose", "--skip-header", "4160", "list", str(pak_path)])
+        self.assertEqual(code, 0)
+        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+        
+        # Test auto-detect (no --skip-header)
+        code, out, err = run_cpaktool(["--verbose", "list", str(pak_path)])
+        self.assertEqual(code, 0)
+        self.assertIn("No header to skip (normal Controller Pak format)", out)
+
+    def test_skip_header_validation(self):
+        """Test --skip-header option validation"""
+        pak_path = self.tmp / "test_skip2.pak"
+        code, out, err = run_cpaktool(["format", str(pak_path)])
+        self.assertEqual(code, 0, f"Failed to create test pak: {err}")
+        
+        # Test invalid values
+        invalid_values = ["-1", "abc", "10.5", ""]
+        for value in invalid_values:
+            with self.subTest(value=value):
+                if value == "":
+                    # Missing value
+                    code, out, err = run_cpaktool(["--skip-header", "list", str(pak_path)])
+                else:
+                    code, out, err = run_cpaktool(["--skip-header", value, "list", str(pak_path)])
+                self.assertNotEqual(code, 0, f"--skip-header {value} should fail")
+                self.assertIn("--skip-header", err)
+        
+        # Test missing value
+        code, out, err = run_cpaktool(["--skip-header"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Option --skip-header requires a value", err)
+
+    def test_skip_header_placement(self):
+        """Test --skip-header option can be placed before or after command"""
+        pak_path = self.tmp / "test_skip3.pak"
+        code, out, err = run_cpaktool(["format", str(pak_path)])
+        self.assertEqual(code, 0, f"Failed to create test pak: {err}")
+        
+        # Before command
+        code, out, err = run_cpaktool(["--skip-header", "0", "list", str(pak_path)])
+        self.assertEqual(code, 0, f"--skip-header before command should work: {err}")
+        
+        # After command
+        code, out, err = run_cpaktool(["list", "--skip-header", "0", str(pak_path)])
+        self.assertEqual(code, 0, f"--skip-header after command should work: {err}")
+
+    def test_dexdrive_autodetect(self):
+        """Test DexDrive format auto-detection"""
+        # Create a fake DexDrive file with the correct signature
+        dexdrive_path = self.tmp / "dexdrive_test.n64"
+        
+        # Write DexDrive signature + header + minimal pak data
+        with open(dexdrive_path, "wb") as f:
+            # DexDrive signature
+            f.write(b"123-456-STD\x00")
+            # Pad to 0x1040 bytes (4160 decimal)
+            f.write(b"\x00" * (0x1040 - 12))
+            # Write a minimal formatted pak (32KB)
+            # For simplicity, write zeros (we're testing header detection, not pak validity)
+            f.write(b"\x00" * 32768)
+        
+        # Test auto-detection with verbose
+        code, out, err = run_cpaktool(["--verbose", "list", str(dexdrive_path)])
+        self.assertEqual(code, 0)
+        self.assertIn("Skipping 4160 header bytes (DexDrive format auto-detected)", out)
+        
+        # Test manual override of auto-detection
+        code, out, err = run_cpaktool(["--verbose", "--skip-header", "0", "list", str(dexdrive_path)])
+        self.assertEqual(code, 0)
+        self.assertIn("Skipping 0 header bytes (manual setting)", out)
+
 if __name__ == "__main__":
     unittest.main()

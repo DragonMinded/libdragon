@@ -36,6 +36,7 @@ typedef struct {
     bool force;
     bool dry_run;
     const char *output_dir;
+    int skip_header_bytes;  // >= 0 = skip N bytes, < 0 = auto-detect
 } global_options_t;
 
 // Command-specific options
@@ -84,21 +85,25 @@ typedef struct {
     bool summary;
 } command_options_t;
 
+// Global variables for options
+extern global_options_t g_global_opts;
+extern command_options_t g_command_opts;
+
 // Command implementations (defined in cpakcmds.cpp)
-int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns);
-int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns);
-int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *files[], int num_files);
-int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns);
-int cmd_info(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file);
-int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file);
-int cmd_format(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file);
-int cmd_convert(global_options_t *global_opts, command_options_t *cmd_opts, const char *input_file, const char *output_file);
-int cmd_compare(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file1, const char *pak_file2);
+int cmd_list(const char *pak_file, char *patterns[], int num_patterns);
+int cmd_extract(const char *pak_file, char *patterns[], int num_patterns);
+int cmd_add(const char *pak_file, char *files[], int num_files);
+int cmd_delete(const char *pak_file, char *patterns[], int num_patterns);
+int cmd_info(const char *pak_file);
+int cmd_test(const char *pak_file);
+int cmd_format(const char *pak_file);
+int cmd_convert(const char *input_file, const char *output_file);
+int cmd_compare(const char *pak_file1, const char *pak_file2);
 
 // Utility functions (defined in cpaktool.cpp)
 void fatal_error(const char *fmt, ...);
 void warning(const char *fmt, ...);
-void verbose_log(global_options_t *opts, const char *fmt, ...);
+void verbose_log(const char *fmt, ...);
 bool file_exists(const char *path);
 bool is_directory(const char *path);
 

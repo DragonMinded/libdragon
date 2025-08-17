@@ -24,7 +24,7 @@ extern "C" {
     int fileno(FILE *stream);
 }
 
-CPakFilesystem::CPakFilesystem(const std::string& filename, bool auto_mount)
+CPakFilesystem::CPakFilesystem(const std::string& filename, bool auto_mount, int skip_header_bytes)
     : m_filename(filename)
     , m_file(nullptr)
     , m_num_banks(0)
@@ -38,9 +38,13 @@ CPakFilesystem::CPakFilesystem(const std::string& filename, bool auto_mount)
         throw std::runtime_error("Cannot open file '" + filename + "': " + strerror(errno));
     }
     
-    // Detect DexDrive format and set offset if needed
-    if (detectDexDriveFormat()) {
+    // Determine header offset: use specified value or auto-detect DexDrive
+    if (skip_header_bytes >= 0) {
+        m_pak_offset = static_cast<size_t>(skip_header_bytes);
+        verbose_log("Skipping %d header bytes (manual setting)", skip_header_bytes);
+    } else if (detectDexDriveFormat()) {
         m_pak_offset = DEXDRIVE_HEADER_SIZE;
+        verbose_log("Skipping %zu header bytes (DexDrive format auto-detected)", DEXDRIVE_HEADER_SIZE);
     }
     
     // Get file size and calculate banks
@@ -208,7 +212,7 @@ std::unique_ptr<CPakFilesystem> CPakFilesystem::create(const std::string& filena
     
     try {
         // Create wrapper and set number of banks (don't auto-mount empty file)
-        auto wrapper = std::make_unique<CPakFilesystem>(filename, false);
+        auto wrapper = std::make_unique<CPakFilesystem>(filename, false, 0); // No header for new files
         
         // Override the calculated banks with the requested number
         wrapper->m_num_banks = num_banks;

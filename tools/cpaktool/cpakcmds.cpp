@@ -34,8 +34,8 @@
 // FORWARD DECLARATIONS FOR HELPER FUNCTIONS
 //
 
-static int extract_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *cpak_path);
-static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *input_file);
+static int extract_file(const char *cpak_path);
+static int add_file(const char *input_file);
 
 //
 // COMMAND IMPLEMENTATIONS
@@ -220,8 +220,8 @@ static bool compare_files(const file_entry_t& a, const file_entry_t& b, const ch
     return reverse ? !result : result;
 }
 
-int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns) {
-    verbose_log(global_opts, "Listing contents of %s", pak_file);
+int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
+    verbose_log("Listing contents of %s", pak_file);
     
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
@@ -229,7 +229,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
     
     // Open the pak file and mount filesystem
     try {
-        CPakFilesystem pak(pak_file);
+        CPakFilesystem pak(pak_file, true, g_global_opts.skip_header_bytes);
         
         std::vector<file_entry_t> files;
         
@@ -256,7 +256,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 
                 if (should_include) {
                     // Calculate CRC32 if requested
-                    if (cmd_opts->show_crc) {
+                    if (g_command_opts.show_crc) {
                         bool crc_error;
                         entry.crc32_value = calculate_file_crc32(std::string(filename), crc_error);
                         entry.crc32_error = crc_error;
@@ -272,15 +272,15 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         
         // Sort files if requested
         if (!files.empty()) {
-            std::sort(files.begin(), files.end(), [cmd_opts](const file_entry_t& a, const file_entry_t& b) {
-                return compare_files(a, b, cmd_opts->sort_by, cmd_opts->reverse_sort);
+            std::sort(files.begin(), files.end(), [](const file_entry_t& a, const file_entry_t& b) {
+                return compare_files(a, b, g_command_opts.sort_by, g_command_opts.reverse_sort);
             });
         }
         
         // Display files
-        if (cmd_opts->long_format) {
+        if (g_command_opts.long_format) {
             // Long format with table headers
-            if (cmd_opts->show_crc) {
+            if (g_command_opts.show_crc) {
                 printf("Game       Pub    Filename                         Ext        Size       CRC32\n");
                 printf("----       ---    --------                         ---        ------     --------\n");
             } else {
@@ -289,7 +289,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
             }
             
             for (const auto& file : files) {
-                std::string size_str = format_size(file.size, cmd_opts->human_readable);
+                std::string size_str = format_size(file.size, g_command_opts.human_readable);
                 
                 // Use visual width-aware padding for proper alignment with Japanese characters
                 // Max visual widths: game=8 (4 chars * 2), pub=4 (2 chars * 2), filename=32 (16 chars * 2), ext=8 (4 chars * 2)
@@ -299,7 +299,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 std::string padded_ext = pad_to_width(file.extension, 10);       // Ext column width
                 
                 // Don't use printf width specifiers - just print the padded strings directly
-                if (cmd_opts->show_crc) {
+                if (g_command_opts.show_crc) {
                     if (file.crc32_error) {
                         printf("%s %s %s %s %-10s <error>\n",
                                padded_game.c_str(),
@@ -333,7 +333,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         }
         
         // Summary
-        if (global_opts->verbose || files.empty()) {
+        if (g_global_opts.verbose || files.empty()) {
             printf("\nFound %zu file%s\n", files.size(), files.size() == 1 ? "" : "s");
         }
         
@@ -345,8 +345,8 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
     }
 }
 
-int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns) {
-    verbose_log(global_opts, "Extracting from %s", pak_file);
+int cmd_extract(const char *pak_file, char *patterns[], int num_patterns) {
+    verbose_log( "Extracting from %s", pak_file);
     
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
@@ -354,9 +354,9 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
     
     // Open the pak file and mount filesystem
     try {
-        CPakFilesystem pak(pak_file);
+        CPakFilesystem pak(pak_file, true, g_global_opts.skip_header_bytes);
         
-        verbose_log(global_opts, "Note: Controller Pak files are stored in 256-byte blocks with random padding");
+        verbose_log( "Note: Controller Pak files are stored in 256-byte blocks with random padding");
         
         int files_extracted = 0;
         
@@ -377,33 +377,33 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
             
             if (num_patterns == 0) {
                 // No patterns specified, extract all files
-                verbose_log(global_opts, "Found file: '%s'", filename);
+                verbose_log( "Found file: '%s'", filename);
                 should_extract = true;
             } else {
                 // Check if file matches any of the patterns (check both cpak name and output name)
                 for (int i = 0; i < num_patterns; i++) {
                     if (fnmatch(patterns[i], filename) || 
                         fnmatch(patterns[i], output_filename.c_str())) {
-                        verbose_log(global_opts, "File '%s' (output: '%s') matches pattern '%s'", 
+                        verbose_log( "File '%s' (output: '%s') matches pattern '%s'", 
                                   filename, output_filename.c_str(), patterns[i]);
                         should_extract = true;
                         break;
                     }
                 }
                 if (!should_extract) {
-                    verbose_log(global_opts, "File '%s' (output: '%s') does not match any pattern", 
+                    verbose_log( "File '%s' (output: '%s') does not match any pattern", 
                               filename, output_filename.c_str());
                 }
             }
             
             if (should_extract) {
-                files_extracted += extract_file(global_opts, cmd_opts, filename);
+                files_extracted += extract_file(filename);
             }
             
             return true; // Continue iteration
         });
         
-        verbose_log(global_opts, "Summary: %d files extracted", files_extracted);
+        verbose_log( "Summary: %d files extracted", files_extracted);
         
         return 0;
         
@@ -413,28 +413,28 @@ int cmd_extract(global_options_t *global_opts, command_options_t *cmd_opts, cons
     }
 }
 
-int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *files[], int num_files) {
-    verbose_log(global_opts, "Adding files to %s", pak_file);
+int cmd_add(const char *pak_file, char *files[], int num_files) {
+    verbose_log( "Adding files to %s", pak_file);
     
-    if (!file_exists(pak_file) && !cmd_opts->create_pak) {
+    if (!file_exists(pak_file) && !g_command_opts.create_pak) {
         fatal_error("File not found: %s (use --create to create new pak)", pak_file);
     }
     
     // Create new pak file if requested
-    if (cmd_opts->create_pak && !file_exists(pak_file)) {
-        verbose_log(global_opts, "Creating new pak file with %d KB", cmd_opts->pak_size);
+    if (g_command_opts.create_pak && !file_exists(pak_file)) {
+        verbose_log( "Creating new pak file with %d KB", g_command_opts.pak_size);
         
         // Determine number of banks from pak_size
-        int num_banks = (cmd_opts->pak_size * 1024) / BANK_SIZE;
+        int num_banks = (g_command_opts.pak_size * 1024) / BANK_SIZE;
         if (num_banks <= 0) num_banks = 1;
         
         try {
-            auto pak = CPakFilesystem::create(pak_file, num_banks, global_opts->force);
+            auto pak = CPakFilesystem::create(pak_file, num_banks, g_global_opts.force);
             if (!pak) {
                 fatal_error("Cannot create Controller Pak file '%s': %s", pak_file, strerror(errno));
             }
             
-            verbose_log(global_opts, "Controller Pak file created and formatted");
+            verbose_log( "Controller Pak file created and formatted");
             
         } catch (...) {
             unlink(pak_file);
@@ -444,7 +444,7 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
     
     // Open the pak file and mount filesystem
     try {
-        CPakFilesystem pak(pak_file);
+        CPakFilesystem pak(pak_file, true, g_global_opts.skip_header_bytes);
         
         int files_added = 0;
         int files_updated = 0;
@@ -452,7 +452,7 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
         
         // Process each input file
         for (int i = 0; i < num_files; i++) {
-            int result = add_file(global_opts, cmd_opts, files[i]);
+            int result = add_file(files[i]);
             if (result == 1) {
                 files_added++;
             } else if (result == 2) {
@@ -463,7 +463,7 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
             // result == 0 means error (already handled by add_file)
         }
         
-        verbose_log(global_opts, "Summary: %d files added, %d files updated, %d files failed", files_added, files_updated, files_failed);
+        verbose_log( "Summary: %d files added, %d files updated, %d files failed", files_added, files_updated, files_failed);
         
         return files_failed > 0 ? 1 : 0;
         
@@ -473,8 +473,8 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
     }
 }
 
-int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file, char *patterns[], int num_patterns) {
-    verbose_log(global_opts, "Deleting from %s", pak_file);
+int cmd_delete(const char *pak_file, char *patterns[], int num_patterns) {
+    verbose_log( "Deleting from %s", pak_file);
     
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
@@ -482,7 +482,7 @@ int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const
     
     // Open the pak file and mount filesystem
     try {
-        CPakFilesystem pak(pak_file);
+        CPakFilesystem pak(pak_file, true, g_global_opts.skip_header_bytes);
         
         std::vector<std::string> files_to_delete;
         
@@ -505,7 +505,7 @@ int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const
             for (int i = 0; i < num_patterns; i++) {
                 if (fnmatch(patterns[i], filename) || 
                     fnmatch(patterns[i], output_filename.c_str())) {
-                    verbose_log(global_opts, "File '%s' (output: '%s') matches pattern '%s'", 
+                    verbose_log( "File '%s' (output: '%s') matches pattern '%s'", 
                               filename, output_filename.c_str(), patterns[i]);
                     should_delete = true;
                     break;
@@ -532,7 +532,7 @@ int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const
             bool delete_file = true;
             
             // Interactive confirmation if requested
-            if (cmd_opts->interactive) {
+            if (g_command_opts.interactive) {
                 printf("Delete '%s'? [y/N] ", filename.c_str());
                 fflush(stdout);
                 
@@ -540,36 +540,36 @@ int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const
                 if (fgets(response, sizeof(response), stdin)) {
                     if (response[0] != 'y' && response[0] != 'Y') {
                         delete_file = false;
-                        verbose_log(global_opts, "Skipping '%s'", filename.c_str());
+                        verbose_log( "Skipping '%s'", filename.c_str());
                     }
                 } else {
                     delete_file = false;
                 }
             }
             
-            if (delete_file && !global_opts->dry_run) {
-                verbose_log(global_opts, "Deleting '%s'", filename.c_str());
+            if (delete_file && !g_global_opts.dry_run) {
+                verbose_log( "Deleting '%s'", filename.c_str());
                 
                 if (cpak_file_unlink(filename.c_str()) == 0) {
                     files_deleted++;
-                    if (!global_opts->verbose && !cmd_opts->interactive) {
+                    if (!g_global_opts.verbose && !g_command_opts.interactive) {
                         printf("Deleted: %s\n", filename.c_str());
                     }
                 } else {
                     files_failed++;
                     warning("Failed to delete '%s': %s", filename.c_str(), strerror(errno));
                 }
-            } else if (delete_file && global_opts->dry_run) {
+            } else if (delete_file && g_global_opts.dry_run) {
                 printf("Would delete: %s\n", filename.c_str());
                 files_deleted++; // Count as "would be deleted"
             }
         }
         
         // Summary
-        if (global_opts->dry_run) {
-            verbose_log(global_opts, "Dry run: %d files would be deleted", files_deleted);
+        if (g_global_opts.dry_run) {
+            verbose_log( "Dry run: %d files would be deleted", files_deleted);
         } else {
-            verbose_log(global_opts, "Summary: %d files deleted, %d failures", files_deleted, files_failed);
+            verbose_log( "Summary: %d files deleted, %d failures", files_deleted, files_failed);
             if (files_failed > 0) {
                 return 1; // Indicate partial failure
             }
@@ -583,8 +583,8 @@ int cmd_delete(global_options_t *global_opts, command_options_t *cmd_opts, const
     }
 }
 
-int cmd_info(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file) {
-    verbose_log(global_opts, "Getting info for %s", pak_file);
+int cmd_info(const char *pak_file) {
+    verbose_log( "Getting info for %s", pak_file);
     
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
@@ -593,10 +593,10 @@ int cmd_info(global_options_t *global_opts, command_options_t *cmd_opts, const c
     // TODO: Implement actual info functionality
     printf("INFO command not implemented yet\n");
     printf("Pak file: %s\n", pak_file);
-    printf("Show stats: %s\n", cmd_opts->show_stats ? "yes" : "no");
-    printf("Show banks: %s\n", cmd_opts->show_banks ? "yes" : "no");
-    printf("Show filesystem: %s\n", cmd_opts->show_filesystem ? "yes" : "no");
-    printf("Header only: %s\n", cmd_opts->header_only ? "yes" : "no");
+    printf("Show stats: %s\n", g_command_opts.show_stats ? "yes" : "no");
+    printf("Show banks: %s\n", g_command_opts.show_banks ? "yes" : "no");
+    printf("Show filesystem: %s\n", g_command_opts.show_filesystem ? "yes" : "no");
+    printf("Header only: %s\n", g_command_opts.header_only ? "yes" : "no");
     
     return 0;
 }
@@ -604,8 +604,8 @@ int cmd_info(global_options_t *global_opts, command_options_t *cmd_opts, const c
 int g_fsck_nissues;
 
 static void fsck_report(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
-    command_options_t *cmd_opts = (command_options_t *)ctx;
-    if ((int)level < cmd_opts->report_level) return;
+    (void)ctx; // Unused parameter
+    if ((int)level < g_command_opts.report_level) return;
 
     const char *lvl = (level == CPAKFS_LEVEL_INFO) ? "INFO" : (level == CPAKFS_LEVEL_WARNING ? "WARN" : "ERROR");
     printf("[fsck %s] ", lvl);
@@ -614,27 +614,27 @@ static void fsck_report(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t le
     g_fsck_nissues++;
 }
 
-int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file) {
-    verbose_log(global_opts, "Testing %s", pak_file);
+int cmd_test(const char *pak_file) {
+    verbose_log( "Testing %s", pak_file);
     
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
     }
 
     try {
-        CPakFilesystem pak(pak_file, false); // Don't auto-mount for testing
+        CPakFilesystem pak(pak_file, false, g_global_opts.skip_header_bytes); // Don't auto-mount for testing
         
-        verbose_log(global_opts, "Running fsck on %s (%d banks)", pak_file, pak.getNumBanks());
+        verbose_log( "Running fsck on %s (%d banks)", pak_file, pak.getNumBanks());
 
         g_fsck_nissues = 0;
-        int err = cpakfs_fsck(JOYPAD_PORT_1, cmd_opts->fix_errors, fsck_report, cmd_opts);
+        int err = cpakfs_fsck(JOYPAD_PORT_1, g_command_opts.fix_errors, fsck_report, nullptr);
         if (err < 0) {
             fatal_error("Failed to test Controller Pak image: %s", strerror(errno));
         }
 
         if (g_fsck_nissues == 0) {
             printf("No issues found\n");
-        } else if (cmd_opts->fix_errors) {
+        } else if (g_command_opts.fix_errors) {
             printf("Fixed %d issue%s\n", g_fsck_nissues, g_fsck_nissues==1?"":"s");
         } else {
             printf("Found %d issue%s\n", g_fsck_nissues, g_fsck_nissues==1?"":"s");
@@ -649,22 +649,22 @@ int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const c
     }
 }
 
-int cmd_format(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file) {
-    verbose_log(global_opts, "Formatting %s with %d banks", pak_file, cmd_opts->num_banks);
+int cmd_format(const char *pak_file) {
+    verbose_log( "Formatting %s with %d banks", pak_file, g_command_opts.num_banks);
     
-    if (file_exists(pak_file) && !global_opts->force) {
+    if (file_exists(pak_file) && !g_global_opts.force) {
         fatal_error("File exists: %s (use --force to overwrite)", pak_file);
     }
     
     try {
         // Use factory method to create and format the pak file
-        auto pak = CPakFilesystem::create(pak_file, cmd_opts->num_banks, global_opts->force);
+        auto pak = CPakFilesystem::create(pak_file, g_command_opts.num_banks, g_global_opts.force);
         if (!pak) {
             fatal_error("Cannot create Controller Pak file '%s': %s", pak_file, strerror(errno));
         }
         
-        size_t total_size = cmd_opts->num_banks * BANK_SIZE;
-        verbose_log(global_opts, "Controller Pak image formatted successfully: %zu bytes", total_size);
+        size_t total_size = g_command_opts.num_banks * BANK_SIZE;
+        verbose_log( "Controller Pak image formatted successfully: %zu bytes", total_size);
         
         return 0;
         
@@ -675,8 +675,8 @@ int cmd_format(global_options_t *global_opts, command_options_t *cmd_opts, const
     }
 }
 
-int cmd_convert(global_options_t *global_opts, command_options_t *cmd_opts, const char *input_file, const char *output_file) {
-    verbose_log(global_opts, "Converting %s to %s", input_file, output_file);
+int cmd_convert(const char *input_file, const char *output_file) {
+    verbose_log( "Converting %s to %s", input_file, output_file);
     
     if (!file_exists(input_file)) {
         fatal_error("Input file not found: %s", input_file);
@@ -686,14 +686,14 @@ int cmd_convert(global_options_t *global_opts, command_options_t *cmd_opts, cons
     printf("CONVERT command not implemented yet\n");
     printf("Input: %s\n", input_file);
     printf("Output: %s\n", output_file);
-    printf("From format: %s\n", cmd_opts->from_format ? cmd_opts->from_format : "auto-detect");
-    printf("To format: %s\n", cmd_opts->to_format ? cmd_opts->to_format : "auto-detect");
+    printf("From format: %s\n", g_command_opts.from_format ? g_command_opts.from_format : "auto-detect");
+    printf("To format: %s\n", g_command_opts.to_format ? g_command_opts.to_format : "auto-detect");
     
     return 0;
 }
 
-int cmd_compare(global_options_t *global_opts, command_options_t *cmd_opts, const char *pak_file1, const char *pak_file2) {
-    verbose_log(global_opts, "Comparing %s and %s", pak_file1, pak_file2);
+int cmd_compare(const char *pak_file1, const char *pak_file2) {
+    verbose_log( "Comparing %s and %s", pak_file1, pak_file2);
     
     if (!file_exists(pak_file1)) {
         fatal_error("File not found: %s", pak_file1);
@@ -706,8 +706,8 @@ int cmd_compare(global_options_t *global_opts, command_options_t *cmd_opts, cons
     printf("COMPARE command not implemented yet\n");
     printf("File 1: %s\n", pak_file1);
     printf("File 2: %s\n", pak_file2);
-    printf("Brief: %s\n", cmd_opts->brief ? "yes" : "no");
-    printf("Summary: %s\n", cmd_opts->summary ? "yes" : "no");
+    printf("Brief: %s\n", g_command_opts.brief ? "yes" : "no");
+    printf("Summary: %s\n", g_command_opts.summary ? "yes" : "no");
     
     return 0;
 }
@@ -716,8 +716,8 @@ int cmd_compare(global_options_t *global_opts, command_options_t *cmd_opts, cons
 // HELPER FUNCTIONS FOR ADD/EXTRACT
 //
 
-static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *input_file) {
-    verbose_log(global_opts, "Processing file: %s", input_file);
+static int add_file(const char *input_file) {
+    verbose_log( "Processing file: %s", input_file);
     
     if (!file_exists(input_file)) {
         fatal_error("File not found: %s", input_file);
@@ -779,7 +779,7 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
     }
     
     // Default game code - use command line option or default to DRAG.ON
-    const char *default_gamecode = cmd_opts->gamecode ? cmd_opts->gamecode : "DRAG.ON";
+    const char *default_gamecode = g_command_opts.gamecode ? g_command_opts.gamecode : "DRAG.ON";
     
     // Check if the file path already looks like a cpak path (XXXX.XX-...)
     if (strlen(basename) >= 9 && basename[4] == '.' && basename[7] == '-') {
@@ -803,15 +803,15 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
         snprintf(cpak_path, sizeof(cpak_path), "%s.%s/%s", game, pub, basename);
     }
     
-    verbose_log(global_opts, "Target cpak path: %s", cpak_path);
+    verbose_log( "Target cpak path: %s", cpak_path);
     
     // Check if file already exists
     bool is_update = false;
     try {
         CPakFile existing(cpak_path, O_RDONLY);
         
-        if (cmd_opts->update_only) {
-            verbose_log(global_opts, "File already exists in pak, updating: %s", cpak_path);
+        if (g_command_opts.update_only) {
+            verbose_log( "File already exists in pak, updating: %s", cpak_path);
             is_update = true;
         } else {
             warning("File '%s' already exists in pak. Use --update to overwrite.", cpak_path);
@@ -842,10 +842,10 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
         }
         CPakFile dst(cpak_path, flags);
         
-        verbose_log(global_opts, "Copying %ld bytes from %s to %s", file_size, input_file, cpak_path);
+        verbose_log( "Copying %ld bytes from %s to %s", file_size, input_file, cpak_path);
         
         // Copy data using configurable buffer size with RAII
-        size_t buffer_size = cmd_opts->debug_bufsize;
+        size_t buffer_size = g_command_opts.debug_bufsize;
         std::vector<char> buffer(buffer_size);
         
         size_t bytes_copied = 0;
@@ -859,10 +859,10 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
         
         if (bytes_copied == (size_t)file_size) {
             if (is_update) {
-                verbose_log(global_opts, "Updated: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
+                verbose_log( "Updated: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
                 return 2; // Indicate update
             } else {
-                verbose_log(global_opts, "Added: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
+                verbose_log( "Added: %s -> %s (%zu bytes)", input_file, cpak_path, bytes_copied);
                 return 1; // Indicate addition
             }
         } else {
@@ -921,7 +921,7 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
     }
 }
 
-static int extract_file(global_options_t *global_opts, command_options_t *cmd_opts, const char *cpak_path) {
+static int extract_file(const char *cpak_path) {
     try {
         // Convert cpak path (GAME.PB/filename.ext) to output filename (GAME.PB-filename.ext)
         std::string output_filename;
@@ -935,10 +935,10 @@ static int extract_file(global_options_t *global_opts, command_options_t *cmd_op
             output_filename = std::string(cpak_path);
         }
         
-        verbose_log(global_opts, "Extracting %s -> %s", cpak_path, output_filename.c_str());
+        verbose_log( "Extracting %s -> %s", cpak_path, output_filename.c_str());
         
         // Check if output file exists
-        if (file_exists(output_filename.c_str()) && !cmd_opts->overwrite) {
+        if (file_exists(output_filename.c_str()) && !g_command_opts.overwrite) {
             warning("File exists, skipping: %s (use --overwrite to force)", output_filename.c_str());
             return 0;
         }
@@ -947,7 +947,7 @@ static int extract_file(global_options_t *global_opts, command_options_t *cmd_op
         CPakFile src_file(cpak_path, O_RDONLY);
         
         // Note: cpakfs doesn't store real file size, files are always padded to 256-byte blocks
-        verbose_log(global_opts, "Note: cpakfs files are padded to 256-byte blocks");
+        verbose_log( "Note: cpakfs files are padded to 256-byte blocks");
         
         // Open destination file
         FILE *dst = fopen(output_filename.c_str(), "wb");
@@ -957,7 +957,7 @@ static int extract_file(global_options_t *global_opts, command_options_t *cmd_op
         }
         
         // Copy file content (will be padded to 256-byte boundary)
-        size_t buffer_size = cmd_opts->debug_bufsize;
+        size_t buffer_size = g_command_opts.debug_bufsize;
         std::vector<char> buffer(buffer_size);
         size_t total_bytes = 0;
         size_t bytes_read;
@@ -973,7 +973,7 @@ static int extract_file(global_options_t *global_opts, command_options_t *cmd_op
         }
         
         fclose(dst);
-        verbose_log(global_opts, "Extracted: %s (%zu bytes)", output_filename.c_str(), total_bytes);
+        verbose_log( "Extracted: %s (%zu bytes)", output_filename.c_str(), total_bytes);
         return 1;
         
     } catch (const std::exception& e) {

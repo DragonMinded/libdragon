@@ -17,7 +17,6 @@ WHAT NOT TO TEST:
 import subprocess
 import tempfile
 import unittest
-import time
 from pathlib import Path
 
 # Helper to run cpaktool and capture output

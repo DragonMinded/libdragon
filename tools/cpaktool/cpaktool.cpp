@@ -19,23 +19,39 @@
 
 #include "cpaktool.h"
 
+// Global variables for options
+global_options_t g_global_opts = {0};
+command_options_t g_command_opts = {0};
+
 // Forward declarations
 static void print_usage(const char *program_name);
 static void print_command_usage(const char *program_name, command_t cmd);
 static void print_version(void);
 static command_t parse_command(const char *cmd_str);
-static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command);
+static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx);
 static int parse_global_options(int argc, char *argv[], int *start_idx, global_options_t *opts);
 static int parse_command_options(command_t cmd, int argc, char *argv[], int start_idx, global_options_t *global_opts, command_options_t *cmd_opts);
-static int execute_command(command_t cmd, global_options_t *global_opts, command_options_t *cmd_opts, int argc, char *argv[], int start_idx);
+static int execute_command(command_t cmd, int argc, char *argv[], int start_idx);
 
 //
 // MAIN FUNCTION
 //
 
 int main(int argc, char *argv[]) {
-    global_options_t global_opts = {0};
-    command_options_t cmd_opts = {0};
+    // Initialize global options
+    g_global_opts.verbose = false;
+    g_global_opts.force = false;
+    g_global_opts.dry_run = false;
+    g_global_opts.output_dir = NULL;
+    g_global_opts.skip_header_bytes = -1;  // Auto-detect by default
+    
+    // Initialize command options
+    memset(&g_command_opts, 0, sizeof(g_command_opts));
+    g_command_opts.pak_size = 32;    // Default pak size in KB (32KB = 1 bank)
+    g_command_opts.num_banks = 1;    // Default number of banks
+    g_command_opts.debug_bufsize = 4096;  // Default buffer size for file operations
+    g_command_opts.report_level = 1;     // Default fsck report level: WARNING
+    
     command_t cmd = CMD_NONE;
     int cmd_start_idx;
     
@@ -45,7 +61,7 @@ int main(int argc, char *argv[]) {
     }
     
     // Parse global options and find command
-    if (parse_global_options(argc, argv, &cmd_start_idx, &global_opts) < 0) {
+    if (parse_global_options(argc, argv, &cmd_start_idx, &g_global_opts) < 0) {
         return 1;
     }
     
@@ -61,13 +77,13 @@ int main(int argc, char *argv[]) {
     }
     
     // Parse command-specific options (also accepts global long options here)
-    int args_start_idx = parse_command_options(cmd, argc, argv, cmd_start_idx + 1, &global_opts, &cmd_opts);
+    int args_start_idx = parse_command_options(cmd, argc, argv, cmd_start_idx + 1, &g_global_opts, &g_command_opts);
     if (args_start_idx < 0) {
         return 1;
     }
     
     // Execute command
-    return execute_command(cmd, &global_opts, &cmd_opts, argc, argv, args_start_idx);
+    return execute_command(cmd, argc, argv, args_start_idx);
 }
 
 //
@@ -85,6 +101,8 @@ static void print_usage(const char *program_name) {
     printf("  -v, --verbose   Verbose output\n");
     printf("  -f, --force     Force operation without confirmation\n");
     printf("  -n, --dry-run   Show what would be done without actually doing it\n");
+    printf("  --skip-header N     Skip N bytes at the beginning of pak files (0=no skip)\n");
+    printf("                      If not specified, DexDrive format is auto-detected\n");
     printf("\n");
     printf("Commands:\n");
     printf("  list    (l)     List contents of Controller Pak\n");
@@ -158,7 +176,7 @@ static command_t parse_command(const char *cmd_str) {
 }
 
 // Single global options handler usable before or after the command
-static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command) {
+static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
     if (!strcmp(arg, "--help") || !strcmp(arg, "-h")) {
         if (before_command) {
             print_usage(program_name ? program_name : "cpaktool");
@@ -184,6 +202,22 @@ static bool handle_global_option(const char *arg, global_options_t *opts, const 
         opts->force = true;
         return true;
     }
+    
+    // Handle --skip-header specially (requires next argument)
+    if (!strcmp(arg, "--skip-header")) {
+        if (*arg_idx + 1 >= argc || argv[*arg_idx + 1][0] == '-') {
+            fatal_error("Option --skip-header requires a value");
+        }
+        char *endptr;
+        long skip_bytes = strtol(argv[*arg_idx + 1], &endptr, 10);
+        if (*endptr != '\0' || skip_bytes < 0) {
+            fatal_error("Invalid value for --skip-header: %s", argv[*arg_idx + 1]);
+        }
+        opts->skip_header_bytes = (int)skip_bytes;
+        (*arg_idx)++; // Skip the value argument
+        return true;
+    }
+    
     return false;
 }
 
@@ -199,21 +233,10 @@ static int parse_global_options(int argc, char *argv[], int *start_idx, global_o
         
         char *arg = argv[i];
         
-        // Check for --option=value format  
-        char *eq = strchr(arg, '=');
-        if (eq) {
-            *eq = '\0';
-        }
-        
-        if (handle_global_option(arg, opts, argv[0], CMD_NONE, true)) {
+        if (handle_global_option(arg, opts, argv[0], CMD_NONE, true, argc, argv, &i)) {
             // handled (or exited)
         } else {
-            fatal_error("Unknown global option: %s", argv[i]);
-        }
-        
-        // Restore the '=' if we modified it
-        if (eq) {
-            *eq = '=';
+            fatal_error("Unknown global option: %s", arg);
         }
         
         *start_idx = i + 1;
@@ -252,7 +275,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
         }
         
         // Try global options here as well (after command)
-        if (handle_global_option(arg, global_opts, NULL, cmd, false)) {
+        if (handle_global_option(arg, global_opts, NULL, cmd, false, argc, argv, &i)) {
             if (eq) *eq = '='; // restore
             continue; // proceed to next arg
         }
@@ -528,7 +551,7 @@ static void print_command_usage(const char *program_name, command_t cmd) {
     }
 }
 
-static int execute_command(command_t cmd, global_options_t *global_opts, command_options_t *cmd_opts, int argc, char *argv[], int start_idx) {
+static int execute_command(command_t cmd, int argc, char *argv[], int start_idx) {
     // Count non-option arguments
     int arg_count = 0;
     for (int i = start_idx; i < argc; i++) {
@@ -553,63 +576,63 @@ static int execute_command(command_t cmd, global_options_t *global_opts, command
             if (arg_count < 1) {
                 fatal_error("list command requires at least one argument (pak file)");
             }
-            result = cmd_list(global_opts, cmd_opts, args[0], &args[1], arg_count - 1);
+            result = cmd_list(args[0], &args[1], arg_count - 1);
             break;
             
         case CMD_EXTRACT:
             if (arg_count < 1) {
                 fatal_error("extract command requires at least one argument (pak file)");
             }
-            result = cmd_extract(global_opts, cmd_opts, args[0], &args[1], arg_count - 1);
+            result = cmd_extract(args[0], &args[1], arg_count - 1);
             break;
             
         case CMD_ADD:
             if (arg_count < 2) {
                 fatal_error("add command requires at least two arguments (pak file and file to add)");
             }
-            result = cmd_add(global_opts, cmd_opts, args[0], &args[1], arg_count - 1);
+            result = cmd_add(args[0], &args[1], arg_count - 1);
             break;
             
         case CMD_DELETE:
             if (arg_count < 2) {
                 fatal_error("delete command requires at least two arguments (pak file and pattern)");
             }
-            result = cmd_delete(global_opts, cmd_opts, args[0], &args[1], arg_count - 1);
+            result = cmd_delete(args[0], &args[1], arg_count - 1);
             break;
             
         case CMD_INFO:
             if (arg_count != 1) {
                 fatal_error("info command requires exactly one argument (pak file)");
             }
-            result = cmd_info(global_opts, cmd_opts, args[0]);
+            result = cmd_info(args[0]);
             break;
             
         case CMD_TEST:
             if (arg_count != 1) {
                 fatal_error("test command requires exactly one argument (pak file)");
             }
-            result = cmd_test(global_opts, cmd_opts, args[0]);
+            result = cmd_test(args[0]);
             break;
             
         case CMD_FORMAT:
             if (arg_count != 1) {
                 fatal_error("format command requires exactly one argument (pak file)");
             }
-            result = cmd_format(global_opts, cmd_opts, args[0]);
+            result = cmd_format(args[0]);
             break;
             
         case CMD_CONVERT:
             if (arg_count != 2) {
                 fatal_error("convert command requires exactly two arguments (input and output files)");
             }
-            result = cmd_convert(global_opts, cmd_opts, args[0], args[1]);
+            result = cmd_convert(args[0], args[1]);
             break;
             
         case CMD_COMPARE:
             if (arg_count != 2) {
                 fatal_error("compare command requires exactly two arguments (two pak files)");
             }
-            result = cmd_compare(global_opts, cmd_opts, args[0], args[1]);
+            result = cmd_compare(args[0], args[1]);
             break;
             
         default:
@@ -644,8 +667,8 @@ void warning(const char *fmt, ...) {
     va_end(args);
 }
 
-void verbose_log(global_options_t *opts, const char *fmt, ...) {
-    if (!opts->verbose) return;
+void verbose_log(const char *fmt, ...) {
+    if (!g_global_opts.verbose) return;
     
     va_list args;
     va_start(args, fmt);
