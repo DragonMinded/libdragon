@@ -149,14 +149,12 @@ typedef enum {
     DIRTY_ZBUF          = 1 << 13,
     DIRTY_ZMODE         = 1 << 14,
     DIRTY_PERSP         = 1 << 15,
+    DIRTY_SCISSOR       = 1 << 16,
+    DIRTY_FOG_COLOR     = 1 << 17,
 
     DIRTY_RDPQ_MODE_ALL = DIRTY_ANTIALIAS | DIRTY_DITHER | DIRTY_COMBINER | DIRTY_BLENDER | DIRTY_FOG | DIRTY_ALPHACOMPARE | DIRTY_ZBUF | DIRTY_PERSP,
-    DIRTY_RDPQ_ALL      = DIRTY_PRIM_COLOR | DIRTY_RDPQ_MODE_ALL,
+    DIRTY_RDPQ_ALL      = DIRTY_SCISSOR | DIRTY_PRIM_COLOR | DIRTY_FOG_COLOR | DIRTY_RDPQ_MODE_ALL,
 } gl_dirty_flags_t;
-
-typedef struct {
-    GLfloat x, y, w, h, n, f;
-} gl_viewport_t;
 
 typedef struct {
     fm_mat4_t *storage;
@@ -348,7 +346,14 @@ typedef struct {
     gl_array_object_t *array_object;
     gl_buffer_object_t *array_buffer;
     const surface_t *color_buffer;
-    gl_viewport_t viewport;
+
+    struct {
+        GLfloat x, y, w, h, n, f;
+    } viewport;
+
+    struct {
+        GLfloat x, y, w, h;
+    } scissor;
 
     // TODO: move this to array object?
     gl_fixed_precision_t vertex_halfx_precision;
@@ -486,6 +491,7 @@ fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void update_pipeline();
 void update_viewport();
 void apply_rendermode(bool reset);
+void apply_scissor();
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);

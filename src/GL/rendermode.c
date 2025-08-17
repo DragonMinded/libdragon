@@ -161,13 +161,19 @@ void glFogf(GLenum pname, GLfloat param)
     }
 }
 
+void set_fog_color(color_t color)
+{
+    state->fog_color = color;
+    gl_set_dirty_flags(DIRTY_FOG_COLOR);
+}
+
 void glFogiv(GLenum pname, const GLint *params)
 {
     if (!gl_ensure_no_begin_end()) return;
     
     switch (pname) {
     case GL_FOG_COLOR:
-        rdpq_set_fog_color(RGBA32(
+        set_fog_color(RGBA32(
             MAX(params[0]>>23, 0),
             MAX(params[1]>>23, 0),
             MAX(params[2]>>23, 0),
@@ -193,7 +199,7 @@ void glFogfv(GLenum pname, const GLfloat *params)
     
     switch (pname) {
     case GL_FOG_COLOR:
-        rdpq_set_fog_color(RGBA32(
+        set_fog_color(RGBA32(
             FLOAT_TO_U8(params[0]),
             FLOAT_TO_U8(params[1]),
             FLOAT_TO_U8(params[2]),
@@ -227,9 +233,11 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
         return;
     }
 
-    const surface_t *fb = rdpq_get_attached();
-
-    rdpq_set_scissor(left, fb->height - (bottom + height), left + width, fb->height - bottom);
+    state->scissor.x = left;
+    state->scissor.y = bottom;
+    state->scissor.w = width;
+    state->scissor.h = height;
+    gl_set_dirty_flags(DIRTY_SCISSOR);
 }
 
 void glBlendFunc(GLenum src, GLenum dst)
@@ -486,6 +494,21 @@ bool gl_is_shade_active()
     return gl_is_enabled(ENABLE_LIGHTING) || !is_color_constant();
 }
 
+void apply_scissor()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_SCISSOR)) return;
+
+    if (gl_is_enabled(ENABLE_SCISSOR_TEST)) {
+        uint16_t x0 = state->scissor.x;
+        uint16_t y0 = state->color_buffer->height - (state->scissor.y + state->scissor.h);
+        uint16_t x1 = state->scissor.x + state->scissor.w;
+        uint16_t y1 = state->color_buffer->height - state->scissor.y;
+        rdpq_set_scissor(x0, y0, x1, y1);
+    } else {
+        rdpq_set_scissor(0, 0, state->color_buffer->width, state->color_buffer->height);
+    }
+}
+
 color_t get_prim_color()
 {
     if (gl_is_enabled(ENABLE_LIGHTING)) {
@@ -499,6 +522,12 @@ void apply_prim_color()
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_PRIM_COLOR)) return;
     rdpq_set_prim_color(get_prim_color());
+}
+
+void apply_fog_color()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG_COLOR)) return;
+    rdpq_set_fog_color(state->fog_color);
 }
 
 void apply_antialias()
@@ -624,4 +653,6 @@ void apply_rendermode(bool reset)
     }
 
     apply_prim_color();
+    apply_fog_color();
+    apply_scissor();
 }

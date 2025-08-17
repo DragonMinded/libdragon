@@ -97,7 +97,7 @@ GLenum glGetError(void)
 }
 
 static const gl_dirty_flags_t enable_to_dirty_flag_table[] = {
-    [ENABLE_SCISSOR_TEST]   = 0,
+    [ENABLE_SCISSOR_TEST]   = DIRTY_SCISSOR,
     [ENABLE_ALPHA_TEST]     = DIRTY_ALPHACOMPARE,
     [ENABLE_DEPTH_TEST]     = DIRTY_GEOM_FLAGS | DIRTY_ZBUF | DIRTY_ZMODE,
     [ENABLE_BLEND]          = DIRTY_BLENDER,
@@ -196,33 +196,33 @@ gl_enable_t get_enable_from_target(GLenum target)
     case GL_CLIP_PLANE4:
     case GL_CLIP_PLANE5:
         assertf(0, "User clip planes are not supported!");
-        return 0;
+        break;
     case GL_STENCIL_TEST:
         assertf(0, "Stencil test is not supported!");
-        return 0;
+        break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
         assertf(0, "Logical pixel operation is not supported!");
-        return 0;
+        break;
     case GL_POINT_SMOOTH:
     case GL_LINE_SMOOTH:
     case GL_POLYGON_SMOOTH:
         assertf(0, "Smooth rendering is not supported (Use multisampling instead)!");
-        return 0;
+        break;
     case GL_LINE_STIPPLE:
     case GL_POLYGON_STIPPLE:
         assertf(0, "Stipple is not supported!");
-        return 0;
+        break;
     case GL_POLYGON_OFFSET_FILL:
     case GL_POLYGON_OFFSET_LINE:
     case GL_POLYGON_OFFSET_POINT:
         assertf(0, "Polygon offset is not supported!");
-        return 0;
+        break;
     case GL_SAMPLE_ALPHA_TO_COVERAGE_ARB:
     case GL_SAMPLE_ALPHA_TO_ONE_ARB:
     case GL_SAMPLE_COVERAGE_ARB:
         assertf(0, "Coverage value manipulation is not supported!");
-        return 0;
+        break;
     case GL_MAP1_COLOR_4:
     case GL_MAP1_INDEX:
     case GL_MAP1_NORMAL:
@@ -242,18 +242,20 @@ gl_enable_t get_enable_from_target(GLenum target)
     case GL_MAP2_VERTEX_3:
     case GL_MAP2_VERTEX_4:
         assertf(0, "Evaluators are not supported!");
-        return 0;
+        break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid enable target", target);
-        return 0;
+        break;
     }
+
+    return -1;
 }
 
 void glEnable(GLenum target)
 {
     if (!gl_ensure_no_begin_end()) return;
     gl_enable_t enable = get_enable_from_target(target);
-    if (enable == 0) return;
+    if (enable < 0) return;
     state->enable_flags |= (1 << enable);
     gl_set_dirty_flags(enable_to_dirty_flag_table[enable]);
 }
@@ -262,7 +264,7 @@ void glDisable(GLenum target)
 {
     if (!gl_ensure_no_begin_end()) return;
     gl_enable_t enable = get_enable_from_target(target);
-    if (enable == 0) return;
+    if (enable < 0) return;
     state->enable_flags &= ~(1 << enable);
     gl_set_dirty_flags(enable_to_dirty_flag_table[enable]);
 }
@@ -278,6 +280,8 @@ void glClear(GLbitfield buf)
     if (buf & (GL_STENCIL_BUFFER_BIT | GL_ACCUM_BUFFER_BIT)) {
         assertf(0, "Only color and depth buffers are supported!");
     }
+
+    apply_scissor();
 
     if (buf & GL_DEPTH_BUFFER_BIT) {
         rdpq_clear_z(state->clear_depth);
