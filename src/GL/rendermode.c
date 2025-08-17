@@ -91,7 +91,7 @@ void gl_rendermode_close()
 
 void gl_upload_fog(const mg_uniform_t *uniform)
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG)) return;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG_UNIFORM)) return;
 
     bool enabled = gl_is_enabled(ENABLE_FOG);
     mgfx_fog_t *buffer = ringbuffer_alloc_next(&state->fog_buffer);
@@ -106,13 +106,13 @@ void gl_upload_fog(const mg_uniform_t *uniform)
 void gl_set_fog_start(GLfloat param)
 {
     state->fog_start = param;
-    gl_set_dirty_flags(DIRTY_FOG);
+    gl_set_dirty_flags(DIRTY_FOG_UNIFORM);
 }
 
 void gl_set_fog_end(GLfloat param)
 {
     state->fog_end = param;
-    gl_set_dirty_flags(DIRTY_FOG);
+    gl_set_dirty_flags(DIRTY_FOG_UNIFORM);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -279,7 +279,7 @@ void glBlendFunc(GLenum src, GLenum dst)
     state->blend_src = src;
     state->blend_dst = dst;
 
-    gl_set_dirty_flags(DIRTY_RENDERMODE);
+    gl_set_dirty_flags(DIRTY_BLENDER);
 }
 
 void glDepthFunc(GLenum func)
@@ -305,7 +305,7 @@ void glDepthFunc(GLenum func)
     }
 
     state->depth_func = func;
-    gl_set_dirty_flags(DIRTY_RENDERMODE);
+    gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_ZBUF);
 }
 
 void glDepthMask(GLboolean mask)
@@ -313,7 +313,7 @@ void glDepthMask(GLboolean mask)
     if (!gl_ensure_no_begin_end()) return;
     
     state->depth_mask = mask;
-    gl_set_dirty_flags(DIRTY_RENDERMODE);
+    gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_ZBUF);
 }
 
 bool is_depth_compare_active()
@@ -354,7 +354,7 @@ void glAlphaFunc(GLenum func, GLclampf ref)
 
     state->alpha_func = func;
     state->alpha_ref = ref;
-    gl_set_dirty_flags(DIRTY_RENDERMODE);
+    gl_set_dirty_flags(DIRTY_ALPHACOMPARE);
 }
 
 void glTexEnvi(GLenum target, GLenum pname, GLint param)
@@ -447,6 +447,8 @@ rdpq_dither_t get_dither()
 
 rdpq_zmode_t get_zmode()
 {
+    if (!gl_is_enabled(ENABLE_DEPTH_TEST)) return ZMODE_STANDARD;
+
     switch (state->depth_func)
     {
     case GL_EQUAL:
@@ -484,14 +486,38 @@ bool gl_is_shade_active()
     return gl_is_enabled(ENABLE_LIGHTING) || !is_color_constant();
 }
 
-void update_combiner()
+color_t get_prim_color()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_COMBINER)) return;
+    if (gl_is_enabled(ENABLE_LIGHTING)) {
+        return gl_get_material_diffuse();
+    } else {
+        return color_from_packed32(state->current_attribs.color);
+    }
+}
 
+void apply_prim_color()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_PRIM_COLOR)) return;
+    rdpq_set_prim_color(get_prim_color());
+}
+
+void apply_antialias()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_ANTIALIAS)) return;
+    rdpq_mode_antialias(get_antialias());
+}
+
+void apply_dither()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_DITHER)) return;
+    rdpq_mode_dithering(get_dither());
+}
+
+rdpq_combiner_t get_combiner()
+{
     bool has_tex = gl_is_texture_active();
     if (has_tex && is_texture_replace()) {
-        state->combiner = RDPQ_COMBINER_TEX;
-        return;
+        return RDPQ_COMBINER_TEX;
     }
 
     // TODO: emissive color
@@ -515,61 +541,87 @@ void update_combiner()
     if (gl_is_enabled(ENABLE_LIGHTING)) index |= 2;
     if (constant_color) index |= 1;
 
-    state->combiner = table[index];
-    gl_set_dirty_flags(DIRTY_RENDERMODE);
+    return table[index];
 }
 
-color_t get_prim_color()
+void apply_combiner()
 {
-    if (gl_is_enabled(ENABLE_LIGHTING)) {
-        return gl_get_material_diffuse();
-    } else {
-        return color_from_packed32(state->current_attribs.color);
+    if (!gl_check_and_clear_dirty_flags(DIRTY_COMBINER)) return;
+    rdpq_mode_combiner(get_combiner());
+}
+
+rdpq_blender_t get_blender()
+{
+    return gl_is_enabled(ENABLE_BLEND) ? state->blender : 0;
+}
+
+void apply_blender()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_BLENDER)) return;
+    rdpq_mode_blender(get_blender());
+}
+
+rdpq_blender_t get_fog()
+{
+    return gl_is_enabled(ENABLE_FOG) ? RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)) : 0;
+}
+
+void apply_fog()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG)) return;
+    rdpq_mode_fog(get_fog());
+}
+
+int get_alphacompare()
+{
+    return gl_is_enabled(ENABLE_ALPHA_TEST) && state->alpha_func != GL_ALWAYS ? FLOAT_TO_U8(state->alpha_ref) : 0;
+}
+
+void apply_alphacompare()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_ALPHACOMPARE)) return;
+    rdpq_mode_alphacompare(get_alphacompare());
+}
+
+void apply_zbuf()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_ZBUF)) return;
+    rdpq_mode_zbuf(is_depth_compare_active(), is_depth_update_active());
+}
+
+void apply_zmode()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_ZMODE)) return;
+    rdpq_mode_zmode(get_zmode());
+}
+
+void apply_persp()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_PERSP)) return;
+    rdpq_mode_persp(gl_is_hint_enabled(HINT_PERSP_CORRECT));
+}
+
+void apply_rendermode(bool reset)
+{
+    if (reset) {
+        // When resetting, we need to re-apply all modes. Mark all of them as dirty.
+        gl_set_dirty_flags(DIRTY_RDPQ_MODE_ALL);
     }
-}
+    
+    if (gl_check_dirty_flags_any(DIRTY_RDPQ_MODE_ALL)) {
+        rdpq_mode_begin();
+            if (reset) rdpq_set_mode_standard();
+            apply_antialias();
+            apply_dither();
+            apply_combiner();
+            apply_blender();
+            apply_fog();
+            apply_alphacompare();
+            apply_zbuf();
+            apply_zmode();
+            apply_persp();
+        rdpq_mode_end();
+    }
 
-void update_rendermode()
-{
-    // TODO: Is it worth adding a dirty flag for this?
-    rdpq_set_prim_color(get_prim_color());
-
-    update_combiner();
-
-    if (!gl_check_and_clear_dirty_flags(DIRTY_RENDERMODE)) return;
-
-    // TODO: Re-think this in order to implement RDPQ-interop.
-    //       The full mode update below (including resetting to standard mode) should probably happen during gl_context_begin. 
-    //       Then before each draw call, only incremental updates. If GL_RDPQ_MATERIAL_N64 is enabled, the updates
-    //       for combiner/blender are skipped. Or maybe all updates are skipped?
-
-    //       Idea for GL_RDPQ_TEXTURING_N64: Instead of being a global flag, allow to create placeholder texture objects that only skip the upload block
-    //       (but still upload the mg uniform and set texture filter)
-
-    rdpq_mode_begin();
-        rdpq_set_mode_standard();
-
-        rdpq_mode_antialias(get_antialias());
-        rdpq_mode_dithering(get_dither());
-
-        rdpq_mode_combiner(state->combiner);
-
-        if (gl_is_enabled(ENABLE_BLEND)) {
-            rdpq_mode_blender(state->blender);
-        }
-        if (gl_is_enabled(ENABLE_FOG)) {
-            rdpq_mode_fog(RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)));
-        }
-        if (gl_is_enabled(ENABLE_ALPHA_TEST) && state->alpha_func != GL_ALWAYS) {
-            rdpq_mode_alphacompare(FLOAT_TO_U8(state->alpha_ref));
-        }
-
-        bool compare_depth = is_depth_compare_active();
-        rdpq_mode_zbuf(compare_depth, is_depth_update_active());
-
-        if (compare_depth) {
-            rdpq_mode_zmode(get_zmode());
-        }
-
-        rdpq_mode_persp(gl_is_hint_enabled(HINT_PERSP_CORRECT));
-    rdpq_mode_end();
+    apply_prim_color();
 }

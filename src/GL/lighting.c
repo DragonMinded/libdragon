@@ -104,6 +104,7 @@ void gl_set_material_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 void gl_set_material_diffuse(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     gl_set_color(state->material.diffuse, r, g, b, a);
+    gl_set_dirty_flags(DIRTY_PRIM_COLOR);
 }
 
 void gl_set_material_specular(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -588,12 +589,14 @@ void glColorMaterial(GLenum face, GLenum mode)
     case GL_SPECULAR:
     case GL_EMISSION:
     case GL_AMBIENT_AND_DIFFUSE:
-        state->material.color_target = mode;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid color material mode", mode);
         return;
     }
+
+    state->material.color_target = mode;
+    gl_set_dirty_flags(DIRTY_PRIM_COLOR | DIRTY_PIPELINE | DIRTY_COMBINER);
 }
 
 void glShadeModel(GLenum mode)

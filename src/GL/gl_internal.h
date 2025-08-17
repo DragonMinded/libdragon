@@ -136,11 +136,22 @@ typedef enum {
     DIRTY_PIPELINE      = 1 << 0,
     DIRTY_GEOM_FLAGS    = 1 << 1,
     DIRTY_LIGHTING      = 1 << 2,
-    DIRTY_FOG           = 1 << 3,
+    DIRTY_FOG_UNIFORM   = 1 << 3,
     DIRTY_TEXTURING     = 1 << 4,
-    DIRTY_RENDERMODE    = 1 << 5,
-    DIRTY_COMBINER      = 1 << 6,
-    DIRTY_CULLING       = 1 << 7,
+    DIRTY_CULLING       = 1 << 5,
+    DIRTY_PRIM_COLOR    = 1 << 6,
+    DIRTY_ANTIALIAS     = 1 << 7,
+    DIRTY_DITHER        = 1 << 8,
+    DIRTY_COMBINER      = 1 << 9,
+    DIRTY_BLENDER       = 1 << 10,
+    DIRTY_FOG           = 1 << 11,
+    DIRTY_ALPHACOMPARE  = 1 << 12,
+    DIRTY_ZBUF          = 1 << 13,
+    DIRTY_ZMODE         = 1 << 14,
+    DIRTY_PERSP         = 1 << 15,
+
+    DIRTY_RDPQ_MODE_ALL = DIRTY_ANTIALIAS | DIRTY_DITHER | DIRTY_COMBINER | DIRTY_BLENDER | DIRTY_FOG | DIRTY_ALPHACOMPARE | DIRTY_ZBUF | DIRTY_PERSP,
+    DIRTY_RDPQ_ALL      = DIRTY_PRIM_COLOR | DIRTY_RDPQ_MODE_ALL,
 } gl_dirty_flags_t;
 
 typedef struct {
@@ -326,7 +337,6 @@ typedef struct {
     GLenum tex_env_mode;
     GLclampf alpha_ref;
     rdpq_blender_t blender;
-    rdpq_combiner_t combiner;
     rdpq_dither_t dither_mode;
     GLboolean depth_mask;
     GLfloat fog_start;
@@ -475,7 +485,7 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void update_pipeline();
 void update_viewport();
-void update_rendermode();
+void apply_rendermode(bool reset);
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
@@ -518,6 +528,11 @@ inline void gl_clear_dirty_flags(gl_dirty_flags_t flags)
 inline bool gl_check_dirty_flags(gl_dirty_flags_t flags)
 {
     return (state->dirty_flags & flags) == flags;
+}
+
+inline bool gl_check_dirty_flags_any(gl_dirty_flags_t flags)
+{
+    return (state->dirty_flags & flags) != 0;
 }
 
 inline bool gl_check_and_clear_dirty_flags(gl_dirty_flags_t flags)

@@ -1287,6 +1287,7 @@ void upload_texture(gl_texture_object_t *obj)
     }
     rdpq_tex_multi_end();
 
+    // TODO: incorporate this into apply_rendermode
     rdpq_mode_begin();
         rdpq_mode_mipmap(get_mipmap_mode(obj), obj->levels_count);
         rdpq_mode_tlut(rdpq_tlut_from_format(surface_get_format(&obj->levels[0].surface)));
@@ -1339,6 +1340,7 @@ void upload_texture_obj(gl_texture_object_t *obj, const mg_uniform_t *uniform)
 
     rspq_block_run(obj->upload_block);
 
+    // TODO: incorporate this into apply_rendermode
     bool is_bilinear = texture_is_bilinear(obj);
     rdpq_mode_filter(is_bilinear ? FILTER_BILINEAR : FILTER_POINT);
 

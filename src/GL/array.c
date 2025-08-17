@@ -658,8 +658,10 @@ void glBindVertexArray(GLuint array)
         obj = &state->default_array_object;
     }
 
-    state->array_object = obj;
-    gl_set_dirty_flags(DIRTY_PIPELINE);
+    if (obj != state->array_object) {
+        state->array_object = obj;
+        gl_set_dirty_flags(DIRTY_PIPELINE);
+    }
 }
 
 GLboolean glIsVertexArray(GLuint array)

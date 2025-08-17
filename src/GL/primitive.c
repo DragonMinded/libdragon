@@ -109,7 +109,7 @@ static void update_uniforms()
 
 static void prepare_drawing()
 {
-    update_rendermode();
+    apply_rendermode(false);
     update_pipeline();
     update_uniforms();
     update_culling();
@@ -396,6 +396,9 @@ void glArrayElement(GLint i)
         offsetof(native_vertex_t, mtx_index),
     };
     array_convert(state->array_object, out_offsets, &state->current_attribs, i, 1, sizeof(native_vertex_t));
+    if (state->array_object->arrays[ATTRIB_COLOR].enabled) {
+        gl_set_dirty_flags(DIRTY_PRIM_COLOR);
+    }
 
     if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
         begin_end_advance();
@@ -449,6 +452,7 @@ void __gl_normal(GLenum type, const void *value, uint32_t size)
 void __gl_color(GLenum type, const void *value, uint32_t size)
 {
     read_attrib(ATTRIB_COLOR, type, value, size);
+    gl_set_dirty_flags(DIRTY_PRIM_COLOR);
 }
 
 void __gl_tex_coord(GLenum type, const void *value, uint32_t size)

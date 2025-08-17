@@ -76,7 +76,11 @@ void gl_context_begin()
         glScissor(0, 0, width, height);
     }
 
-    gl_set_dirty_flags(DIRTY_RENDERMODE | DIRTY_TEXTURING);
+    // Reset textures and all RDPQ related states in case they were modified outside of the GL context
+    gl_set_dirty_flags(DIRTY_TEXTURING | DIRTY_RDPQ_ALL);
+
+    // Reset rendermode in case it was changed outside of the GL context
+    apply_rendermode(true);
 }
 
 void gl_context_end()
@@ -94,14 +98,14 @@ GLenum glGetError(void)
 
 static const gl_dirty_flags_t enable_to_dirty_flag_table[] = {
     [ENABLE_SCISSOR_TEST]   = 0,
-    [ENABLE_ALPHA_TEST]     = DIRTY_RENDERMODE,
-    [ENABLE_DEPTH_TEST]     = DIRTY_GEOM_FLAGS | DIRTY_RENDERMODE,
-    [ENABLE_BLEND]          = DIRTY_RENDERMODE,
-    [ENABLE_DITHER]         = DIRTY_RENDERMODE,
-    [ENABLE_MULTISAMPLE]    = DIRTY_RENDERMODE,
-    [ENABLE_FOG]            = DIRTY_FOG | DIRTY_RENDERMODE | DIRTY_GEOM_FLAGS,
-    [ENABLE_LIGHTING]       = DIRTY_LIGHTING | DIRTY_GEOM_FLAGS | DIRTY_COMBINER,
-    [ENABLE_COLOR_MATERIAL] = DIRTY_COMBINER,
+    [ENABLE_ALPHA_TEST]     = DIRTY_ALPHACOMPARE,
+    [ENABLE_DEPTH_TEST]     = DIRTY_GEOM_FLAGS | DIRTY_ZBUF | DIRTY_ZMODE,
+    [ENABLE_BLEND]          = DIRTY_BLENDER,
+    [ENABLE_DITHER]         = DIRTY_DITHER,
+    [ENABLE_MULTISAMPLE]    = DIRTY_ANTIALIAS,
+    [ENABLE_FOG]            = DIRTY_FOG_UNIFORM | DIRTY_FOG | DIRTY_GEOM_FLAGS,
+    [ENABLE_LIGHTING]       = DIRTY_LIGHTING | DIRTY_GEOM_FLAGS | DIRTY_COMBINER | DIRTY_PRIM_COLOR,
+    [ENABLE_COLOR_MATERIAL] = DIRTY_COMBINER | DIRTY_PRIM_COLOR,
     [ENABLE_NORMALIZE]      = 0,
     [ENABLE_TEXTURE_1D]     = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
     [ENABLE_TEXTURE_2D]     = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
@@ -299,7 +303,7 @@ void glClearDepth(GLclampd d)
 void glDitherModeN64(rdpq_dither_t mode)
 {
     state->dither_mode = mode;
-    gl_set_dirty_flags(DIRTY_RENDERMODE);
+    gl_set_dirty_flags(DIRTY_DITHER);
 }
 
 void glFlush(void)
@@ -334,12 +338,12 @@ void glHint(GLenum target, GLenum hint)
     case GL_PERSPECTIVE_CORRECTION_HINT:
         // Use perspective correction by default, unless it was explicitly turned off
         set_hint_flag(HINT_PERSP_CORRECT, hint != GL_FASTEST);
-        gl_set_dirty_flags(DIRTY_RENDERMODE);
+        gl_set_dirty_flags(DIRTY_PERSP);
         break;
     case GL_MULTISAMPLE_HINT_N64:
         // Use full AA by default, unless RA has been requested
         set_hint_flag(HINT_FULL_AA, hint != GL_FASTEST);
-        gl_set_dirty_flags(DIRTY_RENDERMODE);
+        gl_set_dirty_flags(DIRTY_ANTIALIAS);
         break;
     case GL_FOG_HINT:
         // TODO: per-pixel fog
