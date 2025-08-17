@@ -18,6 +18,10 @@
 #include <functional>
 
 class CPakFilesystem {
+private:
+    static constexpr size_t DEXDRIVE_HEADER_SIZE = 0x1040;
+    static constexpr const char DEXDRIVE_SIGNATURE[] = "123-456-STD\x00";
+
 public:
     // Constructor opens the pak file and mounts the filesystem
     explicit CPakFilesystem(const std::string& filename, bool auto_mount = true);
@@ -62,12 +66,14 @@ private:
     void setupGlobals();
     void cleanupGlobals();
     void calculateBanks();
+    bool detectDexDriveFormat();
     static bool createEmptyFile(const std::string& filename, size_t size);
     
     std::string m_filename;
     FILE* m_file;
     int m_num_banks;
     size_t m_file_size;
+    size_t m_pak_offset;
     bool m_globals_set;
     bool m_filesystem_mounted;
 };

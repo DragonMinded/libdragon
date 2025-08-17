@@ -29,12 +29,18 @@ CPakFilesystem::CPakFilesystem(const std::string& filename, bool auto_mount)
     , m_file(nullptr)
     , m_num_banks(0)
     , m_file_size(0)
+    , m_pak_offset(0)
     , m_globals_set(false)
     , m_filesystem_mounted(false)
 {
     m_file = fopen(filename.c_str(), "r+b");
     if (!m_file) {
         throw std::runtime_error("Cannot open file '" + filename + "': " + strerror(errno));
+    }
+    
+    // Detect DexDrive format and set offset if needed
+    if (detectDexDriveFormat()) {
+        m_pak_offset = DEXDRIVE_HEADER_SIZE;
     }
     
     // Get file size and calculate banks
@@ -63,10 +69,12 @@ CPakFilesystem::CPakFilesystem(CPakFilesystem&& other) noexcept
     , m_file(other.m_file)
     , m_num_banks(other.m_num_banks)
     , m_file_size(other.m_file_size)
+    , m_pak_offset(other.m_pak_offset)
     , m_globals_set(other.m_globals_set)
     , m_filesystem_mounted(other.m_filesystem_mounted)
 {
     other.m_file = nullptr;
+    other.m_pak_offset = 0;
     other.m_globals_set = false;
     other.m_filesystem_mounted = false;
     
@@ -90,10 +98,12 @@ CPakFilesystem& CPakFilesystem::operator=(CPakFilesystem&& other) noexcept {
         m_file = other.m_file;
         m_num_banks = other.m_num_banks;
         m_file_size = other.m_file_size;
+        m_pak_offset = other.m_pak_offset;
         m_globals_set = other.m_globals_set;
         m_filesystem_mounted = other.m_filesystem_mounted;
         
         other.m_file = nullptr;
+        other.m_pak_offset = 0;
         other.m_globals_set = false;
         other.m_filesystem_mounted = false;
         
@@ -108,7 +118,7 @@ CPakFilesystem& CPakFilesystem::operator=(CPakFilesystem&& other) noexcept {
 void CPakFilesystem::setupGlobals() {
     g_pak = m_file;
     g_num_banks = m_num_banks;
-    g_pak_offset = 0;
+    g_pak_offset = static_cast<int>(m_pak_offset);
     m_globals_set = true;
 }
 
@@ -127,9 +137,21 @@ void CPakFilesystem::calculateBanks() {
     struct stat st;
     if (fstat(fileno(m_file), &st) == 0) {
         m_file_size = st.st_size;
-        m_num_banks = static_cast<int>(m_file_size / BANK_SIZE);
+        size_t data_size = m_file_size - m_pak_offset;
+        m_num_banks = static_cast<int>(data_size / BANK_SIZE);
         if (m_num_banks <= 0) m_num_banks = 1;
     }
+}
+
+bool CPakFilesystem::detectDexDriveFormat() {
+    if (!m_file) return false;
+    long original_pos = ftell(m_file);
+    
+    char signature[sizeof(DEXDRIVE_SIGNATURE)] = {0};
+    fseek(m_file, 0, SEEK_SET);
+    fread(signature, 1, sizeof(DEXDRIVE_SIGNATURE), m_file);
+    fseek(m_file, original_pos, SEEK_SET);
+    return memcmp(signature, DEXDRIVE_SIGNATURE, sizeof(DEXDRIVE_SIGNATURE)) == 0;
 }
 
 bool CPakFilesystem::mountFilesystem() {
