@@ -349,6 +349,21 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
     return out - start_out;
 }
 
+static uint16_t crc16(cpakfs_note_t *node)
+{
+    // Use Koopman polynomy (0x5935) which has HD=5 for up to 30 bytes
+    uint16_t crc = 0x0000;
+    for (size_t i = 0; i < sizeof(node->data8); ++i) {
+        uint16_t tmp = (uint16_t)(crc ^ ((uint16_t)node->data8[i] << 8));
+        for (int b = 0; b < 8; ++b) {
+            if (tmp & 0x8000u) tmp = (uint16_t)((tmp << 1) ^ 0x5935);
+            else               tmp = (uint16_t)(tmp << 1);
+        }
+        crc = tmp;
+    }
+    return crc;
+}
+
 static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
 {
     assert(note_id >= 0 && note_id < MAX_NOTES);
@@ -358,6 +373,19 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
         if (cpak_read(fs->port, 0, note_start + note_id*32, note, sizeof(cpakfs_note_t)) < 0)
             return NULL;
         fs->notes_mask |= 1 << note_id;
+
+        // We store a crc16 in the note to mark it as using libdragon extension.
+        // Basically it's a way to record that the file was written by libdragon.
+        // For now, this is useful for one thing: we store the last page's padding size
+        // in the note, so that we know the exact size of the file.
+        uint16_t crc = be16(note->ext_crc16);
+        note->ext_crc16 = 0; // Clear CRC for comparison
+        if (crc16(note) != crc) {
+            // CRC is correct, the note is not using libdragon extensions.
+            // Clear the padding size field as we don't know the exact size
+            // so we must assume it is 0.
+            note->ext_padding_size = 0;
+        }
     }
     return note;
 }
@@ -379,7 +407,7 @@ static cpakfs_note_t* find_note(cpakfs_t *fs, const parsed_path_t *parsed, int *
     
     for (int i = 0; i < MAX_NOTES; i++) {
         note = read_note(fs, i);
-        if (!(be16(note->status) & NOTE_STATUS_OCCUPIED))
+        if (!(note->status & NOTE_STATUS_OCCUPIED))
             continue;
 
         if (memcmp(note->gamecode, parsed->gamecode, 4) == 0 &&
@@ -701,7 +729,9 @@ static int __cpakfs_write(void *file, uint8_t *ptr, int len)
         tracef("__cpak_write: pos=%d size=%d left=%d\n", f->pos, f->size, len);
     }
 
-    // If this write increased the file size, record the new size
+    // If this write increased the file size, record the new size,
+    // and mark the note as dirty as we need to update it with the new
+    // padding size.
     if (f->pos > f->size) {
         f->size = f->pos;
         f->flags |= FLAG_NOTE_DIRTY;
@@ -754,10 +784,11 @@ static int __cpakfs_lseek(void *file, int offset, int whence)
     return pos;
 }
 
-static int calc_size(cpakfs_t *fs, cpakfs_fat_entry_t first_page)
+static int calc_size(cpakfs_t *fs, cpakfs_note_t *note)
 {
+    // Calculate the size of the file by traversing the FAT chain
     int size = 0;
-    cpakfs_fat_entry_t cur_page = first_page;
+    cpakfs_fat_entry_t cur_page = note->first_page;
     while (!FAT_IS_TERMINATOR(cur_page)) {
         if (!FAT_IS_VALID(cur_page, fs->reserved) || size > PAGE_SIZE * fs->fat_size) { // prevent infinite loop
             errno = EFTYPE;
@@ -766,7 +797,9 @@ static int calc_size(cpakfs_t *fs, cpakfs_fat_entry_t first_page)
         size += PAGE_SIZE;
         cur_page = FAT_NEXT(fs->fat, cur_page);
     }
-    return size;
+    // Subtract padding size if any (notice this is always valid,
+    // even without libdragon extensions, as we cleared it in that case).
+    return size - note->ext_padding_size;
 }
 
 
@@ -801,7 +834,7 @@ static void *__cpakfs_open(char *name, int flags, int port)
         // Find an empty note
         for (note_id=0; note_id<MAX_NOTES; note_id++) {
             note = read_note(fs, note_id);
-            if (!(be16(note->status) & NOTE_STATUS_OCCUPIED)) {
+            if (!(note->status & NOTE_STATUS_OCCUPIED)) {
                 break;
             }
         }
@@ -833,7 +866,7 @@ static void *__cpakfs_open(char *name, int flags, int port)
         memcpy((char*)note->filename, parsed.filename, 16);
         memcpy((char*)note->ext, parsed.ext, 4);
 
-        note->status |= be16(NOTE_STATUS_OCCUPIED);
+        note->status |= NOTE_STATUS_OCCUPIED;
         note->first_page = FAT_TERMINATOR;
         file->flags |= FLAG_NOTE_DIRTY;
     } else {
@@ -845,7 +878,7 @@ static void *__cpakfs_open(char *name, int flags, int port)
             file->flags |= FLAG_NOTE_DIRTY;
         } else {
             // Calculate the size only if we're not truncating
-            file->size = calc_size(fs, note->first_page);
+            file->size = calc_size(fs, note);
             if (file->size < 0) {
                 free(file);
                 return NULL;
@@ -890,6 +923,13 @@ static int __cpakfs_close(void *file)
     }
 
     if (f->flags & FLAG_NOTE_DIRTY) {
+        // Update the padding size
+        f->note->ext_padding_size = (f->size % PAGE_SIZE) ? PAGE_SIZE - (f->size % PAGE_SIZE) : 0;
+
+        // Update the crc16, so that we mark 
+        f->note->ext_crc16 = 0;
+        f->note->ext_crc16 = be16(crc16(f->note));
+
         int note_start = 0x100 + fs->fat_size*2;
         int note_id = f->note - fs->notes;
         tracef("__cpak_close: writing note %d\n", note_id);
@@ -968,7 +1008,7 @@ static int __cpakfs_findnext(const char *basepath, dir_t *dir, int port) {
     while ((int)dir->d_cookie < MAX_NOTES) {
         note = read_note(fs, dir->d_cookie++);
         
-        if ((be16(note->status) & NOTE_STATUS_OCCUPIED) == 0)
+        if ((note->status & NOTE_STATUS_OCCUPIED) == 0)
             continue;
         
         snprintf(dir->d_name, sizeof(dir->d_name), "%.4s.%.2s/", note->gamecode, note->pubcode);
@@ -1001,7 +1041,7 @@ static int __cpakfs_findnext(const char *basepath, dir_t *dir, int port) {
     dir->d_type = DT_REG;
     
     // Calculate file size
-    dir->d_size = calc_size(fs, note->first_page);
+    dir->d_size = calc_size(fs, note);
     if (dir->d_size < 0) {
         return -2;
     }
@@ -1178,7 +1218,7 @@ int cpakfs_get_stats(joypad_port_t port, cpakfs_stats_t *stats)
 
     for (int i=0; i<MAX_NOTES; i++) {
         cpakfs_note_t *note = read_note(fs, i);
-        if (be16(note->status) & NOTE_STATUS_OCCUPIED) {
+        if (note->status & NOTE_STATUS_OCCUPIED) {
             stats->notes.used++;
         }
     }

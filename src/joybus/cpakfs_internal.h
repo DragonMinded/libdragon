@@ -41,8 +41,7 @@
 #define PAGE_SIZE       256     ///< Page size in bytes
 #define BLOCK_SIZE      32      ///< Block size in bytes
 
-#define NOTE_STATUS_OCCUPIED     (1<<9)     ///< Flag to mark a note as occupied (not empty)
-#define NOTE_STATUS_SIZE         (1<<0)     ///< Libdragon extension to store the size of the note (not implemented yet)
+#define NOTE_STATUS_OCCUPIED     (1<<1)     ///< Flag to mark a note as occupied (not empty)
 
 #define FSFLAGS_DEFAULT          0x0000     ///< Default flags for a filesystem
 
@@ -79,15 +78,21 @@ typedef union {
 } cpakfs_id_t;
 
 /** @brief A note (similar to inode) */
-typedef struct {
-    char gamecode[4];               ///< Game code (ASCII, 4 chars)
-    char pubcode[2];                ///< Publisher code (ASCII, 2 chars)
-    cpakfs_fat_entry_t first_page;  ///< First page where data is stored
-    uint16_t status;                ///< Status flags (bit 2: occupied)
-    uint16_t unused;                ///< Unused
-    uint8_t ext[4];                 ///< File extension (custom codepage)
-    uint8_t filename[16];           ///< Filename (custom codepage)
+typedef union {
+    struct {
+        char gamecode[4];               ///< Game code (ASCII, 4 chars)
+        char pubcode[2];                ///< Publisher code (ASCII, 2 chars)
+        cpakfs_fat_entry_t first_page;  ///< First page where data is stored
+        uint8_t ext_padding_size;       ///< Size of the padding in the last page
+        uint8_t status;                 ///< Status flags (bit 1: occupied)
+        uint16_t ext_crc16;             ///< CRC16 checksum (libdragon extension)
+        uint8_t ext[4];                 ///< File extension (custom codepage)
+        uint8_t filename[16];           ///< Filename (custom codepage)
+    };
+    uint8_t data8[32];                  ///< Raw data (8-bit access)
 } cpakfs_note_t;
+
+static_assert(sizeof(cpakfs_note_t) == 32, "cpakfs_note_t must be 32 bytes");
 
 /** @brief Calculate the checksum of a cpak sector ID */
 void __cpakfs_fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *checksum2);

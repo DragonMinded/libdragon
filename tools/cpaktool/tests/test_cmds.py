@@ -247,9 +247,8 @@ class TestCommands(unittest.TestCase):
         
         extracted = extract_dir / "GAME.01-SAVE.DAT"
         self.assertTrue(extracted.exists())
-        # Note: extracted content may be padded by cpakfs, so check prefix
         extracted_content = extracted.read_text()
-        self.assertTrue(extracted_content.startswith(original_content.rstrip()))
+        self.assertTrue(extracted_content.startswith(original_content))
         
         # Test overwrite with SMALLER file
         smaller_content = "Small"  # ~5 chars
@@ -266,7 +265,7 @@ class TestCommands(unittest.TestCase):
         
         extracted2 = extract_dir2 / "GAME.01-SAVE.DAT"
         self.assertTrue(extracted2.exists())
-        extracted_content2 = extracted2.read_text().rstrip('\x00')  # Remove padding
+        extracted_content2 = extracted2.read_text()
         self.assertEqual(extracted_content2, smaller_content)
         
         # Test overwrite with LARGER file
@@ -337,7 +336,7 @@ class TestCommands(unittest.TestCase):
         for filename, expected_content in new_contents:
             extracted = extract_dir / f"GAME.01-{filename}"
             self.assertTrue(extracted.exists(), f"File {filename} not found after update")
-            actual_content = extracted.read_text().rstrip('\x00')
+            actual_content = extracted.read_text()
             self.assertEqual(actual_content, expected_content, 
                            f"Content mismatch for {filename}")
         
@@ -370,7 +369,7 @@ class TestCommands(unittest.TestCase):
         
         extracted = extract_dir / "GAME.01-EXISTING.DAT"
         self.assertTrue(extracted.exists())
-        extracted_content = extracted.read_text().rstrip('\x00')
+        extracted_content = extracted.read_text()
         self.assertEqual(extracted_content, "Original content")
 
     def test_add_filename_validation(self):
@@ -578,13 +577,13 @@ class TestCommands(unittest.TestCase):
         self.assertIn("Game       Pub    Filename", out)  # Header
         self.assertIn("ABCD       EF     SMALL", out)
         self.assertIn("WXYZ       12     LARGE", out)
-        self.assertIn("256", out)  # Size (cpakfs uses 256-byte blocks minimum)
+        self.assertIn(" 5\n", out)  # Size
         
         # Test human-readable format
         code, out, err = run_cpaktool(["list", "-l", "-H", str(pak)])
         self.assertEqual(code, 0)
-        self.assertIn("256B", out)  # Small file size
-        # Large file should show in KB if > 1024 bytes after padding
+        self.assertIn(" 5B", out)  # Small file size
+        self.assertIn(" 1.5K", out)  # Large file size
         
     def test_list_command_sorting(self):
         """Test list command sorting options"""
