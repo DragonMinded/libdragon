@@ -25,6 +25,7 @@
 #define FLAG_READING            (1<<0)     ///< Flag to mark a file as being read
 #define FLAG_WRITING            (1<<1)     ///< Flag to mark a file as being written
 #define FLAG_NOTE_DIRTY         (1<<2)     ///< Flag to mark a file whose note requires being rewritten
+#define FLAG_NEW_PAGES          (1<<3)     ///< Flag to mark a file with newly allocated pages that may need cleanup
 
 /** @brief A mounted cpak filesystem */
 typedef struct {
@@ -660,17 +661,17 @@ static int __cpakfs_write(void *file, uint8_t *ptr, int len)
         // If the current page is not valid (eg: beginning of a file, or last
         // write finished exactly at the end of a page), we need to allocate a new page.
         assert(FAT_IS_VALID(*f->cur_page_ptr, fs->reserved) || FAT_IS_TERMINATOR(*f->cur_page_ptr));        
-        if (FAT_IS_TERMINATOR(*f->cur_page_ptr) &&
-            allocate_next_page(f->cur_page_ptr, fs) < 0) {
-            return -1;
+        if (FAT_IS_TERMINATOR(*f->cur_page_ptr)) {
+            if (allocate_next_page(f->cur_page_ptr, fs) < 0) return -1;
+            f->flags |= FLAG_NEW_PAGES;
         }
 
         cpakfs_fat_entry_t *last = f->cur_page_ptr;
         while (n < len) {
             // We will need to write more bytes, so allocate immediately one more page
             cpakfs_fat_entry_t *next = &FAT_NEXT(fs->fat, *last);
-            if (allocate_next_page(next, fs) < 0)
-                break;
+            if (allocate_next_page(next, fs) < 0) break;
+            f->flags |= FLAG_NEW_PAGES;
 
             // Check if it's consecutive to the current one. If so, just keep writing
             // in the same large write. Otherwise, stop here: the next page is ready
@@ -865,6 +866,28 @@ static int __cpakfs_close(void *file)
     int err = 0;
 
     tracef("__cpak_close(%p)\n", file);
+
+    // If we have newly allocated pages and the file doesn't end at a page boundary,
+    // clean up the partial last page to avoid data leakage
+    if ((f->flags & FLAG_NEW_PAGES) && (f->size % PAGE_SIZE) != 0) {
+        // Navigate to the last page by following the FAT chain to the terminator
+        cpakfs_fat_entry_t *last_page_ptr = &f->note->first_page;
+        while (!FAT_IS_TERMINATOR(FAT_NEXT(fs->fat, *last_page_ptr))) {
+            last_page_ptr = &FAT_NEXT(fs->fat, *last_page_ptr);
+        }
+        
+        // Clear the unused portion of the last page
+        int used_bytes = f->size % PAGE_SIZE;
+        int cleanup_bytes = PAGE_SIZE - used_bytes;
+        uint8_t zeros[PAGE_SIZE] = {0};
+        if (cpak_write(f->port, last_page_ptr->bank, 
+                      last_page_ptr->page * PAGE_SIZE + used_bytes, 
+                      zeros, cleanup_bytes) < 0) {
+            err = -1;
+        }
+        
+        tracef("__cpak_close: cleaned %d bytes from last page\n", cleanup_bytes);
+    }
 
     if (f->flags & FLAG_NOTE_DIRTY) {
         int note_start = 0x100 + fs->fat_size*2;
