@@ -644,8 +644,11 @@ void apply_rendermode(bool reset)
             if (reset) rdpq_set_mode_standard();
             apply_antialias();
             apply_dither();
-            apply_combiner();
-            apply_blender();
+            // When RDPQ material is enabled, combiner and blender are not modified by GL
+            if (!gl_is_enabled(ENABLE_RDPQ_MATERIAL)) {
+                apply_combiner();
+                apply_blender();
+            }
             apply_fog();
             apply_alphacompare();
             apply_zbuf();
@@ -654,7 +657,12 @@ void apply_rendermode(bool reset)
         rdpq_mode_end();
     }
 
-    apply_prim_color();
+    // When RDPQ material is enabled, prim color is not modified by GL
+    if (!gl_is_enabled(ENABLE_RDPQ_MATERIAL)) {
+        apply_prim_color();
+    }
+
     apply_fog_color();
+
     apply_scissor();
 }
