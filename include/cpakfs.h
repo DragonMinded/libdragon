@@ -44,6 +44,28 @@
  * 
  * To unmount the controller pak filesystem, call #cpakfs_unmount.
  * 
+ * ## Codepage of filenames and extensions
+ * 
+ * Filenames and extensions in the controller pak filesystem are encoded
+ * using a special codepage, where only a subset of ASCII characters are
+ * allowed, plus some Kanji characters. Notably, lowercase letters are not
+ * allowed.
+ * 
+ * In cpaks, you must specify filenames as UTF-8 strings. If the filename cannot
+ * be represented in the codepage, you will get an error (with errno EINVAL).
+ * The only exception is that lowercase letters are automatically converted
+ * to uppercase, just like a non-case-sensitive filesystem would do.
+ * 
+ * The special codepage allows also for embedded NULs in filenames. Since these
+ * cannot be directly represented in C strings, you can use the special character
+ * `\x01` as replacement for NUL. For instance, to create a file with an embedded
+ * NUL, you can do the following:
+ * 
+ * \code{.c}
+ *    // Create a file whose filename is "FOO<NUL>BAR"
+ *    FILE *f = fopen("cpak1:/GAME.01/FOO\x01BAR.TXT", "wb");
+ * \endcode
+ * 
  * ## Error codes
  * 
  * The filesystem tries to be POSIX compliant, so make sure to check error

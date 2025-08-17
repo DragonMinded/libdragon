@@ -126,6 +126,17 @@ static std::string format_size(int64_t size, bool human_readable) {
     }
 }
 
+// Helper function to convert \x01 to <NUL> for display
+static std::string display_filename(const std::string& filename) {
+    std::string result = filename;
+    size_t pos = 0;
+    while ((pos = result.find('\x01', pos)) != std::string::npos) {
+        result.replace(pos, 1, "<NUL>");
+        pos += 5; // Length of "<NUL>"
+    }
+    return result;
+}
+
 // Helper function to parse cpak path into components
 static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
     // Expected format: "GAME.PB/filename.ext"
@@ -235,7 +246,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 // Max visual widths: game=8 (4 chars * 2), pub=4 (2 chars * 2), filename=32 (16 chars * 2), ext=8 (4 chars * 2)
                 std::string padded_game = pad_to_width(file.game_code, 10);      // Game column width
                 std::string padded_pub = pad_to_width(file.pub_code, 6);         // Pub column width  
-                std::string padded_filename = pad_to_width(file.filename, 32);   // Filename column width
+                std::string padded_filename = pad_to_width(display_filename(file.filename), 32);   // Filename column width
                 std::string padded_ext = pad_to_width(file.extension, 10);       // Ext column width
                 
                 // Don't use printf width specifiers - just print the padded strings directly
@@ -249,7 +260,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         } else {
             // Simple format - one file per line
             for (const auto& file : files) {
-                printf("%s\n", file.full_name.c_str());
+                printf("%s\n", display_filename(file.full_name).c_str());
             }
         }
         
@@ -678,11 +689,12 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
     for (const char *p = basename; *p; p++) {
         char c = *p;
         // cpakfs supports: A-Z, a-z, 0-9, space, and these symbols: ! " # ` * + , - . / : = ? @
+        // Also support \x01 as it represents embedded NUL (\x00) in N64 codepage
         // (Based on utf8_to_n64_validate function in cpakfs.c)
         if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || 
               c == ' ' || c == '!' || c == '"' || c == '#' || c == '`' || c == '*' || 
               c == '+' || c == ',' || c == '-' || c == '.' || c == '/' || c == ':' || 
-              c == '=' || c == '?' || c == '@')) {
+              c == '=' || c == '?' || c == '@' || c == '\x01')) {
             if (unsupported_chars.find(c) == std::string::npos) {
                 unsupported_chars += c;
             }

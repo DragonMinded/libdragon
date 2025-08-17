@@ -193,7 +193,7 @@ static int n64_to_utf8(uint8_t c, char *out)
     if (c >= 0x10 && c <= 0x19) { *out++ = '0' + (c - 0x10); return 1; }
     /* Miscelaneous chart */
     switch (c) {
-        case 0x00: *out++ = 0; return 1;
+        case 0x00: *out++ = 0x01; return 1; // we can't store 0x00 in a ASCIIZ C string, so use 0x01 instead
         case 0x0F: *out++ = ' '; return 1;
         case 0x34: *out++ = '!'; return 1;
         case 0x35: *out++ = '\"'; return 1;
@@ -225,6 +225,53 @@ static int n64_to_utf8(uint8_t c, char *out)
     /* Default to space for unprintables */
     *out++ = ' ';
     return 1;
+}
+
+/**
+ * @brief Convert an N64 codepage string to UTF-8, handling embedded NULs correctly
+ * 
+ * This function converts a fixed-size N64 codepage string to UTF-8. It treats
+ * only trailing 0x00 bytes as padding, while embedded 0x00 bytes are converted
+ * to 0x01 in the UTF-8 output.
+ * 
+ * @param n64_str   Input N64 codepage string (fixed size array)
+ * @param n64_len   Length of the input array
+ * @param utf8_out  Output UTF-8 string buffer
+ * @return int      Number of UTF-8 bytes written, or -1 on error
+ */
+static int n64_string_to_utf8(const uint8_t *n64_str, int n64_len, char *utf8_out)
+{
+    // Find the actual string length by scanning backwards to find last non-zero
+    int actual_len = n64_len;
+    while (actual_len > 0 && n64_str[actual_len - 1] == 0x00) {
+        actual_len--;
+    }
+    
+    int utf8_pos = 0;
+    for (int i = 0; i < actual_len; i++) {
+        int written = n64_to_utf8(n64_str[i], utf8_out + utf8_pos);
+        utf8_pos += written;
+    }
+    
+    utf8_out[utf8_pos] = '\0';
+    return utf8_pos;
+}
+
+/**
+ * @brief Check if an N64 codepage string has any non-padding content
+ * 
+ * @param n64_str   Input N64 codepage string (fixed size array)
+ * @param n64_len   Length of the input array
+ * @return bool     True if the string has content, false if it's all padding (0x00)
+ */
+static bool n64_string_has_content(const uint8_t *n64_str, int n64_len)
+{
+    for (int i = 0; i < n64_len; i++) {
+        if (n64_str[i] != 0x00) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /*
@@ -313,6 +360,7 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
             case '=': *out++ = 0x3F; input++; continue;
             case '?': *out++ = 0x40; input++; continue;
             case '@': *out++ = 0x41; input++; continue;
+            case 0x01: *out++ = 0x00; input++; continue; // special case for 0x01
         }
 
         /* Handling of CJK characters (3-byte UTF-8 sequences) */
@@ -412,8 +460,8 @@ static cpakfs_note_t* find_note(cpakfs_t *fs, const parsed_path_t *parsed, int *
 
         if (memcmp(note->gamecode, parsed->gamecode, 4) == 0 &&
             memcmp(note->pubcode, parsed->pubcode, 2) == 0 &&
-            strncmp((char*)note->filename, parsed->filename, 16) == 0 &&
-            strncmp((char*)note->ext, parsed->ext, 4) == 0) {
+            memcmp(note->filename, parsed->filename, 16) == 0 &&
+            memcmp(note->ext, parsed->ext, 4) == 0) {
             
             if (note_id) *note_id = i;
             return note;
@@ -477,7 +525,6 @@ static int parse_path(const char *name, parsed_path_t *parsed)
         errno = EINVAL;
         return -1;
     }
-    parsed->filename[fnlen] = 0;
 
     // Extract and validate extension
     if (dot) {
@@ -494,7 +541,6 @@ static int parse_path(const char *name, parsed_path_t *parsed)
             errno = EINVAL;
             return -1;
         }
-        parsed->ext[extlen] = 0;
     }
 
     return 0;
@@ -1024,20 +1070,15 @@ static int __cpakfs_findnext(const char *basepath, dir_t *dir, int port) {
     }
 
     int idx = 8; // Start after "GAME.PB/"
-    for (int i=0; i<16; i++) {
-        if (note->filename[i] == 0)
-            break;
-        idx += n64_to_utf8(note->filename[i], dir->d_name + idx);
-    }
-    if (note->ext[0] != 0) {
-        dir->d_name[idx++] = '.';
-        for (int i=0; i<4; i++) {
-            if (note->ext[i] == 0)
-                break;
-            idx += n64_to_utf8(note->ext[i], dir->d_name + idx);
+    idx += n64_string_to_utf8(note->filename, 16, dir->d_name + idx);
+    if (n64_string_has_content(note->ext, 4)) {
+        if (idx < sizeof(dir->d_name) - 1) {
+            dir->d_name[idx++] = '.';
         }
+        idx += n64_string_to_utf8(note->ext, 4, dir->d_name + idx);
     }
-    dir->d_name[idx] = 0;
+    dir->d_name[idx++] = 0;
+    assert(idx < sizeof(dir->d_name));
     dir->d_type = DT_REG;
     
     // Calculate file size

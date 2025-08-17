@@ -245,5 +245,111 @@ class TestIntegration(unittest.TestCase):
                 else:
                     self.fail(f"File too short with bufsize {bufsize}: {len(extracted_content)} < {len(content)}")
 
+    def test_embedded_null_characters(self):
+        """Test handling of embedded NUL characters in filenames"""
+        pak = self._create_pak("128KB")
+        
+        # Create test files with content
+        content1 = "Content for regular file"
+        content2 = "Content for file with embedded NUL"
+        
+        # Create files with specific names that will test embedded NUL handling
+        # The \x01 in the filename will be converted to \x00 in the N64 codepage
+        file1 = self.tmp / "GAME.01-foo.txt"
+        file2 = self.tmp / "GAME.01-foo\x01bar.txt"  # This represents "foo\x00bar" in N64 codepage
+        
+        file1.write_text(content1)
+        file2.write_text(content2)
+        
+        # Add both files to the pak
+        code, out, err = run_cpaktool(["add", str(pak), str(file1)])
+        self.assertEqual(code, 0, f"Failed to add regular file: {err}")
+        
+        code, out, err = run_cpaktool(["add", str(pak), str(file2)])
+        self.assertEqual(code, 0, f"Failed to add file with embedded NUL: {err}")
+        
+        # Verify both files are listed and distinguishable
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0, f"Failed to list files: {err}")
+        
+        # Both files should be present in the listing
+        # Note: filenames are converted to uppercase in N64 codepage
+        # The file with embedded NUL should be shown with \x01 (or escaped form)
+        self.assertIn("GAME.01-FOO.TXT", out)
+        # The exact representation of \x01 in output may vary, but it should be distinguishable
+        # Let's check that there are exactly 2 files listed with different names
+        file_lines = [line.strip() for line in out.split('\n') if "GAME.01-FOO" in line and ".TXT" in line]
+        self.assertEqual(len(file_lines), 2, f"Expected 2 files, but found: {file_lines}")
+        
+        # Verify the files have different names
+        self.assertNotEqual(file_lines[0], file_lines[1], "The two files should have different names")
+        
+        # One should be the regular file, one should contain \x01
+        regular_line = None
+        null_line = None
+        for line in file_lines:
+            if "<NUL>" in line:
+                null_line = line
+            elif line == "GAME.01-FOO.TXT":
+                regular_line = line
+        
+        self.assertIsNotNone(regular_line, f"Could not find regular file in listing: {file_lines}")
+        self.assertIsNotNone(null_line, f"Could not find file with embedded NUL in listing: {file_lines}")
+        
+        # Extract all files and verify content
+        extract_dir = self.tmp / "extract_null_test"
+        extract_dir.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir)
+        self.assertEqual(code, 0, f"Failed to extract files: {err}")
+        
+        # Check that we have exactly 2 extracted files
+        extracted_files = list(extract_dir.glob("GAME.01-FOO*"))
+        self.assertEqual(len(extracted_files), 2, f"Expected 2 extracted files, found: {extracted_files}")
+        
+        # Find the regular file and the one with embedded NUL
+        regular_file = None
+        null_file = None
+        
+        for f in extracted_files:
+            if "\x01" in f.name:
+                null_file = f
+            elif f.name == "GAME.01-FOO.TXT":
+                regular_file = f
+        
+        # Verify we found both files
+        self.assertIsNotNone(regular_file, "Could not find regular file after extraction")
+        self.assertIsNotNone(null_file, "Could not find file with embedded NUL after extraction")
+        
+        # Verify content is correct
+        self.assertEqual(regular_file.read_text(), content1)
+        self.assertEqual(null_file.read_text(), content2)
+        
+        # Test that we can delete them individually
+        # First, let's extract again to a fresh directory for deletion test
+        extract_dir2 = self.tmp / "extract_delete_test"
+        extract_dir2.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir2)
+        self.assertEqual(code, 0)
+        
+        # Try to delete just the regular file (case-sensitive match)
+        code, out, err = run_cpaktool(["delete", str(pak), "GAME.01-FOO.TXT"])
+        self.assertEqual(code, 0, f"Failed to delete regular file: {err}")
+        
+        # Verify only the file with embedded NUL remains
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        self.assertNotIn("GAME.01-FOO.TXT", out)
+        
+        # There should still be 1 file remaining
+        file_lines = [line.strip() for line in out.split('\n') if "GAME.01-FOO" in line and ".TXT" in line]
+        self.assertEqual(len(file_lines), 1, f"Expected 1 file remaining, but found: {file_lines}")
+        
+        # The remaining file should be the one with <NUL>
+        self.assertIn("<NUL>", file_lines[0], f"Remaining file should contain <NUL>: {file_lines[0]}")
+        
+        # Final integrity check
+        code, out, err = run_cpaktool(["test", str(pak)])
+        self.assertEqual(code, 0, f"Pak integrity check failed: {err}")
+
 if __name__ == "__main__":
     unittest.main()
