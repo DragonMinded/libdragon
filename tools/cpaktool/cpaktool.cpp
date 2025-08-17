@@ -29,6 +29,7 @@ static void print_command_usage(const char *program_name, command_t cmd);
 static void print_version(void);
 static command_t parse_command(const char *cmd_str);
 static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx);
+static bool handle_global_option_with_value(const char *arg, const char *provided_value, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx);
 static int parse_global_options(int argc, char *argv[], int *start_idx, global_options_t *opts);
 static int parse_command_options(command_t cmd, int argc, char *argv[], int start_idx, global_options_t *global_opts, command_options_t *cmd_opts);
 static int execute_command(command_t cmd, int argc, char *argv[], int start_idx);
@@ -175,9 +176,25 @@ static command_t parse_command(const char *cmd_str) {
     return CMD_NONE;
 }
 
-// Single global options handler usable before or after the command
-static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
-    if (!strcmp(arg, "--help") || !strcmp(arg, "-h")) {
+// Helper function for global options with optional provided value
+static bool handle_global_option_with_value(const char *arg, const char *provided_value, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
+    // Check for --option=value format and extract value if present
+    const char *equals_value = NULL;
+    char *arg_copy = NULL;
+    const char *option_name = arg;
+    
+    const char *eq = strchr(arg, '=');
+    if (eq) {
+        // Create a copy of the argument without the =value part
+        size_t name_len = eq - arg;
+        arg_copy = (char*)malloc(name_len + 1);
+        strncpy(arg_copy, arg, name_len);
+        arg_copy[name_len] = '\0';
+        option_name = arg_copy;
+        equals_value = eq + 1;
+    }
+    
+    if (!strcmp(option_name, "--help") || !strcmp(option_name, "-h")) {
         if (before_command) {
             print_usage(program_name ? program_name : "cpaktool");
         } else {
@@ -185,40 +202,64 @@ static bool handle_global_option(const char *arg, global_options_t *opts, const 
         }
         exit(0);
     }
-    if (!strcmp(arg, "--version") || !strcmp(arg, "-V")) {
+    if (!strcmp(option_name, "--version") || !strcmp(option_name, "-V")) {
         print_version();
         exit(0);
     }
-    if (!strcmp(arg, "--verbose") || !strcmp(arg, "-v")) {
+    if (!strcmp(option_name, "--verbose") || !strcmp(option_name, "-v")) {
         opts->verbose = true;
+        free(arg_copy);
         return true;
     }
-    if (!strcmp(arg, "--dry-run") || !strcmp(arg, "-n")) {
+    if (!strcmp(option_name, "--dry-run") || !strcmp(option_name, "-n")) {
         opts->dry_run = true;
+        free(arg_copy);
         return true;
     }
     // Accept -f as global force in both positions; resolve conflicts by renaming local flags
-    if (!strcmp(arg, "--force") || !strcmp(arg, "-f")) {
+    if (!strcmp(option_name, "--force") || !strcmp(option_name, "-f")) {
         opts->force = true;
+        free(arg_copy);
         return true;
     }
     
-    // Handle --skip-header specially (requires next argument)
-    if (!strcmp(arg, "--skip-header")) {
-        if (*arg_idx + 1 >= argc || argv[*arg_idx + 1][0] == '-') {
-            fatal_error("Option --skip-header requires a value");
+    // Handle --skip-header specially (requires value)
+    if (!strcmp(option_name, "--skip-header")) {
+        const char *value;
+        if (equals_value) {
+            // Use value from --skip-header=value format
+            value = equals_value;
+        } else if (provided_value) {
+            // Use provided value (from parse_command_options)
+            value = provided_value;
+        } else {
+            // Use next argument for --skip-header value format
+            if (*arg_idx + 1 >= argc || argv[*arg_idx + 1][0] == '-') {
+                free(arg_copy);
+                fatal_error("Option --skip-header requires a value");
+            }
+            value = argv[*arg_idx + 1];
+            (*arg_idx)++; // Skip the value argument
         }
+        
         char *endptr;
-        long skip_bytes = strtol(argv[*arg_idx + 1], &endptr, 10);
+        long skip_bytes = strtol(value, &endptr, 10);
         if (*endptr != '\0' || skip_bytes < 0) {
-            fatal_error("Invalid value for --skip-header: %s", argv[*arg_idx + 1]);
+            free(arg_copy);
+            fatal_error("Invalid value for --skip-header: %s", value);
         }
         opts->skip_header_bytes = (int)skip_bytes;
-        (*arg_idx)++; // Skip the value argument
+        free(arg_copy);
         return true;
     }
     
+    free(arg_copy);
     return false;
+}
+
+// Single global options handler usable before or after the command
+static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
+    return handle_global_option_with_value(arg, NULL, opts, program_name, cmd, before_command, argc, argv, arg_idx);
 }
 
 static int parse_global_options(int argc, char *argv[], int *start_idx, global_options_t *opts) {
@@ -262,21 +303,26 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
         }
         
         char *arg = argv[i];
+        char *original_arg = arg;  // Save original argument for global options
         char *value = NULL;
+        bool has_equals = false;
         
         // Check for --option=value format
         char *eq = strchr(arg, '=');
         if (eq) {
             *eq = '\0';
             value = eq + 1;
+            has_equals = true;
         } else if (i + 1 < argc && argv[i + 1][0] != '-') {
             // Next argument might be the value
             value = argv[i + 1];
         }
         
         // Try global options here as well (after command)
-        if (handle_global_option(arg, global_opts, NULL, cmd, false, argc, argv, &i)) {
-            if (eq) *eq = '='; // restore
+        int temp_idx = i;  // Create temporary index for handle_global_option
+        if (handle_global_option_with_value(original_arg, has_equals ? value : NULL, global_opts, NULL, cmd, false, argc, argv, &temp_idx)) {
+            if (has_equals) *eq = '='; // restore
+            i = temp_idx;  // Update our loop index
             continue; // proceed to next arg
         }
         
@@ -297,7 +343,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->sort_by = value;
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for list command: %s", arg);
                 }
@@ -314,7 +360,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     if (cmd_opts->debug_bufsize <= 0) {
                         fatal_error("Buffer size must be positive: %d", cmd_opts->debug_bufsize);
                     }
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for extract command: %s", arg);
                 }
@@ -330,13 +376,13 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->pak_size = atoi(value);
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-g") || !strcmp(arg, "--gamecode")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->gamecode = value;
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "--debug-bufsize")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
@@ -345,7 +391,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     if (cmd_opts->debug_bufsize <= 0) {
                         fatal_error("Buffer size must be positive: %d", cmd_opts->debug_bufsize);
                     }
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for add command: %s", arg);
                 }
@@ -385,7 +431,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     else if (!strcasecmp(value, "WARNING")) cmd_opts->report_level = 1;
                     else if (!strcasecmp(value, "ERROR")) cmd_opts->report_level = 2;
                     else fatal_error("Invalid level '%s' (use INFO, WARNING, or ERROR)", value);
-                    if (!eq) i++; // consume value
+                    if (!has_equals) i++; // consume value
                 } else {
                     fatal_error("Unknown option for test command: %s", arg);
                 }
@@ -403,7 +449,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     // Convert size to banks (32KB per bank)
                     cmd_opts->num_banks = (cmd_opts->pak_size + 31) / 32;
                     cmd_opts->size_specified = true;
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-b") || !strcmp(arg, "--banks")) {
                     if (cmd_opts->size_specified) {
                         fatal_error("Cannot specify both --size and --banks options");
@@ -415,7 +461,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     // Update pak_size to match banks
                     cmd_opts->pak_size = cmd_opts->num_banks * 32;
                     cmd_opts->banks_specified = true;
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for format command: %s", arg);
                 }
@@ -427,13 +473,13 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->from_format = value;
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-t") || !strcmp(arg, "--to")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->to_format = value;
-                    if (!eq) i++; // Skip next argument as it's the value
+                    if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for convert command: %s", arg);
                 }
@@ -455,7 +501,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
         }
         
         // Restore the '=' if we modified it
-        if (eq) {
+        if (has_equals) {
             *eq = '=';
         }
     }
