@@ -92,115 +92,133 @@ GLenum glGetError(void)
     return error;
 }
 
-void set_enable_flag(GLenum target, bool value)
+static const gl_dirty_flags_t enable_to_dirty_flag_table[] = {
+    [ENABLE_SCISSOR_TEST]   = 0,
+    [ENABLE_ALPHA_TEST]     = DIRTY_RENDERMODE,
+    [ENABLE_DEPTH_TEST]     = DIRTY_GEOM_FLAGS | DIRTY_RENDERMODE,
+    [ENABLE_BLEND]          = DIRTY_RENDERMODE,
+    [ENABLE_DITHER]         = DIRTY_RENDERMODE,
+    [ENABLE_MULTISAMPLE]    = DIRTY_RENDERMODE,
+    [ENABLE_FOG]            = DIRTY_FOG | DIRTY_RENDERMODE | DIRTY_GEOM_FLAGS,
+    [ENABLE_LIGHTING]       = DIRTY_LIGHTING | DIRTY_GEOM_FLAGS | DIRTY_COMBINER,
+    [ENABLE_COLOR_MATERIAL] = DIRTY_COMBINER,
+    [ENABLE_NORMALIZE]      = 0,
+    [ENABLE_TEXTURE_1D]     = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
+    [ENABLE_TEXTURE_2D]     = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
+    [ENABLE_CULL_FACE]      = DIRTY_CULLING,
+    [ENABLE_MATRIX_PALETTE] = 0,
+    [ENABLE_RDPQ_TEXTURING] = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
+    [ENABLE_RDPQ_MATERIAL]  = 0,
+    [ENABLE_LIGHT0]         = DIRTY_LIGHTING,
+    [ENABLE_LIGHT1]         = DIRTY_LIGHTING,
+    [ENABLE_LIGHT2]         = DIRTY_LIGHTING,
+    [ENABLE_LIGHT3]         = DIRTY_LIGHTING,
+    [ENABLE_LIGHT4]         = DIRTY_LIGHTING,
+    [ENABLE_LIGHT5]         = DIRTY_LIGHTING,
+    [ENABLE_LIGHT6]         = DIRTY_LIGHTING,
+    [ENABLE_LIGHT7]         = DIRTY_LIGHTING,
+    [ENABLE_TEX_GEN_S]      = DIRTY_PIPELINE,
+    [ENABLE_TEX_GEN_T]      = DIRTY_PIPELINE,
+    [ENABLE_TEX_GEN_R]      = DIRTY_PIPELINE,
+    [ENABLE_TEX_GEN_Q]      = DIRTY_PIPELINE,
+    [ENABLE_TEX_FLIP]       = 0,
+};
+
+gl_enable_t get_enable_from_target(GLenum target)
 {
     switch (target) {
     case GL_RDPQ_MATERIAL_N64:
-        break;
+        return ENABLE_RDPQ_MATERIAL;
     case GL_RDPQ_TEXTURING_N64:
-        state->rdpq_texture = value;
-        gl_set_dirty_flags(DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS);
-        break;
+        return ENABLE_RDPQ_TEXTURING;
     case GL_SCISSOR_TEST:
-        state->scissor_test = value;
-        break;
+        return ENABLE_SCISSOR_TEST;
     case GL_DEPTH_TEST:
-        state->depth_test = value;
-        gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_RENDERMODE);
-        break;
+        return ENABLE_DEPTH_TEST;
     case GL_BLEND:
-        state->blend = value;
-        gl_set_dirty_flags(DIRTY_RENDERMODE);
-        break;
+        return ENABLE_BLEND;
     case GL_ALPHA_TEST:
-        state->alpha_test = value;
-        gl_set_dirty_flags(DIRTY_RENDERMODE);
-        break;
+        return ENABLE_ALPHA_TEST;
     case GL_DITHER:
-        state->dither = value;
-        gl_set_dirty_flags(DIRTY_RENDERMODE);
-        break;
+        return ENABLE_DITHER;
     case GL_FOG:
-        state->fog = value;
-        gl_set_dirty_flags(DIRTY_FOG | DIRTY_RENDERMODE | DIRTY_GEOM_FLAGS);
-        break;
+        return ENABLE_FOG;
     case GL_MULTISAMPLE_ARB:
-        state->multisample = value;
-        gl_set_dirty_flags(DIRTY_RENDERMODE);
-        break;
+        return ENABLE_MULTISAMPLE;
     case GL_TEXTURE_1D:
+        return ENABLE_TEXTURE_1D;
     case GL_TEXTURE_2D:
-        gl_set_texture_enabled(target, value);
-        break;
+        return ENABLE_TEXTURE_2D;
     case GL_CULL_FACE:
-        state->cull_face = value;
-        update_culling();
-        break;
+        return ENABLE_CULL_FACE;
     case GL_LIGHTING:
-        state->lighting = value;
-        gl_set_dirty_flags(DIRTY_LIGHTING | DIRTY_GEOM_FLAGS | DIRTY_COMBINER);
-        break;
+        return ENABLE_LIGHTING;
     case GL_LIGHT0:
+        return ENABLE_LIGHT0;
     case GL_LIGHT1:
+        return ENABLE_LIGHT1;
     case GL_LIGHT2:
+        return ENABLE_LIGHT2;
     case GL_LIGHT3:
+        return ENABLE_LIGHT3;
     case GL_LIGHT4:
+        return ENABLE_LIGHT4;
     case GL_LIGHT5:
+        return ENABLE_LIGHT5;
     case GL_LIGHT6:
+        return ENABLE_LIGHT6;
     case GL_LIGHT7:
-        gl_set_light_enabled(target, value);
-        break;
+        return ENABLE_LIGHT7;
     case GL_COLOR_MATERIAL:
-        state->color_material = value;
-        gl_set_dirty_flags(DIRTY_COMBINER);
-        break;
+        return ENABLE_COLOR_MATERIAL;
     case GL_TEXTURE_GEN_S:
+        return ENABLE_TEX_GEN_S;
     case GL_TEXTURE_GEN_T:
+        return ENABLE_TEX_GEN_T;
     case GL_TEXTURE_GEN_R:
+        return ENABLE_TEX_GEN_R;
     case GL_TEXTURE_GEN_Q:
-        gl_set_tex_gen_enabled(target, value);
-        break;
+        return ENABLE_TEX_GEN_Q;
     case GL_NORMALIZE:
-        break;
+        return ENABLE_NORMALIZE;
     case GL_MATRIX_PALETTE_ARB:
-        state->matrix_palette_enabled = value;
-        break;
+        return ENABLE_MATRIX_PALETTE;
     case GL_TEXTURE_FLIP_T_N64:
-        break;
+        return ENABLE_TEX_FLIP;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:
     case GL_CLIP_PLANE2:
     case GL_CLIP_PLANE3:
     case GL_CLIP_PLANE4:
     case GL_CLIP_PLANE5:
-        assertf(!value, "User clip planes are not supported!");
-        break;
+        assertf(0, "User clip planes are not supported!");
+        return 0;
     case GL_STENCIL_TEST:
-        assertf(!value, "Stencil test is not supported!");
-        break;
+        assertf(0, "Stencil test is not supported!");
+        return 0;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
-        assertf(!value, "Logical pixel operation is not supported!");
-        break;
+        assertf(0, "Logical pixel operation is not supported!");
+        return 0;
     case GL_POINT_SMOOTH:
     case GL_LINE_SMOOTH:
     case GL_POLYGON_SMOOTH:
-        assertf(!value, "Smooth rendering is not supported (Use multisampling instead)!");
-        break;
+        assertf(0, "Smooth rendering is not supported (Use multisampling instead)!");
+        return 0;
     case GL_LINE_STIPPLE:
     case GL_POLYGON_STIPPLE:
-        assertf(!value, "Stipple is not supported!");
-        break;
+        assertf(0, "Stipple is not supported!");
+        return 0;
     case GL_POLYGON_OFFSET_FILL:
     case GL_POLYGON_OFFSET_LINE:
     case GL_POLYGON_OFFSET_POINT:
-        assertf(!value, "Polygon offset is not supported!");
-        break;
+        assertf(0, "Polygon offset is not supported!");
+        return 0;
     case GL_SAMPLE_ALPHA_TO_COVERAGE_ARB:
     case GL_SAMPLE_ALPHA_TO_ONE_ARB:
     case GL_SAMPLE_COVERAGE_ARB:
-        assertf(!value, "Coverage value manipulation is not supported!");
-        break;
+        assertf(0, "Coverage value manipulation is not supported!");
+        return 0;
     case GL_MAP1_COLOR_4:
     case GL_MAP1_INDEX:
     case GL_MAP1_NORMAL:
@@ -219,24 +237,30 @@ void set_enable_flag(GLenum target, bool value)
     case GL_MAP2_TEXTURE_COORD_4:
     case GL_MAP2_VERTEX_3:
     case GL_MAP2_VERTEX_4:
-        assertf(!value, "Evaluators are not supported!");
-        break;
+        assertf(0, "Evaluators are not supported!");
+        return 0;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid enable target", target);
-        return;
+        return 0;
     }
 }
 
 void glEnable(GLenum target)
 {
     if (!gl_ensure_no_begin_end()) return;
-    set_enable_flag(target, true);
+    gl_enable_t enable = get_enable_from_target(target);
+    if (enable == 0) return;
+    state->enable_flags |= (1 << enable);
+    gl_set_dirty_flags(enable_to_dirty_flag_table[enable]);
 }
 
 void glDisable(GLenum target)
 {
     if (!gl_ensure_no_begin_end()) return;
-    set_enable_flag(target, false);
+    gl_enable_t enable = get_enable_from_target(target);
+    if (enable == 0) return;
+    state->enable_flags &= ~(1 << enable);
+    gl_set_dirty_flags(enable_to_dirty_flag_table[enable]);
 }
 
 void glClear(GLbitfield buf)
@@ -292,6 +316,15 @@ void glFinish(void)
     rspq_wait();
 }
 
+void set_hint_flag(gl_hint_flags_t flag, bool value)
+{
+    if (value) {
+        state->hint_flags |= flag;
+    } else {
+        state->hint_flags &= ~flag;
+    }
+}
+
 void glHint(GLenum target, GLenum hint)
 {
     if (!gl_ensure_no_begin_end()) return;
@@ -300,16 +333,16 @@ void glHint(GLenum target, GLenum hint)
     {
     case GL_PERSPECTIVE_CORRECTION_HINT:
         // Use perspective correction by default, unless it was explicitly turned off
-        state->persp_correct = hint != GL_FASTEST;
+        set_hint_flag(HINT_PERSP_CORRECT, hint != GL_FASTEST);
+        gl_set_dirty_flags(DIRTY_RENDERMODE);
+        break;
+    case GL_MULTISAMPLE_HINT_N64:
+        // Use full AA by default, unless RA has been requested
+        set_hint_flag(HINT_FULL_AA, hint != GL_FASTEST);
         gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_FOG_HINT:
         // TODO: per-pixel fog
-        break;
-    case GL_MULTISAMPLE_HINT_N64:
-        // Use full AA by default, unless RA has been requested
-        state->reduced_aa = hint == GL_FASTEST;
-        gl_set_dirty_flags(DIRTY_RENDERMODE);
         break;
     case GL_POINT_SMOOTH_HINT:
     case GL_LINE_SMOOTH_HINT:
@@ -406,7 +439,7 @@ void update_pipeline()
     mgfx_features_t features = get_pipeline_features();
 
     vertex_layout vl;
-    if (state->lighting && !gl_is_diffuse_tracking_color())
+    if (gl_is_enabled(ENABLE_LIGHTING) && !gl_is_diffuse_tracking_color())
     {
         // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
         // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute

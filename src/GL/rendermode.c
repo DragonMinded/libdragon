@@ -80,7 +80,8 @@ void gl_rendermode_init()
     glFogf(GL_FOG_START, 0.0f);
     glFogf(GL_FOG_END, 1.0f);
 
-    state->persp_correct = true;
+    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_DONT_CARE);
+    glHint(GL_MULTISAMPLE_HINT_N64, GL_DONT_CARE);
 }
 
 void gl_rendermode_close()
@@ -92,10 +93,11 @@ void gl_upload_fog(const mg_uniform_t *uniform)
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_FOG)) return;
 
+    bool enabled = gl_is_enabled(ENABLE_FOG);
     mgfx_fog_t *buffer = ringbuffer_alloc_next(&state->fog_buffer);
     mgfx_get_fog(buffer, &(mgfx_fog_parms_t) {
-        .start = state->fog ? state->fog_start : 0.0f,
-        .end = state->fog ? state->fog_end : 0.0f
+        .start = enabled ? state->fog_start : 0.0f,
+        .end = enabled ? state->fog_end : 0.0f
     });
     mg_uniform_load(uniform, buffer);
     ringbuffer_release_current(&state->fog_buffer);
@@ -316,12 +318,12 @@ void glDepthMask(GLboolean mask)
 
 bool is_depth_compare_active()
 {
-    return state->depth_test && state->depth_func != GL_ALWAYS;
+    return gl_is_enabled(GL_DEPTH_TEST) && state->depth_func != GL_ALWAYS;
 }
 
 bool is_depth_update_active()
 {
-    return state->depth_test && state->depth_mask != GL_FALSE;
+    return gl_is_enabled(GL_DEPTH_TEST) && state->depth_mask != GL_FALSE;
 }
 
 bool gl_is_depth_active()
@@ -431,16 +433,16 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
 
 rdpq_antialias_t get_antialias()
 {
-    if (!state->multisample) {
+    if (!gl_is_enabled(ENABLE_MULTISAMPLE)) {
         return AA_NONE;
     } else {
-        return state->reduced_aa ? AA_REDUCED : AA_STANDARD;
+        return gl_is_hint_enabled(HINT_FULL_AA) ? AA_STANDARD : AA_REDUCED;
     }
 }
 
 rdpq_dither_t get_dither()
 {
-    return state->dither ? state->dither_mode : DITHER_NONE_NONE;
+    return gl_is_enabled(ENABLE_DITHER) ? state->dither_mode : DITHER_NONE_NONE;
 }
 
 rdpq_zmode_t get_zmode()
@@ -470,7 +472,7 @@ bool is_color_constant()
 bool gl_is_shade_active()
 {
     // Fog always requires shade
-    if (state->fog) 
+    if (gl_is_enabled(ENABLE_FOG)) 
         return true;
 
     // Shade is unused if texture replaces it
@@ -479,7 +481,7 @@ bool gl_is_shade_active()
 
     // Otherwise it is only used if lighting is active or if vertex color is not constant
     // (If not, prim color is used instead)
-    return state->lighting || !is_color_constant();
+    return gl_is_enabled(ENABLE_LIGHTING) || !is_color_constant();
 }
 
 void update_combiner()
@@ -506,11 +508,11 @@ void update_combiner()
     };
 
     bool constant_color = is_color_constant();
-    if (state->lighting) constant_color = constant_color || !gl_is_diffuse_tracking_color();
+    if (gl_is_enabled(ENABLE_LIGHTING)) constant_color = constant_color || !gl_is_diffuse_tracking_color();
 
     uint32_t index = 0;
     if (has_tex) index |= 4;
-    if (state->lighting) index |= 2;
+    if (gl_is_enabled(ENABLE_LIGHTING)) index |= 2;
     if (constant_color) index |= 1;
 
     state->combiner = table[index];
@@ -519,7 +521,7 @@ void update_combiner()
 
 color_t get_prim_color()
 {
-    if (state->lighting) {
+    if (gl_is_enabled(ENABLE_LIGHTING)) {
         return gl_get_material_diffuse();
     } else {
         return color_from_packed32(state->current_attribs.color);
@@ -551,13 +553,13 @@ void update_rendermode()
 
         rdpq_mode_combiner(state->combiner);
 
-        if (state->blend) {
+        if (gl_is_enabled(ENABLE_BLEND)) {
             rdpq_mode_blender(state->blender);
         }
-        if (state->fog) {
+        if (gl_is_enabled(ENABLE_FOG)) {
             rdpq_mode_fog(RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)));
         }
-        if (state->alpha_test && state->alpha_func != GL_ALWAYS) {
+        if (gl_is_enabled(ENABLE_ALPHA_TEST) && state->alpha_func != GL_ALWAYS) {
             rdpq_mode_alphacompare(FLOAT_TO_U8(state->alpha_ref));
         }
 
@@ -568,6 +570,6 @@ void update_rendermode()
             rdpq_mode_zmode(get_zmode());
         }
 
-        rdpq_mode_persp(state->persp_correct);
+        rdpq_mode_persp(gl_is_hint_enabled(HINT_PERSP_CORRECT));
     rdpq_mode_end();
 }

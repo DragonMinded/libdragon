@@ -65,7 +65,7 @@ void gl_update_matrix_target(gl_matrix_target_t *target)
 
 void gl_update_matrix_targets()
 {
-    if (state->matrix_palette_enabled) {
+    if (gl_is_enabled(ENABLE_MATRIX_PALETTE)) {
         for (uint32_t i = 0; i < MATRIX_PALETTE_SIZE; i++)
         {
             gl_update_matrix_target(&state->palette_matrix_targets[i]);

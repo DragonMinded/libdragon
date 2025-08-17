@@ -14,20 +14,6 @@ static inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, r
 
 void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param);
 
-void gl_set_texture_enabled(GLenum target, bool enabled)
-{
-    switch (target) {
-    case GL_TEXTURE_1D:
-        state->texture_1d = enabled;
-        break;
-    case GL_TEXTURE_2D:
-        state->texture_2d = enabled;
-        break;
-    }
-    
-    gl_set_dirty_flags(DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS);
-}
-
 void gl_init_texture_object(gl_texture_object_t *obj)
 {
     obj->min_filter = GL_NEAREST_MIPMAP_LINEAR;
@@ -140,11 +126,11 @@ GLenum rdp_tex_format_to_gl(tex_format_t format)
 
 gl_texture_object_t * gl_get_active_texture()
 {
-    if (state->texture_2d) {
+    if (gl_is_enabled(ENABLE_TEXTURE_2D)) {
         return state->texture_2d_object;
     }
 
-    if (state->texture_1d) {
+    if (gl_is_enabled(ENABLE_TEXTURE_1D)) {
         return state->texture_1d_object;
     }
 
@@ -1278,7 +1264,7 @@ void glTexSizeN64(GLushort width, GLushort height)
     state->rdpq_tex_width = width;
     state->rdpq_tex_height = height;
 
-    if (state->rdpq_texture) {
+    if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) {
         gl_set_dirty_flags(DIRTY_TEXTURING);
     }
 }
@@ -1365,7 +1351,7 @@ void gl_upload_texture(const mg_uniform_t *uniform)
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_TEXTURING)) return;
 
-    if (state->rdpq_texture) {
+    if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) {
         // When RDPQ texturing is enabled, only update the uniform with the correct texture transform
         // TODO: how to get texture filter state?
         upload_uniform(uniform, state->rdpq_tex_width, state->rdpq_tex_height, false);
@@ -1379,5 +1365,5 @@ void gl_upload_texture(const mg_uniform_t *uniform)
 bool gl_is_texture_active()
 {
     // TODO: cache this
-    return state->rdpq_texture || gl_get_active_complete_texture() != NULL;
+    return gl_is_enabled(ENABLE_RDPQ_TEXTURING) || gl_get_active_complete_texture() != NULL;
 }

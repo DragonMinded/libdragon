@@ -25,9 +25,8 @@ void gl_primitive_init()
     state->tex_gen[2].mode = GL_EYE_LINEAR;
     state->tex_gen[3].mode = GL_EYE_LINEAR;
 
-    state->cull_face_mode = GL_BACK;
-    state->front_face = GL_CCW;
-    update_culling();
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
 
     state->vertex_halfx_precision.target_precision = MGFX_VTX_POS_SHIFT;
     state->texcoord_halfx_precision.target_precision = MGFX_VTX_TEX_SHIFT;
@@ -113,6 +112,7 @@ static void prepare_drawing()
     update_rendermode();
     update_pipeline();
     update_uniforms();
+    update_culling();
     update_geom_flags();
 }
 
@@ -122,9 +122,14 @@ static void prepare_draw_call(uint32_t first, uint32_t count)
     prepare_drawing();
 }
 
+bool is_drawing_anything()
+{
+    return !gl_is_enabled(ENABLE_CULL_FACE) || state->cull_face_mode != GL_FRONT_AND_BACK;
+}
+
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
-    if (!state->is_drawing_anything || count == 0) return;
+    if (!is_drawing_anything() || count == 0) return;
     
     prepare_draw_call(first, count);
     mg_draw_begin(); // TODO: detect if modes have actually changed to batch draw commands
@@ -192,7 +197,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 {
     assertf(type == GL_UNSIGNED_SHORT, "Index type must be GL_UNSIGNED_SHORT");
 
-    if (!state->is_drawing_anything || count == 0) return;
+    if (!is_drawing_anything() || count == 0) return;
 
     uint16_t min_index, max_index;
     mg_input_assembly_parms_t input_assembly_parms = {
@@ -295,7 +300,7 @@ void glBegin(GLenum mode)
 
 void begin_end_draw_current_buffer()
 {
-    if (state->is_drawing_anything) {
+    if (is_drawing_anything()) {
         mg_bind_vertex_buffer(state->begin_end_current_buffer);
         mg_draw(&(mg_input_assembly_parms_t) {
             .primitive_topology = state->begin_end_topology
@@ -710,7 +715,7 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 
 mg_cull_mode_t get_cull_mode()
 {
-    if (!state->cull_face) {
+    if (!gl_is_enabled(ENABLE_CULL_FACE)) {
         return MG_CULL_MODE_NONE;
     }
 
@@ -740,10 +745,8 @@ mg_front_face_t get_front_face()
 
 void update_culling()
 {
-    state->is_drawing_anything = !state->cull_face || state->cull_face_mode != GL_FRONT_AND_BACK;
-    if (!state->is_drawing_anything) return;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_CULLING)) return;
 
-    // TODO: set before draw call
     mg_set_culling(&(mg_culling_parms_t) {
         .cull_mode = get_cull_mode(),
         .front_face = get_front_face()
@@ -765,7 +768,7 @@ void glCullFace(GLenum mode)
         return;
     }
 
-    update_culling();
+    gl_set_dirty_flags(DIRTY_CULLING);
 }
 
 void glFrontFace(GLenum dir)
@@ -782,7 +785,7 @@ void glFrontFace(GLenum dir)
         return;
     }
 
-    update_culling();
+    gl_set_dirty_flags(DIRTY_CULLING);
 }
 
 static void set_precision_bits(gl_fixed_precision_t *dst, GLuint bits)
@@ -802,12 +805,6 @@ static void set_precision_bits(gl_fixed_precision_t *dst, GLuint bits)
 
 void glVertexHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state->vertex_halfx_precision, bits); }
 void glTexCoordHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state->texcoord_halfx_precision, bits); }
-
-void gl_set_tex_gen_enabled(GLenum target, bool enabled)
-{
-    state->tex_gen[target - GL_TEXTURE_GEN_S].enabled = enabled;
-    gl_set_dirty_flags(DIRTY_PIPELINE);
-}
 
 gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
 {
@@ -976,6 +973,6 @@ void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
 
 bool gl_is_env_map_enabled()
 {
-    return state->tex_gen[0].enabled && state->tex_gen[0].mode == GL_SPHERE_MAP
-        && state->tex_gen[1].enabled && state->tex_gen[1].mode == GL_SPHERE_MAP;
+    return gl_is_enabled(ENABLE_TEX_GEN_S) && state->tex_gen[0].mode == GL_SPHERE_MAP
+        && gl_is_enabled(ENABLE_TEX_GEN_T) && state->tex_gen[1].mode == GL_SPHERE_MAP;
 }

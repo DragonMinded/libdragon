@@ -96,23 +96,41 @@ typedef float floatu __attribute__((aligned(1)));
 typedef double doubleu __attribute__((aligned(1)));
 
 typedef enum {
-    ENABLE_SCISSOR_TEST     = 1 << 0,
-    ENABLE_ALPHA_TEST       = 1 << 1,
-    ENABLE_DEPTH_TEST       = 1 << 2,
-    ENABLE_BLEND            = 1 << 3,
-    ENABLE_DITHER           = 1 << 4,
-    ENABLE_MULTISAMPLE      = 1 << 5,
-    ENABLE_FOG              = 1 << 6,
-    ENABLE_LIGHTING         = 1 << 7,
-    ENABLE_COLOR_MATERIAL   = 1 << 8,
-    ENABLE_NORMALIZE        = 1 << 9,
-    ENABLE_TEXTURE_1D       = 1 << 10,
-    ENABLE_TEXTURE_2D       = 1 << 11,
-    ENABLE_CULL_FACE        = 1 << 12,
-    ENABLE_MATRIX_PALETTE   = 1 << 13,
-    ENABLE_RDPQ_TEXTURING   = 1 << 14,
-    ENABLE_RDPQ_MATERIAL    = 1 << 15,
-} gl_enable_flags_t;
+    ENABLE_SCISSOR_TEST     = 0,
+    ENABLE_ALPHA_TEST       = 1,
+    ENABLE_DEPTH_TEST       = 2,
+    ENABLE_BLEND            = 3,
+    ENABLE_DITHER           = 4,
+    ENABLE_MULTISAMPLE      = 5,
+    ENABLE_FOG              = 6,
+    ENABLE_LIGHTING         = 7,
+    ENABLE_COLOR_MATERIAL   = 8,
+    ENABLE_NORMALIZE        = 9,
+    ENABLE_TEXTURE_1D       = 10,
+    ENABLE_TEXTURE_2D       = 11,
+    ENABLE_CULL_FACE        = 12,
+    ENABLE_MATRIX_PALETTE   = 13,
+    ENABLE_RDPQ_TEXTURING   = 14,
+    ENABLE_RDPQ_MATERIAL    = 15,
+    ENABLE_LIGHT0           = 16,
+    ENABLE_LIGHT1           = 17,
+    ENABLE_LIGHT2           = 18,
+    ENABLE_LIGHT3           = 19,
+    ENABLE_LIGHT4           = 20,
+    ENABLE_LIGHT5           = 21,
+    ENABLE_LIGHT6           = 22,
+    ENABLE_LIGHT7           = 23,
+    ENABLE_TEX_GEN_S        = 24,
+    ENABLE_TEX_GEN_T        = 25,
+    ENABLE_TEX_GEN_R        = 26,
+    ENABLE_TEX_GEN_Q        = 27,
+    ENABLE_TEX_FLIP         = 28,
+} gl_enable_t;
+
+typedef enum {
+    HINT_FULL_AA            = 1 << 0,
+    HINT_PERSP_CORRECT      = 1 << 1,
+} gl_hint_flags_t;
 
 typedef enum {
     DIRTY_PIPELINE      = 1 << 0,
@@ -122,6 +140,7 @@ typedef enum {
     DIRTY_TEXTURING     = 1 << 4,
     DIRTY_RENDERMODE    = 1 << 5,
     DIRTY_COMBINER      = 1 << 6,
+    DIRTY_CULLING       = 1 << 7,
 } gl_dirty_flags_t;
 
 typedef struct {
@@ -223,7 +242,6 @@ typedef struct {
     GLenum mode;
     GLfloat eye_plane[TEX_COORD_COUNT];
     GLfloat object_plane[TEX_COORD_COUNT];
-    bool enabled;
 } gl_tex_gen_t;
 
 typedef enum {
@@ -277,7 +295,7 @@ typedef struct {
     GLfloat constant_attenuation;
     GLfloat linear_attenuation;
     GLfloat quadratic_attenuation;
-    bool enabled;
+    gl_enable_t enable;
 } gl_light_t;
 
 typedef struct {
@@ -293,6 +311,11 @@ typedef struct {
 } gl_list_t;
 
 typedef struct {
+    uint32_t enable_flags;
+    gl_hint_flags_t hint_flags;
+    // TODO: Generic system that tracks state changes and applies changes automatically
+    gl_dirty_flags_t dirty_flags;
+
     GLenum cull_face_mode;
     GLenum front_face;
     GLenum current_error;
@@ -385,6 +408,7 @@ typedef struct {
 
     GLushort rdpq_tex_width, rdpq_tex_height;
 
+    bool begin_end_active;
     native_vertex_t current_attribs;
     native_vertex_t begin_end_saved_vtx;
     ringbuffer begin_end_buffer;
@@ -407,29 +431,7 @@ typedef struct {
     GLuint current_list_name;
     gl_list_t *current_list;
     
-    // TODO: Generic system that tracks state changes and applies changes automatically
-    gl_dirty_flags_t dirty_flags;
 
-    bool begin_end_active;
-    bool is_drawing_anything;
-    bool cull_face;
-    bool texture_1d;
-    bool texture_2d;
-    bool depth_test;
-    bool blend;
-    bool alpha_test;
-    bool dither;
-    bool scissor_test;
-    bool lighting;
-    bool fog;
-    bool color_material;
-    bool normalize;
-    bool matrix_palette_enabled;
-    bool tex_flip_t;
-    bool multisample;
-    bool reduced_aa;
-    bool persp_correct;
-    bool rdpq_texture;
 } gl_state_t;
 
 extern gl_state_t *state;
@@ -472,7 +474,6 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
 
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 void update_pipeline();
-void update_culling();
 void update_viewport();
 void update_rendermode();
 
@@ -483,10 +484,6 @@ void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **bin
 void gl_update_array_pointers(gl_array_object_t *obj);
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
 void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
-
-void gl_set_light_enabled(GLenum light, bool enabled);
-void gl_set_texture_enabled(GLenum target, bool enabled);
-void gl_set_tex_gen_enabled(GLenum target, bool enabled);
 
 gl_texture_object_t * gl_get_active_texture();
 inline bool texture_is_complete(gl_texture_object_t *obj)
@@ -530,6 +527,17 @@ inline bool gl_check_and_clear_dirty_flags(gl_dirty_flags_t flags)
         return true;
     }
     return false;
+}
+
+inline bool gl_is_enabled(gl_enable_t enable)
+{
+    uint32_t flag = 1 << enable;
+    return (state->enable_flags & flag) == flag;
+}
+
+inline bool gl_is_hint_enabled(gl_hint_flags_t flags)
+{
+    return (state->hint_flags & flags) == flags;
 }
 
 inline uint32_t gl_type_to_index(GLenum type)

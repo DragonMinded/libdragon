@@ -5,7 +5,7 @@
 
 void set_light_dirty(gl_light_t *light)
 {
-    if (light->enabled) {
+    if (gl_is_enabled(light->enable)) {
         gl_set_dirty_flags(DIRTY_LIGHTING);
     }
 }
@@ -22,7 +22,7 @@ void gl_init_material(gl_material_t *material)
     };
 }
 
-void gl_init_light(gl_light_t *light)
+void gl_init_light(gl_light_t *light, uint32_t index)
 {
     *light = (gl_light_t) {
         .ambient = { 0.0f, 0.0f, 0.0f, 1.0f },
@@ -35,7 +35,7 @@ void gl_init_light(gl_light_t *light)
         .constant_attenuation = 1.0f,
         .linear_attenuation = 0.0f,
         .quadratic_attenuation = 0.0f,
-        .enabled = false,
+        .enable = ENABLE_LIGHT0 + index,
     };
 }
 
@@ -47,7 +47,7 @@ void gl_lighting_init()
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        gl_init_light(&state->lights[i]);
+        gl_init_light(&state->lights[i], i);
     }
 
     state->lights[0].diffuse[0] = 0.2f;
@@ -284,17 +284,6 @@ gl_light_t * gl_get_light(GLenum light)
     }
 
     return &state->lights[light - GL_LIGHT0];
-}
-
-void gl_set_light_enabled(GLenum light, bool enabled)
-{
-    gl_light_t *l = gl_get_light(light);
-    if (l == NULL) {
-        return;
-    }
-
-    l->enabled = enabled;
-    gl_set_dirty_flags(DIRTY_LIGHTING);
 }
 
 void gl_light_set_ambient(gl_light_t *light, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -624,7 +613,7 @@ void glShadeModel(GLenum mode)
 
 bool gl_is_diffuse_tracking_color()
 {
-    return state->color_material && (state->material.color_target == GL_DIFFUSE || state->material.color_target == GL_AMBIENT_AND_DIFFUSE);
+    return gl_is_enabled(ENABLE_COLOR_MATERIAL) && (state->material.color_target == GL_DIFFUSE || state->material.color_target == GL_AMBIENT_AND_DIFFUSE);
 }
 
 color_t gl_get_material_diffuse()
@@ -638,14 +627,14 @@ color_t gl_get_material_diffuse()
 
 void get_lighting_parms(mgfx_lighting_parms_t *parms)
 {
-    if (!state->lighting) {
+    if (!gl_is_enabled(ENABLE_LIGHTING)) {
         parms->ambient_color = color_from_packed32(0xFFFFFFFF);
     } else {
         parms->ambient_color = color_from_floats(state->light_model_ambient);
 
         for (size_t i = 0; i < LIGHT_COUNT; i++) {
             gl_light_t *in_light = &state->lights[i];
-            if (!in_light->enabled) continue;
+            if (!gl_is_enabled(in_light->enable)) continue;
 
             mgfx_light_parms_t *out_light = &parms->lights[parms->light_count++];
             out_light->color = color_from_floats(in_light->diffuse);
