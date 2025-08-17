@@ -418,5 +418,36 @@ class TestCLI(unittest.TestCase):
         self.assertNotEqual(code, 0) # This is also expected to fail
         self.assertIn("Skipping 0 header bytes (manual setting)", out)
 
+    def test_skip_header_formats(self):
+        """Test --skip-header with hex and dexdrive values"""
+        pak_path = self.tmp / "test_skip_formats.pak"
+        code, out, err = run_cpaktool(["format", str(pak_path)])
+        self.assertEqual(code, 0, f"Failed to create test pak: {err}")
+
+        # Test with 'dexdrive' keyword
+        code, out, err = run_cpaktool(["--verbose", "--skip-header", "dexdrive", "list", str(pak_path)])
+        self.assertNotEqual(code, 0) # Expected to fail on a normal pak
+        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+
+        # Test with 'dexdrive' keyword using =
+        code, out, err = run_cpaktool(["--verbose", "--skip-header=dexdrive", "list", str(pak_path)])
+        self.assertNotEqual(code, 0) # Expected to fail on a normal pak
+        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+
+        # Test with hex value
+        code, out, err = run_cpaktool(["--verbose", "--skip-header", "0x1040", "list", str(pak_path)])
+        self.assertNotEqual(code, 0) # Expected to fail on a normal pak
+        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+
+        # Test with hex value using =
+        code, out, err = run_cpaktool(["--verbose", "--skip-header=0x1040", "list", str(pak_path)])
+        self.assertNotEqual(code, 0) # Expected to fail on a normal pak
+        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+
+        # Test with a different hex value
+        code, out, err = run_cpaktool(["--verbose", "--skip-header", "0x0", "list", str(pak_path)])
+        self.assertEqual(code, 0)
+        self.assertIn("Skipping 0 header bytes (manual setting)", out)
+
 if __name__ == "__main__":
     unittest.main()

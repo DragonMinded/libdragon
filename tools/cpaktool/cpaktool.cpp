@@ -243,11 +243,18 @@ static bool handle_global_option_with_value(const char *arg, const char *provide
         }
         
         char *endptr;
-        long skip_bytes = strtol(value, &endptr, 10);
-        if (*endptr != '\0' || skip_bytes < 0) {
-            free(arg_copy);
-            fatal_error("Invalid value for --skip-header: %s", value);
+        long skip_bytes;
+
+        if (!strcasecmp(value, "dexdrive")) {
+            skip_bytes = 0x1040;
+        } else {
+            skip_bytes = strtol(value, &endptr, 0);
+            if (*endptr != '\0' || skip_bytes < 0) {
+                free(arg_copy);
+                fatal_error("Invalid value for --skip-header: %s", value);
+            }
         }
+
         opts->skip_header_bytes = (int)skip_bytes;
         free(arg_copy);
         return true;
