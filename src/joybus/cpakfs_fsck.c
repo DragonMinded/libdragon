@@ -469,8 +469,7 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
 
     for (int i=0; i<MAX_NOTES; i++) {
         cpakfs_note_t *note = &notes[i];
-        uint16_t status = be16(note->status);
-        bool occupied = (status & NOTE_STATUS_OCCUPIED) != 0;
+        bool occupied = (note->status & NOTE_STATUS_OCCUPIED) != 0;
 
         // Gamecode and pubcode are ASCII most of the time, but Datel Gameshark
         // saves binary codes in there. So what we just consider as invalid
