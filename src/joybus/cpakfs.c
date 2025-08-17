@@ -62,6 +62,9 @@ typedef struct {
 #define FAT_WRITE(fs, lvalue, val) ({ \
     cpakfs_fat_entry_t __val = (val); \
     cpakfs_fat_entry_t *__ptr = &(lvalue); \
+    if (__ptr >= &fs->fat[0][0] && __ptr < &fs->fat[0][fs->reserved]) { \
+        assertf(0, "FAT_WRITE with value %02x:%02x in reserved area", __val.bank, __val.page); \
+    } \
     *__ptr = __val; \
     if (!(__ptr >= &fs->notes[0].first_page && __ptr <= &fs->notes[MAX_NOTES-1].first_page)) { \
         fs->fat_dirty |= 1 << ((__ptr - &fs->fat[0][0]) >> 7); \
@@ -474,14 +477,20 @@ static cpakfs_note_t* find_note(cpakfs_t *fs, const parsed_path_t *parsed, int *
 
 static void truncate_note(cpakfs_t *fs, cpakfs_note_t *note)
 {
-    cpakfs_fat_entry_t cur_page = note->first_page;
-    while (FAT_IS_VALID(cur_page, fs->reserved) || FAT_IS_TERMINATOR(cur_page)) {
-        cpakfs_fat_entry_t next_page = FAT_IS_TERMINATOR(cur_page) ? FAT_UNUSED : FAT_NEXT(fs->fat, cur_page);
-        FAT_WRITE(fs, fs->fat[cur_page.bank][cur_page.page], FAT_UNUSED);
-        fs->free_pages[cur_page.bank]++;
-        if (FAT_IS_TERMINATOR(cur_page)) break;
-        cur_page = next_page;
+    cpakfs_fat_entry_t *cur = &note->first_page;
+    while (cur) {
+        cpakfs_fat_entry_t *next = NULL;
+        if (FAT_IS_VALID(*cur, fs->reserved)) {
+            next = &FAT_NEXT(fs->fat, *cur);
+            fs->free_pages[cur->bank]++;
+        } else {
+            next = NULL;
+        }
+        FAT_WRITE(fs, *cur, FAT_UNUSED);
+        cur = next;
     }
+    // A 0-byte note should have FAT_TERMINATOR as first page
+    note->first_page = FAT_TERMINATOR;
 }
 
 /**
