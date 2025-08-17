@@ -403,7 +403,7 @@ class TestCLI(unittest.TestCase):
             # DexDrive signature
             f.write(b"123-456-STD\x00")
             # Pad to 0x1040 bytes (4160 decimal)
-            f.write(b"\x00" * (0x1040 - 12))
+            f.write(b"\x01" * (0x1040 - 12))
             # Write a minimal formatted pak (32KB)
             # For simplicity, write zeros (we're testing header detection, not pak validity)
             f.write(b"\x00" * 32768)

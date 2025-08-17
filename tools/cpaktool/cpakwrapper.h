@@ -20,7 +20,7 @@
 class CPakFilesystem {
 private:
     static constexpr size_t DEXDRIVE_HEADER_SIZE = 0x1040;
-    static constexpr const char DEXDRIVE_SIGNATURE[] = "123-456-STD\x00";
+    static constexpr const char DEXDRIVE_SIGNATURE[] = "123-456-STD";
 
 public:
     // Constructor opens the pak file and mounts the filesystem
