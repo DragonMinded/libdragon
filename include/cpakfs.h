@@ -83,6 +83,7 @@
  *    returned when no controller pak is present on the specified port.
  *  * ENOSPC: No space left on the controller pak to allocate new pages for
  *    writing to a file.
+ *  * EMFILE: Too many files. The note table is full (maximum 16 notes per pak).
  *  * EFTYPE: Inappropriate file type or format. The filesystem structure is
  *    corrupted, with invalid FAT entries or file chains.
  *  * EEXIST: File exists. Attempting to create a file with O_CREAT|O_EXCL

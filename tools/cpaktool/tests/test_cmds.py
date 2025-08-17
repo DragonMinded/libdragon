@@ -17,6 +17,7 @@ WHAT NOT TO TEST:
 import subprocess
 import tempfile
 import unittest
+import time
 from pathlib import Path
 
 # Helper to run cpaktool and capture output
@@ -37,6 +38,7 @@ class TestCommands(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmpdir.cleanup)
         self.tmp = Path(self.tmpdir.name)
+        self._pak_counter = 0
 
     def test_format_and_fsck_various_sizes(self):
         """Test format and immediate fsck of various pak sizes"""
@@ -65,7 +67,8 @@ class TestCommands(unittest.TestCase):
 
     def _create_pak(self, size="64KB"):
         """Helper to create a test pak file"""
-        pak = self.tmp / f"test_{size.replace('KB', 'kb')}.pak"
+        self._pak_counter += 1
+        pak = self.tmp / f"test_{size.replace('KB', 'kb')}_{self._pak_counter}.pak"
         if size.endswith("KB"):
             code, out, err = run_cpaktool(["format", "--size", size[:-2], str(pak)])
         else:
@@ -868,6 +871,81 @@ class TestCommands(unittest.TestCase):
         self.assertIn(f"{zlib.crc32(test_files[0][1]) & 0xffffffff:08X}", out)  # test1.txt
         self.assertIn(f"{zlib.crc32(test_files[1][1]) & 0xffffffff:08X}", out)  # data.bin  
         self.assertIn(f"{zlib.crc32(test_files[2][1]) & 0xffffffff:08X}", out)  # empty.dat
+
+    def test_add_16_file_limit(self):
+        """Test that adding more than 16 files produces the correct error message"""
+        pak = self._create_pak("128KB")  # Use larger pak to avoid space issues
+        
+        # Add exactly 16 files (the maximum)
+        files_added = []
+        for i in range(16):
+            filename = f"FILE{i:02d}.TXT"
+            content = f"Content of file {i}".encode()
+            test_file = self.tmp / filename
+            test_file.write_bytes(content)
+            
+            code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+            self.assertEqual(code, 0, f"Failed to add file {i}: {err}")
+            files_added.append(filename)
+        
+        # Verify we can list all 16 files
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0, f"Failed to list files: {err}")
+        for filename in files_added:
+            expected_cpak_name = f"DRAG.ON-{filename}"
+            self.assertIn(expected_cpak_name, out, f"File {filename} not found in listing")
+        
+        # Now try to add the 17th file - this should fail with EMFILE error
+        file17 = self.tmp / "FILE17.TXT"
+        file17.write_text("This should fail")
+        
+        code, out, err = run_cpaktool(["add", str(pak), str(file17)])
+        self.assertNotEqual(code, 0, "Adding 17th file should have failed")
+        self.assertIn("Too many files", err, f"Expected EMFILE error message, got: {err}")
+        self.assertIn("maximum 16 notes", err, f"Expected mention of 16 file limit, got: {err}")
+        
+        # Verify the pak still has exactly 16 files and is consistent
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0, f"Failed to list files after failure: {err}")
+        file_count = len([line for line in out.strip().split('\n') if line and not line.startswith('Found')])
+        self.assertEqual(file_count, 16, f"Expected exactly 16 files, found {file_count}")
+        
+        # Test that the pak is still consistent
+        code, out, err = run_cpaktool(["test", str(pak)])
+        self.assertEqual(code, 0, f"Pak integrity check failed after 16-file limit test: {err}")
+
+    def test_add_space_vs_file_limit_errors(self):
+        """Test that we get different error messages for space exhaustion vs file limit"""
+        # Test file limit error (16 files max)
+        pak_small = self._create_pak("32KB")  # Small pak, but should fit 16 small files
+        
+        # Add 16 very small files
+        for i in range(16):
+            filename = f"F{i:02d}.TXT"
+            test_file = self.tmp / filename
+            test_file.write_text("x")  # 1 byte files
+            
+            code, out, err = run_cpaktool(["add", str(pak_small), str(test_file)])
+            self.assertEqual(code, 0, f"Failed to add small file {i}: {err}")
+        
+        # 17th file should hit file limit, not space limit
+        file17 = self.tmp / "F17.TXT"
+        file17.write_text("x")
+        code, out, err = run_cpaktool(["add", str(pak_small), str(file17)])
+        self.assertNotEqual(code, 0, "Adding 17th file should have failed")
+        self.assertIn("Too many files", err, f"Expected file limit error, got: {err}")
+        self.assertNotIn("No space left", err, f"Should not mention space, got: {err}")
+        
+        # Test space limit error - create a fresh pak and try to add a huge file
+        pak_space = self._create_pak("32KB")
+        huge_file = self.tmp / "HUGE.BIN"
+        huge_content = b"x" * (30 * 1024)  # 30KB file in 32KB pak should fail due to filesystem overhead
+        huge_file.write_bytes(huge_content)
+        
+        code, out, err = run_cpaktool(["add", str(pak_space), str(huge_file)])
+        if code != 0:  # Should fail due to space, not file count
+            self.assertIn("No space left", err, f"Expected space error, got: {err}")
+            self.assertNotIn("Too many files", err, f"Should not mention file limit, got: {err}")
 
 if __name__ == "__main__":
     unittest.main()

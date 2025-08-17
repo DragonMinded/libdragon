@@ -895,7 +895,7 @@ static void *__cpakfs_open(char *name, int flags, int port)
 
         // Too many notes
         if (note_id == MAX_NOTES) {
-            errno = ENOSPC;
+            errno = EMFILE;
             return NULL;
         }
     }
@@ -1061,8 +1061,8 @@ static int __cpakfs_findnext(const char *basepath, dir_t *dir, int port) {
     cpakfs_note_t *note = NULL;
 
     // tracef("__cpak_findnext(%s, %p, %d) (cookie: %d)\n", basepath, dir, port, (int)dir->d_cookie);
-    while ((int)dir->d_cookie < MAX_NOTES) {
-        note = read_note(fs, dir->d_cookie++);
+    while (++dir->d_cookie < MAX_NOTES) {
+        note = read_note(fs, dir->d_cookie);
         
         if ((note->status & NOTE_STATUS_OCCUPIED) == 0)
             continue;
@@ -1104,7 +1104,7 @@ static int __cpakfs_findfirst(char *path, dir_t *dir, int port) {
         return -2;
     }
 
-    dir->d_cookie = 0;
+    dir->d_cookie = -1;
     return __cpakfs_findnext(path, dir, port);
 }
 

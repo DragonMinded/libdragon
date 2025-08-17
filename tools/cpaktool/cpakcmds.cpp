@@ -910,10 +910,13 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
                     fatal_error("Invalid filename: '%s' (reason: %s)", fname, e.what());
                 }
             }
+        } else if (errno == ENOSPC) {
+            warning("Cannot add file '%s': No space left in filesystem", input_file);
+        } else if (errno == EMFILE) {
+            warning("Cannot add file '%s': Too many files (maximum 16 notes per pak)", input_file);
         } else {
             warning("Cannot add file '%s': %s", input_file, e.what());
         }
-        warning("Cannot process file '%s': %s", input_file, e.what());
         return 0;
     }
 }
