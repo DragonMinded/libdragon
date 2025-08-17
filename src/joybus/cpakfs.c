@@ -837,7 +837,6 @@ static int calc_size(cpakfs_t *fs, cpakfs_note_t *note)
     cpakfs_fat_entry_t cur_page = note->first_page;
     while (!FAT_IS_TERMINATOR(cur_page)) {
         if (!FAT_IS_VALID(cur_page, fs->reserved) || size > PAGE_SIZE * fs->fat_size) { // prevent infinite loop
-            errno = EFTYPE;
             return -1;
         }
         size += PAGE_SIZE;
@@ -923,9 +922,11 @@ static void *__cpakfs_open(char *name, int flags, int port)
             file->size = 0;
             file->flags |= FLAG_NOTE_DIRTY;
         } else {
-            // Calculate the size only if we're not truncating
+            // Calculate the size only if we're not truncating.
+            // This also serves as a check that the FAT chain is valid.
             file->size = calc_size(fs, note);
             if (file->size < 0) {
+                errno = EFTYPE;
                 free(file);
                 return NULL;
             }
@@ -1081,11 +1082,9 @@ static int __cpakfs_findnext(const char *basepath, dir_t *dir, int port) {
     assert(idx < sizeof(dir->d_name));
     dir->d_type = DT_REG;
     
-    // Calculate file size
+    // Calculate file size. If negative, ignore the error and just return the file.
+    // It means the file will fail to open, but we still want to return it.
     dir->d_size = calc_size(fs, note);
-    if (dir->d_size < 0) {
-        return -2;
-    }
 
     return 0;
 }
