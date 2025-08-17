@@ -836,11 +836,19 @@ static void *__cpakfs_open(char *name, int flags, int port)
         note->first_page = FAT_TERMINATOR;
         file->flags |= FLAG_NOTE_DIRTY;
     } else {
-        // Calculate the size
-        file->size = calc_size(fs, note->first_page);
-        if (file->size < 0) {
-            free(file);
-            return NULL;
+        // If O_TRUNC is set, truncate the existing file immediately
+        if (flags & O_TRUNC) {
+            truncate_note(fs, file->note);
+            file->note->first_page = FAT_TERMINATOR;
+            file->size = 0;
+            file->flags |= FLAG_NOTE_DIRTY;
+        } else {
+            // Calculate the size only if we're not truncating
+            file->size = calc_size(fs, note->first_page);
+            if (file->size < 0) {
+                free(file);
+                return NULL;
+            }
         }
 
         if (flags & O_APPEND)
