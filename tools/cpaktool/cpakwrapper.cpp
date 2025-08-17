@@ -55,7 +55,9 @@ CPakFilesystem::CPakFilesystem(const std::string& filename, bool auto_mount, int
     
     // Mount the filesystem only if requested
     if (auto_mount) {
-        mountFilesystem();
+        if (!mountFilesystem()) {
+            throw std::runtime_error("Not a valid Controller Pak file");
+        }
     }
 }
 

@@ -672,6 +672,19 @@ class TestCommands(unittest.TestCase):
         self.assertIn("DRAG.ON-CONFIG.DAT", out)
         self.assertNotIn("SAVE.02", out)
 
+    def test_list_invalid_file(self):
+        """Test that list command fails on an invalid pak file."""
+        # Create a dummy file that is not a pak file
+        invalid_file = self.tmp / "invalid.pak"
+        invalid_file.write_text("This is just a text file, not a valid cpak.")
+        
+        # Run list command on the invalid file
+        code, out, err = run_cpaktool(["list", str(invalid_file)])
+        
+        # Assert that it fails with the correct error
+        self.assertNotEqual(code, 0, "list command should fail on an invalid file")
+        self.assertIn("Not a valid Controller Pak file", err, "Expected error message for invalid pak file")
+
     def test_delete_basic(self):
         """Test basic delete functionality"""
         pak = self._create_pak()
@@ -945,6 +958,3 @@ class TestCommands(unittest.TestCase):
         if code != 0:  # Should fail due to space, not file count
             self.assertIn("No space left", err, f"Expected space error, got: {err}")
             self.assertNotIn("Too many files", err, f"Should not mention file limit, got: {err}")
-
-if __name__ == "__main__":
-    unittest.main()
