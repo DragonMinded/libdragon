@@ -140,11 +140,14 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
             //   * The rectangle to load cover the whole texture horizontally, and the texture does not
             //     contain extraneous data at the end of each line.
             //   * The width of the texture is a multiple of 8 bytes (or 16 bytes, in case of RGBA32).
-            bool can_load_block_width =
+            // In addition, FMT_YUV16 can't ever be loaded with LOAD_BLOCK because its interleaved UYVY
+            // pixel format must be split to separate Y and UV planes in TMEM, which is done by LOAD_TILE.
+            bool can_load_block =
                 TEX_FORMAT_PIX2BYTES(fmt, width) == tload->tex->stride &&
-                (tload->tex->stride & stride_mask) == 0;
+                (tload->tex->stride & stride_mask) == 0 &&
+                (fmt != FMT_YUV16);
 
-            if (can_load_block_width) {
+            if (can_load_block) {
                 // If the requirements are satisfied, we need to compute the maximum number of lines
                 // that can be loaded with LOAD_BLOCK. In fact, RDP uses fixed point precision;
                 // the DXT parameter in the LOAD_BLOCK command is a 1.10 fixed point number, so
