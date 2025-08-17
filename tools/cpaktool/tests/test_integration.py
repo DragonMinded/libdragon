@@ -351,5 +351,60 @@ class TestIntegration(unittest.TestCase):
         code, out, err = run_cpaktool(["test", str(pak)])
         self.assertEqual(code, 0, f"Pak integrity check failed: {err}")
 
+
+    def test_crc_error_handling(self):
+        """Test --crc option shows <error> for corrupted files"""
+        pak = self._create_pak()
+        
+        # Create test files with known content
+        test_files = [
+            ("DRAG.ON-test1.txt", b"Hello World!"),
+            ("SAVE.01-data.bin", b'\x00\x01\x02\x03\x04\x05\x06\x07'),
+            ("GAME.ZZ-empty.dat", b""),
+        ]
+        
+        for filename, content in test_files:
+            test_file = self.tmp / filename
+            test_file.write_bytes(content)
+            code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+            self.assertEqual(code, 0, f"Failed to add {filename}: {err}")
+        
+        # Manually corrupt the pak by corrupting the first_page field in a note
+        # For 64KB pak: 256 pages, FAT = 2 pages, layout = ID(1) + FAT1(2) + FAT2(2) + notes 
+        # Note table starts at page 5 = offset 0x500
+        # Each note is 32 bytes: gamecode[4] + pubcode[2] + first_page[2] + other[24]
+        # So first_page is at offset 6 within each note
+        pak_data = pak.read_bytes()
+        corrupted_data = bytearray(pak_data)
+        
+        # Corrupt the first_page field of the second note (SAVE.01-data.bin)
+        # Notes are ordered by their index, second note is at offset 32
+        note_table_offset = 0x500  # Page 5
+        second_note_offset = note_table_offset + 32  # Second note
+        first_page_offset = second_note_offset + 6   # first_page field
+        
+        # Set first_page to an invalid value (bank=255, page=255) 
+        corrupted_data[first_page_offset] = 0xFF     # bank = 255 (invalid)
+        corrupted_data[first_page_offset + 1] = 0xFF # page = 255 (invalid)
+        
+        # Write corrupted data back
+        pak.write_bytes(corrupted_data)
+        
+        # Test --crc with corrupted file - should show <error> and continue  
+        code, out, err = run_cpaktool(["list", "--crc", str(pak)])
+        self.assertEqual(code, 0, f"Failed to list corrupted pak: {err}")
+        self.assertIn("CRC32", out)
+        self.assertIn("<error>", out)  # Should show error for corrupted file
+        
+        # Verify other files still show correct CRC values
+        import zlib
+        self.assertIn(f"{zlib.crc32(test_files[0][1]) & 0xffffffff:08X}", out)  # test1.txt should work
+        self.assertIn(f"{zlib.crc32(test_files[2][1]) & 0xffffffff:08X}", out)  # empty.dat should work
+
+        # Verify that the pak is marked as corrupted by fsck
+        code, out, err = run_cpaktool(["test", str(pak)])
+        self.assertNotEqual(code, 0, f"fsck should fail on corrupted pak: {err}")
+        self.assertIn("invalid first page", out)
+
 if __name__ == "__main__":
     unittest.main()

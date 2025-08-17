@@ -103,7 +103,7 @@ class TestCommands(unittest.TestCase):
         
         # Should still succeed by regenerating data
         code, out, err = run_cpaktool(["test", str(pak)])
-        self.assertEqual(code, 0, "fsck should regenerate corrupted data")
+        self.assertNotEqual(code, 0, "fsck should fail if issues are found")
         
         # Test repair option
         code, out, err = run_cpaktool(["test", "--repair", str(pak)])

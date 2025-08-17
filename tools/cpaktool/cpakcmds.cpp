@@ -50,6 +50,7 @@ typedef struct {
     std::string full_name;  // For pattern matching
     int64_t size;
     uint32_t crc32_value;   // CRC32 checksum of file contents
+    bool crc32_error;       // True if CRC32 calculation failed
 } file_entry_t;
 
 // Helper function to calculate visual width of a UTF-8 string
@@ -109,6 +110,9 @@ static std::string pad_to_width(const std::string& str, size_t target_width) {
 
 // Helper function to format file size for human-readable output
 static std::string format_size(int64_t size, bool human_readable) {
+    if (size < 0) {
+        return "<error>";
+    }
     if (!human_readable) {
         return std::to_string(size);
     }
@@ -172,10 +176,12 @@ static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
 }
 
 // Helper function to calculate CRC32 for a file in the pak
-static uint32_t calculate_file_crc32(const std::string& filename) {
+static uint32_t calculate_file_crc32(const std::string& filename, bool& error) {
+    error = false;
     try {
         CPakFile file(filename, O_RDONLY);
         if (!file.isValid()) {
+            error = true;
             return 0;
         }
         
@@ -192,7 +198,8 @@ static uint32_t calculate_file_crc32(const std::string& filename) {
         
         return crc ^ 0xffffffffL;
     } catch (const std::exception& e) {
-        // If we can't read the file, return 0
+        // If we can't read the file, return error
+        error = true;
         return 0;
     }
 }
@@ -229,7 +236,7 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         // Use the new for_each_file method
         pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
             file_entry_t entry;
-            entry.size = dir.d_size >= 0 ? dir.d_size : 0;
+            entry.size = dir.d_size;
             
             if (parse_cpak_path(std::string(filename), entry)) {
                 // Check if file matches any patterns
@@ -250,9 +257,12 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 if (should_include) {
                     // Calculate CRC32 if requested
                     if (cmd_opts->show_crc) {
-                        entry.crc32_value = calculate_file_crc32(std::string(filename));
+                        bool crc_error;
+                        entry.crc32_value = calculate_file_crc32(std::string(filename), crc_error);
+                        entry.crc32_error = crc_error;
                     } else {
                         entry.crc32_value = 0;
+                        entry.crc32_error = false;
                     }
                     files.push_back(entry);
                 }
@@ -290,13 +300,22 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 
                 // Don't use printf width specifiers - just print the padded strings directly
                 if (cmd_opts->show_crc) {
-                    printf("%s %s %s %s %-10s %08X\n",
-                           padded_game.c_str(),
-                           padded_pub.c_str(),
-                           padded_filename.c_str(),
-                           padded_ext.c_str(),
-                           size_str.c_str(),
-                           file.crc32_value);
+                    if (file.crc32_error) {
+                        printf("%s %s %s %s %-10s <error>\n",
+                               padded_game.c_str(),
+                               padded_pub.c_str(),
+                               padded_filename.c_str(),
+                               padded_ext.c_str(),
+                               size_str.c_str());
+                    } else {
+                        printf("%s %s %s %s %-10s %08X\n",
+                               padded_game.c_str(),
+                               padded_pub.c_str(),
+                               padded_filename.c_str(),
+                               padded_ext.c_str(),
+                               size_str.c_str(),
+                               file.crc32_value);
+                    }
                 } else {
                     printf("%s %s %s %s %s\n",
                            padded_game.c_str(),
@@ -615,6 +634,7 @@ int cmd_test(global_options_t *global_opts, command_options_t *cmd_opts, const c
             printf("Fixed %d issue%s\n", issues, issues==1?"":"s");
         } else {
             printf("Found %d issue%s\n", issues, issues==1?"":"s");
+            if (issues > 0) return -1;
         }
 
         return 0;
