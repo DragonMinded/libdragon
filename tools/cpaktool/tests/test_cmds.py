@@ -958,3 +958,6 @@ class TestCommands(unittest.TestCase):
         if code != 0:  # Should fail due to space, not file count
             self.assertIn("No space left", err, f"Expected space error, got: {err}")
             self.assertNotIn("Too many files", err, f"Should not mention file limit, got: {err}")
+
+if __name__ == "__main__":
+    unittest.main()
