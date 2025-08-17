@@ -83,6 +83,7 @@ int main(void)
     joypad_inputs_t inputs;
     bool rumble_supported, rumble_active;
     int cpak_num_banks[4] = {0, 0, 0, 0};
+    int b_hold_time[4] = {0, 0, 0, 0};
 
     timer_init();
     joypad_init();
@@ -99,7 +100,7 @@ int main(void)
         printf("\n");
         printf("LibDragon Joypad Subsystem Test\n");
         printf("Hold A to test rumble motors.\n");
-        printf("Press B to trigger an exception.\n");
+        printf("Hold B to trigger the exception screen.\n");
         printf("\n");
 
         joypad_poll();
@@ -138,7 +139,16 @@ int main(void)
 
             if (inputs.btn.b)
             {
-                debugf((char *)0x1);
+                if (!b_hold_time[port])
+                    b_hold_time[port] = get_ticks_ms();
+                if (get_ticks_ms() - b_hold_time[port] > 1000)
+                {
+                    assertf(0, "B button held for one second, exception screen triggered for debugging purposes");
+                }
+            }
+            else
+            {
+                b_hold_time[port] = 0;
             }
 
             printf("Port %d ", port + 1);
