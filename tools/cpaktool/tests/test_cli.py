@@ -207,6 +207,22 @@ class TestCLI(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("Option --sort requires a value", err)
 
+    def test_crc_implies_long(self):
+        """Test that --crc option implies --long format"""
+        # Create a pak for testing
+        pak = self.tmp / "test.pak"
+        code, out, err = run_cpaktool(["format", "--size", "32", str(pak)])
+        self.assertEqual(code, 0)
+        
+        # Test --crc without any files should show header (indicating --long format)
+        code, out, err = run_cpaktool(["list", "--crc", str(pak)])
+        self.assertEqual(code, 0)
+        # Long format should include column headers with CRC32
+        self.assertIn("Game", out)
+        self.assertIn("Pub", out)
+        self.assertIn("Filename", out)
+        self.assertIn("CRC32", out)
+
     def test_error_cases(self):
         """Test invalid command and no command cases"""
         # Invalid command

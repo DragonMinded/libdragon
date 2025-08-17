@@ -43,6 +43,7 @@ typedef struct {
     // List options
     bool long_format;
     bool human_readable;
+    bool show_crc;
     const char *sort_by;
     bool reverse_sort;
     

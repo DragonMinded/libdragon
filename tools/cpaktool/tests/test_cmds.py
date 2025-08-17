@@ -841,5 +841,33 @@ class TestCommands(unittest.TestCase):
         # OTHER.03 file should remain (doesn't match either pattern)
         self.assertIn("OTHER.03-KEEP.DAT", out)
 
+    def test_crc_calculation(self):
+        """Test --crc option calculates correct CRC32 for multiple files"""
+        pak = self._create_pak()
+        
+        # Create test files with known content
+        test_files = [
+            ("DRAG.ON-test1.txt", b"Hello World!"),
+            ("SAVE.01-data.bin", b'\x00\x01\x02\x03\x04\x05\x06\x07'),
+            ("GAME.ZZ-empty.dat", b""),
+        ]
+        
+        for filename, content in test_files:
+            test_file = self.tmp / filename
+            test_file.write_bytes(content)
+            code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+            self.assertEqual(code, 0, f"Failed to add {filename}: {err}")
+        
+        # Test --crc shows CRC32 values 
+        code, out, err = run_cpaktool(["list", "--crc", str(pak)])
+        self.assertEqual(code, 0, f"Failed to list with --crc: {err}")
+        self.assertIn("CRC32", out)
+        
+        # Verify expected CRC32 values appear in output
+        import zlib
+        self.assertIn(f"{zlib.crc32(test_files[0][1]) & 0xffffffff:08X}", out)  # test1.txt
+        self.assertIn(f"{zlib.crc32(test_files[1][1]) & 0xffffffff:08X}", out)  # data.bin  
+        self.assertIn(f"{zlib.crc32(test_files[2][1]) & 0xffffffff:08X}", out)  # empty.dat
+
 if __name__ == "__main__":
     unittest.main()

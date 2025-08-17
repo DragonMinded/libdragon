@@ -264,6 +264,9 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     cmd_opts->long_format = true;
                 } else if (!strcmp(arg, "-H") || !strcmp(arg, "--human-readable")) {
                     cmd_opts->human_readable = true;
+                } else if (!strcmp(arg, "--crc")) {
+                    cmd_opts->show_crc = true;
+                    cmd_opts->long_format = true;  // --crc implies --long
                 } else if (!strcmp(arg, "-r") || !strcmp(arg, "--reverse")) {
                     cmd_opts->reverse_sort = true;
                 } else if (!strcmp(arg, "-s") || !strcmp(arg, "--sort")) {
@@ -447,6 +450,7 @@ static void print_command_usage(const char *program_name, command_t cmd) {
             printf("Options:\n");
             printf("  -l, --long              Long format (show details)\n");
             printf("  -H, --human-readable    Human-readable sizes\n");
+            printf("      --crc               Show CRC32 checksum (implies --long)\n");
             printf("  -s, --sort FIELD        Sort by field (name, size, date)\n");
             printf("  -r, --reverse           Reverse sort order\n");
             break;

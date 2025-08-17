@@ -28,6 +28,7 @@
 #include "../../include/cpak.h"
 #include "../../include/cpakfs.h"
 #include "../../src/joybus/cpakfs_internal.h"
+#include "../common/crc32.c"
 
 //
 // FORWARD DECLARATIONS FOR HELPER FUNCTIONS
@@ -48,6 +49,7 @@ typedef struct {
     std::string extension;
     std::string full_name;  // For pattern matching
     int64_t size;
+    uint32_t crc32_value;   // CRC32 checksum of file contents
 } file_entry_t;
 
 // Helper function to calculate visual width of a UTF-8 string
@@ -169,6 +171,32 @@ static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
     return true;
 }
 
+// Helper function to calculate CRC32 for a file in the pak
+static uint32_t calculate_file_crc32(const std::string& filename) {
+    try {
+        CPakFile file(filename, O_RDONLY);
+        if (!file.isValid()) {
+            return 0;
+        }
+        
+        uint32_t crc = 0xffffffffL;
+        const size_t BUFFER_SIZE = 4096;
+        uint8_t buffer[BUFFER_SIZE];
+        size_t bytes_read;
+        
+        while ((bytes_read = file.read(buffer, BUFFER_SIZE)) > 0) {
+            for (size_t i = 0; i < bytes_read; i++) {
+                crc = crc_table[(crc ^ buffer[i]) & 0xff] ^ (crc >> 8);
+            }
+        }
+        
+        return crc ^ 0xffffffffL;
+    } catch (const std::exception& e) {
+        // If we can't read the file, return 0
+        return 0;
+    }
+}
+
 // Helper function to compare files for sorting
 static bool compare_files(const file_entry_t& a, const file_entry_t& b, const char* sort_by, bool reverse) {
     bool result = false;
@@ -220,6 +248,12 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 }
                 
                 if (should_include) {
+                    // Calculate CRC32 if requested
+                    if (cmd_opts->show_crc) {
+                        entry.crc32_value = calculate_file_crc32(std::string(filename));
+                    } else {
+                        entry.crc32_value = 0;
+                    }
                     files.push_back(entry);
                 }
             }
@@ -236,8 +270,13 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
         // Display files
         if (cmd_opts->long_format) {
             // Long format with table headers
-            printf("Game       Pub    Filename                         Ext        Size\n");
-            printf("----       ---    --------                         ---        ------\n");
+            if (cmd_opts->show_crc) {
+                printf("Game       Pub    Filename                         Ext        Size       CRC32\n");
+                printf("----       ---    --------                         ---        ------     --------\n");
+            } else {
+                printf("Game       Pub    Filename                         Ext        Size\n");
+                printf("----       ---    --------                         ---        ------\n");
+            }
             
             for (const auto& file : files) {
                 std::string size_str = format_size(file.size, cmd_opts->human_readable);
@@ -250,12 +289,22 @@ int cmd_list(global_options_t *global_opts, command_options_t *cmd_opts, const c
                 std::string padded_ext = pad_to_width(file.extension, 10);       // Ext column width
                 
                 // Don't use printf width specifiers - just print the padded strings directly
-                printf("%s %s %s %s %s\n",
-                       padded_game.c_str(),
-                       padded_pub.c_str(),
-                       padded_filename.c_str(),
-                       padded_ext.c_str(),
-                       size_str.c_str());
+                if (cmd_opts->show_crc) {
+                    printf("%s %s %s %s %-10s %08X\n",
+                           padded_game.c_str(),
+                           padded_pub.c_str(),
+                           padded_filename.c_str(),
+                           padded_ext.c_str(),
+                           size_str.c_str(),
+                           file.crc32_value);
+                } else {
+                    printf("%s %s %s %s %s\n",
+                           padded_game.c_str(),
+                           padded_pub.c_str(),
+                           padded_filename.c_str(),
+                           padded_ext.c_str(),
+                           size_str.c_str());
+                }
             }
         } else {
             // Simple format - one file per line
