@@ -369,6 +369,7 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
         
         int files_added = 0;
         int files_updated = 0;
+        int files_failed = 0;
         
         // Process each input file
         for (int i = 0; i < num_files; i++) {
@@ -377,13 +378,15 @@ int cmd_add(global_options_t *global_opts, command_options_t *cmd_opts, const ch
                 files_added++;
             } else if (result == 2) {
                 files_updated++;
+            } else {
+                files_failed++;
             }
             // result == 0 means error (already handled by add_file)
         }
         
-        verbose_log(global_opts, "Summary: %d files added, %d files updated", files_added, files_updated);
+        verbose_log(global_opts, "Summary: %d files added, %d files updated, %d files failed", files_added, files_updated, files_failed);
         
-        return 0;
+        return files_failed > 0 ? 1 : 0;
         
     } catch (const std::exception& e) {
         fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, e.what());
@@ -726,8 +729,8 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
             verbose_log(global_opts, "File already exists in pak, updating: %s", cpak_path);
             is_update = true;
         } else {
-            verbose_log(global_opts, "File already exists in pak, overwriting: %s", cpak_path);
-            is_update = true;
+            warning("File '%s' already exists in pak. Use --update to overwrite.", cpak_path);
+            return 0;
         }
     } catch (const std::exception&) {
         // File doesn't exist, which is fine
@@ -747,7 +750,12 @@ static int add_file(global_options_t *global_opts, command_options_t *cmd_opts, 
     
     try {
         // Open destination file in pak using our C++ wrapper
-        CPakFile dst(cpak_path, O_WRONLY | O_CREAT);
+        // Use O_TRUNC to ensure existing files are properly truncated
+        int flags = O_WRONLY | O_CREAT;
+        if (is_update) {
+            flags |= O_TRUNC;  // Truncate existing files to avoid leftover data
+        }
+        CPakFile dst(cpak_path, flags);
         
         verbose_log(global_opts, "Copying %ld bytes from %s to %s", file_size, input_file, cpak_path);
         

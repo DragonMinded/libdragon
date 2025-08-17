@@ -226,9 +226,156 @@ class TestCommands(unittest.TestCase):
         code, out, err = run_cpaktool(["add", str(pak), str(self.tmp / "missing.txt")])
         self.assertNotEqual(code, 0)
 
+    def test_add_file_overwrite_scenarios(self):
+        """Test file overwrite with different sizes and content verification"""
+        pak = self._create_pak("128KB")  # Larger pak for space tests
+        
+        # Test file with initial content
+        test_file = self.tmp / "GAME.01-SAVE.DAT"
+        original_content = "Original content " * 10  # ~170 chars
+        test_file.write_text(original_content)
+        
+        # Add initial file
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Failed to add initial file: {err}")
+        
+        # Verify initial file is there and has correct content
+        extract_dir = self.tmp / "extract1"
+        extract_dir.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir)
+        self.assertEqual(code, 0)
+        
+        extracted = extract_dir / "GAME.01-SAVE.DAT"
+        self.assertTrue(extracted.exists())
+        # Note: extracted content may be padded by cpakfs, so check prefix
+        extracted_content = extracted.read_text()
+        self.assertTrue(extracted_content.startswith(original_content.rstrip()))
+        
+        # Test overwrite with SMALLER file
+        smaller_content = "Small"  # ~5 chars
+        test_file.write_text(smaller_content)
+        
+        code, out, err = run_cpaktool(["add", "--update", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Failed to update with smaller file: {err}")
+        
+        # Verify smaller file content
+        extract_dir2 = self.tmp / "extract2"
+        extract_dir2.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir2)
+        self.assertEqual(code, 0)
+        
+        extracted2 = extract_dir2 / "GAME.01-SAVE.DAT"
+        self.assertTrue(extracted2.exists())
+        extracted_content2 = extracted2.read_text().rstrip('\x00')  # Remove padding
+        self.assertEqual(extracted_content2, smaller_content)
+        
+        # Test overwrite with LARGER file
+        larger_content = "This is a much larger content " * 50  # ~1500 chars
+        test_file.write_text(larger_content)
+        
+        code, out, err = run_cpaktool(["add", "--update", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Failed to update with larger file: {err}")
+        
+        # Verify larger file content
+        extract_dir3 = self.tmp / "extract3"
+        extract_dir3.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir3)
+        self.assertEqual(code, 0)
+        
+        extracted3 = extract_dir3 / "GAME.01-SAVE.DAT"
+        self.assertTrue(extracted3.exists())
+        extracted_content3 = extracted3.read_text()
+        self.assertTrue(extracted_content3.startswith(larger_content))
+        
+        # Test pak integrity after all operations
+        code, out, err = run_cpaktool(["test", str(pak)])
+        self.assertEqual(code, 0, f"Pak integrity check failed after overwrites: {err}")
+
+    def test_add_multiple_overwrites_space_management(self):
+        """Test multiple file overwrites and space management"""
+        pak = self._create_pak("64KB")
+        
+        # Create multiple files of different sizes
+        files_data = [
+            ("FILE1.TXT", "Content1"),
+            ("FILE2.DAT", "Content2" * 100),  # Larger
+            ("FILE3.BIN", "C3")  # Small
+        ]
+        
+        # Add all files initially
+        for filename, content in files_data:
+            test_file = self.tmp / f"GAME.01-{filename}"
+            test_file.write_text(content)
+            code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+            self.assertEqual(code, 0, f"Failed to add {filename}: {err}")
+        
+        # Verify all files are present
+        code, out, err = run_cpaktool(["list", str(pak)])
+        self.assertEqual(code, 0)
+        for filename, _ in files_data:
+            self.assertIn(f"GAME.01-{filename}", out)
+        
+        # Now overwrite with different sizes
+        new_contents = [
+            ("FILE1.TXT", "NewContent1" * 200),  # Make much larger
+            ("FILE2.DAT", "Small"),  # Make much smaller
+            ("FILE3.BIN", "Medium size content")  # Make medium
+        ]
+        
+        for filename, new_content in new_contents:
+            test_file = self.tmp / f"GAME.01-{filename}"
+            test_file.write_text(new_content)
+            code, out, err = run_cpaktool(["add", "--update", str(pak), str(test_file)])
+            self.assertEqual(code, 0, f"Failed to update {filename}: {err}")
+        
+        # Extract and verify all new contents
+        extract_dir = self.tmp / "extract_final"
+        extract_dir.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir)
+        self.assertEqual(code, 0)
+        
+        for filename, expected_content in new_contents:
+            extracted = extract_dir / f"GAME.01-{filename}"
+            self.assertTrue(extracted.exists(), f"File {filename} not found after update")
+            actual_content = extracted.read_text().rstrip('\x00')
+            self.assertEqual(actual_content, expected_content, 
+                           f"Content mismatch for {filename}")
+        
+        # Final integrity check
+        code, out, err = run_cpaktool(["test", str(pak)])
+        self.assertEqual(code, 0, f"Final integrity check failed: {err}")
+
+    def test_add_overwrite_without_update_flag(self):
+        """Test that adding existing files without --update flag fails appropriately"""
+        pak = self._create_pak()
+        
+        # Create and add initial file
+        test_file = self.tmp / "GAME.01-EXISTING.DAT"
+        test_file.write_text("Original content")
+        
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Failed to add initial file: {err}")
+        
+        # Try to add same file again without --update (should fail)
+        test_file.write_text("New content")
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+        self.assertNotEqual(code, 0, "Adding existing file without --update should fail")
+        self.assertIn("already exists", err.lower())
+        
+        # Verify original content is preserved
+        extract_dir = self.tmp / "extract"
+        extract_dir.mkdir()
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir)
+        self.assertEqual(code, 0)
+        
+        extracted = extract_dir / "GAME.01-EXISTING.DAT"
+        self.assertTrue(extracted.exists())
+        extracted_content = extracted.read_text().rstrip('\x00')
+        self.assertEqual(extracted_content, "Original content")
+
     def test_add_filename_validation(self):
         """Test filename validation and character restrictions"""
-        pak = self._create_pak()
+        pak = self._create_pak("128KB")  # Use larger pak for all these files
         
         # Test valid filenames that should work
         valid_files = [
@@ -253,8 +400,13 @@ class TestCommands(unittest.TestCase):
             "A.B.C.D",            # Multiple dots - filename=A.B.C, ext=D
         ]
         
-        for filename in valid_files:
+        for i, filename in enumerate(valid_files):
             with self.subTest(filename=filename):
+                # Create a unique pak for each file to avoid name conflicts
+                pak = self.tmp / f"test_validate_{i}.pak"
+                code, out, err = run_cpaktool(["format", "--size", "64", str(pak)])
+                self.assertEqual(code, 0, f"Failed to format pak for {filename}: {err}")
+                
                 test_file = self.tmp / filename
                 test_file.write_text("test data")
                 
