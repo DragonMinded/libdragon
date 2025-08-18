@@ -137,6 +137,27 @@ static const path_test_case_t valid_path_tests[] = {
         .description = "Multiple dots with extension",
         .utf8_fullname = "TEST.99-A.B.C.D",
         .expected_path = { "TEST", "99", "\x1A\x3C\x1B\x3C\x1C", "\x1D" },
+    },
+    // Japanese/CJK character tests
+    {
+        .description = "Japanese filename with katakana",
+        .utf8_fullname = "GAME.01-。ァィゥ.TXT",  // 。ァィゥ = 0x42,0x45,0x46,0x47
+        .expected_path = { "GAME", "01", "\x42\x45\x46\x47", "\x2D\x31\x2D" },
+    },
+    {
+        .description = "Japanese extension with katakana",
+        .utf8_fullname = "GAME.01-SAVE.ェォ",  // ェォ = 0x48,0x49
+        .expected_path = { "GAME", "01", "\x2C\x1A\x2F\x1E", "\x48\x49" },
+    },
+    {
+        .description = "Mixed ASCII and Japanese",
+        .utf8_fullname = "GAME.01-MYッャ.DAT",  // ッャ = 0x4A,0x4B
+        .expected_path = { "GAME", "01", "\x26\x32\x4A\x4B", "\x1D\x1A\x2D" },
+    },
+    {
+        .description = "Japanese symbols",
+        .utf8_fullname = "GAME.01-。゛゜ァ.TXT",  // 。゛゜ァ = 0x42,0x43,0x44,0x45
+        .expected_path = { "GAME", "01", "\x42\x43\x44\x45", "\x2D\x31\x2D" },
     }
 };
 
@@ -240,6 +261,49 @@ static const path_error_test_case_t error_path_tests[] = {
         .error_pos =     "                 ^   ",
         .expected_error = CPAKFS_PARSE_ERR_EXTENSION_TOO_LONG,
     },
+    // Japanese character error tests - length based on N64 chars, not UTF-8 bytes
+    {
+        .description = "Japanese filename exactly 16 N64 chars (should pass)",
+        .utf8_fullname = "GAME.01-。ァィゥェォッャュョヲンアイウエ.TXT",  // 16 N64 chars exactly
+        .error_pos = NULL,
+        .expected_error = CPAKFS_PARSE_OK,  // This should actually pass
+    },
+    {
+        .description = "Japanese filename too long (17 N64 chars)",
+        .utf8_fullname = "GAME.01-。ァィゥェォッャュョヲンアイウエカ.TXT",  // 17 N64 chars
+        .error_pos =     "                                                        ^     ",  // Points to where overflow detected (actual offset: 56)
+        .expected_error = CPAKFS_PARSE_ERR_FILENAME_TOO_LONG,
+    },
+    {
+        .description = "Japanese extension too long (5 N64 chars)",
+        .utf8_fullname = "GAME.01-SAVE.。ァィゥェ",  // 5 N64 chars in extension
+        .error_pos =     "                         ^   ",  // Points to where overflow detected (actual offset: 25)
+        .expected_error = CPAKFS_PARSE_ERR_EXTENSION_TOO_LONG,
+    },
+    {
+        .description = "Invalid Japanese character (unsupported UTF-8)",
+        .utf8_fullname = "GAME.01-SAVE表.TXT",  // 表 is not in the N64 codepage
+        .error_pos =     "            ^     ",  // Points to start of invalid UTF-8 sequence
+        .expected_error = CPAKFS_PARSE_ERR_FILENAME_CHAR,
+    },
+    {
+        .description = "Invalid Japanese in extension",
+        .utf8_fullname = "GAME.01-SAVE.漢字",  // 漢字 not in N64 codepage
+        .error_pos =     "             ^   ",  // Points to start of invalid UTF-8 sequence
+        .expected_error = CPAKFS_PARSE_ERR_EXTENSION_CHAR,
+    },
+    {
+        .description = "Truncated UTF-8 sequence in filename",
+        .utf8_fullname = "GAME.01-SAVE\xE3\x81.TXT",  // Incomplete UTF-8 sequence
+        .error_pos =     "            ^         ",  // Points to start of bad UTF-8
+        .expected_error = CPAKFS_PARSE_ERR_FILENAME_CHAR,
+    },
+    {
+        .description = "Valid Japanese then invalid character",
+        .utf8_fullname = "GAME.01-。表.TXT",  // 。 is valid, 表 is not in N64 codepage
+        .error_pos =     "           ^    ",  // Points to start of invalid UTF-8 (表)
+        .expected_error = CPAKFS_PARSE_ERR_FILENAME_CHAR,
+    }
 };
 
 // Test cases
@@ -319,6 +383,19 @@ TEST(invalid_paths) {
         printf("  Sub-test %d: %s\n", i + 1, test->description);
         
         cpakfs_parse_err_t result = cpakfs_path_parse(test->utf8_fullname, &path, &error_pos);
+        
+        // Special case: if expected_error is CPAKFS_PARSE_OK, this test should pass
+        if (test->expected_error == CPAKFS_PARSE_OK) {
+            if (result != CPAKFS_PARSE_OK) {
+                printf("FAILED\n  Expected parsing to succeed but got error %d for '%s'\n", 
+                       result, test->utf8_fullname);
+                tests_failed++;
+                return;
+            }
+            // Test passed - continue to next test
+            continue;
+        }
+        
         if (result != test->expected_error) {
             printf("FAILED\n  Expected error %d, got %d for '%s'\n", 
                    test->expected_error, result, test->utf8_fullname);

@@ -240,6 +240,100 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
     return out - start_out;
 }
 
+/**
+ * @brief Find separators and split path into segments using simple pointer array
+ */
+static cpakfs_parse_err_t split_path_segments(const char *input, char *segments[5], const char **error_pos)
+{
+    const char *p = input;
+    
+    // segments[0] = start of gamecode
+    segments[0] = (char*)p;
+    
+    // Find first dot (after gamecode)
+    while (*p && *p != '.') p++;
+    if (*p != '.') {
+        if (error_pos) *error_pos = p;
+        return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
+    }
+    segments[1] = (char*)p;  // segments[1] = end of gamecode (points to '.')
+    p++;  // skip the dot
+    
+    // Find dash (after pubcode)
+    while (*p && *p != '-') p++;
+    if (*p != '-') {
+        if (error_pos) *error_pos = p;
+        return CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT;
+    }
+    segments[2] = (char*)p;  // segments[2] = end of pubcode (points to '-')
+    p++;  // skip the dash
+    
+    // Find last dot in a single scan - use NULL as marker for "no dot found yet"
+    segments[3] = NULL;  // Initially no extension found
+    while (*p) {
+        if (*p == '.') segments[3] = (char*)p;  // Update to point to the last dot found
+        p++;
+    }
+    segments[4] = (char*)p;  // segments[4] = end of string (points to '\0')
+    
+    // If no dot was found, filename extends to end of string
+    if (!segments[3]) segments[3] = segments[4];
+    
+    return CPAKFS_PARSE_OK;
+}
+
+/**
+ * @brief Parse a code segment with unified logic using segment boundaries
+ */
+static cpakfs_parse_err_t parse_code_segment(char *start, char *end, uint8_t *output, 
+                                           int normal_len, int hex_len,
+                                           cpakfs_parse_err_t err_too_short,
+                                           cpakfs_parse_err_t err_too_long,
+                                           cpakfs_parse_err_t err_char,
+                                           const char **error_pos)
+{
+    int length = end - start;
+    
+    if (length < normal_len) {
+        if (error_pos) *error_pos = end;
+        return err_too_short;
+    }
+    
+    if (length == normal_len) {
+        // Normal alphanumeric format
+        for (int i = 0; i < normal_len; i++) {
+            char c = start[i];
+            if (!is_valid_gamecode_char(c)) {
+                if (error_pos) *error_pos = start + i;
+                return err_char;
+            }
+            // Convert to uppercase
+            output[i] = (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
+        }
+        return CPAKFS_PARSE_OK;
+    }
+    
+    if (length == hex_len) {
+        // Check if all characters are hex
+        for (int i = 0; i < hex_len; i++) {
+            if (!is_hex_char(start[i])) {
+                if (error_pos) *error_pos = start + normal_len;
+                return err_too_long;
+            }
+        }
+        // Parse as hex
+        if (!parse_hex_string(start, hex_len, output, normal_len)) {
+            if (error_pos) *error_pos = start;
+            return err_char;
+        }
+        return CPAKFS_PARSE_OK;
+    }
+    
+    // Wrong length
+    if (error_pos) *error_pos = start + normal_len;
+    return err_too_long;
+}
+
 cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *path, const char **error_pos)
 {
     if (!utf8_fullname || !path) {
@@ -250,198 +344,71 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
     // Clear the output structure
     memset(path, 0, sizeof(*path));
 
-    const char *p = utf8_fullname;
-    
-    // Parse game code (4 characters normal, or 8 characters hex)
-    if (strlen(p) < 4) {
-        // Too short - point to the end of string or the premature separator
-        const char *dot_pos = strchr(p, '.');
-        if (error_pos) *error_pos = dot_pos ? dot_pos : (p + strlen(p));
-        return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
-    }
-    
-    if (strlen(p) >= 4 && p[4] == '.') {
-        // 4-character alphanumeric format
-        for (int i = 0; i < 4; i++) {
-            if (!is_valid_gamecode_char(p[i])) {
-                if (error_pos) *error_pos = &p[i];
-                return CPAKFS_PARSE_ERR_GAMECODE_CHAR;
-            }
-            // Convert lowercase to uppercase for gamecode
-            path->gamecode[i] = (p[i] >= 'a' && p[i] <= 'z') ? p[i] - 'a' + 'A' : p[i];
-        }
-        p += 4;
-    } else if (strlen(p) >= 8 && p[8] == '.') {
-        // Check if all 8 characters are valid hex before attempting hex parsing
-        bool all_hex = true;
-        for (int i = 0; i < 8; i++) {
-            if (!is_hex_char(p[i])) {
-                all_hex = false;
-                break;
-            }
-        }
-        
-        if (all_hex) {
-            // 8-character hex format
-            if (!parse_hex_string(p, 8, path->gamecode, 4)) {
-                if (error_pos) *error_pos = p;
-                return CPAKFS_PARSE_ERR_GAMECODE_CHAR;  // Invalid hex = character error
-            }
-            p += 8;
-        } else {
-            // 8 characters but not all hex - this is too long for normal format
-            // Point to the 5th character (first one that makes it too long for normal format)
-            if (error_pos) *error_pos = p + 4;
-            return CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG;
-        }
-    } else {
-        // Check length to determine if it's too short or too long
-        const char *dot_pos = strchr(p, '.');
-        int len = dot_pos ? (dot_pos - p) : strlen(p);
-        
-        if (len < 4) {
-            // Too short - point to the separator that terminates prematurely
-            if (error_pos) *error_pos = dot_pos ? dot_pos : (p + strlen(p));
-            return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
-        } else {
-            // len >= 5, which is too long for normal format (4 chars) and not valid hex format
-            // Point to the 5th character (first one that makes it too long)
-            if (error_pos) *error_pos = p + 4;
-            return CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG;
-        }
+    // Split path into segments: 
+    // [0]=gamecode_start, [1]=pubcode_start, [2]=filename_start, [3]=extension_start, [4]=end
+    char *segments[5];
+    cpakfs_parse_err_t result = split_path_segments(utf8_fullname, segments, error_pos);
+    if (result != CPAKFS_PARSE_OK) {
+        return result;
     }
 
-    // Expect dot separator
-    if (*p != '.') {
-        if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
+    // Parse gamecode (segments[0] to segments[1])
+    result = parse_code_segment(segments[0], segments[1], path->gamecode, 4, 8,
+                               CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT,
+                               CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG,
+                               CPAKFS_PARSE_ERR_GAMECODE_CHAR,
+                               error_pos);
+    if (result != CPAKFS_PARSE_OK) {
+        return result;
     }
-    p++;
 
-    // Parse publisher code (2 characters normal, or 4 characters hex)
-    if (strlen(p) < 2) {
-        // Too short - point to the end of string or the premature separator
-        const char *dash_pos = strchr(p, '-');
-        if (error_pos) *error_pos = dash_pos ? dash_pos : (p + strlen(p));
-        return CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT;
+    // Parse pubcode (segments[1]+1 to segments[2], skip the '.')
+    result = parse_code_segment(segments[1] + 1, segments[2], path->pubcode, 2, 4,
+                               CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT,
+                               CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG,
+                               CPAKFS_PARSE_ERR_PUBCODE_CHAR,
+                               error_pos);
+    if (result != CPAKFS_PARSE_OK) {
+        return result;
     }
+
+    // Parse filename (segments[2]+1 to segments[3], skip the '-')
+    char *filename_start = segments[2] + 1;
+    char *filename_end = segments[3];
+    int filename_len = filename_end - filename_start;
     
-    if (strlen(p) >= 2 && p[2] == '-') {
-        // 2-character alphanumeric format
-        for (int i = 0; i < 2; i++) {
-            if (!is_valid_gamecode_char(p[i])) {
-                if (error_pos) *error_pos = &p[i];
-                return CPAKFS_PARSE_ERR_PUBCODE_CHAR;
-            }
-            // Convert lowercase to uppercase for pubcode
-            path->pubcode[i] = (p[i] >= 'a' && p[i] <= 'z') ? p[i] - 'a' + 'A' : p[i];
-        }
-        p += 2;
-    } else if (strlen(p) >= 4 && p[4] == '-') {
-        // Check if all 4 characters are valid hex before attempting hex parsing
-        bool all_hex = true;
-        for (int i = 0; i < 4; i++) {
-            if (!is_hex_char(p[i])) {
-                all_hex = false;
-                break;
-            }
-        }
-        
-        if (all_hex) {
-            // 4-character hex format
-            if (!parse_hex_string(p, 4, path->pubcode, 2)) {
-                if (error_pos) *error_pos = p;
-                return CPAKFS_PARSE_ERR_PUBCODE_CHAR;  // Invalid hex = character error
-            }
-            p += 4;
-        } else {
-            // 4 characters but not all hex - this is too long for normal format
-            // Point to the 3rd character (first one that makes it too long for normal format)
-            if (error_pos) *error_pos = p + 2;
-            return CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG;
-        }
-    } else {
-        // Check length to determine if it's too short or too long
-        const char *dash_pos = strchr(p, '-');
-        int len = dash_pos ? (dash_pos - p) : strlen(p);
-        
-        if (len < 2) {
-            // Too short - point to the separator that terminates prematurely
-            if (error_pos) *error_pos = dash_pos ? dash_pos : (p + strlen(p));
-            return CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT;
-        } else {
-            // len >= 3, which is too long for normal format (2 chars) and not valid hex format
-            // Point to the 3rd character (first one that makes it too long)
-            if (error_pos) *error_pos = p + 2;
-            return CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG;
-        }
-    }
-
-    // Expect dash separator
-    if (*p != '-') {
-        if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT;
-    }
-    p++;
-
-    // Parse filename (up to last dot or end of string)
-    const char *filename_start = p;
-    const char *filename_end = strrchr(p, '.');  // Use strrchr to find LAST dot
-    if (!filename_end) {
-        filename_end = p + strlen(p);
-    }
-    
-    int filename_utf8_len = filename_end - filename_start;
-    if (filename_utf8_len == 0) {
+    if (filename_len == 0) {
         if (error_pos) *error_pos = filename_start;
         return CPAKFS_PARSE_ERR_FILENAME_TOO_SHORT;
     }
-    
-    // Convert filename from UTF-8 to N64 codepage
-    const char *filename_error_pos;
-    int n64_filename_len = utf8_to_n64(filename_start, filename_utf8_len, path->filename, 16, &filename_error_pos);
+
+    int n64_filename_len = utf8_to_n64(filename_start, filename_len, 
+                                      path->filename, 16, error_pos);
     if (n64_filename_len < 0) {
         if (n64_filename_len == -2) {
-            // Buffer overflow - filename too long
-            if (error_pos) *error_pos = filename_error_pos;
             return CPAKFS_PARSE_ERR_FILENAME_TOO_LONG;
         } else {
-            // Invalid character
-            if (error_pos) *error_pos = filename_error_pos;
             return CPAKFS_PARSE_ERR_FILENAME_CHAR;
         }
     }
-    
-    // Zero-fill remaining bytes in filename array
-    memset(path->filename + n64_filename_len, 0, 16 - n64_filename_len);
-    p = filename_end;
 
-    // Parse extension (optional)
-    if (*p == '.') {
-        p++; // skip the dot
-        const char *ext_start = p;
-        int ext_utf8_len = strlen(ext_start);
+    // Parse extension if present (segments[3]+1 to segments[4], skip the '.' if any)
+    if (segments[3] < segments[4] && *segments[3] == '.') {
+        char *ext_start = segments[3] + 1;
+        char *ext_end = segments[4];
+        int ext_len = ext_end - ext_start;
         
-        if (ext_utf8_len > 0) {
-            // Convert extension from UTF-8 to N64 codepage
-            const char *ext_error_pos;
-            int n64_ext_len = utf8_to_n64(ext_start, ext_utf8_len, path->ext, 4, &ext_error_pos);
+        if (ext_len > 0) {
+            int n64_ext_len = utf8_to_n64(ext_start, ext_len,
+                                         path->ext, 4, error_pos);
             if (n64_ext_len < 0) {
                 if (n64_ext_len == -2) {
-                    // Buffer overflow - extension too long
-                    if (error_pos) *error_pos = ext_error_pos;
                     return CPAKFS_PARSE_ERR_EXTENSION_TOO_LONG;
                 } else {
-                    // Invalid character
-                    if (error_pos) *error_pos = ext_error_pos;
                     return CPAKFS_PARSE_ERR_EXTENSION_CHAR;
                 }
             }
-            
-            // Zero-fill remaining bytes in extension array
-            memset(path->ext + n64_ext_len, 0, 4 - n64_ext_len);
         }
-        // else: extension is empty, already zero-filled by memset above
     }
 
     return CPAKFS_PARSE_OK;
@@ -467,6 +434,49 @@ static inline bool append_hex(char **out, char *end, uint8_t value)
     return append_char(out, end, hex_chars[value & 0xF]);
 }
 
+/**
+ * @brief Format a code (gamecode/pubcode) trying ASCII first, fallback to hex
+ */
+static bool append_code(char **out, char *end, const uint8_t *code, int len)
+{
+    // Try ASCII first
+    bool is_ascii = true;
+    for (int i = 0; i < len; i++) {
+        if (!is_valid_gamecode_char(code[i])) {
+            is_ascii = false;
+            break;
+        }
+    }
+    
+    if (is_ascii) {
+        for (int i = 0; i < len; i++) {
+            if (!append_char(out, end, code[i])) return false;
+        }
+    } else {
+        for (int i = 0; i < len; i++) {
+            if (!append_hex(out, end, code[i] >> 4)) return false;
+            if (!append_hex(out, end, code[i])) return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief Format a N64 string (filename/extension) to UTF-8
+ */
+static bool append_n64_string(char **out, char *end, const uint8_t *str, int max_len)
+{
+    int len = n64_string_length(str, max_len);
+    for (int i = 0; i < len; i++) {
+        char utf8_buf[4];
+        int utf8_len = n64_to_utf8(str[i], utf8_buf);
+        for (int j = 0; j < utf8_len; j++) {
+            if (!append_char(out, end, utf8_buf[j])) return false;
+        }
+    }
+    return true;
+}
+
 int cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int buflen)
 {
     if (!path || !utf8_fullname || buflen <= 1) {
@@ -477,73 +487,15 @@ int cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int bufle
     char *out = utf8_fullname;
     char *end = utf8_fullname + buflen - 1; // Reserve space for null terminator
 
-    // Format gamecode - try ASCII first, fallback to hex
-    bool gamecode_is_ascii = true;
-    for (int i = 0; i < 4; i++) {
-        if (!is_valid_gamecode_char(path->gamecode[i])) {
-            gamecode_is_ascii = false;
-            break;
-        }
-    }
-    
-    if (gamecode_is_ascii) {
-        for (int i = 0; i < 4; i++) {
-            if (!append_char(&out, end, path->gamecode[i])) goto truncate;
-        }
-    } else {
-        for (int i = 0; i < 4; i++) {
-            if (!append_hex(&out, end, path->gamecode[i] >> 4)) goto truncate;
-            if (!append_hex(&out, end, path->gamecode[i])) goto truncate;
-        }
-    }
-
-    // Append dot separator
+    if (!append_code(&out, end, path->gamecode, 4)) goto truncate;
     if (!append_char(&out, end, '.')) goto truncate;
-
-    // Format pubcode - try ASCII first, fallback to hex
-    bool pubcode_is_ascii = true;
-    for (int i = 0; i < 2; i++) {
-        if (!is_valid_gamecode_char(path->pubcode[i])) {
-            pubcode_is_ascii = false;
-            break;
-        }
-    }
-    
-    if (pubcode_is_ascii) {
-        for (int i = 0; i < 2; i++) {
-            if (!append_char(&out, end, path->pubcode[i])) goto truncate;
-        }
-    } else {
-        for (int i = 0; i < 2; i++) {
-            if (!append_hex(&out, end, path->pubcode[i] >> 4)) goto truncate;
-            if (!append_hex(&out, end, path->pubcode[i])) goto truncate;
-        }
-    }
-
-    // Append dash separator
+    if (!append_code(&out, end, path->pubcode, 2)) goto truncate;
     if (!append_char(&out, end, '-')) goto truncate;
-
-    // Format filename directly
-    int filename_len = n64_string_length(path->filename, 16);
-    for (int i = 0; i < filename_len; i++) {
-        char utf8_buf[4];
-        int utf8_len = n64_to_utf8(path->filename[i], utf8_buf);
-        for (int j = 0; j < utf8_len; j++) {
-            if (!append_char(&out, end, utf8_buf[j])) goto truncate;
-        }
-    }
-
-    // Format extension if present
+    if (!append_n64_string(&out, end, path->filename, 16)) goto truncate;
     int ext_len = n64_string_length(path->ext, 4);
     if (ext_len > 0) {
         if (!append_char(&out, end, '.')) goto truncate;
-        for (int i = 0; i < ext_len; i++) {
-            char utf8_buf[4];
-            int utf8_len = n64_to_utf8(path->ext[i], utf8_buf);
-            for (int j = 0; j < utf8_len; j++) {
-                if (!append_char(&out, end, utf8_buf[j])) goto truncate;
-            }
-        }
+        if (!append_n64_string(&out, end, path->ext, 4)) goto truncate;
     }
 
     // Success - no truncation occurred
