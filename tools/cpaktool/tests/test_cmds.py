@@ -386,7 +386,6 @@ class TestCommands(unittest.TestCase):
             "123.BIN",            # Numbers
             "A-B.C",              # Dash
             "X.Y",                # Single chars
-            "VERYLONGNAME.EXT",   # Will be truncated with warning
             "file@test.txt",      # @ is supported
             "file#test.txt",      # # is supported  
             "file*test.txt",      # * is supported
@@ -413,18 +412,11 @@ class TestCommands(unittest.TestCase):
                 
                 code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
                 self.assertEqual(code, 0, f"Valid filename {filename} was rejected: {err}")
-                
-                # Check for truncation warning on long names
-                # Split by last dot to get proper filename and extension
-                parts = filename.rsplit('.', 1) if '.' in filename else [filename]
-                fname_part = parts[0]
-                ext_part = parts[1] if len(parts) > 1 else ""
-                
-                if len(fname_part) > 16 or len(ext_part) > 4:
-                    self.assertIn("truncated", err, f"Expected truncation warning for {filename}")
         
         # Test invalid filenames that should be rejected
         invalid_files = [
+            "VERYLONGFILENAME123.EXT",  # Filename too long (21 characters > 16)
+            "file.TOOLONG",        # Extension too long
             "invalid_underscore.txt",  # Underscore not supported
             "file$.txt",               # $ not supported
             "file%.txt",               # % not supported
@@ -445,8 +437,15 @@ class TestCommands(unittest.TestCase):
                 
                 code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
                 self.assertNotEqual(code, 0, f"Invalid filename {filename} was accepted")
-                self.assertIn("unsupported characters", err, 
-                            f"Expected character validation error for {filename}")
+                
+                # Check for appropriate error messages based on the filename
+                if filename.startswith("VERYLONGFILENAME"):
+                    self.assertIn("too long", err.lower(), f"Expected length error for {filename}")
+                elif "TOOLONG" in filename:
+                    self.assertIn("too long", err.lower(), f"Expected length error for {filename}")
+                else:
+                    self.assertIn("unsupported characters", err, 
+                                f"Expected character validation error for {filename}")
         
         # Test edge cases that should be rejected
         edge_cases_invalid = [
@@ -459,7 +458,7 @@ class TestCommands(unittest.TestCase):
                 test_file.write_text("test data")
                 code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
                 self.assertNotEqual(code, 0, f"Edge case {description} was accepted")
-                self.assertIn("Invalid", err, f"Expected validation error for {description}")
+                self.assertIn("empty", err.lower(), f"Expected validation error for {description}")
         
         # Test edge cases that should be valid
         edge_cases_valid = [
@@ -990,6 +989,82 @@ class TestCommands(unittest.TestCase):
 
         except json.JSONDecodeError:
             self.fail("Output is not valid JSON")
+
+    def test_add_gamecode_detection_and_error_messages(self):
+        """Test that gamecode is added only when needed and error messages are correct"""
+        pak = self._create_pak("64KB")
+        
+        # Test cases: (filename, should_add_gamecode, expected_error_message_fragment)
+        test_cases = [
+            # Files that already have gamecode - should NOT add default gamecode
+            ("FOOB.A-foobar$.txt", False, "Publisher code too short"),  # A is only 1 char, needs 2
+            ("ABCD.EF-toolongfilename123.txt", False, "Filename too long"),
+            ("F.B-C.D$", False, "Game code too short"),  # F is only 1 char, needs 4
+            ("GAME.PB-file|test.txt", False, "Filename contains unsupported characters"),
+            
+            # Files without gamecode - should add default gamecode (DRAG.ON-)
+            ("file$.txt", True, "Filename contains unsupported characters"),
+            ("toolongfilename123.ext", True, "Filename too long"), 
+            ("file.TOOLONG", True, "Extension too long"),
+            ("file|test.txt", True, "Filename contains unsupported characters"),
+        ]
+        
+        for filename, should_add_gamecode, expected_error_fragment in test_cases:
+            with self.subTest(filename=filename):
+                # Create test file
+                test_file = self.tmp / filename
+                test_file.write_text("test")
+                
+                # Try to add the file (should fail)
+                code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+                self.assertNotEqual(code, 0, f"File {filename} should have been rejected but was accepted")
+                
+                # Check that error message contains expected fragment
+                self.assertIn(expected_error_fragment, err, 
+                             f"Error message for {filename} should contain '{expected_error_fragment}' but was: {err}")
+                
+                # Check if the error path shows the expected gamecode prefix
+                if should_add_gamecode:
+                    # Should show error for "DRAG.ON-filename"
+                    self.assertIn("DRAG.ON-", err, 
+                                 f"Error for {filename} should show default gamecode was added: {err}")
+                else:
+                    # Should show error for original filename (no gamecode added)
+                    # The filename should appear as-is in the error message
+                    expected_path = filename
+                    self.assertIn(expected_path, err,
+                                 f"Error for {filename} should show original path without added gamecode: {err}")
+                
+                # Check that visual error indicator (^) is present
+                self.assertIn("^", err, f"Error message should contain visual position indicator: {err}")
+
+    def test_add_gamecode_valid_detection(self):
+        """Test that files with valid gamecode format are detected correctly"""
+        pak = self._create_pak("64KB")
+        
+        # Files that already have valid gamecode - should work without adding default
+        valid_gamecode_files = [
+            "ABCD.EF-test.txt",     # Standard 4+2 ASCII format
+            "12345678.90AB-file.dat", # 8+4 hex format  
+            "GAME.PB-validname.ext",  # Another standard format
+        ]
+        
+        for filename in valid_gamecode_files:
+            with self.subTest(filename=filename):
+                # Create test file
+                test_file = self.tmp / filename
+                test_file.write_text("test content")
+                
+                # Should work fine
+                code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+                self.assertEqual(code, 0, f"Valid gamecode file {filename} was rejected: {err}")
+                
+                # Verify it was added with original name (converted to uppercase)
+                code, out, err = run_cpaktool(["list", str(pak)])
+                self.assertEqual(code, 0)
+                # cpakfs converts filenames to uppercase
+                expected_filename = filename.upper()
+                self.assertIn(expected_filename, out, f"File {filename} (as {expected_filename}) not found in pak listing")
 
 if __name__ == "__main__":
     unittest.main()

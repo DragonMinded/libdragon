@@ -834,76 +834,31 @@ static int add_file(const char *input_file) {
         fatal_error("File not found: %s", input_file);
     }
     
-    // Parse the input file path to determine cpak path
-    // Expected format: either direct cpak path like "GAME.PUB-filename.ext"
-    // or a regular filename that we'll place in a default game/publisher code
-    char cpak_path[256];
+    // Extract just the filename from the path
     const char *basename = strrchr(input_file, '/');
     basename = basename ? basename + 1 : input_file;
     
-    // Check for filename length and handle truncation with warning
-    std::string processed_basename = basename;
-    char *dot = strrchr((char*)basename, '.');
-    int name_len = dot ? dot - basename : strlen(basename);
-    int ext_len = dot ? strlen(dot + 1) : 0;
-    
-    // Handle filename truncation if too long
-    if (name_len > 16) {
-        std::string new_name(basename, 16);
-        if (dot) {
-            new_name += dot;  // Add extension back
-        }
-        warning("Filename too long, truncating '%s' to '%s' (max 16 characters before extension)", 
-               basename, new_name.c_str());
-        processed_basename = new_name;
-        basename = processed_basename.c_str();
-    }
-    
-    // Handle extension truncation if too long
-    if (ext_len > 4 && dot) {
-        std::string new_name = std::string(basename, dot - basename + 1) + std::string(dot + 1, 4);
-        warning("Extension too long, truncating '%s' to '%s' (max 4 characters)", 
-               dot + 1, std::string(dot + 1, 4).c_str());
-        processed_basename = new_name;
-        basename = processed_basename.c_str();
-    }
-    
-    // Validate filename characters before proceeding
-    std::string unsupported_chars;
-    for (const char *p = basename; *p; p++) {
-        char c = *p;
-        // cpakfs supports: A-Z, a-z, 0-9, space, and these symbols: ! " # ` * + , - . / : = ? @
-        // Also support \x01 as it represents embedded NUL (\x00) in N64 codepage
-        // (Based on utf8_to_n64_validate function in cpakfs.c)
-        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || 
-              c == ' ' || c == '!' || c == '"' || c == '#' || c == '`' || c == '*' || 
-              c == '+' || c == ',' || c == '-' || c == '.' || c == '/' || c == ':' || 
-              c == '=' || c == '?' || c == '@' || c == '\x01')) {
-            if (unsupported_chars.find(c) == std::string::npos) {
-                unsupported_chars += c;
-            }
-        }
-    }
-    if (!unsupported_chars.empty()) {
-        fatal_error("Filename contains unsupported characters: '%s' (unsupported: '%s')", 
-                  basename, unsupported_chars.c_str());
-    }
-    
-    // Default game code - use command line option or default to DRAG.ON
-    const char *default_gamecode = g_command_opts.gamecode ? g_command_opts.gamecode : "DRAG.ON";
-    
-    // Check if the file path already looks like a cpak path by trying to parse it
+    char cpak_path[256];
     cpakfs_path_t parsed_path;
-    const char *error_pos;
+    const char *error_pos = NULL;
     
-    if (cpakfs_path_parse(basename, &parsed_path, &error_pos) == CPAKFS_PARSE_OK) {
-        // It's already in cpak format, use directly
+    // Check if the filename already has a gamecode/pubcode with a very simple logic:
+    // check if there is at least a dash, and at least a dot before the dash.
+    bool has_gamecode = true;
+    const char *dash = strchr(basename, '-');
+    const char *dot = strchr(basename, '.');
+    if (!dash || !dot || dash < dot)
+        has_gamecode = false; // No valid gamecode/pubcode format found
+
+    if (has_gamecode) {
+        // It's already in cpak format, use as-is
         strcpy(cpak_path, basename);
     } else {
-        // Build new path by creating a UTF-8 string and then parsing it
-        // Parse game/publisher code from default_gamecode
-        std::string game, pub;
+        // Need to add default game/publisher code
+        const char *default_gamecode = g_command_opts.gamecode ? g_command_opts.gamecode : "DRAG.ON";
         
+        // Parse default gamecode to extract game and publisher parts
+        std::string game, pub;
         if (strlen(default_gamecode) >= 7 && default_gamecode[4] == '.') {
             game = std::string(default_gamecode, 4);
             pub = std::string(default_gamecode + 5, 2);
@@ -913,35 +868,60 @@ static int add_file(const char *input_file) {
             pub = "ON";
         }
         
-        // Parse filename and extension from basename
-        std::string filename, ext;
-        const char *dot = strrchr(basename, '.');
-        if (dot) {
-            filename = std::string(basename, dot - basename);
-            ext = std::string(dot + 1);
-        } else {
-            filename = std::string(basename);
+        // Construct the full cpak path: GAME.PUB-filename
+        std::string full_path = game + "." + pub + "-" + basename;
+        strcpy(cpak_path, full_path.c_str());
+    }
+    
+    // Now validate the final path with cpakfs_path_parse
+    cpakfs_parse_err_t err = cpakfs_path_parse(cpak_path, &parsed_path, &error_pos);
+    if (err != CPAKFS_PARSE_OK) {
+        // Provide user-friendly error message based on the parse error
+        const char *error_msg = "Invalid filename";
+        
+        switch (err) {
+            case CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT:
+                error_msg = "Game code too short (min 4 characters)";
+                break;
+            case CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG:
+                error_msg = "Game code too long (max 4 characters, or 8 if hex)";
+                break;
+            case CPAKFS_PARSE_ERR_GAMECODE_CHAR:
+                error_msg = "Game code contains invalid characters";
+                break;
+            case CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT:
+                error_msg = "Publisher code too short (min 2 characters)";
+                break;
+            case CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG:
+                error_msg = "Publisher code too long (max 2 characters, or 4 if hex)";
+                break;
+            case CPAKFS_PARSE_ERR_PUBCODE_CHAR:
+                error_msg = "Publisher code contains invalid characters";
+                break;
+            case CPAKFS_PARSE_ERR_FILENAME_TOO_SHORT:
+                error_msg = "Filename cannot be empty";
+                break;
+            case CPAKFS_PARSE_ERR_FILENAME_TOO_LONG:
+                error_msg = "Filename too long (max 16 characters before extension)";
+                break;
+            case CPAKFS_PARSE_ERR_FILENAME_CHAR:
+                error_msg = "Filename contains unsupported characters";
+                break;
+            case CPAKFS_PARSE_ERR_EXTENSION_TOO_LONG:
+                error_msg = "Extension too long (max 4 characters)";
+                break;
+            case CPAKFS_PARSE_ERR_EXTENSION_CHAR:
+                error_msg = "Extension contains unsupported characters";
+                break;
+            default:
+                error_msg = "Invalid filename format";
+                break;
         }
         
-        // Check for empty filename
-        if (filename.empty()) {
-            fatal_error("Invalid filename: empty filename not allowed");
-        }
-        
-        // Create the cpak path in UTF-8 format: "GAME.PB-filename.ext"
-        std::string utf8_path = game + "." + pub + "-" + filename;
-        if (!ext.empty()) {
-            utf8_path += "." + ext;
-        }
-        
-        // Now parse this UTF-8 string to get the cpakfs_path_t structure
-        if (cpakfs_path_parse(utf8_path.c_str(), &parsed_path, &error_pos) == CPAKFS_PARSE_OK) {
-            // Format it back to get the canonical representation
-            cpakfs_path_format(&parsed_path, cpak_path, sizeof(cpak_path));
-        } else {
-            fatal_error("Invalid filename format: '%s' (expected format: GAME.PB-filename.ext)", 
-                      utf8_path.c_str());
-        }
+        // Create visual error indicator showing the position
+        std::string error_indicator = std::string(error_pos - cpak_path, ' ') + "^";        
+        fatal_error("%s: '%s'\n%*s%s", error_msg, cpak_path, 
+                    (int)strlen(error_msg) + 3 + 7, "", error_indicator.c_str());
     }
     
     verbose_log( "Target cpak path: %s", cpak_path);
@@ -1014,44 +994,7 @@ static int add_file(const char *input_file) {
     } catch (const std::exception& e) {
         fclose(src);
         
-        // Check if it's a filename validation error
-        if (errno == EINVAL) {
-            // Analyze the filename to provide specific error message
-            const char *fname = strrchr(input_file, '/');
-            fname = fname ? fname + 1 : input_file;
-            
-            // Check filename length
-            char *dot = strrchr((char*)fname, '.');
-            int name_len = dot ? dot - fname : strlen(fname);
-            int ext_len = dot ? strlen(dot + 1) : 0;
-            
-            if (name_len > 16) {
-                fatal_error("Filename too long: '%s' (max 16 characters before extension, got %d)", fname, name_len);
-            } else if (ext_len > 4) {
-                fatal_error("Extension too long: '%s' (max 4 characters, got %d)", dot + 1, ext_len);
-            } else {
-                // Check for unsupported characters
-                std::string unsupported_chars;
-                for (const char *p = fname; *p; p++) {
-                    char c = *p;
-                    // Check if character is supported (A-Z, a-z, 0-9, space, and specific symbols)
-                    if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || 
-                          c == ' ' || c == '!' || c == '"' || c == '#' || c == '`' || c == '*' || 
-                          c == '+' || c == ',' || c == '-' || c == '.' || c == '/' || c == ':' || 
-                          c == '=' || c == '?' || c == '@')) {
-                        if (unsupported_chars.find(c) == std::string::npos) {
-                            unsupported_chars += c;
-                        }
-                    }
-                }
-                if (!unsupported_chars.empty()) {
-                    fatal_error("Filename contains unsupported characters: '%s' (unsupported: '%s')", 
-                              fname, unsupported_chars.c_str());
-                } else {
-                    fatal_error("Invalid filename: '%s' (reason: %s)", fname, e.what());
-                }
-            }
-        } else if (errno == ENOSPC) {
+        if (errno == ENOSPC) {
             warning("Cannot add file '%s': No space left in filesystem", input_file);
         } else if (errno == EMFILE) {
             warning("Cannot add file '%s': Too many files (maximum 16 notes per pak)", input_file);
