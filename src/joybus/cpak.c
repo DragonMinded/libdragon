@@ -6,7 +6,6 @@
  */
 
 #include "cpak.h"
-#include "cpakfs_internal.h"
 #include "joypad_accessory.h"
 #include <string.h>
 #include <stdlib.h>
@@ -14,6 +13,8 @@
 #ifdef N64
 #include "../rand_internal.h"
 #endif
+
+#define BLOCK_SIZE 32           ///< Size of a block in the controller pak (32 bytes)
 
 static int cpak_xfer(joypad_port_t port, uint8_t bank, uint16_t addr, void *data, int nbytes, joypad_accessory_xfer_t xfer)
 {
@@ -66,14 +67,20 @@ int cpak_probe_banks(joypad_port_t port)
     }
 
     int retcode = -1;
-    uint8_t* save_label = malloc(MAX_BANKS * BLOCK_SIZE);
+    int nsave_banks = 16;
+    uint8_t* save_label = malloc(nsave_banks * BLOCK_SIZE);
 
     // Create a random probe label that we will use to mark banks that we have already probed.
     uint8_t probe_label[BLOCK_SIZE];
     __rand(probe_label, BLOCK_SIZE);
 
     int bnk;
-    for (bnk = 0; bnk < MAX_BANKS; bnk++) {
+    for (bnk = 0; bnk < 256; bnk++) {
+        // Resize the save area if we need more banks
+        if (bnk >= nsave_banks) {
+            nsave_banks *= 2;
+            save_label = realloc(save_label, nsave_banks * BLOCK_SIZE);
+        }
 
         // Read the current label into the save area
         if (cpak_read(port, bnk, 0, save_label + bnk * BLOCK_SIZE, BLOCK_SIZE) < 0) {

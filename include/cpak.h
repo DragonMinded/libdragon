@@ -41,7 +41,7 @@ extern "C" {
  *       as recorded in the filesystem.
  * 
  * @param port          Joypad port number (#joypad_port_t)
- * @param bank          Bank number to read from (0-61). The caller must ensure
+ * @param bank          Bank number to read from. The caller must ensure
  *                      that the bank exists, otherwise the behavior is undefined.    
  * @param address       Starting address in the controller pak to read from. Allowed
  *                      range is 0-0x7FFF.
@@ -72,7 +72,7 @@ int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, 
  *       as recorded in the filesystem.
  * 
  * @param port          Joypad port number (#joypad_port_t)
- * @param bank          Bank number to write to (0-61). The caller must ensure
+ * @param bank          Bank number to write to. The caller must ensure
  *                      that the bank exists, otherwise the behavior is undefined.
  * @param address       Starting address in the controller pak to write to. Allowed
  *                      range is 0-0x7FFF.
