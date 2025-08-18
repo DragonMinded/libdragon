@@ -153,6 +153,7 @@ regen:
 
 test:
 	$(MAKE) -C tests
+	$(MAKE) -C tests/cpakfs test
 
 test-clean: install-mk
 	$(MAKE) -C tests clean
