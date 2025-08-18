@@ -48,7 +48,7 @@ typedef struct {
     std::string filename;
     std::string extension;
     std::string full_name;  // For pattern matching
-    int64_t size;
+    int size;
     uint32_t crc32_value;   // CRC32 checksum of file contents
     bool crc32_error;       // True if CRC32 calculation failed
 } file_entry_t;
@@ -336,7 +336,7 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
                 if (file.size < 0) {
                     printf("    \"size\": null");
                 } else {
-                    printf("    \"size\": %lld", file.size);
+                    printf("    \"size\": %d", file.size);
                 }
 
                 if (g_command_opts.show_crc) {
