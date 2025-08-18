@@ -65,5 +65,60 @@ class TestGolden(unittest.TestCase):
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]['filename'], "FORSAKEN")
 
+    def test_gameshark(self):
+        """Test gameshark.pak which contains notes with binary gamecode/pubcode"""
+        # Use golden file from a temporary copy
+        test_path = self._use_golden_file("gameshark.pak")
+
+        # First, test if we can see the files with the original broken file
+        # It should only show 1 file because the second note has status = 0
+        code, out, err = run_cpaktool(["list", "--json", "--crc", test_path], cwd=self.tempdir)
+        self.assertEqual(code, 0, f"cpaktool list failed: {err}")
+        
+        data = json.loads(out)
+        # With the broken file, we only see the first file
+        self.assertEqual(len(data), 1, "Expected to find 1 file in broken gameshark.pak")
+        
+        # Verify the first file
+        turok_file = next((f for f in data if f['filename'] == "TUROK LVL 8"), None)
+        self.assertIsNotNone(turok_file, "TUROK LVL 8 file not found in output")
+        self.assertEqual(turok_file['game_code'], "NTUE")
+        self.assertEqual(turok_file['pub_code'], "51")
+
+        # Test that fsck complains about the broken file
+        code, out, err = run_cpaktool(["test", test_path], cwd=self.tempdir)
+        self.assertNotEqual(code, 0)
+
+        # Repair the file
+        code, out, err = run_cpaktool(["test", "--repair", test_path], cwd=self.tempdir)
+        self.assertEqual(code, 0)
+
+        # Now test with the repaired file
+        code, out, err = run_cpaktool(["list", "--json", "--crc", test_path], cwd=self.tempdir)
+        self.assertEqual(code, 0, f"cpaktool list failed on gs.pak: {err}")
+        
+        data = json.loads(out)
+        # After repair, we should see 3 files (1 ASCII + 2 hex gamecodes)
+        self.assertEqual(len(data), 3, "Expected to find 3 files in gs.pak after repair")
+        
+        # Verify we can find the ASCII note
+        turok_file = next((f for f in data if f['filename'] == "TUROK LVL 8"), None)
+        self.assertIsNotNone(turok_file, "TUROK LVL 8 file not found in output")
+        self.assertEqual(turok_file['game_code'], "NTUE")
+        self.assertEqual(turok_file['pub_code'], "51")
+        
+        # Verify we can find the hex gamecode notes
+        hex_files = [f for f in data if f['game_code'] == "3BADD1E5"]
+        self.assertEqual(len(hex_files), 2, "Expected to find 2 files with hex gamecode")
+        
+        for hex_file in hex_files:
+            self.assertEqual(hex_file['pub_code'], "FADE")
+            self.assertIn(hex_file['filename'], ["SMSM", "ZLZL"])
+            self.assertEqual(hex_file['extension'], "1")
+            
+        # All files should have valid CRC
+        for file_entry in data:
+            self.assertIsNotNone(file_entry['crc32'], f"File {file_entry['full_name']} should have valid CRC32")
+
 if __name__ == '__main__':
     unittest.main()

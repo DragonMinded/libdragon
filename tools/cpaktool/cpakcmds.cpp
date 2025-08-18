@@ -99,15 +99,6 @@ static size_t visual_width(const std::string& str) {
     return width;
 }
 
-// Helper function to pad string to visual width
-static std::string pad_to_width(const std::string& str, size_t target_width) {
-    size_t current_width = visual_width(str);
-    if (current_width >= target_width) {
-        return str;
-    }
-    return str + std::string(target_width - current_width, ' ');
-}
-
 // Helper function to format file size for human-readable output
 static std::string format_size(int64_t size, bool human_readable) {
     if (size < 0) {
@@ -146,25 +137,36 @@ static std::string display_filename(const std::string& filename) {
 // Helper function to parse cpak path into components
 static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
     // Parse the UTF-8 path directly by splitting on separators
-    // Expected format: "GAME.PB-filename.ext"
+    // Expected format: "GAME.PB-filename.ext" or "HEXGAMECODE.HEXPUB-filename.ext"
     
     // Find the first dot (separates game code from publisher code)
     size_t first_dot = cpak_path.find('.');
-    if (first_dot == std::string::npos || first_dot != 4) {
-        return false; // Game code should be exactly 4 characters
+    if (first_dot == std::string::npos) {
+        return false; // Must have at least one dot
+    }
+    
+    // Game code can be 4 characters (ASCII) or 8 characters (hex)
+    if (first_dot != 4 && first_dot != 8) {
+        return false; // Game code should be exactly 4 or 8 characters
     }
     
     // Find the dash (separates publisher code from filename)
     size_t dash = cpak_path.find('-', first_dot + 1);
-    if (dash == std::string::npos || dash != first_dot + 3) {
-        return false; // Publisher code should be exactly 2 characters
+    if (dash == std::string::npos) {
+        return false; // Must have a dash after publisher code
     }
     
-    // Extract game code (4 characters)
+    // Publisher code length depends on game code length
+    size_t expected_pub_len = (first_dot == 4) ? 2 : 4; // 2 for ASCII, 4 for hex
+    if (dash != first_dot + 1 + expected_pub_len) {
+        return false; // Publisher code should be exactly 2 or 4 characters
+    }
+    
+    // Extract game code (4 or 8 characters)
     entry.game_code = cpak_path.substr(0, first_dot);
     
-    // Extract publisher code (2 characters)
-    entry.pub_code = cpak_path.substr(first_dot + 1, 2);
+    // Extract publisher code (2 or 4 characters)
+    entry.pub_code = cpak_path.substr(first_dot + 1, expected_pub_len);
     
     // Find the last dot (separates filename from extension)
     size_t last_dot = cpak_path.rfind('.');
@@ -189,8 +191,10 @@ static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
 static uint32_t calculate_file_crc32(const std::string& filename, bool& error) {
     error = false;
     try {
+        verbose_log("Calculating CRC32 for file: %s", filename.c_str());
         CPakFile file(filename, O_RDONLY);
         if (!file.isValid()) {
+            verbose_log("File is not valid: %s", filename.c_str());
             error = true;
             return 0;
         }
@@ -199,16 +203,20 @@ static uint32_t calculate_file_crc32(const std::string& filename, bool& error) {
         const size_t BUFFER_SIZE = 4096;
         uint8_t buffer[BUFFER_SIZE];
         size_t bytes_read;
+        size_t total_bytes = 0;
         
         while ((bytes_read = file.read(buffer, BUFFER_SIZE)) > 0) {
             for (size_t i = 0; i < bytes_read; i++) {
                 crc = crc_table[(crc ^ buffer[i]) & 0xff] ^ (crc >> 8);
             }
+            total_bytes += bytes_read;
         }
         
+        verbose_log("CRC32 calculation completed: %zu bytes processed", total_bytes);
         return crc ^ 0xffffffffL;
     } catch (const std::exception& e) {
         // If we can't read the file, return error
+        verbose_log("CRC32 calculation failed for %s: %s", filename.c_str(), e.what());
         error = true;
         return 0;
     }
@@ -349,49 +357,98 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
             }
             printf("]\n");
         } else if (g_command_opts.long_format) {
-            // Long format with table headers
-            if (g_command_opts.show_crc) {
-                printf("Game       Pub    Filename                         Ext        Size       CRC32\n");
-                printf("----       ---    --------                         ---        ------     --------\n");
-            } else {
-                printf("Game       Pub    Filename                         Ext        Size\n");
-                printf("----       ---    --------                         ---        ------\n");
+            // Long format with dynamic column widths
+            
+            // Calculate dynamic column widths based on content
+            size_t max_game_width = 4;  // Minimum width for "Game" header
+            size_t max_pub_width = 3;   // Minimum width for "Pub" header  
+            size_t max_filename_width = 8; // Minimum width for "Filename" header
+            size_t max_ext_width = 3;   // Minimum width for "Ext" header
+            size_t max_size_width = 4;  // Minimum width for "Size" header
+            
+            // First pass: calculate maximum widths
+            for (const auto& file : files) {
+                max_game_width = std::max(max_game_width, visual_width(file.game_code));
+                max_pub_width = std::max(max_pub_width, visual_width(file.pub_code));
+                max_filename_width = std::max(max_filename_width, visual_width(display_filename(file.filename)));
+                max_ext_width = std::max(max_ext_width, visual_width(file.extension));
+                
+                std::string size_str = format_size(file.size, g_command_opts.human_readable);
+                max_size_width = std::max(max_size_width, size_str.length());
             }
             
+            // Add some padding
+            max_game_width += 2;
+            max_pub_width += 2;
+            max_filename_width += 2;
+            max_ext_width += 2;
+            max_size_width += 2;
+            
+            // Print headers
+            if (g_command_opts.show_crc) {
+                printf("%-*s%-*s%-*s%-*s%-*s%s\n",
+                       (int)max_game_width, "Game",
+                       (int)max_pub_width, "Pub",
+                       (int)max_filename_width, "Filename", 
+                       (int)max_ext_width, "Ext",
+                       (int)max_size_width, "Size",
+                       "CRC32");
+                       
+                // Print separator line
+                printf("%s%s%s%s%s%s\n",
+                       std::string(max_game_width, '-').c_str(),
+                       std::string(max_pub_width, '-').c_str(),
+                       std::string(max_filename_width, '-').c_str(),
+                       std::string(max_ext_width, '-').c_str(),
+                       std::string(max_size_width, '-').c_str(),
+                       "--------");
+            } else {
+                printf("%-*s%-*s%-*s%-*s%s\n",
+                       (int)max_game_width, "Game",
+                       (int)max_pub_width, "Pub",
+                       (int)max_filename_width, "Filename",
+                       (int)max_ext_width, "Ext",
+                       "Size");
+                       
+                // Print separator line
+                printf("%s%s%s%s%s\n",
+                       std::string(max_game_width, '-').c_str(),
+                       std::string(max_pub_width, '-').c_str(),
+                       std::string(max_filename_width, '-').c_str(),
+                       std::string(max_ext_width, '-').c_str(),
+                       std::string(max_size_width, '-').c_str());
+            }
+            
+            // Print file entries
             for (const auto& file : files) {
                 std::string size_str = format_size(file.size, g_command_opts.human_readable);
                 
-                // Use visual width-aware padding for proper alignment with Japanese characters
-                // Max visual widths: game=8 (4 chars * 2), pub=4 (2 chars * 2), filename=32 (16 chars * 2), ext=8 (4 chars * 2)
-                std::string padded_game = pad_to_width(file.game_code, 10);      // Game column width
-                std::string padded_pub = pad_to_width(file.pub_code, 6);         // Pub column width  
-                std::string padded_filename = pad_to_width(display_filename(file.filename), 32);   // Filename column width
-                std::string padded_ext = pad_to_width(file.extension, 10);       // Ext column width
-                
-                // Don't use printf width specifiers - just print the padded strings directly
                 if (g_command_opts.show_crc) {
                     if (file.crc32_error) {
-                        printf("%s %s %s %s %-10s <error>\n",
-                               padded_game.c_str(),
-                               padded_pub.c_str(),
-                               padded_filename.c_str(),
-                               padded_ext.c_str(),
-                               size_str.c_str());
+                        printf("%-*s%-*s%-*s%-*s%-*s%s\n",
+                               (int)max_game_width, file.game_code.c_str(),
+                               (int)max_pub_width, file.pub_code.c_str(),
+                               (int)max_filename_width, display_filename(file.filename).c_str(),
+                               (int)max_ext_width, file.extension.c_str(),
+                               (int)max_size_width, size_str.c_str(),
+                               "<error>");
                     } else {
-                        printf("%s %s %s %s %-10s %08X\n",
-                               padded_game.c_str(),
-                               padded_pub.c_str(),
-                               padded_filename.c_str(),
-                               padded_ext.c_str(),
-                               size_str.c_str(),
-                               file.crc32_value);
+                        char crc_str[16];
+                        snprintf(crc_str, sizeof(crc_str), "%08X", file.crc32_value);
+                        printf("%-*s%-*s%-*s%-*s%-*s%s\n",
+                               (int)max_game_width, file.game_code.c_str(),
+                               (int)max_pub_width, file.pub_code.c_str(),
+                               (int)max_filename_width, display_filename(file.filename).c_str(),
+                               (int)max_ext_width, file.extension.c_str(),
+                               (int)max_size_width, size_str.c_str(),
+                               crc_str);
                     }
                 } else {
-                    printf("%s %s %s %s %s\n",
-                           padded_game.c_str(),
-                           padded_pub.c_str(),
-                           padded_filename.c_str(),
-                           padded_ext.c_str(),
+                    printf("%-*s%-*s%-*s%-*s%s\n",
+                           (int)max_game_width, file.game_code.c_str(),
+                           (int)max_pub_width, file.pub_code.c_str(),
+                           (int)max_filename_width, display_filename(file.filename).c_str(),
+                           (int)max_ext_width, file.extension.c_str(),
                            size_str.c_str());
                 }
             }

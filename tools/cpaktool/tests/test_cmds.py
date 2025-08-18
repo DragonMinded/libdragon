@@ -576,9 +576,9 @@ class TestCommands(unittest.TestCase):
         # Test long format
         code, out, err = run_cpaktool(["list", "-l", str(pak)])
         self.assertEqual(code, 0)
-        self.assertIn("Game       Pub    Filename", out)  # Header
-        self.assertIn("ABCD       EF     SMALL", out)
-        self.assertIn("WXYZ       12     LARGE", out)
+        self.assertIn("Game  Pub  Filename", out)  # Header
+        self.assertIn("ABCD  EF   SMALL", out)
+        self.assertIn("WXYZ  12   LARGE", out)
         self.assertIn(" 5\n", out)  # Size
         
         # Test human-readable format

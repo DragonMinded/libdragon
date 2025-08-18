@@ -206,6 +206,12 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
             return NULL;
         fs->notes_mask |= 1 << note_id;
 
+        // Sanitize filename and extension by removing all invalid characters.
+        // These wouldn't roundtrip to UTF-8 anyway, and they are invalid so better
+        // get rid of them from the get-go.
+        __cpakfs_n64_string_sanitize(note->filename, 16);
+        __cpakfs_n64_string_sanitize(note->ext, 4);
+
         // We store a crc16 in the note to mark it as using libdragon extension.
         // Basically it's a way to record that the file was written by libdragon.
         // For now, this is useful for one thing: we store the last page's padding size
@@ -236,7 +242,19 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
 static cpakfs_note_t* find_note(cpakfs_t *fs, const cpakfs_path_t *path, int *note_id)
 {
     cpakfs_note_t *note = NULL;
+
+    // Hexdump the whole path
+    tracef("Searching for note:\n");
+    tracef("Game code: %02x%02x%02x%02x\n", path->gamecode[0], path->gamecode[1], path->gamecode[2], path->gamecode[3]);
+    tracef("Publisher code: %02x%02x\n", path->pubcode[0], path->pubcode[1]);
+    tracef("Filename: %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+           path->filename[0], path->filename[1], path->filename[2], path->filename[3],
+           path->filename[4], path->filename[5], path->filename[6], path->filename[7],
+              path->filename[8], path->filename[9], path->filename[10], path->filename[11],
+              path->filename[12], path->filename[13], path->filename[14], path->filename[15]);
+    tracef("Extension: %02x%02x%02x%02x\n", path->ext[0], path->ext[1], path->ext[2], path->ext[3]);
     
+
     for (int i = 0; i < MAX_NOTES; i++) {
         note = read_note(fs, i);
         if (!(note->status & NOTE_STATUS_OCCUPIED))
@@ -247,6 +265,7 @@ static cpakfs_note_t* find_note(cpakfs_t *fs, const cpakfs_path_t *path, int *no
             memcmp(note->filename, path->filename, 16) == 0 &&
             memcmp(note->ext, path->ext, 4) == 0) {
             
+            tracef("Found note %d for path\n", i);
             if (note_id) *note_id = i;
             return note;
         }

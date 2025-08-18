@@ -454,7 +454,7 @@ static int fsck_chains(fsck_ctx_t *ctx, int num_banks, cpakfs_fat_entry_t fat[][
     return num_orphan_roots;
 }
 
-static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fat)
+static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t fat[][NUM_PAGES])
 {
     int fat_size = be16(fsid->bank_size_msb) & 0xFF00;
     int reserved = 1 + (fat_size >> 8) * 2 + 2; // Reserved pages: ID sector, two FAT copies, note table
@@ -514,7 +514,63 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
             }
         }
 
-        if (FAT_IS_VALID(note->first_page, reserved)) 
+        // Check if this is a broken note which is valid but doesn't have the status bit set.
+        if (!occupied &&
+                // First check non empty gamecode/pubcode/filename
+                note->gamecode[0] != 0 && note->gamecode[1] != 0 &&
+                note->gamecode[2] != 0 && note->gamecode[3] != 0 &&
+                note->pubcode[0] != 0 && note->pubcode[1] != 0 &&
+                note->filename[0] != 0 &&
+                // Check also that the first page is valid
+                FAT_IS_VALID(note->first_page, reserved)) {
+
+            // Check that the FAT chain is valid, with a terminator and doesn't loop
+            // (total size of the file is less than the pak size)
+            cpakfs_fat_entry_t current = note->first_page;
+            int size = 0; const int max_size = fat_size * PAGE_SIZE;
+            while (!FAT_IS_TERMINATOR(current)) {
+                size += PAGE_SIZE;
+                if (size >= max_size) break;
+                current = fat[current.bank][current.page];
+            }
+            if (size < max_size) {
+                ctx->nissues++;
+                if (ctx->report) ctx->report(ctx->report_ctx, CPAKFS_ISSUE_NOTE_NOT_OCCUPTED, CPAKFS_LEVEL_WARNING,
+                        "Note %d has no status bit set but has valid gamecode, pubcode, filename and first page", i);
+                if (ctx->mode == MODE_FIX) {
+                    // Fix it by setting the status bit
+                    note->status |= NOTE_STATUS_OCCUPIED;
+                    note_dirty |= (1 << i);
+                }
+                occupied = true; // Mark as occupied for further checks
+            }
+        }
+
+        if (occupied) {
+            bool valid = true;
+            for (int i=0; i<16 && valid; i++) {
+                if (!__cpakfs_n64_string_valid(note->filename[i]))
+                    valid = false;
+            }
+            for (int i=0; i<4 && valid; i++) {
+                if (!__cpakfs_n64_string_valid(note->ext[i]))
+                    valid = false;
+            }
+            if (!valid) {
+                ctx->nissues++;
+                if (ctx->report) ctx->report(ctx->report_ctx, CPAKFS_ISSUE_NOTE_INVALID_CHARSET, CPAKFS_LEVEL_INFO,
+                        "Note %d uses invalid/unprintable characters in filename or extension", i);
+                if (ctx->mode == MODE_FIX) {
+                    __cpakfs_n64_string_sanitize(note->filename, 16);
+                    __cpakfs_n64_string_sanitize(note->ext, 4);
+                    note_dirty |= (1 << i);
+                }
+            }
+        }
+
+        // If the note is occupied, we mark it as root, so that it is not
+        // invalidly detected as an orphaned FAT chain.
+        if (occupied && FAT_IS_VALID(note->first_page, reserved))
             roots[nroots++] = note->first_page;
     }
 
@@ -529,7 +585,7 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
     }
 
     // Check and fix chains
-    fsck_chains(ctx, be16(fsid->bank_size_msb) >> 8, (cpakfs_fat_entry_t (*)[NUM_PAGES])fat, roots, nroots);
+    fsck_chains(ctx, be16(fsid->bank_size_msb) >> 8, fat, roots, nroots);
 
     return 0;
 }
@@ -562,7 +618,7 @@ int cpakfs_fsck(joypad_port_t port, bool fix_errors, cpakfs_report_fn report, vo
     if (err < 0) return err;
 
     // Check and fix notes
-    err = fsck_notes(&ctx, &fsid, fat);
+    err = fsck_notes(&ctx, &fsid, (cpakfs_fat_entry_t (*)[NUM_PAGES])fat);
     if (err < 0) return err; 
     
     free(fat);

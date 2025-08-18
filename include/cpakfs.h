@@ -179,11 +179,13 @@ typedef enum {
     CPAKFS_ISSUE_NOTE_INVALID_GAMECODE = 10,        ///< Note has invalid gamecode
     CPAKFS_ISSUE_NOTE_INVALID_PUBCODE = 11,         ///< Note has invalid publisher code
     CPAKFS_ISSUE_NOTE_INVALID_FIRST_PAGE = 12,      ///< Note has invalid first page
+    CPAKFS_ISSUE_NOTE_INVALID_CHARSET = 13,         ///< Note has invalid characters in filename or extension
+    CPAKFS_ISSUE_NOTE_NOT_OCCUPTED = 14,            ///< Note is not correctly marked as occupied
 
-    CPAKFS_ISSUE_CHAIN_INFINITE_LOOP = 13,          ///< Chain has infinite loop
-    CPAKFS_ISSUE_CHAIN_NO_TERMINATOR = 14,          ///< Chain does not end with terminator
-    CPAKFS_ISSUE_CHAIN_COLLISION = 15,              ///< Chain collides with another chain
-    CPAKFS_ISSUE_CHAIN_ORPHANED = 16,               ///< Orphaned chain found
+    CPAKFS_ISSUE_CHAIN_INFINITE_LOOP = 15,          ///< Chain has infinite loop
+    CPAKFS_ISSUE_CHAIN_NO_TERMINATOR = 16,          ///< Chain does not end with terminator
+    CPAKFS_ISSUE_CHAIN_COLLISION = 17,              ///< Chain collides with another chain
+    CPAKFS_ISSUE_CHAIN_ORPHANED = 18,               ///< Orphaned chain found
 } cpakfs_issue_t;
 
 /** @brief Cpak filesystem report callback */

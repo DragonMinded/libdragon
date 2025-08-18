@@ -100,4 +100,10 @@ void __cpakfs_fsid_checksum(cpakfs_id_t *id, uint16_t *checksum1, uint16_t *chec
 /** @brief  Compute the checksum of a FAT page, starting from a given entry index. */
 uint8_t __cpakfs_fat_checksum(cpakfs_fat_entry_t *fat_page, int start_idx);
 
+/** @brief Check whether a character is valid in the N64 codepage */
+bool __cpakfs_n64_string_valid(uint8_t ch);
+
+/** @brief Sanitize a string in the N64 codepage by replacing all invalid characters with NUL */
+void __cpakfs_n64_string_sanitize(uint8_t *buf, int len);
+
 #endif

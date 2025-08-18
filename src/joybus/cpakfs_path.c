@@ -7,6 +7,9 @@
 #include "cpakfs.h"
 #include "cpakfs_internal.h"
 #include <limits.h>
+#ifdef N64
+#include "debug.h"
+#endif
 
 /**
  * @brief Check if a character is valid for gamecode/pubcode
@@ -63,6 +66,29 @@ static int n64_string_length(const uint8_t *str, int max_len)
     return len;
 }
 
+/**
+ * @brief Check whether a character is valid in the N64 codepage.
+ * 
+ * The N64 codepage is a 8-bit codepage where not all characters are valid.
+ * This function checks whether the provided character is valid or not. Invalid
+ * characters cannot be converted to UTF-8.
+ */
+bool __cpakfs_n64_string_valid(uint8_t ch)
+{
+    return ch == 0 || (ch >= 0x0F && ch <= 0x94);
+}
+
+/**
+ * @brief Sanitize a string in the N64 codepage by replacing all invalid characters with NUL
+ */
+void __cpakfs_n64_string_sanitize(uint8_t *buf, int len)
+{
+    for (int i = 0; i < len; i++) {
+        if (!__cpakfs_n64_string_valid(buf[i])) {
+            buf[i] = 0x00;
+        }
+    }
+}
 
 static int n64_to_utf8(uint8_t c, char *out)
 {
@@ -101,9 +127,8 @@ static int n64_to_utf8(uint8_t c, char *out)
         return 3;
     }
 
-    /* Default to space for unprintables */
-    *out++ = ' ';
-    return 1;
+    assertf(0, "cpakfs: cannot convert invalid N64CP char %02X to UTF-8", c);
+    return 0;
 }
 
 /*
