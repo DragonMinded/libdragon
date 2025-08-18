@@ -518,7 +518,15 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t *fa
             roots[nroots++] = note->first_page;
     }
 
-    (void)note_dirty;
+    if (ctx->mode == MODE_FIX && note_dirty) {
+        for (int i=0; i<MAX_NOTES && note_dirty; i++) {
+            if (note_dirty & (1 << i)) {
+                if (cpak_write(ctx->port, 0, note_start + i * sizeof(cpakfs_note_t), &notes[i], sizeof(cpakfs_note_t)) < 0)
+                    return -1;
+                note_dirty &= ~(1 << i);
+            }
+        }
+    }
 
     // Check and fix chains
     fsck_chains(ctx, be16(fsid->bank_size_msb) >> 8, (cpakfs_fat_entry_t (*)[NUM_PAGES])fat, roots, nroots);
