@@ -47,6 +47,7 @@ typedef struct {
     bool show_crc;
     const char *sort_by;
     bool reverse_sort;
+    bool json_output;
     
     // Extract options
     bool overwrite;

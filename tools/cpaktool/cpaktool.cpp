@@ -351,6 +351,8 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     }
                     cmd_opts->sort_by = value;
                     if (!has_equals) i++; // Skip next argument as it's the value
+                } else if (!strcmp(arg, "-j") || !strcmp(arg, "--json")) {
+                    cmd_opts->json_output = true;
                 } else {
                     fatal_error("Unknown option for list command: %s", arg);
                 }
@@ -521,85 +523,95 @@ static void print_command_usage(const char *program_name, command_t cmd) {
     
     switch (cmd) {
         case CMD_LIST:
-            printf("Usage: %s list [OPTIONS] <pak-file> [pattern...]\n", prog);
-            printf("List files in Controller Pak\n");
+            printf("Usage: %s list [OPTIONS] <pak_file> [patterns...]\n", prog);
+            printf("\n");
+            printf("List contents of a Controller Pak file.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -l, --long              Long format (show details)\n");
-            printf("  -H, --human-readable    Human-readable sizes\n");
-            printf("      --crc               Show CRC32 checksum (implies --long)\n");
-            printf("  -s, --sort FIELD        Sort by field (name, size, date)\n");
+            printf("  -l, --long              Show detailed information in a table format\n");
+            printf("  -H, --human-readable    Show file sizes in human-readable format (e.g., 1K, 2M)\n");
+            printf("  --crc                   Show CRC32 checksum of file contents (implies --long)\n");
+            printf("  -s, --sort <key>        Sort by 'name' (default) or 'size'\n");
             printf("  -r, --reverse           Reverse sort order\n");
+            printf("  -j, --json              Output in JSON format\n");
             break;
-            
         case CMD_EXTRACT:
-            printf("Usage: %s extract [OPTIONS] <pak-file> [pattern...]\n", prog);
-            printf("Extract files from Controller Pak\n");
+            printf("Usage: %s extract [OPTIONS] <pak_file> [patterns...]\n", prog);
+            printf("\n");
+            printf("Extract files from a Controller Pak file.\n");
+            printf("\n");
             printf("Options:\n");
             printf("  -o, --overwrite         Overwrite existing files\n");
             break;
-            
         case CMD_ADD:
-            printf("Usage: %s add [OPTIONS] <pak-file> <file...>\n", prog);
-            printf("Add files to Controller Pak\n");
+            printf("Usage: %s add [OPTIONS] <pak_file> <files...>\n", prog);
+            printf("\n");
+            printf("Add files to a Controller Pak file.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -c, --create            Create pak if it doesn't exist\n");
-            printf("  -u, --update            Update existing files only\n");
-            printf("  -s, --size SIZE         Pak size in KB (default: 32)\n");
-            printf("  -g, --gamecode CODE     Game code for files (format: ABCD.EF, default: DRAG.ON)\n");
+            printf("  -c, --create            Create a new pak file if it doesn't exist\n");
+            printf("  -s, --size <KB>         Size of the new pak file in kilobytes (default: 32)\n");
+            printf("  -u, --update            Update existing files instead of erroring\n");
+            printf("  -g, --gamecode <id>     Default game/publisher code (e.g., 'DRAG.ON')\n");
             break;
-            
         case CMD_DELETE:
-            printf("Usage: %s delete [OPTIONS] <pak-file> <pattern...>\n", prog);
-            printf("Delete files from Controller Pak\n");
+            printf("Usage: %s delete [OPTIONS] <pak_file> <patterns...>\n", prog);
+            printf("\n");
+            printf("Delete files from a Controller Pak file.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -i, --interactive       Ask before deleting each file\n");
+            printf("  -i, --interactive       Prompt before every removal\n");
             break;
-            
         case CMD_INFO:
-            printf("Usage: %s info [OPTIONS] <pak-file>\n", prog);
-            printf("Show Controller Pak information\n");
+            printf("Usage: %s info [OPTIONS] <pak_file>\n", prog);
+            printf("\n");
+            printf("Show detailed information about a Controller Pak file.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -s, --stats             Show statistics\n");
-            printf("  -b, --banks             Show bank information\n");
-            printf("  -F, --filesystem        Show filesystem details\n");
-            printf("  -H, --header-only       Show header only\n");
+            printf("  -s, --stats             Show filesystem statistics\n");
+            printf("  -b, --banks             Show detailed bank information\n");
+            printf("  -F, --filesystem        Show raw filesystem structures\n");
+            printf("  -H, --header-only       Show information from the header only\n");
             break;
-            
         case CMD_TEST:
-            printf("Usage: %s test [OPTIONS] <pak-file>\n", prog);
-            printf("Test Controller Pak integrity\n");
+            printf("Usage: %s test [OPTIONS] <pak_file>\n", prog);
+            printf("\n");
+            printf("Test and optionally repair the filesystem integrity of a Controller Pak file.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -r, --repair            Attempt to repair errors\n");
-            printf("      --level LEVEL       Minimum messages to show: INFO, WARNING, ERROR (default: WARNING)\n");
+            printf("  -r, --repair            Attempt to fix any issues found\n");
+            printf("  --level <level>         Set report level: INFO, WARNING, ERROR (default: WARNING)\n");
             break;
-            
         case CMD_FORMAT:
-            printf("Usage: %s format [OPTIONS] <pak-file>\n", prog);
-            printf("Format Controller Pak\n");
+            printf("Usage: %s format [OPTIONS] <pak_file>\n", prog);
+            printf("\n");
+            printf("Create and format a new Controller Pak file.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -s, --size SIZE         Pak size in KB (default: 32)\n");
-            printf("  -b, --banks NUM         Number of banks (default: 1)\n");
-            printf("Note: --size and --banks are mutually exclusive\n");
+            printf("  -s, --size <KB>         Size of the new pak file in kilobytes (default: 32)\n");
+            printf("  -b, --banks <num>       Number of banks for the new pak file (1 bank = 32 KB)\n");
+            printf("  -f, --force             Overwrite the file if it already exists\n");
             break;
-            
         case CMD_CONVERT:
-            printf("Usage: %s convert [OPTIONS] <input-file> <output-file>\n", prog);
-            printf("Convert between Controller Pak formats\n");
+            printf("Usage: %s convert [OPTIONS] <input_file> <output_file>\n", prog);
+            printf("\n");
+            printf("Convert a Controller Pak file from one format to another.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -F, --from FORMAT       Input format (auto-detect if not specified)\n");
-            printf("  -t, --to FORMAT         Output format (auto-detect if not specified)\n");
+            printf("  -F, --from <format>     Source format (e.g., 'dexdrive', 'mpk')\n");
+            printf("  -t, --to <format>       Destination format (e.g., 'raw')\n");
             break;
-            
         case CMD_COMPARE:
-            printf("Usage: %s compare [OPTIONS] <pak-file1> <pak-file2>\n", prog);
-            printf("Compare two Controller Paks\n");
+            printf("Usage: %s compare [OPTIONS] <pak_file1> <pak_file2>\n", prog);
+            printf("\n");
+            printf("Compare the contents of two Controller Pak files.\n");
+            printf("\n");
             printf("Options:\n");
-            printf("  -b, --brief             Show only differences\n");
-            printf("  -s, --summary           Show summary only\n");
+            printf("  -b, --brief             Show only if files are different\n");
+            printf("  -s, --summary           Show a summary of differences\n");
             break;
-            
         default:
-            printf("Unknown command\n");
+            printf("No help available for this command.\n");
             break;
     }
 }

@@ -959,5 +959,37 @@ class TestCommands(unittest.TestCase):
             self.assertIn("No space left", err, f"Expected space error, got: {err}")
             self.assertNotIn("Too many files", err, f"Should not mention file limit, got: {err}")
 
+    def test_list_json_output(self):
+        """Test the --json output for the list command"""
+        pak = self._create_pak()
+        
+        # Add a file to it
+        test_file = self.tmp / "DRAG.ON-TEST.A"
+        test_file.write_text("hello")
+        run_cpaktool(["add", str(pak), str(test_file)], cwd=self.tmp)
+
+        # Run list with --json and --crc
+        code, out, err = run_cpaktool(["list", "--json", "--crc", str(pak)], cwd=self.tmp)
+        self.assertEqual(code, 0, f"cpaktool failed with error: {err}")
+        
+        # Parse JSON and validate
+        import json
+        try:
+            data = json.loads(out)
+            self.assertIsInstance(data, list)
+            self.assertEqual(len(data), 1)
+            
+            file_info = data[0]
+            self.assertEqual(file_info['game_code'], "DRAG")
+            self.assertEqual(file_info['pub_code'], "ON")
+            self.assertEqual(file_info['filename'], "TEST")
+            self.assertEqual(file_info['extension'], "A")
+            self.assertEqual(file_info['full_name'], "DRAG.ON-TEST.A")
+            self.assertEqual(file_info['size'], 5)
+            self.assertIsNotNone(file_info.get('crc32'))
+
+        except json.JSONDecodeError:
+            self.fail("Output is not valid JSON")
+
 if __name__ == "__main__":
     unittest.main()

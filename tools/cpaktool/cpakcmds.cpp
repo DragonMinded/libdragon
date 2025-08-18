@@ -204,6 +204,32 @@ static uint32_t calculate_file_crc32(const std::string& filename, bool& error) {
     }
 }
 
+// Helper function to escape a string for JSON output
+static std::string json_escape(const std::string& str) {
+    std::string escaped_str;
+    escaped_str.reserve(str.length());
+    for (char c : str) {
+        switch (c) {
+            case '"':  escaped_str += "\\\""; break;
+            case '\\': escaped_str += "\\\\"; break;
+            case '\b': escaped_str += "\\b"; break;
+            case '\f': escaped_str += "\\f"; break;
+            case '\n': escaped_str += "\\n"; break;
+            case '\r': escaped_str += "\\r"; break;
+            case '\t': escaped_str += "\\t"; break;
+            default:
+                // Filter out control characters, including the \x01 used for <NUL>
+                if (static_cast<unsigned char>(c) < 32) {
+                    // Skip control characters
+                } else {
+                    escaped_str += c;
+                }
+                break;
+        }
+    }
+    return escaped_str;
+}
+
 // Helper function to compare files for sorting
 static bool compare_files(const file_entry_t& a, const file_entry_t& b, const char* sort_by, bool reverse) {
     bool result = false;
@@ -278,7 +304,41 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
         }
         
         // Display files
-        if (g_command_opts.long_format) {
+        if (g_command_opts.json_output) {
+            // JSON output
+            printf("[\n");
+            for (size_t i = 0; i < files.size(); ++i) {
+                const auto& file = files[i];
+                printf("  {\n");
+                printf("    \"game_code\": \"%s\",\n", json_escape(file.game_code).c_str());
+                printf("    \"pub_code\": \"%s\",\n", json_escape(file.pub_code).c_str());
+                printf("    \"filename\": \"%s\",\n", json_escape(file.filename).c_str());
+                printf("    \"extension\": \"%s\",\n", json_escape(file.extension).c_str());
+                printf("    \"full_name\": \"%s\",\n", json_escape(file.full_name).c_str());
+                if (file.size < 0) {
+                    printf("    \"size\": null");
+                } else {
+                    printf("    \"size\": %lld", file.size);
+                }
+
+                if (g_command_opts.show_crc) {
+                    printf(",\n");
+                    if (file.crc32_error) {
+                        printf("    \"crc32\": null\n");
+                    } else {
+                        printf("    \"crc32\": \"%08X\"\n", file.crc32_value);
+                    }
+                } else {
+                    printf("\n");
+                }
+                printf("  }");
+                if (i < files.size() - 1) {
+                    printf(",");
+                }
+                printf("\n");
+            }
+            printf("]\n");
+        } else if (g_command_opts.long_format) {
             // Long format with table headers
             if (g_command_opts.show_crc) {
                 printf("Game       Pub    Filename                         Ext        Size       CRC32\n");
