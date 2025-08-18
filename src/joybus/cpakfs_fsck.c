@@ -504,7 +504,7 @@ static int fsck_notes(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t fat
         if (occupied && !FAT_IS_VALID(note->first_page, reserved)) {
             ctx->nissues++;
             if (ctx->report) ctx->report(ctx->report_ctx, CPAKFS_ISSUE_NOTE_INVALID_FIRST_PAGE, CPAKFS_LEVEL_ERROR,
-                    "Note %d has invalid first page: %02x%02x", i,
+                    "Note %d has invalid first page: %02x:%02x", i,
                     note->first_page.bank, note->first_page.page);
             if (ctx->mode == MODE_FIX) {
                 // If the first page is invalid, we cannot fix it, so we just
