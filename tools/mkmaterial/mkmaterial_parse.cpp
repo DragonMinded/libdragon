@@ -12,7 +12,7 @@
 #include <regex>
 #include <fstream>
 #include <float.h>
-#include "json.hpp"
+#include "../common/json.hpp"
 #include "../common/utils.h"
 
 #define INI_HANDLER_LINENO 1
