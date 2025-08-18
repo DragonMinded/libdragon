@@ -459,43 +459,23 @@ class TestIntegration(unittest.TestCase):
         def verify_pak_integrity():
             """Verify pak filesystem integrity and CRC values"""
             # Test filesystem
-            import shutil
-            shutil.copy2(str(pak), "/tmp/cpaktool_bruteforce_test.pak")
             code, out, err = run_cpaktool(["test", "--level", "INFO", str(pak)])
             if code != 0:
                 self.fail(f"Filesystem integrity check failed: {err}\nStdout: {out}")
             
-            # List with CRC
-            code, out, err = run_cpaktool(["list", "--long", "--crc", str(pak)])
+            # List with CRC using JSON format for reliable parsing
+            code, out, err = run_cpaktool(["list", "--json", "--crc", str(pak)])
             if code != 0:
                 self.fail(f"Failed to list files with CRC: {err}")
-            
-            # Parse output and verify CRCs
-            lines = [line.strip() for line in out.split('\n') if line.strip()]
-            actual_files = {}
-            
-            for line in lines:
-                if line.startswith('Game') or line.startswith('----') or line.startswith('Summary'):
-                    continue
-                
-                parts = line.split()
-                if len(parts) >= 6:
-                    # Format: GAME PUB FILENAME EXT SIZE CRC32
-                    game_code = parts[0]
-                    pub_code = parts[1]
-                    filename = parts[2]
-                    ext = parts[3]
-                    crc_str = parts[5]
-                    
-                    # Reconstruct filename in our tracking format
-                    full_filename = f"{game_code}.{pub_code}-{filename}.{ext}"
-                    
-                    if crc_str != "<error>":
-                        try:
-                            actual_crc = int(crc_str, 16)
-                            actual_files[full_filename] = actual_crc
-                        except ValueError:
-                            continue
+
+            # Parse JSON output and verify CRCs
+            try:
+                import json
+                files_data = json.loads(out)
+                actual_files = {f["full_name"]: int(f["crc32"], 16) for f in files_data}
+
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                self.fail(f"Failed to parse JSON output: {e}\nOutput: {out}")
             
             # Verify all expected files are present with correct CRCs
             for filename, (size, expected_crc, content) in current_files.items():
@@ -507,10 +487,14 @@ class TestIntegration(unittest.TestCase):
                     available_files = list(actual_files.keys())
                     self.fail(f"File {expected_filename} not found in pak listing. Available files: {available_files}")
                 
-                actual_crc = actual_files[expected_filename]
+                actual_crc = actual_files.pop(expected_filename)
                 if actual_crc != expected_crc:
                     self.fail(f"CRC mismatch for {expected_filename}: expected {expected_crc:08X}, got {actual_crc:08X}")
         
+            if actual_files:
+                available_files = list(actual_files.keys())
+                self.fail(f"Extra files found in the pak that shouldn't be there: {available_files}")
+
         # Perform 10 cycles: fill to 100%, empty to 75%
         cycles = 9
         
@@ -536,22 +520,14 @@ class TestIntegration(unittest.TestCase):
                 test_file.write_bytes(content)
                 
                 # Add to pak
-                code, out, err = run_cpaktool(["add", "--update", str(pak), str(test_file)])
+                print(f"Adding {filename} ({file_size} bytes, CRC32: {crc32:08X})")
+                code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
                 if code != 0:
-                    # If add fails due to space, break the fill phase
+                    print(f"Failed to add {filename}: {err}")
+                    test_file.unlink()  # Clean up
                     if "no space left" in err.lower() or "too many files" in err.lower():
-                        test_file.unlink()  # Clean up
                         break
-                    # If file exists, try with --update flag
-                    elif "already exists" in err:
-                        code, out, err = run_cpaktool(["add", "--update", str(pak), str(test_file)])
-                        if code != 0:
-                            test_file.unlink()
-                            if "no space left" in err.lower() or "too many files" in err.lower():
-                                break
-                            self.fail(f"Failed to update {filename}: {err}")
                     else:
-                        test_file.unlink()
                         self.fail(f"Failed to add {filename}: {err}")
                 
                 # Update tracking
@@ -564,7 +540,10 @@ class TestIntegration(unittest.TestCase):
                 verify_pak_integrity()
             
             print(f"Cycle {cycle + 1}: Filled to {get_pak_usage()} bytes")
-            
+            if cycle == cycles - 1:
+                print("Final cycle reached, stopping add phase.")
+                break
+
             # Empty phase: remove files until ~75% full
             target_usage = int(get_pak_usage() * 0.75)
             
@@ -573,6 +552,7 @@ class TestIntegration(unittest.TestCase):
                 filename = random.choice(list(current_files.keys()))
                 
                 # Delete from pak
+                print(f"Deleting {filename} from pak")
                 code, out, err = run_cpaktool(["delete", str(pak), filename])
                 if code != 0:
                     self.fail(f"Failed to delete {filename}: {err}")
@@ -594,7 +574,7 @@ class TestIntegration(unittest.TestCase):
         # Uncomment to copy pak to /tmp for manual inspection
         import shutil
         shutil.copy2(str(pak), "/tmp/cpaktool_bruteforce_test.pak")
-        print(f"Pak copied to /tmp/cpaktool_bruteforce_test.pak for inspection")
+        #print(f"Pak copied to /tmp/cpaktool_bruteforce_test.pak for inspection")
 
 if __name__ == "__main__":
     unittest.main()
