@@ -710,7 +710,7 @@ class TestCommands(unittest.TestCase):
         # Delete specific file
         code, out, err = run_cpaktool(["delete", str(pak), "TEST.01-FILE1.DAT"])
         self.assertEqual(code, 0)
-        self.assertIn("Deleted: TEST.01/FILE1.DAT", out)
+        self.assertIn("Deleted: TEST.01-FILE1.DAT", out)
         
         # Verify file was deleted
         code, out, err = run_cpaktool(["list", str(pak)])
@@ -778,7 +778,7 @@ class TestCommands(unittest.TestCase):
         # Dry run delete
         code, out, err = run_cpaktool(["--dry-run", "delete", str(pak), "TEST.01-DELETE.DAT"])
         self.assertEqual(code, 0)
-        self.assertIn("Would delete: TEST.01/DELETE.DAT", out)
+        self.assertIn("Would delete: TEST.01-DELETE.DAT", out)
         
         # Verify file is still there
         code, out, err = run_cpaktool(["list", str(pak)])
@@ -830,7 +830,7 @@ class TestCommands(unittest.TestCase):
             ("GAME.01-FILE2.TXT", "content2"),
             ("SAVE.02-DATA1.DAT", "content3"),
             ("SAVE.02-DATA2.BIN", "content4"),
-            ("OTHER.03-KEEP.DAT", "content5")
+            ("OTHE.03-KEEP.DAT", "content5")
         ]
         
         for filename, content in test_files:
@@ -853,8 +853,8 @@ class TestCommands(unittest.TestCase):
         self.assertNotIn("SAVE.02-DATA1.DAT", out)
         # SAVE.02 .BIN file should remain (doesn't match second pattern)
         self.assertIn("SAVE.02-DATA2.BIN", out)
-        # OTHER.03 file should remain (doesn't match either pattern)
-        self.assertIn("OTHER.03-KEEP.DAT", out)
+        # OTHE.03 file should remain (doesn't match either pattern)
+        self.assertIn("OTHE.03-KEEP.DAT", out)
 
     def test_crc_calculation(self):
         """Test --crc option calculates correct CRC32 for multiple files"""

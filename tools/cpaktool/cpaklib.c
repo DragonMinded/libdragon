@@ -42,6 +42,7 @@ static void __rand(void *buf, size_t n)
 #endif
 #include "../../src/joybus/cpak.c"
 #include "../../src/joybus/cpakfs.c"
+#include "../../src/joybus/cpakfs_path.c"
 #include "../../src/joybus/cpakfs_fsck.c"
 
 static filesystem_t *gfs = NULL;

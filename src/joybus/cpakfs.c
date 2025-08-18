@@ -2,6 +2,7 @@
  * @file cpakfs.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Controller Pak Filesystem Routines
+ * @ingroup controllerpak
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -49,14 +50,6 @@ typedef struct {
     cpakfs_fat_entry_t *cur_page_ptr;   ///< Pointer to the current page in the FAT (or in the note)
     uint8_t flags;                      ///< Flags
 } cpakfs_openfile_t;
-
-/** @brief Parsed cpakfs path components */
-typedef struct {
-    char gamecode[4];                   ///< Game code (4 chars)
-    char pubcode[2];                    ///< Publisher code (2 chars) 
-    char filename[16+1];                ///< Filename in N64 codepage (null-terminated)
-    char ext[4+1];                      ///< Extension in N64 codepage (null-terminated)
-} parsed_path_t;
 
 /** @brief Modify the FAT and mark it as dirty */
 #define FAT_WRITE(fs, lvalue, val) ({ \
@@ -188,218 +181,6 @@ static int write_fat(cpakfs_t *fs)
     return 0;
 }
 
-static int n64_to_utf8(uint8_t c, char *out)
-{
-    /* Upper case letters */
-    if (c >= 0x1A && c <= 0x33) { *out++ = 'A' + (c - 0x1A); return 1; }
-    /* Numbers */
-    if (c >= 0x10 && c <= 0x19) { *out++ = '0' + (c - 0x10); return 1; }
-    /* Miscelaneous chart */
-    switch (c) {
-        case 0x00: *out++ = 0x01; return 1; // we can't store 0x00 in a ASCIIZ C string, so use 0x01 instead
-        case 0x0F: *out++ = ' '; return 1;
-        case 0x34: *out++ = '!'; return 1;
-        case 0x35: *out++ = '\"'; return 1;
-        case 0x36: *out++ = '#'; return 1;
-        case 0x37: *out++ = '`'; return 1;
-        case 0x38: *out++ = '*'; return 1;
-        case 0x39: *out++ = '+'; return 1;
-        case 0x3A: *out++ = ','; return 1;
-        case 0x3B: *out++ = '-'; return 1;
-        case 0x3C: *out++ = '.'; return 1;
-        case 0x3D: *out++ = '/'; return 1;
-        case 0x3E: *out++ = ':'; return 1;
-        case 0x3F: *out++ = '='; return 1;
-        case 0x40: *out++ = '?'; return 1;
-        case 0x41: *out++ = '@'; return 1;
-    }
-
-    /* Katakana and CJK symbols */
-    if (c >= 0x42 && c <= 0x94) {
-        const int cjk_base = 0x3000;
-        static uint8_t cjk_map[83] = { 2, 155, 156, 161, 163, 165, 167, 169, 195, 227, 229, 231, 242, 243, 162, 164, 166, 168, 170, 171, 173, 175, 177, 179, 181, 183, 185, 187, 189, 191, 193, 196, 198, 200, 202, 203, 204, 205, 206, 207, 210, 213, 216, 219, 222, 223, 224, 225, 226, 228, 230, 232, 233, 234, 235, 236, 237, 239, 172, 174, 176, 178, 180, 182, 184, 186, 188, 190, 192, 194, 197, 199, 201, 208, 211, 214, 217, 220, 209, 212, 215, 218, 221 };
-        uint16_t codepoint = cjk_base + cjk_map[c - 0x42];
-        *out++ = 0xE0 | ((codepoint >> 12) & 0x0F);
-        *out++ = 0x80 | ((codepoint >> 6) & 0x3F);
-        *out++ = 0x80 | (codepoint & 0x3F);
-        return 3;
-    }
-
-    /* Default to space for unprintables */
-    *out++ = ' ';
-    return 1;
-}
-
-/**
- * @brief Convert an N64 codepage string to UTF-8, handling embedded NULs correctly
- * 
- * This function converts a fixed-size N64 codepage string to UTF-8. It treats
- * only trailing 0x00 bytes as padding, while embedded 0x00 bytes are converted
- * to 0x01 in the UTF-8 output.
- * 
- * @param n64_str   Input N64 codepage string (fixed size array)
- * @param n64_len   Length of the input array
- * @param utf8_out  Output UTF-8 string buffer
- * @return int      Number of UTF-8 bytes written, or -1 on error
- */
-static int n64_string_to_utf8(const uint8_t *n64_str, int n64_len, char *utf8_out)
-{
-    // Find the actual string length by scanning backwards to find last non-zero
-    int actual_len = n64_len;
-    while (actual_len > 0 && n64_str[actual_len - 1] == 0x00) {
-        actual_len--;
-    }
-    
-    int utf8_pos = 0;
-    for (int i = 0; i < actual_len; i++) {
-        int written = n64_to_utf8(n64_str[i], utf8_out + utf8_pos);
-        utf8_pos += written;
-    }
-    
-    utf8_out[utf8_pos] = '\0';
-    return utf8_pos;
-}
-
-/**
- * @brief Check if an N64 codepage string has any non-padding content
- * 
- * @param n64_str   Input N64 codepage string (fixed size array)
- * @param n64_len   Length of the input array
- * @return bool     True if the string has content, false if it's all padding (0x00)
- */
-static bool n64_string_has_content(const uint8_t *n64_str, int n64_len)
-{
-    for (int i = 0; i < n64_len; i++) {
-        if (n64_str[i] != 0x00) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/*
- * Function that converts a UTF-8 string (input) into a string using the cpak codepage,
- * writing the output bytes into "out". The function returns the number of bytes written.
- * 
- * The function will fail if any unsupported character is encountered, returning -1.
- */
-static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_size) {
-    const char *end_input = input + in_size;
-    const uint8_t *start_out = out;
-    const uint8_t *end_out = out + out_size;
-
-    /* 
-     * Inverse lookup table for the CJK part.
-     * For every possible offset (codepoint – 0x3000) from 0 to 255,
-     * the value is the index in the range [0, 82] to be added to 0x42.
-     * If an offset does not correspond to any mapped character, the value will be -1.
-     */
-    static const int8_t inv_cjk_map[256] = {
-        [2]   = 1, [155] = 2, [156] = 3, [161] = 4,
-        [163] = 5, [165] = 6, [167] = 7, [169] = 8, [195] = 9, 
-        [227] = 10, [229] = 11, [231] = 12, [242] = 13, [243] = 14, 
-        [162] = 15, [164] = 16, [166] = 17, [168] = 18,
-        [170] = 19, [171] = 20, [173] = 21, [175] = 22,
-        [177] = 23, [179] = 24, [181] = 25, [183] = 26,
-        [185] = 27, [187] = 28, [189] = 29, [191] = 30,
-        [193] = 31, [196] = 32, [198] = 33, [200] = 34,
-        [202] = 35, [203] = 36, [204] = 37, [205] = 38,
-        [206] = 39, [207] = 40, [210] = 41, [213] = 42,
-        [216] = 43, [219] = 44, [222] = 45, [223] = 46,
-        [224] = 47, [225] = 48, [226] = 49, [228] = 50,
-        [230] = 51, [232] = 52, [233] = 53, [234] = 54,
-        [235] = 55, [236] = 56, [237] = 57, [239] = 58,
-        [172] = 59, [174] = 60, [176] = 61, [178] = 62,
-        [180] = 63, [182] = 64, [184] = 65, [186] = 66,
-        [188] = 67, [190] = 68, [192] = 69, [194] = 70,
-        [197] = 71, [199] = 72, [201] = 73, [208] = 74,
-        [211] = 75, [214] = 76, [217] = 77, [220] = 78,
-        [209] = 79, [212] = 80, [215] = 81, [218] = 82,
-        [221] = 83,
-    };
-
-    /*
-     * Conversion loop: for each character (or UTF-8 sequence)
-     * we search for the corresponding byte in the n64 codepage.
-     */
-    while (*input && input < end_input && out < end_out) {
-        unsigned char ch = (unsigned char)*input;
-
-        /* Uppercase letters: 'A'-'Z' */
-        if (ch >= 'A' && ch <= 'Z') {
-            *out++ = 0x1A + (ch - 'A');
-            input++;
-            continue;
-        }
-
-        /* Lowercase letters: 'a'-'z' - convert to uppercase */
-        if (ch >= 'a' && ch <= 'z') {
-            *out++ = 0x1A + (ch - 'a');
-            input++;
-            continue;
-        }
-
-        /* Numbers: '0'-'9' */
-        if (ch >= '0' && ch <= '9') {
-            *out++ = 0x10 + (ch - '0');
-            input++;
-            continue;
-        }
-
-        /* Direct handling of symbols (corresponds to the "miscellaneous" part of the n64->utf8 function) */
-        if (ch < 0x80) switch (ch) {
-            case ' ': *out++ = 0x0F; input++; continue;
-            case '!': *out++ = 0x34; input++; continue;
-            case '"': *out++ = 0x35; input++; continue;
-            case '#': *out++ = 0x36; input++; continue;
-            case '`': *out++ = 0x37; input++; continue;
-            case '*': *out++ = 0x38; input++; continue;
-            case '+': *out++ = 0x39; input++; continue;
-            case ',': *out++ = 0x3A; input++; continue;
-            case '-': *out++ = 0x3B; input++; continue;
-            case '.': *out++ = 0x3C; input++; continue;
-            case '/': *out++ = 0x3D; input++; continue;
-            case ':': *out++ = 0x3E; input++; continue;
-            case '=': *out++ = 0x3F; input++; continue;
-            case '?': *out++ = 0x40; input++; continue;
-            case '@': *out++ = 0x41; input++; continue;
-            case 0x01: *out++ = 0x00; input++; continue; // special case for 0x01
-        }
-
-        /* Handling of CJK characters (3-byte UTF-8 sequences) */
-        if (ch >= 0xE0) {
-            if ((input[0] & 0xF0) == 0xE0 &&
-                (input[1] & 0xC0) == 0x80 &&
-                (input[2] & 0xC0) == 0x80)
-            {
-                /* Decode the codepoint */
-                uint16_t codepoint = ((input[0] & 0x0F) << 12) |
-                                     ((input[1] & 0x3F) << 6)  |
-                                     (input[2] & 0x3F);
-                input += 3;
-
-                /* If the codepoint is in the expected range for CJK conversion (based on 0x3000) */
-                if (codepoint >= 0x3000) {
-                    uint16_t offset = codepoint - 0x3000;
-                    if (offset < 256) {
-                        int8_t index = inv_cjk_map[offset];
-                        if (index > 0) {
-                            *out++ = 0x42 + index - 1;
-                            continue;
-                        }
-                    }
-                }
-                return -1;
-            } else {
-                return -1;
-            }
-        }
-        return -1;
-    }
-
-    return out - start_out;
-}
-
 static uint16_t crc16(cpakfs_note_t *node)
 {
     // Use Koopman polynomy (0x5935) which has HD=5 for up to 30 bytes
@@ -448,11 +229,11 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
  * publisher code, filename, and extension.
  * 
  * @param fs        Mounted filesystem
- * @param parsed    Parsed path components to search for
+ * @param path      Parsed path components to search for
  * @param note_id   Output pointer to store the found note ID
  * @return cpakfs_note_t* Pointer to the found note, or NULL if not found
  */
-static cpakfs_note_t* find_note(cpakfs_t *fs, const parsed_path_t *parsed, int *note_id)
+static cpakfs_note_t* find_note(cpakfs_t *fs, const cpakfs_path_t *path, int *note_id)
 {
     cpakfs_note_t *note = NULL;
     
@@ -461,10 +242,10 @@ static cpakfs_note_t* find_note(cpakfs_t *fs, const parsed_path_t *parsed, int *
         if (!(note->status & NOTE_STATUS_OCCUPIED))
             continue;
 
-        if (memcmp(note->gamecode, parsed->gamecode, 4) == 0 &&
-            memcmp(note->pubcode, parsed->pubcode, 2) == 0 &&
-            memcmp(note->filename, parsed->filename, 16) == 0 &&
-            memcmp(note->ext, parsed->ext, 4) == 0) {
+        if (memcmp(note->gamecode, path->gamecode, 4) == 0 &&
+            memcmp(note->pubcode, path->pubcode, 2) == 0 &&
+            memcmp(note->filename, path->filename, 16) == 0 &&
+            memcmp(note->ext, path->ext, 4) == 0) {
             
             if (note_id) *note_id = i;
             return note;
@@ -491,68 +272,6 @@ static void truncate_note(cpakfs_t *fs, cpakfs_note_t *note)
     }
     // A 0-byte note should have FAT_TERMINATOR as first page
     note->first_page = FAT_TERMINATOR;
-}
-
-/**
- * @brief Parse a cpakfs path into its components
- * 
- * Parses a path in the format "GAME.PB/filename.ext" and extracts the
- * game code, publisher code, filename, and extension.
- * 
- * @param name      Input path to parse
- * @param parsed    Output structure to fill with parsed components
- * @return int      0 on success, -1 on error (errno will be set)
- */
-static int parse_path(const char *name, parsed_path_t *parsed)
-{
-    // Clear the output structure
-    memset(parsed, 0, sizeof(*parsed));
-
-    // Check the format is "GAME.PB/..."
-    if (strlen(name) < 9 || name[4] != '.' || name[7] != '/') {
-        errno = EINVAL;
-        return -1;
-    }
-
-    // Extract gamecode and pubcode
-    memcpy(parsed->gamecode, name + 0, 4);
-    memcpy(parsed->pubcode, name + 5, 2);
-
-    // Extract filename and extension from path
-    char *fname = (char*)name + 8;
-    char *dot = strrchr(fname, '.');
-    
-    // Parse filename and extension
-    int fname_len = dot ? dot - fname : strlen(fname);
-    if (fname_len == 0 || fname_len > 16) {
-        errno = EINVAL;
-        return -1;
-    }
-    
-    int fnlen = utf8_to_n64(fname, fname_len, (uint8_t*)parsed->filename, 16);
-    if (fnlen < 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    // Extract and validate extension
-    if (dot) {
-        dot++;
-        int ext_len = strlen(dot);
-        
-        // Validate extension length and characters
-        if (ext_len > 4) {
-            errno = EINVAL;
-            return -1;
-        }
-        int extlen = utf8_to_n64(dot, ext_len, (uint8_t*)parsed->ext, 4);
-        if (extlen < 0) {
-            errno = EINVAL;
-            return -1;
-        }
-    }
-
-    return 0;
 }
 
 static int __cpakfs_read(void *file, uint8_t *ptr, int len)
@@ -859,18 +578,22 @@ static int calc_size(cpakfs_t *fs, cpakfs_note_t *note)
 
 static void *__cpakfs_open(char *name, int flags, int port)
 {
-    parsed_path_t parsed;
+    cpakfs_path_t path;
+    const char *error_pos;
 
     tracef("__cpak_open(%s, %d, %d) %d\n", name, flags, port, errno);
 
     // Parse the path
-    if (parse_path(name, &parsed) < 0)
+    cpakfs_parse_err_t parse_result = cpakfs_path_parse(name, &path, &error_pos);
+    if (parse_result != CPAKFS_PARSE_OK) {
+        errno = EINVAL;
         return NULL;
+    }
 
     // Find the note for this file
     cpakfs_t *fs = filesystems[port];
     int note_id;
-    cpakfs_note_t *note = find_note(fs, &parsed, &note_id);
+    cpakfs_note_t *note = find_note(fs, &path, &note_id);
 
     if (note) {
         // Can't create a file that already exists
@@ -915,10 +638,10 @@ static void *__cpakfs_open(char *name, int flags, int port)
         truncate_note(fs, file->note);
 
         // Populate the note
-        memcpy((char*)note->gamecode, parsed.gamecode, 4);
-        memcpy((char*)note->pubcode, parsed.pubcode, 2);
-        memcpy((char*)note->filename, parsed.filename, 16);
-        memcpy((char*)note->ext, parsed.ext, 4);
+        memcpy((char*)note->gamecode, path.gamecode, 4);
+        memcpy((char*)note->pubcode, path.pubcode, 2);
+        memcpy((char*)note->filename, path.filename, 16);
+        memcpy((char*)note->ext, path.ext, 4);
 
         note->status |= NOTE_STATUS_OCCUPIED;
         note->first_page = FAT_TERMINATOR;
@@ -1021,18 +744,22 @@ static int __cpakfs_fstat(void *file, struct stat *st)
 
 static int __cpakfs_unlink(char *name, int port)
 {
-    parsed_path_t parsed;
+    cpakfs_path_t path;
+    const char *error_pos;
 
     tracef("__cpak_unlink(%s, %d)\n", name, port);
 
     // Parse the path
-    if (parse_path(name, &parsed) < 0)
+    cpakfs_parse_err_t parse_result = cpakfs_path_parse(name, &path, &error_pos);
+    if (parse_result != CPAKFS_PARSE_OK) {
+        errno = EINVAL;
         return -1;
+    }
 
     // Find the note for this file
     cpakfs_t *fs = filesystems[port];
     int note_id;
-    cpakfs_note_t *note = find_note(fs, &parsed, &note_id);
+    cpakfs_note_t *note = find_note(fs, &path, &note_id);
 
     // File not found
     if (!note) {
@@ -1060,48 +787,39 @@ static int __cpakfs_findnext(const char *basepath, dir_t *dir, int port) {
     cpakfs_t *fs = filesystems[port];
     cpakfs_note_t *note = NULL;
 
-    // tracef("__cpak_findnext(%s, %p, %d) (cookie: %d)\n", basepath, dir, port, (int)dir->d_cookie);
+    // Find the next occupied note
     while (++dir->d_cookie < MAX_NOTES) {
         note = read_note(fs, dir->d_cookie);
         
         if ((note->status & NOTE_STATUS_OCCUPIED) == 0)
             continue;
+
+        // Found a valid file, format the name using the new dash format
+        cpakfs_path_t path;
+        memcpy(path.gamecode, note->gamecode, 4);
+        memcpy(path.pubcode, note->pubcode, 2);
+        memcpy(path.filename, note->filename, 16);
+        memcpy(path.ext, note->ext, 4);
+
+        cpakfs_path_format(&path, dir->d_name, sizeof(dir->d_name));
+        dir->d_type = DT_REG;
         
-        snprintf(dir->d_name, sizeof(dir->d_name), "%.4s.%.2s/", note->gamecode, note->pubcode);
-        if (basepath && strncmp(basepath+1, dir->d_name, strlen(basepath)-1) != 0)
-            continue;
+        // Calculate file size. If negative, ignore the error and just return the file.
+        // It means the file will fail to open, but we still want to return it.
+        dir->d_size = calc_size(fs, note);
 
-        // Valid filename, optionally matching the basepath: stop searching
-        break;
+        return 0;
     }
-    if ((int)dir->d_cookie == MAX_NOTES) {
-        errno = ENOENT;
-        return -1;
-    }
-
-    int idx = 8; // Start after "GAME.PB/"
-    idx += n64_string_to_utf8(note->filename, 16, dir->d_name + idx);
-    if (n64_string_has_content(note->ext, 4)) {
-        if (idx < sizeof(dir->d_name) - 1) {
-            dir->d_name[idx++] = '.';
-        }
-        idx += n64_string_to_utf8(note->ext, 4, dir->d_name + idx);
-    }
-    dir->d_name[idx++] = 0;
-    assert(idx < sizeof(dir->d_name));
-    dir->d_type = DT_REG;
     
-    // Calculate file size. If negative, ignore the error and just return the file.
-    // It means the file will fail to open, but we still want to return it.
-    dir->d_size = calc_size(fs, note);
-
-    return 0;
+    // No more files found
+    errno = ENOENT;
+    return -1;
 }
 
 static int __cpakfs_findfirst(char *path, dir_t *dir, int port) {
-    if (!path) {
+    if (!path || strcmp(path, "/") != 0) {
         errno = EINVAL;
-        return -2;
+        return -1;
     }
 
     dir->d_cookie = -1;

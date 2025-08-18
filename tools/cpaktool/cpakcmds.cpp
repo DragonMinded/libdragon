@@ -145,32 +145,42 @@ static std::string display_filename(const std::string& filename) {
 
 // Helper function to parse cpak path into components
 static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
-    // Expected format: "GAME.PB/filename.ext"
-    const char *path = cpak_path.c_str();
+    // Parse the UTF-8 path directly by splitting on separators
+    // Expected format: "GAME.PB-filename.ext"
     
-    if (strlen(path) < 9 || path[4] != '.' || path[7] != '/') {
-        return false;
+    // Find the first dot (separates game code from publisher code)
+    size_t first_dot = cpak_path.find('.');
+    if (first_dot == std::string::npos || first_dot != 4) {
+        return false; // Game code should be exactly 4 characters
     }
     
-    entry.game_code = std::string(path, 4);
-    entry.pub_code = std::string(path + 5, 2);
+    // Find the dash (separates publisher code from filename)
+    size_t dash = cpak_path.find('-', first_dot + 1);
+    if (dash == std::string::npos || dash != first_dot + 3) {
+        return false; // Publisher code should be exactly 2 characters
+    }
     
-    std::string filename_part = std::string(path + 8);
-    size_t dot_pos = filename_part.find_last_of('.');
+    // Extract game code (4 characters)
+    entry.game_code = cpak_path.substr(0, first_dot);
     
-    if (dot_pos != std::string::npos) {
-        entry.filename = filename_part.substr(0, dot_pos);
-        entry.extension = filename_part.substr(dot_pos + 1);
+    // Extract publisher code (2 characters)
+    entry.pub_code = cpak_path.substr(first_dot + 1, 2);
+    
+    // Find the last dot (separates filename from extension)
+    size_t last_dot = cpak_path.rfind('.');
+    
+    if (last_dot != std::string::npos && last_dot > dash) {
+        // Has extension
+        entry.filename = cpak_path.substr(dash + 1, last_dot - dash - 1);
+        entry.extension = cpak_path.substr(last_dot + 1);
     } else {
-        entry.filename = filename_part;
+        // No extension
+        entry.filename = cpak_path.substr(dash + 1);
         entry.extension = "";
     }
     
-    // Create full name for pattern matching (GAME.PB-filename.ext format)
-    entry.full_name = entry.game_code + "." + entry.pub_code + "-" + entry.filename;
-    if (!entry.extension.empty()) {
-        entry.full_name += "." + entry.extension;
-    }
+    // The full name is just the original path
+    entry.full_name = cpak_path;
     
     return true;
 }
@@ -422,16 +432,8 @@ int cmd_extract(const char *pak_file, char *patterns[], int num_patterns) {
         
         // Use the new for_each_file method
         pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
-            // Convert to output filename for pattern matching
-            std::string output_filename;
-            const char *slash = strchr(filename, '/');
-            if (slash) {
-                std::string game_pub(filename, slash - filename);
-                std::string file_part(slash + 1);
-                output_filename = game_pub + "-" + file_part;
-            } else {
-                output_filename = filename;
-            }
+            // The filename is already in the correct format (GAME.PB-file.ext)
+            std::string output_filename = filename;
             
             bool should_extract = false;
             
@@ -548,16 +550,8 @@ int cmd_delete(const char *pak_file, char *patterns[], int num_patterns) {
         
         // First, collect all files that match the patterns
         pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
-            // Convert to output filename for pattern matching
-            std::string output_filename;
-            const char *slash = strchr(filename, '/');
-            if (slash) {
-                std::string game_pub(filename, slash - filename);
-                std::string file_part(slash + 1);
-                output_filename = game_pub + "-" + file_part;
-            } else {
-                output_filename = filename;
-            }
+            // The filename is already in the correct format (GAME.PB-file.ext)
+            std::string output_filename = filename;
             
             bool should_delete = false;
             
@@ -565,8 +559,8 @@ int cmd_delete(const char *pak_file, char *patterns[], int num_patterns) {
             for (int i = 0; i < num_patterns; i++) {
                 if (fnmatch(patterns[i], filename) || 
                     fnmatch(patterns[i], output_filename.c_str())) {
-                    verbose_log( "File '%s' (output: '%s') matches pattern '%s'", 
-                              filename, output_filename.c_str(), patterns[i]);
+                    verbose_log( "File '%s' matches pattern '%s'", 
+                              filename, patterns[i]);
                     should_delete = true;
                     break;
                 }
@@ -841,26 +835,56 @@ static int add_file(const char *input_file) {
     // Default game code - use command line option or default to DRAG.ON
     const char *default_gamecode = g_command_opts.gamecode ? g_command_opts.gamecode : "DRAG.ON";
     
-    // Check if the file path already looks like a cpak path (XXXX.XX-...)
-    if (strlen(basename) >= 9 && basename[4] == '.' && basename[7] == '-') {
-        // It's already in cpak format, convert to internal format GAME.PB/filename.ext
-        char game[5], pub[3], *filename;
-        strncpy(game, basename, 4); game[4] = '\0';
-        strncpy(pub, basename + 5, 2); pub[2] = '\0';
-        filename = (char*)basename + 8; // Skip the '-'
-        snprintf(cpak_path, sizeof(cpak_path), "%s.%s/%s", game, pub, filename);
+    // Check if the file path already looks like a cpak path by trying to parse it
+    cpakfs_path_t parsed_path;
+    const char *error_pos;
+    
+    if (cpakfs_path_parse(basename, &parsed_path, &error_pos) == CPAKFS_PARSE_OK) {
+        // It's already in cpak format, use directly
+        strcpy(cpak_path, basename);
     } else {
-        // Use default or specified game/publisher code
-        char game[5], pub[3];
+        // Build new path by creating a UTF-8 string and then parsing it
+        // Parse game/publisher code from default_gamecode
+        std::string game, pub;
+        
         if (strlen(default_gamecode) >= 7 && default_gamecode[4] == '.') {
-            strncpy(game, default_gamecode, 4); game[4] = '\0';
-            strncpy(pub, default_gamecode + 5, 2); pub[2] = '\0';
+            game = std::string(default_gamecode, 4);
+            pub = std::string(default_gamecode + 5, 2);
         } else {
             // Fallback to DRAG.ON if format is invalid
-            strcpy(game, "DRAG");
-            strcpy(pub, "ON");
+            game = "DRAG";
+            pub = "ON";
         }
-        snprintf(cpak_path, sizeof(cpak_path), "%s.%s/%s", game, pub, basename);
+        
+        // Parse filename and extension from basename
+        std::string filename, ext;
+        const char *dot = strrchr(basename, '.');
+        if (dot) {
+            filename = std::string(basename, dot - basename);
+            ext = std::string(dot + 1);
+        } else {
+            filename = std::string(basename);
+        }
+        
+        // Check for empty filename
+        if (filename.empty()) {
+            fatal_error("Invalid filename: empty filename not allowed");
+        }
+        
+        // Create the cpak path in UTF-8 format: "GAME.PB-filename.ext"
+        std::string utf8_path = game + "." + pub + "-" + filename;
+        if (!ext.empty()) {
+            utf8_path += "." + ext;
+        }
+        
+        // Now parse this UTF-8 string to get the cpakfs_path_t structure
+        if (cpakfs_path_parse(utf8_path.c_str(), &parsed_path, &error_pos) == CPAKFS_PARSE_OK) {
+            // Format it back to get the canonical representation
+            cpakfs_path_format(&parsed_path, cpak_path, sizeof(cpak_path));
+        } else {
+            fatal_error("Invalid filename format: '%s' (expected format: GAME.PB-filename.ext)", 
+                      utf8_path.c_str());
+        }
     }
     
     verbose_log( "Target cpak path: %s", cpak_path);
@@ -983,19 +1007,10 @@ static int add_file(const char *input_file) {
 
 static int extract_file(const char *cpak_path) {
     try {
-        // Convert cpak path (GAME.PB/filename.ext) to output filename (GAME.PB-filename.ext)
-        std::string output_filename;
-        const char *slash = strchr(cpak_path, '/');
-        if (slash) {
-            std::string game_pub(cpak_path, slash - cpak_path);
-            std::string filename(slash + 1);
-            // Filenames from cpakfs are already properly null-terminated without trailing spaces
-            output_filename = game_pub + "-" + filename;
-        } else {
-            output_filename = std::string(cpak_path);
-        }
+        // The cpak path is already in the correct format (GAME.PB-filename.ext)
+        std::string output_filename = cpak_path;
         
-        verbose_log( "Extracting %s -> %s", cpak_path, output_filename.c_str());
+        verbose_log( "Extracting %s", output_filename.c_str());
         
         // Check if output file exists
         if (file_exists(output_filename.c_str()) && !g_command_opts.overwrite) {

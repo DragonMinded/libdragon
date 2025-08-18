@@ -406,5 +406,195 @@ class TestIntegration(unittest.TestCase):
         self.assertNotEqual(code, 0, f"fsck should fail on corrupted pak: {err}")
         self.assertIn("invalid first page", out)
 
+    def test_brute_force_add_remove_cycles(self):
+        """Brute force test with random add/remove file operations"""
+        import random
+        import zlib
+        import time
+        
+        # Set seed for reproducible tests
+        random.seed(1)
+        
+        # Create 1MB pak (1024KB = 32 banks)
+        pak = self._create_pak("1024")
+        
+        # Track files currently in the pak
+        # Format: {filename: (size, crc32, content)}
+        current_files = {}
+        
+        # Available game codes to use for variety
+        game_codes = ["GAME.01", "TEST.42", "DEMO.ZZ", "PLAY.99", "SAVE.00"]
+        
+        # File extensions to use
+        extensions = ["TXT", "DAT", "BIN", "SAV", "CFG"]
+        
+        def get_pak_usage():
+            """Get current pak usage in bytes (accounting for 256-byte padding)"""
+            total_used = 0
+            for filename, (size, _, _) in current_files.items():
+                # Files are padded to 256-byte boundaries
+                padded_size = ((size + 255) // 256) * 256
+                total_used += padded_size
+            return total_used
+        
+        def get_available_space():
+            """Get available space in bytes"""
+            # 1MB pak has about 1MB - overhead for FAT and note tables
+            # Roughly 1024*1024 - 16*256 = ~1044480 - 4096 = ~1040384 bytes
+            max_capacity = 1024 * 1024 - 16 * 256  # Conservative estimate
+            return max_capacity - get_pak_usage()
+        
+        def generate_filename():
+            """Generate a random valid filename"""
+            game_code = random.choice(game_codes)
+            # Limit base name to 8 characters to be safe with 16-char limit
+            base_name = ''.join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", k=random.randint(6, 10)))
+            ext = random.choice(extensions)
+            return f"{game_code}-{base_name}.{ext}"
+        
+        def generate_content(size):
+            """Generate random content of specified size"""
+            return bytes(random.randint(0, 255) for _ in range(size))
+        
+        def verify_pak_integrity():
+            """Verify pak filesystem integrity and CRC values"""
+            # Test filesystem
+            import shutil
+            shutil.copy2(str(pak), "/tmp/cpaktool_bruteforce_test.pak")
+            code, out, err = run_cpaktool(["test", "--level", "INFO", str(pak)])
+            if code != 0:
+                self.fail(f"Filesystem integrity check failed: {err}\nStdout: {out}")
+            
+            # List with CRC
+            code, out, err = run_cpaktool(["list", "--long", "--crc", str(pak)])
+            if code != 0:
+                self.fail(f"Failed to list files with CRC: {err}")
+            
+            # Parse output and verify CRCs
+            lines = [line.strip() for line in out.split('\n') if line.strip()]
+            actual_files = {}
+            
+            for line in lines:
+                if line.startswith('Game') or line.startswith('----') or line.startswith('Summary'):
+                    continue
+                
+                parts = line.split()
+                if len(parts) >= 6:
+                    # Format: GAME PUB FILENAME EXT SIZE CRC32
+                    game_code = parts[0]
+                    pub_code = parts[1]
+                    filename = parts[2]
+                    ext = parts[3]
+                    crc_str = parts[5]
+                    
+                    # Reconstruct filename in our tracking format
+                    full_filename = f"{game_code}.{pub_code}-{filename}.{ext}"
+                    
+                    if crc_str != "<error>":
+                        try:
+                            actual_crc = int(crc_str, 16)
+                            actual_files[full_filename] = actual_crc
+                        except ValueError:
+                            continue
+            
+            # Verify all expected files are present with correct CRCs
+            for filename, (size, expected_crc, content) in current_files.items():
+                # Convert our filename to the expected format
+                # Our format: GAME.PB-name.ext -> GAME.PB-NAME.EXT (uppercase)
+                expected_filename = filename.upper()
+                
+                if expected_filename not in actual_files:
+                    available_files = list(actual_files.keys())
+                    self.fail(f"File {expected_filename} not found in pak listing. Available files: {available_files}")
+                
+                actual_crc = actual_files[expected_filename]
+                if actual_crc != expected_crc:
+                    self.fail(f"CRC mismatch for {expected_filename}: expected {expected_crc:08X}, got {actual_crc:08X}")
+        
+        # Perform 10 cycles: fill to 100%, empty to 75%
+        cycles = 9
+        
+        for cycle in range(cycles):
+            print(f"Starting cycle {cycle + 1}/{cycles}")
+            
+            # Fill phase: add files until ~100% full
+            while get_available_space() > 512:  # Keep small margin for filesystem overhead
+                # Choose file size that fits in available space
+                available = get_available_space()
+                max_file_size = min(512 * 1024, available - 512)  # Leave 512 bytes margin
+                
+                if max_file_size < 1:
+                    break
+                
+                file_size = random.randint(1, max_file_size)
+                filename = generate_filename()
+                content = generate_content(file_size)
+                crc32 = zlib.crc32(content) & 0xffffffff
+                
+                # Write file to disk
+                test_file = self.tmp / filename
+                test_file.write_bytes(content)
+                
+                # Add to pak
+                code, out, err = run_cpaktool(["add", "--update", str(pak), str(test_file)])
+                if code != 0:
+                    # If add fails due to space, break the fill phase
+                    if "no space left" in err.lower() or "too many files" in err.lower():
+                        test_file.unlink()  # Clean up
+                        break
+                    # If file exists, try with --update flag
+                    elif "already exists" in err:
+                        code, out, err = run_cpaktool(["add", "--update", str(pak), str(test_file)])
+                        if code != 0:
+                            test_file.unlink()
+                            if "no space left" in err.lower() or "too many files" in err.lower():
+                                break
+                            self.fail(f"Failed to update {filename}: {err}")
+                    else:
+                        test_file.unlink()
+                        self.fail(f"Failed to add {filename}: {err}")
+                
+                # Update tracking
+                current_files[filename] = (file_size, crc32, content)
+                
+                # Clean up temp file
+                test_file.unlink()
+                
+                # Verify integrity after each add
+                verify_pak_integrity()
+            
+            print(f"Cycle {cycle + 1}: Filled to {get_pak_usage()} bytes")
+            
+            # Empty phase: remove files until ~75% full
+            target_usage = int(get_pak_usage() * 0.75)
+            
+            while get_pak_usage() > target_usage and current_files:
+                # Pick random file to delete
+                filename = random.choice(list(current_files.keys()))
+                
+                # Delete from pak
+                code, out, err = run_cpaktool(["delete", str(pak), filename])
+                if code != 0:
+                    self.fail(f"Failed to delete {filename}: {err}")
+                
+                # Remove from tracking
+                del current_files[filename]
+                
+                # Verify integrity after each delete
+                verify_pak_integrity()
+            
+            print(f"Cycle {cycle + 1}: Emptied to {get_pak_usage()} bytes")
+        
+        # Final verification
+        verify_pak_integrity()
+        
+        print(f"Brute force test completed successfully")
+        print(f"Final state: {len(current_files)} files, {get_pak_usage()} bytes used")
+        
+        # Uncomment to copy pak to /tmp for manual inspection
+        import shutil
+        shutil.copy2(str(pak), "/tmp/cpaktool_bruteforce_test.pak")
+        print(f"Pak copied to /tmp/cpaktool_bruteforce_test.pak for inspection")
+
 if __name__ == "__main__":
     unittest.main()

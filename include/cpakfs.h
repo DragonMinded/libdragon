@@ -14,10 +14,13 @@
  *
  * Call #cpakfs_mount to mount the controller pak associated to a certain
  * joypad port, and then use standard C functions to access the notes as
- * files in the mounted filesystem. The filesystem has a virtual structure
- * that is similar to a directory tree: the root contains only subdirectories,
- * named after the game code and publisher code.
- * Then within each subdirectory, you can find the notes as files.
+ * files in the mounted filesystem. The filesystem exposes a flat structure
+ * where all files are located at the root level using the format:
+ * "GAME.PU-filename.ext", where:
+ * - GAME is a 4-character game code (or 8-character hex for non-alphanumeric)
+ * - PU is a 2-character publisher code (or 4-character hex for non-alphanumeric)  
+ * - filename is the file name
+ * - ext is the optional file extension
  * 
  * For instance, to read the note for the game "Doubutsu no Mori" (Animal Crossing),
  * you can do the following:
@@ -33,7 +36,7 @@
  *     //   Publisher code: 01
  *     //   Filename: DOUBUTSUNOMORI
  *     //   File extension: A
- *     FILE *f = fopen("cpak1:/NAFJ.01/DOUBUTSUNOMORI.A", "rb");
+ *     FILE *f = fopen("cpak1:/NAFJ.01-DOUBUTSUNOMORI.A", "rb");
  * \endcode
  * 
  * To iterate over the notes in a controller pak, you can use the directory
@@ -58,12 +61,12 @@
  * 
  * The special codepage allows also for embedded NULs in filenames. Since these
  * cannot be directly represented in C strings, you can use the special character
- * `\x01` as replacement for NUL. For instance, to create a file with an embedded
+ * `\001` as replacement for NUL. For instance, to create a file with an embedded
  * NUL, you can do the following:
  * 
  * \code{.c}
  *    // Create a file whose filename is "FOO<NUL>BAR"
- *    FILE *f = fopen("cpak1:/GAME.01/FOO\x01BAR.TXT", "wb");
+ *    FILE *f = fopen("cpak1:/GAME.01-FOO\001BAR.TXT", "wb");
  * \endcode
  * 
  * ## Error codes
@@ -318,6 +321,106 @@ int cpakfs_fsck(joypad_port_t port, bool fix_errors,
  * @return int      0 on success, negative on error
  */
 int cpakfs_format(joypad_port_t port, bool erase);
+
+
+/** 
+ * @brief Cpakfs path components
+ * 
+ * A file path on the cpak filesystem is composed of four components:
+ * 
+ * -  Game code: this would normally match the game ID in the ROM header, so
+ *    it is a 4-character string made of uppercase letters and digits. In some
+ *    cases (eg: Datel Gameshark), it is made of non-printable characters.
+ * -  Publisher code: this is a 2-character string that identifies the publisher
+ *    of the game. It was a global registry assigned by Nintendo. Like the game
+ *    code, this is normally just uppercase letters and digits.
+ * -  Filename: this is a character string in a custom codepage. The codepage
+ *    is a subset of ASCII, notably excluding lowercase letters and common
+ *    characters like the underscore, but including some Katana characters.
+ *    Notice also that the string might contain embedded NULs. The actual
+ *    filename length is determined by the position of the last non-zero byte.
+ * -  Extension: an optional 4-character string to further identify the file.
+ *    Sometimes games use the same filename for all saves and just put an
+ *    index in the extension, like "SAVE.0", "SAVE.1", etc. The actual
+ *    extension length is determined by the position of the last non-zero byte.
+ * 
+ * Cpakfs in libdragon offers a simplified interface to manipulate paths
+ * using what it called a "full name". A full name is a UTF-8 string that
+ * contains all the components, composed as follows:
+ * 
+ *    GAME.PU-filename.ext
+ * 
+ * The full name is also the string that you can use when manipulating notes
+ * via the filesystem interface (eg: fopen, #dir_walk, etc).
+ * 
+ * You can use #cpakfs_path_parse and #cpakfs_path_format to convert from
+ * and to the UTF-8 full name and the #cpakfs_path_t structure. Normally,
+ * users of cpakfs will only need to use the full name, but some advanced
+ * uses might require accessing the individual components.
+ */
+typedef struct {
+    uint8_t gamecode[4];              ///< Game code (4 chars, normally ASCII)
+    uint8_t pubcode[2];               ///< Publisher code (2 chars, normally ASCII)
+    uint8_t filename[16];             ///< Filename in N64 codepage (zero-padded)
+    uint8_t ext[4];                   ///< Extension in N64 codepage (zero-padded)
+} cpakfs_path_t;
+
+/** @brief #cpakfs_path_parse result codes */
+typedef enum {
+    CPAKFS_PARSE_OK = 0,                     ///< Path parsed successfully
+    CPAKFS_PARSE_ERR_GAMECODE_LEN = -1,      ///< Invalid game code length in the path
+    CPAKFS_PARSE_ERR_GAMECODE_CHAR = -2,     ///< Invalid game code character
+    CPAKFS_PARSE_ERR_PUBCODE_LEN = -3,       ///< Invalid publisher code length in the path
+    CPAKFS_PARSE_ERR_PUBCODE_CHAR = -4,      ///< Invalid publisher code character in the path
+    CPAKFS_PARSE_ERR_FILENAME_LEN = -5,      ///< Invalid filename length in the path
+    CPAKFS_PARSE_ERR_FILENAME_CHAR = -6,     ///< Invalid filename character in the path
+    CPAKFS_PARSE_ERR_EXTENSION_LEN = -7,     ///< Invalid extension length in the path
+    CPAKFS_PARSE_ERR_EXTENSION_CHAR = -8,    ///< Invalid extension character in the path
+} cpakfs_parse_err_t;
+
+/**
+ * @brief Parse a cpakfs fullpath into its components
+ * 
+ * This function parses a full path in the format "GAMECODE.PU-filename.ext"
+ * and extracts the game code, publisher code, filename, and extension into
+ * the provided #cpakfs_path_t structure.
+ * 
+ * Parsing a path might fail if the input full path is not in the expected
+ * format (eg: too long components), or if the filename or extension contains
+ * unsupported characters. If @p error_pos is provided, it will be set to point
+ * to the first character that caused the error.
+ * 
+ * @param utf8_fullname         Input full path to parse (UTF-8 string)
+ * @param path                  Output path structure to populate
+ * @param error_pos             Optional output parameter to indicate the position
+ *                              of the first error in the input string, if parsing fails.
+ * @result 0 on success, or a negative value indicating the type of error. See
+ *         #cpakfs_parse_err_t for details.
+ */
+cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *path, const char **error_pos);
+
+/**
+ * @brief Format a cpakfs path structure into a full path string
+ * 
+ * This function will always succeed, as it will find a way to format any
+ * combination of game code, publisher code, filename, and extension, including
+ * invalid byte sequences according to the expected codepages and rules, falling
+ * back to hex encoding if necessary.
+ * 
+ * For instance, if the gamecode is not a valid ASCII string but a random sequence
+ * of bytes like eg: `"\x04\x05\x06\x07"`, the function will format it as 
+ * `"04050607.PU-filename.ext"`.
+ * 
+ * So it is guaranteed that any input path structure can be formatted into a valid
+ * UTF-8 string as full name, and that the resulting string will always be
+ * parsable back to the same path structure using #cpakfs_path_parse.
+ *
+ * @param path                  Input path structure to format
+ * @param utf8_fullname         Output buffer to receive the formatted full path (UTF-8 string)
+ * @param buflen                Size of the output buffer
+ */
+void cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int buflen);
+
 
 #ifdef __cplusplus
 }
