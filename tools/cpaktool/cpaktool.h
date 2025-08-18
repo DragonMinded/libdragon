@@ -56,6 +56,7 @@ typedef struct {
     bool create_pak;
     int pak_size;
     bool update_only;
+    bool allow_partial;         // Allow partially written files on error
     const char *gamecode;       // Game code in format "ABCD.EF" (default: "DRAG.ON")
     int debug_bufsize;          // Debug: buffer size for file operations (default: 4096)
     

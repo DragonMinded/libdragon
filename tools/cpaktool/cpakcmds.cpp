@@ -954,6 +954,7 @@ static int add_file(const char *input_file) {
     long file_size = ftell(src);
     fseek(src, 0, SEEK_SET);
     
+    bool file_created = false;
     try {
         // Open destination file in pak using our C++ wrapper
         // Use O_TRUNC to ensure existing files are properly truncated
@@ -962,6 +963,7 @@ static int add_file(const char *input_file) {
             flags |= O_TRUNC;  // Truncate existing files to avoid leftover data
         }
         CPakFile dst(cpak_path, flags);
+        file_created = true;
         
         verbose_log( "Copying %ld bytes from %s to %s", file_size, input_file, cpak_path);
         
@@ -1000,6 +1002,19 @@ static int add_file(const char *input_file) {
             warning("Cannot add file '%s': Too many files (maximum 16 notes per pak)", input_file);
         } else {
             warning("Cannot add file '%s': %s", input_file, e.what());
+        }
+
+        if (file_created) {
+            if (!g_command_opts.allow_partial) {
+                if (cpak_file_unlink(cpak_path) == 0) {
+                    verbose_log("Removed partially written file: %s", cpak_path);
+                } else {
+                    warning("Failed to clean up partial file '%s': %s", cpak_path, strerror(errno));
+                    return 1;
+                }
+            } else {
+                warning("Partial file '%s' kept because --partial is enabled", cpak_path);
+            }
         }
         return 0;
     }

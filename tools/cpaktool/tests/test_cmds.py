@@ -1066,5 +1066,78 @@ class TestCommands(unittest.TestCase):
                 expected_filename = filename.upper()
                 self.assertIn(expected_filename, out, f"File {filename} (as {expected_filename}) not found in pak listing")
 
+    def test_partial_option_prevents_cleanup(self):
+        """Test that --partial option prevents cleanup of partial files"""
+        pak = self.tmp / "test.pak"
+        
+        # Create a small pak file (32KB - minimum size)
+        code, stdout, stderr = run_cpaktool(["add", "-c", "-s", "32", str(pak), "/dev/null"], cwd=self.tmp)
+        self.assertEqual(code, 0, f"Failed to create pak: {stderr}")
+        
+        # Fill the pak with a large file first (25KB)
+        medium_file = self.tmp / "medium.txt"
+        medium_file.write_bytes(b"x" * 25600)  # 25KB file
+        code, stdout, stderr = run_cpaktool(["add", str(pak), str(medium_file)], cwd=self.tmp)
+        self.assertEqual(code, 0, f"Failed to add medium file: {stderr}")
+        
+        # Create a file that's too big for the remaining space
+        big_file = self.tmp / "big.txt"
+        big_file.write_bytes(b"x" * 15000)  # 15KB file, should exceed remaining space (~6KB)
+            
+        # Try to add without --partial (should fail and clean up)
+        code, stdout, stderr = run_cpaktool(["add", str(pak), str(big_file)], cwd=self.tmp)
+        self.assertEqual(code, 1, "Expected failure when adding large file")
+        self.assertIn("No space left in filesystem", stderr)
+        self.assertNotIn("Partial file", stderr)
+        
+        # List files to see if partial file was cleaned up
+        code, stdout, stderr = run_cpaktool(["list", str(pak)], cwd=self.tmp)
+        self.assertEqual(code, 0, f"Failed to list pak: {stderr}")
+        # Should not contain the big file
+        self.assertNotIn("big.txt", stdout)
+        
+        # Try to add with --partial (should fail but keep partial file)
+        code, stdout, stderr = run_cpaktool(["add", "--partial", str(pak), str(big_file)], cwd=self.tmp)
+        self.assertEqual(code, 1, "Expected failure when adding large file")
+        self.assertIn("No space left in filesystem", stderr)
+        self.assertIn("Partial file", stderr)
+        
+    def test_partial_option_too_many_files(self):
+        """Test --partial option with too many files error"""
+        pak = self.tmp / "test.pak"
+        
+        # Create pak and fill with 16 files (maximum)
+        code, stdout, stderr = run_cpaktool(["add", "-c", str(pak), "/dev/null"], cwd=self.tmp)
+        self.assertEqual(code, 0, f"Failed to create pak: {stderr}")
+        
+        # Add 15 more files to reach the 16 file limit
+        for i in range(15):
+            dummy_file = self.tmp / f"file{i}.txt"
+            dummy_file.write_text(f"content {i}")
+            code, stdout, stderr = run_cpaktool(["add", str(pak), str(dummy_file)], cwd=self.tmp)
+            self.assertEqual(code, 0, f"Failed to add file {i}: {stderr}")
+            
+        # Try to add 17th file without --partial
+        extra_file = self.tmp / "extra.txt"
+        extra_file.write_text("extra content")
+            
+        code, stdout, stderr = run_cpaktool(["add", str(pak), str(extra_file)], cwd=self.tmp)
+        self.assertEqual(code, 1, "Expected failure when adding 17th file")
+        self.assertIn("Too many files", stderr)
+        self.assertNotIn("Partial file", stderr)
+        
+        # Try to add 17th file with --partial
+        code, stdout, stderr = run_cpaktool(["add", "--partial", str(pak), str(extra_file)], cwd=self.tmp)
+        self.assertEqual(code, 1, "Expected failure when adding 17th file")
+        self.assertIn("Too many files", stderr)
+        self.assertNotIn("Partial file", stderr)
+        
+    def test_partial_option_help(self):
+        """Test that --partial option appears in help"""
+        code, stdout, stderr = run_cpaktool(["add", "--help"], cwd=self.tmp)
+        self.assertEqual(code, 0, f"Failed to get help: {stderr}")
+        self.assertIn("--partial", stdout)
+        self.assertIn("Keep partially written files on error", stdout)
+
 if __name__ == "__main__":
     unittest.main()

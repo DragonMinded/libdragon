@@ -380,6 +380,8 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     cmd_opts->create_pak = true;
                 } else if (!strcmp(arg, "-u") || !strcmp(arg, "--update")) {
                     cmd_opts->update_only = true;
+                } else if (!strcmp(arg, "--partial")) {
+                    cmd_opts->allow_partial = true;
                 } else if (!strcmp(arg, "-s") || !strcmp(arg, "--size")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
@@ -553,6 +555,7 @@ static void print_command_usage(const char *program_name, command_t cmd) {
             printf("  -s, --size <KB>         Size of the new pak file in kilobytes (default: 32)\n");
             printf("  -u, --update            Update existing files instead of erroring\n");
             printf("  -g, --gamecode <id>     Default game/publisher code (e.g., 'DRAG.ON')\n");
+            printf("      --partial           Keep partially written files on error\n");
             break;
         case CMD_DELETE:
             printf("Usage: %s delete [OPTIONS] <pak_file> <patterns...>\n", prog);
