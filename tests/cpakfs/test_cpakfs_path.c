@@ -127,6 +127,16 @@ static const path_test_case_t valid_path_tests[] = {
         .description = "Hex with lowercase letters",
         .utf8_fullname = "deadbeef.cafe-SAVE.A",
         .expected_path = { "\xDE\xAD\xBE\xEF", "\xCA\xFE", "\x2C\x1A\x2F\x1E", "\x1A" },
+    },
+    {
+        .description = "Multiple dots in filename",
+        .utf8_fullname = "GAME.01-FOO.BAR.BAZ",
+        .expected_path = { "GAME", "01", "\x1F\x28\x28\x3C\x1B\x1A\x2B", "\x1B\x1A\x33" },
+    },
+    {
+        .description = "Multiple dots with extension",
+        .utf8_fullname = "TEST.99-A.B.C.D",
+        .expected_path = { "TEST", "99", "\x1A\x3C\x1B\x3C\x1C", "\x1D" },
     }
 };
 

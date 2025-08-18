@@ -106,36 +106,6 @@ static int n64_to_utf8(uint8_t c, char *out)
     return 1;
 }
 
-/**
- * @brief Convert an N64 codepage string to UTF-8, handling embedded NULs correctly
- * 
- * This function converts a fixed-size N64 codepage string to UTF-8. It treats
- * only trailing 0x00 bytes as padding, while embedded 0x00 bytes are converted
- * to 0x01 in the UTF-8 output.
- * 
- * @param n64_str   Input N64 codepage string (fixed size array)
- * @param n64_len   Length of the input array
- * @param utf8_out  Output UTF-8 string buffer
- * @return int      Number of UTF-8 bytes written, or -1 on error
- */
-static int n64_string_to_utf8(const uint8_t *n64_str, int n64_len, char *utf8_out)
-{
-    // Find the actual string length by scanning backwards to find last non-zero
-    int actual_len = n64_len;
-    while (actual_len > 0 && n64_str[actual_len - 1] == 0x00) {
-        actual_len--;
-    }
-    
-    int utf8_pos = 0;
-    for (int i = 0; i < actual_len; i++) {
-        int written = n64_to_utf8(n64_str[i], utf8_out + utf8_pos);
-        utf8_pos += written;
-    }
-    
-    utf8_out[utf8_pos] = '\0';
-    return utf8_pos;
-}
-
 /*
  * Function that converts a UTF-8 string (input) into a string using the cpak codepage,
  * writing the output bytes into "out". The function returns the number of bytes written.
@@ -414,9 +384,9 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
     }
     p++;
 
-    // Parse filename (up to dot or end of string)
+    // Parse filename (up to last dot or end of string)
     const char *filename_start = p;
-    const char *filename_end = strchr(p, '.');
+    const char *filename_end = strrchr(p, '.');  // Use strrchr to find LAST dot
     if (!filename_end) {
         filename_end = p + strlen(p);
     }
@@ -477,17 +447,35 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
     return CPAKFS_PARSE_OK;
 }
 
-void cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int buflen)
+/**
+ * @brief Append a single character to output buffer with bounds checking
+ */
+static inline bool append_char(char **out, char *end, char c)
 {
-    if (!path || !utf8_fullname || buflen <= 0) {
+    if (*out >= end) return false;
+    **out = c;
+    (*out)++;
+    return true;
+}
+
+/**
+ * @brief Append a hex digit to output buffer
+ */
+static inline bool append_hex(char **out, char *end, uint8_t value)
+{
+    char hex_chars[] = "0123456789ABCDEF";
+    return append_char(out, end, hex_chars[value & 0xF]);
+}
+
+int cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int buflen)
+{
+    if (!path || !utf8_fullname || buflen <= 1) {
         if (utf8_fullname && buflen > 0) utf8_fullname[0] = '\0';
-        return;
+        return -1;
     }
 
-    char gamecode_str[9] = {0}; // 4 chars + null, or 8 hex chars + null
-    char pubcode_str[5] = {0};  // 2 chars + null, or 4 hex chars + null
-    char filename_str[64] = {0}; // Enough for UTF-8 expansion
-    char ext_str[32] = {0};     // Enough for UTF-8 expansion
+    char *out = utf8_fullname;
+    char *end = utf8_fullname + buflen - 1; // Reserve space for null terminator
 
     // Format gamecode - try ASCII first, fallback to hex
     bool gamecode_is_ascii = true;
@@ -499,12 +487,18 @@ void cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int bufl
     }
     
     if (gamecode_is_ascii) {
-        memcpy(gamecode_str, path->gamecode, 4);
-        gamecode_str[4] = '\0';
+        for (int i = 0; i < 4; i++) {
+            if (!append_char(&out, end, path->gamecode[i])) goto truncate;
+        }
     } else {
-        snprintf(gamecode_str, sizeof(gamecode_str), "%02X%02X%02X%02X",
-                 path->gamecode[0], path->gamecode[1], path->gamecode[2], path->gamecode[3]);
+        for (int i = 0; i < 4; i++) {
+            if (!append_hex(&out, end, path->gamecode[i] >> 4)) goto truncate;
+            if (!append_hex(&out, end, path->gamecode[i])) goto truncate;
+        }
     }
+
+    // Append dot separator
+    if (!append_char(&out, end, '.')) goto truncate;
 
     // Format pubcode - try ASCII first, fallback to hex
     bool pubcode_is_ascii = true;
@@ -516,31 +510,48 @@ void cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int bufl
     }
     
     if (pubcode_is_ascii) {
-        memcpy(pubcode_str, path->pubcode, 2);
-        pubcode_str[2] = '\0';
+        for (int i = 0; i < 2; i++) {
+            if (!append_char(&out, end, path->pubcode[i])) goto truncate;
+        }
     } else {
-        snprintf(pubcode_str, sizeof(pubcode_str), "%02X%02X",
-                 path->pubcode[0], path->pubcode[1]);
+        for (int i = 0; i < 2; i++) {
+            if (!append_hex(&out, end, path->pubcode[i] >> 4)) goto truncate;
+            if (!append_hex(&out, end, path->pubcode[i])) goto truncate;
+        }
     }
 
-    // Format filename
+    // Append dash separator
+    if (!append_char(&out, end, '-')) goto truncate;
+
+    // Format filename directly
     int filename_len = n64_string_length(path->filename, 16);
-    if (filename_len > 0) {
-        n64_string_to_utf8(path->filename, filename_len, filename_str);
+    for (int i = 0; i < filename_len; i++) {
+        char utf8_buf[4];
+        int utf8_len = n64_to_utf8(path->filename[i], utf8_buf);
+        for (int j = 0; j < utf8_len; j++) {
+            if (!append_char(&out, end, utf8_buf[j])) goto truncate;
+        }
     }
 
-    // Format extension
+    // Format extension if present
     int ext_len = n64_string_length(path->ext, 4);
     if (ext_len > 0) {
-        n64_string_to_utf8(path->ext, ext_len, ext_str);
+        if (!append_char(&out, end, '.')) goto truncate;
+        for (int i = 0; i < ext_len; i++) {
+            char utf8_buf[4];
+            int utf8_len = n64_to_utf8(path->ext[i], utf8_buf);
+            for (int j = 0; j < utf8_len; j++) {
+                if (!append_char(&out, end, utf8_buf[j])) goto truncate;
+            }
+        }
     }
 
-    // Compose the full path
-    if (ext_len > 0) {
-        snprintf(utf8_fullname, buflen, "%s.%s-%s.%s", 
-                 gamecode_str, pubcode_str, filename_str, ext_str);
-    } else {
-        snprintf(utf8_fullname, buflen, "%s.%s-%s", 
-                 gamecode_str, pubcode_str, filename_str);
-    }
+    // Success - no truncation occurred
+    *out = '\0';
+    return 0;
+
+truncate:
+    // Buffer was too small - ensure null termination and return error
+    *out = '\0';
+    return -1;
 }
