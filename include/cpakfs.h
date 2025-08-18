@@ -367,15 +367,18 @@ typedef struct {
 
 /** @brief #cpakfs_path_parse result codes */
 typedef enum {
-    CPAKFS_PARSE_OK = 0,                     ///< Path parsed successfully
-    CPAKFS_PARSE_ERR_GAMECODE_LEN = -1,      ///< Invalid game code length in the path
-    CPAKFS_PARSE_ERR_GAMECODE_CHAR = -2,     ///< Invalid game code character
-    CPAKFS_PARSE_ERR_PUBCODE_LEN = -3,       ///< Invalid publisher code length in the path
-    CPAKFS_PARSE_ERR_PUBCODE_CHAR = -4,      ///< Invalid publisher code character in the path
-    CPAKFS_PARSE_ERR_FILENAME_LEN = -5,      ///< Invalid filename length in the path
-    CPAKFS_PARSE_ERR_FILENAME_CHAR = -6,     ///< Invalid filename character in the path
-    CPAKFS_PARSE_ERR_EXTENSION_LEN = -7,     ///< Invalid extension length in the path
-    CPAKFS_PARSE_ERR_EXTENSION_CHAR = -8,    ///< Invalid extension character in the path
+    CPAKFS_PARSE_OK = 0,                       ///< Path parsed successfully
+    CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT = -1,  ///< Game code too short in the path
+    CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG = -2,   ///< Game code too long in the path
+    CPAKFS_PARSE_ERR_GAMECODE_CHAR = -3,       ///< Invalid game code character
+    CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT = -4,   ///< Publisher code too short in the path
+    CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG = -5,    ///< Publisher code too long in the path
+    CPAKFS_PARSE_ERR_PUBCODE_CHAR = -6,        ///< Invalid publisher code character in the path
+    CPAKFS_PARSE_ERR_FILENAME_TOO_SHORT = -7,  ///< Filename too short (empty) in the path
+    CPAKFS_PARSE_ERR_FILENAME_TOO_LONG = -8,   ///< Filename too long in the path
+    CPAKFS_PARSE_ERR_FILENAME_CHAR = -9,       ///< Invalid filename character in the path
+    CPAKFS_PARSE_ERR_EXTENSION_TOO_LONG = -10, ///< Extension too long in the path
+    CPAKFS_PARSE_ERR_EXTENSION_CHAR = -11,     ///< Invalid extension character in the path
 } cpakfs_parse_err_t;
 
 /**

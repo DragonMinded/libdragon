@@ -6,6 +6,7 @@
  */
 #include "cpakfs.h"
 #include "cpakfs_internal.h"
+#include <limits.h>
 
 /**
  * @brief Check if a character is valid for gamecode/pubcode
@@ -140,8 +141,10 @@ static int n64_string_to_utf8(const uint8_t *n64_str, int n64_len, char *utf8_ou
  * writing the output bytes into "out". The function returns the number of bytes written.
  * 
  * The function will fail if any unsupported character is encountered, returning -1.
+ * If the output buffer is too small, returns -2 and sets *error_input to the position
+ * in the input string where conversion stopped.
  */
-static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_size) {
+static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_size, const char **error_input) {
     const char *end_input = input + in_size;
     const uint8_t *start_out = out;
     const uint8_t *end_out = out + out_size;
@@ -180,7 +183,13 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
      * Conversion loop: for each character (or UTF-8 sequence)
      * we search for the corresponding byte in the n64 codepage.
      */
-    while (*input && input < end_input && out < end_out) {
+    while (*input && input < end_input) {
+        // Check if we have space in output buffer
+        if (out >= end_out) {
+            if (error_input) *error_input = input;
+            return -2; // Buffer overflow
+        }
+        
         unsigned char ch = (unsigned char)*input;
 
         /* Uppercase letters: 'A'-'Z' */
@@ -247,11 +256,14 @@ static int utf8_to_n64(const char *input, int in_size, uint8_t *out, int out_siz
                         }
                     }
                 }
+                if (error_input) *error_input = input - 3;
                 return -1;
             } else {
+                if (error_input) *error_input = input;
                 return -1;
             }
         }
+        if (error_input) *error_input = input;
         return -1;
     }
 
@@ -262,7 +274,7 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
 {
     if (!utf8_fullname || !path) {
         if (error_pos) *error_pos = utf8_fullname;
-        return CPAKFS_PARSE_ERR_GAMECODE_LEN;
+        return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
     }
 
     // Clear the output structure
@@ -272,8 +284,10 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
     
     // Parse game code (4 characters normal, or 8 characters hex)
     if (strlen(p) < 4) {
-        if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_GAMECODE_LEN;
+        // Too short - point to the end of string or the premature separator
+        const char *dot_pos = strchr(p, '.');
+        if (error_pos) *error_pos = dot_pos ? dot_pos : (p + strlen(p));
+        return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
     }
     
     if (strlen(p) >= 4 && p[4] == '.') {
@@ -288,28 +302,58 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
         }
         p += 4;
     } else if (strlen(p) >= 8 && p[8] == '.') {
-        // 8-character hex format
-        if (!parse_hex_string(p, 8, path->gamecode, 4)) {
-            if (error_pos) *error_pos = p;
-            return CPAKFS_PARSE_ERR_GAMECODE_LEN;  // Invalid hex = length error
+        // Check if all 8 characters are valid hex before attempting hex parsing
+        bool all_hex = true;
+        for (int i = 0; i < 8; i++) {
+            if (!is_hex_char(p[i])) {
+                all_hex = false;
+                break;
+            }
         }
-        p += 8;
+        
+        if (all_hex) {
+            // 8-character hex format
+            if (!parse_hex_string(p, 8, path->gamecode, 4)) {
+                if (error_pos) *error_pos = p;
+                return CPAKFS_PARSE_ERR_GAMECODE_CHAR;  // Invalid hex = character error
+            }
+            p += 8;
+        } else {
+            // 8 characters but not all hex - this is too long for normal format
+            // Point to the 5th character (first one that makes it too long for normal format)
+            if (error_pos) *error_pos = p + 4;
+            return CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG;
+        }
     } else {
-        if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_GAMECODE_LEN;
+        // Check length to determine if it's too short or too long
+        const char *dot_pos = strchr(p, '.');
+        int len = dot_pos ? (dot_pos - p) : strlen(p);
+        
+        if (len < 4) {
+            // Too short - point to the separator that terminates prematurely
+            if (error_pos) *error_pos = dot_pos ? dot_pos : (p + strlen(p));
+            return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
+        } else {
+            // len >= 5, which is too long for normal format (4 chars) and not valid hex format
+            // Point to the 5th character (first one that makes it too long)
+            if (error_pos) *error_pos = p + 4;
+            return CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG;
+        }
     }
 
     // Expect dot separator
     if (*p != '.') {
         if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_GAMECODE_LEN;
+        return CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT;
     }
     p++;
 
     // Parse publisher code (2 characters normal, or 4 characters hex)
     if (strlen(p) < 2) {
-        if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_PUBCODE_LEN;
+        // Too short - point to the end of string or the premature separator
+        const char *dash_pos = strchr(p, '-');
+        if (error_pos) *error_pos = dash_pos ? dash_pos : (p + strlen(p));
+        return CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT;
     }
     
     if (strlen(p) >= 2 && p[2] == '-') {
@@ -324,21 +368,49 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
         }
         p += 2;
     } else if (strlen(p) >= 4 && p[4] == '-') {
-        // 4-character hex format
-        if (!parse_hex_string(p, 4, path->pubcode, 2)) {
-            if (error_pos) *error_pos = p;
-            return CPAKFS_PARSE_ERR_PUBCODE_LEN;  // Invalid hex = length error
+        // Check if all 4 characters are valid hex before attempting hex parsing
+        bool all_hex = true;
+        for (int i = 0; i < 4; i++) {
+            if (!is_hex_char(p[i])) {
+                all_hex = false;
+                break;
+            }
         }
-        p += 4;
+        
+        if (all_hex) {
+            // 4-character hex format
+            if (!parse_hex_string(p, 4, path->pubcode, 2)) {
+                if (error_pos) *error_pos = p;
+                return CPAKFS_PARSE_ERR_PUBCODE_CHAR;  // Invalid hex = character error
+            }
+            p += 4;
+        } else {
+            // 4 characters but not all hex - this is too long for normal format
+            // Point to the 3rd character (first one that makes it too long for normal format)
+            if (error_pos) *error_pos = p + 2;
+            return CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG;
+        }
     } else {
-        if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_PUBCODE_LEN;
+        // Check length to determine if it's too short or too long
+        const char *dash_pos = strchr(p, '-');
+        int len = dash_pos ? (dash_pos - p) : strlen(p);
+        
+        if (len < 2) {
+            // Too short - point to the separator that terminates prematurely
+            if (error_pos) *error_pos = dash_pos ? dash_pos : (p + strlen(p));
+            return CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT;
+        } else {
+            // len >= 3, which is too long for normal format (2 chars) and not valid hex format
+            // Point to the 3rd character (first one that makes it too long)
+            if (error_pos) *error_pos = p + 2;
+            return CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG;
+        }
     }
 
     // Expect dash separator
     if (*p != '-') {
         if (error_pos) *error_pos = p;
-        return CPAKFS_PARSE_ERR_PUBCODE_LEN;
+        return CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT;
     }
     p++;
 
@@ -352,18 +424,22 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
     int filename_utf8_len = filename_end - filename_start;
     if (filename_utf8_len == 0) {
         if (error_pos) *error_pos = filename_start;
-        return CPAKFS_PARSE_ERR_FILENAME_LEN;
+        return CPAKFS_PARSE_ERR_FILENAME_TOO_SHORT;
     }
     
     // Convert filename from UTF-8 to N64 codepage
-    int n64_filename_len = utf8_to_n64(filename_start, filename_utf8_len, path->filename, 16);
+    const char *filename_error_pos;
+    int n64_filename_len = utf8_to_n64(filename_start, filename_utf8_len, path->filename, 16, &filename_error_pos);
     if (n64_filename_len < 0) {
-        if (error_pos) *error_pos = filename_start;
-        return CPAKFS_PARSE_ERR_FILENAME_CHAR;
-    }
-    if (n64_filename_len > 16) {
-        if (error_pos) *error_pos = filename_start;
-        return CPAKFS_PARSE_ERR_FILENAME_LEN;
+        if (n64_filename_len == -2) {
+            // Buffer overflow - filename too long
+            if (error_pos) *error_pos = filename_error_pos;
+            return CPAKFS_PARSE_ERR_FILENAME_TOO_LONG;
+        } else {
+            // Invalid character
+            if (error_pos) *error_pos = filename_error_pos;
+            return CPAKFS_PARSE_ERR_FILENAME_CHAR;
+        }
     }
     
     // Zero-fill remaining bytes in filename array
@@ -378,14 +454,18 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
         
         if (ext_utf8_len > 0) {
             // Convert extension from UTF-8 to N64 codepage
-            int n64_ext_len = utf8_to_n64(ext_start, ext_utf8_len, path->ext, 4);
+            const char *ext_error_pos;
+            int n64_ext_len = utf8_to_n64(ext_start, ext_utf8_len, path->ext, 4, &ext_error_pos);
             if (n64_ext_len < 0) {
-                if (error_pos) *error_pos = ext_start;
-                return CPAKFS_PARSE_ERR_EXTENSION_CHAR;
-            }
-            if (n64_ext_len > 4) {
-                if (error_pos) *error_pos = ext_start;
-                return CPAKFS_PARSE_ERR_EXTENSION_LEN;
+                if (n64_ext_len == -2) {
+                    // Buffer overflow - extension too long
+                    if (error_pos) *error_pos = ext_error_pos;
+                    return CPAKFS_PARSE_ERR_EXTENSION_TOO_LONG;
+                } else {
+                    // Invalid character
+                    if (error_pos) *error_pos = ext_error_pos;
+                    return CPAKFS_PARSE_ERR_EXTENSION_CHAR;
+                }
             }
             
             // Zero-fill remaining bytes in extension array

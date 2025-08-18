@@ -134,50 +134,102 @@ static const path_test_case_t valid_path_tests[] = {
 typedef struct {
     const char *description;
     const char *utf8_fullname;
+    const char *error_pos; // visual pointer to the error position in the string
     cpakfs_parse_err_t expected_error;
 } path_error_test_case_t;
 
 static const path_error_test_case_t error_path_tests[] = {
     {
-        .description = "Too short gamecode",
+        .description = "Too short gamecode (3 chars)",
         .utf8_fullname = "GAM.01-SAVE.A",
-        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_LEN,
+        .error_pos =     "   ^         ",
+        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT,
     },
     {
-        .description = "Too short pubcode",
+        .description = "Too short pubcode (1 char)",
         .utf8_fullname = "GAME.0-SAVE.A", 
-        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_LEN,
+        .error_pos =     "      ^       ",
+        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT,
     },
     {
         .description = "Invalid character in gamecode",
         .utf8_fullname = "GA@E.01-SAVE.A",
+        .error_pos =     "  ^           ",
         .expected_error = CPAKFS_PARSE_ERR_GAMECODE_CHAR,
     },
     {
         .description = "Empty filename",
         .utf8_fullname = "GAME.01-.A",
-        .expected_error = CPAKFS_PARSE_ERR_FILENAME_LEN,
+        .error_pos =     "        ^     ",
+        .expected_error = CPAKFS_PARSE_ERR_FILENAME_TOO_SHORT,
     },
     {
-        .description = "Invalid hex gamecode (non-hex chars)",
+        .description = "Invalid hex gamecode (8 chars with non-hex)",
         .utf8_fullname = "GAMECODE.01-SAVE.A",
-        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_LEN,
+        .error_pos =     "    ^             ",
+        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG,
     },
     {
         .description = "Invalid hex pubcode (non-hex chars)",
         .utf8_fullname = "GAME.PUBZ-SAVE.A",
-        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_LEN,
+        .error_pos =     "       ^         ",
+        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG,
     },
     {
         .description = "Wrong gamecode length (6 chars)",
         .utf8_fullname = "ABCDEF.01-SAVE.A",
-        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_LEN,
+        .error_pos =     "    ^           ",
+        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG,
     },
     {
         .description = "Wrong pubcode length (3 chars)",
         .utf8_fullname = "GAME.ABC-SAVE.A",
-        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_LEN,
-    }
+        .error_pos =     "       ^        ",
+        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG,
+    },
+    // Additional test cases for new error codes
+    {
+        .description = "Gamecode too short (2 chars)",
+        .utf8_fullname = "GA.01-SAVE.A",
+        .error_pos =     "  ^         ",
+        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT,
+    },
+    {
+        .description = "Gamecode too short (1 char)",
+        .utf8_fullname = "G.01-SAVE.A",
+        .error_pos =     " ^         ",
+        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT,
+    },
+    {
+        .description = "Gamecode too long (9 chars, not valid hex)",
+        .utf8_fullname = "TOOLONGAB.01-SAVE.A",
+        .error_pos =     "    ^              ",
+        .expected_error = CPAKFS_PARSE_ERR_GAMECODE_TOO_LONG,
+    },
+    {
+        .description = "Pubcode too short (empty)",
+        .utf8_fullname = "GAME.-SAVE.A",
+        .error_pos =     "     ^       ",
+        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_TOO_SHORT,
+    },
+    {
+        .description = "Pubcode too long (5 chars, not valid hex)",
+        .utf8_fullname = "GAME.TOOLN-SAVE.A",
+        .error_pos =     "       ^          ",
+        .expected_error = CPAKFS_PARSE_ERR_PUBCODE_TOO_LONG,
+    },
+    {
+        .description = "Filename too long (more than 16 N64 chars)",
+        .utf8_fullname = "GAME.01-VERYLONGFILENAMETHATEXCEEDSLIMIT.A",
+        .error_pos =     "                        ^                  ",
+        .expected_error = CPAKFS_PARSE_ERR_FILENAME_TOO_LONG,
+    },
+    {
+        .description = "Extension too long (more than 4 N64 chars)",
+        .utf8_fullname = "GAME.01-SAVE.TOOLONG",
+        .error_pos =     "                 ^   ",
+        .expected_error = CPAKFS_PARSE_ERR_EXTENSION_TOO_LONG,
+    },
 };
 
 // Test cases
@@ -263,6 +315,28 @@ TEST(invalid_paths) {
             tests_failed++;
             return;
         }
+        
+        // Check error position if specified
+        if (test->error_pos != NULL) {
+            // Find the position of '^' in the error_pos string
+            const char *caret_pos = strchr(test->error_pos, '^');
+            if (caret_pos != NULL) {
+                int expected_offset = caret_pos - test->error_pos;
+                int actual_offset = error_pos - test->utf8_fullname;
+                
+                if (actual_offset != expected_offset) {
+                    printf("FAILED\n  Error position mismatch for '%s'\n", test->utf8_fullname);
+                    printf("    Expected offset: %d, got: %d\n", expected_offset, actual_offset);
+                    printf("    String:   %s\n", test->utf8_fullname);
+                    printf("    Expected: %s\n", test->error_pos);
+                    printf("    Actual:   ");
+                    for (int j = 0; j < actual_offset; j++) printf(" ");
+                    printf("^\n");
+                    tests_failed++;
+                    return;
+                }
+            }
+        }
     }
 }
 
@@ -272,11 +346,11 @@ TEST(null_inputs) {
     
     // Test null input
     cpakfs_parse_err_t result = cpakfs_path_parse(NULL, &path, &error_pos);
-    ASSERT_EQ(CPAKFS_PARSE_ERR_GAMECODE_LEN, result);
+    ASSERT_EQ(CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT, result);
     
     // Test null path
     result = cpakfs_path_parse("GAME.01-SAVE.A", NULL, &error_pos);
-    ASSERT_EQ(CPAKFS_PARSE_ERR_GAMECODE_LEN, result);
+    ASSERT_EQ(CPAKFS_PARSE_ERR_GAMECODE_TOO_SHORT, result);
     
     // Test null formatting inputs
     char output[64];
