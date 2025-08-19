@@ -15,6 +15,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "cpaktool.h"
 #include "../../include/joypad.h"
 #include "../../include/system.h"
 #include "../../include/dir.h"
@@ -33,6 +34,8 @@ static void __rand(void *buf, size_t n)
     }    
 }
 
+// Enable cpak tracing if verbose level is high enough
+#define CPAKFS_TRACE  (g_global_opts.verbose >= 2)
 
 #define assertf(cond, fmt, ...) \
     do { if (!(cond)) { fprintf(stderr, "Assertion failed: " fmt "\n", ##__VA_ARGS__); exit(EXIT_FAILURE); } } while (0)

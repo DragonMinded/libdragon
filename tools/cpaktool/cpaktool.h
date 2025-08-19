@@ -30,7 +30,7 @@ typedef enum {
 
 // Global options
 typedef struct {
-    bool verbose;
+    int verbose;
     bool force;
     bool dry_run;
     const char *output_dir;
@@ -108,7 +108,9 @@ bool file_exists(const char *path);
 bool is_directory(const char *path);
 
 // Exports from cpaklib.c
+#ifdef __cplusplus
 extern "C" {
+#endif
     extern int g_num_banks;
     extern FILE *g_pak;
     extern int g_pak_offset;
@@ -124,6 +126,8 @@ extern "C" {
     int cpak_dir_findnext(const char *path, dir_t *dir);
     int cpak_file_unlink(const char *name);
     int cpak_file_ioctl(void *file, int request, void *arg);
+#ifdef __cplusplus
 }
+#endif
 
 #endif // CPAKTOOL_H

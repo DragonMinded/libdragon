@@ -20,7 +20,7 @@
 #include "cpaktool.h"
 
 // Global variables for options
-global_options_t g_global_opts = {0};
+global_options_t g_global_opts;
 command_options_t g_command_opts = {0};
 
 // Forward declarations
@@ -40,7 +40,7 @@ static int execute_command(command_t cmd, int argc, char *argv[], int start_idx)
 
 int main(int argc, char *argv[]) {
     // Initialize global options
-    g_global_opts.verbose = false;
+    g_global_opts.verbose = 0;
     g_global_opts.force = false;
     g_global_opts.dry_run = false;
     g_global_opts.output_dir = NULL;
@@ -201,7 +201,7 @@ static bool handle_global_option_with_value(const char *arg, const char *provide
         exit(0);
     }
     if (!strcmp(option_name, "--verbose") || !strcmp(option_name, "-v")) {
-        opts->verbose = true;
+        opts->verbose += 1; // Increment verbosity level
         free(arg_copy);
         return true;
     }

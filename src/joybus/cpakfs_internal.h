@@ -24,15 +24,12 @@
 /// @endcond
 
 /** @brief Set to 1 to activate debug logs */
-#define CPAKFS_TRACE   1
-
-#if CPAKFS_TRACE
-/** @brief like tracef(), but writes only if #CPAKFS_TRACE is not 0 */
-#define tracef(fmt, ...)  fprintf(stderr, fmt, ##__VA_ARGS__)
-#else
-/** @brief like tracef(), but writes only if #CPAKFS_TRACE is not 0 */
-#define tracef(fmt, ...)  ({ })
+#ifndef CPAKFS_TRACE
+#define CPAKFS_TRACE   0
 #endif
+
+/** @brief like tracef(), but writes only if #CPAKFS_TRACE is not 0 */
+#define tracef(fmt, ...)  ({ if (CPAKFS_TRACE) fprintf(stderr, fmt, ##__VA_ARGS__); })
 
 #define MAX_NOTES       16      ///< Maximum number of notes in a controller pak
 #define MAX_BANKS       62      ///< Maximum number of banks in a controller pak
