@@ -564,7 +564,7 @@ static int __cpakfs_lseek(void *file, int offset, int whence)
     if (page_changed) {
         int page_idx = pos / PAGE_SIZE;
         f->cur_page_ptr = &f->note->first_page;
-        for (int i=1; i<page_idx; i++) {
+        for (int i=0; i<page_idx; i++) {
             if (!FAT_IS_VALID(*f->cur_page_ptr, fs->reserved)) {
                 errno = EFTYPE;
                 return -1;
