@@ -113,8 +113,6 @@ static void print_usage(const char *program_name) {
     printf("  info    (i)     Show Controller Pak information\n");
     printf("  test    (t)     Test Controller Pak integrity\n");
     printf("  format  (fmt)   Format new Controller Pak\n");
-    printf("  convert (conv)  Convert between pak formats\n");
-    printf("  compare (diff)  Compare two Controller Paks\n");
     printf("\n");
     printf("Use '%s <command> --help' for command-specific help.\n", program_name);
     printf("\n");
@@ -161,10 +159,6 @@ static command_t parse_command(const char *cmd_str) {
         {"fsck", CMD_TEST},
         {"format", CMD_FORMAT},
         {"fmt", CMD_FORMAT},
-        {"convert", CMD_CONVERT},
-        {"conv", CMD_CONVERT},
-        {"compare", CMD_COMPARE},
-        {"diff", CMD_COMPARE}
     };
     
     for (size_t i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
@@ -474,34 +468,6 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                 }
                 break;
                 
-            case CMD_CONVERT:
-                if (!strcmp(arg, "-F") || !strcmp(arg, "--from")) {
-                    if (!value) {
-                        fatal_error("Option %s requires a value", arg);
-                    }
-                    cmd_opts->from_format = value;
-                    if (!has_equals) i++; // Skip next argument as it's the value
-                } else if (!strcmp(arg, "-t") || !strcmp(arg, "--to")) {
-                    if (!value) {
-                        fatal_error("Option %s requires a value", arg);
-                    }
-                    cmd_opts->to_format = value;
-                    if (!has_equals) i++; // Skip next argument as it's the value
-                } else {
-                    fatal_error("Unknown option for convert command: %s", arg);
-                }
-                break;
-                
-            case CMD_COMPARE:
-                if (!strcmp(arg, "-b") || !strcmp(arg, "--brief")) {
-                    cmd_opts->brief = true;
-                } else if (!strcmp(arg, "-s") || !strcmp(arg, "--summary")) {
-                    cmd_opts->summary = true;
-                } else {
-                    fatal_error("Unknown option for compare command: %s", arg);
-                }
-                break;
-                
             default:
                 fatal_error("Unknown command");
                 break;
@@ -588,24 +554,6 @@ static void print_command_usage(const char *program_name, command_t cmd) {
             printf("  -b, --banks <num>       Number of banks for the new pak file (1 bank = 32 KB)\n");
             printf("  -f, --force             Overwrite the file if it already exists\n");
             break;
-        case CMD_CONVERT:
-            printf("Usage: %s convert [OPTIONS] <input_file> <output_file>\n", prog);
-            printf("\n");
-            printf("Convert a Controller Pak file from one format to another.\n");
-            printf("\n");
-            printf("Options:\n");
-            printf("  -F, --from <format>     Source format (e.g., 'dexdrive', 'mpk')\n");
-            printf("  -t, --to <format>       Destination format (e.g., 'raw')\n");
-            break;
-        case CMD_COMPARE:
-            printf("Usage: %s compare [OPTIONS] <pak_file1> <pak_file2>\n", prog);
-            printf("\n");
-            printf("Compare the contents of two Controller Pak files.\n");
-            printf("\n");
-            printf("Options:\n");
-            printf("  -b, --brief             Show only if files are different\n");
-            printf("  -s, --summary           Show a summary of differences\n");
-            break;
         default:
             printf("No help available for this command.\n");
             break;
@@ -680,20 +628,6 @@ static int execute_command(command_t cmd, int argc, char *argv[], int start_idx)
                 fatal_error("format command requires exactly one argument (pak file)");
             }
             result = cmd_format(args[0]);
-            break;
-            
-        case CMD_CONVERT:
-            if (arg_count != 2) {
-                fatal_error("convert command requires exactly two arguments (input and output files)");
-            }
-            result = cmd_convert(args[0], args[1]);
-            break;
-            
-        case CMD_COMPARE:
-            if (arg_count != 2) {
-                fatal_error("compare command requires exactly two arguments (two pak files)");
-            }
-            result = cmd_compare(args[0], args[1]);
             break;
             
         default:

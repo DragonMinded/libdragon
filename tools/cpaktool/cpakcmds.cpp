@@ -54,6 +54,18 @@ typedef struct {
     bool crc32_error;       // True if CRC32 calculation failed
 } file_entry_t;
 
+struct FsckIssue {
+    int code;
+    int level;
+    std::string message;
+};
+
+// Helper for fsck issue reporting
+struct FsckContext {
+    std::vector<FsckIssue> *issues;
+    int min_level = 0; // Minimum level to report (0=INFO, 1=WARNING, 2=ERROR)
+};
+
 // Controller Pak information structure
 struct InfoPakStats {
     std::string pak_file;
@@ -64,40 +76,25 @@ struct InfoPakStats {
     int notes_total;
     double pages_percent;
     double notes_percent;
-    struct Issue {
-        int code;
-        int level;
-        std::string message;
-    };
-    std::vector<Issue> fsck_issues;
-};
-
-// Helper for fsck issue reporting
-struct FsckContext {
-    std::vector<InfoPakStats::Issue> *issues;
+    std::vector<FsckIssue> fsck_issues;
 };
 
 // Common helper for fsck issue reporting
-static void fsck_report_common(void *ctx, int code, int level, const char *msg) {
+static void fsck_report_static(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
     FsckContext *c = (FsckContext*)ctx;
-    InfoPakStats::Issue i;
-    i.code = code;
+    if (level < c->min_level) {
+        return; // Skip issues below minimum level
+    }
+
+    char msg[256];
+    va_list ap; va_start(ap, fmt); vsnprintf(msg, sizeof(msg), fmt, ap); va_end(ap);
+    FsckIssue i;
+    i.code = issue;
     i.level = level;
     i.message = msg;
     c->issues->push_back(i);
 }
 
-static void fsck_report_static(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
-    char msg[256];
-    va_list ap; va_start(ap, fmt); vsnprintf(msg, sizeof(msg), fmt, ap); va_end(ap);
-    fsck_report_common(ctx, (int)issue, (int)level, msg);
-}
-
-static void fsck_report_json_static(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
-    char msg[256];
-    va_list ap; va_start(ap, fmt); vsnprintf(msg, sizeof(msg), fmt, ap); va_end(ap);
-    fsck_report_common(ctx, (int)issue, (int)level, msg);
-}
 // Helper function to calculate visual width of a UTF-8 string
 // Takes into account that Japanese characters (fullwidth) take 2 columns
 static size_t visual_width(const std::string& str) {
@@ -1046,19 +1043,6 @@ int cmd_info(const char *pak_file) {
     }
 }
 
-int g_fsck_nissues;
-
-static void fsck_report(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
-    (void)ctx; // Unused parameter
-    if ((int)level < g_command_opts.report_level) return;
-
-    const char *lvl = (level == CPAKFS_LEVEL_INFO) ? "INFO" : (level == CPAKFS_LEVEL_WARNING ? "WARN" : "ERROR");
-    printf("[fsck %s] ", lvl);
-    va_list ap; va_start(ap, fmt); vprintf(fmt, ap); va_end(ap);
-    printf("\n");
-    g_fsck_nissues++;
-}
-
 int cmd_test(const char *pak_file) {
     verbose_log( "Testing %s", pak_file);
     
@@ -1072,12 +1056,11 @@ int cmd_test(const char *pak_file) {
         verbose_log( "Running fsck on %s (%d banks)", pak_file, pak.getNumBanks());
 
         // Raccolta delle issue da fsck
-        std::vector<InfoPakStats::Issue> issues;
+        std::vector<FsckIssue> issues;
         FsckContext fsck_ctx;
         fsck_ctx.issues = &issues;
-        int err = cpakfs_fsck(JOYPAD_PORT_1, g_command_opts.fix_errors,
-            g_command_opts.json_output ? fsck_report_json_static : fsck_report,
-            g_command_opts.json_output ? &fsck_ctx : nullptr);
+        fsck_ctx.min_level = g_command_opts.report_level;
+        int err = cpakfs_fsck(JOYPAD_PORT_1, g_command_opts.fix_errors, fsck_report_static, &fsck_ctx);
         if (err < 0) {
             fatal_error("Failed to test Controller Pak image: %s", strerror(errno));
         }
@@ -1096,15 +1079,17 @@ int cmd_test(const char *pak_file) {
             printf("  ]\n");
             printf("}\n");
         } else {
+            for (size_t i = 0; i < issues.size(); ++i) {
+                const auto &iss = issues[i];
+                const char *level[3] = { "INFO", "WARNING", "ERROR" };
+                printf("[#%d] %s: %s\n", iss.code, level[iss.level], iss.message.c_str());
+            }
             if (issues.empty()) {
                 printf("No issues found\n");
             } else if (g_command_opts.fix_errors) {
                 printf("Fixed %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
             } else {
                 printf("Found %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
-                for (const auto &iss : issues) {
-                    printf("  [%d] Level %d: %s\n", iss.code, iss.level, iss.message.c_str());
-                }
                 if (!issues.empty()) return -1;
             }
         }
@@ -1143,42 +1128,6 @@ int cmd_format(const char *pak_file) {
     }
 }
 
-int cmd_convert(const char *input_file, const char *output_file) {
-    verbose_log( "Converting %s to %s", input_file, output_file);
-    
-    if (!file_exists(input_file)) {
-        fatal_error("Input file not found: %s", input_file);
-    }
-    
-    // TODO: Implement actual convert functionality
-    printf("CONVERT command not implemented yet\n");
-    printf("Input: %s\n", input_file);
-    printf("Output: %s\n", output_file);
-    printf("From format: %s\n", g_command_opts.from_format ? g_command_opts.from_format : "auto-detect");
-    printf("To format: %s\n", g_command_opts.to_format ? g_command_opts.to_format : "auto-detect");
-    
-    return 0;
-}
-
-int cmd_compare(const char *pak_file1, const char *pak_file2) {
-    verbose_log( "Comparing %s and %s", pak_file1, pak_file2);
-    
-    if (!file_exists(pak_file1)) {
-        fatal_error("File not found: %s", pak_file1);
-    }
-    if (!file_exists(pak_file2)) {
-        fatal_error("File not found: %s", pak_file2);
-    }
-    
-    // TODO: Implement actual compare functionality
-    printf("COMPARE command not implemented yet\n");
-    printf("File 1: %s\n", pak_file1);
-    printf("File 2: %s\n", pak_file2);
-    printf("Brief: %s\n", g_command_opts.brief ? "yes" : "no");
-    printf("Summary: %s\n", g_command_opts.summary ? "yes" : "no");
-    
-    return 0;
-}
 
 //
 // HELPER FUNCTIONS FOR ADD/EXTRACT

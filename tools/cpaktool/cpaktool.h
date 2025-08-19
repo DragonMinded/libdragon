@@ -26,8 +26,6 @@ typedef enum {
     CMD_INFO,
     CMD_TEST,
     CMD_FORMAT,
-    CMD_CONVERT,
-    CMD_COMPARE
 } command_t;
 
 // Global options
