@@ -139,3 +139,6 @@ int cpak_file_unlink(const char *name) {
     
     return gfs->unlink(name_copy);
 }
+int cpak_file_ioctl(void *file, int request, void *arg) {
+    return gfs->ioctl(file, request, arg);
+}

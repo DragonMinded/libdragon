@@ -360,3 +360,24 @@ bool CPakFile::exists() const {
     }
     return false;
 }
+int CPakFile::seek(int offset, int whence) {
+    if (!m_handle) {
+        throw std::runtime_error("Attempt to seek on closed cpak file");
+    }
+    int result = cpak_file_lseek(m_handle, offset, whence);
+    if (result < 0) {
+        throw std::runtime_error("Failed to seek in cpak file '" + m_path + "': " + std::strerror(errno));
+    }
+    return result;
+}
+
+int CPakFile::ioctl(int request, void *arg) {
+    if (!m_handle) {
+        throw std::runtime_error("Attempt to ioctl on closed cpak file");
+    }
+    int result = cpak_file_ioctl(m_handle, request, arg);
+    if (result < 0) {
+        throw std::runtime_error("Failed ioctl in cpak file '" + m_path + "': " + std::strerror(errno));
+    }
+    return result;
+}

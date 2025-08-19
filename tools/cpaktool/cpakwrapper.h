@@ -107,6 +107,8 @@ public:
     size_t write(const void* buffer, size_t size);
     
     // Utility methods
+    int seek(int offset, int whence);
+    int ioctl(int request, void *arg);
     bool exists() const;
     
 private:

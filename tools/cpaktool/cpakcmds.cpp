@@ -21,6 +21,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <set>
 
 #include "cpaktool.h"
 #include "cpakwrapper.h"
@@ -791,11 +792,78 @@ int cmd_info(const char *pak_file) {
         fsck_ctx.issues = &info.fsck_issues;
         cpakfs_fsck(JOYPAD_PORT_1, false, fsck_report_static, &fsck_ctx);
 
+        // Scan FAT chain and extract spans for each note, and track per-bank usage
+        struct PageSpan { uint16_t start; uint16_t end; };
+        struct file_entry_ext_t : public file_entry_t {
+            std::vector<PageSpan> spans;
+        };
+        std::vector<file_entry_ext_t> files_ext;
+        // Per-bank stats
+        struct BankStats {
+            int used_pages = 0;
+            int used_notes = 0;
+        };
+        std::vector<BankStats> banks(info.num_banks);
+        // For each note, keep a set of banks touched
+        pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
+            file_entry_ext_t entry;
+            entry.size = dir.d_size;
+            parse_cpak_path(std::string(filename), entry);
+            entry.full_name = filename;
+            // Calculate CRC32 for the note
+            bool crc_error = false;
+            entry.crc32_value = calculate_file_crc32(std::string(filename), crc_error);
+            entry.crc32_error = crc_error;
+            // Open file and scan FAT chain using CPakFile and il nuovo metodo ioctl
+            std::vector<uint16_t> chain;
+            std::set<int> banks_touched;
+            try {
+                CPakFile file(filename, O_RDONLY);
+                int pos = 0;
+                std::set<uint16_t> seen_pages;
+                while (pos < dir.d_size) {
+                    uint16_t bankpage = 0;
+                    if (file.ioctl(IOCPAKFS_GET_PAGE, &bankpage) < 0) break;
+                    if (seen_pages.count(bankpage)) {
+                        throw std::runtime_error("Duplicate page detected in FAT chain");
+                    }
+                    seen_pages.insert(bankpage);
+                    chain.push_back(bankpage);
+                    // Track per-bank usage
+                    int bank = bankpage >> 8;
+                    int page = bankpage & 0xFF;
+                    if (bank >= 0 && bank < info.num_banks && page > 0 && page < 128) {
+                        banks[bank].used_pages++;
+                        banks_touched.insert(bank);
+                    }
+                    pos += 256;
+                    if (file.seek(pos, SEEK_SET) < 0) break;
+                }
+            } catch (const std::exception& e) {
+                chain.clear();
+            } catch (...) {
+                chain.clear();
+            }
+            // Build spans: group only consecutive pages
+            if (!chain.empty()) {
+                uint16_t span_start = chain[0], span_end = chain[0];
+                for (size_t i = 1; i < chain.size(); ++i) {
+                    if (chain[i] == span_end + 1) {
+                        span_end = chain[i];
+                    } else {
+                        entry.spans.push_back({span_start, span_end});
+                        span_start = span_end = chain[i];
+                    }
+                }
+                entry.spans.push_back({span_start, span_end});
+            }
+            // For each bank touched by this note, increment used_notes
+            for (int b : banks_touched) banks[b].used_notes++;
+            files_ext.push_back(entry);
+            return true;
+        });
         // Output
         if (g_command_opts.json_output) {
-            // Output JSON, including all file info as in cmd_list --json --crc
-            std::vector<file_entry_t> files;
-            collect_pak_files(pak, files, true, nullptr, 0);
             printf("{\n");
             printf("  \"pak_file\": \"%s\",\n", json_escape(info.pak_file).c_str());
             printf("  \"pak_crc32\": ");
@@ -808,28 +876,39 @@ int cmd_info(const char *pak_file) {
             printf("  \"banks\": %d,\n", info.num_banks);
             printf("  \"pages\": { \"used\": %d, \"total\": %d, \"percent\": %.2f },\n", info.pages_used, info.pages_total, info.pages_percent);
             printf("  \"notes\": { \"used\": %d, \"total\": %d, \"percent\": %.2f },\n", info.notes_used, info.notes_total, info.notes_percent);
+            printf("  \"bank_stats\": [\n");
+            for (int b = 0; b < info.num_banks; ++b) {
+                int total_pages = 128 - 1; // page 0 reserved
+                double percent = (total_pages > 0) ? (100.0 * banks[b].used_pages / total_pages) : 0.0;
+                printf("    { \"bank\": %d, \"used_pages\": %d, \"percent\": %.2f, \"used_notes\": %d }", b, banks[b].used_pages, percent, banks[b].used_notes);
+                if (b < info.num_banks - 1) printf(",");
+                printf("\n");
+            }
+            printf("  ],\n");
             printf("  \"notes\": [\n");
-            for (size_t i = 0; i < files.size(); ++i) {
-                const auto& file = files[i];
+            for (size_t i = 0; i < files_ext.size(); ++i) {
+                const auto& file = files_ext[i];
                 printf("    {\n");
                 printf("      \"game_code\": \"%s\",\n", json_escape(file.game_code).c_str());
                 printf("      \"pub_code\": \"%s\",\n", json_escape(file.pub_code).c_str());
                 printf("      \"filename\": \"%s\",\n", json_escape(file.filename).c_str());
                 printf("      \"extension\": \"%s\",\n", json_escape(file.extension).c_str());
                 printf("      \"full_name\": \"%s\",\n", json_escape(file.full_name).c_str());
-                if (file.size < 0) {
-                    printf("      \"size\": null");
-                } else {
-                    printf("      \"size\": %d", file.size);
-                }
-                printf(",\n");
+                printf("      \"size\": %d,\n", file.size);
+                printf("      \"crc32\": ");
                 if (file.crc32_error) {
-                    printf("      \"crc32\": null\n");
+                    printf("null,\n");
                 } else {
-                    printf("      \"crc32\": \"0x%08X\"\n", file.crc32_value);
+                    printf("\"0x%08X\",\n", file.crc32_value);
                 }
+                printf("      \"spans\": [");
+                for (size_t j = 0; j < file.spans.size(); ++j) {
+                    printf("[%u,%u]", file.spans[j].start, file.spans[j].end);
+                    if (j < file.spans.size() - 1) printf(",");
+                }
+                printf("]\n");
                 printf("    }");
-                if (i < files.size() - 1) printf(",");
+                if (i < files_ext.size() - 1) printf(",");
                 printf("\n");
             }
             printf("  ],\n");
@@ -843,33 +922,44 @@ int cmd_info(const char *pak_file) {
             printf("  ]\n");
             printf("}\n");
         } else {
-            // Output testuale
             printf("Pak file: %s\n", info.pak_file.c_str());
             printf("Header bytes: %d\n", header_bytes);
             printf("Banks: %d\n", info.num_banks);
             printf("Pages: %d used / %d total (%.2f%%)\n", info.pages_used, info.pages_total, info.pages_percent);
             printf("Notes: %d used / %d total (%.2f%%)\n", info.notes_used, info.notes_total, info.notes_percent);
-
-            // Print note information (files in the pak)
-            std::vector<file_entry_t> files;
-            collect_pak_files(pak, files, true, nullptr, 0);
-            if (!files.empty()) {
+            printf("\nBank statistics:\n");
+            for (int b = 0; b < info.num_banks; ++b) {
+                int total_pages = 128 - 1; // page 0 reserved
+                double percent = (total_pages > 0) ? (100.0 * banks[b].used_pages / total_pages) : 0.0;
+                printf("  Bank %d: %d pages used (%.2f%%), %d notes\n", b, banks[b].used_pages, percent, banks[b].used_notes);
+            }
+            if (!files_ext.empty()) {
                 printf("\nNotes:\n");
-                for (const auto& file : files) {
+                for (const auto& file : files_ext) {
                     printf("  %s.%s-%s", file.game_code.c_str(), file.pub_code.c_str(), display_filename(file.filename).c_str());
                     if (!file.extension.empty()) {
                         printf(".%s", file.extension.c_str());
                     }
-                    printf(" (%d bytes", file.size);
+                    printf(" (%d bytes)", file.size);
                     if (!file.crc32_error) {
-                        printf(", CRC32: %08X", file.crc32_value);
+                        printf("     CRC32: %08X", file.crc32_value);
+                    } else {
+                        printf("     CRC32: <error>");
                     }
-                    printf(")\n");
+                    printf("\n");
+                    if (!file.spans.empty()) {
+                        printf("    FAT: ");
+                        for (size_t j = 0; j < file.spans.size(); ++j) {
+                            uint16_t s = file.spans[j].start, e = file.spans[j].end;
+                            printf("%02x:%02x-%02x:%02x", s>>8, s&0xFF, e>>8, e&0xFF);
+                            if (j < file.spans.size() - 1) printf(", ");
+                        }
+                        printf("\n");
+                    }
                 }
             } else {
                 printf("\nNo notes found in pak.\n");
             }
-
             printf("\nFSCK issues: %zu\n", info.fsck_issues.size());
             for (const auto &iss : info.fsck_issues) {
                 printf("  [%d] Level %d: %s\n", iss.code, iss.level, iss.message.c_str());
