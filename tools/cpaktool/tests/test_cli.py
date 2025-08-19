@@ -123,6 +123,12 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(self.pak.exists())
 
+        # Test --size option with invalid value
+        pak_err = self.tmp / "test_err.pak"
+        code, out, err = run_cpaktool(["format", "--size", "65", str(pak_err)])
+        self.assertNotEqual(code, 0)
+        self.assertIn("multiple", err)
+
         # Test --size option with = format
         pak_eq = self.tmp / "test_eq.pak"
         code, out, err = run_cpaktool(["format", "--size=64", str(pak_eq)])

@@ -381,6 +381,9 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->pak_size = atoi(value);
+                    if (cmd_opts->pak_size % 32 != 0) {
+                        fatal_error("Pak size must be a multiple of 32 KiB: %d", cmd_opts->pak_size);
+                    }
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-g") || !strcmp(arg, "--gamecode")) {
                     if (!value) {
@@ -447,8 +450,11 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                         fatal_error("Option %s requires a value", arg);
                     }
                     cmd_opts->pak_size = atoi(value);
+                    if (cmd_opts->pak_size % 32 != 0) {
+                        fatal_error("Pak size must be a multiple of 32 KiB: %d", cmd_opts->pak_size);
+                    }
                     // Convert size to banks (32KB per bank)
-                    cmd_opts->num_banks = (cmd_opts->pak_size + 31) / 32;
+                    cmd_opts->num_banks = cmd_opts->pak_size / 32;
                     cmd_opts->size_specified = true;
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-b") || !strcmp(arg, "--banks")) {
