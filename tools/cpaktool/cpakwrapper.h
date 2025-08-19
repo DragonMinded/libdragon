@@ -18,6 +18,8 @@
 #include <functional>
 
 class CPakFilesystem {
+public:
+    int getHeaderBytes() const { return (int)m_pak_offset; }
 private:
     static constexpr size_t DEXDRIVE_HEADER_SIZE = 0x1040;
     static constexpr const char DEXDRIVE_SIGNATURE[] = "123-456-STD";

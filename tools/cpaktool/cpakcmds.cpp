@@ -53,6 +53,50 @@ typedef struct {
     bool crc32_error;       // True if CRC32 calculation failed
 } file_entry_t;
 
+// Controller Pak information structure
+struct InfoPakStats {
+    std::string pak_file;
+    int num_banks;
+    int pages_used;
+    int pages_total;
+    int notes_used;
+    int notes_total;
+    double pages_percent;
+    double notes_percent;
+    struct Issue {
+        int code;
+        int level;
+        std::string message;
+    };
+    std::vector<Issue> fsck_issues;
+};
+
+// Helper for fsck issue reporting
+struct FsckContext {
+    std::vector<InfoPakStats::Issue> *issues;
+};
+
+// Common helper for fsck issue reporting
+static void fsck_report_common(void *ctx, int code, int level, const char *msg) {
+    FsckContext *c = (FsckContext*)ctx;
+    InfoPakStats::Issue i;
+    i.code = code;
+    i.level = level;
+    i.message = msg;
+    c->issues->push_back(i);
+}
+
+static void fsck_report_static(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
+    char msg[256];
+    va_list ap; va_start(ap, fmt); vsnprintf(msg, sizeof(msg), fmt, ap); va_end(ap);
+    fsck_report_common(ctx, (int)issue, (int)level, msg);
+}
+
+static void fsck_report_json_static(void *ctx, cpakfs_issue_t issue, cpakfs_issue_level_t level, const char *fmt, ...) {
+    char msg[256];
+    va_list ap; va_start(ap, fmt); vsnprintf(msg, sizeof(msg), fmt, ap); va_end(ap);
+    fsck_report_common(ctx, (int)issue, (int)level, msg);
+}
 // Helper function to calculate visual width of a UTF-8 string
 // Takes into account that Japanese characters (fullwidth) take 2 columns
 static size_t visual_width(const std::string& str) {
@@ -189,37 +233,58 @@ static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
 
 // Helper function to calculate CRC32 for a file in the pak
 static uint32_t calculate_file_crc32(const std::string& filename, bool& error) {
+    // CRC32 for a file inside the pak
     error = false;
     try {
-        verbose_log("Calculating CRC32 for file: %s", filename.c_str());
+        verbose_log("Calculating CRC32 for file in pak: %s", filename.c_str());
         CPakFile file(filename, O_RDONLY);
         if (!file.isValid()) {
             verbose_log("File is not valid: %s", filename.c_str());
             error = true;
             return 0;
         }
-        
         uint32_t crc = 0xffffffffL;
         const size_t BUFFER_SIZE = 4096;
         uint8_t buffer[BUFFER_SIZE];
         size_t bytes_read;
         size_t total_bytes = 0;
-        
         while ((bytes_read = file.read(buffer, BUFFER_SIZE)) > 0) {
             for (size_t i = 0; i < bytes_read; i++) {
                 crc = crc_table[(crc ^ buffer[i]) & 0xff] ^ (crc >> 8);
             }
             total_bytes += bytes_read;
         }
-        
         verbose_log("CRC32 calculation completed: %zu bytes processed", total_bytes);
         return crc ^ 0xffffffffL;
     } catch (const std::exception& e) {
-        // If we can't read the file, return error
         verbose_log("CRC32 calculation failed for %s: %s", filename.c_str(), e.what());
         error = true;
         return 0;
     }
+}
+
+// Helper to calculate CRC32 of any file on disk (not inside pak)
+static uint32_t calculate_disk_crc32(const char *filepath, bool &error) {
+    error = false;
+    FILE *f = fopen(filepath, "rb");
+    if (!f) {
+        error = true;
+        return 0;
+    }
+    uint32_t crc = 0xffffffffL;
+    const size_t BUFFER_SIZE = 4096;
+    uint8_t buffer[BUFFER_SIZE];
+    size_t bytes_read;
+    size_t total_bytes = 0;
+    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, f)) > 0) {
+        for (size_t i = 0; i < bytes_read; i++) {
+            crc = crc_table[(crc ^ buffer[i]) & 0xff] ^ (crc >> 8);
+        }
+        total_bytes += bytes_read;
+    }
+    fclose(f);
+    verbose_log("Disk CRC32 calculation completed: %zu bytes processed", total_bytes);
+    return crc ^ 0xffffffffL;
 }
 
 // Helper function to escape a string for JSON output
@@ -264,56 +329,50 @@ static bool compare_files(const file_entry_t& a, const file_entry_t& b, const ch
     return reverse ? !result : result;
 }
 
+// Helper to collect file info from a pak, with optional CRC calculation
+static void collect_pak_files(CPakFilesystem &pak, std::vector<file_entry_t> &files, bool calc_crc, char *patterns[], int num_patterns) {
+    pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
+        file_entry_t entry;
+        entry.size = dir.d_size;
+        if (parse_cpak_path(std::string(filename), entry)) {
+            // Check if file matches any patterns
+            bool should_include = false;
+            if (!patterns || num_patterns == 0) {
+                should_include = true;
+            } else {
+                for (int i = 0; i < num_patterns; i++) {
+                    if (fnmatch(patterns[i], entry.full_name.c_str()) || fnmatch(patterns[i], filename)) {
+                        should_include = true;
+                        break;
+                    }
+                }
+            }
+            if (should_include) {
+                if (calc_crc) {
+                    bool crc_error;
+                    entry.crc32_value = calculate_file_crc32(std::string(filename), crc_error);
+                    entry.crc32_error = crc_error;
+                } else {
+                    entry.crc32_value = 0;
+                    entry.crc32_error = false;
+                }
+                files.push_back(entry);
+            }
+        }
+        return true;
+    });
+}
+
 int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
     verbose_log("Listing contents of %s", pak_file);
-    
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
     }
-    
     // Open the pak file and mount filesystem
     try {
         CPakFilesystem pak(pak_file, true, g_global_opts.skip_header_bytes);
-        
         std::vector<file_entry_t> files;
-        
-        // Use the new for_each_file method
-        pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
-            file_entry_t entry;
-            entry.size = dir.d_size;
-            
-            if (parse_cpak_path(std::string(filename), entry)) {
-                // Check if file matches any patterns
-                bool should_include = false;
-                
-                if (num_patterns == 0) {
-                    should_include = true;
-                } else {
-                    for (int i = 0; i < num_patterns; i++) {
-                        if (fnmatch(patterns[i], entry.full_name.c_str()) || 
-                            fnmatch(patterns[i], filename)) {
-                            should_include = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (should_include) {
-                    // Calculate CRC32 if requested
-                    if (g_command_opts.show_crc) {
-                        bool crc_error;
-                        entry.crc32_value = calculate_file_crc32(std::string(filename), crc_error);
-                        entry.crc32_error = crc_error;
-                    } else {
-                        entry.crc32_value = 0;
-                        entry.crc32_error = false;
-                    }
-                    files.push_back(entry);
-                }
-            }
-            return true; // Continue iteration
-        });
-        
+        collect_pak_files(pak, files, g_command_opts.show_crc, patterns, num_patterns);
         // Sort files if requested
         if (!files.empty()) {
             std::sort(files.begin(), files.end(), [](const file_entry_t& a, const file_entry_t& b) {
@@ -695,21 +754,133 @@ int cmd_delete(const char *pak_file, char *patterns[], int num_patterns) {
 }
 
 int cmd_info(const char *pak_file) {
-    verbose_log( "Getting info for %s", pak_file);
-    
+    verbose_log("Getting info for %s", pak_file);
+
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
     }
-    
-    // TODO: Implement actual info functionality
-    printf("INFO command not implemented yet\n");
-    printf("Pak file: %s\n", pak_file);
-    printf("Show stats: %s\n", g_command_opts.show_stats ? "yes" : "no");
-    printf("Show banks: %s\n", g_command_opts.show_banks ? "yes" : "no");
-    printf("Show filesystem: %s\n", g_command_opts.show_filesystem ? "yes" : "no");
-    printf("Header only: %s\n", g_command_opts.header_only ? "yes" : "no");
-    
-    return 0;
+
+    try {
+        CPakFilesystem pak(pak_file, true, g_global_opts.skip_header_bytes);
+
+        cpakfs_stats_t stats;
+        int err = cpakfs_get_stats(JOYPAD_PORT_1, &stats);
+        if (err < 0) {
+            fatal_error("Cannot get stats for Controller Pak file '%s'", pak_file);
+            return -1;
+        }
+
+        // Compila la struttura dati
+        InfoPakStats info;
+        info.pak_file = pak_file;
+        info.num_banks = stats.num_banks;
+        info.pages_used = stats.pages.used;
+        info.pages_total = stats.pages.total;
+        info.notes_used = stats.notes.used;
+        info.notes_total = stats.notes.total;
+        info.pages_percent = (stats.pages.total > 0) ? (100.0 * stats.pages.used / stats.pages.total) : 0.0;
+        info.notes_percent = (stats.notes.total > 0) ? (100.0 * stats.notes.used / stats.notes.total) : 0.0;
+        int header_bytes = pak.getHeaderBytes();
+
+        // Calcola CRC32 del file pak (sul disco, non come file nel pak)
+        bool crc_error = false;
+        uint32_t pak_crc32 = calculate_disk_crc32(pak_file, crc_error);
+
+        // Raccolta delle issue da fsck
+        FsckContext fsck_ctx;
+        fsck_ctx.issues = &info.fsck_issues;
+        cpakfs_fsck(JOYPAD_PORT_1, false, fsck_report_static, &fsck_ctx);
+
+        // Output
+        if (g_command_opts.json_output) {
+            // Output JSON, including all file info as in cmd_list --json --crc
+            std::vector<file_entry_t> files;
+            collect_pak_files(pak, files, true, nullptr, 0);
+            printf("{\n");
+            printf("  \"pak_file\": \"%s\",\n", json_escape(info.pak_file).c_str());
+            printf("  \"pak_crc32\": ");
+            if (crc_error) {
+                printf("null,\n");
+            } else {
+                printf("\"0x%08X\",\n", pak_crc32);
+            }
+            printf("  \"header_bytes\": %d,\n", header_bytes);
+            printf("  \"banks\": %d,\n", info.num_banks);
+            printf("  \"pages\": { \"used\": %d, \"total\": %d, \"percent\": %.2f },\n", info.pages_used, info.pages_total, info.pages_percent);
+            printf("  \"notes\": { \"used\": %d, \"total\": %d, \"percent\": %.2f },\n", info.notes_used, info.notes_total, info.notes_percent);
+            printf("  \"notes\": [\n");
+            for (size_t i = 0; i < files.size(); ++i) {
+                const auto& file = files[i];
+                printf("    {\n");
+                printf("      \"game_code\": \"%s\",\n", json_escape(file.game_code).c_str());
+                printf("      \"pub_code\": \"%s\",\n", json_escape(file.pub_code).c_str());
+                printf("      \"filename\": \"%s\",\n", json_escape(file.filename).c_str());
+                printf("      \"extension\": \"%s\",\n", json_escape(file.extension).c_str());
+                printf("      \"full_name\": \"%s\",\n", json_escape(file.full_name).c_str());
+                if (file.size < 0) {
+                    printf("      \"size\": null");
+                } else {
+                    printf("      \"size\": %d", file.size);
+                }
+                printf(",\n");
+                if (file.crc32_error) {
+                    printf("      \"crc32\": null\n");
+                } else {
+                    printf("      \"crc32\": \"0x%08X\"\n", file.crc32_value);
+                }
+                printf("    }");
+                if (i < files.size() - 1) printf(",");
+                printf("\n");
+            }
+            printf("  ],\n");
+            printf("  \"fsck_issues\": [\n");
+            for (size_t i = 0; i < info.fsck_issues.size(); ++i) {
+                const auto &iss = info.fsck_issues[i];
+                printf("    { \"code\": %d, \"level\": %d, \"message\": \"%s\" }", iss.code, iss.level, json_escape(iss.message).c_str());
+                if (i < info.fsck_issues.size() - 1) printf(",");
+                printf("\n");
+            }
+            printf("  ]\n");
+            printf("}\n");
+        } else {
+            // Output testuale
+            printf("Pak file: %s\n", info.pak_file.c_str());
+            printf("Header bytes: %d\n", header_bytes);
+            printf("Banks: %d\n", info.num_banks);
+            printf("Pages: %d used / %d total (%.2f%%)\n", info.pages_used, info.pages_total, info.pages_percent);
+            printf("Notes: %d used / %d total (%.2f%%)\n", info.notes_used, info.notes_total, info.notes_percent);
+
+            // Print note information (files in the pak)
+            std::vector<file_entry_t> files;
+            collect_pak_files(pak, files, true, nullptr, 0);
+            if (!files.empty()) {
+                printf("\nNotes:\n");
+                for (const auto& file : files) {
+                    printf("  %s.%s-%s", file.game_code.c_str(), file.pub_code.c_str(), display_filename(file.filename).c_str());
+                    if (!file.extension.empty()) {
+                        printf(".%s", file.extension.c_str());
+                    }
+                    printf(" (%d bytes", file.size);
+                    if (!file.crc32_error) {
+                        printf(", CRC32: %08X", file.crc32_value);
+                    }
+                    printf(")\n");
+                }
+            } else {
+                printf("\nNo notes found in pak.\n");
+            }
+
+            printf("\nFSCK issues: %zu\n", info.fsck_issues.size());
+            for (const auto &iss : info.fsck_issues) {
+                printf("  [%d] Level %d: %s\n", iss.code, iss.level, iss.message.c_str());
+            }
+        }
+
+        return 0;
+    } catch (const std::exception& e) {
+        fatal_error("Cannot open Controller Pak file '%s': %s", pak_file, e.what());
+        return -1;
+    }
 }
 
 int g_fsck_nissues;
@@ -737,19 +908,42 @@ int cmd_test(const char *pak_file) {
         
         verbose_log( "Running fsck on %s (%d banks)", pak_file, pak.getNumBanks());
 
-        g_fsck_nissues = 0;
-        int err = cpakfs_fsck(JOYPAD_PORT_1, g_command_opts.fix_errors, fsck_report, nullptr);
+        // Raccolta delle issue da fsck
+        std::vector<InfoPakStats::Issue> issues;
+        FsckContext fsck_ctx;
+        fsck_ctx.issues = &issues;
+        int err = cpakfs_fsck(JOYPAD_PORT_1, g_command_opts.fix_errors,
+            g_command_opts.json_output ? fsck_report_json_static : fsck_report,
+            g_command_opts.json_output ? &fsck_ctx : nullptr);
         if (err < 0) {
             fatal_error("Failed to test Controller Pak image: %s", strerror(errno));
         }
 
-        if (g_fsck_nissues == 0) {
-            printf("No issues found\n");
-        } else if (g_command_opts.fix_errors) {
-            printf("Fixed %d issue%s\n", g_fsck_nissues, g_fsck_nissues==1?"":"s");
+        if (g_command_opts.json_output) {
+            // Output JSON
+            printf("{\n");
+            printf("  \"pak_file\": \"%s\",\n", json_escape(pak_file).c_str());
+            printf("  \"fsck_issues\": [\n");
+            for (size_t i = 0; i < issues.size(); ++i) {
+                const auto &iss = issues[i];
+                printf("    { \"code\": %d, \"level\": %d, \"message\": \"%s\" }", iss.code, iss.level, json_escape(iss.message).c_str());
+                if (i < issues.size() - 1) printf(",");
+                printf("\n");
+            }
+            printf("  ]\n");
+            printf("}\n");
         } else {
-            printf("Found %d issue%s\n", g_fsck_nissues, g_fsck_nissues==1?"":"s");
-            if (g_fsck_nissues > 0) return -1;
+            if (issues.empty()) {
+                printf("No issues found\n");
+            } else if (g_command_opts.fix_errors) {
+                printf("Fixed %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
+            } else {
+                printf("Found %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
+                for (const auto &iss : issues) {
+                    printf("  [%d] Level %d: %s\n", iss.code, iss.level, iss.message.c_str());
+                }
+                if (!issues.empty()) return -1;
+            }
         }
 
         return 0;

@@ -417,14 +417,8 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                 break;
                 
             case CMD_INFO:
-                if (!strcmp(arg, "-s") || !strcmp(arg, "--stats")) {
-                    cmd_opts->show_stats = true;
-                } else if (!strcmp(arg, "-b") || !strcmp(arg, "--banks")) {
-                    cmd_opts->show_banks = true;
-                } else if (!strcmp(arg, "-F") || !strcmp(arg, "--filesystem")) {
-                    cmd_opts->show_filesystem = true;
-                } else if (!strcmp(arg, "-H") || !strcmp(arg, "--header-only")) {
-                    cmd_opts->header_only = true;
+                if (!strcmp(arg, "-j") || !strcmp(arg, "--json")) {
+                    cmd_opts->json_output = true;
                 } else {
                     fatal_error("Unknown option for info command: %s", arg);
                 }
@@ -433,6 +427,8 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
             case CMD_TEST:
                 if (!strcmp(arg, "-r") || !strcmp(arg, "--repair")) {
                     cmd_opts->fix_errors = true;
+                } else if (!strcmp(arg, "-j") || !strcmp(arg, "--json")) {
+                    cmd_opts->json_output = true;
                 } else if (!strcmp(arg, "--level")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
@@ -568,13 +564,10 @@ static void print_command_usage(const char *program_name, command_t cmd) {
         case CMD_INFO:
             printf("Usage: %s info [OPTIONS] <pak_file>\n", prog);
             printf("\n");
-            printf("Show detailed information about a Controller Pak file.\n");
+            printf("Show information about a Controller Pak file.\n");
             printf("\n");
             printf("Options:\n");
-            printf("  -s, --stats             Show filesystem statistics\n");
-            printf("  -b, --banks             Show detailed bank information\n");
-            printf("  -F, --filesystem        Show raw filesystem structures\n");
-            printf("  -H, --header-only       Show information from the header only\n");
+            printf("  -j, --json              Output in JSON format\n");
             break;
         case CMD_TEST:
             printf("Usage: %s test [OPTIONS] <pak_file>\n", prog);
