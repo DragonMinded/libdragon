@@ -771,7 +771,7 @@ int cmd_info(const char *pak_file) {
             return -1;
         }
 
-        // Compila la struttura dati
+        // Build info structure
         InfoPakStats info;
         info.pak_file = pak_file;
         info.num_banks = stats.num_banks;
@@ -783,11 +783,11 @@ int cmd_info(const char *pak_file) {
         info.notes_percent = (stats.notes.total > 0) ? (100.0 * stats.notes.used / stats.notes.total) : 0.0;
         int header_bytes = pak.getHeaderBytes();
 
-        // Calcola CRC32 del file pak (sul disco, non come file nel pak)
+        // Calculate CRC32 of the pak file (on disk, not as a file inside the pak)
         bool crc_error = false;
         uint32_t pak_crc32 = calculate_disk_crc32(pak_file, crc_error);
 
-        // Raccolta delle issue da fsck
+        // Collect issues from fsck
         FsckContext fsck_ctx;
         fsck_ctx.issues = &info.fsck_issues;
         cpakfs_fsck(JOYPAD_PORT_1, false, fsck_report_static, &fsck_ctx);
@@ -796,14 +796,22 @@ int cmd_info(const char *pak_file) {
         struct PageSpan { uint16_t start; uint16_t end; };
         struct file_entry_ext_t : public file_entry_t {
             std::vector<PageSpan> spans;
+            double frag_span = 0.0;
+            double frag_banks = 0.0;
+            int num_banks_used = 0;
         };
         std::vector<file_entry_ext_t> files_ext;
-        // Per-bank stats
+        // Per-bank statistics
         struct BankStats {
             int used_pages = 0;
             int used_notes = 0;
+            std::vector<bool> free_pages; // true if free
+            double frag_free = 0.0;
         };
         std::vector<BankStats> banks(info.num_banks);
+        for (int b = 0; b < info.num_banks; ++b) {
+            banks[b].free_pages.resize(128, true); // page 0 reserved
+        }
         // For each note, keep a set of banks touched
         pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
             file_entry_ext_t entry;
@@ -814,7 +822,7 @@ int cmd_info(const char *pak_file) {
             bool crc_error = false;
             entry.crc32_value = calculate_file_crc32(std::string(filename), crc_error);
             entry.crc32_error = crc_error;
-            // Open file and scan FAT chain using CPakFile and il nuovo metodo ioctl
+            // Open file and scan FAT chain using CPakFile and the new ioctl method
             std::vector<uint16_t> chain;
             std::set<int> banks_touched;
             try {
@@ -835,6 +843,7 @@ int cmd_info(const char *pak_file) {
                     if (bank >= 0 && bank < info.num_banks && page > 0 && page < 128) {
                         banks[bank].used_pages++;
                         banks_touched.insert(bank);
+                        banks[bank].free_pages[page] = false;
                     }
                     pos += 256;
                     if (file.seek(pos, SEEK_SET) < 0) break;
@@ -859,9 +868,68 @@ int cmd_info(const char *pak_file) {
             }
             // For each bank touched by this note, increment used_notes
             for (int b : banks_touched) banks[b].used_notes++;
+            entry.num_banks_used = banks_touched.size();
+            // Span fragmentation
+            int num_span = entry.spans.size();
+            int num_blocks = chain.size();
+            bool full_bank = false;
+            if (num_blocks > 0 && num_span == 1) {
+                // Check if the span covers a full bank
+                int bank0 = chain[0] >> 8;
+                int page0 = chain[0] & 0xFF;
+                int bankN = chain.back() >> 8;
+                int pageN = chain.back() & 0xFF;
+                if (bank0 == bankN && page0 == 1 && pageN == 127 && num_blocks == 127) {
+                    full_bank = true;
+                }
+            }
+            if (full_bank || num_blocks <= 1) {
+                entry.frag_span = 0.0;
+            } else {
+                entry.frag_span = (double)(num_span - 1) / (num_blocks - 1);
+            }
+            // Bank fragmentation
+            int num_banks_min = (num_blocks + 126) / 127; // ceil
+            if (entry.num_banks_used <= num_banks_min || num_blocks == 0) {
+                entry.frag_banks = 0.0;
+            } else {
+                entry.frag_banks = (double)(entry.num_banks_used - num_banks_min) / (info.num_banks - num_banks_min);
+            }
             files_ext.push_back(entry);
             return true;
         });
+        // Calculate fragmentation of free pages for each bank
+        for (int b = 0; b < info.num_banks; ++b) {
+            int num_free = 0;
+            int max_seq = 0, curr_seq = 0;
+            for (int p = 1; p < 128; ++p) {
+                if (banks[b].free_pages[p]) {
+                    num_free++;
+                    curr_seq++;
+                    if (curr_seq > max_seq) max_seq = curr_seq;
+                } else {
+                    curr_seq = 0;
+                }
+            }
+            if (num_free == 0) {
+                banks[b].frag_free = 0.0;
+            } else {
+                banks[b].frag_free = 1.0 - ((double)max_seq / num_free);
+            }
+        }
+        // Calculate averages for summary
+        double sum_span = 0.0, sum_banks = 0.0, sum_free = 0.0;
+        for (const auto& f : files_ext) {
+            sum_span += f.frag_span;
+            sum_banks += f.frag_banks;
+        }
+        for (const auto& b : banks) {
+            sum_free += b.frag_free;
+        }
+        double avg_span = files_ext.empty() ? 0.0 : sum_span / files_ext.size();
+        double avg_banks = files_ext.empty() ? 0.0 : sum_banks / files_ext.size();
+        double avg_free = banks.empty() ? 0.0 : sum_free / banks.size();
+        double frag_total = 0.5 * avg_banks + 0.3 * avg_span + 0.2 * avg_free;
         // Output
         if (g_command_opts.json_output) {
             printf("{\n");
@@ -880,7 +948,7 @@ int cmd_info(const char *pak_file) {
             for (int b = 0; b < info.num_banks; ++b) {
                 int total_pages = 128 - 1; // page 0 reserved
                 double percent = (total_pages > 0) ? (100.0 * banks[b].used_pages / total_pages) : 0.0;
-                printf("    { \"bank\": %d, \"used_pages\": %d, \"percent\": %.2f, \"used_notes\": %d }", b, banks[b].used_pages, percent, banks[b].used_notes);
+                printf("    { \"bank\": %d, \"used_pages\": %d, \"percent\": %.2f, \"used_notes\": %d, \"frag_free\": %.3f }", b, banks[b].used_pages, percent, banks[b].used_notes, banks[b].frag_free);
                 if (b < info.num_banks - 1) printf(",");
                 printf("\n");
             }
@@ -901,17 +969,20 @@ int cmd_info(const char *pak_file) {
                 } else {
                     printf("\"0x%08X\",\n", file.crc32_value);
                 }
-                printf("      \"spans\": [");
+                printf("      \"fat\": [");
                 for (size_t j = 0; j < file.spans.size(); ++j) {
                     printf("[%u,%u]", file.spans[j].start, file.spans[j].end);
                     if (j < file.spans.size() - 1) printf(",");
                 }
-                printf("]\n");
+                printf("],\n");
+                printf("      \"frag_pages\": %.3f,\n", file.frag_span);
+                printf("      \"frag_banks\": %.3f\n", file.frag_banks);
                 printf("    }");
                 if (i < files_ext.size() - 1) printf(",");
                 printf("\n");
             }
             printf("  ],\n");
+            printf("  \"fragmentation\": { \"pages\": %.3f, \"banks\": %.3f, \"free\": %.3f, \"total\": %.3f },\n", avg_span, avg_banks, avg_free, frag_total);
             printf("  \"fsck_issues\": [\n");
             for (size_t i = 0; i < info.fsck_issues.size(); ++i) {
                 const auto &iss = info.fsck_issues[i];
@@ -931,7 +1002,7 @@ int cmd_info(const char *pak_file) {
             for (int b = 0; b < info.num_banks; ++b) {
                 int total_pages = 128 - 1; // page 0 reserved
                 double percent = (total_pages > 0) ? (100.0 * banks[b].used_pages / total_pages) : 0.0;
-                printf("  Bank %d: %d pages used (%.2f%%), %d notes\n", b, banks[b].used_pages, percent, banks[b].used_notes);
+                printf("  Bank %d: %d pages used (%.2f%%), %d notes, fragmentation: %.3f\n", b, banks[b].used_pages, percent, banks[b].used_notes, banks[b].frag_free);
             }
             if (!files_ext.empty()) {
                 printf("\nNotes:\n");
@@ -956,10 +1027,12 @@ int cmd_info(const char *pak_file) {
                         }
                         printf("\n");
                     }
+                    printf("    Fragmentation: pages: %.2f%%, banks: %.2f%%\n", file.frag_span * 100.0, file.frag_banks * 100.0);
                 }
             } else {
                 printf("\nNo notes found in pak.\n");
             }
+            printf("\nWeighted fragmentation index: %.2f%% (span=%.2f%%, banks=%.2f%%, free=%.2f%%)\n", frag_total * 100.0, avg_span * 100.0, avg_banks * 100.0, avg_free * 100.0);
             printf("\nFSCK issues: %zu\n", info.fsck_issues.size());
             for (const auto &iss : info.fsck_issues) {
                 printf("  [%d] Level %d: %s\n", iss.code, iss.level, iss.message.c_str());
