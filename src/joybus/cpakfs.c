@@ -845,6 +845,21 @@ static int __cpakfs_findfirst(char *path, dir_t *dir, int port) {
     return __cpakfs_findnext(path, dir, port);
 }
 
+static int __cpakfs_ioctl(void *file, unsigned long request, void *arg)
+{
+    cpakfs_openfile_t *f = (cpakfs_openfile_t*)file;
+    if (!f || !f->cur_page_ptr) {
+        errno = EBADF;
+        return -1;
+    }
+    if (request == IOCPAKFS_GET_PAGE) {
+        uint16_t *bankpage = (uint16_t*)arg;
+        *bankpage = ((uint16_t)f->cur_page_ptr->bank << 8) | (f->cur_page_ptr->page & 0xFF);
+        return 0;
+    }
+    errno = ENOTTY;
+    return -1;
+}
 
 static void *__cpakfs_open_port0(char *name, int flags) { return __cpakfs_open(name, flags, 0); }
 static void *__cpakfs_open_port1(char *name, int flags) { return __cpakfs_open(name, flags, 1); }
@@ -877,6 +892,7 @@ static filesystem_t fsdef[4] = {
         .unlink = __cpakfs_unlink_port0,
         .findfirst = __cpakfs_findfirst_port0,
         .findnext2 = __cpakfs_findnext_port0,
+        .ioctl = __cpakfs_ioctl,
     },
     [1] = {
         .open = __cpakfs_open_port1,
@@ -888,6 +904,7 @@ static filesystem_t fsdef[4] = {
         .unlink = __cpakfs_unlink_port1,
         .findfirst = __cpakfs_findfirst_port1,
         .findnext2 = __cpakfs_findnext_port1,
+        .ioctl = __cpakfs_ioctl,
     },
     [2] = {
         .open = __cpakfs_open_port2,
@@ -899,6 +916,7 @@ static filesystem_t fsdef[4] = {
         .unlink = __cpakfs_unlink_port2,
         .findfirst = __cpakfs_findfirst_port2,
         .findnext2 = __cpakfs_findnext_port2,
+        .ioctl = __cpakfs_ioctl,
     },
     [3] = {
         .open = __cpakfs_open_port3,
@@ -910,6 +928,7 @@ static filesystem_t fsdef[4] = {
         .unlink = __cpakfs_unlink_port3,
         .findfirst = __cpakfs_findfirst_port3,
         .findnext2 = __cpakfs_findnext_port3,
+        .ioctl = __cpakfs_ioctl,
     },
 };
 

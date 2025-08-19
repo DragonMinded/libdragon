@@ -117,11 +117,31 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include "ioctl.h"
 #include "joypad.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+/**
+ * @brief Get the current bank/page of an open file in cpakfs
+ *
+ * This ioctl allows you to retrieve the current position of an open file
+ * in terms of bank and page, packed into a single uint16_t value.
+ * The high byte contains the bank number, the low byte contains the page number.
+ *
+ * Example usage:
+ *
+ *   uint16_t bankpage;
+ *   ioctl(fileno(f), IOCPAKFS_GET_PAGE, &bankpage);
+ *   int bank = bankpage >> 8;
+ *   int page = bankpage & 0xFF;
+ *
+ * If the file is not valid, the ioctl returns -1 and errno is set.
+ */
+#define IOCPAKFS_GET_PAGE   _IO('K', 0)
 
 /**
  * @brief Usage statistics for a Controller Pak
