@@ -3,70 +3,40 @@
 #include "debug.h"
 #include <stddef.h>
 
-void set_light_dirty(gl_light_t *light)
-{
-    if (gl_is_enabled(light->enable)) {
-        gl_set_dirty_flags(DIRTY_LIGHTING);
-    }
-}
-
-void gl_init_material(gl_material_t *material)
-{
-    *material = (gl_material_t) {
-        .ambient = { 0.2f, 0.2f, 0.2f, 1.0f },
-        .diffuse = { 0.8f, 0.8f, 0.8f, 1.0f },
-        .specular = { 0.0f, 0.0f, 0.0f, 1.0f },
-        .emissive = { 0.0f, 0.0f, 0.0f, 1.0f },
-        .shininess = 0.0f,
-        .color_target = GL_AMBIENT_AND_DIFFUSE,
-    };
-}
-
-void gl_init_light(gl_light_t *light, uint32_t index)
-{
-    *light = (gl_light_t) {
-        .ambient = { 0.0f, 0.0f, 0.0f, 1.0f },
-        .diffuse = { 0.0f, 0.0f, 0.0f, 1.0f },
-        .specular = { 0.0f, 0.0f, 0.0f, 1.0f },
-        .position = {{ 0.0f, 0.0f, 1.0f, 0.0f }},
-        .direction = {{ 0.0f, 0.0f, -1.0f }},
-        .spot_exponent = 0.0f,
-        .spot_cutoff_cos = -1.0f,
-        .constant_attenuation = 1.0f,
-        .linear_attenuation = 0.0f,
-        .quadratic_attenuation = 0.0f,
-        .enable = ENABLE_LIGHT0 + index,
-    };
-}
-
 void gl_lighting_init()
 {
     ringbuffer_init(&state->lighting_buffer, sizeof(mgfx_lighting_t), 8);
 
-    gl_init_material(&state->material);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (GLfloat[]) { 0.2f, 0.2f, 0.2f, 1.0f });
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (GLfloat[]) { 0.8f, 0.8f, 0.8f, 1.0f });
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (GLfloat[]) { 0.0f, 0.0f, 0.0f, 1.0f });
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, (GLfloat[]) { 0.0f, 0.0f, 0.0f, 1.0f });
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, (GLfloat[]) { 0.2f, 0.2f, 0.2f, 1.0f });
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        gl_init_light(&state->lights[i], i);
+        state->lights[i].enable = ENABLE_LIGHT0 + i;
+
+        GLenum light = GL_LIGHT0 + i;
+
+        glLightfv(light, GL_AMBIENT, (GLfloat[]) { 0, 0, 0, 1 });
+        if (i == 0) {
+            glLightfv(light, GL_DIFFUSE, (GLfloat[]) { 1, 1, 1, 1 });
+            glLightfv(light, GL_SPECULAR, (GLfloat[]) { 1, 1, 1, 1 });
+        } else {
+            glLightfv(light, GL_DIFFUSE, (GLfloat[]) { 0, 0, 0, 0 });
+            glLightfv(light, GL_SPECULAR, (GLfloat[]) { 0, 0, 0, 0 });
+        }
+        glLightfv(light, GL_POSITION, (GLfloat[]) { 0, 0, 1, 0 });
+        glLightfv(light, GL_SPOT_DIRECTION, (GLfloat[]) { 0, 0, -1 });
+        glLightf(light, GL_SPOT_EXPONENT, 0);
+        glLightf(light, GL_SPOT_CUTOFF, 180);
+        glLightf(light, GL_CONSTANT_ATTENUATION, 1);
+        glLightf(light, GL_LINEAR_ATTENUATION, 0);
+        glLightf(light, GL_QUADRATIC_ATTENUATION, 0);
     }
-
-    state->lights[0].diffuse[0] = 0.2f;
-    state->lights[0].diffuse[1] = 0.2f;
-    state->lights[0].diffuse[2] = 0.2f;
-
-    state->lights[0].specular[0] = 0.8f;
-    state->lights[0].specular[1] = 0.8f;
-    state->lights[0].specular[2] = 0.8f;
-
-    state->light_model_ambient[0] = 0.2f;
-    state->light_model_ambient[1] = 0.2f;
-    state->light_model_ambient[2] = 0.2f;
-    state->light_model_ambient[3] = 1.0f;
-    state->light_model_local_viewer = false;
-
-    state->material.color_target = GL_AMBIENT_AND_DIFFUSE;
-
-    gl_set_dirty_flags(DIRTY_LIGHTING);
 }
 
 void gl_lighting_close()
@@ -98,28 +68,28 @@ void gl_set_color(GLfloat *dst, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 
 void gl_set_material_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state->material.ambient, r, g, b, a);
+    gl_set_color(state->material_ambient, r, g, b, a);
 }
 
 void gl_set_material_diffuse(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state->material.diffuse, r, g, b, a);
-    gl_set_dirty_flags(DIRTY_PRIM_COLOR);
+    gl_set_color(state->material_diffuse, r, g, b, a);
+    gl_set_state(STATE_MATERIAL_DIFFUSE);
 }
 
 void gl_set_material_specular(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state->material.specular, r, g, b, a);
+    gl_set_color(state->material_specular, r, g, b, a);
 }
 
 void gl_set_material_emissive(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(state->material.emissive, r, g, b, a);
+    gl_set_color(state->material_emissive, r, g, b, a);
 }
 
 void gl_set_material_shininess(GLfloat param)
 {    
-    state->material.shininess = param;
+    state->material_shininess = param;
 }
 
 inline void assert_no_begin_end()
@@ -287,6 +257,13 @@ gl_light_t * gl_get_light(GLenum light)
     return &state->lights[light - GL_LIGHT0];
 }
 
+void set_light_state(gl_light_t *light)
+{
+    if (gl_is_enabled(light->enable)) {
+        gl_set_state(STATE_LIGHT);
+    }
+}
+
 void gl_light_set_ambient(gl_light_t *light, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     gl_set_color(light->ambient, r, g, b, a);
@@ -295,7 +272,7 @@ void gl_light_set_ambient(gl_light_t *light, GLfloat r, GLfloat g, GLfloat b, GL
 void gl_light_set_diffuse(gl_light_t *light, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     gl_set_color(light->diffuse, r, g, b, a);
-    set_light_dirty(light);
+    set_light_state(light);
 }
 
 void gl_light_set_specular(gl_light_t *light, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -307,7 +284,7 @@ void gl_light_set_position(gl_light_t *light, const GLfloat *pos)
 {
     fm_vec4_t pos_tmp = {{ pos[0], pos[1], pos[2], pos[3] }};
     fm_mat4_mul_vec4(&light->position, gl_matrix_stack_get_matrix(&state->modelview_stack), &pos_tmp);
-    set_light_dirty(light);
+    set_light_state(light);
 }
 
 void gl_light_set_direction(gl_light_t *light, const GLfloat *dir)
@@ -343,7 +320,7 @@ void gl_light_set_linear_attenuation(gl_light_t *light, float param)
 void gl_light_set_quadratic_attenuation(gl_light_t *light, float param)
 {
     light->quadratic_attenuation = param;
-    set_light_dirty(light);
+    set_light_state(light);
 }
 
 void glLightf(GLenum light, GLenum pname, GLfloat param)
@@ -505,7 +482,7 @@ void gl_set_light_model_local_viewer(bool param)
 void gl_set_light_model_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     gl_set_color(state->light_model_ambient, r, g, b, a);
-    gl_set_dirty_flags(DIRTY_LIGHTING);
+    gl_set_state(STATE_LIGHT);
 }
 
 void glLightModeli(GLenum pname, GLint param) 
@@ -595,8 +572,8 @@ void glColorMaterial(GLenum face, GLenum mode)
         return;
     }
 
-    state->material.color_target = mode;
-    gl_set_dirty_flags(DIRTY_PRIM_COLOR | DIRTY_PIPELINE | DIRTY_COMBINER);
+    state->color_material = mode;
+    gl_set_state(STATE_COLOR_MATERIAL);
 }
 
 void glShadeModel(GLenum mode)
@@ -616,7 +593,7 @@ void glShadeModel(GLenum mode)
 
 bool gl_is_diffuse_tracking_color()
 {
-    return gl_is_enabled(ENABLE_COLOR_MATERIAL) && (state->material.color_target == GL_DIFFUSE || state->material.color_target == GL_AMBIENT_AND_DIFFUSE);
+    return gl_is_enabled(ENABLE_COLOR_MATERIAL) && (state->color_material == GL_DIFFUSE || state->color_material == GL_AMBIENT_AND_DIFFUSE);
 }
 
 color_t gl_get_material_diffuse()
@@ -624,7 +601,7 @@ color_t gl_get_material_diffuse()
     if (gl_is_diffuse_tracking_color()) {
         return color_from_packed32(state->current_attribs.color);
     } else {
-        return color_from_floats(state->material.diffuse);
+        return color_from_floats(state->material_diffuse);
     }
 }
 

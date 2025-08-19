@@ -106,13 +106,13 @@ void gl_upload_fog(const mg_uniform_t *uniform)
 void gl_set_fog_start(GLfloat param)
 {
     state->fog_start = param;
-    gl_set_dirty_flags(DIRTY_FOG_UNIFORM);
+    gl_set_state(STATE_FOG_RANGE);
 }
 
 void gl_set_fog_end(GLfloat param)
 {
     state->fog_end = param;
-    gl_set_dirty_flags(DIRTY_FOG_UNIFORM);
+    gl_set_state(STATE_FOG_RANGE);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -164,7 +164,7 @@ void glFogf(GLenum pname, GLfloat param)
 void set_fog_color(color_t color)
 {
     state->fog_color = color;
-    gl_set_dirty_flags(DIRTY_FOG_COLOR);
+    gl_set_state(STATE_FOG_COLOR);
 }
 
 void glFogiv(GLenum pname, const GLint *params)
@@ -237,7 +237,7 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
     state->scissor.y = bottom;
     state->scissor.w = width;
     state->scissor.h = height;
-    gl_set_dirty_flags(DIRTY_SCISSOR);
+    gl_set_state(STATE_SCISSOR);
 }
 
 void glBlendFunc(GLenum src, GLenum dst)
@@ -286,8 +286,7 @@ void glBlendFunc(GLenum src, GLenum dst)
     state->blender = blender;
     state->blend_src = src;
     state->blend_dst = dst;
-
-    gl_set_dirty_flags(DIRTY_BLENDER);
+    gl_set_state(STATE_BLEND_FUNC);
 }
 
 void glDepthFunc(GLenum func)
@@ -313,7 +312,7 @@ void glDepthFunc(GLenum func)
     }
 
     state->depth_func = func;
-    gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_ZBUF);
+    gl_set_state(STATE_DEPTH_FUNC);
 }
 
 void glDepthMask(GLboolean mask)
@@ -321,7 +320,7 @@ void glDepthMask(GLboolean mask)
     if (!gl_ensure_no_begin_end()) return;
     
     state->depth_mask = mask;
-    gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_ZBUF);
+    gl_set_state(STATE_DEPTH_MASK);
 }
 
 bool is_depth_compare_active()
@@ -362,7 +361,7 @@ void glAlphaFunc(GLenum func, GLclampf ref)
 
     state->alpha_func = func;
     state->alpha_ref = ref;
-    gl_set_dirty_flags(DIRTY_ALPHACOMPARE);
+    gl_set_state(STATE_ALPHA_FUNC);
 }
 
 void glTexEnvi(GLenum target, GLenum pname, GLint param)
@@ -383,7 +382,7 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     case GL_MODULATE:
     case GL_REPLACE:
         state->tex_env_mode = param;
-        gl_set_dirty_flags(DIRTY_COMBINER | DIRTY_GEOM_FLAGS);
+        gl_set_state(STATE_TEX_ENV_MODE);
         break;
     case GL_DECAL:
     case GL_BLEND:
@@ -437,6 +436,12 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
         glTexEnvf(target, pname, params[0]);
         break;
     }
+}
+
+void glDitherModeN64(rdpq_dither_t mode)
+{
+    state->dither_mode = mode;
+    gl_set_state(STATE_DITHER_MODE);
 }
 
 rdpq_antialias_t get_antialias()
@@ -632,6 +637,18 @@ void apply_persp()
     rdpq_mode_persp(gl_is_hint_enabled(HINT_PERSP_CORRECT));
 }
 
+rdpq_filter_t get_filter()
+{
+    if (state->active_texture == NULL) return FILTER_POINT;
+    return texture_is_bilinear(state->active_texture) ? FILTER_BILINEAR : FILTER_POINT;
+}
+
+void apply_filter()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_FILTER)) return;
+    rdpq_mode_filter(get_filter());
+}
+
 void apply_rendermode(bool reset)
 {
     if (reset) {
@@ -654,6 +671,9 @@ void apply_rendermode(bool reset)
             apply_zbuf();
             apply_zmode();
             apply_persp();
+            if (!gl_is_enabled(ENABLE_RDPQ_TEXTURING)) {
+                apply_filter();
+            }
         rdpq_mode_end();
     }
 

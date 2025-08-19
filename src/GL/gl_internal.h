@@ -95,62 +95,108 @@ typedef float floatu __attribute__((aligned(1)));
 typedef double doubleu __attribute__((aligned(1)));
 
 typedef enum {
-    ENABLE_SCISSOR_TEST     = 0,
-    ENABLE_ALPHA_TEST       = 1,
-    ENABLE_DEPTH_TEST       = 2,
-    ENABLE_BLEND            = 3,
-    ENABLE_DITHER           = 4,
-    ENABLE_MULTISAMPLE      = 5,
-    ENABLE_FOG              = 6,
-    ENABLE_LIGHTING         = 7,
-    ENABLE_COLOR_MATERIAL   = 8,
-    ENABLE_NORMALIZE        = 9,
-    ENABLE_TEXTURE_1D       = 10,
-    ENABLE_TEXTURE_2D       = 11,
-    ENABLE_CULL_FACE        = 12,
-    ENABLE_MATRIX_PALETTE   = 13,
-    ENABLE_RDPQ_TEXTURING   = 14,
-    ENABLE_RDPQ_MATERIAL    = 15,
-    ENABLE_LIGHT0           = 16,
-    ENABLE_LIGHT1           = 17,
-    ENABLE_LIGHT2           = 18,
-    ENABLE_LIGHT3           = 19,
-    ENABLE_LIGHT4           = 20,
-    ENABLE_LIGHT5           = 21,
-    ENABLE_LIGHT6           = 22,
-    ENABLE_LIGHT7           = 23,
-    ENABLE_TEX_GEN_S        = 24,
-    ENABLE_TEX_GEN_T        = 25,
-    ENABLE_TEX_GEN_R        = 26,
-    ENABLE_TEX_GEN_Q        = 27,
-    ENABLE_TEX_FLIP         = 28,
+    ENABLE_SCISSOR_TEST,
+    ENABLE_ALPHA_TEST,
+    ENABLE_DEPTH_TEST,
+    ENABLE_BLEND,
+    ENABLE_DITHER,
+    ENABLE_MULTISAMPLE,
+    ENABLE_FOG,
+    ENABLE_LIGHTING,
+    ENABLE_COLOR_MATERIAL,
+    ENABLE_NORMALIZE,
+    ENABLE_TEXTURE_1D,
+    ENABLE_TEXTURE_2D,
+    ENABLE_CULL_FACE,
+    ENABLE_MATRIX_PALETTE,
+    ENABLE_RDPQ_TEXTURING,
+    ENABLE_RDPQ_MATERIAL,
+    ENABLE_LIGHT0,
+    ENABLE_LIGHT1,
+    ENABLE_LIGHT2,
+    ENABLE_LIGHT3,
+    ENABLE_LIGHT4,
+    ENABLE_LIGHT5,
+    ENABLE_LIGHT6,
+    ENABLE_LIGHT7,
+    ENABLE_TEX_GEN_S,
+    ENABLE_TEX_GEN_T,
+    ENABLE_TEX_GEN_R,
+    ENABLE_TEX_GEN_Q,
+    ENABLE_TEX_FLIP,
 } gl_enable_t;
 
 typedef enum {
-    HINT_FULL_AA            = 1 << 0,
-    HINT_PERSP_CORRECT      = 1 << 1,
-} gl_hint_flags_t;
+    HINT_FULL_AA,
+    HINT_PERSP_CORRECT,
+} gl_hint_t;
 
 typedef enum {
-    DIRTY_PIPELINE      = 1 << 0,
-    DIRTY_GEOM_FLAGS    = 1 << 1,
-    DIRTY_LIGHTING      = 1 << 2,
-    DIRTY_FOG_UNIFORM   = 1 << 3,
-    DIRTY_TEXTURING     = 1 << 4,
-    DIRTY_CULLING       = 1 << 5,
-    DIRTY_PRIM_COLOR    = 1 << 6,
-    DIRTY_ANTIALIAS     = 1 << 7,
-    DIRTY_DITHER        = 1 << 8,
-    DIRTY_COMBINER      = 1 << 9,
-    DIRTY_BLENDER       = 1 << 10,
-    DIRTY_FOG           = 1 << 11,
-    DIRTY_ALPHACOMPARE  = 1 << 12,
-    DIRTY_ZBUF          = 1 << 13,
-    DIRTY_ZMODE         = 1 << 14,
-    DIRTY_PERSP         = 1 << 15,
-    DIRTY_SCISSOR       = 1 << 16,
-    DIRTY_FOG_COLOR     = 1 << 17,
-    DIRTY_VIEWPORT      = 1 << 18,
+    STATE_CULL_FACE,
+    STATE_FRONT_FACE,
+    STATE_BLEND_FUNC,
+    STATE_DEPTH_FUNC,
+    STATE_DEPTH_MASK,
+    STATE_ALPHA_FUNC,
+    STATE_TEX_ENV_MODE,
+    STATE_DITHER_MODE,
+    STATE_FOG_RANGE,
+    STATE_FOG_COLOR,
+    STATE_VIEWPORT,
+    STATE_DEPTH_RANGE,
+    STATE_SCISSOR,
+    STATE_COLOR_MATERIAL,
+    STATE_MATERIAL_DIFFUSE,
+    STATE_LIGHT,
+    STATE_MAT_PROJECTION,
+    STATE_MAT_MODELVIEW,
+    STATE_MAT_TEXTURE,
+    STATE_MAT_PALETTE,
+    STATE_Z_PLANES,
+    STATE_BEGIN_END,
+    STATE_TEX_GEN,
+    STATE_COLOR,
+    STATE_BOUND_TEXTURES,
+    STATE_TEXTURE_COMPLETE,
+    STATE_ACTIVE_TEXTURE,
+    STATE_TEXTURE_SIZE,
+    STATE_TEXTURE_BLOCK,
+    STATE_TEXTURE_FILTER,
+    STATE_RDPQ_TEX_SIZE,
+    STATE_BOUND_VAO,
+    STATE_VAO_LAYOUT,
+    STATE_ARRAY_VERTEX,
+    STATE_ARRAY_NORMAL,
+    STATE_ARRAY_COLOR,
+    STATE_ARRAY_TEXCOORD,
+    STATE_ARRAY_MTX_INDEX,
+} gl_state_id_t;
+
+typedef enum {
+    DIRTY_PIPELINE          = 1 << 0,
+    DIRTY_GEOM_FLAGS        = 1 << 1,
+    DIRTY_LIGHTING          = 1 << 2,
+    DIRTY_FOG_UNIFORM       = 1 << 3,
+    DIRTY_TEXTURING         = 1 << 4,
+    DIRTY_CULLING           = 1 << 5,
+    DIRTY_PRIM_COLOR        = 1 << 6,
+    DIRTY_ANTIALIAS         = 1 << 7,
+    DIRTY_DITHER            = 1 << 8,
+    DIRTY_COMBINER          = 1 << 9,
+    DIRTY_BLENDER           = 1 << 10,
+    DIRTY_FOG               = 1 << 11,
+    DIRTY_ALPHACOMPARE      = 1 << 12,
+    DIRTY_ZBUF              = 1 << 13,
+    DIRTY_ZMODE             = 1 << 14,
+    DIRTY_PERSP             = 1 << 15,
+    DIRTY_SCISSOR           = 1 << 16,
+    DIRTY_FOG_COLOR         = 1 << 17,
+    DIRTY_VIEWPORT          = 1 << 18,
+    DIRTY_Z_PLANES          = 1 << 19,
+    DIRTY_MATRICES          = 1 << 20,
+    DIRTY_ACTIVE_TEXTURE    = 1 << 21,
+    DIRTY_TEXTURE_UPLOAD    = 1 << 22,
+    DIRTY_FILTER            = 1 << 23,
 
     DIRTY_RDPQ_MODE_ALL = DIRTY_ANTIALIAS | DIRTY_DITHER | DIRTY_COMBINER | DIRTY_BLENDER | DIRTY_FOG | DIRTY_ALPHACOMPARE | DIRTY_ZBUF | DIRTY_PERSP,
     DIRTY_RDPQ_ALL      = DIRTY_SCISSOR | DIRTY_PRIM_COLOR | DIRTY_FOG_COLOR | DIRTY_RDPQ_MODE_ALL,
@@ -160,6 +206,7 @@ typedef struct {
     fm_mat4_t *storage;
     int32_t size;
     int32_t cur_depth;
+    gl_state_id_t state_id;
 } gl_matrix_stack_t;
 
 typedef struct {
@@ -288,15 +335,6 @@ typedef struct {
     GLfloat ambient[4];
     GLfloat diffuse[4];
     GLfloat specular[4];
-    GLfloat emissive[4];
-    GLfloat shininess;
-    GLenum color_target;
-} gl_material_t;
-
-typedef struct {
-    GLfloat ambient[4];
-    GLfloat diffuse[4];
-    GLfloat specular[4];
     fm_vec4_t position;
     fm_vec3_t direction;
     GLfloat spot_exponent;
@@ -321,31 +359,24 @@ typedef struct {
 
 typedef struct {
     uint32_t enable_flags;
-    gl_hint_flags_t hint_flags;
-    // TODO: Generic system that tracks state changes and applies changes automatically
+    uint32_t hint_flags;
     gl_dirty_flags_t dirty_flags;
-
-    GLenum cull_face_mode;
-    GLenum front_face;
     GLenum current_error;
+
+    GLenum cull_face;
+    GLenum front_face;
     GLenum blend_src;
     GLenum blend_dst;
+    rdpq_blender_t blender;
     GLenum depth_func;
     GLenum alpha_func;
-    GLenum tex_env_mode;
     GLclampf alpha_ref;
-    rdpq_blender_t blender;
+    GLenum tex_env_mode;
     rdpq_dither_t dither_mode;
     GLboolean depth_mask;
     GLfloat fog_start;
     GLfloat fog_end;
     color_t fog_color;
-    color_t clear_color;
-    uint16_t clear_depth;
-    gl_array_object_t default_array_object;
-    gl_array_object_t *array_object;
-    gl_buffer_object_t *array_buffer;
-    const surface_t *color_buffer;
 
     struct {
         GLfloat x, y, w, h, n, f;
@@ -354,6 +385,14 @@ typedef struct {
     struct {
         GLfloat x, y, w, h;
     } scissor;
+
+    const surface_t *color_buffer;
+    color_t clear_color;
+    uint16_t clear_depth;
+
+    gl_array_object_t default_array_object;
+    gl_array_object_t *array_object;
+    gl_buffer_object_t *array_buffer;
 
     // TODO: move this to array object?
     gl_fixed_precision_t vertex_halfx_precision;
@@ -392,7 +431,12 @@ typedef struct {
     float near_plane;
     float far_plane;
 
-    gl_material_t material;
+    GLfloat material_ambient[4];
+    GLfloat material_diffuse[4];
+    GLfloat material_specular[4];
+    GLfloat material_emissive[4];
+    GLfloat material_shininess;
+    GLenum color_material;
     gl_light_t lights[LIGHT_COUNT];
 
     GLfloat light_model_ambient[4];
@@ -403,6 +447,7 @@ typedef struct {
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
     gl_texture_object_t *default_textures;
+    gl_texture_object_t *active_texture;
 
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
@@ -445,8 +490,6 @@ typedef struct {
     GLuint list_base;
     GLuint current_list_name;
     gl_list_t *current_list;
-    
-
 } gl_state_t;
 
 extern gl_state_t *state;
@@ -488,10 +531,14 @@ read_attrib_func get_read_func(gl_array_type_t array_type, GLenum type);
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
 
 fm_mat4_t *gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
+
+void update_active_texture();
 void update_pipeline();
+void update_z_planes();
 void update_viewport();
 void apply_rendermode(bool reset);
 void apply_scissor();
+void apply_texture();
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
@@ -501,10 +548,14 @@ void gl_update_array_pointers(gl_array_object_t *obj);
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
 void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
 
-gl_texture_object_t * gl_get_active_texture();
+gl_texture_object_t *gl_get_active_texture();
 inline bool texture_is_complete(gl_texture_object_t *obj)
 {
     return (obj->flags & TEX_IS_COMPLETE) != 0;
+}
+inline bool texture_is_bilinear(gl_texture_object_t *obj)
+{
+    return ((obj->min_filter | obj->mag_filter) & TEXTURE_BILINEAR_MASK) != 0;
 }
 
 bool gl_is_diffuse_tracking_color();
@@ -519,7 +570,9 @@ bool gl_is_env_map_enabled();
 void gl_upload_matrices(const mg_uniform_t *uniform);
 void gl_upload_lighting(const mg_uniform_t *uniform);
 void gl_upload_fog(const mg_uniform_t *uniform);
-void gl_upload_texture(const mg_uniform_t *uniform);
+void gl_upload_texturing(const mg_uniform_t *uniform);
+
+void gl_set_state(gl_state_id_t id);
 
 inline void gl_set_dirty_flags(gl_dirty_flags_t flags)
 {
@@ -553,12 +606,13 @@ inline bool gl_check_and_clear_dirty_flags(gl_dirty_flags_t flags)
 inline bool gl_is_enabled(gl_enable_t enable)
 {
     uint32_t flag = 1 << enable;
-    return (state->enable_flags & flag) == flag;
+    return (state->enable_flags & flag) != 0;
 }
 
-inline bool gl_is_hint_enabled(gl_hint_flags_t flags)
+inline bool gl_is_hint_enabled(gl_hint_t hint)
 {
-    return (state->hint_flags & flags) == flags;
+    uint32_t flag = 1 << hint;
+    return (state->hint_flags & flag) != 0;
 }
 
 inline uint32_t gl_type_to_index(GLenum type)

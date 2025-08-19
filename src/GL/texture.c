@@ -124,7 +124,7 @@ GLenum rdp_tex_format_to_gl(tex_format_t format)
     }
 }
 
-gl_texture_object_t * gl_get_active_texture()
+gl_texture_object_t *gl_get_active_texture()
 {
     if (gl_is_enabled(ENABLE_TEXTURE_2D)) {
         return state->texture_2d_object;
@@ -170,11 +170,6 @@ inline bool texture_is_block_dirty(gl_texture_object_t *obj)
     return (obj->flags & TEX_IS_BLOCK_DIRTY) != 0 || obj->upload_block == NULL;
 }
 
-inline bool texture_is_bilinear(gl_texture_object_t *obj)
-{
-    return ((obj->min_filter | obj->mag_filter) & TEXTURE_BILINEAR_MASK) != 0;
-}
-
 inline bool texture_has_mipmaps(gl_texture_object_t *obj)
 {
     return (obj->min_filter & TEXTURE_MIPMAP_MASK) != 0;
@@ -185,17 +180,10 @@ inline bool texture_is_interpolating_mipmaps(gl_texture_object_t *obj)
     return (obj->min_filter & TEXTURE_INTERPOLATE_MASK) != 0;
 }
 
-gl_texture_object_t * gl_get_active_complete_texture()
+void set_texture_state(gl_texture_object_t *obj, gl_state_id_t state_id)
 {
-    gl_texture_object_t *obj = gl_get_active_texture();
-    return obj != NULL && texture_is_complete(obj) ? obj : NULL;
-}
-
-void set_texture_dirty(gl_texture_object_t *obj)
-{
-    gl_texture_object_t *active_obj = gl_get_active_texture();
-    if (active_obj == obj) {
-        gl_set_dirty_flags(DIRTY_TEXTURING);
+    if (obj == state->active_texture) {
+        gl_set_state(state_id);
     }
 }
 
@@ -205,7 +193,7 @@ void set_block_dirty(gl_texture_object_t *obj)
     if (texture_is_sprite(obj)) return;
 
     obj->flags |= TEX_IS_BLOCK_DIRTY;
-    set_texture_dirty(obj);
+    set_texture_state(obj, STATE_TEXTURE_BLOCK);
 }
 
 static void set_upload_block(gl_texture_object_t *obj, rspq_block_t *block)
@@ -281,9 +269,9 @@ void gl_update_texture_completeness(gl_texture_object_t *obj)
         obj->flags &= ~TEX_IS_COMPLETE;
     }
 
+    set_block_dirty(obj);
     if (is_complete != was_complete) {
-        set_block_dirty(obj);
-        gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_COMBINER);
+        gl_set_state(STATE_TEXTURE_COMPLETE);
     }
 }
 
@@ -319,7 +307,8 @@ void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texpar
     rspq_block_begin();
     rdpq_sprite_upload(TILE0, sprite, texparms);
     set_upload_block(obj, rspq_block_end());
-    set_texture_dirty(obj);
+    set_texture_state(obj, STATE_TEXTURE_SIZE);
+    set_texture_state(obj, STATE_TEXTURE_BLOCK);
 }
 
 void on_image_assigned(gl_texture_object_t *obj, GLint level)
@@ -328,8 +317,9 @@ void on_image_assigned(gl_texture_object_t *obj, GLint level)
     gl_update_texture_completeness(obj);
 
     if (level == 0) {
-        set_texture_dirty(obj);
+        set_texture_state(obj, STATE_TEXTURE_SIZE);
     }
+    set_texture_state(obj, STATE_TEXTURE_BLOCK);
 }
 
 void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_texparms_t *texparms)
@@ -437,7 +427,7 @@ void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
         gl_update_texture_completeness(obj);
     }
 
-    set_texture_dirty(obj);
+    set_texture_state(obj, STATE_TEXTURE_FILTER);
 }
 
 void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
@@ -452,7 +442,7 @@ void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
     }
 
     obj->mag_filter = param;
-    set_texture_dirty(obj);
+    set_texture_state(obj, STATE_TEXTURE_FILTER);
 }
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
@@ -627,7 +617,7 @@ void glBindTexture(GLenum target, GLuint texture)
         *target_obj = obj;
     }
 
-    gl_set_dirty_flags(DIRTY_TEXTURING);
+    gl_set_state(STATE_BOUND_TEXTURES);
 }
 
 void glGenTextures(GLsizei n, GLuint *textures)
@@ -1263,10 +1253,20 @@ void glTexSizeN64(GLushort width, GLushort height)
 {
     state->rdpq_tex_width = width;
     state->rdpq_tex_height = height;
+    gl_set_state(STATE_RDPQ_TEX_SIZE);
+}
 
-    if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) {
-        gl_set_dirty_flags(DIRTY_TEXTURING);
-    }
+void update_active_texture()
+{
+    if (!gl_check_and_clear_dirty_flags(DIRTY_ACTIVE_TEXTURE)) return;
+    gl_texture_object_t *obj = gl_get_active_texture();
+    state->active_texture = obj != NULL && texture_is_complete(obj) ? obj : NULL;
+    gl_set_state(STATE_ACTIVE_TEXTURE);
+}
+
+bool gl_is_texture_active()
+{
+    return gl_is_enabled(ENABLE_RDPQ_TEXTURING) || state->active_texture != NULL;
 }
 
 rdpq_mipmap_t get_mipmap_mode(gl_texture_object_t *obj)
@@ -1330,42 +1330,36 @@ void upload_uniform(const mg_uniform_t *uniform, uint16_t width, uint16_t height
     ringbuffer_release_current(&state->texturing_buffer);
 }
 
-void upload_texture_obj(gl_texture_object_t *obj, const mg_uniform_t *uniform)
-{
-    if (texture_is_block_dirty(obj)) {
-        rspq_block_begin();
-        upload_texture(obj);
-        set_upload_block(obj, rspq_block_end());
-    }
-
-    rspq_block_run(obj->upload_block);
-
-    // TODO: incorporate this into apply_rendermode
-    bool is_bilinear = texture_is_bilinear(obj);
-    rdpq_mode_filter(is_bilinear ? FILTER_BILINEAR : FILTER_POINT);
-
-    uint16_t width, height;
-    get_texture_size(obj, &width, &height);
-    upload_uniform(uniform, width, height, texture_is_bilinear(obj));
-}
-
-void gl_upload_texture(const mg_uniform_t *uniform)
+void gl_upload_texturing(const mg_uniform_t *uniform)
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_TEXTURING)) return;
 
     if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) {
         // When RDPQ texturing is enabled, only update the uniform with the correct texture transform
-        // TODO: how to get texture filter state?
         upload_uniform(uniform, state->rdpq_tex_width, state->rdpq_tex_height, false);
     } else {
-        gl_texture_object_t *obj = gl_get_active_complete_texture();
-        if (obj == NULL) return;
-        upload_texture_obj(obj, uniform);
+        if (state->active_texture == NULL) return;
+        uint16_t width, height;
+        get_texture_size(state->active_texture, &width, &height);
+        upload_uniform(uniform, width, height, texture_is_bilinear(state->active_texture));
     }
 }
 
-bool gl_is_texture_active()
+void apply_texture()
 {
-    // TODO: cache this
-    return gl_is_enabled(ENABLE_RDPQ_TEXTURING) || gl_get_active_complete_texture() != NULL;
+    if (!gl_check_and_clear_dirty_flags(DIRTY_TEXTURE_UPLOAD)) return;
+
+    // When RDPQ texturing is enabled, skip uploading textures entirely.
+    if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) return;
+
+    // Do nothing if there is no active texture. In this case the rendermode is not using texture anyway.
+    if (state->active_texture == NULL) return;
+
+    if (texture_is_block_dirty(state->active_texture)) {
+        rspq_block_begin();
+        upload_texture(state->active_texture);
+        set_upload_block(state->active_texture, rspq_block_end());
+    }
+
+    rspq_block_run(state->active_texture->upload_block);
 }

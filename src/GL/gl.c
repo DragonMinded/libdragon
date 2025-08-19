@@ -77,7 +77,7 @@ void gl_context_begin()
     }
 
     // Reset textures and all RDPQ related states in case they were modified outside of the GL context
-    gl_set_dirty_flags(DIRTY_TEXTURING | DIRTY_RDPQ_ALL);
+    gl_set_dirty_flags(DIRTY_TEXTURE_UPLOAD | DIRTY_RDPQ_ALL);
 
     // Reset rendermode in case it was changed outside of the GL context
     apply_rendermode(true);
@@ -96,6 +96,52 @@ GLenum glGetError(void)
     return error;
 }
 
+static const gl_dirty_flags_t state_to_dirty_flag_table[] = {
+    [STATE_CULL_FACE]           = DIRTY_CULLING,
+    [STATE_FRONT_FACE]          = DIRTY_CULLING,
+    [STATE_BLEND_FUNC]          = DIRTY_BLENDER,
+    [STATE_DEPTH_FUNC]          = DIRTY_GEOM_FLAGS | DIRTY_ZBUF,
+    [STATE_DEPTH_MASK]          = DIRTY_GEOM_FLAGS | DIRTY_ZBUF,
+    [STATE_ALPHA_FUNC]          = DIRTY_ALPHACOMPARE,
+    [STATE_TEX_ENV_MODE]        = DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
+    [STATE_DITHER_MODE]         = DIRTY_DITHER,
+    [STATE_FOG_RANGE]           = DIRTY_FOG_UNIFORM,
+    [STATE_FOG_COLOR]           = DIRTY_FOG_COLOR,
+    [STATE_VIEWPORT]            = DIRTY_VIEWPORT,
+    [STATE_DEPTH_RANGE]         = DIRTY_VIEWPORT,
+    [STATE_SCISSOR]             = DIRTY_SCISSOR,
+    [STATE_COLOR_MATERIAL]      = DIRTY_PRIM_COLOR | DIRTY_PIPELINE | DIRTY_COMBINER,
+    [STATE_MATERIAL_DIFFUSE]    = DIRTY_PRIM_COLOR,
+    [STATE_LIGHT]               = DIRTY_LIGHTING,
+    [STATE_MAT_PROJECTION]      = DIRTY_MATRICES | DIRTY_Z_PLANES,
+    [STATE_MAT_MODELVIEW]       = DIRTY_MATRICES,
+    [STATE_MAT_TEXTURE]         = DIRTY_TEXTURING,
+    [STATE_MAT_PALETTE]         = 0,
+    [STATE_Z_PLANES]            = DIRTY_VIEWPORT,
+    [STATE_BEGIN_END]           = DIRTY_GEOM_FLAGS | DIRTY_COMBINER | DIRTY_PIPELINE,
+    [STATE_TEX_GEN]             = DIRTY_PIPELINE,
+    [STATE_COLOR]               = DIRTY_PRIM_COLOR,
+    [STATE_BOUND_TEXTURES]      = DIRTY_ACTIVE_TEXTURE,
+    [STATE_TEXTURE_COMPLETE]    = DIRTY_ACTIVE_TEXTURE,
+    [STATE_ACTIVE_TEXTURE]      = DIRTY_TEXTURING | DIRTY_TEXTURE_UPLOAD | DIRTY_FILTER | DIRTY_GEOM_FLAGS | DIRTY_COMBINER,
+    [STATE_TEXTURE_SIZE]        = DIRTY_TEXTURING,
+    [STATE_TEXTURE_BLOCK]       = DIRTY_TEXTURE_UPLOAD,
+    [STATE_RDPQ_TEX_SIZE]       = DIRTY_TEXTURING,
+    [STATE_TEXTURE_FILTER]      = DIRTY_TEXTURING,
+    [STATE_BOUND_VAO]           = DIRTY_PIPELINE,
+    [STATE_VAO_LAYOUT]          = DIRTY_PIPELINE,
+    [STATE_ARRAY_VERTEX]        = 0,
+    [STATE_ARRAY_NORMAL]        = 0,
+    [STATE_ARRAY_COLOR]         = DIRTY_GEOM_FLAGS,
+    [STATE_ARRAY_TEXCOORD]      = 0,
+    [STATE_ARRAY_MTX_INDEX]     = 0,
+};
+
+void gl_set_state(gl_state_id_t id)
+{
+    gl_set_dirty_flags(state_to_dirty_flag_table[id]);
+}
+
 static const gl_dirty_flags_t enable_to_dirty_flag_table[] = {
     [ENABLE_SCISSOR_TEST]   = DIRTY_SCISSOR,
     [ENABLE_ALPHA_TEST]     = DIRTY_ALPHACOMPARE,
@@ -107,11 +153,11 @@ static const gl_dirty_flags_t enable_to_dirty_flag_table[] = {
     [ENABLE_LIGHTING]       = DIRTY_LIGHTING | DIRTY_GEOM_FLAGS | DIRTY_COMBINER | DIRTY_PRIM_COLOR,
     [ENABLE_COLOR_MATERIAL] = DIRTY_COMBINER | DIRTY_PRIM_COLOR,
     [ENABLE_NORMALIZE]      = 0,
-    [ENABLE_TEXTURE_1D]     = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
-    [ENABLE_TEXTURE_2D]     = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
+    [ENABLE_TEXTURE_1D]     = DIRTY_ACTIVE_TEXTURE,
+    [ENABLE_TEXTURE_2D]     = DIRTY_ACTIVE_TEXTURE,
     [ENABLE_CULL_FACE]      = DIRTY_CULLING,
     [ENABLE_MATRIX_PALETTE] = 0,
-    [ENABLE_RDPQ_TEXTURING] = DIRTY_TEXTURING | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
+    [ENABLE_RDPQ_TEXTURING] = DIRTY_TEXTURING | DIRTY_TEXTURE_UPLOAD | DIRTY_FILTER | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
     [ENABLE_RDPQ_MATERIAL]  = DIRTY_BLENDER | DIRTY_COMBINER | DIRTY_PRIM_COLOR,
     [ENABLE_LIGHT0]         = DIRTY_LIGHTING,
     [ENABLE_LIGHT1]         = DIRTY_LIGHTING,
@@ -125,7 +171,7 @@ static const gl_dirty_flags_t enable_to_dirty_flag_table[] = {
     [ENABLE_TEX_GEN_T]      = DIRTY_PIPELINE,
     [ENABLE_TEX_GEN_R]      = DIRTY_PIPELINE,
     [ENABLE_TEX_GEN_Q]      = DIRTY_PIPELINE,
-    [ENABLE_TEX_FLIP]       = 0,
+    [ENABLE_TEX_FLIP]       = DIRTY_TEXTURING,
 };
 
 gl_enable_t get_enable_from_target(GLenum target)
@@ -304,12 +350,6 @@ void glClearDepth(GLclampd d)
     state->clear_depth = ZBUF_VAL(d);
 }
 
-void glDitherModeN64(rdpq_dither_t mode)
-{
-    state->dither_mode = mode;
-    gl_set_dirty_flags(DIRTY_DITHER);
-}
-
 void glFlush(void)
 {
     if (!gl_ensure_no_begin_end()) return;
@@ -324,30 +364,36 @@ void glFinish(void)
     rspq_wait();
 }
 
-void set_hint_flag(gl_hint_flags_t flag, bool value)
+static const gl_dirty_flags_t hint_to_dirty_flags_table[] = {
+    [HINT_FULL_AA]          = DIRTY_ANTIALIAS,
+    [HINT_PERSP_CORRECT]    = DIRTY_PERSP,
+};
+
+void set_hint_flag(gl_hint_t hint, bool value)
 {
+    uint32_t flag = 1 << hint;
     if (value) {
         state->hint_flags |= flag;
     } else {
         state->hint_flags &= ~flag;
     }
+
+    gl_set_dirty_flags(hint_to_dirty_flags_table[hint]);
 }
 
 void glHint(GLenum target, GLenum hint)
 {
     if (!gl_ensure_no_begin_end()) return;
-    
+
     switch (target)
     {
     case GL_PERSPECTIVE_CORRECTION_HINT:
         // Use perspective correction by default, unless it was explicitly turned off
         set_hint_flag(HINT_PERSP_CORRECT, hint != GL_FASTEST);
-        gl_set_dirty_flags(DIRTY_PERSP);
         break;
     case GL_MULTISAMPLE_HINT_N64:
         // Use full AA by default, unless RA has been requested
         set_hint_flag(HINT_FULL_AA, hint != GL_FASTEST);
-        gl_set_dirty_flags(DIRTY_ANTIALIAS);
         break;
     case GL_FOG_HINT:
         // TODO: per-pixel fog

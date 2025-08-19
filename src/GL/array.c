@@ -323,6 +323,13 @@ void gl_array_close()
     array_object_free(&state->default_array_object);
 }
 
+static void array_object_set_state(gl_array_object_t *obj, gl_state_id_t state_id)
+{
+    if (obj == state->array_object) {
+        gl_set_state(state_id);
+    }
+}
+
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer)
 {
     gl_array_t *array = &obj->arrays[array_type];
@@ -510,9 +517,7 @@ void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
         array->enabled = enabled;
         state->array_object->is_layout_dirty = true;
 
-        if (array_type == ATTRIB_COLOR) {
-            gl_set_dirty_flags(DIRTY_GEOM_FLAGS);
-        }
+        gl_set_state(STATE_ARRAY_VERTEX + array_type);
     }
 }
 
@@ -660,7 +665,7 @@ void glBindVertexArray(GLuint array)
 
     if (obj != state->array_object) {
         state->array_object = obj;
-        gl_set_dirty_flags(DIRTY_PIPELINE);
+        gl_set_state(STATE_BOUND_VAO);
     }
 }
 
@@ -698,9 +703,7 @@ static void array_object_update_layout(gl_array_object_t *array_object)
         vertex_layout_append(vl, MGFX_ATTRIBUTE_TEXCOORD, sizeof(int16_t) * 2);
     }
 
-    if (array_object == state->array_object) {
-        gl_set_dirty_flags(DIRTY_PIPELINE);
-    }
+    array_object_set_state(array_object, STATE_VAO_LAYOUT);
 }
 
 static void array_object_update_is_all_vbos(gl_array_object_t *array_object)

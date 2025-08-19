@@ -13,17 +13,21 @@ void gl_primitive_init()
     glNormal3f(0, 0, 1);
     glColor4f(1, 1, 1, 1);
     glTexCoord4f(0, 0, 0, 1);
+    uint8_t index = 0;
+    glMatrixIndexubvARB(1, &index);
 
-    state->tex_gen[0].mode = GL_SPHERE_MAP;
-    state->tex_gen[0].object_plane[0] = 1;
-    state->tex_gen[0].eye_plane[0] = 1;
+    glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+    glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+    glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+    glTexGeni(GL_Q, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
 
-    state->tex_gen[1].mode = GL_SPHERE_MAP;
-    state->tex_gen[1].object_plane[1] = 1;
-    state->tex_gen[1].eye_plane[1] = 1;
+    GLfloat s_plane[] = {1, 0, 0, 0};
+    glTexGenfv(GL_S, GL_OBJECT_PLANE, s_plane);
+    glTexGenfv(GL_S, GL_EYE_PLANE, s_plane);
 
-    state->tex_gen[2].mode = GL_EYE_LINEAR;
-    state->tex_gen[3].mode = GL_EYE_LINEAR;
+    GLfloat t_plane[] = {0, 1, 0, 0};
+    glTexGenfv(GL_T, GL_OBJECT_PLANE, t_plane);
+    glTexGenfv(GL_T, GL_EYE_PLANE, t_plane);
 
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
@@ -104,15 +108,18 @@ static void update_uniforms()
     gl_upload_fog(state->fog_uniform);
     gl_upload_lighting(state->lighting_uniform);
     gl_upload_matrices(state->matrices_uniform);
-    gl_upload_texture(state->texturing_uniform);
+    gl_upload_texturing(state->texturing_uniform);
 }
 
 static void prepare_drawing()
 {
+    update_active_texture();
     apply_rendermode(false);
+    apply_texture();
     update_pipeline();
     update_uniforms();
     update_culling();
+    update_z_planes();
     update_viewport();
     update_geom_flags();
 }
@@ -125,7 +132,7 @@ static void prepare_draw_call(uint32_t first, uint32_t count)
 
 bool is_drawing_anything()
 {
-    return !gl_is_enabled(ENABLE_CULL_FACE) || state->cull_face_mode != GL_FRONT_AND_BACK;
+    return !gl_is_enabled(ENABLE_CULL_FACE) || state->cull_face != GL_FRONT_AND_BACK;
 }
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
@@ -277,17 +284,22 @@ bool get_begin_end_need_save(GLenum mode)
     }
 }
 
+void set_begin_end_active(bool active)
+{
+    state->begin_end_active = active;
+    gl_set_state(STATE_BEGIN_END);
+}
+
 void glBegin(GLenum mode)
 {
     if (!gl_ensure_no_begin_end()) return;
 
-    state->begin_end_active = true;
+    set_begin_end_active(true);
     state->begin_end_mode = mode;
     state->begin_end_topology = get_primitive_topology(mode);
     state->begin_end_multiple = get_begin_end_multiple(mode);
     state->begin_end_need_save = get_begin_end_need_save(mode);
 
-    gl_set_dirty_flags(DIRTY_GEOM_FLAGS | DIRTY_COMBINER | DIRTY_PIPELINE);
     prepare_drawing();
     mg_draw_begin();
 
@@ -324,8 +336,7 @@ void glEnd(void)
 
     mg_draw_end();
 
-    state->begin_end_active = false;
-    gl_set_dirty_flags(DIRTY_PIPELINE);
+    set_begin_end_active(false);
 }
 
 void begin_end_append_vtx(const native_vertex_t *vtx)
@@ -398,7 +409,7 @@ void glArrayElement(GLint i)
     };
     array_convert(state->array_object, out_offsets, &state->current_attribs, i, 1, sizeof(native_vertex_t));
     if (state->array_object->arrays[ATTRIB_COLOR].enabled) {
-        gl_set_dirty_flags(DIRTY_PRIM_COLOR);
+        gl_set_state(STATE_COLOR);
     }
 
     if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
@@ -453,7 +464,7 @@ void __gl_normal(GLenum type, const void *value, uint32_t size)
 void __gl_color(GLenum type, const void *value, uint32_t size)
 {
     read_attrib(ATTRIB_COLOR, type, value, size);
-    gl_set_dirty_flags(DIRTY_PRIM_COLOR);
+    gl_set_state(STATE_COLOR);
 }
 
 void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
@@ -707,7 +718,7 @@ void glDepthRange(GLclampd n, GLclampd f)
 {
     state->viewport.n = n;
     state->viewport.f = f;
-    gl_set_dirty_flags(DIRTY_VIEWPORT);
+    gl_set_state(STATE_DEPTH_RANGE);
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
@@ -716,7 +727,7 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
     state->viewport.y = y;
     state->viewport.w = w;
     state->viewport.h = h;
-    gl_set_dirty_flags(DIRTY_VIEWPORT);
+    gl_set_state(STATE_VIEWPORT);
 }
 
 mg_cull_mode_t get_cull_mode()
@@ -725,7 +736,7 @@ mg_cull_mode_t get_cull_mode()
         return MG_CULL_MODE_NONE;
     }
 
-    switch (state->cull_face_mode)
+    switch (state->cull_face)
     {
     case GL_BACK:
         return MG_CULL_MODE_BACK;
@@ -767,14 +778,14 @@ void glCullFace(GLenum mode)
     case GL_BACK:
     case GL_FRONT:
     case GL_FRONT_AND_BACK:
-        state->cull_face_mode = mode;
+        state->cull_face = mode;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid face culling mode", mode);
         return;
     }
 
-    gl_set_dirty_flags(DIRTY_CULLING);
+    gl_set_state(STATE_CULL_FACE);
 }
 
 void glFrontFace(GLenum dir)
@@ -791,7 +802,7 @@ void glFrontFace(GLenum dir)
         return;
     }
 
-    gl_set_dirty_flags(DIRTY_CULLING);
+    gl_set_state(STATE_CULL_FACE);
 }
 
 static void set_precision_bits(gl_fixed_precision_t *dst, GLuint bits)
@@ -834,7 +845,6 @@ void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
     switch (param) {
     case GL_OBJECT_LINEAR:
     case GL_EYE_LINEAR:
-        assertf(0, "Only sphere mapping is currently supported");
         break;
     case GL_SPHERE_MAP:
         if (coord == GL_R || coord == GL_Q) {
@@ -848,7 +858,7 @@ void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
     }
 
     gen->mode = param;
-    gl_set_dirty_flags(DIRTY_PIPELINE);
+    gl_set_state(STATE_TEX_GEN);
 }
 
 void gl_tex_gen_i(GLenum coord, GLenum pname, GLint param)

@@ -6,6 +6,7 @@ void gl_matrix_init()
     state->modelview_stack = (gl_matrix_stack_t) {
         .storage = state->modelview_stack_storage,
         .size = MODELVIEW_STACK_SIZE,
+        .state_id = STATE_MAT_MODELVIEW,
     };
 
     state->default_matrix_target.mv_stack = &state->modelview_stack;
@@ -13,17 +14,20 @@ void gl_matrix_init()
     state->projection_stack = (gl_matrix_stack_t) {
         .storage = state->projection_stack_storage,
         .size = PROJECTION_STACK_SIZE,
+        .state_id = STATE_MAT_PROJECTION,
     };
 
     state->texture_stack = (gl_matrix_stack_t) {
         .storage = state->texture_stack_storage,
         .size = TEXTURE_STACK_SIZE,
+        .state_id = STATE_MAT_TEXTURE,
     };
 
     for (uint32_t i = 0; i < MATRIX_PALETTE_SIZE; i++) {
         state->palette_stacks[i] = (gl_matrix_stack_t) {
             .storage = state->palette_stack_storage[i],
             .size = PALETTE_STACK_SIZE,
+            .state_id = STATE_MAT_PALETTE,
         };
 
         state->palette_matrix_targets[i].mv_stack = &state->palette_stacks[i];
@@ -131,8 +135,10 @@ void glCurrentPaletteMatrixARB(GLint index)
     gl_update_current_matrix_stack();
 }
 
-static void update_near_far_planes()
+void update_z_planes()
 {
+    if (!gl_check_and_clear_dirty_flags(DIRTY_Z_PLANES)) return;
+
     // Attempt to extract near and far plane from projection matrix 
     // for perspective renormalization
     fm_mat4_t *proj = gl_matrix_stack_get_matrix(&state->projection_stack);
@@ -150,7 +156,7 @@ static void update_near_far_planes()
         state->far_plane = 0.0f;
     }
 
-    gl_set_dirty_flags(DIRTY_VIEWPORT);
+    gl_set_state(STATE_Z_PLANES);
 }
 
 static void gl_mark_matrix_target_dirty()
@@ -163,13 +169,9 @@ static void gl_mark_matrix_target_dirty()
         {
             state->palette_matrix_targets[i].is_mvp_dirty = true;
         }
-
-        update_near_far_planes();
     }
 
-    if (state->current_matrix_stack == &state->texture_stack) {
-        gl_set_dirty_flags(DIRTY_TEXTURING);
-    }
+    gl_set_state(state->current_matrix_stack->state_id);
 }
 
 void gl_load_matrix(const GLfloat *m)
@@ -362,6 +364,7 @@ void glPushMatrix(void)
     memcpy(&stack->storage[new_depth], &stack->storage[new_depth-1], sizeof(fm_mat4_t));
 
     gl_update_current_matrix();
+    gl_mark_matrix_target_dirty();
 }
 
 void glPopMatrix(void)
@@ -410,7 +413,8 @@ void glCopyMatrixN64(GLenum source)
 
 void gl_upload_matrices(const mg_uniform_t *uniform)
 {
-    // TODO: only upload when changed
+    if (!gl_check_and_clear_dirty_flags(DIRTY_MATRICES));
+
     gl_update_matrix_targets();
 
     gl_matrix_target_t *mtx_target = &state->default_matrix_target;
