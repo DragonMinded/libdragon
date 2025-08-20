@@ -80,7 +80,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
     # zlib is part of the base OS, and doesn't need to be installed here.
-    brew install -q gmp mpfr libmpc gsed isl make texinfo
+    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.

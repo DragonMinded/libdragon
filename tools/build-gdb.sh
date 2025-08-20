@@ -70,6 +70,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
         "--with-mpfr=$(brew --prefix mpfr)"
         "--with-mpc=$(brew --prefix libmpc)"
         "--with-isl=$(brew --prefix isl)"
+        "--with-python=python3"
         "--with-system-zlib"
     )
 elif [ "$N64_HOST" == "x86_64-w64-mingw32" ]; then
