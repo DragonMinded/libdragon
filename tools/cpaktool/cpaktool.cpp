@@ -28,10 +28,10 @@ static void print_usage(const char *program_name);
 static void print_command_usage(const char *program_name, command_t cmd);
 static void print_version(void);
 static command_t parse_command(const char *cmd_str);
-static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx);
-static bool handle_global_option_with_value(const char *arg, const char *provided_value, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx);
-static int parse_global_options(int argc, char *argv[], int *start_idx, global_options_t *opts);
-static int parse_command_options(command_t cmd, int argc, char *argv[], int start_idx, global_options_t *global_opts, command_options_t *cmd_opts);
+static bool handle_global_option(const char *arg,  const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx);
+static bool handle_global_option_with_value(const char *arg, const char *provided_value, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx);
+static int parse_global_options(int argc, char *argv[], int *start_idx);
+static int parse_command_options(command_t cmd, int argc, char *argv[], int start_idx);
 static int execute_command(command_t cmd, int argc, char *argv[], int start_idx);
 
 //
@@ -52,6 +52,7 @@ int main(int argc, char *argv[]) {
     g_command_opts.num_banks = 1;    // Default number of banks
     g_command_opts.debug_bufsize = 4096;  // Default buffer size for file operations
     g_command_opts.report_level = 1;     // Default fsck report level: WARNING
+    g_command_opts.long_format = true;  // Default to long format for listing
     
     command_t cmd = CMD_NONE;
     int cmd_start_idx;
@@ -62,7 +63,7 @@ int main(int argc, char *argv[]) {
     }
     
     // Parse global options and find command
-    if (parse_global_options(argc, argv, &cmd_start_idx, &g_global_opts) < 0) {
+    if (parse_global_options(argc, argv, &cmd_start_idx) < 0) {
         return 1;
     }
     
@@ -78,7 +79,7 @@ int main(int argc, char *argv[]) {
     }
     
     // Parse command-specific options (also accepts global long options here)
-    int args_start_idx = parse_command_options(cmd, argc, argv, cmd_start_idx + 1, &g_global_opts, &g_command_opts);
+    int args_start_idx = parse_command_options(cmd, argc, argv, cmd_start_idx + 1);
     if (args_start_idx < 0) {
         return 1;
     }
@@ -171,7 +172,7 @@ static command_t parse_command(const char *cmd_str) {
 }
 
 // Helper function for global options with optional provided value
-static bool handle_global_option_with_value(const char *arg, const char *provided_value, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
+static bool handle_global_option_with_value(const char *arg, const char *provided_value, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
     // Check for --option=value format and extract value if present
     const char *equals_value = NULL;
     char *arg_copy = NULL;
@@ -201,18 +202,18 @@ static bool handle_global_option_with_value(const char *arg, const char *provide
         exit(0);
     }
     if (!strcmp(option_name, "--verbose") || !strcmp(option_name, "-v")) {
-        opts->verbose += 1; // Increment verbosity level
+        g_global_opts.verbose += 1; // Increment verbosity level
         free(arg_copy);
         return true;
     }
     if (!strcmp(option_name, "--dry-run") || !strcmp(option_name, "-n")) {
-        opts->dry_run = true;
+        g_global_opts.dry_run = true;
         free(arg_copy);
         return true;
     }
     // Accept -f as global force in both positions; resolve conflicts by renaming local flags
     if (!strcmp(option_name, "--force") || !strcmp(option_name, "-f")) {
-        opts->force = true;
+        g_global_opts.force = true;
         free(arg_copy);
         return true;
     }
@@ -249,7 +250,7 @@ static bool handle_global_option_with_value(const char *arg, const char *provide
             }
         }
 
-        opts->skip_header_bytes = (int)skip_bytes;
+        g_global_opts.skip_header_bytes = (int)skip_bytes;
         free(arg_copy);
         return true;
     }
@@ -259,11 +260,11 @@ static bool handle_global_option_with_value(const char *arg, const char *provide
 }
 
 // Single global options handler usable before or after the command
-static bool handle_global_option(const char *arg, global_options_t *opts, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
-    return handle_global_option_with_value(arg, NULL, opts, program_name, cmd, before_command, argc, argv, arg_idx);
+static bool handle_global_option(const char *arg, const char *program_name, command_t cmd, bool before_command, int argc, char *argv[], int *arg_idx) {
+    return handle_global_option_with_value(arg, NULL, program_name, cmd, before_command, argc, argv, arg_idx);
 }
 
-static int parse_global_options(int argc, char *argv[], int *start_idx, global_options_t *opts) {
+static int parse_global_options(int argc, char *argv[], int *start_idx) {
     *start_idx = 1;
     
     for (int i = 1; i < argc; i++) {
@@ -275,7 +276,7 @@ static int parse_global_options(int argc, char *argv[], int *start_idx, global_o
         
         char *arg = argv[i];
         
-        if (handle_global_option(arg, opts, argv[0], CMD_NONE, true, argc, argv, &i)) {
+        if (handle_global_option(arg, argv[0], CMD_NONE, true, argc, argv, &i)) {
             // handled (or exited)
         } else {
             fatal_error("Unknown global option: %s", arg);
@@ -287,15 +288,7 @@ static int parse_global_options(int argc, char *argv[], int *start_idx, global_o
     return 0;
 }
 
-static int parse_command_options(command_t cmd, int argc, char *argv[], int start_idx, global_options_t *global_opts, command_options_t *cmd_opts) {
-    // Initialize with defaults
-    memset(cmd_opts, 0, sizeof(*cmd_opts));
-    cmd_opts->pak_size = 32;    // Default pak size in KB (32KB = 1 bank)
-    cmd_opts->num_banks = 1;    // Default number of banks
-    cmd_opts->debug_bufsize = 4096;  // Default buffer size for file operations
-    // Default fsck report level: WARNING
-    cmd_opts->report_level = 1;
-
+static int parse_command_options(command_t cmd, int argc, char *argv[], int start_idx) {
     int i;
     for (i = start_idx; i < argc; i++) {
         if (argv[i][0] != '-') {
@@ -321,7 +314,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
         
         // Try global options here as well (after command)
         int temp_idx = i;  // Create temporary index for handle_global_option
-        if (handle_global_option_with_value(original_arg, has_equals ? value : NULL, global_opts, NULL, cmd, false, argc, argv, &temp_idx)) {
+        if (handle_global_option_with_value(original_arg, has_equals ? value : NULL, NULL, cmd, false, argc, argv, &temp_idx)) {
             if (has_equals) *eq = '='; // restore
             i = temp_idx;  // Update our loop index
             continue; // proceed to next arg
@@ -330,23 +323,23 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
         // Parse command-specific options
         switch (cmd) {
             case CMD_LIST:
-                if (!strcmp(arg, "-l") || !strcmp(arg, "--long")) {
-                    cmd_opts->long_format = true;
+                if (!strcmp(arg, "-1") || !strcmp(arg, "--only-names")) {
+                    g_command_opts.long_format = false;
                 } else if (!strcmp(arg, "-H") || !strcmp(arg, "--human-readable")) {
-                    cmd_opts->human_readable = true;
+                    g_command_opts.human_readable = true;
                 } else if (!strcmp(arg, "--crc")) {
-                    cmd_opts->show_crc = true;
-                    cmd_opts->long_format = true;  // --crc implies --long
+                    g_command_opts.show_crc = true;
+                    g_command_opts.long_format = true;  // --crc disables --only-names
                 } else if (!strcmp(arg, "-r") || !strcmp(arg, "--reverse")) {
-                    cmd_opts->reverse_sort = true;
+                    g_command_opts.reverse_sort = true;
                 } else if (!strcmp(arg, "-s") || !strcmp(arg, "--sort")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    cmd_opts->sort_by = value;
+                    g_command_opts.sort_by = value;
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-j") || !strcmp(arg, "--json")) {
-                    cmd_opts->json_output = true;
+                    g_command_opts.json_output = true;
                 } else {
                     fatal_error("Unknown option for list command: %s", arg);
                 }
@@ -354,14 +347,14 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
             
             case CMD_EXTRACT:
                 if (!strcmp(arg, "-o") || !strcmp(arg, "--overwrite")) {
-                    cmd_opts->overwrite = true;
+                    g_command_opts.overwrite = true;
                 } else if (!strcmp(arg, "--debug-bufsize")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    cmd_opts->debug_bufsize = atoi(value);
-                    if (cmd_opts->debug_bufsize <= 0) {
-                        fatal_error("Buffer size must be positive: %d", cmd_opts->debug_bufsize);
+                    g_command_opts.debug_bufsize = atoi(value);
+                    if (g_command_opts.debug_bufsize <= 0) {
+                        fatal_error("Buffer size must be positive: %d", g_command_opts.debug_bufsize);
                     }
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
@@ -371,33 +364,33 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                 
             case CMD_ADD:
                 if (!strcmp(arg, "-c") || !strcmp(arg, "--create")) {
-                    cmd_opts->create_pak = true;
+                    g_command_opts.create_pak = true;
                 } else if (!strcmp(arg, "-u") || !strcmp(arg, "--update")) {
-                    cmd_opts->update_only = true;
+                    g_command_opts.update_only = true;
                 } else if (!strcmp(arg, "--partial")) {
-                    cmd_opts->allow_partial = true;
+                    g_command_opts.allow_partial = true;
                 } else if (!strcmp(arg, "-s") || !strcmp(arg, "--size")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    cmd_opts->pak_size = atoi(value);
-                    if (cmd_opts->pak_size % 32 != 0) {
-                        fatal_error("Pak size must be a multiple of 32 KiB: %d", cmd_opts->pak_size);
+                    g_command_opts.pak_size = atoi(value);
+                    if (g_command_opts.pak_size % 32 != 0) {
+                        fatal_error("Pak size must be a multiple of 32 KiB: %d", g_command_opts.pak_size);
                     }
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-g") || !strcmp(arg, "--gamecode")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    cmd_opts->gamecode = value;
+                    g_command_opts.gamecode = value;
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "--debug-bufsize")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    cmd_opts->debug_bufsize = atoi(value);
-                    if (cmd_opts->debug_bufsize <= 0) {
-                        fatal_error("Buffer size must be positive: %d", cmd_opts->debug_bufsize);
+                    g_command_opts.debug_bufsize = atoi(value);
+                    if (g_command_opts.debug_bufsize <= 0) {
+                        fatal_error("Buffer size must be positive: %d", g_command_opts.debug_bufsize);
                     }
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
@@ -407,7 +400,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                 
             case CMD_DELETE:
                 if (!strcmp(arg, "-i") || !strcmp(arg, "--interactive")) {
-                    cmd_opts->interactive = true;
+                    g_command_opts.interactive = true;
                 } else {
                     fatal_error("Unknown option for delete command: %s", arg);
                 }
@@ -415,7 +408,7 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                 
             case CMD_INFO:
                 if (!strcmp(arg, "-j") || !strcmp(arg, "--json")) {
-                    cmd_opts->json_output = true;
+                    g_command_opts.json_output = true;
                 } else {
                     fatal_error("Unknown option for info command: %s", arg);
                 }
@@ -423,17 +416,17 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                 
             case CMD_TEST:
                 if (!strcmp(arg, "-r") || !strcmp(arg, "--repair")) {
-                    cmd_opts->fix_errors = true;
+                    g_command_opts.fix_errors = true;
                 } else if (!strcmp(arg, "-j") || !strcmp(arg, "--json")) {
-                    cmd_opts->json_output = true;
+                    g_command_opts.json_output = true;
                 } else if (!strcmp(arg, "--level")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
                     // Accept case-insensitive values: INFO, WARNING, ERROR
-                    if (!strcasecmp(value, "INFO")) cmd_opts->report_level = 0;
-                    else if (!strcasecmp(value, "WARNING")) cmd_opts->report_level = 1;
-                    else if (!strcasecmp(value, "ERROR")) cmd_opts->report_level = 2;
+                    if (!strcasecmp(value, "INFO")) g_command_opts.report_level = 0;
+                    else if (!strcasecmp(value, "WARNING")) g_command_opts.report_level = 1;
+                    else if (!strcasecmp(value, "ERROR")) g_command_opts.report_level = 2;
                     else fatal_error("Invalid level '%s' (use INFO, WARNING, or ERROR)", value);
                     if (!has_equals) i++; // consume value
                 } else {
@@ -443,31 +436,31 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                 
             case CMD_FORMAT:
                 if (!strcmp(arg, "-s") || !strcmp(arg, "--size")) {
-                    if (cmd_opts->banks_specified) {
+                    if (g_command_opts.banks_specified) {
                         fatal_error("Cannot specify both --size and --banks options");
                     }
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    cmd_opts->pak_size = atoi(value);
-                    if (cmd_opts->pak_size % 32 != 0) {
-                        fatal_error("Pak size must be a multiple of 32 KiB: %d", cmd_opts->pak_size);
+                    g_command_opts.pak_size = atoi(value);
+                    if (g_command_opts.pak_size % 32 != 0) {
+                        fatal_error("Pak size must be a multiple of 32 KiB: %d", g_command_opts.pak_size);
                     }
                     // Convert size to banks (32KB per bank)
-                    cmd_opts->num_banks = cmd_opts->pak_size / 32;
-                    cmd_opts->size_specified = true;
+                    g_command_opts.num_banks = g_command_opts.pak_size / 32;
+                    g_command_opts.size_specified = true;
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "-b") || !strcmp(arg, "--banks")) {
-                    if (cmd_opts->size_specified) {
+                    if (g_command_opts.size_specified) {
                         fatal_error("Cannot specify both --size and --banks options");
                     }
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    cmd_opts->num_banks = atoi(value);
+                    g_command_opts.num_banks = atoi(value);
                     // Update pak_size to match banks
-                    cmd_opts->pak_size = cmd_opts->num_banks * 32;
-                    cmd_opts->banks_specified = true;
+                    g_command_opts.pak_size = g_command_opts.num_banks * 32;
+                    g_command_opts.banks_specified = true;
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else {
                     fatal_error("Unknown option for format command: %s", arg);
@@ -498,9 +491,9 @@ static void print_command_usage(const char *program_name, command_t cmd) {
             printf("List contents of a Controller Pak file.\n");
             printf("\n");
             printf("Options:\n");
-            printf("  -l, --long              Show detailed information in a table format\n");
+            printf("  -1, --only-names        Show only the file names, one per line\n");
             printf("  -H, --human-readable    Show file sizes in human-readable format (e.g., 1K, 2M)\n");
-            printf("  --crc                   Show CRC32 checksum of file contents (implies --long)\n");
+            printf("  --crc                   Show CRC32 checksum of file contents\n");
             printf("  -s, --sort <key>        Sort by 'name' (default) or 'size'\n");
             printf("  -r, --reverse           Reverse sort order\n");
             printf("  -j, --json              Output in JSON format\n");

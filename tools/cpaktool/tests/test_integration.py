@@ -269,7 +269,7 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(code, 0, f"Failed to add file with embedded NUL: {err}")
         
         # Verify both files are listed and distinguishable
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0, f"Failed to list files: {err}")
         
         # Both files should be present in the listing
@@ -336,7 +336,7 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(code, 0, f"Failed to delete regular file: {err}")
         
         # Verify only the file with embedded NUL remains
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         self.assertNotIn("GAME.01-FOO.TXT", out)
         
@@ -499,7 +499,7 @@ class TestIntegration(unittest.TestCase):
         cycles = 9
         
         for cycle in range(cycles):
-            print(f"Starting cycle {cycle + 1}/{cycles}")
+            #print(f"Starting cycle {cycle + 1}/{cycles}")
             
             # Fill phase: add files until ~100% full
             while get_available_space() > 512:  # Keep small margin for filesystem overhead
@@ -520,10 +520,10 @@ class TestIntegration(unittest.TestCase):
                 test_file.write_bytes(content)
                 
                 # Add to pak
-                print(f"Adding {filename} ({file_size} bytes, CRC32: {crc32:08X})")
+                #print(f"Adding {filename} ({file_size} bytes, CRC32: {crc32:08X})")
                 code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
                 if code != 0:
-                    print(f"Failed to add {filename}: {err}")
+                    #print(f"Failed to add {filename}: {err}")
                     test_file.unlink()  # Clean up
                     if "no space left" in err.lower() or "too many files" in err.lower():
                         break
@@ -539,9 +539,9 @@ class TestIntegration(unittest.TestCase):
                 # Verify integrity after each add
                 verify_pak_integrity()
             
-            print(f"Cycle {cycle + 1}: Filled to {get_pak_usage()} bytes")
+            #print(f"Cycle {cycle + 1}: Filled to {get_pak_usage()} bytes")
             if cycle == cycles - 1:
-                print("Final cycle reached, stopping add phase.")
+                #print("Final cycle reached, stopping add phase.")
                 break
 
             # Empty phase: remove files until ~75% full
@@ -552,7 +552,7 @@ class TestIntegration(unittest.TestCase):
                 filename = random.choice(list(current_files.keys()))
                 
                 # Delete from pak
-                print(f"Deleting {filename} from pak")
+                #print(f"Deleting {filename} from pak")
                 code, out, err = run_cpaktool(["delete", str(pak), filename])
                 if code != 0:
                     self.fail(f"Failed to delete {filename}: {err}")
@@ -563,17 +563,17 @@ class TestIntegration(unittest.TestCase):
                 # Verify integrity after each delete
                 verify_pak_integrity()
             
-            print(f"Cycle {cycle + 1}: Emptied to {get_pak_usage()} bytes")
+            #print(f"Cycle {cycle + 1}: Emptied to {get_pak_usage()} bytes")
         
         # Final verification
         verify_pak_integrity()
         
-        print(f"Brute force test completed successfully")
-        print(f"Final state: {len(current_files)} files, {get_pak_usage()} bytes used")
+        #print(f"Brute force test completed successfully")
+        #print(f"Final state: {len(current_files)} files, {get_pak_usage()} bytes used")
         
         # Uncomment to copy pak to /tmp for manual inspection
-        import shutil
-        shutil.copy2(str(pak), "/tmp/cpaktool_bruteforce_test.pak")
+        #import shutil
+        #shutil.copy2(str(pak), "/tmp/cpaktool_bruteforce_test.pak")
         #print(f"Pak copied to /tmp/cpaktool_bruteforce_test.pak for inspection")
 
 if __name__ == "__main__":

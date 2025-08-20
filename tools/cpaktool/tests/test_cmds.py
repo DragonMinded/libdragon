@@ -311,7 +311,7 @@ class TestCommands(unittest.TestCase):
             self.assertEqual(code, 0, f"Failed to add {filename}: {err}")
         
         # Verify all files are present
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         for filename, _ in files_data:
             self.assertIn(f"GAME.01-{filename}", out)
@@ -526,7 +526,7 @@ class TestCommands(unittest.TestCase):
         pak = self._create_pak()
         
         # Test empty pak
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         self.assertIn("Found 0 files", out)
         
@@ -549,7 +549,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Test basic list
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1",str(pak)])
         self.assertEqual(code, 0)
         self.assertIn("GAME.01-TEST1.TXT", out)
         self.assertIn("TEST.99-DATA.BIN", out)
@@ -573,7 +573,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Test long format
-        code, out, err = run_cpaktool(["list", "-l", str(pak)])
+        code, out, err = run_cpaktool(["list", str(pak)])
         self.assertEqual(code, 0)
         self.assertIn("Game  Pub  Filename", out)  # Header
         self.assertIn("ABCD  EF   SMALL", out)
@@ -581,7 +581,7 @@ class TestCommands(unittest.TestCase):
         self.assertIn(" 5\n", out)  # Size
         
         # Test human-readable format
-        code, out, err = run_cpaktool(["list", "-l", "-H", str(pak)])
+        code, out, err = run_cpaktool(["list", "-H", str(pak)])
         self.assertEqual(code, 0)
         self.assertIn(" 5B", out)  # Small file size
         self.assertIn(" 1.5K", out)  # Large file size
@@ -607,7 +607,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Test name sorting (default)
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         lines = [line for line in out.strip().split('\n') if line and 'Found' not in line]
         self.assertTrue(lines[0].startswith("AAAA.01"))  # A comes first
@@ -615,20 +615,20 @@ class TestCommands(unittest.TestCase):
         self.assertTrue(lines[2].startswith("ZZZZ.99"))  # Z comes last
         
         # Test explicit name sorting
-        code, out, err = run_cpaktool(["list", "--sort", "name", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", "--sort", "name", str(pak)])
         self.assertEqual(code, 0)
         lines = [line for line in out.strip().split('\n') if line and 'Found' not in line]
         self.assertTrue(lines[0].startswith("AAAA.01"))
         
         # Test reverse sorting
-        code, out, err = run_cpaktool(["list", "--sort", "name", "--reverse", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", "--sort", "name", "--reverse", str(pak)])
         self.assertEqual(code, 0)
         lines = [line for line in out.strip().split('\n') if line and 'Found' not in line]
         self.assertTrue(lines[0].startswith("ZZZZ.99"))  # Z comes first when reversed
         self.assertTrue(lines[2].startswith("AAAA.01"))  # A comes last when reversed
         
         # Test size sorting (all same size due to cpakfs padding, but should not error)
-        code, out, err = run_cpaktool(["list", "--sort", "size", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", "--sort", "size", str(pak)])
         self.assertEqual(code, 0)
         
     def test_list_command_patterns(self):
@@ -651,21 +651,21 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Test pattern matching
-        code, out, err = run_cpaktool(["list", str(pak), "GAME.*"])
+        code, out, err = run_cpaktool(["list", "-1", str(pak), "GAME.*"])
         self.assertEqual(code, 0)
         self.assertIn("GAME.01-DOC.TXT", out)
         self.assertNotIn("SAVE.02", out)
         self.assertNotIn("DRAG.ON", out)
         
         # Test extension pattern
-        code, out, err = run_cpaktool(["list", str(pak), "*.BIN"])
+        code, out, err = run_cpaktool(["list", "-1", str(pak), "*.BIN"])
         self.assertEqual(code, 0)
         self.assertIn("SAVE.02-SAVE.BIN", out)
         self.assertNotIn("DOC.TXT", out)
         self.assertNotIn("CONFIG.DAT", out)
         
         # Test multiple patterns
-        code, out, err = run_cpaktool(["list", str(pak), "GAME.*", "DRAG.*"])
+        code, out, err = run_cpaktool(["list", "-1", str(pak), "GAME.*", "DRAG.*"])
         self.assertEqual(code, 0)
         self.assertIn("GAME.01-DOC.TXT", out)
         self.assertIn("DRAG.ON-CONFIG.DAT", out)
@@ -678,7 +678,7 @@ class TestCommands(unittest.TestCase):
         invalid_file.write_text("This is just a text file, not a valid cpak.")
         
         # Run list command on the invalid file
-        code, out, err = run_cpaktool(["list", str(invalid_file)])
+        code, out, err = run_cpaktool(["list", "-1", str(invalid_file)])
         
         # Assert that it fails with the correct error
         self.assertNotEqual(code, 0, "list command should fail on an invalid file")
@@ -700,7 +700,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Verify files are there
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         self.assertIn("TEST.01-FILE1.DAT", out)
         self.assertIn("TEST.01-FILE2.DAT", out)
@@ -712,7 +712,7 @@ class TestCommands(unittest.TestCase):
         self.assertIn("Deleted: TEST.01-FILE1.DAT", out)
         
         # Verify file was deleted
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         self.assertNotIn("TEST.01-FILE1.DAT", out)
         self.assertIn("TEST.01-FILE2.DAT", out)
@@ -742,7 +742,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Verify correct files were deleted
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1",str(pak)])
         self.assertEqual(code, 0)
         self.assertNotIn("TEST.01-FILE1.DAT", out)
         self.assertNotIn("TEST.01-FILE2.DAT", out)
@@ -755,7 +755,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Verify only GAME.02 files remain
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         self.assertNotIn("TEST.01", out)
         self.assertIn("GAME.02-SAVE.DAT", out)
@@ -780,7 +780,7 @@ class TestCommands(unittest.TestCase):
         self.assertIn("Would delete: TEST.01-DELETE.DAT", out)
         
         # Verify file is still there
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         self.assertIn("TEST.01-DELETE.DAT", out)
         self.assertIn("TEST.01-KEEP.DAT", out)
@@ -790,7 +790,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Verify file is gone
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         self.assertNotIn("TEST.01-DELETE.DAT", out)
         self.assertIn("TEST.01-KEEP.DAT", out)
@@ -843,7 +843,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(code, 0)
         
         # Verify correct files were deleted
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0)
         # GAME.01 files should be gone (both patterns)
         self.assertNotIn("GAME.01-FILE1.DAT", out)
@@ -900,7 +900,7 @@ class TestCommands(unittest.TestCase):
             files_added.append(filename)
         
         # Verify we can list all 16 files
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0, f"Failed to list files: {err}")
         for filename in files_added:
             expected_cpak_name = f"DRAG.ON-{filename}"
@@ -916,7 +916,7 @@ class TestCommands(unittest.TestCase):
         self.assertIn("maximum 16 notes", err, f"Expected mention of 16 file limit, got: {err}")
         
         # Verify the pak still has exactly 16 files and is consistent
-        code, out, err = run_cpaktool(["list", str(pak)])
+        code, out, err = run_cpaktool(["list", "-1", str(pak)])
         self.assertEqual(code, 0, f"Failed to list files after failure: {err}")
         file_count = len([line for line in out.strip().split('\n') if line and not line.startswith('Found')])
         self.assertEqual(file_count, 16, f"Expected exactly 16 files, found {file_count}")
@@ -1060,7 +1060,7 @@ class TestCommands(unittest.TestCase):
                 self.assertEqual(code, 0, f"Valid gamecode file {filename} was rejected: {err}")
                 
                 # Verify it was added with original name (converted to uppercase)
-                code, out, err = run_cpaktool(["list", str(pak)])
+                code, out, err = run_cpaktool(["list", "-1", str(pak)])
                 self.assertEqual(code, 0)
                 # cpakfs converts filenames to uppercase
                 expected_filename = filename.upper()
@@ -1091,7 +1091,7 @@ class TestCommands(unittest.TestCase):
         self.assertNotIn("Partial file", stderr)
         
         # List files to see if partial file was cleaned up
-        code, stdout, stderr = run_cpaktool(["list", str(pak)], cwd=self.tmp)
+        code, stdout, stderr = run_cpaktool(["list", "-1", str(pak)], cwd=self.tmp)
         self.assertEqual(code, 0, f"Failed to list pak: {stderr}")
         # Should not contain the big file
         self.assertNotIn("big.txt", stdout)
