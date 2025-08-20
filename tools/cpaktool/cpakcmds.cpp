@@ -588,9 +588,7 @@ int cmd_extract(const char *pak_file, char *patterns[], int num_patterns) {
     // Open the pak file and mount filesystem
     try {
         CPakFilesystem pak(pak_file, true, g_global_opts.skip_header_bytes);
-        
-        verbose_log( "Note: Controller Pak files are stored in 256-byte blocks with random padding");
-        
+                
         int files_extracted = 0;
         
         // Use the new for_each_file method
