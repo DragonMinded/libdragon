@@ -1,5 +1,5 @@
 /*
-** Copyright (c) 2020 rxi
+** Copyright (c) 2024 rxi
 **
 ** This library is free software; you can redistribute it and/or modify it
 ** under the terms of the MIT license. See `microui.c` for details.
@@ -8,7 +8,9 @@
 #ifndef MICROUI_H
 #define MICROUI_H
 
-#define MU_VERSION "2.01"
+#define MU_VERSION "2.02"
+
+#define MU_N64_MODIFICATIONS
 
 #define MU_COMMANDLIST_SIZE     (256 * 1024)
 #define MU_ROOTLIST_SIZE        32
@@ -40,8 +42,10 @@ enum {
   MU_COMMAND_RECT,
   MU_COMMAND_TEXT,
   MU_COMMAND_ICON,
+#ifdef MU_N64_MODIFICATIONS
   MU_COMMAND_SURFACE,
   MU_COMMAND_SPRITE,
+#endif
   MU_COMMAND_MAX
 };
 
@@ -122,10 +126,12 @@ typedef struct { int type, size; } mu_BaseCommand;
 typedef struct { mu_BaseCommand base; void *dst; } mu_JumpCommand;
 typedef struct { mu_BaseCommand base; mu_Rect rect; } mu_ClipCommand;
 typedef struct { mu_BaseCommand base; mu_Rect rect; mu_Color color; } mu_RectCommand;
-typedef struct { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char padding[3]; char str[1]; } mu_TextCommand;
+typedef struct { mu_BaseCommand base; mu_Font font; mu_Vec2 pos; mu_Color color; char str[1]; } mu_TextCommand;
 typedef struct { mu_BaseCommand base; mu_Rect rect; int id; mu_Color color; } mu_IconCommand;
+#ifdef MU_N64_MODIFICATIONS
 typedef struct { mu_BaseCommand base; mu_Rect rect; const void* surface; } mu_SurfaceCommand;
 typedef struct { mu_BaseCommand base; mu_Rect rect; const void* sprite; } mu_SpriteCommand;
+#endif
 
 typedef union {
   int type;
@@ -135,8 +141,10 @@ typedef union {
   mu_RectCommand rect;
   mu_TextCommand text;
   mu_IconCommand icon;
+#ifdef MU_N64_MODIFICATIONS
   mu_SurfaceCommand surface;
   mu_SpriteCommand sprite;
+#endif
 } mu_Command;
 
 typedef struct {
@@ -257,8 +265,10 @@ void mu_draw_rect(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_box(mu_Context *ctx, mu_Rect rect, mu_Color color);
 void mu_draw_text(mu_Context *ctx, mu_Font font, const char *str, int len, mu_Vec2 pos, mu_Color color);
 void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color);
+#ifdef MU_N64_MODIFICATIONS
 void mu_draw_surface(mu_Context *ctx, const void* surf, mu_Rect rect);
 void mu_draw_sprite(mu_Context *ctx, const void* sprite, mu_Rect rect);
+#endif
 
 void mu_layout_row(mu_Context *ctx, int items, const int *widths, int height);
 void mu_layout_width(mu_Context *ctx, int width);
