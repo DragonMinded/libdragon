@@ -1139,5 +1139,159 @@ class TestCommands(unittest.TestCase):
         self.assertIn("--partial", stdout)
         self.assertIn("Keep partially written files on error", stdout)
 
+    def test_extract_directory_option(self):
+        """Test extract --directory option"""
+        pak = self._create_pak()
+        
+        # Create test files to add
+        test1 = self.tmp / "test1.txt"
+        test1.write_text("Hello World!")
+        test2 = self.tmp / "test2.dat"
+        test2.write_bytes(b"\x00\x01\x02\xFF")
+        
+        # Add files to pak
+        code, out, err = run_cpaktool(["add", str(pak), str(test1), str(test2)])
+        self.assertEqual(code, 0, f"Add failed: {err}")
+        
+        # Test extraction to specific directory
+        extract_dir = self.tmp / "extract_test"
+        code, out, err = run_cpaktool(["extract", "--directory", str(extract_dir), str(pak)])
+        self.assertEqual(code, 0, f"Extract failed: {err}")
+        
+        # Verify directory was created and files are there
+        self.assertTrue(extract_dir.exists(), "Extract directory should be created")
+        extracted_files = list(extract_dir.glob("DRAG.ON-*"))
+        self.assertEqual(len(extracted_files), 2, "Should have 2 files extracted")
+        
+        # Test extraction to directory with trailing slash
+        extract_dir2 = self.tmp / "extract_test2"
+        code, out, err = run_cpaktool(["extract", "--directory", str(extract_dir2) + "/", str(pak)])
+        self.assertEqual(code, 0, f"Extract with trailing slash failed: {err}")
+        
+        # Verify files are in the directory
+        extracted_files2 = list(extract_dir2.glob("DRAG.ON-*"))
+        self.assertEqual(len(extracted_files2), 2, "Should have 2 files extracted with trailing slash")
+        
+        # Test with short option -d
+        extract_dir3 = self.tmp / "extract_test3"
+        code, out, err = run_cpaktool(["extract", "-d", str(extract_dir3), str(pak)])
+        self.assertEqual(code, 0, f"Extract with -d failed: {err}")
+        
+        extracted_files3 = list(extract_dir3.glob("DRAG.ON-*"))
+        self.assertEqual(len(extracted_files3), 2, "Should have 2 files extracted with -d")
+
+    def test_extract_stdout_option(self):
+        """Test extract --stdout option"""
+        pak = self._create_pak()
+        
+        # Create a test file with known content
+        test_content = "Hello, stdout test!"
+        test_file = self.tmp / "test.txt"
+        test_file.write_text(test_content)
+        
+        # Add file to pak
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Add failed: {err}")
+        
+        # Test extraction to stdout
+        code, out, err = run_cpaktool(["extract", "--stdout", str(pak)])
+        self.assertEqual(code, 0, f"Extract to stdout failed: {err}")
+        
+        # The stdout should contain the file content
+        # Note: the content might be padded to 256-byte boundary
+        self.assertIn(test_content, out, "File content should be in stdout")
+        
+        # Test with short option -s
+        code, out2, err = run_cpaktool(["extract", "-s", str(pak)])
+        self.assertEqual(code, 0, f"Extract with -s failed: {err}")
+        self.assertEqual(out, out2, "Output should be same with -s and --stdout")
+        
+        # Test extraction of specific file to stdout
+        # First, get the name of the file in the pak
+        code, list_out, err = run_cpaktool(["list", "--only-names", str(pak)])
+        self.assertEqual(code, 0, f"List failed: {err}")
+        
+        filename = list_out.strip()
+        code, out, err = run_cpaktool(["extract", "--stdout", str(pak), filename])
+        self.assertEqual(code, 0, f"Extract specific file to stdout failed: {err}")
+        self.assertIn(test_content, out, "Specific file content should be in stdout")
+
+    def test_extract_directory_and_stdout_warning(self):
+        """Test that using both --directory and --stdout shows warning"""
+        pak = self._create_pak()
+        
+        # Create and add a test file
+        test_file = self.tmp / "test.txt"
+        test_file.write_text("test content")
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Add failed: {err}")
+        
+        # Test that using both options shows warning
+        extract_dir = self.tmp / "extract_test"
+        code, out, err = run_cpaktool(["extract", "--directory", str(extract_dir), "--stdout", str(pak)])
+        self.assertEqual(code, 0, f"Extract should succeed even with both options: {err}")
+        
+        # Should show warning about directory being ignored
+        self.assertIn("--directory option ignored when using --stdout", err, 
+                     "Should warn about directory option being ignored")
+        
+        # Directory should not be created
+        self.assertFalse(extract_dir.exists(), "Directory should not be created when using stdout")
+        
+        # Content should be in stdout
+        self.assertIn("test content", out, "Content should be in stdout")
+
+    def test_extract_directory_creation(self):
+        """Test that extract creates directories that don't exist"""
+        pak = self._create_pak()
+        
+        # Create and add a test file
+        test_file = self.tmp / "test.txt"
+        test_file.write_text("test content")
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Add failed: {err}")
+        
+        # Extract to nested directory that doesn't exist
+        nested_dir = self.tmp / "level1" / "level2" / "extract"
+        code, out, err = run_cpaktool(["extract", "--directory", str(nested_dir), str(pak)])
+        self.assertEqual(code, 0, f"Extract to nested directory failed: {err}")
+        
+        # Verify directory was created
+        self.assertTrue(nested_dir.exists(), "Nested directory should be created")
+        self.assertTrue(nested_dir.is_dir(), "Should be a directory")
+        
+        # Verify file was extracted
+        extracted_files = list(nested_dir.glob("DRAG.ON-*"))
+        self.assertEqual(len(extracted_files), 1, "Should have 1 file extracted")
+
+    def test_extract_overwrite_with_directory(self):
+        """Test extract --overwrite option with --directory"""
+        pak = self._create_pak()
+        
+        # Create and add a test file
+        test_file = self.tmp / "test.txt"
+        test_file.write_text("original content")
+        code, out, err = run_cpaktool(["add", str(pak), str(test_file)])
+        self.assertEqual(code, 0, f"Add failed: {err}")
+        
+        # Extract to directory
+        extract_dir = self.tmp / "extract_test"
+        code, out, err = run_cpaktool(["extract", "--directory", str(extract_dir), str(pak)])
+        self.assertEqual(code, 0, f"First extract failed: {err}")
+        
+        # Verify file exists
+        extracted_files = list(extract_dir.glob("DRAG.ON-*"))
+        self.assertEqual(len(extracted_files), 1, "Should have 1 file extracted")
+        
+        # Try to extract again without --overwrite (should skip)
+        code, out, err = run_cpaktool(["extract", "--directory", str(extract_dir), str(pak)])
+        self.assertEqual(code, 0, f"Second extract should succeed but skip files: {err}")
+        self.assertIn("exists, skipping", err, "Should warn about existing files")
+        
+        # Try to extract again with --overwrite (should succeed)
+        code, out, err = run_cpaktool(["extract", "--directory", str(extract_dir), "--overwrite", str(pak)])
+        self.assertEqual(code, 0, f"Extract with overwrite failed: {err}")
+        self.assertNotIn("exists, skipping", err, "Should not warn about existing files")
+
 if __name__ == "__main__":
     unittest.main()

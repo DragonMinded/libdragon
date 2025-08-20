@@ -120,5 +120,43 @@ class TestGolden(unittest.TestCase):
         for file_entry in data:
             self.assertIsNotNone(file_entry['crc32'], f"File {file_entry['full_name']} should have valid CRC32")
 
+    def test_bh_sram_nul_characters(self):
+        """Test bh-sram.n64 which contains files with embedded NUL characters in extensions"""
+        # Use golden file from a temporary copy
+        test_path = self._use_golden_file("bh-sram.n64")
+
+        # Test with JSON output to verify NUL characters are properly escaped
+        code, out, err = run_cpaktool(["list", "--json", test_path], cwd=self.tempdir)
+        self.assertEqual(code, 0, f"cpaktool list failed: {err}")
+        
+        data = json.loads(out)
+        self.assertEqual(len(data), 8, "Expected to find 8 files in bh-sram.n64")
+        
+        # Find files with NUL characters in extensions (should be escaped as \u0000 in JSON)
+        nul_files = [f for f in data if "\u0000" in f['extension']]
+        self.assertEqual(len(nul_files), 2, "Expected to find 2 files with NUL characters in extensions")
+        
+        # Verify specific files with NUL characters
+        mi_file = next((f for f in data if f['filename'] == "MI"), None)
+        wave_race_file = next((f for f in data if f['filename'] == "WAVE RACE 64"), None)
+        
+        self.assertIsNotNone(mi_file, "MI file not found")
+        self.assertIsNotNone(wave_race_file, "WAVE RACE 64 file not found")
+        
+        # These files should have \u0000RAM as extension (NUL character + RAM)
+        self.assertEqual(mi_file['extension'], "\u0000RAM", "MI file should have \\u0000RAM extension")
+        self.assertEqual(wave_race_file['extension'], "\u0000RAM", "WAVE RACE 64 file should have \\u0000RAM extension")
+        
+        # Test with table format to verify NUL characters are displayed as <NUL>
+        code, out, err = run_cpaktool(["list", test_path], cwd=self.tempdir)
+        self.assertEqual(code, 0, f"cpaktool list failed: {err}")
+        
+        # In table format, NUL characters should be displayed as <NUL>
+        self.assertIn("<NUL>RAM", out, "Table format should show <NUL>RAM for files with embedded NUL characters")
+        
+        # Count occurrences of <NUL>RAM in table output
+        nul_count = out.count("<NUL>RAM")
+        self.assertEqual(nul_count, 2, "Should find exactly 2 occurrences of <NUL>RAM in table output")
+
 if __name__ == '__main__':
     unittest.main()

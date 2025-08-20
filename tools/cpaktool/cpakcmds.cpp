@@ -30,6 +30,7 @@
 #include "../../include/cpakfs.h"
 #include "../../src/joybus/cpakfs_internal.h"
 #include "../common/crc32.c"
+#include "../common/polyfill.h"
 
 //
 // FORWARD DECLARATIONS FOR HELPER FUNCTIONS
@@ -37,6 +38,48 @@
 
 static int extract_file(const char *cpak_path);
 static int add_file(const char *input_file);
+
+// Helper function to create directory if it doesn't exist
+static bool ensure_directory_exists(const char* dir_path) {
+    if (!dir_path || strlen(dir_path) == 0) return true;
+    
+    // Check if directory already exists
+    struct stat st;
+    if (stat(dir_path, &st) == 0) {
+        if (S_ISDIR(st.st_mode)) {
+            return true; // Directory exists
+        } else {
+            warning("Path exists but is not a directory: %s", dir_path);
+            return false;
+        }
+    }
+    
+    // Create a copy of the path to modify
+    std::string path(dir_path);
+    
+    // Remove trailing slash if present
+    if (!path.empty() && path.back() == '/') {
+        path.pop_back();
+    }
+    
+    // Try to create the parent directory first
+    size_t last_slash = path.find_last_of('/');
+    if (last_slash != std::string::npos) {
+        std::string parent_path = path.substr(0, last_slash);
+        if (!ensure_directory_exists(parent_path.c_str())) {
+            return false; // Failed to create parent
+        }
+    }
+    
+    // Try to create this directory
+    if (mkdir(path.c_str(), 0755) == 0) {
+        verbose_log("Created directory: %s", path.c_str());
+        return true;
+    } else {
+        warning("Cannot create directory '%s': %s", path.c_str(), strerror(errno));
+        return false;
+    }
+}
 
 //
 // COMMAND IMPLEMENTATIONS
@@ -298,10 +341,11 @@ static std::string json_escape(const std::string& str) {
             case '\n': escaped_str += "\\n"; break;
             case '\r': escaped_str += "\\r"; break;
             case '\t': escaped_str += "\\t"; break;
+            case '\x01': escaped_str += "\\u0000"; break; // Escape the NUL placeholder as actual NUL character
             default:
-                // Filter out control characters, including the \x01 used for <NUL>
-                if (static_cast<unsigned char>(c) < 32) {
-                    // Skip control characters
+                // Filter out other control characters (but keep \x01 which we handle above)
+                if (static_cast<unsigned char>(c) < 32 && c != '\x01') {
+                    // Skip other control characters except \x01
                 } else {
                     escaped_str += c;
                 }
@@ -531,6 +575,11 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
 
 int cmd_extract(const char *pak_file, char *patterns[], int num_patterns) {
     verbose_log( "Extracting from %s", pak_file);
+    
+    // Validate option combinations
+    if (g_command_opts.extract_stdout && g_command_opts.directory && strlen(g_command_opts.directory) > 0) {
+        warning("--directory option ignored when using --stdout");
+    }
     
     if (!file_exists(pak_file)) {
         fatal_error("File not found: %s", pak_file);
@@ -1339,27 +1388,50 @@ static int extract_file(const char *cpak_path) {
         // The cpak path is already in the correct format (GAME.PB-filename.ext)
         std::string output_filename = cpak_path;
         
-        verbose_log( "Extracting %s", output_filename.c_str());
+        // Apply directory prefix if specified (ignored if extracting to stdout)
+        if (!g_command_opts.extract_stdout && g_command_opts.directory && strlen(g_command_opts.directory) > 0) {
+            // Ensure the target directory exists
+            if (!ensure_directory_exists(g_command_opts.directory)) {
+                return 0; // Failed to create directory
+            }
+            output_filename = std::string(g_command_opts.directory) + output_filename;
+        }
         
-        // Check if output file exists
-        if (file_exists(output_filename.c_str()) && !g_command_opts.overwrite) {
-            warning("File exists, skipping: %s (use --overwrite to force)", output_filename.c_str());
-            return 0;
+        if (!g_command_opts.extract_stdout) {
+            verbose_log( "Extracting %s", output_filename.c_str());
         }
         
         // Open source file in pak using C++ wrapper
         CPakFile src_file(cpak_path, O_RDONLY);
         
         if (g_global_opts.dry_run) {
-            verbose_log("Would extract: %s\n", output_filename.c_str());
+            if (g_command_opts.extract_stdout) {
+                verbose_log("Would extract to stdout: %s\n", cpak_path);
+            } else {
+                verbose_log("Would extract: %s\n", output_filename.c_str());
+            }
             return 1;
         }
         
-        // Open destination file
-        FILE *dst = fopen(output_filename.c_str(), "wb");
-        if (!dst) {
-            warning("Cannot create output file '%s': %s", output_filename.c_str(), strerror(errno));
-            return 0;
+        FILE *dst = nullptr;
+        
+        if (g_command_opts.extract_stdout) {
+            // Extract to stdout
+            dst = stdout;
+        } else {
+            // Extract to file
+            // Check if output file exists
+            if (file_exists(output_filename.c_str()) && !g_command_opts.overwrite) {
+                warning("File exists, skipping: %s (use --overwrite to force)", output_filename.c_str());
+                return 0;
+            }
+            
+            // Open destination file
+            dst = fopen(output_filename.c_str(), "wb");
+            if (!dst) {
+                warning("Cannot create output file '%s': %s", output_filename.c_str(), strerror(errno));
+                return 0;
+            }
         }
         
         // Copy file content (will be padded to 256-byte boundary)
@@ -1370,16 +1442,22 @@ static int extract_file(const char *cpak_path) {
         
         while ((bytes_read = src_file.read(buffer.data(), buffer.size())) > 0) {
             if (fwrite(buffer.data(), 1, bytes_read, dst) != bytes_read) {
-                fclose(dst);
-                unlink(output_filename.c_str());
-                warning("Error writing to file '%s': %s", output_filename.c_str(), strerror(errno));
+                if (!g_command_opts.extract_stdout) {
+                    fclose(dst);
+                    unlink(output_filename.c_str());
+                }
+                warning("Error writing to %s: %s", 
+                       g_command_opts.extract_stdout ? "stdout" : output_filename.c_str(), 
+                       strerror(errno));
                 return 0;
             }
             total_bytes += bytes_read;
         }
         
-        fclose(dst);
-        verbose_log( "Extracted: %s (%zu bytes)", output_filename.c_str(), total_bytes);
+        if (!g_command_opts.extract_stdout) {
+            fclose(dst);
+            verbose_log( "Extracted: %s (%zu bytes)", output_filename.c_str(), total_bytes);
+        }
         return 1;
         
     } catch (const std::exception& e) {

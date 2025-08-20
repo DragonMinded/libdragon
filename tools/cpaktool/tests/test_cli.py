@@ -241,6 +241,23 @@ class TestCLI(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("Buffer size must be positive", err)
         
+        # Create a test pak for extract option testing
+        test_pak = self.tmp / "extract_test.pak"
+        code, out, err = run_cpaktool(["format", str(test_pak)])
+        self.assertEqual(code, 0, f"Format failed: {err}")
+        
+        # EXTRACT: test --directory parsing with space format
+        code, out, err = run_cpaktool(["extract", "--directory", "somedir", str(test_pak)])
+        self.assertEqual(code, 0, f"Extract with directory should succeed: {err}")
+        
+        # EXTRACT: test --directory parsing with = format
+        code, out, err = run_cpaktool(["extract", "--directory=somedir", str(test_pak)])
+        self.assertEqual(code, 0, f"Extract with directory= should succeed: {err}")
+        
+        # EXTRACT: --stdout is a flag, doesn't require value
+        code, out, err = run_cpaktool(["extract", "--stdout", str(test_pak)])
+        self.assertEqual(code, 0, f"Extract with stdout should succeed: {err}")
+        
         # ADD: gamecode format (should accept any format, not validated at CLI level)
         code, out, err = run_cpaktool(["add", "--gamecode", "ABCD.EF", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but option is parsed
@@ -343,11 +360,11 @@ class TestCLI(unittest.TestCase):
         # Test --skip-header with verbose to check logging
         code, out, err = run_cpaktool(["--verbose", "--skip-header", "0", "list", str(pak_path)])
         self.assertEqual(code, 0)
-        self.assertIn("Skipping 0 header bytes (manual setting)", out)
+        self.assertIn("Skipping 0 header bytes (manual setting)", err)
         
         code, out, err = run_cpaktool(["--verbose", "--skip-header", "4160", "list", str(pak_path)])
         self.assertNotEqual(code, 0)
-        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+        self.assertIn("Skipping 4160 header bytes (manual setting)", err)
         
         # Test auto-detect (no --skip-header) - just verify it works
         code, out, err = run_cpaktool(["--verbose", "list", str(pak_path)])
@@ -417,12 +434,12 @@ class TestCLI(unittest.TestCase):
         # Test auto-detection with verbose
         code, out, err = run_cpaktool(["--verbose", "list", str(dexdrive_path)])
         self.assertNotEqual(code, 0) # This is expected to fail because the pak data is invalid
-        self.assertIn("Skipping 4160 header bytes (DexDrive format auto-detected)", out)
+        self.assertIn("Skipping 4160 header bytes (DexDrive format auto-detected)", err)
         
         # Test manual override of auto-detection
         code, out, err = run_cpaktool(["--verbose", "--skip-header", "0", "list", str(dexdrive_path)])
         self.assertNotEqual(code, 0) # This is also expected to fail
-        self.assertIn("Skipping 0 header bytes (manual setting)", out)
+        self.assertIn("Skipping 0 header bytes (manual setting)", err)
 
     def test_skip_header_formats(self):
         """Test --skip-header with hex and dexdrive values"""
@@ -433,27 +450,27 @@ class TestCLI(unittest.TestCase):
         # Test with 'dexdrive' keyword
         code, out, err = run_cpaktool(["--verbose", "--skip-header", "dexdrive", "list", str(pak_path)])
         self.assertNotEqual(code, 0) # Expected to fail on a normal pak
-        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+        self.assertIn("Skipping 4160 header bytes (manual setting)", err)
 
         # Test with 'dexdrive' keyword using =
         code, out, err = run_cpaktool(["--verbose", "--skip-header=dexdrive", "list", str(pak_path)])
         self.assertNotEqual(code, 0) # Expected to fail on a normal pak
-        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+        self.assertIn("Skipping 4160 header bytes (manual setting)", err)
 
         # Test with hex value
         code, out, err = run_cpaktool(["--verbose", "--skip-header", "0x1040", "list", str(pak_path)])
         self.assertNotEqual(code, 0) # Expected to fail on a normal pak
-        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+        self.assertIn("Skipping 4160 header bytes (manual setting)", err)
 
         # Test with hex value using =
         code, out, err = run_cpaktool(["--verbose", "--skip-header=0x1040", "list", str(pak_path)])
         self.assertNotEqual(code, 0) # Expected to fail on a normal pak
-        self.assertIn("Skipping 4160 header bytes (manual setting)", out)
+        self.assertIn("Skipping 4160 header bytes (manual setting)", err)
 
         # Test with a different hex value
         code, out, err = run_cpaktool(["--verbose", "--skip-header", "0x0", "list", str(pak_path)])
         self.assertEqual(code, 0)
-        self.assertIn("Skipping 0 header bytes (manual setting)", out)
+        self.assertIn("Skipping 0 header bytes (manual setting)", err)
 
 if __name__ == "__main__":
     unittest.main()

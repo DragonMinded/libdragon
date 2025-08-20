@@ -53,6 +53,7 @@ int main(int argc, char *argv[]) {
     g_command_opts.debug_bufsize = 4096;  // Default buffer size for file operations
     g_command_opts.report_level = 1;     // Default fsck report level: WARNING
     g_command_opts.long_format = true;  // Default to long format for listing
+    g_command_opts.directory = "";   // Default to current directory
     
     command_t cmd = CMD_NONE;
     int cmd_start_idx;
@@ -348,6 +349,26 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
             case CMD_EXTRACT:
                 if (!strcmp(arg, "-o") || !strcmp(arg, "--overwrite")) {
                     g_command_opts.overwrite = true;
+                } else if (!strcmp(arg, "-d") || !strcmp(arg, "--directory")) {
+                    if (!value) {
+                        g_command_opts.directory = "";
+                    } else {
+                        // Check if we need to add trailing slash
+                        size_t len = strlen(value);
+                        if (len > 0 && value[len-1] != '/') {
+                            // Need to allocate memory for directory + trailing slash
+                            char *dir_with_slash = (char*)malloc(len + 2);
+                            strcpy(dir_with_slash, value);
+                            dir_with_slash[len] = '/';
+                            dir_with_slash[len+1] = '\0';
+                            g_command_opts.directory = dir_with_slash;
+                        } else {
+                            g_command_opts.directory = value;
+                        }
+                    }
+                    if (!has_equals) i++; // Skip next argument as it's the value
+                } else if (!strcmp(arg, "-s") || !strcmp(arg, "--stdout")) {
+                    g_command_opts.extract_stdout = true;
                 } else if (!strcmp(arg, "--debug-bufsize")) {
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
@@ -505,6 +526,8 @@ static void print_command_usage(const char *program_name, command_t cmd) {
             printf("\n");
             printf("Options:\n");
             printf("  -o, --overwrite         Overwrite existing files\n");
+            printf("  -d, --directory <dir>   Extract files to the specified directory\n");
+            printf("  -s, --stdout            Extract file contents to stdout instead of files\n");
             break;
         case CMD_ADD:
             printf("Usage: %s add [OPTIONS] <pak_file> <files...>\n", prog);
@@ -666,8 +689,8 @@ void verbose_log(const char *fmt, ...) {
     
     va_list args;
     va_start(args, fmt);
-    vprintf(fmt, args);
-    printf("\n");
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
     va_end(args);
 }
 

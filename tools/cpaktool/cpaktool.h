@@ -49,6 +49,8 @@ typedef struct {
     
     // Extract options
     bool overwrite;
+    const char *directory;      // Directory where to extract to
+    bool extract_stdout;        // Extract to stdout instead of file
     
     // Add options
     bool create_pak;
@@ -75,14 +77,6 @@ typedef struct {
     int num_banks;
     bool size_specified;
     bool banks_specified;
-    
-    // Convert options
-    const char *from_format;
-    const char *to_format;
-    
-    // Compare options
-    bool brief;
-    bool summary;
 } command_options_t;
 
 // Global variables for options
