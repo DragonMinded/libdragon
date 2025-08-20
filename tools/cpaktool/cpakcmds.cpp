@@ -428,7 +428,7 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
                 max_game_width = std::max(max_game_width, visual_width(file.game_code));
                 max_pub_width = std::max(max_pub_width, visual_width(file.pub_code));
                 max_filename_width = std::max(max_filename_width, visual_width(display_filename(file.filename)));
-                max_ext_width = std::max(max_ext_width, visual_width(file.extension));
+                max_ext_width = std::max(max_ext_width, visual_width(display_filename(file.extension)));
                 
                 std::string size_str = format_size(file.size, g_command_opts.human_readable);
                 max_size_width = std::max(max_size_width, size_str.length());
@@ -486,7 +486,7 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
                                (int)max_game_width, file.game_code.c_str(),
                                (int)max_pub_width, file.pub_code.c_str(),
                                (int)max_filename_width, display_filename(file.filename).c_str(),
-                               (int)max_ext_width, file.extension.c_str(),
+                               (int)max_ext_width, display_filename(file.extension).c_str(),
                                (int)max_size_width, size_str.c_str(),
                                "<error>");
                     } else {
@@ -496,7 +496,7 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
                                (int)max_game_width, file.game_code.c_str(),
                                (int)max_pub_width, file.pub_code.c_str(),
                                (int)max_filename_width, display_filename(file.filename).c_str(),
-                               (int)max_ext_width, file.extension.c_str(),
+                               (int)max_ext_width, display_filename(file.extension).c_str(),
                                (int)max_size_width, size_str.c_str(),
                                crc_str);
                     }
@@ -505,7 +505,7 @@ int cmd_list(const char *pak_file, char *patterns[], int num_patterns) {
                            (int)max_game_width, file.game_code.c_str(),
                            (int)max_pub_width, file.pub_code.c_str(),
                            (int)max_filename_width, display_filename(file.filename).c_str(),
-                           (int)max_ext_width, file.extension.c_str(),
+                           (int)max_ext_width, display_filename(file.extension).c_str(),
                            size_str.c_str());
                 }
             }
@@ -638,9 +638,11 @@ int cmd_add(const char *pak_file, char *files[], int num_files) {
             }
             // result == 0 means error (already handled by add_file)
         }
-        
-        verbose_log( "Summary: %d files added, %d files updated, %d files failed", files_added, files_updated, files_failed);
-        
+        if (g_global_opts.dry_run) {
+            verbose_log( "Dry run: %d files added, %d files updated, %d files failed", files_added, files_updated, files_failed);
+        } else {
+            verbose_log( "Summary: %d files added, %d files updated, %d files failed", files_added, files_updated, files_failed);
+        }
         return files_failed > 0 ? 1 : 0;
         
     } catch (const std::exception& e) {
@@ -956,9 +958,9 @@ int cmd_info(const char *pak_file) {
                 printf("    {\n");
                 printf("      \"game_code\": \"%s\",\n", json_escape(file.game_code).c_str());
                 printf("      \"pub_code\": \"%s\",\n", json_escape(file.pub_code).c_str());
-                printf("      \"filename\": \"%s\",\n", json_escape(file.filename).c_str());
-                printf("      \"extension\": \"%s\",\n", json_escape(file.extension).c_str());
-                printf("      \"full_name\": \"%s\",\n", json_escape(file.full_name).c_str());
+                printf("      \"filename\": \"%s\",\n", json_escape(display_filename(file.filename)).c_str());
+                printf("      \"extension\": \"%s\",\n", json_escape(display_filename(file.extension)).c_str());
+                printf("      \"full_name\": \"%s\",\n", json_escape(display_filename(file.full_name)).c_str());
                 printf("      \"size\": %d,\n", file.size);
                 printf("      \"crc32\": ");
                 if (file.crc32_error) {
@@ -1004,15 +1006,12 @@ int cmd_info(const char *pak_file) {
             if (!files_ext.empty()) {
                 printf("\nNotes:\n");
                 for (const auto& file : files_ext) {
-                    printf("  %s.%s-%s", file.game_code.c_str(), file.pub_code.c_str(), display_filename(file.filename).c_str());
-                    if (!file.extension.empty()) {
-                        printf(".%s", file.extension.c_str());
-                    }
-                    printf(" (%d bytes)", file.size);
+                    printf("  %s\n", display_filename(file.full_name).c_str());
+                    printf("    %s bytes\n", file.size >= 0 ? std::to_string(file.size).c_str() : "<error>");
                     if (!file.crc32_error) {
-                        printf("     CRC32: %08X", file.crc32_value);
+                        printf("    CRC32: %08X", file.crc32_value);
                     } else {
-                        printf("     CRC32: <error>");
+                        printf("    CRC32: <error>");
                     }
                     printf("\n");
                     if (!file.spans.empty()) {
@@ -1032,7 +1031,8 @@ int cmd_info(const char *pak_file) {
             printf("\nWeighted fragmentation index: %.2f%% (span=%.2f%%, banks=%.2f%%, free=%.2f%%)\n", frag_total * 100.0, avg_span * 100.0, avg_banks * 100.0, avg_free * 100.0);
             printf("\nFSCK issues: %zu\n", info.fsck_issues.size());
             for (const auto &iss : info.fsck_issues) {
-                printf("  [%d] Level %d: %s\n", iss.code, iss.level, iss.message.c_str());
+                const char *levels[3] = { "INFO", "WARNING", "ERROR" };
+                printf("  [%d] %s: %s\n", iss.code, levels[iss.level], iss.message.c_str());
             }
         }
 
@@ -1060,11 +1060,10 @@ int cmd_test(const char *pak_file) {
         FsckContext fsck_ctx;
         fsck_ctx.issues = &issues;
         fsck_ctx.min_level = g_command_opts.report_level;
-        int err = cpakfs_fsck(JOYPAD_PORT_1, g_command_opts.fix_errors, fsck_report_static, &fsck_ctx);
+        int err = cpakfs_fsck(JOYPAD_PORT_1, g_command_opts.fix_errors && !g_global_opts.dry_run, fsck_report_static, &fsck_ctx);
         if (err < 0) {
             fatal_error("Failed to test Controller Pak image: %s", strerror(errno));
         }
-
         if (g_command_opts.json_output) {
             // Output JSON
             printf("{\n");
@@ -1087,13 +1086,16 @@ int cmd_test(const char *pak_file) {
             if (issues.empty()) {
                 printf("No issues found\n");
             } else if (g_command_opts.fix_errors) {
-                printf("Fixed %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
+                if (g_global_opts.dry_run) {
+                    printf("Would fix %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
+                } else {
+                    printf("Fixed %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
+                }
             } else {
                 printf("Found %zu issue%s\n", issues.size(), issues.size()==1?"":"s");
                 if (!issues.empty()) return -1;
             }
         }
-
         return 0;
         
     } catch (const std::exception& e) {
@@ -1109,18 +1111,19 @@ int cmd_format(const char *pak_file) {
         fatal_error("File exists: %s (use --force to overwrite)", pak_file);
     }
     
+    if (g_global_opts.dry_run) {
+        verbose_log("Dry run: would format Controller Pak image");
+        return 0;
+    }
     try {
         // Use factory method to create and format the pak file
         auto pak = CPakFilesystem::create(pak_file, g_command_opts.num_banks, g_global_opts.force);
         if (!pak) {
             fatal_error("Cannot create Controller Pak file '%s': %s", pak_file, strerror(errno));
         }
-        
         size_t total_size = g_command_opts.num_banks * BANK_SIZE;
         verbose_log( "Controller Pak image formatted successfully: %zu bytes", total_size);
-        
         return 0;
-        
     } catch (...) {
         unlink(pak_file); // Clean up on exception
         fatal_error("Failed to format Controller Pak image: unknown error");
@@ -1254,7 +1257,12 @@ static int add_file(const char *input_file) {
         warning("Cannot open source file '%s': %s", input_file, strerror(errno));
         return 0;
     }
-    
+
+    if (g_global_opts.dry_run) {
+        fclose(src);
+        return is_update ? 2 : 1; // Indicate update or addition without actual write
+    }
+
     // Get source file size
     fseek(src, 0, SEEK_END);
     long file_size = ftell(src);
@@ -1342,8 +1350,10 @@ static int extract_file(const char *cpak_path) {
         // Open source file in pak using C++ wrapper
         CPakFile src_file(cpak_path, O_RDONLY);
         
-        // Note: cpakfs doesn't store real file size, files are always padded to 256-byte blocks
-        verbose_log( "Note: cpakfs files are padded to 256-byte blocks");
+        if (g_global_opts.dry_run) {
+            verbose_log("Would extract: %s\n", output_filename.c_str());
+            return 1;
+        }
         
         // Open destination file
         FILE *dst = fopen(output_filename.c_str(), "wb");
