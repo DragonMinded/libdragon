@@ -6,11 +6,12 @@ IFS=$'\n\t'
 
 # If --test is passed, run tests after building
 TEST_MODE=false
-if [[ "$1" == "--test" ]]; then
-  TEST_MODE=true
-  shift
-fi
-
+while (( $# )); do
+  case "$1" in
+    --test) TEST_MODE=true; shift ;;
+    *) break ;;
+  esac
+done
 
 if [[ -z ${N64_INST-} ]]; then
   echo N64_INST environment variable is not defined
