@@ -638,10 +638,17 @@ static void print_command_usage(const char *program_name, command_t cmd) {
 }
 
 static int execute_command(command_t cmd, int argc, char *argv[], int start_idx) {
-    // Count non-option arguments
+    // Count non-option arguments and process trailing options
     int arg_count = 0;
     for (int i = start_idx; i < argc; i++) {
-        if (argv[i][0] != '-') {
+        if (argv[i][0] == '-') {
+            // Process trailing global options
+            int temp_idx = i;
+            if (!handle_global_option(argv[i], NULL, cmd, false, argc, argv, &temp_idx)) {
+                fatal_error("Unknown option: %s", argv[i]);
+            }
+            i = temp_idx; // Skip processed arguments
+        } else {
             arg_count++;
         }
     }
