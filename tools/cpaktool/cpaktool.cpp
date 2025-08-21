@@ -39,10 +39,6 @@ static int execute_command(command_t cmd, int argc, char *argv[], int start_idx)
 // GAMECODE PARSING FUNCTIONS
 //
 
-/**
- * @brief Parse and validate gamecode format (GAME.PUB)
- * Supports: 4+2 ASCII, 8+4 hex, 4+4 mixed, 8+2 mixed
- */
 static char* parse_and_validate_gamecode(const char *input)
 {
     if (!input) return NULL;
@@ -57,26 +53,19 @@ static char* parse_and_validate_gamecode(const char *input)
         fatal_error("Invalid gamecode: game part must be 4 or 8 chars, pub part must be 2 or 4 chars");
     }
     
-    // Validate characters
-    for (int i = 0; i < game_len; i++) {
-        char c = input[i];
-        bool valid = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-        if (game_len == 8) { // Hex format: only 0-9, A-F
-            valid = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+    auto validate = [](const char *s, int len, const char *name) {
+        bool hex = (len == 8) || (len == 4 && name[0] == 'p'); // hex if 8 chars or 4-char pubcode
+        for (int i = 0; i < len; i++) {
+            char c = s[i];
+            bool ok = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+            if (hex) ok = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+            if (!ok) fatal_error("Invalid character in %s: '%c'", name, c);
         }
-        if (!valid) fatal_error("Invalid character in gamecode: '%c'", c);
-    }
+    };
     
-    for (int i = 0; i < pub_len; i++) {
-        char c = dot[1 + i];
-        bool valid = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-        if (pub_len == 4) { // Hex format: only 0-9, A-F
-            valid = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
-        }
-        if (!valid) fatal_error("Invalid character in pubcode: '%c'", c);
-    }
+    validate(input, game_len, "gamecode");
+    validate(dot + 1, pub_len, "pubcode");
     
-    // Copy and convert to uppercase
     char *result = (char*)malloc(strlen(input) + 1);
     if (!result) fatal_error("Memory allocation failed");
     strcpy(result, input);
