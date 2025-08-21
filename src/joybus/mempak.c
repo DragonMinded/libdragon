@@ -5,6 +5,7 @@
  * @ingroup controllerpak
  */
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
@@ -767,8 +768,18 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
 int get_mempak_free_space( int controller )
 {
     cpakfs_stats_t stats;
-    if (cpakfs_get_stats( controller, &stats ) < 0)
-        return -2; /* Controller Pak is not inserted or I/O error in general */
+    if (cpakfs_get_stats( controller, &stats ) < 0) {
+        if (errno != ENODEV)
+            return -2; /* Controller Pak is not inserted or I/O error in general */
+
+        // Controller Pak not mounted. Try mounting it
+        if (cpakfs_mount(controller, "mempak_shim") < 0)
+            return -2;
+        int err = cpakfs_get_stats( controller, &stats );
+        cpakfs_unmount(controller);
+        if (err < 0)
+            return -2;
+    }
 
     return stats.pages.total - stats.pages.used;
 }
