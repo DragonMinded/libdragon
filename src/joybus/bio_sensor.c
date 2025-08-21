@@ -25,6 +25,9 @@
 #define BIO_SENSOR_PERIOD_INTERVAL_TICKS (TICKS_PER_SECOND / 2)
 /** @brief Number of measurement periods in one minute (120 half-second periods) */
 #define BIO_SENSOR_PERIODS_PER_MINUTE (60 * 2)
+/** @brief Convenience macro for joypad accessory type comparison */
+#define BIO_SENSOR_CONNECTED(port) \
+    (joypad_get_accessory_type(port) == JOYPAD_ACCESSORY_TYPE_BIO_SENSOR)
 
 /**
  * @brief Bio Sensor reading states
@@ -85,13 +88,17 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
     joypad_port_t port = (joypad_port_t)ctx;
-    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
-    bio_sensor_state_t current_state = reader->state;
-    // Ignore this read if this sensor has been stopped
-    if (current_state == BIO_SENSOR_STATE_STOPPED) return;
 
-    const joybus_cmd_n64_accessory_read_port_t *recv_cmd = (void *)&out_bytes[port];
-    int crc_status = joybus_accessory_compare_data_crc(recv_cmd->recv.data, recv_cmd->recv.data_crc);
+    // Extract the "N64 Accessory Read" command struct from the Joybus response
+    const joybus_cmd_n64_accessory_read_port_t *cmd =
+        (void *)&out_bytes[port + JOYBUS_COMMAND_METADATA_SIZE];
+    assert(cmd->send.command == JOYBUS_COMMAND_ID_N64_ACCESSORY_READ);
+
+    volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
+    // Ignore this read if this sensor has been stopped
+    if (reader->state == BIO_SENSOR_STATE_STOPPED) { return; }
+
+    int crc_status = joybus_accessory_compare_data_crc(cmd->recv.data, cmd->recv.data_crc);
     if (crc_status != JOYBUS_ACCESSORY_IO_STATUS_OK)
     {
         // Stop reading if the Bio Sensor has been disconnected
@@ -116,13 +123,13 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
         reader->period_start_ticks = now_ticks;
     }
 
-    uint8_t sensor_data = recv_cmd->recv.data[0];
+    uint8_t sensor_data = cmd->recv.data[0];
     bio_sensor_state_t next_state = BIO_SENSOR_STATE_STOPPED;
     if (sensor_data == 0x00) next_state = BIO_SENSOR_STATE_PULSING;
     if (sensor_data == 0x03) next_state = BIO_SENSOR_STATE_RESTING;
 
     if (
-        current_state == BIO_SENSOR_STATE_PULSING &&
+        reader->state == BIO_SENSOR_STATE_PULSING &&
         next_state == BIO_SENSOR_STATE_RESTING
     ) {
         reader->period_beats += 1;
@@ -147,6 +154,12 @@ static void bio_sensor_vi_interrupt_callback(void)
             bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED
         )
         {
+            if (!BIO_SENSOR_CONNECTED(port))
+            {
+                // Stop reading if the Bio Sensor has been disconnected
+                bio_sensor_read_stop(port);
+                continue;
+            }
             bio_sensor_readers[port].read_pending = true;
             joybus_accessory_read_async(
                 port, JOYBUS_ACCESSORY_ADDR_BIO_PULSE,
@@ -170,11 +183,13 @@ void bio_sensor_close(void)
 	if (--bio_sensor_init_refcount > 0) { return; }
 
     unregister_VI_handler(bio_sensor_vi_interrupt_callback);
+    JOYPAD_PORT_FOREACH (port) { bio_sensor_read_stop(port); }
 }
 
 void bio_sensor_read_start(joypad_port_t port)
 {
-    if (bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED) return;
+    if (!BIO_SENSOR_CONNECTED(port)) { return; }
+    if (bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED) { return; }
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     memset((void *)reader, 0, sizeof(*reader));
     reader->state = BIO_SENSOR_STATE_RESTING;
@@ -189,16 +204,19 @@ void bio_sensor_read_stop(joypad_port_t port)
 
 bool bio_sensor_get_active(joypad_port_t port)
 {
+    if (!BIO_SENSOR_CONNECTED(port)) { return false; }
     return bio_sensor_readers[port].state != BIO_SENSOR_STATE_STOPPED;
 }
 
 bool bio_sensor_get_pulsing(joypad_port_t port)
 {
+    if (!BIO_SENSOR_CONNECTED(port)) { return false; }
     return bio_sensor_readers[port].state == BIO_SENSOR_STATE_PULSING;
 }
 
 int bio_sensor_get_bpm(joypad_port_t port)
 {
+    if (!BIO_SENSOR_CONNECTED(port)) { return 0; }
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     int num_periods = reader->period_counter;
     if (num_periods < BIO_SENSOR_PERIODS_MINIMUM)
