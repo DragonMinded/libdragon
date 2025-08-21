@@ -4,6 +4,14 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# If --test is passed, run tests after building
+TEST_MODE=false
+if [[ "$1" == "--test" ]]; then
+  TEST_MODE=true
+  shift
+fi
+
+
 if [[ -z ${N64_INST-} ]]; then
   echo N64_INST environment variable is not defined
   echo Please set N64_INST to point to your libdragon toolchain directory
@@ -45,11 +53,16 @@ makeWithParams clobber
 makeWithParams libdragon tools
 sudoMakeWithParams install tools-install
 
-# Build examples and tests - libdragon must be already installed at this point,
+if [ "$TEST_MODE" = true ]; then
+  # Run tests if --test was passed
+  makeWithParams test
+fi
+
+# Build examples - libdragon must be already installed at this point,
 # so first clobber the build to make sure that everything works against the
 # installed version rather than using local artifacts.
 makeWithParams clobber
-makeWithParams examples test
+makeWithParams examples
 
 echo
 echo Libdragon built successfully!

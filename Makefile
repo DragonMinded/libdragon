@@ -154,6 +154,7 @@ regen:
 test:
 	$(MAKE) -C tests
 	$(MAKE) -C tests/cpakfs test
+	python3 -m unittest discover tools/cpaktool/tests
 
 test-clean: install-mk
 	$(MAKE) -C tests clean
