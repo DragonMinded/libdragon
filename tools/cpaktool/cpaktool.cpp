@@ -18,6 +18,7 @@
 #include <strings.h>
 
 #include "cpaktool.h"
+#include "../common/polyfill.h"
 
 // Global variables for options
 global_options_t g_global_opts;
@@ -33,6 +34,146 @@ static bool handle_global_option_with_value(const char *arg, const char *provide
 static int parse_global_options(int argc, char *argv[], int *start_idx);
 static int parse_command_options(command_t cmd, int argc, char *argv[], int start_idx);
 static int execute_command(command_t cmd, int argc, char *argv[], int start_idx);
+
+//
+// GAMECODE PARSING FUNCTIONS
+//
+
+/**
+ * @brief Check if a character is a valid hex digit
+ */
+static bool is_hex_char(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+}
+
+/**
+ * @brief Check if a character is valid for gamecode/pubcode (alphanumeric)
+ */
+static bool is_valid_gamecode_char(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+/**
+ * @brief Parse and validate gamecode format
+ * 
+ * Supports formats:
+ * - DRAG.ON (ASCII gamecode, ASCII pubcode)
+ * - DEADBEEF.FADE (hex gamecode, hex pubcode) 
+ * - DRAG.FADE (ASCII gamecode, hex pubcode)
+ * - DEADBEEF.ON (hex gamecode, ASCII pubcode)
+ * 
+ * Returns allocated string with the validated gamecode in the original format, or NULL on error.
+ */
+static char* parse_and_validate_gamecode(const char *input)
+{
+    if (!input) return NULL;
+    
+    // Find the dot separator
+    const char *dot = strchr(input, '.');
+    if (!dot) {
+        fatal_error("Invalid gamecode format: missing '.' separator (expected GAME.PUB)");
+        return NULL;
+    }
+    
+    int game_len = dot - input;
+    int pub_len = strlen(dot + 1);
+    
+    // Validate game code length: must be 4 (ASCII) or 8 (hex)
+    if (game_len != 4 && game_len != 8) {
+        fatal_error("Invalid gamecode: game part must be 4 characters (ASCII) or 8 characters (hex), got %d", game_len);
+        return NULL;
+    }
+    
+    // Validate publisher code length: must be 2 (ASCII) or 4 (hex)
+    if (pub_len != 2 && pub_len != 4) {
+        fatal_error("Invalid gamecode: publisher part must be 2 characters (ASCII) or 4 characters (hex), got %d", pub_len);
+        return NULL;
+    }
+    
+    // Determine format for each part and validate characters
+    bool game_is_hex = (game_len == 8);
+    bool pub_is_hex = (pub_len == 4);
+    
+    // Validate game code characters
+    if (game_is_hex) {
+        // Hex format - all characters must be hex digits
+        for (int i = 0; i < game_len; i++) {
+            if (!is_hex_char(input[i])) {
+                fatal_error("Invalid character in hex gamecode: '%c' (only hex digits allowed)", input[i]);
+                return NULL;
+            }
+        }
+    } else {
+        // ASCII format - all characters must be alphanumeric
+        for (int i = 0; i < game_len; i++) {
+            if (!is_valid_gamecode_char(input[i])) {
+                fatal_error("Invalid character in ASCII gamecode: '%c' (only alphanumeric allowed)", input[i]);
+                return NULL;
+            }
+        }
+    }
+    
+    // Validate publisher code characters
+    if (pub_is_hex) {
+        // Hex format - all characters must be hex digits
+        for (int i = 0; i < pub_len; i++) {
+            if (!is_hex_char(dot[1 + i])) {
+                fatal_error("Invalid character in hex pubcode: '%c' (only hex digits allowed)", dot[1 + i]);
+                return NULL;
+            }
+        }
+    } else {
+        // ASCII format - all characters must be alphanumeric
+        for (int i = 0; i < pub_len; i++) {
+            if (!is_valid_gamecode_char(dot[1 + i])) {
+                fatal_error("Invalid character in ASCII pubcode: '%c' (only alphanumeric allowed)", dot[1 + i]);
+                return NULL;
+            }
+        }
+    }
+    
+    // Allocate result buffer and copy the validated gamecode
+    size_t total_len = strlen(input);
+    char *result = (char*)malloc(total_len + 1);
+    if (!result) {
+        fatal_error("Memory allocation failed");
+        return NULL;
+    }
+    
+    strcpy(result, input);
+    
+    // Convert ASCII parts to uppercase if needed
+    if (!game_is_hex) {
+        for (int i = 0; i < game_len; i++) {
+            if (result[i] >= 'a' && result[i] <= 'z') {
+                result[i] = result[i] - 'a' + 'A';
+            }
+        }
+    }
+    
+    if (!pub_is_hex) {
+        for (int i = 0; i < pub_len; i++) {
+            if (result[game_len + 1 + i] >= 'a' && result[game_len + 1 + i] <= 'z') {
+                result[game_len + 1 + i] = result[game_len + 1 + i] - 'a' + 'A';
+            }
+        }
+    }
+    
+    return result;
+}
+
+/**
+ * @brief Clean up allocated memory in command options
+ */
+static void cleanup_command_options(void)
+{
+    if (g_command_opts.gamecode) {
+        free(g_command_opts.gamecode);
+        g_command_opts.gamecode = NULL;
+    }
+}
 
 //
 // MAIN FUNCTION
@@ -403,7 +544,12 @@ static int parse_command_options(command_t cmd, int argc, char *argv[], int star
                     if (!value) {
                         fatal_error("Option %s requires a value", arg);
                     }
-                    g_command_opts.gamecode = value;
+                    // Parse and validate the gamecode, converting hex to ASCII if needed
+                    g_command_opts.gamecode = parse_and_validate_gamecode(value);
+                    if (!g_command_opts.gamecode) {
+                        // Error message already printed by parse_and_validate_gamecode
+                        return -1;
+                    }
                     if (!has_equals) i++; // Skip next argument as it's the value
                 } else if (!strcmp(arg, "--debug-bufsize")) {
                     if (!value) {
@@ -658,6 +804,7 @@ static int execute_command(command_t cmd, int argc, char *argv[], int start_idx)
     }
     
     free(args);
+    cleanup_command_options();  // Free allocated memory
     return result;
 }
 

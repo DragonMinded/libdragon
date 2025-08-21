@@ -36,8 +36,145 @@
 // FORWARD DECLARATIONS FOR HELPER FUNCTIONS
 //
 
-static int extract_file(const char *cpak_path);
+static int extract_file(const char *cpak_path, const char *output_filename);
 static int add_file(const char *input_file);
+
+// Filename sanitization functions
+static bool is_host_safe_char(unsigned char c);
+static bool is_windows_reserved_name(const std::string& name);
+static std::string percent_encode_component(const std::string& component);
+static std::string sanitize_filename_for_host(const std::string& cpak_filename);
+
+//
+// FILENAME SANITIZATION FUNCTIONS
+//
+
+/**
+ * @brief Check if a character is safe for host filesystem names
+ * 
+ * Safe characters are those that work reliably across Windows, macOS, and Linux
+ * without needing percent encoding.
+ */
+static bool is_host_safe_char(unsigned char c) {
+    // ASCII alphanumeric
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
+        return true;
+    }
+    
+    // Safe symbols that work on all platforms
+    switch (c) {
+        case '-':
+        case '_':
+        case '.':
+        case '(':
+        case ')':
+        case '[':
+        case ']':
+        case ' ':  // Space is safe in the middle, but needs special handling at edges
+            return true;
+        default:
+            // Unicode characters (>= 0x80) are generally safe on modern filesystems
+            // when properly encoded as UTF-8, but we'll be conservative and encode them
+            // to avoid issues with legacy systems
+            return c >= 0x80;
+    }
+}
+
+/**
+ * @brief Check if a name (without extension) is a Windows reserved name
+ */
+static bool is_windows_reserved_name(const std::string& name) {
+    // Windows reserved names (case-insensitive)
+    static const char* reserved[] = {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
+    
+    for (const char* res : reserved) {
+        if (strcasecmp(name.c_str(), res) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief Apply percent encoding to a single filename component
+ * 
+ * This function handles:
+ * - Encoding unsafe characters
+ * - Windows reserved names (escape first character)
+ * - Trailing spaces and dots (Windows requirement)
+ * - Special case for \x01 -> %00 (NUL placeholder)
+ */
+static std::string percent_encode_component(const std::string& component) {
+    if (component.empty()) {
+        return component;
+    }
+    
+    std::string result;
+    result.reserve(component.length() * 2); // Worst case: every char becomes %XX
+    
+    // Check if this is a Windows reserved name
+    std::string name_part = component;
+    size_t dot_pos = component.find('.');
+    if (dot_pos != std::string::npos) {
+        name_part = component.substr(0, dot_pos);
+    }
+    
+    bool force_escape_first = is_windows_reserved_name(name_part);
+    
+    for (size_t i = 0; i < component.length(); i++) {
+        unsigned char c = component[i];
+        bool should_encode = false;
+        
+        // Special case: \x01 (NUL placeholder) -> %00
+        if (c == 0x01) {
+            result += "%00";
+            continue;
+        }
+        
+        // Always encode path separators and colon
+        if (c == '/' || c == '\\' || c == ':') {
+            should_encode = true;
+        }
+        // Force escape first character if Windows reserved name
+        else if (i == 0 && force_escape_first) {
+            should_encode = true;
+        }
+        // Encode trailing spaces and dots (Windows requirement)
+        else if (i == component.length() - 1 && (c == ' ' || c == '.')) {
+            should_encode = true;
+        }
+        // Encode if not host-safe
+        else if (!is_host_safe_char(c)) {
+            should_encode = true;
+        }
+        
+        if (should_encode) {
+            char hex_buf[4];
+            snprintf(hex_buf, sizeof(hex_buf), "%%%02X", c);
+            result += hex_buf;
+        } else {
+            result += c;
+        }
+    }
+    
+    return result;
+}
+
+/**
+ * @brief Sanitize a full cpak filename for host filesystem
+ * 
+ * Converts "GAME.PB-filename.ext" to a safe host filename using percent encoding
+ * where necessary.
+ */
+static std::string sanitize_filename_for_host(const std::string& cpak_filename) {
+    // For now, treat the entire filename as one component
+    // In the future, we might want to split and handle parts separately
+    return percent_encode_component(cpak_filename);
+}
 
 // Helper function to create directory if it doesn't exist
 static bool ensure_directory_exists(const char* dir_path) {
@@ -222,7 +359,11 @@ static std::string display_filename(const std::string& filename) {
 // Helper function to parse cpak path into components
 static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
     // Parse the UTF-8 path directly by splitting on separators
-    // Expected format: "GAME.PB-filename.ext" or "HEXGAMECODE.HEXPUB-filename.ext"
+    // Expected formats:
+    // - "GAME.PB-filename.ext" (ASCII game + ASCII pub)
+    // - "HEXGAMECODE.HEXPUB-filename.ext" (hex game + hex pub)
+    // - "GAME.HEXPUB-filename.ext" (ASCII game + hex pub)
+    // - "HEXGAMECODE.PB-filename.ext" (hex game + ASCII pub)
     
     // Find the first dot (separates game code from publisher code)
     size_t first_dot = cpak_path.find('.');
@@ -241,9 +382,11 @@ static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
         return false; // Must have a dash after publisher code
     }
     
-    // Publisher code length depends on game code length
-    size_t expected_pub_len = (first_dot == 4) ? 2 : 4; // 2 for ASCII, 4 for hex
-    if (dash != first_dot + 1 + expected_pub_len) {
+    // Calculate publisher code length (from after dot to before dash)
+    size_t pub_len = dash - first_dot - 1;
+    
+    // Publisher code can be 2 characters (ASCII) or 4 characters (hex)
+    if (pub_len != 2 && pub_len != 4) {
         return false; // Publisher code should be exactly 2 or 4 characters
     }
     
@@ -251,7 +394,7 @@ static bool parse_cpak_path(const std::string& cpak_path, file_entry_t& entry) {
     entry.game_code = cpak_path.substr(0, first_dot);
     
     // Extract publisher code (2 or 4 characters)
-    entry.pub_code = cpak_path.substr(first_dot + 1, expected_pub_len);
+    entry.pub_code = cpak_path.substr(first_dot + 1, pub_len);
     
     // Find the last dot (separates filename from extension)
     size_t last_dot = cpak_path.rfind('.');
@@ -594,7 +737,8 @@ int cmd_extract(const char *pak_file, char *patterns[], int num_patterns) {
         // Use the new for_each_file method
         pak.for_each_file([&](const char* filename, const dir_t& dir) -> bool {
             // The filename is already in the correct format (GAME.PB-file.ext)
-            std::string output_filename = filename;
+            // Sanitize it for host filesystem
+            std::string output_filename = sanitize_filename_for_host(std::string(filename));
             
             bool should_extract = false;
             
@@ -620,7 +764,7 @@ int cmd_extract(const char *pak_file, char *patterns[], int num_patterns) {
             }
             
             if (should_extract) {
-                files_extracted += extract_file(filename);
+                files_extracted += extract_file(filename, output_filename.c_str());
             }
             
             return true; // Continue iteration
@@ -1180,6 +1324,57 @@ int cmd_format(const char *pak_file) {
 
 
 //
+// HELPER FUNCTIONS FOR SANITIZATION/DESANITIZATION
+//
+
+static std::string desanitize_filename(const std::string& sanitized_name) {
+    std::string result;
+    result.reserve(sanitized_name.length());
+    
+    for (size_t i = 0; i < sanitized_name.length(); ++i) {
+        if (sanitized_name[i] == '%' && i + 2 < sanitized_name.length()) {
+            // Try to decode percent-encoded character
+            char high = sanitized_name[i + 1];
+            char low = sanitized_name[i + 2];
+            
+            // Check if both characters are valid hex digits
+            if (((high >= '0' && high <= '9') || (high >= 'A' && high <= 'F') || (high >= 'a' && high <= 'f')) &&
+                ((low >= '0' && low <= '9') || (low >= 'A' && low <= 'F') || (low >= 'a' && low <= 'f'))) {
+                
+                // Convert hex to value
+                int high_val = (high >= '0' && high <= '9') ? (high - '0') :
+                               (high >= 'A' && high <= 'F') ? (high - 'A' + 10) :
+                               (high - 'a' + 10);
+                int low_val = (low >= '0' && low <= '9') ? (low - '0') :
+                              (low >= 'A' && low <= 'F') ? (low - 'A' + 10) :
+                              (low - 'a' + 10);
+                
+                unsigned char decoded = (high_val << 4) | low_val;
+                
+                // Special case: %00 was used as placeholder for actual NUL character
+                if (decoded == 0x00) {
+                    // Convert to actual NUL character in the UTF-8 string
+                    // Since we can't have actual NUL in C strings, we use \x01 as placeholder
+                    // that will be converted back to \x00 in the N64 codepage
+                    result += '\x01';
+                } else {
+                    // Regular decoded character
+                    result += static_cast<char>(decoded);
+                }
+                
+                i += 2; // Skip the two hex digits
+                continue;
+            }
+        }
+        
+        // Regular character, copy as-is
+        result += sanitized_name[i];
+    }
+    
+    return result;
+}
+
+//
 // HELPER FUNCTIONS FOR ADD/EXTRACT
 //
 
@@ -1194,6 +1389,9 @@ static int add_file(const char *input_file) {
     const char *basename = strrchr(input_file, '/');
     basename = basename ? basename + 1 : input_file;
     
+    // De-sanitize the filename to convert percent-encoded characters back to UTF-8
+    std::string desanitized_basename = desanitize_filename(basename);
+    
     char cpak_path[256];
     cpakfs_path_t parsed_path;
     const char *error_pos = NULL;
@@ -1201,31 +1399,23 @@ static int add_file(const char *input_file) {
     // Check if the filename already has a gamecode/pubcode with a very simple logic:
     // check if there is at least a dash, and at least a dot before the dash.
     bool has_gamecode = true;
-    const char *dash = strchr(basename, '-');
-    const char *dot = strchr(basename, '.');
+    const char *dash = strchr(desanitized_basename.c_str(), '-');
+    const char *dot = strchr(desanitized_basename.c_str(), '.');
     if (!dash || !dot || dash < dot)
         has_gamecode = false; // No valid gamecode/pubcode format found
 
     if (has_gamecode) {
         // It's already in cpak format, use as-is
-        strcpy(cpak_path, basename);
+        strcpy(cpak_path, desanitized_basename.c_str());
     } else {
         // Need to add default game/publisher code
         const char *default_gamecode = g_command_opts.gamecode ? g_command_opts.gamecode : "DRAG.ON";
         
-        // Parse default gamecode to extract game and publisher parts
-        std::string game, pub;
-        if (strlen(default_gamecode) >= 7 && default_gamecode[4] == '.') {
-            game = std::string(default_gamecode, 4);
-            pub = std::string(default_gamecode + 5, 2);
-        } else {
-            // Fallback to DRAG.ON if format is invalid
-            game = "DRAG";
-            pub = "ON";
-        }
+        verbose_log("Using gamecode: %s (from %s)", default_gamecode, g_command_opts.gamecode ? "command line" : "default");
         
-        // Construct the full cpak path: GAME.PUB-filename
-        std::string full_path = game + "." + pub + "-" + basename;
+        // Construct the full cpak path: GAMECODE-filename
+        // The gamecode is already validated and in the correct format (either ASCII or hex)
+        std::string full_path = std::string(default_gamecode) + "-" + desanitized_basename;
         strcpy(cpak_path, full_path.c_str());
     }
     
@@ -1381,10 +1571,10 @@ static int add_file(const char *input_file) {
     }
 }
 
-static int extract_file(const char *cpak_path) {
+static int extract_file(const char *cpak_path, const char *sanitized_filename) {
     try {
-        // The cpak path is already in the correct format (GAME.PB-filename.ext)
-        std::string output_filename = cpak_path;
+        // Use the sanitized filename for output
+        std::string output_filename = sanitized_filename;
         
         // Apply directory prefix if specified (ignored if extracting to stdout)
         if (!g_command_opts.extract_stdout && g_command_opts.directory && strlen(g_command_opts.directory) > 0) {
@@ -1418,8 +1608,9 @@ static int extract_file(const char *cpak_path) {
             dst = stdout;
         } else {
             // Extract to file
-            // Check if output file exists
-            if (file_exists(output_filename.c_str()) && !g_command_opts.overwrite) {
+            // Check if output file exists (using UTF-8 aware stat for sanitized filename)
+            struct stat st;
+            if (stat(output_filename.c_str(), &st) == 0 && !g_command_opts.overwrite) {
                 warning("File exists, skipping: %s (use --overwrite to force)", output_filename.c_str());
                 return 0;
             }

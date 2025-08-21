@@ -311,7 +311,7 @@ class TestIntegration(unittest.TestCase):
         null_file = None
         
         for f in extracted_files:
-            if "\x01" in f.name:
+            if "%00" in f.name:
                 null_file = f
             elif f.name == "GAME.01-FOO.TXT":
                 regular_file = f
@@ -575,6 +575,273 @@ class TestIntegration(unittest.TestCase):
         #import shutil
         #shutil.copy2(str(pak), "/tmp/cpaktool_bruteforce_test.pak")
         #print(f"Pak copied to /tmp/cpaktool_bruteforce_test.pak for inspection")
+
+    def test_filename_sanitization_roundtrip(self):
+        """Test complete filename sanitization roundtrip: sanitized files → pak → extract → compare"""
+        import json
+        
+        # Test cases organized by category - each group will be its own subtest with separate pak
+        test_groups = {
+            "windows_reserved_names": [
+                # Windows reserved names (first character gets percent-encoded)
+                ("%43ON.TXT", "CON.TXT"),
+                ("%50RN.DAT", "PRN.DAT"), 
+                ("%41UX.BIN", "AUX.BIN"),
+                ("%4EUL.CFG", "NUL.CFG"),
+                ("%43OM1.SAV", "COM1.SAV"),
+                ("%43OM9.TMP", "COM9.TMP"),
+                ("%4CPT1.LOG", "LPT1.LOG"),
+                ("%4CPT9.BAK", "LPT9.BAK"),
+            ],
+            "path_separators": [
+                # Path separators and problematic characters
+                ("FILE%2FSLASH.TXT", "FILE/SLASH.TXT"),
+                # Note: backslash (\), dollar ($), and many others are not in N64 codepage
+                ("FILE%3FQUEST.SAV", "FILE?QUEST.SAV"),
+                ("FILE%2ASTAR.TMP", "FILE*STAR.TMP"), 
+                ("FILE%22QUOTE.LOG", "FILE\"QUOTE.LOG"),
+                ("FILE%3ACOLON.BAK", "FILE:COLON.BAK"),
+                ("FILE%21EXCL.BIN", "FILE!EXCL.BIN"),
+            ],
+            "trailing_chars": [
+                # Trailing spaces and dots (problematic on Windows)
+                ("FILE%20.TXT", "FILE .TXT"),
+                ("FILE%20%20.DAT", "FILE  .DAT"),
+                ("NAME%2E.BIN", "NAME..BIN"),
+                ("NAME%2E%2E.CFG", "NAME...CFG"),
+                ("BOTH%20%2E.SAV", "BOTH ..SAV"),
+                ("MIXED%2E%20.TMP", "MIXED. .TMP"),
+                ("COMBO%20%2E%20.LOG", "COMBO . .LOG"),
+                ("FINAL%2E%2E%20.BAK", "FINAL.. .BAK"),
+            ],
+            "control_chars": [
+                # Control characters and special cases
+                ("FILE%00NULL.TXT", "FILE\x00NULL.TXT"),
+                ("TWO%00%00NULL.DAT", "TWO\x00\x00NULL.DAT"),
+            ],
+            "complex_cases": [
+                # Complex combinations of multiple problematic characters
+                ("%43ON%20%2E.TXT", "CON ..TXT"),  # Reserved name + trailing space + dot
+                ("FILE%2F%3F%2A.DAT", "FILE/?*.DAT"),  # Multiple path separators
+                ("NAME%00%20%2E.BIN", "NAME\x00 ..BIN"),  # NUL + space + dot
+                ("%50RN%2FDIR%2A.CFG", "PRN/DIR*.CFG"),  # Reserved + paths
+                ("LONG%2F%3D%2B.SAV", "LONG/=+.SAV"),  # Multiple special chars
+                ("MIX%00%2F%20%2E.TMP", "MIX\x00/ ..TMP"),  # Mixed everything
+                ("%41UX%40%3F%2A.LOG", "AUX@?*.LOG"),  # Reserved + symbols
+                ("END%22%2C%2E%3A.BAK", "END\",.:.BAK"),  # Quote + comparison + pipe
+            ]
+        }
+        
+        for group_name, test_cases in test_groups.items():
+            with self.subTest(group=group_name):
+                self._test_sanitization_group(test_cases, group_name)
+    
+    def _test_sanitization_group(self, test_cases, group_name):
+        """Test a specific group of sanitization cases"""
+        import json
+        
+        pak = self._create_pak("1024")  # Large pak for all test files
+        
+        # Create a directory with sanitized filenames
+        source_dir = self.tmp / f"source_{group_name}"
+        source_dir.mkdir()
+        
+        # Step 1: Create pre-sanitized files on disk
+        original_contents = {}
+        for sanitized_filename, original_name in test_cases:
+            content = f"Content for {original_name} in {group_name}".encode('utf-8')
+            original_contents[original_name] = content
+            
+            source_file = source_dir / sanitized_filename
+            source_file.write_bytes(content)
+        
+        # Step 2: Add all files to pak (de-sanitization will happen automatically)
+        for sanitized_filename, original_name in test_cases:
+            source_file = source_dir / sanitized_filename
+            code, out, err = run_cpaktool(["add", str(pak), str(source_file)])
+            self.assertEqual(code, 0, f"Failed to add {sanitized_filename}:\n{err}")
+        
+        # Step 3: Verify pak contains de-sanitized names
+        code, out, err = run_cpaktool(["list", "--json", str(pak)])
+        self.assertEqual(code, 0, f"Failed to list pak contents: {err}")
+        
+        try:
+            files_data = json.loads(out)
+        except json.JSONDecodeError as e:
+            self.fail(f"Failed to parse JSON output: {e}\nOutput: {out[:500]}...")
+        
+        pak_filenames = [f["full_name"] for f in files_data]
+        self.assertEqual(len(pak_filenames), len(test_cases), 
+                        f"Expected {len(test_cases)} files in pak, got {len(pak_filenames)}")
+        
+        # Verify each expected pak name is present (de-sanitized, with DRAG.ON prefix, uppercase)
+        expected_pak_names = set()
+        for sanitized_filename, expected_pak_name in test_cases:
+            # The pak should contain the de-sanitized version with DRAG.ON- prefix, uppercase
+            pak_display_name = ("DRAG.ON-" + expected_pak_name).upper()
+            expected_pak_names.add(pak_display_name)
+        
+        actual_pak_names = set(pak_filenames)
+        self.assertEqual(actual_pak_names, expected_pak_names,
+                        f"Pak should contain de-sanitized names.\nExpected: {expected_pak_names}\nActual: {actual_pak_names}")
+        
+        # Step 4: Extract to new directory (should re-sanitize)
+        extract_dir = self.tmp / f"extracted_{group_name}"
+        extract_dir.mkdir()
+        
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir)
+        self.assertEqual(code, 0, f"Failed to extract pak: {err}")
+        
+        # Step 5: Verify content integrity
+        source_files = {f.name: f.read_bytes() for f in source_dir.iterdir() if f.is_file()}
+        extracted_files = {f.name: f.read_bytes() for f in extract_dir.iterdir() if f.is_file()}
+        
+        self.assertEqual(len(source_files), len(extracted_files),
+                        f"Expected {len(source_files)} extracted files, got {len(extracted_files)}")
+        
+        # Create mapping from original names to what was actually extracted
+        extracted_name_mapping = {}
+        for extracted_name in extracted_files.keys():
+            # Remove DRAG.ON- prefix to get the extracted filename
+            if extracted_name.startswith("DRAG.ON-"):
+                clean_name = extracted_name[8:]  # Remove "DRAG.ON-"
+                extracted_name_mapping[clean_name] = extracted_name
+        
+        # Verify each file has the correct content, accounting for actual sanitization behavior
+        verified_files = 0
+        for sanitized_filename, original_name in test_cases:
+            # Find the corresponding extracted file by content match
+            found_extracted = None
+            for clean_name, full_extracted_name in extracted_name_mapping.items():
+                if full_extracted_name in extracted_files:
+                    extracted_content = extracted_files[full_extracted_name]
+                    expected_content = original_contents[original_name]
+                    # Remove cpakfs padding
+                    extracted_content = extracted_content[:len(expected_content)]
+                    
+                    if extracted_content == expected_content:
+                        found_extracted = full_extracted_name
+                        verified_files += 1
+                        break
+            
+            self.assertIsNotNone(found_extracted, 
+                               f"Could not find extracted file with correct content for {original_name}")
+        
+        # Step 6: Verify pak integrity
+        code, out, err = run_cpaktool(["test", str(pak)])
+        self.assertEqual(code, 0, f"Pak integrity check failed: {err}")
+
+    def test_reserved_gamecode_sanitization(self):
+        """Test sanitization when the gamecode itself is a Windows reserved name"""
+        import json
+        
+        pak = self._create_pak("1024")
+        
+        # Test cases where the gamecode is a Windows reserved name
+        # Format: (input_filename, expected_cpak_name, expected_extracted_name)
+        test_cases = [
+            # LPT1.WN should become %4CPT1.WN in extracted filename
+            ("TEST1.TXT", "LPT1.WN-TEST1.TXT", "%4CPT1.WN-TEST1.TXT"),
+            ("DATA.BIN", "LPT1.WN-DATA.BIN", "%4CPT1.WN-DATA.BIN"),
+            
+            # COM1.ZZ should become %43OM1.ZZ in extracted filename  
+            ("SAVE.DAT", "COM1.ZZ-SAVE.DAT", "%43OM1.ZZ-SAVE.DAT"),
+            ("CONFIG.CFG", "COM1.ZZ-CONFIG.CFG", "%43OM1.ZZ-CONFIG.CFG"),
+            
+            # LPT2.AA should become %4CPT2.AA in extracted filename
+            ("PRINT.LOG", "LPT2.AA-PRINT.LOG", "%4CPT2.AA-PRINT.LOG"),
+            
+            # COM2.BB should become %43OM2.BB in extracted filename
+            ("SERIAL.TXT", "COM2.BB-SERIAL.TXT", "%43OM2.BB-SERIAL.TXT"),
+        ]
+        
+        # Step 1: Create files and add them with specific gamecodes
+        source_dir = self.tmp / "source_reserved_gamecode"
+        source_dir.mkdir()
+        
+        original_contents = {}
+        for input_filename, expected_cpak_name, expected_extracted_name in test_cases:
+            content = f"Content for {input_filename} with reserved gamecode".encode('utf-8')
+            original_contents[expected_cpak_name] = content
+            
+            # Create file on disk
+            source_file = source_dir / input_filename
+            source_file.write_bytes(content)
+            
+            # Extract gamecode from expected_cpak_name for --gamecode option
+            gamecode = expected_cpak_name.split('-')[0]  # e.g., "LPT1.WN"
+            
+            # Add to pak with specific gamecode
+            code, out, err = run_cpaktool(["add", "--gamecode", gamecode, str(pak), str(source_file)])
+            self.assertEqual(code, 0, f"Failed to add {input_filename} with gamecode {gamecode}:\n{err}")
+        
+        # Step 2: Verify pak contains the expected cpak names (without percent encoding)
+        code, out, err = run_cpaktool(["list", "--json", str(pak)])
+        self.assertEqual(code, 0, f"Failed to list pak contents: {err}")
+        
+        try:
+            files_data = json.loads(out)
+        except json.JSONDecodeError as e:
+            self.fail(f"Failed to parse JSON output: {e}\nOutput: {out[:500]}...")
+        
+        pak_filenames = [f["full_name"] for f in files_data]
+        self.assertEqual(len(pak_filenames), len(test_cases), 
+                        f"Expected {len(test_cases)} files in pak, got {len(pak_filenames)}")
+        
+        # Verify each expected cpak name is present (uppercase)
+        expected_pak_names = set()
+        for _, expected_cpak_name, _ in test_cases:
+            expected_pak_names.add(expected_cpak_name.upper())
+        
+        actual_pak_names = set(pak_filenames)
+        self.assertEqual(actual_pak_names, expected_pak_names,
+                        f"Pak should contain expected cpak names.\nExpected: {expected_pak_names}\nActual: {actual_pak_names}")
+        
+        # Step 3: Extract files and verify they have percent-encoded gamecodes
+        extract_dir = self.tmp / "extracted_reserved_gamecode"
+        extract_dir.mkdir()
+        
+        code, out, err = run_cpaktool(["extract", str(pak)], cwd=extract_dir)
+        self.assertEqual(code, 0, f"Failed to extract pak: {err}")
+        
+        # Step 4: Verify extracted filenames have percent-encoded gamecodes
+        extracted_files = {f.name: f.read_bytes() for f in extract_dir.iterdir() if f.is_file()}
+        
+        self.assertEqual(len(extracted_files), len(test_cases),
+                        f"Expected {len(test_cases)} extracted files, got {len(extracted_files)}")
+        
+        # Verify each expected extracted filename is present
+        expected_extracted_names = set()
+        for _, _, expected_extracted_name in test_cases:
+            expected_extracted_names.add(expected_extracted_name.upper())
+        
+        actual_extracted_names = set(extracted_files.keys())
+        self.assertEqual(actual_extracted_names, expected_extracted_names,
+                        f"Extracted files should have percent-encoded gamecodes.\nExpected: {expected_extracted_names}\nActual: {actual_extracted_names}")
+        
+        # Step 5: Verify content integrity
+        verified_files = 0
+        for _, expected_cpak_name, expected_extracted_name in test_cases:
+            extracted_filename = expected_extracted_name.upper()
+            if extracted_filename in extracted_files:
+                extracted_content = extracted_files[extracted_filename]
+                expected_content = original_contents[expected_cpak_name]
+                # Remove cpakfs padding
+                extracted_content = extracted_content[:len(expected_content)]
+                
+                self.assertEqual(extracted_content, expected_content,
+                               f"Content mismatch for {extracted_filename}")
+                verified_files += 1
+        
+        self.assertEqual(verified_files, len(test_cases),
+                        f"Expected to verify {len(test_cases)} files, but only verified {verified_files}")
+        
+        # Step 6: Verify pak integrity
+        code, out, err = run_cpaktool(["test", str(pak)])
+        self.assertEqual(code, 0, f"Pak integrity check failed: {err}")
+        
+        print(f"✅ reserved_gamecode_sanitization: Successfully verified {verified_files}/{len(test_cases)} files")
+        print(f"   Reserved gamecodes like LPT1, CON, PRN properly percent-encoded in extracted filenames")
 
 if __name__ == "__main__":
     unittest.main()

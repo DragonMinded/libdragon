@@ -258,15 +258,51 @@ class TestCLI(unittest.TestCase):
         code, out, err = run_cpaktool(["extract", "--stdout", str(test_pak)])
         self.assertEqual(code, 0, f"Extract with stdout should succeed: {err}")
         
-        # ADD: gamecode format (should accept any format, not validated at CLI level)
-        code, out, err = run_cpaktool(["add", "--gamecode", "ABCD.EF", str(self.pak), "file.txt"])
-        self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but option is parsed
-        self.assertNotIn("gamecode", err)  # Should not be a gamecode error
+        # ADD: gamecode format validation tests
+        # Valid formats should be accepted
+        code, out, err = run_cpaktool(["add", "--gamecode", "DRAG.ON", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but gamecode is valid
+        self.assertNotIn("Invalid gamecode", err)  # Should not be a gamecode error
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "DEADBEEF.FADE", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but gamecode is valid
+        self.assertNotIn("Invalid gamecode", err)  # Should not be a gamecode error
+        
+        # Mixed formats should be accepted
+        code, out, err = run_cpaktool(["add", "--gamecode", "DRAG.FADE", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but gamecode is valid
+        self.assertNotIn("Invalid gamecode", err)  # Should not be a gamecode error
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "DEADBEEF.ON", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but gamecode is valid
+        self.assertNotIn("Invalid gamecode", err)  # Should not be a gamecode error
+        
+        # Invalid formats should be rejected
+        code, out, err = run_cpaktool(["add", "--gamecode", "CON.ZZ", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Invalid gamecode: game part must be 4 characters", err)
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "DRAG.Z", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Invalid gamecode: publisher part must be 2 characters", err)
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "DRAGXX.ON", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Invalid gamecode: game part must be 4 characters", err)
+        
+        code, out, err = run_cpaktool(["add", "--gamecode", "DRAG", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Invalid gamecode format: missing '.' separator", err)
+        
+        # Invalid hex characters should be rejected
+        code, out, err = run_cpaktool(["add", "--gamecode", "DEADBEEG.FADE", str(self.pak), "file.txt"])
+        self.assertNotEqual(code, 0)
+        self.assertIn("Invalid character in hex gamecode: 'G'", err)
         
         # ADD: gamecode format with = format
-        code, out, err = run_cpaktool(["add", "--gamecode=ABCD.EF", str(self.pak), "file.txt"])
+        code, out, err = run_cpaktool(["add", "--gamecode=DRAG.ON", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)  # Will fail because file doesn't exist, but option is parsed
-        self.assertNotIn("gamecode", err)  # Should not be a gamecode error
+        self.assertNotIn("Invalid gamecode", err)  # Should not be a gamecode error
 
     def test_list_options(self):
         """Test list command option validation"""
