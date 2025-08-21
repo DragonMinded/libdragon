@@ -839,9 +839,6 @@ class TestIntegration(unittest.TestCase):
         # Step 6: Verify pak integrity
         code, out, err = run_cpaktool(["test", str(pak)])
         self.assertEqual(code, 0, f"Pak integrity check failed: {err}")
-        
-        print(f"✅ reserved_gamecode_sanitization: Successfully verified {verified_files}/{len(test_cases)} files")
-        print(f"   Reserved gamecodes like LPT1, CON, PRN properly percent-encoded in extracted filenames")
 
 if __name__ == "__main__":
     unittest.main()
