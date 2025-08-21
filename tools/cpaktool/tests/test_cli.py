@@ -280,15 +280,15 @@ class TestCLI(unittest.TestCase):
         # Invalid formats should be rejected
         code, out, err = run_cpaktool(["add", "--gamecode", "CON.ZZ", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)
-        self.assertIn("Invalid gamecode: game part must be 4 characters", err)
+        self.assertIn("Invalid gamecode: game part must be 4 or 8 chars", err)
         
         code, out, err = run_cpaktool(["add", "--gamecode", "DRAG.Z", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)
-        self.assertIn("Invalid gamecode: publisher part must be 2 characters", err)
+        self.assertIn("Invalid gamecode: game part must be 4 or 8 chars", err)
         
         code, out, err = run_cpaktool(["add", "--gamecode", "DRAGXX.ON", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)
-        self.assertIn("Invalid gamecode: game part must be 4 characters", err)
+        self.assertIn("Invalid gamecode: game part must be 4 or 8 chars", err)
         
         code, out, err = run_cpaktool(["add", "--gamecode", "DRAG", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)
@@ -297,7 +297,7 @@ class TestCLI(unittest.TestCase):
         # Invalid hex characters should be rejected
         code, out, err = run_cpaktool(["add", "--gamecode", "DEADBEEG.FADE", str(self.pak), "file.txt"])
         self.assertNotEqual(code, 0)
-        self.assertIn("Invalid character in hex gamecode: 'G'", err)
+        self.assertIn("Invalid character in gamecode: 'G'", err)
         
         # ADD: gamecode format with = format
         code, out, err = run_cpaktool(["add", "--gamecode=DRAG.ON", str(self.pak), "file.txt"])
