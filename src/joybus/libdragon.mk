@@ -1,5 +1,6 @@
 
 LIBDRAGON_OBJS += \
+	$(BUILD_DIR)/joybus/bio_sensor.o \
 	$(BUILD_DIR)/joybus/controller.o \
 	$(BUILD_DIR)/joybus/cpak.o \
 	$(BUILD_DIR)/joybus/cpakfs.o \

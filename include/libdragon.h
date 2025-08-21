@@ -36,6 +36,7 @@
 #include "joypad.h"
 #include "controller.h"
 #include "rtc.h"
+#include "bio_sensor.h"
 #include "mempak.h"
 #include "cpak.h"
 #include "cpakfs.h"
