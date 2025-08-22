@@ -179,7 +179,7 @@ static void print_usage(const char *program_name) {
 }
 
 static void print_version(void) {
-    printf("cpaktool 1.0 - part of libdragon SDK\n");
+    printf("cpaktool (built %s %s) - part of libdragon SDK\n", __DATE__, __TIME__);
     printf("Controller Pak manipulation tool\n");
 }
 
