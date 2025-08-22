@@ -27,6 +27,12 @@ if [[ $OSTYPE == 'msys' ]]; then
     echo Plase open that shell and run it again from there
     exit 1
   fi
+  # Check if N64_INST contains backslashes, which is not supported by the build system
+  if [[ "$N64_INST" == *\\* ]]; then
+    echo "N64_INST contains backslashes, which is not supported by the build system."
+    echo "Please set N64_INST to use forward slashes instead."
+    exit 1
+  fi
 fi
 
 # Check if ccache is installed, and if so, use it
