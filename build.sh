@@ -19,7 +19,9 @@ if [[ -z ${N64_INST-} ]]; then
   exit 1
 fi
 
-if [[ $OSTYPE == 'msys' ]]; then
+# Msys identifies itself via the OSTYPE variable as msys (before Feb 2025)
+# and "cygwin" (after Feb 2025). We want to detect both.
+if [[ $OSTYPE == 'msys'* || $OSTYPE == 'cygwin'* ]]; then
   if [ "${MSYSTEM:-}" != "MINGW64" ]; then
     # We only support building host tools via mingw-x64 at the moment, so
     # enforce that to help users during installation.
