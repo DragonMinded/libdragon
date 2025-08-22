@@ -305,7 +305,8 @@ CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/co
     --disable-libssp \
     --disable-werror \
     --enable-newlib-multithread \
-    --enable-newlib-retargetable-locking
+    --enable-newlib-retargetable-locking \
+    --enable-newlib-io-pos-args
 make -j "$JOBS"
 make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
 popd
