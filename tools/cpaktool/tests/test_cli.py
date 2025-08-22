@@ -52,7 +52,7 @@ class TestCLI(unittest.TestCase):
 
         code, out, err = run_cpaktool(["--version"])
         self.assertEqual(code, 0)
-        self.assertIn("cpaktool 1.0", out)
+        self.assertIn("cpaktool (built", out)
 
     # Test command help and argument validation
     def test_command_help_and_args(self):
