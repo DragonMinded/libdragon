@@ -12,12 +12,95 @@
 
 gl_state_t *state;
 
+static gl_dirty_flags_t state_to_dirty_flag_table[STATE_COUNT];
+static gl_dirty_flags_t enable_to_dirty_flag_table[ENABLE_COUNT];
+static gl_dirty_flags_t hint_to_dirty_flags_table[HINT_COUNT];
+
+static void init_update_funcs()
+{
+    #define ADD_DIRTY_FLAG(i) t[i] |= f;
+
+    #define ADD_DIRTY_FLAGS2(...) \
+        __CALL_FOREACH(ADD_DIRTY_FLAG, ##__VA_ARGS__) \
+
+    #define ADD_DIRTY_FLAGS(dirty_flag, table, list) { \
+        gl_dirty_flags_t f = dirty_flag; \
+        gl_dirty_flags_t *t = table; \
+        (void)f; \
+        (void)t; \
+        ADD_DIRTY_FLAGS2 list \
+    }
+
+    #define STATE(func, dirty_flag, state_list, enable_list, hint_list) ({ \
+        ADD_DIRTY_FLAGS(dirty_flag, state_to_dirty_flag_table, state_list) \
+        ADD_DIRTY_FLAGS(dirty_flag, enable_to_dirty_flag_table, enable_list) \
+        ADD_DIRTY_FLAGS(dirty_flag, hint_to_dirty_flags_table, hint_list) \
+        func; \
+    })
+
+    /*
+        List of update functions.
+        Every update function represents some state that GL needs to keep up to date before every draw call:
+            1. Computed states: These are purely for caching purposes and are then used by other states (e.g. active texture, z planes)
+            2. Magma: Each one corresponds to a call to magma, like mg_set_culling or uniforms
+            3. RDPQ:  Each one corresponds to a call to rdpq, like rdpq_set_scissor or texture upload
+        
+        Each update function is associated with a unique dirty flag. If this flag is set, 
+        that means the state has been invalidated and needs to be updated before the next draw call.
+        In turn this means that a state needs to be invalidated whenever any of the inputs to the
+        update function changes, which means the corresponding dirty flag needs to be set.
+
+        There are three different kinds of input:
+            1. State
+            2. Enable flag
+            3. Hint flag
+        For each kind of input, there is a corresponding table that maps the id of the input to the dirty flags that
+        need to be set whenever it changes, to correctly invalidate all of the states that use it.
+        These three tables are also being filled below with some macro tricks.
+        For each state, the used inputs are listed in a declarative manner to make modifications and maintenance much easier.
+    */
+    gl_update_func_t funcs[] = {
+        //    Update function           Dirty flag              Used states, enables and hints
+        //------------------------------------------------------------------------------------------------------------------------------------
+        STATE(update_active_texture,    DIRTY_ACTIVE_TEXTURE,   (STATE_BOUND_TEXTURES, STATE_TEXTURE_COMPLETE), (ENABLE_TEXTURE_1D, ENABLE_TEXTURE_2D), ()),
+        STATE(update_z_planes,          DIRTY_Z_PLANES,         (STATE_MAT_PROJECTION), (), ()),
+        STATE(update_pipeline,          DIRTY_PIPELINE,         (STATE_COLOR_MATERIAL, STATE_TEX_GEN, STATE_BOUND_VAO), (ENABLE_COLOR_MATERIAL, ENABLE_TEX_GEN_S, ENABLE_TEX_GEN_T, ENABLE_TEX_GEN_R, ENABLE_TEX_GEN_Q), ()),
+        STATE(gl_upload_fog,            DIRTY_FOG_UNIFORM,      (STATE_FOG_RANGE), (ENABLE_FOG), ()),
+        STATE(gl_upload_lighting,       DIRTY_LIGHTING,         (STATE_LIGHT), (ENABLE_LIGHTING, ENABLE_LIGHT0, ENABLE_LIGHT1, ENABLE_LIGHT2, ENABLE_LIGHT3, ENABLE_LIGHT4, ENABLE_LIGHT5, ENABLE_LIGHT6, ENABLE_LIGHT7), ()),
+        STATE(gl_upload_texturing,      DIRTY_TEXTURING,        (STATE_MAT_TEXTURE, STATE_ACTIVE_TEXTURE, STATE_TEXTURE_SIZE, STATE_RDPQ_TEX_SIZE, STATE_TEXTURE_FILTER), (ENABLE_RDPQ_TEXTURING, ENABLE_TEX_FLIP), ()),
+        STATE(gl_upload_matrices,       DIRTY_MATRICES,         (STATE_MAT_PROJECTION, STATE_MAT_MODELVIEW), (), ()),
+        STATE(update_culling,           DIRTY_CULLING,          (STATE_CULL_FACE, STATE_FRONT_FACE), (ENABLE_CULL_FACE), ()),
+        STATE(update_viewport,          DIRTY_VIEWPORT,         (STATE_VIEWPORT, STATE_DEPTH_RANGE, STATE_Z_PLANES), (), ()),
+        STATE(update_geom_flags,        DIRTY_GEOM_FLAGS,       (STATE_DEPTH_FUNC, STATE_DEPTH_MASK, STATE_TEX_ENV_MODE, STATE_BEGIN_END, STATE_ACTIVE_TEXTURE, STATE_ARRAY_COLOR), (ENABLE_DEPTH_TEST, ENABLE_FOG, ENABLE_LIGHTING, ENABLE_RDPQ_TEXTURING), ()),
+        STATE(apply_prim_color,         DIRTY_PRIM_COLOR,       (STATE_COLOR_MATERIAL, STATE_MATERIAL_DIFFUSE, STATE_COLOR), (ENABLE_LIGHTING, ENABLE_COLOR_MATERIAL, ENABLE_RDPQ_MATERIAL), ()),
+        STATE(apply_fog_color,          DIRTY_FOG_COLOR,        (STATE_FOG_COLOR), (), ()),
+        STATE(apply_scissor,            DIRTY_SCISSOR,          (STATE_SCISSOR), (ENABLE_SCISSOR_TEST), ()),
+        STATE(apply_texture,            DIRTY_TEXTURE_UPLOAD,   (STATE_ACTIVE_TEXTURE, STATE_TEXTURE_BLOCK), (ENABLE_RDPQ_TEXTURING), ()),
+        STATE(apply_antialias,          DIRTY_ANTIALIAS,        (), (ENABLE_MULTISAMPLE), (HINT_FULL_AA)),
+        STATE(apply_dither,             DIRTY_DITHER,           (STATE_DITHER_MODE), (ENABLE_DITHER), ()),
+        STATE(apply_combiner,           DIRTY_COMBINER,         (STATE_TEX_ENV_MODE, STATE_COLOR_MATERIAL, STATE_BEGIN_END, STATE_ACTIVE_TEXTURE), (ENABLE_LIGHTING, ENABLE_COLOR_MATERIAL, ENABLE_RDPQ_TEXTURING, ENABLE_RDPQ_MATERIAL), ()),
+        STATE(apply_blender,            DIRTY_BLENDER,          (STATE_BLEND_FUNC), (ENABLE_BLEND, ENABLE_RDPQ_MATERIAL), ()),
+        STATE(apply_fog,                DIRTY_FOG,              (), (ENABLE_FOG), ()),
+        STATE(apply_alphacompare,       DIRTY_ALPHACOMPARE,     (STATE_ALPHA_FUNC), (ENABLE_ALPHA_TEST), ()),
+        STATE(apply_zbuf,               DIRTY_ZBUF,             (STATE_DEPTH_FUNC, STATE_DEPTH_MASK), (ENABLE_DEPTH_TEST), ()),
+        STATE(apply_zmode,              DIRTY_ZMODE,            (STATE_DEPTH_FUNC), (ENABLE_DEPTH_TEST), ()),
+        STATE(apply_persp,              DIRTY_PERSP,            (), (), (HINT_PERSP_CORRECT)),
+        STATE(apply_filter,             DIRTY_FILTER,           (STATE_ACTIVE_TEXTURE, STATE_TEXTURE_FILTER), (ENABLE_RDPQ_TEXTURING), ()),
+    };
+
+    state->update_func_count = sizeof(funcs) / sizeof(gl_update_func_t);
+    state->update_funcs = malloc(sizeof(funcs));
+    memcpy(state->update_funcs, funcs, sizeof(funcs));
+}
+
 void gl_init(void)
 {
     mg_init();
     rdpq_init();
 
     state = calloc(1, sizeof(gl_state_t));
+    init_update_funcs();
+
     hashtable_init(&state->pipeline_cache, MAX_PIPELINE_COUNT, NULL);
 
     gl_rendermode_init();
@@ -55,6 +138,7 @@ void gl_close(void)
     hashtable_visit(&state->pipeline_cache, free_pipeline_visitor);
     hashtable_free(&state->pipeline_cache);
 
+    free(state->update_funcs);
     free(state);
 
     mg_close();
@@ -96,83 +180,11 @@ GLenum glGetError(void)
     return error;
 }
 
-static const gl_dirty_flags_t state_to_dirty_flag_table[] = {
-    [STATE_CULL_FACE]           = DIRTY_CULLING,
-    [STATE_FRONT_FACE]          = DIRTY_CULLING,
-    [STATE_BLEND_FUNC]          = DIRTY_BLENDER,
-    [STATE_DEPTH_FUNC]          = DIRTY_GEOM_FLAGS | DIRTY_ZBUF,
-    [STATE_DEPTH_MASK]          = DIRTY_GEOM_FLAGS | DIRTY_ZBUF,
-    [STATE_ALPHA_FUNC]          = DIRTY_ALPHACOMPARE,
-    [STATE_TEX_ENV_MODE]        = DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
-    [STATE_DITHER_MODE]         = DIRTY_DITHER,
-    [STATE_FOG_RANGE]           = DIRTY_FOG_UNIFORM,
-    [STATE_FOG_COLOR]           = DIRTY_FOG_COLOR,
-    [STATE_VIEWPORT]            = DIRTY_VIEWPORT,
-    [STATE_DEPTH_RANGE]         = DIRTY_VIEWPORT,
-    [STATE_SCISSOR]             = DIRTY_SCISSOR,
-    [STATE_COLOR_MATERIAL]      = DIRTY_PRIM_COLOR | DIRTY_PIPELINE | DIRTY_COMBINER,
-    [STATE_MATERIAL_DIFFUSE]    = DIRTY_PRIM_COLOR,
-    [STATE_LIGHT]               = DIRTY_LIGHTING,
-    [STATE_MAT_PROJECTION]      = DIRTY_MATRICES | DIRTY_Z_PLANES,
-    [STATE_MAT_MODELVIEW]       = DIRTY_MATRICES,
-    [STATE_MAT_TEXTURE]         = DIRTY_TEXTURING,
-    [STATE_MAT_PALETTE]         = 0,
-    [STATE_Z_PLANES]            = DIRTY_VIEWPORT,
-    [STATE_BEGIN_END]           = DIRTY_GEOM_FLAGS | DIRTY_COMBINER | DIRTY_PIPELINE,
-    [STATE_TEX_GEN]             = DIRTY_PIPELINE,
-    [STATE_COLOR]               = DIRTY_PRIM_COLOR,
-    [STATE_BOUND_TEXTURES]      = DIRTY_ACTIVE_TEXTURE,
-    [STATE_TEXTURE_COMPLETE]    = DIRTY_ACTIVE_TEXTURE,
-    [STATE_ACTIVE_TEXTURE]      = DIRTY_TEXTURING | DIRTY_TEXTURE_UPLOAD | DIRTY_FILTER | DIRTY_GEOM_FLAGS | DIRTY_COMBINER,
-    [STATE_TEXTURE_SIZE]        = DIRTY_TEXTURING,
-    [STATE_TEXTURE_BLOCK]       = DIRTY_TEXTURE_UPLOAD,
-    [STATE_RDPQ_TEX_SIZE]       = DIRTY_TEXTURING,
-    [STATE_TEXTURE_FILTER]      = DIRTY_TEXTURING,
-    [STATE_BOUND_VAO]           = DIRTY_PIPELINE,
-    [STATE_VAO_LAYOUT]          = DIRTY_PIPELINE,
-    [STATE_ARRAY_VERTEX]        = 0,
-    [STATE_ARRAY_NORMAL]        = 0,
-    [STATE_ARRAY_COLOR]         = DIRTY_GEOM_FLAGS,
-    [STATE_ARRAY_TEXCOORD]      = 0,
-    [STATE_ARRAY_MTX_INDEX]     = 0,
-};
-
 void gl_set_state(gl_state_id_t id)
 {
     gl_set_dirty_flags(state_to_dirty_flag_table[id]);
 }
 
-static const gl_dirty_flags_t enable_to_dirty_flag_table[] = {
-    [ENABLE_SCISSOR_TEST]   = DIRTY_SCISSOR,
-    [ENABLE_ALPHA_TEST]     = DIRTY_ALPHACOMPARE,
-    [ENABLE_DEPTH_TEST]     = DIRTY_GEOM_FLAGS | DIRTY_ZBUF | DIRTY_ZMODE,
-    [ENABLE_BLEND]          = DIRTY_BLENDER,
-    [ENABLE_DITHER]         = DIRTY_DITHER,
-    [ENABLE_MULTISAMPLE]    = DIRTY_ANTIALIAS,
-    [ENABLE_FOG]            = DIRTY_FOG_UNIFORM | DIRTY_FOG | DIRTY_GEOM_FLAGS,
-    [ENABLE_LIGHTING]       = DIRTY_LIGHTING | DIRTY_GEOM_FLAGS | DIRTY_COMBINER | DIRTY_PRIM_COLOR,
-    [ENABLE_COLOR_MATERIAL] = DIRTY_COMBINER | DIRTY_PRIM_COLOR,
-    [ENABLE_NORMALIZE]      = 0,
-    [ENABLE_TEXTURE_1D]     = DIRTY_ACTIVE_TEXTURE,
-    [ENABLE_TEXTURE_2D]     = DIRTY_ACTIVE_TEXTURE,
-    [ENABLE_CULL_FACE]      = DIRTY_CULLING,
-    [ENABLE_MATRIX_PALETTE] = 0,
-    [ENABLE_RDPQ_TEXTURING] = DIRTY_TEXTURING | DIRTY_TEXTURE_UPLOAD | DIRTY_FILTER | DIRTY_COMBINER | DIRTY_GEOM_FLAGS,
-    [ENABLE_RDPQ_MATERIAL]  = DIRTY_BLENDER | DIRTY_COMBINER | DIRTY_PRIM_COLOR,
-    [ENABLE_LIGHT0]         = DIRTY_LIGHTING,
-    [ENABLE_LIGHT1]         = DIRTY_LIGHTING,
-    [ENABLE_LIGHT2]         = DIRTY_LIGHTING,
-    [ENABLE_LIGHT3]         = DIRTY_LIGHTING,
-    [ENABLE_LIGHT4]         = DIRTY_LIGHTING,
-    [ENABLE_LIGHT5]         = DIRTY_LIGHTING,
-    [ENABLE_LIGHT6]         = DIRTY_LIGHTING,
-    [ENABLE_LIGHT7]         = DIRTY_LIGHTING,
-    [ENABLE_TEX_GEN_S]      = DIRTY_PIPELINE,
-    [ENABLE_TEX_GEN_T]      = DIRTY_PIPELINE,
-    [ENABLE_TEX_GEN_R]      = DIRTY_PIPELINE,
-    [ENABLE_TEX_GEN_Q]      = DIRTY_PIPELINE,
-    [ENABLE_TEX_FLIP]       = DIRTY_TEXTURING,
-};
 
 gl_enable_t get_enable_from_target(GLenum target)
 {
@@ -327,7 +339,9 @@ void glClear(GLbitfield buf)
         assertf(0, "Only color and depth buffers are supported!");
     }
 
-    apply_scissor();
+    if (gl_check_and_clear_dirty_flags(DIRTY_SCISSOR)) {
+        apply_scissor();
+    }
 
     if (buf & GL_DEPTH_BUFFER_BIT) {
         rdpq_clear_z(state->clear_depth);
@@ -363,11 +377,6 @@ void glFinish(void)
     
     rspq_wait();
 }
-
-static const gl_dirty_flags_t hint_to_dirty_flags_table[] = {
-    [HINT_FULL_AA]          = DIRTY_ANTIALIAS,
-    [HINT_PERSP_CORRECT]    = DIRTY_PERSP,
-};
 
 void set_hint_flag(gl_hint_t hint, bool value)
 {
@@ -487,8 +496,6 @@ static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout, mgfx_features
 
 void update_pipeline()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_PIPELINE)) return;
-
     const vertex_layout *layout = get_current_layout();
     mgfx_features_t features = get_pipeline_features();
 

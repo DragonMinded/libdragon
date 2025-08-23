@@ -89,17 +89,15 @@ void gl_rendermode_close()
     ringbuffer_free(&state->fog_buffer);
 }
 
-void gl_upload_fog(const mg_uniform_t *uniform)
+void gl_upload_fog()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG_UNIFORM)) return;
-
     bool enabled = gl_is_enabled(ENABLE_FOG);
     mgfx_fog_t *buffer = ringbuffer_alloc_next(&state->fog_buffer);
     mgfx_get_fog(buffer, &(mgfx_fog_parms_t) {
         .start = enabled ? state->fog_start : 0.0f,
         .end = enabled ? state->fog_end : 0.0f
     });
-    mg_uniform_load(uniform, buffer);
+    mg_uniform_load(state->fog_uniform, buffer);
     ringbuffer_release_current(&state->fog_buffer);
 }
 
@@ -325,12 +323,12 @@ void glDepthMask(GLboolean mask)
 
 bool is_depth_compare_active()
 {
-    return gl_is_enabled(GL_DEPTH_TEST) && state->depth_func != GL_ALWAYS;
+    return gl_is_enabled(ENABLE_DEPTH_TEST) && state->depth_func != GL_ALWAYS;
 }
 
 bool is_depth_update_active()
 {
-    return gl_is_enabled(GL_DEPTH_TEST) && state->depth_mask != GL_FALSE;
+    return gl_is_enabled(ENABLE_DEPTH_TEST) && state->depth_mask != GL_FALSE;
 }
 
 bool gl_is_depth_active()
@@ -501,8 +499,6 @@ bool gl_is_shade_active()
 
 void apply_scissor()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_SCISSOR)) return;
-
     const surface_t *fb = gl_require_color_buffer();
 
     if (gl_is_enabled(ENABLE_SCISSOR_TEST)) {
@@ -527,7 +523,6 @@ color_t get_prim_color()
 
 void apply_prim_color()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_PRIM_COLOR)) return;
     // When RDPQ material is enabled, prim color is not modified by GL
     if (gl_is_enabled(ENABLE_RDPQ_MATERIAL)) return;
     rdpq_set_prim_color(get_prim_color());
@@ -535,19 +530,16 @@ void apply_prim_color()
 
 void apply_fog_color()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG_COLOR)) return;
     rdpq_set_fog_color(state->fog_color);
 }
 
 void apply_antialias()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_ANTIALIAS)) return;
     rdpq_mode_antialias(get_antialias());
 }
 
 void apply_dither()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_DITHER)) return;
     rdpq_mode_dithering(get_dither());
 }
 
@@ -584,7 +576,6 @@ rdpq_combiner_t get_combiner()
 
 void apply_combiner()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_COMBINER)) return;
     // When RDPQ material is enabled, combiner and blender are not modified by GL
     if (gl_is_enabled(ENABLE_RDPQ_MATERIAL)) return;
     rdpq_mode_combiner(get_combiner());
@@ -597,7 +588,6 @@ rdpq_blender_t get_blender()
 
 void apply_blender()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_BLENDER)) return;
     // When RDPQ material is enabled, combiner and blender are not modified by GL
     if (gl_is_enabled(ENABLE_RDPQ_MATERIAL)) return;
     rdpq_mode_blender(get_blender());
@@ -610,7 +600,6 @@ rdpq_blender_t get_fog()
 
 void apply_fog()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_FOG)) return;
     rdpq_mode_fog(get_fog());
 }
 
@@ -621,25 +610,21 @@ int get_alphacompare()
 
 void apply_alphacompare()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_ALPHACOMPARE)) return;
     rdpq_mode_alphacompare(get_alphacompare());
 }
 
 void apply_zbuf()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_ZBUF)) return;
     rdpq_mode_zbuf(is_depth_compare_active(), is_depth_update_active());
 }
 
 void apply_zmode()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_ZMODE)) return;
     rdpq_mode_zmode(get_zmode());
 }
 
 void apply_persp()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_PERSP)) return;
     rdpq_mode_persp(gl_is_hint_enabled(HINT_PERSP_CORRECT));
 }
 
@@ -651,30 +636,7 @@ rdpq_filter_t get_filter()
 
 void apply_filter()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_FILTER)) return;
     // When RDPQ texturing is enabled, filter is not modified by GL
     if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) return;
     rdpq_mode_filter(get_filter());
-}
-
-void apply_rendermode()
-{
-    apply_prim_color();
-    apply_fog_color();
-    apply_scissor();
-
-    if (gl_check_dirty_flags_any(DIRTY_RDPQ_MODES)) {
-        rdpq_mode_begin();
-            apply_antialias();
-            apply_dither();
-            apply_combiner();
-            apply_blender();
-            apply_fog();
-            apply_alphacompare();
-            apply_zbuf();
-            apply_zmode();
-            apply_persp();
-            apply_filter();
-        rdpq_mode_end();
-    }
 }

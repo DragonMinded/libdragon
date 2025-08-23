@@ -217,6 +217,8 @@ typedef enum {
     DIRTY_RDPQ              = DIRTY_RDPQ_NON_MODES | DIRTY_RDPQ_MODES,
 } gl_dirty_flags_t;
 
+typedef void (*gl_update_func_t)();
+
 typedef struct {
     fm_mat4_t *storage;
     int32_t size;
@@ -505,6 +507,9 @@ typedef struct {
     GLuint list_base;
     GLuint current_list_name;
     gl_list_t *current_list;
+
+    gl_update_func_t *update_funcs;
+    uint32_t update_func_count;
 } gl_state_t;
 
 extern gl_state_t *state;
@@ -551,9 +556,22 @@ void update_active_texture();
 void update_pipeline();
 void update_z_planes();
 void update_viewport();
-void apply_rendermode();
-void apply_scissor();
+void update_culling();
+void update_geom_flags();
 void apply_texture();
+void apply_prim_color();
+void apply_fog_color();
+void apply_scissor();
+void apply_antialias();
+void apply_dither();
+void apply_combiner();
+void apply_blender();
+void apply_fog();
+void apply_alphacompare();
+void apply_zbuf();
+void apply_zmode();
+void apply_persp();
+void apply_filter();
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
@@ -582,10 +600,10 @@ bool gl_is_depth_active();
 
 bool gl_is_env_map_enabled();
 
-void gl_upload_matrices(const mg_uniform_t *uniform);
-void gl_upload_lighting(const mg_uniform_t *uniform);
-void gl_upload_fog(const mg_uniform_t *uniform);
-void gl_upload_texturing(const mg_uniform_t *uniform);
+void gl_upload_matrices();
+void gl_upload_lighting();
+void gl_upload_fog();
+void gl_upload_texturing();
 
 void gl_set_state(gl_state_id_t id);
 

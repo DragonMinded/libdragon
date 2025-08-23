@@ -1258,7 +1258,6 @@ void glTexSizeN64(GLushort width, GLushort height)
 
 void update_active_texture()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_ACTIVE_TEXTURE)) return;
     gl_texture_object_t *obj = gl_get_active_texture();
     state->active_texture = obj != NULL && texture_is_complete(obj) ? obj : NULL;
     gl_set_state(STATE_ACTIVE_TEXTURE);
@@ -1287,14 +1286,11 @@ void upload_texture(gl_texture_object_t *obj)
     }
     rdpq_tex_multi_end();
 
-    // TODO: incorporate this into apply_rendermode
-    rdpq_mode_begin();
-        rdpq_mode_mipmap(get_mipmap_mode(obj), obj->levels_count);
-        rdpq_mode_tlut(rdpq_tlut_from_format(surface_get_format(&obj->levels[0].surface)));
-    rdpq_mode_end();
+    rdpq_mode_mipmap(get_mipmap_mode(obj), obj->levels_count);
+    rdpq_mode_tlut(rdpq_tlut_from_format(surface_get_format(&obj->levels[0].surface)));
 }
 
-void upload_uniform(const mg_uniform_t *uniform, uint16_t width, uint16_t height, bool is_bilinear)
+void upload_uniform(uint16_t width, uint16_t height, bool is_bilinear)
 {
     // Extract offset and scale from the texture matrix
     const fm_mat4_t *matrix = gl_matrix_stack_get_matrix(&state->texture_stack);
@@ -1326,29 +1322,24 @@ void upload_uniform(const mg_uniform_t *uniform, uint16_t width, uint16_t height
 
     mgfx_texturing_t *buffer = ringbuffer_alloc_next(&state->texturing_buffer);
     mgfx_get_texturing(buffer, &parms);
-    mg_uniform_load(uniform, buffer);
+    mg_uniform_load(state->texturing_uniform, buffer);
     ringbuffer_release_current(&state->texturing_buffer);
 }
 
-void gl_upload_texturing(const mg_uniform_t *uniform)
+void gl_upload_texturing()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_TEXTURING)) return;
-
     if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) {
-        // When RDPQ texturing is enabled, only update the uniform with the correct texture transform
-        upload_uniform(uniform, state->rdpq_tex_width, state->rdpq_tex_height, false);
+        upload_uniform(state->rdpq_tex_width, state->rdpq_tex_height, false);
     } else {
         if (state->active_texture == NULL) return;
         uint16_t width, height;
         get_texture_size(state->active_texture, &width, &height);
-        upload_uniform(uniform, width, height, texture_is_bilinear(state->active_texture));
+        upload_uniform(width, height, texture_is_bilinear(state->active_texture));
     }
 }
 
 void apply_texture()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_TEXTURE_UPLOAD)) return;
-
     // When RDPQ texturing is enabled, skip uploading textures entirely.
     if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) return;
 

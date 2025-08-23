@@ -3,8 +3,6 @@
 
 #include <limits.h>
 
-void update_culling();
-
 void gl_primitive_init()
 {
     state->viewport.n = 0;
@@ -83,8 +81,6 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
 
 void update_geom_flags()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_GEOM_FLAGS)) return;
-
     mg_geometry_flags_t flags = 0;
     if (gl_is_shade_active()) flags |= MG_GEOMETRY_FLAGS_SHADE_ENABLED;
     if (gl_is_depth_active()) flags |= MG_GEOMETRY_FLAGS_Z_ENABLED;
@@ -103,25 +99,19 @@ static void update_vertex_buffer(uint32_t first, uint32_t count)
     mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
 }
 
-static void update_uniforms()
-{
-    gl_upload_fog(state->fog_uniform);
-    gl_upload_lighting(state->lighting_uniform);
-    gl_upload_texturing(state->texturing_uniform);
-    gl_upload_matrices(state->matrices_uniform);
-}
-
 static void prepare_drawing()
 {
-    update_active_texture();
-    update_pipeline();
-    update_uniforms();
-    update_culling();
-    update_z_planes();
-    update_viewport();
-    update_geom_flags();
-    apply_texture();
-    apply_rendermode();
+    bool mode_dirty = gl_check_dirty_flags_any(DIRTY_RDPQ_MODES);
+    if (mode_dirty) rdpq_mode_begin();
+
+    for (size_t i = 0; i < state->update_func_count; i++)
+    {
+        gl_dirty_flags_t flag = 1 << i;
+        if (!gl_check_and_clear_dirty_flags(flag)) continue;
+        state->update_funcs[i]();
+    }
+
+    if (mode_dirty) rdpq_mode_end();
 }
 
 static void prepare_draw_call(uint32_t first, uint32_t count)
@@ -698,8 +688,6 @@ void glPolygonMode(GLenum face, GLenum mode)
 
 void update_viewport()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_VIEWPORT)) return;
-
     const surface_t *fb = gl_require_color_buffer();
 
     mg_set_viewport(&(mg_viewport_t) {
@@ -762,8 +750,6 @@ mg_front_face_t get_front_face()
 
 void update_culling()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_CULLING)) return;
-
     mg_set_culling(&(mg_culling_parms_t) {
         .cull_mode = get_cull_mode(),
         .front_face = get_front_face()

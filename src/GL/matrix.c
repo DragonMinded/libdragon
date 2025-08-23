@@ -137,8 +137,6 @@ void glCurrentPaletteMatrixARB(GLint index)
 
 void update_z_planes()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_Z_PLANES)) return;
-
     // Attempt to extract near and far plane from projection matrix 
     // for perspective renormalization
     fm_mat4_t *proj = gl_matrix_stack_get_matrix(&state->projection_stack);
@@ -411,16 +409,14 @@ void glCopyMatrixN64(GLenum source)
     gl_mark_matrix_target_dirty();
 }
 
-void gl_upload_matrices(const mg_uniform_t *uniform)
+void gl_upload_matrices()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_MATRICES));
-
     gl_update_matrix_targets();
 
     gl_matrix_target_t *mtx_target = &state->default_matrix_target;
     fm_mat4_t *mv = gl_matrix_stack_get_matrix(mtx_target->mv_stack);
 
-    mgfx_set_matrices_inline(uniform, &(mgfx_matrices_parms_t) {
+    mgfx_set_matrices_inline(state->matrices_uniform, &(mgfx_matrices_parms_t) {
         .model_view_projection = mtx_target->mvp.m[0],
         .model_view = mv->m[0],
         .normal = mv->m[0] // TODO: transpose inverse

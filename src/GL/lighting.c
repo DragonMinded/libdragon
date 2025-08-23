@@ -627,10 +627,8 @@ void get_lighting_parms(mgfx_lighting_parms_t *parms)
     }
 }
 
-void gl_upload_lighting(const mg_uniform_t *uniform)
+void gl_upload_lighting()
 {
-    if (!gl_check_and_clear_dirty_flags(DIRTY_LIGHTING)) return;
-
     mgfx_light_parms_t lights[LIGHT_COUNT];
     mgfx_lighting_parms_t parms = {
         .lights = lights
@@ -639,6 +637,6 @@ void gl_upload_lighting(const mg_uniform_t *uniform)
     get_lighting_parms(&parms);
     mgfx_lighting_t *buffer = ringbuffer_alloc_next(&state->lighting_buffer);
     mgfx_get_lighting(buffer, &parms);
-    mg_uniform_load(uniform, buffer);
+    mg_uniform_load(state->lighting_uniform, buffer);
     ringbuffer_release_current(&state->lighting_buffer);
 }
