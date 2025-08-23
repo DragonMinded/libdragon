@@ -76,11 +76,11 @@ void gl_context_begin()
         glScissor(0, 0, width, height);
     }
 
-    // Reset textures and all RDPQ related states in case they were modified outside of the GL context
-    gl_set_dirty_flags(DIRTY_TEXTURE_UPLOAD | DIRTY_RDPQ_ALL);
+    // Reset all RDPQ related states in case they were modified outside of the GL context
+    gl_set_dirty_flags(DIRTY_RDPQ);
 
     // Reset rendermode in case it was changed outside of the GL context
-    apply_rendermode(true);
+    rdpq_set_mode_standard();
 }
 
 void gl_context_end()

@@ -124,11 +124,15 @@ typedef enum {
     ENABLE_TEX_GEN_R,
     ENABLE_TEX_GEN_Q,
     ENABLE_TEX_FLIP,
+
+    ENABLE_COUNT
 } gl_enable_t;
 
 typedef enum {
     HINT_FULL_AA,
     HINT_PERSP_CORRECT,
+
+    HINT_COUNT
 } gl_hint_t;
 
 typedef enum {
@@ -170,36 +174,47 @@ typedef enum {
     STATE_ARRAY_COLOR,
     STATE_ARRAY_TEXCOORD,
     STATE_ARRAY_MTX_INDEX,
+
+    STATE_COUNT
 } gl_state_id_t;
 
 typedef enum {
-    DIRTY_PIPELINE          = 1 << 0,
-    DIRTY_GEOM_FLAGS        = 1 << 1,
-    DIRTY_LIGHTING          = 1 << 2,
+    DIRTY_ACTIVE_TEXTURE    = 1 << 0,
+    DIRTY_Z_PLANES          = 1 << 1,
+
+    DIRTY_COMPUTED          = DIRTY_ACTIVE_TEXTURE | DIRTY_Z_PLANES,
+
+    DIRTY_PIPELINE          = 1 << 2,
     DIRTY_FOG_UNIFORM       = 1 << 3,
-    DIRTY_TEXTURING         = 1 << 4,
-    DIRTY_CULLING           = 1 << 5,
-    DIRTY_PRIM_COLOR        = 1 << 6,
-    DIRTY_ANTIALIAS         = 1 << 7,
-    DIRTY_DITHER            = 1 << 8,
-    DIRTY_COMBINER          = 1 << 9,
-    DIRTY_BLENDER           = 1 << 10,
-    DIRTY_FOG               = 1 << 11,
-    DIRTY_ALPHACOMPARE      = 1 << 12,
-    DIRTY_ZBUF              = 1 << 13,
-    DIRTY_ZMODE             = 1 << 14,
-    DIRTY_PERSP             = 1 << 15,
-    DIRTY_SCISSOR           = 1 << 16,
-    DIRTY_FOG_COLOR         = 1 << 17,
-    DIRTY_VIEWPORT          = 1 << 18,
-    DIRTY_Z_PLANES          = 1 << 19,
-    DIRTY_MATRICES          = 1 << 20,
-    DIRTY_ACTIVE_TEXTURE    = 1 << 21,
-    DIRTY_TEXTURE_UPLOAD    = 1 << 22,
+    DIRTY_LIGHTING          = 1 << 4,
+    DIRTY_TEXTURING         = 1 << 5,
+    DIRTY_MATRICES          = 1 << 6,
+    DIRTY_CULLING           = 1 << 7,
+    DIRTY_VIEWPORT          = 1 << 8,
+    DIRTY_GEOM_FLAGS        = 1 << 9,
+
+    DIRTY_MAGMA             = DIRTY_PIPELINE | DIRTY_FOG_UNIFORM | DIRTY_LIGHTING | DIRTY_TEXTURING | DIRTY_MATRICES | DIRTY_CULLING | DIRTY_VIEWPORT | DIRTY_GEOM_FLAGS,
+
+    DIRTY_PRIM_COLOR        = 1 << 10,
+    DIRTY_FOG_COLOR         = 1 << 11,
+    DIRTY_SCISSOR           = 1 << 12,
+    DIRTY_TEXTURE_UPLOAD    = 1 << 13,
+
+    DIRTY_RDPQ_NON_MODES    = DIRTY_PRIM_COLOR | DIRTY_FOG_COLOR | DIRTY_SCISSOR | DIRTY_TEXTURE_UPLOAD,
+
+    DIRTY_ANTIALIAS         = 1 << 14,
+    DIRTY_DITHER            = 1 << 15,
+    DIRTY_COMBINER          = 1 << 16,
+    DIRTY_BLENDER           = 1 << 17,
+    DIRTY_FOG               = 1 << 18,
+    DIRTY_ALPHACOMPARE      = 1 << 19,
+    DIRTY_ZBUF              = 1 << 20,
+    DIRTY_ZMODE             = 1 << 21,
+    DIRTY_PERSP             = 1 << 22,
     DIRTY_FILTER            = 1 << 23,
 
-    DIRTY_RDPQ_MODE_ALL = DIRTY_ANTIALIAS | DIRTY_DITHER | DIRTY_COMBINER | DIRTY_BLENDER | DIRTY_FOG | DIRTY_ALPHACOMPARE | DIRTY_ZBUF | DIRTY_PERSP,
-    DIRTY_RDPQ_ALL      = DIRTY_SCISSOR | DIRTY_PRIM_COLOR | DIRTY_FOG_COLOR | DIRTY_RDPQ_MODE_ALL,
+    DIRTY_RDPQ_MODES        = DIRTY_ANTIALIAS | DIRTY_DITHER | DIRTY_COMBINER | DIRTY_BLENDER | DIRTY_FOG | DIRTY_ALPHACOMPARE | DIRTY_ZBUF | DIRTY_ZMODE | DIRTY_PERSP | DIRTY_FILTER,
+    DIRTY_RDPQ              = DIRTY_RDPQ_NON_MODES | DIRTY_RDPQ_MODES,
 } gl_dirty_flags_t;
 
 typedef struct {
@@ -536,7 +551,7 @@ void update_active_texture();
 void update_pipeline();
 void update_z_planes();
 void update_viewport();
-void apply_rendermode(bool reset);
+void apply_rendermode();
 void apply_scissor();
 void apply_texture();
 

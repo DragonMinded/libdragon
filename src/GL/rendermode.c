@@ -528,6 +528,8 @@ color_t get_prim_color()
 void apply_prim_color()
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_PRIM_COLOR)) return;
+    // When RDPQ material is enabled, prim color is not modified by GL
+    if (gl_is_enabled(ENABLE_RDPQ_MATERIAL)) return;
     rdpq_set_prim_color(get_prim_color());
 }
 
@@ -583,6 +585,8 @@ rdpq_combiner_t get_combiner()
 void apply_combiner()
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_COMBINER)) return;
+    // When RDPQ material is enabled, combiner and blender are not modified by GL
+    if (gl_is_enabled(ENABLE_RDPQ_MATERIAL)) return;
     rdpq_mode_combiner(get_combiner());
 }
 
@@ -594,6 +598,8 @@ rdpq_blender_t get_blender()
 void apply_blender()
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_BLENDER)) return;
+    // When RDPQ material is enabled, combiner and blender are not modified by GL
+    if (gl_is_enabled(ENABLE_RDPQ_MATERIAL)) return;
     rdpq_mode_blender(get_blender());
 }
 
@@ -646,43 +652,29 @@ rdpq_filter_t get_filter()
 void apply_filter()
 {
     if (!gl_check_and_clear_dirty_flags(DIRTY_FILTER)) return;
+    // When RDPQ texturing is enabled, filter is not modified by GL
+    if (gl_is_enabled(ENABLE_RDPQ_TEXTURING)) return;
     rdpq_mode_filter(get_filter());
 }
 
-void apply_rendermode(bool reset)
+void apply_rendermode()
 {
-    if (reset) {
-        // When resetting, we need to re-apply all modes. Mark all of them as dirty.
-        gl_set_dirty_flags(DIRTY_RDPQ_MODE_ALL);
-    }
-    
-    if (gl_check_dirty_flags_any(DIRTY_RDPQ_MODE_ALL)) {
+    apply_prim_color();
+    apply_fog_color();
+    apply_scissor();
+
+    if (gl_check_dirty_flags_any(DIRTY_RDPQ_MODES)) {
         rdpq_mode_begin();
-            if (reset) rdpq_set_mode_standard();
             apply_antialias();
             apply_dither();
-            // When RDPQ material is enabled, combiner and blender are not modified by GL
-            if (!gl_is_enabled(ENABLE_RDPQ_MATERIAL)) {
-                apply_combiner();
-                apply_blender();
-            }
+            apply_combiner();
+            apply_blender();
             apply_fog();
             apply_alphacompare();
             apply_zbuf();
             apply_zmode();
             apply_persp();
-            if (!gl_is_enabled(ENABLE_RDPQ_TEXTURING)) {
-                apply_filter();
-            }
+            apply_filter();
         rdpq_mode_end();
     }
-
-    // When RDPQ material is enabled, prim color is not modified by GL
-    if (!gl_is_enabled(ENABLE_RDPQ_MATERIAL)) {
-        apply_prim_color();
-    }
-
-    apply_fog_color();
-
-    apply_scissor();
 }

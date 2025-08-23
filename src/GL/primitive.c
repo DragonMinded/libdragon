@@ -107,21 +107,21 @@ static void update_uniforms()
 {
     gl_upload_fog(state->fog_uniform);
     gl_upload_lighting(state->lighting_uniform);
-    gl_upload_matrices(state->matrices_uniform);
     gl_upload_texturing(state->texturing_uniform);
+    gl_upload_matrices(state->matrices_uniform);
 }
 
 static void prepare_drawing()
 {
     update_active_texture();
-    apply_rendermode(false);
-    apply_texture();
     update_pipeline();
     update_uniforms();
     update_culling();
     update_z_planes();
     update_viewport();
     update_geom_flags();
+    apply_texture();
+    apply_rendermode();
 }
 
 static void prepare_draw_call(uint32_t first, uint32_t count)
