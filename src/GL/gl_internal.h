@@ -375,10 +375,28 @@ typedef struct {
 } gl_list_t;
 
 typedef struct {
+    GLenum current_error;
+
     uint32_t enable_flags;
     uint32_t hint_flags;
     gl_dirty_flags_t dirty_flags;
-    GLenum current_error;
+    
+    gl_dirty_flags_t state_to_dirty_flag_table[STATE_COUNT];
+    gl_dirty_flags_t enable_to_dirty_flag_table[ENABLE_COUNT];
+    gl_dirty_flags_t hint_to_dirty_flags_table[HINT_COUNT];
+    gl_update_func_t *update_funcs;
+    uint32_t update_func_count;
+
+    color_t clear_color;
+    uint16_t clear_depth;
+
+    struct {
+        GLfloat x, y, w, h, n, f;
+    } viewport;
+
+    struct {
+        GLfloat x, y, w, h;
+    } scissor;
 
     GLenum cull_face;
     GLenum front_face;
@@ -395,17 +413,43 @@ typedef struct {
     GLfloat fog_end;
     color_t fog_color;
 
-    struct {
-        GLfloat x, y, w, h, n, f;
-    } viewport;
+    GLfloat material_ambient[4];
+    GLfloat material_diffuse[4];
+    GLfloat material_specular[4];
+    GLfloat material_emissive[4];
+    GLfloat material_shininess;
+    GLenum color_material;
+    gl_light_t lights[LIGHT_COUNT];
 
-    struct {
-        GLfloat x, y, w, h;
-    } scissor;
+    GLfloat light_model_ambient[4];
+    bool light_model_local_viewer;
 
-    const surface_t *color_buffer;
-    color_t clear_color;
-    uint16_t clear_depth;
+    GLenum shade_model;
+
+    gl_tex_gen_t tex_gen[TEX_GEN_COUNT];
+
+    GLushort rdpq_tex_width, rdpq_tex_height;
+
+    GLenum polygon_mode;
+    GLfloat point_size;
+    GLfloat line_width;
+
+    gl_texture_object_t *texture_1d_object;
+    gl_texture_object_t *texture_2d_object;
+    gl_texture_object_t *default_textures;
+
+    GLboolean unpack_swap_bytes;
+    GLboolean unpack_lsb_first;
+    GLint unpack_row_length;
+    GLint unpack_skip_rows;
+    GLint unpack_skip_pixels;
+    GLint unpack_alignment;
+
+    GLboolean map_color;
+    GLfloat transfer_scale[4];
+    GLfloat transfer_bias[4];
+    gl_pixel_map_t pixel_maps[4];
+    bool transfer_is_noop;
 
     gl_array_object_t default_array_object;
     gl_array_object_t *array_object;
@@ -414,15 +458,6 @@ typedef struct {
     // TODO: move this to array object?
     gl_fixed_precision_t vertex_halfx_precision;
     gl_fixed_precision_t texcoord_halfx_precision;
-    
-    hashtable_t pipeline_cache;
-    uint32_t current_pipeline_key;
-    const mg_uniform_t *fog_uniform;
-    const mg_uniform_t *lighting_uniform;
-    const mg_uniform_t *texturing_uniform;
-    const mg_uniform_t *matrices_uniform;
-
-    ringbuffer fog_buffer, lighting_buffer, texturing_buffer;
     
     GLenum matrix_mode;
     GLint current_palette_matrix;
@@ -445,46 +480,6 @@ typedef struct {
 
     gl_matrix_target_t *current_matrix_target;
 
-    float near_plane;
-    float far_plane;
-
-    GLfloat material_ambient[4];
-    GLfloat material_diffuse[4];
-    GLfloat material_specular[4];
-    GLfloat material_emissive[4];
-    GLfloat material_shininess;
-    GLenum color_material;
-    gl_light_t lights[LIGHT_COUNT];
-
-    GLfloat light_model_ambient[4];
-    bool light_model_local_viewer;
-
-    GLenum shade_model;
-
-    gl_texture_object_t *texture_1d_object;
-    gl_texture_object_t *texture_2d_object;
-    gl_texture_object_t *default_textures;
-    gl_texture_object_t *active_texture;
-
-    GLboolean unpack_swap_bytes;
-    GLboolean unpack_lsb_first;
-    GLint unpack_row_length;
-    GLint unpack_skip_rows;
-    GLint unpack_skip_pixels;
-    GLint unpack_alignment;
-
-    GLboolean map_color;
-    GLfloat transfer_scale[4];
-    GLfloat transfer_bias[4];
-
-    gl_pixel_map_t pixel_maps[4];
-
-    bool transfer_is_noop;
-
-    gl_tex_gen_t tex_gen[TEX_GEN_COUNT];
-
-    GLushort rdpq_tex_width, rdpq_tex_height;
-
     bool begin_end_active;
     native_vertex_t current_attribs;
     native_vertex_t begin_end_saved_vtx;
@@ -498,21 +493,28 @@ typedef struct {
     bool begin_end_restore;
     vertex_layout begin_end_layout;
 
-    GLenum polygon_mode;
-    GLfloat point_size;
-    GLfloat line_width;
-
     hashtable_t lists;
     GLuint next_list_name;
     GLuint list_base;
     GLuint current_list_name;
     gl_list_t *current_list;
+    
+    hashtable_t pipeline_cache;
+    uint32_t current_pipeline_key;
+    const mg_uniform_t *fog_uniform;
+    const mg_uniform_t *lighting_uniform;
+    const mg_uniform_t *texturing_uniform;
+    const mg_uniform_t *matrices_uniform;
+    ringbuffer fog_buffer;
+    ringbuffer lighting_buffer;
+    ringbuffer texturing_buffer;
 
-    gl_dirty_flags_t state_to_dirty_flag_table[STATE_COUNT];
-    gl_dirty_flags_t enable_to_dirty_flag_table[ENABLE_COUNT];
-    gl_dirty_flags_t hint_to_dirty_flags_table[HINT_COUNT];
-    gl_update_func_t *update_funcs;
-    uint32_t update_func_count;
+    const surface_t *color_buffer;
+
+    float near_plane;
+    float far_plane;
+
+    gl_texture_object_t *active_texture;
 } gl_state_t;
 
 extern gl_state_t *state;
