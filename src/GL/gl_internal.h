@@ -508,6 +508,9 @@ typedef struct {
     GLuint current_list_name;
     gl_list_t *current_list;
 
+    gl_dirty_flags_t state_to_dirty_flag_table[STATE_COUNT];
+    gl_dirty_flags_t enable_to_dirty_flag_table[ENABLE_COUNT];
+    gl_dirty_flags_t hint_to_dirty_flags_table[HINT_COUNT];
     gl_update_func_t *update_funcs;
     uint32_t update_func_count;
 } gl_state_t;

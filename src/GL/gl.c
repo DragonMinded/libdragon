@@ -12,10 +12,6 @@
 
 gl_state_t *state;
 
-static gl_dirty_flags_t state_to_dirty_flag_table[STATE_COUNT];
-static gl_dirty_flags_t enable_to_dirty_flag_table[ENABLE_COUNT];
-static gl_dirty_flags_t hint_to_dirty_flags_table[HINT_COUNT];
-
 static void init_update_funcs()
 {
     #define ADD_DIRTY_FLAG(i) t[i] |= f;
@@ -32,9 +28,9 @@ static void init_update_funcs()
     }
 
     #define STATE(func, dirty_flag, state_list, enable_list, hint_list) ({ \
-        ADD_DIRTY_FLAGS(dirty_flag, state_to_dirty_flag_table, state_list) \
-        ADD_DIRTY_FLAGS(dirty_flag, enable_to_dirty_flag_table, enable_list) \
-        ADD_DIRTY_FLAGS(dirty_flag, hint_to_dirty_flags_table, hint_list) \
+        ADD_DIRTY_FLAGS(dirty_flag, state->state_to_dirty_flag_table, state_list) \
+        ADD_DIRTY_FLAGS(dirty_flag, state->enable_to_dirty_flag_table, enable_list) \
+        ADD_DIRTY_FLAGS(dirty_flag, state->hint_to_dirty_flags_table, hint_list) \
         func; \
     })
 
@@ -182,7 +178,7 @@ GLenum glGetError(void)
 
 void gl_set_state(gl_state_id_t id)
 {
-    gl_set_dirty_flags(state_to_dirty_flag_table[id]);
+    gl_set_dirty_flags(state->state_to_dirty_flag_table[id]);
 }
 
 
@@ -315,7 +311,7 @@ void glEnable(GLenum target)
     gl_enable_t enable = get_enable_from_target(target);
     if (enable < 0) return;
     state->enable_flags |= (1 << enable);
-    gl_set_dirty_flags(enable_to_dirty_flag_table[enable]);
+    gl_set_dirty_flags(state->enable_to_dirty_flag_table[enable]);
 }
 
 void glDisable(GLenum target)
@@ -324,7 +320,7 @@ void glDisable(GLenum target)
     gl_enable_t enable = get_enable_from_target(target);
     if (enable < 0) return;
     state->enable_flags &= ~(1 << enable);
-    gl_set_dirty_flags(enable_to_dirty_flag_table[enable]);
+    gl_set_dirty_flags(state->enable_to_dirty_flag_table[enable]);
 }
 
 void glClear(GLbitfield buf)
@@ -387,7 +383,7 @@ void set_hint_flag(gl_hint_t hint, bool value)
         state->hint_flags &= ~flag;
     }
 
-    gl_set_dirty_flags(hint_to_dirty_flags_table[hint]);
+    gl_set_dirty_flags(state->hint_to_dirty_flags_table[hint]);
 }
 
 void glHint(GLenum target, GLenum hint)
