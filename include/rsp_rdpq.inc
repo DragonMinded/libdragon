@@ -613,11 +613,30 @@ set_cycle_type:
     # lead to visible seams at polygon edges.
     li t0, SOM_ALPHACOMPARE_THRESHOLD | SOM_BLALPHA_CVG
     and t1, som_lo, t0
-    bne t0, t1, rdpq_update_finish
+    bne t0, t1, 1f
     nop
     or som_lo, SOM_BLALPHA_CVG_TIMES_CC
     and som_lo, ~SOM_ALPHACOMPARE_MASK
+1:
     
+    ######################################
+    #
+    # ZMODE OPAQUE/TRANSPARENT SWITCHING
+    #
+    ######################################
+
+    # Check whether SOM_ZMODE is either interpen or decal (both have 1<<10 set).
+    # If so, there's nothing to do.
+    # Otherwise, if it's standard mode, set bit 2<<10 to switch between
+    # opaque and transparent, depending on SOM_BLENDING.
+    andi t0, som_lo, 1<<10 
+    bnez t0, 1f
+     andi t1, som_lo, SOM_BLENDING
+    bnez t1, 1f
+     ori som_lo, 2<<10
+    xori som_lo, 2<<10
+1:
+
     ######################################
     #
     # SAVE SETTINGS & APPLY TO RDP

@@ -146,6 +146,8 @@ static int __is_transparent( int bitdepth, uint32_t color )
 void graphics_draw_pixel( surface_t* disp, int x, int y, uint32_t color )
 {
     if( disp == 0 ) { return; }
+    if( x < 0 || y < 0 || x >= disp->width || y >= disp->height ) { return; }
+
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
 
     if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
@@ -161,6 +163,7 @@ void graphics_draw_pixel( surface_t* disp, int x, int y, uint32_t color )
 void graphics_draw_pixel_trans( surface_t* disp, int x, int y, uint32_t color )
 {
     if( disp == 0 ) { return; }
+    if( x < 0 || y < 0 || x >= disp->width || y >= disp->height ) { return; }
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
 
     if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )

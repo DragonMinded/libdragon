@@ -388,11 +388,12 @@ static void joybus_rtc_get_time_callback( uint64_t *out_dwords, void *ctx )
         return;
     }
 
+    #if JOYBUS_RTC_TRACE
     struct tm * parsed_tm = gmtime( &decoded_time );
     tracef("joybus_rtc_get_time_async: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
         parsed_tm->tm_year + 1900, parsed_tm->tm_mon + 1, parsed_tm->tm_mday,
-        parsed_tm->tm_hour, parsed_tm->tm_min, parsed_tm->tm_sec
-    );
+        parsed_tm->tm_hour, parsed_tm->tm_min, parsed_tm->tm_sec);
+    #endif
 
     callback( RTC_ESUCCESS, decoded_time );
 }
@@ -440,11 +441,13 @@ int joybus_rtc_get_time( time_t *out )
         return (int)time;
 
     *out = time;
+    #if JOYBUS_RTC_TRACE
     struct tm * parsed_tm = gmtime( out );
     tracef("joybus_rtc_get_time: parsed time (%04d-%02d-%02d %02d:%02d:%02d)\n",
         parsed_tm->tm_year + 1900, parsed_tm->tm_mon + 1, parsed_tm->tm_mday,
         parsed_tm->tm_hour, parsed_tm->tm_min, parsed_tm->tm_sec
     );
+    #endif
 
     return RTC_ESUCCESS;
 }

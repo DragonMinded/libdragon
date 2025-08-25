@@ -10,7 +10,7 @@
 */
 #include <stdio.h>
 #include <string.h>
-#include "json.hpp"
+#include "../common/json.hpp"
 #include "combexpr.cpp"
 
 using json = nlohmann::json;

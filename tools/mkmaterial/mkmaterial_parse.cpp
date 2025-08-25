@@ -8,9 +8,12 @@
 
     For more information, please refer to <http://unlicense.org/>
 */
+#include "mkmaterial.h"
 #include <regex>
 #include <fstream>
-#include "json.hpp"
+#include <float.h>
+#include "../common/json.hpp"
+#include "../common/utils.h"
 
 #define INI_HANDLER_LINENO 1
 #define INI_INLINE_COMMENT_PREFIXES ";#"
@@ -18,14 +21,23 @@
 #include "ini.h"
 #include "ini.c"
 
-static bool parse_bool(std::string value)
+static uint32_t string_hash(const std::string &str)
+{
+    uint32_t hash = 5381;
+    for (char c : str) {
+        hash = hash * 33 + c;
+    }
+    return hash;
+}
+
+bool parse_bool(std::string value)
 {
     if (value == "true" || value == "1" || value == "True") return true;
     if (value == "false" || value == "0" || value == "False") return false;
     throw std::runtime_error("invalid boolean value: " + value);
 }
 
-static float parse_float(std::string value, float min, float max)
+float parse_float(std::string value, float min, float max)
 {
     try {
         size_t idx;
@@ -40,11 +52,15 @@ static float parse_float(std::string value, float min, float max)
     }
 }
 
-static int parse_int(std::string value, int min, int max)
+int parse_int(std::string value, int min, int max)
 {
     try {
-        size_t idx;
-        int ival = std::stoi(value, &idx);
+        size_t idx; int ival;
+        if (value.size() > 2 && value[0] == '0' && (value[1] == 'x' || value[1] == 'X')) {
+            ival = std::stoi(value, &idx, 16);
+        } else {
+            ival = std::stoi(value, &idx);
+        }
         if (idx != value.size())
             throw std::runtime_error("invalid integer value: " + value);
         if (ival < min || ival > max)
@@ -55,7 +71,7 @@ static int parse_int(std::string value, int min, int max)
     }
 }
 
-static std::string parse_enum(std::string value, const std::vector<std::string> &enums)
+std::string parse_enum(std::string value, const std::vector<std::string> &enums)
 {
     for (size_t i = 0; i < enums.size(); i++) {
         if (value == enums[i]) return value;
@@ -240,6 +256,33 @@ void Material::parse_attr(std::string key, std::string value)
         cc.parse_attr(key.substr(9), value);
     } else if (key.rfind("blender.", 0) == 0) {
         bl.parse_attr(key.substr(8), value);
+    } else if (key.rfind("ext.", 0) == 0) {
+        Extension ext_attr;
+        ext_attr.name = key.substr(4);
+        if (value == "true" || value == "false") {
+            ext_attr.type = {"bool"};
+            ext_attr.value = value;
+        } else if (std::regex_match(value, std::regex("^-?\\d+$")) || std::regex_match(value, std::regex("^0[xX][0-9a-fA-F]+$"))) {
+            ext_attr.type = {"int"};
+            ext_attr.value = value;
+        } else if (std::regex_match(value, std::regex("^-?\\d*\\.?\\d*$"))) {
+            ext_attr.type = {"float"};
+            ext_attr.value = value;
+        } else {
+            ext_attr.type = {"string"};
+            ext_attr.value = value;
+        }
+        ext_attr.hash = string_hash(ext_attr.name) & 0xFFFF;
+
+        // Check for duplicate extension
+        for (const auto &existing : ext) {
+            if (existing.name == ext_attr.name) {
+                fprintf(stderr, "%s:%d: duplicate extension attribute: %s\n", 
+                        parse_info.filename.c_str(), parse_info.lineno, ext_attr.name.c_str());
+                throw std::runtime_error("Duplicate extension attribute: " + ext_attr.name);
+            }
+        }
+        ext.push_back(ext_attr);
     } else {
         throw std::runtime_error("Unknown material key: " + key);
     }

@@ -51,6 +51,7 @@ int flag_ellipsis_repeats = 3;
 float flag_ttf_outline = 0;
 bool flag_ttf_monochrome = false;
 float flag_ttf_char_spacing = 0;
+float flag_ttf_aspect_ratio = 1.0;
 tex_format_t flag_bmfont_format = FMT_RGBA16;
 std::unordered_set<uint32_t> flag_charset;
 
@@ -376,6 +377,9 @@ void print_args( char * name )
     fprintf(stderr, "   --monochrome              Force monochrome output, with no aliasing (default: off)\n");
     fprintf(stderr, "   --outline <width>         Add outline to font, specifying its width in (fractional) pixels\n");
     fprintf(stderr, "   --char-spacing <width>    Add extra spacing between characters (default: 0)\n");
+    fprintf(stderr, "   --display <WxH[,A:B]>     Specify target display resolution and optional aspect ratio\n");
+    fprintf(stderr, "                             (e.g., --display 320x240 or --display 320x240,16:9)\n");
+    fprintf(stderr, "                             Default assumes 4:3 display ratio\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "   Glyph selection modes (choose one of the following):\n");
     fprintf(stderr, "   --charset <file>          Create a font that covers all and only the glyphs used in the\n");
@@ -565,6 +569,40 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 flag_ttf_char_spacing = spacing;
+            } else if (!strcmp(argv[i], "--display")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                
+                // Parse display specification: WxH or WxH,A:B
+                int width, height;
+                float aspect_w = 4, aspect_h = 3;  // Default 4:3
+                char extra;
+                
+                // Try parsing with aspect ratio: WxH,A:B
+                if (sscanf(argv[i], "%dx%d,%f:%f%c", &width, &height, &aspect_w, &aspect_h, &extra) == 4) {
+                    // Successfully parsed with aspect ratio
+                } else if (sscanf(argv[i], "%dx%d%c", &width, &height, &extra) == 2) {
+                    // Successfully parsed without aspect ratio, use default 4:3
+                } else {
+                    fprintf(stderr, "invalid argument for %s: %s (expected WxH or WxH,A:B)\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                
+                if (width <= 0 || height <= 0 || aspect_w <= 0 || aspect_h <= 0) {
+                    fprintf(stderr, "invalid argument for %s: %s (all values must be positive)\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                
+                // Calculate glyph aspect ratio: (framebuffer_ratio) / (display_ratio)
+                float framebuffer_ratio = (float)width / height;
+                float display_aspect_ratio = aspect_w / aspect_h;
+                flag_ttf_aspect_ratio = framebuffer_ratio / display_aspect_ratio;
+                if (flag_verbose) {
+                    printf("display: %dx%d (%.2f:1), display ratio: %.1f:%.1f, calculated glyph aspect ratio: %.3f\n",
+                           width, height, framebuffer_ratio, aspect_w, aspect_h, flag_ttf_aspect_ratio);
+                }
             } else if (!strcmp(argv[i], "--format")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);

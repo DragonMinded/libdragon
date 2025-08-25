@@ -4,6 +4,18 @@
  * @author thekovic <https://github.com/thekovic>
  * @brief Controller Pak Filesystem Routines
  * @ingroup controllerpak
+ * 
+ * @deprecated This module is deprecated. Please use the APIs cpak.h instead.
+ * 
+ * To read and write to the Controller Pak in an organized way compatible with official software,
+ * first check that the Controller Pak is valid using #validate_mempak.  If the Controller Pak is
+ * invalid, it will need to be formatted using #format_mempak.  Once the Controller Pak is
+ * considered valid, existing notes can be enumerated using #get_mempak_entry.  To
+ * read the data associated with a note, use #read_mempak_entry_data.  To write a
+ * new note to the Controller Pak, use #write_mempak_entry_data.  Note that there is no append
+ * functionality so if a note is being updated, ensure you have deleted the old note
+ * first using #delete_mempak_entry.  Code should be careful to check how many blocks
+ * are free before writing using #get_mempak_free_space.
  */
 #ifndef __LIBDRAGON_MEMPAK_H
 #define __LIBDRAGON_MEMPAK_H
@@ -17,16 +29,9 @@
  * read from or write to a Controller Pak, be sure you have initialized the Joypad subsystem
  * with #joypad_init and verified that you have a Controller Pak in the correct controller
  * using #joypad_get_accessory_type.
+ * 
+ * See cpak.h for the API.
  *
- * To read and write to the Controller Pak in an organized way compatible with official software,
- * first check that the Controller Pak is valid using #validate_mempak.  If the Controller Pak is
- * invalid, it will need to be formatted using #format_mempak.  Once the Controller Pak is
- * considered valid, existing notes can be enumerated using #get_mempak_entry.  To
- * read the data associated with a note, use #read_mempak_entry_data.  To write a
- * new note to the Controller Pak, use #write_mempak_entry_data.  Note that there is no append
- * functionality so if a note is being updated, ensure you have deleted the old note
- * first using #delete_mempak_entry.  Code should be careful to check how many blocks
- * are free before writing using #get_mempak_free_space.
  *
  * @{
  */
@@ -100,6 +105,7 @@ extern "C" {
  * @retval -1 if the sector was out of bounds or sector_data was null
  * @retval -2 if there was an error reading part of a sector
  */
+__attribute__((deprecated("use cpak_read instead")))
 int read_mempak_sector( int controller, int sector, uint8_t *sector_data );
 
 /**
@@ -119,6 +125,7 @@ int read_mempak_sector( int controller, int sector, uint8_t *sector_data );
  * @retval -1 if the sector was out of bounds or sector_data was null
  * @retval -2 if there was an error writing part of a sector
  */
+__attribute__((deprecated("use cpak_write instead")))
 int write_mempak_sector( int controller, int sector, uint8_t *sector_data );
 
 /**
@@ -134,6 +141,7 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data );
  * @retval -2 if the Controller Pak is not present or couldn't be read
  * @retval -3 if the Controller Pak is bad or unformatted
  */
+__attribute__((deprecated("use cpakfs_fsck() instead")))
 int validate_mempak( int controller );
 
 /**
@@ -147,6 +155,7 @@ int validate_mempak( int controller );
  *
  * @return The number of blocks free on the memory card or a negative number on failure
  */
+__attribute__((deprecated("use cpakfs_get_stats() instead")))
 int get_mempak_free_space( int controller );
 
 /**
@@ -166,6 +175,7 @@ int get_mempak_free_space( int controller );
  * @retval -1 if the entry is out of bounds or entry_data is null
  * @retval -2 if the Controller Pak is bad or not present
  */
+__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
 int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data );
 
 /**
@@ -180,6 +190,7 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
  * @retval 0 if the Controller Pak was formatted successfully.
  * @retval -2 if the Controller Pak was not present or couldn't be formatted.
  */
+__attribute__((deprecated("use cpakfs_format() instead")))
 int format_mempak( int controller );
 
 /**
@@ -204,6 +215,7 @@ int format_mempak( int controller );
  * @retval -2 if the Controller Pak was not present or bad
  * @retval -3 if the data couldn't be read
  */
+__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
 int read_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data );
 
 /**
@@ -228,6 +240,7 @@ int read_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *d
  * @retval -4 if there wasn't enough space to store the note
  * @retval -5 if there is no room in the TOC to add a new entry
  */
+__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
 int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data );
 
 /**
@@ -245,6 +258,7 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
  * @retval -1 if the entry was invalid
  * @retval -2 if the Controller Pak was bad or not present
  */
+__attribute__((deprecated("use the new cpak filesystem (cpak.h) instead")))
 int delete_mempak_entry( int controller, entry_structure_t *entry );
 
 #ifdef __cplusplus

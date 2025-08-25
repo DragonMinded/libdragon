@@ -1808,6 +1808,57 @@ void test_rdpq_mode_alphacompare(TestContext *ctx) {
         "invalid SOM configuration: %08llx", som);
 }
 
+void test_rdpq_mode_zmode(TestContext *ctx) {
+    RDPQ_INIT();
+
+    rdpq_debug_log_msg("standard mode");
+    rdpq_set_mode_standard();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("AA standard");
+    rdpq_mode_antialias(AA_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("blending+AA");
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("blending");
+    rdpq_mode_antialias(AA_NONE);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Interpenetrating+blending");
+    rdpq_mode_zmode(ZMODE_INTERPENETRATING);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_INTERPENETRATING, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal+blending");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard+blending");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    rdpq_mode_blender(0);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+}
+
+
 void test_rdpq_mode_freeze(TestContext *ctx) {
     RDPQ_INIT();
     debug_rdp_stream_init();
@@ -2186,9 +2237,19 @@ void test_rdpq_texrect_passthrough(TestContext *ctx) {
     rspq_block_t *block;
     uint32_t texrect;
 
-    uint32_t find_block_texrect(uint32_t *cmds) {
-        for (int i=0; i<16; i++) {
+    uint32_t find_block_texrect(rspq_block_t *block) {
+        uint32_t *cmds = block->rdp_block->cmds;
+        for (int i=0; i<32; i++) {
             if (cmds[i] >> 24 == 0xE4) {
+                return cmds[i];
+            }
+        }
+        return 0;
+    }
+    uint32_t find_block_texrect_fixup(rspq_block_t *block) {
+        uint32_t *cmds = block->cmds;
+        for (int i=0; i<32; i++) {
+            if (cmds[i] >> 24 == 0xD0) {
                 return cmds[i];
             }
         }
@@ -2199,7 +2260,8 @@ void test_rdpq_texrect_passthrough(TestContext *ctx) {
     rspq_block_begin();
         rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
     block = rspq_block_end();
-    ASSERT_EQUAL_HEX(block->rdp_block->cmds[0] >> 24, 0xC0, "expected NOP in block");
+    texrect = find_block_texrect_fixup(block);
+    ASSERT_EQUAL_HEX(texrect, 0xd0040040, "expected fixup");
     rspq_block_free(block);
 
     // Block with standard mode. Should contain a rectangle with exclusive bounds
@@ -2207,7 +2269,7 @@ void test_rdpq_texrect_passthrough(TestContext *ctx) {
         rdpq_set_mode_standard();
         rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
     block = rspq_block_end();
-    texrect = find_block_texrect(block->rdp_block->cmds);
+    texrect = find_block_texrect(block);
     ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
     rspq_block_free(block);
 
@@ -2216,7 +2278,7 @@ void test_rdpq_texrect_passthrough(TestContext *ctx) {
         rdpq_set_mode_copy(true);
         rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
     block = rspq_block_end();
-    texrect = find_block_texrect(block->rdp_block->cmds);
+    texrect = find_block_texrect(block);
     ASSERT_EQUAL_HEX(texrect, 0xe403c03c, "expected inclusive bounds");
     rspq_block_free(block);
 
@@ -2230,7 +2292,7 @@ void test_rdpq_texrect_passthrough(TestContext *ctx) {
         rspq_block_run(block_mode);
         rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
     block = rspq_block_end();
-    texrect = find_block_texrect(block->rdp_block->cmds);
+    texrect = find_block_texrect(block);
     ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
     rspq_block_free(block);
     rspq_block_free(block_mode);
@@ -2245,8 +2307,20 @@ void test_rdpq_texrect_passthrough(TestContext *ctx) {
         rspq_block_run(block_mode);
         rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
     block = rspq_block_end();
-    texrect = find_block_texrect(block->rdp_block->cmds);
+    texrect = find_block_texrect(block);
     ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
     rspq_block_free(block);
     rspq_block_free(block_mode);
+
+    // rdpq mode doesn't track state across mode pops, so we emit fixups
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+        rdpq_mode_push();
+            rdpq_set_mode_copy(true);
+        rdpq_mode_pop();
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect_fixup(block);
+    ASSERT_EQUAL_HEX(texrect, 0xd0040040, "expected fixup");
+    rspq_block_free(block);
 }

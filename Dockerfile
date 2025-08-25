@@ -66,6 +66,7 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         gcc \
         git \
         make \
+        python3 \
         xxd \
     && apt autoremove -yq
 

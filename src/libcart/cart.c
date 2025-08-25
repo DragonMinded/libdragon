@@ -1,7 +1,3 @@
-/**
- * @file cart.c
- * @author devwizard <https://github.com/devwizard64>
- */
 /******************************************************************************/
 /*  Adapted for use with libdragon - https://github.com/devwizard64/libcart   */
 /******************************************************************************/
@@ -12,6 +8,8 @@
 #include "dma.h"
 #include "libcart/cart.h"
 
+#define MI_BASE_REG             0x04300000
+#define MI_VERSION_REG          (MI_BASE_REG+0x04)
 #define PI_BASE_REG             0x04600000
 #define PI_BSD_DOM1_LAT_REG     (PI_BASE_REG+0x14)
 #define PI_BSD_DOM1_PWD_REG     (PI_BASE_REG+0x18)
@@ -266,8 +264,9 @@ int cart_init(void)
         ed_init,
         sc_init,
     };
-    int i;
-    int result;
+    int i, result;
+    /* bbplayer */
+    if ((IO_READ(MI_VERSION_REG) & 0xF0) == 0xB0) return -1;
     if (!__cart_dom1)
     {
         __cart_dom1 = 0x8030FFFF;
@@ -633,14 +632,17 @@ int edx_init(void)
 {
     __cart_acs_get();
     io_write(EDX_KEY_REG, EDX_KEY);
-    io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_OFF);
-    /* Check bootloader ROM label */
-    __cart_dma_rd(__cart_buf, 0x10000020, 20);
-    if (memcmp(__cart_buf, edx_bootx, 20) && memcmp(__cart_buf, edx_boot3, 12))
+    if (io_read(EDX_EDID_REG) >> 16 != 0xED64)
     {
-        CART_ABORT();
+        /* Check bootloader ROM label */
+        io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_OFF);
+        __cart_dma_rd(__cart_buf, 0x10000020, 20);
+        io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_ON);
+        if (
+            memcmp(__cart_buf, edx_bootx, 20) &&
+            memcmp(__cart_buf, edx_boot3, 12)
+        ) CART_ABORT();
     }
-    io_write(EDX_SYS_CFG_REG, EDX_CFG_SDRAM_ON);
     __cart_dom1 = 0x80370C04;
     cart_size = 0x4000000; /* 64 MiB */
     __cart_acs_rel();

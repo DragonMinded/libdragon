@@ -361,7 +361,7 @@ const char *rtc_error_str( int error )
     }
 }
 
-/** @deprecated Use #rtc_get_time instead. */
+/** @deprecated Use time(NULL) instead. */
 bool rtc_get( rtc_time_t * rtc_time )
 {
     time_t current_time;
@@ -373,7 +373,7 @@ bool rtc_get( rtc_time_t * rtc_time )
     return true;
 }
 
-/** @deprecated Use #rtc_set_time instead. */
+/** @deprecated Use settimeofday instead. */
 bool rtc_set( rtc_time_t * write_time )
 {
     struct tm timeinfo = rtc_time_to_tm( write_time );

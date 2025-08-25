@@ -66,6 +66,33 @@ extern "C" {
 typedef struct
 {
     /** 
+     * @brief True if the filesystem is thread safe
+     * 
+     * This flag is used to determine if the filesystem can be accessed
+     * concurrently by multiple threads, through *different* file handles.
+     * 
+     * If the filesystem is not thread safe, system code will protect
+     * all accesses to the filesystem with a mutex. This guarantees that if
+     * eg. a thread is suspended while reading a file, another thread will
+     * not be able to read or write any other file until the first thread
+     * resumes.
+     * 
+     * On the other hand, if the filesystem is thread safe, the system code
+     * will not use a mutex to protect accesses to the filesystem. This means
+     * that the filesystem code must be able to handle concurrent accesses
+     * to different files without any protection.
+     * 
+     * In general, read-only filesystems are easily thread safe: only pay
+     * attention to some shared mutable state like eg some global cache.
+     * On the other hand, read-write filesystems are usually not thread safe
+     * because of shared mutable structures like directories or inode tables.
+     * 
+     * Notice that concurrent accesses to the same file handle are always
+     * meant to be unsafe and must be protected by the user code itself.
+     */
+    bool thread_safe;
+
+    /** 
      * @brief Function to call when performing an open command
      *
      * @param[in] name
@@ -166,7 +193,7 @@ typedef struct
      *
      * @param[in]  path
      *             Full path of the directory to list files from, relative to the
-     *             root of the filesystem.
+     *             root of the filesystem. It always begins with a slash.
      * @param[out] dir
      *             Directory structure to place information on the first file in the
      *             directory.
@@ -175,9 +202,20 @@ typedef struct
      *         or a different negative value on error (in which case, errno will be set).
      */
     int (*findfirst)( char *path, dir_t *dir );
+
+    ///@cond
+    #ifndef SYSTEM_NO_DEPRECATED
+    __attribute__((deprecated("Use findnext2 instead")))
+    #endif
+    int (*findnext)( dir_t *dir );
+    ///@endcond
+    
     /** 
      * @brief Function to call when performing a findnext operation
      *
+     * @param[in]  path
+     *             Full path of the directory to list files from, relative to the
+     *             root of the filesystem. It always begins with a slash.
      * @param[out] dir
      *             Directory structure to place information on the next file in the
      *             directory.
@@ -185,7 +223,7 @@ typedef struct
      * @return 0 on successful lookup, -1 if the directory existed and is empty,
      *         or a different negative value on error (in which case, errno will be set).
      */
-    int (*findnext)( dir_t *dir );
+    int (*findnext2)( const char *path, dir_t *dir );
     /**
      * @brief Truncate a file to a specified length
      * 
@@ -399,16 +437,24 @@ typedef struct
     bool (*settime)( time_t );
 } time_hooks_t;
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use hook_rtc_calls instead")))
+#endif
 int hook_time_calls( time_hooks_t *hooks );
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use unhook_rtc_calls instead")))
+#endif
 int unhook_time_calls( time_hooks_t *hooks );
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use hook_time_calls instead")))
+#endif
 int hook_time_call( time_t (*time_fn)( void ) );
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use unhook_time_calls instead")))
+#endif
 int unhook_time_call( time_t (*time_fn)( void ) );
 
 /// @endcond

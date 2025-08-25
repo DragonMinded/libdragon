@@ -14,7 +14,10 @@
 
 #include "joybus_accessory_internal.h"
 #include "joypad.h"
-#include "timer.h"
+
+///@cond
+typedef struct timer_link timer_link_t;
+///@endcond
 
 /**
  * @addtogroup joypad
@@ -34,14 +37,18 @@ typedef enum
     JOYPAD_ACCESSORY_STATE_IDLE = 0,
     // Accessory detection routine states
     JOYPAD_ACCESSORY_STATE_DETECT_INIT,
-    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0,
     JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_BACKUP,
-    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE,
-    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_WRITE0,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ0,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE1,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_READ1,
+    JOYPAD_ACCESSORY_STATE_DETECT_CPAK_BANK_WRITE0_AGAIN,
     JOYPAD_ACCESSORY_STATE_DETECT_CPAK_LABEL_RESTORE,
     JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_WRITE,
     JOYPAD_ACCESSORY_STATE_DETECT_RUMBLE_PROBE_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_ON,
+    JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_WAIT,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_READ,
     JOYPAD_ACCESSORY_STATE_DETECT_TRANSFER_PROBE_OFF,
     JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_WRITE,
@@ -97,6 +104,7 @@ typedef enum
     JOYPAD_ACCESSORY_ERROR_NONE = 0,                        ///< No error
     JOYPAD_ACCESSORY_ERROR_ABSENT,                          ///< Accessory is absent
     JOYPAD_ACCESSORY_ERROR_CHECKSUM,                        ///< Checksum error
+    JOYPAD_ACCESSORY_ERROR_CONTROLLER_PAK_BANK_SWITCH,      ///< Controller Pak does not support bank switching
     JOYPAD_ACCESSORY_ERROR_TRANSFER_PAK_STATUS_CHANGE,      ///< Transfer Pak status changed
     JOYPAD_ACCESSORY_ERROR_UNKNOWN,                         ///< Unknown error
 } joypad_accessory_error_t;
@@ -147,6 +155,9 @@ typedef struct joypad_accessory_s
     joypad_accessory_error_t error;
     unsigned retries;
     uint8_t cpak_label_backup[JOYBUS_ACCESSORY_DATA_SIZE];
+    uint8_t cpak_probe_label[JOYBUS_ACCESSORY_DATA_SIZE];
+    bool cpak_bankswitching;    ///< Does Controller Pak support bankswitching?
+    int cpak_curbank;           ///< Current Controller Pak bank
     joypad_accessory_io_t io;
     timer_link_t *transfer_pak_wait_timer;
     joybus_transfer_pak_status_t transfer_pak_status;
@@ -168,12 +179,21 @@ void joypad_accessory_reset(joypad_port_t port);
  * * Step 2B: Backup the Controller Pak "label" area
  * * Step 2C: Overwrite the Controller Pak "label" area
  * * Step 2D: Read back the "label" area to detect Controller Pak
- * * Step 2E: Restore the Controller Pak "label" area
+ *            If matches, it is a Controller Pak. Continue to Step 2E,
+ *            to check for multi-bank Controller Paks.
+ *            If not matches, it is not a Controller Pak. Continue to Step 3A.
+ * * Step 2E: Set Controller Pak "linear paging bank" to 1
+ * * Step 2F: Read back the "label" area
+ * * Step 2G: If the label area was corrupted by bankswitch, the Controller Pak
+ *            does not support bankswitching.
+ *            Otherwise switch back to "linear paging bank" 0.
+ * * Step 2H: Restore the original label area. Done: Controller Pak detected.
  * * Step 3A: Write probe value to detect Rumble Pak
  * * Step 3B: Read probe value to detect Rumble Pak
  * * Step 4A: Write probe value to detect Transfer Pak
- * * Step 4B: Read probe value to detect Transfer Pak
- * * Step 4C: Write probe value to turn off Transfer Pak
+ * * Step 4B: Wait for Transfer Pak to power on
+ * * Step 4C: Read probe value to detect Transfer Pak
+ * * Step 4D: Write probe value to turn off Transfer Pak
  * * Step 5A: Write probe value to detect Snap Station
  * * Step 5B: Read probe value to detect Snap Station
  *
@@ -254,26 +274,46 @@ joypad_accessory_error_t joypad_accessory_xfer(
 );
 
 /**
- * @brief Select the active bank for a Controller Pak.
+ * @brief Return true if the Controller Pak supports bankswitching.
  * 
- * Most controller paks (including all first-party ones) have a single bank
- * of 32 KiB of storage. However, some third-party controller paks have
- * multiple banks, and require an explicit bank switch operation to access
- * data beyond the first 32 KiB.
+ * Most controller paks (including all first-party ones) support a bankswitching
+ * protocol, even if they only have only one 32 KiB bank installed. However, some
+ * third-party controller paks did not bother implement the bankswitching
+ * protocol, and in fact trying to change bank can cause data corruption.
+ * 
+ * During the initial accessory detection, the Controller Pak is probed to verify
+ * if it supports bankswitching or not. This function returns the result of that probe.
+ * 
+ * Notice that the joypad accessory detection routine does not perform any
+ * write tests to determine the number of banks in a Controller Pak. It can
+ * only determine if the Controller Pak supports bankswitching or not, but not how
+ * many banks it has.
+ * 
+ * @param port      Joypad port number (#joypad_port_t)
+ * @return true     The Controller Pak supports bankswitching
+ * @return false    The Controller Pak does not support bankswitching
+ */
+bool joypad_controller_pak_supports_bankswitching(joypad_port_t port);
+
+/**
+ * @brief Select the active bank for a Controller Pak.
  * 
  * Generic transfer functions for accessories like #joypad_accessory_xfer_async
  * will only access the active bank.
  * 
- * There is no way to probe the number of banks in a Controller Pak at the
- * hardware level. In situation where probing is necessary (eg: formatting
- * functions), write tests can be performed to determine the number of banks.
+ * This function will return #JOYPAD_ACCESSORY_ERROR_CONTROLLER_PAK_BANK_SWITCH
+ * if the Controller Pak is not multi-bank, as issuing a bank switch command to
+ * a single-bank Controller Pak would result in data corruption. 
+ * 
+ * Notice that since the actual number of banks in a Controller Pak is not
+ * known, this function cannot check if the bank number is valid. Setting an
+ * invalid bank number will result in undefined behavior.
  * 
  * @param port          Joypad port number (#joypad_port_t)
  * @param bank          Bank number to switch to.
  * @return joypad_accessory_error_t    Error code for the transfer operation. 
  */
 joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint8_t bank);
-
 
 /**
  * @brief Turn the Rumble Pak motor on or off for a Joypad port.

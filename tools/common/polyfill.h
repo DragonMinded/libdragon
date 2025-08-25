@@ -35,8 +35,8 @@ typedef intptr_t ssize_t;
 /* The original code is public domain -- Will Hartung 4/9/09 */
 /* Modifications, public domain as well, by Antti Haapala, 11/10/17
    - Switched to getc on 5/23/19 */
-
-ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
+__attribute__((used))
+static ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
     size_t pos;
     int c;
 
@@ -85,7 +85,8 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
 }
 
 /* This function is original code in libdragon */
-char *strndup(const char *s, size_t n)
+__attribute__((used))
+static char *strndup(const char *s, size_t n)
 {
   size_t len = strnlen(s, n);
   char *ret = (char*)malloc(len + 1);
@@ -134,7 +135,8 @@ __declspec(dllimport) int __stdcall CloseHandle(HANDLE);
 __declspec(dllimport) unsigned long __stdcall GetLastError(void);
 __declspec(dllimport) unsigned long __stdcall GetTickCount(void);
 
-FILE *mingw_tmpfile(void) {
+__attribute__((used))
+static FILE *mingw_tmpfile(void) {
     static int counter = 0;
     char path[260];
 
@@ -172,7 +174,9 @@ FILE *mingw_tmpfile(void) {
 
     return NULL;
 }
-char* strcasestr(const char* haystack, const char* needle)
+
+__attribute__((used))
+static char* strcasestr(const char* haystack, const char* needle)
 {
     size_t needle_len = strlen(needle);
     size_t haystack_len = strlen(haystack);
@@ -191,7 +195,8 @@ char* strcasestr(const char* haystack, const char* needle)
 }
 
 // Implementation from FreeBSD
-void *memmem(const void *l, size_t l_len, const void *s, size_t s_len)
+__attribute__((used))
+static void *memmem(const void *l, size_t l_len, const void *s, size_t s_len)
 {
 	char *cur, *last;
 	const char *cl = (const char *)l;
@@ -242,7 +247,8 @@ static void map_windows_error_to_errno(unsigned long err) {
     }
 }
 
-int mingw_rename(const char *oldpath, const char *newpath) {
+__attribute__((used))
+static int mingw_rename(const char *oldpath, const char *newpath) {
     if (MoveFileExA(oldpath, newpath, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
         return 0;
     } else {

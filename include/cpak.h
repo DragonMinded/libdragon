@@ -1,13 +1,21 @@
 /**
  * @file cpak.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Controller Pak raw access
+ * @ingroup controllerpak
+ * 
+ * This module contains lower-level access to the Controller Pak, allowing
+ * direct read and write operations to the pak's memory, and similar
+ * operations that do not involve the filesystem.
+ * 
+ * Most applications should use the higher-level filesystem interface
+ * provided by cpakfs.h, which allows to access the notes in the controller
+ * pak as files in a filesystem.
  */
+
 #ifndef LIBDRAGON_CPAK_H
 #define LIBDRAGON_CPAK_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
 #include "joypad.h"
 
 #ifdef __cplusplus
@@ -15,125 +23,111 @@ extern "C" {
 #endif
 
 /**
- * @brief Usage statistics for a Controller Pak
+ * @brief Read data from a controller pak
  * 
- * This structure is returned by #cpak_get_stats and contains the usage
- * statistics for a controller pak.
+ * This is a low-level operation that reads a sequence of raw bytes from the
+ * controller pak, with no filesystem semantics. A typical use case for this
+ * function is dumping the contents of a controller pak.
+ * 
+ * The function will switch to the specified bank (unless it is already in that bank),
+ * and then read the specified number of bytes from the specified address.
+ * The read can be of any length, and the address does not need to be aligned,
+ * but the read cannot cross banks.
+ * 
+ * @note There is no way for this function to know how many banks the controller pak has.
+ *       The caller must ensure that the bank exists, otherwise the behavior is undefined.
+ *       You can use the #cpak_probe_banks function to determine the number of banks,
+ *       via hardware probing, or #cpakfs_get_stats to get the number of banks
+ *       as recorded in the filesystem.
+ * 
+ * @param port          Joypad port number (#joypad_port_t)
+ * @param bank          Bank number to read from. The caller must ensure
+ *                      that the bank exists, otherwise the behavior is undefined.    
+ * @param address       Starting address in the controller pak to read from. Allowed
+ *                      range is 0-0x7FFF.
+ * @param buffer        Buffer to read the data into
+ * @param len           Number of bytes to read. The caller must ensure that the length
+ *                      does not exceed the bank size (0x8000).
+ * @return int          Number of bytes read, or negative value in case of error
+ *                      (errno will be set).
  */
-typedef struct {
-    struct {
-        int total;      ///< Total number of pages in the controller pak
-        int used;       ///< Number of pages used in the controller pak
-    } pages;            ///< Statistics on pages in the controller pak
-    struct {
-        int total;      ///< Total number of notes in the controller pak
-        int used;       ///< Number of notes used in the controller pak
-    } notes;            ///< Statistics on notes in the controller pak
-} cpak_stats_t;
-
+int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, size_t len);
 
 /**
- * @brief Mount the controller pak as filesystem
+ * @brief Write data to a controller pak
  * 
- * This function mounts the contents of a controller pak as a virtual
- * filesystem, with the specified prefix. After this function successfully
- * return, it is possible to access the notes in the cpak using standard
- * C functions like fopen.
+ * This is a low-level operation that writes a sequence of raw bytes to the
+ * controller pak, with no filesystem semantics. A typical use case for this
+ * function is restoring a dump to  a controller pak.
  * 
- * \code{.c}
- *      if (cpak_mount(JOYPAD_PORT_1, "cpak1:/") < 0) {
- *         // handle errors, by inspecting errno [...]
- *         return;
- *      }
+ * The function will switch to the specified bank (unless it is already in that bank),
+ * and then write the specified number of bytes to the specified address.
+ * The write can be of any length, and the address does not need to be aligned,
+ * but the write cannot cross banks.
+ *
+ * @note There is no way for this function to know how many banks the controller pak has.
+ *       The caller must ensure that the bank exists, otherwise the behavior is undefined.
+ *       You can use the #cpak_probe_banks function to determine the number of banks,
+ *       via hardware probing, or #cpakfs_get_stats to get the number of banks
+ *       as recorded in the filesystem.
  * 
- *      // Read the following note:
- *      //   Game code: NAFJ
- *      //   Publisher code: 01
- *      //   Filename: DOUBUTSUNOMORI
- *      //   File extension: A
- *      FILE *f = fopen("cpak1:/NAFJ.01/DOUBUTSUNOMORI.A");
- * \endcode
- * 
- * The virtual filesystem structure is as follows:
- *   * Root directory contains no files, only subdirectories. The name of the
- *     subdirectories is a 4.2 ASCII string that encode the game code and
- *     publisher code (eg: "NSME.01")
- *   * Within each subdirectory, you can find one or multiple files that are
- *     the notes found in the cpak. The filenames are UTF-8 strings that must
- *     adhere to the special cpak charset.
- *   * Empty directories do not exist.
- * 
- * In case of error while mounting the filesystem, errno is set as follows:
- * 
- *  * EIO: Input/output error on the wire. The serial connection is faulty,
- *    so either the cable is damaged or the cpak is electrically unstable.
- *  * ENXIO: The controller pak or the whole joypad has been abruptly disconnected
- *    during the operation.
- *  * ENODEV: the controller pak appears not to contain a valid filesystem, or
- *    it was corrupted. Use #cpak_fsck to try recovering the contents.
- * 
- * @param port              Cpak to mount, identified by the joypad port
- * @param prefix            Filesystem prefix to use for mounting. Suggested
- *                          name is "cpakN:/" where "N" is the controller
- *                          port (1..4).
- * @return 0 if success, negative value in case of error (and errno is set)
+ * @param port          Joypad port number (#joypad_port_t)
+ * @param bank          Bank number to write to. The caller must ensure
+ *                      that the bank exists, otherwise the behavior is undefined.
+ * @param address       Starting address in the controller pak to write to. Allowed
+ *                      range is 0-0x7FFF.
+ * @param buffer        Buffer to write the data from
+ * @param len           Number of bytes to write. The caller must ensure that the length
+ *                      does not exceed the bank size (0x8000).
+ * @return int          Number of bytes written, or negative value in case of error
+ *                      (errno will be set).
  */
-int cpak_mount(joypad_port_t port, const char *prefix);
+int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *buffer, size_t len);
 
 /**
- * @brief Unmount the controller pak filesystem
+ * @brief Check if a controller pak supports bankswitching or not.
  * 
- * This function unmounts the controller pak filesystem, waiting for all
- * pending operations to complete.
+ * This function does not perform I/O, as the accessory detection code already
+ * checked if the controller pak allows for bankswitching or not.
  * 
- * @param port              The controller pak to unmount
- * @return 0 if success, negative value in case of error (and errno is set)
+ * Notice that this function is meant purely for debugging purposes; the whole
+ * cpak module was designed so that there is no need to change behavior based on
+ * whether the controller pak supports bankswitching or not.
+ * 
+ * Notice also that supporting bankswitching does not mean that the controller pak
+ * does actually have multiple banks. Some controller paks (including official
+ * first-party ones) may support bankswitching but only have a single bank available.
+ * 
+ * @param port          Joypad port to check
+ * @return true         if the controller pak supports bankswitching, false otherwise
  */
-int cpak_unmount(joypad_port_t port);
+bool cpak_supports_bankswitching(joypad_port_t port);
 
 /**
- * @brief Read the serial number of a controller pak
+ * @brief Probe the number of banks in a controller pak
  * 
- * This function reads the 20-byte serial number of a controller pak.
- * This is a unique identifier that can be used to distinguish between
- * different controller paks. It is normally generated with random data
- * when the controller pak is formatted, so it does not contain printable
- * characters.
+ * This function probes the number of banks in a controller pak, by attempting
+ * to switch to each bank and performing a write test to check if the bank
+ * actually exists. It then restores the existing contents in all banks, so
+ * that the operation is non-destructive.
  * 
- * @param port          The controller pak to read the serial from
- * @param serial        The buffer where to store the serial number (24 bytes)
- * @return 0            if the serial was successfully read
- * @return negative     if an error occurred (eg: no cpak on the specified port),
- *                      and errno is set accordingly.
+ * The standard controller paks have a single bank of 32 KiB, so this function
+ * will always return 1 for them.
+ * 
+ * @note This is a low-level operation that is useful during formatting or
+ *       similar operations. For most applications, just mount the filesystem and
+ *       use the #cpakfs_get_stats function to get the number of banks as recorded
+ *       in the filesystem.
+ * 
+ * @note The function uses the first block in each bank. With the standard filesystem,
+ *       this block is called "label area", is unused, and is often used/corrupted
+ *       by games, so even if the cpak is removed during the operation, the
+ *       filesystem will not be corrupted.
+ * 
+ * @param port      Joypad port to check
+ * @return int      Number of banks found, or negative value in case of error
  */
-int cpak_get_serial(joypad_port_t port, uint8_t serial[24]);
-
-/**
- * @brief Read the usage state of a controller pak
- * 
- * @param port          The controller pak to read the usage state from
- * @param stats         The structure where to store the usage statistics
- * @return 0            if the serial was successfully read
- * @return negative     if an error occurred (eg: no cpak on the specified port),
- *                      and errno is set accordingly.
- */
-int cpak_get_stats(joypad_port_t port, cpak_stats_t *stats);
-
-
-/**
- * @brief Check the integrity of a controller pak
- * 
- * This function checks the integrity of a controller pak. It is useful to
- * check if the controller pak is corrupted or if the filesystem is corrupted.
- * 
- * @param port          The controller pak to check the integrity of
- * @param fix_errors    Whether to fix the errors found
- * @return 0            if the integrity check was successful
- * @return negative     if an error occurred (eg: no cpak on the specified port),
- *                      and errno is set accordingly.
- */
-int cpak_fsck(joypad_port_t port, bool fix_errors);
-
+int cpak_probe_banks(joypad_port_t port);
 
 #ifdef __cplusplus
 }

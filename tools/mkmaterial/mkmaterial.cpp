@@ -11,132 +11,17 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <utility>
-#include <map>
-#include <set>
-#include <deque>
+#include <stdarg.h>
+#include "mkmaterial.h"
 #include "../common/assetcomp.h"
 #include "../common/utils.h"
-#include "../common/subprocess.h"
-#include "../common/binout.h"
-#include "../common/binout.c"
-#include "../../include/rdpq_macros.h"
-#include "../../src/rdpq/rdpq_mat_internal.h"
-#include "combexpr.cpp"
 
-const char *flag_texdb_path = "texdb";
+char *flag_texdb_path = NULL;
 const char *flag_output_path = ".";
 int flag_compress = DEFAULT_COMPRESSION;
 int flag_verbose = 0;
 const char *n64_inst = NULL;
 std::deque<std::string> texture_dirs;
-
-struct MyEnum {
-    std::vector<std::string> values;
-    int idx{-1};
-
-    MyEnum(std::vector<std::string> values_) : values(std::move(values_)) {}
-    MyEnum(int def, std::vector<std::string> values_) : values(std::move(values_)), idx(def) {
-        if (idx < 0 || idx >= (int)values.size())
-            throw std::runtime_error("invalid enum value: " + std::to_string(idx));        
-    }
-    operator int() const { return idx; }
-    std::string to_str() const { return values[idx]; }
-
-    void operator=(int i) {
-        if (i < 0 || i >= (int)values.size())
-            throw std::runtime_error("invalid enum value: " + std::to_string(i));
-        idx = i;
-    }
-
-    void operator=(std::string value) {
-        for (size_t i = 0; i < values.size(); i++) {
-            if (value == values[i]) {
-                idx = i;
-                return;
-            }
-        }
-
-        std::string error = "invalid value: " + value + "; expected one of: ";
-        for (size_t i = 0; i < values.size(); i++) {
-            error += values[i];
-            if (i < values.size() - 1) error += ", ";
-        }
-        throw std::runtime_error(error);
-    }
-};
-
-struct Texture {
-    std::string name{""};
-    std::string fmt{"auto"};
-    std::string mipmap{"none"};
-    std::string dithering{"none"};
-    struct {
-        float translate{0};
-        int scale{1};
-        float repeats{2048};
-        bool mirror{false};
-    } s, t;
-
-    operator bool() const { return !name.empty(); }
-    void parse_attr(std::string key, std::string value);
-    void validate_name(void);
-
-    uint32_t hash{0};
-};
-
-struct RenderModes {
-    MyEnum antialias{{"none", "standard", "reduced"}};
-    MyEnum fog{{"none", "standard"}};
-    MyEnum dither[2]{ {{"none", "noise", "bayer", "square"}}, {{"none", "noise", "bayer", "square", "invbayer", "invsquare"}} };
-    MyEnum filtering{{"point", "bilinear", "median"}};
-    int perspective{-1};
-    int alpha_compare{-1};
-    MyEnum zmode{{"none", "compare", "update", "compare+update"}};
-    int z_override{-1};
-    int deltaz_override{0};
-
-    void parse_attr(std::string key, std::string value);
-};
-
-struct Combiner {
-    combexpr::CombinerExpr rgb{combexpr::CombinerChannel::RGB, "0", "0", "0", "tex0"};
-    combexpr::CombinerExpr alpha{combexpr::CombinerChannel::ALPHA, "0", "0", "0", "tex0"};
-    combexpr::CombinerExprFull full;
-
-    void parse_attr(std::string key, std::string value);
-    uint64_t to_rdpq_mode_arg(void);
-};
-
-struct Blender {
-    MyEnum mode{0, {"off", "multiply", "multiply_const", "additive"}};
-    float constant{-1};
-
-    void parse_attr(std::string key, std::string value);
-    void validate(void);
-};
-
-struct Material {
-    std::string name;
-    struct {
-        std::string filename;
-        int lineno{0};
-    } parse_info;
-    Texture tex[2];
-    RenderModes rm;
-    Combiner cc;
-    Blender bl;
-
-    Material() = default;
-
-    void parse_attr(std::string key, std::string value);
-    void validate(void);
-    void write(FILE *f);
-};
 
 void verbose(const char *fmt, ...)
 {
@@ -147,11 +32,6 @@ void verbose(const char *fmt, ...)
     va_end(args);
 }
 
-
-#include "mkmaterial_parse.cpp"
-#include "mkmaterial_export.cpp"
-
-
 void usage(void)
 {
     fprintf(stderr, "Usage: mkmaterial [flags] <file.mat>...\n\n");
@@ -160,7 +40,9 @@ void usage(void)
     fprintf(stderr, "  -h, --help               print this help message\n");
     fprintf(stderr, "  -I, --include [path]     specify additional texture path\n");
     fprintf(stderr, "  -o, --output [path]      specify output path (default: .)\n");
+    fprintf(stderr, "  -t, --texdb [path]       specify texture database path (default: {output}/texdb)\n");
     fprintf(stderr, "  -c. --compress [level]   specify compression level for textures (default: %d)\n", DEFAULT_COMPRESSION);
+    fprintf(stderr, "  --raw-material           generate a single raw headerless material instead of a database\n");
 }
 
 int main(int argc, char *argv[])
@@ -168,6 +50,7 @@ int main(int argc, char *argv[])
     std::map<std::string, Material> materials;
     bool error = false;
     int nfiles = 0;
+    bool raw_material = false;
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] != '\0') {
@@ -189,6 +72,12 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 flag_output_path = argv[i];
+            } else if (!strcmp(argv[i], "-t") || !strcmp(argv[i], "--texdb")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                flag_texdb_path = argv[i];
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -199,6 +88,8 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid compression level: %d\n", flag_compress);
                     return 1;
                 }
+            } else if (!strcmp(argv[i], "--raw-material")) {
+                raw_material = true;
             } else {
                 fprintf(stderr, "error: unknown option: %s\n", argv[i]);
                 return 1;
@@ -230,9 +121,10 @@ int main(int argc, char *argv[])
                 continue;
             }
 
-            for (auto& mat : materials) {
-                verbose("converting material: %s\n", mat.name.c_str());
-                mat_convert(mat);
+            if (raw_material && materials.size() > 1) {
+                fprintf(stderr, "error: cannot generate raw material when input contains multiple materials\n");
+                error = true;
+                continue;
             }
 
             // Open output file, named after the filename. Use stdout
@@ -244,9 +136,37 @@ int main(int argc, char *argv[])
                 // Write to stdout when input is stdin
                 f = stdout;
                 verbose("writing material database to stdout\n");
+
+                if (!flag_texdb_path) {
+                    fprintf(stderr, "error: cannot write to stdout without a texture database path\n");
+                    return 1;
+                }
             } else {
-                out = change_ext(argv[i], ".mdb");
-                verbose("writing material database: %s\n", out);
+                char *infn = argv[i];
+                char *basename = strrchr(infn, '/');
+                if (!basename) basename = infn; else basename += 1;
+                char* basename_noext = strdup(basename);
+                char* ext = strrchr(basename_noext, '.');
+                if (ext) *ext = '\0';
+
+                if (raw_material) {
+                    asprintf(&out, "%s/%s.mraw", flag_output_path, basename_noext);
+                    verbose("writing raw material: %s\n", out);
+                } else {
+                    asprintf(&out, "%s/%s.mdb", flag_output_path, basename_noext);
+                    verbose("writing material: %s\n", out);
+                }
+
+                // If the texdb path is not set, use the default
+                if (!flag_texdb_path)
+                    asprintf(&flag_texdb_path, "%s/texdb", flag_output_path);
+                if (mkdir(flag_texdb_path, 0755) && errno != EEXIST) {
+                    fprintf(stderr, "error: cannot create texture database directory: %s\n", flag_texdb_path);
+                    return 1;
+                }
+
+                verbose("texture DB: %s\n", flag_texdb_path);
+
                 f = fopen(out, "wb");
                 if (!f) {
                     fprintf(stderr, "error: cannot open output file: %s\n", out);
@@ -255,8 +175,17 @@ int main(int argc, char *argv[])
                 }
             }
 
+            for (auto& mat : materials) {
+                verbose("converting material: %s\n", mat.name.c_str());
+                mat_convert(mat);
+            }
+
             // Write the material database
-            mat_writedb(f, materials);
+            if (raw_material) {
+                materials[0].write(f);
+            } else {
+                mat_writedb(f, materials);
+            }
             
             if (f != stdout) {
                 fclose(f);

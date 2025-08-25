@@ -221,6 +221,18 @@ void fm_sincosf(float x, float *sin, float *cos);
 float fm_atan2f(float y, float x);
 
 /**
+ * @brief Approximation of exp(x) with a relative error <3%.
+ * This is several times faster than exp(x). The implementation uses a
+ * method by Nicole Schraudolph.
+ *
+ * Note that this function does not have bounds check 
+ * and will overflow if x is not in ~(-85;85) range.
+ * It is recommended to clamp x and do fm_exp(CLAMP(x, -85, 85))
+ *
+ */
+float fm_exp(float x);
+
+/**
  * @brief Linearly interpolate between two scalar values.
  */
 inline float fm_lerp(float a, float b, float t)
@@ -263,6 +275,7 @@ float fm_wrap_angle(float angle);
     #define cosf(x)         (__builtin_constant_p(x) ? cosf(x) : fm_cosf(x))
     #define sincosf(x,s,c)  (__builtin_constant_p(x) ? sincosf(x,s,c) : fm_sincosf(x,s,c))
     #define atan2f(y, x)    ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? atan2f(y, x) : fm_atan2f(y, x))
+    #define exp(x)          (__builtin_constant_p(x) ? exp(x) : fm_exp(x))
 #endif
 
 #ifdef __cplusplus
