@@ -19,6 +19,8 @@
 #define CAMERA_MIN_PITCH            (-M_PI_2 * 0.9)
 #define CAMERA_MAX_PITCH            (M_PI_2 * 0.9)
 
+#define TEXTURE_COUNT 4
+
 static double subtick;
 
 static surface_t *zbuffer;
@@ -34,15 +36,15 @@ static bool display_metrics = false;
 static bool request_display_metrics = false;
 static float last_3d_fps = 0.0f;
 
-static const char *texture_path[4] = {
+static const char *texture_path[TEXTURE_COUNT] = {
     "rom:/circle0.sprite",
     "rom:/diamond0.sprite",
     "rom:/pentagon0.sprite",
     "rom:/triangle0.sprite",
 };
 
-static sprite_t *sprites[4];
-static GLuint textures[4];
+static sprite_t *sprites[TEXTURE_COUNT];
+static GLuint textures[TEXTURE_COUNT];
 
 void init()
 {
@@ -59,8 +61,8 @@ void init()
     rspq_profile_start();
     debug_overlay_init();
 
-    glGenTextures(4, textures);
-    for (uint32_t i = 0; i < 4; i++)
+    glGenTextures(TEXTURE_COUNT, textures);
+    for (uint32_t i = 0; i < TEXTURE_COUNT; i++)
     {
         sprites[i] = sprite_load(texture_path[i]);
         glBindTexture(GL_TEXTURE_2D, textures[i]);
@@ -194,7 +196,6 @@ void update(float deltatime)
     glLightfv(GL_LIGHT4, GL_POSITION, light_position2.v);
 
     glEnable(GL_MULTISAMPLE_ARB);
-    glEnable(GL_NORMALIZE);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glEnable(GL_LIGHTING);
