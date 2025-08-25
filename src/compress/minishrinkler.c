@@ -5,7 +5,7 @@
  * 
  * This file contains the core compression logic for Minishrinkler,
  * providing a buffer-to-buffer compression API without any file I/O.
- * 
+ *
  * This implements the Shrinkler bitstream with a very simplified compression
  * algorithm. Since the LZ coder is very basic, the compression ratio is good
  * only on small files up to a few KiB (where the range coder itself beats
@@ -13,19 +13,15 @@
  * the lack of advanced LZ techniques makes the compression ratio degrade
  * quickly, and for large files the compression ratio is much worse than
  * standard algorithms like DEFLATE.
- * 
- * Since the only use case we know of on the N64 is to compress save files, the
- * focus has been on optimizing for that scenario. Save files tend to be small,
- * and I/O tends to be very very slow, so a good, slow compressor seems to hit
- * the sweet spot.
  */
 #include "minishrinkler_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <math.h>
+#if TRACE_SHRINKLER
 #include <stdarg.h>
+#endif
 #include <stdbool.h>
 
 ///@cond
@@ -59,7 +55,7 @@ static void tracef(const char *fmt, ...) {
 
 // Context configuration (must match decompressor)
 #define ADJUST_SHIFT 4
-#define NUM_SINGLE_CONTEXTS 513
+#define NUM_SINGLE_CONTEXTS 1
 #define NUM_CONTEXT_GROUPS 4
 #define CONTEXT_GROUP_SIZE 256
 #define NUM_CONTEXTS (NUM_SINGLE_CONTEXTS + NUM_CONTEXT_GROUPS * CONTEXT_GROUP_SIZE)
@@ -71,56 +67,61 @@ static void tracef(const char *fmt, ...) {
 #define CONTEXT_GROUP_OFFSET 2
 #define CONTEXT_GROUP_LENGTH 3
 
-// Hash table configuration
-#define HASH_SIZE 921  // 4608 bytes / 5 bytes per entry
+///@endcond
 
-// Moving window configuration (16-bit = 64KB window)
-#define HASH_WINDOW_BITS 16
-#define HASH_WINDOW_SIZE (1 << HASH_WINDOW_BITS)  // 65536
-#define HASH_WINDOW_MASK (HASH_WINDOW_SIZE - 1)   // 0xFFFF
+// Moving window: computed dynamically from work memory; keep max at 64K
+// (we will compute window_size and mask at runtime based on available memory)
 
-// Data structures - Embedded optimized
+/** @brief Range coder context */
 typedef struct {
-    uint16_t contexts[NUM_CONTEXTS];
-    uint8_t *output;
-    uint32_t output_size;    
-    uint32_t output_capacity;
-    int32_t dest_bit;        
-    uint32_t intervalsize;
-    uint32_t intervalmin;
+    uint16_t contexts[NUM_CONTEXTS];            ///< Context modeling
+    uint8_t *output;                            ///< Output buffer
+    uint32_t output_size;                       ///< Output buffer size
+    uint32_t output_capacity;                   ///< Output buffer capacity
+    int32_t dest_bit;                           ///< Destination bit
+    uint32_t intervalsize;                      ///< Interval size
+    uint32_t intervalmin;                       ///< Interval minimum
 } shr_rangecoder_t;
 
+/** @brief LZ coder state */
 typedef struct {
-    bool after_first;     
-    bool prev_was_ref;    
-    int parity;                           
-    uint16_t last_offset;
+    bool after_first;                          ///< First symbol was done?
+    bool prev_was_ref;                         ///< Previous symbols was a match?
+    int parity;                                ///< Parity bit
+    uint16_t last_offset;                      ///< Last encoded offset (for repetitions)
 } shr_lzstate_t;
 
-typedef struct {
-    uint16_t pos;                         // 16-bit position (65535 max)
-    uint16_t next;                        // 16-bit next pointer
-    uint32_t match_len : 10;              // 10-bit cached match length (0-1023)
-    uint32_t quality : 6;                 // 6-bit quality indicator (0-63)
-    // Total: 48 bits = 6 bytes exactly!
-} __attribute__((packed)) shr_hash_entry_t;
-
-// Embedded memory optimization: no static allocations
-// All memory will be allocated dynamically in a single buffer
-
-const uint8_t size_table[128] = {
+/** @brief Size table for encoding numbers */
+static const uint8_t size_table[128] = {
     0x40,0x3f,0x3f,0x3e,0x3d,0x3c,0x3c,0x3b,0x3a,0x3a,0x39,0x38,0x38,0x37,0x36,0x36,0x35,0x34,0x34,0x33,0x33,0x32,0x31,0x31,0x30,0x30,0x2f,0x2e,0x2e,0x2d,0x2d,0x2c,0x2b,0x2b,0x2a,0x2a,0x29,0x29,0x28,0x27,0x27,0x26,0x26,0x25,0x25,0x24,0x24,0x23,0x23,0x22,0x22,0x21,0x21,0x20,0x20,0x1f,0x1e,0x1e,0x1d,0x1d,0x1d,0x1c,0x1c,0x1b,0x1b,0x1a,0x1a,0x19,0x19,0x18,0x18,0x17,0x17,0x16,0x16,0x15,0x15,0x15,0x14,0x14,0x13,0x13,0x12,0x12,0x11,0x11,0x11,0x10,0x10,0xf,0xf,0xe,0xe,0xe,0xd,0xd,0xc,0xc,0xc,0xb,0xb,0xa,0xa,0x9,0x9,0x9,0x8,0x8,0x8,0x7,0x7,0x6,0x6,0x6,0x5,0x5,0x4,0x4,0x4,0x3,0x3,0x3,0x2,0x2,0x1,0x1,0x1,0x0
 };
 
-// Memory layout structure for embedded allocation
+/** 
+ * @brief Layout structure for working memory bufferr
+ *
+ * All the work memory used by the compressor is described by this structure.
+ * No dynamic allocations beyond the single arena.
+ *
+ * The match finder uses a compact set-associative hash table carved from
+ * the provided work memory. Each bucket keeps a small number (ways) of wrapped
+ * 16-bit positions.
+ */
 typedef struct {
-    shr_rangecoder_t coder;
-    shr_lzstate_t state;
-    int hash_table_size;  // Number of hash table entries
-    shr_hash_entry_t hash_table[];  // Variable size array at the end
-} shr_work_buffer_t;
+    shr_rangecoder_t coder;        ///< Range coder context
+    shr_lzstate_t state;           ///< LZ coder state
 
-///@endcond
+    // Hash table configuration and sliding window
+    int hash_size;                ///< Number of buckets (power of two)
+    int hash_mask;                ///< hash_size - 1
+    int ways;                     ///< Associativity (entries per bucket)
+    int window_bits;              ///< such that window_size == (1 << window_bits)
+    int window_size;              ///< sliding window size (<= 65536)
+    int window_mask;              ///< window_size - 1
+
+    // Pointers into the single malloc arena (immediately after this struct)
+    uint16_t *buckets;            ///< size = hash_size * ways; each is wrapped pos (0..mask) or 0xFFFF if empty
+    uint8_t  *repl_index;         ///< size = hash_size; round-robin replacement index per bucket
+} shr_work_buffer_t;
 
 // Utility functions
 static int min(int a, int b) { return a < b ? a : b; }
@@ -135,39 +136,38 @@ static void init_size_table(shr_work_buffer_t *mem) {
 #endif
 
 // Improved hash function for 3-byte sequences
-static unsigned int hash3(const unsigned char *data, int hash_size) {
-    // Better distribution than simple bit shifting
-    return ((data[0] * 31 + data[1]) * 31 + data[2]) % hash_size;
+static unsigned int hash3(const unsigned char *data) {
+    // Mix into 32-bit and rely on power-of-two mask for index
+    unsigned int v = (unsigned int)data[0] | ((unsigned int)data[1] << 8) | ((unsigned int)data[2] << 16);
+    v *= 0x9E3779B1u; // golden ratio multiplier
+    v ^= v >> 16;
+    return v;
 }
 
-// Update hash table with new position and cache match information
+// Approximate cost of encode_number as used by the coder: number >= 2
+static int estimate_number_cost_int(int number) {
+    int i = 0;
+    while ((4 << i) <= number) i++;
+    // continuation bits (i), stop bit (1), payload bits (i+1)
+    return i + 1 + (i + 1);
+}
+
+// Update hash table with new position (set-associative, round-robin replacement)
 static void update_hash(shr_work_buffer_t *mem, const unsigned char *data, int pos, int data_size) {
     if (pos + 2 >= data_size) return;
     
-    unsigned int hash = hash3(&data[pos], mem->hash_table_size);
-    
-    // Calculate match quality based on data characteristics (6-bit: 0-63)
-    uint8_t quality = 0;
-    if (pos + 3 < data_size) {
-        // Better quality heuristic: focus on compressible patterns
-        if (data[pos] == data[pos + 1] && data[pos + 1] == data[pos + 2]) {
-            quality = 63;  // Excellent quality for repeated data (RLE)
-        } else if (data[pos] != data[pos + 1] && data[pos + 1] != data[pos + 2] && data[pos] != data[pos + 2]) {
-            quality = 16;  // Lower quality for varied data (harder to compress)
-        } else {
-            quality = 32;  // Medium quality for mixed patterns
-        }
-    }
-    
-    // Update hash table with new entry (wrapping window)
-    mem->hash_table[hash].next = mem->hash_table[hash].pos;
-    // Store position with wrapping
-    mem->hash_table[hash].pos = pos & HASH_WINDOW_MASK;
-    mem->hash_table[hash].quality = quality;
-    mem->hash_table[hash].match_len = 0; // Will be calculated during match finding
-    
-    tracef("UPDATE_HASH: pos=%d, hash=%d, stored_pos=%d (wrapped)\n",
-        pos, hash, mem->hash_table[hash].pos);
+    unsigned int hash = hash3(&data[pos]) & (unsigned int)mem->hash_mask;
+
+    // Round-robin replacement within the bucket
+    int way = mem->repl_index[hash] % mem->ways;
+    mem->repl_index[hash] = (uint8_t)((mem->repl_index[hash] + 1) % mem->ways);
+
+    // Store wrapped position
+    uint16_t wrapped = (uint16_t)(pos & mem->window_mask);
+    mem->buckets[hash * mem->ways + way] = wrapped;
+
+    tracef("UPDATE_HASH: pos=%d, hash=%d, way=%d stored_pos=%u (wrapped, mask=0x%04x)\n",
+        pos, hash, way, wrapped, (unsigned)mem->window_mask);
 }
 
 // Exact copy of original RangeCoder logic (adapted for static allocation)
@@ -482,172 +482,179 @@ static int find_match(shr_work_buffer_t *mem, const unsigned char *data, int dat
     if (pos + 2 >= data_size) return 0;
     
     int max_len = min(MAX_MATCH_LENGTH, data_size - pos);
-    int max_offset = min(pos, MAX_OFFSET);
+    int window_limit = mem->window_size - 1;
+    int max_offset = min(pos, min(MAX_OFFSET, window_limit));
     
     // Use hash table to find potential matches
-    unsigned int hash = hash3(&data[pos], mem->hash_table_size);
-    int candidate_pos = mem->hash_table[hash].pos;
-    int matches_checked = 0;
-    
-    // Adaptive max_matches based on data size and position
-    int max_matches = (data_size < 1024) ? 24 : 64; // More candidates for better compression
-    
-    // Track best quality match for early exit optimization
+    unsigned int hash = hash3(&data[pos]) & (unsigned int)mem->hash_mask;
+
     int best_quality = 0;
-    
-    while (candidate_pos > 0 && matches_checked < max_matches) {
-        // Wrapping window logic: reconstruct absolute position from wrapped position
-        int absolute_candidate_pos = candidate_pos;
-        
-        // Handle wrapping: if candidate_pos is greater than current pos, it's from a previous window
-        if (absolute_candidate_pos > pos) {
-            // This position is from a previous window, skip it
-            candidate_pos = mem->hash_table[hash].next;
-            matches_checked++;
-            continue;
-        }
-        
-        // Skip if position is invalid (negative or too far back)
-        if (absolute_candidate_pos < 0 || (pos - absolute_candidate_pos) > HASH_WINDOW_MASK) {
-            candidate_pos = mem->hash_table[hash].next;
-            matches_checked++;
-            continue;
-        }
-        
-        if ((pos - absolute_candidate_pos) > max_offset) break;
-        
-        // Use cached match length if available and recent
-        int match_len = 0;
-        if (mem->hash_table[hash].match_len > 0 && 
-            candidate_pos == mem->hash_table[hash].pos) {
-            // Use cached length as starting point
-            match_len = mem->hash_table[hash].match_len;
-        }
-        
-        // Validate that this is actually a match (not a wrapping false positive)
-        // First check if at least MIN_MATCH_LENGTH bytes match
-        int valid_match = 1;
-        if (absolute_candidate_pos + MIN_MATCH_LENGTH > data_size) {
-            valid_match = 0;  // Can't read enough bytes
-            tracef("  WRAP_DEBUG: invalid match - can't read enough bytes\n");
-        } else {
-            for (int i = 0; i < MIN_MATCH_LENGTH; i++) {
-                if (pos + i >= data_size || data[pos + i] != data[absolute_candidate_pos + i]) {
-                    valid_match = 0;
-                    tracef("  WRAP_DEBUG: invalid match - byte %d differs: pos[%d]=%02x vs candidate[%d]=%02x\n", 
-                           i, pos + i, data[pos + i], absolute_candidate_pos + i, data[absolute_candidate_pos + i]);
-                    break;
-                }
+
+    // Iterate all ways in the bucket in MRU order: last inserted first
+    int start = mem->repl_index[hash];
+    for (int k = 0; k < mem->ways; k++) {
+        int w = (start - 1 - k);
+        if (w < 0) w += mem->ways * ((-w) / mem->ways + 1);
+        w %= mem->ways;
+        uint16_t wrapped_pos = mem->buckets[hash * mem->ways + w];
+        if (wrapped_pos == 0xFFFF) continue; // empty slot
+
+        // Reconstruct absolute candidate position within the current window span
+        int absolute_candidate_pos = (pos & ~mem->window_mask) | wrapped_pos;
+        if (absolute_candidate_pos > pos) absolute_candidate_pos -= mem->window_size;
+
+        int offset = pos - absolute_candidate_pos;
+        if (offset <= 0 || offset > max_offset) continue;
+
+        // Quick pre-check for minimum length
+        if (absolute_candidate_pos + MIN_MATCH_LENGTH > data_size) continue;
+        int valid = 1;
+        for (int i = 0; i < MIN_MATCH_LENGTH; i++) {
+            if (pos + i >= data_size || data[pos + i] != data[absolute_candidate_pos + i]) {
+                valid = 0;
+                break;
             }
         }
-        
-        // Skip if this is a false positive from wrapping
-        if (!valid_match) {
-            candidate_pos = mem->hash_table[hash].next;
-            matches_checked++;
-            continue;
-        }
-        
-        int offset = pos - absolute_candidate_pos;
-        
-        // Assert that absolute_candidate_pos is not greater than pos
-        assert(pos >= absolute_candidate_pos);
-        
-        // Skip self-matches (offset 0)
-        if (offset == 0) {
-            candidate_pos = mem->hash_table[hash].next;
-            matches_checked++;
-            continue;
-        }
-        
-        // Assert that we never have offset 0
-        assert(offset > 0);
-        
-        // Check if we have a match (now we know it's valid)
-        while (match_len < max_len && 
-               pos + match_len < data_size && 
+        if (!valid) continue;
+
+        // Extend match
+        int match_len = MIN_MATCH_LENGTH;
+        while (match_len < max_len &&
+               pos + match_len < data_size &&
                absolute_candidate_pos + match_len < data_size &&
                data[pos + match_len] == data[absolute_candidate_pos + match_len]) {
             match_len++;
         }
-        
-        // Update cached match length (with overflow protection)
-        if (candidate_pos == mem->hash_table[hash].pos) {
-            mem->hash_table[hash].match_len = (match_len > 1023) ? 1023 : match_len;  // 10-bit max = 1023
-        }
-        
-        // Calculate match quality score with encoding cost consideration (6-bit scale)
-        int quality = mem->hash_table[hash].quality;
-        if (match_len >= 8) quality += 16;   // Higher bonus for longer matches
-        if (match_len >= 16) quality += 8;   // Extra bonus for very long matches
-        if (offset <= 256) quality += 8;     // Higher bonus for closer matches
-        if (offset <= 64) quality += 4;      // Extra bonus for very close matches
-        
-        // Consider encoding cost for better match selection
-        int encoding_cost = 0;
-        if (match_len >= 8) encoding_cost += 1;  // Extra bit for longer matches
-        if (offset >= 256) encoding_cost += 1;   // Extra bit for larger offsets
-        
-        // Adjust quality based on encoding efficiency
-        quality -= encoding_cost * 4;   // Penalize expensive encodings
-        
-        // Update if we found a better match (exclude offset 0)
-        if (match_len >= MIN_MATCH_LENGTH && offset > 0) {
-            // Enhanced match selection with pattern recognition
+
+        // Dynamic minimal length requirement for far matches
+        int min_len_req = MIN_MATCH_LENGTH;
+        if (offset > 1024) min_len_req++;
+        if (offset > 4096) min_len_req += 2;
+
+        if (match_len >= min_len_req) {
+            // Estimate bit cost of encoding this match
+            // KIND_REF (1) + REPEATED bit if needed (1) + offset (if changed) + length
+            int repeated_needed = mem->state.prev_was_ref ? 0 : 1;
+            int offset_changed = (offset != mem->state.last_offset);
+
+            // Add a small base penalty for large offsets even when repeated,
+            // to avoid sticking to very large offsets producing many short matches.
+            int base_offset_penalty = estimate_number_cost_int(offset + 2) >> 2; // ~25%
+
+            int cost = 1; // KIND_REF
+            cost += repeated_needed;
+            cost += base_offset_penalty;
+            if (offset_changed) cost += estimate_number_cost_int(offset + 2);
+            cost += estimate_number_cost_int(match_len);
+
             int is_better = 0;
-            
-            // Primary criteria: length
-            if (match_len > *best_length) {
+            if (*best_length == 0) {
                 is_better = 1;
-            } else if (match_len == *best_length) {
-                // Secondary criteria: quality score
-                if (quality > best_quality) {
+            } else {
+                // Prefer lower cost; break ties with longer length, then closer offset
+                // Represent current best cost implicitly using best_quality as cost storage
+                if (best_quality == 0 || cost < best_quality) {
                     is_better = 1;
-                } else if (quality == best_quality) {
-                    // Tertiary criteria: offset (prefer closer)
-                    if (offset < *best_offset) {
+                } else if (cost == best_quality) {
+                    if (match_len > *best_length) {
+                        is_better = 1;
+                    } else if (match_len == *best_length && offset < *best_offset) {
                         is_better = 1;
                     }
                 }
             }
-            
             if (is_better) {
                 *best_length = match_len;
                 *best_offset = offset;
-                best_quality = quality;
-                
-                // Early exit for excellent matches
-                if (match_len >= 16 && quality >= 50) break;
+                best_quality = cost; // store best cost here
             }
         }
-        
-        candidate_pos = mem->hash_table[hash].next;
-        matches_checked++;
     }
     
     return *best_length >= MIN_MATCH_LENGTH;
 }
 
-int minishrinkler_compress(const uint8_t *input, int input_size, 
-                           uint8_t *output, int output_capacity,
-                           int work_memory_size)
-{
+// Main compression function
+static int compress_data(const unsigned char *input, int input_size, 
+                        unsigned char *output, int output_capacity,
+                        size_t work_memory_size) {
     int pos = 0;
     
-    // Calculate hash table size from work memory size
-    size_t hash_table_entries = work_memory_size / sizeof(shr_hash_entry_t);
-    size_t total_size = sizeof(shr_work_buffer_t) + hash_table_entries * sizeof(shr_hash_entry_t);
-    
-    // Allocate embedded memory with variable hash table size
+    // Derive match-finder sizes from provided work memory (single malloc arena)
+    // We use a set-associative table with "ways" entries per bucket and
+    // a round-robin replacement index per bucket (1 byte).
+    int ways = (work_memory_size >= 4096) ? 4 : 2; // increase associativity when memory allows
+    if (work_memory_size <= sizeof(shr_work_buffer_t)) {
+        return -4; // Not enough memory even for control structure
+    }
+
+    size_t available = work_memory_size - sizeof(shr_work_buffer_t);
+
+    // Compute the maximum number of buckets we can afford in the available arena:
+    // each bucket costs (ways * 2 bytes) + 1 byte for replacement index
+    size_t cost_per_bucket = (size_t)(ways * 2 + 1);
+    size_t max_buckets = available / cost_per_bucket;
+    if (max_buckets == 0) {
+        return -4; // Not enough memory for even a single bucket
+    }
+
+    // Choose hash_size as largest power-of-two <= max_buckets for fast masking
+    int hash_size = 1;
+    while (((size_t)hash_size << 1) <= max_buckets) hash_size <<= 1;
+
+    // Determine window size based on total storable entries (hash_size * ways)
+    // Pick a power-of-two window_size <= min(65536, 2 * hash_size * ways) with a minimum of 256
+    size_t target_entries = (size_t)hash_size * (size_t)ways;
+    size_t target_window = target_entries * 2; // tighter coupling with actual indexable entries
+    if (target_window < 256) target_window = 256;
+    if (target_window > 65536) target_window = 65536;
+    // Round down to power of two
+    size_t window_size = 1;
+    while ((window_size << 1) <= target_window) window_size <<= 1;
+    int window_bits = 0;
+    size_t tmp_ws = window_size;
+    while ((tmp_ws >>= 1) != 0) window_bits++;
+    int window_mask = (int)(window_size - 1);
+
+    // Compute actual arena size and allocate
+    size_t buckets_bytes = (size_t)hash_size * (size_t)ways * sizeof(uint16_t);
+    size_t repl_bytes = (size_t)hash_size * sizeof(uint8_t);
+
+    // Guard in case rounding left us slightly over the available arena; adjust down
+    if (buckets_bytes + repl_bytes > available) {
+        size_t usable_buckets = available / cost_per_bucket;
+        if (usable_buckets == 0) return -4;
+        // round down to power of two
+        hash_size = 1;
+        while (((size_t)hash_size << 1) <= usable_buckets) hash_size <<= 1;
+        buckets_bytes = (size_t)hash_size * (size_t)ways * sizeof(uint16_t);
+        repl_bytes = (size_t)hash_size * sizeof(uint8_t);
+    }
+
+    size_t total_size = work_memory_size; // allocate exactly what caller provides
+
     shr_work_buffer_t *mem = malloc(total_size);
     if (!mem) {
         fprintf(stderr, "Error: Memory allocation failed\n");
         return -4; // Memory allocation failed
     }
-    
-    // Initialize memory to zero
-    memset(mem, 0, total_size);
-    mem->hash_table_size = (int)hash_table_entries;
+    // Zero the entire arena for deterministic behavior
+    memset(mem, 0, work_memory_size);
+    uint8_t *arena = (uint8_t *)(mem + 1);
+    mem->buckets = (uint16_t *)arena;
+    mem->repl_index = (uint8_t *)(arena + buckets_bytes);
+
+    // Initialize match finder configuration
+    mem->hash_size = hash_size;
+    mem->ways = ways;
+    mem->hash_mask = hash_size - 1;
+    mem->window_bits = window_bits;
+    mem->window_size = (int)window_size;
+    mem->window_mask = window_mask;
+
+    // Initialize tables: 0xFFFF means empty slot
+    for (int i = 0; i < mem->hash_size * mem->ways; i++) mem->buckets[i] = 0xFFFF;
+    memset(mem->repl_index, 0, (size_t)mem->hash_size);
     
     // Initialize
     range_coder_init(&mem->coder, output, output_capacity);
@@ -729,8 +736,45 @@ int minishrinkler_compress(const uint8_t *input, int input_size,
     return output_size;
 }
 
+/**
+ * @brief Get the maximum compressed size for given input size
+ */
 size_t minishrinkler_get_max_compressed_size(size_t input_size) {
     // Worst case: no compression + range coder overhead
     // Each byte might need up to 9 bits in worst case
     return (input_size * 9 + 7) / 8 + 64; // Add some safety margin
+}
+
+/**
+ * @brief Compress data from input buffer to output buffer
+ */
+int minishrinkler_compress(
+    const uint8_t *input_data,
+    size_t input_size,
+    uint8_t *output_buffer,
+    size_t output_capacity,
+    size_t work_memory_size
+) {
+    // Validate input parameters
+    if (!input_data || !output_buffer || input_size == 0 || output_capacity == 0) {
+        return -2; // Invalid parameters
+    }
+    
+    // Check if output buffer is large enough
+    size_t max_compressed_size = minishrinkler_get_max_compressed_size(input_size);
+    if (output_capacity < max_compressed_size) {
+        return -1; // Output buffer too small
+    }
+    
+    // Check input size limit
+    if (input_size > MAX_FILE_SIZE) {
+        return -3; // Input too large
+    }
+    
+    // Call the original compression function
+    int result = compress_data((const unsigned char*)input_data, (int)input_size, 
+                              (unsigned char*)output_buffer, (int)output_capacity,
+                              work_memory_size);
+    
+    return result;
 }
