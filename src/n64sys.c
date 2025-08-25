@@ -300,13 +300,6 @@ __attribute__((constructor)) void __init_cop1(void)
     C1_WRITE_FCR31(fcr31);
 }
 
-uint32_t getentropy32(void)
-{
-    uint32_t value;
-    getentropy(&value, 4);
-    return value;
-}
-
 /************* BSS CHECK **************/
 // This code is useful only while debugging IPL3 changes. It is not run by default
 // and requires manually changing entrypoint.S to be activated. It is left in the

@@ -16,6 +16,13 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdatomic.h>
+
+/** @brief Main PRNG (xorshift64*) */
+uint64_t __xorshift64(_Atomic uint64_t *state);
+
+/** @brief Fill a buffer with xorshift64 */
+void __xorshift64_buffer(void *buf, size_t n, _Atomic uint64_t *state);
 
 /** 
  * @brief Generate a random 64-bit unsigned integer.
@@ -43,6 +50,6 @@ inline float    __randf32(void) { return (float)__rand32() * (1.0f / 4294967296.
 #define __randn(n)  (\
     __builtin_constant_p(n) ? \
         __rand32() % (n) : \
-        ((uin64_t)__rand32() * (n)) >> 32)
+        ((uint64_t)__rand32() * (n)) >> 32)
 
 #endif // LIBDRAGON_RAND_INTERNAL_H

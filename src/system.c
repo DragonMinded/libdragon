@@ -25,6 +25,7 @@
 #include "kernel.h"
 #include "debug.h"
 #include "kernel/kernel_internal.h"
+#include "rand_internal.h"
 #include "n64sys.h"
 #include "rtc_internal.h"
 
@@ -161,16 +162,6 @@ static stdio_t stdio_hooks = { 0 };
 static time_hooks_t time_hooks = { 0 };
 /** @brief Current real-time clock hooks structure */
 static rtc_hooks_t rtc_hooks = { 0 };
-/** @brief Current entropy state */
-uint64_t __entropy_state = 0;
-/** @brief Entropy calculation constants (MurMurHash3-128)
- * These are not marked as static const to coerce GCC to load them for code efficiency.
- */
-uint64_t __entropy_K[4] = {
-    0x87c37b91114253d5ull, 0x4cf5ad432745937full,
-    0xff51afd7ed558ccdull, 0xc4ceb9fe1a85ec53ull,
-};
-
 
 /* Forward definitions */
 int close( int fildes );
@@ -292,34 +283,6 @@ static int __strncmp( const char * const a, const char * const b, int len )
 static int __strcmp( const char * const a, const char * const b )
 {
     return __strncmp( a, b, -1 );
-}
-
-/**
- * @brief Simple implementation of rand()
- * 
- * @param state         Random state
- * @return uint32_t     New random value
- */
-static uint32_t __rand( uint32_t *state )
-{
-	uint32_t x = *state;
-	x ^= x << 13;
-	x ^= x >> 7;
-	x ^= x << 5;
-	return *state = x;
-}
-
-/**
- * @brief Generate a random number in range [0..n[
- * 
- * @param state         Random state
- * @param n             Upper bound (exclusive)
- * @return uint32_t     Random number
- */
-static inline uint32_t __randn( uint32_t *state, int n )
-{
-    if(__builtin_constant_p( n )) return __rand( state ) % n;
-    return ((uint64_t)__rand( state ) * n) >> 32;
 }
 
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
@@ -446,12 +409,12 @@ static int __allocate_fileno( void *handle, int fs_index )
     }
 
     /* Select a random bucket and a random initial position. This should
-     * help finding an empty slot fast enough. Use the handle pointer
-     * as seed; avoid using C0_COUNT because aggressively changing fileno
-     * might cause some headaches during debugging sessions. */
-    uint32_t rand_state = (uint32_t)handle ^ (uint32_t)fs_index;
-    uint32_t bkt_idx = handle_buckets_count > 1 ? __randn( &rand_state, handle_buckets_count ) : 0;
-    uint32_t bkt_pos = __randn( &rand_state, HANDLE_BUCKET_SIZE );
+     * help finding an empty slot fast enough. Avoid using C0_COUNT because
+     * aggressively changing fileno might cause some headaches during debugging
+     * sessions. */
+    uint32_t rn = __rand32();
+    uint32_t bkt_pos = rn % HANDLE_BUCKET_SIZE;
+    uint32_t bkt_idx = handle_buckets_count > 1 ? ( (rn >> 16) % handle_buckets_count ) : 0;
 
     /* Go through all buckets and positions and look for an empty slot. */
     for (int i=0; i<handle_buckets_count; i++)
@@ -1474,108 +1437,6 @@ int truncate( const char *path, off_t length )
     int ret = ftruncate( fd, length );
     close( fd );
     return ret;
-}
-
-/**
- * @brief Add some non-deterministic data to the entropy pool.
- * 
- * This is an internal function that can be used by libdragon libraries to add
- * some non-deterministic data to the entropy pool. One example of such data
- * would be the joypad inputs at any given point.
- * 
- * The entropy pool is then used t
- * 
- * @param k         Non-deterministic data (up to 64 bits)
- */
-void __entropy_add(uint64_t k) {
-    // This is half of MurMurHash3-128.
-    k *= __entropy_K[0];
-    k = k<<31 | k>>33;
-    k *= __entropy_K[1];
-    disable_interrupts();
-    __entropy_state ^= k;
-    __entropy_state = __entropy_state<<27 | __entropy_state>>37;
-    __entropy_state = __entropy_state * 5 + 0x52dce729;
-    enable_interrupts();
-}
-
-// Extract data from the entropy pool. This is kept here for symmetry with
-// __entropy_add, but it is not an API; the API to use to extract entropy is
-// #getentropy.
-static uint64_t __entropy_get(void) {
-    disable_interrupts();
-    uint64_t h = __entropy_state;
-    enable_interrupts();
-    h ^= h >> 33;
-    h *= __entropy_K[2];
-    h ^= h >> 33;
-    h *= __entropy_K[3];
-    h ^= h >> 33;
-    return h;
-}
-
-/**
- * @brief Generate an array of unpredictable random numbers
- * 
- * This function can be used to generate an array of random data. The function
- * is guaranteed to return good quality random numbers of basically
- * unlimited length. The function is automatically seeded by entropy collected
- * during the boot process (during IPL3) so it always returns different
- * numbers after each boot on hardware. On each emulator, though, the
- * generate numbers will be consistent.
- * 
- * The code is not cryptographically safe especially by
- * modern standards, but it should be good enough for expected usages on
- * Nintendo 64.
- * 
- * @param buf           Output buffer
- * @param buflen        Length of the output buffer
- * @return int          0 on success, -1 on failure. Currently, the function
- *                      never returns -1.
- */
-int getentropy(uint8_t *buf, size_t buflen)
-{
-    volatile uint32_t *const AI_STATUS = (uint32_t*)0xA450000C;
-    volatile uint32_t *const SP_PC = (uint32_t*)0xA4080000;
-    volatile uint32_t *const DP_CLOCK = (uint32_t*)0xA4100010;
-    volatile uint32_t *const PI_UNKNOWN = (uint32_t*)0xA4600034;
-    volatile uint32_t *const RI_BANK0_ROW = (uint32_t*)0xA3F00200;
-    volatile uint32_t *const RI_BANK1_ROW = (uint32_t*)0xA3F00600;
-    static volatile uint32_t* entropic_regs[] = {
-        RI_BANK0_ROW, RI_BANK1_ROW, AI_STATUS, SP_PC, DP_CLOCK, PI_UNKNOWN, 
-    };
-
-    // Mix in some hardware state / counters that are likely to be random
-    // at the point of sampling, especially during hardware activity.
-    disable_interrupts();
-    for (int i=0; i<sizeof(entropic_regs)/sizeof(entropic_regs[0]); i+=2) {
-        uint64_t k = ((uint64_t)*entropic_regs[i+0] << 32) | *entropic_regs[i+1];
-        __entropy_add(k);
-    }
-
-    // Extract the current entropy value
-    uint64_t h = __entropy_get();
-    enable_interrupts();
-
-    // Generate output buffer
-    typedef uint64_t u_uint64_t __attribute__((aligned(1)));
-    while (buflen > 8) {
-        *(u_uint64_t*)(buf) = h;
-        buf += 8;
-        buflen -= 8;
-
-        // If more bytes are needed, use xorshift64 as PRNG
-        h ^= h << 13;
-        h ^= h >> 7;
-        h ^= h << 17;
-    }
-
-    while (buflen-- > 0) {
-        *buf++ = h >> 56;
-        h <<= 8;
-    }
-
-    return 0; 
 }
 
 int dir_findfirst( const char * const path, dir_t *dir )

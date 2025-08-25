@@ -81,6 +81,20 @@ float fm_atan2f(float y, float x) {
     return copysignf(r, y);
 }
 
+float fm_exp(float x){
+    // Approximation of exp(x) with a relative error <3%.
+    // This is several times faster than exp(x). The implementation uses a
+    // method by Nicole Schraudolph.
+    // Note that there's no bounds check and x will overflow if x is not in ~(-85,85) range
+    // Source: https://gist.github.com/jrade/293a73f89dfef51da6522428c857802d
+    const float a = (1 << 23) / 0.69314718f;
+    const float b = (1 << 23) * (127 - 0.043677448f);
+    x = a * x + b;
+
+    uint32_t i = (uint32_t)x;
+    return BITCAST_I2F(i);
+}
+
 float fm_lerp_angle(float a, float b, float t)
 {
     float diff = fm_fmodf((b - a), FM_PI*2);

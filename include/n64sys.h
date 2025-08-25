@@ -597,16 +597,6 @@ typedef enum {
 reset_type_t sys_reset_type(void);
 
 /**
- * @brief Return 32-bit of entropy.
- * 
- * This is a simplified API for getentropy() to just return 32-bit of entropy
- * instead of an arbitrary buffer. Useful for instance to seed srand().
- * 
- * @return uint32_t         32-bit of entropy
- */
-uint32_t getentropy32(void);
-
-/**
  * @name 64-bit address space access
  * @brief Functions to access the full 64-bit address space
  *

@@ -437,16 +437,24 @@ typedef struct
     bool (*settime)( time_t );
 } time_hooks_t;
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use hook_rtc_calls instead")))
+#endif
 int hook_time_calls( time_hooks_t *hooks );
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use unhook_rtc_calls instead")))
+#endif
 int unhook_time_calls( time_hooks_t *hooks );
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use hook_time_calls instead")))
+#endif
 int hook_time_call( time_t (*time_fn)( void ) );
 
+#ifndef SYSTEM_NO_DEPRECATED
 __attribute__((deprecated("use unhook_time_calls instead")))
+#endif
 int unhook_time_call( time_t (*time_fn)( void ) );
 
 /// @endcond

@@ -5,6 +5,7 @@
  * @ingroup controllerpak
  */
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
@@ -13,6 +14,13 @@
 #include "joybus_accessory.h"
 #include "joypad_accessory.h"
 #include "mempak.h"
+#include "cpak.h"
+#include "cpakfs.h"
+
+// Disable deprecation warnings for this file
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 
 /**
  * @name Inode values
@@ -34,6 +42,12 @@ int read_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
+    // NOTE: don't use cpak_read here, because this function has historically
+    // never supported bankswitching, so it would work on the "current bank".
+    // We can't know if somebody implemented bankswitching manually around it,
+    // so we keep the old behavior of accessing the current pak. To do so,
+    // we use the internal API directly (as the public API doesn't support
+    // accessing implicitly the current bank, for good reasons)
     joypad_accessory_error_t result = joypad_accessory_xfer(
         controller,
         JOYPAD_ACCESSORY_XFER_READ,
@@ -54,6 +68,12 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
+    // NOTE: don't use cpak_write here, because this function has historically
+    // never supported bankswitching, so it would work on the "current bank".
+    // We can't know if somebody implemented bankswitching manually around it,
+    // so we keep the old behavior of accessing the current pak. To do so,
+    // we use the internal API directly (as the public API doesn't support
+    // accessing implicitly the current bank, for good reasons)
     joypad_accessory_error_t result = joypad_accessory_xfer(
         controller,
         JOYPAD_ACCESSORY_XFER_WRITE,
@@ -683,18 +703,12 @@ static int __get_valid_toc( int controller )
 
 int validate_mempak( int controller )
 {
-    int toc = __get_valid_toc( controller );
-
-    if( toc == 1 || toc == 2 )
-    {
-        /* Found a valid TOC */
-        return 0;
-    }
-    else
-    {
-        /* Pass on return code */
-        return toc;
-    }
+    int ret = cpakfs_fsck( controller, false, NULL, NULL );
+    if (ret > 0)
+        return -3; /* Filesystem has issues */
+    if (ret < 0)
+        return -2; /* Controller Pak is not inserted or I/O error in general */
+    return 0; /* Valid filesystem */
 }
 
 int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
@@ -753,98 +767,27 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
 
 int get_mempak_free_space( int controller )
 {
-    uint8_t data[MEMPAK_BLOCK_SIZE];
-    int toc;
+    cpakfs_stats_t stats;
+    if (cpakfs_get_stats( controller, &stats ) < 0) {
+        if (errno != ENODEV)
+            return -2; /* Controller Pak is not inserted or I/O error in general */
 
-    /* Make sure Controller Pak is valid */
-    if( (toc = __get_valid_toc( controller )) <= 0 )
-    {
-        /* Bad Controller Pak or was removed, return */
-        return -2;
+        // Controller Pak not mounted. Try mounting it
+        if (cpakfs_mount(controller, "mempak_shim") < 0)
+            return -2;
+        int err = cpakfs_get_stats( controller, &stats );
+        cpakfs_unmount(controller);
+        if (err < 0)
+            return -2;
     }
 
-    /* Grab the valid TOC to get free space */
-    if( read_mempak_sector( controller, toc, data ) )
-    {
-        /* Couldn't read TOC */
-        return -2;
-    }
-
-    return __get_free_space( data );
+    return stats.pages.total - stats.pages.used;
 }
 
 int format_mempak( int controller )
 {
-    /* set the size to 1280 as the notes table (768-1280) will need to be initialized. */
-    uint8_t cpak_header_data[1280] = {0x00};
-
-    uint16_t i, word, sum1 = 0, sum2 = 0;
-
-    /* 0x00 	24 	Serial number
-     * 0x18 	1 	unused (always 0)
-     * 0x19 	1 	Device ID (always 1)
-     * 0x1A 	1 	Bank size (always 1)
-     * 0x1B 	1 	unused (always 0)
-     * 0x1C 	2 	Checksum 1
-     * 0x1E 	2 	Checksum 2 */
-    static uint8_t cpakid_array[] = {
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x00 - 0x07 (0 - 7) */
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x08 - 0x0f (8 - 15) */
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x10 - 0x17 (16 - 23) */
-        0x00, 0x01, 0x01, 0x00, 0x01, 0x01, 0xFE, 0xF1  /* 0x18 - 0x1f (24 - 31) */
-    };
-
-    /* Assign 'random' value to ID */
-    getentropy(&cpakid_array, 24); /* Use system entropy to write the first 24 bytes */
-
-    /* Create checksum */
-    for (i = 0; i < 28; i += 2)
-    {
-        word = (cpakid_array[i] << 8) + cpakid_array[i + 1];
-        sum1 += word; sum2 += ~word;
-    }
-
-    /* Update checksum */
-    cpakid_array[0x1c] = sum1 >> 8;
-    cpakid_array[0x1d] = sum1 & 0xFF;
-    cpakid_array[0x1e] = sum2 >> 8;
-    cpakid_array[0x1f] = sum2 & 0xFF;
-
-    /* Update ID blocks with IDs */
-    for(i = 0; i < 32; i++)
-    {
-        /* ID Block (Primary) */
-        cpak_header_data[0x20 + i] = cpakid_array[i];
-        /* 0x40 is unused */
-        /* ID Block (Backup 1) */
-        cpak_header_data[0x60 + i] = cpakid_array[i];
-        /* ID Block (Backup 2) */
-        cpak_header_data[0x80 + i] = cpakid_array[i];
-        /* 0xA0 is unused */
-        /* ID Block (Backup 3) */
-        cpak_header_data[0xC0 + i] = cpakid_array[i];
-        /* 0xE0 is unused */
-    }
-
-    /* initilize Index Table and backup (plus checksums) */
-    for(i = 5; i < 128; i++)
-    {
-        cpak_header_data[256 + (i * 2) + 1] = 3;
-        cpak_header_data[512 + (i * 2) + 1] = 3;
-    }
-
-    cpak_header_data[257] = 0x71;
-    cpak_header_data[513] = 0x71;
-
-    /* Write each sector */
-    for (i = 0; i < 1280; i += 256)
-    {
-        if(write_mempak_sector(controller, i / 256, &cpak_header_data[i]))
-        {
-            /* Couldn't write sector */
-            return -2;
-        }
-    }
+    if (cpakfs_format( controller, false ) < 0)
+        return -2; /* Controller Pak is not inserted or I/O error in general */
 
     return 0;
 }

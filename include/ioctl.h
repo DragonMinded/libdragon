@@ -19,7 +19,7 @@
  *            value of 'type'
  * @return An ioctl Command Code
  */
-#define _IO(type, nr) (((type) & 0xFFFF) << 16)|((nr) & 0xFFFF)
+#define _IO(type, nr) ((((type) & 0xFFFF) << 16)|((nr) & 0xFFFF))
 
 #ifdef __cplusplus
 extern "C" {

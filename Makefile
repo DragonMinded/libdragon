@@ -39,6 +39,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/dir.o \
 	$(BUILD_DIR)/inthandler.o \
 	$(BUILD_DIR)/entrypoint.o \
+	$(BUILD_DIR)/entropy.o \
 	$(BUILD_DIR)/rand.o \
 	$(BUILD_DIR)/debug.o \
 	$(BUILD_DIR)/debugcpp.o \
@@ -161,6 +162,8 @@ regen:
 
 test:
 	$(MAKE) -C tests
+	$(MAKE) -C tests/cpakfs test
+	python3 -m unittest discover tools/cpaktool/tests
 
 test-clean: install-mk
 	$(MAKE) -C tests clean

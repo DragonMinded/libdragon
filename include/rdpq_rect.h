@@ -253,6 +253,22 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
 })
 
 /**
+ * @brief Draw a pixel (RDP command: FILL_RECTANGLE)
+ * 
+ * This function is a convenience macro to draw a single pixel on the screen,
+ * by using the fill rectangle command.
+ * 
+ * Drawing a single pixel is a relatively inefficient operation; sometimes you
+ * need this so the function is provided, but do not expect to be able to draw
+ * thousands of single pixels without performance issues.
+ * 
+ * See #rdpq_fill_rectangle for more information on how to configure the
+ * color of the pixel.
+ */
+#define rdpq_draw_pixel(x, y) \
+    rdpq_fill_rectangle((x), (y), (x)+1, (y)+1)
+
+/**
  * @brief Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)
  * 
  * This function enqueues a RDP TEXTURE_RECTANGLE command, that allows to draw a

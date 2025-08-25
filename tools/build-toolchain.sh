@@ -33,6 +33,7 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # GCC configure arguments to use system GMP/MPC/MFPF
+BINUTILS_CONFIGURE_ARGS=()
 GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
@@ -82,7 +83,8 @@ if [[ $OSTYPE == 'darwin'* ]]; then
 
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
-    brew install -q gmp mpfr libmpc gsed gcc isl libpng lz4 make mpc texinfo zlib
+    # zlib is part of the base OS, and doesn't need to be installed here.
+    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.
@@ -90,12 +92,20 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     #MPC_V=""
     #MPFR_V=""
 
-    # Tell GCC configure where to find the dependent libraries
+    # Tell Binutils and GCC configure where to find the dependent libraries
+    BINUTILS_CONFIGURE_ARGS=(
+        "--with-gmp=$(brew --prefix gmp)"
+        "--with-mpfr=$(brew --prefix mpfr)"
+        "--with-mpc=$(brew --prefix libmpc)"
+        "--with-isl=$(brew --prefix isl)"
+        "--with-system-zlib"
+    )
     GCC_CONFIGURE_ARGS=(
-        "--with-gmp=$(brew --prefix)"
-        "--with-mpfr=$(brew --prefix)"
-        "--with-mpc=$(brew --prefix)"
-        "--with-zlib=$(brew --prefix)"
+        "--with-gmp=$(brew --prefix gmp)"
+        "--with-mpfr=$(brew --prefix mpfr)"
+        "--with-mpc=$(brew --prefix libmpc)"
+        "--with-isl=$(brew --prefix isl)"
+        "--with-system-zlib"
     )
 
     # Install GNU sed as default sed in PATH. GCC compilation fails otherwise,
@@ -103,7 +113,8 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     PATH="$(brew --prefix gsed)/libexec/gnubin:$PATH"
     export PATH
 else
-    # Configure GCC arguments for non-macOS platforms
+    # Configure Binutils and GCC arguments for non-macOS platforms
+    BINUTILS_CONFIGURE_ARGS+=("--with-system-zlib")
     GCC_CONFIGURE_ARGS+=("--with-system-zlib")
 fi
 
@@ -250,7 +261,7 @@ fi
 # Compile BUILD->TARGET binutils
 mkdir -p binutils_compile_target
 pushd binutils_compile_target
-../"binutils-$BINUTILS_V"/configure \
+../"binutils-$BINUTILS_V"/configure ${BINUTILS_CONFIGURE_ARGS[@]} \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \

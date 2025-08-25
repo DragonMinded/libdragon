@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "interrupt.h"
 #include "joypad_internal.h"
+#include "../entropy_internal.h"
 
 /**
  * @addtogroup joypad
@@ -523,7 +524,6 @@ static void joypad_read_callback(uint64_t *out_dwords, void *ctx)
     joypad_read_pending = false;
 
     // Use some bytes from the joypad inputs to feed the entropy pool
-    extern void __entropy_add(uint64_t);
     __entropy_add(out_dwords[0]);
 }
 

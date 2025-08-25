@@ -1,4 +1,5 @@
 EXAMPLES += audioplayer
+EXAMPLES += biosensortest
 EXAMPLES += brew-volley
 #EXAMPLES += compression # Disabled due to missing assets
 EXAMPLES += controllertest

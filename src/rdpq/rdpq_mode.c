@@ -73,6 +73,7 @@ void rdpq_mode_pop(void)
     // ModePop can generate: SCISSOR+COMBINE+SOM when not frozen,
     // or just SCISSOR when frozen.
     rdpq_mode_write(3, 1, RDPQ_OVL_ID, RDPQ_CMD_POP_RENDER_MODE);
+    rdpq_tracking.cycle_type_known = 0;
 }
 
 /** @brief Like #rdpq_set_mode_fill, but without fill color configuration */
