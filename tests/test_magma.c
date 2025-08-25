@@ -1,5 +1,7 @@
 #include <magma.h>
+#include <magma_constants.h>
 #include "../src/rspq/rspq_internal.h"
+#include "../src/magma/rsp_magma.h"
 
 #define RSPQ_INIT() \
     rspq_init(); DEFER(rspq_close());
@@ -27,7 +29,7 @@ void assert_block_contents(const uint32_t *expected_commands, uint32_t expected_
         if (--commands_left == 0) {
             uint32_t cmd = *current_cmd;
             if ((cmd>>24) == RSPQ_CMD_JUMP) {
-                current_cmd = (const uint32_t*)UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
+                current_cmd = (const uint32_t*)VirtualUncachedAddr(cmd & 0xFFFFFF);
                 if (block_size < RSPQ_BLOCK_MAX_SIZE) block_size *= 2;
                 const uint32_t *block_end = current_cmd + block_size;
                 while (*--block_end == 0x00) {}
@@ -44,7 +46,8 @@ void assert_block_contents(const uint32_t *expected_commands, uint32_t expected_
 }
 
 #define VTX(cnt, off, buf) (mg_overlay_id | (MG_CMD_LOAD_VERTICES<<24) | (buf)), ((off<<16) | (cnt))
-#define TRI(i0, i1, i2) (mg_overlay_id | (MG_CMD_DRAW_INDICES<<24) | ((i0)<<16) | ((i1)<<8) | ((i2)<<0))
+#define INDEX(i) ((i) * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE)
+#define TRI(i0, i1, i2) (mg_overlay_id | (MG_CMD_DRAW_INDICES<<24) | (INDEX(i0))), ((INDEX(i1)<<16) | INDEX(i2))
 
 void assert_draw(const uint32_t *expected_commands, uint32_t expected_commands_count, const mg_input_assembly_parms_t *input_assembly_parms, uint32_t count, uint32_t offset, TestContext *ctx)
 {

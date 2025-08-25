@@ -32,6 +32,8 @@ void test_gl_clear(TestContext *ctx)
     glClear(GL_COLOR_BUFFER_BIT);
     glFinish();
 
+    // TODO: actually test surface contents instead of relying on how the clearing is done
+
     rect_count = debug_rdp_stream_count_cmd(RDPQ_CMD_FILL_RECTANGLE + 0xC0);
     ASSERT_EQUAL_UNSIGNED(rect_count, 1, "Wrong number of rectangles!");
 
@@ -61,7 +63,8 @@ void test_gl_draw_arrays(TestContext *ctx)
     glDrawArrays(GL_TRIANGLES, 0, 3);
     glFinish();
 
-    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    // TODO: test for any type of triangle
+    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI);
     ASSERT_EQUAL_UNSIGNED(tri_count, 1, "Wrong number of triangles!");
 }
 
@@ -84,7 +87,7 @@ void test_gl_draw_elements(TestContext *ctx)
     glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, indices);
     glFinish();
 
-    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI);
     ASSERT_EQUAL_UNSIGNED(tri_count, 1, "Wrong number of triangles!");
 }
 
@@ -115,7 +118,7 @@ void test_gl_texture_completeness(TestContext *ctx)
         // Check that the texture is not complete.
         glBindTexture(GL_TEXTURE_2D, 0);
         glFinish();
-        ASSERT(!gl_tex_is_complete(texobj), "Texture should not be complete!");
+        ASSERT(!texture_is_complete(texobj), "Texture should not be complete!");
 
         for (int i=1; i<MAX_TEXTURE_LEVELS; i++) {
             width /= 2;  if (!width) width = 1;
@@ -128,10 +131,10 @@ void test_gl_texture_completeness(TestContext *ctx)
             glBindTexture(GL_TEXTURE_2D, 0);
             glFinish();
             if (width == 1 && height == 1) {
-                ASSERT(gl_tex_is_complete(texobj), "Texture should be complete!");
+                ASSERT(texture_is_complete(texobj), "Texture should be complete!");
                 break;
             } else {
-                ASSERT(!gl_tex_is_complete(texobj), "Texture should not be complete!");
+                ASSERT(!texture_is_complete(texobj), "Texture should not be complete!");
             }
         }
     }
@@ -221,21 +224,21 @@ void test_gl_cull(TestContext *ctx)
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     draw_tri();
-    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE);
     ASSERT_EQUAL_UNSIGNED(tri_count, 0, "Triangle should not be drawn when culling front faces");
 
     debug_rdp_stream_reset();
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     draw_tri();
-    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE);
     ASSERT_EQUAL_UNSIGNED(tri_count, 1, "Triangle should be drawn when culling back faces");
 
     debug_rdp_stream_reset();
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT_AND_BACK);
     draw_tri();
-    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE);
     ASSERT_EQUAL_UNSIGNED(tri_count, 0, "Triangle should not be drawn when culling front and back faces");
 
     debug_rdp_stream_reset();
@@ -246,6 +249,6 @@ void test_gl_cull(TestContext *ctx)
     draw_tri();
     glCullFace(GL_FRONT_AND_BACK);
     draw_tri();
-    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE);
     ASSERT_EQUAL_UNSIGNED(tri_count, 3, "Triangles should be drawn when culling disabled");
 }
