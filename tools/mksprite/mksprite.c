@@ -1639,6 +1639,7 @@ void spritemaker_free(spritemaker_t *spr) {
 
 int convert(const char *infn, const char *outfn, const parms_t *pm, int compression) {
     FILE *out = tmpfile();
+    assert(out && "cannot create temporary file");
     bool out_is_stdout = (strstr(outfn, "(stdout)") != NULL);
 
     if (flag_verbose)

@@ -13,7 +13,14 @@
 
 #ifdef __MINGW32__
 
+// NOTE: we include both stdio.h and cstdio because both of them will undef
+// tmpfile and redefine it to something else. Since we want to provide our
+// own implementation, we need to make sure both are included first, so that
+// we don't run the risk either of them is included after this file.
 #include <stdio.h>
+#ifdef __cplusplus
+#include <cstdio>
+#endif
 #include <stdlib.h>
 #include <errno.h>
 #include <stdint.h>
@@ -98,6 +105,9 @@ static char *strndup(const char *s, size_t n)
 
 // tmpfile in mingw is broken (it uses msvcrt that tries to
 // create a file in C:\, which is non-writable nowadays)
+#ifdef tmpfile
+#undef tmpfile
+#endif
 #define tmpfile()   mingw_tmpfile()
 
 typedef void* HANDLE;
