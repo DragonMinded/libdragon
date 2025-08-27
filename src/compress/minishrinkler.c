@@ -532,30 +532,30 @@ static int find_match(shr_work_buffer_t *mem, const unsigned char *data, int dat
         if (offset > 4096) min_len_req += 2;
 
         if (match_len >= min_len_req) {
-            // Estimate bit cost of encoding this match
-            // KIND_REF (1) + REPEATED bit if needed (1) + offset (if changed) + length
+            // Estimate reference cost (same units as before)
             int repeated_needed = mem->state.prev_was_ref ? 0 : 1;
             int offset_changed = (offset != mem->state.last_offset);
-
-            // Add a small base penalty for large offsets even when repeated,
-            // to avoid sticking to very large offsets producing many short matches.
             int base_offset_penalty = estimate_number_cost_int(offset + 2) >> 2; // ~25%
+            int ref_cost = 1; // KIND_REF
+            ref_cost += repeated_needed;
+            ref_cost += base_offset_penalty;
+            if (offset_changed) ref_cost += estimate_number_cost_int(offset + 2);
+            ref_cost += estimate_number_cost_int(match_len);
 
-            int cost = 1; // KIND_REF
-            cost += repeated_needed;
-            cost += base_offset_penalty;
-            if (offset_changed) cost += estimate_number_cost_int(offset + 2);
-            cost += estimate_number_cost_int(match_len);
+            // Credit saved literal cost roughly linear in length.
+            // Use a conservative constant to avoid over-biasing long far matches.
+            const int LIT_COST_EST = 2; // tuneable: "events" per literal byte
+            int saved = match_len * LIT_COST_EST;
+            int net_cost = ref_cost - saved;
 
             int is_better = 0;
             if (*best_length == 0) {
                 is_better = 1;
             } else {
-                // Prefer lower cost; break ties with longer length, then closer offset
-                // Represent current best cost implicitly using best_quality as cost storage
-                if (best_quality == 0 || cost < best_quality) {
+                // Prefer lower net cost; break ties with longer length, then closer offset
+                if (best_quality == 0 || net_cost < best_quality) {
                     is_better = 1;
-                } else if (cost == best_quality) {
+                } else if (net_cost == best_quality) {
                     if (match_len > *best_length) {
                         is_better = 1;
                     } else if (match_len == *best_length && offset < *best_offset) {
@@ -566,7 +566,7 @@ static int find_match(shr_work_buffer_t *mem, const unsigned char *data, int dat
             if (is_better) {
                 *best_length = match_len;
                 *best_offset = offset;
-                best_quality = cost; // store best cost here
+                best_quality = net_cost; // store best net cost here
             }
         }
     }
