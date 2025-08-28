@@ -104,6 +104,8 @@ volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT] = {0};
  */
 /** @brief Refcount of #joypad_init vs #joypad_close calls. */
 static int joypad_init_refcount = 0;
+/** @brief Timer handle for joypad reading callback */
+static timer_link_t *joypad_timer = NULL;
 /** @brief Joypad "cold" devices for each port. */
 static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
 /** @} */ /* joypad_cold_state */
@@ -608,9 +610,9 @@ static void joypad_read_async(void)
 }
 
 /**
- * @brief Callback for VI interrupt to read and identify Joypads.
+ * @brief Callback for timer to read and identify Joypads.
  */
-static void joypad_vi_interrupt_callback(void)
+static void joypad_timer_callback(int ovfl)
 {
     joypad_read_async();
     int32_t ticks_since_identify = TICKS_SINCE(joypad_identify_last_ticks);
@@ -627,6 +629,9 @@ static void joypad_reset_interrupt_callback(void)
 {
     // BBPlayer does not support rumble
     if( sys_bbplayer() ) return;
+
+    // Stop reading joypad inputs during reset
+    if (joypad_timer) stop_timer(joypad_timer);
 
     const joybus_cmd_n64_accessory_write_port_t n64_motor_cmd = { .send = {
         .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
@@ -734,8 +739,11 @@ void joypad_init(void)
     joypad_reset();
     joypad_read();
 
-    // Update the Joypads on VI interrupt
-    register_VI_handler(joypad_vi_interrupt_callback);
+    // Update the Joypads using a timer at VI rate
+    // NTSC/MPAL: 60Hz (16666us), PAL: 50Hz (20000us)
+    int ticks = TIMER_TICKS((get_tv_type() == TV_PAL) ? 20000 : 16666);
+    joypad_timer = new_timer(ticks, TF_CONTINUOUS, joypad_timer_callback);
+
     // Stop rumble on console reset
     register_RESET_handler(joypad_reset_interrupt_callback);
 }
@@ -745,9 +753,14 @@ void joypad_close(void)
     // Do nothing if there are still dangling references.
 	if (--joypad_init_refcount > 0) { return; }
 
-    // Stop updating the Joypads on VI interrupt
-    unregister_VI_handler(joypad_vi_interrupt_callback);
+    // Remove RESET handler callback
     unregister_RESET_handler(joypad_reset_interrupt_callback);
+
+    // Stop the joypad update timer
+    if (joypad_timer) {
+        delete_timer(joypad_timer);
+        joypad_timer = NULL;
+    }
 
     // Decrement the timer subsystem refcount (possibly closing it)
     timer_close();
