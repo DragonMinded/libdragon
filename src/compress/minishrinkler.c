@@ -81,6 +81,7 @@ typedef struct {
     int32_t dest_bit;                           ///< Destination bit
     uint32_t intervalsize;                      ///< Interval size
     uint32_t intervalmin;                       ///< Interval minimum
+    int lit_avg_events;                         ///< EWMA of literal event cost (init ~9)
 } shr_rangecoder_t;
 
 /** @brief LZ coder state */
@@ -88,7 +89,7 @@ typedef struct {
     bool after_first;                          ///< First symbol was done?
     bool prev_was_ref;                         ///< Previous symbols was a match?
     int parity;                                ///< Parity bit
-    uint16_t last_offset;                      ///< Last encoded offset (for repetitions)
+    uint16_t last_offsets[3];                  ///< Recent offsets LRU: [0]=last, [1]=prev, [2]=older
 } shr_lzstate_t;
 
 /** @brief Size table for encoding numbers */
@@ -121,6 +122,9 @@ typedef struct {
     // Pointers into the single malloc arena (immediately after this struct)
     uint16_t *buckets;            ///< size = hash_size * ways; each is wrapped pos (0..mask) or 0xFFFF if empty
     uint8_t  *repl_index;         ///< size = hash_size; round-robin replacement index per bucket
+
+    // Rolling estimate of literal event cost (EWMA of encode_literal sizes)
+    int lit_avg_events;           ///< average range-coder events per literal (init ~9)
 } shr_work_buffer_t;
 
 // Utility functions
@@ -186,6 +190,7 @@ static void range_coder_init(shr_rangecoder_t *coder, uint8_t *output, int capac
     
     // Ensure first byte is initialized
     output[0] = 0;
+    coder->lit_avg_events = 9;
 }
 
 // Forward declaration for tracing (only when tracing is enabled)
@@ -349,7 +354,9 @@ static void lz_state_init(shr_lzstate_t *state) {
     state->after_first = 0;
     state->prev_was_ref = 0;
     state->parity = 0;
-    state->last_offset = 0;
+    state->last_offsets[0] = 0;
+    state->last_offsets[1] = 0;
+    state->last_offsets[2] = 0;
 }
 
 static int encode_literal(shr_rangecoder_t *coder, unsigned char value, shr_lzstate_t *state) {
@@ -378,6 +385,9 @@ static int encode_literal(shr_rangecoder_t *coder, unsigned char value, shr_lzst
     state->after_first = 1;
     state->prev_was_ref = 0;
     state->parity = state->parity + 1;
+    // Update EWMA of literal events (alpha=1/8)
+    // Note: size is in the same "event" units used by the cost model
+    coder->lit_avg_events = (coder->lit_avg_events * 7 + size) >> 3;
     
     return size;
 }
@@ -434,21 +444,21 @@ static int encode_reference(shr_rangecoder_t *coder, int offset, int length, shr
     // Trace reference encoding
     tracef("=== ENCODE_REFERENCE START ===\n");
     tracef("LZ: ENCODE_REFERENCE offset=%d length=%d parity=%d prev_was_ref=%d last_offset=%d\n", 
-           offset, length, parity, state->prev_was_ref, state->last_offset);
+           offset, length, parity, state->prev_was_ref, state->last_offsets[0]);
     tracef("KIND_REF: context=%d bit=1\n", 1 + CONTEXT_KIND + (parity << 8));
     
     range_coder_code(coder, 1 + CONTEXT_KIND + (parity << 8), 1); // KIND_REF
     size++;
     
     if (!state->prev_was_ref) {
-        int repeated = offset == state->last_offset;
+        int repeated = offset == state->last_offsets[0];
         tracef("REPEATED: context=%d bit=%d (offset %s last_offset)\n", 
                1 + CONTEXT_REPEATED, repeated, repeated ? "==" : "!=");
         range_coder_code(coder, 1 + CONTEXT_REPEATED, repeated);
         size++;
     }
     
-    if (offset != state->last_offset) {
+    if (offset != state->last_offsets[0]) {
         tracef("ENCODE_OFFSET: offset=%d (encoded as %d)\n", offset, offset + 2);
         size += encode_number(coder, CONTEXT_GROUP_OFFSET, offset + 2);
     } else {
@@ -462,12 +472,23 @@ static int encode_reference(shr_rangecoder_t *coder, int offset, int length, shr
     state->after_first = 1;
     state->prev_was_ref = 1;
     state->parity = state->parity + length;
-    state->last_offset = offset;
-    assert(offset == state->last_offset && "reference offset too large");
+    // Update LRU offsets: move offset to front
+    if (offset != state->last_offsets[0]) {
+        // remove offset if present in [1] or [2]
+        if (offset == state->last_offsets[1]) {
+            state->last_offsets[1] = state->last_offsets[0];
+            state->last_offsets[0] = (uint16_t)offset;
+        } else {
+            state->last_offsets[2] = state->last_offsets[1];
+            state->last_offsets[1] = state->last_offsets[0];
+            state->last_offsets[0] = (uint16_t)offset;
+        }
+    }
+    assert(offset == state->last_offsets[0] && "reference offset too large");
     
     tracef("=== ENCODE_REFERENCE END ===\n");
     tracef("STATE UPDATE: after_first=%d prev_was_ref=%d parity=%d last_offset=%d\n", 
-           state->after_first, state->prev_was_ref, state->parity, state->last_offset);
+           state->after_first, state->prev_was_ref, state->parity, state->last_offsets[0]);
     tracef("TOTAL SIZE: %d\n\n", size);
     
     return size;
@@ -485,6 +506,39 @@ static int find_match(shr_work_buffer_t *mem, const unsigned char *data, int dat
     int window_limit = mem->window_size - 1;
     int max_offset = min(pos, min(MAX_OFFSET, window_limit));
     
+    // Probe recent offsets (cheap LRU of 2)
+    for (int pi = 1; pi <= 2; ++pi) {
+        int poff = mem->state.last_offsets[pi];
+        if (poff <= 0 || poff > max_offset || poff == mem->state.last_offsets[0]) continue;
+        int absolute_candidate_pos = pos - poff;
+        if (absolute_candidate_pos < 0) continue;
+        // Quick 2-byte check
+        if (absolute_candidate_pos + 2 <= data_size && pos + 2 <= data_size) {
+            if (data[pos] != data[absolute_candidate_pos] || data[pos+1] != data[absolute_candidate_pos+1]) continue;
+        }
+        int match_len = 0;
+        while (match_len < max_len &&
+               pos + match_len < data_size &&
+               absolute_candidate_pos + match_len < data_size &&
+               data[pos + match_len] == data[absolute_candidate_pos + match_len]) {
+            match_len++;
+        }
+        if (match_len >= MIN_MATCH_LENGTH) {
+            int repeated_needed = mem->state.prev_was_ref ? 0 : 1;
+            int offset_changed = (poff != mem->state.last_offsets[0]);
+            int base_offset_penalty = estimate_number_cost_int(poff + 2) >> 2;
+            int ref_cost = 1 + repeated_needed + base_offset_penalty;
+            if (offset_changed) ref_cost += estimate_number_cost_int(poff + 2);
+            ref_cost += estimate_number_cost_int(match_len);
+            int lit_cost = mem->coder.lit_avg_events ? mem->coder.lit_avg_events : 9;
+            int net_cost = ref_cost - match_len * lit_cost;
+            if (*best_length == 0 || net_cost < 0 || (net_cost == 0 && match_len > *best_length)) {
+                *best_length = match_len;
+                *best_offset = poff;
+            }
+        }
+    }
+
     // Use hash table to find potential matches
     unsigned int hash = hash3(&data[pos]) & (unsigned int)mem->hash_mask;
 
@@ -534,7 +588,7 @@ static int find_match(shr_work_buffer_t *mem, const unsigned char *data, int dat
         if (match_len >= min_len_req) {
             // Estimate reference cost (same units as before)
             int repeated_needed = mem->state.prev_was_ref ? 0 : 1;
-            int offset_changed = (offset != mem->state.last_offset);
+            int offset_changed = (offset != mem->state.last_offsets[0]);
             int base_offset_penalty = estimate_number_cost_int(offset + 2) >> 2; // ~25%
             int ref_cost = 1; // KIND_REF
             ref_cost += repeated_needed;
@@ -542,10 +596,9 @@ static int find_match(shr_work_buffer_t *mem, const unsigned char *data, int dat
             if (offset_changed) ref_cost += estimate_number_cost_int(offset + 2);
             ref_cost += estimate_number_cost_int(match_len);
 
-            // Credit saved literal cost roughly linear in length.
-            // Use a conservative constant to avoid over-biasing long far matches.
-            const int LIT_COST_EST = 2; // tuneable: "events" per literal byte
-            int saved = match_len * LIT_COST_EST;
+            // Credit saved literal cost using EWMA of literal size
+            int lit_cost = mem->coder.lit_avg_events ? mem->coder.lit_avg_events : 9;
+            int saved = match_len * lit_cost;
             int net_cost = ref_cost - saved;
 
             int is_better = 0;
