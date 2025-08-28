@@ -26,9 +26,16 @@ typedef enum
     JOYBUS_ACCESSORY_IO_STATUS_OK        = 0,
     /** @brief No N64 controller is connected. */
     JOYBUS_ACCESSORY_IO_STATUS_NO_DEVICE = -1,
-    /** @brief No N64 accessory is connected. */
+    /**
+     * @brief Joybus accessory communication was not successful.
+     * 
+     * This could be caused by any of the following:
+     * - Nothing is connected to the accessory port.
+     * - A new accessory has been connected since the last identify command.
+     * - The accessory command address checksum validation failed.
+     */
     JOYBUS_ACCESSORY_IO_STATUS_NO_PAK    = -2,
-    /** @brief Joybus accessory communication was not successful. */
+    /** @brief Joybus accessory data transfer was not successful. */
     JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC   = -3,
 } joybus_accessory_io_status_t;
 
@@ -40,7 +47,7 @@ typedef enum
  * @param[out] data The 32 bytes of data that was read from the accessory.
  *
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_OK The data was read successfully.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK No accessory is present.
+ * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK Accessory communication failed.
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data was not read successfully.
  */
 int joybus_accessory_read(int port, uint16_t addr, uint8_t *data);
@@ -53,7 +60,7 @@ int joybus_accessory_read(int port, uint16_t addr, uint8_t *data);
  * @param[in] data The 32 bytes of data to write to the accessory.
  *
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_OK The data was written successfully.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK No accessory is present.
+ * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK Accessory communication failed.
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data was not written successfully.
  */
 int joybus_accessory_write(int port, uint16_t addr, const uint8_t *data);

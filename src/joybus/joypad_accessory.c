@@ -63,21 +63,38 @@ static bool joypad_accessory_check_read_crc_error(
         }
         case JOYBUS_ACCESSORY_IO_STATUS_NO_PAK:
         {
-            // Accessory is no longer connected!
-            device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
-            device->rumble_active = false;
-            accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
-            accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
-            accessory->status = JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT;
-            accessory->error = JOYPAD_ACCESSORY_ERROR_ABSENT;
-            return true;
+            size_t retries = accessory->retries;
+            if (retries < JOYPAD_ACCESSORY_IO_STATUS_NO_PAK_RETRY_LIMIT)
+            {
+                // Retry: Possibly bad communication, or the accessory was disconnected
+                accessory->retries = retries + 1;
+                accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+                uint16_t retry_addr = cmd->send.addr_checksum;
+                retry_addr &= JOYBUS_ACCESSORY_ADDR_MASK_OFFSET;
+                joybus_accessory_read_async(
+                    port, retry_addr,
+                    retry_callback, retry_ctx
+                );
+                return true;
+            }
+            else
+            {
+                // Accessory is no longer connected!
+                device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
+                device->rumble_active = false;
+                accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+                accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
+                accessory->status = JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT;
+                accessory->error = JOYPAD_ACCESSORY_ERROR_ABSENT;
+                return true;
+            }
         }
         case JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC:
         {
             size_t retries = accessory->retries;
-            if (retries < JOYPAD_ACCESSORY_RETRY_LIMIT)
+            if (retries < JOYPAD_ACCESSORY_IO_STATUS_BAD_CRC_RETRY_LIMIT)
             {
-                // Retry: Bad communication with the accessory
+                // Retry: Bad communication with the controller
                 accessory->retries = retries + 1;
                 accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
                 uint16_t retry_addr = cmd->send.addr_checksum;
@@ -139,19 +156,36 @@ static bool joypad_accessory_check_write_crc_error(
         }
         case JOYBUS_ACCESSORY_IO_STATUS_NO_PAK:
         {
-            // Accessory is no longer connected!
-            device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
-            device->rumble_active = false;
-            accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
-            accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
-            accessory->status = JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT;
-            accessory->error = JOYPAD_ACCESSORY_ERROR_ABSENT;
-            return true;
+            size_t retries = accessory->retries;
+            if (retries < JOYPAD_ACCESSORY_IO_STATUS_NO_PAK_RETRY_LIMIT)
+            {
+                // Retry: Possibly bad communication, or the accessory was disconnected
+                accessory->retries = retries + 1;
+                accessory->error = JOYPAD_ACCESSORY_ERROR_PENDING;
+                uint16_t retry_addr = cmd->send.addr_checksum;
+                retry_addr &= JOYBUS_ACCESSORY_ADDR_MASK_OFFSET;
+                joybus_accessory_write_async(
+                    port, retry_addr, cmd->send.data,
+                    retry_callback, retry_ctx
+                );
+                return true;
+            }
+            else
+            {
+                // Accessory is no longer connected!
+                device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
+                device->rumble_active = false;
+                accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+                accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
+                accessory->status = JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT;
+                accessory->error = JOYPAD_ACCESSORY_ERROR_ABSENT;
+                return true;
+            }
         }
         case JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC:
         {
             size_t retries = accessory->retries;
-            if (retries < JOYPAD_ACCESSORY_RETRY_LIMIT)
+            if (retries < JOYPAD_ACCESSORY_IO_STATUS_BAD_CRC_RETRY_LIMIT)
             {
                 // Retry: Bad communication with the accessory
                 // Intentionally preserve accessory status in this case

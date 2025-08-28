@@ -238,7 +238,7 @@ uint8_t joybus_accessory_calculate_data_crc(const uint8_t *data);
  * @param data_crc The CRC8 checksum to compare against
  * 
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_OK The checksums match.
- * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK The checksum indicates that no accessory is present.
+ * @retval #JOYBUS_ACCESSORY_IO_STATUS_NO_PAK Accessory communication failed.
  * @retval #JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC The data checksum does not match the provided checksum.
  */
 joybus_accessory_io_status_t joybus_accessory_compare_data_crc(const uint8_t *data, uint8_t data_crc);

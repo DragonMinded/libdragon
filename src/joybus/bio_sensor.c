@@ -101,7 +101,7 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
     int crc_status = joybus_accessory_compare_data_crc(cmd->recv.data, cmd->recv.data_crc);
     if (crc_status != JOYBUS_ACCESSORY_IO_STATUS_OK)
     {
-        // Stop reading if the Bio Sensor has been disconnected
+        // Stop reading if the Bio Sensor communication fails
         if (crc_status == JOYBUS_ACCESSORY_IO_STATUS_NO_PAK)
         {
             bio_sensor_read_stop(port);

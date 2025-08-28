@@ -28,8 +28,10 @@ typedef struct timer_link timer_link_t;
 extern "C" {
 #endif
 
-/** @brief Number of times to retry accessory commands. */
-#define JOYPAD_ACCESSORY_RETRY_LIMIT 2
+/** @brief Number of times to retry accessory commands with NO_PAK error. */
+#define JOYPAD_ACCESSORY_IO_STATUS_NO_PAK_RETRY_LIMIT 1
+/** @brief Number of times to retry accessory commands with BAD_CRC error. */
+#define JOYPAD_ACCESSORY_IO_STATUS_BAD_CRC_RETRY_LIMIT 2
 
 /** @brief Joypad accessory states enumeration */
 typedef enum
