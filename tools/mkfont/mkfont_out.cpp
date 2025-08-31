@@ -705,8 +705,8 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
     img = img.crop_transparent(&x0, &y0);
 
     if (!image_fits_tmem(img, tmem_fmt)) {
-        fprintf(stderr, "Error: glyph %s [U+%04X] does not fit in TMEM (%dx%d in I4 format)\n",
-            codepoint_to_utf8(cp).c_str(), cp, img.w, img.h);
+        fprintf(stderr, "Error: glyph %s [U+%04X] does not fit in TMEM (%dx%d in %s format)\n",
+            codepoint_to_utf8(cp).c_str(), cp, img.w, img.h, tex_format_name(tmem_fmt));
         exit(1);
     }
 
