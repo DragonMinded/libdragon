@@ -53,6 +53,7 @@ bool flag_ttf_monochrome = false;
 float flag_ttf_char_spacing = 0;
 float flag_ttf_aspect_ratio = 1.0;
 tex_format_t flag_bmfont_format = FMT_RGBA16;
+bool flag_bmfont_format_specified = false;
 std::unordered_set<uint32_t> flag_charset;
 
 typedef struct {
@@ -380,6 +381,8 @@ void print_args( char * name )
     fprintf(stderr, "   --display <WxH[,A:B]>     Specify target display resolution and optional aspect ratio\n");
     fprintf(stderr, "                             (e.g., --display 320x240 or --display 320x240,16:9)\n");
     fprintf(stderr, "                             Default assumes 4:3 display ratio\n");
+    fprintf(stderr, "   --format <format>         Specify the output texture format for color fonts.\n");
+    fprintf(stderr, "                             Valid options are: RGBA16, RGBA32, CI4, CI8 (default: RGBA16)\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "   Glyph selection modes (choose one of the following):\n");
     fprintf(stderr, "   --charset <file>          Create a font that covers all and only the glyphs used in the\n");
@@ -608,6 +611,7 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
+                flag_bmfont_format_specified = true;
                 if (strcmp(argv[i], "RGBA16") == 0) {
                     flag_bmfont_format = FMT_RGBA16;
                 } else if (strcmp(argv[i], "RGBA32") == 0) {

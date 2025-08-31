@@ -50,6 +50,9 @@ all:
 # Avoid many warnings for vendored code that we don't intend to ever modify
 common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
 mkfont/freetype/FreeTypeAmalgam.o: CFLAGS += -Wno-all -Wno-error
+mkfont/plutosvg/plutosvg-amalgam.o:CFLAGS += -Imkfont/plutosvg -Wno-unused-function -Wno-error
+mkfont/mkfont.o:              	   CXXFLAGS += -Imkfont/plutosvg -Imkfont/freetype
+
 
 common-clean:
 	rm -f common/*.o common/*.a common/*.d
@@ -72,7 +75,7 @@ $(DECOMP_STUBS):
 
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
 mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
-mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o common/assetcomp.a
+mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o mkfont/plutosvg/plutosvg-amalgam.o common/assetcomp.a
 mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a
 mkmaterial_OBJS = mkmaterial/mkmaterial.o mkmaterial/mkmaterial_parse.o mkmaterial/mkmaterial_export.o common/assetcomp.a 
 combexpr_OBJS = mkmaterial/combexpr_cli.o mkmaterial/combexpr_disasm.o

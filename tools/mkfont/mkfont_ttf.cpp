@@ -16,6 +16,9 @@
 // Freetype
 #include "freetype/FreeTypeAmalgam.h"
 
+// PlutoSVG
+#include "plutosvg/plutosvg-ft.h"
+
 static bool is_monochrome(FT_Face face)
 {
     // Check if the font is monochrome at the current size, by rendering a
@@ -126,6 +129,12 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         return 1;
     }
 
+    // Set PlutoSVG hooks for the SVG module
+    if(FT_Property_Set(ftlib, "ot-svg", "svg-hooks", &plutosvg_ft_hooks)) {
+        fprintf(stderr, "cannot set FreeType SVG hooks\n");
+        return -1;
+    }
+
     FT_Face face;
     err = FT_New_Face(ftlib, infn, 0, &face);
     if (err) {
@@ -150,12 +159,17 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
     // Decide the fonttype
     fonttype_t fonttype;
     if (!flag_ttf_outline) {
-        if (flag_ttf_monochrome || is_monochrome(face))
+        if (FT_HAS_COLOR(face))
+            fonttype = FONT_TYPE_BITMAP;
+        else if (flag_ttf_monochrome || is_monochrome(face))
             fonttype = FONT_TYPE_MONO;
         else
             fonttype = FONT_TYPE_ALIASED;
     } else {
-        if (flag_ttf_monochrome || is_monochrome(face))
+        if (FT_HAS_COLOR(face)) {
+            fprintf(stderr, "error: outline generation not supported for color fonts\n");
+            return 1;
+        } else if (flag_ttf_monochrome || is_monochrome(face))
             fonttype = FONT_TYPE_MONO_OUTLINE;
         else
             fonttype = FONT_TYPE_ALIASED_OUTLINE;
@@ -167,6 +181,11 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
     int space_width = face->size->metrics.max_advance >> 6;
     if (flag_verbose) printf("Metrics: ascent=%d, descent=%d, line_gap=%d, space_width=%d\n", ascent, descent, line_gap, space_width);
     Font font(outfn, fonttype, point_size, ascent, descent, line_gap, space_width);
+    if (!FT_HAS_COLOR(face) && flag_bmfont_format_specified) {
+        fprintf(stderr, "error: --format specified, but the font is not colored: %s\n", infn);
+        return 1;
+    }
+    font.bmp_outfmt = flag_bmfont_format;
 
     // Create a map from font64 glyph indices to truetype indices
     std::unordered_map<int, int> gidx_to_ttfidx;
@@ -236,7 +255,11 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 continue;
             }
 
-            err = FT_Load_Glyph(face, ttf_idx, FT_LOAD_RENDER | (flag_ttf_monochrome ? FT_LOAD_TARGET_MONO : 0));
+            // For color fonts, we need to try different loading strategies
+            int load_flags = FT_LOAD_RENDER;
+            if (flag_ttf_monochrome) load_flags |= FT_LOAD_TARGET_MONO;
+            if (FT_HAS_COLOR(face))  load_flags |= FT_LOAD_COLOR;
+            err = FT_Load_Glyph(face, ttf_idx, load_flags);
             if (err) {
                 fprintf(stderr, "cannot load glyph: %04X\n", g);
                 exit(1);
@@ -245,19 +268,36 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
             if (flag_ttf_outline == 0) {
                 FT_GlyphSlot slot = face->glyph;
                 FT_Bitmap bmp = slot->bitmap;
-
+                
                 assert(bmp.width >= 0 && bmp.rows >= 0);
-                Image img = Image(FMT_I8, bmp.width, bmp.rows);
 
+                Image img;
                 switch (bmp.pixel_mode) {
+                case FT_PIXEL_MODE_BGRA:
+                    // Color fonts
+                    img = Image(FMT_RGBA32, bmp.width, bmp.rows);
+                    for (int y=0; y<bmp.rows; y++) {
+                        for (int x=0; x<bmp.width; x++) {
+                            uint8_t *src = &bmp.buffer[y * bmp.pitch + x * 4];
+                            uint8_t b = src[0], g = src[1], r = src[2], a = src[3];
+                            if (a > 0) { r = (r * 255) / a; g = (g * 255) / a; b = (b * 255) / a; }
+                            img[y][x] = (r << 24) | (g << 16) | (b << 8) | a;
+                        }
+                    }
+                    break;
                 case FT_PIXEL_MODE_MONO:
+                    img = Image(FMT_I8, bmp.width, bmp.rows);
                     for (int y=0; y<bmp.rows; y++) {
                         for (int x=0; x<bmp.width; x++) {
                             img[y][x] = (bmp.buffer[y * bmp.pitch + x / 8] & (1 << (7 - x % 8))) ? 255 : 0;
                         }
                     }
+                    // If for some reason this glyph was rendered monochrome (eg: spaces...)
+                    // uniform it with the others
+                    if (FT_HAS_COLOR(face)) img = img.convert(FMT_RGBA32);
                     break;
                 case FT_PIXEL_MODE_GRAY:
+                    img = Image(FMT_I8, bmp.width, bmp.rows);
                     for (int y=0; y<bmp.rows; y++) {
                         for (int x=0; x<bmp.width; x++) {
                             // For greyscale, mask out the lower 4 bits because we
@@ -265,6 +305,7 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                             img[y][x] = bmp.buffer[y * bmp.pitch + x] & 0xF0;
                         }
                     }
+                    if (FT_HAS_COLOR(face)) img = img.convert(FMT_RGBA32);
                     break;
                 default:
                     fprintf(stderr, "internal error: unsupported freetype pixel mode: %d\n", bmp.pixel_mode);
