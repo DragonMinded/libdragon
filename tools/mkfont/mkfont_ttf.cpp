@@ -46,6 +46,35 @@ static bool is_monochrome(FT_Face face)
     return true;
 }
 
+static bool is_colored_aliased(FT_Face face)
+{
+    assert(FT_HAS_COLOR(face));
+
+    for (int ch='a'; ch <= 'f'; ch++) {
+        int idx = FT_Get_Char_Index(face, ch);
+        if (idx == 0) continue;
+
+        FT_Load_Glyph(face, idx, FT_LOAD_RENDER | FT_LOAD_COLOR);
+
+        FT_GlyphSlot slot = face->glyph;
+        FT_Bitmap bmp = slot->bitmap;
+
+        if (bmp.pixel_mode != FT_PIXEL_MODE_BGRA)
+            continue;
+
+        for (int y=0; y<bmp.rows; y++) {
+            for (int x=0; x<bmp.width; x++) {
+                if (bmp.buffer[y * bmp.pitch + x*4 + 3] != 0 && 
+                    bmp.buffer[y * bmp.pitch + x*4 + 3] != 0xFF) {
+                        return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 static bool is_combined_glyph(uint32_t cp)
 {
     // Check if the codepoint is a combined glyph
@@ -183,11 +212,17 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
     int space_width = face->size->metrics.max_advance >> 6;
     if (flag_verbose) printf("Metrics: ascent=%d, descent=%d, line_gap=%d, space_width=%d\n", ascent, descent, line_gap, space_width);
     Font font(outfn, fonttype, point_size, ascent, descent, line_gap, space_width);
-    if (!FT_HAS_COLOR(face) && flag_bmfont_format_specified) {
+
+    if (!FT_HAS_COLOR(face) && flag_bmfont_format != FMT_NONE) {
         fprintf(stderr, "error: --format specified, but the font is not colored: %s\n", infn);
         return 1;
     }
-    font.bmp_outfmt = flag_bmfont_format;
+    if (FT_HAS_COLOR(face)) {
+        if (flag_bmfont_format == FMT_NONE) {
+            flag_bmfont_format = is_colored_aliased(face) ? FMT_RGBA32 : FMT_RGBA16;
+        }
+        font.bmp_outfmt = flag_bmfont_format;
+    }
 
     // Create a map from font64 glyph indices to truetype indices
     std::unordered_map<int, int> gidx_to_ttfidx;
