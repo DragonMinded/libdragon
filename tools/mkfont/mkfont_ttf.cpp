@@ -17,6 +17,8 @@
 #include "freetype/FreeTypeAmalgam.h"
 
 // PlutoSVG
+#define PLUTOSVG_BUILD_STATIC
+#define PLUTOVG_BUILD_STATIC
 #include "plutosvg/plutosvg-ft.h"
 
 static bool is_monochrome(FT_Face face)

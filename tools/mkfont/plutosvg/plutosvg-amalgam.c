@@ -1,3 +1,5 @@
+#define PLUTOSVG_BUILD_STATIC
+#define PLUTOVG_BUILD_STATIC
 #include "plutosvg.c"
 #undef MAX_NAME
 #include "plutovg-blend.c"
