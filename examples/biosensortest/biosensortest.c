@@ -7,11 +7,17 @@
 #include <string.h>
 #include <libdragon.h>
 
+#define HISTOGRAM_WIDTH 60
+
+typedef struct {
+    bool buffer[HISTOGRAM_WIDTH];
+    int index;
+} pulse_history_t;
+
 int main(void)
 {
     joypad_buttons_t pressed;
-    joypad_accessory_type_t accessory_type;
-    int bpm;
+    pulse_history_t history[JOYPAD_PORT_COUNT] = {0};
 
     timer_init();
     joypad_init();
@@ -38,44 +44,55 @@ int main(void)
         JOYPAD_PORT_FOREACH (port)
         {
             pressed = joypad_get_buttons_pressed(port);
-            accessory_type = joypad_get_accessory_type(port);
-            bpm = bio_sensor_get_bpm(port);
 
-            printf("Port %d ", port + 1);
-            printf("BPM: %03d ", bpm);
+            // Update pulse history
             if (bio_sensor_get_active(port))
             {
+                printf("Port %d: ", port + 1);
+                printf("BPM: %03d ", bio_sensor_get_bpm(port));
+
+                history[port].buffer[history[port].index] = bio_sensor_get_pulsing(port);
+                history[port].index = (history[port].index + 1) % HISTOGRAM_WIDTH;
+
                 if (pressed.b)
                 {
                     bio_sensor_read_stop(port);
-                    printf("(Stopping)");
+                    // Clear history when stopping
+                    memset(&history[port], 0, sizeof(pulse_history_t));
                 }
-                else if (bio_sensor_get_pulsing(port))
-                {
-                    printf("(Pulsing)");
-                }
-                else
-                {
-                    printf("(Resting)");
-                }
+                printf("Active");
             }
-            else if (accessory_type == JOYPAD_ACCESSORY_TYPE_BIO_SENSOR)
+            else if (joypad_get_accessory_type(port) == JOYPAD_ACCESSORY_TYPE_BIO_SENSOR)
             {
+                printf("Port %d: BPM: --- ", port + 1);
                 if (pressed.a)
                 {
                     bio_sensor_read_start(port);
-                    printf("(Starting)");
                 }
-                else
-                {
-                    printf("(Stopped)");
-                }
+                printf("Stopped; Press A to start");
             }
             else
             {
-                printf("(Unavailable)");
+                printf("Port %d: BPM: --- ", port + 1);
+                printf("Bio Sensor not connected");
             }
             printf("\n");
+
+            // Draw histogram
+            printf("[");
+            for (int i = HISTOGRAM_WIDTH - 1; i >- 0; i--)
+            {
+                int idx = (history[port].index + i) % HISTOGRAM_WIDTH;
+                if (bio_sensor_get_active(port))
+                {
+                    printf("%c", history[port].buffer[idx] ? '^' : '_');
+                }
+                else
+                {
+                    printf("_");
+                }
+            }
+            printf("]\n\n");
         }
 
         console_render();

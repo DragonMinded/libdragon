@@ -11,20 +11,20 @@
 #include "bio_sensor.h"
 #include "joybus_commands.h"
 #include "joybus_accessory_internal.h"
+#include "timer.h"
 
 /**
  * @addtogroup bio_sensor
  * @{
  */
 
-/** @brief Minimum number of measurement periods required before calculating BPM */
-#define BIO_SENSOR_PERIODS_MINIMUM 8
-/** @brief Maximum number of measurement periods stored in the rolling window */
-#define BIO_SENSOR_PERIODS_MAXIMUM 16
-/** @brief Timer ticks per measurement period (500ms or half-second intervals) */
-#define BIO_SENSOR_PERIOD_INTERVAL_TICKS (TICKS_PER_SECOND / 2)
-/** @brief Number of measurement periods in one minute (120 half-second periods) */
-#define BIO_SENSOR_PERIODS_PER_MINUTE (60 * 2)
+ /** @brief One minute in microseconds */
+ #define MICROS_PER_MINUTE 60000000LL
+ /** @brief Minimum number of beats required before calculating BPM */
+#define BIO_SENSOR_BEATS_MIN 3
+/** @brief Maximum number of heartbeat timestamps stored in the circular buffer */
+#define BIO_SENSOR_BEATS_MAX 9
+
 /** @brief Convenience macro for joypad accessory type comparison */
 #define BIO_SENSOR_CONNECTED(port) \
     (joypad_get_accessory_type(port) == JOYPAD_ACCESSORY_TYPE_BIO_SENSOR)
@@ -48,7 +48,7 @@ typedef enum
  * @brief Bio Sensor reader context structure
  *
  * Maintains state and statistics for heartbeat detection on a single port.
- * Uses a rolling window to track beats across multiple measurement periods.
+ * Uses a circular buffer to track individual beat timestamps for IBI calculation.
  */
 typedef struct
 {
@@ -56,16 +56,12 @@ typedef struct
     bool read_pending;
     /** @brief Current heartbeat detection state */
     bio_sensor_state_t state;
-    /** @brief Timer tick value when the current measurement period started */
-    int64_t period_start_ticks;
-    /** @brief Number of heartbeats detected in the current measurement period */
-    unsigned period_beats;
-    /** @brief Current write position in the circular buffer of beat counts */
-    unsigned period_cursor;
-    /** @brief Total number of completed measurement periods since reading started */
-    unsigned period_counter;
-    /** @brief Circular buffer storing heartbeat counts for each measurement period */
-    unsigned beats_per_period[BIO_SENSOR_PERIODS_MAXIMUM];
+    /** @brief Circular buffer storing timestamps of detected heartbeats */
+    int64_t beat_timestamps[BIO_SENSOR_BEATS_MAX];
+    /** @brief Current write position in the circular buffer */
+    unsigned beat_cursor;
+    /** @brief Total number of heartbeats detected since reading started */
+    unsigned beat_count;
 } bio_sensor_reader_t;
 
 /** @brief Reference count tracking #bio_sensor_init vs #bio_sensor_close calls */
@@ -111,18 +107,6 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
         return;
     }
 
-    int64_t now_ticks = timer_ticks();
-    if (reader->period_start_ticks + BIO_SENSOR_PERIOD_INTERVAL_TICKS < now_ticks)
-    {
-        unsigned cursor = reader->period_cursor;
-        reader->beats_per_period[cursor++] = reader->period_beats;
-        if (cursor >= BIO_SENSOR_PERIODS_MAXIMUM) cursor = 0;
-        reader->period_cursor = cursor;
-        reader->period_beats = 0;
-        reader->period_counter++;
-        reader->period_start_ticks = now_ticks;
-    }
-
     uint8_t sensor_data = cmd->recv.data[0];
     bio_sensor_state_t next_state = BIO_SENSOR_STATE_STOPPED;
     if (sensor_data == 0x00) next_state = BIO_SENSOR_STATE_PULSING;
@@ -132,7 +116,11 @@ static void bio_sensor_read_callback(uint64_t *out_dwords, void *ctx)
         reader->state == BIO_SENSOR_STATE_PULSING &&
         next_state == BIO_SENSOR_STATE_RESTING
     ) {
-        reader->period_beats += 1;
+        // Store the timestamp of this beat
+        int64_t now_ticks = timer_ticks();
+        reader->beat_timestamps[reader->beat_cursor] = now_ticks;
+        reader->beat_cursor = (reader->beat_cursor + 1) % BIO_SENSOR_BEATS_MAX;
+        reader->beat_count++;
     }
     reader->state = next_state;
     reader->read_pending = false;
@@ -193,7 +181,6 @@ void bio_sensor_read_start(joypad_port_t port)
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
     memset((void *)reader, 0, sizeof(*reader));
     reader->state = BIO_SENSOR_STATE_RESTING;
-    reader->period_start_ticks = timer_ticks();
 }
 
 void bio_sensor_read_stop(joypad_port_t port)
@@ -218,31 +205,38 @@ int bio_sensor_get_bpm(joypad_port_t port)
 {
     if (!BIO_SENSOR_CONNECTED(port)) { return 0; }
     volatile bio_sensor_reader_t *reader = &bio_sensor_readers[port];
-    int num_periods = reader->period_counter;
-    if (num_periods < BIO_SENSOR_PERIODS_MINIMUM)
-    {
-        // Insufficient data to calculate BPM
-        return 0;
+
+    // Need at least 3 beats to calculate 2 intervals
+    if (reader->beat_count < BIO_SENSOR_BEATS_MIN) { return 0; }
+
+    // Determine how many beats to use (up to buffer size)
+    unsigned num_beats = reader->beat_count;
+    if (num_beats > BIO_SENSOR_BEATS_MAX) {
+        num_beats = BIO_SENSOR_BEATS_MAX;
     }
-    if (num_periods > BIO_SENSOR_PERIODS_MAXIMUM)
-    {
-        num_periods = BIO_SENSOR_PERIODS_MAXIMUM;
+    int num_intervals = num_beats - 1;
+
+    // Calculate oldest and newest beat indices
+    unsigned oldest_idx, newest_idx;
+    if (reader->beat_count <= BIO_SENSOR_BEATS_MAX) {
+        // Buffer hasn't wrapped yet
+        oldest_idx = 0;
+        newest_idx = num_beats - 1;
+    } else {
+        // Buffer has wrapped
+        oldest_idx = reader->beat_cursor;
+        newest_idx = (reader->beat_cursor + BIO_SENSOR_BEATS_MAX - 1) % BIO_SENSOR_BEATS_MAX;
     }
-    float sum = 0.0;
-    // Read from the circular buffer in chronological order
-    // When buffer is full, oldest data starts at period_cursor
-    unsigned start_index = 0;
-    if (reader->period_counter >= BIO_SENSOR_PERIODS_MAXIMUM)
-    {
-        // Buffer has wrapped around, start from oldest entry
-        start_index = reader->period_cursor;
-    }
-    for (size_t i = 0; i < num_periods; i++)
-    {
-        unsigned index = (start_index + i) % BIO_SENSOR_PERIODS_MAXIMUM;
-        sum += reader->beats_per_period[index];
-    }
-    return (sum / (float)num_periods) * BIO_SENSOR_PERIODS_PER_MINUTE;
+
+    // Calculate total time span between first and last beat
+    int64_t time_span_ticks = reader->beat_timestamps[newest_idx] - reader->beat_timestamps[oldest_idx];
+    int64_t time_span_us = TIMER_MICROS_LL(time_span_ticks);
+
+    // Avoid division by zero and handle invalid time spans
+    if (time_span_us <= 0) { return 0; }
+
+    // Calculate BPM with rounding
+    return (MICROS_PER_MINUTE * num_intervals + time_span_us / 2) / time_span_us;
 }
 
 /** @} */ /* bio_sensor */
