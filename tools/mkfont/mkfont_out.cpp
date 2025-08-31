@@ -1015,7 +1015,7 @@ void Font::make_atlases(void)
     for (int i=0; i<sheets.size(); i++) {
         rect_pack::Sheet& sheet = sheets[i];
 
-        Image img(is_bitmap() ? FMT_RGBA16 : FMT_IA16, sheet.width, sheet.height);
+        Image img(is_bitmap() ? FMT_RGBA32 : FMT_IA16, sheet.width, sheet.height);
 
         for (int j=0; j<sheet.rects.size(); j++) {
             rect_pack::Rect& rect = sheet.rects[j];
