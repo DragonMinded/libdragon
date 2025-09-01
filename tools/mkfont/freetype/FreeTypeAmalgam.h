@@ -15166,6 +15166,1518 @@ FT_END_HEADER
 
 /*** End of inlined file: ftmodapi.h ***/
 
+
+/*** Start of inlined file: ftmm.h ***/
+#ifndef FTMM_H_
+#define FTMM_H_
+
+
+/*** Start of inlined file: t1tables.h ***/
+#ifndef T1TABLES_H_
+#define T1TABLES_H_
+
+#ifdef FREETYPE_H
+#error "freetype.h of FreeType 1 has been loaded!"
+#error "Please fix the directory search order for header files"
+#error "so that freetype.h of FreeType 2 is found first."
+#endif
+
+FT_BEGIN_HEADER
+
+  /**************************************************************************
+   *
+   * @section:
+   *   type1_tables
+   *
+   * @title:
+   *   Type 1 Tables
+   *
+   * @abstract:
+   *   Type~1-specific font tables.
+   *
+   * @description:
+   *   This section contains the definition of Type~1-specific tables,
+   *   including structures related to other PostScript font formats.
+   *
+   * @order:
+   *   PS_FontInfoRec
+   *   PS_FontInfo
+   *   PS_PrivateRec
+   *   PS_Private
+   *
+   *   CID_FaceDictRec
+   *   CID_FaceDict
+   *   CID_FaceInfoRec
+   *   CID_FaceInfo
+   *
+   *   FT_Has_PS_Glyph_Names
+   *   FT_Get_PS_Font_Info
+   *   FT_Get_PS_Font_Private
+   *   FT_Get_PS_Font_Value
+   *
+   *   T1_Blend_Flags
+   *   T1_EncodingType
+   *   PS_Dict_Keys
+   *
+   */
+
+  /* Note that we separate font data in PS_FontInfoRec and PS_PrivateRec */
+  /* structures in order to support Multiple Master fonts.               */
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_FontInfoRec
+   *
+   * @description:
+   *   A structure used to model a Type~1 or Type~2 FontInfo dictionary.
+   *   Note that for Multiple Master fonts, each instance has its own
+   *   FontInfo dictionary.
+   */
+  typedef struct  PS_FontInfoRec_
+  {
+	FT_String*  version;
+	FT_String*  notice;
+	FT_String*  full_name;
+	FT_String*  family_name;
+	FT_String*  weight;
+	FT_Long     italic_angle;
+	FT_Bool     is_fixed_pitch;
+	FT_Short    underline_position;
+	FT_UShort   underline_thickness;
+
+  } PS_FontInfoRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_FontInfo
+   *
+   * @description:
+   *   A handle to a @PS_FontInfoRec structure.
+   */
+  typedef struct PS_FontInfoRec_*  PS_FontInfo;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   T1_FontInfo
+   *
+   * @description:
+   *   This type is equivalent to @PS_FontInfoRec.  It is deprecated but kept
+   *   to maintain source compatibility between various versions of FreeType.
+   */
+  typedef PS_FontInfoRec  T1_FontInfo;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_PrivateRec
+   *
+   * @description:
+   *   A structure used to model a Type~1 or Type~2 private dictionary.  Note
+   *   that for Multiple Master fonts, each instance has its own Private
+   *   dictionary.
+   */
+  typedef struct  PS_PrivateRec_
+  {
+	FT_Int     unique_id;
+	FT_Int     lenIV;
+
+	FT_Byte    num_blue_values;
+	FT_Byte    num_other_blues;
+	FT_Byte    num_family_blues;
+	FT_Byte    num_family_other_blues;
+
+	FT_Short   blue_values[14];
+	FT_Short   other_blues[10];
+
+	FT_Short   family_blues      [14];
+	FT_Short   family_other_blues[10];
+
+	FT_Fixed   blue_scale;
+	FT_Int     blue_shift;
+	FT_Int     blue_fuzz;
+
+	FT_UShort  standard_width[1];
+	FT_UShort  standard_height[1];
+
+	FT_Byte    num_snap_widths;
+	FT_Byte    num_snap_heights;
+	FT_Bool    force_bold;
+	FT_Bool    round_stem_up;
+
+	FT_Short   snap_widths [13];  /* including std width  */
+	FT_Short   snap_heights[13];  /* including std height */
+
+	FT_Fixed   expansion_factor;
+
+	FT_Long    language_group;
+	FT_Long    password;
+
+	FT_Short   min_feature[2];
+
+  } PS_PrivateRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_Private
+   *
+   * @description:
+   *   A handle to a @PS_PrivateRec structure.
+   */
+  typedef struct PS_PrivateRec_*  PS_Private;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   T1_Private
+   *
+   * @description:
+   *  This type is equivalent to @PS_PrivateRec.  It is deprecated but kept
+   *  to maintain source compatibility between various versions of FreeType.
+   */
+  typedef PS_PrivateRec  T1_Private;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   T1_Blend_Flags
+   *
+   * @description:
+   *   A set of flags used to indicate which fields are present in a given
+   *   blend dictionary (font info or private).  Used to support Multiple
+   *   Masters fonts.
+   *
+   * @values:
+   *   T1_BLEND_UNDERLINE_POSITION ::
+   *   T1_BLEND_UNDERLINE_THICKNESS ::
+   *   T1_BLEND_ITALIC_ANGLE ::
+   *   T1_BLEND_BLUE_VALUES ::
+   *   T1_BLEND_OTHER_BLUES ::
+   *   T1_BLEND_STANDARD_WIDTH ::
+   *   T1_BLEND_STANDARD_HEIGHT ::
+   *   T1_BLEND_STEM_SNAP_WIDTHS ::
+   *   T1_BLEND_STEM_SNAP_HEIGHTS ::
+   *   T1_BLEND_BLUE_SCALE ::
+   *   T1_BLEND_BLUE_SHIFT ::
+   *   T1_BLEND_FAMILY_BLUES ::
+   *   T1_BLEND_FAMILY_OTHER_BLUES ::
+   *   T1_BLEND_FORCE_BOLD ::
+   */
+  typedef enum  T1_Blend_Flags_
+  {
+	/* required fields in a FontInfo blend dictionary */
+	T1_BLEND_UNDERLINE_POSITION = 0,
+	T1_BLEND_UNDERLINE_THICKNESS,
+	T1_BLEND_ITALIC_ANGLE,
+
+	/* required fields in a Private blend dictionary */
+	T1_BLEND_BLUE_VALUES,
+	T1_BLEND_OTHER_BLUES,
+	T1_BLEND_STANDARD_WIDTH,
+	T1_BLEND_STANDARD_HEIGHT,
+	T1_BLEND_STEM_SNAP_WIDTHS,
+	T1_BLEND_STEM_SNAP_HEIGHTS,
+	T1_BLEND_BLUE_SCALE,
+	T1_BLEND_BLUE_SHIFT,
+	T1_BLEND_FAMILY_BLUES,
+	T1_BLEND_FAMILY_OTHER_BLUES,
+	T1_BLEND_FORCE_BOLD,
+
+	T1_BLEND_MAX    /* do not remove */
+
+  } T1_Blend_Flags;
+
+  /* these constants are deprecated; use the corresponding */
+  /* `T1_Blend_Flags` values instead                       */
+#define t1_blend_underline_position   T1_BLEND_UNDERLINE_POSITION
+#define t1_blend_underline_thickness  T1_BLEND_UNDERLINE_THICKNESS
+#define t1_blend_italic_angle         T1_BLEND_ITALIC_ANGLE
+#define t1_blend_blue_values          T1_BLEND_BLUE_VALUES
+#define t1_blend_other_blues          T1_BLEND_OTHER_BLUES
+#define t1_blend_standard_widths      T1_BLEND_STANDARD_WIDTH
+#define t1_blend_standard_height      T1_BLEND_STANDARD_HEIGHT
+#define t1_blend_stem_snap_widths     T1_BLEND_STEM_SNAP_WIDTHS
+#define t1_blend_stem_snap_heights    T1_BLEND_STEM_SNAP_HEIGHTS
+#define t1_blend_blue_scale           T1_BLEND_BLUE_SCALE
+#define t1_blend_blue_shift           T1_BLEND_BLUE_SHIFT
+#define t1_blend_family_blues         T1_BLEND_FAMILY_BLUES
+#define t1_blend_family_other_blues   T1_BLEND_FAMILY_OTHER_BLUES
+#define t1_blend_force_bold           T1_BLEND_FORCE_BOLD
+#define t1_blend_max                  T1_BLEND_MAX
+
+  /* */
+
+  /* maximum number of Multiple Masters designs, as defined in the spec */
+#define T1_MAX_MM_DESIGNS     16
+
+  /* maximum number of Multiple Masters axes, as defined in the spec */
+#define T1_MAX_MM_AXIS        4
+
+  /* maximum number of elements in a design map */
+#define T1_MAX_MM_MAP_POINTS  20
+
+  /* this structure is used to store the BlendDesignMap entry for an axis */
+  typedef struct  PS_DesignMap_
+  {
+	FT_Byte    num_points;
+	FT_Long*   design_points;
+	FT_Fixed*  blend_points;
+
+  } PS_DesignMapRec, *PS_DesignMap;
+
+  /* backward compatible definition */
+  typedef PS_DesignMapRec  T1_DesignMap;
+
+  typedef struct  PS_BlendRec_
+  {
+	FT_UInt          num_designs;
+	FT_UInt          num_axis;
+
+	FT_String*       axis_names[T1_MAX_MM_AXIS];
+	FT_Fixed*        design_pos[T1_MAX_MM_DESIGNS];
+	PS_DesignMapRec  design_map[T1_MAX_MM_AXIS];
+
+	FT_Fixed*        weight_vector;
+	FT_Fixed*        default_weight_vector;
+
+	PS_FontInfo      font_infos[T1_MAX_MM_DESIGNS + 1];
+	PS_Private       privates  [T1_MAX_MM_DESIGNS + 1];
+
+	FT_ULong         blend_bitflags;
+
+	FT_BBox*         bboxes    [T1_MAX_MM_DESIGNS + 1];
+
+	/* since 2.3.0 */
+
+	/* undocumented, optional: the default design instance;   */
+	/* corresponds to default_weight_vector --                */
+	/* num_default_design_vector == 0 means it is not present */
+	/* in the font and associated metrics files               */
+	FT_UInt          default_design_vector[T1_MAX_MM_DESIGNS];
+	FT_UInt          num_default_design_vector;
+
+  } PS_BlendRec, *PS_Blend;
+
+  /* backward compatible definition */
+  typedef PS_BlendRec  T1_Blend;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceDictRec
+   *
+   * @description:
+   *   A structure used to represent data in a CID top-level dictionary.  In
+   *   most cases, they are part of the font's '/FDArray' array.  Within a
+   *   CID font file, such (internal) subfont dictionaries are enclosed by
+   *   '%ADOBeginFontDict' and '%ADOEndFontDict' comments.
+   *
+   *   Note that `CID_FaceDictRec` misses a field for the '/FontName'
+   *   keyword, specifying the subfont's name (the top-level font name is
+   *   given by the '/CIDFontName' keyword).  This is an oversight, but it
+   *   doesn't limit the 'cid' font module's functionality because FreeType
+   *   neither needs this entry nor gives access to CID subfonts.
+   */
+  typedef struct  CID_FaceDictRec_
+  {
+	PS_PrivateRec  private_dict;
+
+	FT_UInt        len_buildchar;
+	FT_Fixed       forcebold_threshold;
+	FT_Pos         stroke_width;
+	FT_Fixed       expansion_factor;   /* this is a duplicate of           */
+									   /* `private_dict->expansion_factor' */
+	FT_Byte        paint_type;
+	FT_Byte        font_type;
+	FT_Matrix      font_matrix;
+	FT_Vector      font_offset;
+
+	FT_UInt        num_subrs;
+	FT_ULong       subrmap_offset;
+	FT_UInt        sd_bytes;
+
+  } CID_FaceDictRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceDict
+   *
+   * @description:
+   *   A handle to a @CID_FaceDictRec structure.
+   */
+  typedef struct CID_FaceDictRec_*  CID_FaceDict;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FontDict
+   *
+   * @description:
+   *   This type is equivalent to @CID_FaceDictRec.  It is deprecated but
+   *   kept to maintain source compatibility between various versions of
+   *   FreeType.
+   */
+  typedef CID_FaceDictRec  CID_FontDict;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceInfoRec
+   *
+   * @description:
+   *   A structure used to represent CID Face information.
+   */
+  typedef struct  CID_FaceInfoRec_
+  {
+	FT_String*      cid_font_name;
+	FT_Fixed        cid_version;
+	FT_Int          cid_font_type;
+
+	FT_String*      registry;
+	FT_String*      ordering;
+	FT_Int          supplement;
+
+	PS_FontInfoRec  font_info;
+	FT_BBox         font_bbox;
+	FT_ULong        uid_base;
+
+	FT_Int          num_xuid;
+	FT_ULong        xuid[16];
+
+	FT_ULong        cidmap_offset;
+	FT_UInt         fd_bytes;
+	FT_UInt         gd_bytes;
+	FT_ULong        cid_count;
+
+	FT_UInt         num_dicts;
+	CID_FaceDict    font_dicts;
+
+	FT_ULong        data_offset;
+
+  } CID_FaceInfoRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceInfo
+   *
+   * @description:
+   *   A handle to a @CID_FaceInfoRec structure.
+   */
+  typedef struct CID_FaceInfoRec_*  CID_FaceInfo;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_Info
+   *
+   * @description:
+   *  This type is equivalent to @CID_FaceInfoRec.  It is deprecated but kept
+   *  to maintain source compatibility between various versions of FreeType.
+   */
+  typedef CID_FaceInfoRec  CID_Info;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Has_PS_Glyph_Names
+   *
+   * @description:
+   *   Return true if a given face provides reliable PostScript glyph names.
+   *   This is similar to using the @FT_HAS_GLYPH_NAMES macro, except that
+   *   certain fonts (mostly TrueType) contain incorrect glyph name tables.
+   *
+   *   When this function returns true, the caller is sure that the glyph
+   *   names returned by @FT_Get_Glyph_Name are reliable.
+   *
+   * @input:
+   *   face ::
+   *     face handle
+   *
+   * @return:
+   *   Boolean.  True if glyph names are reliable.
+   *
+   */
+  FT_EXPORT( FT_Int )
+  FT_Has_PS_Glyph_Names( FT_Face  face );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_PS_Font_Info
+   *
+   * @description:
+   *   Retrieve the @PS_FontInfoRec structure corresponding to a given
+   *   PostScript font.
+   *
+   * @input:
+   *   face ::
+   *     PostScript face handle.
+   *
+   * @output:
+   *   afont_info ::
+   *     A pointer to a @PS_FontInfoRec object.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   String pointers within the @PS_FontInfoRec structure are owned by the
+   *   face and don't need to be freed by the caller.  Missing entries in the
+   *   font's FontInfo dictionary are represented by `NULL` pointers.
+   *
+   *   The following font formats support this feature: 'Type~1', 'Type~42',
+   *   'CFF', 'CID~Type~1'.  For other font formats this function returns the
+   *   `FT_Err_Invalid_Argument` error code.
+   *
+   * @example:
+   *   ```
+   *     PS_FontInfoRec  font_info;
+   *
+   *
+   *     error = FT_Get_PS_Font_Info( face, &font_info );
+   *     ...
+   *   ```
+   *
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_PS_Font_Info( FT_Face      face,
+					   PS_FontInfo  afont_info );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_PS_Font_Private
+   *
+   * @description:
+   *   Retrieve the @PS_PrivateRec structure corresponding to a given
+   *   PostScript font.
+   *
+   * @input:
+   *   face ::
+   *     PostScript face handle.
+   *
+   * @output:
+   *   afont_private ::
+   *     A pointer to a @PS_PrivateRec object.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The string pointers within the @PS_PrivateRec structure are owned by
+   *   the face and don't need to be freed by the caller.
+   *
+   *   Only the 'Type~1' font format supports this feature.  For other font
+   *   formats this function returns the `FT_Err_Invalid_Argument` error
+   *   code.
+   *
+   * @example:
+   *   ```
+   *     PS_PrivateRec  font_private;
+   *
+   *
+   *     error = FT_Get_PS_Font_Private( face, &font_private );
+   *     ...
+   *   ```
+   *
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_PS_Font_Private( FT_Face     face,
+						  PS_Private  afont_private );
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   T1_EncodingType
+   *
+   * @description:
+   *   An enumeration describing the 'Encoding' entry in a Type 1 dictionary.
+   *
+   * @values:
+   *   T1_ENCODING_TYPE_NONE ::
+   *   T1_ENCODING_TYPE_ARRAY ::
+   *   T1_ENCODING_TYPE_STANDARD ::
+   *   T1_ENCODING_TYPE_ISOLATIN1 ::
+   *   T1_ENCODING_TYPE_EXPERT ::
+   *
+   * @since:
+   *   2.4.8
+   */
+  typedef enum  T1_EncodingType_
+  {
+	T1_ENCODING_TYPE_NONE = 0,
+	T1_ENCODING_TYPE_ARRAY,
+	T1_ENCODING_TYPE_STANDARD,
+	T1_ENCODING_TYPE_ISOLATIN1,
+	T1_ENCODING_TYPE_EXPERT
+
+  } T1_EncodingType;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   PS_Dict_Keys
+   *
+   * @description:
+   *   An enumeration used in calls to @FT_Get_PS_Font_Value to identify the
+   *   Type~1 dictionary entry to retrieve.
+   *
+   * @values:
+   *   PS_DICT_FONT_TYPE ::
+   *   PS_DICT_FONT_MATRIX ::
+   *   PS_DICT_FONT_BBOX ::
+   *   PS_DICT_PAINT_TYPE ::
+   *   PS_DICT_FONT_NAME ::
+   *   PS_DICT_UNIQUE_ID ::
+   *   PS_DICT_NUM_CHAR_STRINGS ::
+   *   PS_DICT_CHAR_STRING_KEY ::
+   *   PS_DICT_CHAR_STRING ::
+   *   PS_DICT_ENCODING_TYPE ::
+   *   PS_DICT_ENCODING_ENTRY ::
+   *   PS_DICT_NUM_SUBRS ::
+   *   PS_DICT_SUBR ::
+   *   PS_DICT_STD_HW ::
+   *   PS_DICT_STD_VW ::
+   *   PS_DICT_NUM_BLUE_VALUES ::
+   *   PS_DICT_BLUE_VALUE ::
+   *   PS_DICT_BLUE_FUZZ ::
+   *   PS_DICT_NUM_OTHER_BLUES ::
+   *   PS_DICT_OTHER_BLUE ::
+   *   PS_DICT_NUM_FAMILY_BLUES ::
+   *   PS_DICT_FAMILY_BLUE ::
+   *   PS_DICT_NUM_FAMILY_OTHER_BLUES ::
+   *   PS_DICT_FAMILY_OTHER_BLUE ::
+   *   PS_DICT_BLUE_SCALE ::
+   *   PS_DICT_BLUE_SHIFT ::
+   *   PS_DICT_NUM_STEM_SNAP_H ::
+   *   PS_DICT_STEM_SNAP_H ::
+   *   PS_DICT_NUM_STEM_SNAP_V ::
+   *   PS_DICT_STEM_SNAP_V ::
+   *   PS_DICT_FORCE_BOLD ::
+   *   PS_DICT_RND_STEM_UP ::
+   *   PS_DICT_MIN_FEATURE ::
+   *   PS_DICT_LEN_IV ::
+   *   PS_DICT_PASSWORD ::
+   *   PS_DICT_LANGUAGE_GROUP ::
+   *   PS_DICT_VERSION ::
+   *   PS_DICT_NOTICE ::
+   *   PS_DICT_FULL_NAME ::
+   *   PS_DICT_FAMILY_NAME ::
+   *   PS_DICT_WEIGHT ::
+   *   PS_DICT_IS_FIXED_PITCH ::
+   *   PS_DICT_UNDERLINE_POSITION ::
+   *   PS_DICT_UNDERLINE_THICKNESS ::
+   *   PS_DICT_FS_TYPE ::
+   *   PS_DICT_ITALIC_ANGLE ::
+   *
+   * @since:
+   *   2.4.8
+   */
+  typedef enum  PS_Dict_Keys_
+  {
+	/* conventionally in the font dictionary */
+	PS_DICT_FONT_TYPE,              /* FT_Byte         */
+	PS_DICT_FONT_MATRIX,            /* FT_Fixed        */
+	PS_DICT_FONT_BBOX,              /* FT_Fixed        */
+	PS_DICT_PAINT_TYPE,             /* FT_Byte         */
+	PS_DICT_FONT_NAME,              /* FT_String*      */
+	PS_DICT_UNIQUE_ID,              /* FT_Int          */
+	PS_DICT_NUM_CHAR_STRINGS,       /* FT_Int          */
+	PS_DICT_CHAR_STRING_KEY,        /* FT_String*      */
+	PS_DICT_CHAR_STRING,            /* FT_String*      */
+	PS_DICT_ENCODING_TYPE,          /* T1_EncodingType */
+	PS_DICT_ENCODING_ENTRY,         /* FT_String*      */
+
+	/* conventionally in the font Private dictionary */
+	PS_DICT_NUM_SUBRS,              /* FT_Int     */
+	PS_DICT_SUBR,                   /* FT_String* */
+	PS_DICT_STD_HW,                 /* FT_UShort  */
+	PS_DICT_STD_VW,                 /* FT_UShort  */
+	PS_DICT_NUM_BLUE_VALUES,        /* FT_Byte    */
+	PS_DICT_BLUE_VALUE,             /* FT_Short   */
+	PS_DICT_BLUE_FUZZ,              /* FT_Int     */
+	PS_DICT_NUM_OTHER_BLUES,        /* FT_Byte    */
+	PS_DICT_OTHER_BLUE,             /* FT_Short   */
+	PS_DICT_NUM_FAMILY_BLUES,       /* FT_Byte    */
+	PS_DICT_FAMILY_BLUE,            /* FT_Short   */
+	PS_DICT_NUM_FAMILY_OTHER_BLUES, /* FT_Byte    */
+	PS_DICT_FAMILY_OTHER_BLUE,      /* FT_Short   */
+	PS_DICT_BLUE_SCALE,             /* FT_Fixed   */
+	PS_DICT_BLUE_SHIFT,             /* FT_Int     */
+	PS_DICT_NUM_STEM_SNAP_H,        /* FT_Byte    */
+	PS_DICT_STEM_SNAP_H,            /* FT_Short   */
+	PS_DICT_NUM_STEM_SNAP_V,        /* FT_Byte    */
+	PS_DICT_STEM_SNAP_V,            /* FT_Short   */
+	PS_DICT_FORCE_BOLD,             /* FT_Bool    */
+	PS_DICT_RND_STEM_UP,            /* FT_Bool    */
+	PS_DICT_MIN_FEATURE,            /* FT_Short   */
+	PS_DICT_LEN_IV,                 /* FT_Int     */
+	PS_DICT_PASSWORD,               /* FT_Long    */
+	PS_DICT_LANGUAGE_GROUP,         /* FT_Long    */
+
+	/* conventionally in the font FontInfo dictionary */
+	PS_DICT_VERSION,                /* FT_String* */
+	PS_DICT_NOTICE,                 /* FT_String* */
+	PS_DICT_FULL_NAME,              /* FT_String* */
+	PS_DICT_FAMILY_NAME,            /* FT_String* */
+	PS_DICT_WEIGHT,                 /* FT_String* */
+	PS_DICT_IS_FIXED_PITCH,         /* FT_Bool    */
+	PS_DICT_UNDERLINE_POSITION,     /* FT_Short   */
+	PS_DICT_UNDERLINE_THICKNESS,    /* FT_UShort  */
+	PS_DICT_FS_TYPE,                /* FT_UShort  */
+	PS_DICT_ITALIC_ANGLE,           /* FT_Long    */
+
+	PS_DICT_MAX = PS_DICT_ITALIC_ANGLE
+
+  } PS_Dict_Keys;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_PS_Font_Value
+   *
+   * @description:
+   *   Retrieve the value for the supplied key from a PostScript font.
+   *
+   * @input:
+   *   face ::
+   *     PostScript face handle.
+   *
+   *   key ::
+   *     An enumeration value representing the dictionary key to retrieve.
+   *
+   *   idx ::
+   *     For array values, this specifies the index to be returned.
+   *
+   *   value ::
+   *     A pointer to memory into which to write the value.
+   *
+   *   valen_len ::
+   *     The size, in bytes, of the memory supplied for the value.
+   *
+   * @output:
+   *   value ::
+   *     The value matching the above key, if it exists.
+   *
+   * @return:
+   *   The amount of memory (in bytes) required to hold the requested value
+   *   (if it exists, -1 otherwise).
+   *
+   * @note:
+   *   The values returned are not pointers into the internal structures of
+   *   the face, but are 'fresh' copies, so that the memory containing them
+   *   belongs to the calling application.  This also enforces the
+   *   'read-only' nature of these values, i.e., this function cannot be
+   *   used to manipulate the face.
+   *
+   *   `value` is a void pointer because the values returned can be of
+   *   various types.
+   *
+   *   If either `value` is `NULL` or `value_len` is too small, just the
+   *   required memory size for the requested entry is returned.
+   *
+   *   The `idx` parameter is used, not only to retrieve elements of, for
+   *   example, the FontMatrix or FontBBox, but also to retrieve name keys
+   *   from the CharStrings dictionary, and the charstrings themselves.  It
+   *   is ignored for atomic values.
+   *
+   *   `PS_DICT_BLUE_SCALE` returns a value that is scaled up by 1000.  To
+   *   get the value as in the font stream, you need to divide by 65536000.0
+   *   (to remove the FT_Fixed scale, and the x1000 scale).
+   *
+   *   IMPORTANT: Only key/value pairs read by the FreeType interpreter can
+   *   be retrieved.  So, for example, PostScript procedures such as NP, ND,
+   *   and RD are not available.  Arbitrary keys are, obviously, not be
+   *   available either.
+   *
+   *   If the font's format is not PostScript-based, this function returns
+   *   the `FT_Err_Invalid_Argument` error code.
+   *
+   * @since:
+   *   2.4.8
+   *
+   */
+  FT_EXPORT( FT_Long )
+  FT_Get_PS_Font_Value( FT_Face       face,
+						PS_Dict_Keys  key,
+						FT_UInt       idx,
+						void         *value,
+						FT_Long       value_len );
+
+  /* */
+
+FT_END_HEADER
+
+#endif /* T1TABLES_H_ */
+
+/* END */
+
+/*** End of inlined file: t1tables.h ***/
+
+FT_BEGIN_HEADER
+
+  /**************************************************************************
+   *
+   * @section:
+   *   multiple_masters
+   *
+   * @title:
+   *   Multiple Masters
+   *
+   * @abstract:
+   *   How to manage Multiple Masters fonts.
+   *
+   * @description:
+   *   The following types and functions are used to manage Multiple Master
+   *   fonts, i.e., the selection of specific design instances by setting
+   *   design axis coordinates.
+   *
+   *   Besides Adobe MM fonts, the interface supports Apple's TrueType GX and
+   *   OpenType variation fonts.  Some of the routines only work with Adobe
+   *   MM fonts, others will work with all three types.  They are similar
+   *   enough that a consistent interface makes sense.
+   *
+   *   For Adobe MM fonts, macro @FT_IS_SFNT returns false.  For GX and
+   *   OpenType variation fonts, it returns true.
+   *
+   */
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_MM_Axis
+   *
+   * @description:
+   *   A structure to model a given axis in design space for Multiple Masters
+   *   fonts.
+   *
+   *   This structure can't be used for TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @fields:
+   *   name ::
+   *     The axis's name.
+   *
+   *   minimum ::
+   *     The axis's minimum design coordinate.
+   *
+   *   maximum ::
+   *     The axis's maximum design coordinate.
+   */
+  typedef struct  FT_MM_Axis_
+  {
+	FT_String*  name;
+	FT_Long     minimum;
+	FT_Long     maximum;
+
+  } FT_MM_Axis;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Multi_Master
+   *
+   * @description:
+   *   A structure to model the axes and space of a Multiple Masters font.
+   *
+   *   This structure can't be used for TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @fields:
+   *   num_axis ::
+   *     Number of axes.  Cannot exceed~4.
+   *
+   *   num_designs ::
+   *     Number of designs; should be normally 2^num_axis even though the
+   *     Type~1 specification strangely allows for intermediate designs to be
+   *     present.  This number cannot exceed~16.
+   *
+   *   axis ::
+   *     A table of axis descriptors.
+   */
+  typedef struct  FT_Multi_Master_
+  {
+	FT_UInt     num_axis;
+	FT_UInt     num_designs;
+	FT_MM_Axis  axis[T1_MAX_MM_AXIS];
+
+  } FT_Multi_Master;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Var_Axis
+   *
+   * @description:
+   *   A structure to model a given axis in design space for Multiple
+   *   Masters, TrueType GX, and OpenType variation fonts.
+   *
+   * @fields:
+   *   name ::
+   *     The axis's name.  Not always meaningful for TrueType GX or OpenType
+   *     variation fonts.
+   *
+   *   minimum ::
+   *     The axis's minimum design coordinate.
+   *
+   *   def ::
+   *     The axis's default design coordinate.  FreeType computes meaningful
+   *     default values for Adobe MM fonts.
+   *
+   *   maximum ::
+   *     The axis's maximum design coordinate.
+   *
+   *   tag ::
+   *     The axis's tag (the equivalent to 'name' for TrueType GX and
+   *     OpenType variation fonts).  FreeType provides default values for
+   *     Adobe MM fonts if possible.
+   *
+   *   strid ::
+   *     The axis name entry in the font's 'name' table.  This is another
+   *     (and often better) version of the 'name' field for TrueType GX or
+   *     OpenType variation fonts.  Not meaningful for Adobe MM fonts.
+   *
+   * @note:
+   *   The fields `minimum`, `def`, and `maximum` are 16.16 fractional values
+   *   for TrueType GX and OpenType variation fonts.  For Adobe MM fonts, the
+   *   values are whole numbers (i.e., the fractional part is zero).
+   */
+  typedef struct  FT_Var_Axis_
+  {
+	FT_String*  name;
+
+	FT_Fixed    minimum;
+	FT_Fixed    def;
+	FT_Fixed    maximum;
+
+	FT_ULong    tag;
+	FT_UInt     strid;
+
+  } FT_Var_Axis;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Var_Named_Style
+   *
+   * @description:
+   *   A structure to model a named instance in a TrueType GX or OpenType
+   *   variation font.
+   *
+   *   This structure can't be used for Adobe MM fonts.
+   *
+   * @fields:
+   *   coords ::
+   *     The design coordinates for this instance.  This is an array with one
+   *     entry for each axis.
+   *
+   *   strid ::
+   *     The entry in 'name' table identifying this instance.
+   *
+   *   psid ::
+   *     The entry in 'name' table identifying a PostScript name for this
+   *     instance.  Value 0xFFFF indicates a missing entry.
+   */
+  typedef struct  FT_Var_Named_Style_
+  {
+	FT_Fixed*  coords;
+	FT_UInt    strid;
+	FT_UInt    psid;   /* since 2.7.1 */
+
+  } FT_Var_Named_Style;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_MM_Var
+   *
+   * @description:
+   *   A structure to model the axes and space of an Adobe MM, TrueType GX,
+   *   or OpenType variation font.
+   *
+   *   Some fields are specific to one format and not to the others.
+   *
+   * @fields:
+   *   num_axis ::
+   *     The number of axes.  The maximum value is~4 for Adobe MM fonts; no
+   *     limit in TrueType GX or OpenType variation fonts.
+   *
+   *   num_designs ::
+   *     The number of designs; should be normally 2^num_axis for Adobe MM
+   *     fonts.  Not meaningful for TrueType GX or OpenType variation fonts
+   *     (where every glyph could have a different number of designs).
+   *
+   *   num_namedstyles ::
+   *     The number of named styles; a 'named style' is a tuple of design
+   *     coordinates that has a string ID (in the 'name' table) associated
+   *     with it.  The font can tell the user that, for example,
+   *     [Weight=1.5,Width=1.1] is 'Bold'.  Another name for 'named style' is
+   *     'named instance'.
+   *
+   *     For Adobe Multiple Masters fonts, this value is always zero because
+   *     the format does not support named styles.
+   *
+   *   axis ::
+   *     An axis descriptor table.  TrueType GX and OpenType variation fonts
+   *     contain slightly more data than Adobe MM fonts.  Memory management
+   *     of this pointer is done internally by FreeType.
+   *
+   *   namedstyle ::
+   *     A named style (instance) table.  Only meaningful for TrueType GX and
+   *     OpenType variation fonts.  Memory management of this pointer is done
+   *     internally by FreeType.
+   */
+  typedef struct  FT_MM_Var_
+  {
+	FT_UInt              num_axis;
+	FT_UInt              num_designs;
+	FT_UInt              num_namedstyles;
+	FT_Var_Axis*         axis;
+	FT_Var_Named_Style*  namedstyle;
+
+  } FT_MM_Var;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Multi_Master
+   *
+   * @description:
+   *   Retrieve a variation descriptor of a given Adobe MM font.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @output:
+   *   amaster ::
+   *     The Multiple Masters descriptor.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Multi_Master( FT_Face           face,
+					   FT_Multi_Master  *amaster );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_MM_Var
+   *
+   * @description:
+   *   Retrieve a variation descriptor for a given font.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @output:
+   *   amaster ::
+   *     The variation descriptor.  Allocates a data structure, which the
+   *     user must deallocate with a call to @FT_Done_MM_Var after use.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_MM_Var( FT_Face      face,
+				 FT_MM_Var*  *amaster );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Done_MM_Var
+   *
+   * @description:
+   *   Free the memory allocated by @FT_Get_MM_Var.
+   *
+   * @input:
+   *   library ::
+   *     A handle of the face's parent library object that was used in the
+   *     call to @FT_Get_MM_Var to create `amaster`.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Done_MM_Var( FT_Library   library,
+				  FT_MM_Var   *amaster );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_MM_Design_Coordinates
+   *
+   * @description:
+   *   For Adobe MM fonts, choose an interpolated font design through design
+   *   coordinates.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   num_coords ::
+   *     The number of available design coordinates.  If it is larger than
+   *     the number of axes, ignore the excess values.  If it is smaller than
+   *     the number of axes, use default values for the remaining axes.
+   *
+   *   coords ::
+   *     An array of design coordinates.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   [Since 2.8.1] To reset all axes to the default values, call the
+   *   function with `num_coords` set to zero and `coords` set to `NULL`.
+   *
+   *   [Since 2.9] If `num_coords` is larger than zero, this function sets
+   *   the @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field
+   *   (i.e., @FT_IS_VARIATION will return true).  If `num_coords` is zero,
+   *   this bit flag gets unset.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_MM_Design_Coordinates( FT_Face   face,
+								FT_UInt   num_coords,
+								FT_Long*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Var_Design_Coordinates
+   *
+   * @description:
+   *   Choose an interpolated font design through design coordinates.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   num_coords ::
+   *     The number of available design coordinates.  If it is larger than
+   *     the number of axes, ignore the excess values.  If it is smaller than
+   *     the number of axes, use default values for the remaining axes.
+   *
+   *   coords ::
+   *     An array of design coordinates.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The design coordinates are 16.16 fractional values for TrueType GX and
+   *   OpenType variation fonts.  For Adobe MM fonts, the values are supposed
+   *   to be whole numbers (i.e., the fractional part is zero).
+   *
+   *   [Since 2.8.1] To reset all axes to the default values, call the
+   *   function with `num_coords` set to zero and `coords` set to `NULL`.
+   *   [Since 2.9] 'Default values' means the currently selected named
+   *   instance (or the base font if no named instance is selected).
+   *
+   *   [Since 2.9] If `num_coords` is larger than zero, this function sets
+   *   the @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field
+   *   (i.e., @FT_IS_VARIATION will return true).  If `num_coords` is zero,
+   *   this bit flag gets unset.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_Var_Design_Coordinates( FT_Face    face,
+								 FT_UInt    num_coords,
+								 FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Var_Design_Coordinates
+   *
+   * @description:
+   *   Get the design coordinates of the currently selected interpolated
+   *   font.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   num_coords ::
+   *     The number of design coordinates to retrieve.  If it is larger than
+   *     the number of axes, set the excess values to~0.
+   *
+   * @output:
+   *   coords ::
+   *     The design coordinates array.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The design coordinates are 16.16 fractional values for TrueType GX and
+   *   OpenType variation fonts.  For Adobe MM fonts, the values are whole
+   *   numbers (i.e., the fractional part is zero).
+   *
+   * @since:
+   *   2.7.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Var_Design_Coordinates( FT_Face    face,
+								 FT_UInt    num_coords,
+								 FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_MM_Blend_Coordinates
+   *
+   * @description:
+   *   Choose an interpolated font design through normalized blend
+   *   coordinates.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   num_coords ::
+   *     The number of available design coordinates.  If it is larger than
+   *     the number of axes, ignore the excess values.  If it is smaller than
+   *     the number of axes, use default values for the remaining axes.
+   *
+   *   coords ::
+   *     The design coordinates array.  Each element is a 16.16 fractional
+   *     value and must be between 0 and 1.0 for Adobe MM fonts, and between
+   *     -1.0 and 1.0 for TrueType GX and OpenType variation fonts.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   [Since 2.8.1] To reset all axes to the default values, call the
+   *   function with `num_coords` set to zero and `coords` set to `NULL`.
+   *   [Since 2.9] 'Default values' means the currently selected named
+   *   instance (or the base font if no named instance is selected).
+   *
+   *   [Since 2.9] If `num_coords` is larger than zero, this function sets
+   *   the @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field
+   *   (i.e., @FT_IS_VARIATION will return true).  If `num_coords` is zero,
+   *   this bit flag gets unset.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_MM_Blend_Coordinates( FT_Face    face,
+							   FT_UInt    num_coords,
+							   FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_MM_Blend_Coordinates
+   *
+   * @description:
+   *   Get the normalized blend coordinates of the currently selected
+   *   interpolated font.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   num_coords ::
+   *     The number of normalized blend coordinates to retrieve.  If it is
+   *     larger than the number of axes, set the excess values to~0.5 for
+   *     Adobe MM fonts, and to~0 for TrueType GX and OpenType variation
+   *     fonts.
+   *
+   * @output:
+   *   coords ::
+   *     The normalized blend coordinates array (as 16.16 fractional values).
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @since:
+   *   2.7.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_MM_Blend_Coordinates( FT_Face    face,
+							   FT_UInt    num_coords,
+							   FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Var_Blend_Coordinates
+   *
+   * @description:
+   *   This is another name of @FT_Set_MM_Blend_Coordinates.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_Var_Blend_Coordinates( FT_Face    face,
+								FT_UInt    num_coords,
+								FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Var_Blend_Coordinates
+   *
+   * @description:
+   *   This is another name of @FT_Get_MM_Blend_Coordinates.
+   *
+   * @since:
+   *   2.7.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Var_Blend_Coordinates( FT_Face    face,
+								FT_UInt    num_coords,
+								FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_MM_WeightVector
+   *
+   * @description:
+   *   For Adobe MM fonts, choose an interpolated font design by directly
+   *   setting the weight vector.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   len ::
+   *     The length of the weight vector array.  If it is larger than the
+   *     number of designs, the extra values are ignored.  If it is less than
+   *     the number of designs, the remaining values are set to zero.
+   *
+   *   weightvector ::
+   *     An array representing the weight vector.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   Adobe Multiple Master fonts limit the number of designs, and thus the
+   *   length of the weight vector to 16~elements.
+   *
+   *   If `len` is larger than zero, this function sets the
+   *   @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field (i.e.,
+   *   @FT_IS_VARIATION will return true).  If `len` is zero, this bit flag
+   *   is unset and the weight vector array is reset to the default values.
+   *
+   *   The Adobe documentation also states that the values in the
+   *   WeightVector array must total 1.0 +/-~0.001.  In practice this does
+   *   not seem to be enforced, so is not enforced here, either.
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_MM_WeightVector( FT_Face    face,
+						  FT_UInt    len,
+						  FT_Fixed*  weightvector );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_MM_WeightVector
+   *
+   * @description:
+   *   For Adobe MM fonts, retrieve the current weight vector of the font.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   len ::
+   *     A pointer to the size of the array to be filled.  If the size of the
+   *     array is less than the number of designs, `FT_Err_Invalid_Argument`
+   *     is returned, and `len` is set to the required size (the number of
+   *     designs).  If the size of the array is greater than the number of
+   *     designs, the remaining entries are set to~0.  On successful
+   *     completion, `len` is set to the number of designs (i.e., the number
+   *     of values written to the array).
+   *
+   * @output:
+   *   weightvector ::
+   *     An array to be filled.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   Adobe Multiple Master fonts limit the number of designs, and thus the
+   *   length of the WeightVector to~16.
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_MM_WeightVector( FT_Face    face,
+						  FT_UInt*   len,
+						  FT_Fixed*  weightvector );
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_VAR_AXIS_FLAG_XXX
+   *
+   * @description:
+   *   A list of bit flags used in the return value of
+   *   @FT_Get_Var_Axis_Flags.
+   *
+   * @values:
+   *   FT_VAR_AXIS_FLAG_HIDDEN ::
+   *     The variation axis should not be exposed to user interfaces.
+   *
+   * @since:
+   *   2.8.1
+   */
+#define FT_VAR_AXIS_FLAG_HIDDEN  1
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Var_Axis_Flags
+   *
+   * @description:
+   *   Get the 'flags' field of an OpenType Variation Axis Record.
+   *
+   *   Not meaningful for Adobe MM fonts (`*flags` is always zero).
+   *
+   * @input:
+   *   master ::
+   *     The variation descriptor.
+   *
+   *   axis_index ::
+   *     The index of the requested variation axis.
+   *
+   * @output:
+   *   flags ::
+   *     The 'flags' field.  See @FT_VAR_AXIS_FLAG_XXX for possible values.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @since:
+   *   2.8.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Var_Axis_Flags( FT_MM_Var*  master,
+						 FT_UInt     axis_index,
+						 FT_UInt*    flags );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Named_Instance
+   *
+   * @description:
+   *   Set or change the current named instance.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   instance_index ::
+   *     The index of the requested instance, starting with value 1.  If set
+   *     to value 0, FreeType switches to font access without a named
+   *     instance.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The function uses the value of `instance_index` to set bits 16-30 of
+   *   the face's `face_index` field.  It also resets any variation applied
+   *   to the font, and the @FT_FACE_FLAG_VARIATION bit of the face's
+   *   `face_flags` field gets reset to zero (i.e., @FT_IS_VARIATION will
+   *   return false).
+   *
+   *   For Adobe MM fonts (which don't have named instances) this function
+   *   simply resets the current face to the default instance.
+   *
+   * @since:
+   *   2.9
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_Named_Instance( FT_Face  face,
+						 FT_UInt  instance_index );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Default_Named_Instance
+   *
+   * @description:
+   *   Retrieve the index of the default named instance, to be used with
+   *   @FT_Set_Named_Instance.
+   *
+   *   The default instance of a variation font is that instance for which
+   *   the nth axis coordinate is equal to `axis[n].def` (as specified in the
+   *   @FT_MM_Var structure), with~n covering all axes.
+   *
+   *   FreeType synthesizes a named instance for the default instance if the
+   *   font does not contain such an entry.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @output:
+   *   instance_index ::
+   *     The index of the default named instance.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   For Adobe MM fonts (which don't have named instances) this function
+   *   always returns zero for `instance_index`.
+   *
+   * @since:
+   *   2.13.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Default_Named_Instance( FT_Face   face,
+								 FT_UInt  *instance_index );
+
+  /* */
+
+FT_END_HEADER
+
+#endif /* FTMM_H_ */
+
+/* END */
+
+/*** End of inlined file: ftmm.h ***/
+
 #ifdef _MSC_VER
 #pragma pop_macro("_CRT_SECURE_NO_WARNINGS")
 #endif
