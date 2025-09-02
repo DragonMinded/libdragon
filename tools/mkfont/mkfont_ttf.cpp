@@ -455,11 +455,13 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
             // Now do the N*N loop
             for (int i=0;i<num_codepoints;i++) {
                 int gidx1 = (i >= range->num_codepoints) ? i-range->num_codepoints : range->first_glyph + i;
-                int ttfidx1 = gidx_to_ttfidx[gidx1];
+                int ttfidx1 = gidx_to_ttfidx.find(gidx1) != gidx_to_ttfidx.end() ? gidx_to_ttfidx[gidx1] : -1;
+                if (ttfidx1 == -1) continue;
 
                 for (int j=0;j<num_codepoints;j++) {
                     int gidx2 = (j >= range->num_codepoints) ? j-range->num_codepoints : range->first_glyph + j;
-                    int ttfidx2 = gidx_to_ttfidx[gidx2];
+                    int ttfidx2 = gidx_to_ttfidx.find(gidx2) != gidx_to_ttfidx.end() ? gidx_to_ttfidx[gidx2] : -1;
+                    if (ttfidx2 == -1) continue;
 
                     FT_Vector kerning;
                     FT_Get_Kerning(face, ttfidx1, ttfidx2, FT_KERNING_DEFAULT, &kerning);
@@ -471,8 +473,8 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                         font.add_kerning(gidx1, gidx2, kerning.x >> 6);
 
                         if (flag_verbose >= 3) {
-                            int codepoint1 = (i >= range->num_codepoints) ? ascii_range_start + i - range->num_codepoints : range->first_codepoint + i;
-                            int codepoint2 = (j >= range->num_codepoints) ? ascii_range_start + j - range->num_codepoints : range->first_codepoint + j;
+                            int codepoint1 = font.get_codepoint(gidx1);
+                            int codepoint2 = font.get_codepoint(gidx2);
                             fprintf(stderr, "  kerning %s -> %s: %ld\n", codepoint_to_utf8(codepoint1).c_str(), codepoint_to_utf8(codepoint2).c_str(), kerning.x >> 6);
                         }
                     }

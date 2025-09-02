@@ -414,6 +414,7 @@ struct Font {
     }
 
     int get_glyph_index(uint32_t cp);
+    uint32_t get_codepoint(int gidx);
     void write(FILE *out);
 
     void add_range(int first, int last);
@@ -626,6 +627,15 @@ int Font::get_glyph_index(uint32_t cp)
             return fnt->ranges[i].first_glyph + cp - fnt->ranges[i].first_codepoint;
     }
     return -1;
+}
+
+uint32_t Font::get_codepoint(int gidx)
+{
+    for (int i=0;i<fnt->num_ranges;i++) {
+        if (gidx >= fnt->ranges[i].first_glyph && gidx < fnt->ranges[i].first_glyph + fnt->ranges[i].num_codepoints)
+            return fnt->ranges[i].first_codepoint + gidx - fnt->ranges[i].first_glyph;
+    }
+    return 0xFFFFFFFF;
 }
 
 static bool image_fits_tmem(Image& img, tex_format_t fmt)
