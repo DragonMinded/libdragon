@@ -22,14 +22,6 @@
  * @{
  */
 
-/**
- * @brief Number of ticks between Joybus identify commands.
- *
- * During VI interrupt, the Joypad subsystem will periodically re-identify
- * the connected devices to check if the identifier has changed or if any
- * accessories have been connected/disconnected.
- */
-#define JOYPAD_IDENTIFY_INTERVAL_TICKS TICKS_PER_SECOND
 
 /** @brief Convenience macro to ensure Joypad subsystem is initialized. */
 #define ASSERT_JOYPAD_INITIALIZED() \
@@ -61,15 +53,6 @@ static joypad_port_t bb_hack_flags_swap_port( joypad_port_t port )
  * @name "Hot" (interrupt-driven) global state
  * @{
  */
-/** @brief Timer ticks when the Joypads were last identified. */
-static volatile uint32_t joypad_identify_last_ticks = 0;
-/** @brief Are we in the middle of identifying the Joypads? */
-static volatile bool joypad_identify_pending = false;
-/** @brief Is the cached Joybus input block for identifying Joypads valid? */
-static volatile uint8_t joypad_identify_input_valid = false;
-/** @brief Cached Joybus input block for identifying all Joypads. */
-static volatile uint8_t joypad_identify_input[JOYBUS_BLOCK_SIZE] = {0};
-
 /** @brief Are we in the middle of reading the Joypads? */
 static volatile bool joypad_read_pending = false;
 /** @brief Is the cached Joybus input block for reading Joypads valid? */
@@ -88,8 +71,6 @@ static volatile bool joypad_gcn_origin_input_valid = false;
 /** @brief Cached Joybus input block for reading GameCube origins. */
 static volatile uint8_t joypad_gcn_origin_input[JOYBUS_BLOCK_SIZE] = {0};
 
-/** @brief Joypad identifiers for each port. */
-volatile joybus_identifier_t joypad_identifiers_hot[JOYPAD_PORT_COUNT] = {0};
 /** @brief Joypad "hot" devices for each port. */
 volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT] = {0};
 /** @brief Joypad origins for each port. */
@@ -108,50 +89,6 @@ static int joypad_init_refcount = 0;
 /** @brief Joypad "cold" devices for each port. */
 static joypad_device_cold_t joypad_devices_cold[JOYPAD_PORT_COUNT] = {0};
 /** @} */ /* joypad_cold_state */
-
-/**
- * @brief Reinitialize the state of a Joypad device when its identifier changes.
- * 
- * @param port Joypad port to reinitialize.
- * @param identifier New Joypad identifier for the port.
- */
-static void joypad_device_changed(joypad_port_t port, joybus_identifier_t identifier)
-{
-    joypad_identifiers_hot[port] = identifier;
-    joypad_origins_hot[port] = JOYPAD_GCN_ORIGIN_INIT;
-    memset((void *)&joypad_devices_cold[port], 0, sizeof(joypad_devices_cold[port]));
-    memset((void *)&joypad_devices_hot[port], 0, sizeof(joypad_devices_hot[port]));
-    joypad_accessory_reset(port);
-}
-
-static void joybus_input_identify( uint8_t input[JOYBUS_BLOCK_SIZE], bool reset )
-{
-    const joybus_cmd_identify_port_t cmd = { .send = {
-        .command = reset ? JOYBUS_COMMAND_ID_RESET : JOYBUS_COMMAND_ID_IDENTIFY,
-    } };
-    const size_t recv_offset = offsetof(typeof(cmd), recv);
-    size_t i = 0;
-
-    // Populate the Joybus commands on each port
-    memset(input, 0x00, JOYBUS_BLOCK_SIZE);
-    JOYPAD_PORT_FOREACH (port)
-    {
-        // iQue PIF requires a NOP (0xFF) before each command
-        if (sys_bbplayer()) input[i++] = 0xFF;
-        // Set the command metadata
-        input[i++] = sizeof(cmd.send);
-        input[i++] = sizeof(cmd.recv);
-        // Micro-optimization: Minimize copy length
-        memcpy(&input[i], &cmd, recv_offset);
-        i += sizeof(cmd);
-        // iQue PIF requires commands to be 8-byte aligned
-        if (sys_bbplayer()) while (i & 7) input[i++] = 0xFF;
-    }
-
-    // Close out the Joybus operation block
-    input[i] = 0xFE;
-    input[JOYBUS_BLOCK_SIZE - 1] = 0x01;
-}
 
 static void joybus_input_read_n64_controllers( uint8_t input[JOYBUS_BLOCK_SIZE] )
 {
@@ -391,45 +328,66 @@ static void joypad_gcn_origin_check_async(void)
     joybus_exec_async(input, joypad_gcn_origin_callback, NULL);
 }
 
-/**
- * @brief Callback for identifying Joypads.
- * 
- * @param[in] out_dwords Joybus output block.
- * @param[in,out] ctx Not used.
- */
-static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
+static void joypad_device_reset(int port)
 {
-    const uint8_t *out_bytes = (void *)out_dwords;
-    const joybus_cmd_identify_port_t *cmd;
-    volatile joypad_device_hot_t *device;
-    volatile joypad_accessory_t *accessory;
-    bool devices_changed = false;
-    size_t i = 0;
+    memset((void *)&joypad_devices_hot[port], 0, sizeof(joypad_devices_hot[port]));
+    joypad_origins_hot[port] = JOYPAD_GCN_ORIGIN_INIT;
+    joypad_accessory_reset(port);
+    joypad_read_input_valid = false;
+}
 
-    JOYPAD_PORT_FOREACH (port)
+/**
+ * @brief Process a new status byte for an N64 controller to handle accessory changes.
+ */
+static void joypad_accessory_polled(int port, uint8_t new_status)
+{
+    volatile joypad_device_hot_t *device = &joypad_devices_hot[port];   
+    volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
+    assert(device->style == JOYPAD_STYLE_N64); // Only N64 controllers have accessories
+
+    uint8_t prev_accessory_status = accessory->status;
+    uint8_t accessory_status = new_status & JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK;
+    // Work-around third-party controllers that don't correctly report accessory status
+    bool accessory_absent = (
+        accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT ||
+        accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED
+    );
+    bool accessory_changed = (
+        accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED ||
+        (
+            accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
+            prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
+            prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED
+        )
+    );
+    if (accessory_absent || accessory_changed)
     {
-        if (sys_bbplayer()) {
-            // iQue has a very fixed layout for commands, and it also tends
-            // to corrupt other parts of PIF-RAM. So better jump to fixed positions
-            // while parsing.
-            i = (port * 8) + 1;
-        }
-        device = &joypad_devices_hot[port];
-        accessory = &joypad_accessories_hot[port];
-        cmd = (void *)&out_bytes[i + JOYBUS_COMMAND_METADATA_SIZE];
+        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
+        accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
+        device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
+        device->rumble_active = false;
+    }
+    if (accessory_changed)
+    {
+        accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
+        joypad_accessory_detect_async(port);
+    }
+    accessory->status = accessory_status;
+}
 
-        joybus_identifier_t identifier = cmd->recv.identifier;
-        if (out_bytes[i+1] & 0x80) {
-            // If the error flag is set, no device is connected here
-            identifier = JOYBUS_IDENTIFIER_NONE;
-        }
-        if (joypad_identifiers_hot[port] != identifier)
-        {
-            // The identifier has changed; reinitialize device state
-            joypad_device_changed(port, identifier);
-            devices_changed = true;
-        }
+/** @brief Callback when a new device is installed or removed. */
+static void joypad_detect_callback(
+    joybus_identifier_t identifier,  joybus_detection_event_t event,
+    int port, uint8_t device_status, void *ctx
+) {
+    volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
 
+    debugf("port: %d, id: 0x%04X, event: %d, status: 0x%02X\n",
+        port, identifier, event, device_status
+    );
+
+    switch (event) {
+    case JOYBUS_DETECT_CONNECTED:
         if (
             (identifier & JOYBUS_IDENTIFIER_MASK_PLATFORM) == JOYBUS_IDENTIFIER_PLATFORM_GCN &&
             (identifier & JOYBUS_IDENTIFIER_MASK_GCN_CONTROLLER)
@@ -441,76 +399,31 @@ static void joypad_identify_callback(uint64_t *out_dwords, void *ctx)
               ? JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER
               : JOYPAD_RUMBLE_METHOD_NONE;
             device->rumble_active = has_rumble && device->rumble_active;
+            joypad_read_input_valid = false;
         }
         else if (identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER)
         {
             device->style = JOYPAD_STYLE_N64;
-            uint8_t prev_accessory_status = accessory->status;
-            uint8_t accessory_status = cmd->recv.status & JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK;
-            // Work-around third-party controllers that don't correctly report accessory status
-            bool accessory_absent = (
-                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT ||
-                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED
-            );
-            bool accessory_changed = (
-                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED ||
-                (
-                    accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
-                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
-                    prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED
-                )
-            );
-            if (accessory_absent || accessory_changed)
-            {
-                accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
-                accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
-                device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
-                device->rumble_active = false;
-            }
-            if (accessory_changed)
-            {
-                accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
-                joypad_accessory_detect_async(port);
-            }
-            accessory->status = accessory_status;
+            joypad_accessory_polled(port, device_status);
+            joypad_read_input_valid = false;
         }
         else if (identifier == JOYBUS_IDENTIFIER_N64_MOUSE)
         {
             device->style = JOYPAD_STYLE_MOUSE;
+            joypad_read_input_valid = false;
         }
+        break;
 
-        i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
+    case JOYBUS_DETECT_POLLED:
+        if (device->style == JOYPAD_STYLE_N64)
+            joypad_accessory_polled(port, device_status);
+        break;
+
+    case JOYBUS_DETECT_DISCONNECTED:
+        joypad_device_reset(port);
+        break;
+
     }
-
-    if (devices_changed) joypad_read_input_valid = false;
-    joypad_identify_last_ticks = TICKS_READ();
-    joypad_identify_pending = false;
-}
-
-/**
- * @brief Identify Joypads asynchronously.
- * 
- * @param reset Whether to reset the devices.
- */
-static void joypad_identify_async(bool reset)
-{
-    // Async operations are disabled during reset
-    if( exception_reset_time() > 0 ) { return; }
-
-    // Bail if this operation is already in-progress
-    if (joypad_identify_pending) { return; }
-    joypad_identify_pending = true;
-
-    uint8_t * const input = (void *)joypad_identify_input;
-    // Reset invalidates the cached input block
-    if (!joypad_identify_input_valid || reset)
-    {
-        joybus_input_identify(input, reset);
-        // Identify is more common than reset, so don't cache resets
-        joypad_identify_input_valid = !reset;
-    }
-
-    joybus_exec_async(input, joypad_identify_callback, NULL);
 }
 
 /**
@@ -549,7 +462,6 @@ static void joypad_read_async(void)
     if (!joypad_read_input_valid)
     {
         volatile joypad_device_hot_t *device;
-        joybus_identifier_t identifier;
         size_t i = 0;
 
         // Populate Joybus controller read commands on each port
@@ -558,10 +470,9 @@ static void joypad_read_async(void)
         {
             joypad_read_input_offsets[port] = i;
             device = &joypad_devices_hot[port];
-            identifier = joypad_identifiers_hot[port];
 
-             if (device->style == JOYPAD_STYLE_GCN)
-            {
+            switch (device->style) {
+            case JOYPAD_STYLE_GCN: {
                 const joybus_cmd_gcn_controller_read_port_t cmd = { .send = {
                     .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ,
                     .mode = 3, // Most-compatible analog mode
@@ -574,12 +485,9 @@ static void joypad_read_async(void)
                 const size_t recv_offset = offsetof(typeof(cmd), recv);
                 memcpy(&input[i], &cmd, recv_offset);
                 i += sizeof(cmd);
-            }
-            else if (
-                identifier == JOYBUS_IDENTIFIER_N64_CONTROLLER ||
-                identifier == JOYBUS_IDENTIFIER_N64_MOUSE
-            )
-            {
+            }   break;
+            case JOYPAD_STYLE_N64:
+            case JOYPAD_STYLE_MOUSE: {
                 const joybus_cmd_n64_controller_read_port_t cmd = { .send = {
                     .command = JOYBUS_COMMAND_ID_N64_CONTROLLER_READ,
                 } };
@@ -590,11 +498,11 @@ static void joypad_read_async(void)
                 const size_t recv_offset = offsetof(typeof(cmd), recv);
                 memcpy(&input[i], &cmd, recv_offset);
                 i += sizeof(cmd);
-            }
-            else
-            {
+            }   break;
+            default:
                 // Skip this port
                 i += JOYBUS_COMMAND_SKIP_SIZE;
+                break;
             }
         }
 
@@ -614,11 +522,6 @@ static void joypad_read_async(void)
 static void joypad_vi_interrupt_callback(void* ctx)
 {
     joypad_read_async();
-    int32_t ticks_since_identify = TICKS_SINCE(joypad_identify_last_ticks);
-    if (ticks_since_identify > JOYPAD_IDENTIFY_INTERVAL_TICKS)
-    {
-        joypad_identify_async(false);
-    }
 }
 
 /**
@@ -656,23 +559,6 @@ static void joypad_reset_interrupt_callback(void)
                 break;
         }
     }
-}
-
-/**
- * @brief Re-identify and reset all Joypads and wait for completion.
- */
-static void joypad_reset(void)
-{
-    ASSERT_JOYPAD_INITIALIZED();
-    // Async operations are disabled during reset
-    if( exception_reset_time() > 0 ) { return; }
-
-    // Wait for pending identify/reset operation to resolve
-    while (joypad_identify_pending) { /* Spinlock */ }
-    // Enqueue this identify/reset operation
-    joypad_identify_async(true);
-    // Wait for the operation to finish
-    while (joypad_identify_pending) { /* Spinlock */ }
 }
 
 /**
@@ -722,20 +608,26 @@ void joypad_init(void)
     // Just increment the refcount if already initialized
 	if (joypad_init_refcount++ > 0) { return; }
 
+    // We depend on the joybus subsystem
+    joybus_init();
+
     // Initialize the VI subsystem so that we can poll in sync with VI interrupts
     vi_init();
 
-    // Initialize the timer subsystem (or increment its refcount)
+    // Initialize the timer subsystem (used by accessory detection)
     timer_init();
 
-    // Reinitialize all Joypad devices to unknown state
+    // Reset global structures
     JOYPAD_PORT_FOREACH (port)
     {
-        joypad_device_changed(port, JOYBUS_IDENTIFIER_UNKNOWN);
+        joypad_device_reset(port);
     }
 
+    // Register callbacks for device detection
+    joybus_register_detection_callback(joypad_detect_callback, NULL);
+
     // Ensure the Joypads are ready immediately after init returns
-    joypad_reset();
+    joybus_detect_now();
     joypad_read();
 
     // Update the Joypads on vblank interrupt
@@ -756,6 +648,7 @@ void joypad_close(void)
     // Decrement the timer subsystem refcount (possibly closing it)
     timer_close();
     vi_close();
+    joybus_close();
 }
 
 void joypad_poll(void)
@@ -772,7 +665,6 @@ void joypad_poll(void)
     disable_interrupts();
     memcpy(output, (void *)joypad_read_output, sizeof(output));
     memcpy(origins, (void *)joypad_origins_hot, sizeof(origins));
-    memcpy(identifiers, (void *)joypad_identifiers_hot, sizeof(identifiers));
     enable_interrupts();
 
     uint8_t send_len, recv_len, command_id, command_len;
@@ -864,8 +756,7 @@ bool joypad_is_connected(joypad_port_t port)
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
     switch( joypad_devices_cold[port].identifier ) {
-        case JOYBUS_IDENTIFIER_NONE:
-        case JOYBUS_IDENTIFIER_UNKNOWN: return false;
+        case JOYBUS_IDENTIFIER_NONE:    return false;
         default:                        return true;
     }
 }
@@ -889,20 +780,6 @@ joypad_accessory_type_t joypad_get_accessory_type(joypad_port_t port)
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
     return joypad_accessories_hot[port].type;
-}
-
-int joypad_get_accessory_state(joypad_port_t port)
-{
-    ASSERT_JOYPAD_INITIALIZED();
-    ASSERT_JOYPAD_PORT_VALID(port);
-    return joypad_accessories_hot[port].state;
-}
-
-int joypad_get_accessory_error(joypad_port_t port)
-{
-    ASSERT_JOYPAD_INITIALIZED();
-    ASSERT_JOYPAD_PORT_VALID(port);
-    return joypad_accessories_hot[port].error;
 }
 
 uint8_t joypad_get_transfer_pak_status(joypad_port_t port)
