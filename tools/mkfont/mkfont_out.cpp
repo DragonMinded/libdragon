@@ -686,11 +686,14 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
     case FONT_TYPE_MONO_OUTLINE:
         // Outline fonts are IA16. Intensity goes between 0x00 for the outline
         // to 0xFF for the fill, while the alpha channel is the coverage of each pixel.
-        // Outline monochromatic fonts have intensity fixed to 0xFF.
+        // Outline monochromatic fonts have intensity which is either 0x00 (outline)
+        // or 0xFF (fill), and alpha is either 0x00 (transparent) or 0xFF (opaque).
         if (img.fmt != FMT_IA16) assert(!"glyph image must be IA16 for outlined fonts");
         // Now check that all the pixels are monochrome
         img.for_each_pixel([&](Image::Pixel&& px) {
-            if (px.data[0] != 0 && px.data[1] != 0x00 && px.data[1] != 0xFF)
+            bool mono_i = px.data[0] == 0x00 || px.data[0] == 0xFF;
+            bool mono_a = px.data[1] == 0x00 || px.data[1] == 0xFF;
+            if (!mono_i || !mono_a)
                 assert(!"monochrome glyph must not contains shades of gray");
         });
         tmem_fmt = FMT_CI4;

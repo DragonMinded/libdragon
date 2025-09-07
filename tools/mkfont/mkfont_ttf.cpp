@@ -34,11 +34,19 @@ static bool is_monochrome(FT_Face face)
 
         FT_GlyphSlot slot = face->glyph;
         FT_Bitmap bmp = slot->bitmap;
+        if (bmp.pixel_mode == FT_PIXEL_MODE_MONO)
+            continue;
 
         for (int y=0; y<bmp.rows; y++) {
             for (int x=0; x<bmp.width; x++) {
-                if (bmp.buffer[y * bmp.pitch + x] != 0 && bmp.buffer[y * bmp.pitch + x] != 0xFF)
-                    return false;
+                switch (bmp.pixel_mode) {
+                    case FT_PIXEL_MODE_GRAY:
+                        if (bmp.buffer[y * bmp.pitch + x] != 0 && bmp.buffer[y * bmp.pitch + x] != 0xFF)
+                            return false;
+                        break;
+                    default:
+                        assert(false && "Unsupported pixel mode");
+                }
             }
         }
     }
@@ -187,20 +195,29 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         point_size = flag_ttf_point_size;
     }
 
+    // If the font is monochrome, remember it. We use the same flag as-if 
+    // monochrome rendering was requested from the command-line, as the effect is the same.
+    if (!flag_ttf_monochrome && is_monochrome(face))
+        flag_ttf_monochrome = true;
+
     // Decide the fonttype
     fonttype_t fonttype;
     if (!flag_ttf_outline) {
         if (FT_HAS_COLOR(face))
             fonttype = FONT_TYPE_BITMAP;
-        else if (flag_ttf_monochrome || is_monochrome(face))
+        else if (flag_ttf_monochrome)
             fonttype = FONT_TYPE_MONO;
         else
             fonttype = FONT_TYPE_ALIASED;
     } else {
+        if (!FT_IS_SCALABLE(face)) {
+            fprintf(stderr, "error: outline generation requires a scalable font\n");
+            return 1;
+        }
         if (FT_HAS_COLOR(face)) {
             fprintf(stderr, "error: outline generation not supported for color fonts\n");
             return 1;
-        } else if (flag_ttf_monochrome || is_monochrome(face))
+        } else if (flag_ttf_monochrome)
             fonttype = FONT_TYPE_MONO_OUTLINE;
         else
             fonttype = FONT_TYPE_ALIASED_OUTLINE;
@@ -353,18 +370,30 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 gidx_to_ttfidx[gidx] = ttf_idx;
 
             } else {
-                FT_Render_Mode rm = flag_ttf_monochrome ? FT_RENDER_MODE_MONO : FT_RENDER_MODE_NORMAL;
-
+                // Load the glyph without rendering it, we will do it ourselves.
+                // Avoid bitmaps was we can't stroke them.
                 FT_Glyph ftglyph1, ftglyph2;
-                FT_Load_Glyph(face, ttf_idx, FT_LOAD_DEFAULT);
+                FT_Load_Glyph(face, ttf_idx, FT_LOAD_NO_BITMAP);
+
+                // If the glyph was still returned in bitmap format, we cannot
+                // stroke it, so just abort. User is required to select ranges that
+                // can be outlined when outline is requested.
+                if (face->glyph->format == FT_GLYPH_FORMAT_BITMAP) {
+                    fprintf(stderr, "error: outline generation requires a scalable font (glyph U+%04X is bitmap, at least at this size)\n", g);
+                    return 1;
+                }
+
+                // Get the glyph, make a copy of it, and stroke the copy to create the outline
                 FT_Get_Glyph(face->glyph, &ftglyph1);
                 FT_Glyph_Copy(ftglyph1, &ftglyph2);
-
-                FT_Glyph_To_Bitmap(&ftglyph1, rm, nullptr, true);
-                FT_BitmapGlyph bitmapGlyph1 = reinterpret_cast<FT_BitmapGlyph>(ftglyph1);
-
                 FT_Glyph_StrokeBorder(&ftglyph2, stroker, false, true);
+
+                // Render both the filled glyph and the stroked one. We request
+                // MONO rendering if we are doing monochrome output.
+                FT_Render_Mode rm = flag_ttf_monochrome ? FT_RENDER_MODE_MONO : FT_RENDER_MODE_NORMAL;
+                FT_Glyph_To_Bitmap(&ftglyph1, rm, nullptr, true);
                 FT_Glyph_To_Bitmap(&ftglyph2, rm, nullptr, true);
+                FT_BitmapGlyph bitmapGlyph1 = reinterpret_cast<FT_BitmapGlyph>(ftglyph1);
                 FT_BitmapGlyph bitmapGlyph2 = reinterpret_cast<FT_BitmapGlyph>(ftglyph2);
 
                 // Calculate the union of the two bitmaps. Notice that the Y coordinates (top) is
@@ -385,10 +414,16 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 for (int y = 0; y < bitmapGlyph2->bitmap.rows; y++) {
                     for (int x = 0; x < bitmapGlyph2->bitmap.width; x++) {
                         uint8_t v;
-                        if (flag_ttf_monochrome)
+                        switch (bitmapGlyph2->bitmap.pixel_mode) {
+                        case FT_PIXEL_MODE_MONO:
                             v = (bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.pitch + x / 8] & (1 << (7 - x % 8))) ? 0xFF : 0;
-                        else
+                            break;
+                        case FT_PIXEL_MODE_GRAY:
                             v = bitmapGlyph2->bitmap.buffer[y * bitmapGlyph2->bitmap.pitch + x];
+                            break;
+                        default:
+                            assert(!"unsupported pixel mode in outline calculation");
+                        }
                         if (v != 0) {
                             img[y + img_top - bitmapGlyph2->top][x - img_left + bitmapGlyph2->left] = v;
                         }
@@ -399,11 +434,17 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
                 for (int y = 0; y < bitmapGlyph1->bitmap.rows; y++) {
                     for (int x = 0; x < bitmapGlyph1->bitmap.width; x++) {
                         uint8_t v;
-                        if (flag_ttf_monochrome)
+                        switch (bitmapGlyph1->bitmap.pixel_mode) {
+                        case FT_PIXEL_MODE_MONO:
                             v = (bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.pitch + x / 8] & (1 << (7 - x % 8))) ? 0xFF : 0;
-                        else
+                            break;
+                        case FT_PIXEL_MODE_GRAY:
                             v = bitmapGlyph1->bitmap.buffer[y * bitmapGlyph1->bitmap.pitch + x];
-                        if (v != 0) {                            
+                            break;
+                        default:
+                            assert(!"unsupported pixel mode in outline calculation");
+                        }
+                        if (v != 0) {
                             auto &&dst = img[y + img_top - bitmapGlyph1->top][x - img_left + bitmapGlyph1->left];
                             assert(dst.data[0] == 0);
                             dst.data[0] = v;
