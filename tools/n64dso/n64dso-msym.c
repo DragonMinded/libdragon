@@ -20,6 +20,7 @@
 #include "../common/polyfill.h"
 #include "../common/binout.c"
 #include "../common/binout.h"
+#include "../common/utils.h"
 
 //DSO Symbol Table Internals
 #include "../../src/dso_format.h"
@@ -30,7 +31,7 @@ dso_sym_t *export_syms = NULL;
 
 bool export_all = false;
 bool verbose_flag = false;
-char *n64_inst = NULL;
+const char *gccprefix_triplet = NULL;
 
 // Printf to stderr if verbose
 void verbose(const char *fmt, ...) {
@@ -81,7 +82,7 @@ void get_export_syms(char *infn)
     FILE *readelf_stdout = NULL;
     char *line_buf = NULL;
     size_t line_buf_size = 0;
-    asprintf(&readelf_bin, "%s/bin/mips64-elf-readelf", n64_inst);
+    asprintf(&readelf_bin, "%sreadelf", gccprefix_triplet);
     args[0] = readelf_bin;
     args[1] = "-s"; //Output symbol table
     args[2] = "-W"; //Wide output
@@ -197,27 +198,12 @@ int main(int argc, char **argv)
         return 1;
     }
     //Get libdragon install directory
-    if (!n64_inst) {
-        // n64.mk supports having a separate installation for the toolchain and
-        // libdragon. So first check if N64_GCCPREFIX is set; if so the toolchain
-        // is there. Otherwise, fallback to N64_INST which is where we expect
-        // the toolchain to reside.
-        n64_inst = getenv("N64_GCCPREFIX");
-        if (!n64_inst)
-            n64_inst = getenv("N64_INST");
-        if (!n64_inst) {
-            // Do not mention N64_GCCPREFIX in the error message, since it is
-            // a seldom used configuration.
-            fprintf(stderr, "Error: N64_INST environment variable not set.\n");
-            return 1;
-        }
-        // Remove the trailing backslash if any. On some system, running
-        // popen with a path containing double backslashes will fail, so
-        // we normalize it here.
-        n64_inst = strdup(n64_inst);
-        int n = strlen(n64_inst);
-        if (n64_inst[n-1] == '/' || n64_inst[n-1] == '\\')
-            n64_inst[n-1] = 0;
+    gccprefix_triplet = n64_gccprefix_triplet();
+    if (!gccprefix_triplet) {
+        // Do not mention N64_GCCPREFIX in the error message, since it is
+        // a seldom used configuration.
+        fprintf(stderr, "Error: N64_INST environment variable not set.\n");
+        return 1;
     }
     for(i=1; i<argc && argv[i][0] == '-'; i++) {
         if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {

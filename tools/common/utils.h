@@ -75,6 +75,35 @@ static const char *n64_toolchain_dir(void)
     return n64_inst;
 }
 
+// Find the prefix to be prepended for GCC commands.
+// This is everything before gcc, ld, objdump, etc
+__attribute__((used))
+static const char *n64_gccprefix_triplet(void)
+{
+    static char *n64_gccprefix_triplet = NULL;
+    if (n64_gccprefix_triplet)
+        return n64_gccprefix_triplet;
+
+    const char *inst = n64_toolchain_dir();
+    if (!inst)
+        return NULL;
+    const char *target = getenv("N64_TARGET");
+    if (!target)
+        target = "mips64-elf";
+
+    int ret;
+    if (target[0])
+        ret = asprintf(&n64_gccprefix_triplet, "%s/bin/%s-", inst, target);
+    else
+        ret = asprintf(&n64_gccprefix_triplet, "%s/bin/", inst);
+
+    if (ret < 0) {
+        perror("asprintf");
+        exit(1);
+    }
+    return n64_gccprefix_triplet;
+}
+
 // Find the directory where the libdragon tools are installed.
 // This is where you can find mksprite, mkfont, etc.
 __attribute__((used))
