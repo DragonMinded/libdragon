@@ -325,7 +325,6 @@ static uint32_t rotl(uint32_t x, int k)
     return (x << k) | (x >> (-k & 31));
 }
 
-__attribute__((noinline))
 static uint32_t phf_round32(uint32_t k1, uint32_t h1) {
 	k1 *= 0xcc9e2d51;
 	k1 = rotl(k1, 15);
@@ -335,7 +334,7 @@ static uint32_t phf_round32(uint32_t k1, uint32_t h1) {
 	h1 = h1 * 5 + 0xe6546b64;
 	return h1;
 }
-__attribute__((noinline))
+
 static uint32_t phf_mix32(uint32_t h1) {
 	h1 ^= h1 >> 16;
 	h1 *= 0x85ebca6b;
