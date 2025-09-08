@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "n64sys.h"
+#include "vi.h"
 #include "timer.h"
 #include "debug.h"
 #include "interrupt.h"
@@ -610,7 +611,7 @@ static void joypad_read_async(void)
 /**
  * @brief Callback for VI interrupt to read and identify Joypads.
  */
-static void joypad_vi_interrupt_callback(void)
+static void joypad_vi_interrupt_callback(void* ctx)
 {
     joypad_read_async();
     int32_t ticks_since_identify = TICKS_SINCE(joypad_identify_last_ticks);
@@ -721,6 +722,9 @@ void joypad_init(void)
     // Just increment the refcount if already initialized
 	if (joypad_init_refcount++ > 0) { return; }
 
+    // Initialize the VI subsystem so that we can poll in sync with VI interrupts
+    vi_init();
+
     // Initialize the timer subsystem (or increment its refcount)
     timer_init();
 
@@ -734,8 +738,8 @@ void joypad_init(void)
     joypad_reset();
     joypad_read();
 
-    // Update the Joypads on VI interrupt
-    register_VI_handler(joypad_vi_interrupt_callback);
+    // Update the Joypads on vblank interrupt
+    vi_install_vblank_handler(joypad_vi_interrupt_callback, NULL);
     // Stop rumble on console reset
     register_RESET_handler(joypad_reset_interrupt_callback);
 }
@@ -745,8 +749,8 @@ void joypad_close(void)
     // Do nothing if there are still dangling references.
 	if (--joypad_init_refcount > 0) { return; }
 
-    // Stop updating the Joypads on VI interrupt
-    unregister_VI_handler(joypad_vi_interrupt_callback);
+    // Stop updating the Joypads on vblank interrupt
+    vi_uninstall_vblank_handler(joypad_vi_interrupt_callback, NULL);
     unregister_RESET_handler(joypad_reset_interrupt_callback);
 
     // Decrement the timer subsystem refcount (possibly closing it)
