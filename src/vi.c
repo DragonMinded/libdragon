@@ -119,8 +119,8 @@ static void __vi_validate_config(void)
 
     switch (mode) {
     case VI_AA_MODE_NONE:
-        if (xscale <= 0x200 && bpp16 && hstart <= 128) {
-            debugf("VI WARNING: setting VI_AA_MODE_NONE with 16 bpp, X_SCALE <= 0x200 and H_START <= 128 can cause visual artifacts\n");
+        if (xscale <= 0x200 && bpp16 && hstart < 128) {
+            debugf("VI WARNING: setting VI_AA_MODE_NONE with 16 bpp, X_SCALE <= 0x200 and H_START < 128 can cause visual artifacts\n");
             debugf("A common scenario where this happens: NTSC units, with default output area, and 320x240 framebuffer.\n");
             debugf("Possible workarounds: activate resampling with VI_AA_MODE_RESAMPLE, increase X_SCALE\n");
         }
