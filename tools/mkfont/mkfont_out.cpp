@@ -1078,13 +1078,48 @@ void Font::make_atlases(void)
         if (flag_debug) {
             char *imgfn = NULL;
             asprintf(&imgfn, "%s_%d.png", outfn.c_str(), num_atlases);
-            if (img.fmt == FMT_CI8) {
-                img.palette.resize(3);
-                img.palette[0] = 0;
-                img.palette[1] = (31<<11) | (31<<6) | (31<<1) | 1;
-                img.palette[2] = (10<<11) | (10<<6) | (10<<1) | 1;
+
+            // At this point, the atlas is either IA16 (for aliased and monochrome fonts),
+            // or RGBA32 (for bitmap fonts).
+            switch (img.fmt) {
+            case FMT_IA16: {
+                // We want the outline to be visible in the debug pictures.
+                // Convert it to a RGBA32 image blending it with a dark green
+                // background.
+                Image img2(FMT_RGBA32, img.w, img.h);
+                for (int y=0; y<img.h; y++) {
+                    for (int x=0; x<img.w; x++) {
+                        uint32_t rgba32 = img[y][x].to_rgba32();
+                        
+                        // Blend it with a dark green background
+                        uint8_t r = (rgba32 >> 24) & 0xFF;
+                        uint8_t g = (rgba32 >> 16) & 0xFF;
+                        uint8_t b = (rgba32 >> 8) & 0xFF;
+                        uint8_t a = rgba32 & 0xFF;
+                        r = (r * a + 0x00 * (255 - a)) / 255;
+                        g = (g * a + 0x40 * (255 - a)) / 255;
+                        b = (b * a + 0x00 * (255 - a)) / 255;
+                        img2[y][x].set_from_rgba32((r<<24)|(g<<16)|(b<<8)|0xFF);
+                    }
+                }
+                img2.write_png(imgfn);
+            }   break;
+            case FMT_RGBA32: {
+                if (flag_bmfont_format == FMT_RGBA16 || flag_bmfont_format == FMT_CI4 || flag_bmfont_format == FMT_CI8) {
+                    // The current RGBA32 atlas will then be converted to RGBA16 or CI4/CI8 when
+                    // mksprite is run. Technically we should probably create the preview picture
+                    // *after* running mksprite, but that would be too complicated.
+                    // At the very least, let's reduce color to 5 bits and alpha to 1 bit
+                    // so that we show in the debug pictures the absence of aliasing.
+                    img.convert(FMT_RGBA16).write_png(imgfn);
+                } else {
+                    img.write_png(imgfn);
+                }
+            }   break;
+            default:
+                assert(!"unsupported atlas format for debug image");
             }
-            img.write_png(imgfn);
+
             if (flag_verbose)
                 fprintf(stderr, "wrote debug image: %s\n", imgfn);
             free(imgfn);
