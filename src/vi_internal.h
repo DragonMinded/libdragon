@@ -14,6 +14,12 @@
  * This is an advanced function that installs a custom callback that will be
  * run at the beginning of a specific screen line.
  * 
+ * The line number is sometimes called "half-line": it is a *even* value between
+ * 0 and 524 (or 624 on PAL), which can be thought of as two times the actual TV
+ * scanline (which is 262 or 312 on PAL). If you pass an odd value, it'll be
+ * rounded to even automatically. It is the same reference system used by other
+ * VI registers and functions such as #vi_set_output or #vi_get_scanline.
+ * 
  * The main usage of this function is to implement raster effects, that is,
  * changing VI configuration at the beginning of a specific raster line. This
  * is extremely finnicky and timing sensitive: you need to be sure to modify

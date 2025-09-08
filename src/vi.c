@@ -1,6 +1,8 @@
 /**
  * @file vi.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Video Interface Subsystem
+ * @ingroup display
  */
 #include "vi.h"
 #include "vi_internal.h"
@@ -84,6 +86,7 @@ typedef struct {
 static line_irqs_t line_irqs[MAX_LINE_IRQS] = {0};          ///< Line interrupt callbacks
 static line_irqs_t new_line_irqs[MAX_LINE_IRQS] = {0};      ///< New line interrupt callbacks
 
+static int8_t vi_initialized = 0;      ///< True if the VI subsystem has been initialized
 uint32_t __vi_cfg[VI_REGISTERS_COUNT]; ///< Current VI configuration
 static const vi_preset_t *preset;      ///< Active TV preset
 static uint16_t cfg_pending;           ///< Pending register changes (1 bit per each VI register)
@@ -618,6 +621,7 @@ void vi_blank(bool set_blank)
 
 void vi_wait_vblank(void)
 {
+    // If VI is turned off, just return immediately as there is no proper vblank
     uint32_t ctrl = vi_read(VI_CTRL);
     if ((ctrl & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
         return;
@@ -765,9 +769,15 @@ void vi_reset(void)
                  preset->display.x0 + preset->display.width,
                  preset->display.y0 + preset->display.height);
 
+    // Turn on blank mode (disable framebuffer sampling)
+    vi_write(VI_ORIGIN,       0);
+    vi_write(VI_WIDTH,        0);
+    vi_blank(true);
+
     uint32_t ctrl = 0;
     ctrl |= !sys_bbplayer() ? VI_PIXEL_ADVANCE_DEFAULT : VI_PIXEL_ADVANCE_BBPLAYER;
     ctrl |= VI_AA_MODE_RESAMPLE;
+    ctrl |= VI_CTRL_TYPE_16_BPP;        // Turn on the VI sync (we're in blank mode)
     vi_write(VI_CTRL, ctrl);
 
     vi_write_end();
@@ -775,9 +785,7 @@ void vi_reset(void)
 
 void vi_init(void)
 {
-    static bool inited = false;
-    if (inited) return;
-    inited = true;
+    if (vi_initialized++ > 0) { return; }
 
     memset(&__vi_cfg, 0, sizeof(__vi_cfg));
     cfg_pending = cfg_raster = 0;
@@ -800,6 +808,39 @@ void vi_init(void)
     disable_interrupts();
     register_VI_handler(__vi_interrupt);
     set_VI_interrupt(1, VI_V_CURRENT_VBLANK);
+    enable_interrupts();
+}
+
+void vi_close(void)
+{
+    if (--vi_initialized > 0) { return; }
+
+    // Wait until vblank, then disable interrupts.
+wait_vblank:
+    vi_wait_vblank();
+    disable_interrupts();
+
+    // Make sure we're still in vblank, in the unlikely event we were
+    // preempted before disabling interrupts.
+    if (UNLIKELY(vi_get_scanline(NULL) != VI_V_CURRENT_VBLANK)) {
+        enable_interrupts();
+        goto wait_vblank;
+    }
+
+    // Shut down VI by writing 0 to all registers. VI_CTRL=0 is what really
+    // turns off the VI:
+    for (int i=0; i<VI_REGISTERS_COUNT; i++)
+        VI_REGISTERS[i] = 0;
+
+    // Reset some internal state just not to leave "dirty" values around.
+    cfg_refcount = 0;
+    memset(&__vi_cfg, 0, sizeof(__vi_cfg));
+    memset(line_irqs, 0, sizeof(line_irqs));
+
+    // Unregister our interrupt handler
+    unregister_VI_handler(__vi_interrupt);
+    set_VI_interrupt(0, 0);
+
     enable_interrupts();
 }
 
