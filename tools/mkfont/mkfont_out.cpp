@@ -693,8 +693,8 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
         img.for_each_pixel([&](Image::Pixel&& px) {
             bool mono_i = px.data[0] == 0x00 || px.data[0] == 0xFF;
             bool mono_a = px.data[1] == 0x00 || px.data[1] == 0xFF;
-            if (!mono_i || !mono_a)
-                assert(!"monochrome glyph must not contains shades of gray");
+            assert(mono_i && "monochrome glyph must not contains shades of gray");
+            assert(mono_a && "monochrome glyph must not contains shades of alpha");
         });
         tmem_fmt = FMT_CI4;
         break;
