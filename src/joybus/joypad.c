@@ -755,6 +755,7 @@ void joypad_close(void)
 
     // Decrement the timer subsystem refcount (possibly closing it)
     timer_close();
+    vi_close();
 }
 
 void joypad_poll(void)
