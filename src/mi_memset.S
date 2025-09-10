@@ -1,8 +1,8 @@
-##############################################
-# __mi_memset - Fast memset using MI repeat mode
+#########################################################################
+# __mi_memset - Fast memset using MI repeat mode + CPU fallback for iQue
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
-##############################################
+#########################################################################
 
 #include "regs.S"
 #define MI_WMODE_SET_REPEAT_MODE        0x100
@@ -13,6 +13,7 @@
     .globl __mi_memset16
     .globl __mi_memset32
     .globl __mi_memset64
+    .globl __cpu_memset64
     .set at
     .set noreorder
 
@@ -30,12 +31,14 @@
 #define ptr         a0
 #define val         a1
 #define len         a2
+#define hwsupport   a3
 #define end         t8
 #define srsave      t7
 #define srnoirq     t6
 #define MI_MODE     t5
 #define duffptr     t4
-#define uptr        v0
+#define origptr     v0
+#define uptr        v1
 
 
     # __mi_memsetN(void *ptr, int value, size_t len)
@@ -49,6 +52,7 @@ __mi_memset32:
     dsll t0, val, 32
     or val, t0
 __mi_memset64:
+    move origptr, ptr
     addiu t0, len, -7
     bltz t0, .Lsmall
      addu end, ptr, len
@@ -56,12 +60,12 @@ __mi_memset64:
     # Align to the next 8-byte boundary
     andi t0, ptr, 7
     beqz t0, .Laligned8
-     sll t1, t0, 3
-
+     neg t0
+     
     # Write the first few bytes to reach 8-byte alignment
     sdl val, 0(ptr)
-    neg t0
     andi t0, 7
+    sll t1, t0, 3
     addu ptr, t0
     sub len, t0
 
@@ -72,8 +76,12 @@ __mi_memset64:
     or val, t2
 
 .Laligned8:
-    # We are now 8-byte aligned. From now on, we will be using
-    # the repeat mode. Setup registers
+    # We are now 8-byte aligned. 
+    # Fallback to CPU memset if not supported on hardware (iQue)
+    beqz hwsupport, .Lcpu_memset
+     nop
+     # From now on, we will be using
+     # the repeat mode. Setup registers
     or uptr, ptr, 0x20000000
     la duffptr, .Lduffend
     mfc0 srsave, C0_SR
@@ -100,7 +108,7 @@ __mi_memset64:
     # Repeat modes does not require 128 bytes alignment, but it does require
     # the whole write stay within a RDRAM row (0x800), and there is a maximum
     # of 128 bytes per repeat, so we kill two birds with one stone.
-    neg t0, ptr
+     neg t0, ptr
     andi t0, 0x7F
     beqzl t0, .Lmirepeat_len
 .Lmirepeat:
@@ -149,15 +157,55 @@ __mi_memset64:
     jr ra
      nop
 
-    # Fewer than 8 bytes: do it bytewise as speed is not critical
+    # Fewer than 8 bytes in total: do it bytewise as speed is not critical
+    # Also ptr can be misaligned so it'd be hard to use larger writes
 .Lsmall:
     dsrl t0, val, 56
     sb t0, 0(ptr)
     dsll val, 8
     addiu len, -1
-    bgez len, .Lsmall
+    bgtz len, .Lsmall
      addiu ptr, 1
     jr ra
      nop
 
+    # CPU fallback memset, used when repeat mode is not supported (iQue)
+.Lcpu_memset:
+    # Copy 64 bytes at a time to minimize loop overhead
+    b .Lcpu_memset64_check
+     li t0, 64
+.Lcpu_memset64:
+    sd val, 0(ptr)
+    sd val, 8(ptr)
+    sd val, 16(ptr)
+    sd val, 24(ptr)
+    sd val, 32(ptr)
+    sd val, 40(ptr)
+    sd val, 48(ptr)
+    sd val, 56(ptr)
+    sub len, 64
+    addiu ptr, 64
+.Lcpu_memset64_check:
+    bge len, t0, .Lcpu_memset64
+     nop
 
+    b .Lcpu_memset8_check
+     li t1, 8
+.Lcpu_memset8:
+    sd val, 0(ptr)
+    sub len, 8
+    addiu ptr, 8
+.Lcpu_memset8_check:
+    bge len, t1, .Lcpu_memset8
+     nop
+
+.Lcpu_memset_epilogue:
+    # Write the remaining bytes with a single sdr, as we know
+    # the pointer is 8 byte aligned. We need to munge a bit
+    # address and value but it's for greater good.
+    add ptr, len
+    neg len
+    sll t0, len, 3
+    dsrlv val, val, t0
+    jr ra
+     sdr val, -1(ptr)

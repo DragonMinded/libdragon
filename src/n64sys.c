@@ -302,42 +302,34 @@ __attribute__((constructor)) void __init_cop1(void)
 
 ///@cond
 // Assembly implementations of memset functions (see mi_memset.S)
-extern void __mi_memset(void *ptr, uint8_t value, size_t len);
-extern void __mi_memset16(void *ptr, uint16_t value, size_t len);
-extern void __mi_memset32(void *ptr, uint32_t value, size_t len);
-extern void __mi_memset64(void *ptr, uint64_t value, size_t len);
+extern void* __mi_memset(void *ptr, uint8_t value, size_t len, bool hw_supported);
+extern void* __mi_memset16(void *ptr, uint16_t value, size_t len, bool hw_supported);
+extern void* __mi_memset32(void *ptr, uint32_t value, size_t len, bool hw_supported);
+extern void* __mi_memset64(void *ptr, uint64_t value, size_t len, bool hw_supported);
 ///@endcond
 
-void sys_hw_memset(void *ptr, uint8_t value, size_t len)
+void* sys_hw_memset(void *ptr, uint8_t value, size_t len)
 {
-    if (sys_bbplayer()) {
-        memset(ptr, value, len);
-    }
-    __mi_memset(ptr, value, len);
+    bool hw_supported = !sys_bbplayer();
+    return __mi_memset(ptr, value, len, hw_supported);
 }
 
-void sys_hw_memset16(void *ptr, uint16_t value, size_t len)
+void* sys_hw_memset16(void *ptr, uint16_t value, size_t len)
 {
-    if (sys_bbplayer()) {
-        memset(ptr, value, len);
-    }
-    __mi_memset16(ptr, value, len);
+    bool hw_supported = !sys_bbplayer();
+    return __mi_memset16(ptr, value, len, hw_supported);
 }
 
-void sys_hw_memset32(void *ptr, uint32_t value, size_t len)
+void* sys_hw_memset32(void *ptr, uint32_t value, size_t len)
 {
-    if (sys_bbplayer()) {
-        memset(ptr, value, len);
-    }
-    __mi_memset32(ptr, value, len);
+    bool hw_supported = !sys_bbplayer();
+    return __mi_memset32(ptr, value, len, hw_supported);
 }
 
-void sys_hw_memset64(void *ptr, uint64_t value, size_t len)
+void* sys_hw_memset64(void *ptr, uint64_t value, size_t len)
 {
-    if (sys_bbplayer()) {
-        memset(ptr, value, len);
-    }
-    __mi_memset64(ptr, value, len);
+    bool hw_supported = !sys_bbplayer();
+    return __mi_memset64(ptr, value, len, hw_supported);
 }
 
 

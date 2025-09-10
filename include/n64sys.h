@@ -617,12 +617,13 @@ reset_type_t sys_reset_type(void);
  * @param ptr           Pointer to the memory area to set
  * @param value         Value to repeat across the memory area
  * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
  * 
  * @see #sys_hw_memset16
  * @see #sys_hw_memset32
  * @see #sys_hw_memset64
  */
-void sys_hw_memset(void *ptr, uint8_t value, size_t len);
+void* sys_hw_memset(void *ptr, uint8_t value, size_t len);
 
 /**
  * @brief Perform a hardware-accelerated memory set of a 16-bit pattern
@@ -635,8 +636,9 @@ void sys_hw_memset(void *ptr, uint8_t value, size_t len);
  * @param ptr           Pointer to the memory area to set
  * @param value         16-bit value to repeat across the memory area
  * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
  */
-void sys_hw_memset16(void *ptr, uint16_t value, size_t len);
+void* sys_hw_memset16(void *ptr, uint16_t value, size_t len);
 
 /**
  * @brief Perform a hardware-accelerated memory set of a 32-bit pattern
@@ -649,8 +651,9 @@ void sys_hw_memset16(void *ptr, uint16_t value, size_t len);
  * @param ptr           Pointer to the memory area to set
  * @param value         32-bit value to repeat across the memory area
  * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
  */
-void sys_hw_memset32(void *ptr, uint32_t value, size_t len);
+void* sys_hw_memset32(void *ptr, uint32_t value, size_t len);
 
 /**
  * @brief Perform a hardware-accelerated memory set of a 64-bit pattern
@@ -663,8 +666,9 @@ void sys_hw_memset32(void *ptr, uint32_t value, size_t len);
  * @param ptr           Pointer to the memory area to set
  * @param value         64-bit value to repeat across the memory area
  * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
  */
-void sys_hw_memset64(void *ptr, uint64_t value, size_t len);
+void* sys_hw_memset64(void *ptr, uint64_t value, size_t len);
 
 
 /**
