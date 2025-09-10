@@ -34,6 +34,7 @@ libdragonsys.a: $(BUILD_DIR)/system.o
 
 LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/n64sys.o \
+	$(BUILD_DIR)/mi_memset.o \
 	$(BUILD_DIR)/interrupt.o \
 	$(BUILD_DIR)/backtrace.o \
 	$(BUILD_DIR)/dir.o \
