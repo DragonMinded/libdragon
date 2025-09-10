@@ -603,14 +603,24 @@ reset_type_t sys_reset_type(void);
  * to perform a fast memset operation. The actual speed is about 6x
  * a standard 64-bit memeset, and 12x a 32-bit memset.
  * 
- * @note The function currently only works with a normal, cached
- *       pointer, and is fully cache coherent (that is, it behaves
- *       as-if the memset was performed by the CPU). Do not pass
- *       an uncached pointer.
+ * You can use both cached and uncached memory addresses. For cached
+ * addresses, full cache coherency is guaranteed (so it will behave
+ * like a CPU memset would do).
+ * 
+ * All the sys_hw_memsetN functions run at the same speed, so this
+ * function is just as fast as #sys_hw_memset64. You don't need to
+ * use the 64-bit version unless you have a 64-bit pattern to repeat.
+ * 
+ * @note This special mode is not supported on the iQue player, so this
+ *       function falls back to a standard memset when run on iQue.
  * 
  * @param ptr           Pointer to the memory area to set
  * @param value         Value to repeat across the memory area
  * @param len           Length of the memory area in bytes
+ * 
+ * @see #sys_hw_memset16
+ * @see #sys_hw_memset32
+ * @see #sys_hw_memset64
  */
 void sys_hw_memset(void *ptr, uint8_t value, size_t len);
 

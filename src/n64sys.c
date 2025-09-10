@@ -300,6 +300,47 @@ __attribute__((constructor)) void __init_cop1(void)
     C1_WRITE_FCR31(fcr31);
 }
 
+///@cond
+// Assembly implementations of memset functions (see mi_memset.S)
+extern void __mi_memset(void *ptr, uint8_t value, size_t len);
+extern void __mi_memset16(void *ptr, uint16_t value, size_t len);
+extern void __mi_memset32(void *ptr, uint32_t value, size_t len);
+extern void __mi_memset64(void *ptr, uint64_t value, size_t len);
+///@endcond
+
+void sys_hw_memset(void *ptr, uint8_t value, size_t len)
+{
+    if (sys_bbplayer()) {
+        memset(ptr, value, len);
+    }
+    __mi_memset(ptr, value, len);
+}
+
+void sys_hw_memset16(void *ptr, uint16_t value, size_t len)
+{
+    if (sys_bbplayer()) {
+        memset(ptr, value, len);
+    }
+    __mi_memset16(ptr, value, len);
+}
+
+void sys_hw_memset32(void *ptr, uint32_t value, size_t len)
+{
+    if (sys_bbplayer()) {
+        memset(ptr, value, len);
+    }
+    __mi_memset32(ptr, value, len);
+}
+
+void sys_hw_memset64(void *ptr, uint64_t value, size_t len)
+{
+    if (sys_bbplayer()) {
+        memset(ptr, value, len);
+    }
+    __mi_memset64(ptr, value, len);
+}
+
+
 /************* BSS CHECK **************/
 // This code is useful only while debugging IPL3 changes. It is not run by default
 // and requires manually changing entrypoint.S to be activated. It is left in the

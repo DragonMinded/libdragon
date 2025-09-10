@@ -1,5 +1,5 @@
 ##############################################
-# sys_hw_memset - Fast memset using MI repeat mode
+# __mi_memset - Fast memset using MI repeat mode
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ##############################################
@@ -7,12 +7,12 @@
 #include "regs.S"
 #define MI_WMODE_SET_REPEAT_MODE        0x100
 
-    .section .text.sys_hw_memset
+    .section .text.__mi_memset
 	.p2align 5
-    .globl sys_hw_memset
-    .globl sys_hw_memset16
-    .globl sys_hw_memset32
-    .globl sys_hw_memset64
+    .globl __mi_memset
+    .globl __mi_memset16
+    .globl __mi_memset32
+    .globl __mi_memset64
     .set at
     .set noreorder
 
@@ -38,17 +38,17 @@
 #define uptr        v0
 
 
-    # sys_hw_memsetN(void *ptr, int value, size_t len)
-sys_hw_memset:
+    # __mi_memsetN(void *ptr, int value, size_t len)
+__mi_memset:
     dsll t0, val, 8
     or val, t0
-sys_hw_memset16:
+__mi_memset16:
     dsll t0, val, 16
     or val, t0
-sys_hw_memset32:
+__mi_memset32:
     dsll t0, val, 32
     or val, t0
-sys_hw_memset64:
+__mi_memset64:
     addiu t0, len, -7
     bltz t0, .Lsmall
      addu end, ptr, len
@@ -74,11 +74,12 @@ sys_hw_memset64:
 .Laligned8:
     # We are now 8-byte aligned. From now on, we will be using
     # the repeat mode. Setup registers
-    li MI_MODE, 0xA4300000
+    or uptr, ptr, 0x20000000
     la duffptr, .Lduffend
     mfc0 srsave, C0_SR
     and srnoirq, srsave, ~0x1
-    or uptr, ptr, 0x20000000
+    beq uptr, ptr, .Lmirepeat_first     # Check if the pointer is uncached
+     li MI_MODE, 0xA4300000
 
     # Write the possibly-partial first/last cachelines to avoid
     # invalidating false-shared data. We could do that always,
@@ -94,6 +95,7 @@ sys_hw_memset64:
     cache_wbi (t0)
 1:
 
+.Lmirepeat_first:
     # Now align to 128 bytes, by limiting the first repetition.
     # Repeat modes does not require 128 bytes alignment, but it does require
     # the whole write stay within a RDRAM row (0x800), and there is a maximum
@@ -108,14 +110,18 @@ sys_hw_memset64:
     # chunk (up to 128 bytes). Calculate t0 = min(t0, len)
     bltl len, t0, 1f
      move t0, len
+1:
     # Prepare repeat mode register value in t1
-1:  ori t1, t0, MI_WMODE_SET_REPEAT_MODE
+    ori t1, t0, MI_WMODE_SET_REPEAT_MODE
     addiu t1, -1
+    beq uptr, ptr, .Ldorepeat      # If the pointer is uncached, do not invalidate cache
+     addiu t2, duffptr, 4
     # Calculate duff device pointer offset
     addiu t2, t0, -1
     srl t2, 4
     sll t2, 2
     sub t2, duffptr, t2
+.Ldorepeat:
     # Do MI repeat write with interrupts off
     mtc0 srnoirq, C0_SR
     .same_cacheline 2
@@ -138,9 +144,8 @@ sys_hw_memset64:
     # Loop epilogue: update pointers and remaining length
     sub len, t0
     add ptr, t0
-    add uptr, t0
     bgtz len, .Lmirepeat
-     nop
+     add uptr, t0
     jr ra
      nop
 
