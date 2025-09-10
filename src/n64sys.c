@@ -32,6 +32,9 @@ static uint32_t ticks64_base_tick;
 /** @brief Last value of the 64-bit counter */
 static uint64_t ticks64_base;
 
+/** @brief Set if it's a broken emulator not support hw_memset */
+static bool hw_memset_broken = false;
+
 /// @cond
 
 // Instruction cache defines.
@@ -302,34 +305,44 @@ __attribute__((constructor)) void __init_cop1(void)
 
 ///@cond
 // Assembly implementations of memset functions (see mi_memset.S)
-extern void* __mi_memset(void *ptr, uint8_t value, size_t len, bool hw_supported);
-extern void* __mi_memset16(void *ptr, uint16_t value, size_t len, bool hw_supported);
-extern void* __mi_memset32(void *ptr, uint32_t value, size_t len, bool hw_supported);
-extern void* __mi_memset64(void *ptr, uint64_t value, size_t len, bool hw_supported);
+extern void* __mi_memset(void *ptr, uint8_t value, size_t len);
+extern void* __mi_memset16(void *ptr, uint16_t value, size_t len);
+extern void* __mi_memset32(void *ptr, uint32_t value, size_t len);
+extern void* __mi_memset64(void *ptr, uint64_t value, size_t len);
 ///@endcond
 
 void* sys_hw_memset(void *ptr, uint8_t value, size_t len)
 {
-    bool hw_supported = !sys_bbplayer();
-    return __mi_memset(ptr, value, len, hw_supported);
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset(ptr, value, len);
 }
 
 void* sys_hw_memset16(void *ptr, uint16_t value, size_t len)
 {
-    bool hw_supported = !sys_bbplayer();
-    return __mi_memset16(ptr, value, len, hw_supported);
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset16(ptr, value, len);
 }
 
 void* sys_hw_memset32(void *ptr, uint32_t value, size_t len)
 {
-    bool hw_supported = !sys_bbplayer();
-    return __mi_memset32(ptr, value, len, hw_supported);
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset32(ptr, value, len);
 }
 
 void* sys_hw_memset64(void *ptr, uint64_t value, size_t len)
 {
-    bool hw_supported = !sys_bbplayer();
-    return __mi_memset64(ptr, value, len, hw_supported);
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset64(ptr, value, len);
+}
+
+/** @brief Constructor that verifies if MI repeat mode is correctly emulated */
+__attribute__((constructor))
+void __n64sys_hwmemset_emucheck(void)
+{
+    uint32_t test[4] = {0};
+    __mi_memset32(&test, 0x12345678, sizeof(test));
+    if (test[0] != 0x12345678 || test[1] != 0x12345678 || test[2] != 0x12345678 || test[3] != 0x12345678)
+        hw_memset_broken = true;
 }
 
 

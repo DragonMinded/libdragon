@@ -13,9 +13,9 @@
     .globl __mi_memset16
     .globl __mi_memset32
     .globl __mi_memset64
-    .globl __cpu_memset64
     .set at
     .set noreorder
+    .extern __boot_consoletype  # 0=n64, 1=iQue
 
 # Force the same N opcodes to be in the same cacheline
 .macro .same_cacheline num_opcodes
@@ -31,7 +31,6 @@
 #define ptr         a0
 #define val         a1
 #define len         a2
-#define hwsupport   a3
 #define end         t8
 #define srsave      t7
 #define srnoirq     t6
@@ -78,7 +77,8 @@ __mi_memset64:
 .Laligned8:
     # We are now 8-byte aligned. 
     # Fallback to CPU memset if not supported on hardware (iQue)
-    beqz hwsupport, .Lcpu_memset
+    lw t0, %gprel(__boot_consoletype)(gp)
+    bnez t0, .Lcpu_memset
      nop
      # From now on, we will be using
      # the repeat mode. Setup registers
