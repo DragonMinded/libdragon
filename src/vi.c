@@ -105,6 +105,14 @@ static void __vi_validate_config(void)
     return;
     #endif
 
+    // Check for a not fully understood bug (see issue #759)
+    if (cfg_pending & (1 << VI_TO_INDEX(VI_WIDTH))) {
+        uint32_t width = vi_read(VI_WIDTH);
+        if (width < 8) {
+            debugf("VI WARNING: setting VI_WIDTH < 8 is known to sometimes crash the VI\n");
+        }
+    }
+
     // Check for some common mistakes in VI configuration. Since they are based
     // on VI_CTRL, VI_X_SCALE and VI_H_VIDEO, do that only if they have been changed.
     if (!(cfg_pending & ((1 << VI_TO_INDEX(VI_CTRL)) | 
@@ -288,14 +296,16 @@ static void vi_write_maybe_flush(void)
     // Validate the configuration and emit warnings if needed
     __vi_validate_config();
 
-    // Check if we are in vblank now, and if so, we can apply the changes
+    // Check if VI is disabled now, and if so, we can apply the changes
     // immediately. Notice that this is not just a latency optimization:
     // it is mandatory when VI is disabled (VI_CTRL=0, which makes VI_V_CURRENT=0),
     // because the VI does not generate interrupts in that case.
-    disable_interrupts();
-    if ((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
-        __vblank_interrupt(NULL);
-    enable_interrupts();
+    if (UNLIKELY((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)) {
+        disable_interrupts();
+        if ((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
+            __vblank_interrupt(NULL);
+        enable_interrupts();
+    }
 }
 
 void vi_write_end(void)
@@ -392,7 +402,7 @@ void vi_show(surface_t *fb)
         vi_write_begin();
         vi_blank(true);
         vi_write(VI_ORIGIN, 0);
-        vi_write(VI_WIDTH, 0);
+        vi_write(VI_WIDTH, 8);
         vi_write_end();
         return;
     }
@@ -771,7 +781,7 @@ void vi_reset(void)
 
     // Turn on blank mode (disable framebuffer sampling)
     vi_write(VI_ORIGIN,       0);
-    vi_write(VI_WIDTH,        0);
+    vi_write(VI_WIDTH,        8);
     vi_blank(true);
 
     uint32_t ctrl = 0;
