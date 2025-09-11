@@ -136,6 +136,7 @@ void gl_close(void)
 
     free(state->update_funcs);
     free(state);
+    state = NULL;
 
     mg_close();
     rdpq_close();
