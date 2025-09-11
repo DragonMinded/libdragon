@@ -41,7 +41,7 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
     }
 
 #define DEFINE_FIXED_READ_FUNC(name, dst_type, precision, max_size, default) \
-    static void name(dst_type *dst, const int16_t *src, uint32_t count) \
+    static void name(dst_type *dst, const int16u_t *src, uint32_t count) \
     { \
         int shift = precision.shift_amount; \
         uint32_t real_count = MIN(count, max_size); \
