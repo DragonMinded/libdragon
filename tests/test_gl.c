@@ -4,7 +4,7 @@
 #include <rdpq_debug.h>
 
 #undef ABS
-#include "../src/GL/gl_internal.h"
+#include "../src/GL/texture.h"
 
 #define GL_INIT_SIZE(w,h) \
     RDPQ_INIT(); \

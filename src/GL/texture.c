@@ -150,36 +150,6 @@ gl_texture_object_t * gl_get_texture_object(GLenum target)
     }
 }
 
-inline bool texture_is_sprite(gl_texture_object_t *obj)
-{
-    return obj->sprite != NULL;
-}
-
-inline bool texture_has_image(gl_texture_object_t *obj)
-{
-    return (obj->flags & TEX_HAS_IMAGE) != 0;
-}
-
-inline bool texture_is_default(gl_texture_object_t *obj)
-{
-    return (obj->flags & TEX_IS_DEFAULT) != 0;
-}
-
-inline bool texture_is_block_dirty(gl_texture_object_t *obj)
-{
-    return (obj->flags & TEX_IS_BLOCK_DIRTY) != 0 || obj->upload_block == NULL;
-}
-
-inline bool texture_has_mipmaps(gl_texture_object_t *obj)
-{
-    return (obj->min_filter & TEXTURE_MIPMAP_MASK) != 0;
-}
-
-inline bool texture_is_interpolating_mipmaps(gl_texture_object_t *obj)
-{
-    return (obj->min_filter & TEXTURE_INTERPOLATE_MASK) != 0;
-}
-
 void set_texture_state(gl_texture_object_t *obj, gl_state_id_t state_id)
 {
     if (obj == state->active_texture) {

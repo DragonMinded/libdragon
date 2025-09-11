@@ -8,6 +8,7 @@
 #include "GL/gl.h"
 #include "GL/gl_integration.h"
 #include "gl_constants.h"
+#include "texture.h"
 #include "vertex_layout.h"
 #include "ringbuffer.h"
 #include "magma.h"
@@ -27,9 +28,6 @@
 
 #define LIGHT_COUNT     8
 
-#define MAX_TEXTURE_SIZE      64
-#define MAX_TEXTURE_LEVELS    7
-
 #define MAX_PIXEL_MAP_SIZE    32
 
 #define TEX_COORD_COUNT         4
@@ -38,10 +36,6 @@
 #define RDP_TEX_SHIFT       5
 #define TEX_SIZE_SHIFT      (MGFX_VTX_TEX_SHIFT-RDP_TEX_SHIFT)
 #define RDP_HALF_TEXEL      (1<<(RDP_TEX_SHIFT-1))
-
-#define TEXTURE_BILINEAR_MASK       0x001
-#define TEXTURE_INTERPOLATE_MASK    0x002
-#define TEXTURE_MIPMAP_MASK         0x100
 
 #define MAX_PIPELINE_COUNT          (1<<4)
 
@@ -317,32 +311,6 @@ typedef struct {
     GLfloat object_plane[TEX_COORD_COUNT];
 } gl_tex_gen_t;
 
-typedef enum {
-    TEX_IS_DEFAULT          = (1 << 0),
-    TEX_IS_COMPLETE         = (1 << 1),
-    TEX_HAS_IMAGE           = (1 << 2),
-    TEX_IS_BLOCK_DIRTY      = (1 << 3),
-} gl_texture_flag_t;
-
-typedef struct {
-    surface_t surface;
-    rdpq_texparms_t parms;
-} gl_texture_image_t;
-
-typedef struct {
-    uint32_t flags;
-    GLenum dimensionality;
-    GLenum wrap_s;
-    GLenum wrap_t;
-    GLenum min_filter;
-    GLenum mag_filter;
-    
-    uint32_t levels_count;
-    gl_texture_image_t levels[MAX_TEXTURE_LEVELS]; // TODO: allocate lazily
-    sprite_t *sprite;
-    rspq_block_t *upload_block;
-} gl_texture_object_t;
-
 typedef struct {
     GLsizei size;
     GLfloat entries[MAX_PIXEL_MAP_SIZE];
@@ -543,8 +511,6 @@ void gl_primitive_close();
 void gl_matrix_init();
 void gl_lighting_init();
 void gl_lighting_close();
-void gl_texture_init();
-void gl_texture_close();
 void gl_list_init();
 void gl_list_close();
 
@@ -585,16 +551,6 @@ void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **bin
 void gl_update_array_pointers(gl_array_object_t *obj);
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
 void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
-
-gl_texture_object_t *gl_get_active_texture();
-inline bool texture_is_complete(gl_texture_object_t *obj)
-{
-    return (obj->flags & TEX_IS_COMPLETE) != 0;
-}
-inline bool texture_is_bilinear(gl_texture_object_t *obj)
-{
-    return ((obj->min_filter | obj->mag_filter) & TEXTURE_BILINEAR_MASK) != 0;
-}
 
 bool gl_is_diffuse_tracking_color();
 color_t gl_get_material_diffuse();
