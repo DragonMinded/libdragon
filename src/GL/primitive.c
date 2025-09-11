@@ -750,6 +750,8 @@ mg_front_face_t get_front_face()
 
 void update_culling()
 {
+    if (!is_drawing_anything()) return;
+    
     mg_set_culling(&(mg_culling_parms_t) {
         .cull_mode = get_cull_mode(),
         .front_face = get_front_face()
