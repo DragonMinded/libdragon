@@ -31,6 +31,9 @@ typedef uint32_t u_uint32_t __attribute__((aligned(1)));
 #define R_MIPS_26 4     ///< Jump relocation
 #define R_MIPS_HI16 5   ///< High half of HI/LO pair
 #define R_MIPS_LO16 6   ///< Low half of HI/LO pair
+#define R_MIPS_GPREL16 7  ///< GP relative 16 bit
+#define R_MIPS_TLS_TPREL_HI16 49  ///< TP-relative offset, high 16 bits
+#define R_MIPS_TLS_TPREL_LO16 50  ///< TP-relative offset, low 16 bits
 
 /** @brief Demangler function */
 extern demangle_func __dl_demangle_func;
