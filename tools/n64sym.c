@@ -24,7 +24,7 @@
 bool flag_verbose = false;
 int flag_max_sym_len = 64;
 bool flag_inlines = true;
-const char *n64_inst = NULL;
+const char *gccprefix_triplet = NULL;
 
 // Printf if verbose
 void verbose(const char *fmt, ...) {
@@ -118,7 +118,7 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
             cur_elf = NULL; addr2line_r = addr2line_w = NULL;
         }
         if (!addrbin)
-            asprintf(&addrbin, "%s/bin/mips64-elf-addr2line", n64_inst);
+            asprintf(&addrbin, "%saddr2line", gccprefix_triplet);
 
         const char *cmd_addr[16] = {0}; int i = 0;
         cmd_addr[i++] = addrbin;
@@ -199,7 +199,7 @@ bool elf_find_callsites(const char *elf)
 {
     // Start objdump to parse the disassembly of the ELF file
     char *cmd = NULL;
-    asprintf(&cmd, "%s/bin/mips64-elf-objdump -d %s", n64_inst, elf);
+    asprintf(&cmd, "%sobjdump -d %s", gccprefix_triplet, elf);
     verbose("Running: %s\n", cmd);
     FILE *disasm = popen(cmd, "r");
     if (!disasm) {
@@ -390,8 +390,8 @@ int main(int argc, char *argv[])
     }
 
     // Find n64 installation directory
-    n64_inst = n64_toolchain_dir();
-    if (!n64_inst) {
+    gccprefix_triplet = n64_gccprefix_triplet();
+    if (!gccprefix_triplet) {
         // Do not mention N64_GCCPREFIX in the error message, since it is
         // a seldom used configuration.
         fprintf(stderr, "Error: N64_INST environment variable not set\n");
