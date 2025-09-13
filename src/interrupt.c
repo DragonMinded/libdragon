@@ -10,6 +10,7 @@
 #include "mi.h"
 #include "regsinternal.h"
 #include "kernel/kernel_internal.h"
+#include "kernel/ktls_internal.h"
 #include "n64sys.h"
 #include "interrupt.h"
 #include "debug.h"
@@ -115,9 +116,10 @@ static uint32_t __prenmi_tick;
  */
 static void __call_callback( struct callback_link * head )
 {
-    /* Invalidate TP Value */
-    void *tp = th_cur_tp;
-    th_cur_tp = KERNEL_TP_INVALID;
+    /* Invalidate TP Value: if TLS data is accessed under interrupt,
+       an exception is raised. */
+    void *tp = __th_cur_tp;
+    __th_cur_tp = KERNEL_TP_INVALID;
     /* Call each registered callback */
     while( head )
     {
@@ -130,7 +132,7 @@ static void __call_callback( struct callback_link * head )
 	    head=head->next;
     }
     /* Restore TP Value */
-    th_cur_tp = tp;
+    __th_cur_tp = tp;
 }
 
 /**

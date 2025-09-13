@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "regsinternal.h"
 #include "kernel/kernel_internal.h"
+#include "kernel/ktls_internal.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

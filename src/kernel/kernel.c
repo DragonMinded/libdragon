@@ -4,6 +4,7 @@
  */
 #include "kernel.h"
 #include "kernel_internal.h"
+#include "ktls_internal.h"
 #include "backtrace_internal.h"
 #include "timer.h"
 #include "debug.h"
@@ -47,8 +48,6 @@
  */
 #define KTHREAD_SWITCH_ISR()  ({ __isr_force_schedule = true; })
 
-/** @brief Current thread TLS */
-void *th_cur_tp = KERNEL_TP_INVALID;
 /** @brief Main thread */
 kthread_t th_main;
 /** @brief Pointer to the current thread */
@@ -67,19 +66,6 @@ bool __isr_force_schedule = false;
 /* Global current interrupt depth (defined in interrupt.c) */ 
 extern int __interrupt_depth;
 extern int __interrupt_sr;
-/* TLS Linker symbols */
-/** @brief TLS base address (linker symbol) */
-extern char __tls_base[];
-/** @brief TLS data start (linker symbol) */
-extern char __tdata_start[];
-/** @brief TLS data end (linker symbol) */
-extern char __tdata_end[];
-/** @brief TLS BSS start (linker symbol) */
-extern char __tbss_start[];
-/** @brief TLS BSS end (linker symbol) */
-extern char __tbss_end[];
-/** @brief TLS end (linker symbol) */
-extern char __tls_end[];
 /** @brief Thread TLS data copy (linker symbol) */
 extern char __th_tdata_copy[];
 /** @brief TLS data alignment (linker symbol) */
@@ -356,7 +342,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 	__interrupt_depth = th_cur->tls.interrupt_depth;
 	__interrupt_sr = th_cur->tls.interrupt_sr;
 
-	th_cur_tp = th_cur->tp_value;
+	__th_cur_tp = th_cur->tp_value;
     
 	#ifdef __NEWLIB__
 	_REENT = th_cur->tls.reent_ptr;
@@ -434,7 +420,6 @@ kthread_t* kernel_init(void)
 
 	// The main thread is the currently scheduled one.
 	th_cur = &th_main;
-	th_cur_tp = __tls_base+TP_OFFSET;
 
 	// Initialize IRQ condition variables
 	__kirq_init();
@@ -463,7 +448,7 @@ void kernel_close(void)
 	th_cur = NULL;
 	__kernel = false;
 	__isr_force_schedule = false;
-	th_cur_tp = KERNEL_TP_INVALID;
+	__th_cur_tp = KERNEL_TP_INVALID;
 }
 
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)
