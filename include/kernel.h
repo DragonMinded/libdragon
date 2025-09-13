@@ -288,7 +288,7 @@ int kthread_backtrace(kthread_t *th, void *buffer, int size);
  * @param[in] ticks
  *            The number of hardware ticks to sleep.
  */
-void kthread_sleep(uint32_t ticks);
+void kthread_sleep(int64_t ticks);
 
 /** 
  * @brief Change priority of a thread.

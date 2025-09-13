@@ -712,9 +712,10 @@ void kthread_set_pri(kthread_t *th, int8_t pri)
 	kthread_yield();
 }
 
-void kthread_sleep(uint32_t ticks)
+void kthread_sleep(int64_t ticks)
 {
 	kthread_t *th = th_cur;
+	assertf(ticks > 0, "ticks must be positive");
 
 	// Timer callback. This will be invoked when the timer elapses after the
 	// requested delay.
@@ -728,7 +729,7 @@ void kthread_sleep(uint32_t ticks)
 		KTHREAD_SWITCH_ISR();
 	}
 
-	if (DEBUG_KERNEL) debugf("[kernel] sleeping %ld %s[%p]\n", ticks, th->name, th);
+	if (DEBUG_KERNEL) debugf("[kernel] sleeping %lld %s[%p]\n", ticks, th->name, th);
 	disable_interrupts();
 
 	// Start a timer for the specified delay.
