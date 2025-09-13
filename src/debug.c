@@ -24,6 +24,7 @@
 #include "libcart/cart.h"
 #include "interrupt.h"
 #include "backtrace.h"
+#include "kernel/kernel_internal.h"
 #include "exception_internal.h"
 #include "fat.h"
 #include "fatfs/ff.h"
@@ -256,6 +257,7 @@ static bool usb_initialize_once(void) {
 	return ok;
 }
 
+/** Emit debug output */
 static int __stderr_write(char *buf, unsigned int len)
 {
 	for (int i=0; i<sizeof(debug_writer) / sizeof(debug_writer[0]); i++)
@@ -339,6 +341,33 @@ void debug_close_sdfs(void)
 	}
 }
 
+static void debugfv(const char *msg, va_list args)
+{
+	// Debug output. The goal is to call __stderr_write() with the final output
+	// string. Normally, we can do this simply by calling vfprintf(stderr, ...).
+	//
+	// Under interrupts, when the kernel is used, though, we need to avoid
+	// using stdio functions as they could deadlock on FILE mutexes. The best
+	// would be to have a fprintf variant that calls a custom function for each
+	// output character, but that doesn't exist in newlib. So we resort to a
+	// fixed-size vsnprintf buffer.
+	if (__kernel && exception_is_running()) {
+		char buf[256] __attribute__((uninitialized));
+		int n = vsnprintf(buf, sizeof(buf), msg, args);
+		if (n > 0) __stderr_write(buf, n < sizeof(buf) ? n : sizeof(buf));
+		return;
+	}
+
+	vfprintf(stderr, msg, args);
+}
+
+void debugf(const char *msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	debugfv(msg, args);
+}
+
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
 {
 	disable_interrupts();
@@ -346,7 +375,7 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 	// As first step, immediately print the assertion on stderr. This is
 	// very likely to succeed as it should not cause any further allocations
 	// and we would display the assertion immediately on logs.
-	fprintf(stderr,
+	debugf(
 		"ASSERTION FAILED: %s\n"
 		"file \"%s\", line %d%s%s\n",
 		failedexpr, file, line,
@@ -357,13 +386,13 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 		va_list args;
 
 		va_start(args, msg);
-		vfprintf(stderr, msg, args);
+		debugfv(msg, args);
 		va_end(args);
 
-		fprintf(stderr, "\n");
+		debugf("\n");
 	}
 
-	fprintf(stderr, "\n");
+	debugf("\n");
 
 	va_list args;
 	va_start(args, msg);
