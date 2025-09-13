@@ -1,6 +1,5 @@
 /**
  * @file ktls.c
- * @author Liam Coleman <gamemasterplc@gmail.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
 
@@ -9,4 +8,5 @@
 /** Initialize TLS pointer to the tls_base area in RAM */
 void *th_cur_tp = __tls_base + TP_OFFSET;
 
+/** @brief Current thread TLS pointer */
 void *__th_cur_tp;
