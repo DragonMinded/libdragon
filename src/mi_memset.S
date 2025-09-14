@@ -130,7 +130,11 @@ __mi_memset64:
     sll t2, 2
     sub t2, duffptr, t2
 .Ldorepeat:
-    # Do MI repeat write with interrupts off
+    # We need to guarantee that the very next memory access after setting up MI repeat
+    # is the one to repeat. This means that:
+    # 1) interrupts must be disabled of course
+    # 2) we must be sure that both instructions are within the same i-cacheline,
+    #    so that no cache fetch can happen in-between.
     mtc0 srnoirq, C0_SR
     .same_cacheline 2
     sw t1, (MI_MODE)
