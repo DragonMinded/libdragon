@@ -407,9 +407,9 @@ enum Page page_song(void) {
 }
 
 int main(void) {
-	joypad_init();
 	debug_init_isviewer();
 	debug_init_usblog();
+	joypad_init();
 
 	display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 	dfs_init(DFS_DEFAULT_LOCATION);
