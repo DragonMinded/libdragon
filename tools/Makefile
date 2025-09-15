@@ -99,6 +99,13 @@ TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mk
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)
+MANIFEST = $(if $(findstring Windows,$(OS)),manifest.o,)
+
+ifeq ($(OS),Windows_NT)
+manifest.o: manifest.rc tool.manifest
+	@echo "    [RC] $@"
+	windres manifest.rc -O coff -o $@
+endif
 
 define TOOL_template
 .PHONY: $(1)-install $(1)-clean
@@ -108,7 +115,7 @@ ifneq ($$($(1)_DIR),./)
 .PHONY: $(1)
 $(1): $$($(1)_BIN)
 endif
-$$($(1)_BIN): $$($(1)_OBJS)
+$$($(1)_BIN): $$($(1)_OBJS) ${MANIFEST}
 	@echo "    [TOOL] $(1)"
 	$(CXX) $(LDFLAGS) -o $$@ $$^
 $(1)-install: $(1)
