@@ -303,6 +303,9 @@ static void enable_peb_long_path_unsafe(void)
     peb[PEB_BITFIELD_OFFSET] |= (uint8_t)IS_LONG_PATH_AWARE_MASK;
 }
 
+// If it was defined, undefine it as there's no limit on path length after the hack above
+#undef MAX_PATH
+
 __declspec(dllimport) int __stdcall SetConsoleOutputCP(unsigned int);
 __declspec(dllimport) int __stdcall SetConsoleCP(unsigned int);
 __declspec(dllimport) unsigned int __stdcall GetConsoleOutputCP(void);
