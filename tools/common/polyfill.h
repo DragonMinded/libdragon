@@ -286,10 +286,14 @@ static void enable_peb_long_path_unsafe(void)
     __asm__("movq %%gs:0x60, %0" : "=r"(peb));
 #elif defined(__i386__)
     __asm__("movl %%fs:0x30, %0" : "=r"(peb));
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    uintptr_t teb = 0;
+    __asm__("mov %0, x18" : "=r"(teb));
+    if (!teb) return 0;
+    peb = *(volatile uint8_t*)(teb + 0x60);
 #else
     return; /* unsupported arch */
 #endif
-
     if (!peb) return;
     peb[PEB_BITFIELD_OFFSET] |= (uint8_t)IS_LONG_PATH_AWARE_MASK;
 }
