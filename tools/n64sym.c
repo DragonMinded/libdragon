@@ -355,6 +355,7 @@ void process(const char *infn, const char *outfn)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     const char *outfn = NULL;
 
     int i;

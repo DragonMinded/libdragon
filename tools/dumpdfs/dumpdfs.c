@@ -767,6 +767,7 @@ void usage(void)
 
 int main( int argc, char *argv[] )
 {
+    winconsole_utf8();
     if( argc < 3 )
     {
         usage();

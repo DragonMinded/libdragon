@@ -189,6 +189,7 @@ void process(char *infn, char *outfn)
 
 int main(int argc, char **argv)
 {
+    winconsole_utf8();
     char *infn;
     char *outfn;
     int i;

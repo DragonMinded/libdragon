@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include "../common/binout.c"
 #include "../common/binout.h"
+#include "../common/polyfill.h"
 
 // Compression library
 #include "../common/assetcomp.h"
@@ -698,6 +699,7 @@ bool convert(char *infn, char *outfn)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     int compression = DEFAULT_COMPRESSION;
     char *outdir = ".";
     if(argc < 2) {

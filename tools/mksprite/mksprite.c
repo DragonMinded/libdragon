@@ -1877,6 +1877,7 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     parms_t pm = {0}; int compression = -1;
     bool at_least_one_file = false;

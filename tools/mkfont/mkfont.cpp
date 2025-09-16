@@ -402,6 +402,7 @@ void print_args( char * name )
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outfn = NULL; const char *outdir = ".";
     bool error = false;
     int compression = DEFAULT_COMPRESSION;

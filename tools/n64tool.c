@@ -29,6 +29,7 @@
 #ifndef __MINGW32__
 #include <sys/errno.h>
 #endif
+#include "common/polyfill.h"
 
 // Default header to use if none is specified
 #include "ipl3.h"
@@ -327,6 +328,7 @@ int parse_elf_loadpoint(const char *elf_fn, uint32_t *loadpoint)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
 	FILE * write_file = NULL;
 	const char * header = NULL;
 	const char * output = NULL;
