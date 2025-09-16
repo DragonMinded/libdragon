@@ -270,11 +270,55 @@ static int mingw_rename(const char *oldpath, const char *newpath) {
 // POISX mkdir has a mode argument, but mingw's mkdir doesn't
 #define mkdir(path, mode) mkdir(path)
 
+
+__declspec(dllimport) int __stdcall SetConsoleOutputCP(unsigned int);
+__declspec(dllimport) int __stdcall SetConsoleCP(unsigned int);
+__declspec(dllimport) unsigned int __stdcall GetConsoleOutputCP(void);
+__declspec(dllimport) unsigned int __stdcall GetConsoleCP(void);
+#define CP_UTF8 65001
+
+static int old_out_cp = 0;
+static int old_in_cp = 0;
+
+__attribute__((used))
+static void winconsole_restore(void) {
+    if (old_out_cp)
+        SetConsoleOutputCP(old_out_cp);
+    if (old_in_cp)
+        SetConsoleCP(old_in_cp);
+}
+
+__attribute__((used))
+static void winconsole_utf8(void) {
+    // Save the current code page
+    old_out_cp = GetConsoleOutputCP();
+    old_in_cp = GetConsoleCP();
+
+    // Enable UTF-8 in the console
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    atexit(winconsole_restore);
+}
+
 #ifdef __cplusplus
 }
 #endif
 
 
+#else /* __MINGW32__ */
+
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+__attribute__((used))
+static void winconsole_utf8(void) {}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __MINGW32__ */
 
 #endif
