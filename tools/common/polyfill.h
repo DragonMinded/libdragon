@@ -270,6 +270,21 @@ static int mingw_rename(const char *oldpath, const char *newpath) {
 // POISX mkdir has a mode argument, but mingw's mkdir doesn't
 #define mkdir(path, mode) mkdir(path)
 
+typedef struct _PROCESS_BASIC_INFORMATION_MIN {
+    void* Reserved1;
+    void* PebBaseAddress;
+    void* Reserved2[2];
+    void* UniqueProcessId;
+    void* InheritedFromUniqueProcessId;
+} PROCESS_BASIC_INFORMATION_MIN;
+
+#define CURRENT_PROCESS ((HANDLE)(intptr_t)-1)
+
+__declspec(dllimport) long __stdcall NtQueryInformationProcess(
+    HANDLE ProcessHandle, unsigned long ProcessInformationClass,
+    void* ProcessInformation, unsigned long ProcessInformationLength,
+    unsigned long *ReturnLength);
+
 // Enable long path support in the current process.
 // This is a hacky workaround for a limitation in Windows where
 // file paths longer than 260 characters are not supported.
@@ -280,21 +295,11 @@ static int mingw_rename(const char *oldpath, const char *newpath) {
 __attribute__((used))
 static void enable_peb_long_path_unsafe(void)
 {
+    PROCESS_BASIC_INFORMATION_MIN pbi; unsigned long retlen;
+    if (NtQueryInformationProcess(CURRENT_PROCESS, 0, &pbi, sizeof(pbi), &retlen) < 0)
+        return;
+    volatile uint8_t *peb = (volatile uint8_t*)pbi.PebBaseAddress;
     enum { PEB_BITFIELD_OFFSET = 3, IS_LONG_PATH_AWARE_MASK = 0x80 };
-    volatile uint8_t* peb = 0;
-#if defined(__x86_64__)
-    __asm__("movq %%gs:0x60, %0" : "=r"(peb));
-#elif defined(__i386__)
-    __asm__("movl %%fs:0x30, %0" : "=r"(peb));
-#elif defined(__aarch64__) || defined(_M_ARM64)
-    uintptr_t teb = 0;
-    __asm__("mov %0, x18" : "=r"(teb));
-    if (!teb) return 0;
-    peb = *(volatile uint8_t*)(teb + 0x60);
-#else
-    return; /* unsupported arch */
-#endif
-    if (!peb) return;
     peb[PEB_BITFIELD_OFFSET] |= (uint8_t)IS_LONG_PATH_AWARE_MASK;
 }
 

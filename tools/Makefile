@@ -2,6 +2,7 @@ N64_GCCPREFIX ?= $(N64_INST)
 N64_TARGET ?= mips64-elf
 INSTALLDIR ?= $(N64_INST)
 N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/$(addsuffix -,$(N64_TARGET))
+TARGET := $(shell $(CC) -dumpmachine)
 
 C_CXX_FLAGS += -O2 -pthread -Wall -Werror
 C_CXX_FLAGS += -I../include -MMD
@@ -9,6 +10,16 @@ C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
 
 LDFLAGS += -pthread
+
+# With mingw (even if crosscompiling), we need to link with ntdll
+# and produce .exe files
+ifeq ($(findstring mingw,$(TARGET)),mingw)
+LDLIBS += -lntdll
+EXE = .exe
+else
+LDLIBS = 
+EXE = 
+endif
 
 CFLAGS   += -std=gnu11 $(C_CXX_FLAGS) 
 CXXFLAGS += -std=gnu++17 $(C_CXX_FLAGS) 
@@ -97,11 +108,10 @@ n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
 TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr cpaktool
 
-# Define a variable that has value ".exe" on Windows and "" on other platforms
-EXE = $(if $(findstring Windows,$(OS)),.exe,)
-MANIFEST = $(if $(findstring Windows,$(OS)),manifest.o,)
-
+# Define a variable that has value ".exe" when building on Windows
+# Alo
 ifeq ($(OS),Windows_NT)
+MANIFEST = $(if $(findstring Windows,$(OS)),manifest.o,)
 manifest.o: manifest.rc tool.manifest
 	@echo "    [RC] $@"
 	windres manifest.rc -O coff -o $@
@@ -117,7 +127,7 @@ $(1): $$($(1)_BIN)
 endif
 $$($(1)_BIN): $$($(1)_OBJS) ${MANIFEST}
 	@echo "    [TOOL] $(1)"
-	$(CXX) $(LDFLAGS) -o $$@ $$^
+	$(CXX) $(LDFLAGS) -o $$@ $$^ $(LDLIBS)
 $(1)-install: $(1)
 	mkdir -p $(INSTALLDIR)/bin
 	install -m 0755 $$($(1)_BIN) $(INSTALLDIR)/bin
