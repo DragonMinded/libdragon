@@ -270,6 +270,29 @@ static int mingw_rename(const char *oldpath, const char *newpath) {
 // POISX mkdir has a mode argument, but mingw's mkdir doesn't
 #define mkdir(path, mode) mkdir(path)
 
+// Enable long path support in the current process.
+// This is a hacky workaround for a limitation in Windows where
+// file paths longer than 260 characters are not supported.
+// The documented ways involve also setting a registry key, and thus
+// is not suitable for a tool like this.
+// This same approach is used by the Go runtime on Windows, so it is
+// reasonably safe to use it here as well.
+__attribute__((used))
+static void enable_peb_long_path_unsafe(void)
+{
+    enum { PEB_BITFIELD_OFFSET = 3, IS_LONG_PATH_AWARE_MASK = 0x80 };
+    volatile uint8_t* peb = 0;
+#if defined(__x86_64__)
+    __asm__("movq %%gs:0x60, %0" : "=r"(peb));
+#elif defined(__i386__)
+    __asm__("movl %%fs:0x30, %0" : "=r"(peb));
+#else
+    return; /* unsupported arch */
+#endif
+
+    if (!peb) return;
+    peb[PEB_BITFIELD_OFFSET] |= (uint8_t)IS_LONG_PATH_AWARE_MASK;
+}
 
 __declspec(dllimport) int __stdcall SetConsoleOutputCP(unsigned int);
 __declspec(dllimport) int __stdcall SetConsoleCP(unsigned int);
@@ -290,6 +313,9 @@ static void winconsole_restore(void) {
 
 __attribute__((used))
 static void winconsole_utf8(void) {
+    // Enable long path support in the current process
+    enable_peb_long_path_unsafe();
+
     // Save the current code page
     old_out_cp = GetConsoleOutputCP();
     old_in_cp = GetConsoleCP();
