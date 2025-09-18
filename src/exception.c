@@ -347,6 +347,8 @@ static const char* __get_exception_name(exception_t *ex)
 		return "Write to read-only memory";
 	case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
 		if (epc == (uint32_t)badvaddr) {
+			if ((badvaddr & 0xFFFF0000) == 0xFEFE0000)
+				return "Called uninitialized function pointer";
 			if (is_unmapped_kx64(badvaddr))
 				return "Program counter in invalid 64-bit address";
 			else
