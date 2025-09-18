@@ -159,3 +159,9 @@ SECTIONS {
     /* Deprecated */
     end = .;
 }
+
+/* Give an assert for a too huge binary. The maximum allowed size here is 8 MiB,
+   minus the space for the stack and the initial low memory section. 
+   Notice the exact size doesn't matter much: we want to detect mistakes that
+   would be much harder to find at runtime when no heap is available... */
+ASSERT(end - __text_start <= 8*1024*1024 - 64*1024 - 1024, "ERROR: the generated ELF is too big for N64 memory")
