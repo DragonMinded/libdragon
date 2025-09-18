@@ -11,7 +11,12 @@ INSTALLDIR = $(N64_INST)
 # When building libdragon, override it to use the source include files instead (./include)
 N64_INCLUDEDIR = $(CURDIR)/include
 
-LIBDRAGON_CFLAGS = -I$(CURDIR)/src -ffile-prefix-map=$(CURDIR)=libdragon
+# N64_BACKTRACE_FILE_PREFIX is exposed from n64.mk, so we can use it to set the
+# prefix for libdragon. It is still possible to override this when running make
+# for libdragon specifically via a make override.
+N64_BACKTRACE_FILE_PREFIX=libdragon
+
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)

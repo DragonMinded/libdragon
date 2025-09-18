@@ -11,6 +11,14 @@ N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 N64_ROM_ELFCOMPRESS = 1 # Set compression level of ELF file in ROM
 N64_ROM_DSOCOMPRESS ?= 1 # Set compression level of DSOs file in ROM
 
+# Override this to use a different file prefix for the debug symbols. This is
+# useful when building multiple projects in the same directory and you can set
+# this to the project name to differentiate between similar paths. Example:
+# .PHONY: tiny3d
+# tiny3d:
+# 	$(MAKE) -C $(T3D_INST) N64_BACKTRACE_FILE_PREFIX=tiny3d
+N64_BACKTRACE_FILE_PREFIX=
+
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
 N64_TARGET ?= mips64-elf
@@ -46,7 +54,7 @@ N64_DSOMSYM = $(N64_BINDIR)/n64dso-msym
 
 N64_C_AND_CXX_FLAGS =  -march=vr4300 -mtune=vr4300 -mabi=o64 -I$(N64_INCLUDEDIR)
 N64_C_AND_CXX_FLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
-N64_C_AND_CXX_FLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map="$(CURDIR)"=
+N64_C_AND_CXX_FLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map="$(CURDIR)"=$(N64_BACKTRACE_FILE_PREFIX)
 N64_C_AND_CXX_FLAGS += -ffast-math -ftrapping-math -fno-associative-math
 N64_C_AND_CXX_FLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
 N64_C_AND_CXX_FLAGS += -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=unused-function -Wno-error=unused-parameter -Wno-error=unused-but-set-parameter -Wno-error=unused-label -Wno-error=unused-local-typedefs -Wno-error=unused-const-variable

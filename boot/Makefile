@@ -11,7 +11,8 @@ else
 endif
 
 N64_GCCPREFIX ?= $(N64_INST)
-N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/mips64-elf-
+N64_TARGET ?= mips64-elf
+N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/$(addsuffix -,$(N64_TARGET))
 N64_CC = $(N64_GCCPREFIX_TRIPLET)gcc
 N64_AS = $(N64_GCCPREFIX_TRIPLET)as
 N64_LD = $(N64_GCCPREFIX_TRIPLET)ld
@@ -21,8 +22,8 @@ N64_SIZE = $(N64_GCCPREFIX_TRIPLET)size
 N64_READELF = $(N64_GCCPREFIX_TRIPLET)readelf
 
 N64_ROOTDIR = $(N64_INST)
-N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
-N64_LIBDIR = $(N64_ROOTDIR)/mips64-elf/lib
+N64_INCLUDEDIR = $(N64_ROOTDIR)/$(N64_TARGET)/include
+N64_LIBDIR = $(N64_ROOTDIR)/$(N64_TARGET)/lib
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -MMD
 N64_CFLAGS += -DN64 -Os -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
