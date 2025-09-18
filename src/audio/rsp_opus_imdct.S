@@ -2,7 +2,6 @@
 # rsp_opus_imdct.S
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#
 ############################################################
 #include <rsp_queue.inc>
 

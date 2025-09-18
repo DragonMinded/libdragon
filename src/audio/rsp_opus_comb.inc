@@ -2,7 +2,6 @@
 # rsp_opus_comb.inc
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#
 ############################################################
 
 #if !defined(RSP_OPUS_COMB_DUAL) || (RSP_OPUS_COMB_DUAL != 0 && RSP_OPUS_COMB_DUAL != 1)

@@ -2,7 +2,6 @@
 # rsp_opus_fft_twiddles.inc
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#
 ############################################################
 
     # rsp_queue.inc
