@@ -10,12 +10,20 @@ if [[ -z ${N64_INST-} ]]; then
   exit 1
 fi
 
-if [[ $OSTYPE == 'msys' ]]; then
+# Msys identifies itself via the OSTYPE variable as msys (before Feb 2025)
+# and "cygwin" (after Feb 2025). We want to detect both.
+if [[ $OSTYPE == 'msys'* || $OSTYPE == 'cygwin'* ]]; then
   if [ "${MSYSTEM:-}" != "MINGW64" ]; then
     # We only support building host tools via mingw-x64 at the moment, so
     # enforce that to help users during installation.
     echo This script must be run from the \"MSYS2 MinGW x64\" shell
     echo Plase open that shell and run it again from there
+    exit 1
+  fi
+  # Check if N64_INST contains backslashes, which is not supported by the build system
+  if [[ "$N64_INST" == *\\* ]]; then
+    echo "N64_INST contains backslashes, which is not supported by the build system."
+    echo "Please set N64_INST to use forward slashes instead."
     exit 1
   fi
 fi
