@@ -2,7 +2,6 @@
 # rsp_opus_fft_bfly3.S
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#
 ############################################################
 #include "rsp_opus_fft.inc"
 #include "rsp_opus_fft_twiddles.inc"
