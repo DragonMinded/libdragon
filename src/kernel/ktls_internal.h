@@ -40,4 +40,10 @@ extern char __tbss_end[];
 
 extern void *__th_cur_tp;
 
+/** @brief Initialize TLS support */
+void __ktls_init(void);
+
+/** @brief Close TLS support */
+void __ktls_close(void);
+
 #endif
