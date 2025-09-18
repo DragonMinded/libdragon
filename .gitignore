@@ -11,6 +11,7 @@ tools/mksprite/convtool
 tools/mksprite/mksprite
 tools/n64sym
 tools/n64tool
+tools/n64sym
 tools/**/*.exe
 website/ref/
 
