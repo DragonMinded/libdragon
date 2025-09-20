@@ -1202,19 +1202,6 @@ int write( int file, char *ptr, int len )
     }
 }
 
-/**
- * @brief Find the first file in a directory
- *
- * This function should be called to start enumerating a directory or whenever
- * a directory enumeration should be restarted.
- *
- * @param[in]  path
- *             Path to the directory structure
- * @param[out] dir
- *             Directory entry structure to populate with first entry
- *
- * @return 0 on successful lookup or a negative value on error.
- */
 int dir_findfirst( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
