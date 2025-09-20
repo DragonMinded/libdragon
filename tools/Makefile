@@ -16,6 +16,18 @@ ifeq ($(OS),Windows_NT)
 	CFLAGS += -static
 	CXXFLAGS += -static
   	LDFLAGS += -static
+
+# Check that $CC and $CXX are set to a mingw compiler. Many users are not really
+# familiar with msys2 and they tend to have weirdly broken environments. Let's try
+# to help them.
+	CHECK_CC := $(shell $(CC) -dumpmachine 2>/dev/null | grep -i "mingw" >/dev/null && echo ok || echo fail)
+	CHECK_CXX := $(shell $(CXX) -dumpmachine 2>/dev/null | grep -i "mingw" >/dev/null && echo ok || echo fail)
+	ifeq ($(CHECK_CC),fail)
+		$(error "CC is not set to a mingw compiler: ${CC}")
+	endif
+	ifeq ($(CHECK_CXX),fail)
+		$(error "CXX is not set to a mingw compiler: ${CXX}")
+	endif
 endif
 
 all:
