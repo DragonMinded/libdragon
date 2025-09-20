@@ -208,6 +208,30 @@ void wait_ms( unsigned long wait_ms )
     wait_ticks(TICKS_FROM_MS(wait_ms));
 }
 
+/**
+ * @brief Force a complete halt of all processors
+ *
+ * @note It should occur whenever a reset has been triggered 
+ * and its past its RESET_TIME_LENGTH grace time period.
+ * This function will shut down the RSP and the CPU, blank the VI.
+ * Eventually the RDP will flush and complete its work as well.
+ * The system will recover after a reset or power cycle.
+ * 
+ */
+void die(void)
+{
+    // Can't have any interrupts here
+    disable_interrupts();
+    // Halt the RSP
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+    // Flush the RDP
+    *DP_STATUS = DP_WSTATUS_SET_FLUSH | DP_WSTATUS_SET_FREEZE;
+    *DP_STATUS = DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
+    // Shut the video off
+    *VI_CTRL = *VI_CTRL & (~VI_CTRL_TYPE);
+    // Terminate the CPU execution
+    abort();
+}
 
 /**
  * @brief Initialize COP1 with default settings that prevent undesirable exceptions.
