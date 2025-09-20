@@ -469,3 +469,5 @@ void __onSyscallException( reg_block_t* regs )
 	// Skip syscall opcode to continue execution
 	e.regs->epc += 4;
 }
+
+extern inline bool exception_is_running(void);
