@@ -67,15 +67,33 @@ _Static_assert(sizeof(color_t) == 4, "invalid sizeof for color_t");
 #endif
 
 /** @brief Create a #color_t from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31, A in 0-1) */
-#define RGBA16(rx,gx,bx,ax) ({ \
-    int rx1 = rx, gx1 = gx, bx1 = bx; \
-    (color_t){.r=(rx1<<3)|(rx1>>3), .g=(gx1<<3)|(gx1>>3), .b=(bx1<<3)|(bx1>>3), .a=ax ? 0xFF : 0}; \
-})
-
+#define RGBA16(rx, gx, bx, ax)                                     \
+    (__builtin_constant_p(rx) &&                                   \
+     __builtin_constant_p(gx) &&                                   \
+     __builtin_constant_p(bx) &&                                   \
+     __builtin_constant_p(ax) ?                                    \
+        ((color_t){                                                 \
+            .r = ((rx) << 3) | ((rx) >> 3),                          \
+            .g = ((gx) << 3) | ((gx) >> 3),                          \
+            .b = ((bx) << 3) | ((bx) >> 3),                          \
+            .a = (ax) ? 0xFF : 0                                     \
+        }) :                             \
+        ( __extension__ ({ \
+            int _r = (rx);                              \
+            int _g = (gx);                              \
+            int _b = (bx);                              \
+            int _a = (ax);                              \
+            (color_t){                                       \
+                .r = (_r << 3) | (_r >> 3),                  \
+                .g = (_g << 3) | (_g >> 3),                  \
+                .b = (_b << 3) | (_b >> 3),                  \
+                .a = _a ? 0xFF : 0                           \
+            };                                               \
+        }) ) \
+        )
+        
 /** @brief Create a #color_t from the R,G,B,A components in the RGBA32 range (0-255). */
-#define RGBA32(rx,gx,bx,ax) ({ \
-    (color_t){.r=rx, .g=gx, .b=bx, .a=ax}; \
-})
+#define RGBA32(rx,gx,bx,ax) ((color_t){.r=rx, .g=gx, .b=bx, .a=ax})
 
 /** @brief Convert a #color_t to the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline uint16_t color_to_packed16(color_t c) {
