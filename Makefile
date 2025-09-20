@@ -37,6 +37,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/interrupt.o \
 	$(BUILD_DIR)/backtrace.o \
 	$(BUILD_DIR)/fmath.o \
+	$(BUILD_DIR)/dir.o \
 	$(BUILD_DIR)/inthandler.o \
 	$(BUILD_DIR)/entrypoint.o \
 	$(BUILD_DIR)/debug.o \
