@@ -9,49 +9,49 @@ python cat.py ../../src/libcart/cart.c \
     libcart/src/sd.h \
     libcart/src/sd.c \
     libcart/src/sdcrc16.c \
-    libcart/src/cartinit.c \
-    libcart/src/cartexit.c \
-    libcart/src/cartcardinit.c \
-    libcart/src/cartcardrddram.c \
-    libcart/src/cartcardrdcart.c \
-    libcart/src/cartcardwrdram.c \
-    libcart/src/cartcardwrcart.c \
-    libcart/src/ci.h \
-    libcart/src/ci.c \
-    libcart/src/ciinit.c \
-    libcart/src/ciexit.c \
-    libcart/src/cicardinit.c \
-    libcart/src/cicardrddram.c \
-    libcart/src/cicardrdcart.c \
-    libcart/src/cicardwrdram.c \
-    libcart/src/cicardwrcart.c \
-    libcart/src/edx.h \
-    libcart/src/edxinit.c \
-    libcart/src/edxexit.c \
-    libcart/src/edxcard.c \
-    libcart/src/edxcardinit.c \
-    libcart/src/edxcardrddram.c \
-    libcart/src/edxcardrdcart.c \
-    libcart/src/edxcardwrdram.c \
-    libcart/src/edxcardwrcart.c \
-    libcart/src/ed.h \
-    libcart/src/edinit.c \
-    libcart/src/edexit.c \
-    libcart/src/edcard.c \
-    libcart/src/edcardinit.c \
-    libcart/src/edcardrddram.c \
-    libcart/src/edcardrdcart.c \
-    libcart/src/edcardwrdram.c \
-    libcart/src/edcardwrcart.c \
-    libcart/src/sc.h \
-    libcart/src/sc.c \
-    libcart/src/scinit.c \
-    libcart/src/scexit.c \
-    libcart/src/sccardinit.c \
-    libcart/src/sccardrddram.c \
-    libcart/src/sccardrdcart.c \
-    libcart/src/sccardwrdram.c \
-    libcart/src/sccardwrcart.c
+    libcart/src/cart/cartinit.c \
+    libcart/src/cart/cartexit.c \
+    libcart/src/cart/cartcardinit.c \
+    libcart/src/cart/cartcardrddram.c \
+    libcart/src/cart/cartcardrdcart.c \
+    libcart/src/cart/cartcardwrdram.c \
+    libcart/src/cart/cartcardwrcart.c \
+    libcart/src/ci/ci.h \
+    libcart/src/ci/ci.c \
+    libcart/src/ci/ciinit.c \
+    libcart/src/ci/ciexit.c \
+    libcart/src/ci/cicardinit.c \
+    libcart/src/ci/cicardrddram.c \
+    libcart/src/ci/cicardrdcart.c \
+    libcart/src/ci/cicardwrdram.c \
+    libcart/src/ci/cicardwrcart.c \
+    libcart/src/edx/edx.h \
+    libcart/src/edx/edxinit.c \
+    libcart/src/edx/edxexit.c \
+    libcart/src/edx/edxcard.c \
+    libcart/src/edx/edxcardinit.c \
+    libcart/src/edx/edxcardrddram.c \
+    libcart/src/edx/edxcardrdcart.c \
+    libcart/src/edx/edxcardwrdram.c \
+    libcart/src/edx/edxcardwrcart.c \
+    libcart/src/ed/ed.h \
+    libcart/src/ed/edinit.c \
+    libcart/src/ed/edexit.c \
+    libcart/src/ed/edcard.c \
+    libcart/src/ed/edcardinit.c \
+    libcart/src/ed/edcardrddram.c \
+    libcart/src/ed/edcardrdcart.c \
+    libcart/src/ed/edcardwrdram.c \
+    libcart/src/ed/edcardwrcart.c \
+    libcart/src/sc/sc.h \
+    libcart/src/sc/sc.c \
+    libcart/src/sc/scinit.c \
+    libcart/src/sc/scexit.c \
+    libcart/src/sc/sccardinit.c \
+    libcart/src/sc/sccardrddram.c \
+    libcart/src/sc/sccardrdcart.c \
+    libcart/src/sc/sccardwrdram.c \
+    libcart/src/sc/sccardwrcart.c
 python cat.py ../../src/libcart/cart.h libcart/include/*.h
 echo Libcart updated. Commit with:
 echo git commit --message \"Libcart updated to version $(git -C libcart rev-parse --short HEAD)\" -- ../../src/libcart/*
