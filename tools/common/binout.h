@@ -27,7 +27,7 @@
 #define _wconv(type, v) ({ \
     typeof(v) _v = (v); \
     if (sizeof(type) < sizeof(_v)) { \
-        int64_t ext = (int64_t)_v >> (sizeof(type) * 8); \
+        int64_t ext = (int64_t)_v >> (sizeof(type) * 8 - 1) >> 1; \
         if (ext != 0 && ext != (uint64_t)-1) { \
             fprintf(stderr, "fatal: truncating value %lld to %s (ext=%lld)\n", (long long)_v, #type, (long long)ext); \
             assert(ext == 0 || ext == (uint64_t)-1); \
