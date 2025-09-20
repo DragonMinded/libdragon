@@ -80,7 +80,7 @@ __attribute__((used))
 static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	static const char *ops[64] = { 
 		"s", "r", "jj", "jjal", "bbeq", "bbne", "bblez", "bbgtz",
-		"iaddi", "iaddiu", "rslt", "isltiu", "iandi", "iori", "ixori", "klui",
+		"iaddi", "iaddiu", "islti", "isltiu", "iandi", "iori", "ixori", "klui",
 		"ccop0", "fcop1", "ccop2", "ccop3", "bbeql", "bbnel", "bblezl", "bbgtzl",
 		"idaddi", "idaddiu", "mldl", "mldr", "*", "*", "*", "*",
 		"mlb", "mlh", "mlwl", "mlw", "mlbu", "mlhu", "mlwr", "mlwu",
@@ -94,12 +94,12 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 		"cmfhi", "cmthi", "cmflo", "cmtlo", "rdsslv", "*", "rdsrlv", "rdsrav",
 		"hmult", "hmultu", "hdiv", "hdivu", "hdmult", "hdmultu", "hddiv", "hddivu", 
 		"radd", "raddu", "rsub", "rsubu", "rand", "ror", "rxor", "rnor", 
-		"*", "*", "*", "*", "*", "*", "*", "*", 
+		"*", "*", "rslt", "rsltu", "rdadd", "rdaddu", "rdsub", "rdsubu", 
 		"ttge", "ttgeu", "ttlt", "ttltu", "tteq", "*", "ttne", "*", 
 		"edsll", "*", "edsrl", "edsra", "edsll32", "*", "edsrl32", "edsra32", 
 	};
 	static const char *fpu_ops[64]= {
-        "radd", "rsub", "rmul", "rdiv", "rsqrt", "sabs", "smov", "sneg",
+        "radd", "rsub", "rmul", "rdiv", "ssqrt", "sabs", "smov", "sneg",
         "sround.l", "strunc.l", "sceil.l", "sfloor.l", "sround.w", "strunc.w", "sceil.w", "sfloor.w",
         "*", "*", "*", "*", "*", "*", "*", "*",
         "*", "*", "*", "*", "*", "*", "*", "*",
