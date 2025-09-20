@@ -1,6 +1,6 @@
 #! /bin/bash
 # N64 MIPS GCC toolchain build/install script for Unix distributions
-# (c) 2012-2023 DragonMinded and libDragon Contributors.
+# (c) 2012-2024 DragonMinded and libDragon Contributors.
 # See the root folder for license information.
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
@@ -61,12 +61,16 @@ command_exists () {
 
 # Download the file URL using wget or curl (depending on which is installed)
 download () {
-    if   command_exists wget ; then (cd "$DOWNLOAD_PATH" && wget -c  "$1")
-    elif command_exists curl ; then (cd "$DOWNLOAD_PATH" && curl -LO "$1")
+    local url="$1"
+    local file="$DOWNLOAD_PATH/$(basename "$url")"
+    local tmpfile="$file.part"
+    if   command_exists wget ; then wget --continue --output-document "$tmpfile" "$url"
+    elif command_exists curl ; then curl --location --output "$tmpfile" "$url"
     else
         echo "Install wget or curl to download toolchain sources" 1>&2
         return 1
     fi
+    mv "$tmpfile" "$file"
 }
 
 # Compilation on macOS via homebrew
@@ -284,7 +288,7 @@ pushd gcc_compile_target
     --with-newlib \
     --disable-win32-registry \
     --disable-nls \
-    --disable-werror 
+    --disable-werror
 make all-gcc -j "$JOBS"
 make install-gcc || sudo make install-gcc || su -c "make install-gcc"
 make all-target-libgcc -j "$JOBS"
