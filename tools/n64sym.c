@@ -216,7 +216,7 @@ bool elf_find_callsites(const char *elf)
             symbol_add(elf, addr, true);
         }
         // Find the callsites
-        if (strstr(line, "\tjal\t") || strstr(line, "\tjalr\t")) {
+        if (strstr(line, "\tjal\t") || strstr(line, "\tjalr\t") || strstr(line, "\tsyscall")) {
             uint32_t addr = strtoul(line, NULL, 16);
             symbol_add(elf, addr, false);
         }
