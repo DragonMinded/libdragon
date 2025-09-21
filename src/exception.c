@@ -96,6 +96,10 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 			fprintf(out, "Watched address: %08lX\n", C0_WATCHLO() & ~3);
 			break;
 
+		case EXCEPTION_CODE_SYS_CALL:
+			fprintf(out, "Syscall code: %05lX\n", (*(uint32_t*)ex->regs->epc >> 6) & 0xfffff);
+			break;
+
 		case EXCEPTION_CODE_D_BUS_ERROR: {
 			uint32_t opcode = *(uint32_t*)epc;
 			uint64_t base = ex->regs->gpr[((opcode >> 21) & 0x1F)];
