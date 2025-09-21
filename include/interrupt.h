@@ -1,6 +1,7 @@
 /**
  * @file interrupt.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Thar0 <https://github.com/Thar0>
  * @author thekovic <https://github.com/thekovic>
  * @brief Interrupt Controller
  * @ingroup interrupt
@@ -180,6 +181,69 @@ void register_CART_handler( void (*callback)() );
  */
 void register_RESET_handler( void (*callback)() );
 
+/**
+ * @brief Register a BBPlayer FLASH callback
+ *
+ * @param[in] callback
+ *            Function to call when a FLASH interrupt occurs
+ */
+void register_BB_FLASH_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer AES callback
+ *
+ * @param[in] callback
+ *            Function to call when a AES interrupt occurs
+ */
+void register_BB_AES_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer IDE callback
+ *
+ * @param[in] callback
+ *            Function to call when a IDE interrupt occurs
+ */
+void register_BB_IDE_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer PI Error callback
+ *
+ * @param[in] callback
+ *            Function to call when a PI Error interrupt occurs
+ */
+void register_BB_PI_ERR_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer USB0 callback
+ *
+ * @param[in] callback
+ *            Function to call when a USB0 interrupt occurs
+ */
+void register_BB_USB0_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer USB1 callback
+ *
+ * @param[in] callback
+ *            Function to call when a USB1 interrupt occurs
+ */
+void register_BB_USB1_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer BTN callback
+ *
+ * @param[in] callback
+ *            Function to call when a BTN interrupt occurs
+ */
+void register_BB_BTN_handler( void (*callback)() );
+
+/**
+ * @brief Register a BBPlayer MD callback
+ *
+ * @param[in] callback
+ *            Function to call when a MD interrupt occurs
+ */
+void register_BB_MD_handler( void (*callback)() );
 
 /**
  * @brief Unregister an AI callback
@@ -257,6 +321,69 @@ void unregister_CART_handler( void (*callback)() );
  */
 void unregister_RESET_handler( void (*callback)() );
 
+/**
+ * @brief Unregister a BBPlayer FLASH interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on FLASH interrupts
+ */
+void unregister_BB_FLASH_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer AES interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on AES interrupts
+ */
+void unregister_BB_AES_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer IDE interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on IDE interrupts
+ */
+void unregister_BB_IDE_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer PI Error interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on PI Error interrupts
+ */
+void unregister_BB_PI_ERR_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer USB0 interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on USB0 interrupts
+ */
+void unregister_BB_USB0_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer USB1 interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on USB1 interrupts
+ */
+void unregister_BB_USB1_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer BTN interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on BTN interrupts
+ */
+void unregister_BB_BTN_handler( void (*callback)() );
+
+/**
+ * @brief Unregister a BBPlayer MD interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on MD interrupts
+ */
+void unregister_BB_MD_handler( void (*callback)() );
 
 /**
  * @brief Enable or disable the AI interrupt
@@ -362,6 +489,70 @@ void set_CART_interrupt( int active );
  * @see #register_RESET_handler
  */
 void set_RESET_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer FLASH interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the FLASH interrupt should be active
+ */
+void set_BB_FLASH_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer AES interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the AES interrupt should be active
+ */
+void set_BB_AES_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer IDE interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the IDE interrupt should be active
+ */
+void set_BB_IDE_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer PI Error interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the PI Error interrupt should be active
+ */
+void set_BB_PI_ERR_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer USB0 interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the USB0 interrupt should be active
+ */
+void set_BB_USB0_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer USB1 interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the USB1 interrupt should be active
+ */
+void set_BB_USB1_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer BTN interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the BTN interrupt should be active
+ */
+void set_BB_BTN_interrupt( int active );
+
+/**
+ * @brief Enable or disable the BBPlayer MD interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the MD interrupt should be active
+ */
+void set_BB_MD_interrupt( int active );
 
 /** 
  * @brief Guaranteed length of the reset time.
