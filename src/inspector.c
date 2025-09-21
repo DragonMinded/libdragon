@@ -217,6 +217,17 @@ static int inspector_stdout(char *buf, unsigned int len) {
             if (cursor_x < XEND) {
                 graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
                 cursor_x += 8;
+                if (cursor_wordwrap && buf[i] == ' ') {
+                    // Check if we can fit the next word
+                    int j = i+1;
+                    while (j < len && buf[j] != ' ' && buf[j] != '\n')
+                        j++;
+                    // If it doesn't fit, wrap
+                    if (cursor_x + (j-i)*8 >= XEND) {
+                        cursor_x = XSTART;
+                        cursor_y += 8;
+                    }
+                }
                 if (cursor_wordwrap && cursor_x >= XEND) {
                     cursor_x = XSTART;
                     cursor_y += 8;
