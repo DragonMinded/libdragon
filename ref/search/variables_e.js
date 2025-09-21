@@ -2,7 +2,7 @@ var searchData=
 [
   ['offset_0',['offset',['../dso__format_8h.html#a77bfab1b96dc40366e65f60623e380f7',1,'dso_reloc_t::offset'],['../rompak_8c.html#a5a87eaf264688fa99714ef359764e8c4',1,'entry_t::offset']]],
   ['old_5flicensee_5fcode_1',['old_licensee_code',['../tpak_8h.html#abf1e36b71ecfa4bd6f034abda03c05fe',1,'gameboy_cartridge_header']]],
-  ['old_5ftitle_2',['old_title',['../tpak_8h.html#a6256f37c03a9662f5dbbfcafeb5120cf',1,'gameboy_cartridge_header.__unnamed65__']]],
+  ['old_5ftitle_2',['old_title',['../tpak_8h.html#a6256f37c03a9662f5dbbfcafeb5120cf',1,'gameboy_cartridge_header.__unnamed66__']]],
   ['open_3',['open',['../structfilesystem__t.html#a65220025714418f98076e1334237408e',1,'filesystem_t']]],
   ['order_4',['order',['../wav64__internal_8h.html#ad3fe1f6ae171c3fff9f67076d09335eb',1,'wav64_header_vadpcm_t']]],
   ['orig_5fsize_5',['orig_size',['../asset__internal_8h.html#a2459af1d56c5192e60564fc8e2de179f',1,'asset_header_t']]],

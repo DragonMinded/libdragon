@@ -148,6 +148,9 @@ Functions</h2></td></tr>
 <tr class="memitem:a8877deace0c63591fee0cc9c94d249d3" id="r_a8877deace0c63591fee0cc9c94d249d3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a8877deace0c63591fee0cc9c94d249d3">close</a> (int fileno)</td></tr>
 <tr class="memdesc:a8877deace0c63591fee0cc9c94d249d3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close a file.  <br /></td></tr>
 <tr class="separator:a8877deace0c63591fee0cc9c94d249d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeb8090da2a212e27317ea48ead1a19d6" id="r_aeb8090da2a212e27317ea48ead1a19d6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#aeb8090da2a212e27317ea48ead1a19d6">write</a> (int file, char *ptr, int len)</td></tr>
+<tr class="memdesc:aeb8090da2a212e27317ea48ead1a19d6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write data to a file.  <br /></td></tr>
+<tr class="separator:aeb8090da2a212e27317ea48ead1a19d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gacca6d970a0153055aa8c962067cdfdf1" id="r_gacca6d970a0153055aa8c962067cdfdf1"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gacca6d970a0153055aa8c962067cdfdf1">attach_filesystem</a> (const char *const prefix, <a class="el" href="structfilesystem__t.html">filesystem_t</a> *filesystem)</td></tr>
 <tr class="memdesc:gacca6d970a0153055aa8c962067cdfdf1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a filesystem with newlib.  <br /></td></tr>
 <tr class="separator:gacca6d970a0153055aa8c962067cdfdf1"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -214,9 +217,6 @@ Functions</h2></td></tr>
 <tr class="memitem:a6655447bab00753d59759423bf28e22e" id="r_a6655447bab00753d59759423bf28e22e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a6655447bab00753d59759423bf28e22e">wait</a> (int *status)</td></tr>
 <tr class="memdesc:a6655447bab00753d59759423bf28e22e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Wait for a child process.  <br /></td></tr>
 <tr class="separator:a6655447bab00753d59759423bf28e22e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aeb8090da2a212e27317ea48ead1a19d6" id="r_aeb8090da2a212e27317ea48ead1a19d6"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#aeb8090da2a212e27317ea48ead1a19d6">write</a> (int file, char *ptr, int len)</td></tr>
-<tr class="memdesc:aeb8090da2a212e27317ea48ead1a19d6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write data to a file.  <br /></td></tr>
-<tr class="separator:aeb8090da2a212e27317ea48ead1a19d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af069d9aae45f54cadde63548780ca64a" id="r_af069d9aae45f54cadde63548780ca64a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#af069d9aae45f54cadde63548780ca64a">dir_findfirst</a> (const char *const path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
 <tr class="memdesc:af069d9aae45f54cadde63548780ca64a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the first file in a directory.  <br /></td></tr>
 <tr class="separator:af069d9aae45f54cadde63548780ca64a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -244,6 +244,12 @@ Functions</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
+<tr class="memitem:a9baf607a8b1d35caa01cba78a59cfa05" id="r_a9baf607a8b1d35caa01cba78a59cfa05"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a9baf607a8b1d35caa01cba78a59cfa05">__heap_total_size</a> = 0</td></tr>
+<tr class="separator:a9baf607a8b1d35caa01cba78a59cfa05"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:acb6cd5e9d5c0eaaf05ab4dd31ae3185a" id="r_acb6cd5e9d5c0eaaf05ab4dd31ae3185a"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#acb6cd5e9d5c0eaaf05ab4dd31ae3185a">__heap_end</a> = 0</td></tr>
+<tr class="separator:acb6cd5e9d5c0eaaf05ab4dd31ae3185a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad11809ad0d3a9c1fc6798cfafb1ba120" id="r_ad11809ad0d3a9c1fc6798cfafb1ba120"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#ad11809ad0d3a9c1fc6798cfafb1ba120">__heap_top</a> = 0</td></tr>
+<tr class="separator:ad11809ad0d3a9c1fc6798cfafb1ba120"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5428d66981cb84e60b899495874618b2" id="r_a5428d66981cb84e60b899495874618b2"><td class="memItemLeft" align="right" valign="top"><a id="a5428d66981cb84e60b899495874618b2" name="a5428d66981cb84e60b899495874618b2"></a>
 char *&#160;</td><td class="memItemRight" valign="bottom"><b>__env</b> [1] = { 0 }</td></tr>
 <tr class="memdesc:a5428d66981cb84e60b899495874618b2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Environment variables. <br /></td></tr>
@@ -259,7 +265,9 @@ time_t(*&#160;</td><td class="memItemRight" valign="bottom"><b>time_hook</b> )(v
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>newlib Interface Hooks </p>
-<dl class="section author"><dt>Author</dt><dd>Jennifer Taylor <a href="#" onclick="location.href='mai'+'lto:'+'dra'+'go'+'nmi'+'nd'+'ed@'+'dr'+'ago'+'nm'+'ind'+'ed'+'.co'+'m'; return false;">drago<span class="obfuscator">.nosp@m.</span>nmin<span class="obfuscator">.nosp@m.</span>ded@d<span class="obfuscator">.nosp@m.</span>rago<span class="obfuscator">.nosp@m.</span>nmind<span class="obfuscator">.nosp@m.</span>ed.c<span class="obfuscator">.nosp@m.</span>om</a> </dd></dl>
+<dl class="section author"><dt>Author</dt><dd>Jennifer Taylor <a href="#" onclick="location.href='mai'+'lto:'+'dra'+'go'+'nmi'+'nd'+'ed@'+'dr'+'ago'+'nm'+'ind'+'ed'+'.co'+'m'; return false;">drago<span class="obfuscator">.nosp@m.</span>nmin<span class="obfuscator">.nosp@m.</span>ded@d<span class="obfuscator">.nosp@m.</span>rago<span class="obfuscator">.nosp@m.</span>nmind<span class="obfuscator">.nosp@m.</span>ed.c<span class="obfuscator">.nosp@m.</span>om</a> </dd>
+<dd>
+Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'ba'+'jo@'+'gm'+'ail'+'.c'+'om'; return false;">giova<span class="obfuscator">.nosp@m.</span>nnib<span class="obfuscator">.nosp@m.</span>ajo@g<span class="obfuscator">.nosp@m.</span>mail<span class="obfuscator">.nosp@m.</span>.com</a> </dd></dl>
 </div><hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structfs__mapping__t" id="structfs__mapping__t"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structfs__mapping__t">&#9670;&#160;</a></span>fs_mapping_t</h2>
@@ -402,6 +410,51 @@ Filesystem callback pointers. </td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="aeb8090da2a212e27317ea48ead1a19d6" name="aeb8090da2a212e27317ea48ead1a19d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeb8090da2a212e27317ea48ead1a19d6">&#9670;&#160;</a></span>write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int write </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>file</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>ptr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write data to a file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>File handle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ptr</td><td>Pointer to buffer to write to file </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data in bytes to be written</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes written, or a negative value on error. </dd></dl>
 
 </div>
 </div>
@@ -1117,51 +1170,6 @@ Filesystem callback pointers. </td></tr>
 
 </div>
 </div>
-<a id="aeb8090da2a212e27317ea48ead1a19d6" name="aeb8090da2a212e27317ea48ead1a19d6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aeb8090da2a212e27317ea48ead1a19d6">&#9670;&#160;</a></span>write()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int write </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>file</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>ptr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write data to a file. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>File handle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ptr</td><td>Pointer to buffer to write to file </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data in bytes to be written</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes written, or a negative value on error. </dd></dl>
-
-</div>
-</div>
 <a id="af069d9aae45f54cadde63548780ca64a" name="af069d9aae45f54cadde63548780ca64a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#af069d9aae45f54cadde63548780ca64a">&#9670;&#160;</a></span>dir_findfirst()</h2>
 
@@ -1197,7 +1205,7 @@ Filesystem callback pointers. </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup, -1 if the directory existed and is empty, or a different negative value on error (in which case, errno will be set). </dd></dl>
 
 </div>
 </div>
@@ -1236,7 +1244,7 @@ Filesystem callback pointers. </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup, -1 if there are no more files in the directory, or a different negative value on error (in which case, errno will be set). </dd></dl>
 
 </div>
 </div>
@@ -1314,10 +1322,56 @@ Filesystem callback pointers. </td></tr>
 
 </div>
 </div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="a9baf607a8b1d35caa01cba78a59cfa05" name="a9baf607a8b1d35caa01cba78a59cfa05"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9baf607a8b1d35caa01cba78a59cfa05">&#9670;&#160;</a></span>__heap_total_size</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int __heap_total_size = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Total Size of the heap </p>
+
+</div>
+</div>
+<a id="acb6cd5e9d5c0eaaf05ab4dd31ae3185a" name="acb6cd5e9d5c0eaaf05ab4dd31ae3185a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#acb6cd5e9d5c0eaaf05ab4dd31ae3185a">&#9670;&#160;</a></span>__heap_end</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char* __heap_end = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>End of the heap </p>
+
+</div>
+</div>
+<a id="ad11809ad0d3a9c1fc6798cfafb1ba120" name="ad11809ad0d3a9c1fc6798cfafb1ba120"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad11809ad0d3a9c1fc6798cfafb1ba120">&#9670;&#160;</a></span>__heap_top</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">char* __heap_top = 0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>Top of the heap </p>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Aug 21 2025 23:51:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

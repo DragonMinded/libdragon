@@ -94,10 +94,12 @@ var searchData=
   ['vi_5fx_5fscale_5fset_91',['VI_X_SCALE_SET',['../group__display.html#gac1e9963eb22593c077a562ce662fe85d',1,'vi.h']]],
   ['vi_5fy_5fscale_92',['VI_Y_SCALE',['../group__display.html#ga4932c352d22aa0f3f6551641d3060d8a',1,'vi.h']]],
   ['vi_5fy_5fscale_5fset_93',['VI_Y_SCALE_SET',['../group__display.html#ga0e6a2caf5dbfdcc516bfea8d0d3eb14b',1,'vi.h']]],
-  ['vol_94',['vol',['../ay8910_8h.html#abc79941d9d5d3d5c9f22f0b4d97cdffa',1,'AYEnvelope']]],
-  ['vpr_95',['vpr',['../rsp_8h.html#a007496e4e8d0e57e66462151c8156051',1,'rsp_snapshot_t']]],
-  ['vs_20no_20inline_96',['Usage of inline functions vs no-inline',['../rdpq_8c.html#autotoc_md20',1,'']]],
-  ['vs_20preview_97',['Libdragon stable vs preview',['../index.html#autotoc_md6',1,'']]],
-  ['vs_20xbus_98',['RDRAM vs XBUS',['../rdpq_8c.html#autotoc_md22',1,'']]],
-  ['vslices_99',['vslices',['../sprite_8h.html#a3b1f4d3f9dd51d45993bda45a6d474d3',1,'sprite_t']]]
+  ['virtualcachedaddr_94',['VirtualCachedAddr',['../group__n64sys.html#ga6cbe8a16157397f5f7db9faf12ab5be4',1,'n64sys.h']]],
+  ['virtualuncachedaddr_95',['VirtualUncachedAddr',['../group__n64sys.html#ga14c8df17b8a56f3f6d582275688e757d',1,'n64sys.h']]],
+  ['vol_96',['vol',['../ay8910_8h.html#abc79941d9d5d3d5c9f22f0b4d97cdffa',1,'AYEnvelope']]],
+  ['vpr_97',['vpr',['../rsp_8h.html#a007496e4e8d0e57e66462151c8156051',1,'rsp_snapshot_t']]],
+  ['vs_20no_20inline_98',['Usage of inline functions vs no-inline',['../rdpq_8c.html#autotoc_md20',1,'']]],
+  ['vs_20preview_99',['Libdragon stable vs preview',['../index.html#autotoc_md6',1,'']]],
+  ['vs_20xbus_100',['RDRAM vs XBUS',['../rdpq_8c.html#autotoc_md22',1,'']]],
+  ['vslices_101',['vslices',['../sprite_8h.html#a3b1f4d3f9dd51d45993bda45a6d474d3',1,'sprite_t']]]
 ];

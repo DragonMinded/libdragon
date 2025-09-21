@@ -114,8 +114,9 @@ Macros</h2></td></tr>
 <tr class="memitem:ga9a2133dc22dbfbf01faaf9dd19ee7b67" id="r_ga9a2133dc22dbfbf01faaf9dd19ee7b67"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga9a2133dc22dbfbf01faaf9dd19ee7b67">RGBA16</a>(rx,  gx,  bx,  ax)</td></tr>
 <tr class="memdesc:ga9a2133dc22dbfbf01faaf9dd19ee7b67"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31, A in 0-1)  <br /></td></tr>
 <tr class="separator:ga9a2133dc22dbfbf01faaf9dd19ee7b67"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae16bab5741f411ec4ef51b0295f6e705" id="r_gae16bab5741f411ec4ef51b0295f6e705"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">RGBA32</a>(rx,  gx,  bx,  ax)</td></tr>
-<tr class="memdesc:gae16bab5741f411ec4ef51b0295f6e705"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA32 range (0-255).  <br /></td></tr>
+<tr class="memitem:gae16bab5741f411ec4ef51b0295f6e705" id="r_gae16bab5741f411ec4ef51b0295f6e705"><td class="memItemLeft" align="right" valign="top"><a id="gae16bab5741f411ec4ef51b0295f6e705" name="gae16bab5741f411ec4ef51b0295f6e705"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>RGBA32</b>(rx,  gx,  bx,  ax)&#160;&#160;&#160;((<a class="el" href="group__graphics.html#structcolor__t">color_t</a>){.r=rx, .g=gx, .b=bx, .a=ax})</td></tr>
+<tr class="memdesc:gae16bab5741f411ec4ef51b0295f6e705"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA32 range (0-255). <br /></td></tr>
 <tr class="separator:gae16bab5741f411ec4ef51b0295f6e705"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
@@ -278,58 +279,32 @@ Alpha component. </td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    <span class="keywordtype">int</span> rx1 = rx, gx1 = gx, bx1 = bx; \</div>
-<div class="line">    (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){.r=(rx1&lt;&lt;3)|(rx1&gt;&gt;3), .g=(gx1&lt;&lt;3)|(gx1&gt;&gt;3), .b=(bx1&lt;&lt;3)|(bx1&gt;&gt;3), .a=ax ? 0xFF : 0}; \</div>
-<div class="line">})</div>
+<b>Value:</b><div class="fragment"><div class="line">    (__builtin_constant_p(rx) &amp;&amp;                                   \</div>
+<div class="line">     __builtin_constant_p(gx) &amp;&amp;                                   \</div>
+<div class="line">     __builtin_constant_p(bx) &amp;&amp;                                   \</div>
+<div class="line">     __builtin_constant_p(ax) ?                                    \</div>
+<div class="line">        ((<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){                                                 \</div>
+<div class="line">            .r = ((rx) &lt;&lt; 3) | ((rx) &gt;&gt; 3),                          \</div>
+<div class="line">            .g = ((gx) &lt;&lt; 3) | ((gx) &gt;&gt; 3),                          \</div>
+<div class="line">            .b = ((bx) &lt;&lt; 3) | ((bx) &gt;&gt; 3),                          \</div>
+<div class="line">            .a = (ax) ? 0xFF : 0                                     \</div>
+<div class="line">        }) :                             \</div>
+<div class="line">        ( __extension__ ({ \</div>
+<div class="line">            <span class="keywordtype">int</span> _r = (rx);                              \</div>
+<div class="line">            <span class="keywordtype">int</span> _g = (gx);                              \</div>
+<div class="line">            <span class="keywordtype">int</span> _b = (bx);                              \</div>
+<div class="line">            <span class="keywordtype">int</span> _a = (ax);                              \</div>
+<div class="line">            (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){                                       \</div>
+<div class="line">                .r = (_r &lt;&lt; 3) | (_r &gt;&gt; 3),                  \</div>
+<div class="line">                .g = (_g &lt;&lt; 3) | (_g &gt;&gt; 3),                  \</div>
+<div class="line">                .b = (_b &lt;&lt; 3) | (_b &gt;&gt; 3),                  \</div>
+<div class="line">                .a = _a ? 0xFF : 0                           \</div>
+<div class="line">            };                                               \</div>
+<div class="line">        }) ) \</div>
+<div class="line">        )</div>
 <div class="ttc" id="agroup__graphics_html_structcolor__t"><div class="ttname"><a href="group__graphics.html#structcolor__t">color_t</a></div><div class="ttdoc">Generic color structure.</div><div class="ttdef"><b>Definition</b> graphics.h:54</div></div>
 </div><!-- fragment -->
 <p>Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31, A in 0-1) </p>
-
-</div>
-</div>
-<a id="gae16bab5741f411ec4ef51b0295f6e705" name="gae16bab5741f411ec4ef51b0295f6e705"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gae16bab5741f411ec4ef51b0295f6e705">&#9670;&#160;</a></span>RGBA32</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define RGBA32</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">rx, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">gx, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">bx, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">ax&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){.r=rx, .g=gx, .b=bx, .a=ax}; \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA32 range (0-255). </p>
 
 </div>
 </div>
@@ -1239,7 +1214,7 @@ Alpha component. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Aug 21 2025 23:51:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

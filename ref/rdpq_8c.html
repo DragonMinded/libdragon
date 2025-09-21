@@ -1172,7 +1172,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 <div class="line"><span class="comment">// so just change the fill color.</span></div>
 <div class="line"><a class="code hl_function" href="rdpq_8c.html#a70a6556d7d088ca2b745fa145e3aeee3">rdpq_set_fill_color</a>(<a class="code hl_define" href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">RGBA32</a>(0, 0, 255, 0));</div>
 <div class="line"><a class="code hl_define" href="rdpq__rect_8h.html#a9c6405f89d2fe70046330964c21ba124">rdpq_fill_rectangle</a>(0, 120, 320, 240);</div>
-<div class="ttc" id="agroup__graphics_html_gae16bab5741f411ec4ef51b0295f6e705"><div class="ttname"><a href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">RGBA32</a></div><div class="ttdeci">#define RGBA32(rx, gx, bx, ax)</div><div class="ttdoc">Create a color_t from the R,G,B,A components in the RGBA32 range (0-255).</div><div class="ttdef"><b>Definition</b> graphics.h:76</div></div>
+<div class="ttc" id="agroup__graphics_html_gae16bab5741f411ec4ef51b0295f6e705"><div class="ttname"><a href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">RGBA32</a></div><div class="ttdeci">#define RGBA32(rx, gx, bx, ax)</div><div class="ttdoc">Create a color_t from the R,G,B,A components in the RGBA32 range (0-255).</div><div class="ttdef"><b>Definition</b> graphics.h:96</div></div>
 <div class="ttc" id="ardpq_8c_html_a70a6556d7d088ca2b745fa145e3aeee3"><div class="ttname"><a href="rdpq_8c.html#a70a6556d7d088ca2b745fa145e3aeee3">rdpq_set_fill_color</a></div><div class="ttdeci">void rdpq_set_fill_color(color_t color)</div><div class="ttdoc">Enqueue a SET_FILL_COLOR RDP command.</div><div class="ttdef"><b>Definition</b> rdpq.h:838</div></div>
 <div class="ttc" id="ardpq__mode_8c_html_a99c5c398b388f6d1683e7405a6058fb9"><div class="ttname"><a href="rdpq__mode_8c.html#a99c5c398b388f6d1683e7405a6058fb9">rdpq_set_mode_fill</a></div><div class="ttdeci">void rdpq_set_mode_fill(color_t color)</div><div class="ttdoc">Reset render mode to FILL type.</div><div class="ttdef"><b>Definition</b> rdpq_mode.h:302</div></div>
 <div class="ttc" id="ardpq__rect_8h_html_a9c6405f89d2fe70046330964c21ba124"><div class="ttname"><a href="rdpq__rect_8h.html#a9c6405f89d2fe70046330964c21ba124">rdpq_fill_rectangle</a></div><div class="ttdeci">#define rdpq_fill_rectangle(x0, y0, x1, y1)</div><div class="ttdoc">Draw a filled rectangle (RDP command: FILL_RECTANGLE)</div><div class="ttdef"><b>Definition</b> rdpq_rect.h:250</div></div>
@@ -2087,7 +2087,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">index</td><td>Index in the rdpq lookup table of the buffer to set as render target. </td></tr>
-    <tr><td class="paramname">offset</td><td>Byte offset to add to the buffer stored in the lookup table. Notice that if index is 0, this can be a physical address to a buffer (use <a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f" title="Return the physical memory address for a given address.">PhysicalAddr</a> to convert a C pointer to a physical address). </td></tr>
+    <tr><td class="paramname">offset</td><td>Byte offset to add to the buffer stored in the lookup table. Notice that if index is 0, this can be a physical address to a buffer (use <a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f" title="Return the physical memory address for a given virtual address (pointer)">PhysicalAddr</a> to convert a C pointer to a physical address). </td></tr>
     <tr><td class="paramname">format</td><td>Format of the buffer. Only <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a0ae35df0b9a28b002380dc866dad303a" title="Format RGBA 8888 (32-bit)">FMT_RGBA32</a>, <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5" title="Format RGBA 5551 (16-bit)">FMT_RGBA16</a> or <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a7845dc9354faccf8262e271b1026b0f2" title="Format I8: 8-bit intensity (8-bit per pixel)">FMT_I8</a> are possible to use as a render target. </td></tr>
     <tr><td class="paramname">width</td><td>Width of the buffer in pixel </td></tr>
     <tr><td class="paramname">height</td><td>Height of the buffer in pixel </td></tr>
@@ -2141,7 +2141,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">index</td><td>Index in the rdpq lookup table of the buffer to set as render target. </td></tr>
-    <tr><td class="paramname">offset</td><td>Byte offset to add to the buffer stored in the lookup table. Notice that if index is 0, this can be a physical address to a buffer (use <a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f" title="Return the physical memory address for a given address.">PhysicalAddr</a> to convert a C pointer to a physical address).</td></tr>
+    <tr><td class="paramname">offset</td><td>Byte offset to add to the buffer stored in the lookup table. Notice that if index is 0, this can be a physical address to a buffer (use <a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f" title="Return the physical memory address for a given virtual address (pointer)">PhysicalAddr</a> to convert a C pointer to a physical address).</td></tr>
   </table>
   </dd>
 </dl>
@@ -2209,7 +2209,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">index</td><td>Index in the rdpq lookup table of the buffer to set as texture image. </td></tr>
-    <tr><td class="paramname">offset</td><td>Byte offset to add to the buffer stored in the lookup table. Notice that if index is 0, this can be a physical address to a buffer (use <a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f" title="Return the physical memory address for a given address.">PhysicalAddr</a> to convert a C pointer to a physical address). </td></tr>
+    <tr><td class="paramname">offset</td><td>Byte offset to add to the buffer stored in the lookup table. Notice that if index is 0, this can be a physical address to a buffer (use <a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f" title="Return the physical memory address for a given virtual address (pointer)">PhysicalAddr</a> to convert a C pointer to a physical address). </td></tr>
     <tr><td class="paramname">format</td><td>Format of the texture (<a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1" title="Pixel format enum.">tex_format_t</a>) </td></tr>
     <tr><td class="paramname">width</td><td>Width of the texture in pixel (max 1024) </td></tr>
     <tr><td class="paramname">height</td><td>Height of the texture in pixel (max 1024)</td></tr>
@@ -2398,7 +2398,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Aug 21 2025 23:51:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

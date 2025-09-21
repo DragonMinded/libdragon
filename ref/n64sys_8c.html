@@ -87,6 +87,9 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
+<tr class="memitem:a3534ea6834b9a5d6bbd6e54253b0c481" id="r_a3534ea6834b9a5d6bbd6e54253b0c481"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="n64sys_8c.html#a3534ea6834b9a5d6bbd6e54253b0c481">build_opcode</a>(op,  cache)&#160;&#160;&#160;(((op) &lt;&lt; 2) | (cache))</td></tr>
+<tr class="memdesc:a3534ea6834b9a5d6bbd6e54253b0c481"><td class="mdescLeft">&#160;</td><td class="mdescRight">Helper macro to create the opcode for a cache operation. Operation is encoded in 5 bits where bits 4..2 contain the operation type and bits 0..1 determine the cache that is to be operated on.  <br /></td></tr>
+<tr class="separator:a3534ea6834b9a5d6bbd6e54253b0c481"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac69e8a7b3752d227238ff76b56b3fa17" id="r_ac69e8a7b3752d227238ff76b56b3fa17"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="n64sys_8c.html#ac69e8a7b3752d227238ff76b56b3fa17">cache_op</a>(op,  linesize)</td></tr>
 <tr class="memdesc:ac69e8a7b3752d227238ff76b56b3fa17"><td class="mdescLeft">&#160;</td><td class="mdescRight">Helper macro to perform cache refresh operations.  <br /></td></tr>
 <tr class="separator:ac69e8a7b3752d227238ff76b56b3fa17"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -96,10 +99,9 @@ Functions</h2></td></tr>
 <tr class="memitem:ga9365c415a472036d7c8dbbf71239e707" id="r_ga9365c415a472036d7c8dbbf71239e707"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga9365c415a472036d7c8dbbf71239e707">data_cache_hit_writeback</a> (volatile const void *addr, unsigned long length)</td></tr>
 <tr class="memdesc:ga9365c415a472036d7c8dbbf71239e707"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback over a memory region.  <br /></td></tr>
 <tr class="separator:ga9365c415a472036d7c8dbbf71239e707"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga77626094fc3952fe3321098e24811e83" id="r_ga77626094fc3952fe3321098e24811e83"><td class="memItemLeft" align="right" valign="top">
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_invalidate</b> (volatile void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:ga77626094fc3952fe3321098e24811e83"><td class="mdescLeft">&#160;</td><td class="mdescRight">Underlying implementation of data_cache_hit_invalidate. <br /></td></tr>
-<tr class="separator:ga77626094fc3952fe3321098e24811e83"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga63884f9a4a9677408053b476903e3993" id="r_ga63884f9a4a9677408053b476903e3993"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga63884f9a4a9677408053b476903e3993">data_cache_hit_invalidate</a> (volatile void *addr, unsigned long length)</td></tr>
+<tr class="memdesc:ga63884f9a4a9677408053b476903e3993"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache invalidate over a memory region.  <br /></td></tr>
+<tr class="separator:ga63884f9a4a9677408053b476903e3993"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaba18b282af73a79b576df68fe40bbc6b" id="r_gaba18b282af73a79b576df68fe40bbc6b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaba18b282af73a79b576df68fe40bbc6b">data_cache_hit_writeback_invalidate</a> (volatile void *addr, unsigned long length)</td></tr>
 <tr class="memdesc:gaba18b282af73a79b576df68fe40bbc6b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback invalidate over a memory region.  <br /></td></tr>
 <tr class="separator:gaba18b282af73a79b576df68fe40bbc6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -130,12 +132,15 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:gad7eb2952f66b4c6158a161eddc6f6a7d" id="r_gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">free_uncached</a> (void *buf)</td></tr>
 <tr class="memdesc:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Free an uncached memory buffer.  <br /></td></tr>
 <tr class="separator:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga4496cbe7966a01738242c1b214028eb0" id="r_ga4496cbe7966a01738242c1b214028eb0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0">get_memory_size</a> ()</td></tr>
-<tr class="memdesc:ga4496cbe7966a01738242c1b214028eb0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get amount of available memory.  <br /></td></tr>
-<tr class="separator:ga4496cbe7966a01738242c1b214028eb0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga28ba352e296d379426531772b874046d" id="r_ga28ba352e296d379426531772b874046d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga28ba352e296d379426531772b874046d">is_memory_expanded</a> ()</td></tr>
-<tr class="memdesc:ga28ba352e296d379426531772b874046d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is expansion pak in use.  <br /></td></tr>
-<tr class="separator:ga28ba352e296d379426531772b874046d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga20208f76196865aba3c188089187aeb5" id="r_ga20208f76196865aba3c188089187aeb5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga20208f76196865aba3c188089187aeb5">get_memory_size</a> (void)</td></tr>
+<tr class="memdesc:ga20208f76196865aba3c188089187aeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get amount of available memory.  <br /></td></tr>
+<tr class="separator:ga20208f76196865aba3c188089187aeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad7079dd36260ff330df1bd83fab7cfca" id="r_gad7079dd36260ff330df1bd83fab7cfca"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gad7079dd36260ff330df1bd83fab7cfca">is_memory_expanded</a> (void)</td></tr>
+<tr class="memdesc:gad7079dd36260ff330df1bd83fab7cfca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is expansion pak in use.  <br /></td></tr>
+<tr class="separator:gad7079dd36260ff330df1bd83fab7cfca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga536cf32fcf76fe117b6964c9d09004a2" id="r_ga536cf32fcf76fe117b6964c9d09004a2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga536cf32fcf76fe117b6964c9d09004a2">assert_memory_expanded</a> (void)</td></tr>
+<tr class="memdesc:ga536cf32fcf76fe117b6964c9d09004a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Assert that the expansion pak is present.  <br /></td></tr>
+<tr class="separator:ga536cf32fcf76fe117b6964c9d09004a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga4cd768cc5d84485110ecf4991727b00b" id="r_ga4cd768cc5d84485110ecf4991727b00b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">get_tv_type</a> ()</td></tr>
 <tr class="memdesc:ga4cd768cc5d84485110ecf4991727b00b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <br /></td></tr>
 <tr class="separator:ga4cd768cc5d84485110ecf4991727b00b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -157,6 +162,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:ga2ae016ad196fd951c5ce81d0f775f4ed" id="r_ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga2ae016ad196fd951c5ce81d0f775f4ed">wait_ms</a> (unsigned long wait_ms)</td></tr>
 <tr class="memdesc:ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Spin wait until the number of milliseconds have elapsed.  <br /></td></tr>
 <tr class="separator:ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6774ab86372125c00d0f98bc3b2f9ac1" id="r_ga6774ab86372125c00d0f98bc3b2f9ac1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6774ab86372125c00d0f98bc3b2f9ac1">die</a> (void)</td></tr>
+<tr class="memdesc:ga6774ab86372125c00d0f98bc3b2f9ac1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a complete halt of all processors.  <br /></td></tr>
+<tr class="separator:ga6774ab86372125c00d0f98bc3b2f9ac1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaa30315f523b6cfab1efbcf15a32ecab" id="r_aaa30315f523b6cfab1efbcf15a32ecab"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="n64sys_8c.html#aaa30315f523b6cfab1efbcf15a32ecab">__init_cop1</a> (void)</td></tr>
 <tr class="memdesc:aaa30315f523b6cfab1efbcf15a32ecab"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize COP1 with default settings that prevent undesirable exceptions.  <br /></td></tr>
 <tr class="separator:aaa30315f523b6cfab1efbcf15a32ecab"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -179,6 +187,10 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__boot_resettype</b></
 int&#160;</td><td class="memItemRight" valign="bottom"><b>__boot_consoletype</b></td></tr>
 <tr class="memdesc:a1112ce48cee6b38f93b465c3fb6de8af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Console type as detected by IPL3. <br /></td></tr>
 <tr class="separator:a1112ce48cee6b38f93b465c3fb6de8af"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae4c173208800dc350b311c78871b8fa4" id="r_ae4c173208800dc350b311c78871b8fa4"><td class="memItemLeft" align="right" valign="top"><a id="ae4c173208800dc350b311c78871b8fa4" name="ae4c173208800dc350b311c78871b8fa4"></a>
+bool&#160;</td><td class="memItemRight" valign="bottom"><b>__expanded_memory_asserted</b> = false</td></tr>
+<tr class="memdesc:ae4c173208800dc350b311c78871b8fa4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Records whether the user called a function to check for the presence of expanded memory. <br /></td></tr>
+<tr class="separator:ae4c173208800dc350b311c78871b8fa4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>N64 System Interface. </p>
@@ -186,6 +198,43 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__boot_consoletype</b>
 <dd>
 Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'ba'+'jo@'+'gm'+'ail'+'.c'+'om'; return false;">giova<span class="obfuscator">.nosp@m.</span>nnib<span class="obfuscator">.nosp@m.</span>ajo@g<span class="obfuscator">.nosp@m.</span>mail<span class="obfuscator">.nosp@m.</span>.com</a> </dd></dl>
 </div><h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a3534ea6834b9a5d6bbd6e54253b0c481" name="a3534ea6834b9a5d6bbd6e54253b0c481"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3534ea6834b9a5d6bbd6e54253b0c481">&#9670;&#160;</a></span>build_opcode</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define build_opcode</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">op, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">cache&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td>&#160;&#160;&#160;(((op) &lt;&lt; 2) | (cache))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Helper macro to create the opcode for a cache operation. Operation is encoded in 5 bits where bits 4..2 contain the operation type and bits 0..1 determine the cache that is to be operated on. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">op</td><td>Operation type to perform. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">cache</td><td>Specific cache to perform the operation on. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ac69e8a7b3752d227238ff76b56b3fa17" name="ac69e8a7b3752d227238ff76b56b3fa17"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ac69e8a7b3752d227238ff76b56b3fa17">&#9670;&#160;</a></span>cache_op</h2>
 
@@ -256,7 +305,7 @@ Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Aug 21 2025 23:51:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

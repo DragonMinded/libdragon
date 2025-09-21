@@ -1,7 +1,7 @@
 var searchData=
 [
   ['get_5finterrupts_5fstate_0',['get_interrupts_state',['../interrupt_8h.html#af84369f06d965c3fdba355cad7e71e89',1,'get_interrupts_state():&#160;interrupt.c'],['../interrupt_8c.html#af84369f06d965c3fdba355cad7e71e89',1,'get_interrupts_state():&#160;interrupt.c']]],
-  ['get_5fmemory_5fsize_1',['get_memory_size',['../group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0',1,'get_memory_size():&#160;n64sys.c'],['../group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0',1,'get_memory_size():&#160;n64sys.c']]],
+  ['get_5fmemory_5fsize_1',['get_memory_size',['../group__n64sys.html#ga20208f76196865aba3c188089187aeb5',1,'get_memory_size(void):&#160;n64sys.c'],['../group__n64sys.html#ga20208f76196865aba3c188089187aeb5',1,'get_memory_size(void):&#160;n64sys.c']]],
   ['get_5fmempak_5fentry_2',['get_mempak_entry',['../group__controllerpak.html#gaaa54d6b5cea4be11738f951318ebc758',1,'get_mempak_entry(int controller, int entry, entry_structure_t *entry_data):&#160;mempak.c'],['../group__controllerpak.html#gaaa54d6b5cea4be11738f951318ebc758',1,'get_mempak_entry(int controller, int entry, entry_structure_t *entry_data):&#160;mempak.c']]],
   ['get_5fmempak_5ffree_5fspace_3',['get_mempak_free_space',['../group__controllerpak.html#ga5b092c36dbd886af01b0c4be86554946',1,'get_mempak_free_space(int controller):&#160;mempak.c'],['../group__controllerpak.html#ga5b092c36dbd886af01b0c4be86554946',1,'get_mempak_free_space(int controller):&#160;mempak.c']]],
   ['get_5fticks_4',['get_ticks',['../group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4',1,'get_ticks(void):&#160;n64sys.c'],['../group__n64sys.html#ga3686b92a0667e9774993808f4d2ac2b4',1,'get_ticks(void):&#160;n64sys.c']]],

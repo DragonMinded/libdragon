@@ -9,5 +9,6 @@ var searchData=
   ['block_5flast_6',['BLOCK_LAST',['../mempak_8c.html#aaf535f6a89db6d7c4b2c54e98f43facb',1,'mempak.c']]],
   ['block_5fvalid_5ffirst_7',['BLOCK_VALID_FIRST',['../mempak_8c.html#a42c87752b22ef217fa258ead71a46318',1,'mempak.c']]],
   ['block_5fvalid_5flast_8',['BLOCK_VALID_LAST',['../mempak_8c.html#a669cc689e0f884dbf9ddd0a20cd799c5',1,'mempak.c']]],
-  ['buffers_5fper_5fsecond_9',['BUFFERS_PER_SECOND',['../audio_8c.html#a517eab55c83f18dba8405316f23b02d2',1,'audio.c']]]
+  ['buffers_5fper_5fsecond_9',['BUFFERS_PER_SECOND',['../audio_8c.html#a517eab55c83f18dba8405316f23b02d2',1,'audio.c']]],
+  ['build_5fopcode_10',['build_opcode',['../n64sys_8c.html#a3534ea6834b9a5d6bbd6e54253b0c481',1,'n64sys.c']]]
 ];

@@ -15,7 +15,7 @@ var searchData=
   ['sprite_5fext_5ft_2e_5f_5funnamed38_5f_5f_12',['sprite_ext_t.__unnamed38__',['../sprite__internal_8h.html#structsprite__ext__t_8____unnamed38____',1,'']]],
   ['sprite_5flod_5fs_13',['sprite_lod_s',['../sprite__internal_8h.html#structsprite__ext__t_1_1sprite__lod__s',1,'sprite_ext_t']]],
   ['sprite_5ft_14',['sprite_t',['../sprite_8h.html#structsprite__t',1,'']]],
-  ['sprite_5ft_2e_5f_5funnamed61_5f_5f_15',['sprite_t.__unnamed61__',['../sprite_8h.html#unionsprite__t_8____unnamed61____',1,'']]],
+  ['sprite_5ft_2e_5f_5funnamed62_5f_5f_15',['sprite_t.__unnamed62__',['../sprite_8h.html#unionsprite__t_8____unnamed62____',1,'']]],
   ['stdio_5ft_16',['stdio_t',['../structstdio__t.html',1,'']]],
   ['surface_5ft_17',['surface_t',['../surface_8h.html#structsurface__t',1,'']]],
   ['symtable_5fentry_5ft_18',['symtable_entry_t',['../backtrace_8c.html#structsymtable__entry__t',1,'']]],

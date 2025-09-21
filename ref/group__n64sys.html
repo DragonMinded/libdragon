@@ -73,6 +73,7 @@ $(function() {
   <div class="summary">
 <a href="#files">Files</a> &#124;
 <a href="#define-members">Macros</a> &#124;
+<a href="#typedef-members">Typedefs</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
@@ -373,8 +374,17 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>KSEG0_START_ADDR</b>&#160;&#160;&#160;((void*)0x80000000)</td></tr>
 <tr class="memdesc:ga3f0580f61dc7654194a76aed5b60b362"><td class="mdescLeft">&#160;</td><td class="mdescRight">void pointer to cached and non-mapped memory start address <br /></td></tr>
 <tr class="separator:ga3f0580f61dc7654194a76aed5b60b362"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga54fca3c0f8e1be138f320b3dcce4366f" id="r_ga54fca3c0f8e1be138f320b3dcce4366f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f">PhysicalAddr</a>(_addr)</td></tr>
+<tr class="memdesc:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the physical memory address for a given virtual address (pointer)  <br /></td></tr>
+<tr class="separator:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6cbe8a16157397f5f7db9faf12ab5be4" id="r_ga6cbe8a16157397f5f7db9faf12ab5be4"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6cbe8a16157397f5f7db9faf12ab5be4">VirtualCachedAddr</a>(_addr)&#160;&#160;&#160;((void *)(((unsigned long)(_addr))|0x80000000))</td></tr>
+<tr class="memdesc:ga6cbe8a16157397f5f7db9faf12ab5be4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a virtual addresses in a cached segment to access a physical address.  <br /></td></tr>
+<tr class="separator:ga6cbe8a16157397f5f7db9faf12ab5be4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga14c8df17b8a56f3f6d582275688e757d" id="r_ga14c8df17b8a56f3f6d582275688e757d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga14c8df17b8a56f3f6d582275688e757d">VirtualUncachedAddr</a>(_addr)&#160;&#160;&#160;((void *)(((unsigned long)(_addr))|0xA0000000))</td></tr>
+<tr class="memdesc:ga14c8df17b8a56f3f6d582275688e757d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a virtual addresses in an uncached segment to access a physical address.  <br /></td></tr>
+<tr class="separator:ga14c8df17b8a56f3f6d582275688e757d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2a6fc83e86b9c1a343f50a219edd10c7" id="r_ga2a6fc83e86b9c1a343f50a219edd10c7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga2a6fc83e86b9c1a343f50a219edd10c7">UncachedAddr</a>(_addr)&#160;&#160;&#160;((void *)(((unsigned long)(_addr))|0x20000000))</td></tr>
-<tr class="memdesc:ga2a6fc83e86b9c1a343f50a219edd10c7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the uncached memory address for a given address.  <br /></td></tr>
+<tr class="memdesc:ga2a6fc83e86b9c1a343f50a219edd10c7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the uncached memory address for a given virtual address.  <br /></td></tr>
 <tr class="separator:ga2a6fc83e86b9c1a343f50a219edd10c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gab1557f26ee61d78b2efa5751fa324274" id="r_gab1557f26ee61d78b2efa5751fa324274"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gab1557f26ee61d78b2efa5751fa324274">UncachedShortAddr</a>(_addr)&#160;&#160;&#160;((short *)(((unsigned long)(_addr))|0x20000000))</td></tr>
 <tr class="memdesc:gab1557f26ee61d78b2efa5751fa324274"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the uncached memory address for a given address.  <br /></td></tr>
@@ -391,9 +401,6 @@ Macros</h2></td></tr>
 <tr class="memitem:gaa566b86568181e152a0e5e940883600b" id="r_gaa566b86568181e152a0e5e940883600b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa566b86568181e152a0e5e940883600b">CachedAddr</a>(_addr)&#160;&#160;&#160;((void *)(((unsigned long)(_addr))&amp;~0x20000000))</td></tr>
 <tr class="memdesc:gaa566b86568181e152a0e5e940883600b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the cached memory address for a given address.  <br /></td></tr>
 <tr class="separator:gaa566b86568181e152a0e5e940883600b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga54fca3c0f8e1be138f320b3dcce4366f" id="r_ga54fca3c0f8e1be138f320b3dcce4366f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f">PhysicalAddr</a>(_addr)</td></tr>
-<tr class="memdesc:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the physical memory address for a given address.  <br /></td></tr>
-<tr class="separator:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaa83770c8bb3d7811f16af764871ed75f" id="r_gaa83770c8bb3d7811f16af764871ed75f"><td class="memItemLeft" align="right" valign="top"><a id="gaa83770c8bb3d7811f16af764871ed75f" name="gaa83770c8bb3d7811f16af764871ed75f"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>HEAP_START_ADDR</b>&#160;&#160;&#160;((void*)<a class="el" href="group__n64sys.html#gad07593be6cf1d4ebe605cbdb85f8956b">__bss_end</a>)</td></tr>
 <tr class="memdesc:gaa83770c8bb3d7811f16af764871ed75f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Void pointer to the start of heap memory. <br /></td></tr>
@@ -433,9 +440,12 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>TICKS_TO_MS</b>(val)&#160;&#160;&#160;(((val) / (<a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a> / 1000)))</td></tr>
 <tr class="memdesc:ga6377ac2d56054bba13b5c5157a026292"><td class="mdescLeft">&#160;</td><td class="mdescRight">Returns equivalent count ticks for the given microseconds. <br /></td></tr>
 <tr class="separator:ga6377ac2d56054bba13b5c5157a026292"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga6c4f1220d31e4e32d0586590c6a5b526" id="r_ga6c4f1220d31e4e32d0586590c6a5b526"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6c4f1220d31e4e32d0586590c6a5b526">data_cache_hit_invalidate</a>(addr_,  sz_)</td></tr>
-<tr class="memdesc:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache invalidate over a memory region.  <br /></td></tr>
-<tr class="separator:ga6c4f1220d31e4e32d0586590c6a5b526"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
+Typedefs</h2></td></tr>
+<tr class="memitem:gaaf5dda50732dd08c2496ce37ad95b0cd" id="r_gaaf5dda50732dd08c2496ce37ad95b0cd"><td class="memItemLeft" align="right" valign="top">typedef uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd">phys_addr_t</a></td></tr>
+<tr class="memdesc:gaaf5dda50732dd08c2496ce37ad95b0cd"><td class="mdescLeft">&#160;</td><td class="mdescRight">A physical address on the MIPS bus.  <br /></td></tr>
+<tr class="separator:gaaf5dda50732dd08c2496ce37ad95b0cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
@@ -472,10 +482,12 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><b>sys_bbplayer</b> (voi
 <tr class="memitem:ga2ae016ad196fd951c5ce81d0f775f4ed" id="r_ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga2ae016ad196fd951c5ce81d0f775f4ed">wait_ms</a> (unsigned long wait_ms)</td></tr>
 <tr class="memdesc:ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="mdescLeft">&#160;</td><td class="mdescRight">Spin wait until the number of milliseconds have elapsed.  <br /></td></tr>
 <tr class="separator:ga2ae016ad196fd951c5ce81d0f775f4ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga77626094fc3952fe3321098e24811e83" id="r_ga77626094fc3952fe3321098e24811e83"><td class="memItemLeft" align="right" valign="top"><a id="ga77626094fc3952fe3321098e24811e83" name="ga77626094fc3952fe3321098e24811e83"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_invalidate</b> (volatile void *addr, unsigned long length)</td></tr>
-<tr class="memdesc:ga77626094fc3952fe3321098e24811e83"><td class="mdescLeft">&#160;</td><td class="mdescRight">Underlying implementation of data_cache_hit_invalidate. <br /></td></tr>
-<tr class="separator:ga77626094fc3952fe3321098e24811e83"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6774ab86372125c00d0f98bc3b2f9ac1" id="r_ga6774ab86372125c00d0f98bc3b2f9ac1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6774ab86372125c00d0f98bc3b2f9ac1">die</a> (void)</td></tr>
+<tr class="memdesc:ga6774ab86372125c00d0f98bc3b2f9ac1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a complete halt of all processors.  <br /></td></tr>
+<tr class="separator:ga6774ab86372125c00d0f98bc3b2f9ac1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga63884f9a4a9677408053b476903e3993" id="r_ga63884f9a4a9677408053b476903e3993"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga63884f9a4a9677408053b476903e3993">data_cache_hit_invalidate</a> (volatile void *addr, unsigned long length)</td></tr>
+<tr class="memdesc:ga63884f9a4a9677408053b476903e3993"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache invalidate over a memory region.  <br /></td></tr>
+<tr class="separator:ga63884f9a4a9677408053b476903e3993"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga9365c415a472036d7c8dbbf71239e707" id="r_ga9365c415a472036d7c8dbbf71239e707"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga9365c415a472036d7c8dbbf71239e707">data_cache_hit_writeback</a> (volatile const void *, unsigned long)</td></tr>
 <tr class="memdesc:ga9365c415a472036d7c8dbbf71239e707"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force a data cache writeback over a memory region.  <br /></td></tr>
 <tr class="separator:ga9365c415a472036d7c8dbbf71239e707"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -500,12 +512,15 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:ga3bbb609a58f6025ea3b8cb406ca4d823" id="r_ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga3bbb609a58f6025ea3b8cb406ca4d823">inst_cache_invalidate_all</a> (void)</td></tr>
 <tr class="memdesc:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force an instruction cache invalidate over whole memory.  <br /></td></tr>
 <tr class="separator:ga3bbb609a58f6025ea3b8cb406ca4d823"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga4496cbe7966a01738242c1b214028eb0" id="r_ga4496cbe7966a01738242c1b214028eb0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4496cbe7966a01738242c1b214028eb0">get_memory_size</a> ()</td></tr>
-<tr class="memdesc:ga4496cbe7966a01738242c1b214028eb0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get amount of available memory.  <br /></td></tr>
-<tr class="separator:ga4496cbe7966a01738242c1b214028eb0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga28ba352e296d379426531772b874046d" id="r_ga28ba352e296d379426531772b874046d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga28ba352e296d379426531772b874046d">is_memory_expanded</a> ()</td></tr>
-<tr class="memdesc:ga28ba352e296d379426531772b874046d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is expansion pak in use.  <br /></td></tr>
-<tr class="separator:ga28ba352e296d379426531772b874046d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga20208f76196865aba3c188089187aeb5" id="r_ga20208f76196865aba3c188089187aeb5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga20208f76196865aba3c188089187aeb5">get_memory_size</a> (void)</td></tr>
+<tr class="memdesc:ga20208f76196865aba3c188089187aeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get amount of available memory.  <br /></td></tr>
+<tr class="separator:ga20208f76196865aba3c188089187aeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad7079dd36260ff330df1bd83fab7cfca" id="r_gad7079dd36260ff330df1bd83fab7cfca"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gad7079dd36260ff330df1bd83fab7cfca">is_memory_expanded</a> (void)</td></tr>
+<tr class="memdesc:gad7079dd36260ff330df1bd83fab7cfca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is expansion pak in use.  <br /></td></tr>
+<tr class="separator:gad7079dd36260ff330df1bd83fab7cfca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga536cf32fcf76fe117b6964c9d09004a2" id="r_ga536cf32fcf76fe117b6964c9d09004a2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga536cf32fcf76fe117b6964c9d09004a2">assert_memory_expanded</a> (void)</td></tr>
+<tr class="memdesc:ga536cf32fcf76fe117b6964c9d09004a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Assert that the expansion pak is present.  <br /></td></tr>
+<tr class="separator:ga536cf32fcf76fe117b6964c9d09004a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf9f812fb3f12eaee7f5186b893266d3a" id="r_gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">malloc_uncached</a> (size_t size)</td></tr>
 <tr class="memdesc:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory.  <br /></td></tr>
 <tr class="separator:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -1253,6 +1268,96 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
+<a id="ga54fca3c0f8e1be138f320b3dcce4366f" name="ga54fca3c0f8e1be138f320b3dcce4366f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga54fca3c0f8e1be138f320b3dcce4366f">&#9670;&#160;</a></span>PhysicalAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define PhysicalAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    <span class="keyword">const</span> <span class="keyword">volatile</span> <span class="keywordtype">void</span> *_addrp = (_addr); \</div>
+<div class="line">    (((<a class="code hl_typedef" href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd">phys_addr_t</a>)(_addrp))&amp;~0xE0000000); \</div>
+<div class="line">})</div>
+<div class="ttc" id="agroup__n64sys_html_gaaf5dda50732dd08c2496ce37ad95b0cd"><div class="ttname"><a href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd">phys_addr_t</a></div><div class="ttdeci">uint32_t phys_addr_t</div><div class="ttdoc">A physical address on the MIPS bus.</div><div class="ttdef"><b>Definition</b> n64sys.h:73</div></div>
+</div><!-- fragment -->
+<p>Return the physical memory address for a given virtual address (pointer) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Virtual address to convert to a physical address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A phys_addr_t containing the physical memory address </dd></dl>
+
+</div>
+</div>
+<a id="ga6cbe8a16157397f5f7db9faf12ab5be4" name="ga6cbe8a16157397f5f7db9faf12ab5be4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6cbe8a16157397f5f7db9faf12ab5be4">&#9670;&#160;</a></span>VirtualCachedAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VirtualCachedAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td>&#160;&#160;&#160;((void *)(((unsigned long)(_addr))|0x80000000))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Create a virtual addresses in a cached segment to access a physical address. </p>
+<p>This macro creates a virtual address that can be used to access a physical address in the cached segment of the memory. The cached segment is the segment of memory that is cached by the CPU, and is the default segment for all memory accesses.</p>
+<p>The virtual address created by this macro can be used as a pointer in C to access the physical address.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Physical address to convert to a virtual address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A void pointer to the cached memory address </dd></dl>
+
+</div>
+</div>
+<a id="ga14c8df17b8a56f3f6d582275688e757d" name="ga14c8df17b8a56f3f6d582275688e757d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga14c8df17b8a56f3f6d582275688e757d">&#9670;&#160;</a></span>VirtualUncachedAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define VirtualUncachedAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td>&#160;&#160;&#160;((void *)(((unsigned long)(_addr))|0xA0000000))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Create a virtual addresses in an uncached segment to access a physical address. </p>
+<p>This macro creates a virtual address that can be used to access a physical address in the uncached segment of the memory. The uncached segment is the segment of memory that is not cached by the CPU, and is used for memory that is accessed by hardware devices, like the RCP.</p>
+<p>The virtual address created by this macro can be used as a pointer in C to access the physical address.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Physical address to convert to a virtual address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A void pointer to the uncached memory address </dd></dl>
+
+</div>
+</div>
 <a id="ga2a6fc83e86b9c1a343f50a219edd10c7" name="ga2a6fc83e86b9c1a343f50a219edd10c7"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga2a6fc83e86b9c1a343f50a219edd10c7">&#9670;&#160;</a></span>UncachedAddr</h2>
 
@@ -1269,7 +1374,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
       </table>
 </div><div class="memdoc">
 
-<p>Return the uncached memory address for a given address. </p>
+<p>Return the uncached memory address for a given virtual address. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
@@ -1415,37 +1520,6 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
-<a id="ga54fca3c0f8e1be138f320b3dcce4366f" name="ga54fca3c0f8e1be138f320b3dcce4366f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga54fca3c0f8e1be138f320b3dcce4366f">&#9670;&#160;</a></span>PhysicalAddr</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define PhysicalAddr</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">_addr</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    <span class="keyword">const</span> <span class="keyword">volatile</span> <span class="keywordtype">void</span> *_addrp = (_addr); \</div>
-<div class="line">    (((<span class="keywordtype">unsigned</span> long)(_addrp))&amp;~0xE0000000); \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Return the physical memory address for a given address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to a physical address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>A void pointer to the physical memory address in RAM </dd></dl>
-
-</div>
-</div>
 <a id="ga56d4cbe1e093c683432a147eb1ccb293" name="ga56d4cbe1e093c683432a147eb1ccb293"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga56d4cbe1e093c683432a147eb1ccb293">&#9670;&#160;</a></span>MEMORY_BARRIER</h2>
 
@@ -1574,49 +1648,23 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
-<a id="ga6c4f1220d31e4e32d0586590c6a5b526" name="ga6c4f1220d31e4e32d0586590c6a5b526"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6c4f1220d31e4e32d0586590c6a5b526">&#9670;&#160;</a></span>data_cache_hit_invalidate</h2>
+<h2 class="groupheader">Typedef Documentation</h2>
+<a id="gaaf5dda50732dd08c2496ce37ad95b0cd" name="gaaf5dda50732dd08c2496ce37ad95b0cd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaaf5dda50732dd08c2496ce37ad95b0cd">&#9670;&#160;</a></span>phys_addr_t</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define data_cache_hit_invalidate</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">addr_, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">sz_&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
+          <td class="memname">typedef uint32_t <a class="el" href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd">phys_addr_t</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    <span class="keywordtype">void</span> *addr = (addr_); <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> sz = (sz_); \</div>
-<div class="line">    assert(((uint32_t)addr % 16) == 0 &amp;&amp; (sz % 16) == 0); \</div>
-<div class="line">    __data_cache_hit_invalidate(addr, sz); \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Force a data cache invalidate over a memory region. </p>
-<p>Use this to force the N64 to update cache from RDRAM.</p>
-<p>The cache is made by cachelines of 16 bytes. If a memory region is invalidated and the memory region is not fully aligned to cachelines, a larger area than that requested will be invalidated; depending on the arrangement of the data segments and/or heap, this might make data previously written by the CPU in regular memory locations to be unexpectedly discarded, causing bugs.</p>
-<p>For this reason, this function must only be called with an address aligned to 16 bytes, and with a length which is an exact multiple of 16 bytes; it will assert otherwise.</p>
-<p>As an alternative, consider using <a class="el" href="group__n64sys.html#gaba18b282af73a79b576df68fe40bbc6b" title="Force a data cache writeback invalidate over a memory region.">data_cache_hit_writeback_invalidate</a>, that first writebacks the affected cachelines to RDRAM, guaranteeing integrity of memory areas that share cachelines with the region that must be invalidated.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr_</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">sz_</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
+
+<p>A physical address on the MIPS bus. </p>
+<p>Physical addresses are 32-bit wide, and are used to address the memory space of the MIPS R4300 CPU. The MIPS R4300 CPU has a 32-bit address bus, and can address up to 4 GiB of memory.</p>
+<p>Physical addresses are just numbers, they cannot be used as pointers (dereferenced). To access them, you must first convert them virtual addresses using the <a class="el" href="group__n64sys.html#ga6cbe8a16157397f5f7db9faf12ab5be4" title="Create a virtual addresses in a cached segment to access a physical address.">VirtualCachedAddr</a> or <a class="el" href="group__n64sys.html#ga14c8df17b8a56f3f6d582275688e757d" title="Create a virtual addresses in an uncached segment to access a physical address.">VirtualUncachedAddr</a> macros.</p>
+<p>In general, libdragon will try to use <a class="el" href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd" title="A physical address on the MIPS bus.">phys_addr_t</a> whenever a physical address is expected or returned, and C pointers for virtual addresses. Unfortunately, not all codebase can be changed to follow this convention for backward compatibility reasons. </p>
 
 </div>
 </div>
@@ -1780,6 +1828,68 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">wait_ms</td><td>Number of milliseconds to wait Maximum accepted value is 91625 ms </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga6774ab86372125c00d0f98bc3b2f9ac1" name="ga6774ab86372125c00d0f98bc3b2f9ac1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6774ab86372125c00d0f98bc3b2f9ac1">&#9670;&#160;</a></span>die()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void die </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force a complete halt of all processors. </p>
+<dl class="section note"><dt>Note</dt><dd>It should occur whenever a reset has been triggered and its past its RESET_TIME_LENGTH grace time period. This function will shut down the RSP and the CPU, blank the VI. Eventually the RDP will flush and complete its work as well. The system will recover after a reset or power cycle. </dd></dl>
+
+</div>
+</div>
+<a id="ga63884f9a4a9677408053b476903e3993" name="ga63884f9a4a9677408053b476903e3993"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga63884f9a4a9677408053b476903e3993">&#9670;&#160;</a></span>data_cache_hit_invalidate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void data_cache_hit_invalidate </td>
+          <td>(</td>
+          <td class="paramtype">volatile void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Force a data cache invalidate over a memory region. </p>
+<p>Use this to force the N64 to update cache from RDRAM.</p>
+<p>The cache is made by cachelines of 16 bytes. If a memory region is invalidated and the memory region is not fully aligned to cachelines, a larger area than that requested will be invalidated; depending on the arrangement of the data segments and/or heap, this might make data previously written by the CPU in regular memory locations to be unexpectedly discarded, causing bugs.</p>
+<p>For this reason, this function must only be called with an address aligned to 16 bytes, and with a length which is an exact multiple of 16 bytes; it will assert otherwise.</p>
+<p>As an alternative, consider using <a class="el" href="group__n64sys.html#gaba18b282af73a79b576df68fe40bbc6b" title="Force a data cache writeback invalidate over a memory region.">data_cache_hit_writeback_invalidate</a>, that first writebacks the affected cachelines to RDRAM, guaranteeing integrity of memory areas that share cachelines with the region that must be invalidated.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
   </table>
   </dd>
 </dl>
@@ -2054,8 +2164,8 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
-<a id="ga4496cbe7966a01738242c1b214028eb0" name="ga4496cbe7966a01738242c1b214028eb0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4496cbe7966a01738242c1b214028eb0">&#9670;&#160;</a></span>get_memory_size()</h2>
+<a id="ga20208f76196865aba3c188089187aeb5" name="ga20208f76196865aba3c188089187aeb5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga20208f76196865aba3c188089187aeb5">&#9670;&#160;</a></span>get_memory_size()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -2063,6 +2173,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
         <tr>
           <td class="memname">int get_memory_size </td>
           <td>(</td>
+          <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
@@ -2074,8 +2185,8 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
-<a id="ga28ba352e296d379426531772b874046d" name="ga28ba352e296d379426531772b874046d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga28ba352e296d379426531772b874046d">&#9670;&#160;</a></span>is_memory_expanded()</h2>
+<a id="gad7079dd36260ff330df1bd83fab7cfca" name="gad7079dd36260ff330df1bd83fab7cfca"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad7079dd36260ff330df1bd83fab7cfca">&#9670;&#160;</a></span>is_memory_expanded()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -2083,6 +2194,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
         <tr>
           <td class="memname">bool is_memory_expanded </td>
           <td>(</td>
+          <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
@@ -2090,9 +2202,31 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><div class="memdoc">
 
 <p>Is expansion pak in use. </p>
-<p>Checks whether the maximum available memory has been expanded to 8 MiB</p>
+<p>Checks whether the maximum available memory has been expanded to 8 MiB. If your application needs to the use of the expansion pak, you should provide an error message to the user if it is not present. Libdragon offers a function to do this, <a class="el" href="group__n64sys.html#ga536cf32fcf76fe117b6964c9d09004a2" title="Assert that the expansion pak is present.">assert_memory_expanded</a>, which will emit an error</p>
 <dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise.</dd></dl>
 <dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8 MiB of RAM. </dd></dl>
+
+</div>
+</div>
+<a id="ga536cf32fcf76fe117b6964c9d09004a2" name="ga536cf32fcf76fe117b6964c9d09004a2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga536cf32fcf76fe117b6964c9d09004a2">&#9670;&#160;</a></span>assert_memory_expanded()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void assert_memory_expanded </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Assert that the expansion pak is present. </p>
+<p>This function will emit an error screen if the expansion pak is not present, and will halt the system. It should be called in main() to ensure that the expansion pak is present before proceeding with the rest of the application. This enforces a good pattern to make the application fails early with a proper error message (rather than a crash) if the expansion pak is not present.</p>
+<p>If you want to provide your own graphical error screen, use <a class="el" href="group__n64sys.html#gad7079dd36260ff330df1bd83fab7cfca" title="Is expansion pak in use.">is_memory_expanded</a> instead to check if the expansion pak is present, and then show your own error screen if it is not present. </p>
 
 </div>
 </div>
@@ -2241,7 +2375,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Aug 21 2025 23:51:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Sep 21 2025 16:52:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
