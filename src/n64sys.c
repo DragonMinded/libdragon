@@ -23,6 +23,9 @@ int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
 
+/** @brief Records whether the user called a function to check for the presence of expanded memory */
+bool __expanded_memory_asserted = false;
+
 /** @brief Last tick at which the 64-bit counter was updated */
 static uint32_t ticks64_base_tick;
 
@@ -159,14 +162,28 @@ void free_uncached(void *buf)
 
 int get_memory_size(void)
 {
+    // If the application checked the size of the memory, we can assume that
+    // they know what they are doing and we can avoid emitting the expansion
+    // pak warning.
+    __expanded_memory_asserted = true;
     return __boot_memsize;
 }
 
-bool is_memory_expanded()
+bool is_memory_expanded(void)
 {
     return get_memory_size() >= 0x7C0000;
 }
 
+void assert_memory_expanded(void)
+{
+    bool expanded = is_memory_expanded();
+    if (sys_bbplayer()) 
+        assertf(expanded, 
+            "This application requires more memory to run. Please allocate 8 MiB (0x800000 bytes) in the ticket and run it again.");
+    else
+        assertf(expanded, 
+            "This application requires the expansion pak to run. Please insert the expansion pak and restart the console.");
+}
 
 tv_type_t get_tv_type() 
 {
