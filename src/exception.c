@@ -75,6 +75,8 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 
 		case EXCEPTION_CODE_FLOATING_POINT: {
 			const char *space = "";
+			if (strstr(ex->info, "denormal"))
+				fprintf(out, "\bDenormal values are often generated when integer data or pointers are misinterpreted as floating point.\n");
 			fprintf(out, "FPU status: %08lX [", fcr31);
 			if (fcr31 & C1_CAUSE_INEXACT_OP) fprintf(out, "%sINEXACT", space), space=" ";
 			if (fcr31 & C1_CAUSE_OVERFLOW) fprintf(out, "%sOVERFLOW", space), space=" ";
@@ -313,7 +315,65 @@ static const char* __get_exception_name(exception_t *ex)
 	uint64_t badvaddr = C0_BADVADDR();
 
 	switch (ex->code) {
-	case EXCEPTION_CODE_FLOATING_POINT:
+	case EXCEPTION_CODE_FLOATING_POINT: {
+		uint32_t opcode = *(uint32_t*)epc;
+
+		// Check if it's a standard FPU opcode (not MTC/DMTC etc.)
+		if ((opcode >> 26) == 0x11 && (opcode & 0x3F) != 0x0) {
+			uint32_t fs = (opcode >> 11) & 0x1F;
+			uint32_t ft = (opcode >> 16) & 0x1F;
+
+			// Check if it's single precision or double precision
+			switch ((opcode >> 21) & 0x1F) {
+			case 0x10: // single precision
+				uint32_t reg_fs = ex->regs->fpr[fs];
+				uint32_t reg_ft = ex->regs->fpr[ft];
+
+				// Check for uninitialized values as initialized by -ftrivial-auto-var-init=pattern
+				if ((reg_fs & 0xFFFF0000) == 0xFEFE0000 || (reg_ft & 0xFFFF0000) == 0xFEFE0000)
+					return "Uninitialized floating point variable";
+
+				// Check for denormals
+				// NOTE: the code in __exception_dump_header greps for "denormal"
+				// in the string, so be careful with rewording.
+				if (((reg_fs & 0x7F800000) == 0 && (reg_fs & 0x007FFFFF) != 0) ||
+				    ((reg_ft & 0x7F800000) == 0 && (reg_ft & 0x007FFFFF) != 0))
+					return "Invalid floating point value (denormal)";
+
+				// Check for negative square roots
+				if ((opcode & 0x3F) == 0x04 && (int32_t)reg_fs < 0)
+					return "Floating point negative square root";
+
+				break;
+			case 0x11: // double precision
+				uint64_t reg_fs64 = ex->regs->fpr[fs];
+				uint64_t reg_ft64 = ex->regs->fpr[ft];
+
+				// Check for uninitialized values as initialized by -ftrivial-auto-var-init=pattern
+				if ((reg_fs64 & 0xFFFFFFFF00000000ull) == 0xFEFEFEFE00000000ull ||
+				    (reg_ft64 & 0xFFFFFFFF00000000ull) == 0xFEFEFEFE00000000ull)
+					return "Uninitialized floating point variable";
+
+				// Check for denormals
+				// NOTE: the code in __exception_dump_header greps for "denormal"
+				// in the string, so be careful with rewording.
+				if (((reg_fs64 & 0x7FF0000000000000ull) == 0 && (reg_fs64 & 0x000FFFFFFFFFFFFFull) != 0) ||
+				    ((reg_ft64 & 0x7FF0000000000000ull) == 0 && (reg_ft64 & 0x000FFFFFFFFFFFFFull) != 0))
+					return "Invalid floating point value (denormal)";
+
+				// Check for negative square roots
+				if ((opcode & 0x3F) == 0x04 && (int64_t)reg_fs64 < 0)
+					return "Floating point negative square root";
+
+				break;
+			}
+		}
+
+		// Check for truncation overflow
+		if (((opcode & 0x3F) == 0x0D || (opcode & 0x3F) == 0x09) && 
+			(ex->regs->fc31 & C1_CAUSE_NOT_IMPLEMENTED))
+			return "Floating point integer cast overflow";
+
 		if (ex->regs->fc31 & C1_CAUSE_DIV_BY_0) {
 			return "Floating point divide by zero";
 		} else if (ex->regs->fc31 & C1_CAUSE_INVALID_OP) {
@@ -327,6 +387,7 @@ static const char* __get_exception_name(exception_t *ex)
 		} else {
 			return "Generic floating point";
 		}
+	}
 	case EXCEPTION_CODE_TLB_LOAD_I_MISS:
 		if (epc == (uint32_t)badvaddr) {
 			return "Invalid program counter address";
