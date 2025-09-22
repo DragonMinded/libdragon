@@ -1285,6 +1285,23 @@ static int __findnext( dir_t *dir )
     return 0;
 }
 
+static int __ioctl(void *file, unsigned long cmd, void *argp)
+{
+    switch(cmd) {
+        case IODFS_GET_ROM_BASE:
+        {
+            uint32_t *rom_addr = argp;
+            dfs_open_file_t *openfile = HANDLE_TO_OPENFILE(file);
+            *rom_addr = openfile->cart_start_loc & 0x1FFFFFFF;
+        }
+            return 0;
+            
+        default:
+            errno = ENOTTY;
+            return -1;
+    }
+}
+
 /**
  * @brief Structure used for hooking DragonFS into newlib
  *
@@ -1299,6 +1316,7 @@ static filesystem_t dragon_fs = {
     .close = __close,
     .findfirst = __findfirst,
     .findnext = __findnext,
+    .ioctl = __ioctl
 };
 
 /**
