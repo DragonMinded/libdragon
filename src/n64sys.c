@@ -245,6 +245,15 @@ void die(void)
     abort();
 }
 
+void sys_get_heap_stats(heap_stats_t *stats)
+{
+    extern int __heap_total_size;
+    struct mallinfo m = mallinfo();
+
+    stats->total = __heap_total_size;
+    stats->used = m.uordblks;
+}
+
 /**
  * @brief Initialize COP1 with default settings that prevent undesirable exceptions.
  *
