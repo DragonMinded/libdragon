@@ -37,6 +37,7 @@
 ///@cond
 extern int __boot_memsize;
 extern int __boot_consoletype;
+extern int __boot_tvtype;
 ///@endcond
 
 /**
@@ -559,7 +560,10 @@ typedef enum {
  * 
  * @return enum value indicating PAL, NTSC or MPAL
  */
-tv_type_t get_tv_type();
+inline tv_type_t get_tv_type(void)
+{
+    return (tv_type_t)__boot_tvtype;
+}
 
 /** @brief Reset types */
 typedef enum {
