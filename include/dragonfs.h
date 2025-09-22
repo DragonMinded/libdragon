@@ -251,8 +251,25 @@ int dfs_size(uint32_t handle);
  * @return A pointer to the physical address of the file body, or 0
  *         if the file was not found.
  * 
+ * @see #dfs_rom_size
  */
 uint32_t dfs_rom_addr(const char *path);
+
+/**
+ * @brief Return the size of a file (in ROM data)
+ * 
+ * Returns the size of a file without opening it. Can be used in conjunction
+ * with dfs_rom_addr to perform DMA without without calling dfs_open.
+ *
+ * @param[in] path
+ *            Name of the file
+ *
+ * @return The size of a file in ROM, or DFS_ENOFILE if the file was not found.
+ * 
+ * @see #dfs_rom_addr
+ * 
+ */
+int dfs_rom_size(const char *path);
 
 /**
  * @brief Convert DFS error code into an error string

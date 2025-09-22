@@ -773,18 +773,6 @@ static dfs_lookup_file_t *lookup_file(const char *const path)
     return NULL;
 }
 
-/**
- * @brief Open a file given a path
- *
- * Check if we have any free file handles, and if we do, try
- * to open the file specified.  Supports absolute and relative
- * paths
- *
- * @param[in] path
- *            Path of the file to open
- *
- * @return A valid file handle to reference the file by or a negative error on failure.
- */
 int dfs_open(const char *path)
 {
     dfs_open_file_t *file;
@@ -840,14 +828,6 @@ int dfs_open(const char *path)
     return OPENFILE_TO_HANDLE(file);
 }
 
-/**
- * @brief Close an already open file handle.
- *
- * @param[in] handle
- *            A valid file handle as returned from #dfs_open.
- *
- * @return DFS_ESUCCESS on success or a negative value on error.
- */
 int dfs_close(uint32_t handle)
 {
     dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
@@ -863,18 +843,6 @@ int dfs_close(uint32_t handle)
     return DFS_ESUCCESS;
 }
 
-/**
- * @brief Seek to an offset in the file
- *
- * @param[in] handle
- *            A valid file handle as returned from #dfs_open.
- * @param[in] offset
- *            A byte offset from the origin to seek from.
- * @param[in] origin
- *            An offset to seek from.  Either `SEEK_SET`, `SEEK_CUR` or `SEEK_END`.
- *  
- * @return DFS_ESUCCESS on success or a negative value on error.
- */
 int dfs_seek(uint32_t handle, int offset, int origin)
 {
     dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
@@ -940,14 +908,6 @@ int dfs_seek(uint32_t handle, int offset, int origin)
     return DFS_ESUCCESS;
 }
 
-/**
- * @brief Return the current offset into a file
- *
- * @param[in] handle
- *            A valid file handle as returned from #dfs_open.
- *
- * @return The current byte offset into a file or a negative error on failure.
- */
 int dfs_tell(uint32_t handle)
 {
     /* The good thing is that the location is always in the file structure */
@@ -961,24 +921,6 @@ int dfs_tell(uint32_t handle)
     return file->loc;
 }
 
-/**
- * @brief Read data from a file
- * 
- * Note that no caching is performed: if you need to read small amounts
- * (eg: one byte at a time), consider using standard C API instead (fopen())
- * which performs internal buffering to avoid too much overhead.
- * 
- * @param[out] buf
- *             Buffer to read into
- * @param[in]  size
- *             Size of each element to read
- * @param[in]  count
- *             Number of elements to read
- * @param[in]  handle
- *             A valid file handle as returned from #dfs_open.
- *
- * @return The actual number of bytes read or a negative value on failure.
- */
 int dfs_read(void * const buf, int size, int count, uint32_t handle)
 {
     /* This is where we do all the work */
@@ -1061,14 +1003,6 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
     return (void*)data - buf;
 }
 
-/**
- * @brief Return the file size of an open file
- *
- * @param[in] handle
- *            A valid file handle as returned from #dfs_open.
- *
- * @return The file size in bytes or a negative value on failure.
- */
 int dfs_size(uint32_t handle)
 {
     dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
@@ -1082,24 +1016,6 @@ int dfs_size(uint32_t handle)
     return file->size;
 }
 
-/**
- * @brief Return the physical address of a file (in ROM space)
- *
- * This function should be used for highly-specialized, high-performance
- * use cases. Using dfs_open / dfs_read is generally acceptable
- * performance-wise, and is easier to use rather than managing
- * direct access to PI space.
- * 
- * Direct access to ROM data must go through io_read or dma_read. Do not
- * dereference directly as the console might hang if the PI is busy.
- *
- * @param[in] path
- *            Name of the file
- *
- * @return A pointer to the physical address of the file body, or 0
- *         if the file was not found.
- * 
- */
 uint32_t dfs_rom_addr(const char *path)
 {
     //Skip initial slash
@@ -1134,14 +1050,45 @@ uint32_t dfs_rom_addr(const char *path)
     }
 }
 
-/**
- * @brief Return whether the end of file has been reached
- *
- * @param[in] handle
- *            A valid file handle as returned from #dfs_open.
- *
- * @return 1 if the end of file is reached, 0 if not, and a negative value on error.
- */
+int dfs_rom_size(const char *path)
+{
+    /* Skip initial slash */
+    if(path[0] == '/')
+    {
+        path++;
+    }
+
+    if(can_use_hash(path)) {
+        dfs_lookup_file_t *entry = lookup_file(path);
+        if(!entry)
+        {
+            /* File not found */
+            return DFS_ENOFILE;
+        }
+
+        return (int)(entry->data_len);
+    }
+    else
+    {
+        /* Try to find file */
+        directory_entry_t *dirent;
+        int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
+
+        if(ret != DFS_ESUCCESS)
+        {
+            /* File not found, or other error */
+            return DFS_ENOFILE;
+        }
+
+        /* We now have the pointer to the file entry */
+        directory_entry_t t_node;
+        grab_sector(dirent, &t_node);
+
+        /* Return the starting location in ROM */
+        return (int)(get_size(&t_node));
+    }
+}
+
 int dfs_eof(uint32_t handle)
 {
     dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
