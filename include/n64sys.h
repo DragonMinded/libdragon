@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <assert.h>
 #include "cop0.h"
 #include "cop1.h"
@@ -498,6 +499,19 @@ bool is_memory_expanded(void);
  * and then show your own error screen if it is not present.
  */
 void assert_memory_expanded(void);
+
+/**
+ * @brief Heap statistics
+ */
+typedef struct {
+    int total;      ///< Total heap size in bytes
+    int used;       ///< Used heap size in bytes
+} heap_stats_t;
+
+/**
+ * @brief Return information about memory usage of the heap
+ */
+void sys_get_heap_stats(heap_stats_t *stats);
 
 /**
  * @brief Allocate a buffer that will be accessed as uncached memory.
