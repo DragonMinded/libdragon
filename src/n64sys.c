@@ -185,11 +185,6 @@ void assert_memory_expanded(void)
             "This application requires the expansion pak to run. Please insert the expansion pak and restart the console.");
 }
 
-tv_type_t get_tv_type() 
-{
-    return __boot_tvtype;
-}
-
 reset_type_t sys_reset_type(void)
 {
     return __boot_resettype;
