@@ -86,15 +86,15 @@ inthandler:
 	sd $25,(STACK_GPR+25*8)(sp) # T9
 	sd $31,(STACK_GPR+31*8)(sp) # RA
 
-	mflo k0
-	mfhi k1
-	sd k0,STACK_LO(sp)
-	sd k1,STACK_HI(sp)
+	mflo t0
+	mfhi t1
+	sd t0,STACK_LO(sp)
+	sd t1,STACK_HI(sp)
 
-	mfc0 k0, C0_EPC
-	mfc0 k1, C0_SR
-	sw k0, STACK_EPC(sp)
-	sw k1, STACK_SR(sp)
+	mfc0 t0, C0_EPC
+	mfc0 t1, C0_SR
+	sw t0, STACK_EPC(sp)
+	sw t1, STACK_SR(sp)
 
 	# Since all critical information about current exception has been saved,
 	# we can now turn off EXL. This allows a reentrant exception to save its
@@ -102,8 +102,8 @@ inthandler:
 	# interrupts disabled so that we don't risk triggering recursive interrupts,
 	# so disable IE as well. If the triggering code was running in a non-kernel
 	# mode, we also need to re-enter kernel mode.
-	and k1, ~(SR_IE | SR_EXL | SR_KSU)
-	mtc0 k1, C0_SR
+	and t1, ~(SR_IE | SR_EXL | SR_KSU)
+	mtc0 t1, C0_SR
 
 	# WARNING: after clearing the EXL bit, it is now possible to trigger
 	# reentrant exceptions (and not only crashing ones).
@@ -417,7 +417,7 @@ save_fpu_regs:
 inthandler_end:
 	.endfunc
 
-	.section .bss
-	.p2align 2
-	.lcomm interrupt_exception_frame, 4
-
+    .section .bss
+    .p2align 2
+	.global interrupt_exception_frame
+    .lcomm interrupt_exception_frame, 4
