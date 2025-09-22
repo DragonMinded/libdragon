@@ -173,6 +173,19 @@ typedef struct
      *         or a different negative value on error (in which case, errno will be set).
      */
     int (*findnext)( dir_t *dir );
+    /**
+     * @brief Perform IO Control Request
+     *
+     * @param[in] file
+     *            File handle
+     * @param[in] cmd
+     *            Request ioctl command code 
+     * @param[in] argp
+     *            Pointer to a request-specific data structure
+     *
+     * @return 0 on success or a negative value on failure (errno must be set)
+     */
+    int (*ioctl)(void *file, unsigned long cmd, void *argp);
 } filesystem_t;
 
 /**
