@@ -1,5 +1,8 @@
 N64_GCCPREFIX ?= $(N64_INST)
+N64_TARGET ?= mips64-elf
 INSTALLDIR ?= $(N64_INST)
+N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/$(addsuffix -,$(N64_TARGET))
+TARGET := $(shell $(CC) -dumpmachine)
 
 C_CXX_FLAGS += -O2 -pthread -Wall -Werror
 C_CXX_FLAGS += -I../include -MMD
@@ -58,8 +61,8 @@ common/mips_decomp_l3.bin: ../src/compress/shrinkler_dec_fast.S
 
 $(DECOMP_STUBS):
 	@echo "    [MIPS] $@"
-	$(N64_GCCPREFIX)/bin/mips64-elf-gcc -c -o $@.o $<
-	$(N64_GCCPREFIX)/bin/mips64-elf-objcopy -O binary $@.o $@
+	$(N64_GCCPREFIX_TRIPLET)gcc -c -o $@.o $<
+	$(N64_GCCPREFIX_TRIPLET)objcopy -O binary $@.o $@
 	rm $@.o
 
 -include $(wildcard common/*.d)
