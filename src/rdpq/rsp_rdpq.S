@@ -120,7 +120,6 @@ RDPQ_TRI_DATA1:          .dcb.l 7
     .align 4
 RDPQ_TRI_DATA2:          .dcb.l 7
 
-
     RSPQ_EndSavedState
 
     .bss
@@ -681,6 +680,9 @@ RDPQCmd_TriangleData:
     sw a2, %lo(RDPQ_TRI_DATA0) + 4(a0)  # Z
     sw a3, %lo(RDPQ_TRI_DATA0) + 8(a0)  # RGBA
 
+    li t0, 0xFF
+    sb t0, %lo(RDPQ_TRI_DATA0) + 7(a0)  # TR flags
+
     lw t0, CMD_ADDR(16, 28)
     lw t1, CMD_ADDR(20, 28)
     lw t2, CMD_ADDR(24, 28)
@@ -701,9 +703,11 @@ RDPQCmd_Triangle:
     li v0, 2   # disable culling
     li a1, %lo(RDPQ_TRI_DATA0)
     li a2, %lo(RDPQ_TRI_DATA1)
-    jal RDPQ_Triangle
+    jal RDPQ_Triangle_Send_Async
     li a3, %lo(RDPQ_TRI_DATA2)
-    jal_and_j RDPQ_Send, RSPQ_Loop
+RDPQ_Triangle_Clip:
+RDPQ_Triangle_Cull:
+    jal_and_j RDPQ_Triangle_Send_End, RSPQ_Loop
 
 #endif /* RDPQ_TRIANGLE_REFERENCE */
     .endfunc
