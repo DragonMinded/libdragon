@@ -2,7 +2,6 @@
 # regs.S
 #
 # Authors: Jennifer Taylor <dragonminded@dragonminded.com>
-#
 ############################################################
 /*
  * regs.S -- standard MIPS register names.

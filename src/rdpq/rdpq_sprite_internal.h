@@ -1,6 +1,7 @@
 /**
  * @file rdpq_sprite_internal.h
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
 #ifndef LIBDRAGON_RDPQ_SPRITE_INTERNAL_H
 #define LIBDRAGON_RDPQ_SPRITE_INTERNAL_H

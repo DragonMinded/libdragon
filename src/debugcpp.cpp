@@ -5,8 +5,8 @@
  */
 
 #include "debug.h"
-#include "exception_internal.h"
 #include "dlfcn_internal.h"
+#include "exception_internal.h"
 #include <exception>
 #include <cxxabi.h>
 #include <cstdlib>

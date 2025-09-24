@@ -3,7 +3,6 @@
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
 #          Dennis Heinze <dennisjp.heinze@gmail.com>
-#
 ############################################################
 # RSP ucode that is used as part of the crash handler.
 # It extracts the value of all registers into DMEM so that they can be
