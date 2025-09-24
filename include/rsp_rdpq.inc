@@ -722,6 +722,13 @@ RDPQ_WriteSetFillColor:
     or a1, t0
     .endfunc
 
+#########################################################################
+#
+#  RDPQ_Triangle_Send_Async: assemble a RDP triangle command (optimized version)
+#
+##########################################################################
+
+#include "rsp_rdpq_tri.inc"
 
 #########################################################################
 #
@@ -1344,5 +1351,4 @@ no_texture:
 
     .endfunc
 
-
-
+    .section .text
