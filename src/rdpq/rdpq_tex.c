@@ -1,6 +1,7 @@
 /**
  * @file rdpq_tex.c
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author SpookyIluha <https://github.com/SpookyIluha>
  * @brief RDP Command queue: texture loading
  * @ingroup rdpq
  */

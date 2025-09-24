@@ -2,6 +2,7 @@
 # RSP microcode for RDPQ
 #
 # Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
 ############################################################
 #include <rsp_queue.inc>
 #include "rdpq_constants.h"

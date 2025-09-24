@@ -1,6 +1,6 @@
 /**
  * @file rdpq_sprite.c
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: high-level sprite loading and blitting
  * @ingroup rdpq
  */

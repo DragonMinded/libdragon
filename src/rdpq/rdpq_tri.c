@@ -1,6 +1,6 @@
 /**
  * @file rdpq_tri.c
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: triangle drawing routine
  * @ingroup rdpq
  * 

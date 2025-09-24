@@ -1,6 +1,6 @@
 /**
  * @file rdpq_tri.h
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue
  * @ingroup rdpq
  * 

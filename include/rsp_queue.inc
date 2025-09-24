@@ -3,6 +3,7 @@
 # to write an overlay that is compatible with the rsp queue engine.
 #
 # Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
 ########################################################
 
 #ifndef RSP_QUEUE_INC
