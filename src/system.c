@@ -1356,6 +1356,36 @@ int dir_findnext( const char * const path, dir_t *dir )
     return fsm->fs->findnext( dir );
 }
 
+/**
+ * @brief Create a directory.
+ * 
+ * Creates a new directory at the specified location.
+ * 
+ * @param path      Path of the directory to create, relative to the root of the filesystem
+ * @param mode      Directory access mode
+ * @return int      0 on success, -1 on failure (errno will be set)
+ */
+int mkdir( const char * path, mode_t mode )
+{
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
+    int mapping = __get_fs_link_by_name( path );
+
+    if( fsm == 0 || mapping < 0 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if( fsm->fs->mkdir == 0 )
+    {
+        /* Filesystem doesn't support mkdir */
+        errno = ENOSYS;
+        return -1;
+    }
+    
+    return fsm->fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
+}
+
 int hook_stdio_calls( stdio_t *stdio_calls )
 {
     if( stdio_calls == NULL )
