@@ -18,6 +18,9 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <time.h>
+///@cond
+#define SYSTEM_NO_DEPRECATED
+///@endcond
 #include "system.h"
 #include "n64sys.h"
 
@@ -1346,14 +1349,16 @@ int dir_findnext( const char * const path, dir_t *dir )
         return -1;
     }
 
-    if( fsm->fs->findnext == 0 )
+    if( fsm->fs->findnext == 0 && fsm->fs->findnext2 == 0 )
     {
         /* Filesystem doesn't support findnext */
         errno = ENOSYS;
         return -1;
     }
 
-    return fsm->fs->findnext( dir );
+    return fsm->fs->findnext2 ? 
+        fsm->fs->findnext2( path + __strlen( filesystems[mapping].prefix ) - 1, dir ) : 
+        fsm->fs->findnext( dir );
 }
 
 /**

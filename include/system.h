@@ -165,7 +165,7 @@ typedef struct
      *
      * @param[in]  path
      *             Full path of the directory to list files from, relative to the
-     *             root of the filesystem.
+     *             root of the filesystem. It always begins with a slash.
      * @param[out] dir
      *             Directory structure to place information on the first file in the
      *             directory.
@@ -174,9 +174,20 @@ typedef struct
      *         or a different negative value on error (in which case, errno will be set).
      */
     int (*findfirst)( char *path, dir_t *dir );
+
+    ///@cond
+    #ifndef SYSTEM_NO_DEPRECATED
+    __attribute__((deprecated("Use findnext2 instead")))
+    #endif
+    int (*findnext)( dir_t *dir );
+    ///@endcond
+    
     /** 
      * @brief Function to call when performing a findnext operation
      *
+     * @param[in]  path
+     *             Full path of the directory to list files from, relative to the
+     *             root of the filesystem. It always begins with a slash.
      * @param[out] dir
      *             Directory structure to place information on the next file in the
      *             directory.
@@ -184,7 +195,7 @@ typedef struct
      * @return 0 on successful lookup, -1 if the directory existed and is empty,
      *         or a different negative value on error (in which case, errno will be set).
      */
-    int (*findnext)( dir_t *dir );
+    int (*findnext2)( const char *path, dir_t *dir );
     /**
      * @brief Truncate a file to a specified length
      * 
