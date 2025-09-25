@@ -186,6 +186,15 @@ typedef struct
      */
     int (*findnext)( dir_t *dir );
     /**
+     * @brief Truncate a file to a specified length
+     * 
+     * @param file    Arbitrary file handle returned by #filesystem_t::open
+     * @param length  New length of the file
+     * 
+     * @return 0 on success or a negative value on failure (and errno is set)
+     */
+    int (*ftruncate)( void *file, int length );
+    /**
      * @brief Perform IO Control Request
      *
      * @param[in] file
