@@ -457,7 +457,7 @@ static int __allocate_fileno( void *handle, int fs_index )
  * 
  * @return Pointer to a filesystem callback structure or null if not found.
  */
-static filesystem_t *__get_fs_pointer_by_handle( int fileno )
+static fs_mapping_t *__get_fs_pointer_by_handle( int fileno )
 {
     /* Invalid */
     if( fileno <= 0 )
@@ -472,7 +472,7 @@ static filesystem_t *__get_fs_pointer_by_handle( int fileno )
         return 0;
     }
 
-    return filesystems[fs_index].fs;
+    return &filesystems[fs_index];
 }
 
 /**
@@ -516,13 +516,13 @@ static int __get_fs_link_by_name( const char * const name )
  *
  * @return Pointer to a filesystem callback structure or null if not found.
  */
-static filesystem_t *__get_fs_pointer_by_name( const char * const name )
+static fs_mapping_t *__get_fs_pointer_by_name( const char * const name )
 {
     int fs = __get_fs_link_by_name( name );
 
     if( fs >= 0 )
     {
-        return filesystems[fs].fs;
+        return &filesystems[fs];
     }
     else
     {
@@ -589,15 +589,15 @@ int chown( const char *path, uid_t owner, gid_t group )
  */
 int close( int fileno )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+    fs_mapping_t *fsm = __get_fs_pointer_by_handle( fileno );
 
-    if( fs == 0 )
+    if( fsm == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->close == 0 )
+    if( fsm->fs->close == 0 )
     {
         /* Filesystem doesn't support close */
         errno = ENOSYS;
@@ -620,7 +620,7 @@ int close( int fileno )
     handle_open_count--;
 
     /* Tell the filesystem to close the file */
-    return fs->close( handle );
+    return fsm->fs->close( handle );
 }
 
 /**
@@ -697,23 +697,23 @@ int fstat( int fileno, struct stat *st )
     }
     else
     {
-        filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+        fs_mapping_t *fsm = __get_fs_pointer_by_handle( fileno );
         void **handle_ptr = __get_fs_handle( fileno );
 
-        if( fs == 0 || handle_ptr == 0 )
+        if( fsm == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
         }
 
-        if( fs->fstat == 0 )
+        if( fsm->fs->fstat == 0 )
         {
             /* Filesystem doesn't support fstat */
             errno = ENOSYS;
             return -1;
         }
 
-        return fs->fstat( *handle_ptr, st );
+        return fsm->fs->fstat( *handle_ptr, st );
     }
 }
 
@@ -837,23 +837,23 @@ int link( char *existing, char *new )
  */
 int lseek( int file, int ptr, int dir )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( file );
+    fs_mapping_t *fsm = __get_fs_pointer_by_handle( file );
     void **handle_ptr = __get_fs_handle( file );
 
-    if( fs == 0 || handle_ptr == 0 )
+    if( fsm == 0 || handle_ptr == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->lseek == 0 )
+    if( fsm->fs->lseek == 0 )
     {
         /* Filesystem doesn't support lseek */
         errno = ENOSYS;
         return -1;
     }
 
-    return fs->lseek( *handle_ptr, ptr, dir );
+    return fsm->fs->lseek( *handle_ptr, ptr, dir );
 }
 
 /**
@@ -870,15 +870,15 @@ int lseek( int file, int ptr, int dir )
  */
 int open( const char *file, int flags, ... )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( file );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( file );
 
-    if( fs == 0 )
+    if( fsm == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->open == 0 )
+    if( fsm->fs->open == 0 )
     {
         /* Filesystem doesn't support open */
         errno = ENOSYS;
@@ -911,7 +911,7 @@ int open( const char *file, int flags, ... )
     errno = 0;
 
     /* Use the old open() call that will cause an additional allocation */
-    void *handle = fs->open( (char *)( file + __strlen( filesystems[fs_index].prefix ) ), flags );
+    void *handle = fsm->fs->open( (char *)( file + __strlen( filesystems[fs_index].prefix ) ), flags );
 
     if( handle )
     {
@@ -962,23 +962,23 @@ int read( int fileno, char *ptr, int len )
     else
     {
         /* Read from file */
-        filesystem_t *fs = __get_fs_pointer_by_handle( fileno );
+        fs_mapping_t *fsm = __get_fs_pointer_by_handle( fileno );
         void **handle_ptr = __get_fs_handle( fileno );
 
-        if( fs == 0 || handle_ptr == 0 )
+        if( fsm == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
         }
 
-        if( fs->read == 0 )
+        if( fsm->fs->read == 0 )
         {
             /* Filesystem doesn't support read */
             errno = ENOSYS;
             return -1;
         }
 
-        return fs->read( *handle_ptr, (uint8_t *)ptr, len );
+        return fsm->fs->read( *handle_ptr, (uint8_t *)ptr, len );
     }
 }
 
@@ -1116,16 +1116,16 @@ clock_t times( struct tms *buf )
  */
 int unlink( char *name )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( name );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( name );
     int mapping = __get_fs_link_by_name( name );
 
-    if( fs == 0 || mapping < 0 )
+    if( fsm == 0 || mapping < 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->unlink == 0 )
+    if( fsm->fs->unlink == 0 )
     {
         /* Filesystem doesn't support unlink */
         errno = ENOSYS;
@@ -1133,7 +1133,7 @@ int unlink( char *name )
     }
 
     /* Must offset past the prefix */
-    return fs->unlink( name + __strlen( filesystems[mapping].prefix ) );
+    return fsm->fs->unlink( name + __strlen( filesystems[mapping].prefix ) );
 }
 
 /**
@@ -1155,20 +1155,20 @@ int wait( int *status )
 
 int ioctl(int fd, unsigned long cmd, void *argp)
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle(fd);
+    fs_mapping_t *fsm = __get_fs_pointer_by_handle(fd);
     void **handle_ptr = __get_fs_handle(fd);
-    if(fs == 0 || handle_ptr == 0)
+    if(fsm == 0 || handle_ptr == 0)
     {
         errno = EBADF;
         return -1;
     }
-    if( fs->ioctl == 0 )
+    if( fsm->fs->ioctl == 0 )
     {
         /* Filesystem doesn't support ioctl */
         errno = ENOTTY;
         return -1;
     }
-    return fs->ioctl(*handle_ptr, cmd, argp);
+    return fsm->fs->ioctl(*handle_ptr, cmd, argp);
 }
 
 /**
@@ -1218,38 +1218,38 @@ int write( int file, char *ptr, int len )
     else
     {
         /* Filesystem write */
-        filesystem_t *fs = __get_fs_pointer_by_handle( file );
+        fs_mapping_t *fsm = __get_fs_pointer_by_handle( file );
         void **handle_ptr = __get_fs_handle( file );
 
-        if( fs == 0 || handle_ptr == 0 )
+        if( fsm == 0 || handle_ptr == 0 )
         {
             errno = EINVAL;
             return -1;
         }
 
-        if( fs->write == 0 )
+        if( fsm->fs->write == 0 )
         {
             /* Filesystem doesn't support write */
             errno = ENOSYS;
             return -1;
         }
 
-        return fs->write( *handle_ptr, (uint8_t *)ptr, len );
+        return fsm->fs->write( *handle_ptr, (uint8_t *)ptr, len );
     }
 }
 
 int dir_findfirst( const char * const path, dir_t *dir )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( path );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
     int mapping = __get_fs_link_by_name( path );
 
-    if( fs == 0 || mapping < 0 || dir == 0 )
+    if( fsm == 0 || mapping < 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->findfirst == 0 )
+    if( fsm->fs->findfirst == 0 )
     {
         /* Filesystem doesn't support findfirst */
         errno = ENOSYS;
@@ -1261,27 +1261,28 @@ int dir_findfirst( const char * const path, dir_t *dir )
     __builtin_memset( dir, 0, sizeof( dir_t ) );
     dir->d_size = -1;
 
-    return fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
+    return fsm->fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
 }
 
 int dir_findnext( const char * const path, dir_t *dir )
 {
-    filesystem_t *fs = __get_fs_pointer_by_name( path );
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
+    int mapping = __get_fs_link_by_name( path );
 
-    if( fs == 0 || dir == 0 )
+    if( fsm == 0 || dir == 0 )
     {
         errno = EINVAL;
         return -1;
     }
 
-    if( fs->findnext == 0 )
+    if( fsm->fs->findnext == 0 )
     {
-        /* Filesystem doesn't support findfirst */
+        /* Filesystem doesn't support findnext */
         errno = ENOSYS;
         return -1;
     }
 
-    return fs->findnext( dir );
+    return fsm->fs->findnext( dir );
 }
 
 int hook_stdio_calls( stdio_t *stdio_calls )
