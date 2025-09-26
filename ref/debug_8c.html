@@ -86,9 +86,11 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:afc19541124f4e8e53c6deb3367030740" id="r_afc19541124f4e8e53c6deb3367030740"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8c.html#afc19541124f4e8e53c6deb3367030740">ISVIEWER_WRITE_LEN</a>&#160;&#160;&#160;((volatile uint32_t *)0xB3FF0014)</td></tr>
-<tr class="separator:afc19541124f4e8e53c6deb3367030740"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac8ee018ab83421d4023d62dbf101a3a7" id="r_ac8ee018ab83421d4023d62dbf101a3a7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8c.html#ac8ee018ab83421d4023d62dbf101a3a7">ISVIEWER_BUFFER</a>&#160;&#160;&#160;((volatile uint32_t *)0xB3FF0020)</td></tr>
+<tr class="memitem:ae17864c13b957572fede7910bb82da10" id="r_ae17864c13b957572fede7910bb82da10"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8c.html#ae17864c13b957572fede7910bb82da10">ISVIEWER_MAGIC</a>&#160;&#160;&#160;0x13FF0000</td></tr>
+<tr class="separator:ae17864c13b957572fede7910bb82da10"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af84f1781a847853210345ff80c25646d" id="r_af84f1781a847853210345ff80c25646d"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8c.html#af84f1781a847853210345ff80c25646d">ISVIEWER_WRITE_POINTER</a>&#160;&#160;&#160;0x13FF0014</td></tr>
+<tr class="separator:af84f1781a847853210345ff80c25646d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac8ee018ab83421d4023d62dbf101a3a7" id="r_ac8ee018ab83421d4023d62dbf101a3a7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8c.html#ac8ee018ab83421d4023d62dbf101a3a7">ISVIEWER_BUFFER</a>&#160;&#160;&#160;0x13FF0020</td></tr>
 <tr class="separator:ac8ee018ab83421d4023d62dbf101a3a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a27745d9b9c5d96c55b87b67b1aa998d6" id="r_a27745d9b9c5d96c55b87b67b1aa998d6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8c.html#a27745d9b9c5d96c55b87b67b1aa998d6">ISVIEWER_BUFFER_LEN</a>&#160;&#160;&#160;0x00000200</td></tr>
 <tr class="separator:a27745d9b9c5d96c55b87b67b1aa998d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -140,18 +142,33 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func</b>
 <div class="textblock"><p>Debugging Support. </p>
 <dl class="section author"><dt>Author</dt><dd>Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'ba'+'jo@'+'gm'+'ail'+'.c'+'om'; return false;">giova<span class="obfuscator">.nosp@m.</span>nnib<span class="obfuscator">.nosp@m.</span>ajo@g<span class="obfuscator">.nosp@m.</span>mail<span class="obfuscator">.nosp@m.</span>.com</a> </dd></dl>
 </div><h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="afc19541124f4e8e53c6deb3367030740" name="afc19541124f4e8e53c6deb3367030740"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afc19541124f4e8e53c6deb3367030740">&#9670;&#160;</a></span>ISVIEWER_WRITE_LEN</h2>
+<a id="ae17864c13b957572fede7910bb82da10" name="ae17864c13b957572fede7910bb82da10"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae17864c13b957572fede7910bb82da10">&#9670;&#160;</a></span>ISVIEWER_MAGIC</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define ISVIEWER_WRITE_LEN&#160;&#160;&#160;((volatile uint32_t *)0xB3FF0014)</td>
+          <td class="memname">#define ISVIEWER_MAGIC&#160;&#160;&#160;0x13FF0000</td>
         </tr>
       </table>
 </div><div class="memdoc">
-<p>ISViewer register for buffer write length </p>
+<p>ISViewer register for magic value (to check ISViewer presence) </p>
+
+</div>
+</div>
+<a id="af84f1781a847853210345ff80c25646d" name="af84f1781a847853210345ff80c25646d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af84f1781a847853210345ff80c25646d">&#9670;&#160;</a></span>ISVIEWER_WRITE_POINTER</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define ISVIEWER_WRITE_POINTER&#160;&#160;&#160;0x13FF0014</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>ISViewer register for circular buffer write pointer </p>
 
 </div>
 </div>
@@ -162,7 +179,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func</b>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define ISVIEWER_BUFFER&#160;&#160;&#160;((volatile uint32_t *)0xB3FF0020)</td>
+          <td class="memname">#define ISVIEWER_BUFFER&#160;&#160;&#160;0x13FF0020</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -274,7 +291,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func</b>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Sep 26 2025 10:46:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

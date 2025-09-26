@@ -227,7 +227,9 @@ volatile int&#160;</td><td class="memItemRight" valign="bottom"><b>__rspq_syncpo
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>RSP Command queue. </p>
-<dl class="section author"><dt>Author</dt><dd>Dennis Heinze <a href="#" onclick="location.href='mai'+'lto:'+'den'+'ni'+'sjp'+'.h'+'ein'+'ze'+'@gm'+'ai'+'l.c'+'om'; return false;">denni<span class="obfuscator">.nosp@m.</span>sjp.<span class="obfuscator">.nosp@m.</span>heinz<span class="obfuscator">.nosp@m.</span>e@gm<span class="obfuscator">.nosp@m.</span>ail.c<span class="obfuscator">.nosp@m.</span>om</a> </dd></dl>
+<dl class="section author"><dt>Author</dt><dd>Dennis Heinze <a href="#" onclick="location.href='mai'+'lto:'+'den'+'ni'+'sjp'+'.h'+'ein'+'ze'+'@gm'+'ai'+'l.c'+'om'; return false;">denni<span class="obfuscator">.nosp@m.</span>sjp.<span class="obfuscator">.nosp@m.</span>heinz<span class="obfuscator">.nosp@m.</span>e@gm<span class="obfuscator">.nosp@m.</span>ail.c<span class="obfuscator">.nosp@m.</span>om</a> </dd>
+<dd>
+Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'ba'+'jo@'+'gm'+'ail'+'.c'+'om'; return false;">giova<span class="obfuscator">.nosp@m.</span>nnib<span class="obfuscator">.nosp@m.</span>ajo@g<span class="obfuscator">.nosp@m.</span>mail<span class="obfuscator">.nosp@m.</span>.com</a> </dd></dl>
 <h1><a class="anchor" id="autotoc_md27"></a>
 RSP Queue: implementation</h1>
 <p>This documentation block describes the internal workings of the RSP Queue. This is useful to understand the implementation. For description of the API of the RSP queue, see <a class="el" href="rspq_8h.html" title="RSP Command queue.">rspq.h</a></p>
@@ -835,8 +837,8 @@ Current write sentinel within the active buffer. </td></tr>
 <div class="line">   <span class="comment">// to call rspq_flush once to make sure the RSP runs them (in case</span></div>
 <div class="line">   <span class="comment">// it was idling).</span></div>
 <div class="line">   <a class="code hl_function" href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a>();</div>
-<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition</b> rspq.c:1027</div></div>
-<div class="ttc" id="arspq_8h_html_aefec193be7de05f725738beeb3775634"><div class="ttname"><a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a></div><div class="ttdeci">#define rspq_write(ovl_id, cmd_id,...)</div><div class="ttdoc">Write a new command into the RSP queue.</div><div class="ttdef"><b>Definition</b> rspq.h:398</div></div>
+<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition</b> rspq.c:1028</div></div>
+<div class="ttc" id="arspq_8h_html_aefec193be7de05f725738beeb3775634"><div class="ttname"><a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a></div><div class="ttdeci">#define rspq_write(ovl_id, cmd_id,...)</div><div class="ttdoc">Write a new command into the RSP queue.</div><div class="ttdef"><b>Definition</b> rspq.h:399</div></div>
 </div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>This is an experimental API. In the future, it might become a no-op, and flushing could happen automatically at every <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>. We are keeping it separate from <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> while experimenting more with the RSPQ API.</dd>
 <dd>
 This function is a no-op if it is called while a block is being recorded (see <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>). This means calling this function in a block recording context will not guarantee the execution of commands that were queued prior to starting the block. </dd></dl>
@@ -1408,7 +1410,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Sep 26 2025 10:46:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

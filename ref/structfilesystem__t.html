@@ -86,9 +86,12 @@ Data Fields</h2></td></tr>
 <tr class="memitem:a65220025714418f98076e1334237408e" id="r_a65220025714418f98076e1334237408e"><td class="memItemLeft" align="right" valign="top">void *(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e">open</a> )(char *name, int flags)</td></tr>
 <tr class="memdesc:a65220025714418f98076e1334237408e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing an open command.  <br /></td></tr>
 <tr class="separator:a65220025714418f98076e1334237408e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a57af83b0f926cbd4779eb400fc2b7398" id="r_a57af83b0f926cbd4779eb400fc2b7398"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a57af83b0f926cbd4779eb400fc2b7398">fstat</a> )(void *file, struct <a class="el" href="system_8c.html#a6267ee98ea4ca67296665534d549132a">stat</a> *st)</td></tr>
+<tr class="memitem:a57af83b0f926cbd4779eb400fc2b7398" id="r_a57af83b0f926cbd4779eb400fc2b7398"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a57af83b0f926cbd4779eb400fc2b7398">fstat</a> )(void *file, struct <a class="el" href="structfilesystem__t.html#a32dd412d70984c008d0650d91e33be6f">stat</a> *st)</td></tr>
 <tr class="memdesc:a57af83b0f926cbd4779eb400fc2b7398"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing a fstat command.  <br /></td></tr>
 <tr class="separator:a57af83b0f926cbd4779eb400fc2b7398"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a32dd412d70984c008d0650d91e33be6f" id="r_a32dd412d70984c008d0650d91e33be6f"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a32dd412d70984c008d0650d91e33be6f">stat</a> )(char *name, struct stat *st)</td></tr>
+<tr class="memdesc:a32dd412d70984c008d0650d91e33be6f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing a stat command.  <br /></td></tr>
+<tr class="separator:a32dd412d70984c008d0650d91e33be6f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aed5c8fa5f3f3ff7d1e1c876a8864642d" id="r_aed5c8fa5f3f3ff7d1e1c876a8864642d"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#aed5c8fa5f3f3ff7d1e1c876a8864642d">lseek</a> )(void *file, int ptr, int dir)</td></tr>
 <tr class="memdesc:aed5c8fa5f3f3ff7d1e1c876a8864642d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing an lseek command.  <br /></td></tr>
 <tr class="separator:aed5c8fa5f3f3ff7d1e1c876a8864642d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -107,9 +110,18 @@ Data Fields</h2></td></tr>
 <tr class="memitem:a3d408d4ac7362e70c19ebaa7fa28d29d" id="r_a3d408d4ac7362e70c19ebaa7fa28d29d"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a3d408d4ac7362e70c19ebaa7fa28d29d">findfirst</a> )(char *path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
 <tr class="memdesc:a3d408d4ac7362e70c19ebaa7fa28d29d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing a findfirst operation.  <br /></td></tr>
 <tr class="separator:a3d408d4ac7362e70c19ebaa7fa28d29d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a69d053a25e9ec9057d1972aa9b980795" id="r_a69d053a25e9ec9057d1972aa9b980795"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a69d053a25e9ec9057d1972aa9b980795">findnext</a> )(<a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
-<tr class="memdesc:a69d053a25e9ec9057d1972aa9b980795"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing a findnext operation.  <br /></td></tr>
-<tr class="separator:a69d053a25e9ec9057d1972aa9b980795"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1b69b9bcb5c0159dbaf1c60381260b51" id="r_a1b69b9bcb5c0159dbaf1c60381260b51"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a1b69b9bcb5c0159dbaf1c60381260b51">findnext2</a> )(const char *path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
+<tr class="memdesc:a1b69b9bcb5c0159dbaf1c60381260b51"><td class="mdescLeft">&#160;</td><td class="mdescRight">Function to call when performing a findnext operation.  <br /></td></tr>
+<tr class="separator:a1b69b9bcb5c0159dbaf1c60381260b51"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac60fde9ced91749579032e28581079b5" id="r_ac60fde9ced91749579032e28581079b5"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#ac60fde9ced91749579032e28581079b5">ftruncate</a> )(void *file, int length)</td></tr>
+<tr class="memdesc:ac60fde9ced91749579032e28581079b5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Truncate a file to a specified length.  <br /></td></tr>
+<tr class="separator:ac60fde9ced91749579032e28581079b5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0e0178f40c106390c5ab893f33e8b0f6" id="r_a0e0178f40c106390c5ab893f33e8b0f6"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a0e0178f40c106390c5ab893f33e8b0f6">mkdir</a> )(char *path, mode_t mode)</td></tr>
+<tr class="memdesc:a0e0178f40c106390c5ab893f33e8b0f6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a directory.  <br /></td></tr>
+<tr class="separator:a0e0178f40c106390c5ab893f33e8b0f6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a87cb6296d1bb5a2e101e73f77c9d56e6" id="r_a87cb6296d1bb5a2e101e73f77c9d56e6"><td class="memItemLeft" align="right" valign="top">int(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structfilesystem__t.html#a87cb6296d1bb5a2e101e73f77c9d56e6">ioctl</a> )(void *file, unsigned long cmd, void *argp)</td></tr>
+<tr class="memdesc:a87cb6296d1bb5a2e101e73f77c9d56e6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Perform IO Control Request.  <br /></td></tr>
+<tr class="separator:a87cb6296d1bb5a2e101e73f77c9d56e6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Filesystem hook structure. </p>
@@ -147,7 +159,7 @@ Data Fields</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int(* filesystem_t::fstat) (void *file, struct <a class="el" href="system_8c.html#a6267ee98ea4ca67296665534d549132a">stat</a> *st)</td>
+          <td class="memname">int(* filesystem_t::fstat) (void *file, struct <a class="el" href="structfilesystem__t.html#a32dd412d70984c008d0650d91e33be6f">stat</a> *st)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -156,6 +168,30 @@ Data Fields</h2></td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">st</td><td>Stat structure to populate with file statistics</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error (and errno is set). </dd></dl>
+
+</div>
+</div>
+<a id="a32dd412d70984c008d0650d91e33be6f" name="a32dd412d70984c008d0650d91e33be6f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a32dd412d70984c008d0650d91e33be6f">&#9670;&#160;</a></span>stat</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::stat) (char *name, struct stat *st)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing a stat command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Full path of the file to be examined, relative to the root of the filesystem. </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">st</td><td>Stat structure to populate with file statistics</td></tr>
   </table>
   </dd>
@@ -300,7 +336,7 @@ Data Fields</h2></td></tr>
 <p>Function to call when performing a findfirst operation. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Full path of the directory to list files from, relative to the root of the filesystem. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Full path of the directory to list files from, relative to the root of the filesystem. It always begins with a slash. </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory structure to place information on the first file in the directory.</td></tr>
   </table>
   </dd>
@@ -309,14 +345,14 @@ Data Fields</h2></td></tr>
 
 </div>
 </div>
-<a id="a69d053a25e9ec9057d1972aa9b980795" name="a69d053a25e9ec9057d1972aa9b980795"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a69d053a25e9ec9057d1972aa9b980795">&#9670;&#160;</a></span>findnext</h2>
+<a id="a1b69b9bcb5c0159dbaf1c60381260b51" name="a1b69b9bcb5c0159dbaf1c60381260b51"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1b69b9bcb5c0159dbaf1c60381260b51">&#9670;&#160;</a></span>findnext2</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int(* filesystem_t::findnext) (<a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td>
+          <td class="memname">int(* filesystem_t::findnext2) (const char *path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -324,11 +360,85 @@ Data Fields</h2></td></tr>
 <p>Function to call when performing a findnext operation. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Full path of the directory to list files from, relative to the root of the filesystem. It always begins with a slash. </td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory structure to place information on the next file in the directory.</td></tr>
   </table>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>0 on successful lookup, -1 if the directory existed and is empty, or a different negative value on error (in which case, errno will be set). </dd></dl>
+
+</div>
+</div>
+<a id="ac60fde9ced91749579032e28581079b5" name="ac60fde9ced91749579032e28581079b5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac60fde9ced91749579032e28581079b5">&#9670;&#160;</a></span>ftruncate</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::ftruncate) (void *file, int length)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Truncate a file to a specified length. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
+    <tr><td class="paramname">length</td><td>New length of the file</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure (and errno is set) </dd></dl>
+
+</div>
+</div>
+<a id="a0e0178f40c106390c5ab893f33e8b0f6" name="a0e0178f40c106390c5ab893f33e8b0f6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0e0178f40c106390c5ab893f33e8b0f6">&#9670;&#160;</a></span>mkdir</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::mkdir) (char *path, mode_t mode)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Create a directory. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Full path of the directory to create, relative to the root of the filesystem. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mode</td><td>Directory permissions</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure (errno must be set) </dd></dl>
+
+</div>
+</div>
+<a id="a87cb6296d1bb5a2e101e73f77c9d56e6" name="a87cb6296d1bb5a2e101e73f77c9d56e6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a87cb6296d1bb5a2e101e73f77c9d56e6">&#9670;&#160;</a></span>ioctl</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::ioctl) (void *file, unsigned long cmd, void *argp)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Perform IO Control Request. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>File handle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">cmd</td><td>Request ioctl command code </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">argp</td><td>Pointer to a request-specific data structure</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure (errno must be set) </dd></dl>
 
 </div>
 </div>
@@ -338,7 +448,7 @@ Data Fields</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Sep 21 2025 16:52:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Sep 26 2025 10:46:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

@@ -207,7 +207,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rdpq_debug_stop</b> (
 <div class="ttc" id="ardpq__debug_8h_html_a803828ee30e0abcd321e5dbc362e7d0d"><div class="ttname"><a href="rdpq__debug_8h.html#a803828ee30e0abcd321e5dbc362e7d0d">rdpq_debug_log</a></div><div class="ttdeci">void rdpq_debug_log(bool show_log)</div><div class="ttdoc">Show a full log of all the RDP commands.</div></div>
 <div class="ttc" id="ardpq__debug_8h_html_af3a06bc5bb62b56379694e97ebe7ac4e"><div class="ttname"><a href="rdpq__debug_8h.html#af3a06bc5bb62b56379694e97ebe7ac4e">rdpq_debug_log_msg</a></div><div class="ttdeci">void rdpq_debug_log_msg(const char *str)</div><div class="ttdoc">Add a custom message in the RDP logging.</div></div>
 <div class="ttc" id="ardpq__mode_8c_html_a99c5c398b388f6d1683e7405a6058fb9"><div class="ttname"><a href="rdpq__mode_8c.html#a99c5c398b388f6d1683e7405a6058fb9">rdpq_set_mode_fill</a></div><div class="ttdeci">void rdpq_set_mode_fill(color_t color)</div><div class="ttdoc">Reset render mode to FILL type.</div><div class="ttdef"><b>Definition</b> rdpq_mode.h:302</div></div>
-<div class="ttc" id="ardpq__rect_8h_html_a9c6405f89d2fe70046330964c21ba124"><div class="ttname"><a href="rdpq__rect_8h.html#a9c6405f89d2fe70046330964c21ba124">rdpq_fill_rectangle</a></div><div class="ttdeci">#define rdpq_fill_rectangle(x0, y0, x1, y1)</div><div class="ttdoc">Draw a filled rectangle (RDP command: FILL_RECTANGLE)</div><div class="ttdef"><b>Definition</b> rdpq_rect.h:250</div></div>
+<div class="ttc" id="ardpq__rect_8h_html_a9c6405f89d2fe70046330964c21ba124"><div class="ttname"><a href="rdpq__rect_8h.html#a9c6405f89d2fe70046330964c21ba124">rdpq_fill_rectangle</a></div><div class="ttdeci">#define rdpq_fill_rectangle(x0, y0, x1, y1)</div><div class="ttdoc">Draw a filled rectangle (RDP command: FILL_RECTANGLE)</div><div class="ttdef"><b>Definition</b> rdpq_rect.h:251</div></div>
 </div><!-- fragment --><p>produces this output: </p><pre class="fragment"> [0xa00e7128] f1020000000332a8    RDPQ_MESSAGE     Black rectangle
  [0xa00e7130] ef30000000000000    SET_OTHER_MODES  fill
  [0xa00e7138] ed00000000000000    SET_SCISSOR      xy=(0.00,0.00)-(0.00,0.00)
@@ -256,7 +256,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rdpq_debug_stop</b> (
 <div class="line"><a class="code hl_function" href="debug_8c.html#af507aade880b5f43ac256c1c1a8c8d5f">debug_hexdump</a>(surf.<a class="code hl_variable" href="surface_8h.html#a44186bab3de93b8be2c9ae6328dfb8b9">buffer</a>, 4096);</div>
 <div class="line"> </div>
 <div class="line"><a class="code hl_function" href="surface_8c.html#abb7940ed434b55044bf078472f59173e">surface_free</a>(&amp;surf);</div>
-<div class="ttc" id="adebug_8c_html_af507aade880b5f43ac256c1c1a8c8d5f"><div class="ttname"><a href="debug_8c.html#af507aade880b5f43ac256c1c1a8c8d5f">debug_hexdump</a></div><div class="ttdeci">void debug_hexdump(const void *vbuf, int size)</div><div class="ttdoc">Do a hexdump of the specified buffer via debugf.</div><div class="ttdef"><b>Definition</b> debug.c:658</div></div>
+<div class="ttc" id="adebug_8c_html_af507aade880b5f43ac256c1c1a8c8d5f"><div class="ttname"><a href="debug_8c.html#af507aade880b5f43ac256c1c1a8c8d5f">debug_hexdump</a></div><div class="ttdeci">void debug_hexdump(const void *vbuf, int size)</div><div class="ttdoc">Do a hexdump of the specified buffer via debugf.</div><div class="ttdef"><b>Definition</b> debug.c:676</div></div>
 <div class="ttc" id="ardpq__debug_8h_html_a847e4cd157797e887fb1d5d2cf611b10"><div class="ttname"><a href="rdpq__debug_8h.html#a847e4cd157797e887fb1d5d2cf611b10">rdpq_debug_get_tmem</a></div><div class="ttdeci">surface_t rdpq_debug_get_tmem(void)</div><div class="ttdoc">Acquire a dump of the current contents of TMEM.</div></div>
 <div class="ttc" id="asurface_8c_html_abb7940ed434b55044bf078472f59173e"><div class="ttname"><a href="surface_8c.html#abb7940ed434b55044bf078472f59173e">surface_free</a></div><div class="ttdeci">void surface_free(surface_t *surface)</div><div class="ttdoc">Free the buffer allocated in a surface.</div><div class="ttdef"><b>Definition</b> surface.c:50</div></div>
 <div class="ttc" id="asurface_8h_html_a44186bab3de93b8be2c9ae6328dfb8b9"><div class="ttname"><a href="surface_8h.html#a44186bab3de93b8be2c9ae6328dfb8b9">surface_t::buffer</a></div><div class="ttdeci">void * buffer</div><div class="ttdoc">Buffer pointer.</div><div class="ttdef"><b>Definition</b> surface.h:145</div></div>
@@ -404,7 +404,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rdpq_debug_stop</b> (
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Sep 26 2025 10:46:52 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

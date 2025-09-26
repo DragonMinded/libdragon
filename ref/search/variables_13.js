@@ -4,5 +4,6 @@ var searchData=
   ['up_1',['up',['../group__controller.html#a46c48bec0d282018b9d167eef7711b2c',1,'_SI_condat.__unnamed41__.__unnamed45__']]],
   ['use_5fmain_5ftex_2',['use_main_tex',['../sprite_8h.html#aa64a020b664e48963668b8cf8a440e49',1,'sprite_detail_t']]],
   ['use_5fmain_5ftexture_3',['use_main_texture',['../sprite__internal_8h.html#a37c084a7a90c1d5008ef58cb47cfeb27',1,'sprite_ext_t::detail_s']]],
-  ['use_5forigin_4',['use_origin',['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_port_t.recv::use_origin'],['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::use_origin']]]
+  ['use_5forigin_4',['use_origin',['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_port_t.recv::use_origin'],['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::use_origin']]],
+  ['used_5',['used',['../group__n64sys.html#a24470473a14139c462436da88e813d15',1,'heap_stats_t']]]
 ];

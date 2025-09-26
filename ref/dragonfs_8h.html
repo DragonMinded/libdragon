@@ -98,6 +98,10 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_DIRECTORY_DEPTH</b>&#160;&#160;&#160;100</td></tr>
 <tr class="memdesc:gae77323fbbbedb3ec4f495c7156b0344f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum depth of directories supported. <br /></td></tr>
 <tr class="separator:gae77323fbbbedb3ec4f495c7156b0344f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaeda2c7261c444629775aab1fb8312e53" id="r_gaeda2c7261c444629775aab1fb8312e53"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>IODFS_GET_ROM_BASE</b>&#160;&#160;&#160;<a class="el" href="ioctl_8h.html#a840d10d2fed07b8a85f260031f2fa47b">_IO</a>('D', 0)</td></tr>
+<tr class="memdesc:gaeda2c7261c444629775aab1fb8312e53"><td class="mdescLeft">&#160;</td><td class="mdescRight">Base ROM Address Request ioctl Command Code. <br /></td></tr>
+<tr class="separator:gaeda2c7261c444629775aab1fb8312e53"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga935cf104eafb75f357c5469f0e2e4c95" id="r_ga935cf104eafb75f357c5469f0e2e4c95"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#ga935cf104eafb75f357c5469f0e2e4c95">FILETYPE</a>(x)&#160;&#160;&#160;((x) &amp; 3)</td></tr>
 <tr class="memdesc:ga935cf104eafb75f357c5469f0e2e4c95"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to extract the file type from a DragonFS file flag.  <br /></td></tr>
 <tr class="separator:ga935cf104eafb75f357c5469f0e2e4c95"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -145,16 +149,6 @@ Functions</h2></td></tr>
 <tr class="memitem:a7ca0762367965bd8a6dbbe07b7ad3022" id="r_a7ca0762367965bd8a6dbbe07b7ad3022"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a7ca0762367965bd8a6dbbe07b7ad3022">dfs_init</a> (uint32_t base_fs_loc)</td></tr>
 <tr class="memdesc:a7ca0762367965bd8a6dbbe07b7ad3022"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the filesystem.  <br /></td></tr>
 <tr class="separator:a7ca0762367965bd8a6dbbe07b7ad3022"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4acea40a2214dee556c7491e5c24e0dc" id="r_a4acea40a2214dee556c7491e5c24e0dc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a4acea40a2214dee556c7491e5c24e0dc">dfs_chdir</a> (const char *const path)</td></tr>
-<tr class="memdesc:a4acea40a2214dee556c7491e5c24e0dc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Change directories to the specified path. <br  />
-  <br /></td></tr>
-<tr class="separator:a4acea40a2214dee556c7491e5c24e0dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a33dacb81cbf0f03a8588ffa8d9ee86ac" id="r_a33dacb81cbf0f03a8588ffa8d9ee86ac"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a33dacb81cbf0f03a8588ffa8d9ee86ac">dfs_dir_findfirst</a> (const char *const path, char *buf)</td></tr>
-<tr class="memdesc:a33dacb81cbf0f03a8588ffa8d9ee86ac"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the first file or directory in a directory listing.  <br /></td></tr>
-<tr class="separator:a33dacb81cbf0f03a8588ffa8d9ee86ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aaf2eb04e1d1e8e9ed8733b88e41dc7e3" id="r_aaf2eb04e1d1e8e9ed8733b88e41dc7e3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#aaf2eb04e1d1e8e9ed8733b88e41dc7e3">dfs_dir_findnext</a> (char *buf)</td></tr>
-<tr class="memdesc:aaf2eb04e1d1e8e9ed8733b88e41dc7e3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the next file or directory in a directory listing.  <br /></td></tr>
-<tr class="separator:aaf2eb04e1d1e8e9ed8733b88e41dc7e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5b32978567d57be77b43b6ce537cf620" id="r_a5b32978567d57be77b43b6ce537cf620"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a5b32978567d57be77b43b6ce537cf620">dfs_open</a> (const char *const path)</td></tr>
 <tr class="memdesc:a5b32978567d57be77b43b6ce537cf620"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open a file given a path.  <br /></td></tr>
 <tr class="separator:a5b32978567d57be77b43b6ce537cf620"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -179,10 +173,23 @@ Functions</h2></td></tr>
 <tr class="memitem:a8b526624aebcf3d93a825edeb1ae4e63" id="r_a8b526624aebcf3d93a825edeb1ae4e63"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a8b526624aebcf3d93a825edeb1ae4e63">dfs_rom_addr</a> (const char *path)</td></tr>
 <tr class="memdesc:a8b526624aebcf3d93a825edeb1ae4e63"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the physical address of a file (in ROM space)  <br /></td></tr>
 <tr class="separator:a8b526624aebcf3d93a825edeb1ae4e63"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a21290370e2deb70ec5f157db307fb12f" id="r_a21290370e2deb70ec5f157db307fb12f"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a21290370e2deb70ec5f157db307fb12f">dfs_rom_size</a> (const char *path)</td></tr>
+<tr class="memdesc:a21290370e2deb70ec5f157db307fb12f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the size of a file (in ROM data)  <br /></td></tr>
+<tr class="separator:a21290370e2deb70ec5f157db307fb12f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab45d1919e34900b565922ca14b12088d" id="r_ab45d1919e34900b565922ca14b12088d"><td class="memItemLeft" align="right" valign="top"><a id="ab45d1919e34900b565922ca14b12088d" name="ab45d1919e34900b565922ca14b12088d"></a>
 const char *&#160;</td><td class="memItemRight" valign="bottom"><b>dfs_strerror</b> (int error)</td></tr>
 <tr class="memdesc:ab45d1919e34900b565922ca14b12088d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert DFS error code into an error string. <br /></td></tr>
 <tr class="separator:ab45d1919e34900b565922ca14b12088d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a4acea40a2214dee556c7491e5c24e0dc" id="r_a4acea40a2214dee556c7491e5c24e0dc"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a4acea40a2214dee556c7491e5c24e0dc">dfs_chdir</a> (const char *const path)</td></tr>
+<tr class="memdesc:a4acea40a2214dee556c7491e5c24e0dc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Change directories to the specified path. <br  />
+  <br /></td></tr>
+<tr class="separator:a4acea40a2214dee556c7491e5c24e0dc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a33dacb81cbf0f03a8588ffa8d9ee86ac" id="r_a33dacb81cbf0f03a8588ffa8d9ee86ac"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#a33dacb81cbf0f03a8588ffa8d9ee86ac">dfs_dir_findfirst</a> (const char *const path, char *buf)</td></tr>
+<tr class="memdesc:a33dacb81cbf0f03a8588ffa8d9ee86ac"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the first file or directory in a directory listing.  <br /></td></tr>
+<tr class="separator:a33dacb81cbf0f03a8588ffa8d9ee86ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aaf2eb04e1d1e8e9ed8733b88e41dc7e3" id="r_aaf2eb04e1d1e8e9ed8733b88e41dc7e3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="dragonfs_8h.html#aaf2eb04e1d1e8e9ed8733b88e41dc7e3">dfs_dir_findnext</a> (char *buf)</td></tr>
+<tr class="memdesc:aaf2eb04e1d1e8e9ed8733b88e41dc7e3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the next file or directory in a directory listing.  <br /></td></tr>
+<tr class="separator:aaf2eb04e1d1e8e9ed8733b88e41dc7e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>DragonFS. </p>
@@ -220,102 +227,6 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 
 </div>
 </div>
-<a id="a4acea40a2214dee556c7491e5c24e0dc" name="a4acea40a2214dee556c7491e5c24e0dc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4acea40a2214dee556c7491e5c24e0dc">&#9670;&#160;</a></span>dfs_chdir()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dfs_chdir </td>
-          <td>(</td>
-          <td class="paramtype">const char *const&#160;</td>
-          <td class="paramname"><em>path</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Change directories to the specified path. <br  />
- </p>
-<p>Supports absolute and relative</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Relative or absolute path to change directories to</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="a33dacb81cbf0f03a8588ffa8d9ee86ac" name="a33dacb81cbf0f03a8588ffa8d9ee86ac"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a33dacb81cbf0f03a8588ffa8d9ee86ac">&#9670;&#160;</a></span>dfs_dir_findfirst()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dfs_dir_findfirst </td>
-          <td>(</td>
-          <td class="paramtype">const char *const&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>buf</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Find the first file or directory in a directory listing. </p>
-<p>Supports absolute and relative. If the path is invalid, returns a negative DFS_errno. If a file or directory is found, returns the flags of the entry and copies the name into buf.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>The path to look for files in </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">buf</td><td>Buffer to place the name of the file or directory found</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The flags (<a class="el" href="group__dfs.html#ga40f46638c929774a7c8867451487239f" title="This is a file entry.">FLAGS_FILE</a>, <a class="el" href="group__dfs.html#ga72132c67f7a158fce46a1113c0b0e7eb" title="This is a directory entry.">FLAGS_DIR</a>, <a class="el" href="group__dfs.html#ga4b6222e558984bbd372129daf4d0f6ee" title="This is the end of a directory list.">FLAGS_EOF</a>) or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="aaf2eb04e1d1e8e9ed8733b88e41dc7e3" name="aaf2eb04e1d1e8e9ed8733b88e41dc7e3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aaf2eb04e1d1e8e9ed8733b88e41dc7e3">&#9670;&#160;</a></span>dfs_dir_findnext()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dfs_dir_findnext </td>
-          <td>(</td>
-          <td class="paramtype">char *&#160;</td>
-          <td class="paramname"><em>buf</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Find the next file or directory in a directory listing. </p>
-<dl class="section note"><dt>Note</dt><dd>Should be called after doing a <a class="el" href="dragonfs_8h.html#a33dacb81cbf0f03a8588ffa8d9ee86ac" title="Find the first file or directory in a directory listing.">dfs_dir_findfirst</a>.</dd></dl>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[out]</td><td class="paramname">buf</td><td>Buffer to place the name of the next file or directory found</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The flags (<a class="el" href="group__dfs.html#ga40f46638c929774a7c8867451487239f" title="This is a file entry.">FLAGS_FILE</a>, <a class="el" href="group__dfs.html#ga72132c67f7a158fce46a1113c0b0e7eb" title="This is a directory entry.">FLAGS_DIR</a>, <a class="el" href="group__dfs.html#ga4b6222e558984bbd372129daf4d0f6ee" title="This is the end of a directory list.">FLAGS_EOF</a>) or a negative value on error. </dd></dl>
-
-</div>
-</div>
 <a id="a5b32978567d57be77b43b6ce537cf620" name="a5b32978567d57be77b43b6ce537cf620"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a5b32978567d57be77b43b6ce537cf620">&#9670;&#160;</a></span>dfs_open()</h2>
 
@@ -325,7 +236,7 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
         <tr>
           <td class="memname">int dfs_open </td>
           <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
+          <td class="paramtype">const char *const&#160;</td>
           <td class="paramname"><em>path</em></td><td>)</td>
           <td></td>
         </tr>
@@ -575,14 +486,140 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>A pointer to the physical address of the file body, or 0 if the file was not found. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>A pointer to the physical address of the file body, or 0 if the file was not found.</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="dragonfs_8h.html#a21290370e2deb70ec5f157db307fb12f" title="Return the size of a file (in ROM data)">dfs_rom_size</a> </dd></dl>
+
+</div>
+</div>
+<a id="a21290370e2deb70ec5f157db307fb12f" name="a21290370e2deb70ec5f157db307fb12f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a21290370e2deb70ec5f157db307fb12f">&#9670;&#160;</a></span>dfs_rom_size()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_rom_size </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the size of a file (in ROM data) </p>
+<p>Returns the size of a file without opening it. Can be used in conjunction with dfs_rom_addr to perform DMA without without calling dfs_open.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Name of the file</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The size of a file in ROM, or DFS_ENOFILE if the file was not found.</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="dragonfs_8h.html#a8b526624aebcf3d93a825edeb1ae4e63" title="Return the physical address of a file (in ROM space)">dfs_rom_addr</a> </dd></dl>
+
+</div>
+</div>
+<a id="a4acea40a2214dee556c7491e5c24e0dc" name="a4acea40a2214dee556c7491e5c24e0dc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4acea40a2214dee556c7491e5c24e0dc">&#9670;&#160;</a></span>dfs_chdir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_chdir </td>
+          <td>(</td>
+          <td class="paramtype">const char *const&#160;</td>
+          <td class="paramname"><em>path</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Change directories to the specified path. <br  />
+ </p>
+<p>Supports absolute and relative</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Relative or absolute path to change directories to</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="a33dacb81cbf0f03a8588ffa8d9ee86ac" name="a33dacb81cbf0f03a8588ffa8d9ee86ac"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a33dacb81cbf0f03a8588ffa8d9ee86ac">&#9670;&#160;</a></span>dfs_dir_findfirst()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_dir_findfirst </td>
+          <td>(</td>
+          <td class="paramtype">const char *const&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Find the first file or directory in a directory listing. </p>
+<p>Supports absolute and relative. If the path is invalid, returns a negative DFS_errno. If a file or directory is found, returns the flags of the entry and copies the name into buf.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>The path to look for files in </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">buf</td><td>Buffer to place the name of the file or directory found</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The flags (<a class="el" href="group__dfs.html#ga40f46638c929774a7c8867451487239f" title="This is a file entry.">FLAGS_FILE</a>, <a class="el" href="group__dfs.html#ga72132c67f7a158fce46a1113c0b0e7eb" title="This is a directory entry.">FLAGS_DIR</a>, <a class="el" href="group__dfs.html#ga4b6222e558984bbd372129daf4d0f6ee" title="This is the end of a directory list.">FLAGS_EOF</a>) or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="aaf2eb04e1d1e8e9ed8733b88e41dc7e3" name="aaf2eb04e1d1e8e9ed8733b88e41dc7e3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaf2eb04e1d1e8e9ed8733b88e41dc7e3">&#9670;&#160;</a></span>dfs_dir_findnext()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_dir_findnext </td>
+          <td>(</td>
+          <td class="paramtype">char *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Find the next file or directory in a directory listing. </p>
+<dl class="section note"><dt>Note</dt><dd>Should be called after doing a <a class="el" href="dragonfs_8c.html#a33dacb81cbf0f03a8588ffa8d9ee86ac" title="Find the first file or directory in a directory listing.">dfs_dir_findfirst</a>.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[out]</td><td class="paramname">buf</td><td>Buffer to place the name of the next file or directory found</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The flags (<a class="el" href="group__dfs.html#ga40f46638c929774a7c8867451487239f" title="This is a file entry.">FLAGS_FILE</a>, <a class="el" href="group__dfs.html#ga72132c67f7a158fce46a1113c0b0e7eb" title="This is a directory entry.">FLAGS_DIR</a>, <a class="el" href="group__dfs.html#ga4b6222e558984bbd372129daf4d0f6ee" title="This is the end of a directory list.">FLAGS_EOF</a>) or a negative value on error. </dd></dl>
 
 </div>
 </div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Sep 26 2025 10:46:52 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

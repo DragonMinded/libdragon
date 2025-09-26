@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>libdragon: joybus_internal.h Source File</title>
+<title>libdragon: ioctl.h Source File</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -75,23 +75,31 @@ $(document).ready(function() { init_codefold(0); });
 
 <div id="nav-path" class="navpath">
   <ul>
-<li class="navelem"><a class="el" href="dir_68267d1309a1af8e8297ef4c3efbcdba.html">src</a></li><li class="navelem"><a class="el" href="dir_5ff5e5924d5ef6e3d511b751935e6c7e.html">joybus</a></li>  </ul>
+<li class="navelem"><a class="el" href="dir_d44c64559bbebec7f509842c48db8b23.html">include</a></li>  </ul>
 </div>
 </div><!-- top -->
 <div class="header">
-  <div class="headertitle"><div class="title">joybus_internal.h</div></div>
+  <div class="headertitle"><div class="title">ioctl.h</div></div>
 </div><!--header-->
 <div class="contents">
-<a href="joybus__internal_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
-<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#ifndef __LIBDRAGON_JOYBUS_INTERNAL_H</span></div>
-<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="preprocessor">#define __LIBDRAGON_JOYBUS_INTERNAL_H</span></div>
-<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span> </div>
-<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="preprocessor">#include &lt;stdint.h&gt;</span></div>
-<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span> </div>
-<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="keywordtype">void</span> <a class="code hl_function" href="joybus__internal_8h.html#a67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a>(<span class="keyword">const</span> <span class="keywordtype">void</span> * input, <span class="keywordtype">void</span> (*callback)(uint64_t *output, <span class="keywordtype">void</span> *ctx), <span class="keywordtype">void</span> *ctx);</div>
-<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span> </div>
-<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="preprocessor">#endif</span></div>
-<div class="ttc" id="ajoybus__internal_8h_html_a67a0b9a8881c8ca94d35be1db9e6030f"><div class="ttname"><a href="joybus__internal_8h.html#a67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a></div><div class="ttdeci">void joybus_exec_async(const void *input, void(*callback)(uint64_t *output, void *ctx), void *ctx)</div><div class="ttdoc">Execute an asynchronous joybus message.</div><div class="ttdef"><b>Definition</b> joybus.c:227</div></div>
+<a href="ioctl_8h.html">Go to the documentation of this file.</a><div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span> </div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="preprocessor">#ifndef __LIBDRAGON_IOCTL_H</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="preprocessor">#define __LIBDRAGON_IOCTL_H</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno"><a class="line" href="ioctl_8h.html#a840d10d2fed07b8a85f260031f2fa47b">   22</a></span><span class="preprocessor">#define _IO(type, nr) ((((type) &amp; 0xFFFF) &lt;&lt; 16)|((nr) &amp; 0xFFFF))</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span> </div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span> </div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span><span class="keywordtype">int</span> <a class="code hl_function" href="ioctl_8h.html#a342c2eae35d44df768ec0634c76bf68b">ioctl</a>(<span class="keywordtype">int</span> fd, <span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> cmd, <span class="keywordtype">void</span> *argp);</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span> </div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span>}</div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span><span class="preprocessor">#endif</span></div>
+<div class="ttc" id="aioctl_8h_html_a342c2eae35d44df768ec0634c76bf68b"><div class="ttname"><a href="ioctl_8h.html#a342c2eae35d44df768ec0634c76bf68b">ioctl</a></div><div class="ttdeci">int ioctl(int fd, unsigned long cmd, void *argp)</div><div class="ttdoc">Perform IO Control Request.</div><div class="ttdef"><b>Definition</b> system.c:1174</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

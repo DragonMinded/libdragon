@@ -72,6 +72,7 @@ $(function() {
 <div class="header">
   <div class="summary">
 <a href="#files">Files</a> &#124;
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
@@ -98,6 +99,12 @@ Files</h2></td></tr>
 <tr class="memitem:n64sys_8h" id="r_n64sys_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="n64sys_8h.html">n64sys.h</a></td></tr>
 <tr class="memdesc:n64sys_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">N64 System Interface. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:structheap__stats__t" id="r_structheap__stats__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#structheap__stats__t">heap_stats_t</a></td></tr>
+<tr class="memdesc:structheap__stats__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Heap statistics.  <a href="group__n64sys.html#structheap__stats__t">More...</a><br /></td></tr>
+<tr class="separator:structheap__stats__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
@@ -521,6 +528,10 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><b>sys_bbplayer</b> (voi
 <tr class="memitem:ga536cf32fcf76fe117b6964c9d09004a2" id="r_ga536cf32fcf76fe117b6964c9d09004a2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga536cf32fcf76fe117b6964c9d09004a2">assert_memory_expanded</a> (void)</td></tr>
 <tr class="memdesc:ga536cf32fcf76fe117b6964c9d09004a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Assert that the expansion pak is present.  <br /></td></tr>
 <tr class="separator:ga536cf32fcf76fe117b6964c9d09004a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga26eb5aa0448bf9784f1cf3f9fb300192" id="r_ga26eb5aa0448bf9784f1cf3f9fb300192"><td class="memItemLeft" align="right" valign="top"><a id="ga26eb5aa0448bf9784f1cf3f9fb300192" name="ga26eb5aa0448bf9784f1cf3f9fb300192"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>sys_get_heap_stats</b> (<a class="el" href="group__n64sys.html#structheap__stats__t">heap_stats_t</a> *stats)</td></tr>
+<tr class="memdesc:ga26eb5aa0448bf9784f1cf3f9fb300192"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return information about memory usage of the heap. <br /></td></tr>
+<tr class="separator:ga26eb5aa0448bf9784f1cf3f9fb300192"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf9f812fb3f12eaee7f5186b893266d3a" id="r_gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">malloc_uncached</a> (size_t size)</td></tr>
 <tr class="memdesc:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory.  <br /></td></tr>
 <tr class="separator:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -530,9 +541,9 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><b>sys_bbplayer</b> (voi
 <tr class="memitem:gad7eb2952f66b4c6158a161eddc6f6a7d" id="r_gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">free_uncached</a> (void *buf)</td></tr>
 <tr class="memdesc:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Free an uncached memory buffer.  <br /></td></tr>
 <tr class="separator:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga4cd768cc5d84485110ecf4991727b00b" id="r_ga4cd768cc5d84485110ecf4991727b00b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga4cd768cc5d84485110ecf4991727b00b">get_tv_type</a> ()</td></tr>
-<tr class="memdesc:ga4cd768cc5d84485110ecf4991727b00b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <br /></td></tr>
-<tr class="separator:ga4cd768cc5d84485110ecf4991727b00b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6838308cf783f1f43e1753d5028256d5" id="r_ga6838308cf783f1f43e1753d5028256d5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga6838308cf783f1f43e1753d5028256d5">get_tv_type</a> (void)</td></tr>
+<tr class="memdesc:ga6838308cf783f1f43e1753d5028256d5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Is system NTSC/PAL/MPAL.  <br /></td></tr>
+<tr class="separator:ga6838308cf783f1f43e1753d5028256d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga47a0e268efc40af2363e375440df2552" id="r_ga47a0e268efc40af2363e375440df2552"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__n64sys.html#ga26192e81cb759946e1a943b3f242ef7a">reset_type_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga47a0e268efc40af2363e375440df2552">sys_reset_type</a> (void)</td></tr>
 <tr class="memdesc:ga47a0e268efc40af2363e375440df2552"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get reset type.  <br /></td></tr>
 <tr class="separator:ga47a0e268efc40af2363e375440df2552"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -555,6 +566,37 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>N64 bootup and cache interfaces. </p>
 <p>The N64 system interface provides a way for code to interact with the memory setup on the system. This includes cache operations to invalidate or flush regions and the ability to set the boot CIC. The <a class="el" href="group__system.html">newlib Interface Hooks</a> use the knowledge of the boot CIC to properly determine if the expansion pak is present, giving 4 MiB of additional memory. Aside from this, the MIPS r4300 uses a manual cache management strategy, where SW that requires passing buffers to and from hardware components using DMA controllers needs to ensure that cache and RDRAM are in sync. A set of operations to invalidate and/or write back cache is provided for both instruction cache and data cache. </p>
+<hr/><h2 class="groupheader">Data Structure Documentation</h2>
+<a name="structheap__stats__t" id="structheap__stats__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structheap__stats__t">&#9670;&#160;</a></span>heap_stats_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct heap_stats_t</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p>Heap statistics. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="a44840b346e7faa6bac510de426b418e0" name="a44840b346e7faa6bac510de426b418e0"></a>int</td>
+<td class="fieldname">
+total</td>
+<td class="fielddoc">
+Total heap size in bytes. </td></tr>
+<tr><td class="fieldtype">
+<a id="a24470473a14139c462436da88e813d15" name="a24470473a14139c462436da88e813d15"></a>int</td>
+<td class="fieldname">
+used</td>
+<td class="fielddoc">
+Used heap size in bytes. </td></tr>
+</table>
+
+</div>
+</div>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="ga06cc6d925caa4db67e81281eef124d28" name="ga06cc6d925caa4db67e81281eef124d28"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga06cc6d925caa4db67e81281eef124d28">&#9670;&#160;</a></span>C0_COUNT</h2>
@@ -1287,7 +1329,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 <div class="line">    <span class="keyword">const</span> <span class="keyword">volatile</span> <span class="keywordtype">void</span> *_addrp = (_addr); \</div>
 <div class="line">    (((<a class="code hl_typedef" href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd">phys_addr_t</a>)(_addrp))&amp;~0xE0000000); \</div>
 <div class="line">})</div>
-<div class="ttc" id="agroup__n64sys_html_gaaf5dda50732dd08c2496ce37ad95b0cd"><div class="ttname"><a href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd">phys_addr_t</a></div><div class="ttdeci">uint32_t phys_addr_t</div><div class="ttdoc">A physical address on the MIPS bus.</div><div class="ttdef"><b>Definition</b> n64sys.h:73</div></div>
+<div class="ttc" id="agroup__n64sys_html_gaaf5dda50732dd08c2496ce37ad95b0cd"><div class="ttname"><a href="group__n64sys.html#gaaf5dda50732dd08c2496ce37ad95b0cd">phys_addr_t</a></div><div class="ttdeci">uint32_t phys_addr_t</div><div class="ttdoc">A physical address on the MIPS bus.</div><div class="ttdef"><b>Definition</b> n64sys.h:75</div></div>
 </div><!-- fragment -->
 <p>Return the physical memory address for a given virtual address (pointer) </p>
 <dl class="params"><dt>Parameters</dt><dd>
@@ -2329,19 +2371,28 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 
 </div>
 </div>
-<a id="ga4cd768cc5d84485110ecf4991727b00b" name="ga4cd768cc5d84485110ecf4991727b00b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4cd768cc5d84485110ecf4991727b00b">&#9670;&#160;</a></span>get_tv_type()</h2>
+<a id="ga6838308cf783f1f43e1753d5028256d5" name="ga6838308cf783f1f43e1753d5028256d5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6838308cf783f1f43e1753d5028256d5">&#9670;&#160;</a></span>get_tv_type()</h2>
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a> get_tv_type </td>
           <td>(</td>
+          <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
 <p>Is system NTSC/PAL/MPAL. </p>
@@ -2375,7 +2426,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Sep 21 2025 16:52:09 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Sep 26 2025 10:46:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

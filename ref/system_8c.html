@@ -217,12 +217,24 @@ Functions</h2></td></tr>
 <tr class="memitem:a6655447bab00753d59759423bf28e22e" id="r_a6655447bab00753d59759423bf28e22e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a6655447bab00753d59759423bf28e22e">wait</a> (int *status)</td></tr>
 <tr class="memdesc:a6655447bab00753d59759423bf28e22e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Wait for a child process.  <br /></td></tr>
 <tr class="separator:a6655447bab00753d59759423bf28e22e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a342c2eae35d44df768ec0634c76bf68b" id="r_a342c2eae35d44df768ec0634c76bf68b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a342c2eae35d44df768ec0634c76bf68b">ioctl</a> (int fd, unsigned long cmd, void *argp)</td></tr>
+<tr class="memdesc:a342c2eae35d44df768ec0634c76bf68b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Perform IO Control Request.  <br /></td></tr>
+<tr class="separator:a342c2eae35d44df768ec0634c76bf68b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa1cc997e92371733ee54ac57dcc73c75" id="r_aa1cc997e92371733ee54ac57dcc73c75"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#aa1cc997e92371733ee54ac57dcc73c75">ftruncate</a> (int file, off_t length)</td></tr>
+<tr class="memdesc:aa1cc997e92371733ee54ac57dcc73c75"><td class="mdescLeft">&#160;</td><td class="mdescRight">Truncate a file to the specified length.  <br /></td></tr>
+<tr class="separator:aa1cc997e92371733ee54ac57dcc73c75"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a87674838dd2bcf61e1a1fb5c9892ab6c" id="r_a87674838dd2bcf61e1a1fb5c9892ab6c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a87674838dd2bcf61e1a1fb5c9892ab6c">truncate</a> (const char *path, off_t length)</td></tr>
+<tr class="memdesc:a87674838dd2bcf61e1a1fb5c9892ab6c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Truncate a file to the specified length.  <br /></td></tr>
+<tr class="separator:a87674838dd2bcf61e1a1fb5c9892ab6c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af069d9aae45f54cadde63548780ca64a" id="r_af069d9aae45f54cadde63548780ca64a"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#af069d9aae45f54cadde63548780ca64a">dir_findfirst</a> (const char *const path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
 <tr class="memdesc:af069d9aae45f54cadde63548780ca64a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the first file in a directory.  <br /></td></tr>
 <tr class="separator:af069d9aae45f54cadde63548780ca64a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9f45aada2a3237bc3c59c8ceb3d88d20" id="r_a9f45aada2a3237bc3c59c8ceb3d88d20"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a9f45aada2a3237bc3c59c8ceb3d88d20">dir_findnext</a> (const char *const path, <a class="el" href="group__system.html#structdir__t">dir_t</a> *dir)</td></tr>
 <tr class="memdesc:a9f45aada2a3237bc3c59c8ceb3d88d20"><td class="mdescLeft">&#160;</td><td class="mdescRight">Find the next file in a directory.  <br /></td></tr>
 <tr class="separator:a9f45aada2a3237bc3c59c8ceb3d88d20"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a548e5b744ca2e97beb61ad7aa41114e2" id="r_a548e5b744ca2e97beb61ad7aa41114e2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="system_8c.html#a548e5b744ca2e97beb61ad7aa41114e2">mkdir</a> (const char *path, mode_t mode)</td></tr>
+<tr class="memdesc:a548e5b744ca2e97beb61ad7aa41114e2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a directory.  <br /></td></tr>
+<tr class="separator:a548e5b744ca2e97beb61ad7aa41114e2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga5a2591289aeb5ec5d9f73419533edc39" id="r_ga5a2591289aeb5ec5d9f73419533edc39"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga5a2591289aeb5ec5d9f73419533edc39">hook_stdio_calls</a> (<a class="el" href="structstdio__t.html">stdio_t</a> *stdio_calls)</td></tr>
 <tr class="memdesc:ga5a2591289aeb5ec5d9f73419533edc39"><td class="mdescLeft">&#160;</td><td class="mdescRight">Hook into stdio for STDIN, STDOUT and STDERR callbacks.  <br /></td></tr>
 <tr class="separator:ga5a2591289aeb5ec5d9f73419533edc39"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -1170,6 +1182,129 @@ Filesystem callback pointers. </td></tr>
 
 </div>
 </div>
+<a id="a342c2eae35d44df768ec0634c76bf68b" name="a342c2eae35d44df768ec0634c76bf68b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a342c2eae35d44df768ec0634c76bf68b">&#9670;&#160;</a></span>ioctl()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ioctl </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>argp</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Perform IO Control Request. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">fd</td><td>File handle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">cmd</td><td>Request ioctl command code </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">argp</td><td>Pointer to a request-specific data structure</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Zero on success, or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="aa1cc997e92371733ee54ac57dcc73c75" name="aa1cc997e92371733ee54ac57dcc73c75"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa1cc997e92371733ee54ac57dcc73c75">&#9670;&#160;</a></span>ftruncate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ftruncate </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>file</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Truncate a file to the specified length. </p>
+<p>If the specified length is larger than the current file size, the file is extended with zeros. If the specified length is smaller than the current file size, the file is truncated to the specified length.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">file</td><td>File handle </td></tr>
+    <tr><td class="paramname">length</td><td>New length of the file </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int 0 on success, -1 on failure (errno will be set) </dd></dl>
+
+</div>
+</div>
+<a id="a87674838dd2bcf61e1a1fb5c9892ab6c" name="a87674838dd2bcf61e1a1fb5c9892ab6c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a87674838dd2bcf61e1a1fb5c9892ab6c">&#9670;&#160;</a></span>truncate()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int truncate </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">off_t&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Truncate a file to the specified length. </p>
+<p>If the specified length is larger than the current file size, the file is extended with zeros. If the specified length is smaller than the current file size, the file is truncated to the specified length.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">path</td><td>Path to the file </td></tr>
+    <tr><td class="paramname">length</td><td>New length of the file </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int 0 on success, -1 on failure (errno will be set) </dd></dl>
+
+</div>
+</div>
 <a id="af069d9aae45f54cadde63548780ca64a" name="af069d9aae45f54cadde63548780ca64a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#af069d9aae45f54cadde63548780ca64a">&#9670;&#160;</a></span>dir_findfirst()</h2>
 
@@ -1245,6 +1380,45 @@ Filesystem callback pointers. </td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>0 on successful lookup, -1 if there are no more files in the directory, or a different negative value on error (in which case, errno will be set). </dd></dl>
+
+</div>
+</div>
+<a id="a548e5b744ca2e97beb61ad7aa41114e2" name="a548e5b744ca2e97beb61ad7aa41114e2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a548e5b744ca2e97beb61ad7aa41114e2">&#9670;&#160;</a></span>mkdir()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int mkdir </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">mode_t&#160;</td>
+          <td class="paramname"><em>mode</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Create a directory. </p>
+<p>Creates a new directory at the specified location.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">path</td><td>Path of the directory to create, relative to the root of the filesystem </td></tr>
+    <tr><td class="paramname">mode</td><td>Directory access mode </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>int 0 on success, -1 on failure (errno will be set) </dd></dl>
 
 </div>
 </div>
@@ -1371,7 +1545,7 @@ Filesystem callback pointers. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Sep 21 2025 16:52:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Sep 26 2025 10:46:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

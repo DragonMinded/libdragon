@@ -36,8 +36,9 @@ var searchData=
   ['usage_20of_20inline_20functions_20vs_20no_20inline_33',['Usage of inline functions vs no-inline',['../rdpq_8c.html#autotoc_md20',1,'']]],
   ['use_5fmain_5ftex_34',['use_main_tex',['../sprite_8h.html#aa64a020b664e48963668b8cf8a440e49',1,'sprite_detail_t']]],
   ['use_5fmain_5ftexture_35',['use_main_texture',['../sprite__internal_8h.html#a37c084a7a90c1d5008ef58cb47cfeb27',1,'sprite_ext_t::detail_s']]],
-  ['use_5forigin_36',['use_origin',['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_port_t.recv::use_origin'],['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::use_origin']]],
-  ['using_20a_20development_20cartridge_20on_20a_20real_20n64_37',['Using a development cartridge on a real N64',['../index.html#autotoc_md5',1,'']]],
-  ['using_20emulators_38',['Using emulators',['../index.html#autotoc_md4',1,'']]],
-  ['utils_2eh_39',['utils.h',['../utils_8h.html',1,'']]]
+  ['use_5forigin_36',['use_origin',['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::use_origin'],['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_port_t.recv::use_origin']]],
+  ['used_37',['used',['../group__n64sys.html#a24470473a14139c462436da88e813d15',1,'heap_stats_t']]],
+  ['using_20a_20development_20cartridge_20on_20a_20real_20n64_38',['Using a development cartridge on a real N64',['../index.html#autotoc_md5',1,'']]],
+  ['using_20emulators_39',['Using emulators',['../index.html#autotoc_md4',1,'']]],
+  ['utils_2eh_40',['utils.h',['../utils_8h.html',1,'']]]
 ];
