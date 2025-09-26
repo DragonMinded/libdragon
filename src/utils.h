@@ -53,4 +53,7 @@
 /** @brief Hint for the compiler that the condition is unlikely to happen */
 #define UNLIKELY(cond)  __builtin_expect(!!(cond), 0)
 
+/** @brief UTF-8 decoding */
+uint32_t __utf8_decode(const char **str);
+
 #endif
