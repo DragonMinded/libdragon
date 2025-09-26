@@ -1,0 +1,3 @@
+author: Vernon Adams et al.
+url: https://fonts.google.com/specimen/Pacifico
+license: SIL 1.1

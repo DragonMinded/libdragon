@@ -1,0 +1,3 @@
+author: of_eidolons
+url: https://of-eidolons.itch.io/divinity-sans
+license: cc0

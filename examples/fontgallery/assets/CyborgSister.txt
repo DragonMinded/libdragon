@@ -1,0 +1,3 @@
+author: jeti
+url: https://fontenddev.com/fonts/cyborg-sister/
+license: CC-BY 4.0
