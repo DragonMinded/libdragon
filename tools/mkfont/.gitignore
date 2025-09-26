@@ -1,0 +1,5 @@
+mkfont
+mkfont.exe
+*.png
+*.font64
+*.ttf
