@@ -241,6 +241,48 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
         font.bmp_outfmt = flag_bmfont_format;
     }
 
+    if (FT_HAS_MULTIPLE_MASTERS(face)) {
+        FT_MM_Var* mm_var;
+        if (FT_Get_MM_Var(face, &mm_var) != 0) {
+            fprintf(stderr, "error: could not read variable font data\n");
+            return 1;
+        }
+
+        std::vector<FT_Fixed> coords(mm_var->num_axis);
+        if (FT_Get_Var_Design_Coordinates(face, mm_var->num_axis, coords.data()) != 0) {
+            fprintf(stderr, "error: could not retrieve default variable axis values\n");
+            return 1;
+        }
+        for (FT_UInt i = 0; i < mm_var->num_axis; i++) {
+            auto& axis = mm_var->axis[i];
+            auto it = flag_var_axis_values.find(axis.tag);
+            if (it != flag_var_axis_values.end()) {
+                FT_Fixed fixed = round(it->second * (1 << 16)); // Convert value to 16.16 fixed point
+                if (fixed < axis.minimum || fixed > axis.maximum) {
+                    fprintf(stderr, "error: axis value '%c%c%c%c' outside allowed range\n",
+                            (char) (axis.tag >> 24), (char) (axis.tag >> 16), (char) (axis.tag >> 8), (char) axis.tag);
+                    return 1;
+                }
+                coords[i] = fixed;
+            }
+            flag_var_axis_values.erase(axis.tag);
+        }
+        if (!flag_var_axis_values.empty()) {
+            auto tag = flag_var_axis_values.begin()->first;
+            fprintf(stderr, "error: font does not support specified axis '%c%c%c%c'\n",
+                    (char) (tag >> 24), (char) (tag >> 16), (char) (tag >> 8), (char) tag);
+            return 1;
+        }
+        if (FT_Set_Var_Design_Coordinates(face, mm_var->num_axis, coords.data()) != 0) {
+            fprintf(stderr, "error: could not set variable axis values\n");
+            return 1;
+        }
+        FT_Done_MM_Var(ftlib, mm_var);
+    } else if (!flag_var_axis_values.empty()) {
+        fprintf(stderr, "error: specified axis overrides on non-variable font\n");
+        return 1;
+    }
+
     // Create a map from font64 glyph indices to truetype indices
     std::unordered_map<int, int> gidx_to_ttfidx;
 

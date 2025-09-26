@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <vector>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "../../include/surface.h"
@@ -54,6 +55,7 @@ float flag_ttf_char_spacing = 0;
 float flag_ttf_aspect_ratio = 1.0;
 tex_format_t flag_bmfont_format = FMT_NONE;
 std::unordered_set<uint32_t> flag_charset;
+std::unordered_map<uint32_t, float> flag_var_axis_values;
 
 typedef struct {
     const char *name;
@@ -382,6 +384,9 @@ void print_args( char * name )
     fprintf(stderr, "                             Default assumes 4:3 display ratio\n");
     fprintf(stderr, "   --format <format>         Specify the output texture format for color fonts.\n");
     fprintf(stderr, "                             Valid options are: RGBA16, RGBA32, CI4, CI8 (default: autoselect)\n");
+    fprintf(stderr, "   --var-axis <tag=value>    Override axis value of variable font\n");
+    fprintf(stderr, "                             (e.g., --var-axis wght=800))\n");
+    fprintf(stderr, "                             Can be specified multiple times.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "   Glyph selection modes (choose one of the following):\n");
     fprintf(stderr, "   --charset <file>          Create a font that covers all and only the glyphs used in the\n");
@@ -623,6 +628,22 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid format: %s\n", argv[i]);
                     return 1;
                 }
+            } else if (!strcmp(argv[i], "--var-axis")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+
+                char tag[4];
+                float value;
+                char extra;
+
+                if (sscanf(argv[i], "%c%c%c%c=%f%c", &tag[0], &tag[1], &tag[2], &tag[3], &value, &extra) != 5) {
+                    fprintf(stderr, "invalid argument for %s: %s \n", argv[i-1], argv[i]);
+                    return 1;
+
+                }
+                flag_var_axis_values[(tag[0] << 24) | (tag[1] << 16) | (tag[2] << 8) | tag[3]] = value;
             } else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
