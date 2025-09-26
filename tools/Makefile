@@ -48,6 +48,11 @@ all:
 
 # Avoid many warnings for vendored code that we don't intend to ever modify
 common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
+mkfont/freetype/FreeTypeAmalgam.o: CFLAGS += -Wno-all -Wno-error
+mkfont/plutosvg/plutosvg-amalgam.o:CFLAGS += -Imkfont/plutosvg -Wno-unused-function -Wno-error
+mkfont/mkfont.o:              	   CXXFLAGS += -Imkfont/plutosvg -Imkfont/freetype
+
+
 common-clean:
 	rm -f common/*.o common/*.a common/*.d
 common/assetcomp.a: common/assetcomp.o common/lz4_compress.o \
@@ -71,6 +76,7 @@ mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
 mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
 audioconv64_OBJS = audioconv64/audioconv64.o
 mkdfs_OBJS = mkdfs/mkdfs.o
+mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o mkfont/plutosvg/plutosvg-amalgam.o common/assetcomp.a
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
 n64dso-extern_OBJS = n64dso/n64dso-extern.o
 n64dso-msym_OBJS = n64dso/n64dso-msym.o
@@ -81,7 +87,7 @@ ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
-TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite n64dso n64dso-msym n64dso-extern
+TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont n64dso n64dso-msym n64dso-extern
 
 # Define a variable that has value ".exe" on Windows and "" on other platforms
 EXE = $(if $(findstring Windows,$(OS)),.exe,)
