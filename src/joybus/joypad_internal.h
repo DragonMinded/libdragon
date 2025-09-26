@@ -105,7 +105,6 @@ typedef struct joypad_device_hot_s
     bool rumble_active;
 } joypad_device_hot_t;
 
-extern volatile joybus_identifier_t joypad_identifiers_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
@@ -124,23 +123,6 @@ extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
  * @return Joypad inputs structure (#joypad_inputs_t)
  */
 joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port);
-
-/**
- * @brief Get the Joypad accessory state for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * 
- * @return Joypad accessory state enumeration value 
- */
-int joypad_get_accessory_state(joypad_port_t port);
-
-/**
- * @brief Get the Joypad accessory error for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * @return Joypad accessory error enumeration value 
- */
-int joypad_get_accessory_error(joypad_port_t port);
 
 #ifdef __cplusplus
 }
