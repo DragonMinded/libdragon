@@ -1,0 +1,4 @@
+author: emhuo
+https://emhuo.itch.io/nico-pixel-fonts-pack
+license: CC0
+

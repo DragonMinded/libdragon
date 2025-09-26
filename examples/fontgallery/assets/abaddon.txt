@@ -1,0 +1,3 @@
+author: Nathan Scott
+url: https://caffinate.itch.io/abaddon
+license: CC0
