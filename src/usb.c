@@ -868,6 +868,7 @@ static u32 usb_64drive_get_baseaddr()
     @param Enables/disables extended address mode
 ==============================*/
 
+__attribute__((used))
 static void usb_64drive_set_extendedaddress(u8 enable)
 {
     // Wait until CI is not busy
