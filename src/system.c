@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/times.h>
+#include <sys/utime.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -798,7 +799,7 @@ int gettimeofday( struct timeval *ptimeval, void *ptimezone )
  * @retval -1 Operation not available (errno is set)
  * @retval -2 Operation failed (errno is set)
  */
-int settimeofday( const struct timeval *ptimeval, const void *ptimezone )
+int settimeofday( const struct timeval *ptimeval, const struct timezone *ptimezone)
 {
     time_t time = ptimeval->tv_sec;
     if( time_hooks.settime != NULL )
@@ -1525,6 +1526,70 @@ int mkdir( const char * path, mode_t mode )
     int ret = fsm->fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
     if (fsm->need_lock) kmutex_unlock(&fsm->lock);
     return ret;
+}
+
+/**
+ * @brief Update the access and modification times of a file.
+ * 
+ * @param path      Path to the file (with filesystem prefix)
+ * @param times     New access and modification times. If NULL, use the current time.
+ * @return int      0 on success, -1 on failure (errno will be set)
+ */
+int utimes(const char *path, const struct timeval times[2])
+{
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
+    int mapping = __get_fs_link_by_name( path );
+
+    if( fsm == 0 || mapping < 0 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if( fsm->fs->utimes == 0 )
+    {
+        /* Filesystem doesn't support utimes */
+        errno = ENOSYS;
+        return -1;
+    }
+ 
+    // If times is NULL, use the current time
+    struct timeval now[2];
+    if (times == NULL) {
+        if (gettimeofday(&now[0], NULL) != 0) {
+            return -1;
+        }
+        now[1] = now[0];
+        times = now;
+    }
+
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->utimes( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, times );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
+}
+
+/**
+ * @brief Update the access and modification times of a file.
+ * 
+ * @param path      Path to the file (with filesystem prefix)
+ * @param times     New access and modification times. If NULL, use the current time.
+ * @return int      0 on success, -1 on failure (errno will be set)
+ */
+int utime(const char *path, const struct utimbuf *times)
+{
+    if (times)
+    {
+        struct timeval tv[2] = {
+            { .tv_sec = times->actime,  .tv_usec = 0 },
+            { .tv_sec = times->modtime, .tv_usec = 0 }
+        };
+        return utimes(path, tv);
+    }
+    else
+    {
+        return utimes(path, NULL);
+    }
 }
 
 int hook_stdio_calls( stdio_t *stdio_calls )
