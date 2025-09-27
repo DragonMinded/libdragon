@@ -16,6 +16,7 @@
 #include "system.h"
 #include "n64sys.h"
 #include "dma.h"
+#include "utils.h"
 
 static fat_disk_t fat_disks[FF_VOLUMES] = {0};
 
@@ -70,7 +71,8 @@ DWORD get_fattime(void)
 			FF_NORTC_MDAY << 16
 		);
 	}
-  	struct tm tm = *localtime(&t);
+  	struct tm tm;
+	localtime_r(&t, &tm);
 	return (DWORD)(
 		(tm.tm_year - 80) << 25 |
 		(tm.tm_mon + 1) << 21 |
@@ -361,6 +363,32 @@ static int __fat_mkdir(char *path, mode_t mode, int volid)
 	return 0;
 }
 
+static int __fat_utimes(const char *path, const struct timeval times[2], int volid)
+{
+	// FatFS does not support setting access time, so we ignore times[0]
+	// We also ignore sub-second precision in times[1]
+	time_t t = times[1].tv_sec;
+	
+	// FAT valid time range is 1980-01-01 00:00:00 to 2107-12-31 23:59:58
+	t = CLAMP(t, 315532800, 4354819198);
+	
+	// Extract components
+	struct tm tm;
+	localtime_r(&t, &tm);
+
+	// Convert to FAT date/time format
+	FILINFO fno = {0};
+	fno.fdate = ((tm.tm_year - 1980) << 9) | ((tm.tm_mon + 1) << 5) | tm.tm_mday;
+	fno.ftime = (tm.tm_hour << 11) | (tm.tm_min << 5) | (tm.tm_sec >> 1);
+
+	FRESULT res = f_utime(MAKE_FAT_NAME(volid, path), &fno);
+	if (res != FR_OK) {
+		__fresult_set_errno(res);
+		return -1;
+	}
+	return 0;
+}
+
 static const filesystem_t fat_newlib_fs = {
 	.open = NULL,   		// per-volume function
 	.stat = NULL,			// per-volume function
@@ -374,6 +402,7 @@ static const filesystem_t fat_newlib_fs = {
 	.findfirst = NULL, 		// per-volume function
 	.findnext = __fat_findnext,
 	.mkdir = NULL,			// per-volume function
+	.utimes = NULL,			// per-volume function
 };
 
 static void *__fat_open_vol0(char *name, int flags) { return __fat_open(name, flags, 0); }
@@ -401,11 +430,17 @@ static int __fat_mkdir_vol1(char *path, mode_t mode) { return __fat_mkdir(path, 
 static int __fat_mkdir_vol2(char *path, mode_t mode) { return __fat_mkdir(path, mode, 2); }
 static int __fat_mkdir_vol3(char *path, mode_t mode) { return __fat_mkdir(path, mode, 3); }
 
+static int __fat_utimes_vol0(char *path, struct timeval times[2]) { return __fat_utimes(path, times, 0); }
+static int __fat_utimes_vol1(char *path, struct timeval times[2]) { return __fat_utimes(path, times, 1); }
+static int __fat_utimes_vol2(char *path, struct timeval times[2]) { return __fat_utimes(path, times, 2); }
+static int __fat_utimes_vol3(char *path, struct timeval times[2]) { return __fat_utimes(path, times, 3); }
+
 static const void (*__fat_open_func[4]) = { __fat_open_vol0, __fat_open_vol1, __fat_open_vol2, __fat_open_vol3 };
 static const void (*__fat_findfirst_func[4]) = { __fat_findfirst_vol0, __fat_findfirst_vol1, __fat_findfirst_vol2, __fat_findfirst_vol3 };
 static const void (*__fat_stat_func[4]) = { __fat_stat_vol0, __fat_stat_vol1, __fat_stat_vol2, __fat_stat_vol3 };
 static const void (*__fat_unlink_func[4]) = { __fat_unlink_vol0, __fat_unlink_vol1, __fat_unlink_vol2, __fat_unlink_vol3 };
 static const void (*__fat_mkdir_func[4]) = { __fat_mkdir_vol0, __fat_mkdir_vol1, __fat_mkdir_vol2, __fat_mkdir_vol3 };
+static const void (*__fat_utimes_func[4]) = { __fat_utimes_vol0, __fat_utimes_vol1, __fat_utimes_vol2, __fat_utimes_vol3 };
 
 int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
 {
@@ -433,11 +468,12 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
         filesystem_t *fs = malloc(sizeof(filesystem_t));
         memcpy(fs, &fat_newlib_fs, sizeof(filesystem_t));
 
-        fs->open = __fat_open_func[vol_id];
+        fs->open 	  = __fat_open_func[vol_id];
         fs->findfirst = __fat_findfirst_func[vol_id];
-		fs->stat = __fat_stat_func[vol_id];
-		fs->unlink = __fat_unlink_func[vol_id];
-		fs->mkdir = __fat_mkdir_func[vol_id];
+		fs->stat 	  = __fat_stat_func[vol_id];
+		fs->unlink    = __fat_unlink_func[vol_id];
+		fs->mkdir     = __fat_mkdir_func[vol_id];
+		fs->utimes    = __fat_utimes_func[vol_id];
 
         attach_filesystem(prefix, fs);
     }

@@ -39,6 +39,11 @@
  * @{
  */
 
+#include <dir.h>
+#include <stdbool.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+
 /** @brief Number of filesystems that can be attached to the system */
 #define MAX_FILESYSTEMS     10
 /** @brief Number of open handles that can be maintained at one time */
@@ -47,11 +52,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <dir.h>
-#include <stdbool.h>
-#include <sys/stat.h>
-#include <sys/time.h>
 
 /**
  * @brief Filesystem hook structure
