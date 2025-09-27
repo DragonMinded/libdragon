@@ -997,11 +997,11 @@ int cpakfs_get_serial(joypad_port_t port, uint8_t serial[24])
     }
 
     cpakfs_id_t fsid;
-    if (!fsid_read(port, &fsid))
-        return false;
+    if (fsid_read(port, &fsid) < 0)
+        return -2;
 
     memcpy(serial, fsid.serial, 24);
-    return true;
+    return 0;
 }
 
 int cpakfs_get_stats(joypad_port_t port, cpakfs_stats_t *stats)
