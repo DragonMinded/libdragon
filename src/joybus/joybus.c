@@ -309,7 +309,7 @@ void joybus_register_detection_callback(joybus_detection_callback_t callback, vo
                 joybus_identifier_t identifier = joybus_identifiers_hot[port];
                 uint8_t device_status = joybus_identify_status_hot[port];
                 if (identifier != JOYBUS_IDENTIFIER_NONE) {
-                    callback(identifier, JOYBUS_DETECT_POLLED, port, device_status, ctx);
+                    callback(identifier, JOYBUS_DETECT_CONNECTED, port, device_status, ctx);
                 }
             }
 
