@@ -273,7 +273,7 @@ int cpakfs_unmount(joypad_port_t port);
 /**
  * @brief Read the serial number of a controller pak
  * 
- * This function reads the 20-byte serial number of a controller pak.
+ * This function reads the 24-byte serial number of a controller pak.
  * This is a unique identifier that can be used to distinguish between
  * different controller paks. It is normally generated with random data
  * when the controller pak is formatted, so it does not contain printable
