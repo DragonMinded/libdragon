@@ -5,6 +5,7 @@ EXAMPLES += brew-volley
 EXAMPLES += controllertest
 EXAMPLES += cpaktest
 EXAMPLES += cpak-utest
+EXAMPLES += cpakdemo
 EXAMPLES += cpptest
 EXAMPLES += ctest
 EXAMPLES += customfont
