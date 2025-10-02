@@ -415,7 +415,6 @@ static void joypad_detect_callback(
         break;
 
     case JOYBUS_DETECT_DISCONNECTED:
-        debugf("joypad_detect_callback: disconnected port %d\n", port);
         joypad_device_reset(port);
         break;
 
