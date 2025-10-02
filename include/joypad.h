@@ -44,10 +44,6 @@
  * to Nintendo 64 controllers. Call #joypad_get_accessory_type to determine
  * which accessory was detected.
  *
- * For advanced use-cases, a developer can determine exactly which type of
- * input device is connected by calling #joypad_get_identifier, which will
- * return the 16-bit device identifier value from the Joybus "Info" response.
- * 
  * To read digital button state for a Joypad device:
  * * #joypad_get_buttons
  * * #joypad_get_buttons_pressed
@@ -486,15 +482,6 @@ void joypad_poll(void);
 bool joypad_is_connected(joypad_port_t port);
 
 /**
- * @brief Get the Joybus device identifier for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * 
- * @return Joybus device identifier (#joybus_identifier_t)
- */
-joybus_identifier_t joypad_get_identifier(joypad_port_t port);
-
-/**
  * @brief Get the Joypad style for a Joypad port.
  * 
  * @param port Joypad port number (#joypad_port_t)
@@ -630,6 +617,15 @@ int joypad_get_axis_released(joypad_port_t port, joypad_axis_t axis);
  * @retval  0 Axis is not being held
  */
 int joypad_get_axis_held(joypad_port_t port, joypad_axis_t axis);
+
+
+///@cond
+__attribute__((deprecated("Use joybus_get_identifier instead")))
+static inline joybus_identifier_t joypad_get_identifier(joypad_port_t port) {
+    return joybus_get_identifier(port, NULL);
+}
+///@endcond
+
 
 #ifdef __cplusplus
 }

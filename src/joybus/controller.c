@@ -430,7 +430,7 @@ int get_dpad_direction( int controller )
  *
  * @return A bitmask representing controllers present
  * 
- * @deprecated Use #joypad_is_connected or #joypad_get_identifier instead.
+ * @deprecated Use #joypad_is_connected or #joypad_get_style instead.
  */
 int get_controllers_present( void )
 {
@@ -481,11 +481,11 @@ int get_accessories_present(struct controller_data *out)
  * @retval #ACCESSORY_NONE The accessory was not recognized
  * 
  * @deprecated Use #joypad_get_accessory_type instead.
- *             For VRU/VRS devices, use #joypad_get_identifier.
+ *             For VRU/VRS devices, use #joybus_get_identifier.
  */
 int identify_accessory( int controller )
 {
-    switch ( joypad_get_identifier(controller) )
+    switch ( joybus_get_identifier(controller, NULL) )
     {
         case JOYBUS_IDENTIFIER_N64_CONTROLLER:
             switch ( joypad_get_accessory_type(controller) )

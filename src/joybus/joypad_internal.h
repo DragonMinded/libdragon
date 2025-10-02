@@ -84,8 +84,6 @@ typedef struct joypad_gcn_origin_s
 /** @brief "Cold" (non-volatile) Joypad device structure. */
 typedef struct joypad_device_cold_s
 {
-    /** @brief Joybus device type identifier. */
-    joybus_identifier_t identifier;
     /** @brief Joypad style. */
     joypad_style_t style;
     /** @brief Joypad inputs for current frame. */

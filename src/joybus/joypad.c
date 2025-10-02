@@ -369,7 +369,6 @@ static void joypad_accessory_polled(int port, uint8_t new_status)
     }
     if (accessory_changed)
     {
-        accessory->type = JOYPAD_ACCESSORY_TYPE_UNKNOWN;
         joypad_accessory_detect_async(port);
     }
     accessory->status = accessory_status;
@@ -420,6 +419,7 @@ static void joypad_detect_callback(
         break;
 
     case JOYBUS_DETECT_DISCONNECTED:
+        debugf("joypad_detect_callback: disconnected port %d\n", port);
         joypad_device_reset(port);
         break;
 
@@ -659,7 +659,6 @@ void joypad_poll(void)
 
     uint8_t output[JOYBUS_BLOCK_SIZE];
     joypad_gcn_origin_t origins[JOYPAD_PORT_COUNT];
-    joybus_identifier_t identifiers[JOYPAD_PORT_COUNT];
 
     // Take a snapshot of the current "hot" state
     disable_interrupts();
@@ -712,8 +711,9 @@ void joypad_poll(void)
             cmd = (void *)&output[i + JOYBUS_COMMAND_METADATA_SIZE];
             i += JOYBUS_COMMAND_METADATA_SIZE + sizeof(*cmd);
 
-            // N64 Mouse uses the same read command as a Controller
-            if (identifiers[port] == JOYBUS_IDENTIFIER_N64_MOUSE)
+            // N64 Mouse uses the same read command as a Controller. Ask joybus
+            // what is the last identified device on this port.
+            if (joybus_get_identifier(port, NULL) == JOYBUS_IDENTIFIER_N64_MOUSE)
             {
                 device->style = JOYPAD_STYLE_MOUSE;
             }
@@ -744,8 +744,6 @@ void joypad_poll(void)
             memset(device, 0, sizeof(*device));
             i += command_len;
         }
-        // Copy the hot identifier to the cold device state
-        device->identifier = identifiers[port];
     }
 
     if (check_origins) joypad_gcn_origin_check_async();
@@ -755,17 +753,7 @@ bool joypad_is_connected(joypad_port_t port)
 {
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
-    switch( joypad_devices_cold[port].identifier ) {
-        case JOYBUS_IDENTIFIER_NONE:    return false;
-        default:                        return true;
-    }
-}
-
-joybus_identifier_t joypad_get_identifier(joypad_port_t port)
-{
-    ASSERT_JOYPAD_INITIALIZED();
-    ASSERT_JOYPAD_PORT_VALID(port);
-    return joypad_devices_cold[port].identifier;
+    return joypad_devices_cold[port].style != JOYPAD_STYLE_NONE;
 }
 
 joypad_style_t joypad_get_style(joypad_port_t port)
