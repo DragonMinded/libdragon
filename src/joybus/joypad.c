@@ -381,10 +381,6 @@ static void joypad_detect_callback(
 ) {
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
 
-    debugf("port: %d, id: 0x%04X, event: %d, status: 0x%02X\n",
-        port, identifier, event, device_status
-    );
-
     switch (event) {
     case JOYBUS_DETECT_CONNECTED:
         if (
