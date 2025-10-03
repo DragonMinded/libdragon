@@ -199,6 +199,7 @@ static int __fat_stat(char *name, struct stat *st, int volid)
 	__fat_stat_fill(fno.fsize, fno.fattrib, st);
 	struct tm tm;
 	memset(&tm, 0, sizeof(struct tm));
+	tm.tm_sec = (fno.ftime & 0x1F) << 1;
 	tm.tm_min = (fno.ftime >> 5) & 0x3F;
 	tm.tm_hour = fno.ftime >> 11;
 	tm.tm_mday = fno.fdate & 0x1F;
