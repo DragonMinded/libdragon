@@ -132,20 +132,27 @@ static int read_fat(cpakfs_t *fs)
 
     for (int i=0; i<num_banks; i++) {
         // Check the checksum of the page
-        int csum_start_idx = (i == 0) ? fs->reserved : 1;
-        if (__cpakfs_fat_checksum(fs->fat[i], csum_start_idx) != fs->fat[i][0].page) {
+        int num_reserved = (i == 0) ? fs->reserved : 1;
+        if (__cpakfs_fat_checksum(fs->fat[i], num_reserved) != fs->fat[i][0].page) {
 
             // If the checksum is wrong, read the backup copy and check if the checksum is correct there
             if (cpak_read(fs->port, 0, backup_addr + i*PAGE_SIZE, fs->fat[i], PAGE_SIZE) < 0)
                 return -1;
-            if (__cpakfs_fat_checksum(fs->fat[i], csum_start_idx) != fs->fat[i][0].page){
+            if (__cpakfs_fat_checksum(fs->fat[i], num_reserved) != fs->fat[i][0].page){
                 errno = ENODEV;
                 return -3;
             }
         }
 
+        // Set reserved pages as really reserved. Technically we could write lots
+        // of code to ignore their values, but it's simpler to just normalize them
+        // as they should be.
+        for (int j=0; j<num_reserved; j++) {
+            fs->fat[i][j] = FAT_RESERVED;
+        }
+
         // Compute the number of free pages in this bank
-        for (int j=csum_start_idx; j<NUM_PAGES; j++) {
+        for (int j=num_reserved; j<NUM_PAGES; j++) {
             if (FAT_IS_UNUSED(fs->fat[i][j]))
                 fs->free_pages[i]++;
         }
