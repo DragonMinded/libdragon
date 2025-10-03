@@ -823,6 +823,7 @@ void vi_init(void)
 
 void vi_close(void)
 {
+    assert(vi_initialized > 0);
     if (--vi_initialized > 0) { return; }
 
     // Wait until vblank, then disable interrupts.
