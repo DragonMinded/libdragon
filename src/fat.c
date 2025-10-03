@@ -378,7 +378,7 @@ static int __fat_utimes(const char *path, const struct timeval times[2], int vol
 
 	// Convert to FAT date/time format
 	FILINFO fno = {0};
-	fno.fdate = ((tm.tm_year - 1980) << 9) | ((tm.tm_mon + 1) << 5) | tm.tm_mday;
+	fno.fdate = ((tm.tm_year + 1900 - 1980) << 9) | ((tm.tm_mon + 1) << 5) | tm.tm_mday;
 	fno.ftime = (tm.tm_hour << 11) | (tm.tm_min << 5) | (tm.tm_sec >> 1);
 
 	FRESULT res = f_utime(MAKE_FAT_NAME(volid, path), &fno);
