@@ -21,7 +21,7 @@ programming and debugging. These are the main features:
 * The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities
   (commercial games and libultra are based on a 32-bit ABI and is not possible
   to use 64-bit registers and opcodes with it)
-* Can be developed with newer-generation emulators (Ares) and development cartridges
+* Can be developed with newer-generation emulators (Ares, Gopher64) and development cartridges
   (64drive, EverDrive64, SummerCart64).
 * Support both vanilla N64 and iQue Player (Chinese variant). It is possible
   to run ROMs built with libdragon on iQue without modifying the source code.
@@ -125,10 +125,15 @@ libdragon targets real N64 hardware and uses many advanced corners
 of the hardware not used by old commercial games, and thus requires
 a modern N64 emulator which focuses on full hardware emulation.
 
-At the moment, the only emulator that accurately emulates the hardware
-(and does not just focus on playing old classics) is [Ares](https://github.com/ares-emulator/ares). Ares requires a modern PC with a discrete
-GPU with Vulkan support.
+At the moment, the only emulators that accurately emulate the hardware
+(and does not just focus on playing old classics) are:
+* [Ares](https://github.com/ares-emulator/ares)
+* [Gopher64](https://github.com/gopher64/gopher64).
 
+Both require a modern PC with a discrete GPU with Vulkan support. Gopher64
+is more performant for gaming.
+
+Ares has more development-oriented features so it is suggested during development.
 You can develop 99% of your game using libdragon and the Ares emulator,
 and be confident that the game will correctly run on hardware as well.
 Make sure to turn on the "Homebrew mode" in Ares to enable developer
