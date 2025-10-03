@@ -385,7 +385,7 @@ void print_args( char * name )
     fprintf(stderr, "   --format <format>         Specify the output texture format for color fonts.\n");
     fprintf(stderr, "                             Valid options are: RGBA16, RGBA32, CI4, CI8 (default: autoselect)\n");
     fprintf(stderr, "   --var-axis <tag=value>    Override axis value of variable font\n");
-    fprintf(stderr, "                             (e.g., --var-axis wght=800))\n");
+    fprintf(stderr, "                             (e.g., --var-axis wght=800)\n");
     fprintf(stderr, "                             Can be specified multiple times.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "   Glyph selection modes (choose one of the following):\n");
