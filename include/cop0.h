@@ -267,6 +267,22 @@
 #define C0_STATUS_IE        0x00000001      ///< Status: interrupt enable
 #define C0_STATUS_EXL       0x00000002      ///< Status: within exception 
 #define C0_STATUS_ERL       0x00000004      ///< Status: within error
+#define C0_STATUS_KSU       0x00000018      ///< Status: kernel/user mode
+#define C0_STATUS_UX        0x00000020      ///< Status: 64-bit addressing in user mode
+#define C0_STATUS_SX        0x00000040      ///< Status: 64-bit addressing in supervisor mode
+#define C0_STATUS_KX        0x00000080      ///< Status: 64-bit addressing in kernel mode
+#define C0_STATUS_IM        0x0000FF00      ///< Status: interrupt mask bits
+#define C0_STATUS_IM_SHIFT  8               ///< Status: interrupt mask bits shift
+#define C0_STATUS_SR        0x00010000      ///< Status: soft reset
+#define C0_STATUS_TS        0x00020000      ///< Status: TLB shutdown
+#define C0_STATUS_BEV       0x00400000      ///< Status: use boot exception vectors
+#define C0_STATUS_RE        0x02000000      ///< Status: reverse endian
+#define C0_STATUS_FR        0x04000000      ///< Status: FPU register mode
+#define C0_STATUS_RP        0x08000000      ///< Status: reduced power
+#define C0_STATUS_CU0       0x10000000      ///< Status: coprocessor 0 usable
+#define C0_STATUS_CU1       0x20000000      ///< Status: coprocessor 1 usable
+#define C0_STATUS_CU2       0x40000000      ///< Status: coprocessor 2 usable
+#define C0_STATUS_CU3       0x80000000      ///< Status: coprocessor 3 usable
 
 /* COP0 Cause bits definition. Please refer to MIPS R4300 manual. */
 #define C0_CAUSE_BD         0x80000000      ///< Cause: exception triggered in delay slot
