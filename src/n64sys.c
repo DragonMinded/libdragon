@@ -194,9 +194,9 @@ reset_type_t sys_reset_type(void)
     return __boot_resettype;
 }
 
-void *sys_rom_elf_address(void)
+pi_addr_t sys_elf_address(void)
 {
-    return (void*)(0xB0000000 | (__boot_address_page << 8));
+    return 0x10000000 | (__boot_address_page << 8);
 }
 
 uint64_t get_ticks(void)

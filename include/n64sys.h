@@ -16,6 +16,7 @@
 #include <assert.h>
 #include "cop0.h"
 #include "cop1.h"
+#include "n64types.h"
 
 /**
  * @defgroup n64sys N64 System Interface
@@ -55,24 +56,6 @@ extern int __boot_tvtype;
  * @brief void pointer to cached and non-mapped memory start address
  */
 #define KSEG0_START_ADDR ((void*)0x80000000)
-
-/** 
- * @brief A physical address on the MIPS bus.
- * 
- * Physical addresses are 32-bit wide, and are used to address the memory
- * space of the MIPS R4300 CPU. The MIPS R4300 CPU has a 32-bit address bus,
- * and can address up to 4 GiB of memory.
- * 
- * Physical addresses are just numbers, they cannot be used as pointers (dereferenced).
- * To access them, you must first convert them virtual addresses using the
- * #VirtualCachedAddr or #VirtualUncachedAddr macros.
- * 
- * In general, libdragon will try to use #phys_addr_t whenever a physical
- * address is expected or returned, and C pointers for virtual addresses.
- * Unfortunately, not all codebase can be changed to follow this convention
- * for backward compatibility reasons.
- */
-typedef uint32_t phys_addr_t;
 
 /**
  * @brief Return the physical memory address for a given virtual address (pointer)
@@ -597,17 +580,19 @@ typedef enum {
 reset_type_t sys_reset_type(void);
 
 /**
- * @brief Get a pointer to the main ELF in ROM
- * 
- * This function returns a pointer (virtual address) of the main ELF in ROM,
+ * @brief Get the PI address of the main ELF in ROM
+ *
+ * This function returns the PI address of the main ELF in ROM,
  * that is, the address where the running application has been loaded from.
  * 
  * This is only useful in some very niche cases, eg. for manually loading
  * sections of the ELF at runtime, or inspecting custom ROM layouts.
  * 
- * @return A pointer to the start of the ELF in ROM
+ * Use #dma_read or #io_read to access the ROM contents at this address space.
+ * 
+ * @return Address of the the ELF in PI space (ROM)
  */
-void* sys_rom_elf_address(void);
+pi_addr_t sys_elf_address(void);
 
 /**
  * @brief Perform a hardware-accelerated memory set

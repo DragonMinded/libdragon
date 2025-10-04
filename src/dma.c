@@ -33,7 +33,7 @@ static volatile int __dma_busy(void)
     return PI_regs->status & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
 }
 
-bool io_accessible(uint32_t pi_address)
+bool io_accessible(pi_addr_t pi_address)
 {
     // Below 0x0500_0000, there is RDRAM and RCP registers.
     if (pi_address < 0x05000000)
@@ -65,7 +65,7 @@ volatile int dma_busy(void)
     return __dma_busy();
 }
 
-void dma_read_raw_async(void * ram_address, unsigned long pi_address, unsigned long len) 
+void dma_read_raw_async(void * ram_address, pi_addr_t pi_address, unsigned long len) 
 {
     assert(len > 0);
 
@@ -83,7 +83,7 @@ void dma_read_raw_async(void * ram_address, unsigned long pi_address, unsigned l
     enable_interrupts();
 }
 
-void dma_write_raw_async(const void * ram_address, unsigned long pi_address, unsigned long len) 
+void dma_write_raw_async(const void * ram_address, pi_addr_t pi_address, unsigned long len) 
 {
     assert(len > 0);
 
@@ -147,7 +147,7 @@ static uint8_t __io_read8(void *pi_pointer) {
         return __io_read16(pi_pointer)>>8;
 }
 
-void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long len)
+void dma_read_async(void *ram_pointer, pi_addr_t pi_address, unsigned long len)
 {
     void *ram = UncachedAddr(ram_pointer);
     uint32_t ram_address = (uint32_t)ram;
@@ -215,21 +215,21 @@ void dma_wait(void)
 }
 
 
-void dma_read(void *ram_address, unsigned long pi_address, unsigned long len)
+void dma_read(void *ram_address, pi_addr_t pi_address, unsigned long len)
 {
     pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     dma_read_async(ram_address, pi_address, len);
     dma_wait();
 }
 
-void dma_write(const void * ram_address, unsigned long rom_address, unsigned long len) 
+void dma_write(const void * ram_address, pi_addr_t rom_address, unsigned long len) 
 {
     rom_address = (rom_address | 0x10000000) & 0x1FFFFFFF;
     dma_write_raw_async(ram_address, rom_address, len);
     dma_wait();
 }
 
-uint32_t io_read(uint32_t pi_address)
+uint32_t io_read(pi_addr_t pi_address)
 {
     uint32_t retval;
 
@@ -240,7 +240,7 @@ uint32_t io_read(uint32_t pi_address)
     return retval;
 }
 
-void io_write(uint32_t pi_address, uint32_t data) 
+void io_write(pi_addr_t pi_address, uint32_t data) 
 {
     volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
 
