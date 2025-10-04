@@ -47,6 +47,7 @@ void usage(void)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     std::map<std::string, Material> materials;
     bool error = false;
     int nfiles = 0;

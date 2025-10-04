@@ -24,11 +24,6 @@
 #define TH_FLAG_SUSPENDED   (1<<4)      ///< The thread is suspended (will not be scheduled)
 #define TH_FLAG_INSPECTOR1  (1<<7)      ///< Flag reserved for usage in the inspector
 
-
-#define TDATA_SIZE ((uint32_t)(__tdata_end)-(uint32_t)(__tdata_start)) ///< Size of .tdata section
-#define TLS_SIZE ((uint32_t)(__tls_end)-(uint32_t)(__tls_base)) ///< Size of .tdata and .tbss sections combined
-#define TP_OFFSET 0x7000 ///< Offset of Pointer for TLS accesses
-
 /**
  * @brief a kernel thread for parallel execution
  *
@@ -92,12 +87,6 @@ typedef struct __attribute__((aligned (8))) kthread_s
 /** Kernel initialization flag. */
 extern bool __kernel;
 
-/** TLS Base Linker Symbol */
-extern char __tls_base[];
-/** TLS End Linker Symbol */
-extern char __tls_end[];
-
-
 extern kcond_t __kirq_cond_sp;      ///< Condition variable for SP interrupt
 extern kcond_t __kirq_cond_dp;      ///< Condition variable for DP interrupt
 extern kcond_t __kirq_cond_si;      ///< Condition variable for SI interrupt
@@ -120,6 +109,12 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state);
 
 /** @brief Internal thread creation function with also flags */
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data);
+
+/** @brief Register a hook to be called on every thread switch */
+void __kernel_register_switch_hook(void (*hook)(kthread_t*, kthread_t*));
+
+/** @brief Unregister a previously registered thread switch hook */
+void __kernel_unregister_switch_hook(void (*hook)(kthread_t*, kthread_t*));
 
 #ifndef NDEBUG
 /** @brief List of all threads, used for debugging purposes (uses the #kthread_t all_next pointer) */

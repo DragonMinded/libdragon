@@ -44,6 +44,7 @@ void print_args(char * name)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     int compression = DEFAULT_COMPRESSION;
     int winsize = DEFAULT_WINSIZE_STREAMING;

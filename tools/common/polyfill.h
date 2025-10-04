@@ -13,7 +13,14 @@
 
 #ifdef __MINGW32__
 
+// NOTE: we include both stdio.h and cstdio because both of them will undef
+// tmpfile and redefine it to something else. Since we want to provide our
+// own implementation, we need to make sure both are included first, so that
+// we don't run the risk either of them is included after this file.
 #include <stdio.h>
+#ifdef __cplusplus
+#include <cstdio>
+#endif
 #include <stdlib.h>
 #include <errno.h>
 #include <stdint.h>
@@ -98,6 +105,9 @@ static char *strndup(const char *s, size_t n)
 
 // tmpfile in mingw is broken (it uses msvcrt that tries to
 // create a file in C:\, which is non-writable nowadays)
+#ifdef tmpfile
+#undef tmpfile
+#endif
 #define tmpfile()   mingw_tmpfile()
 
 typedef void* HANDLE;
@@ -260,11 +270,93 @@ static int mingw_rename(const char *oldpath, const char *newpath) {
 // POISX mkdir has a mode argument, but mingw's mkdir doesn't
 #define mkdir(path, mode) mkdir(path)
 
+typedef struct _PROCESS_BASIC_INFORMATION_MIN {
+    void* Reserved1;
+    void* PebBaseAddress;
+    void* Reserved2[2];
+    void* UniqueProcessId;
+    void* InheritedFromUniqueProcessId;
+} PROCESS_BASIC_INFORMATION_MIN;
+
+#define CURRENT_PROCESS ((HANDLE)(intptr_t)-1)
+
+__declspec(dllimport) long __stdcall NtQueryInformationProcess(
+    HANDLE ProcessHandle, unsigned long ProcessInformationClass,
+    void* ProcessInformation, unsigned long ProcessInformationLength,
+    unsigned long *ReturnLength);
+
+// Enable long path support in the current process.
+// This is a hacky workaround for a limitation in Windows where
+// file paths longer than 260 characters are not supported.
+// The documented ways involve also setting a registry key, and thus
+// is not suitable for a tool like this.
+// This same approach is used by the Go runtime on Windows, so it is
+// reasonably safe to use it here as well.
+__attribute__((used))
+static void enable_peb_long_path_unsafe(void)
+{
+    PROCESS_BASIC_INFORMATION_MIN pbi; unsigned long retlen;
+    if (NtQueryInformationProcess(CURRENT_PROCESS, 0, &pbi, sizeof(pbi), &retlen) < 0)
+        return;
+    volatile uint8_t *peb = (volatile uint8_t*)pbi.PebBaseAddress;
+    enum { PEB_BITFIELD_OFFSET = 3, IS_LONG_PATH_AWARE_MASK = 0x80 };
+    peb[PEB_BITFIELD_OFFSET] |= (uint8_t)IS_LONG_PATH_AWARE_MASK;
+}
+
+// If it was defined, undefine it as there's no limit on path length after the hack above
+#undef MAX_PATH
+
+__declspec(dllimport) int __stdcall SetConsoleOutputCP(unsigned int);
+__declspec(dllimport) int __stdcall SetConsoleCP(unsigned int);
+__declspec(dllimport) unsigned int __stdcall GetConsoleOutputCP(void);
+__declspec(dllimport) unsigned int __stdcall GetConsoleCP(void);
+#define CP_UTF8 65001
+
+static int old_out_cp = 0;
+static int old_in_cp = 0;
+
+__attribute__((used))
+static void winconsole_restore(void) {
+    if (old_out_cp)
+        SetConsoleOutputCP(old_out_cp);
+    if (old_in_cp)
+        SetConsoleCP(old_in_cp);
+}
+
+__attribute__((used))
+static void winconsole_utf8(void) {
+    // Enable long path support in the current process
+    enable_peb_long_path_unsafe();
+
+    // Save the current code page
+    old_out_cp = GetConsoleOutputCP();
+    old_in_cp = GetConsoleCP();
+
+    // Enable UTF-8 in the console
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    atexit(winconsole_restore);
+}
+
 #ifdef __cplusplus
 }
 #endif
 
 
+#else /* __MINGW32__ */
+
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+__attribute__((used))
+static void winconsole_utf8(void) {}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __MINGW32__ */
 
 #endif

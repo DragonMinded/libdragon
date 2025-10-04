@@ -1,7 +1,6 @@
 /**
  * @file system.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
- * @author Christopher Bonhage <me@christopherbonhage.com>
  * @brief newlib Interface Hooks
  * @ingroup system
  */
@@ -40,6 +39,11 @@
  * @{
  */
 
+#include <dir.h>
+#include <stdbool.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+
 /** @brief Number of filesystems that can be attached to the system */
 #define MAX_FILESYSTEMS     10
 /** @brief Number of open handles that can be maintained at one time */
@@ -48,10 +52,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <dir.h>
-#include <stdbool.h>
-#include <sys/stat.h>
 
 /**
  * @brief Filesystem hook structure
@@ -257,6 +257,18 @@ typedef struct
      * @return 0 on success or a negative value on failure (errno must be set)
      */
     int (*ioctl)(void *file, unsigned long cmd, void *argp);
+    /**
+     * @brief Change the access and modification times of a file
+     *
+     * @param[in] path
+     *            Full path of the file to modify
+     * @param[in] times
+     *            Pointer to a timeval structure containing the new access and
+     *            modification times. This must not be NULL.
+     *
+     * @return 0 on success or a negative value on failure (errno must be set)
+     */
+    int (*utimes)(const char *path, const struct timeval times[2]);
 } filesystem_t;
 
 /**

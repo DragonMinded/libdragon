@@ -226,7 +226,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
                     vstate->bitpos = vhead->skip_points[i].bitpos;
                     rsp_vadpcm_copystate(vstate->state, vhead->skip_points[i].state);
                     if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
-                        lseek(wav->st->current_fd, wav->st->base_offset + wpos / 16 * 9, SEEK_SET);
+                        lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9 * wav->wave.channels, SEEK_SET);
                     found = true;
                     break;
                 }
@@ -245,7 +245,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
         // If not huffman compressed, seek here, once. Otherwise, the huffman
         // decompressor will seek as needed.
         if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
-            lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9, SEEK_SET);
+            lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9 * wav->wave.channels, SEEK_SET);
     }
 
 	// Round up wlen to 32 because our RSP decompressor only supports multiples

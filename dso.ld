@@ -46,16 +46,16 @@ SECTIONS {
         *(.data)
         *(.data.*)
         *(.gnu.linkonce.d.*)
+        /* Define 4 bytes of space for __dso_handle */
+        . = ALIGN(4);
+        __dso_handle = .;
+        LONG(0);
     }
     
     .sdata : {
         *(.sdata)
         *(.sdata.*)
         *(.gnu.linkonce.s.*)
-        /* Define 4 bytes of space for __dso_handle */
-        . = ALIGN(4);
-        __dso_handle = .;
-        LONG(0);
     }
 
     .lit8 : {

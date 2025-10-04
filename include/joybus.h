@@ -101,13 +101,9 @@ typedef uint16_t joybus_identifier_t;
  * @{
  */
 /**
- * @brief Joybus identifier for an unknown or malfunctioning device.
- */
-#define JOYBUS_IDENTIFIER_UNKNOWN               0x0000
-/**
  * @brief Joybus identifier for a port with no device connected.
  */
-#define JOYBUS_IDENTIFIER_NONE                  0xFFFF
+#define JOYBUS_IDENTIFIER_NONE                  0x0000
 /**
  * @brief Joybus identifier for the Nintendo 64 voice recognition peripheral (NUS-020).
  * 
@@ -248,6 +244,30 @@ typedef uint16_t joybus_identifier_t;
  */
 #define JOYBUS_IDENTIFY_STATUS_EEPROM_BUSY                0x80
 /** @} */
+
+/** @brief Joybus detection events enumeration */
+typedef enum {
+    JOYBUS_DETECT_DISCONNECTED = 0,      ///< Device was just disconnected
+    JOYBUS_DETECT_POLLED = 1,            ///< Device status was polled
+    JOYBUS_DETECT_CONNECTED = 2,         ///< Device was just connected
+} joybus_detection_event_t;
+
+
+/**
+ * @brief Initialize the Joybus subsystem, and background detection support
+ * 
+ * This function starts the Joybus subsystem. It begins periodically monitoring
+ * all the controller ports (by default, once per second), to check
+ * whether new Joybus devices (normally, controllers) are plugged-in or removed.
+ *
+ * Libraries can register callbacks to be notified of detection events for
+ * any type of device via #joybus_register_detection_callback.
+ */
+void joybus_init(void);
+
+/** @brief Deinitialize the joybus subsystem and detection support */
+void joybus_close(void);
+
 
 /**
  * @brief Callback function signature for #joybus_exec_async
@@ -404,10 +424,103 @@ inline void joybus_exec_cmd(
         (void *)&cmd.recv                 \
     )
 
+/**
+ * @brief Joybus detection callback function type.
+ * 
+ * This function is called during the periodic poll of devices performed by
+ * the joybus module. It allows libraries to build upon the Joybus subsystem
+ * to provide higher-level functionality, and being notified of changes in the
+ * connected devices.
+ * 
+ * At any point the callback is called, the device could have been just plugged,
+ * just unplugged, or just polled with no change. Since the hardware protocol
+ * allows the device to also relay a 8-bit status byte, this is also provided
+ * to the callback; the interpretation is device-specific.
+ * 
+ * @param identifier        The identifier of the Joybus device.
+ * @param event             Whether the device was just plugged in, unplugged, or
+ *                          just polled with no change.
+ * @param port              The Joybus port the device is connected to.
+ * @param device_status     The status of the Joybus device as returned by it.
+ * @param ctx               User-defined context pointer.
+ */
+typedef void (*joybus_detection_callback_t)(
+    joybus_identifier_t identifier,  joybus_detection_event_t event,
+    int port, uint8_t device_status, void *ctx);
+
+/**
+ * @brief Register a callback to be notified of Joybus detection events.
+ * 
+ * This function registers a callback to be called whenever a Joybus device
+ * is plugged in or removed. The callback is called under interrupt, so it
+ * should either issue followup joybus commands asynchronously (via
+ * #joybus_exec_async), or arrange to handle the event later in a safer context.
+ * 
+ * Multiple callbacks can be registered and they will all receive events for
+ * all devices on all ports. To unregister a callback, use
+ * #joybus_unregister_detection_callback.
+ * 
+ * If you are building support for a specific joybus device, you should register
+ * your callback, filter events for the device identifier you support, and 
+ * handle them accordingly.
+ * 
+ * @note When calling this function, the callback will be immediately notified
+ *       of all currently connected devices, with the #JOYBUS_DETECT_CONNECTED event.
+ * 
+ * @param callback      The callback function to register.
+ * @param ctx           User-defined context pointer to pass to the callback.
+ * 
+ * @see #joybus_unregister_detection_callback
+ */
+void joybus_register_detection_callback(joybus_detection_callback_t callback, void *ctx);
+
+/**
+ * @brief Unregister a callback for Joybus detection events.
+ * 
+ * @param callback      The callback function to unregister.
+ * @param ctx           User-defined context pointer passed to the callback.
+ */
+void joybus_unregister_detection_callback(joybus_detection_callback_t callback, void *ctx);
+
+/**
+ * @brief Immediately poll all Joybus ports for connected devices.
+ * 
+ * This function immediately polls all Joybus ports for connected devices,
+ * and calls any registered hotplug callbacks if any device was connected
+ * or disconnected.
+ * 
+ * Normally, the Joybus subsystem automatically polls all ports once per
+ * second. This function can be used to force an immediate poll, for example
+ * after initializing the Joybus subsystem via #joybus_init.
+ */
+void joybus_detect_now(void);
+
+/**
+ * @brief Get the Joybus identifier for a specific port.
+ * 
+ * This function returns the last known identifier for a specific Joybus port.
+ * The identifier is updated automatically by the Joybus subsystem during
+ * periodic polling, or when #joybus_detect_now is called.
+ * 
+ * @note The values returned by this function can change at any time as they
+ *       react to interrupts.
+ * 
+ * @param[in]  port                  The Joybus port (0-4) to query.
+ * @param[out] status                Optional pointer to a variable to store the device status.
+ * @return joypad_identifier_t       The Joybus identifier for the specified port.
+ */
+joybus_identifier_t joybus_get_identifier(int port, uint8_t *status);
+
+
 #ifdef __cplusplus
 }
 #endif
 
 /** @} */ /* joybus */
+
+///@cond
+// Deprecated variant of JOYBUS_IDENTIFIER_NONE
+#define JOYBUS_IDENTIFIER_UNKNOWN               0x0000
+///@endcond
 
 #endif

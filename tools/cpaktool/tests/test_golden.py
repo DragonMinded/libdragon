@@ -158,5 +158,25 @@ class TestGolden(unittest.TestCase):
         nul_count = out.count("<NUL>RAM")
         self.assertEqual(nul_count, 2, "Should find exactly 2 occurrences of <NUL>RAM in table output")
 
+    def test_res_unused_add_file(self):
+        # Use golden file from a temporary copy
+        test_path = self._use_golden_file("res_unused.mpk")
+
+        # Create a small source file to add
+        src_file = os.path.join(self.tempdir, "foo.bin")
+        with open(src_file, "wb") as f:
+            f.write(b"hello world")
+
+        # Try to add the file to the pak (this used to fail on partially corrupted FAT reserved entries)
+        code, out, err = run_cpaktool(["add", test_path, src_file], cwd=self.tempdir)
+        self.assertEqual(code, 0, f"cpaktool add failed: stdout=\n{out}\nstderr=\n{err}")
+
+        # Verify the new file is present (filenames are uppercased on CPak)
+        code, out, err = run_cpaktool(["list", "--json", test_path], cwd=self.tempdir)
+        self.assertEqual(code, 0, f"cpaktool list failed: {err}")
+        data = json.loads(out)
+        found = any(f["game_code"] == "DRAG" and f["pub_code"] == "ON" and f["filename"] == "FOO" and f["extension"] == "BIN" for f in data)
+        self.assertTrue(found, "Newly added file not found in pak")
+
 if __name__ == '__main__':
     unittest.main()

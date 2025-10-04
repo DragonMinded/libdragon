@@ -532,7 +532,7 @@ static void joypad_accessory_detect_state_machine(
         );
         break;
 
-        case JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ: {
+    case JOYPAD_ACCESSORY_STATE_DETECT_SNAP_PROBE_READ: {
         uint8_t probe_value = cmdr->recv.data[0];
         if (probe_value == JOYBUS_ACCESSORY_PROBE_SNAP_STATION)
         {

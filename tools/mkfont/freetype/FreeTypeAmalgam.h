@@ -12485,6 +12485,4199 @@ FT_END_HEADER
 
 /*** End of inlined file: ftstroke.h ***/
 
+
+/*** Start of inlined file: otsvg.h ***/
+#ifndef OTSVG_H_
+#define OTSVG_H_
+
+#ifdef FREETYPE_H
+#error "freetype.h of FreeType 1 has been loaded!"
+#error "Please fix the directory search order for header files"
+#error "so that freetype.h of FreeType 2 is found first."
+#endif
+
+FT_BEGIN_HEADER
+
+  /**************************************************************************
+   *
+   * @section:
+   *   svg_fonts
+   *
+   * @title:
+   *   OpenType SVG Fonts
+   *
+   * @abstract:
+   *   OT-SVG API between FreeType and an external SVG rendering library.
+   *
+   * @description:
+   *   This section describes the four hooks necessary to render SVG
+   *   'documents' that are contained in an OpenType font's 'SVG~' table.
+   *
+   *   For more information on the implementation, see our standard hooks
+   *   based on 'librsvg' in the [FreeType Demo
+   *   Programs](https://gitlab.freedesktop.org/freetype/freetype-demos)
+   *   repository.
+   *
+   */
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   SVG_Lib_Init_Func
+   *
+   * @description:
+   *   A callback that is called when the first OT-SVG glyph is rendered in
+   *   the lifetime of an @FT_Library object.  In a typical implementation,
+   *   one would want to allocate a structure and point the `data_pointer`
+   *   to it and perform any library initializations that might be needed.
+   *
+   * @inout:
+   *   data_pointer ::
+   *     The SVG rendering module stores a pointer variable that can be used
+   *     by clients to store any data that needs to be shared across
+   *     different hooks.  `data_pointer` is essentially a pointer to that
+   *     pointer such that it can be written to as well as read from.
+   *
+   * @return:
+   *   FreeType error code.  0 means success.
+   *
+   * @since:
+   *   2.12
+   */
+  typedef FT_Error
+  (*SVG_Lib_Init_Func)( FT_Pointer  *data_pointer );
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   SVG_Lib_Free_Func
+   *
+   * @description:
+   *   A callback that is called when the `ot-svg` module is being freed.
+   *   It is only called if the init hook was called earlier.  This means
+   *   that neither the init nor the free hook is called if no OT-SVG glyph
+   *   is rendered.
+   *
+   *   In a typical implementation, one would want to free any state
+   *   structure that was allocated in the init hook and perform any
+   *   library-related closure that might be needed.
+   *
+   * @inout:
+   *   data_pointer ::
+   *     The SVG rendering module stores a pointer variable that can be used
+   *     by clients to store any data that needs to be shared across
+   *     different hooks.  `data_pointer` is essentially a pointer to that
+   *     pointer such that it can be written to as well as read from.
+   *
+   * @since:
+   *   2.12
+   */
+  typedef void
+  (*SVG_Lib_Free_Func)( FT_Pointer  *data_pointer );
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   SVG_Lib_Render_Func
+   *
+   * @description:
+   *   A callback that is called to render an OT-SVG glyph.  This callback
+   *   hook is called right after the preset hook @SVG_Lib_Preset_Slot_Func
+   *   has been called with `cache` set to `TRUE`.  The data necessary to
+   *   render is available through the handle @FT_SVG_Document, which is set
+   *   in the `other` field of @FT_GlyphSlotRec.
+   *
+   *   The render hook is expected to render the SVG glyph to the bitmap
+   *   buffer that is allocated already at `slot->bitmap.buffer`.  It also
+   *   sets the `num_grays` value as well as `slot->format`.
+   *
+   * @input:
+   *   slot ::
+   *     The slot to render.
+   *
+   * @inout:
+   *   data_pointer ::
+   *     The SVG rendering module stores a pointer variable that can be used
+   *     by clients to store any data that needs to be shared across
+   *     different hooks.  `data_pointer` is essentially a pointer to that
+   *     pointer such that it can be written to as well as read from.
+   *
+   * @return:
+   *   FreeType error code.  0 means success.
+   *
+   * @since:
+   *   2.12
+   */
+  typedef FT_Error
+  (*SVG_Lib_Render_Func)( FT_GlyphSlot  slot,
+						  FT_Pointer   *data_pointer );
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   SVG_Lib_Preset_Slot_Func
+   *
+   * @description:
+   *   A callback that is called to preset the glyph slot.  It is called from
+   *   two places.
+   *
+   *   1. When `FT_Load_Glyph` needs to preset the glyph slot.
+   *
+   *   2. Right before the `svg` module calls the render callback hook.
+   *
+   *   When it is the former, the argument `cache` is set to `FALSE`.  When
+   *   it is the latter, the argument `cache` is set to `TRUE`.  This
+   *   distinction has been made because many calculations that are necessary
+   *   for presetting a glyph slot are the same needed later for the render
+   *   callback hook.  Thus, if `cache` is `TRUE`, the hook can _cache_ those
+   *   calculations in a memory block referenced by the state pointer.
+   *
+   *   This hook is expected to preset the slot by setting parameters such as
+   *   `bitmap_left`, `bitmap_top`, `width`, `rows`, `pitch`, and
+   *   `pixel_mode`.  It is also expected to set all the metrics for the slot
+   *   including the vertical advance if it is not already set.  Typically,
+   *   fonts have horizontal advances but not vertical ones.  If those are
+   *   available, they had already been set, otherwise they have to be
+   *   estimated and set manually.  The hook must take into account the
+   *   transformations that have been set, and translate the transformation
+   *   matrices into the SVG coordinate system, as the original matrix is
+   *   intended for the TTF/CFF coordinate system.
+   *
+   * @input:
+   *   slot ::
+   *     The glyph slot that has the SVG document loaded.
+   *
+   *   cache ::
+   *     See description.
+   *
+   * @inout:
+   *   data_pointer ::
+   *     The SVG rendering module stores a pointer variable that can be used
+   *     by clients to store any data that needs to be shared across
+   *     different hooks.  `data_pointer` is essentially a pointer to that
+   *     pointer such that it can be written to as well as read from.
+   *
+   * @return:
+   *   FreeType error code.  0 means success.
+   *
+   * @since:
+   *   2.12
+   */
+  typedef FT_Error
+  (*SVG_Lib_Preset_Slot_Func)( FT_GlyphSlot  slot,
+							   FT_Bool       cache,
+							   FT_Pointer   *state );
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   SVG_RendererHooks
+   *
+   * @description:
+   *   A structure that stores the four hooks needed to render OT-SVG glyphs
+   *   properly.  The structure is publicly used to set the hooks via the
+   *   @svg-hooks driver property.
+   *
+   *   The behavior of each hook is described in its documentation.  One
+   *   thing to note is that the preset hook and the render hook often need
+   *   to do the same operations; therefore, it's better to cache the
+   *   intermediate data in a state structure to avoid calculating it twice.
+   *   For example, in the preset hook one can draw the glyph on a recorder
+   *   surface and later create a bitmap surface from it in the render hook.
+   *
+   *   All four hooks must be non-NULL.
+   *
+   * @fields:
+   *   init_svg ::
+   *     The initialization hook.
+   *
+   *   free_svg ::
+   *     The cleanup hook.
+   *
+   *   render_hook ::
+   *     The render hook.
+   *
+   *   preset_slot ::
+   *     The preset hook.
+   *
+   * @since:
+   *   2.12
+   */
+  typedef struct SVG_RendererHooks_
+  {
+	SVG_Lib_Init_Func    init_svg;
+	SVG_Lib_Free_Func    free_svg;
+	SVG_Lib_Render_Func  render_svg;
+
+	SVG_Lib_Preset_Slot_Func  preset_slot;
+
+  } SVG_RendererHooks;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_SVG_DocumentRec
+   *
+   * @description:
+   *   A structure that models one SVG document.
+   *
+   * @fields:
+   *   svg_document ::
+   *     A pointer to the SVG document.
+   *
+   *   svg_document_length ::
+   *     The length of `svg_document`.
+   *
+   *   metrics ::
+   *     A metrics object storing the size information.
+   *
+   *   units_per_EM ::
+   *     The size of the EM square.
+   *
+   *   start_glyph_id ::
+   *     The first glyph ID in the glyph range covered by this document.
+   *
+   *   end_glyph_id ::
+   *     The last glyph ID in the glyph range covered by this document.
+   *
+   *   transform ::
+   *     A 2x2 transformation matrix to apply to the glyph while rendering
+   *     it.
+   *
+   *   delta ::
+   *     The translation to apply to the glyph while rendering.
+   *
+   * @note:
+   *   When an @FT_GlyphSlot object `slot` is passed down to a renderer, the
+   *   renderer can only access the `metrics` and `units_per_EM` fields via
+   *   `slot->face`.  However, when @FT_Glyph_To_Bitmap sets up a dummy
+   *   object, it has no way to set a `face` object.  Thus, metrics
+   *   information and `units_per_EM` (which is necessary for OT-SVG) has to
+   *   be stored separately.
+   *
+   * @since:
+   *   2.12
+   */
+  typedef struct  FT_SVG_DocumentRec_
+  {
+	FT_Byte*  svg_document;
+	FT_ULong  svg_document_length;
+
+	FT_Size_Metrics  metrics;
+	FT_UShort        units_per_EM;
+
+	FT_UShort  start_glyph_id;
+	FT_UShort  end_glyph_id;
+
+	FT_Matrix  transform;
+	FT_Vector  delta;
+
+  } FT_SVG_DocumentRec;
+
+  /**************************************************************************
+   *
+   * @type:
+   *   FT_SVG_Document
+   *
+   * @description:
+   *   A handle to an @FT_SVG_DocumentRec object.
+   *
+   * @since:
+   *   2.12
+   */
+  typedef struct FT_SVG_DocumentRec_*  FT_SVG_Document;
+
+FT_END_HEADER
+
+#endif /* OTSVG_H_ */
+
+/* END */
+
+/*** End of inlined file: otsvg.h ***/
+
+
+/*** Start of inlined file: ftcolor.h ***/
+#ifndef FTCOLOR_H_
+#define FTCOLOR_H_
+
+#ifdef FREETYPE_H
+#error "freetype.h of FreeType 1 has been loaded!"
+#error "Please fix the directory search order for header files"
+#error "so that freetype.h of FreeType 2 is found first."
+#endif
+
+FT_BEGIN_HEADER
+
+  /**************************************************************************
+   *
+   * @section:
+   *   color_management
+   *
+   * @title:
+   *   Glyph Color Management
+   *
+   * @abstract:
+   *   Retrieving and manipulating OpenType's 'CPAL' table data.
+   *
+   * @description:
+   *   The functions described here allow access and manipulation of color
+   *   palette entries in OpenType's 'CPAL' tables.
+   */
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Color
+   *
+   * @description:
+   *   This structure models a BGRA color value of a 'CPAL' palette entry.
+   *
+   *   The used color space is sRGB; the colors are not pre-multiplied, and
+   *   alpha values must be explicitly set.
+   *
+   * @fields:
+   *   blue ::
+   *     Blue value.
+   *
+   *   green ::
+   *     Green value.
+   *
+   *   red ::
+   *     Red value.
+   *
+   *   alpha ::
+   *     Alpha value, giving the red, green, and blue color's opacity.
+   *
+   * @since:
+   *   2.10
+   */
+  typedef struct  FT_Color_
+  {
+	FT_Byte  blue;
+	FT_Byte  green;
+	FT_Byte  red;
+	FT_Byte  alpha;
+
+  } FT_Color;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_PALETTE_XXX
+   *
+   * @description:
+   *   A list of bit field constants used in the `palette_flags` array of the
+   *   @FT_Palette_Data structure to indicate for which background a palette
+   *   with a given index is usable.
+   *
+   * @values:
+   *   FT_PALETTE_FOR_LIGHT_BACKGROUND ::
+   *     The palette is appropriate to use when displaying the font on a
+   *     light background such as white.
+   *
+   *   FT_PALETTE_FOR_DARK_BACKGROUND ::
+   *     The palette is appropriate to use when displaying the font on a dark
+   *     background such as black.
+   *
+   * @since:
+   *   2.10
+   */
+#define FT_PALETTE_FOR_LIGHT_BACKGROUND  0x01
+#define FT_PALETTE_FOR_DARK_BACKGROUND   0x02
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Palette_Data
+   *
+   * @description:
+   *   This structure holds the data of the 'CPAL' table.
+   *
+   * @fields:
+   *   num_palettes ::
+   *     The number of palettes.
+   *
+   *   palette_name_ids ::
+   *     An optional read-only array of palette name IDs with `num_palettes`
+   *     elements, corresponding to entries like 'dark' or 'light' in the
+   *     font's 'name' table.
+   *
+   *     An empty name ID in the 'CPAL' table gets represented as value
+   *     0xFFFF.
+   *
+   *     `NULL` if the font's 'CPAL' table doesn't contain appropriate data.
+   *
+   *   palette_flags ::
+   *     An optional read-only array of palette flags with `num_palettes`
+   *     elements.  Possible values are an ORed combination of
+   *     @FT_PALETTE_FOR_LIGHT_BACKGROUND and
+   *     @FT_PALETTE_FOR_DARK_BACKGROUND.
+   *
+   *     `NULL` if the font's 'CPAL' table doesn't contain appropriate data.
+   *
+   *   num_palette_entries ::
+   *     The number of entries in a single palette.  All palettes have the
+   *     same size.
+   *
+   *   palette_entry_name_ids ::
+   *     An optional read-only array of palette entry name IDs with
+   *     `num_palette_entries`.  In each palette, entries with the same index
+   *     have the same function.  For example, index~0 might correspond to
+   *     string 'outline' in the font's 'name' table to indicate that this
+   *     palette entry is used for outlines, index~1 might correspond to
+   *     'fill' to indicate the filling color palette entry, etc.
+   *
+   *     An empty entry name ID in the 'CPAL' table gets represented as value
+   *     0xFFFF.
+   *
+   *     `NULL` if the font's 'CPAL' table doesn't contain appropriate data.
+   *
+   * @note:
+   *   Use function @FT_Get_Sfnt_Name to map name IDs and entry name IDs to
+   *   name strings.
+   *
+   *   Use function @FT_Palette_Select to get the colors associated with a
+   *   palette entry.
+   *
+   * @since:
+   *   2.10
+   */
+  typedef struct  FT_Palette_Data_ {
+	FT_UShort         num_palettes;
+	const FT_UShort*  palette_name_ids;
+	const FT_UShort*  palette_flags;
+
+	FT_UShort         num_palette_entries;
+	const FT_UShort*  palette_entry_name_ids;
+
+  } FT_Palette_Data;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Palette_Data_Get
+   *
+   * @description:
+   *   Retrieve the face's color palette data.
+   *
+   * @input:
+   *   face ::
+   *     The source face handle.
+   *
+   * @output:
+   *   apalette ::
+   *     A pointer to an @FT_Palette_Data structure.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   All arrays in the returned @FT_Palette_Data structure are read-only.
+   *
+   *   This function always returns an error if the config macro
+   *   `TT_CONFIG_OPTION_COLOR_LAYERS` is not defined in `ftoption.h`.
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Error )
+  FT_Palette_Data_Get( FT_Face           face,
+					   FT_Palette_Data  *apalette );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Palette_Select
+   *
+   * @description:
+   *   This function has two purposes.
+   *
+   *   (1) It activates a palette for rendering color glyphs, and
+   *
+   *   (2) it retrieves all (unmodified) color entries of this palette.  This
+   *       function returns a read-write array, which means that a calling
+   *       application can modify the palette entries on demand.
+   *
+   * A corollary of (2) is that calling the function, then modifying some
+   * values, then calling the function again with the same arguments resets
+   * all color entries to the original 'CPAL' values; all user modifications
+   * are lost.
+   *
+   * @input:
+   *   face ::
+   *     The source face handle.
+   *
+   *   palette_index ::
+   *     The palette index.
+   *
+   * @output:
+   *   apalette ::
+   *     An array of color entries for a palette with index `palette_index`,
+   *     having `num_palette_entries` elements (as found in the
+   *     `FT_Palette_Data` structure).  If `apalette` is set to `NULL`, no
+   *     array gets returned (and no color entries can be modified).
+   *
+   *     In case the font doesn't support color palettes, `NULL` is returned.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The array pointed to by `apalette_entries` is owned and managed by
+   *   FreeType.
+   *
+   *   This function always returns an error if the config macro
+   *   `TT_CONFIG_OPTION_COLOR_LAYERS` is not defined in `ftoption.h`.
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Error )
+  FT_Palette_Select( FT_Face     face,
+					 FT_UShort   palette_index,
+					 FT_Color*  *apalette );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Palette_Set_Foreground_Color
+   *
+   * @description:
+   *   'COLR' uses palette index 0xFFFF to indicate a 'text foreground
+   *   color'.  This function sets this value.
+   *
+   * @input:
+   *   face ::
+   *     The source face handle.
+   *
+   *   foreground_color ::
+   *     An `FT_Color` structure to define the text foreground color.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   If this function isn't called, the text foreground color is set to
+   *   white opaque (BGRA value 0xFFFFFFFF) if
+   *   @FT_PALETTE_FOR_DARK_BACKGROUND is present for the current palette,
+   *   and black opaque (BGRA value 0x000000FF) otherwise, including the case
+   *   that no palette types are available in the 'CPAL' table.
+   *
+   *   This function always returns an error if the config macro
+   *   `TT_CONFIG_OPTION_COLOR_LAYERS` is not defined in `ftoption.h`.
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Error )
+  FT_Palette_Set_Foreground_Color( FT_Face   face,
+								   FT_Color  foreground_color );
+
+  /**************************************************************************
+   *
+   * @section:
+   *   layer_management
+   *
+   * @title:
+   *   Glyph Layer Management
+   *
+   * @abstract:
+   *   Retrieving and manipulating OpenType's 'COLR' table data.
+   *
+   * @description:
+   *   The functions described here allow access of colored glyph layer data
+   *   in OpenType's 'COLR' tables.
+   */
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_LayerIterator
+   *
+   * @description:
+   *   This iterator object is needed for @FT_Get_Color_Glyph_Layer.
+   *
+   * @fields:
+   *   num_layers ::
+   *     The number of glyph layers for the requested glyph index.  Will be
+   *     set by @FT_Get_Color_Glyph_Layer.
+   *
+   *   layer ::
+   *     The current layer.  Will be set by @FT_Get_Color_Glyph_Layer.
+   *
+   *   p ::
+   *     An opaque pointer into 'COLR' table data.  The caller must set this
+   *     to `NULL` before the first call of @FT_Get_Color_Glyph_Layer.
+   */
+  typedef struct  FT_LayerIterator_
+  {
+	FT_UInt   num_layers;
+	FT_UInt   layer;
+	FT_Byte*  p;
+
+  } FT_LayerIterator;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Color_Glyph_Layer
+   *
+   * @description:
+   *   This is an interface to the 'COLR' table in OpenType fonts to
+   *   iteratively retrieve the colored glyph layers associated with the
+   *   current glyph slot.
+   *
+   *     https://docs.microsoft.com/en-us/typography/opentype/spec/colr
+   *
+   *   The glyph layer data for a given glyph index, if present, provides an
+   *   alternative, multi-color glyph representation: Instead of rendering
+   *   the outline or bitmap with the given glyph index, glyphs with the
+   *   indices and colors returned by this function are rendered layer by
+   *   layer.
+   *
+   *   The returned elements are ordered in the z~direction from bottom to
+   *   top; the 'n'th element should be rendered with the associated palette
+   *   color and blended on top of the already rendered layers (elements 0,
+   *   1, ..., n-1).
+   *
+   * @input:
+   *   face ::
+   *     A handle to the parent face object.
+   *
+   *   base_glyph ::
+   *     The glyph index the colored glyph layers are associated with.
+   *
+   * @inout:
+   *   iterator ::
+   *     An @FT_LayerIterator object.  For the first call you should set
+   *     `iterator->p` to `NULL`.  For all following calls, simply use the
+   *     same object again.
+   *
+   * @output:
+   *   aglyph_index ::
+   *     The glyph index of the current layer.
+   *
+   *   acolor_index ::
+   *     The color index into the font face's color palette of the current
+   *     layer.  The value 0xFFFF is special; it doesn't reference a palette
+   *     entry but indicates that the text foreground color should be used
+   *     instead (to be set up by the application outside of FreeType).
+   *
+   *     The color palette can be retrieved with @FT_Palette_Select.
+   *
+   * @return:
+   *   Value~1 if everything is OK.  If there are no more layers (or if there
+   *   are no layers at all), value~0 gets returned.  In case of an error,
+   *   value~0 is returned also.
+   *
+   * @note:
+   *   This function is necessary if you want to handle glyph layers by
+   *   yourself.  In particular, functions that operate with @FT_GlyphRec
+   *   objects (like @FT_Get_Glyph or @FT_Glyph_To_Bitmap) don't have access
+   *   to this information.
+   *
+   *   Note that @FT_Render_Glyph is able to handle colored glyph layers
+   *   automatically if the @FT_LOAD_COLOR flag is passed to a previous call
+   *   to @FT_Load_Glyph.  [This is an experimental feature.]
+   *
+   * @example:
+   *   ```
+   *     FT_Color*         palette;
+   *     FT_LayerIterator  iterator;
+   *
+   *     FT_Bool  have_layers;
+   *     FT_UInt  layer_glyph_index;
+   *     FT_UInt  layer_color_index;
+   *
+   *
+   *     error = FT_Palette_Select( face, palette_index, &palette );
+   *     if ( error )
+   *       palette = NULL;
+   *
+   *     iterator.p  = NULL;
+   *     have_layers = FT_Get_Color_Glyph_Layer( face,
+   *                                             glyph_index,
+   *                                             &layer_glyph_index,
+   *                                             &layer_color_index,
+   *                                             &iterator );
+   *
+   *     if ( palette && have_layers )
+   *     {
+   *       do
+   *       {
+   *         FT_Color  layer_color;
+   *
+   *
+   *         if ( layer_color_index == 0xFFFF )
+   *           layer_color = text_foreground_color;
+   *         else
+   *           layer_color = palette[layer_color_index];
+   *
+   *         // Load and render glyph `layer_glyph_index', then
+   *         // blend resulting pixmap (using color `layer_color')
+   *         // with previously created pixmaps.
+   *
+   *       } while ( FT_Get_Color_Glyph_Layer( face,
+   *                                           glyph_index,
+   *                                           &layer_glyph_index,
+   *                                           &layer_color_index,
+   *                                           &iterator ) );
+   *     }
+   *   ```
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Bool )
+  FT_Get_Color_Glyph_Layer( FT_Face            face,
+							FT_UInt            base_glyph,
+							FT_UInt           *aglyph_index,
+							FT_UInt           *acolor_index,
+							FT_LayerIterator*  iterator );
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_PaintFormat
+   *
+   * @description:
+   *   Enumeration describing the different paint format types of the v1
+   *   extensions to the 'COLR' table, see
+   *   'https://github.com/googlefonts/colr-gradients-spec'.
+   *
+   *   The enumeration values loosely correspond with the format numbers of
+   *   the specification: FreeType always returns a fully specified 'Paint'
+   *   structure for the 'Transform', 'Translate', 'Scale', 'Rotate', and
+   *   'Skew' table types even though the specification has different formats
+   *   depending on whether or not a center is specified, whether the scale
+   *   is uniform in x and y~direction or not, etc.  Also, only non-variable
+   *   format identifiers are listed in this enumeration; as soon as support
+   *   for variable 'COLR' v1 fonts is implemented, interpolation is
+   *   performed dependent on axis coordinates, which are configured on the
+   *   @FT_Face through @FT_Set_Var_Design_Coordinates.  This implies that
+   *   always static, readily interpolated values are returned in the 'Paint'
+   *   structures.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef enum  FT_PaintFormat_
+  {
+	FT_COLR_PAINTFORMAT_COLR_LAYERS     = 1,
+	FT_COLR_PAINTFORMAT_SOLID           = 2,
+	FT_COLR_PAINTFORMAT_LINEAR_GRADIENT = 4,
+	FT_COLR_PAINTFORMAT_RADIAL_GRADIENT = 6,
+	FT_COLR_PAINTFORMAT_SWEEP_GRADIENT  = 8,
+	FT_COLR_PAINTFORMAT_GLYPH           = 10,
+	FT_COLR_PAINTFORMAT_COLR_GLYPH      = 11,
+	FT_COLR_PAINTFORMAT_TRANSFORM       = 12,
+	FT_COLR_PAINTFORMAT_TRANSLATE       = 14,
+	FT_COLR_PAINTFORMAT_SCALE           = 16,
+	FT_COLR_PAINTFORMAT_ROTATE          = 24,
+	FT_COLR_PAINTFORMAT_SKEW            = 28,
+	FT_COLR_PAINTFORMAT_COMPOSITE       = 32,
+	FT_COLR_PAINT_FORMAT_MAX            = 33,
+	FT_COLR_PAINTFORMAT_UNSUPPORTED     = 255
+
+  } FT_PaintFormat;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_ColorStopIterator
+   *
+   * @description:
+   *   This iterator object is needed for @FT_Get_Colorline_Stops.  It keeps
+   *   state while iterating over the stops of an @FT_ColorLine, representing
+   *   the `ColorLine` struct of the v1 extensions to 'COLR', see
+   *   'https://github.com/googlefonts/colr-gradients-spec'.  Do not manually
+   *   modify fields of this iterator.
+   *
+   * @fields:
+   *   num_color_stops ::
+   *     The number of color stops for the requested glyph index.  Set by
+   *     @FT_Get_Paint.
+   *
+   *   current_color_stop ::
+   *     The current color stop.  Set by @FT_Get_Colorline_Stops.
+   *
+   *   p ::
+   *     An opaque pointer into 'COLR' table data.  Set by @FT_Get_Paint.
+   *     Updated by @FT_Get_Colorline_Stops.
+   *
+   *   read_variable ::
+   *     A boolean keeping track of whether variable color lines are to be
+   *     read.  Set by @FT_Get_Paint.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_ColorStopIterator_
+  {
+	FT_UInt  num_color_stops;
+	FT_UInt  current_color_stop;
+
+	FT_Byte*  p;
+
+	FT_Bool  read_variable;
+
+  } FT_ColorStopIterator;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_ColorIndex
+   *
+   * @description:
+   *   A structure representing a `ColorIndex` value of the 'COLR' v1
+   *   extensions, see 'https://github.com/googlefonts/colr-gradients-spec'.
+   *
+   * @fields:
+   *   palette_index ::
+   *     The palette index into a 'CPAL' palette.
+   *
+   *   alpha ::
+   *     Alpha transparency value multiplied with the value from 'CPAL'.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_ColorIndex_
+  {
+	FT_UInt16   palette_index;
+	FT_F2Dot14  alpha;
+
+  } FT_ColorIndex;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_ColorStop
+   *
+   * @description:
+   *   A structure representing a `ColorStop` value of the 'COLR' v1
+   *   extensions, see 'https://github.com/googlefonts/colr-gradients-spec'.
+   *
+   * @fields:
+   *   stop_offset ::
+   *     The stop offset along the gradient, expressed as a 16.16 fixed-point
+   *     coordinate.
+   *
+   *   color ::
+   *     The color information for this stop, see @FT_ColorIndex.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_ColorStop_
+  {
+	FT_Fixed       stop_offset;
+	FT_ColorIndex  color;
+
+  } FT_ColorStop;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_PaintExtend
+   *
+   * @description:
+   *   An enumeration representing the 'Extend' mode of the 'COLR' v1
+   *   extensions, see 'https://github.com/googlefonts/colr-gradients-spec'.
+   *   It describes how the gradient fill continues at the other boundaries.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef enum  FT_PaintExtend_
+  {
+	FT_COLR_PAINT_EXTEND_PAD     = 0,
+	FT_COLR_PAINT_EXTEND_REPEAT  = 1,
+	FT_COLR_PAINT_EXTEND_REFLECT = 2
+
+  } FT_PaintExtend;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_ColorLine
+   *
+   * @description:
+   *   A structure representing a `ColorLine` value of the 'COLR' v1
+   *   extensions, see 'https://github.com/googlefonts/colr-gradients-spec'.
+   *   It describes a list of color stops along the defined gradient.
+   *
+   * @fields:
+   *   extend ::
+   *     The extend mode at the outer boundaries, see @FT_PaintExtend.
+   *
+   *   color_stop_iterator ::
+   *     The @FT_ColorStopIterator used to enumerate and retrieve the
+   *     actual @FT_ColorStop's.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_ColorLine_
+  {
+	FT_PaintExtend        extend;
+	FT_ColorStopIterator  color_stop_iterator;
+
+  } FT_ColorLine;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Affine23
+   *
+   * @description:
+   *   A structure used to store a 2x3 matrix.  Coefficients are in
+   *   16.16 fixed-point format.  The computation performed is
+   *
+   *   ```
+   *     x' = x*xx + y*xy + dx
+   *     y' = x*yx + y*yy + dy
+   *   ```
+   *
+   * @fields:
+   *   xx ::
+   *     Matrix coefficient.
+   *
+   *   xy ::
+   *     Matrix coefficient.
+   *
+   *   dx ::
+   *     x translation.
+   *
+   *   yx ::
+   *     Matrix coefficient.
+   *
+   *   yy ::
+   *     Matrix coefficient.
+   *
+   *   dy ::
+   *     y translation.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_Affine_23_
+  {
+	FT_Fixed  xx, xy, dx;
+	FT_Fixed  yx, yy, dy;
+
+  } FT_Affine23;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_Composite_Mode
+   *
+   * @description:
+   *   An enumeration listing the 'COLR' v1 composite modes used in
+   *   @FT_PaintComposite.  For more details on each paint mode, see
+   *   'https://www.w3.org/TR/compositing-1/#porterduffcompositingoperators'.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef enum  FT_Composite_Mode_
+  {
+	FT_COLR_COMPOSITE_CLEAR          = 0,
+	FT_COLR_COMPOSITE_SRC            = 1,
+	FT_COLR_COMPOSITE_DEST           = 2,
+	FT_COLR_COMPOSITE_SRC_OVER       = 3,
+	FT_COLR_COMPOSITE_DEST_OVER      = 4,
+	FT_COLR_COMPOSITE_SRC_IN         = 5,
+	FT_COLR_COMPOSITE_DEST_IN        = 6,
+	FT_COLR_COMPOSITE_SRC_OUT        = 7,
+	FT_COLR_COMPOSITE_DEST_OUT       = 8,
+	FT_COLR_COMPOSITE_SRC_ATOP       = 9,
+	FT_COLR_COMPOSITE_DEST_ATOP      = 10,
+	FT_COLR_COMPOSITE_XOR            = 11,
+	FT_COLR_COMPOSITE_PLUS           = 12,
+	FT_COLR_COMPOSITE_SCREEN         = 13,
+	FT_COLR_COMPOSITE_OVERLAY        = 14,
+	FT_COLR_COMPOSITE_DARKEN         = 15,
+	FT_COLR_COMPOSITE_LIGHTEN        = 16,
+	FT_COLR_COMPOSITE_COLOR_DODGE    = 17,
+	FT_COLR_COMPOSITE_COLOR_BURN     = 18,
+	FT_COLR_COMPOSITE_HARD_LIGHT     = 19,
+	FT_COLR_COMPOSITE_SOFT_LIGHT     = 20,
+	FT_COLR_COMPOSITE_DIFFERENCE     = 21,
+	FT_COLR_COMPOSITE_EXCLUSION      = 22,
+	FT_COLR_COMPOSITE_MULTIPLY       = 23,
+	FT_COLR_COMPOSITE_HSL_HUE        = 24,
+	FT_COLR_COMPOSITE_HSL_SATURATION = 25,
+	FT_COLR_COMPOSITE_HSL_COLOR      = 26,
+	FT_COLR_COMPOSITE_HSL_LUMINOSITY = 27,
+	FT_COLR_COMPOSITE_MAX            = 28
+
+  } FT_Composite_Mode;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_OpaquePaint
+   *
+   * @description:
+   *   A structure representing an offset to a `Paint` value stored in any
+   *   of the paint tables of a 'COLR' v1 font.  Compare Offset<24> there.
+   *   When 'COLR' v1 paint tables represented by FreeType objects such as
+   *   @FT_PaintColrLayers, @FT_PaintComposite, or @FT_PaintTransform
+   *   reference downstream nested paint tables, we do not immediately
+   *   retrieve them but encapsulate their location in this type.  Use
+   *   @FT_Get_Paint to retrieve the actual @FT_COLR_Paint object that
+   *   describes the details of the respective paint table.
+   *
+   * @fields:
+   *   p ::
+   *     An internal offset to a Paint table, needs to be set to NULL before
+   *     passing this struct as an argument to @FT_Get_Paint.
+   *
+   *   insert_root_transform ::
+   *     An internal boolean to track whether an initial root transform is
+   *     to be provided.  Do not set this value.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_Opaque_Paint_
+  {
+	FT_Byte*  p;
+	FT_Bool   insert_root_transform;
+  } FT_OpaquePaint;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintColrLayers
+   *
+   * @description:
+   *   A structure representing a `PaintColrLayers` table of a 'COLR' v1
+   *   font.  This table describes a set of layers that are to be composited
+   *   with composite mode `FT_COLR_COMPOSITE_SRC_OVER`.  The return value
+   *   of this function is an @FT_LayerIterator initialized so that it can
+   *   be used with @FT_Get_Paint_Layers to retrieve the @FT_OpaquePaint
+   *   objects as references to each layer.
+   *
+   * @fields:
+   *   layer_iterator ::
+   *     The layer iterator that describes the layers of this paint.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintColrLayers_
+  {
+	FT_LayerIterator  layer_iterator;
+
+  } FT_PaintColrLayers;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintSolid
+   *
+   * @description:
+   *   A structure representing a `PaintSolid` value of the 'COLR' v1
+   *   extensions, see 'https://github.com/googlefonts/colr-gradients-spec'.
+   *   Using a `PaintSolid` value means that the glyph layer filled with
+   *   this paint is solid-colored and does not contain a gradient.
+   *
+   * @fields:
+   *   color ::
+   *     The color information for this solid paint, see @FT_ColorIndex.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintSolid_
+  {
+	FT_ColorIndex  color;
+
+  } FT_PaintSolid;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintLinearGradient
+   *
+   * @description:
+   *   A structure representing a `PaintLinearGradient` value of the 'COLR'
+   *   v1 extensions, see
+   *   'https://github.com/googlefonts/colr-gradients-spec'.  The glyph
+   *   layer filled with this paint is drawn filled with a linear gradient.
+   *
+   * @fields:
+   *   colorline ::
+   *     The @FT_ColorLine information for this paint, i.e., the list of
+   *     color stops along the gradient.
+   *
+   *   p0 ::
+   *     The starting point of the gradient definition in font units
+   *     represented as a 16.16 fixed-point `FT_Vector`.
+   *
+   *   p1 ::
+   *     The end point of the gradient definition in font units
+   *     represented as a 16.16 fixed-point `FT_Vector`.
+   *
+   *   p2 ::
+   *     Optional point~p2 to rotate the gradient in font units
+   *     represented as a 16.16 fixed-point `FT_Vector`.
+   *     Otherwise equal to~p0.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintLinearGradient_
+  {
+	FT_ColorLine  colorline;
+
+	/* TODO: Potentially expose those as x0, y0 etc. */
+	FT_Vector  p0;
+	FT_Vector  p1;
+	FT_Vector  p2;
+
+  } FT_PaintLinearGradient;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintRadialGradient
+   *
+   * @description:
+   *   A structure representing a `PaintRadialGradient` value of the 'COLR'
+   *   v1 extensions, see
+   *   'https://github.com/googlefonts/colr-gradients-spec'.  The glyph
+   *   layer filled with this paint is drawn filled with a radial gradient.
+   *
+   * @fields:
+   *   colorline ::
+   *     The @FT_ColorLine information for this paint, i.e., the list of
+   *     color stops along the gradient.
+   *
+   *   c0 ::
+   *     The center of the starting point of the radial gradient in font
+   *     units represented as a 16.16 fixed-point `FT_Vector`.
+   *
+   *   r0 ::
+   *     The radius of the starting circle of the radial gradient in font
+   *     units represented as a 16.16 fixed-point value.
+   *
+   *   c1 ::
+   *     The center of the end point of the radial gradient in font units
+   *     represented as a 16.16 fixed-point `FT_Vector`.
+   *
+   *   r1 ::
+   *     The radius of the end circle of the radial gradient in font
+   *     units represented as a 16.16 fixed-point value.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintRadialGradient_
+  {
+	FT_ColorLine  colorline;
+
+	FT_Vector  c0;
+	FT_Pos     r0;
+	FT_Vector  c1;
+	FT_Pos     r1;
+
+  } FT_PaintRadialGradient;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintSweepGradient
+   *
+   * @description:
+   *   A structure representing a `PaintSweepGradient` value of the 'COLR'
+   *   v1 extensions, see
+   *   'https://github.com/googlefonts/colr-gradients-spec'.  The glyph
+   *   layer filled with this paint is drawn filled with a sweep gradient
+   *   from `start_angle` to `end_angle`.
+   *
+   * @fields:
+   *   colorline ::
+   *     The @FT_ColorLine information for this paint, i.e., the list of
+   *     color stops along the gradient.
+   *
+   *   center ::
+   *     The center of the sweep gradient in font units represented as a
+   *     vector of 16.16 fixed-point values.
+   *
+   *   start_angle ::
+   *     The start angle of the sweep gradient in 16.16 fixed-point
+   *     format specifying degrees divided by 180.0 (as in the
+   *     spec).  Multiply by 180.0f to receive degrees value.  Values are
+   *     given counter-clockwise, starting from the (positive) y~axis.
+   *
+   *   end_angle ::
+   *     The end angle of the sweep gradient in 16.16 fixed-point
+   *     format specifying degrees divided by 180.0 (as in the
+   *     spec).  Multiply by 180.0f to receive degrees value.  Values are
+   *     given counter-clockwise, starting from the (positive) y~axis.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintSweepGradient_
+  {
+	FT_ColorLine  colorline;
+
+	FT_Vector  center;
+	FT_Fixed   start_angle;
+	FT_Fixed   end_angle;
+
+  } FT_PaintSweepGradient;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintGlyph
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 `PaintGlyph` paint table.
+   *
+   * @fields:
+   *   paint ::
+   *     An opaque paint object pointing to a `Paint` table that serves as
+   *     the fill for the glyph ID.
+   *
+   *   glyphID ::
+   *     The glyph ID from the 'glyf' table, which serves as the contour
+   *     information that is filled with paint.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintGlyph_
+  {
+	FT_OpaquePaint  paint;
+	FT_UInt         glyphID;
+
+  } FT_PaintGlyph;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintColrGlyph
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 `PaintColorGlyph` paint table.
+   *
+   * @fields:
+   *   glyphID ::
+   *     The glyph ID from the `BaseGlyphV1List` table that is drawn for
+   *     this paint.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintColrGlyph_
+  {
+	FT_UInt  glyphID;
+
+  } FT_PaintColrGlyph;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintTransform
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 `PaintTransform` paint table.
+   *
+   * @fields:
+   *   paint ::
+   *     An opaque paint that is subject to being transformed.
+   *
+   *   affine ::
+   *     A 2x3 transformation matrix in @FT_Affine23 format containing
+   *     16.16 fixed-point values.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintTransform_
+  {
+	FT_OpaquePaint  paint;
+	FT_Affine23     affine;
+
+  } FT_PaintTransform;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintTranslate
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 `PaintTranslate` paint table.
+   *   Used for translating downstream paints by a given x and y~delta.
+   *
+   * @fields:
+   *   paint ::
+   *     An @FT_OpaquePaint object referencing the paint that is to be
+   *     rotated.
+   *
+   *   dx ::
+   *     Translation in x~direction in font units represented as a
+   *     16.16 fixed-point value.
+   *
+   *   dy ::
+   *     Translation in y~direction in font units represented as a
+   *     16.16 fixed-point value.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintTranslate_
+  {
+	FT_OpaquePaint  paint;
+
+	FT_Fixed  dx;
+	FT_Fixed  dy;
+
+  } FT_PaintTranslate;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintScale
+   *
+   * @description:
+   *   A structure representing all of the 'COLR' v1 'PaintScale*' paint
+   *   tables.  Used for scaling downstream paints by a given x and y~scale,
+   *   with a given center.  This structure is used for all 'PaintScale*'
+   *   types that are part of specification; fields of this structure are
+   *   filled accordingly.  If there is a center, the center values are set,
+   *   otherwise they are set to the zero coordinate.  If the source font
+   *   file has 'PaintScaleUniform*' set, the scale values are set
+   *   accordingly to the same value.
+   *
+   * @fields:
+   *   paint ::
+   *     An @FT_OpaquePaint object referencing the paint that is to be
+   *     scaled.
+   *
+   *   scale_x ::
+   *     Scale factor in x~direction represented as a
+   *     16.16 fixed-point value.
+   *
+   *   scale_y ::
+   *     Scale factor in y~direction represented as a
+   *     16.16 fixed-point value.
+   *
+   *   center_x ::
+   *     x~coordinate of center point to scale from represented as a
+   *     16.16 fixed-point value.
+   *
+   *   center_y ::
+   *     y~coordinate of center point to scale from represented as a
+   *     16.16 fixed-point value.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintScale_
+  {
+	FT_OpaquePaint  paint;
+
+	FT_Fixed  scale_x;
+	FT_Fixed  scale_y;
+
+	FT_Fixed  center_x;
+	FT_Fixed  center_y;
+
+  } FT_PaintScale;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintRotate
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 `PaintRotate` paint table.  Used
+   *   for rotating downstream paints with a given center and angle.
+   *
+   * @fields:
+   *   paint ::
+   *     An @FT_OpaquePaint object referencing the paint that is to be
+   *     rotated.
+   *
+   *   angle ::
+   *     The rotation angle that is to be applied in degrees divided by
+   *     180.0 (as in the spec) represented as a 16.16 fixed-point
+   *     value.  Multiply by 180.0f to receive degrees value.
+   *
+   *   center_x ::
+   *     The x~coordinate of the pivot point of the rotation in font
+   *     units represented as a 16.16 fixed-point value.
+   *
+   *   center_y ::
+   *     The y~coordinate of the pivot point of the rotation in font
+   *     units represented as a 16.16 fixed-point value.
+   *
+   * @since:
+   *   2.13
+   */
+
+  typedef struct  FT_PaintRotate_
+  {
+	FT_OpaquePaint  paint;
+
+	FT_Fixed  angle;
+
+	FT_Fixed  center_x;
+	FT_Fixed  center_y;
+
+  } FT_PaintRotate;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintSkew
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 `PaintSkew` paint table.  Used
+   *   for skewing or shearing downstream paints by a given center and
+   *   angle.
+   *
+   * @fields:
+   *   paint ::
+   *     An @FT_OpaquePaint object referencing the paint that is to be
+   *     skewed.
+   *
+   *   x_skew_angle ::
+   *     The skewing angle in x~direction in degrees divided by 180.0
+   *     (as in the spec) represented as a 16.16 fixed-point
+   *     value. Multiply by 180.0f to receive degrees.
+   *
+   *   y_skew_angle ::
+   *     The skewing angle in y~direction in degrees divided by 180.0
+   *     (as in the spec) represented as a 16.16 fixed-point
+   *     value.  Multiply by 180.0f to receive degrees.
+   *
+   *   center_x ::
+   *     The x~coordinate of the pivot point of the skew in font units
+   *     represented as a 16.16 fixed-point value.
+   *
+   *   center_y ::
+   *     The y~coordinate of the pivot point of the skew in font units
+   *     represented as a 16.16 fixed-point value.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintSkew_
+  {
+	FT_OpaquePaint  paint;
+
+	FT_Fixed  x_skew_angle;
+	FT_Fixed  y_skew_angle;
+
+	FT_Fixed  center_x;
+	FT_Fixed  center_y;
+
+  } FT_PaintSkew;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_PaintComposite
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 `PaintComposite` paint table.
+   *   Used for compositing two paints in a 'COLR' v1 directed acyclic graph.
+   *
+   * @fields:
+   *   source_paint ::
+   *     An @FT_OpaquePaint object referencing the source that is to be
+   *     composited.
+   *
+   *   composite_mode ::
+   *     An @FT_Composite_Mode enum value determining the composition
+   *     operation.
+   *
+   *   backdrop_paint ::
+   *     An @FT_OpaquePaint object referencing the backdrop paint that
+   *     `source_paint` is composited onto.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_PaintComposite_
+  {
+	FT_OpaquePaint     source_paint;
+	FT_Composite_Mode  composite_mode;
+	FT_OpaquePaint     backdrop_paint;
+
+  } FT_PaintComposite;
+
+  /**************************************************************************
+   *
+   * @union:
+   *   FT_COLR_Paint
+   *
+   * @description:
+   *   A union object representing format and details of a paint table of a
+   *   'COLR' v1 font, see
+   *   'https://github.com/googlefonts/colr-gradients-spec'.  Use
+   *   @FT_Get_Paint to retrieve a @FT_COLR_Paint for an @FT_OpaquePaint
+   *   object.
+   *
+   * @fields:
+   *   format ::
+   *     The gradient format for this Paint structure.
+   *
+   *   u ::
+   *     Union of all paint table types:
+   *
+   *       * @FT_PaintColrLayers
+   *       * @FT_PaintGlyph
+   *       * @FT_PaintSolid
+   *       * @FT_PaintLinearGradient
+   *       * @FT_PaintRadialGradient
+   *       * @FT_PaintSweepGradient
+   *       * @FT_PaintTransform
+   *       * @FT_PaintTranslate
+   *       * @FT_PaintRotate
+   *       * @FT_PaintSkew
+   *       * @FT_PaintComposite
+   *       * @FT_PaintColrGlyph
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_COLR_Paint_
+  {
+	FT_PaintFormat format;
+
+	union
+	{
+	  FT_PaintColrLayers      colr_layers;
+	  FT_PaintGlyph           glyph;
+	  FT_PaintSolid           solid;
+	  FT_PaintLinearGradient  linear_gradient;
+	  FT_PaintRadialGradient  radial_gradient;
+	  FT_PaintSweepGradient   sweep_gradient;
+	  FT_PaintTransform       transform;
+	  FT_PaintTranslate       translate;
+	  FT_PaintScale           scale;
+	  FT_PaintRotate          rotate;
+	  FT_PaintSkew            skew;
+	  FT_PaintComposite       composite;
+	  FT_PaintColrGlyph       colr_glyph;
+
+	} u;
+
+  } FT_COLR_Paint;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_Color_Root_Transform
+   *
+   * @description:
+   *   An enumeration to specify whether @FT_Get_Color_Glyph_Paint is to
+   *   return a root transform to configure the client's graphics context
+   *   matrix.
+   *
+   * @values:
+   *   FT_COLOR_INCLUDE_ROOT_TRANSFORM ::
+   *     Do include the root transform as the initial @FT_COLR_Paint object.
+   *
+   *   FT_COLOR_NO_ROOT_TRANSFORM ::
+   *     Do not output an initial root transform.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef enum  FT_Color_Root_Transform_
+  {
+	FT_COLOR_INCLUDE_ROOT_TRANSFORM,
+	FT_COLOR_NO_ROOT_TRANSFORM,
+
+	FT_COLOR_ROOT_TRANSFORM_MAX
+
+  } FT_Color_Root_Transform;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_ClipBox
+   *
+   * @description:
+   *   A structure representing a 'COLR' v1 'ClipBox' table.  'COLR' v1
+   *   glyphs may optionally define a clip box for aiding allocation or
+   *   defining a maximum drawable region.  Use @FT_Get_Color_Glyph_ClipBox
+   *   to retrieve it.
+   *
+   * @fields:
+   *   bottom_left ::
+   *     The bottom left corner of the clip box as an @FT_Vector with
+   *     fixed-point coordinates in 26.6 format.
+   *
+   *   top_left ::
+   *     The top left corner of the clip box as an @FT_Vector with
+   *     fixed-point coordinates in 26.6 format.
+   *
+   *   top_right ::
+   *     The top right corner of the clip box as an @FT_Vector with
+   *     fixed-point coordinates in 26.6 format.
+   *
+   *   bottom_right ::
+   *     The bottom right corner of the clip box as an @FT_Vector with
+   *     fixed-point coordinates in 26.6 format.
+   *
+   * @since:
+   *   2.13
+   */
+  typedef struct  FT_ClipBox_
+  {
+	FT_Vector  bottom_left;
+	FT_Vector  top_left;
+	FT_Vector  top_right;
+	FT_Vector  bottom_right;
+
+  } FT_ClipBox;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Color_Glyph_Paint
+   *
+   * @description:
+   *   This is the starting point and interface to color gradient
+   *   information in a 'COLR' v1 table in OpenType fonts to recursively
+   *   retrieve the paint tables for the directed acyclic graph of a colored
+   *   glyph, given a glyph ID.
+   *
+   *     https://github.com/googlefonts/colr-gradients-spec
+   *
+   *   In a 'COLR' v1 font, each color glyph defines a directed acyclic
+   *   graph of nested paint tables, such as `PaintGlyph`, `PaintSolid`,
+   *   `PaintLinearGradient`, `PaintRadialGradient`, and so on.  Using this
+   *   function and specifying a glyph ID, one retrieves the root paint
+   *   table for this glyph ID.
+   *
+   *   This function allows control whether an initial root transform is
+   *   returned to configure scaling, transform, and translation correctly
+   *   on the client's graphics context.  The initial root transform is
+   *   computed and returned according to the values configured for @FT_Size
+   *   and @FT_Set_Transform on the @FT_Face object, see below for details
+   *   of the `root_transform` parameter.  This has implications for a
+   *   client 'COLR' v1 implementation: When this function returns an
+   *   initially computed root transform, at the time of executing the
+   *   @FT_PaintGlyph operation, the contours should be retrieved using
+   *   @FT_Load_Glyph at unscaled, untransformed size.  This is because the
+   *   root transform applied to the graphics context will take care of
+   *   correct scaling.
+   *
+   *   Alternatively, to allow hinting of contours, at the time of executing
+   *   @FT_Load_Glyph, the current graphics context transformation matrix
+   *   can be decomposed into a scaling matrix and a remainder, and
+   *   @FT_Load_Glyph can be used to retrieve the contours at scaled size.
+   *   Care must then be taken to blit or clip to the graphics context with
+   *   taking this remainder transformation into account.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the parent face object.
+   *
+   *   base_glyph ::
+   *     The glyph index for which to retrieve the root paint table.
+   *
+   *   root_transform ::
+   *     Specifies whether an initially computed root is returned by the
+   *     @FT_PaintTransform operation to account for the activated size
+   *     (see @FT_Activate_Size) and the configured transform and translate
+   *     (see @FT_Set_Transform).
+   *
+   *     This root transform is returned before nodes of the glyph graph of
+   *     the font are returned.  Subsequent @FT_COLR_Paint structures
+   *     contain unscaled and untransformed values.  The inserted root
+   *     transform enables the client application to apply an initial
+   *     transform to its graphics context.  When executing subsequent
+   *     FT_COLR_Paint operations, values from @FT_COLR_Paint operations
+   *     will ultimately be correctly scaled because of the root transform
+   *     applied to the graphics context.  Use
+   *     @FT_COLOR_INCLUDE_ROOT_TRANSFORM to include the root transform, use
+   *     @FT_COLOR_NO_ROOT_TRANSFORM to not include it.  The latter may be
+   *     useful when traversing the 'COLR' v1 glyph graph and reaching a
+   *     @FT_PaintColrGlyph.  When recursing into @FT_PaintColrGlyph and
+   *     painting that inline, no additional root transform is needed as it
+   *     has already been applied to the graphics context at the beginning
+   *     of drawing this glyph.
+   *
+   * @output:
+   *   paint ::
+   *     The @FT_OpaquePaint object that references the actual paint table.
+   *
+   *     The respective actual @FT_COLR_Paint object is retrieved via
+   *     @FT_Get_Paint.
+   *
+   * @return:
+   *   Value~1 if everything is OK.  If no color glyph is found, or the root
+   *   paint could not be retrieved, value~0 gets returned.  In case of an
+   *   error, value~0 is returned also.
+   *
+   * @since:
+   *   2.13
+   */
+  FT_EXPORT( FT_Bool )
+  FT_Get_Color_Glyph_Paint( FT_Face                  face,
+							FT_UInt                  base_glyph,
+							FT_Color_Root_Transform  root_transform,
+							FT_OpaquePaint*          paint );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Color_Glyph_ClipBox
+   *
+   * @description:
+   *   Search for a 'COLR' v1 clip box for the specified `base_glyph` and
+   *   fill the `clip_box` parameter with the 'COLR' v1 'ClipBox' information
+   *   if one is found.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the parent face object.
+   *
+   *   base_glyph ::
+   *     The glyph index for which to retrieve the clip box.
+   *
+   * @output:
+   *   clip_box ::
+   *     The clip box for the requested `base_glyph` if one is found.  The
+   *     clip box is computed taking scale and transformations configured on
+   *     the @FT_Face into account.  @FT_ClipBox contains @FT_Vector values
+   *     in 26.6 format.
+   *
+   * @return:
+   *   Value~1 if a clip box is found.  If no clip box is found or an error
+   *   occured, value~0 is returned.
+   *
+   * @note:
+   *   To retrieve the clip box in font units, reset scale to units-per-em
+   *   and remove transforms configured using @FT_Set_Transform.
+   *
+   * @since:
+   *   2.13
+   */
+  FT_EXPORT( FT_Bool )
+  FT_Get_Color_Glyph_ClipBox( FT_Face      face,
+							  FT_UInt      base_glyph,
+							  FT_ClipBox*  clip_box );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Paint_Layers
+   *
+   * @description:
+   *   Access the layers of a `PaintColrLayers` table.
+   *
+   *   If the root paint of a color glyph, or a nested paint of a 'COLR'
+   *   glyph is a `PaintColrLayers` table, this function retrieves the
+   *   layers of the `PaintColrLayers` table.
+   *
+   *   The @FT_PaintColrLayers object contains an @FT_LayerIterator, which
+   *   is used here to iterate over the layers.  Each layer is returned as
+   *   an @FT_OpaquePaint object, which then can be used with @FT_Get_Paint
+   *   to retrieve the actual paint object.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the parent face object.
+   *
+   * @inout:
+   *   iterator ::
+   *     The @FT_LayerIterator from an @FT_PaintColrLayers object, for which
+   *     the layers are to be retrieved.  The internal state of the iterator
+   *     is incremented after one call to this function for retrieving one
+   *     layer.
+   *
+   * @output:
+   *   paint ::
+   *     The @FT_OpaquePaint object that references the actual paint table.
+   *     The respective actual @FT_COLR_Paint object is retrieved via
+   *     @FT_Get_Paint.
+   *
+   * @return:
+   *   Value~1 if everything is OK.  Value~0 gets returned when the paint
+   *   object can not be retrieved or any other error occurs.
+   *
+   * @since:
+   *   2.13
+   */
+  FT_EXPORT( FT_Bool )
+  FT_Get_Paint_Layers( FT_Face            face,
+					   FT_LayerIterator*  iterator,
+					   FT_OpaquePaint*    paint );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Colorline_Stops
+   *
+   * @description:
+   *   This is an interface to color gradient information in a 'COLR' v1
+   *   table in OpenType fonts to iteratively retrieve the gradient and
+   *   solid fill information for colored glyph layers for a specified glyph
+   *   ID.
+   *
+   *     https://github.com/googlefonts/colr-gradients-spec
+   *
+   * @input:
+   *   face ::
+   *     A handle to the parent face object.
+   *
+   * @inout:
+   *   iterator ::
+   *     The retrieved @FT_ColorStopIterator, configured on an @FT_ColorLine,
+   *     which in turn got retrieved via paint information in
+   *     @FT_PaintLinearGradient or @FT_PaintRadialGradient.
+   *
+   * @output:
+   *   color_stop ::
+   *     Color index and alpha value for the retrieved color stop.
+   *
+   * @return:
+   *   Value~1 if everything is OK.  If there are no more color stops,
+   *   value~0 gets returned.  In case of an error, value~0 is returned
+   *   also.
+   *
+   * @since:
+   *   2.13
+   */
+  FT_EXPORT( FT_Bool )
+  FT_Get_Colorline_Stops( FT_Face                face,
+						  FT_ColorStop*          color_stop,
+						  FT_ColorStopIterator*  iterator );
+
+  /**************************************************************************
+   *
+   * @function:
+   *  FT_Get_Paint
+   *
+   * @description:
+   *   Access the details of a paint using an @FT_OpaquePaint opaque paint
+   *   object, which internally stores the offset to the respective `Paint`
+   *   object in the 'COLR' table.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the parent face object.
+   *
+   *   opaque_paint ::
+   *     The opaque paint object for which the underlying @FT_COLR_Paint
+   *     data is to be retrieved.
+   *
+   * @output:
+   *   paint ::
+   *     The specific @FT_COLR_Paint object containing information coming
+   *     from one of the font's `Paint*` tables.
+   *
+   * @return:
+   *   Value~1 if everything is OK.  Value~0 if no details can be found for
+   *   this paint or any other error occured.
+   *
+   * @since:
+   *   2.13
+   */
+  FT_EXPORT( FT_Bool )
+  FT_Get_Paint( FT_Face         face,
+				FT_OpaquePaint  opaque_paint,
+				FT_COLR_Paint*  paint );
+
+  /* */
+
+FT_END_HEADER
+
+#endif /* FTCOLOR_H_ */
+
+/* END */
+
+/*** End of inlined file: ftcolor.h ***/
+
+
+/*** Start of inlined file: ftmodapi.h ***/
+#ifndef FTMODAPI_H_
+#define FTMODAPI_H_
+
+#ifdef FREETYPE_H
+#error "freetype.h of FreeType 1 has been loaded!"
+#error "Please fix the directory search order for header files"
+#error "so that freetype.h of FreeType 2 is found first."
+#endif
+
+FT_BEGIN_HEADER
+
+  /**************************************************************************
+   *
+   * @section:
+   *   module_management
+   *
+   * @title:
+   *   Module Management
+   *
+   * @abstract:
+   *   How to add, upgrade, remove, and control modules from FreeType.
+   *
+   * @description:
+   *   The definitions below are used to manage modules within FreeType.
+   *   Internal and external modules can be added, upgraded, and removed at
+   *   runtime.  For example, an alternative renderer or proprietary font
+   *   driver can be registered and prioritized.  Additionally, some module
+   *   properties can also be controlled.
+   *
+   *   Here is a list of existing values of the `module_name` field in the
+   *   @FT_Module_Class structure.
+   *
+   *   ```
+   *     autofitter
+   *     bdf
+   *     cff
+   *     gxvalid
+   *     otvalid
+   *     pcf
+   *     pfr
+   *     psaux
+   *     pshinter
+   *     psnames
+   *     raster1
+   *     sfnt
+   *     smooth
+   *     truetype
+   *     type1
+   *     type42
+   *     t1cid
+   *     winfonts
+   *   ```
+   *
+   *   Note that the FreeType Cache sub-system is not a FreeType module.
+   *
+   * @order:
+   *   FT_Module
+   *   FT_Module_Constructor
+   *   FT_Module_Destructor
+   *   FT_Module_Requester
+   *   FT_Module_Class
+   *
+   *   FT_Add_Module
+   *   FT_Get_Module
+   *   FT_Remove_Module
+   *   FT_Add_Default_Modules
+   *
+   *   FT_FACE_DRIVER_NAME
+   *   FT_Property_Set
+   *   FT_Property_Get
+   *   FT_Set_Default_Properties
+   *
+   *   FT_New_Library
+   *   FT_Done_Library
+   *   FT_Reference_Library
+   *
+   *   FT_Renderer
+   *   FT_Renderer_Class
+   *
+   *   FT_Get_Renderer
+   *   FT_Set_Renderer
+   *
+   *   FT_Set_Debug_Hook
+   *
+   */
+
+  /* module bit flags */
+#define FT_MODULE_FONT_DRIVER         1  /* this module is a font driver  */
+#define FT_MODULE_RENDERER            2  /* this module is a renderer     */
+#define FT_MODULE_HINTER              4  /* this module is a glyph hinter */
+#define FT_MODULE_STYLER              8  /* this module is a styler       */
+
+#define FT_MODULE_DRIVER_SCALABLE      0x100  /* the driver supports      */
+											  /* scalable fonts           */
+#define FT_MODULE_DRIVER_NO_OUTLINES   0x200  /* the driver does not      */
+											  /* support vector outlines  */
+#define FT_MODULE_DRIVER_HAS_HINTER    0x400  /* the driver provides its  */
+											  /* own hinter               */
+#define FT_MODULE_DRIVER_HINTS_LIGHTLY 0x800  /* the driver's hinter      */
+											  /* produces LIGHT hints     */
+
+  /* deprecated values */
+#define ft_module_font_driver         FT_MODULE_FONT_DRIVER
+#define ft_module_renderer            FT_MODULE_RENDERER
+#define ft_module_hinter              FT_MODULE_HINTER
+#define ft_module_styler              FT_MODULE_STYLER
+
+#define ft_module_driver_scalable       FT_MODULE_DRIVER_SCALABLE
+#define ft_module_driver_no_outlines    FT_MODULE_DRIVER_NO_OUTLINES
+#define ft_module_driver_has_hinter     FT_MODULE_DRIVER_HAS_HINTER
+#define ft_module_driver_hints_lightly  FT_MODULE_DRIVER_HINTS_LIGHTLY
+
+  typedef FT_Pointer  FT_Module_Interface;
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   FT_Module_Constructor
+   *
+   * @description:
+   *   A function used to initialize (not create) a new module object.
+   *
+   * @input:
+   *   module ::
+   *     The module to initialize.
+   */
+  typedef FT_Error
+  (*FT_Module_Constructor)( FT_Module  module );
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   FT_Module_Destructor
+   *
+   * @description:
+   *   A function used to finalize (not destroy) a given module object.
+   *
+   * @input:
+   *   module ::
+   *     The module to finalize.
+   */
+  typedef void
+  (*FT_Module_Destructor)( FT_Module  module );
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   FT_Module_Requester
+   *
+   * @description:
+   *   A function used to query a given module for a specific interface.
+   *
+   * @input:
+   *   module ::
+   *     The module to be searched.
+   *
+   *   name ::
+   *     The name of the interface in the module.
+   */
+  typedef FT_Module_Interface
+  (*FT_Module_Requester)( FT_Module    module,
+						  const char*  name );
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Module_Class
+   *
+   * @description:
+   *   The module class descriptor.  While being a public structure necessary
+   *   for FreeType's module bookkeeping, most of the fields are essentially
+   *   internal, not to be used directly by an application.
+   *
+   * @fields:
+   *   module_flags ::
+   *     Bit flags describing the module.
+   *
+   *   module_size ::
+   *     The size of one module object/instance in bytes.
+   *
+   *   module_name ::
+   *     The name of the module.
+   *
+   *   module_version ::
+   *     The version, as a 16.16 fixed number (major.minor).
+   *
+   *   module_requires ::
+   *     The version of FreeType this module requires, as a 16.16 fixed
+   *     number (major.minor).  Starts at version 2.0, i.e., 0x20000.
+   *
+   *   module_interface ::
+   *     A typeless pointer to a structure (which varies between different
+   *     modules) that holds the module's interface functions.  This is
+   *     essentially what `get_interface` returns.
+   *
+   *   module_init ::
+   *     The initializing function.
+   *
+   *   module_done ::
+   *     The finalizing function.
+   *
+   *   get_interface ::
+   *     The interface requesting function.
+   */
+  typedef struct  FT_Module_Class_
+  {
+	FT_ULong               module_flags;
+	FT_Long                module_size;
+	const FT_String*       module_name;
+	FT_Fixed               module_version;
+	FT_Fixed               module_requires;
+
+	const void*            module_interface;
+
+	FT_Module_Constructor  module_init;
+	FT_Module_Destructor   module_done;
+	FT_Module_Requester    get_interface;
+
+  } FT_Module_Class;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Add_Module
+   *
+   * @description:
+   *   Add a new module to a given library instance.
+   *
+   * @inout:
+   *   library ::
+   *     A handle to the library object.
+   *
+   * @input:
+   *   clazz ::
+   *     A pointer to class descriptor for the module.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   An error will be returned if a module already exists by that name, or
+   *   if the module requires a version of FreeType that is too great.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Add_Module( FT_Library              library,
+				 const FT_Module_Class*  clazz );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Module
+   *
+   * @description:
+   *   Find a module by its name.
+   *
+   * @input:
+   *   library ::
+   *     A handle to the library object.
+   *
+   *   module_name ::
+   *     The module's name (as an ASCII string).
+   *
+   * @return:
+   *   A module handle.  0~if none was found.
+   *
+   * @note:
+   *   FreeType's internal modules aren't documented very well, and you
+   *   should look up the source code for details.
+   */
+  FT_EXPORT( FT_Module )
+  FT_Get_Module( FT_Library   library,
+				 const char*  module_name );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Remove_Module
+   *
+   * @description:
+   *   Remove a given module from a library instance.
+   *
+   * @inout:
+   *   library ::
+   *     A handle to a library object.
+   *
+   * @input:
+   *   module ::
+   *     A handle to a module object.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The module object is destroyed by the function in case of success.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Remove_Module( FT_Library  library,
+					FT_Module   module );
+
+  /**************************************************************************
+   *
+   * @macro:
+   *   FT_FACE_DRIVER_NAME
+   *
+   * @description:
+   *   A macro that retrieves the name of a font driver from a face object.
+   *
+   * @note:
+   *   The font driver name is a valid `module_name` for @FT_Property_Set
+   *   and @FT_Property_Get.  This is not the same as @FT_Get_Font_Format.
+   *
+   * @since:
+   *   2.11
+   *
+   */
+#define FT_FACE_DRIVER_NAME( face )                                     \
+		  ( ( *FT_REINTERPRET_CAST( FT_Module_Class**,                  \
+									( face )->driver ) )->module_name )
+
+  /**************************************************************************
+   *
+   * @function:
+   *    FT_Property_Set
+   *
+   * @description:
+   *    Set a property for a given module.
+   *
+   * @input:
+   *    library ::
+   *      A handle to the library the module is part of.
+   *
+   *    module_name ::
+   *      The module name.
+   *
+   *    property_name ::
+   *      The property name.  Properties are described in section
+   *      @properties.
+   *
+   *      Note that only a few modules have properties.
+   *
+   *    value ::
+   *      A generic pointer to a variable or structure that gives the new
+   *      value of the property.  The exact definition of `value` is
+   *      dependent on the property; see section @properties.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *    If `module_name` isn't a valid module name, or `property_name`
+   *    doesn't specify a valid property, or if `value` doesn't represent a
+   *    valid value for the given property, an error is returned.
+   *
+   *    The following example sets property 'bar' (a simple integer) in
+   *    module 'foo' to value~1.
+   *
+   *    ```
+   *      FT_UInt  bar;
+   *
+   *
+   *      bar = 1;
+   *      FT_Property_Set( library, "foo", "bar", &bar );
+   *    ```
+   *
+   *    Note that the FreeType Cache sub-system doesn't recognize module
+   *    property changes.  To avoid glyph lookup confusion within the cache
+   *    you should call @FTC_Manager_Reset to completely flush the cache if a
+   *    module property gets changed after @FTC_Manager_New has been called.
+   *
+   *    It is not possible to set properties of the FreeType Cache sub-system
+   *    itself with FT_Property_Set; use @FTC_Property_Set instead.
+   *
+   * @since:
+   *   2.4.11
+   *
+   */
+  FT_EXPORT( FT_Error )
+  FT_Property_Set( FT_Library        library,
+				   const FT_String*  module_name,
+				   const FT_String*  property_name,
+				   const void*       value );
+
+  /**************************************************************************
+   *
+   * @function:
+   *    FT_Property_Get
+   *
+   * @description:
+   *    Get a module's property value.
+   *
+   * @input:
+   *    library ::
+   *      A handle to the library the module is part of.
+   *
+   *    module_name ::
+   *      The module name.
+   *
+   *    property_name ::
+   *      The property name.  Properties are described in section
+   *      @properties.
+   *
+   * @inout:
+   *    value ::
+   *      A generic pointer to a variable or structure that gives the value
+   *      of the property.  The exact definition of `value` is dependent on
+   *      the property; see section @properties.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *    If `module_name` isn't a valid module name, or `property_name`
+   *    doesn't specify a valid property, or if `value` doesn't represent a
+   *    valid value for the given property, an error is returned.
+   *
+   *    The following example gets property 'baz' (a range) in module 'foo'.
+   *
+   *    ```
+   *      typedef  range_
+   *      {
+   *        FT_Int32  min;
+   *        FT_Int32  max;
+   *
+   *      } range;
+   *
+   *      range  baz;
+   *
+   *
+   *      FT_Property_Get( library, "foo", "baz", &baz );
+   *    ```
+   *
+   *    It is not possible to retrieve properties of the FreeType Cache
+   *    sub-system with FT_Property_Get; use @FTC_Property_Get instead.
+   *
+   * @since:
+   *   2.4.11
+   *
+   */
+  FT_EXPORT( FT_Error )
+  FT_Property_Get( FT_Library        library,
+				   const FT_String*  module_name,
+				   const FT_String*  property_name,
+				   void*             value );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Default_Properties
+   *
+   * @description:
+   *   If compilation option `FT_CONFIG_OPTION_ENVIRONMENT_PROPERTIES` is
+   *   set, this function reads the `FREETYPE_PROPERTIES` environment
+   *   variable to control driver properties.  See section @properties for
+   *   more.
+   *
+   *   If the compilation option is not set, this function does nothing.
+   *
+   *   `FREETYPE_PROPERTIES` has the following syntax form (broken here into
+   *   multiple lines for better readability).
+   *
+   *   ```
+   *     <optional whitespace>
+   *     <module-name1> ':'
+   *     <property-name1> '=' <property-value1>
+   *     <whitespace>
+   *     <module-name2> ':'
+   *     <property-name2> '=' <property-value2>
+   *     ...
+   *   ```
+   *
+   *   Example:
+   *
+   *   ```
+   *     FREETYPE_PROPERTIES=truetype:interpreter-version=35 \
+   *                         cff:no-stem-darkening=0
+   *   ```
+   *
+   * @inout:
+   *   library ::
+   *     A handle to a new library object.
+   *
+   * @since:
+   *   2.8
+   */
+  FT_EXPORT( void )
+  FT_Set_Default_Properties( FT_Library  library );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Reference_Library
+   *
+   * @description:
+   *   A counter gets initialized to~1 at the time an @FT_Library structure
+   *   is created.  This function increments the counter.  @FT_Done_Library
+   *   then only destroys a library if the counter is~1, otherwise it simply
+   *   decrements the counter.
+   *
+   *   This function helps in managing life-cycles of structures that
+   *   reference @FT_Library objects.
+   *
+   * @input:
+   *   library ::
+   *     A handle to a target library object.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @since:
+   *   2.4.2
+   */
+  FT_EXPORT( FT_Error )
+  FT_Reference_Library( FT_Library  library );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_New_Library
+   *
+   * @description:
+   *   This function is used to create a new FreeType library instance from a
+   *   given memory object.  It is thus possible to use libraries with
+   *   distinct memory allocators within the same program.  Note, however,
+   *   that the used @FT_Memory structure is expected to remain valid for the
+   *   life of the @FT_Library object.
+   *
+   *   Normally, you would call this function (followed by a call to
+   *   @FT_Add_Default_Modules or a series of calls to @FT_Add_Module, and a
+   *   call to @FT_Set_Default_Properties) instead of @FT_Init_FreeType to
+   *   initialize the FreeType library.
+   *
+   *   Don't use @FT_Done_FreeType but @FT_Done_Library to destroy a library
+   *   instance.
+   *
+   * @input:
+   *   memory ::
+   *     A handle to the original memory object.
+   *
+   * @output:
+   *   alibrary ::
+   *     A pointer to handle of a new library object.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   See the discussion of reference counters in the description of
+   *   @FT_Reference_Library.
+   */
+  FT_EXPORT( FT_Error )
+  FT_New_Library( FT_Memory    memory,
+				  FT_Library  *alibrary );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Done_Library
+   *
+   * @description:
+   *   Discard a given library object.  This closes all drivers and discards
+   *   all resource objects.
+   *
+   * @input:
+   *   library ::
+   *     A handle to the target library.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   See the discussion of reference counters in the description of
+   *   @FT_Reference_Library.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Done_Library( FT_Library  library );
+
+  /**************************************************************************
+   *
+   * @functype:
+   *   FT_DebugHook_Func
+   *
+   * @description:
+   *   A drop-in replacement (or rather a wrapper) for the bytecode or
+   *   charstring interpreter's main loop function.
+   *
+   *   Its job is essentially
+   *
+   *   - to activate debug mode to enforce single-stepping,
+   *
+   *   - to call the main loop function to interpret the next opcode, and
+   *
+   *   - to show the changed context to the user.
+   *
+   *   An example for such a main loop function is `TT_RunIns` (declared in
+   *   FreeType's internal header file `src/truetype/ttinterp.h`).
+   *
+   *   Have a look at the source code of the `ttdebug` FreeType demo program
+   *   for an example of a drop-in replacement.
+   *
+   * @inout:
+   *   arg ::
+   *     A typeless pointer, to be cast to the main loop function's data
+   *     structure (which depends on the font module).  For TrueType fonts
+   *     it is bytecode interpreter's execution context, `TT_ExecContext`,
+   *     which is declared in FreeType's internal header file `tttypes.h`.
+   */
+  typedef FT_Error
+  (*FT_DebugHook_Func)( void*  arg );
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_DEBUG_HOOK_XXX
+   *
+   * @description:
+   *   A list of named debug hook indices.
+   *
+   * @values:
+   *   FT_DEBUG_HOOK_TRUETYPE::
+   *     This hook index identifies the TrueType bytecode debugger.
+   */
+#define FT_DEBUG_HOOK_TRUETYPE  0
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Debug_Hook
+   *
+   * @description:
+   *   Set a debug hook function for debugging the interpreter of a font
+   *   format.
+   *
+   *   While this is a public API function, an application needs access to
+   *   FreeType's internal header files to do something useful.
+   *
+   *   Have a look at the source code of the `ttdebug` FreeType demo program
+   *   for an example of its usage.
+   *
+   * @inout:
+   *   library ::
+   *     A handle to the library object.
+   *
+   * @input:
+   *   hook_index ::
+   *     The index of the debug hook.  You should use defined enumeration
+   *     macros like @FT_DEBUG_HOOK_TRUETYPE.
+   *
+   *   debug_hook ::
+   *     The function used to debug the interpreter.
+   *
+   * @note:
+   *   Currently, four debug hook slots are available, but only one (for the
+   *   TrueType interpreter) is defined.
+   */
+  FT_EXPORT( void )
+  FT_Set_Debug_Hook( FT_Library         library,
+					 FT_UInt            hook_index,
+					 FT_DebugHook_Func  debug_hook );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Add_Default_Modules
+   *
+   * @description:
+   *   Add the set of default drivers to a given library object.  This is
+   *   only useful when you create a library object with @FT_New_Library
+   *   (usually to plug a custom memory manager).
+   *
+   * @inout:
+   *   library ::
+   *     A handle to a new library object.
+   */
+  FT_EXPORT( void )
+  FT_Add_Default_Modules( FT_Library  library );
+
+  /**************************************************************************
+   *
+   * @section:
+   *   truetype_engine
+   *
+   * @title:
+   *   The TrueType Engine
+   *
+   * @abstract:
+   *   TrueType bytecode support.
+   *
+   * @description:
+   *   This section contains a function used to query the level of TrueType
+   *   bytecode support compiled in this version of the library.
+   *
+   */
+
+  /**************************************************************************
+   *
+   * @enum:
+   *    FT_TrueTypeEngineType
+   *
+   * @description:
+   *    A list of values describing which kind of TrueType bytecode engine is
+   *    implemented in a given FT_Library instance.  It is used by the
+   *    @FT_Get_TrueType_Engine_Type function.
+   *
+   * @values:
+   *    FT_TRUETYPE_ENGINE_TYPE_NONE ::
+   *      The library doesn't implement any kind of bytecode interpreter.
+   *
+   *    FT_TRUETYPE_ENGINE_TYPE_UNPATENTED ::
+   *      Deprecated and removed.
+   *
+   *    FT_TRUETYPE_ENGINE_TYPE_PATENTED ::
+   *      The library implements a bytecode interpreter that covers the full
+   *      instruction set of the TrueType virtual machine (this was governed
+   *      by patents until May 2010, hence the name).
+   *
+   * @since:
+   *    2.2
+   *
+   */
+  typedef enum  FT_TrueTypeEngineType_
+  {
+	FT_TRUETYPE_ENGINE_TYPE_NONE = 0,
+	FT_TRUETYPE_ENGINE_TYPE_UNPATENTED,
+	FT_TRUETYPE_ENGINE_TYPE_PATENTED
+
+  } FT_TrueTypeEngineType;
+
+  /**************************************************************************
+   *
+   * @function:
+   *    FT_Get_TrueType_Engine_Type
+   *
+   * @description:
+   *    Return an @FT_TrueTypeEngineType value to indicate which level of the
+   *    TrueType virtual machine a given library instance supports.
+   *
+   * @input:
+   *    library ::
+   *      A library instance.
+   *
+   * @return:
+   *    A value indicating which level is supported.
+   *
+   * @since:
+   *    2.2
+   *
+   */
+  FT_EXPORT( FT_TrueTypeEngineType )
+  FT_Get_TrueType_Engine_Type( FT_Library  library );
+
+  /* */
+
+FT_END_HEADER
+
+#endif /* FTMODAPI_H_ */
+
+/* END */
+
+/*** End of inlined file: ftmodapi.h ***/
+
+
+/*** Start of inlined file: ftmm.h ***/
+#ifndef FTMM_H_
+#define FTMM_H_
+
+
+/*** Start of inlined file: t1tables.h ***/
+#ifndef T1TABLES_H_
+#define T1TABLES_H_
+
+#ifdef FREETYPE_H
+#error "freetype.h of FreeType 1 has been loaded!"
+#error "Please fix the directory search order for header files"
+#error "so that freetype.h of FreeType 2 is found first."
+#endif
+
+FT_BEGIN_HEADER
+
+  /**************************************************************************
+   *
+   * @section:
+   *   type1_tables
+   *
+   * @title:
+   *   Type 1 Tables
+   *
+   * @abstract:
+   *   Type~1-specific font tables.
+   *
+   * @description:
+   *   This section contains the definition of Type~1-specific tables,
+   *   including structures related to other PostScript font formats.
+   *
+   * @order:
+   *   PS_FontInfoRec
+   *   PS_FontInfo
+   *   PS_PrivateRec
+   *   PS_Private
+   *
+   *   CID_FaceDictRec
+   *   CID_FaceDict
+   *   CID_FaceInfoRec
+   *   CID_FaceInfo
+   *
+   *   FT_Has_PS_Glyph_Names
+   *   FT_Get_PS_Font_Info
+   *   FT_Get_PS_Font_Private
+   *   FT_Get_PS_Font_Value
+   *
+   *   T1_Blend_Flags
+   *   T1_EncodingType
+   *   PS_Dict_Keys
+   *
+   */
+
+  /* Note that we separate font data in PS_FontInfoRec and PS_PrivateRec */
+  /* structures in order to support Multiple Master fonts.               */
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_FontInfoRec
+   *
+   * @description:
+   *   A structure used to model a Type~1 or Type~2 FontInfo dictionary.
+   *   Note that for Multiple Master fonts, each instance has its own
+   *   FontInfo dictionary.
+   */
+  typedef struct  PS_FontInfoRec_
+  {
+	FT_String*  version;
+	FT_String*  notice;
+	FT_String*  full_name;
+	FT_String*  family_name;
+	FT_String*  weight;
+	FT_Long     italic_angle;
+	FT_Bool     is_fixed_pitch;
+	FT_Short    underline_position;
+	FT_UShort   underline_thickness;
+
+  } PS_FontInfoRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_FontInfo
+   *
+   * @description:
+   *   A handle to a @PS_FontInfoRec structure.
+   */
+  typedef struct PS_FontInfoRec_*  PS_FontInfo;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   T1_FontInfo
+   *
+   * @description:
+   *   This type is equivalent to @PS_FontInfoRec.  It is deprecated but kept
+   *   to maintain source compatibility between various versions of FreeType.
+   */
+  typedef PS_FontInfoRec  T1_FontInfo;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_PrivateRec
+   *
+   * @description:
+   *   A structure used to model a Type~1 or Type~2 private dictionary.  Note
+   *   that for Multiple Master fonts, each instance has its own Private
+   *   dictionary.
+   */
+  typedef struct  PS_PrivateRec_
+  {
+	FT_Int     unique_id;
+	FT_Int     lenIV;
+
+	FT_Byte    num_blue_values;
+	FT_Byte    num_other_blues;
+	FT_Byte    num_family_blues;
+	FT_Byte    num_family_other_blues;
+
+	FT_Short   blue_values[14];
+	FT_Short   other_blues[10];
+
+	FT_Short   family_blues      [14];
+	FT_Short   family_other_blues[10];
+
+	FT_Fixed   blue_scale;
+	FT_Int     blue_shift;
+	FT_Int     blue_fuzz;
+
+	FT_UShort  standard_width[1];
+	FT_UShort  standard_height[1];
+
+	FT_Byte    num_snap_widths;
+	FT_Byte    num_snap_heights;
+	FT_Bool    force_bold;
+	FT_Bool    round_stem_up;
+
+	FT_Short   snap_widths [13];  /* including std width  */
+	FT_Short   snap_heights[13];  /* including std height */
+
+	FT_Fixed   expansion_factor;
+
+	FT_Long    language_group;
+	FT_Long    password;
+
+	FT_Short   min_feature[2];
+
+  } PS_PrivateRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   PS_Private
+   *
+   * @description:
+   *   A handle to a @PS_PrivateRec structure.
+   */
+  typedef struct PS_PrivateRec_*  PS_Private;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   T1_Private
+   *
+   * @description:
+   *  This type is equivalent to @PS_PrivateRec.  It is deprecated but kept
+   *  to maintain source compatibility between various versions of FreeType.
+   */
+  typedef PS_PrivateRec  T1_Private;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   T1_Blend_Flags
+   *
+   * @description:
+   *   A set of flags used to indicate which fields are present in a given
+   *   blend dictionary (font info or private).  Used to support Multiple
+   *   Masters fonts.
+   *
+   * @values:
+   *   T1_BLEND_UNDERLINE_POSITION ::
+   *   T1_BLEND_UNDERLINE_THICKNESS ::
+   *   T1_BLEND_ITALIC_ANGLE ::
+   *   T1_BLEND_BLUE_VALUES ::
+   *   T1_BLEND_OTHER_BLUES ::
+   *   T1_BLEND_STANDARD_WIDTH ::
+   *   T1_BLEND_STANDARD_HEIGHT ::
+   *   T1_BLEND_STEM_SNAP_WIDTHS ::
+   *   T1_BLEND_STEM_SNAP_HEIGHTS ::
+   *   T1_BLEND_BLUE_SCALE ::
+   *   T1_BLEND_BLUE_SHIFT ::
+   *   T1_BLEND_FAMILY_BLUES ::
+   *   T1_BLEND_FAMILY_OTHER_BLUES ::
+   *   T1_BLEND_FORCE_BOLD ::
+   */
+  typedef enum  T1_Blend_Flags_
+  {
+	/* required fields in a FontInfo blend dictionary */
+	T1_BLEND_UNDERLINE_POSITION = 0,
+	T1_BLEND_UNDERLINE_THICKNESS,
+	T1_BLEND_ITALIC_ANGLE,
+
+	/* required fields in a Private blend dictionary */
+	T1_BLEND_BLUE_VALUES,
+	T1_BLEND_OTHER_BLUES,
+	T1_BLEND_STANDARD_WIDTH,
+	T1_BLEND_STANDARD_HEIGHT,
+	T1_BLEND_STEM_SNAP_WIDTHS,
+	T1_BLEND_STEM_SNAP_HEIGHTS,
+	T1_BLEND_BLUE_SCALE,
+	T1_BLEND_BLUE_SHIFT,
+	T1_BLEND_FAMILY_BLUES,
+	T1_BLEND_FAMILY_OTHER_BLUES,
+	T1_BLEND_FORCE_BOLD,
+
+	T1_BLEND_MAX    /* do not remove */
+
+  } T1_Blend_Flags;
+
+  /* these constants are deprecated; use the corresponding */
+  /* `T1_Blend_Flags` values instead                       */
+#define t1_blend_underline_position   T1_BLEND_UNDERLINE_POSITION
+#define t1_blend_underline_thickness  T1_BLEND_UNDERLINE_THICKNESS
+#define t1_blend_italic_angle         T1_BLEND_ITALIC_ANGLE
+#define t1_blend_blue_values          T1_BLEND_BLUE_VALUES
+#define t1_blend_other_blues          T1_BLEND_OTHER_BLUES
+#define t1_blend_standard_widths      T1_BLEND_STANDARD_WIDTH
+#define t1_blend_standard_height      T1_BLEND_STANDARD_HEIGHT
+#define t1_blend_stem_snap_widths     T1_BLEND_STEM_SNAP_WIDTHS
+#define t1_blend_stem_snap_heights    T1_BLEND_STEM_SNAP_HEIGHTS
+#define t1_blend_blue_scale           T1_BLEND_BLUE_SCALE
+#define t1_blend_blue_shift           T1_BLEND_BLUE_SHIFT
+#define t1_blend_family_blues         T1_BLEND_FAMILY_BLUES
+#define t1_blend_family_other_blues   T1_BLEND_FAMILY_OTHER_BLUES
+#define t1_blend_force_bold           T1_BLEND_FORCE_BOLD
+#define t1_blend_max                  T1_BLEND_MAX
+
+  /* */
+
+  /* maximum number of Multiple Masters designs, as defined in the spec */
+#define T1_MAX_MM_DESIGNS     16
+
+  /* maximum number of Multiple Masters axes, as defined in the spec */
+#define T1_MAX_MM_AXIS        4
+
+  /* maximum number of elements in a design map */
+#define T1_MAX_MM_MAP_POINTS  20
+
+  /* this structure is used to store the BlendDesignMap entry for an axis */
+  typedef struct  PS_DesignMap_
+  {
+	FT_Byte    num_points;
+	FT_Long*   design_points;
+	FT_Fixed*  blend_points;
+
+  } PS_DesignMapRec, *PS_DesignMap;
+
+  /* backward compatible definition */
+  typedef PS_DesignMapRec  T1_DesignMap;
+
+  typedef struct  PS_BlendRec_
+  {
+	FT_UInt          num_designs;
+	FT_UInt          num_axis;
+
+	FT_String*       axis_names[T1_MAX_MM_AXIS];
+	FT_Fixed*        design_pos[T1_MAX_MM_DESIGNS];
+	PS_DesignMapRec  design_map[T1_MAX_MM_AXIS];
+
+	FT_Fixed*        weight_vector;
+	FT_Fixed*        default_weight_vector;
+
+	PS_FontInfo      font_infos[T1_MAX_MM_DESIGNS + 1];
+	PS_Private       privates  [T1_MAX_MM_DESIGNS + 1];
+
+	FT_ULong         blend_bitflags;
+
+	FT_BBox*         bboxes    [T1_MAX_MM_DESIGNS + 1];
+
+	/* since 2.3.0 */
+
+	/* undocumented, optional: the default design instance;   */
+	/* corresponds to default_weight_vector --                */
+	/* num_default_design_vector == 0 means it is not present */
+	/* in the font and associated metrics files               */
+	FT_UInt          default_design_vector[T1_MAX_MM_DESIGNS];
+	FT_UInt          num_default_design_vector;
+
+  } PS_BlendRec, *PS_Blend;
+
+  /* backward compatible definition */
+  typedef PS_BlendRec  T1_Blend;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceDictRec
+   *
+   * @description:
+   *   A structure used to represent data in a CID top-level dictionary.  In
+   *   most cases, they are part of the font's '/FDArray' array.  Within a
+   *   CID font file, such (internal) subfont dictionaries are enclosed by
+   *   '%ADOBeginFontDict' and '%ADOEndFontDict' comments.
+   *
+   *   Note that `CID_FaceDictRec` misses a field for the '/FontName'
+   *   keyword, specifying the subfont's name (the top-level font name is
+   *   given by the '/CIDFontName' keyword).  This is an oversight, but it
+   *   doesn't limit the 'cid' font module's functionality because FreeType
+   *   neither needs this entry nor gives access to CID subfonts.
+   */
+  typedef struct  CID_FaceDictRec_
+  {
+	PS_PrivateRec  private_dict;
+
+	FT_UInt        len_buildchar;
+	FT_Fixed       forcebold_threshold;
+	FT_Pos         stroke_width;
+	FT_Fixed       expansion_factor;   /* this is a duplicate of           */
+									   /* `private_dict->expansion_factor' */
+	FT_Byte        paint_type;
+	FT_Byte        font_type;
+	FT_Matrix      font_matrix;
+	FT_Vector      font_offset;
+
+	FT_UInt        num_subrs;
+	FT_ULong       subrmap_offset;
+	FT_UInt        sd_bytes;
+
+  } CID_FaceDictRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceDict
+   *
+   * @description:
+   *   A handle to a @CID_FaceDictRec structure.
+   */
+  typedef struct CID_FaceDictRec_*  CID_FaceDict;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FontDict
+   *
+   * @description:
+   *   This type is equivalent to @CID_FaceDictRec.  It is deprecated but
+   *   kept to maintain source compatibility between various versions of
+   *   FreeType.
+   */
+  typedef CID_FaceDictRec  CID_FontDict;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceInfoRec
+   *
+   * @description:
+   *   A structure used to represent CID Face information.
+   */
+  typedef struct  CID_FaceInfoRec_
+  {
+	FT_String*      cid_font_name;
+	FT_Fixed        cid_version;
+	FT_Int          cid_font_type;
+
+	FT_String*      registry;
+	FT_String*      ordering;
+	FT_Int          supplement;
+
+	PS_FontInfoRec  font_info;
+	FT_BBox         font_bbox;
+	FT_ULong        uid_base;
+
+	FT_Int          num_xuid;
+	FT_ULong        xuid[16];
+
+	FT_ULong        cidmap_offset;
+	FT_UInt         fd_bytes;
+	FT_UInt         gd_bytes;
+	FT_ULong        cid_count;
+
+	FT_UInt         num_dicts;
+	CID_FaceDict    font_dicts;
+
+	FT_ULong        data_offset;
+
+  } CID_FaceInfoRec;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_FaceInfo
+   *
+   * @description:
+   *   A handle to a @CID_FaceInfoRec structure.
+   */
+  typedef struct CID_FaceInfoRec_*  CID_FaceInfo;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   CID_Info
+   *
+   * @description:
+   *  This type is equivalent to @CID_FaceInfoRec.  It is deprecated but kept
+   *  to maintain source compatibility between various versions of FreeType.
+   */
+  typedef CID_FaceInfoRec  CID_Info;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Has_PS_Glyph_Names
+   *
+   * @description:
+   *   Return true if a given face provides reliable PostScript glyph names.
+   *   This is similar to using the @FT_HAS_GLYPH_NAMES macro, except that
+   *   certain fonts (mostly TrueType) contain incorrect glyph name tables.
+   *
+   *   When this function returns true, the caller is sure that the glyph
+   *   names returned by @FT_Get_Glyph_Name are reliable.
+   *
+   * @input:
+   *   face ::
+   *     face handle
+   *
+   * @return:
+   *   Boolean.  True if glyph names are reliable.
+   *
+   */
+  FT_EXPORT( FT_Int )
+  FT_Has_PS_Glyph_Names( FT_Face  face );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_PS_Font_Info
+   *
+   * @description:
+   *   Retrieve the @PS_FontInfoRec structure corresponding to a given
+   *   PostScript font.
+   *
+   * @input:
+   *   face ::
+   *     PostScript face handle.
+   *
+   * @output:
+   *   afont_info ::
+   *     A pointer to a @PS_FontInfoRec object.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   String pointers within the @PS_FontInfoRec structure are owned by the
+   *   face and don't need to be freed by the caller.  Missing entries in the
+   *   font's FontInfo dictionary are represented by `NULL` pointers.
+   *
+   *   The following font formats support this feature: 'Type~1', 'Type~42',
+   *   'CFF', 'CID~Type~1'.  For other font formats this function returns the
+   *   `FT_Err_Invalid_Argument` error code.
+   *
+   * @example:
+   *   ```
+   *     PS_FontInfoRec  font_info;
+   *
+   *
+   *     error = FT_Get_PS_Font_Info( face, &font_info );
+   *     ...
+   *   ```
+   *
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_PS_Font_Info( FT_Face      face,
+					   PS_FontInfo  afont_info );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_PS_Font_Private
+   *
+   * @description:
+   *   Retrieve the @PS_PrivateRec structure corresponding to a given
+   *   PostScript font.
+   *
+   * @input:
+   *   face ::
+   *     PostScript face handle.
+   *
+   * @output:
+   *   afont_private ::
+   *     A pointer to a @PS_PrivateRec object.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The string pointers within the @PS_PrivateRec structure are owned by
+   *   the face and don't need to be freed by the caller.
+   *
+   *   Only the 'Type~1' font format supports this feature.  For other font
+   *   formats this function returns the `FT_Err_Invalid_Argument` error
+   *   code.
+   *
+   * @example:
+   *   ```
+   *     PS_PrivateRec  font_private;
+   *
+   *
+   *     error = FT_Get_PS_Font_Private( face, &font_private );
+   *     ...
+   *   ```
+   *
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_PS_Font_Private( FT_Face     face,
+						  PS_Private  afont_private );
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   T1_EncodingType
+   *
+   * @description:
+   *   An enumeration describing the 'Encoding' entry in a Type 1 dictionary.
+   *
+   * @values:
+   *   T1_ENCODING_TYPE_NONE ::
+   *   T1_ENCODING_TYPE_ARRAY ::
+   *   T1_ENCODING_TYPE_STANDARD ::
+   *   T1_ENCODING_TYPE_ISOLATIN1 ::
+   *   T1_ENCODING_TYPE_EXPERT ::
+   *
+   * @since:
+   *   2.4.8
+   */
+  typedef enum  T1_EncodingType_
+  {
+	T1_ENCODING_TYPE_NONE = 0,
+	T1_ENCODING_TYPE_ARRAY,
+	T1_ENCODING_TYPE_STANDARD,
+	T1_ENCODING_TYPE_ISOLATIN1,
+	T1_ENCODING_TYPE_EXPERT
+
+  } T1_EncodingType;
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   PS_Dict_Keys
+   *
+   * @description:
+   *   An enumeration used in calls to @FT_Get_PS_Font_Value to identify the
+   *   Type~1 dictionary entry to retrieve.
+   *
+   * @values:
+   *   PS_DICT_FONT_TYPE ::
+   *   PS_DICT_FONT_MATRIX ::
+   *   PS_DICT_FONT_BBOX ::
+   *   PS_DICT_PAINT_TYPE ::
+   *   PS_DICT_FONT_NAME ::
+   *   PS_DICT_UNIQUE_ID ::
+   *   PS_DICT_NUM_CHAR_STRINGS ::
+   *   PS_DICT_CHAR_STRING_KEY ::
+   *   PS_DICT_CHAR_STRING ::
+   *   PS_DICT_ENCODING_TYPE ::
+   *   PS_DICT_ENCODING_ENTRY ::
+   *   PS_DICT_NUM_SUBRS ::
+   *   PS_DICT_SUBR ::
+   *   PS_DICT_STD_HW ::
+   *   PS_DICT_STD_VW ::
+   *   PS_DICT_NUM_BLUE_VALUES ::
+   *   PS_DICT_BLUE_VALUE ::
+   *   PS_DICT_BLUE_FUZZ ::
+   *   PS_DICT_NUM_OTHER_BLUES ::
+   *   PS_DICT_OTHER_BLUE ::
+   *   PS_DICT_NUM_FAMILY_BLUES ::
+   *   PS_DICT_FAMILY_BLUE ::
+   *   PS_DICT_NUM_FAMILY_OTHER_BLUES ::
+   *   PS_DICT_FAMILY_OTHER_BLUE ::
+   *   PS_DICT_BLUE_SCALE ::
+   *   PS_DICT_BLUE_SHIFT ::
+   *   PS_DICT_NUM_STEM_SNAP_H ::
+   *   PS_DICT_STEM_SNAP_H ::
+   *   PS_DICT_NUM_STEM_SNAP_V ::
+   *   PS_DICT_STEM_SNAP_V ::
+   *   PS_DICT_FORCE_BOLD ::
+   *   PS_DICT_RND_STEM_UP ::
+   *   PS_DICT_MIN_FEATURE ::
+   *   PS_DICT_LEN_IV ::
+   *   PS_DICT_PASSWORD ::
+   *   PS_DICT_LANGUAGE_GROUP ::
+   *   PS_DICT_VERSION ::
+   *   PS_DICT_NOTICE ::
+   *   PS_DICT_FULL_NAME ::
+   *   PS_DICT_FAMILY_NAME ::
+   *   PS_DICT_WEIGHT ::
+   *   PS_DICT_IS_FIXED_PITCH ::
+   *   PS_DICT_UNDERLINE_POSITION ::
+   *   PS_DICT_UNDERLINE_THICKNESS ::
+   *   PS_DICT_FS_TYPE ::
+   *   PS_DICT_ITALIC_ANGLE ::
+   *
+   * @since:
+   *   2.4.8
+   */
+  typedef enum  PS_Dict_Keys_
+  {
+	/* conventionally in the font dictionary */
+	PS_DICT_FONT_TYPE,              /* FT_Byte         */
+	PS_DICT_FONT_MATRIX,            /* FT_Fixed        */
+	PS_DICT_FONT_BBOX,              /* FT_Fixed        */
+	PS_DICT_PAINT_TYPE,             /* FT_Byte         */
+	PS_DICT_FONT_NAME,              /* FT_String*      */
+	PS_DICT_UNIQUE_ID,              /* FT_Int          */
+	PS_DICT_NUM_CHAR_STRINGS,       /* FT_Int          */
+	PS_DICT_CHAR_STRING_KEY,        /* FT_String*      */
+	PS_DICT_CHAR_STRING,            /* FT_String*      */
+	PS_DICT_ENCODING_TYPE,          /* T1_EncodingType */
+	PS_DICT_ENCODING_ENTRY,         /* FT_String*      */
+
+	/* conventionally in the font Private dictionary */
+	PS_DICT_NUM_SUBRS,              /* FT_Int     */
+	PS_DICT_SUBR,                   /* FT_String* */
+	PS_DICT_STD_HW,                 /* FT_UShort  */
+	PS_DICT_STD_VW,                 /* FT_UShort  */
+	PS_DICT_NUM_BLUE_VALUES,        /* FT_Byte    */
+	PS_DICT_BLUE_VALUE,             /* FT_Short   */
+	PS_DICT_BLUE_FUZZ,              /* FT_Int     */
+	PS_DICT_NUM_OTHER_BLUES,        /* FT_Byte    */
+	PS_DICT_OTHER_BLUE,             /* FT_Short   */
+	PS_DICT_NUM_FAMILY_BLUES,       /* FT_Byte    */
+	PS_DICT_FAMILY_BLUE,            /* FT_Short   */
+	PS_DICT_NUM_FAMILY_OTHER_BLUES, /* FT_Byte    */
+	PS_DICT_FAMILY_OTHER_BLUE,      /* FT_Short   */
+	PS_DICT_BLUE_SCALE,             /* FT_Fixed   */
+	PS_DICT_BLUE_SHIFT,             /* FT_Int     */
+	PS_DICT_NUM_STEM_SNAP_H,        /* FT_Byte    */
+	PS_DICT_STEM_SNAP_H,            /* FT_Short   */
+	PS_DICT_NUM_STEM_SNAP_V,        /* FT_Byte    */
+	PS_DICT_STEM_SNAP_V,            /* FT_Short   */
+	PS_DICT_FORCE_BOLD,             /* FT_Bool    */
+	PS_DICT_RND_STEM_UP,            /* FT_Bool    */
+	PS_DICT_MIN_FEATURE,            /* FT_Short   */
+	PS_DICT_LEN_IV,                 /* FT_Int     */
+	PS_DICT_PASSWORD,               /* FT_Long    */
+	PS_DICT_LANGUAGE_GROUP,         /* FT_Long    */
+
+	/* conventionally in the font FontInfo dictionary */
+	PS_DICT_VERSION,                /* FT_String* */
+	PS_DICT_NOTICE,                 /* FT_String* */
+	PS_DICT_FULL_NAME,              /* FT_String* */
+	PS_DICT_FAMILY_NAME,            /* FT_String* */
+	PS_DICT_WEIGHT,                 /* FT_String* */
+	PS_DICT_IS_FIXED_PITCH,         /* FT_Bool    */
+	PS_DICT_UNDERLINE_POSITION,     /* FT_Short   */
+	PS_DICT_UNDERLINE_THICKNESS,    /* FT_UShort  */
+	PS_DICT_FS_TYPE,                /* FT_UShort  */
+	PS_DICT_ITALIC_ANGLE,           /* FT_Long    */
+
+	PS_DICT_MAX = PS_DICT_ITALIC_ANGLE
+
+  } PS_Dict_Keys;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_PS_Font_Value
+   *
+   * @description:
+   *   Retrieve the value for the supplied key from a PostScript font.
+   *
+   * @input:
+   *   face ::
+   *     PostScript face handle.
+   *
+   *   key ::
+   *     An enumeration value representing the dictionary key to retrieve.
+   *
+   *   idx ::
+   *     For array values, this specifies the index to be returned.
+   *
+   *   value ::
+   *     A pointer to memory into which to write the value.
+   *
+   *   valen_len ::
+   *     The size, in bytes, of the memory supplied for the value.
+   *
+   * @output:
+   *   value ::
+   *     The value matching the above key, if it exists.
+   *
+   * @return:
+   *   The amount of memory (in bytes) required to hold the requested value
+   *   (if it exists, -1 otherwise).
+   *
+   * @note:
+   *   The values returned are not pointers into the internal structures of
+   *   the face, but are 'fresh' copies, so that the memory containing them
+   *   belongs to the calling application.  This also enforces the
+   *   'read-only' nature of these values, i.e., this function cannot be
+   *   used to manipulate the face.
+   *
+   *   `value` is a void pointer because the values returned can be of
+   *   various types.
+   *
+   *   If either `value` is `NULL` or `value_len` is too small, just the
+   *   required memory size for the requested entry is returned.
+   *
+   *   The `idx` parameter is used, not only to retrieve elements of, for
+   *   example, the FontMatrix or FontBBox, but also to retrieve name keys
+   *   from the CharStrings dictionary, and the charstrings themselves.  It
+   *   is ignored for atomic values.
+   *
+   *   `PS_DICT_BLUE_SCALE` returns a value that is scaled up by 1000.  To
+   *   get the value as in the font stream, you need to divide by 65536000.0
+   *   (to remove the FT_Fixed scale, and the x1000 scale).
+   *
+   *   IMPORTANT: Only key/value pairs read by the FreeType interpreter can
+   *   be retrieved.  So, for example, PostScript procedures such as NP, ND,
+   *   and RD are not available.  Arbitrary keys are, obviously, not be
+   *   available either.
+   *
+   *   If the font's format is not PostScript-based, this function returns
+   *   the `FT_Err_Invalid_Argument` error code.
+   *
+   * @since:
+   *   2.4.8
+   *
+   */
+  FT_EXPORT( FT_Long )
+  FT_Get_PS_Font_Value( FT_Face       face,
+						PS_Dict_Keys  key,
+						FT_UInt       idx,
+						void         *value,
+						FT_Long       value_len );
+
+  /* */
+
+FT_END_HEADER
+
+#endif /* T1TABLES_H_ */
+
+/* END */
+
+/*** End of inlined file: t1tables.h ***/
+
+FT_BEGIN_HEADER
+
+  /**************************************************************************
+   *
+   * @section:
+   *   multiple_masters
+   *
+   * @title:
+   *   Multiple Masters
+   *
+   * @abstract:
+   *   How to manage Multiple Masters fonts.
+   *
+   * @description:
+   *   The following types and functions are used to manage Multiple Master
+   *   fonts, i.e., the selection of specific design instances by setting
+   *   design axis coordinates.
+   *
+   *   Besides Adobe MM fonts, the interface supports Apple's TrueType GX and
+   *   OpenType variation fonts.  Some of the routines only work with Adobe
+   *   MM fonts, others will work with all three types.  They are similar
+   *   enough that a consistent interface makes sense.
+   *
+   *   For Adobe MM fonts, macro @FT_IS_SFNT returns false.  For GX and
+   *   OpenType variation fonts, it returns true.
+   *
+   */
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_MM_Axis
+   *
+   * @description:
+   *   A structure to model a given axis in design space for Multiple Masters
+   *   fonts.
+   *
+   *   This structure can't be used for TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @fields:
+   *   name ::
+   *     The axis's name.
+   *
+   *   minimum ::
+   *     The axis's minimum design coordinate.
+   *
+   *   maximum ::
+   *     The axis's maximum design coordinate.
+   */
+  typedef struct  FT_MM_Axis_
+  {
+	FT_String*  name;
+	FT_Long     minimum;
+	FT_Long     maximum;
+
+  } FT_MM_Axis;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Multi_Master
+   *
+   * @description:
+   *   A structure to model the axes and space of a Multiple Masters font.
+   *
+   *   This structure can't be used for TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @fields:
+   *   num_axis ::
+   *     Number of axes.  Cannot exceed~4.
+   *
+   *   num_designs ::
+   *     Number of designs; should be normally 2^num_axis even though the
+   *     Type~1 specification strangely allows for intermediate designs to be
+   *     present.  This number cannot exceed~16.
+   *
+   *   axis ::
+   *     A table of axis descriptors.
+   */
+  typedef struct  FT_Multi_Master_
+  {
+	FT_UInt     num_axis;
+	FT_UInt     num_designs;
+	FT_MM_Axis  axis[T1_MAX_MM_AXIS];
+
+  } FT_Multi_Master;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Var_Axis
+   *
+   * @description:
+   *   A structure to model a given axis in design space for Multiple
+   *   Masters, TrueType GX, and OpenType variation fonts.
+   *
+   * @fields:
+   *   name ::
+   *     The axis's name.  Not always meaningful for TrueType GX or OpenType
+   *     variation fonts.
+   *
+   *   minimum ::
+   *     The axis's minimum design coordinate.
+   *
+   *   def ::
+   *     The axis's default design coordinate.  FreeType computes meaningful
+   *     default values for Adobe MM fonts.
+   *
+   *   maximum ::
+   *     The axis's maximum design coordinate.
+   *
+   *   tag ::
+   *     The axis's tag (the equivalent to 'name' for TrueType GX and
+   *     OpenType variation fonts).  FreeType provides default values for
+   *     Adobe MM fonts if possible.
+   *
+   *   strid ::
+   *     The axis name entry in the font's 'name' table.  This is another
+   *     (and often better) version of the 'name' field for TrueType GX or
+   *     OpenType variation fonts.  Not meaningful for Adobe MM fonts.
+   *
+   * @note:
+   *   The fields `minimum`, `def`, and `maximum` are 16.16 fractional values
+   *   for TrueType GX and OpenType variation fonts.  For Adobe MM fonts, the
+   *   values are whole numbers (i.e., the fractional part is zero).
+   */
+  typedef struct  FT_Var_Axis_
+  {
+	FT_String*  name;
+
+	FT_Fixed    minimum;
+	FT_Fixed    def;
+	FT_Fixed    maximum;
+
+	FT_ULong    tag;
+	FT_UInt     strid;
+
+  } FT_Var_Axis;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_Var_Named_Style
+   *
+   * @description:
+   *   A structure to model a named instance in a TrueType GX or OpenType
+   *   variation font.
+   *
+   *   This structure can't be used for Adobe MM fonts.
+   *
+   * @fields:
+   *   coords ::
+   *     The design coordinates for this instance.  This is an array with one
+   *     entry for each axis.
+   *
+   *   strid ::
+   *     The entry in 'name' table identifying this instance.
+   *
+   *   psid ::
+   *     The entry in 'name' table identifying a PostScript name for this
+   *     instance.  Value 0xFFFF indicates a missing entry.
+   */
+  typedef struct  FT_Var_Named_Style_
+  {
+	FT_Fixed*  coords;
+	FT_UInt    strid;
+	FT_UInt    psid;   /* since 2.7.1 */
+
+  } FT_Var_Named_Style;
+
+  /**************************************************************************
+   *
+   * @struct:
+   *   FT_MM_Var
+   *
+   * @description:
+   *   A structure to model the axes and space of an Adobe MM, TrueType GX,
+   *   or OpenType variation font.
+   *
+   *   Some fields are specific to one format and not to the others.
+   *
+   * @fields:
+   *   num_axis ::
+   *     The number of axes.  The maximum value is~4 for Adobe MM fonts; no
+   *     limit in TrueType GX or OpenType variation fonts.
+   *
+   *   num_designs ::
+   *     The number of designs; should be normally 2^num_axis for Adobe MM
+   *     fonts.  Not meaningful for TrueType GX or OpenType variation fonts
+   *     (where every glyph could have a different number of designs).
+   *
+   *   num_namedstyles ::
+   *     The number of named styles; a 'named style' is a tuple of design
+   *     coordinates that has a string ID (in the 'name' table) associated
+   *     with it.  The font can tell the user that, for example,
+   *     [Weight=1.5,Width=1.1] is 'Bold'.  Another name for 'named style' is
+   *     'named instance'.
+   *
+   *     For Adobe Multiple Masters fonts, this value is always zero because
+   *     the format does not support named styles.
+   *
+   *   axis ::
+   *     An axis descriptor table.  TrueType GX and OpenType variation fonts
+   *     contain slightly more data than Adobe MM fonts.  Memory management
+   *     of this pointer is done internally by FreeType.
+   *
+   *   namedstyle ::
+   *     A named style (instance) table.  Only meaningful for TrueType GX and
+   *     OpenType variation fonts.  Memory management of this pointer is done
+   *     internally by FreeType.
+   */
+  typedef struct  FT_MM_Var_
+  {
+	FT_UInt              num_axis;
+	FT_UInt              num_designs;
+	FT_UInt              num_namedstyles;
+	FT_Var_Axis*         axis;
+	FT_Var_Named_Style*  namedstyle;
+
+  } FT_MM_Var;
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Multi_Master
+   *
+   * @description:
+   *   Retrieve a variation descriptor of a given Adobe MM font.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @output:
+   *   amaster ::
+   *     The Multiple Masters descriptor.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Multi_Master( FT_Face           face,
+					   FT_Multi_Master  *amaster );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_MM_Var
+   *
+   * @description:
+   *   Retrieve a variation descriptor for a given font.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @output:
+   *   amaster ::
+   *     The variation descriptor.  Allocates a data structure, which the
+   *     user must deallocate with a call to @FT_Done_MM_Var after use.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_MM_Var( FT_Face      face,
+				 FT_MM_Var*  *amaster );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Done_MM_Var
+   *
+   * @description:
+   *   Free the memory allocated by @FT_Get_MM_Var.
+   *
+   * @input:
+   *   library ::
+   *     A handle of the face's parent library object that was used in the
+   *     call to @FT_Get_MM_Var to create `amaster`.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Done_MM_Var( FT_Library   library,
+				  FT_MM_Var   *amaster );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_MM_Design_Coordinates
+   *
+   * @description:
+   *   For Adobe MM fonts, choose an interpolated font design through design
+   *   coordinates.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   num_coords ::
+   *     The number of available design coordinates.  If it is larger than
+   *     the number of axes, ignore the excess values.  If it is smaller than
+   *     the number of axes, use default values for the remaining axes.
+   *
+   *   coords ::
+   *     An array of design coordinates.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   [Since 2.8.1] To reset all axes to the default values, call the
+   *   function with `num_coords` set to zero and `coords` set to `NULL`.
+   *
+   *   [Since 2.9] If `num_coords` is larger than zero, this function sets
+   *   the @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field
+   *   (i.e., @FT_IS_VARIATION will return true).  If `num_coords` is zero,
+   *   this bit flag gets unset.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_MM_Design_Coordinates( FT_Face   face,
+								FT_UInt   num_coords,
+								FT_Long*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Var_Design_Coordinates
+   *
+   * @description:
+   *   Choose an interpolated font design through design coordinates.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   num_coords ::
+   *     The number of available design coordinates.  If it is larger than
+   *     the number of axes, ignore the excess values.  If it is smaller than
+   *     the number of axes, use default values for the remaining axes.
+   *
+   *   coords ::
+   *     An array of design coordinates.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The design coordinates are 16.16 fractional values for TrueType GX and
+   *   OpenType variation fonts.  For Adobe MM fonts, the values are supposed
+   *   to be whole numbers (i.e., the fractional part is zero).
+   *
+   *   [Since 2.8.1] To reset all axes to the default values, call the
+   *   function with `num_coords` set to zero and `coords` set to `NULL`.
+   *   [Since 2.9] 'Default values' means the currently selected named
+   *   instance (or the base font if no named instance is selected).
+   *
+   *   [Since 2.9] If `num_coords` is larger than zero, this function sets
+   *   the @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field
+   *   (i.e., @FT_IS_VARIATION will return true).  If `num_coords` is zero,
+   *   this bit flag gets unset.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_Var_Design_Coordinates( FT_Face    face,
+								 FT_UInt    num_coords,
+								 FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Var_Design_Coordinates
+   *
+   * @description:
+   *   Get the design coordinates of the currently selected interpolated
+   *   font.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   num_coords ::
+   *     The number of design coordinates to retrieve.  If it is larger than
+   *     the number of axes, set the excess values to~0.
+   *
+   * @output:
+   *   coords ::
+   *     The design coordinates array.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The design coordinates are 16.16 fractional values for TrueType GX and
+   *   OpenType variation fonts.  For Adobe MM fonts, the values are whole
+   *   numbers (i.e., the fractional part is zero).
+   *
+   * @since:
+   *   2.7.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Var_Design_Coordinates( FT_Face    face,
+								 FT_UInt    num_coords,
+								 FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_MM_Blend_Coordinates
+   *
+   * @description:
+   *   Choose an interpolated font design through normalized blend
+   *   coordinates.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   num_coords ::
+   *     The number of available design coordinates.  If it is larger than
+   *     the number of axes, ignore the excess values.  If it is smaller than
+   *     the number of axes, use default values for the remaining axes.
+   *
+   *   coords ::
+   *     The design coordinates array.  Each element is a 16.16 fractional
+   *     value and must be between 0 and 1.0 for Adobe MM fonts, and between
+   *     -1.0 and 1.0 for TrueType GX and OpenType variation fonts.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   [Since 2.8.1] To reset all axes to the default values, call the
+   *   function with `num_coords` set to zero and `coords` set to `NULL`.
+   *   [Since 2.9] 'Default values' means the currently selected named
+   *   instance (or the base font if no named instance is selected).
+   *
+   *   [Since 2.9] If `num_coords` is larger than zero, this function sets
+   *   the @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field
+   *   (i.e., @FT_IS_VARIATION will return true).  If `num_coords` is zero,
+   *   this bit flag gets unset.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_MM_Blend_Coordinates( FT_Face    face,
+							   FT_UInt    num_coords,
+							   FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_MM_Blend_Coordinates
+   *
+   * @description:
+   *   Get the normalized blend coordinates of the currently selected
+   *   interpolated font.
+   *
+   *   This function works with all supported variation formats.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   num_coords ::
+   *     The number of normalized blend coordinates to retrieve.  If it is
+   *     larger than the number of axes, set the excess values to~0.5 for
+   *     Adobe MM fonts, and to~0 for TrueType GX and OpenType variation
+   *     fonts.
+   *
+   * @output:
+   *   coords ::
+   *     The normalized blend coordinates array (as 16.16 fractional values).
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @since:
+   *   2.7.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_MM_Blend_Coordinates( FT_Face    face,
+							   FT_UInt    num_coords,
+							   FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Var_Blend_Coordinates
+   *
+   * @description:
+   *   This is another name of @FT_Set_MM_Blend_Coordinates.
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_Var_Blend_Coordinates( FT_Face    face,
+								FT_UInt    num_coords,
+								FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Var_Blend_Coordinates
+   *
+   * @description:
+   *   This is another name of @FT_Get_MM_Blend_Coordinates.
+   *
+   * @since:
+   *   2.7.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Var_Blend_Coordinates( FT_Face    face,
+								FT_UInt    num_coords,
+								FT_Fixed*  coords );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_MM_WeightVector
+   *
+   * @description:
+   *   For Adobe MM fonts, choose an interpolated font design by directly
+   *   setting the weight vector.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @input:
+   *   len ::
+   *     The length of the weight vector array.  If it is larger than the
+   *     number of designs, the extra values are ignored.  If it is less than
+   *     the number of designs, the remaining values are set to zero.
+   *
+   *   weightvector ::
+   *     An array representing the weight vector.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   Adobe Multiple Master fonts limit the number of designs, and thus the
+   *   length of the weight vector to 16~elements.
+   *
+   *   If `len` is larger than zero, this function sets the
+   *   @FT_FACE_FLAG_VARIATION bit in @FT_Face's `face_flags` field (i.e.,
+   *   @FT_IS_VARIATION will return true).  If `len` is zero, this bit flag
+   *   is unset and the weight vector array is reset to the default values.
+   *
+   *   The Adobe documentation also states that the values in the
+   *   WeightVector array must total 1.0 +/-~0.001.  In practice this does
+   *   not seem to be enforced, so is not enforced here, either.
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_MM_WeightVector( FT_Face    face,
+						  FT_UInt    len,
+						  FT_Fixed*  weightvector );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_MM_WeightVector
+   *
+   * @description:
+   *   For Adobe MM fonts, retrieve the current weight vector of the font.
+   *
+   *   This function can't be used with TrueType GX or OpenType variation
+   *   fonts.
+   *
+   * @inout:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   len ::
+   *     A pointer to the size of the array to be filled.  If the size of the
+   *     array is less than the number of designs, `FT_Err_Invalid_Argument`
+   *     is returned, and `len` is set to the required size (the number of
+   *     designs).  If the size of the array is greater than the number of
+   *     designs, the remaining entries are set to~0.  On successful
+   *     completion, `len` is set to the number of designs (i.e., the number
+   *     of values written to the array).
+   *
+   * @output:
+   *   weightvector ::
+   *     An array to be filled.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   Adobe Multiple Master fonts limit the number of designs, and thus the
+   *   length of the WeightVector to~16.
+   *
+   * @since:
+   *   2.10
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_MM_WeightVector( FT_Face    face,
+						  FT_UInt*   len,
+						  FT_Fixed*  weightvector );
+
+  /**************************************************************************
+   *
+   * @enum:
+   *   FT_VAR_AXIS_FLAG_XXX
+   *
+   * @description:
+   *   A list of bit flags used in the return value of
+   *   @FT_Get_Var_Axis_Flags.
+   *
+   * @values:
+   *   FT_VAR_AXIS_FLAG_HIDDEN ::
+   *     The variation axis should not be exposed to user interfaces.
+   *
+   * @since:
+   *   2.8.1
+   */
+#define FT_VAR_AXIS_FLAG_HIDDEN  1
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Var_Axis_Flags
+   *
+   * @description:
+   *   Get the 'flags' field of an OpenType Variation Axis Record.
+   *
+   *   Not meaningful for Adobe MM fonts (`*flags` is always zero).
+   *
+   * @input:
+   *   master ::
+   *     The variation descriptor.
+   *
+   *   axis_index ::
+   *     The index of the requested variation axis.
+   *
+   * @output:
+   *   flags ::
+   *     The 'flags' field.  See @FT_VAR_AXIS_FLAG_XXX for possible values.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @since:
+   *   2.8.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Var_Axis_Flags( FT_MM_Var*  master,
+						 FT_UInt     axis_index,
+						 FT_UInt*    flags );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Set_Named_Instance
+   *
+   * @description:
+   *   Set or change the current named instance.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   *   instance_index ::
+   *     The index of the requested instance, starting with value 1.  If set
+   *     to value 0, FreeType switches to font access without a named
+   *     instance.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   The function uses the value of `instance_index` to set bits 16-30 of
+   *   the face's `face_index` field.  It also resets any variation applied
+   *   to the font, and the @FT_FACE_FLAG_VARIATION bit of the face's
+   *   `face_flags` field gets reset to zero (i.e., @FT_IS_VARIATION will
+   *   return false).
+   *
+   *   For Adobe MM fonts (which don't have named instances) this function
+   *   simply resets the current face to the default instance.
+   *
+   * @since:
+   *   2.9
+   */
+  FT_EXPORT( FT_Error )
+  FT_Set_Named_Instance( FT_Face  face,
+						 FT_UInt  instance_index );
+
+  /**************************************************************************
+   *
+   * @function:
+   *   FT_Get_Default_Named_Instance
+   *
+   * @description:
+   *   Retrieve the index of the default named instance, to be used with
+   *   @FT_Set_Named_Instance.
+   *
+   *   The default instance of a variation font is that instance for which
+   *   the nth axis coordinate is equal to `axis[n].def` (as specified in the
+   *   @FT_MM_Var structure), with~n covering all axes.
+   *
+   *   FreeType synthesizes a named instance for the default instance if the
+   *   font does not contain such an entry.
+   *
+   * @input:
+   *   face ::
+   *     A handle to the source face.
+   *
+   * @output:
+   *   instance_index ::
+   *     The index of the default named instance.
+   *
+   * @return:
+   *   FreeType error code.  0~means success.
+   *
+   * @note:
+   *   For Adobe MM fonts (which don't have named instances) this function
+   *   always returns zero for `instance_index`.
+   *
+   * @since:
+   *   2.13.1
+   */
+  FT_EXPORT( FT_Error )
+  FT_Get_Default_Named_Instance( FT_Face   face,
+								 FT_UInt  *instance_index );
+
+  /* */
+
+FT_END_HEADER
+
+#endif /* FTMM_H_ */
+
+/* END */
+
+/*** End of inlined file: ftmm.h ***/
+
 #ifdef _MSC_VER
 #pragma pop_macro("_CRT_SECURE_NO_WARNINGS")
 #endif

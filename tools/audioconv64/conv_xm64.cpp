@@ -212,6 +212,7 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 
 	// Write metadata into a temporary file
 	FILE *meta = tmpfile();
+	assert(meta && "Temporary file creation failed");
 
 	int totsamples = 0;
 	for (int i=0;i<ctx->module.num_instruments;i++) {

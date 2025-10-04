@@ -304,6 +304,7 @@ CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/co
     --with-cpu=mips64vr4300 \
     --disable-libssp \
     --disable-werror \
+    --enable-newlib-io-c99-formats \
     --enable-newlib-multithread \
     --enable-newlib-retargetable-locking
 make -j "$JOBS"
@@ -370,6 +371,7 @@ else
         --with-cpu=mips64vr4300 \
         --disable-libssp \
         --disable-werror \
+        --enable-newlib-io-c99-formats \
         --enable-newlib-multithread \
         --enable-newlib-retargetable-locking
     make -j "$JOBS"

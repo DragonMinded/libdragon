@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "common/polyfill.h"
 
 #define SAVETYPE_NONE      0x00
 #define SAVETYPE_EEPROM4K  0x10
@@ -147,6 +148,7 @@ uint8_t parse_controller_type(const char* arg)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
 	FILE * write_file = NULL;
 	bool force_rtc = false;
 	bool region_free = false;

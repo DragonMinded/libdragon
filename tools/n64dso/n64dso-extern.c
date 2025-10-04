@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
+#include "../common/polyfill.h"
 
 //Asset decompression
 #include "../../src/asset.c"
@@ -116,6 +117,7 @@ void process(const char *infn)
 
 int main(int argc, char **argv)
 {
+    winconsole_utf8();
     FILE *out_file = stdout;
     if(argc < 2) {
         //Print usage if too few arguments are passed

@@ -597,6 +597,81 @@ typedef enum {
 reset_type_t sys_reset_type(void);
 
 /**
+ * @brief Perform a hardware-accelerated memory set
+ * 
+ * This function uses a special function in the RCP (MI repeat mode)
+ * to perform a fast memset operation. The actual speed is about 6x
+ * a standard 64-bit memeset, and 12x a 32-bit memset.
+ * 
+ * You can use both cached and uncached memory addresses. For cached
+ * addresses, full cache coherency is guaranteed (so it will behave
+ * like a CPU memset would do).
+ * 
+ * All the sys_hw_memsetN functions run at the same speed, so this
+ * function is just as fast as #sys_hw_memset64. You don't need to
+ * use the 64-bit version unless you have a 64-bit pattern to repeat.
+ * 
+ * @note This special mode is not supported on the iQue player, so this
+ *       function falls back to a standard memset when run on iQue.
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         Value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ * 
+ * @see #sys_hw_memset16
+ * @see #sys_hw_memset32
+ * @see #sys_hw_memset64
+ */
+void* sys_hw_memset(void *ptr, uint8_t value, size_t len);
+
+/**
+ * @brief Perform a hardware-accelerated memory set of a 16-bit pattern
+ * 
+ * This function is similar to #sys_hw_memset, but repeats a 16-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABB for 7 bytes will result in the following
+ * memory contents: AA BB AA BB AA BB AA
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         16-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ */
+void* sys_hw_memset16(void *ptr, uint16_t value, size_t len);
+
+/**
+ * @brief Perform a hardware-accelerated memory set of a 32-bit pattern
+ * 
+ * This function is similar to #sys_hw_memset, but repeats a 32-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABBCCDD for 7 bytes will result in the following
+ * memory contents: AA BB CC DD AA BB CC
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         32-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ */
+void* sys_hw_memset32(void *ptr, uint32_t value, size_t len);
+
+/**
+ * @brief Perform a hardware-accelerated memory set of a 64-bit pattern
+ * 
+ * This function is similar to #sys_hw_memset, but repeats a 64-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABBCCDD11223344 for 11 bytes will result in the following
+ * memory contents: AA BB CC DD 11 22 33 44 AA BB CC
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         64-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ */
+void* sys_hw_memset64(void *ptr, uint64_t value, size_t len);
+
+
+/**
  * @name 64-bit address space access
  * @brief Functions to access the full 64-bit address space
  *

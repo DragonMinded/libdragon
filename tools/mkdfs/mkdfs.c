@@ -21,6 +21,7 @@
 #include <stdbool.h>
 #include "dragonfs.h"
 #include "dfsinternal.h"
+#include "../common/polyfill.h"
 
 #define STBDS_NO_SHORT_NAMES
 #define STB_DS_IMPLEMENTATION //Hack to get tools to compile
@@ -384,6 +385,7 @@ void write_dfs_lookup(void)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     if(argc != 3)
     {
         print_help(argv[0]);

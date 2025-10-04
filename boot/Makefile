@@ -11,7 +11,8 @@ else
 endif
 
 N64_GCCPREFIX ?= $(N64_INST)
-N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/mips64-elf-
+N64_TARGET ?= mips64-elf
+N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/$(addsuffix -,$(N64_TARGET))
 N64_CC = $(N64_GCCPREFIX_TRIPLET)gcc
 N64_AS = $(N64_GCCPREFIX_TRIPLET)as
 N64_LD = $(N64_GCCPREFIX_TRIPLET)ld
@@ -21,8 +22,8 @@ N64_SIZE = $(N64_GCCPREFIX_TRIPLET)size
 N64_READELF = $(N64_GCCPREFIX_TRIPLET)readelf
 
 N64_ROOTDIR = $(N64_INST)
-N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
-N64_LIBDIR = $(N64_ROOTDIR)/mips64-elf/lib
+N64_INCLUDEDIR = $(N64_ROOTDIR)/$(N64_TARGET)/include
+N64_LIBDIR = $(N64_ROOTDIR)/$(N64_TARGET)/lib
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -MMD
 N64_CFLAGS += -DN64 -Os -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
@@ -84,6 +85,10 @@ build/ipl3.elf: $(IPL3_LDSCRIPT) $(OBJS)
 
 # Install the IPL3 ROM in the tools directory as a C header file for n64tool.
 install: $(IPL3_ROM)
+ifneq ($(PROD),1)
+	@echo "WARNING: installing the non-production version of IPL3."
+	@echo "WARNING: Use 'make install PROD=1' to install the production version."
+endif
 	BIN_VAR_NAME=$$(echo "$<" | ${SED} 's/[^a-zA-Z0-9]/_/g') ; \
 	xxd -i "$<" | ${SED} "s/$${BIN_VAR_NAME}/default_ipl3/" >../tools/ipl3.h
 
