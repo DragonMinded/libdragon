@@ -248,6 +248,16 @@ int convert_ttf(const char *infn, const char *outfn, std::vector<int>& ranges)
             return 1;
         }
 
+        if (flag_verbose >= 2) {
+            fprintf(stderr, "Variable font with %d axes:\n", mm_var->num_axis);
+            for (FT_UInt i = 0; i < mm_var->num_axis; i++) {
+                auto& axis = mm_var->axis[i];
+                fprintf(stderr, "    '%c%c%c%c': min=%f, def=%f, max=%f\n",
+                        (char) (axis.tag >> 24), (char) (axis.tag >> 16), (char) (axis.tag >> 8), (char) axis.tag,
+                        axis.minimum / 65536.0f, axis.def / 65536.0f, axis.maximum / 65536.0f);
+            }
+        }
+
         std::vector<FT_Fixed> coords(mm_var->num_axis);
         if (FT_Get_Var_Design_Coordinates(face, mm_var->num_axis, coords.data()) != 0) {
             fprintf(stderr, "error: could not retrieve default variable axis values\n");
