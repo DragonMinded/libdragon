@@ -597,6 +597,19 @@ typedef enum {
 reset_type_t sys_reset_type(void);
 
 /**
+ * @brief Get a pointer to the main ELF in ROM
+ * 
+ * This function returns a pointer (virtual address) of the main ELF in ROM,
+ * that is, the address where the running application has been loaded from.
+ * 
+ * This is only useful in some very niche cases, eg. for manually loading
+ * sections of the ELF at runtime, or inspecting custom ROM layouts.
+ * 
+ * @return A pointer to the start of the ELF in ROM
+ */
+void* sys_rom_elf_address(void);
+
+/**
  * @brief Perform a hardware-accelerated memory set
  * 
  * This function uses a special function in the RCP (MI repeat mode)

@@ -22,6 +22,7 @@ int __boot_memsize;        ///< Memory size as detected by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
+int __boot_address_page;   ///< Address in the ROM of the ELF
 
 /** @brief Records whether the user called a function to check for the presence of expanded memory */
 bool __expanded_memory_asserted = false;
@@ -191,6 +192,11 @@ void assert_memory_expanded(void)
 reset_type_t sys_reset_type(void)
 {
     return __boot_resettype;
+}
+
+void *sys_rom_elf_address(void)
+{
+    return (void*)(0xB0000000 | (__boot_address_page << 8));
 }
 
 uint64_t get_ticks(void)
