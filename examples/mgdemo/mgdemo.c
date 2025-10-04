@@ -69,13 +69,14 @@ typedef struct
 
 typedef struct
 {
-    mgfx_submesh_t *submesh;
+    const mgfx_submesh_t *submesh;
     rspq_block_t *block;
 } submesh_data;
 
 typedef struct
 {
-    mgfx_mesh_t *mesh;
+    mgfx_meshdb_t *meshdb;
+    const mgfx_mesh_t *mesh;
     submesh_data *submeshes;
     uint32_t submesh_count;
 } mesh_data;
@@ -107,7 +108,7 @@ void init();
 void update(float delta_time);
 void render();
 void material_create(material_data *mat, sprite_t *texture, mgfx_features_t features, mg_geometry_flags_t geometry_flags, color_t color);
-void mesh_create(mesh_data *mesh, const char *model_file);
+void mesh_create(mesh_data *mesh, const char *model_file, const char *mesh_name);
 uint32_t pipeline_get_or_create(submesh_data* submesh, material_data *material);
 void update_object_transform(object_data *object);
 
@@ -218,7 +219,7 @@ void init()
     // Create meshes and initialize pipelines
     for (size_t i = 0; i < MESH_COUNT; i++)
     {
-        mesh_create(&meshes[i], mesh_files[i]);
+        mesh_create(&meshes[i], mesh_files[i], mesh_names[i]);
     }
 
     // Load textures
@@ -352,7 +353,7 @@ bool are_vertex_layouts_equal(const mg_vertex_layout_t *p0, const mg_vertex_layo
 
 uint32_t pipeline_get_or_create(submesh_data* submesh, material_data *material)
 {
-    const mg_vertex_layout_t *submesh_layout = mgfx_submesh_get_vertex_layout(submesh->submesh);
+    const mg_vertex_layout_t *submesh_layout = &submesh->submesh->vertex_layout;
     // Try to find a pipeline with the same vertex layout and feature set
     for (uint32_t i = 0; i < pipelines_count; i++)
     {
@@ -384,16 +385,18 @@ uint32_t pipeline_get_or_create(submesh_data* submesh, material_data *material)
     return pipelines_count++;
 }
 
-void mesh_create(mesh_data *mesh, const char *model_file)
+void mesh_create(mesh_data *mesh, const char *model_file, const char *mesh_name)
 {
-    mesh->mesh = mgfx_mesh_load(model_file);
-    mesh->submesh_count = mgfx_mesh_get_submesh_count(mesh->mesh);
+    mesh->meshdb = mgfx_meshdb_open(model_file);
+    mesh->mesh = mgfx_meshdb_lookup(mesh->meshdb, mesh_name);
+    assertf(mesh->mesh != NULL, "Mesh \"%s\" was not found in file \"%s\"!", mesh_name, model_file);
+    mesh->submesh_count = mesh->mesh->submesh_count;
     mesh->submeshes = calloc(mesh->submesh_count, sizeof(submesh_data));
 
     for (size_t i = 0; i < mesh->submesh_count; i++)
     {
         submesh_data *submesh = &mesh->submeshes[i];
-        submesh->submesh = mgfx_mesh_get_submesh(mesh->mesh, i);
+        submesh->submesh = &mesh->mesh->submeshes[i];
 
         // To increase performance, we can record the drawing command into a block, since the topology of the mesh doesn't change in this case.
         // Note that we could still modify the vertices themselves if we wanted, by writing to the vertex buffer. This would require some manual
@@ -665,7 +668,7 @@ void render()
             uint16_t mesh_id = current_mesh_id >> 16;
             uint16_t submesh_id = current_mesh_id & 0xFFFF;
             current_submesh = &meshes[mesh_id].submeshes[submesh_id];
-            mgfx_submesh_bind(current_submesh->submesh);
+            mg_bind_vertex_buffer(current_submesh->submesh->vertices);
         }
 
         if (draw_call->object_id != current_object_id) {

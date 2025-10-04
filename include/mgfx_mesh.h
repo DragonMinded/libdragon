@@ -8,20 +8,27 @@
 #define __LIBDRAGON_MGFX_MESH_H
 
 #include <magma.h>
+#include <mgfx_mesh_types.h>
 
-typedef struct mgfx_submesh_s mgfx_submesh_t;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef struct mgfx_mesh_s mgfx_mesh_t;
+mgfx_meshdb_t *mgfx_meshdb_open(const char *fn);
+void mgfx_meshdb_close(mgfx_meshdb_t *meshdb);
+const mgfx_mesh_t *mgfx_meshdb_lookup(mgfx_meshdb_t *meshdb, const char *name);
 
-mgfx_mesh_t *mgfx_mesh_load(const char *fn);
-mgfx_mesh_t *mgfx_mesh_load_buf(void *buf, int sz);
-void mgfx_mesh_free(mgfx_mesh_t *mesh);
-uint32_t mgfx_mesh_get_submesh_count(mgfx_mesh_t *mesh);
-mgfx_submesh_t *mgfx_mesh_get_submesh(mgfx_mesh_t *mesh, uint32_t index);
-void mgfx_mesh_draw(const mgfx_mesh_t *mesh);
+inline void mgfx_submesh_draw(const mgfx_submesh_t *submesh)
+{
+    if (submesh->indices != NULL) {
+        mg_draw_indexed(&submesh->input_assembly_parms, submesh->indices, submesh->indices_count, 0);
+    } else  {
+        mg_draw(&submesh->input_assembly_parms, submesh->vertices_count, 0);
+    }
+}
 
-const mg_vertex_layout_t *mgfx_submesh_get_vertex_layout(const mgfx_submesh_t *submesh);
-void mgfx_submesh_bind(const mgfx_submesh_t *submesh);
-void mgfx_submesh_draw(const mgfx_submesh_t *submesh);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

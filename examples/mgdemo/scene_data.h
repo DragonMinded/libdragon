@@ -53,6 +53,11 @@ static const char *mesh_files[] = {
     "rom:/sphere.mgfx",  // 42 Verts, 80 Tris
 };
 
+static const char *mesh_names[] = {
+    "Cylinder",
+    "Crate",
+    "Sphere"
+};
 
 /* Objects */
 static const uint32_t object_mesh_ids[] = {

@@ -8,6 +8,7 @@
 #include "../common/utils.h"
 #include "../common/assetcomp.h"
 
+#include "../../include/mgfx_mesh_types.h"
 #include "../../src/magma/mgfx_mesh_internal.h"
 #include "../../include/mgfx_constants.h"
 #include "../../include/mgfx_macros.h"
@@ -34,16 +35,23 @@ typedef struct
 
 int flag_verbose = 0;
 
-void mesh_free(mgfx_mesh_t *mesh)
+void meshdb_free(mgfx_meshdb_t *meshdb)
 {
-    for (size_t i = 0; i < mesh->submesh_count; i++)
+    for (size_t i = 0; i < meshdb->mesh_count; i++)
     {
-        mgfx_submesh_t *submesh = &mesh->submeshes[i];
-        if (submesh->vertex_layout.attributes != NULL) free(submesh->vertex_layout.attributes);
-        if (submesh->vertices != NULL) free(submesh->vertices);
-        if (submesh->indices != NULL) free(submesh->indices);
+        mgfx_mesh_t *mesh = meshdb->meshes[i].mesh;
+        if (mesh == NULL) continue;
+
+        for (size_t j = 0; j < mesh->submesh_count; j++)
+        {
+            mgfx_submesh_t *submesh = &mesh->submeshes[j];
+            if (submesh->vertex_layout.attributes != NULL) free(submesh->vertex_layout.attributes);
+            if (submesh->vertices != NULL) free(submesh->vertices);
+            if (submesh->indices != NULL) free(submesh->indices);
+        }
+        free(mesh);
     }
-    
+    free(meshdb);
 }
 
 mg_primitive_topology_t convert_primitive_topology(cgltf_primitive_type in_type)
@@ -377,8 +385,6 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
 
 int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh)
 {
-    memcpy(out_mesh->magic, MGFX_MESH_MAGIC, MGFX_MESH_MAGIC_LEN);
-    out_mesh->version = MGFX_MESH_VERSION;
     out_mesh->submesh_count = in_mesh->primitives_count;
 
     for (size_t i = 0; i < in_mesh->primitives_count; i++)
@@ -396,12 +402,34 @@ int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh)
     return 0;
 }
 
+int convert_meshdb(const cgltf_data *data, mgfx_meshdb_t *out_meshdb)
+{
+    memcpy(out_meshdb->magic, MGFX_MESH_MAGIC, MGFX_MESH_MAGIC_LEN);
+    out_meshdb->version = MGFX_MESH_VERSION;
+    out_meshdb->mesh_count = data->meshes_count;
+
+    for (size_t i = 0; i < data->meshes_count; i++)
+    {
+        const cgltf_mesh *in_mesh = &data->meshes[i];
+        if (flag_verbose) {
+            printf("Converting mesh %s\n", in_mesh->name);
+        }
+        
+        mgfx_mesh_entry_t *entry = &out_meshdb->meshes[i];
+        entry->name = in_mesh->name;
+        entry->mesh = calloc(1, sizeof(mgfx_mesh_t) + sizeof(mgfx_submesh_t) * in_mesh->primitives_count);
+
+        if (convert_mesh(in_mesh, entry->mesh) != 0) {
+            fprintf(stderr, "Error: failed converting mesh %s\n", in_mesh->name);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 void mesh_write(mgfx_mesh_t *mesh, FILE *out)
 {
-    w8(out, mesh->magic[0]);
-    w8(out, mesh->magic[1]);
-    w8(out, mesh->magic[2]);
-    w8(out, mesh->version);
     w32(out, mesh->submesh_count);
 
     for (size_t i = 0; i < mesh->submesh_count; i++)
@@ -462,6 +490,35 @@ void mesh_write(mgfx_mesh_t *mesh, FILE *out)
     }
 }
 
+void meshdb_write(mgfx_meshdb_t *meshdb, FILE *out)
+{
+    w8(out, meshdb->magic[0]);
+    w8(out, meshdb->magic[1]);
+    w8(out, meshdb->magic[2]);
+    w8(out, meshdb->version);
+    w32(out, meshdb->mesh_count);
+
+    for (size_t i = 0; i < meshdb->mesh_count; i++)
+    {
+        w32_placeholderf(out, "meshname%d", i);
+        w32_placeholderf(out, "meshptr%d", i);
+    }
+    
+    for (size_t i = 0; i < meshdb->mesh_count; i++)
+    {
+        mgfx_mesh_t *mesh = meshdb->meshes[i].mesh;
+        walign(out, sizeof(mesh->submesh_count));
+        placeholder_set(out, "meshptr%d", i);
+        mesh_write(mesh, out);
+    }
+
+    for (size_t i = 0; i < meshdb->mesh_count; i++)
+    {
+        placeholder_set(out, "meshname%d", i);
+        fwrite(meshdb->meshes[i].name, 1, strlen(meshdb->meshes[i].name) + 1, out);
+    }
+}
+
 int convert(const char *infn, const char *outfn)
 {
     cgltf_options options = {0};
@@ -490,18 +547,11 @@ int convert(const char *infn, const char *outfn)
 
     cgltf_load_buffers(&options, data, infn);
 
-    if (data->meshes_count != 1) {
-        fprintf(stderr, "Error: input file does not contain exactly one mesh\n");
-        cgltf_free(data);
-        return 1;
-    }
+    mgfx_meshdb_t *out_meshdb = calloc(1, sizeof(mgfx_meshdb_t) + sizeof(mgfx_mesh_entry_t) * data->meshes_count);
 
-    cgltf_mesh *in_mesh = &data->meshes[0];
-    mgfx_mesh_t *out_mesh = calloc(1, sizeof(mgfx_mesh_t) + sizeof(mgfx_submesh_t) * in_mesh->primitives_count);
-
-    if (convert_mesh(in_mesh, out_mesh) != 0) {
+    if (convert_meshdb(data, out_meshdb) != 0) {
         fprintf(stderr, "Error: failed converting mesh\n");
-        free(out_mesh);
+        meshdb_free(out_meshdb);
         cgltf_free(data);
         return 1;
     }
@@ -509,15 +559,15 @@ int convert(const char *infn, const char *outfn)
     FILE *out = fopen(outfn, "wb");
     if (!out) {
         fprintf(stderr, "could not open output file: %s\n", outfn);
-        free(out_mesh);
+        meshdb_free(out_meshdb);
         cgltf_free(data);
         return 1;
     }
 
-    mesh_write(out_mesh, out);
+    meshdb_write(out_meshdb, out);
 
     fclose(out);
-    free(out_mesh);
+    meshdb_free(out_meshdb);
     cgltf_free(data);
     return 0;
 }
