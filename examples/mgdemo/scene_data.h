@@ -48,9 +48,9 @@ static const mgfx_features_t material_features[] = {
 
 /* Meshes */
 static const char *mesh_files[] = {
-    "rom:/pipe.mgfx",    // 256 Verts, 512 Tris
-    "rom:/crate.mgfx",   // 56 Verts, 108 Tris
-    "rom:/sphere.mgfx",  // 42 Verts, 80 Tris
+    "rom:/pipe.mshdb",    // 256 Verts, 512 Tris
+    "rom:/crate.mshdb",   // 56 Verts, 108 Tris
+    "rom:/sphere.mshdb",  // 42 Verts, 80 Tris
 };
 
 static const char *mesh_names[] = {

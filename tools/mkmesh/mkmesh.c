@@ -19,8 +19,8 @@
 #define CGLTF_IMPLEMENTATION
 #include "../common/cgltf.h"
 
-#define MGFX_MAX_ATTRIBUTE_COUNT    3
-#define MGFX_MAX_CONVERSION_COUNT   4
+#define MAX_ATTRIBUTE_COUNT    3
+#define MAX_CONVERSION_COUNT   4
 
 typedef void (*convert_func)(uint8_t*,const float*);
 
@@ -253,8 +253,8 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
     uint32_t attribute_count = 0;
     uint32_t conversion_count = 0;
     uint32_t vertex_stride = 0;
-    mg_vertex_attribute_t attributes[MGFX_MAX_ATTRIBUTE_COUNT];
-    attribute_conversion conversions[MGFX_MAX_CONVERSION_COUNT] = {};
+    mg_vertex_attribute_t attributes[MAX_ATTRIBUTE_COUNT];
+    attribute_conversion conversions[MAX_CONVERSION_COUNT] = {};
 
     cgltf_attribute *in_pos = find_input_attribute(in_primitive, cgltf_attribute_type_position);
     if (in_pos != NULL) {
@@ -404,8 +404,8 @@ int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh)
 
 int convert_meshdb(const cgltf_data *data, mgfx_meshdb_t *out_meshdb)
 {
-    memcpy(out_meshdb->magic, MGFX_MESH_MAGIC, MGFX_MESH_MAGIC_LEN);
-    out_meshdb->version = MGFX_MESH_VERSION;
+    memcpy(out_meshdb->magic, MGFX_MESHDB_MAGIC, MGFX_MESHDB_MAGIC_LEN);
+    out_meshdb->version = MGFX_MESHDB_VERSION;
     out_meshdb->mesh_count = data->meshes_count;
 
     for (size_t i = 0; i < data->meshes_count; i++)
@@ -574,7 +574,7 @@ int convert(const char *infn, const char *outfn)
 
 void print_args( char * name )
 {
-    fprintf(stderr, "mgfx -- Extract and convert meshes from glTF 2.0 files\n\n");
+    fprintf(stderr, "mkmesh -- Extract and convert meshes from glTF 2.0 files\n\n");
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
@@ -635,7 +635,7 @@ int main(int argc, char *argv[])
         char* ext = strrchr(basename_noext, '.');
         if (ext) *ext = '\0';
 
-        asprintf(&outfn, "%s/%s.mgfx", outdir, basename_noext);
+        asprintf(&outfn, "%s/%s.mshdb", outdir, basename_noext);
         if (flag_verbose)
             printf("Converting: %s -> %s\n",
                 infn, outfn);

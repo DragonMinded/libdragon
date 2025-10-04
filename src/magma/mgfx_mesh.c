@@ -11,11 +11,11 @@ mgfx_meshdb_t *mgfx_meshdb_open(const char *fn)
 {
     int sz;
     mgfx_meshdb_t *meshdb = asset_load(fn, &sz);
-    assertf(memcmp(meshdb->magic, MGFX_MESH_MAGIC, MGFX_MESH_MAGIC_LEN) == 0, "Invalid mgfx mesh file: %s", fn);
-    assertf(meshdb->version == MGFX_MESH_VERSION, 
-        "Invalid mgfx mesh version in file %s: %d, expected %d\n"
+    assertf(memcmp(meshdb->magic, MGFX_MESHDB_MAGIC, MGFX_MESHDB_MAGIC_LEN) == 0, "Invalid mesh file: %s", fn);
+    assertf(meshdb->version == MGFX_MESHDB_VERSION, 
+        "Invalid mesh version in file %s: %d, expected %d\n"
         "Please regenerate the file!",
-        fn, meshdb->version, MGFX_MESH_VERSION);
+        fn, meshdb->version, MGFX_MESHDB_VERSION);
 
     for (size_t i = 0; i < meshdb->mesh_count; i++)
     {

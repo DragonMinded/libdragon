@@ -6,7 +6,7 @@ assets_png = $(wildcard assets/*.png)
 assets_glb = $(wildcard assets/*.glb)
 
 assets_conv = $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite))) \
-			  $(addprefix filesystem/,$(notdir $(assets_glb:%.glb=%.mgfx)))
+			  $(addprefix filesystem/,$(notdir $(assets_glb:%.glb=%.mshdb)))
 
 MKSPRITE_FLAGS ?=
 
@@ -17,10 +17,10 @@ filesystem/%.sprite: assets/%.png
 	@echo "    [SPRITE] $@"
 	@$(N64_MKSPRITE) --compress -o "$(dir $@)" "$<"
 
-filesystem/%.mgfx: assets/%.glb
+filesystem/%.mshdb: assets/%.glb
 	@mkdir -p $(dir $@)
-	@echo "    [MODEL] $@"
-	@$(N64_MGFX) -c 0 -o "$(dir $@)" "$<"
+	@echo "    [MESH] $@"
+	@$(N64_MKMESH) -c 0 -o "$(dir $@)" "$<"
 
 $(BUILD_DIR)/mgdemo.dfs: $(assets_conv)
 $(BUILD_DIR)/mgdemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)
