@@ -75,7 +75,8 @@ N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
 
-N64_TOOLFLAGS = --title $(N64_ROM_TITLE)
+N64_TOOLFLAGS = --toc
+N64_TOOLFLAGS += --title $(N64_ROM_TITLE)
 N64_TOOLFLAGS += $(if $(N64_ROM_HEADER),--header $(N64_ROM_HEADER))
 N64_TOOLFLAGS += $(if $(N64_ROM_CATEGORY),--category $(N64_ROM_CATEGORY))
 N64_TOOLFLAGS += $(if $(N64_ROM_REGION),--region $(N64_ROM_REGION))
@@ -120,13 +121,13 @@ RSPASFLAGS+=-MMD
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8; \
 	else \
 		MSYM_FILE="$(filter %.msym, $^)"; \
 		if [ -z "$$MSYM_FILE" ]; then \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 16 "$$DFS_FILE"; \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ --align 256 $<.stripped --align 8 $<.sym --align 16 "$$DFS_FILE"; \
 		else \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
+			$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
 		fi \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
