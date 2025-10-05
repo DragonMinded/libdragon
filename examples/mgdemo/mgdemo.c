@@ -112,7 +112,7 @@ void mesh_create(mesh_data *mesh, const char *model_file, const char *mesh_name)
 uint32_t pipeline_get_or_create(submesh_data* submesh, material_data *material);
 void update_object_transform(object_data *object);
 
-static surface_t zbuffer;
+static surface_t *zbuffer;
 
 static mg_viewport_t viewport;
 static mg_culling_parms_t culling;
@@ -190,7 +190,7 @@ void init()
     debug_overlay_init();
 
     // Create depth buffer
-    zbuffer = surface_alloc(FMT_RGBA16, resolution.width, resolution.height);
+    zbuffer = display_get_zbuf();
 
     // Initialize viewport
     viewport = (mg_viewport_t) {
@@ -592,7 +592,7 @@ void render()
     // Get framebuffer
     surface_t *disp = display_get();
     rdpq_debug_log_msg("---> Frame");
-    rdpq_attach_clear(disp, &zbuffer);
+    rdpq_attach_clear(disp, zbuffer);
 
     // Set up render modes with rdpq. This could be set per material, but for simplicity's sake we use the same render mode for all objects in this demo.
     rdpq_mode_begin();
