@@ -27,9 +27,9 @@ static surface_t *zbuffer;
 
 static const GLfloat environment_color[] = { 0.1f, 0.03f, 0.2f, 1.f };
 
-static fm_vec3_t camera_position = {{0, 10, 10}};
-static float camera_yaw;
-static float camera_pitch = -0.83f;
+static fm_vec3_t camera_position = {{4.47f * 0.051812f, 134.180f * 0.051812f, 124.243f * 0.051812f}};
+static float camera_yaw = 0.030796327f;
+static float camera_pitch = -0.908407346f;
 
 static uint64_t frames = 0;
 static bool display_metrics = false;
@@ -37,7 +37,7 @@ static bool request_display_metrics = false;
 static float last_3d_fps = 0.0f;
 
 static const char *texture_path[TEXTURE_COUNT] = {
-    "rom:/circle0.sprite",
+    "rom:/unit1m.i8.sprite",
     "rom:/diamond0.sprite",
     "rom:/pentagon0.sprite",
     "rom:/triangle0.sprite",
@@ -45,6 +45,13 @@ static const char *texture_path[TEXTURE_COUNT] = {
 
 static sprite_t *sprites[TEXTURE_COUNT];
 static GLuint textures[TEXTURE_COUNT];
+
+static mgfx_meshdb_t *meshdb;
+static const mgfx_submesh_t *submesh;
+static GLuint mesh_vertex_vbo;
+static GLuint mesh_index_vbo;
+static GLuint mesh_vao;
+static GLenum prim_mode;
 
 void init()
 {
@@ -55,7 +62,7 @@ void init()
     display_init(resolution, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE_ANTIALIAS_DEDITHER);
     zbuffer = display_get_zbuf();
     gl_init();
-    rdpq_debug_start();
+    //rdpq_debug_start();
     //rdpq_debug_log(true);
 
     rspq_profile_start();
@@ -74,29 +81,94 @@ void init()
 
     glMatrixMode(GL_PROJECTION);
     float aspect_ratio = (float)resolution.width / (float)resolution.height;
-    gluPerspective(65.f, aspect_ratio, 1.f, 100.f);
+    gluPerspective(85.f, aspect_ratio, 1.f, 100.f);
 
     float ambient[4] = {0};
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
 
-    float light_radius = 5.0f;
-    float light_color[4] = { 0.5f, 1.0f, 0.2f, 1.0f };
+    float light_radius = 30.0f;
+    float light_color[4] = { 0.5f, 0.7f, 0.2f, 1.0f };
 
-    glEnable(GL_LIGHT0);
+    //glEnable(GL_LIGHT0);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_color);
     glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/(light_radius*light_radius));
 
     glEnable(GL_LIGHT4);
-    float light_color2[4] = { 0.4f, 0.4f, 0.4f, 1.0f };
+    float light_color2[4] = { 0.8f, 0.8f, 0.8f, 1.0f };
     glLightfv(GL_LIGHT4, GL_DIFFUSE, light_color2);
 
-    GLfloat mat_diffuse[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, mat_diffuse);
+    //GLfloat mat_diffuse[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    //glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, mat_diffuse);
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 
     glEnable(GL_FOG);
     glFogf(GL_FOG_START, 20);
-    glFogf(GL_FOG_END, 80);
+    glFogf(GL_FOG_END, 90);
     glFogfv(GL_FOG_COLOR, environment_color);
+
+    meshdb = mgfx_meshdb_open("rom:/scene.mshdb");
+    const mgfx_mesh_t *mesh = mgfx_meshdb_lookup(meshdb, "Scene");
+
+    submesh = &mesh->submeshes[0];
+    uint32_t stride = submesh->vertex_layout.stride;
+
+    glGenBuffersARB(1, &mesh_vertex_vbo);
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, mesh_vertex_vbo);
+    glBufferDataARB(GL_ARRAY_BUFFER_ARB, submesh->vertices_count * stride, submesh->vertices, GL_STATIC_DRAW_ARB);
+
+    glGenVertexArrays(1, &mesh_vao);
+    glBindVertexArray(mesh_vao);
+
+    for (size_t i = 0; i < submesh->vertex_layout.attribute_count; i++)
+    {
+        const mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[i];
+
+        switch (attr->input)
+        {
+        case MGFX_ATTRIBUTE_POS_NORM:
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glVertexPointer(3, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
+
+            glEnableClientState(GL_NORMAL_ARRAY);
+            glNormalPointer(GL_SHORT_5_6_5_N64, stride, (const GLvoid*)(attr->offset + sizeof(uint16_t)*3));
+            break;
+
+        case MGFX_ATTRIBUTE_COLOR:
+            glEnableClientState(GL_COLOR_ARRAY);
+            glColorPointer(4, GL_UNSIGNED_BYTE, stride, (const GLvoid*)attr->offset);
+            break;
+        
+        case MGFX_ATTRIBUTE_TEXCOORD:
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+            glTexCoordPointer(2, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
+            break;
+        }
+    }
+
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+
+    if (submesh->indices != NULL)
+    {
+        glGenBuffersARB(1, &mesh_index_vbo);
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, mesh_index_vbo);
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, submesh->indices_count * sizeof(uint16_t), submesh->indices, GL_STATIC_DRAW_ARB);
+    }
+
+    glBindVertexArray(0);
+
+    switch (submesh->input_assembly_parms.primitive_topology)
+    {
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+        prim_mode = GL_TRIANGLES;
+        break;        
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+        prim_mode = GL_TRIANGLE_STRIP;
+        break;        
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+        prim_mode = GL_TRIANGLE_FAN;
+        break;        
+    }
 }
 
 void direction_from_pitch_yaw(fm_vec3_t *out, float pitch, float yaw)
@@ -190,12 +262,12 @@ void update(float deltatime)
         forward.x, forward.y, forward.z,
         0.f, 1.f, 0.f);
 
-    fm_vec4_t light_position = {{ 5, 5, 0, 1 }};
+    fm_vec4_t light_position = {{ 0, 10, 0, 1 }};
     glLightfv(GL_LIGHT0, GL_POSITION, light_position.v);
-    fm_vec4_t light_position2 = {{ 0, -1, 0, 0 }};
+    fm_vec4_t light_position2 = {{ 0.196116f, -0.784465f, -0.588348f, 0.0f }};
     glLightfv(GL_LIGHT4, GL_POSITION, light_position2.v);
 
-    glEnable(GL_MULTISAMPLE_ARB);
+    //glEnable(GL_MULTISAMPLE_ARB);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glEnable(GL_LIGHTING);
@@ -204,10 +276,14 @@ void update(float deltatime)
     fm_vec4_t mat_color = {{0, 1, 1, 1}};
     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, mat_color.v);
 
-    //glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-
     glBindTexture(GL_TEXTURE_2D, textures[0]);
-    render_plane();
+    //render_plane();
+    glBindVertexArray(mesh_vao);
+    if (submesh->indices != NULL) {
+        glDrawElements(prim_mode, submesh->indices_count, GL_UNSIGNED_SHORT, NULL);
+    } else {
+        glDrawArrays(prim_mode, 0, submesh->vertices_count);
+    }
 
     gl_context_end();
 
