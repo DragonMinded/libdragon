@@ -478,10 +478,6 @@ void __bss_check(void)
 /// @endcond
 
 /* Inline instantiations */
-extern inline uint8_t mem_read8(uint64_t vaddr);
-extern inline uint16_t mem_read16(uint64_t vaddr);
-extern inline uint32_t mem_read32(uint64_t vaddr);
-extern inline uint64_t mem_read64(uint64_t vaddr);
 extern inline bool sys_bbplayer(void);
 extern inline tv_type_t get_tv_type(void);
 
