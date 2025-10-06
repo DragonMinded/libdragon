@@ -37,11 +37,20 @@
 extern "C" {
 #endif
 
+/**
+ * @name PI Register Definitions
+ * @{
+ */
 #define PI_DRAM_ADDR    ((volatile uint32_t*)0xA4600000)  ///< PI DMA: DRAM address register
 #define PI_CART_ADDR    ((volatile uint32_t*)0xA4600004)  ///< PI DMA: cartridge address register
 #define PI_RD_LEN       ((volatile uint32_t*)0xA4600008)  ///< PI DMA: read length register
 #define PI_WR_LEN       ((volatile uint32_t*)0xA460000C)  ///< PI DMA: write length register
 #define PI_STATUS       ((volatile uint32_t*)0xA4600010)  ///< PI: status register
+
+#define PI_STATUS_DMA_BUSY      (1 << 0)        ///< PI status: DMA is in progress
+#define PI_STATUS_IO_BUSY       (1 << 1)        ///< PI status: IO is in progress
+#define PI_STATUS_ERROR         (1 << 2)        ///< PI status: error occurred
+/** @} */
 
 /**
  * @brief Start writing data to a peripheral through PI DMA (low-level)
@@ -207,14 +216,9 @@ void io_write(pi_addr_t pi_address, uint32_t data);
  * 
  *  * 0x0500_0000 - 0x0FFF_FFFF: used by N64DD and SRAM on cartridge
  *  * 0x1000_0000 - 0x1FBF_FFFF: cartridge ROM
- *  * 0x1FD0_0000 - 0x1FFF_FFFF: no known PI peripherals use this
+ *  * 0x1FD0_0000 - 0x7FFF_FFFF: no known PI peripherals use this
  * 
  * The rest of the 32-bit address range is only accessible via DMA.
- * 
- * Notice also that the range 0x2000_0000 - 0x7FFF_FFFF is theoretically accessible
- * by the CPU but only via 64-bit addressing, so it requires assembly instructions
- * (as the libdragon toolchain uses 32-bit pointers). No known PI peripherals use this
- * range anyway.
  * 
  * This function checks whether the specified address falls into the range accessible
  * via CPU or not.
