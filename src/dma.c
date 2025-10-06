@@ -44,9 +44,13 @@ bool io_accessible(pi_addr_t pi_address)
     if (pi_address < 0x05000000)
         return false;
 
-        // The SI bus is partially covering the PI range in the CPU memory map
+    // The SI bus is partially covering the PI range in the CPU memory map
     if (pi_address >= 0x1FC00000 && pi_address <= 0x1FCFFFFF)
-        return false;    
+        return false;
+
+    // Upper half of the PI range is not memory mapped
+    if (pi_address >= 0x80000000)
+        return false;
 
     // All other addresses are memory mapped and can be accessed via CPU.
     return true;
