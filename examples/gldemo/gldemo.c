@@ -46,12 +46,7 @@ static const char *texture_path[TEXTURE_COUNT] = {
 static sprite_t *sprites[TEXTURE_COUNT];
 static GLuint textures[TEXTURE_COUNT];
 
-static mgfx_meshdb_t *meshdb;
-static const mgfx_submesh_t *submesh;
-static GLuint mesh_vertex_vbo;
-static GLuint mesh_index_vbo;
-static GLuint mesh_vao;
-static GLenum prim_mode;
+static model64_t *model;
 
 void init()
 {
@@ -107,68 +102,7 @@ void init()
     glFogf(GL_FOG_END, 90);
     glFogfv(GL_FOG_COLOR, environment_color);
 
-    meshdb = mgfx_meshdb_open("rom:/scene.mshdb");
-    const mgfx_mesh_t *mesh = mgfx_meshdb_lookup(meshdb, "Scene");
-
-    submesh = &mesh->submeshes[0];
-    uint32_t stride = submesh->vertex_layout.stride;
-
-    glGenBuffersARB(1, &mesh_vertex_vbo);
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, mesh_vertex_vbo);
-    glBufferDataARB(GL_ARRAY_BUFFER_ARB, submesh->vertices_count * stride, submesh->vertices, GL_STATIC_DRAW_ARB);
-
-    glGenVertexArrays(1, &mesh_vao);
-    glBindVertexArray(mesh_vao);
-
-    for (size_t i = 0; i < submesh->vertex_layout.attribute_count; i++)
-    {
-        const mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[i];
-
-        switch (attr->input)
-        {
-        case MGFX_ATTRIBUTE_POS_NORM:
-            glEnableClientState(GL_VERTEX_ARRAY);
-            glVertexPointer(3, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
-
-            glEnableClientState(GL_NORMAL_ARRAY);
-            glNormalPointer(GL_SHORT_5_6_5_N64, stride, (const GLvoid*)(attr->offset + sizeof(uint16_t)*3));
-            break;
-
-        case MGFX_ATTRIBUTE_COLOR:
-            glEnableClientState(GL_COLOR_ARRAY);
-            glColorPointer(4, GL_UNSIGNED_BYTE, stride, (const GLvoid*)attr->offset);
-            break;
-        
-        case MGFX_ATTRIBUTE_TEXCOORD:
-            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-            glTexCoordPointer(2, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
-            break;
-        }
-    }
-
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-
-    if (submesh->indices != NULL)
-    {
-        glGenBuffersARB(1, &mesh_index_vbo);
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, mesh_index_vbo);
-        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, submesh->indices_count * sizeof(uint16_t), submesh->indices, GL_STATIC_DRAW_ARB);
-    }
-
-    glBindVertexArray(0);
-
-    switch (submesh->input_assembly_parms.primitive_topology)
-    {
-    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
-        prim_mode = GL_TRIANGLES;
-        break;        
-    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
-        prim_mode = GL_TRIANGLE_STRIP;
-        break;        
-    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
-        prim_mode = GL_TRIANGLE_FAN;
-        break;        
-    }
+    model = model64_load("rom:/scene.model64");
 }
 
 void direction_from_pitch_yaw(fm_vec3_t *out, float pitch, float yaw)
@@ -278,12 +212,7 @@ void update(float deltatime)
 
     glBindTexture(GL_TEXTURE_2D, textures[0]);
     //render_plane();
-    glBindVertexArray(mesh_vao);
-    if (submesh->indices != NULL) {
-        glDrawElements(prim_mode, submesh->indices_count, GL_UNSIGNED_SHORT, NULL);
-    } else {
-        glDrawArrays(prim_mode, 0, submesh->vertices_count);
-    }
+    model64_draw(model);
 
     gl_context_end();
 

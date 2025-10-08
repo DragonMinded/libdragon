@@ -1,8 +1,10 @@
 #include "mgfx_mesh.h"
-#include "mgfx_mesh_internal.h"
+#include "mgfx_meshdb_internal.h"
 #include "asset.h"
 #include "assert.h"
 #include "string.h"
+
+#define MESH_FLAG_LOADED    (1<<31)
 
 #define PTR_DECODE(mesh, ptr)    ((void*)(((uint8_t*)(mesh)) + (uint32_t)(ptr)))
 #define PTR_ENCODE(mesh, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(mesh)))
@@ -24,6 +26,7 @@ mgfx_meshdb_t *mgfx_meshdb_open(const char *fn)
         entry->mesh = PTR_DECODE(meshdb, entry->mesh);
 
         mgfx_mesh_t *mesh = entry->mesh;
+        mesh->submeshes = PTR_DECODE(meshdb, mesh->submeshes);
         for (size_t j = 0; j < mesh->submesh_count; j++)
         {
             mgfx_submesh_t *submesh = &mesh->submeshes[j];

@@ -6,4 +6,4 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/magma/rsp_mgfx.o \
 	$(BUILD_DIR)/magma/rsp_mgfx_env.o \
 	$(BUILD_DIR)/magma/math.o \
-	$(BUILD_DIR)/magma/mgfx_mesh.o
+	$(BUILD_DIR)/magma/mgfx_meshdb.o

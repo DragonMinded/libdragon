@@ -2,6 +2,7 @@
 #define __LIBDRAGON_MGFX_MESH_INTERNAL_H
 
 #include "magma_types.h"
+#include "mgfx_mesh_types.h"
 
 #define MGFX_MESHDB_VERSION       1
 #define MGFX_MESHDB_MAGIC         "MGM"

@@ -14,10 +14,6 @@
 extern "C" {
 #endif
 
-mgfx_meshdb_t *mgfx_meshdb_open(const char *fn);
-void mgfx_meshdb_close(mgfx_meshdb_t *meshdb);
-const mgfx_mesh_t *mgfx_meshdb_lookup(mgfx_meshdb_t *meshdb, const char *name);
-
 inline void mgfx_submesh_draw(const mgfx_submesh_t *submesh)
 {
     if (submesh->indices != NULL) {

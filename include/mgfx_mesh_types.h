@@ -9,8 +9,6 @@
 
 #include <magma_types.h>
 
-typedef struct mgfx_meshdb_s mgfx_meshdb_t;
-
 typedef struct mgfx_submesh_s
 {
     mg_vertex_layout_t vertex_layout;
@@ -24,7 +22,7 @@ typedef struct mgfx_submesh_s
 typedef struct mgfx_mesh_s
 {
     uint32_t submesh_count;
-    mgfx_submesh_t submeshes[];
+    mgfx_submesh_t *submeshes;
 } mgfx_mesh_t;
 
 #endif

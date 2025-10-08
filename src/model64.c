@@ -14,6 +14,7 @@
 #include "dma.h"
 #include "model64.h"
 #include "model64_internal.h"
+#include "mgfx.h"
 #include "asset.h"
 #include "debug.h"
 #include "sprite.h"
@@ -176,6 +177,116 @@ void texture_table_dec_ref_count(uint32_t idx)
     }
 }
 
+static void init_submesh(submesh_state_t *submesh_state, const mgfx_submesh_t *submesh)
+{
+    uint32_t stride = submesh->vertex_layout.stride;
+
+    glGenBuffersARB(1, &submesh_state->vertex_vbo);
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, submesh_state->vertex_vbo);
+    glBufferDataARB(GL_ARRAY_BUFFER_ARB, submesh->vertices_count * stride, submesh->vertices, GL_STATIC_DRAW_ARB);
+
+    glGenVertexArrays(1, &submesh_state->vao);
+    glBindVertexArray(submesh_state->vao);
+    for (size_t i = 0; i < submesh->vertex_layout.attribute_count; i++)
+    {
+        const mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[i];
+
+        switch (attr->input)
+        {
+        case MGFX_ATTRIBUTE_POS_NORM:
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glVertexPointer(3, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
+
+            glEnableClientState(GL_NORMAL_ARRAY);
+            glNormalPointer(GL_SHORT_5_6_5_N64, stride, (const GLvoid*)(attr->offset + sizeof(uint16_t)*3));
+            break;
+
+        case MGFX_ATTRIBUTE_COLOR:
+            glEnableClientState(GL_COLOR_ARRAY);
+            glColorPointer(4, GL_UNSIGNED_BYTE, stride, (const GLvoid*)attr->offset);
+            break;
+        
+        case MGFX_ATTRIBUTE_TEXCOORD:
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+            glTexCoordPointer(2, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
+            break;
+        }
+    }
+
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+
+    if (submesh->indices_count > 0)
+    {
+        glGenBuffersARB(1, &submesh_state->index_vbo);
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, submesh_state->index_vbo);
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, submesh->indices_count * sizeof(uint16_t), submesh->indices, GL_STATIC_DRAW_ARB);
+    } else {
+        submesh_state->index_vbo = 0;
+    }
+
+    glBindVertexArray(0);
+
+    switch (submesh->input_assembly_parms.primitive_topology)
+    {
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+        submesh_state->prim_mode = GL_TRIANGLES;
+        break;        
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+        submesh_state->prim_mode = GL_TRIANGLE_STRIP;
+        break;        
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+        submesh_state->prim_mode = GL_TRIANGLE_FAN;
+        break;        
+    }
+}
+
+static void init_mesh(mesh_state_t *mesh_state, mgfx_mesh_t *mesh)
+{
+    mesh_state->submeshes = malloc(mesh->submesh_count * sizeof(submesh_state_t));
+    for (size_t i = 0; i < mesh->submesh_count; i++)
+    {
+        init_submesh(&mesh_state->submeshes[i], &mesh->submeshes[i]);
+    }
+}
+
+static void init_runtime_state(model64_data_t *model)
+{
+    model->runtime_state = calloc(1, sizeof(runtime_state_t));
+    model->runtime_state->meshes = calloc(model->num_meshes, sizeof(mesh_state_t));
+
+    for (size_t i = 0; i < model->num_meshes; i++)
+    {
+        init_mesh(&model->runtime_state->meshes[i], &model->meshes[i]);
+    }
+}
+
+static void cleanup_submesh(submesh_state_t *submesh_state)
+{
+    glDeleteVertexArrays(1, &submesh_state->vao);
+    glDeleteBuffersARB(1, &submesh_state->vertex_vbo);
+    glDeleteBuffersARB(1, &submesh_state->index_vbo);
+}
+
+static void cleanup_mesh(mesh_state_t *mesh_state, mgfx_mesh_t *mesh)
+{
+    for (size_t i = 0; i < mesh->submesh_count; i++)
+    {
+        cleanup_submesh(&mesh_state->submeshes[i]);
+    }
+    free(mesh_state->submeshes);
+}
+
+static void cleanup_runtime_state(model64_data_t *model)
+{
+    for (size_t i = 0; i < model->num_meshes; i++)
+    {
+        cleanup_mesh(&model->runtime_state->meshes[i], &model->meshes[i]);
+    }
+    free(model->runtime_state->meshes);
+    free(model->runtime_state);
+    model->runtime_state = NULL;
+}
+
 /** @brief Decodes a pointer relative to model base address */
 #define PTR_DECODE(model, ptr)    ((void*)(((uint8_t*)(model)) + (uint32_t)(ptr)))
 /** @brief Encodes a pointer relative to model base address */
@@ -189,6 +300,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
         assertf(0, "Trying to load already loaded model data (buf=%p, sz=%08x)", buf, sz);
     }
     assertf(model->magic == MODEL64_MAGIC, "invalid model data (magic: %08lx)", model->magic);
+    assertf(model->version == MODEL64_VERSION, "Invalid model version (%ld); please regenerate your asset files", model->version);
     model->nodes = PTR_DECODE(model, model->nodes);
     model->meshes = PTR_DECODE(model, model->meshes);
     model->skins = PTR_DECODE(model, model->skins);
@@ -203,10 +315,6 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
         if(model->nodes[i].name)
         {
             model->nodes[i].name = PTR_DECODE(model, model->nodes[i].name);
-        }
-        if(model->nodes[i].mesh)
-        {
-            model->nodes[i].mesh = PTR_DECODE(model, model->nodes[i].mesh);
         }
         model->nodes[i].children = PTR_DECODE(model, model->nodes[i].children);
         if(model->nodes[i].skin)
@@ -228,29 +336,15 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
     }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
-        model->meshes[i].primitives = PTR_DECODE(model, model->meshes[i].primitives);
-        for (uint32_t j = 0; j < model->meshes[i].num_primitives; j++)
+        mgfx_mesh_t *mesh = &model->meshes[i];
+        mesh->submeshes = PTR_DECODE(model, mesh->submeshes);
+        for (uint32_t j = 0; j < mesh->submesh_count; j++)
         {
-            primitive_t *primitive = &model->meshes[i].primitives[j];
-            primitive->position.pointer = PTR_DECODE(model, primitive->position.pointer);
-            primitive->color.pointer = PTR_DECODE(model, primitive->color.pointer);
-            primitive->texcoord.pointer = PTR_DECODE(model, primitive->texcoord.pointer);
-            primitive->normal.pointer = PTR_DECODE(model, primitive->normal.pointer);
-            primitive->mtx_index.pointer = PTR_DECODE(model, primitive->mtx_index.pointer);
-            primitive->indices = PTR_DECODE(model, primitive->indices);
+            mgfx_submesh_t *submesh = &mesh->submeshes[j];
 
-            if (primitive->local_texture != TEXTURE_INDEX_MISSING) {
-                uint32_t idx = texture_table_get(model->texture_paths[primitive->local_texture]);
-
-                if (idx == TEXTURE_INDEX_MISSING) {
-                    idx = texture_table_add(model->texture_paths[primitive->local_texture], prefix);
-                }
-
-                assert(idx != TEXTURE_INDEX_MISSING);
-
-                primitive->shared_texture = idx;
-                texture_table_inc_ref_count(idx);
-            }
+            submesh->vertex_layout.attributes = PTR_DECODE(model, submesh->vertex_layout.attributes);
+            submesh->vertices = PTR_DECODE(model, submesh->vertices);
+            submesh->indices = PTR_DECODE(model, submesh->indices);
         }
     }
     for (uint32_t i = 0; i < model->num_anims; i++)
@@ -266,9 +360,12 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
         }
     }
 
+    init_runtime_state(model);
+
     model->magic = MODEL64_MAGIC_LOADED;
     model->ref_count = 1;
     data_cache_hit_writeback(model, sz);
+
     return model;
 }
 
@@ -437,16 +534,14 @@ model64_t *model64_clone(model64_t *model)
 /** @brief Unloads model data and encodes pointers */
 static void unload_model_data(model64_data_t *model)
 {
+    cleanup_runtime_state(model);
+
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
         model->nodes[i].children = PTR_ENCODE(model, model->nodes[i].children);
         if(model->nodes[i].skin)
         {
             model->nodes[i].skin = PTR_ENCODE(model, model->nodes[i].skin);
-        }
-        if(model->nodes[i].mesh)
-        {
-            model->nodes[i].mesh = PTR_ENCODE(model, model->nodes[i].mesh);
         }
         if(model->nodes[i].name)
         {
@@ -455,19 +550,16 @@ static void unload_model_data(model64_data_t *model)
     }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
-        for (uint32_t j = 0; j < model->meshes[i].num_primitives; j++)
+        mgfx_mesh_t *mesh = &model->meshes[i];
+        for (uint32_t j = 0; j < mesh->submesh_count; j++)
         {
-            primitive_t *primitive = &model->meshes[i].primitives[j];
-            primitive->position.pointer = PTR_ENCODE(model, primitive->position.pointer);
-            primitive->color.pointer = PTR_ENCODE(model, primitive->color.pointer);
-            primitive->texcoord.pointer = PTR_ENCODE(model, primitive->texcoord.pointer);
-            primitive->normal.pointer = PTR_ENCODE(model, primitive->normal.pointer);
-            primitive->mtx_index.pointer = PTR_ENCODE(model, primitive->mtx_index.pointer);
-            primitive->indices = PTR_ENCODE(model, primitive->indices);
-            texture_table_dec_ref_count(primitive->shared_texture);
-            primitive->shared_texture = TEXTURE_INDEX_MISSING;
+            mgfx_submesh_t *submesh = &mesh->submeshes[j];
+
+            submesh->vertex_layout.attributes = PTR_ENCODE(model, submesh->vertex_layout.attributes);
+            submesh->vertices = PTR_ENCODE(model, submesh->vertices);
+            submesh->indices = PTR_ENCODE(model, submesh->indices);
         }
-        model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
+        mesh->submeshes = PTR_ENCODE(model, mesh->submeshes);
     }
     for(uint32_t i=0; i<model->num_skins; i++)
     {
@@ -486,7 +578,6 @@ static void unload_model_data(model64_data_t *model)
         }
     }
     model->nodes = PTR_ENCODE(model, model->nodes);
-    model->meshes = PTR_ENCODE(model, model->meshes);
     model->skins = PTR_ENCODE(model, model->skins);
     model->anims = PTR_ENCODE(model, model->anims);
     if(model->magic == MODEL64_MAGIC_OWNED) {
@@ -523,18 +614,6 @@ void model64_free(model64_t *model)
     }
     free_model64_data(model->data);
     free(model);
-}
-
-/** @brief Gets the number of meshes in a model */
-uint32_t model64_get_mesh_count(model64_t *model)
-{
-    return model->data->num_meshes;
-}
-
-/** @brief Gets a mesh by index */
-mesh_t *model64_get_mesh(model64_t *model, uint32_t mesh_index)
-{
-    return &model->data->meshes[mesh_index];
 }
 
 /** @brief Gets the number of nodes in a model */
@@ -631,96 +710,20 @@ void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float ds
     mtx_copy(dst, model->transforms[node_idx].world_mtx);
 }
 
-/** @brief Gets the number of primitives in a mesh */
-uint32_t model64_get_primitive_count(mesh_t *mesh)
+static void model64_draw_mesh(model64_t *model, uint32_t mesh_index)
 {
-    return mesh->num_primitives;
-}
-
-/** @brief Gets a primitive by index */
-primitive_t *model64_get_primitive(mesh_t *mesh, uint32_t primitive_index)
-{
-    return &mesh->primitives[primitive_index];
-}
-
-/** @brief Draws a single primitive */
-void model64_draw_primitive(primitive_t *primitive)
-{
-    if (primitive->shared_texture != TEXTURE_INDEX_MISSING) {
-        texture_entry_t *entry = &shared_textures->entries[primitive->shared_texture];
-
-        if (entry->state == ENTRY_STATE_SPRITE_LOADED) {
-            glGenTextures(1, &entry->obj);
-            glBindTexture(GL_TEXTURE_2D, entry->obj);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-            // If a dimension is not a power of two then clamp and otherwise repeat.
-            float rs = (entry->sprite->width & (entry->sprite->width-1)) ? 1 : REPEAT_INFINITE;
-            float rt = (entry->sprite->height & (entry->sprite->height-1)) ? 1 : REPEAT_INFINITE;
-            glSpriteTextureN64(GL_TEXTURE_2D, entry->sprite, &(rdpq_texparms_t){.s.repeats = rs, .t.repeats = rt});
-
-            entry->state = ENTRY_STATE_FULL;
-        }
-
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, entry->obj);
-    }
-
-    if (primitive->position.size > 0) {
-        glEnableClientState(GL_VERTEX_ARRAY);
-        if (primitive->position.type == GL_HALF_FIXED_N64) {
-            glVertexHalfFixedPrecisionN64(primitive->vertex_precision);
-        }
-        glVertexPointer(primitive->position.size, primitive->position.type, primitive->position.stride, primitive->position.pointer);
-    } else {
-        glDisableClientState(GL_VERTEX_ARRAY);
-    }
-    
-    if (primitive->color.size > 0) {
-        glEnableClientState(GL_COLOR_ARRAY);
-        glColorPointer(primitive->color.size, primitive->color.type, primitive->color.stride, primitive->color.pointer);
-    } else {
-        glDisableClientState(GL_COLOR_ARRAY);
-    }
-    
-    if (primitive->texcoord.size > 0) {
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        if (primitive->texcoord.type == GL_HALF_FIXED_N64) {
-            glTexCoordHalfFixedPrecisionN64(primitive->texcoord_precision);
-        }
-        glTexCoordPointer(primitive->texcoord.size, primitive->texcoord.type, primitive->texcoord.stride, primitive->texcoord.pointer);
-    } else {
-        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    }
-    
-    if (primitive->normal.size > 0) {
-        glEnableClientState(GL_NORMAL_ARRAY);
-        glNormalPointer(primitive->normal.type, primitive->normal.stride, primitive->normal.pointer);
-    } else {
-        glDisableClientState(GL_NORMAL_ARRAY);
-    }
-    
-    if (primitive->mtx_index.size > 0) {
-        glEnableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
-        glMatrixIndexPointerARB(primitive->mtx_index.size, primitive->mtx_index.type, primitive->mtx_index.stride, primitive->mtx_index.pointer);
-    } else {
-        glDisableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
-    }
-
-    if (primitive->num_indices > 0) {
-        glDrawElements(primitive->mode, primitive->num_indices, primitive->index_type, primitive->indices);
-    } else {
-        glDrawArrays(primitive->mode, 0, primitive->num_vertices);
-    }
-}
-
-/** @brief Draws all primitives in a mesh */
-void model64_draw_mesh(mesh_t *mesh)
-{
-    for (uint32_t i = 0; i < model64_get_primitive_count(mesh); i++)
+    mgfx_mesh_t *mesh = &model->data->meshes[mesh_index];
+    mesh_state_t *mesh_state = &model->data->runtime_state->meshes[mesh_index];
+    for (size_t i = 0; i < mesh->submesh_count; i++)
     {
-        model64_draw_primitive(model64_get_primitive(mesh, i));
+        mgfx_submesh_t *submesh = &mesh->submeshes[i];
+        submesh_state_t *submesh_state = &mesh_state->submeshes[i];
+        glBindVertexArray(submesh_state->vao);
+        if (submesh->indices_count > 0) {
+            glDrawElements(submesh_state->prim_mode, submesh->indices_count, GL_UNSIGNED_SHORT, NULL);
+        } else {
+            glDrawArrays(submesh_state->prim_mode, 0, submesh->vertices_count);
+        }
     }
 }
 
@@ -729,7 +732,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
 {
     uint32_t node_idx = get_node_idx(model, node);
     assertf(node_idx < model->data->num_nodes, "Drawing invalid node.");
-    if(node->mesh)
+    if(node->mesh_index != MESH_INDEX_MISSING)
     {
         if(node->skin)
         {
@@ -742,7 +745,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
                 glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
             }
             glEnable(GL_MATRIX_PALETTE_ARB);
-            model64_draw_mesh(node->mesh);
+            model64_draw_mesh(model, node->mesh_index);
             glDisable(GL_MATRIX_PALETTE_ARB);
             glMatrixMode(GL_MODELVIEW);
         }
@@ -751,7 +754,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
             glMatrixMode(GL_MODELVIEW);
             glPushMatrix();
             glMultMatrixf(model->transforms[node_idx].world_mtx);
-            model64_draw_mesh(node->mesh);
+            model64_draw_mesh(model, node->mesh_index);
             glPopMatrix();
         }
     }
