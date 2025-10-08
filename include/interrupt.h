@@ -635,7 +635,7 @@ void register_reset_handler( void (*callback)() )
  *       system.  Therefore it is safe to nest disable/enable calls.  After the least
  *       nested enable call, systemwide interrupts will be reenabled.
  */
-void enable_interrupts();
+void enable_interrupts(void);
 
 /**
  * @brief Disable interrupts systemwide
@@ -643,7 +643,7 @@ void enable_interrupts();
  * @note If interrupts are already disabled on the system or interrupts have not
  *       been initialized, this function will not modify the system state.
  */
-void disable_interrupts();
+void disable_interrupts(void);
 
 
 /**
@@ -653,7 +653,7 @@ void disable_interrupts();
  * @retval INTERRUPTS_DISABLED if interrupts have been disabled.
  * @retval INTERRUPTS_ENABLED if interrupts are currently enabled.
  */
-interrupt_state_t get_interrupts_state(); 
+interrupt_state_t get_interrupts_state(void); 
 
 #ifdef __cplusplus
 }

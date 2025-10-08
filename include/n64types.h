@@ -76,6 +76,22 @@ typedef uint32_t phys_addr_t;
  */
 typedef uint32_t pi_addr_t;
 
+/**
+ * @brief A 64-bit virtual address (aka "pointer")
+ * 
+ * VR4300 CPU supports a full 64-bit virtual address space, but this is
+ * useful only in some very niche use cases. To avoid wasting memory and
+ * performance, Libdragon uses a ILP32 ABI, meaning that C pointers are 32-bit
+ * wide (which works because MIPS64 address space has been designed to be
+ * backwards compatible with MIPS32).
+ * 
+ * In the rare cases where a full 64-bit virtual address is needed, we cannot
+ * use a C pointer, so this type is provided instead. To access the memory
+ * at this address, you must use the sys_vaddr_read* and sys_vaddr_write*
+ * functions.
+ */
+typedef uint64_t vaddr64_t;
+
 
 #ifdef __cplusplus
 }

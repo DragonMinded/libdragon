@@ -6,24 +6,17 @@
  * @ingroup dma
  */
 #include <stdbool.h>
+#include "dma.h"
 #include "n64types.h"
 #include "n64sys.h"
+#include "vaddr64.h"
 #include "interrupt.h"
 #include "debug.h"
 #include "utils.h"
 #include "regsinternal.h"
-
-/**
- * @name PI Status Register Bit Definitions
- * @{
- */
-/** @brief PI DMA Busy */
-#define PI_STATUS_DMA_BUSY ( 1 << 0 )
-/** @brief PI IO Busy */
-#define PI_STATUS_IO_BUSY  ( 1 << 1 )
-/** @brief PI Error */
-#define PI_STATUS_ERROR    ( 1 << 2 )
-/** @} */
+#include "interrupt_internal.h"
+#include "kernel/kernel_internal.h"
+#include "kirq.h"
 
 /** @brief Structure used to interact with the PI registers */
 static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)0xa4600000;
@@ -33,23 +26,31 @@ static volatile int __dma_busy(void)
     return PI_regs->status & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
 }
 
+__attribute__((noinline, warn_unused_result))
+static uint32_t wait_dma_and_disable_interrupts(void)
+{
+    while (1) {
+        while (__dma_busy()) {} 
+        uint32_t sr = __disable_interrupts();
+        if (LIKELY(!__dma_busy()))
+            return sr;
+        __enable_interrupts(sr);
+    }
+}
+
 bool io_accessible(pi_addr_t pi_address)
 {
     // Below 0x0500_0000, there is RDRAM and RCP registers.
     if (pi_address < 0x05000000)
         return false;
 
-    // Using 32-bit addresses (like those available from within our C code),
-    // the CPU can only access addresses up to 0x1FFF_FFFF. 
-    // FIXME: we could theoretically lift this limit up to 0x7FFF_FFFF if the
-    // I/O functions were rewritten in assembly using 64-bit addresses, but
-    // there is currently no known PI peripheral that operates in that range anyway.
-    if (pi_address > 0x1FFFFFFF)
-        return false;
-
     // The SI bus is partially covering the PI range in the CPU memory map
     if (pi_address >= 0x1FC00000 && pi_address <= 0x1FCFFFFF)
-        return false;    
+        return false;
+
+    // Upper half of the PI range is not memory mapped
+    if (pi_address >= 0x80000000)
+        return false;
 
     // All other addresses are memory mapped and can be accessed via CPU.
     return true;
@@ -65,50 +66,27 @@ volatile int dma_busy(void)
     return __dma_busy();
 }
 
+__attribute__((noinline))
 void dma_read_raw_async(void * ram_address, pi_addr_t pi_address, unsigned long len) 
 {
     assert(len > 0);
 
-    disable_interrupts();
-
-    while (__dma_busy()) ;
-    MEMORY_BARRIER();
-    PI_regs->ram_address = ram_address;
-    MEMORY_BARRIER();
-    PI_regs->pi_address = pi_address;
-    MEMORY_BARRIER();
-    PI_regs->write_length = len-1;
-    MEMORY_BARRIER();
-
-    enable_interrupts();
+    uint32_t sr = wait_dma_and_disable_interrupts();
+    *PI_DRAM_ADDR = PhysicalAddr(ram_address);
+    *PI_CART_ADDR = pi_address;
+    *PI_WR_LEN = len-1;
+    __enable_interrupts(sr);
 }
 
 void dma_write_raw_async(const void * ram_address, pi_addr_t pi_address, unsigned long len) 
 {
     assert(len > 0);
 
-    disable_interrupts();
-
-    while (__dma_busy()) ;
-    MEMORY_BARRIER();
-    PI_regs->ram_address = (void*)ram_address;
-    MEMORY_BARRIER();
-    PI_regs->pi_address = pi_address;
-    MEMORY_BARRIER();
-    PI_regs->read_length = len-1;
-    MEMORY_BARRIER();
-
-    enable_interrupts();
-}
-
-/** @brief Low-level 32-bit aligned ROM read.
- * 
- * @note This function must be called with interrupts disabled.
- */
-static uint32_t __io_read32(void* pi_pointer) {
-    while (__dma_busy()) {}
-    MEMORY_BARRIER();
-    return *(volatile uint32_t*)pi_pointer;
+    uint32_t sr = wait_dma_and_disable_interrupts();
+    *PI_DRAM_ADDR = PhysicalAddr(ram_address);
+    *PI_CART_ADDR = pi_address;
+    *PI_RD_LEN = len-1;
+    __enable_interrupts(sr);
 }
 
 /** @brief Low-level 16-bit aligned PI ROM read.
@@ -122,14 +100,11 @@ static uint32_t __io_read32(void* pi_pointer) {
 static uint16_t __io_read16(void *pi_pointer) {
     uint32_t pi_address = (uint32_t)pi_pointer;
     if (pi_address & 2) {
-        return (uint16_t)__io_read32((void*)(pi_address^2));
+        return (uint16_t)*(volatile uint32_t*)(pi_address^2);
     } else {
-        while (__dma_busy()) {}
-        MEMORY_BARRIER();
         return *(volatile uint16_t*)pi_pointer;
     }
 }
-
 
 /** @brief Low-level 8-bit PI ROM read.
  * 
@@ -214,9 +189,11 @@ void dma_wait(void)
     while (__dma_busy()) {}
 }
 
-
 void dma_read(void *ram_address, pi_addr_t pi_address, unsigned long len)
 {
+    // HORROR: this code makes no sense, but it's always been here. The original
+    // goal was to convert virtual addresses to PI addresses, but it is also
+    // preventing a large span of the PI address space from being used.
     pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     dma_read_async(ram_address, pi_address, len);
     dma_wait();
@@ -224,6 +201,9 @@ void dma_read(void *ram_address, pi_addr_t pi_address, unsigned long len)
 
 void dma_write(const void * ram_address, pi_addr_t rom_address, unsigned long len) 
 {
+    // HORROR: this code makes no sense, but it's always been here. The original
+    // goal was to make virtual addresses to PI addresses, but it is also
+    // preventing a large span of the PI address space from being used.
     rom_address = (rom_address | 0x10000000) & 0x1FFFFFFF;
     dma_write_raw_async(ram_address, rom_address, len);
     dma_wait();
@@ -231,25 +211,28 @@ void dma_write(const void * ram_address, pi_addr_t rom_address, unsigned long le
 
 uint32_t io_read(pi_addr_t pi_address)
 {
-    uint32_t retval;
+    // assert(io_accessible(pi_address));  // Guaranteed by the API
 
-    disable_interrupts();
-    retval = __io_read32((void*)(pi_address | 0xA0000000));
-    enable_interrupts();
+    // Convert the PI address into a 64-bit virtual address, which allows a wider
+    // range of PI addresses to be accessed.
+    vaddr64_t va64 = VirtualUncachedAddr64(pi_address);
+
+    uint32_t sr = wait_dma_and_disable_interrupts();
+    uint32_t retval = sys_vaddr_read32(va64);
+    __enable_interrupts(sr);
 
     return retval;
 }
 
 void io_write(pi_addr_t pi_address, uint32_t data) 
 {
-    volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
+    // assert(io_accessible(pi_address));  // Guaranteed by the API
 
-    disable_interrupts();
+    // Convert the PI address into a 64-bit virtual address, which allows a wider
+    // range of PI addresses to be accessed.
+    vaddr64_t va64 = VirtualUncachedAddr64(pi_address);
 
-    while (__dma_busy()) ;
-    MEMORY_BARRIER();
-    *uncached_address = data;
-    MEMORY_BARRIER();
-
-    enable_interrupts();
+    uint32_t sr = wait_dma_and_disable_interrupts();
+    sys_vaddr_write32(va64, data);
+    __enable_interrupts(sr);
 }
