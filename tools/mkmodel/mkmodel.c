@@ -30,29 +30,11 @@
 #define CGLTF_IMPLEMENTATION
 #include "../common/convert_mesh.h"
 
-//Macros copied from utils.h in libdragon src directory
-#define ROUND_UP(n, d) ({ \
-    typeof(n) _n = n; typeof(d) _d = d; \
-    (((_n) + (_d) - 1) / (_d) * (_d)); \
-})
-#define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
-
 #define ANIM_MAX_FPS 60.0f
-
-
-#define ATTRIBUTE_COUNT     5
-
-#define VERTEX_PRECISION    5
-#define TEXCOORD_PRECISION  8
 
 #define RSP_PRECISION       (1.0f/65536.0f)
 
 #define MIN_KEYFRAME_DT (1.0f/80.0f)
-
-#define MAX_TEXTURES 1000
-
-typedef void (*component_convert_func_t)(void*,float*,size_t);
-typedef void (*index_convert_func_t)(void*,cgltf_uint*,size_t);
 
 typedef struct gltf_keyframe_s {
     float time;
@@ -89,12 +71,6 @@ typedef struct ordered_keyframe_array_s {
     uint32_t count;
     ordered_keyframe_t *data;
 } ordered_keyframe_array_t;
-
-struct {
-    char *file_paths[MAX_TEXTURES];   // Input image paths used as a search key
-    char *sprite_paths[MAX_TEXTURES]; // Converted sprite paths stored in file
-    uint32_t num;
-} texture_table;
 
 int flag_anim_stream = 1;
 int flag_verbose = 0;
@@ -169,19 +145,6 @@ void anim_free(model64_anim_t *anim)
     }
 }
 
-void texture_table_init()
-{
-    memset(&texture_table, 0, sizeof(texture_table));
-}
-
-void texture_table_free()
-{
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        free(texture_table.file_paths[i]);
-        free(texture_table.sprite_paths[i]);
-    }
-}
-
 void model64_free(model64_data_t *model)
 {
     for (size_t i = 0; i < model->num_nodes; i++) {
@@ -246,9 +209,6 @@ void model64_write_header(model64_data_t *model, FILE *out)
     } else {
         w32(out, 0);
     }
-
-    w32(out, texture_table.num);
-    w32_placeholderf(out, "textures");
 
     w32(out, 0);
 }
@@ -446,19 +406,6 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     }
 }
 
-void model64_write_textures(model64_data_t *model, FILE *out)
-{
-    walign(out, 4);
-    placeholder_set(out, "textures");
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        w32_placeholderf(out, "texture%d_path", i);
-    }
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        placeholder_set(out, "texture%d_path", i);
-        fwrite(texture_table.sprite_paths[i], strlen(texture_table.sprite_paths[i])+1, 1, out);
-    }
-}
-
 void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
 {
     model64_write_header(model, out);
@@ -466,7 +413,6 @@ void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
     model64_write_nodes(model, out);
     model64_write_skins(model, out);
     model64_write_anims(model, out, anim_out);
-    model64_write_textures(model, out);
     placeholder_clear();
 }
 
@@ -524,53 +470,6 @@ void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, attribute_t *weight_
     mtx_index_attr->size = 1;
 }
 */
-
-uint32_t texture_table_find_or_add(const char* path)
-{
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        if (strcmp(texture_table.file_paths[i], path) == 0) {
-            return i;
-        }
-    }
-
-    if (texture_table.num >= MAX_TEXTURES) {
-        fprintf(stderr, "Error: maximum texture count %d reached. Skipping %s\n", MAX_TEXTURES, path);
-        return TEXTURE_INDEX_MISSING;
-    }
-
-    // Convert "whatever/image.extension" to "whatever/image.sprite".
-    char* p = strdup(path);
-    size_t len = strlen(p);
-
-    char *basename = strrchr(p, '/');
-    if (!basename) basename = p; else basename += 1;
-
-    char *ext = &p[len];
-    char *period = strrchr(p, '.');
-
-    // Only consider the last period if it was part of the basename
-    if (period > basename) {
-        ext = period;
-    }
-
-    *ext = '\0';
-
-    char *path_sprite;
-    if (asprintf(&path_sprite, "%s.sprite", p) == -1) {
-        fprintf(stderr, "Bug: asprintf failed\n");
-        free(p);
-        return TEXTURE_INDEX_MISSING;
-    }
-    free(p);
-
-    uint32_t idx = texture_table.num++;
-    texture_table.file_paths[idx] = strdup(path);
-    texture_table.sprite_paths[idx] = path_sprite;
-    if (flag_verbose) {
-        printf("New texture %s\n", texture_table.sprite_paths[idx]);
-    }
-    return idx;
-}
 
 void make_node_idx_list(cgltf_data *data, cgltf_node **node_list, cgltf_size num_nodes, uint32_t **idx_list)
 {
@@ -1338,8 +1237,6 @@ int convert(const char *infn, const char *outfn)
 
     // Convert meshes
 
-    texture_table_init();
-
     model->num_meshes = data->meshes_count;
     model->meshes = calloc(data->meshes_count, sizeof(mgfx_mesh_t));
     for (size_t i = 0; i < data->meshes_count; i++)
@@ -1452,13 +1349,11 @@ int convert(const char *infn, const char *outfn)
     model64_write(model, out, anim_out);
     fclose(out);
 
-    texture_table_free();
     model64_free(model);
     cgltf_free(data);
     return 0;
 
 error:
-    texture_table_free();
     model64_free(model);
     cgltf_free(data);
     return 1;

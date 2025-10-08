@@ -30,9 +30,6 @@
 /** @brief Maximum number of active animations per model instance. */
 #define MAX_ACTIVE_ANIMS 4
 
-/** @brief A special empty value for both local_texture and shared_texture fields */
-#define TEXTURE_INDEX_MISSING 0xFFFFFFLU
-
 #define MESH_INDEX_MISSING  -1
 
 /** @brief Transform of a node of a model */
@@ -126,8 +123,6 @@ typedef struct model64_data_s {
     model64_anim_t *anims;      ///< Pointer to first animation
     uint32_t max_tracks;        ///< Maximum number of tracks for animation
     void *anim_data_handle;     ///< Handle for animation data (0 means animations are not streamed)
-    uint32_t num_textures;      ///< Number of texture paths
-    char **texture_paths;       ///< Pointer to first texture path
     runtime_state_t *runtime_state;
 } model64_data_t;
 

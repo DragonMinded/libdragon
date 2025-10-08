@@ -17,165 +17,9 @@
 #include "mgfx.h"
 #include "asset.h"
 #include "debug.h"
-#include "sprite.h"
 #include "utils.h"
-#include "rdpq_tex.h"
 
 #include "model64_catmull.h"
-
-
-/** @brief Loading state of a texture_entry_t */
-typedef enum {
-    ENTRY_STATE_EMPTY = 0,
-    ENTRY_STATE_SPRITE_LOADED,
-    ENTRY_STATE_FULL
-} texture_entry_state_t;
-
-/** @brief A single, possibly empty, shared texture */
-typedef struct texture_entry_s {
-    char *path;                  ///< Original file path of a texture, used as a key
-    texture_entry_state_t state; ///< Is only the sprite loaded or also a GL texture object
-    sprite_t *sprite;            ///< A sprite with image data
-    GLuint obj;                  ///< Texture object created on first draw
-    int ref_count;               ///< Reference count from all models
-} texture_entry_t;
-
-/** @brief Contains shared textures and their metadata */
-typedef struct texture_table_s {
-    texture_entry_t *entries; ///< Path to entry mapping with empty slots
-    uint32_t size;            ///< Number of elements allocated for the array above
-    int ref_count;            ///< How many models have shared textures
-} texture_table_t;
-
-/** @brief Global shared texture table */
-static texture_table_t* shared_textures;
-
-/** @brief Allocates the global texture table */
-void texture_table_allocate()
-{
-    shared_textures = calloc(1, sizeof(texture_table_t));
-    shared_textures->size = 2;
-    shared_textures->entries = calloc(shared_textures->size, sizeof(shared_textures->entries[0]));
-    shared_textures->ref_count = 1;
-}
-
-/** @brief Frees a texture entry and its resources */
-void free_texture_entry(texture_entry_t *entry) {
-    assertf(entry->ref_count == 0, "Leaked a texture entry %p", entry);
-    free(entry->path);
-    sprite_free(entry->sprite);
-    if (entry->state == ENTRY_STATE_FULL) {
-        glDeleteTextures(1, &entry->obj);
-    }
-    entry->path = NULL;
-    entry->state = ENTRY_STATE_EMPTY;
-    entry->sprite = NULL;
-}
-
-/** @brief Frees the global texture table */
-void texture_table_free()
-{
-    assertf(shared_textures->ref_count == 0, "Tried freeing texture table while still in use");
-
-    for (uint32_t i = 0; i < shared_textures->size; i++) {
-        texture_entry_t *entry = &shared_textures->entries[i];
-        assertf(entry->state == ENTRY_STATE_EMPTY, "Shared texture %lu=%p was leaked", i, entry);
-    }
-    free(shared_textures->entries);
-    free(shared_textures);
-    shared_textures = NULL;
-}
-
-/** @brief Gets texture index by path */
-uint32_t texture_table_get(const char* path)
-{
-    for (uint32_t i = 0; i < shared_textures->size; i++) {
-        texture_entry_t *entry = &shared_textures->entries[i];
-        if (entry->state != ENTRY_STATE_EMPTY) {
-            if (strcmp(shared_textures->entries[i].path, path) == 0) {
-                return i;
-            }
-        }
-    }
-
-    return TEXTURE_INDEX_MISSING;
-}
-
-/** @brief Adds a texture to the shared table */
-uint32_t texture_table_add(const char* path, const char* prefix)
-{
-    uint32_t idx = TEXTURE_INDEX_MISSING;
-
-    for (uint32_t i = 0; i < shared_textures->size; i++) {
-        texture_entry_t *entry = &shared_textures->entries[i];
-        if (entry->state == ENTRY_STATE_EMPTY) {
-            idx = i;
-            break;
-        }
-    }
-
-    if (idx == TEXTURE_INDEX_MISSING) {
-        // Table must be full because a free slot wasn't found.
-        uint32_t new_size = shared_textures->size * 2;
-        shared_textures->entries = realloc(shared_textures->entries, new_size * sizeof(shared_textures->entries[0]));
-        assertf(shared_textures->entries, "Entry array allocation failed");
-
-        for (uint32_t i = shared_textures->size; i < new_size; i++) {
-            memset(&shared_textures->entries[i], 0, sizeof(shared_textures->entries[i]));
-        }
-
-        idx = shared_textures->size;
-        shared_textures->size = new_size;
-    }
-
-    char prefixed[strlen(prefix) + strlen(path) + 1]; 
-    prefixed[0] = '\0';
-    strcat(prefixed, prefix);
-    strcat(prefixed, path);
-    
-    sprite_t *sprite = sprite_load(prefixed);
-
-    if (!sprite) {
-        assertf(false, "Failed to load texture %s\n", prefixed);
-        return TEXTURE_INDEX_MISSING;
-    }
-
-    size_t size = strlen(path) + 1;
-    char *new = malloc(size);
-    strncpy(new, path, size);
-
-    texture_entry_t* entry = &shared_textures->entries[idx];
-    entry->path = new;
-    entry->sprite = sprite;
-    entry->ref_count = 0; // caller will increment ref_count if it stored a reference
-    entry->state = ENTRY_STATE_SPRITE_LOADED; // entry->obj gets initialized on first draw
-
-    return idx;
-}
-
-/** @brief Increments reference count for a texture */
-void texture_table_inc_ref_count(uint32_t idx)
-{
-    if (idx == TEXTURE_INDEX_MISSING) return;
-    assert(idx < shared_textures->size);
-    assert(shared_textures->entries[idx].ref_count >= 0);
-    shared_textures->entries[idx].ref_count++;
-}
-
-/** @brief Decrements reference count for a texture */
-void texture_table_dec_ref_count(uint32_t idx)
-{
-    if (idx == TEXTURE_INDEX_MISSING) return;
-
-    assert(idx < shared_textures->size);
-
-    texture_entry_t* entry = &shared_textures->entries[idx];
-    assert(entry->ref_count > 0);
-
-    if (--entry->ref_count == 0) {
-        free_texture_entry(entry);
-    }
-}
 
 static void init_submesh(submesh_state_t *submesh_state, const mgfx_submesh_t *submesh)
 {
@@ -305,7 +149,6 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
     model->meshes = PTR_DECODE(model, model->meshes);
     model->skins = PTR_DECODE(model, model->skins);
     model->anims = PTR_DECODE(model, model->anims);
-    model->texture_paths = PTR_DECODE(model, model->texture_paths);
     for(uint32_t i=0; i<model->num_skins; i++)
     {
         model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
@@ -321,18 +164,6 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
         {
             model->nodes[i].skin = PTR_DECODE(model, model->nodes[i].skin);
         }
-    }
-    if (model->num_textures > 0) {
-        assertf(prefix, "Trying to load a textured model from memory, only file system supported");
-        if (shared_textures) {
-            shared_textures->ref_count++;
-        } else {
-            texture_table_allocate();
-        }
-    }
-    for (uint32_t i = 0; i < model->num_textures; i++)
-    {
-        model->texture_paths[i] = PTR_DECODE(model, model->texture_paths[i]);
     }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
@@ -594,13 +425,7 @@ static void free_model64_data(model64_data_t *data)
 {
     if(--data->ref_count == 0)
     {
-        bool had_textures = data->num_textures > 0;
         unload_model_data(data);
-        if (had_textures) {
-            if (--shared_textures->ref_count == 0) {
-                texture_table_free();
-            }
-        }
     }
 }
 
@@ -735,7 +560,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
     if(node->mesh_index == MESH_INDEX_MISSING) {
         return;
     }
-    
+
     if(node->skin)
     {
         glMatrixMode(GL_MATRIX_PALETTE_ARB);
