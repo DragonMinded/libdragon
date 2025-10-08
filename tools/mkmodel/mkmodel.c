@@ -588,6 +588,8 @@ void convert_node(cgltf_data *data, model64_data_t *model_data, cgltf_node *in_n
     }
     if(in_node->mesh) {
         out_node->mesh_index = cgltf_mesh_index(data, in_node->mesh);
+    } else {
+        out_node->mesh_index = MESH_INDEX_MISSING;
     }
     if(in_node->skin) {
         out_node->skin = &model_data->skins[cgltf_skin_index(data, in_node->skin)];

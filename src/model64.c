@@ -732,31 +732,32 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
 {
     uint32_t node_idx = get_node_idx(model, node);
     assertf(node_idx < model->data->num_nodes, "Drawing invalid node.");
-    if(node->mesh_index != MESH_INDEX_MISSING)
+    if(node->mesh_index == MESH_INDEX_MISSING) {
+        return;
+    }
+    
+    if(node->skin)
     {
-        if(node->skin)
+        glMatrixMode(GL_MATRIX_PALETTE_ARB);
+        for(uint32_t i=0; i<node->skin->num_joints; i++)
         {
-            glMatrixMode(GL_MATRIX_PALETTE_ARB);
-            for(uint32_t i=0; i<node->skin->num_joints; i++)
-            {
-                glCurrentPaletteMatrixARB(i);
-                glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
-                glMultMatrixf(model->transforms[node->skin->joints[i].node_idx].world_mtx);
-                glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
-            }
-            glEnable(GL_MATRIX_PALETTE_ARB);
-            model64_draw_mesh(model, node->mesh_index);
-            glDisable(GL_MATRIX_PALETTE_ARB);
-            glMatrixMode(GL_MODELVIEW);
+            glCurrentPaletteMatrixARB(i);
+            glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
+            glMultMatrixf(model->transforms[node->skin->joints[i].node_idx].world_mtx);
+            glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
         }
-        else
-        {
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glMultMatrixf(model->transforms[node_idx].world_mtx);
-            model64_draw_mesh(model, node->mesh_index);
-            glPopMatrix();
-        }
+        glEnable(GL_MATRIX_PALETTE_ARB);
+        model64_draw_mesh(model, node->mesh_index);
+        glDisable(GL_MATRIX_PALETTE_ARB);
+        glMatrixMode(GL_MODELVIEW);
+    }
+    else
+    {
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glMultMatrixf(model->transforms[node_idx].world_mtx);
+        model64_draw_mesh(model, node->mesh_index);
+        glPopMatrix();
     }
 }
 
