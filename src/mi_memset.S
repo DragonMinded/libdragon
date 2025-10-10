@@ -67,9 +67,10 @@ __mi_memset64:
     sll t1, t0, 3
     addu ptr, t0
     sub len, t0
+    beqz len, .Lexit
 
     # Rotate the value after the partial write
-    dsllv t2, val, t1
+     dsllv t2, val, t1
     neg t1, t1
     dsrlv val, val, t1
     or val, t2
@@ -121,15 +122,29 @@ __mi_memset64:
 1:
     # Prepare repeat mode register value in t1
     ori t1, t0, MI_WMODE_SET_REPEAT_MODE
-    addiu t1, -1
-    beq uptr, ptr, .Ldorepeat      # If the pointer is uncached, do not invalidate cache
-     addiu t2, duffptr, 4
-    # Calculate duff device pointer offset
-    addiu t2, t0, -1
+    beq uptr, ptr, .Lduffend      # If the pointer is uncached, do not invalidate cache
+     addiu t1, -1
+
+    # Calculate duff device pointer offset. We will jump to
+    #    .Lduffend - ((len - 1) / 16 * 4)
+    addi t2, t0, -1
     srl t2, 4
     sll t2, 2
     sub t2, duffptr, t2
-.Ldorepeat:
+    jr t2
+     cache_i 0(ptr)
+    # Duff device to clear the cache. Some of these cache
+    # instructions will be skipped if < 128 bytes will be written.
+    cache_i 112(ptr)
+    cache_i  96(ptr)
+    cache_i  80(ptr)
+    cache_i  64(ptr)
+    cache_i  48(ptr)
+    cache_i  32(ptr)
+    cache_i  16(ptr)
+.Lduffend:
+
+    # Now perform the repeated copy via MI repeat mode.
     # We need to guarantee that the very next memory access after setting up MI repeat
     # is the one to repeat. This means that:
     # 1) interrupts must be disabled of course
@@ -139,19 +154,7 @@ __mi_memset64:
     .same_cacheline 2
     sw t1, (MI_MODE)
     sd val, (uptr)
-    jr t2
-     mtc0 srsave, C0_SR
-    # Duff device to clear the cache. Some of these cache
-    # instructions will be skipped if < 128 bytes were written.
-    cache_i 112(ptr)
-    cache_i  96(ptr)
-    cache_i  80(ptr)
-    cache_i  64(ptr)
-    cache_i  48(ptr)
-    cache_i  32(ptr)
-    cache_i  16(ptr)
-.Lduffend:
-    cache_i   0(ptr)
+    mtc0 srsave, C0_SR
 
     # Loop epilogue: update pointers and remaining length
     sub len, t0
@@ -167,9 +170,10 @@ __mi_memset64:
     dsrl t0, val, 56
     sb t0, 0(ptr)
     dsll val, 8
-    addiu len, -1
+    addi len, -1
     bgtz len, .Lsmall
-     addiu ptr, 1
+     addi ptr, 1
+.Lexit:
     jr ra
      nop
 
