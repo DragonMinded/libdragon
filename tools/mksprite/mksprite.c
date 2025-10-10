@@ -1775,11 +1775,11 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
     if (!spr.hslices) {
         spr.hslices = spr.images[0].width / 16;
-        if (!spr.hslices) spr.hslices = 1;
+        if (!spr.hslices || spr.hslices >= 256) spr.hslices = 1;
     }
     if (!spr.vslices) {
         spr.vslices = spr.images[0].height / 16;
-        if (!spr.vslices) spr.vslices = 1;
+        if (!spr.vslices || spr.vslices >= 256) spr.vslices = 1;
     }
 
     // Write the sprite
