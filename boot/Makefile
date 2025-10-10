@@ -33,7 +33,7 @@ N64_CFLAGS += -mabi=32 -mgp32 -mfp32 -msingle-float # Can't compile for 64bit AB
 #N64_CFLAGS += -flto
 
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
-N64_ASFLAGS =  -mabi=32 -mgp32 -mfp32 -msingle-float -G0
+N64_ASFLAGS +=  -mabi=32 -mgp32 -mfp32 -msingle-float -G0
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
 N64_LDFLAGS = -Wl,-T$(IPL3_LDSCRIPT) -Wl,-Map=build/ipl3.map -Wl,--gc-sections
 
