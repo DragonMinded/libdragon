@@ -416,11 +416,11 @@ RDP commands in block mode</h3>
 <ul>
 <li>CPU (application code): a call to</li>
 <li>CPU (application code): a call to a rdpq function is made (eg: <a class="el" href="rdpq_8c.html#a9b37267136cf8b04374eb3ac668046f2" title="Load a texture image into TMEM with a single contiguous memory transfer (RDP command: LOAD_BLOCK)">rdpq_load_block</a>), while compiling a block.</li>
-<li>CPU (rdpq code): the implementation of <a class="el" href="rdpq_8c.html#a9b37267136cf8b04374eb3ac668046f2" title="Load a texture image into TMEM with a single contiguous memory transfer (RDP command: LOAD_BLOCK)">rdpq_load_block</a> detects that a block, is being compiled and does two things 1) Append the RDP LOAD_BLOCK command to the RDP static buffer associated with the block. 2) Write the <a class="el" href="rspq__internal_8h.html#a458e651af6690959efa2afb96be7d609abe06e92ff0ad671b894d7406f36caf6a" title="RSPQ Command: send more data to RDP (appended to the end of the current buffer)">RSPQ_CMD_RDP_APPEND_BUFFER</a> command to the rspq block, containing the address of the just-written LOAD_BLOCK command.</li>
+<li>CPU (rdpq code): the implementation of <a class="el" href="rdpq_8c.html#a9b37267136cf8b04374eb3ac668046f2" title="Load a texture image into TMEM with a single contiguous memory transfer (RDP command: LOAD_BLOCK)">rdpq_load_block</a> detects that a block, is being compiled and does two things 1) Append the RDP LOAD_BLOCK command to the RDP static buffer associated with the block. 2) Write the <a class="el" href="rspq__internal_8h.html#a1f9aebf1de3ebbf4283a4dcf73308562abe06e92ff0ad671b894d7406f36caf6a" title="RSPQ Command: send more data to RDP (appended to the end of the current buffer)">RSPQ_CMD_RDP_APPEND_BUFFER</a> command to the rspq block, containing the address of the just-written LOAD_BLOCK command.</li>
 </ul>
 <p>And now at block run time:</p>
 <ul>
-<li>RSP (rspq code): the RSP reads the <a class="el" href="rspq__internal_8h.html#a458e651af6690959efa2afb96be7d609abe06e92ff0ad671b894d7406f36caf6a" title="RSPQ Command: send more data to RDP (appended to the end of the current buffer)">RSPQ_CMD_RDP_APPEND_BUFFER</a> command and</li>
+<li>RSP (rspq code): the RSP reads the <a class="el" href="rspq__internal_8h.html#a1f9aebf1de3ebbf4283a4dcf73308562abe06e92ff0ad671b894d7406f36caf6a" title="RSPQ Command: send more data to RDP (appended to the end of the current buffer)">RSPQ_CMD_RDP_APPEND_BUFFER</a> command and</li>
 </ul>
 <p>enqueues a rspq command for the rdpq overlay. This command does not need to have the same encoding of a real RDP command, but it is usually similar (to simplify work on the RSP). For instance, in our example the rdpq command is 0xD2, which is meaningless if sent to RDP, but has otherwise the same encoding of a real SET_SCISSOR (whose ID would be 0xED).</p><ul>
 <li>RSP (rspq code): later at some point, in parallel, the rspq engine will read the command <code>0xD2</code>, and dispatch it to the rdpq overlay.</li>
@@ -862,7 +862,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 </div><div class="memdoc">
 
 <p>Set a new RDP write pointer, and enqueue a RSP command to run the buffer until there. </p>
-<p>This function is called by <a class="el" href="rdpq__internal_8h.html#a2ea7458c96e94aa5fe7481e3f679a4c4" title="Write a passthrough RDP command into the rspq queue.">rdpq_passthrough_write</a> after some RDP commands have been written into the block's RDP buffer. A rspq command <a class="el" href="rspq__internal_8h.html#a458e651af6690959efa2afb96be7d609abe06e92ff0ad671b894d7406f36caf6a" title="RSPQ Command: send more data to RDP (appended to the end of the current buffer)">RSPQ_CMD_RDP_APPEND_BUFFER</a> will be issued so that the RSP will tell the RDP to fetch and run the new commands, appended at the end of the current buffer.</p>
+<p>This function is called by <a class="el" href="rdpq__internal_8h.html#a2ea7458c96e94aa5fe7481e3f679a4c4" title="Write a passthrough RDP command into the rspq queue.">rdpq_passthrough_write</a> after some RDP commands have been written into the block's RDP buffer. A rspq command <a class="el" href="rspq__internal_8h.html#a1f9aebf1de3ebbf4283a4dcf73308562abe06e92ff0ad671b894d7406f36caf6a" title="RSPQ Command: send more data to RDP (appended to the end of the current buffer)">RSPQ_CMD_RDP_APPEND_BUFFER</a> will be issued so that the RSP will tell the RDP to fetch and run the new commands, appended at the end of the current buffer.</p>
 <p>If possible, though, this function will coalesce the command with an immediately preceding RSPQ_CMD_RDP_APPEND_BUFFER (or even RSPQ_CMD_RDP_SET_BUFFER, if we are at the start of the buffer), so that only a single RSP command is issued, which covers multiple RDP commands.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -2400,7 +2400,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Oct 10 2025 09:42:51 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sat Oct 11 2025 09:56:40 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

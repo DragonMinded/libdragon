@@ -1,19 +1,10 @@
 var searchData=
 [
-  ['v_0',['v',['../wav64__internal_8h.html#acd915e801499ad26dddf97829edc52c0',1,'wav64_vadpcm_vector_t']]],
-  ['v_5fint_1',['v_int',['../group__lowlevel.html#a78d31d9148d84ffe2e31b4c8314eb59e',1,'VI_regs_t']]],
-  ['v_5flimits_2',['v_limits',['../group__lowlevel.html#a0a7255f9219ef588808846d57882b5fa',1,'VI_regs_t']]],
-  ['v_5fscale_3',['v_scale',['../group__lowlevel.html#a7154f52a793a1229191cb8171c520d9e',1,'VI_regs_t']]],
-  ['v_5fsync_4',['v_sync',['../group__lowlevel.html#a41a71cafa3141b8eda5f011c971f817e',1,'VI_regs_t']]],
-  ['vaccum_5',['vaccum',['../rsp_8h.html#a0a922c0b0bd1e4a58a389d53125d5bd3',1,'rsp_snapshot_t']]],
-  ['valid_6',['valid',['../group__controllerpak.html#ac6f84c97a7f4614d2a89463baa8874be',1,'entry_structure_t']]],
-  ['value_7',['value',['../dso__format_8h.html#aa4a499cc0ab9f6c086d0cd4b1918ac75',1,'dso_sym_t']]],
-  ['vctx_8',['vctx',['../rdpq__debug_8c.html#abdbd251867f30b406bec496bb6c052ee',1,'rdpq_debug.c']]],
-  ['vendor_9',['vendor',['../group__controllerpak.html#a4e65c83bc81eb966642da54ae8c885f5',1,'entry_structure_t']]],
-  ['version_10',['version',['../asset__internal_8h.html#a27a6d9b3639eee4a44c290b23e90ae95',1,'asset_header_t::version'],['../sprite__internal_8h.html#a3bfa3f371fd2e730dcdb71c923be078d',1,'sprite_ext_t::version'],['../backtrace_8c.html#a49df133ec55445f03fd42411feafd66c',1,'symtable_header_t::version'],['../wav64__internal_8h.html#a41f089df9c3a1121a13adeecca288596',1,'wav64_header_t::version']]],
-  ['version_5fnumber_11',['version_number',['../tpak_8h.html#ab742ef846978b3ffe4a313374479c0b8',1,'gameboy_cartridge_header']]],
-  ['vi_5fcallback_12',['VI_callback',['../interrupt_8c.html#ae53298ee0d7e09b763c88bce13f41d58',1,'interrupt.c']]],
-  ['vol_13',['vol',['../ay8910_8h.html#abc79941d9d5d3d5c9f22f0b4d97cdffa',1,'AYEnvelope']]],
-  ['vpr_14',['vpr',['../rsp_8h.html#a007496e4e8d0e57e66462151c8156051',1,'rsp_snapshot_t']]],
-  ['vslices_15',['vslices',['../sprite_8h.html#a3b1f4d3f9dd51d45993bda45a6d474d3',1,'sprite_t']]]
+  ['unlink_0',['unlink',['../structfilesystem__t.html#aa36c93c6c464e4893a7adf781bf05520',1,'filesystem_t']]],
+  ['up_1',['up',['../rdpq__font__internal_8h.html#a01b46bafb65cbd68fe37fbd2a6b534a6',1,'atlas_t::up'],['../group__controller.html#a46c48bec0d282018b9d167eef7711b2c',1,'_SI_condat.__unnamed42__.__unnamed46__::up']]],
+  ['use_5fmain_5ftex_2',['use_main_tex',['../sprite_8h.html#aa64a020b664e48963668b8cf8a440e49',1,'sprite_detail_t']]],
+  ['use_5fmain_5ftexture_3',['use_main_texture',['../sprite__internal_8h.html#a37c084a7a90c1d5008ef58cb47cfeb27',1,'sprite_ext_t::detail_s']]],
+  ['use_5forigin_4',['use_origin',['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_port_t.recv::use_origin'],['../group__joybus__commands.html#a8dd3a7112e48112d9321160828049588',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::use_origin']]],
+  ['used_5',['used',['../group__n64sys.html#a24470473a14139c462436da88e813d15',1,'heap_stats_t']]],
+  ['utf8_5ftext_5fadvance_6',['utf8_text_advance',['../rdpq__text_8h.html#abf50fa66399911890e9583b89f782a46',1,'rdpq_textmetrics_t']]]
 ];

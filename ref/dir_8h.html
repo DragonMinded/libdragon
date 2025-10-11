@@ -114,17 +114,17 @@ Typedefs</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
-<tr class="memitem:a7cc2e4244ca368f68e5746185eda6c4a" id="r_a7cc2e4244ca368f68e5746185eda6c4a"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom">{ <br />
-&#160;&#160;<a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aac03806de3937ddfa528489614bc6c292">DIR_WALK_ABORT</a> = -2
-, <a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa08eea072dfb725a59b6beebdb293d2e7">DIR_WALK_ERROR</a> = -1
-, <a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa9eb7f52f27cb6d18cf287ab7b0403f5f">DIR_WALK_CONTINUE</a> = 0
-, <a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa25e4383141b638080de4de132d62d968">DIR_WALK_SKIPDIR</a> = 1
+<tr class="memitem:aedcf2109f459315e1a7f2af73ec9b603" id="r_aedcf2109f459315e1a7f2af73ec9b603"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom">{ <br />
+&#160;&#160;<a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603ac03806de3937ddfa528489614bc6c292">DIR_WALK_ABORT</a> = -2
+, <a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a08eea072dfb725a59b6beebdb293d2e7">DIR_WALK_ERROR</a> = -1
+, <a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a9eb7f52f27cb6d18cf287ab7b0403f5f">DIR_WALK_CONTINUE</a> = 0
+, <a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a25e4383141b638080de4de132d62d968">DIR_WALK_SKIPDIR</a> = 1
 , <br />
-&#160;&#160;<a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa6edf5eb59b3507867c2f04acf8936f0a">DIR_WALK_GOUP</a> = 2
+&#160;&#160;<a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a6edf5eb59b3507867c2f04acf8936f0a">DIR_WALK_GOUP</a> = 2
 <br />
  }</td></tr>
-<tr class="memdesc:a7cc2e4244ca368f68e5746185eda6c4a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Supported return values for <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a>.  <a href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4a">More...</a><br /></td></tr>
-<tr class="separator:a7cc2e4244ca368f68e5746185eda6c4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memdesc:aedcf2109f459315e1a7f2af73ec9b603"><td class="mdescLeft">&#160;</td><td class="mdescRight">Supported return values for <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a>.  <a href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603">More...</a><br /></td></tr>
+<tr class="separator:aedcf2109f459315e1a7f2af73ec9b603"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -166,11 +166,11 @@ Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'
 <p>This function is called for each file and each directory found during the directory walk.</p>
 <p>The return value of this function determines the behavior of the directory walk. The possible return values are:</p>
 <ul>
-<li><a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa9eb7f52f27cb6d18cf287ab7b0403f5f" title="Continue walking.">DIR_WALK_CONTINUE</a>: Continue walking the directory. This is the default expected return value.</li>
-<li><a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa25e4383141b638080de4de132d62d968" title="Do not recurse within the current directory.">DIR_WALK_SKIPDIR</a>: Skip the current directory. If the current entry is a directory, the directory will not be recursed into.</li>
-<li><a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa6edf5eb59b3507867c2f04acf8936f0a" title="Stop walking the current directory, return up one level.">DIR_WALK_GOUP</a>: Stop walking the current directory and return up one level.</li>
-<li><a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aac03806de3937ddfa528489614bc6c292" title="Abort walking and exit immediately.">DIR_WALK_ABORT</a>: Abort the directory walk immediately. <a class="el" href="dir_8h.html#a6fff7ad2762179c1a3db26170e2926fe" title="Walk a directory tree.">dir_walk</a> will return -2, and errno will not be set.</li>
-<li><a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa08eea072dfb725a59b6beebdb293d2e7" title="Error walking the directory (errno will be set)">DIR_WALK_ERROR</a>: An error occurred while walking the directory. The callback is responsible for setting errno to the appropriate value. <a class="el" href="dir_8h.html#a6fff7ad2762179c1a3db26170e2926fe" title="Walk a directory tree.">dir_walk</a> will return -1.</li>
+<li><a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a9eb7f52f27cb6d18cf287ab7b0403f5f" title="Continue walking.">DIR_WALK_CONTINUE</a>: Continue walking the directory. This is the default expected return value.</li>
+<li><a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a25e4383141b638080de4de132d62d968" title="Do not recurse within the current directory.">DIR_WALK_SKIPDIR</a>: Skip the current directory. If the current entry is a directory, the directory will not be recursed into.</li>
+<li><a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a6edf5eb59b3507867c2f04acf8936f0a" title="Stop walking the current directory, return up one level.">DIR_WALK_GOUP</a>: Stop walking the current directory and return up one level.</li>
+<li><a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603ac03806de3937ddfa528489614bc6c292" title="Abort walking and exit immediately.">DIR_WALK_ABORT</a>: Abort the directory walk immediately. <a class="el" href="dir_8h.html#a6fff7ad2762179c1a3db26170e2926fe" title="Walk a directory tree.">dir_walk</a> will return -2, and errno will not be set.</li>
+<li><a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a08eea072dfb725a59b6beebdb293d2e7" title="Error walking the directory (errno will be set)">DIR_WALK_ERROR</a>: An error occurred while walking the directory. The callback is responsible for setting errno to the appropriate value. <a class="el" href="dir_8h.html#a6fff7ad2762179c1a3db26170e2926fe" title="Walk a directory tree.">dir_walk</a> will return -1.</li>
 </ul>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -185,8 +185,8 @@ Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'
 </div>
 </div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="a7cc2e4244ca368f68e5746185eda6c4a" name="a7cc2e4244ca368f68e5746185eda6c4a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7cc2e4244ca368f68e5746185eda6c4a">&#9670;&#160;</a></span>anonymous enum</h2>
+<a id="aedcf2109f459315e1a7f2af73ec9b603" name="aedcf2109f459315e1a7f2af73ec9b603"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aedcf2109f459315e1a7f2af73ec9b603">&#9670;&#160;</a></span>anonymous enum</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -199,15 +199,15 @@ Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'
 
 <p>Supported return values for <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a>. </p>
 <table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="a7cc2e4244ca368f68e5746185eda6c4aac03806de3937ddfa528489614bc6c292" name="a7cc2e4244ca368f68e5746185eda6c4aac03806de3937ddfa528489614bc6c292"></a>DIR_WALK_ABORT&#160;</td><td class="fielddoc"><p>Abort walking and exit immediately. </p>
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aedcf2109f459315e1a7f2af73ec9b603ac03806de3937ddfa528489614bc6c292" name="aedcf2109f459315e1a7f2af73ec9b603ac03806de3937ddfa528489614bc6c292"></a>DIR_WALK_ABORT&#160;</td><td class="fielddoc"><p>Abort walking and exit immediately. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="a7cc2e4244ca368f68e5746185eda6c4aa08eea072dfb725a59b6beebdb293d2e7" name="a7cc2e4244ca368f68e5746185eda6c4aa08eea072dfb725a59b6beebdb293d2e7"></a>DIR_WALK_ERROR&#160;</td><td class="fielddoc"><p>Error walking the directory (errno will be set) </p>
+<tr><td class="fieldname"><a id="aedcf2109f459315e1a7f2af73ec9b603a08eea072dfb725a59b6beebdb293d2e7" name="aedcf2109f459315e1a7f2af73ec9b603a08eea072dfb725a59b6beebdb293d2e7"></a>DIR_WALK_ERROR&#160;</td><td class="fielddoc"><p>Error walking the directory (errno will be set) </p>
 </td></tr>
-<tr><td class="fieldname"><a id="a7cc2e4244ca368f68e5746185eda6c4aa9eb7f52f27cb6d18cf287ab7b0403f5f" name="a7cc2e4244ca368f68e5746185eda6c4aa9eb7f52f27cb6d18cf287ab7b0403f5f"></a>DIR_WALK_CONTINUE&#160;</td><td class="fielddoc"><p>Continue walking. </p>
+<tr><td class="fieldname"><a id="aedcf2109f459315e1a7f2af73ec9b603a9eb7f52f27cb6d18cf287ab7b0403f5f" name="aedcf2109f459315e1a7f2af73ec9b603a9eb7f52f27cb6d18cf287ab7b0403f5f"></a>DIR_WALK_CONTINUE&#160;</td><td class="fielddoc"><p>Continue walking. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="a7cc2e4244ca368f68e5746185eda6c4aa25e4383141b638080de4de132d62d968" name="a7cc2e4244ca368f68e5746185eda6c4aa25e4383141b638080de4de132d62d968"></a>DIR_WALK_SKIPDIR&#160;</td><td class="fielddoc"><p>Do not recurse within the current directory. </p>
+<tr><td class="fieldname"><a id="aedcf2109f459315e1a7f2af73ec9b603a25e4383141b638080de4de132d62d968" name="aedcf2109f459315e1a7f2af73ec9b603a25e4383141b638080de4de132d62d968"></a>DIR_WALK_SKIPDIR&#160;</td><td class="fielddoc"><p>Do not recurse within the current directory. </p>
 </td></tr>
-<tr><td class="fieldname"><a id="a7cc2e4244ca368f68e5746185eda6c4aa6edf5eb59b3507867c2f04acf8936f0a" name="a7cc2e4244ca368f68e5746185eda6c4aa6edf5eb59b3507867c2f04acf8936f0a"></a>DIR_WALK_GOUP&#160;</td><td class="fielddoc"><p>Stop walking the current directory, return up one level. </p>
+<tr><td class="fieldname"><a id="aedcf2109f459315e1a7f2af73ec9b603a6edf5eb59b3507867c2f04acf8936f0a" name="aedcf2109f459315e1a7f2af73ec9b603a6edf5eb59b3507867c2f04acf8936f0a"></a>DIR_WALK_GOUP&#160;</td><td class="fielddoc"><p>Stop walking the current directory, return up one level. </p>
 </td></tr>
 </table>
 
@@ -326,7 +326,7 @@ Giovanni Bajo <a href="#" onclick="location.href='mai'+'lto:'+'gio'+'va'+'nni'+'
 
 <p>Walk a directory tree. </p>
 <p>This function walks a directory tree, calling the callback for each file and directory found.</p>
-<p>The callback is of type <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a>, and its return value determines the behavior of the walk. In fact, the callback can request to abort the walk (<a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aac03806de3937ddfa528489614bc6c292" title="Abort walking and exit immediately.">DIR_WALK_ABORT</a>), skip the current directory (<a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa25e4383141b638080de4de132d62d968" title="Do not recurse within the current directory.">DIR_WALK_SKIPDIR</a>), or stop walking the current directory and return up one level (<a class="el" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa6edf5eb59b3507867c2f04acf8936f0a" title="Stop walking the current directory, return up one level.">DIR_WALK_GOUP</a>). See <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a> for more information.</p>
+<p>The callback is of type <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a>, and its return value determines the behavior of the walk. In fact, the callback can request to abort the walk (<a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603ac03806de3937ddfa528489614bc6c292" title="Abort walking and exit immediately.">DIR_WALK_ABORT</a>), skip the current directory (<a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a25e4383141b638080de4de132d62d968" title="Do not recurse within the current directory.">DIR_WALK_SKIPDIR</a>), or stop walking the current directory and return up one level (<a class="el" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a6edf5eb59b3507867c2f04acf8936f0a" title="Stop walking the current directory, return up one level.">DIR_WALK_GOUP</a>). See <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a> for more information.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">path</td><td>The path to the directory to walk </td></tr>
@@ -441,14 +441,14 @@ false The filename does not match the pattern </dd></dl>
 <p>The callback function is called for each file and directory that matches the pattern. The callback can then decide how to proceed using its return value (see <a class="el" href="dir_8h.html#a17aa9fb20b0bab90ccd8e3a8d822fb23" title="Callback function for directory walking.">dir_walk_callback_t</a> for more information).</p>
 <div class="fragment"><div class="line"><span class="keywordtype">int</span> mycb(<span class="keyword">const</span> <span class="keywordtype">char</span> *fn, <a class="code hl_struct" href="group__system.html#structdir__t">dir_t</a> *dir, <span class="keywordtype">void</span> *data) {</div>
 <div class="line">   <a class="code hl_define" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184">debugf</a>(<span class="stringliteral">&quot;Found sprite file: %s\n&quot;</span>, fn);</div>
-<div class="line">   <span class="keywordflow">return</span> <a class="code hl_enumvalue" href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa9eb7f52f27cb6d18cf287ab7b0403f5f">DIR_WALK_CONTINUE</a>;</div>
+<div class="line">   <span class="keywordflow">return</span> <a class="code hl_enumvalue" href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a9eb7f52f27cb6d18cf287ab7b0403f5f">DIR_WALK_CONTINUE</a>;</div>
 <div class="line">}</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// Search for all files with a .sprite extension in all directories under rom:/</span></div>
 <div class="line"><a class="code hl_function" href="dir_8c.html#a9e23f5bba8b68bb4b7b99037983797c9">dir_glob</a>(<span class="stringliteral">&quot;**/*.sprite&quot;</span>, <span class="stringliteral">&quot;rom:/&quot;</span>, mycb, NULL);</div>
 <div class="ttc" id="adebug_8h_html_aa3e8be416ef1525cfd3230204b56d184"><div class="ttname"><a href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184">debugf</a></div><div class="ttdeci">#define debugf(msg,...)</div><div class="ttdoc">Write a message to the debugging channel.</div><div class="ttdef"><b>Definition</b> debug.h:181</div></div>
 <div class="ttc" id="adir_8c_html_a9e23f5bba8b68bb4b7b99037983797c9"><div class="ttname"><a href="dir_8c.html#a9e23f5bba8b68bb4b7b99037983797c9">dir_glob</a></div><div class="ttdeci">int dir_glob(const char *pattern, const char *path, dir_walk_callback_t cb, void *data)</div><div class="ttdoc">Glob a directory tree using a pattern.</div><div class="ttdef"><b>Definition</b> dir.c:170</div></div>
-<div class="ttc" id="adir_8h_html_a7cc2e4244ca368f68e5746185eda6c4aa9eb7f52f27cb6d18cf287ab7b0403f5f"><div class="ttname"><a href="dir_8h.html#a7cc2e4244ca368f68e5746185eda6c4aa9eb7f52f27cb6d18cf287ab7b0403f5f">DIR_WALK_CONTINUE</a></div><div class="ttdeci">@ DIR_WALK_CONTINUE</div><div class="ttdoc">Continue walking.</div><div class="ttdef"><b>Definition</b> dir.h:94</div></div>
+<div class="ttc" id="adir_8h_html_aedcf2109f459315e1a7f2af73ec9b603a9eb7f52f27cb6d18cf287ab7b0403f5f"><div class="ttname"><a href="dir_8h.html#aedcf2109f459315e1a7f2af73ec9b603a9eb7f52f27cb6d18cf287ab7b0403f5f">DIR_WALK_CONTINUE</a></div><div class="ttdeci">@ DIR_WALK_CONTINUE</div><div class="ttdoc">Continue walking.</div><div class="ttdef"><b>Definition</b> dir.h:94</div></div>
 <div class="ttc" id="agroup__system_html_structdir__t"><div class="ttname"><a href="group__system.html#structdir__t">dir_t</a></div><div class="ttdoc">Directory entry structure.</div><div class="ttdef"><b>Definition</b> dir.h:37</div></div>
 </div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>the glob pattern is matched against pathnames <b>relative</b> to the starting directory. For example, if you start the search at "rom:/sprites", the pattern "hero/*.sprite" will match all files with a .sprite extension in the "rom:/sprites/hero" directory.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
@@ -471,7 +471,7 @@ false The filename does not match the pattern </dd></dl>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Oct 10 2025 09:42:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sat Oct 11 2025 09:56:40 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

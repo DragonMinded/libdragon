@@ -1,8 +1,26 @@
 var searchData=
 [
-  ['texparms_5fs_0',['texparms_s',['../sprite__internal_8h.html#structsprite__ext__t_1_1texparms__s',1,'sprite_ext_t']]],
-  ['texparms_5fs_2es_1',['texparms_s.s',['../sprite__internal_8h.html#structsprite__ext__t_1_1texparms__s_8s',1,'sprite_ext_t']]],
-  ['texparms_5fs_2et_2',['texparms_s.t',['../sprite__internal_8h.html#structsprite__ext__t_1_1texparms__s_8t',1,'sprite_ext_t']]],
-  ['timer_5flink_5ft_3',['timer_link_t',['../group__timer.html#structtimer__link__t',1,'']]],
-  ['timer_5flink_5ft_2e_5f_5funnamed64_5f_5f_4',['timer_link_t.__unnamed64__',['../group__timer.html#uniontimer__link__t_8____unnamed64____',1,'']]]
+  ['samplebuffer_5ft_0',['samplebuffer_t',['../samplebuffer_8h.html#structsamplebuffer__t',1,'']]],
+  ['setothermodes_5ft_1',['setothermodes_t',['../rdpq__debug_8c.html#structsetothermodes__t',1,'']]],
+  ['shrinkler_5fasm_5fstate_5ft_2',['shrinkler_asm_state_t',['../shrinkler__dec_8c.html#structshrinkler__asm__state__t',1,'']]],
+  ['shrinkler_5fctx_5ft_3',['shrinkler_ctx_t',['../shrinkler__dec_8c.html#structshrinkler__ctx__t',1,'']]],
+  ['si_5fcontrollers_5forigin_5ft_4',['SI_controllers_origin_t',['../group__controller.html#structSI__controllers__origin__t',1,'']]],
+  ['si_5fcontrollers_5fstate_5ft_5',['SI_controllers_state_t',['../group__controller.html#structSI__controllers__state__t',1,'']]],
+  ['si_5forigdat_5fgc_6',['SI_origdat_gc',['../group__controller.html#structSI__origdat__gc',1,'']]],
+  ['si_5fregs_5ft_7',['SI_regs_t',['../group__lowlevel.html#structSI__regs__t',1,'']]],
+  ['sp_5fregs_5ft_8',['SP_regs_t',['../group__lowlevel.html#structSP__regs__t',1,'']]],
+  ['sparse_5frange_5ft_9',['sparse_range_t',['../rdpq__font__internal_8h.html#structsparse__range__t',1,'']]],
+  ['sprite_5fcache_10',['sprite_cache',['../group__rdp.html#structsprite__cache',1,'']]],
+  ['sprite_5fdetail_5ft_11',['sprite_detail_t',['../sprite_8h.html#structsprite__detail__t',1,'']]],
+  ['sprite_5fext_5ft_12',['sprite_ext_t',['../sprite__internal_8h.html#structsprite__ext__t',1,'']]],
+  ['sprite_5fext_5ft_2e_5f_5funnamed39_5f_5f_13',['sprite_ext_t.__unnamed39__',['../sprite__internal_8h.html#structsprite__ext__t_8____unnamed39____',1,'']]],
+  ['sprite_5flod_5fs_14',['sprite_lod_s',['../sprite__internal_8h.html#structsprite__ext__t_1_1sprite__lod__s',1,'sprite_ext_t']]],
+  ['sprite_5ft_15',['sprite_t',['../sprite_8h.html#structsprite__t',1,'']]],
+  ['sprite_5ft_2e_5f_5funnamed68_5f_5f_16',['sprite_t.__unnamed68__',['../sprite_8h.html#unionsprite__t_8____unnamed68____',1,'']]],
+  ['stdio_5ft_17',['stdio_t',['../structstdio__t.html',1,'']]],
+  ['style_5ft_18',['style_t',['../structstyle__t.html',1,'']]],
+  ['surface_5ft_19',['surface_t',['../surface_8h.html#structsurface__t',1,'']]],
+  ['symtable_5fentry_5ft_20',['symtable_entry_t',['../backtrace_8c.html#structsymtable__entry__t',1,'']]],
+  ['symtable_5fheader_5ft_21',['symtable_header_t',['../backtrace_8c.html#structsymtable__header__t',1,'']]],
+  ['syscall_5fhandler_5fentry_5ft_22',['syscall_handler_entry_t',['../exception_8c.html#structsyscall__handler__entry__t',1,'']]]
 ];

@@ -1,22 +1,6 @@
 var searchData=
 [
-  ['l_0',['l',['../group__joypad.html#aeafba504ad60dda08d3b4a80765ce41c',1,'joypad_buttons_t::l'],['../group__joybus__commands.html#a2db95e8e1a9267b7a1188556b2013b33',1,'joybus_cmd_n64_controller_read_port_t.recv::l'],['../group__joybus__commands.html#a2db95e8e1a9267b7a1188556b2013b33',1,'joybus_cmd_gcn_controller_read_port_t.recv::l'],['../group__joybus__commands.html#a2db95e8e1a9267b7a1188556b2013b33',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::l'],['../group__controller.html#ad20caec3b48a1eef164cb4ca81ba2587',1,'_SI_condat.__unnamed41__.__unnamed45__::L']]],
-  ['last_5fcode_1',['last_code',['../exception_8c.html#a9fa2435054b572b9cad571543be9350a',1,'syscall_handler_entry_t']]],
-  ['last_5fnode_2',['last_node',['../rdpq__internal_8h.html#a9c220861365aa11e63a1168209bf11b4',1,'rdpq_block_state_t']]],
-  ['last_5frdp_5fappend_5fbuffer_3',['last_rdp_append_buffer',['../rdpq__internal_8h.html#ae387ea48068f1908da56615198e6f7d9',1,'rdpq_block_state_t']]],
-  ['last_5ftload_4',['last_tload',['../rdpq__tex_8c.html#a2ce9c15c626f5a31fee59757004bce51',1,'rdpq_tex.c']]],
-  ['left_5',['left',['../group__controller.html#a811882fecd5c7618d7099ebbd39ea254',1,'_SI_condat.__unnamed41__.__unnamed45__::left'],['../group__timer.html#a1a43ae02c45b019d92e86f914ea53e64',1,'timer_link_t::left']]],
-  ['len_6',['len',['../mixer_8c.html#aef320e995c34836585d6c00bfba18e86',1,'mixer_channel_t::len'],['../mixer_8h.html#a85d404d379af0cb389239dc987496cb9',1,'waveform_t::len'],['../wav64__internal_8h.html#ad2747bbf379e8e724a4231822880b9b9',1,'wav64_header_t::len'],['../mixer_8c.html#a9968bce758e83ee4f6ff5e7c9ecfa93c',1,'rsp_mixer_channel_t::len']]],
-  ['length_7',['length',['../group__lowlevel.html#a835d9ee811ce8d37be9403d2e6abe4bc',1,'AI_regs_t']]],
-  ['line_8',['line',['../backtrace_8c.html#a179e1f817956744078e63b251ff2aaa4',1,'symtable_entry_t']]],
-  ['lit_5flen_9',['lit_len',['../lz4__dec_8c.html#a69394b332048e3b0bc0fa55be88ecfc6',1,'lz4dec_faststate_t']]],
-  ['lo_10',['lo',['../group__exceptions.html#ae9f3a8d56d88b6b038e12508b371f71f',1,'reg_block_t']]],
-  ['loc_11',['loc',['../group__dfs.html#ab08b372d937c46787f4e4de467fcbfe3',1,'dfs_open_file_t']]],
-  ['lods_12',['lods',['../sprite__internal_8h.html#a58fcb7bcfa288d39be07e8b4a6556e16',1,'sprite_ext_t']]],
-  ['logo_13',['logo',['../tpak_8h.html#a5f99e891c7e4e8906bf5822bca1e6e81',1,'gameboy_cartridge_header']]],
-  ['loop_14',['loop',['../ym64_8c.html#adc6a472df483e03c4fe8f74993ce2dc1',1,'ym5header']]],
-  ['loop_5flen_15',['loop_len',['../mixer_8c.html#ab0d6e84fc49e19da02a2d1659b7d5704',1,'mixer_channel_t::loop_len'],['../mixer_8c.html#ad455a6924ba7ba8f41cb4d51665fde49',1,'rsp_mixer_channel_t::loop_len'],['../wav64__internal_8h.html#aecccfc32d77d4176b469233f306dff70',1,'wav64_header_t::loop_len'],['../mixer_8h.html#a4a7d318ddfbb4eeb1ec144f6163b5e15',1,'waveform_t::loop_len']]],
-  ['loop_5fstate_16',['loop_state',['../wav64__internal_8h.html#aada5ae6c444e6f117dc42598a7aac442',1,'wav64_header_vadpcm_t']]],
-  ['looping_17',['looping',['../xm64_8h.html#aaf6fe47352b3d3450d9711291960d288',1,'xm64player_t']]],
-  ['lseek_18',['lseek',['../structfilesystem__t.html#aed5c8fa5f3f3ff7d1e1c876a8864642d',1,'filesystem_t']]]
+  ['kerning_0',['kerning',['../rdpq__font__internal_8h.html#a44646f142dba8d073d25e6018585f528',1,'kerning_t::kerning'],['../rdpq__font__internal_8h.html#adcfe667677b35bf5f97f7ec6ad94d1db',1,'rdpq_font_t::kerning']]],
+  ['kerning_5fhi_1',['kerning_hi',['../rdpq__font__internal_8h.html#ad7d9649d0946d43b5e8ed806874ac85e',1,'glyph_krange_t']]],
+  ['kerning_5flo_2',['kerning_lo',['../rdpq__font__internal_8h.html#af0da10f8aaea8ef9324fe78a9f2d88a4',1,'glyph_krange_t']]]
 ];
