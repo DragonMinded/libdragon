@@ -10,6 +10,7 @@
 #include <stdbool.h>
 
 #include "mgfx_mesh_types.h"
+#include "rdpq_mat.h"
 
 /** @brief model64 file magic header */
 #define MODEL64_MAGIC           0x4D444C48 // "MDLH"
@@ -30,7 +31,7 @@
 /** @brief Maximum number of active animations per model instance. */
 #define MAX_ACTIVE_ANIMS 4
 
-#define MESH_INDEX_MISSING  -1
+#define INDEX_MISSING  -1
 
 /** @brief Transform of a node of a model */
 typedef struct node_transform_s {
@@ -68,6 +69,8 @@ typedef struct model64_node_s {
     uint32_t parent;                ///< Index of parent node
     uint32_t num_children;          ///< Number of children nodes
     uint32_t *children;             ///< List of children node indices
+    uint32_t num_materials;
+    uint32_t *material_indices;
 } model64_node_t;
 
 /** @brief A keyframe of an animation */
@@ -91,6 +94,11 @@ typedef struct model64_anim_s {
     uint32_t num_tracks;            ///< Number of tracks targeted by animation
     uint16_t *tracks;               ///< Top 2 bits: target component; lowest 14 bits: target node
 } model64_anim_t;
+
+typedef struct model64_mat_s {
+    rdpq_mat_t *rdpq_mat;
+    int size;
+} model64_mat_t;
 
 typedef struct submesh_state_s {
     uint32_t vertex_vbo;
@@ -121,6 +129,8 @@ typedef struct model64_data_s {
     mgfx_mesh_t *meshes;        ///< Pointer to the first mesh
     uint32_t num_anims;         ///< Number of animations
     model64_anim_t *anims;      ///< Pointer to first animation
+    uint32_t num_materials;
+    model64_mat_t *materials;
     uint32_t max_tracks;        ///< Maximum number of tracks for animation
     void *anim_data_handle;     ///< Handle for animation data (0 means animations are not streamed)
     runtime_state_t *runtime_state;

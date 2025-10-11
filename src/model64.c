@@ -149,6 +149,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
     model->meshes = PTR_DECODE(model, model->meshes);
     model->skins = PTR_DECODE(model, model->skins);
     model->anims = PTR_DECODE(model, model->anims);
+    model->materials = PTR_DECODE(model, model->materials);
     for(uint32_t i=0; i<model->num_skins; i++)
     {
         model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
@@ -160,6 +161,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
             model->nodes[i].name = PTR_DECODE(model, model->nodes[i].name);
         }
         model->nodes[i].children = PTR_DECODE(model, model->nodes[i].children);
+        model->nodes[i].material_indices = PTR_DECODE(model, model->nodes[i].material_indices);
         if(model->nodes[i].skin)
         {
             model->nodes[i].skin = PTR_DECODE(model, model->nodes[i].skin);
@@ -189,6 +191,10 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
         {
             model->anims[i].keyframes = PTR_DECODE(model, model->anims[i].keyframes);
         }
+    }
+    for (uint32_t i = 0; i < model->num_materials; i++)
+    {
+        model->materials[i].rdpq_mat = rdpq_mat_load_buf(PTR_DECODE(model, model->materials[i].rdpq_mat), model->materials[i].size);
     }
 
     init_runtime_state(model);
@@ -370,6 +376,7 @@ static void unload_model_data(model64_data_t *model)
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
         model->nodes[i].children = PTR_ENCODE(model, model->nodes[i].children);
+        model->nodes[i].material_indices = PTR_ENCODE(model, model->nodes[i].material_indices);
         if(model->nodes[i].skin)
         {
             model->nodes[i].skin = PTR_ENCODE(model, model->nodes[i].skin);
@@ -408,9 +415,15 @@ static void unload_model_data(model64_data_t *model)
             model->anims[i].keyframes = PTR_ENCODE(model, model->anims[i].keyframes);
         }
     }
+    for (uint32_t i = 0; i < model->num_materials; i++)
+    {
+        rdpq_mat_free(model->materials[i].rdpq_mat);
+        model->materials[i].rdpq_mat = PTR_ENCODE(model, model->materials[i].rdpq_mat);
+    }
     model->nodes = PTR_ENCODE(model, model->nodes);
     model->skins = PTR_ENCODE(model, model->skins);
     model->anims = PTR_ENCODE(model, model->anims);
+    model->materials = PTR_ENCODE(model, model->materials);
     if(model->magic == MODEL64_MAGIC_OWNED) {
         #ifndef NDEBUG
         // To help debugging, zero the model data structure
@@ -535,12 +548,16 @@ void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float ds
     mtx_copy(dst, model->transforms[node_idx].world_mtx);
 }
 
-static void model64_draw_mesh(model64_t *model, uint32_t mesh_index)
+static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *material_indices)
 {
     mgfx_mesh_t *mesh = &model->data->meshes[mesh_index];
     mesh_state_t *mesh_state = &model->data->runtime_state->meshes[mesh_index];
     for (size_t i = 0; i < mesh->submesh_count; i++)
     {
+        if (material_indices[i] != INDEX_MISSING) {
+            rdpq_mat_draw_begin(model->data->materials[material_indices[i]].rdpq_mat);
+        }
+
         mgfx_submesh_t *submesh = &mesh->submeshes[i];
         submesh_state_t *submesh_state = &mesh_state->submeshes[i];
         glBindVertexArray(submesh_state->vao);
@@ -548,6 +565,10 @@ static void model64_draw_mesh(model64_t *model, uint32_t mesh_index)
             glDrawElements(submesh_state->prim_mode, submesh->indices_count, GL_UNSIGNED_SHORT, NULL);
         } else {
             glDrawArrays(submesh_state->prim_mode, 0, submesh->vertices_count);
+        }
+
+        if (material_indices[i] != INDEX_MISSING) {
+            rdpq_mat_draw_end(model->data->materials[material_indices[i]].rdpq_mat);
         }
     }
 }
@@ -557,9 +578,12 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
 {
     uint32_t node_idx = get_node_idx(model, node);
     assertf(node_idx < model->data->num_nodes, "Drawing invalid node.");
-    if(node->mesh_index == MESH_INDEX_MISSING) {
+    if(node->mesh_index == INDEX_MISSING) {
         return;
     }
+
+    glEnable(GL_RDPQ_MATERIAL_N64);
+    glEnable(GL_RDPQ_TEXTURING_N64);
 
     if(node->skin)
     {
@@ -572,7 +596,7 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
             glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
         }
         glEnable(GL_MATRIX_PALETTE_ARB);
-        model64_draw_mesh(model, node->mesh_index);
+        model64_draw_mesh(model, node->mesh_index, node->material_indices);
         glDisable(GL_MATRIX_PALETTE_ARB);
         glMatrixMode(GL_MODELVIEW);
     }
@@ -581,9 +605,13 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix();
         glMultMatrixf(model->transforms[node_idx].world_mtx);
-        model64_draw_mesh(model, node->mesh_index);
+        model64_draw_mesh(model, node->mesh_index, node->material_indices);
         glPopMatrix();
     }
+
+    // TODO: check if it was enabled before
+    glDisable(GL_RDPQ_MATERIAL_N64);
+    glDisable(GL_RDPQ_TEXTURING_N64);
 }
 
 /** @brief Draws all nodes in a model */

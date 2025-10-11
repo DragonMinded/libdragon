@@ -16,6 +16,8 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"
+#include "../common/subprocess.h"
+#include "../common/utils.h"
 
 // Compression library
 #include <sys/stat.h>
@@ -74,6 +76,7 @@ typedef struct ordered_keyframe_array_s {
 
 int flag_anim_stream = 1;
 int flag_verbose = 0;
+const char *n64_inst = NULL;
 
 uint32_t get_type_size(uint32_t type)
 {
@@ -130,6 +133,9 @@ void node_free(model64_node_t *node)
     if(node->children) {
         free(node->children);
     }
+    if(node->material_indices) {
+        free(node->material_indices);
+    }
 }
 
 void anim_free(model64_anim_t *anim)
@@ -142,6 +148,13 @@ void anim_free(model64_anim_t *anim)
     }
     if(anim->tracks) {
         free(anim->tracks);
+    }
+}
+
+void mat_free(model64_mat_t *mat)
+{
+    if (mat->rdpq_mat) {
+        free(mat->rdpq_mat);
     }
 }
 
@@ -159,6 +172,9 @@ void model64_free(model64_data_t *model)
     for (size_t i = 0; i < model->num_anims; i++) {
         anim_free(&model->anims[i]);
     }
+    for (size_t i = 0; i < model->num_materials; i++) {
+        mat_free(&model->materials[i]);
+    }
     if (model->meshes) {
         free(model->meshes);
     }
@@ -170,6 +186,9 @@ void model64_free(model64_data_t *model)
     }
     if (model->anims) {
         free(model->anims);
+    }
+    if (model->materials) {
+        free(model->materials);
     }
     free(model);
 }
@@ -203,6 +222,8 @@ void model64_write_header(model64_data_t *model, FILE *out)
     w32_placeholderf(out, "meshes");
     w32(out, model->num_anims);
     w32_placeholderf(out, "anims");
+    w32(out, model->num_materials);
+    w32_placeholderf(out, "materials");
     w32(out, model->max_tracks);
     if(flag_anim_stream) {
         w32(out, 1);
@@ -267,6 +288,8 @@ void model64_write_node(model64_data_t *model, FILE *out, uint32_t index)
     w32(out, model->nodes[index].parent);
     w32(out, model->nodes[index].num_children);
     w32_placeholderf(out, "node%d_children", index);
+    w32(out, model->nodes[index].num_materials);
+    w32_placeholderf(out, "node%d_material_indices", index);
 }
 
 void model64_write_nodes(model64_data_t *model, FILE *out)
@@ -280,6 +303,12 @@ void model64_write_nodes(model64_data_t *model, FILE *out)
         placeholder_set(out, "node%d_children", i);
         for(uint32_t j=0; j<model->nodes[i].num_children; j++) {
             w32(out, model->nodes[i].children[j]);
+        }
+    }
+    for(uint32_t i=0; i<model->num_nodes; i++) {
+        placeholder_set(out, "node%d_material_indices", i);
+        for(uint32_t j=0; j<model->nodes[i].num_materials; j++) {
+            w32(out, model->nodes[i].material_indices[j]);
         }
     }
     for(uint32_t i=0; i<model->num_nodes; i++)
@@ -406,6 +435,20 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     }
 }
 
+void model64_write_materials(model64_data_t *model, FILE *out)
+{
+    walign(out, 4);
+    placeholder_set(out, "materials");
+    for (size_t i = 0; i < model->num_materials; i++) {
+        w32_placeholderf(out, "material%d", i);
+        w32(out, model->materials[i].size);
+    }
+    for (size_t i = 0; i < model->num_materials; i++) {
+        placeholder_set(out, "material%d", i);
+        fwrite(model->materials[i].rdpq_mat, model->materials[i].size, 1, out);
+    }
+}
+
 void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
 {
     model64_write_header(model, out);
@@ -413,6 +456,7 @@ void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
     model64_write_nodes(model, out);
     model64_write_skins(model, out);
     model64_write_anims(model, out, anim_out);
+    model64_write_materials(model, out);
     placeholder_clear();
 }
 
@@ -487,8 +531,17 @@ void convert_node(cgltf_data *data, model64_data_t *model_data, cgltf_node *in_n
     }
     if(in_node->mesh) {
         out_node->mesh_index = cgltf_mesh_index(data, in_node->mesh);
+        out_node->num_materials = in_node->mesh->primitives_count;
+        out_node->material_indices = calloc(out_node->num_materials, sizeof(uint32_t));
+        for (size_t i = 0; i < in_node->mesh->primitives_count; i++) {
+            if (in_node->mesh->primitives[i].material) {
+                out_node->material_indices[i] = cgltf_material_index(data, in_node->mesh->primitives[i].material);
+            } else {
+                out_node->material_indices[i] = INDEX_MISSING;
+            }
+        }
     } else {
-        out_node->mesh_index = MESH_INDEX_MISSING;
+        out_node->mesh_index = INDEX_MISSING;
     }
     if(in_node->skin) {
         out_node->skin = &model_data->skins[cgltf_skin_index(data, in_node->skin)];
@@ -502,6 +555,7 @@ void convert_node(cgltf_data *data, model64_data_t *model_data, cgltf_node *in_n
     if(in_node->children_count > 0) {
         make_node_idx_list(data, in_node->children, in_node->children_count, &out_node->children);
     }
+
     //Copy translation
     out_node->transform.pos[0] = in_node->translation[0];
     out_node->transform.pos[1] = in_node->translation[1];
@@ -1200,6 +1254,63 @@ uint32_t get_anim_max_tracks(model64_data_t *model)
     return num_tracks;
 }
 
+int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat)
+{
+    static char *mkmaterial = NULL;
+    if (!mkmaterial) asprintf(&mkmaterial, "%s/bin/mkmaterial", n64_inst);
+
+    struct subprocess_s subp;
+    const char *cmd_line[] = {
+        mkmaterial,
+        "-v",
+        "-t",
+        ".",
+        "--raw-material",
+        "-",
+        NULL
+    };
+
+    if (subprocess_create(cmd_line, subprocess_option_no_window|subprocess_option_inherit_environment, &subp)) {
+        fprintf(stderr, "Error: cannot run: %s\n", mkmaterial);
+        return 1;
+    }
+
+    FILE *mkmaterial_in = subprocess_stdin(&subp);
+    fprintf(mkmaterial_in, "{ \"%s\": %s }", in_mat->name, in_mat->extras.data);
+    fclose(mkmaterial_in); subp.stdin_file = SUBPROCESS_NULL;
+
+    FILE *mkmaterial_out = subprocess_stdout(&subp);
+    uint8_t *material = NULL;
+    int material_size = 0;
+    while (1) {
+        uint8_t buf[4096];
+        int n = fread(buf, 1, sizeof(buf), mkmaterial_out);
+        if (n == 0) break;
+        material = realloc(material, material_size + n);
+        memcpy(material + material_size, buf, n);
+        material_size += n;
+    }
+
+    forward_to_stderr(subprocess_stderr(&subp), "[mkmaterial] ");
+
+    int retcode = subprocess_join(&subp, &retcode);
+    if (retcode != 0) {
+        fprintf(stderr, "Error: mkmaterial failed with return code %d\n", retcode);
+        return 1;
+    }
+    subprocess_destroy(&subp);
+
+    if (material_size == 0) {
+        fprintf(stderr, "Error: got empty material\n");
+        return 1;
+    }
+
+    out_mat->rdpq_mat = (rdpq_mat_t*)material;
+    out_mat->size = material_size;
+
+    return 0;
+}
+
 int convert(const char *infn, const char *outfn)
 {
     cgltf_options options = {0};
@@ -1328,6 +1439,30 @@ int convert(const char *infn, const char *outfn)
         }
         model->max_tracks = get_anim_max_tracks(model);
     }
+
+    model->num_materials = data->materials_count;
+    if (model->num_materials != 0) {
+        model->materials = calloc(model->num_materials, sizeof(model64_mat_t));
+        for (size_t i = 0; i < data->materials_count; i++)
+        {
+            if (flag_verbose) {
+                if (data->materials[i].name != NULL) {
+                    printf("Converting material %s\n", data->materials[i].name);
+                } else {
+                    printf("Converting material %zd\n", i);
+                }
+            }
+
+            if (convert_material(&data->materials[i], &model->materials[i]) != 0) {
+                if (data->meshes[i].name != NULL) {
+                    fprintf(stderr, "Error: failed converting material %s\n", data->materials[i].name);
+                } else {
+                    fprintf(stderr, "Error: failed converting material %zd\n", i);
+                }
+                goto error;
+            }
+        }
+    }
     
     // Write output file
     FILE *out = fopen(outfn, "wb");
@@ -1405,6 +1540,15 @@ int main(int argc, char *argv[])
                 return 1;
             }
             continue;
+        }
+
+        // Find n64 tool directory
+        if (!n64_inst) {
+            n64_inst = n64_tools_dir();
+            if (!n64_inst) {
+                fprintf(stderr, "Error: N64_INST environment variable not set\n");
+                return 1;
+            }
         }
 
         infn = argv[i];
