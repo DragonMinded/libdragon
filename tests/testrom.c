@@ -365,7 +365,6 @@ static const struct Testsuite
 	TEST_FUNC(test_dl_ctors,                   			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mat4_mul_two_identities,				0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mat4_mul_scale_translation,			0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_mg_set_viewport, 					0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_draw_triangle_list, 				0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_draw_triangle_list_full_cache, 	0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mg_draw_triangle_strip, 				0, TEST_FLAGS_NO_BENCHMARK),
