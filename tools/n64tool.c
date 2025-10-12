@@ -663,9 +663,10 @@ int main(int argc, char *argv[])
 
 				total_bytes_written += num_zeros;
 			}
-
-			align_next = 16;
 		}
+
+		/* Reset to 16 for next file (default) */
+		align_next = 16;
 
 		size_t offset = ftell(write_file);
 
