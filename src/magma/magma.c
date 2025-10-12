@@ -81,10 +81,9 @@ void mg_draw_end(void)
 
 void mg_load_vertices(uint32_t buffer_index, uint8_t cache_index, uint32_t count)
 {
-    uint32_t count2 = ROUND_UP(count, 2);
     assertf(count > 0, "count must be greater than 0");
-    assertf(count2 <= MG_VERTEX_CACHE_COUNT, "too many vertices");
-    assertf(cache_index + count2 <= MG_VERTEX_CACHE_COUNT, "offset out of range");
+    assertf(count <= MG_VERTEX_CACHE_COUNT, "too many vertices");
+    assertf(cache_index + count <= MG_VERTEX_CACHE_COUNT, "offset out of range");
     mg_cmd_write(MG_CMD_LOAD_VERTICES, buffer_index, (cache_index<<16) | count);
 }
 
@@ -342,10 +341,9 @@ void mg_pipeline_bind(mg_pipeline_t *pipeline)
 
     int16_t v0 = pipeline->vertex_stride;
     int16_t v1 = MG_VTX_SIZE;
-    int16_t v2 = -pipeline->vertex_stride;
-    int16_t v3 = pipeline->vertex_stride;
+    int16_t v2 = pipeline->vertex_stride;
     mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size), (v0 << 16) | v1);
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16) | v3);
+    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16));
 }
 
 static mg_rsp_viewport_t viewport_to_rsp_state(const mg_viewport_t *viewport)
@@ -722,6 +720,18 @@ static uint32_t prepare_batch(const uint16_t *indices, int32_t vertex_offset, ui
             continue;
         }
 
+        /*
+        TODO:
+        Doesn't accurately predict whether cache will be overflown because of the multiple of 2 restriction
+        Possible approaches to fix this:
+            1) Try to predict whether the next n vertices (where n is the number required for a full primitive) will overflow the cache
+               Will likely be very complex and might require some sort of "rollback" functionality for the cache
+            2) Abandon trying to create perfectly efficient vertex loading batches and simplify this algorithm so that predicting a cache
+               overflow becomes easier. Mesh data will be pre-optimized most of the time anyway.
+            3) Discard the mg_draw_indexed function altogether. However, GL will have to roll its own version of this algorithm anyway.
+            4) Re-consider how vertex caching works in Magma. As an idea: Indices are assumed to be "optimized" already and vertex data is
+               automatically "paged" into DMEM. This would naturally lead to index buffers and triangle strips as well.
+        */
         if (cache->total_count + need_insertion + cache_offset > MG_VERTEX_CACHE_COUNT) {
             break;
         }

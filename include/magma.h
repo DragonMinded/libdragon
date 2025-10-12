@@ -568,8 +568,8 @@ enum
 
 typedef struct
 {
-    int16_t scale[4];
-    int16_t offset[4];
+    uint16_t scale[4];
+    uint16_t offset[4];
 } mg_rsp_viewport_t;
 
 typedef struct

@@ -1,6 +1,6 @@
 /**
  * @file mgfx_meshdb.h
- * @brief Mesh database file format.
+ * @brief Simple mesh format for use with mgfx.
  * @ingroup magma
  */
 
@@ -11,9 +11,20 @@
 
 typedef struct mgfx_meshdb_s mgfx_meshdb_t;
 
-mgfx_meshdb_t *mgfx_meshdb_load(const char *fn);
-mgfx_meshdb_t *mgfx_meshdb_load_buf(void *buf, int sz);
-void mgfx_meshdb_free(mgfx_meshdb_t *mesh);
-mgfx_mesh_t *mgfx_meshdb_get(const char *name);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+mgfx_meshdb_t *mgfx_meshdb_open(const char *fn);
+void mgfx_meshdb_close(mgfx_meshdb_t *meshdb);
+
+uint32_t mgfx_meshdb_get_mesh_count(const mgfx_meshdb_t *meshdb);
+const mgfx_mesh_t *mgfx_meshdb_get_by_index(mgfx_meshdb_t *meshdb, uint32_t index);
+
+const mgfx_mesh_t *mgfx_meshdb_lookup(mgfx_meshdb_t *meshdb, const char *name);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

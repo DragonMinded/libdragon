@@ -35,10 +35,11 @@ int main()
         .vertex_layout.stride = sizeof(vertex)
     });
 
-    // Shader uniforms are not initialized to 0's automatically, so we need to create
+    // Shader uniforms are not initialized to defaults automatically, so we need to create
     // a uniform buffer that sets everything to sane values. 
     uniforms *uniform_data = malloc_uncached(sizeof(uniforms));
-    memset(uniform_data, 0, sizeof(uniforms));
+
+    mgfx_get_fog(&uniform_data->fog, &(mgfx_fog_parms_t) {});
 
     // Lighting is never explicitly turned off, but it can be set to "pass through"
     // by configuring 0 lights and fully white ambient light.

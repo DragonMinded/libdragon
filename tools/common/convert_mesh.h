@@ -1,25 +1,20 @@
-#define _GNU_SOURCE
-#include <stdio.h>
+#ifndef LIBDRAGON_TOOLS_CONVERT_MESH_H
+#define LIBDRAGON_TOOLS_CONVERT_MESH_H
+
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/stat.h>
-#include "../common/binout.c"
-#include "../common/binout.h"
-#include "../common/utils.h"
-#include "../common/assetcomp.h"
 
-#include "../../src/magma/mgfx_mesh_internal.h"
+#include "utils.h"
+#include "meshoptimizer/meshoptimizer.h"
+#include "cgltf.h"
+
+#include "../../include/mgfx_mesh_types.h"
 #include "../../include/mgfx_constants.h"
 #include "../../include/mgfx_macros.h"
 #include "../../include/magma_constants.h"
 
-#include "../common/meshoptimizer/meshoptimizer.h"
-
-#define CGLTF_IMPLEMENTATION
-#include "../common/cgltf.h"
-
-#define MGFX_MAX_ATTRIBUTE_COUNT    3
-#define MGFX_MAX_CONVERSION_COUNT   4
+#define MAX_ATTRIBUTE_COUNT    3
+#define MAX_CONVERSION_COUNT   4
 
 typedef void (*convert_func)(uint8_t*,const float*);
 
@@ -32,18 +27,16 @@ typedef struct
     convert_func convert_func;
 } attribute_conversion;
 
-int flag_verbose = 0;
-
 void mesh_free(mgfx_mesh_t *mesh)
 {
-    for (size_t i = 0; i < mesh->submesh_count; i++)
+    for (size_t j = 0; j < mesh->submesh_count; j++)
     {
-        mgfx_submesh_t *submesh = &mesh->submeshes[i];
+        mgfx_submesh_t *submesh = &mesh->submeshes[j];
         if (submesh->vertex_layout.attributes != NULL) free(submesh->vertex_layout.attributes);
         if (submesh->vertices != NULL) free(submesh->vertices);
         if (submesh->indices != NULL) free(submesh->indices);
     }
-    
+    free(mesh->submeshes);
 }
 
 mg_primitive_topology_t convert_primitive_topology(cgltf_primitive_type in_type)
@@ -110,7 +103,7 @@ void convert_texcoord(uint8_t *dst, const float *src)
     cpybe16(dst, tex, 2);
 }
 
-int optimize_submesh_buffers(mgfx_submesh_t *submesh)
+int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
 {
     const uint32_t invalid_index = 0xFFFFFFFF;
 
@@ -230,7 +223,7 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh)
     return 0;
 }
 
-int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh)
+int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, int flag_verbose)
 {
     out_submesh->input_assembly_parms.primitive_restart_enabled = false;
     out_submesh->input_assembly_parms.primitive_topology = convert_primitive_topology(in_primitive->type);
@@ -245,8 +238,8 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
     uint32_t attribute_count = 0;
     uint32_t conversion_count = 0;
     uint32_t vertex_stride = 0;
-    mg_vertex_attribute_t attributes[MGFX_MAX_ATTRIBUTE_COUNT];
-    attribute_conversion conversions[MGFX_MAX_CONVERSION_COUNT] = {};
+    mg_vertex_attribute_t attributes[MAX_ATTRIBUTE_COUNT];
+    attribute_conversion conversions[MAX_CONVERSION_COUNT] = {};
 
     cgltf_attribute *in_pos = find_input_attribute(in_primitive, cgltf_attribute_type_position);
     if (in_pos != NULL) {
@@ -366,7 +359,7 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
         for (size_t i = 0; i < in_indices->count; i++) out_submesh->indices[i] = tmp_indices[i];
         free(tmp_indices);
 
-        if (optimize_submesh_buffers(out_submesh) != 0) {
+        if (optimize_submesh_buffers(out_submesh, flag_verbose) != 0) {
             fprintf(stderr, "Error: failed optimizing vertex and index buffers\n");
             return 1;
         }
@@ -375,11 +368,10 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
     return 0;
 }
 
-int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh)
+int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh, int flag_verbose)
 {
-    memcpy(out_mesh->magic, MGFX_MESH_MAGIC, MGFX_MESH_MAGIC_LEN);
-    out_mesh->version = MGFX_MESH_VERSION;
     out_mesh->submesh_count = in_mesh->primitives_count;
+    out_mesh->submeshes = calloc(in_mesh->primitives_count, sizeof(mgfx_submesh_t));
 
     for (size_t i = 0; i < in_mesh->primitives_count; i++)
     {
@@ -387,7 +379,7 @@ int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh)
             printf("Converting primitive %zd\n", i);
         }
 
-        if (convert_primitive(&in_mesh->primitives[i], &out_mesh->submeshes[i]) != 0) {
+        if (convert_primitive(&in_mesh->primitives[i], &out_mesh->submeshes[i], flag_verbose) != 0) {
             fprintf(stderr, "Error: failed converting primitive %zd\n", i);
             return 1;
         }
@@ -396,216 +388,4 @@ int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh)
     return 0;
 }
 
-void mesh_write(mgfx_mesh_t *mesh, FILE *out)
-{
-    w8(out, mesh->magic[0]);
-    w8(out, mesh->magic[1]);
-    w8(out, mesh->magic[2]);
-    w8(out, mesh->version);
-    w32(out, mesh->submesh_count);
-
-    for (size_t i = 0; i < mesh->submesh_count; i++)
-    {
-        mgfx_submesh_t *submesh = &mesh->submeshes[i];
-
-        w32(out, submesh->vertex_layout.stride);
-        w32(out, submesh->vertex_layout.attribute_count);
-        w32_placeholderf(out, "vtx_attributes%d", i);
-
-        w32(out, submesh->input_assembly_parms.primitive_topology);
-        w8(out, submesh->input_assembly_parms.primitive_restart_enabled);
-
-        walign(out, sizeof(submesh->vertices_count));
-        w32(out, submesh->vertices_count);
-        w32(out, submesh->indices_count);
-        w32_placeholderf(out, "vertices%d", i);
-        if (submesh->indices != NULL) {
-            w32_placeholderf(out, "indices%d", i);
-        } else {
-            w32(out, 0);
-        }
-    }
-
-    for (size_t i = 0; i < mesh->submesh_count; i++)
-    {
-        mgfx_submesh_t *submesh = &mesh->submeshes[i];
-        walign(out, sizeof(uint32_t));
-        placeholder_set(out, "vtx_attributes%d", i);
-        for (size_t j = 0; j < submesh->vertex_layout.attribute_count; j++)
-        {
-            mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[j];
-            w32(out, attr->input);
-            w32(out, attr->offset);
-        }
-    }
-
-    for (size_t i = 0; i < mesh->submesh_count; i++)
-    {
-        mgfx_submesh_t *submesh = &mesh->submeshes[i];
-        size_t vertices_size = submesh->vertex_layout.stride * submesh->vertices_count;
-        walign(out, 8);
-        placeholder_set(out, "vertices%d", i);
-        fwrite(submesh->vertices, vertices_size, 1, out);
-    }
-
-    for (size_t i = 0; i < mesh->submesh_count; i++)
-    {
-        mgfx_submesh_t *submesh = &mesh->submeshes[i];
-        if (submesh->indices == NULL) continue;
-
-        walign(out, 8);
-        placeholder_set(out, "indices%d", i);
-        for (size_t j = 0; j < submesh->indices_count; j++)
-        {
-            w16(out, submesh->indices[j]);
-        }
-    }
-}
-
-int convert(const char *infn, const char *outfn)
-{
-    cgltf_options options = {0};
-    cgltf_data* data = NULL;
-    cgltf_result result = cgltf_parse_file(&options, infn, &data);
-    if (result == cgltf_result_file_not_found) {
-        fprintf(stderr, "Error: could not find input file: %s\n", infn);
-        return 1;
-    }
-    if (result != cgltf_result_success) {
-        fprintf(stderr, "Error: could not parse input file: %s\n", infn);
-        return 1;
-    }
-
-    if (cgltf_validate(data) != cgltf_result_success) {
-        fprintf(stderr, "Error: validation failed\n");
-        cgltf_free(data);
-        return 1;
-    }
-
-    if (data->asset.generator && strstr(data->asset.generator, "Blender") && strstr(data->asset.generator, "v3.4.50")) {
-        fprintf(stderr, "Error: Blender version v3.4.1 has buggy glTF export (vertex colors are wrong).\nPlease upgrade Blender and export the model again.\n");
-        cgltf_free(data);
-        return 1;
-    }
-
-    cgltf_load_buffers(&options, data, infn);
-
-    if (data->meshes_count != 1) {
-        fprintf(stderr, "Error: input file does not contain exactly one mesh\n");
-        cgltf_free(data);
-        return 1;
-    }
-
-    cgltf_mesh *in_mesh = &data->meshes[0];
-    mgfx_mesh_t *out_mesh = calloc(1, sizeof(mgfx_mesh_t) + sizeof(mgfx_submesh_t) * in_mesh->primitives_count);
-
-    if (convert_mesh(in_mesh, out_mesh) != 0) {
-        fprintf(stderr, "Error: failed converting mesh\n");
-        free(out_mesh);
-        cgltf_free(data);
-        return 1;
-    }
-
-    FILE *out = fopen(outfn, "wb");
-    if (!out) {
-        fprintf(stderr, "could not open output file: %s\n", outfn);
-        free(out_mesh);
-        cgltf_free(data);
-        return 1;
-    }
-
-    mesh_write(out_mesh, out);
-
-    fclose(out);
-    free(out_mesh);
-    cgltf_free(data);
-    return 0;
-}
-
-void print_args( char * name )
-{
-    fprintf(stderr, "mgfx -- Extract and convert meshes from glTF 2.0 files\n\n");
-    fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Command-line flags:\n");
-    fprintf(stderr, "   -o/--output <dir>       Specify output directory (default: .)\n");
-    fprintf(stderr, "   -c/--compress <level>   Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
-    fprintf(stderr, "   -v/--verbose            Verbose output\n");
-    fprintf(stderr, "\n");
-}
-
-int main(int argc, char *argv[])
-{
-    char *infn = NULL, *outdir = ".", *outfn = NULL;
-    bool error = false;
-    int compression = DEFAULT_COMPRESSION;
-
-    if (argc < 2) {
-        print_args(argv[0]);
-        return 1;
-    }
-    for (int i = 1; i < argc; i++) {
-        if (argv[i][0] == '-') {
-            if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
-                print_args(argv[0]);
-                return 0;
-            } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
-                flag_verbose++;
-            } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
-                if (++i == argc) {
-                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
-                    return 1;
-                }
-                char extra;
-                if (sscanf(argv[i], "%d%c", &compression, &extra) != 1) {
-                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
-                    return 1;
-                }
-                if (compression < 0 || compression > MAX_COMPRESSION) {
-                    fprintf(stderr, "invalid compression level: %d\n", compression);
-                    return 1;
-                }
-            } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
-                if (++i == argc) {
-                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
-                    return 1;
-                }
-                outdir = argv[i];
-            } else {
-                fprintf(stderr, "invalid flag: %s\n", argv[i]);
-                return 1;
-            }
-            continue;
-        }
-
-        infn = argv[i];
-        char *basename = strrchr(infn, '/');
-        if (!basename) basename = infn; else basename += 1;
-        char* basename_noext = strdup(basename);
-        char* ext = strrchr(basename_noext, '.');
-        if (ext) *ext = '\0';
-
-        asprintf(&outfn, "%s/%s.mgfx", outdir, basename_noext);
-        if (flag_verbose)
-            printf("Converting: %s -> %s\n",
-                infn, outfn);
-        if (convert(infn, outfn) != 0) {
-            error = true;
-        }
-        if (!error) {
-            if (compression) {
-                struct stat st_decomp = {0}, st_comp = {0};
-                stat(outfn, &st_decomp);
-                asset_compress(outfn, outfn, compression, 0);
-                stat(outfn, &st_comp);
-                if (flag_verbose)
-                    printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
-                    (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
-            }
-        }
-
-        free(outfn);
-    }
-
-    return error ? 1 : 0;
-}
+#endif

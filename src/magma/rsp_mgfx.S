@@ -127,7 +127,6 @@ MgEndVertexInput
 MgBeginShader
   addiu $t0, $gp, %lo(RSPQ_DMEM_BUFFER)  -6
   ldv $v02, 0, 0, $t0
-  lsv $v02, 6, 4, $t0
   ori $at, $zero, %lo(MG_VERTEX_SIZE)
   ldv $v01, 0, 0, $at
   vmudh $v04, $v02, $v01.v
@@ -140,16 +139,15 @@ MgBeginShader
   ssv $v04, 0, 10, $at ## Barrier: 0x2
   lw $t2, %lo(RSPQ_SCRATCH_MEM + 8) ## Barrier: 0x2
   lhu $s7, %lo(RSPQ_SCRATCH_MEM + 2) ## Barrier: 0x1
-  lhu $t1, %lo(RSPQ_SCRATCH_MEM + 6) ## Barrier: 0x1
+  lhu $t1, %lo(RSPQ_SCRATCH_MEM + 4) ## Barrier: 0x1
   addu $s0, $s0, $t2
   andi $t3, $t2, 7
-  lh $t4, %lo(RSPQ_SCRATCH_MEM + 4) ## Barrier: 0x1
   addiu $t2, $zero, 12
   addu $t0, $t1, $t3
-  addiu $s4, $t4, %lo(MG_VERTEX_CACHE_END)
-  andi $s4, $s4, 4088
   addiu $t0, $t0, 7
   andi $t0, $t0, 4088
+  ori $s4, $zero, %lo(MG_VERTEX_CACHE_END)
+  subu $s4, $s4, $t0
   jal DMAExec ## Args: $t0, $t1, $s0, $s4, $t2
   addiu $t0, $t0, -1
   ori $t0, $zero, %lo(MATRICES_MVP)

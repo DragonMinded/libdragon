@@ -14,7 +14,7 @@ _MG_META_UNIFORMS:
     
     .align 3
     MG_VERTEX_CACHE:            .dcb.b  MG_VERTEX_CACHE_COUNT * MG_VTX_SIZE
-    MG_VERTEX_CACHE_END:
+    MG_VERTEX_CACHE_END:        .dcb.b  MG_VTX_SIZE     # Padding for overflow in case of odd-numbered load count
 
     .align 4
 MG_STATE:

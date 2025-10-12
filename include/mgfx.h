@@ -68,9 +68,9 @@ typedef struct
 /** @brief Matrices parameters. */
 typedef struct
 {
-    const float *model_view_projection;     ///< The model-view-projection matrix in column-major order.
-    const float *model_view;                ///< The model-view matrix in column-major order.
-    const float *normal;                    ///< The normal matrix in column-major order.
+    float *model_view_projection;     ///< The model-view-projection matrix in column-major order.
+    float *model_view;                ///< The model-view matrix in column-major order.
+    float *normal;                    ///< The normal matrix in column-major order.
 } mgfx_matrices_parms_t;
 
 /** @brief Texturing parameters. */
@@ -98,9 +98,9 @@ typedef struct
 /** @brief Lighting parameters. */
 typedef struct
 {
-    color_t ambient_color;              ///< The ambient light color, which is always added to all geometry.
-    const mgfx_light_parms_t *lights;   ///< The list of lights.
-    uint32_t light_count;               ///< The number of lights in the list. The maximum value is #MGFX_LIGHT_COUNT_MAX.
+    color_t ambient_color;          ///< The ambient light color, which is always added to all geometry.
+    mgfx_light_parms_t *lights;     ///< The list of lights.
+    uint32_t light_count;           ///< The number of lights in the list. The maximum value is #MGFX_LIGHT_COUNT_MAX.
 } mgfx_lighting_parms_t;
 
 /** @brief Fog parameters. */
