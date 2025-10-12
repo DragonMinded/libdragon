@@ -87,6 +87,8 @@ N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER2),--controller2 $(N64_ROM_CO
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER3),--controller3 $(N64_ROM_CONTROLLER3))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER4),--controller4 $(N64_ROM_CONTROLLER4))
 
+N64_TOOLFILES = $(N64_INCLUDEDIR)/version.json
+
 ifeq ($(D),1)
 CFLAGS+=-g3
 CXXFLAGS+=-g3
@@ -118,17 +120,12 @@ RSPASFLAGS+=-MMD
 	$(N64_STRIP) -s $<.stripped
 	$(N64_ELFCOMPRESS) -o $(dir $<) -c $(N64_ROM_ELFCOMPRESS) $<.stripped
 	@rm -f $@
-	DFS_FILE="$(filter %.dfs, $^)"; \
-	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8; \
-	else \
-		MSYM_FILE="$(filter %.msym, $^)"; \
-		if [ -z "$$MSYM_FILE" ]; then \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ --align 256 $<.stripped --align 8 $<.sym --align 16 "$$DFS_FILE"; \
-		else \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
-		fi \
-	fi
+	$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ \
+		--align 256 $<.stripped \
+		$<.sym \
+		$(filter %.dfs, $^) \
+		$(filter %.msym, $^) \
+		$(N64_TOOLFILES)
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
 	fi
