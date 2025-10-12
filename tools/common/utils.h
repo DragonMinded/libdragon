@@ -48,6 +48,13 @@ static bool file_exists(const char *filename)
     return f != NULL;
 }
 
+__attribute__((used))
+static const char* dirname(const char *full_path) {
+    const char *sep = strrchr(full_path, '/');
+    if (!sep) return ".";
+    return strndup(full_path, sep - full_path);
+}
+
 // Find the directory where the libdragon toolchain is installed.
 // This is where you can find GCC, the linker, etc.
 __attribute__((used))

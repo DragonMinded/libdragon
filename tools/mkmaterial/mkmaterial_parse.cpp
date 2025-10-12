@@ -378,6 +378,85 @@ std::vector<Material> parse_mat(const char *fn)
     return materials;
 }
 
+static const std::vector<std::string> RGB_SLOTS_A = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0" };
+static const std::vector<std::string> RGB_SLOTS_B = { "combined", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0" };
+static const std::vector<std::string> RGB_SLOTS_C = { "combined", "tex0", "tex1", "prim", "shade", "env", "keyscale", "combined.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0" };
+static const std::vector<std::string> RGB_SLOTS_D = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+
+static const std::vector<std::string> ALPHA_SLOTS_A = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+static const std::vector<std::string> ALPHA_SLOTS_B = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+static const std::vector<std::string> ALPHA_SLOTS_C = { "lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0" };
+static const std::vector<std::string> ALPHA_SLOTS_D = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+
+std::string parse_cc_component(const nlohmann::json& comp, const std::vector<std::string>& slots)
+{
+    return slots[comp.get<uint8_t>()];
+}
+
+std::string parse_cc_rgb(const nlohmann::json& cc)
+{
+    return "(" 
+        + parse_cc_component(cc["A"], RGB_SLOTS_A) + ","
+        + parse_cc_component(cc["B"], RGB_SLOTS_B) + ","
+        + parse_cc_component(cc["C"], RGB_SLOTS_C) + ","
+        + parse_cc_component(cc["D"], RGB_SLOTS_D) + ")";
+}
+
+std::string parse_cc_alpha(const nlohmann::json& cc)
+{
+    return "(" 
+        + parse_cc_component(cc["A_alpha"], ALPHA_SLOTS_A) + ","
+        + parse_cc_component(cc["B_alpha"], ALPHA_SLOTS_B) + ","
+        + parse_cc_component(cc["C_alpha"], ALPHA_SLOTS_C) + ","
+        + parse_cc_component(cc["D_alpha"], ALPHA_SLOTS_D) + ")";
+}
+
+//std::string parse_color(const nlohmann::json& color)
+//{
+//    // TODO
+//}
+
+bool is_flag_set(const nlohmann::json& f3d_mat, std::string flag)
+{
+    auto iter = f3d_mat.find(flag);
+    return iter != f3d_mat.end() && iter->get<uint32_t>() != 0;
+}
+
+void parse_tex(nlohmann::json& mat, const nlohmann::json& f3d_mat, std::string key)
+{
+    if (!f3d_mat.contains(key)) return;
+
+    auto f3d_tex = f3d_mat[key];
+    if (!f3d_tex.contains("tex")) return;
+
+    auto tex = f3d_tex["tex"];
+    if (!tex.contains("name")) return;
+
+    mat[key + ".name"] = tex["name"].get<std::string>();
+}
+
+nlohmann::json parse_f3d_mat(const nlohmann::json& f3d_mat)
+{
+    using json = nlohmann::json;
+    auto mat = json::object();
+
+    auto cc1 = f3d_mat["combiner1"];
+    auto cc2 = f3d_mat["combiner2"];
+
+    mat["combiner.rgb.raw"] = parse_cc_rgb(cc1) + "," + parse_cc_rgb(cc2);
+    mat["combiner.alpha.raw"] = parse_cc_alpha(cc1) + "," + parse_cc_alpha(cc2);
+
+    //if (is_flag_set(f3d_mat, "set_prim")) {
+    //    mat["TODO"] = parse_color(f3d_mat["prim_color"]);
+    //}
+
+    parse_tex(mat, f3d_mat, "tex0");
+    parse_tex(mat, f3d_mat, "tex1");
+
+    fprintf(stderr, "%s\n", mat.dump().c_str());
+    return mat;
+}
+
 std::vector<Material> parse_jmat(const char *fn)
 {
     using json = nlohmann::json;
@@ -420,6 +499,10 @@ std::vector<Material> parse_jmat(const char *fn)
         if (!material_obj.is_object()) {
             fprintf(stderr, "%s: error: material '%s' must be an object\n", fn, material_name.c_str());
             continue;
+        }
+
+        if (material_obj.contains("f3d_mat")) {
+            material_obj = parse_f3d_mat(material_obj["f3d_mat"]);
         }
         
         Material mat = {};

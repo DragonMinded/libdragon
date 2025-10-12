@@ -1254,7 +1254,7 @@ uint32_t get_anim_max_tracks(model64_data_t *model)
     return num_tracks;
 }
 
-int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat)
+int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat, const char *in_dir, const char *out_dir)
 {
     static char *mkmaterial = NULL;
     if (!mkmaterial) asprintf(&mkmaterial, "%s/bin/mkmaterial", n64_inst);
@@ -1264,7 +1264,9 @@ int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat)
         mkmaterial,
         "-v",
         "-t",
-        ".",
+        out_dir,
+        "-I",
+        in_dir,
         "--raw-material",
         "-",
         NULL
@@ -1440,6 +1442,9 @@ int convert(const char *infn, const char *outfn)
         model->max_tracks = get_anim_max_tracks(model);
     }
 
+    const char *in_dir = dirname(infn);
+    const char *out_dir = dirname(outfn);
+
     model->num_materials = data->materials_count;
     if (model->num_materials != 0) {
         model->materials = calloc(model->num_materials, sizeof(model64_mat_t));
@@ -1453,7 +1458,7 @@ int convert(const char *infn, const char *outfn)
                 }
             }
 
-            if (convert_material(&data->materials[i], &model->materials[i]) != 0) {
+            if (convert_material(&data->materials[i], &model->materials[i], in_dir, out_dir) != 0) {
                 if (data->meshes[i].name != NULL) {
                     fprintf(stderr, "Error: failed converting material %s\n", data->materials[i].name);
                 } else {
