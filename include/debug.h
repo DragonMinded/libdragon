@@ -171,14 +171,18 @@ extern "C" {
 	/** 
 	 * @brief Write a message to the debugging channel.
 	 *
-	 * This macro is a simple wrapper over fprintf(stderr), to write
+	 * This function is a simple wrapper over fprintf(stderr), to write
 	 * a debugging message through all the activated debugging channels.
 	 *
-	 * Writing directly to stderr is perfectly supported; this macro
+	 * Writing directly to stderr is perfectly supported; this function
 	 * only simplifies disabling all debugging features, because it
 	 * is disabled when compiling with NDEBUG.
+	 * 
+	 * Moreover, this function also has a special codepath to allow
+	 * writing debug messages during interrupts or exceptions, when standard
+	 * I/O functions cannot be used safely.
 	 */
-	#define debugf(msg, ...)           fprintf(stderr, msg, ##__VA_ARGS__)
+	void debugf(const char *msg, ...);
 
 	/** 
 	 * @brief assertf() is like assert() with an attached printf().

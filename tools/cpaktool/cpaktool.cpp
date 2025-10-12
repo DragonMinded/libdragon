@@ -89,6 +89,7 @@ static void cleanup_command_options(void)
 //
 
 int main(int argc, char *argv[]) {
+    winconsole_utf8();
     // Initialize global options
     g_global_opts.verbose = 0;
     g_global_opts.force = false;

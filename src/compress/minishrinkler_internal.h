@@ -7,11 +7,11 @@
  * Minishrinkler compressor, a simplified version of the Shrinkler algorithm.
  * 
  * Features:
- * - No dynamic memory allocations (uses static buffers)
- * - Compatible with official Shrinkler decompressor
- * - LZ77 compression with hash-based match finding
- * - Range coder with context modeling
- * - Generates raw compressed data (no header)
+ * * A single dynamic memory allocations for all the work memory
+ * * Compatible with official Shrinkler decompressor (same bitstream)
+ * * LZ77 compression with hash-based match finding
+ * * Range coder with context modeling
+ * * Generates raw compressed data (no header)
  * 
  * Usage:
  * @code
@@ -74,10 +74,10 @@ extern "C" {
  */
 int minishrinkler_compress(
     const uint8_t *input_data,
-    int input_size,
+    size_t input_size,
     uint8_t *output_buffer,
-    int output_capacity,
-    int work_memory_size
+    size_t output_capacity,
+    size_t work_memory_size
 );
 
 /**

@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include "../common/binout.c"
 #include "../common/binout.h"
+#include "../common/polyfill.h"
 
 // Compression library
 #include "../common/assetcomp.h"
@@ -341,6 +342,10 @@ bool elf_sym_get_all(elf_info_t *elf_info)
                 if(!elf_sym_read(elf_info->file, &shdr, j, &elf_sym)) {
                     return false;
                 }
+                if(ELF32_ST_TYPE(elf_sym.st_info) == STT_TLS && elf_sym.st_shndx != SHN_UNDEF) {
+                    fprintf(stderr, "Cannot define TLS symbol in DSO.\n");
+                    return false;
+                }
                 //Convert ELF symbol
                 sym.name = elf_sym.st_name+elf_info->strtab;
                 sym.value = elf_sym.st_value;
@@ -404,11 +409,10 @@ bool elf_reloc_read(FILE *file, Elf32_Shdr *reloc_section, uint32_t reloc_index,
     return true;
 }
 
-bool elf_reloc_check_gp_relative(Elf32_Rel *reloc)
+bool elf_reloc_check_invalid(Elf32_Rel *reloc)
 {
     uint8_t reloc_type = ELF32_R_TYPE(reloc->r_info);
-    return reloc_type == R_MIPS_GPREL16 //Small data accesses
-        || reloc_type == R_MIPS_GOT16 //Global offset table entry offset
+    return reloc_type == R_MIPS_GOT16 //Global offset table entry offset
         || reloc_type == R_MIPS_CALL16 //Global offset table function entry offset
         || reloc_type == R_MIPS_GPREL32 //32-bit GP-Relative accesses
         || reloc_type == R_MIPS_GOT_DISP //Global offset table displacement
@@ -416,8 +420,6 @@ bool elf_reloc_check_gp_relative(Elf32_Rel *reloc)
         || reloc_type == R_MIPS_GOT_OFST //Global offset table offset
         || reloc_type == R_MIPS_GOT_HI16 //Global offset table entry offset high 16 bits
         || reloc_type == R_MIPS_GOT_LO16 //Global offset table entry offset low 16 bits
-        || reloc_type == R_MIPS_TLS_TPREL_HI16 //Thread local storage offset high 16 bits
-        || reloc_type == R_MIPS_TLS_TPREL_LO16 //Thread local storage entry offset low 16 bits
         || reloc_type == R_MIPS_CALL_HI16 //GP-Relative call high 16 bits
         || reloc_type == R_MIPS_CALL_LO16; //GP-Relative call low 16 bits
 }
@@ -525,11 +527,16 @@ bool dso_build_relocations(dso_module_t *module, elf_info_t *elf_info)
                     if(!elf_reloc_read(elf_info->file, &shdr, j, &elf_reloc)) {
                         return false;
                     }
-                    //Check if relocation is GP-relative
-                    if(elf_reloc_check_gp_relative(&elf_reloc)) {
-                        fprintf(stderr, "GP-Relative relocations present in ELF\n");
-                        fprintf(stderr, "Compile with -mno-gpopt (not -G 0) and without "
-                            "-fPIC, -fpic, -mshared, or -mabicalls to fix\n");
+                    //Check if relocation type is valid
+                    if(elf_reloc_check_invalid(&elf_reloc)) {
+                        fprintf(stderr, "Unsupported relocations present in ELF\n");
+                        fprintf(stderr, "Compile without -fPIC, -fpic, -mshared, or -mabicalls to fix\n");
+                        return false;
+                    }
+                    //Check if relocation targets defined GP-Relative symbol
+                    if(elf_info->syms[ELF32_R_SYM(elf_reloc.r_info)].section != SHN_UNDEF && ELF32_R_TYPE(elf_reloc.r_info) == R_MIPS_GPREL16) {
+                        fprintf(stderr, "Tried to use defined symbol as GP-Relative\n");
+                        fprintf(stderr, "Compile with -G 0 or -mno-gpopt to fix\n");
                         return false;
                     }
                     //Convert into DSO symbol index
@@ -692,6 +699,7 @@ bool convert(char *infn, char *outfn)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     int compression = DEFAULT_COMPRESSION;
     char *outdir = ".";
     if(argc < 2) {

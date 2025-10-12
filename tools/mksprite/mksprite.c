@@ -1639,6 +1639,7 @@ void spritemaker_free(spritemaker_t *spr) {
 
 int convert(const char *infn, const char *outfn, const parms_t *pm, int compression) {
     FILE *out = tmpfile();
+    assert(out && "cannot create temporary file");
     bool out_is_stdout = (strstr(outfn, "(stdout)") != NULL);
 
     if (flag_verbose)
@@ -1774,11 +1775,11 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
     if (!spr.hslices) {
         spr.hslices = spr.images[0].width / 16;
-        if (!spr.hslices) spr.hslices = 1;
+        if (!spr.hslices || spr.hslices >= 256) spr.hslices = 1;
     }
     if (!spr.vslices) {
         spr.vslices = spr.images[0].height / 16;
-        if (!spr.vslices) spr.vslices = 1;
+        if (!spr.vslices || spr.vslices >= 256) spr.vslices = 1;
     }
 
     // Write the sprite
@@ -1876,6 +1877,7 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     parms_t pm = {0}; int compression = -1;
     bool at_least_one_file = false;

@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../common/polyfill.h"
 #include "rdpq_debug.h"
 #include "../../src/rdpq/rdpq_debug_internal.h"
 #include "../../src/rdpq/rdpq_debug.c"
@@ -60,6 +61,7 @@ bool detect_ascii(FILE *f) {
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     if (argc < 2) {
         usage();
         return 1;

@@ -48,6 +48,11 @@ actually loading the main binary and run it.
 
 (for each version, the md5 of ipl3_prod.z64 is reported)
 
+r10 (1337f98513cb0eb17ccd908f5866348b)
+* Allow boot on consoles with more than 8 MiB of RDRAM, by completely ignoring
+  extra chips. This is the only possible way, as the RCP simply misbehaves when
+  more than 8 MiB are configured.
+
 r9 (4ed3e5fd564235a844af74366dba7f92)
 * Stop using auto current calibration in RAC (for output current) as it
   seems to be the cause for random corruptions when transferring long

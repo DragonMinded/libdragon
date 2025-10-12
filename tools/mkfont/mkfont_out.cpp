@@ -414,6 +414,7 @@ struct Font {
     }
 
     int get_glyph_index(uint32_t cp);
+    uint32_t get_codepoint(int gidx);
     void write(FILE *out);
 
     void add_range(int first, int last);
@@ -628,6 +629,15 @@ int Font::get_glyph_index(uint32_t cp)
     return -1;
 }
 
+uint32_t Font::get_codepoint(int gidx)
+{
+    for (int i=0;i<fnt->num_ranges;i++) {
+        if (gidx >= fnt->ranges[i].first_glyph && gidx < fnt->ranges[i].first_glyph + fnt->ranges[i].num_codepoints)
+            return fnt->ranges[i].first_codepoint + gidx - fnt->ranges[i].first_glyph;
+    }
+    return 0xFFFFFFFF;
+}
+
 static bool image_fits_tmem(Image& img, tex_format_t fmt)
 {
     switch (fmt) {
@@ -676,12 +686,15 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
     case FONT_TYPE_MONO_OUTLINE:
         // Outline fonts are IA16. Intensity goes between 0x00 for the outline
         // to 0xFF for the fill, while the alpha channel is the coverage of each pixel.
-        // Outline monochromatic fonts have intensity fixed to 0xFF.
+        // Outline monochromatic fonts have intensity which is either 0x00 (outline)
+        // or 0xFF (fill), and alpha is either 0x00 (transparent) or 0xFF (opaque).
         if (img.fmt != FMT_IA16) assert(!"glyph image must be IA16 for outlined fonts");
         // Now check that all the pixels are monochrome
         img.for_each_pixel([&](Image::Pixel&& px) {
-            if (px.data[0] != 0 && px.data[1] != 0x00 && px.data[1] != 0xFF)
-                assert(!"monochrome glyph must not contains shades of gray");
+            bool mono_i = px.data[0] == 0x00 || px.data[0] == 0xFF;
+            bool mono_a = px.data[1] == 0x00 || px.data[1] == 0xFF;
+            assert(mono_i && "monochrome glyph must not contains shades of gray");
+            assert(mono_a && "monochrome glyph must not contains shades of alpha");
         });
         tmem_fmt = FMT_CI4;
         break;
@@ -705,8 +718,8 @@ int Font::add_glyph(uint32_t cp, Image&& img, int xoff, int yoff, int xadv)
     img = img.crop_transparent(&x0, &y0);
 
     if (!image_fits_tmem(img, tmem_fmt)) {
-        fprintf(stderr, "Error: glyph %s [U+%04X] does not fit in TMEM (%dx%d in I4 format)\n",
-            codepoint_to_utf8(cp).c_str(), cp, img.w, img.h);
+        fprintf(stderr, "Error: glyph %s [U+%04X] does not fit in TMEM (%dx%d in %s format)\n",
+            codepoint_to_utf8(cp).c_str(), cp, img.w, img.h, tex_format_name(tmem_fmt));
         exit(1);
     }
 
@@ -1015,7 +1028,7 @@ void Font::make_atlases(void)
     for (int i=0; i<sheets.size(); i++) {
         rect_pack::Sheet& sheet = sheets[i];
 
-        Image img(is_bitmap() ? FMT_RGBA16 : FMT_IA16, sheet.width, sheet.height);
+        Image img(is_bitmap() ? FMT_RGBA32 : FMT_IA16, sheet.width, sheet.height);
 
         for (int j=0; j<sheet.rects.size(); j++) {
             rect_pack::Rect& rect = sheet.rects[j];
@@ -1065,13 +1078,48 @@ void Font::make_atlases(void)
         if (flag_debug) {
             char *imgfn = NULL;
             asprintf(&imgfn, "%s_%d.png", outfn.c_str(), num_atlases);
-            if (img.fmt == FMT_CI8) {
-                img.palette.resize(3);
-                img.palette[0] = 0;
-                img.palette[1] = (31<<11) | (31<<6) | (31<<1) | 1;
-                img.palette[2] = (10<<11) | (10<<6) | (10<<1) | 1;
+
+            // At this point, the atlas is either IA16 (for aliased and monochrome fonts),
+            // or RGBA32 (for bitmap fonts).
+            switch (img.fmt) {
+            case FMT_IA16: {
+                // We want the outline to be visible in the debug pictures.
+                // Convert it to a RGBA32 image blending it with a dark green
+                // background.
+                Image img2(FMT_RGBA32, img.w, img.h);
+                for (int y=0; y<img.h; y++) {
+                    for (int x=0; x<img.w; x++) {
+                        uint32_t rgba32 = img[y][x].to_rgba32();
+                        
+                        // Blend it with a dark green background
+                        uint8_t r = (rgba32 >> 24) & 0xFF;
+                        uint8_t g = (rgba32 >> 16) & 0xFF;
+                        uint8_t b = (rgba32 >> 8) & 0xFF;
+                        uint8_t a = rgba32 & 0xFF;
+                        r = (r * a + 0x00 * (255 - a)) / 255;
+                        g = (g * a + 0x40 * (255 - a)) / 255;
+                        b = (b * a + 0x00 * (255 - a)) / 255;
+                        img2[y][x].set_from_rgba32((r<<24)|(g<<16)|(b<<8)|0xFF);
+                    }
+                }
+                img2.write_png(imgfn);
+            }   break;
+            case FMT_RGBA32: {
+                if (flag_bmfont_format == FMT_RGBA16 || flag_bmfont_format == FMT_CI4 || flag_bmfont_format == FMT_CI8) {
+                    // The current RGBA32 atlas will then be converted to RGBA16 or CI4/CI8 when
+                    // mksprite is run. Technically we should probably create the preview picture
+                    // *after* running mksprite, but that would be too complicated.
+                    // At the very least, let's reduce color to 5 bits and alpha to 1 bit
+                    // so that we show in the debug pictures the absence of aliasing.
+                    img.convert(FMT_RGBA16).write_png(imgfn);
+                } else {
+                    img.write_png(imgfn);
+                }
+            }   break;
+            default:
+                assert(!"unsupported atlas format for debug image");
             }
-            img.write_png(imgfn);
+
             if (flag_verbose)
                 fprintf(stderr, "wrote debug image: %s\n", imgfn);
             free(imgfn);

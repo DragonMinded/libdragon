@@ -1,5 +1,5 @@
 /*
-** Copyright (c) 2020 rxi
+** Copyright (c) 2024 rxi
 **
 ** Permission is hereby granted, free of charge, to any person obtaining a copy
 ** of this software and associated documentation files (the "Software"), to
@@ -19,6 +19,7 @@
 ** FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 ** IN THE SOFTWARE.
 */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -219,7 +220,7 @@ void mu_set_focus(mu_Context *ctx, mu_Id id) {
 #define HASH_INITIAL 2166136261
 
 static void hash(mu_Id *hash, const void *data, int size) {
-  const unsigned char *p = (const unsigned char *)data;
+  const unsigned char *p = data;
   while (size--) {
     *hash = (*hash ^ *p++) * 16777619;
   }
@@ -425,7 +426,11 @@ void mu_input_text(mu_Context *ctx, const char *text) {
 
 mu_Command* mu_push_command(mu_Context *ctx, int type, int size) {
   mu_Command *cmd = (mu_Command*) (ctx->command_list.items + ctx->command_list.idx);
-
+#ifdef MU_N64_MODIFICATIONS
+  /* see https://github.com/rxi/microui/pull/76 for more details */
+  const int alignment = sizeof(void*) - 1;
+  size = (size + alignment) & ~alignment;
+#endif
   expect(ctx->command_list.idx + size < MU_COMMANDLIST_SIZE);
   cmd->base.type = type;
   cmd->base.size = size;
@@ -442,7 +447,7 @@ int mu_next_command(mu_Context *ctx, mu_Command **cmd) {
   }
   while ((char*) *cmd != ctx->command_list.items + ctx->command_list.idx) {
     if ((*cmd)->type != MU_COMMAND_JUMP) { return 1; }
-    *cmd = (mu_Command*)((*cmd)->jump.dst);
+    *cmd = (*cmd)->jump.dst;
   }
   return 0;
 }
@@ -493,11 +498,7 @@ void mu_draw_text(mu_Context *ctx, mu_Font font, const char *str, int len,
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
   /* add command */
   if (len < 0) { len = strlen(str); }
-
-  int sizeAligned = sizeof(mu_TextCommand) + len;
-  sizeAligned += 4 - (sizeAligned % 4);
-
-  cmd = mu_push_command(ctx, MU_COMMAND_TEXT, sizeAligned);
+  cmd = mu_push_command(ctx, MU_COMMAND_TEXT, sizeof(mu_TextCommand) + len);
   memcpy(cmd->text.str, str, len);
   cmd->text.str[len] = '\0';
   cmd->text.pos = pos;
@@ -515,7 +516,6 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
   if (clipped == MU_CLIP_ALL ) { return; }
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
   /* do icon command */
-
   cmd = mu_push_command(ctx, MU_COMMAND_ICON, sizeof(mu_IconCommand));
   cmd->icon.id = id;
   cmd->icon.rect = rect;
@@ -524,14 +524,15 @@ void mu_draw_icon(mu_Context *ctx, int id, mu_Rect rect, mu_Color color) {
   if (clipped) { mu_set_clip(ctx, unclipped_rect); }
 }
 
+#ifdef MU_N64_MODIFICATIONS
+
 void mu_draw_surface(mu_Context *ctx, const void* surf, mu_Rect rect) {
   mu_Command *cmd;
   /* do clip command if the rect isn't fully contained within the cliprect */
   int clipped = mu_check_clip(ctx, rect);
   if (clipped == MU_CLIP_ALL ) { return; }
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
-  /* do icon command */
-
+  /* do surface command */
   cmd = mu_push_command(ctx, MU_COMMAND_SURFACE, sizeof(mu_SurfaceCommand));
   cmd->surface.surface = surf;
   cmd->surface.rect = rect;
@@ -539,20 +540,22 @@ void mu_draw_surface(mu_Context *ctx, const void* surf, mu_Rect rect) {
   if (clipped) { mu_set_clip(ctx, unclipped_rect); }
 }
 
+
 void mu_draw_sprite(mu_Context *ctx, const void* sprite, mu_Rect rect) {
   mu_Command *cmd;
   /* do clip command if the rect isn't fully contained within the cliprect */
   int clipped = mu_check_clip(ctx, rect);
   if (clipped == MU_CLIP_ALL ) { return; }
   if (clipped == MU_CLIP_PART) { mu_set_clip(ctx, mu_get_clip_rect(ctx)); }
-  /* do icon command */
-
+  /* do sprite command */
   cmd = mu_push_command(ctx, MU_COMMAND_SPRITE, sizeof(mu_SpriteCommand));
   cmd->sprite.sprite = sprite;
   cmd->sprite.rect = rect;
   /* reset clipping if it was set */
   if (clipped) { mu_set_clip(ctx, unclipped_rect); }
 }
+
+#endif
 
 /*============================================================================
 ** layout
@@ -882,6 +885,7 @@ int mu_textbox_ex(mu_Context *ctx, char *buf, int bufsz, int opt) {
   return mu_textbox_raw(ctx, buf, bufsz, id, r, opt);
 }
 
+
 int mu_slider_ex(mu_Context *ctx, mu_Real *value, mu_Real low, mu_Real high,
   mu_Real step, const char *fmt, int opt)
 {
@@ -903,7 +907,7 @@ int mu_slider_ex(mu_Context *ctx, mu_Real *value, mu_Real low, mu_Real high,
       (ctx->mouse_down | ctx->mouse_pressed) == MU_MOUSE_LEFT)
   {
     v = low + (ctx->mouse_pos.x - base.x) * (high - low) / base.w;
-    if (step) { v = (((v + step / 2) / step)) * step; }
+    if (step) { v = ((long long)((v + step / 2) / step)) * step; }
   }
   /* clamp and store value, update res */
   *value = v = mu_clamp(v, low, high);
@@ -1137,14 +1141,16 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
 
     /* do title text */
     if (~opt & MU_OPT_NOTITLE) {
-      mu_Id idTitle = mu_get_id(ctx, "!title", 6);
-      mu_update_control(ctx, idTitle, tr, opt);
+      mu_Id id = mu_get_id(ctx, "!title", 6);
+      mu_update_control(ctx, id, tr, opt);
       mu_draw_control_text(ctx, title, tr, MU_COLOR_TITLETEXT, opt);
-      if (idTitle == ctx->focus && ctx->mouse_down == MU_MOUSE_LEFT) {
+      if (id == ctx->focus && ctx->mouse_down == MU_MOUSE_LEFT) {
         cnt->rect.x += ctx->mouse_delta.x;
         cnt->rect.y += ctx->mouse_delta.y;
+#ifdef MU_N64_MODIFICATIONS
         if(cnt->rect.x < 0)cnt->rect.x = 0;
         if(cnt->rect.y < 0)cnt->rect.y = 0;
+#endif
       }
       body.y += tr.h;
       body.h -= tr.h;
@@ -1152,12 +1158,12 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
 
     /* do `close` button */
     if (~opt & MU_OPT_NOCLOSE) {
-      mu_Id idClose = mu_get_id(ctx, "!close", 6);
+      mu_Id id = mu_get_id(ctx, "!close", 6);
       mu_Rect r = mu_rect(tr.x + tr.w - tr.h, tr.y, tr.h, tr.h);
       tr.w -= r.w;
       mu_draw_icon(ctx, MU_ICON_CLOSE, r, ctx->style->colors[MU_COLOR_TITLETEXT]);
-      mu_update_control(ctx, idClose, r, opt);
-      if (ctx->mouse_pressed == MU_MOUSE_LEFT && idClose == ctx->focus) {
+      mu_update_control(ctx, id, r, opt);
+      if (ctx->mouse_pressed == MU_MOUSE_LEFT && id == ctx->focus) {
         cnt->open = 0;
       }
     }
@@ -1168,12 +1174,17 @@ int mu_begin_window_ex(mu_Context *ctx, const char *title, mu_Rect rect, int opt
   /* do `resize` handle */
   if (~opt & MU_OPT_NORESIZE) {
     int sz = ctx->style->title_height;
-    mu_Id idResize = mu_get_id(ctx, "!resize", 7);
+    mu_Id id = mu_get_id(ctx, "!resize", 7);
     mu_Rect r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz);
-    mu_update_control(ctx, idResize, r, opt);
-    if (idResize == ctx->focus && ctx->mouse_down == MU_MOUSE_LEFT) {
+    mu_update_control(ctx, id, r, opt);
+    if (id == ctx->focus && ctx->mouse_down == MU_MOUSE_LEFT) {
+#ifdef MU_N64_MODIFICATIONS
       cnt->rect.w = mu_max(48, cnt->rect.w + ctx->mouse_delta.x);
       cnt->rect.h = mu_max(32, cnt->rect.h + ctx->mouse_delta.y);
+#else
+      cnt->rect.w = mu_max(96, cnt->rect.w + ctx->mouse_delta.x);
+      cnt->rect.h = mu_max(64, cnt->rect.h + ctx->mouse_delta.y);
+#endif
     }
   }
 

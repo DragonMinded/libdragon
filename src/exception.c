@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "regsinternal.h"
 #include "kernel/kernel_internal.h"
+#include "kernel/ktls_internal.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -403,13 +404,8 @@ static const char* __get_exception_name(exception_t *ex)
 			// so leave some margin to the actual faulting address.
 			return "NULL pointer dereference (read)";
 		} else {
-			if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-				if(__kernel) {
-					return "Read from TLS in interrupt handler";
-				} else {
-					return "Cannot access TLS without kernel_init()";
-				}
-				
+			if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+				return "Read from TLS in interrupt handler";
 			} else {
 				return "Read from invalid memory address";
 			}
@@ -418,12 +414,8 @@ static const char* __get_exception_name(exception_t *ex)
 		if (badvaddr < 128) {
 			return "NULL pointer dereference (write)";
 		} else {
-			if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-				if(__kernel) {
-					return "Write to TLS in interrupt handler";
-				} else {
-					return "Cannot access TLS without kernel_init()";
-				}
+			if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+				return "Write to TLS in interrupt handler";
 			} else {
 				return "Write to invalid memory address";
 			}
@@ -444,24 +436,16 @@ static const char* __get_exception_name(exception_t *ex)
 			else {
 				if ((badvaddr & 0xFFFF0000) == 0xFEFE0000)
 					return "Uninitialized pointer dereference";
-				if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-					if(__kernel) {
-						return "Read from TLS in interrupt handler";
-					} else {
-						return "Cannot access TLS without kernel_init()";
-					}
+				if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+					return "Read from TLS in interrupt handler";
 				} else {
 					return "Misaligned read from memory";
 				}
 			}
 		}
 	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
-		if(badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
-			if(__kernel) {
-				return "Write to TLS in interrupt handler";
-			} else {
-				return "Cannot access TLS without kernel_init()";
-			}
+		if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+			return "Write to TLS in interrupt handler";
 		} else {
 			return "Misaligned write to memory";
 		}

@@ -35,6 +35,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Generate an array of unpredictable random numbers
  * 
@@ -66,5 +70,9 @@ int getentropy(void *buf, size_t len);
  * @return uint32_t         Unpredictable 32-bit random number
  */
 uint32_t getentropy32(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

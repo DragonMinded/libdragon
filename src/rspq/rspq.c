@@ -1000,16 +1000,20 @@ static void rspq_flush_internal(void)
     // Most of the times, the above is enough. But there is a small and very rare
     // race condition that can happen: if the above status change happens
     // exactly in the few instructions between RSP checking for the status
-    // register ("mfc0 t0, COP0_SP_STATUS") RSP halting itself("break"),
-    // the call to rspq_flush might have no effect (see command_wait_new_input in
-    // rsp_queue.S).
+    // register ("mfc0 t0, COP0_SP_STATUS") RSP halting itself ("break"),
+    // the call to rspq_flush might have no effect (see RSPQCmd_WaitNewInput in
+    // rsp_queue.inc).
     // In general this is not a big problem even if it happens, as the RSP
     // would wake up at the next flush anyway, but we guarantee that rspq_flush
     // does actually make the RSP finish the current buffer. To keep this
     // invariant, we wait 10 cycles and then issue the command again. This
     // make sure that even if the race condition happened, we still succeed
     // in waking up the RSP.
-    __asm("nop; nop; nop; nop; nop; nop; nop; nop; nop; nop;");
+    // We also a dummy branch in the nop sequence to hint emulators to resync
+    // the CPU and the RSP. This happens to currently work with Ares. In general,
+    // emulators should at least resync CPU and RSP on SP_STATUS, and possibly
+    // boost interleaving for a while after that.
+    __asm("nop; nop; nop; b 1f; 1:nop; nop; nop; nop; nop; nop;");
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
     MEMORY_BARRIER();

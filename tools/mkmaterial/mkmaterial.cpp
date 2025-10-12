@@ -15,6 +15,7 @@
 #include "mkmaterial.h"
 #include "../common/assetcomp.h"
 #include "../common/utils.h"
+#include "../common/polyfill.h"
 
 char *flag_texdb_path = NULL;
 const char *flag_output_path = ".";
@@ -47,6 +48,7 @@ void usage(void)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     std::map<std::string, Material> materials;
     bool error = false;
     int nfiles = 0;
@@ -129,12 +131,17 @@ int main(int argc, char *argv[])
 
             // Open output file, named after the filename. Use stdout
             // if the input file is stdin.
-            FILE *f;
+            FILE *f; bool is_stdout = false;
             char *out = nullptr;
             
             if (strcmp(argv[i], "-") == 0) {
                 // Write to stdout when input is stdin
-                f = stdout;
+                is_stdout = true;
+                f = tmpfile();
+                if (!f) {
+                    fprintf(stderr, "error: cannot open temporary file\n");
+                    return 1;
+                }
                 verbose("writing material database to stdout\n");
 
                 if (!flag_texdb_path) {
@@ -187,9 +194,18 @@ int main(int argc, char *argv[])
                 mat_writedb(f, materials);
             }
             
-            if (f != stdout) {
-                fclose(f);
+            if (is_stdout) {
+                // Copy temporary file to stdout
+                rewind(f);
+                char buf[4096]; size_t n;
+                while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
+                    if (fwrite(buf, 1, n, stdout) != n) {
+                        fprintf(stderr, "error: cannot write to stdout\n");
+                        return 1;
+                    }
+                }
             }
+            fclose(f);
             if (out) {
                 free(out);
             }

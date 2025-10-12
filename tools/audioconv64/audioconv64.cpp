@@ -205,6 +205,8 @@ void walkdir(char *inpath, const char *outpath, void (*func)(const char *, const
 	}
 }
 int main(int argc, char *argv[]) {
+	winconsole_utf8();
+
 	if (argc < 2) {
 		usage();
 		return 1;

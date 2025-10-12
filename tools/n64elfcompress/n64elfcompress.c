@@ -18,6 +18,7 @@
 #include "../common/binout.c"
 #include "../common/assetcomp.h"
 #include "../common/mips_elf.h"
+#include "../common/polyfill.h"
 
 #define INCBIN_SILENCE_BITCODE_WARNING
 #define INCBIN_STYLE INCBIN_STYLE_SNAKE
@@ -372,6 +373,7 @@ bool process(char *infn, char *outfn, int compression)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     int compression = DEFAULT_COMPRESSION;
     char *outdir = ".";
     if(argc < 2) {

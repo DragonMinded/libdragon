@@ -376,7 +376,7 @@ int convert_bmfont(const char *infn, const char *outfn)
 
     gctx = new bmctx;
     gctx->font = new Font(outfn, FONT_TYPE_BITMAP, 0, 0, 0, 0, 0);
-    gctx->font->bmp_outfmt = flag_bmfont_format;
+    gctx->font->bmp_outfmt = flag_bmfont_format == FMT_NONE ? FMT_RGBA16 : flag_bmfont_format;
     gctx->basedir = dirname(infn);
 
     while (bmfont_parse_line(f, infn)) {}

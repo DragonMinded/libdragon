@@ -18,6 +18,7 @@
 #include "rompak_internal.h"
 #include "utils.h"
 #include "dlfcn_internal.h"
+#include "kernel/ktls_internal.h"
 
 /**
  * @defgroup dl Dynamic linker subsystem
@@ -283,6 +284,9 @@ static void flush_module(dso_module_t *module)
 
 static void relocate_module(dso_module_t *module)
 {
+    //Base for GP-Relative symbols
+    extern uint8_t _gp;
+    
     //Process relocations
     for(uint32_t i=0; i<module->num_relocs; i++) {
         dso_reloc_t *reloc = &module->relocs[i];
@@ -340,6 +344,54 @@ static void relocate_module(dso_module_t *module)
             {
                 uint16_t lo = *target & 0xFFFF; //Read lo from instruction
                 lo += sym_addr; //Calulate new lo
+                *target = (*target & 0xFFFF0000)|lo; //Write lo to instruction
+            }
+            break;
+            
+            case R_MIPS_GPREL16:
+            {
+                uint16_t lo = *target & 0xFFFF; //Read lo from instruction
+                uint32_t gpaddr = (uint32_t)(&_gp);
+                lo += sym_addr-gpaddr; //Calulate new lo
+                *target = (*target & 0xFFFF0000)|lo; //Write lo to instruction
+            }
+            break;
+            
+            case R_MIPS_TLS_TPREL_HI16:
+            {
+                uint16_t hi = *target & 0xFFFF; //Read hi from instruction
+                uint32_t addr = hi << 16; //Setup address from hi
+                bool lo_found = false;
+                //Search for next R_MIPS_TLS_TPREL_LO16 relocation
+                for(uint32_t j=i+1; j<module->num_relocs; j++) {
+                    dso_reloc_t *new_reloc = &module->relocs[j];
+                    type = new_reloc->info >> 24;
+                    if(type == R_MIPS_TLS_TPREL_LO16) {
+                        //Pair for R_MIPS_TLS_TPREL_LO16 relocation found
+                        u_uint32_t *lo_target = PTR_DECODE(module->prog_base, new_reloc->offset);
+                        int16_t lo = *lo_target & 0xFFFF; //Read lo from target of paired relocation
+                        //Update address
+                        addr += lo;
+                        addr += sym_addr-TP_OFFSET;
+                        //Calculate hi
+                        hi = addr >> 16;
+                        if(addr & 0x8000) {
+                            //Do hi carry
+                            hi++;
+                        }
+                        lo_found = true;
+                        break;
+                    }
+                }
+                assertf(lo_found, "Unpaired R_MIPS_TLS_TPREL_HI16 relocation");
+                *target = (*target & 0xFFFF0000)|hi; //Write hi to instruction
+            }
+            break;
+            
+            case R_MIPS_TLS_TPREL_LO16:
+            {
+                uint16_t lo = *target & 0xFFFF; //Read lo from instruction
+                lo += sym_addr-TP_OFFSET; //Calulate new lo
                 *target = (*target & 0xFFFF0000)|lo; //Write lo to instruction
             }
             break;

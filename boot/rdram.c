@@ -388,6 +388,16 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         if (chip_id)
             bank_found(chip_id-2, false);
 
+        // The RI only supports up to 4 chips, so stop here. If we tried to
+        // calibrate a 5th chip connected to the bus, we would confuse RI bank
+        // tracking logic and cause all sorts of problems that would eventually
+        // lead to a crash. We tried that.
+        if (chip_id >= 8) {
+            debugf("\nWARNING: more than 4 2-MiB RDRAM chips connected");
+            debugf("RI does not support more than 4, skipping remaining\n");
+            break;
+        }
+
         // Calibrate the chip current. n64brew suggests to do 4 attempts here
         // but our tests seem to indicate that results are really stable and
         // a single attempt seems enough.

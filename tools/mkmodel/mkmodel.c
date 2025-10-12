@@ -15,6 +15,7 @@
 #include <math.h>
 #include "../common/binout.c"
 #include "../common/binout.h"
+#include "../common/polyfill.h"
 
 // Compression library
 #include <sys/stat.h>
@@ -1915,6 +1916,7 @@ error:
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     bool error = false;
     int compression = DEFAULT_COMPRESSION;

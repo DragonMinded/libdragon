@@ -16,6 +16,7 @@
 #include <assert.h>
 #include "cop0.h"
 #include "cop1.h"
+#include "n64types.h"
 
 /**
  * @defgroup n64sys N64 System Interface
@@ -55,24 +56,6 @@ extern int __boot_tvtype;
  * @brief void pointer to cached and non-mapped memory start address
  */
 #define KSEG0_START_ADDR ((void*)0x80000000)
-
-/** 
- * @brief A physical address on the MIPS bus.
- * 
- * Physical addresses are 32-bit wide, and are used to address the memory
- * space of the MIPS R4300 CPU. The MIPS R4300 CPU has a 32-bit address bus,
- * and can address up to 4 GiB of memory.
- * 
- * Physical addresses are just numbers, they cannot be used as pointers (dereferenced).
- * To access them, you must first convert them virtual addresses using the
- * #VirtualCachedAddr or #VirtualUncachedAddr macros.
- * 
- * In general, libdragon will try to use #phys_addr_t whenever a physical
- * address is expected or returned, and C pointers for virtual addresses.
- * Unfortunately, not all codebase can be changed to follow this convention
- * for backward compatibility reasons.
- */
-typedef uint32_t phys_addr_t;
 
 /**
  * @brief Return the physical memory address for a given virtual address (pointer)
@@ -120,6 +103,22 @@ typedef uint32_t phys_addr_t;
  */
 #define VirtualUncachedAddr(_addr) ((void *)(((unsigned long)(_addr))|0xA0000000))
 
+/**
+ * @brief Create a virtual addresses in a 64-bit uncached segment to access a physical address
+ * 
+ * This function is similar to #VirtualUncachedAddr, but it returns a 64-bit
+ * virtual address (#vaddr64_t) instead of a 32-bit address (pointer). This is
+ * useful to access specific portions of the physical address space that are
+ * not accessible using 32-bit addresses, like the upper part of the PI space.
+ * 
+ * Use sys_vaddr_readN and sys_vaddr_writeN to read from and write to 64-bit virtual
+ * addresses.
+ * 
+ * @param[in] _addr     Physical address to convert to a virtual address
+ * 
+ * @return A 64-bit virtual address to access the physical address
+ */
+ #define VirtualUncachedAddr64(_addr) ((vaddr64_t)(((_addr))|0x9000000000000000ull))
 
 /**
  * @brief Return the uncached memory address for a given virtual address
@@ -597,90 +596,93 @@ typedef enum {
 reset_type_t sys_reset_type(void);
 
 /**
- * @name 64-bit address space access
- * @brief Functions to access the full 64-bit address space
+ * @brief Get the PI address of the main ELF in ROM
  *
- * Libdragon uses the O64 ABI, in which pointers are 32-bit wide. This
- * is the right choice for basically all standard use cases because
- * doubling the size of the pointers would waste more memory in all data
- * structures where pointers are stored.
+ * This function returns the PI address of the main ELF in ROM,
+ * that is, the address where the running application has been loaded from.
  * 
- * The VR4300 CPU does support a full 64-bit virtual address space
- * though, which might be used for some very niche use case
- * (like e.g. emulator tests) Since it is not possible to create a
- * 64-bit pointer in C because of the chosen ABI, these functions
- * are provided in substitution.
+ * This is only useful in some very niche cases, eg. for manually loading
+ * sections of the ELF at runtime, or inspecting custom ROM layouts.
  * 
- * The virtual address must be provided as a 64-bit integer.
+ * Use #dma_read or #io_read to access the ROM contents at this address space.
  * 
- * @{
+ * @return Address of the the ELF in PI space (ROM)
  */
+pi_addr_t sys_elf_address(void);
 
 /**
- * @brief Read a 8-bit value from memory at the given 64-bit virtual address
+ * @brief Perform a hardware-accelerated memory set
  * 
- * @param vaddr   64-bit virtual address
- * @return the read value
+ * This function uses a special function in the RCP (MI repeat mode)
+ * to perform a fast memset operation. The actual speed is about 6x
+ * a standard 64-bit memeset, and 12x a 32-bit memset.
+ * 
+ * You can use both cached and uncached memory addresses. For cached
+ * addresses, full cache coherency is guaranteed (so it will behave
+ * like a CPU memset would do).
+ * 
+ * All the sys_hw_memsetN functions run at the same speed, so this
+ * function is just as fast as #sys_hw_memset64. You don't need to
+ * use the 64-bit version unless you have a 64-bit pattern to repeat.
+ * 
+ * @note This special mode is not supported on the iQue player, so this
+ *       function falls back to a standard memset when run on iQue.
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         Value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ * 
+ * @see #sys_hw_memset16
+ * @see #sys_hw_memset32
+ * @see #sys_hw_memset64
  */
-inline uint8_t mem_read8(uint64_t vaddr) {
-    uint8_t value;
-    asm volatile (
-        "lbu %[value], 0(%[vaddr])  \n" :
-        [value] "=r" (value):
-        [vaddr] "r" (vaddr)
-    );
-    return value;    
-}
+void* sys_hw_memset(void *ptr, uint8_t value, size_t len);
 
 /**
- * @brief Read a 16-bit value from memory at the given 64-bit virtual address
+ * @brief Perform a hardware-accelerated memory set of a 16-bit pattern
  * 
- * @param vaddr   64-bit virtual address
- * @return the read value
+ * This function is similar to #sys_hw_memset, but repeats a 16-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABB for 7 bytes will result in the following
+ * memory contents: AA BB AA BB AA BB AA
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         16-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
  */
-inline uint16_t mem_read16(uint64_t vaddr) {
-    uint16_t value;
-    asm volatile (
-        "lhu %[value], 0(%[vaddr])  \n" :
-        [value] "=r" (value):
-        [vaddr] "r" (vaddr)
-    );
-    return value;    
-}
+void* sys_hw_memset16(void *ptr, uint16_t value, size_t len);
 
 /**
- * @brief Read a 32-bit value from memory at the given 64-bit virtual address
+ * @brief Perform a hardware-accelerated memory set of a 32-bit pattern
  * 
- * @param vaddr   64-bit virtual address
- * @return the read value
+ * This function is similar to #sys_hw_memset, but repeats a 32-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABBCCDD for 7 bytes will result in the following
+ * memory contents: AA BB CC DD AA BB CC
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         32-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
  */
-inline uint32_t mem_read32(uint64_t vaddr) {
-    uint32_t value;
-    asm volatile (
-        "lwu %[value], 0(%[vaddr])  \n" :
-        [value] "=r" (value):
-        [vaddr] "r" (vaddr)
-    );
-    return value;    
-}
+void* sys_hw_memset32(void *ptr, uint32_t value, size_t len);
 
 /**
- * @brief Read a 64-bit value from memory at the given 64-bit virtual address
+ * @brief Perform a hardware-accelerated memory set of a 64-bit pattern
  * 
- * @param vaddr   64-bit virtual address
- * @return the read value
+ * This function is similar to #sys_hw_memset, but repeats a 64-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABBCCDD11223344 for 11 bytes will result in the following
+ * memory contents: AA BB CC DD 11 22 33 44 AA BB CC
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         64-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
  */
-inline uint64_t mem_read64(uint64_t vaddr) {
-    uint64_t value;
-    asm volatile (
-        "ld %[value], 0(%[vaddr])  \n" :
-        [value] "=r" (value):
-        [vaddr] "r" (vaddr)
-    );
-    return value;    
-}
-
-/** @} */
+void* sys_hw_memset64(void *ptr, uint64_t value, size_t len);
 
 /** @cond */
 

@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <vector>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "../../include/surface.h"
@@ -52,8 +53,9 @@ float flag_ttf_outline = 0;
 bool flag_ttf_monochrome = false;
 float flag_ttf_char_spacing = 0;
 float flag_ttf_aspect_ratio = 1.0;
-tex_format_t flag_bmfont_format = FMT_RGBA16;
+tex_format_t flag_bmfont_format = FMT_NONE;
 std::unordered_set<uint32_t> flag_charset;
+std::unordered_map<uint32_t, float> flag_var_axis_values;
 
 typedef struct {
     const char *name;
@@ -61,6 +63,7 @@ typedef struct {
     uint32_t last;
 } unicode_block;
 
+// Includes all Unicode blocks as of Unicode 17.0
 unicode_block unicode_blocks[] = {
     { "Basic Latin", 0x0, 0x7F },
     { "Latin-1 Supplement", 0x80, 0xFF },
@@ -76,7 +79,14 @@ unicode_block unicode_blocks[] = {
     { "Hebrew", 0x590, 0x5FF },
     { "Arabic", 0x600, 0x6FF },
     { "Syriac", 0x700, 0x74F },
+    { "Arabic Supplement", 0x750, 0x77F },
     { "Thaana", 0x780, 0x7BF },
+    { "NKo", 0x7C0, 0x7FF },
+    { "Samaritan", 0x800, 0x83F },
+    { "Mandaic", 0x840, 0x85F },
+    { "Syriac Supplement", 0x860, 0x86F },
+    { "Arabic Extended-B", 0x870, 0x89F },
+    { "Arabic Extended-A", 0x8A0, 0x8FF },
     { "Devanagari", 0x900, 0x97F },
     { "Bengali", 0x980, 0x9FF },
     { "Gurmukhi", 0xA00, 0xA7F },
@@ -94,6 +104,7 @@ unicode_block unicode_blocks[] = {
     { "Georgian", 0x10A0, 0x10FF },
     { "Hangul Jamo", 0x1100, 0x11FF },
     { "Ethiopic", 0x1200, 0x137F },
+    { "Ethiopic Supplement", 0x1380, 0x139F },
     { "Cherokee", 0x13A0, 0x13FF },
     { "Unified Canadian Aboriginal Syllabics", 0x1400, 0x167F },
     { "Ogham", 0x1680, 0x169F },
@@ -104,8 +115,10 @@ unicode_block unicode_blocks[] = {
     { "Tagbanwa", 0x1760, 0x177F },
     { "Khmer", 0x1780, 0x17FF },
     { "Mongolian", 0x1800, 0x18AF },
+    { "Unified Canadian Aboriginal Syllabics Extended", 0x18B0, 0x18FF },
     { "Limbu", 0x1900, 0x194F },
     { "Tai Le", 0x1950, 0x197F },
+    { "New Tai Lue", 0x1980, 0x19DF },
     { "Khmer Symbols", 0x19E0, 0x19FF },
     { "Buginese", 0x1A00, 0x1A1F },
     { "Tai Tham", 0x1A20, 0x1AAF },
@@ -115,6 +128,9 @@ unicode_block unicode_blocks[] = {
     { "Batak", 0x1BC0, 0x1BFF },
     { "Lepcha", 0x1C00, 0x1C4F },
     { "Ol Chiki", 0x1C50, 0x1C7F },
+    { "Cyrillic Extended-C", 0x1C80, 0x1C8F },
+    { "Georgian Extended", 0x1C90, 0x1CBF },
+    { "Sundanese Supplement", 0x1CC0, 0x1CCF },
     { "Vedic Extensions", 0x1CD0, 0x1CFF },
     { "Phonetic Extensions", 0x1D00, 0x1D7F },
     { "Phonetic Extensions Supplement", 0x1D80, 0x1DBF },
@@ -233,7 +249,10 @@ unicode_block unicode_blocks[] = {
     { "Osage", 0x104B0, 0x104FF },
     { "Elbasan", 0x10500, 0x1052F },
     { "Caucasian Albanian", 0x10530, 0x1056F },
+    { "Vithkuqi", 0x10570, 0x105BF },
+    { "Todhri", 0x105C0, 0x105FF },
     { "Linear A", 0x10600, 0x1077F },
+    { "Latin Extended-F", 0x10780, 0x107BF },
     { "Cypriot Syllabary", 0x10800, 0x1083F },
     { "Imperial Aramaic", 0x10840, 0x1085F },
     { "Palmyrene", 0x10860, 0x1087F },
@@ -241,6 +260,7 @@ unicode_block unicode_blocks[] = {
     { "Hatran", 0x108E0, 0x108FF },
     { "Phoenician", 0x10900, 0x1091F },
     { "Lydian", 0x10920, 0x1093F },
+    { "Sidetic", 0x10940, 0x1095F },
     { "Meroitic Hieroglyphs", 0x10980, 0x1099F },
     { "Meroitic Cursive", 0x109A0, 0x109FF },
     { "Kharoshthi", 0x10A00, 0x10A5F },
@@ -254,10 +274,13 @@ unicode_block unicode_blocks[] = {
     { "Old Turkic", 0x10C00, 0x10C4F },
     { "Old Hungarian", 0x10C80, 0x10CFF },
     { "Hanifi Rohingya", 0x10D00, 0x10D3F },
+    { "Garay", 0x10D40, 0x10D8F },
     { "Rumi Numeral Symbols", 0x10E60, 0x10E7F },
     { "Yezidi", 0x10E80, 0x10EBF },
+    { "Arabic Extended-C", 0x10EC0, 0x10EFF },
     { "Old Sogdian", 0x10F00, 0x10F2F },
     { "Sogdian", 0x10F30, 0x10F6F },
+    { "Old Uyghur", 0x10F70, 0x10FAF },
     { "Chorasmian", 0x10FB0, 0x10FDF },
     { "Elymaic", 0x10FE0, 0x10FFF },
     { "Brahmi", 0x11000, 0x1107F },
@@ -271,12 +294,14 @@ unicode_block unicode_blocks[] = {
     { "Multani", 0x11280, 0x112AF },
     { "Khudawadi", 0x112B0, 0x112FF },
     { "Grantha", 0x11300, 0x1137F },
+    { "Tulu-Tigalari", 0x11380, 0x113FF },
     { "Newa", 0x11400, 0x1147F },
     { "Tirhuta", 0x11480, 0x114DF },
     { "Siddham", 0x11580, 0x115FF },
     { "Modi", 0x11600, 0x1165F },
     { "Mongolian Supplement", 0x11660, 0x1167F },
     { "Takri", 0x11680, 0x116CF },
+    { "Myanmar Extended-C", 0x116D0, 0x116FF },
     { "Ahom", 0x11700, 0x1173F },
     { "Dogra", 0x11800, 0x1184F },
     { "Warang Citi", 0x118A0, 0x118FF },
@@ -284,45 +309,73 @@ unicode_block unicode_blocks[] = {
     { "Nandinagari", 0x119A0, 0x119FF },
     { "Zanabazar Square", 0x11A00, 0x11A4F },
     { "Soyombo", 0x11A50, 0x11AAF },
+    { "Unified Canadian Aboriginal Syllabics Extended-A", 0x11AB0, 0x11ABF },
     { "Pau Cin Hau", 0x11AC0, 0x11AFF },
+    { "Devanagari Extended-A", 0x11B00, 0x11B5F },
+    { "Sharada Supplement", 0x11B60, 0x11B7F },
+    { "Sunuwar", 0x11BC0, 0x11BFF },
     { "Bhaiksuki", 0x11C00, 0x11C6F },
     { "Marchen", 0x11C70, 0x11CBF },
     { "Masaram Gondi", 0x11D00, 0x11D5F },
     { "Gunjala Gondi", 0x11D60, 0x11DAF },
+    { "Tolong Siki", 0x11DB0, 0x11DEF },
     { "Makasar", 0x11EE0, 0x11EFF },
+    { "Kawi", 0x11F00, 0x11F5F },
+    { "Lisu Supplement", 0x11FB0, 0x11FBF },
     { "Tamil Supplement", 0x11FC0, 0x11FFF },
     { "Cuneiform", 0x12000, 0x123FF },
     { "Cuneiform Numbers and Punctuation", 0x12400, 0x1247F },
     { "Early Dynastic Cuneiform", 0x12480, 0x1254F },
+    { "Cypro-Minoan", 0x12F90, 0x12FFF },
     { "Egyptian Hieroglyphs", 0x13000, 0x1342F },
+    { "Egyptian Hieroglyph Format Controls", 0x13430, 0x1345F },
+    { "Egyptian Hieroglyphs Extended-A", 0x13460, 0x143FF },
     { "Anatolian Hieroglyphs", 0x14400, 0x1467F },
+    { "Gurung Khema", 0x16100, 0x1613F },
     { "Bamum Supplement", 0x16800, 0x16A3F },
     { "Mro", 0x16A40, 0x16A6F },
     { "Tangsa", 0x16A70, 0x16ACF },
     { "Bassa Vah", 0x16AD0, 0x16AFF },
     { "Pahawh Hmong", 0x16B00, 0x16B8F },
+    { "Kirat Rai", 0x16D40, 0x16D7F },
     { "Medefaidrin", 0x16E40, 0x16E9F },
+    { "Beria Erfe", 0x16EA0, 0x16EDF },
     { "Miao", 0x16F00, 0x16F9F },
     { "Ideographic Symbols and Punctuation", 0x16FE0, 0x16FFF },
     { "Tangut", 0x17000, 0x187FF },
     { "Tangut Components", 0x18800, 0x18AFF },
+    { "Khitan Small Script", 0x18B00, 0x18CFF },
+    { "Tangut Supplement", 0x18D00, 0x18D7F },
+    { "Tangut Components Supplement", 0x18D80, 0x18DFF },
+    { "Kana Extended-B", 0x1AFF0, 0x1AFFF },
     { "Kana Supplement", 0x1B000, 0x1B0FF },
     { "Kana Extended-A", 0x1B100, 0x1B12F },
     { "Small Kana Extension", 0x1B130, 0x1B16F },
     { "Nushu", 0x1B170, 0x1B2FF },
     { "Duployan", 0x1BC00, 0x1BC9F },
     { "Shorthand Format Controls", 0x1BCA0, 0x1BCAF },
+    { "Symbols for Legacy Computing Supplement", 0x1CC00, 0x1CEBF },
+    { "Miscellaneous Symbols Supplement", 0x1CEC0, 0x1CEFF },
+    { "Znamenny Musical Notation", 0x1CF00, 0x1CFCF },
     { "Byzantine Musical Symbols", 0x1D000, 0x1D0FF },
     { "Musical Symbols", 0x1D100, 0x1D1FF },
     { "Ancient Greek Musical Notation", 0x1D200, 0x1D24F },
+    { "Kaktovik Numerals", 0x1D2C0, 0x1D2DF },
     { "Mayan Numerals", 0x1D2E0, 0x1D2FF },
     { "Tai Xuan Jing Symbols", 0x1D300, 0x1D35F },
     { "Counting Rod Numerals", 0x1D360, 0x1D37F },
     { "Mathematical Alphanumeric Symbols", 0x1D400, 0x1D7FF },
     { "Sutton SignWriting", 0x1D800, 0x1DAAF },
+    { "Latin Extended-G", 0x1DF00, 0x1DFFF },
     { "Glagolitic Supplement", 0x1E000, 0x1E02F },
+    { "Cyrillic Extended-D", 0x1E030, 0x1E08F },
     { "Nyiakeng Puachue Hmong", 0x1E100, 0x1E14F },
+    { "Toto", 0x1E290, 0x1E2BF },
     { "Wancho", 0x1E2C0, 0x1E2FF },
+    { "Nag Mundari", 0x1E4D0, 0x1E4FF },
+    { "Ol Onal", 0x1E5D0, 0x1E5FF },
+    { "Tai Yo", 0x1E6C0, 0x1E6FF },
+    { "Ethiopic Extended-B", 0x1E7E0, 0x1E7FF },
     { "Mende Kikakui", 0x1E800, 0x1E8DF },
     { "Adlam", 0x1E900, 0x1E95F },
     { "Indic Siyaq Numbers", 0x1EC70, 0x1ECBF },
@@ -349,9 +402,11 @@ unicode_block unicode_blocks[] = {
     { "CJK Unified Ideographs Extension D", 0x2B740, 0x2B81F },
     { "CJK Unified Ideographs Extension E", 0x2B820, 0x2CEAF },
     { "CJK Unified Ideographs Extension F", 0x2CEB0, 0x2EBEF },
+    { "CJK Unified Ideographs Extension I", 0x2EBF0, 0x2EE5F },
     { "CJK Compatibility Ideographs Supplement", 0x2F800, 0x2FA1F },
     { "CJK Unified Ideographs Extension G", 0x30000, 0x3134F },
     { "CJK Unified Ideographs Extension H", 0x31350, 0x323AF },
+    { "CJK Unified Ideographs Extension J", 0x323B0, 0x3347F },
     { "Tags", 0xE0000, 0xE007F },
     { "Variation Selectors Supplement", 0xE0100, 0xE01EF },
     { "Supplementary Private Use Area-A", 0xF0000, 0xFFFFF },
@@ -380,6 +435,11 @@ void print_args( char * name )
     fprintf(stderr, "   --display <WxH[,A:B]>     Specify target display resolution and optional aspect ratio\n");
     fprintf(stderr, "                             (e.g., --display 320x240 or --display 320x240,16:9)\n");
     fprintf(stderr, "                             Default assumes 4:3 display ratio\n");
+    fprintf(stderr, "   --format <format>         Specify the output texture format for color fonts.\n");
+    fprintf(stderr, "                             Valid options are: RGBA16, RGBA32, CI4, CI8 (default: autoselect)\n");
+    fprintf(stderr, "   --var-axis <tag=value>    Override axis value of variable font\n");
+    fprintf(stderr, "                             (e.g., --var-axis wght=800)\n");
+    fprintf(stderr, "                             Can be specified multiple times.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "   Glyph selection modes (choose one of the following):\n");
     fprintf(stderr, "   --charset <file>          Create a font that covers all and only the glyphs used in the\n");
@@ -400,6 +460,7 @@ void print_args( char * name )
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outfn = NULL; const char *outdir = ".";
     bool error = false;
     int compression = DEFAULT_COMPRESSION;
@@ -620,6 +681,22 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid format: %s\n", argv[i]);
                     return 1;
                 }
+            } else if (!strcmp(argv[i], "--var-axis")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+
+                char tag[4];
+                float value;
+                char extra;
+
+                if (sscanf(argv[i], "%c%c%c%c=%f%c", &tag[0], &tag[1], &tag[2], &tag[3], &value, &extra) != 5) {
+                    fprintf(stderr, "invalid argument for %s: %s \n", argv[i-1], argv[i]);
+                    return 1;
+
+                }
+                flag_var_axis_values[(tag[0] << 24) | (tag[1] << 16) | (tag[2] << 8) | tag[3]] = value;
             } else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;

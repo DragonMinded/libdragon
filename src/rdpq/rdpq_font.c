@@ -97,6 +97,10 @@ static void setup_render_mode(int font_type, tex_format_t fmt)
             rdpq_mode_begin();
                 rdpq_mode_alphacompare(1);
                 rdpq_mode_combiner(RDPQ_COMBINER1((TEX0,0,PRIM,0), (TEX0,0,PRIM,0)));
+                if (fmt == FMT_CI4 || fmt == FMT_CI8)
+                    rdpq_mode_tlut(TLUT_RGBA16);
+                else
+                    rdpq_mode_tlut(TLUT_NONE);
             rdpq_mode_end();
             break;
         case FMT_RGBA32:
@@ -234,7 +238,7 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
                 } else {
                     rdpq_set_texture_image_raw(0, PhysicalAddr(surf.buffer), FMT_CI8, surf.width/2, surf.height);
                     rdpq_set_tile(TILE0, sprite_get_format(spr), 0, 64, NULL);
-                    rdpq_set_tile(TILE4, FMT_CI8, 0    , 64, NULL);
+                    rdpq_set_tile(TILE4, FMT_CI8, 0, 64, NULL);
                 }   
                 break;
             case FONT_TYPE_ALIASED_OUTLINE:
@@ -242,14 +246,17 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
                 if (fits_tmem) {
                     rdpq_sprite_upload(TILE0, spr, NULL);
                 } else {
-                    if (TEX_FORMAT_BITDEPTH(sprite_get_format(spr)) == 4) {
-                        rdpq_set_texture_image(&surf);
-                        rdpq_set_tile(TILE0, sprite_get_format(spr), 0, 64, NULL);
-                        rdpq_set_tile(TILE4, FMT_CI8, 0    , 64, NULL);
+                    tex_format_t fmt = sprite_get_format(spr);
+                    if (fmt == FMT_CI4 || fmt == FMT_CI8)
+                        rdpq_tex_upload_tlut(sprite_get_palette(spr), 0, fmt == FMT_CI4 ? 16 : 256);
+                    if (TEX_FORMAT_BITDEPTH(fmt) == 4) {
+                        rdpq_set_texture_image_raw(0, PhysicalAddr(surf.buffer), FMT_CI8, surf.width/2, surf.height);
+                        rdpq_set_tile(TILE0, fmt, 0, 64, NULL);
+                        rdpq_set_tile(TILE4, FMT_CI8, 0, 64, NULL);
                     } else {
                         rdpq_set_texture_image(&surf);
                         for (int i=0; i<8; i++)
-                            rdpq_set_tile(TILE0+i, sprite_get_format(spr), 0, 64, NULL);
+                            rdpq_set_tile(TILE0+i, fmt, 0, 64, NULL);
                     }
                 }
                 break;
@@ -318,7 +325,6 @@ static uint32_t rotl(uint32_t x, int k)
     return (x << k) | (x >> (-k & 31));
 }
 
-__attribute__((noinline))
 static uint32_t phf_round32(uint32_t k1, uint32_t h1) {
 	k1 *= 0xcc9e2d51;
 	k1 = rotl(k1, 15);
@@ -328,7 +334,7 @@ static uint32_t phf_round32(uint32_t k1, uint32_t h1) {
 	h1 = h1 * 5 + 0xe6546b64;
 	return h1;
 }
-__attribute__((noinline))
+
 static uint32_t phf_mix32(uint32_t h1) {
 	h1 ^= h1 >> 16;
 	h1 *= 0x85ebca6b;

@@ -22,6 +22,7 @@ int __boot_memsize;        ///< Memory size as detected by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
+int __boot_address_page;   ///< Address in the ROM of the ELF
 
 /** @brief Records whether the user called a function to check for the presence of expanded memory */
 bool __expanded_memory_asserted = false;
@@ -31,6 +32,9 @@ static uint32_t ticks64_base_tick;
 
 /** @brief Last value of the 64-bit counter */
 static uint64_t ticks64_base;
+
+/** @brief Set if it's a broken emulator not support hw_memset */
+static bool hw_memset_broken = false;
 
 /// @cond
 
@@ -190,6 +194,11 @@ reset_type_t sys_reset_type(void)
     return __boot_resettype;
 }
 
+pi_addr_t sys_elf_address(void)
+{
+    return 0x10000000 | (__boot_address_page << 8);
+}
+
 uint64_t get_ticks(void)
 {
 	uint32_t now = TICKS_READ();
@@ -299,6 +308,49 @@ __attribute__((constructor)) void __init_cop1(void)
     /* Write back updated cop1 control register */
     C1_WRITE_FCR31(fcr31);
 }
+
+///@cond
+// Assembly implementations of memset functions (see mi_memset.S)
+extern void* __mi_memset(void *ptr, uint8_t value, size_t len);
+extern void* __mi_memset16(void *ptr, uint16_t value, size_t len);
+extern void* __mi_memset32(void *ptr, uint32_t value, size_t len);
+extern void* __mi_memset64(void *ptr, uint64_t value, size_t len);
+///@endcond
+
+void* sys_hw_memset(void *ptr, uint8_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset(ptr, value, len);
+}
+
+void* sys_hw_memset16(void *ptr, uint16_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset16(ptr, value, len);
+}
+
+void* sys_hw_memset32(void *ptr, uint32_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset32(ptr, value, len);
+}
+
+void* sys_hw_memset64(void *ptr, uint64_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset64(ptr, value, len);
+}
+
+/** @brief Constructor that verifies if MI repeat mode is correctly emulated */
+__attribute__((constructor))
+void __n64sys_hwmemset_emucheck(void)
+{
+    uint32_t test[4] = {0};
+    __mi_memset32(&test, 0x12345678, sizeof(test));
+    if (test[0] != 0x12345678 || test[1] != 0x12345678 || test[2] != 0x12345678 || test[3] != 0x12345678)
+        hw_memset_broken = true;
+}
+
 
 /************* BSS CHECK **************/
 // This code is useful only while debugging IPL3 changes. It is not run by default
@@ -426,10 +478,6 @@ void __bss_check(void)
 /// @endcond
 
 /* Inline instantiations */
-extern inline uint8_t mem_read8(uint64_t vaddr);
-extern inline uint16_t mem_read16(uint64_t vaddr);
-extern inline uint32_t mem_read32(uint64_t vaddr);
-extern inline uint64_t mem_read64(uint64_t vaddr);
 extern inline bool sys_bbplayer(void);
 extern inline tv_type_t get_tv_type(void);
 

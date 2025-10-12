@@ -33,9 +33,11 @@ _start:
 	lui v0, 0xA400
 	lw t0, 0x0000(v0)
 	lw t1, 0x0004(v0)
+	lhu t2, 0x000C(v0)
 	sw t0, %gprel(__boot_memsize)(gp)
 	sw t1, %gprel(__entropy_state+0)(gp)
 	sw t1, %gprel(__entropy_state+4)(gp)
+	sw t2, %gprel(__boot_address_page)(gp)
 
 	/* Copy other bootcode flags */
 	lbu t0, 0x0009(v0)

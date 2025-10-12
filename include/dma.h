@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "n64types.h"
 
 /**
  * @defgroup dma DMA Controller
@@ -36,11 +37,20 @@
 extern "C" {
 #endif
 
+/**
+ * @name PI Register Definitions
+ * @{
+ */
 #define PI_DRAM_ADDR    ((volatile uint32_t*)0xA4600000)  ///< PI DMA: DRAM address register
 #define PI_CART_ADDR    ((volatile uint32_t*)0xA4600004)  ///< PI DMA: cartridge address register
 #define PI_RD_LEN       ((volatile uint32_t*)0xA4600008)  ///< PI DMA: read length register
 #define PI_WR_LEN       ((volatile uint32_t*)0xA460000C)  ///< PI DMA: write length register
 #define PI_STATUS       ((volatile uint32_t*)0xA4600010)  ///< PI: status register
+
+#define PI_STATUS_DMA_BUSY      (1 << 0)        ///< PI status: DMA is in progress
+#define PI_STATUS_IO_BUSY       (1 << 1)        ///< PI status: IO is in progress
+#define PI_STATUS_ERROR         (1 << 2)        ///< PI status: error occurred
+/** @} */
 
 /**
  * @brief Start writing data to a peripheral through PI DMA (low-level)
@@ -60,7 +70,7 @@ extern "C" {
  * @param[in]  len
  *             Length in bytes to write into pi_address (must be multiple of 2)
  */
-void dma_write_raw_async(const void *ram_address, unsigned long pi_address, unsigned long len);
+void dma_write_raw_async(const void *ram_address, pi_addr_t pi_address, unsigned long len);
 
 /**
  * @brief Write to a peripheral
@@ -80,7 +90,7 @@ void dma_write_raw_async(const void *ram_address, unsigned long pi_address, unsi
  *       to access the whole range.
  *       If you need to read outside the ROM area, use #dma_write_raw_async instead.
  */
-void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len);
+void dma_write(const void * ram_address, pi_addr_t pi_address, unsigned long len);
 
 
 /**
@@ -103,7 +113,7 @@ void dma_write(const void * ram_address, unsigned long pi_address, unsigned long
  * @param[in]  len
  *             Length in bytes to read into ram_address (must be multiple of 2)
  */
-void dma_read_raw_async(void *ram_address, unsigned long pi_address, unsigned long len);
+void dma_read_raw_async(void *ram_address, pi_addr_t pi_address, unsigned long len);
 
 /**
  * @brief Start reading data from a peripheral through PI DMA
@@ -132,7 +142,7 @@ void dma_read_raw_async(void *ram_address, unsigned long pi_address, unsigned lo
  * @param[in]  len
  *             Length in bytes to read into ram_pointer
  */
-void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long len);
+void dma_read_async(void *ram_pointer, pi_addr_t pi_address, unsigned long len);
 
 /** 
  * @brief Read data from a peripheral through PI DMA, waiting for completion.
@@ -152,7 +162,7 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
  *       to access the whole range.
  *       If you need to read outside the ROM area, use #dma_read_async instead.
  */
-void dma_read(void * ram_address, unsigned long pi_address, unsigned long len);
+void dma_read(void * ram_address, pi_addr_t pi_address, unsigned long len);
 
 
 /** 
@@ -174,7 +184,7 @@ void dma_wait(void);
  * 
  * @see #io_accessible
  */
-uint32_t io_read(uint32_t pi_address);
+uint32_t io_read(pi_addr_t pi_address);
 
 /**
  * @brief Write a 32 bit integer to a peripheral using the CPU.
@@ -193,7 +203,7 @@ uint32_t io_read(uint32_t pi_address);
  *
  * @see #io_accessible
  */
-void io_write(uint32_t pi_address, uint32_t data);
+void io_write(pi_addr_t pi_address, uint32_t data);
 
 /**
  * @brief Check whether the specified PI address can be accessed doing I/O from CPU
@@ -206,14 +216,9 @@ void io_write(uint32_t pi_address, uint32_t data);
  * 
  *  * 0x0500_0000 - 0x0FFF_FFFF: used by N64DD and SRAM on cartridge
  *  * 0x1000_0000 - 0x1FBF_FFFF: cartridge ROM
- *  * 0x1FD0_0000 - 0x1FFF_FFFF: no known PI peripherals use this
+ *  * 0x1FD0_0000 - 0x7FFF_FFFF: no known PI peripherals use this
  * 
  * The rest of the 32-bit address range is only accessible via DMA.
- * 
- * Notice also that the range 0x2000_0000 - 0x7FFF_FFFF is theoretically accessible
- * by the CPU but only via 64-bit addressing, so it requires assembly instructions
- * (as the libdragon toolchain uses 32-bit pointers). No known PI peripherals use this
- * range anyway.
  * 
  * This function checks whether the specified address falls into the range accessible
  * via CPU or not.
@@ -221,7 +226,7 @@ void io_write(uint32_t pi_address, uint32_t data);
  * @param pi_address        PI address to check
  * @return                  True if the address is memory mapped, false if it is not
  */
-bool io_accessible(uint32_t pi_address);
+bool io_accessible(pi_addr_t pi_address);
 
 __attribute__((deprecated("use dma_wait instead"))) 
 volatile int dma_busy(void);
