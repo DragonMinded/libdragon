@@ -113,15 +113,20 @@ void mg_init(void)
 {
     if (is_initialized) return;
 
-    rspq_init();
-    mg_overlay_id = rspq_overlay_register(&rsp_magma);
-
-    // Pass the location and size of the clipping code overlay to the RSP state
+    // Write location and size of the clipping overlay to magma's overlay data before registering it in rspq
     void* clipping_code;
     uint32_t clipping_code_size;
     get_overlay_span(&rsp_magma_clipping, &clipping_code, &clipping_code_size);
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, clipping_code), PhysicalAddr(clipping_code));
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, clipping_code_size), clipping_code_size);
+
+    phys_addr_t clipping_code_phys = PhysicalAddr(clipping_code);
+    clipping_code_size = ROUND_UP(clipping_code_size, 8) - 1;
+
+    uint8_t *overlay_data = UncachedAddr(rsp_magma.data);
+    memcpy(overlay_data + RSP_MAGMA_MG_CLIPPING_TEXT, &clipping_code_phys, sizeof(clipping_code_phys));
+    memcpy(overlay_data + RSP_MAGMA_MG_CLIPPING_TEXT_SIZE, &clipping_code_size, sizeof(clipping_code_size));
+
+    rspq_init();
+    mg_overlay_id = rspq_overlay_register(&rsp_magma);
 
     is_initialized = true;
 }

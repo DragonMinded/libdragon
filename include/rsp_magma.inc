@@ -25,8 +25,6 @@ MG_STATE:
     MG_VERTEX_SIZE:             .half   0,0,0,0
     MG_SHADER_TEXT:             .word   0
     MG_SHADER_TEXT_SIZE:        .word   0
-    MG_CLIPPING_TEXT:           .word   0
-    MG_CLIPPING_TEXT_SIZE:      .word   0
     MG_VERTEX_BUFFER:           .word   0
     MG_TRI_CMD:                 .half   0x800
     MG_CULL_MODE:               .byte   0
@@ -214,6 +212,9 @@ MG_CLIP_PLANES:
     .half 1, 0, 0, -1
     .half 0, 1, 0, -1
     .half 0, 0, 1, -1
+
+MG_CLIPPING_TEXT:               .word   0
+MG_CLIPPING_TEXT_SIZE:          .word   0
 
     .bss
     .align 4
