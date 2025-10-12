@@ -537,11 +537,13 @@ int main(void)
     char prefix[8];
     sprintf(prefix, "cpak%d:/", port + 1);
 
-    // Full name must respect the GAME.PU-filename.ext format
-    // To make gamecode match the one from ROM Header (NED\x00)
-    // we use the hex encoding of gamecode because NED\x00
-    // contains a \x00 which is not useable in C strings.
-    const char* fname = "4e454400.XX-TEST.A";
+    // Full name must respect the GAME.PU-filename.ext format.
+    // To reduce name collision with other games,
+    // you should use some unique game and publisher code, be creative !
+    // Especially we do not recommend to use the same gamecode
+    // as the ROM header because most homebrews would then use
+    // "NED\x00" gamecode and collision would be inevitable.
+    const char* fname = "DRAG.ON-cpakdemo.1";
 
     console_init();
     joypad_init();
