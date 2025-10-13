@@ -179,8 +179,36 @@ void print_args( char * name )
 }
 
 uint16_t conv_rgb5551(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8) {
-    uint16_t r=r8>>3, g=g8>>3, b=b8>>3, a=a8?1:0;
+    uint16_t r=r8>>3, g=g8>>3, b=b8>>3, a=a8 >= 128?1:0;
     return (r<<11) | (g<<6) | (b<<1) | a;
+}
+
+/*dither matrix*/
+unsigned int dith[4][4] = {{0, 6, 1, 7}, {4, 2, 5, 3}, {3, 5, 2, 4}, {7, 1, 6, 0}};
+
+int check_color(int val){
+    if(val > 255) val = 255;
+    if(val < 0) val = 0;
+    return val;
+}
+
+uint16_t conv_rgb5551_dither(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8, unsigned int x, unsigned int y, int dither ) {
+    int value = 0;
+    switch(dither){
+        case DITHER_ALGO_ORDERED: value = dith[x & 0x3][y & 0x3]; break;
+        case DITHER_ALGO_RANDOM:  value = rand() & 0x7; break;
+        case DITHER_ALGO_NONE: return conv_rgb5551(r8, g8, b8, a8); break;
+        default: fprintf(stderr, "ERROR: conv RGBA5551 unimplemented dithering mode %s\n", dither_algo_name(dither)); assert(0);
+    }
+
+    int r = r8 + value - 4;
+    int g = g8 + value - 4;
+    int b = b8 + value - 4;
+    r = check_color(r);
+    g = check_color(g);
+    b = check_color(b);
+
+    return conv_rgb5551(r,g,b,a8);
 }
 
 // Convert a 18-bit fixed point 0.15.3 into floating point 14-bit.
@@ -244,6 +272,7 @@ typedef struct {
         bool         use_main_tex;  // If true, use the main texture as detail (fractal detail)
         bool         enabled;       // If true, detail texture is enabled
     } detail;
+    int ditheralgo;
 } spritemaker_t;
 
 
@@ -972,7 +1001,7 @@ bool spritemaker_write(spritemaker_t *spr) {
             // Convert to 16-bit RGB5551 format.
             uint8_t *img = image->image;
             for (int i=0;i<image->width*image->height;i++) {
-                w16(out, conv_rgb5551(img[0], img[1], img[2], img[3]));
+                w16(out, conv_rgb5551_dither(img[0], img[1], img[2], img[3], i % image->width, i / image->height, spr->ditheralgo));
                 img += 4;
             }
             break;
@@ -1196,6 +1225,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
 
     spritemaker_t spr = {0};
 
+    spr.ditheralgo = pm->dither_algo;
     spr.infn = infn;
     spr.outfn = outfn;
     spr.texparms = pm->texparms;
