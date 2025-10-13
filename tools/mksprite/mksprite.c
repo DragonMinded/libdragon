@@ -941,13 +941,25 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     // Calculate a first 2x2 mipmap
     uint8_t *img22 = image_shrink_box(spr->images[0].image, width, height, true, true);
     uint8_t *img42 = NULL, *img24 = NULL;
-    
+
+    // Check if the original image has any meaningful alpha info
+    bool alphausage = false;
+    for(int y = 0; y < height && !alphausage; y++){
+        uint8_t* src = spr->images[0].image + y*width*4;
+        for(int x = 0; x < width && !alphausage; x++){
+            if(src[3] < 128) alphausage = true;
+            src += 4;
+        }
+    } // If there is alpha, use IA4 for the detail texture - halfs the shades count, but adds 1 bit per pixel alpha support
+    if(flag_verbose && alphausage)
+        fprintf(stderr, "IHQ: found transparent pixels, IA4 is used as detail\n");
+	
     uint8_t *best_rgb_img = NULL;
     int best_rgb_w = 0, best_rgb_h = 0;
-    float best_err = 999999;
+    float best_err = INT32_MAX;
     float best_ifactor = 0;
-    uint8_t *best_i_img = malloc(width * height);
-    uint8_t *i_img = malloc(width * height);
+    uint8_t *best_i_img = alphausage? malloc(width * height * 2) : malloc(width * height);
+    uint8_t *i_img = alphausage? malloc(width * height * 2) : malloc(width * height);
 
     for (int dir=0; dir<2; dir++) {
         uint8_t *img; int iw, ih;
@@ -964,8 +976,8 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
         float wstep = (float)iw / width;
         float hstep = (float)ih / height;
 
-        for (int factor=1; factor<=8; factor++) {
-            float ifactor = 0.1f * factor;
+        for (int factor=1; factor<=10; factor++) {
+            float ifactor = 0.05f * factor;
             float mse = 0;
 
             for (int y=0; y<height; y++) {
@@ -978,6 +990,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
                     uint8_t r0 = spr->images[0].image[(y*width + x)*4 + 0];
                     uint8_t g0 = spr->images[0].image[(y*width + x)*4 + 1];
                     uint8_t b0 = spr->images[0].image[(y*width + x)*4 + 2];
+                    uint8_t a0 = spr->images[0].image[(y*width + x)*4 + 3];
 
                     float xx = x * wstep;
                     int xx0 = (int)xx;
@@ -1007,7 +1020,13 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
 
                     float err;
                     uint8_t i = ihq_calc_best_i4(ifactor, r0, g0, b0, r, g, b, &err);
-                    i_img[y*width + x] = i;
+
+                    // If there's alpha present, include it in the texture as IA format
+                    if(alphausage){
+                        i_img[(y*width + x) * 2] = i;
+                        i_img[((y*width + x) * 2) + 1] = a0;
+                    }
+                    else i_img[y*width + x] = i;
                     // if (x==16 && y==0) {
                     //     printf("IHQ: (%d,%d): %d %d %d -> %d %d %d\n", x, y, r0, g0, b0, r, g, b);
                     //     printf("IHQ: i=%d err=%f rgb=(%d,%d,%d)\n", i, err, (int)(r*(1-ifactor)+i*ifactor), (int)(g*(1-ifactor)+i*ifactor), (int)(b*(1-ifactor)+i*ifactor));
@@ -1025,8 +1044,8 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
                 best_rgb_img = img;
                 SWAP(best_i_img, i_img);
             }
-            // if (flag_verbose)
-            //     fprintf(stderr, "IHQ: factor=%.1f mse=%f\n", ifactor, mse);
+             if (flag_verbose)
+                fprintf(stderr, "IHQ: detail factor=%.1f mse=%f\n", ifactor, mse);
         }
     }
 
@@ -1034,7 +1053,8 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     spr->detail.blend_factor = best_ifactor;
     spr->detail.enabled = true;
     spr->detail.use_main_tex = false;
-    spr->images[7].fmt = FMT_I4;
+    spr->images[7].fmt = alphausage? FMT_IA4 : FMT_I4;
+    spr->images[7].ct = alphausage? LCT_GREY_ALPHA : LCT_GREY;
     spr->images[7].image = best_i_img;
     spr->images[7].width = width;
     spr->images[7].height = height;
