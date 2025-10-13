@@ -980,11 +980,13 @@ bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mutex, uint32_t ticks)
 	bool timeout = false;
 
 	disable_interrupts();
-	assertf(mutex->owner == PhysicalAddr(th), "kcond_wait_timeout() called, but mutex is not locked by %s[%p]", th->name, th);
-	assertf(mutex->counter == 1, "kcond_wait_timeout() called, but mutex is locked multiple times");
+	if (mutex) {
+		assertf(mutex->owner == PhysicalAddr(th), "kcond_wait_timeout() called, but mutex is not locked by %s[%p]", th->name, th);
+		assertf(mutex->counter == 1, "kcond_wait_timeout() called, but mutex is locked multiple times");
 
-	// Unlock the mutex, and put the thread in the cond waiting list
-	kmutex_unlock_internal(mutex);
+		// Unlock the mutex, and put the thread in the cond waiting list
+		kmutex_unlock_internal(mutex);
+	}
 	__thlist_add_pri(&cond->waiting, th);
 
 	// Timer callback. This will be invoked when the timer elapses after the
@@ -1011,7 +1013,7 @@ bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mutex, uint32_t ticks)
 
 	if (!timeout) stop_timer(&timer);
 
-	kmutex_lock(mutex);
+	if (mutex) kmutex_lock(mutex);
 	enable_interrupts();
 	return !timeout;
 }
