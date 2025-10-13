@@ -1197,8 +1197,8 @@ bool spritemaker_write(spritemaker_t *spr) {
                     uint8_t A0 = *img++;
                     uint8_t I1 = (i+1 == image->width) ? 0 : *img++;
                     uint8_t A1 = (i+1 == image->width) ? 0 : *img++;
-                    A0 = A0 ? 1 : 0;
-                    A1 = A1 ? 1 : 0;
+                    A0 = A0 >= 128 ? 1 : 0;
+                    A1 = A1 >= 128 ? 1 : 0;
                     w8(out, (uint8_t)((I0 & 0xE0) | (A0 << 4) | ((I1 & 0xE0) >> 4) | A1));
                 }
             }
