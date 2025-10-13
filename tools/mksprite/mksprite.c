@@ -808,6 +808,7 @@ bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, i
 
     // Initialize the quantizer engine
     exq_data *exq = exq_init();
+    exq_no_transparency(exq);     // Ignore alpha during quantization (CI4/CI8 don't have real alpha anyway)
     exq->numBitsPerChannel = 5;   // force calculations using rgb555
 
     // Feed the input images, so that all of them will be quantized at once
