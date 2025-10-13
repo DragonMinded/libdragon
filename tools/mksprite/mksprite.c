@@ -45,6 +45,8 @@
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
 })
+#define MIN(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
+#define MAX(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
 
 const char* tex_format_name(tex_format_t fmt) {
     switch ((int)fmt) {
@@ -416,7 +418,10 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         }
     }   break;
     case FMT_I8: case FMT_I4:
-        state.info_raw.colortype = LCT_GREY;
+        // Lodepng LCT_GREY only works for pure greyscale input images, as only
+        // the R channel is decoded. Instead, we want to attempt something more
+        // sophisticated to allow for a wider range of input images.
+        state.info_raw.colortype = LCT_RGBA;
         state.info_raw.bitdepth = 8;
         break;
     case FMT_ZBUF:
@@ -439,6 +444,54 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     if(error) {
         fprintf(stderr, "PNG decoding error: %u: %s\n", error, lodepng_error_text(error));
         goto error;
+    }
+
+    if (fmt == FMT_I4 || fmt == FMT_I8) {
+        assert(state.info_raw.colortype == LCT_RGBA);
+
+        uint8_t *output = malloc(width*height);
+
+        // Check if the image is natively greyscale, and if so, preserve it
+        // as-is, just converting it to 8bpp
+        bool input_greyscale = true;
+        for (int i=0; i<width*height; i++) {
+            uint8_t r = image[i*4+0];
+            uint8_t g = image[i*4+1];
+            uint8_t b = image[i*4+2];
+            if (!(r == g && g == b)) {
+                input_greyscale = false;
+                break;
+            }
+            output[i] = r;
+        }
+        
+        // If the input image is not greyscale, perform a conversion
+        // and rescale the output to use the full range of the output format.
+        if (!input_greyscale) {
+            float minf = 1024.0f, maxf = -1024.0f;
+            float* imgf = malloc(width*height*sizeof(float));
+            for (int i=0; i<width*height; i++) {
+                uint8_t r = image[i*4+0];
+                uint8_t g = image[i*4+1];
+                uint8_t b = image[i*4+2];
+                uint8_t a = image[i*4+3];
+
+                // Apply alpha channel if present, so that we preserve
+                // antialiasing information.
+                imgf[i] = 0.299f*r + 0.587f*g + 0.114f*b;
+                imgf[i] *= a / 255.0f;
+                minf = MIN(minf, imgf[i]);
+                maxf = MAX(maxf, imgf[i]);
+            }
+            for (int i=0; i<width*height; i++) {
+                output[i] = (imgf[i] - minf) / (maxf - minf) * 255.0f;
+            }
+            free(imgf);
+        }
+
+        free(image);
+        image = output;
+        state.info_raw.colortype = LCT_GREY;
     }
 
     // Copy the image into the output
@@ -615,16 +668,23 @@ bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
             }
             break;
         case LCT_GREY:
-            assert(prev->fmt == FMT_I8);  // only I8 supported for now
-            mipmap = malloc(mw * mh);
-            for (int y=0;y<mh;y++) {
-                uint8_t *src1 = prev->image + y*prev->width*2;
-                uint8_t *src2 = src1 + prev->width;
-                uint8_t *dst = mipmap + y*mw;
-                for (int x=0;x<mw;x++) {
-                    dst[0] = (src1[0] + src1[1] + src2[0] + src2[1]) / 4;
-                    dst += 1; src1 += 2; src2 += 2;
-                }
+            switch(prev->fmt){
+                case FMT_I4:
+                case FMT_I8:
+                {
+                    mipmap = malloc(mw * mh);
+                    for (int y=0;y<mh;y++) {
+                        uint8_t *src1 = prev->image + y*prev->width*2;
+                        uint8_t *src2 = src1 + prev->width;
+                        uint8_t *dst = mipmap + y*mw;
+                        for (int x=0;x<mw;x++) {
+                            dst[0] = (src1[0] + src1[1] + src2[0] + src2[1]) / 4;
+                            dst += 1; src1 += 2; src2 += 2;
+                        }
+                    }
+                break; }
+                default: // should never happen
+                	assert(0);
             }
             break;
         default:
