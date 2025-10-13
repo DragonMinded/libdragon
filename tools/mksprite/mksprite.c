@@ -722,7 +722,32 @@ bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
                 	assert(0);
             }
             break;
-        default:
+        case LCT_GREY_ALPHA:{
+            switch (prev->fmt)
+            {
+            case FMT_IA4:
+            case FMT_IA8:
+            case FMT_IA16:
+                {
+                    mipmap = malloc(mw * mh * 2);
+                    for (int y=0;y<mh;y++) {
+                        uint8_t *src1 = prev->image + y*prev->width*2*2;
+                        uint8_t *src2 = src1 + prev->width*2;
+                        uint8_t *dst = mipmap + y*mw*2;
+                        for (int x=0;x<mw;x++) {
+                            dst[0] = (src1[0] + src1[2] + src2[0] + src2[2]) / 4;
+                            dst[1] = (src1[1] + src1[3] + src2[1] + src2[3]) / 4;
+                            dst += 2; src1 += 4; src2 += 4;
+                        }
+                    }
+                break; }
+            
+            default: // should never happen
+                assert(0);
+            }
+            break;
+        }
+        default: // all formats are covered now, but for the sake if there's a new format around in the future
             fprintf(stderr, "ERROR: mipmap calculation for format %s/%s not implemented yet\n", tex_format_name(prev->fmt), colortype_to_string(prev->ct));
             return false;
         }
