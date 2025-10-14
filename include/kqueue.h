@@ -55,6 +55,16 @@ void kqueue_destroy(kqueue_t *queue);
 void kqueue_put(kqueue_t *queue, void *element);
 
 /**
+ * @brief Attempt to add an element to a queue from an interrupt context
+ *
+ * @param[in] queue 	Pointer to the queue structure
+ * @param[in] element	Pointer to the element to add
+ *
+ * @return true if the element was added to the queue, false otherwise
+ */
+bool kqueue_put_isr(kqueue_t *queue, void *element);
+
+/**
  * @brief Remove an element from the queue
  * 
  * This function removes an element from the queue. If the queue is empty,

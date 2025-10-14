@@ -5,6 +5,7 @@
  */
 #include "kernel.h"
 #include "kqueue.h"
+#include <stdbool.h>
 #include <stdlib.h>
 
 /** @brief A thread-safe FIFO queue */
@@ -58,6 +59,19 @@ void kqueue_put(kqueue_t *queue, void *element)
     queue->count++;
     kcond_signal(&queue->not_empty);
     kmutex_unlock(&queue->mutex);
+}
+
+void __kcond_signal_isr(kcond_t *cond);
+bool kqueue_put_isr(kqueue_t *queue, void *element)
+{
+    if (queue->mutex.counter == 0 && queue->count < queue->size) {
+        queue->buffer[queue->tail] = element;
+        queue->tail = (queue->tail + 1) % queue->size;
+        queue->count++;
+        __kcond_signal_isr(&queue->not_empty);
+        return true;
+    }
+    return false;
 }
 
 void *kqueue_get(kqueue_t *queue)
