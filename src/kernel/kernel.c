@@ -924,6 +924,16 @@ void kcond_signal(kcond_t *cond)
 	enable_interrupts();
 }
 
+void __kcond_signal_isr(kcond_t *cond)
+{
+	kthread_t *th = __thlist_pop(&cond->waiting);
+	if (th) {
+		__thlist_add_pri(&th_ready, th);
+		if (th_cur->pri < th->pri)
+			KTHREAD_SWITCH_ISR();
+	}
+}
+
 void kcond_broadcast(kcond_t *cond)
 {
 	disable_interrupts();

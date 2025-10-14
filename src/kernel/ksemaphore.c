@@ -55,3 +55,10 @@ void ksemaphore_post(ksemaphore_t *sem)
     kcond_signal(&sem->cond);
     kmutex_unlock(&sem->mutex);
 }
+
+void __kcond_signal_isr(kcond_t *cond);
+void ksemapore_post_isr(ksemaphore_t *sem)
+{
+    sem->count++;
+    __kcond_signal_isr(&sem->cond);
+}
