@@ -21,8 +21,6 @@ var searchData=
   ['over_20raw_20hardware_20programming_18',['Improvements over raw hardware programming',['../rdpq_8c.html#autotoc_md13',1,'']]],
   ['overflow_19',['overflow',['../tpak_8h.html#ae603e8df3dabd3574512053a9bd26d83',1,'gameboy_cartridge_header']]],
   ['overflows_20with_20auto_20scissoring_20',['Avoid color image buffer overflows with auto-scissoring',['../rdpq_8c.html#autotoc_md15',1,'']]],
-  ['overlay_5fdescriptors_21',['overlay_descriptors',['../rspq__internal_8h.html#af408fa9bc4a925a0d759e03ca9e21eee',1,'rspq_overlay_tables_t']]],
-  ['overlay_5ftable_22',['overlay_table',['../rspq__internal_8h.html#a7620da33bc14957bb57652073d8c57fb',1,'rspq_overlay_tables_t']]],
-  ['overlays_23',['Higher-level libraries and overlays',['../rspq_8h.html#autotoc_md50',1,'']]],
-  ['ovfl_24',['ovfl',['../group__timer.html#a0c3b254603351985be855dbdb5143612',1,'timer_link_t']]]
+  ['overlays_21',['Higher-level libraries and overlays',['../rspq_8h.html#autotoc_md50',1,'']]],
+  ['ovfl_22',['ovfl',['../group__timer.html#a0c3b254603351985be855dbdb5143612',1,'timer_link_t']]]
 ];
