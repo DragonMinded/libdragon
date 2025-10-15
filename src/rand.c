@@ -58,10 +58,6 @@ void __rand(void *buf, size_t n)
 __attribute__((constructor))
 void __rand_init(void)
 {
-    // Make sure interrupts are initialized before we use getentropy()
-    extern void __init_interrupts(void);
-    __init_interrupts();
-
     // Initialize random state
     getentropy((uint8_t *)&rand_state, sizeof(rand_state));
 }

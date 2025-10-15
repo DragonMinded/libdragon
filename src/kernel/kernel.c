@@ -76,7 +76,7 @@ kthread_t *__kernel_all_threads;
 #endif
 
 /** @brief Initializes TLS support for the kernel */
-__attribute__((constructor)) void __kernel_tls_init(void)
+__attribute__((constructor(102))) void __kernel_tls_init(void)
 {
 	memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
 }
@@ -424,9 +424,6 @@ kthread_t* kernel_init(void)
 	// Initialize IRQ condition variables
 	__kirq_init();
 
-	// Initialize TLS support
-	__ktls_init();
-
 	// Kernel is now initialized
 	__kernel = true;
 
@@ -451,7 +448,6 @@ void kernel_close(void)
 	th_cur = NULL;
 	__kernel = false;
 	__isr_force_schedule = false;
-	__ktls_close();
 }
 
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)
