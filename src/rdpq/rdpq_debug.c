@@ -1151,23 +1151,23 @@ static void lazy_validate_rendermode(void) {
     if (rdp.som.cycle_type == 0) { // 1cyc
         VALIDATE_ERR_CC(ccs[1].rgb.suba != 0 && ccs[1].rgb.subb != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
                         ccs[1].alpha.suba != 0 && ccs[1].alpha.subb != 0 && ccs[1].alpha.add != 0,
-            "in 1cycle mode, the color combiner cannot access the COMBINED slot");
+            "in 1cycle mode, the color combiner cannot access the COMBINED slot (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                         ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-            "in 1cycle mode, the color combiner cannot access the TEX1 slot");
+            "in 1cycle mode, the color combiner cannot access the TEX1 slot (RH#001)");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 7,
-            "in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot");
+            "in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
-            "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot");
+            "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot (RH#001)");
     } else { // 2 cyc
         VALIDATE_ERR_CC(ccs[0].rgb.suba != 0 && ccs[0].rgb.subb != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
                         ccs[0].alpha.suba != 0 && ccs[0].alpha.subb != 0 && ccs[0].alpha.add != 0,
-            "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle");
+            "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                         ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-            "in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)");
+            "in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture) (RH#002)");
         VALIDATE_ERR_CC(ccs[0].rgb.mul != 7,
-            "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle");
+            "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
             "in 2cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
         if (rdp.som.alphacmp.enable && !rdp.som.alphacmp.noise) {
@@ -1230,7 +1230,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
             VALIDATE_ERR_CC(!cc_use_tex1,
                 "cannot draw a non-textured primitive with a color combiner using the TEX1 slot");
             VALIDATE_ERR_CC(!cc_use_tex0alpha && !cc_use_tex1alpha,
-                "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot", cc_use_tex0alpha ? 0 : 1);
+                "cannot draw a non-textured primitive with a color combiner using the TEX%d_ALPHA slot", cc_use_tex0alpha ? 0 : 1);
         }
 
         if (use_colors) {
@@ -1238,9 +1238,9 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
                 "shaded primitive drawn but neither the color combiner nor the blender use the SHADE/SHADE_ALPHA slots");
         } else {
             VALIDATE_ERR_CC(!cc_use_shade,
-                "cannot draw a non-shaded primitive with a color combiner using the SHADE slot");
+                "cannot draw a non-shaded primitive with a color combiner using the SHADE slot (RH#004)");
             VALIDATE_ERR_CC(!cc_use_shadealpha,
-                "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot");
+                "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot (RH#004)");
             VALIDATE_ERR_SOM(!bl_use_shadealpha, 
                 "cannot draw a non-shaded primitive with a blender using the SHADE_ALPHA slot");
         }
