@@ -5,6 +5,7 @@
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
 set -euo pipefail
+set -x
 IFS=$'\n\t'
 
 # Check that N64_INST is defined
@@ -17,6 +18,9 @@ fi
 # Path where the toolchain will be built.
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
+
+# Redirect output to a log file
+exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
 
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
@@ -84,7 +88,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
     # zlib is part of the base OS, and doesn't need to be installed here.
-    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo
+    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo ninja
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.
@@ -186,9 +190,6 @@ else
     CROSS_PREFIX="$(cd "$(dirname -- "cross_prefix")" >/dev/null; pwd -P)/$(basename -- "cross_prefix")"
     PATH="$CROSS_PREFIX/bin:$PATH"
     export PATH
-
-    # Instead, the HOST->TARGET cross-compiler can be installed into the final installation path
-    CANADIAN_PREFIX=$INSTALL_PATH
 
     # We need to build a canadian toolchain.
     # First we need a host compiler, that is binutils+gcc targeting the host. For instance,
@@ -401,6 +402,7 @@ if [ "$MAKE_V" != "" ]; then
 fi
 
 # Final message
+set +x
 echo
 echo "***********************************************"
 echo "Libdragon toolchain correctly built and installed"
