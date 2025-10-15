@@ -420,6 +420,11 @@ else
         # Compile picolibc for target.
         mkdir -p picolibc_compile_target
         pushd picolibc_compile_target
+        # Copy ktls.h to the build directory, so that picolibc can find it.
+        # This is necessary to build picolibc with correct TLS support
+        # (no rdhwr opcode on VR4300).
+        # meson-cross.txt pulls this in by adding a '-include' flag to c_args.
+        cp ../../../include/ktls.h .
         meson setup \
             --cross-file=../../meson-cross.txt \
             -Dmultilib=false \
