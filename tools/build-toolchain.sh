@@ -141,7 +141,7 @@ test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH
 
 if [ "$N64_USE_PICOLIBC" == "true" ]; then
     test -f "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip"    || ( download "https://github.com/picolibc/picolibc/archive/$PICOLIBC_V.zip" && mv "$DOWNLOAD_PATH/$PICOLIBC_V.zip" "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" )
-    test -d "$BUILD_PATH/picolibc-$PICOLIBC_V"           || unzip "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" -d "$BUILD_PATH"
+    test -d "$BUILD_PATH/picolibc-$PICOLIBC_V"           || unzip -qq "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" -d "$BUILD_PATH"
 else
     test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
     test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
