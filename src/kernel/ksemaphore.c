@@ -57,7 +57,7 @@ void ksemaphore_post(ksemaphore_t *sem)
     kmutex_unlock(&sem->mutex);
 }
 
-void ksemapore_post_isr(ksemaphore_t *sem)
+void ksemaphore_post_isr(ksemaphore_t *sem)
 {
     sem->count++;
     __kcond_signal_isr(&sem->cond);
