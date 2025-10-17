@@ -65,6 +65,8 @@ void kqueue_put(kqueue_t *queue, void *element)
 
 bool kqueue_try_put_isr(kqueue_t *queue, void *element)
 {
+    assert(exception_is_running());
+
     if (queue->mutex.counter == 0 && queue->count < queue->size) {
         queue->buffer[queue->tail] = element;
         queue->tail = (queue->tail + 1) % queue->size;
