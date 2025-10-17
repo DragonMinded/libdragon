@@ -59,6 +59,8 @@ void ksemaphore_post(ksemaphore_t *sem)
 
 void ksemaphore_post_isr(ksemaphore_t *sem)
 {
+    assert(exception_is_running());
+
     sem->count++;
     __kcond_signal_isr(&sem->cond);
 }
