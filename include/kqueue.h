@@ -63,7 +63,7 @@ void kqueue_put(kqueue_t *queue, void *element);
  *
  * @return true if the element was added to the queue, false otherwise
  */
-bool kqueue_put_isr(kqueue_t *queue, void *element);
+bool kqueue_try_put_isr(kqueue_t *queue, void *element);
 
 /**
  * @brief Try to add an element to the queue with timeout
