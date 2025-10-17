@@ -6,6 +6,7 @@
  * 
  */
 #include "ksemaphore.h"
+#include "kernel_internal.h"
 
 void ksemaphore_init(ksemaphore_t *sem, int value)
 {
@@ -56,7 +57,6 @@ void ksemaphore_post(ksemaphore_t *sem)
     kmutex_unlock(&sem->mutex);
 }
 
-void __kcond_signal_isr(kcond_t *cond);
 void ksemapore_post_isr(ksemaphore_t *sem)
 {
     sem->count++;
