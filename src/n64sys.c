@@ -267,7 +267,7 @@ void sys_get_heap_stats(heap_stats_t *stats)
  * @brief Initialize COP1 with default settings that prevent undesirable exceptions.
  *
  */
-__attribute__((constructor)) void __init_cop1(void)
+__attribute__((constructor(110))) void __init_cop1(void)
 {
     /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();
