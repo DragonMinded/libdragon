@@ -406,11 +406,16 @@ fi
 # It contains: GCC version, Binutils versions and Newlib/Picolibc version.
 TOOLCHAIN_VERSION_FILE="$INSTALL_PATH/$N64_TARGET/include/toolchain.version"
 
+if [ "$N64_USE_PICOLIBC" == "true" ]; then
+    VERSION_CONTENT_LIBC="  \"picolibc\": \"$PICOLIBC_V\""
+else
+    VERSION_CONTENT_LIBC="  \"newlib\": \"$NEWLIB_V\""
+fi
 VERSION_CONTENT="{
   \"host\": \"$N64_HOST\",
   \"binutils\": \"$BINUTILS_V\",
   \"gcc\": \"$GCC_V\",
-  \"newlib\": \"$NEWLIB_V\"
+$VERSION_CONTENT_LIBC
 }"
 
 printf '%s\n' "$VERSION_CONTENT" > "$TOOLCHAIN_VERSION_FILE" || \
