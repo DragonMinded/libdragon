@@ -476,7 +476,7 @@ RDPQCmd_SetLookupAddress:
     #############################################################
     .func RDPQ_FixupAddress
 RDPQ_FixupAddress:
-    srl t0, a1, 26
+    srl t0, a1, 24
     lw t1, %lo(RDPQ_ADDRESS_TABLE)(t0)
     jr ra
     add a1, t1
