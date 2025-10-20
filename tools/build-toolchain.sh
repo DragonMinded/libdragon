@@ -401,6 +401,21 @@ if [ "$MAKE_V" != "" ]; then
     popd
 fi
 
+# Create a toolchain.version file in JSON format to identify the toolchain version. 
+# It contains: GCC version, Binutils versions and Newlib/Picolibc version.
+TOOLCHAIN_VERSION_FILE="$INSTALL_PATH/$N64_TARGET/include/toolchain.version"
+
+VERSION_CONTENT="{
+  \"host\": \"$N64_HOST\",
+  \"binutils\": \"$BINUTILS_V\",
+  \"gcc\": \"$GCC_V\",
+  \"newlib\": \"$NEWLIB_V\"
+}"
+
+printf '%s\n' "$VERSION_CONTENT" > "$TOOLCHAIN_VERSION_FILE" || \
+    sudo sh -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\"" || \
+    su -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\""
+
 # Final message
 set +x
 echo
