@@ -125,14 +125,14 @@ $(INSTALLDIR)/include/n64.mk: n64.mk
 gen-version:
 	@mkdir -p $(BUILD_DIR)
 	if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
-		git archive --format=tar HEAD version.json \
-	    	| tar -xOf - version.json > "$(BUILD_DIR)/version.json"; \
-	  	if ! git diff-index --quiet HEAD -- 2>/dev/null; then \
-	    	sed 's/"dirty":[[:space:]]*false/"dirty": true/' "$(BUILD_DIR)/version.json" > "$(BUILD_DIR)/version.tmp"; \
-		  	mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/version.json"; \
-	  	fi; \
+		git archive --format=tar HEAD libdragon.version \
+			| tar -xOf - libdragon.version > "$(BUILD_DIR)/libdragon.version"; \
+		if ! git diff-index --quiet HEAD -- 2>/dev/null; then \
+			sed 's/"dirty":[[:space:]]*false/"dirty": true/' "$(BUILD_DIR)/libdragon.version" > "$(BUILD_DIR)/version.tmp"; \
+			mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/libdragon.version"; \
+		fi; \
 	else \
-		cp version.json "$(BUILD_DIR)/version.json"; \
+		cp libdragon.version "$(BUILD_DIR)/libdragon.version"; \
 	fi
 
 install: install-mk libdragon gen-version
@@ -143,7 +143,7 @@ install: install-mk libdragon gen-version
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragonsys.a
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include
-	install -Cv -m 0644 $(BUILD_DIR)/version.json $(INSTALLDIR)/$(N64_TARGET)/include/
+	install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/
