@@ -160,10 +160,10 @@ void test_kernel_mutex_1(TestContext *ctx) {
 	kmutex_lock(&mtx);
 
 	kthread_set_pri(NULL, 1);
-	kthread_t *th1 = kthread_new("test1", 2048, 4, func_th, (void*)1);
-	kthread_t *th2 = kthread_new("test2", 2048, 5, func_th, (void*)2);
-	kthread_t *th3 = kthread_new("test3", 2048, 7, func_th, (void*)3);
-	kthread_t *th4 = kthread_new("test4", 2048, 6, func_th, (void*)4);
+	kthread_t *th1 = kthread_new("test1", 2560, 4, func_th, (void*)1);
+	kthread_t *th2 = kthread_new("test2", 2560, 5, func_th, (void*)2);
+	kthread_t *th3 = kthread_new("test3", 2560, 7, func_th, (void*)3);
+	kthread_t *th4 = kthread_new("test4", 2560, 6, func_th, (void*)4);
 
 	kmutex_unlock(&mtx);
 	
