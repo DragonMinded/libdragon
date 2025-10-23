@@ -29,19 +29,77 @@ jobs:
       mpfr-version: ${{ steps.gcc-version-generator.outputs.MPFR_VERSION }}
       gdb-version: ${{ steps.gcc-version-generator.outputs.GDB_VERSION }}
       make-version: ${{ steps.gcc-version-generator.outputs.MAKE_VERSION }}
+      picolibc-version: ${{ steps.gcc-version-generator.outputs.PICOLIBC_VERSION }}
     strategy:
       fail-fast: false
       matrix:
-        include: [
-          { host-os: ubuntu-22.04, target-platform: Windows-x86_64, deb-architecture: '', rpm-architecture: '', host: x86_64-w64-mingw32, makefile-version: 4.4, zlib-version: 1.2.13 },
-          { host-os: ubuntu-22.04, target-platform: Linux-x86_64, deb-architecture: amd64, rpm-architecture: x86_64, host: '', makefile-version: '', zlib-version: '' },
-          { host-os: ubuntu-22.04-arm, target-platform: Linux-aarch64, deb-architecture: arm64, rpm-architecture: aarch64, host: '', makefile-version: '', zlib-version: '' }
-        ]
+        include:
+          - host-os: ubuntu-22.04
+            target-platform: Windows-x86_64
+            deb-architecture: ''
+            rpm-architecture: ''
+            host: x86_64-w64-mingw32
+            makefile-version: 4.4
+            zlib-version: 1.2.13
+            libc: newlib
+            package-suffix: ''
+            artifact-suffix: ''
+          - host-os: ubuntu-22.04
+            target-platform: Windows-x86_64
+            deb-architecture: ''
+            rpm-architecture: ''
+            host: x86_64-w64-mingw32
+            makefile-version: 4.4
+            zlib-version: 1.2.13
+            libc: picolibc
+            package-suffix: -picolibc
+            artifact-suffix: -picolibc
+          - host-os: ubuntu-22.04
+            target-platform: Linux-x86_64
+            deb-architecture: amd64
+            rpm-architecture: x86_64
+            host: ''
+            makefile-version: ''
+            zlib-version: ''
+            libc: newlib
+            package-suffix: ''
+            artifact-suffix: ''
+          - host-os: ubuntu-22.04
+            target-platform: Linux-x86_64
+            deb-architecture: amd64
+            rpm-architecture: x86_64
+            host: ''
+            makefile-version: ''
+            zlib-version: ''
+            libc: picolibc
+            package-suffix: -picolibc
+            artifact-suffix: -picolibc
+          - host-os: ubuntu-22.04-arm
+            target-platform: Linux-aarch64
+            deb-architecture: arm64
+            rpm-architecture: aarch64
+            host: ''
+            makefile-version: ''
+            zlib-version: ''
+            libc: newlib
+            package-suffix: ''
+            artifact-suffix: ''
+          - host-os: ubuntu-22.04-arm
+            target-platform: Linux-aarch64
+            deb-architecture: arm64
+            rpm-architecture: aarch64
+            host: ''
+            makefile-version: ''
+            zlib-version: ''
+            libc: picolibc
+            package-suffix: -picolibc
+            artifact-suffix: -picolibc
     runs-on: ${{ matrix.host-os }}
 
     env:
       Install_Directory: libdragon
       Build_Directory: scratch
+      N64_USE_PICOLIBC: ${{ (matrix.libc == 'picolibc') && 'true' || 'false' }}
 
     steps:
       - name: Install native system build dependencies
@@ -50,6 +108,8 @@ jobs:
           sudo apt-get install texinfo
           sudo apt-get install libmpc-dev
           sudo apt-get install squashfs-tools
+          sudo apt-get install meson
+          sudo apt-get install ninja-build
           # If there are other dependencies, we should add them here and make sure the documentation is updated!
 
       - name: Install x-compile system build dependencies
@@ -94,6 +154,7 @@ jobs:
           echo "BINUTILS_VERSION=$(grep -Po 'BINUTILS_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           echo "GCC_VERSION=$(grep -Po 'GCC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           echo "NEWLIB_VERSION=$(grep -Po 'NEWLIB_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "PICOLIBC_VERSION=$(grep -Po 'PICOLIBC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           echo "GDB_VERSION=$(grep -Po 'GDB_V=\K[^"]*' ./tools/build-gdb.sh)" >> $GITHUB_OUTPUT
 
           echo "GMP_VERSION=$(grep -Po 'GMP_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
@@ -103,13 +164,14 @@ jobs:
           echo "MAKE_VERSION=4.4" >> $GITHUB_OUTPUT
         continue-on-error: false
 
-      - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }}
+      - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }} (${{ matrix.libc }})
         run: |
           # required for newlib (as not the default?!)
           export PATH="$PATH:${{ runner.temp }}/${{ env.Install_Directory }}"
           export BUILD_PATH=${{ runner.temp }}/${{ env.Build_Directory }}
           export N64_INST=${{ runner.temp }}/${{ env.Install_Directory }}
           export N64_HOST=${{ matrix.host }}
+          echo "Building libc variant: ${{ matrix.libc }} (N64_USE_PICOLIBC=${N64_USE_PICOLIBC})"
           cd ./tools/
           MAKE_V=${{ matrix.makefile-version }} \
           ZLIB_V=${{ matrix.zlib-version }} \
@@ -166,13 +228,13 @@ jobs:
         env:
           Package_Source_Directory: ${{ runner.temp }}/${{ env.Install_Directory }}/
           Package_Installation_Directory: /opt/${{ env.Install_Directory }}
-          Package_Name: gcc-toolchain-mips64
+          Package_Name: ${{ format('gcc-toolchain-mips64{0}', matrix.package-suffix) }}
           Package_Version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
           Package_Revision: ${{ github.run_id }}
           Package_Deb_Architecture: ${{ matrix.deb-architecture }}
           Package_Rpm_Architecture: ${{ matrix.rpm-architecture }}
           Package_License: GPL
-          Package_Description: MIPS GCC toolchain for the N64
+          Package_Description: ${{ format('MIPS GCC toolchain for the N64 ({0})', matrix.libc) }}
           Package_Url: https://n64brew.com
           Package_Maintainer: N64 Brew Community
 
@@ -180,7 +242,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Windows-x86_64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64${{ matrix.artifact-suffix }}-${{ matrix.target-platform }}
           path: |
             ${{ runner.temp }}/${{ env.Install_Directory }}
 
@@ -188,7 +250,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Linux-x86_64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64${{ matrix.artifact-suffix }}-${{ matrix.target-platform }}
           path: |
             ./**/*.deb
             ./**/*.rpm
@@ -197,7 +259,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Linux-aarch64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64${{ matrix.artifact-suffix }}-${{ matrix.target-platform }}
           path: |
             ./**/*.deb
             ./**/*.rpm
@@ -209,26 +271,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Download Windows-x86_64 artifact
+      - name: Download Windows-x86_64 artifacts
         id: download-windows-x86_64-artifact
         uses: actions/download-artifact@v4
         with:
-          name: gcc-toolchain-mips64-Windows-x86_64
+          pattern: gcc-toolchain-mips64*-Windows-x86_64
           path: ${{ runner.temp }}/gcc-toolchain-mips64-Windows-x86_64
+          merge-multiple: false
 
-      - name: Download Linux-x86_64 artifact
+      - name: Download Linux-x86_64 artifacts
         id: download-linux-x86_64-artifact
         uses: actions/download-artifact@v4
         with:
-          name: gcc-toolchain-mips64-Linux-x86_64
+          pattern: gcc-toolchain-mips64*-Linux-x86_64
           path: ${{ runner.temp }}/gcc-toolchain-mips64-Linux-x86_64
+          merge-multiple: false
 
-      - name: Download Linux-aarch64 artifact
+      - name: Download Linux-aarch64 artifacts
         id: download-linux-arm64-artifact
         uses: actions/download-artifact@v4
         with:
-          name: gcc-toolchain-mips64-Linux-aarch64
+          pattern: gcc-toolchain-mips64*-Linux-aarch64
           path: ${{ runner.temp }}/gcc-toolchain-mips64-Linux-aarch64
+          merge-multiple: false
 
       - name: Convert files for release upload
         run: |
@@ -245,6 +310,7 @@ jobs:
           CHANGELOG_TEXT+="Builds toolchain dependencies:</br>"
           CHANGELOG_TEXT+="  * GCC:      V${{ needs.build-toolchain.outputs.gcc-version }}</br>"
           CHANGELOG_TEXT+="  * Newlib:   V${{ needs.build-toolchain.outputs.newlib-version }}</br>"
+          CHANGELOG_TEXT+="  * Picolibc: V${{ needs.build-toolchain.outputs.picolibc-version }}</br>"
           CHANGELOG_TEXT+="  * BinUtils: V${{ needs.build-toolchain.outputs.binutils-version }}</br>"
           CHANGELOG_TEXT+="  * GDB:      V${{ needs.build-toolchain.outputs.gdb-version }}</br>"
           CHANGELOG_TEXT+='</br>'
@@ -263,8 +329,16 @@ jobs:
       # Compress and move the windows folder ready for upload.
       - name: Compress and move windows artifacts
         run: |
-          cd ${{ steps.download-windows-x86_64-artifact.outputs.download-path }}
-          zip -r -q ${{ runner.temp }}/gcc-toolchain-mips64-win64.zip *
+          download_path="${{ steps.download-windows-x86_64-artifact.outputs.download-path }}"
+          if [ -d "$download_path" ]; then
+            shopt -s nullglob
+            for dir in "$download_path"/*/; do
+              [ -d "$dir" ] || continue
+              dir=${dir%/}
+              base=$(basename "$dir")
+              (cd "$dir" && zip -r -q "${{ runner.temp }}/$base.zip" .)
+            done
+          fi
 
       - name: Generate Release
         if: github.ref == 'refs/heads/trunk'
