@@ -351,7 +351,16 @@ static void debugfv(const char *msg, va_list args)
 	// would be to have a fprintf variant that calls a custom function for each
 	// output character, but that doesn't exist in newlib. So we resort to a
 	// fixed-size vsnprintf buffer.
-	if (__kernel && exception_is_running()) {
+	//
+	// With picolibc, stderr is on TLS and TLS can't be reached under interrupt
+	// so all stderr accesses are unsafe under interrupt.
+	#if defined(__PICOLIBC__)
+	bool stderr_unsafe = exception_is_running();
+	#else
+	bool stderr_unsafe = __kernel && exception_is_running();
+	#endif
+
+	if (stderr_unsafe) {
 		char buf[256] __attribute__((uninitialized));
 		int n = vsnprintf(buf, sizeof(buf), msg, args);
 		if (n > 0) __stderr_write(buf, n < sizeof(buf) ? n : sizeof(buf));
