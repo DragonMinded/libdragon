@@ -42,8 +42,6 @@ jobs:
             makefile-version: 4.4
             zlib-version: 1.2.13
             libc: newlib
-            package-suffix: ''
-            artifact-suffix: ''
           - host-os: ubuntu-22.04
             target-platform: Windows-x86_64
             deb-architecture: ''
@@ -52,8 +50,6 @@ jobs:
             makefile-version: 4.4
             zlib-version: 1.2.13
             libc: picolibc
-            package-suffix: -picolibc
-            artifact-suffix: -picolibc
           - host-os: ubuntu-22.04
             target-platform: Linux-x86_64
             deb-architecture: amd64
@@ -62,8 +58,6 @@ jobs:
             makefile-version: ''
             zlib-version: ''
             libc: newlib
-            package-suffix: ''
-            artifact-suffix: ''
           - host-os: ubuntu-22.04
             target-platform: Linux-x86_64
             deb-architecture: amd64
@@ -72,8 +66,6 @@ jobs:
             makefile-version: ''
             zlib-version: ''
             libc: picolibc
-            package-suffix: -picolibc
-            artifact-suffix: -picolibc
           - host-os: ubuntu-22.04-arm
             target-platform: Linux-aarch64
             deb-architecture: arm64
@@ -82,8 +74,6 @@ jobs:
             makefile-version: ''
             zlib-version: ''
             libc: newlib
-            package-suffix: ''
-            artifact-suffix: ''
           - host-os: ubuntu-22.04-arm
             target-platform: Linux-aarch64
             deb-architecture: arm64
@@ -92,14 +82,14 @@ jobs:
             makefile-version: ''
             zlib-version: ''
             libc: picolibc
-            package-suffix: -picolibc
-            artifact-suffix: -picolibc
     runs-on: ${{ matrix.host-os }}
 
     env:
       Install_Directory: libdragon
       Build_Directory: scratch
       N64_USE_PICOLIBC: ${{ (matrix.libc == 'picolibc') && 'true' || 'false' }}
+      Package_Suffix: ${{ (matrix.libc == 'picolibc') && '-picolibc' || '' }}
+      Artifact_Suffix: ${{ (matrix.libc == 'picolibc') && '-picolibc' || '' }}
 
     steps:
       - name: Install native system build dependencies
@@ -228,7 +218,7 @@ jobs:
         env:
           Package_Source_Directory: ${{ runner.temp }}/${{ env.Install_Directory }}/
           Package_Installation_Directory: /opt/${{ env.Install_Directory }}
-          Package_Name: ${{ format('gcc-toolchain-mips64{0}', matrix.package-suffix) }}
+          Package_Name: ${{ format('gcc-toolchain-mips64{0}', env.Package_Suffix) }}
           Package_Version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
           Package_Revision: ${{ github.run_id }}
           Package_Deb_Architecture: ${{ matrix.deb-architecture }}
@@ -242,7 +232,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Windows-x86_64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64${{ matrix.artifact-suffix }}-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64${{ env.Artifact_Suffix }}-${{ matrix.target-platform }}
           path: |
             ${{ runner.temp }}/${{ env.Install_Directory }}
 
@@ -250,7 +240,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Linux-x86_64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64${{ matrix.artifact-suffix }}-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64${{ env.Artifact_Suffix }}-${{ matrix.target-platform }}
           path: |
             ./**/*.deb
             ./**/*.rpm
@@ -259,7 +249,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Linux-aarch64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64${{ matrix.artifact-suffix }}-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64${{ env.Artifact_Suffix }}-${{ matrix.target-platform }}
           path: |
             ./**/*.deb
             ./**/*.rpm
