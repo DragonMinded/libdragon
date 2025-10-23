@@ -21,6 +21,7 @@ DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 
 # Redirect output to a log file
 exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
+echo "Build started at: $(date)"
 
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
