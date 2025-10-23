@@ -312,10 +312,21 @@ make install-target-libgcc || sudo make install-target-libgcc || su -c "make ins
 popd
 
 if [ "$N64_USE_PICOLIBC" == "true" ]; then
+    # Meson doesn't really handle changing source versions with same build
+    # directory, so better remove the old build directory before reconfiguring.
+    rm -rf picolibc_compile_target
     # Compile picolibc for target.
     mkdir -p picolibc_compile_target
     pushd picolibc_compile_target
+    # Copy ktls.h to the build directory, so that picolibc can find it.
+    # This is necessary to build picolibc with correct TLS support
+    # (no rdhwr opcode on VR4300).
+    # meson-cross.txt pulls this in by adding a '-include' flag to c_args.
+    cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
+        sudo cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
+        su -c "cp ../../../include/ktls.h \"$INSTALL_PATH/$N64_TARGET/include\""
     meson setup \
+        --reconfigure \
         --cross-file=../../meson-cross.txt \
         -Dmultilib=false \
         -Dpicocrt=false \
@@ -336,8 +347,6 @@ if [ "$N64_USE_PICOLIBC" == "true" ]; then
         -Dnewlib-stdio64=false \
         -Dnewlib-unbuf-stream-opt="$N64_USE_PICOLIBC_LEGACY_STDIO" \
         -Dnewlib-nano-malloc=false \
-        -Dnewlib-multithread=true \
-        -Dnewlib-retargetable-locking=true \
         -Dthread-local-storage=true \
         -Dpicoexit=false \
         -Dprefix="$CROSS_PREFIX" \
@@ -417,6 +426,9 @@ else
     popd
 
     if [ "$N64_USE_PICOLIBC" == "true" ]; then
+        # Meson doesn't really handle changing source versions with same build
+        # directory, so better remove the old build directory before reconfiguring.
+        rm -rf picolibc_compile_target
         # Compile picolibc for target.
         mkdir -p picolibc_compile_target
         pushd picolibc_compile_target
@@ -424,8 +436,11 @@ else
         # This is necessary to build picolibc with correct TLS support
         # (no rdhwr opcode on VR4300).
         # meson-cross.txt pulls this in by adding a '-include' flag to c_args.
-        cp ../../../include/ktls.h .
+        cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
+            sudo cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
+            su -c "cp ../../../include/ktls.h \"$INSTALL_PATH/$N64_TARGET/include\""
         meson setup \
+            --reconfigure \
             --cross-file=../../meson-cross.txt \
             -Dmultilib=false \
             -Dpicocrt=false \
@@ -446,8 +461,6 @@ else
             -Dnewlib-stdio64=false \
             -Dnewlib-unbuf-stream-opt="$N64_USE_PICOLIBC_LEGACY_STDIO" \
             -Dnewlib-nano-malloc=false \
-            -Dnewlib-multithread=true \
-            -Dnewlib-retargetable-locking=true \
             -Dthread-local-storage=false \
             -Dprefix="$INSTALL_PATH" \
             -Dlibdir=mips64-elf/lib \
