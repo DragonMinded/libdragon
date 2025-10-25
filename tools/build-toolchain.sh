@@ -19,6 +19,15 @@ fi
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 
+# Resolve libdragon repository paths (used to copy headers like ktls.h).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIBDRAGON_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+KTLS_HEADER="$LIBDRAGON_ROOT/include/ktls.h"
+if [ ! -f "$KTLS_HEADER" ]; then
+    echo "Cannot find ktls.h at $KTLS_HEADER" >&2
+    exit 1
+fi
+
 # Redirect output to a log file
 exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
 echo "Build started at: $(date)"
@@ -322,9 +331,9 @@ if [ "$N64_USE_PICOLIBC" == "true" ]; then
     # This is necessary to build picolibc with correct TLS support
     # (no rdhwr opcode on VR4300).
     # meson-cross.txt pulls this in by adding a '-include' flag to c_args.
-    cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
-        sudo cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
-        su -c "cp ../../../include/ktls.h \"$INSTALL_PATH/$N64_TARGET/include\""
+    cp "$KTLS_HEADER" "$INSTALL_PATH/$N64_TARGET/include" || \
+        sudo cp "$KTLS_HEADER" "$INSTALL_PATH/$N64_TARGET/include" || \
+        su -c "cp \"$KTLS_HEADER\" \"$INSTALL_PATH/$N64_TARGET/include\""
     meson setup \
         --reconfigure \
         --cross-file=../../meson-cross.txt \
