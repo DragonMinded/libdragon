@@ -331,6 +331,10 @@ if [ "$N64_USE_PICOLIBC" == "true" ]; then
     # This is necessary to build picolibc with correct TLS support
     # (no rdhwr opcode on VR4300).
     # meson-cross.txt pulls this in by adding a '-include' flag to c_args.
+    INSTALL_INCLUDE_DIR="$INSTALL_PATH/$N64_TARGET/include"
+    mkdir -p "$INSTALL_INCLUDE_DIR" || \
+        sudo mkdir -p "$INSTALL_INCLUDE_DIR" || \
+        su -c "mkdir -p \"$INSTALL_INCLUDE_DIR\""
     cp "$KTLS_HEADER" "$INSTALL_PATH/$N64_TARGET/include" || \
         sudo cp "$KTLS_HEADER" "$INSTALL_PATH/$N64_TARGET/include" || \
         su -c "cp \"$KTLS_HEADER\" \"$INSTALL_PATH/$N64_TARGET/include\""
