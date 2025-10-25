@@ -152,7 +152,6 @@ jobs:
           echo "MPFR_VERSION=$(grep -Po 'MPFR_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           # TODO: this version is set explicitly. We need to fix!
           echo "MAKE_VERSION=4.4" >> $GITHUB_OUTPUT
-        continue-on-error: false
 
       - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }} (${{ matrix.libc }})
         run: |
