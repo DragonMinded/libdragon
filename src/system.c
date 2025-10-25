@@ -8,8 +8,8 @@
 #include <newlib.h>
 #if !defined(__PICOLIBC__)
 #include <_ansi.h>
-#endif
 #include <_syslist.h>
+#endif
 #include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
