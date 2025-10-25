@@ -15,4 +15,4 @@ endian = 'big'
 skip_sanity_check = true
 
 [built-in options]
-c_args = [ '-include', 'ktls.h', '-falign-functions=32' ]
+c_args = [ '-falign-functions=32' ]

@@ -18,15 +18,8 @@ fi
 # Path where the toolchain will be built.
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
-
-# Resolve libdragon repository paths (used to copy headers like ktls.h).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIBDRAGON_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-KTLS_HEADER="$LIBDRAGON_ROOT/include/ktls.h"
-if [ ! -f "$KTLS_HEADER" ]; then
-    echo "Cannot find ktls.h at $KTLS_HEADER" >&2
-    exit 1
-fi
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 # Redirect output to a log file
 exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
@@ -85,7 +78,8 @@ command_exists () {
 # Download the file URL using wget or curl (depending on which is installed)
 download () {
     local url="$1"
-    local file="$DOWNLOAD_PATH/$(basename "$url")"
+    local file
+    file="$DOWNLOAD_PATH/$(basename "$url")"
     local tmpfile="$file.part"
     if   command_exists wget ; then wget --continue --output-document "$tmpfile" "$url"
     elif command_exists curl ; then curl --location --output "$tmpfile" "$url"
@@ -94,6 +88,85 @@ download () {
         return 1
     fi
     mv "$tmpfile" "$file"
+}
+
+install_ktls_header () {
+    local prefix="$1"
+
+    local tmpfile
+    tmpfile=$(mktemp)
+    awk -v start=": <<'__KTLS_H_BLOCK__'" -v end="__KTLS_H_BLOCK__" '
+        $0 == start {capture=1; next}
+        $0 == end {exit}
+        capture {print}
+    ' "$SCRIPT_PATH" > "$tmpfile"
+
+    local dest_dir="$prefix/$N64_TARGET/include"
+    mkdir -p "$dest_dir" || \
+        sudo mkdir -p "$dest_dir" || \
+        su -c "mkdir -p \"$dest_dir\""
+    install -m 0644 "$tmpfile" "$dest_dir/ktls.h" || \
+        sudo install -m 0644 "$tmpfile" "$dest_dir/ktls.h" || \
+        su -c "install -m 0644 \"$tmpfile\" \"$dest_dir/ktls.h\""
+
+    rm -f "$tmpfile"
+}
+
+patch_gcc_specs () {
+    local gcc_bin="$1"
+    local mode="${2:-absolute}"
+    local gcc_dir
+    gcc_dir=$(dirname "$gcc_bin")
+    local prefix
+    prefix=$(dirname "$gcc_dir")
+    local specs_tmp
+    local patched_tmp
+    specs_tmp=$(mktemp)
+    patched_tmp=$(mktemp)
+    trap 'trap - RETURN EXIT; rm -f "$specs_tmp" "$patched_tmp"' RETURN EXIT
+
+    "$gcc_bin" -dumpspecs > "$specs_tmp"
+
+    local marker
+    case "$mode" in
+        absolute)
+            marker="%{!nostdinc:-include $prefix/$N64_TARGET/include/ktls.h}"
+            ;;
+        relocatable)
+            marker="%{!nostdinc:-include ktls.h}"
+            ;;
+        *)
+            echo "Unknown specs patch mode: $mode" >&2
+            exit 1
+            ;;
+    esac
+    local prefixed_marker="$marker "
+    local escaped_prefixed_marker="${prefixed_marker//&/\&}"
+    escaped_prefixed_marker="${escaped_prefixed_marker//|/\|}"
+    local deletion_regex='%{!nostdinc:-include .*ktls\.h}'
+
+    sed \
+        -e "/^\*cpp_options:$/,/^\*/{ /$deletion_regex/d; }" \
+        -e "/^\*cpp_options:$/{" \
+        -e "n" \
+            -e "s|^|$escaped_prefixed_marker|" \
+        -e "}" \
+        "$specs_tmp" > "$patched_tmp"
+
+    if ! grep -qF "$marker" "$patched_tmp"; then
+        echo "INTERNAL ERROR: failed to patch GCC specs" >&2
+        exit 1
+    fi
+
+    local patched_path="$patched_tmp"
+
+    local dest_dir="$prefix/lib/gcc/$N64_TARGET/$GCC_V"
+    local dest="$dest_dir/specs"
+    mkdir -p "$dest_dir" || sudo mkdir -p "$dest_dir" || su -c "mkdir -p '$dest_dir'"
+
+    install -m 0644 "$patched_path" "$dest" || \
+        sudo install -m 0644 "$patched_path" "$dest" || \
+        su -c "install -m 0644 '$patched_path' '$dest'"
 }
 
 # Compilation on macOS via homebrew
@@ -286,7 +359,7 @@ fi
 # Compile BUILD->TARGET binutils
 mkdir -p binutils_compile_target
 pushd binutils_compile_target
-../"binutils-$BINUTILS_V"/configure ${BINUTILS_CONFIGURE_ARGS[@]} \
+../"binutils-$BINUTILS_V"/configure "${BINUTILS_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
@@ -320,6 +393,9 @@ make all-target-libgcc -j "$JOBS"
 make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
 popd
 
+install_ktls_header "$CROSS_PREFIX"
+patch_gcc_specs "$CROSS_PREFIX/bin/$N64_TARGET-gcc"
+
 if [ "$N64_USE_PICOLIBC" == "true" ]; then
     # Meson doesn't really handle changing source versions with same build
     # directory, so better remove the old build directory before reconfiguring.
@@ -327,17 +403,6 @@ if [ "$N64_USE_PICOLIBC" == "true" ]; then
     # Compile picolibc for target.
     mkdir -p picolibc_compile_target
     pushd picolibc_compile_target
-    # Copy ktls.h to the build directory, so that picolibc can find it.
-    # This is necessary to build picolibc with correct TLS support
-    # (no rdhwr opcode on VR4300).
-    # meson-cross.txt pulls this in by adding a '-include' flag to c_args.
-    INSTALL_INCLUDE_DIR="$INSTALL_PATH/$N64_TARGET/include"
-    mkdir -p "$INSTALL_INCLUDE_DIR" || \
-        sudo mkdir -p "$INSTALL_INCLUDE_DIR" || \
-        su -c "mkdir -p \"$INSTALL_INCLUDE_DIR\""
-    cp "$KTLS_HEADER" "$INSTALL_PATH/$N64_TARGET/include" || \
-        sudo cp "$KTLS_HEADER" "$INSTALL_PATH/$N64_TARGET/include" || \
-        su -c "cp \"$KTLS_HEADER\" \"$INSTALL_PATH/$N64_TARGET/include\""
     meson setup \
         --reconfigure \
         --cross-file=../../meson-cross.txt \
@@ -394,6 +459,10 @@ if [ "$N64_BUILD" == "$N64_HOST" ]; then
     make all -j "$JOBS"
     make install-strip || sudo make install-strip || su -c "make install-strip"
     popd
+
+    # Patch again the spec files with relocatable include path for distribution.
+    install_ktls_header "$CROSS_PREFIX"
+    patch_gcc_specs "$CROSS_PREFIX/bin/$N64_TARGET-gcc" relocatable
 else
     # Compile HOST->TARGET binutils
     # NOTE: we pass --without-msgpack to workaround a bug in Binutils, introduced
@@ -445,13 +514,6 @@ else
         # Compile picolibc for target.
         mkdir -p picolibc_compile_target
         pushd picolibc_compile_target
-        # Copy ktls.h to the build directory, so that picolibc can find it.
-        # This is necessary to build picolibc with correct TLS support
-        # (no rdhwr opcode on VR4300).
-        # meson-cross.txt pulls this in by adding a '-include' flag to c_args.
-        cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
-            sudo cp ../../../include/ktls.h "$INSTALL_PATH/$N64_TARGET/include" || \
-            su -c "cp ../../../include/ktls.h \"$INSTALL_PATH/$N64_TARGET/include\""
         meson setup \
             --reconfigure \
             --cross-file=../../meson-cross.txt \
@@ -506,6 +568,10 @@ else
     make all -j "$JOBS"
     make install-strip || sudo make install-strip || su -c "make install-strip"
     popd
+
+    # Install ktls into final toolchain, and patch specs for relocatable includes
+    install_ktls_header "$INSTALL_PATH"
+    patch_gcc_specs "$INSTALL_PATH/bin/$N64_TARGET-gcc" relocatable
 fi
 
 if [ "$MAKE_V" != "" ]; then
@@ -550,3 +616,17 @@ echo "Libdragon toolchain correctly built and installed"
 echo "Installation directory: \"${N64_INST}\""
 echo "Build directory: \"${BUILD_PATH}\" (can be removed now)"
 echo "If you would like to install GDB in your toolchain, run build-gdb.sh"
+
+: <<'__KTLS_H_BLOCK__'
+#pragma once
+#ifndef __ASSEMBLER__
+__asm__ (
+    ".ifndef __RDHWR_WAS_DEFINED" "\n"
+    ".macro rdhwr rt, rd" "\n"
+    "    lw \\rt, %gprel(__th_cur_tp)($gp)" "\n"
+    ".endm"               "\n"
+    ".set __RDHWR_WAS_DEFINED, 1" "\n"
+    ".endif" "\n"
+);
+#endif
+__KTLS_H_BLOCK__
