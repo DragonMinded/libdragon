@@ -18,12 +18,14 @@ fi
 # Path where the toolchain will be built.
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 # Redirect output to a log file
 exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
 echo "Build started at: $(date)"
+
+# Additional directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
@@ -36,6 +38,15 @@ N64_USE_PICOLIBC_TINYSTDIO=${N64_USE_PICOLIBC_TINYSTDIO:-"false"}
 N64_USE_PICOLIBC_LEGACY_STDIO=true
 if [ "$N64_USE_PICOLIBC_TINYSTDIO" == "true" ]; then
     N64_USE_PICOLIBC_LEGACY_STDIO=false
+fi
+
+# Check that the meson cross file exists if picolibc is used
+if [ "$N64_USE_PICOLIBC" == "true" ]; then
+    MESON_CROSS_FILE="$SCRIPT_DIR/meson-cross.txt"
+    if [ ! -f "$MESON_CROSS_FILE" ]; then
+        echo "Meson cross file not found: $MESON_CROSS_FILE" >&2
+        exit 1
+    fi
 fi
 
 # Set N64_INST before calling the script to change the default installation directory path
@@ -417,7 +428,7 @@ if [ "$N64_USE_PICOLIBC" == "true" ]; then
     mkdir -p picolibc_compile_target
     pushd picolibc_compile_target
     meson setup \
-        --cross-file=../../meson-cross.txt \
+        --cross-file="$MESON_CROSS_FILE" \
         -Dmultilib=false \
         -Dpicocrt=false \
         -Dpicolib=false \
@@ -527,7 +538,7 @@ else
         mkdir -p picolibc_compile_target
         pushd picolibc_compile_target
         meson setup \
-            --cross-file=../../meson-cross.txt \
+            --cross-file="$MESON_CROSS_FILE" \
             -Dmultilib=false \
             -Dpicocrt=false \
             -Dpicolib=false \
