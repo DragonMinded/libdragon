@@ -138,10 +138,10 @@ patch_gcc_specs () {
     local marker
     case "$mode" in
         absolute)
-            marker="%{!nostdinc:-include $prefix/$N64_TARGET/include/ktls.h}"
+            marker="-include $prefix/$N64_TARGET/include/ktls.h"
             ;;
         relocatable)
-            marker="%{!nostdinc:-include ktls.h}"
+            marker="-include ktls.h"
             ;;
         *)
             echo "Unknown specs patch mode: $mode" >&2
@@ -151,17 +151,22 @@ patch_gcc_specs () {
     local prefixed_marker="$marker "
     local escaped_prefixed_marker="${prefixed_marker//&/\&}"
     escaped_prefixed_marker="${escaped_prefixed_marker//|/\|}"
-    local deletion_regex='%{!nostdinc:-include .*ktls\.h}'
+    local deletion_regex='-include[[:space:]]*[^[:space:]]*ktls\.h'
 
     sed \
         -e "/^\*cpp_options:$/,/^\*/{ /$deletion_regex/d; }" \
+        -e "/^\*cc1_options:$/,/^\*/{ /$deletion_regex/d; }" \
         -e "/^\*cpp_options:$/{" \
+        -e "n" \
+            -e "s|^|$escaped_prefixed_marker|" \
+        -e "}" \
+        -e "/^\*cc1_options:$/{" \
         -e "n" \
             -e "s|^|$escaped_prefixed_marker|" \
         -e "}" \
         "$specs_tmp" > "$patched_tmp"
 
-    if ! grep -qF "$marker" "$patched_tmp"; then
+    if ! grep -qF -- "$marker" "$patched_tmp"; then
         echo "INTERNAL ERROR: failed to patch GCC specs" >&2
         exit 1
     fi
