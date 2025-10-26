@@ -127,61 +127,42 @@ install_ktls_header () {
 
 # Patch the GCC installation to force include of ktls.h
 patch_gcc_specs () {
-    local gcc_bin="$1"
-    local phase="${2:-0}"
-    if [ ! -x "$gcc_bin" ]; then
-        if [ -x "$gcc_bin.exe" ]; then
-            gcc_bin="$gcc_bin.exe"
+    local phase="${1:-0}"
+    local src_gcc_bin="$CROSS_PREFIX/bin/$N64_TARGET-gcc"
+
+    if [ ! -x "$src_gcc_bin" ]; then
+        if [ -x "$src_gcc_bin.exe" ]; then
+            src_gcc_bin="$src_gcc_bin.exe"
         else
-            echo "GCC binary not found: $gcc_bin" >&2
+            echo "GCC binary not found: $src_gcc_bin" >&2
             exit 1
         fi
     fi
-    local gcc_dir
-    gcc_dir=$(dirname "$gcc_bin")
-    local prefix
-    prefix=$(dirname "$gcc_dir")
+
     local specs_tmp
     local patched_tmp
     local specs_dest_dir=""
     local specs_dest=""
     local marker=""
+    local dest_prefix=""
     specs_tmp=$(mktemp)
     patched_tmp=$(mktemp)
     trap 'trap - RETURN EXIT; rm -f "$specs_tmp" "$patched_tmp"' RETURN EXIT
 
+    if ! "$src_gcc_bin" -dumpspecs > "$specs_tmp"; then
+        echo "Failed to dump GCC specs from $src_gcc_bin" >&2
+        exit 1
+    fi
+
     case "$phase" in
         0)
-            # Phase 0: patch spec file with absolute include path for ktls.h.
-            # This is required to build newlib, because the libgloss/newlib build
-            # process uses -B to move the sysroot around, and so an absolute path
-            # is needed.
-            specs_dest_dir="$prefix/lib/gcc/$N64_TARGET/$GCC_V"
-            specs_dest="$specs_dest_dir/specs"
-            if ! "$gcc_bin" -dumpspecs > "$specs_tmp"; then
-                echo "Failed to dump GCC specs from $gcc_bin" >&2
-                exit 1
-            fi
-            marker="-include $prefix/$N64_TARGET/include/ktls.h"
+            # Phase 0: install specs with absolute include path into the BUILD compiler.
+            dest_prefix="$CROSS_PREFIX"
+            marker="-include $dest_prefix/$N64_TARGET/include/ktls.h"
             ;;
         1)
-            # Phase 1: patch the spec file to use a non-absolute include path for ktls.h.
-            # Finding out the spec file is more complex because of canadian cross-compilations:
-            # in that case, we can't run GCC as it is built for HOST not BUILD, so
-            # we can't run -dumpspecs, nor gcc -print-file-name=specs. We need to
-            # search for the spec file instead, using find.
-            if [ -d "$prefix/lib/gcc/$N64_TARGET" ]; then
-                specs_dest=$(find "$prefix/lib/gcc/$N64_TARGET" -maxdepth 2 -name specs -print -quit 2>/dev/null || true)
-            fi
-            if [ -z "$specs_dest" ] && [ -d "$prefix/lib64/gcc/$N64_TARGET" ]; then
-                specs_dest=$(find "$prefix/lib64/gcc/$N64_TARGET" -maxdepth 2 -name specs -print -quit 2>/dev/null || true)
-            fi
-            if [ -z "$specs_dest" ]; then
-                echo "Existing GCC specs not found under $prefix" >&2
-                exit 1
-            fi
-            specs_dest_dir=$(dirname "$specs_dest")
-            cat "$specs_dest" > "$specs_tmp"
+            # Phase 1: install specs with relocatable include path into the distributable compiler.
+            dest_prefix="$INSTALL_PATH"
             marker="-include ktls.h"
             ;;
         *)
@@ -216,6 +197,20 @@ patch_gcc_specs () {
         echo "INTERNAL ERROR: failed to patch GCC specs" >&2
         exit 1
     fi
+
+    # Determine destination directory; prefer existing lib/ path, fall back to lib64/ if needed.
+    local candidate
+    for candidate in \
+        "$dest_prefix/lib/gcc/$N64_TARGET/$GCC_V" \
+        "$dest_prefix/lib64/gcc/$N64_TARGET/$GCC_V"; do
+        if [ -z "$specs_dest_dir" ] && [ -d "$candidate" ]; then
+            specs_dest_dir="$candidate"
+        fi
+    done
+    if [ -z "$specs_dest_dir" ]; then
+        specs_dest_dir="$dest_prefix/lib/gcc/$N64_TARGET/$GCC_V"
+    fi
+    specs_dest="$specs_dest_dir/specs"
 
     # Install patched spec file
     mkdir -p "$specs_dest_dir" || sudo mkdir -p "$specs_dest_dir" || su -c "mkdir -p '$specs_dest_dir'"
@@ -450,7 +445,7 @@ make install-target-libgcc || sudo make install-target-libgcc || su -c "make ins
 popd
 
 install_ktls_header "$CROSS_PREFIX"
-patch_gcc_specs "$CROSS_PREFIX/bin/$N64_TARGET-gcc" 0
+patch_gcc_specs 0
 
 if [ "$N64_USE_PICOLIBC" == "true" ]; then
     # Meson doesn't really handle changing source versions with same build
@@ -514,10 +509,6 @@ if [ "$N64_BUILD" == "$N64_HOST" ]; then
     make all -j "$JOBS"
     make install-strip || sudo make install-strip || su -c "make install-strip"
     popd
-
-    # Patch again the spec files with relocatable include path for distribution.
-    install_ktls_header "$CROSS_PREFIX"
-    patch_gcc_specs "$CROSS_PREFIX/bin/$N64_TARGET-gcc" 1
 else
     # Compile HOST->TARGET binutils
     # NOTE: we pass --without-msgpack to workaround a bug in Binutils, introduced
@@ -622,11 +613,12 @@ else
     make all -j "$JOBS"
     make install-strip || sudo make install-strip || su -c "make install-strip"
     popd
-
-    # Install ktls into final toolchain, and patch specs for relocatable includes
-    install_ktls_header "$INSTALL_PATH"
-    patch_gcc_specs "$INSTALL_PATH/bin/$N64_TARGET-gcc" 1
 fi
+
+# Patch again the spec files with relocatable include path for distribution.
+# This time install into the final HOST->TARGET compiler (in case of canadian).
+install_ktls_header "$INSTALL_PATH"
+patch_gcc_specs 1
 
 if [ "$MAKE_V" != "" ]; then
     pushd "make-$MAKE_V"
