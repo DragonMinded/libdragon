@@ -115,6 +115,14 @@ install_ktls_header () {
 patch_gcc_specs () {
     local gcc_bin="$1"
     local mode="${2:-absolute}"
+    if [ ! -x "$gcc_bin" ]; then
+        if [ -x "$gcc_bin.exe" ]; then
+            gcc_bin="$gcc_bin.exe"
+        else
+            echo "GCC binary not found: $gcc_bin" >&2
+            exit 1
+        fi
+    fi
     local gcc_dir
     gcc_dir=$(dirname "$gcc_bin")
     local prefix
