@@ -412,7 +412,6 @@ if [ "$N64_USE_PICOLIBC" == "true" ]; then
     mkdir -p picolibc_compile_target
     pushd picolibc_compile_target
     meson setup \
-        --reconfigure \
         --cross-file=../../meson-cross.txt \
         -Dmultilib=false \
         -Dpicocrt=false \
@@ -523,7 +522,6 @@ else
         mkdir -p picolibc_compile_target
         pushd picolibc_compile_target
         meson setup \
-            --reconfigure \
             --cross-file=../../meson-cross.txt \
             -Dmultilib=false \
             -Dpicocrt=false \
