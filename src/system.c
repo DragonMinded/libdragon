@@ -50,13 +50,6 @@
 #define STDERR_FILENO   2
 /** @} */
 
-#if defined(__PICOLIBC__) && defined(TINY_STDIO)
-/* Force weakly referenced default stdin/stdout/stderr implementations to be linked. */
-__asm__(".equ stdin_reference, stdin");
-__asm__(".equ stdout_reference, stdout");
-__asm__(".equ stderr_reference, stderr");
-#endif
-
 /**
  * @brief Stack size
  *
