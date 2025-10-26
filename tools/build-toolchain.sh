@@ -34,11 +34,6 @@ N64_TARGET=${N64_TARGET:-mips64-elf}
 
 # Toolchain configuration options.
 N64_USE_PICOLIBC=${N64_USE_PICOLIBC:-"false"}
-N64_USE_PICOLIBC_TINYSTDIO=${N64_USE_PICOLIBC_TINYSTDIO:-"false"}
-N64_USE_PICOLIBC_LEGACY_STDIO=true
-if [ "$N64_USE_PICOLIBC_TINYSTDIO" == "true" ]; then
-    N64_USE_PICOLIBC_LEGACY_STDIO=false
-fi
 
 # Check that the meson cross file exists if picolibc is used
 if [ "$N64_USE_PICOLIBC" == "true" ]; then
@@ -462,18 +457,18 @@ if [ "$N64_USE_PICOLIBC" == "true" ]; then
         -Dsemihost=false \
         -Dspecsdir=none \
         -Dtests=false \
-        -Dtinystdio="$N64_USE_PICOLIBC_TINYSTDIO" \
+        -Dtinystdio=true \
         -Dfast-bufio=true \
         -Dio-long-long=true \
-        -Dio-pos-args="$N64_USE_PICOLIBC_TINYSTDIO" \
+        -Dio-pos-args=true \
         -Dio-percent-b=true \
         -Dposix-console=true \
         -Dformat-default=double \
-        -Dnewlib-fseek-optimization="$N64_USE_PICOLIBC_LEGACY_STDIO" \
-        -Dnewlib-fvwrite-in-streamio="$N64_USE_PICOLIBC_LEGACY_STDIO" \
-        -Dnewlib-io-float="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+        -Dnewlib-fseek-optimization=false \
+        -Dnewlib-fvwrite-in-streamio=false \
+        -Dnewlib-io-float=false \
         -Dnewlib-stdio64=false \
-        -Dnewlib-unbuf-stream-opt="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+        -Dnewlib-unbuf-stream-opt=false \
         -Dnewlib-nano-malloc=false \
         -Dthread-local-storage=true \
         -Dpicoexit=false \
@@ -568,18 +563,18 @@ else
             -Dsemihost=false \
             -Dspecsdir=none \
             -Dtests=false \
-            -Dtinystdio="$N64_USE_PICOLIBC_TINYSTDIO" \
+            -Dtinystdio=true \
             -Dfast-bufio=true \
             -Dio-long-long=true \
-            -Dio-pos-args="$N64_USE_PICOLIBC_TINYSTDIO" \
+            -Dio-pos-args=true \
             -Dio-percent-b=true \
             -Dposix-console=true \
             -Dformat-default=double \
-            -Dnewlib-fseek-optimization="$N64_USE_PICOLIBC_LEGACY_STDIO" \
-            -Dnewlib-fvwrite-in-streamio="$N64_USE_PICOLIBC_LEGACY_STDIO" \
-            -Dnewlib-io-float="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+            -Dnewlib-fseek-optimization=false \
+            -Dnewlib-fvwrite-in-streamio=false \
+            -Dnewlib-io-float=false \
             -Dnewlib-stdio64=false \
-            -Dnewlib-unbuf-stream-opt="$N64_USE_PICOLIBC_LEGACY_STDIO" \
+            -Dnewlib-unbuf-stream-opt=false \
             -Dnewlib-nano-malloc=false \
             -Dthread-local-storage=false \
             -Dprefix="$INSTALL_PATH" \

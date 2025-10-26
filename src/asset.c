@@ -301,10 +301,8 @@ static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
     return -1;
 }
 
-#if defined(__PICOLIBC__) && defined(TINY_STDIO)
+#if defined(__PICOLIBC__)
 static int readfn_none(void *c, void *buf, size_t sz)
-#elif defined(__PICOLIBC__)
-static int readfn_none(void *c, char *buf, size_t sz)
 #else
 static int readfn_none(void *c, char *buf, int sz)
 #endif
@@ -331,10 +329,8 @@ typedef struct  {
     uint8_t alignas(8) state[];
 } cookie_cmp_t;
 
-#if defined(__PICOLIBC__) && defined(TINY_STDIO)
+#if defined(__PICOLIBC__)
 static int readfn_cmp(void *c, void *buf, size_t sz)
-#elif defined(__PICOLIBC__)
-static int readfn_cmp(void *c, char *buf, size_t sz)
 #else
 static int readfn_cmp(void *c, char *buf, int sz)
 #endif
