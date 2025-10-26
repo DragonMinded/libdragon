@@ -99,7 +99,8 @@ struct toc_s {
 	uint32_t num_entries;
 	struct {
 		uint32_t offset;
-		char name[TOC_ENTRY_SIZE - 4];
+		uint32_t size;
+		char name[TOC_ENTRY_SIZE - 8];
 	} files[TOC_MAX_ENTRIES];
 } toc = {
 	.magic = "TOC0",
@@ -683,6 +684,7 @@ int main(int argc, char *argv[])
 		{
 			/* Add the file to the toc */
 			toc.files[toc.num_entries].offset = offset;
+			toc.files[toc.num_entries].size = bytes_copied;
 
 			const char *basename = strrchr(arg, '/');
 			if (!basename) basename = strrchr(arg, '\\');
@@ -774,8 +776,10 @@ int main(int argc, char *argv[])
 	/* Write table of contents */
 	if(create_toc)
 	{
-		for (int i=0; i<toc.num_entries; i++)
+		for (int i=0; i<toc.num_entries; i++) {
 			toc.files[i].offset = SWAPLONG(toc.files[i].offset);
+			toc.files[i].size = SWAPLONG(toc.files[i].size);
+		}
 		toc.num_entries = SWAPLONG(toc.num_entries);
 		toc.toc_size = SWAPLONG(toc.toc_size);
 		toc.entry_size = SWAPLONG(toc.entry_size);

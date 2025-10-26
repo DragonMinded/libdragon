@@ -9,6 +9,7 @@
 #define __LIBDRAGON_ROM_INTERNAL_H
 
 #include <stdint.h>
+#include "n64types.h"
 
 /**
  * @defgroup rompak ROM bundle support
@@ -42,7 +43,7 @@
  * @return        Physical address of the file in the ROM, or 0 if the file
  *                doesn't exist or the TOC is not present.
  */
-uint32_t rompak_search_ext(const char *ext);
+pi_addr_t rompak_search_ext(const char *ext);
 
 /** @} */
 
