@@ -1,7 +1,7 @@
 #! /bin/bash
 # N64 MIPS GCC toolchain build/install script for Unix distributions
-# (c) 2012-2024 DragonMinded and libDragon Contributors.
-# See the root folder for license information.
+# (c) 2012-2025 DragonMinded and LibDragon Contributors.
+# Licensed under the Unlicense. See LICENSE.md for details.
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
 set -euo pipefail
@@ -31,18 +31,6 @@ SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 N64_BUILD=${N64_BUILD:-""}
 N64_HOST=${N64_HOST:-""}
 N64_TARGET=${N64_TARGET:-mips64-elf}
-
-# Toolchain configuration options.
-N64_USE_PICOLIBC=${N64_USE_PICOLIBC:-"false"}
-
-# Check that the meson cross file exists if picolibc is used
-if [ "$N64_USE_PICOLIBC" == "true" ]; then
-    MESON_CROSS_FILE="$SCRIPT_DIR/meson-cross.txt"
-    if [ ! -f "$MESON_CROSS_FILE" ]; then
-        echo "Meson cross file not found: $MESON_CROSS_FILE" >&2
-        exit 1
-    fi
-fi
 
 # Set N64_INST before calling the script to change the default installation directory path
 INSTALL_PATH="${N64_INST}"
@@ -226,7 +214,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
     # zlib is part of the base OS, and doesn't need to be installed here.
-    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo ninja
+    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo ninja meson
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.
@@ -267,13 +255,11 @@ test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH
 test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
 test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
 
-if [ "$N64_USE_PICOLIBC" == "true" ]; then
-    test -f "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip"    || ( download "https://github.com/picolibc/picolibc/archive/$PICOLIBC_V.zip" && mv "$DOWNLOAD_PATH/$PICOLIBC_V.zip" "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" )
-    test -d "$BUILD_PATH/picolibc-$PICOLIBC_V"           || unzip -qq "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" -d "$BUILD_PATH"
-else
-    test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
-    test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
-fi
+test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
+test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
+
+test -f "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip"    || ( download "https://github.com/picolibc/picolibc/archive/$PICOLIBC_V.zip" && mv "$DOWNLOAD_PATH/$PICOLIBC_V.zip" "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" )
+test -d "$BUILD_PATH/picolibc-$PICOLIBC_V"           || unzip -qq "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" -d "$BUILD_PATH"
 
 if [ "$GMP_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
@@ -442,60 +428,64 @@ popd
 install_ktls_header "$CROSS_PREFIX"
 patch_gcc_specs 0
 
-if [ "$N64_USE_PICOLIBC" == "true" ]; then
-    # Meson doesn't really handle changing source versions with same build
-    # directory, so better remove the old build directory before reconfiguring.
-    rm -rf picolibc_compile_target
-    # Compile picolibc for target.
-    mkdir -p picolibc_compile_target
-    pushd picolibc_compile_target
-    meson setup \
-        --cross-file="$MESON_CROSS_FILE" \
-        -Dmultilib=false \
-        -Dpicocrt=false \
-        -Dpicolib=false \
-        -Dsemihost=false \
-        -Dspecsdir=none \
-        -Dtests=false \
-        -Dtinystdio=true \
-        -Dfast-bufio=true \
-        -Dio-long-long=true \
-        -Dio-pos-args=true \
-        -Dio-percent-b=true \
-        -Dposix-console=true \
-        -Dformat-default=double \
-        -Dnewlib-fseek-optimization=false \
-        -Dnewlib-fvwrite-in-streamio=false \
-        -Dnewlib-io-float=false \
-        -Dnewlib-stdio64=false \
-        -Dnewlib-unbuf-stream-opt=false \
-        -Dnewlib-nano-malloc=false \
-        -Dthread-local-storage=true \
-        -Dpicoexit=false \
-        -Dprefix="$CROSS_PREFIX" \
-        -Dlibdir=mips64-elf/lib \
-        -Dincludedir=mips64-elf/include \
-        ../"picolibc-$PICOLIBC_V"
-    ninja -j "$JOBS"
-    ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
-    popd
-else
-    # Compile newlib for target.
-    mkdir -p newlib_compile_target
-    pushd newlib_compile_target
-    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-        --prefix="$CROSS_PREFIX" \
-        --target="$N64_TARGET" \
-        --with-cpu=mips64vr4300 \
-        --disable-libssp \
-        --disable-werror \
-        --enable-newlib-io-c99-formats \
-        --enable-newlib-multithread \
-        --enable-newlib-retargetable-locking
-    make -j "$JOBS"
-    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-    popd
-fi
+# Compile newlib for target, then relocate into final sysroot structure
+mkdir -p newlib_compile_target
+pushd newlib_compile_target
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+    --prefix="$CROSS_PREFIX" \
+    --target="$N64_TARGET" \
+    --with-cpu=mips64vr4300 \
+    --disable-libssp \
+    --disable-werror \
+    --enable-newlib-io-c99-formats \
+    --enable-newlib-multithread \
+    --enable-newlib-retargetable-locking
+make -j "$JOBS"
+make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+popd
+
+# Meson cross file (required to build picolibc). Materialize from inline block.
+MESON_CROSS_FILE="$BUILD_PATH/meson-cross.txt"
+awk -v start=": <<'__MESON_CROSS_BLOCK__'" -v end="__MESON_CROSS_BLOCK__" '
+    $0 == start {capture=1; next}
+    $0 == end {exit}
+    capture {print}
+' "$SCRIPT_PATH" > "$MESON_CROSS_FILE"
+
+# Compile picolibc for target directly into final sysroot
+rm -rf picolibc_compile_target
+mkdir -p picolibc_compile_target
+pushd picolibc_compile_target
+meson setup \
+    --cross-file="$MESON_CROSS_FILE" \
+    -Dmultilib=false \
+    -Dpicocrt=false \
+    -Dpicolib=false \
+    -Dsemihost=false \
+    -Dspecsdir=none \
+    -Dtests=false \
+    -Dtinystdio=true \
+    -Dfast-bufio=true \
+    -Dio-long-long=true \
+    -Dio-pos-args=true \
+    -Dio-percent-b=true \
+    -Dposix-console=true \
+    -Dformat-default=double \
+    -Dnewlib-fseek-optimization=false \
+    -Dnewlib-fvwrite-in-streamio=false \
+    -Dnewlib-io-float=false \
+    -Dnewlib-stdio64=false \
+    -Dnewlib-unbuf-stream-opt=false \
+    -Dnewlib-nano-malloc=false \
+    -Dthread-local-storage=true \
+    -Dpicoexit=false \
+    -Dprefix="$CROSS_PREFIX" \
+    -Dlibdir=mips64-elf/picolibc/lib \
+    -Dincludedir=mips64-elf/picolibc/include \
+    ../"picolibc-$PICOLIBC_V"
+ninja -j "$JOBS"
+ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
+popd
 
 # For a standard cross-compiler, the only thing left is to finish compiling the target libraries
 # like libstd++. We can continue on the previous GCC build target.
@@ -548,59 +538,57 @@ else
     make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
     popd
 
-    if [ "$N64_USE_PICOLIBC" == "true" ]; then
-        # Meson doesn't really handle changing source versions with same build
-        # directory, so better remove the old build directory before reconfiguring.
-        rm -rf picolibc_compile_target
-        # Compile picolibc for target.
-        mkdir -p picolibc_compile_target
-        pushd picolibc_compile_target
-        meson setup \
-            --cross-file="$MESON_CROSS_FILE" \
-            -Dmultilib=false \
-            -Dpicocrt=false \
-            -Dpicolib=false \
-            -Dsemihost=false \
-            -Dspecsdir=none \
-            -Dtests=false \
-            -Dtinystdio=true \
-            -Dfast-bufio=true \
-            -Dio-long-long=true \
-            -Dio-pos-args=true \
-            -Dio-percent-b=true \
-            -Dposix-console=true \
-            -Dformat-default=double \
-            -Dnewlib-fseek-optimization=false \
-            -Dnewlib-fvwrite-in-streamio=false \
-            -Dnewlib-io-float=false \
-            -Dnewlib-stdio64=false \
-            -Dnewlib-unbuf-stream-opt=false \
-            -Dnewlib-nano-malloc=false \
-            -Dthread-local-storage=false \
-            -Dprefix="$INSTALL_PATH" \
-            -Dlibdir=mips64-elf/lib \
-            -Dincludedir=mips64-elf/include \
-            ../"picolibc-$PICOLIBC_V"
-        ninja -j "$JOBS"
-        ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
-        popd
-    else
-        # Compile newlib for target.
-        mkdir -p newlib_compile_target
-        pushd newlib_compile_target
-        CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-            --prefix="$INSTALL_PATH" \
-            --target="$N64_TARGET" \
-            --with-cpu=mips64vr4300 \
-            --disable-libssp \
-            --disable-werror \
-            --enable-newlib-io-c99-formats \
-            --enable-newlib-multithread \
-            --enable-newlib-retargetable-locking
-        make -j "$JOBS"
-        make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-        popd
-    fi
+    # Compile newlib for target, then relocate into final sysroot structure (INSTALL_PATH)
+    mkdir -p newlib_compile_target
+    pushd newlib_compile_target
+    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+        --prefix="$INSTALL_PATH" \
+        --target="$N64_TARGET" \
+        --with-cpu=mips64vr4300 \
+        --disable-libssp \
+        --disable-werror \
+        --enable-newlib-io-c99-formats \
+        --enable-newlib-multithread \
+        --enable-newlib-retargetable-locking
+    make -j "$JOBS"
+    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+    popd
+
+    # Compile picolibc for target directly into final sysroot (INSTALL_PATH)
+    rm -rf picolibc_compile_target
+    mkdir -p picolibc_compile_target
+    pushd picolibc_compile_target
+    meson setup \
+        --cross-file="$MESON_CROSS_FILE" \
+        -Dmultilib=false \
+        -Dpicocrt=false \
+        -Dpicolib=false \
+        -Dsemihost=false \
+        -Dspecsdir=none \
+        -Dtests=false \
+        -Dtinystdio=true \
+        -Dfast-bufio=true \
+        -Dio-long-long=true \
+        -Dio-pos-args=true \
+        -Dio-percent-b=true \
+        -Dposix-console=true \
+        -Dformat-default=double \
+        -Dnewlib-fseek-optimization=false \
+        -Dnewlib-fvwrite-in-streamio=false \
+        -Dnewlib-io-float=false \
+        -Dnewlib-stdio64=false \
+        -Dnewlib-unbuf-stream-opt=false \
+        -Dnewlib-nano-malloc=false \
+        -Dthread-local-storage=false \
+        -Dprefix="$INSTALL_PATH" \
+        -Dlibdir=mips64-elf/picolibc/lib \
+        -Dincludedir=mips64-elf/picolibc/include \
+        ../"picolibc-$PICOLIBC_V"
+    ninja -j "$JOBS"
+    ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
+    popd
+
+    # (deferred) version files written after all builds complete
 
     # Finish compiling GCC
     mkdir -p gcc_compile
@@ -615,6 +603,49 @@ fi
 install_ktls_header "$INSTALL_PATH"
 patch_gcc_specs 1
 
+# On Linux/Mac, where symlinks are supported, relocate newlib into a subdirectory for symmetry
+# with picolibc, and use a symlink to keep it as default for backward compatibility.
+if [ "$N64_HOST" != "x86_64-w64-mingw32" ]; then
+    if [ ! -L "$INSTALL_PATH/$N64_TARGET/include" ]; then
+        mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib" || sudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
+
+        mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include" || \
+            sudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include"
+        mv "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib/lib" || \
+            sudo mv "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib/lib"
+
+        ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include" || \
+            sudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include"
+        ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib" "$INSTALL_PATH/$N64_TARGET/lib" || \
+            sudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib" "$INSTALL_PATH/$N64_TARGET/lib"
+    fi
+else
+    mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib" || sudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
+
+    cp -a "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib" || \
+        sudo cp -a "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib"
+    cp -a "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib" || \
+        sudo cp -a "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib"
+fi
+
+# Write per-libc toolchain.version files under INSTALL_PATH
+# Ensure include directories exist before writing
+dest_dir="$INSTALL_PATH/$N64_TARGET/newlib/include"
+mkdir -p "$dest_dir" || sudo mkdir -p "$dest_dir"
+TOOLCHAIN_VERSION_FILE_NEWLIB="$dest_dir/toolchain.version"
+VERSION_NEWLIB="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"newlib\": \"$NEWLIB_V\"\n}"
+printf '%s\n' "$VERSION_NEWLIB" > "$TOOLCHAIN_VERSION_FILE_NEWLIB" || \
+    sudo sh -c "printf '%s\\n' \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\"" || \
+    su -c "printf '%s\\n' \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\""
+
+dest_dir="$INSTALL_PATH/$N64_TARGET/picolibc/include"
+mkdir -p "$dest_dir" || sudo mkdir -p "$dest_dir"
+TOOLCHAIN_VERSION_FILE_PICO="$dest_dir/toolchain.version"
+VERSION_PICO="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"picolibc\": \"$PICOLIBC_V\"\n}"
+printf '%s\n' "$VERSION_PICO" > "$TOOLCHAIN_VERSION_FILE_PICO" || \
+    sudo sh -c "printf '%s\\n' \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\"" || \
+    su -c "printf '%s\\n' \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\""
+
 if [ "$MAKE_V" != "" ]; then
     pushd "make-$MAKE_V"
     ./configure \
@@ -628,26 +659,6 @@ if [ "$MAKE_V" != "" ]; then
     make install-strip || sudo make install-strip || su -c "make install-strip"
     popd
 fi
-
-# Create a toolchain.version file in JSON format to identify the toolchain version. 
-# It contains: GCC version, Binutils versions and Newlib/Picolibc version.
-TOOLCHAIN_VERSION_FILE="$INSTALL_PATH/$N64_TARGET/include/toolchain.version"
-
-if [ "$N64_USE_PICOLIBC" == "true" ]; then
-    VERSION_CONTENT_LIBC="  \"picolibc\": \"$PICOLIBC_V\""
-else
-    VERSION_CONTENT_LIBC="  \"newlib\": \"$NEWLIB_V\""
-fi
-VERSION_CONTENT="{
-  \"host\": \"$N64_HOST\",
-  \"binutils\": \"$BINUTILS_V\",
-  \"gcc\": \"$GCC_V\",
-$VERSION_CONTENT_LIBC
-}"
-
-printf '%s\n' "$VERSION_CONTENT" > "$TOOLCHAIN_VERSION_FILE" || \
-    sudo sh -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\"" || \
-    su -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\""
 
 # Final message
 set +x
@@ -671,3 +682,24 @@ __asm__ (
 );
 #endif
 __KTLS_H_BLOCK__
+
+: <<'__MESON_CROSS_BLOCK__'
+[binaries]
+c = 'mips64-elf-gcc'
+ar = 'mips64-elf-ar'
+as = 'mips64-elf-as'
+nm = 'mips64-elf-nm'
+strip = 'mips64-elf-strip'
+
+[host_machine]
+system = 'none'
+cpu_family = 'mips64'
+cpu = 'mips64vr4300'
+endian = 'big'
+
+[properties]
+skip_sanity_check = true
+
+[built-in options]
+c_args = [ '-falign-functions=32' ]
+__MESON_CROSS_BLOCK__

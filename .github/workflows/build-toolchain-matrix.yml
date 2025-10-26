@@ -41,15 +41,6 @@ jobs:
             host: x86_64-w64-mingw32
             makefile-version: 4.4
             zlib-version: 1.2.13
-            libc: newlib
-          - host-os: ubuntu-22.04
-            target-platform: Windows-x86_64
-            deb-architecture: ''
-            rpm-architecture: ''
-            host: x86_64-w64-mingw32
-            makefile-version: 4.4
-            zlib-version: 1.2.13
-            libc: picolibc
           - host-os: ubuntu-22.04
             target-platform: Linux-x86_64
             deb-architecture: amd64
@@ -57,15 +48,6 @@ jobs:
             host: ''
             makefile-version: ''
             zlib-version: ''
-            libc: newlib
-          - host-os: ubuntu-22.04
-            target-platform: Linux-x86_64
-            deb-architecture: amd64
-            rpm-architecture: x86_64
-            host: ''
-            makefile-version: ''
-            zlib-version: ''
-            libc: picolibc
           - host-os: ubuntu-22.04-arm
             target-platform: Linux-aarch64
             deb-architecture: arm64
@@ -73,23 +55,13 @@ jobs:
             host: ''
             makefile-version: ''
             zlib-version: ''
-            libc: newlib
-          - host-os: ubuntu-22.04-arm
-            target-platform: Linux-aarch64
-            deb-architecture: arm64
-            rpm-architecture: aarch64
-            host: ''
-            makefile-version: ''
-            zlib-version: ''
-            libc: picolibc
     runs-on: ${{ matrix.host-os }}
 
     env:
       Install_Directory: libdragon
       Build_Directory: scratch
-      N64_USE_PICOLIBC: ${{ (matrix.libc == 'picolibc') && 'true' || 'false' }}
-      Package_Suffix: ${{ (matrix.libc == 'picolibc') && '-picolibc' || '' }}
-      Artifact_Suffix: ${{ (matrix.libc == 'picolibc') && '-picolibc' || '' }}
+      Package_Suffix: ''
+      Artifact_Suffix: ''
 
     steps:
       - name: Install native system build dependencies
@@ -153,14 +125,13 @@ jobs:
           # TODO: this version is set explicitly. We need to fix!
           echo "MAKE_VERSION=4.4" >> $GITHUB_OUTPUT
 
-      - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }} (${{ matrix.libc }})
+      - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }}
         run: |
           # required for newlib (as not the default?!)
           export PATH="$PATH:${{ runner.temp }}/${{ env.Install_Directory }}"
           export BUILD_PATH=${{ runner.temp }}/${{ env.Build_Directory }}
           export N64_INST=${{ runner.temp }}/${{ env.Install_Directory }}
           export N64_HOST=${{ matrix.host }}
-          echo "Building libc variant: ${{ matrix.libc }} (N64_USE_PICOLIBC=${N64_USE_PICOLIBC})"
           cd ./tools/
           MAKE_V=${{ matrix.makefile-version }} \
           ZLIB_V=${{ matrix.zlib-version }} \
@@ -217,13 +188,13 @@ jobs:
         env:
           Package_Source_Directory: ${{ runner.temp }}/${{ env.Install_Directory }}/
           Package_Installation_Directory: /opt/${{ env.Install_Directory }}
-          Package_Name: ${{ format('gcc-toolchain-mips64{0}', env.Package_Suffix) }}
+          Package_Name: gcc-toolchain-mips64
           Package_Version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
           Package_Revision: ${{ github.run_id }}
           Package_Deb_Architecture: ${{ matrix.deb-architecture }}
           Package_Rpm_Architecture: ${{ matrix.rpm-architecture }}
           Package_License: GPL
-          Package_Description: ${{ format('MIPS GCC toolchain for the N64 ({0})', matrix.libc) }}
+          Package_Description: MIPS GCC toolchain for the N64
           Package_Url: https://n64brew.com
           Package_Maintainer: N64 Brew Community
 
@@ -231,7 +202,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Windows-x86_64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64${{ env.Artifact_Suffix }}-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
           path: |
             ${{ runner.temp }}/${{ env.Install_Directory }}
 
@@ -239,7 +210,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Linux-x86_64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64${{ env.Artifact_Suffix }}-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
           path: |
             ./**/*.deb
             ./**/*.rpm
@@ -248,7 +219,7 @@ jobs:
         if: ${{ matrix.target-platform == 'Linux-aarch64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: gcc-toolchain-mips64${{ env.Artifact_Suffix }}-${{ matrix.target-platform }}
+          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
           path: |
             ./**/*.deb
             ./**/*.rpm
