@@ -6,6 +6,7 @@
 #include "gl_internal.h"
 #include "debug.h"
 #include <malloc.h>
+#include "mgfx.h"
 
 extern gl_state_t *state;
 
@@ -40,29 +41,39 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
 extern const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT];
 extern const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT];
 
+inline void assert_valid_array(GLuint array)
+{
+    assertf(array == 0 || is_valid_object_id(array),
+            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
+}
+
 gl_array_type_t gl_array_type_from_enum(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
         return ATTRIB_VERTEX;
-    case GL_TEXTURE_COORD_ARRAY:
-        return ATTRIB_TEXCOORD;
     case GL_NORMAL_ARRAY:
         return ATTRIB_NORMAL;
     case GL_COLOR_ARRAY:
         return ATTRIB_COLOR;
+    case GL_TEXTURE_COORD_ARRAY:
+        return ATTRIB_TEXCOORD;
     case GL_MATRIX_INDEX_ARRAY_ARB:
         return ATTRIB_MTX_INDEX;
     default:
-        return -1;
+        assertf(0, "Invalid array type!");
     }
 }
 
-void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
+uint16_t get_stride_from_size_and_type(GLint size, GLenum type)
 {
+    if (type == GL_SHORT_5_6_5_N64) {
+        return sizeof(GLshort);
+    }
+
     uint32_t size_shift = 0;
     
-    switch (array->type) {
+    switch (type) {
     case GL_BYTE:
     case GL_UNSIGNED_BYTE:
         size_shift = 0;
@@ -82,7 +93,12 @@ void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
         break;
     }
 
-    array->final_stride = array->stride == 0 ? array->size << size_shift : array->stride;
+    return size << size_shift;
+}
+
+void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
+{
+    array->final_stride = array->stride == 0 ? get_stride_from_size_and_type(array->size, array->type) : array->stride;
 
     uint32_t func_index = gl_type_to_index(array->type);
     array->cpu_read_func = cpu_read_funcs[array_type][func_index];
@@ -103,37 +119,75 @@ void gl_update_array_pointer(gl_array_t *array)
 
 void gl_update_array_pointers(gl_array_object_t *obj)
 {
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
     {
         gl_update_array_pointer(&obj->arrays[i]);
     }
 }
 
-void gl_array_object_init(gl_array_object_t *obj)
+static void array_object_init(gl_array_object_t *obj)
 {
     obj->arrays[ATTRIB_VERTEX].size = 4;
     obj->arrays[ATTRIB_VERTEX].type = GL_FLOAT;
+    obj->arrays[ATTRIB_NORMAL].size = 3;
+    obj->arrays[ATTRIB_NORMAL].type = GL_FLOAT;
+    obj->arrays[ATTRIB_NORMAL].normalize = true;
     obj->arrays[ATTRIB_COLOR].size = 4;
     obj->arrays[ATTRIB_COLOR].type = GL_FLOAT;
     obj->arrays[ATTRIB_COLOR].normalize = true;
     obj->arrays[ATTRIB_TEXCOORD].size = 4;
     obj->arrays[ATTRIB_TEXCOORD].type = GL_FLOAT;
-    obj->arrays[ATTRIB_NORMAL].size = 3;
-    obj->arrays[ATTRIB_NORMAL].type = GL_FLOAT;
-    obj->arrays[ATTRIB_NORMAL].normalize = true;
     obj->arrays[ATTRIB_MTX_INDEX].size = 0;
     obj->arrays[ATTRIB_MTX_INDEX].type = GL_UNSIGNED_BYTE;
 
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
     {
         gl_update_array(&obj->arrays[i], i);
+    }
+
+    obj->is_layout_dirty = true;
+}
+
+static void array_object_free(gl_array_object_t *obj)
+{
+    if (obj->buffer != NULL) {
+        rspq_call_deferred(free_uncached, obj->buffer);
+    }
+
+    buffer_object_set_binding(NULL, &obj->element_array_buffer);
+
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        array_object_set_buffer_binding(obj, i, NULL);
     }
 }
 
 void gl_array_init()
 {
-    gl_array_object_init(&state->default_array_object);
-    state->array_object = &state->default_array_object;
+    array_object_init(&state->default_array_object);
+    glBindVertexArray(0);
+}
+
+void gl_array_close()
+{
+    glBindVertexArray(0);
+    array_object_free(&state->default_array_object);
+}
+
+void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer)
+{
+    gl_array_t *array = &obj->arrays[array_type];
+    if (array->binding == buffer) return;
+
+    gl_buffer_object_t *old_binding = array->binding;
+    if (old_binding != NULL) {
+        gl_buffer_remove_array_ref(old_binding, state->array_object);
+    }
+    if (buffer != NULL) {
+        gl_buffer_add_array_ref(buffer, state->array_object);
+    }
+    array->binding = buffer;
+    obj->are_bindings_dirty = true;
 }
 
 void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -161,9 +215,11 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
     array->type = type;
     array->stride = stride;
     array->pointer = pointer;
-    array->binding = state->array_buffer;
+    array_object_set_buffer_binding(state->array_object, array_type, state->array_buffer);
 
     gl_update_array(array, array_type);
+
+    state->array_object->is_layout_dirty = true;
 }
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -235,6 +291,7 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
     case GL_INT:
     case GL_FLOAT:
     case GL_DOUBLE:
+    case GL_SHORT_5_6_5_N64:
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid normal data type", type);
@@ -300,7 +357,10 @@ void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvo
 void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
 {
     gl_array_t *array = &state->array_object->arrays[array_type];
-    array->enabled = enabled;
+    if (array->enabled != enabled) {
+        array->enabled = enabled;
+        state->array_object->is_layout_dirty = true;
+    }
 }
 
 void glEnableClientState(GLenum array)
@@ -406,8 +466,8 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
 
     for (GLsizei i = 0; i < n; i++)
     {
-        gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
-        gl_array_object_init(new_obj);
+        gl_array_object_t *new_obj = calloc(1, sizeof(gl_array_object_t));
+        array_object_init(new_obj);
         arrays[i] = (GLuint)new_obj;
     }
 }
@@ -418,8 +478,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 
     for (GLsizei i = 0; i < n; i++)
     {
-        assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), 
-            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", arrays[i]);
+        assert_valid_array(arrays[i]);
 
         gl_array_object_t *obj = (gl_array_object_t*)arrays[i];
         if (obj == NULL) {
@@ -430,6 +489,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
             glBindVertexArray(0);
         }
 
+        array_object_free(obj);
         free(obj);
     }
 }
@@ -437,8 +497,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 void glBindVertexArray(GLuint array)
 {
     if (!gl_ensure_no_begin_end()) return;
-    assertf(array == 0 || is_valid_object_id(array), 
-        "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
+    assert_valid_array(array);
 
     gl_array_object_t *obj = (gl_array_object_t*)array;
 
@@ -458,3 +517,109 @@ GLboolean glIsVertexArray(GLuint array)
     //        which used to be valid array IDs in legacy OpenGL.
     return is_valid_object_id(array);
 }
+
+static void array_object_update_layout(gl_array_object_t *array_object)
+{
+    vertex_layout *vl = &array_object->layout;
+    vertex_layout_init(vl);
+
+    if (array_object->arrays[ATTRIB_VERTEX].enabled) {
+        array_object->out_offsets[ATTRIB_VERTEX] = vl->vertex_layout.stride;
+        vertex_layout_append(vl, MGFX_ATTRIBUTE_POS_NORM, sizeof(int16_t) * 4);
+    }
+
+    if (array_object->arrays[ATTRIB_NORMAL].enabled) {
+        array_object->out_offsets[ATTRIB_NORMAL] = vl->vertex_layout.stride - sizeof(int16_t);
+    }
+
+    if (array_object->arrays[ATTRIB_COLOR].enabled) {
+        array_object->out_offsets[ATTRIB_COLOR] = vl->vertex_layout.stride;
+        vertex_layout_append(vl, MGFX_ATTRIBUTE_COLOR, sizeof(uint32_t));
+    }
+
+    if (array_object->arrays[ATTRIB_TEXCOORD].enabled) {
+        array_object->out_offsets[ATTRIB_TEXCOORD] = vl->vertex_layout.stride;
+        vertex_layout_append(vl, MGFX_ATTRIBUTE_TEXCOORD, sizeof(int16_t) * 2);
+    }
+}
+
+static void array_object_update_is_all_vbos(gl_array_object_t *array_object)
+{
+    bool is_all_vbos = true;
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        if (array_object->arrays[i].enabled && array_object->arrays[i].binding == NULL) {
+            is_all_vbos = false;
+            break;
+        }
+    }
+    
+    array_object->is_all_vbos = is_all_vbos;
+}
+
+void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride)
+{
+    gl_array_t *arrays[ATTRIB_COUNT];
+    uint32_t offsets[ATTRIB_COUNT];
+    uint32_t array_count = 0;
+    // TODO: convert matrix indices too as soon as they are supported
+    for (size_t i = 0; i < ATTRIB_MTX_INDEX; i++)
+    {
+        if (!obj->arrays[i].enabled) continue;
+        offsets[array_count] = out_offsets[i];
+        arrays[array_count++] = &obj->arrays[i];
+    }    
+
+    for (size_t i = 0; i < count; i++)
+    {
+        for (size_t j = 0; j < array_count; j++)
+        {
+            uint8_t *dst = ((uint8_t*)dst_buffer) + offsets[j] + i * stride;
+            const uint8_t *src = ((const uint8_t*)arrays[j]->final_pointer) + (i+first) * arrays[j]->final_stride;
+            arrays[j]->rsp_read_func(dst, src, arrays[j]->size);
+        }
+    }
+}
+
+static void array_object_convert_data(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+{
+    uint32_t stride = array_object->layout.vertex_layout.stride;
+
+    // TODO: allocate from a pool?
+    if (array_object->buffer != NULL) {
+        rspq_call_deferred(free_uncached, array_object->buffer);
+    }
+    array_object->buffer = malloc_uncached(stride * count);
+
+    array_convert(array_object, array_object->out_offsets, array_object->buffer, first, count, stride);
+}
+
+void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+{
+    // TODO: throw INVALID OPERATION if any VBOs are currently mapped
+
+    if (array_object->is_layout_dirty) {
+        array_object_update_layout(array_object);
+        array_object->is_layout_dirty = false;
+        array_object->is_data_dirty = true;
+    }
+
+    if (array_object->are_bindings_dirty) {
+        array_object_update_is_all_vbos(array_object);
+        array_object->are_bindings_dirty = false;
+        array_object->is_data_dirty = true;
+    }
+
+    uint32_t end = first + count;
+    uint32_t cached_end = array_object->cached_first + array_object->cached_count;
+
+    // If one or more arrays are not bound to VBOs, we cannot track when vertex data has actually changed.
+    // Therefore, we must always assume the data has changed and re-convert.
+    if (array_object->is_data_dirty || !array_object->is_all_vbos || first < array_object->cached_first || end > cached_end) {
+        array_object_convert_data(array_object, first, count);
+        array_object->cached_first = first;
+        array_object->cached_count = count;
+        array_object->is_data_dirty = false;
+    }
+}
+

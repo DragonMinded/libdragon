@@ -414,3 +414,12 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
         break;
     }
 }
+
+void gl_upload_fog()
+{
+    bool enabled = state->fog;
+    mgfx_set_fog_inline(state->fog_uniform, &(mgfx_fog_parms_t) {
+        .start = enabled ? state->fog_start : 0.0f,
+        .end = enabled ? state->fog_end : 0.0f
+    });
+}

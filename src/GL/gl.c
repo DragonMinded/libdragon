@@ -16,9 +16,9 @@
 #include <math.h>
 #include <malloc.h>
 #include "gl_internal.h"
+#include "../magma/magma_internal.h"
 
 DEFINE_RSP_UCODE(rsp_gl);
-DEFINE_RSP_UCODE(rsp_gl_pipeline);
 
 uint32_t gl_overlay_id;
 uint32_t glp_overlay_id;
@@ -55,8 +55,11 @@ uint32_t gl_get_type_size(GLenum type)
 void gl_init()
 {
     rdpq_init();
+    mg_init();
 
     state = calloc(1, sizeof(gl_state_t));
+
+    hashtable_init(&state->pipeline_cache, MAX_PIPELINE_COUNT, NULL);
 
     gl_texture_init();
 
@@ -137,8 +140,9 @@ void gl_init()
 
     server_state->dither_mode = DITHER_SQUARE_SQUARE << (SOM_ALPHADITHER_SHIFT - 32);
 
+    server_state->magma_state = PhysicalAddr(mg_get_rsp_state());
+
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
-    glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
     gl_rsp_state = PhysicalAddr(rspq_overlay_get_state(&rsp_gl));
 
     gl_matrix_init();
@@ -155,6 +159,12 @@ void gl_init()
     glFrontFace(GL_CCW);
 }
 
+
+static void free_pipeline_visitor(uint32_t key, void *value, int refcount)
+{
+    mg_pipeline_free((mg_pipeline_t*)value);
+}
+
 void gl_close()
 {
     rspq_wait();
@@ -163,7 +173,6 @@ void gl_close()
     gl_primitive_close();
     gl_texture_close();
     rspq_overlay_unregister(gl_overlay_id);
-    rspq_overlay_unregister(glp_overlay_id);
 
     // FIXME: some of the above to deferred deletions, others don't.
     // So we need another rspq_wait.
@@ -173,6 +182,9 @@ void gl_close()
     free_uncached(state->matrix_stacks[1]);
     free_uncached(state->matrix_stacks[2]);
     free_uncached(state->matrix_palette);    
+
+    hashtable_visit(&state->pipeline_cache, free_pipeline_visitor);
+    hashtable_free(&state->pipeline_cache);
 
     free(state);
 }
@@ -522,6 +534,82 @@ void glTexSizeN64(GLushort width, GLushort height)
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_size[0]), (width << 16) | height);
 }
 
+mgfx_features_t get_pipeline_features()
+{
+    //return gl_is_env_map_enabled() ? MGFX_FEATURE_ENV_MAP : 0;
+    return 0;
+}
+
+const vertex_layout *get_current_layout()
+{
+    if (state->begin_end_active) {
+        //return &state->begin_end_layout;
+        return NULL;
+    } else {
+        return &state->array_object->layout;
+    }
+}
+
+inline void fnv1a(uint32_t *hash, uint32_t v)
+{
+    *hash ^= v;
+    *hash *= 0x01000193; // FNV prime
+}
+
+static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout, mgfx_features_t features)
+{
+    // Get pipeline key by creating a hash from all pipeline parameters using FNV-1a hash
+    uint32_t key = 0x811c9dc5; // FNV offset basis
+    for (size_t i = 0; i < layout->attribute_count; i++)
+    {
+        fnv1a(&key, layout->attributes[i].input);
+        fnv1a(&key, layout->attributes[i].offset);
+    }
+    fnv1a(&key, layout->stride);
+    fnv1a(&key, features);
+    return key;
+}
+
+void update_pipeline()
+{
+    const vertex_layout *layout = get_current_layout();
+    mgfx_features_t features = get_pipeline_features();
+
+    /*
+    vertex_layout vl;
+    if (state->lighting && !gl_is_diffuse_tracking_color())
+    {
+        // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
+        // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute
+        // from the vertex shader by copying the vertex layout and omitting the color attribute.
+        // All other attributes will keep their original offsets, so we can use the existing data as-is.
+        vertex_layout_init(&vl);
+        vertex_layout_copy_without(&vl, layout, MGFX_ATTRIBUTE_COLOR);
+        layout = &vl;
+    }
+    */
+
+    uint32_t new_key = get_pipeline_key(&layout->vertex_layout, features);
+    if (new_key == state->current_pipeline_key) return;
+
+    mg_pipeline_t *pipeline = hashtable_lookup(&state->pipeline_cache, new_key);
+    if (pipeline == NULL) {
+        pipeline = mg_pipeline_create(&(mg_pipeline_parms_t) {
+            .vertex_shader_ucode = mgfx_get_shader_ucode(features),
+            .vertex_layout = layout->vertex_layout
+        });
+        hashtable_insert(&state->pipeline_cache, new_key, pipeline);
+    }
+
+    state->current_pipeline_key = new_key;
+    mg_pipeline_bind(pipeline);
+
+    state->fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
+    state->lighting_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_LIGHTING);
+    state->texturing_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_TEXTURING);
+    state->matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
+}
+
 extern inline uint32_t next_pow2(uint32_t v);
 extern inline bool is_in_heap_memory(void *ptr);
 extern inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint32_t flag, bool value);
@@ -540,8 +628,6 @@ extern inline void gl_set_current_color(GLfloat *color);
 extern inline void gl_set_current_texcoords(GLfloat *texcoords);
 extern inline void gl_set_current_normal(GLfloat *normal);
 extern inline void gl_pre_init_pipe(GLenum primitive_mode);
-extern inline void glpipe_init();
-extern inline void glpipe_draw_triangle(int i0, int i1, int i2);
 extern inline int gl_get_rdpcmds_for_update_func(gl_update_func_t update_func);
 extern inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t array_type);
 extern inline uint32_t gl_type_to_index(GLenum type);
@@ -551,4 +637,3 @@ extern inline void gl_cmd_stream_commit(gl_cmd_stream_t *s);
 extern inline void gl_cmd_stream_put_byte(gl_cmd_stream_t *s, uint8_t v);
 extern inline void gl_cmd_stream_put_half(gl_cmd_stream_t *s, uint16_t v);
 extern inline void gl_cmd_stream_end(gl_cmd_stream_t *s);
-extern inline void glpipe_set_vtx_cmd_size(uint16_t patched_cmd_descriptor, uint16_t *cmd_descriptor);

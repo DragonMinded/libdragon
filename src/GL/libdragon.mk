@@ -12,7 +12,6 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/GL/list.o \
 	$(BUILD_DIR)/GL/buffer.o \
 	$(BUILD_DIR)/GL/rsp_gl.o \
-	$(BUILD_DIR)/GL/rsp_gl_pipeline.o \
 	$(BUILD_DIR)/GL/glu.o \
 	$(BUILD_DIR)/GL/cpu_pipeline.o \
 	$(BUILD_DIR)/GL/rsp_pipeline.o 

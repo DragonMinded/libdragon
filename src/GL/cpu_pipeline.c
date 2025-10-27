@@ -97,6 +97,14 @@ static void read_u32_i(GLubyte *dst, const uint32u_t *src, uint32_t count)
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
+static void read_packed565n(GLfloat *dst, const uint16u_t *src, uint32_t count)
+{
+    uint16_t v = *src;
+    dst[0] = ((v>>11)&0x1F) / 15.5f;
+    dst[1] = ((v>>5)&0x3F) / 31.5f;
+    dst[2] = ((v>>0)&0x1F) / 15.5f;
+}
+
 const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
     {
         (cpu_read_attrib_func)read_i8,
@@ -108,6 +116,19 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
         (cpu_read_attrib_func)read_x16_vtx,
+        NULL,
+    },
+    {
+        (cpu_read_attrib_func)read_i8n,
+        NULL,
+        (cpu_read_attrib_func)read_i16n,
+        NULL,
+        (cpu_read_attrib_func)read_i32n,
+        NULL,
+        (cpu_read_attrib_func)read_f32,
+        (cpu_read_attrib_func)read_f64,
+        NULL,
+        (cpu_read_attrib_func)read_packed565n,
     },
     {
         (cpu_read_attrib_func)read_i8n,
@@ -118,6 +139,7 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (cpu_read_attrib_func)read_u32n,
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
+        NULL,
         NULL,
     },
     {
@@ -130,16 +152,6 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
         (cpu_read_attrib_func)read_x16_tex,
-    },
-    {
-        (cpu_read_attrib_func)read_i8n,
-        NULL,
-        (cpu_read_attrib_func)read_i16n,
-        NULL,
-        (cpu_read_attrib_func)read_i32n,
-        NULL,
-        (cpu_read_attrib_func)read_f32,
-        (cpu_read_attrib_func)read_f64,
         NULL,
     },
     {
@@ -152,12 +164,211 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         NULL,
         NULL,
         NULL,
+        NULL,
     },
 };
+
+uint8_t gl_points();
+uint8_t gl_lines();
+uint8_t gl_line_strip();
+uint8_t gl_triangles();
+uint8_t gl_triangle_strip();
+uint8_t gl_triangle_fan();
+uint8_t gl_quads();
+
+void gl_reset_vertex_cache();
 
 static void gl_clip_triangle();
 static void gl_clip_line();
 static void gl_clip_point();
+
+bool gl_init_prim_assembly(GLenum mode)
+{
+    state->lock_next_vertex = false;
+
+    switch (mode) {
+    case GL_POINTS:
+        state->prim_func = gl_points;
+        state->prim_size = 1;
+        break;
+    case GL_LINES:
+        state->prim_func = gl_lines;
+        state->prim_size = 2;
+        break;
+    case GL_LINE_LOOP:
+        // Line loop is equivalent to line strip, except for special case handled in glEnd
+        state->prim_func = gl_line_strip;
+        state->prim_size = 2;
+        state->lock_next_vertex = true;
+        break;
+    case GL_LINE_STRIP:
+        state->prim_func = gl_line_strip;
+        state->prim_size = 2;
+        break;
+    case GL_TRIANGLES:
+        state->prim_func = gl_triangles;
+        state->prim_size = 3;
+        break;
+    case GL_TRIANGLE_STRIP:
+        state->prim_func = gl_triangle_strip;
+        state->prim_size = 3;
+        break;
+    case GL_TRIANGLE_FAN:
+        state->prim_func = gl_triangle_fan;
+        state->prim_size = 3;
+        state->lock_next_vertex = true;
+        break;
+    case GL_QUADS:
+        state->prim_func = gl_quads;
+        state->prim_size = 3;
+        break;
+    case GL_QUAD_STRIP:
+        // Quad strip is equivalent to triangle strip
+        state->prim_func = gl_triangle_strip;
+        state->prim_size = 3;
+        break;
+    case GL_POLYGON:
+        // Polygon is equivalent to triangle fan
+        state->prim_func = gl_triangle_fan;
+        state->prim_size = 3;
+        state->lock_next_vertex = true;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
+        return false;
+    }
+
+    state->primitive_mode = mode;
+    state->prim_progress = 0;
+    state->prim_counter = 0;
+    state->prim_id = 0x80000000;
+
+    return true;
+}
+
+void gl_reset_vertex_cache()
+{
+    memset(state->vertex_cache_ids, 0, sizeof(state->vertex_cache_ids));
+    memset(state->lru_age_table, 0, sizeof(state->lru_age_table));
+    state->lru_next_age = 1;
+}
+
+bool gl_check_vertex_cache(uint32_t id, uint8_t *cache_index, bool lock)
+{
+    const uint32_t INFINITE_AGE = 0xFFFFFFFF; // infinitely recent
+
+    bool miss = true;
+
+    uint32_t min_age = INFINITE_AGE;
+    for (uint8_t ci = 0; ci < VERTEX_CACHE_SIZE; ci++)
+    {
+        if (state->vertex_cache_ids[ci] == id) {
+            miss = false;
+            *cache_index = ci;
+            break;
+        }
+
+        if (state->lru_age_table[ci] < min_age) {
+            min_age = state->lru_age_table[ci];
+            *cache_index = ci;
+        }
+    }
+
+    uint32_t age = lock ? INFINITE_AGE : state->lru_next_age++;
+    state->lru_age_table[*cache_index] = age;
+    state->vertex_cache_ids[*cache_index] = id;
+
+    return miss;
+}
+
+bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index)
+{
+    bool result = gl_check_vertex_cache(vertex_id + 1, cache_index, state->lock_next_vertex);
+
+    if (state->lock_next_vertex) {
+        state->lock_next_vertex = false;
+        state->locked_vertex = *cache_index;
+    }
+
+    return result;
+}
+
+uint8_t gl_points()
+{
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_lines()
+{
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_line_strip()
+{
+    state->prim_indices[0] = state->prim_indices[1];
+
+    return 1;
+}
+
+uint8_t gl_triangles()
+{
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_triangle_strip()
+{
+    // Which vertices are shared depends on whether the primitive counter is odd or even
+    state->prim_indices[state->prim_counter] = state->prim_indices[2];
+    state->prim_counter ^= 1;
+
+    // The next triangle will share two vertices with the previous one, so reset progress to 2
+    return 2;
+}
+
+uint8_t gl_triangle_fan()
+{
+    state->prim_indices[1] = state->prim_indices[2];
+
+    // The next triangle will share two vertices with the previous one, so reset progress to 2
+    // It will always share the last one and the very first vertex that was specified.
+    // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
+    return 2;
+}
+
+uint8_t gl_quads()
+{
+    state->prim_indices[1] = state->prim_indices[2];
+
+    state->prim_counter ^= 1;
+    return state->prim_counter << 1;
+}
+
+bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices)
+{
+    if (state->lock_next_vertex) {
+        state->lock_next_vertex = false;
+        state->locked_vertex = cache_index;
+    }
+
+    state->prim_indices[state->prim_progress] = cache_index;
+    state->prim_progress++;
+
+    if (state->prim_progress < state->prim_size) {
+        return false;
+    }
+
+    memcpy(indices, state->prim_indices, state->prim_size * sizeof(uint8_t));
+
+    assert(state->prim_func != NULL);
+    state->prim_progress = state->prim_func();
+    return true;
+}
 
 static void gl_init_cpu_pipe()
 {
@@ -769,8 +980,14 @@ static void draw_vertex_from_arrays(const gl_array_t *arrays, uint32_t id, uint3
     submit_vertex(cache_index);
 }
 
-static void gl_cpu_begin()
+static void gl_cpu_begin(GLenum mode)
 {
+    // FIXME: This is pessimistically marking everything as used, even if textures are turned off
+    //        CAUTION: texture state is owned by the RSP currently, so how can we determine this?
+    __rdpq_autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
+
+    gl_init_prim_assembly(mode);
+    gl_reset_vertex_cache();
     gl_init_cpu_pipe();
 }
 
@@ -839,7 +1056,7 @@ static void gl_cpu_array_element(uint32_t index)
     draw_vertex_from_arrays(state->array_object->arrays, index, index);
 }
 
-static void gl_cpu_draw_arrays(uint32_t first, uint32_t count)
+static void gl_cpu_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 {
     gl_fill_all_attrib_defaults(state->array_object->arrays);
 
@@ -855,8 +1072,44 @@ static void gl_cpu_draw_arrays(uint32_t first, uint32_t count)
     }
 }
 
-static void gl_cpu_draw_elements(uint32_t count, const void* indices, read_index_func read_index)
+uint32_t read_index_8(const uint8_t *src, uint32_t i)
 {
+    return src[i];
+}
+
+uint32_t read_index_16(const uint16_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+uint32_t read_index_32(const uint32_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+static void gl_cpu_draw_elements(GLenum mode, uint32_t count, const void* indices, GLenum type)
+{
+    read_index_func read_index;
+
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+        read_index = (read_index_func)read_index_8;
+        break;
+    case GL_UNSIGNED_SHORT:
+        read_index = (read_index_func)read_index_16;
+        break;
+    case GL_UNSIGNED_INT:
+        read_index = (read_index_func)read_index_32;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid index type", type);
+        return;
+    }
+
+    if (state->array_object->element_array_buffer != NULL) {
+        indices = state->array_object->element_array_buffer->storage.data + (uint32_t)indices;
+    }
+
     gl_fill_all_attrib_defaults(state->array_object->arrays);
 
     if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {

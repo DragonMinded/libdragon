@@ -224,7 +224,7 @@ static bool gl_query_get_value_source(GLenum value, const void **src, uint32_t *
         SET_RESULT(&state->array_buffer, 1, &from_u32);
         break;
     case GL_ELEMENT_ARRAY_BUFFER_BINDING_ARB:
-        SET_RESULT(&state->element_array_buffer, 1, &from_u32);
+        SET_RESULT(&state->array_object->element_array_buffer, 1, &from_u32);
         break;
     case GL_VERTEX_ARRAY_BINDING:
         SET_RESULT(&state->array_object, 1, &from_u32);

@@ -17,6 +17,11 @@
 #include "rdpq.h"
 #include "../rdpq/rdpq_internal.h"
 #include "rdpq_tri.h"
+#include "vertex_layout.h"
+#include "hashtable_internal.h"
+#include "mgfx.h"
+
+#define MAX_PIPELINE_COUNT          (1<<4)
 
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
@@ -75,13 +80,10 @@ typedef float floatu __attribute__((aligned(1)));
 typedef double doubleu __attribute__((aligned(1)));
 
 extern uint32_t gl_overlay_id;
-extern uint32_t glp_overlay_id;
 extern uint32_t gl_rsp_state;
 
 #define gl_write(cmd_id, ...)               rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
-#define glp_write(cmd_id, ...)              rspq_write(glp_overlay_id, cmd_id, ##__VA_ARGS__)
 #define gl_write_rdp(rdpcmds, cmd_id, ...)  rdpq_write(rdpcmds, gl_overlay_id, cmd_id, ##__VA_ARGS__)
-#define glp_write_rdp(rdpcmds, cmd_id, ...) rdpq_write(rdpcmds, glp_overlay_id, cmd_id, ##__VA_ARGS__)
 
 
 typedef enum {
@@ -105,17 +107,6 @@ typedef enum {
 } gl_command_t;
 
 typedef enum {
-    GLP_CMD_INIT_PIPE           = 0x0,
-    GLP_CMD_SET_VTX_LOADER      = 0x1,
-    GLP_CMD_SET_VTX_CMD_SIZE    = 0x2,
-    GLP_CMD_DRAW_TRI            = 0x3,
-    GLP_CMD_SET_PRIM_VTX        = 0x4,
-    GLP_CMD_SET_BYTE            = 0x5,
-    GLP_CMD_SET_WORD            = 0x6,
-    GLP_CMD_SET_LONG            = 0x7,
-} glp_command_t;
-
-typedef enum {
     GL_UPDATE_NONE                  = 0x0,
     GL_UPDATE_SCISSOR               = 0x1,
     GL_UPDATE_TEXTURE_COMPLETENESS  = 0x2,
@@ -124,9 +115,9 @@ typedef enum {
 
 typedef enum {
     ATTRIB_VERTEX,
+    ATTRIB_NORMAL,
     ATTRIB_COLOR,
     ATTRIB_TEXCOORD,
-    ATTRIB_NORMAL,
     ATTRIB_MTX_INDEX,
     ATTRIB_COUNT
 } gl_array_type_t;
@@ -162,6 +153,7 @@ typedef struct {
 } gl_matrix_t;
 
 typedef struct {
+    GLfloat x, y, w, h, n, f;
     GLfloat scale[3];
     GLfloat offset[3];
 } gl_viewport_t;
@@ -279,11 +271,32 @@ typedef struct {
 } gl_storage_t;
 
 typedef struct {
+    uint32_t offset;
+    uint32_t count;
+    mg_input_assembly_parms_t parms;
+    rspq_block_t *block;
+    uint16_t min_index;
+    uint16_t max_index;
+    bool is_data_dirty;
+} gl_element_array_cache_t;
+
+typedef struct gl_array_object_s gl_array_object_t;
+typedef struct gl_array_object_ref_s gl_array_object_ref_t;
+
+typedef struct gl_array_object_ref_s {
+    gl_array_object_t *array_object;
+    gl_array_object_ref_t *next;
+} gl_array_object_ref_t;
+
+typedef struct {
     GLenum usage;
     GLenum access;
     GLvoid *pointer;
     gl_storage_t storage;
     bool mapped;
+    gl_array_object_ref_t *array_obj_ref;
+    gl_element_array_cache_t *element_cache;
+    uint32_t ref_count;
 } gl_buffer_object_t;
 
 typedef struct {
@@ -296,7 +309,7 @@ typedef struct {
 } gl_cmd_stream_t;
 
 typedef void (*cpu_read_attrib_func)(void*,const void*,uint32_t);
-typedef void (*rsp_read_attrib_func)(gl_cmd_stream_t*,const void*,uint32_t);
+typedef void (*rsp_read_attrib_func)(void*,const void*,uint32_t);
 
 typedef struct {
     GLint size;
@@ -313,8 +326,18 @@ typedef struct {
     rsp_read_attrib_func rsp_read_func;
 } gl_array_t;
 
-typedef struct {
+typedef struct gl_array_object_s {
     gl_array_t arrays[ATTRIB_COUNT];
+    uint32_t out_offsets[ATTRIB_COUNT];
+    gl_buffer_object_t *element_array_buffer;
+    vertex_layout layout;
+    void *buffer;
+    uint32_t cached_first;
+    uint32_t cached_count;
+    bool is_layout_dirty;
+    bool is_data_dirty;
+    bool is_all_vbos;
+    bool are_bindings_dirty;
 } gl_array_object_t;
 
 typedef uint32_t (*read_index_func)(const void*,uint32_t);
@@ -350,7 +373,7 @@ typedef struct {
 } gl_pixel_map_t;
 
 typedef struct {
-    void (*begin)();
+    void (*begin)(GLenum);
     void (*end)();
     void (*vertex)(const void*,GLenum,uint32_t);
     void (*color)(const void*,GLenum,uint32_t);
@@ -358,8 +381,8 @@ typedef struct {
     void (*normal)(const void*,GLenum,uint32_t);
     void (*mtx_index)(const void*,GLenum,uint32_t);
     void (*array_element)(uint32_t);
-    void (*draw_arrays)(uint32_t,uint32_t);
-    void (*draw_elements)(uint32_t,const void*,read_index_func);
+    void (*draw_arrays)(GLenum,uint32_t,uint32_t);
+    void (*draw_elements)(GLenum,uint32_t,const void*,GLenum);
 } gl_pipeline_t;
 
 typedef struct {
@@ -481,7 +504,6 @@ typedef struct {
     GLuint current_list;
 
     gl_buffer_object_t *array_buffer;
-    gl_buffer_object_t *element_array_buffer;
 
     gl_matrix_srv_t *matrix_stacks[3];
     gl_matrix_srv_t *matrix_palette;
@@ -503,6 +525,16 @@ typedef struct {
 
     gl_fixed_precision_t vertex_halfx_precision;
     gl_fixed_precision_t texcoord_halfx_precision;
+
+    hashtable_t pipeline_cache;
+    uint32_t current_pipeline_key;
+    const mg_uniform_t *fog_uniform;
+    const mg_uniform_t *lighting_uniform;
+    const mg_uniform_t *texturing_uniform;
+    const mg_uniform_t *matrices_uniform;
+
+    float near_plane;
+    float far_plane;
 
     bool can_use_rsp;
     bool can_use_rsp_dirty;
@@ -555,6 +587,7 @@ typedef struct {
     uint32_t clear_depth;
     uint32_t palette_index;
     uint32_t dither_mode;
+    phys_addr_t magma_state;
     uint16_t fb_size[2];
     uint16_t depth_func;
     uint16_t alpha_func;
@@ -602,6 +635,12 @@ bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
+void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
+void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
+void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
+void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
+void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
+
 void set_can_use_rsp_dirty();
 
 void gl_update_array_pointers(gl_array_object_t *obj);
@@ -612,6 +651,16 @@ void gl_load_attribs(const gl_array_t *arrays, uint32_t index);
 bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index);
 bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices);
 void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size);
+
+void update_z_planes();
+void update_pipeline();
+void gl_upload_fog();
+void gl_upload_lighting();
+void gl_upload_texturing();
+void gl_upload_matrices();
+void update_viewport();
+void update_culling();
+void update_geom_flags();
 
 inline uint32_t next_pow2(uint32_t v)
 {
@@ -805,12 +854,12 @@ inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t
     switch (array_type) {
     case ATTRIB_VERTEX:
         return attribs->position;
+    case ATTRIB_NORMAL:
+        return attribs->normal;
     case ATTRIB_COLOR:
         return attribs->color;
     case ATTRIB_TEXCOORD:
         return attribs->texcoord;
-    case ATTRIB_NORMAL:
-        return attribs->normal;
     case ATTRIB_MTX_INDEX:
         return attribs->mtx_index;
     default:
@@ -877,27 +926,22 @@ inline void gl_pre_init_pipe(GLenum primitive_mode)
     gl_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 
-inline void glpipe_init()
+inline color_t color_from_floats(const float color[4])
 {
-    glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state);
+    return RGBA32(
+        FLOAT_TO_U8(color[0]),
+        FLOAT_TO_U8(color[1]),
+        FLOAT_TO_U8(color[2]),
+        FLOAT_TO_U8(color[3])
+    );
 }
 
-inline void glpipe_set_vtx_cmd_size(uint16_t patched_cmd_descriptor, uint16_t *cmd_descriptor)
-{
-    glp_write(GLP_CMD_SET_VTX_CMD_SIZE, patched_cmd_descriptor, PhysicalAddr(cmd_descriptor));
-}
+#define gl_require_color_buffer() ({\
+    assertf(state->color_buffer != NULL, "gl_context_begin() not called"); \
+    state->color_buffer; \
+})
 
 #define TEX_SCALE   32.0f
 #define OBJ_SCALE   32.0f
-
-inline void glpipe_draw_triangle(int i0, int i1, int i2)
-{
-    // We pass -1 because the triangle can be clipped and split into multiple
-    // triangles.
-    glp_write_rdp(-1, GLP_CMD_DRAW_TRI,
-        (i0*PRIM_VTX_SIZE),
-        ((i1*PRIM_VTX_SIZE)<<16) | (i2*PRIM_VTX_SIZE)
-    );
-}
 
 #endif

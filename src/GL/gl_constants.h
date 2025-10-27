@@ -68,7 +68,7 @@
 
 #define MAX_PIXEL_MAP_SIZE    32
 
-#define ATTRIB_TYPE_COUNT     9
+#define ATTRIB_TYPE_COUNT     10
 
 #define VTX_SHIFT 5
 #define TEX_SHIFT 8

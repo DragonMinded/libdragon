@@ -1296,3 +1296,10 @@ void glPrioritizeTextures(GLsizei n, const GLuint *textures, const GLclampf *pri
 {
     // Priorities are ignored
 }
+
+void gl_upload_texturing()
+{
+    mgfx_set_texturing_inline(state->texturing_uniform, &(mgfx_texturing_parms_t) {
+        .scale = { 1, 1 }
+    });
+}

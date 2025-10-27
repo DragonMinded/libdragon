@@ -861,3 +861,35 @@ void glShadeModel(GLenum mode)
         return;
     }
 }
+void get_lighting_parms(mgfx_lighting_parms_t *parms)
+{
+    if (!state->lighting) {
+        parms->ambient_color = color_from_packed32(0xFFFFFFFF);
+    } else {
+        parms->ambient_color = color_from_floats(state->light_model_ambient);
+
+        for (size_t i = 0; i < LIGHT_COUNT; i++) {
+            gl_light_t *in_light = &state->lights[i];
+            if (!in_light->enabled) continue;
+
+            mgfx_light_parms_t *out_light = &parms->lights[parms->light_count++];
+            out_light->color = color_from_floats(in_light->diffuse);
+            memcpy(out_light->position.v, in_light->position, sizeof(in_light->position));
+            if (in_light->position[3] != 0.f) {
+                // TODO: how to map constant and linear attenuation?
+                out_light->intensity = fabsf(in_light->quadratic_attenuation) > FM_EPSILON ? 1.f / in_light->quadratic_attenuation : 1.f;
+            }
+        }
+    }
+}
+
+void gl_upload_lighting()
+{
+    mgfx_light_parms_t lights[LIGHT_COUNT];
+    mgfx_lighting_parms_t parms = {
+        .lights = lights
+    };
+
+    get_lighting_parms(&parms);
+    mgfx_set_lighting_inline(state->lighting_uniform, &parms);
+}
