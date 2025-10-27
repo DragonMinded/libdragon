@@ -109,6 +109,11 @@ static void get_overlay_span(rsp_ucode_t *ucode, void **code, uint32_t *code_siz
     *code_size = ucode_size - overlay_offset;
 }
 
+mg_rsp_state_t *mg_get_rsp_state()
+{
+    return rspq_overlay_get_state(&rsp_magma) + RSP_MAGMA_MG_STATE - RSP_MAGMA__RSPQ_SAVED_STATE_START;
+}
+
 void mg_init(void)
 {
     if (is_initialized) return;
