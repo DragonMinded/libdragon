@@ -44,6 +44,8 @@
 #define MG_VTX_SIZE                     40
 #define MG_VTX_SIZE2                    80
 
+#define MG_MAX_UNIFORMS_SIZE            0x200
+
 /// @endcond
 
 #endif
