@@ -6,6 +6,7 @@
 
 #include "rand_internal.h"
 #include "n64types.h"
+#include "entropy.h"
 #include <stdatomic.h>
 #include <unistd.h>
 #include <string.h>
@@ -31,12 +32,16 @@ uint64_t __xorshift64(_Atomic uint64_t *state) {
 __attribute__((noinline))
 void __xorshift64_buffer(void *buf, size_t len, _Atomic uint64_t *state)
 {
-    while (len) {
+    while (len >= 8) {
         uint64_t x = __xorshift64(state);
-        size_t m = len < 8 ? len : 8;
-        memcpy(buf, &x, m);
-        buf += m;
-        len -= m;
+        memcpy(buf, &x, 8);
+        buf += 8;
+        len -= 8;
+    }
+
+    if (len > 0) {
+        uint64_t x = __xorshift64(state);
+        memcpy(buf, &x, len);
     }
 }
 
@@ -59,7 +64,7 @@ __attribute__((constructor))
 void __rand_init(void)
 {
     // Initialize random state
-    getentropy((uint8_t *)&rand_state, sizeof(rand_state));
+    rand_state = getentropy64();
 }
 
 extern inline uint8_t  __rand8(void);
