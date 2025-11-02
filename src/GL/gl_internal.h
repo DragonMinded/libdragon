@@ -20,8 +20,13 @@
 #include "vertex_layout.h"
 #include "hashtable_internal.h"
 #include "mgfx.h"
+#include "ringbuffer.h"
 
 #define MAX_PIPELINE_COUNT          (1<<4)
+
+#define BEGIN_END_BUFFER_COUNT      2
+// divisible by 2, 3, 4, which are all possible required multiples of vertices (see get_begin_end_multiple)
+#define BEGIN_END_BUFFER_SIZE       36
 
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
@@ -299,15 +304,6 @@ typedef struct {
     uint32_t ref_count;
 } gl_buffer_object_t;
 
-typedef struct {
-    rspq_write_t w;
-    union {
-        uint8_t  bytes[4];
-        uint32_t word;
-    };
-    uint32_t buffer_head;
-} gl_cmd_stream_t;
-
 typedef void (*cpu_read_attrib_func)(void*,const void*,uint32_t);
 typedef void (*rsp_read_attrib_func)(void*,const void*,uint32_t);
 
@@ -376,10 +372,6 @@ typedef struct {
     void (*begin)(GLenum);
     void (*end)();
     void (*vertex)(const void*,GLenum,uint32_t);
-    void (*color)(const void*,GLenum,uint32_t);
-    void (*tex_coord)(const void*,GLenum,uint32_t);
-    void (*normal)(const void*,GLenum,uint32_t);
-    void (*mtx_index)(const void*,GLenum,uint32_t);
     void (*array_element)(uint32_t);
     void (*draw_arrays)(GLenum,uint32_t,uint32_t);
     void (*draw_elements)(GLenum,uint32_t,const void*,GLenum);
@@ -391,6 +383,14 @@ typedef struct {
     GLint shift_amount;
     GLfloat to_float_factor;
 } gl_fixed_precision_t;
+
+typedef struct {
+    int16_t position[3];
+    uint16_t normal;
+    uint32_t color;
+    int16_t texcoord[2];
+    uint8_t mtx_index[VERTEX_UNIT_COUNT];
+} native_vertex_t;
 
 typedef struct {
     // Pipeline state
@@ -453,7 +453,17 @@ typedef struct {
     gl_matrix_target_t *current_matrix_target;
 
     bool begin_end_active;
-
+    native_vertex_t current_attribs;
+    native_vertex_t begin_end_saved_vtx;
+    ringbuffer begin_end_buffer;
+    native_vertex_t *begin_end_current_buffer;
+    GLenum begin_end_mode;
+    mg_primitive_topology_t begin_end_topology;
+    uint32_t begin_end_index;
+    uint32_t begin_end_multiple;
+    bool begin_end_need_save;
+    bool begin_end_restore;
+    vertex_layout begin_end_layout;
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
@@ -640,6 +650,7 @@ void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *a
 void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
 void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
+void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
 
 void set_can_use_rsp_dirty();
 
@@ -651,6 +662,7 @@ void gl_load_attribs(const gl_array_t *arrays, uint32_t index);
 bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index);
 bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices);
 void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size);
+void rsp_read_attrib(gl_array_type_t array_type, GLenum type, const void *value, uint32_t size);
 
 void update_z_planes();
 void update_pipeline();
@@ -699,49 +711,6 @@ inline uint32_t gl_type_to_index(GLenum type)
 inline const void *gl_get_attrib_element(const gl_array_t *src, uint32_t index)
 {
     return src->final_pointer + index * src->final_stride;
-}
-
-inline gl_cmd_stream_t gl_cmd_stream_begin(uint32_t ovl_id, uint32_t cmd_id, int size)
-{
-    return (gl_cmd_stream_t) {
-        .w = rspq_write_begin(ovl_id, cmd_id, size),
-        .buffer_head = 2,
-    };
-}
-
-inline void gl_cmd_stream_commit(gl_cmd_stream_t *s)
-{
-    rspq_write_arg(&s->w, s->word);
-    s->buffer_head = 0;
-    s->word = 0;
-}
-
-inline void gl_cmd_stream_put_byte(gl_cmd_stream_t *s, uint8_t v)
-{
-    s->bytes[s->buffer_head++] = v;
-    
-    if (s->buffer_head == sizeof(uint32_t)) {
-        gl_cmd_stream_commit(s);
-    }
-}
-
-inline void gl_cmd_stream_put_half(gl_cmd_stream_t *s, uint16_t v)
-{
-    s->bytes[s->buffer_head++] = v >> 8;
-    s->bytes[s->buffer_head++] = v & 0xFF;
-    
-    if (s->buffer_head == sizeof(uint32_t)) {
-        gl_cmd_stream_commit(s);
-    }
-}
-
-inline void gl_cmd_stream_end(gl_cmd_stream_t *s)
-{
-    if (s->buffer_head > 0) {
-        gl_cmd_stream_commit(s);
-    }
-
-    rspq_write_end(&s->w);
 }
 
 inline bool is_in_heap_memory(void *ptr)

@@ -194,46 +194,58 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     }
 }
 
-static void gl_rsp_begin(GLenum mode)
+void begin_end_next_buffer()
 {
+    state->begin_end_current_buffer = ringbuffer_alloc_next(&state->begin_end_buffer);
+    state->begin_end_index = 0;
 }
 
-static void gl_rsp_end()
+native_vertex_t *begin_end_get_current_vertex()
 {
+    return state->begin_end_current_buffer + state->begin_end_index;
 }
 
-static void gl_rsp_vertex(const void *value, GLenum type, uint32_t size)
+uint32_t get_begin_end_multiple(GLenum mode)
 {
+    switch (mode)
+    {
+    case GL_POINTS:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+        return 1;
+    case GL_LINES:
+    case GL_QUAD_STRIP:
+        return 2;
+    case GL_TRIANGLES:
+        return 3;
+    case GL_QUADS:
+        return 4;
+    default:
+        return 0;
+    }
 }
 
-static void gl_rsp_color(const void *value, GLenum type, uint32_t size)
+bool get_begin_end_need_save(GLenum mode)
 {
-}
-
-static void gl_rsp_tex_coord(const void *value, GLenum type, uint32_t size)
-{
-}
-
-static void gl_rsp_normal(const void *value, GLenum type, uint32_t size)
-{
-}
-
-static void gl_rsp_mtx_index(const void *value, GLenum type, uint32_t size)
-{
-}
-
-static void gl_rsp_array_element(uint32_t index)
-{
-}
-
-static void update_vertex_buffer(uint32_t first, uint32_t count)
-{
-    array_object_update(state->array_object, first, count);
-
-    // It's possible that we are now accessing a sub-range of a previously cached buffer.
-    // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
-    uint32_t buffer_offset = first - state->array_object->cached_first;
-    mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
+    switch (mode)
+    {
+    case GL_LINE_LOOP:
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+        return true;
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    default:
+        return false;
+    }
 }
 
 static void prepare_magma()
@@ -247,6 +259,155 @@ static void prepare_magma()
     update_viewport();
     update_culling();
     update_geom_flags();
+}
+
+static void gl_rsp_begin(GLenum mode)
+{
+    state->primitive_mode = mode;
+    state->begin_end_topology = get_primitive_topology(mode);
+    state->begin_end_multiple = get_begin_end_multiple(mode);
+    state->begin_end_need_save = get_begin_end_need_save(mode);
+
+    prepare_magma();
+
+    mg_draw_begin();
+
+    if (state->begin_end_buffer.buffer == NULL) {
+        ringbuffer_init(&state->begin_end_buffer, sizeof(native_vertex_t) * BEGIN_END_BUFFER_SIZE, BEGIN_END_BUFFER_COUNT);
+    }
+
+    begin_end_next_buffer();
+    gl_update_array_pointers(state->array_object);
+}
+
+void begin_end_draw_current_buffer()
+{
+    mg_bind_vertex_buffer(state->begin_end_current_buffer);
+    mg_draw(&(mg_input_assembly_parms_t) {
+        .primitive_topology = state->begin_end_topology
+    }, state->begin_end_index, 0);
+    ringbuffer_release_current(&state->begin_end_buffer);
+}
+
+static void gl_rsp_end()
+{
+    // TODO: line loops will need special handling (insert saved vtx at the end)
+
+    if (state->begin_end_index > 0) {
+        begin_end_draw_current_buffer();
+    }
+
+    mg_draw_end();
+}
+
+void begin_end_append_vtx(const native_vertex_t *vtx)
+{
+    memcpy(begin_end_get_current_vertex(), vtx, sizeof(native_vertex_t));
+    state->begin_end_index++;
+}
+
+void begin_end_prep_next_buffer(const native_vertex_t *prev_end)
+{
+    // Appending these vertices is guaranteed to not overflow the buffer since we just started a fresh one
+    switch (state->begin_end_mode) {
+    case GL_TRIANGLE_STRIP:
+    {
+        // The two previous vertices
+        begin_end_append_vtx(prev_end - 2);
+        begin_end_append_vtx(prev_end - 1);
+        break;
+    }
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+    {
+        // The "hub" of the fan
+        begin_end_append_vtx(&state->begin_end_saved_vtx);
+        // The previous vertex
+        begin_end_append_vtx(prev_end - 1);
+        break;
+    }
+    }
+}
+
+void begin_end_advance()
+{
+    begin_end_append_vtx(&state->current_attribs);
+
+    // In some cases, we need to save the very first vertex for later (for example triangle fan, line loop)
+    if (state->begin_end_need_save) {
+        memcpy(&state->begin_end_saved_vtx, &state->current_attribs, sizeof(native_vertex_t));
+        state->begin_end_need_save = false;
+    }
+
+    // Check if we have reached the required multiple of vertices and the next multiple would overflow the current buffer
+    if (state->begin_end_index % state->begin_end_multiple == 0 && 
+        state->begin_end_index + state->begin_end_multiple > BEGIN_END_BUFFER_SIZE) {
+        begin_end_draw_current_buffer();
+        native_vertex_t *prev_end = begin_end_get_current_vertex();
+        begin_end_next_buffer();
+        begin_end_prep_next_buffer(prev_end);
+    }
+}
+
+void *get_attrib_dst(gl_array_type_t array_type)
+{
+    switch (array_type)
+    {
+    case ATTRIB_VERTEX:
+        return state->current_attribs.position;
+    case ATTRIB_NORMAL:
+        return &state->current_attribs.normal;
+    case ATTRIB_COLOR:
+        return &state->current_attribs.color;
+    case ATTRIB_TEXCOORD:
+        return state->current_attribs.texcoord;
+    case ATTRIB_MTX_INDEX:
+        return state->current_attribs.mtx_index;
+    default:
+        return NULL;
+    }
+}
+
+void rsp_read_attrib(gl_array_type_t array_type, GLenum type, const void *value, uint32_t size)
+{
+    rsp_read_attrib_func read_func = rsp_read_funcs[array_type][gl_type_to_index(type)];
+    assertf(read_func != NULL, "Could not find read func");
+    void *dst = get_attrib_dst(array_type);
+    assertf(dst != NULL, "Array type not supported");
+
+    read_func(dst, value, size);
+}
+
+static void gl_rsp_vertex(const void *value, GLenum type, uint32_t size)
+{
+    rsp_read_attrib(ATTRIB_VERTEX, type, value, size);
+    begin_end_advance();
+}
+
+static void gl_rsp_array_element(uint32_t index)
+{
+    static const uint32_t out_offsets[ATTRIB_COUNT] = {
+        offsetof(native_vertex_t, position),
+        offsetof(native_vertex_t, normal),
+        offsetof(native_vertex_t, color),
+        offsetof(native_vertex_t, texcoord),
+        offsetof(native_vertex_t, mtx_index),
+    };
+    array_convert(state->array_object, out_offsets, &state->current_attribs, index, 1, sizeof(native_vertex_t));
+
+    if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
+        begin_end_advance();
+    }
+}
+
+static void update_vertex_buffer(uint32_t first, uint32_t count)
+{
+    array_object_update(state->array_object, first, count);
+
+    // It's possible that we are now accessing a sub-range of a previously cached buffer.
+    // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
+    uint32_t buffer_offset = first - state->array_object->cached_first;
+    mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
 }
 
 static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
@@ -349,10 +510,6 @@ const gl_pipeline_t gl_rsp_pipeline = (gl_pipeline_t) {
     .begin = gl_rsp_begin,
     .end = gl_rsp_end,
     .vertex = gl_rsp_vertex,
-    .color = gl_rsp_color,
-    .tex_coord = gl_rsp_tex_coord,
-    .normal = gl_rsp_normal,
-    .mtx_index = gl_rsp_mtx_index,
     .array_element = gl_rsp_array_element,
     .draw_arrays = gl_rsp_draw_arrays,
     .draw_elements = gl_rsp_draw_elements,

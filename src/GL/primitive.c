@@ -37,12 +37,9 @@ void gl_primitive_init()
     state->point_size = 1;
     state->line_width = 1;
 
-    state->current_attributes.color[0] = 1;
-    state->current_attributes.color[1] = 1;
-    state->current_attributes.color[2] = 1;
-    state->current_attributes.color[3] = 1;
-    state->current_attributes.texcoord[3] = 1;
-    state->current_attributes.normal[2] = 1;
+    glNormal3f(0, 0, 1);
+    glColor4f(1, 1, 1, 1);
+    glTexCoord4f(0, 0, 0, 1);
 
     state->vertex_halfx_precision.target_precision = VTX_SHIFT;
     state->texcoord_halfx_precision.target_precision = TEX_SHIFT;
@@ -53,10 +50,19 @@ void gl_primitive_init()
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     set_can_use_rsp_dirty();
+
+    vertex_layout_init(&state->begin_end_layout);
+    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
+    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
+    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
+    state->begin_end_layout.vertex_layout.stride = sizeof(native_vertex_t);
 }
 
 void gl_primitive_close()
 {
+    if (state->begin_end_buffer.buffer != NULL) {
+        ringbuffer_free(&state->begin_end_buffer);
+    }
 }
 
 bool gl_can_use_rsp_pipeline(GLenum mode)
@@ -132,11 +138,8 @@ extern const gl_pipeline_t gl_rsp_pipeline;
 
 static void prepare_drawing(GLenum mode)
 {
-    if (state->can_use_rsp_dirty) {
-        state->can_use_rsp = gl_can_use_rsp_pipeline(mode);
-        state->can_use_rsp_dirty = false;
-        state->current_pipeline = state->can_use_rsp ? &gl_rsp_pipeline : &gl_cpu_pipeline;
-    }
+    state->can_use_rsp = gl_can_use_rsp_pipeline(mode);
+    state->current_pipeline = state->can_use_rsp ? &gl_rsp_pipeline : &gl_cpu_pipeline;
 
     __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
     gl_pre_init_pipe(mode);
@@ -294,33 +297,33 @@ void __gl_vertex(GLenum type, const void *value, uint32_t size)
     state->current_pipeline->vertex(value, type, size);
 }
 
+static void read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
+{
+    gl_read_attrib(array_type, value, type, size);
+    rsp_read_attrib(array_type, type, value, size);
+}
+
+void __gl_normal(GLenum type, const void *value, uint32_t size)
+{
+    read_attrib(ATTRIB_NORMAL, value, type, size);
+    if (!state->begin_end_active) {
+        gl_set_current_normal(state->current_attributes.normal);
+    }
+}
+
 void __gl_color(GLenum type, const void *value, uint32_t size)
 {
-    if (state->begin_end_active) {
-        state->current_pipeline->color(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_COLOR, value, type, size);
+    read_attrib(ATTRIB_COLOR, value, type, size);
+    if (!state->begin_end_active) {
         gl_set_current_color(state->current_attributes.color);
     }
 }
 
 void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
 {
-    if (state->begin_end_active) {
-        state->current_pipeline->tex_coord(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
+    read_attrib(ATTRIB_TEXCOORD, value, type, size);
+    if (!state->begin_end_active) {
         gl_set_current_texcoords(state->current_attributes.texcoord);
-    }
-}
-
-void __gl_normal(GLenum type, const void *value, uint32_t size)
-{
-    if (state->begin_end_active) {
-        state->current_pipeline->normal(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_NORMAL, value, type, size);
-        gl_set_current_normal(state->current_attributes.normal);
     }
 }
 
@@ -331,10 +334,8 @@ void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
         return;
     }
 
-    if (state->begin_end_active) {
-        state->current_pipeline->mtx_index(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_MTX_INDEX, value, type, size);
+    read_attrib(ATTRIB_MTX_INDEX, value, type, size);
+    if (!state->begin_end_active) {
         gl_set_current_mtx_index(state->current_attributes.mtx_index);
     }
 }

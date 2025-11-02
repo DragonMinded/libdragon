@@ -1030,26 +1030,6 @@ static void gl_cpu_vertex(const void *value, GLenum type, uint32_t size)
     submit_vertex(cache_index);
 }
 
-static void gl_cpu_color(const void *value, GLenum type, uint32_t size)
-{
-    gl_read_attrib(ATTRIB_COLOR, value, type, size);
-}
-
-static void gl_cpu_tex_coord(const void *value, GLenum type, uint32_t size)
-{
-    gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
-}
-
-static void gl_cpu_normal(const void *value, GLenum type, uint32_t size)
-{
-    gl_read_attrib(ATTRIB_NORMAL, value, type, size);
-}
-
-static void gl_cpu_mtx_index(const void *value, GLenum type, uint32_t size)
-{
-    gl_read_attrib(ATTRIB_MTX_INDEX, value, type, size);
-}
-
 static void gl_cpu_array_element(uint32_t index)
 {
     gl_fill_all_attrib_defaults(state->array_object->arrays);
@@ -1129,10 +1109,6 @@ const gl_pipeline_t gl_cpu_pipeline = (gl_pipeline_t) {
     .begin = gl_cpu_begin,
     .end = gl_cpu_end,
     .vertex = gl_cpu_vertex,
-    .color = gl_cpu_color,
-    .tex_coord = gl_cpu_tex_coord,
-    .normal = gl_cpu_normal,
-    .mtx_index = gl_cpu_mtx_index,
     .array_element = gl_cpu_array_element,
     .draw_arrays = gl_cpu_draw_arrays,
     .draw_elements = gl_cpu_draw_elements,

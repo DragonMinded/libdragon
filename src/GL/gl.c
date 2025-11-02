@@ -543,8 +543,7 @@ mgfx_features_t get_pipeline_features()
 const vertex_layout *get_current_layout()
 {
     if (state->begin_end_active) {
-        //return &state->begin_end_layout;
-        return NULL;
+        return &state->begin_end_layout;
     } else {
         return &state->array_object->layout;
     }
@@ -632,8 +631,3 @@ extern inline int gl_get_rdpcmds_for_update_func(gl_update_func_t update_func);
 extern inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t array_type);
 extern inline uint32_t gl_type_to_index(GLenum type);
 extern inline void gl_set_current_mtx_index(GLubyte *index);
-extern inline gl_cmd_stream_t gl_cmd_stream_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
-extern inline void gl_cmd_stream_commit(gl_cmd_stream_t *s);
-extern inline void gl_cmd_stream_put_byte(gl_cmd_stream_t *s, uint8_t v);
-extern inline void gl_cmd_stream_put_half(gl_cmd_stream_t *s, uint16_t v);
-extern inline void gl_cmd_stream_end(gl_cmd_stream_t *s);
