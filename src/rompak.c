@@ -25,6 +25,7 @@ typedef struct {
 /** @brief ROMPAK TOC entry */
 typedef struct {
     uint32_t offset;        ///< Offset of the file in the ROM
+    uint32_t size;          ///< Size of the file in bytes
     char name[];            ///< Name of the file
 } entry_t;
 
@@ -38,7 +39,7 @@ static bool extension_match(const char *ext, const char *name)
     return strcmp(ext, name + name_len - ext_len) == 0;
 }
 
-uint32_t rompak_search_ext(const char *ext)
+pi_addr_t rompak_search_ext(const char *ext)
 {
     static bool rompak_corrupted = false;
     static uint32_t toc_addr = 0;

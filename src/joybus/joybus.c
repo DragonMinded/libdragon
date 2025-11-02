@@ -120,14 +120,6 @@ static void si_interrupt(void);
 __attribute__((constructor))
 void __joybus_init(void)
 {
-    // FIXME: this constructor requires the __init_interrupts constructor to be
-    // already run. Since we are not 100% sure of how GCC handles constructor
-    // ordering, we call it explicitly here (there's no harm in calling it
-    // multiple times anyway). Revisit this after gathering more information
-    // on constructor ordering.
-    extern void __init_interrupts(void);
-    __init_interrupts();
-
     // Initialize the message ring buffer
     msgs_widx = 0;
     msgs_ridx = 0;

@@ -172,10 +172,10 @@ void dma_wait(void);
 
 
 /**
- * @brief Read a 32 bit integer from a peripheral using the CPU.
+ * @brief Read a 32 bit integer from a peripheral on the PI bus using the CPU.
  *
  * @param[in] pi_address
- *            Memory address of the peripheral to read from
+ *            PI address of the peripheral to read from
  *
  * @return The 32 bit value read from the peripheral
  * 
@@ -187,14 +187,14 @@ void dma_wait(void);
 uint32_t io_read(pi_addr_t pi_address);
 
 /**
- * @brief Write a 32 bit integer to a peripheral using the CPU.
+ * @brief Write a 32 bit integer to a peripheral on the PI bus using the CPU.
  * 
  * Notice that writes are performed asynchronously, so the data might have not been
  * fully written to the peripheral yet when the function returns. Use #dma_wait if
  * you need to wait for the transfer to be finished.
  *
  * @param[in] pi_address
- *            Memory address of the peripheral to write to
+ *            PI address of the peripheral to write to
  * @param[in] data
  *            32 bit value to write to peripheral
  *

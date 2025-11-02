@@ -99,7 +99,8 @@ struct toc_s {
 	uint32_t num_entries;
 	struct {
 		uint32_t offset;
-		char name[TOC_ENTRY_SIZE - 4];
+		uint32_t size;
+		char name[TOC_ENTRY_SIZE - 8];
 	} files[TOC_MAX_ENTRIES];
 } toc = {
 	.magic = "TOC0",
@@ -126,7 +127,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "File flags (to be used before each file):\n");
-	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (minimum: 4).\n");
+	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (default: 16).\n");
 	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 4-byte aligned.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Binary byte size/offset suffix notation:\n");
@@ -338,7 +339,7 @@ int main(int argc, char *argv[])
 	bool create_toc = false;
 	size_t toc_offset = 0;
 	int header_size = 0;
-	int align_next = 0;
+	int align_next = 16;
 
 	char category = 'N';
 	// Some flashcarts (at least Everdrive X7) seem to automatically set the TV type based on the region field.
@@ -663,9 +664,10 @@ int main(int argc, char *argv[])
 
 				total_bytes_written += num_zeros;
 			}
-
-			align_next = 0;
 		}
+
+		/* Reset to 16 for next file (default) */
+		align_next = 16;
 
 		size_t offset = ftell(write_file);
 
@@ -682,6 +684,7 @@ int main(int argc, char *argv[])
 		{
 			/* Add the file to the toc */
 			toc.files[toc.num_entries].offset = offset;
+			toc.files[toc.num_entries].size = bytes_copied;
 
 			const char *basename = strrchr(arg, '/');
 			if (!basename) basename = strrchr(arg, '\\');
@@ -773,8 +776,10 @@ int main(int argc, char *argv[])
 	/* Write table of contents */
 	if(create_toc)
 	{
-		for (int i=0; i<toc.num_entries; i++)
+		for (int i=0; i<toc.num_entries; i++) {
 			toc.files[i].offset = SWAPLONG(toc.files[i].offset);
+			toc.files[i].size = SWAPLONG(toc.files[i].size);
+		}
 		toc.num_entries = SWAPLONG(toc.num_entries);
 		toc.toc_size = SWAPLONG(toc.toc_size);
 		toc.entry_size = SWAPLONG(toc.entry_size);

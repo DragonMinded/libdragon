@@ -131,7 +131,20 @@ $(INSTALLDIR)/include/n64.mk: n64.mk
 	mkdir -p $(INSTALLDIR)/include
 	install -cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
-install: install-mk libdragon
+gen-version:
+	@mkdir -p $(BUILD_DIR)
+	if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+		git archive --format=tar HEAD libdragon.version \
+			| tar -xOf - libdragon.version > "$(BUILD_DIR)/libdragon.version"; \
+		if ! git diff-index --quiet HEAD -- 2>/dev/null; then \
+			sed 's/"dirty":[[:space:]]*false/"dirty": true/' "$(BUILD_DIR)/libdragon.version" > "$(BUILD_DIR)/version.tmp"; \
+			mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/libdragon.version"; \
+		fi; \
+	else \
+		cp libdragon.version "$(BUILD_DIR)/libdragon.version"; \
+	fi
+
+install: install-mk libdragon gen-version
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/lib
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/$(N64_TARGET)/lib/n64.ld
@@ -139,6 +152,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragonsys.a
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include
+	install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/
@@ -174,7 +188,7 @@ test-clean: install-mk
 
 clobber: clean examples-clean tools-clean test-clean
 
-.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk
+.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk gen-version
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)

@@ -19,3 +19,9 @@ void __ktls_close(void)
 {
     __th_cur_tp = KERNEL_TP_INVALID;
 }
+
+/** @brief TLS constructor */
+__attribute__((constructor(101))) void __ktls_constructor(void)
+{
+    __ktls_init();
+}

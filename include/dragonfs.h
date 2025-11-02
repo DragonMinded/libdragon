@@ -47,10 +47,10 @@
  * @{
  */
 
+#include "n64types.h"
+
 #ifdef N64
-
 #include "ioctl.h"
-
 #endif
 
 /**
@@ -145,17 +145,17 @@ extern "C" {
  * rompak_internal.h). Most users should use this option.
  * 
  * Otherwise, if the ROM cannot be built with a rompak TOC for some reason,
- * a virtual address should be passed. This is normally 0xB0000000 + the offset
- * used when building your ROM + the size of the header file used (typically 0x1000). 
+ * a PI address should be passed. This is normally 0x10000000 + the offset
+ * at which the DFS image is located within the ROM.
  *
  * @param[in] base_fs_loc
- *            Virtual address in cartridge space at which to find the filesystem, or
+ *            PI address in cartridge space at which to find the filesystem, or
  *            DFS_DEFAULT_LOCATION to automatically search for the filesystem in the
  *            cartridge (using the rompak).
  *
  * @return DFS_ESUCCESS on success or a negative error otherwise.
  */
-int dfs_init(uint32_t base_fs_loc);
+int dfs_init(pi_addr_t base_fs_loc);
 
 
 /**
@@ -247,7 +247,7 @@ int dfs_eof(uint32_t handle);
 int dfs_size(uint32_t handle);
 
 /**
- * @brief Return the physical address of a file (in ROM space)
+ * @brief Return the PI address of a file (in ROM space)
  *
  * This function should be used for highly-specialized, high-performance
  * use cases. Using dfs_open / dfs_read is generally acceptable
@@ -260,12 +260,12 @@ int dfs_size(uint32_t handle);
  * @param[in] path
  *            Name of the file
  *
- * @return A pointer to the physical address of the file body, or 0
+ * @return A pointer to the PI address of the file body, or 0
  *         if the file was not found.
  * 
  * @see #dfs_rom_size
  */
-uint32_t dfs_rom_addr(const char *path);
+pi_addr_t dfs_rom_addr(const char *path);
 
 /**
  * @brief Return the size of a file (in ROM data)

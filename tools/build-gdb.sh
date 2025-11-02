@@ -5,6 +5,7 @@
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
 set -euo pipefail
+set -x
 IFS=$'\n\t'
 
 # Check that N64_INST is defined
@@ -13,6 +14,14 @@ if [ -z "${N64_INST-}" ]; then
     echo "Please define N64_INST and point it to the requested installation directory"
     exit 1
 fi
+
+# Path where the toolchain will be built.
+BUILD_PATH="${BUILD_PATH:-toolchain}"
+DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
+
+# Redirect output to a log file
+exec > >(tee "$BUILD_PATH/build-gdb.log") 2>&1
+echo "Build started at: $(date)"
 
 # Dependency source libs (Versions)
 GDB_V=16.2
@@ -23,9 +32,6 @@ N64_TARGET=${N64_TARGET:-mips64-elf}
 
 # Set N64_INST before calling the script to change the default installation directory path
 INSTALL_PATH="${N64_INST}"
-# Path where the toolchain will be built.
-BUILD_PATH="${BUILD_PATH:-toolchain}"
-DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 
 # Determine how many parallel Make jobs to run based on CPU count
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
@@ -62,7 +68,7 @@ download () {
 }
 
 # Dependency downloads and unpack
-test -f "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" || download "https://ftp.gnu.org/gnu/gdb/gdb-$GDB_V.tar.gz"
+test -f "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" || download "https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_V.tar.gz"
 test -d "$BUILD_PATH/gdb-$GDB_V"           || tar -xzf "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" -C "$BUILD_PATH"
 
 # Resolve dependencies on macOS via homebrew
@@ -113,6 +119,7 @@ make install-strip || sudo make install-strip || su -c "make install-strip"
 popd
 
 # Final message
+set +x
 echo
 echo "***********************************************"
 echo "GDB correctly built and installed to LibDragon toolchain"

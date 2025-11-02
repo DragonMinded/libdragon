@@ -211,8 +211,14 @@ void dma_write(const void * ram_address, pi_addr_t rom_address, unsigned long le
 
 uint32_t io_read(pi_addr_t pi_address)
 {
-    // assert(io_accessible(pi_address));  // Guaranteed by the API
-
+    // HACK: to maintain backward compatibility, this function used to accept
+    // also CPU virtual addresses. To still allow for that, we need to convert
+    // them to physical addresses first.
+    if (UNLIKELY(pi_address >= 0x80000000 && pi_address <= 0xBFFFFFFF)) {
+        debugf("io_read: WARNING: deprecated usage of virtual address: %08lX\n", pi_address);
+        pi_address = PhysicalAddr((void*)pi_address);
+    }
+    
     // Convert the PI address into a 64-bit virtual address, which allows a wider
     // range of PI addresses to be accessed.
     vaddr64_t va64 = VirtualUncachedAddr64(pi_address);
@@ -226,7 +232,14 @@ uint32_t io_read(pi_addr_t pi_address)
 
 void io_write(pi_addr_t pi_address, uint32_t data) 
 {
-    // assert(io_accessible(pi_address));  // Guaranteed by the API
+    // HACK: to maintain backward compatibility, this function used to accept
+    // also CPU virtual addresses. To still allow for that, we need to convert
+    // them to physical addresses first. Keep this undocumented though, as we
+    // want to deprecate this behavior.
+    if (UNLIKELY(pi_address >= 0x80000000 && pi_address <= 0xBFFFFFFF)) {
+        debugf("io_write: WARNING: deprecated usage of virtual address: %08lX\n", pi_address);
+        pi_address = PhysicalAddr((void*)pi_address);
+    }
 
     // Convert the PI address into a 64-bit virtual address, which allows a wider
     // range of PI addresses to be accessed.
