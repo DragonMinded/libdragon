@@ -85,10 +85,13 @@ typedef float floatu __attribute__((aligned(1)));
 typedef double doubleu __attribute__((aligned(1)));
 
 extern uint32_t gl_overlay_id;
+extern uint32_t gl2_overlay_id;
 extern phys_addr_t gl_rsp_state;
 
 #define gl_write(cmd_id, ...)               rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
+#define gl2_write(cmd_id, ...)               rspq_write(gl2_overlay_id, cmd_id, ##__VA_ARGS__)
 #define gl_write_rdp(rdpcmds, cmd_id, ...)  rdpq_write(rdpcmds, gl_overlay_id, cmd_id, ##__VA_ARGS__)
+#define gl2_write_rdp(rdpcmds, cmd_id, ...)  rdpq_write(rdpcmds, gl2_overlay_id, cmd_id, ##__VA_ARGS__)
 
 
 typedef enum {
@@ -105,11 +108,15 @@ typedef enum {
     GL_CMD_MATRIX_PUSH      = 0xA,
     GL_CMD_MATRIX_POP       = 0xB,
     GL_CMD_MATRIX_LOAD      = 0xC,
-    GL_CMD_PRE_INIT_PIPE    = 0xD,
-    GL_CMD_PRE_INIT_PIPE_TEX= 0xE,
-    GL_CMD_SET_PALETTE_IDX  = 0xF,
-    GL_CMD_MATRIX_COPY      = 0x10,
+    GL_CMD_SET_PALETTE_IDX  = 0xD,
+    GL_CMD_MATRIX_COPY      = 0xE,
 } gl_command_t;
+
+typedef enum {
+    GL_CMD_COPY_STATE       = 0x0,
+    GL_CMD_PRE_INIT_PIPE    = 0x1,
+    GL_CMD_PRE_INIT_PIPE_TEX= 0x2,
+} gl2_command_t;
 
 typedef enum {
     GL_UPDATE_NONE                  = 0x0,
@@ -884,15 +891,17 @@ inline void gl_set_palette_idx(uint32_t index)
 
 inline void gl_pre_init_pipe(GLenum primitive_mode)
 {
+    gl2_write(GL_CMD_COPY_STATE, gl_rsp_state);
+
     // PreInitPipeTex will run a block with nesting level 1 for texture upload.
     // The command itself does not emit RDP commands (the block does that, so
     // we use a plain gl_write() for it.
     rspq_block_run_rsp(1);
-    gl_write(GL_CMD_PRE_INIT_PIPE_TEX);
+    gl2_write(GL_CMD_PRE_INIT_PIPE_TEX);
 
     // PreInitPipe is similar to rdpq_set_mode_standard wrt RDP commands.
     // It issues SET_SCISSOR + CC + SOM.
-    gl_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);
+    gl2_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 
 inline color_t color_from_floats(const float color[4])

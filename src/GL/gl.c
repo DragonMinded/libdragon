@@ -19,9 +19,10 @@
 #include "../magma/magma_internal.h"
 
 DEFINE_RSP_UCODE(rsp_gl);
+DEFINE_RSP_UCODE(rsp_gl2);
 
 uint32_t gl_overlay_id;
-uint32_t glp_overlay_id;
+uint32_t gl2_overlay_id;
 phys_addr_t gl_rsp_state;
 
 gl_state_t *state;
@@ -145,6 +146,7 @@ void gl_init()
     server_state->magma_state = PhysicalAddr(mg_get_rsp_state());
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
+    gl2_overlay_id = rspq_overlay_register(&rsp_gl2);
     gl_rsp_state = PhysicalAddr(gl_overlay_state);
 
     gl_matrix_init();
@@ -174,6 +176,7 @@ void gl_close()
     gl_list_close();
     gl_primitive_close();
     gl_texture_close();
+    rspq_overlay_unregister(gl2_overlay_id);
     rspq_overlay_unregister(gl_overlay_id);
 
     // FIXME: some of the above to deferred deletions, others don't.
