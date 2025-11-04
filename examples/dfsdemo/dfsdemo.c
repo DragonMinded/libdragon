@@ -5,6 +5,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <libdragon.h>
+#include <sys/stat.h>
 
 #define MAX_LIST            20
 
@@ -12,6 +13,7 @@ typedef struct
 {
     uint32_t type;
     char filename[MAX_FILENAME_LEN+1];
+    char fullpath[MAX_FILENAME_LEN+1];
 } direntry_t;
 
 char dir[512] = "rom://";
@@ -95,6 +97,8 @@ direntry_t *populate_dir(int *count)
     {
         list[(*count)-1].type = buf.d_type;
         strcpy(list[(*count)-1].filename, buf.d_name);
+        strcpy(list[(*count)-1].fullpath, dir);
+        strcat(list[(*count)-1].fullpath, buf.d_name);
 
         /* Grab next */
         ret = dir_findnext(dir,&buf);
@@ -209,6 +213,30 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
     }
 }
 
+void display_file_info(direntry_t *list, int cursor)
+{
+    if (list == NULL) return;
+
+    /* File info display */
+    printf("\n");
+    printf("Info for '%s':\n", list[cursor].fullpath);
+
+    struct stat s;
+    if (stat(list[cursor].fullpath, &s) != 0) 
+    {
+        printf("stat failed...\n");
+        return;
+    };
+
+    printf("  Type: ");
+    switch (s.st_mode & S_IFMT) {
+    case S_IFDIR:  printf("Directory\n"); break;
+    case S_IFREG:  printf("Regular file\n"); break;
+    default:       printf("Unknown\n"); break;
+    }
+    printf("  Size: 0x%X\n",(int)(s.st_size));
+}
+
 int main(void)
 {
     /* Initialize video */
@@ -237,6 +265,7 @@ int main(void)
         {
             console_clear();
             display_dir(list, cursor, page, MAX_LIST, count);
+            display_file_info(list, cursor);
             console_render();
 
             joypad_poll();
