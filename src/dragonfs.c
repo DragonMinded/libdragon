@@ -28,7 +28,9 @@ enum
     /** @brief Walk the directory structure for the purpose of changing directories */
     WALK_CHDIR,
     /** @brief Walk the directory structure for the purpose of opening a file or directory */
-    WALK_OPEN
+    WALK_OPEN,
+    /** @brief Walk the directory structure for the purpose of inspecting a file or directory */
+    WALK_STAT
 };
 
 /**
@@ -405,13 +407,17 @@ static pi_addr_t find_dirent(char *name, pi_addr_t cur_node)
  * itself is returned.  If it is a directory, the directory entry of the first
  * file or directory inside that directory is returned. 
  *
+ * If mode is WALK_STAT, the result of this function is the same as WALK_OPEN,
+ * except directories return their own directory entry, instead of the first
+ * file or directory inside that directory.
+ *
  * The type specifier allows a person to specify that only a directory or file
- * should be returned.  This works for WALK_OPEN only.
+ * should be returned.  This works for WALK_OPEN and WALK_STAT only.
  * 
  * @param[in]     path
  *                The path to walk through
  * @param[in]     mode
- *                Either #WALK_CHDIR or #WALK_OPEN.
+ *                Either #WALK_CHDIR, #WALK_OPEN or #WALK_STAT.
  * @param[in,out] dirent
  *                Directory entry to start at, directory entry finished at
  * @param[in]     type
@@ -485,8 +491,17 @@ static int recurse_path(const char * const path, int mode, pi_addr_t *dirent, in
 
                 if(FILETYPE(flags) == FLAGS_DIR)
                 {
-                    /* Push subdirectory onto stack and loop */
-                    push_directory(get_first_entry(&node));
+                    /* Only perform special handling if this is the last thing we are doing */
+                    if(mode == WALK_STAT && !cur_path) 
+                    {
+                        /* Push current directory onto stack in preparation of a return */
+                        push_directory(tmp_node);
+                    } 
+                    else 
+                    {
+                        /* Push subdirectory onto stack and loop */
+                        push_directory(get_first_entry(&node));
+                    }
                     last_type = TYPE_DIR;
                 }
                 else
@@ -531,7 +546,7 @@ static int recurse_path(const char * const path, int mode, pi_addr_t *dirent, in
         ret = DFS_ENOFILE;
     }
 
-    if(mode == WALK_OPEN)
+    if(mode == WALK_OPEN || mode == WALK_STAT)
     {
         /* Must return the node found if we found one */
         if(ret == DFS_ESUCCESS && dirent)
@@ -540,7 +555,7 @@ static int recurse_path(const char * const path, int mode, pi_addr_t *dirent, in
         }
     }
 
-    if(mode == WALK_OPEN || ret != DFS_ESUCCESS)
+    if(mode == WALK_OPEN || mode == WALK_STAT || ret != DFS_ESUCCESS)
     {
         /* Restore stack */
         directory_top = dir_loc;
@@ -1170,6 +1185,57 @@ static int __fstat( void *file, struct stat *st )
 }
 
 /**
+ * @brief Newlib-compatible stat
+ *
+ * @param[in]  file
+ *             File name of the file in question
+ * @param[out] st
+ *             Stat structure to populate
+ *
+ * @return 0 on success or a negative value on error.
+ */
+static int __stat( char *name, struct stat *st )
+{
+    pi_addr_t dirent;
+    int ret = recurse_path(name, WALK_STAT, &dirent, TYPE_ANY);
+
+    if(ret != DFS_ESUCCESS) {
+        /* File not found, or other error */
+        return ret;
+    }
+
+    /* We now have the pointer to the first entry */
+    directory_entry_t t_node;
+    grab_sector(dirent, &t_node);
+
+    /* Populate the structure with the proper values */
+    uint32_t flags = get_flags(&t_node);
+    if (FILETYPE(flags) == FLAGS_FILE) {
+        st->st_mode = S_IFREG;
+        st->st_size = (int)(get_size(&t_node));
+    } else {
+        st->st_mode = S_IFDIR;
+        st->st_size = 0;
+    }
+
+    /* Fill the rest of the structure with placeholders */
+    st->st_dev = 0;
+    st->st_ino = 0;
+    st->st_nlink = 1;
+    st->st_uid = 0;
+    st->st_gid = 0;
+    st->st_rdev = 0;
+    st->st_atime = 0;
+    st->st_mtime = 0;
+    st->st_ctime = 0;
+    st->st_blksize = 0;
+    st->st_blocks = 0;
+    //st->st_attr = S_IAREAD | S_IAREAD;
+
+    return DFS_ESUCCESS;
+}
+
+/**
  * @brief Newlib-compatible lseek
  *
  * @param[in] file
@@ -1310,6 +1376,7 @@ static int __ioctl(void *file, unsigned long cmd, void *argp)
 static filesystem_t dragon_fs = {
     .open = __open,
     .fstat = __fstat,
+    .stat = __stat,
     .lseek = __lseek,
     .read = __read,
     .close = __close,
