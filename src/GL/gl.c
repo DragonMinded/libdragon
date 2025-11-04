@@ -22,7 +22,7 @@ DEFINE_RSP_UCODE(rsp_gl);
 
 uint32_t gl_overlay_id;
 uint32_t glp_overlay_id;
-uint32_t gl_rsp_state;
+phys_addr_t gl_rsp_state;
 
 gl_state_t *state;
 
@@ -63,7 +63,9 @@ void gl_init()
 
     gl_texture_init();
 
-    gl_server_state_t *server_state = UncachedAddr(rspq_overlay_get_state(&rsp_gl));
+    void *gl_overlay_state = rspq_overlay_get_state(&rsp_gl);
+
+    gl_server_state_t *server_state = UncachedAddr(gl_overlay_state);
     memset(server_state, 0, sizeof(gl_server_state_t));
 
     memcpy(&server_state->bound_textures[0], state->default_textures[0].srv_object, sizeof(gl_srv_texture_object_t));
@@ -143,7 +145,7 @@ void gl_init()
     server_state->magma_state = PhysicalAddr(mg_get_rsp_state());
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
-    gl_rsp_state = PhysicalAddr(rspq_overlay_get_state(&rsp_gl));
+    gl_rsp_state = PhysicalAddr(gl_overlay_state);
 
     gl_matrix_init();
     gl_lighting_init();

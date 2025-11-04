@@ -85,7 +85,7 @@ typedef float floatu __attribute__((aligned(1)));
 typedef double doubleu __attribute__((aligned(1)));
 
 extern uint32_t gl_overlay_id;
-extern uint32_t gl_rsp_state;
+extern phys_addr_t gl_rsp_state;
 
 #define gl_write(cmd_id, ...)               rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
 #define gl_write_rdp(rdpcmds, cmd_id, ...)  rdpq_write(rdpcmds, gl_overlay_id, cmd_id, ##__VA_ARGS__)
@@ -569,7 +569,7 @@ typedef struct {
     int16_t tex_coords[4];
     int8_t normal[3];
     uint8_t mtx_index;
-    uint32_t matrix_pointers[5];
+    phys_addr_t matrix_pointers[5];
     uint32_t loaded_mtx_index[2];
     uint32_t flags;
     gl_fog_params_t fog_params;
@@ -591,7 +591,7 @@ typedef struct {
     uint32_t blend_cycle;
     uint32_t fog_color;
     uint32_t flags2;
-    uint32_t texture_ids[2];
+    phys_addr_t texture_ids[2];
     uint32_t uploaded_tex;
     uint32_t clear_color;
     uint32_t clear_depth;
