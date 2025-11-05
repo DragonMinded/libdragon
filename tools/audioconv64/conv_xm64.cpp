@@ -357,6 +357,7 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	// Add the necessary maximum margin to the size of the pattern buffer
 	// See the code in asset_buf_size() for more information.
 	ctx->ctx_size_stream_pattern_buf += max_inplace_margin;
+	ctx->ctx_size_stream_pattern_buf += 4;  // max alignment for 32-bit loads (for shrinkler)
 	ctx->ctx_size_stream_pattern_buf += 8;  // margin for OOB writes of decompressors
 	ctx->ctx_size_stream_pattern_buf = (ctx->ctx_size_stream_pattern_buf + 15) / 16 * 16;
 	placeholder_set_offset(meta, ctx->ctx_size_stream_pattern_buf, "ctx_size_stream_pattern_buf");
