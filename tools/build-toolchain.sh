@@ -2,6 +2,20 @@
 # N64 MIPS GCC toolchain build/install script for Unix distributions
 # (c) 2012-2025 DragonMinded and LibDragon Contributors.
 # Licensed under the Unlicense. See LICENSE.md for details.
+#
+# This script builds a toolchain for the N64. It is a standard GCC cross-compiler
+# with target "mips64-elf".
+#
+# We build two sysroots:
+# - One with newlib as libc, in $N64_INST/$N64_TARGET/newlib
+# - One with picolibc as libc, in $N64_INST/$N64_TARGET/picolibc
+#
+# For backward compatibility, we also build symlinks so that
+# $N64_INST/$N64_TARGET/{include,lib} point to the newlib sysroot, which makes
+# sure that old build scripts will still work with this toolchain. Modern
+# libdragon build scripts instead know about these two sysroots and select the
+# correct directory depending on the configuration.
+#
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
 set -euo pipefail
@@ -587,8 +601,6 @@ else
     ninja -j "$JOBS"
     ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
     popd
-
-    # (deferred) version files written after all builds complete
 
     # Finish compiling GCC
     mkdir -p gcc_compile
