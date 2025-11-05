@@ -83,6 +83,22 @@ command_exists () {
     return $?
 }
 
+# Automatically run the command with sudo/su if needed.
+autosudo() {
+    "$@" && return 0
+
+    if command_exists sudo; then
+        sudo env PATH="$PATH" "$@" && return 0
+    fi
+
+    if command_exists su; then
+        su -c "env PATH=\"$PATH\" $*"
+        return $?
+    fi
+
+    return 1
+}
+
 # Download the file URL using wget or curl (depending on which is installed)
 download () {
     local url="$1"
@@ -112,12 +128,8 @@ install_ktls_header () {
     ' "$SCRIPT_PATH" > "$tmpfile"
 
     local dest_dir="$prefix/$N64_TARGET/include"
-    mkdir -p "$dest_dir" || \
-        sudo mkdir -p "$dest_dir" || \
-        su -c "mkdir -p \"$dest_dir\""
-    install -m 0644 "$tmpfile" "$dest_dir/ktls.h" || \
-        sudo install -m 0644 "$tmpfile" "$dest_dir/ktls.h" || \
-        su -c "install -m 0644 \"$tmpfile\" \"$dest_dir/ktls.h\""
+    autosudo mkdir -p "$dest_dir"
+    autosudo install -m 0644 "$tmpfile" "$dest_dir/ktls.h"
 
     rm -f "$tmpfile"
 }
@@ -210,11 +222,8 @@ patch_gcc_specs () {
     specs_dest="$specs_dest_dir/specs"
 
     # Install patched spec file
-    mkdir -p "$specs_dest_dir" || sudo mkdir -p "$specs_dest_dir" || su -c "mkdir -p '$specs_dest_dir'"
-
-    install -m 0644 "$patched_tmp" "$specs_dest" || \
-        sudo install -m 0644 "$patched_tmp" "$specs_dest" || \
-        su -c "install -m 0644 '$patched_tmp' '$specs_dest'"
+    autosudo mkdir -p "$specs_dest_dir"
+    autosudo install -m 0644 "$patched_tmp" "$specs_dest"
 }
 
 # Compilation on macOS via homebrew
@@ -367,9 +376,7 @@ if [ "$ZLIB_V" != "" ]; then
                 BINARY_PATH="$INSTALL_PATH/bin" \
                 INCLUDE_PATH="$INSTALL_PATH/include" \
                 LIBRARY_PATH="$INSTALL_PATH/lib"
-            make -f win32/Makefile.gcc install || \
-            sudo make -f win32/Makefile.gcc install || \
-            su -c "make -f win32/Makefile.gcc install"
+            autosudo make -f win32/Makefile.gcc install
         )
     fi
     popd
@@ -385,7 +392,7 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --enable-static \
         --disable-shared
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     make distclean
     popd
 
@@ -397,7 +404,7 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --enable-static \
         --disable-shared
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     make distclean
     popd
 fi
@@ -411,7 +418,7 @@ pushd binutils_compile_target
     --with-cpu=mips64vr4300 \
     --disable-werror
 make -j "$JOBS"
-make install-strip || sudo make install-strip || su -c "make install-strip"
+autosudo make install-strip
 popd
 
 # Compile GCC for MIPS N64.
@@ -434,9 +441,9 @@ pushd gcc_compile_target
     --disable-nls \
     --disable-werror
 make all-gcc -j "$JOBS"
-make install-gcc || sudo make install-gcc || su -c "make install-gcc"
+autosudo make install-gcc
 make all-target-libgcc -j "$JOBS"
-make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+autosudo make install-target-libgcc
 popd
 
 install_ktls_header "$CROSS_PREFIX"
@@ -455,7 +462,7 @@ CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/co
     --enable-newlib-multithread \
     --enable-newlib-retargetable-locking
 make -j "$JOBS"
-make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+autosudo make install
 popd
 
 # Meson cross file (required to build picolibc). Materialize from inline block.
@@ -498,7 +505,7 @@ meson setup \
     -Dincludedir=mips64-elf/picolibc/include \
     ../"picolibc-$PICOLIBC_V"
 ninja -j "$JOBS"
-ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
+autosudo ninja install
 popd
 
 # For a standard cross-compiler, the only thing left is to finish compiling the target libraries
@@ -506,7 +513,7 @@ popd
 if [ "$N64_BUILD" == "$N64_HOST" ]; then
     pushd gcc_compile_target
     make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 else
     # Compile HOST->TARGET binutils
@@ -525,7 +532,7 @@ else
         --disable-werror \
         --without-msgpack
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 
     # Compile HOST->TARGET gcc
@@ -549,7 +556,7 @@ else
         --disable-win32-registry \
         --disable-nls
     make all-target-libgcc -j "$JOBS"
-    make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+    autosudo make install-target-libgcc
     popd
 
     # Compile newlib for target, then relocate into final sysroot structure (INSTALL_PATH)
@@ -565,7 +572,7 @@ else
         --enable-newlib-multithread \
         --enable-newlib-retargetable-locking
     make -j "$JOBS"
-    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+    autosudo make install
     popd
 
     # Compile picolibc for target directly into final sysroot (INSTALL_PATH)
@@ -599,14 +606,14 @@ else
         -Dincludedir=mips64-elf/picolibc/include \
         ../"picolibc-$PICOLIBC_V"
     ninja -j "$JOBS"
-    ninja install || sudo env PATH="$PATH" ninja install || su -c "env PATH=\"$PATH\" ninja install"
+    autosudo ninja install
     popd
 
     # Finish compiling GCC
     mkdir -p gcc_compile
     pushd gcc_compile
     make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 fi
 
@@ -619,44 +626,34 @@ patch_gcc_specs 1
 # with picolibc, and use a symlink to keep it as default for backward compatibility.
 if [ "$N64_HOST" != "x86_64-w64-mingw32" ]; then
     if [ ! -L "$INSTALL_PATH/$N64_TARGET/include" ]; then
-        mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib" || sudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
+        autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
 
-        mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include" || \
-            sudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include"
-        mv "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib/lib" || \
-            sudo mv "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib/lib"
+        autosudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include"
+        autosudo mv "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib/lib"
 
-        ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include" || \
-            sudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include"
-        ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib" "$INSTALL_PATH/$N64_TARGET/lib" || \
-            sudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib" "$INSTALL_PATH/$N64_TARGET/lib"
+        autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include"
+        autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib"     "$INSTALL_PATH/$N64_TARGET/lib"
     fi
 else
-    mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib" || sudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
+    autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
 
-    cp -a "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib" || \
-        sudo cp -a "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib"
-    cp -a "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib" || \
-        sudo cp -a "$INSTALL_PATH/$N64_TARGET/lib" "$INSTALL_PATH/$N64_TARGET/newlib"
+    autosudo cp -a "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib"
+    autosudo cp -a "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib"
 fi
 
 # Write per-libc toolchain.version files under INSTALL_PATH
 # Ensure include directories exist before writing
 dest_dir="$INSTALL_PATH/$N64_TARGET/newlib/include"
-mkdir -p "$dest_dir" || sudo mkdir -p "$dest_dir"
+autosudo mkdir -p "$dest_dir"
 TOOLCHAIN_VERSION_FILE_NEWLIB="$dest_dir/toolchain.version"
 VERSION_NEWLIB="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"newlib\": \"$NEWLIB_V\"\n}"
-printf '%s\n' "$VERSION_NEWLIB" > "$TOOLCHAIN_VERSION_FILE_NEWLIB" || \
-    sudo sh -c "printf '%s\\n' \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\"" || \
-    su -c "printf '%s\\n' \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\""
+autosudo sh -c "printf '%s\\n' \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\""
 
 dest_dir="$INSTALL_PATH/$N64_TARGET/picolibc/include"
-mkdir -p "$dest_dir" || sudo mkdir -p "$dest_dir"
+autosudo mkdir -p "$dest_dir"
 TOOLCHAIN_VERSION_FILE_PICO="$dest_dir/toolchain.version"
 VERSION_PICO="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"picolibc\": \"$PICOLIBC_V\"\n}"
-printf '%s\n' "$VERSION_PICO" > "$TOOLCHAIN_VERSION_FILE_PICO" || \
-    sudo sh -c "printf '%s\\n' \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\"" || \
-    su -c "printf '%s\\n' \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\""
+autosudo sh -c "printf '%s\\n' \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\""
 
 if [ "$MAKE_V" != "" ]; then
     pushd "make-$MAKE_V"
@@ -668,7 +665,7 @@ if [ "$MAKE_V" != "" ]; then
         --build="$N64_BUILD" \
         --host="$N64_HOST"
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 fi
 
