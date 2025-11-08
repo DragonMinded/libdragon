@@ -1418,7 +1418,7 @@ int dfs_init(uint32_t base_fs_loc)
     if( base_fs_loc == DFS_DEFAULT_LOCATION )
     {
         /* Search for the DFS image location in the ROM */
-        base_fs_loc = rompak_search_ext( ".dfs" );
+        base_fs_loc = rompak_search_ext( ".dfs", NULL );
         if( !base_fs_loc )
         {
             /* We could not find the DragonFS via rompak.

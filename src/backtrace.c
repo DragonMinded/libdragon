@@ -193,7 +193,7 @@ static symtable_header_t symt_open(void *addr) {
 		//Open SYMT from rompak
         static uint32_t mainexe_symt = 0xFFFFFFFF;
         if (mainexe_symt == 0xFFFFFFFF) {
-            mainexe_symt = rompak_search_ext(".sym");
+            mainexe_symt = rompak_search_ext(".sym", NULL);
             if (!mainexe_symt)
                 debugf("backtrace: no symbol table found in the rompak\n");
         }
