@@ -99,8 +99,6 @@ void rompak_walk(rompak_walk_callback_t callback, void *ctx)
         data_cache_hit_writeback_invalidate(entry, header.entry_size);
         dma_read(entry, toc_addr + sizeof(header_t) + i*header.entry_size, header.entry_size);
 
-        debugf("rompak_walk: %s at 0x%lx (size 0x%lx)\n", entry->name, 0x10000000 + entry->offset, entry->size);
-
         if (!callback(ctx, entry->name, 0x10000000 + entry->offset, entry->size))
             return;
     }
