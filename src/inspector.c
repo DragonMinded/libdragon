@@ -690,10 +690,10 @@ static void inspector(exception_t* ex, enum Mode mode) {
         cursor_columns = 64;
         graphics_draw_box(disp, 0, YEND, 640, 240-YEND, COLOR_TEXT);
         graphics_set_color(COLOR_BACKGROUND, COLOR_TEXT);
-        int indent = 15 - (strlen(version.branch) + (version.dirty ? 1 : 0) + strlen(version.commit_date))/2;
+        int indent = 10 - (strlen(version.branch) + (version.dirty ? 1 : 0) + strlen(version.commit_date))/2;
         for (int i = 0; i < indent; i++) putc(' ', stdout);
-		printf("LibDragon Inspector | %s%s (%s) | Page %d/%d", 
-            version.branch, version.dirty ? "*" : "", version.commit_date,
+		printf("LibDragon Inspector | %s%s (%s, %.7s) | Page %d/%d", 
+            version.branch, version.dirty ? "*" : "", version.commit_date, version.hash,
             page+1, PAGE_COUNT);
         fflush(stdout);
 
