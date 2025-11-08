@@ -1,4 +1,5 @@
 {
+  "branch": "preview",
   "hash": "$Format:%H$",
   "commit-date": "$Format:%cs$",
   "dirty": false
