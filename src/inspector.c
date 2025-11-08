@@ -557,6 +557,7 @@ static bool version_walk(void *ctx, const char *name, pi_addr_t address, size_t 
     if (strstr(name, ".version")) {
         printf("\aW%s:\n", name);
         rompak_version_parse(address, size, version_callback, ctx);
+        printf("\n");
     }
     return true;
 }
