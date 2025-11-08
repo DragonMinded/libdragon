@@ -125,17 +125,25 @@ $(INSTALLDIR)/include/n64.mk: n64.mk
 gen-version:
 # Generate a version file for libdragon. We go through git archive so that
 # the export-subst is applied to the template file.
+# If .git doesn't exist, assume export-subst ran and just copy the file.
+# Otherwise, use git-archive to generate the subst'd version file.
+# NOTE: git can fail to access the repository via sudo for security/permissions
+# reasons (for instance, it happens on Mac when using sudo on an external volume).
+# We check for this via git rev-parse. In these cases, we hope the file was
+# generated without sudo as part of the normal build process.
 	@mkdir -p $(BUILD_DIR)
-	if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
-		git archive --format=tar HEAD libdragon.version \
-			| tar -xOf - libdragon.version > "$(BUILD_DIR)/libdragon.version"; \
-		if ! git diff-index --quiet HEAD -- 2>/dev/null; then \
-			sed 's/"dirty":[[:space:]]*false/"dirty": true/' "$(BUILD_DIR)/libdragon.version" > "$(BUILD_DIR)/version.tmp"; \
-			mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/libdragon.version"; \
+	if [ -e .git ]; then \
+		if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+			git archive --format=tar HEAD libdragon.version \
+				| tar -xOf - libdragon.version > "$(BUILD_DIR)/libdragon.version"; \
+			if ! git diff-index --quiet HEAD -- 2>/dev/null; then \
+				sed 's/"dirty":[[:space:]]*false/"dirty": true/' "$(BUILD_DIR)/libdragon.version" > "$(BUILD_DIR)/version.tmp"; \
+				mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/libdragon.version"; \
+			fi; \
 		fi; \
 	else \
-		rm -f "$(BUILD_DIR)/libdragon.version"; \
-	fi
+		cp libdragon.version "$(BUILD_DIR)/libdragon.version"; \
+	fi;
 
 install: install-mk libdragon
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/lib
@@ -145,7 +153,11 @@ install: install-mk libdragon
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragonsys.a
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include
-	install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/
+	if [ -f "$(BUILD_DIR)/libdragon.version" ]; then \
+		install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/; \
+	else \
+		rm -f $(INSTALLDIR)/$(N64_TARGET)/include/libdragon.version; \
+	fi
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/
