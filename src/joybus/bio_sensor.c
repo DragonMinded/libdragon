@@ -1,6 +1,6 @@
 /**
  * @file bio_sensor.c
- * @author Christopher Bonhage <me@christopherbonhage.com>
+ * @author Christopher Bonhage <christopher.bonhage@meeq.tech>
  * @brief Bio Sensor Subsystem
  * @ingroup bio_sensor
  */
