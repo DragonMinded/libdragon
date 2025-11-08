@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <malloc.h>
 #include <unistd.h>
@@ -17,6 +18,7 @@
 #include "rsp.h"
 #include "rdp.h"
 #include "utils.h"
+#include "rompak_internal.h"
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
@@ -261,6 +263,32 @@ void sys_get_heap_stats(heap_stats_t *stats)
 
     stats->total = __heap_total_size;
     stats->used = m.uordblks;
+}
+
+static void version_callback(void *ctx, char *key, char *value)
+{
+    sys_version_t* version = (sys_version_t *)ctx;
+    if (strcmp(key, "branch") == 0) {
+        strlcpy(version->branch, value, sizeof(version->branch));
+    } else if (strcmp(key, "hash") == 0) {
+        strlcpy(version->hash, value, sizeof(version->hash));
+    } else if (strcmp(key, "commit-date") == 0) {
+        strlcpy(version->commit_date, value, sizeof(version->commit_date));
+    } else if (strcmp(key, "dirty") == 0) {
+        version->dirty = strcmp(value, "true") == 0;
+    }
+}
+
+bool sys_get_version(sys_version_t *version)
+{
+    size_t size;
+    pi_addr_t version_addr = rompak_search_ext("libdragon.version", &size);
+    if (!version_addr) {
+        return false;
+    }
+
+    rompak_version_parse(version_addr, size, version_callback, version);
+    return true;
 }
 
 /**
