@@ -1,5 +1,5 @@
 {
-  "hash": "$Format:%h$",
+  "hash": "$Format:%H$",
   "commit-date": "$Format:%cs$",
   "dirty": false
 }
