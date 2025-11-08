@@ -170,11 +170,11 @@ void rompak_version_parse(pi_addr_t file_addr, size_t size, rompak_version_callb
 
         char *val = p;
 		if (*p == '"') {
-			// String value: return pointer including quotes
-			p++;
+			// String value: return pointer without surrounding quotes
+			val = ++p;
 			while (p < end) {
 				if (*p == '\\') { if (++p < end) p++; continue; }
-				if (*p == '"') { p++; break; } // keep closing quote 
+				if (*p == '"') break;
 				p++;
 			}
 		} else {
