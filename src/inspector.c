@@ -629,6 +629,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
     static bool backtrace = false;
+    sys_version_t version = {0};
     joypad_buttons_t key_old = {0};
     joypad_buttons_t key_pressed = {0};
     int prevPad = -1;
@@ -689,7 +690,11 @@ static void inspector(exception_t* ex, enum Mode mode) {
         cursor_columns = 64;
         graphics_draw_box(disp, 0, YEND, 640, 240-YEND, COLOR_TEXT);
         graphics_set_color(COLOR_BACKGROUND, COLOR_TEXT);
-		printf("\t\t\tLibDragon Inspector | Page %d/%d", page+1, PAGE_COUNT);
+        int indent = 15 - (strlen(version.branch) + (version.dirty ? 1 : 0) + strlen(version.commit_date))/2;
+        for (int i = 0; i < indent; i++) putc(' ', stdout);
+		printf("LibDragon Inspector | %s%s (%s) | Page %d/%d", 
+            version.branch, version.dirty ? "*" : "", version.commit_date,
+            page+1, PAGE_COUNT);
         fflush(stdout);
 
 		display_show(disp);
@@ -716,6 +721,8 @@ static void inspector(exception_t* ex, enum Mode mode) {
             // If we draw the first frame, turn on backtrace and redraw immediately
             if (!backtrace) {
                 backtrace = true;
+                // parse version information once
+                sys_get_version(&version);
                 break;
             }
             // Avoid constantly banging the PIF with controller reads, that
