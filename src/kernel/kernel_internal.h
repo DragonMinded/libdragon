@@ -101,6 +101,9 @@ extern kcond_t __kirq_cond_pi;      ///< Condition variable for PI interrupt
  */
 void __kcond_broadcast_isr(kcond_t* cond);
 
+/** @brief Signal a condition within interrupt. */
+void __kcond_signal_isr(kcond_t* cond);
+
 /** @brief Initialize kirq condition variables */
 void __kirq_init(void);
 
