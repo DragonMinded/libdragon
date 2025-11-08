@@ -8,6 +8,7 @@
 #include "display.h"
 #include "debug.h"
 #include "joypad.h"
+#include "rompak_internal.h"
 #include "joybus/joypad_internal.h"
 #include "exception_internal.h"
 #include "system.h"
@@ -546,6 +547,26 @@ static void inspector_page_modules(surface_t *disp, exception_t* ex, joypad_butt
     }
 }
 
+static void version_callback(void *ctx, char *key, char *value)
+{
+    printf("    \aG%s: \aT%s\n", key, value);
+}
+
+static bool version_walk(void *ctx, const char *name, pi_addr_t address, size_t size)
+{
+    if (strstr(name, ".version")) {
+        printf("\aW%s:\n", name);
+        rompak_version_parse(address, size, version_callback, ctx);
+    }
+    return true;
+}
+
+static void inspector_page_version(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
+{
+    title("Versions");
+    rompak_walk(version_walk, NULL);
+}
+
 __attribute__((noreturn))
 static void inspector(exception_t* ex, enum Mode mode) {
     static bool in_inspector = false;
@@ -599,9 +620,11 @@ static void inspector(exception_t* ex, enum Mode mode) {
 		PAGE_FPR,
 		PAGE_CODE,
         PAGE_THREADS,
-        PAGE_MODULES
+        PAGE_MODULES,
+        PAGE_VERSION,
+        
 	};
-	enum { PAGE_COUNT = PAGE_MODULES+1 };
+	enum { PAGE_COUNT = PAGE_VERSION+1 };
 
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
@@ -653,6 +676,9 @@ static void inspector(exception_t* ex, enum Mode mode) {
             break;
         case PAGE_MODULES:
             inspector_page_modules(disp, ex, &key_pressed);
+            break;
+        case PAGE_VERSION:
+            inspector_page_version(disp, ex, &key_pressed);
             break;
 		}
 
