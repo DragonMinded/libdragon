@@ -28,7 +28,7 @@ libdragon: CXXFLAGS+=$(N64_CXXFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: ASFLAGS+=$(N64_ASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
-libdragon: libdragon.a libdragonsys.a
+libdragon: libdragon.a libdragonsys.a gen-version
 
 libdragonsys.a: $(BUILD_DIR)/system.o
 
@@ -123,6 +123,8 @@ $(INSTALLDIR)/include/n64.mk: n64.mk
 	install -cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
 gen-version:
+# Generate a version file for libdragon. We go through git archive so that
+# the export-subst is applied to the template file.
 	@mkdir -p $(BUILD_DIR)
 	if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
 		git archive --format=tar HEAD libdragon.version \
@@ -132,10 +134,10 @@ gen-version:
 			mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/libdragon.version"; \
 		fi; \
 	else \
-		cp libdragon.version "$(BUILD_DIR)/libdragon.version"; \
+		rm -f "$(BUILD_DIR)/libdragon.version"; \
 	fi
 
-install: install-mk libdragon gen-version
+install: install-mk libdragon
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/lib
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/$(N64_TARGET)/lib/n64.ld
@@ -179,7 +181,7 @@ test-clean: install-mk
 
 clobber: clean examples-clean tools-clean test-clean
 
-.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk gen-version
+.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk libdragon gen-version
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)

@@ -87,10 +87,8 @@ N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER2),--controller2 $(N64_ROM_CO
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER3),--controller3 $(N64_ROM_CONTROLLER3))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER4),--controller4 $(N64_ROM_CONTROLLER4))
 
-N64_TOOLFILES = $(N64_INCLUDEDIR)/libdragon.version
-ifneq ("$(wildcard $(N64_INCLUDEDIR)/toolchain.version)","")
-N64_TOOLFILES += $(N64_INCLUDEDIR)/toolchain.version
-endif
+# Add *.version files to the rompak
+N64_TOOLFILES = $(wildcard $(N64_INCLUDEDIR)/*.version)
 
 ifeq ($(D),1)
 CFLAGS+=-g3
