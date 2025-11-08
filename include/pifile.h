@@ -21,15 +21,20 @@
  * 
  * To open a file from the PI bus, use the standard fopen function with
  * a filename starting with "pi:/". For instance, to open a file at address
- * 0x10400000 with length 0xF000, use "pi:/10400000:F000".
+ * 0x10400000 with length 0xF000, use "pi:/10400000:F000". Alternatively,
+ * you can use the #pifile_open function to open the file.
  * 
  * Notice that the specified address must be a PI bus address (not a CPU
  * virtual address). All accesses will be performed using DMA so the
  * full 32-bit PI address space is accessible.
+ *
  */
 
 #ifndef LIBDRAGON_PIFILE_H
 #define LIBDRAGON_PIFILE_H
+
+#include "n64types.h"
+#include <stdio.h>
 
 /**
  * @brief Initialize the PI file system
@@ -38,5 +43,21 @@
  * the "pi:/" filesystem will be available to open files via fopen().
  */
 void pifile_init(void);
+
+/**
+ * @brief Open a file from the PI bus given a base address and size
+ * 
+ * This function opens a "file" on the PI bus. Since it does not rely on 
+ * a filesystem, the "file" is just described as a base address and size.
+ *
+ * The file is opened in read-only mode. Read-write mode is currently not supported.
+ * 
+ * @param[in] base      Base address of the file
+ * @param[in] size      Size of the file
+ * @param[in] flags     Flags to open the file with, for future use. Use 0.
+ * 
+ * @return FILE*        FILE pointer to use with standard C functions (fread, fclose)
+ */
+FILE *pifile_open(pi_addr_t base, size_t size, uint32_t flags);
 
 #endif
