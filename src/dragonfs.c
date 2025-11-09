@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <malloc.h>
 #include <stdalign.h>
+#include <fcntl.h>
 #include "dragonfs.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -1156,6 +1157,12 @@ static void *__open( char *name, int flags )
 {
     /* Always want a consistent interface */
     __dfs_chdir("/");
+
+    /* DragonFS only supports read-only access */
+    if ((flags & O_RDONLY) == 0) {
+        errno = EACCES;
+        return NULL;
+    }
 
     /* We disregard flags here */
     int handle = dfs_open( name );
