@@ -1,6 +1,7 @@
 /**
  * @file dragonfs.c
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief DragonFS
  * @ingroup dfs
  */
@@ -1124,6 +1125,24 @@ int dfs_eof(uint32_t handle)
 }
 
 /**
+ * @brief Set the errno variable based on the error code
+ *
+ * @param[in] error
+ *            Error code to set the errno variable to
+ */
+static void __dfs_set_errno(int error)
+{
+    switch (error) {
+        case DFS_EBADINPUT:  errno = EINVAL; break;
+        case DFS_ENOFILE:    errno = ENOENT; break;
+        case DFS_EBADFS:     errno = ENODEV; break;
+        case DFS_ENFILE:     errno = ENFILE; break;
+        case DFS_EBADHANDLE: errno = EBADF;  break;
+        default:             errno = EPERM;  break;
+    }
+}
+
+/**
  * @brief Newlib-compatible open
  *
  * @param[in] name
@@ -1141,14 +1160,7 @@ static void *__open( char *name, int flags )
     /* We disregard flags here */
     int handle = dfs_open( name );
     if (handle <= 0) {
-        switch (handle) {
-        case DFS_EBADINPUT:  errno = EINVAL; break;
-        case DFS_ENOFILE:    errno = ENOENT; break;
-        case DFS_EBADFS:     errno = ENODEV; break;
-        case DFS_ENFILE:     errno = ENFILE; break;
-        case DFS_EBADHANDLE: errno = EBADF;  break;
-        default:             errno = EPERM;  break;
-        }
+        __dfs_set_errno(handle);
         return NULL;
     }
     return (void *)handle;
@@ -1166,21 +1178,10 @@ static void *__open( char *name, int flags )
  */
 static int __fstat( void *file, struct stat *st )
 {
-    st->st_dev = 0;
-    st->st_ino = 0;
+    memset(st, 0, sizeof(struct stat));
     st->st_mode = S_IFREG;
     st->st_nlink = 1;
-    st->st_uid = 0;
-    st->st_gid = 0;
-    st->st_rdev = 0;
     st->st_size = dfs_size( (uint32_t)file );
-    st->st_atime = 0;
-    st->st_mtime = 0;
-    st->st_ctime = 0;
-    st->st_blksize = 0;
-    st->st_blocks = 0;
-    //st->st_attr = S_IAREAD | S_IAREAD;
-
     return 0;
 }
 
@@ -1201,8 +1202,13 @@ static int __stat( char *name, struct stat *st )
 
     if(ret != DFS_ESUCCESS) {
         /* File not found, or other error */
-        return ret;
+        __dfs_set_errno(ret);
+        return -1;
     }
+
+    /* Initialize the stat structure */
+    memset(st, 0, sizeof(struct stat));
+    st->st_nlink = 1;
 
     /* We now have the pointer to the first entry */
     directory_entry_t t_node;
@@ -1217,20 +1223,6 @@ static int __stat( char *name, struct stat *st )
         st->st_mode = S_IFDIR;
         st->st_size = 0;
     }
-
-    /* Fill the rest of the structure with placeholders */
-    st->st_dev = 0;
-    st->st_ino = 0;
-    st->st_nlink = 1;
-    st->st_uid = 0;
-    st->st_gid = 0;
-    st->st_rdev = 0;
-    st->st_atime = 0;
-    st->st_mtime = 0;
-    st->st_ctime = 0;
-    st->st_blksize = 0;
-    st->st_blocks = 0;
-    //st->st_attr = S_IAREAD | S_IAREAD;
 
     return DFS_ESUCCESS;
 }
@@ -1249,7 +1241,11 @@ static int __stat( char *name, struct stat *st )
  */
 static int __lseek( void *file, int ptr, int dir )
 {
-    dfs_seek( (uint32_t)file, ptr, dir );
+    int err = dfs_seek( (uint32_t)file, ptr, dir );
+    if (err != DFS_ESUCCESS) {
+        __dfs_set_errno(err);
+        return -1;
+    }
 
     return dfs_tell( (uint32_t)file );
 }
@@ -1268,7 +1264,12 @@ static int __lseek( void *file, int ptr, int dir )
  */
 static int __read( void *file, uint8_t *ptr, int len )
 {
-    return dfs_read( ptr, 1, len, (uint32_t)file );
+    int err = dfs_read( ptr, 1, len, (uint32_t)file );
+    if (err < 0) {
+        __dfs_set_errno(err);
+        return -1;
+    }
+    return err;
 }
 
 /**
@@ -1281,7 +1282,12 @@ static int __read( void *file, uint8_t *ptr, int len )
  */
 static int __close( void *file )
 {
-    return dfs_close( (uint32_t)file );
+    int err = dfs_close( (uint32_t)file );
+    if (err != DFS_ESUCCESS) {
+        __dfs_set_errno(err);
+        return -1;
+    }
+    return 0;
 }
 
 /**
@@ -1292,30 +1298,26 @@ static int __close( void *file )
  * @param[out] dir
  *             Directory structure to populate with information on the first entry found
  *
- * @return 0 on success or a negative value on failure.
+ * @return 0 on successful lookup, -1 if the directory existed and is empty,
+ *         or a different negative value on error (in which case, errno will be set).
  */
 static int __findfirst( char *path, dir_t *dir )
 {
     /* Grab first entry, return if bad */
     int flags = __dfs_findfirst( path, dir->d_name, &dir->d_cookie );
-    if( flags < 0 ) { return -1; }
-
-    if( flags == FLAGS_FILE )
-    {
-        dir->d_type = DT_REG;
+    switch (flags) {
+        case FLAGS_FILE:
+            dir->d_type = DT_REG;
+            return 0;
+        case FLAGS_DIR:
+            dir->d_type = DT_DIR;
+            return 0;
+        case FLAGS_EOF:
+            return -1;
+        default:
+            __dfs_set_errno(flags);
+            return -2;
     }
-    else if( flags == FLAGS_DIR )
-    {
-        dir->d_type = DT_DIR;
-    }
-    else
-    {
-        /* Unknown type */
-        return -1;
-    }
-
-    /* Success */
-    return 0;
 }
 
 /**
@@ -1326,28 +1328,19 @@ static int __findfirst( char *path, dir_t *dir )
  *
  * @return 0 on success or a negative value on failure.
  */
-static int __findnext( dir_t *dir )
+static int __findnext( const char * path, dir_t *dir )
 {
-    /* Grab first entry, return if bad */
-    int flags = __dfs_findnext( dir->d_name, &dir->d_cookie );
-    if( flags < 0 ) { return -1; }
-
-    if( flags == FLAGS_FILE )
-    {
-        dir->d_type = DT_REG;
+    switch (__dfs_findnext( dir->d_name, &dir->d_cookie )) {
+        case FLAGS_FILE:
+            dir->d_type = DT_REG;
+            return 0;
+        case FLAGS_DIR:
+            dir->d_type = DT_DIR;
+            return 0;
+        default:
+        case FLAGS_EOF:
+            return -1;
     }
-    else if( flags == FLAGS_DIR )
-    {
-        dir->d_type = DT_DIR;
-    }
-    else
-    {
-        /* Unknown type */
-        return -1;
-    }
-
-    /* Success */
-    return 0;
 }
 
 static int __ioctl(void *file, unsigned long cmd, void *argp)
@@ -1381,7 +1374,7 @@ static filesystem_t dragon_fs = {
     .read = __read,
     .close = __close,
     .findfirst = __findfirst,
-    .findnext = __findnext,
+    .findnext2 = __findnext,
     .ioctl = __ioctl
 };
 
