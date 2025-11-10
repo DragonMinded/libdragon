@@ -166,6 +166,8 @@ static const char *UNKNOWN_SYMBOL = "???";
 /** @brief Base address for addresses in address table */
 static uint32_t addrtable_base = 0;
 
+/** @brief Module resolver */
+module_lookup_func __bt_lookup_module;
 
 /** @brief Check if addr is a valid PC address */
 static bool is_valid_address(uint32_t addr)
@@ -201,8 +203,8 @@ static symtable_header_t symt_open(void *addr) {
         SYMT_ROM = mainexe_symt;
 	} else {
 		dl_module_t *module = NULL;
-		if(__dl_lookup_module) {
-			module = __dl_lookup_module(addr);
+		if(__bt_lookup_module) {
+			module = __bt_lookup_module(addr);
 		}
 		if(module && module->sym_romofs != 0) {
 			//Read module SYMT

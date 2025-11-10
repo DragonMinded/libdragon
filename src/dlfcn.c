@@ -15,6 +15,7 @@
 #include "dragonfs.h"
 #include "dma.h"
 #include "n64sys.h"
+#include "backtrace_internal.h"
 #include "rompak_internal.h"
 #include "utils.h"
 #include "dlfcn_internal.h"
@@ -93,8 +94,6 @@ extern void __cxa_finalize(void *dso);
 /** @brief Demangler function */
 demangle_func __dl_demangle_func;
 
-/** @brief Module resolver */
-module_lookup_func __dl_lookup_module;
 /** @brief Module list head */
 dl_module_t *__dl_list_head;
 /** @brief Module list tail */
@@ -524,7 +523,7 @@ void *dlopen(const char *filename, int mode)
         strcpy(handle->filename, filename);
         //Add module handle to list
         handle->ref_count = 1;
-		__dl_lookup_module = lookup_module;
+		__bt_lookup_module = lookup_module;
         __dl_insert_module(handle);
         //Start running module
         start_module(handle);
