@@ -16,7 +16,6 @@
 #include "backtrace.h"
 #include "backtrace_internal.h"
 #include "kernel/kernel_internal.h"
-#include "dlfcn_internal.h"
 #include "cop0.h"
 #include "n64sys.h"
 #include "mi.h"
@@ -33,6 +32,8 @@ enum Mode {
 };
 
 enum {
+    XTITLE = 64,
+    YTITLE = 2,
     XSTART = 48,
     XEND = 640-48,
     YSTART = 16,
@@ -59,6 +60,7 @@ enum {
 /// @endcond
 
 static int cursor_x, cursor_y, cursor_columns, cursor_wordwrap;
+static enum Mode inspector_mode;
 static surface_t *disp;
 static int fpr_show_mode = 1;
 static int disasm_bt_idx = 0;
@@ -66,8 +68,7 @@ static int disasm_max_frames = 0;
 static int disasm_offset = 0;
 static int thread_offset = 0;
 static int num_threads = 0;
-static int module_offset = 0;
-static bool first_backtrace = true;
+static int backtrace_count = 0;
 
 const char *__mips_gpr[34] = {
 	"zr", "at", "v0", "v1", "a0", "a1", "a2", "a3",
@@ -217,7 +218,11 @@ static int inspector_stdout(char *buf, unsigned int len) {
             break;
         case '\n':
             cursor_x = XSTART;
-            cursor_y += 8;
+            if (cursor_y == YTITLE) {
+                cursor_y = YSTART;
+            } else {
+                cursor_y += 8;
+            }
             cursor_wordwrap = false;
             graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
             break;
@@ -245,13 +250,6 @@ static int inspector_stdout(char *buf, unsigned int len) {
         }
 	}
     return len;
-}
-
-static void title(const char *title) {
-    graphics_draw_box(disp, 0, 0, 640, 12, COLOR_TEXT);
-    graphics_set_color(COLOR_BACKGROUND, COLOR_TEXT);
-    graphics_draw_text(disp, 64, 2, title);
-    graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
 }
 
 static void inspector_print_backtrace(void *bt, int n, int bt_skip, bool also_debugf)
@@ -285,12 +283,12 @@ static void inspector_print_backtrace(void *bt, int n, int bt_skip, bool also_de
     }
 }
 
-static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode mode, bool with_backtrace) {
+static void inspector_page_exception(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
     int bt_skip = 0;
 
-    switch (mode) {
+    switch (inspector_mode) {
     case MODE_EXCEPTION:
-        title("CPU Exception");
+        printf("CPU Exception\n");
         printf("\aO");
         __exception_dump_header(stdout, ex);
         printf("\n");
@@ -311,7 +309,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         break;
 
     case MODE_ASSERTION: {
-        title("CPU Assertion");
+        printf("CPU Assertion\n");
         const char *failedexpr = (const char*)(uint32_t)ex->regs->gpr[4];
         const char *msg = (const char*)(uint32_t)ex->regs->gpr[5];
         va_list args = (va_list)(uint32_t)ex->regs->gpr[6];
@@ -331,7 +329,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         break;
     }
     case MODE_CPP_EXCEPTION: {
-        title("Uncaught C++ Exception");
+        printf("Uncaught C++ Exception\n");
         const char *exctype = (const char*)(uint32_t)ex->regs->gpr[4];
         const char *what = (const char*)(uint32_t)ex->regs->gpr[5];
         printf("\b\aOC++ Exception: %s\n\n", what);
@@ -347,17 +345,16 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
     }
     }
 
-    if (!with_backtrace)
+    if (backtrace_count++ == 0)
         return;
 
     void *bt[32];
     int n = backtrace(bt, 32);
-    inspector_print_backtrace(bt, n, bt_skip, first_backtrace);
-    first_backtrace = false;
+    inspector_print_backtrace(bt, n, bt_skip, backtrace_count == 1);
 }
 
-static void inspector_page_gpr(surface_t *disp, exception_t* ex) {
-    title("CPU Registers");
+static void inspector_page_gpr(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
+    printf("CPU Registers\n");
     cursor_columns = 92;
 
     int c = 0;
@@ -374,9 +371,9 @@ static void inspector_page_fpr(surface_t *disp, exception_t* ex, joypad_buttons_
     if (key_pressed->a)
         fpr_show_mode = (fpr_show_mode + 1) % 3;
 
-    title(fpr_show_mode == 0 ? "CPU Floating Point Registers (Hex)" :
-          fpr_show_mode == 1 ? "CPU Floating Point Registers (Single)" :
-                               "CPU Floating Point Registers (Double)");
+    printf(fpr_show_mode == 0 ? "CPU Floating Point Registers (Hex)\n" :
+           fpr_show_mode == 1 ? "CPU Floating Point Registers (Single)\n" :
+                                "CPU Floating Point Registers (Double)");
 
     int c = 0;
     void cb(void *arg, const char *name, char *hexvalue, char *singlevalue, char *doublevalue) {
@@ -403,7 +400,7 @@ static void inspector_page_disasm(surface_t *disp, exception_t* ex, joypad_butto
         disasm_offset += 4*6;
     }
 
-    title("Disassembly");
+    printf("Disassembly\n");
 
 	void *bt[32];
 	int n = backtrace(bt, 32);
@@ -472,7 +469,7 @@ static void inspector_page_threads(surface_t *disp, exception_t* ex, joypad_butt
     if (key_pressed->d_up && thread_offset >= THREADS_PER_LINE) { thread_offset -= THREADS_PER_LINE; }
     if (key_pressed->d_down && thread_offset+THREADS_PER_LINE < num_threads) { thread_offset += THREADS_PER_LINE; }
 
-    title("Threads");
+    printf("Threads\n");
     if (!__kernel) {
         printf("\aWkernel not initialized\n");
         return;
@@ -525,28 +522,6 @@ static void inspector_page_threads(surface_t *disp, exception_t* ex, joypad_butt
     inspector_print_backtrace(bt, n, 0, false);
 }
 
-static void inspector_page_modules(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
-{
-    dl_module_t *curr_module = __dl_list_head;
-    size_t module_idx = 0;
-    if(key_pressed->d_up && module_offset > 0) {
-        module_offset--;
-    }
-    if(key_pressed->d_down && module_offset+18 < __dl_num_loaded_modules) {
-        module_offset++;
-    }
-    title("Loaded modules");
-    while(curr_module) {
-        if(module_idx >= module_offset && module_idx < module_offset+18) {
-            void *module_min = curr_module->prog_base;
-            void *module_max = ((uint8_t *)module_min)+curr_module->prog_size;
-            printf("%s (%p-%p)\n", curr_module->filename, module_min, module_max);
-        }
-        curr_module = curr_module->next;
-        module_idx++;
-    }
-}
-
 static void version_callback(void *ctx, char *key, char *value)
 {
     printf("    \aG%s: \aT%s\n", key, value);
@@ -564,15 +539,26 @@ static bool version_walk(void *ctx, const char *name, pi_addr_t address, size_t 
 
 static void inspector_page_version(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
 {
-    title("Versions");
+    printf("Versions\n");
     rompak_walk(version_walk, NULL);
 }
+
+/** @brief The inspector pages */
+inspector_page_t inspector_pages[16] = {
+    inspector_page_exception,
+    inspector_page_gpr,
+    inspector_page_fpr,
+    inspector_page_disasm,
+    inspector_page_version,
+    inspector_page_threads,
+};
 
 __attribute__((noreturn))
 static void inspector(exception_t* ex, enum Mode mode) {
     static bool in_inspector = false;
     if (in_inspector) abort();
     in_inspector = true;
+    inspector_mode = mode;
 
     if (__kernel) {
         // Reverse the order of the thread list, so that we show the oldest threads
@@ -615,77 +601,46 @@ static void inspector(exception_t* ex, enum Mode mode) {
 	display_close();
 	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
-	enum Page {
-		PAGE_EXCEPTION,
-		PAGE_GPR,
-		PAGE_FPR,
-		PAGE_CODE,
-        PAGE_THREADS,
-        PAGE_MODULES,
-        PAGE_VERSION,
-        
-	};
-	enum { PAGE_COUNT = PAGE_VERSION+1 };
-
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
-    static bool backtrace = false;
+    bool first_frame = true;
     sys_version_t version = {0};
     joypad_buttons_t key_old = {0};
     joypad_buttons_t key_pressed = {0};
     int prevPad = -1;
-	enum Page page = PAGE_EXCEPTION;
+	int page = 0;
+    int page_count = sizeof(inspector_pages) / sizeof(inspector_pages[0]);
+    while (inspector_pages[page_count-1] == NULL) {
+        page_count--;
+    }
+
 	while (1) {
         if (key_pressed.z || key_pressed.r) {
-            //Do page wrapping logic from left
-            if(page == PAGE_COUNT-1) {
-                page = 0;
-            } else {
-                page++;
-            }
+            // Do page wrapping logic from left
+            page++;
+            if (page >= page_count) page = 0;
         }
         if (key_pressed.l) {
-            //Do page wrapping logic from right
-            if(page == 0) {
-                page = PAGE_COUNT-1;
-            } else {
-                page--;
-            }
+            // Do page wrapping logic from right
+            page--;
+            if (page < 0) page = page_count - 1;
         }
 		disp = display_get();
 
-        cursor_x = XSTART;
-        cursor_y = YSTART;
+        // Clear the screen, initialize printf cursor position
+        cursor_x = XTITLE;
+        cursor_y = YTITLE;
         cursor_columns = 8*8;
         graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
         graphics_fill_screen(disp, COLOR_BACKGROUND);
-
-		switch (page) {
-		case PAGE_EXCEPTION:
-            inspector_page_exception(disp, ex, mode, backtrace);
-			break;
-        case PAGE_GPR:
-            inspector_page_gpr(disp, ex);
-            break;
-        case PAGE_FPR:
-            inspector_page_fpr(disp, ex, &key_pressed);
-            break;
-        case PAGE_CODE:
-            inspector_page_disasm(disp, ex, &key_pressed);
-            break;
-        case PAGE_THREADS:
-            inspector_page_threads(disp, ex, &key_pressed);
-            break;
-        case PAGE_MODULES:
-            inspector_page_modules(disp, ex, &key_pressed);
-            break;
-        case PAGE_VERSION:
-            inspector_page_version(disp, ex, &key_pressed);
-            break;
-		}
-
+        graphics_draw_box(disp, 0, 0, 640, 12, COLOR_TEXT);
+        graphics_set_color(COLOR_BACKGROUND, COLOR_TEXT);
+    
+        // Draw the current page
+        inspector_pages[page](disp, ex, &key_pressed);
         fflush(stdout);
 
+        // Draw the footer
         cursor_x = XSTART;
         cursor_y = YEND + 2;
         cursor_columns = 64;
@@ -695,11 +650,22 @@ static void inspector(exception_t* ex, enum Mode mode) {
         for (int i = 0; i < indent; i++) putc(' ', stdout);
 		printf("LibDragon Inspector | %s%s (%s, %.7s) | Page %d/%d", 
             version.branch, version.dirty ? "*" : "", version.commit_date, version.hash,
-            page+1, PAGE_COUNT);
+            page+1, page_count);
         fflush(stdout);
 
+        // Show the screen
 		display_show(disp);
         vi_wait_vblank();
+
+        // If we drew the first frame, we skipped the backtrace to make sure at least
+        // basic crash information is shown in case the backtrace crashes.
+        // So redraw immediately to attemp displaying the backtrace now.
+        if (first_frame) {
+            first_frame = false;
+            // parse version information once
+            sys_get_version(&version);
+            continue;
+        }
 
         // Loop until a keypress
         while (1) {
@@ -719,13 +685,6 @@ static void inspector(exception_t* ex, enum Mode mode) {
             if (keyPress) {
                 break;
             }
-            // If we draw the first frame, turn on backtrace and redraw immediately
-            if (!backtrace) {
-                backtrace = true;
-                // parse version information once
-                sys_get_version(&version);
-                break;
-            }
             // Avoid constantly banging the PIF with controller reads, that
             // would prevent the RESET button from working.
             wait_ms(1);
@@ -733,6 +692,16 @@ static void inspector(exception_t* ex, enum Mode mode) {
     }
 
 	abort();
+}
+
+void __inspector_add_page(inspector_page_t page) {
+    for (int i = 0; i < sizeof(inspector_pages) / sizeof(inspector_pages[0]); i++) {
+        if (inspector_pages[i] == NULL) {
+            inspector_pages[i] = page;
+            return;
+        }
+    }
+    assertf(0, "Too many inspector pages");
 }
 
 __attribute__((noreturn))
