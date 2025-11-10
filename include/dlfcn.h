@@ -1,7 +1,6 @@
 /**
  * @file dlfcn.h
  * @author gamemasterplc <gamemasterplc@gmail.com>
- * @author marian <marian.muller@serli.com>
  * @brief Dynamic linker subsystem
  * @ingroup dl
  */
@@ -40,40 +39,6 @@ typedef struct {
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-// Embedded GDB script to auto-load DSO symbols
-#ifndef N64_DSO
-/// @cond
-asm(
-".pushsection \".debug_gdb_scripts\", \"MS\",@progbits,1\n"
-".byte 4\n"
-".ascii \"gdb.inlined-script-dso-autoload\\n\"\n"
-".ascii \"import gdb\\n\"\n"
-".ascii \"class BreakpointDsoLoad(gdb.Breakpoint):\\n\"\n"
-".ascii \"  def stop(self):\\n\"\n"
-".ascii \"    frame = gdb.selected_frame()\\n\"\n"
-".ascii \"    src_elf = gdb.execute('printf \\\"%s\\\", module->src_elf', False, True)\\n\"\n"
-".ascii \"    prog_base = int(gdb.execute('printf \\\"%x\\\", module->prog_base', False, True), 16)\\n\"\n"
-".ascii \"    print(\\\"Loading overlay: \\\", src_elf, \\\"(text:\\\", hex(prog_base), \\\")\\\")\\n\"\n"
-".ascii \"    gdb.execute(\\\"add-symbol-file -readnow \\\" + src_elf + \\\" \\\" + hex(prog_base), False, True)\\n\"\n"
-".ascii \"    return False\\n\"\n"
-".ascii \"class BreakpointDsoFree(gdb.Breakpoint):\\n\"\n"
-".ascii \"  def stop(self):\\n\"\n"
-".ascii \"    frame = gdb.selected_frame()\\n\"\n"
-".ascii \"    src_elf = gdb.execute('printf \\\"%s\\\", module->src_elf', False, True)\\n\"\n"
-".ascii \"    prog_base = int(gdb.execute('printf \\\"%x\\\", module->prog_base', False, True), 16)\\n\"\n"
-".ascii \"    print(\\\"Unloading overlay: \\\", src_elf, \\\"(text:\\\", hex(prog_base), \\\")\\\")\\n\"\n"
-".ascii \"    gdb.execute(\\\"remove-symbol-file -a \\\" + hex(prog_base), False, True)\\n\"\n"
-".ascii \"    return False\\n\"\n"
-".ascii \"bp_load = BreakpointDsoLoad(\\\"__dl_insert_module\\\")\\n\"\n"
-".ascii \"bp_load.silent = True\\n\"\n"
-".ascii \"bl_free = BreakpointDsoFree(\\\"__dl_remove_module\\\")\\n\"\n"
-".ascii \"bl_free.silent = True\\n\"\n"
-".byte 0\n"
-".popsection\n"
-);
-/// @endcond
 #endif
 
 /**
