@@ -1159,7 +1159,7 @@ static void *__open( char *name, int flags )
     __dfs_chdir("/");
 
     /* DragonFS only supports read-only access */
-    if ((flags & O_RDONLY) == 0) {
+    if ((flags & O_ACCMODE) != O_RDONLY) {
         errno = EACCES;
         return NULL;
     }
