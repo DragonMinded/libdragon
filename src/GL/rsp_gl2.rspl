@@ -1,0 +1,239 @@
+#include "../../include/magma_constants.h"
+#include "../../include/mgfx_constants.h"
+#include "gl_constants.h"
+
+state {
+    extern vec16 GL_MATRIX_MODELVIEW[4];
+    extern vec16 GL_MATRIX_PROJECTION[4];
+    extern vec16 GL_MATRIX_MVP[4];
+    extern u8 GL_LIGHTS;
+    extern u8 GL_TEX_GEN;
+    extern u16 GL_VIEWPORT_SCALE[4];
+    extern u8 GL_PIPELINES;
+    extern s16 GL_STATE_LIGHT_AMBIENT[4];
+    extern u32 GL_STATE_FLAGS;
+    extern u16 GL_STATE_FOG_PARAMS[4];
+    extern s16 GL_STATE_TEX_SIZE[2];
+    extern s16 GL_STATE_TEX_OFFSET[2];
+    extern u16 GL_TRI_CMD;
+    extern u8 GL_TRI_CULL;
+}
+
+temp_state {
+    extern u8 MG_STATE_STAGING;
+    extern u8 MG_STATE_STAGING_END;
+
+    u16 MG_VIEWPORT[8];
+    u16 MG_CLIP_FACTORS[4];
+    u16 MG_VERTEX_SIZE[4];
+    u32 MG_SHADER_TEXT;
+    u32 MG_SHADER_TEXT_SIZE;
+    u32 MG_VERTEX_BUFFER;
+    u16 MG_TRI_CMD;
+    u8 MG_CULL_MODE;
+    u8 MG_OUTPUT_OFFSET;
+
+    vec16 MATRICES_MVP[4];
+    vec16 MATRICES_MV[4];
+    vec16 MATRICES_NORMAL[2];
+
+    s16 TEXTURING_SCALE[2];
+    s16 TEXTURING_OFFSET[2];
+
+    u8 LIGHTING_LIGHTS[MGFX_LIGHT_SIZE][MGFX_LIGHT_COUNT_MAX];
+    s16 LIGHTING_AMBIENT[3];
+    u8 LIGHTING_HAS_POINTS;
+    u8 LIGHTING_COUNT;
+
+    s16 FOG_PARAMS[3];
+    u8 FOG_MASK;
+}
+
+function DmaMagmaState();
+
+command<4> GLCmd_PreInitMagma(u32 statePtr)
+{
+    u32 flags = load(GL_STATE_FLAGS, 0);
+
+    // Pipeline
+    {
+        // TODO: determine whether env mapping is enabled
+        vec16 pipeline = load(GL_PIPELINES, 0).xyzw;
+        store(pipeline.xyzw, MG_SHADER_TEXT);
+    }
+
+    // Viewport
+    {
+        vec16 viewport = load(GL_VIEWPORT_SCALE, 0);
+        store(viewport, MG_VIEWPORT, 0);
+    }
+
+    // W normalization factor
+    {
+        // Check m[2][3] == 0
+        s16 m23i = load(GL_MATRIX_PROJECTION, 0x16);
+        u16 m23f = load(GL_MATRIX_PROJECTION, 0x36);
+        u16 m23 = m23i | m23f;
+        if (m23 == 0)
+        {
+            // If so, the projection matrix is not a perspective, so we set the
+            // normalization factor to 1
+            u16 norm_factor = 0xFFFF; // 1 as 0.16 
+            store(norm_factor, MG_VIEWPORT, 0x6);
+        }
+        else
+        {
+            /*
+                If it is not zero, then the projection matrix is a perspective
+                The normalization factor is defined as:
+
+                    factor = 2 / (near_plane + far_plane)
+                
+                That means we need to extract the Z-planes from the projection matrix, like so:
+
+                    near_plane = m[3][2] / (m[2][2] - 1)
+                    far_plane  = m[3][2] / (m[2][2] + 1)
+                
+                If we substitute these in the first equation and simplify, we get:
+
+                    factor = (m[2][2]*m[2][2] - 1) / (m[3][2]*m[2][2])
+            */
+
+            // m20 | m21 | m22 | m23 | m30 | m31 | m32 | m33
+            vec32 m;
+            m:sint = load(GL_MATRIX_PROJECTION, 0x10);
+            m:ufract = load(GL_MATRIX_PROJECTION, 0x30);
+
+            // Get m22^2 and m32*m22
+            vec32 a = m * m.z;
+            // m22^2 - 1
+            vec32 b = a - 1;
+            // 1 / 2*m32*m22
+            a.x = invert_half(a).Z;
+            // (m22^2 - 1) / m32*m22
+            a *= b.z;
+            a *= 2;
+
+            store(a:sfract.x, MG_VIEWPORT, 0x6);
+        }
+    }
+
+    // Geometry flags
+    {
+        u16 tri_cmd = load(GL_TRI_CMD, 0);
+        store(tri_cmd, MG_TRI_CMD, 0);
+    }
+
+    // Cull mode
+    {
+        u8 cull = load(GL_TRI_CULL, 0);
+        store(cull, MG_CULL_MODE, 0);
+    }
+
+    // Matrices
+    {
+        vec32 m0;
+        vec32 m1;
+        m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
+        m1:sint   = load(GL_MATRIX_MODELVIEW, 0x10);
+        m0:ufract = load(GL_MATRIX_MODELVIEW, 0x20);
+        m1:ufract = load(GL_MATRIX_MODELVIEW, 0x30);
+
+        store(m0:sint, MATRICES_MV, 0x00);
+        store(m1:sint, MATRICES_MV, 0x10);
+        store(m0:ufract, MATRICES_MV, 0x20);
+        store(m1:ufract, MATRICES_MV, 0x30);
+
+        // TODO: transpose inverse
+        m0 = m0 >> 1;
+        m1 = m1 >> 1;
+
+        store(m0:sfract, MATRICES_NORMAL, 0x00);
+        store(m1:sfract, MATRICES_NORMAL, 0x10);
+    }
+
+    {
+        vec16 m0 = load(GL_MATRIX_MVP, 0x00);
+        vec16 m1 = load(GL_MATRIX_MVP, 0x10);
+        vec16 m2 = load(GL_MATRIX_MVP, 0x20);
+        vec16 m3 = load(GL_MATRIX_MVP, 0x30);
+        store(m0, MATRICES_MVP, 0x00);
+        store(m1, MATRICES_MVP, 0x10);
+        store(m2, MATRICES_MVP, 0x20);
+        store(m3, MATRICES_MVP, 0x30);
+    }
+
+    // Texturing
+    {
+        // TODO: Texture matrix
+        vec16 texparms = load(GL_STATE_TEX_SIZE, 0).xyzw;
+        store(texparms.xyzw, TEXTURING_SCALE, 0);
+    }
+
+    // Lighting
+    {
+        vec16 ambient;
+        u8 light_count = 0;
+        u8 point_count = 0;
+
+        u32 enabled = flags & 0x400; // FLAG_LIGHTING
+        if (enabled != 0)
+        {
+            ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
+            u32 light_flag = 0x100000; // FLAG_LIGHT0
+            u16 light_ptr = GL_LIGHTS;
+            u16 light_end = GL_TEX_GEN;
+            u16 out_ptr = LIGHTING_LIGHTS;
+            while (light_ptr < light_end)
+            {
+                u32 light_enabled = flags & light_flag;
+                if (light_enabled != 0) {
+                    vec16 light = load(light_ptr, 0);
+                    store(light.xyzw, out_ptr, 0);
+                    store(light.XYZW, out_ptr, 8);
+
+                    s16 w = load(light_ptr, MGFX_LIGHT_POSITIONW);
+                    if (w != 0) {
+                        point_count += 1;
+                    }
+
+                    light_count += 1;
+                    out_ptr += MGFX_LIGHT_SIZE;
+                }
+                light_ptr += MGFX_LIGHT_SIZE;
+                light_flag = light_flag << 1;
+            }
+        } else {
+            ambient.x = 0x7FFF;
+            ambient = ambient.x;
+        }
+
+        @Barrier("store_lighting") store(ambient.xyzw, LIGHTING_AMBIENT, 0);
+        @Barrier("store_lighting") store(point_count, LIGHTING_HAS_POINTS, 0);
+        @Barrier("store_lighting") store(light_count, LIGHTING_COUNT, 0);
+    }
+
+    // Fog
+    {
+        vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
+        vec32 diff = fog_parms - fog_parms.x;
+        vec32 factor;
+        factor.x = invert_half(diff).y;
+        vec16 factor_f = factor << 11;
+        vec32 offset = VZERO - fog_parms.x;
+        offset = offset << MGFX_VTX_POS_SHIFT;
+
+        u32 enabled = flags & 0x8; // FLAG_FOG
+        u8 mask = 0x77;
+        if (enabled == 0) {
+            mask = 0xFF;
+        }
+
+        store(offset:sint.x, FOG_PARAMS, 0x0);
+        store(offset:ufract.x, FOG_PARAMS, 0x2);
+        store(factor_f.x, FOG_PARAMS, 0x4);
+        store(mask, FOG_MASK, 0);
+    }
+
+    DmaMagmaState();
+}

@@ -5,6 +5,9 @@
 #ifndef __GL_CONSTANTS
 #define __GL_CONSTANTS
 
+#define PIPELINE_FEATURE_COUNT  1
+#define PIPELINE_COUNT          (1<<PIPELINE_FEATURE_COUNT)
+
 #define MODELVIEW_STACK_SIZE  32
 #define PROJECTION_STACK_SIZE 2
 #define TEXTURE_STACK_SIZE    2
@@ -33,15 +36,6 @@
 #define TEX_GEN_CONST_SIZE      (4*2)
 
 #define LIGHT_COUNT           8
-#define LIGHT_ATTR_SIZE       8
-#define LIGHT_ATTR_ARRAY_SIZE (LIGHT_COUNT*LIGHT_ATTR_SIZE)
-#define LIGHT_STRUCT_SIZE     (LIGHT_ATTR_ARRAY_SIZE*5)
-
-#define LIGHT_POSITION_OFFSET           (LIGHT_ATTR_ARRAY_SIZE*0)
-#define LIGHT_AMBIENT_OFFSET            (LIGHT_ATTR_ARRAY_SIZE*1)
-#define LIGHT_DIFFUSE_OFFSET            (LIGHT_ATTR_ARRAY_SIZE*2)
-#define LIGHT_ATTENUATION_INT_OFFSET    (LIGHT_ATTR_ARRAY_SIZE*3)
-#define LIGHT_ATTENUATION_FRAC_OFFSET   (LIGHT_ATTR_ARRAY_SIZE*4)
 
 #define MAX_TEXTURE_SIZE      64
 #define MAX_TEXTURE_LEVELS    7
@@ -69,9 +63,6 @@
 #define MAX_PIXEL_MAP_SIZE    32
 
 #define ATTRIB_TYPE_COUNT     10
-
-#define VTX_SHIFT 5
-#define TEX_SHIFT 8
 
 #define FLAG_DITHER             (1 << 0)
 #define FLAG_BLEND              (1 << 1)
@@ -128,8 +119,6 @@
 
 #define GUARD_BAND_FACTOR 2
 
-#define ASSERT_INVALID_VTX_ID   0x2001
-
 #define MULTISAMPLE_FLAG_SHIFT      2
 #define ZMODE_BLEND_FLAG_SHIFT      10
 
@@ -140,7 +129,7 @@
 #define TEXTURE_ACTIVE_SHIFT        17
 #define TEX_ACTIVE_COMBINER_SHIFT   (TEXTURE_ACTIVE_SHIFT - 2)
 
-#define TEX_COORD_SHIFT             6
+#define TEX_COORD_SHIFT             3
 #define HALF_TEXEL                  0x0010
 
 #define TEX_BILINEAR_SHIFT          13
@@ -161,32 +150,10 @@
 
 #define NEED_EYE_SPACE_SHIFT    13
 
-#define VTX_LOADER_MAX_COMMANDS 11
-#define VTX_LOADER_MAX_SIZE     (VTX_LOADER_MAX_COMMANDS * 4)
-
 #define RDPQ_TEXTURING_MASK ((SOM_SAMPLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK | SOM_TLUT_MASK)>>32)
 
 #define PALETTE_MATRIX_INDEX    3
 
 #define PALETTE_DIRTY_FLAGS_SIZE    ((MATRIX_PALETTE_SIZE+7)>>3)
-
-#define PRIM_VTX_CS_POSi           0     // X, Y, Z, W (all 32-bit)
-#define PRIM_VTX_CS_POSf           8     // X, Y, Z, W (all 32-bit)
-#define PRIM_VTX_X                 16    // Object space position (16-bit)
-#define PRIM_VTX_Y                 18    // Object space position (16-bit)
-#define PRIM_VTX_Z                 20    // Object space position (16-bit)
-#define PRIM_VTX_W                 22    // Object space position (16-bit)
-#define PRIM_VTX_R                 24
-#define PRIM_VTX_G                 26
-#define PRIM_VTX_B                 28
-#define PRIM_VTX_A                 30
-#define PRIM_VTX_TEX_S             32
-#define PRIM_VTX_TEX_T             34
-#define PRIM_VTX_TEX_R             36
-#define PRIM_VTX_TEX_Q             38
-#define PRIM_VTX_NORMAL            40    // Normal X,Y,Z (8 bit)
-#define PRIM_VTX_MTX_INDEX         43
-#define PRIM_VTX_TRCODE            44    // trivial-reject clipping flags (against -w/+w)
-#define PRIM_VTX_SIZE              45
 
 #endif

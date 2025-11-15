@@ -24,6 +24,7 @@ DEFINE_RSP_UCODE(rsp_gl2);
 uint32_t gl_overlay_id;
 uint32_t gl2_overlay_id;
 phys_addr_t gl_rsp_state;
+phys_addr_t magma_rsp_state;
 
 gl_state_t *state;
 
@@ -130,10 +131,7 @@ void gl_init()
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        server_state->lights.position[i][2] = 0x7FFF; // 1.0
-        server_state->lights.ambient[i][3] = 0x7FFF;  // 1.0
-        server_state->lights.diffuse[i][3] = 0x7FFF;  // 1.0
-        server_state->lights.attenuation_frac[i][0] = 1 << 15; // 1.0
+        server_state->lights[i].position[2] = 0x7FFF; // 1.0
     }
     
     server_state->light_ambient[0] = 0x1999; // 0.2
@@ -142,12 +140,11 @@ void gl_init()
     server_state->light_ambient[3] = 0x7FFF; // 1.0
 
     server_state->dither_mode = DITHER_SQUARE_SQUARE << (SOM_ALPHADITHER_SHIFT - 32);
-
-    server_state->magma_state = PhysicalAddr(mg_get_rsp_state());
-
+    
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     gl2_overlay_id = rspq_overlay_register(&rsp_gl2);
     gl_rsp_state = PhysicalAddr(gl_overlay_state);
+    magma_rsp_state = PhysicalAddr(mg_get_rsp_state());
 
     gl_matrix_init();
     gl_lighting_init();
@@ -166,7 +163,12 @@ void gl_init()
 
 static void free_pipeline_visitor(uint32_t key, void *value, int refcount)
 {
-    mg_pipeline_free((mg_pipeline_t*)value);
+    mg_pipeline_t **pipelines = value;
+    for (size_t i = 0; i < PIPELINE_COUNT; i++)
+    {
+        mg_pipeline_free(pipelines[i]);
+    }
+    free(pipelines);
 }
 
 void gl_close()
@@ -539,79 +541,19 @@ void glTexSizeN64(GLushort width, GLushort height)
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_size[0]), (width << 16) | height);
 }
 
-mgfx_features_t get_pipeline_features()
+void gl_pre_init_pipe(GLenum primitive_mode)
 {
-    //return gl_is_env_map_enabled() ? MGFX_FEATURE_ENV_MAP : 0;
-    return 0;
-}
+    gl2_write(GL_CMD_COPY_STATE, gl_rsp_state);
 
-const vertex_layout *get_current_layout()
-{
-    if (state->begin_end_active) {
-        return &state->begin_end_layout;
-    } else {
-        return &state->array_object->layout;
-    }
-}
+    // PreInitPipeTex will run a block with nesting level 1 for texture upload.
+    // The command itself does not emit RDP commands (the block does that, so
+    // we use a plain gl_write() for it.
+    rspq_block_run_rsp(1);
+    gl2_write(GL_CMD_PRE_INIT_PIPE_TEX);
 
-inline void fnv1a(uint32_t *hash, uint32_t v)
-{
-    *hash ^= v;
-    *hash *= 0x01000193; // FNV prime
-}
-
-static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout, mgfx_features_t features)
-{
-    // Get pipeline key by creating a hash from all pipeline parameters using FNV-1a hash
-    uint32_t key = 0x811c9dc5; // FNV offset basis
-    for (size_t i = 0; i < layout->attribute_count; i++)
-    {
-        fnv1a(&key, layout->attributes[i].input);
-        fnv1a(&key, layout->attributes[i].offset);
-    }
-    fnv1a(&key, layout->stride);
-    fnv1a(&key, features);
-    return key;
-}
-
-void update_pipeline()
-{
-    const vertex_layout *layout = get_current_layout();
-    mgfx_features_t features = get_pipeline_features();
-
-    /*
-    vertex_layout vl;
-    if (state->lighting && !gl_is_diffuse_tracking_color())
-    {
-        // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
-        // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute
-        // from the vertex shader by copying the vertex layout and omitting the color attribute.
-        // All other attributes will keep their original offsets, so we can use the existing data as-is.
-        vertex_layout_init(&vl);
-        vertex_layout_copy_without(&vl, layout, MGFX_ATTRIBUTE_COLOR);
-        layout = &vl;
-    }
-    */
-
-    uint32_t new_key = get_pipeline_key(&layout->vertex_layout, features);
-    if (new_key == state->current_pipeline_key) return;
-
-    mg_pipeline_t *pipeline = hashtable_lookup(&state->pipeline_cache, new_key);
-    if (pipeline == NULL) {
-        pipeline = mg_pipeline_create(&(mg_pipeline_parms_t) {
-            .vertex_shader_ucode = mgfx_get_shader_ucode(features),
-            .vertex_layout = layout->vertex_layout
-        });
-        hashtable_insert(&state->pipeline_cache, new_key, pipeline);
-    }
-
-    state->current_pipeline_key = new_key;
-    mg_pipeline_bind(pipeline);
-
-    state->fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
-    state->lighting_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_LIGHTING);
-    state->texturing_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_TEXTURING);
-    state->matrices_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_MATRICES);
+    // PreInitPipe is similar to rdpq_set_mode_standard wrt RDP commands.
+    // It issues SET_SCISSOR + CC + SOM.
+    gl2_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 
 extern inline uint32_t next_pow2(uint32_t v);

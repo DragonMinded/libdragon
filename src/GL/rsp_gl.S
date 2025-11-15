@@ -8,6 +8,7 @@
 #include <rdpq_macros.h>
 #include "gl_constants.h"
 #include "GL/gl_enums.h"
+#include "mgfx_constants.h"
 
     .data
 
@@ -175,7 +176,7 @@ GLCmd_SetLightPos:
     vmadn v___, vmtx3_f, vpos.e3
     vmadh vpos, vmtx3_i, vpos.e3
 
-    addi s0, a0, %lo(GL_STATE) + LIGHT_POSITION_OFFSET
+    addi s0, a0, %lo(GL_STATE) + MGFX_LIGHT_POSITION
     jr ra
     sdv vpos,  0x00,s0
 

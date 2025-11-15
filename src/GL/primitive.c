@@ -41,11 +41,11 @@ void gl_primitive_init()
     glColor4f(1, 1, 1, 1);
     glTexCoord4f(0, 0, 0, 1);
 
-    state->vertex_halfx_precision.target_precision = VTX_SHIFT;
-    state->texcoord_halfx_precision.target_precision = TEX_SHIFT;
+    state->vertex_halfx_precision.target_precision = MGFX_VTX_POS_SHIFT;
+    state->texcoord_halfx_precision.target_precision = MGFX_VTX_TEX_SHIFT;
 
-    glVertexHalfFixedPrecisionN64(VTX_SHIFT);
-    glTexCoordHalfFixedPrecisionN64(TEX_SHIFT);
+    glVertexHalfFixedPrecisionN64(MGFX_VTX_POS_SHIFT);
+    glTexCoordHalfFixedPrecisionN64(MGFX_VTX_TEX_SHIFT);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -630,22 +630,6 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
         ((uint64_t)offset_x << 48) | ((uint64_t)offset_y << 32) | ((uint64_t)offset_z << 16));
 }
 
-void update_viewport()
-{
-    const surface_t *fb = gl_require_color_buffer();
-
-    mg_set_viewport(&(mg_viewport_t) {
-        .x = state->current_viewport.x,
-        .y = fb->height - state->current_viewport.y,
-        .width = state->current_viewport.w,
-        .height = -state->current_viewport.h,
-        .minDepth = state->current_viewport.n,
-        .maxDepth = state->current_viewport.f,
-        .z_near = state->near_plane,
-        .z_far = state->far_plane
-    });
-}
-
 gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
 {
     switch (coord) {
@@ -872,68 +856,4 @@ void glFrontFace(GLenum dir)
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid front face winding direction", dir);
         return;
     }
-}
-
-mg_cull_mode_t get_cull_mode()
-{
-    if (!state->cull_face) {
-        return MG_CULL_MODE_NONE;
-    }
-
-    switch (state->cull_face_mode)
-    {
-    case GL_BACK:
-        return MG_CULL_MODE_BACK;
-    case GL_FRONT:
-        return MG_CULL_MODE_FRONT;
-    default:
-        return -1;
-    }
-}
-
-mg_front_face_t get_front_face()
-{
-    switch (state->front_face)
-    {
-    case GL_CW:
-        return MG_FRONT_FACE_CLOCKWISE;
-    case GL_CCW:
-        return MG_FRONT_FACE_COUNTER_CLOCKWISE;
-    default:
-        return -1;
-    }
-}
-
-void update_culling()
-{
-    mg_set_culling(&(mg_culling_parms_t) {
-        .cull_mode = get_cull_mode(),
-        .front_face = get_front_face()
-    });
-}
-
-bool gl_is_shade_active()
-{
-    return true;
-}
-
-bool gl_is_depth_active()
-{
-    return state->depth_test;
-}
-
-bool gl_is_texture_active()
-{
-    gl_texture_object_t *obj = gl_get_active_texture();
-    return obj != NULL && gl_tex_is_complete(obj);
-}
-
-void update_geom_flags()
-{
-    mg_geometry_flags_t flags = 0;
-    if (gl_is_shade_active()) flags |= MG_GEOMETRY_FLAGS_SHADE_ENABLED;
-    if (gl_is_depth_active()) flags |= MG_GEOMETRY_FLAGS_Z_ENABLED;
-    if (gl_is_texture_active()) flags |= MG_GEOMETRY_FLAGS_TEX_ENABLED;
-
-    mg_set_geometry_flags(flags);
 }

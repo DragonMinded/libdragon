@@ -463,37 +463,3 @@ void glCopyMatrixN64(GLenum source)
     gl_mark_matrix_target_dirty();
     gl_write(GL_CMD_MATRIX_COPY, src_id << 6);
 }
-
-void gl_upload_matrices()
-{
-    gl_update_matrix_targets();
-
-    gl_matrix_target_t *mtx_target = &state->default_matrix_target;
-    gl_matrix_t *mv = gl_matrix_stack_get_matrix(mtx_target->mv_stack);
-
-    mgfx_set_matrices_inline(state->matrices_uniform, &(mgfx_matrices_parms_t) {
-        .model_view_projection = mtx_target->mvp.m[0],
-        .model_view = mv->m[0],
-        .normal = mv->m[0] // TODO: transpose inverse
-    });
-}
-
-void update_z_planes()
-{
-    // Attempt to extract near and far plane from projection matrix 
-    // for perspective renormalization
-    gl_matrix_t *proj = gl_matrix_stack_get_matrix(&state->projection_stack);
-
-    // Check for perspective projection
-    if (proj->m[2][3] != 0.f) {
-        float a = proj->m[2][2] - 1.f;
-        float b = proj->m[2][2] + 1.f;
-        state->near_plane = fabsf(a) > FM_EPSILON ? proj->m[3][2] / a : 0.f;
-        state->far_plane = fabsf(b) > FM_EPSILON ? proj->m[3][2] / b : 0.f;
-    } else {
-        // There is no perspective divide, so we set both planes to zero.
-        // This will disable the perspective renormalization
-        state->near_plane = 0.0f;
-        state->far_plane = 0.0f;
-    }
-}

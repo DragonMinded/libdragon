@@ -87,6 +87,7 @@ typedef double doubleu __attribute__((aligned(1)));
 extern uint32_t gl_overlay_id;
 extern uint32_t gl2_overlay_id;
 extern phys_addr_t gl_rsp_state;
+extern phys_addr_t magma_rsp_state;
 
 #define gl_write(cmd_id, ...)               rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
 #define gl2_write(cmd_id, ...)               rspq_write(gl2_overlay_id, cmd_id, ##__VA_ARGS__)
@@ -116,6 +117,8 @@ typedef enum {
     GL_CMD_COPY_STATE       = 0x0,
     GL_CMD_PRE_INIT_PIPE    = 0x1,
     GL_CMD_PRE_INIT_PIPE_TEX= 0x2,
+    GL_CMD_SET_PIPELINE     = 0x3,
+    GL_CMD_PRE_INIT_MAGMA   = 0x4,
 } gl2_command_t;
 
 typedef enum {
@@ -264,20 +267,6 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
-    int16_t position[LIGHT_COUNT][4];
-    int16_t ambient[LIGHT_COUNT][4];
-    int16_t diffuse[LIGHT_COUNT][4];
-    int16_t attenuation_int[LIGHT_COUNT][4];
-    uint16_t attenuation_frac[LIGHT_COUNT][4];
-} __attribute__((packed)) gl_lights_soa_t;
-_Static_assert(sizeof(gl_lights_soa_t) == LIGHT_STRUCT_SIZE);
-_Static_assert(offsetof(gl_lights_soa_t, position) == LIGHT_POSITION_OFFSET);
-_Static_assert(offsetof(gl_lights_soa_t, ambient) == LIGHT_AMBIENT_OFFSET);
-_Static_assert(offsetof(gl_lights_soa_t, diffuse) == LIGHT_DIFFUSE_OFFSET);
-_Static_assert(offsetof(gl_lights_soa_t, attenuation_int) == LIGHT_ATTENUATION_INT_OFFSET);
-_Static_assert(offsetof(gl_lights_soa_t, attenuation_frac) == LIGHT_ATTENUATION_FRAC_OFFSET);
-
-typedef struct {
     GLvoid *data;
     uint32_t size;
 } gl_storage_t;
@@ -364,10 +353,10 @@ _Static_assert(offsetof(gl_tex_gen_soa_t, fraction) == TEX_GEN_FRACTION_OFFSET);
 _Static_assert(offsetof(gl_tex_gen_soa_t, mode) == TEX_GEN_MODE_OFFSET);
 
 typedef struct {
-    int16_t factor_int;
-    int16_t offset_int;
-    uint16_t factor_frac;
-    uint16_t offset_frac;
+    int16_t start_int;
+    int16_t end_int;
+    uint16_t start_frac;
+    uint16_t end_frac;
 } gl_fog_params_t;
 
 typedef struct {
@@ -544,14 +533,6 @@ typedef struct {
     gl_fixed_precision_t texcoord_halfx_precision;
 
     hashtable_t pipeline_cache;
-    uint32_t current_pipeline_key;
-    const mg_uniform_t *fog_uniform;
-    const mg_uniform_t *lighting_uniform;
-    const mg_uniform_t *texturing_uniform;
-    const mg_uniform_t *matrices_uniform;
-
-    float near_plane;
-    float far_plane;
 
     bool can_use_rsp;
     bool can_use_rsp_dirty;
@@ -560,11 +541,17 @@ typedef struct {
 } gl_state_t;
 
 typedef struct {
+    phys_addr_t text;
+    uint32_t text_size;
+} gl_pipeline_data_t;
+
+typedef struct {
     gl_matrix_srv_t matrices[5];
-    gl_lights_soa_t lights;
+    mgfx_light_t lights[LIGHT_COUNT];
     gl_tex_gen_soa_t tex_gen;
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
+    gl_pipeline_data_t pipelines[PIPELINE_COUNT];
     int16_t light_ambient[4];
     int16_t mat_ambient[4];
     int16_t mat_diffuse[4];
@@ -604,7 +591,6 @@ typedef struct {
     uint32_t clear_depth;
     uint32_t palette_index;
     uint32_t dither_mode;
-    phys_addr_t magma_state;
     uint16_t fb_size[2];
     uint16_t depth_func;
     uint16_t alpha_func;
@@ -671,15 +657,7 @@ bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices);
 void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size);
 void rsp_read_attrib(gl_array_type_t array_type, GLenum type, const void *value, uint32_t size);
 
-void update_z_planes();
-void update_pipeline();
-void gl_upload_fog();
-void gl_upload_lighting();
-void gl_upload_texturing();
-void gl_upload_matrices();
-void update_viewport();
-void update_culling();
-void update_geom_flags();
+void gl_pre_init_pipe(GLenum primitive_mode);
 
 inline uint32_t next_pow2(uint32_t v)
 {
@@ -887,21 +865,6 @@ inline void gl_set_current_mtx_index(GLubyte *index)
 inline void gl_set_palette_idx(uint32_t index)
 {
     gl_write(GL_CMD_SET_PALETTE_IDX, index * sizeof(gl_matrix_srv_t));
-}
-
-inline void gl_pre_init_pipe(GLenum primitive_mode)
-{
-    gl2_write(GL_CMD_COPY_STATE, gl_rsp_state);
-
-    // PreInitPipeTex will run a block with nesting level 1 for texture upload.
-    // The command itself does not emit RDP commands (the block does that, so
-    // we use a plain gl_write() for it.
-    rspq_block_run_rsp(1);
-    gl2_write(GL_CMD_PRE_INIT_PIPE_TEX);
-
-    // PreInitPipe is similar to rdpq_set_mode_standard wrt RDP commands.
-    // It issues SET_SCISSOR + CC + SOM.
-    gl2_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 
 inline color_t color_from_floats(const float color[4])

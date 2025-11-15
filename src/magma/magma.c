@@ -1,4 +1,4 @@
-#include "magma.h"
+#include "magma_internal.h"
 #include "magma_constants.h"
 #include "rspq.h"
 #include "rdpq.h"
@@ -9,16 +9,6 @@
 #include <malloc.h>
 
 // TODO: Documentation on how magma works internally
-
-/** @brief A pipeline instance */
-typedef struct mg_pipeline_s 
-{
-    void *shader_code;          ///< Pointer to the duplicated and patched shader ucode text.
-    uint32_t shader_code_size;  ///< Size of the duplicated and patched shader ucode text.
-    uint32_t vertex_stride;     ///< Stride of the vertex layout.
-    uint32_t uniform_count;     ///< Number of uniforms.
-    mg_uniform_t *uniforms;     ///< List of uniforms.
-} mg_pipeline_t;
 
 /** @brief Metadata about a uniform defined by a shader. */
 typedef struct
@@ -111,7 +101,7 @@ static void get_overlay_span(rsp_ucode_t *ucode, void **code, uint32_t *code_siz
 
 mg_rsp_state_t *mg_get_rsp_state()
 {
-    return rspq_overlay_get_state(&rsp_magma) + RSP_MAGMA_MG_STATE - RSP_MAGMA__RSPQ_SAVED_STATE_START;
+    return (mg_rsp_state_t*)(((uint8_t*)rspq_overlay_get_state(&rsp_magma)) + RSP_MAGMA_MG_STATE - RSP_MAGMA__RSPQ_SAVED_STATE_START);
 }
 
 void mg_init(void)
@@ -343,17 +333,21 @@ bool mg_pipeline_is_uniform_compatible(mg_pipeline_t *pipeline, const mg_uniform
     return matching_uniform != NULL && matching_uniform->offset == uniform->offset && matching_uniform->size == uniform->size;
 }
 
+void mg_set_vertex_stride(uint32_t vertex_stride)
+{
+    int16_t v0 = vertex_stride;
+    int16_t v1 = MG_VTX_SIZE;
+    int16_t v2 = vertex_stride;
+    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size), (v0 << 16) | v1);
+    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16));
+}
+
 void mg_pipeline_bind(mg_pipeline_t *pipeline)
 {
     uint32_t code = PhysicalAddr(pipeline->shader_code);
     uint32_t code_size = pipeline->shader_code_size;
     mg_cmd_write(MG_CMD_SET_SHADER, code, ROUND_UP(code_size, 8) - 1);
-
-    int16_t v0 = pipeline->vertex_stride;
-    int16_t v1 = MG_VTX_SIZE;
-    int16_t v2 = pipeline->vertex_stride;
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size), (v0 << 16) | v1);
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16));
+    mg_set_vertex_stride(pipeline->vertex_stride);
 }
 
 static mg_rsp_viewport_t viewport_to_rsp_state(const mg_viewport_t *viewport)

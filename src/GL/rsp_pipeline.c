@@ -8,6 +8,8 @@
 #include "gl_internal.h"
 #include "rsp_asm.h"
 #include "mgfx.h"
+#include "rdpq_debug.h"
+#include "../magma/magma_internal.h"
 
 extern gl_state_t *state;
 
@@ -248,17 +250,91 @@ bool get_begin_end_need_save(GLenum mode)
     }
 }
 
-static void prepare_magma()
+const vertex_layout *get_current_layout()
 {
-    update_z_planes();
-    update_pipeline();
-    gl_upload_fog();
-    gl_upload_lighting();
-    gl_upload_texturing();
-    gl_upload_matrices();
-    update_viewport();
-    update_culling();
-    update_geom_flags();
+    if (state->begin_end_active) {
+        return &state->begin_end_layout;
+    } else {
+        return &state->array_object->layout;
+    }
+}
+
+inline void fnv1a(uint32_t *hash, uint32_t v)
+{
+    *hash ^= v;
+    *hash *= 0x01000193; // FNV prime
+}
+
+static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout)
+{
+    // Get pipeline key by creating a hash from all pipeline parameters using FNV-1a hash
+    uint32_t key = 0x811c9dc5; // FNV offset basis
+    for (size_t i = 0; i < layout->attribute_count; i++)
+    {
+        fnv1a(&key, layout->attributes[i].input);
+        fnv1a(&key, layout->attributes[i].offset);
+    }
+    fnv1a(&key, layout->stride);
+    return key;
+}
+
+static mg_pipeline_t **create_pipelines(const mg_vertex_layout_t *layout)
+{
+    mg_pipeline_t **pipelines = calloc(PIPELINE_COUNT, sizeof(mg_pipeline_t*));
+
+    for (size_t i = 0; i < PIPELINE_COUNT; i++)
+    {
+        // This will iterate over all possible combinations of features
+        mgfx_features_t features = i;
+
+        pipelines[i] = mg_pipeline_create(&(mg_pipeline_parms_t) {
+            .vertex_shader_ucode = mgfx_get_shader_ucode(features),
+            .vertex_layout = *layout
+        });
+    }
+
+    return pipelines;
+}
+
+static void update_pipeline(const vertex_layout *layout)
+{
+    /*
+    vertex_layout vl;
+    if (state->lighting && !gl_is_diffuse_tracking_color())
+    {
+        // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
+        // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute
+        // from the vertex shader by copying the vertex layout and omitting the color attribute.
+        // All other attributes will keep their original offsets, so we can use the existing data as-is.
+        vertex_layout_init(&vl);
+        vertex_layout_copy_without(&vl, layout, MGFX_ATTRIBUTE_COLOR);
+        layout = &vl;
+    }
+    */
+
+    uint32_t key = get_pipeline_key(&layout->vertex_layout);
+
+    mg_pipeline_t **pipelines = hashtable_lookup(&state->pipeline_cache, key);
+    if (pipelines == NULL) {
+        pipelines = create_pipelines(&layout->vertex_layout);
+        hashtable_insert(&state->pipeline_cache, key, pipelines);
+    }
+
+    for (size_t i = 0; i < PIPELINE_COUNT; i++)
+    {
+        uint32_t packed = ((sizeof(gl_pipeline_data_t)*i) << 16) | (ROUND_UP(pipelines[i]->shader_code_size, 8) - 1);
+        gl2_write(GL_CMD_SET_PIPELINE, PhysicalAddr(pipelines[i]->shader_code), packed);
+    }
+}
+
+static void prepare_drawing_with_magma()
+{
+    const vertex_layout *layout = get_current_layout();
+    update_pipeline(layout);
+    
+    gl2_write(GL_CMD_PRE_INIT_MAGMA, magma_rsp_state);
+
+    mg_set_vertex_stride(layout->vertex_layout.stride);
 }
 
 static void gl_rsp_begin(GLenum mode)
@@ -268,7 +344,7 @@ static void gl_rsp_begin(GLenum mode)
     state->begin_end_multiple = get_begin_end_multiple(mode);
     state->begin_end_need_save = get_begin_end_need_save(mode);
 
-    prepare_magma();
+    prepare_drawing_with_magma();
 
     mg_draw_begin();
 
@@ -400,9 +476,11 @@ static void gl_rsp_array_element(uint32_t index)
     }
 }
 
-static void update_vertex_buffer(uint32_t first, uint32_t count)
+static void prepare_drawing_from_arrays(uint32_t first, uint32_t count)
 {
     array_object_update(state->array_object, first, count);
+
+    prepare_drawing_with_magma();
 
     // It's possible that we are now accessing a sub-range of a previously cached buffer.
     // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
@@ -412,9 +490,7 @@ static void update_vertex_buffer(uint32_t first, uint32_t count)
 
 static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 {
-    update_vertex_buffer(first, count);
-    prepare_magma();
-
+    prepare_drawing_from_arrays(first, count);
     mg_draw_begin();
     // TODO: record into block?
     mg_draw(&(mg_input_assembly_parms_t) {
@@ -493,9 +569,7 @@ static void gl_rsp_draw_elements(GLenum mode, uint32_t count, const void* indice
         find_index_bounds(indices, count, &min_index, &max_index);
     }
 
-    update_vertex_buffer(min_index, max_index - min_index + 1);
-    prepare_magma();
-
+    prepare_drawing_from_arrays(min_index, max_index - min_index + 1);
     mg_draw_begin();
     if (element_buffer != NULL) {
         rspq_block_run(element_buffer->element_cache->block);

@@ -5,10 +5,11 @@ GL_STATE:
         GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
         GL_MATRIX_PALETTE:      .ds.b   MATRIX_SIZE
         GL_MATRIX_MVP:          .ds.b   MATRIX_SIZE
-    GL_LIGHTS:              .ds.b   LIGHT_STRUCT_SIZE
+    GL_LIGHTS:              .ds.b   MGFX_LIGHT_SIZE * LIGHT_COUNT
     GL_TEX_GEN:             .ds.b   TEX_GEN_STRUCT_SIZE
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
+    GL_PIPELINES:           .ds.d   PIPELINE_COUNT
     GL_STATE_LIGHT_AMBIENT: .half   0,0,0,0
     GL_MAT_AMBIENT:         .half   0,0,0,0
     GL_MAT_DIFFUSE:         .half   0,0,0,0
@@ -57,7 +58,6 @@ GL_STATE:
     GL_STATE_FILL_DEPTH:    .word   0
     GL_STATE_PALETTE_INDEX: .word   0
     GL_STATE_DITHER_MODE:   .word   0
-    GL_STATE_MAGMA_STATE:   .word   0
     GL_STATE_FB_SIZE:       .half   0, 0
     GL_STATE_DEPTH_FUNC:    .half   0
     GL_STATE_ALPHA_FUNC:    .half   0
