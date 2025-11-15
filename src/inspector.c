@@ -350,7 +350,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, joypad_bu
 
     void *bt[32];
     int n = backtrace(bt, 32);
-    inspector_print_backtrace(bt, n, bt_skip, backtrace_count == 1);
+    inspector_print_backtrace(bt, n, bt_skip, backtrace_count == 2);
 }
 
 static void inspector_page_gpr(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
