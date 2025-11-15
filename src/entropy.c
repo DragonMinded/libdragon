@@ -7,7 +7,7 @@
 #include "entropy.h"
 #include "entropy_internal.h"
 #include "rand_internal.h"
-#include "interrupt.h"
+#include "interrupt_internal.h"
 #include <stdatomic.h>
 #include <string.h>
 
@@ -46,10 +46,10 @@ void __entropy_add(uint64_t k) {
     k *= __entropy_K[0];
     k = k<<31 | k>>33;
     k *= __entropy_K[1];
-    disable_interrupts();
+    uint32_t sr = __disable_interrupts();
     __entropy_state ^= k;
     __entropy_mix();
-    enable_interrupts();
+    __enable_interrupts(sr);
 }
 
 /** @brief Registers used to pull entropy from */
@@ -75,10 +75,10 @@ static void __entropy_add_internal(void)
 
 // Extract data from the entropy pool.
 static uint64_t __entropy_get(void) {
-    disable_interrupts();
+    uint32_t sr = __disable_interrupts();
     uint64_t h = __entropy_state;
     __entropy_mix();
-    enable_interrupts();
+    __enable_interrupts(sr);
     h ^= h >> 33;
     h *= __entropy_K[2];
     h ^= h >> 33;
@@ -95,14 +95,18 @@ static void reseed_from_entropy(void) {
     uint64_t e = __entropy_get();
     atomic_fetch_xor_explicit(&xs_state, e, memory_order_relaxed);
 }
+
 int getentropy(void *buf, size_t len) {
     reseed_from_entropy();
     __xorshift64_buffer(buf, len, &xs_state);
     return 0;
 }
 
-uint32_t getentropy32(void) {
+uint64_t getentropy64(void) {
     reseed_from_entropy();
-    uint64_t x = __xorshift64(&xs_state);
-    return (uint32_t)(x >> 32);
+    return __xorshift64(&xs_state);
+}
+
+uint32_t getentropy32(void) {
+    return getentropy64() >> 32;
 }

@@ -54,6 +54,16 @@ void ksemaphore_destroy(ksemaphore_t *sem);
 void ksemaphore_post(ksemaphore_t *sem);
 
 /**
+ * @brief Post to a semaphore from an interrupt context
+ *
+ * This function increments the value of the semaphore and signals
+ * a thread waiting on the semaphore.
+ *
+ * @param sem       Pointer to the semaphore structure
+ */
+void ksemaphore_post_isr(ksemaphore_t *sem);
+
+/**
  * @brief Wait on a semaphore
  * 
  * This function waits on a semaphore. If the semaphore's value is

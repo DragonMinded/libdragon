@@ -611,6 +611,30 @@ reset_type_t sys_reset_type(void);
 pi_addr_t sys_elf_address(void);
 
 /**
+ * @brief Libdragon version information
+ *
+ * This structure contains information about the current version of Libdragon,
+ * that was embedded in the ROM at build time.
+ */
+typedef struct {
+    char branch[32+1];          ///< Branch name (normally "stable" or "preview")
+    char hash[20+1];            ///< Commit hash (SHA1)
+    char commit_date[16+1];     ///< Commit date (YYYY-MM-DD)
+    bool dirty;                 ///< True if Libdragon repository was dirty at build time
+} sys_version_t;
+
+/**
+ * @brief Get the version of Libdragon
+ * 
+ * This function will fill the version structure with the information about
+ * the current version of Libdragon, that was embedded in the ROM at build time.
+
+ * @param version               Pointer to the version structure to fill
+ * @return true if the version information was successfully retrieved, false otherwise
+ */
+bool sys_get_version(sys_version_t *version);
+
+/**
  * @brief Perform a hardware-accelerated memory set
  * 
  * This function uses a special function in the RCP (MI repeat mode)

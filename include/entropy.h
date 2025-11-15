@@ -62,6 +62,16 @@ extern "C" {
 int getentropy(void *buf, size_t len);
 
 /**
+ * @brief Return 64-bit of entropy.
+ * 
+ * This is a simplified API for getentropy() to just return 64-bit of entropy
+ * instead of an arbitrary buffer.
+ * 
+ * @return uint32_t         Unpredictable 64-bit random number
+ */
+ uint64_t getentropy64(void);
+ 
+ /**
  * @brief Return 32-bit of entropy.
  * 
  * This is a simplified API for getentropy() to just return 32-bit of entropy

@@ -142,3 +142,10 @@ void pifile_init(void)
 {
     attach_filesystem("pi:/", &pifile_fs);
 }
+
+FILE *pifile_open(pi_addr_t base, size_t size, uint32_t flags)
+{
+    char name[32];
+    snprintf(name, sizeof(name), "pi:/%08lX:%08X", base, size);
+    return fopen(name, "r");
+}

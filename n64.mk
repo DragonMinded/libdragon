@@ -88,10 +88,8 @@ N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER2),--controller2 $(N64_ROM_CO
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER3),--controller3 $(N64_ROM_CONTROLLER3))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER4),--controller4 $(N64_ROM_CONTROLLER4))
 
-N64_TOOLFILES = $(N64_INCLUDEDIR)/libdragon.version
-ifneq ("$(wildcard $(N64_INCLUDEDIR)/toolchain.version)","")
-N64_TOOLFILES += $(N64_INCLUDEDIR)/toolchain.version
-endif
+# Add *.version files to the rompak
+N64_TOOLFILES = $(wildcard $(N64_INCLUDEDIR)/*.version)
 
 ifeq ($(D),1)
 CFLAGS+=-g3
@@ -157,7 +155,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		METASECTION="$(basename $@).meta"; \
 		BINARY="$(basename $@).elf"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(RSPASFLAGS) -L$(N64_LIBDIR) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections  -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map -o $@ $<; \
+		$(N64_CC) $(RSPASFLAGS) -L$(N64_LIBDIR) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections  -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map,--cref -o $@ $<; \
 		mv "$@" $$BINARY; \
 		$(N64_OBJCOPY) -O binary -j .text $$BINARY $$TEXTSECTION.bin; \
 		$(N64_OBJCOPY) -O binary -j .data $$BINARY $$DATASECTION.bin; \
@@ -207,10 +205,10 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	EXTERNS_FILE="$(filter %.externs, $^)"; \
 	if [ -z "$$EXTERNS_FILE" ]; then \
 		$(CXX) -o $@ $(filter %.o, $^) $(filter-out $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a, $(filter %.a, $^)) \
-			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map; \
+			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map,--cref; \
 	else \
 		$(CXX) -o $@ $(filter %.o, $^) $(filter-out $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a, $(filter %.a, $^)) \
-			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-T"$$EXTERNS_FILE" -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map; \
+			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-T"$$EXTERNS_FILE" -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map,--cref; \
 	fi
 	$(N64_SIZE) -G $@
 

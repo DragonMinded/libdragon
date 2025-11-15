@@ -15,6 +15,9 @@
 #include "dragonfs.h"
 #include "dma.h"
 #include "n64sys.h"
+#include "joypad.h"
+#include "backtrace_internal.h"
+#include "exception_internal.h"
 #include "rompak_internal.h"
 #include "utils.h"
 #include "dlfcn_internal.h"
@@ -46,6 +49,38 @@
  * @{
  */
 
+ // Embedded GDB script to auto-load DSO symbols
+/// @cond
+asm(
+".pushsection \".debug_gdb_scripts\", \"MS\",@progbits,1\n"
+".byte 4\n"
+".ascii \"gdb.inlined-script-dso-autoload\\n\"\n"
+".ascii \"import gdb\\n\"\n"
+".ascii \"class BreakpointDsoLoad(gdb.Breakpoint):\\n\"\n"
+".ascii \"  def stop(self):\\n\"\n"
+".ascii \"    frame = gdb.selected_frame()\\n\"\n"
+".ascii \"    src_elf = gdb.execute('printf \\\"%s\\\", module->src_elf', False, True)\\n\"\n"
+".ascii \"    prog_base = int(gdb.execute('printf \\\"%x\\\", module->prog_base', False, True), 16)\\n\"\n"
+".ascii \"    print(\\\"Loading overlay: \\\", src_elf, \\\"(text:\\\", hex(prog_base), \\\")\\\")\\n\"\n"
+".ascii \"    gdb.execute(\\\"add-symbol-file -readnow \\\" + src_elf + \\\" \\\" + hex(prog_base), False, True)\\n\"\n"
+".ascii \"    return False\\n\"\n"
+".ascii \"class BreakpointDsoFree(gdb.Breakpoint):\\n\"\n"
+".ascii \"  def stop(self):\\n\"\n"
+".ascii \"    frame = gdb.selected_frame()\\n\"\n"
+".ascii \"    src_elf = gdb.execute('printf \\\"%s\\\", module->src_elf', False, True)\\n\"\n"
+".ascii \"    prog_base = int(gdb.execute('printf \\\"%x\\\", module->prog_base', False, True), 16)\\n\"\n"
+".ascii \"    print(\\\"Unloading overlay: \\\", src_elf, \\\"(text:\\\", hex(prog_base), \\\")\\\")\\n\"\n"
+".ascii \"    gdb.execute(\\\"remove-symbol-file -a \\\" + hex(prog_base), False, True)\\n\"\n"
+".ascii \"    return False\\n\"\n"
+".ascii \"bp_load = BreakpointDsoLoad(\\\"__dl_insert_module\\\")\\n\"\n"
+".ascii \"bp_load.silent = True\\n\"\n"
+".ascii \"bl_free = BreakpointDsoFree(\\\"__dl_remove_module\\\")\\n\"\n"
+".ascii \"bl_free.silent = True\\n\"\n"
+".byte 0\n"
+".popsection\n"
+);
+/// @endcond
+
 /** @brief Macro to round up pointer */
 #define PTR_ROUND_UP(ptr, d) ((void *)ROUND_UP((uintptr_t)(ptr), (d)))
 /** @brief Macro to add base to pointer */
@@ -61,8 +96,6 @@ extern void __cxa_finalize(void *dso);
 /** @brief Demangler function */
 demangle_func __dl_demangle_func;
 
-/** @brief Module resolver */
-module_lookup_func __dl_lookup_module;
 /** @brief Module list head */
 dl_module_t *__dl_list_head;
 /** @brief Module list tail */
@@ -139,7 +172,7 @@ static void load_mainexe_sym_table()
 {
     mainexe_sym_info_t __attribute__((aligned(8))) mainexe_sym_info;
     //Search for main executable symbol table
-    uint32_t rom_addr = rompak_search_ext(".msym");
+    uint32_t rom_addr = rompak_search_ext(".msym", NULL);
     assertf(rom_addr != 0, "Main executable symbol table not found");
     //Read header for main executable symbol table
     data_cache_hit_writeback_invalidate(&mainexe_sym_info, sizeof(mainexe_sym_info));
@@ -492,7 +525,7 @@ void *dlopen(const char *filename, int mode)
         strcpy(handle->filename, filename);
         //Add module handle to list
         handle->ref_count = 1;
-		__dl_lookup_module = lookup_module;
+		__bt_lookup_module = lookup_module;
         __dl_insert_module(handle);
         //Start running module
         start_module(handle);
@@ -689,6 +722,38 @@ char *dlerror(void)
     //Return error and clear error status
     error_present = false;
     return error_string;
+}
+
+/** @brief Inspector page showing loaded modules */
+static void inspector_page_modules(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
+{
+    static int module_offset = 0;
+
+    dl_module_t *curr_module = __dl_list_head;
+    size_t module_idx = 0;
+    if(key_pressed->d_up && module_offset > 0) {
+        module_offset--;
+    }
+    if(key_pressed->d_down && module_offset+18 < __dl_num_loaded_modules) {
+        module_offset++;
+    }
+    printf("Loaded DSOs (modules)\n\n");
+    while(curr_module) {
+        if(module_idx >= module_offset && module_idx < module_offset+18) {
+            void *module_min = curr_module->prog_base;
+            void *module_max = ((uint8_t *)module_min)+curr_module->prog_size;
+            printf("\aG%s \aT(%p-%p)\n", curr_module->filename, module_min, module_max);
+        }
+        curr_module = curr_module->next;
+        module_idx++;
+    }
+}
+
+/** @brief Register the inspector page for loaded modules */
+__attribute__((constructor))
+void __dl_register_inspector(void)
+{
+    __inspector_add_page(inspector_page_modules);
 }
 
 /** @} */

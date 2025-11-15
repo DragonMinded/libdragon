@@ -6,6 +6,7 @@
 #define LIBDRAGON_KERNEL_KQUEUE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /** 
  * @brief A thread-safe FIFO queue 
@@ -55,6 +56,31 @@ void kqueue_destroy(kqueue_t *queue);
 void kqueue_put(kqueue_t *queue, void *element);
 
 /**
+ * @brief Attempt to add an element to a queue from an interrupt context
+ *
+ * @param[in] queue 	Pointer to the queue structure
+ * @param[in] element	Pointer to the element to add
+ *
+ * @return true if the element was added to the queue, false otherwise
+ */
+bool kqueue_try_put_isr(kqueue_t *queue, void *element);
+
+/**
+ * @brief Try to add an element to the queue with timeout
+ *
+ * This function adds an element to the queue. If the queue is full, the
+ * function will block until there is space in the queue or the timer
+ * expires.
+ *
+ * @param[in] queue 	Pointer to the queue structure
+ * @param[in] element	Pointer to the element to add
+ * @param[in] ticks 	Number of hardware ticks to wait
+ *
+ * @return true if the element was added to the queue, false on timeout
+ */
+bool kqueue_try_put(kqueue_t *queue, void *element, uint32_t ticks);
+
+/**
  * @brief Remove an element from the queue
  * 
  * This function removes an element from the queue. If the queue is empty,
@@ -65,6 +91,21 @@ void kqueue_put(kqueue_t *queue, void *element);
  * @return Pointer to the element removed
  */
 void *kqueue_get(kqueue_t *queue);
+
+/**
+ * @brief Try to remove an element from the queue with timeout
+ *
+ * This function removes an element from the queue. If the queue is empty,
+ * the function will block until there is an element in the queue or the
+ * timeout expires.
+ *
+ * @param[in] queue 	Pointer to qeueue structure
+ * @param[out] element	Pointer pointer to element
+ * @param[in] ticks 	Number of hardware ticks to wait
+ *
+ * @return true if the element was fetched from queue, false on timeout
+ */
+bool kqueue_try_get(kqueue_t *queue, void **element, uint32_t ticks);
 
 /**
  * @brief Get the number of elements in the queue
