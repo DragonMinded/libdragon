@@ -686,6 +686,8 @@ inline uint32_t gl_type_to_index(GLenum type)
         return 7;
     case GL_HALF_FIXED_N64:
         return 8;
+    case GL_SHORT_5_6_5_N64:
+        return 9;
     default:
         return -1;
     }
