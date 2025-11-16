@@ -446,14 +446,65 @@ make all-target-libgcc -j "$JOBS"
 autosudo make install-target-libgcc
 popd
 
+# Now check if we need to build a canadian toolchain.
+if [ "$N64_BUILD" != "$N64_HOST" ]; then
+    # Compile HOST->TARGET binutils
+    # NOTE: we pass --without-msgpack to workaround a bug in Binutils, introduced
+    # with this commit: https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=2952f10cd79af4645222f124f28c7928287d8113
+    # This is due to the fact that pkg-config is used to activate compilation with msgpack
+    # but that it is not correct in the case of a canadian cross.
+    echo "Compiling binutils-$BINUTILS_V for foreign host"
+    mkdir -p binutils_compile_host
+    pushd binutils_compile_host
+    ../"binutils-$BINUTILS_V"/configure \
+        --prefix="$INSTALL_PATH" \
+        --build="$N64_BUILD" \
+        --host="$N64_HOST" \
+        --target="$N64_TARGET" \
+        --disable-werror \
+        --without-msgpack
+    make -j "$JOBS"
+    autosudo make install-strip
+    popd
+
+    # Compile HOST->TARGET gcc
+    mkdir -p gcc_compile
+    pushd gcc_compile
+    CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
+        ../"gcc-$GCC_V"/configure \
+        --prefix="$INSTALL_PATH" \
+        --target="$N64_TARGET" \
+        --build="$N64_BUILD" \
+        --host="$N64_HOST" \
+        --disable-werror \
+        --with-arch=vr4300 \
+        --with-tune=vr4300 \
+        --enable-languages=c,c++ \
+        --with-newlib \
+        --enable-multilib \
+        --with-gcc \
+        --disable-libssp \
+        --disable-shared \
+        --disable-win32-registry \
+        --disable-nls
+    make all-gcc -j "$JOBS"
+    autosudo make install-gcc
+    make all-target-libgcc -j "$JOBS"
+    autosudo make install-target-libgcc
+    popd
+fi
+
+# Patch the GCC installation that will be used for target libraries ($CROSS_PREIFX),
+# to always use our "magic" ktls.h header. This is required to use TLS, which is
+# used by picolibc.
 install_ktls_header "$CROSS_PREFIX"
 patch_gcc_specs 0
 
-# Compile newlib for target, then relocate into final sysroot structure
+# Compile newlib for target
 mkdir -p newlib_compile_target
 pushd newlib_compile_target
 CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-    --prefix="$CROSS_PREFIX" \
+    --prefix="$INSTALL_PATH" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
     --disable-libssp \
@@ -500,7 +551,7 @@ meson setup \
     -Dnewlib-nano-malloc=false \
     -Dthread-local-storage=true \
     -Dpicoexit=false \
-    -Dprefix="$CROSS_PREFIX" \
+    -Dprefix="$INSTALL_PATH" \
     -Dlibdir=mips64-elf/picolibc/lib \
     -Dincludedir=mips64-elf/picolibc/include \
     ../"picolibc-$PICOLIBC_V"
@@ -508,114 +559,11 @@ ninja -j "$JOBS"
 autosudo ninja install
 popd
 
-# For a standard cross-compiler, the only thing left is to finish compiling the target libraries
-# like libstd++. We can continue on the previous GCC build target.
-if [ "$N64_BUILD" == "$N64_HOST" ]; then
-    pushd gcc_compile_target
-    make all -j "$JOBS"
-    autosudo make install-strip
-    popd
-else
-    # Compile HOST->TARGET binutils
-    # NOTE: we pass --without-msgpack to workaround a bug in Binutils, introduced
-    # with this commit: https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=2952f10cd79af4645222f124f28c7928287d8113
-    # This is due to the fact that pkg-config is used to activate compilation with msgpack
-    # but that it is not correct in the case of a canadian cross.
-    echo "Compiling binutils-$BINUTILS_V for foreign host"
-    mkdir -p binutils_compile_host
-    pushd binutils_compile_host
-    ../"binutils-$BINUTILS_V"/configure \
-        --prefix="$INSTALL_PATH" \
-        --build="$N64_BUILD" \
-        --host="$N64_HOST" \
-        --target="$N64_TARGET" \
-        --disable-werror \
-        --without-msgpack
-    make -j "$JOBS"
-    autosudo make install-strip
-    popd
-
-    # Compile HOST->TARGET gcc
-    mkdir -p gcc_compile
-    pushd gcc_compile
-    CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
-        ../"gcc-$GCC_V"/configure \
-        --prefix="$INSTALL_PATH" \
-        --target="$N64_TARGET" \
-        --build="$N64_BUILD" \
-        --host="$N64_HOST" \
-        --disable-werror \
-        --with-arch=vr4300 \
-        --with-tune=vr4300 \
-        --enable-languages=c,c++ \
-        --with-newlib \
-        --enable-multilib \
-        --with-gcc \
-        --disable-libssp \
-        --disable-shared \
-        --disable-win32-registry \
-        --disable-nls
-    make all-target-libgcc -j "$JOBS"
-    autosudo make install-target-libgcc
-    popd
-
-    # Compile newlib for target, then relocate into final sysroot structure (INSTALL_PATH)
-    mkdir -p newlib_compile_target
-    pushd newlib_compile_target
-    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-        --prefix="$INSTALL_PATH" \
-        --target="$N64_TARGET" \
-        --with-cpu=mips64vr4300 \
-        --disable-libssp \
-        --disable-werror \
-        --enable-newlib-io-c99-formats \
-        --enable-newlib-multithread \
-        --enable-newlib-retargetable-locking
-    make -j "$JOBS"
-    autosudo make install
-    popd
-
-    # Compile picolibc for target directly into final sysroot (INSTALL_PATH)
-    rm -rf picolibc_compile_target
-    mkdir -p picolibc_compile_target
-    pushd picolibc_compile_target
-    meson setup \
-        --cross-file="$MESON_CROSS_FILE" \
-        -Dmultilib=false \
-        -Dpicocrt=false \
-        -Dpicolib=false \
-        -Dsemihost=false \
-        -Dspecsdir=none \
-        -Dtests=false \
-        -Dtinystdio=true \
-        -Dfast-bufio=true \
-        -Dio-long-long=true \
-        -Dio-pos-args=true \
-        -Dio-percent-b=true \
-        -Dposix-console=true \
-        -Dformat-default=double \
-        -Dnewlib-fseek-optimization=false \
-        -Dnewlib-fvwrite-in-streamio=false \
-        -Dnewlib-io-float=false \
-        -Dnewlib-stdio64=false \
-        -Dnewlib-unbuf-stream-opt=false \
-        -Dnewlib-nano-malloc=false \
-        -Dthread-local-storage=false \
-        -Dprefix="$INSTALL_PATH" \
-        -Dlibdir=mips64-elf/picolibc/lib \
-        -Dincludedir=mips64-elf/picolibc/include \
-        ../"picolibc-$PICOLIBC_V"
-    ninja -j "$JOBS"
-    autosudo ninja install
-    popd
-
-    # Finish compiling GCC
-    mkdir -p gcc_compile
-    pushd gcc_compile
-    make all -j "$JOBS"
-    autosudo make install-strip
-    popd
-fi
+# Finish building the target libraries (libstdc++, libsupc++, libatomic)
+pushd gcc_compile_target
+make all -j "$JOBS"
+autosudo make install-strip
+popd
 
 # Patch again the spec files with relocatable include path for distribution.
 # This time install into the final HOST->TARGET compiler (in case of canadian).
