@@ -437,6 +437,8 @@ pushd gcc_compile_target
     --disable-shared \
     --with-gcc \
     --with-newlib \
+    --disable-softfloat \
+    --disable-biendian \
     --disable-win32-registry \
     --disable-nls \
     --disable-werror
@@ -483,6 +485,8 @@ if [ "$N64_BUILD" != "$N64_HOST" ]; then
         --with-newlib \
         --enable-multilib \
         --with-gcc \
+        --disable-softfloat \
+        --disable-biendian \
         --disable-libssp \
         --disable-shared \
         --disable-win32-registry \
@@ -500,22 +504,6 @@ fi
 install_ktls_header "$CROSS_PREFIX"
 patch_gcc_specs 0
 
-# Compile newlib for target
-mkdir -p newlib_compile_target
-pushd newlib_compile_target
-CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-    --prefix="$INSTALL_PATH" \
-    --target="$N64_TARGET" \
-    --with-cpu=mips64vr4300 \
-    --disable-libssp \
-    --disable-werror \
-    --enable-newlib-io-c99-formats \
-    --enable-newlib-multithread \
-    --enable-newlib-retargetable-locking
-make -j "$JOBS"
-autosudo make install
-popd
-
 # Meson cross file (required to build picolibc). Materialize from inline block.
 MESON_CROSS_FILE="$BUILD_PATH/meson-cross.txt"
 awk -v start=": <<'__MESON_CROSS_BLOCK__'" -v end="__MESON_CROSS_BLOCK__" '
@@ -524,7 +512,7 @@ awk -v start=": <<'__MESON_CROSS_BLOCK__'" -v end="__MESON_CROSS_BLOCK__" '
     capture {print}
 ' "$SCRIPT_PATH" > "$MESON_CROSS_FILE"
 
-# Compile picolibc for target directly into final sysroot
+# Compile picolibc for target
 rm -rf picolibc_compile_target
 mkdir -p picolibc_compile_target
 pushd picolibc_compile_target
@@ -552,16 +540,57 @@ meson setup \
     -Dthread-local-storage=true \
     -Dpicoexit=false \
     -Dprefix="$INSTALL_PATH" \
-    -Dlibdir=mips64-elf/picolibc/lib \
-    -Dincludedir=mips64-elf/picolibc/include \
+    -Dlibdir=mips64-elf/lib \
+    -Dincludedir=mips64-elf/include \
     ../"picolibc-$PICOLIBC_V"
 ninja -j "$JOBS"
 autosudo ninja install
 popd
 
-# Finish building the target libraries (libstdc++, libsupc++, libatomic)
+# Build the other target libraries (libstdc++, libsupc++, libatomic) against picolibc
 pushd gcc_compile_target
 make all -j "$JOBS"
+autosudo make install-strip
+popd
+
+# Patch again the spec files with relocatable include path for distribution.
+# This time install into the final HOST->TARGET compiler (in case of canadian).
+install_ktls_header "$INSTALL_PATH"
+patch_gcc_specs 1
+
+# Move completed picolibc install to the picolibc sysroot
+autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/picolibc"
+autosudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/picolibc/include"
+autosudo mv "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/picolibc/lib"
+
+# Specs were patched to include ktls.h for picolibc. This is strictly not required
+# while bulding newlib, but since the patch is there, we need to copy ktls.h again,
+# since it's been moved now to picolibc/include.
+install_ktls_header "$CROSS_PREFIX"
+
+# Compile newlib for target
+mkdir -p newlib_compile_target
+pushd newlib_compile_target
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+    --prefix="$INSTALL_PATH" \
+    --target="$N64_TARGET" \
+    --with-cpu=mips64vr4300 \
+    --disable-libgloss \
+    --disable-libssp \
+    --disable-werror \
+    --disable-softfloat \
+    --disable-biendian \
+    --enable-newlib-io-c99-formats \
+    --enable-newlib-multithread \
+    --enable-newlib-retargetable-locking
+make -j "$JOBS"
+autosudo make install
+popd
+
+# Build the other target libraries (libstdc++, libsupc++, libatomic) against newlib
+pushd gcc_compile_target
+make distclean-target -j "$JOBS"
+make all-target -j "$JOBS"
 autosudo make install-strip
 popd
 
@@ -574,17 +603,17 @@ patch_gcc_specs 1
 # with picolibc, and use a symlink to keep it as default for backward compatibility.
 if [ "$N64_HOST" != "x86_64-w64-mingw32" ]; then
     if [ ! -L "$INSTALL_PATH/$N64_TARGET/include" ]; then
+        # Move completed newlib install to the newlib sysroot
         autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
-
         autosudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include"
         autosudo mv "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib/lib"
 
+        # Create symlinks to refer to the newlib sysroot
         autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include"
         autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib"     "$INSTALL_PATH/$N64_TARGET/lib"
     fi
 else
     autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
-
     autosudo cp -a "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib"
     autosudo cp -a "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib"
 fi
@@ -594,14 +623,14 @@ fi
 dest_dir="$INSTALL_PATH/$N64_TARGET/newlib/include"
 autosudo mkdir -p "$dest_dir"
 TOOLCHAIN_VERSION_FILE_NEWLIB="$dest_dir/toolchain.version"
-VERSION_NEWLIB="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"newlib\": \"$NEWLIB_V\"\n}"
-autosudo sh -c "printf '%s\\n' \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\""
+VERSION_NEWLIB="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"newlib\": \"$NEWLIB_V\"\n}\n"
+autosudo sh -c "printf \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\""
 
 dest_dir="$INSTALL_PATH/$N64_TARGET/picolibc/include"
 autosudo mkdir -p "$dest_dir"
 TOOLCHAIN_VERSION_FILE_PICO="$dest_dir/toolchain.version"
-VERSION_PICO="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"picolibc\": \"$PICOLIBC_V\"\n}"
-autosudo sh -c "printf '%s\\n' \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\""
+VERSION_PICO="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"picolibc\": \"$PICOLIBC_V\"\n}\n"
+autosudo sh -c "printf \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\""
 
 if [ "$MAKE_V" != "" ]; then
     pushd "make-$MAKE_V"
