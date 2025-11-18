@@ -300,6 +300,15 @@ jobs:
             done
           fi
 
+      - name: Mark release as draft (force republish)
+        if: github.ref == 'refs/heads/trunk'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view toolchain-continuous-prerelease >/dev/null 2>&1; then
+            gh release edit toolchain-continuous-prerelease --draft
+          fi
+
       - name: Generate Release
         if: github.ref == 'refs/heads/trunk'
         uses: softprops/action-gh-release@v2
