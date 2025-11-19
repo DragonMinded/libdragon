@@ -425,9 +425,12 @@ popd
 # We need to build the C++ compiler to build the target libstd++ later.
 mkdir -p gcc_compile_target
 pushd gcc_compile_target
+CFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-dummy" \
+CXXFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-dummy" \
 ../"gcc-$GCC_V"/configure "${GCC_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
+    --with-sysroot="$CROSS_PREFIX/sysroot-dummy" \
     --with-arch=vr4300 \
     --with-tune=vr4300 \
     --enable-languages=c,c++ \
@@ -539,9 +542,7 @@ meson setup \
     -Dnewlib-nano-malloc=false \
     -Dthread-local-storage=true \
     -Dpicoexit=false \
-    -Dprefix="$INSTALL_PATH" \
-    -Dlibdir=mips64-elf/lib \
-    -Dincludedir=mips64-elf/include \
+    -Dprefix="$INSTALL_PATH/sysroot-dummy/usr" \
     ../"picolibc-$PICOLIBC_V"
 ninja -j "$JOBS"
 autosudo ninja install
@@ -553,15 +554,20 @@ make all -j "$JOBS"
 autosudo make install-strip
 popd
 
+autosudo mv "$INSTALL_PATH/mips64-elf/include"/* \
+            "$INSTALL_PATH/sysroot-dummy/usr/include"
+autosudo mv "$INSTALL_PATH/mips64-elf/lib"/* \
+            "$INSTALL_PATH/sysroot-dummy/usr/lib"
+
+
 # Patch again the spec files with relocatable include path for distribution.
 # This time install into the final HOST->TARGET compiler (in case of canadian).
 install_ktls_header "$INSTALL_PATH"
 patch_gcc_specs 1
 
 # Move completed picolibc install to the picolibc sysroot
-autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/picolibc"
-autosudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/picolibc/include"
-autosudo mv "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/picolibc/lib"
+autosudo rm -rf "$INSTALL_PATH/sysroot-picolibc"
+autosudo mv "$INSTALL_PATH/sysroot-dummy" "$INSTALL_PATH/sysroot-picolibc"
 
 # Specs were patched to include ktls.h for picolibc. This is strictly not required
 # while bulding newlib, but since the patch is there, we need to copy ktls.h again,
@@ -572,7 +578,7 @@ install_ktls_header "$CROSS_PREFIX"
 mkdir -p newlib_compile_target
 pushd newlib_compile_target
 CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-    --prefix="$INSTALL_PATH" \
+    --prefix="$INSTALL_PATH/sysroot-dummy/usr" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
     --disable-libgloss \
@@ -587,6 +593,13 @@ make -j "$JOBS"
 autosudo make install
 popd
 
+# Newlib creates a non-standard sysroot layout, so we need to move files around.
+autosudo mv "$INSTALL_PATH/sysroot-dummy/usr/mips64-elf/include" \
+            "$INSTALL_PATH/sysroot-dummy/usr/include"
+autosudo mv "$INSTALL_PATH/sysroot-dummy/usr/mips64-elf/lib" \
+            "$INSTALL_PATH/sysroot-dummy/usr/lib"
+autosudo rmdir "$INSTALL_PATH/sysroot-dummy/usr/mips64-elf"
+
 # Build the other target libraries (libstdc++, libsupc++, libatomic) against newlib
 pushd gcc_compile_target
 make distclean-target -j "$JOBS"
@@ -594,23 +607,32 @@ make all-target -j "$JOBS"
 autosudo make install-strip
 popd
 
+autosudo mv "$INSTALL_PATH/mips64-elf/include"/* \
+            "$INSTALL_PATH/sysroot-dummy/usr/include"
+autosudo mv "$INSTALL_PATH/mips64-elf/lib"/* \
+            "$INSTALL_PATH/sysroot-dummy/usr/lib"
+
 # Patch again the spec files with relocatable include path for distribution.
 # This time install into the final HOST->TARGET compiler (in case of canadian).
 install_ktls_header "$INSTALL_PATH"
 patch_gcc_specs 1
 
+autosudo rm -rf "$INSTALL_PATH/sysroot-newlib"
+autosudo mv "$INSTALL_PATH/sysroot-dummy" "$INSTALL_PATH/sysroot-newlib"
+
 # On Linux/Mac, where symlinks are supported, relocate newlib into a subdirectory for symmetry
 # with picolibc, and use a symlink to keep it as default for backward compatibility.
 if [ "$N64_HOST" != "x86_64-w64-mingw32" ]; then
     if [ ! -L "$INSTALL_PATH/$N64_TARGET/include" ]; then
+        echo "cleanup"
         # Move completed newlib install to the newlib sysroot
-        autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
-        autosudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include"
-        autosudo mv "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib/lib"
+        #autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
+        #autosudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include"
+        #autosudo mv "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib/lib"
 
         # Create symlinks to refer to the newlib sysroot
-        autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include"
-        autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib"     "$INSTALL_PATH/$N64_TARGET/lib"
+        #autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include"
+        #autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib"     "$INSTALL_PATH/$N64_TARGET/lib"
     fi
 else
     autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
@@ -620,13 +642,13 @@ fi
 
 # Write per-libc toolchain.version files under INSTALL_PATH
 # Ensure include directories exist before writing
-dest_dir="$INSTALL_PATH/$N64_TARGET/newlib/include"
+dest_dir="$INSTALL_PATH/sysroot-newlib/usr/include"
 autosudo mkdir -p "$dest_dir"
 TOOLCHAIN_VERSION_FILE_NEWLIB="$dest_dir/toolchain.version"
 VERSION_NEWLIB="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"newlib\": \"$NEWLIB_V\"\n}\n"
 autosudo sh -c "printf \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\""
 
-dest_dir="$INSTALL_PATH/$N64_TARGET/picolibc/include"
+dest_dir="$INSTALL_PATH/sysroot-picolibc/usr/include"
 autosudo mkdir -p "$dest_dir"
 TOOLCHAIN_VERSION_FILE_PICO="$dest_dir/toolchain.version"
 VERSION_PICO="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"picolibc\": \"$PICOLIBC_V\"\n}\n"
