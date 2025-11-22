@@ -153,11 +153,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragonsys.a
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include
-	if [ -f "$(BUILD_DIR)/libdragon.version" ]; then \
-		install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/; \
-	else \
-		rm -f $(INSTALLDIR)/$(N64_TARGET)/include/libdragon.version; \
-	fi
+	install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/
