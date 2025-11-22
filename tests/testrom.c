@@ -252,8 +252,8 @@ static const struct Testsuite
 	TEST_FUNC(test_timer_disabled_start,     733, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_disabled_restart,   733, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_irq_reentrancy,           230, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_sys_hwmemset,			   0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_sys_hwmemset_uncached,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_sys_hwmemset,			   0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_sys_hwmemset_uncached,      0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_kernel_basic,               5, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_kernel_mutex_1,             5, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_kernel_priority,            5, TEST_FLAGS_NO_BENCHMARK),
@@ -364,6 +364,8 @@ static const struct Testsuite
 	TEST_FUNC(test_dl_ctors,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mat4_mul_two_identities,				0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mat4_mul_scale_translation,			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mat3_mul_two_identities,				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mat3_mul_scale_translation,			0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
