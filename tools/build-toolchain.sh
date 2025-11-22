@@ -550,15 +550,13 @@ popd
 
 # Build the other target libraries (libstdc++, libsupc++, libatomic) against picolibc
 pushd gcc_compile_target
+make distclean-target -j "$JOBS"
 make all -j "$JOBS"
 autosudo make install-strip
 popd
 
-autosudo mv "$INSTALL_PATH/mips64-elf/include"/* \
-            "$INSTALL_PATH/sysroot-dummy/usr/include"
 autosudo mv "$INSTALL_PATH/mips64-elf/lib"/* \
             "$INSTALL_PATH/sysroot-dummy/usr/lib"
-
 
 # Patch again the spec files with relocatable include path for distribution.
 # This time install into the final HOST->TARGET compiler (in case of canadian).
@@ -568,6 +566,12 @@ patch_gcc_specs 1
 # Move completed picolibc install to the picolibc sysroot
 autosudo rm -rf "$INSTALL_PATH/sysroot-picolibc"
 autosudo mv "$INSTALL_PATH/sysroot-dummy" "$INSTALL_PATH/sysroot-picolibc"
+
+# Self-check: ensure no mentions of impure_ptr in libstdc++3.
+if strings "$INSTALL_PATH/sysroot-picolibc/usr/lib/libstdc++.a" | grep -q impure_ptr; then
+    echo "ERROR: libstdc++ was built against newlib instead of picolibc!" >&2
+    exit 1
+fi
 
 # Specs were patched to include ktls.h for picolibc. This is strictly not required
 # while bulding newlib, but since the patch is there, we need to copy ktls.h again,
@@ -607,8 +611,6 @@ make all-target -j "$JOBS"
 autosudo make install-strip
 popd
 
-autosudo mv "$INSTALL_PATH/mips64-elf/include"/* \
-            "$INSTALL_PATH/sysroot-dummy/usr/include"
 autosudo mv "$INSTALL_PATH/mips64-elf/lib"/* \
             "$INSTALL_PATH/sysroot-dummy/usr/lib"
 
