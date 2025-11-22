@@ -1,0 +1,5 @@
+img#gh-dark-mode-only { display: none; }
+@media (prefers-color-scheme: dark) {
+    img#gh-light-mode-only { display: none; }
+    img#gh-dark-mode-only { display: inline; }
+}
