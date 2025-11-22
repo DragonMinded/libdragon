@@ -7,14 +7,18 @@
 # with target "mips64-elf".
 #
 # We build two sysroots:
-# - One with newlib as libc, in $N64_INST/$N64_TARGET/newlib
-# - One with picolibc as libc, in $N64_INST/$N64_TARGET/picolibc
+# - One with newlib as libc, in $N64_INST/sysroot-newlib
+# - One with picolibc as libc, in $N64_INST/sysroot-picolibc
 #
-# For backward compatibility, we also build symlinks so that
-# $N64_INST/$N64_TARGET/{include,lib} point to the newlib sysroot, which makes
-# sure that old build scripts will still work with this toolchain. Modern
-# libdragon build scripts instead know about these two sysroots and select the
-# correct directory depending on the configuration.
+# Libdragon's n64.mk uses --sysroot to select which libc to use when compiling.
+# By default, it uses picolibc.
+#
+# For being able to build old libdragon versions and projects, the default when
+# --sysroot is not specified is to use $N64_INST/sysroot-compat, which is a symlink
+# to sysroot-newlib.
+#
+# The script logs all its output to toolchain/build-toolchain.log, that can be
+# used for debugging build issues.
 #
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
@@ -425,12 +429,12 @@ popd
 # We need to build the C++ compiler to build the target libstd++ later.
 mkdir -p gcc_compile_target
 pushd gcc_compile_target
-CFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-dummy" \
-CXXFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-dummy" \
+CFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-compat" \
+CXXFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-compat" \
 ../"gcc-$GCC_V"/configure "${GCC_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
-    --with-sysroot="$CROSS_PREFIX/sysroot-dummy" \
+    --with-sysroot="$CROSS_PREFIX/sysroot-compat" \
     --with-arch=vr4300 \
     --with-tune=vr4300 \
     --enable-languages=c,c++ \
@@ -542,7 +546,7 @@ meson setup \
     -Dnewlib-nano-malloc=false \
     -Dthread-local-storage=true \
     -Dpicoexit=false \
-    -Dprefix="$INSTALL_PATH/sysroot-dummy/usr" \
+    -Dprefix="$INSTALL_PATH/sysroot-compat/usr" \
     ../"picolibc-$PICOLIBC_V"
 ninja -j "$JOBS"
 autosudo ninja install
@@ -556,7 +560,7 @@ autosudo make install-strip
 popd
 
 autosudo mv "$INSTALL_PATH/mips64-elf/lib"/* \
-            "$INSTALL_PATH/sysroot-dummy/usr/lib"
+            "$INSTALL_PATH/sysroot-compat/usr/lib"
 
 # Patch again the spec files with relocatable include path for distribution.
 # This time install into the final HOST->TARGET compiler (in case of canadian).
@@ -565,7 +569,7 @@ patch_gcc_specs 1
 
 # Move completed picolibc install to the picolibc sysroot
 autosudo rm -rf "$INSTALL_PATH/sysroot-picolibc"
-autosudo mv "$INSTALL_PATH/sysroot-dummy" "$INSTALL_PATH/sysroot-picolibc"
+autosudo mv "$INSTALL_PATH/sysroot-compat" "$INSTALL_PATH/sysroot-picolibc"
 
 # Self-check: ensure no mentions of impure_ptr in libstdc++3.
 if strings "$INSTALL_PATH/sysroot-picolibc/usr/lib/libstdc++.a" | grep -q impure_ptr; then
@@ -582,7 +586,7 @@ install_ktls_header "$CROSS_PREFIX"
 mkdir -p newlib_compile_target
 pushd newlib_compile_target
 CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-    --prefix="$INSTALL_PATH/sysroot-dummy/usr" \
+    --prefix="$INSTALL_PATH/sysroot-compat/usr" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
     --disable-libgloss \
@@ -598,11 +602,11 @@ autosudo make install
 popd
 
 # Newlib creates a non-standard sysroot layout, so we need to move files around.
-autosudo mv "$INSTALL_PATH/sysroot-dummy/usr/mips64-elf/include" \
-            "$INSTALL_PATH/sysroot-dummy/usr/include"
-autosudo mv "$INSTALL_PATH/sysroot-dummy/usr/mips64-elf/lib" \
-            "$INSTALL_PATH/sysroot-dummy/usr/lib"
-autosudo rmdir "$INSTALL_PATH/sysroot-dummy/usr/mips64-elf"
+autosudo mv "$INSTALL_PATH/sysroot-compat/usr/mips64-elf/include" \
+            "$INSTALL_PATH/sysroot-compat/usr/include"
+autosudo mv "$INSTALL_PATH/sysroot-compat/usr/mips64-elf/lib" \
+            "$INSTALL_PATH/sysroot-compat/usr/lib"
+autosudo rmdir "$INSTALL_PATH/sysroot-compat/usr/mips64-elf"
 
 # Build the other target libraries (libstdc++, libsupc++, libatomic) against newlib
 pushd gcc_compile_target
@@ -612,7 +616,7 @@ autosudo make install-strip
 popd
 
 autosudo mv "$INSTALL_PATH/mips64-elf/lib"/* \
-            "$INSTALL_PATH/sysroot-dummy/usr/lib"
+            "$INSTALL_PATH/sysroot-compat/usr/lib"
 
 # Patch again the spec files with relocatable include path for distribution.
 # This time install into the final HOST->TARGET compiler (in case of canadian).
@@ -620,26 +624,17 @@ install_ktls_header "$INSTALL_PATH"
 patch_gcc_specs 1
 
 autosudo rm -rf "$INSTALL_PATH/sysroot-newlib"
-autosudo mv "$INSTALL_PATH/sysroot-dummy" "$INSTALL_PATH/sysroot-newlib"
+autosudo mv "$INSTALL_PATH/sysroot-compat" "$INSTALL_PATH/sysroot-newlib"
 
-# On Linux/Mac, where symlinks are supported, relocate newlib into a subdirectory for symmetry
-# with picolibc, and use a symlink to keep it as default for backward compatibility.
+# Create a symlink "sysroot-compat" pointing to "sysroot-newlib" for
+# backward compatibility. This will be automatically used with old n64.mk scripts,
+# that don't specify --sysroot, as it is the default sysroot path.
 if [ "$N64_HOST" != "x86_64-w64-mingw32" ]; then
-    if [ ! -L "$INSTALL_PATH/$N64_TARGET/include" ]; then
-        echo "cleanup"
-        # Move completed newlib install to the newlib sysroot
-        #autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
-        #autosudo mv "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib/include"
-        #autosudo mv "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib/lib"
-
-        # Create symlinks to refer to the newlib sysroot
-        #autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/include" "$INSTALL_PATH/$N64_TARGET/include"
-        #autosudo ln -sfn "$INSTALL_PATH/$N64_TARGET/newlib/lib"     "$INSTALL_PATH/$N64_TARGET/lib"
-    fi
+    autosudo ln -s "$INSTALL_PATH/sysroot-newlib" "$INSTALL_PATH/sysroot-compat"
 else
-    autosudo mkdir -p "$INSTALL_PATH/$N64_TARGET/newlib"
-    autosudo cp -a "$INSTALL_PATH/$N64_TARGET/include" "$INSTALL_PATH/$N64_TARGET/newlib"
-    autosudo cp -a "$INSTALL_PATH/$N64_TARGET/lib"     "$INSTALL_PATH/$N64_TARGET/newlib"
+    # On Windows, where symlinks are not always supported, we just keep the
+    # old layout for backward compatibility.
+    autosudo cp -a "$INSTALL_PATH/sysroot-newlib" "$INSTALL_PATH/sysroot-compat"
 fi
 
 # Write per-libc toolchain.version files under INSTALL_PATH
