@@ -13,6 +13,7 @@
 #include "rdpq_tri.h"
 #include "rdpq_rect.h"
 #include "rdpq_tex.h"
+#include "rdpq_xform.h"
 #include "rdpq_tex_internal.h"
 #include "utils.h"
 #include "fmath.h"
@@ -621,12 +622,50 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
     (*ltd)(tile, surf, os0, ot0, os1, ot1, draw_cb, parms->filtering);
 }
 
+__attribute__((noinline))
+static void tex_xblit_xform(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
+{
+    rdpq_tile_t tile = parms->tile;
+    int src_width = parms->width ? parms->width : surf->width;
+    int src_height = parms->height ? parms->height : surf->height;
+    int os0 = parms->s0;
+    int ot0 = parms->t0;
+    int os1 = os0 + src_width;
+    int ot1 = ot0 + src_height;
+    bool flip_x = parms->flip_x;
+    bool flip_y = parms->flip_y;
+    float ofs_x = -(os0 + parms->cx);
+    float ofs_y = -(ot0 + parms->cy);
+    
+    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
+    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    rdpq_xform_push();
+    rdpq_xform_mult_rst(x0, y0, parms->theta, scalex, scaley);
+    
+    void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
+    {
+        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
+
+        if (flip_x) { ks0 = os1 - s0 + os0 - 1; ks1 = os1 - s1 + os0 - 1; }
+        if (flip_y) { kt0 = ot1 - t0 + ot0 - 1; kt1 = ot1 - t1 + ot0 - 1; }
+
+        rdpq_xform_texture_rectangle(tile, ofs_x + ks0, ofs_y + kt0, ofs_x + ks1, ofs_y + kt1, s0, t0);
+    }
+
+    (*ltd)(tile, surf, os0, ot0, os1, ot1, draw_cb, parms->filtering);
+    rdpq_xform_pop();
+}
+
 /** @brief Internal implementation of #rdpq_tex_blit, using a custom large tex loader callback function */
 void __rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     static const rdpq_blitparms_t default_parms = {0};
     if (!parms) parms = &default_parms;
-
+    
+    if(parms->allow_xform) {
+        tex_xblit_xform(surf, x0, y0, parms, ltd);
+        return;
+    }
     // Check which implementation to use, depending on the requested features.
     if (F2I(parms->theta) == 0) {
         if (F2I(parms->scale_x) == 0 && F2I(parms->scale_y) == 0)

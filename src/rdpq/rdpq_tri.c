@@ -25,6 +25,7 @@
 #include "rdpq_constants.h"
 #include "utils.h"
 #include "debug.h"
+#include "fgeom2d.h"
 
 /** @brief Set to 1 to activate tracing of all parameters of all triangles. */
 #define TRIANGLE_TRACE   0
@@ -490,6 +491,76 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
         // X,Y: s13.2
         int16_t x = floorf(v[fmt->pos_offset+0] * 4.0f);
         int16_t y = floorf(v[fmt->pos_offset+1] * 4.0f);
+        
+        int16_t z = 0;
+        if (fmt->z_offset >= 0) {
+            z = v[fmt->z_offset+0] * 0x7FFF;
+        } 
+
+        int32_t rgba = 0;
+        if (fmt->shade_offset >= 0) {
+            const float *v_shade = fmt->shade_flat ? v1 : v;
+            uint32_t r = v_shade[fmt->shade_offset+0] * 255.0;
+            uint32_t g = v_shade[fmt->shade_offset+1] * 255.0;
+            uint32_t b = v_shade[fmt->shade_offset+2] * 255.0;
+            uint32_t a = v_shade[fmt->shade_offset+3] * 255.0;
+            rgba = (r << 24) | (g << 16) | (b << 8) | a;
+        }
+
+        int16_t s=0, t=0;
+        int32_t w=0, inv_w=0;
+        if (fmt->tex_offset >= 0) {
+            s     = v[fmt->tex_offset+0] * 32.0f;
+            t     = v[fmt->tex_offset+1] * 32.0f;
+            w     = float_to_s16_16(1.0f / v[fmt->tex_offset+2]);
+            inv_w = float_to_s16_16(       v[fmt->tex_offset+2]);
+        }
+
+        rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE_DATA,
+            TRI_DATA_LEN * i, 
+            (x << 16) | (y & 0xFFFF), 
+            (z << 16), 
+            rgba, 
+            (s << 16) | (t & 0xFFFF), 
+            w,
+            inv_w);
+    }
+
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 
+        0xC000 | (cmd_id << 8) | 
+        (fmt->tex_mipmaps ? (fmt->tex_mipmaps-1) << 3 : 0) | 
+        (fmt->tex_tile & 7));
+}
+
+void __rdpq_triangle_rsp_xform(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3, fm_mat3_t *mtx)
+{
+    uint32_t res = AUTOSYNC_PIPE;
+    if (fmt->tex_offset >= 0) {
+        // FIXME: this can be using multiple tiles depending on color combiner and texture
+        // effects such as detail and sharpen. Figure it out a way to handle these in the
+        // autosync engine.
+        res |= AUTOSYNC_TILE(fmt->tex_tile);
+        res |= AUTOSYNC_TMEM(0);
+    }
+    __rdpq_autosync_use(res);
+
+    uint32_t cmd_id = RDPQ_CMD_TRI;
+    if (fmt->shade_offset >= 0) cmd_id |= 0x4;
+    if (fmt->tex_offset >= 0)   cmd_id |= 0x2;
+    if (fmt->z_offset >= 0)     cmd_id |= 0x1;
+
+    const int TRI_DATA_LEN = ROUND_UP((2+1+1+3)*4, 16);
+
+    const float *vtx[3] = {v1, v2, v3};
+    for (int i=0;i<3;i++) {
+        const float *v = vtx[i];
+        //Transform vertex
+        fm_vec2_t pos = {{v[fmt->pos_offset+0], v[fmt->pos_offset+1]}};
+        fm_vec3_t temp;
+        fm_mat3_mul_vec2(&temp, mtx, &pos);
+        // X,Y: s13.2
+        int16_t x = floorf(temp.x * 4.0f);
+        int16_t y = floorf(temp.y * 4.0f);
         
         int16_t z = 0;
         if (fmt->z_offset >= 0) {
