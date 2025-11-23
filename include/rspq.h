@@ -796,6 +796,18 @@ void rspq_block_run(rspq_block_t *block);
  */
 void rspq_block_free(rspq_block_t *block);
 
+/** 
+ * @brief Returns true if a block is currently being built. 
+ * 
+ * This function returns true if, and only if, it is called after
+ * #rspq_block_begin was called and before #rspq_block_end is called.
+ * Use this function to determine whether a block is currently being recorded.
+ */
+static inline bool rspq_block_is_recording(void) {
+    extern rspq_block_t *rspq_block;
+    return rspq_block != NULL;
+}
+
 /**
  * @brief Register a callback to be called when the current block is freed.
  * 
