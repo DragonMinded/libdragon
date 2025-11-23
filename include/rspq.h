@@ -797,6 +797,27 @@ void rspq_block_run(rspq_block_t *block);
 void rspq_block_free(rspq_block_t *block);
 
 /**
+ * @brief Register a callback to be called when the current block is freed.
+ * 
+ * Calling this function is only valid when a block is currently being recorded
+ * (see #rspq_block_begin). The callback will be called with the given context
+ * when the currently recorded block is freed using #rspq_block_free.
+ * 
+ * It is possible to call this function multiple times during the recording
+ * of the same block. In that case the callbacks will be called in the reverse
+ * order that they were passed into this function.
+ * 
+ * This function is useful for binding the lifetime of resources to that of a block.
+ * For example if a certain command in an rspq overlay accesses a buffer and that
+ * command is recorded into a block, it's possible to make sure that the block
+ * never outlives that buffer without any additionally required scaffolding.
+ * 
+ * @param  cb   The callback function
+ * @param  ctx  The context that will be passed to the callback
+ */
+void rspq_block_atexit(void (*cb)(void*), void* ctx);
+
+/**
  * @brief Start building a high-priority queue.
  * 
  * This function enters a special mode in which a high-priority queue is

@@ -149,7 +149,17 @@ enum {
 
 ///@cond
 typedef struct rdpq_block_s rdpq_block_t;
+typedef struct rspq_block_cb_s rspq_block_cb_t;
 ///@endcond
+
+/**
+ * @brief Linked list of callbacks for storage inside a rspq block.
+ */
+typedef struct rspq_block_cb_s {
+    void (*cb)(void*);      ///< The callback function pointer
+    void* ctx;              ///< The context that will be passed into the callback
+    rspq_block_cb_t *next;  ///< Next callback in the linked list
+} rspq_block_cb_t;
 
 /**
  * @brief A rspq block: pre-recorded array of commands
@@ -162,6 +172,7 @@ typedef struct rdpq_block_s rdpq_block_t;
 typedef struct rspq_block_s {
     uint32_t nesting_level;     ///< Nesting level of the block
     rdpq_block_t *rdp_block;    ///< Option RDP static buffer (with RDP commands)
+    rspq_block_cb_t *atexit;    ///< List of callbacks to call upon freeing the block
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
