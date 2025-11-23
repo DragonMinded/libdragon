@@ -16,6 +16,7 @@ EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
 EXAMPLES += micro-ui
 EXAMPLES += mixertest
+EXAMPLES += ovldemo
 EXAMPLES += overlays
 EXAMPLES += pixelshader
 EXAMPLES += rdpqdemo
