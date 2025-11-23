@@ -198,7 +198,12 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
 
 void begin_end_next_buffer()
 {
-    state->begin_end_current_buffer = ringbuffer_alloc_next(&state->begin_end_buffer);
+    if (rspq_block_is_recording()) {
+        state->begin_end_current_buffer = malloc_uncached(sizeof(native_vertex_t) * BEGIN_END_BUFFER_SIZE);
+        rspq_block_atexit(free_uncached, state->begin_end_current_buffer);
+    } else {
+        state->begin_end_current_buffer = ringbuffer_alloc_next(&state->begin_end_buffer);
+    }
     state->begin_end_index = 0;
 }
 
@@ -333,7 +338,7 @@ static void prepare_drawing_with_magma()
     update_pipeline(layout);
     
     gl2_write(GL_CMD_PRE_INIT_MAGMA, magma_rsp_state);
-
+    
     mg_set_vertex_stride(layout->vertex_layout.stride);
 }
 
@@ -348,12 +353,11 @@ static void gl_rsp_begin(GLenum mode)
 
     mg_draw_begin();
 
-    if (state->begin_end_buffer.buffer == NULL) {
+    if (!rspq_block_is_recording() && state->begin_end_buffer.buffer == NULL) {
         ringbuffer_init(&state->begin_end_buffer, sizeof(native_vertex_t) * BEGIN_END_BUFFER_SIZE, BEGIN_END_BUFFER_COUNT);
     }
 
     begin_end_next_buffer();
-    gl_update_array_pointers(state->array_object);
 }
 
 void begin_end_draw_current_buffer()
@@ -362,7 +366,8 @@ void begin_end_draw_current_buffer()
     mg_draw(&(mg_input_assembly_parms_t) {
         .primitive_topology = state->begin_end_topology
     }, state->begin_end_index, 0);
-    ringbuffer_release_current(&state->begin_end_buffer);
+
+    if (!rspq_block_is_recording()) ringbuffer_release_current(&state->begin_end_buffer);
 }
 
 static void gl_rsp_end()
@@ -478,14 +483,21 @@ static void gl_rsp_array_element(uint32_t index)
 
 static void prepare_drawing_from_arrays(uint32_t first, uint32_t count)
 {
-    array_object_update(state->array_object, first, count);
-
+    array_object_update(state->array_object);
     prepare_drawing_with_magma();
 
-    // It's possible that we are now accessing a sub-range of a previously cached buffer.
-    // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
-    uint32_t buffer_offset = first - state->array_object->cached_first;
-    mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
+    if (rspq_block_is_recording()) {
+        void *buffer = malloc_uncached(state->array_object->layout.vertex_layout.stride * count);
+        rspq_block_atexit(free_uncached, buffer);
+        array_object_convert_into(state->array_object, first, count, buffer);
+        mg_bind_vertex_buffer(buffer);
+    } else {
+        array_object_fill_cache(state->array_object, first, count);
+        // It's possible that we are now accessing a sub-range of a previously cached buffer.
+        // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
+        uint32_t buffer_offset = first - state->array_object->cached_first;
+        mg_bind_vertex_buffer(((uint8_t*)state->array_object->buffer) + buffer_offset * state->array_object->layout.vertex_layout.stride);
+    }
 }
 
 static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
@@ -553,6 +565,15 @@ static void update_element_array_cache(gl_buffer_object_t *element_buffer, uint3
     *max_index = cache->max_index;
 }
 
+static const uint16_t *get_indices(gl_buffer_object_t *element_buffer, const void* indices)
+{
+    if (element_buffer == NULL) {
+        return (const uint16_t*)indices;
+    } else {
+        return (const uint16_t*)((const uint8_t*)element_buffer->storage.data + (uint32_t)indices);
+    }
+}
+
 static void gl_rsp_draw_elements(GLenum mode, uint32_t count, const void* indices, GLenum type)
 {
     assertf(type == GL_UNSIGNED_SHORT, "Index type must be GL_UNSIGNED_SHORT");
@@ -563,19 +584,18 @@ static void gl_rsp_draw_elements(GLenum mode, uint32_t count, const void* indice
     };
 
     gl_buffer_object_t *element_buffer = state->array_object->element_array_buffer;
-    if (element_buffer != NULL) {
+    if (element_buffer != NULL && !rspq_block_is_recording()) {
         update_element_array_cache(element_buffer, count, (uint32_t)indices, &input_assembly_parms, &min_index, &max_index);
     } else {
-        find_index_bounds(indices, count, &min_index, &max_index);
+        find_index_bounds(get_indices(element_buffer, indices), count, &min_index, &max_index);
     }
 
     prepare_drawing_from_arrays(min_index, max_index - min_index + 1);
     mg_draw_begin();
-    if (element_buffer != NULL) {
+    if (element_buffer != NULL && !rspq_block_is_recording()) {
         rspq_block_run(element_buffer->element_cache->block);
     } else {
-        // TODO: interop with display lists -> always run this branch
-        mg_draw_indexed(&input_assembly_parms, indices, count, -min_index);
+        mg_draw_indexed(&input_assembly_parms, get_indices(element_buffer, indices), count, -min_index);
     }
     mg_draw_end();
 }

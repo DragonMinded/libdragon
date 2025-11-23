@@ -642,7 +642,9 @@ void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *arra
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
-void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count);
+void array_object_update(gl_array_object_t *array_object);
+void array_object_fill_cache(gl_array_object_t *array_object, uint32_t first, uint32_t count);
+void array_object_convert_into(gl_array_object_t *array_object, uint32_t first, uint32_t count, void* buffer);
 void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
 
 void set_can_use_rsp_dirty();

@@ -543,14 +543,16 @@ void glTexSizeN64(GLushort width, GLushort height)
 
 void gl_pre_init_pipe(GLenum primitive_mode)
 {
+    __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEMS);
+        
     gl2_write(GL_CMD_COPY_STATE, gl_rsp_state);
-
+    
     // PreInitPipeTex will run a block with nesting level 1 for texture upload.
     // The command itself does not emit RDP commands (the block does that, so
     // we use a plain gl_write() for it.
     rspq_block_run_rsp(1);
     gl2_write(GL_CMD_PRE_INIT_PIPE_TEX);
-
+    
     // PreInitPipe is similar to rdpq_set_mode_standard wrt RDP commands.
     // It issues SET_SCISSOR + CC + SOM.
     gl2_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);

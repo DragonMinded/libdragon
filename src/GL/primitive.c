@@ -141,7 +141,6 @@ static void prepare_drawing(GLenum mode)
     state->can_use_rsp = gl_can_use_rsp_pipeline(mode);
     state->current_pipeline = state->can_use_rsp ? &gl_rsp_pipeline : &gl_cpu_pipeline;
 
-    __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
     gl_pre_init_pipe(mode);
     gl_update_array_pointers(state->array_object);
 }

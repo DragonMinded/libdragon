@@ -65,6 +65,7 @@ MG_STATE_STAGING:
     .align 3
     FOG_PARAMS: .ds.b 6
     FOG_MASK: .ds.b 1
+    .align 3
 MG_STATE_STAGING_END:
 
     .text

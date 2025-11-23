@@ -581,20 +581,23 @@ void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COU
     }
 }
 
+void array_object_convert_into(gl_array_object_t *array_object, uint32_t first, uint32_t count, void* buffer)
+{
+    array_convert(array_object, array_object->out_offsets, buffer, first, count, array_object->layout.vertex_layout.stride);
+}
+
 static void array_object_convert_data(gl_array_object_t *array_object, uint32_t first, uint32_t count)
 {
-    uint32_t stride = array_object->layout.vertex_layout.stride;
-
     // TODO: allocate from a pool?
     if (array_object->buffer != NULL) {
         rspq_call_deferred(free_uncached, array_object->buffer);
     }
-    array_object->buffer = malloc_uncached(stride * count);
+    array_object->buffer = malloc_uncached(array_object->layout.vertex_layout.stride * count);
 
-    array_convert(array_object, array_object->out_offsets, array_object->buffer, first, count, stride);
+    array_object_convert_into(array_object, first, count, array_object->buffer);
 }
 
-void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+void array_object_update(gl_array_object_t *array_object)
 {
     // TODO: throw INVALID OPERATION if any VBOs are currently mapped
 
@@ -609,7 +612,10 @@ void array_object_update(gl_array_object_t *array_object, uint32_t first, uint32
         array_object->are_bindings_dirty = false;
         array_object->is_data_dirty = true;
     }
+}
 
+void array_object_fill_cache(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+{
     uint32_t end = first + count;
     uint32_t cached_end = array_object->cached_first + array_object->cached_count;
 
