@@ -149,6 +149,11 @@ gen-version:
 				sed 's/"dirty":[[:space:]]*false/"dirty": true/' "$(BUILD_DIR)/libdragon.version" > "$(BUILD_DIR)/version.tmp"; \
 				mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/libdragon.version"; \
 			fi; \
+		else \
+			if [ ! -e "$(BUILD_DIR)/libdragon.version" ]; then \
+				echo "WARNING: .git exists but git refuses to access it (permission problems?)" >&2; \
+				echo "WARNING: libdragon.version will not be generated." >&2; \
+			fi; \
 		fi; \
 	else \
 		cp libdragon.version "$(BUILD_DIR)/libdragon.version"; \
@@ -166,7 +171,7 @@ install: install-mk libdragon
 		install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/; \
 	else \
 		rm -f $(INSTALLDIR)/$(N64_TARGET)/include/libdragon.version; \
-	fi
+	fi;
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/

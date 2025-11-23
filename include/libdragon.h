@@ -25,6 +25,7 @@
 #include "n64types.h"
 #include "fmath.h"
 #include "fgeom.h"
+#include "fgeom2d.h"
 #include "audio.h"
 #include "entropy.h"
 #include "console.h"
