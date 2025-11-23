@@ -88,6 +88,7 @@
 #include "rdpq_debug.h"
 #include "rdpq_macros.h"
 #include "rdpq_mat.h"
+#include "rdpq_xform.h"
 #include "surface.h"
 #include "sprite.h"
 #include "debugcpp.h"

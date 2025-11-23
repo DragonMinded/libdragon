@@ -314,7 +314,9 @@ typedef struct rdpq_blitparms_s {
     float scale_x;      ///< Horizontal scale factor to apply to the surface. If 0, no scaling is performed (the same as 1.0f). If negative, horizontal flipping is applied
     float scale_y;      ///< Vertical scale factor to apply to the surface. If 0, no scaling is performed (the same as 1.0f). If negative, vertical flipping is applied
     float theta;        ///< Rotation angle in radians
-
+    
+    bool allow_xform;   ///< True if blit should be affected by transforms applied by rdpq_xform
+    
     // FIXME: replace this with CPU tracking of filtering mode?
     bool filtering;     ///< True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks)
 
