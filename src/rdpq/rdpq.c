@@ -541,7 +541,7 @@ void rdpq_exec(void *buffer, int size)
     // TODO: to implement support in blocks, we need a way to notify the block state machine that
     // after this command, a new RSPQ_CMD_RDP_SET_BUFFER is required to be sent, to resume playing
     // the static buffer.
-    assertf(!rspq_in_block(), "cannot call rdpq_exec() inside a block");
+    assertf(!rspq_block_is_recording(), "cannot call rdpq_exec() inside a block");
 
     void *end = buffer + size;
     rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, PhysicalAddr(end), PhysicalAddr(buffer), PhysicalAddr(end));

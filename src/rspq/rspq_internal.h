@@ -268,12 +268,6 @@ rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool wait
 /** @brief Polls the deferred calls list, calling callbacks ready to be called. */
 bool __rspq_deferred_poll(void);
 
-/** @brief True if we are currently building a block. */
-static inline bool rspq_in_block(void) {
-    extern rspq_block_t *rspq_block;
-    return rspq_block != NULL;
-}
-
 /** @brief True if we are currently in highpri mode */
 bool rspq_in_highpri(void);
 
