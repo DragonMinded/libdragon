@@ -1184,6 +1184,15 @@ void rspq_block_free(rspq_block_t *block)
         // this is an invalid chunk of a block, better assert.
         assertf(0, "invalid terminator command in block: %08lx\n", cmd);
     }
+
+    // Lastly, invoke callbacks (in reverse order of registration)
+    rspq_block_cb_t *cb = block->atexit;
+    while (cb) {
+        cb->cb(cb->ctx);
+        rspq_block_cb_t *next = cb->next;
+        free(cb);
+        cb = next;
+    }
 }
 
 void rspq_block_run(rspq_block_t *block)
@@ -1221,6 +1230,18 @@ void rspq_block_run_rsp(int nesting_level)
         assertf(rspq_block->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
             "reached maximum number of nested block runs");
     }    
+}
+
+void rspq_block_atexit(void (*cb)(void*), void* ctx)
+{
+    assertf(rspq_block, "no block is being created");
+    rspq_block_cb_t *new_cb = malloc(sizeof(rspq_block_cb_t));
+    new_cb->cb = cb;
+    new_cb->ctx = ctx;
+    // Insert at the front of the list.
+    // This means that iteration will happen in reverse order of insertion.
+    new_cb->next = rspq_block->atexit;
+    rspq_block->atexit = new_cb;
 }
 
 void rspq_noop()
