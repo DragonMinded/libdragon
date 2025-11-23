@@ -87,7 +87,7 @@ void mg_draw_triangle(uint8_t index0, uint8_t index1, uint8_t index2)
     uint16_t i1 = index1 * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE;
     uint16_t i2 = index2 * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE;
 
-    mg_cmd_write(MG_CMD_DRAW_INDICES, i0, (i1 << 16) | i2);
+    mg_rdpq_write(MG_CMD_DRAW_INDICES, i0, (i1 << 16) | i2);
 }
 
 static void get_overlay_span(rsp_ucode_t *ucode, void **code, uint32_t *code_size)
