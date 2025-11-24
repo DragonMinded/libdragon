@@ -532,6 +532,7 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
         (fmt->tex_tile & 7));
 }
 
+/** @brief Internal helper function for rendering transformed triangle */
 void __rdpq_triangle_rsp_xform(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3, fm_mat3_t *mtx)
 {
     uint32_t res = AUTOSYNC_PIPE;

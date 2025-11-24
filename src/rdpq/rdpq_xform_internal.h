@@ -6,7 +6,13 @@
 
 #include "rdpq.h"
 
+/**
+ * @brief Internal function to initialize the RDPQ Transform Library
+ */
 void __rdpq_xform_init(void);
+/**
+ * @brief Internal function to shut down the RDPQ Transform Library
+ */
 void __rdpq_xform_close(void);
 
 #endif

@@ -24,9 +24,12 @@ typedef enum {
 
 #define RDPQ_XFORM_STACK_SIZE 16
 
+/**
+ * @brief Data for RDPQ transformation
+ */
 typedef struct rdpq_xform_s {
-    fm_mat3_t mtx;
-    rdpq_xform_type type;
+    fm_mat3_t mtx; ///< 3x3 Transformation matrix associated with transformaton
+    rdpq_xform_type type; ///< Type of transformation
 } rdpq_xform_t;
 
 static rdpq_xform_t *curr_xform;
