@@ -68,7 +68,7 @@ uint32_t __utf8_decode(const char **str)
 static bool rdpq_paragraph_builder_full(void)
 {
     return (builder.parms->height && builder.y - builder.font->descent >= builder.parms->height) 
-            || (builder.max_chars == 0);
+            || (builder.max_chars <= 0);
 }
 
 void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial_font_id, rdpq_paragraph_t *layout)
@@ -137,7 +137,7 @@ static void paragraph_extend(void)
 {
     assertf(builder.layout->flags & RDPQ_PARAGRAPH_FLAG_MALLOC, "paragraph of text is too long and cannot be dynamically extended");
     int new_cap = builder.layout->capacity * 2;
-    builder.layout = realloc(builder.layout, sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * new_cap);
+    builder.layout = realloc(builder.layout, sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * (new_cap + 1));
     builder.layout->capacity = new_cap;
 }
 
@@ -204,8 +204,6 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     /// @endcond
 
     while (utf8_text < end || next_index >= 0) {
-        if (UNLIKELY(builder.max_chars <= 0))
-            return;
         int16_t index = next_index; next_index = -1;
         if (index < 0) index = UTF8_DECODE_NEXT();
         if (UNLIKELY(index < 0)) continue;
@@ -213,10 +211,14 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
         float xadvance; int8_t xoff2; bool has_kerning; uint8_t atlas_id;
         __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &atlas_id);
         xadvance += builder.parms->char_spacing;
-        builder.max_chars -= 1;
 
         // Check if this is a space character
         if (UNLIKELY(xoff2 == 0)) {
+            // If we finished the alloted number of chars, we're done. Check this only
+            // on spaces so that we don't mess wordwrapping.
+            if (UNLIKELY(builder.max_chars <= 0))
+                return;
+
             builder.ch_last_space = builder.layout->nchars;
 
             if (UNLIKELY(is_tab)) {
@@ -258,6 +260,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             .x = xcur+.5f,
             .y = ycur+.5f,
         };
+        builder.max_chars -= 1;
 
         // Advance the cursor
         xcur += xadvance * builder.xscale;
@@ -454,6 +457,11 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
     // with a newline
     if (!__rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, builder.layout->nchars))
         builder.layout->nlines -= 1;
+
+    // Clamp the number of chars to the maximum allowed (for typewriter effects). Now the text
+    // has been fully laid out, so we can safely clamp it.
+    if (builder.parms->max_chars && builder.layout->nchars > builder.parms->max_chars)
+        builder.layout->nchars = builder.parms->max_chars;
 
     // Finish filling the metrics
     builder.layout->advance_x = builder.x;

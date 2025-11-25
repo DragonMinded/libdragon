@@ -76,7 +76,7 @@ kthread_t *__kernel_all_threads;
 #endif
 
 /** @brief Initializes TLS support for the kernel */
-__attribute__((constructor)) void __kernel_tls_init(void)
+__attribute__((constructor(102))) void __kernel_tls_init(void)
 {
 	memcpy(__th_tdata_copy, __tls_base, TDATA_SIZE);
 }
@@ -424,9 +424,6 @@ kthread_t* kernel_init(void)
 	// Initialize IRQ condition variables
 	__kirq_init();
 
-	// Initialize TLS support
-	__ktls_init();
-
 	// Kernel is now initialized
 	__kernel = true;
 
@@ -451,7 +448,6 @@ void kernel_close(void)
 	th_cur = NULL;
 	__kernel = false;
 	__isr_force_schedule = false;
-	__ktls_close();
 }
 
 kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, uint8_t flag, int (*user_entry)(void*), void *user_data)
@@ -924,6 +920,16 @@ void kcond_signal(kcond_t *cond)
 	enable_interrupts();
 }
 
+void __kcond_signal_isr(kcond_t *cond)
+{
+	kthread_t *th = __thlist_pop(&cond->waiting);
+	if (th) {
+		__thlist_add_pri(&th_ready, th);
+		if (th_cur->pri < th->pri)
+			KTHREAD_SWITCH_ISR();
+	}
+}
+
 void kcond_broadcast(kcond_t *cond)
 {
 	disable_interrupts();
@@ -970,11 +976,13 @@ bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mutex, uint32_t ticks)
 	bool timeout = false;
 
 	disable_interrupts();
-	assertf(mutex->owner == PhysicalAddr(th), "kcond_wait_timeout() called, but mutex is not locked by %s[%p]", th->name, th);
-	assertf(mutex->counter == 1, "kcond_wait_timeout() called, but mutex is locked multiple times");
+	if (mutex) {
+		assertf(mutex->owner == PhysicalAddr(th), "kcond_wait_timeout() called, but mutex is not locked by %s[%p]", th->name, th);
+		assertf(mutex->counter == 1, "kcond_wait_timeout() called, but mutex is locked multiple times");
 
-	// Unlock the mutex, and put the thread in the cond waiting list
-	kmutex_unlock_internal(mutex);
+		// Unlock the mutex, and put the thread in the cond waiting list
+		kmutex_unlock_internal(mutex);
+	}
 	__thlist_add_pri(&cond->waiting, th);
 
 	// Timer callback. This will be invoked when the timer elapses after the
@@ -1001,7 +1009,7 @@ bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mutex, uint32_t ticks)
 
 	if (!timeout) stop_timer(&timer);
 
-	kmutex_lock(mutex);
+	if (mutex) kmutex_lock(mutex);
 	enable_interrupts();
 	return !timeout;
 }

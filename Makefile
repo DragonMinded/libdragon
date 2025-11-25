@@ -28,7 +28,7 @@ libdragon: CXXFLAGS+=$(N64_CXXFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: ASFLAGS+=$(N64_ASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
-libdragon: libdragon.a libdragonsys.a
+libdragon: libdragon.a libdragonsys.a gen-version
 
 libdragonsys.a: $(BUILD_DIR)/system.o
 
@@ -131,6 +131,34 @@ $(INSTALLDIR)/include/n64.mk: n64.mk
 	mkdir -p $(INSTALLDIR)/include
 	install -cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
+gen-version:
+# Generate a version file for libdragon. We go through git archive so that
+# the export-subst is applied to the template file.
+# If .git doesn't exist, assume export-subst ran and just copy the file.
+# Otherwise, use git-archive to generate the subst'd version file.
+# NOTE: git can fail to access the repository via sudo for security/permissions
+# reasons (for instance, it happens on Mac when using sudo on an external volume).
+# We check for this via git rev-parse. In these cases, we hope the file was
+# generated without sudo as part of the normal build process.
+	@mkdir -p $(BUILD_DIR)
+	if [ -e .git ]; then \
+		if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+			git archive --format=tar HEAD libdragon.version \
+				| tar -xOf - libdragon.version > "$(BUILD_DIR)/libdragon.version"; \
+			if ! git diff-index --quiet HEAD -- 2>/dev/null; then \
+				sed 's/"dirty":[[:space:]]*false/"dirty": true/' "$(BUILD_DIR)/libdragon.version" > "$(BUILD_DIR)/version.tmp"; \
+				mv -f "$(BUILD_DIR)/version.tmp" "$(BUILD_DIR)/libdragon.version"; \
+			fi; \
+		else \
+			if [ ! -e "$(BUILD_DIR)/libdragon.version" ]; then \
+				echo "WARNING: .git exists but git refuses to access it (permission problems?)" >&2; \
+				echo "WARNING: libdragon.version will not be generated." >&2; \
+			fi; \
+		fi; \
+	else \
+		cp libdragon.version "$(BUILD_DIR)/libdragon.version"; \
+	fi;
+
 install: install-mk libdragon
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/lib
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragon.a
@@ -139,6 +167,11 @@ install: install-mk libdragon
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragonsys.a
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include
+	if [ -f "$(BUILD_DIR)/libdragon.version" ]; then \
+		install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/; \
+	else \
+		rm -f $(INSTALLDIR)/$(N64_TARGET)/include/libdragon.version; \
+	fi;
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/
@@ -174,7 +207,7 @@ test-clean: install-mk
 
 clobber: clean examples-clean tools-clean test-clean
 
-.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk
+.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk libdragon gen-version
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)

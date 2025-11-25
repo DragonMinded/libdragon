@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <malloc.h>
 #include <unistd.h>
@@ -17,6 +18,7 @@
 #include "rsp.h"
 #include "rdp.h"
 #include "utils.h"
+#include "rompak_internal.h"
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
@@ -164,6 +166,30 @@ void free_uncached(void *buf)
     free(CachedAddr(buf));
 }
 
+void* realloc_uncached(void *buf, size_t size)
+{
+    size_t old_size = malloc_usable_size(CachedAddr(buf));
+    old_size = ROUND_DOWN(old_size, 16);
+    size = ROUND_UP(size, 16);
+
+    if (old_size == size)
+        return buf;
+
+    if (old_size > size) {
+        void *new_buf = realloc(CachedAddr(buf), size);
+        assertf(new_buf == CachedAddr(buf), "shrinking a buffer should not move it");
+        return UncachedAddr(new_buf);
+    }
+
+    // Growing the buffer: allocate a new one and copy the contents.
+    void *new_buf = malloc_uncached(size);
+    if (!new_buf)
+        return NULL;
+    memcpy(new_buf, buf, old_size);
+    free_uncached(buf);
+    return new_buf;
+}
+    
 int get_memory_size(void)
 {
     // If the application checked the size of the memory, we can assume that
@@ -263,11 +289,37 @@ void sys_get_heap_stats(heap_stats_t *stats)
     stats->used = m.uordblks;
 }
 
+static void version_callback(void *ctx, char *key, char *value)
+{
+    sys_version_t* version = (sys_version_t *)ctx;
+    if (strcmp(key, "branch") == 0) {
+        strlcpy(version->branch, value, sizeof(version->branch));
+    } else if (strcmp(key, "hash") == 0) {
+        strlcpy(version->hash, value, sizeof(version->hash));
+    } else if (strcmp(key, "commit-date") == 0) {
+        strlcpy(version->commit_date, value, sizeof(version->commit_date));
+    } else if (strcmp(key, "dirty") == 0) {
+        version->dirty = strcmp(value, "true") == 0;
+    }
+}
+
+bool sys_get_version(sys_version_t *version)
+{
+    size_t size;
+    pi_addr_t version_addr = rompak_search_ext("libdragon.version", &size);
+    if (!version_addr) {
+        return false;
+    }
+
+    rompak_version_parse(version_addr, size, version_callback, version);
+    return true;
+}
+
 /**
  * @brief Initialize COP1 with default settings that prevent undesirable exceptions.
  *
  */
-__attribute__((constructor)) void __init_cop1(void)
+__attribute__((constructor(110))) void __init_cop1(void)
 {
     /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();

@@ -4,8 +4,11 @@
  * @brief Thread-safe FIFO queue implementation for kernel use.
  */
 #include "kernel.h"
+#include "kernel_internal.h"
 #include "kqueue.h"
+#include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 /** @brief A thread-safe FIFO queue */
 typedef struct kqueue_s {
@@ -60,6 +63,37 @@ void kqueue_put(kqueue_t *queue, void *element)
     kmutex_unlock(&queue->mutex);
 }
 
+bool kqueue_try_put_isr(kqueue_t *queue, void *element)
+{
+    assert(exception_is_running());
+
+    if (queue->mutex.counter == 0 && queue->count < queue->size) {
+        queue->buffer[queue->tail] = element;
+        queue->tail = (queue->tail + 1) % queue->size;
+        queue->count++;
+        __kcond_signal_isr(&queue->not_empty);
+        return true;
+    }
+    return false;
+}
+
+bool kqueue_try_put(kqueue_t *queue, void *element, uint32_t ticks)
+{
+    kmutex_lock(&queue->mutex);
+    while (queue->count == queue->size) {
+        if (!kcond_wait_timeout(&queue->not_full, &queue->mutex, ticks)) {
+            kmutex_unlock(&queue->mutex);
+            return false;
+        }
+    }
+    queue->buffer[queue->tail] = element;
+    queue->tail = (queue->tail + 1) % queue->size;
+    queue->count++;
+    kcond_signal(&queue->not_empty);
+    kmutex_unlock(&queue->mutex);
+    return true;
+}
+
 void *kqueue_get(kqueue_t *queue)
 {
     void *element = NULL;
@@ -72,6 +106,25 @@ void *kqueue_get(kqueue_t *queue)
     kcond_signal(&queue->not_full);
     kmutex_unlock(&queue->mutex);
     return element;
+}
+
+bool kqueue_try_get(kqueue_t *queue, void **element, uint32_t ticks)
+{
+    kmutex_lock(&queue->mutex);
+    while (queue->count == 0) {
+        if (!kcond_wait_timeout(&queue->not_empty, &queue->mutex, ticks)) {
+            kmutex_unlock(&queue->mutex);
+            return false;
+        }
+    }
+    if (element) {
+        *element = queue->buffer[queue->head];
+    }
+    queue->head = (queue->head + 1) % queue->size;
+    queue->count--;
+    kcond_signal(&queue->not_full);
+    kmutex_unlock(&queue->mutex);
+    return true;
 }
 
 int kqueue_count(kqueue_t *queue)

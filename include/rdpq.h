@@ -1202,7 +1202,7 @@ inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_
     extern void __rdpq_set_color_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_color_image(
         _carg(format, 0x1F, 19) | _carg(TEX_FORMAT_BYTES2PIX(format, stride)-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31),
+        _carg(index, 0xF, 26) | (offset & 0x1FFFFFF) | _carg((height-1)>>9, 0x1, 31),
         _carg(0, 0xFFF, 12) | _carg(0, 0xFFF, 0),                 // for set_scissor
         _carg(width*4, 0xFFF, 12) | _carg(height*4, 0xFFF, 0));   // for set_scissor
 }
@@ -1232,7 +1232,7 @@ inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
     extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_Z_IMAGE,
         0, 
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF),
+        _carg(index, 0xF, 26) | (offset & 0x1FFFFFF),
         AUTOSYNC_PIPE);
 }
 
@@ -1268,7 +1268,7 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
     // to help the validator to a better job. The RDP hardware ignores those bits.
     __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_TEXTURE_IMAGE,
         _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31),
+        _carg(index, 0xF, 26) | (offset & 0x1FFFFFF) | _carg((height-1)>>9, 0x1, 31),
         AUTOSYNC_PIPE);
 }
 

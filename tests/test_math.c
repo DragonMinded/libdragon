@@ -10,6 +10,30 @@
     } \
 })
 
+#define ASSERT_EQUAL_MAT3(a, b) ({ \
+    for (int i = 0; i < 3; i++) \
+    { \
+        for (int j = 0; j < 3; j++) \
+        { \
+            ASSERT_EQUAL_FLOAT(a.m[i][j], b.m[i][j], "m[%d][%d] does not match!", i, j); \
+        } \
+    } \
+})
+
+void test_mat3_mul_two_identities(TestContext *ctx)
+{
+    fm_mat3_t a, b, c;
+
+    fm_mat3_identity(&a);
+    fm_mat3_identity(&b);
+    fm_mat3_mul(&c, &a, &b);
+
+    fm_mat3_t expected;
+    fm_mat3_identity(&expected);
+    
+    ASSERT_EQUAL_MAT3(expected, c);
+}
+
 void test_mat4_mul_two_identities(TestContext *ctx)
 {
     fm_mat4_t a, b, c;
@@ -40,4 +64,22 @@ void test_mat4_mul_scale_translation(TestContext *ctx)
     fm_mat4_translate(&expected, &(fm_vec3_t){{1, 2, 3}});
     
     ASSERT_EQUAL_MAT4(expected, c);
+}
+
+void test_mat3_mul_scale_translation(TestContext *ctx)
+{
+    fm_mat3_t a, b, c;
+
+    fm_mat3_identity(&a);
+    fm_mat3_translate(&a, &(fm_vec2_t){{1, 2}});
+    fm_mat3_identity(&b);
+    fm_mat3_scale(&b, &(fm_vec2_t){{4, 4}});
+    fm_mat3_mul(&c, &a, &b);
+
+    fm_mat3_t expected;
+    fm_mat3_identity(&expected);
+    fm_mat3_scale(&expected, &(fm_vec2_t){{4, 4}});
+    fm_mat3_translate(&expected, &(fm_vec2_t){{1, 2}});
+    
+    ASSERT_EQUAL_MAT3(expected, c);
 }

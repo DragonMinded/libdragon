@@ -1,3 +1,5 @@
 filesystem/*.dso
 filesystem/*.dso.sym
 filesystem/*.sprite
+filesystem/*.mdb
+filesystem/texdb/

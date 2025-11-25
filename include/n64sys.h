@@ -559,6 +559,22 @@ void *malloc_uncached_aligned(int align, size_t size);
  */
 void free_uncached(void *buf);
 
+/**
+ * @brief Reallocate an uncached memory buffer
+ * 
+ * This function changes the size of the memory buffer pointed to by
+ * `old_buf` to the size specified by `new_size`. The contents will be
+ * unchanged up to the minimum of the old and new sizes. 
+ * 
+ * @param [in] old_buf   Pointer to the previously allocated buffer
+ * @param [in] new_size  New size of the buffer
+ * @return A pointer to the reallocated buffer (in the uncached segment) or
+ *         NULL if the reallocation failed (in which case the old buffer is
+ *         unchanged)
+ */
+void *realloc_uncached(void *old_buf, size_t new_size);
+
+
 /** @brief Type of TV video output */
 typedef enum {
     TV_PAL = 0,      ///< Video output is PAL
@@ -609,6 +625,30 @@ reset_type_t sys_reset_type(void);
  * @return Address of the the ELF in PI space (ROM)
  */
 pi_addr_t sys_elf_address(void);
+
+/**
+ * @brief Libdragon version information
+ *
+ * This structure contains information about the current version of Libdragon,
+ * that was embedded in the ROM at build time.
+ */
+typedef struct {
+    char branch[32+1];          ///< Branch name (normally "stable" or "preview")
+    char hash[20+1];            ///< Commit hash (SHA1)
+    char commit_date[16+1];     ///< Commit date (YYYY-MM-DD)
+    bool dirty;                 ///< True if Libdragon repository was dirty at build time
+} sys_version_t;
+
+/**
+ * @brief Get the version of Libdragon
+ * 
+ * This function will fill the version structure with the information about
+ * the current version of Libdragon, that was embedded in the ROM at build time.
+
+ * @param version               Pointer to the version structure to fill
+ * @return true if the version information was successfully retrieved, false otherwise
+ */
+bool sys_get_version(sys_version_t *version);
 
 /**
  * @brief Perform a hardware-accelerated memory set

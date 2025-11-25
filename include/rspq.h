@@ -796,6 +796,39 @@ void rspq_block_run(rspq_block_t *block);
  */
 void rspq_block_free(rspq_block_t *block);
 
+/** 
+ * @brief Returns true if a block is currently being built. 
+ * 
+ * This function returns true if, and only if, it is called after
+ * #rspq_block_begin was called and before #rspq_block_end is called.
+ * Use this function to determine whether a block is currently being recorded.
+ */
+static inline bool rspq_block_is_recording(void) {
+    extern rspq_block_t *rspq_block;
+    return rspq_block != NULL;
+}
+
+/**
+ * @brief Register a callback to be called when the current block is freed.
+ * 
+ * Calling this function is only valid when a block is currently being recorded
+ * (see #rspq_block_begin). The callback will be called with the given context
+ * when the currently recorded block is freed using #rspq_block_free.
+ * 
+ * It is possible to call this function multiple times during the recording
+ * of the same block. In that case the callbacks will be called in the reverse
+ * order that they were passed into this function.
+ * 
+ * This function is useful for binding the lifetime of resources to that of a block.
+ * For example if a certain command in an rspq overlay accesses a buffer and that
+ * command is recorded into a block, it's possible to make sure that the block
+ * never outlives that buffer without any additionally required scaffolding.
+ * 
+ * @param  cb   The callback function
+ * @param  ctx  The context that will be passed to the callback
+ */
+void rspq_block_atexit(void (*cb)(void*), void* ctx);
+
 /**
  * @brief Start building a high-priority queue.
  * 

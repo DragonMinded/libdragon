@@ -5,6 +5,7 @@
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
 set -euo pipefail
+set -x
 IFS=$'\n\t'
 
 # Check that N64_INST is defined
@@ -17,6 +18,10 @@ fi
 # Path where the toolchain will be built.
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
+
+# Redirect output to a log file
+exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
+echo "Build started at: $(date)"
 
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
@@ -84,7 +89,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
     # zlib is part of the base OS, and doesn't need to be installed here.
-    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo
+    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo ninja
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.
@@ -119,17 +124,17 @@ else
 fi
 
 # Dependency downloads and unpack
-test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
+test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download "https://ftpmirror.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
 test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
 
-test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
+test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
 test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
 
 test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
 test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
 
 if [ "$GMP_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
+    test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
     test -d "$BUILD_PATH/gmp-$GMP_V"                 || tar -xf "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2" -C "$BUILD_PATH" # note: no .gz download file currently available
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"gmp-$GMP_V" "gmp"
@@ -137,7 +142,7 @@ if [ "$GMP_V" != "" ]; then
 fi
 
 if [ "$MPC_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download "https://ftp.gnu.org/gnu/mpc/mpc-$MPC_V.tar.gz"
+    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download "https://ftpmirror.gnu.org/gnu/mpc/mpc-$MPC_V.tar.gz"
     test -d "$BUILD_PATH/mpc-$MPC_V"                 || tar -xzf "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpc-$MPC_V" "mpc"
@@ -145,7 +150,7 @@ if [ "$MPC_V" != "" ]; then
 fi
 
 if [ "$MPFR_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz"     || download "https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_V.tar.gz"
+    test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz"     || download "https://ftpmirror.gnu.org/gnu/mpfr/mpfr-$MPFR_V.tar.gz"
     test -d "$BUILD_PATH/mpfr-$MPFR_V"               || tar -xzf "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpfr-$MPFR_V" "mpfr"
@@ -153,7 +158,7 @@ if [ "$MPFR_V" != "" ]; then
 fi
 
 if [ "$MAKE_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download "https://ftp.gnu.org/gnu/make/make-$MAKE_V.tar.gz"
+    test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download "https://ftpmirror.gnu.org/gnu/make/make-$MAKE_V.tar.gz"
     test -d "$BUILD_PATH/make-$MAKE_V"               || tar -xzf "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz" -C "$BUILD_PATH"
 fi
 
@@ -186,9 +191,6 @@ else
     CROSS_PREFIX="$(cd "$(dirname -- "cross_prefix")" >/dev/null; pwd -P)/$(basename -- "cross_prefix")"
     PATH="$CROSS_PREFIX/bin:$PATH"
     export PATH
-
-    # Instead, the HOST->TARGET cross-compiler can be installed into the final installation path
-    CANADIAN_PREFIX=$INSTALL_PATH
 
     # We need to build a canadian toolchain.
     # First we need a host compiler, that is binutils+gcc targeting the host. For instance,
@@ -400,7 +402,23 @@ if [ "$MAKE_V" != "" ]; then
     popd
 fi
 
+# Create a toolchain.version file in JSON format to identify the toolchain version. 
+# It contains: GCC version, Binutils versions and Newlib/Picolibc version.
+TOOLCHAIN_VERSION_FILE="$INSTALL_PATH/$N64_TARGET/include/toolchain.version"
+
+VERSION_CONTENT="{
+  \"host\": \"$N64_HOST\",
+  \"binutils\": \"$BINUTILS_V\",
+  \"gcc\": \"$GCC_V\",
+  \"newlib\": \"$NEWLIB_V\"
+}"
+
+printf '%s\n' "$VERSION_CONTENT" > "$TOOLCHAIN_VERSION_FILE" || \
+    sudo sh -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\"" || \
+    su -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\""
+
 # Final message
+set +x
 echo
 echo "***********************************************"
 echo "Libdragon toolchain correctly built and installed"

@@ -730,7 +730,7 @@ void set_BB_MD_interrupt(int active)
 /**
  * @brief Initialize the interrupt controller
  */
-__attribute__((constructor)) void __init_interrupts()
+__attribute__((constructor(120))) void __init_interrupts(void)
 {
     /* Make sure that we aren't initializing interrupts when they are already enabled */
     if( __interrupt_depth < 0 )

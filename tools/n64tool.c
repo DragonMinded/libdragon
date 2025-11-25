@@ -30,6 +30,7 @@
 #include <sys/errno.h>
 #endif
 #include "common/polyfill.h"
+#include "common/crc32.c"
 
 // Default header to use if none is specified
 #include "ipl3.h"
@@ -84,22 +85,34 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define SWAPLONG(i) (i)
+#define SWAPSHORT(i) (i)
 #else
 #define SWAPLONG(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
+#define SWAPSHORT(i) (((uint16_t)((i) & 0xFF00) >> 8) | ((uint16_t)((i) & 0x00FF) << 8))
 #endif
 
 static const unsigned char zero[1024] = {0};
 static char * tmp_output = NULL;
 static uint32_t elf_loadpoint = 0xFFFFFFFF;
 
+// The TOC cookie could be just a 32-bit random number; its goal is just to
+// differentiate different ROMs, to detect if a ROM was "swapped" by a flashcart
+// during runtime.
+// However we don't want to use a random number as we want ROMs to be reproducible,
+// so we will instead hash the various file contents to generate a fixed-but-random
+// cookie.
+static uint32_t toc_cookie = 0xFFFFFFFF;
+
 struct toc_s {
 	char magic[4];
+	uint32_t cookie;
 	uint32_t toc_size;
-	uint32_t entry_size;
-	uint32_t num_entries;
+	uint16_t entry_size;
+	uint16_t num_entries;
 	struct {
 		uint32_t offset;
-		char name[TOC_ENTRY_SIZE - 4];
+		uint32_t size;
+		char name[TOC_ENTRY_SIZE - 8];
 	} files[TOC_MAX_ENTRIES];
 } toc = {
 	.magic = "TOC0",
@@ -126,7 +139,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "File flags (to be used before each file):\n");
-	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (minimum: 4).\n");
+	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (default: 16).\n");
 	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 4-byte aligned.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Binary byte size/offset suffix notation:\n");
@@ -188,6 +201,9 @@ ssize_t copy_file(FILE * dest, const char * file)
 
 		fread(buffer, 1, write_size, read_file);
 		fwrite(buffer, 1, write_size, dest);
+
+		/* Update the TOC cookie with file contents. */
+		toc_cookie = crc32_update(toc_cookie, buffer, write_size);
 	}
 
 	free(buffer);
@@ -209,6 +225,7 @@ ssize_t output_zeros(FILE * dest, ssize_t amount)
 		if (sz > sizeof(zero))
 			sz = sizeof(zero);
 		fwrite(zero, 1, sz, dest);
+		toc_cookie = crc32_update(toc_cookie, zero, sz);
 		amount -= sz;
 	}
 
@@ -338,7 +355,7 @@ int main(int argc, char *argv[])
 	bool create_toc = false;
 	size_t toc_offset = 0;
 	int header_size = 0;
-	int align_next = 0;
+	int align_next = 16;
 
 	char category = 'N';
 	// Some flashcarts (at least Everdrive X7) seem to automatically set the TV type based on the region field.
@@ -663,9 +680,10 @@ int main(int argc, char *argv[])
 
 				total_bytes_written += num_zeros;
 			}
-
-			align_next = 0;
 		}
+
+		/* Reset to 16 for next file (default) */
+		align_next = 16;
 
 		size_t offset = ftell(write_file);
 
@@ -682,6 +700,7 @@ int main(int argc, char *argv[])
 		{
 			/* Add the file to the toc */
 			toc.files[toc.num_entries].offset = offset;
+			toc.files[toc.num_entries].size = bytes_copied;
 
 			const char *basename = strrchr(arg, '/');
 			if (!basename) basename = strrchr(arg, '\\');
@@ -773,11 +792,16 @@ int main(int argc, char *argv[])
 	/* Write table of contents */
 	if(create_toc)
 	{
-		for (int i=0; i<toc.num_entries; i++)
+		for (int i=0; i<toc.num_entries; i++) {
 			toc.files[i].offset = SWAPLONG(toc.files[i].offset);
-		toc.num_entries = SWAPLONG(toc.num_entries);
+			toc.files[i].size = SWAPLONG(toc.files[i].size);
+		}
 		toc.toc_size = SWAPLONG(toc.toc_size);
-		toc.entry_size = SWAPLONG(toc.entry_size);
+		toc.num_entries = SWAPSHORT(toc.num_entries);
+		toc.entry_size = SWAPSHORT(toc.entry_size);
+
+		toc_cookie = ~crc32_update(toc_cookie, (uint8_t *)&toc, sizeof(toc));
+		toc.cookie = SWAPLONG(toc_cookie);
 
 		fseek(write_file, toc_offset, SEEK_SET);
 		fwrite(&toc, 1, sizeof(toc), write_file);
