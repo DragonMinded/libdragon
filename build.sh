@@ -19,6 +19,9 @@ if [[ -z ${N64_INST-} ]]; then
   exit 1
 fi
 
+# Run sanity checks for MinGW environment on Windows. There are a few common things
+# that can go wrong, and it's better to explicitly diagnose them here rather than
+# have the build fail mysteriously later.
 # Msys identifies itself via the OSTYPE variable as msys (before Feb 2025)
 # and "cygwin" (after Feb 2025). We want to detect both.
 if [[ $OSTYPE == 'msys'* || $OSTYPE == 'cygwin'* ]]; then
