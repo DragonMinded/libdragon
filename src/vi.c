@@ -7,6 +7,7 @@
 #include "vi.h"
 #include "vi_internal.h"
 #include "interrupt.h"
+#include "interrupt_internal.h"
 #include "surface.h"
 #include "n64sys.h"
 #include "utils.h"
@@ -300,12 +301,10 @@ static void vi_write_maybe_flush(void)
     // immediately. Notice that this is not just a latency optimization:
     // it is mandatory when VI is disabled (VI_CTRL=0, which makes VI_V_CURRENT=0),
     // because the VI does not generate interrupts in that case.
-    if (UNLIKELY((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)) {
-        disable_interrupts();
-        if ((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
-            __vblank_interrupt(NULL);
-        enable_interrupts();
-    }
+    uint32_t sr = __disable_interrupts();
+    if ((*VI_CTRL & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
+        __vblank_interrupt(NULL);
+    __enable_interrupts(sr);
 }
 
 void vi_write_end(void)
