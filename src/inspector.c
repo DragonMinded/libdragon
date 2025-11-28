@@ -7,6 +7,7 @@
 #include "vi_internal.h"
 #include "display.h"
 #include "debug.h"
+#include "surface.h"
 #include "joypad.h"
 #include "rompak_internal.h"
 #include "joybus/joypad_internal.h"
@@ -597,9 +598,34 @@ static void inspector(exception_t* ex, enum Mode mode) {
         *MI_MASK = MI_WMASK_CLR_DP | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI;
     }
 
+    // Call vi_write_end_forced in case we crashed within vi_begin() block,
+    // otherwise all VI register changes would not be applied.
     vi_write_end_forced();
+
+    // Close display if it was open. This is useful mainly to free the framebuffers
+    // and hopefully be able to allocate the inspector's framebuffers even in
+    // low memory conditions.
 	display_close();
-	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
+
+    // Reset the VI to default state, so that we don't inherit any weird
+    // configuration from the crashed program.
+    vi_reset();
+	
+    // Try to allocate two framebuffers. We might be out of memory though,
+    // so be happy with a single framebuffer if that fails.
+    int fbidx = 0;
+    surface_t fb[2] = {0};
+    fb[0] = surface_alloc(FMT_RGBA16, 640, 240);
+    if (fb[0].buffer != NULL) {
+        fb[1] = surface_alloc(FMT_RGBA16, 640, 240);
+    } else {
+        // If we couldn't allocate any framebuffer, try to use the memory at
+        // the end of RAM. There's no guarantee this won't corrupt the inspector,
+        // but at least we try something.
+        int mem_size = get_memory_size();
+        void *end_mem = (void*)(0x80000000 + mem_size);
+        fb[0] = surface_make_linear(end_mem - 64*1024 - 640*240*2, FMT_RGBA16, 640, 240);
+    }
 
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
@@ -625,7 +651,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
             page--;
             if (page < 0) page = page_count - 1;
         }
-		disp = display_get();
+		disp = &fb[fbidx];
 
         // Clear the screen, initialize printf cursor position
         cursor_x = XTITLE;
@@ -654,8 +680,11 @@ static void inspector(exception_t* ex, enum Mode mode) {
         fflush(stdout);
 
         // Show the screen
-		display_show(disp);
+		vi_show(disp);
         vi_wait_vblank();
+        if (fb[1].buffer != NULL) {
+            fbidx ^= 1;
+        }
 
         // If we drew the first frame, we skipped the backtrace to make sure at least
         // basic crash information is shown in case the backtrace crashes.
