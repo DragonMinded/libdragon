@@ -190,7 +190,7 @@ static void __display_callback(void *arg)
         update_fps(newframe);
     }
 
-    vi_write(VI_ORIGIN, PhysicalAddr(__safe_buffer[now_showing]));
+    vi_show(&surfaces[now_showing]);
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
