@@ -81,7 +81,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	static const char *ops[64] = { 
 		"s", "r", "jj", "jjal", "bbeq", "bbne", "bblez", "bbgtz",
 		"iaddi", "iaddiu", "islti", "isltiu", "iandi", "iori", "ixori", "klui",
-		"ccop0", "fcop1", "ccop2", "ccop3", "bbeql", "bbnel", "bblezl", "bbgtzl",
+		"qcop0", "fcop1", "ccop2", "ccop3", "bbeql", "bbnel", "bblezl", "bbgtzl",
 		"idaddi", "idaddiu", "mldl", "mldr", "*", "*", "*", "*",
 		"mlb", "mlh", "mlwl", "mlw", "mlbu", "mlhu", "mlwr", "mlwu",
 		"msb", "msh", "mswl", "msw", "msdl", "msdr", "mswr", "*",
@@ -91,7 +91,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	static const char *special[64]= {
 		"esll", "*", "esrl", "esra", "rsllv", "*", "rsrlv", "rsrav",
 		"wjr", "wjalr", "*", "*", "asyscall", "abreak", "*", "_sync",
-		"cmfhi", "cmthi", "cmflo", "cmtlo", "rdsslv", "*", "rdsrlv", "rdsrav",
+		"cmfhi", "wmthi", "cmflo", "wmtlo", "rdsslv", "*", "rdsrlv", "rdsrav",
 		"hmult", "hmultu", "hdiv", "hdivu", "hdmult", "hdmultu", "hddiv", "hddivu", 
 		"radd", "raddu", "rsub", "rsubu", "rand", "ror", "rxor", "rnor", 
 		"*", "*", "rslt", "rsltu", "rdadd", "rdaddu", "rdsub", "rdsubu", 
@@ -107,6 +107,12 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 		"*", "*", "*", "*", "*", "*", "*", "*", 
 		"hc.f", "hc.un", "hc.eq", "hc.ueq", "hc.olt", "hc.ult", "hc.ole", "hc.ule", 
 		"hc.sf", "hc.ngle", "hc.seq", "hc.ngl", "hc.lt", "hc.nge", "hc.le", "hc.ngt", 
+    };
+    static const char *cop0_regname[32] = {
+        "Index", "Random", "EntryLo0", "EntryLo1", "Context", "PageMask", "Wired", "Reserved7",
+        "BadVAddr", "Count", "EntryHi", "Compare", "Status", "Cause", "EPC", "PRId",
+        "Config", "LLAddr", "WatchLo", "WatchHi", "XContext", "Reserved21", "Reserved22", "Reserved23",
+        "Reserved24", "Reserved25", "ParityErr", "CacheErr", "TagLo", "TagHi", "ErrorEPC", "Reserved31"
     };
 
 	char symbuf[64];
@@ -150,7 +156,28 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
                 rd = __mips_fpreg[(op >> 6) & 0x1F];
                 break;
         }
+	} else if (*opn == 'q') { // cop0
+        if (((op >> 25) & 1) == 0) {
+            uint32_t sub = (op >> 21) & 0xF;
+            switch (sub) {
+                case 0: opn = "hmfc0"; break;
+                case 1: opn = "hdmfc0"; break;
+                case 4: opn = "hmtc0"; break;
+                case 5: opn = "hdmtc0"; break;
+            }
+            rs = __mips_gpr[(op >> 16) & 0x1F];
+            rt = cop0_regname[(op >> 11) & 0x1F];
+        } else {
+            switch (op & 0x3F) {
+                case 1: opn = "ztlbr"; break;
+                case 2: opn = "ztlbwi"; break;
+                case 6: opn = "ztlbwr"; break;
+                case 8: opn = "ztlbp"; break;
+                case 24: opn = "zeret"; break;
+            }
+        }
     }
+
 	switch (*opn) {
 	/* op tgt26 */        case 'j': snprintf(out, n, "%08lx: \aG%-9s \aY%08lx <%s>", pc, opn+1, tgt26, __symbolize((void*)tgt26, symbuf, sizeof(symbuf))); break;
 	/* op rt, rs, imm */  case 'i': snprintf(out, n, "%08lx: \aG%-9s \aY%s, %s, %d", pc, opn+1, rt, rs, (int16_t)op); break;
