@@ -3,7 +3,7 @@
  * @brief RDP Command queue: 2D transformation API.
  * @ingroup rdpq
  * 
- * This file contains functions for 2D transfomations and transformed primitives.
+ * This file contains functions for 2D transformations and transformed primitives.
  */
 
 #ifndef LIBDRAGON_RDPQ_XFORM_H
