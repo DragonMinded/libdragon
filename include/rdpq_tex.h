@@ -317,10 +317,6 @@ typedef struct rdpq_blitparms_s {
 
     // FIXME: replace this with CPU tracking of filtering mode?
     bool filtering;     ///< True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks)
-
-    // FIXME: remove this?
-    int nx;             ///< Texture horizontal repeat count. If 0, no repetition is performed (the same as 1)
-    int ny;             ///< Texture vertical repeat count. If 0, no repetition is performed (the same as 1)
 } rdpq_blitparms_t;
 
 /**
