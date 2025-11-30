@@ -576,8 +576,6 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
     int ot1 = ot0 + src_height;
     int cx = parms->cx + os0;
     int cy = parms->cy + ot0;
-    int nx = parms->nx;
-    int ny = parms->ny;
     float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
     float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
     bool flip_x = parms->flip_x;
@@ -620,52 +618,7 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
         rdpq_triangle(&TRIFMT_TEX, v0, v2, v3);
     }
 
-    void draw_cb_multi_rot(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
-    {
-        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
-        if (flip_x) { ks0 = os1 - ks0 + os0; ks1 = os1 - ks1 + os0; }
-        if (flip_y) { kt0 = ot1 - kt0 + ot0; kt1 = ot1 - kt1 + ot0; }
-
-        assert(s1-s0 == src_width);
-
-        for (int j=0; j<ny; j++) {
-            int kkt0 = kt0 + j * src_height;
-            int kkt1 = kt1 + j * src_height;
-
-            // rdpq_triangle_strip_begin(&TRIFMT_TEX);
-
-            float kks0 = ks0;
-            float kks1 = ks1;
-            for (int i=0; i<=nx; i++) {
-                float k0x = mtx[0][0] * kks0 + mtx[1][0] * kkt0 + mtx[2][0];
-                float k0y = mtx[0][1] * kks0 + mtx[1][1] * kkt0 + mtx[2][1];
-                float k2x = mtx[0][0] * kks1 + mtx[1][0] * kkt1 + mtx[2][0];
-                float k2y = mtx[0][1] * kks1 + mtx[1][1] * kkt1 + mtx[2][1];
-                float k1x = mtx[0][0] * kks1 + mtx[1][0] * kkt0 + mtx[2][0];
-                float k1y = mtx[0][1] * kks1 + mtx[1][1] * kkt0 + mtx[2][1];
-                float k3x = mtx[0][0] * kks0 + mtx[1][0] * kkt1 + mtx[2][0];
-                float k3y = mtx[0][1] * kks0 + mtx[1][1] * kkt1 + mtx[2][1];
-
-                float v0[5] = { k0x, k0y, s0, t0, 1.0f };
-                float v1[5] = { k1x, k1y, s1, t0, 1.0f };
-                float v2[5] = { k2x, k2y, s1, t1, 1.0f };
-                float v3[5] = { k3x, k3y, s0, t1, 1.0f };
-                rdpq_triangle(&TRIFMT_TEX, v0, v1, v2);
-                rdpq_triangle(&TRIFMT_TEX, v0, v2, v3);
-
-                // rdpq_triangle_strip(v0);
-                // rdpq_triangle_strip(v3);
-                kks0 += src_width;
-                kks1 += src_width;
-            }
-        }
-    }
-
-    if (nx || ny) {
-        (*ltd)(tile, surf, os0, ot0, os1, ot1, draw_cb_multi_rot, parms->filtering);    
-    } else {
-        (*ltd)(tile, surf, os0, ot0, os1, ot1, draw_cb, parms->filtering);
-    }
+    (*ltd)(tile, surf, os0, ot0, os1, ot1, draw_cb, parms->filtering);
 }
 
 /** @brief Internal implementation of #rdpq_tex_blit, using a custom large tex loader callback function */
