@@ -35,6 +35,8 @@
 #define TEX_GEN_MODE_OFFSET     128
 #define TEX_GEN_CONST_SIZE      (4*2)
 
+#define RDP_TEX_SHIFT       5
+
 #define LIGHT_COUNT           8
 
 #define MAX_TEXTURE_SIZE      64

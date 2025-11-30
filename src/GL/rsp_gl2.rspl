@@ -5,6 +5,7 @@
 state {
     extern vec16 GL_MATRIX_MODELVIEW[4];
     extern vec16 GL_MATRIX_PROJECTION[4];
+    extern vec16 GL_MATRIX_TEXTURE[4];
     extern vec16 GL_MATRIX_MVP[4];
     extern u8 GL_LIGHTS;
     extern u8 GL_TEX_GEN;
@@ -165,9 +166,35 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
 
     // Texturing
     {
-        // TODO: Texture matrix
-        vec16 texparms = load(GL_STATE_TEX_SIZE, 0).xyzw;
-        store(texparms.xyzw, TEXTURING_SCALE, 0);
+        vec32 tm0;
+        tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00);
+        tm0:ufract = load(GL_MATRIX_TEXTURE, 0x20);
+
+        vec32 tm3;
+        tm3:sint   = load(GL_MATRIX_TEXTURE, 0x18).xy;
+        tm3:ufract = load(GL_MATRIX_TEXTURE, 0x38).xy;
+
+        vec32 tmp = tm0 * tm0;
+        vec32 tmp2 = tmp + tmp.yyyyYYYY;
+        tmp = tmp2 + tmp.zzzzZZZZ;
+        tmp2.x = invert_half_sqrt(tmp).x;
+        tmp2.X = invert_half_sqrt(tmp).X;
+        tm0.x = invert_half(tmp2).x;
+        tm0.y = invert_half(tmp2).X;
+        tm0 = tm0 << 5;
+
+        vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+
+        tm3 = tm3 * tex_size;
+        tm3 = tm3 << RDP_TEX_SHIFT;
+
+        tex_size = tex_size * tm0;
+
+        vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
+        tex_offset = tex_offset + tm3;
+
+        store(tex_size.xy, TEXTURING_SCALE, 0);
+        store(tex_offset.xy, TEXTURING_OFFSET, 0);
     }
 
     // Lighting
