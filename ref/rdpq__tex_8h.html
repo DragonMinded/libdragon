@@ -284,18 +284,6 @@ Rotation angle in radians. </td></tr>
 filtering</td>
 <td class="fielddoc">
 True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks) </td></tr>
-<tr><td class="fieldtype">
-<a id="a6fb224885eb9c66d640955f03bfff828" name="a6fb224885eb9c66d640955f03bfff828"></a>int</td>
-<td class="fieldname">
-nx</td>
-<td class="fielddoc">
-Texture horizontal repeat count. If 0, no repetition is performed (the same as 1) </td></tr>
-<tr><td class="fieldtype">
-<a id="a9f482dafa2522e44b4afaaae4ca9549d" name="a9f482dafa2522e44b4afaaae4ca9549d"></a>int</td>
-<td class="fieldname">
-ny</td>
-<td class="fielddoc">
-Texture vertical repeat count. If 0, no repetition is performed (the same as 1) </td></tr>
 </table>
 
 </div>
@@ -814,7 +802,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 <p>The parameters that describe the transformations to perform are passed in the <code>parms</code> structure. The structure contains a lot of fields, but it has been designed so that most of them can be simply initalized to zero to disable advanced behaviors (and thus simply left unmentioned in an inline initialization).</p>
 <p>For instance, this blits a large image to the screen, aligning it to the top-left corner (eg: a splashscreen).</p>
 <div class="fragment"><div class="line"><a class="code hl_function" href="rdpq__tex_8c.html#a3a74ebb71eafae1b357a40417916854c">rdpq_tex_blit</a>(splashscreen, 0, 0, NULL);</div>
-<div class="ttc" id="ardpq__tex_8c_html_a3a74ebb71eafae1b357a40417916854c"><div class="ttname"><a href="rdpq__tex_8c.html#a3a74ebb71eafae1b357a40417916854c">rdpq_tex_blit</a></div><div class="ttdeci">void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)</div><div class="ttdoc">Blit a surface to the active framebuffer.</div><div class="ttdef"><b>Definition</b> rdpq_tex.c:688</div></div>
+<div class="ttc" id="ardpq__tex_8c_html_a3a74ebb71eafae1b357a40417916854c"><div class="ttname"><a href="rdpq__tex_8c.html#a3a74ebb71eafae1b357a40417916854c">rdpq_tex_blit</a></div><div class="ttdeci">void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)</div><div class="ttdoc">Blit a surface to the active framebuffer.</div><div class="ttdef"><b>Definition</b> rdpq_tex.c:641</div></div>
 </div><!-- fragment --><p>This is the same, but the image will be centered on the screen. To do this, we specify the center of the screen as position, and then we set the hotspost of the image ("cx" and "cy" fields) to its center:</p>
 <div class="fragment"><div class="line"><a class="code hl_function" href="rdpq__tex_8c.html#a3a74ebb71eafae1b357a40417916854c">rdpq_tex_blit</a>(splashscreen, 320/2, 160/2, &amp;(<a class="code hl_struct" href="rdpq__tex_8h.html#structrdpq__blitparms__t">rdpq_blitparms_t</a>){</div>
 <div class="line">    .cx = splashscreen-&gt;width / 2,</div>
@@ -848,7 +836,7 @@ Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mir
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Nov 29 2025 09:42:16 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sun Nov 30 2025 21:43:21 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

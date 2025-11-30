@@ -12,7 +12,7 @@ var searchData=
   ['next_5fentry_9',['next_entry',['../group__dfs.html#a72bcf7e7400afd36488dbe14e50d2cde',1,'directory_entry']]],
   ['next_5fpass_5frdram_10',['next_pass_rdram',['../libopus__rsp_8c.html#a8eca705753ea718537e0246da6a2eb7c',1,'opus_fft_pass_t']]],
   ['nframes_11',['nframes',['../ym64_8c.html#a47b6d20201d3fd1bf9d3eb53b0db3a71',1,'ym5header::nframes'],['../ym64_8h.html#a4d0bfabaf6acb99704f85516dad02575',1,'ym64player_t::nframes']]],
-  ['nlines_12',['nlines',['../rdpq__text_8h.html#a38358d01d01c8752920944ece17dd8a5',1,'rdpq_textmetrics_t::nlines'],['../rdpq__paragraph_8h.html#a28dee505586c33beba08348f8a9039db',1,'rdpq_paragraph_t::nlines']]],
+  ['nlines_12',['nlines',['../rdpq__paragraph_8h.html#a28dee505586c33beba08348f8a9039db',1,'rdpq_paragraph_t::nlines'],['../rdpq__text_8h.html#a38358d01d01c8752920944ece17dd8a5',1,'rdpq_textmetrics_t::nlines']]],
   ['nlit_13',['nlit',['../aplib__dec_8c.html#a51b392fab0bb3472deb312a6f6182f3e',1,'aplib_decompressor_t.partial']]],
   ['noise_5fen_14',['noise_en',['../ay8910_8h.html#af44e162a5afb098632e7dbbead9391dc',1,'AYChannel']]],
   ['npredictors_15',['npredictors',['../wav64__internal_8h.html#ac837d38e3db836ebe1352687cc881b87',1,'wav64_header_vadpcm_t']]],
@@ -30,7 +30,5 @@ var searchData=
   ['num_5frelocs_27',['num_relocs',['../dso__format_8h.html#a2c2e301edd5a5ce83de6fc537d7dfae5',1,'dso_module_t']]],
   ['num_5fstyles_28',['num_styles',['../rdpq__font__internal_8h.html#ad3716c1d2068c12cdc6bc6b8977be15f',1,'rdpq_font_t']]],
   ['num_5fsyms_29',['num_syms',['../dso__format_8h.html#a226c26464b8632cf098940ef0ba80cff',1,'dso_module_t::num_syms'],['../dso__format_8h.html#afcc46c9909f9b8eb84f9e11c7471b54c',1,'mainexe_sym_info_t::num_syms']]],
-  ['nwaves_30',['nwaves',['../xm64_8h.html#ad603cd4f10c0b5d28c2785c7405dfb7f',1,'xm64player_t']]],
-  ['nx_31',['nx',['../rdpq__tex_8h.html#a6fb224885eb9c66d640955f03bfff828',1,'rdpq_blitparms_t']]],
-  ['ny_32',['ny',['../rdpq__tex_8h.html#a9f482dafa2522e44b4afaaae4ca9549d',1,'rdpq_blitparms_t']]]
+  ['nwaves_30',['nwaves',['../xm64_8h.html#ad603cd4f10c0b5d28c2785c7405dfb7f',1,'xm64player_t']]]
 ];
