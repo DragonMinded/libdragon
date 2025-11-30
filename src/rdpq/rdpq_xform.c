@@ -30,6 +30,9 @@ typedef enum {
     RDPQ_XFORM_ALL ///< Any 2D transformation
 } rdpq_xform_type;
 
+/**
+ * @brief Maximum size of matrix stack used by RDPQ Transform
+ */
 #define RDPQ_XFORM_STACK_SIZE 16
 
 /**
