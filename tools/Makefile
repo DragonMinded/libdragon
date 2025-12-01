@@ -109,6 +109,12 @@ n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
 TOOLS = n64tool n64metadata n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr cpaktool
 
+# Specify tools that sit in the top-level directory
+n64tool_DIR = .
+n64sym_DIR = .
+n64metadata_DIR = .
+ed64romconfig_DIR = .
+
 # Define a variable that has value ".exe" when building on Windows
 # Alo
 ifeq ($(OS),Windows_NT)
