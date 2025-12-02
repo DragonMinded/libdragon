@@ -449,7 +449,7 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     if( disp == 0 ) { return; }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
-    int depth = display_get_bitdepth();
+    int depth = TEX_FORMAT_BITDEPTH(surface_get_format(disp)) >> 3;
 
     // resetting to default font if bit depth has been changed
     if( sprite_font.sprite != NULL && depth*8 != TEX_FORMAT_BITDEPTH(sprite_get_format(sprite_font.sprite)) )
