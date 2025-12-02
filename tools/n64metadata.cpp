@@ -59,7 +59,7 @@ static void fatal(const char *fmt, ...)
 }
 
 // UTF-8 validation
-static bool validUTF8(const std::string &s)
+static bool validUTF8(const std::vector<uint8_t> &s)
 {
 	const unsigned char *p = (const unsigned char *)s.data();
 	const unsigned char *e = p + s.size();
@@ -115,17 +115,10 @@ static bool has_prefix(const std::string &s, const char *pfx)
 	return s.size() >= n && s.compare(0, n, pfx) == 0;
 }
 
-static bool is_img_ext(const std::string &fn)
+static bool has_suffix(const std::string &s, const char *sfx)
 {
-	size_t p = fn.find_last_of('.');
-	if (p == std::string::npos)
-		return false;
-
-	std::string ext = fn.substr(p);
-	for (size_t i = 0; i < ext.size(); i++)
-		ext[i] = (char)tolower((unsigned char)ext[i]);
-
-	return ext == ".png" || ext == ".jpg" || ext == ".jpeg";
+	size_t n = strlen(sfx);
+	return s.size() >= n && s.compare(s.size() - n, n, sfx) == 0;
 }
 
 static bool validate_rel_path(const std::string &fn, const char *ini,
@@ -172,10 +165,7 @@ static bool validate_rel_path(const std::string &fn, const char *ini,
 static bool slurp(const std::string &path, std::vector<uint8_t> &data, const char *ctx)
 {
 	std::ifstream f(path, std::ios::binary);
-	if (!f) {
-		fprintf(stderr, "%s: error: cannot open file\n", path.c_str());
-		return false;
-	}
+	if (!f) return false;
 
 	std::stringstream buf;
 	buf << f.rdbuf();
@@ -385,18 +375,17 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	std::ifstream f(ini_path, std::ios::binary);
-	if (!f) fatal("cannot open %s\n", ini_path);
+    std::vector<uint8_t> content;
+    if (!slurp(ini_path, content, ini_path)) {
+        fatal("%s: error: cannot open file\n", ini_path);
+    }
 
-	std::stringstream buf;
-	buf << f.rdbuf();
-	std::string content = buf.str();
 
 	if (!validUTF8(content)) {
 		fatal("%s: error: file is not valid UTF-8\n", ini_path);
 	}
 
-    if (content.find('\r') != std::string::npos) {
+    if (std::find(content.begin(), content.end(), '\r') != content.end()) {
         fatal("%s: error: file uses DOS newlines (CRLF); please convert to Unix (LF)\n", ini_path);
     }
 
@@ -414,8 +403,9 @@ int main(int argc, char **argv)
 			ini_dir = ip.substr(0, slash + 1);
 	}
 
-    std::istringstream in(content);
-	std::string section;
+    std::string content_str(content.begin(), content.end());
+    std::istringstream in(content_str);
+    std::string section;
 	int lineno = 0;
 	bool has_error = false;
     std::vector<std::string> *valid_keys = nullptr;
@@ -463,9 +453,19 @@ int main(int argc, char **argv)
             continue;
         }
 
-        auto process_image = [&](const std::string &fn) {
-            if (!is_img_ext(fn)) {
-                fprintf(stderr, "%s:%d: warning: invalid filename extension: %s\n", ini_path, lineno, fn.c_str());
+        auto process_file = [&](const std::string &fn, std::initializer_list<const char *> valid_exts, bool check_utf8) {
+            bool valid = false;
+            for (const char *ext : valid_exts) {
+                if (has_suffix(fn, ext)) {
+                    valid = true;
+                    break;
+                }
+            }
+
+            if (!valid) {
+                fprintf(stderr, "%s:%d: warning: invalid filename extension: %s (expected one of:", ini_path, lineno, fn.c_str());
+                for (const char *ext : valid_exts) fprintf(stderr, " %s", ext);
+                fprintf(stderr, ")\n");
                 has_error = true;
                 return;
             }
@@ -475,12 +475,16 @@ int main(int argc, char **argv)
                 return;
             }
 
-            std::string disk = ini_dir + fn;
-
             ZipEntry e;
-            if (!slurp(disk, e.data, ini_path)) {
+            if (!slurp(ini_dir + fn, e.data, ini_path)) {
+                fprintf(stderr, "%s:%d: error: cannot open file '%s'\n", ini_path, lineno, fn.c_str());
                 has_error = true;
             } else {
+                if (check_utf8 && !validUTF8(e.data)) {
+                    fprintf(stderr, "%s:%d: error: file '%s' is not valid UTF-8\n", ini_path, lineno, fn.c_str());
+                    has_error = true;
+                    return;
+                }
                 e.name = fn;
                 entries.emplace_back(std::move(e));
             }
@@ -492,13 +496,15 @@ int main(int argc, char **argv)
 
 			while (std::getline(ss, tok, ',')) {
 				trim(tok);
-				if (tok.empty()) {
+                if (tok.empty()) {
                     fprintf(stderr, "%s:%d: warning: empty filename in screenshots list\n", ini_path, lineno);
                     continue;
                 }
-                process_image(tok);
+                process_file(tok, { ".png", ".jpg", ".jpeg" }, false);
 			}
-		} else if (valid_keys == &metaKeys && key == "release-date" && !val.empty()) {
+		} else if (valid_keys == &metaKeys && key == "long_desc" && !val.empty()) {
+             process_file(val, { ".txt" }, true);
+        } else if (valid_keys == &metaKeys && key == "release-date" && !val.empty()) {
             // Check that the format is YYYY-MM-DD
             if (val.size() != 10 || val[4] != '-' || val[7] != '-') {
                 fprintf(stderr, "%s:%d: warning: invalid release date format: %s\n", ini_path, lineno, val.c_str());
@@ -536,7 +542,7 @@ int main(int argc, char **argv)
                 continue;
             }
         } else if ((valid_keys == &boxartKeys || valid_keys == &cartartKeys) && !val.empty()) {
-            process_image(val);
+            process_file(val, { ".png", ".jpg", ".jpeg" }, false);
         }
 	}
 
