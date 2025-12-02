@@ -84,57 +84,6 @@ static inline void grab_sector(pi_addr_t cart_loc, void *ram_loc)
 }
 
 /**
- * @brief Look up a sector number based on offset
- *
- * Given a byte offset from the start of a filesystem, this
- * function will return the sector that this byte offset falls
- * into.
- * 
- * @param[in] loc
- *            Offset in bytes
- *
- * @return The sector number corresponding to the offset
- */
-static inline int sector_from_loc(uint32_t loc)
-{
-    return (loc / SECTOR_PAYLOAD);
-}
-
-/**
- * @brief Look up a byte offset into a sector
- *
- * Given a byte offset from the start of a filesystem, this
- * function will return the offset into the current sector.
- * This essentially clamps the ouput from 0 to #SECTOR_PAYLOAD.
- *
- * @param[in] loc
- *            Offset in bytes
- *
- * @return The offset into a sector
- */
-static inline int offset_into_sector(uint32_t loc)
-{
-    return loc % SECTOR_PAYLOAD;
-}
-
-/**
- * @brief Look up the remaining data size in a sector
- *
- * Given a byte offset from the start of a filesystem, this
- * function will return the number of bytes from the current
- * location to the end of the sector.
- *
- * @param[in] loc
- *            Offset in bytes
- *
- * @return The number of bytes left in a sector based on an offset
- */
-static inline int data_left_in_sector(uint32_t loc)
-{
-    return SECTOR_PAYLOAD - offset_into_sector(loc);
-}
-
-/**
  * @brief Return the file flags given a directory entry
  *
  * @param[in] dirent
