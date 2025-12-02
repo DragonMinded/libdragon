@@ -680,8 +680,20 @@ void vi_debug_dump(int verbose)
     debugf("H_VIDEO:0x%08lx, V_VIDEO:0x%08lx X_SCALE:0x%08lx Y_SCALE:0x%08lx\n",
         vi_read(VI_H_VIDEO), vi_read(VI_V_VIDEO), vi_read(VI_X_SCALE), vi_read(VI_Y_SCALE));
 
+    debugf("cfg: pending=%x raster=%x to_validate=%x refcount=%x\n", cfg_pending, cfg_raster, cfg_to_validate, cfg_refcount);
+
     if (verbose == 0)
         return;
+
+    uint32_t ctrl = vi_read(VI_CTRL);
+    const char *ctrl_type[4] = { "off", "invalid", "16-bit", "32-bit"};
+    const char *ctrl_aa[4] = {  "resample-fetch-always", "resample-fetch-needed", "resample","none" };
+    debugf("CTRL: type=%s serrate=%s divot=%s dedither=%s aa=%s\n", 
+        ctrl_type[ctrl & VI_CTRL_TYPE], 
+        ctrl & VI_CTRL_SERRATE ? "on" : "off",
+        ctrl & VI_DIVOT_ENABLE ? "on" : "off",
+        ctrl & VI_DEDITHER_FILTER_ENABLE ? "on" : "off",
+        ctrl_aa[(ctrl & VI_AA_MODE_MASK) >> 8]);
 
     debugf("VIDEO: H:%ld-%ld V:%ld-%ld\n", vi_read(VI_H_VIDEO) >> 16, vi_read(VI_H_VIDEO) & 0xFFFF, vi_read(VI_V_VIDEO) >> 16, vi_read(VI_V_VIDEO) & 0xFFFF);
 
