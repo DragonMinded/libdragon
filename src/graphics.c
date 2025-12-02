@@ -8,7 +8,7 @@
 #include <malloc.h>
 #include <string.h>
 #include <stdio.h>
-#include "display.h"
+#include "vi.h"
 #include "graphics.h"
 #include "sprite.h"
 #include "font.h"
@@ -98,7 +98,7 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
 
 uint32_t graphics_convert_color( color_t color )
 {
-    if( display_get_bitdepth() == 2 )
+    if( vi_get_bpp() == 16 )
     {
         // Pack twice for compatibility with RDP packed colors and the old deprecated RDP API.
         uint32_t conv = color_to_packed16(color);
