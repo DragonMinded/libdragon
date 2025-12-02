@@ -92,9 +92,10 @@ uint32_t __vi_cfg[VI_REGISTERS_COUNT]; ///< Current VI configuration
 static const vi_preset_t *preset;      ///< Active TV preset
 static uint16_t cfg_pending;           ///< Pending register changes (1 bit per each VI register)
 static uint16_t cfg_raster;            ///< Raster register changes (1 bit per each VI register)
+static uint16_t cfg_to_validate;       ///< Config settings that must be validated
 static bool cfg_pending_lineirqs;      ///< True if line IRQs have been changed
 static volatile int cfg_refcount;      ///< Number of active write transactions
-static bool pending_blank;             ///< True if blanking was requested
+static bool blank_mode;                ///< True if blank mode is active
 static line_irqs_t *cur_line_irq;      ///< Current line IRQ pointer
 static int interlacing_parms[2];       ///< Interlaced parameters (offsets for ORIGIN, YSCALE)
 static line_irqs_t vblank_handlers[MAX_VBLANK_HANDLERS]; ///< Vertical blank handlers
@@ -106,13 +107,16 @@ static void __vi_validate_config(void)
     return;
     #endif
 
+    // Accumulate the pending changes to validate
+    cfg_to_validate |= cfg_pending;
+
     // If we are blanking or the framebuffer is not set, don't validate the configuration,
     // as technically there's nothing wrong right now.
-    if (pending_blank || *VI_H_VIDEO == 0)
+    if (blank_mode)
         return;
 
     // Check for a not fully understood bug (see issue #759)
-    if (cfg_pending & (1 << VI_TO_INDEX(VI_WIDTH))) {
+    if (cfg_to_validate & (1 << VI_TO_INDEX(VI_WIDTH))) {
         uint32_t width = vi_read(VI_WIDTH);
         if (width < 8) {
             debugf("VI WARNING: setting VI_WIDTH < 8 is known to sometimes crash the VI\n");
@@ -121,54 +125,56 @@ static void __vi_validate_config(void)
 
     // Check for some common mistakes in VI configuration. Since they are based
     // on VI_CTRL, VI_X_SCALE and VI_H_VIDEO, do that only if they have been changed.
-    if (!(cfg_pending & ((1 << VI_TO_INDEX(VI_CTRL)) | 
-                         (1 << VI_TO_INDEX(VI_X_SCALE)) |
-                         (1 << VI_TO_INDEX(VI_H_VIDEO)))))
-        return;
+    if ((cfg_to_validate & ((1 << VI_TO_INDEX(VI_CTRL)) | 
+                            (1 << VI_TO_INDEX(VI_X_SCALE)) |
+                            (1 << VI_TO_INDEX(VI_H_VIDEO))))) {
 
-    uint32_t ctrl = vi_read(VI_CTRL); 
-    uint32_t xscale = vi_read(VI_X_SCALE);
-    uint32_t hstart = vi_read(VI_H_VIDEO) >> 16;
-    bool bpp16 = (ctrl & VI_CTRL_TYPE) == VI_CTRL_TYPE_16_BPP;
-    bool dedither = ctrl & VI_DEDITHER_FILTER_ENABLE;
-    bool divot = ctrl & VI_DIVOT_ENABLE;
-    int mode = ctrl & VI_AA_MODE_MASK;
+        uint32_t ctrl = vi_read(VI_CTRL); 
+        uint32_t xscale = vi_read(VI_X_SCALE);
+        uint32_t hstart = vi_read(VI_H_VIDEO) >> 16;
+        bool bpp16 = (ctrl & VI_CTRL_TYPE) == VI_CTRL_TYPE_16_BPP;
+        bool dedither = ctrl & VI_DEDITHER_FILTER_ENABLE;
+        bool divot = ctrl & VI_DIVOT_ENABLE;
+        int mode = ctrl & VI_AA_MODE_MASK;
 
-    switch (mode) {
-    case VI_AA_MODE_NONE:
-        if (xscale <= 0x200 && bpp16 && hstart < 128) {
-            debugf("VI WARNING: setting VI_AA_MODE_NONE with 16 bpp, X_SCALE <= 0x200 and H_START < 128 can cause visual artifacts\n");
-            debugf("A common scenario where this happens: NTSC units, with default output area, and 320x240 framebuffer.\n");
-            debugf("Possible workarounds: activate resampling with VI_AA_MODE_RESAMPLE, increase X_SCALE\n");
+        switch (mode) {
+        case VI_AA_MODE_NONE:
+            if (xscale <= 0x200 && bpp16 && hstart < 128) {
+                debugf("VI WARNING: setting VI_AA_MODE_NONE with 16 bpp, X_SCALE <= 0x200 and H_START < 128 can cause visual artifacts\n");
+                debugf("A common scenario where this happens: NTSC units, with default output area, and 320x240 framebuffer.\n");
+                debugf("Possible workarounds: activate resampling with VI_AA_MODE_RESAMPLE, increase X_SCALE\n");
+            }
+            if (divot)
+                debugf("VI WARNING: divot filter is only useful when the AA filter is enabled\n");
+            break;
+
+        case VI_AA_MODE_RESAMPLE:
+            if (dedither)
+                debugf("VI WARNING: setting VI_AA_MODE_RESAMPLE with dedithering can cause artifacts\n");
+            if (divot)
+                debugf("VI WARNING: divot filter is only useful when the AA filter is enabled\n");
+            break;
+
+        case VI_AA_MODE_RESAMPLE_FETCH_NEEDED:
+            if (xscale > 0x280)
+                debugf("VI WARNING: setting VI_AA_MODE_RESAMPLE_FETCH_NEEDED with VI_X_SCALE >= 0x280 (aka: framebuffer widths > 400) can cause artifacts\n");
+            break;
+
+        case VI_AA_MODE_RESAMPLE_FETCH_ALWAYS:
+            if (!bpp16)
+                debugf("VI WARNING: setting VI_AA_MODE_RESAMPLE_FETCH_ALWAYS with 32 bpp can often cause image corruption\n");
+            break;
         }
-        if (divot)
-            debugf("VI WARNING: divot filter is only useful when the AA filter is enabled\n");
-        break;
 
-    case VI_AA_MODE_RESAMPLE:
-        if (dedither)
-            debugf("VI WARNING: setting VI_AA_MODE_RESAMPLE with dedithering can cause artifacts\n");
-        if (divot)
-            debugf("VI WARNING: divot filter is only useful when the AA filter is enabled\n");
-        break;
-
-    case VI_AA_MODE_RESAMPLE_FETCH_NEEDED:
-        if (xscale > 0x280)
-            debugf("VI WARNING: setting VI_AA_MODE_RESAMPLE_FETCH_NEEDED with VI_X_SCALE >= 0x280 (aka: framebuffer widths > 400) can cause artifacts\n");
-        break;
-
-    case VI_AA_MODE_RESAMPLE_FETCH_ALWAYS:
-        if (!bpp16)
-            debugf("VI WARNING: setting VI_AA_MODE_RESAMPLE_FETCH_ALWAYS with 32 bpp can often cause image corruption\n");
-        break;
+        if (dedither) {
+            if (!bpp16)
+                debugf("VI WARNING: dedithering is only useful with 16 bpp\n");
+            if (mode != VI_AA_MODE_RESAMPLE_FETCH_ALWAYS && mode != VI_AA_MODE_NONE)
+                debugf("VI WARNING: dedithering requires VI_AA_MODE_NONE or VI_AA_MODE_RESAMPLE_FETCH_ALWAYS\n");
+        }
     }
 
-    if (dedither) {
-        if (!bpp16)
-            debugf("VI WARNING: dedithering is only useful with 16 bpp\n");
-        if (mode != VI_AA_MODE_RESAMPLE_FETCH_ALWAYS && mode != VI_AA_MODE_NONE)
-            debugf("VI WARNING: dedithering requires VI_AA_MODE_NONE or VI_AA_MODE_RESAMPLE_FETCH_ALWAYS\n");
-    }
+    cfg_to_validate = 0;
 }
 
 static void __vblank_interrupt(void*)
@@ -208,9 +214,9 @@ static void __vblank_interrupt(void*)
         }
     }
 
-    if (UNLIKELY(pending_blank)) {
+    // If blank mode is active, set VI_H_VIDEO to 0 to disable any framebuffer sampling
+    if (UNLIKELY(blank_mode)) {
         *VI_H_VIDEO = 0;
-        pending_blank = false;
     }
 
     // VI adjustments in case of serration, to achieve the interlaced effect.
@@ -624,12 +630,8 @@ void vi_scroll_output(int dx, int dy)
 void vi_blank(bool set_blank)
 {
     disable_interrupts();
-    if (set_blank) {
-        pending_blank = true;
-    } else {
-        pending_blank = false;
-        vi_write(VI_H_VIDEO, vi_read(VI_H_VIDEO));
-    }
+    blank_mode = set_blank;
+    if (!blank_mode) __vi_validate_config();
     enable_interrupts();
 }
 
@@ -770,6 +772,10 @@ void vi_reset(void)
 {
     vi_write_begin();
 
+    // Set the pending mask to all registers, so that the whole
+    // VI will be programmed at next vblank.
+    cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
+
     // Configure the timing registers from the preset. These will not change
     // at runtime as they are fixed by the TV standard.
     vi_write(VI_H_TOTAL,      preset->vi_h_total);
@@ -802,22 +808,18 @@ void vi_init(void)
     if (vi_initialized++ > 0) { return; }
 
     memset(&__vi_cfg, 0, sizeof(__vi_cfg));
-    cfg_pending = cfg_raster = 0;
+    cfg_pending = cfg_raster = cfg_to_validate = 0;
     cfg_refcount = 0;
-    pending_blank = 0;
+    blank_mode = false;
     cur_line_irq = line_irqs;
     preset = &vi_presets[get_tv_type()];
-
-    // Reset the VI to its default state.
-    vi_reset();
-
-    // Set the pending mask to all registers, so that the whole
-    // VI will be programmed at next vblank.
-    cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
 
     memset(line_irqs, 0, sizeof(line_irqs));
     line_irqs[0].line = VI_V_CURRENT_VBLANK;
     line_irqs[0].handler = __vblank_interrupt;
+
+    // Reset the VI to its default state.
+    vi_reset();
 
     disable_interrupts();
     register_VI_handler(__vi_interrupt);
