@@ -639,7 +639,8 @@ void vi_blank(bool set_blank)
 {
     disable_interrupts();
     blank_mode = set_blank;
-    if (!blank_mode) __vi_validate_config();
+    if (!blank_mode)
+        vi_write(VI_H_VIDEO, vi_read(VI_H_VIDEO));
     enable_interrupts();
 }
 
