@@ -399,7 +399,7 @@ int main(int argc, char **argv)
     }
 
 	static std::vector<std::string> metaKeys = {
-        "name", "author", "osi-license", "website", "short_desc", "long_desc", "screenshots"
+        "name", "author", "release-date", "osi-license", "website", "age-rating", "short_desc", "long_desc", "screenshots"
     };
 	static std::vector<std::string> boxartKeys = { "front", "back", "top", "bottom", "left", "right" };
 	static std::vector<std::string> cartartKeys = { "front", "back" };
@@ -496,8 +496,24 @@ int main(int argc, char **argv)
                 }
                 process_image(tok);
 			}
-		}
-		else if ((valid_keys == &boxartKeys || valid_keys == &cartartKeys) && !val.empty()) {
+		} else if (valid_keys == &metaKeys && key == "release-date" && !val.empty()) {
+            // Check that the format is YYYY-MM-DD
+            if (val.size() != 10 || val[4] != '-' || val[7] != '-') {
+                fprintf(stderr, "%s:%d: warning: invalid release date format: %s\n", ini_path, lineno, val.c_str());
+                has_error = true;
+                continue;
+            }
+
+            // Basic validation of the date, nothing too fancy
+            int year = std::stoi(val.substr(0, 4));
+            int month = std::stoi(val.substr(5, 2));
+            int day = std::stoi(val.substr(8, 2));
+            if (year < 1900 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) {
+                fprintf(stderr, "%s:%d: warning: invalid release date: %s\n", ini_path, lineno, val.c_str());
+                has_error = true;
+                continue;
+            }
+        } else if ((valid_keys == &boxartKeys || valid_keys == &cartartKeys) && !val.empty()) {
             process_image(val);
         }
 	}
