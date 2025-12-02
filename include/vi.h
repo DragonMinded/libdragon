@@ -800,6 +800,13 @@ inline int vi_get_scanline(int *field) {
 void vi_set_origin(void *buffer, int pixel_stride, int bpp);
 
 /**
+ * @brief Get the bit depth of the current framebuffer
+ * 
+ * @return int Bit depth of the current framebuffer (16 or 32), or 0 if VI is disabled
+ */
+int vi_get_bpp(void);
+
+/**
  * @brief Configure the horizontal scale factor to display the specified framebuffer width
  * 
  * This function calculates and configures the horizontal scale factor

@@ -378,6 +378,14 @@ void vi_set_origin(void *buffer, int width, int bpp)
     vi_write_end();
 }
 
+int vi_get_bpp(void)
+{
+    uint32_t ctrl = vi_read(VI_CTRL) & VI_CTRL_TYPE;
+    if (ctrl == 2) return 16;
+    if (ctrl == 3) return 32;
+    return 0;
+}
+
 void vi_set_xscale(float fb_width)
 {
     int x0, y0, x1, y1;
