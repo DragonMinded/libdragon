@@ -394,6 +394,10 @@ int main(int argc, char **argv)
 		fatal("%s: error: file is not valid UTF-8\n", ini_path);
 	}
 
+    if (content.find('\r') != std::string::npos) {
+        fatal("%s: error: file uses DOS newlines (CRLF); please convert to Unix (LF)\n", ini_path);
+    }
+
 	static std::vector<std::string> metaKeys = {
         "name", "author", "osi-license", "website", "short_desc", "long_desc", "screenshots"
     };
