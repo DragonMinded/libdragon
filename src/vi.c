@@ -106,6 +106,11 @@ static void __vi_validate_config(void)
     return;
     #endif
 
+    // If we are blanking or the framebuffer is not set, don't validate the configuration,
+    // as technically there's nothing wrong right now.
+    if (pending_blank || *VI_H_VIDEO == 0)
+        return;
+
     // Check for a not fully understood bug (see issue #759)
     if (cfg_pending & (1 << VI_TO_INDEX(VI_WIDTH))) {
         uint32_t width = vi_read(VI_WIDTH);
