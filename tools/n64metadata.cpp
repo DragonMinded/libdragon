@@ -390,7 +390,7 @@ int main(int argc, char **argv)
     }
 
 	static std::vector<std::string> metaKeys = {
-        "name", "author", "release-date", "osi-license", "website", "age-rating", "short_desc", "long_desc", "screenshots"
+        "name", "author", "release-date", "osi-license", "website", "age-rating", "short-desc", "long-desc", "screenshots"
     };
 	static std::vector<std::string> boxartKeys = { "front", "back", "top", "bottom", "left", "right" };
 	static std::vector<std::string> cartartKeys = { "front", "back" };
@@ -502,7 +502,7 @@ int main(int argc, char **argv)
                 }
                 process_file(tok, { ".png", ".jpg", ".jpeg" }, false);
 			}
-		} else if (valid_keys == &metaKeys && key == "long_desc" && !val.empty()) {
+		} else if (valid_keys == &metaKeys && key == "long-desc" && !val.empty()) {
              process_file(val, { ".txt" }, true);
         } else if (valid_keys == &metaKeys && key == "release-date" && !val.empty()) {
             // Check that the format is YYYY-MM-DD
