@@ -507,11 +507,31 @@ int main(int argc, char **argv)
             }
 
             // Basic validation of the date, nothing too fancy
-            int year = std::stoi(val.substr(0, 4));
-            int month = std::stoi(val.substr(5, 2));
-            int day = std::stoi(val.substr(8, 2));
-            if (year < 1900 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) {
-                fprintf(stderr, "%s:%d: warning: invalid release date: %s\n", ini_path, lineno, val.c_str());
+            try {
+                int year = std::stoi(val.substr(0, 4));
+                int month = std::stoi(val.substr(5, 2));
+                int day = std::stoi(val.substr(8, 2));
+                if (year < 1900 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) {
+                    fprintf(stderr, "%s:%d: warning: invalid release date: %s\n", ini_path, lineno, val.c_str());
+                    has_error = true;
+                    continue;
+                }
+            } catch (const std::invalid_argument &e) {
+                fprintf(stderr, "%s:%d: warning: invalid release date format: %s\n", ini_path, lineno, val.c_str());
+                has_error = true;
+                continue;
+            }
+        } else if (valid_keys == &metaKeys && key == "age-rating" && !val.empty()) {
+            // Check that the age rating is a valid integer value
+            try {
+                int age_rating = std::stoi(val);
+                if (age_rating < 0 || age_rating > 18) {
+                    fprintf(stderr, "%s:%d: warning: invalid age rating: %s (must be between 0 and 18)\n", ini_path, lineno, val.c_str());
+                    has_error = true;
+                    continue;
+                }
+            } catch (const std::invalid_argument &e) {
+                fprintf(stderr, "%s:%d: warning: invalid age rating format: %s (should be a number)\n", ini_path, lineno, val.c_str());
                 has_error = true;
                 continue;
             }
