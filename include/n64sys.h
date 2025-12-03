@@ -559,6 +559,22 @@ void *malloc_uncached_aligned(int align, size_t size);
  */
 void free_uncached(void *buf);
 
+/**
+ * @brief Reallocate an uncached memory buffer
+ * 
+ * This function changes the size of the memory buffer pointed to by
+ * `old_buf` to the size specified by `new_size`. The contents will be
+ * unchanged up to the minimum of the old and new sizes. 
+ * 
+ * @param [in] old_buf   Pointer to the previously allocated buffer
+ * @param [in] new_size  New size of the buffer
+ * @return A pointer to the reallocated buffer (in the uncached segment) or
+ *         NULL if the reallocation failed (in which case the old buffer is
+ *         unchanged)
+ */
+void *realloc_uncached(void *old_buf, size_t new_size);
+
+
 /** @brief Type of TV video output */
 typedef enum {
     TV_PAL = 0,      ///< Video output is PAL

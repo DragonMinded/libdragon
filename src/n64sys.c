@@ -166,6 +166,30 @@ void free_uncached(void *buf)
     free(CachedAddr(buf));
 }
 
+void* realloc_uncached(void *buf, size_t size)
+{
+    size_t old_size = malloc_usable_size(CachedAddr(buf));
+    old_size = ROUND_DOWN(old_size, 16);
+    size = ROUND_UP(size, 16);
+
+    if (old_size == size)
+        return buf;
+
+    if (old_size > size) {
+        void *new_buf = realloc(CachedAddr(buf), size);
+        assertf(new_buf == CachedAddr(buf), "shrinking a buffer should not move it");
+        return UncachedAddr(new_buf);
+    }
+
+    // Growing the buffer: allocate a new one and copy the contents.
+    void *new_buf = malloc_uncached(size);
+    if (!new_buf)
+        return NULL;
+    memcpy(new_buf, buf, old_size);
+    free_uncached(buf);
+    return new_buf;
+}
+    
 int get_memory_size(void)
 {
     // If the application checked the size of the memory, we can assume that

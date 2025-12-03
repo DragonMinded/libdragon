@@ -15,14 +15,16 @@
 
 #define TOC_MAGIC    0x544F4330         ///< Magic ID "TOC0"
 
-static pi_addr_t toc_addr = 0;           ///< Address of the TOC in the ROM
+static pi_addr_t toc_addr = 0;          ///< Address of the TOC in the ROM
+static uint32_t toc_cookie = 0;         ///< Cookie of the TOC in the ROM
 
 /** @brief ROMPAK TOC header */
 typedef struct {
     uint32_t magic;       ///< Magic (#TOC_MAGIC)
+    uint32_t cookie;      ///< Cookie to uniquely identify this ROM
     uint32_t toc_size;    ///< Size of the TOC in bytes
-    uint32_t entry_size;  ///< Size of an entry of the TOC (in bytes)
-    uint32_t num_entries; ///< Number of entries in the TOC
+    uint16_t entry_size;  ///< Size of an entry of the TOC (in bytes)
+    uint16_t num_entries; ///< Number of entries in the TOC
 } header_t;
 
 /** @brief ROMPAK TOC entry */
@@ -68,18 +70,32 @@ static bool rompak_get_header(header_t *header)
             rompak_corrupted = true;
             return 0;
         }
+        toc_cookie = io_read(toc_addr + 4);
     }
 
     data_cache_hit_writeback_invalidate(header, sizeof(header_t));
     dma_read(header, toc_addr, sizeof(header_t));
 
+    // Check if the cookie changed. This can only happen in a very rare
+    // but possible situation where a flashcart messed up with the original ROM
+    // contents (eg: a flashcart menu loaded a ROM). This provides some nicer
+    // experience to flashcart developers by avoiding random/unreadble crashes
+    // (as the TOC is used to load symbols to populate crash screens).
+    if (header->cookie != toc_cookie) {
+        debugf("ROMPAK: Cookie changed (expected 0x%08x, got 0x%08x)\n", toc_cookie, header->cookie);
+        rompak_corrupted = true;
+        return false;
+    }
+    
     // These asserts prevent a miscompiled TOC from causing a hard-to-diagnose
     // stack overflow because of alloca. The number 1024 is arbitrary, we just
     // want to protect against important corruptions (eg: little-endian / big-endian mistakes).
     if (header->entry_size >= 1024 || header->num_entries >= 1024) {
+        debugf("ROMPAK: Corrupted TOC detected (entry_size=0x%04x, num_entries=0x%04x)\n",
+            header->entry_size, header->num_entries);
         rompak_corrupted = true;
-        assertf(header->entry_size < 1024, "Corrupted rompak TOC: entry size too big (0x%lx)", header->entry_size);
-        assertf(header->num_entries < 1024, "Corrupted rompak TOC: too many entries (0x%lx)", header->num_entries);
+        assertf(header->entry_size < 1024, "Corrupted rompak TOC: entry size too big (0x%x)", header->entry_size);
+        assertf(header->num_entries < 1024, "Corrupted rompak TOC: too many entries (0x%x)", header->num_entries);
         return false;
     }
 
@@ -189,4 +205,13 @@ void rompak_version_parse(pi_addr_t file_addr, size_t size, rompak_version_callb
         *p++ = '\0'; // terminate right after closing quote
         callback(ctx, key, val);
 	}
+}
+
+/** @brief Initialize rompak module */
+__attribute__((constructor))
+void __rompak_init(void)
+{
+    // Search for the TOC once at boot, so that we store the cookie immediately
+    header_t header;
+    rompak_get_header(&header);
 }

@@ -129,12 +129,24 @@ static inline float fm_ceilf(float x) {
 /**
  * @brief Faster version of floorf
  * 
- * Optimized version using the MIPS trunc.w.s instruction.
+ * Optimized version using the MIPS floor.w.s instruction.
  */
 static inline float fm_floorf(float x) {
-    float y = fm_truncf(x);
-    // After truncation, correct the negative numbers
-    if (x < 0) y -= 1.0f;
+    float yint, y;
+    __asm ("floor.w.s  %0,%1" : "=f"(yint) : "f"(x));
+    __asm ("cvt.s.w  %0,%1" : "=f"(y) : "f"(yint));
+    return y;
+}
+
+/**
+ * @brief Faster version of roundf
+ * 
+ * Optimized version using the MIPS round.w.s instruction.
+ */
+ static inline float fm_roundf(float x) {
+    float yint, y;
+    __asm ("round.w.s  %0,%1" : "=f"(yint) : "f"(x));
+    __asm ("cvt.s.w  %0,%1" : "=f"(y) : "f"(yint));
     return y;
 }
 

@@ -11,6 +11,7 @@ tools/mksprite/convtool
 tools/mksprite/mksprite
 tools/cpaktool/cpaktool
 tools/mkmaterial/mkmaterial
+tools/n64metadata
 tools/n64tool
 tools/n64sym
 tools/**/*.exe

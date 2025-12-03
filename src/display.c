@@ -45,8 +45,6 @@ static uint32_t __height;
 static interlace_mode_t __interlace_mode = INTERLACE_OFF;
 /** @brief Number of active buffers */
 static uint32_t __buffers = 0;
-/** @brief Pointer to uncached 16-bit aligned version of buffers */
-static void *__safe_buffer[NUM_BUFFERS];
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
 /** @brief Bitmask of surfaces that are currently being drawn */
@@ -190,7 +188,7 @@ static void __display_callback(void *arg)
         update_fps(newframe);
     }
 
-    vi_write(VI_ORIGIN, PhysicalAddr(__safe_buffer[now_showing]));
+    vi_show(&surfaces[now_showing]);
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -326,11 +324,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         /* Grab a location to render to */
         tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
         surfaces[i] = surface_alloc(format, __width, __height);
-        __safe_buffer[i] = surfaces[i].buffer;
-        assert(__safe_buffer[i] != NULL);
+        assert(surfaces[i].buffer != NULL);
 
         /* Baseline is blank */
-        memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
+        memset( surfaces[i].buffer, 0, __width * __height * __bitdepth );
     }
 
 #if 0
@@ -421,7 +418,6 @@ void display_close()
         {
             /* Free framebuffer memory */
             surface_free(&surfaces[i]);
-            __safe_buffer[i] = NULL;
         }
         free(surfaces);
         surfaces = NULL;
