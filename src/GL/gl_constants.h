@@ -33,6 +33,7 @@
 #define TEX_GEN_INTEGER_OFFSET  0
 #define TEX_GEN_FRACTION_OFFSET 64
 #define TEX_GEN_MODE_OFFSET     128
+#define TEX_GEN_MODE_T_OFFSET   130
 #define TEX_GEN_CONST_SIZE      (4*2)
 
 #define RDP_TEX_SHIFT       5

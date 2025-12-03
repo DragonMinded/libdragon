@@ -1,6 +1,7 @@
 #include "../../include/magma_constants.h"
 #include "../../include/mgfx_constants.h"
 #include "gl_constants.h"
+#include "../../include/GL/gl_enums.h"
 
 state {
     extern vec16 GL_MATRIX_MODELVIEW[4];
@@ -58,8 +59,27 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
 
     // Pipeline
     {
-        // TODO: determine whether env mapping is enabled
-        vec16 pipeline = load(GL_PIPELINES, 0).xyzw;
+        u32 features = 0;
+
+        u32 env_mask = 0x30000000; // FLAG_TEX_GEN_S | FLAG_TEX_GEN_T
+        u32 tmp = flags & env_mask;
+        if (tmp == env_mask)
+        {
+            u16 sphere_map = GL_SPHERE_MAP;
+            u16 mode_s = load(GL_TEX_GEN, TEX_GEN_MODE_OFFSET);
+            u16 mode_t = load(GL_TEX_GEN, TEX_GEN_MODE_T_OFFSET);
+            if (mode_s == sphere_map)
+            {
+                if (mode_t == sphere_map)
+                {
+                    features |= 1;
+                }
+            }
+        }
+
+        features = features << 3;
+
+        vec16 pipeline = load(features, GL_PIPELINES).xyzw;
         store(pipeline.xyzw, MG_SHADER_TEXT);
     }
 
