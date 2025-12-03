@@ -79,8 +79,8 @@ static pi_addr_t next_entry = 0;
 static inline void grab_sector(pi_addr_t cart_loc, void *ram_loc)
 {
     /* Make sure we have fresh cache */
-    data_cache_hit_writeback_invalidate(ram_loc, SECTOR_SIZE);
-    dma_read(ram_loc, cart_loc, SECTOR_SIZE);
+    data_cache_hit_writeback_invalidate(ram_loc, MAX_DIRENT_SIZE);
+    dma_read(ram_loc, cart_loc, MAX_DIRENT_SIZE);
 }
 
 /**
@@ -195,7 +195,7 @@ static inline pi_addr_t pop_directory(void)
     }
 
     /* Just return the root pointer */
-    return base_ptr + SECTOR_SIZE;
+    return base_ptr + ID_DIRENT_SIZE;
 }
 
 /**
@@ -210,7 +210,7 @@ static inline pi_addr_t peek_directory()
         return directories[directory_top-1];
     }
 
-    return base_ptr + SECTOR_SIZE;
+    return base_ptr + ID_DIRENT_SIZE;
 }
 
 /**
@@ -325,21 +325,22 @@ static char *get_next_token(char *path, char *token)
  */
 static pi_addr_t find_dirent(char *name, pi_addr_t cur_node)
 {
+    directory_entry_t* node = alloca(MAX_DIRENT_SIZE);
+
     while(cur_node)
     {
         /* Fetch sector off of 'disk' */
-        directory_entry_t node;
-        grab_sector(cur_node, &node);
+        grab_sector(cur_node, node);
 
         /* Do a string comparison on the filename */
-        if(strcmp(node.path, name) == 0)
+        if(strcmp(node->path, name) == 0)
         {
             /* We have a match! */
             return cur_node;
         }
 
         /* Follow linked list */
-        cur_node = get_next_entry(&node);
+        cur_node = get_next_entry(node);
     }
 
     /* Couldn't find entry */
@@ -435,10 +436,10 @@ static int recurse_path(const char * const path, int mode, pi_addr_t *dirent, in
             if(tmp_node)
             {
                 /* Grab node, make sure it is a directory, push subdirectory, try again! */
-                directory_entry_t node;
-                grab_sector(tmp_node, &node);
+                directory_entry_t* node = alloca(MAX_DIRENT_SIZE);
+                grab_sector(tmp_node, node);
 
-                uint32_t flags = get_flags(&node);
+                uint32_t flags = get_flags(node);
 
                 if(FILETYPE(flags) == FLAGS_DIR)
                 {
@@ -451,7 +452,7 @@ static int recurse_path(const char * const path, int mode, pi_addr_t *dirent, in
                     else 
                     {
                         /* Push subdirectory onto stack and loop */
-                        push_directory(get_first_entry(&node));
+                        push_directory(get_first_entry(node));
                     }
                     last_type = TYPE_DIR;
                 }
@@ -542,16 +543,16 @@ static bool init_dfs_lookup(directory_entry_t *id_node)
 static int __dfs_init(pi_addr_t base_fs_loc)
 {
     /* Check to see if it passes the check */
-    directory_entry_t id_node;
-    grab_sector(base_fs_loc, &id_node);
+    directory_entry_t* id_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(base_fs_loc, id_node);
 
-    if(id_node.flags == ROOT_FLAGS && !strcmp(id_node.path, ROOT_PATH))
+    if(id_node->flags == ROOT_FLAGS && !strcmp(id_node->path, ROOT_PATH))
     {
         /* Passes, set up the FS */
         base_ptr = base_fs_loc;
         clear_directory();
         /* Initialize lookup data */
-        return (init_dfs_lookup(&id_node)) ? DFS_ESUCCESS : DFS_EBADFS;
+        return (init_dfs_lookup(id_node)) ? DFS_ESUCCESS : DFS_EBADFS;
     }
 
     /* Failed! */
@@ -602,18 +603,18 @@ static int __dfs_findfirst(const char * const path, char *buf, pi_addr_t *next_e
     }
 
     /* We now have the pointer to the first entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
+    directory_entry_t* t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(dirent, t_node);
 
     if(buf)
     {
-        strcpy(buf, t_node.path);    
+        strcpy(buf, t_node->path);    
     }
     
     /* Set up directory to point to next entry */
-    *next_entry = get_next_entry(&t_node);
+    *next_entry = get_next_entry(t_node);
 
-    return get_flags(&t_node);
+    return get_flags(t_node);
 }
 
 static int __dfs_findnext(char *buf, pi_addr_t *next_entry)
@@ -625,18 +626,18 @@ static int __dfs_findnext(char *buf, pi_addr_t *next_entry)
     }
 
     /* We already calculated the pointer, just grab the information */
-    directory_entry_t t_node;
-    grab_sector(*next_entry, &t_node);
+    directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(*next_entry, t_node);
 
     if(buf)
     {
-        strcpy(buf, t_node.path);    
+        strcpy(buf, t_node->path);    
     }
     
     /* Set up directory to point to next entry */
-    *next_entry = get_next_entry(&t_node);
+    *next_entry = get_next_entry(t_node);
 
-    return get_flags(&t_node);
+    return get_flags(t_node);
 }
 
 /**
@@ -782,13 +783,13 @@ int dfs_open(const char *path)
         }
 
         /* We now have the pointer to the file entry */
-        directory_entry_t t_node;
-        grab_sector(dirent, &t_node);
+        directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(dirent, t_node);
 
         /* Set up file handle */
-        file->size = get_size(&t_node);
+        file->size = get_size(t_node);
         file->loc = 0;
-        file->cart_start_loc = get_start_location(&t_node);
+        file->cart_start_loc = get_start_location(t_node);
     }
     return OPENFILE_TO_HANDLE(file);
 }
@@ -1007,11 +1008,11 @@ uint32_t dfs_rom_addr(const char *path)
         }
 
         /* We now have the pointer to the file entry */
-        directory_entry_t t_node;
-        grab_sector(dirent, &t_node);
+        directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(dirent, t_node);
 
         /* Return the starting location in ROM */
-        return get_start_location(&t_node);
+        return get_start_location(t_node);
     }
 }
 
@@ -1046,11 +1047,11 @@ int dfs_rom_size(const char *path)
         }
 
         /* We now have the pointer to the file entry */
-        directory_entry_t t_node;
-        grab_sector(dirent, &t_node);
+        directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(dirent, t_node);
 
         /* Return the starting location in ROM */
-        return (int)(get_size(&t_node));
+        return (int)(get_size(t_node));
     }
 }
 
@@ -1167,14 +1168,14 @@ static int __stat( char *name, struct stat *st )
     st->st_nlink = 1;
 
     /* We now have the pointer to the first entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
+    directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(dirent, t_node);
 
     /* Populate the structure with the proper values */
-    uint32_t flags = get_flags(&t_node);
+    uint32_t flags = get_flags(t_node);
     if (FILETYPE(flags) == FLAGS_FILE) {
         st->st_mode = S_IFREG;
-        st->st_size = (int)(get_size(&t_node));
+        st->st_size = (int)(get_size(t_node));
     } else {
         st->st_mode = S_IFDIR;
         st->st_size = 0;
