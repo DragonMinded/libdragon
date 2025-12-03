@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include "dragonfs.h"
-#include "dfsinternal.h"
+#include "../../src/dfs_internal.h"
 #include "../common/polyfill.h"
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__

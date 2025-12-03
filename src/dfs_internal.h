@@ -1,5 +1,5 @@
 /**
- * @file dfsinternal.h
+ * @file dfs_internal.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @author Liam Coleman <gamemasterplc@gmail.com>
@@ -41,7 +41,7 @@ struct directory_entry
     char path[];
 };
 
-/* Size of the ID dirent entry (beginning of the filesystem) */
+/** @brief Size of the ID dirent entry (beginning of the filesystem) */
 #define ID_DIRENT_SIZE   (((sizeof(directory_entry_t) + strlen(ROOT_PATH) + 1) + 1) / 2 * 2)
 
 /** @brief Type definition */

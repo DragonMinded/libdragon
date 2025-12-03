@@ -20,7 +20,7 @@
 #include <sys/param.h>
 #include <stdbool.h>
 #include "dragonfs.h"
-#include "dfsinternal.h"
+#include "../../src/dfs_internal.h"
 #include "../common/polyfill.h"
 
 #define STBDS_NO_SHORT_NAMES

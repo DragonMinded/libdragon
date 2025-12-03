@@ -18,7 +18,7 @@
 #include "dma.h"
 #include "debug.h"
 #include "system.h"
-#include "dfsinternal.h"
+#include "dfs_internal.h"
 #include "rompak_internal.h"
 #include "utils.h"
 
