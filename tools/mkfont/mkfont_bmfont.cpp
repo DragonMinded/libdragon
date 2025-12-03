@@ -11,6 +11,8 @@
 #include <map>
 #include <memory>
 
+#include "../common/utils.h"
+
 // Bring in tex_format_t definition
 #include "surface.h"
 
@@ -67,12 +69,6 @@ struct bmctx {
 };
 
 bmctx *gctx;
-
-const char* dirname(const char *full_path) {
-    const char *sep = strrchr(full_path, '/');
-    if (!sep) return ".";
-    return strndup(full_path, sep - full_path);
-}
 
 char* unquote(char *str) {
     if (str[0] == '"') {

@@ -14,166 +14,121 @@
 #include "dma.h"
 #include "model64.h"
 #include "model64_internal.h"
+#include "mgfx.h"
 #include "asset.h"
 #include "debug.h"
-#include "sprite.h"
 #include "utils.h"
-#include "rdpq_tex.h"
 
 #include "model64_catmull.h"
 
-
-/** @brief Loading state of a texture_entry_t */
-typedef enum {
-    ENTRY_STATE_EMPTY = 0,
-    ENTRY_STATE_SPRITE_LOADED,
-    ENTRY_STATE_FULL
-} texture_entry_state_t;
-
-/** @brief A single, possibly empty, shared texture */
-typedef struct texture_entry_s {
-    char *path;                  ///< Original file path of a texture, used as a key
-    texture_entry_state_t state; ///< Is only the sprite loaded or also a GL texture object
-    sprite_t *sprite;            ///< A sprite with image data
-    GLuint obj;                  ///< Texture object created on first draw
-    int ref_count;               ///< Reference count from all models
-} texture_entry_t;
-
-/** @brief Contains shared textures and their metadata */
-typedef struct texture_table_s {
-    texture_entry_t *entries; ///< Path to entry mapping with empty slots
-    uint32_t size;            ///< Number of elements allocated for the array above
-    int ref_count;            ///< How many models have shared textures
-} texture_table_t;
-
-/** @brief Global shared texture table */
-static texture_table_t* shared_textures;
-
-/** @brief Allocates the global texture table */
-void texture_table_allocate()
+static void init_submesh(submesh_state_t *submesh_state, const mgfx_submesh_t *submesh)
 {
-    shared_textures = calloc(1, sizeof(texture_table_t));
-    shared_textures->size = 2;
-    shared_textures->entries = calloc(shared_textures->size, sizeof(shared_textures->entries[0]));
-    shared_textures->ref_count = 1;
-}
+    uint32_t stride = submesh->vertex_layout.stride;
 
-/** @brief Frees a texture entry and its resources */
-void free_texture_entry(texture_entry_t *entry) {
-    assertf(entry->ref_count == 0, "Leaked a texture entry %p", entry);
-    free(entry->path);
-    sprite_free(entry->sprite);
-    if (entry->state == ENTRY_STATE_FULL) {
-        glDeleteTextures(1, &entry->obj);
-    }
-    entry->path = NULL;
-    entry->state = ENTRY_STATE_EMPTY;
-    entry->sprite = NULL;
-}
+    glGenBuffersARB(1, &submesh_state->vertex_vbo);
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, submesh_state->vertex_vbo);
+    glBufferDataARB(GL_ARRAY_BUFFER_ARB, submesh->vertices_count * stride, submesh->vertices, GL_STATIC_DRAW_ARB);
 
-/** @brief Frees the global texture table */
-void texture_table_free()
-{
-    assertf(shared_textures->ref_count == 0, "Tried freeing texture table while still in use");
+    glGenVertexArrays(1, &submesh_state->vao);
+    glBindVertexArray(submesh_state->vao);
+    for (size_t i = 0; i < submesh->vertex_layout.attribute_count; i++)
+    {
+        const mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[i];
 
-    for (uint32_t i = 0; i < shared_textures->size; i++) {
-        texture_entry_t *entry = &shared_textures->entries[i];
-        assertf(entry->state == ENTRY_STATE_EMPTY, "Shared texture %lu=%p was leaked", i, entry);
-    }
-    free(shared_textures->entries);
-    free(shared_textures);
-    shared_textures = NULL;
-}
+        switch (attr->input)
+        {
+        case MGFX_ATTRIBUTE_POS_NORM:
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glVertexPointer(3, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
 
-/** @brief Gets texture index by path */
-uint32_t texture_table_get(const char* path)
-{
-    for (uint32_t i = 0; i < shared_textures->size; i++) {
-        texture_entry_t *entry = &shared_textures->entries[i];
-        if (entry->state != ENTRY_STATE_EMPTY) {
-            if (strcmp(shared_textures->entries[i].path, path) == 0) {
-                return i;
-            }
-        }
-    }
+            glEnableClientState(GL_NORMAL_ARRAY);
+            glNormalPointer(GL_SHORT_5_6_5_N64, stride, (const GLvoid*)(attr->offset + sizeof(uint16_t)*3));
+            break;
 
-    return TEXTURE_INDEX_MISSING;
-}
-
-/** @brief Adds a texture to the shared table */
-uint32_t texture_table_add(const char* path, const char* prefix)
-{
-    uint32_t idx = TEXTURE_INDEX_MISSING;
-
-    for (uint32_t i = 0; i < shared_textures->size; i++) {
-        texture_entry_t *entry = &shared_textures->entries[i];
-        if (entry->state == ENTRY_STATE_EMPTY) {
-            idx = i;
+        case MGFX_ATTRIBUTE_COLOR:
+            glEnableClientState(GL_COLOR_ARRAY);
+            glColorPointer(4, GL_UNSIGNED_BYTE, stride, (const GLvoid*)attr->offset);
+            break;
+        
+        case MGFX_ATTRIBUTE_TEXCOORD:
+            glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+            glTexCoordPointer(2, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
             break;
         }
     }
 
-    if (idx == TEXTURE_INDEX_MISSING) {
-        // Table must be full because a free slot wasn't found.
-        uint32_t new_size = shared_textures->size * 2;
-        shared_textures->entries = realloc(shared_textures->entries, new_size * sizeof(shared_textures->entries[0]));
-        assertf(shared_textures->entries, "Entry array allocation failed");
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
-        for (uint32_t i = shared_textures->size; i < new_size; i++) {
-            memset(&shared_textures->entries[i], 0, sizeof(shared_textures->entries[i]));
-        }
-
-        idx = shared_textures->size;
-        shared_textures->size = new_size;
+    if (submesh->indices_count > 0)
+    {
+        glGenBuffersARB(1, &submesh_state->index_vbo);
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, submesh_state->index_vbo);
+        glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, submesh->indices_count * sizeof(uint16_t), submesh->indices, GL_STATIC_DRAW_ARB);
+    } else {
+        submesh_state->index_vbo = 0;
     }
 
-    char prefixed[strlen(prefix) + strlen(path) + 1]; 
-    prefixed[0] = '\0';
-    strcat(prefixed, prefix);
-    strcat(prefixed, path);
-    
-    sprite_t *sprite = sprite_load(prefixed);
+    glBindVertexArray(0);
 
-    if (!sprite) {
-        assertf(false, "Failed to load texture %s\n", prefixed);
-        return TEXTURE_INDEX_MISSING;
+    switch (submesh->input_assembly_parms.primitive_topology)
+    {
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+        submesh_state->prim_mode = GL_TRIANGLES;
+        break;        
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+        submesh_state->prim_mode = GL_TRIANGLE_STRIP;
+        break;        
+    case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+        submesh_state->prim_mode = GL_TRIANGLE_FAN;
+        break;        
     }
-
-    size_t size = strlen(path) + 1;
-    char *new = malloc(size);
-    strncpy(new, path, size);
-
-    texture_entry_t* entry = &shared_textures->entries[idx];
-    entry->path = new;
-    entry->sprite = sprite;
-    entry->ref_count = 0; // caller will increment ref_count if it stored a reference
-    entry->state = ENTRY_STATE_SPRITE_LOADED; // entry->obj gets initialized on first draw
-
-    return idx;
 }
 
-/** @brief Increments reference count for a texture */
-void texture_table_inc_ref_count(uint32_t idx)
+static void init_mesh(mesh_state_t *mesh_state, mgfx_mesh_t *mesh)
 {
-    if (idx == TEXTURE_INDEX_MISSING) return;
-    assert(idx < shared_textures->size);
-    assert(shared_textures->entries[idx].ref_count >= 0);
-    shared_textures->entries[idx].ref_count++;
+    mesh_state->submeshes = malloc(mesh->submesh_count * sizeof(submesh_state_t));
+    for (size_t i = 0; i < mesh->submesh_count; i++)
+    {
+        init_submesh(&mesh_state->submeshes[i], &mesh->submeshes[i]);
+    }
 }
 
-/** @brief Decrements reference count for a texture */
-void texture_table_dec_ref_count(uint32_t idx)
+static void init_runtime_state(model64_data_t *model)
 {
-    if (idx == TEXTURE_INDEX_MISSING) return;
+    model->runtime_state = calloc(1, sizeof(runtime_state_t));
+    model->runtime_state->meshes = calloc(model->num_meshes, sizeof(mesh_state_t));
 
-    assert(idx < shared_textures->size);
-
-    texture_entry_t* entry = &shared_textures->entries[idx];
-    assert(entry->ref_count > 0);
-
-    if (--entry->ref_count == 0) {
-        free_texture_entry(entry);
+    for (size_t i = 0; i < model->num_meshes; i++)
+    {
+        init_mesh(&model->runtime_state->meshes[i], &model->meshes[i]);
     }
+}
+
+static void cleanup_submesh(submesh_state_t *submesh_state)
+{
+    glDeleteVertexArrays(1, &submesh_state->vao);
+    glDeleteBuffersARB(1, &submesh_state->vertex_vbo);
+    glDeleteBuffersARB(1, &submesh_state->index_vbo);
+}
+
+static void cleanup_mesh(mesh_state_t *mesh_state, mgfx_mesh_t *mesh)
+{
+    for (size_t i = 0; i < mesh->submesh_count; i++)
+    {
+        cleanup_submesh(&mesh_state->submeshes[i]);
+    }
+    free(mesh_state->submeshes);
+}
+
+static void cleanup_runtime_state(model64_data_t *model)
+{
+    for (size_t i = 0; i < model->num_meshes; i++)
+    {
+        cleanup_mesh(&model->runtime_state->meshes[i], &model->meshes[i]);
+    }
+    free(model->runtime_state->meshes);
+    free(model->runtime_state);
+    model->runtime_state = NULL;
 }
 
 /** @brief Decodes a pointer relative to model base address */
@@ -189,11 +144,12 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
         assertf(0, "Trying to load already loaded model data (buf=%p, sz=%08x)", buf, sz);
     }
     assertf(model->magic == MODEL64_MAGIC, "invalid model data (magic: %08lx)", model->magic);
+    assertf(model->version == MODEL64_VERSION, "Invalid model version (%ld); please regenerate your asset files", model->version);
     model->nodes = PTR_DECODE(model, model->nodes);
     model->meshes = PTR_DECODE(model, model->meshes);
     model->skins = PTR_DECODE(model, model->skins);
     model->anims = PTR_DECODE(model, model->anims);
-    model->texture_paths = PTR_DECODE(model, model->texture_paths);
+    model->materials = PTR_DECODE(model, model->materials);
     for(uint32_t i=0; i<model->num_skins; i++)
     {
         model->skins[i].joints = PTR_DECODE(model, model->skins[i].joints);
@@ -204,53 +160,24 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
         {
             model->nodes[i].name = PTR_DECODE(model, model->nodes[i].name);
         }
-        if(model->nodes[i].mesh)
-        {
-            model->nodes[i].mesh = PTR_DECODE(model, model->nodes[i].mesh);
-        }
         model->nodes[i].children = PTR_DECODE(model, model->nodes[i].children);
+        model->nodes[i].material_indices = PTR_DECODE(model, model->nodes[i].material_indices);
         if(model->nodes[i].skin)
         {
             model->nodes[i].skin = PTR_DECODE(model, model->nodes[i].skin);
         }
     }
-    if (model->num_textures > 0) {
-        assertf(prefix, "Trying to load a textured model from memory, only file system supported");
-        if (shared_textures) {
-            shared_textures->ref_count++;
-        } else {
-            texture_table_allocate();
-        }
-    }
-    for (uint32_t i = 0; i < model->num_textures; i++)
-    {
-        model->texture_paths[i] = PTR_DECODE(model, model->texture_paths[i]);
-    }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
-        model->meshes[i].primitives = PTR_DECODE(model, model->meshes[i].primitives);
-        for (uint32_t j = 0; j < model->meshes[i].num_primitives; j++)
+        mgfx_mesh_t *mesh = &model->meshes[i];
+        mesh->submeshes = PTR_DECODE(model, mesh->submeshes);
+        for (uint32_t j = 0; j < mesh->submesh_count; j++)
         {
-            primitive_t *primitive = &model->meshes[i].primitives[j];
-            primitive->position.pointer = PTR_DECODE(model, primitive->position.pointer);
-            primitive->color.pointer = PTR_DECODE(model, primitive->color.pointer);
-            primitive->texcoord.pointer = PTR_DECODE(model, primitive->texcoord.pointer);
-            primitive->normal.pointer = PTR_DECODE(model, primitive->normal.pointer);
-            primitive->mtx_index.pointer = PTR_DECODE(model, primitive->mtx_index.pointer);
-            primitive->indices = PTR_DECODE(model, primitive->indices);
+            mgfx_submesh_t *submesh = &mesh->submeshes[j];
 
-            if (primitive->local_texture != TEXTURE_INDEX_MISSING) {
-                uint32_t idx = texture_table_get(model->texture_paths[primitive->local_texture]);
-
-                if (idx == TEXTURE_INDEX_MISSING) {
-                    idx = texture_table_add(model->texture_paths[primitive->local_texture], prefix);
-                }
-
-                assert(idx != TEXTURE_INDEX_MISSING);
-
-                primitive->shared_texture = idx;
-                texture_table_inc_ref_count(idx);
-            }
+            submesh->vertex_layout.attributes = PTR_DECODE(model, submesh->vertex_layout.attributes);
+            submesh->vertices = PTR_DECODE(model, submesh->vertices);
+            submesh->indices = PTR_DECODE(model, submesh->indices);
         }
     }
     for (uint32_t i = 0; i < model->num_anims; i++)
@@ -265,10 +192,17 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
             model->anims[i].keyframes = PTR_DECODE(model, model->anims[i].keyframes);
         }
     }
+    for (uint32_t i = 0; i < model->num_materials; i++)
+    {
+        model->materials[i].rdpq_mat = rdpq_mat_load_buf(PTR_DECODE(model, model->materials[i].rdpq_mat), model->materials[i].size);
+    }
+
+    init_runtime_state(model);
 
     model->magic = MODEL64_MAGIC_LOADED;
     model->ref_count = 1;
     data_cache_hit_writeback(model, sz);
+
     return model;
 }
 
@@ -437,16 +371,15 @@ model64_t *model64_clone(model64_t *model)
 /** @brief Unloads model data and encodes pointers */
 static void unload_model_data(model64_data_t *model)
 {
+    cleanup_runtime_state(model);
+
     for(uint32_t i=0; i<model->num_nodes; i++)
     {
         model->nodes[i].children = PTR_ENCODE(model, model->nodes[i].children);
+        model->nodes[i].material_indices = PTR_ENCODE(model, model->nodes[i].material_indices);
         if(model->nodes[i].skin)
         {
             model->nodes[i].skin = PTR_ENCODE(model, model->nodes[i].skin);
-        }
-        if(model->nodes[i].mesh)
-        {
-            model->nodes[i].mesh = PTR_ENCODE(model, model->nodes[i].mesh);
         }
         if(model->nodes[i].name)
         {
@@ -455,19 +388,16 @@ static void unload_model_data(model64_data_t *model)
     }
     for (uint32_t i = 0; i < model->num_meshes; i++)
     {
-        for (uint32_t j = 0; j < model->meshes[i].num_primitives; j++)
+        mgfx_mesh_t *mesh = &model->meshes[i];
+        for (uint32_t j = 0; j < mesh->submesh_count; j++)
         {
-            primitive_t *primitive = &model->meshes[i].primitives[j];
-            primitive->position.pointer = PTR_ENCODE(model, primitive->position.pointer);
-            primitive->color.pointer = PTR_ENCODE(model, primitive->color.pointer);
-            primitive->texcoord.pointer = PTR_ENCODE(model, primitive->texcoord.pointer);
-            primitive->normal.pointer = PTR_ENCODE(model, primitive->normal.pointer);
-            primitive->mtx_index.pointer = PTR_ENCODE(model, primitive->mtx_index.pointer);
-            primitive->indices = PTR_ENCODE(model, primitive->indices);
-            texture_table_dec_ref_count(primitive->shared_texture);
-            primitive->shared_texture = TEXTURE_INDEX_MISSING;
+            mgfx_submesh_t *submesh = &mesh->submeshes[j];
+
+            submesh->vertex_layout.attributes = PTR_ENCODE(model, submesh->vertex_layout.attributes);
+            submesh->vertices = PTR_ENCODE(model, submesh->vertices);
+            submesh->indices = PTR_ENCODE(model, submesh->indices);
         }
-        model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
+        mesh->submeshes = PTR_ENCODE(model, mesh->submeshes);
     }
     for(uint32_t i=0; i<model->num_skins; i++)
     {
@@ -485,10 +415,15 @@ static void unload_model_data(model64_data_t *model)
             model->anims[i].keyframes = PTR_ENCODE(model, model->anims[i].keyframes);
         }
     }
+    for (uint32_t i = 0; i < model->num_materials; i++)
+    {
+        rdpq_mat_free(model->materials[i].rdpq_mat);
+        model->materials[i].rdpq_mat = PTR_ENCODE(model, model->materials[i].rdpq_mat);
+    }
     model->nodes = PTR_ENCODE(model, model->nodes);
-    model->meshes = PTR_ENCODE(model, model->meshes);
     model->skins = PTR_ENCODE(model, model->skins);
     model->anims = PTR_ENCODE(model, model->anims);
+    model->materials = PTR_ENCODE(model, model->materials);
     if(model->magic == MODEL64_MAGIC_OWNED) {
         #ifndef NDEBUG
         // To help debugging, zero the model data structure
@@ -503,13 +438,7 @@ static void free_model64_data(model64_data_t *data)
 {
     if(--data->ref_count == 0)
     {
-        bool had_textures = data->num_textures > 0;
         unload_model_data(data);
-        if (had_textures) {
-            if (--shared_textures->ref_count == 0) {
-                texture_table_free();
-            }
-        }
     }
 }
 
@@ -523,18 +452,6 @@ void model64_free(model64_t *model)
     }
     free_model64_data(model->data);
     free(model);
-}
-
-/** @brief Gets the number of meshes in a model */
-uint32_t model64_get_mesh_count(model64_t *model)
-{
-    return model->data->num_meshes;
-}
-
-/** @brief Gets a mesh by index */
-mesh_t *model64_get_mesh(model64_t *model, uint32_t mesh_index)
-{
-    return &model->data->meshes[mesh_index];
 }
 
 /** @brief Gets the number of nodes in a model */
@@ -631,96 +548,28 @@ void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float ds
     mtx_copy(dst, model->transforms[node_idx].world_mtx);
 }
 
-/** @brief Gets the number of primitives in a mesh */
-uint32_t model64_get_primitive_count(mesh_t *mesh)
+static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *material_indices)
 {
-    return mesh->num_primitives;
-}
-
-/** @brief Gets a primitive by index */
-primitive_t *model64_get_primitive(mesh_t *mesh, uint32_t primitive_index)
-{
-    return &mesh->primitives[primitive_index];
-}
-
-/** @brief Draws a single primitive */
-void model64_draw_primitive(primitive_t *primitive)
-{
-    if (primitive->shared_texture != TEXTURE_INDEX_MISSING) {
-        texture_entry_t *entry = &shared_textures->entries[primitive->shared_texture];
-
-        if (entry->state == ENTRY_STATE_SPRITE_LOADED) {
-            glGenTextures(1, &entry->obj);
-            glBindTexture(GL_TEXTURE_2D, entry->obj);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-            // If a dimension is not a power of two then clamp and otherwise repeat.
-            float rs = (entry->sprite->width & (entry->sprite->width-1)) ? 1 : REPEAT_INFINITE;
-            float rt = (entry->sprite->height & (entry->sprite->height-1)) ? 1 : REPEAT_INFINITE;
-            glSpriteTextureN64(GL_TEXTURE_2D, entry->sprite, &(rdpq_texparms_t){.s.repeats = rs, .t.repeats = rt});
-
-            entry->state = ENTRY_STATE_FULL;
-        }
-
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, entry->obj);
-    }
-
-    if (primitive->position.size > 0) {
-        glEnableClientState(GL_VERTEX_ARRAY);
-        if (primitive->position.type == GL_HALF_FIXED_N64) {
-            glVertexHalfFixedPrecisionN64(primitive->vertex_precision);
-        }
-        glVertexPointer(primitive->position.size, primitive->position.type, primitive->position.stride, primitive->position.pointer);
-    } else {
-        glDisableClientState(GL_VERTEX_ARRAY);
-    }
-    
-    if (primitive->color.size > 0) {
-        glEnableClientState(GL_COLOR_ARRAY);
-        glColorPointer(primitive->color.size, primitive->color.type, primitive->color.stride, primitive->color.pointer);
-    } else {
-        glDisableClientState(GL_COLOR_ARRAY);
-    }
-    
-    if (primitive->texcoord.size > 0) {
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        if (primitive->texcoord.type == GL_HALF_FIXED_N64) {
-            glTexCoordHalfFixedPrecisionN64(primitive->texcoord_precision);
-        }
-        glTexCoordPointer(primitive->texcoord.size, primitive->texcoord.type, primitive->texcoord.stride, primitive->texcoord.pointer);
-    } else {
-        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-    }
-    
-    if (primitive->normal.size > 0) {
-        glEnableClientState(GL_NORMAL_ARRAY);
-        glNormalPointer(primitive->normal.type, primitive->normal.stride, primitive->normal.pointer);
-    } else {
-        glDisableClientState(GL_NORMAL_ARRAY);
-    }
-    
-    if (primitive->mtx_index.size > 0) {
-        glEnableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
-        glMatrixIndexPointerARB(primitive->mtx_index.size, primitive->mtx_index.type, primitive->mtx_index.stride, primitive->mtx_index.pointer);
-    } else {
-        glDisableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
-    }
-
-    if (primitive->num_indices > 0) {
-        glDrawElements(primitive->mode, primitive->num_indices, primitive->index_type, primitive->indices);
-    } else {
-        glDrawArrays(primitive->mode, 0, primitive->num_vertices);
-    }
-}
-
-/** @brief Draws all primitives in a mesh */
-void model64_draw_mesh(mesh_t *mesh)
-{
-    for (uint32_t i = 0; i < model64_get_primitive_count(mesh); i++)
+    mgfx_mesh_t *mesh = &model->data->meshes[mesh_index];
+    mesh_state_t *mesh_state = &model->data->runtime_state->meshes[mesh_index];
+    for (size_t i = 0; i < mesh->submesh_count; i++)
     {
-        model64_draw_primitive(model64_get_primitive(mesh, i));
+        if (material_indices[i] != INDEX_MISSING) {
+            //rdpq_mat_draw_begin(model->data->materials[material_indices[i]].rdpq_mat);
+        }
+
+        mgfx_submesh_t *submesh = &mesh->submeshes[i];
+        submesh_state_t *submesh_state = &mesh_state->submeshes[i];
+        glBindVertexArray(submesh_state->vao);
+        if (submesh->indices_count > 0) {
+            glDrawElements(submesh_state->prim_mode, submesh->indices_count, GL_UNSIGNED_SHORT, NULL);
+        } else {
+            glDrawArrays(submesh_state->prim_mode, 0, submesh->vertices_count);
+        }
+
+        if (material_indices[i] != INDEX_MISSING) {
+            //rdpq_mat_draw_end(model->data->materials[material_indices[i]].rdpq_mat);
+        }
     }
 }
 
@@ -729,32 +578,40 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
 {
     uint32_t node_idx = get_node_idx(model, node);
     assertf(node_idx < model->data->num_nodes, "Drawing invalid node.");
-    if(node->mesh)
-    {
-        if(node->skin)
-        {
-            glMatrixMode(GL_MATRIX_PALETTE_ARB);
-            for(uint32_t i=0; i<node->skin->num_joints; i++)
-            {
-                glCurrentPaletteMatrixARB(i);
-                glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
-                glMultMatrixf(model->transforms[node->skin->joints[i].node_idx].world_mtx);
-                glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
-            }
-            glEnable(GL_MATRIX_PALETTE_ARB);
-            model64_draw_mesh(node->mesh);
-            glDisable(GL_MATRIX_PALETTE_ARB);
-            glMatrixMode(GL_MODELVIEW);
-        }
-        else
-        {
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glMultMatrixf(model->transforms[node_idx].world_mtx);
-            model64_draw_mesh(node->mesh);
-            glPopMatrix();
-        }
+    if(node->mesh_index == INDEX_MISSING) {
+        return;
     }
+
+    //glEnable(GL_RDPQ_MATERIAL_N64);
+    //glEnable(GL_RDPQ_TEXTURING_N64);
+
+    if(node->skin)
+    {
+        glMatrixMode(GL_MATRIX_PALETTE_ARB);
+        for(uint32_t i=0; i<node->skin->num_joints; i++)
+        {
+            glCurrentPaletteMatrixARB(i);
+            glCopyMatrixN64(GL_MODELVIEW); //Copy matrix at top of modelview stack to matrix palette
+            glMultMatrixf(model->transforms[node->skin->joints[i].node_idx].world_mtx);
+            glMultMatrixf(node->skin->joints[i].inverse_bind_mtx);
+        }
+        glEnable(GL_MATRIX_PALETTE_ARB);
+        model64_draw_mesh(model, node->mesh_index, node->material_indices);
+        glDisable(GL_MATRIX_PALETTE_ARB);
+        glMatrixMode(GL_MODELVIEW);
+    }
+    else
+    {
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glMultMatrixf(model->transforms[node_idx].world_mtx);
+        model64_draw_mesh(model, node->mesh_index, node->material_indices);
+        glPopMatrix();
+    }
+
+    // TODO: check if it was enabled before
+    //glDisable(GL_RDPQ_MATERIAL_N64);
+    //glDisable(GL_RDPQ_TEXTURING_N64);
 }
 
 /** @brief Draws all nodes in a model */

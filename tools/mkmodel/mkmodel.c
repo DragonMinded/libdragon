@@ -16,6 +16,8 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"
+#include "../common/subprocess.h"
+#include "../common/utils.h"
 
 // Compression library
 #include <sys/stat.h>
@@ -28,41 +30,13 @@
 
 
 #define CGLTF_IMPLEMENTATION
-#include "../common/cgltf.h"
-
-//Macros copied from utils.h in libdragon src directory
-#define ROUND_UP(n, d) ({ \
-    typeof(n) _n = n; typeof(d) _d = d; \
-    (((_n) + (_d) - 1) / (_d) * (_d)); \
-})
-#define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
+#include "../common/convert_mesh.h"
 
 #define ANIM_MAX_FPS 60.0f
-
-// Update these when changing code that writes to the output file
-// IMPORTANT: Do not attempt to move these values to a header that is shared by mkmodel and runtime code!
-//            These values must reflect what the tool actually outputs.
-#define HEADER_SIZE         88
-#define MESH_SIZE           8
-#define PRIMITIVE_SIZE      116
-#define NODE_SIZE           128
-#define SKIN_SIZE           8
-#define ANIM_SIZE           40
-
-
-#define ATTRIBUTE_COUNT     5
-
-#define VERTEX_PRECISION    5
-#define TEXCOORD_PRECISION  8
 
 #define RSP_PRECISION       (1.0f/65536.0f)
 
 #define MIN_KEYFRAME_DT (1.0f/80.0f)
-
-#define MAX_TEXTURES 1000
-
-typedef void (*component_convert_func_t)(void*,float*,size_t);
-typedef void (*index_convert_func_t)(void*,cgltf_uint*,size_t);
 
 typedef struct gltf_keyframe_s {
     float time;
@@ -100,14 +74,9 @@ typedef struct ordered_keyframe_array_s {
     ordered_keyframe_t *data;
 } ordered_keyframe_array_t;
 
-struct {
-    char *file_paths[MAX_TEXTURES];   // Input image paths used as a search key
-    char *sprite_paths[MAX_TEXTURES]; // Converted sprite paths stored in file
-    uint32_t num;
-} texture_table;
-
 int flag_anim_stream = 1;
 int flag_verbose = 0;
+const char *n64_inst = NULL;
 
 uint32_t get_type_size(uint32_t type)
 {
@@ -153,33 +122,7 @@ model64_data_t* model64_alloc()
     model64_data_t *model = calloc(1, sizeof(model64_data_t));
     model->magic = MODEL64_MAGIC;
     model->version = MODEL64_VERSION;
-    model->header_size = HEADER_SIZE;
-    model->mesh_size = MESH_SIZE;
-    model->primitive_size = PRIMITIVE_SIZE;
-    model->node_size = NODE_SIZE;
-    model->skin_size = SKIN_SIZE;
-    model->anim_size = ANIM_SIZE;
     return model;
-}
-
-void primitive_free(primitive_t *primitive)
-{
-    if (primitive->position.pointer) free(primitive->position.pointer);
-    if (primitive->color.pointer) free(primitive->color.pointer);
-    if (primitive->texcoord.pointer) free(primitive->texcoord.pointer);
-    if (primitive->normal.pointer) free(primitive->normal.pointer);
-    if (primitive->mtx_index.pointer) free(primitive->mtx_index.pointer);
-    if (primitive->indices) free(primitive->indices);
-}
-
-void mesh_free(mesh_t *mesh)
-{
-    for (size_t i = 0; i < mesh->num_primitives; i++) {
-        primitive_free(&mesh->primitives[i]);
-    }
-    if (mesh->primitives) {
-        free(mesh->primitives);
-    }
 }
 
 void node_free(model64_node_t *node)
@@ -189,6 +132,9 @@ void node_free(model64_node_t *node)
     }
     if(node->children) {
         free(node->children);
+    }
+    if(node->material_indices) {
+        free(node->material_indices);
     }
 }
 
@@ -205,16 +151,10 @@ void anim_free(model64_anim_t *anim)
     }
 }
 
-void texture_table_init()
+void mat_free(model64_mat_t *mat)
 {
-    memset(&texture_table, 0, sizeof(texture_table));
-}
-
-void texture_table_free()
-{
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        free(texture_table.file_paths[i]);
-        free(texture_table.sprite_paths[i]);
+    if (mat->rdpq_mat) {
+        free(mat->rdpq_mat);
     }
 }
 
@@ -232,6 +172,9 @@ void model64_free(model64_data_t *model)
     for (size_t i = 0; i < model->num_anims; i++) {
         anim_free(&model->anims[i]);
     }
+    for (size_t i = 0; i < model->num_materials; i++) {
+        mat_free(&model->materials[i]);
+    }
     if (model->meshes) {
         free(model->meshes);
     }
@@ -244,88 +187,10 @@ void model64_free(model64_data_t *model)
     if (model->anims) {
         free(model->anims);
     }
+    if (model->materials) {
+        free(model->materials);
+    }
     free(model);
-}
-
-void attribute_write(FILE *out, attribute_t *attr, const char *name_format, ...)
-{
-    va_list args;
-    va_start(args, name_format);
-    w32(out, attr->size);
-    w32(out, attr->type);
-    w32(out, attr->stride);
-    w32_placeholdervf(out, name_format, args);
-    va_end(args);
-}
-
-uint32_t attribute_get_data_size(attribute_t *attr)
-{
-    if(!attr->pointer) {
-        return 0;
-    }
-    return get_type_size(attr->type) * attr->size;
-}
-
-void vertex_write(FILE *out, attribute_t *attr, uint32_t index)
-{
-    if (attr->size == 0) return;
-    
-    switch (attr->type) {
-    case GL_BYTE:
-    case GL_UNSIGNED_BYTE:
-        for (size_t i = 0; i < attr->size; i++) w8(out, ((uint8_t*)attr->pointer)[index * attr->size + i]);
-        break;
-    case GL_SHORT:
-    case GL_UNSIGNED_SHORT:
-    case GL_HALF_FIXED_N64:
-        for (size_t i = 0; i < attr->size; i++) w16(out, ((uint16_t*)attr->pointer)[index * attr->size + i]);
-        break;
-    case GL_INT:
-    case GL_UNSIGNED_INT:
-    case GL_FLOAT:
-        for (size_t i = 0; i < attr->size; i++) w32(out, ((uint32_t*)attr->pointer)[index * attr->size + i]);
-        break;
-    default:
-        break;
-    }
-}
-
-uint32_t indices_get_data_size(uint32_t type, uint32_t count)
-{
-    switch (type) {
-        case GL_UNSIGNED_BYTE:
-            return count;
-            
-        case GL_UNSIGNED_INT:
-            return count*4;
-            
-        default:
-            return count*2;
-    }
-    
-}
-
-void indices_write(FILE *out, uint32_t type, void *data, uint32_t count)
-{
-    switch (type) {
-    case GL_UNSIGNED_BYTE:
-        for (size_t i = 0; i < count; i++) w8(out, ((uint8_t*)data)[i]);
-        break;
-    case GL_UNSIGNED_SHORT:
-        for (size_t i = 0; i < count; i++) w16(out, ((uint16_t*)data)[i]);
-        break;
-    case GL_UNSIGNED_INT:
-        for (size_t i = 0; i < count; i++) w32(out, ((uint32_t*)data)[i]);
-        break;
-    }
-}
-
-uint32_t get_mesh_index(model64_data_t *model, mesh_t *mesh)
-{
-    assert(mesh);
-    uint32_t index = mesh-(model->meshes);
-    assert(index < model->num_meshes);
-    return index;
 }
 
 uint32_t get_skin_index(model64_data_t *model, model64_skin_t *skin)
@@ -345,16 +210,9 @@ void write_matrix(float *mtx, FILE *out)
 
 void model64_write_header(model64_data_t *model, FILE *out)
 {
-    int start_ofs = ftell(out);
     w32(out, model->magic);
     w32(out, 0);
     w32(out, model->version);
-    w32(out, model->header_size);
-    w32(out, model->mesh_size);
-    w32(out, model->primitive_size);
-    w32(out, model->node_size);
-    w32(out, model->skin_size);
-    w32(out, model->anim_size);
     w32(out, model->num_nodes);
     w32_placeholderf(out, "nodes");
     w32(out, model->root_node);
@@ -364,6 +222,8 @@ void model64_write_header(model64_data_t *model, FILE *out)
     w32_placeholderf(out, "meshes");
     w32(out, model->num_anims);
     w32_placeholderf(out, "anims");
+    w32(out, model->num_materials);
+    w32_placeholderf(out, "materials");
     w32(out, model->max_tracks);
     if(flag_anim_stream) {
         w32(out, 1);
@@ -371,10 +231,7 @@ void model64_write_header(model64_data_t *model, FILE *out)
         w32(out, 0);
     }
 
-    w32(out, texture_table.num);
-    w32_placeholderf(out, "textures");
-
-    assert(ftell(out)-start_ofs == HEADER_SIZE);
+    w32(out, 0);
 }
 
 void model64_write_skins(model64_data_t *model, FILE *out)
@@ -382,11 +239,9 @@ void model64_write_skins(model64_data_t *model, FILE *out)
     walign(out, 4);
     placeholder_set(out, "skins");
     for(uint32_t i=0; i<model->num_skins; i++) {
-        int skin_ofs = ftell(out);
         placeholder_set(out, "skin%d", i);
         w32(out, model->skins[i].num_joints);
         w32_placeholderf(out, "skin%d_joints", i);
-        assert(ftell(out)-skin_ofs == SKIN_SIZE);
     }
     for(uint32_t i=0; i<model->num_skins; i++) {
         placeholder_set(out, "skin%d_joints", i);
@@ -406,15 +261,6 @@ uint32_t model64_get_node_children_total(model64_data_t *model)
     return num_children;
 }
 
-uint32_t model64_get_primitive_total(model64_data_t *model)
-{
-    uint32_t num_primitives = 0;
-    for(uint32_t i=0; i<model->num_meshes; i++) {
-        num_primitives += model->meshes[i].num_primitives;
-    }
-    return num_primitives;
-}
-
 void write_node_transform(node_transform_t *transform, FILE *out)
 {
     for(int i=0; i<3; i++) {
@@ -431,13 +277,8 @@ void write_node_transform(node_transform_t *transform, FILE *out)
 
 void model64_write_node(model64_data_t *model, FILE *out, uint32_t index)
 {
-    int start_ofs = ftell(out);
     w32_placeholderf(out, "node%d_name", index);
-    if(model->nodes[index].mesh) {
-        w32_placeholderf(out, "mesh%d", get_mesh_index(model, model->nodes[index].mesh));
-    } else {
-        w32(out, 0);
-    }
+    w32(out, model->nodes[index].mesh_index);
     if(model->nodes[index].skin) {
         w32_placeholderf(out, "skin%d", get_skin_index(model, model->nodes[index].skin));
     } else {
@@ -447,7 +288,8 @@ void model64_write_node(model64_data_t *model, FILE *out, uint32_t index)
     w32(out, model->nodes[index].parent);
     w32(out, model->nodes[index].num_children);
     w32_placeholderf(out, "node%d_children", index);
-    assert(ftell(out)-start_ofs == NODE_SIZE);
+    w32(out, model->nodes[index].num_materials);
+    w32_placeholderf(out, "node%d_material_indices", index);
 }
 
 void model64_write_nodes(model64_data_t *model, FILE *out)
@@ -461,6 +303,12 @@ void model64_write_nodes(model64_data_t *model, FILE *out)
         placeholder_set(out, "node%d_children", i);
         for(uint32_t j=0; j<model->nodes[i].num_children; j++) {
             w32(out, model->nodes[i].children[j]);
+        }
+    }
+    for(uint32_t i=0; i<model->num_nodes; i++) {
+        placeholder_set(out, "node%d_material_indices", i);
+        for(uint32_t j=0; j<model->nodes[i].num_materials; j++) {
+            w32(out, model->nodes[i].material_indices[j]);
         }
     }
     for(uint32_t i=0; i<model->num_nodes; i++)
@@ -477,66 +325,58 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
     walign(out, 4);
     placeholder_set(out, "meshes");
     for(uint32_t i=0; i<model->num_meshes; i++) {
-        int start_ofs = ftell(out);
-        placeholder_set(out, "mesh%d", i);
-        w32(out, model->meshes[i].num_primitives);
-        w32_placeholderf(out, "mesh%d_primitives", i);
-        assert(ftell(out)-start_ofs == MESH_SIZE);
+        mgfx_mesh_t *mesh = &model->meshes[i];
+        w32(out, mesh->submesh_count);
+        w32_placeholderf(out, "submeshes%d", i);
     }
+
     for(uint32_t i=0; i<model->num_meshes; i++) {
-        placeholder_set(out, "mesh%d_primitives", i);
-        for(uint32_t j=0; j<model->meshes[i].num_primitives; j++) {
-            primitive_t *primitive = &model->meshes[i].primitives[j];
-            int start_ofs = ftell(out);
-            w32(out, primitive->mode);
-            
-            attribute_write(out, &primitive->position, "mesh%d_primitive%d_position", i, j);
-            attribute_write(out, &primitive->color, "mesh%d_primitive%d_color", i, j);
-            attribute_write(out, &primitive->texcoord, "mesh%d_primitive%d_texcoord", i, j);
-            attribute_write(out, &primitive->normal, "mesh%d_primitive%d_normal", i, j);
-            attribute_write(out, &primitive->mtx_index, "mesh%d_primitive%d_mtx_index", i, j);
-            
-            w32(out, primitive->vertex_precision);
-            w32(out, primitive->texcoord_precision);
-            w32(out, primitive->index_type);
-            w32(out, primitive->num_vertices);
-            w32(out, primitive->num_indices);
-            w32(out, primitive->local_texture);
-            w32(out, TEXTURE_INDEX_MISSING);
-            w32_placeholderf(out, "mesh%d_primitive%d_index", i, j);
-            assert(ftell(out)-start_ofs == PRIMITIVE_SIZE);
+        mgfx_mesh_t *mesh = &model->meshes[i];
+        placeholder_set(out, "submeshes%d", i);
+        for(uint32_t j=0; j<mesh->submesh_count; j++) {
+            mgfx_submesh_t *submesh = &mesh->submeshes[j];
+            w32(out, submesh->vertex_layout.stride);
+            w32(out, submesh->vertex_layout.attribute_count);
+            w32_placeholderf(out, "vtx_attributes%d_%d", i, j);
+
+            w32(out, submesh->input_assembly_parms.primitive_topology);
+            w8(out, submesh->input_assembly_parms.primitive_restart_enabled);
+
+            walign(out, sizeof(submesh->vertices_count));
+            w32(out, submesh->vertices_count);
+            w32(out, submesh->indices_count);
+            w32_placeholderf(out, "vertices%d_%d", i, j);
+            if (submesh->indices != NULL) {
+                w32_placeholderf(out, "indices%d_%d", i, j);
+            } else {
+                w32(out, 0);
+            }
         }
     }
+
     for(uint32_t i=0; i<model->num_meshes; i++) {
-        for(uint32_t j=0; j<model->meshes[i].num_primitives; j++) {
-            primitive_t *primitive = &model->meshes[i].primitives[j];
-            for (size_t k = 0; k < primitive->num_vertices; k++) {
-                if(primitive->position.pointer && k == 0) {
-                    placeholder_set(out, "mesh%d_primitive%d_position", i, j);
-                }
-                vertex_write(out, &primitive->position, k);
-                if(primitive->color.pointer && k == 0) {
-                    placeholder_set(out, "mesh%d_primitive%d_color", i, j);
-                }
-                vertex_write(out, &primitive->color, k);
-                if(primitive->texcoord.pointer && k == 0) {
-                    placeholder_set(out, "mesh%d_primitive%d_texcoord", i, j);
-                }
-                vertex_write(out, &primitive->texcoord, k);
-                if(primitive->normal.pointer && k == 0) {
-                    placeholder_set(out, "mesh%d_primitive%d_normal", i, j);
-                }
-                vertex_write(out, &primitive->normal, k);
-                if(primitive->mtx_index.pointer && k == 0) {
-                    placeholder_set(out, "mesh%d_primitive%d_mtx_index", i, j);
-                }
-                vertex_write(out, &primitive->mtx_index, k);
-                
+        mgfx_mesh_t *mesh = &model->meshes[i];
+        for(uint32_t j=0; j<mesh->submesh_count; j++) {
+            mgfx_submesh_t *submesh = &mesh->submeshes[j];
+            walign(out, sizeof(uint32_t));
+            placeholder_set(out, "vtx_attributes%d_%d", i, j);
+            for (size_t j = 0; j < submesh->vertex_layout.attribute_count; j++) {
+                mg_vertex_attribute_t *attr = &submesh->vertex_layout.attributes[j];
+                w32(out, attr->input);
+                w32(out, attr->offset);
             }
-            if(primitive->num_indices > 0) {
-                walign(out, 4);
-                placeholder_set(out, "mesh%d_primitive%d_index", i, j);
-                indices_write(out, primitive->index_type, primitive->indices, primitive->num_indices);
+            size_t vertices_size = submesh->vertex_layout.stride * submesh->vertices_count;
+            walign(out, 8);
+            placeholder_set(out, "vertices%d_%d", i, j);
+            fwrite(submesh->vertices, vertices_size, 1, out);
+
+            if (submesh->indices_count > 0) {
+                walign(out, sizeof(uint16_t));
+                placeholder_set(out, "indices%d_%d", i, j);
+                for (size_t j = 0; j < submesh->indices_count; j++)
+                {
+                    w16(out, submesh->indices[j]);
+                }
             }
         }
     }
@@ -562,7 +402,6 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     walign(out, 4);
     placeholder_set(out, "anims");
     for(uint32_t i=0; i<model->num_anims; i++) {
-        int start_ofs = ftell(out);
         w32_placeholderf(out, "anim%d_name", i);
         float pos_scale = (model->anims[i].pos_f2-model->anims[i].pos_f1)/65535.0f;
         float scale_scale = (model->anims[i].scale_f2-model->anims[i].scale_f1)/65535.0f;
@@ -575,7 +414,6 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
         w32_placeholderf(out, "anim%d_keyframes", i);
         w32(out, model->anims[i].num_tracks);
         w32_placeholderf(out, "anim%d_tracks", i);
-        assert(ftell(out)-start_ofs == ANIM_SIZE);
     }
     for(uint32_t i=0; i<model->num_anims; i++) {
         placeholder_set(out, "anim%d_tracks", i);
@@ -597,16 +435,17 @@ void model64_write_anims(model64_data_t *model, FILE *out, FILE *anim_out)
     }
 }
 
-void model64_write_textures(model64_data_t *model, FILE *out)
+void model64_write_materials(model64_data_t *model, FILE *out)
 {
     walign(out, 4);
-    placeholder_set(out, "textures");
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        w32_placeholderf(out, "texture%d_path", i);
+    placeholder_set(out, "materials");
+    for (size_t i = 0; i < model->num_materials; i++) {
+        w32_placeholderf(out, "material%d", i);
+        w32(out, model->materials[i].size);
     }
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        placeholder_set(out, "texture%d_path", i);
-        fwrite(texture_table.sprite_paths[i], strlen(texture_table.sprite_paths[i])+1, 1, out);
+    for (size_t i = 0; i < model->num_materials; i++) {
+        placeholder_set(out, "material%d", i);
+        fwrite(model->materials[i].rdpq_mat, model->materials[i].size, 1, out);
     }
 }
 
@@ -617,91 +456,11 @@ void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
     model64_write_nodes(model, out);
     model64_write_skins(model, out);
     model64_write_anims(model, out, anim_out);
-    model64_write_textures(model, out);
+    model64_write_materials(model, out);
     placeholder_clear();
 }
 
-int convert_attribute_data(cgltf_accessor *accessor, attribute_t *attr, component_convert_func_t convert_func)
-{
-    size_t num_components = cgltf_num_components(accessor->type);
-    size_t num_values = num_components * accessor->count;
-    float *temp_buffer = malloc(sizeof(float) * num_values);
-
-    // Convert all data to floats (because cgltf provides this very convenient function)
-    // TODO: More sophisticated conversion that doesn't always use floats as intermediate values
-    //       Might not be worth it since the majority of tools will probably only export floats anyway?
-    if (cgltf_accessor_unpack_floats(accessor, temp_buffer, num_values) == 0) {
-        fprintf(stderr, "Error: failed reading attribute data\n");
-        free(temp_buffer);
-        return 1;
-    }
-
-    // Allocate storage for converted values
-    uint32_t component_size = get_type_size(attr->type);
-    attr->pointer = calloc(num_values, component_size);
-    attr->stride = num_components * component_size;
-
-    // Convert floats to the target format
-    for (size_t i = 0; i < accessor->count; i++)
-    {
-        uint8_t *dst = (uint8_t*)attr->pointer + num_components * component_size * i;
-        float *src = &temp_buffer[i * num_components];
-        convert_func(dst, src, num_components);
-    }
-
-    free(temp_buffer);
-    return 0;
-}
-
-void convert_position(int16_t *dst, float *value, size_t size)
-{
-    for (size_t i = 0; i < size; i++) dst[i] = value[i] * (1<<VERTEX_PRECISION);
-}
-
-void convert_color(uint8_t *dst, float *value, size_t size)
-{
-    for (size_t i = 0; i < size; i++) {
-        // Pre-gamma-correct vertex colors (excluding alpha)
-        float v = i < 3 ? powf(value[i], 1.0f/2.2f) : value[i];
-        dst[i] = v * 0xFF;
-    }
-}
-
-void convert_texcoord(int16_t *dst, float *value, size_t size)
-{
-    for (size_t i = 0; i < size; i++) dst[i] = value[i] * (1<<TEXCOORD_PRECISION);
-}
-
-void convert_normal(int8_t *dst, float *value, size_t size)
-{
-    for (size_t i = 0; i < size; i++) dst[i] = value[i] * 0x7F;
-}
-
-void convert_mtx_index(uint8_t *dst, float *value, size_t size)
-{
-    for (size_t i = 0; i < size; i++) dst[i] = value[i];
-}
-
-void convert_weights(float *dst, float *value, size_t size)
-{
-    for (size_t i = 0; i < size; i++) dst[i] = value[i];
-}
-
-void convert_index_u8(uint8_t *dst, cgltf_uint *src, size_t count)
-{
-    for (size_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void convert_index_u16(uint16_t *dst, cgltf_uint *src, size_t count)
-{
-    for (size_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void convert_index_u32(uint32_t *dst, cgltf_uint *src, size_t count)
-{
-    for (size_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
+/*
 int is_rigid_skinned(attribute_t *weight_attr, uint32_t num_vertices)
 {
     if(!weight_attr->pointer || weight_attr->size == 0)
@@ -754,255 +513,7 @@ void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, attribute_t *weight_
     mtx_index_attr->pointer = new_buffer;
     mtx_index_attr->size = 1;
 }
-
-uint32_t texture_table_find_or_add(const char* path)
-{
-    for (uint32_t i = 0; i < texture_table.num; i++) {
-        if (strcmp(texture_table.file_paths[i], path) == 0) {
-            return i;
-        }
-    }
-
-    if (texture_table.num >= MAX_TEXTURES) {
-        fprintf(stderr, "Error: maximum texture count %d reached. Skipping %s\n", MAX_TEXTURES, path);
-        return TEXTURE_INDEX_MISSING;
-    }
-
-    // Convert "whatever/image.extension" to "whatever/image.sprite".
-    char* p = strdup(path);
-    size_t len = strlen(p);
-
-    char *basename = strrchr(p, '/');
-    if (!basename) basename = p; else basename += 1;
-
-    char *ext = &p[len];
-    char *period = strrchr(p, '.');
-
-    // Only consider the last period if it was part of the basename
-    if (period > basename) {
-        ext = period;
-    }
-
-    *ext = '\0';
-
-    char *path_sprite;
-    if (asprintf(&path_sprite, "%s.sprite", p) == -1) {
-        fprintf(stderr, "Bug: asprintf failed\n");
-        free(p);
-        return TEXTURE_INDEX_MISSING;
-    }
-    free(p);
-
-    uint32_t idx = texture_table.num++;
-    texture_table.file_paths[idx] = strdup(path);
-    texture_table.sprite_paths[idx] = path_sprite;
-    if (flag_verbose) {
-        printf("New texture %s\n", texture_table.sprite_paths[idx]);
-    }
-    return idx;
-}
-
-int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
-{
-    // Matches the values of GL_TRIANGLES, GL_TRIANGLE_STRIPS etc. exactly so just copy it over
-    out_primitive->mode = in_primitive->type;
-
-    // TODO: Perhaps make these configurable or automatically optimize them?
-    out_primitive->vertex_precision = VERTEX_PRECISION;
-    out_primitive->texcoord_precision = TEXCOORD_PRECISION;
-
-    static const uint32_t attr_types[] = {
-        GL_HALF_FIXED_N64,
-        GL_UNSIGNED_BYTE,
-        GL_HALF_FIXED_N64,
-        GL_BYTE,
-        GL_UNSIGNED_BYTE,
-    };
-
-    static const component_convert_func_t attr_convert_funcs[] = {
-        (component_convert_func_t)convert_position,
-        (component_convert_func_t)convert_color,
-        (component_convert_func_t)convert_texcoord,
-        (component_convert_func_t)convert_normal,
-        (component_convert_func_t)convert_mtx_index
-    };
-    
-    attribute_t weight_attr = {};
-    attribute_t *attrs[] = {
-        &out_primitive->position,
-        &out_primitive->color,
-        &out_primitive->texcoord,
-        &out_primitive->normal,
-        &out_primitive->mtx_index,
-    };
-
-    cgltf_attribute *attr_map[ATTRIBUTE_COUNT] = {NULL};
-    cgltf_attribute *gltf_weight_attr = NULL;
-    
-    // Search for attributes that we need
-    for (size_t i = 0; i < in_primitive->attributes_count; i++)
-    {
-        cgltf_attribute *attr = &in_primitive->attributes[i];
-
-        switch (attr->type) {
-        case cgltf_attribute_type_position:
-            attr_map[0] = attr;
-            break;
-        case cgltf_attribute_type_color:
-            attr_map[1] = attr;
-            break;
-        case cgltf_attribute_type_texcoord:
-            attr_map[2] = attr;
-            break;
-        case cgltf_attribute_type_normal:
-            attr_map[3] = attr;
-            break;
-        case cgltf_attribute_type_joints:
-            attr_map[4] = attr;
-            break;
-            
-        case cgltf_attribute_type_weights:
-            gltf_weight_attr = attr;
-            break;
-            
-        default:
-            continue;
-        }
-    }
-
-    if (attr_map[0] == NULL || attr_map[0]->data->count <= 0) {
-        fprintf(stderr, "Error: primitive contains no vertices\n");
-        return 1;
-    }
-
-    out_primitive->num_vertices = attr_map[0]->data->count;
-
-    uint32_t stride = 0;
-
-    // Convert vertex data
-    for (size_t i = 0; i < ATTRIBUTE_COUNT; i++)
-    {
-        if (attr_map[i] == NULL) continue;
-        attrs[i]->size = cgltf_num_components(attr_map[i]->data->type);
-        
-        if (attrs[i]->size == 0) continue;
-        attrs[i]->type = attr_types[i];
-
-        if (convert_attribute_data(attr_map[i]->data, attrs[i], attr_convert_funcs[i]) != 0) {
-            fprintf(stderr, "Error: failed converting data of attribute %d\n", attr_map[i]->index);
-            return 1;
-        }
-
-        stride += attrs[i]->stride;
-    }
-
-    for (size_t i = 0; i < ATTRIBUTE_COUNT; i++)
-    {
-        if (attrs[i]->size == 0) continue;
-        attrs[i]->stride = stride;
-    }
-    if(gltf_weight_attr)
-    {
-        weight_attr.size = cgltf_num_components(gltf_weight_attr->data->type);
-        
-        if (weight_attr.size != 0)
-        {
-            weight_attr.type = GL_FLOAT;
-
-            if (convert_attribute_data(gltf_weight_attr->data, &weight_attr, (component_convert_func_t)convert_weights) != 0) {
-                fprintf(stderr, "Error: failed converting data of attribute %d\n", gltf_weight_attr->index);
-                return 1;
-            }
-        }
-        
-    }
-    
-    if(!is_rigid_skinned(&weight_attr, out_primitive->num_vertices))
-    {
-        fprintf(stderr, "Error: Model is not rigidly skinned\n");
-        free(weight_attr.pointer);
-        return 1;
-    }
-    else
-    {
-        uint32_t mtxindex_orig_size = attrs[4]->size;
-        simplify_mtx_index_buffer(attrs[4], &weight_attr, out_primitive->num_vertices);
-        if(attrs[4]->pointer && attrs[4]->size > 0)
-        {
-            for(int i=0; i<ATTRIBUTE_COUNT; i++) {
-                attrs[i]->stride -= mtxindex_orig_size-1;
-            }
-        }
-    }
-
-    // Convert index data if present
-    if (in_primitive->indices != NULL) {
-        cgltf_accessor *in_indices = in_primitive->indices;
-        out_primitive->num_indices = in_indices->count;
-
-        // Determine index type
-        // TODO: Automatically detect if the type could be made smaller based on the actual index values
-        size_t index_size;
-        index_convert_func_t convert_func;
-        switch (in_indices->component_type) {
-        case cgltf_component_type_r_8u:
-            index_size = sizeof(uint8_t);
-            out_primitive->index_type = GL_UNSIGNED_BYTE;
-            convert_func = (index_convert_func_t)convert_index_u8;
-            break;
-        case cgltf_component_type_r_16u:
-            index_size = sizeof(uint16_t);
-            out_primitive->index_type = GL_UNSIGNED_SHORT;
-            convert_func = (index_convert_func_t)convert_index_u16;
-            break;
-        case cgltf_component_type_r_32u:
-            index_size = sizeof(uint32_t);
-            out_primitive->index_type = GL_UNSIGNED_INT;
-            convert_func = (index_convert_func_t)convert_index_u32;
-            break;
-        default:
-            abort();
-        }
-
-        // Allocate memory for index data
-        out_primitive->indices = calloc(index_size, out_primitive->num_indices);
-
-        // Read from cgltf
-        // TODO: Directly copy them over instead? Maybe it's fine like this since it's lossless
-        cgltf_uint *temp_indices = malloc(sizeof(cgltf_uint) * in_indices->count);
-        if (cgltf_accessor_unpack_indices(in_indices, temp_indices, in_indices->count) == 0) {
-            fprintf(stderr, "Error: failed reading index data\n");
-            free(temp_indices);
-            free(weight_attr.pointer);
-            return 1;
-        }
-
-        // Convert indices
-        convert_func(out_primitive->indices, temp_indices, in_indices->count);
-
-        free(temp_indices);
-    }
-
-    // Convert materials to textures
-    out_primitive->local_texture = TEXTURE_INDEX_MISSING;
-
-    if (in_primitive->material) {
-        cgltf_texture* texture = in_primitive->material->pbr_metallic_roughness.base_color_texture.texture;
-
-        if (texture && texture->image) {
-            const char* uri = texture->image->uri;
-            if (!uri || strncmp(uri, "data:", 5) == 0) {
-                fprintf(stderr, "WARNING: material \"%s\" has an embedded texture \"%s\" (type: %s) which will be ignored\n",
-                    in_primitive->material->name, texture->image->name, texture->image->mime_type);
-            } else {
-                out_primitive->local_texture = texture_table_find_or_add(uri);
-            }
-        }
-    }
-
-    free(weight_attr.pointer);
-    return 0;
-}
+*/
 
 void make_node_idx_list(cgltf_data *data, cgltf_node **node_list, cgltf_size num_nodes, uint32_t **idx_list)
 {
@@ -1013,33 +524,24 @@ void make_node_idx_list(cgltf_data *data, cgltf_node **node_list, cgltf_size num
     *idx_list = list;
 }
 
-int convert_mesh(cgltf_mesh *in_mesh, mesh_t *out_mesh)
-{
-    // Convert primitives
-    out_mesh->num_primitives = in_mesh->primitives_count;
-    out_mesh->primitives = calloc(in_mesh->primitives_count, sizeof(primitive_t));
-    for (size_t i = 0; i < in_mesh->primitives_count; i++)
-    {
-        if (flag_verbose) {
-            printf("Converting primitive %zd\n", i);
-        }
-
-        if (convert_primitive(&in_mesh->primitives[i], &out_mesh->primitives[i]) != 0) {
-            fprintf(stderr, "Error: failed converting primitive %zd\n", i);
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
 void convert_node(cgltf_data *data, model64_data_t *model_data, cgltf_node *in_node, model64_node_t *out_node)
 {
     if(in_node->name && in_node->name[0] != '\0') {
         out_node->name = strdup(in_node->name);
     }
     if(in_node->mesh) {
-        out_node->mesh = &model_data->meshes[cgltf_mesh_index(data, in_node->mesh)];
+        out_node->mesh_index = cgltf_mesh_index(data, in_node->mesh);
+        out_node->num_materials = in_node->mesh->primitives_count;
+        out_node->material_indices = calloc(out_node->num_materials, sizeof(uint32_t));
+        for (size_t i = 0; i < in_node->mesh->primitives_count; i++) {
+            if (in_node->mesh->primitives[i].material) {
+                out_node->material_indices[i] = cgltf_material_index(data, in_node->mesh->primitives[i].material);
+            } else {
+                out_node->material_indices[i] = INDEX_MISSING;
+            }
+        }
+    } else {
+        out_node->mesh_index = INDEX_MISSING;
     }
     if(in_node->skin) {
         out_node->skin = &model_data->skins[cgltf_skin_index(data, in_node->skin)];
@@ -1053,6 +555,7 @@ void convert_node(cgltf_data *data, model64_data_t *model_data, cgltf_node *in_n
     if(in_node->children_count > 0) {
         make_node_idx_list(data, in_node->children, in_node->children_count, &out_node->children);
     }
+
     //Copy translation
     out_node->transform.pos[0] = in_node->translation[0];
     out_node->transform.pos[1] = in_node->translation[1];
@@ -1751,6 +1254,65 @@ uint32_t get_anim_max_tracks(model64_data_t *model)
     return num_tracks;
 }
 
+int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat, const char *in_dir, const char *out_dir)
+{
+    static char *mkmaterial = NULL;
+    if (!mkmaterial) asprintf(&mkmaterial, "%s/bin/mkmaterial", n64_inst);
+
+    struct subprocess_s subp;
+    const char *cmd_line[] = {
+        mkmaterial,
+        "-v",
+        "-t",
+        out_dir,
+        "-I",
+        in_dir,
+        "--raw-material",
+        "-",
+        NULL
+    };
+
+    if (subprocess_create(cmd_line, subprocess_option_no_window|subprocess_option_inherit_environment, &subp)) {
+        fprintf(stderr, "Error: cannot run: %s\n", mkmaterial);
+        return 1;
+    }
+
+    FILE *mkmaterial_in = subprocess_stdin(&subp);
+    fprintf(mkmaterial_in, "{ \"%s\": %s }", in_mat->name, in_mat->extras.data);
+    fclose(mkmaterial_in); subp.stdin_file = SUBPROCESS_NULL;
+
+    FILE *mkmaterial_out = subprocess_stdout(&subp);
+    uint8_t *material = NULL;
+    int material_size = 0;
+    while (1) {
+        uint8_t buf[4096];
+        int n = fread(buf, 1, sizeof(buf), mkmaterial_out);
+        if (n == 0) break;
+        material = realloc(material, material_size + n);
+        memcpy(material + material_size, buf, n);
+        material_size += n;
+    }
+
+    forward_to_stderr(subprocess_stderr(&subp), "[mkmaterial] ");
+
+    int retcode = subprocess_join(&subp, &retcode);
+    if (retcode != 0) {
+        fprintf(stderr, "Error: mkmaterial failed with return code %d\n", retcode);
+        return 1;
+    }
+    subprocess_destroy(&subp);
+
+    if (material_size == 0) {
+        fprintf(stderr, "Error: got empty material\n");
+        return 1;
+    }
+
+    out_mat->rdpq_mat = (rdpq_mat_t*)material;
+    out_mat->size = material_size;
+
+    return 0;
+}
+
 int convert(const char *infn, const char *outfn)
 {
     cgltf_options options = {0};
@@ -1788,10 +1350,8 @@ int convert(const char *infn, const char *outfn)
 
     // Convert meshes
 
-    texture_table_init();
-
     model->num_meshes = data->meshes_count;
-    model->meshes = calloc(data->meshes_count, sizeof(mesh_t));
+    model->meshes = calloc(data->meshes_count, sizeof(mgfx_mesh_t));
     for (size_t i = 0; i < data->meshes_count; i++)
     {
         if (flag_verbose) {
@@ -1802,7 +1362,7 @@ int convert(const char *infn, const char *outfn)
             }
         }
 
-        if (convert_mesh(&data->meshes[i], &model->meshes[i]) != 0) {
+        if (convert_mesh(&data->meshes[i], &model->meshes[i], flag_verbose) != 0) {
             if (data->meshes[i].name != NULL) {
                 fprintf(stderr, "Error: failed converting mesh %s\n", data->meshes[i].name);
             } else {
@@ -1881,6 +1441,33 @@ int convert(const char *infn, const char *outfn)
         }
         model->max_tracks = get_anim_max_tracks(model);
     }
+
+    const char *in_dir = dirname(infn);
+    const char *out_dir = dirname(outfn);
+
+    model->num_materials = data->materials_count;
+    if (model->num_materials != 0) {
+        model->materials = calloc(model->num_materials, sizeof(model64_mat_t));
+        for (size_t i = 0; i < data->materials_count; i++)
+        {
+            if (flag_verbose) {
+                if (data->materials[i].name != NULL) {
+                    printf("Converting material %s\n", data->materials[i].name);
+                } else {
+                    printf("Converting material %zd\n", i);
+                }
+            }
+
+            if (convert_material(&data->materials[i], &model->materials[i], in_dir, out_dir) != 0) {
+                if (data->meshes[i].name != NULL) {
+                    fprintf(stderr, "Error: failed converting material %s\n", data->materials[i].name);
+                } else {
+                    fprintf(stderr, "Error: failed converting material %zd\n", i);
+                }
+                goto error;
+            }
+        }
+    }
     
     // Write output file
     FILE *out = fopen(outfn, "wb");
@@ -1902,13 +1489,11 @@ int convert(const char *infn, const char *outfn)
     model64_write(model, out, anim_out);
     fclose(out);
 
-    texture_table_free();
     model64_free(model);
     cgltf_free(data);
     return 0;
 
 error:
-    texture_table_free();
     model64_free(model);
     cgltf_free(data);
     return 1;
@@ -1960,6 +1545,15 @@ int main(int argc, char *argv[])
                 return 1;
             }
             continue;
+        }
+
+        // Find n64 tool directory
+        if (!n64_inst) {
+            n64_inst = n64_tools_dir();
+            if (!n64_inst) {
+                fprintf(stderr, "Error: N64_INST environment variable not set\n");
+                return 1;
+            }
         }
 
         infn = argv[i];
