@@ -549,7 +549,6 @@ static void update_element_array_cache(gl_buffer_object_t *element_buffer, uint3
         cache->offset = offset;
         is_dirty = true;
     }
-    // TODO: interop with display lists -> skip recording block
     if (is_dirty || !input_assembly_parms_equal(&cache->parms, input_assembly_parms)) {
         cache->parms = *input_assembly_parms;
 

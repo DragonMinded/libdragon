@@ -7,7 +7,6 @@
 
 #include "GL/gl.h"
 #include "GL/gl_integration.h"
-#include "obj_map.h"
 #include "surface.h"
 #include "../utils.h"
 #include <stdbool.h>
@@ -504,7 +503,7 @@ typedef struct {
 
     gl_texture_object_t *default_textures;
 
-    obj_map_t list_objects;
+    hashtable_t lists;
     GLuint next_list_name;
     GLuint list_base;
     GLuint current_list;

@@ -8,7 +8,6 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/GL/texture.o \
 	$(BUILD_DIR)/GL/array.o \
 	$(BUILD_DIR)/GL/pixelrect.o \
-	$(BUILD_DIR)/GL/obj_map.o \
 	$(BUILD_DIR)/GL/list.o \
 	$(BUILD_DIR)/GL/buffer.o \
 	$(BUILD_DIR)/GL/rsp_gl.o \
