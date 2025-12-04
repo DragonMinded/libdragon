@@ -129,18 +129,19 @@ RSPASFLAGS+=-MMD
 	$(N64_STRIP) -s $<.stripped
 	$(N64_ELFCOMPRESS) -o $(dir $<) -c $(N64_ROM_ELFCOMPRESS) $<.stripped
 	@rm -f $@
-	$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ \
+	$(N64_TOOL) $(N64_TOOLFLAGS) --output $@.tmp \
 		--align 256 $<.stripped \
 		$<.sym \
 		$(filter %.dfs, $^) \
 		$(filter %.msym, $^) \
 		$(N64_TOOLFILES)
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
-		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
+		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@.tmp; \
 	fi
 	if [ ! -z "$(N64_ROM_METADATA)" ]; then \
-		$(N64_METADATA) $(if $(V),-v) $@ $(N64_ROM_METADATA); \
+		$(N64_METADATA) $(if $(V),-v) $@.tmp $(N64_ROM_METADATA); \
 	fi
+	@mv $@.tmp $@
 
 %.v64: %.z64
 	@echo "    [V64] $@"
