@@ -358,12 +358,17 @@ int main(int argc, char **argv)
 				fprintf(stderr, "n64metadata: error: missing argument for %s\n", a);
 				return 1;
 			}
-			flag_padding = std::stoi(argv[i]);
-            if (flag_padding < 0) {
-                fprintf(stderr, "n64metadata: error: padding must be positive\n");
+            try {
+                flag_padding = std::stoi(argv[i]);
+                if (flag_padding < 0) {
+                    fprintf(stderr, "n64metadata: error: padding must be positive\n");
+                    return 1;
+                }
+            } catch (const std::invalid_argument &e) {
+                fprintf(stderr, "n64metadata: error: invalid padding argument: %s\n", argv[i]);
                 return 1;
             }
-		}
+        }
 		else if (a[0] == '-') {
 			fprintf(stderr, "n64metadata: error: unknown option '%s'\n", a);
 			usage();
