@@ -97,6 +97,7 @@
 #include "nand.h"
 #include "bbfs.h"
 #include "ioctl.h"
+#include "a3d.h"
 
 
 #endif
