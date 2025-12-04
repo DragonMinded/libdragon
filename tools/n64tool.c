@@ -423,13 +423,6 @@ int main(int argc, char *argv[])
 			}
 
 			output = argv[i++];
-
-			size_t output_len = strlen(output);
-			if(output_len < 5 || strcmp(output + output_len - 4, ".z64"))
-			{
-				fprintf(stderr, "WARNING: The output should have a '.z64' file extension\n");
-			}
-
 			asprintf(&tmp_output, "%s.tmp", output);
 			continue;
 		}
