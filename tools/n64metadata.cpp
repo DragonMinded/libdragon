@@ -30,6 +30,7 @@
 bool flag_verbose = false;
 bool flag_external = false;
 bool flag_force = false;
+int flag_padding = 16384;
 
 // Binary little-endian helpers
 static inline void w16(FILE *f, uint16_t v) { fputc(v, f); fputc(v >> 8, f); }
@@ -93,6 +94,7 @@ static void usage(void)
 	fprintf(stderr, "  -v, --verbose    Verbose output\n");
 	fprintf(stderr, "  -e, --external   Do not modify ROM; write sidecar .meta ZIP\n");
 	fprintf(stderr, "  -f, --force      Overwrite existing embedded metadata in ROM\n");
+	fprintf(stderr, "  -P, --padding    Padding alignment for the final ROM (default: 16 KiB)\n");
 	fprintf(stderr, "\n");
 }
 
@@ -350,6 +352,17 @@ int main(int argc, char **argv)
 		}
 		else if (!strcmp(a, "-f") || !strcmp(a, "--force")) {
 			flag_force = true;
+		}
+		else if (!strcmp(a, "-P") || !strcmp(a, "--padding")) {
+			if (++i >= argc) {
+				fprintf(stderr, "n64metadata: error: missing argument for %s\n", a);
+				return 1;
+			}
+			flag_padding = std::stoi(argv[i]);
+            if (flag_padding < 0) {
+                fprintf(stderr, "n64metadata: error: padding must be positive\n");
+                return 1;
+            }
 		}
 		else if (a[0] == '-') {
 			fprintf(stderr, "n64metadata: error: unknown option '%s'\n", a);
@@ -613,7 +626,9 @@ int main(int argc, char **argv)
     // For iQue compatibility, we need to pad the ROM to a multiple of 16 KiB. Write
     // the padding inside the ZIP, so that if the ZIP is replaced, also the padding is.
     int zip_size = calc_zip_size(entries);
-    int padding = 16384 - ((size + zip_size) % 16384);
+    int padding = 0;
+    if (flag_padding)
+        padding = (flag_padding - ((size + zip_size) % flag_padding)) % flag_padding;
     verbose("n64metadata: info: ZIP file is %d bytes, padding ROM with %d bytes\n", zip_size, padding);
 	write_zip(rom, entries, padding);
 	if (ferror(rom))
