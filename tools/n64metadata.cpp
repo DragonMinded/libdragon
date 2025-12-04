@@ -24,6 +24,7 @@
 #include <cctype>
 #include <algorithm>
 #include <unistd.h>
+#include <cerrno>
 
 #include "common/crc32.c"
 
@@ -37,6 +38,8 @@ static inline void w16(FILE *f, uint16_t v) { fputc(v, f); fputc(v >> 8, f); }
 static inline void w32(FILE *f, uint32_t v) { w16(f, v); w16(f, v >> 16); }
 static inline uint16_t r16(const uint8_t *p) { return (uint16_t)p[0]   | (uint16_t)p[1] << 8; }
 static inline uint32_t r32(const uint8_t *p) { return (uint32_t)r16(p) | (uint32_t)r16(p + 2) << 16; }
+static inline uint16_t r16be(const uint8_t *p) { return ((uint16_t)p[0] << 8) | (uint16_t)p[1]; }
+static inline uint32_t r32be(const uint8_t *p) { return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3]; }
 
 __attribute__((format(printf, 1, 2)))
 static void verbose(const char *fmt, ...)
@@ -161,6 +164,70 @@ static bool validate_rel_path(const std::string &fn, const char *ini,
 	}
 
 	return true;
+}
+
+// Minimal PNG parser: extract width/height from IHDR
+static bool get_png_dimensions(const std::vector<uint8_t> &data, int &w, int &h)
+{
+	static const uint8_t sig[8] = { 0x89,'P','N','G',0x0D,0x0A,0x1A,0x0A };
+	if (data.size() < 8 + 8 + 13 + 4) return false;
+	if (memcmp(data.data(), sig, 8) != 0) return false;
+	size_t pos = 8;
+	while (pos + 8 <= data.size()) {
+		uint32_t len = r32be(&data[pos]);
+		uint32_t type = r32be(&data[pos + 4]);
+		pos += 8;
+		if (pos + len + 4 > data.size()) return false;
+		if (type == 0x49484452) { // "IHDR"
+			if (len < 8) return false;
+			w = (int)r32be(&data[pos + 0]);
+			h = (int)r32be(&data[pos + 4]);
+			return (w > 0 && h > 0);
+		}
+		pos += len + 4; // skip data + CRC
+	}
+	return false;
+}
+
+// Minimal JPEG parser: extract width/height from SOF markers
+static bool get_jpeg_dimensions(const std::vector<uint8_t> &data, int &w, int &h)
+{
+	if (data.size() < 4) return false;
+	if (data[0] != 0xFF || data[1] != 0xD8) return false; // SOI
+	size_t pos = 2;
+	while (pos + 1 < data.size()) {
+		// Skip fill bytes 0xFF
+		if (data[pos] != 0xFF) { pos++; continue; }
+		while (pos < data.size() && data[pos] == 0xFF) pos++;
+		if (pos >= data.size()) break;
+		uint8_t marker = data[pos++];
+		// Standalone markers without length
+		if (marker == 0xD8 || marker == 0xD9 || (marker >= 0xD0 && marker <= 0xD7) || marker == 0x01) {
+			if (marker == 0xD9) break; // EOI
+			continue;
+		}
+		// Segment with length
+		if (pos + 2 > data.size()) return false;
+		uint16_t seglen = r16be(&data[pos]);
+		if (seglen < 2) return false;
+		if (pos + seglen > data.size()) return false;
+		// SOF0/1/2/3/5/6/7/9/A/B/D/E/F contain dimensions
+		if ((marker >= 0xC0 && marker <= 0xC3) ||
+		    (marker >= 0xC5 && marker <= 0xC7) ||
+		    (marker >= 0xC9 && marker <= 0xCB) ||
+		    (marker >= 0xCD && marker <= 0xCF)) {
+			if (seglen < 7) return false;
+			size_t p = pos + 3; // skip length(2) and precision(1)
+			if (p + 4 > data.size()) return false;
+			h = (int)r16be(&data[p + 0]);
+			w = (int)r16be(&data[p + 2]);
+			return (w > 0 && h > 0);
+		}
+		// Stop at SOS if we haven't found SOF yet (markers after SOS are in entropy-coded data)
+		if (marker == 0xDA) break;
+		pos += seglen;
+	}
+	return false;
 }
 
 // Read a file into a vector
@@ -502,6 +569,34 @@ int main(int argc, char **argv)
                     fprintf(stderr, "%s:%d: error: file '%s' is not valid UTF-8\n", ini_path, lineno, fn.c_str());
                     has_error = true;
                     return;
+                }
+                // Image size validation for PNG and JPEG
+                if (has_suffix(fn, ".png")) {
+                    int w = 0, h = 0;
+                    if (!get_png_dimensions(e.data, w, h)) {
+                        fprintf(stderr, "%s:%d: error: file '%s' is not a valid PNG or missing IHDR\n", ini_path, lineno, fn.c_str());
+                        has_error = true;
+                        return;
+                    }
+                    bool ok = ((w <= 320 && h <= 240) || (w <= 240 && h <= 320));
+                    if (!ok) {
+                        fprintf(stderr, "%s:%d: error: image '%s' has size %dx%d, exceeds 320x240/240x320\n", ini_path, lineno, fn.c_str(), w, h);
+                        has_error = true;
+                        return;
+                    }
+                } else if (has_suffix(fn, ".jpg") || has_suffix(fn, ".jpeg")) {
+                    int w = 0, h = 0;
+                    if (!get_jpeg_dimensions(e.data, w, h)) {
+                        fprintf(stderr, "%s:%d: error: file '%s' is not a valid JPEG or missing SOF\n", ini_path, lineno, fn.c_str());
+                        has_error = true;
+                        return;
+                    }
+                    bool ok = ((w <= 320 && h <= 240) || (w <= 240 && h <= 320));
+                    if (!ok) {
+                        fprintf(stderr, "%s:%d: error: image '%s' has size %dx%d, exceeds 320x240/240x320\n", ini_path, lineno, fn.c_str(), w, h);
+                        has_error = true;
+                        return;
+                    }
                 }
                 e.name = fn;
                 entries.emplace_back(std::move(e));
