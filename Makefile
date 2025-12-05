@@ -38,6 +38,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/mi_memset.o \
 	$(BUILD_DIR)/interrupt.o \
 	$(BUILD_DIR)/backtrace.o \
+	$(BUILD_DIR)/symtable.o \
 	$(BUILD_DIR)/dir.o \
 	$(BUILD_DIR)/inthandler.o \
 	$(BUILD_DIR)/entrypoint.o \
