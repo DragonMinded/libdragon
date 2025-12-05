@@ -37,7 +37,6 @@ typedef struct {
 
 typedef struct {
     uint8_t max_len;
-    uint8_t alphabet_size;
     Lut64Entry lut[64];
     uint16_t first_code[HUFF_MAX_CODE_LEN + 1];
     uint16_t first_symbol[HUFF_MAX_CODE_LEN + 1];

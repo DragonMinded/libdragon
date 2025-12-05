@@ -156,7 +156,7 @@ void huff_free_tree(huff_node_t *node) {
 void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct) {
     int bl_count[HUFF_MAX_CODE_LEN + 1] = {0};
     ct->max_len = 0;
-    ct->alphabet_size = 0;
+    int alphabet_size = 0;
     
     for (int i = 0; i < 256; i++) {
         int len = huff_table[i].len;
@@ -164,7 +164,7 @@ void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct) {
             assert(len <= HUFF_MAX_CODE_LEN && "Huffman code too long!");
             bl_count[len]++;
             if (len > ct->max_len) ct->max_len = len;
-            ct->alphabet_size++;
+            alphabet_size++;
         }
     }
 
@@ -184,7 +184,7 @@ void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct) {
         sym_offset += bl_count[bits];
     }
     
-    ct->symbols = malloc(ct->alphabet_size);
+    ct->symbols = malloc(alphabet_size);
     uint32_t current_code_idx[HUFF_MAX_CODE_LEN + 1] = {0};
 
     memset(ct->lut, 0, sizeof(ct->lut));
@@ -231,8 +231,6 @@ void collect_string_freqs(char **strings, int *char_freqs) {
 void write_huff_header(CanonicalTables *ct, uint8_t **blob) {
     // Write Header & Tables to blob
     stbds_arrput(*blob, ct->max_len);
-    stbds_arrput(*blob, ct->alphabet_size);
-    stbds_arrput(*blob, 0); // padding
     stbds_arrput(*blob, 0); // padding
     
     // LUT (64 * 2 bytes)
@@ -260,7 +258,11 @@ void write_huff_header(CanonicalTables *ct, uint8_t **blob) {
     }
     
     // Symbols (alphabet_size bytes)
-    for (int k=0; k<ct->alphabet_size; k++) {
+    // We calculate alphabet size from num_symbols sum
+    int total_symbols = 0;
+    for (int k=0; k<table_len; k++) total_symbols += ct->num_symbols[k];
+
+    for (int k=0; k<total_symbols; k++) {
         stbds_arrput(*blob, ct->symbols[k]);
     }
 }

@@ -274,10 +274,9 @@ typedef struct {
 } HuffDecoder;
 
 static void huff_decoder_init(HuffDecoder *dec, uint8_t *table_buf) {
-    // Layout: MaxLen(1), AlphabetSize(1), Padding(2), LUT(128), CanonicalArrays, Symbols
+    // Layout: MaxLen(1), Padding(1), LUT(128), CanonicalArrays, Symbols
     dec->max_len = table_buf[0];
-    int alphabet_size = table_buf[1];    
-    uint8_t *ptr = table_buf + 4;
+    uint8_t *ptr = table_buf + 2;
     dec->lut = (Lut64Entry*)ptr; ptr += 64 * 2;
     
     int table_len = dec->max_len + 1;
