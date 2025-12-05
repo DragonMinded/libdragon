@@ -313,4 +313,92 @@ inline void fm_mat3_mul_vec3(fm_vec3_t *out, const fm_mat3_t *m, const fm_vec3_t
 }
 #endif
 
+#ifdef __cplusplus
+
+constexpr fm_vec2_t operator+(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.v[0] + rhs.v[0], lhs.v[1] + rhs.v[1]};
+}
+
+constexpr fm_vec2_t operator-(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.v[0] - rhs.v[0], lhs.v[1] - rhs.v[1]};
+}
+
+constexpr fm_vec2_t operator*(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.v[0] * rhs.v[0], lhs.v[1] * rhs.v[1]};
+}
+
+constexpr fm_vec2_t operator/(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.v[0] / rhs.v[0], lhs.v[1] / rhs.v[1]};
+} 
+
+constexpr fm_vec2_t operator+(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.v[0] + rhs, lhs.v[1] + rhs};
+}
+
+constexpr fm_vec2_t operator-(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.v[0] - rhs, lhs.v[1] - rhs};
+}
+
+constexpr fm_vec2_t operator*(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.v[0] * rhs, lhs.v[1] * rhs};
+}
+
+constexpr fm_vec2_t operator/(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.v[0] / rhs, lhs.v[1] / rhs};
+}
+
+constexpr fm_vec2_t operator-(fm_vec2_t const& lhs) {
+  return {-lhs.v[0], -lhs.v[1]};
+}
+
+constexpr fm_vec2_t& operator+=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.v[0] += rhs.v[0];
+  lhs.v[1] += rhs.v[1];
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator+=(fm_vec2_t &lhs, float rhs) {
+  lhs.v[0] += rhs;
+  lhs.v[1] += rhs;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator-=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.v[0] -= rhs.v[0];
+  lhs.v[1] -= rhs.v[1];
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator-=(fm_vec2_t &lhs, float rhs) {
+  lhs.v[0] -= rhs;
+  lhs.v[1] -= rhs;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator*=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.v[0] *= rhs.v[0];
+  lhs.v[1] *= rhs.v[1];
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator*=(fm_vec2_t &lhs, float rhs) {
+  lhs.v[0] *= rhs;
+  lhs.v[1] *= rhs;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator/=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.v[0] /= rhs.v[0];
+  lhs.v[1] /= rhs.v[1];
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator/=(fm_vec2_t &lhs, float rhs) {
+  lhs.v[0] /= rhs;
+  lhs.v[1] /= rhs;
+  return lhs;
+}
+
+#endif
+
 #endif
