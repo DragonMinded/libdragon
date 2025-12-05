@@ -30,6 +30,7 @@ typedef struct {
     uint32_t chunk_idx_off;  ///< Offset of chunk_index_t[]
     uint32_t file_tab_off;   ///< Offset of uint32_t[] (offsets into file_blob)
     uint32_t func_tab_off;   ///< Offset of uint32_t[] (offsets into func_blob)
+    uint32_t huff_tab_off;   ///< Offset of the Global Huffman Table
     uint32_t file_blob_off;  ///< Offset of the file string blob
     uint32_t func_blob_off;  ///< Offset of the func string blob
     uint32_t stream_off;     ///< Offset of the compressed symbol stream
@@ -37,6 +38,7 @@ typedef struct {
     // Size of sections (useful for bounds checking)
     uint32_t num_files;      ///< Number of file blocks
     uint32_t num_funcs;      ///< Number of func blocks
+    uint32_t huff_tab_size;  ///< Size of Huffman table in bytes
     uint32_t file_blob_size; ///< Size of file blob in bytes
     uint32_t func_blob_size; ///< Size of func blob in bytes
     uint32_t stream_size;    ///< Size of compressed stream in bytes

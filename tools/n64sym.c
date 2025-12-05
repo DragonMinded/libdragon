@@ -14,12 +14,262 @@
 #include <stdbool.h>
 #include <stdarg.h>
 
+#include <math.h>
+#include <stdlib.h>
 #include "common/subprocess.h"
+
 #include "common/polyfill.h"
 #include "common/utils.h"
 #include "common/binout.h"
 
 #include "common/binout.c"
+
+// --- Huffman Implementation ---
+
+#define HUFF_MAX_CODE_LEN 16
+
+typedef struct huff_node_s {
+    int freq;
+    int ch; // -1 for internal nodes, 0-255 for leaves
+    struct huff_node_s *left, *right;
+} huff_node_t;
+
+typedef struct {
+    uint32_t code;
+    int len;
+} huff_code_t;
+
+typedef struct {
+    uint8_t symbol;
+    uint8_t len;
+} Lut64Entry;
+
+typedef struct {
+    uint8_t max_len;
+    uint8_t alphabet_size;
+    Lut64Entry lut[64];
+    uint16_t first_code[HUFF_MAX_CODE_LEN + 1];
+    uint16_t first_symbol[HUFF_MAX_CODE_LEN + 1];
+    uint16_t num_symbols[HUFF_MAX_CODE_LEN + 1];
+    uint8_t *symbols; // dynamic
+} CanonicalTables;
+
+typedef struct {
+    uint8_t *buf;      // stbds array
+    uint8_t cur_byte;
+    int cur_bit;       // 0..7
+} BitWriter;
+
+void bw_init(BitWriter *bw) {
+    bw->buf = NULL;
+    bw->cur_byte = 0;
+    bw->cur_bit = 0;
+}
+
+void bw_write(BitWriter *bw, uint32_t code, int len) {
+    for (int i = len - 1; i >= 0; i--) {
+        int bit = (code >> i) & 1;
+        if (bit) bw->cur_byte |= (1 << (7 - bw->cur_bit));
+        bw->cur_bit++;
+        if (bw->cur_bit == 8) {
+            stbds_arrput(bw->buf, bw->cur_byte);
+            bw->cur_byte = 0;
+            bw->cur_bit = 0;
+        }
+    }
+}
+
+void bw_write_byte(BitWriter *bw, uint8_t b) {
+    bw_write(bw, b, 8);
+}
+
+void bw_flush(BitWriter *bw) {
+    if (bw->cur_bit > 0) {
+        stbds_arrput(bw->buf, bw->cur_byte);
+        bw->cur_byte = 0;
+        bw->cur_bit = 0;
+    }
+}
+
+void bw_write_varint(BitWriter *bw, uint32_t val) {
+    do {
+        uint8_t byte = val & 0x7F;
+        val >>= 7;
+        if (val) byte |= 0x80;
+        bw_write_byte(bw, byte);
+    } while (val);
+}
+
+int varint_len(uint32_t val) {
+    int len = 0;
+    do {
+        len++;
+        val >>= 7;
+    } while (val);
+    return len;
+}
+
+void bw_write_exp_golomb(BitWriter *bw, uint32_t val) {
+    val++; // Exp-Golomb is 1-based (0 -> 1, 1 -> 010, 2 -> 011)
+    
+    // Count bits
+    int bits = 0;
+    uint32_t tmp = val;
+    while (tmp) {
+        bits++;
+        tmp >>= 1;
+    }
+    
+    // Write (bits-1) zeros
+    bw_write(bw, 0, bits - 1);
+    // Write value
+    bw_write(bw, val, bits);
+}
+
+int exp_golomb_len(uint32_t val) {
+    val++;
+    int bits = 0;
+    while (val) {
+        bits++;
+        val >>= 1;
+    }
+    return (bits - 1) + bits;
+}
+
+// ZigZag encode: maps signed to unsigned (0->0, -1->1, 1->2, -2->3)
+uint32_t zigzag_encode(int32_t val) {
+    return (val << 1) ^ (val >> 31);
+}
+
+int huff_cmp_nodes(const void *a, const void *b) {
+    const huff_node_t *na = *(const huff_node_t **)a;
+    const huff_node_t *nb = *(const huff_node_t **)b;
+    return nb->freq - na->freq;
+}
+
+void huff_calc_lengths(huff_node_t *node, int len, huff_code_t *table) {
+    if (!node) return;
+    if (node->ch >= 0) {
+        table[node->ch].len = len;
+        return;
+    }
+    huff_calc_lengths(node->left, len + 1, table);
+    huff_calc_lengths(node->right, len + 1, table);
+}
+
+huff_node_t* build_huffman_tree(int *freqs) {
+    huff_node_t *nodes[256];
+    int n_nodes = 0;
+    
+    for (int i=0; i<256; i++) {
+        if (freqs[i] > 0) {
+            huff_node_t *n = malloc(sizeof(huff_node_t));
+            n->freq = freqs[i];
+            n->ch = i;
+            n->left = n->right = NULL;
+            nodes[n_nodes++] = n;
+        }
+    }
+    
+    if (n_nodes == 0) return NULL;
+
+    while (n_nodes > 1) {
+        int min1 = -1, min2 = -1;
+        for (int i=0; i<n_nodes; i++) {
+            if (min1 == -1 || nodes[i]->freq < nodes[min1]->freq) {
+                min2 = min1; min1 = i;
+            } else if (min2 == -1 || nodes[i]->freq < nodes[min2]->freq) {
+                min2 = i;
+            }
+        }
+        
+        huff_node_t *n1 = nodes[min1];
+        huff_node_t *n2 = nodes[min2];
+        
+        huff_node_t *parent = malloc(sizeof(huff_node_t));
+        parent->freq = n1->freq + n2->freq;
+        parent->ch = -1;
+        parent->left = n1;
+        parent->right = n2;
+        
+        nodes[min1] = parent;
+        nodes[min2] = nodes[n_nodes-1];
+        n_nodes--;
+    }
+    
+    return nodes[0];
+}
+
+void huff_free_tree(huff_node_t *node) {
+    if (!node) return;
+    huff_free_tree(node->left);
+    huff_free_tree(node->right);
+    free(node);
+}
+
+void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct) {
+    int bl_count[HUFF_MAX_CODE_LEN + 1] = {0};
+    ct->max_len = 0;
+    ct->alphabet_size = 0;
+    
+    for (int i = 0; i < 256; i++) {
+        int len = huff_table[i].len;
+        if (len > 0) {
+            assert(len <= HUFF_MAX_CODE_LEN && "Huffman code too long!");
+            bl_count[len]++;
+            if (len > ct->max_len) ct->max_len = len;
+            ct->alphabet_size++;
+        }
+    }
+
+    uint32_t next_code[HUFF_MAX_CODE_LEN + 1];
+    uint32_t code = 0;
+    bl_count[0] = 0;
+    for (int bits = 1; bits <= HUFF_MAX_CODE_LEN; bits++) {
+        code = (code + bl_count[bits-1]) << 1;
+        next_code[bits] = code;
+        ct->first_code[bits] = (uint16_t)code;
+        ct->num_symbols[bits] = (uint16_t)bl_count[bits];
+    }
+    
+    int sym_offset = 0;
+    for (int bits = 1; bits <= HUFF_MAX_CODE_LEN; bits++) {
+        ct->first_symbol[bits] = sym_offset;
+        sym_offset += bl_count[bits];
+    }
+    
+    ct->symbols = malloc(ct->alphabet_size);
+    uint32_t current_code_idx[HUFF_MAX_CODE_LEN + 1] = {0};
+
+    memset(ct->lut, 0, sizeof(ct->lut));
+
+    // Iterate 0..255 to assign canonical codes and populate symbols/LUT
+    // We need to iterate in the order that canonical codes are assigned?
+    // Canonical codes for same length are assigned in increasing order of symbols (lexicographically).
+    // So iterating 0..255 is correct.
+    for (int i = 0; i < 256; i++) {
+        int len = huff_table[i].len;
+        if (len > 0) {
+            uint32_t c = next_code[len];
+            huff_table[i].code = c;
+            
+            int offset = ct->first_symbol[len] + current_code_idx[len];
+            ct->symbols[offset] = (uint8_t)i;
+            current_code_idx[len]++;
+            next_code[len]++;
+            
+            if (len <= 6) {
+                int shift = 6 - len;
+                int start = c << shift;
+                int count = 1 << shift;
+                for (int j = 0; j < count; j++) {
+                    ct->lut[start + j].symbol = (uint8_t)i;
+                    ct->lut[start + j].len = (uint8_t)len;
+                }
+            }
+        }
+    }
+}
 
 // Size of the runtime buffer that will be used during SYMT access/decompression.
 // This is used to tune internal compressions to make sure the provided value
@@ -257,10 +507,73 @@ int cmp_string_ptr(const void *a, const void *b) {
     return strcmp(sa, sb);
 }
 
-// Compress a list of strings using Front Coding into a blob and a table of offsets.
-// The strings are processed in blocks that fit into MAX_BUFFER_SIZE.
-// For each block, the (start_index, blob_offset) pair is stored in the index.
-void compress_strings(char **strings, uint8_t **blob, uint32_t **index) {
+void collect_string_freqs(char **strings, int *char_freqs) {
+    int n = stbds_arrlen(strings);
+    for (int i=0; i<n; i++) {
+        const char *cur = strings[i];
+        const char *prev = (i > 0) ? strings[i-1] : "";
+        int common = 0;
+        int min_len = MIN(strlen(prev), strlen(cur));
+        while (common < min_len && prev[common] == cur[common]) common++;
+        const char *suffix = cur + common;
+        // Count terminator
+        for (int k=0; k <= strlen(suffix); k++) char_freqs[(unsigned char)suffix[k]]++;
+    }
+}
+
+void write_huff_header(CanonicalTables *ct, uint8_t **blob) {
+    // Write Header & Tables to blob
+    stbds_arrput(*blob, ct->max_len);
+    stbds_arrput(*blob, ct->alphabet_size);
+    stbds_arrput(*blob, 0); // padding
+    stbds_arrput(*blob, 0); // padding
+    
+    // LUT (64 * 2 bytes)
+    for (int k=0; k<64; k++) {
+        stbds_arrput(*blob, ct->lut[k].symbol);
+        stbds_arrput(*blob, ct->lut[k].len);
+    }
+    
+    // Canonical Arrays
+    int table_len = ct->max_len + 1;
+    // first_code (uint16)
+    for (int k=0; k<table_len; k++) {
+        stbds_arrput(*blob, (ct->first_code[k] >> 8) & 0xFF);
+        stbds_arrput(*blob, ct->first_code[k] & 0xFF);
+    }
+    // first_symbol (uint16)
+    for (int k=0; k<table_len; k++) {
+        stbds_arrput(*blob, (ct->first_symbol[k] >> 8) & 0xFF);
+        stbds_arrput(*blob, ct->first_symbol[k] & 0xFF);
+    }
+    // num_symbols (uint16)
+    for (int k=0; k<table_len; k++) {
+        stbds_arrput(*blob, (ct->num_symbols[k] >> 8) & 0xFF);
+        stbds_arrput(*blob, ct->num_symbols[k] & 0xFF);
+    }
+    
+    // Symbols (alphabet_size bytes)
+    for (int k=0; k<ct->alphabet_size; k++) {
+        stbds_arrput(*blob, ct->symbols[k]);
+    }
+}
+
+void compress_strings(char **strings, huff_code_t *huff_table, CanonicalTables *ct, 
+                           bool write_header, uint8_t **blob, uint32_t **index) 
+{
+    if (write_header) {
+        write_huff_header(ct, blob);
+    }
+    
+    // Calculate header size for stats
+    int header_size = write_header ? stbds_arrlen(*blob) : 0;
+
+    // Statistics
+    int stats_raw_suffix_len = 0;
+    int stats_huff_bits = 0;
+    int stats_varint_bytes = 0;
+    int stats_padding_bytes = 0;
+
     int n = stbds_arrlen(strings);
     int i = 0;
     while (i < n) {
@@ -270,61 +583,104 @@ void compress_strings(char **strings, uint8_t **blob, uint32_t **index) {
         stbds_arrput(*index, block_start_idx);
         stbds_arrput(*index, block_blob_off);
         
-        // Temp buffer for the block to check size
-        uint8_t *block_buf = NULL;
-        const char *prev = NULL;
-        int count = 0;
+        // Use BitWriter for the block
+        BitWriter bw;
+        bw_init(&bw);
         
-        // Try adding strings until full, max 32 strings per block 
-        // for front coding efficiency, and to avoid too long linear scans at runtime.
-        while (i < n && count < 32) {
+        int count = 0;
+        const char *prev = NULL;
+        int last_common = 0;
+
+        // Try adding strings until full.
+        while (i < n && count < 64) {
             const char *cur = strings[i];
             int common = 0;
             if (prev) {
-                while (prev[common] && prev[common] == cur[common])
-                    common++;
+                 int min_len = MIN(strlen(prev), strlen(cur));
+                 while (common < min_len && prev[common] == cur[common]) common++;
             }
             
             const char *suffix = cur + common;
             int suffix_len = strlen(suffix);
             
-            // Encode to the buffer the common length and the suffix length as varints
-            int old_len = stbds_arrlen(block_buf);
-            w_varint(&block_buf, common);
-            w_varint(&block_buf, suffix_len);
+            // Stats accumulation
+            stats_raw_suffix_len += suffix_len;
             
-            // Check if we reached the buffer size limit.
-            if (stbds_arrlen(block_buf) + suffix_len > MAX_BUFFER_SIZE) {
-                // This should not be the very first string. It should be always possible
-                // to fit at least one string in the block.
+            int prefix_delta = common - last_common;
+            uint32_t z_delta = zigzag_encode(prefix_delta);
+            int z_delta_bits = exp_golomb_len(z_delta);
+            stats_varint_bytes += (z_delta_bits + 7) / 8; // Approx stats
+            
+            for (int k=0; k<=suffix_len; k++) {
+                unsigned char c = (unsigned char)suffix[k];
+                stats_huff_bits += huff_table[c].len;
+            }
+
+            // Backup current buffer state
+            int old_buf_len = stbds_arrlen(bw.buf);
+            uint8_t old_cur_byte = bw.cur_byte;
+            int old_cur_bit = bw.cur_bit;
+
+            // Encode to bitstream: Delta Prefix (Exp-Golomb) + Suffix (Huffman)
+            bw_write_exp_golomb(&bw, z_delta);
+            for (int k=0; k<=suffix_len; k++) {
+                unsigned char c = (unsigned char)suffix[k];
+                bw_write(&bw, huff_table[c].code, huff_table[c].len);
+            }
+            
+            // Check size
+            int current_size = stbds_arrlen(bw.buf) + (bw.cur_bit > 0 ? 1 : 0);
+            
+            if (current_size > MAX_BUFFER_SIZE) {
                 assert(count != 0 && "String too long for block buffer despite truncation");
-                // Current string doesn't fit in this block.
-                // Backtrack header write and close the block
-                stbds_arrsetlen(block_buf, old_len);
+                // Backtrack stats
+                stats_raw_suffix_len -= suffix_len;
+                stats_varint_bytes -= (z_delta_bits + 7) / 8;
+                for (int k=0; k<=suffix_len; k++) {
+                    unsigned char c = (unsigned char)suffix[k];
+                    stats_huff_bits -= huff_table[c].len;
+                }
+
+                // Revert
+                stbds_arrsetlen(bw.buf, old_buf_len);
+                bw.cur_byte = old_cur_byte;
+                bw.cur_bit = old_cur_bit;
                 break;
             }
             
-            // Copy the suffix to the buffer.
-            int cur_len = stbds_arrlen(block_buf);
-            stbds_arrsetlen(block_buf, cur_len + suffix_len);
-            memcpy(block_buf + cur_len, suffix, suffix_len);
-            
+            last_common = common;
             prev = cur;
             i++;
             count++;
         }
         
-        // Pad block to 2 bytes alignment for DMA
-        if (stbds_arrlen(block_buf) % 2 != 0)
-            stbds_arrput(block_buf, 0);
-
-        // Append block to blob
+        // Final flush and padding
+        bw_flush(&bw);
+        if (stbds_arrlen(bw.buf) % 2 != 0) {
+            stbds_arrput(bw.buf, 0);
+            stats_padding_bytes++;
+        }
+            
+        // Append to blob
         int cur_len = stbds_arrlen(*blob);
-        int block_len = stbds_arrlen(block_buf);
+        int block_len = stbds_arrlen(bw.buf);
         stbds_arrsetlen(*blob, cur_len + block_len);
-        memcpy(*blob + cur_len, block_buf, block_len);
-        stbds_arrfree(block_buf);
+        memcpy(*blob + cur_len, bw.buf, block_len);
+        stbds_arrfree(bw.buf);
     }
+
+    int stats_huff_bytes = (stats_huff_bits + 7) / 8;
+    int stats_front_coding_size = stats_raw_suffix_len + stats_varint_bytes;
+
+    verbose("  Huffman Stats:\n");
+    verbose("    Raw suffixes: %d bytes\n", stats_raw_suffix_len);
+    verbose("    Equivalent Front Coding Size: %d bytes\n", stats_front_coding_size);
+    verbose("    Compressed suffixes (Huffman): %d bytes (%.1f%%)\n", 
+        stats_huff_bytes, 100.0 * stats_huff_bytes / (stats_raw_suffix_len ? stats_raw_suffix_len : 1));
+    verbose("    Overhead: VarInts: %d bytes, Header: %d bytes, Padding: %d bytes\n", 
+        stats_varint_bytes, header_size, stats_padding_bytes);
+    verbose("    Total Blob Size: %d bytes (%.1f%% of Front Coding)\n", 
+        stbds_arrlen(*blob), 100.0 * stbds_arrlen(*blob) / (stats_front_coding_size ? stats_front_coding_size : 1));
 }
 
 // Compress the symbol table into a delta-encoded stream split into chunks.
@@ -458,6 +814,7 @@ void write_sym_file(const char *outfn,
     uint32_t *chunk_index,
     uint32_t *file_offsets, uint8_t *file_blob,
     uint32_t *func_offsets, uint8_t *func_blob,
+    uint8_t *huff_blob,
     uint8_t *stream)
 {
     FILE *out = fopen(outfn, "wb");
@@ -476,6 +833,7 @@ void write_sym_file(const char *outfn,
     int chunk_idx_off_ph = w32_placeholder(out);
     int file_tab_off_ph = w32_placeholder(out);
     int func_tab_off_ph = w32_placeholder(out);
+    int huff_tab_off_ph = w32_placeholder(out);
     int file_blob_off_ph = w32_placeholder(out);
     int func_blob_off_ph = w32_placeholder(out);
     int stream_off_ph = w32_placeholder(out);
@@ -483,6 +841,7 @@ void write_sym_file(const char *outfn,
     // Sizes
     w32(out, stbds_arrlen(file_offsets) / 2);
     w32(out, stbds_arrlen(func_offsets) / 2);
+    w32(out, stbds_arrlen(huff_blob));
     w32(out, stbds_arrlen(file_blob));
     w32(out, stbds_arrlen(func_blob));
     w32(out, stbds_arrlen(stream));
@@ -499,6 +858,10 @@ void write_sym_file(const char *outfn,
     walign(out, 8);
     w32_at(out, func_tab_off_ph, ftell(out));
     for(int i=0; i<stbds_arrlen(func_offsets); i++) w32(out, func_offsets[i]);
+
+    walign(out, 8);
+    w32_at(out, huff_tab_off_ph, ftell(out));
+    fwrite(huff_blob, stbds_arrlen(huff_blob), 1, out);
     
     walign(out, 8);
     w32_at(out, file_blob_off_ph, ftell(out));
@@ -512,6 +875,9 @@ void write_sym_file(const char *outfn,
     w32_at(out, stream_off_ph, ftell(out));
     fwrite(stream, stbds_arrlen(stream), 1, out);
     
+    int size = ftell(out);
+    verbose("  Total File Size: %d bytes\n", size);
+
     fclose(out);
 }
 
@@ -537,10 +903,6 @@ void process(const char *infn, const char *outfn)
     uint32_t *func_offsets = NULL;
     
     // Create sorted list of unique files/funcs
-    // We can use string table hash to deduplicate, but we need them sorted.
-    // The current stringtable/string_hash structure is insert-order.
-    // We'll create a temporary array of unique strings.
-    
     char **unique_files = NULL;
     char **unique_funcs = NULL;
     
@@ -578,16 +940,36 @@ void process(const char *infn, const char *outfn)
     }
     
     // Create maps from string -> index
-    // We'll use a new hash for this phase
     struct gl_map *file_map = NULL;
     struct gl_map *func_map = NULL;
     
     for (int i=0; i<nfiles; i++) stbds_shput(file_map, unique_files[i], i);
     for (int i=0; i<nfuncs; i++) stbds_shput(func_map, unique_funcs[i], i);
     
-    verbose("Compressing strings...\n");
-    compress_strings(unique_files, &file_blob, &file_offsets);
-    compress_strings(unique_funcs, &func_blob, &func_offsets);
+    // Shared Huffman Table
+    verbose("Calculating shared Huffman table...\n");
+    int shared_freqs[256] = {0};
+    collect_string_freqs(unique_files, shared_freqs);
+    collect_string_freqs(unique_funcs, shared_freqs);
+    
+    huff_code_t shared_huff_table[256] = {0};
+    huff_node_t *shared_root = build_huffman_tree(shared_freqs);
+    huff_calc_lengths(shared_root, 0, shared_huff_table);
+    
+    CanonicalTables shared_ct;
+    generate_canonical_tables(shared_huff_table, &shared_ct);
+    
+    // Write shared table to huff_blob
+    uint8_t *huff_blob = NULL;
+    write_huff_header(&shared_ct, &huff_blob);
+    
+    // Compress string blobs using shared table (no headers)
+    verbose("Compressing strings (Shared Table)...\n");
+    compress_strings(unique_files, shared_huff_table, &shared_ct, false, &file_blob, &file_offsets);
+    compress_strings(unique_funcs, shared_huff_table, &shared_ct, false, &func_blob, &func_offsets);
+    
+    free(shared_ct.symbols);
+    huff_free_tree(shared_root);
     
     // Compress Symbols
     uint8_t *stream = NULL;
@@ -599,6 +981,7 @@ void process(const char *infn, const char *outfn)
     verbose("  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
     verbose("  File Tab: %zu bytes\n", stbds_arrlen(file_offsets) * 4);
     verbose("  Func Tab: %zu bytes\n", stbds_arrlen(func_offsets) * 4);
+    verbose("  Shared Huffman Table: %zu bytes\n", stbds_arrlen(huff_blob));
     verbose("  File Blob: %zu bytes\n", stbds_arrlen(file_blob));
     verbose("  Func Blob: %zu bytes\n", stbds_arrlen(func_blob));
     verbose("  Stream: %zu bytes\n", stbds_arrlen(stream));
@@ -607,11 +990,12 @@ void process(const char *infn, const char *outfn)
         stbds_arrlen(symtable), stbds_arrlen(chunk_index)/2, chunk_index,
         file_offsets, file_blob,
         func_offsets, func_blob,
+        huff_blob,
         stream);
-    
     // Cleanup
     stbds_arrfree(file_blob);
     stbds_arrfree(func_blob);
+    stbds_arrfree(huff_blob);
     stbds_arrfree(file_offsets);
     stbds_arrfree(func_offsets);
     stbds_arrfree(stream);
@@ -686,4 +1070,3 @@ int main(int argc, char *argv[])
     process(infn, outfn);
     return 0;
 }
-

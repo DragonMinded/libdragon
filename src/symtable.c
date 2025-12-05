@@ -8,8 +8,6 @@
  * be accessed directly from ROM, with a maximum of 512 bytes of RAM used at
  * runtime for buffering, so that it can be used in hard scenarios like crashes
  * and end of memory situations.
- *
- * The
  */
 
 #include <stdint.h>
@@ -27,6 +25,9 @@
 
 /** @brief Buffer size for decompression */
 #define MAX_BUFFER_SIZE 512
+
+/** @brief Maximum code length for Huffman decoding */
+#define HUFF_MAX_CODE_LEN 16
 
 /** @brief Exception handler (see inthandler.S) */
 extern uint32_t inthandler[];
@@ -207,6 +208,114 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
     return found;
 }
 
+/** @brief Bitreader for the Huffman bitstream */
+typedef struct {
+    uint8_t *buf;
+    uint32_t cache;
+    int bits_in_cache;
+} BitReader;
+
+static void br_fill(BitReader *br) {
+    while (br->bits_in_cache <= 24) {
+        br->cache |= (uint32_t)(*br->buf++) << (24 - br->bits_in_cache);
+        br->bits_in_cache += 8;
+    }
+}
+
+static void br_init(BitReader *br, uint8_t *buf) {
+    br->buf = buf;
+    br->cache = 0;
+    br->bits_in_cache = 0;
+    br_fill(br);
+}
+
+static int br_read_bits(BitReader *br, int n) {
+    if (br->bits_in_cache < n) br_fill(br);
+    uint32_t val = (br->cache >> (32 - n));
+    br->cache <<= n;
+    br->bits_in_cache -= n;
+    return val;
+}
+
+static int br_peek_bits(BitReader *br, int n) {
+    if (br->bits_in_cache < n) br_fill(br);
+    return (br->cache >> (32 - n));
+}
+
+static void br_skip_bits(BitReader *br, int n) {
+    if (br->bits_in_cache < n) br_fill(br);
+    br->cache <<= n;
+    br->bits_in_cache -= n;
+}
+
+static int32_t read_exp_golomb_signed(BitReader *br) {
+    int zero_bits = 0;
+    while (br_peek_bits(br, 1) == 0) {
+        br_skip_bits(br, 1);
+        zero_bits++;
+    }
+    
+    uint32_t val = br_read_bits(br, zero_bits + 1) - 1;
+    return (val >> 1) ^ -(val & 1);
+}
+
+typedef struct {
+    uint8_t symbol;
+    uint8_t len;
+} Lut64Entry;
+
+typedef struct {
+    Lut64Entry *lut;
+    uint16_t *first_code;
+    uint16_t *first_symbol;
+    uint16_t *num_symbols;
+    uint8_t *symbols;
+    int max_len;
+} HuffDecoder;
+
+static void huff_decoder_init(HuffDecoder *dec, uint8_t *table_buf) {
+    // Layout: MaxLen(1), AlphabetSize(1), Padding(2), LUT(128), CanonicalArrays, Symbols
+    dec->max_len = table_buf[0];
+    int alphabet_size = table_buf[1];    
+    uint8_t *ptr = table_buf + 4;
+    dec->lut = (Lut64Entry*)ptr; ptr += 64 * 2;
+    
+    int table_len = dec->max_len + 1;
+    dec->first_code = (uint16_t*)ptr; ptr += table_len * 2;
+    dec->first_symbol = (uint16_t*)ptr; ptr += table_len * 2;
+    dec->num_symbols = (uint16_t*)ptr; ptr += table_len * 2;
+    dec->symbols = ptr;
+}
+
+static int huff_decode_symbol(HuffDecoder *dec, BitReader *br) {
+    // Peek 16 bits (enough for max code length)
+    int peek16 = br_peek_bits(br, 16);
+    
+    // Try LUT first (6 bits)
+    int peek6 = peek16 >> 10;
+    int len = dec->lut[peek6].len;
+    if (len > 0) {
+        br_skip_bits(br, len);
+        return dec->lut[peek6].symbol;
+    }
+    
+    // Canonical fallback
+    for (len = 7; len <= dec->max_len; len++) {
+        int code = peek16 >> (16 - len);
+        
+        uint16_t fc = dec->first_code[len];
+        uint16_t count = dec->num_symbols[len];
+        
+        if (code < fc + count) {
+            br_skip_bits(br, len);
+            uint16_t fs = dec->first_symbol[len];
+            return dec->symbols[fs + (code - fc)];
+        }
+    }
+    
+    return -1;
+}
+
 /**
  * @brief Fetch a string from the string table
  * 
@@ -250,32 +359,51 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
         return buf;
     }
     
+    // Read Huffman Table (Global)
+    uint8_t alignas(8) huff_tab[MAX_BUFFER_SIZE] __attribute__((uninitialized));
+    data_cache_hit_writeback_invalidate(huff_tab, MAX_BUFFER_SIZE);
+    dma_read(huff_tab, SYMT_ROM + symt->huff_tab_off, MAX_BUFFER_SIZE);
+    
+    HuffDecoder dec;
+    huff_decoder_init(&dec, huff_tab);
+
     // Read string block
-    char alignas(8) str_blob[MAX_BUFFER_SIZE];
+    uint8_t alignas(8) str_blob[MAX_BUFFER_SIZE] __attribute__((uninitialized));
     data_cache_hit_writeback_invalidate(str_blob, sizeof(str_blob));
     dma_read(str_blob, SYMT_ROM + blob_off + entry_blob_off, sizeof(str_blob));
     
     // Decode strings
-    uint8_t *ptr = (uint8_t*)str_blob;
+    BitReader br;
+    br_init(&br, str_blob);
+    
     int target_in_block = idx - entry_start_idx;
     
     // Buffer to hold current string state (front coding context)
-    char cur_str[MAX_BUFFER_SIZE];
+    char cur_str[MAX_BUFFER_SIZE] __attribute__((uninitialized));
     cur_str[0] = 0;
+
     int cur_len = 0;
-    
+    int prev_prefix_len = 0;    
     for (int i=0; i <= target_in_block; i++) {
-        uint32_t common = read_varint(&ptr);
-        uint32_t suffix_len = read_varint(&ptr);
+        // Decode prefix length delta, and apply it to the current common length
+        int32_t prefix_delta = read_exp_golomb_signed(&br);
+        int prefix_len = prev_prefix_len + prefix_delta;
+        prev_prefix_len = prefix_len;
         
-        if (common > cur_len) common = cur_len; // Should not happen if valid
-        if (common + suffix_len >= MAX_BUFFER_SIZE) suffix_len = MAX_BUFFER_SIZE - 1 - common;
+        // Safety checks. We can't really assert here (as the assert would trigger this code again)
+        // so better make sure we don't cause buffer overflows in case of corruption.
+        if (prefix_len > cur_len) prefix_len = cur_len;
+        if (prefix_len >= MAX_BUFFER_SIZE-1) prefix_len = MAX_BUFFER_SIZE - 2;
         
-        memcpy(cur_str + common, ptr, suffix_len);
-        cur_len = common + suffix_len;
+            // Decode suffix characters until \0 (or error)
+        cur_len = prefix_len;
+        int sym;
+        while ((sym = huff_decode_symbol(&dec, &br)) > 0) {            
+            if (cur_len < MAX_BUFFER_SIZE - 1) {
+                cur_str[cur_len++] = (char)sym;
+            }
+        }
         cur_str[cur_len] = 0;
-        
-        ptr += suffix_len;
     }
     
     snprintf(buf, size, "%s", cur_str);
@@ -298,4 +426,3 @@ char* symt_get_file_name(symtable_header_t *symt, symtable_entry_t *entry, uint3
 {
     return symt_get_string(symt, entry->file_sidx, buf, size, false);
 }
-
