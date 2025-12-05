@@ -701,7 +701,6 @@ int main(int argc, char **argv)
 
     if (header[0x3C] != 'E' || header[0x3D] != 'D') {
         verbose("n64metadata: info: setting ROM for homebrew header\n");
-        memset(&header[0x34], 0, 0x40 - 0x34);
         header[0x3C] = 'E'; header[0x3D] = 'D';
     }
 
