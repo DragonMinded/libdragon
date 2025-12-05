@@ -117,9 +117,12 @@ static uint32_t __prenmi_tick;
 static void __call_callback( struct callback_link * head )
 {
     /* Invalidate TP Value: if TLS data is accessed under interrupt,
-       an exception is raised. */
+       an exception is raised. 
+       Do this only if the kernel is enabled, so that we keep TLS working
+       in a single-thread environment. This is useful for picolibc where
+       TLS is pervasive. */
     void *tp = __th_cur_tp;
-    __th_cur_tp = KERNEL_TP_INVALID;
+    if (__kernel) __th_cur_tp = KERNEL_TP_INVALID;
     /* Call each registered callback */
     while( head )
     {
@@ -132,7 +135,7 @@ static void __call_callback( struct callback_link * head )
 	    head=head->next;
     }
     /* Restore TP Value */
-    __th_cur_tp = tp;
+    if (__kernel) __th_cur_tp = tp;
 }
 
 /**

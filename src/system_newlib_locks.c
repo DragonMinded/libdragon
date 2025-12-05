@@ -13,6 +13,7 @@
  */
 #include "kernel.h"
 #include <stdio.h>
+#include <sys/lock.h>
 
 // Toolchains since Sept 2024 build with threads and retargetable locks enabled,
 // both of which are required for libc to be thread safe and thus the kernel
@@ -28,6 +29,9 @@ struct __lock {
 };
 
 ///@cond
+#ifdef __PICOLIBC__
+struct __lock __lock___libc_recursive_mutex;
+#else
 struct __lock __lock___sfp_recursive_mutex;
 struct __lock __lock___atexit_recursive_mutex;
 struct __lock __lock___at_quick_exit_mutex;
@@ -36,6 +40,7 @@ struct __lock __lock___env_recursive_mutex;
 struct __lock __lock___tz_mutex;
 struct __lock __lock___dd_hash_mutex;
 struct __lock __lock___arc4random_mutex;
+#endif
 ///@endcond
 
 /** Pool of dynamically allocated lists  */

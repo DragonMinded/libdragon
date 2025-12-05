@@ -140,6 +140,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	const char *opn = ops[(op >> 26) & 0x3F];
 	if (op == 0) opn = "znop";
 	else if (((op >> 26) & 0x3F) == 9 && ((op >> 21) & 0x1F) == 0) opn = "kli";
+    else if (((op >> 26) & 0x3F) == 0x1F && (op & 0x3F) == 0x3B) opn = "zrdhwr";
 	else if ((op >> 16) == 0x1000) opn = "yb";
 	else if (*opn == 's') {
 		opn = special[(op >> 0) & 0x3F];

@@ -31,7 +31,10 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         libmpc-dev \
         libmpfr-dev \
         make \
+        meson \
+        ninja-build \
         texinfo \
+        unzip \
         wget \
         zlib1g-dev \
     && apt autoremove -yq

@@ -1,7 +1,25 @@
 #! /bin/bash
 # N64 MIPS GCC toolchain build/install script for Unix distributions
-# (c) 2012-2024 DragonMinded and libDragon Contributors.
-# See the root folder for license information.
+# (c) 2012-2025 DragonMinded and LibDragon Contributors.
+# Licensed under the Unlicense. See LICENSE.md for details.
+#
+# This script builds a toolchain for the N64. It is a standard GCC cross-compiler
+# with target "mips64-elf".
+#
+# We build two sysroots:
+# - One with newlib as libc, in $N64_INST/sysroot-newlib
+# - One with picolibc as libc, in $N64_INST/sysroot-picolibc
+#
+# Libdragon's n64.mk uses --sysroot to select which libc to use when compiling.
+# By default, it uses picolibc.
+#
+# For being able to build old libdragon versions and projects, the default when
+# --sysroot is not specified is to use $N64_INST/sysroot-compat, which is a symlink
+# to sysroot-newlib.
+#
+# The script logs all its output to toolchain/build-toolchain.log, that can be
+# used for debugging build issues.
+#
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
 set -euo pipefail
@@ -19,9 +37,16 @@ fi
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 
+# Create build and download directories
+mkdir -p "$BUILD_PATH" "$DOWNLOAD_PATH"
+
 # Redirect output to a log file
 exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
 echo "Build started at: $(date)"
+
+# Additional directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
@@ -45,14 +70,12 @@ GCC_CONFIGURE_ARGS=()
 BINUTILS_V=2.44
 GCC_V=14.2.0
 NEWLIB_V=4.4.0.20231231
+PICOLIBC_V=34af875350c3319f1c83b5490a8edf2c8379f231
 GMP_V=6.3.0
 MPC_V=1.3.1
 MPFR_V=4.2.1
 ZLIB_V=${ZLIB_V:-""}
 MAKE_V=${MAKE_V:-""}
-
-# Create build and download directories
-mkdir -p "$BUILD_PATH" "$DOWNLOAD_PATH"
 
 # Resolve absolute paths for build and download directories
 BUILD_PATH=$(cd "$BUILD_PATH" && pwd)
@@ -64,10 +87,27 @@ command_exists () {
     return $?
 }
 
+# Automatically run the command with sudo/su if needed.
+autosudo() {
+    "$@" && return 0
+
+    if command_exists sudo; then
+        sudo env PATH="$PATH" "$@" && return 0
+    fi
+
+    if command_exists su; then
+        su -c "env PATH=\"$PATH\" $*"
+        return $?
+    fi
+
+    return 1
+}
+
 # Download the file URL using wget or curl (depending on which is installed)
 download () {
     local url="$1"
-    local file="$DOWNLOAD_PATH/$(basename "$url")"
+    local file
+    file="$DOWNLOAD_PATH/$(basename "$url")"
     local tmpfile="$file.part"
     if   command_exists wget ; then wget --continue --output-document "$tmpfile" "$url"
     elif command_exists curl ; then curl --location --output "$tmpfile" "$url"
@@ -76,6 +116,118 @@ download () {
         return 1
     fi
     mv "$tmpfile" "$file"
+}
+
+# Install ktls header into the toolchain sysroot.
+# The content of this file is at the end of this script.
+install_ktls_header () {
+    local prefix="$1"
+
+    local tmpfile
+    tmpfile=$(mktemp)
+    awk -v start=": <<'__KTLS_H_BLOCK__'" -v end="__KTLS_H_BLOCK__" '
+        $0 == start {capture=1; next}
+        $0 == end {exit}
+        capture {print}
+    ' "$SCRIPT_PATH" > "$tmpfile"
+
+    local dest_dir="$prefix/$N64_TARGET/include"
+    autosudo mkdir -p "$dest_dir"
+    autosudo install -m 0644 "$tmpfile" "$dest_dir/ktls.h"
+
+    rm -f "$tmpfile"
+}
+
+# Patch the GCC installation to force include of ktls.h
+patch_gcc_specs () {
+    local phase="${1:-0}"
+    local src_gcc_bin="$CROSS_PREFIX/bin/$N64_TARGET-gcc"
+
+    if [ ! -x "$src_gcc_bin" ]; then
+        if [ -x "$src_gcc_bin.exe" ]; then
+            src_gcc_bin="$src_gcc_bin.exe"
+        else
+            echo "GCC binary not found: $src_gcc_bin" >&2
+            exit 1
+        fi
+    fi
+
+    local specs_tmp
+    local patched_tmp
+    local specs_dest_dir=""
+    local specs_dest=""
+    local marker=""
+    local dest_prefix=""
+    specs_tmp=$(mktemp)
+    patched_tmp=$(mktemp)
+    trap 'trap - RETURN EXIT; rm -f "$specs_tmp" "$patched_tmp"' RETURN EXIT
+
+    if ! "$src_gcc_bin" -dumpspecs > "$specs_tmp"; then
+        echo "Failed to dump GCC specs from $src_gcc_bin" >&2
+        exit 1
+    fi
+
+    case "$phase" in
+        0)
+            # Phase 0: install specs with absolute include path into the BUILD compiler.
+            dest_prefix="$CROSS_PREFIX"
+            marker="-include $dest_prefix/$N64_TARGET/include/ktls.h"
+            ;;
+        1)
+            # Phase 1: install specs with relocatable include path into the distributable compiler.
+            dest_prefix="$INSTALL_PATH"
+            marker="-include ktls.h"
+            ;;
+        *)
+            echo "Unknown specs patch phase: $phase" >&2
+            exit 1
+            ;;
+    esac
+    local prefixed_marker="$marker "
+    local escaped_prefixed_marker="${prefixed_marker//&/\&}"
+    escaped_prefixed_marker="${escaped_prefixed_marker//|/\|}"
+    local deletion_regex='-include[[:space:]]*[^[:space:]]*ktls\.h'
+
+    # Patch spec file, adding a forced include in both cpp_options and cc1_options.
+    # cpp_options is used when running the preprocessor only, and cc1_options
+    # is used when compiling. In both cases, we want ktls.h to be included.
+    sed \
+        -e "/^\*cpp_options:$/,/^\*/{ /$deletion_regex/d; }" \
+        -e "/^\*cc1_options:$/,/^\*/{ /$deletion_regex/d; }" \
+        -e "/^\*cpp_options:$/{" \
+        -e "n" \
+            -e "s|^|$escaped_prefixed_marker|" \
+        -e "}" \
+        -e "/^\*cc1_options:$/{" \
+        -e "n" \
+            -e "s|^|$escaped_prefixed_marker|" \
+        -e "}" \
+        "$specs_tmp" > "$patched_tmp"
+
+    # Just verify the patch was successful (sed does not error out if no
+    # match is found).
+    if ! grep -qF -- "$marker" "$patched_tmp"; then
+        echo "INTERNAL ERROR: failed to patch GCC specs" >&2
+        exit 1
+    fi
+
+    # Determine destination directory; prefer existing lib/ path, fall back to lib64/ if needed.
+    local candidate
+    for candidate in \
+        "$dest_prefix/lib/gcc/$N64_TARGET/$GCC_V" \
+        "$dest_prefix/lib64/gcc/$N64_TARGET/$GCC_V"; do
+        if [ -z "$specs_dest_dir" ] && [ -d "$candidate" ]; then
+            specs_dest_dir="$candidate"
+        fi
+    done
+    if [ -z "$specs_dest_dir" ]; then
+        specs_dest_dir="$dest_prefix/lib/gcc/$N64_TARGET/$GCC_V"
+    fi
+    specs_dest="$specs_dest_dir/specs"
+
+    # Install patched spec file
+    autosudo mkdir -p "$specs_dest_dir"
+    autosudo install -m 0644 "$patched_tmp" "$specs_dest"
 }
 
 # Compilation on macOS via homebrew
@@ -89,7 +241,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
     # zlib is part of the base OS, and doesn't need to be installed here.
-    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo ninja
+    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo ninja meson
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.
@@ -132,6 +284,9 @@ test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH
 
 test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
 test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
+
+test -f "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip"    || ( download "https://github.com/picolibc/picolibc/archive/$PICOLIBC_V.zip" && mv "$DOWNLOAD_PATH/$PICOLIBC_V.zip" "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" )
+test -d "$BUILD_PATH/picolibc-$PICOLIBC_V"           || unzip -qq "$DOWNLOAD_PATH/picolibc-$PICOLIBC_V.zip" -d "$BUILD_PATH"
 
 if [ "$GMP_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
@@ -225,9 +380,7 @@ if [ "$ZLIB_V" != "" ]; then
                 BINARY_PATH="$INSTALL_PATH/bin" \
                 INCLUDE_PATH="$INSTALL_PATH/include" \
                 LIBRARY_PATH="$INSTALL_PATH/lib"
-            make -f win32/Makefile.gcc install || \
-            sudo make -f win32/Makefile.gcc install || \
-            su -c "make -f win32/Makefile.gcc install"
+            autosudo make -f win32/Makefile.gcc install
         )
     fi
     popd
@@ -236,6 +389,11 @@ fi
 # Build GMP/MFPR and install them. This will be useful later for the gdb build,
 # for mingw32 where those dependencies are not easily available.
 if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
+    # FIXME: GMP 6.3.0 (last released version) is broken with GCC15 / C23:
+    # https://github.com/gmp-mirror/gmp/commit/14837bacbbd80804a11fee2016f660d132bf8aec
+    # Apply a temporary patch to fix compilation, until a newer GMP version is released.
+    sed -i 's/void g(){}/void g(int,...){}/g' gmp-$GMP_V/configure
+
     pushd "gmp-$GMP_V"
     ./configure \
         --prefix="$INSTALL_PATH" \
@@ -243,7 +401,7 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --enable-static \
         --disable-shared
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     make distclean
     popd
 
@@ -255,7 +413,7 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --enable-static \
         --disable-shared
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     make distclean
     popd
 fi
@@ -263,22 +421,27 @@ fi
 # Compile BUILD->TARGET binutils
 mkdir -p binutils_compile_target
 pushd binutils_compile_target
-../"binutils-$BINUTILS_V"/configure ${BINUTILS_CONFIGURE_ARGS[@]} \
+../"binutils-$BINUTILS_V"/configure "${BINUTILS_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
-    --disable-werror
+    --disable-werror \
+    --without-msgpack \
+    --without-zstd
 make -j "$JOBS"
-make install-strip || sudo make install-strip || su -c "make install-strip"
+autosudo make install-strip
 popd
 
 # Compile GCC for MIPS N64.
 # We need to build the C++ compiler to build the target libstd++ later.
-mkdir -p gcc_compile_target
-pushd gcc_compile_target
+mkdir -p gcc_compile
+pushd gcc_compile
+CFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-compat" \
+CXXFLAGS_FOR_TARGET="-O2 -g --sysroot=$CROSS_PREFIX/sysroot-compat" \
 ../"gcc-$GCC_V"/configure "${GCC_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
+    --with-sysroot="$CROSS_PREFIX/sysroot-compat" \
     --with-arch=vr4300 \
     --with-tune=vr4300 \
     --enable-languages=c,c++ \
@@ -288,39 +451,21 @@ pushd gcc_compile_target
     --disable-shared \
     --with-gcc \
     --with-newlib \
+    --disable-softfloat \
+    --disable-biendian \
     --disable-win32-registry \
     --disable-nls \
     --disable-werror
 make all-gcc -j "$JOBS"
-make install-gcc || sudo make install-gcc || su -c "make install-gcc"
-make all-target-libgcc -j "$JOBS"
-make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+autosudo make install-gcc
 popd
 
-# Compile newlib for target.
-mkdir -p newlib_compile_target
-pushd newlib_compile_target
-CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-    --prefix="$CROSS_PREFIX" \
-    --target="$N64_TARGET" \
-    --with-cpu=mips64vr4300 \
-    --disable-libssp \
-    --disable-werror \
-    --enable-newlib-io-c99-formats \
-    --enable-newlib-multithread \
-    --enable-newlib-retargetable-locking
-make -j "$JOBS"
-make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-popd
+# Mark this GCC build directory as the one for target libraries. This might
+# be overridden in case of canadian cross.
+GCC_COMPILE_TARGET="gcc_compile"
 
-# For a standard cross-compiler, the only thing left is to finish compiling the target libraries
-# like libstd++. We can continue on the previous GCC build target.
-if [ "$N64_BUILD" == "$N64_HOST" ]; then
-    pushd gcc_compile_target
-    make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
-    popd
-else
+# Now check if we need to build a canadian toolchain.
+if [ "$N64_BUILD" != "$N64_HOST" ]; then
     # Compile HOST->TARGET binutils
     # NOTE: we pass --without-msgpack to workaround a bug in Binutils, introduced
     # with this commit: https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=2952f10cd79af4645222f124f28c7928287d8113
@@ -335,14 +480,17 @@ else
         --host="$N64_HOST" \
         --target="$N64_TARGET" \
         --disable-werror \
-        --without-msgpack
+        --without-msgpack \
+        --without-zstd
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 
     # Compile HOST->TARGET gcc
-    mkdir -p gcc_compile
-    pushd gcc_compile
+    mkdir -p gcc_compile_host
+    pushd gcc_compile_host
+    CFLAGS_FOR_TARGET="-O2 -g --sysroot=$INSTALL_PATH/sysroot-compat" \
+    CXXFLAGS_FOR_TARGET="-O2 -g --sysroot=$INSTALL_PATH/sysroot-compat" \
     CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
         ../"gcc-$GCC_V"/configure \
         --prefix="$INSTALL_PATH" \
@@ -356,37 +504,181 @@ else
         --with-newlib \
         --enable-multilib \
         --with-gcc \
+        --disable-softfloat \
+        --disable-biendian \
         --disable-libssp \
         --disable-shared \
         --disable-win32-registry \
         --disable-nls
+    make all-gcc -j "$JOBS"
+    autosudo make install-gcc
     make all-target-libgcc -j "$JOBS"
-    make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+    autosudo make install-target-libgcc
     popd
 
-    # Compile newlib for target.
-    mkdir -p newlib_compile
-    pushd newlib_compile
-    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
-        --prefix="$INSTALL_PATH" \
-        --target="$N64_TARGET" \
-        --with-cpu=mips64vr4300 \
-        --disable-libssp \
-        --disable-werror \
-        --enable-newlib-io-c99-formats \
-        --enable-newlib-multithread \
-        --enable-newlib-retargetable-locking
-    make -j "$JOBS"
-    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-    popd
-
-    # Finish compiling GCC
-    mkdir -p gcc_compile
-    pushd gcc_compile
-    make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
-    popd
+    # Use this compiler to build target libraries, as it target the correct prefix.
+    # Notice that under the hood, the $CROSS_PREFIX one will be invoked (through
+    # it being in the $PATH) but anyway this is the correct way to do it.
+    #GCC_COMPILE_TARGET="gcc_compile_host"
 fi
+
+# Compile libgcc for target
+pushd "$GCC_COMPILE_TARGET"
+make all-target-libgcc -j "$JOBS"
+autosudo make install-target-libgcc
+popd
+
+# Patch the GCC installation that will be used for target libraries ($CROSS_PREIFX),
+# to always use our "magic" ktls.h header. This is required to use TLS, which is
+# used by picolibc.
+install_ktls_header "$CROSS_PREFIX"
+patch_gcc_specs 0
+
+# Meson cross file (required to build picolibc). Materialize from inline block.
+MESON_CROSS_FILE="$BUILD_PATH/meson-cross.txt"
+awk -v start=": <<'__MESON_CROSS_BLOCK__'" -v end="__MESON_CROSS_BLOCK__" '
+    $0 == start {capture=1; next}
+    $0 == end {exit}
+    capture {print}
+' "$SCRIPT_PATH" > "$MESON_CROSS_FILE"
+
+# Compile picolibc for target
+rm -rf picolibc_compile_target
+mkdir -p picolibc_compile_target
+pushd picolibc_compile_target
+meson setup \
+    --cross-file="$MESON_CROSS_FILE" \
+    -Dmultilib=false \
+    -Dpicocrt=false \
+    -Dpicolib=false \
+    -Dsemihost=false \
+    -Dspecsdir=none \
+    -Dtests=false \
+    -Dtinystdio=true \
+    -Dfast-bufio=true \
+    -Dio-long-long=true \
+    -Dio-pos-args=true \
+    -Dio-percent-b=true \
+    -Dposix-console=true \
+    -Dformat-default=double \
+    -Dnewlib-fseek-optimization=false \
+    -Dnewlib-fvwrite-in-streamio=false \
+    -Dnewlib-io-float=false \
+    -Dnewlib-stdio64=false \
+    -Dnewlib-unbuf-stream-opt=false \
+    -Dnewlib-nano-malloc=false \
+    -Dthread-local-storage=true \
+    -Dpicoexit=false \
+    -Dprefix="$CROSS_PREFIX/sysroot-compat/usr" \
+    ../"picolibc-$PICOLIBC_V"
+ninja -j "$JOBS"
+autosudo ninja install
+popd
+
+# Build the other target libraries (libstdc++, libsupc++, libatomic) against picolibc
+pushd "$GCC_COMPILE_TARGET"
+make distclean-target -j "$JOBS"
+make all -j "$JOBS"
+autosudo make install-strip
+popd
+
+autosudo mv "$CROSS_PREFIX/mips64-elf/lib"/* \
+            "$CROSS_PREFIX/sysroot-compat/usr/lib"
+
+# Patch again the spec files with relocatable include path for distribution.
+# This time install into the final HOST->TARGET compiler (in case of canadian).
+install_ktls_header "$INSTALL_PATH"
+patch_gcc_specs 1
+
+# Move completed picolibc install to the picolibc sysroot
+autosudo rm -rf "$INSTALL_PATH/sysroot-picolibc"
+autosudo mv "$CROSS_PREFIX/sysroot-compat" "$INSTALL_PATH/sysroot-picolibc"
+
+# Also move libstdc++-v3 headers in case of candadian, as they were installed into $CROSS_PREFIX
+if [ "$N64_BUILD" != "$N64_HOST" ]; then
+    autosudo mv "$CROSS_PREFIX/mips64-elf/include/c++" \
+                "$INSTALL_PATH/mips64-lef/include/"
+fi
+
+# Self-check: ensure no mentions of impure_ptr in libstdc++3.
+if strings "$INSTALL_PATH/sysroot-picolibc/usr/lib/libstdc++.a" | grep -q impure_ptr; then
+    echo "ERROR: libstdc++ was built against newlib instead of picolibc!" >&2
+    exit 1
+fi
+
+# Specs were patched to include ktls.h for picolibc. This is strictly not required
+# while bulding newlib, but since the patch is there, we need to copy ktls.h again,
+# since it's been moved now to picolibc/include.
+install_ktls_header "$CROSS_PREFIX"
+
+# Compile newlib for target
+mkdir -p newlib_compile_target
+pushd newlib_compile_target
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+    --prefix="$CROSS_PREFIX/sysroot-compat/usr" \
+    --target="$N64_TARGET" \
+    --with-cpu=mips64vr4300 \
+    --disable-libgloss \
+    --disable-libssp \
+    --disable-werror \
+    --disable-softfloat \
+    --disable-biendian \
+    --enable-newlib-io-c99-formats \
+    --enable-newlib-multithread \
+    --enable-newlib-retargetable-locking
+make -j "$JOBS"
+autosudo make install
+popd
+
+# Newlib creates a non-standard sysroot layout, so we need to move files around.
+autosudo mv "$CROSS_PREFIX/sysroot-compat/usr/mips64-elf/include" \
+            "$CROSS_PREFIX/sysroot-compat/usr/include"
+autosudo mv "$CROSS_PREFIX/sysroot-compat/usr/mips64-elf/lib" \
+            "$CROSS_PREFIX/sysroot-compat/usr/lib"
+autosudo rmdir "$CROSS_PREFIX/sysroot-compat/usr/mips64-elf"
+
+# Build the other target libraries (libstdc++, libsupc++, libatomic) against newlib
+pushd "$GCC_COMPILE_TARGET"
+make distclean-target -j "$JOBS"
+make all-target -j "$JOBS"
+autosudo make install-strip
+popd
+
+autosudo mv "$CROSS_PREFIX/mips64-elf/lib"/* \
+            "$CROSS_PREFIX/sysroot-compat/usr/lib"
+
+# Patch again the spec files with relocatable include path for distribution.
+# This time install into the final HOST->TARGET compiler (in case of canadian).
+install_ktls_header "$INSTALL_PATH"
+patch_gcc_specs 1
+
+autosudo rm -rf "$INSTALL_PATH/sysroot-newlib"
+autosudo mv "$CROSS_PREFIX/sysroot-compat" "$INSTALL_PATH/sysroot-newlib"
+
+# Create a symlink "sysroot-compat" pointing to "sysroot-newlib" for
+# backward compatibility. This will be automatically used with old n64.mk scripts,
+# that don't specify --sysroot, as it is the default sysroot path.
+if [ "$N64_HOST" != "x86_64-w64-mingw32" ]; then
+    autosudo ln -s "$INSTALL_PATH/sysroot-newlib" "$INSTALL_PATH/sysroot-compat"
+else
+    # On Windows, where symlinks are not always supported, we just keep the
+    # old layout for backward compatibility.
+    autosudo cp -a "$INSTALL_PATH/sysroot-newlib" "$INSTALL_PATH/sysroot-compat"
+fi
+
+# Write per-libc toolchain.version files under INSTALL_PATH
+# Ensure include directories exist before writing
+dest_dir="$INSTALL_PATH/sysroot-newlib/usr/include"
+autosudo mkdir -p "$dest_dir"
+TOOLCHAIN_VERSION_FILE_NEWLIB="$dest_dir/toolchain.version"
+VERSION_NEWLIB="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"newlib\": \"$NEWLIB_V\"\n}\n"
+autosudo sh -c "printf \"$VERSION_NEWLIB\" > \"$TOOLCHAIN_VERSION_FILE_NEWLIB\""
+
+dest_dir="$INSTALL_PATH/sysroot-picolibc/usr/include"
+autosudo mkdir -p "$dest_dir"
+TOOLCHAIN_VERSION_FILE_PICO="$dest_dir/toolchain.version"
+VERSION_PICO="{\n  \"host\": \"$N64_HOST\",\n  \"binutils\": \"$BINUTILS_V\",\n  \"gcc\": \"$GCC_V\",\n  \"picolibc\": \"$PICOLIBC_V\"\n}\n"
+autosudo sh -c "printf \"$VERSION_PICO\" > \"$TOOLCHAIN_VERSION_FILE_PICO\""
 
 if [ "$MAKE_V" != "" ]; then
     pushd "make-$MAKE_V"
@@ -398,24 +690,9 @@ if [ "$MAKE_V" != "" ]; then
         --build="$N64_BUILD" \
         --host="$N64_HOST"
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 fi
-
-# Create a toolchain.version file in JSON format to identify the toolchain version. 
-# It contains: GCC version, Binutils versions and Newlib/Picolibc version.
-TOOLCHAIN_VERSION_FILE="$INSTALL_PATH/$N64_TARGET/include/toolchain.version"
-
-VERSION_CONTENT="{
-  \"host\": \"$N64_HOST\",
-  \"binutils\": \"$BINUTILS_V\",
-  \"gcc\": \"$GCC_V\",
-  \"newlib\": \"$NEWLIB_V\"
-}"
-
-printf '%s\n' "$VERSION_CONTENT" > "$TOOLCHAIN_VERSION_FILE" || \
-    sudo sh -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\"" || \
-    su -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\""
 
 # Final message
 set +x
@@ -425,3 +702,38 @@ echo "Libdragon toolchain correctly built and installed"
 echo "Installation directory: \"${N64_INST}\""
 echo "Build directory: \"${BUILD_PATH}\" (can be removed now)"
 echo "If you would like to install GDB in your toolchain, run build-gdb.sh"
+
+: <<'__KTLS_H_BLOCK__'
+#pragma once
+#ifndef __ASSEMBLER__
+__asm__ (
+    ".ifndef __RDHWR_WAS_DEFINED" "\n"
+    ".macro rdhwr rt, rd" "\n"
+    "    lw \\rt, %gprel(__th_cur_tp)($gp)" "\n"
+    ".endm"               "\n"
+    ".set __RDHWR_WAS_DEFINED, 1" "\n"
+    ".endif" "\n"
+);
+#endif
+__KTLS_H_BLOCK__
+
+: <<'__MESON_CROSS_BLOCK__'
+[binaries]
+c = 'mips64-elf-gcc'
+ar = 'mips64-elf-ar'
+as = 'mips64-elf-as'
+nm = 'mips64-elf-nm'
+strip = 'mips64-elf-strip'
+
+[host_machine]
+system = 'none'
+cpu_family = 'mips64'
+cpu = 'mips64vr4300'
+endian = 'big'
+
+[properties]
+skip_sanity_check = true
+
+[built-in options]
+c_args = [ '-falign-functions=32' ]
+__MESON_CROSS_BLOCK__

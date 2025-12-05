@@ -5,13 +5,17 @@
  * @brief newlib Interface Hooks
  * @ingroup system
  */
+#include <newlib.h>
+#if !defined(__PICOLIBC__)
 #include <_ansi.h>
 #include <_syslist.h>
+#endif
 #include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/times.h>
 #include <sys/utime.h>
 #include <stdarg.h>
