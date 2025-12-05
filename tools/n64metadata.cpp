@@ -1,6 +1,6 @@
 /*
 	n64metadata: a program used to embed metadata into an N64 ROM,
-	according to the Homebrew Header Specification.
+	according to the Homebrew Header Specification:
 	Copyright (C) 2025 Giovanni Bajo (giovannibajo@gmail.com)
 
     This tool is part of the Libdragon SDK.
@@ -8,6 +8,14 @@
     This is free and unencumbered software released into the public domain.
     For more information, please refer to <http://unlicense.org/>
  */
+/*
+	This tool implements the specification of ROM metadata for the Homebrew Header:
+	https://n64brew.dev/wiki/ROM_Metadata
+
+	It is designed to be a self-contained C++ file with zero dependencies, and
+	zero assumptions about the SDK used to build the ROM. In other words, it
+	does not depend on Libdragon in any way, and can be used for any N64 ROM.
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -25,8 +33,6 @@
 #include <algorithm>
 #include <unistd.h>
 #include <cerrno>
-
-#include "common/crc32.c"
 
 bool flag_verbose = false;
 bool flag_external = false;
@@ -93,12 +99,36 @@ static void usage(void)
 	fprintf(stderr, "Embed or generate metadata ZIPs for N64 Homebrew Header.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Options:\n");
-	fprintf(stderr, "  -h, --help       Show this help message and exit\n");
-	fprintf(stderr, "  -v, --verbose    Verbose output\n");
-	fprintf(stderr, "  -e, --external   Do not modify ROM; write sidecar .meta ZIP\n");
-	fprintf(stderr, "  -f, --force      Overwrite existing embedded metadata in ROM\n");
-	fprintf(stderr, "  -P, --padding    Padding alignment for the final ROM (default: 16 KiB)\n");
+	fprintf(stderr, "  -h, --help       	Show this help message and exit\n");
+	fprintf(stderr, "  -v, --verbose    	Verbose output\n");
+	fprintf(stderr, "  -e, --external   	Do not modify ROM; write sidecar .meta ZIP\n");
+	fprintf(stderr, "  -f, --force      	Overwrite existing embedded metadata in ROM\n");
+	fprintf(stderr, "  -P, --padding <N>    Padding alignment for the final ROM (default: 16 KiB)\n");
 	fprintf(stderr, "\n");
+}
+
+static uint32_t crc_table[256];
+
+static void crc32_init(void)
+{
+    for (uint32_t i = 0; i < 256; i++) {
+        uint32_t c = i;
+        for (int j = 0; j < 8; j++) {
+            if (c & 1)	c = 0xEDB88320 ^ (c >> 1);
+            else		c = c >> 1;
+        }
+        crc_table[i] = c;
+    }
+}
+
+static uint32_t crc32(const void *buf, size_t len)
+{
+    const uint8_t *p = (const uint8_t *)buf;
+    uint32_t c = 0xFFFFFFFF;
+    for (size_t i = 0; i < len; i++) {
+        c = crc_table[(c ^ p[i]) & 0xFF] ^ (c >> 8);
+    }
+    return c ^ 0xFFFFFFFF;
 }
 
 struct ZipEntry {
@@ -285,7 +315,8 @@ static void write_zip(FILE *z, const std::vector<ZipEntry> &entries, int padding
 		fwrite(e.data.data(), 1, e.data.size(), z);
 	}
 
-    // Add padding if requested
+    // Add padding if requested. We put the padding *within* the ZIP, so that
+	// if the ZIP is replaced, also the padding is removed.
     for (int i = 0; i < padding; i++) {
         fputc(0, z);
     }
@@ -459,6 +490,8 @@ int main(int argc, char **argv)
 		usage();
 		return 1;
 	}
+
+	crc32_init();
 
     std::vector<uint8_t> content;
     if (!slurp(ini_path, content, ini_path)) {
