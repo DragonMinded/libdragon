@@ -656,8 +656,7 @@ void process(const char *infn, const char *outfn)
     collect_string_freqs(unique_funcs, shared_freqs);
     
     huff_code_t shared_huff_table[256] = {0};
-    huff_node_t *shared_root = build_huffman_tree(shared_freqs);
-    huff_calc_lengths(shared_root, 0, shared_huff_table);
+    build_limited_huffman_tree(shared_freqs, HUFF_MAX_CODE_LEN, shared_huff_table);
     
     CanonicalTables shared_ct;
     generate_canonical_tables(shared_huff_table, &shared_ct);
@@ -672,7 +671,6 @@ void process(const char *infn, const char *outfn)
     compress_strings(unique_funcs, shared_huff_table, &shared_ct, false, &func_blob, &func_offsets);
     
     free(shared_ct.symbols);
-    huff_free_tree(shared_root);
     
     // Compress Symbols
     uint8_t *stream = NULL;

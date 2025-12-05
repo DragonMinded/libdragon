@@ -153,6 +153,35 @@ void huff_free_tree(huff_node_t *node) {
     free(node);
 }
 
+// Build a Huffman tree with a maximum code length constraint.
+// Since we don't have a complex Package-Merge implementation, we use a heuristic:
+// if the tree is too deep, we halve the frequencies (rounding up) and retry.
+// This tends to flatten the tree.
+void build_limited_huffman_tree(int *freqs, int limit, huff_code_t *table) {
+    int cur_freqs[256];
+    memcpy(cur_freqs, freqs, sizeof(cur_freqs));
+    
+    while (1) {
+        huff_node_t *root = build_huffman_tree(cur_freqs);
+        memset(table, 0, 256 * sizeof(huff_code_t));
+        huff_calc_lengths(root, 0, table);
+        huff_free_tree(root);
+        
+        int max_len = 0;
+        for (int i=0; i<256; i++) {
+            if (table[i].len > max_len) max_len = table[i].len;
+        }
+        
+        if (max_len <= limit) break;
+        
+        // Flatten frequencies
+        for (int i=0; i<256; i++) {
+            if (cur_freqs[i] > 0)
+                cur_freqs[i] = (cur_freqs[i] + 1) / 2;
+        }
+    }
+}
+
 void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct) {
     int bl_count[HUFF_MAX_CODE_LEN + 1] = {0};
     ct->max_len = 0;

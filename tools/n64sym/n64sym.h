@@ -62,9 +62,7 @@ uint32_t zigzag_encode(int32_t val);
 
 // Huffman
 void collect_string_freqs(char **strings, int *char_freqs);
-huff_node_t* build_huffman_tree(int *freqs);
-void huff_calc_lengths(huff_node_t *node, int len, huff_code_t *table);
-void huff_free_tree(huff_node_t *node);
+void build_limited_huffman_tree(int *freqs, int limit, huff_code_t *table);
 void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct);
 void write_huff_header(CanonicalTables *ct, uint8_t **blob);
 
