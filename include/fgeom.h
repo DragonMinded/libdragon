@@ -528,4 +528,106 @@ inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t
 }
 #endif
 
+
+#ifdef __cplusplus
+
+  constexpr fm_vec3_t operator+(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.v[0] + rhs.v[0], lhs.v[1] + rhs.v[1], lhs.v[2] + rhs.v[2]};
+  }
+
+  constexpr fm_vec3_t operator-(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.v[0] - rhs.v[0], lhs.v[1] - rhs.v[1], lhs.v[2] - rhs.v[2]};
+  }
+
+  constexpr fm_vec3_t operator*(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.v[0] * rhs.v[0], lhs.v[1] * rhs.v[1], lhs.v[2] * rhs.v[2]};
+  }
+
+  constexpr fm_vec3_t operator/(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.v[0] / rhs.v[0], lhs.v[1] / rhs.v[1], lhs.v[2] / rhs.v[2]};
+  }
+
+  constexpr fm_vec3_t operator+(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.v[0] + rhs, lhs.v[1] + rhs, lhs.v[2] + rhs};
+  }
+
+  constexpr fm_vec3_t operator-(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.v[0] - rhs, lhs.v[1] - rhs, lhs.v[2] - rhs};
+  }
+
+  constexpr fm_vec3_t operator*(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.v[0] * rhs, lhs.v[1] * rhs, lhs.v[2] * rhs};
+  }
+
+  constexpr fm_vec3_t operator/(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.v[0] / rhs, lhs.v[1] / rhs, lhs.v[2] / rhs};
+  }
+
+  constexpr fm_vec3_t operator-(fm_vec3_t const& lhs) {
+    return {-lhs.v[0], -lhs.v[1], -lhs.v[2]};
+  }
+
+  constexpr fm_vec3_t& operator+=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.v[0] += rhs.v[0];
+    lhs.v[1] += rhs.v[1];
+    lhs.v[2] += rhs.v[2];
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator+=(fm_vec3_t &lhs, float rhs) {
+    lhs.v[0] += rhs;
+    lhs.v[1] += rhs;
+    lhs.v[2] += rhs;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator-=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.v[0] -= rhs.v[0];
+    lhs.v[1] -= rhs.v[1];
+    lhs.v[2] -= rhs.v[2];
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator-=(fm_vec3_t &lhs, float rhs) {
+    lhs.v[0] -= rhs;
+    lhs.v[1] -= rhs;
+    lhs.v[2] -= rhs;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator*=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.v[0] *= rhs.v[0];
+    lhs.v[1] *= rhs.v[1];
+    lhs.v[2] *= rhs.v[2];
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator*=(fm_vec3_t &lhs, float rhs) {
+    lhs.v[0] *= rhs;
+    lhs.v[1] *= rhs;
+    lhs.v[2] *= rhs;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator/=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.v[0] /= rhs.v[0];
+    lhs.v[1] /= rhs.v[1];
+    lhs.v[2] /= rhs.v[2];
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator/=(fm_vec3_t &lhs, float rhs) {
+    lhs.v[0] /= rhs;
+    lhs.v[1] /= rhs;
+    lhs.v[2] /= rhs;
+    return lhs;
+  }
+
+  constexpr fm_quat_t operator*(fm_quat_t const& lhs, fm_quat_t const& rhs) {
+    fm_quat_t res{};
+    fm_quat_mul(&res, const_cast<fm_quat_t*>(&lhs), const_cast<fm_quat_t*>(&rhs));
+    return res;
+  }
+#endif
+
 #endif
