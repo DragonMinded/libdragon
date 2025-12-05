@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 rm -rf libcart/
 git clone --quiet https://github.com/devwizard64/libcart
