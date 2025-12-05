@@ -13,7 +13,7 @@ tools/cpaktool/cpaktool
 tools/mkmaterial/mkmaterial
 tools/n64metadata
 tools/n64tool
-tools/n64sym
+tools/n64sym/n64sym
 tools/**/*.exe
 website/ref/
 
