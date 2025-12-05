@@ -18,6 +18,10 @@ fi
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 
+# How to call GNU Make.
+# this is frequently "gmake" for BSD users.
+MAKE=${MAKE:-"make"}
+
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
 N64_HOST=${N64_HOST:-""}
@@ -217,15 +221,15 @@ if [ "$ZLIB_V" != "" ]; then
     pushd "zlib-$ZLIB_V"
     if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         sed -e s/"PREFIX ="/"PREFIX = $N64_HOST-"/ -i win32/Makefile.gcc
-        make -f win32/Makefile.gcc -j "$JOBS"
+        $MAKE -f win32/Makefile.gcc -j "$JOBS"
         (
             export \
                 BINARY_PATH="$INSTALL_PATH/bin" \
                 INCLUDE_PATH="$INSTALL_PATH/include" \
                 LIBRARY_PATH="$INSTALL_PATH/lib"
-            make -f win32/Makefile.gcc install || \
-            sudo make -f win32/Makefile.gcc install || \
-            su -c "make -f win32/Makefile.gcc install"
+            $MAKE -f win32/Makefile.gcc install || \
+            sudo $MAKE -f win32/Makefile.gcc install || \
+            su -c "$MAKE -f win32/Makefile.gcc install"
         )
     fi
     popd
@@ -240,9 +244,9 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --host="$N64_HOST" \
         --enable-static \
         --disable-shared
-    make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
-    make distclean
+    $MAKE -j "$JOBS"
+    $MAKE install-strip || sudo $MAKE install-strip || su -c "$MAKE install-strip"
+    $MAKE distclean
     popd
 
     pushd "mpfr-$MPFR_V"
@@ -252,9 +256,9 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --with-gmp="$INSTALL_PATH" \
         --enable-static \
         --disable-shared
-    make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
-    make distclean
+    $MAKE -j "$JOBS"
+    $MAKE install-strip || sudo $MAKE install-strip || su -c "$MAKE install-strip"
+    $MAKE distclean
     popd
 fi
 
@@ -266,8 +270,8 @@ pushd binutils_compile_target
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
     --disable-werror
-make -j "$JOBS"
-make install-strip || sudo make install-strip || su -c "make install-strip"
+$MAKE -j "$JOBS"
+$MAKE install-strip || sudo $MAKE install-strip || su -c "$MAKE install-strip"
 popd
 
 # Compile GCC for MIPS N64.
@@ -289,10 +293,10 @@ pushd gcc_compile_target
     --disable-win32-registry \
     --disable-nls \
     --disable-werror
-make all-gcc -j "$JOBS"
-make install-gcc || sudo make install-gcc || su -c "make install-gcc"
-make all-target-libgcc -j "$JOBS"
-make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+$MAKE all-gcc -j "$JOBS"
+$MAKE install-gcc || sudo $MAKE install-gcc || su -c "$MAKE install-gcc"
+$MAKE all-target-libgcc -j "$JOBS"
+$MAKE install-target-libgcc || sudo $MAKE install-target-libgcc || su -c "$MAKE install-target-libgcc"
 popd
 
 # Compile newlib for target.
@@ -306,16 +310,16 @@ CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/co
     --disable-werror \
     --enable-newlib-multithread \
     --enable-newlib-retargetable-locking
-make -j "$JOBS"
-make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+$MAKE -j "$JOBS"
+$MAKE install || sudo env PATH="$PATH" $MAKE install || su -c "env PATH=\"$PATH\" $MAKE install"
 popd
 
 # For a standard cross-compiler, the only thing left is to finish compiling the target libraries
 # like libstd++. We can continue on the previous GCC build target.
 if [ "$N64_BUILD" == "$N64_HOST" ]; then
     pushd gcc_compile_target
-    make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    $MAKE all -j "$JOBS"
+    $MAKE install-strip || sudo $MAKE install-strip || su -c "$MAKE install-strip"
     popd
 else
     # Compile HOST->TARGET binutils
@@ -333,8 +337,8 @@ else
         --target="$N64_TARGET" \
         --disable-werror \
         --without-msgpack
-    make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    $MAKE -j "$JOBS"
+    $MAKE install-strip || sudo $MAKE install-strip || su -c "$MAKE install-strip"
     popd
 
     # Compile HOST->TARGET gcc
@@ -357,8 +361,8 @@ else
         --disable-shared \
         --disable-win32-registry \
         --disable-nls
-    make all-target-libgcc -j "$JOBS"
-    make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+    $MAKE all-target-libgcc -j "$JOBS"
+    $MAKE install-target-libgcc || sudo $MAKE install-target-libgcc || su -c "$MAKE install-target-libgcc"
     popd
 
     # Compile newlib for target.
@@ -372,15 +376,15 @@ else
         --disable-werror \
         --enable-newlib-multithread \
         --enable-newlib-retargetable-locking
-    make -j "$JOBS"
-    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+    $MAKE -j "$JOBS"
+    $MAKE install || sudo env PATH="$PATH" $MAKE install || su -c "env PATH=\"$PATH\" $MAKE install"
     popd
 
     # Finish compiling GCC
     mkdir -p gcc_compile
     pushd gcc_compile
-    make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    $MAKE all -j "$JOBS"
+    $MAKE install-strip || sudo $MAKE install-strip || su -c "$MAKE install-strip"
     popd
 fi
 
@@ -393,8 +397,8 @@ if [ "$MAKE_V" != "" ]; then
         --disable-rpath \
         --build="$N64_BUILD" \
         --host="$N64_HOST"
-    make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    $MAKE -j "$JOBS"
+    $MAKE install-strip || sudo $MAKE install-strip || su -c "$MAKE install-strip"
     popd
 fi
 
