@@ -503,10 +503,6 @@ int main(int argc, char **argv)
 		fatal("%s: error: file is not valid UTF-8\n", ini_path);
 	}
 
-    if (std::find(content.begin(), content.end(), '\r') != content.end()) {
-        fatal("%s: error: file uses DOS newlines (CRLF); please convert to Unix (LF)\n", ini_path);
-    }
-
 	static std::vector<std::string> metaKeys = {
         "name", "author", "release-date", "osi-license", "website", "age-rating", "short-desc", "long-desc", "screenshots"
     };
@@ -539,6 +535,9 @@ int main(int argc, char **argv)
 
 		if (s.empty() || s[0] == '#' || s[0] == ';')
 			continue;
+
+		if (s.back() == '\r')
+			s.pop_back();
 
 		if (s.front() == '[' && s.back() == ']') {
 			section = s.substr(1, s.size() - 2);
