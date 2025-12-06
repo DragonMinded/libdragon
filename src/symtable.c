@@ -268,22 +268,29 @@ typedef struct {
     Lut64Entry *lut;
     uint16_t *first_code;
     uint16_t *first_symbol;
-    uint16_t *num_symbols;
     uint8_t *symbols;
     int max_len;
+    int len_count;
+    int symbol_count;
 } HuffDecoder;
 
-static void huff_decoder_init(HuffDecoder *dec, uint8_t *table_buf) {
+static void huff_decoder_init(HuffDecoder *dec, uint8_t *table_buf, uint32_t table_size) {
     // Layout: MaxLen(1), Padding(1), LUT(128), CanonicalArrays, Symbols
     dec->max_len = table_buf[0];
+    dec->len_count = dec->max_len >= 7 ? dec->max_len - 6 : 0;
     uint8_t *ptr = table_buf + 2;
     dec->lut = (Lut64Entry*)ptr; ptr += 64 * 2;
     
-    int table_len = dec->max_len + 1;
-    dec->first_code = (uint16_t*)ptr; ptr += table_len * 2;
-    dec->first_symbol = (uint16_t*)ptr; ptr += table_len * 2;
-    dec->num_symbols = (uint16_t*)ptr; ptr += table_len * 2;
+    if (dec->len_count > 0) {
+        dec->first_code = (uint16_t*)ptr; ptr += dec->len_count * 2;
+        dec->first_symbol = (uint16_t*)ptr; ptr += dec->len_count * 2;
+    } else {
+        dec->first_code = NULL;
+        dec->first_symbol = NULL;
+    }
     dec->symbols = ptr;
+    uint32_t header_size = ptr - table_buf;
+    dec->symbol_count = (table_size > header_size) ? (table_size - header_size) : 0;
 }
 
 static int huff_decode_symbol(HuffDecoder *dec, BitReader *br) {
@@ -299,15 +306,17 @@ static int huff_decode_symbol(HuffDecoder *dec, BitReader *br) {
     }
     
     // Canonical fallback
-    for (len = 7; len <= dec->max_len; len++) {
+    for (int idx = 0; idx < dec->len_count; idx++) {
+        len = idx + 7;
         int code = peek16 >> (16 - len);
         
-        uint16_t fc = dec->first_code[len];
-        uint16_t count = dec->num_symbols[len];
+        uint16_t fc = dec->first_code[idx];
+        uint16_t fs = dec->first_symbol[idx];
+        uint16_t next_fs = (idx + 1 < dec->len_count) ? dec->first_symbol[idx + 1] : dec->symbol_count;
+        uint16_t count = next_fs - fs;
         
         if (code < fc + count) {
             br_skip_bits(br, len);
-            uint16_t fs = dec->first_symbol[len];
             return dec->symbols[fs + (code - fc)];
         }
     }
@@ -359,12 +368,13 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     }
     
     // Read Huffman Table (Global)
-    uint8_t alignas(8) huff_tab[MAX_BUFFER_SIZE] __attribute__((uninitialized));
-    data_cache_hit_writeback_invalidate(huff_tab, MAX_BUFFER_SIZE);
-    dma_read(huff_tab, SYMT_ROM + symt->huff_tab_off, MAX_BUFFER_SIZE);
+    uint32_t huff_size = MIN(symt->huff_tab_size, MAX_BUFFER_SIZE);
+    uint8_t alignas(8) huff_tab[huff_size] __attribute__((uninitialized));
+    data_cache_hit_writeback_invalidate(huff_tab, huff_size);
+    dma_read(huff_tab, SYMT_ROM + symt->huff_tab_off, huff_size);
     
     HuffDecoder dec;
-    huff_decoder_init(&dec, huff_tab);
+    huff_decoder_init(&dec, huff_tab, huff_size);
 
     // Read string block
     uint8_t alignas(8) str_blob[MAX_BUFFER_SIZE] __attribute__((uninitialized));
@@ -382,7 +392,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     cur_str[0] = 0;
 
     int cur_len = 0;
-    int prev_prefix_len = 0;    
+    int prev_prefix_len = 0;
     for (int i=0; i <= target_in_block; i++) {
         // Decode prefix length delta, and apply it to the current common length
         int32_t prefix_delta = read_exp_golomb_signed(&br);

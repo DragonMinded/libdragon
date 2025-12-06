@@ -269,30 +269,36 @@ void write_huff_header(CanonicalTables *ct, uint8_t **blob) {
     }
     
     // Canonical Arrays
+    // We only store arrays for lengths > 6, as shorter codes are handled by LUT.
+    // num_symbols is omitted to save space; the decoder derives it from
+    // successive first_symbol values and the total Symbols length.
+    int start_len = 7;
     int table_len = ct->max_len + 1;
+    
     // first_code (uint16)
-    for (int k=0; k<table_len; k++) {
+    for (int k=start_len; k<table_len; k++) {
         stbds_arrput(*blob, (ct->first_code[k] >> 8) & 0xFF);
         stbds_arrput(*blob, ct->first_code[k] & 0xFF);
     }
+    
     // first_symbol (uint16)
-    for (int k=0; k<table_len; k++) {
-        stbds_arrput(*blob, (ct->first_symbol[k] >> 8) & 0xFF);
-        stbds_arrput(*blob, ct->first_symbol[k] & 0xFF);
-    }
-    // num_symbols (uint16)
-    for (int k=0; k<table_len; k++) {
-        stbds_arrput(*blob, (ct->num_symbols[k] >> 8) & 0xFF);
-        stbds_arrput(*blob, ct->num_symbols[k] & 0xFF);
+    // We adjust first_symbol so that it is relative to the start of the symbols blob
+    // (which only contains symbols with length > 6)
+    int symbol_offset = ct->first_symbol[start_len <= ct->max_len ? start_len : ct->max_len + 1];
+    
+    for (int k=start_len; k<table_len; k++) {
+        int adjusted = ct->first_symbol[k] - symbol_offset;
+        stbds_arrput(*blob, (adjusted >> 8) & 0xFF);
+        stbds_arrput(*blob, adjusted & 0xFF);
     }
     
-    // Symbols (alphabet_size bytes)
-    // We calculate alphabet size from num_symbols sum
+    // Symbols (only those with length > 6)
     int total_symbols = 0;
-    for (int k=0; k<table_len; k++) total_symbols += ct->num_symbols[k];
-
-    for (int k=0; k<total_symbols; k++) {
-        stbds_arrput(*blob, ct->symbols[k]);
+    for (int k=1; k<table_len; k++) total_symbols += ct->num_symbols[k];
+    
+    int stored_symbols = total_symbols - symbol_offset;
+    for (int k=0; k<stored_symbols; k++) {
+        stbds_arrput(*blob, ct->symbols[symbol_offset + k]);
     }
 }
 
