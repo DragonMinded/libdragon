@@ -466,6 +466,8 @@ void compress_symbols(
     struct gl_map *file_map, struct gl_map *func_map,
     uint8_t **stream, uint32_t **chunk_index)
 {
+    if (nsyms == 0) return;
+
     // Temp buffer for current chunk
     uint8_t *chunk_buf = NULL;
     uint32_t chunk_start_addr = symtable[0].addr;
