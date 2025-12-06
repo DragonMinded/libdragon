@@ -65,6 +65,8 @@ static float frame_skip;
 static float min_refresh_period;
 /** @brief Rounded minimum refresh period as requested by #display_set_fps_limit */
 static float min_refresh_period_rounded;
+/** @brief True if we are applying the workaround for the VI bug on 320x16-bit unfiltered mode */
+static bool vi_bug_workaround = false;
 
 /** @brief State for the Kalman filter */
 typedef struct {
@@ -188,7 +190,10 @@ static void __display_callback(void *arg)
         update_fps(newframe);
     }
 
+    vi_write_begin();
     vi_show(&surfaces[now_showing]);
+    if ( vi_bug_workaround ) vi_write(VI_X_SCALE, 0x201);
+    vi_write_end();
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -353,7 +358,9 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     vi_show(&surfaces[0]);
 
     /* Workaround for VI bug */
-    if ( res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED )
+    vi_bug_workaround = ( res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED );
+
+    if (vi_bug_workaround)
     {
         /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
            and resampling is disabled (see vi.c for this). HSTART < 128 is the
