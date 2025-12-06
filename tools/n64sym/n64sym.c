@@ -82,6 +82,9 @@ void w_signed_varint(uint8_t **buf, int32_t val)
 // Used to compress strings in the symbol table
 struct gl_map { char *key; int value; };
 
+// Map for address whitelist (uint32_t -> int)
+struct addr_map { uint32_t key; int value; };
+
 // Symbol table entry
 struct symtable_s {
     uint32_t uuid;
@@ -238,8 +241,36 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
     getline(&line_buf, &line_buf_size, addr2line_r);
 }
 
+void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
+{
+    char *cmd = NULL;
+    asprintf(&cmd, "%sobjdump -t %s", gccprefix_triplet, elf);
+    verbose("Running: %s\n", cmd);
+    FILE *f = popen(cmd, "r");
+    if (!f) {
+        fprintf(stderr, "Error: cannot run: %s\n", cmd);
+        exit(1);
+    }
+
+    char *line = NULL; size_t line_size = 0;
+    while (getline(&line, &line_size, f) != -1) {
+        // Look for lines that contain " F " (function symbol)
+        if (strstr(line, " F ")) {
+            uint32_t addr = strtoul(line, NULL, 16);
+            stbds_hmput(*all_functions, addr, 1);
+        }
+    }
+    free(line);
+    free(cmd);
+    pclose(f);
+}
+
 bool elf_find_callsites(const char *elf)
 {
+    struct addr_map *all_functions = NULL;
+    elf_read_function_symbols(elf, &all_functions);
+    verbose("Found %d function symbols\n", stbds_hmlen(all_functions));
+
     // Start objdump to parse the disassembly of the ELF file
     char *cmd = NULL;
     asprintf(&cmd, "%sobjdump -d %s", gccprefix_triplet, elf);
@@ -253,10 +284,13 @@ bool elf_find_callsites(const char *elf)
     // Parse the disassembly
     char *line = NULL; size_t line_size = 0;
     while (getline(&line, &line_size, disasm) != -1) {
-        // Find the functions
+        // Find the functions: use the all_functions whitelist to skip symbols
+        // which are not functions in the text segment.
         if (strstr(line, ">:")) {
             uint32_t addr = strtoul(line, NULL, 16);
-            symbol_add(elf, addr, true);
+            if (stbds_hmgeti(all_functions, addr) >= 0) {
+                symbol_add(elf, addr, true);
+            }
         }
         // Find the callsites
         if (strstr(line, "\tjal\t") || strstr(line, "\tjalr\t") || strstr(line, "\tsyscall")) {
@@ -266,6 +300,7 @@ bool elf_find_callsites(const char *elf)
     }
     free(line);
     free(cmd);
+    stbds_hmfree(all_functions);
     int status = pclose(disasm);
 #ifdef __MINGW32__
     return status == 0;
