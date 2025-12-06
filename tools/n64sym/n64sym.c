@@ -93,6 +93,45 @@ struct symtable_s {
     bool is_func, is_inline;
 } *symtable = NULL;
 
+// Truncate a path ensuring it fits in max_len and possibly preserves the
+// directory structure suffix (by cutting at a separator). This is useful
+// as strings are compressed using a prefix-based algorithm.
+char *truncate_path(const char *path, int len, int max_len) {
+    if (len <= max_len)
+        return strndup(path, len);
+
+    int suffix_limit = max_len - 3;
+    int offset = len - suffix_limit;
+    
+    // Find the first separator after offset (or at offset)
+    const char *sep = NULL;
+    for (int k = offset; k < len; k++) {
+        if (path[k] == '/' || path[k] == '\\') {
+            sep = path + k;
+            break;
+        }
+    }
+    
+    int suffix_len;
+    const char *suffix_src;
+    
+    if (sep) {
+        // Found a separator, use it as start of suffix
+        suffix_len = (path + len) - sep;
+        suffix_src = sep;
+    } else {
+        // No separator found in the valid range, truncate arbitrarily
+        suffix_len = suffix_limit;
+        suffix_src = path + offset;
+    }
+    
+    char *file = malloc(3 + suffix_len + 1);
+    strcpy(file, "...");
+    memcpy(file + 3, suffix_src, suffix_len);
+    file[3 + suffix_len] = 0;
+    return file;
+}
+
 void symbol_add(const char *elf, uint32_t addr, bool is_func)
 {
     // We keep one addr2line process open for the last ELF file we processed.
@@ -172,18 +211,10 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         char *colon = strrchr(line_buf, ':');
         
         // Filename must fit into max_len too (so both the maximum length requested by the user,
-        // and the buffer size). If we need to truncate the filename, elide the prefix until we fit.
+        // and the buffer size). If we need to truncate the filename, try to find a directory
+        // separator so that we keep a valid path suffix.
         int file_len = colon - line_buf;
-        char *file;
-        if (file_len > max_len) {
-            file = malloc(max_len + 1);
-            strcpy(file, "...");
-            int suffix_len = max_len - 3;
-            memcpy(file + 3, line_buf + (file_len - suffix_len), suffix_len);
-            file[max_len] = 0;
-        } else {
-            file = strndup(line_buf, file_len);
-        }
+        char *file = truncate_path(line_buf, file_len, max_len);
         int line = atoi(colon + 1);
 
         // Add the callsite to the list
