@@ -102,12 +102,13 @@ dumpdfs_OBJS = dumpdfs/dumpdfs.o
 cpaktool_OBJS = cpaktool/cpaktool.o cpaktool/cpakcmds.o cpaktool/cpaklib.o cpaktool/cpakwrapper.o
 n64tool_OBJS = n64tool.o
 n64sym_OBJS = n64sym/n64sym.o n64sym/n64sym_huffman.o
+n64symdump_OBJS = n64sym/n64symdump.o
 n64metadata_OBJS = n64metadata.o
 ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
 
-TOOLS = n64tool n64metadata n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr cpaktool
+TOOLS = n64tool n64metadata n64sym n64symdump n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr cpaktool
 
 # Define a variable that has value ".exe" when building on Windows
 # Alo
@@ -145,7 +146,7 @@ $(foreach tool,$(TOOLS),$(eval $(call TOOL_template,$(tool))))
 all: $(TOOLS)
 install: $(foreach tool,$(TOOLS),$(tool)-install)
 clean: $(foreach tool,$(TOOLS),$(tool)-clean) common-clean
-	rm -f ${n64tool_OBJS} ${n64metadata_OBJS} ${n64sym_OBJS} ${ed64romconfig_OBJS} 
+	rm -f ${n64tool_OBJS} ${n64metadata_OBJS} ${n64sym_OBJS} ${n64symdump_OBJS} ${ed64romconfig_OBJS} 
 .PHONY: all install clean
 
 ifneq ($(V),1)
