@@ -126,7 +126,7 @@ char* __symbolize(void *vaddr, char *buf, int size)
         if (symt_find_symbol(&symt, addr, &entry)) {
             char *func = symt_get_func_name(&symt, &entry, addr, buf, size-12);
             char lbuf[12];
-            snprintf(lbuf, sizeof(lbuf), "+0x%x", entry.func_off);
+            snprintf(lbuf, sizeof(lbuf), "+0x%lx", entry.func_off);
             return strcat(func, lbuf);
         }
     }

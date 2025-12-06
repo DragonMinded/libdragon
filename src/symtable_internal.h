@@ -48,8 +48,8 @@ typedef struct {
 typedef struct {
     uint32_t func_sidx;     ///< Index of the function name in the string table
     uint32_t file_sidx;     ///< Index of the file name in the string table
-    uint16_t line;          ///< Line number (or 0 if this symbol generically refers to a whole function)
-    uint16_t func_off;      ///< Offset of the symbol within its function
+    uint32_t line;           ///< Line number (or 0 if this symbol generically refers to a whole function)
+    uint32_t func_off;       ///< Offset of the symbol within its function
 } symtable_entry_t;
 
 /** 
