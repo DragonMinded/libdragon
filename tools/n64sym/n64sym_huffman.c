@@ -286,17 +286,21 @@ void write_huff_header(CanonicalTables *ct, uint8_t **blob) {
     // (which only contains symbols with length > 6)
     int symbol_offset = ct->first_symbol[start_len <= ct->max_len ? start_len : ct->max_len + 1];
     
+    int total_symbols = 0;
+    for (int k=1; k<table_len; k++) total_symbols += ct->num_symbols[k];
+    
+    int stored_symbols = total_symbols - symbol_offset;
     for (int k=start_len; k<table_len; k++) {
         int adjusted = ct->first_symbol[k] - symbol_offset;
         stbds_arrput(*blob, (adjusted >> 8) & 0xFF);
         stbds_arrput(*blob, adjusted & 0xFF);
     }
+    // Extra terminal entry with total number of stored symbols
+    int adjusted_total = stored_symbols;
+    stbds_arrput(*blob, (adjusted_total >> 8) & 0xFF);
+    stbds_arrput(*blob, adjusted_total & 0xFF);
     
     // Symbols (only those with length > 6)
-    int total_symbols = 0;
-    for (int k=1; k<table_len; k++) total_symbols += ct->num_symbols[k];
-    
-    int stored_symbols = total_symbols - symbol_offset;
     for (int k=0; k<stored_symbols; k++) {
         stbds_arrput(*blob, ct->symbols[symbol_offset + k]);
     }

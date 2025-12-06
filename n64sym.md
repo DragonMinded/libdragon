@@ -79,7 +79,7 @@ Contains the shared Canonical Huffman Table used to decompress string suffixes i
 *   `Padding` (1 byte): Zeros.
 *   `LUT` (128 bytes): 64-entry Lookup Table for fast decoding of codes <= 6 bits. Each entry is `Symbol` (1 byte) + `Len` (1 byte).
 *   `FirstCode` (array of uint16): First canonical code for each length (7..MaxLen).
-*   `FirstSymbol` (array of uint16): Index of the first symbol for each length (7..MaxLen), relative to the start of the symbols array.
+*   `FirstSymbol` (array of uint16): Index of the first symbol for each length (7..MaxLen), relative to the start of the symbols array, plus an extra terminal entry equal to the total number of stored symbols (len >= 6).
 *   `Symbols` (array of uint8): The alphabet symbols with code length > 6, sorted by code length then lexicographically. Codes with length <= 6 are fully covered by the LUT and are not stored here.
 
 **Notes:**

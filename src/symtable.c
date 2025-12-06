@@ -271,7 +271,6 @@ typedef struct {
     uint8_t *symbols;
     int max_len;
     int len_count;
-    int symbol_count;
 } HuffDecoder;
 
 static void huff_decoder_init(HuffDecoder *dec, uint8_t *table_buf, uint32_t table_size) {
@@ -283,14 +282,13 @@ static void huff_decoder_init(HuffDecoder *dec, uint8_t *table_buf, uint32_t tab
     
     if (dec->len_count > 0) {
         dec->first_code = (uint16_t*)ptr; ptr += dec->len_count * 2;
-        dec->first_symbol = (uint16_t*)ptr; ptr += dec->len_count * 2;
+        // first_symbol has one extra terminal entry containing total symbols
+        dec->first_symbol = (uint16_t*)ptr; ptr += (dec->len_count + 1) * 2;
     } else {
         dec->first_code = NULL;
         dec->first_symbol = NULL;
     }
     dec->symbols = ptr;
-    uint32_t header_size = ptr - table_buf;
-    dec->symbol_count = (table_size > header_size) ? (table_size - header_size) : 0;
 }
 
 static int huff_decode_symbol(HuffDecoder *dec, BitReader *br) {
@@ -312,8 +310,7 @@ static int huff_decode_symbol(HuffDecoder *dec, BitReader *br) {
         
         uint16_t fc = dec->first_code[idx];
         uint16_t fs = dec->first_symbol[idx];
-        uint16_t next_fs = (idx + 1 < dec->len_count) ? dec->first_symbol[idx + 1] : dec->symbol_count;
-        uint16_t count = next_fs - fs;
+        uint16_t count = dec->first_symbol[idx + 1] - fs;
         
         if (code < fc + count) {
             br_skip_bits(br, len);
