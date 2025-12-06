@@ -461,12 +461,12 @@ void compress_strings(char **strings, huff_code_t *huff_table, CanonicalTables *
 // The symbols must be sorted by address. The stream is divided into independent chunks
 // that fit into MAX_BUFFER_SIZE. A separate index tracks the start address and
 // stream offset of each chunk for random access.
-void compress_symbols(
+int compress_symbols(
     struct symtable_s *symtable, int nsyms,
     struct gl_map *file_map, struct gl_map *func_map,
     uint8_t **stream, uint32_t **chunk_index)
 {
-    if (nsyms == 0) return;
+    if (nsyms == 0) return 0;
 
     // Temp buffer for current chunk
     uint8_t *chunk_buf = NULL;
@@ -483,6 +483,8 @@ void compress_symbols(
     uint32_t chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
     w_varint(&chunk_buf, chunk_func_off);
     
+    int emitted = 0;
+
     for (int i=0; i<nsyms; i++) {
         struct symtable_s *sym = &symtable[i];
         struct symtable_s *prev_sym = i > 0 ? &symtable[i-1] : NULL;
@@ -568,6 +570,8 @@ void compress_symbols(
         if (delta_func != 0) w_signed_varint(&chunk_buf, delta_func);
         if (delta_line != 0) w_signed_varint(&chunk_buf, delta_line);
         if (has_addr_param)  w_varint(&chunk_buf, addr_param);
+
+        emitted++;
         
         state_addr = sym->addr;
         state_file = file_idx;
@@ -593,6 +597,7 @@ void compress_symbols(
     }
 
     stbds_arrfree(chunk_buf);
+    return emitted;
 }
 
 void write_sym_file(const char *outfn, 
@@ -759,7 +764,7 @@ void process(const char *infn, const char *outfn)
     uint8_t *stream = NULL;
     uint32_t *chunk_index = NULL; // Stores (start_addr, offset) pairs    
     verbose("Compressing symbols...\n");
-    compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &stream, &chunk_index);
+    int num_emitted = compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &stream, &chunk_index);
     
     verbose("Stats:\n");
     verbose("  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
@@ -771,7 +776,7 @@ void process(const char *infn, const char *outfn)
     verbose("  Stream: %zu bytes\n", stbds_arrlen(stream));
 
     write_sym_file(outfn, 
-        stbds_arrlen(symtable), stbds_arrlen(chunk_index)/2, chunk_index,
+        num_emitted, stbds_arrlen(chunk_index)/2, chunk_index,
         file_offsets, file_blob,
         func_offsets, func_blob,
         huff_blob,
