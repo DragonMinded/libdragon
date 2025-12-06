@@ -254,8 +254,11 @@ void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
 
     char *line = NULL; size_t line_size = 0;
     while (getline(&line, &line_size, f) != -1) {
-        // Look for lines that contain " F " (function symbol)
-        if (strstr(line, " F ")) {
+        // Work with opt-out logic rather than opt-in because it is common eg.
+        // for assembly functions not to be marked as such in debug symbols.
+        // What we absolutely need to filter out is data symbols (objects as they
+        // could not even be 4-byte aligned.
+        if (!strstr(line, " O ")) {
             uint32_t addr = strtoul(line, NULL, 16);
             stbds_hmput(*all_functions, addr, 1);
         }
