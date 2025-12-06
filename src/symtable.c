@@ -387,10 +387,8 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     
     int target_in_block = idx - entry_start_idx;
     
-    // Buffer to hold current string state (front coding context)
-    char cur_str[MAX_BUFFER_SIZE] __attribute__((uninitialized));
-    cur_str[0] = 0;
-
+    // Reuse the caller-provided buffer as the rolling front-coding buffer.
+    buf[0] = 0;
     int cur_len = 0;
     int prev_prefix_len = 0;
     for (int i=0; i <= target_in_block; i++) {
@@ -402,20 +400,19 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
         // Safety checks. We can't really assert here (as the assert would trigger this code again)
         // so better make sure we don't cause buffer overflows in case of corruption.
         if (prefix_len > cur_len) prefix_len = cur_len;
-        if (prefix_len >= MAX_BUFFER_SIZE-1) prefix_len = MAX_BUFFER_SIZE - 2;
+        if (prefix_len >= size-1) prefix_len = size - 2;
         
-            // Decode suffix characters until \0 (or error)
+        // Decode suffix characters until \0 (or error)
         cur_len = prefix_len;
         int sym;
         while ((sym = huff_decode_symbol(&dec, &br)) > 0) {            
-            if (cur_len < MAX_BUFFER_SIZE - 1) {
-                cur_str[cur_len++] = (char)sym;
+            if (cur_len < size - 1) {
+                buf[cur_len++] = (char)sym;
             }
         }
-        cur_str[cur_len] = 0;
+        buf[cur_len] = 0;
     }
     
-    snprintf(buf, size, "%s", cur_str);
     return buf;
 }
 
