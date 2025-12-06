@@ -7,7 +7,10 @@
     This is free and unencumbered software released into the public domain.
     For more information, please refer to <http://unlicense.org/>
  */
- #include <stdio.h>
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
