@@ -469,12 +469,17 @@ void compress_symbols(
     // Temp buffer for current chunk
     uint8_t *chunk_buf = NULL;
     uint32_t chunk_start_addr = symtable[0].addr;
+    uint32_t last_func_addr = symtable[0].is_func ? symtable[0].addr : 0;
     
     // State machine
     uint32_t state_addr = chunk_start_addr;
     int state_file = 0;
     int state_func = 0;
     int state_line = 0;
+
+    // Write per-chunk header: func offset of first symbol (VarInt)
+    uint32_t chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
+    w_varint(&chunk_buf, chunk_func_off);
     
     for (int i=0; i<nsyms; i++) {
         struct symtable_s *sym = &symtable[i];
@@ -524,6 +529,8 @@ void compress_symbols(
             state_file = 0;
             state_func = 0;
             state_line = 0;
+            chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
+            w_varint(&chunk_buf, chunk_func_off);
         }
         
         // Calculate deltas
@@ -564,6 +571,9 @@ void compress_symbols(
         state_file = file_idx;
         state_func = func_idx;
         state_line = sym->line;
+
+        if (sym->is_func)
+            last_func_addr = sym->addr;
     }
     
     // Flush final chunk

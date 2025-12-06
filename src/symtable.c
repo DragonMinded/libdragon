@@ -148,6 +148,12 @@
  * Contains the symbol data. This is a continuous stream of bytes divided into Chunks (as defined in
  * the Chunk Index). Each Chunk can be decompressed independently.
  *
+ * **Chunk Layout:**
+ * * `FirstFuncOff` (VarInt): Offset of the first symbol in the chunk relative to the start of its
+ *   function. If 0, the chunk starts exactly at a function boundary or the function base is unknown.
+ * * Opcodes sequence (see below).
+ * * `0x00` end-of-chunk marker, padded to 2-byte alignment.
+ *
  * Inside a Chunk, symbols are stored sequentially using **Delta Encoding** relative to the previous
  * symbol's state. The state consists of:
  * * `CurrentAddress` (Initialized to `chunk.start_addr`)
@@ -407,6 +413,8 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
     dma_read(chunk_buf, stream_addr, MAX_BUFFER_SIZE);
     
     uint8_t *ptr = chunk_buf;
+    // First field: function offset of the first symbol in chunk (VarInt)
+    uint32_t chunk_func_off = read_varint(&ptr);
     
     // Iterate through symbols in the chunk
     uint32_t cur_addr = chunk_start_addr;
@@ -414,7 +422,7 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
     int cur_func = 0;
     int cur_line = 0;
     
-    uint32_t last_func_addr = 0;
+    uint32_t last_func_addr = chunk_func_off ? (chunk_start_addr - chunk_func_off) : 0;
     bool found = false;
     
     while (1) {
@@ -450,8 +458,7 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
         entry->func_sidx = cur_func;
         entry->file_sidx = cur_file;
         entry->line = cur_line;
-        // Estimate func_off. If we saw a function start, use it.
-        // Otherwise, use 0 (or we could try to handle it better, but V3 limitation).
+        // Calculate func_off. 
         if (last_func_addr)
             entry->func_off = addr - last_func_addr;
         else
