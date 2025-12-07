@@ -39,8 +39,10 @@
  *     uint32_t stream_off;     // Compressed Symbol Stream
  *     
  *     // Size of sections (useful for bounds checking)
- *     uint32_t num_files;      // Number of file blocks
- *     uint32_t num_funcs;      // Number of func blocks
+ *     uint32_t num_files;      // Total number of file strings
+ *     uint32_t num_funcs;      // Total Number of func strings
+ *     uint32_t num_file_blocks; // Number of file blocks
+ *     uint32_t num_func_blocks; // Number of func blocks
  *     uint32_t huff_tab_size;  // Size of Huffman table in bytes
  *     uint32_t file_blob_size; // Size of file blob in bytes
  *     uint32_t func_blob_size; // Size of func blob in bytes
@@ -79,7 +81,7 @@
  * Strings are organized in compressed blocks of variable size. To find a string with ID `N`, we
  * perform a binary search on this index to find the block containing `N`.
  *
- * The structure is an array of `num_files` (or `num_funcs`) entries:
+ * The structure is an array of `num_file_blocks` (or `num_func_blocks`) entries:
  *
  * ```c
  * typedef struct {
@@ -582,7 +584,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
 
     uint32_t tab_off = is_func ? symt->func_tab_off : symt->file_tab_off;
     uint32_t blob_off = is_func ? symt->func_blob_off : symt->file_blob_off;
-    int num_blocks = is_func ? symt->num_funcs : symt->num_files;
+    int num_blocks = is_func ? symt->num_func_blocks : symt->num_file_blocks;
     
     // Binary search for the block
     int min = 0;

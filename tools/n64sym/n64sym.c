@@ -601,7 +601,7 @@ int compress_symbols(
 }
 
 void write_sym_file(const char *outfn, 
-    int num_symbols, int num_chunks,
+    int num_symbols, int num_chunks, int num_files, int num_funcs,
     uint32_t *chunk_index,
     uint32_t *file_offsets, uint8_t *file_blob,
     uint32_t *func_offsets, uint8_t *func_blob,
@@ -630,6 +630,8 @@ void write_sym_file(const char *outfn,
     int stream_off_ph = w32_placeholder(out);
     
     // Sizes
+    w32(out, num_files);
+    w32(out, num_funcs);
     w32(out, stbds_arrlen(file_offsets) / 2);
     w32(out, stbds_arrlen(func_offsets) / 2);
     w32(out, stbds_arrlen(huff_blob));
@@ -776,7 +778,9 @@ void process(const char *infn, const char *outfn)
     verbose("  Stream: %zu bytes\n", stbds_arrlen(stream));
 
     write_sym_file(outfn, 
-        num_emitted, stbds_arrlen(chunk_index)/2, chunk_index,
+        num_emitted,  stbds_arrlen(chunk_index)/2, 
+        stbds_arrlen(unique_files), stbds_arrlen(unique_funcs), 
+        chunk_index,
         file_offsets, file_blob,
         func_offsets, func_blob,
         huff_blob,

@@ -35,8 +35,10 @@ typedef struct {
     uint32_t file_blob_off;
     uint32_t func_blob_off;
     uint32_t stream_off;
-    uint32_t num_files;      // number of file blocks
-    uint32_t num_funcs;      // number of func blocks
+    uint32_t num_files;
+    uint32_t num_funcs;
+    uint32_t num_file_blocks;
+    uint32_t num_func_blocks;
     uint32_t huff_tab_size;
     uint32_t file_blob_size;
     uint32_t func_blob_size;
@@ -93,7 +95,7 @@ static void read_exact(FILE *f, void *buf, size_t len, const char *what) {
 }
 
 static symt_header_t read_header(FILE *f) {
-    enum { SYMT_HEADER_BYTES = 4 + 4 * 16 };
+    enum { SYMT_HEADER_BYTES = 4 + 4 * 18 };
     uint8_t raw[SYMT_HEADER_BYTES];
     read_exact(f, raw, sizeof(raw), "header");
     symt_header_t h = {0};
@@ -110,10 +112,12 @@ static symt_header_t read_header(FILE *f) {
     h.stream_off    = be32(raw + 40);
     h.num_files     = be32(raw + 44);
     h.num_funcs     = be32(raw + 48);
-    h.huff_tab_size = be32(raw + 52);
-    h.file_blob_size= be32(raw + 56);
-    h.func_blob_size= be32(raw + 60);
-    h.stream_size   = be32(raw + 64);
+    h.num_file_blocks = be32(raw + 52);
+    h.num_func_blocks = be32(raw + 56);
+    h.huff_tab_size = be32(raw + 60);
+    h.file_blob_size= be32(raw + 64);
+    h.func_blob_size= be32(raw + 68);
+    h.stream_size   = be32(raw + 72);
     return h;
 }
 
@@ -130,8 +134,8 @@ static void print_header(symt_header_t *h) {
     printf("file_blob_off: %u (size %u)\n", h->file_blob_off, h->file_blob_size);
     printf("func_blob_off: %u (size %u)\n", h->func_blob_off, h->func_blob_size);
     printf("stream_off   : %u (size %u)\n", h->stream_off, h->stream_size);
-    printf("num_files    : %u blocks\n", h->num_files);
-    printf("num_funcs    : %u blocks\n", h->num_funcs);
+    printf("num_files    : %u (%u blocks)\n", h->num_files, h->num_file_blocks);
+    printf("num_funcs    : %u (%u blocks)\n", h->num_funcs, h->num_func_blocks);
     printf("huff_tab_size: %u bytes\n", h->huff_tab_size);
     printf("\n");
 }
@@ -261,7 +265,6 @@ static void br_init(bit_reader_t *br, const uint8_t *buf, size_t len) {
 static int br_peek_bits(bit_reader_t *br, int n) {
     if (n == 0) return 0;
     if (br->bits_in_cache < n) br_fill(br);
-    if (br->bits_in_cache < n) return -1;
     return (int)(br->cache >> (32 - n));
 }
 
@@ -338,17 +341,14 @@ static int32_t read_signed_varint(const uint8_t **p, const uint8_t *end) {
     return (val >> 1) ^ -(val & 1);
 }
 
-static void decode_string_block(const uint8_t *data, size_t len, int count_hint, huff_decoder_t *dec, char ***out) {
+static void decode_string_block(const uint8_t *data, size_t len, int count, huff_decoder_t *dec, char ***out) {
     bit_reader_t br;
     br_init(&br, data, len);
     char cur[MAX_BUFFER_SIZE];
     cur[0] = 0;
     int cur_len = 0;
     int prev_prefix = 0;
-    int produced = 0;
-    size_t total_bits = len * 8;
-    while ((count_hint < 0 && br.bits_consumed < total_bits) ||
-           (count_hint >= 0 && produced < count_hint)) {
+    for (int i = 0; i < count; i++) {
         int32_t prefix_delta = read_exp_golomb_signed(&br);
         int prefix_len = prev_prefix + prefix_delta;
         if (prefix_len < 0) prefix_len = 0;
@@ -363,15 +363,11 @@ static void decode_string_block(const uint8_t *data, size_t len, int count_hint,
         }
         cur[cur_len] = 0;
         stbds_arrput(*out, strdup(cur));
-        produced++;
         prev_prefix = prefix_len;
-
-        if (count_hint < 0 && br.bits_consumed >= total_bits)
-            break;
     }
 }
 
-static char **decode_strings(FILE *f, string_index_entry_t *idx, uint32_t blob_off, uint32_t blob_size, huff_decoder_t *dec, const char *title) {
+static char **decode_strings(FILE *f, int count, string_index_entry_t *idx, uint32_t blob_off, uint32_t blob_size, huff_decoder_t *dec, const char *title) {
     char **out = NULL;
     printf("=== %s Strings ===\n", title);
     for (int i = 0; i < stbds_arrlen(idx); i++) {
@@ -382,11 +378,12 @@ static char **decode_strings(FILE *f, string_index_entry_t *idx, uint32_t blob_o
         fseek(f, blob_off + start, SEEK_SET);
         read_exact(f, buf, sz, "string block");
 
-        int count_hint = -1;
+        int num_strings;
         if (i + 1 < stbds_arrlen(idx))
-            count_hint = idx[i + 1].start_idx - idx[i].start_idx;
-
-        decode_string_block(buf, sz, count_hint, dec, &out);
+            num_strings = idx[i + 1].start_idx - idx[i].start_idx;
+        else
+            num_strings = count - idx[i].start_idx;
+        decode_string_block(buf, sz, num_strings, dec, &out);
         free(buf);
     }
     for (int i = 0; i < stbds_arrlen(out); i++) {
@@ -488,8 +485,8 @@ int main(int argc, char **argv) {
 
     print_header(&h);
     chunk_index_entry_t *chunks = read_chunk_index(f, &h);
-    string_index_entry_t *file_idx = read_string_index(f, h.file_tab_off, h.num_files, "file index");
-    string_index_entry_t *func_idx = read_string_index(f, h.func_tab_off, h.num_funcs, "func index");
+    string_index_entry_t *file_idx = read_string_index(f, h.file_tab_off, h.num_file_blocks, "file index");
+    string_index_entry_t *func_idx = read_string_index(f, h.func_tab_off, h.num_func_blocks, "func index");
 
     print_chunk_index(chunks);
     print_string_index("File", file_idx, h.file_blob_size);
@@ -504,8 +501,8 @@ int main(int argc, char **argv) {
     print_huff_table(&dec);
 
     // Decode string tables
-    char **file_strings = decode_strings(f, file_idx, h.file_blob_off, h.file_blob_size, &dec, "File");
-    char **func_strings = decode_strings(f, func_idx, h.func_blob_off, h.func_blob_size, &dec, "Func");
+    char **file_strings = decode_strings(f, h.num_files, file_idx, h.file_blob_off, h.file_blob_size, &dec, "File");
+    char **func_strings = decode_strings(f, h.num_funcs, func_idx, h.func_blob_off, h.func_blob_size, &dec, "Func");
 
     // Decode symbols
     dump_symbols(f, &h, chunks, file_strings, func_strings);

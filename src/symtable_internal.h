@@ -36,8 +36,10 @@ typedef struct {
     uint32_t stream_off;     ///< Offset of the compressed symbol stream
     
     // Size of sections (useful for bounds checking)
-    uint32_t num_files;      ///< Number of file blocks
-    uint32_t num_funcs;      ///< Number of func blocks
+    uint32_t num_files;      ///< Total number of file strings
+    uint32_t num_funcs;      ///< Total Number of func strings
+    uint32_t num_file_blocks;      ///< Number of file blocks
+    uint32_t num_func_blocks;      ///< Number of func blocks
     uint32_t huff_tab_size;  ///< Size of Huffman table in bytes
     uint32_t file_blob_size; ///< Size of file blob in bytes
     uint32_t func_blob_size; ///< Size of func blob in bytes
