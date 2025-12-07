@@ -7,8 +7,8 @@
     This is free and unencumbered software released into the public domain.
     For more information, please refer to <http://unlicense.org/>
 */
-#ifndef N64SYM_H
-#define N64SYM_H
+#ifndef N64SYM_HUFFMAN_H
+#define N64SYM_HUFFMAN_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -60,11 +60,40 @@ void bw_write_exp_golomb(BitWriter *bw, uint32_t val);
 int exp_golomb_len(uint32_t val);
 uint32_t zigzag_encode(int32_t val);
 
-// Huffman
+// BitReader
+typedef struct {
+    const uint8_t *buf;
+    size_t len;
+    size_t byte_pos;
+    uint32_t cache;
+    int bits_in_cache;
+    size_t bits_consumed;
+} BitReader;
+
+void br_init(BitReader *br, const uint8_t *buf, size_t len);
+int br_peek_bits(BitReader *br, int n);
+int br_read_bits(BitReader *br, int n);
+void br_skip_bits(BitReader *br, int n);
+int32_t read_exp_golomb_signed(BitReader *br);
+
+// Huffman Decoder
+typedef struct {
+    Lut64Entry lut[64];
+    uint16_t first_code[HUFF_MAX_CODE_LEN + 1];
+    uint16_t first_symbol[HUFF_MAX_CODE_LEN + 2]; // +1 for terminal entry
+    uint8_t *symbols;
+    int max_len;
+    int len_count;
+    int symbols_len;
+} huff_decoder_t;
+
+void huff_decoder_init(huff_decoder_t *dec, uint8_t *buf, uint32_t size);
+int huff_decode_symbol(huff_decoder_t *dec, BitReader *br);
+
+// Huffman construction
 void collect_string_freqs(char **strings, int *char_freqs);
 void build_limited_huffman_tree(int *freqs, int limit, huff_code_t *table);
 void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct);
 void write_huff_header(CanonicalTables *ct, uint8_t **blob);
 
 #endif
-

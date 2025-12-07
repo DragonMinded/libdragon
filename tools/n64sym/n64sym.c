@@ -23,7 +23,7 @@
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/binout.h"
-#include "n64sym.h"
+#include "n64sym_huffman.h"
 
 #include "../common/binout.c"
 

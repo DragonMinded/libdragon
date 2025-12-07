@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "n64sym.h"
+#include "n64sym_huffman.h"
 #include "../common/utils.h"
 
 void bw_init(BitWriter *bw) {
@@ -309,3 +309,110 @@ void write_huff_header(CanonicalTables *ct, uint8_t **blob) {
     }
 }
 
+
+static uint16_t be16(const uint8_t *p) {
+    return (uint16_t)(p[0] << 8 | p[1]);
+}
+
+static void br_fill(BitReader *br) {
+    while (br->bits_in_cache <= 24 && br->byte_pos < br->len) {
+        br->cache |= (uint32_t)br->buf[br->byte_pos++] << (24 - br->bits_in_cache);
+        br->bits_in_cache += 8;
+    }
+}
+
+void br_init(BitReader *br, const uint8_t *buf, size_t len) {
+    br->buf = buf;
+    br->len = len;
+    br->byte_pos = 0;
+    br->cache = 0;
+    br->bits_in_cache = 0;
+    br->bits_consumed = 0;
+    br_fill(br);
+}
+
+int br_peek_bits(BitReader *br, int n) {
+    if (n == 0) return 0;
+    if (br->bits_in_cache < n) br_fill(br);
+    return (int)(br->cache >> (32 - n));
+}
+
+int br_read_bits(BitReader *br, int n) {
+    int v = br_peek_bits(br, n);
+    if (v < 0) return -1;
+    br->cache <<= n;
+    br->bits_in_cache -= n;
+    br->bits_consumed += n;
+    return v;
+}
+
+void br_skip_bits(BitReader *br, int n) {
+    br_read_bits(br, n);
+}
+
+int32_t read_exp_golomb_signed(BitReader *br) {
+    int zero_bits = 0;
+    while (true) {
+        int bit = br_peek_bits(br, 1);
+        if (bit < 0) return 0;
+        if (bit != 0) break;
+        br_skip_bits(br, 1);
+        zero_bits++;
+    }
+    uint32_t val = (uint32_t)br_read_bits(br, zero_bits + 1);
+    if ((int)val < 0) return 0;
+    val -= 1;
+    return (val >> 1) ^ -(val & 1);
+}
+
+void huff_decoder_init(huff_decoder_t *dec, uint8_t *buf, uint32_t size) {
+    dec->max_len = buf[0];
+    dec->len_count = dec->max_len >= 7 ? dec->max_len - 6 : 0;
+    const uint8_t *ptr = buf + 2;
+    for (int i = 0; i < 64; i++) {
+        dec->lut[i].symbol = ptr[0];
+        dec->lut[i].len = ptr[1];
+        ptr += 2;
+    }
+    memset(dec->first_code, 0, sizeof(dec->first_code));
+    memset(dec->first_symbol, 0, sizeof(dec->first_symbol));
+    if (dec->len_count > 0) {
+        for (int i = 0; i < dec->len_count; i++) {
+            dec->first_code[7 + i] = be16(ptr); ptr += 2;
+        }
+        for (int i = 0; i < dec->len_count + 1; i++) {
+            dec->first_symbol[7 + i] = be16(ptr); ptr += 2;
+        }
+        dec->symbols_len = dec->first_symbol[7 + dec->len_count];
+    } else {
+        dec->symbols_len = 0;
+    }
+    dec->symbols = (uint8_t*)ptr;
+    (void)size;
+}
+
+int huff_decode_symbol(huff_decoder_t *dec, BitReader *br) {
+    int peek16 = br_peek_bits(br, 16);
+    if (peek16 < 0) return -1;
+    int peek6 = peek16 >> 10;
+    int len = dec->lut[peek6].len;
+    if (len > 0) {
+        br_skip_bits(br, len);
+        return dec->lut[peek6].symbol;
+    }
+    for (int idx = 0; idx < dec->len_count; idx++) {
+        len = 7 + idx;
+        int code = peek16 >> (16 - len);
+        uint16_t fc = dec->first_code[len];
+        uint16_t fs = dec->first_symbol[len];
+        uint16_t count = dec->first_symbol[len + 1] - fs;
+        if (code < fc + count) {
+            br_skip_bits(br, len);
+            int sym_idx = fs + (code - fc);
+            if (sym_idx < dec->symbols_len)
+                return dec->symbols[sym_idx];
+            return -1;
+        }
+    }
+    return -1;
+}

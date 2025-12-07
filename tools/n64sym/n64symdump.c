@@ -15,13 +15,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "n64sym_huffman.h"
 
 #define STBDS_NO_SHORT_NAMES
 #define STB_DS_IMPLEMENTATION
 #include "../common/stb_ds.h"
 
 #define MAX_BUFFER_SIZE 512
-#define HUFF_MAX_CODE_LEN 16
 
 typedef struct {
     char head[4];
@@ -54,34 +54,6 @@ typedef struct {
     uint32_t start_idx;
     uint32_t blob_off;
 } string_index_entry_t;
-
-typedef struct {
-    uint8_t symbol;
-    uint8_t len;
-} huff_lut_t;
-
-typedef struct {
-    huff_lut_t lut[64];
-    uint16_t first_code[HUFF_MAX_CODE_LEN + 1];
-    uint16_t first_symbol[HUFF_MAX_CODE_LEN + 2]; // +1 for terminal entry
-    uint8_t *symbols;
-    int max_len;
-    int len_count;
-    int symbols_len;
-} huff_decoder_t;
-
-typedef struct {
-    const uint8_t *buf;
-    size_t len;
-    size_t byte_pos;
-    uint32_t cache;
-    int bits_in_cache;
-    size_t bits_consumed;
-} bit_reader_t;
-
-static uint16_t be16(const uint8_t *p) {
-    return (uint16_t)(p[0] << 8 | p[1]);
-}
 
 static uint32_t be32(const uint8_t *p) {
     return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
@@ -192,32 +164,6 @@ static void print_string_index(const char *title, string_index_entry_t *idx, uin
     printf("\n");
 }
 
-static void huff_decoder_init(huff_decoder_t *dec, uint8_t *buf, uint32_t size) {
-    dec->max_len = buf[0];
-    dec->len_count = dec->max_len >= 7 ? dec->max_len - 6 : 0;
-    const uint8_t *ptr = buf + 2;
-    for (int i = 0; i < 64; i++) {
-        dec->lut[i].symbol = ptr[0];
-        dec->lut[i].len = ptr[1];
-        ptr += 2;
-    }
-    memset(dec->first_code, 0, sizeof(dec->first_code));
-    memset(dec->first_symbol, 0, sizeof(dec->first_symbol));
-    if (dec->len_count > 0) {
-        for (int i = 0; i < dec->len_count; i++) {
-            dec->first_code[7 + i] = be16(ptr); ptr += 2;
-        }
-        for (int i = 0; i < dec->len_count + 1; i++) {
-            dec->first_symbol[7 + i] = be16(ptr); ptr += 2;
-        }
-        dec->symbols_len = dec->first_symbol[7 + dec->len_count];
-    } else {
-        dec->symbols_len = 0;
-    }
-    dec->symbols = (uint8_t*)ptr;
-    (void)size;
-}
-
 static void print_huff_table(huff_decoder_t *dec) {
     printf("=== Huffman Table ===\n");
     printf("max_len: %d\n", dec->max_len);
@@ -245,83 +191,6 @@ static void print_huff_table(huff_decoder_t *dec) {
     printf("\n");
 }
 
-static void br_fill(bit_reader_t *br) {
-    while (br->bits_in_cache <= 24 && br->byte_pos < br->len) {
-        br->cache |= (uint32_t)br->buf[br->byte_pos++] << (24 - br->bits_in_cache);
-        br->bits_in_cache += 8;
-    }
-}
-
-static void br_init(bit_reader_t *br, const uint8_t *buf, size_t len) {
-    br->buf = buf;
-    br->len = len;
-    br->byte_pos = 0;
-    br->cache = 0;
-    br->bits_in_cache = 0;
-    br->bits_consumed = 0;
-    br_fill(br);
-}
-
-static int br_peek_bits(bit_reader_t *br, int n) {
-    if (n == 0) return 0;
-    if (br->bits_in_cache < n) br_fill(br);
-    return (int)(br->cache >> (32 - n));
-}
-
-static int br_read_bits(bit_reader_t *br, int n) {
-    int v = br_peek_bits(br, n);
-    if (v < 0) return -1;
-    br->cache <<= n;
-    br->bits_in_cache -= n;
-    br->bits_consumed += n;
-    return v;
-}
-
-static void br_skip_bits(bit_reader_t *br, int n) {
-    br_read_bits(br, n);
-}
-
-static int32_t read_exp_golomb_signed(bit_reader_t *br) {
-    int zero_bits = 0;
-    while (true) {
-        int bit = br_peek_bits(br, 1);
-        if (bit < 0) return 0;
-        if (bit != 0) break;
-        br_skip_bits(br, 1);
-        zero_bits++;
-    }
-    uint32_t val = (uint32_t)br_read_bits(br, zero_bits + 1);
-    if ((int)val < 0) return 0;
-    val -= 1;
-    return (val >> 1) ^ -(val & 1);
-}
-
-static int huff_decode_symbol(huff_decoder_t *dec, bit_reader_t *br) {
-    int peek16 = br_peek_bits(br, 16);
-    if (peek16 < 0) return -1;
-    int peek6 = peek16 >> 10;
-    int len = dec->lut[peek6].len;
-    if (len > 0) {
-        br_skip_bits(br, len);
-        return dec->lut[peek6].symbol;
-    }
-    for (int idx = 0; idx < dec->len_count; idx++) {
-        len = 7 + idx;
-        int code = peek16 >> (16 - len);
-        uint16_t fc = dec->first_code[len];
-        uint16_t fs = dec->first_symbol[len];
-        uint16_t count = dec->first_symbol[len + 1] - fs;
-        if (code < fc + count) {
-            br_skip_bits(br, len);
-            int sym_idx = fs + (code - fc);
-            if (sym_idx < dec->symbols_len)
-                return dec->symbols[sym_idx];
-            return -1;
-        }
-    }
-    return -1;
-}
-
 static uint32_t read_varint(const uint8_t **p, const uint8_t *end) {
     const uint8_t *ptr = *p;
     uint32_t val = 0;
@@ -342,7 +211,7 @@ static int32_t read_signed_varint(const uint8_t **p, const uint8_t *end) {
 }
 
 static void decode_string_block(const uint8_t *data, size_t len, int count, huff_decoder_t *dec, char ***out) {
-    bit_reader_t br;
+    BitReader br;
     br_init(&br, data, len);
     char cur[MAX_BUFFER_SIZE];
     cur[0] = 0;
@@ -519,4 +388,3 @@ int main(int argc, char **argv) {
     fclose(f);
     return 0;
 }
-
