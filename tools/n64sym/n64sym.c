@@ -332,16 +332,8 @@ int cmp_string_ptr(const void *a, const void *b) {
     return strcmp(sa, sb);
 }
 
-void compress_strings(char **strings, huff_code_t *huff_table, CanonicalTables *ct, 
-                           bool write_header, uint8_t **blob, uint32_t **index) 
+void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, uint32_t **index) 
 {
-    if (write_header) {
-        write_huff_header(ct, blob);
-    }
-    
-    // Calculate header size for stats
-    int header_size = write_header ? stbds_arrlen(*blob) : 0;
-
     // Statistics
     int stats_raw_suffix_len = 0;
     int stats_huff_bits = 0;
@@ -377,50 +369,40 @@ void compress_strings(char **strings, huff_code_t *huff_table, CanonicalTables *
             const char *suffix = cur + common;
             int suffix_len = strlen(suffix);
             
-            // Stats accumulation
-            stats_raw_suffix_len += suffix_len;
-            
+            // Calculate how many bits this string would need
             int prefix_delta = common - last_common;
             uint32_t z_delta = zigzag_encode(prefix_delta);
-            int z_delta_bits = exp_golomb_len(z_delta);
-            stats_varint_bytes += (z_delta_bits + 7) / 8; // Approx stats
+            int bits_needed = exp_golomb_len(z_delta);
             
             for (int k=0; k<=suffix_len; k++) {
                 unsigned char c = (unsigned char)suffix[k];
-                stats_huff_bits += huff_table[c].len;
+                bits_needed += huff_table[c].len;
             }
-
-            // Backup current buffer state
-            int old_buf_len = stbds_arrlen(bw.buf);
-            uint8_t old_cur_byte = bw.cur_byte;
-            int old_cur_bit = bw.cur_bit;
-
-            // Encode to bitstream: Delta Prefix (Exp-Golomb) + Suffix (Huffman)
+            
+            // Calculate current buffer size in bits and what it would be after adding this string
+            int current_bits = stbds_arrlen(bw.buf) * 8 + bw.cur_bit;
+            int new_bits = current_bits + bits_needed;
+            int new_size_bytes = (new_bits + 7) / 8;
+            
+            // Check if it would fit
+            if (new_size_bytes > MAX_BUFFER_SIZE) {
+                assert(count != 0 && "String too long for block buffer");
+                break;
+            }
+            
+            // It fits! Write it to the bitstream
             bw_write_exp_golomb(&bw, z_delta);
             for (int k=0; k<=suffix_len; k++) {
                 unsigned char c = (unsigned char)suffix[k];
                 bw_write(&bw, huff_table[c].code, huff_table[c].len);
             }
             
-            // Check size
-            int current_size = stbds_arrlen(bw.buf) + (bw.cur_bit > 0 ? 1 : 0);
-            
-            if (current_size > MAX_BUFFER_SIZE) {
-                assert(count != 0 && "String too long for block buffer despite truncation");
-                // Backtrack stats
-                stats_raw_suffix_len -= suffix_len;
-                stats_varint_bytes -= (z_delta_bits + 7) / 8;
-                for (int k=0; k<=suffix_len; k++) {
-                    unsigned char c = (unsigned char)suffix[k];
-                    stats_huff_bits -= huff_table[c].len;
-                }
-
-                // Revert
-                stbds_arrsetlen(bw.buf, old_buf_len);
-                bw.cur_byte = old_cur_byte;
-                bw.cur_bit = old_cur_bit;
-                break;
-            }
+            // Update stats
+            int z_delta_bits = exp_golomb_len(z_delta);
+            int huff_bits = bits_needed - z_delta_bits;
+            stats_raw_suffix_len += suffix_len;
+            stats_varint_bytes += (z_delta_bits + 7) / 8;
+            stats_huff_bits += huff_bits;
             
             last_common = common;
             prev = cur;
@@ -451,8 +433,8 @@ void compress_strings(char **strings, huff_code_t *huff_table, CanonicalTables *
     verbose("    Equivalent Front Coding Size: %d bytes\n", stats_front_coding_size);
     verbose("    Compressed suffixes (Huffman): %d bytes (%.1f%%)\n", 
         stats_huff_bytes, 100.0 * stats_huff_bytes / (stats_raw_suffix_len ? stats_raw_suffix_len : 1));
-    verbose("    Overhead: VarInts: %d bytes, Header: %d bytes, Padding: %d bytes\n", 
-        stats_varint_bytes, header_size, stats_padding_bytes);
+    verbose("    Overhead: VarInts: %d bytes, Padding: %d bytes\n", 
+        stats_varint_bytes, stats_padding_bytes);
     verbose("    Total Blob Size: %d bytes (%.1f%% of Front Coding)\n", 
         stbds_arrlen(*blob), 100.0 * stbds_arrlen(*blob) / (stats_front_coding_size ? stats_front_coding_size : 1));
 }
@@ -757,8 +739,8 @@ void process(const char *infn, const char *outfn)
     
     // Compress string blobs using shared table (no headers)
     verbose("Compressing strings (Shared Table)...\n");
-    compress_strings(unique_files, shared_huff_table, &shared_ct, false, &file_blob, &file_offsets);
-    compress_strings(unique_funcs, shared_huff_table, &shared_ct, false, &func_blob, &func_offsets);
+    compress_strings(unique_files, shared_huff_table, &file_blob, &file_offsets);
+    compress_strings(unique_funcs, shared_huff_table, &func_blob, &func_offsets);
     
     free(shared_ct.symbols);
     
