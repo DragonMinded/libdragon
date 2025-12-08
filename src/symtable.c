@@ -407,7 +407,7 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
         return false; // Should not happen if address is valid code
 
     // Decompress the chunk
-    uint8_t alignas(8) chunk_buf[MAX_BUFFER_SIZE];
+    uint8_t alignas(16) chunk_buf[MAX_BUFFER_SIZE];
     uint32_t stream_addr = SYMT_ROM + symt->stream_off + chunk_stream_off;
     
     // We don't know the exact size of the chunk, but we know it fits in MAX_BUFFER_SIZE.
@@ -609,7 +609,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     
     // Read Huffman Table (Global)
     uint32_t huff_size = MIN(symt->huff_tab_size, MAX_BUFFER_SIZE);
-    uint8_t alignas(8) huff_tab[huff_size] __attribute__((uninitialized));
+    uint8_t alignas(16) huff_tab[huff_size] __attribute__((uninitialized));
     data_cache_hit_writeback_invalidate(huff_tab, huff_size);
     dma_read(huff_tab, SYMT_ROM + symt->huff_tab_off, huff_size);
     
@@ -617,7 +617,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     huff_decoder_init(&dec, huff_tab, huff_size);
 
     // Read string block
-    uint8_t alignas(8) str_blob[MAX_BUFFER_SIZE] __attribute__((uninitialized));
+    uint8_t alignas(16) str_blob[MAX_BUFFER_SIZE] __attribute__((uninitialized));
     data_cache_hit_writeback_invalidate(str_blob, sizeof(str_blob));
     dma_read(str_blob, SYMT_ROM + blob_off + entry_blob_off, sizeof(str_blob));
     
