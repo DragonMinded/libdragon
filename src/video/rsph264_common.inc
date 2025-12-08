@@ -482,7 +482,7 @@ SetTotalCoeff:
 # OUTPUT:
 #   $v29: scale factor (first lane, [e8]), can be used with vmudn to
 #         apply scaling.
-#   $v30/$v31: multiplication factor (8x8 block arranged in two vectors),
+#   $v27/$v28: multiplication factor (8x8 block arranged in two vectors),
 #              can be used with vmudn.
 #
 
@@ -496,16 +496,16 @@ CalcDequantFactors:
     mtc2 t1, $v29,0
 
     # Select the quantization table given QP, and load the multiplication
-    # factors from it in v30/v31.
+    # factors from it in v27/v28.
     li s2, %lo(IQUANT_TABLE)
     and t0, 0xFF
     sll t0, 4
     add s2, t0, s2
-    luv $v30,0, 0*8,s2
-    luv $v31,0, 1*8,s2
-    vsrl $v30, $v30, 7
+    luv $v27,0, 0*8,s2
+    luv $v28,0, 1*8,s2
+    vsrl $v27, $v27, 7
     jr ra
-    vsrl $v31, $v31, 7
+    vsrl $v28, $v28, 7
     .endfunc
 
 ####################################################################
@@ -520,13 +520,13 @@ CalcDequantFactors:
 #
 # ARGS CALCULATED BY CalcDequantFactors:
 #   $v29: scale factor (first lane, [e8])
-#   $v30/$v31: multiplication factor (4x4 block arranged in two vectors)
+#   $v27/$v28: multiplication factor (4x4 block arranged in two vectors)
 #
     .func Dequant4x4
 Dequant4x4:
     # Apply multiplication factors to delta coefficients
-    vmudn $v00, $v00, $v30,0
-    vmudn $v01, $v01, $v31,0
+    vmudn $v00, $v00, $v27,0
+    vmudn $v01, $v01, $v28,0
 
     # Apply scaling to delta coefficients
     vmudn $v00, $v00, $v29,8
@@ -831,7 +831,7 @@ TransformResidual4x4IDCT:
     vmulf v_res_row01, $v18, v_at_row01,4
     vmacf v_res_row01, $v05, v_at_row01,5
     vmacf v_res_row01, $v06, v_at_row01,6
-    vmadm v_res_row01, v_pix_row01, $v27,14   # Add predicted pixel data (after >>7)
+    vmadm v_res_row01, v_pix_row01, vshift8,14   # Add predicted pixel data (after >>7)
     vmacu v_res_row01, $v19, v_at_row01,7     # Complete MAC & clamp to 0
 
     vand $v18, $v05, v_at_05mask,5    # Mask out LSB on second half (will be * 0.5)
@@ -840,7 +840,7 @@ TransformResidual4x4IDCT:
     vmulf v_res_row23, $v04, v_at_row23,4
     vmacf v_res_row23, $v18, v_at_row23,5
     vmacf v_res_row23, $v19, v_at_row23,6
-    vmadm v_res_row23, v_pix_row23, $v27,14   # Add predicted pixel data (after >>7)
+    vmadm v_res_row23, v_pix_row23, vshift8,14   # Add predicted pixel data (after >>7)
     vmacu v_res_row23, $v07, v_at_row23,7     # Complete MAC & clamp to 0
 
     # Clamp pixel values to 255
@@ -954,10 +954,10 @@ TransformDequantLumaDC:
     vmacf $v01, $v04, $v13,6
     vmacf $v01, $v05, $v13,7
 
-    # Dequantize using only first multiplication factor ($v30[e8]) calculated
+    # Dequantize using only first multiplication factor ($v27[e8]) calculated
     # by CalcDequantFactors. 
-    vmudn $v00, $v00, $v30,8
-    vmudn $v01, $v01, $v30,8
+    vmudn $v00, $v00, $v27,8
+    vmudn $v01, $v01, $v27,8
 
     # Now we need to apply scale. The scale factor in QP is used after being
     # subtracted by 2, so for instance QP=5 -> <<3; QP=1 -> <<-1 -> >>1.
@@ -977,17 +977,17 @@ TransformDequantLumaDC:
     vmudn $v01, $v01, $v06,8
 
 LumaDCScaleDown1:
-    # Right-shift by 1, after adding 1 (from shift register $v28[e15])
-    vaddc $v00, $v00, $v28,15
-    vaddc $v01, $v01, $v28,15
+    # Right-shift by 1, after adding 1 (from shift register vshift[e15])
+    vaddc $v00, $v00, vshift,15
+    vaddc $v01, $v01, vshift,15
     vsra $v00, $v00, 1
     j LumaDCEnd
     vsra $v01, $v01, 1
 
 LumaDCScaleDown2:
-    # Right-shift by 2, after adding 2 (from shift register $v28[e14])
-    vaddc $v00, $v00, $v28,14
-    vaddc $v01, $v01, $v28,14
+    # Right-shift by 2, after adding 2 (from shift register vshift[e14])
+    vaddc $v00, $v00, vshift,14
+    vaddc $v01, $v01, vshift,14
     vsra $v00, $v00, 2
     vsra $v01, $v01, 2
 

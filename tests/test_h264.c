@@ -193,7 +193,7 @@ bool interpolation_test(InterpolationTest* test, int verbose) {
     }
 
     if (verbose >= 2)
-        printf("sz:%d,%d d:%d,%d rsp:%ld ref:%ld\n", test->w, test->h, test->dx, test->dy, rsp_time, ref_time);
+        debugf("sz:%d,%d d:%d,%d rsp:%ld ref:%ld\n", test->w, test->h, test->dx, test->dy, rsp_time, ref_time);
     for (int j = -4; j < 32; j++) {
         for (int i = -4; i < 32; i++) {
             uint8_t *cdst = (uint8_t*)dst1;
@@ -439,7 +439,7 @@ bool intrapred_test(IntraPredictionTest *test, int verbose) {
     }
 
     if (verbose >= 2)
-        printf("m:%d rsp:%ld ref:%ld\n", test->mode[0], rsp_time, ref_time);
+        debugf("m:%d rsp:%ld ref:%ld\n", test->mode[0], rsp_time, ref_time);
     for (int j = -4; j < 32; j++) {
         for (int i = -4; i < 32; i++) {
             uint8_t *cdst = (uint8_t*)dst1;
@@ -752,7 +752,7 @@ bool dequant_test(DequantTest *test, int verbose) {
     }
 
     if (verbose >= 2) {
-        printf("rsp=%ld ref=%ld\n", rsp_time, ref_time);
+        debugf("rsp=%ld ref=%ld\n", rsp_time, ref_time);
     }
     for (int j = -check_size/2; j < check_size/2; j++) {
         for (int i = -check_size/2; i < check_size/2; i++) {
@@ -834,7 +834,7 @@ bool dequant_dc_test(DequantTest *test, int verbose) {
     }
 
     if (verbose >= 2) {
-        printf("rsp=%ld ref=%ld\n", rsp_time, ref_time);
+        debugf("rsp=%ld ref=%ld\n", rsp_time, ref_time);
     }
 
     for (int i=0;i<16;i++) {
@@ -1214,12 +1214,12 @@ bool exhaustive_decoderesidual_test(int numtests, int verbose) {
         total_rsp_time += (uint64_t)rsp_time;
 
         if (verbose >= 3) {
-            printf("%d: coded:%x is16x16:%d lu:%d%d (%ld/%ld)\n", nt, codedBlockPattern, is16x16, left!=0, up!=0, ref_time, rsp_time);            
+            debugf("%d: coded:%x is16x16:%d lu:%d%d (%ld/%ld)\n", nt, codedBlockPattern, is16x16, left!=0, up!=0, ref_time, rsp_time);            
         }
     }
 
     if (verbose >= 2) {
-        printf("\nRSP: %lld, REF: %lld\n", total_rsp_time >> 16, total_ref_time >> 16);
+        debugf("\nRSP: %lld, REF: %lld\n", total_rsp_time >> 16, total_ref_time >> 16);
     }
     return true;
 }
@@ -1227,12 +1227,10 @@ bool exhaustive_decoderesidual_test(int numtests, int verbose) {
 
 int main(void)
 {
-    /* Initialize peripherals */
-    //display_init( RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
-    //dfs_init( DFS_DEFAULT_LOCATION );
-    rsp_init();
-    timer_init();
+    debug_init_isviewer();
+    debug_init_usblog();
 
+    timer_init();
     console_init();
 
     printf("H264 RSP decoder tests\n\n");
@@ -1320,13 +1318,14 @@ int main(void)
     overfill_interpolation_test(&inttest, verbose);
     exhaustive_interpolation_test(&inttest, 32, verbose);
     printf("OK\n");
-#if 0
+
     printf("OMX_InterpolateChroma... "); fflush(stdout);
     inttest.func = INTERPOLATE_CHROMA;
     overfill_interpolation_test(&inttest, verbose);
     exhaustive_interpolation_test(&inttest, 8, verbose);
     printf("OK\n");
 
+#if 0
     IntraPredictionTest intratest;
     intratest.buf = buftest;
 

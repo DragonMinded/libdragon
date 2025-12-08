@@ -129,7 +129,7 @@ MB_SCRATCH: .dcb.w 16*21
     #define height  v1             // Height of macroblock (real pixels)
     #define dx  k0                 // Fractional horizontal motion vector
     #define dy  k1                 // Fractional vertical motion vector
-    #define unalign_first_line gp  // Offset of first pixel on first DMA line (from MB_INPUT)
+    #define unalign_first_line s5  // Offset of first pixel on first DMA line (from MB_INPUT)
     #define src_unalign t4         // Pointer to first real macroblock pixel within MB_INPUT
     #define dst_unalign t5         // Pointer to first real macroblock pixel within MB_OUTPUT
     #define src_dma_width t6       // Width/pitch of source macroblock in DMEM
@@ -320,7 +320,7 @@ Interpolate_Bootstrap:
     ctc2 t0, COP2_CTRL_VCC
 
 Interpolate_Bootstrap_Phase2:
-    move sp, ra
+    move ra2, ra
 
     # DMA into DMEM the input macroblock (source pixels)
     sll t0, src_dma_height, 12
@@ -529,10 +529,12 @@ OverfillTopCheckEnd:
     add s0, s2
 
 OverfillEnd:
-    jr sp  # sp contained the previous ra (see above)
+    jr ra2
     nop
     .endfunc
 
+
+    #undef unalign_first_line
 
 ####################################################################
 # Interpolate_ChromaLuma_DMADest
@@ -574,10 +576,10 @@ Interpolate_ChromaLuma_DMADest:
     .func Interpolate_CopyMacroblock
 Interpolate_CopyMacroblock:
 
-    move sp, ra
+    move ra2, ra
     jal DMAWaitIdle
     addi t0, height, -2
-    move ra, sp
+    move ra, ra2
 
     .align 3
 Interpolate_CopyLoop:
@@ -664,18 +666,18 @@ Interpolate_Chroma:
     beqz fp, Interpolate_CopyMacroblock
     nop
 
-    # Compute the filter coefficients and store them in $v31
+    # Compute the filter coefficients and store them in $v28
     mtc2 dx, $v29,1*2
     mtc2 dx, $v29,3*2
-    mtc2 dy, $v30,2*2
-    mtc2 dy, $v30,3*2
+    mtc2 dy, $v27,2*2
+    mtc2 dy, $v27,3*2
     li t0,8
     sub t1,t0,dx
     sub t2,t0,dy
     mtc2 t1, $v29,0*2
     mtc2 t1, $v29,2*2
-    mtc2 t2, $v30,0*2
-    mtc2 t2, $v30,1*2
+    mtc2 t2, $v27,0*2
+    mtc2 t2, $v27,1*2
 
     # Interpolation loop. We don't need to loop horizontally
     # because we process 8 pixels at a time, and 8x8 is the
@@ -712,52 +714,52 @@ Interpolate_Chroma:
 
                                                    # Wait for DMA transfer
                                                    # and prepare for iteration
-                                                   move sp, ra
+                                                   move ra2, ra
                                                    jal DMAWaitIdle
                                                    move t0, height
 
-    # Calculate in $v31 the coefficients
+    # Calculate in $v28 the coefficients
     # for the interpolation:
     #  [0] = (8-dx) * (8-dy)   = [e8]
     #  [1] = dx * (8-dy)       = [e9]
     #  [2] = (8-dx) * dy       = [e10]             # Load first row as VAL<<7
     #  [3] = dx * dy           = [e11]             # in $v00 / $v01
-    vmudh $v31, $v29, $v30,0;                      luv $v00,0, 0,s0
+    vmudh $v28, $v29, $v27,0;                      luv $v00,0, 0,s0
 
     # Zero $v29
     vxor $v29, $v29, $v29,0;                       add s1,s0,1                      
 
     # Shift coefficients left by 4. See
     # below for rationale
-    vsll8 $v31, $v31, 10;                          luv $v01,0, 0,s1
+    vsll8 $v28, $v28, 10;                          luv $v01,0, 0,s1
 
-    # $v27[e12] contains 1<<11 (it's               
+    # vshift8[e12] contains 1<<11 (it's               
     # the shift vector). Create $v29               
     # that contains that value                     
     # in all lanes.                                
-    vor $v29, $v29, $v27,12;                       add s0,src_dma_width
+    vor $v29, $v29, vshift8,12;                    add s0,src_dma_width
 
     .align 3   # loops must be 64-bit aligned for full pairing
 ChromaInterpolate:
     # Calculate interpolation on                   
     # first and second row                         # Load second row in $v02/$v03
-    vmudm $v11, $v00, $v31,8;                      luv $v02,0, 0,s0
-    vmadm $v11, $v01, $v31,9;                      add s1, s0, 1
+    vmudm $v11, $v00, $v28,8;                      luv $v02,0, 0,s0
+    vmadm $v11, $v01, $v28,9;                      add s1, s0, 1
     vmadm $v11, $v29, $v29,0;                      luv $v03,0, 0,s1
-    vmadm $v11, $v02, $v31,10;                     add s0, src_dma_width
+    vmadm $v11, $v02, $v28,10;                     add s0, src_dma_width
                                                    # Load third row in $v00/$v01
                                                    # (will be first row in the next loop)
-    vmadm $v11, $v03, $v31,11;                     luv $v00,0, 0,s0
+    vmadm $v11, $v03, $v28,11;                     luv $v00,0, 0,s0
 
     # Calculate interpolation on
     # second and third row
-    vmudm $v13, $v02, $v31,8;                      add s1,s0,1
-    vmadm $v13, $v03, $v31,9;                      luv $v01,0, 0,s1
+    vmudm $v13, $v02, $v28,8;                      add s1,s0,1
+    vmadm $v13, $v03, $v28,9;                      luv $v01,0, 0,s1
                                                    # Read the current pixel in the 
                                                    # two output rows in $v12/$v14
     vmadm $v13, $v29, $v29,0;                      luv $v12,0, 0,s4
-    vmadm $v13, $v00, $v31,10;                     add s3, s4, dst_dma_width
-    vmadm $v13, $v01, $v31,11;                     luv $v14,0, 0,s3
+    vmadm $v13, $v00, $v28,10;                     add s3, s4, dst_dma_width
+    vmadm $v13, $v01, $v28,11;                     luv $v14,0, 0,s3
 
     # Merge the interpolation output to the
     # current output pixels (using the
@@ -773,7 +775,7 @@ ChromaInterpolate:
     bnez t0, ChromaInterpolate
     add s4, s3, dst_dma_width
 
-    jr sp # previous ra
+    jr ra2
     nop
 
 	.endfunc
@@ -995,12 +997,12 @@ Interpolate5:
 
     # Read coefficients, pre-shifted by 4
     li t0, LUMA_FIR_COEFFS
-    lqv $v31,0, 0,t0
+    lqv $v28,0, 0,t0
 
-    move sp, ra
+    move ra2, ra
     jal DMAWaitIdle  # wait for input pixels to arrive
     addi t1, width, -8
-    move ra, sp
+    move ra, ra2
 
     # Since we process 8 pixels at a time, we either loop one column or two
     # (depending on macroblock width).
@@ -1016,7 +1018,7 @@ Interpolate5LoopCol:
 
     .align 3
 Interpolate5Loop:
-    # 5-tap FIR filter, with coefficients in $v31, using
+    # 5-tap FIR filter, with coefficients in $v28, using
     # MACs with signed coefficients and unsigned clamping.
     #
     # This sequence does many things that we expect:
@@ -1034,23 +1036,23 @@ Interpolate5Loop:
                                                     luv $v00,0, 0,t2
                                                     add s1, t2, s5
                                                     luv $v01,0, 0,s1
-    vmulu $v10, $v00, $v31,8;                       add s1, s5
+    vmulu $v10, $v00, $v28,8;                       add s1, s5
                                                     luv $v02,0, 0,s1         
-    vmacu $v11, $v01, $v31,9;                       add s1, s5
+    vmacu $v11, $v01, $v28,9;                       add s1, s5
                                                     luv $v03,0, 0,s1
-    vmacu $v12, $v02, $v31,10;                      add s1, s5
+    vmacu $v12, $v02, $v28,10;                      add s1, s5
                                                     luv $v04,0, 0,s1
-    vmacu $v13, $v03, $v31,10;                      add s1, s5
+    vmacu $v13, $v03, $v28,10;                      add s1, s5
                                                     luv $v05,0, 0,s1
                                                     # Load average buffer
-    vmacu $v14, $v04, $v31,9;                       luv $v19,0, 0,sp
+    vmacu $v14, $v04, $v28,9;                       luv $v19,0, 0,sp
                                                     # Prepare for next loop
-    vmacu $v15, $v05, $v31,8;                       add t3,dst_dma_width
+    vmacu $v15, $v05, $v28,8;                       add t3,dst_dma_width
     #
     #
     
     # Clamp against 255.                            
-    vcl $v17, $v15, $v31,15;                        add t2,src_dma_width
+    vcl $v17, $v15, $v28,15;                        add t2,src_dma_width
     # (latency)
     # (latency)
 
@@ -1131,13 +1133,13 @@ LumaInterpolateDiag:
 
     # Shift coefficients by 5; they were already pre-shifted by
     # 3, so now we get COEFF<<8.
-    vsll $v31, $v29, 5
+    vsll $v28, $v29, 5
 
     # We need to start two lines earlier than where the actual
     # image start. These lines were over-read so they're available.
     sub s0, src_dma_width
     sub s0, src_dma_width
-    move sp, ra
+    move ra2, ra
     jal DMAWaitIdle  # wait for input pixel to finish arriving
     addi t0, width, -8
     addi t2, src_dma_width, -5
@@ -1167,17 +1169,17 @@ LumaDiagLoop:
     
                                         luv $v00,0, 0,s2
                                         addi s2,1
-    vmulf $v10, $v00, $v31,8;           luv $v01,0, 0,s2
+    vmulf $v10, $v00, $v28,8;           luv $v01,0, 0,s2
                                         addi s2,1
-    vmacf $v11, $v01, $v31,9;           luv $v02,0, 0,s2
+    vmacf $v11, $v01, $v28,9;           luv $v02,0, 0,s2
                                         addi s2,1
-    vmacf $v12, $v02, $v31,10;          luv $v03,0, 0,s2
+    vmacf $v12, $v02, $v28,10;          luv $v03,0, 0,s2
                                         addi s2,1
-    vmacf $v13, $v03, $v31,10;          luv $v04,0, 0,s2
+    vmacf $v13, $v03, $v28,10;          luv $v04,0, 0,s2
                                         addi s2,1
-    vmacf $v14, $v04, $v31,9;           luv $v05,0, 0,s2
+    vmacf $v14, $v04, $v28,9;           luv $v05,0, 0,s2
                                         add s2, t2        # jump to next row (input)
-    vmacf $v15, $v05, $v31,8;           add s3, t3        # jump to next row (output)
+    vmacf $v15, $v05, $v28,8;           add s3, t3        # jump to next row (output)
                                         addi t1, -1
                                         bnez t1, LumaDiagLoop
                                         # Store the full 16-bit result
@@ -1195,7 +1197,7 @@ LumaDiagLoop:
     ########################################
 
     # Shift coeffs by 2 to obtain COEFF<<5
-    vsll $v31, $v29, 2
+    vsll $v28, $v29, 2
 
     li s2, %lo(MB_SCRATCH)
 
@@ -1226,12 +1228,12 @@ LumaDiagLoop2:
     #
     # We also benefit from unsigned clamping and rounding here
     # (see LumaInterpolateHalfHor for more information).
-    vmulu $v10, $v00, $v31,8;       move s1, s2
-    vmacu $v11, $v01, $v31,9;       lqv $v00,0, 0,s1
-    vmacu $v12, $v02, $v31,10;      add s1, t3
-    vmacu $v13, $v03, $v31,10;      lqv $v01,0, 0,s1
-    vmacu $v14, $v04, $v31,9;       add s1, t3
-    vmacu $v15, $v05, $v31,8;       lqv $v02,0, 0,s1
+    vmulu $v10, $v00, $v28,8;       move s1, s2
+    vmacu $v11, $v01, $v28,9;       lqv $v00,0, 0,s1
+    vmacu $v12, $v02, $v28,10;      add s1, t3
+    vmacu $v13, $v03, $v28,10;      lqv $v01,0, 0,s1
+    vmacu $v14, $v04, $v28,9;       add s1, t3
+    vmacu $v15, $v05, $v28,8;       lqv $v02,0, 0,s1
                                     add s1, t3
                                     lqv $v03,0, 0,s1
                                     add s1, t3
@@ -1259,7 +1261,7 @@ LumaDiagLoop2:
     bgtz t0, LumaDiagLoop2Col
     addi t0, -8
 
-    jr sp
+    jr ra2
     nop
 
     .endfunc
@@ -1627,7 +1629,7 @@ TransformDequantChromaDC:
     vmacf $v00, $v07, $v00,11
 
     # Dequantize using single multiplication factor
-    vmudn $v00, $v00, $v30,8
+    vmudn $v00, $v00, $v27,8
 
     # Use shift factor, reduced by 1 (so just shift right afterwards)
     vmudn $v00, $v00, $v29,8
