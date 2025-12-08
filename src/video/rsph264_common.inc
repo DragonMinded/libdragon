@@ -290,7 +290,7 @@ Task_WriteMacroblock:
     sll t1, dst_mb_width, 4
     li t0, DMA_SIZE(16,16)
     move s0, dst_luma
-    jal_and_j DMAOutAsync, _start
+    jal_and_j DMAOutAsync, RSPQ_Loop
 
     .endfunc
 
@@ -345,7 +345,7 @@ Task_SetPackedDeltaBuffer:
     sub a0, s4
     addi a0, %lo(PACKED_DELTA)
     sw a0, %lo(PACKED_DELTA_RDRAM)
-    j _start
+    j RSPQ_Loop
     sw s4, %lo(PACKED_DELTA_CUR)
     .endfunc
 
@@ -360,7 +360,7 @@ Task_SetPackedDeltaBuffer:
 Task_ResetPackedDeltaBuffer:
     sw zero, %lo(PACKED_DELTA_RDRAM)
     li s4, %lo(PACKED_DELTA)
-    j _start
+    j RSPQ_Loop
     sw s4, %lo(PACKED_DELTA_CUR)
     .endfunc
 

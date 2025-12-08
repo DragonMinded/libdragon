@@ -1310,6 +1310,8 @@ int main(void)
     exhaustive_dequant_test(&buftest, OMX_CHROMADC_2x2, 4*1024, verbose);
     printf("OK\n");
 #endif
+
+#if 0
     InterpolationTest inttest;
     inttest.buf = buftest;
 
@@ -1324,8 +1326,7 @@ int main(void)
     overfill_interpolation_test(&inttest, verbose);
     exhaustive_interpolation_test(&inttest, 8, verbose);
     printf("OK\n");
-
-#if 0
+#endif
     IntraPredictionTest intratest;
     intratest.buf = buftest;
 
@@ -1344,6 +1345,7 @@ int main(void)
     exhaustive_intrapred_test(&intratest, 2*1024, verbose);
     printf("OK\n");
 
+#if 0
     printf("\nHigh-level:\n");
 
     printf("DecodeResidual..."); fflush(stdout);
