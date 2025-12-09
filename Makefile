@@ -168,12 +168,12 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/
-	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include/sys
-	install -Cv -m 0644 include/sys/*.h $(INSTALLDIR)/$(N64_TARGET)/include/sys/
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include/GL
 	install -Cv -m 0644 include/GL/*.h $(INSTALLDIR)/$(N64_TARGET)/include/GL/
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include/newlib_overrides
 	install -Cv -m 0644 include/newlib_overrides/*.h $(INSTALLDIR)/$(N64_TARGET)/include/newlib_overrides/
+	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include/newlib_overrides/sys
+	install -Cv -m 0644 include/newlib_overrides/sys/*.h $(INSTALLDIR)/$(N64_TARGET)/include/newlib_overrides/sys/
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include/libcart
 	install -Cv -m 0644 src/libcart/cart.h $(INSTALLDIR)/$(N64_TARGET)/include/libcart/cart.h
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include/fatfs
