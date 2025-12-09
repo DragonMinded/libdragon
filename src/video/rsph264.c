@@ -212,21 +212,20 @@ void rsph264_queue_process_luma_intra4_residual(
     const uint8_t *modeAvail,
     uint32_t qp, const uint8_t *totalCoeff
 ) {
-    assert(!"Not implemented");
     assert(((uint32_t)src & 15) == 0);
     assert(((uint32_t)dst & 15) == 0);
     assert(((uint32_t)totalCoeff & 7) == 0);
-#if 0
+#if 1
     if (!(cache_flags & RSPH264_CACHE_SKIP_SOURCE)) {
-        fast_data_cache_hit_writeback(src-src_pitch-1, 16+4+1);
-        for (int i=0;i<16;i++)
-            fast_data_cache_hit_writeback(src+i*src_pitch-1, 1);
+        // fast_data_cache_hit_writeback(src-src_pitch-1, 16+4+1);
+        // for (int i=0;i<16;i++)
+        //     fast_data_cache_hit_writeback(src+i*src_pitch-1, 1);
         if (totalCoeff)
             fast_data_cache_hit_writeback(totalCoeff, 27);
     }
     if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
-        for (int i=0;i<16;i++)
-            fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
+        // for (int i=0;i<16;i++)
+        //     fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
     }
 #endif
     rspq_write(rsph264_intra_ovl_id, TASK_PROCESS_LUMA_INTRA4_RESIDUAL,
@@ -250,17 +249,17 @@ void rsph264_queue_process_luma_intra16_residual(
     assert(((uint32_t)src & 15) == 0);
     assert(((uint32_t)dst & 15) == 0);
     assert(((uint32_t)totalCoeff & 7) == 0);
-#if 0
+#if 1
     if (!(cache_flags & RSPH264_CACHE_SKIP_SOURCE)) {
-        fast_data_cache_hit_writeback(src-src_pitch-1, 16+4+1);
-        for (int i=0;i<16;i++)
-            fast_data_cache_hit_writeback(src+i*src_pitch-1, 1);
+        // fast_data_cache_hit_writeback(src-src_pitch-1, 16+4+1);
+        // for (int i=0;i<16;i++)
+        //     fast_data_cache_hit_writeback(src+i*src_pitch-1, 1);
         if (totalCoeff)
             fast_data_cache_hit_writeback(totalCoeff, 27);
     }
     if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
-        for (int i=0;i<16;i++)
-            fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
+        // for (int i=0;i<16;i++)
+        //     fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
     }
 #endif
     rspq_write(rsph264_intra_ovl_id, TASK_PROCESS_LUMA_INTRA16_RESIDUAL,

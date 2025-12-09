@@ -1322,9 +1322,9 @@ int main(void)
     exhaustive_intrapred_test(&intratest, 2*1024, verbose);
     printf("OK\n");
 
-#if 0
     printf("\nHigh-level:\n");
 
+#if 0
     printf("DecodeResidual..."); fflush(stdout);
     exhaustive_decoderesidual_test(16*1024, verbose);
     printf("OK\n");
@@ -1336,6 +1336,7 @@ int main(void)
     printf("ProcessChromaResidual... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, PROCESS_CHROMA_8x8x2, 2048, verbose);
     printf("OK\n");
+#endif
 
     printf("ProcessLumaIntra4x4Residual... "); fflush(stdout);
     intratest.func = INTRAPRED_PROCESS_LUMA4;
@@ -1348,7 +1349,7 @@ int main(void)
     printf("OK\n");
 
     rsph264_end_frame();
-#endif
+
     printf("\nALL TESTS PASSED\n");
 }
 

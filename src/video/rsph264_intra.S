@@ -22,6 +22,7 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand Task_SetPackedDeltaBuffer,           4
     RSPQ_EndOverlayHeader
 
@@ -1386,7 +1387,7 @@ Task_ProcessLumaIntra4x4Residual:
     # Load TotalCoeff table (if asked to do so). Otherwise,
     # it's already loaded correctly and we can just use it.
     jal SetTotalCoeff
-    lw s0, %lo(OMXDL_ARGS+36)
+    lw s0, CMD_ADDR(36, 40)
 
 LoadBlocks:
     # We will treat MB_INPUT as a 33x17 buffer, where the first line
@@ -1405,7 +1406,7 @@ LoadBlocks:
 
     # Calculate dequantization factors in v29 / v30 / v31.
     jal CalcDequantFactors
-    lw t0, %lo(OMXDL_ARGS+32)
+    lw t0, CMD_ADDR(32, 40)
 
     li npart, 0
 LumaBlockLoop:
@@ -1424,7 +1425,9 @@ LumaBlockLoop:
     addi s3, INTRA4RES_MBINPUT_WIDTH-1
 
     # Load mode_avail
-    lbu t0, %lo(OMXDL_ARGS+16)(npart)
+    la t0, CMD_ADDR(16, 40)
+    add t0, npart
+    lbu t0, 0(t0)
 
     # Extract mode and availability (remapping bits)
     srl t2, t0, 4
@@ -1523,21 +1526,22 @@ Intra4Res_CopyLoop:
 
     #define dc    t7
     #define npart t8
+    #define qp    t9
 
     .func Task_ProcessLumaIntra16x16Residual
 Task_ProcessLumaIntra16x16Residual:
     move src_dma_width, a2
     move dst_dma_width, a3
-    lw gp, %lo(OMXDL_ARGS+24)  # qp
-    lw availability, %lo(OMXDL_ARGS+20)
+    lw qp, CMD_ADDR(24, 32)
+    lw availability, CMD_ADDR(20, 32)
 
     jal CalcDequantFactors
-    move t0, gp
+    move t0, qp
 
     # Load TotalCoeff table (if asked to do so). Otherwise,
     # it's already loaded correctly and we can just use it.
     jal SetTotalCoeff
-    lw s0, %lo(OMXDL_ARGS+28)
+    lw s0, CMD_ADDR(28, 32)
 
     # Reset LUMA_DC to zero
     li s4, %lo(LUMA_DC)
@@ -1554,14 +1558,14 @@ Task_ProcessLumaIntra16x16Residual:
     jal UnpackNextDeltaBlock
     nop
     jal TransformDequantLumaDC
-    nop
+    move t1, qp
 
 Luma16Predict:
     sub a1, src, src_dma_width   # U
     addi a2, a1, -1              # UL
     addi a0, src, -1             # L
     jal IL16x16
-    lw t3, %lo(OMXDL_ARGS+16)    # prediction mode
+    lw t3, CMD_ADDR(16, 32)      # prediction mode
 
     # Go through the 16 4x4 blocks
     li npart, 0
@@ -1605,7 +1609,7 @@ Luma16ResidualNext:
     addi npart, 1
 
     # Copy 16x16 macroblock back into RDRAM
-    lw a3, %lo(OMXDL_ARGS+4)
+    lw a3, CMD_ADDR(4, 32)
     li t2, DMA_OUT   # Direction DMEM -> RDRAM
     jal_and_j IntraMB16InOut, RSPQ_Loop
     .endfunc

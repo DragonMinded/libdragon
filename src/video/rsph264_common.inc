@@ -421,16 +421,18 @@ UpdateDeltaBlockPointer:
     # RSP, but we keep it to be able to enable/disable parts of RSP
     # decoding for debugging purposes.
     lw s0, %lo(PACKED_DELTA_CUR)
-
     li t0, %lo(PACKED_DELTA)+PACKED_DELTA_MAX
     assert_lt s0, t0, ASSERT_DELTA_BUFFER_TOO_SMALL
+#if 0
     lw t0, %lo(PACKED_DELTA_RDRAM)
     li t1, %lo(PACKED_DELTA)
     sub t1, s0, t1
     add t0, t1
     jr ra
     sw t0, %lo(OMXDL_ARGS+0)
-
+#endif
+    jr ra
+     nop
     .endfunc
 
 
@@ -899,7 +901,8 @@ TransformResidual4x4IDCT:
 ####################################################################
 # ARGS:
 #   $v00/$v01: 4x4 coefficient matrix
-#   gp: qp scale factor
+#   t1: qp scale factor
+#   FIXME: used to be gp
 #
 
     .func TransformDequantLumaDC
@@ -963,7 +966,7 @@ TransformDequantLumaDC:
     # subtracted by 2, so for instance QP=5 -> <<3; QP=1 -> <<-1 -> >>1.
     # In case of right shift, a rounding is also necessary.
     # So we can't just use the scale factor calculated by CalcDequantFactors.
-    srl t0, gp, 8
+    srl t0, t1, 8
     beqz t0, LumaDCScaleDown2    # >>2
     addi t0, -1
     beqz t0, LumaDCScaleDown1    # >>1
