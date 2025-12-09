@@ -37,11 +37,10 @@ DECLARE_OMXDL_TABLE(
 
 #include "rsph264_common.inc"
 
+    .data
 
     .align 4
     .ascii "OVL: Inter-pred "
-
-    .data
 
     .align 4
 InterLumaCoordConstants:

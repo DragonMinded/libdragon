@@ -11,10 +11,8 @@
         RSPQ_DefineCommand OMX_IntraPredictLuma4x4,              32
         RSPQ_DefineCommand OMX_IntraPredictLuma16x16,            32
         RSPQ_DefineCommand OMX_IntraPredictChroma8x8,            32
-        # RSPQ_DefineCommand Task_ProcessLumaIntra4x4Residual,     40
-        # RSPQ_DefineCommand Task_ProcessLumaIntra16x16Residual,   32
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand Task_ProcessLumaIntra4x4Residual,     40
+        RSPQ_DefineCommand Task_ProcessLumaIntra16x16Residual,   32
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
@@ -40,6 +38,8 @@ DECLARE_OMXDL_TABLE(
 #endif
 
 #include "rsph264_common.inc"
+
+    .data
 
     .align 4
     .ascii "OVL: Intra-pred "
@@ -179,17 +179,17 @@ OMXDL_ARGS: # FIXME *************************
     # over-reading by interpolation and because of DMA
     # alignment constraints, so space for 32x21 pixels
     # is required.
-    .align 8   # 4 is sufficient, but 8 visually helps debugging
+    .align 4   # 4 is sufficient, but 8 visually helps debugging
 MB_INPUT:   .dcb.b 40*17  # MAX(40*17,32*21)
 
     # Maximum macroblock output. We fill this in without
     # over-reading (and RDRAM buffer is always aligned),
     # so we don't need more than 16x16
-    .align 8   # 4 is sufficient, but 8 visually helps debugging
+    .align 4   # 4 is sufficient, but 8 visually helps debugging
 MB_OUTPUT:  .dcb.b 16*16
 
     # Scratch memory for intermediate computations
-    .align 8   # 4 is sufficient, but 8 visually helps debugging
+    .align 4   # 4 is sufficient, but 8 visually helps debugging
 MB_SCRATCH: .dcb.b 32*21
 
 
@@ -467,6 +467,7 @@ NoOverfill:
     sll t0, t2, 1
     lhu t0, %lo(INTRALUMA4_TABLE)(t0)
     li t1, %lo(INTRALUMA4_COEFF)
+    jr t0
     lqv v_coeff,0, 0,t1
     .endfunc
 
@@ -772,7 +773,7 @@ OMX_IntraPredictChroma8x8:
     move dmem_l, s4
 
     # Dispatch
-    lw t0, %lo(OMXDL_ARGS+24)
+    lw t0, CMD_ADDR(24, 32)
     sll t2, t0, 1
     lhu t2, %lo(INTRACHROMA8_TABLE)(t2)
     jr t2
@@ -1356,7 +1357,6 @@ VAddLanes:
 
 ####################################################################
 ####################################################################
-#if 0
 
 ###################################################################
 # Task_ProcessLumaIntra4x4Residual
@@ -1609,5 +1609,3 @@ Luma16ResidualNext:
     li t2, DMA_OUT   # Direction DMEM -> RDRAM
     jal_and_j IntraMB16InOut, RSPQ_Loop
     .endfunc
-
-#endif

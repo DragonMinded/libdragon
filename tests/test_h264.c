@@ -120,16 +120,6 @@ bool interpolation_test(InterpolationTest* test, int verbose) {
             int16_t mvx = (((int16_t)test->x1 - (int16_t)test->x2) << 2) | test->dx;
             int16_t mvy = (((int16_t)test->y1 - (int16_t)test->y2) << 2) | test->dy;
 
-            // flush cache manually:
-            // rsph264_queue_interpolate_luma_overfill does not support source cache flags
-            if (true) {
-                int fw = test->w; int fh = test->h; int fx0 = 0; int fy0 = 0;
-                if (test->dy != 0) { fy0 = -2; fh += 3; }
-                if (test->dx != 0) { fx0 = -2; fw += 3; }
-                for (int i=fy0;i<fh;i++)
-                    fast_data_cache_hit_writeback(src1+i*SRC_PITCH-fx0, fw);
-            }
-
             rsph264_queue_interpolate_luma_overfill(RSPH264_CACHE_SKIP_SOURCE,
                 test->buf.pSrc1, SRC_PITCH, dst1, DST_SIZE,
                 (frame_width << 16) | frame_height,  // frame size
@@ -159,16 +149,6 @@ bool interpolation_test(InterpolationTest* test, int verbose) {
             // the relative distance in the source buffer.
             int16_t mvx = (((int16_t)test->x1 - (int16_t)test->x2) << 3) | test->dx;
             int16_t mvy = (((int16_t)test->y1 - (int16_t)test->y2) << 3) | test->dy;
-
-            // flush cache manually:
-            // rsph264_queue_interpolate_luma_overfill does not support source cache flags
-            if (true) {
-                int fw = test->w; int fh = test->h; int fx0 = 0; int fy0 = 0;
-                if (test->dy != 0) { fy0 = -1; fh += 1; }
-                if (test->dx != 0) { fx0 = -1; fw += 1; }
-                for (int i=fy0;i<fh;i++)
-                    fast_data_cache_hit_writeback(src1+i*SRC_PITCH-fx0, fw);
-            }
 
             rsph264_queue_interpolate_chroma_overfill(RSPH264_CACHE_SKIP_SOURCE,
                 test->buf.pSrc1, SRC_PITCH, dst1, DST_SIZE,
@@ -1237,22 +1217,21 @@ int main(void)
     profile_init();
 
     my_srand(0);
-    uint8_t *pSrc1 = (uint8_t*)malloc(SRC_PITCH*SRC_PITCH+16);
-    uint8_t *pSrc2 = (uint8_t*)malloc(SRC_PITCH*SRC_PITCH+16);
-    uint8_t *pDst1 = (uint8_t*)malloc(DST_SIZE*DST_SIZE+16);
-    uint8_t *pDst2 = (uint8_t*)malloc(DST_SIZE*DST_SIZE+16);
+    uint8_t *pSrc1 = (uint8_t*)malloc_uncached(SRC_PITCH*SRC_PITCH);
+    uint8_t *pSrc2 = (uint8_t*)malloc_uncached(SRC_PITCH*SRC_PITCH);
+    uint8_t *pDst1 = (uint8_t*)malloc_uncached(DST_SIZE*DST_SIZE);
+    uint8_t *pDst2 = (uint8_t*)malloc_uncached(DST_SIZE*DST_SIZE);
 
-    // Align buffers to 16 bytes.
-    while ((uint32_t)pSrc1 % 16 != 0) pSrc1++;
-    while ((uint32_t)pSrc2 % 16 != 0) pSrc2++;
-    while ((uint32_t)pDst1 % 16 != 0) pDst1++;
-    while ((uint32_t)pDst2 % 16 != 0) pDst2++;
+    debugf("Buffers:\n");
+    debugf(" pSrc1: %p - %p\n", pSrc1, pSrc1+SRC_PITCH*SRC_PITCH+16);
+    debugf(" pSrc2: %p - %p\n", pSrc2, pSrc2+SRC_PITCH*SRC_PITCH+16);
+    debugf(" pDst1: %p - %p\n", pDst1, pDst1+DST_SIZE*DST_SIZE+16);
+    debugf(" pDst2: %p - %p\n", pDst2, pDst2+DST_SIZE*DST_SIZE+16);
 
     // Create random source buffer
     for (int y = 0; y < SRC_PITCH; y++) {
         for (int x = 0; x < SRC_PITCH; x++)
             pSrc1[y*SRC_PITCH+x] = pSrc2[y*SRC_PITCH+x] = my_rand();
-        data_cache_hit_writeback(pSrc1+y*SRC_PITCH, SRC_PITCH);
     }
 
     const int OVERFILL = (SRC_PITCH-SRC_SIZE)/2;
@@ -1277,7 +1256,6 @@ int main(void)
     for (int y = 0; y < DST_SIZE; y++) {
         for (int x = 0; x < DST_SIZE; x++)
             pDst1[y*DST_SIZE+x] = pDst2[y*DST_SIZE+x] = my_rand();
-        data_cache_hit_writeback_invalidate(pDst1+y*DST_SIZE, DST_SIZE);
     }
 
     rsph264_init();
@@ -1311,7 +1289,6 @@ int main(void)
     printf("OK\n");
 #endif
 
-#if 0
     InterpolationTest inttest;
     inttest.buf = buftest;
 
@@ -1326,7 +1303,7 @@ int main(void)
     overfill_interpolation_test(&inttest, verbose);
     exhaustive_interpolation_test(&inttest, 8, verbose);
     printf("OK\n");
-#endif
+
     IntraPredictionTest intratest;
     intratest.buf = buftest;
 
