@@ -10,7 +10,7 @@
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand OMX_DequantTransformResidual,         28
         RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
-        RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
+        RSPQ_DefineCommand OMX_TransformDequantChromaDC,         12
         RSPQ_DefineCommand Task_ProcessLumaInterResidual,        28
         RSPQ_DefineCommand Task_ProcessChromaResidual,           28
         RSPQ_DefineCommand OMX_Interpolate_Luma_Overfill,        44
@@ -1402,27 +1402,16 @@ TransformOnly:
 #  a1: dst
 #  a2: qp
 
+#define dcdmasize  t8
+#define dcfunc     t9
+
     .func OMX_TransformDequantLumaDC
 OMX_TransformDequantLumaDC:
-    move dst, a1    
-    move qp, a2
-
-    jal CalcDequantFactors
-    move t0, qp
-
-    jal UnpackNextDeltaBlock
-    nop
-
-    move t1, qp
-    jal TransformDequantLumaDC
     li s4, %lo(LUMA_DC)
-
-    # DMA back the buffer
-    li t0, DMA_SIZE(32,1)
-    move s0, dst
-    jal_and_j DMAOut, RSPQ_Loop
+    li dcdmasize, DMA_SIZE(32,1)
+    j TransformDequantAnyDC
+    li dcfunc, %lo(TransformDequantLumaDC)
     .endfunc
-
 
 ####################################################################
 # OMX_TransformDequantChromaDC
@@ -1434,27 +1423,40 @@ OMX_TransformDequantLumaDC:
 #  a1: dst
 #  a2: qp
 ####################################################################
-#if 0
     .func OMX_TransformDequantChromaDC
 OMX_TransformDequantChromaDC:
-    move dst, a1
-    move qp, a2
+    li s4, %lo(CHROMA_DC_0)
+    li dcdmasize, DMA_SIZE(8,1)
+    li dcfunc, %lo(TransformDequantChromaDC)
+    # fallthrough!
+    .endfunc
 
+
+####################################################################
+# TransformDequantAnyDC
+#
+# Common code for DC dequantization/transform for both Luma and Chroma
+####################################################################
+
+    .func TransformDequantAnyDC
+TransformDequantAnyDC:
     jal CalcDequantFactors
-    move t0, a2
+    move t0, a2    # qp
 
     jal UnpackNextDeltaBlock
     nop
 
-    jal TransformDequantChromaDC
-    li s4, %lo(CHROMA_DC_0)
+    jalr dcfunc
+    move t1, a2    # qp
 
     # DMA back the buffer
-    li t0, DMA_SIZE(8,1)
-    move s0, dst
+    move t0, dcdmasize
+    move s0, a1    # dst
     jal_and_j DMAOut, RSPQ_Loop
     .endfunc
-#endif
+
+
+
 ####################################################################
 # Task_ProcessLumaInterResidual
 #
@@ -1513,6 +1515,8 @@ LumaDequantSkip:
 
     .func Task_ProcessChromaResidual
 Task_ProcessChromaResidual:
+    assert 0x9999
+#if 0
     li dst_dma_width, 8
     jal ResidualBootstrap
     li t0, DMA_SIZE(8,8)   # first chroma buffer
@@ -1600,7 +1604,7 @@ ChromaResidualSkip:
     li s4, %lo(MB_OUTPUT+64)
     move t1, dst_pitch
     jal_and_j DMAOut, ResidualEnd
-
+#endif
     .endfunc
 
 

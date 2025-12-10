@@ -1283,11 +1283,10 @@ int main(void)
     printf("OMX_TransformDequantLumaDC... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_LUMADC_4x4, 4*1024, verbose);
     printf("OK\n");
-#if 0
+
     printf("OMX_TransformDequantChromaDC... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_CHROMADC_2x2, 4*1024, verbose);
     printf("OK\n");
-#endif
 
     InterpolationTest inttest;
     inttest.buf = buftest;
