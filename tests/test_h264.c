@@ -1262,7 +1262,7 @@ int main(void)
     rsph264_begin_frame();
 
     // 0: nothing, 1: errors, 2: log, 3: uber-log
-    int verbose = 2;
+    int verbose = 1;
 
     BufferTest buftest;
     buftest.pSrc1 = pSrc1;
@@ -1327,6 +1327,7 @@ int main(void)
     printf("DecodeResidual..."); fflush(stdout);
     exhaustive_decoderesidual_test(16*1024, verbose);
     printf("OK\n");
+#endif
 
     printf("ProcessLumaInterResidual... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, PROCESS_LUMA_16x16, 2048, verbose);
@@ -1335,7 +1336,6 @@ int main(void)
     printf("ProcessChromaResidual... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, PROCESS_CHROMA_8x8x2, 2048, verbose);
     printf("OK\n");
-#endif
 
     printf("ProcessLumaIntra4x4Residual... "); fflush(stdout);
     intratest.func = INTRAPRED_PROCESS_LUMA4;

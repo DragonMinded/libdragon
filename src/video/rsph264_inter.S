@@ -1371,7 +1371,7 @@ OMX_DequantTransformResidual:
     jal ResidualBootstrap
     li t0, DMA_SIZE(8,4)
 
-    vxor $v00, $v00, $v00,0
+    #vxor $v00, $v00, $v00,0
     beqz ac, TransformOnly
     vxor $v01, $v01, $v01,0
 
@@ -1505,6 +1505,7 @@ LumaDequantSkip:
     # DMA back into RDRAM
     j ResidualEnd
     li t0, DMA_SIZE(16,16)
+
     .endfunc
 
 ####################################################################
@@ -1512,17 +1513,14 @@ LumaDequantSkip:
 #
 # Process the residual pixels for two 8x8 chroma blocks (Cr/Cb).
 ####################################################################
-
     .func Task_ProcessChromaResidual
 Task_ProcessChromaResidual:
-    assert 0x9999
-#if 0
     li dst_dma_width, 8
     jal ResidualBootstrap
     li t0, DMA_SIZE(8,8)   # first chroma buffer
 
     # Now load second chroma buffer, consecutive to the first one
-    lw s0, %lo(OMXDL_ARGS+24)
+    lw s0, CMD_ADDR(24, 28)
     jal DMAIn
     li s4, %lo(MB_OUTPUT+64)
 
@@ -1533,7 +1531,7 @@ Task_ProcessChromaResidual:
     jal CalcDequantFactors
     move t0, qp
 
-    vxor $v00, $v00, $v00,0
+    #vxor $v00, $v00, $v00,0
     li s4, %lo(CHROMA_DC_0)
     sqv $v00,0, 0,s4
 
@@ -1599,12 +1597,12 @@ ChromaResidualSkip:
     addi npart, 1
 
     # DMA back second chroma buffer
-    lw s0, %lo(OMXDL_ARGS+24)
+    lw s0, CMD_ADDR(24, 28)
     li t0, DMA_SIZE(8,8)
     li s4, %lo(MB_OUTPUT+64)
     move t1, dst_pitch
     jal_and_j DMAOut, ResidualEnd
-#endif
+
     .endfunc
 
 

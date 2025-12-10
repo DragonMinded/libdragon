@@ -144,7 +144,6 @@ void rsph264_queue_intrapred_luma_4x4(
         fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*3-4, 12);
     }
 #endif
-    debugf("rsph264_queue_intrapred_luma_4x4: mode=%u availability=0x%08X\n", mode, availability);
     rspq_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_LUMA_4,
         PhysicalAddr(src_l), PhysicalAddr(src_u), PhysicalAddr(src_ul),
         PhysicalAddr(dst), left_pitch, dst_pitch,
@@ -374,8 +373,6 @@ void rsph264_queue_process_luma_inter_residual(
     uint8_t *dst, uint32_t dst_pitch,
     const int16_t *dc, uint32_t qp, const uint8_t *totalCoeff
 ) {
-    assert(0);
-#if 0
     assert(((uint32_t)dst & 7) == 0);
     assert(((uint32_t)totalCoeff & 7) == 0);
 
@@ -384,15 +381,14 @@ void rsph264_queue_process_luma_inter_residual(
             fast_data_cache_hit_writeback(totalCoeff, 27);
     }
     if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
-        for (int i=0;i<16;i++)
-            fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
+        // for (int i=0;i<16;i++)
+        //     fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
     }
 
-    check_overlay(TASK_PROCESS_LUMA_INTER_RESIDUAL);
+    // check_overlay(TASK_PROCESS_LUMA_INTER_RESIDUAL);
     internal_queue_dequant_transform_residual(
         TASK_PROCESS_LUMA_INTER_RESIDUAL,
         cache_flags, dst, NULL, dst_pitch, dc, qp, (uint32_t)totalCoeff);
-#endif
 }
 
 void rsph264_queue_process_chroma_residual(
@@ -400,8 +396,6 @@ void rsph264_queue_process_chroma_residual(
     uint8_t *dst1, uint8_t *dst2, uint32_t dst_pitch,
     uint32_t qp, const uint8_t *totalCoeff
 ) {
-    assert(0);
-#if 0
     assert(((uint32_t)dst1 & 7) == 0);
     assert(((uint32_t)dst2 & 7) == 0);
     assert(((uint32_t)totalCoeff & 7) == 0);
@@ -411,15 +405,14 @@ void rsph264_queue_process_chroma_residual(
             fast_data_cache_hit_writeback(totalCoeff, 27);
     }
     if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
-        for (int i=0;i<8;i++) {            
-            fast_data_cache_hit_writeback_invalidate(dst1+i*dst_pitch, 8);
-            fast_data_cache_hit_writeback_invalidate(dst2+i*dst_pitch, 8);
-        }
+        // for (int i=0;i<8;i++) {            
+        //     fast_data_cache_hit_writeback_invalidate(dst1+i*dst_pitch, 8);
+        //     fast_data_cache_hit_writeback_invalidate(dst2+i*dst_pitch, 8);
+        // }
     }
 
-    check_overlay(TASK_PROCESS_CHROMA_RESIDUAL);
+    // check_overlay(TASK_PROCESS_CHROMA_RESIDUAL);
     internal_queue_dequant_transform_residual(
         TASK_PROCESS_CHROMA_RESIDUAL,
         cache_flags, dst1, dst2, dst_pitch, NULL, qp, (uint32_t)totalCoeff);
-#endif
 }
