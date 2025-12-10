@@ -10,15 +10,15 @@ static uint32_t rsph264_intra_ovl_id = 0;
 
 enum {
     // Tasks in rsph264_inter
-    TASK_OMX_INTERPOLATE_CHROMA                = 0,
-    TASK_OMX_INTERPOLATE_LUMA                  = 1,
-    TASK_OMX_DEQUANT_TRANSFORM_RESIDUAL        = 2,
-    TASK_OMX_TRANSFORM_DEQUANT_LUMADC          = 3,
-    TASK_OMX_TRANSFORM_DEQUANT_CHROMADC        = 4,
-    TASK_PROCESS_LUMA_INTER_RESIDUAL           = 5,
-    TASK_PROCESS_CHROMA_RESIDUAL               = 6,
-    TASK_OMX_INTERPOLATE_LUMA_OVERFILL         = 7,
-    TASK_OMX_INTERPOLATE_CHROMA_OVERFILL       = 8,
+    TASK_OMX_DEQUANT_TRANSFORM_RESIDUAL        = 0,
+    TASK_OMX_TRANSFORM_DEQUANT_LUMADC          = 1,
+    TASK_OMX_TRANSFORM_DEQUANT_CHROMADC        = 2,
+    TASK_PROCESS_LUMA_INTER_RESIDUAL           = 3,
+    TASK_PROCESS_CHROMA_RESIDUAL               = 4,
+    TASK_OMX_INTERPOLATE_LUMA_OVERFILL         = 5,
+    TASK_OMX_INTERPOLATE_CHROMA_OVERFILL       = 6,
+
+    //TASK_SET_PACKED_DELTA_BUFFER               = 15,
 };
 
 enum {
@@ -285,4 +285,141 @@ void rsph264_queue_set_packed_delta_buffer(
 
     rspq_write(rsph264_intra_ovl_id, TASK_SET_PACKED_DELTA_BUFFER,
         PhysicalAddr(src));
+    rspq_write(rsph264_inter_ovl_id, TASK_SET_PACKED_DELTA_BUFFER,
+        PhysicalAddr(src));
+}
+
+static void internal_queue_dequant_transform_residual(
+    int taskid, int cache_flags,
+    uint8_t *dst1, uint8_t *dst2, uint32_t dst_pitch,
+    const int16_t *dc, uint32_t qp, uint32_t ac
+) {
+    rspq_write(rsph264_inter_ovl_id, taskid,
+        0,      // FIXME: remove, not needed anymore
+        PhysicalAddr(dst1),
+        dst_pitch,
+        dc ? (uint16_t)dc[0] : 0xFFFFFFFF,
+        ((qp / 6) << 8) | (qp % 6),
+        ac,
+        PhysicalAddr(dst2));
+}
+
+void rsph264_queue_dequant_transform_residual(
+    int cache_flags,
+    uint8_t *dst, uint32_t dst_pitch,
+    const int16_t *dc, uint32_t qp, uint32_t ac
+) {
+    assert(((uint32_t)dst & 3) == 0);
+#if 0
+    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
+        fast_data_cache_hit_writeback_invalidate(dst+0*dst_pitch, 8);
+        fast_data_cache_hit_writeback_invalidate(dst+1*dst_pitch, 8);
+        fast_data_cache_hit_writeback_invalidate(dst+2*dst_pitch, 8);
+        fast_data_cache_hit_writeback_invalidate(dst+3*dst_pitch, 8);
+    }
+#endif        
+
+    internal_queue_dequant_transform_residual(
+        TASK_OMX_DEQUANT_TRANSFORM_RESIDUAL,
+        cache_flags, dst, NULL, dst_pitch, dc, qp, ac);
+}
+
+
+void rsph264_queue_transform_dequant_lumadc(
+    int cache_flags,
+    int16_t *dst, uint32_t qp
+) {
+    assert(((uint32_t)dst & 7) == 0);
+    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
+        fast_data_cache_hit_writeback_invalidate(dst, 32);
+    }
+
+    rspq_write(rsph264_inter_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_LUMADC,
+        0, PhysicalAddr(dst),
+        ((qp / 6) << 8) | (qp % 6));
+
+    // check_overlay(TASK_OMX_TRANSFORM_DEQUANT_LUMADC);
+    // uint32_t *q = queue_push_begin();
+    // q[0] = (uint32_t)TASK_OMX_TRANSFORM_DEQUANT_LUMADC & MASK_TASKID;
+    // q[1] = (uint32_t)0;      // FIXME: remove, not needed anymore
+    // q[2] = (uint32_t)dst;
+    // q[3] = (uint32_t)((qp / 6) << 8) | (qp % 6);
+    // queue_push_end();
+}
+
+void rsph264_queue_transform_dequant_chromadc(
+    int cache_flags,
+    int16_t *dst, uint32_t qp
+) {
+    assert(((uint32_t)dst & 7) == 0);
+    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
+        fast_data_cache_hit_writeback_invalidate(dst, 8);
+    }
+
+    rspq_write(rsph264_inter_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_CHROMADC,
+        0, PhysicalAddr(dst),
+        ((qp / 6) << 8) | (qp % 6));
+
+    // check_overlay(TASK_OMX_TRANSFORM_DEQUANT_CHROMADC);
+    // uint32_t *q = queue_push_begin();
+    // q[0] = (uint32_t)TASK_OMX_TRANSFORM_DEQUANT_CHROMADC & MASK_TASKID;
+    // q[1] = (uint32_t)0;      // FIXME: remove, not needed anymore
+    // q[2] = (uint32_t)dst;
+    // q[3] = (uint32_t)((qp / 6) << 8) | (qp % 6);
+    // queue_push_end();
+}
+
+void rsph264_queue_process_luma_inter_residual(
+    int cache_flags,
+    uint8_t *dst, uint32_t dst_pitch,
+    const int16_t *dc, uint32_t qp, const uint8_t *totalCoeff
+) {
+    assert(0);
+#if 0
+    assert(((uint32_t)dst & 7) == 0);
+    assert(((uint32_t)totalCoeff & 7) == 0);
+
+    if (!(cache_flags & RSPH264_CACHE_SKIP_SOURCE)) {
+        if (totalCoeff)
+            fast_data_cache_hit_writeback(totalCoeff, 27);
+    }
+    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
+        for (int i=0;i<16;i++)
+            fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
+    }
+
+    check_overlay(TASK_PROCESS_LUMA_INTER_RESIDUAL);
+    internal_queue_dequant_transform_residual(
+        TASK_PROCESS_LUMA_INTER_RESIDUAL,
+        cache_flags, dst, NULL, dst_pitch, dc, qp, (uint32_t)totalCoeff);
+#endif
+}
+
+void rsph264_queue_process_chroma_residual(
+    int cache_flags,
+    uint8_t *dst1, uint8_t *dst2, uint32_t dst_pitch,
+    uint32_t qp, const uint8_t *totalCoeff
+) {
+    assert(0);
+#if 0
+    assert(((uint32_t)dst1 & 7) == 0);
+    assert(((uint32_t)dst2 & 7) == 0);
+    assert(((uint32_t)totalCoeff & 7) == 0);
+
+    if (!(cache_flags & RSPH264_CACHE_SKIP_SOURCE)) {
+        if (totalCoeff)
+            fast_data_cache_hit_writeback(totalCoeff, 27);
+    }
+    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
+        for (int i=0;i<8;i++) {            
+            fast_data_cache_hit_writeback_invalidate(dst1+i*dst_pitch, 8);
+            fast_data_cache_hit_writeback_invalidate(dst2+i*dst_pitch, 8);
+        }
+    }
+
+    check_overlay(TASK_PROCESS_CHROMA_RESIDUAL);
+    internal_queue_dequant_transform_residual(
+        TASK_PROCESS_CHROMA_RESIDUAL,
+        cache_flags, dst1, dst2, dst_pitch, NULL, qp, (uint32_t)totalCoeff);
+#endif
 }

@@ -8,15 +8,22 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand RSPQCmd_Noop,                         4
-        RSPQ_DefineCommand RSPQCmd_Noop,                         4
-        RSPQ_DefineCommand RSPQCmd_Noop,                         4
-        RSPQ_DefineCommand RSPQCmd_Noop,                         4
-        RSPQ_DefineCommand RSPQCmd_Noop,                         4
-        RSPQ_DefineCommand RSPQCmd_Noop,                         4
-        RSPQ_DefineCommand RSPQCmd_Noop,                         4
-        RSPQ_DefineCommand OMX_Interpolate_Luma_Overfill,       44
-        RSPQ_DefineCommand OMX_Interpolate_Chroma_Overfill,     44
+        RSPQ_DefineCommand OMX_DequantTransformResidual,         28
+        RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
+        RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
+        RSPQ_DefineCommand Task_ProcessLumaInterResidual,        28
+        RSPQ_DefineCommand Task_ProcessChromaResidual,           28
+        RSPQ_DefineCommand OMX_Interpolate_Luma_Overfill,        44
+        RSPQ_DefineCommand OMX_Interpolate_Chroma_Overfill,      44
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
+        RSPQ_DefineCommand Task_SetPackedDeltaBuffer,           4
     RSPQ_EndOverlayHeader
 
 #if 0
@@ -1286,7 +1293,7 @@ LumaDiagLoop2:
 
 ####################################################################
 ####################################################################
-#if 0
+
 ####################################################################
 #
 #  RESIDUAL: CHROMA & LUMA DEQUANTIZATION AND IDCT
@@ -1297,7 +1304,7 @@ LumaDiagLoop2:
     #define dst a1
     #define dst_pitch a2
     #define dc a3
-    #define qp gp     // NOTE: this must match definition in rsph264_common.inc
+    #define qp t9     // NOTE: this must match definition in rsph264_common.inc
     #define ac fp
 
     #define npart s5
@@ -1309,8 +1316,8 @@ LumaDiagLoop2:
     #   dst_pitch: must be pre-loaded with the RDRAM pitch
     .func ResidualBootstrap
 ResidualBootstrap:
-    lw qp, %lo(OMXDL_ARGS+16)
-    lw ac, %lo(OMXDL_ARGS+20)
+    lw qp, CMD_ADDR(16, 28)
+    lw ac, CMD_ADDR(20, 28)
     li t2, DMA_IN # DMA direction: RDRAM->DMEM
     # fallthrough!
     .endfunc
@@ -1320,10 +1327,10 @@ ResidualDma:
     # We need to fetch the destination buffer. It is guaranteed
     # to be 4-byte aligned, but we need 8-byte alignment for DMA.
     # The width has been already augmented to include possible unalignment.
-    move t1, dst_pitch
     move s0, dst
-    j DMAExec
     li s4, %lo(MB_OUTPUT)
+    j DMAExec
+    move t1, dst_pitch
     .endfunc
 
     # Move back the destination buffer into RDRAM
@@ -1406,6 +1413,7 @@ OMX_TransformDequantLumaDC:
     jal UnpackNextDeltaBlock
     nop
 
+    move t1, qp
     jal TransformDequantLumaDC
     li s4, %lo(LUMA_DC)
 
@@ -1426,7 +1434,7 @@ OMX_TransformDequantLumaDC:
 #  a1: dst
 #  a2: qp
 ####################################################################
-
+#if 0
     .func OMX_TransformDequantChromaDC
 OMX_TransformDequantChromaDC:
     move dst, a1
@@ -1446,7 +1454,7 @@ OMX_TransformDequantChromaDC:
     move s0, dst
     jal_and_j DMAOut, RSPQ_Loop
     .endfunc
-
+#endif
 ####################################################################
 # Task_ProcessLumaInterResidual
 #
@@ -1682,4 +1690,3 @@ TransformResidual4x4CheckDC:
     #undef npart
     #undef dst_dma_width
     #undef ac16
-#endif

@@ -349,6 +349,7 @@ Task_SetPackedDeltaBuffer:
     sw s4, %lo(PACKED_DELTA_CUR)
     .endfunc
 
+#if 0
 ####################################################################
 # Task_ResetPackedDeltaBuffer
 #
@@ -363,7 +364,7 @@ Task_ResetPackedDeltaBuffer:
     j RSPQ_Loop
     sw s4, %lo(PACKED_DELTA_CUR)
     .endfunc
-
+#endif
 
 ####################################################################
 # UnpackNextDeltaBlock
@@ -441,7 +442,7 @@ UpdateDeltaBlockPointer:
 #
 # Reset the totalCoeff table (fill with zeros)
 ####################################################################
-
+#if 0
     .func Task_ResetTotalCoeff
 Task_ResetTotalCoeff:
     vxor $v00, $v00, $v00,0
@@ -451,6 +452,7 @@ Task_ResetTotalCoeff:
     jr ra
     spv $v00,0, 4*8,s4
     .endfunc
+#endif
 
 ####################################################################
 # Task_SetTotalCoeff
@@ -903,6 +905,7 @@ TransformResidual4x4IDCT:
 #   $v00/$v01: 4x4 coefficient matrix
 #   t1: qp scale factor
 #   FIXME: used to be gp
+#   s4: address of destination buffer in DMEM
 #
 
     .func TransformDequantLumaDC

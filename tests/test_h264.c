@@ -1275,7 +1275,7 @@ int main(void)
     printf("OMX_DecodeCoeffsToPairCAVLC... "); fflush(stdout);
     exhaustive_cavlc_test(16*1024, verbose);
     printf("OK\n");
-
+#endif
     printf("OMX_DequantTransformResidual... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_LUMA_4x4, 4*1024, verbose);
     printf("OK\n");
@@ -1283,7 +1283,7 @@ int main(void)
     printf("OMX_TransformDequantLumaDC... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_LUMADC_4x4, 4*1024, verbose);
     printf("OK\n");
-
+#if 0
     printf("OMX_TransformDequantChromaDC... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_CHROMADC_2x2, 4*1024, verbose);
     printf("OK\n");
