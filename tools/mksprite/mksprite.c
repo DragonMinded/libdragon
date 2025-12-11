@@ -950,8 +950,8 @@ bool spritemaker_gamma_correct(spritemaker_t *spr) {
 const struct {
     int x, y;
 } bleedfix_neighbors[] = {
-    {-1, -1}, { 0, -1}, { 1, -1}, {-1,  0}, 
-    { 1,  0}, {-1,  1}, { 0,  1}, { 1,  1} 
+    { 1,  0}, { 0, -1}, { 0,  1}, {-1,  0}, // 0..3 straight
+    {-1, -1}, {-1,  1}, { 1, -1}, { 1,  1}  // 4..7 diagonal
 };
 
 void bleedfix_palette(spritemaker_t *spr, image_t *image) {
@@ -976,23 +976,31 @@ void bleedfix_palette(spritemaker_t *spr, image_t *image) {
         return;
     }
 
-    // Count number of transparent neighbors for each color
+    // Count number of opaque colors for each transparent pixel
     uint8_t *img = image->image;
-    for (int y=1;y<image->height-1;y++) {
-        for (int x=1;x<image->width-1;x++) {
+    for (int y=0;y<image->height;y++) {
+        for (int x=0;x<image->width;x++) {
             int idx_center = y * image->width + x;
             int pi_center = img[idx_center];
 
-            // If this pixel is opaque check for transparent neighbors
-            if (pi_center != pi_transparent) {
+            // If this pixel is transparent, check for opaque neighbors
+            if (pi_center == pi_transparent) {
+                int num_neighbors = 0;
                 for (int k = 0; k < 8; k++) {
-                    int idx_neighbor = idx_center + bleedfix_neighbors[k].y * image->width + bleedfix_neighbors[k].x;
-                    int pi_neighbor = img[idx_neighbor];
-                    if (pi_neighbor == pi_transparent) {
-                        pi_edge_counts[pi_center]++;
+                    int nx = x + bleedfix_neighbors[k].x;
+                    int ny = y + bleedfix_neighbors[k].y;
+                    if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
+                        int idx_neighbor = (ny * image->width + nx);
+                        int pi_neighbor = img[idx_neighbor];
+                        if (pi_neighbor != pi_transparent) {
+                            num_neighbors++;
+                            pi_edge_counts[pi_neighbor]++;
+                        }
+                    }
+                    if (k == 3 && num_neighbors > 0) {
                         break;
                     }
-                }    
+                }
             }
         }
     }
@@ -1061,6 +1069,9 @@ void bleedfix_rgba(spritemaker_t *spr, image_t *image) {
                                 num_opaque_neighbors++;
                             }
                         }
+                        if (k == 3 && num_opaque_neighbors > 0) {
+                            break;
+                        }
                     }
 
                     if (num_opaque_neighbors > 0) {
@@ -1109,6 +1120,9 @@ void bleedfix_grey_alpha(spritemaker_t *spr, image_t *image) {
                                 c += img[idx_neighbor + 0];
                                 num_opaque_neighbors++;
                             }
+                        }
+                        if (k == 3 && num_opaque_neighbors > 0) {
+                            break;
                         }
                     }
 
