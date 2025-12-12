@@ -989,7 +989,7 @@ void bleedfix_palette(spritemaker_t *spr, image_t *image) {
                 for (int k = 0; k < 8; k++) {
                     int nx = x + bleedfix_neighbors[k].x;
                     int ny = y + bleedfix_neighbors[k].y;
-                    if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
+                    if (nx >= 0 && nx < image->width && ny >= 0 && ny < image->height) {
                         int idx_neighbor = (ny * image->width + nx);
                         int pi_neighbor = img[idx_neighbor];
                         if (pi_neighbor != pi_transparent) {
@@ -1054,7 +1054,7 @@ void bleedfix_rgba(spritemaker_t *spr, image_t *image) {
                 for (int k = 0; k < 8; k++) {
                     int nx = x + bleedfix_neighbors[k].x;
                     int ny = y + bleedfix_neighbors[k].y;
-                    if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
+                    if (nx >= 0 && nx < image->width && ny >= 0 && ny < image->height) {
                         int idx_neighbor = (ny * image->width + nx) * 4;
                         
                         if (img[idx_neighbor + 3] > 0) {
@@ -1101,7 +1101,7 @@ void bleedfix_grey_alpha(spritemaker_t *spr, image_t *image) {
                 for (int k = 0; k < 8; k++) {
                     int nx = x + bleedfix_neighbors[k].x;
                     int ny = y + bleedfix_neighbors[k].y;
-                    if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
+                    if (nx >= 0 && nx < image->width && ny >= 0 && ny < image->height) {
                         int idx_neighbor = (ny * image->width + nx) * 2;
                         
                         if (img[idx_neighbor + 1] > 0) {
