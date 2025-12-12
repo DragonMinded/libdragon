@@ -947,14 +947,14 @@ bool spritemaker_gamma_correct(spritemaker_t *spr) {
 }
 
 
-const struct {
+static const struct {
     int x, y;
 } bleedfix_neighbors[] = {
     { 1,  0}, { 0, -1}, { 0,  1}, {-1,  0}, // 0..3 straight
     {-1, -1}, {-1,  1}, { 1, -1}, { 1,  1}  // 4..7 diagonal
 };
 
-int bleedfix_adjust_palette(spritemaker_t *spr) {
+static int bleedfix_adjust_palette(spritemaker_t *spr) {
     image_t *image = &spr->images[0];
 
     int pi_edge_counts_total = 0;
@@ -1031,7 +1031,6 @@ int bleedfix_adjust_palette(spritemaker_t *spr) {
         spr->palette.colors[pi_transparent][0] = r / pi_edge_counts_total;
         spr->palette.colors[pi_transparent][1] = g / pi_edge_counts_total;
         spr->palette.colors[pi_transparent][2] = b / pi_edge_counts_total;
-        // spr->palette.colors[pi_transparent][3] = 255;
         return 0;
     }
 
@@ -1095,88 +1094,59 @@ int bleedfix_adjust_palette(spritemaker_t *spr) {
     return 0;
 }
 
-void bleedfix_rgba(spritemaker_t *spr, image_t *image) {
-    uint8_t *img = image->image;
+static void bleedfix_silhouette(spritemaker_t *spr, image_t *image, int bytes_per_pixel) {
+    assert(bytes_per_pixel >= 2 && bytes_per_pixel <= 4);
 
-    uint32_t num_bytes = image->width * image->height * 4;
+    // We expect the alpha component in the last byte of the color, ie. after
+    // all color components.
+    uint32_t color_components = bytes_per_pixel - 1;
+
+    uint8_t *img = image->image;
+    uint32_t num_bytes = image->width * image->height * bytes_per_pixel;
     uint8_t *img_scratch = malloc(num_bytes);
     memcpy(img_scratch, img, num_bytes);
 
     for (int y=0;y<image->height;y++) {
         for (int x=0;x<image->width;x++) {
-            int idx_center = (y * image->width + x) * 4;
+            int idx_center = (y * image->width + x) * bytes_per_pixel;
 
             // If this pixel is transparent, look for opaque neighbors and
             // average their colors.
-            if (img[idx_center + 3] == 0) {
-                int r = 0, g = 0, b = 0, num_opaque_neighbors = 0;
+            if (img[idx_center + color_components] == 0) {
+                int sums[color_components] = {}; 
+                int num_opaque_neighbors = 0;
 
                 for (int k = 0; k < 8; k++) {
                     int nx = x + bleedfix_neighbors[k].x;
                     int ny = y + bleedfix_neighbors[k].y;
                     if (nx >= 0 && nx < image->width && ny >= 0 && ny < image->height) {
-                        int idx_neighbor = (ny * image->width + nx) * 4;
+                        int idx_neighbor = (ny * image->width + nx) * bytes_per_pixel;
                         
-                        if (img[idx_neighbor + 3] > 0) {
-                            r += img[idx_neighbor + 0];
-                            g += img[idx_neighbor + 1];
-                            b += img[idx_neighbor + 2];
+                        if (img[idx_neighbor + color_components] > 0) {
+                            for (int i = 0; i < color_components; i++) {
+                                sums[i] += img[idx_neighbor + i];
+                            }        
                             num_opaque_neighbors++;
                         }
                     }
+
+                    // If this transparent pixel had opaque neighbors to the
+                    // top, left, right or bottom (i.e. the first 4 entries in 
+                    // bleedfix_neighbors), we are done for this pixel. 
+                    // Otherwise continue with checking the diagonals (the 
+                    // remaining 4 entries in bleedfix_neighbors).
                     if (k == 3 && num_opaque_neighbors > 0) {
                         break;
                     }
                 }
 
+                // If we found some opaque neighbors, average all color
+                // components and write them to this pixel. The pixel's alpha
+                // component will remain at 0.
                 if (num_opaque_neighbors > 0) {
-                    img_scratch[idx_center + 0] = r / num_opaque_neighbors;
-                    img_scratch[idx_center + 1] = g / num_opaque_neighbors;
-                    img_scratch[idx_center + 2] = b / num_opaque_neighbors;
-                    // img_scratch[idx_center + 3] = 255;
-                }
-            }
-        }
-    }
-    memcpy(img, img_scratch, num_bytes);
-    free(img_scratch);
-}
-
-void bleedfix_grey_alpha(spritemaker_t *spr, image_t *image) {
-    uint8_t *img = image->image;
-
-    uint32_t num_bytes = image->width * image->height * 2;
-    uint8_t *img_scratch = malloc(num_bytes);
-    memcpy(img_scratch, img, num_bytes);
-
-    for (int y=0;y<image->height;y++) {
-        for (int x=0;x<image->width;x++) {
-            int idx_center = (y * image->width + x) * 2;
-
-            // If this pixel is transparent, look for opaque neighbors and
-            // average their colors.
-            if (img[idx_center + 1] == 0) {
-                int c = 0, num_opaque_neighbors = 0;
-
-                for (int k = 0; k < 8; k++) {
-                    int nx = x + bleedfix_neighbors[k].x;
-                    int ny = y + bleedfix_neighbors[k].y;
-                    if (nx >= 0 && nx < image->width && ny >= 0 && ny < image->height) {
-                        int idx_neighbor = (ny * image->width + nx) * 2;
-                        
-                        if (img[idx_neighbor + 1] > 0) {
-                            c += img[idx_neighbor + 0];
-                            num_opaque_neighbors++;
-                        }
+                    for (int i = 0; i < color_components; i++) {
+                        img_scratch[idx_center + i] = sums[i] / num_opaque_neighbors;
                     }
-                    if (k == 3 && num_opaque_neighbors > 0) {
-                        break;
-                    }
-                }
-
-                if (num_opaque_neighbors > 0) {
-                    img_scratch[idx_center + 0] = c / num_opaque_neighbors;
-                    // img_scratch[idx_center + 1] = 255;
                 }
             }
         }
@@ -1200,23 +1170,24 @@ void spritemaker_bleedfix(spritemaker_t *spr) {
             for (int m=0; m<MAX_IMAGES; m++) {
                 image_t *image = &spr->images[m];
                 if (image->image != NULL) {
-                    bleedfix_rgba(spr, image);
+                    bleedfix_silhouette(spr, image, 4);
                 }
             }
             spritemaker_quantize(spr, orig_palette.colors[0], fmt_colors, spr->ditheralgo);
             spr->palette = orig_palette;
         }
     }
-    else {
+    else if (spr->images[0].ct == LCT_RGBA || spr->images[0].ct == LCT_GREY_ALPHA) {
         if (flag_verbose)
             fprintf(stderr, "bleedfix: expanding sprite silhouette by 1px\n");
+
         for (int m=0; m<MAX_IMAGES; m++) {
             image_t *image = &spr->images[m];
             if (image->image != NULL) {
                 if (image->ct == LCT_RGBA) {
-                    bleedfix_rgba(spr, image);
+                    bleedfix_silhouette(spr, image, 4);
                 } else if (image->ct == LCT_GREY_ALPHA) {
-                    bleedfix_grey_alpha(spr, image);
+                    bleedfix_silhouette(spr, image, 2);
                 }    
             }            
         }
