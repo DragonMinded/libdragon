@@ -1040,52 +1040,45 @@ void bleedfix_rgba(spritemaker_t *spr, image_t *image) {
 
     uint32_t num_bytes = image->width * image->height * 4;
     uint8_t *img_scratch = malloc(num_bytes);
-    bool has_transparent_pixels = true;
+    memcpy(img_scratch, img, num_bytes);
 
-    for (int pass = 0; pass < BLEEDFIX_PASSES && has_transparent_pixels; pass++) {
-        has_transparent_pixels = false;
-        memcpy(img_scratch, img, num_bytes);
+    for (int y=0;y<image->height;y++) {
+        for (int x=0;x<image->width;x++) {
+            int idx_center = (y * image->width + x) * 4;
 
-        for (int y=0;y<image->height;y++) {
-            for (int x=0;x<image->width;x++) {
-                int idx_center = (y * image->width + x) * 4;
+            // If this pixel is transparent, look for opaque neighbors and
+            // average their colors.
+            if (img[idx_center + 3] == 0) {
+                int r = 0, g = 0, b = 0, num_opaque_neighbors = 0;
 
-                // If this pixel is transparent, look for opaque neighbors and
-                // average their colors.
-                if (img[idx_center + 3] == 0) {
-                    has_transparent_pixels = true;
-                    int r = 0, g = 0, b = 0, num_opaque_neighbors = 0;
-
-                    for (int k = 0; k < 8; k++) {
-                        int nx = x + bleedfix_neighbors[k].x;
-                        int ny = y + bleedfix_neighbors[k].y;
-                        if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
-                            int idx_neighbor = (ny * image->width + nx) * 4;
-                            
-                            if (img[idx_neighbor + 3] > 0) {
-                                r += img[idx_neighbor + 0];
-                                g += img[idx_neighbor + 1];
-                                b += img[idx_neighbor + 2];
-                                num_opaque_neighbors++;
-                            }
-                        }
-                        if (k == 3 && num_opaque_neighbors > 0) {
-                            break;
+                for (int k = 0; k < 8; k++) {
+                    int nx = x + bleedfix_neighbors[k].x;
+                    int ny = y + bleedfix_neighbors[k].y;
+                    if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
+                        int idx_neighbor = (ny * image->width + nx) * 4;
+                        
+                        if (img[idx_neighbor + 3] > 0) {
+                            r += img[idx_neighbor + 0];
+                            g += img[idx_neighbor + 1];
+                            b += img[idx_neighbor + 2];
+                            num_opaque_neighbors++;
                         }
                     }
-
-                    if (num_opaque_neighbors > 0) {
-                        img_scratch[idx_center + 0] = r / num_opaque_neighbors;
-                        img_scratch[idx_center + 1] = g / num_opaque_neighbors;
-                        img_scratch[idx_center + 2] = b / num_opaque_neighbors;
-                        // img_scratch[idx_center + 3] = 255;
+                    if (k == 3 && num_opaque_neighbors > 0) {
+                        break;
                     }
+                }
+
+                if (num_opaque_neighbors > 0) {
+                    img_scratch[idx_center + 0] = r / num_opaque_neighbors;
+                    img_scratch[idx_center + 1] = g / num_opaque_neighbors;
+                    img_scratch[idx_center + 2] = b / num_opaque_neighbors;
+                    // img_scratch[idx_center + 3] = 255;
                 }
             }
         }
-        memcpy(img, img_scratch, num_bytes);
     }
-
+    memcpy(img, img_scratch, num_bytes);
     free(img_scratch);
 }
 
@@ -1094,48 +1087,41 @@ void bleedfix_grey_alpha(spritemaker_t *spr, image_t *image) {
 
     uint32_t num_bytes = image->width * image->height * 2;
     uint8_t *img_scratch = malloc(num_bytes);
-    bool has_transparent_pixels = true;
+    memcpy(img_scratch, img, num_bytes);
 
-    for (int pass = 0; pass < BLEEDFIX_PASSES && has_transparent_pixels; pass++) {
-        has_transparent_pixels = false;
-        memcpy(img_scratch, img, num_bytes);
+    for (int y=0;y<image->height;y++) {
+        for (int x=0;x<image->width;x++) {
+            int idx_center = (y * image->width + x) * 2;
 
-        for (int y=0;y<image->height;y++) {
-            for (int x=0;x<image->width;x++) {
-                int idx_center = (y * image->width + x) * 2;
+            // If this pixel is transparent, look for opaque neighbors and
+            // average their colors.
+            if (img[idx_center + 1] == 0) {
+                int c = 0, num_opaque_neighbors = 0;
 
-                // If this pixel is transparent, look for opaque neighbors and
-                // average their colors.
-                if (img[idx_center + 1] == 0) {
-                    has_transparent_pixels = true;
-                    int c = 0, num_opaque_neighbors = 0;
-
-                    for (int k = 0; k < 8; k++) {
-                        int nx = x + bleedfix_neighbors[k].x;
-                        int ny = y + bleedfix_neighbors[k].y;
-                        if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
-                            int idx_neighbor = (ny * image->width + nx) * 2;
-                            
-                            if (img[idx_neighbor + 1] > 0) {
-                                c += img[idx_neighbor + 0];
-                                num_opaque_neighbors++;
-                            }
-                        }
-                        if (k == 3 && num_opaque_neighbors > 0) {
-                            break;
+                for (int k = 0; k < 8; k++) {
+                    int nx = x + bleedfix_neighbors[k].x;
+                    int ny = y + bleedfix_neighbors[k].y;
+                    if (nx > 0 && nx < image->width && ny > 0 && ny < image->height) {
+                        int idx_neighbor = (ny * image->width + nx) * 2;
+                        
+                        if (img[idx_neighbor + 1] > 0) {
+                            c += img[idx_neighbor + 0];
+                            num_opaque_neighbors++;
                         }
                     }
-
-                    if (num_opaque_neighbors > 0) {
-                        img_scratch[idx_center + 0] = c / num_opaque_neighbors;
-                        // img_scratch[idx_center + 1] = 255;
+                    if (k == 3 && num_opaque_neighbors > 0) {
+                        break;
                     }
+                }
+
+                if (num_opaque_neighbors > 0) {
+                    img_scratch[idx_center + 0] = c / num_opaque_neighbors;
+                    // img_scratch[idx_center + 1] = 255;
                 }
             }
         }
-        memcpy(img, img_scratch, num_bytes);
     }
-
+    memcpy(img, img_scratch, num_bytes);
     free(img_scratch);
 }
 
