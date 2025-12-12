@@ -960,6 +960,7 @@ static int bleedfix_adjust_palette(spritemaker_t *spr) {
     int pi_edge_counts_total = 0;
     int pi_edge_counts[256] = {};
     int pi_transparent = -1;
+    int num_unique_edge_colors = 0;
 
     // Find transparent color
     for (int pi=0; pi<spr->palette.used_colors; pi++) {
@@ -996,6 +997,9 @@ static int bleedfix_adjust_palette(spritemaker_t *spr) {
                         int idx_neighbor = (ny * image->width + nx);
                         int pi_neighbor = img[idx_neighbor];
                         if (pi_neighbor != pi_transparent) {
+                            if (pi_edge_counts[pi_neighbor] == 0) {
+                                num_unique_edge_colors++;
+                            }
                             num_neighbors++;
                             pi_edge_counts[pi_neighbor]++;
                             pi_edge_counts_total++;
@@ -1009,68 +1013,91 @@ static int bleedfix_adjust_palette(spritemaker_t *spr) {
         }
     }
 
+    // Palette contains a transparent color, but the whole image is fully
+    // transparent or fully opague? We have nothing do here.
+    if (num_unique_edge_colors == 0) {
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: no transparent/opaque neighbors found\n");
+        return 0;
+    }
+
     int num_free_colors = (image->fmt == FMT_CI4 ? 16 : 256) - spr->palette.used_colors;
 
-    // No free colors left in the palette? Our only option is to replace the
-    // one existing transparent color with a better "background color" that
-    // is the average of all edge colors.
-    if (num_free_colors == 0) {
-        if (flag_verbose)
-            fprintf(stderr, "bleedfix: adjusting existing transparent color in palette\n");
-
+    // No free colors left in the palette or we only have a single unique edge
+    // color? Just replace the one existing transparent color with a better 
+    // "background color" that is the average of all edge colors.
+    if (num_free_colors == 0 || num_unique_edge_colors == 1) {
         int r = 0, g = 0, b = 0;
         for (int pi=0; pi<spr->palette.used_colors; pi++) {
             if (pi != pi_transparent) {
-                int count = pi_edge_counts[pi];
-                r += spr->palette.colors[pi][0] * count;
-                g += spr->palette.colors[pi][1] * count;
-                b += spr->palette.colors[pi][2] * count;
+                r += spr->palette.colors[pi][0] * pi_edge_counts[pi];
+                g += spr->palette.colors[pi][1] * pi_edge_counts[pi];
+                b += spr->palette.colors[pi][2] * pi_edge_counts[pi];
             }
         }
         
         spr->palette.colors[pi_transparent][0] = r / pi_edge_counts_total;
         spr->palette.colors[pi_transparent][1] = g / pi_edge_counts_total;
         spr->palette.colors[pi_transparent][2] = b / pi_edge_counts_total;
+
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: adjusted existing transparent color in palette\n");
         return 0;
     }
 
-    // We have some space for new colors. Create a buffer that contains all 
-    // edge colors and their counts to feed into exoquant. This produces a new
-    // palette with transparent colors that we can append to the existing
-    // palette. The caller can then re-quantize with this new palette.
-    // Note that we actually have one more spot than num_free_colors available: 
-    // the existing transparent color.
-    else if (pi_edge_counts_total > 0) {
-        if (flag_verbose)
-            fprintf(stderr, "bleedfix: appending %d new transparent colors to palette\n", num_free_colors);
+    // Multiple unique edge colors and some space in the palette?
+    // This produces a new palette with transparent colors that we can 
+    // append to the existing palette. The caller can then re-quantize with
+    // this new palette.
+    else {
 
-        uint8_t *img_edge = malloc(pi_edge_counts_total * 4);
-        int i = 0;
-        for (int pi=0; pi<spr->palette.used_colors; pi++) {
-            if (pi != pi_transparent) {
-                int count = pi_edge_counts[pi];
-                for (int c = 0; c < count; c++, i += 4) {
-                    img_edge[i + 0] = spr->palette.colors[pi][0];
-                    img_edge[i + 1] = spr->palette.colors[pi][1];
-                    img_edge[i + 2] = spr->palette.colors[pi][2];
-                    img_edge[i + 3] = 0;
+        // We actually have one more spot than num_free_colors available: 
+        // the existing transparent color.
+        int edge_pal_len = num_free_colors + 1;
+        uint8_t edge_pal[edge_pal_len * 4] = {};
+
+        // Can we fit all unique edge colors into the remaining palette space?
+        if (num_unique_edge_colors <= edge_pal_len) {
+            edge_pal_len = 0;
+            for (int pi=0; pi<spr->palette.used_colors; pi++) {
+                if (pi != pi_transparent && pi_edge_counts[pi] > 0) {
+                    edge_pal[edge_pal_len * 4 + 0] = spr->palette.colors[pi][0];
+                    edge_pal[edge_pal_len * 4 + 1] = spr->palette.colors[pi][1];
+                    edge_pal[edge_pal_len * 4 + 2] = spr->palette.colors[pi][2];
+                    edge_pal[edge_pal_len * 4 + 3] = 0;
+                    edge_pal_len++;
                 }
             }
         }
 
-        int edge_pal_len = num_free_colors + 1;
-        uint8_t edge_pal[edge_pal_len * 4] = {};
+        // Less free space than unique edge colors? Create a buffer that 
+        // contains all edge colors with their counts to feed into exoquant and
+        // quantize to fill the remaining palette.
+        else {
+            uint8_t *img_edge = malloc(pi_edge_counts_total * 4);
+            int i = 0;
+            for (int pi=0; pi<spr->palette.used_colors; pi++) {
+                if (pi != pi_transparent) {
+                    for (int c = 0; c < pi_edge_counts[pi]; c++, i += 4) {
+                        img_edge[i + 0] = spr->palette.colors[pi][0];
+                        img_edge[i + 1] = spr->palette.colors[pi][1];
+                        img_edge[i + 2] = spr->palette.colors[pi][2];
+                        img_edge[i + 3] = 0;
+                    }
+                }
+            }
 
-        exq_data *exq = exq_init();
-        exq->numBitsPerChannel = 5;
-        exq_no_transparency(exq);
-        exq_feed(exq, img_edge, pi_edge_counts_total);
-        exq_quantize_hq(exq, edge_pal_len);
-        exq_get_palette(exq, edge_pal, edge_pal_len);
-        exq_free(exq);
-        free(img_edge);
+            exq_data *exq = exq_init();
+            exq->numBitsPerChannel = 5;
+            exq_no_transparency(exq);
+            exq_feed(exq, img_edge, pi_edge_counts_total);
+            exq_quantize_hq(exq, edge_pal_len);
+            exq_get_palette(exq, edge_pal, edge_pal_len);
+            exq_free(exq);
+            free(img_edge);
+        }
 
-        // First color of the new edge palette is stored in the original
+        // First color of the new edge palette can be stored in the original
         // transparent color entry.
         spr->palette.colors[pi_transparent][0] = edge_pal[0 + 0];
         spr->palette.colors[pi_transparent][1] = edge_pal[0 + 1];
@@ -1086,12 +1113,14 @@ static int bleedfix_adjust_palette(spritemaker_t *spr) {
             spr->palette.colors[pal_idx][2] = edge_pal[edge_pal_idx + 2];
             spr->palette.colors[pal_idx][3] = edge_pal[edge_pal_idx + 3];
         }
-        spr->palette.used_colors += num_free_colors;
 
-        return num_free_colors;
+        int num_new_colors = edge_pal_len - 1;
+        spr->palette.used_colors += num_new_colors;
+
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: extended palette with %d new transparent colors (total used: %d)\n", num_new_colors, spr->palette.used_colors);
+        return num_new_colors;
     }
-
-    return 0;
 }
 
 static void bleedfix_silhouette(spritemaker_t *spr, image_t *image, int bytes_per_pixel) {
