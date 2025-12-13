@@ -10,6 +10,7 @@
 
 #include "pputils.h"
 #include "rspq.h"
+#include "fgeom2d.h"
 #include "../rspq/rspq_internal.h"
 
 /** @brief True if the rdpq module was inited */
@@ -130,7 +131,7 @@ void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
 
 void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
-void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
+void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3, fm_mat3_t *mtx);
 
 extern volatile int __rdpq_syncpoint_at_syncfull;
 

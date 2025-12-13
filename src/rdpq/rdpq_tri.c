@@ -25,6 +25,7 @@
 #include "rdpq_constants.h"
 #include "utils.h"
 #include "debug.h"
+#include "fgeom2d.h"
 
 /** @brief Set to 1 to activate tracing of all parameters of all triangles. */
 #define TRIANGLE_TRACE   0
@@ -464,7 +465,7 @@ void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v
 }
 
 /** @brief RDP triangle primitive assembled on the RSP */
-void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3, fm_mat3_t *mtx)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (fmt->tex_offset >= 0) {
@@ -486,10 +487,18 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
     const float *vtx[3] = {v1, v2, v3};
     for (int i=0;i<3;i++) {
         const float *v = vtx[i];
-
+        //Transform vertex
+        fm_vec2_t pos = {{v[fmt->pos_offset+0], v[fmt->pos_offset+1]}};
+        fm_vec3_t temp;
+        if(mtx != NULL) {
+            fm_mat3_mul_vec2(&temp, mtx, &pos);
+        } else {
+            temp.x = pos.x;
+            temp.y = pos.y;
+        }
         // X,Y: s13.2
-        int16_t x = floorf(v[fmt->pos_offset+0] * 4.0f);
-        int16_t y = floorf(v[fmt->pos_offset+1] * 4.0f);
+        int16_t x = floorf(temp.x * 4.0f);
+        int16_t y = floorf(temp.y * 4.0f);
         
         int16_t z = 0;
         if (fmt->z_offset >= 0) {
@@ -536,6 +545,6 @@ void rdpq_triangle(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, c
 #if RDPQ_TRIANGLE_REFERENCE
     rdpq_triangle_cpu(fmt, v1, v2, v3);
 #else
-    rdpq_triangle_rsp(fmt, v1, v2, v3);
+    rdpq_triangle_rsp(fmt, v1, v2, v3, NULL);
 #endif
 }

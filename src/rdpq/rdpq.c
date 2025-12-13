@@ -363,6 +363,7 @@
 #include "rdpq_internal.h"
 #include "rdpq_constants.h"
 #include "rdpq_debug_internal.h"
+#include "rdpq_xform_internal.h"
 #include "rspq.h"
 #include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
@@ -457,7 +458,8 @@ void rdpq_init()
         return;
 
     rspq_init();
-
+    __rdpq_xform_init();
+    
     // Get a pointer to the RDRAM copy of the rdpq ucode state.
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
 
@@ -499,7 +501,8 @@ void rdpq_close()
     
     rspq_overlay_unregister(RDPQ_OVL_ID);
     __rdpq_attach_close();
-
+    __rdpq_xform_close();
+    
     set_DP_interrupt( 0 );
     unregister_DP_handler(__rdpq_interrupt);
 

@@ -1,6 +1,6 @@
 /*
 	n64metadata: a program used to embed metadata into an N64 ROM,
-	according to the Homebrew Header Specification.
+	according to the Homebrew Header Specification:
 	Copyright (C) 2025 Giovanni Bajo (giovannibajo@gmail.com)
 
     This tool is part of the Libdragon SDK.
@@ -8,6 +8,14 @@
     This is free and unencumbered software released into the public domain.
     For more information, please refer to <http://unlicense.org/>
  */
+/*
+	This tool implements the specification of ROM metadata for the Homebrew Header:
+	https://n64brew.dev/wiki/ROM_Metadata
+
+	It is designed to be a self-contained C++ file with zero dependencies, and
+	zero assumptions about the SDK used to build the ROM. In other words, it
+	does not depend on Libdragon in any way, and can be used for any N64 ROM.
+*/
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -24,18 +32,20 @@
 #include <cctype>
 #include <algorithm>
 #include <unistd.h>
-
-#include "common/crc32.c"
+#include <cerrno>
 
 bool flag_verbose = false;
 bool flag_external = false;
 bool flag_force = false;
+int flag_padding = 16384;
 
 // Binary little-endian helpers
 static inline void w16(FILE *f, uint16_t v) { fputc(v, f); fputc(v >> 8, f); }
 static inline void w32(FILE *f, uint32_t v) { w16(f, v); w16(f, v >> 16); }
 static inline uint16_t r16(const uint8_t *p) { return (uint16_t)p[0]   | (uint16_t)p[1] << 8; }
 static inline uint32_t r32(const uint8_t *p) { return (uint32_t)r16(p) | (uint32_t)r16(p + 2) << 16; }
+static inline uint16_t r16be(const uint8_t *p) { return ((uint16_t)p[0] << 8) | (uint16_t)p[1]; }
+static inline uint32_t r32be(const uint8_t *p) { return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3]; }
 
 __attribute__((format(printf, 1, 2)))
 static void verbose(const char *fmt, ...)
@@ -89,11 +99,36 @@ static void usage(void)
 	fprintf(stderr, "Embed or generate metadata ZIPs for N64 Homebrew Header.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Options:\n");
-	fprintf(stderr, "  -h, --help       Show this help message and exit\n");
-	fprintf(stderr, "  -v, --verbose    Verbose output\n");
-	fprintf(stderr, "  -e, --external   Do not modify ROM; write sidecar .meta ZIP\n");
-	fprintf(stderr, "  -f, --force      Overwrite existing embedded metadata in ROM\n");
+	fprintf(stderr, "  -h, --help       	Show this help message and exit\n");
+	fprintf(stderr, "  -v, --verbose    	Verbose output\n");
+	fprintf(stderr, "  -e, --external   	Do not modify ROM; write sidecar .meta ZIP\n");
+	fprintf(stderr, "  -f, --force      	Overwrite existing embedded metadata in ROM\n");
+	fprintf(stderr, "  -P, --padding <N>    Padding alignment for the final ROM (default: 16 KiB)\n");
 	fprintf(stderr, "\n");
+}
+
+static uint32_t crc_table[256];
+
+static void crc32_init(void)
+{
+    for (uint32_t i = 0; i < 256; i++) {
+        uint32_t c = i;
+        for (int j = 0; j < 8; j++) {
+            if (c & 1)	c = 0xEDB88320 ^ (c >> 1);
+            else		c = c >> 1;
+        }
+        crc_table[i] = c;
+    }
+}
+
+static uint32_t crc32(const void *buf, size_t len)
+{
+    const uint8_t *p = (const uint8_t *)buf;
+    uint32_t c = 0xFFFFFFFF;
+    for (size_t i = 0; i < len; i++) {
+        c = crc_table[(c ^ p[i]) & 0xFF] ^ (c >> 8);
+    }
+    return c ^ 0xFFFFFFFF;
 }
 
 struct ZipEntry {
@@ -161,6 +196,70 @@ static bool validate_rel_path(const std::string &fn, const char *ini,
 	return true;
 }
 
+// Minimal PNG parser: extract width/height from IHDR
+static bool get_png_dimensions(const std::vector<uint8_t> &data, int &w, int &h)
+{
+	static const uint8_t sig[8] = { 0x89,'P','N','G',0x0D,0x0A,0x1A,0x0A };
+	if (data.size() < 8 + 8 + 13 + 4) return false;
+	if (memcmp(data.data(), sig, 8) != 0) return false;
+	size_t pos = 8;
+	while (pos + 8 <= data.size()) {
+		uint32_t len = r32be(&data[pos]);
+		uint32_t type = r32be(&data[pos + 4]);
+		pos += 8;
+		if (pos + len + 4 > data.size()) return false;
+		if (type == 0x49484452) { // "IHDR"
+			if (len < 8) return false;
+			w = (int)r32be(&data[pos + 0]);
+			h = (int)r32be(&data[pos + 4]);
+			return (w > 0 && h > 0);
+		}
+		pos += len + 4; // skip data + CRC
+	}
+	return false;
+}
+
+// Minimal JPEG parser: extract width/height from SOF markers
+static bool get_jpeg_dimensions(const std::vector<uint8_t> &data, int &w, int &h)
+{
+	if (data.size() < 4) return false;
+	if (data[0] != 0xFF || data[1] != 0xD8) return false; // SOI
+	size_t pos = 2;
+	while (pos + 1 < data.size()) {
+		// Skip fill bytes 0xFF
+		if (data[pos] != 0xFF) { pos++; continue; }
+		while (pos < data.size() && data[pos] == 0xFF) pos++;
+		if (pos >= data.size()) break;
+		uint8_t marker = data[pos++];
+		// Standalone markers without length
+		if (marker == 0xD8 || marker == 0xD9 || (marker >= 0xD0 && marker <= 0xD7) || marker == 0x01) {
+			if (marker == 0xD9) break; // EOI
+			continue;
+		}
+		// Segment with length
+		if (pos + 2 > data.size()) return false;
+		uint16_t seglen = r16be(&data[pos]);
+		if (seglen < 2) return false;
+		if (pos + seglen > data.size()) return false;
+		// SOF0/1/2/3/5/6/7/9/A/B/D/E/F contain dimensions
+		if ((marker >= 0xC0 && marker <= 0xC3) ||
+		    (marker >= 0xC5 && marker <= 0xC7) ||
+		    (marker >= 0xC9 && marker <= 0xCB) ||
+		    (marker >= 0xCD && marker <= 0xCF)) {
+			if (seglen < 7) return false;
+			size_t p = pos + 3; // skip length(2) and precision(1)
+			if (p + 4 > data.size()) return false;
+			h = (int)r16be(&data[p + 0]);
+			w = (int)r16be(&data[p + 2]);
+			return (w > 0 && h > 0);
+		}
+		// Stop at SOS if we haven't found SOF yet (markers after SOS are in entropy-coded data)
+		if (marker == 0xDA) break;
+		pos += seglen;
+	}
+	return false;
+}
+
 // Read a file into a vector
 static bool slurp(const std::string &path, std::vector<uint8_t> &data, const char *ctx)
 {
@@ -216,7 +315,8 @@ static void write_zip(FILE *z, const std::vector<ZipEntry> &entries, int padding
 		fwrite(e.data.data(), 1, e.data.size(), z);
 	}
 
-    // Add padding if requested
+    // Add padding if requested. We put the padding *within* the ZIP, so that
+	// if the ZIP is replaced, also the padding is removed.
     for (int i = 0; i < padding; i++) {
         fputc(0, z);
     }
@@ -351,6 +451,22 @@ int main(int argc, char **argv)
 		else if (!strcmp(a, "-f") || !strcmp(a, "--force")) {
 			flag_force = true;
 		}
+		else if (!strcmp(a, "-P") || !strcmp(a, "--padding")) {
+			if (++i >= argc) {
+				fprintf(stderr, "n64metadata: error: missing argument for %s\n", a);
+				return 1;
+			}
+            try {
+                flag_padding = std::stoi(argv[i]);
+                if (flag_padding < 0) {
+                    fprintf(stderr, "n64metadata: error: padding must be positive\n");
+                    return 1;
+                }
+            } catch (const std::invalid_argument &e) {
+                fprintf(stderr, "n64metadata: error: invalid padding argument: %s\n", argv[i]);
+                return 1;
+            }
+        }
 		else if (a[0] == '-') {
 			fprintf(stderr, "n64metadata: error: unknown option '%s'\n", a);
 			usage();
@@ -375,6 +491,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	crc32_init();
+
     std::vector<uint8_t> content;
     if (!slurp(ini_path, content, ini_path)) {
         fatal("%s: error: cannot open file\n", ini_path);
@@ -384,10 +502,6 @@ int main(int argc, char **argv)
 	if (!validUTF8(content)) {
 		fatal("%s: error: file is not valid UTF-8\n", ini_path);
 	}
-
-    if (std::find(content.begin(), content.end(), '\r') != content.end()) {
-        fatal("%s: error: file uses DOS newlines (CRLF); please convert to Unix (LF)\n", ini_path);
-    }
 
 	static std::vector<std::string> metaKeys = {
         "name", "author", "release-date", "osi-license", "website", "age-rating", "short-desc", "long-desc", "screenshots"
@@ -421,6 +535,9 @@ int main(int argc, char **argv)
 
 		if (s.empty() || s[0] == '#' || s[0] == ';')
 			continue;
+
+		if (s.back() == '\r')
+			s.pop_back();
 
 		if (s.front() == '[' && s.back() == ']') {
 			section = s.substr(1, s.size() - 2);
@@ -484,6 +601,34 @@ int main(int argc, char **argv)
                     fprintf(stderr, "%s:%d: error: file '%s' is not valid UTF-8\n", ini_path, lineno, fn.c_str());
                     has_error = true;
                     return;
+                }
+                // Image size validation for PNG and JPEG
+                if (has_suffix(fn, ".png")) {
+                    int w = 0, h = 0;
+                    if (!get_png_dimensions(e.data, w, h)) {
+                        fprintf(stderr, "%s:%d: error: file '%s' is not a valid PNG or missing IHDR\n", ini_path, lineno, fn.c_str());
+                        has_error = true;
+                        return;
+                    }
+                    bool ok = ((w <= 320 && h <= 240) || (w <= 240 && h <= 320));
+                    if (!ok) {
+                        fprintf(stderr, "%s:%d: error: image '%s' has size %dx%d, exceeds 320x240/240x320\n", ini_path, lineno, fn.c_str(), w, h);
+                        has_error = true;
+                        return;
+                    }
+                } else if (has_suffix(fn, ".jpg") || has_suffix(fn, ".jpeg")) {
+                    int w = 0, h = 0;
+                    if (!get_jpeg_dimensions(e.data, w, h)) {
+                        fprintf(stderr, "%s:%d: error: file '%s' is not a valid JPEG or missing SOF\n", ini_path, lineno, fn.c_str());
+                        has_error = true;
+                        return;
+                    }
+                    bool ok = ((w <= 320 && h <= 240) || (w <= 240 && h <= 320));
+                    if (!ok) {
+                        fprintf(stderr, "%s:%d: error: image '%s' has size %dx%d, exceeds 320x240/240x320\n", ini_path, lineno, fn.c_str(), w, h);
+                        has_error = true;
+                        return;
+                    }
                 }
                 e.name = fn;
                 entries.emplace_back(std::move(e));
@@ -588,7 +733,6 @@ int main(int argc, char **argv)
 
     if (header[0x3C] != 'E' || header[0x3D] != 'D') {
         verbose("n64metadata: info: setting ROM for homebrew header\n");
-        memset(&header[0x34], 0, 0x40 - 0x34);
         header[0x3C] = 'E'; header[0x3D] = 'D';
     }
 
@@ -613,7 +757,9 @@ int main(int argc, char **argv)
     // For iQue compatibility, we need to pad the ROM to a multiple of 16 KiB. Write
     // the padding inside the ZIP, so that if the ZIP is replaced, also the padding is.
     int zip_size = calc_zip_size(entries);
-    int padding = 16384 - ((size + zip_size) % 16384);
+    int padding = 0;
+    if (flag_padding)
+        padding = (flag_padding - ((size + zip_size) % flag_padding)) % flag_padding;
     verbose("n64metadata: info: ZIP file is %d bytes, padding ROM with %d bytes\n", zip_size, padding);
 	write_zip(rom, entries, padding);
 	if (ferror(rom))

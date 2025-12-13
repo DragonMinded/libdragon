@@ -190,16 +190,27 @@ inline void fm_mat3_translate(fm_mat3_t *out, const fm_vec2_t *translate)
 }
 
 /**
- * @brief Apply rotation to a 3x3 matrix.
+ * @brief Apply a counterclockwise rotation to a 3x3 matrix.
  */
 void fm_mat3_rotate(fm_mat3_t *out, float rotation);
 
 /**
  * @brief Create a 3x3 affine transformation matrix from scale, rotation and translation.
  * 
- * The rotation is accepted as an angle in radians.
+ * The rotation is accepted as a counterclockwise angle in radians.
+ * It creates an equivalent matrix to multiplying an identity matrix by a scale,
+ * a rotation, and a translation matrix in that order.
  */
 void fm_mat3_from_srt(fm_mat3_t *out, const fm_vec2_t *scale, float rotation, const fm_vec2_t *translate);
+
+/**
+ * @brief Create a 3x3 affine transformation matrix from rotation, scale, and translation.
+ * 
+ * The rotation is accepted as a counterclockwise angle in radians.
+ * It creates an equivalent matrix to multiplying an identity matrix by a rotation,
+ * a scale, and a translation matrix in that order.
+ */
+void fm_mat3_from_rst(fm_mat3_t *out, float rotation, const fm_vec2_t *scale, const fm_vec2_t *translate);
 
 /**
  * @brief Create a 3x3 rigid transformation matrix from rotation and translation.
@@ -282,7 +293,7 @@ float fm_mat3_det(const fm_mat3_t *m);
 void fm_mat3_inverse(fm_mat3_t *out, const fm_mat3_t *m);
 
 /**
- * @brief Multiply a 2D vector by a 3x3 matrix by assuming 1 as the hypothetical 4th component of the vector.
+ * @brief Multiply a 2D vector by a 3x3 matrix by assuming 1 as the hypothetical 3rd component of the vector.
  */
 inline void fm_mat3_mul_vec2(fm_vec3_t *out, const fm_mat3_t *m, const fm_vec2_t *v)
 {
@@ -311,6 +322,94 @@ inline void fm_mat3_mul_vec3(fm_vec3_t *out, const fm_mat3_t *m, const fm_vec3_t
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+
+constexpr fm_vec2_t operator+(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.x + rhs.x, lhs.y + rhs.y};
+}
+
+constexpr fm_vec2_t operator-(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.x - rhs.x, lhs.y - rhs.y};
+}
+
+constexpr fm_vec2_t operator*(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.x * rhs.x, lhs.y * rhs.y};
+}
+
+constexpr fm_vec2_t operator/(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return {lhs.x / rhs.x, lhs.y / rhs.y};
+} 
+
+constexpr fm_vec2_t operator+(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.x + rhs, lhs.y + rhs};
+}
+
+constexpr fm_vec2_t operator-(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.x - rhs, lhs.y - rhs};
+}
+
+constexpr fm_vec2_t operator*(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.x * rhs, lhs.y * rhs};
+}
+
+constexpr fm_vec2_t operator/(fm_vec2_t const& lhs, float rhs) {
+  return {lhs.x / rhs, lhs.y / rhs};
+}
+
+constexpr fm_vec2_t operator-(fm_vec2_t const& lhs) {
+  return {-lhs.x, -lhs.y};
+}
+
+constexpr fm_vec2_t& operator+=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.x += rhs.x;
+  lhs.y += rhs.y;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator+=(fm_vec2_t &lhs, float rhs) {
+  lhs.x += rhs;
+  lhs.y += rhs;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator-=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.x -= rhs.x;
+  lhs.y -= rhs.y;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator-=(fm_vec2_t &lhs, float rhs) {
+  lhs.x -= rhs;
+  lhs.y -= rhs;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator*=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.x *= rhs.x;
+  lhs.y *= rhs.y;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator*=(fm_vec2_t &lhs, float rhs) {
+  lhs.x *= rhs;
+  lhs.y *= rhs;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator/=(fm_vec2_t &lhs, fm_vec2_t const& rhs) {
+  lhs.x /= rhs.x;
+  lhs.y /= rhs.y;
+  return lhs;
+}
+
+constexpr fm_vec2_t& operator/=(fm_vec2_t &lhs, float rhs) {
+  lhs.x /= rhs;
+  lhs.y /= rhs;
+  return lhs;
+}
+
 #endif
 
 #endif

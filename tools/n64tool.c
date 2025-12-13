@@ -62,7 +62,8 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 //  
 // To allow the maximum compatibility, we pad to 16 KiB by default. Users can still
 // force a specific length with --size, if they need to.
-#define PAD_ALIGN    16384
+// We also allow changing the padding alignment with --padding.
+int pad_align = 16384;
 
 #define WRITE_SIZE   (1024 * 1024)
 
@@ -132,6 +133,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "General flags (to be used before any file):\n");
 	fprintf(stderr, "\t-t, --title <title>    Title of ROM (max %d characters).\n", TITLE_SIZE);
 	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
+	fprintf(stderr, "\t-P, --padding <size>   Padding alignment for the final ROM (default: 16 KiB).\n");
 	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header (default: use libdragon IPL3).\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
 	fprintf(stderr, "\t-C, --category <cat>   N64 Media Category Code (default: 'N' - N64 Game Pak).\n");
@@ -421,13 +423,6 @@ int main(int argc, char *argv[])
 			}
 
 			output = argv[i++];
-
-			size_t output_len = strlen(output);
-			if(output_len < 5 || strcmp(output + output_len - 4, ".z64"))
-			{
-				fprintf(stderr, "WARNING: The output should have a '.z64' file extension\n");
-			}
-
 			asprintf(&tmp_output, "%s.tmp", output);
 			continue;
 		}
@@ -454,6 +449,27 @@ int main(int argc, char *argv[])
 			}				
 
 			declared_size = size;
+			continue;
+		}
+		if(check_flag(arg, "-P", "--padding"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to padding flag\n\n");
+				return print_usage(argv[0]);
+			}
+
+			ssize_t size = parse_bytes(argv[i++]);
+
+			if (size < 0)
+			{
+				/* Invalid size */
+				fprintf(stderr, "ERROR: Invalid padding argument; must be positive\n\n");
+				return print_usage(argv[0]);				
+			}
+            
+            pad_align = size;
 			continue;
 		}
 		if(check_flag(arg, "-T", "--toc"))
@@ -743,7 +759,8 @@ int main(int argc, char *argv[])
 		   size that is padded to the correct alignment. Notice that this variable
 		   declares the size WITHOUT header, but the padding refers to the final
 		   ROM and so it must be calculated with the header. */
-		declared_size = ROUND_UP(header_size, PAD_ALIGN)-header_size;
+		if (pad_align)
+			declared_size = ROUND_UP(header_size, pad_align)-header_size;
 	}
 	if(declared_size > total_bytes_written)
 	{
@@ -755,10 +772,10 @@ int main(int argc, char *argv[])
 			return print_usage(argv[0]);
 		}
 	}
-	else if(((total_bytes_written+header_size) % PAD_ALIGN) != 0)
+	else if(pad_align && ((total_bytes_written+header_size) % pad_align) != 0)
 	{
 		/* Pad size as required. */
-		ssize_t num_zeros = PAD_ALIGN - ((total_bytes_written+header_size) % PAD_ALIGN);
+		ssize_t num_zeros = pad_align - ((total_bytes_written+header_size) % pad_align);
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, total_bytes_written+num_zeros);

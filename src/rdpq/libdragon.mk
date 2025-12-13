@@ -11,4 +11,5 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/rdpq/rdpq_attach.o \
 	$(BUILD_DIR)/rdpq/rdpq_font.o \
 	$(BUILD_DIR)/rdpq/rdpq_text.o \
-	$(BUILD_DIR)/rdpq/rdpq_paragraph.o 
+	$(BUILD_DIR)/rdpq/rdpq_paragraph.o \
+	$(BUILD_DIR)/rdpq/rdpq_xform.o 
