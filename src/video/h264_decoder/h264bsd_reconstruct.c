@@ -43,8 +43,8 @@
 #define UNUSED(x) (void)(x)
 
 #ifdef H264BSD_N64
-#include "../rsph264.h"
-#include "../cache.h"
+#include "../rsph264_internal.h"
+#include "../fastcache.h"
 #endif
 
 
@@ -92,7 +92,7 @@ extern const u8 h264bsdClip[];
                         partition is stored at correct position
 
 ------------------------------------------------------------------------------*/
-
+#if !H264BSD_N64
 /*lint -e{550} Symbol 'res' not accessed */
 void h264bsdPredictSamples(
   image_t *pic,
@@ -288,7 +288,7 @@ void h264bsdPredictSamples(
     PROFILE_STOP(PS_H264_INTERPRED_CHROMA, 0);
     (void)res;
 }
-
+#endif
 
 /*------------------------------------------------------------------------------
 

@@ -11,7 +11,7 @@
 
 // Include files for the reference implementation.
 #include "../src/video/h264_decoder/omxdl/armVC.h"
-#if 0
+#if 1
 #include "../src/video/h264_decoder/omxdl/armCOMM.c"
 #include "../src/video/h264_decoder/omxdl/armVCCOMM_Average.c"
 #include "../src/video/h264_decoder/omxdl/armVCM4P10_Interpolate_Luma.c"
@@ -19,6 +19,11 @@
 #include "../src/video/h264_decoder/omxdl/armVCM4P10_InterpolateHalfHor_Luma.c"
 #include "../src/video/h264_decoder/omxdl/armVCM4P10_InterpolateHalfVer_Luma.c"
 #include "../src/video/h264_decoder/omxdl/armVCM4P10_InterpolateHalfDiag_Luma.c"
+#include "../src/video/h264_decoder/omxdl/omxVCM4P10_PredictIntra_4x4.c"
+#include "../src/video/h264_decoder/omxdl/omxVCM4P10_PredictIntra_16x16.c"
+#include "../src/video/h264_decoder/omxdl/omxVCM4P10_PredictIntraChroma_8x8.c"
+#include "../src/video/h264_decoder/omxdl/omxVCM4P10_TransformDequantChromaDCFromPair.c"
+#include "../src/video/h264_decoder/omxdl/omxVCM4P10_DequantTransformResidualFromPairAndAdd.c"
 #endif
 
 #define SRC_SIZE 256

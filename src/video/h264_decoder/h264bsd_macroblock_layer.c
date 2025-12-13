@@ -59,8 +59,8 @@
 #include "omxdl/armVC.h"
 
 #ifdef H264BSD_N64
-#include "../rsph264.h"
-#include "../cache.h"
+#include "../rsph264_internal.h"
+#include "../fastcache.h"
 #endif
 /*------------------------------------------------------------------------------
     2. External compiler flags

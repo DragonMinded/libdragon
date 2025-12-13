@@ -19,7 +19,7 @@
 #include "armCOMM.h"
 
 #ifdef H264BSD_N64
-#include "../../rsph264.h"
+#include "../../rsph264_internal.h"
 #endif
 
 /**
@@ -57,7 +57,7 @@
         OMX_U32     dy
 )
 {
-#ifdef H264BSD_N64
+#if H264BSD_N64
     rsph264_queue_interpolate_chroma(RSPH264_CACHE_SKIP_SOURCE|RSPH264_CACHE_SKIP_DEST,
         pSrc, iSrcStep,
         pDst, iDstStep,

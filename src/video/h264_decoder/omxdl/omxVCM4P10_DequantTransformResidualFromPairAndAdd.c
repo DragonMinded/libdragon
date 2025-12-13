@@ -23,8 +23,8 @@
 
 #ifdef H264BSD_N64
 #include <libdragon.h>
-#include "../../cache.h"
-#include "../../rsph264.h"
+#include "../../fastcache.h"
+#include "../../rsph264_internal.h"
 #endif
 
 /*

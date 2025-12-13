@@ -61,7 +61,7 @@ typedef struct m4p10_MESpec ARMVCM4P10_MESpec;
  * OMX_INT -- 1 to indicate that the current sad is the best
  *            0 to indicate that it is NOT the best SAD
  */
-
+__attribute__((weak))
 OMX_INT armVCM4P2_CompareMV (
     OMX_S16 mvX,
     OMX_S16 mvY,
@@ -117,7 +117,7 @@ OMX_INT armVCM4P2_CompareMV (
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_ACDCPredict(
      OMX_S16 * pSrcDst,
      OMX_S16 * pPreACPredict,
@@ -158,7 +158,7 @@ OMXResult armVCM4P2_ACDCPredict(
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_SetPredDir(
      OMX_INT blockIndex,
      OMX_S16 *pCoefBufRow,
@@ -209,7 +209,7 @@ OMXResult armVCM4P2_SetPredDir(
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_EncodeVLCZigzag_Intra(
      OMX_U8 **ppBitStream,
      OMX_INT *pBitOffset,
@@ -265,7 +265,7 @@ OMXResult armVCM4P2_EncodeVLCZigzag_Intra(
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_DecodeVLCZigzag_Intra(
      const OMX_U8 ** ppBitStream,
      OMX_INT * pBitOffset,
@@ -297,7 +297,7 @@ OMXResult armVCM4P2_DecodeVLCZigzag_Intra(
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_FillVLDBuffer(
     OMX_U32 storeRun,
     OMX_S16 * pDst,
@@ -358,7 +358,7 @@ OMXResult armVCM4P2_FillVLDBuffer(
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_GetVLCBits (
               const OMX_U8 **ppBitStream,
               OMX_INT * pBitOffset,
@@ -438,7 +438,7 @@ OMXResult armVCM4P2_GetVLCBits (
  *
  */
 
-
+ __attribute__((weak))
 OMXResult armVCM4P2_PutVLCBits (
               OMX_U8 **ppBitStream,
               OMX_INT * pBitOffset,
@@ -497,7 +497,7 @@ OMXResult armVCM4P2_PutVLCBits (
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_FillVLCBuffer (
               OMX_U8 **ppBitStream,
               OMX_INT * pBitOffset,
@@ -546,7 +546,7 @@ OMXResult armVCM4P2_FillVLCBuffer (
  * in the MPEG ISO standard.
  *
  */
-
+ __attribute__((weak))
 OMX_U8 armVCM4P2_CheckVLCEscapeMode(
      OMX_U32 run,
      OMX_U32 runPlus,
@@ -596,11 +596,11 @@ OMX_U8 armVCM4P2_CheckVLCEscapeMode(
  * [out]	pDstSAD			pointer to minimum SAD
  *
  * Return Value:
- * OMX_Sts_NoErr ¨C no error.
- * OMX_Sts_BadArgErr ¨C bad arguments
+ * OMX_Sts_NoErr ï¿½C no error.
+ * OMX_Sts_BadArgErr ï¿½C bad arguments
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_BlockMatch_Integer(
      const OMX_U8 *pSrcRefBuf,
      OMX_INT refWidth,
@@ -648,11 +648,11 @@ OMXResult armVCM4P2_BlockMatch_Integer(
  * [out]pDstSAD			pointer to minimum SAD
  *
  * Return Value:
- * OMX_Sts_NoErr ¨C no error
- * OMX_Sts_BadArgErr ¨C bad arguments
+ * OMX_Sts_NoErr ï¿½C no error
+ * OMX_Sts_BadArgErr ï¿½C bad arguments
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_BlockMatch_Half(
      const OMX_U8 *pSrcRefBuf,
      OMX_INT refWidth,
@@ -683,7 +683,7 @@ OMXResult armVCM4P2_BlockMatch_Half(
  * Standard OMXResult result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P2_PadMV(
      OMXVCMotionVector * pSrcDstMV,
      OMX_U8 * pTransp
@@ -728,7 +728,7 @@ extern const OMX_U32 armVCM4P10_MFMatrix[6][3];
  * Standard omxError result. See enumeration for possible result codes.
 
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P10_DecodeCoeffsToPair(
      const OMX_U8** ppBitStream,
      OMX_S32* pOffset,
@@ -755,7 +755,7 @@ OMXResult armVCM4P10_DecodeCoeffsToPair(
  * Return Value:
  * None
  */
-
+ __attribute__((weak))
 void armVCM4P10_PredictIntraDC4x4(
      const OMX_U8* pSrcLeft,
      const OMX_U8 *pSrcAbove,
@@ -775,7 +775,7 @@ void armVCM4P10_PredictIntraDC4x4(
  * [out]	ppSrc	*ppSrc is updated to the start of next non empty block
  * [out]	pDst	Pointer to unpacked 4x4 block
  */
-
+ __attribute__((weak))
 void armVCM4P10_UnpackBlock4x4(
      const OMX_U8 **ppSrc,
      OMX_S16* pDst
@@ -791,7 +791,7 @@ void armVCM4P10_UnpackBlock4x4(
  * [out]	ppSrc	*ppSrc is updated to the start of next non empty block
  * [out]	pDst	Pointer to unpacked 4x4 block
  */
-
+ __attribute__((weak))
 void armVCM4P10_UnpackBlock2x2(
      const OMX_U8 **ppSrc,
      OMX_S16* pDst
@@ -812,7 +812,7 @@ void armVCM4P10_UnpackBlock2x2(
  * [out] pQ0        Deblocked pixels
  * 
  */
-
+ __attribute__((weak))
 void armVCM4P10_DeBlockPixel(
     OMX_U8 *pQ0,    /* pointer to the pixel q0 */
     int Step,       /* step between pixels q0 and q1 */
@@ -843,7 +843,7 @@ void armVCM4P10_DeBlockPixel(
  * Standard OMXResult value.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P10_InterpolateHalfHor_Luma(
         const OMX_U8*		pSrc, 
 		OMX_U32 	iSrcStep, 
@@ -874,7 +874,7 @@ OMXResult armVCM4P10_InterpolateHalfHor_Luma(
  * Standard OMXResult value.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P10_InterpolateHalfVer_Luma(	
 	 const OMX_U8* 	pSrc, 
 	 OMX_U32 	iSrcStep, 
@@ -905,7 +905,7 @@ OMXResult armVCM4P10_InterpolateHalfVer_Luma(
  * Standard OMXResult value.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P10_InterpolateHalfDiag_Luma(  
         const OMX_U8*     pSrc, 
         OMX_U32     iSrcStep, 
@@ -924,7 +924,7 @@ OMXResult armVCM4P10_InterpolateHalfDiag_Luma(
  * [out] pDst		Destination 4x4 block
  *
  */
-
+ __attribute__((weak))
 void armVCM4P10_TransformResidual4x4(OMX_S16* pDst, OMX_S16 *pSrc);
 
 /*
@@ -936,9 +936,10 @@ void armVCM4P10_TransformResidual4x4(OMX_S16* pDst, OMX_S16 *pSrc);
  * [out] pDst		Destination 4x4 block
  *
  */
-
+ __attribute__((weak))
 void armVCM4P10_FwdTransformResidual4x4(OMX_S16* pDst, OMX_S16 *pSrc);
 
+__attribute__((weak))
 OMX_INT armVCM4P10_CompareMotionCostToMV (
     OMX_S16  mvX,
     OMX_S16  mvY,
@@ -968,6 +969,7 @@ OMX_INT armVCM4P10_CompareMotionCostToMV (
  * Standard OMXResult value.
  *
  */
+__attribute__((weak))
 OMXResult armVCCOMM_SAD(	
 	const OMX_U8* 	pSrcOrg,
 	OMX_U32 	iStepOrg,
@@ -998,6 +1000,7 @@ OMXResult armVCCOMM_SAD(
  * Standard OMXResult value.
  *
  */
+ __attribute__((weak))
  OMXResult armVCCOMM_Average (
 	 const OMX_U8* 	    pPred0,
 	 const OMX_U8* 	    pPred1,	
@@ -1032,6 +1035,7 @@ OMXResult armVCCOMM_SAD(
  * Standard OMXResult value.
  *
  */
+ __attribute__((weak))
 OMXResult armVCM4P10_SADQuar(
 	const OMX_U8* 	pSrc,
     const OMX_U8* 	pSrcRef0,
@@ -1068,6 +1072,7 @@ OMXResult armVCM4P10_SADQuar(
  * Standard OMXResult value.
  *
  */
+ __attribute__((weak))
  OMXResult armVCM4P10_Interpolate_Chroma(
         OMX_U8      *pSrc,
         OMX_U32     iSrcStep,
@@ -1103,7 +1108,7 @@ OMXResult armVCM4P10_SADQuar(
  * Standard OMXResult value.
  *
  */
-
+ __attribute__((weak))
  OMXResult armVCM4P10_Interpolate_Luma(
      const OMX_U8     *pSrc,
      OMX_U32    iSrcStep,
@@ -1138,7 +1143,7 @@ OMXResult armVCM4P10_SADQuar(
  * Standard omxError result. See enumeration for possible result codes.
  *
  */
-
+ __attribute__((weak))
 OMXResult armVCM4P10_DequantTransformACFromPair_U8_S16_C1_DLx(
      OMX_U8 **ppSrc,
      OMX_S16 *pDst,

@@ -21,7 +21,7 @@
 #include "armVC.h"
 
 #ifdef H264BSD_N64
-#include "../../rsph264.h"
+#include "../../rsph264_internal.h"
 #endif
 
 /**
@@ -101,7 +101,7 @@ static OMXResult armM4P10_Copy(
      OMX_U32    dy
 )
 {
-#ifdef H264BSD_N64
+#if H264BSD_N64
     (void)armM4P10_Copy;
 
     rsph264_queue_interpolate_luma(RSPH264_CACHE_SKIP_SOURCE|RSPH264_CACHE_SKIP_DEST,

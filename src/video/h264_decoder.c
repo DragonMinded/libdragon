@@ -1,3 +1,8 @@
+// Activate N64 specific codepath
+#define H264BSD_N64         1
+#define H264BSD_N64_INTRA   1     // Intraprediction on RSP
+#define H264BSD_N64_CAVLC   0     // CAVLC on RSP
+
 #include "h264_decoder/extraflags.c"
 #include "h264_decoder/h264bsd_byte_stream.c"
 #include "h264_decoder/h264bsd_cavlc.c"

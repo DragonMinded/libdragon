@@ -2,7 +2,7 @@
  * File: omxVC.h
  * Brief: OpenMAX DL v1.0.2 - Video Coding library
  *
- * Copyright © 2005-2008 The Khronos Group Inc. All Rights Reserved. 
+ * Copyright ï¿½ 2005-2008 The Khronos Group Inc. All Rights Reserved. 
  *
  * These materials are protected by copyright laws and contain material 
  * proprietary to the Khronos Group, Inc.  You may use these materials 
@@ -86,7 +86,8 @@ typedef struct {
  *    -   iHeight is not 4, 8, or 16. 
  *
  */
-OMXResult omxVCCOMM_Average_8x (
+__attribute__((weak))
+ OMXResult omxVCCOMM_Average_8x (
     const OMX_U8 *pPred0,
     const OMX_U8 *pPred1,
     OMX_U32 iPredStep0,
@@ -134,7 +135,8 @@ OMXResult omxVCCOMM_Average_8x (
  *    -   iHeight is not 8 or 16. 
  *
  */
-OMXResult omxVCCOMM_Average_16x (
+ __attribute__((weak))
+ OMXResult omxVCCOMM_Average_16x (
     const OMX_U8 *pPred0,
     const OMX_U8 *pPred1,
     OMX_U32 iPredStep0,
@@ -190,6 +192,7 @@ OMXResult omxVCCOMM_Average_16x (
  *    -    iPlaneStep < (iFrameWidth + 2 * iExpandPels). 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCCOMM_ExpandFrame_I (
     OMX_U8 *pSrcDstPlane,
     OMX_U32 iFrameWidth,
@@ -230,7 +233,8 @@ OMXResult omxVCCOMM_ExpandFrame_I (
  *    -    step <8 or step is not a multiple of 8. 
  *
  */
-OMXResult omxVCCOMM_Copy8x8 (
+ __attribute__((weak))
+ OMXResult omxVCCOMM_Copy8x8 (
     const OMX_U8 *pSrc,
     OMX_U8 *pDst,
     OMX_INT step
@@ -268,6 +272,7 @@ OMXResult omxVCCOMM_Copy8x8 (
  *    -    step <16 or step is not a multiple of 16. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCCOMM_Copy16x16 (
     const OMX_U8 *pSrc,
     OMX_U8 *pDst,
@@ -308,6 +313,7 @@ OMXResult omxVCCOMM_Copy16x16 (
  *    -    pDst is not 8-byte aligned. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCCOMM_ComputeTextureErrorBlock_SAD (
     const OMX_U8 *pSrc,
     OMX_INT srcStep,
@@ -349,6 +355,7 @@ OMXResult omxVCCOMM_ComputeTextureErrorBlock_SAD (
  *    -    pDst is not 8-byte aligned 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCCOMM_ComputeTextureErrorBlock (
     const OMX_U8 *pSrc,
     OMX_INT srcStep,
@@ -390,6 +397,7 @@ OMXResult omxVCCOMM_ComputeTextureErrorBlock (
  *    -    the width or height of the bounding rectangle is less than 
  *         twice the block size.
  */
+ __attribute__((weak))
 OMXResult omxVCCOMM_LimitMVToRect (
     const OMXVCMotionVector *pSrcMV,
     OMXVCMotionVector *pDstMV,
@@ -433,6 +441,7 @@ OMXResult omxVCCOMM_LimitMVToRect (
  *    -    iHeight is not 8 or 16 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCCOMM_SAD_16x (
     const OMX_U8 *pSrcOrg,
     OMX_U32 iStepOrg,
@@ -476,6 +485,7 @@ OMXResult omxVCCOMM_SAD_16x (
  *    -    iHeight is not 4, 8 or 16 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCCOMM_SAD_8x (
     const OMX_U8 *pSrcOrg,
     OMX_U32 iStepOrg,
@@ -657,6 +667,7 @@ typedef struct {
  *    -    the parameter iBlk does not fall into the range 0 <= iBlk<=3 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_FindMVpred (
     const OMXVCMotionVector *pSrcMVCurMB,
     const OMXVCMotionVector *pSrcCandMV1,
@@ -696,6 +707,7 @@ OMXResult omxVCM4P2_FindMVpred (
  *    -    pSrc or pDst is not 16-byte aligned. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_IDCT8x8blk (
     const OMX_S16 *pSrc,
     OMX_S16 *pDst
@@ -731,6 +743,7 @@ OMXResult omxVCM4P2_IDCT8x8blk (
  *         parameter pMEParams->searchRange 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_MEGetBufSize (
     OMXVCM4P2MEMode MEmode,
     const OMXVCM4P2MEParams *pMEParams,
@@ -775,6 +788,7 @@ OMXResult omxVCM4P2_MEGetBufSize (
  *         parameter pMEParams->searchRange 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_MEInit (
     OMXVCM4P2MEMode MEmode,
     const OMXVCM4P2MEParams*pMEParams,
@@ -835,6 +849,7 @@ OMXResult omxVCM4P2_MEInit (
  *    -    pSrcCurrBuf is not 16-byte aligned 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_BlockMatch_Integer_16x16 (
     const OMX_U8 *pSrcRefBuf,
     OMX_INT refWidth,
@@ -900,6 +915,7 @@ OMXResult omxVCM4P2_BlockMatch_Integer_16x16 (
  *    -    pSrcCurrBuf is not 8-byte aligned 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_BlockMatch_Integer_8x8 (
     const OMX_U8 *pSrcRefBuf,
     OMX_INT refWidth,
@@ -963,6 +979,7 @@ OMXResult omxVCM4P2_BlockMatch_Integer_8x8 (
  *    -    pSrcCurrBuf is not 16-byte aligned, or 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_BlockMatch_Half_16x16 (
     const OMX_U8 *pSrcRefBuf,
     OMX_INT refWidth,
@@ -1023,6 +1040,7 @@ OMXResult omxVCM4P2_BlockMatch_Half_16x16 (
  *    -    pSrcCurrBuf is not 8-byte aligned 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_BlockMatch_Half_8x8 (
     const OMX_U8 *pSrcRefBuf,
     OMX_INT refWidth,
@@ -1115,6 +1133,7 @@ OMXResult omxVCM4P2_BlockMatch_Half_8x8 (
  *              pSrcDstMBCurr, or pDstSAD. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_MotionEstimationMB (
     const OMX_U8 *pSrcCurrBuf,
     OMX_S32 srcCurrStep,
@@ -1157,6 +1176,7 @@ OMXResult omxVCM4P2_MotionEstimationMB (
  *    -    pSrc or pDst is not 16-byte aligned. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_DCT8x8blk (
     const OMX_S16 *pSrc,
     OMX_S16 *pDst
@@ -1200,6 +1220,7 @@ OMXResult omxVCM4P2_DCT8x8blk (
  *    -    QP <= 0 or QP >= 32. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_QuantIntra_I (
     OMX_S16 *pSrcDst,
     OMX_U8 QP,
@@ -1241,6 +1262,7 @@ OMXResult omxVCM4P2_QuantIntra_I (
  *    -    QP <= 0 or QP >= 32. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_QuantInter_I (
     OMX_S16 *pSrcDst,
     OMX_U8 QP,
@@ -1344,6 +1366,7 @@ OMXResult omxVCM4P2_QuantInter_I (
  *        update procedures defined in section in 6.2.2. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_TransRecBlockCoef_intra (
     const OMX_U8 *pSrc,
     OMX_S16 *pDst,
@@ -1398,6 +1421,7 @@ OMXResult omxVCM4P2_TransRecBlockCoef_intra (
  *    -    QP <= 0 or QP >= 32. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_TransRecBlockCoef_inter (
     const OMX_S16 *pSrc,
     OMX_S16 *pDst,
@@ -1460,6 +1484,7 @@ OMXResult omxVCM4P2_TransRecBlockCoef_inter (
  *    -    VideoComp is not one component of enum OMXVCM4P2VideoComponent. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_EncodeVLCZigzag_IntraDCVLC (
     OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1522,6 +1547,7 @@ OMXResult omxVCM4P2_EncodeVLCZigzag_IntraDCVLC (
  *    -    VideoComp is not one component of enum OMXVCM4P2VideoComponent. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_EncodeVLCZigzag_IntraACVLC (
     OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1569,6 +1595,7 @@ OMXResult omxVCM4P2_EncodeVLCZigzag_IntraACVLC (
  *    -   *pBitOffset < 0, or *pBitOffset >7. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_EncodeVLCZigzag_Inter (
     OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1626,6 +1653,7 @@ OMXResult omxVCM4P2_EncodeVLCZigzag_Inter (
  *    -    fcodeForward <= 0, or fcodeForward > 7, or MBType < 0. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_EncodeMV (
     OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1691,6 +1719,7 @@ OMXResult omxVCM4P2_EncodeMV (
  *    OMX_Sts_Err - status error 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_DecodePadMV_PVOP (
     const OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1764,6 +1793,7 @@ OMXResult omxVCM4P2_DecodePadMV_PVOP (
  *    -    The number of coefficients is greater than 64 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_DecodeVLCZigzag_IntraDCVLC (
     const OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1829,6 +1859,7 @@ OMXResult omxVCM4P2_DecodeVLCZigzag_IntraDCVLC (
  *              FLC table The number of coefficients is greater than 64 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_DecodeVLCZigzag_IntraACVLC (
     const OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1880,6 +1911,7 @@ OMXResult omxVCM4P2_DecodeVLCZigzag_IntraACVLC (
  *    -    The number of coefficients is greater than 64 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_DecodeVLCZigzag_Inter (
     const OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -1922,6 +1954,7 @@ OMXResult omxVCM4P2_DecodeVLCZigzag_Inter (
  *    -    videoComp is neither OMX_VC_LUMINANCE nor OMX_VC_CHROMINANCE. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_QuantInvIntra_I (
     OMX_S16 *pSrcDst,
     OMX_INT QP,
@@ -1964,6 +1997,7 @@ OMXResult omxVCM4P2_QuantInvIntra_I (
  *    -    videoComp is neither OMX_VC_LUMINANCE nor OMX_VC_CHROMINANCE. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_QuantInvInter_I (
     OMX_S16 *pSrcDst,
     OMX_INT QP
@@ -2038,6 +2072,7 @@ OMXResult omxVCM4P2_QuantInvInter_I (
  *    OMX_Sts_Err - status error. Refer to OMX_Sts_Err of DecodeVLCZigzag_Intra.  
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_DecodeBlockCoef_Intra (
     const OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -2099,6 +2134,7 @@ OMXResult omxVCM4P2_DecodeBlockCoef_Intra (
  *    OMX_Sts_Err - status error. Refer to OMX_Sts_Err of DecodeVLCZigzag_Inter . 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_DecodeBlockCoef_Inter (
     const OMX_U8 **ppBitStream,
     OMX_INT *pBitOffset,
@@ -2162,6 +2198,7 @@ OMXResult omxVCM4P2_DecodeBlockCoef_Inter (
  *        -    pSrcDst, pPredBufRow, or pPredBufCol is not 4-byte aligned. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_PredictReconCoefIntra (
     OMX_S16 *pSrcDst,
     OMX_S16 *pPredBufRow,
@@ -2216,6 +2253,7 @@ OMXResult omxVCM4P2_PredictReconCoefIntra (
  *    -    the parameter rndVal is not equal either to 0 or 1. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P2_MCReconBlock (
     const OMX_U8 *pSrc,
     OMX_INT srcStep,
@@ -2423,7 +2461,8 @@ typedef struct {
  *     they are not used by intra prediction as implied in predMode. 
  *
  */
-OMXResult omxVCM4P10_PredictIntra_4x4 (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_PredictIntra_4x4 (
     const OMX_U8 *pSrcLeft,
     const OMX_U8 *pSrcAbove,
     const OMX_U8 *pSrcAboveLeft,
@@ -2434,7 +2473,7 @@ OMXResult omxVCM4P10_PredictIntra_4x4 (
     OMX_S32 availability
 );
 
-
+__attribute__((weak))
 OMXResult HIGHFUNC_PredictIntraTransform_4x4(
      const OMX_U8* pFrame,
      OMX_U8* pDst,
@@ -2501,7 +2540,8 @@ OMXResult HIGHFUNC_PredictIntraTransform_4x4(
  *     OMX_VC_UPPER_RIGHT is not used in intra_16x16 luma prediction. 
  *
  */
-OMXResult omxVCM4P10_PredictIntra_16x16 (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_PredictIntra_16x16 (
     const OMX_U8 *pSrcLeft,
     const OMX_U8 *pSrcAbove,
     const OMX_U8 *pSrcAboveLeft,
@@ -2566,7 +2606,8 @@ OMXResult omxVCM4P10_PredictIntra_16x16 (
  *  Note: OMX_VC_UPPER_RIGHT is not used in intra chroma prediction. 
  *
  */
-OMXResult omxVCM4P10_PredictIntraChroma_8x8 (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_PredictIntraChroma_8x8 (
     const OMX_U8 *pSrcLeft,
     const OMX_U8 *pSrcAbove,
     const OMX_U8 *pSrcAboveLeft,
@@ -2619,6 +2660,7 @@ OMXResult omxVCM4P10_PredictIntraChroma_8x8 (
  *    srcStep or dstStep is not a multiple of 8. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_InterpolateLuma (
     const OMX_U8 *pSrc,
     OMX_S32 srcStep,
@@ -2671,6 +2713,7 @@ OMXResult omxVCM4P10_InterpolateLuma (
  *    srcStep or dstStep is not a multiple of 8. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_InterpolateChroma (
     const OMX_U8 *pSrc,
     OMX_S32 srcStep,
@@ -2733,6 +2776,7 @@ OMXResult omxVCM4P10_InterpolateChroma (
  *              pBS[i^3]!=4) for 0<=i<=3. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_FilterDeblockingLuma_VerEdge_I (
     OMX_U8 *pSrcDst,
     OMX_S32 srcdstStep,
@@ -2795,6 +2839,7 @@ OMXResult omxVCM4P10_FilterDeblockingLuma_VerEdge_I (
  *              (pBS[i]==4 && pBS[i^3]!=4) for 0<=i<=3. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_FilterDeblockingLuma_HorEdge_I (
     OMX_U8 *pSrcDst,
     OMX_S32 srcdstStep,
@@ -2860,6 +2905,7 @@ OMXResult omxVCM4P10_FilterDeblockingLuma_HorEdge_I (
  *    -    pBS is not 4-byte aligned. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_FilterDeblockingChroma_VerEdge_I (
     OMX_U8 *pSrcDst,
     OMX_S32 srcdstStep,
@@ -2926,6 +2972,7 @@ OMXResult omxVCM4P10_FilterDeblockingChroma_VerEdge_I (
  *    -    pBS is not 4-byte aligned. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_FilterDeblockingChroma_HorEdge_I (
     OMX_U8 *pSrcDst,
     OMX_S32 srcdstStep,
@@ -2991,6 +3038,7 @@ OMXResult omxVCM4P10_FilterDeblockingChroma_HorEdge_I (
  *    -    srcdstStep is not a multiple of 16. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_DeblockLuma_I (
     OMX_U8 *pSrcDst,
     OMX_S32 srcdstStep,
@@ -3056,6 +3104,7 @@ OMXResult omxVCM4P10_DeblockLuma_I (
  *    -   srcdstStep is not a multiple of 8. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_DeblockChroma_I (
     OMX_U8 *pSrcDst,
     OMX_S32 srcdstStep,
@@ -3108,6 +3157,7 @@ OMXResult omxVCM4P10_DeblockChroma_I (
  *    -    an illegal code is encountered in the bitstream 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_DecodeChromaDcCoeffsToPairCAVLC (
     const OMX_U8 **ppBitStream,
     OMX_S32*pOffset,
@@ -3167,6 +3217,7 @@ OMXResult omxVCM4P10_DecodeChromaDcCoeffsToPairCAVLC (
  *    -    an illegal code is encountered in the bitstream 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_DecodeCoeffsToPairCAVLC (
     const OMX_U8 **ppBitStream,
     OMX_S32 *pOffset,
@@ -3176,6 +3227,8 @@ OMXResult omxVCM4P10_DecodeCoeffsToPairCAVLC (
     OMX_INT sMaxNumCoeff
 );
 
+
+__attribute__((weak))
 OMXResult HIGHFUNC_DecodeResidual(
     const OMX_U8 **ppSrc, OMX_S32 *pSrcBit, 
     OMX_U8 **ppPosCoefBuf,
@@ -3215,7 +3268,8 @@ OMXResult HIGHFUNC_DecodeResidual(
  *    -    QP is not in the range of [0-51]. 
  *
  */
-OMXResult omxVCM4P10_TransformDequantLumaDCFromPair (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_TransformDequantLumaDCFromPair (
     const OMX_U8 **ppSrc,
     OMX_S16 *pDst,
     OMX_INT QP
@@ -3252,6 +3306,7 @@ OMXResult omxVCM4P10_TransformDequantLumaDCFromPair (
  *    -    QP is not in the range of [0-51]. 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_TransformDequantChromaDCFromPair (
     const OMX_U8 **ppSrc,
     OMX_S16 *pDst,
@@ -3302,7 +3357,8 @@ OMXResult omxVCM4P10_TransformDequantChromaDCFromPair (
  *    -    AC ==0 && pDC ==NULL. 
  *
  */
-OMXResult omxVCM4P10_DequantTransformResidualFromPairAndAdd (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_DequantTransformResidualFromPairAndAdd (
     const OMX_U8 **ppSrc,
     const OMX_U8 *pPred,
     const OMX_S16 *pDC,
@@ -3315,6 +3371,7 @@ OMXResult omxVCM4P10_DequantTransformResidualFromPairAndAdd (
 
 
 // Same as above, but iterate 16 times for each luma 4x4 partition
+__attribute__((weak))
 OMXResult HIGHFUNC_ProcessLumaInterResidual (
     const OMX_U8 **ppSrc,
     const OMX_U8 *pPred,
@@ -3325,6 +3382,7 @@ OMXResult HIGHFUNC_ProcessLumaInterResidual (
     OMX_U8 *AC
 );
 
+__attribute__((weak))
 OMXResult HIGHFUNC_ProcessLumaIntra16x16Residual (
     const OMX_U8 *pSrc,
     OMX_U8 *pDst,
@@ -3337,6 +3395,7 @@ OMXResult HIGHFUNC_ProcessLumaIntra16x16Residual (
     OMX_INT QP
 );
 
+__attribute__((weak))
 OMXResult HIGHFUNC_ProcessChromaResidual (
     const OMX_U8 **pSrc,
     OMX_U8 *pDst1,
@@ -3374,7 +3433,8 @@ OMXResult HIGHFUNC_ProcessChromaResidual (
  *    -    an invalid MEMode is specified. 
  *
  */
-OMXResult omxVCM4P10_MEGetBufSize (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_MEGetBufSize (
     OMXVCM4P10MEMode MEmode,
     const OMXVCM4P10MEParams *pMEParams,
     OMX_U32 *pSize
@@ -3420,7 +3480,8 @@ OMXResult omxVCM4P10_MEGetBufSize (
  *         that the requested behavior fails to comply with [ISO14496-10]. 
  *
  */
-OMXResult omxVCM4P10_MEInit (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_MEInit (
     OMXVCM4P10MEMode MEmode,
     const OMXVCM4P10MEParams *pMEParams,
     void *pMESpec
@@ -3479,7 +3540,8 @@ OMXResult omxVCM4P10_MEInit (
  *    -    Any alignment restrictions are violated 
  *
  */
-OMXResult omxVCM4P10_BlockMatch_Integer (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_BlockMatch_Integer (
     const OMX_U8 *pSrcOrgY,
     OMX_S32 nSrcOrgStep,
     const OMX_U8 *pSrcRefY,
@@ -3550,6 +3612,7 @@ OMXResult omxVCM4P10_BlockMatch_Integer (
  *    -    Any alignment restrictions are violated 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_BlockMatch_Half (
     const OMX_U8 *pSrcOrgY,
     OMX_S32 nSrcOrgStep,
@@ -3617,6 +3680,7 @@ OMXResult omxVCM4P10_BlockMatch_Half (
  *    -    Any alignment restrictions are violated 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_BlockMatch_Quarter (
     const OMX_U8 *pSrcOrgY,
     OMX_S32 nSrcOrgStep,
@@ -3719,7 +3783,8 @@ OMXResult omxVCM4P10_BlockMatch_Quarter (
  *    -    Any alignment restrictions are violated 
  *
  */
-OMXResult omxVCM4P10_MotionEstimationMB (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_MotionEstimationMB (
     const OMX_U8 *pSrcCurrBuf,
     OMX_S32 SrcCurrStep,
     const OMX_U8 *pSrcRefBufList[15],
@@ -3768,7 +3833,8 @@ OMXResult omxVCM4P10_MotionEstimationMB (
  *    -    Any alignment restrictions are violated 
  *
  */
-OMXResult omxVCM4P10_SAD_4x (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_SAD_4x (
     const OMX_U8 *pSrcOrg,
     OMX_U32 iStepOrg,
     const OMX_U8 *pSrcRef,
@@ -3812,6 +3878,7 @@ OMXResult omxVCM4P10_SAD_4x (
  *    -    Any alignment restrictions are violated 
  *
  */
+ __attribute__((weak))
 OMXResult omxVCM4P10_SADQuar_4x (
     const OMX_U8 *pSrc,
     const OMX_U8 *pSrcRef0,
@@ -3858,7 +3925,8 @@ OMXResult omxVCM4P10_SADQuar_4x (
  *    -    Any alignment restrictions are violated 
  *
  */
-OMXResult omxVCM4P10_SADQuar_8x (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_SADQuar_8x (
     const OMX_U8 *pSrc,
     const OMX_U8 *pSrcRef0,
     const OMX_U8 *pSrcRef1,
@@ -3904,7 +3972,8 @@ OMXResult omxVCM4P10_SADQuar_8x (
  *    -    Any alignment restrictions are violated 
  *
  */
-OMXResult omxVCM4P10_SADQuar_16x (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_SADQuar_16x (
     const OMX_U8 *pSrc,
     const OMX_U8 *pSrcRef0,
     const OMX_U8 *pSrcRef1,
@@ -3950,7 +4019,8 @@ OMXResult omxVCM4P10_SADQuar_16x (
  *    -    iStepRef <= 0 or iStepRef is not a multiple of 4 
  *
  */
-OMXResult omxVCM4P10_SATD_4x4 (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_SATD_4x4 (
     const OMX_U8 *pSrcOrg,
     OMX_U32 iStepOrg,
     const OMX_U8 *pSrcRef,
@@ -4004,7 +4074,8 @@ OMXResult omxVCM4P10_SATD_4x4 (
  *    -    any alignment restrictions are violated 
  *
  */
-OMXResult omxVCM4P10_InterpolateHalfHor_Luma (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_InterpolateHalfHor_Luma (
     const OMX_U8 *pSrc,
     OMX_U32 iSrcStep,
     OMX_U8 *pDstLeft,
@@ -4059,7 +4130,8 @@ OMXResult omxVCM4P10_InterpolateHalfHor_Luma (
  *    -    iWidth==16 but pDstUp and/or pDstDown is/are not aligned on a 16-byte boundary 
  *
  */
-OMXResult omxVCM4P10_InterpolateHalfVer_Luma (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_InterpolateHalfVer_Luma (
     const OMX_U8 *pSrc,
     OMX_U32 iSrcStep,
     OMX_U8 *pDstUp,
@@ -4105,7 +4177,8 @@ OMXResult omxVCM4P10_InterpolateHalfVer_Luma (
  *    -    iHeight is not equal to either 4 or 8 
  *
  */
-OMXResult omxVCM4P10_Average_4x (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_Average_4x (
     const OMX_U8 *pPred0,
     const OMX_U8 *pPred1,
     OMX_U32 iPredStep0,
@@ -4146,7 +4219,8 @@ OMXResult omxVCM4P10_Average_4x (
  *    -    pSrcDst is not aligned on an 8-byte boundary 
  *
  */
-OMXResult omxVCM4P10_TransformQuant_ChromaDC (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_TransformQuant_ChromaDC (
     OMX_S16 *pSrcDst,
     OMX_U32 iQP,
     OMX_U8 bIntra
@@ -4181,7 +4255,8 @@ OMXResult omxVCM4P10_TransformQuant_ChromaDC (
  *    -    pSrcDst is not aligned on an 16-byte boundary 
  *
  */
-OMXResult omxVCM4P10_TransformQuant_LumaDC (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_TransformQuant_LumaDC (
     OMX_S16 *pSrcDst,
     OMX_U32 iQP
 );
@@ -4215,7 +4290,8 @@ OMXResult omxVCM4P10_TransformQuant_LumaDC (
  *    -    pSrc or pDst is not aligned on a 16-byte boundary 
  *
  */
-OMXResult omxVCM4P10_InvTransformDequant_LumaDC (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_InvTransformDequant_LumaDC (
     const OMX_S16 *pSrc,
     OMX_S16 *pDst,
     OMX_U32 iQP
@@ -4250,7 +4326,8 @@ OMXResult omxVCM4P10_InvTransformDequant_LumaDC (
  *    -    pSrc or pDst is not aligned on an 8-byte boundary 
  *
  */
-OMXResult omxVCM4P10_InvTransformDequant_ChromaDC (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_InvTransformDequant_ChromaDC (
     const OMX_S16 *pSrc,
     OMX_S16 *pDst,
     OMX_U32 iQP
@@ -4294,7 +4371,8 @@ OMXResult omxVCM4P10_InvTransformDequant_ChromaDC (
  *    -    pDequantCoeff is not aligned on an 8-byte boundary 
  *
  */
-OMXResult omxVCM4P10_InvTransformResidualAndAdd (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_InvTransformResidualAndAdd (
     const OMX_U8 *pSrcPred,
     const OMX_S16 *pDequantCoeff,
     OMX_U8 *pDstRecon,
@@ -4357,7 +4435,8 @@ OMXResult omxVCM4P10_InvTransformResidualAndAdd (
  *    -    pDstQuantCoeff or pDstDeQuantCoeff is not aligned on an 8-byte boundary 
  *
  */
-OMXResult omxVCM4P10_SubAndTransformQDQResidual (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_SubAndTransformQDQResidual (
     const OMX_U8 *pSrcOrg,
     const OMX_U8 *pSrcPred,
     OMX_U32 iSrcOrgStep,
@@ -4412,7 +4491,8 @@ OMXResult omxVCM4P10_SubAndTransformQDQResidual (
  *    -    pSrcCoeff is not aligned on an 8-byte boundary 
  *
  */
-OMXResult omxVCM4P10_GetVLCInfo (
+ __attribute__((weak))
+ OMXResult omxVCM4P10_GetVLCInfo (
     const OMX_S16 *pSrcCoeff,
     const OMX_U8 *pScanMatrix,
     OMX_U8 bAC,

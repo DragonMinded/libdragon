@@ -48,7 +48,7 @@
 #include "h264bsd_dpb.h"
 
 #ifdef H264BSD_N64
-#include "../cache.h"
+#include "../fastcache.h"
 #endif
 
 
@@ -175,7 +175,7 @@ static const neighbour_t N_D_SUB_PART[4][4][4] = {
 
 
 #ifdef H264BSD_N64
-#include "../rsph264.h"
+#include "../rsph264_internal.h"
 
 // We can substitute the whole h264bsdPredictSamples with our
 // RSP-based implementation of inter-prediction with overfill.

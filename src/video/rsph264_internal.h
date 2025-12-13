@@ -10,9 +10,6 @@
 #ifndef RSPH264_H
 #define RSPH264_H
 
-#define H264BSD_N64_INTRA  1     // Intraprediction on RSP
-#define H264BSD_N64_CAVLC  0     // CAVLC on RSP
-
 #include <stdint.h>
 
 /***********************************************************

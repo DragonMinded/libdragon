@@ -114,9 +114,11 @@ typedef OMX_S16 ARM_BLOCK8x8[64];
  * [out] converted value in OMX_S16/OMX_S32 format
  *
  */
-
+__attribute__((weak))
 OMX_S16 armRoundFloatToS16 (OMX_F64 Value);
+__attribute__((weak))
 OMX_S32 armRoundFloatToS32 (OMX_F64 Value);
+__attribute__((weak))
 OMX_S64 armRoundFloatToS64 (OMX_F64 Value);
 
 /**
@@ -133,7 +135,9 @@ OMX_S64 armRoundFloatToS64 (OMX_F64 Value);
  *
  */
 
+__attribute__((weak))
 OMX_S16 armSatRoundFloatToS16 (OMX_F64 Value);
+__attribute__((weak))
 OMX_S32 armSatRoundFloatToS32 (OMX_F64 Value);
 
 /**
@@ -150,7 +154,9 @@ OMX_S32 armSatRoundFloatToS32 (OMX_F64 Value);
  *
  */
 
-OMX_U16 armSatRoundFloatToU16 (OMX_F64 Value);
+ __attribute__((weak))
+ OMX_U16 armSatRoundFloatToU16 (OMX_F64 Value);
+__attribute__((weak))
 OMX_U32 armSatRoundFloatToU32 (OMX_F64 Value);
 
 /**
@@ -172,7 +178,7 @@ OMX_U32 armSatRoundFloatToU32 (OMX_F64 Value);
  *              returns 0 if it is 0
  *              returns -1 if it is Negative 
  */ 
- 
+ __attribute__((weak)) 
 OMX_INT armSignCheck (OMX_S16 var);
 
 /**
@@ -191,7 +197,7 @@ OMX_INT armSignCheck (OMX_S16 var);
  * Return Value:
  * OMX_S32 --   returns clipped value
  */ 
- 
+ __attribute__((weak))
 OMX_S32 armClip (
         OMX_INT min,
         OMX_INT max, 
@@ -214,7 +220,7 @@ OMX_S32 armClip (
  * Return Value:
  * OMX_F32 --   returns clipped value
  */ 
- 
+ __attribute__((weak))
 OMX_F32 armClip_F32 (
         OMX_F32 min,
         OMX_F32 max, 
@@ -238,7 +244,7 @@ OMX_F32 armClip_F32 (
  * Return Value:
  * OMX_S32 --   returns "shifted" saturated value
  */ 
- 
+ __attribute__((weak))
 OMX_U32 armShiftSat_F32(
         OMX_F32 v, 
         OMX_INT shift, 
@@ -255,7 +261,8 @@ OMX_U32 armShiftSat_F32(
  * Return Value:
  * OMXResult -- Error status from the function
  */
-OMXResult armSwapElem(OMX_U8 *pBuf1, OMX_U8 *pBuf2, OMX_INT elemSize);
+ __attribute__((weak))
+ OMXResult armSwapElem(OMX_U8 *pBuf1, OMX_U8 *pBuf2, OMX_INT elemSize);
 
 
 /**
@@ -273,7 +280,7 @@ OMXResult armSwapElem(OMX_U8 *pBuf1, OMX_U8 *pBuf2, OMX_INT elemSize);
  * Return Value:
  * OMX_S32 --   returns the median value
  */ 
- 
+ __attribute__((weak))
 OMX_S32 armMedianOf3 (
     OMX_S32 fEntry,
     OMX_S32 sEntry, 
@@ -293,7 +300,7 @@ OMX_S32 armMedianOf3 (
  * Return Value:
  * OMX_U8 --   returns the size of the positive value
  */ 
- 
+ __attribute__((weak))
 OMX_U8 armLogSize (
     OMX_U16 value 
     );    
@@ -316,7 +323,7 @@ OMX_U8 armLogSize (
  * 
  *    
  **/
-
+ __attribute__((weak))
 OMX_S32 armSatAdd_S32(
                 OMX_S32 Value1,
                 OMX_S32 Value2
@@ -337,7 +344,7 @@ OMX_S32 armSatAdd_S32(
  * 
  *    
  **/
-
+ __attribute__((weak))
 OMX_S64 armSatAdd_S64(
                 OMX_S64 Value1,
                 OMX_S64 Value2
@@ -356,7 +363,7 @@ OMX_S64 armSatAdd_S64(
  * [out]             Result of operation
  * 
  **/
-
+ __attribute__((weak))
 OMX_S32 armSatSub_S32(
                     OMX_S32 Value1,
                     OMX_S32 Value2
@@ -377,7 +384,7 @@ OMX_S32 armSatSub_S32(
  * Return:
  * [out]             Result of operation
  **/
-
+ __attribute__((weak))
 OMX_S32 armSatMac_S32(
                     OMX_S32 Mac,
                     OMX_S16 Value1,
@@ -401,7 +408,7 @@ OMX_S32 armSatMac_S32(
  * [out]  mac        Result of operation
  *    
  **/
- 
+ __attribute__((weak))
 OMX_S32 armSatMac_S16S32_S32(
                         OMX_S32 mac, 
                         OMX_S32 delayElem, 
@@ -424,7 +431,7 @@ OMX_S32 armSatMac_S16S32_S32(
  *    
  **/
 
-
+ __attribute__((weak))
 OMX_S16 armSatRoundRightShift_S32_S16(
                         OMX_S32 input, 
                         OMX_INT scaleFactor);
@@ -444,7 +451,7 @@ OMX_S16 armSatRoundRightShift_S32_S16(
  * [out]             Result of operation
  *    
  **/
- 
+ __attribute__((weak))
 OMX_S32 armSatRoundLeftShift_S32(
                         OMX_S32 Value,
                         OMX_INT shift
@@ -465,7 +472,7 @@ OMX_S32 armSatRoundLeftShift_S32(
  * [out]             Result of operation
  *    
  **/
- 
+ __attribute__((weak))
 OMX_S64 armSatRoundLeftShift_S64(
                         OMX_S64 Value,
                         OMX_INT shift
@@ -487,7 +494,7 @@ OMX_S64 armSatRoundLeftShift_S64(
  *    
  **/
 
-
+ __attribute__((weak))
 OMX_S32 armSatMulS16S32_S32(
                     OMX_S16 input1,
                     OMX_S32 input2);
@@ -507,7 +514,7 @@ OMX_S32 armSatMulS16S32_S32(
  * [out]             Result of operation
  *    
  **/
-
+ __attribute__((weak))
 OMX_S32 armSatMulS32S32_S32(
                     OMX_S32 input1,
                     OMX_S32 input2);
@@ -529,7 +536,7 @@ OMX_S32 armSatMulS32S32_S32(
  * [out]             Result of operation input1//input2
  *    
  **/
-
+ __attribute__((weak))
 OMX_S32 armIntDivAwayFromZero (OMX_S32 Num, OMX_S32 Deno);
 
 

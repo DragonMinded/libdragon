@@ -32,6 +32,8 @@ enum {
     TASK_SET_PACKED_DELTA_BUFFER               = 15,
 };
 
+static const uint8_t *last_packed_delta_buf = NULL;
+
 void rsph264_init(void)
 {
     rspq_init();
@@ -41,7 +43,7 @@ void rsph264_init(void)
 
 void rsph264_begin_frame(void)
 {
-    
+    last_packed_delta_buf = NULL;
 }
 
 void rsph264_end_frame(void)
@@ -267,6 +269,18 @@ void rsph264_queue_process_luma_intra16_residual(
         mode, availability,
         ((qp / 6) << 8) | (qp % 6),
         PhysicalAddr(totalCoeff));
+}
+
+
+void rsph264_queue_set_packed_delta_buffer_if_changed(
+    int cache_flags,
+    const uint8_t *src) {
+
+    if (last_packed_delta_buf != src) {
+        last_packed_delta_buf = src;
+        if (src)
+            rsph264_queue_set_packed_delta_buffer(cache_flags, src);
+    }
 }
 
 void rsph264_queue_set_packed_delta_buffer(

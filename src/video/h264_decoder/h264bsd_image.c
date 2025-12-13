@@ -37,7 +37,7 @@
 #include "h264bsd_neighbour.h"
 
 #ifdef H264BSD_N64
-#include "../rsph264.h"
+#include "../rsph264_internal.h"
 #endif
 
 /*------------------------------------------------------------------------------

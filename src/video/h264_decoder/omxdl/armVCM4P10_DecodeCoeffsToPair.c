@@ -28,7 +28,7 @@
 #include "armVCM4P10_CAVLCTables.h"
 
 #ifdef H264BSD_N64
-#include "../../rsph264.h"
+#include "../../rsph264_internal.h"
 #endif
 
 OMX_U8 DEBUG_armVCM4P10_DecodeCoeffsToPair_LastTotalZeros;
