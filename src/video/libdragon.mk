@@ -5,6 +5,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/video/rsp_yuv.o \
 	$(BUILD_DIR)/video/rsp_mpeg1.o \
 	$(BUILD_DIR)/video/h264_decoder.o \
+	$(BUILD_DIR)/video/h264.o \
 	$(BUILD_DIR)/video/rsph264.o \
 	$(BUILD_DIR)/video/rsph264_inter.o \
 	$(BUILD_DIR)/video/rsph264_intra.o

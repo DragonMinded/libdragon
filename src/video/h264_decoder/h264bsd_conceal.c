@@ -54,9 +54,11 @@
     4. Local function prototypes
 ------------------------------------------------------------------------------*/
 
+__attribute__((used))
 static u32 ConcealMb(mbStorage_t *pMb, image_t *currImage, u32 row, u32 col,
     u32 sliceType, u8 *data);
 
+__attribute__((used))
 static void Transform(i32 *data);
 
 /*------------------------------------------------------------------------------

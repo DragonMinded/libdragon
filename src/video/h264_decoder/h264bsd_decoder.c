@@ -472,8 +472,10 @@ u32 h264bsdDecode(storage_t *pStorage, u8 *byteStrm, u32 len, u32 picId,
                 if (tmp != HANTRO_OK)
                 {
                     EPRINT("SLICE_DATA");
+#ifndef OPTIMIZE_NO_DECODED_FLAG
                     h264bsdMarkSliceCorrupted(pStorage,
                         pStorage->sliceHeader->firstMbInSlice);
+#endif
                     return(H264BSD_ERROR);
                 };
 

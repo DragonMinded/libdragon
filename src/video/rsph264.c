@@ -29,6 +29,7 @@ enum {
     TASK_PROCESS_LUMA_INTRA4_RESIDUAL          = 3,
     TASK_PROCESS_LUMA_INTRA16_RESIDUAL         = 4,
 
+    TASK_WRITE_MACROBLOCK                      = 14,
     TASK_SET_PACKED_DELTA_BUFFER               = 15,
 };
 
@@ -60,6 +61,42 @@ void rsph264_queue_debug_random_status(void)
 {
     // TODO: implement
 }
+
+void rsph264_queue_write_macroblock(
+    int cache_flags,
+    const uint8_t *src,
+    uint8_t *dst_luma, uint8_t *dst_cb, uint8_t *dst_cr,
+    uint32_t mb_width
+) {
+    assert(((uint32_t)dst_luma&7) == 0);
+    assert(((uint32_t)dst_cb&7) == 0);
+    assert(((uint32_t)dst_cr&7) == 0);
+    assert(((uint32_t)src&7) == 0);
+
+    if (!(cache_flags & RSPH264_CACHE_SKIP_SOURCE)) {
+        // fast_data_cache_hit_writeback(src, 384);
+    }
+    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
+        // int pitch = mb_width*16;
+        // for (int y=0;y<16;y++)
+        //     fast_data_cache_hit_writeback_invalidate(dst_luma+y*pitch, 16);
+        // pitch /= 2;
+        // for (int y=0;y<8;y++) {
+        //     fast_data_cache_hit_writeback_invalidate(dst_cb+y*pitch, 8);
+        //     fast_data_cache_hit_writeback_invalidate(dst_cr+y*pitch, 8);
+        // }
+    }
+
+    // check_overlay(TASK_WRITE_MACROBLOCK);
+    rspq_write(rsph264_intra_ovl_id, TASK_WRITE_MACROBLOCK,
+        PhysicalAddr(src),
+        PhysicalAddr(dst_luma),
+        PhysicalAddr(dst_cb),
+        PhysicalAddr(dst_cr),
+        mb_width);
+}
+
+
 
 void rsph264_queue_interpolate_luma_overfill(
     int cache_flags,
@@ -430,3 +467,24 @@ void rsph264_queue_process_chroma_residual(
         TASK_PROCESS_CHROMA_RESIDUAL,
         cache_flags, dst1, dst2, dst_pitch, NULL, qp, (uint32_t)totalCoeff);
 }
+
+void rsph264_queue_interpolate_all_overfill(
+    int cache_flags,
+    const uint8_t *frame_luma, uint32_t frame_pitch,
+    uint8_t *dst_luma, uint8_t *dst_chroma1, uint8_t *dst_chroma2, uint32_t dst_pitch,
+    uint32_t frame_size, uint32_t block_size, uint32_t mv, uint32_t pos
+) {
+    uint32_t frame_width = frame_size >> 16;
+    uint32_t frame_height = frame_size & 0xFFFF;
+
+    assert(cache_flags == RSPH264_CACHE_SKIP_ALL);
+
+    rspq_write(rsph264_inter_ovl_id, TASK_OMX_INTERPOLATE_LUMA_OVERFILL,
+        PhysicalAddr(frame_luma), frame_pitch,
+        PhysicalAddr(dst_luma), dst_pitch,
+        frame_size, block_size,
+        mv, pos,
+        frame_width*frame_height,
+        PhysicalAddr(dst_chroma1),
+        PhysicalAddr(dst_chroma2));
+} 

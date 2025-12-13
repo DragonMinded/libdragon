@@ -168,12 +168,14 @@ extern "C"
 
     #ifdef H264BSD_N64
     #include <memory.h>
+    #include "n64sys.h"
 
     inline void H264SwDecMemcpy(void *dest, void *src, u32 count) {
         memcpy(dest, src, count);
     }
     inline void H264SwDecMemset(void *ptr, i32 value, u32 count) {
-        memset(ptr, value, count);
+        //memset(ptr, value, count);
+        sys_hw_memset(ptr, value, count);
     }
 
     #else

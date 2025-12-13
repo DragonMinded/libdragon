@@ -1061,8 +1061,10 @@ u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
         // TODO(rasky): this used to guard a call to WriteMacroblock, but
         // we now directly decode to the output buffer so there's no more
         // decoded to skip. I'm not sure what this flag means, but it's useless now.
+#ifndef OPTIMIZE_NO_DECODED_FLAG
         if (pMb->decoded > 1)
             return HANTRO_OK;
+#endif
 
         #ifdef H264BSD_N64
         rsph264_queue_set_packed_delta_buffer_if_changed(0, NULL);

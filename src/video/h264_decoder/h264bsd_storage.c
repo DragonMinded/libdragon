@@ -548,8 +548,12 @@ u32 h264bsdIsEndOfPicture(storage_t *pStorage)
     }
     else
     {
+#ifndef OPTIMIZE_NO_DECODED_FLAG
         for (i = 0, tmp = 0; i < pStorage->picSizeInMbs; i++)
             tmp += pStorage->mb[i].decoded ? 1 : 0;
+#else
+        tmp = pStorage->picSizeInMbs;
+#endif
 
         if (tmp == pStorage->picSizeInMbs)
             return(HANTRO_TRUE);
