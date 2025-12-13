@@ -142,6 +142,7 @@ static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
         // Start an asynchronous DMA transfer, so that we can start decompressing as the
         // data flows in.
         uint32_t addr = rom_addr+lseek(fd, 0, SEEK_CUR);
+        assertf(addr % 2 == 0, "asset_load requires ROM data to be 2-byte aligned");
         dma_read_async(s+cmp_offset, addr, cmp_size);
 
         // Run the decompression racing with the DMA.
