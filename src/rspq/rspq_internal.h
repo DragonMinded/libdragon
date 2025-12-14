@@ -111,18 +111,6 @@ enum {
     RSPQ_CMD_TEST_WRITE_STATUS = 0x08,
 
     /**
-     * @brief RSPQ command: Wait for RDP to be idle.
-     * 
-     * This command will let the RSP spin-wait until the RDP is idle (that is,
-     * the DP_STATUS_BUSY bit in COP0_DP_STATUS goes to 0). Notice that the
-     * RDP is fully asynchronous, and reading DP_STATUS_BUSY basically makes
-     * sense only after a RDP SYNC_FULL command (#rdpq_sync_full()), when it
-     * really does make sure that all previous commands have finished
-     * running.
-     */
-    RSPQ_CMD_RDP_WAIT_IDLE     = 0x09,
-
-    /**
      * @brief RSPQ Command: send a new buffer to RDP and/or configure it for new commands
      * 
      * This command configures a new buffer in RSP for RDP commands. It requires three
@@ -133,7 +121,7 @@ enum {
      * some RDP commands that will be sent to RDP right away. Sentinel is the end of the
      * buffer. If cur==sentinel, the buffer is full and no more commands will be written to it. 
      */
-    RSPQ_CMD_RDP_SET_BUFFER    = 0x0A,
+    RSPQ_CMD_RDP_SET_BUFFER    = 0x09,
 
     /**
      * @brief RSPQ Command: send more data to RDP (appended to the end of the current buffer)
@@ -141,7 +129,7 @@ enum {
      * This commands basically just sets DP_END to the specified argument, allowing new
      * commands appended in the current buffer to be sent to RDP.
      */
-    RSPQ_CMD_RDP_APPEND_BUFFER = 0x0B,
+    RSPQ_CMD_RDP_APPEND_BUFFER = 0x0A,
 };
 
 /** @brief Write an internal command to the RSP queue */

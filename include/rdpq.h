@@ -187,6 +187,7 @@ enum {
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
     RDPQ_CMD_SET_FOG_MODE               = 0x19,
+    RDPQ_CMD_WAIT_IDLE                  = 0x1A,
     RDPQ_CMD_SET_COMBINE_MODE_1PASS     = 0x1B,
     RDPQ_CMD_AUTOTMEM_SET_ADDR          = 0x1C,
     RDPQ_CMD_AUTOTMEM_SET_TILE          = 0x1D,
