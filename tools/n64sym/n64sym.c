@@ -668,6 +668,12 @@ void process(const char *infn, const char *outfn)
     }
     verbose("Found %d callsites\n", stbds_arrlen(symtable));
 
+    // If the symtable is empty, there's nothing else to do
+    if (stbds_arrlen(symtable) == 0) {
+        verbose("No symbols found\n");
+        return;
+    }
+
     // Sort the symbol table by address
     qsort(symtable, stbds_arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_addr);
 
