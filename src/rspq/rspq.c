@@ -264,9 +264,14 @@ typedef struct __attribute__((packed)) rspq_overlay_header_t {
     uint16_t state_start;       ///< Start of the portion of DMEM used as "state"
     uint16_t state_size;        ///< Size of the portion of DMEM used as "state"
     uint32_t state_rdram;       ///< RDRAM address of the portion of DMEM used as "state"
+    uint16_t command_base;      ///< Primary overlay ID used for this overlay
+    uint16_t overlay_id;        ///< Overlay ID (multiplied by 4)
     uint32_t text_rdram;        ///< RDRAM address of the overlay's text section
     uint16_t text_size;         ///< Size of the overlay's text section
-    uint16_t command_base;      ///< Primary overlay ID used for this overlay
+    uint16_t text_start;        ///< Offset of the overlay's text section in DMEM
+    uint32_t extraseg_rdram;    ///< RDRAM address of extra segment
+    uint16_t extraseg_size;     ///< Size of extra segment
+    uint16_t extraseg_start;    ///< Offset of extra segment in DMEM
     #if RSPQ_PROFILE
     uint16_t profile_slot_dmem; ///< Start of the profile slots in DMEM
     #endif
@@ -861,7 +866,7 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     for (uint32_t i = 0; i < slot_count; i++) {
         rspq_data.rspq_ovl_table.data_rdram[id + i] = 
             PhysicalAddr(overlay_data) | (((overlay_data_size - 1) >> 4) << 24);
-        rspq_data.rspq_ovl_table.idmap[id + i] = id;
+        rspq_data.rspq_ovl_table.idmap[id + i] = id << 2;
     }
 
     // Fill information in the overlay header
@@ -869,6 +874,7 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     overlay_header->text_rdram = PhysicalAddr(overlay_code);
     overlay_header->state_rdram = PhysicalAddr(overlay_ucode->data) + overlay_header->state_start;
     overlay_header->command_base = id << 5;
+    overlay_header->overlay_id = id << 2;
     data_cache_hit_writeback_invalidate(overlay_header, sizeof(rspq_overlay_header_t));
 
     // Save the overlay pointer

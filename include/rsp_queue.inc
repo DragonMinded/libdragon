@@ -93,13 +93,19 @@ _RSPQ_OVERLAY_HEADER:
     .short _RSPQ_SAVED_STATE_END - _RSPQ_SAVED_STATE_START - 1
     # 4: state RDRAM address (filled in by C code)
     .long 0
-    # 8: text RDRAM address (filled in by C code)
-    .long 0
-    # 10: text size (filled in by C code)
+    # 8: command base (filled in by C code)
     .short 0
-    # 14: command base (filled in by C code)
+    # 10: overlay ID (multipled by 4, filled in by C code)
+    .short 0        
+    # 12: Load segment table. First entry is text segment
+    .long 0         # RDRAM address
+    .short 0        # Size in bytes (filled by C code)
+    .short _ovl_text_start - _text_start + 0x1000
+    .long 0         # Space for a second segment (shared state, if any)
+    .short 0
     .short 0
     #if RSPQ_PROFILE
+    # 28: Profiling slot address
     .short _RSPQ_OVL_PROFILESLOT - _data_start
     #endif
 	.align 1
@@ -111,11 +117,11 @@ _RSPQ_OVERLAY_COMMAND_TABLE:
 #define RSPQ_OH_STATESTART   0
 #define RSPQ_OH_STATESIZE    2
 #define RSPQ_OH_STATEADDR    4
-#define RSPQ_OH_TEXTADDR     8
-#define RSPQ_OH_TEXTSIZE     10
-#define RSPQ_OH_CMDBASE      14
+#define RSPQ_OH_CMDBASE      8
+#define RSPQ_OH_OVLID        10
+#define RSPQ_OH_LOADSEGTABLE 12
 #if RSPQ_PROFILE
-#define RSPQ_OH_PROFILESLOT  16
+#define RSPQ_OH_PROFILESLOT  28
 #endif
 
 ########################################################
@@ -403,6 +409,7 @@ RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0A
 _ovl_data_start:
 
     .text
+_text_start:
 
     # Just declare the shift macros, without emitting code. We will be emitting it later
     setup_vsll      vshift, 0
@@ -464,6 +471,7 @@ RSPQ_Loop:
     #define ovl_index t4
     #define cmd_index t5    // referenced in rspq_assert_invalid_overlay
     #define cmd_desc  t6
+    #define ovl_id    t7
 
 #if RSPQ_PROFILE
     mfc0 t0, COP0_DP_CLOCK
@@ -493,38 +501,33 @@ RSPQ_Loop:
     beq t2, t0, rspq_switch_highpri
 
     # Index into overlay table
-    srl t0, a0, 28
+    srl ovl_id, a0, 28
 
     # Index into command table
     srl cmd_index, a0, 23
     andi cmd_index, 0x1FE
 
     # Overlay 0 is reserved for internal commands
-    beqz t0, rspq_execute_command
-    # Load command descriptor from internal command table if using the default overlay.
-    # Otherwise, cmd_desc will be overwritten further down
-    lhu cmd_desc, %lo(RSPQ_INTERNAL_COMMAND_TABLE)(cmd_index)
+    beqz ovl_id, rspq_execute_command
+     # Load command descriptor from internal command table if using the default overlay.
+     # Otherwise, cmd_desc will be overwritten further down
+     lhu cmd_desc, %lo(RSPQ_INTERNAL_COMMAND_TABLE)(cmd_index)
 
-    lhu t1, %lo(RSPQ_CURRENT_OVL)
+rspq_overlay_check:
+    lhu t1, %lo(_ovl_data_start) + RSPQ_OH_OVLID
 
     # Map overlay index through the ID map. This allows to resolve ID for
     # overlays that spans multiple IDs.
-    lbu ovl_index, RSPQ_OVERLAY_IDMAP(t0)
+    lbu ovl_index, RSPQ_OVERLAY_IDMAP(ovl_id)
 
     # Load the command base (index of the first command of the overlay).
-    lhu t0, %lo(_ovl_data_start) + 14
+    lhu t0, %lo(_ovl_data_start) + RSPQ_OH_CMDBASE
 
     # <stall cycle> Initial vshift in preparation to running the command
     lpv vshift8,  0x00,zero
 
-    #if RSPQ_DEBUG
-    assert_ne ovl_index, 0, ASSERT_INVALID_OVERLAY
-    #endif
-    
     # Check if the requested overlay is already in memory
     bne ovl_index, t1, rspq_load_overlay
-
-rspq_overlay_loaded:
      # Subtract the command base to determine the final offset into the command table.
      sub cmd_index, t0
 
@@ -589,29 +592,35 @@ rspq_load_overlay:
 #if RSPQ_PROFILE
     mfc0 t3, COP0_DP_CLOCK
 #endif
-
+    
     # Restore full command index before switching overlay
     addu cmd_index, t0
 
     # Save current overlay state
-    lhu t0, %lo(_ovl_data_start) + 2
-    lw s0, %lo(_ovl_data_start) + 4
+    lhu t0, %lo(_ovl_data_start) + RSPQ_OH_STATESIZE
+    lw s0, %lo(_ovl_data_start) + RSPQ_OH_STATEADDR
     jal DMAOutAsync
-    lhu s4, %lo(_ovl_data_start) + 0
+     lhu s4, %lo(_ovl_data_start) + RSPQ_OH_STATESTART
+
+    #if RSPQ_DEBUG
+    assert_ne ovl_index, 0, ASSERT_INVALID_OVERLAY
+    #endif
 
     # Load data segment
-    sll s0, ovl_index, 2
-    lw s0, %lo(RSPQ_OVERLAY_TABLE)(s0)
+    lw s0, %lo(RSPQ_OVERLAY_TABLE)(ovl_index)
     li s4, %lo(_ovl_data_start)
+    li t1, %lo(_ovl_data_start) + RSPQ_OH_LOADSEGTABLE
     srl t0, s0, 24-4
     jal DMAIn
-    ori t0, 0xf
+     ori t0, 0xf
 
-    # Load text segment
-    lw s0, %lo(_ovl_data_start) + 8
-    lhu t0, %lo(_ovl_data_start) + 12
+    # Load text segment plus additional optionally segments
+1:  lw s0, 0(t1)
+    lhu t0, 4(t1)
     jal DMAIn
-    li s4, %lo(_ovl_text_start)
+     lhu s4, 6(t1)
+    bltz s0, 1b
+     addiu t1, 8
 
 #if RSPQ_PROFILE
     mfc0 t0, COP0_DP_CLOCK
@@ -620,10 +629,8 @@ rspq_load_overlay:
     li s0, %lo(RSPQ_PROFILESLOT_OVLSWITCH)
 #endif
     # Load new overlay command base
-    lhu t0, %lo(_ovl_data_start) + 14
-    j rspq_overlay_loaded
-    sh ovl_index, %lo(RSPQ_CURRENT_OVL)
-
+    j rspq_overlay_check
+    # FALLTHROUGH - DELAY SLOT
 
     #undef ovl_index
     #undef cmd_index
@@ -635,7 +642,7 @@ rspq_switch_highpri:
     # Switch to highpri mode, calling RSPQCMD_SwapBuffers. We prepare the
     # argument to switch to the highpri buffer, clears the highpri requested
     # signal, and set the highpri running signal.
-    li a2, SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
+     li a2, SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
     li a0, RSPQ_HIGHPRI_CALL_SLOT<<2
     li a1, RSPQ_LOWPRI_CALL_SLOT<<2
     #fallthrough
