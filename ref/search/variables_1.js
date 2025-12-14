@@ -19,7 +19,7 @@ var searchData=
   ['analog_5fr_16',['analog_r',['../group__joypad.html#a6b6fb86546849343c95d8b60a77d4020',1,'joypad_gcn_origin_t::analog_r'],['../group__joypad.html#aab91337356c600eb12c5121129cf8e94',1,'joypad_inputs_t::analog_r'],['../group__joybus__commands.html#ac4e876853cbad4b00ba346bfc233f6ce',1,'joybus_cmd_gcn_controller_read_port_t.recv::analog_r'],['../group__joybus__commands.html#ac4e876853cbad4b00ba346bfc233f6ce',1,'joybus_cmd_gcn_controller_read_long_port_t.recv::analog_r']]],
   ['ascent_17',['ascent',['../rdpq__font__internal_8h.html#aad9f4da90011162a912859a8941f42cb',1,'rdpq_font_t']]],
   ['assert_5fhandler_18',['assert_handler',['../structrsp__ucode__t.html#a4e6b8b919f54b9af109d67cd6f851ebe',1,'rsp_ucode_t']]],
-  ['atlas_5fid_19',['atlas_id',['../rdpq__paragraph_8h.html#a6db6aa4b28ce9a43386ec80452d5d613',1,'rdpq_paragraph_char_t.__unnamed62__.__unnamed64__']]],
+  ['atlas_5fid_19',['atlas_id',['../rdpq__paragraph_8h.html#a6db6aa4b28ce9a43386ec80452d5d613',1,'rdpq_paragraph_char_t.__unnamed61__.__unnamed63__']]],
   ['atlases_20',['atlases',['../rdpq__font__internal_8h.html#a59d5fe9436f8dd7f1ee94c553998c218',1,'rdpq_font_t']]],
   ['attack_21',['attack',['../ay8910_8h.html#ad32733abe56129ddcf068f8ee5d1e1b1',1,'AYEnvelope']]],
   ['attr_5ffactor_22',['attr_factor',['../rdpq__tri_8c.html#a3e060c897ad2cb3eefabb55cc994542d',1,'rdpq_tri_edge_data_t']]],

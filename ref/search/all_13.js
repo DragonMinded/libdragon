@@ -6,7 +6,7 @@ var searchData=
   ['old_20rdp_20library_3',['(Deprecated) Old RDP library',['../group__rdp.html',1,'']]],
   ['old_5fgbc_5ftitle_4',['old_gbc_title',['../tpak_8h.html#structold__gbc__title',1,'']]],
   ['old_5flicensee_5fcode_5',['old_licensee_code',['../tpak_8h.html#abf1e36b71ecfa4bd6f034abda03c05fe',1,'gameboy_cartridge_header']]],
-  ['old_5ftitle_6',['old_title',['../tpak_8h.html#a6256f37c03a9662f5dbbfcafeb5120cf',1,'gameboy_cartridge_header.__unnamed72__']]],
+  ['old_5ftitle_6',['old_title',['../tpak_8h.html#a6256f37c03a9662f5dbbfcafeb5120cf',1,'gameboy_cartridge_header.__unnamed71__']]],
   ['on_20a_20real_20n64_7',['Using a development cartridge on a real N64',['../index.html#autotoc_md5',1,'']]],
   ['open_8',['open',['../structfilesystem__t.html#a65220025714418f98076e1334237408e',1,'filesystem_t::open'],['../system_8c.html#a94873fa89201b877351b663b9f5b040d',1,'open(const char *file, int flags,...):&#160;system.c']]],
   ['openfile_5fto_5fhandle_9',['OPENFILE_TO_HANDLE',['../dragonfs_8c.html#a9ee63404c5bfea0014f8d9eb774f3932',1,'dragonfs.c']]],

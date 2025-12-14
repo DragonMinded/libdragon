@@ -16,7 +16,7 @@ var searchData=
   ['sprite_5fext_5ft_2e_5f_5funnamed39_5f_5f_13',['sprite_ext_t.__unnamed39__',['../sprite__internal_8h.html#structsprite__ext__t_8____unnamed39____',1,'']]],
   ['sprite_5flod_5fs_14',['sprite_lod_s',['../sprite__internal_8h.html#structsprite__ext__t_1_1sprite__lod__s',1,'sprite_ext_t']]],
   ['sprite_5ft_15',['sprite_t',['../sprite_8h.html#structsprite__t',1,'']]],
-  ['sprite_5ft_2e_5f_5funnamed68_5f_5f_16',['sprite_t.__unnamed68__',['../sprite_8h.html#unionsprite__t_8____unnamed68____',1,'']]],
+  ['sprite_5ft_2e_5f_5funnamed67_5f_5f_16',['sprite_t.__unnamed67__',['../sprite_8h.html#unionsprite__t_8____unnamed67____',1,'']]],
   ['stdio_5ft_17',['stdio_t',['../structstdio__t.html',1,'']]],
   ['style_5ft_18',['style_t',['../structstyle__t.html',1,'']]],
   ['surface_5ft_19',['surface_t',['../surface_8h.html#structsurface__t',1,'']]],

@@ -15,7 +15,7 @@ var searchData=
   ['tile_12',['tile',['../rdpq__tex_8h.html#af7b4603e68a3865ce7d24db62df8983a',1,'rdpq_blitparms_t::tile'],['../rdpq__debug_8c.html#a938dbcb3c494e838305421ae4b7b7369',1,'.busy::tile']]],
   ['time_5fhook_13',['time_hook',['../system_8c.html#a1773a6ccf3d1931f4d0c34b0c4ef5d5d',1,'system.c']]],
   ['timing_14',['timing',['../group__lowlevel.html#af51d5fb42da0013f442cfcaaeeec20ce',1,'VI_regs_t']]],
-  ['title_15',['title',['../tpak_8h.html#a2deb6664a65f3730dab275d3f80ef8ff',1,'old_gbc_title::title'],['../tpak_8h.html#aa29305e39a06eae4929829858aa2e3fa',1,'new_gbc_title::title'],['../tpak_8h.html#aa1ee0253bc36c6c63d78b3d19566c793',1,'gameboy_cartridge_header.__unnamed72__::title']]],
+  ['title_15',['title',['../tpak_8h.html#a2deb6664a65f3730dab275d3f80ef8ff',1,'old_gbc_title::title'],['../tpak_8h.html#aa29305e39a06eae4929829858aa2e3fa',1,'new_gbc_title::title'],['../tpak_8h.html#aa1ee0253bc36c6c63d78b3d19566c793',1,'gameboy_cartridge_header.__unnamed71__::title']]],
   ['tmem_16',['tmem',['../rdpq__debug_8c.html#afd07f339270d76be205600dea262f02c',1,'.busy']]],
   ['tmem_5faddr_17',['tmem_addr',['../rdpq__tex_8h.html#a7d9d035ffce45fea28337bb88ba8c1e8',1,'rdpq_texparms_t']]],
   ['toc_5fsize_18',['toc_size',['../rompak_8c.html#a278754e0214dbac46315cddecebc9e66',1,'header_t']]],
