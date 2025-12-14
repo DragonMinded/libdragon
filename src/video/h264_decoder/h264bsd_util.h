@@ -144,11 +144,35 @@
     (ptr) = H264SwDecMalloc((count) * sizeof(type)); \
 }
 
+#if H264BSD_N64
+#define ALLOCATE_PIXELS(ptr, count, type) \
+{ \
+    (ptr) = malloc_uncached((count) * sizeof(type)); \
+}
+#else
+#define ALLOCATE_PIXELS(ptr, count, type) \
+{ \
+    (ptr) = H264SwDecMalloc((count) * sizeof(type)); \
+}
+#endif
+
 /* macro to free allocated memory */
 #define FREE(ptr) \
 { \
     H264SwDecFree((ptr)); (ptr) = NULL; \
 }
+
+#if H264BSD_N64
+#define FREE_PIXELS(ptr) \
+{ \
+    free_uncached((ptr)); (ptr) = NULL; \
+}
+#else
+#define FREE_PIXELS(ptr) \
+{ \
+    H264SwDecFree((ptr)); (ptr) = NULL; \
+}
+#endif
 
 #define ALIGN(ptr, bytePos) \
         (ptr + ( ((bytePos - (uintptr_t)ptr) & (bytePos - 1)) / sizeof(*ptr) ))
