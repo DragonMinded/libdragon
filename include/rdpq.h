@@ -153,13 +153,13 @@
 #include "surface.h"
 #include "debug.h"
 
-/** 
- * @brief Static overlay ID of rdpq library.
- * 
- * The rdpq overlay must be registered at this ID via #rspq_overlay_register_static.
- */
+///@cond
+
+// Static overlay ID for RDP/RDPQ commands
 #define RDPQ_OVL_ID (0xC << 28)
 
+// List of RDPQ internal RSP commands.
+// NOTE: this is *NOT* part of the public API of rdpq.
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
@@ -221,6 +221,7 @@ enum {
     RDPQ_CMD_SET_Z_IMAGE                = 0x3E,
     RDPQ_CMD_SET_COLOR_IMAGE            = 0x3F,
 };
+///@endcond
 
 #define RDPQ_CFG_AUTOSYNCPIPE   (1 << 0)     ///< Configuration flag: enable automatic generation of SYNC_PIPE commands
 #define RDPQ_CFG_AUTOSYNCLOAD   (1 << 1)     ///< Configuration flag: enable automatic generation of SYNC_LOAD commands
