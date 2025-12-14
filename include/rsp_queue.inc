@@ -395,9 +395,8 @@ RSPQ_DefineCommand RSPQCmd_Dma,             16    # 0x05
 RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
-RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
-RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
-RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
+RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x09
+RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0A
 
     .align 4
 # Overlay data will be loaded at this address
@@ -833,13 +832,17 @@ RSPQCmd_RdpSetBuffer:
     bne t0, a1, 1f
      lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
     ori t3, DP_STATUS_DMA_BUSY
-1:  jal RSPQ_RdpWait
-     ori t3, DP_STATUS_END_VALID
+1:  ori t3, DP_STATUS_END_VALID
+
+RSPQCmd_RdpSetBuffer_RdpWait:
+    mfc0 t2, COP0_DP_STATUS
+    and t1, t2, t3
+    bnez t1, RSPQCmd_RdpSetBuffer_RdpWait
 
     # In case there was a SYNC_FULL pending, before switching to next buffer, we need
     # to actually write the current one to RDP. Notice that the following two instructions
     # are actually nops in case there was no SYNC_FULL (as DP_END == RDPQ_CURRENT in that case).
-    sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
+     sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
     lw t0, %lo(RDPQ_CURRENT)
 #ifdef NDEBUG
     mtc0 t0, COP0_DP_END
@@ -886,54 +889,6 @@ RSPQCmd_RdpAppendBuffer:
     mtc0 a0, COP0_DP_END
     .endfunc
 
-    #############################################################
-    # RSPQCmd_RdpWaitIdle
-    #
-    # Wait until RDP is idle. 
-    # 
-    # *NOTE*: a SYNC_FULL command *must* have been already written
-    # to the RDP output buffer,  otherwise this function will stall
-    # forever. In fact, once the RDP is running, it never gets back
-    # to idle state until a SYNC_FULL is found, even if it has no
-    # more commands to run.
-    #############################################################
-    .func RSPQCmd_RdpWaitIdle
-RSPQCmd_RdpWaitIdle:
-    li t3, DP_STATUS_BUSY
-
-RSPQ_RdpWait:
-#if RSPQ_PROFILE
-    mfc0 t0, COP0_DP_CLOCK
-#endif
-    mfc0 t2, COP0_DP_STATUS
-1:
-    # Wait for selected RDP status bits to become 0.
-    and t1, t2, t3
-    bnez t1, 1b
-    mfc0 t2, COP0_DP_STATUS
-#if RSPQ_PROFILE
-    # Measure the time we have been waiting for the RDP and save it to the special "RDP idle" slot.
-    # Also, subtract this time from the sample that is currently being recorded by adding it to the current start time.
-    mfc0 t1, COP0_DP_CLOCK
-
-    # If DP_STATUS_BUSY is set we are waiting for a FULL_SYNC. Divert this to yet another special slot.
-    andi t2, t3, DP_STATUS_BUSY
-    bnez t2, 1f
-    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPSYNCFULL)
-    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPBUSY)
-1:
-    lw t2, %lo(RSPQ_PROFILE_START_TIME)
-    subu t1, t0
-    and t0, t1, 0xFFFFFF
-    # Masking the updated start time is not necessary here because that will happen in RSPQ_Loop anyway
-    add t2, t0
-    j RSPQ_ProfileAccumulate
-    sw t2, %lo(RSPQ_PROFILE_START_TIME)
-#else
-    jr ra
-    nop
-#endif
-    .endfunc
 
 #if RSPQ_PROFILE
     #############################################################

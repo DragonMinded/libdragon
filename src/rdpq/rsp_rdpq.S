@@ -40,7 +40,7 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD7
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
         RSPQ_DefineCommand RDPQCmd_SetFogMode,              8   # 0xD9 Set Fog Mode
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDA
+        RSPQ_DefineCommand RDPQCmd_RdpWaitIdle,             4   # 0xDA RDP Wait Idle
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    16  # 0xDB SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RDPQCmd_AutoTmem_SetAddr,        4   # 0xDC AutoTmem_SetAddr
         RSPQ_DefineCommand RDPQCmd_AutoTmem_SetTile,        8   # 0xDD AutoTmem_SetTile
@@ -480,6 +480,55 @@ RDPQ_FixupAddress:
     lw t1, %lo(RDPQ_ADDRESS_TABLE)(t0)
     jr ra
     add a1, t1
+    .endfunc
+
+    #############################################################
+    # RSPQCmd_RdpWaitIdle
+    #
+    # Wait until RDP is idle. 
+    # 
+    # *NOTE*: a SYNC_FULL command *must* have been already written
+    # to the RDP output buffer,  otherwise this function will stall
+    # forever. In fact, once the RDP is running, it never gets back
+    # to idle state until a SYNC_FULL is found, even if it has no
+    # more commands to run.
+    #############################################################
+    .func RDPQCmd_RdpWaitIdle
+RDPQCmd_RdpWaitIdle:
+    li t3, DP_STATUS_BUSY
+
+RdpWait:
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+#endif
+    mfc0 t2, COP0_DP_STATUS
+1:
+    # Wait for selected RDP status bits to become 0.
+    and t1, t2, t3
+    bnez t1, 1b
+    mfc0 t2, COP0_DP_STATUS
+#if RSPQ_PROFILE
+    # Measure the time we have been waiting for the RDP and save it to the special "RDP idle" slot.
+    # Also, subtract this time from the sample that is currently being recorded by adding it to the current start time.
+    mfc0 t1, COP0_DP_CLOCK
+
+    # If DP_STATUS_BUSY is set we are waiting for a FULL_SYNC. Divert this to yet another special slot.
+    andi t2, t3, DP_STATUS_BUSY
+    bnez t2, 1f
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPSYNCFULL)
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPBUSY)
+1:
+    lw t2, %lo(RSPQ_PROFILE_START_TIME)
+    subu t1, t0
+    and t0, t1, 0xFFFFFF
+    # Masking the updated start time is not necessary here because that will happen in RSPQ_Loop anyway
+    add t2, t0
+    j RSPQ_ProfileAccumulate
+    sw t2, %lo(RSPQ_PROFILE_START_TIME)
+#else
+    jr ra
+    nop
+#endif
     .endfunc
 
     #############################################################

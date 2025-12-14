@@ -533,7 +533,7 @@ void rdpq_fence(void)
     // then we send the internal rspq command that make the RSP spin-wait
     // until the RDP is idle. The RDP becomes idle only after SYNC_FULL is done.
     rdpq_sync_full(NULL, NULL);
-    rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_WAIT_IDLE);
 }
 
 void rdpq_exec(void *buffer, int size)
