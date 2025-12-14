@@ -22,7 +22,7 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand Task_WriteMacroblock,                4
+        RSPQ_DefineCommand RSPQCmd_Noop,                        4
         RSPQ_DefineCommand Task_SetPackedDeltaBuffer,           4
     RSPQ_EndOverlayHeader
 
@@ -38,7 +38,6 @@ DECLARE_OMXDL_TABLE(
 )
 #endif
 
-#define RSP_WRITE_MACROBLOCK
 #include "rsph264_common.inc"
 
     .data

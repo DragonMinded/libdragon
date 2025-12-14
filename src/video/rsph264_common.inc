@@ -241,7 +241,7 @@ AssertCAVLCBufferTooSmall:
     .endfunc
 #endif
 
-#ifdef RSP_WRITE_MACROBLOCK
+#if 0
 ####################################################################
 # Task_WriteMacroblock
 #
