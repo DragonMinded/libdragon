@@ -71,26 +71,24 @@ static bool read_wav(const char *infn, wav_data_t *out)
 			if (smpl->sampleLoopCount > 0) {
 				// If we have multiple loops, we just take the first one.
 				drwav_smpl_loop* loop = &smpl->pLoops[0];
-				// NOTE: the offset appears to be in samples, not bytes.
-				// See also https://github.com/mackron/dr_libs/issues/267
 				out->looping = true;
-				out->loopOffset = loop->firstSampleByteOffset;
-				if (out->cnt > loop->lastSampleByteOffset+1)
-					out->cnt = loop->lastSampleByteOffset+1;
+				out->loopOffset = loop->firstSampleOffset;
+				if (out->cnt > loop->lastSampleOffset+1)
+					out->cnt = loop->lastSampleOffset+1;
 
 				switch (loop->type) {
 				case 0: // standard forward loop
 					if (flag_verbose)
-						fprintf(stderr, "  found forward loop [start=%d end=%d cnt=%d]\n", loop->firstSampleByteOffset,
-							loop->lastSampleByteOffset, out->cnt);
+						fprintf(stderr, "  found forward loop [start=%d end=%d cnt=%d]\n", loop->firstSampleOffset,
+							loop->lastSampleOffset, out->cnt);
 					break;
 				case 1: { // ping-pong loop
 					if (flag_verbose)
-						fprintf(stderr, "  found ping-pong loop [start=%d end=%d cnt=%d]\n", loop->firstSampleByteOffset,
-							loop->lastSampleByteOffset, out->cnt);
+						fprintf(stderr, "  found ping-pong loop [start=%d end=%d cnt=%d]\n", loop->firstSampleOffset,
+							loop->lastSampleOffset, out->cnt);
 					// Unroll the ping-pong loop in the buffer.
-					int last_offset = loop->lastSampleByteOffset / (wav.bitsPerSample / 8);
-					int first_offset = loop->firstSampleByteOffset / (wav.bitsPerSample / 8);
+					int last_offset = loop->lastSampleOffset;
+					int first_offset = loop->firstSampleOffset;
 					int loop_len = last_offset - first_offset + 1;
 					int16_t* new_samples = (int16_t*)malloc((out->cnt + loop_len) * out->channels * sizeof(int16_t));
 					memcpy(new_samples, samples, out->cnt * out->channels * sizeof(int16_t));
