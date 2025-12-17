@@ -80,8 +80,9 @@ void test_dfs_rom_addr(TestContext *ctx) {
 	uint32_t rom = dfs_rom_addr("counter.dat");
 	ASSERT(rom != 0, "counter.dat not found by dfs_rom_addr");
 
-	ASSERT_EQUAL_HEX(io_read(rom), *(uint32_t*)buf1, "direct ROM address is different");
-	ASSERT_EQUAL_HEX(io_read(rom+8), *(uint32_t*)(buf1+8), "direct ROM address is different");
+	int offset = rom & 2; 
+	ASSERT_EQUAL_HEX(io_read(rom+offset), *(u_uint32_t*)(buf1+offset), "direct ROM address is different");
+	ASSERT_EQUAL_HEX(io_read(rom+offset+8), *(u_uint32_t*)(buf1+offset+8), "direct ROM address is different");
 
 	data_cache_hit_invalidate(buf2, sizeof(buf2));
 	dma_read(buf2, rom, 128);
