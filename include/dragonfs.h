@@ -254,8 +254,9 @@ int dfs_size(uint32_t handle);
  * performance-wise, and is easier to use rather than managing
  * direct access to PI space.
  * 
- * Direct access to ROM data must go through io_read or dma_read. Do not
- * dereference directly as the console might hang if the PI is busy.
+ * Direct access to ROM data must go through #io_read or #dma_read. Notice
+ * that the address is guranteed to be 2-byte aligned, but not necessarily
+ * 4-byte aligned, so #io_read should be used with care.
  *
  * @param[in] path
  *            Name of the file
