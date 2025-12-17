@@ -12,7 +12,7 @@ int (*bt_invalid_func_ptr)(void) = (int(*)(void))0xECECECEC;
 int (*bt_misaligned_func_ptr)(void) = (int(*)(void))0x80010002;
 
 // Test functions defined in backtrace_test.S
-int btt_end(void)
+NOINLINE int btt_end(void)
 {
     memset(bt_buf, 0, sizeof(bt_buf));
     bt_buf_len = backtrace(bt_buf, 32);
@@ -86,7 +86,7 @@ void btt_start(TestContext *ctx, int (*func)(void), const char *expected[])
     int i = 0;
     void cb(void *user, backtrace_frame_t *frame)
     {
-        //backtrace_frame_print(frame, stderr); debugf("\n");
+        // backtrace_frame_print(frame, stderr); debugf("\n");
         if (ctx->result == TEST_FAILED) return;
         if (expected[i] == NULL) return;
         ASSERT_EQUAL_STR(expected[i], frame->func, "invalid backtrace entry");

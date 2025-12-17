@@ -1,3 +1,4 @@
+#include <malloc.h>
 
 void test_cache_invalidate(TestContext *ctx) {
 	// Interrupts causing other code to run can easily invalidate cache and make
@@ -5,7 +6,10 @@ void test_cache_invalidate(TestContext *ctx) {
 	disable_interrupts();
 	DEFER(enable_interrupts());
 
-	uint8_t buf[128] __attribute__((aligned(16)));
+	const int BUF_SIZE = 64;
+	uint8_t *buf = memalign(16, BUF_SIZE);
+	DEFER(free(buf));
+
 	const char *dfs_header = "\xde\xad\xbe\xef\xff\xff\xff\xff""DragonFS 2.0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 	const char *aaa = "\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa";
 
@@ -14,8 +18,8 @@ void test_cache_invalidate(TestContext *ctx) {
 
 			// Read/write the whole buffer through cache,
 			// so it's all populated in D-Cache.
-			memset(buf, 0xA0, sizeof(buf));
-			for (int i=0;i<sizeof(buf);i++) buf[i] += 0xA;
+			memset(buf, 0xA0, BUF_SIZE);
+			for (int i=0;i<BUF_SIZE;i++) buf[i] += 0xA;
 
 			// Writeback+Invalidate buf[i..i+j]. Now only
 			// those lines should be invalidated.
