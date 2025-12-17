@@ -389,9 +389,9 @@ static void rspq_sp_interrupt(void)
 }
 
 /** @brief Extract the current overlay index and name from the RSP queue state */
-static void rspq_get_current_ovl(rsp_queue_t *rspq, uint8_t *ovl_id, const char **ovl_name)
+static void rspq_get_current_ovl(rspq_overlay_header_t *ovl_header, uint8_t *ovl_id, const char **ovl_name)
 {
-    *ovl_id = rspq->current_ovl;
+    *ovl_id = ovl_header->overlay_id >> 2;
     if (*ovl_id == 0) {
         *ovl_name = "builtin";
     } else if (*ovl_id < RSPQ_MAX_OVERLAYS && rspq_overlay_ucodes[*ovl_id]) {
@@ -403,12 +403,13 @@ static void rspq_get_current_ovl(rsp_queue_t *rspq, uint8_t *ovl_id, const char 
 /** @brief RSPQ crash handler. This shows RSPQ-specific info the in RSP crash screen. */
 static void rspq_crash_handler(rsp_snapshot_t *state)
 {
-    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
+    uint32_t rsp_queue_data_size = rsp_queue_data_end - rsp_queue_data_start;
+    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem);
+    rspq_overlay_header_t *ovl_header = (rspq_overlay_header_t*)(state->dmem + rsp_queue_data_size);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 8);
 
     const char *ovl_name; uint8_t ovl_id;
-    rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
+    rspq_get_current_ovl(ovl_header, &ovl_id, &ovl_name);
 
     printf("RSPQ: Normal  DRAM address: %08lx\n", rspq->rspq_dram_lowpri_addr);
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
@@ -423,7 +424,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     debugf("RSPQ: Command queue:\n");
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
-            debugf("%08lx%c", ((uint32_t*)state->dmem)[dmem_buffer/4+i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');
+            debugf("%08lx%c", rspq->cmds[i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');
         debugf("\n");
     }
 
@@ -450,12 +451,11 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 /** @brief Special RSP assert handler for ASSERT_INVALID_COMMAND */
 static void rspq_assert_invalid_command(rsp_snapshot_t *state)
 {
-    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
+    rspq_overlay_header_t *ovl_header = (rspq_overlay_header_t*)(state->dmem + (rsp_queue_data_end - rsp_queue_data_start));
     const char *ovl_name; uint8_t ovl_id;
-    rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
+    rspq_get_current_ovl(ovl_header, &ovl_id, &ovl_name);
 
-    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 8);
-    uint32_t cur = dmem_buffer + state->gpr[28];
+    uint32_t cur = state->gpr[28]/4;
     printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_id);
 }
 
@@ -476,16 +476,17 @@ static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
             rspq_assert_invalid_command(state);
             break;
         default: {
-            rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
-
             // Check if there is an assert handler for the current overlay.
             // If it exists, forward request to it.
             // Be defensive against DMEM corruptions.
-            int ovl_id = rspq->current_ovl;
+            rspq_overlay_header_t *ovl_header = (rspq_overlay_header_t*)(state->dmem + (rsp_queue_data_end - rsp_queue_data_start));
+            uint8_t ovl_id = ovl_header->overlay_id >> 2;
             if (ovl_id < RSPQ_MAX_OVERLAYS &&
                 rspq_overlay_ucodes[ovl_id] &&
                 rspq_overlay_ucodes[ovl_id]->assert_handler)
                 rspq_overlay_ucodes[ovl_id]->assert_handler(state, assert_code);
+            else
+                printf("\n");
             break;
         }
     }
@@ -543,7 +544,7 @@ static void rspq_start(void)
 
     // Load data with initialized overlays into DMEM
     data_cache_hit_writeback(&rspq_data, sizeof(rsp_queue_t));
-    rsp_load_data(&rspq_data, sizeof(rsp_queue_t), RSPQ_DATA_ADDRESS);
+    rsp_load_data(&rspq_data, sizeof(rsp_queue_t), 0);
 
     static rspq_overlay_header_t dummy_header = (rspq_overlay_header_t){
         .state_start = 0,
@@ -626,12 +627,12 @@ void rspq_init(void)
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
 
     // Verify consistency of state
-    int banner_offset = RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, banner);
+    int banner_offset = offsetof(rsp_queue_t, banner);
     assertf(!memcmp(rsp_queue.data + banner_offset, "Dragon RSP Queue", 16),
         "rsp_queue_t does not seem to match DMEM; did you forget to update it?");
 
     // Load initial settings
-    memcpy(&rspq_data, rsp_queue.data + RSPQ_DATA_ADDRESS, sizeof(rsp_queue_t));
+    memcpy(&rspq_data, rsp_queue.data, sizeof(rsp_queue_t));
     rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
     rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
@@ -738,8 +739,8 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
         // state for. If so, read back the latest updated state from DMEM
         // manually via DMA, so that the caller finds the latest contents.
         const char *ovl_name; uint8_t ovl_id;
-        rsp_queue_t *rspq = (rsp_queue_t*)((uint8_t*)SP_DMEM + RSPQ_DATA_ADDRESS);
-        rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
+        rspq_overlay_header_t *ovl_header = (void*)SP_DMEM + (rsp_queue_data_end - rsp_queue_data_start);
+        rspq_get_current_ovl(ovl_header, &ovl_id, &ovl_name);
 
         if (ovl_id && rspq_overlay_ucodes[ovl_id] == overlay_ucode) {
             rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
@@ -756,7 +757,7 @@ rsp_queue_t* __rspq_get_state(void)
     rspq_wait();
 
     // Read the state and return it
-    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), RSPQ_DATA_ADDRESS);
+    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), 0);
     return &rspq_data;
 }
 
@@ -810,7 +811,7 @@ static void rspq_update_tables(bool is_highpri)
     data_cache_hit_writeback_invalidate(&rspq_data.rspq_ovl_table, sizeof(rspq_ovl_table_t));
     if (is_highpri) rspq_highpri_begin();
     rspq_dma_to_dmem(
-        RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, rspq_ovl_table),
+        offsetof(rsp_queue_t, rspq_ovl_table),
         &rspq_data.rspq_ovl_table, sizeof(rspq_ovl_table_t), false);
     if (is_highpri) rspq_highpri_end();
 }
