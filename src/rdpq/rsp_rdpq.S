@@ -367,8 +367,11 @@ RDPQCmd_SetFixupImage:
     #############################################################
     .func RDPQCmd_SetColorImage
 RDPQCmd_SetColorImage:
+    lbu t1, %lo(RDPQ_TARGET_BITDEPTH)
     srl t0, a0, 19
     andi t0, 3
+    andi t1, 0x80
+    or t0, t1
     # fixup DRAM address using address slots
     jal RDPQ_FixupAddress
     sb t0, %lo(RDPQ_TARGET_BITDEPTH)
@@ -779,8 +782,12 @@ RDPQ_Triangle_Cull:
 
     .func RDPQCmd_SetDebugMode
 RDPQCmd_SetDebugMode:
-    jr ra
-    sb a0, %lo(RDPQ_DEBUG)
+    lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
+    beqz a0, 1f
+     andi t0, 0x7F
+    ori t0, 0x80
+1:  jr ra
+    sb t0, %lo(RDPQ_TARGET_BITDEPTH)
     .endfunc
 
 

@@ -315,6 +315,9 @@ RSPQ_SCRATCH_MEM: # the following 32-bytes can be used by any overlay as tempora
     .ascii "Dragon RSP Queue"
     .ascii "Rasky & Snacchus"
 
+    .align 3
+RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
+
 ################################################################
 # RDPQ shared state
 #
@@ -355,26 +358,20 @@ RDPQ_CURRENT:                .long 0
 RDPQ_SENTINEL:               .long 0
 # Current fill color
 RDPQ_FILL_COLOR:             .word 0
-# Current target buffer color depth
+# RDRAM address of the current command list.
+RSPQ_RDRAM_PTR:              .long 0
+# Current target buffer color depth (0-3).
+# The top bit (0x80) is set if the rdpq validator is enabled
 RDPQ_TARGET_BITDEPTH:        .byte 0
 # True if there is a SYNC_FULL command in the current RDP output buffer
 RDPQ_SYNCFULL_ONGOING:       .byte 0
-# True if the rdpq debug mode is active (validator). TODO: hide this bit elsewhere to save one byte
-RDPQ_DEBUG:                  .byte 0
 
 ################################################################
 # End of RDPQ shared state
 ################################################################
 
-                              .byte 0    # explicit padding byte (would be emitted by the assembler anyway)
-
-# RDRAM address of the current command list.
-RSPQ_RDRAM_PTR:               .long 0
-
-# ID of the current overlay
-RSPQ_CURRENT_OVL:             .half 0
-
 #if RSPQ_PROFILE
+    .align 1
 RSPQ_PROFILE_CUR_SLOT:        .long 0
 RSPQ_PROFILE_START_TIME:      .long 0
 RSPQ_PROFILE_DATA:
@@ -386,11 +383,6 @@ RSPQ_PROFILE_DATA:
     RSPQ_PROFILESLOT_BUILTINS:              .long 0,0
 #endif
 
-    .align 3
-RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
-
-
-    .align 3
 RSPQ_INTERNAL_COMMAND_TABLE:
 RSPQ_DefineCommand RSPQCmd_WaitNewInput,    0     # 0x00
 RSPQ_DefineCommand RSPQCmd_Noop,            4     # 0x01
@@ -404,8 +396,10 @@ RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24
 RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x09
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0A
 
-    .align 4
-# Overlay data will be loaded at this address
+# Overlay data will be loaded at this address. We force 8-byte alignment
+# here so that the overlay header can layout 2/4 bytes field in a way
+# to guarantee no padding. See RSPQ_BeginOverlayHeader.
+    .align 3
 _ovl_data_start:
 
     .text
@@ -855,8 +849,8 @@ RSPQCmd_RdpSetBuffer_RdpWait:
     mtc0 t0, COP0_DP_END
 #else
     # Check if the RDPQ debug mode is active (validator)
-    lbu t2, %lo(RDPQ_DEBUG)
-    beqz t2, 1f
+    lb t2, %lo(RDPQ_TARGET_BITDEPTH)
+    bgez t2, 1f
      mtc0 t0, COP0_DP_END
 
     # Generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END.

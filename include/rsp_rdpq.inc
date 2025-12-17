@@ -732,6 +732,7 @@ RDPQ_WriteSetScissor:
 RDPQ_WriteSetFillColor:
     sw a1, %lo(RDPQ_FILL_COLOR)
     lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
+    andi t0, 3
     beq t0, 3, RDPQ_Write8
     lui a0, 0xF700   # SET_FILL_COLOR
     srl t0, a1, 24 + (8-5) - 11

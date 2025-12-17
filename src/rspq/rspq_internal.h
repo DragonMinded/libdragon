@@ -196,29 +196,27 @@ typedef struct rspq_profile_slot_dmem_s {
 /**
  * @brief RSP Queue data in DMEM.
  * 
- * This structure is defined by rsp_queue.S, and represents the
+ * This structure is defined by rsp_queue.inc, and represents the
  * top portion of DMEM.
  */
 typedef struct rsp_queue_s {
+    uint8_t shift_consts[8];             ///< Shift constants
     rspq_ovl_table_t rspq_ovl_table;     ///< Overlay table
     /** @brief Pointer stack used by #RSPQ_CMD_CALL and #RSPQ_CMD_RET. */
     uint32_t rspq_pointer_stack[RSPQ_MAX_BLOCK_NESTING_LEVEL];
     uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint8_t banner[32];                  ///< Banner
+    uint32_t cmds[RSPQ_DMEM_BUFFER_SIZE/4]; ///< RSPQ command buffer
     rspq_rdp_mode_t rdp_mode;            ///< RDP current render mode definition
     uint64_t rdp_scissor_rect;           ///< Current RDP scissor rectangle
     uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
     uint32_t rspq_rdp_current;           ///< Current RDP RDRAM write pointer (normally DP_END)
     uint32_t rspq_rdp_sentinel;          ///< Current RDP RDRAM end pointer (when rdp_current reaches this, the buffer is full)
     uint32_t rdp_fill_color;             ///< Current RDP fill color
+    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
     uint8_t rdp_target_bitdepth;         ///< Current RDP target buffer bitdepth
     uint8_t rdp_syncfull_ongoing;        ///< True if a SYNC_FULL is currently ongoing
-    uint8_t rdpq_debug;                  ///< Debug mode flag
-    uint8_t padding;                     ///< Padding
-    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
-    uint16_t current_ovl;                ///< Current overlay ID
-    uint16_t padding2;                   ///< Padding
 #if RSPQ_PROFILE
     uint32_t rspq_profile_cur_slot;
     uint32_t rspq_profile_start_time;
@@ -226,9 +224,6 @@ typedef struct rsp_queue_s {
     rspq_profile_slot_dmem_t rspq_profile_builtin_slot;
 #endif
  } __attribute__((aligned(16), packed)) rsp_queue_t;
-
-/** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
-#define RSPQ_DATA_ADDRESS                8
 
 /** @brief ID of the last syncpoint reached by RSP (plus padding). */
 extern volatile int __rspq_syncpoints_done[4];
