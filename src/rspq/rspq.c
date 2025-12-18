@@ -262,15 +262,15 @@ DEFINE_RSP_UCODE(rsp_queue,
  */
 typedef struct __attribute__((packed)) rspq_overlay_header_t {
     uint16_t state_start;       ///< Start of the portion of DMEM used as "state"
-    uint16_t state_size;        ///< Size of the portion of DMEM used as "state"
+    uint16_t state_size;        ///< Size of the portion of DMEM used as "state" (minus 1)
     uint32_t state_rdram;       ///< RDRAM address of the portion of DMEM used as "state"
     uint16_t command_base;      ///< Primary overlay ID used for this overlay
     uint16_t overlay_id;        ///< Overlay ID (multiplied by 4)
     uint32_t text_rdram;        ///< RDRAM address of the overlay's text section
-    uint16_t text_size;         ///< Size of the overlay's text section
+    uint16_t text_size;         ///< Size of the overlay's text section (minus 1)
     uint16_t text_start;        ///< Offset of the overlay's text section in DMEM
     uint32_t extraseg_rdram;    ///< RDRAM address of extra segment
-    uint16_t extraseg_size;     ///< Size of extra segment
+    uint16_t extraseg_size;     ///< Size of extra segment (minus 1)
     uint16_t extraseg_start;    ///< Offset of extra segment in DMEM
     #if RSPQ_PROFILE
     uint16_t profile_slot_dmem; ///< Start of the profile slots in DMEM
@@ -896,6 +896,29 @@ void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_i
     assertf((overlay_id & 0x0FFFFFFF) == 0, 
         "the specified overlay_id should only use the top 4 bits (must be preshifted by 28) (overlay: %s)", overlay_ucode->name);
     rspq_overlay_register_internal(overlay_ucode, overlay_id);
+}
+
+void rspq_overlay_share_state(rsp_ucode_t *overlay_dest, rsp_ucode_t *overlay_source)
+{
+    rspq_overlay_header_t *dsth = (rspq_overlay_header_t*)(overlay_dest->data + (rsp_queue_data_end - rsp_queue_data_start));
+    rspq_overlay_header_t *srch = (rspq_overlay_header_t*)(overlay_source->data + (rsp_queue_data_end - rsp_queue_data_start));
+    
+    assertf((dsth->text_rdram & (1<<31)) == 0, 
+        "Overlay %s is already using another shared state", overlay_dest->name);
+    assertf(dsth->state_size <= srch->state_size, "Overlays %s (dest) and %s (src) have non-compatible state size (%d vs %d)",
+        overlay_dest->name, overlay_source->name, dsth->state_size, srch->state_size);
+
+    // Mark as using shared state. We need to mark it in the text segment because
+    // it's what the rsp_queue ucode checks for.
+    dsth->text_rdram |= (1<<31);
+
+    // At overlay load time, copy state from source overlay into DMEM
+    dsth->extraseg_rdram = srch->state_rdram;
+    dsth->extraseg_size = dsth->state_size;
+    dsth->extraseg_start = dsth->state_start;
+
+    // At overlay save time, copy state from DMEM into source overlay
+    dsth->state_rdram = srch->state_rdram;
 }
 
 void rspq_overlay_unregister(uint32_t overlay_id)
