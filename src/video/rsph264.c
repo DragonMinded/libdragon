@@ -39,6 +39,7 @@ void rsph264_init(void)
     rspq_init();
     rsph264_inter_ovl_id = rspq_overlay_register(&rsph264_inter);
     rsph264_intra_ovl_id = rspq_overlay_register(&rsph264_intra);
+    rspq_overlay_share_state(&rsph264_inter, &rsph264_intra);
 }
 
 void rsph264_begin_frame(void)
