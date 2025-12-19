@@ -144,7 +144,7 @@ typedef struct
     u8 totalCoeff[27];
 } residual_t;
 
-typedef struct
+typedef struct __attribute__((aligned(16)))
 {
     mbType_e mbType;
     u32 codedBlockPattern;

@@ -70,6 +70,19 @@ typedef struct
     u32 firstCallFlag;
 } aubCheck_t;
 
+#ifdef H264BSD_N64
+// Maximum number of macroblocks that the RSP will be able to lag behind the
+// CPU, and process in background. This basically specifies how big is the
+// mbLayers array above.
+// TODO: there is currently no explicit sync for this, this number is
+// experimental. If the number is too little, some corruption might appear on 
+// some frames, especially when the RSP is too slow.
+#define NUM_PARALLEL_MACROBLOCKS 128
+#else
+#define NUM_PARALLEL_MACROBLOCKS 1
+#endif
+
+
 /* storage data structure, holds all data of a decoder instance */
 typedef struct
 {
@@ -142,7 +155,7 @@ typedef struct
      * allocated from head -> easiest to put it here */
     /* On N64, we want multiple instances of this structure because we
        allow the RSP to lag behind the CPU decoding with its task queue. */
-    macroblockLayer_t *mbLayers;
+    macroblockLayer_t mbLayers[NUM_PARALLEL_MACROBLOCKS];
     int mbLayerIdx;
 
     u32 pendingActivation; /* Activate parameter sets after returning
@@ -150,18 +163,6 @@ typedef struct
     u32 intraConcealmentFlag; /* 0 gray picture for corrupted intra
                                  1 previous frame used if available */
 } storage_t;
-
-#ifdef H264BSD_N64
-// Maximum number of macroblocks that the RSP will be able to lag behind the
-// CPU, and process in background. This basically specifies how big is the
-// mbLayers array above.
-// TODO: there is currently no explicit sync for this, this number is
-// experimental. If the number is too little, some corruption might appear on 
-// some frames, especially when the RSP is too slow.
-#define NUM_PARALLEL_MACROBLOCKS 24
-#else
-#define NUM_PARALLEL_MACROBLOCKS 1
-#endif
 
 /*------------------------------------------------------------------------------
     4. Function prototypes

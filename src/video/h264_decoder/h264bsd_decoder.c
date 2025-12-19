@@ -107,7 +107,7 @@ u32 h264bsdInit(storage_t *pStorage, u32 noOutputReordering)
     ASSERT(pStorage);
 
     h264bsdInitStorage(pStorage);
-
+#if 0
     /* allocate mbLayer to be next multiple of 64 to enable use of
      * specific NEON optimized "memset" for clearing the structure */
     size = (sizeof(macroblockLayer_t) + 63) & ~0x3F;
@@ -115,7 +115,7 @@ u32 h264bsdInit(storage_t *pStorage, u32 noOutputReordering)
     pStorage->mbLayers = (macroblockLayer_t*)H264SwDecMalloc(size*NUM_PARALLEL_MACROBLOCKS);
     if (!pStorage->mbLayers)
         return HANTRO_NOK;
-
+#endif
     if (noOutputReordering)
         pStorage->noReordering = HANTRO_TRUE;
 
@@ -627,7 +627,9 @@ void h264bsdShutdown(storage_t *pStorage)
         }
     }
 
+    #if 0
     FREE(pStorage->mbLayers);
+    #endif
     FREE(pStorage->mb);
     FREE(pStorage->sliceGroupMap);
 
