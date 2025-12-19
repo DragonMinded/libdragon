@@ -110,7 +110,7 @@
 /* macro for debug printing, used only if compiler flag _DEBUG_PRINT is
  * defined */
 #ifdef _DEBUG_PRINT
-#define DEBUG(args) printf args
+#define DEBUG(args) debugf args
 #else
 #define DEBUG(args)
 #endif
