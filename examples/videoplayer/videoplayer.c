@@ -29,15 +29,17 @@ int main(void)
 
 	// Check if the movie is present in the filesystem, so that we can provide
 	// a specific error message.
-	FILE *f = fopen("rom:/movie.m1v", "rb");
+	FILE *f = fopen("rom:/movie.h264", "rb");
 	assertf(f, "Movie not found!\nInstall wget and ffmpeg to download and encode the sample movie\n");
 	fclose(f);
 
 	// Open the movie using the mpeg2 module and create a YUV blitter to draw it.
-	mpeg2_t* video_track = mpeg2_open("rom:/movie.m1v");
+	h264_t* video_track = h264_open("rom:/movie.h264");
 
-	int video_width = mpeg2_get_width(video_track);
-	int video_height = mpeg2_get_height(video_track);
+	int video_width = h264_get_width(video_track);
+	int video_height = h264_get_height(video_track);
+	float video_fps = h264_get_framerate(video_track);
+	debugf("Video resolution: %dx%d @ %.2f FPS\n", video_width, video_height, video_fps);
 
 	// When playing back a video, there are essentially two options:
 	// 1) Configure a fixed resolution (eg: 320x240), and then make
@@ -85,7 +87,7 @@ int main(void)
 	);
 
 	// Engage the fps limiter to ensure proper video pacing.
-	float fps = mpeg2_get_framerate(video_track);
+	float fps = h264_get_framerate(video_track);
 	display_set_fps_limit(fps);
 
 	// Open the audio track and start playing it in channel 0.
@@ -95,11 +97,14 @@ int main(void)
 
 	int nframes = 0;
 
+	rdpq_font_t *fnt = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO);
+	rdpq_text_register_font(1, fnt);
+
 	while (1)
 	{
-		mixer_throttle(AUDIO_HZ / fps);
+		// mixer_throttle(AUDIO_HZ / fps);
 
-		if (!mpeg2_next_frame(video_track))
+		if (!h264_next_frame(video_track))
 		{
 			break;
 		}
@@ -112,9 +117,11 @@ int main(void)
 
 		PROFILE_START(PS_YUV, 0);
 		// Get the next video frame and feed it into our previously set up blitter.
-		yuv_frame_t frame = mpeg2_get_frame(video_track);
+		yuv_frame_t frame = h264_get_frame(video_track);
 		yuv_blitter_run(&yuv, &frame);
 		PROFILE_STOP(PS_YUV, 0);
+
+		rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, display_get_width() - 70, 15, "FPS: %.02f", display_get_fps());
 
 		rdpq_detach_show();
 
@@ -123,7 +130,7 @@ int main(void)
 		mixer_try_play();
 
 		PROFILE_START(PS_SYNC, 0);
-		rspq_wait();
+		// rspq_wait();
 		PROFILE_STOP(PS_SYNC, 0);
 
 		profile_next_frame();
