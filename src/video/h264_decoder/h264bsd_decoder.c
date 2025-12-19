@@ -101,7 +101,9 @@ u32 h264bsdInit(storage_t *pStorage, u32 noOutputReordering)
 {
 
 /* Variables */
+#if 0
     u32 size;
+#endif
 /* Code */
 
     ASSERT(pStorage);

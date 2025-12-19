@@ -536,7 +536,10 @@ u32 h264bsdIsEndOfPicture(storage_t *pStorage)
 
 /* Variables */
 
-    u32 i, tmp;
+#ifndef OPTIMIZE_NO_DECODED_FLAG
+    u32 i;
+#endif
+    u32 tmp;
 
 /* Code */
 
