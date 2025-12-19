@@ -253,8 +253,10 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
     subMbPartMode_e subPartMode;
     image_t refImage;
     #ifdef H264BSD_N64
+    #if 0
     static u8 fillBuff[2][16384];
     static int fillBufIdx = 0;
+    #endif
     #else 
     u8 fillBuff[32*21 + 15 + 32];
     #endif
@@ -268,10 +270,12 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
     /* 16-byte alignment */
     #ifdef H264BSD_N64
+    #if 0
     // Alternate two buffers, in case RSP is still processing 
     // the previous macroblock.
     pFill = ALIGN(fillBuff[fillBufIdx], 16);
     fillBufIdx = 1-fillBufIdx;
+    #endif
     #else
     pFill = ALIGN(fillBuff, 16);
     #endif
