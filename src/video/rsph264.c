@@ -299,8 +299,6 @@ void rsph264_queue_set_packed_delta_buffer(
 
     rspq_write(rsph264_intra_ovl_id, TASK_SET_PACKED_DELTA_BUFFER,
         PhysicalAddr(src));
-    rspq_write(rsph264_inter_ovl_id, TASK_SET_PACKED_DELTA_BUFFER,
-        PhysicalAddr(src));
 }
 
 static void internal_queue_dequant_transform_residual(
