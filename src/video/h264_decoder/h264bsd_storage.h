@@ -70,15 +70,7 @@ typedef struct
     u32 firstCallFlag;
 } aubCheck_t;
 
-#ifdef H264BSD_N64
-// Maximum number of macroblocks that the RSP will be able to lag behind the
-// CPU, and process in background. This basically specifies how big is the
-// mbLayers array above.
-// TODO: there is currently no explicit sync for this, this number is
-// experimental. If the number is too little, some corruption might appear on 
-// some frames, especially when the RSP is too slow.
-#define NUM_PARALLEL_MACROBLOCKS 128
-#else
+#ifndef NUM_PARALLEL_MACROBLOCKS
 #define NUM_PARALLEL_MACROBLOCKS 1
 #endif
 

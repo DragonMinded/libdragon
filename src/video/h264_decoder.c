@@ -1,10 +1,16 @@
-// Activate N64 specific codepath
-#define H264BSD_N64         1
-#define H264BSD_N64_INTRA   1     // Intraprediction on RSP
-#define H264BSD_N64_CAVLC   0     // CAVLC on RSP
+
+#if 0 // Enable debug prints
+#define _DEBUG_PRINT
+#include "debug.h"
+#endif
+
+// Enable error prints
+#define _ERROR_PRINT
 
 // Disable all code related to concealment (recovering of corrupted data)
 #define OPTIMIZE_NO_DECODED_FLAG
+
+#include "h264_decoder.h"
 
 #include "h264_decoder/extraflags.c"
 #include "h264_decoder/h264bsd_byte_stream.c"
