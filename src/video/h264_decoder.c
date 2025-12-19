@@ -12,7 +12,6 @@
 
 #include "h264_decoder.h"
 
-#include "h264_decoder/extraflags.c"
 #include "h264_decoder/h264bsd_byte_stream.c"
 #include "h264_decoder/h264bsd_cavlc.c"
 #include "h264_decoder/h264bsd_deblocking.c"
