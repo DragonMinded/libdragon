@@ -1,0 +1,211 @@
+/**
+ * @file h264.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief H264 video player using RSP acceleration
+ */
+
+#include "h264.h"
+#include "h264_decoder.h"
+#include "rsph264_internal.h"
+#include "asset_internal.h"
+#include "n64sys.h"
+#include "profile.h"
+#include "yuv.h"
+#include "surface.h"
+#include "rspq.h"
+#include "debug.h"
+#include "utils.h"
+#include <unistd.h>
+#include <string.h>
+
+// The size of the internal I/O buffer in the H264 decoder. This must be
+// at least MAX_SLICE_SIZE, but hopefully much more than that (so that
+// less shuffling is required for each slice).
+#define H264_BUF_SIZE         (64*1024)
+
+typedef struct h264_s {
+    uint8_t buf[H264_BUF_SIZE];         ///< Internal buffered data
+    uint8_t *pic;                       ///< Pointer to the decoded picture data
+    int idx;                            ///< Current index in the buffer
+    storage_t s;                        ///< H264 decoder main structure
+    int fd;                             ///< File descriptor of the opened H264 file
+    int width;                          ///< Width of the video       
+    int height;                         ///< Height of the video
+    bool in_frame_decoding;             ///< True if we have partially decoded a frame 
+    uint32_t max_slice_size;            ///< Maximum size of a slice seen so far
+} h264_t;
+
+static uint32_t decode_next_slice(h264_t *player) {
+	int left = H264_BUF_SIZE - player->idx;
+
+	// If there's not enough data for a full slice, we need to compact the
+	// buffer and do a I/O from ROM.
+	if (left <= player->max_slice_size) {
+		memmove(player->buf, player->buf+player->idx, left);
+		read(player->fd, player->buf+left, H264_BUF_SIZE-left);
+		player->idx = 0;
+	}
+
+	// Do the actual decoding
+	unsigned int np;
+	uint32_t status = h264bsdDecode(&player->s, player->buf+player->idx, H264_BUF_SIZE-player->idx, 0, &np);
+	player->idx += np;
+    player->max_slice_size = MAX(player->max_slice_size, np*1.2f);
+
+	return status;
+}
+
+static void fetch_picture(h264_t *player) {
+    unsigned int picId=0, isIdrPic=0, numErrs=0;
+    player->pic = h264bsdNextOutputPicture(&player->s, &picId, &isIdrPic, &numErrs);
+    assert(numErrs == 0);
+}
+
+
+h264_t* h264_open(const char *fn) {
+    h264_t *player = malloc(sizeof(h264_t));
+    sys_hw_memset(player, 0, sizeof(h264_t));
+    player->fd = -1;
+
+    rsph264_init();
+
+    h264bsdInitStorage(&player->s);
+    h264bsdInit(&player->s, 0);
+
+    player->fd = must_open(fn);
+    player->idx = H264_BUF_SIZE;
+
+	rsph264_begin_frame();
+
+    // Start decoding until we decode the initial headers, so that we're
+	// then ready to seek.
+	while (1) {
+		uint32_t status = decode_next_slice(player);
+		switch (status) {
+			case H264BSD_RDY: // OK, nothing to do
+				continue;
+			case H264BSD_HDRS_RDY: // Headers ready
+				player->width = h264bsdPicWidth(&player->s) * 16;
+				player->height = h264bsdPicHeight(&player->s) * 16;
+				
+				// Headers are returned while starting decoding the first
+				// frame. We're in the middle of a frame decoding, so record it.
+				player->in_frame_decoding = true;
+				rsph264_end_frame();
+				return player;
+			default:
+                free(player);
+				assertf(0, "h264 initial status error: %ld", status);
+                return NULL;
+		}
+	}
+}
+
+int h264_get_width(h264_t *player) {
+    return player->width;
+}
+
+int h264_get_height(h264_t *player) {
+    return player->height;
+}
+
+float h264_get_framerate(h264_t *player) {
+    if (player->s.activeSps && 
+        player->s.activeSps->vuiParametersPresentFlag && 
+        player->s.activeSps->vuiParameters && 
+        player->s.activeSps->vuiParameters->timingInfoPresentFlag) {
+        
+        uint32_t timeScale = player->s.activeSps->vuiParameters->timeScale;
+        uint32_t numUnitsInTick = player->s.activeSps->vuiParameters->numUnitsInTick;
+        
+        if (numUnitsInTick > 0) {
+            return (float)timeScale / (2.0f * numUnitsInTick);
+        }
+    }
+    return 0.0f;
+}
+
+void h264_close(h264_t *player) {
+    if (player->fd >= 0) {
+        close(player->fd);
+        player->fd = -1;
+    }
+    free(player);
+}
+
+static const char* h264_status_str(int status) {
+	switch (status) {
+    case H264BSD_RDY: return "H264BSD_RDY";
+    case H264BSD_PIC_RDY: return "H264BSD_PIC_RDY";
+    case H264BSD_HDRS_RDY: return "H264BSD_HDRS_RDY";
+    case H264BSD_ERROR: return "H264BSD_ERROR";
+    case H264BSD_PARAM_SET_ERROR: return "H264BSD_PARAM_SET_ERROR";
+    case H264BSD_MEMALLOC_ERROR: return "H264BSD_MEMALLOC_ERROR";
+    default: return "???";
+    }
+}
+
+static int decode_loop(h264_t *player, uint64_t deadline) {
+	// Check whether the RSP is idle. If it's not, wait for it and account
+	// that time to the YUV blitter.
+	// Normally, the RSP is already idle by the time we get here, which
+	// is exactly what we want: zero wait time.
+    PROFILE_START(PS_YUV, 0);
+    rspq_wait();
+    PROFILE_STOP(PS_YUV, 0);
+
+	rsph264_begin_frame();
+	while (!deadline || (get_ticks() < deadline)) {
+		// If the output buffer is full, we can't decode more, as there
+		// wouldn't be space for further pictures. Just exit.
+		if (h264bsdDpbNumOutputPictures(player->s.dpb) >= MAX_NUM_BUFFERED_PICS)
+			break;
+
+		uint32_t status = decode_next_slice(player);
+	
+		if (status == H264BSD_RDY)
+			player->in_frame_decoding = true;
+		else if (status == H264BSD_PIC_RDY) {
+			player->in_frame_decoding = false;
+			if (!deadline)
+				break;
+		}
+		else
+			assertf(!"h264 status error", "status == %ld (%s)\n", status, h264_status_str(status));
+	}
+	rsph264_end_frame();
+	return 1;
+}
+
+void h264_poll(h264_t *player, uint64_t deadline) {
+	decode_loop(player, deadline);
+}
+
+bool h264_next_frame(h264_t *player) {
+	// Fetch one picture from the output buffer. It could be pending because
+	// it's the first frame, or because previous calls to decode_loop have
+	// decoded more than one picture
+	fetch_picture(player);
+
+	// If no picture was decoded yet, we need to keep decoding until
+	// one picture is ready.
+	if (player->pic == NULL) {
+		decode_loop(player, 0);  // decode until one picture is decoded
+		fetch_picture(player);
+		assert(player->pic != NULL);
+	}
+
+    return true;
+}
+
+yuv_frame_t h264_get_frame(h264_t *v)
+{
+    int w = v->width, h = v->height;
+    int w2 = w / 2, h2 = h / 2;
+
+    return (yuv_frame_t){
+        .y = surface_make(v->pic,                   FMT_I8, w,  h,  w),
+        .u = surface_make(v->pic + w * h,           FMT_I8, w2, h2, w2),
+        .v = surface_make(v->pic + w * h + w2 * h2, FMT_I8, w2, h2, w2),
+    };
+}
