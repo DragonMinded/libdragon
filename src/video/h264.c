@@ -50,7 +50,7 @@ static uint32_t decode_next_slice(h264_t *player) {
 	unsigned int np;
 	uint32_t status = h264bsdDecode(&player->s, player->buf+player->idx, H264_BUF_SIZE-player->idx, 0, &np);
 	player->idx += np;
-    player->max_slice_size = MAX(player->max_slice_size, np*1.2f);
+    player->max_slice_size = MAX(player->max_slice_size, np*1.3f);
 
 	return status;
 }
