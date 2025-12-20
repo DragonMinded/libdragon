@@ -50,8 +50,8 @@ static void stats(ProfileSlot slot, uint64_t frame_avg, uint32_t *mean, float *p
 }
 
 void profile_dump(void) {
-	debugf("%-14s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Perc");
-	debugf("----------------------------------\n");
+	debugf("%-35s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Perc");
+	debugf("---------------------------------------------------------\n");
 
 	uint64_t frame_avg = total_time / frames;
 	char buf[64];
@@ -60,11 +60,30 @@ void profile_dump(void) {
 	uint32_t mean; float partial; \
 	stats(slot, frame_avg, &mean, &partial); \
 	sprintf(buf, "%2.1f", partial); \
-	debugf("%-25s %4llu %6d %5s%%\n", name, \
-		 slot_total_count[slot] / frames, \
-		 TIMER_MICROS(mean), \
-		 buf); \
+	if (slot_total_count[slot] > 0) \
+		debugf("%-35s %4llu %6d %5s%%\n", name, \
+			 slot_total_count[slot] / frames, \
+		 	TIMER_MICROS(mean), \
+		 	buf); \
 })
+
+	DUMP_SLOT(PS_H264, "H264");
+	DUMP_SLOT(PS_H264_NAL, "  - NAL");
+	DUMP_SLOT(PS_H264_MACROB, "  - MacroB");
+	DUMP_SLOT(PS_H264_LAYER, "    - Layer");
+	DUMP_SLOT(PS_H264_LAYER_CLEAR, "      - Clear");
+	DUMP_SLOT(PS_H264_LAYER_PRED, "      - Predict");
+	DUMP_SLOT(PS_H264_LAYER_RES, "      - Residual");
+	DUMP_SLOT(PS_H264_LAYER_RES_ENC, "        - Encode");
+	DUMP_SLOT(PS_H264_RESIDUAL_LUMA, "        - Residual Luma");
+	DUMP_SLOT(PS_H264_RESIDUAL_CHROMA, "        - Residual Chroma");
+	DUMP_SLOT(PS_H264_INTRAPRED_4X4, "          - IntraPred 4x4");
+	DUMP_SLOT(PS_H264_INTRAPRED_16X16, "          - IntraPred 16x16");
+	DUMP_SLOT(PS_H264_INTERPRED, "  - InterPred");
+	DUMP_SLOT(PS_H264_INTERPRED_LUMA, "    - InterPred Luma");
+	DUMP_SLOT(PS_H264_INTERPRED_CHROMA, "    - InterPred Chroma");
+	DUMP_SLOT(PS_H264_SYNC, "  - Sync");
+	DUMP_SLOT(PS_H264_SYNC_OVL, "    - Sync Overlay");
 
 	DUMP_SLOT(PS_MPEG, "MPEG1");
 	DUMP_SLOT(PS_MPEG_FINDSTART, "  - FindStart");
@@ -85,7 +104,7 @@ void profile_dump(void) {
 	DUMP_SLOT(PS_AUDIO, "Audio");
 	DUMP_SLOT(PS_SYNC, "Sync");
 
-	debugf("----------------------------------\n");
+	debugf("---------------------------------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg);
 	debugf("Average frame time:   %4d\n", TIMER_MICROS(frame_avg));
