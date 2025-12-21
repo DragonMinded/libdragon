@@ -36,23 +36,23 @@ typedef struct h264_s {
 } h264_t;
 
 static uint32_t decode_next_slice(h264_t *player) {
-	int left = H264_BUF_SIZE - player->idx;
+    int left = H264_BUF_SIZE - player->idx;
 
-	// If there's not enough data for a full slice, we need to compact the
-	// buffer and do a I/O from ROM.
-	if (left <= player->max_slice_size) {
-		memmove(player->buf, player->buf+player->idx, left);
-		read(player->fd, player->buf+left, H264_BUF_SIZE-left);
-		player->idx = 0;
-	}
+    // If there's not enough data for a full slice, we need to compact the
+    // buffer and do a I/O from ROM.
+    if (left <= player->max_slice_size) {
+        memmove(player->buf, player->buf+player->idx, left);
+        read(player->fd, player->buf+left, H264_BUF_SIZE-left);
+        player->idx = 0;
+    }
 
-	// Do the actual decoding
-	unsigned int np;
-	uint32_t status = h264bsdDecode(&player->s, player->buf+player->idx, H264_BUF_SIZE-player->idx, 0, &np);
-	player->idx += np;
+    // Do the actual decoding
+    unsigned int np;
+    uint32_t status = h264bsdDecode(&player->s, player->buf+player->idx, H264_BUF_SIZE-player->idx, 0, &np);
+    player->idx += np;
     player->max_slice_size = MAX(player->max_slice_size, np*1.3f);
 
-	return status;
+    return status;
 }
 
 static void fetch_picture(h264_t *player) {
@@ -75,30 +75,30 @@ h264_t* h264_open(const char *fn) {
     player->fd = must_open(fn);
     player->idx = H264_BUF_SIZE;
 
-	rsph264_begin_frame();
+    rsph264_begin_frame();
 
     // Start decoding until we decode the initial headers, so that we're
-	// then ready to seek.
-	while (1) {
-		uint32_t status = decode_next_slice(player);
-		switch (status) {
-			case H264BSD_RDY: // OK, nothing to do
-				continue;
-			case H264BSD_HDRS_RDY: // Headers ready
-				player->width = h264bsdPicWidth(&player->s) * 16;
-				player->height = h264bsdPicHeight(&player->s) * 16;
-				
-				// Headers are returned while starting decoding the first
-				// frame. We're in the middle of a frame decoding, so record it.
-				player->in_frame_decoding = true;
-				rsph264_end_frame();
-				return player;
-			default:
+    // then ready to seek.
+    while (1) {
+        uint32_t status = decode_next_slice(player);
+        switch (status) {
+            case H264BSD_RDY: // OK, nothing to do
+                continue;
+            case H264BSD_HDRS_RDY: // Headers ready
+                player->width = h264bsdPicWidth(&player->s) * 16;
+                player->height = h264bsdPicHeight(&player->s) * 16;
+                
+                // Headers are returned while starting decoding the first
+                // frame. We're in the middle of a frame decoding, so record it.
+                player->in_frame_decoding = true;
+                rsph264_end_frame();
+                return player;
+            default:
                 free(player);
-				assertf(0, "h264 initial status error: %ld", status);
+                assertf(0, "h264 initial status error: %ld", status);
                 return NULL;
-		}
-	}
+        }
+    }
 }
 
 int h264_get_width(h264_t *player) {
@@ -134,7 +134,7 @@ void h264_close(h264_t *player) {
 }
 
 static const char* h264_status_str(int status) {
-	switch (status) {
+    switch (status) {
     case H264BSD_RDY: return "H264BSD_RDY";
     case H264BSD_PIC_RDY: return "H264BSD_PIC_RDY";
     case H264BSD_HDRS_RDY: return "H264BSD_HDRS_RDY";
@@ -146,54 +146,54 @@ static const char* h264_status_str(int status) {
 }
 
 static int decode_loop(h264_t *player, uint64_t deadline) {
-	// Check whether the RSP is idle. If it's not, wait for it and account
-	// that time to the YUV blitter.
-	// Normally, the RSP is already idle by the time we get here, which
-	// is exactly what we want: zero wait time.
+    // Check whether the RSP is idle. If it's not, wait for it and account
+    // that time to the YUV blitter.
+    // Normally, the RSP is already idle by the time we get here, which
+    // is exactly what we want: zero wait time.
     PROFILE_START(PS_YUV, 0);
     rspq_wait();
     PROFILE_STOP(PS_YUV, 0);
 
-	rsph264_begin_frame();
-	while (!deadline || (get_ticks() < deadline)) {
-		// If the output buffer is full, we can't decode more, as there
-		// wouldn't be space for further pictures. Just exit.
-		if (h264bsdDpbNumOutputPictures(player->s.dpb) >= MAX_NUM_BUFFERED_PICS)
-			break;
+    rsph264_begin_frame();
+    while (!deadline || (get_ticks() < deadline)) {
+        // If the output buffer is full, we can't decode more, as there
+        // wouldn't be space for further pictures. Just exit.
+        if (h264bsdDpbNumOutputPictures(player->s.dpb) >= MAX_NUM_BUFFERED_PICS)
+            break;
 
-		uint32_t status = decode_next_slice(player);
-	
-		if (status == H264BSD_RDY)
-			player->in_frame_decoding = true;
-		else if (status == H264BSD_PIC_RDY) {
-			player->in_frame_decoding = false;
-			if (!deadline)
-				break;
-		}
-		else
-			assertf(!"h264 status error", "status == %ld (%s)\n", status, h264_status_str(status));
-	}
-	rsph264_end_frame();
-	return 1;
+        uint32_t status = decode_next_slice(player);
+    
+        if (status == H264BSD_RDY)
+            player->in_frame_decoding = true;
+        else if (status == H264BSD_PIC_RDY) {
+            player->in_frame_decoding = false;
+            if (!deadline)
+                break;
+        }
+        else
+            assertf(!"h264 status error", "status == %ld (%s)\n", status, h264_status_str(status));
+    }
+    rsph264_end_frame();
+    return 1;
 }
 
 void h264_poll(h264_t *player, uint64_t deadline) {
-	decode_loop(player, deadline);
+    decode_loop(player, deadline);
 }
 
 bool h264_next_frame(h264_t *player) {
-	// Fetch one picture from the output buffer. It could be pending because
-	// it's the first frame, or because previous calls to decode_loop have
-	// decoded more than one picture
-	fetch_picture(player);
+    // Fetch one picture from the output buffer. It could be pending because
+    // it's the first frame, or because previous calls to decode_loop have
+    // decoded more than one picture
+    fetch_picture(player);
 
-	// If no picture was decoded yet, we need to keep decoding until
-	// one picture is ready.
-	if (player->pic == NULL) {
-		decode_loop(player, 0);  // decode until one picture is decoded
-		fetch_picture(player);
-		assert(player->pic != NULL);
-	}
+    // If no picture was decoded yet, we need to keep decoding until
+    // one picture is ready.
+    if (player->pic == NULL) {
+        decode_loop(player, 0);  // decode until one picture is decoded
+        fetch_picture(player);
+        assert(player->pic != NULL);
+    }
 
     return true;
 }
