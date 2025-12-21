@@ -78,6 +78,7 @@ extern uint64_t slot_frame_cur[PS_NUM_SLOTS];
 void profile_init(void);
 void profile_next_frame(void);
 void profile_dump(void);
+void profile_set_target_fps(float fps);
 static inline void profile_record(ProfileSlot slot, int32_t len) {
 	// High part: profile record
 	// Low part: number of occurrences

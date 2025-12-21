@@ -89,6 +89,7 @@ int main(void)
 	// Engage the fps limiter to ensure proper video pacing.
 	float fps = h264_get_framerate(video_track);
 	display_set_fps_limit(fps);
+	profile_set_target_fps(fps);
 
 	// Open the audio track and start playing it in channel 0.
 	wav64_t audio_track;

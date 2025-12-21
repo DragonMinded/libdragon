@@ -11,12 +11,13 @@
 
 #define SCALE_RESULTS  2048
 
-uint64_t slot_total[PS_NUM_SLOTS];
-uint64_t slot_total_count[PS_NUM_SLOTS];
-uint64_t total_time;
-uint64_t last_frame;
+static uint64_t slot_total[PS_NUM_SLOTS];
+static uint64_t slot_total_count[PS_NUM_SLOTS];
+static uint64_t total_time;
+static uint64_t last_frame;
+static uint64_t target_frame_ticks;
 uint64_t slot_frame_cur[PS_NUM_SLOTS];
-int frames;
+static int frames;
 
 void profile_init(void) {
 	memset(slot_total, 0, sizeof(slot_total));
@@ -26,6 +27,14 @@ void profile_init(void) {
 
 	total_time = 0;
 	last_frame = TICKS_READ();
+}
+
+void profile_set_target_fps(float fps) {
+	if (fps <= 0.0f) {
+		target_frame_ticks = 0;
+	} else {
+		target_frame_ticks = (uint64_t)(TICKS_PER_SECOND / fps);
+	}
 }
 
 void profile_next_frame(void) {
@@ -108,5 +117,5 @@ void profile_dump(void) {
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg);
 	debugf("Average frame time:   %4d\n", TIMER_MICROS(frame_avg));
-	debugf("Target frame time:    %4d\n", TIMER_MICROS(TICKS_PER_SECOND/45));
+	debugf("Target frame time:    %4d\n", TIMER_MICROS(target_frame_ticks));
 }
