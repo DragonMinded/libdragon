@@ -125,6 +125,21 @@ float h264_get_framerate(h264_t *player) {
     return 0.0f;
 }
 
+float h264_get_aspect_ratio(h264_t *player) {
+    if (!player || player->width <= 0 || player->height <= 0)
+        return 0.0f;
+
+    // Prefer VUI SAR if present; otherwise assume square pixels.
+    u32 sarW = 1, sarH = 1;
+    h264bsdSampleAspectRatio(&player->s, &sarW, &sarH);
+    if (sarW == 0 || sarH == 0) {
+        sarW = 1;
+        sarH = 1;
+    }
+
+    return ((float)player->width * (float)sarW) / ((float)player->height * (float)sarH);
+}
+
 void h264_close(h264_t *player) {
     if (player->fd >= 0) {
         close(player->fd);

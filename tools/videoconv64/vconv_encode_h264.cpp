@@ -70,8 +70,17 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-f", "h264",
 		"-progress", "pipe:1",
 		"-v", "error",
-		er.video_path,
 	};
+
+	// Signal SAR in VUI using ffmpeg's dedicated option (more portable than x264-params).
+	if (ar.sar_num != 1 || ar.sar_den != 1) {
+		const std::string sar = std::to_string(ar.sar_num) + ":" + std::to_string(ar.sar_den);
+        cmd.push_back("-sar");
+        cmd.push_back(sar);
+		verbose(1, "H.264: signaling SAR %s", sar.c_str());
+	}
+
+    cmd.push_back(er.video_path);
 
 	progress_state_t ps = { .pass_count = 1, .start_ms = now_ms(), .last_draw_ms = 0 };
 	int rc = run_ffmpeg_with_progress(cmd, ar.meta.duration, 0, ps);

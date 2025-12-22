@@ -10,6 +10,52 @@
 
 #include "videoconv64.h"
 
+// Post-process MPEG-1 elementary stream to prepend a proprietary SAR payload
+// as MPEG-1 user_data (0xB2) so libdragon can use arbitrary PAR.
+// This keeps the file a valid MPEG-1 elementary stream.
+static bool mpeg1_prepend_userdata_sar(const std::string& path, int sar_num, int sar_den) {
+	if (sar_num <= 0 || sar_den <= 0) return true;
+	if (sar_num == 1 && sar_den == 1) return true; // nothing to do
+
+	// Stream copy: write user_data first, then append the original file.
+	FILE *in = fopen(path.c_str(), "rb");
+	if (!in) return false;
+
+	std::string tmp = path + ".tmp";
+	FILE *out = fopen(tmp.c_str(), "wb");
+	if (!out) { fclose(in); return false; }
+
+	// Write user_data (start code + ASCII payload) in one shot.
+	// Note: fprintf/fputs can't be used here because the start code contains NUL bytes.
+	std::string userdata;
+	userdata.reserve(4 + 32);
+	userdata.append("\x00\x00\x01\xB2", 4);
+	userdata += "LD_SAR=" + std::to_string(sar_num) + ":" + std::to_string(sar_den) + "\n";
+	if (fwrite(userdata.data(), 1, userdata.size(), out) != userdata.size()) {
+		fclose(in); fclose(out); return false;
+	}
+
+	// Copy the rest of the stream without buffering the whole file in memory.
+	uint8_t buf[64 * 1024];
+	while (true) {
+		size_t n = fread(buf, 1, sizeof(buf), in);
+		if (n > 0) {
+			if (fwrite(buf, 1, n, out) != n) { fclose(in); fclose(out); return false; }
+		}
+		if (n < sizeof(buf)) {
+			if (ferror(in)) { fclose(in); fclose(out); return false; }
+			break; // EOF
+		}
+	}
+
+	fclose(in);
+	fclose(out);
+
+	if (rename(tmp.c_str(), path.c_str()) != 0) return false;
+
+	return true;
+}
+
 static int clamp_int(int v, int lo, int hi) {
 	if (v < lo) return lo;
 	if (v > hi) return hi;
@@ -123,6 +169,11 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 		int rc = run_ffmpeg_with_progress(cmd, duration_sec, 0, ps);
 		if (rc != 0) fatal("ffmpeg failed (rc=%d)", rc);
 		if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+
+		// Insert user_data with SAR if needed.
+		if (!mpeg1_prepend_userdata_sar(er.video_path, ar.sar_num, ar.sar_den)) {
+			fatal("failed to postprocess MPEG-1 stream (SAR user_data)");
+		}
 		return er;
 	}
 
@@ -162,6 +213,11 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 
 	cleanup_passlog(passlog);
 	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+
+	// Insert user_data with SAR if needed.
+	if (!mpeg1_prepend_userdata_sar(er.video_path, ar.sar_num, ar.sar_den)) {
+		fatal("failed to postprocess MPEG-1 stream (SAR user_data)");
+	}
 	return er;
 }
 

@@ -30,6 +30,42 @@ static int round_up(int v, int align) {
 	return (v + align - 1) / align * align;
 }
 
+static int gcd_int(int a, int b) {
+	if (a < 0) a = -a;
+	if (b < 0) b = -b;
+	while (b != 0) {
+		int t = a % b;
+		a = b;
+		b = t;
+	}
+	return a ? a : 1;
+}
+
+static void rational_approx(double v, int max_num, int max_den, int *out_num, int *out_den) {
+	// Cheap rational approximation suitable for SAR/PAR signaling.
+	// We scan denominators up to max_den and pick the best numerator (bounded).
+	if (!(v > 0.0)) { *out_num = 1; *out_den = 1; return; }
+	double best_err = 1e100;
+	int best_n = 1, best_d = 1;
+	for (int d = 1; d <= max_den; d++) {
+		int n = (int)floor(v * d + 0.5);
+		if (n < 1) n = 1;
+		if (n > max_num) n = max_num;
+		double err = fabs(v - (double)n / (double)d);
+		if (err < best_err) {
+			best_err = err;
+			best_n = n;
+			best_d = d;
+			if (best_err < 1e-9) break;
+		}
+	}
+	int g = gcd_int(best_n, best_d);
+	best_n /= g;
+	best_d /= g;
+	*out_num = best_n;
+	*out_den = best_d;
+}
+
 static double choose_default_fps(double src_fps) {
 	// Simple heuristic (TODO: can be tuned later)
 	if (src_fps <= 0.0) return 24.0;
@@ -239,6 +275,36 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 
 	verbose(1, "Target: %dx%d -> %dx%d (align %dx%d)",
 		req_w, req_h, r.out_width, r.out_height, ci.align_w, ci.align_h);
+
+	// Automatic anamorphic mode for N64 progressive:
+	// If rounding/alignment leads to a full-height output (240 lines) for a wide DAR,
+	// the VI would effectively letterbox by downscaling vertically. Instead, we
+	// pre-letterbox in the encoded raster and signal PAR != 1.
+	//
+	// NOTE: we keep this behavior behind an internal toggle for now.
+	if (cfg.par_auto && r.out_height == 240 && dar > (4.0 / 3.0) + 1e-6) {
+		int target_h = (int)floor(240.0 * (4.0 / 3.0) / dar + 0.5);
+		target_h = round_up(target_h, ci.align_h);
+		// Clamp to sane range.
+		if (target_h < ci.align_h) target_h = ci.align_h;
+		if (target_h > 240) target_h = 240;
+
+		if (target_h != r.out_height) {
+			int old_h = r.out_height;
+			r.out_height = target_h;
+			verbose(1, "Anamorphic: forcing height %d -> %d for DAR=%.6f", old_h, r.out_height, dar);
+		}
+
+		// PAR = DAR * H / W
+		r.out_par = dar * (double)r.out_height / (double)r.out_width;
+		// Use a bounded rational for bitstream signaling. Keep denominators small.
+		rational_approx(r.out_par, 255, 255, &r.sar_num, &r.sar_den);
+		verbose(1, "Anamorphic: PAR=%.6f SAR=%d:%d", r.out_par, r.sar_num, r.sar_den);
+	} else {
+		r.out_par = 1.0;
+		r.sar_num = 1;
+		r.sar_den = 1;
+	}
 
 	// Interlace detection is only needed when deinterlace is auto.
 	if (cfg.deinterlace == "auto") {

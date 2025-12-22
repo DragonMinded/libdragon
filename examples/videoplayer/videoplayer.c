@@ -39,7 +39,9 @@ int main(void)
 	int video_width = h264_get_width(video_track);
 	int video_height = h264_get_height(video_track);
 	float video_fps = h264_get_framerate(video_track);
-	debugf("Video resolution: %dx%d @ %.2f FPS\n", video_width, video_height, video_fps);
+	float video_ar = h264_get_aspect_ratio(video_track);
+	debugf("Video resolution: %dx%d [DAR=%.2f] @ %.2f FPS\n", video_width, video_height, 
+		video_ar, video_fps);
 
 	// When playing back a video, there are essentially two options:
 	// 1) Configure a fixed resolution (eg: 320x240), and then make
@@ -59,7 +61,7 @@ int main(void)
 			// Set the desired aspect ratio to that of the video. By default,
 			// display_init would force 4:3 instead, which would be wrong here.
 			// eg: if a video is 320x176, we want to display it as 16:9-ish.
-			.aspect_ratio = (float)video_width / video_height,
+			.aspect_ratio = video_ar ? video_ar : (float)video_width / video_height,
 			// Uncomment this line if you want to have some additional black
 			// borders to fully display the video on real CRTs.
 			// .overscan_margin = VI_CRT_MARGIN,

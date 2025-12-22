@@ -674,6 +674,11 @@ double plm_video_get_framerate(plm_video_t *self);
 int plm_video_get_width(plm_video_t *self);
 int plm_video_get_height(plm_video_t *self);
 
+// Get the display aspect ratio (DAR).
+// If a libdragon proprietary SAR (LD_SAR=NUM:DEN) is present as MPEG-1 user_data,
+// it is used; otherwise the MPEG-1 sequence header aspect_ratio_information is used.
+double plm_video_get_aspect_ratio(plm_video_t *self);
+
 
 // Set "no delay" mode. When enabled, the decoder assumes that the video does
 // *not* contain any B-Frames. This is useful for reducing lag when streaming.
@@ -2595,6 +2600,14 @@ typedef struct plm_video_t {
 	int start_code;
 	int picture_type;
 
+	// Sequence header aspect_ratio_information code (4 bits, MPEG-1)
+	int aspect_ratio_code;
+	// Libdragon proprietary SAR parsed from MPEG-1 user_data (LD_SAR=NUM:DEN).
+	// Defaults to 1:1 (square pixels).
+	int sar_num;
+	int sar_den;
+	int sar_parsed;
+
 	plm_video_motion_t motion_forward;
 	plm_video_motion_t motion_backward;
 
@@ -2656,6 +2669,45 @@ void plm_video_decode_block(plm_video_t *self, int block);
 void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra);
 void plm_video_idct(int16_t *block);
 
+static void plm_video_parse_initial_userdata(plm_video_t *self) {
+	// Parse libdragon proprietary SAR from an initial user_data block:
+	//   00 00 01 B2 "LD_SAR=NUM:DEN\n"
+	//
+	// This is intentionally done lazily (not in create_with_buffer) to avoid
+	// triggering I/O during object creation. We only support this scan for
+	// buffers that can seek to 0 (file / fixed memory / append).
+	if (self->sar_parsed) return;
+	self->sar_parsed = TRUE;
+
+	if (self->buffer->mode == PLM_BUFFER_MODE_RING) return;
+
+	size_t prev_pos = plm_buffer_tell(self->buffer);
+	plm_buffer_seek(self->buffer, 0);
+
+	while (TRUE) {
+		int code = plm_buffer_next_start_code(self->buffer);
+		if (code == -1) break;
+		if (code == PLM_START_SEQUENCE) break;
+		if (code == PLM_START_USER_DATA) { // user_data
+			char tmp[128];
+			int len = 0;
+			while (len < (int)sizeof(tmp) - 1 && plm_buffer_has(self->buffer, 8)) {
+				int c = plm_buffer_read(self->buffer, 8);
+				tmp[len++] = (char)c;
+				if (c == '\n') break;
+			}
+			tmp[len] = 0;
+			int n = 0, d = 0;
+			if (sscanf(tmp, "LD_SAR=%d:%d", &n, &d) == 2 && n > 0 && d > 0) {
+				self->sar_num = n;
+				self->sar_den = d;
+			}
+		}
+	}
+
+	plm_buffer_seek(self->buffer, prev_pos);
+}
+
 plm_video_t * plm_video_create_with_buffer(plm_buffer_t *buffer, int destroy_when_done) {
 	plm_video_t *self = (plm_video_t *)malloc(sizeof(plm_video_t));
 	memset(self, 0, sizeof(plm_video_t));
@@ -2663,11 +2715,14 @@ plm_video_t * plm_video_create_with_buffer(plm_buffer_t *buffer, int destroy_whe
 	self->buffer = buffer;
 	self->destroy_buffer_when_done = destroy_when_done;
 
-	// Attempt to decode the sequence header
-	self->start_code = plm_buffer_find_start_code(self->buffer, PLM_START_SEQUENCE);
-	if (self->start_code != -1) {
-		plm_video_decode_sequence_header(self);
-	}
+	// Defaults
+	self->sar_num = 1;
+	self->sar_den = 1;
+	self->sar_parsed = FALSE;
+	self->aspect_ratio_code = 1;
+
+	// Do not scan/decode here: avoid triggering I/O during object creation.
+	self->start_code = -1;
 	return self;
 }
 
@@ -2702,6 +2757,27 @@ int plm_video_get_height(plm_video_t *self) {
 	return plm_video_has_header(self)
 		? self->height
 		: 0;
+}
+
+double plm_video_get_aspect_ratio(plm_video_t *self) {
+	if (!plm_video_has_header(self)) {
+		return 0.0;
+	}
+
+	// Prefer proprietary SAR if present.
+	if (self->sar_num > 0 && self->sar_den > 0 && (self->sar_num != 1 || self->sar_den != 1)) {
+		return ((double)self->width * (double)self->sar_num) / ((double)self->height * (double)self->sar_den);
+	}
+
+	// Fall back to MPEG-1 sequence header aspect code.
+	switch (self->aspect_ratio_code) {
+		case 2: return 4.0 / 3.0;
+		case 3: return 16.0 / 9.0;
+		case 4: return 2.21; // approximate
+		case 1:
+		default:
+			return (double)self->width / (double)self->height;
+	}
 }
 
 void plm_video_set_no_delay(plm_video_t *self, int no_delay) {
@@ -2803,6 +2879,9 @@ int plm_video_has_header(plm_video_t *self) {
 		return TRUE;
 	}
 
+	// Lazily parse initial user_data (LD_SAR) before scanning for the sequence header.
+	plm_video_parse_initial_userdata(self);
+
 	if (self->start_code != PLM_START_SEQUENCE) {
 		self->start_code = plm_buffer_find_start_code(self->buffer, PLM_START_SEQUENCE);
 	}
@@ -2830,8 +2909,9 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 		return FALSE;
 	}
 
-	// Skip pixel aspect ratio
-	plm_buffer_skip(self->buffer, 4);
+	// MPEG-1 aspect_ratio_information (4 bits). Despite the name used historically
+	// in this file, this is used as a display aspect ratio signal by most tools.
+	self->aspect_ratio_code = plm_buffer_read(self->buffer, 4);
 
 	self->framerate = PLM_VIDEO_PICTURE_RATE[plm_buffer_read(self->buffer, 4)];
 

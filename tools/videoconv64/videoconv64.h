@@ -32,6 +32,9 @@ struct Config {
 	bool quick = false;
 	bool progress = true;
 	std::string deinterlace = "auto";
+	// TODO: decide how to expose automatic anamorphic PAR (non-square pixels) in the CLI.
+	// For now, this is an internal toggle (default on).
+	bool par_auto = true;
 	bool audio = true;
 	std::string audio_compress;       // passed to audioconv64 --wav-compress (no validation)
 	int audio_rate = 32000;           // passed to audioconv64 --wav-resample
@@ -110,6 +113,9 @@ struct AnalysisResult {
 
 	int out_width = 0;
 	int out_height = 0;
+	double out_par = 1.0;        // output pixel aspect ratio (PAR)
+	int sar_num = 1;             // PAR as rational (NUM/DEN) to embed into bitstreams
+	int sar_den = 1;
 	double out_fps = 0.0;
 	std::string selected_profile; // resolved profile (auto -> actual)
 };

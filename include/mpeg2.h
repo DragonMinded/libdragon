@@ -92,6 +92,16 @@ int mpeg2_get_width(mpeg2_t *mp2);
 int mpeg2_get_height(mpeg2_t *mp2);
 
 /**
+ * @brief Get the display aspect ratio (DAR) of the stream.
+ *
+ * This uses libdragon proprietary SAR embedded as MPEG-1 user_data (LD_SAR=NUM:DEN)
+ * when present; otherwise it falls back to the MPEG-1 sequence header aspect code.
+ *
+ * @return float        DAR (eg: 16.0f/9.0f). Returns 0 on error.
+ */
+float mpeg2_get_aspect_ratio(mpeg2_t *mp2);
+
+/**
  * @brief Decode the next frame in the video stream
  * 
  * This function decodes the next frame in the video stream. If the frame
