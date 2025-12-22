@@ -65,6 +65,17 @@ std::string build_filterchain(const AnalysisResult &ar) {
 		return vf;
 	}
 
+	// profile=none disables only the profile-specific cleanup filters below (denoise/deband/sharpen).
+	// Deinterlacing is still controlled solely by --deinterlace.
+	if (ar.selected_profile == "none") {
+		std::string vf;
+		for (size_t i = 0; i < filters.size(); i++) {
+			if (i) vf += ",";
+			vf += filters[i];
+		}
+		return vf;
+	}
+
 	const double s = quality_strength((double)cfg.quality);
 
 	// Content-dependent tweaks

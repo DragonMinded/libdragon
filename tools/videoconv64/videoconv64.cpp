@@ -81,7 +81,7 @@ static void usage(void) {
 	printf("       --no-progress            Disable progress output\n");
 	printf("       --deinterlace <auto|on|off>\n");
 	printf("                                Control deinterlacing (default: auto)\n");
-	printf("       --profile <auto|cartoon|film|noisy>\n");
+	printf("       --profile <auto|cartoon|film|noisy|none>\n");
 	printf("                                Content profile for optimized filtering (default: auto)\n");
 	printf("       --quant-matrix <n64|std> Quantization matrix to use (default: n64)\n");
 	printf("       --audio-parms <R,C>      Audio params: RATE,CHANNELS (default: 32000,1)\n");
@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
 		} else if (arg == "--profile") {
 			if (++i >= argc) fatal("Missing argument for %s", arg.c_str());
 			cfg.profile = argv[i];
-			if (!(cfg.profile == "auto" || cfg.profile == "cartoon" || cfg.profile == "film" || cfg.profile == "noisy"))
+			if (!(cfg.profile == "auto" || cfg.profile == "cartoon" || cfg.profile == "film" || cfg.profile == "noisy" || cfg.profile == "none"))
 				fatal("Invalid profile: %s", cfg.profile.c_str());
 		} else if (arg == "-Q" || arg == "--quick") {
 			cfg.quick = true;

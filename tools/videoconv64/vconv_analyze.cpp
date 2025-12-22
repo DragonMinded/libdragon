@@ -314,6 +314,7 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 	}
 
 	// Content metrics are only needed to choose a profile when profile=auto and we're not in quick mode.
+	// profile=none forces no profile-specific preprocessing.
 	const bool need_profile_metrics = (cfg.profile == "auto") && !cfg.quick;
 	if (need_profile_metrics) {
 		// Content metrics are computed on a fixed 320x240 @ 24fps proxy to keep numbers comparable across inputs.
