@@ -13,6 +13,20 @@
 // which means we can use the real frequency of the audio track.
 #define AUDIO_HZ 32000.0f
 
+
+const char *colorspace_name(yuv_colorspace_t *cs) {
+	if (memcmp(cs, &YUV_BT601_TV, sizeof(yuv_colorspace_t)) == 0) {
+		return "BT.601 TV";
+	} else if (memcmp(cs, &YUV_BT601_FULL, sizeof(yuv_colorspace_t)) == 0) {
+		return "BT.601 Full";
+	} else if (memcmp(cs, &YUV_BT709_TV, sizeof(yuv_colorspace_t)) == 0) {
+		return "BT.709 TV";
+	} else if (memcmp(cs, &YUV_BT709_FULL, sizeof(yuv_colorspace_t)) == 0) {
+		return "BT.709 Full";
+	}
+	return "Unknown";
+}
+
 int main(void)
 {
 	joypad_init();
@@ -40,8 +54,9 @@ int main(void)
 	int video_height = h264_get_height(video_track);
 	float video_fps = h264_get_framerate(video_track);
 	float video_ar = h264_get_aspect_ratio(video_track);
-	debugf("Video resolution: %dx%d [DAR=%.2f] @ %.2f FPS\n", video_width, video_height, 
-		video_ar, video_fps);
+	yuv_colorspace_t video_cs = h264_get_colorspace(video_track);
+	debugf("Video resolution: %dx%d [DAR=%.2f] @ %.2f FPS - Colorspace: %s\n", video_width, video_height, 
+		video_ar, video_fps, colorspace_name(&video_cs));
 
 	// When playing back a video, there are essentially two options:
 	// 1) Configure a fixed resolution (eg: 320x240), and then make
@@ -85,7 +100,7 @@ int main(void)
 		display_get_width(), display_get_height(),
 		// You can further customize YUV options through this parameter structure
 		// if necessary.
-		&(yuv_fmv_parms_t) {}
+		&(yuv_fmv_parms_t) { .cs = &video_cs }
 	);
 
 	// Engage the fps limiter to ensure proper video pacing.
