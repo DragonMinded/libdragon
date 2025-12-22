@@ -1,6 +1,7 @@
 
 #if 0 // Enable debug prints
-#define _DEBUG_PRINT
+//#define _DEBUG_PRINT
+#define _ASSERT_USED
 #include "debug.h"
 #endif
 
