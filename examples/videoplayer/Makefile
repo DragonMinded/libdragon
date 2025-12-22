@@ -3,7 +3,7 @@ include $(N64_INST)/include/n64.mk
 
 MOVIE_FILE=caminandes.ogv
 MOVIE_URL=https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.ogv
-DFS_FILES=filesystem/movie.m1v filesystem/movie.wav64
+DFS_FILES=filesystem/movie.h264 filesystem/movie.wav64
 
 src = videoplayer.c
 
@@ -46,7 +46,7 @@ filesystem/movie.h264: $(MOVIE_FILE)
 				-profile:v baseline -an \
 				-vf "scale=288x160" \
 				-x264-params no-deblock=1 \
-				-crf 18 -tune film \
+				-crf 24 -tune film \
 			 	"$@" ; \
 		else \
 			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
