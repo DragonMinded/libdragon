@@ -693,7 +693,16 @@ int wav_convert(const char *infn, const char *outfn) {
 		data.output_frames = newcnt;
 		data.src_ratio = (double)wavResampleTo / wav.sampleRate;
 
-		int err = src_simple(&data, SRC_SINC_BEST_QUALITY, wav.channels);
+		// Don't use best quality for files longer than 15 seconds. It is
+		// extremely slow and it's not worth the time.
+		int converter = SRC_SINC_BEST_QUALITY;
+		if (wav.cnt > 15 * wav.sampleRate) {
+			if (flag_verbose)
+				fprintf(stderr, "  using medium quality resampling for long files\n");
+			converter = SRC_SINC_MEDIUM_QUALITY;
+		}
+
+		int err = src_simple(&data, converter, wav.channels);
 		if (err != 0) {
 			fprintf(stderr, "ERROR: %s: resampling failed: %s\n", infn, src_strerror(err));
 			free(fsamples_in);
