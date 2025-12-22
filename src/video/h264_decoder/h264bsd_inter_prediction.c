@@ -464,7 +464,6 @@ u32 MvPrediction16x16(mbStorage_t *pMb, mbPred_t *mbPred, dpbStorage_t *dpb)
     interNeighbour_t a[3]; /* A, B, C */
     u32 refIndex;
     u8 *tmp;
-    u32 *tmpMv1, *tmpMv2;
 
 /* Code */
 
@@ -472,14 +471,10 @@ u32 MvPrediction16x16(mbStorage_t *pMb, mbPred_t *mbPred, dpbStorage_t *dpb)
 
     GetInterNeighbour(pMb->sliceId, pMb->mbA, a, 5);
     GetInterNeighbour(pMb->sliceId, pMb->mbB, a+1, 10);
-    /*lint --e(740)  Unusual pointer cast (incompatible indirect types) */
-    tmpMv1 = (u32*)(&a[0].mv); /* we test just that both MVs are zero */
-    /*lint --e(740) */
-    tmpMv2 = (u32*)(&a[1].mv); /* i.e. a[0].mv.hor == 0 && a[0].mv.ver == 0 */
     if (pMb->mbType == P_Skip &&
         (!a[0].available || !a[1].available ||
-         ( a[0].refIndex == 0 && ((u32)(*tmpMv1) == 0) ) ||
-         ( a[1].refIndex == 0 && ((u32)(*tmpMv2) == 0) )))
+         ( a[0].refIndex == 0 && a[0].mv.hor == 0 && a[0].mv.ver == 0 ) ||
+         ( a[1].refIndex == 0 && a[1].mv.hor == 0 && a[1].mv.ver == 0 )))
     {
             mv.hor = mv.ver = 0;
     }
