@@ -154,6 +154,10 @@ float mpeg2_get_aspect_ratio(mpeg2_t *mp2) {
 	return (float)plm_video_get_aspect_ratio(mp2->v);
 }
 
+yuv_colorspace_t mpeg2_get_colorspace(mpeg2_t *mp2) {
+	return YUV_BT601_TV;
+}
+
 bool mpeg2_next_frame(mpeg2_t *mp2) {
 	PROFILE_START(PS_MPEG, 0);
 	mp2->f = plm_video_decode(mp2->v);

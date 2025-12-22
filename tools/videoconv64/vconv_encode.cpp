@@ -28,7 +28,22 @@ static double clamp_double(double v, double lo, double hi) {
 	return v;
 }
 
-std::string build_filterchain(const AnalysisResult &ar) {
+static std::string ffmpeg_scale_in_matrix_from_ffprobe(const std::string& cs) {
+	// Map ffprobe stream.color_space to scale's in_color_matrix option.
+	// We keep this intentionally conservative: return empty if unknown.
+	if (cs == "bt709") return "bt709";
+	// BT.601 family (common names in FFmpeg): smpte170m (NTSC), bt470bg (PAL)
+	if (cs == "smpte170m" || cs == "bt470bg" || cs == "bt601") return "bt601";
+	return std::string();
+}
+
+static std::string ffmpeg_scale_in_range_from_ffprobe(const std::string& r) {
+	// ffprobe stream.color_range: "tv" (limited), "pc" (full)
+	if (r == "tv" || r == "pc") return r;
+	return std::string();
+}
+
+std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, const char *out_range) {
 	std::vector<std::string> filters;
 
 	// Deinterlace only if detected interlaced, unless user forced on/off.
@@ -40,10 +55,16 @@ std::string build_filterchain(const AnalysisResult &ar) {
 
 	{
 		// Scaling is often the heaviest part of the pipeline. In quick mode, use a cheaper scaler.
-		char buf[128];
+		// We also enforce output matrix/range here so we get a real conversion (not just tagging).
 		const char *scaler = cfg.quick ? "bicubic" : "lanczos";
-		snprintf(buf, sizeof(buf), "scale=%d:%d:flags=%s", ar.out_width, ar.out_height, scaler);
-		filters.push_back(buf);
+		std::string f = "scale=" + std::to_string(ar.out_width) + ":" + std::to_string(ar.out_height) + ":flags=" + scaler;
+		std::string in_mtx = ffmpeg_scale_in_matrix_from_ffprobe(ar.meta.color_space);
+		std::string in_rng = ffmpeg_scale_in_range_from_ffprobe(ar.meta.color_range);
+		if (!in_mtx.empty()) f += ":in_color_matrix=" + in_mtx;
+		if (!in_rng.empty()) f += ":in_range=" + in_rng;
+		f += std::string(":out_color_matrix=") + out_matrix;
+		f += std::string(":out_range=") + out_range;
+		filters.push_back(f);
 	}
 
 	{
@@ -228,6 +249,53 @@ static void progressbar_update(double overall_pct, double eta_sec) {
 	fflush(stderr);
 }
 
+static void progress_unknown_update(const std::map<std::string,std::string> &kv, const progress_state_t &ps) {
+	// When duration is unknown (eg: raw .m2v), we cannot compute a percentage.
+	// Show an "infinite" progress bar animation and encoded media time (MM:SS).
+	if (!cfg.progress) return;
+
+	const int width = 40;
+	const int block = 8;
+	int64_t now = now_ms();
+
+	// Move the block at ~5 chars/sec (200ms per step).
+	int step = (int)((now / 200) % (width + block));
+	int start = step - block;
+	int end = step;
+
+	char bar[width + 1];
+	for (int i = 0; i < width; i++) {
+		bar[i] = (i >= start && i < end) ? '#' : '-';
+	}
+	bar[width] = '\0';
+
+	// Prefer out_time_ms (microseconds) if present; fallback to out_time (HH:MM:SS.micro)
+	int sec = 0;
+	auto it_ms = kv.find("out_time_ms");
+	if (it_ms != kv.end()) {
+		double out_us = atof(it_ms->second.c_str());
+		sec = (int)((out_us / 1000000.0) + 0.5);
+	} else {
+		auto it_t = kv.find("out_time");
+		if (it_t != kv.end()) {
+			int hh = 0, mm = 0;
+			double ss = 0.0;
+			if (sscanf(it_t->second.c_str(), "%d:%d:%lf", &hh, &mm, &ss) == 3) {
+				sec = hh * 3600 + mm * 60 + (int)(ss + 0.5);
+			}
+		}
+	}
+
+	char mmss[8];
+	int mm = sec / 60;
+	int ss = sec % 60;
+	snprintf(mmss, sizeof(mmss), "%02d:%02d", mm, ss);
+
+	(void)ps;
+	fprintf(stderr, "\r[%s]  %s", bar, mmss);
+	fflush(stderr);
+}
+
 void progressbar_clear(void) {
 	if (!cfg.progress) return;
 	// Clear current line (best-effort, no ANSI). Print spaces and carriage return.
@@ -290,6 +358,12 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 						}
 						progressbar_update(overall, eta);
 					}
+				} else if (ctx.duration_sec <= 0.0) {
+					int64_t now = now_ms();
+					if ((now - ctx.ps->last_draw_ms) >= 200) {
+						ctx.ps->last_draw_ms = now;
+						progress_unknown_update(ctx.kv, *ctx.ps);
+					}
 				}
 			}
 			ctx.kv.clear();
@@ -297,11 +371,16 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 			if (cfg.verbose >= 1) {
 				report_progress(ctx.kv, ctx.duration_sec);
 			} else {
-				double overall = ((double)(ctx.pass_idx + 1) / (double)ctx.ps->pass_count) * 100.0;
-				int64_t now = now_ms();
-				ctx.ps->last_draw_ms = now;
-				ctx.last_overall_pct = overall;
-				progressbar_update(overall, 0.0);
+				if (ctx.duration_sec > 0.0) {
+					double overall = ((double)(ctx.pass_idx + 1) / (double)ctx.ps->pass_count) * 100.0;
+					int64_t now = now_ms();
+					ctx.ps->last_draw_ms = now;
+					ctx.last_overall_pct = overall;
+					progressbar_update(overall, 0.0);
+				} else {
+					// Final update for unknown-duration streams.
+					progress_unknown_update(ctx.kv, *ctx.ps);
+				}
 			}
 			ctx.kv.clear();
 		}

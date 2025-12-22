@@ -110,7 +110,8 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 	EncodeResult er;
 	er.video_path = make_output_video_path(ci);
 
-	std::string vf = build_filterchain(ar);
+	// MPEG1 output is always forced to BT.601 + TV range.
+	std::string vf = build_filterchain(ar, "bt601", "tv");
 	er.vf_used = vf;
 	int bitrate_kbps = quality_to_mpeg1_bitrate_kbps(cfg.quality);
 	int buf_kbps = compute_bufsize_kbps(bitrate_kbps);

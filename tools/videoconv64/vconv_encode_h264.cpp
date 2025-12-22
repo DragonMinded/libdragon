@@ -40,7 +40,8 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 	EncodeResult er;
 	er.video_path = make_output_video_path(ci);
 
-	std::string vf = build_filterchain(ar);
+	// H.264 output is always forced to BT.709 + Full range.
+	std::string vf = build_filterchain(ar, "bt709", "pc");
 	er.vf_used = vf;
 
 	int crf = quality_to_h264_crf(cfg.quality);
@@ -60,6 +61,11 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-c:v", "libx264",
 		"-profile:v", "baseline",
 		"-pix_fmt", "yuv420p",
+		// Ensure output bitstream advertises the intended colorspace too (VUI).
+		"-colorspace", "bt709",
+		"-color_range", "pc",
+		"-color_primaries", "bt709",
+		"-color_trc", "bt709",
 		"-crf", std::to_string(crf),
 		"-maxrate", std::to_string(maxrate_kbps) + "k",
 		"-bufsize", std::to_string(bufsize_kbps) + "k",

@@ -92,6 +92,10 @@ struct SourceMeta {
 	double fps = 0.0;          // avg_frame_rate
 	double duration = 0.0;     // seconds, may be 0 if unknown
 	std::string pix_fmt;
+	std::string color_space;      // eg: "bt709", "smpte170m", "bt470bg", ...
+	std::string color_range;      // eg: "tv" (limited), "pc" (full)
+	std::string color_primaries;  // eg: "bt709"
+	std::string color_transfer;   // eg: "bt709"
 };
 
 struct AnalysisMetrics {
@@ -134,7 +138,10 @@ struct EncodeResult {
 	std::string vf_used;     // exact -vf used for encoding (for metrics/debug)
 };
 
-std::string build_filterchain(const AnalysisResult &ar);
+// Build an ffmpeg -vf chain for decoding/processing/encoding.
+// out_matrix: "bt601" or "bt709"
+// out_range:  "tv" (limited) or "pc" (full)
+std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, const char *out_range);
 void progressbar_clear(void);
 int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double duration_sec, int pass_idx, progress_state_t &ps);
 

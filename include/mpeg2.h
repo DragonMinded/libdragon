@@ -31,6 +31,7 @@
 #define __LIBDRAGON_MPEG2_H
 
 #include <stdbool.h>
+#include "yuv.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,6 +91,15 @@ int mpeg2_get_width(mpeg2_t *mp2);
  * @return int          Height of the video in pixels
  */
 int mpeg2_get_height(mpeg2_t *mp2);
+
+/**
+ * @brief Get the YUV colorspace for the stream.
+ *
+ * MPEG-1 playback in libdragon is assumed to use BT.601 TV range.
+ *
+ * @return A colorspace structure (by value).
+ */
+yuv_colorspace_t mpeg2_get_colorspace(mpeg2_t *mp2);
 
 /**
  * @brief Get the display aspect ratio (DAR) of the stream.

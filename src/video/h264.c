@@ -140,6 +140,25 @@ float h264_get_aspect_ratio(h264_t *player) {
     return ((float)player->width * (float)sarW) / ((float)player->height * (float)sarH);
 }
 
+yuv_colorspace_t h264_get_colorspace(h264_t *player) {
+    if (!player) return YUV_BT601_TV;
+
+    // H.264 VUI:
+    // - matrix_coefficients (if present; otherwise "unspecified" = 2)
+    // - video_full_range_flag (0 => limited/TV, 1 => full/PC)
+    const u32 full = h264bsdVideoRange(&player->s);
+    const u32 m = h264bsdMatrixCoefficients(&player->s);
+
+    // matrix_coefficients values (H.264): 1=BT.709, 5=BT.470BG, 6=SMPTE170M, 2=unspecified.
+    const bool is_bt709 = (m == 1);
+    // Treat unspecified and BT.601 family as BT.601.
+    if (is_bt709) {
+        return full ? YUV_BT709_FULL : YUV_BT709_TV;
+    } else {
+        return full ? YUV_BT601_FULL : YUV_BT601_TV;
+    }
+}
+
 void h264_close(h264_t *player) {
     if (player->fd >= 0) {
         close(player->fd);

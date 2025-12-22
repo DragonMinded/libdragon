@@ -80,7 +80,7 @@ static SourceMeta ffprobe_analyze_source(void) {
 		cfg.ffprobe_path,
 		"-v", "error",
 		"-select_streams", "v:0",
-		"-show_entries", "stream=width,height,sample_aspect_ratio,avg_frame_rate,r_frame_rate,pix_fmt,duration",
+		"-show_entries", "stream=width,height,sample_aspect_ratio,avg_frame_rate,r_frame_rate,pix_fmt,duration,color_space,color_range,color_primaries,color_transfer",
 		"-of", "json",
 		cfg.input_file,
 	};
@@ -98,6 +98,10 @@ static SourceMeta ffprobe_analyze_source(void) {
 		m.width = s.value("width", 0);
 		m.height = s.value("height", 0);
 		m.pix_fmt = s.value("pix_fmt", std::string());
+		m.color_space = s.value("color_space", std::string());
+		m.color_range = s.value("color_range", std::string());
+		m.color_primaries = s.value("color_primaries", std::string());
+		m.color_transfer = s.value("color_transfer", std::string());
 
 		std::string sar = s.value("sample_aspect_ratio", std::string("1:1"));
 		size_t colon = sar.find(':');
