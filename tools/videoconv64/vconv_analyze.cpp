@@ -281,29 +281,49 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 		req_w, req_h, r.out_width, r.out_height, ci.align_w, ci.align_h);
 
 	// Automatic anamorphic mode for N64 progressive:
-	// If rounding/alignment leads to a full-height output (240 lines) for a wide DAR,
-	// the VI would effectively letterbox by downscaling vertically. Instead, we
-	// pre-letterbox in the encoded raster and signal PAR != 1.
+	// 1) cap output height to the N64 progressive limit (240 lines)
+	// 2) if the content is wider than 4:3 and we are at the cap, pre-letterbox
+	//    in the raster to avoid VI downscaling when applying borders for aspect ratio.
+	// 3) compute PAR (SAR) so that the display DAR remains correct.
 	//
 	// NOTE: we keep this behavior behind an internal toggle for now.
-	if (cfg.par_auto && r.out_height == 240 && dar > (4.0 / 3.0) + 1e-6) {
-		int target_h = (int)floor(240.0 * (4.0 / 3.0) / dar + 0.5);
-		target_h = round_up(target_h, ci.align_h);
-		// Clamp to sane range.
-		if (target_h < ci.align_h) target_h = ci.align_h;
-		if (target_h > 240) target_h = 240;
+	const int N64_MAX_H = 240;
+	if (cfg.par_auto && dar > 0.0) {
+		int target_h = r.out_height;
 
-		if (target_h != r.out_height) {
-			int old_h = r.out_height;
-			r.out_height = target_h;
-			verbose(1, "Anamorphic: forcing height %d -> %d for DAR=%.6f", old_h, r.out_height, dar);
+		// Cap to 240 lines (aligned)
+		if (target_h > N64_MAX_H) {
+			int old_h = target_h;
+			target_h = N64_MAX_H; // already aligned to 16
+			verbose(1, "Anamorphic: capping height %d -> %d (N64 max)", old_h, target_h);
 		}
 
-		// PAR = DAR * H / W
+		// If we are using the full N64 height with a wide DAR, pre-letterbox
+		// to the effective 4:3-visible height (avoid VI downscale).
+		if (target_h == N64_MAX_H && dar > (4.0 / 3.0) + 1e-6) {
+			int vis_h = (int)floor((double)N64_MAX_H * (4.0 / 3.0) / dar + 0.5);
+			// Ensure codec alignment and don't exceed the cap.
+			vis_h = round_up(vis_h, ci.align_h);
+			if (vis_h < ci.align_h) vis_h = ci.align_h;
+			if (vis_h > N64_MAX_H) vis_h = N64_MAX_H;
+			if (vis_h != target_h) {
+				verbose(1, "Anamorphic: pre-letterbox height %d -> %d for DAR=%.6f", target_h, vis_h, dar);
+				target_h = vis_h;
+			}
+		}
+
+		if (target_h != r.out_height) {
+			r.out_height = target_h;
+		}
+
+		// Compute PAR = DAR * H / W
 		r.out_par = dar * (double)r.out_height / (double)r.out_width;
-		// Use a bounded rational for bitstream signaling. Keep denominators small.
 		rational_approx(r.out_par, 255, 255, &r.sar_num, &r.sar_den);
-		verbose(1, "Anamorphic: PAR=%.6f SAR=%d:%d", r.out_par, r.sar_num, r.sar_den);
+		if (r.sar_num != 1 || r.sar_den != 1) {
+			verbose(1, "Anamorphic: PAR=%.6f SAR=%d:%d", r.out_par, r.sar_num, r.sar_den);
+		} else {
+			r.out_par = 1.0;
+		}
 	} else {
 		r.out_par = 1.0;
 		r.sar_num = 1;
