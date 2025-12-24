@@ -23,10 +23,13 @@
 // less shuffling is required for each slice).
 #define H264_BUF_SIZE         (64*1024)
 
+#define H264BSD_EOF           (-1)
+
 typedef struct h264_s {
     uint8_t buf[H264_BUF_SIZE];         ///< Internal buffered data
     uint8_t *pic;                       ///< Pointer to the decoded picture data
     int idx;                            ///< Current index in the buffer
+    int buf_len;                        ///< Number of valid bytes in the buffer
     storage_t s;                        ///< H264 decoder main structure
     int fd;                             ///< File descriptor of the opened H264 file
     int width;                          ///< Width of the video       
@@ -35,20 +38,26 @@ typedef struct h264_s {
     uint32_t max_slice_size;            ///< Maximum size of a slice seen so far
 } h264_t;
 
-static uint32_t decode_next_slice(h264_t *player) {
-    int left = H264_BUF_SIZE - player->idx;
+static int decode_next_slice(h264_t *player) {
+    int left = player->buf_len - player->idx;
 
     // If there's not enough data for a full slice, we need to compact the
     // buffer and do a I/O from ROM.
     if (left <= player->max_slice_size) {
         memmove(player->buf, player->buf+player->idx, left);
-        read(player->fd, player->buf+left, H264_BUF_SIZE-left);
+        int n = read(player->fd, player->buf+left, H264_BUF_SIZE-left);
+        if (n < 0) n = 0;
+        player->buf_len = left + n;
         player->idx = 0;
+
+        if (player->buf_len == 0)
+            return H264BSD_EOF;
     }
 
     // Do the actual decoding
     unsigned int np;
-    uint32_t status = h264bsdDecode(&player->s, player->buf+player->idx, H264_BUF_SIZE-player->idx, 0, &np);
+    int status = h264bsdDecode(&player->s, player->buf+player->idx, player->buf_len-player->idx, 0, &np);
+
     player->idx += np;
     player->max_slice_size = MAX(player->max_slice_size, np*1.3f);
 
@@ -70,35 +79,12 @@ h264_t* h264_open(const char *fn) {
     rsph264_init();
 
     h264bsdInitStorage(&player->s);
-    h264bsdInit(&player->s, 0);
-
+    
     player->fd = must_open(fn);
-    player->idx = H264_BUF_SIZE;
-
-    rsph264_begin_frame();
-
-    // Start decoding until we decode the initial headers, so that we're
-    // then ready to seek.
-    while (1) {
-        uint32_t status = decode_next_slice(player);
-        switch (status) {
-            case H264BSD_RDY: // OK, nothing to do
-                continue;
-            case H264BSD_HDRS_RDY: // Headers ready
-                player->width = h264bsdPicWidth(&player->s) * 16;
-                player->height = h264bsdPicHeight(&player->s) * 16;
-                
-                // Headers are returned while starting decoding the first
-                // frame. We're in the middle of a frame decoding, so record it.
-                player->in_frame_decoding = true;
-                rsph264_end_frame();
-                return player;
-            default:
-                free(player);
-                assertf(0, "h264 initial status error: %ld", status);
-                return NULL;
-        }
-    }
+    
+    h264_rewind(player);
+    
+    return player;
 }
 
 int h264_get_width(h264_t *player) {
@@ -156,6 +142,34 @@ yuv_colorspace_t h264_get_colorspace(h264_t *player) {
     }
 }
 
+void h264_rewind(h264_t *player) {
+    lseek(player->fd, 0, SEEK_SET);
+    player->idx = 0;
+    player->buf_len = 0;
+    player->in_frame_decoding = false;
+    
+    // Reset decoder
+    h264bsdInit(&player->s, 0);
+
+    rsph264_begin_frame();
+    while (1) {
+        int status = decode_next_slice(player);
+        switch (status) {
+            case H264BSD_RDY:
+                continue;
+            case H264BSD_HDRS_RDY:
+                player->width = h264bsdPicWidth(&player->s) * 16;
+                player->height = h264bsdPicHeight(&player->s) * 16;
+                player->in_frame_decoding = true;
+                rsph264_end_frame();
+                return;
+            default:
+                assertf(0, "h264 rewind error: %d", status);
+                return;
+        }
+    }
+}
+
 void h264_close(h264_t *player) {
     if (player->fd >= 0) {
         close(player->fd);
@@ -192,18 +206,25 @@ static int decode_loop(h264_t *player, uint64_t deadline) {
         if (h264bsdDpbNumOutputPictures(player->s.dpb) >= MAX_NUM_BUFFERED_PICS)
             break;
 
-        uint32_t status = decode_next_slice(player);
+        int status = decode_next_slice(player);
     
-        if (status == H264BSD_RDY)
+        switch (status) {
+        case H264BSD_EOF:
+            rsph264_end_frame();
+            return 0;
+        case H264BSD_RDY:
             player->in_frame_decoding = true;
-        else if (status == H264BSD_PIC_RDY) {
+            break;
+        case H264BSD_PIC_RDY:
             player->in_frame_decoding = false;
             if (!deadline)
-                break;
+                goto end;
+            break;
+        default:
+            assertf(!"h264 status error", "status == %d (%s)\n", status, h264_status_str(status));
         }
-        else
-            assertf(!"h264 status error", "status == %ld (%s)\n", status, h264_status_str(status));
     }
+end:
     rsph264_end_frame();
     return 1;
 }
@@ -221,9 +242,12 @@ bool h264_next_frame(h264_t *player) {
     // If no picture was decoded yet, we need to keep decoding until
     // one picture is ready.
     if (player->pic == NULL) {
-        decode_loop(player, 0);  // decode until one picture is decoded
+        int ret = decode_loop(player, 0);  // decode until one picture is decoded
         fetch_picture(player);
-        assert(player->pic != NULL);
+        if (player->pic == NULL) {
+            if (ret == 0) return false;
+            assert(player->pic != NULL);
+        }
     }
 
     return true;
