@@ -1,5 +1,6 @@
 /**
  * @file accounting.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Internal bucket-based time accounting (see accounting_internal.h)
  */
 #include "accounting_internal.h"
