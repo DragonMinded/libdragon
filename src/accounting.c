@@ -9,9 +9,9 @@
 #include "debug.h"
 #include "interrupt_internal.h"
 
-int8_t __acct_current_category = ACCT_CAT_USER;
-uint32_t __acct_last_tick = 0;
-uint64_t __acct_ticks[ACCT_CAT_MAX] = {0};
+static int8_t __acct_current_category = ACCT_CAT_USER;
+static uint32_t __acct_last_tick = 0;
+static uint64_t __acct_ticks[ACCT_CAT_MAX] = {0};
 
 /**
  * @brief Enter a category (IRQ-safe version, briefly disables interrupts).
