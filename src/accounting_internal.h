@@ -1,5 +1,6 @@
 /**
  * @file accounting_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Internal time accounting helpers (not part of the public API)
  *
  * This module implements a very low-overhead bucket-based "CPU/system time"
