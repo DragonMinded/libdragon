@@ -26,7 +26,7 @@ void profile_init(void) {
 	frames = 0;
 
 	total_time = 0;
-	last_frame = TICKS_READ();
+	last_frame = get_user_ticks();
 }
 
 void profile_set_target_fps(float fps) {
@@ -48,8 +48,8 @@ void profile_next_frame(void) {
 
 	// Increment total profile time. Make sure to handle overflow of the
 	// hardware profile counter, as it happens frequently.
-	uint64_t count = TICKS_READ();
-	total_time += TICKS_DISTANCE(last_frame, count);
+	uint64_t count = get_user_ticks();
+	total_time += count - last_frame;
 	last_frame = count;
 }
 
