@@ -20,6 +20,7 @@
 #include "surface.h"
 #include "rsp.h"
 #include "kirq.h"
+#include "accounting_internal.h"
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
@@ -476,7 +477,7 @@ surface_t* display_get(void)
     assertf(__buffers != 0, "Display not initialized.");
 
     kirq_wait_t kirq = kirq_begin_wait_vi();
-    RSP_WAIT_LOOP(200) {
+    ACCT_SCOPE(ACCT_CAT_DISPLAY) RSP_WAIT_LOOP(200) {
          if ((disp = display_try_get())) {
              break;
          }

@@ -200,6 +200,7 @@
 #include "utils.h"
 #include "n64sys.h"
 #include "debug.h"
+#include "accounting_internal.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -664,7 +665,7 @@ void rspq_init(void)
     MEMORY_BARRIER();
     *DP_STATUS = DP_WSTATUS_RESET_XBUS_DMEM_DMA | DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
     MEMORY_BARRIER();
-    RSP_WAIT_LOOP(500) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(500) {
         if (!(*DP_STATUS & (DP_STATUS_START_VALID | DP_STATUS_END_VALID))) {
             break;
         }
@@ -995,7 +996,7 @@ void rspq_next_buffer(void) {
     MEMORY_BARRIER();
     if (!(*SP_STATUS & rspq_ctx->sp_status_bufdone)) {
         rspq_flush_internal();
-        RSP_WAIT_LOOP(200) {
+        ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
             __rspq_deferred_poll();
             if (*SP_STATUS & rspq_ctx->sp_status_bufdone)
                 break;
@@ -1129,7 +1130,7 @@ void rspq_highpri_sync(void)
     // Make sure the RSP is running, otherwise we might be blocking forever.
     rspq_flush_internal();
 
-    RSP_WAIT_LOOP(200) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
         __rspq_deferred_poll();
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING)))
             break;
@@ -1321,7 +1322,7 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
     // Spinwait until the the syncpoint is reached.
     // TODO: with the kernel, it will be possible to wait for the RSP interrupt
     // to happen, without spinwaiting.
-    RSP_WAIT_LOOP(200) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
         __rspq_deferred_poll();
         if (rspq_syncpoint_check(sync_id))
             break;
@@ -1362,8 +1363,9 @@ bool __rspq_deferred_poll(void)
 
         // If this call does not require waiting for next SYNC_FULL, call it.
         if (!(cur->flags & RSPQ_DCF_WAITRDP)) {
-            // Call the deferred calllback
-            cur->func(cur->arg);
+            // Call the deferred calllback. Account the time to user-time as
+            // this is actually a non-kernel activity that's just deferred.
+            ACCT_SCOPE(ACCT_CAT_USER) cur->func(cur->arg);
 
             // Remove it from the list (possibly updating the head/tail pointer)
             if (prev)
@@ -1435,7 +1437,7 @@ void rspq_wait(void)
 
     // Make sure to process all deferred calls. Since this is a full sync point,
     // it makes sense to give this guarantee to the user.
-    RSP_WAIT_LOOP(500) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(500) {
         if (!__rspq_deferred_poll())
             break;
     }
@@ -1445,7 +1447,7 @@ void rspq_wait(void)
     // this code even just as documentation that we want to ensure that rspq_wait()
     // exits with all RSP idle.
     if (UNLIKELY(*SP_STATUS & SP_STATUS_DMA_BUSY)) {
-        RSP_WAIT_LOOP(200) {
+        ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
             if (!(*SP_STATUS & SP_STATUS_DMA_BUSY))
                 break;
         }

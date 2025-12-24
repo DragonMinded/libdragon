@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
+#include "accounting_internal.h"
 #include <stdbool.h>
 #include <assert.h>
 
@@ -659,14 +660,16 @@ void vi_wait_vblank(void)
         // We define the vblank as the 0->2 current line transition. We can't
         // just check if line 2 is current (VI_V_CURRENT_VBLANK) because it
         // would cause multiple subsequent calls not to wait the next vblank.
-        while (vi_get_scanline(NULL) != VI_V_CURRENT_VBLANK-2) {}
-        while (vi_get_scanline(NULL) != VI_V_CURRENT_VBLANK) {}
+        ACCT_SCOPE(ACCT_CAT_VI) {
+            while (vi_get_scanline(NULL) != VI_V_CURRENT_VBLANK-2) {}
+            while (vi_get_scanline(NULL) != VI_V_CURRENT_VBLANK) {}
 
-        // To support operating the VI with interrupts disabled, manually call
-        // our vblank handler here
-        uint32_t c0_status = C0_STATUS();
-        if ((c0_status & C0_STATUS_IE) == 0 || ((c0_status & (C0_STATUS_EXL|C0_STATUS_ERL)) != 0)) {
-            __vblank_interrupt(NULL);
+            // To support operating the VI with interrupts disabled, manually call
+            // our vblank handler here
+            uint32_t c0_status = C0_STATUS();
+            if ((c0_status & C0_STATUS_IE) == 0 || ((c0_status & (C0_STATUS_EXL|C0_STATUS_ERL)) != 0)) {
+                __vblank_interrupt(NULL);
+            }
         }
     }
 }
