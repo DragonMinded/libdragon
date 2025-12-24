@@ -514,7 +514,7 @@ static u32 Mmcop5(dpbStorage_t *dpb)
 
 /* Code */
 
-    for (i = 0; i < dpb->dpbSize; i++)
+    for (i = 0; i < 16; i++)
     {
         if (IS_REFERENCE(dpb->buffer[i]))
         {
@@ -871,7 +871,7 @@ u8* h264bsdGetRefPicData(dpbStorage_t *dpb, u32 index)
 
 /* Code */
 
-    if(index > MAX_NUM_REF_IDX_L0_ACTIVE || dpb->list[index] == NULL)
+    if(index > 16 || dpb->list[index] == NULL)
         return(NULL);
     else if(!IS_EXISTING(*dpb->list[index]))
         return(NULL);
@@ -1031,6 +1031,8 @@ u32 h264bsdInitDpb(
     dpb->fullness            = 0;
     dpb->numRefFrames        = 0;
     dpb->prevRefFrameNum     = 0;
+
+    ASSERT(dpb->dpbSize >= MAX_NUM_REF_IDX_L0_ACTIVE);
 
     /* Add MAX_NUM_BUFFERED_PICS to have enough space in the DPB for buffered pictures. */
     dpb->dpbSize += MAX_NUM_BUFFERED_PICS;
