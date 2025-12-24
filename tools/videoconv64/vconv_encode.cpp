@@ -215,7 +215,7 @@ static void report_progress(const std::map<std::string,std::string> &kv, double 
 	}
 }
 
-static void format_eta_mmss(char out[8], double eta_sec) {
+static void format_eta_mmss(char out[16], double eta_sec) {
 	if (!(eta_sec > 0.0) || eta_sec > 99 * 60 + 59) {
 		strcpy(out, "--:--");
 		return;
@@ -223,7 +223,7 @@ static void format_eta_mmss(char out[8], double eta_sec) {
 	int sec = (int)(eta_sec + 0.5);
 	int mm = sec / 60;
 	int ss = sec % 60;
-	snprintf(out, 8, "%02d:%02d", mm, ss);
+	snprintf(out, 16, "%02d:%02d", mm, ss);
 }
 
 static void progressbar_update(double overall_pct, double eta_sec) {
@@ -241,7 +241,7 @@ static void progressbar_update(double overall_pct, double eta_sec) {
 	for (int i = 0; i < width; i++) bar[i] = (i < filled) ? '#' : '-';
 	bar[width] = '\0';
 
-	char eta[8];
+	char eta[16];
 	format_eta_mmss(eta, eta_sec);
 
 	// Example: [####-----]  42% ETA 01:23
@@ -286,7 +286,7 @@ static void progress_unknown_update(const std::map<std::string,std::string> &kv,
 		}
 	}
 
-	char mmss[8];
+	char mmss[16];
 	int mm = sec / 60;
 	int ss = sec % 60;
 	snprintf(mmss, sizeof(mmss), "%02d:%02d", mm, ss);

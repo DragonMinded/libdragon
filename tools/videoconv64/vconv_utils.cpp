@@ -18,6 +18,13 @@ int64_t now_ms(void) {
 	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
+void sleep_ms(int ms) {
+	struct timespec ts;
+	ts.tv_sec = ms / 1000;
+	ts.tv_nsec = (ms % 1000) * 1000000;
+	nanosleep(&ts, NULL);
+}
+
 std::string temp_dir(void) {
 #ifdef _WIN32
 	const char *tmp = getenv("TEMP");
@@ -69,12 +76,4 @@ std::string format_cmdline_for_log(const std::vector<std::string>& argv) {
 	}
 	return out;
 }
-
-void sleep_ms(int ms) {
-	struct timespec ts;
-	ts.tv_sec = ms / 1000;
-	ts.tv_nsec = (ms % 1000) * 1000000;
-	nanosleep(&ts, NULL);
-}
-
 

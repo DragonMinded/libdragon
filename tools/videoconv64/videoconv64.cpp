@@ -8,10 +8,6 @@
     For more information, please refer to <http://unlicense.org/>
 */
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
 #include "videoconv64.h"
 
 #include "../common/subprocess.h"
