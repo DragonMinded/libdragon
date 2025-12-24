@@ -343,7 +343,7 @@ void h264bsdFillRow7(
   i32 center,
   i32 right)
 {
-    u8 tmp;
+    u8 tmp = 0;
 
     ASSERT(ref);
     ASSERT(fill);
