@@ -21,6 +21,7 @@
 #include "n64sys.h"
 #include "interrupt.h"
 #include "rdpq/rdpq_debug_internal.h"
+#include "accounting_internal.h"
 
 /**
  * RSP crash handler ucode (rsp_crash.S)
@@ -159,7 +160,7 @@ void __rsp_run_async(uint32_t status_flags)
 
 void rsp_wait(void)
 {
-    RSP_WAIT_LOOP(500) {
+    ACCT_SCOPE(ACCT_CAT_RSP) RSP_WAIT_LOOP(500) {
         // Wait for the RSP to halt and the DMA engine to be idle.
         uint32_t status = *SP_STATUS;
         if (status & SP_STATUS_HALTED && 
