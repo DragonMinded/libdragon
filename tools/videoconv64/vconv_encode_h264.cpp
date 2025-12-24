@@ -45,10 +45,12 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 	er.vf_used = vf;
 
 	int crf = quality_to_h264_crf(cfg.quality);
-	const int maxrate_kbps = 400;
-	const int bufsize_kbps = 800;
+	int maxrate_kbps = (int)floor(400.0 * 24 / ar.out_fps + 0.5);
+	maxrate_kbps = clamp_int(maxrate_kbps, 50, 5000);
+	const int bufsize_kbps = maxrate_kbps * 1.5;
 
-	verbose(1, "H.264 quality=%d -> crf=%d maxrate=%d kbps bufsize=%d kbps", cfg.quality, crf, maxrate_kbps, bufsize_kbps);
+	verbose(1, "H.264 quality=%d -> crf=%d maxrate=%d kbps bufsize=%d kbps (fps=%.3f)",
+		cfg.quality, crf, maxrate_kbps, bufsize_kbps, ar.out_fps);
 
 	std::vector<std::string> cmd = {
 		cfg.ffmpeg_path,
