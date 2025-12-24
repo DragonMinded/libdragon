@@ -19,6 +19,7 @@
 #include "rdp.h"
 #include "utils.h"
 #include "rompak_internal.h"
+#include "accounting_internal.h"
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
@@ -242,6 +243,11 @@ uint64_t get_ticks_us(void)
 uint64_t get_ticks_ms(void)
 {
     return TICKS_TO_MS(get_ticks());
+}
+
+uint64_t get_user_ticks(void)
+{
+    return acct_get_ticks(ACCT_CAT_USER);
 }
 
 void wait_ticks( unsigned long wait )
