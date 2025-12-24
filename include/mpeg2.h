@@ -27,8 +27,8 @@
  * possible allow for some buffering to avoid slowdowns.
  * 
  */
-#ifndef __LIBDRAGON_MPEG2_H
-#define __LIBDRAGON_MPEG2_H
+#ifndef LIBDRAGON_MPEG2_H
+#define LIBDRAGON_MPEG2_H
 
 #include <stdbool.h>
 #include "yuv.h"
@@ -143,8 +143,8 @@ bool mpeg2_next_frame(mpeg2_t *mp2);
  * @return yuv_frame_t      Decoded frame
  * 
  * @see #yuv_tex_blit
- * @see #yuv_new_blitter_fmv
- * @see #yuv_new_blitter
+ * @see #yuv_blitter_new_fmv
+ * @see #yuv_blitter_new
  */
 yuv_frame_t mpeg2_get_frame(mpeg2_t *mp2);
 

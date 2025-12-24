@@ -71,7 +71,7 @@ yuv_colorspace_t h264_get_colorspace(h264_t *v);
  * is successfully decoded, it can be retrieved with #h264_get_frame. Otherwise,
  * the stream is finished and the function will return false.
  * 
- * @param mp2           Handle to the video
+ * @param v             Handle to the video
  * @return true         If a frame was successfully decoded
  * @return false        If the stream is finished
  */
@@ -84,12 +84,12 @@ bool h264_next_frame(h264_t *v);
  * is returned as a #yuv_frame_t, which can be used to display the frame on the
  * screen via the yuv.h library.
  * 
- * @param mp2               Handle to the video
+ * @param v                 Handle to the video
  * @return yuv_frame_t      Decoded frame
  * 
  * @see #yuv_tex_blit
- * @see #yuv_new_blitter_fmv
- * @see #yuv_new_blitter
+ * @see #yuv_blitter_new_fmv
+ * @see #yuv_blitter_new
  */
 yuv_frame_t h264_get_frame(h264_t *v);
 
@@ -99,7 +99,7 @@ yuv_frame_t h264_get_frame(h264_t *v);
  * This function rewinds the video stream to the beginning, so that the next
  * call to #h264_next_frame will start decoding from the first frame.
  * 
- * @param mp2               Handle to the video
+ * @param v                 Handle to the video
  */
 void h264_rewind(h264_t *v);
 
