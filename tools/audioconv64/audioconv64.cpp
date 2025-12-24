@@ -32,6 +32,7 @@
 
 bool flag_verbose = false;
 bool flag_debug = false;
+static bool had_error = false;
 
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...) {
@@ -124,20 +125,21 @@ void convert(const char *infn, const char *outfn1) {
 	const char *ext = strrchr(infn, '.');
 	if (!ext) {
 		fprintf(stderr, "unknown file type: %s\n", infn);
+		had_error = true;
 		return;
 	}
 
 	if (strcasecmp(ext, ".wav") == 0 || strcasecmp(ext, ".aiff") == 0 || strcasecmp(ext, ".mp3") == 0) {
 		char *outfn = changeext(outfn1, ".wav64");
-		wav_convert(infn, outfn);
+		if (wav_convert(infn, outfn) != 0) had_error = true;
 		free(outfn);
 	} else if (strcasecmp(ext, ".xm") == 0) {
 		char *outfn = changeext(outfn1, ".xm64");
-		xm_convert(infn, outfn);
+		if (xm_convert(infn, outfn) != 0) had_error = true;
 		free(outfn);
 	} else if (strcasecmp(ext, ".ym") == 0) {
 		char *outfn = changeext(outfn1, ".ym64");
-		ym_convert(infn, outfn);
+		if (ym_convert(infn, outfn) != 0) had_error = true;
 		free(outfn);
 	} else {
 		fprintf(stderr, "WARNING: ignoring unknown file: %s\n", infn);
@@ -169,6 +171,7 @@ void walkdir(char *inpath, const char *outpath, void (*func)(const char *, const
 			// If there's an obstructing file, exit with an error.
 			if (isfile(outpath)) {				
 				fprintf(stderr, "ERROR: %s is a file but should be a directory\n", outpath);
+				had_error = true;
 				return;
 			}
 			mkdir(outpath, 0777);
@@ -392,11 +395,12 @@ int main(int argc, char *argv[]) {
 			// Positional argument. It's either a file or a directory. Convert it
 			if (!exists(argv[i])) {
 				fprintf(stderr, "ERROR: file %s does not exist\n", argv[i]);
+				had_error = true;
 			} else {
 				walkdir(argv[i], outdir, convert);
 			}
 		}
 	}
 
-	return 0;
+	return had_error ? 1 : 0;
 }

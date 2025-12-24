@@ -11,12 +11,13 @@
 
 #define SCALE_RESULTS  2048
 
-uint64_t slot_total[PS_NUM_SLOTS];
-uint64_t slot_total_count[PS_NUM_SLOTS];
-uint64_t total_time;
-uint64_t last_frame;
+static uint64_t slot_total[PS_NUM_SLOTS];
+static uint64_t slot_total_count[PS_NUM_SLOTS];
+static uint64_t total_time;
+static uint64_t last_frame;
+static uint64_t target_frame_ticks;
 uint64_t slot_frame_cur[PS_NUM_SLOTS];
-int frames;
+static int frames;
 
 void profile_init(void) {
 	memset(slot_total, 0, sizeof(slot_total));
@@ -25,7 +26,15 @@ void profile_init(void) {
 	frames = 0;
 
 	total_time = 0;
-	last_frame = TICKS_READ();
+	last_frame = get_user_ticks();
+}
+
+void profile_set_target_fps(float fps) {
+	if (fps <= 0.0f) {
+		target_frame_ticks = 0;
+	} else {
+		target_frame_ticks = (uint64_t)(TICKS_PER_SECOND / fps);
+	}
 }
 
 void profile_next_frame(void) {
@@ -39,8 +48,8 @@ void profile_next_frame(void) {
 
 	// Increment total profile time. Make sure to handle overflow of the
 	// hardware profile counter, as it happens frequently.
-	uint64_t count = TICKS_READ();
-	total_time += TICKS_DISTANCE(last_frame, count);
+	uint64_t count = get_user_ticks();
+	total_time += count - last_frame;
 	last_frame = count;
 }
 
@@ -50,8 +59,8 @@ static void stats(ProfileSlot slot, uint64_t frame_avg, uint32_t *mean, float *p
 }
 
 void profile_dump(void) {
-	debugf("%-14s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Perc");
-	debugf("----------------------------------\n");
+	debugf("%-35s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Perc");
+	debugf("---------------------------------------------------------\n");
 
 	uint64_t frame_avg = total_time / frames;
 	char buf[64];
@@ -60,11 +69,30 @@ void profile_dump(void) {
 	uint32_t mean; float partial; \
 	stats(slot, frame_avg, &mean, &partial); \
 	sprintf(buf, "%2.1f", partial); \
-	debugf("%-25s %4llu %6d %5s%%\n", name, \
-		 slot_total_count[slot] / frames, \
-		 TIMER_MICROS(mean), \
-		 buf); \
+	if (slot_total_count[slot] > 0) \
+		debugf("%-35s %4llu %6d %5s%%\n", name, \
+			 slot_total_count[slot] / frames, \
+		 	TIMER_MICROS(mean), \
+		 	buf); \
 })
+
+	DUMP_SLOT(PS_H264, "H264");
+	DUMP_SLOT(PS_H264_NAL, "  - NAL");
+	DUMP_SLOT(PS_H264_MACROB, "  - MacroB");
+	DUMP_SLOT(PS_H264_LAYER, "    - Layer");
+	DUMP_SLOT(PS_H264_LAYER_CLEAR, "      - Clear");
+	DUMP_SLOT(PS_H264_LAYER_PRED, "      - Predict");
+	DUMP_SLOT(PS_H264_LAYER_RES, "      - Residual");
+	DUMP_SLOT(PS_H264_LAYER_RES_ENC, "        - Encode");
+	DUMP_SLOT(PS_H264_RESIDUAL_LUMA, "        - Residual Luma");
+	DUMP_SLOT(PS_H264_RESIDUAL_CHROMA, "        - Residual Chroma");
+	DUMP_SLOT(PS_H264_INTRAPRED_4X4, "          - IntraPred 4x4");
+	DUMP_SLOT(PS_H264_INTRAPRED_16X16, "          - IntraPred 16x16");
+	DUMP_SLOT(PS_H264_INTERPRED, "  - InterPred");
+	DUMP_SLOT(PS_H264_INTERPRED_LUMA, "    - InterPred Luma");
+	DUMP_SLOT(PS_H264_INTERPRED_CHROMA, "    - InterPred Chroma");
+	DUMP_SLOT(PS_H264_SYNC, "  - Sync");
+	DUMP_SLOT(PS_H264_SYNC_OVL, "    - Sync Overlay");
 
 	DUMP_SLOT(PS_MPEG, "MPEG1");
 	DUMP_SLOT(PS_MPEG_FINDSTART, "  - FindStart");
@@ -85,9 +113,9 @@ void profile_dump(void) {
 	DUMP_SLOT(PS_AUDIO, "Audio");
 	DUMP_SLOT(PS_SYNC, "Sync");
 
-	debugf("----------------------------------\n");
+	debugf("---------------------------------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg);
 	debugf("Average frame time:   %4d\n", TIMER_MICROS(frame_avg));
-	debugf("Target frame time:    %4d\n", TIMER_MICROS(TICKS_PER_SECOND/45));
+	debugf("Target frame time:    %4d\n", TIMER_MICROS(target_frame_ticks));
 }

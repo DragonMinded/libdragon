@@ -1,0 +1,87 @@
+
+#if 0 // Enable debug prints
+//#define _DEBUG_PRINT
+#define _ASSERT_USED
+#include "debug.h"
+#endif
+
+// Enable error prints
+#define _ERROR_PRINT
+
+// Disable all code related to concealment (recovering of corrupted data)
+#define OPTIMIZE_NO_DECODED_FLAG
+
+#include "h264_decoder.h"
+
+#include "rsph264.c"
+
+#include "h264_decoder/h264bsd_byte_stream.c"
+#include "h264_decoder/h264bsd_cavlc.c"
+#include "h264_decoder/h264bsd_deblocking.c"
+#include "h264_decoder/h264bsd_decoder.c"
+#include "h264_decoder/h264bsd_dpb.c"
+#include "h264_decoder/h264bsd_image.c"
+#include "h264_decoder/h264bsd_inter_prediction.c"
+#include "h264_decoder/h264bsd_intra_prediction.c"
+#include "h264_decoder/h264bsd_macroblock_layer.c"
+#include "h264_decoder/h264bsd_nal_unit.c"
+#include "h264_decoder/h264bsd_neighbour.c"
+#include "h264_decoder/h264bsd_pic_order_cnt.c"
+#include "h264_decoder/h264bsd_pic_param_set.c"
+#include "h264_decoder/h264bsd_reconstruct.c"
+#include "h264_decoder/h264bsd_seq_param_set.c"
+#include "h264_decoder/h264bsd_slice_data.c"
+#include "h264_decoder/h264bsd_slice_group_map.c"
+#include "h264_decoder/h264bsd_slice_header.c"
+#include "h264_decoder/h264bsd_storage.c"
+#include "h264_decoder/h264bsd_stream.c"
+#include "h264_decoder/h264bsd_transform.c"
+#include "h264_decoder/h264bsd_util.c"
+#include "h264_decoder/h264bsd_vlc.c"
+#include "h264_decoder/h264bsd_vui.c"
+#include "h264_decoder/h264bsd_conceal.c"
+
+#include "h264_decoder/H264SwDecApi.c"
+
+#include "h264_decoder/omxdl/armCOMM.c"
+#include "h264_decoder/omxdl/armCOMM_Bitstream.c"
+#include "h264_decoder/omxdl/armVCCOMM_Average.c"
+#include "h264_decoder/omxdl/armVCCOMM_SAD.c"
+#include "h264_decoder/omxdl/armVCM4P10_CAVLCTables.c"
+#include "h264_decoder/omxdl/armVCM4P10_DeBlockPixel.c"
+#include "h264_decoder/omxdl/armVCM4P10_DecodeCoeffsToPair.c"
+#include "h264_decoder/omxdl/armVCM4P10_DequantTables.c"
+#include "h264_decoder/omxdl/armVCM4P10_InterpolateHalfDiag_Luma.c"
+#include "h264_decoder/omxdl/armVCM4P10_InterpolateHalfHor_Luma.c"
+#include "h264_decoder/omxdl/armVCM4P10_InterpolateHalfVer_Luma.c"
+#include "h264_decoder/omxdl/armVCM4P10_Interpolate_Chroma.c"
+#include "h264_decoder/omxdl/armVCM4P10_Interpolate_Luma.c"
+#include "h264_decoder/omxdl/armVCM4P10_PredictIntraDC4x4.c"
+#include "h264_decoder/omxdl/armVCM4P10_QuantTables.c"
+#include "h264_decoder/omxdl/armVCM4P10_TransformResidual4x4.c"
+#include "h264_decoder/omxdl/armVCM4P10_UnpackBlock2x2.c"
+#include "h264_decoder/omxdl/armVCM4P10_UnpackBlock4x4.c"
+#include "h264_decoder/omxdl/omxVCM4P10_DeblockChroma_I.c"
+#include "h264_decoder/omxdl/omxVCM4P10_DeblockLuma_I.c"
+#include "h264_decoder/omxdl/omxVCM4P10_DecodeChromaDcCoeffsToPairCAVLC.c"
+#include "h264_decoder/omxdl/omxVCM4P10_DecodeCoeffsToPairCAVLC.c"  
+#include "h264_decoder/omxdl/omxVCM4P10_DequantTransformResidualFromPairAndAdd.c"
+#include "h264_decoder/omxdl/omxVCM4P10_FilterDeblockingChroma_HorEdge_I.c"
+#include "h264_decoder/omxdl/omxVCM4P10_FilterDeblockingChroma_VerEdge_I.c"
+#include "h264_decoder/omxdl/omxVCM4P10_FilterDeblockingLuma_HorEdge_I.c"
+#include "h264_decoder/omxdl/omxVCM4P10_FilterDeblockingLuma_VerEdge_I.c"
+#include "h264_decoder/omxdl/omxVCM4P10_GetVLCInfo.c"
+#include "h264_decoder/omxdl/omxVCM4P10_InterpolateChroma.c"
+#include "h264_decoder/omxdl/omxVCM4P10_InterpolateHalfHor_Luma.c"
+#include "h264_decoder/omxdl/omxVCM4P10_InterpolateHalfVer_Luma.c"
+#include "h264_decoder/omxdl/omxVCM4P10_InterpolateLuma.c"
+#include "h264_decoder/omxdl/omxVCM4P10_InvTransformDequant_ChromaDC.c"
+#include "h264_decoder/omxdl/omxVCM4P10_InvTransformDequant_LumaDC.c"
+#include "h264_decoder/omxdl/omxVCM4P10_InvTransformResidualAndAdd.c"
+#include "h264_decoder/omxdl/omxVCM4P10_MEGetBufSize.c"
+#include "h264_decoder/omxdl/omxVCM4P10_MEInit.c"
+#include "h264_decoder/omxdl/omxVCM4P10_PredictIntraChroma_8x8.c"
+#include "h264_decoder/omxdl/omxVCM4P10_PredictIntra_16x16.c"
+#include "h264_decoder/omxdl/omxVCM4P10_PredictIntra_4x4.c"
+#include "h264_decoder/omxdl/omxVCM4P10_TransformDequantChromaDCFromPair.c"
+#include "h264_decoder/omxdl/omxVCM4P10_TransformDequantLumaDCFromPair.c"

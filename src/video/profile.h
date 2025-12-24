@@ -45,6 +45,30 @@ typedef enum {
 	PS_AUDIO,
 	PS_SYNC,
 
+	PS_EMU,
+	PS_EMU_AY8910,
+	PS_H264,
+	PS_H264_NAL,
+	PS_H264_MACROB,
+	PS_H264_LAYER,
+	PS_H264_LAYER_CLEAR,
+	PS_H264_LAYER_PRED,
+	PS_H264_LAYER_RES,
+	PS_H264_LAYER_RES_ENC,
+	PS_H264_RESIDUAL_LUMA,
+	PS_H264_RESIDUAL_CHROMA,
+	PS_H264_INTRAPRED_4X4,
+	PS_H264_INTRAPRED_16X16,
+	PS_H264_INTERPRED,
+	PS_H264_INTERPRED_LUMA,
+	PS_H264_INTERPRED_CHROMA,
+	PS_H264_SYNC,
+	PS_H264_SYNC_OVL,
+	PS_MP2,
+	PS_MP2_DECODE,
+	PS_MP2_TRANSFORM,
+	PS_MIXER,
+
 	PS_NUM_SLOTS
 } ProfileSlot;
 
@@ -54,6 +78,7 @@ extern uint64_t slot_frame_cur[PS_NUM_SLOTS];
 void profile_init(void);
 void profile_next_frame(void);
 void profile_dump(void);
+void profile_set_target_fps(float fps);
 static inline void profile_record(ProfileSlot slot, int32_t len) {
 	// High part: profile record
 	// Low part: number of occurrences
