@@ -93,23 +93,31 @@ int mpeg2_get_width(mpeg2_t *mp2);
 int mpeg2_get_height(mpeg2_t *mp2);
 
 /**
+ * @brief Get the display aspect ratio (DAR) of the stream.
+ *
+ * For normal video streams with square pixels, this will be identical
+ * to width/height. Some streams might be anamorphic, meaning that the picture
+ * has been encoded with non-square pixels. In this case, the aspect ratio
+ * will be different, and must be used to correctly display the video.
+ * 
+ * Notice that MPEG-1 has very limited support for aspect ratios. To allow for
+ * full anamorphic support, we support a libdragon-specific user data fragment
+ * embedded in the video stream, which allows to specify arbitrary aspect ratios.
+ * This user-data fragment is created by videoconv64, but will be missing if
+ * the video is encoded using other tools.
+ */
+float mpeg2_get_aspect_ratio(mpeg2_t *mp2);
+
+/**
  * @brief Get the YUV colorspace for the stream.
  *
- * MPEG-1 playback in libdragon is assumed to use BT.601 TV range.
+ * This function is provided for completeness, but all MPEG-1 videos must/should be
+ * encoded as BT.601 with TV range, so this function will always return
+ * #YUV_BT601_TV.
  *
  * @return A colorspace structure (by value).
  */
 yuv_colorspace_t mpeg2_get_colorspace(mpeg2_t *mp2);
-
-/**
- * @brief Get the display aspect ratio (DAR) of the stream.
- *
- * This uses libdragon proprietary SAR embedded as MPEG-1 user_data (LD_SAR=NUM:DEN)
- * when present; otherwise it falls back to the MPEG-1 sequence header aspect code.
- *
- * @return float        DAR (eg: 16.0f/9.0f). Returns 0 on error.
- */
-float mpeg2_get_aspect_ratio(mpeg2_t *mp2);
 
 /**
  * @brief Decode the next frame in the video stream
