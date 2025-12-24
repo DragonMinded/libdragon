@@ -15,6 +15,7 @@
 #include <math.h>
 #include <string.h>
 #include <algorithm>
+#include <sys/stat.h>
 
 using json = nlohmann::json;
 
@@ -24,6 +25,12 @@ static double parse_fraction(const std::string& s) {
 	double num = atof(s.substr(0, slash).c_str());
 	double den = atof(s.substr(slash + 1).c_str());
 	return den != 0.0 ? (num / den) : 0.0;
+}
+
+static int64_t file_size_bytes(const std::string& path) {
+	struct stat st;
+	if (stat(path.c_str(), &st) != 0) return -1;
+	return (int64_t)st.st_size;
 }
 
 static int round_up(int v, int align) {
@@ -80,7 +87,7 @@ static SourceMeta ffprobe_analyze_source(void) {
 		cfg.ffprobe_path,
 		"-v", "error",
 		"-select_streams", "v:0",
-		"-show_entries", "stream=width,height,sample_aspect_ratio,avg_frame_rate,r_frame_rate,pix_fmt,duration,color_space,color_range,color_primaries,color_transfer",
+		"-show_entries", "stream=width,height,sample_aspect_ratio,avg_frame_rate,r_frame_rate,pix_fmt,duration,bit_rate,color_space,color_range,color_primaries,color_transfer",
 		"-of", "json",
 		cfg.input_file,
 	};
@@ -94,6 +101,7 @@ static SourceMeta ffprobe_analyze_source(void) {
 		json j = json::parse(out);
 		if (!j.contains("streams") || j["streams"].empty()) fatal("ffprobe: no streams found");
 		json s = j["streams"][0];
+		int64_t bit_rate = 0;
 
 		m.width = s.value("width", 0);
 		m.height = s.value("height", 0);
@@ -118,6 +126,25 @@ static SourceMeta ffprobe_analyze_source(void) {
 		if (s.contains("duration")) {
 			if (s["duration"].is_string()) m.duration = atof(s["duration"].get<std::string>().c_str());
 			else if (s["duration"].is_number()) m.duration = s["duration"].get<double>();
+		}
+
+		// Extract bitrate if available (useful to estimate duration for elementary streams).
+		if (s.contains("bit_rate")) {
+			if (s["bit_rate"].is_string()) bit_rate = atoll(s["bit_rate"].get<std::string>().c_str());
+			else if (s["bit_rate"].is_number_integer()) bit_rate = s["bit_rate"].get<int64_t>();
+			else if (s["bit_rate"].is_number()) bit_rate = (int64_t)s["bit_rate"].get<double>();
+		}
+
+		// Best-effort duration estimation for elementary streams (.m1v/.h264) where ffprobe often can't provide it.
+		if (!(m.duration > 0.0)) {
+			// Fast estimate: duration ~= size_bits / bit_rate
+			if (bit_rate > 0) {
+				int64_t sz = file_size_bytes(cfg.input_file);
+				if (sz > 0) {
+					m.duration = ((double)sz * 8.0) / (double)bit_rate;
+					verbose(1, "Duration: estimated from bitrate (%.3fs)", m.duration);
+				}
+			}
 		}
 	} catch (const std::exception& e) {
 		fatal("ffprobe: JSON parse error: %s", e.what());
