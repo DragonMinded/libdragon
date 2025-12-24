@@ -288,14 +288,31 @@ inline bool sys_bbplayer(void) {
 }
 
 /**
- * @brief Read the number of ticks since system startup
+ * @brief Read the number of ticks since system startup (wall time)
  *
  * The frequency of this counter is #TICKS_PER_SECOND. The counter will
  * never overflow, being a 64-bit number.
- *
+ * 
  * @return The number of ticks since system startup
  */
 uint64_t get_ticks(void);
+
+/**
+ * @brief Read the number of ticks since system startup (user time)
+ *
+ * This function is similar to #get_ticks, but it returns the number of ticks
+ * spent in "user time", that is excluding the "system time". This is useful
+ * to measure the actual CPU time spent doing an operation, subtracting all the
+ * various wait/spin loops and interrupts.
+ *
+ * For instance, calling #get_user_ticks() once at each main loop iteration,
+ * and then subtracting the result from the previous iteration, will give the
+ * actual CPU time spent preparing the frame, excluding all the waiting for
+ * vblank or for RSP to finish its work and interrupts.
+ * 
+ * @return The number of ticks since system startup (user time)
+ */
+uint64_t get_user_ticks(void);
 
 /**
  * @brief Read the number of microseconds since system startup
