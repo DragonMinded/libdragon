@@ -34,7 +34,7 @@ enum {
 
 static const uint8_t *last_packed_delta_buf = NULL;
 
-void rsph264_init(void)
+inline void rsph264_init(void)
 {
     rspq_init();
     rsph264_inter_ovl_id = rspq_overlay_register(&rsph264_inter);
@@ -42,27 +42,27 @@ void rsph264_init(void)
     rspq_overlay_share_state(&rsph264_inter, &rsph264_intra);
 }
 
-void rsph264_begin_frame(void)
+inline void rsph264_begin_frame(void)
 {
     last_packed_delta_buf = NULL;
 }
 
-void rsph264_end_frame(void)
+inline void rsph264_end_frame(void)
 {
     
 }
 
-void rsph264_sync(void)
+inline void rsph264_sync(void)
 {
     rspq_wait();
 }
 
-void rsph264_queue_debug_random_status(void)
+inline void rsph264_queue_debug_random_status(void)
 {
     // TODO: implement
 }
 
-void rsph264_queue_interpolate_luma_overfill(
+inline void rsph264_queue_interpolate_luma_overfill(
     int cache_flags,
     const uint8_t *frame, uint32_t frame_pitch,
     uint8_t *dst, uint32_t dst_pitch,
@@ -92,7 +92,7 @@ void rsph264_queue_interpolate_luma_overfill(
         0);
 }
 
-void rsph264_queue_interpolate_chroma_overfill(
+inline void rsph264_queue_interpolate_chroma_overfill(
     int cache_flags,
     const uint8_t *frame, uint32_t frame_pitch,
     uint8_t *dst, uint32_t dst_pitch,
@@ -122,7 +122,7 @@ void rsph264_queue_interpolate_chroma_overfill(
 }
 
 
-void rsph264_queue_intrapred_luma_4x4(
+inline void rsph264_queue_intrapred_luma_4x4(
     int cache_flags,
     const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
     uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
@@ -153,7 +153,7 @@ void rsph264_queue_intrapred_luma_4x4(
         mode, availability);
 }
 
-void rsph264_queue_intrapred_luma_16x16(
+inline void rsph264_queue_intrapred_luma_16x16(
     int cache_flags,
     const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
     uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
@@ -180,7 +180,7 @@ void rsph264_queue_intrapred_luma_16x16(
         mode, availability);
 }
 
-void rsph264_queue_intrapred_chroma_8x8(
+inline void rsph264_queue_intrapred_chroma_8x8(
     int cache_flags,
     const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
     uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
@@ -207,7 +207,7 @@ void rsph264_queue_intrapred_chroma_8x8(
         mode, availability);
 }
 
-void rsph264_queue_process_luma_intra4_residual(
+inline void rsph264_queue_process_luma_intra4_residual(
     int cache_flags,
     const uint8_t *src, uint8_t *dst,
     uint32_t src_pitch, uint32_t dst_pitch,
@@ -241,7 +241,7 @@ void rsph264_queue_process_luma_intra4_residual(
         PhysicalAddr(totalCoeff));
 }
 
-void rsph264_queue_process_luma_intra16_residual(
+inline void rsph264_queue_process_luma_intra16_residual(
     int cache_flags,
     const uint8_t *src, uint8_t *dst,
     uint32_t src_pitch, uint32_t dst_pitch,
@@ -273,7 +273,7 @@ void rsph264_queue_process_luma_intra16_residual(
 }
 
 
-void rsph264_queue_set_packed_delta_buffer_if_changed(
+inline void rsph264_queue_set_packed_delta_buffer_if_changed(
     int cache_flags,
     const uint8_t *src) {
 
@@ -284,7 +284,7 @@ void rsph264_queue_set_packed_delta_buffer_if_changed(
     }
 }
 
-void rsph264_queue_set_packed_delta_buffer(
+inline void rsph264_queue_set_packed_delta_buffer(
     int cache_flags,
     const uint8_t *src) {
 
@@ -316,7 +316,7 @@ static void internal_queue_dequant_transform_residual(
         PhysicalAddr(dst2));
 }
 
-void rsph264_queue_dequant_transform_residual(
+inline void rsph264_queue_dequant_transform_residual(
     int cache_flags,
     uint8_t *dst, uint32_t dst_pitch,
     const int16_t *dc, uint32_t qp, uint32_t ac
@@ -337,7 +337,7 @@ void rsph264_queue_dequant_transform_residual(
 }
 
 
-void rsph264_queue_transform_dequant_lumadc(
+inline void rsph264_queue_transform_dequant_lumadc(
     int cache_flags,
     int16_t *dst, uint32_t qp
 ) {
@@ -359,7 +359,7 @@ void rsph264_queue_transform_dequant_lumadc(
     // queue_push_end();
 }
 
-void rsph264_queue_transform_dequant_chromadc(
+inline void rsph264_queue_transform_dequant_chromadc(
     int cache_flags,
     int16_t *dst, uint32_t qp
 ) {
@@ -381,7 +381,7 @@ void rsph264_queue_transform_dequant_chromadc(
     // queue_push_end();
 }
 
-void rsph264_queue_process_luma_inter_residual(
+inline void rsph264_queue_process_luma_inter_residual(
     int cache_flags,
     uint8_t *dst, uint32_t dst_pitch,
     const int16_t *dc, uint32_t qp, const uint8_t *totalCoeff
@@ -404,7 +404,7 @@ void rsph264_queue_process_luma_inter_residual(
         cache_flags, dst, NULL, dst_pitch, dc, qp, (uint32_t)totalCoeff);
 }
 
-void rsph264_queue_process_chroma_residual(
+inline void rsph264_queue_process_chroma_residual(
     int cache_flags,
     uint8_t *dst1, uint8_t *dst2, uint32_t dst_pitch,
     uint32_t qp, const uint8_t *totalCoeff
@@ -430,7 +430,7 @@ void rsph264_queue_process_chroma_residual(
         cache_flags, dst1, dst2, dst_pitch, NULL, qp, (uint32_t)totalCoeff);
 }
 
-void rsph264_queue_interpolate_all_overfill(
+inline void rsph264_queue_interpolate_all_overfill(
     int cache_flags,
     const uint8_t *frame_luma, uint32_t frame_pitch,
     uint8_t *dst_luma, uint8_t *dst_chroma1, uint8_t *dst_chroma2, uint32_t dst_pitch,
