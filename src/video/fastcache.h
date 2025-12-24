@@ -1,3 +1,7 @@
+/**
+ * @file fastcache.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef FASTCACHE_H
 #define FASTCACHE_H
 

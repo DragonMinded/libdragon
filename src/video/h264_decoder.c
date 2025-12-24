@@ -1,3 +1,7 @@
+/**
+ * @file h264_decoder.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 
 #if 0 // Enable debug prints
 //#define _DEBUG_PRINT

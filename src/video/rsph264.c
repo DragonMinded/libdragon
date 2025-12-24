@@ -1,3 +1,7 @@
+/**
+ * @file rsph264.c
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #include "rsph264_internal.h"
 #include "rspq.h"
 #include "fastcache.h"

@@ -1,3 +1,7 @@
+/**
+ * @file h264.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 #ifndef LIBDRAGON_H264_H
 #define LIBDRAGON_H264_H
 

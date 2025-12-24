@@ -1,3 +1,7 @@
+/**
+ * @file rsph264_internal.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
 /*
  * RSPH264 - low-level interface library to RSP ucode
  *
