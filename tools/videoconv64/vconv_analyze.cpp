@@ -33,8 +33,8 @@ static int64_t file_size_bytes(const std::string& path) {
 	return (int64_t)st.st_size;
 }
 
-static int round_up(int v, int align) {
-	return (v + align - 1) / align * align;
+static int round_down(int v, int align) {
+	return v / align * align;
 }
 
 static int gcd_int(int a, int b) {
@@ -301,8 +301,8 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 	double dar = ((double)r.meta.width * r.meta.par) / (double)r.meta.height;
 	int req_w = cfg.width;
 	int req_h = (dar > 0.0) ? (int)floor(((double)req_w / dar) + 0.5) : r.meta.height;
-	r.out_width = round_up(req_w, ci.align_w);
-	r.out_height = round_up(req_h, ci.align_h);
+	r.out_width = round_down(req_w, ci.align_w);
+	r.out_height = round_down(req_h, ci.align_h);
 
 	verbose(1, "Target: %dx%d -> %dx%d (align %dx%d)",
 		req_w, req_h, r.out_width, r.out_height, ci.align_w, ci.align_h);
@@ -329,8 +329,10 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 		// to the effective 4:3-visible height (avoid VI downscale).
 		if (target_h == N64_MAX_H && dar > (4.0 / 3.0) + 1e-6) {
 			int vis_h = (int)floor((double)N64_MAX_H * (4.0 / 3.0) / dar + 0.5);
-			// Ensure codec alignment and don't exceed the cap.
-			vis_h = round_up(vis_h, ci.align_h);
+			// Ensure codec alignment and don't exceed the cap. 
+			// Round down for alignment because it doesn't make sense to
+			// have more data if we're going to be scaled down by the VI anyway.
+			vis_h = round_down(vis_h, ci.align_h);
 			if (vis_h < ci.align_h) vis_h = ci.align_h;
 			if (vis_h > N64_MAX_H) vis_h = N64_MAX_H;
 			if (vis_h != target_h) {
