@@ -37,6 +37,7 @@ int main(void)
 	rdpq_init();
 	profile_init();
 	yuv_init();
+	joypad_init();
 
 	audio_init(AUDIO_HZ, 4);
 	mixer_init(8);
@@ -114,12 +115,17 @@ int main(void)
 	mixer_ch_play(0, &audio_track.wave);
 
 	int nframes = 0;
+	bool show_fps = false;
 
 	rdpq_font_t *fnt = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO);
 	rdpq_text_register_font(1, fnt);
 
 	while (1)
 	{
+		joypad_poll();
+		joypad_buttons_t btn = joypad_get_buttons_pressed(JOYPAD_PORT_1);
+		if (btn.z) show_fps = !show_fps;
+
 		// mixer_throttle(AUDIO_HZ / fps);
 
 		if (!h264_next_frame(video_track))
@@ -139,7 +145,9 @@ int main(void)
 		yuv_blitter_run(&yuv, &frame);
 		PROFILE_STOP(PS_YUV, 0);
 
-		rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, display_get_width() - 70, 15, "FPS: %.02f", display_get_fps());
+		if (show_fps)
+			rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, display_get_width() - 70, 15,
+				"FPS: %.02f", display_get_fps());
 
 		rdpq_detach_show();
 
@@ -158,4 +166,6 @@ int main(void)
 			profile_init();
 		}
 	}
+
+	vi_blank(true);
 }
