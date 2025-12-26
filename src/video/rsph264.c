@@ -75,7 +75,7 @@ inline void rsph264_queue_interpolate_luma_overfill(
     // Our RSP implementation assumes that dst is aligned to
     // the block size, as it should be a macroblock partition.
     int block_width = block_size >> 16;
-    int block_height = block_size & 0xFFFF;
+    // int block_height = block_size & 0xFFFF;
 
     assert(((uint32_t)dst & (block_width-1)) == 0);
 #if 0
@@ -105,7 +105,7 @@ inline void rsph264_queue_interpolate_chroma_overfill(
     // Our RSP implementation assumes that dst is aligned to
     // the block size, as it should be a macroblock partition.
     int block_width = block_size >> 16;
-    int block_height = block_size & 0xFFFF;
+    // int block_height = block_size & 0xFFFF;
 
     assert(((uint32_t)dst & (block_width-1)) == 0);
 #if 0
