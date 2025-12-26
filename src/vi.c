@@ -616,11 +616,9 @@ void vi_move_output(int x, int y)
     int x0, y0, x1, y1;
     __get_output(&x0, &y0, &x1, &y1);
     
-    int dx = x1 - x0, dy = y1 - y0;
+    int w = x1 - x0, h = y1 - y0;
     vi_write_begin();
-    x0 += dx; x1 += dx;
-    y0 += dy; y1 += dy;
-    vi_set_output(x0, y0, x1, y1);
+    vi_set_output(x, y, x + w, y + h);
     vi_write_end();
 }
 
