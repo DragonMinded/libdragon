@@ -184,11 +184,7 @@ typedef struct {
     bool is_mvp_dirty;
 } gl_matrix_target_t;
 
-typedef struct {
-    int16_t  i[4][4];
-    uint16_t f[4][4];
-} gl_matrix_srv_t;
-_Static_assert(sizeof(gl_matrix_srv_t) == MATRIX_SIZE, "Matrix size does not match");
+_Static_assert(sizeof(mgfx_matrix_t) == MATRIX_SIZE, "Matrix size does not match");
 
 typedef struct {
     uint16_t width;
@@ -367,6 +363,7 @@ typedef struct {
     void (*begin)(GLenum);
     void (*end)();
     void (*vertex)(const void*,GLenum,uint32_t);
+    void (*mtx_index)(const uint8_t*);
     void (*array_element)(uint32_t);
     void (*draw_arrays)(GLenum,uint32_t,uint32_t);
     void (*draw_elements)(GLenum,uint32_t,const void*,GLenum);
@@ -452,9 +449,8 @@ typedef struct {
     native_vertex_t begin_end_saved_vtx;
     ringbuffer begin_end_buffer;
     native_vertex_t *begin_end_current_buffer;
-    GLenum begin_end_mode;
-    mg_primitive_topology_t begin_end_topology;
     uint32_t begin_end_index;
+    uint32_t begin_end_load_index;
     uint32_t begin_end_multiple;
     bool begin_end_need_save;
     bool begin_end_restore;
@@ -510,8 +506,9 @@ typedef struct {
 
     gl_buffer_object_t *array_buffer;
 
-    gl_matrix_srv_t *matrix_stacks[3];
-    gl_matrix_srv_t *matrix_palette;
+    mgfx_matrix_t *matrix_stacks[3];
+    mgfx_matrices_t *matrix_palette;
+    const mg_uniform_t *matrices_uniform;
 
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
@@ -545,7 +542,7 @@ typedef struct {
 } gl_pipeline_data_t;
 
 typedef struct {
-    gl_matrix_srv_t matrices[5];
+    mgfx_matrix_t matrices[4];
     mgfx_light_t lights[LIGHT_COUNT];
     gl_tex_gen_soa_t tex_gen;
     int16_t viewport_scale[4];
@@ -562,8 +559,7 @@ typedef struct {
     int16_t tex_coords[4];
     int8_t normal[3];
     uint8_t mtx_index;
-    phys_addr_t matrix_pointers[5];
-    uint32_t loaded_mtx_index[2];
+    phys_addr_t matrix_pointers[4];
     uint32_t flags;
     gl_fog_params_t fog_params;
     uint16_t tex_size[2];
@@ -579,7 +575,7 @@ typedef struct {
     uint16_t tri_cmd;
     uint8_t tri_cull[2];
 
-    gl_srv_texture_object_t bound_textures[2];
+    gl_srv_texture_object_t __attribute__((aligned(8))) bound_textures[2];
     uint16_t scissor_rect[4];
     uint32_t blend_cycle;
     uint32_t fog_color;
@@ -601,6 +597,8 @@ typedef struct {
 } __attribute__((aligned(8), packed)) gl_server_state_t;
 
 _Static_assert((offsetof(gl_server_state_t, bound_textures) & 0x7) == 0, "Bound textures must be aligned to 8 bytes in server state");
+
+_Static_assert(sizeof(mgfx_matrices_t) == MATRICES_SIZE, "Matrices size doesn't match!");
 
 void gl_matrix_init();
 void gl_texture_init();
@@ -867,7 +865,7 @@ inline void gl_set_current_mtx_index(GLubyte *index)
 
 inline void gl_set_palette_idx(uint32_t index)
 {
-    gl_write(GL_CMD_SET_PALETTE_IDX, index * sizeof(gl_matrix_srv_t));
+    gl_write(GL_CMD_SET_PALETTE_IDX, index * sizeof(mgfx_matrices_t) + offsetof(mgfx_matrices_t, mv));
 }
 
 inline color_t color_from_floats(const float color[4])

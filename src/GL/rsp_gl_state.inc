@@ -4,7 +4,6 @@ GL_STATE:
         GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
         GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
         GL_MATRIX_PALETTE:      .ds.b   MATRIX_SIZE
-        GL_MATRIX_MVP:          .ds.b   MATRIX_SIZE
     GL_LIGHTS:              .ds.b   MGFX_LIGHT_SIZE * LIGHT_COUNT
     GL_TEX_GEN:             .ds.b   TEX_GEN_STRUCT_SIZE
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
@@ -27,8 +26,6 @@ GL_STATE:
         GL_PROJECTION_PTR:      .word   0
         GL_TEXTURE_PTR:         .word   0
         GL_PALETTE_PTR:         .word   0
-        GL_MVP_PTR:             .word   0
-    GL_LOADED_MTX_INDEX:    .word   0,0
     GL_STATE_FLAGS:         .word   0
     GL_STATE_FOG_PARAMS:    .half   0,0,0,0
     GL_STATE_TEX_SIZE:      .half   0,0

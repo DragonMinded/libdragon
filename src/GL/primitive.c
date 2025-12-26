@@ -337,6 +337,7 @@ void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
     if (!state->begin_end_active) {
         gl_set_current_mtx_index(state->current_attributes.mtx_index);
     }
+    state->current_pipeline->mtx_index(state->current_attributes.mtx_index);
 }
 
 #define __ATTR_IMPL(func, argtype, enumtype, ...) ({\

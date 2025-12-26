@@ -101,18 +101,18 @@ void gl_init()
     server_state->tex_gen.integer[1][0][1] = 1;
     server_state->tex_gen.integer[1][1][1] = 1;
 
-    state->matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
-    state->matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
-    state->matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);
-    state->matrix_palette = malloc_uncached(sizeof(gl_matrix_srv_t) * MATRIX_PALETTE_SIZE * 2); // Double size for mvp-matrices
+    state->matrix_stacks[0] = malloc_uncached(sizeof(mgfx_matrix_t) * MODELVIEW_STACK_SIZE);
+    state->matrix_stacks[1] = malloc_uncached(sizeof(mgfx_matrix_t) * PROJECTION_STACK_SIZE);
+    state->matrix_stacks[2] = malloc_uncached(sizeof(mgfx_matrix_t) * TEXTURE_STACK_SIZE);
+    state->matrix_palette = malloc_uncached(sizeof(mgfx_matrices_t) * MATRIX_PALETTE_SIZE);
+    memset(state->matrix_palette, 0xff, sizeof(mgfx_matrices_t) * MATRIX_PALETTE_SIZE);
 
     server_state->matrix_pointers[0] = PhysicalAddr(state->matrix_stacks[0]);
     server_state->matrix_pointers[1] = PhysicalAddr(state->matrix_stacks[1]);
     server_state->matrix_pointers[2] = PhysicalAddr(state->matrix_stacks[2]);
     server_state->matrix_pointers[3] = PhysicalAddr(state->matrix_palette);
-    server_state->matrix_pointers[4] = PhysicalAddr(state->matrix_palette + MATRIX_PALETTE_SIZE);
-    server_state->loaded_mtx_index[0] = -1;
-    server_state->loaded_mtx_index[1] = -1;
+
+    server_state->palette_index = offsetof(mgfx_matrices_t, mv);
 
     server_state->flags |= FLAG_FINAL_MTX_DIRTY;
 

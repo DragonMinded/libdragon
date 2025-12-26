@@ -16,6 +16,8 @@
 #define VERTEX_UNIT_COUNT     1
 #define MATRIX_PALETTE_SIZE   32
 
+#define MATRICES_SIZE         160
+
 #define VERTEX_CACHE_SIZE     32
 
 #define CLIPPING_PLANE_COUNT  6

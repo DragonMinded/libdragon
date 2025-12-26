@@ -7,9 +7,12 @@
 
 #include "gl_internal.h"
 #include "rsp_asm.h"
+#include "magma_constants.h"
 #include "mgfx.h"
 #include "rdpq_debug.h"
 #include "../magma/magma_internal.h"
+
+_Static_assert(BEGIN_END_BUFFER_SIZE <= MG_VERTEX_CACHE_COUNT);
 
 extern gl_state_t *state;
 
@@ -196,7 +199,7 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     }
 }
 
-void begin_end_next_buffer()
+static void begin_end_next_buffer()
 {
     if (rspq_block_is_recording()) {
         state->begin_end_current_buffer = malloc_uncached(sizeof(native_vertex_t) * BEGIN_END_BUFFER_SIZE);
@@ -205,14 +208,16 @@ void begin_end_next_buffer()
         state->begin_end_current_buffer = ringbuffer_alloc_next(&state->begin_end_buffer);
     }
     state->begin_end_index = 0;
+    state->begin_end_load_index = 0;
+    mg_bind_vertex_buffer(state->begin_end_current_buffer);
 }
 
-native_vertex_t *begin_end_get_current_vertex()
+static native_vertex_t *begin_end_get_current_vertex()
 {
     return state->begin_end_current_buffer + state->begin_end_index;
 }
 
-uint32_t get_begin_end_multiple(GLenum mode)
+static uint32_t get_begin_end_multiple(GLenum mode)
 {
     switch (mode)
     {
@@ -235,7 +240,7 @@ uint32_t get_begin_end_multiple(GLenum mode)
     }
 }
 
-bool get_begin_end_need_save(GLenum mode)
+static bool get_begin_end_need_save(GLenum mode)
 {
     switch (mode)
     {
@@ -255,7 +260,7 @@ bool get_begin_end_need_save(GLenum mode)
     }
 }
 
-const vertex_layout *get_current_layout()
+static const vertex_layout *get_current_layout()
 {
     if (state->begin_end_active) {
         return &state->begin_end_layout;
@@ -330,6 +335,10 @@ static void update_pipeline(const vertex_layout *layout)
         uint32_t packed = ((sizeof(gl_pipeline_data_t)*i) << 16) | (ROUND_UP(pipelines[i]->shader_code_size, 8) - 1);
         gl2_write(GL_CMD_SET_PIPELINE, PhysicalAddr(pipelines[i]->shader_code), packed);
     }
+
+    if (state->matrices_uniform == NULL) {
+        state->matrices_uniform = mg_pipeline_get_uniform(pipelines[0], MGFX_BINDING_MATRICES);
+    }
 }
 
 static void prepare_drawing_with_magma()
@@ -345,7 +354,6 @@ static void prepare_drawing_with_magma()
 static void gl_rsp_begin(GLenum mode)
 {
     state->primitive_mode = mode;
-    state->begin_end_topology = get_primitive_topology(mode);
     state->begin_end_multiple = get_begin_end_multiple(mode);
     state->begin_end_need_save = get_begin_end_need_save(mode);
 
@@ -360,12 +368,47 @@ static void gl_rsp_begin(GLenum mode)
     begin_end_next_buffer();
 }
 
-void begin_end_draw_current_buffer()
+__attribute__((noinline))
+static void begin_end_load()
 {
-    mg_bind_vertex_buffer(state->begin_end_current_buffer);
-    mg_draw(&(mg_input_assembly_parms_t) {
-        .primitive_topology = state->begin_end_topology
-    }, state->begin_end_index, 0);
+    if (state->begin_end_index > state->begin_end_load_index) {
+        mg_load_vertices(state->begin_end_load_index, state->begin_end_load_index, state->begin_end_index - state->begin_end_load_index);
+        state->begin_end_load_index = state->begin_end_index;
+    }
+}
+
+static uint32_t draw_batch(GLenum mode, uint32_t count, uint32_t cache_offset)
+{
+    switch (mode) {
+        case GL_TRIANGLES:
+        {
+            size_t prim_count = count / 3;
+            for (size_t i = 0; i < prim_count; i++) mg_draw_triangle(3*i, 3*i+1, 3*i+2);
+            return cache_offset;
+        }
+        case GL_TRIANGLE_STRIP:
+        {
+            size_t prim_count = MAX(0, count - 2);
+            for (size_t i = 0; i < prim_count; i++) mg_draw_triangle(i, i + 1 + i%2, i + 2 - i%2);
+            return cache_offset;
+        }
+        case GL_TRIANGLE_FAN:
+        {
+            size_t prim_count = MAX(0, count - 2 + cache_offset);
+            for (size_t i = 0; i < prim_count; i++) mg_draw_triangle(i+1, i+2, 0);
+            return 1;
+        }
+        default:
+        {
+            return cache_offset;
+        }
+    }
+}
+
+static void begin_end_draw_current_buffer()
+{
+    begin_end_load();
+    draw_batch(state->primitive_mode, state->begin_end_index, 0);
 
     if (!rspq_block_is_recording()) ringbuffer_release_current(&state->begin_end_buffer);
 }
@@ -381,16 +424,16 @@ static void gl_rsp_end()
     mg_draw_end();
 }
 
-void begin_end_append_vtx(const native_vertex_t *vtx)
+static void begin_end_append_vtx(const native_vertex_t *vtx)
 {
     memcpy(begin_end_get_current_vertex(), vtx, sizeof(native_vertex_t));
     state->begin_end_index++;
 }
 
-void begin_end_prep_next_buffer(const native_vertex_t *prev_end)
+static void begin_end_prep_next_buffer(const native_vertex_t *prev_end)
 {
     // Appending these vertices is guaranteed to not overflow the buffer since we just started a fresh one
-    switch (state->begin_end_mode) {
+    switch (state->primitive_mode) {
     case GL_TRIANGLE_STRIP:
     {
         // The two previous vertices
@@ -410,7 +453,7 @@ void begin_end_prep_next_buffer(const native_vertex_t *prev_end)
     }
 }
 
-void begin_end_advance()
+static void begin_end_advance()
 {
     begin_end_append_vtx(&state->current_attribs);
 
@@ -430,7 +473,7 @@ void begin_end_advance()
     }
 }
 
-void *get_attrib_dst(gl_array_type_t array_type)
+static void *get_attrib_dst(gl_array_type_t array_type)
 {
     switch (array_type)
     {
@@ -463,6 +506,19 @@ static void gl_rsp_vertex(const void *value, GLenum type, uint32_t size)
 {
     rsp_read_attrib(ATTRIB_VERTEX, type, value, size);
     begin_end_advance();
+}
+
+static void load_matrix(uint8_t mtx_index)
+{
+    mg_uniform_load(state->matrices_uniform, state->matrix_palette + mtx_index);
+}
+
+static void gl_rsp_mtx_index(const uint8_t *mtx_index)
+{
+    if (state->begin_end_active) {
+        begin_end_load();
+        load_matrix(*mtx_index);
+    }
 }
 
 static void gl_rsp_array_element(uint32_t index)
@@ -500,14 +556,74 @@ static void prepare_drawing_from_arrays(uint32_t first, uint32_t count)
     }
 }
 
+#define TRI_LIST_ADVANCE_COUNT ROUND_DOWN(MG_VERTEX_CACHE_COUNT, 3)
+
+static void draw_skinned(GLenum mode, uint32_t first, uint32_t count)
+{
+    uint32_t cache_offset = 0;
+    uint32_t next_cache_offset = 0;
+    uint32_t advance_count = 0;
+    uint32_t batch_size = 0;
+    switch (mode) {
+    case GL_TRIANGLES:
+        advance_count = TRI_LIST_ADVANCE_COUNT;
+        batch_size = TRI_LIST_ADVANCE_COUNT;
+        break;
+    case GL_TRIANGLE_STRIP:
+        advance_count = MG_VERTEX_CACHE_COUNT - 2;
+        batch_size = MG_VERTEX_CACHE_COUNT;
+        break;
+    case GL_TRIANGLE_FAN:
+        advance_count = MG_VERTEX_CACHE_COUNT - 1;
+        batch_size = MG_VERTEX_CACHE_COUNT;
+        break;
+    }
+
+    gl_array_t *mtx_index_array = &state->array_object->arrays[ATTRIB_MTX_INDEX];
+    
+    uint8_t prev_mtx_index = 0;
+
+    for (uint32_t current_vertex = 0; current_vertex < count; current_vertex += advance_count - cache_offset)
+    {
+        cache_offset = next_cache_offset;
+        uint32_t load_count = MIN(batch_size - cache_offset, count - current_vertex);
+
+        uint32_t batch_offset = 0;
+
+        for (size_t i = 0; i < load_count; i++)
+        {
+            uint8_t mtx_index;
+            mtx_index_array->cpu_read_func(&mtx_index, gl_get_attrib_element(mtx_index_array, current_vertex + first + i), 1);
+            if (mtx_index != prev_mtx_index) {
+                if (i != 0) {
+                    mg_load_vertices(current_vertex + first + batch_offset, cache_offset + batch_offset, i - batch_offset);
+                }
+                load_matrix(mtx_index);
+                batch_offset = i;
+                prev_mtx_index = mtx_index;
+            }
+        }
+
+        if (batch_offset < load_count) {
+            mg_load_vertices(current_vertex + first + batch_offset, cache_offset + batch_offset, load_count - batch_offset);
+        }
+
+        next_cache_offset = draw_batch(mode, load_count, cache_offset);
+    }
+}
+
 static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 {
     prepare_drawing_from_arrays(first, count);
     mg_draw_begin();
-    // TODO: record into block?
-    mg_draw(&(mg_input_assembly_parms_t) {
-        .primitive_topology = get_primitive_topology(mode)
-    }, count, first);
+    if (state->array_object->arrays[ATTRIB_MTX_INDEX].enabled) {
+        draw_skinned(mode, first, count);
+    } else {
+        // TODO: record into block?
+        mg_draw(&(mg_input_assembly_parms_t) {
+            .primitive_topology = get_primitive_topology(mode)
+        }, count, first);
+    }
     mg_draw_end();
 }
 
@@ -603,6 +719,7 @@ const gl_pipeline_t gl_rsp_pipeline = (gl_pipeline_t) {
     .begin = gl_rsp_begin,
     .end = gl_rsp_end,
     .vertex = gl_rsp_vertex,
+    .mtx_index = gl_rsp_mtx_index,
     .array_element = gl_rsp_array_element,
     .draw_arrays = gl_rsp_draw_arrays,
     .draw_elements = gl_rsp_draw_elements,

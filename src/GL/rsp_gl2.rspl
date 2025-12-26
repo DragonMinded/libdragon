@@ -7,7 +7,9 @@ state {
     extern vec16 GL_MATRIX_MODELVIEW[4];
     extern vec16 GL_MATRIX_PROJECTION[4];
     extern vec16 GL_MATRIX_TEXTURE[4];
-    extern vec16 GL_MATRIX_MVP[4];
+    extern vec16 GL_MATRIX_PALETTE[4];
+    extern u32 GL_PALETTE_PTR;
+    extern u32 GL_STATE_PALETTE_INDEX;
     extern u8 GL_LIGHTS;
     extern u8 GL_TEX_GEN;
     extern u16 GL_VIEWPORT_SCALE[4];
@@ -17,6 +19,7 @@ state {
     extern u16 GL_STATE_FOG_PARAMS[4];
     extern s16 GL_STATE_TEX_SIZE[2];
     extern s16 GL_STATE_TEX_OFFSET[2];
+    extern u8 GL_CUR_MTX_INDEX;
     extern u16 GL_TRI_CMD;
     extern u8 GL_TRI_CULL;
 }
@@ -52,10 +55,11 @@ temp_state {
 }
 
 function DmaMagmaState();
+function GL_MtxMult();
 
 command<4> GLCmd_PreInitMagma(u32 statePtr)
 {
-    u32 flags = load(GL_STATE_FLAGS, 0);
+    u32<$k0> flags = load(GL_STATE_FLAGS, 0);
 
     // Pipeline
     {
@@ -153,35 +157,86 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
 
     // Matrices
     {
-        vec32 m0;
-        vec32 m1;
-        m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
-        m1:sint   = load(GL_MATRIX_MODELVIEW, 0x10);
-        m0:ufract = load(GL_MATRIX_MODELVIEW, 0x20);
-        m1:ufract = load(GL_MATRIX_MODELVIEW, 0x30);
+        u32<$s0> rdram_ptr;
+        u16<$s4> dmem_ptr;
+        u16<$s5> mtx_lhs;
+        u16<$s6> mtx_rhs;
+        u16<$s7> mtx_dst;
 
-        store(m0:sint, MATRICES_MV, 0x00);
-        store(m1:sint, MATRICES_MV, 0x10);
-        store(m0:ufract, MATRICES_MV, 0x20);
-        store(m1:ufract, MATRICES_MV, 0x30);
+        mtx_lhs = GL_MATRIX_PROJECTION;
+        mtx_dst = MATRICES_MVP;
 
-        // TODO: transpose inverse
-        m0 = m0 >> 1;
-        m1 = m1 >> 1;
+        u32 palette_enabled = flags & 0x4000; // FLAG_MATRIX_PALETTE
+        if (palette_enabled != 0)
+        {
+            u32 palette_index = load(GL_STATE_PALETTE_INDEX);
+            rdram_ptr = load(GL_PALETTE_PTR);
+            rdram_ptr += palette_index;
+            dmem_ptr = GL_MATRIX_PALETTE;
+            dma_out_async(dmem_ptr, rdram_ptr, MATRIX_SIZE);
 
-        store(m0:sfract, MATRICES_NORMAL, 0x00);
-        store(m1:sfract, MATRICES_NORMAL, 0x10);
-    }
+            mtx_rhs = MATRICES_MV;
 
-    {
-        vec16 m0 = load(GL_MATRIX_MVP, 0x00);
-        vec16 m1 = load(GL_MATRIX_MVP, 0x10);
-        vec16 m2 = load(GL_MATRIX_MVP, 0x20);
-        vec16 m3 = load(GL_MATRIX_MVP, 0x30);
-        store(m0, MATRICES_MVP, 0x00);
-        store(m1, MATRICES_MVP, 0x10);
-        store(m2, MATRICES_MVP, 0x20);
-        store(m3, MATRICES_MVP, 0x30);
+            dmem_ptr = MATRICES_MVP;
+            rdram_ptr = load(GL_PALETTE_PTR);
+            u16 i = 0;
+            while (i < MATRIX_PALETTE_SIZE) {
+                dma_in(dmem_ptr, rdram_ptr, MATRICES_SIZE);
+
+                vec32 m0;
+                vec32 m1;
+                m0:sint   = load(MATRICES_MV, 0x00);
+                m1:sint   = load(MATRICES_MV, 0x10);
+                m0:ufract = load(MATRICES_MV, 0x20);
+                m1:ufract = load(MATRICES_MV, 0x30);
+
+                // TODO: transpose inverse
+                m0 = m0 >> 1;
+                m1 = m1 >> 1;
+
+                store(m0:sfract, MATRICES_NORMAL, 0x00);
+                store(m1:sfract, MATRICES_NORMAL, 0x10);
+
+                // TODO: reuse modelview matrix already loaded into registers
+                GL_MtxMult();
+                dma_out_async(dmem_ptr, rdram_ptr, MATRICES_SIZE);
+                rdram_ptr += MATRICES_SIZE;
+                i += 1;
+            }
+
+            u8 cur_mtx_index = load(GL_CUR_MTX_INDEX);
+            u32 tmp = cur_mtx_index << 7;
+            palette_index = cur_mtx_index << 5;
+            palette_index += tmp; // cur_mtx_index * (128 + 32)
+
+            rdram_ptr = load(GL_PALETTE_PTR);
+            rdram_ptr += palette_index;
+            dma_in(dmem_ptr, rdram_ptr, MATRICES_SIZE);
+        }
+        else
+        {
+            mtx_rhs = GL_MATRIX_MODELVIEW;
+            GL_MtxMult();
+
+            vec32 m0;
+            vec32 m1;
+            m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
+            m1:sint   = load(GL_MATRIX_MODELVIEW, 0x10);
+            m0:ufract = load(GL_MATRIX_MODELVIEW, 0x20);
+            m1:ufract = load(GL_MATRIX_MODELVIEW, 0x30);
+
+            store(m0:sint, MATRICES_MV, 0x00);
+            store(m1:sint, MATRICES_MV, 0x10);
+            store(m0:ufract, MATRICES_MV, 0x20);
+            store(m1:ufract, MATRICES_MV, 0x30);
+
+            // TODO: transpose inverse
+            m0 = m0 >> 1;
+            m1 = m1 >> 1;
+
+            store(m0:sfract, MATRICES_NORMAL, 0x00);
+            store(m1:sfract, MATRICES_NORMAL, 0x10);
+        }
     }
 
     // Texturing

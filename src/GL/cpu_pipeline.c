@@ -1030,6 +1030,11 @@ static void gl_cpu_vertex(const void *value, GLenum type, uint32_t size)
     submit_vertex(cache_index);
 }
 
+static void gl_cpu_mtx_index(const uint8_t *mtx_index)
+{
+    // do nothing
+}
+
 static void gl_cpu_array_element(uint32_t index)
 {
     gl_fill_all_attrib_defaults(state->array_object->arrays);
@@ -1109,6 +1114,7 @@ const gl_pipeline_t gl_cpu_pipeline = (gl_pipeline_t) {
     .begin = gl_cpu_begin,
     .end = gl_cpu_end,
     .vertex = gl_cpu_vertex,
+    .mtx_index = gl_cpu_mtx_index,
     .array_element = gl_cpu_array_element,
     .draw_arrays = gl_cpu_draw_arrays,
     .draw_elements = gl_cpu_draw_elements,
