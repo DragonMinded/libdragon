@@ -72,16 +72,16 @@ void mg_draw_end(void)
 void mg_load_vertices(uint32_t buffer_index, uint8_t cache_index, uint32_t count)
 {
     assertf(count > 0, "count must be greater than 0");
-    assertf(count <= MG_VERTEX_CACHE_COUNT, "too many vertices");
-    assertf(cache_index + count <= MG_VERTEX_CACHE_COUNT, "offset out of range");
+    assertf(count <= MG_VERTEX_CACHE_COUNT, "too many vertices: %lu", count);
+    assertf(cache_index + count <= MG_VERTEX_CACHE_COUNT, "cache_index out of range: %u, count: %lu", cache_index, count);
     mg_cmd_write(MG_CMD_LOAD_VERTICES, buffer_index, (cache_index<<16) | count);
 }
 
 void mg_draw_triangle(uint8_t index0, uint8_t index1, uint8_t index2)
 {
-    assertf(index0 <= MG_VERTEX_CACHE_COUNT, "index0 is out of range");
-    assertf(index1 <= MG_VERTEX_CACHE_COUNT, "index1 is out of range");
-    assertf(index2 <= MG_VERTEX_CACHE_COUNT, "index2 is out of range");
+    assertf(index0 <= MG_VERTEX_CACHE_COUNT, "index0 is out of range: %u", index0);
+    assertf(index1 <= MG_VERTEX_CACHE_COUNT, "index1 is out of range: %u", index1);
+    assertf(index2 <= MG_VERTEX_CACHE_COUNT, "index2 is out of range: %u", index2);
 
     uint16_t i0 = index0 * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE;
     uint16_t i1 = index1 * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE;
