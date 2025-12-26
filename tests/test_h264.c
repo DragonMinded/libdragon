@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#define LIBDRAGON_PROFILE 0
 #include "../src/video/profile.h"
 #include "../src/video/fastcache.h"
 #include "../src/video/rsph264_internal.h"
@@ -1219,7 +1220,6 @@ int main(void)
     console_init();
 
     printf("H264 RSP decoder tests\n\n");
-    profile_init();
 
     my_srand(0);
     uint8_t *pSrc1 = (uint8_t*)malloc_uncached(SRC_PITCH*SRC_PITCH);

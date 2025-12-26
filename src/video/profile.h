@@ -8,7 +8,9 @@
 #include "n64sys.h"
 #include <stdint.h>
 
+#ifndef LIBDRAGON_PROFILE
 #define LIBDRAGON_PROFILE 1
+#endif
 
 // Global enable/disable of libdragon profiler.
 //
