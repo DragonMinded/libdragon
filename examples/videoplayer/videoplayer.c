@@ -35,12 +35,16 @@ int main(void)
 
 	dfs_init(DFS_DEFAULT_LOCATION);
 	rdpq_init();
-	profile_init();
 	yuv_init();
 	joypad_init();
 
 	audio_init(AUDIO_HZ, 4);
 	mixer_init(8);
+
+	// Initialize profiling (FIXME)
+	profile_init(PS_NUM_SLOTS);
+	void __h264_profile_init(void);
+	__h264_profile_init();
 
 	// Check if the movie is present in the filesystem, so that we can provide
 	// a specific error message.
@@ -163,7 +167,7 @@ int main(void)
 		if (nframes % 128 == 0)
 		{
 			profile_dump();
-			profile_init();
+			profile_reset();
 		}
 	}
 

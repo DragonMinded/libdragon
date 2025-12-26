@@ -256,3 +256,21 @@ yuv_frame_t h264_get_frame(h264_t *v)
         .v = surface_make(v->pic + w * h + w2 * h2, FMT_I8, w2, h2, w2),
     };
 }
+
+void __h264_profile_init(void) {
+	profile_register(PS_H264, "H264", 0);
+	profile_register(PS_H264_NAL, "NAL", 1);
+	profile_register(PS_H264_MACROB, "MacroB", 1);
+	profile_register(PS_H264_LAYER, "Layer", 2);
+	profile_register(PS_H264_LAYER_CLEAR, "Clear", 3);
+	profile_register(PS_H264_LAYER_PRED, "Predict", 3);
+	profile_register(PS_H264_LAYER_RES, "Residual", 3);
+	profile_register(PS_H264_LAYER_RES_ENC, "Encode", 4);
+	profile_register(PS_H264_RESIDUAL_LUMA, "Residual Luma", 4);
+	profile_register(PS_H264_RESIDUAL_CHROMA, "Residual Chroma", 4);
+	profile_register(PS_H264_INTRAPRED_4X4, "IntraPred 4x4", 5);
+	profile_register(PS_H264_INTRAPRED_16X16, "IntraPred 16x16", 5);
+	profile_register(PS_H264_INTERPRED, "InterPred", 2);
+	profile_register(PS_H264_INTERPRED_LUMA, "InterPred Luma", 3);
+	profile_register(PS_H264_INTERPRED_CHROMA, "InterPred Chroma", 3);
+}

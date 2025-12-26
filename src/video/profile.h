@@ -5,6 +5,9 @@
 #ifndef PROFILE_H
 #define PROFILE_H
 
+#include "n64sys.h"
+#include <stdint.h>
+
 #define LIBDRAGON_PROFILE 1
 
 // Global enable/disable of libdragon profiler.
@@ -45,8 +48,6 @@ typedef enum {
 	PS_AUDIO,
 	PS_SYNC,
 
-	PS_EMU,
-	PS_EMU_AY8910,
 	PS_H264,
 	PS_H264_NAL,
 	PS_H264_MACROB,
@@ -62,39 +63,67 @@ typedef enum {
 	PS_H264_INTERPRED,
 	PS_H264_INTERPRED_LUMA,
 	PS_H264_INTERPRED_CHROMA,
-	PS_H264_SYNC,
-	PS_H264_SYNC_OVL,
-	PS_MP2,
-	PS_MP2_DECODE,
-	PS_MP2_TRANSFORM,
-	PS_MIXER,
 
 	PS_NUM_SLOTS
 } ProfileSlot;
 
-// Internal data structures, exposed here to allow inlining of profile_record
-extern uint64_t slot_frame_cur[PS_NUM_SLOTS];
+typedef struct {
+	/**
+	 * @brief Number of profiling slots (default: 128)
+	 * 
+	 * This is the number of different categories that can be
+	 * used to profile code sections.
+	 */
+	int num_slots;
 
-void profile_init(void);
+	/**
+	 * @brief Interval in seconds to dump profiling info to stderr (default: 5.0s)
+	 * 
+	 * Use a negative number to disable periodic dumps.
+	 */
+	float dump_stderr_interval;
+} profile_parms_t;
+
+/** @brief Parameters for the profile OSD pane */
+typedef struct {
+	/** @brief Side of the screen to use (0=right (default), 1=left) */
+	int side;
+
+	/** @brief Size of the pane (default: 20% of the screen) */
+	int size;
+} profile_osdparms_t;
+
+void profile_init(int num_slots);
+void profile_close(void);
+void profile_reset(void);
+void profile_register(int slot, const char *name, int nest_level);
 void profile_next_frame(void);
 void profile_dump(void);
 void profile_set_target_fps(float fps);
-static inline void profile_record(ProfileSlot slot, int32_t len) {
-	// High part: profile record
-	// Low part: number of occurrences
-	slot_frame_cur[slot] += ((int64_t)len << 32) + 1;
+
+inline void profile_record(int slot, int32_t len) {
+	extern uint64_t *__profile_counters;
+	__profile_counters[slot] += ((int64_t)len << 32) + 1;
 }
 
 #if LIBDRAGON_PROFILE
 	#define PROFILE_START(slot, n) \
-		uint32_t __prof_start_##slot##_##n = TICKS_READ(); \
+		int64_t __prof_start_##slot##_##n = TICKS_READ() - get_system_ticks(); \
+		MEMORY_BARRIER();
 
 	#define PROFILE_STOP(slot, n) \
-		uint32_t __prof_stop_##slot##_##n = TICKS_READ(); \
-		profile_record(slot, TICKS_DISTANCE(__prof_start_##slot##_##n, __prof_stop_##slot##_##n));
+		MEMORY_BARRIER(); \
+		profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot##_##n);
+
+	#define PROFILE_SCOPE(slot) \
+		for (int64_t __prof_start_##slot = TICKS_READ() - get_system_ticks(); ; ) \
+			for (int __prof_once_##slot = ({ MEMORY_BARRIER(); 1; }); __prof_once_##slot; __prof_once_##slot = 0, \
+				({ MEMORY_BARRIER(); }), \
+				profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot))
 #else
-	#define PROFILE_START(slot, n)  ({ })
-	#define PROFILE_STOP(slot, n)   ({ })
+	#define PROFILE_START(slot, n)  ((void)(false), false)
+	#define PROFILE_STOP(slot, n)   ((void)(false), false)
+	#define PROFILE_SCOPE(slot)     for (bool __prof_once_##slot = true; __prof_once_##slot; __prof_once_##slot = false)
 
 #endif /* LIBDRAGON_PROFILE */
 
