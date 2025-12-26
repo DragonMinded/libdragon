@@ -247,7 +247,7 @@ uint64_t get_ticks_ms(void)
 
 uint64_t get_user_ticks(void)
 {
-    return acct_get_ticks(ACCT_CAT_USER);
+    return get_ticks() - get_system_ticks();
 }
 
 void wait_ticks( unsigned long wait )
@@ -538,4 +538,4 @@ void __bss_check(void)
 /* Inline instantiations */
 extern inline bool sys_bbplayer(void);
 extern inline tv_type_t get_tv_type(void);
-
+extern inline uint64_t get_system_ticks(void);

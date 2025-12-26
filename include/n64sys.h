@@ -290,10 +290,16 @@ inline bool sys_bbplayer(void) {
 /**
  * @brief Read the number of ticks since system startup (wall time)
  *
+ * This function reads the number of overall ticks since system startup. This
+ * is normally called "wall time", as it includes all the time spent by the CPU,
+ * including all the wait/spin loops and interrupts.
+ * 
  * The frequency of this counter is #TICKS_PER_SECOND. The counter will
  * never overflow, being a 64-bit number.
  * 
  * @return The number of ticks since system startup
+ * @see #get_user_ticks
+ * @see #get_system_ticks
  */
 uint64_t get_ticks(void);
 
@@ -311,8 +317,27 @@ uint64_t get_ticks(void);
  * vblank or for RSP to finish its work and interrupts.
  * 
  * @return The number of ticks since system startup (user time)
+ * @see #get_ticks
+ * @see #get_system_ticks
  */
 uint64_t get_user_ticks(void);
+
+/**
+ * @brief Read the number of system ticks since system startup (system time)
+ * 
+ * This function returns the number of ticks spent in "system time", that is
+ * the time spent in wait/spin loops and interrupts. This is useful to measure
+ * how much time the CPU is not doing actual work and is just waiting for hardware
+ * components to finish their tasks.
+ * 
+ * @return The number of system ticks since system startup
+ * @see #get_ticks
+ * @see #get_user_ticks
+ */
+inline uint64_t get_system_ticks(void) {
+    extern uint64_t __acct_system_ticks;
+    return __acct_system_ticks;
+}
 
 /**
  * @brief Read the number of microseconds since system startup
