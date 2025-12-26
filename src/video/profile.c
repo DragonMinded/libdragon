@@ -9,8 +9,6 @@
 #include <memory.h>
 #include <stdio.h>
 
-#define SCALE_RESULTS  2048
-
 static uint64_t slot_total[PS_NUM_SLOTS];
 static uint64_t slot_total_count[PS_NUM_SLOTS];
 static uint64_t total_time;
