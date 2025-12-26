@@ -191,14 +191,6 @@ static const char* h264_status_str(int status) {
 }
 
 static int decode_loop(h264_t *player, uint64_t deadline) {
-    // Check whether the RSP is idle. If it's not, wait for it and account
-    // that time to the YUV blitter.
-    // Normally, the RSP is already idle by the time we get here, which
-    // is exactly what we want: zero wait time.
-    PROFILE_START(PS_YUV, 0);
-    rspq_wait();
-    PROFILE_STOP(PS_YUV, 0);
-
     rsph264_begin_frame();
     while (!deadline || (get_ticks() < deadline)) {
         // If the output buffer is full, we can't decode more, as there
