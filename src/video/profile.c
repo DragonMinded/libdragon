@@ -6,25 +6,36 @@
 #include "debug.h"
 #include "n64sys.h"
 #include "timer.h"
+#include "accounting_internal.h"
 #include <memory.h>
 #include <stdio.h>
 
 static uint64_t slot_total[PS_NUM_SLOTS];
 static uint64_t slot_total_count[PS_NUM_SLOTS];
-static uint64_t total_time;
-static uint64_t last_frame;
+static uint64_t sys_total[ACCT_CAT_MAX];
+static uint64_t total_time_wall;
+static uint64_t total_time_user;
+static uint64_t last_frame_wall;
+static uint64_t last_frame_user;
 static uint64_t target_frame_ticks;
 uint64_t slot_frame_cur[PS_NUM_SLOTS];
+uint64_t sys_frame_last[ACCT_CAT_MAX];
 static int frames;
 
 void profile_init(void) {
 	memset(slot_total, 0, sizeof(slot_total));
 	memset(slot_total_count, 0, sizeof(slot_total_count));
 	memset(slot_frame_cur, 0, sizeof(slot_frame_cur));
-	frames = 0;
+	for (int i=0; i<ACCT_CAT_MAX; i++) {
+		sys_total[i] = 0;
+		sys_frame_last[i] = acct_get_ticks(i);
+	}
 
-	total_time = 0;
-	last_frame = get_user_ticks();
+	frames = 0;
+	total_time_wall = 0;
+	total_time_user = 0;
+	last_frame_wall = get_ticks();
+	last_frame_user = get_user_ticks();
 }
 
 void profile_set_target_fps(float fps) {
@@ -42,13 +53,21 @@ void profile_next_frame(void) {
 		slot_total_count[i] += slot_frame_cur[i] & 0xFFFFFFFF;
 		slot_frame_cur[i] = 0;
 	}
+	for (int i=0;i<ACCT_CAT_MAX;i++) {
+		uint64_t now = acct_get_ticks(i);
+		sys_total[i] = now - sys_frame_last[i];
+		sys_frame_last[i] = now;
+	}
 	frames++;
 
 	// Increment total profile time. Make sure to handle overflow of the
 	// hardware profile counter, as it happens frequently.
-	uint64_t count = get_user_ticks();
-	total_time += count - last_frame;
-	last_frame = count;
+	uint64_t wall_count = get_ticks();
+	uint64_t user_count = get_user_ticks();
+	total_time_wall += wall_count - last_frame_wall;
+	total_time_user += user_count - last_frame_user;
+	last_frame_wall = wall_count;
+	last_frame_user = user_count;
 }
 
 static void stats(ProfileSlot slot, uint64_t frame_avg, uint32_t *mean, float *partial) {
@@ -60,18 +79,27 @@ void profile_dump(void) {
 	debugf("%-35s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Perc");
 	debugf("---------------------------------------------------------\n");
 
-	uint64_t frame_avg = total_time / frames;
+	uint64_t frame_avg_user = total_time_user / frames;
+	uint64_t frame_avg_wall = total_time_wall / frames;
 	char buf[64];
 
 #define DUMP_SLOT(slot, name) ({ \
 	uint32_t mean; float partial; \
-	stats(slot, frame_avg, &mean, &partial); \
+	stats(slot, frame_avg_user, &mean, &partial); \
 	sprintf(buf, "%2.1f", partial); \
 	if (slot_total_count[slot] > 0) \
 		debugf("%-35s %4llu %6d %5s%%\n", name, \
 			 slot_total_count[slot] / frames, \
 		 	TIMER_MICROS(mean), \
 		 	buf); \
+})
+
+#define DUMP_SYS(cat, name) ({ \
+	uint64_t ticks = sys_total[cat]; \
+	sprintf(buf, "%2.1f", (float)ticks * 100.0f / (float)frame_avg_wall); \
+	debugf("%-35s    - %6d %5s%%\n", name, \
+		TIMER_MICROS(ticks), \
+		buf); \
 })
 
 	DUMP_SLOT(PS_H264, "H264");
@@ -111,9 +139,20 @@ void profile_dump(void) {
 	DUMP_SLOT(PS_AUDIO, "Audio");
 	DUMP_SLOT(PS_SYNC, "Sync");
 
+	DUMP_SYS(ACCT_CAT_IRQ, "[sys] IRQ time");
+	DUMP_SYS(ACCT_CAT_RSP, "[sys] RSP wait");
+	DUMP_SYS(ACCT_CAT_DISPLAY, "[sys] Display wait");
+	DUMP_SYS(ACCT_CAT_RSPQ, "[sys] RSPQ wait");
+	DUMP_SYS(ACCT_CAT_VI, "[sys] VI wait");
+	DUMP_SYS(ACCT_CAT_JOYBUS, "[sys] Joybus wait");
+
 	debugf("---------------------------------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
-	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg);
-	debugf("Average frame time:   %4d\n", TIMER_MICROS(frame_avg));
-	debugf("Target frame time:    %4d\n", TIMER_MICROS(target_frame_ticks));
+	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg_wall);
+	debugf("Target frame time:    %4d us\n", TIMER_MICROS(target_frame_ticks));
+	debugf("Average frame (wall): %4d us\n", TIMER_MICROS(frame_avg_wall));
+	debugf("Average frame (user): %4d us\n", TIMER_MICROS(frame_avg_user));
+	debugf("Average frame (sys):  %4d us\n", TIMER_MICROS(frame_avg_wall - frame_avg_user));
+
+
 }
