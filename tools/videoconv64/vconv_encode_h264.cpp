@@ -19,15 +19,20 @@ static int clamp_int(int v, int lo, int hi) {
 }
 
 static int quality_to_h264_crf(int q) {
-	// Must satisfy: q=80 -> CRF 24, q=100 -> CRF 14
-	//
-	// Use a sqrt curve so quality doesn't drop too fast in the mid range:
-	//   crf = 14 + k*sqrt(100-q), with k chosen so q=80 => +10.
-	// This also yields q=0 => ~36 (reasonable worst).
+	// Curve configuration
+	const double CRF_Q100 = 14.0;   // CRF at q=100 (best)
+	const double CRF_Q0   = 36.0;   // CRF at q=0   (worst)
+	const double DECAY    = 0.5;    // Decay speed (0.5 = sqrt curve, 1.0 = linear)
+
 	q = clamp_int(q, 0, 100);
-	double k = 10.0 / sqrt(20.0); // ~= 2.2360679
-	int crf = (int)(14.0 + k * sqrt((double)(100 - q)) + 0.5);
-	return clamp_int(crf, 14, 36);
+
+	// Normalized inverted quality (0.0 at q=100, 1.0 at q=0)
+	double x = (100 - q) / 100.0;
+
+	// Apply power curve: crf = min + (max-min) * x^decay
+	double crf = CRF_Q100 + (CRF_Q0 - CRF_Q100) * pow(x, DECAY);
+
+	return clamp_int((int)(crf + 0.5), (int)CRF_Q100, (int)CRF_Q0);
 }
 
 static std::string make_output_video_path(const CodecInfo &ci) {
@@ -45,9 +50,9 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 	er.vf_used = vf;
 
 	int crf = quality_to_h264_crf(cfg.quality);
-	int maxrate_kbps = (int)floor(400.0 * 24 / ar.out_fps + 0.5);
+	int maxrate_kbps = (int)floor(300.0 * 24 / ar.out_fps + 0.5);
 	maxrate_kbps = clamp_int(maxrate_kbps, 50, 5000);
-	const int bufsize_kbps = maxrate_kbps * 1.5;
+	const int bufsize_kbps = maxrate_kbps * 0.5;
 
 	verbose(1, "H.264 quality=%d -> crf=%d maxrate=%d kbps bufsize=%d kbps (fps=%.3f)",
 		cfg.quality, crf, maxrate_kbps, bufsize_kbps, ar.out_fps);
