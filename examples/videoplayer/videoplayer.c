@@ -42,7 +42,7 @@ int main(void)
 	mixer_init(8);
 
 	// Initialize profiling (FIXME)
-	profile_init(PS_NUM_SLOTS);
+	profile_init(NULL);
 	void __h264_profile_init(void);
 	__h264_profile_init();
 
@@ -164,11 +164,6 @@ int main(void)
 		PROFILE_STOP(PS_SYNC, 0);
 
 		profile_next_frame();
-		if (nframes % 128 == 0)
-		{
-			profile_dump();
-			profile_reset();
-		}
 	}
 
 	vi_blank(true);

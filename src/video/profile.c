@@ -28,13 +28,22 @@ static uint64_t target_frame_ticks;
 static uint64_t sys_total[ACCT_CAT_MAX];
 uint64_t sys_frame_last[ACCT_CAT_MAX];
 static int frames;
+static uint64_t dump_interval;
+static uint64_t last_dump_time;
 
-void profile_init(int ns) {
-	slots = calloc(ns, sizeof(profile_slot_t));
-	assertf(slots, "Out of memory");
-	__profile_counters = calloc(ns, sizeof(uint64_t));
-	assertf(__profile_counters, "Out of memory");
-	num_slots = ns;
+void profile_init(profile_parms_t *parms) {
+	num_slots = (parms && parms->num_slots > 0) ? parms->num_slots : 128;
+	slots = calloc(num_slots, sizeof(profile_slot_t));
+	__profile_counters = calloc(num_slots, sizeof(uint64_t));
+	assertf(slots && __profile_counters, "Out of memory");
+
+	float dump_time = parms ? parms->dump_stderr_interval : 5.0f;
+	if (dump_time >= 0.0f) {
+		dump_interval = (uint64_t)(dump_time * TICKS_PER_SECOND);
+	} else {
+		dump_interval = 0;
+	}
+	last_dump_time = get_ticks();
 
 	profile_reset();
 }
@@ -105,6 +114,13 @@ void profile_next_frame(void) {
 	total_time_user += user_count - last_frame_user;
 	last_frame_wall = wall_count;
 	last_frame_user = user_count;
+
+	// Check if we need to emit a dump
+	if (dump_interval && last_dump_time + dump_interval <= wall_count) {
+		profile_dump();
+		profile_reset();
+		last_dump_time = wall_count;
+	}
 }
 
 static void stats(profile_slot_t* slot, uint64_t frame_avg, uint32_t *mean, float *partial) {

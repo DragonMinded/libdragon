@@ -95,7 +95,7 @@ typedef struct {
 	int size;
 } profile_osdparms_t;
 
-void profile_init(int num_slots);
+void profile_init(profile_parms_t *parms);
 void profile_close(void);
 void profile_reset(void);
 void profile_register(int slot, const char *name, int nest_level);
