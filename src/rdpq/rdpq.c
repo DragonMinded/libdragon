@@ -680,6 +680,7 @@ void __rdpq_block_next_buffer(void)
         // Allocate RDP static buffer.
         int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
         rdpq_block_t *b = malloc_uncached(memsz);
+        assertf(b, "Out of memory");
 
         // Chain the block to the current one (if any)
         b->next = NULL;

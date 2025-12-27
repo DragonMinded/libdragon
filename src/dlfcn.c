@@ -185,6 +185,7 @@ static void load_mainexe_sym_table()
     }
     //Read main executable symbol table
     mainexe_sym_table = malloc(mainexe_sym_info.size);
+    assertf(mainexe_sym_table, "Out of memory");
     data_cache_hit_writeback_invalidate(mainexe_sym_table, mainexe_sym_info.size);
     dma_read_raw_async(mainexe_sym_table, rom_addr+sizeof(mainexe_sym_info), mainexe_sym_info.size);
     dma_wait();

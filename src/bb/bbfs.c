@@ -413,6 +413,10 @@ static void *__bbfs_open(char *name, int flags)
 
     int mode = flags & 7;
     bbfs_openfile_t *file = malloc(sizeof(bbfs_openfile_t));
+    if (!file) {
+        errno = ENOMEM;
+        return NULL;
+    }
     file->entry = entry;
     file->pos = 0;
     file->block_prev_link = &entry->block;
@@ -979,6 +983,7 @@ int16_t* bbfs_get_file_blocks(const char *filename)
 
     int num_blocks = be32(entry->size) / NAND_BLOCK_SIZE;
     int16_t *blocks = malloc(sizeof(int16_t) * (num_blocks + 1));
+    assertf(blocks, "Out of memory");
 
     int block = be16i(entry->block);
     for (int i=0; i<num_blocks; i++) {

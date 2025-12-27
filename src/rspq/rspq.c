@@ -585,6 +585,7 @@ static void rspq_init_context(rspq_ctx_t *ctx, int buf_size)
     memset(ctx, 0, sizeof(rspq_ctx_t));
     ctx->buffers[0] = malloc_uncached(buf_size * sizeof(uint32_t));
     ctx->buffers[1] = malloc_uncached(buf_size * sizeof(uint32_t));
+    assertf(ctx->buffers[0] && ctx->buffers[1], "Out of memory");
     memset(ctx->buffers[0], 0, buf_size * sizeof(uint32_t));
     memset(ctx->buffers[1], 0, buf_size * sizeof(uint32_t));
     ctx->buf_idx = 0;
@@ -626,7 +627,8 @@ void rspq_init(void)
     // Allocate the RDP dynamic buffers.
     rspq_rdp_dynamic_buffers[0] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
-
+    assertf(rspq_rdp_dynamic_buffers[0] && rspq_rdp_dynamic_buffers[1], "Out of memory");
+    
     // Verify consistency of state
     int banner_offset = offsetof(rsp_queue_t, banner);
     assertf(!memcmp(rsp_queue.data + banner_offset, "Dragon RSP Queue", 16),
@@ -971,6 +973,7 @@ void rspq_next_buffer(void) {
 
         // Allocate a new chunk of the block and switch to it.
         uint32_t *rspq2 = malloc_uncached(rspq_block_size*sizeof(uint32_t));
+        assertf(rspq2, "Out of memory");
         volatile uint32_t *prev = rspq_switch_buffer(rspq2, rspq_block_size, true);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
@@ -1150,6 +1153,7 @@ void rspq_block_begin(void)
     // Allocate a new block (at minimum size) and initialize it.
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
+    assertf(rspq_block, "Out of memory");
     rspq_block->nesting_level = 0;
     rspq_block->rdp_block = NULL;
 
@@ -1267,6 +1271,7 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx)
 {
     assertf(rspq_block, "no block is being created");
     rspq_block_cb_t *new_cb = malloc(sizeof(rspq_block_cb_t));
+    assertf(new_cb, "Out of memory");
     new_cb->cb = cb;
     new_cb->ctx = ctx;
     // Insert at the front of the list.
@@ -1392,6 +1397,7 @@ rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool wait
 
     // Allocate a new deferred call
     rspq_deferred_call_t *call = malloc(sizeof(rspq_deferred_call_t));
+    assertf(call, "Out of memory");
     call->func = func;
     call->arg = arg;
     call->next = NULL;

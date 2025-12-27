@@ -403,6 +403,7 @@ FILE *asset_fdopen(int fd, int *sz)
 
         int winsize = asset_winsize_from_flags(header.flags);
         cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);
+        assertf(cookie, "Out of memory");
         cookie->read = algos[header.algo-1].decompress_read;
         cookie->reset = algos[header.algo-1].decompress_reset;
         algos[header.algo-1].decompress_init(cookie->state, fd, winsize);
@@ -420,6 +421,7 @@ FILE *asset_fdopen(int fd, int *sz)
     if (sz) *sz = lseek(fd, 0, SEEK_END);
     lseek(fd, pos - sizeof(asset_header_t), SEEK_SET);
     cookie_none_t *cookie = malloc(sizeof(cookie_none_t));
+    assertf(cookie, "Out of memory");
     cookie->fd = fd;
     cookie->seeked = false;
     return funopen(cookie, readfn_none, NULL, seekfn_none, closefn_none);

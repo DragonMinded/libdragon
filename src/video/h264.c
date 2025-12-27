@@ -73,6 +73,7 @@ static void fetch_picture(h264_t *player) {
 
 h264_t* h264_open(const char *fn) {
     h264_t *player = malloc(sizeof(h264_t));
+    assertf(player, "Out of memory");
     sys_hw_memset(player, 0, sizeof(h264_t));
     player->fd = -1;
 

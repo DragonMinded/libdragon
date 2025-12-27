@@ -89,6 +89,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     int layout_cap = 32;
     if (!layout) {
         layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * layout_cap);
+        assertf(layout, "Out of memory");
         flags = RDPQ_PARAGRAPH_FLAG_MALLOC;
     } else {
         flags = layout->flags & RDPQ_PARAGRAPH_FLAG_MALLOC;

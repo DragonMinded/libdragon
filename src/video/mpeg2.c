@@ -110,6 +110,7 @@ void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 
 mpeg2_t *mpeg2_open(const char *fn) {
 	mpeg2_t *mp2 = malloc(sizeof(mpeg2_t));
+	assertf(mp2, "Out of memory");
 	memset(mp2, 0, sizeof(mpeg2_t));
 
 	rsp_mpeg1_init();

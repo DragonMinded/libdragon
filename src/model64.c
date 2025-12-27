@@ -141,6 +141,7 @@ uint32_t texture_table_add(const char* path, const char* prefix)
 
     size_t size = strlen(path) + 1;
     char *new = malloc(size);
+    assertf(new, "Out of memory");
     strncpy(new, path, size);
 
     texture_entry_t* entry = &shared_textures->entries[idx];

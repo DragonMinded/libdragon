@@ -69,6 +69,7 @@ int cpak_probe_banks(joypad_port_t port)
     int retcode = -1;
     int nsave_banks = 16;
     uint8_t* save_label = malloc(nsave_banks * BLOCK_SIZE);
+    assert(save_label);
 
     // Create a random probe label that we will use to mark banks that we have already probed.
     uint8_t probe_label[BLOCK_SIZE];

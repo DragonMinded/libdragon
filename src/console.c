@@ -19,6 +19,7 @@
 #include "display.h"
 #include "console.h"
 #include "graphics.h"
+#include "debug.h"
 
 /* Prototypes */
 static void __console_render(void);
@@ -143,6 +144,7 @@ void console_init()
     display_init( RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_DISABLED );
 
     render_buffer = malloc(CONSOLE_SIZE);
+    assertf(render_buffer, "Out of memory");
 
     console_set_render_mode(RENDER_AUTOMATIC);
     console_clear();

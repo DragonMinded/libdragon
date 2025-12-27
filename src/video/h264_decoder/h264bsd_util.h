@@ -148,6 +148,7 @@
 #define ALLOCATE_PIXELS(ptr, count, type) \
 { \
     (ptr) = malloc_uncached((count) * sizeof(type)); \
+    assertf((ptr), "Out of memory"); \
 }
 #else
 #define ALLOCATE_PIXELS(ptr, count, type) \
