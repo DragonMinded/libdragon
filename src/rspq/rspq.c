@@ -974,7 +974,13 @@ void rspq_next_buffer(void) {
         // Allocate a new chunk of the block and switch to it.
         uint32_t *rspq2 = malloc_uncached(rspq_block_size*sizeof(uint32_t));
         assertf(rspq2, "Out of memory");
-        volatile uint32_t *prev = rspq_switch_buffer(rspq2, rspq_block_size, true);
+
+        // Put the jump also at the end of the allocated memory, this makes it easier later to detect the end.
+        // The other write further down is the one the RSP sees if there is still room left.
+        volatile uint32_t* actual_end = rspq_cur_sentinel + (RSPQ_MAX_SHORT_COMMAND_SIZE + 2) - 1;
+        rspq_append1(actual_end, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
+
+        volatile uint32_t *prev = rspq_switch_buffer(rspq2, rspq_block_size, false);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
@@ -1160,7 +1166,7 @@ void rspq_block_begin(void)
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
-    rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
+    rspq_switch_buffer(rspq_block->cmds, rspq_block_size, false);
 
     __rdpq_block_begin();
 }
@@ -1168,6 +1174,11 @@ void rspq_block_begin(void)
 rspq_block_t* rspq_block_end(void)
 {
     assertf(rspq_block, "a block was not being created");
+
+    // Put the return at the end of the allocated memory, this makes it easier later to detect the end.
+    // The other write further down is the one the RSP sees if there is still room left.
+    volatile uint32_t* actual_end = rspq_cur_sentinel + (RSPQ_MAX_SHORT_COMMAND_SIZE + 2) - 1;
+    rspq_append1(actual_end, RSPQ_CMD_RET, rspq_block->nesting_level<<2);
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
@@ -1193,11 +1204,9 @@ void rspq_block_free(rspq_block_t *block)
     // Start from the commands in the first chunk of the block
     int size = RSPQ_BLOCK_MIN_SIZE;
     void *start = block;
-    uint32_t *ptr = block->cmds + size;
+    uint32_t *ptr = block->cmds;
     while (1) {
-        // Rollback until we find a non-zero command
-        while (*--ptr == 0x00) {}
-        uint32_t cmd = *ptr;
+        uint32_t cmd = ptr[size-1];
 
         // If the last command is a JUMP
         if (cmd>>24 == RSPQ_CMD_JUMP) {
@@ -1206,7 +1215,7 @@ void rspq_block_free(rspq_block_t *block)
             // Get the pointer to the next chunk
             start = UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
             if (size < RSPQ_BLOCK_MAX_SIZE) size *= 2;
-            ptr = (uint32_t*)start + size;
+            ptr = (uint32_t*)start;
             continue;
         }
         // If the last command is a RET
